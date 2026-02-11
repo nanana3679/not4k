@@ -23,7 +23,7 @@
 
 ### 판정
 
-- 판정 윈도우 내 입력 시 Perfect(±32ms)/Great/Good/Bad 판정. 미입력 시 Miss.
+- 판정 윈도우 내 입력 시 Perfect(±32ms)/Great/Good/Bad 판정. 노트가 판정 윈도우를 지나간 경우 Miss. 이른 입력은 Miss가 아닌 Bad로 처리된다.
 
 ---
 
