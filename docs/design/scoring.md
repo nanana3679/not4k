@@ -167,4 +167,5 @@ Perfect ±32ms는 IIDX의 PGreat(±16.67ms)보다 관대하고 DJMAX의 100%(±2
 - 노트 시스템: `note-system.md`
 - 난이도 설계: `difficulty-design.md`
 - 피스 표기법: `piece-notation.md`
+- 피스 정의 (PP-000 체계): `piece-definition.md`
 - 용어 사전: `glossary.md`
