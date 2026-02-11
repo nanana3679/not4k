@@ -113,4 +113,5 @@
 - 피스 표기법: `piece-notation.md`
 - 스코어링 시스템: `scoring.md`
 - 키 바인딩 규칙: `keybinding.md`
+- 옵저버 모드: `observer-mode.md`
 - 용어 사전: `glossary.md`
