@@ -1,6 +1,8 @@
 # not4k — 기술 스택 검토
 
 > 결정: React 19 + PixiJS v8 + Supabase + Web Audio API (AudioContext)
+> 런타임: Node.js 22 LTS
+> 모노레포: pnpm workspaces + Turborepo
 > 배포: Cloudflare Pages + Supabase Storage
 > 다국어: 한국어, 일본어, 영어
 
@@ -17,6 +19,9 @@
 | **파일 스토리지** | Supabase Storage | 음원, 차트 JSON, 자켓 이미지 |
 | **인증** | Supabase Auth | Google OAuth, 비로그인(Anonymous Auth) |
 | **호스팅** | Cloudflare Pages | 정적 사이트 배포, CDN |
+| **런타임** | Node.js 22 LTS | 개발 도구 실행 환경 (Vite, Turborepo, 빌드) |
+| **패키지 매니저** | pnpm | 워크스페이스, 심볼릭 링크, strict 의존성 |
+| **모노레포** | pnpm workspaces + Turborepo | 게임 + 에디터 + 공유 패키지 |
 | **다국어** | i18next + react-i18next | 한국어, 일본어, 영어 |
 
 ---
@@ -467,7 +472,124 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 ---
 
-## 7. 위험 요소와 대응
+## 7. 런타임: Node.js 22 LTS
+
+### 런타임의 역할
+
+이 프로젝트에서 런타임은 **개발 도구 실행 환경**이다. 프로덕션 코드는 브라우저에서 실행되고, 서버 로직은 Supabase가 담당하므로 서버 런타임이 없다. 런타임이 담당하는 것:
+
+- Vite 개발 서버 (`vite dev`)
+- 빌드 (`vite build`)
+- Turborepo 태스크 실행
+- 테스트 (`vitest`)
+- 기타 개발 스크립트
+
+### Node.js 22를 선택하는 이유
+
+| 요구사항 | Node.js 22 LTS |
+|----------|----------------|
+| pnpm workspaces | 네이티브 지원 |
+| Turborepo | 공식 지원 |
+| Vite | 공식 지원 |
+| @pixi/react v8 | 검증됨 |
+| Cloudflare Pages 빌드 환경 | Node.js |
+| npm 패키지 호환성 | 100% |
+| LTS 지원 | 2027-04까지 |
+
+### 대안 불채택 이유
+
+| 대안 | 불채택 이유 |
+|------|------------|
+| **Bun** | pnpm + Turborepo + Vite와 기능이 중복되어 "Bun만의 이점"이 줄어듦. @pixi/react v8이 Bun에서 미검증. Cloudflare Pages 빌드에 별도 설치 필요 |
+| **Deno** | pnpm workspaces 미지원, Turborepo 미지원. 도구 체인 전체 재설계 필요 |
+
+---
+
+## 8. 모노레포: pnpm workspaces + Turborepo
+
+### 모노레포를 선택하는 이유
+
+게임과 차트 에디터(`chart-editor.md`)는 별도 애플리케이션이지만, 핵심 데이터 구조를 공유한다.
+
+| 공유 대상 | 내용 | 분리 시 위험 |
+|----------|------|-------------|
+| **차트 JSON 타입** | NoteType, BpmMarker, TimeSignatureMarker, Beat(분수), ChartData | 타입 불일치 → 차트 로딩 실패 |
+| **박자 수학** | 분수 연산, beat → 시간(ms) 변환, 마디선 위치 계산 | 로직 중복, 결과 불일치 |
+| **배치 제약 검증** | `chart-editor.md`의 4가지 제약 조건 | 에디터에서 유효한 차트가 게임에서 무효 |
+| **상수** | 노트 타입 enum, 판정 윈도우 | 값 불일치 |
+
+분리 레포에서는 이 공유 요소를 npm 패키지로 게시하거나 복사해야 한다. 1인/소규모 팀에서 이 오버헤드는 과도하다. 모노레포에서는 `packages/shared`에서 한 번 정의하고 양쪽에서 import한다.
+
+### 도구 선택
+
+| 도구 | 역할 | 선택 이유 |
+|------|------|----------|
+| **pnpm** | 패키지 매니저 + 워크스페이스 | npm보다 빠르고, 디스크 효율적(심볼릭 링크), strict 의존성 해석 |
+| **Turborepo** | 빌드 오케스트레이션 | 캐시 기반 빌드(변경 없는 패키지 스킵), 병렬 태스크, 설정 최소 |
+
+**불채택 대안**:
+
+| 대안 | 불채택 이유 |
+|------|------------|
+| Nx | 2개 앱 + 1개 패키지 규모에서 설정 복잡도가 과도 |
+| Lerna | pnpm workspaces에 기능이 흡수됨 |
+| npm workspaces | pnpm보다 느리고 팬텀 의존성 문제 |
+
+### 모노레포 구조
+
+```
+not4k/
+├── apps/
+│   ├── game/                    # 메인 게임 (React 19 + PixiJS v8)
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   └── editor/                  # 차트 에디터 (React 19 + PixiJS v8)
+│       ├── src/
+│       ├── package.json
+│       └── vite.config.ts
+├── packages/
+│   └── shared/                  # 공유 패키지
+│       ├── src/
+│       │   ├── types/           # ChartData, NoteType, BpmMarker, Beat 등
+│       │   ├── chart/           # 분수 연산, beat→time 변환, 배치 제약 검증
+│       │   ├── constants/       # 노트 타입 enum, 판정 윈도우
+│       │   └── index.ts
+│       ├── package.json
+│       └── tsconfig.json
+├── docs/
+│   ├── design/                  # 설계 문서
+│   └── research/                # 리서치 문서
+├── pnpm-workspace.yaml
+├── turbo.json
+├── package.json                 # root scripts
+└── tsconfig.base.json           # 공통 TypeScript 설정
+```
+
+### 차트 에디터 기술 스택
+
+에디터도 **React 19 + PixiJS v8**을 사용한다.
+
+| 에디터 요구사항 | PixiJS 적합성 |
+|---------------|--------------|
+| 타임라인 그리드 (마디선/박자선) | Graphics API로 라인 렌더링 |
+| 파형(waveform) 표시 | WebGL에서 대량 포인트 렌더링 성능 우수 |
+| 노트 배치/표시 | Sprite/Graphics |
+| 줌/스크롤 | Container의 scale/position |
+| 프리뷰 재생 | 게임의 AudioContext 패턴 재사용 |
+
+개발자가 PixiJS를 게임에서 이미 학습하므로, 에디터에도 동일 API를 사용하여 학습 비용을 제거한다.
+
+### 에디터 배포
+
+| 단계 | 배포 방식 | 이유 |
+|------|----------|------|
+| Phase A | 로컬 실행 (`pnpm dev --filter editor`) | 개발자만 사용, 배포 불필요 |
+| Phase B+ | Cloudflare Pages 별도 프로젝트 (접근 제한) 또는 계속 로컬 | 필요 시 Cloudflare Access로 제한 |
+
+---
+
+## 9. 위험 요소와 대응
 
 | 위험 | 영향 | 대응 |
 |------|------|------|
