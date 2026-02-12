@@ -606,4 +606,4 @@ not4k/
 - 게임 코어 설계: `game-core.md`
 - 차트 에디터 (데이터 모델): `chart-editor.md`
 - 프로젝트 에셋 (수급 전략): `project-assets.md`
-- PRD 미결정 사항 검토: `review-prd-readiness.md`
+- 문서 리뷰 통합: `review.md`
