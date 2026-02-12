@@ -32,7 +32,7 @@
 | 문서 | 설명 |
 |------|------|
 | [difficulty-design.md](docs/design/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급(입문/초급/중급/상급/최상급), 등급별 핵심 경험, 등급 간 전이 설계 |
-| [scoring.md](docs/design/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 판정 등급, 달성률, 랭크(SSS~F), 콤보/풀콤보 규칙, TGood |
+| [scoring.md](docs/design/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 판정 등급, 달성률, 랭크(SSS~F), 콤보/풀콤보 규칙, Good◇ |
 
 ### 입력 및 유저 경험
 
@@ -126,7 +126,7 @@ not4k/
 │   │
 │   ├── game/                    # 게임 클라이언트 (웹)
 │   │   ├── engine/              #   판정 엔진 (윈도우, 입력-노트 매칭, 홀드 이어잡기)
-│   │   ├── scoring/             #   달성률, 랭크, 콤보, TGood 집계
+│   │   ├── scoring/             #   달성률, 랭크, 콤보, Good◇ 집계
 │   │   ├── renderer/            #   노트 낙하, 레인, 이펙트 렌더링
 │   │   ├── input/               #   키 바인딩, 입력 처리
 │   │   ├── screens/             #   타이틀, 곡 선택, 플레이, 결과, 설정, 튜토리얼, 옵저버

@@ -106,7 +106,7 @@ description: |
 note_types: [트릴]
 plv: 1
 notation: (아래 참조)
-judgment_notes: 트릴 교대 실패 시 Good 고정 (TGood)
+judgment_notes: 트릴 교대 실패 시 Good 고정 (Good◇)
 prerequisites: 없음
 lane_key_requirement: 1레인, 레인당 2키 권장 (1키로도 연타 처리 가능)
 remarks: 가변 손배치 학습의 첫 단계
@@ -134,7 +134,7 @@ description: |
 note_types: [싱글, 트릴]
 plv: 7
 notation: (아래 참조)
-judgment_notes: 트릴 교대 실패 시 Good 고정 (TGood)
+judgment_notes: 트릴 교대 실패 시 Good 고정 (Good◇)
 prerequisites: PP-001 (짧은 트릴)
 lane_key_requirement: 4레인, 트릴 레인에 2키 필수
 remarks: 반대 손의 담당 범위에 따라 가변 분할(PP-008), 건너가기(PP-010)와 조합됨
@@ -364,7 +364,7 @@ description: |
 note_types: [트릴]
 plv: 10
 notation: (아래 참조)
-judgment_notes: 트릴 교대 실패 시 Good 고정 (TGood)
+judgment_notes: 트릴 교대 실패 시 Good 고정 (Good◇)
 prerequisites: PP-003 (트릴 앵커)
 lane_key_requirement: 1레인, 레인당 2키 필수
 remarks: 트릴 속도의 동적 변화가 핵심 난이도 요소
