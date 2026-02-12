@@ -1,6 +1,7 @@
 # not4k — 기술 스택 검토
 
 > 결정: React 19 + PixiJS v8 + Supabase + Web Audio API (AudioContext)
+> 배포: Cloudflare Pages + Supabase Storage
 > 다국어: 한국어, 일본어, 영어
 
 ---
@@ -15,6 +16,7 @@
 | **백엔드/DB** | Supabase (PostgreSQL) | 인증, 랭킹, 플레이 기록, 차트 메타데이터 |
 | **파일 스토리지** | Supabase Storage | 음원, 차트 JSON, 자켓 이미지 |
 | **인증** | Supabase Auth | Google OAuth, 비로그인(Anonymous Auth) |
+| **호스팅** | Cloudflare Pages | 정적 사이트 배포, CDN |
 | **다국어** | i18next + react-i18next | 한국어, 일본어, 영어 |
 
 ---
@@ -395,7 +397,77 @@ locales/
 
 ---
 
-## 6. 위험 요소와 대응
+## 6. 배포: Cloudflare Pages
+
+### 선택 이유
+
+| 요구사항 | Cloudflare Pages 대응 |
+|----------|----------------------|
+| 무료 대역폭 | **무제한** (다른 플랫폼은 10~100GB/월) |
+| 글로벌 CDN | 330+ 도시, 120+ 국가 (가장 넓은 범위) |
+| 상업적 사용 | 무료 플랜에서 허용 |
+| 커스텀 도메인 | 무료 플랜에서 지원, SSL 자동 |
+| 빌드 | 500회/월 (무료) |
+
+대역폭 무제한이 결정적 이유이다. 리듬게임은 JS 번들 + 음원 + 이미지 등 에셋이 크고, 바이럴 시 트래픽이 급증할 수 있다. Cloudflare Pages는 무료에서도 대역폭 제한이 없으므로 트래픽 폭증에도 과금되거나 서비스가 중단되지 않는다.
+
+### 대안 비교
+
+| 플랫폼 | 무료 대역폭 | 무료 배포 크기 | 상업적 사용 | 불채택 이유 |
+|--------|------------|---------------|------------|------------|
+| **Cloudflare Pages** | **무제한** | 20,000 파일 | 허용 | **(채택)** |
+| Vercel | 100 GB/월 | 100 MB | 불허 (Hobby) | 비상업 제한, 배포 크기 100MB 제한 |
+| Netlify | 100 GB/월 | 10 GB | 허용 | 한도 초과 시 전체 사이트 정지 |
+| GitHub Pages | 100 GB/월 (소프트) | 1 GB | 불허 | 1GB 크기 제한, 정적 전용 |
+| Firebase Hosting | 10 GB/월 | 10 GB | 허용 | 대역폭 10GB 너무 적음, Supabase와 역할 중복 |
+
+### 제약사항과 대응
+
+**파일당 25 MiB 제한**: Cloudflare Pages는 단일 파일 25 MiB 하드 리밋이 있다. not4k의 음원 파일(OGG, 3~10MB)은 이 한도 이내이므로 문제없다. 만약 초과하는 파일이 발생하면 **Supabase Storage** (이미 사용 중)에서 서빙한다.
+
+**파일 수 20,000개 제한**: 빌드 결과물(React 번들 + 에셋)이 이 한도를 초과할 가능성은 낮다. 음원/차트/이미지는 Supabase Storage에 저장하므로 Cloudflare Pages에 포함되지 않는다.
+
+### 배포 아키텍처
+
+```
+[GitHub Repository]
+    │
+    │  push / PR merge
+    ▼
+[Cloudflare Pages]  ──빌드──→  정적 사이트 (React + PixiJS 번들)
+    │                          │
+    │  CDN (330+ 도시)         │  클라이언트에서 직접 접근
+    ▼                          ▼
+[유저 브라우저]  ←──────→  [Supabase]
+                              ├── Auth (Google OAuth)
+                              ├── Database (랭킹, 기록)
+                              └── Storage (음원, 차트, 이미지)
+```
+
+Cloudflare Pages는 **정적 사이트만 호스팅**한다. 서버 로직은 Supabase (DB, Auth, Storage, Edge Functions)에서 처리한다. 클라이언트(React 앱)가 Supabase에 직접 접근하며, 별도의 중간 서버가 필요 없다.
+
+### 배포 흐름
+
+1. GitHub 리포지토리에 코드 push
+2. Cloudflare Pages가 자동으로 빌드 (`npm run build`)
+3. 빌드 결과물이 CDN에 배포
+4. PR마다 프리뷰 배포 URL 자동 생성
+5. 커스텀 도메인 연결 (예: `not4k.com`)
+
+### 환경 변수
+
+Cloudflare Pages 대시보드에서 설정:
+
+```
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJxxxxx
+```
+
+서비스 키(service_role)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
+
+---
+
+## 7. 위험 요소와 대응
 
 | 위험 | 영향 | 대응 |
 |------|------|------|
