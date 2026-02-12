@@ -156,13 +156,13 @@ storage/
 │   │   ├── audio.ogg          # 플레이용 음원
 │   │   ├── preview.ogg        # 곡 선택 프리뷰 (15~30초)
 │   │   ├── jacket.jpg         # 자켓 이미지
-│   │   ├── easy.json          # EASY 채보
-│   │   ├── normal.json        # NORMAL 채보
-│   │   └── hard.json          # HARD 채보
+│   │   ├── easy.json          # EASY 차트
+│   │   ├── normal.json        # NORMAL 차트
+│   │   └── hard.json          # HARD 차트
 │   └── ...
 └── tutorials/
     ├── phase1.ogg             # 튜토리얼 음원
-    ├── phase1.json            # 튜토리얼 채보
+    ├── phase1.json            # 튜토리얼 차트
     └── ...
 ```
 
