@@ -170,6 +170,11 @@ export class PlaybackController {
     return this.audioBuffer ? this.audioBuffer.duration * 1000 : 0;
   }
 
+  /** Get the current AudioBuffer (for waveform extraction) */
+  get audioBufferData(): AudioBuffer | null {
+    return this.audioBuffer;
+  }
+
   /** Dispose resources */
   dispose(): void {
     this.pause();

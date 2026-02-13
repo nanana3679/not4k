@@ -5,6 +5,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { SnapZoomController } from './timeline/SnapZoomController';
+import { getWaveformPeaks } from './timeline/waveform';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
@@ -400,7 +401,17 @@ export function App() {
   const handleLoadAudio = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && playbackRef.current) {
-      playbackRef.current.loadAudioFile(file);
+      playbackRef.current.loadAudioFile(file).then(() => {
+        // Extract waveform data after audio loads
+        const audioBuffer = playbackRef.current?.audioBufferData;
+        if (audioBuffer && rendererRef.current) {
+          // Sample at ~1 peak per pixel of height at default zoom
+          const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
+          const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
+          const durationMs = audioBuffer.duration * 1000;
+          rendererRef.current.setWaveformData(peaks, durationMs);
+        }
+      });
     }
   }, []);
 

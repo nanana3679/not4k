@@ -63,6 +63,10 @@ export class TimelineRenderer {
   // Chart data
   private chart: Chart | null = null;
 
+  // Waveform data
+  private waveformPeaks: Float32Array | null = null;
+  private waveformDurationMs: number = 0;
+
   private options: TimelineRendererOptions;
 
   constructor(options: TimelineRendererOptions) {
@@ -121,6 +125,18 @@ export class TimelineRenderer {
    */
   setChart(chart: Chart): void {
     this.chart = chart;
+    this.render();
+  }
+
+  /**
+   * Set waveform data for audio visualization
+   *
+   * @param peaks - Pre-computed peak amplitude array (0.0 to 1.0)
+   * @param durationMs - Audio duration in milliseconds
+   */
+  setWaveformData(peaks: Float32Array, durationMs: number): void {
+    this.waveformPeaks = peaks;
+    this.waveformDurationMs = durationMs;
     this.render();
   }
 
@@ -241,6 +257,7 @@ export class TimelineRenderer {
     if (!this.chart) return;
 
     this.clearDynamicLayers();
+    this.renderWaveform();
     this.renderGridLines();
     this.renderTrillZones();
     this.renderNotes();
@@ -264,6 +281,55 @@ export class TimelineRenderer {
     this.selectedLongEndLayer.removeChildren();
     this.selectedLongHeadLayer.removeChildren();
     this.selectedNoteLayer.removeChildren();
+  }
+
+  /**
+   * Render audio waveform visualization
+   */
+  private renderWaveform(): void {
+    if (!this.waveformPeaks || this.waveformDurationMs === 0) return;
+
+    const waveformWidth = LANE_COUNT * LANE_WIDTH;
+    const peaks = this.waveformPeaks;
+    const peakCount = peaks.length;
+
+    // Calculate time per peak
+    const msPerPeak = this.waveformDurationMs / peakCount;
+
+    const waveform = new Graphics();
+
+    // Draw waveform as a filled shape
+    // Start at center line, go up for positive peaks, then back down for negative
+    const centerX = waveformWidth / 2;
+
+    // Build the waveform shape
+    waveform.moveTo(centerX, this.timeToY(0));
+
+    // Draw upper half (positive peaks)
+    for (let i = 0; i < peakCount; i++) {
+      const timeMs = i * msPerPeak;
+      const y = this.timeToY(timeMs);
+      const amplitude = peaks[i];
+      const x = centerX + (amplitude * waveformWidth) / 2;
+      waveform.lineTo(x, y);
+    }
+
+    // Draw lower half (negative peaks) - go back in reverse
+    for (let i = peakCount - 1; i >= 0; i--) {
+      const timeMs = i * msPerPeak;
+      const y = this.timeToY(timeMs);
+      const amplitude = peaks[i];
+      const x = centerX - (amplitude * waveformWidth) / 2;
+      waveform.lineTo(x, y);
+    }
+
+    // Close the shape
+    waveform.lineTo(centerX, this.timeToY(0));
+
+    // Fill with semi-transparent blue
+    waveform.fill({ color: 0x0078ff, alpha: 0.3 });
+
+    this.waveformLayer.addChild(waveform);
   }
 
   /**
