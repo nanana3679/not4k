@@ -25,7 +25,7 @@
 | [note-system.md](docs/design/note-system.md) | **노트 시스템 상세**. 싱글/롱/트릴/더블 노트의 메커니즘, 판정, 시각적 요구사항. 홀드 이어잡기, 유예 시간(12ms), 피스(릴리즈탭·홀드 트릴·홀드 중 탭) 정의 |
 | [piece-notation.md](docs/design/piece-notation.md) | **피스 표기법**. 모든 노트 타입을 텍스트로 표현하기 위한 수직/수평 표기법 문법. 심볼 정의(`o`, `t`, `D`, `-`, `=`, `-o`, `{`, `}` 등) |
 | [piece-definition.md](docs/design/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001~PP-010까지의 피스 카탈로그. 각 피스의 메타데이터(PLv., 구성 노트, 인지/물리 부하, 선행 피스 등) |
-| [chart-design.md](docs/design/chart-design.md) | **차트 디자인 어휘**. 트릴 앵커, 레인 내 분리, 가변 분할, 비트 복합 트릴, 건너가기 등 not4k 고유의 차트 설계 개념과 기존 게임과의 대응 |
+| [chart-design.md](docs/design/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 비트 복합 트릴, 건너가기 등 not4k 고유의 차트 설계 개념과 기존 게임과의 대응 |
 
 ### 난이도 및 스코어링
 
