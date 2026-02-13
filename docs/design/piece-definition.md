@@ -317,7 +317,7 @@ physical_load: 중
 id: PP-008
 name: 비트 복합 트릴
 description: |
-  하나의 트릴 구간에 8비트, 16비트, 24비트 등
+  하나의 트릴 구간에 8비트, 12비트, 16비트, 24비트 등
   서로 다른 비트 분할의 트릴 노트가 복합적으로 등장한다.
 note_types: [트릴]
 plv: 10
@@ -325,7 +325,7 @@ notation: (아래 참조)
 judgment_notes: 트릴 교대 실패 시 Good 고정 (Good◇)
 prerequisites: PP-002 (앵커)
 lane_key_requirement: 1레인, 레인당 2키 필수
-remarks: 트릴 속도의 동적 변화가 핵심 난이도 요소
+remarks: 비트 분할의 동적 전환이 핵심 난이도 요소. BPM 변화(소플란)와 다름
 cognitive_load: 중
 physical_load: 높음
 ````
@@ -335,6 +335,13 @@ physical_load: 높음
 | L1  |
 |-----|
 | {t  |
+| t   |
+
+[12bit 전환]
+| L1  |
+|-----|
+| t   |
+| t   |
 | t   |
 
 [16bit 전환]
