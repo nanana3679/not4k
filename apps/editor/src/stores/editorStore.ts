@@ -9,6 +9,20 @@ import type { EntityType } from '../modes';
 
 type EditorMode = 'create' | 'select' | 'delete';
 
+export interface Toast {
+  id: number;
+  message: string;
+  type: 'warn' | 'error' | 'info';
+}
+
+export type EditingMarker =
+  | { type: 'bpm'; index: number }
+  | { type: 'timeSig'; index: number }
+  | { type: 'message'; index: number }
+  | null;
+
+let toastId = 0;
+
 interface EditorState {
   // Chart data
   chart: Chart;
@@ -29,6 +43,12 @@ interface EditorState {
   // Selection
   selectedNotes: Set<number>;
 
+  // Toasts
+  toasts: Toast[];
+
+  // Marker editing
+  editingMarker: EditingMarker;
+
   // Actions
   setChart: (chart: Chart) => void;
   setMode: (mode: EditorMode) => void;
@@ -39,6 +59,9 @@ interface EditorState {
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setSelectedNotes: (indices: Set<number>) => void;
+  addToast: (message: string, type?: Toast['type']) => void;
+  removeToast: (id: number) => void;
+  setEditingMarker: (marker: EditingMarker) => void;
 }
 
 const createDefaultChart = (): Chart => ({
@@ -70,6 +93,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   isPlaying: false,
   currentTimeMs: 0,
   selectedNotes: new Set(),
+  toasts: [],
+  editingMarker: null,
 
   // Actions
   setChart: (chart) => set({ chart }),
@@ -81,4 +106,13 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setSelectedNotes: (selectedNotes) => set({ selectedNotes }),
+  addToast: (message, type = 'warn') => {
+    const id = ++toastId;
+    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    }, 3000);
+  },
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+  setEditingMarker: (marker) => set({ editingMarker: marker }),
 }));
