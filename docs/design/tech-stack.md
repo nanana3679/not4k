@@ -168,7 +168,23 @@ storage/
 
 ### 차트 JSON 포맷
 
-`chart-editor.md`의 데이터 모델을 JSON으로 직렬화한다. 박자수는 분수를 문자열로 표기하여 부동소수점 오차를 방지한다.
+`chart-editor.md`의 데이터 모델을 JSON으로 직렬화한다. 에디터와 게임이 동일한 포맷을 사용한다. 박자수는 분수를 문자열로 표기하여 부동소수점 오차를 방지한다.
+
+#### 엔티티 타입
+
+| JSON type | chart-editor.md 엔티티 | 필드 |
+|-----------|------------------------|------|
+| `single` | 싱글 노트 | lane, beat |
+| `double` | 더블 노트 | lane, beat |
+| `trill` | 트릴 노트 | lane, beat |
+| `singleLongBody` | 싱글 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `doubleLongBody` | 더블 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `trillLongBody` | 트릴 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `trillZone` | 트릴 구간 시작/끝 | lane, beat, endBeat |
+
+에디터에서 시작/끝 쌍으로 표현되는 구간 엔티티(롱노트 바디, 트릴 구간)는 JSON에서 `beat`(시작)과 `endBeat`(끝)를 가진 단일 객체로 직렬화한다.
+
+#### 예시
 
 ```json
 {
@@ -178,6 +194,8 @@ storage/
     "difficulty": "NORMAL",
     "level": 7,
     "audioFile": "audio.ogg",
+    "previewAudioFile": "preview.ogg",
+    "jacketImage": "jacket.jpg",
     "offset": 0
   },
   "bpmMarkers": [
@@ -190,11 +208,13 @@ storage/
   "notes": [
     { "type": "single", "lane": 1, "beat": "0" },
     { "type": "single", "lane": 3, "beat": "1/2" },
-    { "type": "longStart", "lane": 2, "beat": "1", "endBeat": "3" },
     { "type": "double", "lane": 1, "beat": "2" },
-    { "type": "trillZoneStart", "lane": 1, "beat": "4", "endBeat": "8" },
-    { "type": "trill", "lane": 1, "beat": "4" },
-    { "type": "trill", "lane": 1, "beat": "9/2" }
+    { "type": "singleLongBody", "lane": 2, "beat": "1", "endBeat": "3" },
+    { "type": "doubleLongBody", "lane": 3, "beat": "4", "endBeat": "7" },
+    { "type": "trillZone", "lane": 1, "beat": "8", "endBeat": "12" },
+    { "type": "trill", "lane": 1, "beat": "8" },
+    { "type": "trill", "lane": 1, "beat": "17/2" },
+    { "type": "trillLongBody", "lane": 1, "beat": "9", "endBeat": "11" }
   ]
 }
 ```

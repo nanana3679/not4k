@@ -55,12 +55,20 @@
 |------|------|
 | [prd.md](docs/prd.md) | **PRD (Product Requirements Document)**. 문제 정의, 해법, 타겟 유저, 기능 범위(게임/편집기/공유/서버), 노트 시스템, 난이도 체계, 스코어링, 에셋 전략, 미정 사항, 성공 지표를 종합 |
 
+### 제품 구현
+
+| 문서 | 설명 |
+|------|------|
+| [tech-stack.md](docs/design/tech-stack.md) | **기술 스택**. React 19 + PixiJS v8 + Supabase + Web Audio API. 모노레포(pnpm + Turborepo), 배포(Cloudflare Pages), 차트 JSON 포맷, 오디오 동기화 |
+| [mvp-scope.md](docs/design/mvp-scope.md) | **MVP 스코프**. Phase A(프로토타입) / Phase B(알파) 기능 범위 정의. 핵심 메커니즘 검증을 위한 최소 기능 |
+
 ### 참조
 
 | 문서 | 설명 |
 |------|------|
 | [glossary.md](docs/design/glossary.md) | **용어 사전**. 게임 구조, 입력 체계, 입력방식, 노트 타입, 피스, 채보 설계, 난이도 체계, 판정/스코어링, 외부 참조 용어, 표기법 심볼의 통합 정의 |
-| [review-document-clarity.md](docs/design/review-document-clarity.md) | **문서 리뷰**. 16개 문서의 교차 검토 결과 — 해결된 모순/불일치, 용어 정리, 미완료 항목 추적 |
+| [review.md](docs/design/review.md) | **문서 리뷰**. 문서 교차 검토 결과 — 해결된 모순/불일치, 용어 정리, 미완료 항목 추적 |
+| [grace-period-polling-rate.md](docs/design/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 키보드 폴링 레이트(125Hz~8000Hz)별 동작 분석 |
 
 ---
 
@@ -83,7 +91,7 @@
 
 ```
 docs/
-├── design/                  # 게임 설계 문서 (16개)
+├── design/                  # 게임 설계 문서 (19개)
 │   ├── overview.md          # 게임 설계 개요 ← 시작점
 │   ├── rationale.md         # 존재 이유
 │   ├── game-core.md         # 게임 코어 (플랫폼, 인증, 랭킹, UI)
@@ -98,8 +106,11 @@ docs/
 │   ├── tutorial.md          # 튜토리얼 설계
 │   ├── chart-editor.md      # 차트 편집기
 │   ├── project-assets.md    # 프로젝트 에셋 정의
+│   ├── tech-stack.md        # 기술 스택
+│   ├── mvp-scope.md         # MVP 스코프
 │   ├── glossary.md          # 용어 사전
-│   └── review-document-clarity.md  # 문서 리뷰
+│   ├── review.md            # 문서 리뷰
+│   └── grace-period-polling-rate.md  # 유예 시간과 폴링 레이트
 └── research/                # 역기획 보고서 (6개)
     ├── beatmania.md
     ├── djmax.md
@@ -120,7 +131,7 @@ not4k/
 ├── packages/
 │   ├── core/                    # 공유 도메인 로직
 │   │   ├── models/              #   노트 9종, 마커, 위치(레인+분수 박자수), 차트 메타데이터
-│   │   ├── validation/          #   배치 제약 조건 4종 (동일 위치 중복, 롱노트 겹침, 트릴 전용, 롱노트 시작점)
+│   │   ├── validation/          #   배치 제약 조건 3종 (동일 위치 중복, 롱노트 겹침, 트릴 전용)
 │   │   ├── timing/              #   BPM 마커 기반 박자수↔ms 변환, 분수 박자 연산
 │   │   └── chart-io/            #   차트 직렬화/역직렬화
 │   │
@@ -146,7 +157,7 @@ not4k/
 │       └── records/             #   플레이 기록 저장
 │
 ├── docs/                        # 설계 문서 (현재)
-│   ├── design/                  #   게임 설계 문서 (16개)
+│   ├── design/                  #   게임 설계 문서 (19개)
 │   └── research/                #   역기획 보고서 (6개)
 │
 └── assets/                      # 에셋 원본
