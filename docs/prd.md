@@ -380,6 +380,8 @@ Lv.1~15, 5단계 등급.
 | 옵저버 모드 | `docs/design/observer-mode.md` |
 | 차트 편집기 | `docs/design/chart-editor.md` |
 | 에셋 정의 | `docs/design/project-assets.md` |
+| 기술 스택 | `docs/design/tech-stack.md` |
+| MVP 스코프 | `docs/design/mvp-scope.md` |
 | 용어 사전 | `docs/design/glossary.md` |
 | 문서 리뷰 통합 | `docs/design/review.md` |
 | 유예 시간과 폴링 레이트 | `docs/design/grace-period-polling-rate.md` |
