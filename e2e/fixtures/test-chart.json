@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "title": "Test Chart",
+    "artist": "Test Artist",
+    "difficultyLabel": "NORMAL",
+    "difficultyLevel": 5,
+    "imageFile": "",
+    "audioFile": "",
+    "previewAudioFile": "",
+    "offsetMs": 0
+  },
+  "bpmMarkers": [
+    { "beat": "0", "bpm": 120 }
+  ],
+  "timeSignatures": [
+    { "beat": "0", "beatPerMeasure": "4" }
+  ],
+  "notes": [
+    { "type": "single", "lane": 1, "beat": "0" },
+    { "type": "single", "lane": 2, "beat": "1" },
+    { "type": "single", "lane": 3, "beat": "2" }
+  ],
+  "trillZones": [],
+  "messages": []
+}

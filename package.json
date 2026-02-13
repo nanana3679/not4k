@@ -8,9 +8,11 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
+    "test:e2e": "playwright test",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "turbo": "^2.8.7",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
