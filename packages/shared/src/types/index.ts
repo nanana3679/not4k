@@ -22,3 +22,15 @@ export {
   beatAbs,
   BEAT_ZERO,
 } from "./beat";
+
+export {
+  type ChartMeta,
+  type BpmMarker,
+  type TimeSignatureMarker,
+  type PointNote,
+  type RangeNote,
+  type NoteEntity,
+  type TrillZone,
+  type Message,
+  type Chart,
+} from "./chart";
