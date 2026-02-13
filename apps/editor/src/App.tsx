@@ -2,7 +2,7 @@
  * not4k Chart Editor — Main App Component
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
@@ -12,21 +12,25 @@ import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { saveChartToFile, loadChartFromFile } from './io/ChartIO';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
-import { msToBeat } from '@not4k/shared';
+import { msToBeat, beatToMs } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
-const CANVAS_WIDTH = TIMELINE_WIDTH;
+const MEASURE_LABEL_AREA = 32; // space for measure numbers + cursor handle
+const CANVAS_WIDTH = TIMELINE_WIDTH + MEASURE_LABEL_AREA;
 const CANVAS_HEIGHT = 800;
 
 export function App() {
   // Refs for imperative objects
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
   const snapZoomRef = useRef<SnapZoomController | null>(null);
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
+  const isDraggingCursorRef = useRef(false);
+  const [showMetaModal, setShowMetaModal] = useState(false);
 
   // Get state from store
   const {
@@ -48,6 +52,10 @@ export function App() {
     setIsPlaying,
     setCurrentTimeMs,
     setSelectedNotes,
+    toasts,
+    addToast,
+    editingMarker,
+    setEditingMarker,
   } = useEditorStore();
 
   // Helper: X to Lane (1-4 for note lanes, null otherwise)
@@ -121,6 +129,27 @@ export function App() {
     return null;
   }, [chart.notes, xToLane, yToBeat]);
 
+  // Helper: Hit test trill zone
+  const hitTestTrillZone = useCallback((x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+
+    for (let i = 0; i < chart.trillZones.length; i++) {
+      const zone = chart.trillZones[i];
+      if (zone.lane !== lane) continue;
+
+      const startFloat = zone.beat.n / zone.beat.d;
+      const endFloat = zone.endBeat.n / zone.endBeat.d;
+      if (testBeatFloat >= startFloat && testBeatFloat <= endFloat) {
+        return i;
+      }
+    }
+    return null;
+  }, [chart.trillZones, xToLane, yToBeat]);
+
   // Initialize on mount
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -142,7 +171,11 @@ export function App() {
       renderer.setChart(chart);
       renderer.zoom = zoom;
       renderer.snap = snapDivision;
-      renderer.scrollY = scrollY;
+
+      // Start scrolled to bottom (time 0 visible)
+      const initScroll = Math.max(0, renderer.totalTimelineHeight - CANVAS_HEIGHT);
+      setScrollY(initScroll);
+      renderer.scrollY = initScroll;
     });
 
     // Create SnapZoomController
@@ -169,6 +202,7 @@ export function App() {
       snapBeat,
       xToLane,
       xToAuxLane,
+      onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 
@@ -185,6 +219,8 @@ export function App() {
     const deleteMode = new DeleteMode(chart, {
       onChartUpdate: setChart,
       hitTestNote,
+      hitTestTrillZone,
+      onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
 
@@ -226,12 +262,22 @@ export function App() {
     }
   }, [snapDivision]);
 
-  // Sync scrollY to renderer
+  // Sync scrollY to renderer and scrollbar
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.scrollY = scrollY;
     }
-  }, [scrollY]);
+    // Sync scrollbar position
+    if (scrollContainerRef.current && rendererRef.current) {
+      const totalH = rendererRef.current.totalTimelineHeight;
+      scrollContainerRef.current.scrollTop = scrollY;
+      // Update spacer height for scrollbar thumb size
+      const spacer = scrollContainerRef.current.firstElementChild as HTMLElement | null;
+      if (spacer) {
+        spacer.style.height = `${Math.max(CANVAS_HEIGHT, totalH)}px`;
+      }
+    }
+  }, [scrollY, zoom, chart]);
 
   // Sync selected notes to renderer
   useEffect(() => {
@@ -247,6 +293,18 @@ export function App() {
     }
   }, [entityType]);
 
+  // Hide ghost note when leaving create mode
+  useEffect(() => {
+    if (mode !== 'create') {
+      rendererRef.current?.hideGhostNote();
+    }
+  }, [mode]);
+
+  // Update playback cursor position
+  useEffect(() => {
+    rendererRef.current?.updatePlaybackCursor(currentTimeMs);
+  }, [currentTimeMs]);
+
   // Canvas event handlers
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -254,6 +312,15 @@ export function App() {
 
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Check for cursor handle drag (right edge area)
+    if (x >= TIMELINE_WIDTH && rendererRef.current) {
+      isDraggingCursorRef.current = true;
+      const timeMs = rendererRef.current.yToTime(y);
+      playbackRef.current?.seekTo(Math.max(0, timeMs));
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
 
     if (mode === 'create' && createModeRef.current) {
       createModeRef.current.onPointerDown(x, y);
@@ -271,14 +338,65 @@ export function App() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Handle cursor drag
+    if (isDraggingCursorRef.current && rendererRef.current) {
+      const timeMs = rendererRef.current.yToTime(y);
+      playbackRef.current?.seekTo(Math.max(0, timeMs));
+      return;
+    }
+
     if (mode === 'create' && createModeRef.current) {
       createModeRef.current.onPointerMove(x, y);
+
+      // Ghost preview
+      if (rendererRef.current) {
+        const pointTypes = ['single', 'double', 'trill'];
+        const rangeTypes = ['singleLongBody', 'doubleLongBody', 'trillLongBody', 'trillZone'];
+        const auxTypeMap: Record<string, number> = {
+          bpmMarker: 0,
+          timeSignatureMarker: 1,
+          message: 2,
+        };
+        const beat = yToBeat(y);
+        const snapped = snapBeat(beat);
+        const timeMs = beatToMs(snapped, chart.bpmMarkers, chart.meta.offsetMs);
+
+        if (createModeRef.current?.dragging && createModeRef.current.dragBeat && createModeRef.current.dragLane) {
+          // Show range ghost during long note / trill zone drag creation
+          const startTimeMs = beatToMs(createModeRef.current.dragBeat, chart.bpmMarkers, chart.meta.offsetMs);
+          rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
+        } else if (pointTypes.includes(entityType)) {
+          const lane = xToLane(x);
+          if (lane) {
+            rendererRef.current.showGhostNote(lane, timeMs);
+          } else {
+            rendererRef.current.hideGhostNote();
+          }
+        } else if (rangeTypes.includes(entityType)) {
+          // Show single ghost note at cursor for range type (before drag starts)
+          const lane = xToLane(x);
+          if (lane) {
+            rendererRef.current.showGhostNote(lane, timeMs);
+          } else {
+            rendererRef.current.hideGhostNote();
+          }
+        } else if (entityType in auxTypeMap) {
+          rendererRef.current.showGhostMarker(auxTypeMap[entityType], timeMs);
+        } else {
+          rendererRef.current.hideGhostNote();
+        }
+      }
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerMove(x, y);
     }
-  }, [mode]);
+  }, [mode, entityType, xToLane, yToBeat, snapBeat, chart.bpmMarkers, chart.meta.offsetMs]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isDraggingCursorRef.current) {
+      isDraggingCursorRef.current = false;
+      return;
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -292,27 +410,103 @@ export function App() {
     }
   }, [mode]);
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  // Wheel handler as native event (needs { passive: false } to allow preventDefault)
+  const handleWheelNative = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
     // Ctrl+wheel = zoom (via SnapZoomController)
     if (e.ctrlKey && snapZoomRef.current) {
-      snapZoomRef.current.handleWheel(e.nativeEvent);
+      snapZoomRef.current.handleWheel(e);
       return;
     }
 
     // C+wheel = entity type cycling (create mode only)
     if (mode === 'create' && createModeRef.current) {
-      const cKeyHeld = e.nativeEvent.getModifierState('c') || e.nativeEvent.getModifierState('C');
+      const cKeyHeld = e.getModifierState('c') || e.getModifierState('C');
       if (createModeRef.current.onWheel(e.deltaY, cKeyHeld)) {
         setEntityType(createModeRef.current.entityType);
         return;
       }
     }
 
-    // Default: scroll
-    setScrollY(Math.max(0, scrollY + e.deltaY));
+    // Default: scroll (normal direction)
+    const maxScroll = rendererRef.current
+      ? Math.max(0, rendererRef.current.totalTimelineHeight - CANVAS_HEIGHT)
+      : Infinity;
+    setScrollY(Math.min(maxScroll, Math.max(0, scrollY + e.deltaY)));
   }, [mode, scrollY, setScrollY, setEntityType]);
+
+  // Register wheel listener with { passive: false }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', handleWheelNative, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheelNative);
+  }, [handleWheelNative]);
+
+  // Prevent browser Ctrl+wheel zoom globally while editor is mounted
+  useEffect(() => {
+    const preventBrowserZoom = (e: WheelEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+    };
+    document.addEventListener('wheel', preventBrowserZoom, { passive: false });
+    return () => document.removeEventListener('wheel', preventBrowserZoom);
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    rendererRef.current?.hideGhostNote();
+  }, []);
+
+  // Marker hit test for aux lanes
+  const hitTestMarker = useCallback((x: number, y: number) => {
+    const auxLane = xToAuxLane(x);
+    if (!auxLane || !rendererRef.current) return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+    const tolerance = 1 / 8;
+
+    if (auxLane === 'bpm') {
+      for (let i = 0; i < chart.bpmMarkers.length; i++) {
+        const b = chart.bpmMarkers[i].beat;
+        if (Math.abs(b.n / b.d - testBeatFloat) < tolerance) {
+          return { type: 'bpm' as const, index: i };
+        }
+      }
+    } else if (auxLane === 'timeSig') {
+      for (let i = 0; i < chart.timeSignatures.length; i++) {
+        const b = chart.timeSignatures[i].beat;
+        if (Math.abs(b.n / b.d - testBeatFloat) < tolerance) {
+          return { type: 'timeSig' as const, index: i };
+        }
+      }
+    } else if (auxLane === 'message') {
+      for (let i = 0; i < chart.messages.length; i++) {
+        const msg = chart.messages[i];
+        const startFloat = msg.beat.n / msg.beat.d;
+        const endFloat = msg.endBeat.n / msg.endBeat.d;
+        if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
+          return { type: 'message' as const, index: i };
+        }
+      }
+    }
+    return null;
+  }, [chart.bpmMarkers, chart.timeSignatures, chart.messages, xToAuxLane, yToBeat]);
+
+  // Double-click on canvas → open marker edit modal
+  const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const hit = hitTestMarker(x, y);
+    if (hit) {
+      setEditingMarker(hit);
+    }
+  }, [hitTestMarker, setEditingMarker]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -323,16 +517,38 @@ export function App() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Right-click delete (mode-independent)
+    // Right-click delete (mode-independent) — try note first, then trill zone
     const result = DeleteMode.deleteNoteAtPoint(chart, hitTestNote, x, y);
     if (result) {
       setChart(result);
+      return;
     }
-  }, [chart, hitTestNote, setChart]);
+    // Try trill zone (only if no notes inside)
+    const zoneIdx = hitTestTrillZone(x, y);
+    if (zoneIdx !== null) {
+      const zone = chart.trillZones[zoneIdx];
+      const hasNotes = chart.notes.some((n) =>
+        n.lane === zone.lane &&
+        n.beat.n / n.beat.d >= zone.beat.n / zone.beat.d &&
+        n.beat.n / n.beat.d <= zone.endBeat.n / zone.endBeat.d
+      );
+      if (hasNotes) {
+        addToast('Zone contains notes — remove them first');
+      } else {
+        setChart({
+          ...chart,
+          trillZones: chart.trillZones.filter((_, i) => i !== zoneIdx),
+        });
+      }
+    }
+  }, [chart, hitTestNote, hitTestTrillZone, setChart, addToast]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip all shortcuts when any modal is open
+      if (editingMarker || showMetaModal) return;
+
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
         if (!e.ctrlKey && !e.metaKey) {
@@ -395,25 +611,9 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, setMode]);
+  }, [mode, setMode, editingMarker, showMetaModal]);
 
   // File handlers
-  const handleLoadAudio = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && playbackRef.current) {
-      playbackRef.current.loadAudioFile(file).then(() => {
-        // Extract waveform data after audio loads
-        const audioBuffer = playbackRef.current?.audioBufferData;
-        if (audioBuffer && rendererRef.current) {
-          // Sample at ~1 peak per pixel of height at default zoom
-          const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
-          const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
-          const durationMs = audioBuffer.duration * 1000;
-          rendererRef.current.setWaveformData(peaks, durationMs);
-        }
-      });
-    }
-  }, []);
 
   const handleSaveChart = useCallback(() => {
     saveChartToFile(chart, chart.meta.title || 'chart.json');
@@ -427,6 +627,63 @@ export function App() {
       });
     }
   }, [setChart]);
+
+  // Marker edit handlers
+  const isEditingBeatZero = editingMarker && (
+    (editingMarker.type === 'bpm' && chart.bpmMarkers[editingMarker.index]?.beat.n === 0) ||
+    (editingMarker.type === 'timeSig' && chart.timeSignatures[editingMarker.index]?.beat.n === 0)
+  );
+
+  const handleMarkerSave = useCallback((values: Record<string, string>) => {
+    if (!editingMarker) return;
+
+    const updated = { ...chart };
+    if (editingMarker.type === 'bpm') {
+      const bpm = parseFloat(values.bpm);
+      if (isNaN(bpm) || bpm <= 0) { addToast('Invalid BPM value'); return; }
+      updated.bpmMarkers = [...chart.bpmMarkers];
+      updated.bpmMarkers[editingMarker.index] = { ...updated.bpmMarkers[editingMarker.index], bpm };
+    } else if (editingMarker.type === 'timeSig') {
+      const n = parseInt(values.numerator);
+      const d = parseInt(values.denominator);
+      if (isNaN(n) || isNaN(d) || n <= 0 || d <= 0) { addToast('Invalid time signature'); return; }
+      updated.timeSignatures = [...chart.timeSignatures];
+      updated.timeSignatures[editingMarker.index] = {
+        ...updated.timeSignatures[editingMarker.index],
+        beatPerMeasure: { n, d },
+      };
+    } else if (editingMarker.type === 'message') {
+      updated.messages = [...chart.messages];
+      updated.messages[editingMarker.index] = {
+        ...updated.messages[editingMarker.index],
+        text: values.text,
+      };
+    }
+
+    setChart(updated);
+    setEditingMarker(null);
+  }, [editingMarker, chart, setChart, setEditingMarker, addToast]);
+
+  const handleMarkerDelete = useCallback(() => {
+    if (!editingMarker) return;
+
+    if (isEditingBeatZero) {
+      addToast('Cannot delete marker at beat 0');
+      return;
+    }
+
+    const updated = { ...chart };
+    if (editingMarker.type === 'bpm') {
+      updated.bpmMarkers = chart.bpmMarkers.filter((_, i) => i !== editingMarker.index);
+    } else if (editingMarker.type === 'timeSig') {
+      updated.timeSignatures = chart.timeSignatures.filter((_, i) => i !== editingMarker.index);
+    } else if (editingMarker.type === 'message') {
+      updated.messages = chart.messages.filter((_, i) => i !== editingMarker.index);
+    }
+
+    setChart(updated);
+    setEditingMarker(null);
+  }, [editingMarker, isEditingBeatZero, chart, setChart, setEditingMarker, addToast]);
 
   const entityTypeOptions: EntityType[] = [
     'single',
@@ -501,15 +758,9 @@ export function App() {
         <div style={{ flex: 1 }} />
 
         {/* File operations */}
-        <label style={styles.fileLabel}>
-          Load Audio
-          <input
-            type="file"
-            accept="audio/*"
-            style={styles.fileInput}
-            onChange={handleLoadAudio}
-          />
-        </label>
+        <button style={styles.button} onClick={() => setShowMetaModal(true)}>
+          Meta
+        </button>
 
         <button style={styles.button} onClick={handleSaveChart}>
           Save Chart
@@ -526,18 +777,81 @@ export function App() {
         </label>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas + Scrollbar */}
       <div style={styles.canvasContainer}>
-        <canvas
-          ref={canvasRef}
-          style={styles.canvas}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onWheel={handleWheel}
-          onContextMenu={handleContextMenu}
-        />
+        <div style={styles.canvasWrapper}>
+          <canvas
+            ref={canvasRef}
+            style={styles.canvas}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+          />
+        </div>
+        <div
+          ref={scrollContainerRef}
+          style={{ ...styles.scrollbar, height: CANVAS_HEIGHT }}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setScrollY(el.scrollTop);
+          }}
+        >
+          <div style={{
+            height: Math.max(CANVAS_HEIGHT, rendererRef.current?.totalTimelineHeight ?? CANVAS_HEIGHT),
+          }} />
+        </div>
       </div>
+
+      {/* Marker Edit Modal */}
+      {editingMarker && (
+        <MarkerEditModal
+          editingMarker={editingMarker}
+          chart={chart}
+          isBeatZero={!!isEditingBeatZero}
+          onSave={handleMarkerSave}
+          onDelete={handleMarkerDelete}
+          onClose={() => setEditingMarker(null)}
+        />
+      )}
+
+      {/* Meta Edit Modal */}
+      {showMetaModal && (
+        <MetaEditModal
+          meta={chart.meta}
+          onSave={(meta) => {
+            setChart({ ...chart, meta });
+            setShowMetaModal(false);
+          }}
+          onClose={() => setShowMetaModal(false)}
+          onLoadAudio={(file) => {
+            if (playbackRef.current) {
+              playbackRef.current.loadAudioFile(file).then(() => {
+                const audioBuffer = playbackRef.current?.audioBufferData;
+                if (audioBuffer && rendererRef.current) {
+                  const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
+                  const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
+                  const durationMs = audioBuffer.duration * 1000;
+                  rendererRef.current.setWaveformData(peaks, durationMs);
+                }
+              });
+            }
+          }}
+        />
+      )}
+
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div style={styles.toastContainer}>
+          {toasts.map((toast) => (
+            <div key={toast.id} style={styles.toast}>
+              {toast.message}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Bottom bar */}
       <div style={styles.bottomBar}>
@@ -552,6 +866,280 @@ export function App() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Marker Edit Modal
+// ---------------------------------------------------------------------------
+
+import type { EditingMarker } from './stores';
+import type { Chart } from '@not4k/shared';
+
+function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: {
+  editingMarker: NonNullable<EditingMarker>;
+  chart: Chart;
+  isBeatZero: boolean;
+  onSave: (values: Record<string, string>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const getInitialValues = (): Record<string, string> => {
+    if (editingMarker.type === 'bpm') {
+      return { bpm: String(chart.bpmMarkers[editingMarker.index]?.bpm ?? 120) };
+    } else if (editingMarker.type === 'timeSig') {
+      const bpm = chart.timeSignatures[editingMarker.index]?.beatPerMeasure;
+      return { numerator: String(bpm?.n ?? 4), denominator: String(bpm?.d ?? 1) };
+    } else {
+      return { text: chart.messages[editingMarker.index]?.text ?? '' };
+    }
+  };
+
+  const [values, setValues] = useState<Record<string, string>>(getInitialValues);
+
+  const title = editingMarker.type === 'bpm' ? 'Edit BPM Marker'
+    : editingMarker.type === 'timeSig' ? 'Edit Time Signature'
+    : 'Edit Message';
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <h3 style={modalStyles.title}>{title}</h3>
+
+        {editingMarker.type === 'bpm' && (
+          <label style={modalStyles.field}>
+            <span>BPM</span>
+            <input
+              style={modalStyles.input}
+              type="number"
+              value={values.bpm}
+              onChange={(e) => setValues({ ...values, bpm: e.target.value })}
+              autoFocus
+            />
+          </label>
+        )}
+
+        {editingMarker.type === 'timeSig' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <label style={modalStyles.field}>
+              <span>Numerator</span>
+              <input
+                style={modalStyles.input}
+                type="number"
+                value={values.numerator}
+                onChange={(e) => setValues({ ...values, numerator: e.target.value })}
+                autoFocus
+              />
+            </label>
+            <label style={modalStyles.field}>
+              <span>Denominator</span>
+              <input
+                style={modalStyles.input}
+                type="number"
+                value={values.denominator}
+                onChange={(e) => setValues({ ...values, denominator: e.target.value })}
+              />
+            </label>
+          </div>
+        )}
+
+        {editingMarker.type === 'message' && (
+          <label style={modalStyles.field}>
+            <span>Text</span>
+            <input
+              style={modalStyles.input}
+              type="text"
+              value={values.text}
+              onChange={(e) => setValues({ ...values, text: e.target.value })}
+              autoFocus
+            />
+          </label>
+        )}
+
+        <div style={modalStyles.buttons}>
+          <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>
+          <button
+            style={{ ...modalStyles.deleteBtn, opacity: isBeatZero ? 0.4 : 1 }}
+            onClick={onDelete}
+            disabled={isBeatZero}
+            title={isBeatZero ? 'Cannot delete marker at beat 0' : 'Delete marker'}
+          >
+            Delete
+          </button>
+          <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Meta Edit Modal
+// ---------------------------------------------------------------------------
+
+import type { ChartMeta } from '@not4k/shared';
+
+function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
+  meta: ChartMeta;
+  onSave: (meta: ChartMeta) => void;
+  onClose: () => void;
+  onLoadAudio: (file: File) => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({
+    title: meta.title,
+    artist: meta.artist,
+    difficultyLabel: meta.difficultyLabel,
+    difficultyLevel: String(meta.difficultyLevel),
+    offsetMs: String(meta.offsetMs),
+    audioFile: meta.audioFile,
+    imageFile: meta.imageFile,
+    previewAudioFile: meta.previewAudioFile,
+  });
+
+  const set = (key: string, val: string) => setValues({ ...values, [key]: val });
+
+  const handleSave = () => {
+    const level = parseInt(values.difficultyLevel);
+    const offset = parseFloat(values.offsetMs);
+    onSave({
+      ...meta,
+      title: values.title,
+      artist: values.artist,
+      difficultyLabel: values.difficultyLabel,
+      difficultyLevel: isNaN(level) ? meta.difficultyLevel : level,
+      offsetMs: isNaN(offset) ? meta.offsetMs : offset,
+      audioFile: values.audioFile,
+      imageFile: values.imageFile,
+      previewAudioFile: values.previewAudioFile,
+    });
+  };
+
+  const fields: { label: string; key: string; type: string }[] = [
+    { label: 'Title', key: 'title', type: 'text' },
+    { label: 'Artist', key: 'artist', type: 'text' },
+    { label: 'Difficulty Label', key: 'difficultyLabel', type: 'text' },
+    { label: 'Difficulty Level', key: 'difficultyLevel', type: 'number' },
+    { label: 'Offset (ms)', key: 'offsetMs', type: 'number' },
+    { label: 'Audio File', key: 'audioFile', type: 'text' },
+    { label: 'Image File', key: 'imageFile', type: 'text' },
+    { label: 'Preview Audio', key: 'previewAudioFile', type: 'text' },
+  ];
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <h3 style={modalStyles.title}>Chart Metadata</h3>
+
+        {fields.map((f) => (
+          <label key={f.key} style={modalStyles.field}>
+            <span>{f.label}</span>
+            <input
+              style={modalStyles.input}
+              type={f.type}
+              value={values[f.key]}
+              onChange={(e) => set(f.key, e.target.value)}
+            />
+          </label>
+        ))}
+
+        <label style={{ ...modalStyles.field, flexDirection: 'row' as const, alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <span style={{ padding: '4px 12px', backgroundColor: '#3a3a3a', border: '1px solid #555', borderRadius: '4px', fontSize: '13px' }}>
+            Load Audio
+          </span>
+          <input
+            type="file"
+            accept="audio/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                set('audioFile', file.name);
+                onLoadAudio(file);
+              }
+            }}
+          />
+          <span style={{ fontSize: '12px', color: '#999' }}>{values.audioFile || 'No file'}</span>
+        </label>
+
+        <div style={modalStyles.buttons}>
+          <button style={modalStyles.saveBtn} onClick={handleSave}>Save</button>
+          <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const modalStyles = {
+  overlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000,
+  },
+  modal: {
+    backgroundColor: '#2a2a2a',
+    border: '1px solid #555',
+    borderRadius: '8px',
+    padding: '20px',
+    minWidth: '280px',
+    color: '#e0e0e0',
+    fontFamily: 'system-ui, sans-serif',
+  },
+  title: {
+    margin: '0 0 16px',
+    fontSize: '16px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '4px',
+    marginBottom: '12px',
+    fontSize: '13px',
+  },
+  input: {
+    padding: '6px 8px',
+    backgroundColor: '#1a1a1a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    fontSize: '14px',
+  },
+  buttons: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '16px',
+  },
+  saveBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#4488ff',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  deleteBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#cc3333',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  cancelBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    marginLeft: 'auto',
+  },
+};
 
 const styles = {
   container: {
@@ -616,11 +1204,43 @@ const styles = {
   },
   canvasContainer: {
     flex: 1,
-    overflow: 'auto',
+    display: 'flex',
+    justifyContent: 'center',
+    overflow: 'hidden',
     backgroundColor: '#000',
+  },
+  canvasWrapper: {
+    flexShrink: 0,
+  },
+  scrollbar: {
+    width: '14px',
+    overflowY: 'auto' as const,
+    overflowX: 'hidden' as const,
+    flexShrink: 0,
+    backgroundColor: '#111',
   },
   canvas: {
     display: 'block',
+  },
+  toastContainer: {
+    position: 'absolute' as const,
+    bottom: '48px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    zIndex: 1000,
+    pointerEvents: 'none' as const,
+  },
+  toast: {
+    padding: '8px 16px',
+    backgroundColor: 'rgba(180, 80, 0, 0.9)',
+    color: '#fff',
+    borderRadius: '6px',
+    fontSize: '13px',
+    whiteSpace: 'nowrap' as const,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
   },
   bottomBar: {
     display: 'flex',
