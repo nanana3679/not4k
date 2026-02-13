@@ -1,0 +1,533 @@
+/**
+ * PixiJS v8 Game Renderer
+ *
+ * Renders notes, judgment line, effects, and UI for the rhythm game.
+ * Uses object pooling for performance. Rendering is driven by external game loop.
+ */
+
+import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import type { NoteEntity, TrillZone, BpmMarker } from "@not4k/shared";
+import { beatToMs } from "@not4k/shared";
+import { JudgmentGrade } from "@not4k/shared";
+import {
+  LANE_COUNT,
+  LANE_WIDTH,
+  LANE_AREA_WIDTH,
+  LANE_AREA_X,
+  NOTE_HEIGHT,
+  NOTE_WIDTH,
+  JUDGMENT_LINE_OFFSET,
+  COLORS,
+} from "./constants";
+
+export interface GameRendererOptions {
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+}
+
+interface NoteRenderData {
+  entity: NoteEntity;
+  index: number;
+  timeMs: number;
+  endTimeMs?: number; // for range notes
+}
+
+export class GameRenderer {
+  private app: Application;
+
+  // Layers (bottom to top)
+  private backgroundLayer: Container;
+  private trillZoneLayer: Container;
+  private longNoteBodyLayer: Container;
+  private longNoteEndLayer: Container;
+  private longNoteHeadLayer: Container;
+  private noteLayer: Container;
+  private judgmentLineGraphic: Graphics;
+  private effectLayer: Container;
+  private uiLayer: Container;
+
+  // Rendering state
+  private _scrollSpeed: number = 800; // pixels per second
+  private _judgmentLineY: number;
+  // Chart data
+  private noteRenderData: NoteRenderData[] = [];
+  private trillZones: readonly TrillZone[] = [];
+  private bpmMarkers: readonly BpmMarker[] = [];
+  private offsetMs: number = 0;
+
+  // Visual state
+  private judgmentTimer: number = 0;
+
+  // Object pools
+  private noteGraphicsPool: Map<number, Graphics> = new Map();
+  private bodyGraphicsPool: Map<number, Graphics> = new Map();
+  private failedBodies: Set<number> = new Set();
+
+  // UI elements
+  private comboText: Text;
+  private judgmentText: Text;
+
+  // Dimensions
+  private width: number;
+  private height: number;
+
+  constructor(options: GameRendererOptions) {
+    this.width = options.width;
+    this.height = options.height;
+    this._judgmentLineY = options.height - JUDGMENT_LINE_OFFSET;
+
+    this.app = new Application();
+
+    // Pre-create layers
+    this.backgroundLayer = new Container();
+    this.trillZoneLayer = new Container();
+    this.longNoteBodyLayer = new Container();
+    this.longNoteEndLayer = new Container();
+    this.longNoteHeadLayer = new Container();
+    this.noteLayer = new Container();
+    this.judgmentLineGraphic = new Graphics();
+    this.effectLayer = new Container();
+    this.uiLayer = new Container();
+
+    // Create UI text objects
+    const comboStyle = new TextStyle({
+      fontFamily: "Arial",
+      fontSize: 48,
+      fontWeight: "bold",
+      fill: COLORS.COMBO_TEXT,
+      align: "center",
+    });
+    this.comboText = new Text({ text: "", style: comboStyle });
+    this.comboText.anchor.set(0.5, 0.5);
+    this.comboText.x = this.width / 2;
+    this.comboText.y = this._judgmentLineY - 80;
+
+    const judgmentStyle = new TextStyle({
+      fontFamily: "Arial",
+      fontSize: 36,
+      fontWeight: "bold",
+      fill: 0xffffff,
+      align: "center",
+    });
+    this.judgmentText = new Text({ text: "", style: judgmentStyle });
+    this.judgmentText.anchor.set(0.5, 0.5);
+    this.judgmentText.x = this.width / 2;
+    this.judgmentText.y = this._judgmentLineY - 40;
+    this.judgmentText.alpha = 0;
+  }
+
+  async init(): Promise<void> {
+    await this.app.init({
+      canvas: undefined, // Will be set via view
+      width: this.width,
+      height: this.height,
+      backgroundColor: COLORS.BG,
+    });
+
+    // Build scene graph
+    this.app.stage.addChild(this.backgroundLayer);
+    this.app.stage.addChild(this.trillZoneLayer);
+    this.app.stage.addChild(this.longNoteBodyLayer);
+    this.app.stage.addChild(this.longNoteEndLayer);
+    this.app.stage.addChild(this.longNoteHeadLayer);
+    this.app.stage.addChild(this.noteLayer);
+    this.app.stage.addChild(this.judgmentLineGraphic);
+    this.app.stage.addChild(this.effectLayer);
+    this.app.stage.addChild(this.uiLayer);
+
+    this.uiLayer.addChild(this.comboText);
+    this.uiLayer.addChild(this.judgmentText);
+
+    // Draw static elements
+    this.drawBackground();
+    this.drawJudgmentLine();
+  }
+
+  private drawBackground(): void {
+    const bg = new Graphics();
+
+    // Draw lane backgrounds
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const x = LANE_AREA_X + i * LANE_WIDTH;
+      const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
+      bg.rect(x, 0, LANE_WIDTH, this.height);
+      bg.fill(color);
+    }
+
+    // Draw lane separators
+    for (let i = 1; i < LANE_COUNT; i++) {
+      const x = LANE_AREA_X + i * LANE_WIDTH;
+      bg.rect(x - 1, 0, 2, this.height);
+      bg.fill(COLORS.LANE_SEPARATOR);
+    }
+
+    this.backgroundLayer.addChild(bg);
+  }
+
+  private drawJudgmentLine(): void {
+    this.judgmentLineGraphic.clear();
+    this.judgmentLineGraphic.rect(
+      LANE_AREA_X,
+      this._judgmentLineY - 2,
+      LANE_AREA_WIDTH,
+      4
+    );
+    this.judgmentLineGraphic.fill(COLORS.JUDGMENT_LINE);
+  }
+
+  setChart(
+    notes: readonly NoteEntity[],
+    trillZones: readonly TrillZone[],
+    bpmMarkers: readonly BpmMarker[],
+    offsetMs: number
+  ): void {
+    this.bpmMarkers = bpmMarkers;
+    this.offsetMs = offsetMs;
+    this.trillZones = trillZones;
+
+    // Pre-compute note times
+    this.noteRenderData = notes.map((entity, index) => {
+      const timeMs = beatToMs(entity.beat, bpmMarkers, offsetMs);
+      const endTimeMs =
+        "endBeat" in entity
+          ? beatToMs(entity.endBeat, bpmMarkers, offsetMs)
+          : undefined;
+
+      return {
+        entity,
+        index,
+        timeMs,
+        endTimeMs,
+      };
+    });
+
+    // Clear pools
+    this.noteGraphicsPool.clear();
+    this.bodyGraphicsPool.clear();
+    this.failedBodies.clear();
+  }
+
+  renderFrame(songTimeMs: number): void {
+    // Update judgment text fade
+    if (this.judgmentTimer > 0) {
+      this.judgmentTimer -= 16; // ~16ms per frame (60fps assumption)
+      this.judgmentText.alpha = Math.max(0, this.judgmentTimer / 500);
+    }
+
+    // Clear dynamic layers
+    this.trillZoneLayer.removeChildren();
+    this.longNoteBodyLayer.removeChildren();
+    this.longNoteEndLayer.removeChildren();
+    this.longNoteHeadLayer.removeChildren();
+    this.noteLayer.removeChildren();
+
+    // Calculate visible time window
+    const visibleWindowMs = (this.height / this._scrollSpeed) * 1000 + 500;
+    const minTime = songTimeMs - 500;
+    const maxTime = songTimeMs + visibleWindowMs;
+
+    // Render trill zones
+    this.renderTrillZones(songTimeMs);
+
+    // Render notes
+    for (const data of this.noteRenderData) {
+      const { entity, index, timeMs, endTimeMs } = data;
+
+      // Skip notes outside visible window
+      if (endTimeMs !== undefined) {
+        if (endTimeMs < minTime || timeMs > maxTime) continue;
+      } else {
+        if (timeMs < minTime || timeMs > maxTime) continue;
+      }
+
+      if ("endBeat" in entity) {
+        // Range note (long body)
+        this.renderLongNote(entity, index, timeMs, endTimeMs!, songTimeMs);
+      } else {
+        // Point note
+        this.renderPointNote(entity, index, timeMs, songTimeMs);
+      }
+    }
+  }
+
+  private renderTrillZones(songTimeMs: number): void {
+    for (const zone of this.trillZones) {
+      const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
+      const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
+
+      const startY = this.calculateNoteY(startMs, songTimeMs);
+      const endY = this.calculateNoteY(endMs, songTimeMs);
+
+      // Only render if visible
+      if (startY < -50 || endY > this.height + 50) continue;
+
+      const zoneGraphic = new Graphics();
+      const laneX = this.getLaneX(zone.lane);
+
+      zoneGraphic.rect(laneX, endY, LANE_WIDTH, startY - endY);
+      zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
+
+      this.trillZoneLayer.addChild(zoneGraphic);
+    }
+  }
+
+  private renderPointNote(
+    entity: NoteEntity,
+    index: number,
+    timeMs: number,
+    songTimeMs: number
+  ): void {
+    const y = this.calculateNoteY(timeMs, songTimeMs);
+
+    // Skip if above screen
+    if (y < -NOTE_HEIGHT) return;
+
+    const graphic = this.getOrCreateNoteGraphic(index);
+    const laneX = this.getLaneX(entity.lane);
+
+    graphic.x = laneX;
+    graphic.y = y;
+
+    // Draw note shape
+    this.drawNoteShape(graphic, entity.type);
+
+    this.noteLayer.addChild(graphic);
+  }
+
+  private renderLongNote(
+    entity: NoteEntity & { endBeat: unknown },
+    index: number,
+    startMs: number,
+    endMs: number,
+    songTimeMs: number
+  ): void {
+    const startY = this.calculateNoteY(startMs, songTimeMs);
+    const endY = this.calculateNoteY(endMs, songTimeMs);
+
+    const laneX = this.getLaneX(entity.lane);
+    const bodyHeight = startY - endY;
+
+    // Skip if completely above screen
+    if (endY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
+
+    const isFailed = this.failedBodies.has(index);
+
+    // Draw body
+    const bodyGraphic = this.getOrCreateBodyGraphic(index);
+    bodyGraphic.clear();
+    bodyGraphic.x = laneX;
+    bodyGraphic.y = endY;
+
+    const bodyColor = isFailed
+      ? COLORS.LONG_BODY_FAILED
+      : this.getLongBodyColor(entity.type);
+
+    if (entity.type === "trillLongBody") {
+      // Draw diamond-shaped body
+      this.drawDiamondBody(bodyGraphic, bodyHeight, bodyColor);
+    } else {
+      // Draw rectangular body
+      bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
+      bodyGraphic.fill(bodyColor);
+    }
+
+    this.longNoteBodyLayer.addChild(bodyGraphic);
+
+    // Draw end (head)
+    if (endY >= -NOTE_HEIGHT && endY <= this.height + NOTE_HEIGHT) {
+      const endGraphic = new Graphics();
+      endGraphic.x = laneX;
+      endGraphic.y = endY;
+      this.drawNoteShape(endGraphic, entity.type);
+      this.longNoteEndLayer.addChild(endGraphic);
+    }
+
+    // Draw start (head)
+    if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
+      const headGraphic = new Graphics();
+      headGraphic.x = laneX;
+      headGraphic.y = startY;
+      this.drawNoteShape(headGraphic, entity.type);
+      this.longNoteHeadLayer.addChild(headGraphic);
+    }
+  }
+
+  private drawNoteShape(graphic: Graphics, type: string): void {
+    graphic.clear();
+
+    const color = this.getNoteColor(type);
+
+    if (type === "trill" || type === "trillLongBody") {
+      // Draw diamond (rotated square)
+      this.drawDiamond(graphic, color);
+    } else {
+      // Draw rectangle
+      graphic.rect(0, 0, NOTE_WIDTH, NOTE_HEIGHT);
+      graphic.fill(color);
+    }
+  }
+
+  private drawDiamond(graphic: Graphics, color: number): void {
+    const centerX = NOTE_WIDTH / 2;
+    const centerY = NOTE_HEIGHT / 2;
+
+    graphic.poly([
+      centerX, 0, // top
+      NOTE_WIDTH, centerY, // right
+      centerX, NOTE_HEIGHT, // bottom
+      0, centerY, // left
+    ]);
+    graphic.fill(color);
+  }
+
+  private drawDiamondBody(
+    graphic: Graphics,
+    bodyHeight: number,
+    color: number
+  ): void {
+    const width = LANE_WIDTH;
+    const halfWidth = width / 2;
+
+    // Draw elongated diamond shape
+    graphic.poly([
+      halfWidth, 0, // top
+      width, halfWidth, // right-top
+      width, bodyHeight - halfWidth, // right-bottom
+      halfWidth, bodyHeight, // bottom
+      0, bodyHeight - halfWidth, // left-bottom
+      0, halfWidth, // left-top
+    ]);
+    graphic.fill(color);
+  }
+
+  private getNoteColor(type: string): number {
+    switch (type) {
+      case "single":
+      case "singleLongBody":
+        return COLORS.SINGLE_NOTE;
+      case "double":
+      case "doubleLongBody":
+        return COLORS.DOUBLE_NOTE;
+      case "trill":
+      case "trillLongBody":
+        return COLORS.TRILL_NOTE;
+      default:
+        return COLORS.SINGLE_NOTE;
+    }
+  }
+
+  private getLongBodyColor(type: string): number {
+    switch (type) {
+      case "singleLongBody":
+        return COLORS.SINGLE_LONG_BODY;
+      case "doubleLongBody":
+        return COLORS.DOUBLE_LONG_BODY;
+      case "trillLongBody":
+        return COLORS.TRILL_LONG_BODY;
+      default:
+        return COLORS.SINGLE_LONG_BODY;
+    }
+  }
+
+  private calculateNoteY(noteTimeMs: number, songTimeMs: number): number {
+    return (
+      this._judgmentLineY - ((noteTimeMs - songTimeMs) * this._scrollSpeed) / 1000
+    );
+  }
+
+  private getLaneX(lane: number): number {
+    return LANE_AREA_X + (lane - 1) * LANE_WIDTH;
+  }
+
+  private getOrCreateNoteGraphic(index: number): Graphics {
+    let graphic = this.noteGraphicsPool.get(index);
+    if (!graphic) {
+      graphic = new Graphics();
+      this.noteGraphicsPool.set(index, graphic);
+    }
+    return graphic;
+  }
+
+  private getOrCreateBodyGraphic(index: number): Graphics {
+    let graphic = this.bodyGraphicsPool.get(index);
+    if (!graphic) {
+      graphic = new Graphics();
+      this.bodyGraphicsPool.set(index, graphic);
+    }
+    return graphic;
+  }
+
+  showJudgment(grade: JudgmentGrade): void {
+    this.judgmentTimer = 500; // 500ms fade duration
+
+    // Update text
+    const gradeText = grade.toUpperCase();
+    this.judgmentText.text = gradeText;
+
+    // Update color
+    const color = this.getJudgmentColor(grade);
+    this.judgmentText.style.fill = color;
+
+    // Reset alpha
+    this.judgmentText.alpha = 1;
+  }
+
+  private getJudgmentColor(grade: JudgmentGrade): number {
+    switch (grade) {
+      case "perfect":
+        return COLORS.JUDGMENT_PERFECT;
+      case "great":
+        return COLORS.JUDGMENT_GREAT;
+      case "good":
+      case "goodTrill":
+        return COLORS.JUDGMENT_GOOD;
+      case "bad":
+        return COLORS.JUDGMENT_BAD;
+      case "miss":
+        return COLORS.JUDGMENT_MISS;
+      default:
+        return COLORS.COMBO_TEXT;
+    }
+  }
+
+  updateCombo(combo: number): void {
+    if (combo > 0) {
+      this.comboText.text = `${combo}`;
+    } else {
+      this.comboText.text = "";
+    }
+  }
+
+  set scrollSpeed(value: number) {
+    this._scrollSpeed = value;
+  }
+
+  get scrollSpeed(): number {
+    return this._scrollSpeed;
+  }
+
+  setLift(y: number): void {
+    this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
+    this.drawJudgmentLine();
+    // Update combo text position
+    this.comboText.y = this._judgmentLineY - 80;
+    this.judgmentText.y = this._judgmentLineY - 40;
+  }
+
+  setSudden(y: number): void {
+    // TODO: Implement sudden cover mask
+    void y;
+  }
+
+  markBodyFailed(noteIndex: number): void {
+    this.failedBodies.add(noteIndex);
+  }
+
+  dispose(): void {
+    this.app.destroy(true, { children: true, texture: true });
+    this.noteGraphicsPool.clear();
+    this.bodyGraphicsPool.clear();
+    this.failedBodies.clear();
+  }
+}
