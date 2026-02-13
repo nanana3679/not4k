@@ -35,6 +35,7 @@ interface NoteRenderData {
 
 export class GameRenderer {
   private app: Application;
+  private initialized: boolean = false;
 
   // Layers (bottom to top)
   private backgroundLayer: Container;
@@ -142,6 +143,7 @@ export class GameRenderer {
     // Draw static elements
     this.drawBackground();
     this.drawJudgmentLine();
+    this.initialized = true;
   }
 
   private drawBackground(): void {
@@ -525,6 +527,8 @@ export class GameRenderer {
   }
 
   dispose(): void {
+    if (!this.initialized) return;
+    this.initialized = false;
     this.app.destroy(true, { children: true, texture: true });
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
