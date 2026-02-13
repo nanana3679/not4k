@@ -17,6 +17,8 @@ export const JudgmentGrade = {
   PERFECT: "perfect",
   GREAT: "great",
   GOOD: "good",
+  /** 트릴 교대 실패 — 일반 Good과 별도 집계 (1점) */
+  GOOD_TRILL: "goodTrill",
   BAD: "bad",
   MISS: "miss",
 } as const;
@@ -31,6 +33,7 @@ export const JUDGMENT_SCORES: Record<JudgmentGrade, number> = {
   [JudgmentGrade.PERFECT]: 3,
   [JudgmentGrade.GREAT]: 2,
   [JudgmentGrade.GOOD]: 1,
+  [JudgmentGrade.GOOD_TRILL]: 1,
   [JudgmentGrade.BAD]: 0,
   [JudgmentGrade.MISS]: 0,
 };
