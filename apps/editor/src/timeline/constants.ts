@@ -12,6 +12,9 @@ export const NOTE_HEIGHT = 12; // px
 export const TIMELINE_WIDTH =
   LANE_COUNT * LANE_WIDTH + AUXILIARY_LANES * AUX_LANE_WIDTH;
 
+export const DEFAULT_MEASURES = 16;
+export const TIMELINE_PADDING = 50; // px of empty space before first / after last measure
+
 // Colors
 export const COLORS = {
   LANE_BG_EVEN: 0x1a1a2e,
@@ -35,4 +38,8 @@ export const COLORS = {
   SELECTED_OUTLINE: 0xff4444,
 
   MESSAGE_BG: 0x553388,
+
+  BPM_MARKER: 0x9933ff,
+  TIME_SIG_MARKER: 0xff3333,
+  MESSAGE_MARKER: 0xff66aa,
 };

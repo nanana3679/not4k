@@ -3,10 +3,10 @@
  *
  * 7 lanes: 4 note lanes (L1~L4) + BPM + time signature + message
  * 14 z-order layers (back to front)
- * Vertical timeline (time flows top-to-bottom)
+ * Vertical timeline (time flows bottom-to-top)
  */
 
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import type {
   Chart,
   NoteEntity,
@@ -20,8 +20,11 @@ import {
   AUX_LANE_WIDTH,
   NOTE_HEIGHT,
   TIMELINE_WIDTH,
+  DEFAULT_MEASURES,
+  TIMELINE_PADDING,
   COLORS,
 } from "./constants";
+import type { Lane } from "@not4k/shared";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
@@ -37,6 +40,7 @@ export interface TimelineRendererOptions {
  */
 export class TimelineRenderer {
   private app!: Application;
+  private initialized: boolean = false;
 
   // Layer containers (z-order: back to front)
   private laneBackgrounds!: Container;
@@ -53,6 +57,9 @@ export class TimelineRenderer {
   private selectedLongEndLayer!: Container;
   private selectedLongHeadLayer!: Container;
   private selectedNoteLayer!: Container;
+  private ghostLayer!: Container;
+  private measureLabels!: Container;
+  private playbackCursorLayer!: Container;
 
   // State
   private _zoom: number = 200; // pixelPerSecond
@@ -101,6 +108,9 @@ export class TimelineRenderer {
     this.selectedLongEndLayer = new Container();
     this.selectedLongHeadLayer = new Container();
     this.selectedNoteLayer = new Container();
+    this.ghostLayer = new Container();
+    this.measureLabels = new Container();
+    this.playbackCursorLayer = new Container();
 
     this.app.stage.addChild(this.laneBackgrounds);
     this.app.stage.addChild(this.waveformLayer);
@@ -116,8 +126,11 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.selectedLongEndLayer);
     this.app.stage.addChild(this.selectedLongHeadLayer);
     this.app.stage.addChild(this.selectedNoteLayer);
+    this.app.stage.addChild(this.ghostLayer);
+    this.app.stage.addChild(this.measureLabels);
+    this.app.stage.addChild(this.playbackCursorLayer);
 
-    this.renderLaneBackgrounds();
+    this.initialized = true;
   }
 
   /**
@@ -185,32 +198,72 @@ export class TimelineRenderer {
   }
 
   /**
-   * Convert time (ms) to Y pixel position
-   * Formula: ms * zoom / 1000 - scrollY
+   * Content height: total timeline or canvas height, whichever is larger.
+   */
+  private get contentHeight(): number {
+    return Math.max(this.totalTimelineHeight, this.options.height);
+  }
+
+  /**
+   * Convert time (ms) to Y pixel position (container-local space).
+   * Time flows bottom-to-top: time 0 = near bottom (with padding below), later time = higher (lower Y).
    */
   timeToY(timeMs: number): number {
-    return (timeMs * this._zoom) / 1000 - this._scrollY;
+    return this.contentHeight - TIMELINE_PADDING - (timeMs * this._zoom) / 1000;
   }
 
   /**
-   * Convert Y pixel position to time (ms)
-   * Formula: (y + scrollY) * 1000 / zoom
+   * Convert screen Y pixel position to time (ms).
+   * Accounts for scroll offset, bottom-to-top layout, and bottom padding.
    */
   yToTime(y: number): number {
-    return ((y + this._scrollY) * 1000) / this._zoom;
+    const containerY = y + this._scrollY;
+    return ((this.contentHeight - TIMELINE_PADDING - containerY) * 1000) / this._zoom;
   }
 
   /**
-   * Render lane backgrounds (static, no scroll dependency)
+   * Calculate total timeline duration in ms based on audio or default measures.
+   */
+  getTotalTimelineMs(): number {
+    if (!this.chart) return 0;
+    const { bpmMarkers, meta } = this.chart;
+    if (bpmMarkers.length === 0) return 0;
+
+    // ms for one measure (4 beats in 4/4)
+    const oneMeasureMs = beatToMs({ n: 4, d: 1 }, bpmMarkers, meta.offsetMs);
+    if (oneMeasureMs <= 0) return 0;
+
+    const totalMeasures =
+      this.waveformDurationMs > 0
+        ? Math.ceil(this.waveformDurationMs / oneMeasureMs)
+        : DEFAULT_MEASURES;
+
+    return beatToMs({ n: totalMeasures * 4, d: 1 }, bpmMarkers, meta.offsetMs);
+  }
+
+  /**
+   * Total timeline height in pixels (for scroll bounds), including padding.
+   */
+  get totalTimelineHeight(): number {
+    return (this.getTotalTimelineMs() * this._zoom) / 1000 + TIMELINE_PADDING * 2;
+  }
+
+  /**
+   * Render lane backgrounds with height matching the total timeline.
    */
   private renderLaneBackgrounds(): void {
     this.laneBackgrounds.removeChildren();
+
+    const totalTimeMs = this.getTotalTimelineMs();
+    const topY = this.timeToY(totalTimeMs);
+    const bottomY = this.timeToY(0);
+    const laneHeight = bottomY - topY;
 
     // Note lanes (L1~L4)
     for (let i = 0; i < LANE_COUNT; i++) {
       const bg = new Graphics();
       const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
-      bg.rect(i * LANE_WIDTH, 0, LANE_WIDTH, this.options.height);
+      bg.rect(i * LANE_WIDTH, topY, LANE_WIDTH, laneHeight);
       bg.fill(color);
       this.laneBackgrounds.addChild(bg);
     }
@@ -219,7 +272,7 @@ export class TimelineRenderer {
     const auxStartX = LANE_COUNT * LANE_WIDTH;
     for (let i = 0; i < 3; i++) {
       const bg = new Graphics();
-      bg.rect(auxStartX + i * AUX_LANE_WIDTH, 0, AUX_LANE_WIDTH, this.options.height);
+      bg.rect(auxStartX + i * AUX_LANE_WIDTH, topY, AUX_LANE_WIDTH, laneHeight);
       bg.fill(COLORS.AUX_LANE_BG);
       this.laneBackgrounds.addChild(bg);
     }
@@ -230,6 +283,7 @@ export class TimelineRenderer {
    */
   private updateScroll(): void {
     const layers = [
+      this.laneBackgrounds,
       this.waveformLayer,
       this.measureLines,
       this.beatLines,
@@ -243,6 +297,9 @@ export class TimelineRenderer {
       this.selectedLongEndLayer,
       this.selectedLongHeadLayer,
       this.selectedNoteLayer,
+      this.ghostLayer,
+      this.measureLabels,
+      this.playbackCursorLayer,
     ];
 
     for (const layer of layers) {
@@ -257,10 +314,12 @@ export class TimelineRenderer {
     if (!this.chart) return;
 
     this.clearDynamicLayers();
+    this.renderLaneBackgrounds();
     this.renderWaveform();
     this.renderGridLines();
     this.renderTrillZones();
     this.renderNotes();
+    this.renderMarkers();
     this.updateScroll();
   }
 
@@ -281,6 +340,7 @@ export class TimelineRenderer {
     this.selectedLongEndLayer.removeChildren();
     this.selectedLongHeadLayer.removeChildren();
     this.selectedNoteLayer.removeChildren();
+    this.measureLabels.removeChildren();
   }
 
   /**
@@ -341,17 +401,16 @@ export class TimelineRenderer {
     const { bpmMarkers, timeSignatures, meta } = this.chart;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return;
 
-    // Calculate visible range
-    const endTime = this.yToTime(this.options.height);
-
-    // Render measure lines, beat lines, snap lines
-    // For MVP: render from beat 0 to a reasonable upper bound
-    const maxBeat = 1000; // Arbitrary upper bound for MVP
+    // Calculate total measures from timeline duration
+    const totalTimelineMs = this.getTotalTimelineMs();
+    const oneMeasureMs = beatToMs({ n: 4, d: 1 }, bpmMarkers, meta.offsetMs);
+    const totalMeasures =
+      oneMeasureMs > 0 ? Math.ceil(totalTimelineMs / oneMeasureMs) : DEFAULT_MEASURES;
+    const maxBeat = totalMeasures * 4;
     let currentBeat = 0;
 
     while (currentBeat <= maxBeat) {
       const timeMs = beatToMs({ n: currentBeat, d: 1 }, bpmMarkers, meta.offsetMs);
-      if (timeMs > endTime) break;
 
       const y = this.timeToY(timeMs);
 
@@ -363,6 +422,20 @@ export class TimelineRenderer {
         line.lineTo(TIMELINE_WIDTH, y);
         line.stroke({ width: 2, color: COLORS.MEASURE_LINE });
         this.measureLines.addChild(line);
+
+        // Measure number label
+        const measureNum = currentBeat / 4 + 1;
+        const label = new Text({
+          text: String(measureNum),
+          style: new TextStyle({
+            fontSize: 11,
+            fill: 0x999999,
+            fontFamily: "monospace",
+          }),
+        });
+        label.x = TIMELINE_WIDTH + 4;
+        label.y = y - 14;
+        this.measureLabels.addChild(label);
       }
       // Beat lines
       else {
@@ -409,10 +482,11 @@ export class TimelineRenderer {
 
       const x = (zone.lane - 1) * LANE_WIDTH;
       const width = LANE_WIDTH;
-      const height = endY - startY;
+      const topY = Math.min(startY, endY);
+      const height = Math.abs(endY - startY);
 
       const bg = new Graphics();
-      bg.rect(x, startY, width, height);
+      bg.rect(x, topY, width, height);
       bg.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
       this.trillZoneLayer.addChild(bg);
     }
@@ -498,7 +572,7 @@ export class TimelineRenderer {
     }
 
     if (isSelected) {
-      noteGfx.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE });
+      noteGfx.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedNoteLayer.addChild(noteGfx);
     } else {
       this.noteLayer.addChild(noteGfx);
@@ -535,19 +609,21 @@ export class TimelineRenderer {
         break;
     }
 
-    // Long note body (center strip between start+h/2 and end-h/2)
-    const bodyStartY = startY + h / 2;
-    const bodyEndY = endY - h / 2;
-    const bodyHeight = bodyEndY - bodyStartY;
+    // Long note body (center strip between head and end, direction-independent)
+    const topY = Math.min(startY, endY);
+    const bottomY = Math.max(startY, endY);
+    const bodyTopY = topY + h / 2;
+    const bodyBottomY = bottomY - h / 2;
+    const bodyHeight = bodyBottomY - bodyTopY;
 
     if (bodyHeight > 0) {
       const body = new Graphics();
       const bodyX = x + (LANE_WIDTH - w) / 2;
-      body.rect(bodyX, bodyStartY, w, bodyHeight);
+      body.rect(bodyX, bodyTopY, w, bodyHeight);
       body.fill(bodyColor);
 
       if (isSelected) {
-        body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE });
+        body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongBodyLayer.addChild(body);
       } else {
         this.longNoteBodyLayer.addChild(body);
@@ -562,7 +638,7 @@ export class TimelineRenderer {
     head.fill(bodyColor);
 
     if (isSelected) {
-      head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE });
+      head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongHeadLayer.addChild(head);
     } else {
       this.longNoteHeadLayer.addChild(head);
@@ -576,7 +652,7 @@ export class TimelineRenderer {
     end.fill(bodyColor);
 
     if (isSelected) {
-      end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE });
+      end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongEndLayer.addChild(end);
     } else {
       this.longNoteEndLayer.addChild(end);
@@ -584,9 +660,203 @@ export class TimelineRenderer {
   }
 
   /**
+   * Render BPM markers, time signature markers, and messages in aux lanes.
+   */
+  private renderMarkers(): void {
+    if (!this.chart) return;
+
+    const { bpmMarkers, timeSignatures, messages, meta } = this.chart;
+    const auxStartX = LANE_COUNT * LANE_WIDTH;
+
+    const markerTextStyle = new TextStyle({
+      fontSize: 11,
+      fill: 0xffffff,
+      fontFamily: "monospace",
+    });
+
+    // BPM markers (purple, aux index 0)
+    for (const marker of bpmMarkers) {
+      const timeMs = beatToMs(marker.beat, bpmMarkers, meta.offsetMs);
+      const y = this.timeToY(timeMs);
+      const gfx = new Graphics();
+      gfx.rect(auxStartX, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
+      gfx.fill(COLORS.BPM_MARKER);
+      this.noteLayer.addChild(gfx);
+
+      const label = new Text({ text: String(marker.bpm), style: markerTextStyle });
+      label.anchor.set(0.5, 0.5);
+      label.x = auxStartX + AUX_LANE_WIDTH / 2;
+      label.y = y;
+      this.noteLayer.addChild(label);
+    }
+
+    // Time signature markers (red, aux index 1)
+    for (const marker of timeSignatures) {
+      const timeMs = beatToMs(marker.beat, bpmMarkers, meta.offsetMs);
+      const y = this.timeToY(timeMs);
+      const gfx = new Graphics();
+      gfx.rect(auxStartX + AUX_LANE_WIDTH, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
+      gfx.fill(COLORS.TIME_SIG_MARKER);
+      this.noteLayer.addChild(gfx);
+
+      const bpm = marker.beatPerMeasure;
+      const label = new Text({ text: bpm.d === 1 ? String(bpm.n) : `${bpm.n}/${bpm.d}`, style: markerTextStyle });
+      label.anchor.set(0.5, 0.5);
+      label.x = auxStartX + AUX_LANE_WIDTH + AUX_LANE_WIDTH / 2;
+      label.y = y;
+      this.noteLayer.addChild(label);
+    }
+
+    // Messages (pink, aux index 2, range)
+    for (const msg of messages) {
+      const startMs = beatToMs(msg.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(msg.endBeat, bpmMarkers, meta.offsetMs);
+      const startY = this.timeToY(startMs);
+      const endY = this.timeToY(endMs);
+      const topY = Math.min(startY, endY);
+      const height = Math.abs(endY - startY) || NOTE_HEIGHT;
+      const gfx = new Graphics();
+      gfx.rect(auxStartX + AUX_LANE_WIDTH * 2, topY, AUX_LANE_WIDTH, height);
+      gfx.fill(COLORS.MESSAGE_MARKER);
+      gfx.stroke({ width: 1.5, color: 0xffbbdd, alignment: 0 });
+      this.noteLayer.addChild(gfx);
+
+      const label = new Text({
+        text: msg.text,
+        style: new TextStyle({
+          fontSize: 11,
+          fill: 0xffffff,
+          fontFamily: "monospace",
+          wordWrap: true,
+          wordWrapWidth: AUX_LANE_WIDTH - 4,
+        }),
+      });
+      // Truncate if text overflows the marker height
+      if (label.height > height) {
+        // Estimate chars that fit, then add ellipsis
+        const charsPerLine = Math.floor((AUX_LANE_WIDTH - 4) / 7);
+        const lines = Math.max(1, Math.floor(height / 13));
+        const maxChars = charsPerLine * lines - 1;
+        const truncated = msg.text.length > maxChars ? msg.text.slice(0, maxChars) + '\u2026' : msg.text;
+        label.text = truncated;
+        label.style.wordWrap = false;
+      }
+      label.anchor.set(0.5, 0.5);
+      label.x = auxStartX + AUX_LANE_WIDTH * 2 + AUX_LANE_WIDTH / 2;
+      label.y = topY + height / 2;
+      this.noteLayer.addChild(label);
+    }
+  }
+
+  /**
+   * Update the playback cursor position. Called from App.tsx on each time update.
+   */
+  updatePlaybackCursor(timeMs: number): void {
+    this.playbackCursorLayer.removeChildren();
+
+    const y = this.timeToY(timeMs);
+
+    // Cursor line (bright green, full width)
+    const line = new Graphics();
+    line.moveTo(0, y);
+    line.lineTo(TIMELINE_WIDTH, y);
+    line.stroke({ width: 2, color: 0x00ff88 });
+    this.playbackCursorLayer.addChild(line);
+
+    // Draggable handle (triangle on the right edge, pointing left)
+    const handle = new Graphics();
+    const hx = TIMELINE_WIDTH + 16;
+    const hs = 8; // half-size of handle
+    handle.moveTo(hx, y - hs);
+    handle.lineTo(hx - hs * 2, y);
+    handle.lineTo(hx, y + hs);
+    handle.lineTo(hx, y - hs);
+    handle.fill(0x00ff88);
+    this.playbackCursorLayer.addChild(handle);
+  }
+
+  /**
+   * Show a semi-transparent ghost note at the given note lane and time.
+   */
+  showGhostNote(lane: Lane, timeMs: number): void {
+    this.ghostLayer.removeChildren();
+
+    const y = this.timeToY(timeMs);
+    const x = (lane - 1) * LANE_WIDTH;
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = x + (LANE_WIDTH - w) / 2;
+    const rectY = y - h / 2;
+
+    const ghost = new Graphics();
+    ghost.rect(rectX, rectY, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    this.ghostLayer.addChild(ghost);
+  }
+
+  /**
+   * Show a semi-transparent ghost marker in an auxiliary lane.
+   * @param auxIndex 0=BPM, 1=timeSig, 2=message
+   */
+  showGhostMarker(auxIndex: number, timeMs: number): void {
+    this.ghostLayer.removeChildren();
+
+    const y = this.timeToY(timeMs);
+    const auxStartX = LANE_COUNT * LANE_WIDTH;
+    const x = auxStartX + auxIndex * AUX_LANE_WIDTH;
+
+    const ghost = new Graphics();
+    ghost.rect(x, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    this.ghostLayer.addChild(ghost);
+  }
+
+  /**
+   * Show a semi-transparent ghost range (long note body + head + end).
+   */
+  showGhostRange(lane: Lane, startTimeMs: number, endTimeMs: number): void {
+    this.ghostLayer.removeChildren();
+
+    const startY = this.timeToY(startTimeMs);
+    const endY = this.timeToY(endTimeMs);
+    const x = (lane - 1) * LANE_WIDTH;
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = x + (LANE_WIDTH - w) / 2;
+
+    const topY = Math.min(startY, endY);
+    const bottomY = Math.max(startY, endY);
+
+    const ghost = new Graphics();
+    // Head
+    ghost.rect(rectX, startY - h / 2, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    // End
+    ghost.rect(rectX, endY - h / 2, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    // Body
+    const bodyTop = topY + h / 2;
+    const bodyBottom = bottomY - h / 2;
+    if (bodyBottom > bodyTop) {
+      ghost.rect(rectX, bodyTop, w, bodyBottom - bodyTop);
+      ghost.fill({ color: 0xffffff, alpha: 0.15 });
+    }
+    this.ghostLayer.addChild(ghost);
+  }
+
+  /**
+   * Hide the ghost note/marker preview.
+   */
+  hideGhostNote(): void {
+    this.ghostLayer.removeChildren();
+  }
+
+  /**
    * Cleanup
    */
   dispose(): void {
+    if (!this.initialized) return;
+    this.initialized = false;
     this.app.destroy(true, { children: true });
   }
 }
