@@ -1,7 +1,70 @@
-import { useGameStore } from '../stores';
+import { useGameStore, PRESET_BINDINGS } from '../stores';
+import { useState, useEffect } from 'react';
+
+type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 
 export function SettingsScreen() {
   const { settings, updateSettings, setScreen } = useGameStore();
+  const [listeningLane, setListeningLane] = useState<Lane | null>(null);
+  const [warningMessage, setWarningMessage] = useState<string>('');
+
+  // Listening mode: capture next keydown event
+  useEffect(() => {
+    if (!listeningLane) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      event.preventDefault();
+      const keyCode = event.code;
+
+      // Check if key is already bound to any lane
+      const allKeys = Object.values(settings.keyBindings).flat();
+      if (allKeys.includes(keyCode)) {
+        setWarningMessage(`Key "${keyCode}" is already bound to another lane`);
+        setListeningLane(null);
+        setTimeout(() => setWarningMessage(''), 3000);
+        return;
+      }
+
+      // Add key to the listening lane
+      const updatedLane = [...settings.keyBindings[listeningLane], keyCode];
+      updateSettings({
+        keyBindings: {
+          ...settings.keyBindings,
+          [listeningLane]: updatedLane,
+        },
+      });
+      setListeningLane(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [listeningLane, settings.keyBindings, updateSettings]);
+
+  const handleRemoveKey = (lane: Lane, keyToRemove: string) => {
+    const currentKeys = settings.keyBindings[lane];
+    if (currentKeys.length <= 2) {
+      setWarningMessage('Each lane must have at least 2 keys');
+      setTimeout(() => setWarningMessage(''), 3000);
+      return;
+    }
+
+    const updatedKeys = currentKeys.filter((key) => key !== keyToRemove);
+    updateSettings({
+      keyBindings: {
+        ...settings.keyBindings,
+        [lane]: updatedKeys,
+      },
+    });
+  };
+
+  const handleResetToPreset = (preset: 'tkl' | 'numpad') => {
+    updateSettings({
+      keyBindings: PRESET_BINDINGS[preset],
+      preset,
+    });
+    setWarningMessage(`Reset to ${preset.toUpperCase()} preset`);
+    setTimeout(() => setWarningMessage(''), 2000);
+  };
 
   return (
     <div style={styles.container}>
@@ -10,15 +73,56 @@ export function SettingsScreen() {
       <div style={styles.settingsGrid}>
         <div style={styles.section}>
           <h2 style={styles.sectionTitle}>Key Bindings</h2>
+
+          {warningMessage && (
+            <div style={styles.warning}>{warningMessage}</div>
+          )}
+
           <div style={styles.keyBindings}>
             {(['lane1', 'lane2', 'lane3', 'lane4'] as const).map((lane) => (
               <div key={lane} style={styles.laneRow}>
                 <span style={styles.label}>{lane}:</span>
-                <span style={styles.keys}>
-                  {settings.keyBindings[lane].join(', ')}
-                </span>
+                <div style={styles.keyChipsContainer}>
+                  {settings.keyBindings[lane].map((keyCode) => (
+                    <div key={keyCode} style={styles.keyChip}>
+                      <span>{keyCode}</span>
+                      <button
+                        style={styles.removeKeyButton}
+                        onClick={() => handleRemoveKey(lane, keyCode)}
+                        title="Remove key"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    style={{
+                      ...styles.addKeyButton,
+                      ...(listeningLane === lane ? styles.addKeyButtonListening : {}),
+                    }}
+                    onClick={() => setListeningLane(lane)}
+                    disabled={listeningLane !== null && listeningLane !== lane}
+                  >
+                    {listeningLane === lane ? 'Press any key...' : '+ Add Key'}
+                  </button>
+                </div>
               </div>
             ))}
+          </div>
+
+          <div style={styles.presetButtons}>
+            <button
+              style={styles.presetButton}
+              onClick={() => handleResetToPreset('tkl')}
+            >
+              Reset to TKL Preset
+            </button>
+            <button
+              style={styles.presetButton}
+              onClick={() => handleResetToPreset('numpad')}
+            >
+              Reset to Numpad Preset
+            </button>
           </div>
         </div>
 
@@ -128,6 +232,16 @@ const styles = {
     fontSize: '24px',
     marginBottom: '16px',
   },
+  warning: {
+    backgroundColor: '#ff6b6b',
+    color: '#ffffff',
+    padding: '12px',
+    borderRadius: '4px',
+    marginBottom: '16px',
+    textAlign: 'center' as const,
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
   keyBindings: {
     display: 'flex',
     flexDirection: 'column' as const,
@@ -135,8 +249,72 @@ const styles = {
   },
   laneRow: {
     display: 'flex',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
     fontSize: '16px',
+  },
+  keyChipsContainer: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '8px',
+    flex: 1,
+  },
+  keyChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: '#1a1a1a',
+    border: '1px solid #00ffff',
+    borderRadius: '4px',
+    padding: '6px 10px',
+    fontSize: '14px',
+    color: '#00ffff',
+  },
+  removeKeyButton: {
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#ff6b6b',
+    fontSize: '18px',
+    cursor: 'pointer',
+    padding: '0',
+    width: '18px',
+    height: '18px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+  },
+  addKeyButton: {
+    backgroundColor: '#3a3a3a',
+    border: '1px solid #666666',
+    borderRadius: '4px',
+    padding: '6px 10px',
+    fontSize: '14px',
+    color: '#ffffff',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  addKeyButtonListening: {
+    backgroundColor: '#00ffff',
+    color: '#1a1a1a',
+    border: '1px solid #00ffff',
+    animation: 'pulse 1s infinite',
+  },
+  presetButtons: {
+    display: 'flex',
+    gap: '12px',
+    marginTop: '16px',
+  },
+  presetButton: {
+    flex: 1,
+    padding: '10px 16px',
+    fontSize: '14px',
+    backgroundColor: '#3a3a3a',
+    color: '#ffffff',
+    border: '1px solid #666666',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
   },
   setting: {
     display: 'flex',
@@ -147,9 +325,7 @@ const styles = {
   label: {
     fontSize: '16px',
     fontWeight: 'bold',
-  },
-  keys: {
-    color: '#00ffff',
+    minWidth: '60px',
   },
   slider: {
     width: '100%',
