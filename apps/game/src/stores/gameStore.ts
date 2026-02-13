@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Chart } from '@not4k/shared';
 
 type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings';
 
@@ -38,6 +39,8 @@ interface GameState {
   selectedSongId: string | null;
   selectedDifficulty: string | null;
   lastResult: PlayResult | null;
+  chartData: Chart | null;
+  audioBuffer: AudioBuffer | null;
 
   setScreen: (screen: Screen) => void;
   updateSettings: (partial: Partial<GameSettings>) => void;
@@ -45,6 +48,8 @@ interface GameState {
   selectSong: (songId: string, difficulty: string) => void;
   setResult: (result: PlayResult) => void;
   completeFirstLaunch: () => void;
+  setChartData: (chart: Chart | null) => void;
+  setAudioBuffer: (buffer: AudioBuffer | null) => void;
 }
 
 const TKL_BINDINGS: KeyBindings = {
@@ -80,6 +85,8 @@ export const useGameStore = create<GameState>()(
       selectedSongId: null,
       selectedDifficulty: null,
       lastResult: null,
+      chartData: null,
+      audioBuffer: null,
 
       setScreen: (screen) => set({ screen }),
 
@@ -104,6 +111,10 @@ export const useGameStore = create<GameState>()(
       completeFirstLaunch: () => set((state) => ({
         settings: { ...state.settings, isFirstLaunch: false },
       })),
+
+      setChartData: (chart) => set({ chartData: chart }),
+
+      setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
     }),
     {
       name: 'not4k-settings',

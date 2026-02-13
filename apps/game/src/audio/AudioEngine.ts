@@ -42,6 +42,15 @@ export class AudioEngine {
   }
 
   /**
+   * Load audio from an already-decoded AudioBuffer
+   * @param buffer - Pre-decoded AudioBuffer
+   */
+  loadBuffer(buffer: AudioBuffer): void {
+    this.buffer = buffer;
+    this.stop();
+  }
+
+  /**
    * Start playback from specified offset
    * @param offsetMs - Starting position in milliseconds (default: 0)
    */

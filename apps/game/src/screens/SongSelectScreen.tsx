@@ -1,4 +1,6 @@
+import { useState, useRef } from 'react';
 import { useGameStore } from '../stores';
+import { deserializeChart } from '@not4k/shared';
 
 interface Song {
   id: string;
@@ -14,11 +16,50 @@ const PLACEHOLDER_SONGS: Song[] = [
 ];
 
 export function SongSelectScreen() {
-  const { selectSong, setScreen } = useGameStore();
+  const { selectSong, setScreen, setChartData, setAudioBuffer } = useGameStore();
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const chartFileRef = useRef<HTMLInputElement>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
 
   const handleSelectSong = (songId: string, difficulty: string) => {
     selectSong(songId, difficulty);
     setScreen('loading');
+  };
+
+  const handleLoadLocal = async () => {
+    const chartFile = chartFileRef.current?.files?.[0];
+    const audioFile = audioFileRef.current?.files?.[0];
+
+    if (!chartFile || !audioFile) {
+      setLoadError('Please select both chart JSON and audio file');
+      return;
+    }
+
+    setLoadError(null);
+    setIsLoading(true);
+
+    try {
+      // Read and parse chart JSON
+      const chartText = await chartFile.text();
+      const chart = deserializeChart(chartText);
+
+      // Decode audio file
+      const audioCtx = new AudioContext();
+      const audioArrayBuffer = await audioFile.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(audioArrayBuffer);
+
+      // Store in game store
+      setChartData(chart);
+      setAudioBuffer(audioBuffer);
+
+      // Navigate directly to play screen
+      setScreen('play');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load files');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,6 +86,41 @@ export function SongSelectScreen() {
           </div>
         ))}
       </div>
+
+      <div style={styles.localLoadSection}>
+        <h2 style={styles.localLoadTitle}>Load Local Chart</h2>
+        <div style={styles.fileInputs}>
+          <div style={styles.fileInputWrapper}>
+            <label style={styles.fileLabel}>Chart JSON:</label>
+            <input
+              ref={chartFileRef}
+              type="file"
+              accept=".json"
+              style={styles.fileInput}
+              onChange={() => setLoadError(null)}
+            />
+          </div>
+          <div style={styles.fileInputWrapper}>
+            <label style={styles.fileLabel}>Audio File:</label>
+            <input
+              ref={audioFileRef}
+              type="file"
+              accept="audio/*"
+              style={styles.fileInput}
+              onChange={() => setLoadError(null)}
+            />
+          </div>
+        </div>
+        {loadError && <div style={styles.loadError}>{loadError}</div>}
+        <button
+          style={styles.loadButton}
+          onClick={handleLoadLocal}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Loading...' : 'Load & Play'}
+        </button>
+      </div>
+
       <button style={styles.settingsButton} onClick={() => setScreen('settings')}>
         Settings
       </button>
@@ -117,5 +193,61 @@ const styles = {
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
+  },
+  localLoadSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    padding: '24px',
+    marginBottom: '32px',
+    backgroundColor: '#2a2a2a',
+    borderRadius: '8px',
+    width: '100%',
+    maxWidth: '800px',
+  },
+  localLoadTitle: {
+    fontSize: '28px',
+    marginBottom: '16px',
+  },
+  fileInputs: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+    width: '100%',
+    marginBottom: '16px',
+  },
+  fileInputWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  fileLabel: {
+    fontSize: '16px',
+    minWidth: '100px',
+  },
+  fileInput: {
+    fontSize: '14px',
+    padding: '8px',
+    backgroundColor: '#1a1a1a',
+    color: '#ffffff',
+    border: '1px solid #666666',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    flex: 1,
+  },
+  loadButton: {
+    fontSize: '18px',
+    padding: '12px 32px',
+    backgroundColor: '#00ffff',
+    color: '#1a1a1a',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  },
+  loadError: {
+    fontSize: '14px',
+    color: '#ff4444',
+    marginBottom: '12px',
   },
 };

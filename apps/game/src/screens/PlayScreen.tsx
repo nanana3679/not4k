@@ -5,10 +5,10 @@ import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
-import { beat } from '@not4k/shared';
+import { beatToMs } from '@not4k/shared';
 
 export function PlayScreen() {
-  const { settings, setScreen, setResult } = useGameStore();
+  const { settings, setScreen, setResult, chartData, audioBuffer } = useGameStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,24 +25,29 @@ export function PlayScreen() {
     const init = async () => {
       if (!canvasRef.current) return;
 
-      try {
-        // TODO: Replace with actual chart data from loading screen
-        // For now, create placeholder data
-        const placeholderChart = {
-          meta: {
-            offsetMs: 0,
-          },
-          notes: [],
-          trillZones: [],
-          bpmMarkers: [{ beat: beat(0, 1), bpm: 120 }],
-        };
+      // Check if chart data and audio buffer are available
+      if (!chartData || !audioBuffer) {
+        setError('No chart or audio data loaded');
+        return;
+      }
 
-        // Create note times maps (empty for placeholder)
+      try {
+        // Convert chart notes to time maps
         const noteTimesMs = new Map<number, number>();
         const noteEndTimesMs = new Map<number, number>();
 
+        chartData.notes.forEach((note, index) => {
+          const timeMs = beatToMs(note.beat, chartData.bpmMarkers, chartData.meta.offsetMs);
+          noteTimesMs.set(index, timeMs);
+
+          if ('endBeat' in note) {
+            const endTimeMs = beatToMs(note.endBeat, chartData.bpmMarkers, chartData.meta.offsetMs);
+            noteEndTimesMs.set(index, endTimeMs);
+          }
+        });
+
         // Calculate total judgment count
-        const totalJudgments = placeholderChart.notes.length * 2; // Approximate
+        const totalJudgments = chartData.notes.length * 2; // Approximate
 
         // Initialize game objects
         const audioEngine = new AudioEngine();
@@ -55,10 +60,10 @@ export function PlayScreen() {
 
         // Set up renderer with chart data
         renderer.setChart(
-          placeholderChart.notes,
-          placeholderChart.trillZones,
-          placeholderChart.bpmMarkers,
-          placeholderChart.meta.offsetMs
+          chartData.notes,
+          chartData.trillZones,
+          chartData.bpmMarkers,
+          chartData.meta.offsetMs
         );
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setLift(settings.liftPx);
@@ -69,7 +74,7 @@ export function PlayScreen() {
 
         // Create judgment engine
         const judgmentEngine = new JudgmentEngine(
-          placeholderChart.notes,
+          chartData.notes,
           noteTimesMs,
           noteEndTimesMs,
           {
@@ -107,6 +112,9 @@ export function PlayScreen() {
 
         inputSystem.attach(window);
 
+        // Load audio buffer into AudioEngine
+        audioEngine.loadBuffer(audioBuffer);
+
         // Store refs
         audioEngineRef.current = audioEngine;
         inputSystemRef.current = inputSystem;
@@ -135,9 +143,8 @@ export function PlayScreen() {
           animationFrameRef.current = requestAnimationFrame(gameLoop);
         };
 
-        // TODO: Load and play audio
-        // await audioEngine.loadAudio(audioUrl);
-        // audioEngine.play(0);
+        // Start audio playback
+        audioEngine.play(0);
 
         animationFrameRef.current = requestAnimationFrame(gameLoop);
 
@@ -186,13 +193,13 @@ export function PlayScreen() {
 
   const handleSongEnd = () => {
     const scoreManager = scoreManagerRef.current;
-    if (!scoreManager) return;
+    if (!scoreManager || !chartData) return;
 
     const state = scoreManager.getState();
 
     setResult({
-      songId: 'placeholder',
-      difficulty: 'NORMAL',
+      songId: chartData.meta.title || 'unknown',
+      difficulty: chartData.meta.difficultyLabel || 'NORMAL',
       achievementRate: state.achievementRate,
       rank: state.rank,
       maxCombo: state.maxCombo,
