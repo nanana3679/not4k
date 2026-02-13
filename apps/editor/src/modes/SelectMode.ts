@@ -1,6 +1,6 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane } from "@not4k/shared";
 import { validateChart } from "@not4k/shared";
-import { beatAdd, beatSub, beatEq } from "@not4k/shared";
+import { beatAdd, beatSub, beatEq, beatLte } from "@not4k/shared";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -328,18 +328,29 @@ export class SelectMode {
       }
     }
 
-    // Apply resize (only to range notes)
+    // Apply resize (only to range notes, enforce start < end)
     const newNotes = [...this.chart.notes];
+    let blocked = false;
     for (const idx of this.selectedIndices) {
       const note = newNotes[idx];
       if (this.isRangeNote(note)) {
         const rangeNote = note as RangeNote;
         const newEndBeat = beatAdd(rangeNote.endBeat, offset);
+        // Prevent endBeat from going at or before startBeat
+        if (beatLte(newEndBeat, rangeNote.beat)) {
+          blocked = true;
+          break;
+        }
         newNotes[idx] = {
           ...rangeNote,
           endBeat: newEndBeat,
         };
       }
+    }
+
+    if (blocked) {
+      this.originalPositions.clear();
+      return;
     }
 
     this.chart = { ...this.chart, notes: newNotes };

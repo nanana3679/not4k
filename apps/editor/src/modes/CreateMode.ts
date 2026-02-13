@@ -55,6 +55,8 @@ export interface CreateModeCallbacks {
   xToLane: (x: number) => Lane | null;
   /** Called to get what aux lane type an X falls in */
   xToAuxLane: (x: number) => "bpm" | "timeSig" | "message" | null;
+  /** Called to display a warning message to the user */
+  onWarn?: (message: string) => void;
 }
 
 export class CreateMode {
@@ -93,6 +95,21 @@ export class CreateMode {
     const prevIndex =
       (currentIndex - 1 + ENTITY_TYPES.length) % ENTITY_TYPES.length;
     this.selectedEntityType = ENTITY_TYPES[prevIndex];
+  }
+
+  /** Whether a drag is in progress (for range entity creation) */
+  get dragging(): boolean {
+    return this.isDragging;
+  }
+
+  /** The beat where the drag started (null if not dragging) */
+  get dragBeat(): Beat | null {
+    return this.dragStartBeat;
+  }
+
+  /** The lane where the drag started (null if not dragging) */
+  get dragLane(): Lane | null {
+    return this.dragStartLane;
   }
 
   /** Update the chart reference */
@@ -255,7 +272,7 @@ export class CreateMode {
     const errors = validateChart(testChart);
     if (errors.length > 0) {
       // Validation failed, don't add
-      console.warn("Validation failed:", errors);
+      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
     }
 
@@ -297,7 +314,7 @@ export class CreateMode {
 
     const errors = validateChart(testChart);
     if (errors.length > 0) {
-      console.warn("Validation failed:", errors);
+      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
     }
 
@@ -335,7 +352,7 @@ export class CreateMode {
 
     const errors = validateChart(testChart);
     if (errors.length > 0) {
-      console.warn("Validation failed:", errors);
+      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
     }
 
@@ -373,7 +390,7 @@ export class CreateMode {
 
     const errors = validateChart(testChart);
     if (errors.length > 0) {
-      console.warn("Validation failed:", errors);
+      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
     }
 

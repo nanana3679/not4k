@@ -4,6 +4,8 @@ import { beatEq } from "@not4k/shared";
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
   hitTestNote: (x: number, y: number) => number | null;
+  hitTestTrillZone?: (x: number, y: number) => number | null;
+  onWarn?: (message: string) => void;
 }
 
 export class DeleteMode {
@@ -21,6 +23,7 @@ export class DeleteMode {
 
   /** Click to delete */
   onPointerDown(x: number, y: number): void {
+    // Try deleting a note first
     const result = DeleteMode.deleteNoteAtPoint(
       this.chart,
       this.callbacks.hitTestNote,
@@ -31,6 +34,29 @@ export class DeleteMode {
     if (result !== null) {
       this.chart = result;
       this.callbacks.onChartUpdate(result);
+      return;
+    }
+
+    // Try deleting a trill zone (only if empty)
+    if (this.callbacks.hitTestTrillZone) {
+      const zoneIdx = this.callbacks.hitTestTrillZone(x, y);
+      if (zoneIdx !== null) {
+        const zone = this.chart.trillZones[zoneIdx];
+        const hasNotes = this.chart.notes.some((n) =>
+          n.lane === zone.lane &&
+          n.beat.n / n.beat.d >= zone.beat.n / zone.beat.d &&
+          n.beat.n / n.beat.d <= zone.endBeat.n / zone.endBeat.d
+        );
+        if (hasNotes) {
+          this.callbacks.onWarn?.('Zone contains notes — remove them first');
+        } else {
+          this.chart = {
+            ...this.chart,
+            trillZones: this.chart.trillZones.filter((_, i) => i !== zoneIdx),
+          };
+          this.callbacks.onChartUpdate(this.chart);
+        }
+      }
     }
   }
 
