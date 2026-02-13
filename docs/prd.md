@@ -366,23 +366,23 @@ Lv.1~15, 5단계 등급.
 
 | 영역 | 문서 |
 |------|------|
-| 존재 이유 | `docs/design/rationale.md` |
-| 게임 개요 | `docs/design/overview.md` |
-| 게임 코어 | `docs/design/game-core.md` |
-| 노트 시스템 | `docs/design/note-system.md` |
-| 피스 표기법 | `docs/design/piece-notation.md` |
-| 피스 정의 | `docs/design/piece-definition.md` |
-| 차트 디자인 | `docs/design/chart-design.md` |
-| 난이도 설계 | `docs/design/difficulty-design.md` |
-| 스코어링 | `docs/design/scoring.md` |
-| 키 바인딩 | `docs/design/keybinding.md` |
-| 튜토리얼 | `docs/design/tutorial.md` |
-| 옵저버 모드 | `docs/design/observer-mode.md` |
-| 차트 편집기 | `docs/design/chart-editor.md` |
-| 에셋 정의 | `docs/design/project-assets.md` |
-| 기술 스택 | `docs/design/tech-stack.md` |
-| MVP 스코프 | `docs/design/mvp-scope.md` |
-| 용어 사전 | `docs/design/glossary.md` |
-| 문서 리뷰 통합 | `docs/design/review.md` |
-| 유예 시간과 폴링 레이트 | `docs/design/grace-period-polling-rate.md` |
+| 존재 이유 | `docs/context/rationale.md` |
+| 게임 개요 | `docs/context/overview.md` |
+| 게임 코어 | `docs/spec/game-core.md` |
+| 노트 시스템 | `docs/spec/note-system.md` |
+| 피스 표기법 | `docs/spec/piece-notation.md` |
+| 피스 정의 | `docs/spec/piece-definition.md` |
+| 차트 디자인 | `docs/context/chart-design.md` |
+| 난이도 설계 | `docs/context/difficulty-design.md` |
+| 스코어링 | `docs/spec/scoring.md` |
+| 키 바인딩 | `docs/spec/keybinding.md` |
+| 튜토리얼 | `docs/context/tutorial.md` |
+| 옵저버 모드 | `docs/spec/observer-mode.md` |
+| 차트 편집기 | `docs/spec/chart-editor.md` |
+| 에셋 정의 | `docs/spec/project-assets.md` |
+| 기술 스택 | `docs/spec/tech-stack.md` |
+| MVP 스코프 | `docs/spec/mvp-scope.md` |
+| 용어 사전 | `docs/context/glossary.md` |
+| 문서 리뷰 통합 | `docs/context/review.md` |
+| 유예 시간과 폴링 레이트 | `docs/spec/grace-period-polling-rate.md` |
 | 역기획 보고서 | `docs/research/` (6개) |

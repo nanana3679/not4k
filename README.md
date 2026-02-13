@@ -8,73 +8,61 @@
 
 ---
 
-## 설계 문서
+## 문서 분류 기준
 
-### 핵심 설계
+문서를 **context**(기획)와 **spec**(구현) 두 폴더로 나눈다.
 
-| 문서 | 설명 |
-|------|------|
-| [overview.md](docs/design/overview.md) | **게임 설계 개요**. 핵심 메커니즘(4레인 + 다중키 바인딩), 노트 타입/피스 요약, 난이도 체계 요약. 전체 문서의 진입점 |
-| [rationale.md](docs/design/rationale.md) | **이 게임은 왜 존재하는가**. 기존 리듬게임의 3가지 구조적 문제(연타, 키 수 단절, 해부학적으로 불리한 패턴)와 아케이드 게임이 보여준 해법의 단서, not4k의 해법 |
-| [game-core.md](docs/design/game-core.md) | **게임 코어 설계**. 플랫폼(웹), 인증(Google SSO), 랭킹, 입력 매칭, 스크롤 속도, 오프셋, 게이지 없음, 미러 옵션, 게임 화면, 상태 흐름 |
+- **context/** — 설계 의도와 맥락을 담은 문서. "왜 이렇게 만드는가", "무엇을 만드는가"에 답한다. 코드를 쓰지 않아도 읽을 수 있고, 구현 중에는 설계 결정의 근거가 필요할 때만 참조한다.
+- **spec/** — 구현에 필요한 구체적 수치·포맷·규칙을 담은 문서. "어떻게 만드는가"에 답한다. 코딩할 때 옆에 펴놓고 보는 문서다.
+- **research/** — 기존 리듬게임의 역기획 분석. context의 근거 자료로, 설계 결정이 어떤 사례에서 출발했는지 보여준다.
 
-### 노트 및 차트 시스템
-
-| 문서 | 설명 |
-|------|------|
-| [note-system.md](docs/design/note-system.md) | **노트 시스템 상세**. 싱글/롱/트릴/더블 노트의 메커니즘, 판정, 시각적 요구사항. 홀드 이어잡기, 유예 시간(12ms), 피스(릴리즈탭·홀드 트릴·홀드 중 탭) 정의 |
-| [piece-notation.md](docs/design/piece-notation.md) | **피스 표기법**. 모든 노트 타입을 텍스트로 표현하기 위한 수직/수평 표기법 문법. 심볼 정의(`o`, `t`, `D`, `-`, `=`, `-o`, `{`, `}` 등) |
-| [piece-definition.md](docs/design/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001~PP-010까지의 피스 카탈로그. 각 피스의 메타데이터(PLv., 구성 노트, 인지/물리 부하, 선행 피스 등) |
-| [chart-design.md](docs/design/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 비트 복합 트릴, 건너가기 등 not4k 고유의 차트 설계 개념과 기존 게임과의 대응 |
-
-### 난이도 및 스코어링
-
-| 문서 | 설명 |
-|------|------|
-| [difficulty-design.md](docs/design/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급(입문/초급/중급/상급/최상급), 등급별 핵심 경험, 등급 간 전이 설계 |
-| [scoring.md](docs/design/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 판정 등급, 달성률, 랭크(SSS~F), 콤보/풀콤보 규칙, Good◇ |
-
-### 입력 및 유저 경험
-
-| 문서 | 설명 |
-|------|------|
-| [keybinding.md](docs/design/keybinding.md) | **키 바인딩 시스템**. 약중검엄 손배치 철학, 키보드 레이아웃(넘버패드/TKL), 난이도별 키 배치(4키→6키→8키→10키), 트릴 키 배치의 인체공학적 근거 |
-| [tutorial.md](docs/design/tutorial.md) | **튜토리얼 설계**. Phase 1(연주 방법) → Phase 2(복합 패턴과 판정) → Phase 3(홀드 이어잡기) → Phase 4(10키)의 단계적 학습 구조 |
-| [observer-mode.md](docs/design/observer-mode.md) | **옵저버 모드**. 입력 없이 차트를 확인하는 모드. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |
-
-### 도구 및 에셋
-
-| 문서 | 설명 |
-|------|------|
-| [chart-editor.md](docs/design/chart-editor.md) | **차트 편집기**. 타임라인·줌·스냅·편집 모드(Create/Select/Delete)·단축키·모바일 터치 조작·배치 제약 조건. 차트 메타데이터 및 엔티티(노트/BPM 마커/박자 마커) 정의 |
-| [project-assets.md](docs/design/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 수급 방안(자체 제작/오픈소스/커미션), 비영리 무료 게임 우선 공개 전략에 따른 단계별 수급 계획 |
-
-### 제품 요구사항
-
-| 문서 | 설명 |
-|------|------|
-| [prd.md](docs/prd.md) | **PRD (Product Requirements Document)**. 문제 정의, 해법, 타겟 유저, 기능 범위(게임/편집기/공유/서버), 노트 시스템, 난이도 체계, 스코어링, 에셋 전략, 미정 사항, 성공 지표를 종합 |
-
-### 제품 구현
-
-| 문서 | 설명 |
-|------|------|
-| [tech-stack.md](docs/design/tech-stack.md) | **기술 스택**. React 19 + PixiJS v8 + Supabase + Web Audio API. 모노레포(pnpm + Turborepo), 배포(Cloudflare Pages), 차트 JSON 포맷, 오디오 동기화 |
-| [mvp-scope.md](docs/design/mvp-scope.md) | **MVP 스코프**. Phase A(프로토타입) / Phase B(알파) 기능 범위 정의. 핵심 메커니즘 검증을 위한 최소 기능 |
-
-### 참조
-
-| 문서 | 설명 |
-|------|------|
-| [glossary.md](docs/design/glossary.md) | **용어 사전**. 게임 구조, 입력 체계, 입력방식, 노트 타입, 피스, 채보 설계, 난이도 체계, 판정/스코어링, 외부 참조 용어, 표기법 심볼의 통합 정의 |
-| [review.md](docs/design/review.md) | **문서 리뷰**. 문서 교차 검토 결과 — 해결된 모순/불일치, 용어 정리, 미완료 항목 추적 |
-| [grace-period-polling-rate.md](docs/design/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 키보드 폴링 레이트(125Hz~8000Hz)별 동작 분석 |
+분류 판단 기준: 해당 문서를 읽지 않으면 **코드를 작성할 수 없는가?** 그렇다면 spec, 아니라면 context.
 
 ---
 
-## 리서치 문서
+## context — 기획 문서 (8개)
 
-기존 리듬게임의 역기획 분석. not4k의 설계 근거를 뒷받침하는 원본 자료.
+"왜, 무엇을" — 설계 철학, 게임 디자인 의도, 용어 정의
+
+| 문서 | 설명 |
+|------|------|
+| [overview.md](docs/context/overview.md) | **게임 설계 개요**. 핵심 메커니즘(4레인 + 다중키 바인딩), 노트 타입/피스 요약, 난이도 체계 요약. 전체 문서의 진입점 |
+| [rationale.md](docs/context/rationale.md) | **이 게임은 왜 존재하는가**. 기존 리듬게임의 3가지 구조적 문제와 아케이드 게임이 보여준 해법의 단서 |
+| [glossary.md](docs/context/glossary.md) | **용어 사전**. 게임 구조, 입력 체계, 노트 타입, 피스, 채보 설계, 판정/스코어링, 표기법 심볼의 통합 정의 |
+| [chart-design.md](docs/context/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 건너가기 등 not4k 고유의 채보 설계 개념 |
+| [difficulty-design.md](docs/context/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급, 등급별 핵심 경험, 등급 간 전이 설계 |
+| [tutorial.md](docs/context/tutorial.md) | **튜토리얼 설계**. Phase 1~4의 단계적 학습 구조 |
+| [review.md](docs/context/review.md) | **문서 리뷰**. 문서 교차 검토 결과 — 해결된 모순/불일치, 미완료 항목 추적 |
+| [review-cross-reference.md](docs/context/review-cross-reference.md) | **교차 검토 결과**. 문서 간 모순·불일치 정리 |
+
+## spec — 구현 문서 (12개)
+
+"어떻게" — 구체적 수치, 데이터 포맷, 판정 규칙, 기술 스택
+
+| 문서 | 설명 |
+|------|------|
+| [mvp-scope.md](docs/spec/mvp-scope.md) | **MVP 스코프**. Phase A(프로토타입) / Phase B(알파) 기능 범위. **구현 진입점** |
+| [tech-stack.md](docs/spec/tech-stack.md) | **기술 스택**. React 19 + PixiJS v8 + Supabase + Web Audio API. 모노레포, 배포, 차트 JSON 포맷 |
+| [note-system.md](docs/spec/note-system.md) | **노트 시스템 상세**. 싱글/롱/트릴/더블 노트의 메커니즘, 판정, 유예 시간(12ms), 피스 정의 |
+| [piece-definition.md](docs/spec/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001~PP-010 카탈로그, PLv. 메타데이터 |
+| [piece-notation.md](docs/spec/piece-notation.md) | **피스 표기법**. 수직/수평 표기법 문법, 심볼 정의 |
+| [chart-editor.md](docs/spec/chart-editor.md) | **차트 편집기**. 타임라인·줌·스냅·편집 모드·단축키·배치 제약 조건, 엔티티 정의 |
+| [scoring.md](docs/spec/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 달성률, 랭크, 콤보 규칙 |
+| [game-core.md](docs/spec/game-core.md) | **게임 코어 설계**. 플랫폼, 인증, 랭킹, 입력 매칭, 스크롤, 오프셋, 상태 흐름 |
+| [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 약중검엄 손배치, 키보드 레이아웃, 4키→10키 프리셋 |
+| [observer-mode.md](docs/spec/observer-mode.md) | **옵저버 모드**. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |
+| [grace-period-polling-rate.md](docs/spec/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 폴링 레이트별 동작 분석 |
+| [project-assets.md](docs/spec/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 단계별 수급 계획 |
+
+## 제품 요구사항
+
+| 문서 | 설명 |
+|------|------|
+| [prd.md](docs/prd.md) | **PRD**. 문제 정의, 해법, 타겟 유저, 기능 범위, 성공 지표를 종합. context와 spec을 하나로 요약한 최상위 문서 |
+
+## research — 역기획 (6개)
+
+기존 리듬게임의 역기획 분석. context의 근거 자료.
 
 | 문서 | 대상 게임 | 핵심 참조 포인트 |
 |------|-----------|-----------------|
@@ -91,27 +79,30 @@
 
 ```
 docs/
-├── design/                  # 게임 설계 문서 (19개)
-│   ├── overview.md          # 게임 설계 개요 ← 시작점
-│   ├── rationale.md         # 존재 이유
-│   ├── game-core.md         # 게임 코어 (플랫폼, 인증, 랭킹, UI)
-│   ├── note-system.md       # 노트 시스템 상세
-│   ├── piece-notation.md    # 피스 표기법
-│   ├── piece-definition.md  # 피스 정의 (PP-000 체계)
-│   ├── difficulty-design.md # 난이도 설계
-│   ├── chart-design.md      # 차트 디자인 어휘
-│   ├── scoring.md           # 스코어링 시스템
-│   ├── keybinding.md        # 키 바인딩 시스템
-│   ├── observer-mode.md     # 옵저버 모드
-│   ├── tutorial.md          # 튜토리얼 설계
-│   ├── chart-editor.md      # 차트 편집기
-│   ├── project-assets.md    # 프로젝트 에셋 정의
-│   ├── tech-stack.md        # 기술 스택
-│   ├── mvp-scope.md         # MVP 스코프
-│   ├── glossary.md          # 용어 사전
-│   ├── review.md            # 문서 리뷰
-│   └── grace-period-polling-rate.md  # 유예 시간과 폴링 레이트
-└── research/                # 역기획 보고서 (6개)
+├── prd.md                          # 제품 요구사항 (최상위)
+├── context/                        # 기획 — "왜, 무엇을" (8개)
+│   ├── overview.md                 #   게임 설계 개요 ← 시작점
+│   ├── rationale.md                #   존재 이유
+│   ├── glossary.md                 #   용어 사전
+│   ├── chart-design.md             #   차트 디자인 어휘
+│   ├── difficulty-design.md        #   난이도 설계
+│   ├── tutorial.md                 #   튜토리얼 설계
+│   ├── review.md                   #   문서 리뷰
+│   └── review-cross-reference.md   #   교차 검토 결과
+├── spec/                           # 구현 — "어떻게" (12개)
+│   ├── mvp-scope.md                #   MVP 스코프 ← 구현 진입점
+│   ├── tech-stack.md               #   기술 스택
+│   ├── note-system.md              #   노트 시스템 상세
+│   ├── piece-definition.md         #   피스 정의 (PP-000 체계)
+│   ├── piece-notation.md           #   피스 표기법
+│   ├── chart-editor.md             #   차트 편집기
+│   ├── scoring.md                  #   스코어링 시스템
+│   ├── game-core.md                #   게임 코어
+│   ├── keybinding.md               #   키 바인딩 시스템
+│   ├── observer-mode.md            #   옵저버 모드
+│   ├── grace-period-polling-rate.md #  유예 시간과 폴링 레이트
+│   └── project-assets.md           #   프로젝트 에셋 정의
+└── research/                       # 역기획 보고서 (6개)
     ├── beatmania.md
     ├── djmax.md
     ├── soundvoltex.md
@@ -157,7 +148,8 @@ not4k/
 │       └── records/             #   플레이 기록 저장
 │
 ├── docs/                        # 설계 문서 (현재)
-│   ├── design/                  #   게임 설계 문서 (19개)
+│   ├── context/                 #   기획 문서 (8개)
+│   ├── spec/                    #   구현 문서 (12개)
 │   └── research/                #   역기획 보고서 (6개)
 │
 └── assets/                      # 에셋 원본
@@ -183,9 +175,15 @@ game ──→ core ←── editor
 
 ### 읽기 순서 (권장)
 
-1. [rationale.md](docs/design/rationale.md) — 왜 이 게임이 필요한지
-2. [overview.md](docs/design/overview.md) — 게임이 어떻게 작동하는지
-3. [note-system.md](docs/design/note-system.md) — 노트 타입의 상세 메커니즘
-4. [difficulty-design.md](docs/design/difficulty-design.md) — 난이도가 어떻게 상승하는지
-5. [keybinding.md](docs/design/keybinding.md) — 키보드에서 어떻게 치는지
-6. 나머지 문서는 필요에 따라 참조
+**기획을 이해하려면** (context → research 순):
+
+1. [rationale.md](docs/context/rationale.md) — 왜 이 게임이 필요한지
+2. [overview.md](docs/context/overview.md) — 게임이 어떻게 작동하는지
+3. [difficulty-design.md](docs/context/difficulty-design.md) — 난이도가 어떻게 상승하는지
+4. 나머지 context/ 문서와 research/ 는 필요에 따라 참조
+
+**구현을 시작하려면** (spec 순):
+
+1. [mvp-scope.md](docs/spec/mvp-scope.md) — 무엇을 먼저 만들어야 하는지
+2. [tech-stack.md](docs/spec/tech-stack.md) — 어떤 기술로 만드는지
+3. 구현 영역에 해당하는 spec/ 문서를 참조 (예: 판정 → scoring.md, 입력 → keybinding.md)
