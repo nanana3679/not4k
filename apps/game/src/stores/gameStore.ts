@@ -1,0 +1,118 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings';
+
+interface KeyBindings {
+  lane1: string[];
+  lane2: string[];
+  lane3: string[];
+  lane4: string[];
+}
+
+interface GameSettings {
+  keyBindings: KeyBindings;
+  scrollSpeed: number;
+  liftPx: number;
+  suddenPx: number;
+  targetFps: number;
+  offsetMs: number;
+  preset: 'numpad' | 'tkl';
+  isFirstLaunch: boolean;
+}
+
+interface PlayResult {
+  songId: string;
+  difficulty: string;
+  achievementRate: number;
+  rank: string;
+  maxCombo: number;
+  isFullCombo: boolean;
+  judgmentCounts: Record<string, number>;
+  goodTrillCount: number;
+}
+
+interface GameState {
+  screen: Screen;
+  settings: GameSettings;
+  selectedSongId: string | null;
+  selectedDifficulty: string | null;
+  lastResult: PlayResult | null;
+
+  setScreen: (screen: Screen) => void;
+  updateSettings: (partial: Partial<GameSettings>) => void;
+  updateKeyBindings: (bindings: Partial<KeyBindings>) => void;
+  selectSong: (songId: string, difficulty: string) => void;
+  setResult: (result: PlayResult) => void;
+  completeFirstLaunch: () => void;
+}
+
+const TKL_BINDINGS: KeyBindings = {
+  lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
+  lane2: ['KeyE', 'KeyD', 'KeyC'],
+  lane3: ['KeyP', 'KeyL', 'Comma'],
+  lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
+};
+
+const NUMPAD_BINDINGS: KeyBindings = {
+  lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
+  lane2: ['KeyE', 'KeyD', 'KeyC'],
+  lane3: ['Numpad7', 'Numpad4', 'Numpad1'],
+  lane4: ['Numpad8', 'Numpad9', 'Numpad5', 'Numpad2'],
+};
+
+const DEFAULT_SETTINGS: GameSettings = {
+  keyBindings: TKL_BINDINGS,
+  scrollSpeed: 800,
+  liftPx: 0,
+  suddenPx: 0,
+  targetFps: 60,
+  offsetMs: 0,
+  preset: 'tkl',
+  isFirstLaunch: true,
+};
+
+export const useGameStore = create<GameState>()(
+  persist(
+    (set) => ({
+      screen: 'title',
+      settings: DEFAULT_SETTINGS,
+      selectedSongId: null,
+      selectedDifficulty: null,
+      lastResult: null,
+
+      setScreen: (screen) => set({ screen }),
+
+      updateSettings: (partial) => set((state) => ({
+        settings: { ...state.settings, ...partial },
+      })),
+
+      updateKeyBindings: (bindings) => set((state) => ({
+        settings: {
+          ...state.settings,
+          keyBindings: { ...state.settings.keyBindings, ...bindings },
+        },
+      })),
+
+      selectSong: (songId, difficulty) => set({
+        selectedSongId: songId,
+        selectedDifficulty: difficulty,
+      }),
+
+      setResult: (result) => set({ lastResult: result }),
+
+      completeFirstLaunch: () => set((state) => ({
+        settings: { ...state.settings, isFirstLaunch: false },
+      })),
+    }),
+    {
+      name: 'not4k-settings',
+      partialize: (state) => ({ settings: state.settings }),
+    }
+  )
+);
+
+export const PRESET_BINDINGS = {
+  tkl: TKL_BINDINGS,
+  numpad: NUMPAD_BINDINGS,
+};
