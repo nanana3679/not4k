@@ -1,2 +1,8 @@
 .omc/
 .claude/
+
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+.vite/
