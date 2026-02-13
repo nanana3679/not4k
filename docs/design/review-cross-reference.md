@@ -16,6 +16,7 @@
 | PRD 스페셜 땡스 | S-10 스페셜 땡스 추가, 상태 흐름에 `타이틀 → 스페셜 땡스 → 타이틀` 추가 | prd.md |
 | TGood 표기 | "TGood" → "Good◇" 통일 | mvp-scope.md |
 | PRD 관련 문서 누락 | §14에 tech-stack.md, mvp-scope.md 추가 | prd.md |
+| 차트 JSON/에디터 통일 | JSON 타입명을 chart-editor.md 엔티티와 1:1 대응, 트릴 구간 엔티티 추가, 메타데이터 필드 통일 | tech-stack.md, chart-editor.md |
 
 ---
 
@@ -57,27 +58,6 @@ PRD와 README는 `packages/{core,game,editor,server}` 구조를 사용하고, te
 | `difficulty-design.md` (설계 원칙 4) | "트릴·더블·**홀드 중 탭**이 극소량 등장" | **홀드 중 탭은 입문에서 등장하지 않아야 함** |
 
 **권장**: note-system.md의 입문 기술에서 "홀드 이어잡기·홀드 중 탭"을 제거. difficulty-design.md 설계 원칙 4에서도 "홀드 중 탭"을 제거.
-
----
-
-### 1-3. 차트 JSON 포맷과 에디터 데이터 모델 불일치
-
-**심각도: 낮음 (구현 시 결정 가능)**
-
-tech-stack.md의 차트 JSON 예시에서 사용하는 엔티티 타입이 chart-editor.md의 엔티티 목록과 일치하지 않는다.
-
-| tech-stack.md JSON 타입 | chart-editor.md 대응 엔티티 | 불일치 |
-|------------------------|-----------------------------|--------|
-| `"single"` | 싱글 노트 | 일치 |
-| `"double"` | 더블 노트 | 일치 |
-| `"trill"` | 트릴 노트 | 일치 |
-| `"longStart"` (endBeat 포함) | 싱글 롱노트 바디 시작 + 바디 끝 | **불일치**: JSON은 단일 엔티티에 endBeat를 포함하지만, chart-editor.md는 시작/끝 쌍 |
-| `"trillZoneStart"` (endBeat 포함) | 트릴 롱노트 바디 시작 + 바디 끝 | **불일치**: 구조(단일 vs 쌍) |
-| — | 더블 롱노트 바디 시작/끝 | **누락**: JSON 예시에 더블 롱노트 없음 |
-
-참고: `trillZoneStart`는 트릴 구간(트릴 노트/롱노트가 존재할 수 있는 영역)을 나타내며, 트릴 롱노트(트릴 노트가 헤드가 되어 바디를 가지는 형태)와는 완전히 다른 개념이다. chart-editor.md에서 "트릴 롱노트 바디"라는 이름으로 트릴 구간을 표현하고 있어, 이름만으로는 두 개념을 혼동하기 쉽다.
-
-**권장**: tech-stack.md의 JSON 예시를 chart-editor.md의 데이터 모델(쌍 구조)에 맞춰 수정. 트릴 구간 엔티티의 이름을 `trillZone`으로 통일하여 트릴 롱노트와 명확히 구분.
 
 ---
 
@@ -189,7 +169,6 @@ review.md에서 이미 추적 중인 항목은 중복 기재하지 않으며 참
 
 | # | 유형 | 내용 | 관련 문서 |
 |---|------|------|-----------|
-| 1-3 | 모순 | 차트 JSON 포맷과 에디터 데이터 모델 불일치 | tech-stack, chart-editor |
 | 2-2 | 누락 | overview.md 피스 테이블에 짧은 트릴 누락 | overview |
 | 2-3 | 누락 | chart-editor.md에 헤드 없는 롱노트 미반영 | chart-editor, note-system |
 | 2-4 | 누락 | AGENTS.md 미작성 | AGENTS.md |
