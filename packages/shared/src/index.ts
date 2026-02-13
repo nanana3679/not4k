@@ -5,3 +5,4 @@ export * from "./types";
 export * from "./constants";
 export * from "./timing";
 export * from "./validation";
+export * from "./chart";
