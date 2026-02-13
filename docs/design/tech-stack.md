@@ -515,7 +515,7 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 |----------|------|-------------|
 | **차트 JSON 타입** | NoteType, BpmMarker, TimeSignatureMarker, Beat(분수), ChartData | 타입 불일치 → 차트 로딩 실패 |
 | **박자 수학** | 분수 연산, beat → 시간(ms) 변환, 마디선 위치 계산 | 로직 중복, 결과 불일치 |
-| **배치 제약 검증** | `chart-editor.md`의 4가지 제약 조건 | 에디터에서 유효한 차트가 게임에서 무효 |
+| **배치 제약 검증** | `chart-editor.md`의 3가지 제약 조건 | 에디터에서 유효한 차트가 게임에서 무효 |
 | **상수** | 노트 타입 enum, 판정 윈도우 | 값 불일치 |
 
 분리 레포에서는 이 공유 요소를 npm 패키지로 게시하거나 복사해야 한다. 1인/소규모 팀에서 이 오버헤드는 과도하다. 모노레포에서는 `packages/shared`에서 한 번 정의하고 양쪽에서 import한다.
