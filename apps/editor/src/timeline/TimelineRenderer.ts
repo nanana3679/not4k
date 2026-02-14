@@ -13,7 +13,7 @@ import type {
   PointNote,
   RangeNote,
 } from "@not4k/shared";
-import { beatToMs, measureStartBeat } from "@not4k/shared";
+import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "@not4k/shared";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -226,19 +226,25 @@ export class TimelineRenderer {
    */
   getTotalTimelineMs(): number {
     if (!this.chart) return 0;
-    const { bpmMarkers, meta } = this.chart;
-    if (bpmMarkers.length === 0) return 0;
+    const { bpmMarkers, timeSignatures, meta } = this.chart;
+    if (bpmMarkers.length === 0 || timeSignatures.length === 0) return 0;
 
-    // ms for one measure (4 beats in 4/4)
-    const oneMeasureMs = beatToMs({ n: 4, d: 1 }, bpmMarkers, meta.offsetMs);
-    if (oneMeasureMs <= 0) return 0;
+    let totalMeasures = DEFAULT_MEASURES;
 
-    const totalMeasures =
-      this.waveformDurationMs > 0
-        ? Math.ceil(this.waveformDurationMs / oneMeasureMs)
-        : DEFAULT_MEASURES;
+    if (this.waveformDurationMs > 0) {
+      // Find the number of measures that covers the audio duration
+      for (let m = 1; m <= 10000; m++) {
+        const mBeat = measureStartBeat(m, timeSignatures);
+        const mMs = beatToMs(mBeat, bpmMarkers, meta.offsetMs);
+        if (mMs >= this.waveformDurationMs) {
+          totalMeasures = m;
+          break;
+        }
+      }
+    }
 
-    return beatToMs({ n: totalMeasures * 4, d: 1 }, bpmMarkers, meta.offsetMs);
+    const endBeat = measureStartBeat(totalMeasures, timeSignatures);
+    return beatToMs(endBeat, bpmMarkers, meta.offsetMs);
   }
 
   /**
@@ -321,6 +327,8 @@ export class TimelineRenderer {
     this.renderNotes();
     this.renderMarkers();
     this.updateScroll();
+    // Force PixiJS to repaint the canvas
+    this.app.render();
   }
 
   /**
@@ -393,7 +401,8 @@ export class TimelineRenderer {
   }
 
   /**
-   * Render grid lines (measure, beat, snap)
+   * Render grid lines (measure, beat, snap).
+   * Iterates measure by measure, respecting variable time signatures and BPMs.
    */
   private renderGridLines(): void {
     if (!this.chart) return;
@@ -401,68 +410,79 @@ export class TimelineRenderer {
     const { bpmMarkers, timeSignatures, meta } = this.chart;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return;
 
-    // Calculate total measures from timeline duration
     const totalTimelineMs = this.getTotalTimelineMs();
-    const oneMeasureMs = beatToMs({ n: 4, d: 1 }, bpmMarkers, meta.offsetMs);
-    const totalMeasures =
-      oneMeasureMs > 0 ? Math.ceil(totalTimelineMs / oneMeasureMs) : DEFAULT_MEASURES;
-    const maxBeat = totalMeasures * 4;
-    let currentBeat = 0;
+    const sortedTS = [...timeSignatures].sort((a, b) => a.measure - b.measure);
 
-    while (currentBeat <= maxBeat) {
-      const timeMs = beatToMs({ n: currentBeat, d: 1 }, bpmMarkers, meta.offsetMs);
+    const measureLabelStyle = new TextStyle({
+      fontSize: 11,
+      fill: 0x999999,
+      fontFamily: "monospace",
+    });
 
-      const y = this.timeToY(timeMs);
+    for (let m = 0; ; m++) {
+      const mStartBeat = measureStartBeat(m, timeSignatures);
+      const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
+      if (mStartMs > totalTimelineMs) break;
 
-      // Measure lines (every beatPerMeasure beats)
-      if (currentBeat % 4 === 0) {
-        // Simplified: assume 4/4 time for MVP
-        const line = new Graphics();
-        line.moveTo(0, y);
-        line.lineTo(TIMELINE_WIDTH, y);
-        line.stroke({ width: 2, color: COLORS.MEASURE_LINE });
-        this.measureLines.addChild(line);
+      const y = this.timeToY(mStartMs);
 
-        // Measure number label
-        const measureNum = currentBeat / 4 + 1;
-        const label = new Text({
-          text: String(measureNum),
-          style: new TextStyle({
-            fontSize: 11,
-            fill: 0x999999,
-            fontFamily: "monospace",
-          }),
-        });
-        label.x = TIMELINE_WIDTH + 4;
-        label.y = y - 14;
-        this.measureLabels.addChild(label);
-      }
-      // Beat lines
-      else {
-        const line = new Graphics();
-        line.moveTo(0, y);
-        line.lineTo(TIMELINE_WIDTH, y);
-        line.stroke({ width: 1, color: COLORS.BEAT_LINE });
-        this.beatLines.addChild(line);
+      // Measure line
+      const line = new Graphics();
+      line.moveTo(0, y);
+      line.lineTo(TIMELINE_WIDTH, y);
+      line.stroke({ width: 2, color: COLORS.MEASURE_LINE });
+      this.measureLines.addChild(line);
+
+      // Measure number label
+      const label = new Text({
+        text: String(m + 1),
+        style: measureLabelStyle,
+      });
+      label.x = TIMELINE_WIDTH + 4;
+      label.y = y - 14;
+      this.measureLabels.addChild(label);
+
+      // Active beatPerMeasure for this measure
+      let bpm = sortedTS[0].beatPerMeasure;
+      for (const ts of sortedTS) {
+        if (ts.measure <= m) bpm = ts.beatPerMeasure;
+        else break;
       }
 
-      // Snap lines (subdivisions)
-      for (let i = 1; i < this._snap; i++) {
-        const snapBeat = currentBeat + i / this._snap;
-        const snapTimeMs = beatToMs(
-          { n: Math.round(snapBeat * this._snap), d: this._snap },
-          bpmMarkers,
-          meta.offsetMs
-        );
-        const snapY = this.timeToY(snapTimeMs);
-        const snapLine = new Graphics();
-        snapLine.moveTo(0, snapY);
-        snapLine.lineTo(TIMELINE_WIDTH, snapY);
-        snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
-        this.snapLines.addChild(snapLine);
+      // Each subdivision = 1/bpm.d beats; there are bpm.n subdivisions per measure
+      const subdivBeat = beat(1, bpm.d);
+
+      // Beat lines (skip the first = measure line)
+      for (let b = 1; b < bpm.n; b++) {
+        const bBeat = beatAdd(mStartBeat, beatMulInt(subdivBeat, b));
+        const bMs = beatToMs(bBeat, bpmMarkers, meta.offsetMs);
+        if (bMs > totalTimelineMs) break;
+
+        const bY = this.timeToY(bMs);
+        const beatLine = new Graphics();
+        beatLine.moveTo(0, bY);
+        beatLine.lineTo(TIMELINE_WIDTH, bY);
+        beatLine.stroke({ width: 1, color: COLORS.BEAT_LINE });
+        this.beatLines.addChild(beatLine);
       }
 
-      currentBeat++;
+      // Snap lines within each beat subdivision
+      for (let b = 0; b < bpm.n; b++) {
+        const bStartBeat = beatAdd(mStartBeat, beatMulInt(subdivBeat, b));
+
+        for (let s = 1; s < this._snap; s++) {
+          const snapBeat = beatAdd(bStartBeat, beat(s, bpm.d * this._snap));
+          const snapMs = beatToMs(snapBeat, bpmMarkers, meta.offsetMs);
+          if (snapMs > totalTimelineMs) break;
+
+          const snapY = this.timeToY(snapMs);
+          const snapLine = new Graphics();
+          snapLine.moveTo(0, snapY);
+          snapLine.lineTo(TIMELINE_WIDTH, snapY);
+          snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
+          this.snapLines.addChild(snapLine);
+        }
+      }
     }
   }
 
@@ -483,10 +503,12 @@ export class TimelineRenderer {
       const x = (zone.lane - 1) * LANE_WIDTH;
       const width = LANE_WIDTH;
       const topY = Math.min(startY, endY);
-      const height = Math.abs(endY - startY);
+      const rawHeight = Math.abs(endY - startY);
+      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
+      const adjustedTopY = rawHeight > 0 ? topY : topY - NOTE_HEIGHT / 2;
 
       const bg = new Graphics();
-      bg.rect(x, topY, width, height);
+      bg.rect(x, adjustedTopY, width, height);
       bg.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
       this.trillZoneLayer.addChild(bg);
     }
@@ -598,14 +620,14 @@ export class TimelineRenderer {
     let bodyColor: number;
 
     switch (note.type) {
-      case "singleLongBody":
-        bodyColor = COLORS.SINGLE_LONG_BODY;
+      case "singleLong":
+        bodyColor = COLORS.SINGLE_LONG;
         break;
-      case "doubleLongBody":
-        bodyColor = COLORS.DOUBLE_LONG_BODY;
+      case "doubleLong":
+        bodyColor = COLORS.DOUBLE_LONG;
         break;
-      case "trillLongBody":
-        bodyColor = COLORS.TRILL_LONG_BODY;
+      case "trillLong":
+        bodyColor = COLORS.TRILL_LONG;
         break;
     }
 
@@ -622,6 +644,21 @@ export class TimelineRenderer {
       body.rect(bodyX, bodyTopY, w, bodyHeight);
       body.fill(bodyColor);
 
+      // Fill diamond corner gaps for trillLong (seamless body-to-head/end connection)
+      if (note.type === "trillLong") {
+        const cx = x + LANE_WIDTH / 2;
+        // Head upper corners (at bottomY=startY, facing body)
+        body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
+        body.fill(bodyColor);
+        body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
+        body.fill(bodyColor);
+        // End lower corners (at topY=endY, facing body)
+        body.poly([bodyX, endY, cx, endY + h / 2, bodyX, endY + h / 2]);
+        body.fill(bodyColor);
+        body.poly([bodyX + w, endY, cx, endY + h / 2, bodyX + w, endY + h / 2]);
+        body.fill(bodyColor);
+      }
+
       if (isSelected) {
         body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongBodyLayer.addChild(body);
@@ -632,10 +669,20 @@ export class TimelineRenderer {
 
     // Long note head (start point)
     const head = new Graphics();
-    const headX = x + (LANE_WIDTH - w) / 2;
-    const headY = startY - h / 2;
-    head.rect(headX, headY, w, h);
-    head.fill(bodyColor);
+    if (note.type === "trillLong") {
+      const cx = x + LANE_WIDTH / 2;
+      head.moveTo(cx, startY - h / 2);
+      head.lineTo(cx + w / 2, startY);
+      head.lineTo(cx, startY + h / 2);
+      head.lineTo(cx - w / 2, startY);
+      head.lineTo(cx, startY - h / 2);
+      head.fill(bodyColor);
+    } else {
+      const headX = x + (LANE_WIDTH - w) / 2;
+      const headY = startY - h / 2;
+      head.rect(headX, headY, w, h);
+      head.fill(bodyColor);
+    }
 
     if (isSelected) {
       head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
@@ -646,10 +693,20 @@ export class TimelineRenderer {
 
     // Long note end (end point) — 50% alpha for visual distinction
     const end = new Graphics();
-    const endX = x + (LANE_WIDTH - w) / 2;
-    const endNoteY = endY - h / 2;
-    end.rect(endX, endNoteY, w, h);
-    end.fill({ color: bodyColor, alpha: 0.5 });
+    if (note.type === "trillLong") {
+      const cx = x + LANE_WIDTH / 2;
+      end.moveTo(cx, endY - h / 2);
+      end.lineTo(cx + w / 2, endY);
+      end.lineTo(cx, endY + h / 2);
+      end.lineTo(cx - w / 2, endY);
+      end.lineTo(cx, endY - h / 2);
+      end.fill({ color: bodyColor, alpha: 0.5 });
+    } else {
+      const endX = x + (LANE_WIDTH - w) / 2;
+      const endNoteY = endY - h / 2;
+      end.rect(endX, endNoteY, w, h);
+      end.fill({ color: bodyColor, alpha: 0.5 });
+    }
 
     if (isSelected) {
       end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });

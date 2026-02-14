@@ -270,7 +270,10 @@ export class GameRenderer {
       const zoneGraphic = new Graphics();
       const laneX = this.getLaneX(zone.lane);
 
-      zoneGraphic.rect(laneX, endY, LANE_WIDTH, startY - endY);
+      const rawHeight = startY - endY;
+      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
+      const adjustedEndY = rawHeight > 0 ? endY : endY - NOTE_HEIGHT / 2;
+      zoneGraphic.rect(laneX, adjustedEndY, LANE_WIDTH, height);
       zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
 
       this.trillZoneLayer.addChild(zoneGraphic);
@@ -328,12 +331,28 @@ export class GameRenderer {
       ? COLORS.LONG_BODY_FAILED
       : this.getLongBodyColor(entity.type);
 
-    if (entity.type === "trillLongBody") {
+    if (entity.type === "trillLong") {
       // Draw diamond-shaped body
       this.drawDiamondBody(bodyGraphic, bodyHeight, bodyColor);
     } else {
       // Draw rectangular body
       bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
+      bodyGraphic.fill(bodyColor);
+    }
+
+    // trillLong: fill diamond corner gaps with body color
+    if (entity.type === "trillLong" && bodyHeight > 0) {
+      const hw = NOTE_WIDTH / 2;
+      const hh = NOTE_HEIGHT / 2;
+      // Head upper corners (body bottom = bodyHeight)
+      bodyGraphic.poly([0, bodyHeight, hw, bodyHeight, 0, bodyHeight + hh]);
+      bodyGraphic.fill(bodyColor);
+      bodyGraphic.poly([hw, bodyHeight, NOTE_WIDTH, bodyHeight, NOTE_WIDTH, bodyHeight + hh]);
+      bodyGraphic.fill(bodyColor);
+      // End lower corners (body top = 0, end diamond bottom = NOTE_HEIGHT)
+      bodyGraphic.poly([0, hh, hw, NOTE_HEIGHT, 0, NOTE_HEIGHT]);
+      bodyGraphic.fill(bodyColor);
+      bodyGraphic.poly([NOTE_WIDTH, hh, NOTE_WIDTH, NOTE_HEIGHT, hw, NOTE_HEIGHT]);
       bodyGraphic.fill(bodyColor);
     }
 
@@ -363,7 +382,7 @@ export class GameRenderer {
 
     const color = this.getNoteColor(type);
 
-    if (type === "trill" || type === "trillLongBody") {
+    if (type === "trill" || type === "trillLong") {
       // Draw diamond (rotated square)
       this.drawDiamond(graphic, color);
     } else {
@@ -409,13 +428,13 @@ export class GameRenderer {
   private getNoteColor(type: string): number {
     switch (type) {
       case "single":
-      case "singleLongBody":
+      case "singleLong":
         return COLORS.SINGLE_NOTE;
       case "double":
-      case "doubleLongBody":
+      case "doubleLong":
         return COLORS.DOUBLE_NOTE;
       case "trill":
-      case "trillLongBody":
+      case "trillLong":
         return COLORS.TRILL_NOTE;
       default:
         return COLORS.SINGLE_NOTE;
@@ -424,14 +443,14 @@ export class GameRenderer {
 
   private getLongBodyColor(type: string): number {
     switch (type) {
-      case "singleLongBody":
-        return COLORS.SINGLE_LONG_BODY;
-      case "doubleLongBody":
-        return COLORS.DOUBLE_LONG_BODY;
-      case "trillLongBody":
-        return COLORS.TRILL_LONG_BODY;
+      case "singleLong":
+        return COLORS.SINGLE_LONG;
+      case "doubleLong":
+        return COLORS.DOUBLE_LONG;
+      case "trillLong":
+        return COLORS.TRILL_LONG;
       default:
-        return COLORS.SINGLE_LONG_BODY;
+        return COLORS.SINGLE_LONG;
     }
   }
 

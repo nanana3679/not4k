@@ -806,10 +806,8 @@ export function App() {
   const entityTypeOptions: EntityType[] = [
     'single',
     'double',
-    'trill',
-    'singleLongBody',
-    'doubleLongBody',
-    'trillLongBody',
+    'singleLong',
+    'doubleLong',
     'trillZone',
   ];
 

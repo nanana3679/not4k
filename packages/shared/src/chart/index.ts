@@ -37,7 +37,7 @@ interface PointNoteJson {
 }
 
 interface RangeNoteJson {
-  type: "singleLongBody" | "doubleLongBody" | "trillLongBody";
+  type: "singleLong" | "doubleLong" | "trillLong";
   lane: 1 | 2 | 3 | 4;
   beat: string;
   endBeat: string;

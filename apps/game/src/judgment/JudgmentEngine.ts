@@ -165,9 +165,9 @@ export class JudgmentEngine {
     } else if (note.type === NoteType.TRILL) {
       this.processTrillNoteInput(targetNoteIndex, deltaMs, keyCode, lane);
     } else if (
-      note.type === NoteType.SINGLE_LONG_BODY ||
-      note.type === NoteType.DOUBLE_LONG_BODY ||
-      note.type === NoteType.TRILL_LONG_BODY
+      note.type === NoteType.SINGLE_LONG ||
+      note.type === NoteType.DOUBLE_LONG ||
+      note.type === NoteType.TRILL_LONG
     ) {
       this.processLongNoteHeadInput(targetNoteIndex, deltaMs, keyCode, lane);
     }
@@ -230,14 +230,14 @@ export class JudgmentEngine {
           this.breakCombo();
         }
       } else if (
-        note.type === NoteType.SINGLE_LONG_BODY ||
-        note.type === NoteType.DOUBLE_LONG_BODY ||
-        note.type === NoteType.TRILL_LONG_BODY
+        note.type === NoteType.SINGLE_LONG ||
+        note.type === NoteType.DOUBLE_LONG ||
+        note.type === NoteType.TRILL_LONG
       ) {
         // 롱노트 헤드 자동 Miss
         if (songTimeMs > noteTime + JUDGMENT_WINDOWS.BAD) {
           const doubleState = this.doubleNoteStates.get(i);
-          if (note.type === NoteType.DOUBLE_LONG_BODY) {
+          if (note.type === NoteType.DOUBLE_LONG) {
             if (doubleState?.firstInputReceived) {
               this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
             } else {
@@ -277,7 +277,7 @@ export class JudgmentEngine {
 
       // 더블 노트의 경우 첫 입력만 받은 상태도 체크
       const isDoublePartial =
-        (note.type === NoteType.DOUBLE || note.type === NoteType.DOUBLE_LONG_BODY) &&
+        (note.type === NoteType.DOUBLE || note.type === NoteType.DOUBLE_LONG) &&
         state === NoteState.UNPROCESSED &&
         this.doubleNoteStates.get(i)?.firstInputReceived === true;
 
@@ -398,7 +398,7 @@ export class JudgmentEngine {
   ): void {
     const note = this.notes[noteIndex] as RangeNote;
 
-    if (note.type === NoteType.SINGLE_LONG_BODY) {
+    if (note.type === NoteType.SINGLE_LONG) {
       const grade = this.calculateGrade(deltaMs);
       this.emitJudgment(noteIndex, grade, 0, deltaMs);
       this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
@@ -408,7 +408,7 @@ export class JudgmentEngine {
       } else {
         this.breakCombo();
       }
-    } else if (note.type === NoteType.DOUBLE_LONG_BODY) {
+    } else if (note.type === NoteType.DOUBLE_LONG) {
       this.processDoubleNoteInput(noteIndex, deltaMs, keyCode);
 
       // 두 입력이 모두 완료되었으면 BODY_ACTIVE로 전환
@@ -416,7 +416,7 @@ export class JudgmentEngine {
       if (doubleState?.firstInputReceived && this.noteStates.get(noteIndex) === NoteState.COMPLETE) {
         this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
       }
-    } else if (note.type === NoteType.TRILL_LONG_BODY) {
+    } else if (note.type === NoteType.TRILL_LONG) {
       this.processTrillNoteInput(noteIndex, deltaMs, keyCode, lane);
       this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
     }

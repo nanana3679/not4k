@@ -177,9 +177,9 @@ storage/
 | `single` | 싱글 노트 | lane, beat |
 | `double` | 더블 노트 | lane, beat |
 | `trill` | 트릴 노트 | lane, beat |
-| `singleLongBody` | 싱글 롱노트 바디 시작/끝 | lane, beat, endBeat |
-| `doubleLongBody` | 더블 롱노트 바디 시작/끝 | lane, beat, endBeat |
-| `trillLongBody` | 트릴 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `singleLong` | 싱글 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `doubleLong` | 더블 롱노트 바디 시작/끝 | lane, beat, endBeat |
+| `trillLong` | 트릴 롱노트 바디 시작/끝 | lane, beat, endBeat |
 | `trillZone` | 트릴 구간 시작/끝 | lane, beat, endBeat |
 
 에디터에서 시작/끝 쌍으로 표현되는 구간 엔티티(롱노트 바디, 트릴 구간)는 JSON에서 `beat`(시작)과 `endBeat`(끝)를 가진 단일 객체로 직렬화한다.
@@ -209,12 +209,12 @@ storage/
     { "type": "single", "lane": 1, "beat": "0" },
     { "type": "single", "lane": 3, "beat": "1/2" },
     { "type": "double", "lane": 1, "beat": "2" },
-    { "type": "singleLongBody", "lane": 2, "beat": "1", "endBeat": "3" },
-    { "type": "doubleLongBody", "lane": 3, "beat": "4", "endBeat": "7" },
+    { "type": "singleLong", "lane": 2, "beat": "1", "endBeat": "3" },
+    { "type": "doubleLong", "lane": 3, "beat": "4", "endBeat": "7" },
     { "type": "trillZone", "lane": 1, "beat": "8", "endBeat": "12" },
     { "type": "trill", "lane": 1, "beat": "8" },
     { "type": "trill", "lane": 1, "beat": "17/2" },
-    { "type": "trillLongBody", "lane": 1, "beat": "9", "endBeat": "11" }
+    { "type": "trillLong", "lane": 1, "beat": "9", "endBeat": "11" }
   ]
 }
 ```

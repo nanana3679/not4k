@@ -26,9 +26,9 @@ const SAMPLE_CHART: Chart = {
     { type: "single", lane: 1, beat: beat(0) },
     { type: "double", lane: 2, beat: beat(1, 2) },
     { type: "trill", lane: 3, beat: beat(3, 4) },
-    { type: "singleLongBody", lane: 1, beat: beat(4), endBeat: beat(8) },
-    { type: "doubleLongBody", lane: 2, beat: beat(4), endBeat: beat(6) },
-    { type: "trillLongBody", lane: 3, beat: beat(4), endBeat: beat(4) }, // 길이 0
+    { type: "singleLong", lane: 1, beat: beat(4), endBeat: beat(8) },
+    { type: "doubleLong", lane: 2, beat: beat(4), endBeat: beat(6) },
+    { type: "trillLong", lane: 3, beat: beat(4), endBeat: beat(4) }, // 길이 0
   ],
   trillZones: [
     { lane: 3, beat: beat(0), endBeat: beat(8) },

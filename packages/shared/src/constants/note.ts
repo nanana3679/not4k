@@ -5,9 +5,9 @@ export const NoteType = {
   SINGLE: "single",
   DOUBLE: "double",
   TRILL: "trill",
-  SINGLE_LONG_BODY: "singleLongBody",
-  DOUBLE_LONG_BODY: "doubleLongBody",
-  TRILL_LONG_BODY: "trillLongBody",
+  SINGLE_LONG: "singleLong",
+  DOUBLE_LONG: "doubleLong",
+  TRILL_LONG: "trillLong",
   TRILL_ZONE: "trillZone",
   MESSAGE: "message",
 } as const;
@@ -23,9 +23,9 @@ export const POINT_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
 
 /** 구간 엔티티 (시작 + 끝 가짐) */
 export const RANGE_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
-  NoteType.SINGLE_LONG_BODY,
-  NoteType.DOUBLE_LONG_BODY,
-  NoteType.TRILL_LONG_BODY,
+  NoteType.SINGLE_LONG,
+  NoteType.DOUBLE_LONG,
+  NoteType.TRILL_LONG,
   NoteType.TRILL_ZONE,
   NoteType.MESSAGE,
 ]);

@@ -24,9 +24,9 @@ export const COLORS = {
   DOUBLE_NOTE: 0xffcc00,
   TRILL_NOTE: 0xffffff,
 
-  SINGLE_LONG_BODY: 0x88bbff,
-  DOUBLE_LONG_BODY: 0xffee88,
-  TRILL_LONG_BODY: 0xaaaaaa,
+  SINGLE_LONG: 0x88bbff,
+  DOUBLE_LONG: 0xffee88,
+  TRILL_LONG: 0xaaaaaa,
   LONG_BODY_FAILED: 0x555555,
 
   TRILL_ZONE_BG: 0x00ff88,

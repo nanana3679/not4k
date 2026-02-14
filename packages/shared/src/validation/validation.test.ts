@@ -36,14 +36,14 @@ describe("validateNoDuplicates", () => {
   it("포인트 노트 + 롱노트 시작점 공존 허용 (롱노트 헤드)", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: beat(0) },
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateNoDuplicates(notes)).toEqual([]);
   });
 
   it("포인트 노트 + 롱노트 끝점 공존 허용", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: "single", lane: 1, beat: beat(4) },
     ];
     expect(validateNoDuplicates(notes)).toEqual([]);
@@ -51,24 +51,24 @@ describe("validateNoDuplicates", () => {
 
   it("롱노트 끝점 + 롱노트 시작점 공존 허용 (o-o- 패턴)", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
-      { type: "singleLongBody", lane: 1, beat: beat(4), endBeat: beat(8) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(4), endBeat: beat(8) },
     ];
     expect(validateNoDuplicates(notes)).toEqual([]);
   });
 
   it("같은 위치에 롱노트 시작 2개는 에러", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
-      { type: "doubleLongBody", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "doubleLong", lane: 1, beat: beat(0), endBeat: beat(2) },
     ];
     expect(validateNoDuplicates(notes)).toHaveLength(1);
   });
 
   it("같은 위치에 롱노트 끝 2개는 에러", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
-      { type: "doubleLongBody", lane: 1, beat: beat(2), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "doubleLong", lane: 1, beat: beat(2), endBeat: beat(4) },
     ];
     expect(validateNoDuplicates(notes)).toHaveLength(1);
   });
@@ -81,7 +81,7 @@ describe("validateNoDuplicates", () => {
 describe("validateNoLongOverlap", () => {
   it("롱노트 바디 안에 다른 노트가 없으면 에러 없음", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: "single", lane: 1, beat: beat(4) }, // 경계 → OK
       { type: "single", lane: 2, beat: beat(2) }, // 다른 레인 → OK
     ];
@@ -90,7 +90,7 @@ describe("validateNoLongOverlap", () => {
 
   it("롱노트 바디 열린 구간 안에 노트가 있으면 에러", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: "single", lane: 1, beat: beat(2) },
     ];
     const errors = validateNoLongOverlap(notes);
@@ -100,8 +100,8 @@ describe("validateNoLongOverlap", () => {
 
   it("경계(시작점/끝점)는 허용 — o-o- 패턴", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(2) },
-      { type: "singleLongBody", lane: 1, beat: beat(2), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "singleLong", lane: 1, beat: beat(2), endBeat: beat(4) },
     ];
     expect(validateNoLongOverlap(notes)).toEqual([]);
   });
@@ -109,14 +109,14 @@ describe("validateNoLongOverlap", () => {
   it("롱노트 시작점에 포인트 노트 공존 허용", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: beat(0) },
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateNoLongOverlap(notes)).toEqual([]);
   });
 
   it("롱노트 끝점에 포인트 노트 공존 허용", () => {
     const notes: NoteEntity[] = [
-      { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: "single", lane: 1, beat: beat(4) },
     ];
     expect(validateNoLongOverlap(notes)).toEqual([]);
@@ -232,9 +232,9 @@ describe("validateChart", () => {
     const result = validateChart({
       notes: [
         { type: "single", lane: 1, beat: beat(0) },
-        { type: "singleLongBody", lane: 1, beat: beat(0), endBeat: beat(4) },
+        { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
         { type: "single", lane: 1, beat: beat(4) },
-        { type: "singleLongBody", lane: 1, beat: beat(4), endBeat: beat(8) },
+        { type: "singleLong", lane: 1, beat: beat(4), endBeat: beat(8) },
       ],
       trillZones: [],
       messages: [],

@@ -50,7 +50,7 @@ export function PlayScreen() {
         // Calculate total judgment count based on note types
         let totalJudgments = 0;
         for (const note of chartData.notes) {
-          if (note.type === 'double' || note.type === 'doubleLongBody') {
+          if (note.type === 'double' || note.type === 'doubleLong') {
             totalJudgments += 2; // 2 sub-judgments for double notes
           } else {
             totalJudgments += 1;

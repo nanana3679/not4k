@@ -16,25 +16,21 @@ import type {
   Beat,
   Lane,
 } from "@not4k/shared";
-import { validateChart, beatEq, beatLt, beatGt, beatMin, beatMax, beatToFloat, measureStartBeat } from "@not4k/shared";
+import { validateChart, beatEq, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, beatToFloat, measureStartBeat } from "@not4k/shared";
 
 export type EntityType =
   | "single"
   | "double"
-  | "trill"
-  | "singleLongBody"
-  | "doubleLongBody"
-  | "trillLongBody"
+  | "singleLong"
+  | "doubleLong"
   | "trillZone";
 
 /** All available entity types for cycling (note lane entities only) */
 const ENTITY_TYPES: readonly EntityType[] = [
   "single",
   "double",
-  "trill",
-  "singleLongBody",
-  "doubleLongBody",
-  "trillLongBody",
+  "singleLong",
+  "doubleLong",
   "trillZone",
 ] as const;
 
@@ -146,11 +142,10 @@ export class CreateMode {
     const lane = this.callbacks.xToLane(x);
     if (lane === null) return; // Outside all lanes
 
-    // Point entities: single, double, trill
+    // Point entities: single, double
     if (
       this.selectedEntityType === "single" ||
-      this.selectedEntityType === "double" ||
-      this.selectedEntityType === "trill"
+      this.selectedEntityType === "double"
     ) {
       this.createPointNote(lane, beat);
       return;
@@ -158,9 +153,8 @@ export class CreateMode {
 
     // Range entities: long bodies
     if (
-      this.selectedEntityType === "singleLongBody" ||
-      this.selectedEntityType === "doubleLongBody" ||
-      this.selectedEntityType === "trillLongBody"
+      this.selectedEntityType === "singleLong" ||
+      this.selectedEntityType === "doubleLong"
     ) {
       this.isDragging = true;
       this.dragStartBeat = beat;
@@ -230,9 +224,16 @@ export class CreateMode {
   // Private creation methods
   // -------------------------------------------------------------------------
 
+  private isInsideTrillZone(lane: Lane, beat: Beat): boolean {
+    return this.chart.trillZones.some(
+      (z) => z.lane === lane && beatGte(beat, z.beat) && beatLte(beat, z.endBeat)
+    );
+  }
+
   private createPointNote(lane: Lane, beat: Beat): void {
+    const inTrill = this.isInsideTrillZone(lane, beat);
     const newNote: PointNote = {
-      type: this.selectedEntityType as "single" | "double" | "trill",
+      type: inTrill ? "trill" : (this.selectedEntityType as "single" | "double"),
       lane,
       beat,
     };
@@ -270,11 +271,9 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
+    const inTrill = this.isInsideTrillZone(lane, actualStartBeat);
     const newNote: RangeNote = {
-      type: this.selectedEntityType as
-        | "singleLongBody"
-        | "doubleLongBody"
-        | "trillLongBody",
+      type: inTrill ? "trillLong" : (this.selectedEntityType as "singleLong" | "doubleLong"),
       lane,
       beat: actualStartBeat,
       endBeat: actualEndBeat,

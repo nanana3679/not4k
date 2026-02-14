@@ -163,13 +163,28 @@ export function validateTrillExclusive(
   const errors: ValidationError[] = [];
 
   for (const note of notes) {
-    const isTrill = note.type === "trill" || note.type === "trillLongBody";
-    const inZone = trillZones.some(
-      (z) =>
-        z.lane === note.lane &&
-        beatGte(note.beat, z.beat) &&
-        beatLte(note.beat, z.endBeat),
-    );
+    const isTrill = note.type === "trill" || note.type === "trillLong";
+
+    // trillLong: both start and end must be in the SAME trill zone
+    let inZone: boolean;
+    if (note.type === "trillLong" && "endBeat" in note) {
+      const rn = note as RangeNote;
+      inZone = trillZones.some(
+        (z) =>
+          z.lane === note.lane &&
+          beatGte(note.beat, z.beat) &&
+          beatLte(note.beat, z.endBeat) &&
+          beatGte(rn.endBeat, z.beat) &&
+          beatLte(rn.endBeat, z.endBeat),
+      );
+    } else {
+      inZone = trillZones.some(
+        (z) =>
+          z.lane === note.lane &&
+          beatGte(note.beat, z.beat) &&
+          beatLte(note.beat, z.endBeat),
+      );
+    }
 
     if (isTrill && !inZone) {
       errors.push({

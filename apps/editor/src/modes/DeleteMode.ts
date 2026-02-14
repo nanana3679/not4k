@@ -97,9 +97,9 @@ export class DeleteMode {
 
   private static isRangeNote(note: { type: string }): boolean {
     return (
-      note.type === "singleLongBody" ||
-      note.type === "doubleLongBody" ||
-      note.type === "trillLongBody"
+      note.type === "singleLong" ||
+      note.type === "doubleLong" ||
+      note.type === "trillLong"
     );
   }
 }
