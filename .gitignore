@@ -1,6 +1,8 @@
 .omc/
 .claude/
 
+.env*
+
 node_modules/
 dist/
 .turbo/
