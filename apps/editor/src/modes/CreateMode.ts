@@ -25,12 +25,9 @@ export type EntityType =
   | "singleLongBody"
   | "doubleLongBody"
   | "trillLongBody"
-  | "trillZone"
-  | "bpmMarker"
-  | "timeSignatureMarker"
-  | "message";
+  | "trillZone";
 
-/** All available entity types for cycling */
+/** All available entity types for cycling (note lane entities only) */
 const ENTITY_TYPES: readonly EntityType[] = [
   "single",
   "double",
@@ -39,10 +36,10 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "doubleLongBody",
   "trillLongBody",
   "trillZone",
-  "bpmMarker",
-  "timeSignatureMarker",
-  "message",
 ] as const;
+
+/** Internal drag type for tracking what kind of range entity is being created */
+type DragType = "rangeNote" | "trillZone" | "message" | null;
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
@@ -66,6 +63,7 @@ export class CreateMode {
   private isDragging: boolean = false;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
+  private _dragType: DragType = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -112,6 +110,11 @@ export class CreateMode {
     return this.dragStartLane;
   }
 
+  /** The type of drag in progress */
+  get dragType(): DragType {
+    return this._dragType;
+  }
+
   /** Update the chart reference */
   setChart(chart: Chart): void {
     this.chart = chart;
@@ -121,15 +124,34 @@ export class CreateMode {
   onPointerDown(x: number, y: number): void {
     const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
 
+    // --- Aux lane auto-detection (always, regardless of selectedEntityType) ---
+    const auxType = this.callbacks.xToAuxLane(x);
+    if (auxType === "bpm") {
+      this.createBpmMarker(beat);
+      return;
+    }
+    if (auxType === "timeSig") {
+      this.createTimeSignatureMarker(beat);
+      return;
+    }
+    if (auxType === "message") {
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = null;
+      this._dragType = "message";
+      return;
+    }
+
+    // --- Note lane entities (based on selectedEntityType) ---
+    const lane = this.callbacks.xToLane(x);
+    if (lane === null) return; // Outside all lanes
+
     // Point entities: single, double, trill
     if (
       this.selectedEntityType === "single" ||
       this.selectedEntityType === "double" ||
       this.selectedEntityType === "trill"
     ) {
-      const lane = this.callbacks.xToLane(x);
-      if (lane === null) return; // Outside note lanes
-
       this.createPointNote(lane, beat);
       return;
     }
@@ -140,52 +162,19 @@ export class CreateMode {
       this.selectedEntityType === "doubleLongBody" ||
       this.selectedEntityType === "trillLongBody"
     ) {
-      const lane = this.callbacks.xToLane(x);
-      if (lane === null) return; // Outside note lanes
-
       this.isDragging = true;
       this.dragStartBeat = beat;
       this.dragStartLane = lane;
+      this._dragType = "rangeNote";
       return;
     }
 
     // Trill zone (range entity)
     if (this.selectedEntityType === "trillZone") {
-      const lane = this.callbacks.xToLane(x);
-      if (lane === null) return; // Outside note lanes
-
       this.isDragging = true;
       this.dragStartBeat = beat;
       this.dragStartLane = lane;
-      return;
-    }
-
-    // Message (range entity)
-    if (this.selectedEntityType === "message") {
-      const auxType = this.callbacks.xToAuxLane(x);
-      if (auxType !== "message") return; // Not in message lane
-
-      this.isDragging = true;
-      this.dragStartBeat = beat;
-      this.dragStartLane = null; // Messages don't have lanes
-      return;
-    }
-
-    // BPM marker
-    if (this.selectedEntityType === "bpmMarker") {
-      const auxType = this.callbacks.xToAuxLane(x);
-      if (auxType !== "bpm") return; // Not in BPM lane
-
-      this.createBpmMarker(beat);
-      return;
-    }
-
-    // Time signature marker
-    if (this.selectedEntityType === "timeSignatureMarker") {
-      const auxType = this.callbacks.xToAuxLane(x);
-      if (auxType !== "timeSig") return; // Not in time sig lane
-
-      this.createTimeSignatureMarker(beat);
+      this._dragType = "trillZone";
       return;
     }
   }
@@ -203,30 +192,15 @@ export class CreateMode {
 
     const endBeat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
 
-    // Range note (long body)
-    if (
-      this.selectedEntityType === "singleLongBody" ||
-      this.selectedEntityType === "doubleLongBody" ||
-      this.selectedEntityType === "trillLongBody"
-    ) {
+    if (this._dragType === "rangeNote") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
-        this.createRangeNote(
-          this.dragStartLane,
-          this.dragStartBeat,
-          endBeat
-        );
+        this.createRangeNote(this.dragStartLane, this.dragStartBeat, endBeat);
       }
-    }
-
-    // Trill zone
-    if (this.selectedEntityType === "trillZone") {
+    } else if (this._dragType === "trillZone") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
         this.createTrillZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
-    }
-
-    // Message
-    if (this.selectedEntityType === "message") {
+    } else if (this._dragType === "message") {
       if (this.dragStartBeat !== null) {
         this.createMessage(this.dragStartBeat, endBeat);
       }
@@ -236,6 +210,7 @@ export class CreateMode {
     this.isDragging = false;
     this.dragStartBeat = null;
     this.dragStartLane = null;
+    this._dragType = null;
   }
 
   /** Handle C+wheel for entity type cycling */

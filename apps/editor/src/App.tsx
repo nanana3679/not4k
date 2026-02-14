@@ -350,40 +350,33 @@ export function App() {
 
       // Ghost preview
       if (rendererRef.current) {
-        const pointTypes = ['single', 'double', 'trill'];
-        const rangeTypes = ['singleLongBody', 'doubleLongBody', 'trillLongBody', 'trillZone'];
-        const auxTypeMap: Record<string, number> = {
-          bpmMarker: 0,
-          timeSignatureMarker: 1,
-          message: 2,
-        };
         const beat = yToBeat(y);
         const snapped = snapBeat(beat);
         const timeMs = beatToMs(snapped, chart.bpmMarkers, chart.meta.offsetMs);
 
-        if (createModeRef.current?.dragging && createModeRef.current.dragBeat && createModeRef.current.dragLane) {
-          // Show range ghost during long note / trill zone drag creation
-          const startTimeMs = beatToMs(createModeRef.current.dragBeat, chart.bpmMarkers, chart.meta.offsetMs);
-          rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
-        } else if (pointTypes.includes(entityType)) {
-          const lane = xToLane(x);
-          if (lane) {
-            rendererRef.current.showGhostNote(lane, timeMs);
-          } else {
-            rendererRef.current.hideGhostNote();
+        if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
+          if (createModeRef.current.dragType === 'message') {
+            // Message drag: show ghost marker in message aux lane
+            rendererRef.current.showGhostMarker(2, timeMs);
+          } else if (createModeRef.current.dragLane) {
+            // Note lane range drag: show range ghost
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, chart.bpmMarkers, chart.meta.offsetMs);
+            rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
           }
-        } else if (rangeTypes.includes(entityType)) {
-          // Show single ghost note at cursor for range type (before drag starts)
-          const lane = xToLane(x);
-          if (lane) {
-            rendererRef.current.showGhostNote(lane, timeMs);
-          } else {
-            rendererRef.current.hideGhostNote();
-          }
-        } else if (entityType in auxTypeMap) {
-          rendererRef.current.showGhostMarker(auxTypeMap[entityType], timeMs);
         } else {
-          rendererRef.current.hideGhostNote();
+          // Not dragging: show ghost based on hovered lane
+          const auxLane = xToAuxLane(x);
+          const auxIndexMap = { bpm: 0, timeSig: 1, message: 2 } as const;
+          if (auxLane) {
+            rendererRef.current.showGhostMarker(auxIndexMap[auxLane], timeMs);
+          } else {
+            const lane = xToLane(x);
+            if (lane) {
+              rendererRef.current.showGhostNote(lane, timeMs);
+            } else {
+              rendererRef.current.hideGhostNote();
+            }
+          }
         }
       }
     } else if (mode === 'select' && selectModeRef.current) {
@@ -693,9 +686,6 @@ export function App() {
     'doubleLongBody',
     'trillLongBody',
     'trillZone',
-    'bpmMarker',
-    'timeSignatureMarker',
-    'message',
   ];
 
   return (
