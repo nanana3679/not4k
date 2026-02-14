@@ -613,9 +613,24 @@ export function App() {
   const handleWheelNative = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
-    // Ctrl+wheel = zoom (via SnapZoomController)
+    // Ctrl+wheel = zoom (via SnapZoomController), keep cursor position stable
     if (e.ctrlKey && snapZoomRef.current) {
-      snapZoomRef.current.handleWheel(e);
+      const renderer = rendererRef.current;
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (renderer && rect) {
+        const cursorCanvasY = e.clientY - rect.top;
+        const cursorTimeMs = renderer.yToTime(cursorCanvasY);
+
+        snapZoomRef.current.handleWheel(e);
+        renderer.zoom = snapZoomRef.current.zoom;
+
+        const newContentY = renderer.timeToY(cursorTimeMs);
+        const newScrollY = newContentY - cursorCanvasY;
+        const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
+        setScrollY(Math.max(0, Math.min(maxScroll, newScrollY)));
+      } else {
+        snapZoomRef.current.handleWheel(e);
+      }
       return;
     }
 
