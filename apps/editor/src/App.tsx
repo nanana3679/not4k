@@ -11,7 +11,9 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from './hooks/useAuth';
-import { saveChartToFile, loadChartFromFile } from './io/ChartIO';
+import { serializeChart } from '@not4k/shared';
+import { STORAGE_BUCKET, songChartPath } from '@not4k/shared';
+import { supabase } from './supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
@@ -903,18 +905,48 @@ function ChartEditorPage() {
 
   // File handlers
 
-  const handleSaveChart = useCallback(() => {
-    saveChartToFile(chart, chart.meta.title || 'chart.json');
-  }, [chart]);
+  const [saving, setSaving] = useState(false);
+  const activeSongId = useEditorStore((s) => s.activeSongId);
 
-  const handleLoadChart = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      loadChartFromFile(file).then((loadedChart) => {
-        setChart(loadedChart);
-      });
+  const handleSaveChart = useCallback(async () => {
+    if (!activeSongId) {
+      addToast('No song selected — cannot save to server', 'error');
+      return;
     }
-  }, [setChart]);
+    const difficulty = chart.meta.difficultyLabel.toLowerCase();
+    if (!difficulty) {
+      addToast('Difficulty label is empty', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // 1. Upload chart JSON to Storage
+      const json = serializeChart(chart);
+      const path = songChartPath(activeSongId, difficulty);
+      const blob = new Blob([json], { type: 'application/json' });
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, blob, { upsert: true });
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+      // 2. Upsert charts table row
+      const { error: dbError } = await supabase.from('charts').upsert({
+        song_id: activeSongId,
+        difficulty_label: difficulty,
+        difficulty_level: chart.meta.difficultyLevel,
+        offset_ms: chart.meta.offsetMs,
+      }, { onConflict: 'song_id,difficulty_label' });
+      if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
+
+      addToast('Chart saved', 'info');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [chart, activeSongId, addToast]);
 
   // Marker edit handlers
   const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
@@ -1111,19 +1143,9 @@ function ChartEditorPage() {
           Meta
         </button>
 
-        <button style={styles.button} onClick={handleSaveChart}>
-          Save Chart
+        <button style={styles.button} onClick={handleSaveChart} disabled={saving}>
+          {saving ? 'Saving...' : 'Save Chart'}
         </button>
-
-        <label style={styles.fileLabel}>
-          Load Chart
-          <input
-            type="file"
-            accept=".json"
-            style={styles.fileInput}
-            onChange={handleLoadChart}
-          />
-        </label>
       </div>
 
       {/* Canvas */}
