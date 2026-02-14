@@ -31,6 +31,7 @@ export function App() {
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [volume, setVolume] = useState(1);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
 
   // Get state from store
   const {
@@ -385,10 +386,13 @@ export function App() {
     }
   }, [zoom]);
 
-  // Sync snap to renderer
+  // Sync snap to renderer and SnapZoomController
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.snap = snapDivision;
+    }
+    if (snapZoomRef.current) {
+      snapZoomRef.current.snapDivision = snapDivision;
     }
   }, [snapDivision]);
 
@@ -718,7 +722,7 @@ export function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when any modal is open
-      if (editingMarker || showMetaModal) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal) return;
 
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
@@ -909,9 +913,33 @@ export function App() {
 
         {/* Snap selector */}
         <span style={styles.label}>Snap:</span>
-        <button style={styles.button} onClick={() => setSnapDivision(4)}>1/4</button>
-        <button style={styles.button} onClick={() => setSnapDivision(8)}>1/8</button>
-        <button style={styles.button} onClick={() => setSnapDivision(16)}>1/16</button>
+        <select
+          style={styles.select}
+          value={[4, 8, 16, 32, 3, 6, 12, 24, 48].includes(snapDivision) ? String(snapDivision) : 'custom'}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === 'custom') {
+              setShowCustomSnapModal(true);
+            } else {
+              setSnapDivision(parseInt(val));
+            }
+          }}
+        >
+          <optgroup label="2-beat">
+            <option value="4">1/4</option>
+            <option value="8">1/8</option>
+            <option value="16">1/16</option>
+            <option value="32">1/32</option>
+          </optgroup>
+          <optgroup label="3-beat">
+            <option value="3">1/3</option>
+            <option value="6">1/6</option>
+            <option value="12">1/12</option>
+            <option value="24">1/24</option>
+            <option value="48">1/48</option>
+          </optgroup>
+          <option value="custom">Custom ({[4,8,16,32,3,6,12,24,48].includes(snapDivision) ? '...' : `1/${snapDivision}`})</option>
+        </select>
 
         {/* Zoom display */}
         <span style={styles.label}>Zoom: {zoom.toFixed(0)}px/s</span>
@@ -1018,6 +1046,18 @@ export function App() {
               });
             }
           }}
+        />
+      )}
+
+      {/* Custom Snap Modal */}
+      {showCustomSnapModal && (
+        <CustomSnapModal
+          currentSnap={snapDivision}
+          onSave={(value) => {
+            setSnapDivision(value);
+            setShowCustomSnapModal(false);
+          }}
+          onClose={() => setShowCustomSnapModal(false)}
         />
       )}
 
@@ -1240,6 +1280,49 @@ function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={handleSave}>Save</button>
+          <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Custom Snap Modal
+// ---------------------------------------------------------------------------
+
+function CustomSnapModal({ currentSnap, onSave, onClose }: {
+  currentSnap: number;
+  onSave: (value: number) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(String(currentSnap));
+
+  const handleSave = () => {
+    const n = parseInt(value);
+    if (isNaN(n) || n < 1 || n > 128) return;
+    onSave(n);
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <h3 style={modalStyles.title}>Custom Snap Division</h3>
+        <label style={modalStyles.field}>
+          <span>1 / N (1~128)</span>
+          <input
+            style={modalStyles.input}
+            type="number"
+            min="1"
+            max="128"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            autoFocus
+          />
+        </label>
+        <div style={modalStyles.buttons}>
+          <button style={modalStyles.saveBtn} onClick={handleSave}>Apply</button>
           <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
         </div>
       </div>

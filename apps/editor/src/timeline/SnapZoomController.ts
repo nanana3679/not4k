@@ -21,9 +21,9 @@ export class SnapZoomController {
   private state: SnapZoomState;
   private callbacks: SnapZoomCallbacks;
 
-  /** Available snap divisions */
+  /** Preset snap divisions (for cycling) */
   static readonly SNAP_DIVISIONS: readonly number[] = [
-    1, 2, 3, 4, 6, 8, 12, 16, 24, 32,
+    1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48,
   ] as const;
 
   /** Zoom limits */
@@ -66,13 +66,9 @@ export class SnapZoomController {
     return this.state.snapDivision;
   }
 
-  /** Set snap division directly */
+  /** Set snap division directly (any positive integer) */
   set snapDivision(value: number) {
-    if (!SnapZoomController.SNAP_DIVISIONS.includes(value)) {
-      throw new Error(
-        `Invalid snap division: ${value}. Must be one of ${SnapZoomController.SNAP_DIVISIONS.join(", ")}`
-      );
-    }
+    if (value < 1) return;
     if (value !== this.state.snapDivision) {
       this.state.snapDivision = value;
       this.callbacks.onSnapChange(value);
