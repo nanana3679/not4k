@@ -73,7 +73,10 @@ export class GameRenderer {
   private width: number;
   private height: number;
 
+  private canvas: HTMLCanvasElement;
+
   constructor(options: GameRendererOptions) {
+    this.canvas = options.canvas;
     this.width = options.width;
     this.height = options.height;
     this._judgmentLineY = options.height - JUDGMENT_LINE_OFFSET;
@@ -120,7 +123,7 @@ export class GameRenderer {
 
   async init(): Promise<void> {
     await this.app.init({
-      canvas: undefined, // Will be set via view
+      canvas: this.canvas,
       width: this.width,
       height: this.height,
       backgroundColor: COLORS.BG,

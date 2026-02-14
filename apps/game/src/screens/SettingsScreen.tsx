@@ -1,5 +1,5 @@
 import { useGameStore, PRESET_BINDINGS } from '../stores';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 
@@ -7,6 +7,24 @@ export function SettingsScreen() {
   const { settings, updateSettings, setScreen } = useGameStore();
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [warningMessage, setWarningMessage] = useState<string>('');
+  const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup warning timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (warningTimeoutRef.current) {
+        clearTimeout(warningTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showWarning = (message: string, duration = 3000) => {
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+    }
+    setWarningMessage(message);
+    warningTimeoutRef.current = setTimeout(() => setWarningMessage(''), duration);
+  };
 
   // Listening mode: capture next keydown event
   useEffect(() => {
@@ -19,9 +37,8 @@ export function SettingsScreen() {
       // Check if key is already bound to any lane
       const allKeys = Object.values(settings.keyBindings).flat();
       if (allKeys.includes(keyCode)) {
-        setWarningMessage(`Key "${keyCode}" is already bound to another lane`);
+        showWarning(`Key "${keyCode}" is already bound to another lane`);
         setListeningLane(null);
-        setTimeout(() => setWarningMessage(''), 3000);
         return;
       }
 
@@ -43,8 +60,7 @@ export function SettingsScreen() {
   const handleRemoveKey = (lane: Lane, keyToRemove: string) => {
     const currentKeys = settings.keyBindings[lane];
     if (currentKeys.length <= 2) {
-      setWarningMessage('Each lane must have at least 2 keys');
-      setTimeout(() => setWarningMessage(''), 3000);
+      showWarning('Each lane must have at least 2 keys');
       return;
     }
 
@@ -62,8 +78,7 @@ export function SettingsScreen() {
       keyBindings: PRESET_BINDINGS[preset],
       preset,
     });
-    setWarningMessage(`Reset to ${preset.toUpperCase()} preset`);
-    setTimeout(() => setWarningMessage(''), 2000);
+    showWarning(`Reset to ${preset.toUpperCase()} preset`, 2000);
   };
 
   return (

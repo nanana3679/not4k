@@ -59,6 +59,11 @@ export class AudioEngine {
       throw new Error('No audio loaded');
     }
 
+    // Resume AudioContext if suspended (autoplay policy)
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
     // Stop existing playback if any
     if (this.source) {
       this.source.stop();
@@ -69,6 +74,14 @@ export class AudioEngine {
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
     this.source.connect(this.ctx.destination);
+
+    // Handle natural playback end
+    this.source.onended = () => {
+      if (this._playing) {
+        this._playing = false;
+        this.pauseTime = this.buffer?.duration ?? 0;
+      }
+    };
 
     // Convert offset from ms to seconds
     const offsetSeconds = offsetMs / 1000;
@@ -111,10 +124,23 @@ export class AudioEngine {
       return;
     }
 
+    // Resume AudioContext if suspended
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
     // Create new source and start from pause position
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
     this.source.connect(this.ctx.destination);
+
+    // Handle natural playback end
+    this.source.onended = () => {
+      if (this._playing) {
+        this._playing = false;
+        this.pauseTime = this.buffer?.duration ?? 0;
+      }
+    };
 
     this.startOffset = this.pauseTime;
     this.startTime = this.ctx.currentTime;

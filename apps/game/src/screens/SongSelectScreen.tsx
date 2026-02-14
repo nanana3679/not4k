@@ -46,15 +46,19 @@ export function SongSelectScreen() {
 
       // Decode audio file
       const audioCtx = new AudioContext();
-      const audioArrayBuffer = await audioFile.arrayBuffer();
-      const audioBuffer = await audioCtx.decodeAudioData(audioArrayBuffer);
+      try {
+        const audioArrayBuffer = await audioFile.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(audioArrayBuffer);
 
-      // Store in game store
-      setChartData(chart);
-      setAudioBuffer(audioBuffer);
+        // Store in game store
+        setChartData(chart);
+        setAudioBuffer(audioBuffer);
 
-      // Navigate directly to play screen
-      setScreen('play');
+        // Navigate directly to play screen
+        setScreen('play');
+      } finally {
+        await audioCtx.close();
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load files');
     } finally {

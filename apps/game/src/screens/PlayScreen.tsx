@@ -11,6 +11,7 @@ export function PlayScreen() {
   const { settings, setScreen, setResult, chartData, audioBuffer } = useGameStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   // Game objects
@@ -46,8 +47,19 @@ export function PlayScreen() {
           }
         });
 
-        // Calculate total judgment count
-        const totalJudgments = chartData.notes.length * 2; // Approximate
+        // Calculate total judgment count based on note types
+        let totalJudgments = 0;
+        for (const note of chartData.notes) {
+          if (note.type === 'double' || note.type === 'doubleLongBody') {
+            totalJudgments += 2; // 2 sub-judgments for double notes
+          } else {
+            totalJudgments += 1;
+          }
+          // Range notes get an additional end judgment
+          if ('endBeat' in note) {
+            totalJudgments += 1;
+          }
+        }
 
         // Initialize game objects
         const audioEngine = new AudioEngine();
@@ -101,12 +113,11 @@ export function PlayScreen() {
         });
 
         const inputSystem = new InputSystem(keyBindings, {
-          onLanePress: (lane, timestampMs) => {
-            // Find which key was pressed (this is simplified - InputSystem needs extension)
-            judgmentEngine.onLanePress(lane, timestampMs, 'unknown');
+          onLanePress: (lane, timestampMs, keyCode) => {
+            judgmentEngine.onLanePress(lane, timestampMs, keyCode);
           },
-          onLaneRelease: (lane, timestampMs) => {
-            judgmentEngine.onLaneRelease(lane, timestampMs);
+          onLaneRelease: (lane, timestampMs, keyCode) => {
+            judgmentEngine.onLaneRelease(lane, timestampMs, keyCode);
           },
         });
 
@@ -124,7 +135,7 @@ export function PlayScreen() {
 
         // Start game loop
         const gameLoop = () => {
-          if (!isPaused && audioEngine && judgmentEngine && renderer) {
+          if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
 
             // Update judgment engine
@@ -170,26 +181,33 @@ export function PlayScreen() {
         rendererRef.current.dispose();
       }
     };
-  }, [settings, isPaused]);
+  }, [settings]);
+
+  // Sync isPaused to ref
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Escape key handler for pause
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
-        setIsPaused((prev) => !prev);
-        if (audioEngineRef.current) {
-          if (isPaused) {
-            audioEngineRef.current.resume();
-          } else {
-            audioEngineRef.current.pause();
+        setIsPaused((prev) => {
+          if (audioEngineRef.current) {
+            if (prev) {
+              audioEngineRef.current.resume();
+            } else {
+              audioEngineRef.current.pause();
+            }
           }
-        }
+          return !prev;
+        });
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPaused]);
+  }, []);
 
   const handleSongEnd = () => {
     const scoreManager = scoreManagerRef.current;
@@ -235,7 +253,7 @@ export function PlayScreen() {
 
   return (
     <div style={styles.container}>
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} width={800} height={600} />
 
       {isPaused && (
         <div style={styles.pauseOverlay}>
