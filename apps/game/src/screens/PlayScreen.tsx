@@ -115,9 +115,11 @@ export function PlayScreen() {
         const inputSystem = new InputSystem(keyBindings, {
           onLanePress: (lane, timestampMs, keyCode) => {
             judgmentEngine.onLanePress(lane, timestampMs, keyCode);
+            renderer.setKeyBeam(lane, true);
           },
           onLaneRelease: (lane, timestampMs, keyCode) => {
             judgmentEngine.onLaneRelease(lane, timestampMs, keyCode);
+            renderer.setKeyBeam(lane, false);
           },
         });
 

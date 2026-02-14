@@ -39,6 +39,7 @@ export class GameRenderer {
 
   // Layers (bottom to top)
   private backgroundLayer: Container;
+  private keyBeamLayer: Container;
   private trillZoneLayer: Container;
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -65,6 +66,9 @@ export class GameRenderer {
   private bodyGraphicsPool: Map<number, Graphics> = new Map();
   private failedBodies: Set<number> = new Set();
 
+  // Lane flash
+  private keyBeamGraphics: Graphics[] = [];
+
   // UI elements
   private comboText: Text;
   private judgmentText: Text;
@@ -85,6 +89,7 @@ export class GameRenderer {
 
     // Pre-create layers
     this.backgroundLayer = new Container();
+    this.keyBeamLayer = new Container();
     this.trillZoneLayer = new Container();
     this.longNoteBodyLayer = new Container();
     this.longNoteEndLayer = new Container();
@@ -131,6 +136,7 @@ export class GameRenderer {
 
     // Build scene graph
     this.app.stage.addChild(this.backgroundLayer);
+    this.app.stage.addChild(this.keyBeamLayer);
     this.app.stage.addChild(this.trillZoneLayer);
     this.app.stage.addChild(this.longNoteBodyLayer);
     this.app.stage.addChild(this.longNoteEndLayer);
@@ -146,6 +152,7 @@ export class GameRenderer {
     // Draw static elements
     this.drawBackground();
     this.drawJudgmentLine();
+    this.buildKeyBeams();
     this.initialized = true;
   }
 
@@ -168,6 +175,34 @@ export class GameRenderer {
     }
 
     this.backgroundLayer.addChild(bg);
+  }
+
+  private buildKeyBeams(): void {
+    const segments = 24;
+    const segmentHeight = Math.ceil(this.height / segments);
+
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const flash = new Graphics();
+      const laneX = LANE_AREA_X + i * LANE_WIDTH;
+
+      for (let s = 0; s < segments; s++) {
+        const t = s / (segments - 1); // 0 at top, 1 at bottom
+        const alpha = 0.5 * t;
+        flash.rect(laneX, s * segmentHeight, LANE_WIDTH, segmentHeight + 1);
+        flash.fill({ color: 0xffffff, alpha });
+      }
+
+      flash.visible = false;
+      this.keyBeamGraphics.push(flash);
+      this.keyBeamLayer.addChild(flash);
+    }
+  }
+
+  setKeyBeam(lane: number, pressed: boolean): void {
+    const idx = lane - 1;
+    if (idx >= 0 && idx < this.keyBeamGraphics.length) {
+      this.keyBeamGraphics[idx].visible = pressed;
+    }
   }
 
   private drawJudgmentLine(): void {
@@ -555,5 +590,6 @@ export class GameRenderer {
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
+    this.keyBeamGraphics = [];
   }
 }
