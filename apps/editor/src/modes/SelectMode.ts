@@ -57,7 +57,7 @@ export class SelectMode {
     }
     if (validIndices.size !== this.selectedIndices.size) {
       this.selectedIndices = validIndices;
-      this.callbacks.onSelectionChange(this.selectedIndices);
+      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
     }
   }
 
@@ -68,7 +68,7 @@ export class SelectMode {
   /** Clear selection */
   clearSelection(): void {
     this.selectedIndices.clear();
-    this.callbacks.onSelectionChange(this.selectedIndices);
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
   }
 
   /** Select a specific note */
@@ -76,7 +76,7 @@ export class SelectMode {
     if (index >= 0 && index < this.chart.notes.length) {
       this.selectedIndices.clear();
       this.selectedIndices.add(index);
-      this.callbacks.onSelectionChange(this.selectedIndices);
+      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
     }
   }
 
@@ -125,11 +125,11 @@ export class SelectMode {
       if (shiftKey) {
         // Add to selection
         this.selectedIndices.add(hitIndex);
-        this.callbacks.onSelectionChange(this.selectedIndices);
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       } else if (altKey) {
         // Remove from selection
         this.selectedIndices.delete(hitIndex);
-        this.callbacks.onSelectionChange(this.selectedIndices);
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       } else if (isAlreadySelected && this.selectedIndices.size > 0) {
         // Start move drag on selected note
         this.isDragging = true;
@@ -158,7 +158,7 @@ export class SelectMode {
         // Select this note only
         this.selectedIndices.clear();
         this.selectedIndices.add(hitIndex);
-        this.callbacks.onSelectionChange(this.selectedIndices);
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       }
     } else {
       // Clicking empty space
@@ -320,7 +320,7 @@ export class SelectMode {
             this.selectedIndices.add(i);
           }
         }
-        this.callbacks.onSelectionChange(this.selectedIndices);
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       }
     }
 
@@ -338,7 +338,9 @@ export class SelectMode {
 
     // Get snap unit from current snap setting (assume 1/snap beat)
     const snapUnit = this.callbacks.snapBeat({ n: 1, d: 4 }); // Use quarter note as default
-    const offset = direction === "up" ? beatSub({ n: 0, d: 1 }, snapUnit) : snapUnit;
+    // Timeline: bottom = time 0, up = later time.
+    // ArrowUp = increase time (add snap), ArrowDown = decrease time (subtract snap).
+    const offset = direction === "up" ? snapUnit : beatSub({ n: 0, d: 1 }, snapUnit);
 
     // Store original positions
     this.originalPositions.clear();
@@ -405,7 +407,8 @@ export class SelectMode {
 
     // Get snap unit
     const snapUnit = this.callbacks.snapBeat({ n: 1, d: 4 });
-    const offset = direction === "up" ? beatSub({ n: 0, d: 1 }, snapUnit) : snapUnit;
+    // ArrowUp = extend end later (add snap), ArrowDown = shrink end earlier (subtract snap)
+    const offset = direction === "up" ? snapUnit : beatSub({ n: 0, d: 1 }, snapUnit);
 
     // Store original positions
     this.originalPositions.clear();
