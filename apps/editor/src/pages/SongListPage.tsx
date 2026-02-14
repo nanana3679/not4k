@@ -171,7 +171,7 @@ function AddSongModal({ onDone, onClose, addToast }: {
   };
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
+    <div style={modalStyles.overlay} onClick={submitting ? undefined : onClose}>
       <div style={{ ...modalStyles.modal, minWidth: '340px' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>New Song</h3>
 
