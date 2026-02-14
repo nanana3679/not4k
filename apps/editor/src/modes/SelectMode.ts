@@ -467,6 +467,7 @@ export class SelectMode {
         newNotes[idx] = { ...note, lane: (note.lane - laneOffset) as Lane };
       }
       this.chart = { ...this.chart, notes: newNotes };
+      this.callbacks.onChartUpdate(this.chart);
     }
   }
 
