@@ -4,11 +4,12 @@ import {
   validateNoLongOverlap,
   validateTrillExclusive,
   validateNoTrillZoneOverlap,
-  validateNoMessageOverlap,
+  validateNoEventOverlap,
+  validateStopZones,
   validateChart,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, Message } from "../types/chart";
+import type { NoteEntity, TrillZone, EventMarker } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -194,32 +195,132 @@ describe("validateNoTrillZoneOverlap", () => {
 });
 
 // =========================================================================
-// 규칙 5: 메시지 겹침 금지
+// 규칙 5: 이벤트 마커 겹침 금지
 // =========================================================================
 
-describe("validateNoMessageOverlap", () => {
+describe("validateNoEventOverlap", () => {
   it("겹치지 않으면 에러 없음", () => {
-    const msgs: Message[] = [
+    const events: EventMarker[] = [
       { beat: beat(0), endBeat: beat(4), text: "A" },
       { beat: beat(4), endBeat: beat(8), text: "B" },
     ];
-    expect(validateNoMessageOverlap(msgs)).toEqual([]);
+    expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
   it("열린 구간이 겹치면 에러", () => {
-    const msgs: Message[] = [
+    const events: EventMarker[] = [
       { beat: beat(0), endBeat: beat(4), text: "A" },
       { beat: beat(2), endBeat: beat(6), text: "B" },
     ];
-    expect(validateNoMessageOverlap(msgs)).toHaveLength(1);
+    expect(validateNoEventOverlap(events)).toHaveLength(1);
   });
 
   it("완전 포함도 에러", () => {
-    const msgs: Message[] = [
+    const events: EventMarker[] = [
       { beat: beat(0), endBeat: beat(8), text: "A" },
       { beat: beat(2), endBeat: beat(6), text: "B" },
     ];
-    expect(validateNoMessageOverlap(msgs).length).toBeGreaterThan(0);
+    expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
+  });
+});
+
+// =========================================================================
+// 규칙 6: stop 구간 내 싱글/더블/롱노트 금지
+// =========================================================================
+
+describe("validateStopZones", () => {
+  it("stop 구간 밖의 노트는 에러 없음", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(5) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    expect(validateStopZones(notes, events)).toEqual([]);
+  });
+
+  it("stop 구간 내 싱글 노트는 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(2) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    const errors = validateStopZones(notes, events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("stopZone");
+  });
+
+  it("stop 구간 내 더블 노트는 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "double", lane: 2, beat: beat(1) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    expect(validateStopZones(notes, events)).toHaveLength(1);
+  });
+
+  it("stop 구간 내 롱노트 시작점은 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "singleLong", lane: 1, beat: beat(2), endBeat: beat(6) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    const errors = validateStopZones(notes, events);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("stop 구간 내 롱노트 끝점은 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "doubleLong", lane: 1, beat: beat(0), endBeat: beat(3) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(2), endBeat: beat(6), stop: true },
+    ];
+    const errors = validateStopZones(notes, events);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("stop 구간 내 트릴 노트도 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(2) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    expect(validateStopZones(notes, events)).toHaveLength(1);
+  });
+
+  it("stop 구간 내 트릴롱 시작점/끝점은 에러", () => {
+    const notes: NoteEntity[] = [
+      { type: "trillLong", lane: 1, beat: beat(1), endBeat: beat(3) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), stop: true },
+    ];
+    expect(validateStopZones(notes, events)).toHaveLength(2);
+  });
+
+  it("롱노트 바디가 stop 구간을 관통하는 것은 허용", () => {
+    const notes: NoteEntity[] = [
+      { type: "singleLong", lane: 1, beat: beat(0), endBeat: beat(8) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(2), endBeat: beat(6), stop: true },
+    ];
+    expect(validateStopZones(notes, events)).toEqual([]);
+  });
+
+  it("stop이 아닌 이벤트는 노트를 제한하지 않음", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(2) },
+    ];
+    const events: EventMarker[] = [
+      { beat: beat(0), endBeat: beat(4), text: "hello" },
+    ];
+    expect(validateStopZones(notes, events)).toEqual([]);
   });
 });
 
@@ -237,7 +338,7 @@ describe("validateChart", () => {
         { type: "singleLong", lane: 1, beat: beat(4), endBeat: beat(8) },
       ],
       trillZones: [],
-      messages: [],
+      events: [],
     });
     expect(result).toEqual([]);
   });
@@ -250,7 +351,7 @@ describe("validateChart", () => {
         { type: "trill", lane: 2, beat: beat(1) },  // trill outside zone
       ],
       trillZones: [],
-      messages: [
+      events: [
         { beat: beat(0), endBeat: beat(4), text: "A" },
         { beat: beat(2), endBeat: beat(6), text: "B" }, // overlap
       ],

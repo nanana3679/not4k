@@ -6,7 +6,7 @@
  */
 
 import type { Beat } from "../types/beat";
-import type { BpmMarker, TimeSignatureMarker } from "../types/chart";
+import type { BpmMarker, TimeSignatureMarker, EventMarker } from "../types/chart";
 import {
   beatToFloat,
   beatLte,
@@ -15,6 +15,62 @@ import {
   beatMulInt,
   BEAT_ZERO,
 } from "../types/beat";
+
+// ---------------------------------------------------------------------------
+// EventMarker → BpmMarker[] / TimeSignatureMarker[] 변환
+// ---------------------------------------------------------------------------
+
+/**
+ * 이벤트 배열에서 bpm 필드를 가진 이벤트를 BpmMarker 배열로 변환한다.
+ * beat 오름차순 정렬.
+ */
+export function extractBpmMarkers(events: readonly EventMarker[]): BpmMarker[] {
+  return events
+    .filter((e): e is EventMarker & { bpm: number } => e.bpm !== undefined)
+    .map((e) => ({ beat: e.beat, bpm: e.bpm }))
+    .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
+}
+
+/**
+ * 이벤트 배열에서 beatPerMeasure 필드를 가진 이벤트를 TimeSignatureMarker 배열로 변환한다.
+ * beat 위치를 마디 인덱스로 변환하여 measure 기반 마커를 생성한다.
+ */
+export function extractTimeSignatures(events: readonly EventMarker[]): TimeSignatureMarker[] {
+  const tsEvents = events
+    .filter((e): e is EventMarker & { beatPerMeasure: Beat } => e.beatPerMeasure !== undefined)
+    .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
+
+  if (tsEvents.length === 0) return [];
+
+  const result: TimeSignatureMarker[] = [];
+  let accBeatFloat = 0;
+  let currentMeasure = 0;
+  let prevBPM = tsEvents[0].beatPerMeasure;
+
+  for (let i = 0; i < tsEvents.length; i++) {
+    const evt = tsEvents[i];
+    const evtBeatFloat = beatToFloat(evt.beat);
+
+    if (i === 0) {
+      result.push({ measure: 0, beatPerMeasure: evt.beatPerMeasure });
+      prevBPM = evt.beatPerMeasure;
+      continue;
+    }
+
+    // 이전 위치에서 이 이벤트까지의 마디 수 계산
+    const beatDiff = evtBeatFloat - accBeatFloat;
+    const bpmFloat = prevBPM.n / prevBPM.d;
+    const measureDiff = Math.round(beatDiff / bpmFloat);
+
+    currentMeasure += measureDiff;
+    accBeatFloat += measureDiff * bpmFloat;
+
+    result.push({ measure: currentMeasure, beatPerMeasure: evt.beatPerMeasure });
+    prevBPM = evt.beatPerMeasure;
+  }
+
+  return result;
+}
 
 /** 1 beat = 60_000 / bpm ms */
 function msPerBeat(bpm: number): number {

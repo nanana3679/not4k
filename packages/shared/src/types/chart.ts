@@ -93,18 +93,26 @@ export interface TrillZone {
 }
 
 // ---------------------------------------------------------------------------
-// 메시지
+// 이벤트 마커
 // ---------------------------------------------------------------------------
 
 /**
- * 메시지 — 특정 구간에 안내 텍스트를 표시하는 전역 엔티티.
- * 레인에 속하지 않으며, 메시지 레인에 배치한다.
+ * 이벤트 마커 — 복합(composable) 구조.
+ * 하나의 마커에 메시지/BPM 변경/박자표 변경을 조합할 수 있다.
+ * 모든 역할 필드는 optional; 최소 하나 이상 존재해야 유효하다.
  * 겹침 금지 (끝-시작 인접은 허용).
  */
-export interface Message {
+export interface EventMarker {
   beat: Beat;
   endBeat: Beat;
-  text: string;
+  /** 메시지 텍스트 (선택) */
+  text?: string;
+  /** BPM 변경 (선택) */
+  bpm?: number;
+  /** 박자표 변경 (선택) */
+  beatPerMeasure?: Beat;
+  /** 정지 구간 — 구간 내 싱글/더블/롱노트 배치 금지 (선택) */
+  stop?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,9 +121,7 @@ export interface Message {
 
 export interface Chart {
   meta: ChartMeta;
-  bpmMarkers: BpmMarker[];
-  timeSignatures: TimeSignatureMarker[];
   notes: NoteEntity[];
   trillZones: TrillZone[];
-  messages: Message[];
+  events: EventMarker[];
 }

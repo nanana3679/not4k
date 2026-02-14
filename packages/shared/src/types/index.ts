@@ -31,6 +31,6 @@ export {
   type RangeNote,
   type NoteEntity,
   type TrillZone,
-  type Message,
+  type EventMarker,
   type Chart,
 } from "./chart";

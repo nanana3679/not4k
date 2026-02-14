@@ -14,14 +14,6 @@ const SAMPLE_CHART: Chart = {
     previewAudioFile: "preview.ogg",
     offsetMs: 100,
   },
-  bpmMarkers: [
-    { beat: beat(0), bpm: 120 },
-    { beat: beat(32), bpm: 150 },
-  ],
-  timeSignatures: [
-    { measure: 0, beatPerMeasure: beat(4) },
-    { measure: 8, beatPerMeasure: beat(7, 2) },
-  ],
   notes: [
     { type: "single", lane: 1, beat: beat(0) },
     { type: "double", lane: 2, beat: beat(1, 2) },
@@ -33,8 +25,8 @@ const SAMPLE_CHART: Chart = {
   trillZones: [
     { lane: 3, beat: beat(0), endBeat: beat(8) },
   ],
-  messages: [
-    { beat: beat(0), endBeat: beat(4), text: "첫 번째 메시지" },
+  events: [
+    { beat: beat(0), endBeat: beat(4), bpm: 120, beatPerMeasure: beat(4), text: "첫 번째 메시지" },
     { beat: beat(4), endBeat: beat(8), text: "두 번째 메시지" },
   ],
 };
@@ -43,11 +35,10 @@ describe("chartToJson / chartFromJson", () => {
   it("Beat가 문자열로 직렬화된다", () => {
     const json = chartToJson(SAMPLE_CHART);
 
-    expect(json.bpmMarkers[0].beat).toBe("0");
-    expect(json.bpmMarkers[1].beat).toBe("32");
-    expect(json.timeSignatures[1].beatPerMeasure).toBe("7/2");
     expect(json.notes[1].beat).toBe("1/2");
     expect(json.notes[2].beat).toBe("3/4");
+    expect(json.events[0].bpm).toBe(120);
+    expect(json.events[0].beatPerMeasure).toBe("4");
   });
 
   it("구간 엔티티의 endBeat도 문자열로 직렬화된다", () => {
@@ -84,7 +75,6 @@ describe("serializeChart / deserializeChart", () => {
     const str = serializeChart(SAMPLE_CHART);
     expect(str).toContain('"1/2"');
     expect(str).toContain('"3/4"');
-    expect(str).toContain('"7/2"');
   });
 
   it("빈 차트도 라운드트립 가능", () => {
@@ -99,13 +89,33 @@ describe("serializeChart / deserializeChart", () => {
         previewAudioFile: "",
         offsetMs: 0,
       },
-      bpmMarkers: [{ beat: beat(0), bpm: 120 }],
-      timeSignatures: [{ measure: 0, beatPerMeasure: beat(4) }],
       notes: [],
       trillZones: [],
-      messages: [],
+      events: [],
     };
     const restored = deserializeChart(serializeChart(emptyChart));
     expect(restored).toEqual(emptyChart);
+  });
+
+  it("복합 이벤트(bpm + beatPerMeasure + text) 라운드트립", () => {
+    const chartWithComposite: Chart = {
+      ...SAMPLE_CHART,
+      events: [
+        { beat: beat(0), endBeat: beat(4), text: "메시지", bpm: 180, beatPerMeasure: beat(3, 4) },
+        { beat: beat(4), endBeat: beat(8), bpm: 200 },
+        { beat: beat(8), endBeat: beat(12), beatPerMeasure: beat(7, 8) },
+      ],
+    };
+    const restored = deserializeChart(serializeChart(chartWithComposite));
+    expect(restored).toEqual(chartWithComposite);
+  });
+
+  it("레거시 { type: 'message' } JSON도 파싱 가능", () => {
+    const legacyJson = {
+      ...chartToJson(SAMPLE_CHART),
+      events: [{ type: "message", beat: "0", endBeat: "4", text: "legacy" }],
+    };
+    const parsed = chartFromJson(legacyJson as any);
+    expect(parsed.events[0]).toEqual({ beat: beat(0), endBeat: beat(4), text: "legacy" });
   });
 });

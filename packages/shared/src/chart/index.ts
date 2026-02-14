@@ -8,27 +8,15 @@
 import type {
   Chart,
   ChartMeta,
-  BpmMarker,
-  TimeSignatureMarker,
   NoteEntity,
   TrillZone,
-  Message,
+  EventMarker,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
 // ---------------------------------------------------------------------------
-
-interface BpmMarkerJson {
-  beat: string;
-  bpm: number;
-}
-
-interface TimeSignatureMarkerJson {
-  measure: number;
-  beatPerMeasure: string;
-}
 
 interface PointNoteJson {
   type: "single" | "double" | "trill";
@@ -51,35 +39,25 @@ interface TrillZoneJson {
   endBeat: string;
 }
 
-interface MessageJson {
+interface EventMarkerJson {
   beat: string;
   endBeat: string;
-  text: string;
+  text?: string;
+  bpm?: number;
+  beatPerMeasure?: string;
+  stop?: true;
 }
 
 export interface ChartJson {
   meta: ChartMeta;
-  bpmMarkers: BpmMarkerJson[];
-  timeSignatures: TimeSignatureMarkerJson[];
   notes: NoteEntityJson[];
   trillZones: TrillZoneJson[];
-  messages: MessageJson[];
+  events: EventMarkerJson[];
 }
 
 // ---------------------------------------------------------------------------
 // 직렬화: Chart → ChartJson → string
 // ---------------------------------------------------------------------------
-
-function serializeBpmMarker(m: BpmMarker): BpmMarkerJson {
-  return { beat: beatToString(m.beat), bpm: m.bpm };
-}
-
-function serializeTimeSignature(m: TimeSignatureMarker): TimeSignatureMarkerJson {
-  return {
-    measure: m.measure,
-    beatPerMeasure: beatToString(m.beatPerMeasure),
-  };
-}
 
 function serializeNote(n: NoteEntity): NoteEntityJson {
   if ("endBeat" in n) {
@@ -101,23 +79,25 @@ function serializeTrillZone(z: TrillZone): TrillZoneJson {
   };
 }
 
-function serializeMessage(m: Message): MessageJson {
-  return {
-    beat: beatToString(m.beat),
-    endBeat: beatToString(m.endBeat),
-    text: m.text,
+function serializeEvent(e: EventMarker): EventMarkerJson {
+  const json: EventMarkerJson = {
+    beat: beatToString(e.beat),
+    endBeat: beatToString(e.endBeat),
   };
+  if (e.text !== undefined) json.text = e.text;
+  if (e.bpm !== undefined) json.bpm = e.bpm;
+  if (e.beatPerMeasure !== undefined) json.beatPerMeasure = beatToString(e.beatPerMeasure);
+  if (e.stop) json.stop = true;
+  return json;
 }
 
 /** Chart → JSON 객체 */
 export function chartToJson(chart: Chart): ChartJson {
   return {
     meta: chart.meta,
-    bpmMarkers: chart.bpmMarkers.map(serializeBpmMarker),
-    timeSignatures: chart.timeSignatures.map(serializeTimeSignature),
     notes: chart.notes.map(serializeNote),
     trillZones: chart.trillZones.map(serializeTrillZone),
-    messages: chart.messages.map(serializeMessage),
+    events: chart.events.map(serializeEvent),
   };
 }
 
@@ -129,17 +109,6 @@ export function serializeChart(chart: Chart): string {
 // ---------------------------------------------------------------------------
 // 역직렬화: string → ChartJson → Chart
 // ---------------------------------------------------------------------------
-
-function parseBpmMarker(m: BpmMarkerJson): BpmMarker {
-  return { beat: beatFromString(m.beat), bpm: m.bpm };
-}
-
-function parseTimeSignature(m: TimeSignatureMarkerJson): TimeSignatureMarker {
-  return {
-    measure: m.measure,
-    beatPerMeasure: beatFromString(m.beatPerMeasure),
-  };
-}
 
 function parseNote(n: NoteEntityJson): NoteEntity {
   if ("endBeat" in n) {
@@ -161,23 +130,25 @@ function parseTrillZone(z: TrillZoneJson): TrillZone {
   };
 }
 
-function parseMessage(m: MessageJson): Message {
-  return {
-    beat: beatFromString(m.beat),
-    endBeat: beatFromString(m.endBeat),
-    text: m.text,
+function parseEvent(e: EventMarkerJson): EventMarker {
+  const marker: EventMarker = {
+    beat: beatFromString(e.beat),
+    endBeat: beatFromString(e.endBeat),
   };
+  if (e.text !== undefined) marker.text = e.text;
+  if (e.bpm !== undefined) marker.bpm = e.bpm;
+  if (e.beatPerMeasure !== undefined) marker.beatPerMeasure = beatFromString(e.beatPerMeasure);
+  if (e.stop) marker.stop = true;
+  return marker;
 }
 
-/** JSON 객체 → Chart */
+/** JSON 객체 → Chart (레거시 bpmMarkers/timeSignatures 필드는 무시) */
 export function chartFromJson(json: ChartJson): Chart {
   return {
     meta: json.meta,
-    bpmMarkers: json.bpmMarkers.map(parseBpmMarker),
-    timeSignatures: json.timeSignatures.map(parseTimeSignature),
     notes: json.notes.map(parseNote),
     trillZones: json.trillZones.map(parseTrillZone),
-    messages: json.messages.map(parseMessage),
+    events: (json.events ?? []).map(parseEvent),
   };
 }
 

@@ -18,7 +18,7 @@ import type {
   NoteEntity,
   RangeNote,
   TrillZone,
-  Message,
+  EventMarker,
 } from "../types/chart";
 import { beatEq, beatLt, beatGt, beatLte, beatGte } from "../types/beat";
 
@@ -28,7 +28,8 @@ export interface ValidationError {
     | "longOverlap"
     | "trillExclusive"
     | "trillZoneOverlap"
-    | "messageOverlap";
+    | "eventOverlap"
+    | "stopZone";
   message: string;
 }
 
@@ -240,20 +241,20 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 5: 메시지 겹침 금지
+// 규칙 5: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
 /**
- * 메시지 열린 구간 안에 다른 메시지의 시작/끝이 있는지 검사한다.
+ * 이벤트 마커 열린 구간 안에 다른 이벤트 마커의 시작/끝이 있는지 검사한다.
  * 끝-시작 인접(같은 박자)은 허용.
  */
-export function validateNoMessageOverlap(messages: readonly Message[]): ValidationError[] {
+export function validateNoEventOverlap(events: readonly EventMarker[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (let i = 0; i < messages.length; i++) {
-    for (let j = i + 1; j < messages.length; j++) {
-      const a = messages[i];
-      const b = messages[j];
+  for (let i = 0; i < events.length; i++) {
+    for (let j = i + 1; j < events.length; j++) {
+      const a = events[i];
+      const b = events[j];
 
       const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
       const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
@@ -262,9 +263,57 @@ export function validateNoMessageOverlap(messages: readonly Message[]): Validati
 
       if (bStartInA || bEndInA || aStartInB || aEndInB) {
         errors.push({
-          rule: "messageOverlap",
-          message: `Messages overlap: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          rule: "eventOverlap",
+          message: `Events overlap: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
         });
+      }
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 6: stop 구간 내 싱글/더블/롱노트 금지
+// ---------------------------------------------------------------------------
+
+/**
+ * stop이 설정된 이벤트 구간 [beat, endBeat] 내에
+ * 포인트 노트(싱글/더블/트릴), 롱노트의 시작점·끝점이 존재하면 에러.
+ * 롱노트 바디가 stop 구간을 관통하는 것(시작 < stop.beat, 끝 > stop.endBeat)은 허용.
+ */
+export function validateStopZones(
+  notes: readonly NoteEntity[],
+  events: readonly EventMarker[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const stopEvents = events.filter((e) => e.stop);
+  if (stopEvents.length === 0) return errors;
+
+  for (const stop of stopEvents) {
+    for (const note of notes) {
+      // 포인트 노트: beat가 stop 구간 내인지
+      if (!isRangeNote(note)) {
+        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+          errors.push({
+            rule: "stopZone",
+            message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+          });
+        }
+      } else {
+        // 롱노트: 시작점 or 끝점이 stop 구간 내인지
+        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+          errors.push({
+            rule: "stopZone",
+            message: `Long note start (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+          });
+        }
+        if (beatGte(note.endBeat, stop.beat) && beatLte(note.endBeat, stop.endBeat)) {
+          errors.push({
+            rule: "stopZone",
+            message: `Long note end (${note.type}) at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+          });
+        }
       }
     }
   }
@@ -279,7 +328,7 @@ export function validateNoMessageOverlap(messages: readonly Message[]): Validati
 export interface ChartValidationInput {
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
-  messages: readonly Message[];
+  events: readonly EventMarker[];
 }
 
 /** 차트의 모든 배치 제약 조건을 한 번에 검증한다 */
@@ -289,6 +338,7 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
     ...validateNoTrillZoneOverlap(input.trillZones),
-    ...validateNoMessageOverlap(input.messages),
+    ...validateNoEventOverlap(input.events),
+    ...validateStopZones(input.notes, input.events),
   ];
 }
