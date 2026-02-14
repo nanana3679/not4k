@@ -21,6 +21,7 @@ interface DbChart {
   song_id: string;
   difficulty: string;
   level: number;
+  uploaded_by: string | null;
 }
 
 interface DbSong {
@@ -28,6 +29,7 @@ interface DbSong {
   title: string;
   artist: string;
   audio_url: string;
+  uploaded_by: string | null;
   charts: DbChart[];
 }
 
