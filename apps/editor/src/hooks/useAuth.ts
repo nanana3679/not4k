@@ -4,19 +4,34 @@ import type { User } from '@supabase/supabase-js';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const fetchAdmin = async (uid: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', uid)
+      .single();
+    setIsAdmin(data?.is_admin ?? false);
+  };
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) console.error('Failed to get session:', error);
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) await fetchAdmin(u.id);
       setLoading(false);
     }).catch(() => {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) await fetchAdmin(u.id);
+      else setIsAdmin(false);
     });
 
     return () => subscription.unsubscribe();
@@ -34,5 +49,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, loading, signInWithGoogle, signOut };
+  return { user, isAdmin, loading, signInWithGoogle, signOut };
 }

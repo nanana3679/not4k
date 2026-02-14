@@ -18,7 +18,7 @@ import type { Beat, Lane } from '@not4k/shared';
 
 export function App() {
   const { activePage } = useEditorStore();
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
 
   if (loading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>Loading...</div>;
@@ -26,6 +26,19 @@ export function App() {
 
   if (!user) {
     return <LoginPage onSignIn={signInWithGoogle} />;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', gap: '16px' }}>
+        <h2 style={{ margin: 0, fontSize: '20px' }}>Access Denied</h2>
+        <p style={{ margin: 0, color: '#888', fontSize: '14px' }}>관리자 권한이 필요합니다.</p>
+        <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>{user.email}</p>
+        <button onClick={signOut} style={{ marginTop: '8px', padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+          Sign Out
+        </button>
+      </div>
+    );
   }
 
   if (activePage === 'songList') {
