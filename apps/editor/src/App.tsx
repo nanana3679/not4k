@@ -29,6 +29,8 @@ export function App() {
   const isDraggingCursorRef = useRef(false);
   const cKeyHeldRef = useRef(false);
   const [showMetaModal, setShowMetaModal] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [autoScroll, setAutoScroll] = useState(true);
 
   // Get state from store
   const {
@@ -418,10 +420,21 @@ export function App() {
     }
   }, [mode]);
 
-  // Update playback cursor position
+  // Update playback cursor position + auto-scroll
   useEffect(() => {
-    rendererRef.current?.updatePlaybackCursor(currentTimeMs);
-  }, [currentTimeMs]);
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+
+    renderer.updatePlaybackCursor(currentTimeMs);
+
+    if (autoScroll && isPlaying) {
+      // Center the cursor in the viewport
+      const cursorY = renderer.timeToY(currentTimeMs);
+      const targetScroll = cursorY - canvasSize.height / 2;
+      const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
+      setScrollY(Math.max(0, Math.min(maxScroll, targetScroll)));
+    }
+  }, [currentTimeMs, autoScroll, isPlaying, canvasSize.height]);
 
   // Canvas event handlers
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -910,6 +923,31 @@ export function App() {
           {isPlaying ? 'Pause' : 'Play'}
         </button>
 
+        {/* Volume */}
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={volume}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            setVolume(v);
+            if (playbackRef.current) playbackRef.current.volume = v;
+          }}
+          style={styles.volumeSlider}
+          title={`Volume: ${Math.round(volume * 100)}%`}
+        />
+
+        {/* Auto-scroll toggle */}
+        <button
+          style={{ ...styles.button, ...(autoScroll ? styles.buttonActive : {}) }}
+          onClick={() => setAutoScroll(!autoScroll)}
+          title="Auto-scroll: follow playback cursor"
+        >
+          Scroll
+        </button>
+
         <div style={{ flex: 1 }} />
 
         {/* File operations */}
@@ -1330,6 +1368,12 @@ const styles = {
     height: '24px',
     backgroundColor: '#555',
     margin: '0 8px',
+  },
+  volumeSlider: {
+    width: '60px',
+    height: '4px',
+    cursor: 'pointer',
+    accentColor: '#4488ff',
   },
   fileLabel: {
     padding: '4px 12px',

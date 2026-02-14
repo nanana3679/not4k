@@ -14,6 +14,8 @@ export class PlaybackController {
   private audioContext: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
+  private gainNode: GainNode | null = null;
+  private pendingVolume: number = 1;
 
   private _isPlaying = false;
   private playbackStartTime = 0; // AudioContext.currentTime when play() was called
@@ -42,6 +44,9 @@ export class PlaybackController {
   private async loadAudioBuffer(arrayBuffer: ArrayBuffer): Promise<void> {
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
+      this.gainNode = this.audioContext.createGain();
+      this.gainNode.gain.value = this.pendingVolume;
+      this.gainNode.connect(this.audioContext.destination);
     }
 
     this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
@@ -69,7 +74,7 @@ export class PlaybackController {
     // Create new source node
     this.sourceNode = this.audioContext.createBufferSource();
     this.sourceNode.buffer = this.audioBuffer;
-    this.sourceNode.connect(this.audioContext.destination);
+    this.sourceNode.connect(this.gainNode ?? this.audioContext.destination);
 
     // Start playback from current offset
     this.sourceNode.start(0, this.playbackOffset);
@@ -171,6 +176,20 @@ export class PlaybackController {
   /** Get audio duration in milliseconds */
   get durationMs(): number {
     return this.audioBuffer ? this.audioBuffer.duration * 1000 : 0;
+  }
+
+  /** Set volume (0.0 to 1.0) */
+  set volume(value: number) {
+    const clamped = Math.max(0, Math.min(1, value));
+    this.pendingVolume = clamped;
+    if (this.gainNode) {
+      this.gainNode.gain.value = clamped;
+    }
+  }
+
+  /** Get current volume */
+  get volume(): number {
+    return this.gainNode?.gain.value ?? this.pendingVolume;
   }
 
   /** Get the current AudioBuffer (for waveform extraction) */
