@@ -75,6 +75,8 @@ function ChartEditorPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
 
   // Inject spinner keyframes once
   useEffect(() => {
@@ -417,6 +419,7 @@ function ChartEditorPage() {
     const url = pendingAudioUrl;
     setPendingAudioUrl(null);
     setAudioLoading(true);
+    setSavedChartSnapshot(serializeChart(chart));
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
@@ -841,7 +844,7 @@ function ChartEditorPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when any modal is open
-      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm) return;
 
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
@@ -955,6 +958,7 @@ function ChartEditorPage() {
       }, { onConflict: 'song_id,difficulty_label' });
       if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
 
+      setSavedChartSnapshot(json);
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1081,7 +1085,14 @@ function ChartEditorPage() {
         {/* Back to song list */}
         <button
           style={styles.button}
-          onClick={() => setActivePage('songList')}
+          onClick={() => {
+            const isDirty = savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot;
+            if (isDirty) {
+              setShowLeaveConfirm(true);
+            } else {
+              setActivePage('songList');
+            }
+          }}
           title="Back to song list"
         >
           &larr; Songs
@@ -1278,6 +1289,26 @@ function ChartEditorPage() {
           }}
           onClose={() => setShowCustomSnapModal(false)}
         />
+      )}
+
+      {/* Leave confirm modal */}
+      {showLeaveConfirm && (
+        <div style={modalStyles.overlay} onClick={() => setShowLeaveConfirm(false)}>
+          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>Unsaved Changes</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
+              저장되지 않은 변경사항이 있습니다. 나가시겠습니까?
+            </p>
+            <div style={modalStyles.buttons}>
+              <button style={modalStyles.deleteBtn} onClick={() => { setShowLeaveConfirm(false); setActivePage('songList'); }}>
+                Leave
+              </button>
+              <button style={modalStyles.cancelBtn} onClick={() => setShowLeaveConfirm(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete confirm modal */}
