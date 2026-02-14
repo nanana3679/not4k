@@ -44,34 +44,54 @@ export async function fetchChart(
 
 /**
  * 음원 파일을 로드하고 AudioBuffer로 디코딩한다.
+ * OGG를 먼저 시도하고 실패 시 MP3로 폴백한다 (Safari 호환).
  */
 export async function fetchAudio(
   songId: string,
   audioCtx: AudioContext,
 ): Promise<AudioBuffer> {
-  const url = getPublicUrl(songAudioPath(songId));
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch audio: ${response.status}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await fetchWithFallback(
+    songAudioPath(songId, 'ogg'),
+    songAudioPath(songId, 'mp3'),
+    'audio',
+  );
   return audioCtx.decodeAudioData(arrayBuffer);
 }
 
 /**
  * 프리뷰 음원을 로드하고 AudioBuffer로 디코딩한다.
+ * OGG를 먼저 시도하고 실패 시 MP3로 폴백한다 (Safari 호환).
  */
 export async function fetchPreviewAudio(
   songId: string,
   audioCtx: AudioContext,
 ): Promise<AudioBuffer> {
-  const url = getPublicUrl(songPreviewPath(songId));
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch preview audio: ${response.status}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await fetchWithFallback(
+    songPreviewPath(songId, 'ogg'),
+    songPreviewPath(songId, 'mp3'),
+    'preview audio',
+  );
   return audioCtx.decodeAudioData(arrayBuffer);
+}
+
+/**
+ * 첫 번째 경로로 fetch를 시도하고 실패 시 폴백 경로로 재시도한다.
+ */
+async function fetchWithFallback(
+  primaryPath: string,
+  fallbackPath: string,
+  label: string,
+): Promise<ArrayBuffer> {
+  const primaryUrl = getPublicUrl(primaryPath);
+  const res = await fetch(primaryUrl);
+  if (res.ok) return res.arrayBuffer();
+
+  const fallbackUrl = getPublicUrl(fallbackPath);
+  const fallbackRes = await fetch(fallbackUrl);
+  if (!fallbackRes.ok) {
+    throw new Error(`Failed to fetch ${label}: ${fallbackRes.status}`);
+  }
+  return fallbackRes.arrayBuffer();
 }
 
 /**

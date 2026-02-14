@@ -5,6 +5,8 @@ import {
   STORAGE_BUCKET,
   songChartPath,
   songAudioPath,
+  songPreviewPath,
+  songJacketPath,
   deserializeChart,
   beat,
 } from '@not4k/shared';
@@ -25,6 +27,7 @@ interface DbSong {
   id: string;
   title: string;
   artist: string;
+  audio_url: string;
   charts: DbChart[];
 }
 
@@ -44,8 +47,8 @@ async function fetchChartJson(songId: string, difficulty: string): Promise<Chart
   return deserializeChart(await res.text());
 }
 
-function fetchAudioUrl(songId: string): string {
-  return getPublicUrl(songAudioPath(songId));
+function fetchAudioUrl(song: DbSong): string {
+  return getPublicUrl(song.audio_url);
 }
 
 function createEmptyChart(song: DbSong, difficulty: string, level: number): Chart {
@@ -64,6 +67,179 @@ function createEmptyChart(song: DbSong, difficulty: string, level: number): Char
     trillZones: [],
     events: [{ beat: beat(0, 1), endBeat: beat(0, 1), bpm: 120, beatPerMeasure: { n: 4, d: 1 } }],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Slug helper
+// ---------------------------------------------------------------------------
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function generateSongId(title: string): string {
+  const slug = slugify(title) || 'song';
+  const hex = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+  return `${slug}-${hex}`;
+}
+
+// ---------------------------------------------------------------------------
+// Add Song Modal
+// ---------------------------------------------------------------------------
+
+function AddSongModal({ onDone, onClose, addToast }: {
+  onDone: () => void;
+  onClose: () => void;
+  addToast: (msg: string, type: 'info' | 'error') => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [artist, setArtist] = useState('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [jacketFile, setJacketFile] = useState<File | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit = title.trim() !== '' && artist.trim() !== '' && audioFile !== null && !submitting;
+
+  const handleSubmit = async () => {
+    if (!canSubmit || !audioFile) return;
+    setSubmitting(true);
+
+    try {
+      const songId = generateSongId(title);
+      const audioExt = audioFile.name.split('.').pop()?.toLowerCase() || 'ogg';
+
+      // Upload files in parallel
+      const uploads: Promise<void>[] = [];
+
+      uploads.push(
+        supabase.storage.from(STORAGE_BUCKET).upload(songAudioPath(songId, audioExt), audioFile)
+          .then(({ error }) => { if (error) throw new Error(`Audio upload failed: ${error.message}`); }),
+      );
+
+      if (jacketFile) {
+        const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        uploads.push(
+          supabase.storage.from(STORAGE_BUCKET).upload(songJacketPath(songId, jacketExt), jacketFile)
+            .then(({ error }) => { if (error) throw new Error(`Jacket upload failed: ${error.message}`); }),
+        );
+      }
+
+      if (previewFile) {
+        const previewExt = previewFile.name.split('.').pop()?.toLowerCase() || 'ogg';
+        uploads.push(
+          supabase.storage.from(STORAGE_BUCKET).upload(songPreviewPath(songId, previewExt), previewFile)
+            .then(({ error }) => { if (error) throw new Error(`Preview upload failed: ${error.message}`); }),
+        );
+      }
+
+      await Promise.all(uploads);
+
+      // Insert song row
+      const row: Record<string, string> = {
+        id: songId,
+        title: title.trim(),
+        artist: artist.trim(),
+        audio_url: songAudioPath(songId, audioExt),
+      };
+      if (jacketFile) {
+        const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        row.jacket_url = songJacketPath(songId, jacketExt);
+      }
+      if (previewFile) {
+        const previewExt = previewFile.name.split('.').pop()?.toLowerCase() || 'ogg';
+        row.preview_url = songPreviewPath(songId, previewExt);
+      }
+
+      const { error } = await supabase.from('songs').insert(row);
+      if (error) throw new Error(`DB insert failed: ${error.message}`);
+
+      addToast(`Song "${title.trim()}" added`, 'info');
+      onDone();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={{ ...modalStyles.modal, minWidth: '340px' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={modalStyles.title}>New Song</h3>
+
+        <label style={modalStyles.field}>
+          <span>Title *</span>
+          <input
+            style={modalStyles.input}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Song title"
+          />
+        </label>
+
+        <label style={modalStyles.field}>
+          <span>Artist *</span>
+          <input
+            style={modalStyles.input}
+            value={artist}
+            onChange={(e) => setArtist(e.target.value)}
+            placeholder="Artist name"
+          />
+        </label>
+
+        <label style={modalStyles.field}>
+          <span>Audio * (ogg/mp3)</span>
+          <input
+            style={modalStyles.input}
+            type="file"
+            accept=".ogg,.mp3,audio/ogg,audio/mpeg"
+            onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+
+        <label style={modalStyles.field}>
+          <span>Jacket (image)</span>
+          <input
+            style={modalStyles.input}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setJacketFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+
+        <label style={modalStyles.field}>
+          <span>Preview (ogg/mp3)</span>
+          <input
+            style={modalStyles.input}
+            type="file"
+            accept=".ogg,.mp3,audio/ogg,audio/mpeg"
+            onChange={(e) => setPreviewFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+
+        <div style={modalStyles.buttons}>
+          <button
+            style={{
+              ...modalStyles.saveBtn,
+              opacity: canSubmit ? 1 : 0.5,
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!canSubmit}
+            onClick={handleSubmit}
+          >
+            {submitting ? 'Uploading...' : 'Add Song'}
+          </button>
+          <button style={modalStyles.cancelBtn} onClick={onClose} disabled={submitting}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +324,7 @@ export function SongListPage() {
   const [loading, setLoading] = useState(true);
   const [loadingSong, setLoadingSong] = useState<string | null>(null);
   const [newChartTarget, setNewChartTarget] = useState<DbSong | null>(null);
+  const [showAddSong, setShowAddSong] = useState(false);
 
   // Fetch songs + charts
   const fetchSongs = useCallback(async () => {
@@ -173,7 +350,7 @@ export function SongListPage() {
     setLoadingSong(`${song.id}/${chart.difficulty}`);
     try {
       const chartData = await fetchChartJson(song.id, chart.difficulty);
-      const audioUrl = fetchAudioUrl(song.id);
+      const audioUrl = fetchAudioUrl(song);
 
       setChart(chartData);
       setActiveSongId(song.id);
@@ -192,7 +369,7 @@ export function SongListPage() {
     const chartData = createEmptyChart(song, difficulty, level);
     setChart(chartData);
     setActiveSongId(song.id);
-    setPendingAudioUrl(fetchAudioUrl(song.id));
+    setPendingAudioUrl(fetchAudioUrl(song));
     setActivePage('chartEditor');
     setNewChartTarget(null);
   }, [setChart, setActivePage, setActiveSongId, setPendingAudioUrl]);
@@ -216,9 +393,14 @@ export function SongListPage() {
     <div style={pageStyles.container}>
       <div style={pageStyles.header}>
         <h1 style={pageStyles.title}>Song List</h1>
-        <button style={pageStyles.refreshBtn} onClick={fetchSongs} disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button style={pageStyles.addSongBtn} onClick={() => setShowAddSong(true)}>
+            + Add Song
+          </button>
+          <button style={pageStyles.refreshBtn} onClick={fetchSongs} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       <div style={pageStyles.songList}>
@@ -227,7 +409,7 @@ export function SongListPage() {
         )}
 
         {!loading && songs.length === 0 && (
-          <div style={pageStyles.empty}>No songs found. Add songs via Supabase dashboard.</div>
+          <div style={pageStyles.empty}>No songs found. Click "+ Add Song" to get started.</div>
         )}
 
         {songs.map((song) => (
@@ -280,6 +462,15 @@ export function SongListPage() {
         </label>
       </div>
 
+      {/* Add song modal */}
+      {showAddSong && (
+        <AddSongModal
+          addToast={addToast}
+          onDone={() => { setShowAddSong(false); fetchSongs(); }}
+          onClose={() => setShowAddSong(false)}
+        />
+      )}
+
       {/* New chart difficulty modal */}
       {newChartTarget && (
         <DifficultyModal
@@ -327,6 +518,16 @@ const pageStyles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontSize: '20px',
     fontWeight: 600,
+  },
+  addSongBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#4488ff',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 500,
   },
   refreshBtn: {
     padding: '6px 16px',

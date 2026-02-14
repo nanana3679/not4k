@@ -17,16 +17,16 @@ export const STORAGE_BUCKET = "assets";
 // 경로 빌더
 // ---------------------------------------------------------------------------
 
-export function songAudioPath(songId: string): string {
-  return `songs/${songId}/audio.ogg`;
+export function songAudioPath(songId: string, ext = 'ogg'): string {
+  return `songs/${songId}/audio.${ext}`;
 }
 
-export function songPreviewPath(songId: string): string {
-  return `songs/${songId}/preview.ogg`;
+export function songPreviewPath(songId: string, ext = 'ogg'): string {
+  return `songs/${songId}/preview.${ext}`;
 }
 
-export function songJacketPath(songId: string): string {
-  return `songs/${songId}/jacket.jpg`;
+export function songJacketPath(songId: string, ext = 'jpg'): string {
+  return `songs/${songId}/jacket.${ext}`;
 }
 
 export function songChartPath(songId: string, difficulty: string): string {
