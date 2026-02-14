@@ -180,6 +180,14 @@ export class CreateMode {
     if (!this.isDragging) return;
   }
 
+  /** Cancel an in-progress drag without creating anything */
+  cancelDrag(): void {
+    this.isDragging = false;
+    this.dragStartBeat = null;
+    this.dragStartLane = null;
+    this._dragType = null;
+  }
+
   /** Handle mouse up (end drag, finalize placement) */
   onPointerUp(_x: number, y: number): void {
     if (!this.isDragging) return;

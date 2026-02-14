@@ -442,6 +442,14 @@ export function App() {
     }
   }, [currentTimeMs, autoScroll, isPlaying, canvasSize.height]);
 
+  // Helper: Check if Y position is within the valid timeline range (beat 0 to last measure)
+  const isTimeInBounds = useCallback((y: number): boolean => {
+    if (!rendererRef.current) return false;
+    const timeMs = rendererRef.current.yToTime(y);
+    const totalMs = rendererRef.current.getTotalTimelineMs();
+    return timeMs >= 0 && timeMs <= totalMs;
+  }, []);
+
   // Canvas event handlers
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -472,13 +480,14 @@ export function App() {
     if (e.button === 2) return;
 
     if (mode === 'create' && createModeRef.current) {
+      if (!isTimeInBounds(y)) return;
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
     } else if (mode === 'delete' && deleteModeRef.current) {
       deleteModeRef.current.onPointerDown(x, y);
     }
-  }, [mode]);
+  }, [mode, isTimeInBounds]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -503,6 +512,12 @@ export function App() {
     }
 
     if (mode === 'create' && createModeRef.current) {
+      // Hide ghost and skip if outside timeline bounds
+      if (!isTimeInBounds(y)) {
+        rendererRef.current?.hideGhostNote();
+        return;
+      }
+
       createModeRef.current.onPointerMove(x, y);
 
       // Ghost preview
@@ -556,11 +571,16 @@ export function App() {
     const y = e.clientY - rect.top;
 
     if (mode === 'create' && createModeRef.current) {
-      createModeRef.current.onPointerUp(x, y);
+      if (!isTimeInBounds(y)) {
+        createModeRef.current.cancelDrag();
+        rendererRef.current?.hideGhostNote();
+      } else {
+        createModeRef.current.onPointerUp(x, y);
+      }
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerUp(x, y);
     }
-  }, [mode]);
+  }, [mode, isTimeInBounds]);
 
   // Wheel handler as native event (needs { passive: false } to allow preventDefault)
   const handleWheelNative = useCallback((e: WheelEvent) => {
