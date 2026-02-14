@@ -10,6 +10,7 @@ import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
+import { useAuth } from './hooks/useAuth';
 import { saveChartToFile, loadChartFromFile } from './io/ChartIO';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
@@ -17,6 +18,15 @@ import type { Beat, Lane } from '@not4k/shared';
 
 export function App() {
   const { activePage } = useEditorStore();
+  const { user, loading, signInWithGoogle } = useAuth();
+
+  if (loading) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>Loading...</div>;
+  }
+
+  if (!user) {
+    return <LoginPage onSignIn={signInWithGoogle} />;
+  }
 
   if (activePage === 'songList') {
     return <SongListPage />;
@@ -30,6 +40,7 @@ export function App() {
 // ---------------------------------------------------------------------------
 
 import { SongListPage } from './pages/SongListPage';
+import { LoginPage } from './pages/LoginPage';
 
 function ChartEditorPage() {
   // Refs for imperative objects
