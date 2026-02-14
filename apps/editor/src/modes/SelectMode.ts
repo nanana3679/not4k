@@ -16,8 +16,8 @@ export interface SelectModeCallbacks {
   hitTestNote: (x: number, y: number) => number | null;
   /** Get selected RangeNote index whose end point is at (x,y), or null */
   hitTestNoteEnd?: (x: number, y: number) => number | null;
-  /** Get message index whose end point is at (x,y), or null */
-  hitTestMessageEnd?: (x: number, y: number) => number | null;
+  /** Get event index whose end point is at (x,y), or null */
+  hitTestEventEnd?: (x: number, y: number) => number | null;
   /** Get trill zone index whose end point is at (x,y), or null */
   hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
 }
@@ -40,7 +40,7 @@ export class SelectMode {
   > = new Map();
 
   // Resize state
-  private resizingEntityType: "note" | "message" | "trillZone" | null = null;
+  private resizingEntityType: "note" | "event" | "trillZone" | null = null;
   private resizingIndex: number | null = null;
   private resizingOriginalEndBeat: Beat | null = null;
   private resizingOriginalBeat: Beat | null = null;
@@ -110,12 +110,12 @@ export class SelectMode {
       }
     }
 
-    // 2. Message endpoints
-    if (this.callbacks.hitTestMessageEnd) {
-      const msgHit = this.callbacks.hitTestMessageEnd(x, y);
-      if (msgHit !== null) {
-        const msg = this.chart.messages[msgHit];
-        this.startResize("message", msgHit, msg.beat, msg.endBeat);
+    // 2. Event endpoints
+    if (this.callbacks.hitTestEventEnd) {
+      const evtHit = this.callbacks.hitTestEventEnd(x, y);
+      if (evtHit !== null) {
+        const evt = this.chart.events[evtHit];
+        this.startResize("event", evtHit, evt.beat, evt.endBeat);
         return;
       }
     }
@@ -206,10 +206,10 @@ export class SelectMode {
             newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
             this.chart = { ...this.chart, notes: newNotes };
           }
-        } else if (this.resizingEntityType === "message") {
-          const newMessages = [...this.chart.messages];
-          newMessages[this.resizingIndex] = { ...newMessages[this.resizingIndex], endBeat: newEndBeat };
-          this.chart = { ...this.chart, messages: newMessages };
+        } else if (this.resizingEntityType === "event") {
+          const newEvents = [...this.chart.events];
+          newEvents[this.resizingIndex] = { ...newEvents[this.resizingIndex], endBeat: newEndBeat };
+          this.chart = { ...this.chart, events: newEvents };
         } else if (this.resizingEntityType === "trillZone") {
           const newZones = [...this.chart.trillZones];
           newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
@@ -296,7 +296,7 @@ export class SelectMode {
       const errors = validateChart({
         notes: this.chart.notes,
         trillZones: this.chart.trillZones,
-        messages: this.chart.messages,
+        events: this.chart.events,
       });
       if (errors.length > 0) {
         // Rollback: restore original endBeat
@@ -416,7 +416,7 @@ export class SelectMode {
     const errors = validateChart({
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     });
 
     if (errors.length === 0) {
@@ -455,7 +455,7 @@ export class SelectMode {
     const errors = validateChart({
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     });
 
     if (errors.length === 0) {
@@ -524,7 +524,7 @@ export class SelectMode {
     const errors = validateChart({
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     });
 
     if (errors.length === 0) {
@@ -545,7 +545,7 @@ export class SelectMode {
     const errors = validateChart({
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     });
 
     if (errors.length === 0) {
@@ -624,7 +624,7 @@ export class SelectMode {
   }
 
   private startResize(
-    entityType: "note" | "message" | "trillZone",
+    entityType: "note" | "event" | "trillZone",
     index: number,
     startBeat: Beat,
     endBeat: Beat,
@@ -647,10 +647,10 @@ export class SelectMode {
         newNotes[this.resizingIndex] = { ...note, endBeat: this.resizingOriginalEndBeat } as RangeNote;
         this.chart = { ...this.chart, notes: newNotes };
       }
-    } else if (this.resizingEntityType === "message") {
-      const newMessages = [...this.chart.messages];
-      newMessages[this.resizingIndex] = { ...newMessages[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };
-      this.chart = { ...this.chart, messages: newMessages };
+    } else if (this.resizingEntityType === "event") {
+      const newEvents = [...this.chart.events];
+      newEvents[this.resizingIndex] = { ...newEvents[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };
+      this.chart = { ...this.chart, events: newEvents };
     } else if (this.resizingEntityType === "trillZone") {
       const newZones = [...this.chart.trillZones];
       newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };

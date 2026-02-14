@@ -10,13 +10,11 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
-  Message,
-  BpmMarker,
-  TimeSignatureMarker,
+  EventMarker,
   Beat,
   Lane,
 } from "@not4k/shared";
-import { validateChart, beatEq, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, beatToFloat, measureStartBeat } from "@not4k/shared";
+import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "@not4k/shared";
 
 export type EntityType =
   | "single"
@@ -35,7 +33,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
 ] as const;
 
 /** Internal drag type for tracking what kind of range entity is being created */
-type DragType = "rangeNote" | "trillZone" | "message" | null;
+type DragType = "rangeNote" | "trillZone" | "event" | null;
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
@@ -47,7 +45,7 @@ export interface CreateModeCallbacks {
   /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null for aux) */
   xToLane: (x: number) => Lane | null;
   /** Called to get what aux lane type an X falls in */
-  xToAuxLane: (x: number) => "bpm" | "timeSig" | "message" | null;
+  xToAuxLane: (x: number) => "event" | null;
   /** Called to display a warning message to the user */
   onWarn?: (message: string) => void;
 }
@@ -122,19 +120,11 @@ export class CreateMode {
 
     // --- Aux lane auto-detection (always, regardless of selectedEntityType) ---
     const auxType = this.callbacks.xToAuxLane(x);
-    if (auxType === "bpm") {
-      this.createBpmMarker(beat);
-      return;
-    }
-    if (auxType === "timeSig") {
-      this.createTimeSignatureMarker(beat);
-      return;
-    }
-    if (auxType === "message") {
+    if (auxType === "event") {
       this.isDragging = true;
       this.dragStartBeat = beat;
       this.dragStartLane = null;
-      this._dragType = "message";
+      this._dragType = "event";
       return;
     }
 
@@ -202,9 +192,9 @@ export class CreateMode {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
         this.createTrillZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
-    } else if (this._dragType === "message") {
+    } else if (this._dragType === "event") {
       if (this.dragStartBeat !== null) {
-        this.createMessage(this.dragStartBeat, endBeat);
+        this.createEvent(this.dragStartBeat, endBeat);
       }
     }
 
@@ -250,7 +240,7 @@ export class CreateMode {
     const testChart = {
       notes: [...this.chart.notes, newNote],
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     };
 
     const errors = validateChart(testChart);
@@ -291,7 +281,7 @@ export class CreateMode {
     const testChart = {
       notes: [...this.chart.notes, newNote],
       trillZones: this.chart.trillZones,
-      messages: this.chart.messages,
+      events: this.chart.events,
     };
 
     const errors = validateChart(testChart);
@@ -329,7 +319,7 @@ export class CreateMode {
     const testChart = {
       notes: this.chart.notes,
       trillZones: [...this.chart.trillZones, newZone],
-      messages: this.chart.messages,
+      events: this.chart.events,
     };
 
     const errors = validateChart(testChart);
@@ -348,7 +338,7 @@ export class CreateMode {
     this.callbacks.onChartUpdate(updatedChart);
   }
 
-  private createMessage(startBeat: Beat, endBeat: Beat): void {
+  private createEvent(startBeat: Beat, endBeat: Beat): void {
     // Ensure startBeat <= endBeat
     const actualStartBeat = beatLt(startBeat, endBeat)
       ? startBeat
@@ -357,17 +347,17 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
-    const newMessage: Message = {
+    const newEvent: EventMarker = {
       beat: actualStartBeat,
       endBeat: actualEndBeat,
-      text: "New Message", // Default text
+      text: "New Message",
     };
 
     // Validate before adding
     const testChart = {
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
-      messages: [...this.chart.messages, newMessage],
+      events: [...this.chart.events, newEvent],
     };
 
     const errors = validateChart(testChart);
@@ -379,95 +369,11 @@ export class CreateMode {
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,
-      messages: [...this.chart.messages, newMessage],
+      events: [...this.chart.events, newEvent],
     };
 
     this.chart = updatedChart;
     this.callbacks.onChartUpdate(updatedChart);
   }
 
-  private createBpmMarker(beat: Beat): void {
-    // 동일 위치에 이미 BPM 마커가 있으면 생성하지 않음
-    if (this.chart.bpmMarkers.some((m) => beatEq(m.beat, beat))) {
-      this.callbacks.onWarn?.(`BPM marker already exists at beat ${beat.n}/${beat.d}`);
-      return;
-    }
-
-    // Find the last BPM marker before this beat
-    let lastBpm = 120; // Default BPM
-    for (const marker of this.chart.bpmMarkers) {
-      if (beatLt(marker.beat, beat) || beatEq(marker.beat, beat)) {
-        lastBpm = marker.bpm;
-      }
-    }
-
-    const newMarker: BpmMarker = {
-      beat,
-      bpm: lastBpm, // Copy value from last marker
-    };
-
-    // Create new chart with immutable update
-    const updatedChart: Chart = {
-      ...this.chart,
-      bpmMarkers: [...this.chart.bpmMarkers, newMarker],
-    };
-
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
-  }
-
-  private createTimeSignatureMarker(clickedBeat: Beat): void {
-    // 클릭한 beat에서 가장 가까운 마디 경계의 인덱스를 계산
-    const timeSignatures = this.chart.timeSignatures;
-    const clickedFloat = beatToFloat(clickedBeat);
-
-    // 마디 인덱스를 찾기 위해 순회: 마디 0부터 시작하여 clickedBeat를 포함하는 마디를 찾는다
-    let measure = 0;
-    let bestMeasure = 0;
-    let bestDist = Infinity;
-
-    // 충분히 큰 범위를 순회 (클릭 위치 근처 마디를 찾으면 됨)
-    for (let m = 0; m < 10000; m++) {
-      const startBeat = measureStartBeat(m, timeSignatures);
-      const startFloat = beatToFloat(startBeat);
-      const dist = Math.abs(startFloat - clickedFloat);
-
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestMeasure = m;
-      }
-
-      // 이미 클릭 위치를 지나갔으면 중단
-      if (startFloat > clickedFloat + 16) break;
-    }
-    measure = bestMeasure;
-
-    // Find the last time signature marker before this measure
-    let lastBeatPerMeasure = { n: 4, d: 1 }; // Default 4/4 time
-    for (const marker of timeSignatures) {
-      if (marker.measure <= measure) {
-        lastBeatPerMeasure = marker.beatPerMeasure;
-      }
-    }
-
-    // 동일 마디에 이미 박자표 마커가 있으면 생성하지 않음
-    if (timeSignatures.some((m) => m.measure === measure)) {
-      this.callbacks.onWarn?.(`Time signature marker already exists at measure ${measure}`);
-      return;
-    }
-
-    const newMarker: TimeSignatureMarker = {
-      measure,
-      beatPerMeasure: lastBeatPerMeasure, // Copy value from last marker
-    };
-
-    // Create new chart with immutable update
-    const updatedChart: Chart = {
-      ...this.chart,
-      timeSignatures: [...this.chart.timeSignatures, newMarker],
-    };
-
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
-  }
 }

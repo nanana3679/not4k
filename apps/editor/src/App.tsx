@@ -12,7 +12,7 @@ import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { saveChartToFile, loadChartFromFile } from './io/ChartIO';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
-import { msToBeat, beatToMs, measureStartBeat } from '@not4k/shared';
+import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
 export function App() {
@@ -68,28 +68,28 @@ export function App() {
     return null;
   }, []);
 
-  // Helper: X to Aux Lane ('bpm' | 'timeSig' | 'message' | null)
-  const xToAuxLane = useCallback((x: number): 'bpm' | 'timeSig' | 'message' | null => {
+  // Helper: X to Aux Lane ('event' | null)
+  const xToAuxLane = useCallback((x: number): 'event' | null => {
     const auxStartX = LANE_COUNT * LANE_WIDTH;
     if (x < auxStartX) return null;
 
     const auxIndex = Math.floor((x - auxStartX) / AUX_LANE_WIDTH);
-    if (auxIndex === 0) return 'bpm';
-    if (auxIndex === 1) return 'timeSig';
-    if (auxIndex === 2) return 'message';
+    if (auxIndex === 0) return 'event';
     return null;
   }, []);
 
   // Helper: Y to Beat (snap division N = N-th note, grid = 4/N beats)
+  const bpmMarkers = extractBpmMarkers(chart.events);
+
   const yToBeat = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };
     const timeMs = rendererRef.current.yToTime(y);
-    const beatFloat = msToBeat(timeMs, chart.bpmMarkers, chart.meta.offsetMs);
+    const beatFloat = msToBeat(timeMs, bpmMarkers, chart.meta.offsetMs);
     // Grid = 4/snapDivision beats (e.g., snap=16 → 0.25 beats = sixteenth note)
     const grid = 4 / snapDivision;
     const k = Math.round(beatFloat / grid);
     return { n: k * 4, d: snapDivision };
-  }, [chart.bpmMarkers, chart.meta.offsetMs, snapDivision]);
+  }, [bpmMarkers, chart.meta.offsetMs, snapDivision]);
 
   // Helper: Snap Beat
   const snapBeat = useCallback((beat: Beat): Beat => {
@@ -101,15 +101,15 @@ export function App() {
   const getMaxBeatFloat = useCallback((): number => {
     if (!rendererRef.current) return 0;
     const totalMs = rendererRef.current.getTotalTimelineMs();
-    return msToBeat(totalMs, chart.bpmMarkers, chart.meta.offsetMs);
-  }, [chart.bpmMarkers, chart.meta.offsetMs]);
+    return msToBeat(totalMs, bpmMarkers, chart.meta.offsetMs);
+  }, [bpmMarkers, chart.meta.offsetMs]);
 
   // Callback refs to avoid stale closures in mode handlers
   const yToBeatRef = useRef(yToBeat);
   const getMaxBeatFloatRef = useRef(getMaxBeatFloat);
   const hitTestNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestNoteEndRef = useRef<(x: number, y: number) => number | null>(() => null);
-  const hitTestMessageEndRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestEventEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneRef = useRef<(x: number, y: number) => number | null>(() => null);
 
@@ -171,24 +171,24 @@ export function App() {
     return null;
   }, [chart.notes, selectedNotes, xToLane, yToBeat]);
 
-  // Helper: Hit test message end (for endpoint resize)
-  const hitTestMessageEnd = useCallback((x: number, y: number): number | null => {
+  // Helper: Hit test event end (for endpoint resize)
+  const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
     const auxLane = xToAuxLane(x);
-    if (auxLane !== 'message') return null;
+    if (auxLane !== 'event') return null;
 
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
 
-    for (let i = 0; i < chart.messages.length; i++) {
-      const msg = chart.messages[i];
-      const endBeatFloat = msg.endBeat.n / msg.endBeat.d;
+    for (let i = 0; i < chart.events.length; i++) {
+      const evt = chart.events[i];
+      const endBeatFloat = evt.endBeat.n / evt.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) {
         return i;
       }
     }
     return null;
-  }, [chart.messages, xToAuxLane, yToBeat]);
+  }, [chart.events, xToAuxLane, yToBeat]);
 
   // Helper: Hit test trill zone end (for endpoint resize)
   const hitTestTrillZoneEnd = useCallback((x: number, y: number): number | null => {
@@ -238,7 +238,7 @@ export function App() {
     getMaxBeatFloatRef.current = getMaxBeatFloat;
     hitTestNoteRef.current = hitTestNote;
     hitTestNoteEndRef.current = hitTestNoteEnd;
-    hitTestMessageEndRef.current = hitTestMessageEnd;
+    hitTestEventEndRef.current = hitTestEventEnd;
     hitTestTrillZoneEndRef.current = hitTestTrillZoneEnd;
     hitTestTrillZoneRef.current = hitTestTrillZone;
   });
@@ -331,7 +331,7 @@ export function App() {
       xToLane,
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestNoteEnd: (x, y) => hitTestNoteEndRef.current(x, y),
-      hitTestMessageEnd: (x, y) => hitTestMessageEndRef.current(x, y),
+      hitTestEventEnd: (x, y) => hitTestEventEndRef.current(x, y),
       hitTestTrillZoneEnd: (x, y) => hitTestTrillZoneEndRef.current(x, y),
     });
     selectModeRef.current = selectMode;
@@ -538,23 +538,22 @@ export function App() {
       if (rendererRef.current) {
         const beat = yToBeat(y);
         const snapped = snapBeat(beat);
-        const timeMs = beatToMs(snapped, chart.bpmMarkers, chart.meta.offsetMs);
+        const timeMs = beatToMs(snapped, bpmMarkers, chart.meta.offsetMs);
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
-          if (createModeRef.current.dragType === 'message') {
-            // Message drag: show ghost marker in message aux lane
-            rendererRef.current.showGhostMarker(2, timeMs);
+          if (createModeRef.current.dragType === 'event') {
+            // Event drag: show ghost marker in event aux lane
+            rendererRef.current.showGhostMarker(0, timeMs);
           } else if (createModeRef.current.dragLane) {
             // Note lane range drag: show range ghost
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, chart.bpmMarkers, chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, chart.meta.offsetMs);
             rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
           }
         } else {
           // Not dragging: show ghost based on hovered lane
           const auxLane = xToAuxLane(x);
-          const auxIndexMap = { bpm: 0, timeSig: 1, message: 2 } as const;
           if (auxLane) {
-            rendererRef.current.showGhostMarker(auxIndexMap[auxLane], timeMs);
+            rendererRef.current.showGhostMarker(0, timeMs);
           } else {
             const lane = xToLane(x);
             if (lane) {
@@ -580,7 +579,7 @@ export function App() {
         }
       }
     }
-  }, [mode, entityType, xToLane, yToBeat, snapBeat, chart.bpmMarkers, chart.meta.offsetMs]);
+  }, [mode, entityType, xToLane, yToBeat, snapBeat, bpmMarkers, chart.meta.offsetMs]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     rendererRef.current?.handleScrollbarPointerUp();
@@ -680,33 +679,16 @@ export function App() {
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
 
-    if (auxLane === 'bpm') {
-      for (let i = 0; i < chart.bpmMarkers.length; i++) {
-        const b = chart.bpmMarkers[i].beat;
-        if (Math.abs(b.n / b.d - testBeatFloat) < tolerance) {
-          return { type: 'bpm' as const, index: i };
-        }
-      }
-    } else if (auxLane === 'timeSig') {
-      for (let i = 0; i < chart.timeSignatures.length; i++) {
-        const markerBeat = measureStartBeat(chart.timeSignatures[i].measure, chart.timeSignatures);
-        const markerBeatFloat = markerBeat.n / markerBeat.d;
-        if (Math.abs(markerBeatFloat - testBeatFloat) < tolerance) {
-          return { type: 'timeSig' as const, index: i };
-        }
-      }
-    } else if (auxLane === 'message') {
-      for (let i = 0; i < chart.messages.length; i++) {
-        const msg = chart.messages[i];
-        const startFloat = msg.beat.n / msg.beat.d;
-        const endFloat = msg.endBeat.n / msg.endBeat.d;
-        if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
-          return { type: 'message' as const, index: i };
-        }
+    for (let i = 0; i < chart.events.length; i++) {
+      const evt = chart.events[i];
+      const startFloat = evt.beat.n / evt.beat.d;
+      const endFloat = evt.endBeat.n / evt.endBeat.d;
+      if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
+        return { type: 'event' as const, index: i };
       }
     }
     return null;
-  }, [chart.bpmMarkers, chart.timeSignatures, chart.messages, xToAuxLane, yToBeat]);
+  }, [chart.events, xToAuxLane, yToBeat]);
 
   // Double-click on canvas → open marker edit modal
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -757,28 +739,19 @@ export function App() {
       return;
     }
 
-    // Try marker (bpm, timeSig, message)
+    // Try event marker
     const markerHit = hitTestMarker(x, y);
     if (markerHit) {
-      // Protect first markers (beat 0 / measure 0)
-      if (markerHit.type === 'bpm' && chart.bpmMarkers[markerHit.index]?.beat.n === 0) {
-        addToast('Cannot delete first BPM marker');
-        return;
-      }
-      if (markerHit.type === 'timeSig' && chart.timeSignatures[markerHit.index]?.measure === 0) {
-        addToast('Cannot delete first time signature marker');
+      // Protect first event marker (beat 0)
+      if (chart.events[markerHit.index]?.beat.n === 0) {
+        addToast('Cannot delete initial event marker');
         return;
       }
 
-      const updated = { ...chart };
-      if (markerHit.type === 'bpm') {
-        updated.bpmMarkers = chart.bpmMarkers.filter((_, i) => i !== markerHit.index);
-      } else if (markerHit.type === 'timeSig') {
-        updated.timeSignatures = chart.timeSignatures.filter((_, i) => i !== markerHit.index);
-      } else if (markerHit.type === 'message') {
-        updated.messages = chart.messages.filter((_, i) => i !== markerHit.index);
-      }
-      setChart(updated);
+      setChart({
+        ...chart,
+        events: chart.events.filter((_, i) => i !== markerHit.index),
+      });
     }
   }, [chart, hitTestNote, hitTestTrillZone, hitTestMarker, setChart, addToast]);
 
@@ -878,36 +851,46 @@ export function App() {
   }, [setChart]);
 
   // Marker edit handlers
-  const isEditingBeatZero = editingMarker && (
-    (editingMarker.type === 'bpm' && chart.bpmMarkers[editingMarker.index]?.beat.n === 0) ||
-    (editingMarker.type === 'timeSig' && chart.timeSignatures[editingMarker.index]?.measure === 0)
-  );
+  const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
 
   const handleMarkerSave = useCallback((values: Record<string, string>) => {
     if (!editingMarker) return;
 
     const updated = { ...chart };
-    if (editingMarker.type === 'bpm') {
-      const bpm = parseFloat(values.bpm);
-      if (isNaN(bpm) || bpm <= 0) { addToast('Invalid BPM value'); return; }
-      updated.bpmMarkers = [...chart.bpmMarkers];
-      updated.bpmMarkers[editingMarker.index] = { ...updated.bpmMarkers[editingMarker.index], bpm };
-    } else if (editingMarker.type === 'timeSig') {
-      const n = parseInt(values.numerator);
-      const d = parseInt(values.denominator);
-      if (isNaN(n) || isNaN(d) || n <= 0 || d <= 0) { addToast('Invalid time signature'); return; }
-      updated.timeSignatures = [...chart.timeSignatures];
-      updated.timeSignatures[editingMarker.index] = {
-        ...updated.timeSignatures[editingMarker.index],
-        beatPerMeasure: { n, d },
-      };
-    } else if (editingMarker.type === 'message') {
-      updated.messages = [...chart.messages];
-      updated.messages[editingMarker.index] = {
-        ...updated.messages[editingMarker.index],
-        text: values.text,
-      };
+    updated.events = [...chart.events];
+    const evt = updated.events[editingMarker.index];
+    const isBeatZeroEvent = evt.beat.n === 0;
+    const patch: Partial<typeof evt> = {};
+    // text
+    if (values.text !== undefined && values.text !== '') {
+      patch.text = values.text;
     }
+    // bpm
+    if (values.eventBpm !== undefined && values.eventBpm !== '') {
+      const bpmVal = parseFloat(values.eventBpm);
+      if (!isNaN(bpmVal) && bpmVal > 0) patch.bpm = bpmVal;
+    }
+    // beatPerMeasure
+    if (values.tsNumerator !== undefined && values.tsDenominator !== undefined
+        && values.tsNumerator !== '' && values.tsDenominator !== '') {
+      const tsN = parseInt(values.tsNumerator);
+      const tsD = parseInt(values.tsDenominator);
+      if (!isNaN(tsN) && !isNaN(tsD) && tsN > 0 && tsD > 0) {
+        patch.beatPerMeasure = { n: tsN, d: tsD };
+      }
+    }
+    // beat-0 event: bpm and beatPerMeasure are required
+    if (isBeatZeroEvent) {
+      if (patch.bpm === undefined) { addToast('Initial event requires BPM'); return; }
+      if (patch.beatPerMeasure === undefined) { addToast('Initial event requires time signature'); return; }
+    }
+    // stop
+    if (values.stop === 'true') {
+      (patch as any).stop = true;
+    }
+    // Build updated event: remove cleared optional fields
+    const { text: _t, bpm: _b, beatPerMeasure: _bp, stop: _s, ...base } = evt;
+    updated.events[editingMarker.index] = { ...base, ...patch };
 
     setChart(updated);
     // Directly update renderer to bypass React async useEffect timing
@@ -919,20 +902,14 @@ export function App() {
     if (!editingMarker) return;
 
     if (isEditingBeatZero) {
-      addToast('Cannot delete marker at measure 0');
+      addToast('Cannot delete initial event marker');
       return;
     }
 
-    const updated = { ...chart };
-    if (editingMarker.type === 'bpm') {
-      updated.bpmMarkers = chart.bpmMarkers.filter((_, i) => i !== editingMarker.index);
-    } else if (editingMarker.type === 'timeSig') {
-      updated.timeSignatures = chart.timeSignatures.filter((_, i) => i !== editingMarker.index);
-    } else if (editingMarker.type === 'message') {
-      updated.messages = chart.messages.filter((_, i) => i !== editingMarker.index);
-    }
-
-    setChart(updated);
+    setChart({
+      ...chart,
+      events: chart.events.filter((_, i) => i !== editingMarker.index),
+    });
     setEditingMarker(null);
   }, [editingMarker, isEditingBeatZero, chart, setChart, setEditingMarker, addToast]);
 
@@ -1176,76 +1153,26 @@ function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, o
   onClose: () => void;
 }) {
   const getInitialValues = (): Record<string, string> => {
-    if (editingMarker.type === 'bpm') {
-      return { bpm: String(chart.bpmMarkers[editingMarker.index]?.bpm ?? 120) };
-    } else if (editingMarker.type === 'timeSig') {
-      const bpm = chart.timeSignatures[editingMarker.index]?.beatPerMeasure;
-      return { numerator: String(bpm?.n ?? 4), denominator: String(bpm?.d ?? 1) };
-    } else {
-      return { text: chart.messages[editingMarker.index]?.text ?? '' };
-    }
+    const evt = chart.events[editingMarker.index];
+    return {
+      text: evt?.text ?? '',
+      eventBpm: evt?.bpm !== undefined ? String(evt.bpm) : '',
+      tsNumerator: evt?.beatPerMeasure !== undefined ? String(evt.beatPerMeasure.n) : '',
+      tsDenominator: evt?.beatPerMeasure !== undefined ? String(evt.beatPerMeasure.d) : '',
+      stop: evt?.stop ? 'true' : 'false',
+    };
   };
 
   const [values, setValues] = useState<Record<string, string>>(getInitialValues);
 
-  const title = editingMarker.type === 'bpm' ? 'Edit BPM Marker'
-    : editingMarker.type === 'timeSig' ? 'Edit Time Signature'
-    : 'Edit Message';
+  const title = 'Edit Event';
 
   return (
     <div style={modalStyles.overlay} onClick={onClose}>
       <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>{title}</h3>
 
-        {editingMarker.type === 'bpm' && (
-          <label style={modalStyles.field}>
-            <span>BPM</span>
-            <input
-              style={modalStyles.input}
-              type="number"
-              value={values.bpm}
-              onChange={(e) => setValues({ ...values, bpm: e.target.value })}
-              autoFocus
-            />
-          </label>
-        )}
-
-        {editingMarker.type === 'timeSig' && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <label style={modalStyles.field}>
-              <span>Numerator</span>
-              <input
-                style={modalStyles.input}
-                type="number"
-                value={values.numerator}
-                onChange={(e) => setValues({ ...values, numerator: e.target.value })}
-                autoFocus
-              />
-            </label>
-            <label style={modalStyles.field}>
-              <span>Denominator</span>
-              <input
-                style={modalStyles.input}
-                type="number"
-                value={values.denominator}
-                onChange={(e) => setValues({ ...values, denominator: e.target.value })}
-              />
-            </label>
-          </div>
-        )}
-
-        {editingMarker.type === 'message' && (
-          <label style={modalStyles.field}>
-            <span>Text</span>
-            <input
-              style={modalStyles.input}
-              type="text"
-              value={values.text}
-              onChange={(e) => setValues({ ...values, text: e.target.value })}
-              autoFocus
-            />
-          </label>
-        )}
+        <EventTabFields values={values} setValues={setValues} />
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>
@@ -1263,6 +1190,160 @@ function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, o
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Event Tab Fields (BPM / TimeSig / Message tabs)
+// ---------------------------------------------------------------------------
+
+type EventTab = 'message' | 'bpm' | 'timeSig' | 'stop';
+
+function EventTabFields({ values, setValues }: {
+  values: Record<string, string>;
+  setValues: (v: Record<string, string>) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<EventTab>('message');
+
+  const hasMessage = !!values.text;
+  const hasBpm = !!values.eventBpm;
+  const hasTimeSig = !!values.tsNumerator || !!values.tsDenominator;
+  const hasStop = values.stop === 'true';
+
+  const tabs: { key: EventTab; label: string; hasValue: boolean }[] = [
+    { key: 'message', label: 'Message', hasValue: hasMessage },
+    { key: 'bpm', label: 'BPM', hasValue: hasBpm },
+    { key: 'timeSig', label: 'TimeSig', hasValue: hasTimeSig },
+    { key: 'stop', label: 'Stop', hasValue: hasStop },
+  ];
+
+  return (
+    <>
+      <div style={eventTabStyles.tabBar}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            style={{
+              ...eventTabStyles.tab,
+              ...(activeTab === tab.key ? eventTabStyles.tabActive : {}),
+              ...(tab.hasValue && activeTab !== tab.key ? eventTabStyles.tabFilled : {}),
+            }}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.hasValue && <span style={eventTabStyles.dot} />}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={eventTabStyles.tabContent}>
+        {activeTab === 'message' && (
+          <label style={modalStyles.field}>
+            <span>Text</span>
+            <input
+              style={modalStyles.input}
+              type="text"
+              value={values.text}
+              onChange={(e) => setValues({ ...values, text: e.target.value })}
+              autoFocus
+            />
+          </label>
+        )}
+
+        {activeTab === 'bpm' && (
+          <label style={modalStyles.field}>
+            <span>BPM</span>
+            <input
+              style={modalStyles.input}
+              type="number"
+              value={values.eventBpm}
+              onChange={(e) => setValues({ ...values, eventBpm: e.target.value })}
+              autoFocus
+            />
+          </label>
+        )}
+
+        {activeTab === 'timeSig' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <label style={modalStyles.field}>
+              <span>Numerator</span>
+              <input
+                style={modalStyles.input}
+                type="number"
+                value={values.tsNumerator}
+                onChange={(e) => setValues({ ...values, tsNumerator: e.target.value })}
+                autoFocus
+              />
+            </label>
+            <label style={modalStyles.field}>
+              <span>Denominator</span>
+              <input
+                style={modalStyles.input}
+                type="number"
+                value={values.tsDenominator}
+                onChange={(e) => setValues({ ...values, tsDenominator: e.target.value })}
+              />
+            </label>
+          </div>
+        )}
+
+        {activeTab === 'stop' && (
+          <label style={{ ...modalStyles.field, flexDirection: 'row', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={values.stop === 'true'}
+              onChange={(e) => setValues({ ...values, stop: e.target.checked ? 'true' : 'false' })}
+              style={{ width: '16px', height: '16px', accentColor: '#4488ff' }}
+            />
+            <span>Stop (구간 내 싱글/더블/롱노트 배치 금지)</span>
+          </label>
+        )}
+      </div>
+    </>
+  );
+}
+
+const eventTabStyles = {
+  tabBar: {
+    display: 'flex',
+    gap: '4px',
+    marginBottom: '12px',
+    borderBottom: '1px solid #444',
+    paddingBottom: '8px',
+  },
+  tab: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '5px 12px',
+    backgroundColor: '#333',
+    color: '#888',
+    border: '1px solid #444',
+    borderRadius: '4px 4px 0 0',
+    cursor: 'pointer',
+    fontSize: '12px',
+    transition: 'background-color 0.15s',
+  } as React.CSSProperties,
+  tabActive: {
+    backgroundColor: '#4488ff',
+    color: '#fff',
+    borderColor: '#4488ff',
+  },
+  tabFilled: {
+    color: '#ccc',
+    borderColor: '#668',
+    backgroundColor: '#3a3a4a',
+  },
+  dot: {
+    display: 'inline-block',
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#6cf',
+    flexShrink: 0,
+  } as React.CSSProperties,
+  tabContent: {
+    minHeight: '60px',
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Meta Edit Modal
@@ -1560,7 +1641,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '6px',
-    zIndex: 1000,
+    zIndex: 3000,
     pointerEvents: 'none' as const,
   },
   toast: {

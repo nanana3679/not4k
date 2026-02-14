@@ -3,7 +3,7 @@
  */
 
 export const LANE_COUNT = 4;
-export const AUXILIARY_LANES = 3; // BPM + time sig + message
+export const AUXILIARY_LANES = 1; // event only
 export const TOTAL_LANES = LANE_COUNT + AUXILIARY_LANES;
 
 export const LANE_WIDTH = 60; // px per lane
@@ -43,9 +43,7 @@ export const COLORS = {
 
   SELECTED_OUTLINE: 0xff4444,
 
-  MESSAGE_BG: 0x553388,
+  EVENT_BG: 0x553388,
 
-  BPM_MARKER: 0x9933ff,
-  TIME_SIG_MARKER: 0xff3333,
-  MESSAGE_MARKER: 0xff66aa,
+  EVENT_MARKER: 0xff66aa,
 };

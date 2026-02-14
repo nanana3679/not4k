@@ -16,9 +16,7 @@ export interface Toast {
 }
 
 export type EditingMarker =
-  | { type: 'bpm'; index: number }
-  | { type: 'timeSig'; index: number }
-  | { type: 'message'; index: number }
+  | { type: 'event'; index: number }
   | null;
 
 let toastId = 0;
@@ -75,11 +73,9 @@ const createDefaultChart = (): Chart => ({
     previewAudioFile: '',
     offsetMs: 0,
   },
-  bpmMarkers: [{ beat: beat(0, 1), bpm: 120 }],
-  timeSignatures: [{ measure: 0, beatPerMeasure: { n: 4, d: 1 } }],
   notes: [],
   trillZones: [],
-  messages: [],
+  events: [{ beat: beat(0, 1), endBeat: beat(0, 1), bpm: 120, beatPerMeasure: { n: 4, d: 1 } }],
 });
 
 export const useEditorStore = create<EditorState>((set) => ({

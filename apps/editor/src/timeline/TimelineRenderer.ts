@@ -14,9 +14,10 @@ import type {
   PointNote,
   RangeNote,
 } from "@not4k/shared";
-import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "@not4k/shared";
+import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures } from "@not4k/shared";
 import {
   LANE_COUNT,
+  AUXILIARY_LANES,
   LANE_WIDTH,
   AUX_LANE_WIDTH,
   NOTE_HEIGHT,
@@ -273,7 +274,9 @@ export class TimelineRenderer {
    */
   getTotalTimelineMs(): number {
     if (!this.chart) return 0;
-    const { bpmMarkers, timeSignatures, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const timeSignatures = extractTimeSignatures(this.chart.events);
+    const meta = this.chart.meta;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return 0;
 
     let totalMeasures = DEFAULT_MEASURES;
@@ -321,9 +324,9 @@ export class TimelineRenderer {
       this.laneBackgrounds.addChild(bg);
     }
 
-    // Auxiliary lanes (BPM, time sig, message)
+    // Auxiliary lanes (event only)
     const auxStartX = LANE_COUNT * LANE_WIDTH;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < AUXILIARY_LANES; i++) {
       const bg = new Graphics();
       bg.rect(auxStartX + i * AUX_LANE_WIDTH, topY, AUX_LANE_WIDTH, laneHeight);
       bg.fill(COLORS.AUX_LANE_BG);
@@ -466,7 +469,9 @@ export class TimelineRenderer {
   private renderGridLines(): void {
     if (!this.chart) return;
 
-    const { bpmMarkers, timeSignatures, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const timeSignatures = extractTimeSignatures(this.chart.events);
+    const meta = this.chart.meta;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return;
 
     const totalTimelineMs = this.getTotalTimelineMs();
@@ -555,7 +560,8 @@ export class TimelineRenderer {
   private renderTrillZones(): void {
     if (!this.chart) return;
 
-    const { trillZones, bpmMarkers, meta } = this.chart;
+    const { trillZones, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
 
     for (const zone of trillZones) {
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
@@ -583,7 +589,8 @@ export class TimelineRenderer {
   private renderMoveOrigins(): void {
     if (!this._moveOrigins || !this.chart) return;
 
-    const { bpmMarkers, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const meta = this.chart.meta;
     const ORIGIN_ALPHA = 0.3;
 
     for (const origin of this._moveOrigins) {
@@ -696,7 +703,8 @@ export class TimelineRenderer {
   private renderPointNote(note: PointNote, isSelected: boolean): void {
     if (!this.chart) return;
 
-    const { bpmMarkers, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const meta = this.chart.meta;
     const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
     const y = this.timeToY(timeMs);
     const x = (note.lane - 1) * LANE_WIDTH;
@@ -757,7 +765,8 @@ export class TimelineRenderer {
   private renderRangeNote(note: RangeNote, isSelected: boolean): void {
     if (!this.chart) return;
 
-    const { bpmMarkers, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const meta = this.chart.meta;
     const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
     const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
     const startY = this.timeToY(startMs);
@@ -872,65 +881,36 @@ export class TimelineRenderer {
   private renderMarkers(): void {
     if (!this.chart) return;
 
-    const { bpmMarkers, timeSignatures, messages, meta } = this.chart;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const { events, meta } = this.chart;
     const auxStartX = LANE_COUNT * LANE_WIDTH;
 
-    const markerTextStyle = new TextStyle({
-      fontSize: 11,
-      fill: 0xffffff,
-      fontFamily: "monospace",
-    });
-
-    // BPM markers (purple, aux index 0)
-    for (const marker of bpmMarkers) {
-      const timeMs = beatToMs(marker.beat, bpmMarkers, meta.offsetMs);
-      const y = this.timeToY(timeMs);
-      const gfx = new Graphics();
-      gfx.rect(auxStartX, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
-      gfx.fill(COLORS.BPM_MARKER);
-      this.noteLayer.addChild(gfx);
-
-      const label = new Text({ text: String(marker.bpm), style: markerTextStyle });
-      label.anchor.set(0.5, 0.5);
-      label.x = auxStartX + AUX_LANE_WIDTH / 2;
-      label.y = y;
-      this.noteLayer.addChild(label);
-    }
-
-    // Time signature markers (red, aux index 1)
-    for (const marker of timeSignatures) {
-      const markerBeat = measureStartBeat(marker.measure, timeSignatures);
-      const timeMs = beatToMs(markerBeat, bpmMarkers, meta.offsetMs);
-      const y = this.timeToY(timeMs);
-      const gfx = new Graphics();
-      gfx.rect(auxStartX + AUX_LANE_WIDTH, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
-      gfx.fill(COLORS.TIME_SIG_MARKER);
-      this.noteLayer.addChild(gfx);
-
-      const bpm = marker.beatPerMeasure;
-      const label = new Text({ text: bpm.d === 1 ? String(bpm.n) : `${bpm.n}/${bpm.d}`, style: markerTextStyle });
-      label.anchor.set(0.5, 0.5);
-      label.x = auxStartX + AUX_LANE_WIDTH + AUX_LANE_WIDTH / 2;
-      label.y = y;
-      this.noteLayer.addChild(label);
-    }
-
-    // Messages (pink, aux index 2, range)
-    for (const msg of messages) {
-      const startMs = beatToMs(msg.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(msg.endBeat, bpmMarkers, meta.offsetMs);
+    // Events (pink, aux index 0, range)
+    for (const evt of events) {
+      const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs);
       const startY = this.timeToY(startMs);
       const endY = this.timeToY(endMs);
-      const topY = Math.min(startY, endY);
-      const height = Math.abs(endY - startY) || NOTE_HEIGHT;
+      const rawHeight = Math.abs(endY - startY);
+      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
+      const topY = rawHeight > 0 ? Math.min(startY, endY) : Math.min(startY, endY) - NOTE_HEIGHT / 2;
       const gfx = new Graphics();
-      gfx.rect(auxStartX + AUX_LANE_WIDTH * 2, topY, AUX_LANE_WIDTH, height);
-      gfx.fill(COLORS.MESSAGE_MARKER);
-      gfx.stroke({ width: 1.5, color: 0xffbbdd, alignment: 0 });
+      gfx.rect(auxStartX, topY, AUX_LANE_WIDTH, height);
+      gfx.fill({ color: COLORS.EVENT_MARKER, alpha: 0.5 });
+      gfx.stroke({ width: 1.5, color: 0xffbbdd, alpha: 0.6, alignment: 0 });
       this.noteLayer.addChild(gfx);
 
+      const parts: string[] = [];
+      if (evt.stop) parts.push('STOP');
+      if (evt.bpm !== undefined) parts.push(`BPM:${evt.bpm}`);
+      if (evt.beatPerMeasure !== undefined) {
+        const bp = evt.beatPerMeasure;
+        parts.push(`TS:${bp.n}/${bp.d}`);
+      }
+      if (evt.text !== undefined) parts.push(evt.text);
+      const displayText = parts.join(' | ') || '(empty)';
       const label = new Text({
-        text: msg.text,
+        text: displayText,
         style: new TextStyle({
           fontSize: 11,
           fill: 0xffffff,
@@ -945,12 +925,12 @@ export class TimelineRenderer {
         const charsPerLine = Math.floor((AUX_LANE_WIDTH - 4) / 7);
         const lines = Math.max(1, Math.floor(height / 13));
         const maxChars = charsPerLine * lines - 1;
-        const truncated = msg.text.length > maxChars ? msg.text.slice(0, maxChars) + '\u2026' : msg.text;
+        const truncated = displayText.length > maxChars ? displayText.slice(0, maxChars) + '\u2026' : displayText;
         label.text = truncated;
         label.style.wordWrap = false;
       }
       label.anchor.set(0.5, 0.5);
-      label.x = auxStartX + AUX_LANE_WIDTH * 2 + AUX_LANE_WIDTH / 2;
+      label.x = auxStartX + AUX_LANE_WIDTH / 2;
       label.y = topY + height / 2;
       this.noteLayer.addChild(label);
     }
@@ -1004,7 +984,7 @@ export class TimelineRenderer {
 
   /**
    * Show a semi-transparent ghost marker in an auxiliary lane.
-   * @param auxIndex 0=BPM, 1=timeSig, 2=message
+   * @param auxIndex 0=event
    */
   showGhostMarker(auxIndex: number, timeMs: number): void {
     this.ghostLayer.removeChildren();
