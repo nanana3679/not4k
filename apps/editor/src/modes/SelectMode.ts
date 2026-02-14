@@ -7,6 +7,8 @@ export interface SelectModeCallbacks {
   onSelectionChange: (selectedIndices: Set<number>) => void;
   yToBeat: (y: number) => Beat;
   snapBeat: (beat: Beat) => Beat;
+  /** Get the snap grid step as a Beat (= beat(4, snapDivision)) */
+  getSnapStep: () => Beat;
   xToLane: (x: number) => Lane | null;
   /** Get note index at given coordinates, or null */
   hitTestNote: (x: number, y: number) => number | null;
@@ -63,6 +65,16 @@ export class SelectMode {
 
   get selection(): ReadonlySet<number> {
     return this.selectedIndices;
+  }
+
+  /** Whether a move drag is currently in progress */
+  get isMoveDragging(): boolean {
+    return this.isDragging && this.dragType === "move";
+  }
+
+  /** Original positions of notes being moved (available during move drag) */
+  get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: Lane }> {
+    return this.originalPositions;
   }
 
   /** Clear selection */
@@ -337,10 +349,10 @@ export class SelectMode {
     if (this.selectedIndices.size === 0) return;
 
     // Get snap unit from current snap setting (assume 1/snap beat)
-    const snapUnit = this.callbacks.snapBeat({ n: 1, d: 4 }); // Use quarter note as default
+    const snapStep = this.callbacks.getSnapStep();
     // Timeline: bottom = time 0, up = later time.
     // ArrowUp = increase time (add snap), ArrowDown = decrease time (subtract snap).
-    const offset = direction === "up" ? snapUnit : beatSub({ n: 0, d: 1 }, snapUnit);
+    const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
     // Store original positions
     this.originalPositions.clear();
@@ -405,10 +417,10 @@ export class SelectMode {
   resizeEndBySnap(direction: "up" | "down"): void {
     if (this.selectedIndices.size === 0) return;
 
-    // Get snap unit
-    const snapUnit = this.callbacks.snapBeat({ n: 1, d: 4 });
+    // Get snap step
+    const snapStep = this.callbacks.getSnapStep();
     // ArrowUp = extend end later (add snap), ArrowDown = shrink end earlier (subtract snap)
-    const offset = direction === "up" ? snapUnit : beatSub({ n: 0, d: 1 }, snapUnit);
+    const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
     // Store original positions
     this.originalPositions.clear();

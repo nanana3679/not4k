@@ -314,6 +314,10 @@ export function App() {
       onSelectionChange: setSelectedNotes,
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
+      getSnapStep: () => {
+        const sd = snapZoomRef.current?.snapDivision ?? 4;
+        return { n: 4, d: sd };
+      },
       xToLane,
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestNoteEnd: (x, y) => hitTestNoteEndRef.current(x, y),
@@ -553,6 +557,18 @@ export function App() {
       }
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerMove(x, y);
+
+      // Show move origin ghosts during drag
+      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
+        const origins = selectModeRef.current.moveOrigins;
+        if (origins.size > 0) {
+          const originData: { note: import('@not4k/shared').NoteEntity; beat: import('@not4k/shared').Beat; endBeat?: import('@not4k/shared').Beat; lane: import('@not4k/shared').Lane }[] = [];
+          for (const [idx, pos] of origins) {
+            originData.push({ note: chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
+          }
+          rendererRef.current.setMoveOrigins(originData);
+        }
+      }
     }
   }, [mode, entityType, xToLane, yToBeat, snapBeat, chart.bpmMarkers, chart.meta.offsetMs]);
 
@@ -579,6 +595,7 @@ export function App() {
       }
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerUp(x, y);
+      rendererRef.current?.clearMoveOrigins();
     }
   }, [mode, isTimeInBounds]);
 

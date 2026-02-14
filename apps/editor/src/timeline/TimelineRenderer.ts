@@ -9,6 +9,7 @@
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import type {
   Chart,
+  Beat,
   NoteEntity,
   PointNote,
   RangeNote,
@@ -54,6 +55,7 @@ export class TimelineRenderer {
   private beatLines!: Container;
   private snapLines!: Container;
   private trillZoneLayer!: Container;
+  private moveOriginLayer!: Container;
   private longNoteBodyLayer!: Container;
   private longNoteEndLayer!: Container;
   private longNoteHeadLayer!: Container;
@@ -78,6 +80,7 @@ export class TimelineRenderer {
   private _scrollY: number = 0;
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
+  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
 
   // Chart data
   private chart: Chart | null = null;
@@ -112,6 +115,7 @@ export class TimelineRenderer {
     this.beatLines = new Container();
     this.snapLines = new Container();
     this.trillZoneLayer = new Container();
+    this.moveOriginLayer = new Container();
     this.longNoteBodyLayer = new Container();
     this.longNoteEndLayer = new Container();
     this.longNoteHeadLayer = new Container();
@@ -130,6 +134,7 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.beatLines);
     this.app.stage.addChild(this.snapLines);
     this.app.stage.addChild(this.trillZoneLayer);
+    this.app.stage.addChild(this.moveOriginLayer);
     this.app.stage.addChild(this.longNoteBodyLayer);
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
@@ -216,6 +221,19 @@ export class TimelineRenderer {
   setSelectedNotes(indices: Set<number>): void {
     this._selectedNotes = indices;
     this.render();
+  }
+
+  /**
+   * Set move origin ghost data (shown during note drag move).
+   * Pass original note entities with their original positions.
+   */
+  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[]): void {
+    this._moveOrigins = origins;
+  }
+
+  /** Clear move origin ghosts */
+  clearMoveOrigins(): void {
+    this._moveOrigins = null;
   }
 
   /**
@@ -324,6 +342,7 @@ export class TimelineRenderer {
       this.beatLines,
       this.snapLines,
       this.trillZoneLayer,
+      this.moveOriginLayer,
       this.longNoteBodyLayer,
       this.longNoteEndLayer,
       this.longNoteHeadLayer,
@@ -356,6 +375,7 @@ export class TimelineRenderer {
     this.renderWaveform();
     this.renderGridLines();
     this.renderTrillZones();
+    this.renderMoveOrigins();
     this.renderNotes();
     this.renderMarkers();
     this.updateScroll();
@@ -373,6 +393,7 @@ export class TimelineRenderer {
     this.beatLines.removeChildren();
     this.snapLines.removeChildren();
     this.trillZoneLayer.removeChildren();
+    this.moveOriginLayer.removeChildren();
     this.longNoteBodyLayer.removeChildren();
     this.longNoteEndLayer.removeChildren();
     this.longNoteHeadLayer.removeChildren();
@@ -553,6 +574,93 @@ export class TimelineRenderer {
       bg.rect(x, adjustedTopY, width, height);
       bg.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
       this.trillZoneLayer.addChild(bg);
+    }
+  }
+
+  /**
+   * Render semi-transparent ghosts at the original positions of notes being moved.
+   */
+  private renderMoveOrigins(): void {
+    if (!this._moveOrigins || !this.chart) return;
+
+    const { bpmMarkers, meta } = this.chart;
+    const ORIGIN_ALPHA = 0.3;
+
+    for (const origin of this._moveOrigins) {
+      const { note, beat: origBeat, endBeat: origEndBeat, lane } = origin;
+      const x = (lane - 1) * LANE_WIDTH;
+      const w = NOTE_HEIGHT * 5;
+      const h = NOTE_HEIGHT;
+
+      if (!origEndBeat) {
+        // Point note ghost
+        const timeMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
+        const y = this.timeToY(timeMs);
+
+        let color: number;
+        switch (note.type) {
+          case "single": color = COLORS.SINGLE_NOTE; break;
+          case "double": color = COLORS.DOUBLE_NOTE; break;
+          case "trill": color = COLORS.TRILL_NOTE; break;
+          default: color = COLORS.SINGLE_NOTE;
+        }
+
+        const gfx = new Graphics();
+        if (note.type === "trill") {
+          const cx = x + LANE_WIDTH / 2;
+          gfx.moveTo(cx, y - h / 2);
+          gfx.lineTo(cx + w / 2, y);
+          gfx.lineTo(cx, y + h / 2);
+          gfx.lineTo(cx - w / 2, y);
+          gfx.lineTo(cx, y - h / 2);
+        } else {
+          const rectX = x + (LANE_WIDTH - w) / 2;
+          gfx.rect(rectX, y - h / 2, w, h);
+        }
+        gfx.fill({ color, alpha: ORIGIN_ALPHA });
+        this.moveOriginLayer.addChild(gfx);
+      } else {
+        // Range note ghost
+        const startMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
+        const endMs = beatToMs(origEndBeat, bpmMarkers, meta.offsetMs);
+        const startY = this.timeToY(startMs);
+        const endY = this.timeToY(endMs);
+
+        let bodyColor: number;
+        switch (note.type) {
+          case "singleLong": bodyColor = COLORS.SINGLE_LONG; break;
+          case "doubleLong": bodyColor = COLORS.DOUBLE_LONG; break;
+          case "trillLong": bodyColor = COLORS.TRILL_LONG; break;
+          default: bodyColor = COLORS.SINGLE_LONG;
+        }
+
+        // Body
+        const topY = Math.min(startY, endY);
+        const bottomY = Math.max(startY, endY);
+        const bodyTopY = topY + h / 2;
+        const bodyBottomY = bottomY - h / 2;
+        const bodyHeight = bodyBottomY - bodyTopY;
+
+        if (bodyHeight > 0) {
+          const body = new Graphics();
+          body.rect(x + (LANE_WIDTH - w) / 2, bodyTopY, w, bodyHeight);
+          body.fill({ color: bodyColor, alpha: ORIGIN_ALPHA });
+          this.moveOriginLayer.addChild(body);
+        }
+
+        // Head
+        const head = new Graphics();
+        const headX = x + (LANE_WIDTH - w) / 2;
+        head.rect(headX, startY - h / 2, w, h);
+        head.fill({ color: bodyColor, alpha: ORIGIN_ALPHA });
+        this.moveOriginLayer.addChild(head);
+
+        // End
+        const end = new Graphics();
+        end.rect(headX, endY - h / 2, w, h);
+        end.fill({ color: bodyColor, alpha: ORIGIN_ALPHA * 0.5 });
+        this.moveOriginLayer.addChild(end);
+      }
     }
   }
 
