@@ -43,11 +43,11 @@ export interface BpmMarker {
 
 /**
  * 박자 마커 — 한 마디의 박자 수(beatPerMeasure)를 정의.
- * 0박에 반드시 존재. 마디가 시작하는 박자에만 배치 가능.
+ * 마디 0에 반드시 존재. 마디 인덱스로 정의되며, 항상 해당 마디의 첫 박에 위치.
  * beatPerMeasure는 분수(예: 7/2 = 3.5박)를 허용한다.
  */
 export interface TimeSignatureMarker {
-  beat: Beat;
+  measure: number;       // 0-indexed 마디 번호 (정수)
   beatPerMeasure: Beat;
 }
 

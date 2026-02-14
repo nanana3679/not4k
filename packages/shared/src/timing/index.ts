@@ -6,11 +6,13 @@
  */
 
 import type { Beat } from "../types/beat";
-import type { BpmMarker } from "../types/chart";
+import type { BpmMarker, TimeSignatureMarker } from "../types/chart";
 import {
   beatToFloat,
   beatLte,
   beatSub,
+  beatAdd,
+  beatMulInt,
   BEAT_ZERO,
 } from "../types/beat";
 
@@ -134,4 +136,53 @@ export function bpmAt(
     }
   }
   return result;
+}
+
+/**
+ * 마디 인덱스 → 시작 Beat 변환.
+ *
+ * timeSignatures를 measure 순 정렬한 뒤, 마디 0부터 순회하며
+ * 각 구간의 beatPerMeasure를 beat로 누적한다.
+ *
+ * 예: [{measure:0, beatPerMeasure:4}, {measure:8, beatPerMeasure:3}]
+ *   → measure 10 시작 = beat(8*4 + 2*3) = beat(38)
+ */
+export function measureStartBeat(
+  measure: number,
+  timeSignatures: readonly TimeSignatureMarker[],
+): Beat {
+  if (timeSignatures.length === 0) {
+    throw new Error("measureStartBeat: timeSignatures must not be empty");
+  }
+
+  // measure 순 정렬 (복사)
+  const sorted = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+
+  let accBeat: Beat = BEAT_ZERO;
+  let prevMeasure = 0;
+  let currentBPM = sorted[0].beatPerMeasure;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const sig = sorted[i];
+
+    if (sig.measure >= measure) {
+      // target은 이 구간 이전에 있다
+      break;
+    }
+
+    if (i > 0) {
+      // 이전 구간의 마디 수 × beatPerMeasure를 누적
+      const measuresInSegment = sig.measure - prevMeasure;
+      accBeat = beatAdd(accBeat, beatMulInt(currentBPM, measuresInSegment));
+    }
+
+    prevMeasure = sig.measure;
+    currentBPM = sig.beatPerMeasure;
+  }
+
+  // 마지막 구간의 남은 마디 수
+  const remainingMeasures = measure - prevMeasure;
+  accBeat = beatAdd(accBeat, beatMulInt(currentBPM, remainingMeasures));
+
+  return accBeat;
 }

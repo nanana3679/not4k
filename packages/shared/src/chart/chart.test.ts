@@ -19,8 +19,8 @@ const SAMPLE_CHART: Chart = {
     { beat: beat(32), bpm: 150 },
   ],
   timeSignatures: [
-    { beat: beat(0), beatPerMeasure: beat(4) },
-    { beat: beat(32), beatPerMeasure: beat(7, 2) },
+    { measure: 0, beatPerMeasure: beat(4) },
+    { measure: 8, beatPerMeasure: beat(7, 2) },
   ],
   notes: [
     { type: "single", lane: 1, beat: beat(0) },
@@ -100,7 +100,7 @@ describe("serializeChart / deserializeChart", () => {
         offsetMs: 0,
       },
       bpmMarkers: [{ beat: beat(0), bpm: 120 }],
-      timeSignatures: [{ beat: beat(0), beatPerMeasure: beat(4) }],
+      timeSignatures: [{ measure: 0, beatPerMeasure: beat(4) }],
       notes: [],
       trillZones: [],
       messages: [],

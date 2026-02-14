@@ -13,7 +13,7 @@
     { "beat": "0", "bpm": 120 }
   ],
   "timeSignatures": [
-    { "beat": "0", "beatPerMeasure": "4" }
+    { "measure": 0, "beatPerMeasure": "4" }
   ],
   "notes": [
     { "type": "single", "lane": 1, "beat": "0" },

@@ -26,7 +26,7 @@ interface BpmMarkerJson {
 }
 
 interface TimeSignatureMarkerJson {
-  beat: string;
+  measure: number;
   beatPerMeasure: string;
 }
 
@@ -76,7 +76,7 @@ function serializeBpmMarker(m: BpmMarker): BpmMarkerJson {
 
 function serializeTimeSignature(m: TimeSignatureMarker): TimeSignatureMarkerJson {
   return {
-    beat: beatToString(m.beat),
+    measure: m.measure,
     beatPerMeasure: beatToString(m.beatPerMeasure),
   };
 }
@@ -136,7 +136,7 @@ function parseBpmMarker(m: BpmMarkerJson): BpmMarker {
 
 function parseTimeSignature(m: TimeSignatureMarkerJson): TimeSignatureMarker {
   return {
-    beat: beatFromString(m.beat),
+    measure: m.measure,
     beatPerMeasure: beatFromString(m.beatPerMeasure),
   };
 }
