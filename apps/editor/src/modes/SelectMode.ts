@@ -234,16 +234,21 @@ export class SelectMode {
         const beatOffset = beatSub(currentBeat, this.dragStartBeat);
         const laneOffset = currentLane - this.dragStartLane;
 
+        // Check if lane offset is valid for ALL selected notes
+        for (const idx of this.selectedIndices) {
+          const original = this.originalPositions.get(idx);
+          if (!original) continue;
+          const targetLane = original.lane + laneOffset;
+          if (targetLane < 1 || targetLane > 4) return; // Block entire move
+        }
+
         // Apply move to all selected notes (with snap)
         const newNotes = [...this.chart.notes];
         for (const idx of this.selectedIndices) {
           const original = this.originalPositions.get(idx);
           if (!original) continue;
 
-          const newLane = Math.max(
-            1,
-            Math.min(4, original.lane + laneOffset)
-          ) as Lane;
+          const newLane = (original.lane + laneOffset) as Lane;
           const newBeat = this.callbacks.snapBeat(
             beatAdd(original.beat, beatOffset)
           );
