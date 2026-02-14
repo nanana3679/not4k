@@ -71,6 +71,7 @@ export class TimelineRenderer {
   private scrollbarDragging: boolean = false;
   private scrollbarDragStartY: number = 0;
   private scrollbarDragStartScroll: number = 0;
+  private boundScrollbarPointerUp = () => this.handleScrollbarPointerUp();
 
   // State
   private _zoom: number = 200; // pixelPerSecond
@@ -1013,9 +1014,10 @@ export class TimelineRenderer {
       this.scrollbarDragStartY = y;
       this.scrollbarDragStartScroll = this._scrollY;
     } else {
-      // Click on track: jump to position
+      // Click on track: jump to position (center the view at click point)
       const ratio = y / canvasH;
-      const newScroll = Math.max(0, Math.min(maxScroll, ratio * maxScroll - (canvasH / 2)));
+      const targetScroll = ratio * totalH - canvasH / 2;
+      const newScroll = Math.max(0, Math.min(maxScroll, targetScroll));
       this.options.onScroll?.(newScroll);
     }
 
@@ -1056,14 +1058,8 @@ export class TimelineRenderer {
    */
   private setupScrollbarEvents(): void {
     const canvas = this.options.canvas;
-
-    canvas.addEventListener('pointerup', () => {
-      this.handleScrollbarPointerUp();
-    });
-
-    canvas.addEventListener('pointerleave', () => {
-      this.handleScrollbarPointerUp();
-    });
+    canvas.addEventListener('pointerup', this.boundScrollbarPointerUp);
+    canvas.addEventListener('pointerleave', this.boundScrollbarPointerUp);
   }
 
   /**
@@ -1071,6 +1067,9 @@ export class TimelineRenderer {
    */
   dispose(): void {
     if (!this.initialized) return;
+    const canvas = this.options.canvas;
+    canvas.removeEventListener('pointerup', this.boundScrollbarPointerUp);
+    canvas.removeEventListener('pointerleave', this.boundScrollbarPointerUp);
     this.initialized = false;
     this.app.destroy(true, { children: true });
   }
