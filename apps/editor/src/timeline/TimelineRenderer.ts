@@ -390,28 +390,33 @@ export class TimelineRenderer {
   private renderWaveform(): void {
     if (!this.waveformPeaks || this.waveformDurationMs === 0) return;
 
-    const waveformWidth = LANE_COUNT * LANE_WIDTH;
+    const laneAreaWidth = LANE_COUNT * LANE_WIDTH;
+    const centerX = laneAreaWidth / 2; // center of 4 note lanes
+
     const peaks = this.waveformPeaks;
     const peakCount = peaks.length;
+
+    // Normalize: find max peak and scale so it fills the lane width
+    let maxPeak = 0;
+    for (let i = 0; i < peakCount; i++) {
+      if (peaks[i] > maxPeak) maxPeak = peaks[i];
+    }
+    const scale = maxPeak > 0 ? 1 / maxPeak : 1;
 
     // Calculate time per peak
     const msPerPeak = this.waveformDurationMs / peakCount;
 
     const waveform = new Graphics();
 
-    // Draw waveform as a filled shape
-    // Start at center line, go up for positive peaks, then back down for negative
-    const centerX = waveformWidth / 2;
-
-    // Build the waveform shape
+    // Build the waveform shape centered within 4 note lanes
     waveform.moveTo(centerX, this.timeToY(0));
 
     // Draw upper half (positive peaks)
     for (let i = 0; i < peakCount; i++) {
       const timeMs = i * msPerPeak;
       const y = this.timeToY(timeMs);
-      const amplitude = peaks[i];
-      const x = centerX + (amplitude * waveformWidth) / 2;
+      const normalized = peaks[i] * scale;
+      const x = centerX + (normalized * laneAreaWidth) / 2;
       waveform.lineTo(x, y);
     }
 
@@ -419,8 +424,8 @@ export class TimelineRenderer {
     for (let i = peakCount - 1; i >= 0; i--) {
       const timeMs = i * msPerPeak;
       const y = this.timeToY(timeMs);
-      const amplitude = peaks[i];
-      const x = centerX - (amplitude * waveformWidth) / 2;
+      const normalized = peaks[i] * scale;
+      const x = centerX - (normalized * laneAreaWidth) / 2;
       waveform.lineTo(x, y);
     }
 
