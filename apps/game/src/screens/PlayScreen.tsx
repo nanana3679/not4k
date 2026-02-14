@@ -116,12 +116,14 @@ export function PlayScreen() {
         });
 
         const inputSystem = new InputSystem(keyBindings, {
-          onLanePress: (lane, timestampMs, keyCode) => {
-            judgmentEngine.onLanePress(lane, timestampMs, keyCode);
+          onLanePress: (lane, _timestampMs, keyCode) => {
+            const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
+            judgmentEngine.onLanePress(lane, songTimeMs, keyCode);
             renderer.setKeyBeam(lane, true);
           },
-          onLaneRelease: (lane, timestampMs, keyCode) => {
-            judgmentEngine.onLaneRelease(lane, timestampMs, keyCode);
+          onLaneRelease: (lane, _timestampMs, keyCode) => {
+            const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
+            judgmentEngine.onLaneRelease(lane, songTimeMs, keyCode);
             renderer.setKeyBeam(lane, false);
           },
         });
@@ -265,7 +267,7 @@ export function PlayScreen() {
 
   return (
     <div style={styles.container}>
-      <canvas ref={canvasRef} width={800} height={600} />
+      <canvas key={retryKey} ref={canvasRef} width={800} height={600} />
 
       {isPaused && (
         <div style={styles.pauseOverlay}>
