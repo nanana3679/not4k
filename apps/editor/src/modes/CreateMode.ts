@@ -379,6 +379,12 @@ export class CreateMode {
   }
 
   private createBpmMarker(beat: Beat): void {
+    // 동일 위치에 이미 BPM 마커가 있으면 생성하지 않음
+    if (this.chart.bpmMarkers.some((m) => beatEq(m.beat, beat))) {
+      this.callbacks.onWarn?.(`BPM marker already exists at beat ${beat.n}/${beat.d}`);
+      return;
+    }
+
     // Find the last BPM marker before this beat
     let lastBpm = 120; // Default BPM
     for (const marker of this.chart.bpmMarkers) {
@@ -392,7 +398,6 @@ export class CreateMode {
       bpm: lastBpm, // Copy value from last marker
     };
 
-    // No validation needed for BPM markers (no placement constraints)
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,
@@ -437,12 +442,17 @@ export class CreateMode {
       }
     }
 
+    // 동일 마디에 이미 박자표 마커가 있으면 생성하지 않음
+    if (timeSignatures.some((m) => m.measure === measure)) {
+      this.callbacks.onWarn?.(`Time signature marker already exists at measure ${measure}`);
+      return;
+    }
+
     const newMarker: TimeSignatureMarker = {
       measure,
       beatPerMeasure: lastBeatPerMeasure, // Copy value from last marker
     };
 
-    // No validation needed for time signature markers (no placement constraints)
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,

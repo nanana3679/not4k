@@ -779,6 +779,8 @@ export function App() {
     }
 
     setChart(updated);
+    // Directly update renderer to bypass React async useEffect timing
+    rendererRef.current?.setChart(updated);
     setEditingMarker(null);
   }, [editingMarker, chart, setChart, setEditingMarker, addToast]);
 
