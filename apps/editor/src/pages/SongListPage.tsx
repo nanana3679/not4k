@@ -19,8 +19,8 @@ import type { Chart } from '@not4k/shared';
 interface DbChart {
   id: string;
   song_id: string;
-  difficulty: string;
-  level: number;
+  difficulty_label: string;
+  difficulty_level: number;
   uploaded_by: string | null;
 }
 
@@ -349,9 +349,9 @@ export function SongListPage({ onSignOut }: { onSignOut?: () => void }) {
 
   // Load existing chart from Storage
   const handleLoadChart = useCallback(async (song: DbSong, chart: DbChart) => {
-    setLoadingSong(`${song.id}/${chart.difficulty}`);
+    setLoadingSong(`${song.id}/${chart.difficulty_label}`);
     try {
-      const chartData = await fetchChartJson(song.id, chart.difficulty);
+      const chartData = await fetchChartJson(song.id, chart.difficulty_label);
       const audioUrl = fetchAudioUrl(song);
 
       setChart(chartData);
@@ -427,20 +427,20 @@ export function SongListPage({ onSignOut }: { onSignOut?: () => void }) {
             </div>
             <div style={pageStyles.chartButtons}>
               {song.charts
-                .sort((a, b) => a.level - b.level)
+                .sort((a, b) => a.difficulty_level - b.difficulty_level)
                 .map((chart) => {
-                  const isLoading = loadingSong === `${song.id}/${chart.difficulty}`;
+                  const isLoading = loadingSong === `${song.id}/${chart.difficulty_label}`;
                   return (
                     <button
                       key={chart.id}
                       style={{
                         ...pageStyles.chartBtn,
-                        ...getDifficultyColor(chart.difficulty),
+                        ...getDifficultyColor(chart.difficulty_label),
                       }}
                       onClick={() => handleLoadChart(song, chart)}
                       disabled={!!loadingSong}
                     >
-                      {isLoading ? '...' : `${chart.difficulty.toUpperCase()} Lv.${chart.level}`}
+                      {isLoading ? '...' : `${chart.difficulty_label.toUpperCase()} Lv.${chart.difficulty_level}`}
                     </button>
                   );
                 })}
@@ -481,7 +481,7 @@ export function SongListPage({ onSignOut }: { onSignOut?: () => void }) {
       {/* New chart difficulty modal */}
       {newChartTarget && (
         <DifficultyModal
-          existingDifficulties={newChartTarget.charts.map((c) => c.difficulty)}
+          existingDifficulties={newChartTarget.charts.map((c) => c.difficulty_label)}
           onSelect={(diff, lv) => handleNewChart(newChartTarget, diff, lv)}
           onClose={() => setNewChartTarget(null)}
         />

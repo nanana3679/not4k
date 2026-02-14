@@ -827,7 +827,7 @@ function ChartEditorPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when any modal is open
-      if (editingMarker || showMetaModal || showCustomSnapModal) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm) return;
 
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
@@ -906,6 +906,8 @@ function ChartEditorPage() {
   // File handlers
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const activeSongId = useEditorStore((s) => s.activeSongId);
 
   const handleSaveChart = useCallback(async () => {
@@ -947,6 +949,45 @@ function ChartEditorPage() {
       setSaving(false);
     }
   }, [chart, activeSongId, addToast]);
+
+  const handleDeleteChart = useCallback(async () => {
+    if (!activeSongId) {
+      addToast('No song selected — cannot delete', 'error');
+      return;
+    }
+    const difficulty = chart.meta.difficultyLabel.toLowerCase();
+    if (!difficulty) {
+      addToast('Difficulty label is empty', 'error');
+      return;
+    }
+
+    setDeleting(true);
+    setShowDeleteConfirm(false);
+    try {
+      // 1. charts 테이블에서 행 삭제 (먼저 수행 — 실패 시 롤백 용이)
+      const { error: dbError } = await supabase
+        .from('charts')
+        .delete()
+        .eq('song_id', activeSongId)
+        .eq('difficulty_label', difficulty);
+      if (dbError) throw new Error(`DB delete failed: ${dbError.message}`);
+
+      // 2. Storage에서 차트 JSON 삭제
+      const path = songChartPath(activeSongId, difficulty);
+      const { error: storageError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove([path]);
+      if (storageError) throw new Error(`Storage delete failed: ${storageError.message}`);
+
+      addToast('Chart deleted', 'info');
+      setActivePage('songList');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }, [chart, activeSongId, addToast, setActivePage]);
 
   // Marker edit handlers
   const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
@@ -1143,8 +1184,16 @@ function ChartEditorPage() {
           Meta
         </button>
 
-        <button style={styles.button} onClick={handleSaveChart} disabled={saving}>
+        <button style={styles.button} onClick={handleSaveChart} disabled={saving || deleting}>
           {saving ? 'Saving...' : 'Save Chart'}
+        </button>
+
+        <button
+          style={{ ...styles.button, backgroundColor: '#7b2d26', borderColor: '#a33b32' }}
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={saving || deleting || !activeSongId}
+        >
+          {deleting ? 'Deleting...' : 'Delete Chart'}
         </button>
       </div>
 
@@ -1209,6 +1258,23 @@ function ChartEditorPage() {
           }}
           onClose={() => setShowCustomSnapModal(false)}
         />
+      )}
+
+      {/* Delete confirm modal */}
+      {showDeleteConfirm && (
+        <div style={modalStyles.overlay} onClick={() => setShowDeleteConfirm(false)}>
+          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>Delete Chart</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
+              <strong>{chart.meta.difficultyLabel.toUpperCase()}</strong> 차트를 삭제하시겠습니까?<br />
+              <span style={{ color: '#999', fontSize: '13px' }}>Storage 파일과 DB 행이 모두 삭제됩니다.</span>
+            </p>
+            <div style={modalStyles.buttons}>
+              <button style={modalStyles.deleteBtn} onClick={handleDeleteChart}>Delete</button>
+              <button style={modalStyles.cancelBtn} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}

@@ -311,8 +311,9 @@ export class TimelineRenderer {
     this.laneBackgrounds.removeChildren();
 
     const totalTimeMs = this.getTotalTimelineMs();
+    const beat0Ms = this.chart ? this.chart.meta.offsetMs : 0;
     const topY = this.timeToY(totalTimeMs);
-    const bottomY = this.timeToY(0);
+    const bottomY = this.timeToY(Math.max(0, beat0Ms));
     const laneHeight = bottomY - topY;
 
     // Note lanes (L1~L4)
