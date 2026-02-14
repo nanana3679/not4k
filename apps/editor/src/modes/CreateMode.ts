@@ -16,7 +16,7 @@ import type {
   Beat,
   Lane,
 } from "@not4k/shared";
-import { validateChart, beatEq, beatLt, beatGt, beatMin, beatMax } from "@not4k/shared";
+import { validateChart, beatEq, beatLt, beatGt, beatMin, beatMax, beatToFloat, measureStartBeat } from "@not4k/shared";
 
 export type EntityType =
   | "single"
@@ -404,17 +404,42 @@ export class CreateMode {
     this.callbacks.onChartUpdate(updatedChart);
   }
 
-  private createTimeSignatureMarker(beat: Beat): void {
-    // Find the last time signature marker before this beat
+  private createTimeSignatureMarker(clickedBeat: Beat): void {
+    // 클릭한 beat에서 가장 가까운 마디 경계의 인덱스를 계산
+    const timeSignatures = this.chart.timeSignatures;
+    const clickedFloat = beatToFloat(clickedBeat);
+
+    // 마디 인덱스를 찾기 위해 순회: 마디 0부터 시작하여 clickedBeat를 포함하는 마디를 찾는다
+    let measure = 0;
+    let bestMeasure = 0;
+    let bestDist = Infinity;
+
+    // 충분히 큰 범위를 순회 (클릭 위치 근처 마디를 찾으면 됨)
+    for (let m = 0; m < 10000; m++) {
+      const startBeat = measureStartBeat(m, timeSignatures);
+      const startFloat = beatToFloat(startBeat);
+      const dist = Math.abs(startFloat - clickedFloat);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestMeasure = m;
+      }
+
+      // 이미 클릭 위치를 지나갔으면 중단
+      if (startFloat > clickedFloat + 16) break;
+    }
+    measure = bestMeasure;
+
+    // Find the last time signature marker before this measure
     let lastBeatPerMeasure = { n: 4, d: 1 }; // Default 4/4 time
-    for (const marker of this.chart.timeSignatures) {
-      if (beatLt(marker.beat, beat) || beatEq(marker.beat, beat)) {
+    for (const marker of timeSignatures) {
+      if (marker.measure <= measure) {
         lastBeatPerMeasure = marker.beatPerMeasure;
       }
     }
 
     const newMarker: TimeSignatureMarker = {
-      beat,
+      measure,
       beatPerMeasure: lastBeatPerMeasure, // Copy value from last marker
     };
 

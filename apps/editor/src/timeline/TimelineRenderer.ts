@@ -13,7 +13,7 @@ import type {
   PointNote,
   RangeNote,
 } from "@not4k/shared";
-import { beatToMs } from "@not4k/shared";
+import { beatToMs, measureStartBeat } from "@not4k/shared";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -311,7 +311,7 @@ export class TimelineRenderer {
    * Full re-render
    */
   render(): void {
-    if (!this.chart) return;
+    if (!this.initialized || !this.chart) return;
 
     this.clearDynamicLayers();
     this.renderLaneBackgrounds();
@@ -644,12 +644,12 @@ export class TimelineRenderer {
       this.longNoteHeadLayer.addChild(head);
     }
 
-    // Long note end (end point)
+    // Long note end (end point) — 50% alpha for visual distinction
     const end = new Graphics();
     const endX = x + (LANE_WIDTH - w) / 2;
     const endNoteY = endY - h / 2;
     end.rect(endX, endNoteY, w, h);
-    end.fill(bodyColor);
+    end.fill({ color: bodyColor, alpha: 0.5 });
 
     if (isSelected) {
       end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
@@ -692,7 +692,8 @@ export class TimelineRenderer {
 
     // Time signature markers (red, aux index 1)
     for (const marker of timeSignatures) {
-      const timeMs = beatToMs(marker.beat, bpmMarkers, meta.offsetMs);
+      const markerBeat = measureStartBeat(marker.measure, timeSignatures);
+      const timeMs = beatToMs(markerBeat, bpmMarkers, meta.offsetMs);
       const y = this.timeToY(timeMs);
       const gfx = new Graphics();
       gfx.rect(auxStartX + AUX_LANE_WIDTH, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);

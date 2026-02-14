@@ -32,6 +32,9 @@ export class PlaybackController {
   /** Load an audio file from URL */
   async loadAudioUrl(url: string): Promise<void> {
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+    }
     const arrayBuffer = await response.arrayBuffer();
     await this.loadAudioBuffer(arrayBuffer);
   }

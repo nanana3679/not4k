@@ -12,7 +12,7 @@ import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { saveChartToFile, loadChartFromFile } from './io/ChartIO';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
-import { msToBeat, beatToMs } from '@not4k/shared';
+import { msToBeat, beatToMs, measureStartBeat } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
 const MEASURE_LABEL_AREA = 32; // space for measure numbers + cursor handle
@@ -30,6 +30,7 @@ export function App() {
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
   const isDraggingCursorRef = useRef(false);
+  const cKeyHeldRef = useRef(false);
   const [showMetaModal, setShowMetaModal] = useState(false);
 
   // Get state from store
@@ -94,6 +95,14 @@ export function App() {
     return snapZoomRef.current.snapBeat(beat);
   }, []);
 
+  // Callback refs to avoid stale closures in mode handlers
+  const yToBeatRef = useRef(yToBeat);
+  const hitTestNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestNoteEndRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestMessageEndRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestTrillZoneEndRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestTrillZoneRef = useRef<(x: number, y: number) => number | null>(() => null);
+
   // Helper: Hit test note
   const hitTestNote = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);
@@ -129,6 +138,69 @@ export function App() {
     return null;
   }, [chart.notes, xToLane, yToBeat]);
 
+  // Helper: Hit test note end (for selected RangeNote endpoint resize)
+  const hitTestNoteEnd = useCallback((x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+    const tolerance = 1 / 16;
+
+    for (let i = 0; i < chart.notes.length; i++) {
+      const note = chart.notes[i];
+      if (note.lane !== lane) continue;
+      if (!selectedNotes.has(i)) continue;
+      if (!('endBeat' in note)) continue;
+
+      const endBeatFloat = note.endBeat.n / note.endBeat.d;
+      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) {
+        return i;
+      }
+    }
+    return null;
+  }, [chart.notes, selectedNotes, xToLane, yToBeat]);
+
+  // Helper: Hit test message end (for endpoint resize)
+  const hitTestMessageEnd = useCallback((x: number, y: number): number | null => {
+    const auxLane = xToAuxLane(x);
+    if (auxLane !== 'message') return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+    const tolerance = 1 / 8;
+
+    for (let i = 0; i < chart.messages.length; i++) {
+      const msg = chart.messages[i];
+      const endBeatFloat = msg.endBeat.n / msg.endBeat.d;
+      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) {
+        return i;
+      }
+    }
+    return null;
+  }, [chart.messages, xToAuxLane, yToBeat]);
+
+  // Helper: Hit test trill zone end (for endpoint resize)
+  const hitTestTrillZoneEnd = useCallback((x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+    const tolerance = 1 / 16;
+
+    for (let i = 0; i < chart.trillZones.length; i++) {
+      const zone = chart.trillZones[i];
+      if (zone.lane !== lane) continue;
+
+      const endBeatFloat = zone.endBeat.n / zone.endBeat.d;
+      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) {
+        return i;
+      }
+    }
+    return null;
+  }, [chart.trillZones, xToLane, yToBeat]);
+
   // Helper: Hit test trill zone
   const hitTestTrillZone = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);
@@ -149,6 +221,28 @@ export function App() {
     }
     return null;
   }, [chart.trillZones, xToLane, yToBeat]);
+
+  // Sync callback refs (avoids stale closures in mode handlers)
+  useEffect(() => {
+    yToBeatRef.current = yToBeat;
+    hitTestNoteRef.current = hitTestNote;
+    hitTestNoteEndRef.current = hitTestNoteEnd;
+    hitTestMessageEndRef.current = hitTestMessageEnd;
+    hitTestTrillZoneEndRef.current = hitTestTrillZoneEnd;
+    hitTestTrillZoneRef.current = hitTestTrillZone;
+  });
+
+  // Track 'C' key state for entity type cycling (getModifierState doesn't work for letter keys)
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => { if (e.code === 'KeyC') cKeyHeldRef.current = true; };
+    const onUp = (e: KeyboardEvent) => { if (e.code === 'KeyC') cKeyHeldRef.current = false; };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, []);
 
   // Initialize on mount
   useEffect(() => {
@@ -195,10 +289,10 @@ export function App() {
     });
     playbackRef.current = playback;
 
-    // Create mode handlers
+    // Create mode handlers (use refs for callbacks to avoid stale closures)
     const createMode = new CreateMode(chart, {
       onChartUpdate: setChart,
-      yToBeat,
+      yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
       xToAuxLane,
@@ -209,17 +303,20 @@ export function App() {
     const selectMode = new SelectMode(chart, {
       onChartUpdate: setChart,
       onSelectionChange: setSelectedNotes,
-      yToBeat,
+      yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
-      hitTestNote,
+      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      hitTestNoteEnd: (x, y) => hitTestNoteEndRef.current(x, y),
+      hitTestMessageEnd: (x, y) => hitTestMessageEndRef.current(x, y),
+      hitTestTrillZoneEnd: (x, y) => hitTestTrillZoneEndRef.current(x, y),
     });
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
       onChartUpdate: setChart,
-      hitTestNote,
-      hitTestTrillZone,
+      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      hitTestTrillZone: (x, y) => hitTestTrillZoneRef.current(x, y),
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
@@ -322,6 +419,9 @@ export function App() {
       return;
     }
 
+    // Right-click (button 2) should not trigger entity creation or selection
+    if (e.button === 2) return;
+
     if (mode === 'create' && createModeRef.current) {
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
@@ -415,8 +515,7 @@ export function App() {
 
     // C+wheel = entity type cycling (create mode only)
     if (mode === 'create' && createModeRef.current) {
-      const cKeyHeld = e.getModifierState('c') || e.getModifierState('C');
-      if (createModeRef.current.onWheel(e.deltaY, cKeyHeld)) {
+      if (createModeRef.current.onWheel(e.deltaY, cKeyHeldRef.current)) {
         setEntityType(createModeRef.current.entityType);
         return;
       }
@@ -469,8 +568,9 @@ export function App() {
       }
     } else if (auxLane === 'timeSig') {
       for (let i = 0; i < chart.timeSignatures.length; i++) {
-        const b = chart.timeSignatures[i].beat;
-        if (Math.abs(b.n / b.d - testBeatFloat) < tolerance) {
+        const markerBeat = measureStartBeat(chart.timeSignatures[i].measure, chart.timeSignatures);
+        const markerBeatFloat = markerBeat.n / markerBeat.d;
+        if (Math.abs(markerBeatFloat - testBeatFloat) < tolerance) {
           return { type: 'timeSig' as const, index: i };
         }
       }
@@ -533,8 +633,33 @@ export function App() {
           trillZones: chart.trillZones.filter((_, i) => i !== zoneIdx),
         });
       }
+      return;
     }
-  }, [chart, hitTestNote, hitTestTrillZone, setChart, addToast]);
+
+    // Try marker (bpm, timeSig, message)
+    const markerHit = hitTestMarker(x, y);
+    if (markerHit) {
+      // Protect first markers (beat 0 / measure 0)
+      if (markerHit.type === 'bpm' && chart.bpmMarkers[markerHit.index]?.beat.n === 0) {
+        addToast('Cannot delete first BPM marker');
+        return;
+      }
+      if (markerHit.type === 'timeSig' && chart.timeSignatures[markerHit.index]?.measure === 0) {
+        addToast('Cannot delete first time signature marker');
+        return;
+      }
+
+      const updated = { ...chart };
+      if (markerHit.type === 'bpm') {
+        updated.bpmMarkers = chart.bpmMarkers.filter((_, i) => i !== markerHit.index);
+      } else if (markerHit.type === 'timeSig') {
+        updated.timeSignatures = chart.timeSignatures.filter((_, i) => i !== markerHit.index);
+      } else if (markerHit.type === 'message') {
+        updated.messages = chart.messages.filter((_, i) => i !== markerHit.index);
+      }
+      setChart(updated);
+    }
+  }, [chart, hitTestNote, hitTestTrillZone, hitTestMarker, setChart, addToast]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -624,7 +749,7 @@ export function App() {
   // Marker edit handlers
   const isEditingBeatZero = editingMarker && (
     (editingMarker.type === 'bpm' && chart.bpmMarkers[editingMarker.index]?.beat.n === 0) ||
-    (editingMarker.type === 'timeSig' && chart.timeSignatures[editingMarker.index]?.beat.n === 0)
+    (editingMarker.type === 'timeSig' && chart.timeSignatures[editingMarker.index]?.measure === 0)
   );
 
   const handleMarkerSave = useCallback((values: Record<string, string>) => {
@@ -661,7 +786,7 @@ export function App() {
     if (!editingMarker) return;
 
     if (isEditingBeatZero) {
-      addToast('Cannot delete marker at beat 0');
+      addToast('Cannot delete marker at measure 0');
       return;
     }
 
@@ -950,7 +1075,7 @@ function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, o
             style={{ ...modalStyles.deleteBtn, opacity: isBeatZero ? 0.4 : 1 }}
             onClick={onDelete}
             disabled={isBeatZero}
-            title={isBeatZero ? 'Cannot delete marker at beat 0' : 'Delete marker'}
+            title={isBeatZero ? 'Cannot delete first marker' : 'Delete marker'}
           >
             Delete
           </button>

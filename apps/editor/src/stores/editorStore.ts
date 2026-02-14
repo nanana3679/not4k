@@ -76,7 +76,7 @@ const createDefaultChart = (): Chart => ({
     offsetMs: 0,
   },
   bpmMarkers: [{ beat: beat(0, 1), bpm: 120 }],
-  timeSignatures: [{ beat: beat(0, 1), beatPerMeasure: { n: 4, d: 1 } }],
+  timeSignatures: [{ measure: 0, beatPerMeasure: { n: 4, d: 1 } }],
   notes: [],
   trillZones: [],
   messages: [],

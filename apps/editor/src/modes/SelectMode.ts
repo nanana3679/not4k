@@ -10,6 +10,12 @@ export interface SelectModeCallbacks {
   xToLane: (x: number) => Lane | null;
   /** Get note index at given coordinates, or null */
   hitTestNote: (x: number, y: number) => number | null;
+  /** Get selected RangeNote index whose end point is at (x,y), or null */
+  hitTestNoteEnd?: (x: number, y: number) => number | null;
+  /** Get message index whose end point is at (x,y), or null */
+  hitTestMessageEnd?: (x: number, y: number) => number | null;
+  /** Get trill zone index whose end point is at (x,y), or null */
+  hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
 }
 
 export class SelectMode {
@@ -19,7 +25,7 @@ export class SelectMode {
 
   // Drag state
   private isDragging: boolean = false;
-  private dragType: "move" | "boxSelect" | null = null;
+  private dragType: "move" | "boxSelect" | "resize" | null = null;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
 
@@ -28,6 +34,12 @@ export class SelectMode {
     number,
     { beat: Beat; endBeat?: Beat; lane: Lane }
   > = new Map();
+
+  // Resize state
+  private resizingEntityType: "note" | "message" | "trillZone" | null = null;
+  private resizingIndex: number | null = null;
+  private resizingOriginalEndBeat: Beat | null = null;
+  private resizingOriginalBeat: Beat | null = null;
 
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
@@ -72,6 +84,38 @@ export class SelectMode {
 
   /** Handle pointer down */
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean): void {
+    // Check for endpoint resize first
+
+    // 1. Selected RangeNote endpoints
+    if (this.callbacks.hitTestNoteEnd) {
+      const endHit = this.callbacks.hitTestNoteEnd(x, y);
+      if (endHit !== null && this.selectedIndices.has(endHit) && this.isRangeNote(this.chart.notes[endHit])) {
+        const note = this.chart.notes[endHit] as RangeNote;
+        this.startResize("note", endHit, note.beat, note.endBeat);
+        return;
+      }
+    }
+
+    // 2. Message endpoints
+    if (this.callbacks.hitTestMessageEnd) {
+      const msgHit = this.callbacks.hitTestMessageEnd(x, y);
+      if (msgHit !== null) {
+        const msg = this.chart.messages[msgHit];
+        this.startResize("message", msgHit, msg.beat, msg.endBeat);
+        return;
+      }
+    }
+
+    // 3. Trill zone endpoints
+    if (this.callbacks.hitTestTrillZoneEnd) {
+      const zoneHit = this.callbacks.hitTestTrillZoneEnd(x, y);
+      if (zoneHit !== null) {
+        const zone = this.chart.trillZones[zoneHit];
+        this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
+        return;
+      }
+    }
+
     const hitIndex = this.callbacks.hitTestNote(x, y);
 
     if (hitIndex !== null) {
@@ -132,6 +176,36 @@ export class SelectMode {
   /** Handle pointer move */
   onPointerMove(x: number, y: number): void {
     if (!this.isDragging) return;
+
+    if (this.dragType === "resize") {
+      if (this.resizingIndex !== null && this.resizingOriginalBeat !== null) {
+        const currentBeat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+        // Clamp: endBeat >= startBeat
+        const newEndBeat = beatLte(currentBeat, this.resizingOriginalBeat)
+          ? this.resizingOriginalBeat
+          : currentBeat;
+
+        if (this.resizingEntityType === "note") {
+          const note = this.chart.notes[this.resizingIndex];
+          if (this.isRangeNote(note)) {
+            const newNotes = [...this.chart.notes];
+            newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
+            this.chart = { ...this.chart, notes: newNotes };
+          }
+        } else if (this.resizingEntityType === "message") {
+          const newMessages = [...this.chart.messages];
+          newMessages[this.resizingIndex] = { ...newMessages[this.resizingIndex], endBeat: newEndBeat };
+          this.chart = { ...this.chart, messages: newMessages };
+        } else if (this.resizingEntityType === "trillZone") {
+          const newZones = [...this.chart.trillZones];
+          newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
+          this.chart = { ...this.chart, trillZones: newZones };
+        }
+
+        this.callbacks.onChartUpdate(this.chart);
+      }
+      return;
+    }
 
     if (this.dragType === "move") {
       const currentBeat = this.callbacks.yToBeat(y);
@@ -195,7 +269,25 @@ export class SelectMode {
   onPointerUp(x: number, y: number): void {
     if (!this.isDragging) return;
 
-    if (this.dragType === "move") {
+    if (this.dragType === "resize") {
+      // Validate and commit or rollback
+      const errors = validateChart({
+        notes: this.chart.notes,
+        trillZones: this.chart.trillZones,
+        messages: this.chart.messages,
+      });
+      if (errors.length > 0) {
+        // Rollback: restore original endBeat
+        this.rollbackResize();
+      } else {
+        // Commit
+        this.callbacks.onChartUpdate(this.chart);
+      }
+      this.resizingEntityType = null;
+      this.resizingIndex = null;
+      this.resizingOriginalEndBeat = null;
+      this.resizingOriginalBeat = null;
+    } else if (this.dragType === "move") {
       // Validate and commit or rollback
       this.confirmPlacement();
     } else if (this.dragType === "boxSelect") {
@@ -222,8 +314,8 @@ export class SelectMode {
           if (
             note.lane >= minLane &&
             note.lane <= maxLane &&
-            !beatSub(note.beat, minBeat).n && // beatGte
-            beatSub(maxBeat, note.beat).n >= 0 // beatLte
+            beatSub(note.beat, minBeat).n >= 0 && // beatGte: note.beat >= minBeat
+            beatSub(maxBeat, note.beat).n >= 0 // beatLte: note.beat <= maxBeat
           ) {
             this.selectedIndices.add(i);
           }
@@ -440,6 +532,43 @@ export class SelectMode {
 
   private isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
+  }
+
+  private startResize(
+    entityType: "note" | "message" | "trillZone",
+    index: number,
+    startBeat: Beat,
+    endBeat: Beat,
+  ): void {
+    this.isDragging = true;
+    this.dragType = "resize";
+    this.resizingEntityType = entityType;
+    this.resizingIndex = index;
+    this.resizingOriginalBeat = startBeat;
+    this.resizingOriginalEndBeat = endBeat;
+  }
+
+  private rollbackResize(): void {
+    if (this.resizingIndex === null || this.resizingOriginalEndBeat === null) return;
+
+    if (this.resizingEntityType === "note") {
+      const newNotes = [...this.chart.notes];
+      const note = newNotes[this.resizingIndex];
+      if (this.isRangeNote(note)) {
+        newNotes[this.resizingIndex] = { ...note, endBeat: this.resizingOriginalEndBeat } as RangeNote;
+        this.chart = { ...this.chart, notes: newNotes };
+      }
+    } else if (this.resizingEntityType === "message") {
+      const newMessages = [...this.chart.messages];
+      newMessages[this.resizingIndex] = { ...newMessages[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };
+      this.chart = { ...this.chart, messages: newMessages };
+    } else if (this.resizingEntityType === "trillZone") {
+      const newZones = [...this.chart.trillZones];
+      newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };
+      this.chart = { ...this.chart, trillZones: newZones };
+    }
+
+    this.callbacks.onChartUpdate(this.chart);
   }
 
   private rollbackMove(): void {
