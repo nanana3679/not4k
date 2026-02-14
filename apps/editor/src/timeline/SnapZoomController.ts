@@ -116,37 +116,31 @@ export class SnapZoomController {
     const snappedBeatFloat = this.snapBeatFloat(beatFloat);
 
     // Convert back to time
-    const snappedBeat = beat(
-      Math.round(snappedBeatFloat * this.state.snapDivision),
-      this.state.snapDivision
-    );
+    const k = Math.round(snappedBeatFloat * this.state.snapDivision / 4);
+    const snappedBeat = beat(k * 4, this.state.snapDivision);
 
     return beatToMs(snappedBeat, bpmMarkers, offsetMs);
   }
 
   /**
-   * Snap a beat to the nearest grid position based on snap division
-   * @param inputBeat Beat to snap
-   * @returns Snapped beat
+   * Snap a beat to the nearest grid position based on snap division.
+   * Snap division N = N-th note (e.g., 16 = sixteenth note = 4/16 = 0.25 beats).
    */
   snapBeat(inputBeat: Beat): Beat {
     const beatFloat = beatToFloat(inputBeat);
     const snappedFloat = this.snapBeatFloat(beatFloat);
 
-    // Convert back to Beat with snap division as denominator
-    return beat(
-      Math.round(snappedFloat * this.state.snapDivision),
-      this.state.snapDivision
-    );
+    // Convert back to Beat: snappedFloat = k * (4/snap), so n = k*4, d = snap
+    const k = Math.round(snappedFloat * this.state.snapDivision / 4);
+    return beat(k * 4, this.state.snapDivision);
   }
 
   /**
-   * Snap a float beat value to the nearest grid position
-   * @param beatFloat Beat as float
-   * @returns Snapped beat as float
+   * Snap a float beat value to the nearest grid position.
+   * Grid interval = 4/snap beats (standard note value: snap=16 → 1/4 beat).
    */
   private snapBeatFloat(beatFloat: number): number {
-    const grid = 1 / this.state.snapDivision;
+    const grid = 4 / this.state.snapDivision;
     return Math.round(beatFloat / grid) * grid;
   }
 

@@ -504,22 +504,26 @@ export class TimelineRenderer {
         this.beatLines.addChild(beatLine);
       }
 
-      // Snap lines within each beat subdivision
-      for (let b = 0; b < bpm.n; b++) {
-        const bStartBeat = beatAdd(mStartBeat, beatMulInt(subdivBeat, b));
+      // Snap lines within this measure (snap N = N-th note, grid = 4/N beats)
+      // Total snap positions in this measure
+      const measureBeats = bpm.n / bpm.d;
+      const gridBeats = 4 / this._snap;
+      const snapCount = Math.round(measureBeats / gridBeats);
 
-        for (let s = 1; s < this._snap; s++) {
-          const snapBeat = beatAdd(bStartBeat, beat(s, bpm.d * this._snap));
-          const snapMs = beatToMs(snapBeat, bpmMarkers, meta.offsetMs);
-          if (snapMs > totalTimelineMs) break;
+      for (let s = 1; s < snapCount; s++) {
+        // Skip if this position coincides with a beat line
+        if ((s * 4 * bpm.d) % this._snap === 0) continue;
 
-          const snapY = this.timeToY(snapMs);
-          const snapLine = new Graphics();
-          snapLine.moveTo(0, snapY);
-          snapLine.lineTo(TIMELINE_WIDTH, snapY);
-          snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
-          this.snapLines.addChild(snapLine);
-        }
+        const snapBeatVal = beatAdd(mStartBeat, beat(s * 4, this._snap));
+        const snapMs = beatToMs(snapBeatVal, bpmMarkers, meta.offsetMs);
+        if (snapMs > totalTimelineMs) break;
+
+        const snapY = this.timeToY(snapMs);
+        const snapLine = new Graphics();
+        snapLine.moveTo(0, snapY);
+        snapLine.lineTo(TIMELINE_WIDTH, snapY);
+        snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
+        this.snapLines.addChild(snapLine);
       }
     }
   }

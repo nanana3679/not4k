@@ -80,13 +80,15 @@ export function App() {
     return null;
   }, []);
 
-  // Helper: Y to Beat
+  // Helper: Y to Beat (snap division N = N-th note, grid = 4/N beats)
   const yToBeat = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };
     const timeMs = rendererRef.current.yToTime(y);
     const beatFloat = msToBeat(timeMs, chart.bpmMarkers, chart.meta.offsetMs);
-    // Convert float to Beat with snapDivision denominator
-    return { n: Math.round(beatFloat * snapDivision), d: snapDivision };
+    // Grid = 4/snapDivision beats (e.g., snap=16 → 0.25 beats = sixteenth note)
+    const grid = 4 / snapDivision;
+    const k = Math.round(beatFloat / grid);
+    return { n: k * 4, d: snapDivision };
   }, [chart.bpmMarkers, chart.meta.offsetMs, snapDivision]);
 
   // Helper: Snap Beat
