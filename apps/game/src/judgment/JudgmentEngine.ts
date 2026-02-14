@@ -96,8 +96,6 @@ export class JudgmentEngine {
   private currentCombo = 0;
   private maxComboValue = 0;
 
-  /** Grace period for hold succession (ms) */
-  private static readonly HOLD_GRACE_PERIOD_MS = 12;
 
   constructor(
     notes: readonly NoteEntity[],
@@ -178,16 +176,18 @@ export class JudgmentEngine {
   /**
    * 레인 키 릴리스 처리
    */
-  onLaneRelease(lane: Lane, timestampMs: number): void {
+  onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
     const holdState = this.laneHoldStates.get(lane);
     if (!holdState) return;
 
-    // 모든 키가 떼어졌는지 확인 (holdState.heldKeys가 비워지는 시점을 감지해야 함)
-    // 이 메서드는 특정 키 하나의 릴리스가 아니라 레인 전체 릴리스를 의미하므로
-    // 모든 키를 제거
-    holdState.heldKeys.clear();
-    holdState.isHeld = false;
-    holdState.lastReleaseTimeMs = timestampMs;
+    // 특정 키만 제거
+    holdState.heldKeys.delete(keyCode);
+
+    // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
+    if (holdState.heldKeys.size === 0) {
+      holdState.isHeld = false;
+      holdState.lastReleaseTimeMs = timestampMs;
+    }
   }
 
   /**
@@ -423,39 +423,14 @@ export class JudgmentEngine {
   }
 
   /**
-   * 롱노트 바디 홀드 체크 — grace period 체크
+   * 롱노트 바디 홀드 체크
+   *
+   * 바디 구간 중 키를 떼도 즉시 실패하지 않는다.
+   * 여러 키를 빠르게 입력할 때 의도치 않은 릴리스가 발생할 수 있으므로,
+   * 판정은 바디 끝 시점(checkLongNoteBodyEnd)에서만 처리한다.
    */
-  private checkLongNoteBodyHold(songTimeMs: number): void {
-    for (let i = 0; i < this.notes.length; i++) {
-      const state = this.noteStates.get(i);
-      if (state !== NoteState.BODY_ACTIVE) continue;
-
-      const note = this.notes[i] as RangeNote;
-      const noteEndTime = this.noteEndTimesMs.get(i);
-      if (noteEndTime === undefined) continue;
-
-      // 바디 구간 중인지 확인
-      const noteTime = this.noteTimesMs.get(i);
-      if (noteTime === undefined) continue;
-
-      if (songTimeMs < noteTime || songTimeMs > noteEndTime) {
-        continue;
-      }
-
-      const holdState = this.laneHoldStates.get(note.lane);
-      if (!holdState) continue;
-
-      // 키가 눌려있지 않고, grace period를 넘었으면 바디 실패
-      if (!holdState.isHeld && holdState.lastReleaseTimeMs !== null) {
-        const timeSinceRelease = songTimeMs - holdState.lastReleaseTimeMs;
-        if (timeSinceRelease > JudgmentEngine.HOLD_GRACE_PERIOD_MS) {
-          this.noteStates.set(i, NoteState.BODY_FAILED);
-          // 바디 실패는 즉시 Miss 판정
-          this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
-          this.breakCombo();
-        }
-      }
-    }
+  private checkLongNoteBodyHold(_songTimeMs: number): void {
+    // No-op: 바디 중 릴리스에 대한 즉시 실패 판정을 하지 않음
   }
 
   /**

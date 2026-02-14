@@ -12,8 +12,8 @@ export interface KeyBinding {
 }
 
 export interface InputCallbacks {
-  onLanePress: (lane: 1 | 2 | 3 | 4, timestampMs: number) => void;
-  onLaneRelease: (lane: 1 | 2 | 3 | 4, timestampMs: number) => void;
+  onLanePress: (lane: 1 | 2 | 3 | 4, timestampMs: number, keyCode: string) => void;
+  onLaneRelease: (lane: 1 | 2 | 3 | 4, timestampMs: number, keyCode: string) => void;
 }
 
 /**
@@ -160,10 +160,8 @@ export class InputSystem {
     const newCount = prevCount + 1;
     this.laneHeldCount.set(lane, newCount);
 
-    // Fire lane press callback only on first key press in lane (0 → 1 transition)
-    if (prevCount === 0) {
-      this.callbacks.onLanePress(lane, e.timeStamp);
-    }
+    // Fire on every key press (for double note / trill key tracking)
+    this.callbacks.onLanePress(lane, e.timeStamp, e.code);
   }
 
   private onKeyUp(e: KeyboardEvent): void {
@@ -181,10 +179,12 @@ export class InputSystem {
     const newCount = Math.max(0, prevCount - 1);
     this.laneHeldCount.set(lane, newCount);
 
-    // Fire lane release callback only when all keys released (1 → 0 transition)
+    // Track full-lane release for grace period
     if (prevCount > 0 && newCount === 0) {
       this.laneLastReleaseTime.set(lane, e.timeStamp);
-      this.callbacks.onLaneRelease(lane, e.timeStamp);
     }
+
+    // Fire on every key release (for per-key hold tracking)
+    this.callbacks.onLaneRelease(lane, e.timeStamp, e.code);
   }
 }
