@@ -42,7 +42,7 @@ export function App() {
   }
 
   if (activePage === 'songList') {
-    return <SongListPage />;
+    return <SongListPage onSignOut={signOut} />;
   }
 
   return <ChartEditorPage />;

@@ -319,7 +319,7 @@ function DifficultyModal({ existingDifficulties, onSelect, onClose }: {
 // SongListPage
 // ---------------------------------------------------------------------------
 
-export function SongListPage() {
+export function SongListPage({ onSignOut }: { onSignOut?: () => void }) {
   const { setActivePage, setActiveSongId, setPendingAudioUrl, setChart, addToast } = useEditorStore();
 
   const [songs, setSongs] = useState<DbSong[]>([]);
@@ -402,6 +402,11 @@ export function SongListPage() {
           <button style={pageStyles.refreshBtn} onClick={fetchSongs} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
+          {onSignOut && (
+            <button style={pageStyles.signOutBtn} onClick={onSignOut}>
+              Sign Out
+            </button>
+          )}
         </div>
       </div>
 
@@ -536,6 +541,15 @@ const pageStyles: Record<string, React.CSSProperties> = {
     backgroundColor: '#3a3a3a',
     color: '#e0e0e0',
     border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  signOutBtn: {
+    padding: '6px 16px',
+    backgroundColor: 'transparent',
+    color: '#888',
+    border: '1px solid #444',
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '13px',
