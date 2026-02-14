@@ -429,6 +429,47 @@ export class SelectMode {
     }
   }
 
+  /** Move selected notes by one lane */
+  moveByLane(direction: "left" | "right"): void {
+    if (this.selectedIndices.size === 0) return;
+
+    const laneOffset = direction === "left" ? -1 : 1;
+
+    // Check if all notes can move
+    for (const idx of this.selectedIndices) {
+      const note = this.chart.notes[idx];
+      const targetLane = note.lane + laneOffset;
+      if (targetLane < 1 || targetLane > 4) return; // Block entire move
+    }
+
+    // Apply lane move
+    const newNotes = [...this.chart.notes];
+    for (const idx of this.selectedIndices) {
+      const note = newNotes[idx];
+      newNotes[idx] = { ...note, lane: (note.lane + laneOffset) as Lane };
+    }
+
+    this.chart = { ...this.chart, notes: newNotes };
+
+    // Validate
+    const errors = validateChart({
+      notes: this.chart.notes,
+      trillZones: this.chart.trillZones,
+      messages: this.chart.messages,
+    });
+
+    if (errors.length === 0) {
+      this.callbacks.onChartUpdate(this.chart);
+    } else {
+      // Rollback
+      for (const idx of this.selectedIndices) {
+        const note = newNotes[idx];
+        newNotes[idx] = { ...note, lane: (note.lane - laneOffset) as Lane };
+      }
+      this.chart = { ...this.chart, notes: newNotes };
+    }
+  }
+
   /** Resize selected long note end by one snap unit */
   resizeEndBySnap(direction: "up" | "down"): void {
     if (this.selectedIndices.size === 0) return;

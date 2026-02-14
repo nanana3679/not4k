@@ -820,6 +820,16 @@ export function App() {
           }
           return;
         }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          selectModeRef.current.moveByLane('left');
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          selectModeRef.current.moveByLane('right');
+          return;
+        }
         if (e.key === 'Delete' || e.key === 'Backspace') {
           e.preventDefault();
           selectModeRef.current.deleteSelected();
