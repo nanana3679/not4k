@@ -13,6 +13,7 @@ export function PlayScreen() {
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   // Game objects
   const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -185,7 +186,7 @@ export function PlayScreen() {
         rendererRef.current.dispose();
       }
     };
-  }, [settings]);
+  }, [settings, retryKey]);
 
   // Sync isPaused to ref
   useEffect(() => {
@@ -233,6 +234,13 @@ export function PlayScreen() {
     setScreen('result');
   };
 
+  const handleRetry = () => {
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setError(null);
+    setRetryKey((k) => k + 1);
+  };
+
   const handleQuit = () => {
     setScreen('songSelect');
   };
@@ -266,6 +274,9 @@ export function PlayScreen() {
             <div style={styles.pauseButtons}>
               <button style={styles.button} onClick={handleResume}>
                 Resume
+              </button>
+              <button style={styles.retryButton} onClick={handleRetry}>
+                Retry
               </button>
               <button style={styles.quitButton} onClick={handleQuit}>
                 Quit
@@ -335,6 +346,16 @@ const styles = {
     fontSize: '18px',
     padding: '12px 24px',
     backgroundColor: '#00ffff',
+    color: '#1a1a1a',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  },
+  retryButton: {
+    fontSize: '18px',
+    padding: '12px 24px',
+    backgroundColor: '#ffaa00',
     color: '#1a1a1a',
     border: 'none',
     borderRadius: '8px',

@@ -34,7 +34,7 @@ export async function fetchChart(
   difficulty: string,
 ): Promise<Chart> {
   const url = getPublicUrl(songChartPath(songId, difficulty));
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Failed to fetch chart: ${response.status}`);
   }
@@ -55,7 +55,7 @@ export async function fetchAudio(
   let arrayBuffer: ArrayBuffer;
   if (audioUrl) {
     const url = getPublicUrl(audioUrl);
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Failed to fetch audio: ${res.status}`);
     arrayBuffer = await res.arrayBuffer();
   } else {
@@ -93,11 +93,11 @@ async function fetchWithFallback(
   label: string,
 ): Promise<ArrayBuffer> {
   const primaryUrl = getPublicUrl(primaryPath);
-  const res = await fetch(primaryUrl);
+  const res = await fetch(primaryUrl, { cache: 'no-store' });
   if (res.ok) return res.arrayBuffer();
 
   const fallbackUrl = getPublicUrl(fallbackPath);
-  const fallbackRes = await fetch(fallbackUrl);
+  const fallbackRes = await fetch(fallbackUrl, { cache: 'no-store' });
   if (!fallbackRes.ok) {
     throw new Error(`Failed to fetch ${label}: ${fallbackRes.status}`);
   }

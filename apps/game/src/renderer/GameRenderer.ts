@@ -265,6 +265,7 @@ export class GameRenderer {
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
+
   }
 
   renderFrame(songTimeMs: number): void {
@@ -401,14 +402,9 @@ export class GameRenderer {
       ? COLORS.LONG_BODY_FAILED
       : this.getLongBodyColor(entity.type);
 
-    if (entity.type === "trillLong") {
-      // Draw diamond-shaped body
-      this.drawDiamondBody(bodyGraphic, bodyHeight, bodyColor);
-    } else {
-      // Draw rectangular body
-      bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
-      bodyGraphic.fill(bodyColor);
-    }
+    // Draw rectangular body for all long note types
+    bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
+    bodyGraphic.fill(bodyColor);
 
     // trillLong: fill diamond corner gaps with body color
     if (entity.type === "trillLong" && bodyHeight > 0) {
@@ -428,41 +424,48 @@ export class GameRenderer {
 
     this.longNoteBodyLayer.addChild(bodyGraphic);
 
-    // Draw end (head)
+    // Draw end
     if (endY >= -NOTE_HEIGHT && endY <= this.height + NOTE_HEIGHT) {
       const endGraphic = new Graphics();
       endGraphic.x = laneX;
       endGraphic.y = endY;
-      this.drawNoteShape(endGraphic, entity.type);
+      this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5 });
       this.longNoteEndLayer.addChild(endGraphic);
     }
 
-    // Draw start (head)
+    // Draw head
     if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
       const headGraphic = new Graphics();
       headGraphic.x = laneX;
       headGraphic.y = startY;
-      this.drawNoteShape(headGraphic, entity.type);
+      this.drawNoteShape(headGraphic, entity.type, { color: bodyColor });
       this.longNoteHeadLayer.addChild(headGraphic);
     }
   }
 
-  private drawNoteShape(graphic: Graphics, type: string): void {
+  private drawNoteShape(
+    graphic: Graphics,
+    type: string,
+    override?: { color?: number; alpha?: number },
+  ): void {
     graphic.clear();
 
-    const color = this.getNoteColor(type);
+    const color = override?.color ?? this.getNoteColor(type);
+    const fillStyle = override?.alpha != null
+      ? { color, alpha: override.alpha }
+      : color;
 
     if (type === "trill" || type === "trillLong") {
       // Draw diamond (rotated square)
-      this.drawDiamond(graphic, color);
+      this.drawDiamond(graphic, fillStyle);
     } else {
       // Draw rectangle
       graphic.rect(0, 0, NOTE_WIDTH, NOTE_HEIGHT);
-      graphic.fill(color);
+      graphic.fill(fillStyle);
     }
   }
 
-  private drawDiamond(graphic: Graphics, color: number): void {
+  private drawDiamond(graphic: Graphics, fillStyle: number | { color: number; alpha: number }): void {
     const centerX = NOTE_WIDTH / 2;
     const centerY = NOTE_HEIGHT / 2;
 
@@ -472,27 +475,7 @@ export class GameRenderer {
       centerX, NOTE_HEIGHT, // bottom
       0, centerY, // left
     ]);
-    graphic.fill(color);
-  }
-
-  private drawDiamondBody(
-    graphic: Graphics,
-    bodyHeight: number,
-    color: number
-  ): void {
-    const width = LANE_WIDTH;
-    const halfWidth = width / 2;
-
-    // Draw elongated diamond shape
-    graphic.poly([
-      halfWidth, 0, // top
-      width, halfWidth, // right-top
-      width, bodyHeight - halfWidth, // right-bottom
-      halfWidth, bodyHeight, // bottom
-      0, bodyHeight - halfWidth, // left-bottom
-      0, halfWidth, // left-top
-    ]);
-    graphic.fill(color);
+    graphic.fill(fillStyle);
   }
 
   private getNoteColor(type: string): number {

@@ -44,7 +44,7 @@ function getPublicUrl(path: string): string {
 
 async function fetchChartJson(songId: string, difficulty: string): Promise<Chart> {
   const url = getPublicUrl(songChartPath(songId, difficulty));
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
   return deserializeChart(await res.text());
 }
