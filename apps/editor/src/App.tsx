@@ -97,8 +97,16 @@ export function App() {
     return snapZoomRef.current.snapBeat(beat);
   }, []);
 
+  // Helper: Get max beat (float) of the timeline
+  const getMaxBeatFloat = useCallback((): number => {
+    if (!rendererRef.current) return 0;
+    const totalMs = rendererRef.current.getTotalTimelineMs();
+    return msToBeat(totalMs, chart.bpmMarkers, chart.meta.offsetMs);
+  }, [chart.bpmMarkers, chart.meta.offsetMs]);
+
   // Callback refs to avoid stale closures in mode handlers
   const yToBeatRef = useRef(yToBeat);
+  const getMaxBeatFloatRef = useRef(getMaxBeatFloat);
   const hitTestNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestNoteEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestMessageEndRef = useRef<(x: number, y: number) => number | null>(() => null);
@@ -227,6 +235,7 @@ export function App() {
   // Sync callback refs (avoids stale closures in mode handlers)
   useEffect(() => {
     yToBeatRef.current = yToBeat;
+    getMaxBeatFloatRef.current = getMaxBeatFloat;
     hitTestNoteRef.current = hitTestNote;
     hitTestNoteEndRef.current = hitTestNoteEnd;
     hitTestMessageEndRef.current = hitTestMessageEnd;
@@ -318,6 +327,7 @@ export function App() {
         const sd = snapZoomRef.current?.snapDivision ?? 4;
         return { n: 4, d: sd };
       },
+      getMaxBeatFloat: () => getMaxBeatFloatRef.current(),
       xToLane,
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestNoteEnd: (x, y) => hitTestNoteEndRef.current(x, y),

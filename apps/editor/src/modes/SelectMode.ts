@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane } from "@not4k/shared";
-import { validateChart } from "@not4k/shared";
+import { validateChart, beatToFloat } from "@not4k/shared";
 import { beatAdd, beatSub, beatEq, beatLte } from "@not4k/shared";
 
 export interface SelectModeCallbacks {
@@ -9,6 +9,8 @@ export interface SelectModeCallbacks {
   snapBeat: (beat: Beat) => Beat;
   /** Get the snap grid step as a Beat (= beat(4, snapDivision)) */
   getSnapStep: () => Beat;
+  /** Get the maximum valid beat as float (end of last measure) */
+  getMaxBeatFloat: () => number;
   xToLane: (x: number) => Lane | null;
   /** Get note index at given coordinates, or null */
   hitTestNote: (x: number, y: number) => number | null;
@@ -267,6 +269,9 @@ export class SelectMode {
           }
         }
 
+        // Block if any note goes out of timeline bounds
+        if (!this.areNotesInBounds(newNotes, this.selectedIndices)) return;
+
         // Update chart with new positions (preview)
         this.chart = { ...this.chart, notes: newNotes };
         this.callbacks.onChartUpdate(this.chart);
@@ -392,6 +397,12 @@ export class SelectMode {
           beat: newBeat,
         };
       }
+    }
+
+    // Block if any note goes out of timeline bounds
+    if (!this.areNotesInBounds(newNotes, this.selectedIndices)) {
+      this.originalPositions.clear();
+      return;
     }
 
     this.chart = { ...this.chart, notes: newNotes };
@@ -547,6 +558,22 @@ export class SelectMode {
 
   private isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
+  }
+
+  /** Check if all notes in the array are within timeline bounds [0, maxBeat] */
+  private areNotesInBounds(notes: NoteEntity[], indices: Set<number>): boolean {
+    const maxFloat = this.callbacks.getMaxBeatFloat();
+
+    for (const idx of indices) {
+      const note = notes[idx];
+      const beatFloat = beatToFloat(note.beat);
+      if (beatFloat < 0 || beatFloat > maxFloat) return false;
+      if (this.isRangeNote(note)) {
+        const endFloat = beatToFloat(note.endBeat);
+        if (endFloat < 0 || endFloat > maxFloat) return false;
+      }
+    }
+    return true;
   }
 
   private startResize(
