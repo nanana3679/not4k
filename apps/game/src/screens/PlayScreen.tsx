@@ -5,7 +5,7 @@ import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
-import { beatToMs } from '@not4k/shared';
+import { beatToMs, extractBpmMarkers } from '@not4k/shared';
 
 export function PlayScreen() {
   const { settings, setScreen, setResult, chartData, audioBuffer } = useGameStore();
@@ -34,15 +34,16 @@ export function PlayScreen() {
 
       try {
         // Convert chart notes to time maps
+        const bpmMarkers = extractBpmMarkers(chartData.events);
         const noteTimesMs = new Map<number, number>();
         const noteEndTimesMs = new Map<number, number>();
 
         chartData.notes.forEach((note, index) => {
-          const timeMs = beatToMs(note.beat, chartData.bpmMarkers, chartData.meta.offsetMs);
+          const timeMs = beatToMs(note.beat, bpmMarkers, chartData.meta.offsetMs);
           noteTimesMs.set(index, timeMs);
 
           if ('endBeat' in note) {
-            const endTimeMs = beatToMs(note.endBeat, chartData.bpmMarkers, chartData.meta.offsetMs);
+            const endTimeMs = beatToMs(note.endBeat, bpmMarkers, chartData.meta.offsetMs);
             noteEndTimesMs.set(index, endTimeMs);
           }
         });
@@ -74,8 +75,9 @@ export function PlayScreen() {
         renderer.setChart(
           chartData.notes,
           chartData.trillZones,
-          chartData.bpmMarkers,
-          chartData.meta.offsetMs
+          chartData.events,
+          chartData.meta.offsetMs,
+          audioBuffer.duration * 1000,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setLift(settings.liftPx);

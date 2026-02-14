@@ -19,6 +19,8 @@ export const COLORS = {
   LANE_BG_ODD: 0x0d0d1e,
   LANE_SEPARATOR: 0x333355,
   JUDGMENT_LINE: 0xffffff,
+  MEASURE_LINE: 0xffffff,
+  MEASURE_LINE_ALPHA: 0.25,
 
   SINGLE_NOTE: 0x4488ff,
   DOUBLE_NOTE: 0xffcc00,

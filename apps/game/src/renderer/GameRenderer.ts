@@ -6,8 +6,8 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker } from "@not4k/shared";
-import { beatToMs } from "@not4k/shared";
+import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "@not4k/shared";
+import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "@not4k/shared";
 import { JudgmentGrade } from "@not4k/shared";
 import {
   LANE_COUNT,
@@ -40,6 +40,7 @@ export class GameRenderer {
   // Layers (bottom to top)
   private backgroundLayer: Container;
   private keyBeamLayer: Container;
+  private measureLineLayer: Container;
   private trillZoneLayer: Container;
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -56,6 +57,7 @@ export class GameRenderer {
   private noteRenderData: NoteRenderData[] = [];
   private trillZones: readonly TrillZone[] = [];
   private bpmMarkers: readonly BpmMarker[] = [];
+  private measureTimesMs: number[] = [];
   private offsetMs: number = 0;
 
   // Visual state
@@ -90,6 +92,7 @@ export class GameRenderer {
     // Pre-create layers
     this.backgroundLayer = new Container();
     this.keyBeamLayer = new Container();
+    this.measureLineLayer = new Container();
     this.trillZoneLayer = new Container();
     this.longNoteBodyLayer = new Container();
     this.longNoteEndLayer = new Container();
@@ -137,6 +140,7 @@ export class GameRenderer {
     // Build scene graph
     this.app.stage.addChild(this.backgroundLayer);
     this.app.stage.addChild(this.keyBeamLayer);
+    this.app.stage.addChild(this.measureLineLayer);
     this.app.stage.addChild(this.trillZoneLayer);
     this.app.stage.addChild(this.longNoteBodyLayer);
     this.app.stage.addChild(this.longNoteEndLayer);
@@ -219,9 +223,13 @@ export class GameRenderer {
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
-    bpmMarkers: readonly BpmMarker[],
-    offsetMs: number
+    events: readonly EventMarker[],
+    offsetMs: number,
+    durationMs: number = 0,
   ): void {
+    const bpmMarkers = extractBpmMarkers(events);
+    const timeSignatures = extractTimeSignatures(events);
+
     this.bpmMarkers = bpmMarkers;
     this.offsetMs = offsetMs;
     this.trillZones = trillZones;
@@ -242,6 +250,17 @@ export class GameRenderer {
       };
     });
 
+    // Pre-compute measure start times up to audio duration
+    this.measureTimesMs = [];
+    if (bpmMarkers.length > 0 && timeSignatures.length > 0 && durationMs > 0) {
+      for (let m = 0; ; m++) {
+        const mBeat = measureStartBeat(m, timeSignatures);
+        const mMs = beatToMs(mBeat, bpmMarkers, offsetMs);
+        if (mMs > durationMs) break;
+        this.measureTimesMs.push(mMs);
+      }
+    }
+
     // Clear pools
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
@@ -256,6 +275,7 @@ export class GameRenderer {
     }
 
     // Clear dynamic layers
+    this.measureLineLayer.removeChildren();
     this.trillZoneLayer.removeChildren();
     this.longNoteBodyLayer.removeChildren();
     this.longNoteEndLayer.removeChildren();
@@ -266,6 +286,9 @@ export class GameRenderer {
     const visibleWindowMs = (this.height / this._scrollSpeed) * 1000 + 500;
     const minTime = songTimeMs - 500;
     const maxTime = songTimeMs + visibleWindowMs;
+
+    // Render measure lines
+    this.renderMeasureLines(songTimeMs);
 
     // Render trill zones
     this.renderTrillZones(songTimeMs);
@@ -288,6 +311,18 @@ export class GameRenderer {
         // Point note
         this.renderPointNote(entity, index, timeMs, songTimeMs);
       }
+    }
+  }
+
+  private renderMeasureLines(songTimeMs: number): void {
+    for (const mMs of this.measureTimesMs) {
+      const y = this.calculateNoteY(mMs, songTimeMs);
+      if (y < -2 || y > this.height + 2) continue;
+
+      const line = new Graphics();
+      line.rect(LANE_AREA_X, y - 1, LANE_AREA_WIDTH, 1);
+      line.fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
+      this.measureLineLayer.addChild(line);
     }
   }
 
