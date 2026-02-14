@@ -74,6 +74,17 @@ function ChartEditorPage() {
   const [volume, setVolume] = useState(1);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  // Inject spinner keyframes once
+  useEffect(() => {
+    const id = 'editor-spin-keyframes';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(style);
+  }, []);
 
   // Get state from store
   const {
@@ -405,6 +416,7 @@ function ChartEditorPage() {
 
     const url = pendingAudioUrl;
     setPendingAudioUrl(null);
+    setAudioLoading(true);
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
@@ -417,6 +429,8 @@ function ChartEditorPage() {
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       addToast(`Audio load failed: ${message}`, 'error');
+    }).finally(() => {
+      setAudioLoading(false);
     });
   }, [pendingAudioUrl, setPendingAudioUrl, addToast]);
 
@@ -1199,6 +1213,12 @@ function ChartEditorPage() {
 
       {/* Canvas */}
       <div ref={canvasContainerRef} style={styles.canvasContainer}>
+        {audioLoading && (
+          <div style={styles.loadingOverlay}>
+            <div style={styles.spinner} />
+            <span>Loading audio...</span>
+          </div>
+        )}
         <canvas
           ref={canvasRef}
           style={styles.canvas}
@@ -1798,6 +1818,27 @@ const styles = {
   },
   canvas: {
     display: 'block',
+  },
+  loadingOverlay: {
+    position: 'absolute' as const,
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    color: '#ccc',
+    fontSize: '14px',
+    zIndex: 1500,
+  },
+  spinner: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid #555',
+    borderTop: '3px solid #4488ff',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
   },
   toastContainer: {
     position: 'absolute' as const,
