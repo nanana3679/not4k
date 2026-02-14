@@ -38,6 +38,7 @@ interface GameState {
   settings: GameSettings;
   selectedSongId: string | null;
   selectedDifficulty: string | null;
+  selectedAudioUrl: string | null;
   lastResult: PlayResult | null;
   chartData: Chart | null;
   audioBuffer: AudioBuffer | null;
@@ -45,7 +46,7 @@ interface GameState {
   setScreen: (screen: Screen) => void;
   updateSettings: (partial: Partial<GameSettings>) => void;
   updateKeyBindings: (bindings: Partial<KeyBindings>) => void;
-  selectSong: (songId: string, difficulty: string) => void;
+  selectSong: (songId: string, difficulty: string, audioUrl: string) => void;
   setResult: (result: PlayResult) => void;
   completeFirstLaunch: () => void;
   setChartData: (chart: Chart | null) => void;
@@ -84,6 +85,7 @@ export const useGameStore = create<GameState>()(
       settings: DEFAULT_SETTINGS,
       selectedSongId: null,
       selectedDifficulty: null,
+      selectedAudioUrl: null,
       lastResult: null,
       chartData: null,
       audioBuffer: null,
@@ -101,9 +103,10 @@ export const useGameStore = create<GameState>()(
         },
       })),
 
-      selectSong: (songId, difficulty) => set({
+      selectSong: (songId, difficulty, audioUrl) => set({
         selectedSongId: songId,
         selectedDifficulty: difficulty,
+        selectedAudioUrl: audioUrl,
       }),
 
       setResult: (result) => set({ lastResult: result }),

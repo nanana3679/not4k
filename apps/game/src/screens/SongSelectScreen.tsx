@@ -1,257 +1,224 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useGameStore } from '../stores';
-import { deserializeChart } from '@not4k/shared';
+import { supabase } from '../supabase';
 
-interface Song {
+interface DbChart {
+  id: string;
+  song_id: string;
+  difficulty_label: string;
+  difficulty_level: number;
+}
+
+interface DbSong {
   id: string;
   title: string;
   artist: string;
-  difficulties: string[];
+  audio_url: string;
+  charts: DbChart[];
 }
 
-const PLACEHOLDER_SONGS: Song[] = [
-  { id: 'song1', title: 'Placeholder Song 1', artist: 'Artist A', difficulties: ['EASY', 'NORMAL', 'HARD'] },
-  { id: 'song2', title: 'Placeholder Song 2', artist: 'Artist B', difficulties: ['NORMAL', 'HARD'] },
-  { id: 'song3', title: 'Placeholder Song 3', artist: 'Artist C', difficulties: ['EASY', 'NORMAL'] },
-];
+function getDifficultyColor(difficulty: string): React.CSSProperties {
+  switch (difficulty.toLowerCase()) {
+    case 'easy': return { backgroundColor: '#2d6a4f', borderColor: '#40916c' };
+    case 'normal': return { backgroundColor: '#1d4e89', borderColor: '#2a6db5' };
+    case 'hard': return { backgroundColor: '#7b2d26', borderColor: '#a33b32' };
+    case 'expert': return { backgroundColor: '#5c2d82', borderColor: '#7b3fa8' };
+    default: return { backgroundColor: '#3a3a3a', borderColor: '#555' };
+  }
+}
 
 export function SongSelectScreen() {
-  const { selectSong, setScreen, setChartData, setAudioBuffer } = useGameStore();
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const chartFileRef = useRef<HTMLInputElement>(null);
-  const audioFileRef = useRef<HTMLInputElement>(null);
+  const { selectSong, setScreen } = useGameStore();
+  const [songs, setSongs] = useState<DbSong[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSelectSong = (songId: string, difficulty: string) => {
-    selectSong(songId, difficulty);
-    setScreen('loading');
-  };
+  const fetchSongs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const { data, error: err } = await supabase
+      .from('songs')
+      .select('*, charts(*)')
+      .order('title');
 
-  const handleLoadLocal = async () => {
-    const chartFile = chartFileRef.current?.files?.[0];
-    const audioFile = audioFileRef.current?.files?.[0];
-
-    if (!chartFile || !audioFile) {
-      setLoadError('Please select both chart JSON and audio file');
+    if (err) {
+      setError(`Failed to load songs: ${err.message}`);
+      setLoading(false);
       return;
     }
+    setSongs((data ?? []) as DbSong[]);
+    setLoading(false);
+  }, []);
 
-    setLoadError(null);
-    setIsLoading(true);
+  useEffect(() => { fetchSongs(); }, [fetchSongs]);
 
-    try {
-      // Read and parse chart JSON
-      const chartText = await chartFile.text();
-      const chart = deserializeChart(chartText);
-
-      // Decode audio file
-      const audioCtx = new AudioContext();
-      try {
-        const audioArrayBuffer = await audioFile.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(audioArrayBuffer);
-
-        // Store in game store
-        setChartData(chart);
-        setAudioBuffer(audioBuffer);
-
-        // Navigate directly to play screen
-        setScreen('play');
-      } finally {
-        await audioCtx.close();
-      }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load files');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSelect = (songId: string, difficulty: string, audioUrl: string) => {
+    selectSong(songId, difficulty, audioUrl);
+    setScreen('loading');
   };
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Song Select</h1>
+      <div style={styles.header}>
+        <h1 style={styles.title}>Song Select</h1>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button style={styles.refreshBtn} onClick={fetchSongs} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
+            Settings
+          </button>
+          <button style={styles.backBtn} onClick={() => setScreen('title')}>
+            Back
+          </button>
+        </div>
+      </div>
+
       <div style={styles.songList}>
-        {PLACEHOLDER_SONGS.map((song) => (
+        {loading && songs.length === 0 && (
+          <div style={styles.empty}>Loading songs...</div>
+        )}
+
+        {!loading && error && (
+          <div style={styles.empty}>{error}</div>
+        )}
+
+        {!loading && !error && songs.length === 0 && (
+          <div style={styles.empty}>No songs found.</div>
+        )}
+
+        {songs.map((song) => (
           <div key={song.id} style={styles.songCard}>
             <div style={styles.songInfo}>
-              <div style={styles.songTitle}>{song.title}</div>
-              <div style={styles.songArtist}>{song.artist}</div>
+              <span style={styles.songTitle}>{song.title}</span>
+              <span style={styles.songArtist}>{song.artist}</span>
             </div>
-            <div style={styles.difficultyButtons}>
-              {song.difficulties.map((diff) => (
-                <button
-                  key={diff}
-                  style={styles.diffButton}
-                  onClick={() => handleSelectSong(song.id, diff)}
-                >
-                  {diff}
-                </button>
-              ))}
+            <div style={styles.chartButtons}>
+              {song.charts
+                .sort((a, b) => a.difficulty_level - b.difficulty_level)
+                .map((chart) => (
+                  <button
+                    key={chart.id}
+                    style={{
+                      ...styles.chartBtn,
+                      ...getDifficultyColor(chart.difficulty_label),
+                    }}
+                    onClick={() => handleSelect(song.id, chart.difficulty_label, song.audio_url)}
+                  >
+                    {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                  </button>
+                ))}
             </div>
           </div>
         ))}
       </div>
-
-      <div style={styles.localLoadSection}>
-        <h2 style={styles.localLoadTitle}>Load Local Chart</h2>
-        <div style={styles.fileInputs}>
-          <div style={styles.fileInputWrapper}>
-            <label style={styles.fileLabel}>Chart JSON:</label>
-            <input
-              ref={chartFileRef}
-              type="file"
-              accept=".json"
-              style={styles.fileInput}
-              onChange={() => setLoadError(null)}
-            />
-          </div>
-          <div style={styles.fileInputWrapper}>
-            <label style={styles.fileLabel}>Audio File:</label>
-            <input
-              ref={audioFileRef}
-              type="file"
-              accept="audio/*"
-              style={styles.fileInput}
-              onChange={() => setLoadError(null)}
-            />
-          </div>
-        </div>
-        {loadError && <div style={styles.loadError}>{loadError}</div>}
-        <button
-          style={styles.loadButton}
-          onClick={handleLoadLocal}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Loading...' : 'Load & Play'}
-        </button>
-      </div>
-
-      <button style={styles.settingsButton} onClick={() => setScreen('settings')}>
-        Settings
-      </button>
     </div>
   );
 }
 
-const styles = {
+const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    padding: '32px',
-    minHeight: '100vh',
+    flexDirection: 'column',
+    height: '100vh',
     backgroundColor: '#1a1a1a',
-    color: '#ffffff',
+    color: '#e0e0e0',
+    fontFamily: 'system-ui, sans-serif',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '16px 24px',
+    backgroundColor: '#2a2a2a',
+    borderBottom: '1px solid #333',
   },
   title: {
-    fontSize: '48px',
-    marginBottom: '32px',
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: 600,
+  },
+  refreshBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  settingsBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  backBtn: {
+    padding: '6px 16px',
+    backgroundColor: 'transparent',
+    color: '#888',
+    border: '1px solid #444',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
   },
   songList: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '16px 24px',
     display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '16px',
-    width: '100%',
-    maxWidth: '800px',
-    marginBottom: '32px',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  empty: {
+    textAlign: 'center',
+    color: '#888',
+    marginTop: '40px',
+    fontSize: '14px',
   },
   songCard: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '24px',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
     backgroundColor: '#2a2a2a',
-    borderRadius: '8px',
+    border: '1px solid #333',
+    borderRadius: '6px',
   },
   songInfo: {
     display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '8px',
-  },
-  songTitle: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-  },
-  songArtist: {
-    fontSize: '18px',
-    color: '#aaaaaa',
-  },
-  difficultyButtons: {
-    display: 'flex',
-    gap: '8px',
-  },
-  diffButton: {
-    fontSize: '16px',
-    padding: '8px 16px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-  },
-  settingsButton: {
-    fontSize: '18px',
-    padding: '12px 24px',
-    backgroundColor: '#666666',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-  },
-  localLoadSection: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    padding: '24px',
-    marginBottom: '32px',
-    backgroundColor: '#2a2a2a',
-    borderRadius: '8px',
-    width: '100%',
-    maxWidth: '800px',
-  },
-  localLoadTitle: {
-    fontSize: '28px',
-    marginBottom: '16px',
-  },
-  fileInputs: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
-    width: '100%',
-    marginBottom: '16px',
-  },
-  fileInputWrapper: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  fileLabel: {
-    fontSize: '16px',
-    minWidth: '100px',
-  },
-  fileInput: {
-    fontSize: '14px',
-    padding: '8px',
-    backgroundColor: '#1a1a1a',
-    color: '#ffffff',
-    border: '1px solid #666666',
-    borderRadius: '4px',
-    cursor: 'pointer',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: 0,
     flex: 1,
   },
-  loadButton: {
-    fontSize: '18px',
-    padding: '12px 32px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
+  songTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
-  loadError: {
-    fontSize: '14px',
-    color: '#ff4444',
-    marginBottom: '12px',
+  songArtist: {
+    fontSize: '13px',
+    color: '#999',
+  },
+  chartButtons: {
+    display: 'flex',
+    gap: '6px',
+    flexShrink: 0,
+    marginLeft: '16px',
+  },
+  chartBtn: {
+    padding: '4px 12px',
+    color: '#fff',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 500,
   },
 };

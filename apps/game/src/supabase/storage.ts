@@ -44,17 +44,27 @@ export async function fetchChart(
 
 /**
  * 음원 파일을 로드하고 AudioBuffer로 디코딩한다.
- * OGG를 먼저 시도하고 실패 시 MP3로 폴백한다 (Safari 호환).
+ * audioUrl이 제공되면 해당 경로를 직접 사용하고,
+ * 없으면 OGG → MP3 폴백을 시도한다.
  */
 export async function fetchAudio(
   songId: string,
   audioCtx: AudioContext,
+  audioUrl?: string,
 ): Promise<AudioBuffer> {
-  const arrayBuffer = await fetchWithFallback(
-    songAudioPath(songId, 'ogg'),
-    songAudioPath(songId, 'mp3'),
-    'audio',
-  );
+  let arrayBuffer: ArrayBuffer;
+  if (audioUrl) {
+    const url = getPublicUrl(audioUrl);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch audio: ${res.status}`);
+    arrayBuffer = await res.arrayBuffer();
+  } else {
+    arrayBuffer = await fetchWithFallback(
+      songAudioPath(songId, 'ogg'),
+      songAudioPath(songId, 'mp3'),
+      'audio',
+    );
+  }
   return audioCtx.decodeAudioData(arrayBuffer);
 }
 
@@ -109,10 +119,11 @@ export async function loadSongData(
   songId: string,
   difficulty: string,
   audioCtx: AudioContext,
+  audioUrl?: string,
 ): Promise<{ chart: Chart; audioBuffer: AudioBuffer }> {
   const [chart, audioBuffer] = await Promise.all([
     fetchChart(songId, difficulty),
-    fetchAudio(songId, audioCtx),
+    fetchAudio(songId, audioCtx, audioUrl),
   ]);
   return { chart, audioBuffer };
 }

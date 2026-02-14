@@ -1,50 +1,47 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
+import { loadSongData } from '../supabase';
 
 export function LoadingScreen() {
-  const { selectedSongId, selectedDifficulty, setScreen } = useGameStore();
+  const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    let audioCtx: AudioContext | null = null;
 
-    const loadSong = async () => {
+    const load = async () => {
       if (!selectedSongId || !selectedDifficulty) {
         setError('No song selected');
         return;
       }
 
       try {
-        // Check if Supabase is configured
-        if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-          setError('Supabase not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-          return;
-        }
-
-        // TODO: Load chart and audio data
-        // const { loadSongData } = await import('../supabase');
-        // const audioCtx = new AudioContext();
-        // await loadSongData(selectedSongId, selectedDifficulty, audioCtx);
-
-        // Simulate loading
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        audioCtx = new AudioContext();
+        const { chart, audioBuffer } = await loadSongData(selectedSongId, selectedDifficulty, audioCtx, selectedAudioUrl ?? undefined);
 
         if (isMounted) {
+          setChartData(chart);
+          setAudioBuffer(audioBuffer);
           setScreen('play');
         }
       } catch (err) {
         if (isMounted) {
           setError(err instanceof Error ? err.message : 'Failed to load song');
         }
+      } finally {
+        if (audioCtx) {
+          await audioCtx.close();
+        }
       }
     };
 
-    loadSong();
+    load();
 
     return () => {
       isMounted = false;
     };
-  }, [selectedSongId, selectedDifficulty, setScreen]);
+  }, [selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer]);
 
   if (error) {
     return (
