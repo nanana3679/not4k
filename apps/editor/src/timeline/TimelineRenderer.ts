@@ -23,6 +23,10 @@ import {
   DEFAULT_MEASURES,
   TIMELINE_PADDING,
   COLORS,
+  SCROLLBAR_WIDTH,
+  SCROLLBAR_TRACK_COLOR,
+  SCROLLBAR_TRACK_ALPHA,
+  SCROLLBAR_THUMB_COLOR,
 } from "./constants";
 import type { Lane } from "@not4k/shared";
 
@@ -30,6 +34,7 @@ export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
+  onScroll?: (scrollY: number) => void;
 }
 
 /**
@@ -60,6 +65,12 @@ export class TimelineRenderer {
   private ghostLayer!: Container;
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
+  private scrollbarLayer!: Container;
+
+  // Scrollbar drag state
+  private scrollbarDragging: boolean = false;
+  private scrollbarDragStartY: number = 0;
+  private scrollbarDragStartScroll: number = 0;
 
   // State
   private _zoom: number = 200; // pixelPerSecond
@@ -130,6 +141,13 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.measureLabels);
     this.app.stage.addChild(this.playbackCursorLayer);
 
+    // Scrollbar layer (topmost, not affected by scroll)
+    this.scrollbarLayer = new Container();
+    this.app.stage.addChild(this.scrollbarLayer);
+
+    // Scrollbar pointer events
+    this.setupScrollbarEvents();
+
     this.initialized = true;
   }
 
@@ -171,6 +189,8 @@ export class TimelineRenderer {
   set scrollY(value: number) {
     this._scrollY = value;
     this.updateScroll();
+    this.renderScrollbar();
+    this.app?.render();
   }
 
   get scrollY(): number {
@@ -202,6 +222,14 @@ export class TimelineRenderer {
    */
   private get contentHeight(): number {
     return Math.max(this.totalTimelineHeight, this.options.height);
+  }
+
+  /**
+   * Horizontal offset to center the timeline content within the canvas.
+   */
+  get contentOffsetX(): number {
+    const contentWidth = TIMELINE_WIDTH + 32; // timeline + measure label area
+    return Math.max(0, (this.options.width - SCROLLBAR_WIDTH - contentWidth) / 2);
   }
 
   /**
@@ -285,7 +313,7 @@ export class TimelineRenderer {
   }
 
   /**
-   * Update scroll position for all layers
+   * Update scroll position for all layers (except scrollbar layer which stays fixed)
    */
   private updateScroll(): void {
     const layers = [
@@ -308,9 +336,12 @@ export class TimelineRenderer {
       this.playbackCursorLayer,
     ];
 
+    const offsetX = this.contentOffsetX;
     for (const layer of layers) {
+      layer.x = offsetX;
       layer.y = -this._scrollY;
     }
+    // scrollbarLayer is NOT scrolled/offset — stays fixed on screen
   }
 
   /**
@@ -327,6 +358,7 @@ export class TimelineRenderer {
     this.renderNotes();
     this.renderMarkers();
     this.updateScroll();
+    this.renderScrollbar();
     // Force PixiJS to repaint the canvas
     this.app.render();
   }
@@ -907,6 +939,131 @@ export class TimelineRenderer {
    */
   hideGhostNote(): void {
     this.ghostLayer.removeChildren();
+  }
+
+  /**
+   * Resize the renderer to new dimensions.
+   */
+  resize(width: number, height: number): void {
+    this.options.width = width;
+    this.options.height = height;
+    if (this.initialized) {
+      this.app.renderer.resize(width, height);
+      this.render();
+    }
+  }
+
+  /**
+   * Render scrollbar inside the canvas (topmost layer, not affected by scroll).
+   */
+  private renderScrollbar(): void {
+    this.scrollbarLayer.removeChildren();
+
+    const canvasH = this.options.height;
+    const totalH = this.totalTimelineHeight;
+    if (totalH <= canvasH) return; // no scrollbar needed
+
+    const trackX = this.options.width - SCROLLBAR_WIDTH;
+
+    // Track background
+    const track = new Graphics();
+    track.rect(trackX, 0, SCROLLBAR_WIDTH, canvasH);
+    track.fill({ color: SCROLLBAR_TRACK_COLOR, alpha: SCROLLBAR_TRACK_ALPHA });
+    this.scrollbarLayer.addChild(track);
+
+    // Thumb
+    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
+    const maxScroll = totalH - canvasH;
+    const thumbY = maxScroll > 0
+      ? (this._scrollY / maxScroll) * (canvasH - thumbHeight)
+      : 0;
+
+    const thumb = new Graphics();
+    thumb.roundRect(trackX + 1, thumbY, SCROLLBAR_WIDTH - 2, thumbHeight, 4);
+    thumb.fill({ color: SCROLLBAR_THUMB_COLOR, alpha: 0.8 });
+    this.scrollbarLayer.addChild(thumb);
+  }
+
+  /**
+   * Check if a screen-space point is within the scrollbar area.
+   */
+  isInScrollbarArea(x: number): boolean {
+    return x >= this.options.width - SCROLLBAR_WIDTH;
+  }
+
+  /**
+   * Handle scrollbar pointer down. Returns true if the event was consumed.
+   */
+  handleScrollbarPointerDown(x: number, y: number): boolean {
+    if (!this.isInScrollbarArea(x)) return false;
+
+    const canvasH = this.options.height;
+    const totalH = this.totalTimelineHeight;
+    if (totalH <= canvasH) return false;
+
+    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
+    const maxScroll = totalH - canvasH;
+    const thumbY = maxScroll > 0
+      ? (this._scrollY / maxScroll) * (canvasH - thumbHeight)
+      : 0;
+
+    if (y >= thumbY && y <= thumbY + thumbHeight) {
+      // Start dragging thumb
+      this.scrollbarDragging = true;
+      this.scrollbarDragStartY = y;
+      this.scrollbarDragStartScroll = this._scrollY;
+    } else {
+      // Click on track: jump to position
+      const ratio = y / canvasH;
+      const newScroll = Math.max(0, Math.min(maxScroll, ratio * maxScroll - (canvasH / 2)));
+      this.options.onScroll?.(newScroll);
+    }
+
+    return true;
+  }
+
+  /**
+   * Handle scrollbar pointer move. Returns true if dragging.
+   */
+  handleScrollbarPointerMove(_x: number, y: number): boolean {
+    if (!this.scrollbarDragging) return false;
+
+    const canvasH = this.options.height;
+    const totalH = this.totalTimelineHeight;
+    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
+    const maxScroll = totalH - canvasH;
+
+    const trackRange = canvasH - thumbHeight;
+    if (trackRange <= 0) return true;
+
+    const deltaY = y - this.scrollbarDragStartY;
+    const deltaScroll = (deltaY / trackRange) * maxScroll;
+    const newScroll = Math.max(0, Math.min(maxScroll, this.scrollbarDragStartScroll + deltaScroll));
+    this.options.onScroll?.(newScroll);
+
+    return true;
+  }
+
+  /**
+   * Handle scrollbar pointer up.
+   */
+  handleScrollbarPointerUp(): void {
+    this.scrollbarDragging = false;
+  }
+
+  /**
+   * Setup canvas-level pointer events for scrollbar drag interaction.
+   */
+  private setupScrollbarEvents(): void {
+    const canvas = this.options.canvas;
+
+    canvas.addEventListener('pointerup', () => {
+      this.handleScrollbarPointerUp();
+    });
+
+    canvas.addEventListener('pointerleave', () => {
+      this.handleScrollbarPointerUp();
+    });
   }
 
   /**

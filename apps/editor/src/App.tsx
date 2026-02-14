@@ -15,15 +15,12 @@ import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeli
 import { msToBeat, beatToMs, measureStartBeat } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
-const MEASURE_LABEL_AREA = 32; // space for measure numbers + cursor handle
-const CANVAS_WIDTH = TIMELINE_WIDTH + MEASURE_LABEL_AREA;
-const CANVAS_HEIGHT = 800;
-
 export function App() {
   // Refs for imperative objects
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const snapZoomRef = useRef<SnapZoomController | null>(null);
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
@@ -251,11 +248,18 @@ export function App() {
 
     let mounted = true;
 
+    // Measure container for initial size
+    const container = canvasContainerRef.current;
+    const initWidth = container?.clientWidth ?? 800;
+    const initHeight = container?.clientHeight ?? 600;
+    setCanvasSize({ width: initWidth, height: initHeight });
+
     // Create TimelineRenderer
     const renderer = new TimelineRenderer({
       canvas,
-      width: CANVAS_WIDTH,
-      height: CANVAS_HEIGHT,
+      width: initWidth,
+      height: initHeight,
+      onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
     renderer.init().then(() => {
@@ -267,7 +271,7 @@ export function App() {
       renderer.snap = snapDivision;
 
       // Start scrolled to bottom (time 0 visible)
-      const initScroll = Math.max(0, renderer.totalTimelineHeight - CANVAS_HEIGHT);
+      const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
       setScrollY(initScroll);
       renderer.scrollY = initScroll;
     });
@@ -329,6 +333,33 @@ export function App() {
     };
   }, []); // Only run once on mount
 
+  // ResizeObserver: track container size and resize canvas/renderer
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const w = Math.floor(width);
+        const h = Math.floor(height);
+        if (w > 0 && h > 0) {
+          setCanvasSize({ width: w, height: h });
+        }
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // Sync canvasSize to renderer
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.resize(canvasSize.width, canvasSize.height);
+    }
+  }, [canvasSize]);
+
   // Sync chart changes to renderer and mode handlers
   useEffect(() => {
     if (rendererRef.current) {
@@ -359,20 +390,10 @@ export function App() {
     }
   }, [snapDivision]);
 
-  // Sync scrollY to renderer and scrollbar
+  // Sync scrollY to renderer
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.scrollY = scrollY;
-    }
-    // Sync scrollbar position
-    if (scrollContainerRef.current && rendererRef.current) {
-      const totalH = rendererRef.current.totalTimelineHeight;
-      scrollContainerRef.current.scrollTop = scrollY;
-      // Update spacer height for scrollbar thumb size
-      const spacer = scrollContainerRef.current.firstElementChild as HTMLElement | null;
-      if (spacer) {
-        spacer.style.height = `${Math.max(CANVAS_HEIGHT, totalH)}px`;
-      }
     }
   }, [scrollY, zoom, chart]);
 
@@ -407,8 +428,17 @@ export function App() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
+    const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Check for scrollbar interaction first (uses raw canvas coords)
+    if (rendererRef.current?.handleScrollbarPointerDown(rawX, y)) {
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // Content-relative x (offset-adjusted)
+    const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
 
     // Check for cursor handle drag (right edge area)
     if (x >= TIMELINE_WIDTH && rendererRef.current) {
@@ -435,8 +465,16 @@ export function App() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
+    const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Handle scrollbar drag (uses raw canvas coords)
+    if (rendererRef.current?.handleScrollbarPointerMove(rawX, y)) {
+      return;
+    }
+
+    // Content-relative x (offset-adjusted)
+    const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
 
     // Handle cursor drag
     if (isDraggingCursorRef.current && rendererRef.current) {
@@ -485,6 +523,8 @@ export function App() {
   }, [mode, entityType, xToLane, yToBeat, snapBeat, chart.bpmMarkers, chart.meta.offsetMs]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    rendererRef.current?.handleScrollbarPointerUp();
+
     if (isDraggingCursorRef.current) {
       isDraggingCursorRef.current = false;
       return;
@@ -493,7 +533,7 @@ export function App() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
+    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
     const y = e.clientY - rect.top;
 
     if (mode === 'create' && createModeRef.current) {
@@ -523,10 +563,10 @@ export function App() {
 
     // Default: scroll (normal direction)
     const maxScroll = rendererRef.current
-      ? Math.max(0, rendererRef.current.totalTimelineHeight - CANVAS_HEIGHT)
+      ? Math.max(0, rendererRef.current.totalTimelineHeight - canvasSize.height)
       : Infinity;
     setScrollY(Math.min(maxScroll, Math.max(0, scrollY + e.deltaY)));
-  }, [mode, scrollY, setScrollY, setEntityType]);
+  }, [mode, scrollY, canvasSize.height, setScrollY, setEntityType]);
 
   // Register wheel listener with { passive: false }
   useEffect(() => {
@@ -592,7 +632,7 @@ export function App() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
+    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
     const y = e.clientY - rect.top;
 
     const hit = hitTestMarker(x, y);
@@ -607,7 +647,7 @@ export function App() {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
+    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
     const y = e.clientY - rect.top;
 
     // Right-click delete (mode-independent) — try note first, then trill zone
@@ -892,32 +932,18 @@ export function App() {
         </label>
       </div>
 
-      {/* Canvas + Scrollbar */}
-      <div style={styles.canvasContainer}>
-        <div style={styles.canvasWrapper}>
-          <canvas
-            ref={canvasRef}
-            style={styles.canvas}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerLeave}
-            onDoubleClick={handleDoubleClick}
-            onContextMenu={handleContextMenu}
-          />
-        </div>
-        <div
-          ref={scrollContainerRef}
-          style={{ ...styles.scrollbar, height: CANVAS_HEIGHT }}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            setScrollY(el.scrollTop);
-          }}
-        >
-          <div style={{
-            height: Math.max(CANVAS_HEIGHT, rendererRef.current?.totalTimelineHeight ?? CANVAS_HEIGHT),
-          }} />
-        </div>
+      {/* Canvas */}
+      <div ref={canvasContainerRef} style={styles.canvasContainer}>
+        <canvas
+          ref={canvasRef}
+          style={styles.canvas}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
+          onDoubleClick={handleDoubleClick}
+          onContextMenu={handleContextMenu}
+        />
       </div>
 
       {/* Marker Edit Modal */}
@@ -1319,20 +1345,9 @@ const styles = {
   },
   canvasContainer: {
     flex: 1,
-    display: 'flex',
-    justifyContent: 'center',
+    position: 'relative' as const,
     overflow: 'hidden',
     backgroundColor: '#000',
-  },
-  canvasWrapper: {
-    flexShrink: 0,
-  },
-  scrollbar: {
-    width: '14px',
-    overflowY: 'auto' as const,
-    overflowX: 'hidden' as const,
-    flexShrink: 0,
-    backgroundColor: '#111',
   },
   canvas: {
     display: 'block',
@@ -1340,8 +1355,7 @@ const styles = {
   toastContainer: {
     position: 'absolute' as const,
     bottom: '48px',
-    left: '50%',
-    transform: 'translateX(-50%)',
+    right: '24px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '6px',

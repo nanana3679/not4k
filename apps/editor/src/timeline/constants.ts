@@ -15,6 +15,12 @@ export const TIMELINE_WIDTH =
 export const DEFAULT_MEASURES = 16;
 export const TIMELINE_PADDING = 50; // px of empty space before first / after last measure
 
+// Scrollbar
+export const SCROLLBAR_WIDTH = 10;
+export const SCROLLBAR_TRACK_COLOR = 0x222222;
+export const SCROLLBAR_TRACK_ALPHA = 0.5;
+export const SCROLLBAR_THUMB_COLOR = 0x666666;
+
 // Colors
 export const COLORS = {
   LANE_BG_EVEN: 0x1a1a2e,
