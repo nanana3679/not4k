@@ -8,6 +8,7 @@ import { beat } from '@not4k/shared';
 import type { EntityType } from '../modes';
 
 type EditorMode = 'create' | 'select' | 'delete';
+type EditorPage = 'songList' | 'chartEditor';
 
 export interface Toast {
   id: number;
@@ -22,6 +23,11 @@ export type EditingMarker =
 let toastId = 0;
 
 interface EditorState {
+  // Page navigation
+  activePage: EditorPage;
+  activeSongId: string | null;
+  pendingAudioUrl: string | null;
+
   // Chart data
   chart: Chart;
 
@@ -48,6 +54,9 @@ interface EditorState {
   editingMarker: EditingMarker;
 
   // Actions
+  setActivePage: (page: EditorPage) => void;
+  setActiveSongId: (songId: string | null) => void;
+  setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: Chart) => void;
   setMode: (mode: EditorMode) => void;
   setEntityType: (entityType: EntityType) => void;
@@ -80,6 +89,9 @@ const createDefaultChart = (): Chart => ({
 
 export const useEditorStore = create<EditorState>((set) => ({
   // Initial state
+  activePage: 'songList',
+  activeSongId: null,
+  pendingAudioUrl: null,
   chart: createDefaultChart(),
   mode: 'create',
   entityType: 'single',
@@ -93,6 +105,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   editingMarker: null,
 
   // Actions
+  setActivePage: (activePage) => set({ activePage }),
+  setActiveSongId: (activeSongId) => set({ activeSongId }),
+  setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
   setChart: (chart) => set({ chart }),
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),

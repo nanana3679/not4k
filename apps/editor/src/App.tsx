@@ -16,6 +16,22 @@ import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
 export function App() {
+  const { activePage } = useEditorStore();
+
+  if (activePage === 'songList') {
+    return <SongListPage />;
+  }
+
+  return <ChartEditorPage />;
+}
+
+// ---------------------------------------------------------------------------
+// Chart Editor Page (original App logic)
+// ---------------------------------------------------------------------------
+
+import { SongListPage } from './pages/SongListPage';
+
+function ChartEditorPage() {
   // Refs for imperative objects
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -44,6 +60,9 @@ export function App() {
     isPlaying,
     currentTimeMs,
     selectedNotes,
+    setActivePage,
+    pendingAudioUrl,
+    setPendingAudioUrl,
     setChart,
     setMode,
     setEntityType,
@@ -351,6 +370,29 @@ export function App() {
       playback.dispose();
     };
   }, []); // Only run once on mount
+
+  // Load audio from pendingAudioUrl (set by SongListPage before navigating here)
+  useEffect(() => {
+    if (!pendingAudioUrl) return;
+    const playback = playbackRef.current;
+    if (!playback) return;
+
+    const url = pendingAudioUrl;
+    setPendingAudioUrl(null);
+
+    playback.loadAudioUrl(url).then(() => {
+      const audioBuffer = playback.audioBufferData;
+      if (audioBuffer && rendererRef.current) {
+        const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
+        const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
+        const durationMs = audioBuffer.duration * 1000;
+        rendererRef.current.setWaveformData(peaks, durationMs);
+      }
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(`Audio load failed: ${message}`, 'error');
+    });
+  }, [pendingAudioUrl, setPendingAudioUrl, addToast]);
 
   // ResizeObserver: track container size and resize canvas/renderer
   useEffect(() => {
@@ -925,6 +967,17 @@ export function App() {
     <div style={styles.container}>
       {/* Toolbar */}
       <div style={styles.toolbar}>
+        {/* Back to song list */}
+        <button
+          style={styles.button}
+          onClick={() => setActivePage('songList')}
+          title="Back to song list"
+        >
+          &larr; Songs
+        </button>
+
+        <div style={styles.separator} />
+
         {/* Mode buttons */}
         <button
           style={{ ...styles.button, ...(mode === 'create' ? styles.buttonActive : {}) }}
