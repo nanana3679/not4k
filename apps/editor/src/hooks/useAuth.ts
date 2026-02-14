@@ -21,31 +21,32 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. 초기 세션 확인
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let active = true;
+
+    const handleSession = async (session: { user: User } | null) => {
+      if (!active) return;
       const u = session?.user ?? null;
       setUser(u);
-      if (u) setIsAdmin(await fetchIsAdmin(u.id));
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
+      setIsAdmin(u ? await fetchIsAdmin(u.id) : false);
+      if (active) setLoading(false);
+    };
 
-    // 2. 이후 세션 변경 감지 (OAuth 리다이렉트, 로그아웃 등)
+    // 1. 리스너 먼저 등록 (이벤트 놓치지 않도록)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const u = session?.user ?? null;
-        setUser(u);
-        if (u) {
-          setIsAdmin(await fetchIsAdmin(u.id));
-        } else {
-          setIsAdmin(false);
-        }
-        setLoading(false);
-      },
+      (_event, session) => { handleSession(session); },
     );
 
-    return () => subscription.unsubscribe();
+    // 2. 현재 세션 확인 (리스너 등록 이후)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    }).catch(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = async () => {
