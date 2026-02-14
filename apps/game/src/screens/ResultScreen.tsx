@@ -20,7 +20,7 @@ export function ResultScreen() {
 
       <div style={styles.mainStats}>
         <div style={styles.achievement}>
-          {lastResult.achievementRate.toFixed(2)}%
+          {(lastResult.achievementRate ?? 0).toFixed(2)}%
         </div>
         <div style={styles.rank}>{lastResult.rank}</div>
       </div>

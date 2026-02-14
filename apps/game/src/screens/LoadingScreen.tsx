@@ -6,6 +6,8 @@ export function LoadingScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadSong = async () => {
       if (!selectedSongId || !selectedDifficulty) {
         setError('No song selected');
@@ -27,13 +29,21 @@ export function LoadingScreen() {
         // Simulate loading
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        setScreen('play');
+        if (isMounted) {
+          setScreen('play');
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load song');
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load song');
+        }
       }
     };
 
     loadSong();
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedSongId, selectedDifficulty, setScreen]);
 
   if (error) {
