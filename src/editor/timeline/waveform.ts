@@ -15,25 +15,43 @@ export function getWaveformPeaks(
   audioBuffer: AudioBuffer,
   samplesPerPeak: number = 512
 ): Float32Array {
-  const channel = audioBuffer.getChannelData(0); // Use first channel (mono or left)
-  const totalSamples = channel.length;
+  const numChannels = audioBuffer.numberOfChannels;
+  const totalSamples = audioBuffer.getChannelData(0).length;
   const peakCount = Math.ceil(totalSamples / samplesPerPeak);
   const peaks = new Float32Array(peakCount);
 
-  for (let i = 0; i < peakCount; i++) {
-    const start = i * samplesPerPeak;
-    const end = Math.min(start + samplesPerPeak, totalSamples);
-
-    // Find peak amplitude in this chunk
-    let peak = 0;
-    for (let j = start; j < end; j++) {
-      const abs = Math.abs(channel[j]);
-      if (abs > peak) {
-        peak = abs;
+  if (numChannels === 1) {
+    const channel = audioBuffer.getChannelData(0);
+    for (let i = 0; i < peakCount; i++) {
+      const start = i * samplesPerPeak;
+      const end = Math.min(start + samplesPerPeak, totalSamples);
+      let peak = 0;
+      for (let j = start; j < end; j++) {
+        const abs = Math.abs(channel[j]);
+        if (abs > peak) peak = abs;
       }
+      peaks[i] = peak;
     }
-
-    peaks[i] = peak;
+  } else {
+    // Average absolute values across all channels
+    const channels: Float32Array[] = [];
+    for (let c = 0; c < numChannels; c++) {
+      channels.push(audioBuffer.getChannelData(c));
+    }
+    for (let i = 0; i < peakCount; i++) {
+      const start = i * samplesPerPeak;
+      const end = Math.min(start + samplesPerPeak, totalSamples);
+      let peak = 0;
+      for (let j = start; j < end; j++) {
+        let sum = 0;
+        for (let c = 0; c < numChannels; c++) {
+          sum += Math.abs(channels[c][j]);
+        }
+        const avg = sum / numChannels;
+        if (avg > peak) peak = avg;
+      }
+      peaks[i] = peak;
+    }
   }
 
   return peaks;

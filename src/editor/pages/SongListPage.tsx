@@ -11,6 +11,9 @@ import {
   beat,
 } from '../../shared';
 import type { Chart } from '../../shared';
+import { PreviewRangeSelector } from '../components/PreviewRangeSelector';
+import type { PreviewRangeState } from '../components/PreviewRangeSelector';
+import { trimAudioBuffer, encodeWav } from '../audio/previewTrim';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,8 +105,31 @@ function AddSongModal({ onDone, onClose, addToast }: {
   const [artist, setArtist] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [jacketFile, setJacketFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [decodingAudio, setDecodingAudio] = useState(false);
+  const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleAudioChange = async (file: File | null) => {
+    setAudioFile(file);
+    setAudioBuffer(null);
+    setPreviewRange(null);
+    if (file) {
+      setDecodingAudio(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const ctx = new AudioContext();
+        const buffer = await ctx.decodeAudioData(arrayBuffer);
+        await ctx.close();
+        setAudioBuffer(buffer);
+      } catch {
+        // Decoding failed — preview UI won't show, but upload still works
+        setAudioBuffer(null);
+      } finally {
+        setDecodingAudio(false);
+      }
+    }
+  };
 
   const canSubmit = title.trim() !== '' && artist.trim() !== '' && audioFile !== null && !submitting;
 
@@ -131,10 +157,11 @@ function AddSongModal({ onDone, onClose, addToast }: {
         );
       }
 
-      if (previewFile) {
-        const previewExt = previewFile.name.split('.').pop()?.toLowerCase() || 'ogg';
+      if (previewRange && audioBuffer) {
+        const trimmedBuffer = await trimAudioBuffer(audioBuffer, previewRange.startTime, previewRange.endTime);
+        const wavBlob = encodeWav(trimmedBuffer);
         uploads.push(
-          supabase.storage.from(STORAGE_BUCKET).upload(songPreviewPath(songId, previewExt), previewFile)
+          supabase.storage.from(STORAGE_BUCKET).upload(songPreviewPath(songId, 'wav'), wavBlob)
             .then(({ error }) => { if (error) throw new Error(`Preview upload failed: ${error.message}`); }),
         );
       }
@@ -152,9 +179,8 @@ function AddSongModal({ onDone, onClose, addToast }: {
         const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
         row.jacket_url = songJacketPath(songId, jacketExt);
       }
-      if (previewFile) {
-        const previewExt = previewFile.name.split('.').pop()?.toLowerCase() || 'ogg';
-        row.preview_url = songPreviewPath(songId, previewExt);
+      if (previewRange && audioBuffer) {
+        row.preview_url = songPreviewPath(songId, 'wav');
       }
 
       const { error } = await supabase.from('songs').insert(row);
@@ -172,7 +198,7 @@ function AddSongModal({ onDone, onClose, addToast }: {
 
   return (
     <div style={modalStyles.overlay} onClick={submitting ? undefined : onClose}>
-      <div style={{ ...modalStyles.modal, minWidth: '340px' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>New Song</h3>
 
         <label style={modalStyles.field}>
@@ -201,7 +227,7 @@ function AddSongModal({ onDone, onClose, addToast }: {
             style={modalStyles.input}
             type="file"
             accept=".ogg,.mp3,audio/ogg,audio/mpeg"
-            onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => handleAudioChange(e.target.files?.[0] ?? null)}
           />
         </label>
 
@@ -215,15 +241,20 @@ function AddSongModal({ onDone, onClose, addToast }: {
           />
         </label>
 
-        <label style={modalStyles.field}>
-          <span>Preview (ogg/mp3)</span>
-          <input
-            style={modalStyles.input}
-            type="file"
-            accept=".ogg,.mp3,audio/ogg,audio/mpeg"
-            onChange={(e) => setPreviewFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
+        {decodingAudio && (
+          <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+            오디오 디코딩 중...
+          </div>
+        )}
+
+        {audioBuffer && (
+          <div style={{ marginBottom: '12px' }}>
+            <PreviewRangeSelector
+              audioBuffer={audioBuffer}
+              onChange={setPreviewRange}
+            />
+          </div>
+        )}
 
         <div style={modalStyles.buttons}>
           <button
