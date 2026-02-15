@@ -108,9 +108,7 @@ export class GameRenderer {
     this.effectLayer = new Container();
     this.uiLayer = new Container();
 
-    // Create UI text objects
-    const laneCenterY = this._judgmentLineY / 2;
-
+    // Create UI text objects (top→bottom: combo, accuracy, judgment)
     const comboStyle = new TextStyle({
       fontFamily: "Arial",
       fontSize: 48,
@@ -121,7 +119,7 @@ export class GameRenderer {
     this.comboText = new Text({ text: "", style: comboStyle });
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.x = this.width / 2;
-    this.comboText.y = laneCenterY - 20;
+    this.comboText.y = this._judgmentLineY - 130;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "Arial",
@@ -130,9 +128,9 @@ export class GameRenderer {
       align: "center",
     });
     this.accuracyText = new Text({ text: "", style: accuracyStyle });
-    this.accuracyText.anchor.set(0.5, 0);
+    this.accuracyText.anchor.set(0.5, 0.5);
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = laneCenterY + 10;
+    this.accuracyText.y = this._judgmentLineY - 85;
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Arial",
@@ -144,7 +142,7 @@ export class GameRenderer {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = this.width / 2;
-    this.judgmentText.y = this._judgmentLineY - 40;
+    this.judgmentText.y = this._judgmentLineY - 45;
     this.judgmentText.alpha = 0;
   }
 
@@ -660,9 +658,10 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
-    // Update combo text position
-    this.comboText.y = this._judgmentLineY - 80;
-    this.judgmentText.y = this._judgmentLineY - 40;
+    // Update UI positions (top→bottom: combo, accuracy, judgment)
+    this.comboText.y = this._judgmentLineY - 130;
+    this.accuracyText.y = this._judgmentLineY - 85;
+    this.judgmentText.y = this._judgmentLineY - 45;
   }
 
   setSudden(y: number): void {
