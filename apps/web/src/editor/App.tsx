@@ -16,7 +16,10 @@ import { STORAGE_BUCKET, songChartPath } from '@not4k/shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
-import type { Beat, Lane } from '@not4k/shared';
+import type { Beat, Lane, Chart, ChartMeta } from '@not4k/shared';
+import type { EditingMarker } from './stores';
+import { SongListPage } from './pages/SongListPage';
+import { LoginPage } from './pages/LoginPage';
 
 export function EditorApp() {
   const { activePage } = useEditorStore();
@@ -54,9 +57,6 @@ export function EditorApp() {
 // Chart Editor Page (original App logic)
 // ---------------------------------------------------------------------------
 
-import { SongListPage } from './pages/SongListPage';
-import { LoginPage } from './pages/LoginPage';
-
 function ChartEditorPage() {
   // Refs for imperative objects
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,6 +76,10 @@ function ChartEditorPage() {
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
 
   // Inject spinner keyframes once
@@ -928,14 +932,9 @@ function ChartEditorPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, setMode, editingMarker, showMetaModal]);
+  }, [mode, setMode, editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm]);
 
   // File handlers
-
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const activeSongId = useEditorStore((s) => s.activeSongId);
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -1367,9 +1366,6 @@ function ChartEditorPage() {
 // Marker Edit Modal
 // ---------------------------------------------------------------------------
 
-import type { EditingMarker } from './stores';
-import type { Chart } from '@not4k/shared';
-
 function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: {
   editingMarker: NonNullable<EditingMarker>;
   chart: Chart;
@@ -1574,8 +1570,6 @@ const eventTabStyles = {
 // ---------------------------------------------------------------------------
 // Meta Edit Modal
 // ---------------------------------------------------------------------------
-
-import type { ChartMeta } from '@not4k/shared';
 
 function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
   meta: ChartMeta;
