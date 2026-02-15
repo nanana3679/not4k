@@ -205,7 +205,7 @@ description: |
 note_types: [롱, 싱글, 트릴]
 plv: 4
 notation: (아래 참조)
-judgment_notes: 릴리즈 판정 Good 이상 → Perfect 상향. 트릴 교대 실패 시 Good 고정
+judgment_notes: 종결 판정 Good 이상 → Perfect 상향. 트릴 교대 실패 시 Good 고정
 prerequisites: 기본 롱노트 처리, PP-001 (트릴 기본)
 lane_key_requirement: 1레인, 레인당 2키 필수
 remarks: 롱노트 끝의 키 교대와 트릴을 연결하여 교대 감각의 연속성을 형성하는 학습용 피스. 입력방식은 glossary.md 참조
@@ -235,7 +235,7 @@ name: 싱글→더블 전환 (o-D=)
 description: |
   싱글 롱노트를 유지하던 중 키를 추가하여 더블 롱노트로 전환하는 피스.
   키 입력으로는 a--- ..b- — A를 유지한 채 B를 추가로 누른다.
-  전환 시점에 릴리즈 판정은 발생하지 않는다 (키 수 증가).
+  전환 시점에 종결 판정은 발생하지 않는다 (키 수 증가).
   o-D=(헤드 경유)와 o-=(헤드 없는 롱노트) 두 가지 표기가 가능하다.
   o-=는 전환 시점에 노트 헤드 판정이 발생하지 않으며, HARD 난이도명에서만 등장한다.
 note_types: [롱, 싱글]
@@ -409,7 +409,7 @@ description: |
 note_types: [롱]
 plv: 7
 notation: (아래 참조)
-judgment_notes: 각 롱노트 바디의 유지 판정이 독립적으로 적용
+judgment_notes: 각 롱노트 바디의 연결 판정이 독립적으로 적용
 prerequisites: PP-004 (롱노트 끝 교대)
 lane_key_requirement: 1레인, 레인당 2키 필수
 remarks: PP-004(PLv.4)에서 앵커(PLv.7)로의 중간 단계. 입력방식은 glossary.md 참조
