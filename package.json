@@ -1,19 +1,38 @@
 {
   "name": "not4k",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.29.3",
   "scripts": {
-    "dev:web": "turbo dev --filter=@not4k/web",
-    "build": "turbo build",
-    "lint": "turbo lint",
-    "test": "turbo test",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "turbo typecheck"
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "pixi.js": "^8.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.6.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
-    "turbo": "^2.8.7",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^10.0.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.0",
+    "globals": "^17.3.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.55.0",
+    "vite": "^6.0.0",
     "vitest": "^4.0.18"
   }
 }

@@ -10,8 +10,8 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
         lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
       },
       scrollSpeed: 800,
-      liftPx: 0,
-      suddenPx: 0,
+      liftPercent: 0,
+      suddenPercent: 0,
       targetFps: 60,
       offsetMs: 0,
       preset: 'tkl',
@@ -47,13 +47,13 @@ test.describe('Game Settings', () => {
   test('lift slider updates value', async ({ page }) => {
     const liftSlider = page.locator('input[type="range"]').nth(1);
     await liftSlider.fill('50');
-    await expect(page.getByText('Lift (px): 50')).toBeVisible();
+    await expect(page.getByText('Lift (%): 50')).toBeVisible();
   });
 
   test('sudden slider updates value', async ({ page }) => {
     const suddenSlider = page.locator('input[type="range"]').nth(2);
     await suddenSlider.fill('100');
-    await expect(page.getByText('Sudden (px): 100')).toBeVisible();
+    await expect(page.getByText('Sudden (%): 100')).toBeVisible();
   });
 
   test('FPS dropdown selects options', async ({ page }) => {

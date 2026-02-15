@@ -557,28 +557,33 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 ### 모노레포 구조
 
+게임과 에디터는 하나의 웹 앱(`apps/web`)으로 통합되어 있으며, 라우팅(`/editor`)으로 분리된다. 별도의 빌드·배포 파이프라인이 필요 없고, `packages/shared`의 타입/로직을 양쪽이 동일하게 import한다.
+
 ```
 not4k/
 ├── apps/
-│   ├── game/                    # 메인 게임 (React 19 + PixiJS v8)
-│   │   ├── src/
-│   │   ├── package.json
-│   │   └── vite.config.ts
-│   └── editor/                  # 차트 에디터 (React 19 + PixiJS v8)
+│   └── web/                     # 게임 + 에디터 통합 웹 앱 (React 19 + PixiJS v8)
 │       ├── src/
+│       │   ├── game/            # 게임 클라이언트 (화면, 렌더러, 게임 로직)
+│       │   ├── editor/          # 차트 에디터 (타임라인, 모드, 에디터 로직)
+│       │   ├── supabase/        # Supabase 클라이언트 설정
+│       │   ├── main.tsx         # 앱 진입점
+│       │   └── global.css
 │       ├── package.json
 │       └── vite.config.ts
 ├── packages/
 │   └── shared/                  # 공유 패키지
-│       ├── src/
-│       │   ├── types/           # ChartData, NoteType, BpmMarker, Beat 등
-│       │   ├── chart/           # 분수 연산, beat→time 변환, 배치 제약 검증
-│       │   ├── constants/       # 노트 타입 enum, 판정 윈도우
-│       │   └── index.ts
-│       ├── package.json
-│       └── tsconfig.json
+│       ├── types/               # ChartData, NoteEntity, EventMarker, Beat 등
+│       ├── chart/               # 분수 박자 연산, 차트 유틸리티
+│       ├── timing/              # beat→time 변환, BPM 마커 처리
+│       ├── validation/          # 배치 제약 조건 검증
+│       ├── constants/           # 노트 타입 enum, 판정 윈도우
+│       ├── storage/             # Supabase Storage 접근 유틸리티
+│       ├── index.ts
+│       └── package.json
 ├── docs/
-│   ├── design/                  # 설계 문서
+│   ├── spec/                    # 설계 스펙 문서
+│   ├── context/                 # 배경·맥락 문서
 │   └── research/                # 리서치 문서
 ├── pnpm-workspace.yaml
 ├── turbo.json
@@ -602,10 +607,12 @@ not4k/
 
 ### 에디터 배포
 
+게임과 에디터가 하나의 앱(`apps/web`)으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터 경로(`/editor`)에 대한 접근 제한은 필요 시 Cloudflare Access 등으로 처리한다.
+
 | 단계 | 배포 방식 | 이유 |
 |------|----------|------|
-| Phase A | 로컬 실행 (`pnpm dev --filter editor`) | 개발자만 사용, 배포 불필요 |
-| Phase B+ | Cloudflare Pages 별도 프로젝트 (접근 제한) 또는 계속 로컬 | 필요 시 Cloudflare Access로 제한 |
+| Phase A | 로컬 실행 (`pnpm dev --filter web`) + `/editor` 경로 접근 | 개발자만 사용, 배포 불필요 |
+| Phase B+ | Cloudflare Pages에 게임과 함께 배포, `/editor` 경로에 접근 제한 | 필요 시 Cloudflare Access로 제한 |
 
 ---
 

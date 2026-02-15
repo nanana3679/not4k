@@ -5,7 +5,6 @@
 
 node_modules/
 dist/
-.turbo/
 *.tsbuildinfo
 .vite/
 playwright-report/

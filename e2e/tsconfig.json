@@ -1,12 +1,9 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "bundler",
     "noEmit": true,
-    "declaration": false,
-    "declarationMap": false,
-    "sourceMap": false,
+    "rootDir": null,
+    "outDir": null,
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
