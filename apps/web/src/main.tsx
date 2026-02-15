@@ -3,13 +3,19 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import './global.css';
 
-const GameApp = lazy(() => import('./game/App').then(m => ({ default: m.GameApp })));
-const EditorApp = lazy(() => import('./editor/App').then(m => ({ default: m.EditorApp })));
+const GameApp = lazy(() => import('./game/App'));
+const EditorApp = lazy(() => import('./editor/App'));
+
+const Loading = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>
+    Loading...
+  </div>
+);
 
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',backgroundColor:'#1a1a1a',color:'#888' }}>Loading...</div>}>
+      <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
           <Route path="/editor/*" element={<EditorApp />} />

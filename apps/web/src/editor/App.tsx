@@ -21,7 +21,7 @@ import type { EditingMarker } from './stores';
 import { SongListPage } from './pages/SongListPage';
 import { LoginPage } from './pages/LoginPage';
 
-export function EditorApp() {
+export default function EditorApp() {
   const { activePage } = useEditorStore();
   const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
 
@@ -1052,7 +1052,7 @@ function ChartEditorPage() {
     }
     // stop
     if (values.stop === 'true') {
-      (patch as any).stop = true;
+      patch.stop = true;
     }
     // Build updated event: remove cleared optional fields
     const { text: _t, bpm: _b, beatPerMeasure: _bp, stop: _s, ...base } = evt;
