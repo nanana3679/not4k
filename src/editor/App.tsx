@@ -2,7 +2,7 @@
  * not4k Chart Editor — Main App Component
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
@@ -94,33 +94,31 @@ function ChartEditorPage() {
   }, []);
 
   // Get state from store
-  const {
-    chart,
-    mode,
-    entityType,
-    zoom,
-    snapDivision,
-    scrollY,
-    isPlaying,
-    currentTimeMs,
-    selectedNotes,
-    setActivePage,
-    pendingAudioUrl,
-    setPendingAudioUrl,
-    setChart,
-    setMode,
-    setEntityType,
-    setZoom,
-    setSnapDivision,
-    setScrollY,
-    setIsPlaying,
-    setCurrentTimeMs,
-    setSelectedNotes,
-    toasts,
-    addToast,
-    editingMarker,
-    setEditingMarker,
-  } = useEditorStore();
+  const chart = useEditorStore((s) => s.chart);
+  const mode = useEditorStore((s) => s.mode);
+  const entityType = useEditorStore((s) => s.entityType);
+  const zoom = useEditorStore((s) => s.zoom);
+  const snapDivision = useEditorStore((s) => s.snapDivision);
+  const scrollY = useEditorStore((s) => s.scrollY);
+  const isPlaying = useEditorStore((s) => s.isPlaying);
+  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
+  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const setActivePage = useEditorStore((s) => s.setActivePage);
+  const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
+  const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
+  const setChart = useEditorStore((s) => s.setChart);
+  const setMode = useEditorStore((s) => s.setMode);
+  const setEntityType = useEditorStore((s) => s.setEntityType);
+  const setZoom = useEditorStore((s) => s.setZoom);
+  const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
+  const setScrollY = useEditorStore((s) => s.setScrollY);
+  const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
+  const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
+  const setSelectedNotes = useEditorStore((s) => s.setSelectedNotes);
+  const toasts = useEditorStore((s) => s.toasts);
+  const addToast = useEditorStore((s) => s.addToast);
+  const editingMarker = useEditorStore((s) => s.editingMarker);
+  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
 
   // Helper: X to Lane (1-4 for note lanes, null otherwise)
   const xToLane = useCallback((x: number): Lane | null => {
@@ -142,7 +140,7 @@ function ChartEditorPage() {
   }, []);
 
   // Helper: Y to Beat (snap division N = N-th note, grid = 4/N beats)
-  const bpmMarkers = extractBpmMarkers(chart.events);
+  const bpmMarkers = useMemo(() => extractBpmMarkers(chart.events), [chart.events]);
 
   const yToBeat = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };

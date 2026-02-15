@@ -13,6 +13,9 @@ import type {
   NoteEntity,
   PointNote,
   RangeNote,
+  BpmMarker,
+  TimeSignatureMarker,
+  EventMarker,
 } from "../../shared";
 import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import {
@@ -95,6 +98,34 @@ export class TimelineRenderer {
   private waveformPeaks: Float32Array | null = null;
   private waveformDurationMs: number = 0;
 
+  // BPM/TimeSignature extraction cache
+  private _cachedBpmMarkers: BpmMarker[] | null = null;
+  private _cachedTimeSignatures: TimeSignatureMarker[] | null = null;
+  private _cachedEventsRef: readonly EventMarker[] | null = null;
+
+  // getTotalTimelineMs cache
+  private _cachedTotalTimelineMs: number | null = null;
+
+  private get cachedBpmMarkers(): BpmMarker[] {
+    if (!this.chart) return [];
+    if (this._cachedEventsRef !== this.chart.events || !this._cachedBpmMarkers) {
+      this._cachedBpmMarkers = extractBpmMarkers(this.chart.events);
+      this._cachedTimeSignatures = extractTimeSignatures(this.chart.events);
+      this._cachedEventsRef = this.chart.events;
+    }
+    return this._cachedBpmMarkers;
+  }
+
+  private get cachedTimeSignatures(): TimeSignatureMarker[] {
+    if (!this.chart) return [];
+    if (this._cachedEventsRef !== this.chart.events || !this._cachedTimeSignatures) {
+      this._cachedBpmMarkers = extractBpmMarkers(this.chart.events);
+      this._cachedTimeSignatures = extractTimeSignatures(this.chart.events);
+      this._cachedEventsRef = this.chart.events;
+    }
+    return this._cachedTimeSignatures;
+  }
+
   private options: TimelineRendererOptions;
 
   constructor(options: TimelineRendererOptions) {
@@ -170,6 +201,8 @@ export class TimelineRenderer {
    */
   setChart(chart: Chart): void {
     this.chart = chart;
+    this._cachedEventsRef = null;
+    this._cachedTotalTimelineMs = null;
     this.render();
   }
 
@@ -182,6 +215,7 @@ export class TimelineRenderer {
   setWaveformData(peaks: Float32Array, durationMs: number): void {
     this.waveformPeaks = peaks;
     this.waveformDurationMs = durationMs;
+    this._cachedTotalTimelineMs = null;
     this.render();
   }
 
@@ -291,9 +325,10 @@ export class TimelineRenderer {
    * Calculate total timeline duration in ms based on audio or default measures.
    */
   getTotalTimelineMs(): number {
+    if (this._cachedTotalTimelineMs !== null) return this._cachedTotalTimelineMs;
     if (!this.chart) return 0;
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
-    const timeSignatures = extractTimeSignatures(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
+    const timeSignatures = this.cachedTimeSignatures;
     const meta = this.chart.meta;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return 0;
 
@@ -312,7 +347,9 @@ export class TimelineRenderer {
     }
 
     const endBeat = measureStartBeat(totalMeasures, timeSignatures);
-    return beatToMs(endBeat, bpmMarkers, meta.offsetMs);
+    const result = beatToMs(endBeat, bpmMarkers, meta.offsetMs);
+    this._cachedTotalTimelineMs = result;
+    return result;
   }
 
   /**
@@ -393,6 +430,7 @@ export class TimelineRenderer {
   render(): void {
     if (!this.initialized || !this.chart) return;
 
+    this._cachedTotalTimelineMs = null;
     this.clearDynamicLayers();
     this.renderLaneBackgrounds();
     this.renderWaveform();
@@ -491,8 +529,8 @@ export class TimelineRenderer {
   private renderGridLines(): void {
     if (!this.chart) return;
 
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
-    const timeSignatures = extractTimeSignatures(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
+    const timeSignatures = this.cachedTimeSignatures;
     const meta = this.chart.meta;
     if (bpmMarkers.length === 0 || timeSignatures.length === 0) return;
 
@@ -583,7 +621,7 @@ export class TimelineRenderer {
     if (!this.chart) return;
 
     const { trillZones, meta } = this.chart;
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
 
     for (const zone of trillZones) {
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
@@ -611,7 +649,7 @@ export class TimelineRenderer {
   private renderMoveOrigins(): void {
     if (!this._moveOrigins || !this.chart) return;
 
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
     const ORIGIN_ALPHA = 0.3;
 
@@ -701,7 +739,7 @@ export class TimelineRenderer {
     if (!this._boxSelectRect || !this.chart) return;
 
     const { startBeat, startLane, endBeat, endLane } = this._boxSelectRect;
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
 
     const y1 = this.timeToY(beatToMs(startBeat, bpmMarkers, meta.offsetMs));
@@ -755,7 +793,7 @@ export class TimelineRenderer {
   private renderPointNote(note: PointNote, isSelected: boolean): void {
     if (!this.chart) return;
 
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
     const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
     const y = this.timeToY(timeMs);
@@ -843,7 +881,7 @@ export class TimelineRenderer {
   private renderRangeNote(note: RangeNote, isSelected: boolean): void {
     if (!this.chart) return;
 
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
     const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
     const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
@@ -961,7 +999,7 @@ export class TimelineRenderer {
   private renderMarkers(): void {
     if (!this.chart) return;
 
-    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const bpmMarkers = this.cachedBpmMarkers;
     const { events, meta } = this.chart;
     const auxStartX = LANE_COUNT * LANE_WIDTH;
 
