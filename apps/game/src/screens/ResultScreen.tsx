@@ -39,14 +39,16 @@ export function ResultScreen() {
       <div style={styles.judgmentSection}>
         <h2 style={styles.subtitle}>Judgments</h2>
         <div style={styles.judgmentGrid}>
-          {Object.entries(lastResult.judgmentCounts).map(([grade, count]) => (
+          {Object.entries(lastResult.judgmentCounts)
+            .filter(([grade]) => grade !== 'goodTrill')
+            .map(([grade, count]) => (
             <div key={grade} style={styles.judgmentRow}>
               <span style={styles.judgmentLabel}>{grade.toUpperCase()}:</span>
               <span style={styles.judgmentCount}>{count}</span>
             </div>
           ))}
           <div style={styles.judgmentRow}>
-            <span style={styles.judgmentLabel}>Good◇:</span>
+            <span style={styles.judgmentLabel}>GOOD◇:</span>
             <span style={styles.judgmentCount}>{lastResult.goodTrillCount}</span>
           </div>
         </div>

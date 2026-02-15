@@ -96,6 +96,7 @@ export function PlayScreen() {
             onJudgment: (result: JudgmentResult) => {
               scoreManager.recordJudgment(result.grade);
               renderer.showJudgment(result.grade);
+              renderer.updateAccuracy(scoreManager.getState().achievementRate);
               if (result.grade === 'miss') {
                 renderer.markBodyFailed(result.noteIndex);
               }

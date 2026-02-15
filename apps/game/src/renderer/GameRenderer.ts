@@ -5,7 +5,8 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, FillGradient } from "pixi.js";
+import type { FillInput } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "@not4k/shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "@not4k/shared";
 import { JudgmentGrade } from "@not4k/shared";
@@ -71,8 +72,13 @@ export class GameRenderer {
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
 
+  // Gradient cache
+  private bodyGradientCache = new Map<number, FillGradient>();
+  private keyBeamGradient: FillGradient | null = null;
+
   // UI elements
   private comboText: Text;
+  private accuracyText: Text;
   private judgmentText: Text;
 
   // Dimensions
@@ -103,6 +109,8 @@ export class GameRenderer {
     this.uiLayer = new Container();
 
     // Create UI text objects
+    const laneCenterY = this._judgmentLineY / 2;
+
     const comboStyle = new TextStyle({
       fontFamily: "Arial",
       fontSize: 48,
@@ -113,7 +121,18 @@ export class GameRenderer {
     this.comboText = new Text({ text: "", style: comboStyle });
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.x = this.width / 2;
-    this.comboText.y = this._judgmentLineY - 80;
+    this.comboText.y = laneCenterY - 20;
+
+    const accuracyStyle = new TextStyle({
+      fontFamily: "Arial",
+      fontSize: 20,
+      fill: 0xaaaaaa,
+      align: "center",
+    });
+    this.accuracyText = new Text({ text: "", style: accuracyStyle });
+    this.accuracyText.anchor.set(0.5, 0);
+    this.accuracyText.x = this.width / 2;
+    this.accuracyText.y = laneCenterY + 10;
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Arial",
@@ -151,6 +170,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.uiLayer);
 
     this.uiLayer.addChild(this.comboText);
+    this.uiLayer.addChild(this.accuracyText);
     this.uiLayer.addChild(this.judgmentText);
 
     // Draw static elements
@@ -182,6 +202,18 @@ export class GameRenderer {
   }
 
   private buildKeyBeams(): void {
+    this.keyBeamGradient = new FillGradient({
+      type: 'linear',
+      start: { x: 0, y: 0.5 },
+      end: { x: 1, y: 0.5 },
+      colorStops: [
+        { offset: 0, color: 'rgba(255,255,255,0)' },
+        { offset: 0.5, color: 'rgba(255,255,255,1)' },
+        { offset: 1, color: 'rgba(255,255,255,0)' },
+      ],
+      textureSpace: 'local',
+    });
+
     const segments = 24;
     const segmentHeight = Math.ceil(this.height / segments);
 
@@ -193,7 +225,7 @@ export class GameRenderer {
         const t = s / (segments - 1); // 0 at top, 1 at bottom
         const alpha = 0.5 * t;
         flash.rect(laneX, s * segmentHeight, LANE_WIDTH, segmentHeight + 1);
-        flash.fill({ color: 0xffffff, alpha });
+        flash.fill({ fill: this.keyBeamGradient, alpha });
       }
 
       flash.visible = false;
@@ -402,9 +434,10 @@ export class GameRenderer {
       ? COLORS.LONG_BODY_FAILED
       : this.getLongBodyColor(entity.type);
 
-    // Draw rectangular body for all long note types
+    // Draw rectangular body for all long note types (horizontal gradient)
+    const bodyGradient = this.getBodyGradient(bodyColor);
     bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
-    bodyGraphic.fill(bodyColor);
+    bodyGraphic.fill(bodyGradient);
 
     // trillLong: fill diamond corner gaps with body color
     if (entity.type === "trillLong" && bodyHeight > 0) {
@@ -429,7 +462,7 @@ export class GameRenderer {
       const endGraphic = new Graphics();
       endGraphic.x = laneX;
       endGraphic.y = endY;
-      this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5 });
+      this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5, gradient: true });
       this.longNoteEndLayer.addChild(endGraphic);
     }
 
@@ -438,7 +471,7 @@ export class GameRenderer {
       const headGraphic = new Graphics();
       headGraphic.x = laneX;
       headGraphic.y = startY;
-      this.drawNoteShape(headGraphic, entity.type, { color: bodyColor });
+      this.drawNoteShape(headGraphic, entity.type, { color: bodyColor, gradient: true });
       this.longNoteHeadLayer.addChild(headGraphic);
     }
   }
@@ -446,26 +479,36 @@ export class GameRenderer {
   private drawNoteShape(
     graphic: Graphics,
     type: string,
-    override?: { color?: number; alpha?: number },
+    override?: { color?: number; alpha?: number; gradient?: boolean },
   ): void {
     graphic.clear();
 
     const color = override?.color ?? this.getNoteColor(type);
-    const fillStyle = override?.alpha != null
-      ? { color, alpha: override.alpha }
-      : color;
+
+    // Build fill input
+    let fillInput: FillInput;
+    if (override?.gradient) {
+      const grad = this.getBodyGradient(color);
+      fillInput = override?.alpha != null
+        ? { fill: grad, alpha: override.alpha }
+        : grad;
+    } else {
+      fillInput = override?.alpha != null
+        ? { color, alpha: override.alpha }
+        : color;
+    }
 
     if (type === "trill" || type === "trillLong") {
       // Draw diamond (rotated square)
-      this.drawDiamond(graphic, fillStyle);
+      this.drawDiamond(graphic, fillInput);
     } else {
       // Draw rectangle
       graphic.rect(0, 0, NOTE_WIDTH, NOTE_HEIGHT);
-      graphic.fill(fillStyle);
+      graphic.fill(fillInput);
     }
   }
 
-  private drawDiamond(graphic: Graphics, fillStyle: number | { color: number; alpha: number }): void {
+  private drawDiamond(graphic: Graphics, fillStyle: FillInput): void {
     const centerX = NOTE_WIDTH / 2;
     const centerY = NOTE_HEIGHT / 2;
 
@@ -535,11 +578,37 @@ export class GameRenderer {
     return graphic;
   }
 
+  private getBodyGradient(color: number): FillGradient {
+    let gradient = this.bodyGradientCache.get(color);
+    if (!gradient) {
+      const r = (color >> 16) & 0xff;
+      const g = (color >> 8) & 0xff;
+      const b = color & 0xff;
+      // Edge: 70% toward white (lighter, opaque)
+      const lr = Math.round(r + (255 - r) * 0.7);
+      const lg = Math.round(g + (255 - g) * 0.7);
+      const lb = Math.round(b + (255 - b) * 0.7);
+      gradient = new FillGradient({
+        type: 'linear',
+        start: { x: 0, y: 0.5 },
+        end: { x: 1, y: 0.5 },
+        colorStops: [
+          { offset: 0, color: `rgb(${lr},${lg},${lb})` },
+          { offset: 0.5, color: `rgb(${r},${g},${b})` },
+          { offset: 1, color: `rgb(${lr},${lg},${lb})` },
+        ],
+        textureSpace: 'local',
+      });
+      this.bodyGradientCache.set(color, gradient);
+    }
+    return gradient;
+  }
+
   showJudgment(grade: JudgmentGrade): void {
     this.judgmentTimer = 500; // 500ms fade duration
 
     // Update text
-    const gradeText = grade.toUpperCase();
+    const gradeText = grade === "goodTrill" ? "GOOD◇" : grade.toUpperCase();
     this.judgmentText.text = gradeText;
 
     // Update color
@@ -576,6 +645,10 @@ export class GameRenderer {
     }
   }
 
+  updateAccuracy(rate: number): void {
+    this.accuracyText.text = `${rate.toFixed(2)}%`;
+  }
+
   set scrollSpeed(value: number) {
     this._scrollSpeed = value;
   }
@@ -609,5 +682,11 @@ export class GameRenderer {
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
     this.keyBeamGraphics = [];
+    for (const g of this.bodyGradientCache.values()) g.destroy();
+    this.bodyGradientCache.clear();
+    if (this.keyBeamGradient) {
+      this.keyBeamGradient.destroy();
+      this.keyBeamGradient = null;
+    }
   }
 }
