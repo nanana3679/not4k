@@ -22,26 +22,9 @@
 
 ## 1. 미해결 모순 (Contradictions)
 
-### 1-1. 프로젝트 구조 불일치
+### 1-1. 프로젝트 구조 불일치 — **해결 완료**
 
-**심각도: 높음**
-
-PRD와 README는 `packages/{core,game,editor,server}` 구조를 사용하고, tech-stack.md와 mvp-scope.md는 `apps/{game,editor}` + `packages/shared` 구조를 사용한다.
-
-| 문서 | 구조 |
-|------|------|
-| `prd.md` (§4.1~4.4) | `packages/game`, `packages/editor`, `packages/core`, `packages/server` |
-| `README.md` (프로젝트 예상 구조) | `packages/game`, `packages/editor`, `packages/core`, `packages/server` |
-| `tech-stack.md` (§8 모노레포) | `apps/game`, `apps/editor`, `packages/shared` |
-| `mvp-scope.md` (§Phase A) | `apps/game`, `apps/editor`, `packages/shared` |
-
-추가로 공유 패키지의 이름이 다르다:
-- PRD/README: `packages/core` — models, validation, timing, chart-io
-- tech-stack.md/mvp-scope.md: `packages/shared` — types, chart, constants
-
-**`packages/server`의 존재 여부도 불일치한다.** PRD/README는 `packages/server`를 별도 패키지로 정의하지만, tech-stack.md의 배포 아키텍처(§6)에서는 Supabase가 서버 역할을 하며 별도 서버 패키지가 없다. mvp-scope.md에도 server 패키지가 없다.
-
-**권장**: tech-stack.md/mvp-scope.md의 `apps/` + `packages/shared` 구조가 실제 구현 계획에 가까우므로, PRD와 README를 이에 맞춰 수정해야 한다.
+모노레포(`apps/web/` + `packages/shared/`)에서 단일 패키지(`src/`)로 전환하면서 모든 문서를 통일했다. 현재 구조: `src/{game,editor,supabase,shared}`. PRD, tech-stack.md, mvp-scope.md 모두 동일한 경로를 참조한다.
 
 ---
 
@@ -152,9 +135,7 @@ review.md에서 이미 추적 중인 항목은 중복 기재하지 않으며 참
 
 ### 미해결 — 우선순위 높음
 
-| # | 유형 | 내용 | 관련 문서 |
-|---|------|------|-----------|
-| 1-1 | 모순 | 프로젝트 구조 `packages/` vs `apps/` | PRD, README, tech-stack, mvp-scope |
+(해결 완료 — 해당 없음)
 
 ### 미해결 — 우선순위 중간
 

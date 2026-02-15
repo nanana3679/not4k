@@ -2,7 +2,7 @@
 
 > 결정: React 19 + PixiJS v8 + Supabase + Web Audio API (AudioContext)
 > 런타임: Node.js 22 LTS
-> 모노레포: pnpm workspaces + Turborepo
+> 패키지 매니저: pnpm
 > 배포: Cloudflare Pages + Supabase Storage
 > 다국어: 한국어, 일본어, 영어
 
@@ -19,9 +19,8 @@
 | **파일 스토리지** | Supabase Storage | 음원, 차트 JSON, 자켓 이미지 |
 | **인증** | Supabase Auth | Google OAuth, 비로그인(Anonymous Auth) |
 | **호스팅** | Cloudflare Pages | 정적 사이트 배포, CDN |
-| **런타임** | Node.js 22 LTS | 개발 도구 실행 환경 (Vite, Turborepo, 빌드) |
-| **패키지 매니저** | pnpm | 워크스페이스, 심볼릭 링크, strict 의존성 |
-| **모노레포** | pnpm workspaces + Turborepo | 게임 + 에디터 + 공유 패키지 |
+| **런타임** | Node.js 22 LTS | 개발 도구 실행 환경 (Vite, 빌드) |
+| **패키지 매니저** | pnpm | strict 의존성 해석, 디스크 효율적 |
 | **다국어** | i18next + react-i18next | 한국어, 일본어, 영어 |
 
 ---
@@ -500,7 +499,6 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 - Vite 개발 서버 (`vite dev`)
 - 빌드 (`vite build`)
-- Turborepo 태스크 실행
 - 테스트 (`vitest`)
 - 기타 개발 스크립트
 
@@ -508,8 +506,7 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 | 요구사항 | Node.js 22 LTS |
 |----------|----------------|
-| pnpm workspaces | 네이티브 지원 |
-| Turborepo | 공식 지원 |
+| pnpm | 네이티브 지원 |
 | Vite | 공식 지원 |
 | @pixi/react v8 | 검증됨 |
 | Cloudflare Pages 빌드 환경 | Node.js |
@@ -520,75 +517,46 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 | 대안 | 불채택 이유 |
 |------|------------|
-| **Bun** | pnpm + Turborepo + Vite와 기능이 중복되어 "Bun만의 이점"이 줄어듦. @pixi/react v8이 Bun에서 미검증. Cloudflare Pages 빌드에 별도 설치 필요 |
-| **Deno** | pnpm workspaces 미지원, Turborepo 미지원. 도구 체인 전체 재설계 필요 |
+| **Bun** | pnpm + Vite와 기능이 중복되어 "Bun만의 이점"이 줄어듦. @pixi/react v8이 Bun에서 미검증. Cloudflare Pages 빌드에 별도 설치 필요 |
+| **Deno** | pnpm 미지원. 도구 체인 전체 재설계 필요 |
 
 ---
 
-## 8. 모노레포: pnpm workspaces + Turborepo
+## 8. 프로젝트 구조: 단일 패키지
 
-### 모노레포를 선택하는 이유
+### 단일 패키지를 선택하는 이유
 
-게임과 차트 에디터(`chart-editor.md`)는 별도 애플리케이션이지만, 핵심 데이터 구조를 공유한다.
+게임과 차트 에디터는 하나의 웹 앱으로 통합되어 있고, 공유 코드(`src/shared`)도 내부 전용이다. 앱이 하나뿐이므로 모노레포(워크스페이스, 빌드 오케스트레이션)의 오버헤드가 불필요하다. 단일 패키지에서 디렉토리 분리만으로 충분히 관리할 수 있다.
 
-| 공유 대상 | 내용 | 분리 시 위험 |
-|----------|------|-------------|
-| **차트 JSON 타입** | NoteType, BpmMarker, TimeSignatureMarker, Beat(분수), ChartData | 타입 불일치 → 차트 로딩 실패 |
-| **박자 수학** | 분수 연산, beat → 시간(ms) 변환, 마디선 위치 계산 | 로직 중복, 결과 불일치 |
-| **배치 제약 검증** | `chart-editor.md`의 3가지 제약 조건 | 에디터에서 유효한 차트가 게임에서 무효 |
-| **상수** | 노트 타입 enum, 판정 윈도우 | 값 불일치 |
+### 프로젝트 구조
 
-분리 레포에서는 이 공유 요소를 npm 패키지로 게시하거나 복사해야 한다. 1인/소규모 팀에서 이 오버헤드는 과도하다. 모노레포에서는 `packages/shared`에서 한 번 정의하고 양쪽에서 import한다.
-
-### 도구 선택
-
-| 도구 | 역할 | 선택 이유 |
-|------|------|----------|
-| **pnpm** | 패키지 매니저 + 워크스페이스 | npm보다 빠르고, 디스크 효율적(심볼릭 링크), strict 의존성 해석 |
-| **Turborepo** | 빌드 오케스트레이션 | 캐시 기반 빌드(변경 없는 패키지 스킵), 병렬 태스크, 설정 최소 |
-
-**불채택 대안**:
-
-| 대안 | 불채택 이유 |
-|------|------------|
-| Nx | 2개 앱 + 1개 패키지 규모에서 설정 복잡도가 과도 |
-| Lerna | pnpm workspaces에 기능이 흡수됨 |
-| npm workspaces | pnpm보다 느리고 팬텀 의존성 문제 |
-
-### 모노레포 구조
-
-게임과 에디터는 하나의 웹 앱(`apps/web`)으로 통합되어 있으며, 라우팅(`/editor`)으로 분리된다. 별도의 빌드·배포 파이프라인이 필요 없고, `packages/shared`의 타입/로직을 양쪽이 동일하게 import한다.
+게임과 에디터는 라우팅(`/editor`)으로 분리된다. 공유 코드는 `src/shared/`에 위치하며 상대 경로로 import한다.
 
 ```
 not4k/
-├── apps/
-│   └── web/                     # 게임 + 에디터 통합 웹 앱 (React 19 + PixiJS v8)
-│       ├── src/
-│       │   ├── game/            # 게임 클라이언트 (화면, 렌더러, 게임 로직)
-│       │   ├── editor/          # 차트 에디터 (타임라인, 모드, 에디터 로직)
-│       │   ├── supabase/        # Supabase 클라이언트 설정
-│       │   ├── main.tsx         # 앱 진입점
-│       │   └── global.css
-│       ├── package.json
-│       └── vite.config.ts
-├── packages/
-│   └── shared/                  # 공유 패키지
-│       ├── types/               # ChartData, NoteEntity, EventMarker, Beat 등
-│       ├── chart/               # 분수 박자 연산, 차트 유틸리티
-│       ├── timing/              # beat→time 변환, BPM 마커 처리
-│       ├── validation/          # 배치 제약 조건 검증
-│       ├── constants/           # 노트 타입 enum, 판정 윈도우
-│       ├── storage/             # Supabase Storage 접근 유틸리티
-│       ├── index.ts
-│       └── package.json
+├── src/
+│   ├── game/                # 게임 클라이언트 (화면, 렌더러, 게임 로직)
+│   ├── editor/              # 차트 에디터 (타임라인, 모드, 에디터 로직)
+│   ├── supabase/            # Supabase 클라이언트 설정
+│   ├── shared/              # 공유 도메인
+│   │   ├── types/           # ChartData, NoteEntity, EventMarker, Beat 등
+│   │   ├── chart/           # 분수 박자 연산, 차트 유틸리티
+│   │   ├── timing/          # beat→time 변환, BPM 마커 처리
+│   │   ├── validation/      # 배치 제약 조건 검증
+│   │   ├── constants/       # 노트 타입 enum, 판정 윈도우
+│   │   ├── storage/         # Supabase Storage 접근 유틸리티
+│   │   └── index.ts
+│   ├── main.tsx             # 앱 진입점
+│   └── global.css
 ├── docs/
-│   ├── spec/                    # 설계 스펙 문서
-│   ├── context/                 # 배경·맥락 문서
-│   └── research/                # 리서치 문서
-├── pnpm-workspace.yaml
-├── turbo.json
-├── package.json                 # root scripts
-└── tsconfig.base.json           # 공통 TypeScript 설정
+│   ├── spec/                # 설계 스펙 문서
+│   ├── context/             # 배경·맥락 문서
+│   └── research/            # 리서치 문서
+├── e2e/                     # Playwright E2E 테스트
+├── index.html
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
 ### 차트 에디터 기술 스택
@@ -607,11 +575,11 @@ not4k/
 
 ### 에디터 배포
 
-게임과 에디터가 하나의 앱(`apps/web`)으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터 경로(`/editor`)에 대한 접근 제한은 필요 시 Cloudflare Access 등으로 처리한다.
+게임과 에디터가 하나의 앱으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터 경로(`/editor`)에 대한 접근 제한은 필요 시 Cloudflare Access 등으로 처리한다.
 
 | 단계 | 배포 방식 | 이유 |
 |------|----------|------|
-| Phase A | 로컬 실행 (`pnpm dev --filter web`) + `/editor` 경로 접근 | 개발자만 사용, 배포 불필요 |
+| Phase A | 로컬 실행 (`pnpm dev`) + `/editor` 경로 접근 | 개발자만 사용, 배포 불필요 |
 | Phase B+ | Cloudflare Pages에 게임과 함께 배포, `/editor` 경로에 접근 제한 | 필요 시 Cloudflare Access로 제한 |
 
 ---
