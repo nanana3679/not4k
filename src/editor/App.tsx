@@ -15,8 +15,8 @@ import { serializeChart } from '../shared';
 import { STORAGE_BUCKET, songChartPath } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
-import { msToBeat, beatToMs, extractBpmMarkers } from '../shared';
-import type { Beat, Lane, Chart, ChartMeta } from '../shared';
+import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
+import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
 import { SongListPage } from './pages/SongListPage';
 import { LoginPage } from './pages/LoginPage';
@@ -69,6 +69,7 @@ function ChartEditorPage() {
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
   const isDraggingCursorRef = useRef(false);
+  const rightDragDeletedRef = useRef(false);
   const cKeyHeldRef = useRef(false);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -580,7 +581,11 @@ function ChartEditorPage() {
     }
 
     // Right-click (button 2) should not trigger entity creation or selection
-    if (e.button === 2) return;
+    if (e.button === 2) {
+      rightDragDeletedRef.current = false;
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
 
     if (mode === 'create' && createModeRef.current) {
       if (!isTimeInBounds(y)) return;
@@ -611,6 +616,44 @@ function ChartEditorPage() {
     if (isDraggingCursorRef.current && rendererRef.current) {
       const timeMs = rendererRef.current.yToTime(y);
       playbackRef.current?.seekTo(Math.max(0, timeMs));
+      return;
+    }
+
+    // Right-click drag delete
+    if (e.buttons & 2) {
+      const lane = xToLane(x);
+      if (!lane) return;
+      const beat = yToBeat(y);
+      const beatFloat = beat.n / beat.d;
+
+      const current = useEditorStore.getState().chart;
+      for (let i = 0; i < current.notes.length; i++) {
+        const note = current.notes[i];
+        if (note.lane !== lane) continue;
+        const nb = note.beat.n / note.beat.d;
+        if ('endBeat' in note) {
+          const eb = note.endBeat.n / note.endBeat.d;
+          if (beatFloat >= nb && beatFloat <= eb) {
+            rightDragDeletedRef.current = true;
+            const newNotes = current.notes.filter((_: unknown, idx: number) => idx !== i);
+            let newTrillZones = current.trillZones;
+            if (note.type === 'singleLong' || note.type === 'doubleLong' || note.type === 'trillLong') {
+              const rangeNote = note as RangeNote;
+              newTrillZones = current.trillZones.filter((zone: { lane: Lane; beat: Beat; endBeat: Beat }) =>
+                !(zone.lane === rangeNote.lane && beatEq(zone.beat, rangeNote.beat) && beatEq(zone.endBeat, rangeNote.endBeat))
+              );
+            }
+            setChart({ ...current, notes: newNotes, trillZones: newTrillZones });
+            return;
+          }
+        } else {
+          if (Math.abs(beatFloat - nb) < 1 / 16) {
+            rightDragDeletedRef.current = true;
+            setChart({ ...current, notes: current.notes.filter((_: unknown, idx: number) => idx !== i) });
+            return;
+          }
+        }
+      }
       return;
     }
 
@@ -684,6 +727,10 @@ function ChartEditorPage() {
 
     if (isDraggingCursorRef.current) {
       isDraggingCursorRef.current = false;
+      return;
+    }
+
+    if (e.button === 2) {
       return;
     }
 
@@ -805,6 +852,11 @@ function ChartEditorPage() {
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+
+    // Suppress context menu after right-drag delete
+    if (rightDragDeletedRef.current) {
+      return;
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
