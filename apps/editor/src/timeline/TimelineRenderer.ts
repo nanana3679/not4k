@@ -6,7 +6,7 @@
  * Vertical timeline (time flows bottom-to-top)
  */
 
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, FillGradient } from "pixi.js";
 import type {
   Chart,
   Beat,
@@ -66,6 +66,7 @@ export class TimelineRenderer {
   private selectedLongHeadLayer!: Container;
   private selectedNoteLayer!: Container;
   private ghostLayer!: Container;
+  private boxSelectLayer!: Container;
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
   private scrollbarLayer!: Container;
@@ -82,6 +83,10 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
+  private _boxSelectRect: { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane } | null = null;
+
+  // Gradient cache
+  private bodyGradientCache = new Map<number, FillGradient>();
 
   // Chart data
   private chart: Chart | null = null;
@@ -126,6 +131,7 @@ export class TimelineRenderer {
     this.selectedLongHeadLayer = new Container();
     this.selectedNoteLayer = new Container();
     this.ghostLayer = new Container();
+    this.boxSelectLayer = new Container();
     this.measureLabels = new Container();
     this.playbackCursorLayer = new Container();
 
@@ -145,6 +151,7 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.selectedLongHeadLayer);
     this.app.stage.addChild(this.selectedNoteLayer);
     this.app.stage.addChild(this.ghostLayer);
+    this.app.stage.addChild(this.boxSelectLayer);
     this.app.stage.addChild(this.measureLabels);
     this.app.stage.addChild(this.playbackCursorLayer);
 
@@ -235,6 +242,17 @@ export class TimelineRenderer {
   /** Clear move origin ghosts */
   clearMoveOrigins(): void {
     this._moveOrigins = null;
+  }
+
+  /** Set box select rectangle for visual feedback */
+  setBoxSelectRect(rect: { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane }): void {
+    this._boxSelectRect = rect;
+  }
+
+  /** Clear box select rectangle */
+  clearBoxSelectRect(): void {
+    this._boxSelectRect = null;
+    this.boxSelectLayer.removeChildren();
   }
 
   /**
@@ -356,6 +374,7 @@ export class TimelineRenderer {
       this.selectedLongHeadLayer,
       this.selectedNoteLayer,
       this.ghostLayer,
+      this.boxSelectLayer,
       this.measureLabels,
       this.playbackCursorLayer,
     ];
@@ -380,6 +399,7 @@ export class TimelineRenderer {
     this.renderGridLines();
     this.renderTrillZones();
     this.renderMoveOrigins();
+    this.renderBoxSelectRect();
     this.renderNotes();
     this.renderMarkers();
     this.updateScroll();
@@ -406,6 +426,7 @@ export class TimelineRenderer {
     this.selectedLongEndLayer.removeChildren();
     this.selectedLongHeadLayer.removeChildren();
     this.selectedNoteLayer.removeChildren();
+    this.boxSelectLayer.removeChildren();
     this.measureLabels.removeChildren();
   }
 
@@ -673,6 +694,36 @@ export class TimelineRenderer {
   }
 
   /**
+   * Render box select rectangle overlay.
+   */
+  private renderBoxSelectRect(): void {
+    this.boxSelectLayer.removeChildren();
+    if (!this._boxSelectRect || !this.chart) return;
+
+    const { startBeat, startLane, endBeat, endLane } = this._boxSelectRect;
+    const bpmMarkers = extractBpmMarkers(this.chart.events);
+    const meta = this.chart.meta;
+
+    const y1 = this.timeToY(beatToMs(startBeat, bpmMarkers, meta.offsetMs));
+    const y2 = this.timeToY(beatToMs(endBeat, bpmMarkers, meta.offsetMs));
+
+    const minLane = Math.min(startLane, endLane);
+    const maxLane = Math.max(startLane, endLane);
+    const x1 = (minLane - 1) * LANE_WIDTH;
+    const x2 = maxLane * LANE_WIDTH;
+
+    const topY = Math.min(y1, y2);
+    const height = Math.max(y1, y2) - topY;
+    const width = x2 - x1;
+
+    const gfx = new Graphics();
+    gfx.rect(x1, topY, width, height);
+    gfx.fill({ color: 0x4488ff, alpha: 0.15 });
+    gfx.stroke({ width: 1, color: 0x4488ff, alpha: 0.6 });
+    this.boxSelectLayer.addChild(gfx);
+  }
+
+  /**
    * Render notes (point and range notes)
    */
   private renderNotes(): void {
@@ -763,6 +814,32 @@ export class TimelineRenderer {
   /**
    * Render a range note (long note body)
    */
+  private getBodyGradient(color: number): FillGradient {
+    let gradient = this.bodyGradientCache.get(color);
+    if (!gradient) {
+      const r = (color >> 16) & 0xff;
+      const g = (color >> 8) & 0xff;
+      const b = color & 0xff;
+      // Edge: 70% toward white (lighter, opaque)
+      const lr = Math.round(r + (255 - r) * 0.7);
+      const lg = Math.round(g + (255 - g) * 0.7);
+      const lb = Math.round(b + (255 - b) * 0.7);
+      gradient = new FillGradient({
+        type: 'linear',
+        start: { x: 0, y: 0.5 },
+        end: { x: 1, y: 0.5 },
+        colorStops: [
+          { offset: 0, color: `rgb(${lr},${lg},${lb})` },
+          { offset: 0.5, color: `rgb(${r},${g},${b})` },
+          { offset: 1, color: `rgb(${lr},${lg},${lb})` },
+        ],
+        textureSpace: 'local',
+      });
+      this.bodyGradientCache.set(color, gradient);
+    }
+    return gradient;
+  }
+
   private renderRangeNote(note: RangeNote, isSelected: boolean): void {
     if (!this.chart) return;
 
@@ -801,8 +878,9 @@ export class TimelineRenderer {
     if (bodyHeight > 0) {
       const body = new Graphics();
       const bodyX = x + (LANE_WIDTH - w) / 2;
+      const bodyGradient = this.getBodyGradient(bodyColor);
       body.rect(bodyX, bodyTopY, w, bodyHeight);
-      body.fill(bodyColor);
+      body.fill(bodyGradient);
 
       // Fill diamond corner gaps for trillLong (seamless body-to-head/end connection)
       if (note.type === "trillLong") {
@@ -827,7 +905,8 @@ export class TimelineRenderer {
       }
     }
 
-    // Long note head (start point)
+    // Long note head (start point) — horizontal gradient
+    const headGradient = this.getBodyGradient(bodyColor);
     const head = new Graphics();
     if (note.type === "trillLong") {
       const cx = x + LANE_WIDTH / 2;
@@ -836,12 +915,12 @@ export class TimelineRenderer {
       head.lineTo(cx, startY + h / 2);
       head.lineTo(cx - w / 2, startY);
       head.lineTo(cx, startY - h / 2);
-      head.fill(bodyColor);
+      head.fill(headGradient);
     } else {
       const headX = x + (LANE_WIDTH - w) / 2;
       const headY = startY - h / 2;
       head.rect(headX, headY, w, h);
-      head.fill(bodyColor);
+      head.fill(headGradient);
     }
 
     if (isSelected) {
@@ -851,7 +930,7 @@ export class TimelineRenderer {
       this.longNoteHeadLayer.addChild(head);
     }
 
-    // Long note end (end point) — 50% alpha for visual distinction
+    // Long note end (end point) — 50% alpha + horizontal gradient
     const end = new Graphics();
     if (note.type === "trillLong") {
       const cx = x + LANE_WIDTH / 2;
@@ -860,12 +939,12 @@ export class TimelineRenderer {
       end.lineTo(cx, endY + h / 2);
       end.lineTo(cx - w / 2, endY);
       end.lineTo(cx, endY - h / 2);
-      end.fill({ color: bodyColor, alpha: 0.5 });
+      end.fill({ fill: headGradient, alpha: 0.5 });
     } else {
       const endX = x + (LANE_WIDTH - w) / 2;
       const endNoteY = endY - h / 2;
       end.rect(endX, endNoteY, w, h);
-      end.fill({ color: bodyColor, alpha: 0.5 });
+      end.fill({ fill: headGradient, alpha: 0.5 });
     }
 
     if (isSelected) {
@@ -1169,6 +1248,8 @@ export class TimelineRenderer {
     canvas.removeEventListener('pointerup', this.boundScrollbarPointerUp);
     canvas.removeEventListener('pointerleave', this.boundScrollbarPointerUp);
     this.initialized = false;
+    for (const g of this.bodyGradientCache.values()) g.destroy();
+    this.bodyGradientCache.clear();
     this.app.destroy(true, { children: true });
   }
 }

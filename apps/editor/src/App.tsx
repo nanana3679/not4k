@@ -652,6 +652,15 @@ function ChartEditorPage() {
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerMove(x, y);
 
+      // Box select rectangle
+      if (selectModeRef.current.isBoxSelecting && rendererRef.current) {
+        const rect = selectModeRef.current.boxSelectRect;
+        if (rect) {
+          rendererRef.current.setBoxSelectRect(rect);
+          rendererRef.current.render();
+        }
+      }
+
       // Show move origin ghosts during drag
       if (selectModeRef.current.isMoveDragging && rendererRef.current) {
         const origins = selectModeRef.current.moveOrigins;
@@ -690,6 +699,7 @@ function ChartEditorPage() {
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerUp(x, y);
       rendererRef.current?.clearMoveOrigins();
+      rendererRef.current?.clearBoxSelectRect();
     }
   }, [mode, isTimeInBounds]);
 

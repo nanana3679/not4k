@@ -32,6 +32,8 @@ export class SelectMode {
   private dragType: "move" | "boxSelect" | "resize" | null = null;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
+  private _boxEndBeat: Beat | null = null;
+  private _boxEndLane: Lane | null = null;
 
   // Move state
   private originalPositions: Map<
@@ -77,6 +79,23 @@ export class SelectMode {
   /** Original positions of notes being moved (available during move drag) */
   get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: Lane }> {
     return this.originalPositions;
+  }
+
+  /** Whether a box select drag is currently in progress */
+  get isBoxSelecting(): boolean {
+    return this.isDragging && this.dragType === "boxSelect";
+  }
+
+  /** Current box select rectangle (available during box select drag) */
+  get boxSelectRect(): { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane } | null {
+    if (!this.isBoxSelecting || !this.dragStartBeat || !this.dragStartLane
+        || !this._boxEndBeat || !this._boxEndLane) return null;
+    return {
+      startBeat: this.dragStartBeat,
+      startLane: this.dragStartLane,
+      endBeat: this._boxEndBeat,
+      endLane: this._boxEndLane,
+    };
   }
 
   /** Clear selection */
@@ -282,8 +301,28 @@ export class SelectMode {
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
-      // Box select is handled in onPointerUp
-      // Could implement preview here if needed
+      this._boxEndBeat = this.callbacks.yToBeat(y);
+      this._boxEndLane = this.callbacks.xToLane(x);
+
+      if (this.dragStartBeat && this.dragStartLane && this._boxEndBeat && this._boxEndLane) {
+        const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
+          ? this.dragStartBeat : this._boxEndBeat;
+        const maxBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
+          ? this._boxEndBeat : this.dragStartBeat;
+        const minLane = Math.min(this.dragStartLane, this._boxEndLane);
+        const maxLane = Math.max(this.dragStartLane, this._boxEndLane);
+
+        this.selectedIndices.clear();
+        for (let i = 0; i < this.chart.notes.length; i++) {
+          const note = this.chart.notes[i];
+          if (note.lane >= minLane && note.lane <= maxLane
+              && beatSub(note.beat, minBeat).n >= 0
+              && beatSub(maxBeat, note.beat).n >= 0) {
+            this.selectedIndices.add(i);
+          }
+        }
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+      }
     }
   }
 
@@ -346,6 +385,8 @@ export class SelectMode {
       }
     }
 
+    this._boxEndBeat = null;
+    this._boxEndLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
