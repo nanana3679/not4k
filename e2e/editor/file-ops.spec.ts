@@ -5,7 +5,7 @@ const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures');
 
 test.describe('Editor File Operations', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/editor');
     await page.waitForSelector('canvas');
   });
 

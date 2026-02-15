@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
-import { loadSongData } from '../supabase';
+import { loadSongData } from '../../supabase';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();

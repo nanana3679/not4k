@@ -3,8 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.29.3",
   "scripts": {
-    "dev:game": "turbo dev --filter=@not4k/game",
-    "dev:editor": "turbo dev --filter=@not4k/editor",
+    "dev:web": "turbo dev --filter=@not4k/web",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",

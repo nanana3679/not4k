@@ -25,7 +25,7 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
 });
 
 async function navigateToSongSelect(page: Page) {
-  await page.goto('/');
+  await page.goto('/game');
   await page.evaluate(
     (s) => localStorage.setItem('not4k-settings', s),
     NON_FIRST_LAUNCH_SETTINGS

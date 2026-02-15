@@ -23,13 +23,13 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
 
 test.describe('Game Navigation', () => {
   test('title screen shows Start button', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await expect(page.getByRole('heading', { name: 'not4k' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
   });
 
   test('first launch: Start navigates to preset setup', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -40,7 +40,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('preset setup: TKL navigates to song select', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -50,7 +50,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('preset setup: Numpad navigates to song select', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -60,7 +60,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('non-first launch: Start goes directly to song select', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await page.evaluate(
       (s) => localStorage.setItem('not4k-settings', s),
       NON_FIRST_LAUNCH_SETTINGS
@@ -72,7 +72,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('settings and back navigation', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/game');
     await page.evaluate(
       (s) => localStorage.setItem('not4k-settings', s),
       NON_FIRST_LAUNCH_SETTINGS

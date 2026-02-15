@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { supabase } from '../supabase';
+import { supabase } from '../../supabase';
 import { useEditorStore } from '../stores';
 import {
   STORAGE_BUCKET,

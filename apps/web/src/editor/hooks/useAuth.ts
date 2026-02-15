@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../supabase';
+import { supabase } from '../../supabase';
 import type { User } from '@supabase/supabase-js';
 
 async function fetchIsAdmin(uid: string): Promise<boolean> {
@@ -52,7 +52,7 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin + '/editor' },
     });
     if (error) throw error;
   };

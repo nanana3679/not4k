@@ -13,12 +13,12 @@ import { useEditorStore } from './stores';
 import { useAuth } from './hooks/useAuth';
 import { serializeChart } from '@not4k/shared';
 import { STORAGE_BUCKET, songChartPath } from '@not4k/shared';
-import { supabase } from './supabase';
+import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers } from '@not4k/shared';
 import type { Beat, Lane } from '@not4k/shared';
 
-export function App() {
+export function EditorApp() {
   const { activePage } = useEditorStore();
   const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
 

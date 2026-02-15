@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Editor Toolbar', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/editor');
     await page.waitForSelector('canvas');
   });
 

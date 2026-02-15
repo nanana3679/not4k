@@ -9,7 +9,7 @@ import {
   SettingsScreen,
 } from './screens';
 
-export function App() {
+export function GameApp() {
   const screen = useGameStore((state) => state.screen);
 
   switch (screen) {

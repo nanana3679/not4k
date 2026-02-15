@@ -16,7 +16,7 @@ export default defineConfig({
       name: 'editor',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:3001',
+        baseURL: 'http://localhost:3000',
         launchOptions: {
           args: ['--use-gl=swiftshader'],
         },
@@ -35,18 +35,10 @@ export default defineConfig({
       testDir: './e2e/game',
     },
   ],
-  webServer: [
-    {
-      command: 'pnpm dev:editor',
-      url: 'http://localhost:3001',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30000,
-    },
-    {
-      command: 'pnpm dev:game',
-      url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30000,
-    },
-  ],
+  webServer: {
+    command: 'pnpm dev:web',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30000,
+  },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useGameStore } from '../stores';
-import { supabase } from '../supabase';
+import { supabase } from '../../supabase';
 
 interface DbChart {
   id: string;
