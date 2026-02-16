@@ -5,8 +5,13 @@
  */
 
 import type { NoteEntity, RangeNote } from "../../shared";
-import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
-import { NoteType } from "../../shared";
+import {
+  JudgmentGrade,
+  JUDGMENT_WINDOWS,
+  GRACE_PERIOD_MS,
+  NoteType,
+  LONG_NOTE_TYPES,
+} from "../../shared";
 import type { Lane } from "../../shared";
 
 /**
@@ -45,6 +50,8 @@ enum NoteState {
   BODY_ACTIVE = "bodyActive",
   /** 바디 실패 (홀드 끊김) */
   BODY_FAILED = "bodyFailed",
+  /** 끝점 도달, 키 유지 중 — 릴리즈 대기 (종결 판정) */
+  BODY_AWAITING_RELEASE = "bodyAwaitingRelease",
   /** 완전히 처리 완료 */
   COMPLETE = "complete",
 }
@@ -61,6 +68,16 @@ interface DoubleNoteState {
   firstGrade?: JudgmentGrade;
   /** 첫 번째 입력의 타이밍 차이 */
   firstDeltaMs?: number;
+}
+
+/**
+ * 롱노트 바디 추적 상태
+ */
+interface LongNoteBodyState {
+  /** 시작점 허용 구간 내에서 키가 눌린 적 있는지 */
+  hasBeenPressed: boolean;
+  /** 시작점 시간 (ms) */
+  bodyStartTimeMs: number;
 }
 
 /**
@@ -92,6 +109,8 @@ export class JudgmentEngine {
   private readonly trillAlternation: Map<Lane, string | null> = new Map();
   /** 레인별 홀드 상태 */
   private readonly laneHoldStates: Map<Lane, LaneHoldState> = new Map();
+  /** 롱노트별 바디 추적 상태 */
+  private readonly longNoteBodyStates: Map<number, LongNoteBodyState> = new Map();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -142,6 +161,13 @@ export class JudgmentEngine {
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
+    // Grace period 내 재입력 시 릴리즈 기록 클리어 (프레임 기반 오판 방지)
+    if (
+      holdState.lastReleaseTimeMs !== null &&
+      timestampMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS
+    ) {
+      holdState.lastReleaseTimeMs = null;
+    }
 
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
     const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs);
@@ -187,6 +213,50 @@ export class JudgmentEngine {
     if (holdState.heldKeys.size === 0) {
       holdState.isHeld = false;
       holdState.lastReleaseTimeMs = timestampMs;
+
+      // 릴리즈 시점 끝점 판정 시도
+      this.tryEndpointJudgmentOnRelease(lane, timestampMs);
+    }
+  }
+
+  /**
+   * 레인의 모든 키가 릴리즈되었을 때 끝점 판정 시도
+   */
+  private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      const state = this.noteStates.get(i);
+      if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_AWAITING_RELEASE) {
+        continue;
+      }
+
+      const note = this.notes[i] as RangeNote;
+      if (note.lane !== lane) continue;
+
+      const noteEndTime = this.noteEndTimesMs.get(i);
+      if (noteEndTime === undefined) continue;
+
+      if (state === NoteState.BODY_ACTIVE) {
+        // 끝점 판정 윈도우 내 릴리즈인지 확인 (Good 이전 ~ Bad 이후)
+        if (
+          releaseTimeMs >= noteEndTime - JUDGMENT_WINDOWS.GOOD &&
+          releaseTimeMs <= noteEndTime + JUDGMENT_WINDOWS.BAD
+        ) {
+          const isConnection = this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime);
+
+          if (isConnection) {
+            // 연결 대상: 모든 키 릴리즈 = held 아님 → Miss
+            this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+            this.noteStates.set(i, NoteState.COMPLETE);
+            this.breakCombo();
+          } else {
+            // 종결 대상: 릴리즈 타이밍 기반 판정
+            this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+          }
+        }
+      } else {
+        // BODY_AWAITING_RELEASE: 끝점 도달 후 릴리즈 대기 중이던 노트
+        this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+      }
     }
   }
 
@@ -398,10 +468,16 @@ export class JudgmentEngine {
   ): void {
     const note = this.notes[noteIndex] as RangeNote;
 
+    const noteTime = this.noteTimesMs.get(noteIndex);
+
     if (note.type === NoteType.SINGLE_LONG) {
       const grade = this.calculateGrade(deltaMs);
       this.emitJudgment(noteIndex, grade, 0, deltaMs);
       this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
+      this.longNoteBodyStates.set(noteIndex, {
+        hasBeenPressed: true,
+        bodyStartTimeMs: noteTime ?? 0,
+      });
 
       if (this.isComboMaintaining(grade)) {
         this.incrementCombo();
@@ -415,22 +491,84 @@ export class JudgmentEngine {
       const doubleState = this.doubleNoteStates.get(noteIndex);
       if (doubleState?.firstInputReceived && this.noteStates.get(noteIndex) === NoteState.COMPLETE) {
         this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
+        this.longNoteBodyStates.set(noteIndex, {
+          hasBeenPressed: true,
+          bodyStartTimeMs: noteTime ?? 0,
+        });
       }
     } else if (note.type === NoteType.TRILL_LONG) {
       this.processTrillNoteInput(noteIndex, deltaMs, keyCode, lane);
       this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
+      this.longNoteBodyStates.set(noteIndex, {
+        hasBeenPressed: true,
+        bodyStartTimeMs: noteTime ?? 0,
+      });
     }
   }
 
   /**
    * 롱노트 바디 홀드 체크
    *
-   * 바디 구간 중 키를 떼도 즉시 실패하지 않는다.
-   * 여러 키를 빠르게 입력할 때 의도치 않은 릴리스가 발생할 수 있으므로,
-   * 판정은 바디 끝 시점(checkLongNoteBodyEnd)에서만 처리한다.
+   * 매 프레임 호출되어 BODY_ACTIVE 노트의 홀드 상태를 검증한다.
+   * - 시작점 허용: 헤드 판정 후 Good 윈도우(120ms) 내에서 키 입력 대기
+   * - 끝점 허용: 끝점 Good 윈도우(-120ms) 진입 시 끝점 판정에 위임
+   * - Grace period: 12ms 이내 릴리즈는 허용
    */
-  private checkLongNoteBodyHold(_songTimeMs: number): void {
-    // No-op: 바디 중 릴리스에 대한 즉시 실패 판정을 하지 않음
+  private checkLongNoteBodyHold(songTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      const state = this.noteStates.get(i);
+      if (state !== NoteState.BODY_ACTIVE) continue;
+
+      const note = this.notes[i] as RangeNote;
+      const noteEndTime = this.noteEndTimesMs.get(i);
+      if (noteEndTime === undefined) continue;
+
+      const bodyState = this.longNoteBodyStates.get(i);
+      if (!bodyState) continue;
+
+      const holdState = this.laneHoldStates.get(note.lane);
+      if (!holdState) continue;
+
+      // 1. 시작점 허용 구간 (+120ms)
+      if (!bodyState.hasBeenPressed) {
+        if (songTimeMs <= bodyState.bodyStartTimeMs + JUDGMENT_WINDOWS.GOOD) {
+          if (holdState.isHeld) {
+            bodyState.hasBeenPressed = true;
+          }
+          // 아직 허용 구간 내 — skip
+          continue;
+        } else {
+          // 허용 구간 초과, 키 입력 없음 → 실패
+          this.noteStates.set(i, NoteState.BODY_FAILED);
+          this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+          this.breakCombo();
+          continue;
+        }
+      }
+
+      // 2. 끝점 허용 구간 (-120ms) — 끝점 판정에 위임
+      if (songTimeMs >= noteEndTime - JUDGMENT_WINDOWS.GOOD) {
+        continue;
+      }
+
+      // 3. Grace period (12ms)
+      if (holdState.isHeld) {
+        // 키 눌림 — OK
+        continue;
+      }
+
+      // 키가 안 눌려있음 — grace period 체크
+      if (
+        holdState.lastReleaseTimeMs !== null &&
+        songTimeMs - holdState.lastReleaseTimeMs > GRACE_PERIOD_MS
+      ) {
+        // Grace period 초과 → 실패
+        this.noteStates.set(i, NoteState.BODY_FAILED);
+        this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+        this.breakCombo();
+      }
+      // grace period 이내 → 유예 중, skip
+    }
   }
 
   /**
@@ -439,7 +577,11 @@ export class JudgmentEngine {
   private checkLongNoteBodyEnd(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
       const state = this.noteStates.get(i);
-      if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_FAILED) {
+      if (
+        state !== NoteState.BODY_ACTIVE &&
+        state !== NoteState.BODY_FAILED &&
+        state !== NoteState.BODY_AWAITING_RELEASE
+      ) {
         continue;
       }
 
@@ -447,17 +589,27 @@ export class JudgmentEngine {
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
 
-      // 바디 끝 시점을 지났는지 확인
-      if (songTimeMs < noteEndTime) continue;
-
-      // 바디 실패 상태면 이미 Miss 처리됨
+      // --- BODY_FAILED: 끝점 도달 시 COMPLETE (판정은 이미 emit됨) ---
       if (state === NoteState.BODY_FAILED) {
-        this.noteStates.set(i, NoteState.COMPLETE);
+        if (songTimeMs >= noteEndTime) {
+          this.noteStates.set(i, NoteState.COMPLETE);
+        }
         continue;
       }
 
-      // 다음 노트가 바로 이어지는지 확인 (sustain vs release)
-      const isSustain = this.hasImmediateFollowingNote(i, note.lane, noteEndTime);
+      // --- BODY_AWAITING_RELEASE: 타임아웃 체크 ---
+      if (state === NoteState.BODY_AWAITING_RELEASE) {
+        if (songTimeMs > noteEndTime + JUDGMENT_WINDOWS.BAD) {
+          // 릴리즈 없이 BAD 윈도우 초과 → Miss 타임아웃
+          this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
+          this.noteStates.set(i, NoteState.COMPLETE);
+          this.breakCombo();
+        }
+        continue;
+      }
+
+      // --- BODY_ACTIVE: 끝점 도달 체크 ---
+      if (songTimeMs < noteEndTime) continue;
 
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) {
@@ -465,10 +617,17 @@ export class JudgmentEngine {
         continue;
       }
 
-      if (isSustain) {
-        // Sustain 판정: 끝 시점에 눌려있으면 Perfect, 아니면 Miss
-        const grade = holdState.isHeld ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
+      const isConnection = this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime);
+      const isHeldOrGrace =
+        holdState.isHeld ||
+        (holdState.lastReleaseTimeMs !== null &&
+          songTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
+
+      if (isConnection) {
+        // 연결 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
+        const grade = isHeldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
         this.emitJudgment(i, grade, undefined, 0);
+        this.noteStates.set(i, NoteState.COMPLETE);
 
         if (this.isComboMaintaining(grade)) {
           this.incrementCombo();
@@ -476,36 +635,27 @@ export class JudgmentEngine {
           this.breakCombo();
         }
       } else {
-        // Release 판정: 타이밍 기반, Good 이상이면 Perfect로 업그레이드
-        const deltaMs = songTimeMs - noteEndTime;
-        let grade = this.calculateGrade(deltaMs);
-
-        if (
-          grade === JudgmentGrade.GOOD ||
-          grade === JudgmentGrade.GREAT ||
-          grade === JudgmentGrade.PERFECT
-        ) {
-          grade = JudgmentGrade.PERFECT;
-        }
-
-        this.emitJudgment(i, grade, undefined, deltaMs);
-
-        if (this.isComboMaintaining(grade)) {
-          this.incrementCombo();
+        // 종결 판정
+        if (holdState.isHeld) {
+          // 키 유지 중 → 릴리즈 대기
+          this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+        } else if (holdState.lastReleaseTimeMs !== null) {
+          // 이미 릴리즈됨 → 릴리즈 시점 기준 판정
+          this.executeTerminationJudgment(i, holdState.lastReleaseTimeMs, noteEndTime);
         } else {
+          // 릴리즈 기록 없음 → Miss
+          this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+          this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
         }
       }
-
-      this.noteStates.set(i, NoteState.COMPLETE);
     }
   }
 
   /**
-   * 해당 노트 바로 다음에 같은 레인의 노트가 이어지는지 확인
+   * 해당 노트 바로 다음에 같은 레인의 롱노트가 이어지는지 확인 (연결 판정 대상)
    */
-  private hasImmediateFollowingNote(noteIndex: number, lane: Lane, endTimeMs: number): boolean {
-    // 바로 다음 노트가 endTimeMs와 거의 동시에 시작하면 sustain
+  private hasImmediateFollowingLongNote(noteIndex: number, lane: Lane, endTimeMs: number): boolean {
     const threshold = 10; // 10ms 이내면 immediate로 간주
 
     for (let i = noteIndex + 1; i < this.notes.length; i++) {
@@ -516,7 +666,7 @@ export class JudgmentEngine {
       if (nextNoteTime === undefined) continue;
 
       if (Math.abs(nextNoteTime - endTimeMs) <= threshold) {
-        return true;
+        return LONG_NOTE_TYPES.has(nextNote.type);
       }
 
       // 다음 노트가 너무 멀면 중단
@@ -544,6 +694,38 @@ export class JudgmentEngine {
       return JudgmentGrade.BAD;
     } else {
       return JudgmentGrade.MISS;
+    }
+  }
+
+  /**
+   * 종결 판정 실행 (릴리즈 타이밍 기반)
+   *
+   * Good 이상 → Perfect로 상향, Bad → Bad, Miss → Miss.
+   * 콤보 처리 + COMPLETE 전환까지 수행.
+   */
+  private executeTerminationJudgment(
+    noteIndex: number,
+    releaseTimeMs: number,
+    endTimeMs: number,
+  ): void {
+    const deltaMs = releaseTimeMs - endTimeMs;
+    let grade = this.calculateGrade(deltaMs);
+
+    if (
+      grade === JudgmentGrade.GOOD ||
+      grade === JudgmentGrade.GREAT ||
+      grade === JudgmentGrade.PERFECT
+    ) {
+      grade = JudgmentGrade.PERFECT;
+    }
+
+    this.emitJudgment(noteIndex, grade, undefined, deltaMs);
+    this.noteStates.set(noteIndex, NoteState.COMPLETE);
+
+    if (this.isComboMaintaining(grade)) {
+      this.incrementCombo();
+    } else {
+      this.breakCombo();
     }
   }
 

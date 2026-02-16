@@ -11,6 +11,13 @@ export const JUDGMENT_WINDOWS = {
 } as const;
 
 /**
+ * 바디 유지 판정 grace period (ms)
+ *
+ * 키를 잠깐 떼었다 다시 눌러도 유지로 인정하는 허용 시간.
+ */
+export const GRACE_PERIOD_MS = 12;
+
+/**
  * 판정 등급
  */
 export const JudgmentGrade = {

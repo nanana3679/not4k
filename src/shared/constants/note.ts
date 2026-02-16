@@ -30,6 +30,13 @@ export const RANGE_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
   NoteType.MESSAGE,
 ]);
 
+/** 롱노트 타입 (시작점+바디+끝점을 가지는 판정 대상) */
+export const LONG_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
+  NoteType.SINGLE_LONG,
+  NoteType.DOUBLE_LONG,
+  NoteType.TRILL_LONG,
+]);
+
 /** 레인 수 */
 export const LANE_COUNT = 4;
 
