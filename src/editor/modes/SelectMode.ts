@@ -6,6 +6,8 @@ export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
   onSelectionChange: (selectedIndices: Set<number>) => void;
   yToBeat: (y: number) => Beat;
+  /** Raw y-to-beat without snap grid (for box select) */
+  yToBeatRaw: (y: number) => Beat;
   snapBeat: (beat: Beat) => Beat;
   /** Get the snap grid step as a Beat (= beat(4, snapDivision)) */
   getSnapStep: () => Beat;
@@ -34,6 +36,11 @@ export class SelectMode {
   private dragStartLane: Lane | null = null;
   private _boxEndBeat: Beat | null = null;
   private _boxEndLane: Lane | null = null;
+
+  // Box select pixel state (for rendering)
+  private _boxStartY: number = 0;
+  private _boxStartLane: Lane | null = null;
+  private _boxEndY: number = 0;
 
   // Move state
   private originalPositions: Map<
@@ -86,14 +93,13 @@ export class SelectMode {
     return this.isDragging && this.dragType === "boxSelect";
   }
 
-  /** Current box select rectangle (available during box select drag) */
-  get boxSelectRect(): { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane } | null {
-    if (!this.isBoxSelecting || !this.dragStartBeat || !this.dragStartLane
-        || !this._boxEndBeat || !this._boxEndLane) return null;
+  /** Current box select rectangle in pixel Y coords (for rendering) */
+  get boxSelectPixelRect(): { startY: number; startLane: Lane; endY: number; endLane: Lane } | null {
+    if (!this.isBoxSelecting || !this._boxStartLane || !this._boxEndLane) return null;
     return {
-      startBeat: this.dragStartBeat,
-      startLane: this.dragStartLane,
-      endBeat: this._boxEndBeat,
+      startY: this._boxStartY,
+      startLane: this._boxStartLane,
+      endY: this._boxEndY,
       endLane: this._boxEndLane,
     };
   }
@@ -200,8 +206,11 @@ export class SelectMode {
         this.clearSelection();
         this.isDragging = true;
         this.dragType = "boxSelect";
-        this.dragStartBeat = this.callbacks.yToBeat(y);
+        this.dragStartBeat = this.callbacks.yToBeatRaw(y);
         this.dragStartLane = this.callbacks.xToLane(x);
+        this._boxStartY = y;
+        this._boxStartLane = this.callbacks.xToLane(x);
+        this._boxEndY = y;
       }
     }
   }
@@ -301,8 +310,9 @@ export class SelectMode {
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
-      this._boxEndBeat = this.callbacks.yToBeat(y);
+      this._boxEndBeat = this.callbacks.yToBeatRaw(y);
       this._boxEndLane = this.callbacks.xToLane(x);
+      this._boxEndY = y;
 
       if (this.dragStartBeat && this.dragStartLane && this._boxEndBeat && this._boxEndLane) {
         const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
@@ -353,7 +363,7 @@ export class SelectMode {
       this.confirmPlacement();
     } else if (this.dragType === "boxSelect") {
       // Select notes in rectangle
-      const endBeat = this.callbacks.yToBeat(y);
+      const endBeat = this.callbacks.yToBeatRaw(y);
       const endLane = this.callbacks.xToLane(x);
 
       if (this.dragStartBeat && this.dragStartLane && endLane !== null) {

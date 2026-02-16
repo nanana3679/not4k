@@ -21,8 +21,6 @@ interface PreviewRangeSelectorProps {
 // ---------------------------------------------------------------------------
 
 const CANVAS_HEIGHT = 80;
-const MIN_DURATION = 5;
-const MAX_DURATION = 30;
 const DEFAULT_DURATION = 15;
 const HANDLE_HIT_PX = 6;
 const COLOR_WAVE = '#4488ff';
@@ -317,17 +315,13 @@ export function PreviewRangeSelector({ audioBuffer, onChange }: PreviewRangeSele
     const selDuration = dragEndTimeRef.current - dragStartTimeRef.current;
 
     if (dragMode === 'start') {
-      // Resize from start handle
-      const maxStart = dragEndTimeRef.current - MIN_DURATION;
-      const minStart = Math.max(0, dragEndTimeRef.current - MAX_DURATION);
-      const newStart = clamp(t, minStart, maxStart);
+      // Resize from start handle — free range, just keep start < end
+      const newStart = clamp(t, 0, dragEndTimeRef.current - 0.1);
       setStartTime(newStart);
       setEndTime(dragEndTimeRef.current);
     } else if (dragMode === 'end') {
-      // Resize from end handle
-      const minEnd = dragStartTimeRef.current + MIN_DURATION;
-      const maxEnd = Math.min(duration, dragStartTimeRef.current + MAX_DURATION);
-      const newEnd = clamp(t, minEnd, maxEnd);
+      // Resize from end handle — free range, just keep end > start
+      const newEnd = clamp(t, dragStartTimeRef.current + 0.1, duration);
       setStartTime(dragStartTimeRef.current);
       setEndTime(newEnd);
     } else if (dragMode === 'move') {

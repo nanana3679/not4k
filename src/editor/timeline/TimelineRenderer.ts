@@ -86,7 +86,7 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
-  private _boxSelectRect: { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane } | null = null;
+  private _boxSelectRect: { startY: number; startLane: Lane; endY: number; endLane: Lane } | null = null;
 
   // Gradient cache
   private bodyGradientCache = new Map<number, FillGradient>();
@@ -278,8 +278,8 @@ export class TimelineRenderer {
     this._moveOrigins = null;
   }
 
-  /** Set box select rectangle for visual feedback */
-  setBoxSelectRect(rect: { startBeat: Beat; startLane: Lane; endBeat: Beat; endLane: Lane }): void {
+  /** Set box select rectangle for visual feedback (pixel Y coords) */
+  setBoxSelectRect(rect: { startY: number; startLane: Lane; endY: number; endLane: Lane }): void {
     this._boxSelectRect = rect;
   }
 
@@ -738,12 +738,10 @@ export class TimelineRenderer {
     this.boxSelectLayer.removeChildren();
     if (!this._boxSelectRect || !this.chart) return;
 
-    const { startBeat, startLane, endBeat, endLane } = this._boxSelectRect;
-    const bpmMarkers = this.cachedBpmMarkers;
-    const meta = this.chart.meta;
+    const { startY, startLane, endY, endLane } = this._boxSelectRect;
 
-    const y1 = this.timeToY(beatToMs(startBeat, bpmMarkers, meta.offsetMs));
-    const y2 = this.timeToY(beatToMs(endBeat, bpmMarkers, meta.offsetMs));
+    const y1 = startY;
+    const y2 = endY;
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);

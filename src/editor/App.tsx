@@ -152,6 +152,17 @@ function ChartEditorPage() {
     return { n: k * 4, d: snapDivision };
   }, [bpmMarkers, chart.meta.offsetMs, snapDivision]);
 
+  // Raw y-to-beat without snap (for box select)
+  const yToBeatRaw = useCallback((y: number): Beat => {
+    if (!rendererRef.current) return { n: 0, d: 1 };
+    const timeMs = rendererRef.current.yToTime(y);
+    const beatFloat = msToBeat(timeMs, bpmMarkers, chart.meta.offsetMs);
+    // High-precision beat without grid snapping
+    const d = 960;
+    const n = Math.round(beatFloat * d);
+    return { n, d };
+  }, [bpmMarkers, chart.meta.offsetMs]);
+
   // Helper: Snap Beat
   const snapBeat = useCallback((beat: Beat): Beat => {
     if (!snapZoomRef.current) return beat;
@@ -167,6 +178,7 @@ function ChartEditorPage() {
 
   // Callback refs to avoid stale closures in mode handlers
   const yToBeatRef = useRef(yToBeat);
+  const yToBeatRawRef = useRef(yToBeatRaw);
   const getMaxBeatFloatRef = useRef(getMaxBeatFloat);
   const hitTestNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestNoteEndRef = useRef<(x: number, y: number) => number | null>(() => null);
@@ -296,6 +308,7 @@ function ChartEditorPage() {
   // Sync callback refs (avoids stale closures in mode handlers)
   useEffect(() => {
     yToBeatRef.current = yToBeat;
+    yToBeatRawRef.current = yToBeatRaw;
     getMaxBeatFloatRef.current = getMaxBeatFloat;
     hitTestNoteRef.current = hitTestNote;
     hitTestNoteEndRef.current = hitTestNoteEnd;
@@ -383,6 +396,7 @@ function ChartEditorPage() {
       onChartUpdate: setChart,
       onSelectionChange: setSelectedNotes,
       yToBeat: (y) => yToBeatRef.current(y),
+      yToBeatRaw: (y) => yToBeatRawRef.current(y),
       snapBeat,
       getSnapStep: () => {
         const sd = snapZoomRef.current?.snapDivision ?? 4;
@@ -699,7 +713,7 @@ function ChartEditorPage() {
 
       // Box select rectangle
       if (selectModeRef.current.isBoxSelecting && rendererRef.current) {
-        const rect = selectModeRef.current.boxSelectRect;
+        const rect = selectModeRef.current.boxSelectPixelRect;
         if (rect) {
           rendererRef.current.setBoxSelectRect(rect);
           rendererRef.current.render();
