@@ -7,9 +7,10 @@ import {
 
 export interface ScoreState {
   totalNotes: number; // total judgment count (each judgment = 1)
+  processedNotes: number; // judgments recorded so far
   maxPossibleScore: number; // totalNotes * 3 (all Perfect)
   earnedScore: number; // sum of judgment scores
-  achievementRate: number; // (earnedScore / maxPossibleScore) * 100, or 0 if no notes
+  achievementRate: number; // (earnedScore / processedNotes*3) * 100, based on processed notes
   rank: Rank; // computed from achievementRate
   combo: number;
   maxCombo: number;
@@ -20,6 +21,7 @@ export interface ScoreState {
 
 export class ScoreManager {
   private totalNotes: number;
+  private processedNotes: number;
   private earnedScore: number;
   private combo: number;
   private maxCombo: number;
@@ -28,6 +30,7 @@ export class ScoreManager {
 
   constructor(totalJudgmentCount: number) {
     this.totalNotes = totalJudgmentCount;
+    this.processedNotes = 0;
     this.earnedScore = 0;
     this.combo = 0;
     this.maxCombo = 0;
@@ -44,7 +47,8 @@ export class ScoreManager {
 
   /** Record a judgment result */
   recordJudgment(grade: JudgmentGrade): void {
-    // Update score
+    // Update processed count and score
+    this.processedNotes++;
     this.earnedScore += JUDGMENT_SCORES[grade];
 
     // Update judgment counts
@@ -71,11 +75,13 @@ export class ScoreManager {
   /** Get current scoring state (read-only snapshot) */
   getState(): Readonly<ScoreState> {
     const maxPossibleScore = this.totalNotes * 3;
+    const processedMaxScore = this.processedNotes * 3;
     const achievementRate =
-      maxPossibleScore > 0 ? (this.earnedScore / maxPossibleScore) * 100 : 0;
+      processedMaxScore > 0 ? (this.earnedScore / processedMaxScore) * 100 : 0;
 
     return {
       totalNotes: this.totalNotes,
+      processedNotes: this.processedNotes,
       maxPossibleScore,
       earnedScore: this.earnedScore,
       achievementRate,
@@ -91,6 +97,7 @@ export class ScoreManager {
   /** Reset all state */
   reset(totalJudgmentCount: number): void {
     this.totalNotes = totalJudgmentCount;
+    this.processedNotes = 0;
     this.earnedScore = 0;
     this.combo = 0;
     this.maxCombo = 0;

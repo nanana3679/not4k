@@ -336,9 +336,10 @@ export function SongSelectScreen() {
       setLoading(false);
       return;
     }
-    setSongs((data ?? []) as DbSong[]);
+    const allSongs = (data ?? []) as DbSong[];
+    setSongs(isAdmin ? allSongs : allSongs.filter((s) => s.charts.length > 0));
     setLoading(false);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => { fetchSongs(); }, [fetchSongs]);
 
