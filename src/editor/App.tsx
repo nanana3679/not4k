@@ -10,44 +10,127 @@ import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from '../shared/hooks/useAuth';
+import { deserializeChart, STORAGE_BUCKET, songChartPath } from '../shared';
 import { serializeChart } from '../shared';
-import { STORAGE_BUCKET, songChartPath } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
-import { SongListPage } from './pages/SongListPage';
-import { LoginPage } from './pages/LoginPage';
+
+function getPublicUrl(path: string): string {
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
 
 export default function EditorApp() {
-  const { activePage } = useEditorStore();
-  const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
+  const { user, isAdmin, loading, signOut } = useAuth();
+  const setChart = useEditorStore((s) => s.setChart);
+  const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
+  const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
 
-  if (loading) {
+  const [chartLoading, setChartLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const initRef = useRef(false);
+
+  // Parse URL parameters
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const songId = params.get('songId');
+  const difficulty = params.get('difficulty');
+  const isLocal = params.get('local') === '1';
+
+  // Load chart from URL params or local storage
+  useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
+    if (isLocal) {
+      // Load from sessionStorage (set by SongSelectScreen)
+      const stored = sessionStorage.getItem('not4k-local-chart');
+      if (stored) {
+        try {
+          const chart = deserializeChart(stored);
+          setChart(chart);
+          setActiveSongId(null);
+          sessionStorage.removeItem('not4k-local-chart');
+        } catch {
+          setError('Failed to load local chart');
+        }
+      } else {
+        setError('No local chart data found');
+      }
+      setChartLoading(false);
+      return;
+    }
+
+    if (!songId || !difficulty) {
+      // No params — redirect to game song select
+      window.location.href = '/game';
+      return;
+    }
+
+    // Fetch chart from supabase storage
+    const url = getPublicUrl(songChartPath(songId, difficulty));
+    fetch(url, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
+        return res.text();
+      })
+      .then((text) => {
+        const chart = deserializeChart(text);
+        setChart(chart);
+        setActiveSongId(songId);
+
+        // Fetch audio URL from songs table
+        return supabase.from('songs').select('audio_url').eq('id', songId).single();
+      })
+      .then((result) => {
+        if (result && result.data?.audio_url) {
+          setPendingAudioUrl(getPublicUrl(result.data.audio_url));
+        }
+        setChartLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : String(err));
+        setChartLoading(false);
+      });
+  }, [songId, difficulty, isLocal, setChart, setActiveSongId, setPendingAudioUrl]);
+
+  if (loading || chartLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>Loading...</div>;
   }
 
-  if (!user) {
-    return <LoginPage onSignIn={signInWithGoogle} />;
-  }
-
-  if (!isAdmin) {
+  if (!user || !isAdmin) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', gap: '16px' }}>
         <h2 style={{ margin: 0, fontSize: '20px' }}>Access Denied</h2>
         <p style={{ margin: 0, color: '#888', fontSize: '14px' }}>관리자 권한이 필요합니다.</p>
-        <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>{user.email}</p>
-        <button onClick={signOut} style={{ marginTop: '8px', padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-          Sign Out
-        </button>
+        {user && <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>{user.email}</p>}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {user ? (
+            <button onClick={signOut} style={{ padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+              Sign Out
+            </button>
+          ) : null}
+          <button onClick={() => { window.location.href = '/game'; }} style={{ padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+            Back to Songs
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (activePage === 'songList') {
-    return <SongListPage onSignOut={signOut} />;
+  if (error) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', gap: '16px' }}>
+        <h2 style={{ margin: 0, fontSize: '20px', color: '#f88' }}>Error</h2>
+        <p style={{ margin: 0, color: '#888', fontSize: '14px' }}>{error}</p>
+        <button onClick={() => { window.location.href = '/game'; }} style={{ padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+          Back to Songs
+        </button>
+      </div>
+    );
   }
 
   return <ChartEditorPage />;
@@ -103,7 +186,6 @@ function ChartEditorPage() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const selectedNotes = useEditorStore((s) => s.selectedNotes);
-  const setActivePage = useEditorStore((s) => s.setActivePage);
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
@@ -1071,14 +1153,14 @@ function ChartEditorPage() {
       if (storageError) throw new Error(`Storage delete failed: ${storageError.message}`);
 
       addToast('Chart deleted', 'info');
-      setActivePage('songList');
+      window.location.href = '/game';
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       addToast(message, 'error');
     } finally {
       setDeleting(false);
     }
-  }, [chart, activeSongId, addToast, setActivePage]);
+  }, [chart, activeSongId, addToast]);
 
   // Marker edit handlers
   const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
@@ -1163,7 +1245,7 @@ function ChartEditorPage() {
             if (isDirty) {
               setShowLeaveConfirm(true);
             } else {
-              setActivePage('songList');
+              window.location.href = '/game';
             }
           }}
           title="Back to song list"
@@ -1373,7 +1455,7 @@ function ChartEditorPage() {
               저장되지 않은 변경사항이 있습니다. 나가시겠습니까?
             </p>
             <div style={modalStyles.buttons}>
-              <button style={modalStyles.deleteBtn} onClick={() => { setShowLeaveConfirm(false); setActivePage('songList'); }}>
+              <button style={modalStyles.deleteBtn} onClick={() => { setShowLeaveConfirm(false); window.location.href = '/game'; }}>
                 Leave
               </button>
               <button style={modalStyles.cancelBtn} onClick={() => setShowLeaveConfirm(false)}>
