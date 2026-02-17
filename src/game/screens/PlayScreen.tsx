@@ -84,6 +84,16 @@ export function PlayScreen() {
         renderer.setLift(600 * settings.liftPercent / 100);
         renderer.setSudden(600 * settings.suddenPercent / 100);
 
+        // Setup keyboard layout display
+        const laneBindingsMap = new Map<string, number>();
+        Object.entries(settings.keyBindings).forEach(([lane, keys]) => {
+          const laneNum = parseInt(lane.replace('lane', ''));
+          (keys as string[]).forEach((key) => {
+            laneBindingsMap.set(key, laneNum);
+          });
+        });
+        renderer.setupKeyboardDisplay(laneBindingsMap);
+
         // Create score manager
         const scoreManager = new ScoreManager(totalJudgments || 1);
 
@@ -121,11 +131,13 @@ export function PlayScreen() {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
             judgmentEngine.onLanePress(lane, songTimeMs, keyCode);
             renderer.setKeyBeam(lane, true);
+            renderer.setKeyState(keyCode, true);
           },
           onLaneRelease: (lane, _timestampMs, keyCode) => {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
             judgmentEngine.onLaneRelease(lane, songTimeMs, keyCode);
             renderer.setKeyBeam(lane, false);
+            renderer.setKeyState(keyCode, false);
           },
         });
 

@@ -21,6 +21,145 @@ import {
   COLORS,
 } from "./constants";
 
+// Keyboard layout display constants
+const KB_KEY_SIZE = 10;
+const KB_KEY_GAP = 1;
+const KB_KEY_STEP = KB_KEY_SIZE + KB_KEY_GAP;
+
+interface KbKeyDef {
+  code: string;
+  label: string;
+  x: number; // position in key-units
+  y: number;
+  w?: number; // width in key-units (default 1)
+}
+
+// Full TKL keyboard layout (ANSI)
+const KB_TKL_KEYS: KbKeyDef[] = [
+  // Function row (y=0)
+  { code: 'Escape', label: 'Es', x: 0, y: 0 },
+  { code: 'F1', label: 'F1', x: 2, y: 0 },
+  { code: 'F2', label: 'F2', x: 3, y: 0 },
+  { code: 'F3', label: 'F3', x: 4, y: 0 },
+  { code: 'F4', label: 'F4', x: 5, y: 0 },
+  { code: 'F5', label: 'F5', x: 6.5, y: 0 },
+  { code: 'F6', label: 'F6', x: 7.5, y: 0 },
+  { code: 'F7', label: 'F7', x: 8.5, y: 0 },
+  { code: 'F8', label: 'F8', x: 9.5, y: 0 },
+  { code: 'F9', label: 'F9', x: 11, y: 0 },
+  { code: 'F10', label: 'F10', x: 12, y: 0 },
+  { code: 'F11', label: 'F11', x: 13, y: 0 },
+  { code: 'F12', label: 'F12', x: 14, y: 0 },
+  { code: 'PrintScreen', label: 'Pr', x: 15.5, y: 0 },
+  { code: 'ScrollLock', label: 'SL', x: 16.5, y: 0 },
+  { code: 'Pause', label: 'Pa', x: 17.5, y: 0 },
+  // Number row (y=1.5)
+  { code: 'Backquote', label: '`', x: 0, y: 1.5 },
+  { code: 'Digit1', label: '1', x: 1, y: 1.5 },
+  { code: 'Digit2', label: '2', x: 2, y: 1.5 },
+  { code: 'Digit3', label: '3', x: 3, y: 1.5 },
+  { code: 'Digit4', label: '4', x: 4, y: 1.5 },
+  { code: 'Digit5', label: '5', x: 5, y: 1.5 },
+  { code: 'Digit6', label: '6', x: 6, y: 1.5 },
+  { code: 'Digit7', label: '7', x: 7, y: 1.5 },
+  { code: 'Digit8', label: '8', x: 8, y: 1.5 },
+  { code: 'Digit9', label: '9', x: 9, y: 1.5 },
+  { code: 'Digit0', label: '0', x: 10, y: 1.5 },
+  { code: 'Minus', label: '-', x: 11, y: 1.5 },
+  { code: 'Equal', label: '=', x: 12, y: 1.5 },
+  { code: 'Backspace', label: 'Bk', x: 13, y: 1.5, w: 2 },
+  { code: 'Insert', label: 'In', x: 15.5, y: 1.5 },
+  { code: 'Home', label: 'Hm', x: 16.5, y: 1.5 },
+  { code: 'PageUp', label: 'PU', x: 17.5, y: 1.5 },
+  // QWERTY row (y=2.5)
+  { code: 'Tab', label: 'Tab', x: 0, y: 2.5, w: 1.5 },
+  { code: 'KeyQ', label: 'Q', x: 1.5, y: 2.5 },
+  { code: 'KeyW', label: 'W', x: 2.5, y: 2.5 },
+  { code: 'KeyE', label: 'E', x: 3.5, y: 2.5 },
+  { code: 'KeyR', label: 'R', x: 4.5, y: 2.5 },
+  { code: 'KeyT', label: 'T', x: 5.5, y: 2.5 },
+  { code: 'KeyY', label: 'Y', x: 6.5, y: 2.5 },
+  { code: 'KeyU', label: 'U', x: 7.5, y: 2.5 },
+  { code: 'KeyI', label: 'I', x: 8.5, y: 2.5 },
+  { code: 'KeyO', label: 'O', x: 9.5, y: 2.5 },
+  { code: 'KeyP', label: 'P', x: 10.5, y: 2.5 },
+  { code: 'BracketLeft', label: '[', x: 11.5, y: 2.5 },
+  { code: 'BracketRight', label: ']', x: 12.5, y: 2.5 },
+  { code: 'Backslash', label: '\\', x: 13.5, y: 2.5, w: 1.5 },
+  { code: 'Delete', label: 'De', x: 15.5, y: 2.5 },
+  { code: 'End', label: 'En', x: 16.5, y: 2.5 },
+  { code: 'PageDown', label: 'PD', x: 17.5, y: 2.5 },
+  // Home row (y=3.5)
+  { code: 'CapsLock', label: 'Cap', x: 0, y: 3.5, w: 1.75 },
+  { code: 'KeyA', label: 'A', x: 1.75, y: 3.5 },
+  { code: 'KeyS', label: 'S', x: 2.75, y: 3.5 },
+  { code: 'KeyD', label: 'D', x: 3.75, y: 3.5 },
+  { code: 'KeyF', label: 'F', x: 4.75, y: 3.5 },
+  { code: 'KeyG', label: 'G', x: 5.75, y: 3.5 },
+  { code: 'KeyH', label: 'H', x: 6.75, y: 3.5 },
+  { code: 'KeyJ', label: 'J', x: 7.75, y: 3.5 },
+  { code: 'KeyK', label: 'K', x: 8.75, y: 3.5 },
+  { code: 'KeyL', label: 'L', x: 9.75, y: 3.5 },
+  { code: 'Semicolon', label: ';', x: 10.75, y: 3.5 },
+  { code: 'Quote', label: "'", x: 11.75, y: 3.5 },
+  { code: 'Enter', label: 'Ent', x: 12.75, y: 3.5, w: 2.25 },
+  // Z row (y=4.5)
+  { code: 'ShiftLeft', label: 'Sh', x: 0, y: 4.5, w: 2.25 },
+  { code: 'KeyZ', label: 'Z', x: 2.25, y: 4.5 },
+  { code: 'KeyX', label: 'X', x: 3.25, y: 4.5 },
+  { code: 'KeyC', label: 'C', x: 4.25, y: 4.5 },
+  { code: 'KeyV', label: 'V', x: 5.25, y: 4.5 },
+  { code: 'KeyB', label: 'B', x: 6.25, y: 4.5 },
+  { code: 'KeyN', label: 'N', x: 7.25, y: 4.5 },
+  { code: 'KeyM', label: 'M', x: 8.25, y: 4.5 },
+  { code: 'Comma', label: ',', x: 9.25, y: 4.5 },
+  { code: 'Period', label: '.', x: 10.25, y: 4.5 },
+  { code: 'Slash', label: '/', x: 11.25, y: 4.5 },
+  { code: 'ShiftRight', label: 'Sh', x: 12.25, y: 4.5, w: 2.75 },
+  { code: 'ArrowUp', label: '↑', x: 16.5, y: 4.5 },
+  // Bottom row (y=5.5)
+  { code: 'ControlLeft', label: 'Ct', x: 0, y: 5.5, w: 1.25 },
+  { code: 'MetaLeft', label: 'Wi', x: 1.25, y: 5.5, w: 1.25 },
+  { code: 'AltLeft', label: 'Alt', x: 2.5, y: 5.5, w: 1.25 },
+  { code: 'Space', label: '', x: 3.75, y: 5.5, w: 6.25 },
+  { code: 'AltRight', label: 'Alt', x: 10, y: 5.5, w: 1.25 },
+  { code: 'MetaRight', label: 'Wi', x: 11.25, y: 5.5, w: 1.25 },
+  { code: 'ContextMenu', label: 'Mn', x: 12.5, y: 5.5, w: 1.25 },
+  { code: 'ControlRight', label: 'Ct', x: 13.75, y: 5.5, w: 1.25 },
+  { code: 'ArrowLeft', label: '←', x: 15.5, y: 5.5 },
+  { code: 'ArrowDown', label: '↓', x: 16.5, y: 5.5 },
+  { code: 'ArrowRight', label: '→', x: 17.5, y: 5.5 },
+];
+
+// Numpad keys (shown only when numpad bindings exist)
+const KB_NUMPAD_KEYS: KbKeyDef[] = [
+  { code: 'NumLock', label: 'NL', x: 19, y: 1.5 },
+  { code: 'NumpadDivide', label: '/', x: 20, y: 1.5 },
+  { code: 'NumpadMultiply', label: '*', x: 21, y: 1.5 },
+  { code: 'NumpadSubtract', label: '-', x: 22, y: 1.5 },
+  { code: 'Numpad7', label: '7', x: 19, y: 2.5 },
+  { code: 'Numpad8', label: '8', x: 20, y: 2.5 },
+  { code: 'Numpad9', label: '9', x: 21, y: 2.5 },
+  { code: 'NumpadAdd', label: '+', x: 22, y: 2.5 },
+  { code: 'Numpad4', label: '4', x: 19, y: 3.5 },
+  { code: 'Numpad5', label: '5', x: 20, y: 3.5 },
+  { code: 'Numpad6', label: '6', x: 21, y: 3.5 },
+  { code: 'Numpad1', label: '1', x: 19, y: 4.5 },
+  { code: 'Numpad2', label: '2', x: 20, y: 4.5 },
+  { code: 'Numpad3', label: '3', x: 21, y: 4.5 },
+  { code: 'NumpadEnter', label: 'En', x: 22, y: 4.5 },
+  { code: 'Numpad0', label: '0', x: 19, y: 5.5, w: 2 },
+  { code: 'NumpadDecimal', label: '.', x: 21, y: 5.5 },
+];
+
+const KB_IDLE_COLORS: Record<number, number> = {
+  1: 0x662222, 2: 0x663333, 3: 0x223366, 4: 0x222266,
+};
+
+const KB_PRESSED_COLORS: Record<number, number> = {
+  1: 0xff4444, 2: 0xff6655, 3: 0x5588ff, 4: 0x4466ff,
+};
+
 export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
@@ -86,6 +225,13 @@ export class GameRenderer {
   private height: number;
 
   private canvas: HTMLCanvasElement;
+
+  // Keyboard layout display
+  private keyboardContainer: Container | null = null;
+  private keyGraphicsMap: Map<string, Graphics> = new Map();
+  private keyTextMap: Map<string, Text> = new Map();
+  private keyLaneMap: Map<string, number> = new Map();
+  private keyWidthMap: Map<string, number> = new Map();
 
   constructor(options: GameRendererOptions) {
     this.canvas = options.canvas;
@@ -669,6 +815,114 @@ export class GameRenderer {
     void y;
   }
 
+  setupKeyboardDisplay(laneBindings: Map<string, number>): void {
+    // Remove previous keyboard container if exists
+    if (this.keyboardContainer) {
+      this.keyboardContainer.destroy({ children: true });
+      this.keyboardContainer = null;
+    }
+
+    this.keyLaneMap = new Map(laneBindings);
+    this.keyGraphicsMap.clear();
+    this.keyTextMap.clear();
+    this.keyWidthMap.clear();
+
+    const container = new Container();
+    const hasNumpad = [...laneBindings.keys()].some(k => k.startsWith('Numpad'));
+    const allKeys = hasNumpad ? [...KB_TKL_KEYS, ...KB_NUMPAD_KEYS] : KB_TKL_KEYS;
+
+    for (const def of allKeys) {
+      const w = def.w ?? 1;
+      const px = def.x * KB_KEY_STEP;
+      const py = def.y * KB_KEY_STEP;
+      const pw = Math.round(w * KB_KEY_STEP - KB_KEY_GAP);
+      this.createKeyDisplay(container, def.code, def.label, px, py, pw);
+    }
+
+    // Compute bounds and position at bottom-right
+    let maxRight = 0, maxBottom = 0;
+    for (const def of allKeys) {
+      const w = def.w ?? 1;
+      const right = (def.x + w) * KB_KEY_STEP;
+      const bottom = (def.y + 1) * KB_KEY_STEP;
+      if (right > maxRight) maxRight = right;
+      if (bottom > maxBottom) maxBottom = bottom;
+    }
+    container.x = this.width - maxRight - 4;
+    container.y = this.height - maxBottom - 4;
+    container.alpha = 0.85;
+
+    this.uiLayer.addChild(container);
+    this.keyboardContainer = container;
+  }
+
+  private createKeyDisplay(
+    container: Container,
+    code: string,
+    label: string,
+    x: number,
+    y: number,
+    pixelWidth: number,
+  ): void {
+    const lane = this.keyLaneMap.get(code);
+    const color = lane ? (KB_IDLE_COLORS[lane] ?? 0x222222) : 0x222222;
+
+    const g = new Graphics();
+    g.roundRect(0, 0, pixelWidth, KB_KEY_SIZE, 2);
+    g.fill(color);
+    g.x = x;
+    g.y = y;
+
+    const t = new Text({
+      text: label,
+      style: new TextStyle({
+        fontFamily: 'Arial',
+        fontSize: 6,
+        fill: lane ? 0xbbbbbb : 0x444444,
+        align: 'center',
+      }),
+    });
+    t.anchor.set(0.5, 0.5);
+    t.x = pixelWidth / 2;
+    t.y = KB_KEY_SIZE / 2;
+    g.addChild(t);
+
+    container.addChild(g);
+    this.keyGraphicsMap.set(code, g);
+    this.keyTextMap.set(code, t);
+    this.keyWidthMap.set(code, pixelWidth);
+  }
+
+  setKeyState(keyCode: string, pressed: boolean): void {
+    const g = this.keyGraphicsMap.get(keyCode);
+    if (!g) return;
+
+    const lane = this.keyLaneMap.get(keyCode);
+    if (!lane) return;
+
+    const w = this.keyWidthMap.get(keyCode) ?? KB_KEY_SIZE;
+
+    g.clear();
+    if (pressed) {
+      const color = KB_PRESSED_COLORS[lane] ?? 0x888888;
+      // Glow effect
+      g.roundRect(-2, -2, w + 4, KB_KEY_SIZE + 4, 3);
+      g.fill({ color, alpha: 0.3 });
+      // Key body
+      g.roundRect(0, 0, w, KB_KEY_SIZE, 2);
+      g.fill(color);
+    } else {
+      const color = KB_IDLE_COLORS[lane] ?? 0x222222;
+      g.roundRect(0, 0, w, KB_KEY_SIZE, 2);
+      g.fill(color);
+    }
+
+    const t = this.keyTextMap.get(keyCode);
+    if (t) {
+      t.style.fill = pressed ? 0xffffff : 0xbbbbbb;
+    }
+  }
+
   markBodyFailed(noteIndex: number): void {
     this.failedBodies.add(noteIndex);
   }
@@ -681,6 +935,14 @@ export class GameRenderer {
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
     this.keyBeamGraphics = [];
+    this.keyGraphicsMap.clear();
+    this.keyTextMap.clear();
+    this.keyLaneMap.clear();
+    this.keyWidthMap.clear();
+    if (this.keyboardContainer) {
+      this.keyboardContainer.destroy({ children: true });
+      this.keyboardContainer = null;
+    }
     for (const g of this.bodyGradientCache.values()) g.destroy();
     this.bodyGradientCache.clear();
     if (this.keyBeamGradient) {
