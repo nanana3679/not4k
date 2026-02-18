@@ -110,6 +110,35 @@ export function PlayScreen() {
               if (result.grade === 'miss') {
                 renderer.markBodyFailed(result.noteIndex);
               }
+
+              // Note visibility updates
+              const note = chartData.notes[result.noteIndex];
+              const isLong = 'endBeat' in note;
+              const isDouble = note.type === 'double' || note.type === 'doubleLong';
+
+              if (result.subIndex !== undefined) {
+                if (isDouble && result.subIndex === 0) {
+                  // First double input → semi-transparent
+                  renderer.markDoublePartial(result.noteIndex);
+                } else if (isDouble && result.subIndex === 1) {
+                  // Second double input
+                  if (isLong && result.grade !== 'miss') {
+                    renderer.markHeadJudged(result.noteIndex);
+                  } else {
+                    renderer.markNoteProcessed(result.noteIndex);
+                  }
+                } else {
+                  // Non-double head (single, trill, singleLong, trillLong)
+                  if (isLong && result.grade !== 'miss') {
+                    renderer.markHeadJudged(result.noteIndex);
+                  } else {
+                    renderer.markNoteProcessed(result.noteIndex);
+                  }
+                }
+              } else {
+                // Body fail or end judgment → hide entire note
+                renderer.markNoteProcessed(result.noteIndex);
+              }
             },
             onComboUpdate: (combo: number) => {
               renderer.updateCombo(combo);

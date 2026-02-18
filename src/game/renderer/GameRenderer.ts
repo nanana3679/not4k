@@ -208,6 +208,11 @@ export class GameRenderer {
   private bodyGraphicsPool: Map<number, Graphics> = new Map();
   private failedBodies: Set<number> = new Set();
 
+  // Note visibility state
+  private completedNotes: Set<number> = new Set();
+  private doublePartialNotes: Set<number> = new Set();
+  private headJudgedNotes: Set<number> = new Set();
+
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
 
@@ -441,6 +446,9 @@ export class GameRenderer {
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
+    this.completedNotes.clear();
+    this.doublePartialNotes.clear();
+    this.headJudgedNotes.clear();
 
   }
 
@@ -533,6 +541,8 @@ export class GameRenderer {
     timeMs: number,
     songTimeMs: number
   ): void {
+    if (this.completedNotes.has(index)) return;
+
     const y = this.calculateNoteY(timeMs, songTimeMs);
 
     // Skip if above screen
@@ -544,8 +554,9 @@ export class GameRenderer {
     graphic.x = laneX;
     graphic.y = y;
 
-    // Draw note shape
-    this.drawNoteShape(graphic, entity.type);
+    // Draw note shape (50% alpha for double partial)
+    const isPartial = this.doublePartialNotes.has(index);
+    this.drawNoteShape(graphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
 
     this.noteLayer.addChild(graphic);
   }
@@ -557,8 +568,16 @@ export class GameRenderer {
     endMs: number,
     songTimeMs: number
   ): void {
-    const startY = this.calculateNoteY(startMs, songTimeMs);
+    if (this.completedNotes.has(index)) return;
+
+    const isHeadJudged = this.headJudgedNotes.has(index);
+    const rawStartY = this.calculateNoteY(startMs, songTimeMs);
     const endY = this.calculateNoteY(endMs, songTimeMs);
+
+    // Clamp body bottom to judgment line when head is judged
+    const startY = isHeadJudged
+      ? Math.min(rawStartY, this._judgmentLineY)
+      : rawStartY;
 
     const laneX = this.getLaneX(entity.lane);
     const bodyHeight = startY - endY;
@@ -610,13 +629,19 @@ export class GameRenderer {
       this.longNoteEndLayer.addChild(endGraphic);
     }
 
-    // Draw head
-    if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
-      const headGraphic = new Graphics();
-      headGraphic.x = laneX;
-      headGraphic.y = startY;
-      this.drawNoteShape(headGraphic, entity.type, { color: bodyColor, gradient: true });
-      this.longNoteHeadLayer.addChild(headGraphic);
+    // Draw head (skip if head already judged)
+    if (!isHeadJudged) {
+      if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
+        const headGraphic = new Graphics();
+        headGraphic.x = laneX;
+        headGraphic.y = startY;
+        const isPartial = this.doublePartialNotes.has(index);
+        const headOverride = isPartial
+          ? { color: bodyColor, gradient: true, alpha: 0.5 }
+          : { color: bodyColor, gradient: true };
+        this.drawNoteShape(headGraphic, entity.type, headOverride);
+        this.longNoteHeadLayer.addChild(headGraphic);
+      }
     }
   }
 
@@ -927,6 +952,20 @@ export class GameRenderer {
     this.failedBodies.add(noteIndex);
   }
 
+  markNoteProcessed(noteIndex: number): void {
+    this.completedNotes.add(noteIndex);
+    this.doublePartialNotes.delete(noteIndex);
+  }
+
+  markDoublePartial(noteIndex: number): void {
+    this.doublePartialNotes.add(noteIndex);
+  }
+
+  markHeadJudged(noteIndex: number): void {
+    this.headJudgedNotes.add(noteIndex);
+    this.doublePartialNotes.delete(noteIndex);
+  }
+
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
@@ -934,6 +973,9 @@ export class GameRenderer {
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
+    this.completedNotes.clear();
+    this.doublePartialNotes.clear();
+    this.headJudgedNotes.clear();
     this.keyBeamGraphics = [];
     this.keyGraphicsMap.clear();
     this.keyTextMap.clear();
