@@ -8,7 +8,6 @@ import {
   songAudioPath,
   songPreviewPath,
   songJacketPath,
-  deserializeChart,
   beat,
 } from '../../shared';
 import type { Chart } from '../../shared';
@@ -386,20 +385,6 @@ export function SongSelectScreen() {
     });
   }, [addToast]);
 
-  // Load local file (admin)
-  const handleLoadLocal = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    file.text().then((text) => {
-      deserializeChart(text); // validate
-      sessionStorage.setItem('not4k-local-chart', text);
-      window.location.href = '/editor?local=1';
-    }).catch((err) => {
-      addToast(`Failed to load file: ${err.message}`, 'error');
-    });
-  }, [addToast]);
-
   // Sorted charts helper
   const getSortedCharts = useCallback((song: DbSong) => {
     return [...song.charts].sort((a, b) => a.difficulty_level - b.difficulty_level);
@@ -475,10 +460,6 @@ export function SongSelectScreen() {
               <button style={styles.addSongBtn} onClick={() => setShowAddSong(true)}>
                 + Add Song
               </button>
-              <label style={styles.localLoadBtn}>
-                Load Local
-                <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleLoadLocal} />
-              </label>
             </>
           )}
           <button style={styles.refreshBtn} onClick={fetchSongs} disabled={loading}>
@@ -646,15 +627,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: 500,
-  },
-  localLoadBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
   },
   refreshBtn: {
     padding: '6px 16px',

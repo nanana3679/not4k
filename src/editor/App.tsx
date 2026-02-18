@@ -38,31 +38,11 @@ export default function EditorApp() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const songId = params.get('songId');
   const difficulty = params.get('difficulty');
-  const isLocal = params.get('local') === '1';
 
-  // Load chart from URL params or local storage
+  // Load chart from URL params
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
-
-    if (isLocal) {
-      // Load from sessionStorage (set by SongSelectScreen)
-      const stored = sessionStorage.getItem('not4k-local-chart');
-      if (stored) {
-        try {
-          const chart = deserializeChart(stored);
-          setChart(chart);
-          setActiveSongId(null);
-          sessionStorage.removeItem('not4k-local-chart');
-        } catch {
-          setError('Failed to load local chart');
-        }
-      } else {
-        setError('No local chart data found');
-      }
-      setChartLoading(false);
-      return;
-    }
 
     if (!songId || !difficulty) {
       // No params — redirect to game song select
@@ -95,7 +75,7 @@ export default function EditorApp() {
         setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
-  }, [songId, difficulty, isLocal, setChart, setActiveSongId, setPendingAudioUrl]);
+  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl]);
 
   if (loading || chartLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>Loading...</div>;
@@ -1978,18 +1958,6 @@ const styles = {
     height: '4px',
     cursor: 'pointer',
     accentColor: '#4488ff',
-  },
-  fileLabel: {
-    padding: '4px 12px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  fileInput: {
-    display: 'none',
   },
   canvasContainer: {
     flex: 1,
