@@ -582,6 +582,9 @@ export class GameRenderer {
     const laneX = this.getLaneX(entity.lane);
     const bodyHeight = startY - endY;
 
+    // Skip if body has no visible height (e.g. both ends past judgment line)
+    if (bodyHeight <= 0) return;
+
     // Skip if completely above screen
     if (endY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 

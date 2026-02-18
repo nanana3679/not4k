@@ -120,20 +120,12 @@ export function PlayScreen() {
                 if (isDouble && result.subIndex === 0) {
                   // First double input → semi-transparent
                   renderer.markDoublePartial(result.noteIndex);
-                } else if (isDouble && result.subIndex === 1) {
-                  // Second double input
-                  if (isLong && result.grade !== 'miss') {
-                    renderer.markHeadJudged(result.noteIndex);
-                  } else {
-                    renderer.markNoteProcessed(result.noteIndex);
-                  }
+                } else if (isLong && result.grade !== 'miss') {
+                  // Long note head successfully hit → hide head, body remains
+                  renderer.markHeadJudged(result.noteIndex);
                 } else {
-                  // Non-double head (single, trill, singleLong, trillLong)
-                  if (isLong && result.grade !== 'miss') {
-                    renderer.markHeadJudged(result.noteIndex);
-                  } else {
-                    renderer.markNoteProcessed(result.noteIndex);
-                  }
+                  // Point note complete or long note head auto-miss → hide
+                  renderer.markNoteProcessed(result.noteIndex);
                 }
               } else {
                 // Body fail or end judgment → hide entire note
