@@ -518,46 +518,94 @@ export function SongSelectScreen() {
                 <span style={styles.songTitle}>{song.title}</span>
                 <span style={styles.songArtist}>{song.artist}</span>
               </div>
-              <div style={styles.chartButtons}>
+              <div style={styles.chartTags}>
                 {sortedCharts.map((chart, chartIdx) => {
                   const isChartFocused = isFocused && chartIdx === focusedChartIndex;
                   return (
-                    <div key={chart.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <button
-                        style={{
-                          ...styles.chartBtn,
-                          ...getDifficultyColor(chart.difficulty_label),
-                          ...(isChartFocused ? styles.chartBtnFocused : {}),
-                        }}
-                        onClick={(e) => { e.stopPropagation(); handlePlay(song.id, chart.difficulty_label, song.audio_url); }}
-                      >
-                        {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
-                      </button>
-                      {isAdmin && (
-                        <button
-                          style={styles.editBtn}
-                          onClick={(e) => { e.stopPropagation(); handleEdit(song.id, chart.difficulty_label); }}
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </div>
+                    <span
+                      key={chart.id}
+                      style={{
+                        ...styles.chartTag,
+                        ...getDifficultyColor(chart.difficulty_label),
+                        ...(isChartFocused ? styles.chartTagFocused : {}),
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFocusedSongIndex(songIdx);
+                        setFocusedChartIndex(chartIdx);
+                      }}
+                    >
+                      {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                    </span>
                   );
                 })}
-                {isAdmin && (
-                  <button
-                    style={styles.newChartBtn}
-                    onClick={(e) => { e.stopPropagation(); setNewChartTarget(song); }}
-                    disabled={false}
-                  >
-                    + New
-                  </button>
-                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Bottom action panel */}
+      {songs.length > 0 && (() => {
+        const focusedSong = songs[focusedSongIndex];
+        const sortedCharts = focusedSong ? getSortedCharts(focusedSong) : [];
+        const focusedChart = sortedCharts[focusedChartIndex] ?? null;
+
+        return (
+          <div style={styles.bottomPanel}>
+            <div style={styles.bottomPanelInfo}>
+              <span style={styles.bottomPanelTitle}>{focusedSong?.title ?? ''}</span>
+              <span style={styles.bottomPanelArtist}>{focusedSong?.artist ?? ''}</span>
+              {focusedChart && (
+                <span
+                  style={{
+                    ...styles.bottomPanelDifficulty,
+                    ...getDifficultyColor(focusedChart.difficulty_label),
+                  }}
+                >
+                  {focusedChart.difficulty_label.toUpperCase()} Lv.{focusedChart.difficulty_level}
+                </span>
+              )}
+            </div>
+            <div style={styles.bottomPanelActions}>
+              <button
+                style={{
+                  ...styles.playBtn,
+                  ...(focusedChart ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
+                }}
+                disabled={!focusedChart}
+                onClick={() => {
+                  if (focusedSong && focusedChart) {
+                    handlePlay(focusedSong.id, focusedChart.difficulty_label, focusedSong.audio_url);
+                  }
+                }}
+              >
+                Play
+              </button>
+              {isAdmin && focusedChart && (
+                <button
+                  style={styles.bottomEditBtn}
+                  onClick={() => {
+                    if (focusedSong && focusedChart) {
+                      handleEdit(focusedSong.id, focusedChart.difficulty_label);
+                    }
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+              {isAdmin && focusedSong && (
+                <button
+                  style={styles.bottomNewChartBtn}
+                  onClick={() => setNewChartTarget(focusedSong)}
+                >
+                  + New Chart
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add song modal (admin) */}
       {showAddSong && (
@@ -659,6 +707,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     overflow: 'auto',
     padding: '16px 24px',
+    paddingBottom: '100px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
@@ -704,50 +753,112 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     color: '#999',
   },
-  chartButtons: {
+  chartTags: {
     display: 'flex',
     gap: '6px',
     flexShrink: 0,
     marginLeft: '16px',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  chartBtn: {
-    padding: '4px 12px',
+  chartTag: {
+    padding: '3px 10px',
     color: '#fff',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: '#555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: 500,
-    transition: 'box-shadow 0.15s',
-  },
-  chartBtnFocused: {
-    boxShadow: '0 0 0 2px #00ffff',
-  },
-  editBtn: {
-    padding: '2px 8px',
-    backgroundColor: 'transparent',
-    color: '#4488ff',
-    border: '1px solid #4488ff44',
-    borderRadius: '3px',
+    borderRadius: '12px',
     cursor: 'pointer',
     fontSize: '11px',
+    fontWeight: 500,
+    transition: 'box-shadow 0.15s',
+    userSelect: 'none',
   },
-  newChartBtn: {
-    padding: '4px 12px',
+  chartTagFocused: {
+    boxShadow: '0 0 0 2px #00ffff',
+  },
+  bottomPanel: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 24px',
+    backgroundColor: '#222',
+    borderTop: '1px solid #444',
+    zIndex: 1000,
+    gap: '16px',
+  },
+  bottomPanelInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    minWidth: 0,
+    flex: 1,
+  },
+  bottomPanelTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  bottomPanelArtist: {
+    fontSize: '13px',
+    color: '#999',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  bottomPanelDifficulty: {
+    padding: '2px 10px',
+    color: '#fff',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: 500,
+    flexShrink: 0,
+  },
+  bottomPanelActions: {
+    display: 'flex',
+    gap: '8px',
+    flexShrink: 0,
+    alignItems: 'center',
+  },
+  playBtn: {
+    padding: '8px 28px',
+    backgroundColor: '#22aa44',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: 600,
+  },
+  bottomEditBtn: {
+    padding: '8px 20px',
+    backgroundColor: 'transparent',
+    color: '#4488ff',
+    border: '1px solid #4488ff66',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 500,
+  },
+  bottomNewChartBtn: {
+    padding: '8px 16px',
     backgroundColor: 'transparent',
     color: '#888',
     border: '1px dashed #555',
-    borderRadius: '4px',
+    borderRadius: '6px',
     cursor: 'pointer',
-    fontSize: '12px',
-    alignSelf: 'flex-start',
+    fontSize: '13px',
   },
   toastContainer: {
-    position: 'absolute',
-    bottom: '24px',
+    position: 'fixed',
+    bottom: '80px',
     right: '24px',
     display: 'flex',
     flexDirection: 'column',
