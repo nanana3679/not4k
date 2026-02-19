@@ -25,6 +25,14 @@ interface PointNoteJson {
 }
 
 interface RangeNoteJson {
+  type: "long" | "doubleLong" | "trillLong";
+  lane: 1 | 2 | 3 | 4;
+  beat: string;
+  endBeat: string;
+}
+
+/** 레거시 v1 포맷 (singleLong 결합 엔티티) */
+interface LegacyRangeNoteJson {
   type: "singleLong" | "doubleLong" | "trillLong";
   lane: 1 | 2 | 3 | 4;
   beat: string;
@@ -49,6 +57,7 @@ interface EventMarkerJson {
 }
 
 export interface ChartJson {
+  version?: number;
   meta: ChartMeta;
   notes: NoteEntityJson[];
   trillZones: TrillZoneJson[];
@@ -94,6 +103,7 @@ function serializeEvent(e: EventMarker): EventMarkerJson {
 /** Chart → JSON 객체 */
 export function chartToJson(chart: Chart): ChartJson {
   return {
+    version: 2,
     meta: chart.meta,
     notes: chart.notes.map(serializeNote),
     trillZones: chart.trillZones.map(serializeTrillZone),
@@ -144,9 +154,44 @@ function parseEvent(e: EventMarkerJson): EventMarker {
 
 /** JSON 객체 → Chart (레거시 bpmMarkers/timeSignatures 필드는 무시) */
 export function chartFromJson(json: ChartJson): Chart {
+  // v2+: 새 포맷 — 그대로 파싱
+  if (json.version && json.version >= 2) {
+    return {
+      meta: json.meta,
+      notes: json.notes.map(parseNote),
+      trillZones: json.trillZones.map(parseTrillZone),
+      events: (json.events ?? []).map(parseEvent),
+    };
+  }
+
+  // 레거시 (version 없음): v1은 이미 헤드+바디가 별도 엔티티.
+  // "singleLong" → "long" 타입명 변경만 수행 (doubleLong, trillLong은 이름 동일).
+  const legacyNotes = json.notes as (PointNoteJson | LegacyRangeNoteJson)[];
+  const migratedNotes: NoteEntity[] = [];
+
+  for (const n of legacyNotes) {
+    if ("endBeat" in n) {
+      const ln = n as LegacyRangeNoteJson;
+      if (ln.type === "singleLong") {
+        // singleLong → long (타입명만 변경, 헤드는 이미 별도 PointNote로 존재)
+        migratedNotes.push({
+          type: "long",
+          lane: ln.lane,
+          beat: beatFromString(ln.beat),
+          endBeat: beatFromString(ln.endBeat),
+        });
+      } else {
+        // doubleLong, trillLong — 타입명 동일, 그대로 파싱
+        migratedNotes.push(parseNote(n as RangeNoteJson));
+      }
+    } else {
+      migratedNotes.push(parseNote(n));
+    }
+  }
+
   return {
     meta: json.meta,
-    notes: json.notes.map(parseNote),
+    notes: migratedNotes,
     trillZones: json.trillZones.map(parseTrillZone),
     events: (json.events ?? []).map(parseEvent),
   };

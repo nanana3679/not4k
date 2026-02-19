@@ -69,7 +69,7 @@ export interface PointNote {
  * endBeat >= beat (역전 불가, 길이 0 허용).
  */
 export interface RangeNote {
-  type: "singleLong" | "doubleLong" | "trillLong";
+  type: "long" | "doubleLong" | "trillLong";
   lane: Lane;
   beat: Beat;
   endBeat: Beat;

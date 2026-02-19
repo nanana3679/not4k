@@ -5,10 +5,12 @@ import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
+import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../renderer/constants';
 import { beatToMs, extractBpmMarkers } from '../../shared';
 
 export function PlayScreen() {
   const { settings, setScreen, setResult, chartData, audioBuffer } = useGameStore();
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
@@ -25,7 +27,7 @@ export function PlayScreen() {
 
   useEffect(() => {
     const init = async () => {
-      if (!canvasRef.current) return;
+      if (!canvasRef.current || !containerRef.current) return;
 
       // Check if chart data and audio buffer are available
       if (!chartData || !audioBuffer) {
@@ -52,23 +54,34 @@ export function PlayScreen() {
         // Calculate total judgment count based on note types
         let totalJudgments = 0;
         for (const note of chartData.notes) {
-          if (note.type === 'double' || note.type === 'doubleLong') {
-            totalJudgments += 2; // 2 sub-judgments for double notes
-          } else {
-            totalJudgments += 1;
-          }
-          // Range notes get an additional end judgment
           if ('endBeat' in note) {
-            totalJudgments += 1;
+            totalJudgments += 1; // 바디: 끝점 판정 1회
+          } else if (note.type === 'double') {
+            totalJudgments += 2; // 더블 헤드: 서브판정 2회
+          } else {
+            totalJudgments += 1; // 싱글/트릴 헤드: 1회
           }
         }
+
+        // Calculate logical width from viewport aspect ratio (height fixed)
+        const containerW = containerRef.current!.clientWidth;
+        const containerH = containerRef.current!.clientHeight;
+        const aspectRatio = containerW / containerH;
+        const logicalW = Math.max(Math.round(GAME_HEIGHT * aspectRatio), LANE_AREA_WIDTH + 80);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const scale = containerH / GAME_HEIGHT;
+
+        // Set canvas CSS size to fill container
+        canvasRef.current.style.width = `${containerW}px`;
+        canvasRef.current.style.height = `${containerH}px`;
 
         // Initialize game objects
         const audioEngine = new AudioEngine();
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
-          width: 800,
-          height: 600,
+          width: logicalW,
+          height: GAME_HEIGHT,
+          resolution: scale * dpr,
         });
         await renderer.init();
 
@@ -81,8 +94,8 @@ export function PlayScreen() {
           audioBuffer.duration * 1000,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
-        renderer.setLift(600 * settings.liftPercent / 100);
-        renderer.setSudden(600 * settings.suddenPercent / 100);
+        renderer.setLift(GAME_HEIGHT * settings.liftPercent / 100);
+        renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
 
         // Setup keyboard layout display
         const laneBindingsMap = new Map<string, number>();
@@ -113,22 +126,14 @@ export function PlayScreen() {
 
               // Note visibility updates
               const note = chartData.notes[result.noteIndex];
-              const isLong = 'endBeat' in note;
-              const isDouble = note.type === 'double' || note.type === 'doubleLong';
+              const isBody = 'endBeat' in note;
+              const isDouble = note.type === 'double';
 
-              if (result.subIndex !== undefined) {
-                if (isDouble && result.subIndex === 0) {
-                  // First double input → semi-transparent
-                  renderer.markDoublePartial(result.noteIndex);
-                } else if (isLong && result.grade !== 'miss') {
-                  // Long note head successfully hit → hide head, body remains
-                  renderer.markHeadJudged(result.noteIndex);
-                } else {
-                  // Point note complete or long note head auto-miss → hide
-                  renderer.markNoteProcessed(result.noteIndex);
-                }
+              if (isBody) {
+                renderer.markNoteProcessed(result.noteIndex);
+              } else if (isDouble && result.subIndex === 0) {
+                renderer.markDoublePartial(result.noteIndex);
               } else {
-                // Body fail or end judgment → hide entire note
                 renderer.markNoteProcessed(result.noteIndex);
               }
             },
@@ -300,8 +305,8 @@ export function PlayScreen() {
   }
 
   return (
-    <div style={styles.container}>
-      <canvas key={retryKey} ref={canvasRef} width={800} height={600} style={styles.canvas} />
+    <div ref={containerRef} style={styles.container}>
+      <canvas key={retryKey} ref={canvasRef} style={styles.canvas} />
 
       {isPaused && (
         <div style={styles.pauseOverlay}>
@@ -336,9 +341,7 @@ const styles = {
     justifyContent: 'center',
   },
   canvas: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain' as const,
+    display: 'block' as const,
   },
   errorContainer: {
     display: 'flex',

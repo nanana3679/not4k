@@ -19,7 +19,7 @@ import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } fro
 export type EntityType =
   | "single"
   | "double"
-  | "singleLong"
+  | "long"
   | "doubleLong"
   | "trillZone";
 
@@ -27,7 +27,7 @@ export type EntityType =
 const ENTITY_TYPES: readonly EntityType[] = [
   "single",
   "double",
-  "singleLong",
+  "long",
   "doubleLong",
   "trillZone",
 ] as const;
@@ -143,7 +143,7 @@ export class CreateMode {
 
     // Range entities: long bodies
     if (
-      this.selectedEntityType === "singleLong" ||
+      this.selectedEntityType === "long" ||
       this.selectedEntityType === "doubleLong"
     ) {
       this.isDragging = true;
@@ -270,8 +270,29 @@ export class CreateMode {
       : beatMax(startBeat, endBeat);
 
     const inTrill = this.isInsideTrillZone(lane, actualStartBeat);
-    const newNote: RangeNote = {
-      type: inTrill ? "trillLong" : (this.selectedEntityType as "singleLong" | "doubleLong"),
+
+    // Determine head and body types
+    let headType: "single" | "double" | "trill";
+    let bodyType: "long" | "doubleLong" | "trillLong";
+    if (inTrill) {
+      headType = "trill";
+      bodyType = "trillLong";
+    } else if (this.selectedEntityType === "doubleLong") {
+      headType = "double";
+      bodyType = "doubleLong";
+    } else {
+      headType = "single";
+      bodyType = "long";
+    }
+
+    const headNote: PointNote = {
+      type: headType,
+      lane,
+      beat: actualStartBeat,
+    };
+
+    const bodyNote: RangeNote = {
+      type: bodyType,
       lane,
       beat: actualStartBeat,
       endBeat: actualEndBeat,
@@ -279,7 +300,7 @@ export class CreateMode {
 
     // Validate before adding
     const testChart = {
-      notes: [...this.chart.notes, newNote],
+      notes: [...this.chart.notes, headNote, bodyNote],
       trillZones: this.chart.trillZones,
       events: this.chart.events,
     };
@@ -290,10 +311,10 @@ export class CreateMode {
       return;
     }
 
-    // Create new chart with immutable update
+    // Create new chart with immutable update (head + body pair)
     const updatedChart: Chart = {
       ...this.chart,
-      notes: [...this.chart.notes, newNote],
+      notes: [...this.chart.notes, headNote, bodyNote],
     };
 
     this.chart = updatedChart;

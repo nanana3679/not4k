@@ -711,7 +711,7 @@ function ChartEditorPage() {
             rightDragDeletedRef.current = true;
             const newNotes = current.notes.filter((_: unknown, idx: number) => idx !== i);
             let newTrillZones = current.trillZones;
-            if (note.type === 'singleLong' || note.type === 'doubleLong' || note.type === 'trillLong') {
+            if (note.type === 'long' || note.type === 'doubleLong' || note.type === 'trillLong') {
               const rangeNote = note as RangeNote;
               newTrillZones = current.trillZones.filter((zone: { lane: Lane; beat: Beat; endBeat: Beat }) =>
                 !(zone.lane === rangeNote.lane && beatEq(zone.beat, rangeNote.beat) && beatEq(zone.endBeat, rangeNote.endBeat))
@@ -1208,7 +1208,7 @@ function ChartEditorPage() {
   const entityTypeOptions: EntityType[] = [
     'single',
     'double',
-    'singleLong',
+    'long',
     'doubleLong',
     'trillZone',
   ];

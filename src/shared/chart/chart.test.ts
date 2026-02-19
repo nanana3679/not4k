@@ -18,8 +18,12 @@ const SAMPLE_CHART: Chart = {
     { type: "single", lane: 1, beat: beat(0) },
     { type: "double", lane: 2, beat: beat(1, 2) },
     { type: "trill", lane: 3, beat: beat(3, 4) },
-    { type: "singleLong", lane: 1, beat: beat(4), endBeat: beat(8) },
+    // 롱노트: 헤드(PointNote) + 바디(RangeNote) 쌍
+    { type: "single", lane: 1, beat: beat(4) },
+    { type: "long", lane: 1, beat: beat(4), endBeat: beat(8) },
+    { type: "double", lane: 2, beat: beat(4) },
     { type: "doubleLong", lane: 2, beat: beat(4), endBeat: beat(6) },
+    { type: "trill", lane: 3, beat: beat(4) },
     { type: "trillLong", lane: 3, beat: beat(4), endBeat: beat(4) }, // 길이 0
   ],
   trillZones: [
@@ -43,7 +47,7 @@ describe("chartToJson / chartFromJson", () => {
 
   it("구간 엔티티의 endBeat도 문자열로 직렬화된다", () => {
     const json = chartToJson(SAMPLE_CHART);
-    const longNote = json.notes[3];
+    const longNote = json.notes[4]; // index 4 = long body (index 3 = single head)
     expect("endBeat" in longNote && longNote.endBeat).toBe("8");
   });
 
@@ -117,5 +121,77 @@ describe("serializeChart / deserializeChart", () => {
     };
     const parsed = chartFromJson(legacyJson as any);
     expect(parsed.events[0]).toEqual({ beat: beat(0), endBeat: beat(4), text: "legacy" });
+  });
+});
+
+describe("레거시 마이그레이션 (v1 → v2)", () => {
+  it("singleLong → long 타입명 변경 (헤드는 이미 별도 엔티티)", () => {
+    const legacyJson = {
+      meta: SAMPLE_CHART.meta,
+      notes: [
+        { type: "single", lane: 1, beat: "0" },
+        { type: "singleLong", lane: 1, beat: "0", endBeat: "4" },
+      ],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(legacyJson as any);
+    expect(chart.notes).toHaveLength(2);
+    expect(chart.notes[0]).toEqual({ type: "single", lane: 1, beat: beat(0) });
+    expect(chart.notes[1]).toEqual({ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) });
+  });
+
+  it("doubleLong은 타입명 유지", () => {
+    const legacyJson = {
+      meta: SAMPLE_CHART.meta,
+      notes: [
+        { type: "double", lane: 2, beat: "0" },
+        { type: "doubleLong", lane: 2, beat: "0", endBeat: "8" },
+      ],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(legacyJson as any);
+    expect(chart.notes).toHaveLength(2);
+    expect(chart.notes[0]).toEqual({ type: "double", lane: 2, beat: beat(0) });
+    expect(chart.notes[1]).toEqual({ type: "doubleLong", lane: 2, beat: beat(0), endBeat: beat(8) });
+  });
+
+  it("trillLong은 타입명 유지", () => {
+    const legacyJson = {
+      meta: SAMPLE_CHART.meta,
+      notes: [
+        { type: "trill", lane: 3, beat: "2" },
+        { type: "trillLong", lane: 3, beat: "2", endBeat: "6" },
+      ],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(legacyJson as any);
+    expect(chart.notes).toHaveLength(2);
+    expect(chart.notes[0]).toEqual({ type: "trill", lane: 3, beat: beat(2) });
+    expect(chart.notes[1]).toEqual({ type: "trillLong", lane: 3, beat: beat(2), endBeat: beat(6) });
+  });
+
+  it("포인트 노트는 그대로 유지", () => {
+    const legacyJson = {
+      meta: SAMPLE_CHART.meta,
+      notes: [
+        { type: "single", lane: 1, beat: "0" },
+        { type: "double", lane: 2, beat: "1" },
+      ],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(legacyJson as any);
+    expect(chart.notes).toHaveLength(2);
+    expect(chart.notes[0]).toEqual({ type: "single", lane: 1, beat: beat(0) });
+    expect(chart.notes[1]).toEqual({ type: "double", lane: 2, beat: beat(1) });
+  });
+
+  it("v2 JSON은 마이그레이션하지 않음", () => {
+    const v2Json = chartToJson(SAMPLE_CHART);
+    const chart = chartFromJson(v2Json);
+    expect(chart).toEqual(SAMPLE_CHART);
   });
 });

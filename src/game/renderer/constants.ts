@@ -3,10 +3,9 @@
  */
 
 export const LANE_COUNT = 4;
-export const GAME_WIDTH = 800; // px
+export const GAME_HEIGHT = 600; // logical height (fixed)
 export const LANE_WIDTH = 80; // px per lane
 export const LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH; // 320px
-export const LANE_AREA_X = (GAME_WIDTH - LANE_AREA_WIDTH) / 2; // centered
 
 export const NOTE_HEIGHT = 16; // px
 export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 80px (matches lane width)

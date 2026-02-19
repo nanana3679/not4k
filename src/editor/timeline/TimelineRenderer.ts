@@ -17,7 +17,7 @@ import type {
   TimeSignatureMarker,
   EventMarker,
 } from "../../shared";
-import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures } from "../../shared";
+import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures, beatEq } from "../../shared";
 import {
   LANE_COUNT,
   AUXILIARY_LANES,
@@ -692,7 +692,7 @@ export class TimelineRenderer {
 
         let bodyColor: number;
         switch (note.type) {
-          case "singleLong": bodyColor = COLORS.SINGLE_LONG; break;
+          case "long": bodyColor = COLORS.SINGLE_LONG; break;
           case "doubleLong": bodyColor = COLORS.DOUBLE_LONG; break;
           case "trillLong": bodyColor = COLORS.TRILL_LONG; break;
           default: bodyColor = COLORS.SINGLE_LONG;
@@ -712,16 +712,10 @@ export class TimelineRenderer {
           this.moveOriginLayer.addChild(body);
         }
 
-        // Head
-        const head = new Graphics();
-        const headX = x + (LANE_WIDTH - w) / 2;
-        head.rect(headX, startY - h / 2, w, h);
-        head.fill({ color: bodyColor, alpha: ORIGIN_ALPHA });
-        this.moveOriginLayer.addChild(head);
-
         // End
         const end = new Graphics();
-        end.rect(headX, endY - h / 2, w, h);
+        const endX = x + (LANE_WIDTH - w) / 2;
+        end.rect(endX, endY - h / 2, w, h);
         end.fill({ color: bodyColor, alpha: ORIGIN_ALPHA * 0.5 });
         this.moveOriginLayer.addChild(end);
       }
@@ -780,6 +774,16 @@ export class TimelineRenderer {
    */
   private isPointNote(note: NoteEntity): note is PointNote {
     return "type" in note && !("endBeat" in note);
+  }
+
+  /** RangeNote의 같은 beat/lane에 매칭되는 헤드 PointNote가 있는지 확인 */
+  private hasMatchingHead(note: RangeNote): boolean {
+    if (!this.chart) return false;
+    for (const n of this.chart.notes) {
+      if ("endBeat" in n) continue;
+      if (n.lane === note.lane && beatEq(n.beat, note.beat)) return true;
+    }
+    return false;
   }
 
   /**
@@ -890,7 +894,7 @@ export class TimelineRenderer {
     let bodyColor: number;
 
     switch (note.type) {
-      case "singleLong":
+      case "long":
         bodyColor = COLORS.SINGLE_LONG;
         break;
       case "doubleLong":
@@ -904,8 +908,9 @@ export class TimelineRenderer {
     // Long note body (center strip between head and end, direction-independent)
     const topY = Math.min(startY, endY);
     const bottomY = Math.max(startY, endY);
+    const hasHead = this.hasMatchingHead(note);
     const bodyTopY = topY + h / 2;
-    const bodyBottomY = bottomY - h / 2;
+    const bodyBottomY = hasHead ? (bottomY - h / 2) : bottomY;
     const bodyHeight = bodyBottomY - bodyTopY;
 
     if (bodyHeight > 0) {
@@ -918,11 +923,13 @@ export class TimelineRenderer {
       // Fill diamond corner gaps for trillLong (seamless body-to-head/end connection)
       if (note.type === "trillLong") {
         const cx = x + LANE_WIDTH / 2;
-        // Head upper corners (at bottomY=startY, facing body)
-        body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
-        body.fill(bodyColor);
-        body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
-        body.fill(bodyColor);
+        if (hasHead) {
+          // Head upper corners (at bottomY=startY, facing body) — only when head exists
+          body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
+          body.fill(bodyColor);
+          body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
+          body.fill(bodyColor);
+        }
         // End lower corners (at topY=endY, facing body)
         body.poly([bodyX, endY, cx, endY + h / 2, bodyX, endY + h / 2]);
         body.fill(bodyColor);
@@ -938,32 +945,8 @@ export class TimelineRenderer {
       }
     }
 
-    // Long note head (start point) — horizontal gradient
-    const headGradient = this.getBodyGradient(bodyColor);
-    const head = new Graphics();
-    if (note.type === "trillLong") {
-      const cx = x + LANE_WIDTH / 2;
-      head.moveTo(cx, startY - h / 2);
-      head.lineTo(cx + w / 2, startY);
-      head.lineTo(cx, startY + h / 2);
-      head.lineTo(cx - w / 2, startY);
-      head.lineTo(cx, startY - h / 2);
-      head.fill(headGradient);
-    } else {
-      const headX = x + (LANE_WIDTH - w) / 2;
-      const headY = startY - h / 2;
-      head.rect(headX, headY, w, h);
-      head.fill(headGradient);
-    }
-
-    if (isSelected) {
-      head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
-      this.selectedLongHeadLayer.addChild(head);
-    } else {
-      this.longNoteHeadLayer.addChild(head);
-    }
-
     // Long note end (end point) — 50% alpha + horizontal gradient
+    const headGradient = this.getBodyGradient(bodyColor);
     const end = new Graphics();
     if (note.type === "trillLong") {
       const cx = x + LANE_WIDTH / 2;
@@ -985,6 +968,30 @@ export class TimelineRenderer {
       this.selectedLongEndLayer.addChild(end);
     } else {
       this.longNoteEndLayer.addChild(end);
+    }
+
+    // 헤드리스 롱노트: 시작 지점에 불투명 캡 표시
+    if (!hasHead) {
+      const startCap = new Graphics();
+      if (note.type === "trillLong") {
+        const cx = x + LANE_WIDTH / 2;
+        startCap.moveTo(cx, startY - h / 2);
+        startCap.lineTo(cx + w / 2, startY);
+        startCap.lineTo(cx, startY + h / 2);
+        startCap.lineTo(cx - w / 2, startY);
+        startCap.lineTo(cx, startY - h / 2);
+        startCap.fill(headGradient);
+      } else {
+        const capX = x + (LANE_WIDTH - w) / 2;
+        startCap.rect(capX, startY - h / 2, w, h);
+        startCap.fill(headGradient);
+      }
+      if (isSelected) {
+        startCap.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
+        this.selectedLongHeadLayer.addChild(startCap);
+      } else {
+        this.longNoteHeadLayer.addChild(startCap);
+      }
     }
   }
 

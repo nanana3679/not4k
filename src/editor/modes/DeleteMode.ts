@@ -72,10 +72,10 @@ export class DeleteMode {
 
     const noteToDelete = chart.notes[hitIndex];
 
-    // Create new notes array without the deleted note
+    // 헤드와 바디는 독립 엔티티 — 클릭한 노트만 개별 삭제
     const newNotes = chart.notes.filter((_note, idx) => idx !== hitIndex);
 
-    // Check if this note corresponds to a trill zone and remove it
+    // Check if deleted notes correspond to a trill zone and remove it
     let newTrillZones = chart.trillZones;
     if (this.isRangeNote(noteToDelete)) {
       const rangeNote = noteToDelete as RangeNote;
@@ -97,7 +97,7 @@ export class DeleteMode {
 
   private static isRangeNote(note: { type: string }): boolean {
     return (
-      note.type === "singleLong" ||
+      note.type === "long" ||
       note.type === "doubleLong" ||
       note.type === "trillLong"
     );

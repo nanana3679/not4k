@@ -14,7 +14,6 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   LANE_AREA_WIDTH,
-  LANE_AREA_X,
   NOTE_HEIGHT,
   NOTE_WIDTH,
   JUDGMENT_LINE_OFFSET,
@@ -164,6 +163,7 @@ export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
+  resolution?: number;
 }
 
 interface NoteRenderData {
@@ -211,7 +211,6 @@ export class GameRenderer {
   // Note visibility state
   private completedNotes: Set<number> = new Set();
   private doublePartialNotes: Set<number> = new Set();
-  private headJudgedNotes: Set<number> = new Set();
 
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
@@ -238,10 +237,15 @@ export class GameRenderer {
   private keyLaneMap: Map<string, number> = new Map();
   private keyWidthMap: Map<string, number> = new Map();
 
+  private resolution: number;
+  private laneAreaX: number;
+
   constructor(options: GameRendererOptions) {
     this.canvas = options.canvas;
     this.width = options.width;
     this.height = options.height;
+    this.resolution = options.resolution ?? 1;
+    this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this._judgmentLineY = options.height - JUDGMENT_LINE_OFFSET;
 
     this.app = new Application();
@@ -302,6 +306,7 @@ export class GameRenderer {
       canvas: this.canvas,
       width: this.width,
       height: this.height,
+      resolution: this.resolution,
       backgroundColor: COLORS.BG,
     });
 
@@ -334,7 +339,7 @@ export class GameRenderer {
 
     // Draw lane backgrounds
     for (let i = 0; i < LANE_COUNT; i++) {
-      const x = LANE_AREA_X + i * LANE_WIDTH;
+      const x = this.laneAreaX + i * LANE_WIDTH;
       const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
       bg.rect(x, 0, LANE_WIDTH, this.height);
       bg.fill(color);
@@ -342,7 +347,7 @@ export class GameRenderer {
 
     // Draw lane separators
     for (let i = 1; i < LANE_COUNT; i++) {
-      const x = LANE_AREA_X + i * LANE_WIDTH;
+      const x = this.laneAreaX + i * LANE_WIDTH;
       bg.rect(x - 1, 0, 2, this.height);
       bg.fill(COLORS.LANE_SEPARATOR);
     }
@@ -364,7 +369,7 @@ export class GameRenderer {
 
     for (let i = 0; i < LANE_COUNT; i++) {
       const flash = new Graphics();
-      const laneX = LANE_AREA_X + i * LANE_WIDTH;
+      const laneX = this.laneAreaX + i * LANE_WIDTH;
 
       flash.rect(laneX, 0, LANE_WIDTH, this.height);
       flash.fill({ fill: this.keyBeamGradient, alpha: 0.5 });
@@ -385,7 +390,7 @@ export class GameRenderer {
   private drawJudgmentLine(): void {
     this.judgmentLineGraphic.clear();
     this.judgmentLineGraphic.rect(
-      LANE_AREA_X,
+      this.laneAreaX,
       this._judgmentLineY - 2,
       LANE_AREA_WIDTH,
       4
@@ -440,7 +445,6 @@ export class GameRenderer {
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
-    this.headJudgedNotes.clear();
 
   }
 
@@ -497,7 +501,7 @@ export class GameRenderer {
       if (y < -2 || y > this.height + 2) continue;
 
       const line = new Graphics();
-      line.rect(LANE_AREA_X, y - 1, LANE_AREA_WIDTH, 1);
+      line.rect(this.laneAreaX, y - 1, LANE_AREA_WIDTH, 1);
       line.fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
       this.measureLineLayer.addChild(line);
     }
@@ -562,14 +566,11 @@ export class GameRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    const isHeadJudged = this.headJudgedNotes.has(index);
     const rawStartY = this.calculateNoteY(startMs, songTimeMs);
     const endY = this.calculateNoteY(endMs, songTimeMs);
 
-    // Clamp body bottom to judgment line when head is judged
-    const startY = isHeadJudged
-      ? Math.min(rawStartY, this._judgmentLineY)
-      : rawStartY;
+    // 바디 시작 Y를 항상 판정선으로 클램프 (헤드는 별도 PointNote로 렌더링)
+    const startY = Math.min(rawStartY, this._judgmentLineY);
 
     const laneX = this.getLaneX(entity.lane);
     const bodyHeight = startY - endY;
@@ -624,20 +625,6 @@ export class GameRenderer {
       this.longNoteEndLayer.addChild(endGraphic);
     }
 
-    // Draw head (skip if head already judged)
-    if (!isHeadJudged) {
-      if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
-        const headGraphic = new Graphics();
-        headGraphic.x = laneX;
-        headGraphic.y = startY;
-        const isPartial = this.doublePartialNotes.has(index);
-        const headOverride = isPartial
-          ? { color: bodyColor, gradient: true, alpha: 0.5 }
-          : { color: bodyColor, gradient: true };
-        this.drawNoteShape(headGraphic, entity.type, headOverride);
-        this.longNoteHeadLayer.addChild(headGraphic);
-      }
-    }
   }
 
   private drawNoteShape(
@@ -688,7 +675,7 @@ export class GameRenderer {
   private getNoteColor(type: string): number {
     switch (type) {
       case "single":
-      case "singleLong":
+      case "long":
         return COLORS.SINGLE_NOTE;
       case "double":
       case "doubleLong":
@@ -703,7 +690,7 @@ export class GameRenderer {
 
   private getLongBodyColor(type: string): number {
     switch (type) {
-      case "singleLong":
+      case "long":
         return COLORS.SINGLE_LONG;
       case "doubleLong":
         return COLORS.DOUBLE_LONG;
@@ -721,7 +708,7 @@ export class GameRenderer {
   }
 
   private getLaneX(lane: number): number {
-    return LANE_AREA_X + (lane - 1) * LANE_WIDTH;
+    return this.laneAreaX + (lane - 1) * LANE_WIDTH;
   }
 
   private getOrCreateNoteGraphic(index: number): Graphics {
@@ -956,11 +943,6 @@ export class GameRenderer {
     this.doublePartialNotes.add(noteIndex);
   }
 
-  markHeadJudged(noteIndex: number): void {
-    this.headJudgedNotes.add(noteIndex);
-    this.doublePartialNotes.delete(noteIndex);
-  }
-
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
@@ -970,7 +952,6 @@ export class GameRenderer {
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
-    this.headJudgedNotes.clear();
     this.keyBeamGraphics = [];
     this.keyGraphicsMap.clear();
     this.keyTextMap.clear();

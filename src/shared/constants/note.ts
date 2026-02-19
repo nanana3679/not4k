@@ -5,7 +5,7 @@ export const NoteType = {
   SINGLE: "single",
   DOUBLE: "double",
   TRILL: "trill",
-  SINGLE_LONG: "singleLong",
+  LONG: "long",
   DOUBLE_LONG: "doubleLong",
   TRILL_LONG: "trillLong",
   TRILL_ZONE: "trillZone",
@@ -23,7 +23,7 @@ export const POINT_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
 
 /** 구간 엔티티 (시작 + 끝 가짐) */
 export const RANGE_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
-  NoteType.SINGLE_LONG,
+  NoteType.LONG,
   NoteType.DOUBLE_LONG,
   NoteType.TRILL_LONG,
   NoteType.TRILL_ZONE,
@@ -32,7 +32,7 @@ export const RANGE_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
 
 /** 롱노트 타입 (시작점+바디+끝점을 가지는 판정 대상) */
 export const LONG_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
-  NoteType.SINGLE_LONG,
+  NoteType.LONG,
   NoteType.DOUBLE_LONG,
   NoteType.TRILL_LONG,
 ]);

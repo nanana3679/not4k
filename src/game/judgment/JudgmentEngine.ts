@@ -10,7 +10,6 @@ import {
   JUDGMENT_WINDOWS,
   GRACE_PERIOD_MS,
   NoteType,
-  LONG_NOTE_TYPES,
 } from "../../shared";
 import type { Lane } from "../../shared";
 
@@ -183,19 +182,13 @@ export class JudgmentEngine {
 
     const deltaMs = timestampMs - noteTime;
 
-    // 노트 타입에 따른 처리
+    // 노트 타입에 따른 처리 (헤드는 항상 PointNote)
     if (note.type === NoteType.SINGLE) {
       this.processSingleNoteInput(targetNoteIndex, deltaMs, keyCode);
     } else if (note.type === NoteType.DOUBLE) {
       this.processDoubleNoteInput(targetNoteIndex, deltaMs, keyCode);
     } else if (note.type === NoteType.TRILL) {
       this.processTrillNoteInput(targetNoteIndex, deltaMs, keyCode, lane);
-    } else if (
-      note.type === NoteType.SINGLE_LONG ||
-      note.type === NoteType.DOUBLE_LONG ||
-      note.type === NoteType.TRILL_LONG
-    ) {
-      this.processLongNoteHeadInput(targetNoteIndex, deltaMs, keyCode, lane);
     }
   }
 
@@ -299,27 +292,22 @@ export class JudgmentEngine {
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
         }
-      } else if (
-        note.type === NoteType.SINGLE_LONG ||
-        note.type === NoteType.DOUBLE_LONG ||
-        note.type === NoteType.TRILL_LONG
-      ) {
-        // 롱노트 헤드 자동 Miss
-        if (songTimeMs > noteTime + JUDGMENT_WINDOWS.BAD) {
-          const doubleState = this.doubleNoteStates.get(i);
-          if (note.type === NoteType.DOUBLE_LONG) {
-            if (doubleState?.firstInputReceived) {
-              this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
-            } else {
-              this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
-              this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
-            }
-          } else {
-            this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
-          }
-          this.noteStates.set(i, NoteState.COMPLETE);
-          this.breakCombo();
-        }
+      }
+    }
+
+    // 바디 노트 자동 활성화 (시작 시간 도달 시)
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
+      const note = this.notes[i];
+      if (!("endBeat" in note)) continue;
+      const noteTime = this.noteTimesMs.get(i);
+      if (noteTime === undefined) continue;
+      if (songTimeMs >= noteTime) {
+        this.noteStates.set(i, NoteState.BODY_ACTIVE);
+        this.longNoteBodyStates.set(i, {
+          hasBeenPressed: false,
+          bodyStartTimeMs: noteTime,
+        });
       }
     }
 
@@ -341,13 +329,16 @@ export class JudgmentEngine {
       const note = this.notes[i];
       if (note.lane !== lane) continue;
 
+      // 바디 노트(RangeNote)는 입력 대상이 아님 — 자동 활성화로 처리
+      if ("endBeat" in note) continue;
+
       const state = this.noteStates.get(i);
       const noteTime = this.noteTimesMs.get(i);
       if (noteTime === undefined) continue;
 
       // 더블 노트의 경우 첫 입력만 받은 상태도 체크
       const isDoublePartial =
-        (note.type === NoteType.DOUBLE || note.type === NoteType.DOUBLE_LONG) &&
+        note.type === NoteType.DOUBLE &&
         state === NoteState.UNPROCESSED &&
         this.doubleNoteStates.get(i)?.firstInputReceived === true;
 
@@ -454,55 +445,6 @@ export class JudgmentEngine {
       this.incrementCombo();
     } else {
       this.breakCombo();
-    }
-  }
-
-  /**
-   * 롱노트 헤드 입력 처리
-   */
-  private processLongNoteHeadInput(
-    noteIndex: number,
-    deltaMs: number,
-    keyCode: string,
-    lane: Lane,
-  ): void {
-    const note = this.notes[noteIndex] as RangeNote;
-
-    const noteTime = this.noteTimesMs.get(noteIndex);
-
-    if (note.type === NoteType.SINGLE_LONG) {
-      const grade = this.calculateGrade(deltaMs);
-      this.emitJudgment(noteIndex, grade, 0, deltaMs);
-      this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
-      this.longNoteBodyStates.set(noteIndex, {
-        hasBeenPressed: true,
-        bodyStartTimeMs: noteTime ?? 0,
-      });
-
-      if (this.isComboMaintaining(grade)) {
-        this.incrementCombo();
-      } else {
-        this.breakCombo();
-      }
-    } else if (note.type === NoteType.DOUBLE_LONG) {
-      this.processDoubleNoteInput(noteIndex, deltaMs, keyCode);
-
-      // 두 입력이 모두 완료되었으면 BODY_ACTIVE로 전환
-      const doubleState = this.doubleNoteStates.get(noteIndex);
-      if (doubleState?.firstInputReceived && this.noteStates.get(noteIndex) === NoteState.COMPLETE) {
-        this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
-        this.longNoteBodyStates.set(noteIndex, {
-          hasBeenPressed: true,
-          bodyStartTimeMs: noteTime ?? 0,
-        });
-      }
-    } else if (note.type === NoteType.TRILL_LONG) {
-      this.processTrillNoteInput(noteIndex, deltaMs, keyCode, lane);
-      this.noteStates.set(noteIndex, NoteState.BODY_ACTIVE);
-      this.longNoteBodyStates.set(noteIndex, {
-        hasBeenPressed: true,
-        bodyStartTimeMs: noteTime ?? 0,
-      });
     }
   }
 
@@ -666,7 +608,7 @@ export class JudgmentEngine {
       if (nextNoteTime === undefined) continue;
 
       if (Math.abs(nextNoteTime - endTimeMs) <= threshold) {
-        return LONG_NOTE_TYPES.has(nextNote.type);
+        return "endBeat" in nextNote;
       }
 
       // 다음 노트가 너무 멀면 중단
