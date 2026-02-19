@@ -353,29 +353,21 @@ export class GameRenderer {
   private buildKeyBeams(): void {
     this.keyBeamGradient = new FillGradient({
       type: 'linear',
-      start: { x: 0, y: 0.5 },
-      end: { x: 1, y: 0.5 },
+      start: { x: 0.5, y: 0 },
+      end: { x: 0.5, y: 1 },
       colorStops: [
         { offset: 0, color: 'rgba(255,255,255,0)' },
-        { offset: 0.5, color: 'rgba(255,255,255,1)' },
-        { offset: 1, color: 'rgba(255,255,255,0)' },
+        { offset: 1, color: 'rgba(255,255,255,1)' },
       ],
       textureSpace: 'local',
     });
-
-    const segments = 24;
-    const segmentHeight = Math.ceil(this.height / segments);
 
     for (let i = 0; i < LANE_COUNT; i++) {
       const flash = new Graphics();
       const laneX = LANE_AREA_X + i * LANE_WIDTH;
 
-      for (let s = 0; s < segments; s++) {
-        const t = s / (segments - 1); // 0 at top, 1 at bottom
-        const alpha = 0.5 * t;
-        flash.rect(laneX, s * segmentHeight, LANE_WIDTH, segmentHeight + 1);
-        flash.fill({ fill: this.keyBeamGradient, alpha });
-      }
+      flash.rect(laneX, 0, LANE_WIDTH, this.height);
+      flash.fill({ fill: this.keyBeamGradient, alpha: 0.5 });
 
       flash.visible = false;
       this.keyBeamGraphics.push(flash);
