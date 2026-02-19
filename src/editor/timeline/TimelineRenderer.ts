@@ -28,10 +28,7 @@ import {
   DEFAULT_MEASURES,
   TIMELINE_PADDING,
   COLORS,
-  SCROLLBAR_WIDTH,
-  SCROLLBAR_TRACK_COLOR,
-  SCROLLBAR_TRACK_ALPHA,
-  SCROLLBAR_THUMB_COLOR,
+  MINIMAP_WIDTH,
 } from "./constants";
 import type { Lane } from "../../shared";
 
@@ -72,13 +69,13 @@ export class TimelineRenderer {
   private boxSelectLayer!: Container;
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
-  private scrollbarLayer!: Container;
+  private minimapLayer!: Container;
 
-  // Scrollbar drag state
-  private scrollbarDragging: boolean = false;
-  private scrollbarDragStartY: number = 0;
-  private scrollbarDragStartScroll: number = 0;
-  private boundScrollbarPointerUp = () => this.handleScrollbarPointerUp();
+  // Minimap drag state
+  private minimapDragging: boolean = false;
+  private minimapDragStartY: number = 0;
+  private minimapDragStartScroll: number = 0;
+  private boundMinimapPointerUp = () => this.handleMinimapPointerUp();
 
   // State
   private _zoom: number = 200; // pixelPerSecond
@@ -186,12 +183,12 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.measureLabels);
     this.app.stage.addChild(this.playbackCursorLayer);
 
-    // Scrollbar layer (topmost, not affected by scroll)
-    this.scrollbarLayer = new Container();
-    this.app.stage.addChild(this.scrollbarLayer);
+    // Minimap layer (topmost, not affected by scroll)
+    this.minimapLayer = new Container();
+    this.app.stage.addChild(this.minimapLayer);
 
-    // Scrollbar pointer events
-    this.setupScrollbarEvents();
+    // Minimap pointer events
+    this.setupMinimapEvents();
 
     this.initialized = true;
   }
@@ -237,7 +234,7 @@ export class TimelineRenderer {
   set scrollY(value: number) {
     this._scrollY = value;
     this.updateScroll();
-    this.renderScrollbar();
+    this.renderMinimap();
     this.app?.render();
   }
 
@@ -301,7 +298,7 @@ export class TimelineRenderer {
    */
   get contentOffsetX(): number {
     const contentWidth = TIMELINE_WIDTH + 32; // timeline + measure label area
-    return Math.max(0, (this.options.width - SCROLLBAR_WIDTH - contentWidth) / 2);
+    return Math.max(0, (this.options.width - MINIMAP_WIDTH - contentWidth) / 2);
   }
 
   /**
@@ -391,7 +388,7 @@ export class TimelineRenderer {
   }
 
   /**
-   * Update scroll position for all layers (except scrollbar layer which stays fixed)
+   * Update scroll position for all layers (except minimap layer which stays fixed)
    */
   private updateScroll(): void {
     const layers = [
@@ -421,7 +418,7 @@ export class TimelineRenderer {
       layer.x = offsetX;
       layer.y = -this._scrollY;
     }
-    // scrollbarLayer is NOT scrolled/offset — stays fixed on screen
+    // minimapLayer is NOT scrolled/offset — stays fixed on screen
   }
 
   /**
@@ -441,7 +438,7 @@ export class TimelineRenderer {
     this.renderNotes();
     this.renderMarkers();
     this.updateScroll();
-    this.renderScrollbar();
+    this.renderMinimap();
     // Force PixiJS to repaint the canvas
     this.app.render();
   }
@@ -1168,66 +1165,152 @@ export class TimelineRenderer {
   }
 
   /**
-   * Render scrollbar inside the canvas (topmost layer, not affected by scroll).
+   * Render minimap inside the canvas (topmost layer, not affected by scroll).
+   * Shows a scaled-down overview of the entire timeline with note positions.
    */
-  private renderScrollbar(): void {
-    this.scrollbarLayer.removeChildren();
+  private renderMinimap(): void {
+    this.minimapLayer.removeChildren();
+    if (!this.chart) return;
 
     const canvasH = this.options.height;
     const totalH = this.totalTimelineHeight;
-    if (totalH <= canvasH) return; // no scrollbar needed
+    if (totalH <= 0) return;
 
-    const trackX = this.options.width - SCROLLBAR_WIDTH;
+    const trackX = this.options.width - MINIMAP_WIDTH;
+    const minimapContentWidth = MINIMAP_WIDTH;
+    const scale = canvasH / totalH;
 
-    // Track background
-    const track = new Graphics();
-    track.rect(trackX, 0, SCROLLBAR_WIDTH, canvasH);
-    track.fill({ color: SCROLLBAR_TRACK_COLOR, alpha: SCROLLBAR_TRACK_ALPHA });
-    this.scrollbarLayer.addChild(track);
+    // (1) Semi-transparent dark background
+    const bg = new Graphics();
+    bg.rect(trackX, 0, MINIMAP_WIDTH, canvasH);
+    bg.fill({ color: 0x000000, alpha: 0.5 });
+    this.minimapLayer.addChild(bg);
 
-    // Thumb
-    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
-    const maxScroll = totalH - canvasH;
-    const thumbY = maxScroll > 0
-      ? (this._scrollY / maxScroll) * (canvasH - thumbHeight)
-      : 0;
+    // (2) Lane backgrounds (scaled)
+    const noteLaneWidth = minimapContentWidth;
+    const laneW = noteLaneWidth / LANE_COUNT;
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
+      const laneBg = new Graphics();
+      laneBg.rect(trackX + i * laneW, 0, laneW, canvasH);
+      laneBg.fill({ color, alpha: 0.4 });
+      this.minimapLayer.addChild(laneBg);
+    }
 
-    const thumb = new Graphics();
-    thumb.roundRect(trackX + 1, thumbY, SCROLLBAR_WIDTH - 2, thumbHeight, 4);
-    thumb.fill({ color: SCROLLBAR_THUMB_COLOR, alpha: 0.8 });
-    this.scrollbarLayer.addChild(thumb);
+    // Helper: convert container-local Y to minimap Y
+    const toMinimapY = (containerY: number): number => containerY * scale;
+
+    // (3) Measure lines
+    const bpmMarkers = this.cachedBpmMarkers;
+    const timeSignatures = this.cachedTimeSignatures;
+    const meta = this.chart.meta;
+    if (bpmMarkers.length > 0 && timeSignatures.length > 0) {
+      const totalTimelineMs = this.getTotalTimelineMs();
+      for (let m = 0; ; m++) {
+        const mStartBeat = measureStartBeat(m, timeSignatures);
+        const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
+        if (mStartMs > totalTimelineMs) break;
+
+        const containerY = this.timeToY(mStartMs);
+        const my = toMinimapY(containerY);
+        if (my < 0 || my > canvasH) continue;
+
+        const line = new Graphics();
+        line.moveTo(trackX, my);
+        line.lineTo(trackX + MINIMAP_WIDTH, my);
+        line.stroke({ width: 1, color: 0xffffff, alpha: 0.2 });
+        this.minimapLayer.addChild(line);
+      }
+    }
+
+    // (4) Notes
+    const { notes } = this.chart;
+    for (const note of notes) {
+      const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const containerY = this.timeToY(timeMs);
+      const my = toMinimapY(containerY);
+
+      const laneIdx = note.lane - 1;
+      const noteX = trackX + laneIdx * laneW;
+
+      if ('endBeat' in note) {
+        // Range note (long note): draw filled rect from start to end
+        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const endContainerY = this.timeToY(endMs);
+        const endMy = toMinimapY(endContainerY);
+
+        let noteColor: number;
+        switch (note.type) {
+          case 'singleLong': noteColor = COLORS.SINGLE_LONG; break;
+          case 'doubleLong': noteColor = COLORS.DOUBLE_LONG; break;
+          case 'trillLong': noteColor = COLORS.TRILL_LONG; break;
+          default: noteColor = COLORS.SINGLE_LONG;
+        }
+
+        const topY = Math.min(my, endMy);
+        const height = Math.max(1, Math.abs(endMy - my));
+        const longGfx = new Graphics();
+        longGfx.rect(noteX, topY, laneW, height);
+        longGfx.fill({ color: noteColor, alpha: 0.5 });
+        this.minimapLayer.addChild(longGfx);
+      } else {
+        // Point note: 1px height horizontal line
+        let noteColor: number;
+        switch (note.type) {
+          case 'single': noteColor = COLORS.SINGLE_NOTE; break;
+          case 'double': noteColor = COLORS.DOUBLE_NOTE; break;
+          case 'trill': noteColor = COLORS.TRILL_NOTE; break;
+          default: noteColor = COLORS.SINGLE_NOTE;
+        }
+
+        const noteGfx = new Graphics();
+        noteGfx.rect(noteX, my, laneW, 1);
+        noteGfx.fill(noteColor);
+        this.minimapLayer.addChild(noteGfx);
+      }
+    }
+
+    // (5) Viewport indicator
+    if (totalH > canvasH) {
+      const viewportTopY = (this._scrollY / totalH) * canvasH;
+      const viewportHeight = (canvasH / totalH) * canvasH;
+
+      const viewport = new Graphics();
+      viewport.rect(trackX, viewportTopY, MINIMAP_WIDTH, viewportHeight);
+      viewport.fill({ color: 0xffffff, alpha: 0.15 });
+      viewport.stroke({ width: 1, color: 0xffffff, alpha: 0.5 });
+      this.minimapLayer.addChild(viewport);
+    }
   }
 
   /**
-   * Check if a screen-space point is within the scrollbar area.
+   * Check if a screen-space point is within the minimap area.
    */
-  isInScrollbarArea(x: number): boolean {
-    return x >= this.options.width - SCROLLBAR_WIDTH;
+  isInMinimapArea(x: number): boolean {
+    return x >= this.options.width - MINIMAP_WIDTH;
   }
 
   /**
-   * Handle scrollbar pointer down. Returns true if the event was consumed.
+   * Handle minimap pointer down. Returns true if the event was consumed.
    */
-  handleScrollbarPointerDown(x: number, y: number): boolean {
-    if (!this.isInScrollbarArea(x)) return false;
+  handleMinimapPointerDown(x: number, y: number): boolean {
+    if (!this.isInMinimapArea(x)) return false;
 
     const canvasH = this.options.height;
     const totalH = this.totalTimelineHeight;
     if (totalH <= canvasH) return false;
 
-    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
     const maxScroll = totalH - canvasH;
-    const thumbY = maxScroll > 0
-      ? (this._scrollY / maxScroll) * (canvasH - thumbHeight)
-      : 0;
+    const viewportTopY = (this._scrollY / totalH) * canvasH;
+    const viewportHeight = (canvasH / totalH) * canvasH;
 
-    if (y >= thumbY && y <= thumbY + thumbHeight) {
-      // Start dragging thumb
-      this.scrollbarDragging = true;
-      this.scrollbarDragStartY = y;
-      this.scrollbarDragStartScroll = this._scrollY;
+    if (y >= viewportTopY && y <= viewportTopY + viewportHeight) {
+      // Start dragging viewport indicator
+      this.minimapDragging = true;
+      this.minimapDragStartY = y;
+      this.minimapDragStartScroll = this._scrollY;
     } else {
-      // Click on track: jump to position (center the view at click point)
+      // Click on minimap: jump to position (center the view at click point)
       const ratio = y / canvasH;
       const targetScroll = ratio * totalH - canvasH / 2;
       const newScroll = Math.max(0, Math.min(maxScroll, targetScroll));
@@ -1238,41 +1321,39 @@ export class TimelineRenderer {
   }
 
   /**
-   * Handle scrollbar pointer move. Returns true if dragging.
+   * Handle minimap pointer move. Returns true if dragging.
    */
-  handleScrollbarPointerMove(_x: number, y: number): boolean {
-    if (!this.scrollbarDragging) return false;
+  handleMinimapPointerMove(_x: number, y: number): boolean {
+    if (!this.minimapDragging) return false;
 
     const canvasH = this.options.height;
     const totalH = this.totalTimelineHeight;
-    const thumbHeight = Math.max(20, (canvasH / totalH) * canvasH);
     const maxScroll = totalH - canvasH;
 
-    const trackRange = canvasH - thumbHeight;
-    if (trackRange <= 0) return true;
+    if (canvasH <= 0) return true;
 
-    const deltaY = y - this.scrollbarDragStartY;
-    const deltaScroll = (deltaY / trackRange) * maxScroll;
-    const newScroll = Math.max(0, Math.min(maxScroll, this.scrollbarDragStartScroll + deltaScroll));
+    const deltaY = y - this.minimapDragStartY;
+    const deltaScroll = (deltaY / canvasH) * totalH;
+    const newScroll = Math.max(0, Math.min(maxScroll, this.minimapDragStartScroll + deltaScroll));
     this.options.onScroll?.(newScroll);
 
     return true;
   }
 
   /**
-   * Handle scrollbar pointer up.
+   * Handle minimap pointer up.
    */
-  handleScrollbarPointerUp(): void {
-    this.scrollbarDragging = false;
+  handleMinimapPointerUp(): void {
+    this.minimapDragging = false;
   }
 
   /**
-   * Setup canvas-level pointer events for scrollbar drag interaction.
+   * Setup canvas-level pointer events for minimap drag interaction.
    */
-  private setupScrollbarEvents(): void {
+  private setupMinimapEvents(): void {
     const canvas = this.options.canvas;
-    canvas.addEventListener('pointerup', this.boundScrollbarPointerUp);
-    canvas.addEventListener('pointerleave', this.boundScrollbarPointerUp);
+    canvas.addEventListener('pointerup', this.boundMinimapPointerUp);
+    canvas.addEventListener('pointerleave', this.boundMinimapPointerUp);
   }
 
   /**
@@ -1281,8 +1362,8 @@ export class TimelineRenderer {
   dispose(): void {
     if (!this.initialized) return;
     const canvas = this.options.canvas;
-    canvas.removeEventListener('pointerup', this.boundScrollbarPointerUp);
-    canvas.removeEventListener('pointerleave', this.boundScrollbarPointerUp);
+    canvas.removeEventListener('pointerup', this.boundMinimapPointerUp);
+    canvas.removeEventListener('pointerleave', this.boundMinimapPointerUp);
     this.initialized = false;
     for (const g of this.bodyGradientCache.values()) g.destroy();
     this.bodyGradientCache.clear();

@@ -636,8 +636,8 @@ function ChartEditorPage() {
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check for scrollbar interaction first (uses raw canvas coords)
-    if (rendererRef.current?.handleScrollbarPointerDown(rawX, y)) {
+    // Check for minimap interaction first (uses raw canvas coords)
+    if (rendererRef.current?.handleMinimapPointerDown(rawX, y)) {
       canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
@@ -678,8 +678,8 @@ function ChartEditorPage() {
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Handle scrollbar drag (uses raw canvas coords)
-    if (rendererRef.current?.handleScrollbarPointerMove(rawX, y)) {
+    // Handle minimap drag (uses raw canvas coords)
+    if (rendererRef.current?.handleMinimapPointerMove(rawX, y)) {
       return;
     }
 
@@ -797,7 +797,7 @@ function ChartEditorPage() {
   }, [mode, entityType, xToLane, yToBeat, snapBeat, bpmMarkers, chart.meta.offsetMs]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    rendererRef.current?.handleScrollbarPointerUp();
+    rendererRef.current?.handleMinimapPointerUp();
 
     if (isDraggingCursorRef.current) {
       isDraggingCursorRef.current = false;
