@@ -20,6 +20,7 @@ interface GameSettings {
   offsetMs: number;
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
+  showFastSlow: boolean;
 }
 
 interface PlayResult {
@@ -31,6 +32,8 @@ interface PlayResult {
   isFullCombo: boolean;
   judgmentCounts: Record<string, number>;
   goodTrillCount: number;
+  fastCount: number;
+  slowCount: number;
 }
 
 interface GameState {
@@ -76,6 +79,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   offsetMs: 0,
   preset: 'tkl',
   isFirstLaunch: true,
+  showFastSlow: true,
 };
 
 export const useGameStore = create<GameState>()(

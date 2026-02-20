@@ -39,4 +39,7 @@ export const COLORS = {
   JUDGMENT_GOOD: 0x4488ff,
   JUDGMENT_BAD: 0x888888,
   JUDGMENT_MISS: 0xff4444,
+
+  FAST_TEXT: 0x44aaff,
+  SLOW_TEXT: 0xff6644,
 } as const;

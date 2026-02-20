@@ -94,6 +94,7 @@ export function PlayScreen() {
           audioBuffer.duration * 1000,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
+        renderer.setShowFastSlow(settings.showFastSlow);
         renderer.setLift(GAME_HEIGHT * settings.liftPercent / 100);
         renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
 
@@ -117,16 +118,22 @@ export function PlayScreen() {
           noteEndTimesMs,
           {
             onJudgment: (result: JudgmentResult) => {
-              scoreManager.recordJudgment(result.grade);
-              renderer.showJudgment(result.grade);
+              const note = chartData.notes[result.noteIndex];
+              const isBody = 'endBeat' in note;
+
+              // Pass deltaMs only for head judgments (not body)
+              if (isBody) {
+                scoreManager.recordJudgment(result.grade);
+              } else {
+                scoreManager.recordJudgment(result.grade, result.deltaMs);
+              }
+              renderer.showJudgment(result.grade, result.deltaMs);
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
               if (result.grade === 'miss') {
                 renderer.markBodyFailed(result.noteIndex);
               }
 
               // Note visibility updates
-              const note = chartData.notes[result.noteIndex];
-              const isBody = 'endBeat' in note;
               const isDouble = note.type === 'double';
 
               if (isBody) {
@@ -270,6 +277,8 @@ export function PlayScreen() {
       isFullCombo: state.isFullCombo,
       judgmentCounts: state.judgmentCounts,
       goodTrillCount: state.goodTrillCount,
+      fastCount: state.fastCount,
+      slowCount: state.slowCount,
     });
 
     setScreen('result');

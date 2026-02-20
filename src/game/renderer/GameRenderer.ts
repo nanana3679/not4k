@@ -9,7 +9,7 @@ import { Application, Container, Graphics, Text, TextStyle, FillGradient } from 
 import type { FillInput } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
-import { JudgmentGrade } from "../../shared";
+import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -202,6 +202,7 @@ export class GameRenderer {
 
   // Visual state
   private judgmentTimer: number = 0;
+  private showFastSlow: boolean = true;
 
   // Object pools
   private noteGraphicsPool: Map<number, Graphics> = new Map();
@@ -223,6 +224,7 @@ export class GameRenderer {
   private comboText: Text;
   private accuracyText: Text;
   private judgmentText: Text;
+  private fastSlowText: Text;
 
   // Dimensions
   private width: number;
@@ -299,6 +301,19 @@ export class GameRenderer {
     this.judgmentText.x = this.width / 2;
     this.judgmentText.y = this._judgmentLineY - 45;
     this.judgmentText.alpha = 0;
+
+    const fastSlowStyle = new TextStyle({
+      fontFamily: "Arial",
+      fontSize: 20,
+      fontWeight: "bold",
+      fill: 0xffffff,
+      align: "center",
+    });
+    this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
+    this.fastSlowText.anchor.set(0.5, 0.5);
+    this.fastSlowText.x = this.width / 2;
+    this.fastSlowText.y = this._judgmentLineY - 15;
+    this.fastSlowText.alpha = 0;
   }
 
   async init(): Promise<void> {
@@ -326,6 +341,7 @@ export class GameRenderer {
     this.uiLayer.addChild(this.comboText);
     this.uiLayer.addChild(this.accuracyText);
     this.uiLayer.addChild(this.judgmentText);
+    this.uiLayer.addChild(this.fastSlowText);
 
     // Draw static elements
     this.drawBackground();
@@ -452,7 +468,9 @@ export class GameRenderer {
     // Update judgment text fade
     if (this.judgmentTimer > 0) {
       this.judgmentTimer -= 16; // ~16ms per frame (60fps assumption)
-      this.judgmentText.alpha = Math.max(0, this.judgmentTimer / 500);
+      const alpha = Math.max(0, this.judgmentTimer / 500);
+      this.judgmentText.alpha = alpha;
+      this.fastSlowText.alpha = alpha;
     }
 
     // Clear dynamic layers
@@ -755,7 +773,7 @@ export class GameRenderer {
     return gradient;
   }
 
-  showJudgment(grade: JudgmentGrade): void {
+  showJudgment(grade: JudgmentGrade, deltaMs?: number): void {
     this.judgmentTimer = 500; // 500ms fade duration
 
     // Update text
@@ -768,6 +786,30 @@ export class GameRenderer {
 
     // Reset alpha
     this.judgmentText.alpha = 1;
+
+    // Update FAST/SLOW text (hide within inner half of Perfect window)
+    const fastSlowThreshold = JUDGMENT_WINDOWS.PERFECT / 2;
+    if (this.showFastSlow && deltaMs != null && grade !== "miss" && Math.abs(deltaMs) > fastSlowThreshold) {
+      if (deltaMs < 0) {
+        this.fastSlowText.text = "FAST";
+        this.fastSlowText.style.fill = COLORS.FAST_TEXT;
+        this.fastSlowText.alpha = 1;
+      } else if (deltaMs > 0) {
+        this.fastSlowText.text = "SLOW";
+        this.fastSlowText.style.fill = COLORS.SLOW_TEXT;
+        this.fastSlowText.alpha = 1;
+      } else {
+        this.fastSlowText.text = "";
+        this.fastSlowText.alpha = 0;
+      }
+    } else {
+      this.fastSlowText.text = "";
+      this.fastSlowText.alpha = 0;
+    }
+  }
+
+  setShowFastSlow(enabled: boolean): void {
+    this.showFastSlow = enabled;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {
@@ -811,10 +853,11 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
-    // Update UI positions (top→bottom: combo, accuracy, judgment)
+    // Update UI positions (top→bottom: combo, accuracy, judgment, fast/slow)
     this.comboText.y = this._judgmentLineY - 130;
     this.accuracyText.y = this._judgmentLineY - 85;
     this.judgmentText.y = this._judgmentLineY - 45;
+    this.fastSlowText.y = this._judgmentLineY - 15;
   }
 
   setSudden(y: number): void {

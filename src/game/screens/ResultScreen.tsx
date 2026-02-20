@@ -54,6 +54,20 @@ export function ResultScreen() {
         </div>
       </div>
 
+      <div style={styles.judgmentSection}>
+        <h2 style={styles.subtitle}>Timing</h2>
+        <div style={styles.judgmentGrid}>
+          <div style={styles.judgmentRow}>
+            <span style={{ ...styles.judgmentLabel, color: '#44aaff' }}>FAST:</span>
+            <span style={styles.judgmentCount}>{lastResult.fastCount}</span>
+          </div>
+          <div style={styles.judgmentRow}>
+            <span style={{ ...styles.judgmentLabel, color: '#ff6644' }}>SLOW:</span>
+            <span style={styles.judgmentCount}>{lastResult.slowCount}</span>
+          </div>
+        </div>
+      </div>
+
       <button style={styles.button} onClick={() => setScreen('songSelect')}>
         Back to Song Select
       </button>

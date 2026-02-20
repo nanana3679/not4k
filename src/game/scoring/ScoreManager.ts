@@ -1,6 +1,7 @@
 import {
   JudgmentGrade,
   JUDGMENT_SCORES,
+  JUDGMENT_WINDOWS,
   Rank,
   getRank,
 } from "../../shared";
@@ -17,6 +18,8 @@ export interface ScoreState {
   isFullCombo: boolean; // no Bad or Miss
   judgmentCounts: Record<JudgmentGrade, number>; // per-grade count
   goodTrillCount: number; // separate GOOD_TRILL count (also in judgmentCounts)
+  fastCount: number;
+  slowCount: number;
 }
 
 export class ScoreManager {
@@ -27,6 +30,8 @@ export class ScoreManager {
   private maxCombo: number;
   private hasBadOrMiss: boolean;
   private judgmentCounts: Record<JudgmentGrade, number>;
+  private fastCount: number;
+  private slowCount: number;
 
   constructor(totalJudgmentCount: number) {
     this.totalNotes = totalJudgmentCount;
@@ -35,6 +40,8 @@ export class ScoreManager {
     this.combo = 0;
     this.maxCombo = 0;
     this.hasBadOrMiss = false;
+    this.fastCount = 0;
+    this.slowCount = 0;
     this.judgmentCounts = {
       [JudgmentGrade.PERFECT]: 0,
       [JudgmentGrade.GREAT]: 0,
@@ -45,14 +52,22 @@ export class ScoreManager {
     };
   }
 
-  /** Record a judgment result */
-  recordJudgment(grade: JudgmentGrade): void {
+  /** Record a judgment result. deltaMs is optional — only passed for head judgments with user input. */
+  recordJudgment(grade: JudgmentGrade, deltaMs?: number): void {
     // Update processed count and score
     this.processedNotes++;
     this.earnedScore += JUDGMENT_SCORES[grade];
 
     // Update judgment counts
     this.judgmentCounts[grade]++;
+
+    // Track FAST/SLOW (only when deltaMs is provided, grade is not MISS,
+    // and outside the inner half of Perfect window)
+    const fastSlowThreshold = JUDGMENT_WINDOWS.PERFECT / 2;
+    if (deltaMs != null && grade !== JudgmentGrade.MISS && Math.abs(deltaMs) > fastSlowThreshold) {
+      if (deltaMs < 0) this.fastCount++;
+      else if (deltaMs > 0) this.slowCount++;
+    }
 
     // Update combo
     if (
@@ -91,6 +106,8 @@ export class ScoreManager {
       isFullCombo: !this.hasBadOrMiss,
       judgmentCounts: { ...this.judgmentCounts },
       goodTrillCount: this.judgmentCounts[JudgmentGrade.GOOD_TRILL],
+      fastCount: this.fastCount,
+      slowCount: this.slowCount,
     };
   }
 
@@ -102,6 +119,8 @@ export class ScoreManager {
     this.combo = 0;
     this.maxCombo = 0;
     this.hasBadOrMiss = false;
+    this.fastCount = 0;
+    this.slowCount = 0;
     this.judgmentCounts = {
       [JudgmentGrade.PERFECT]: 0,
       [JudgmentGrade.GREAT]: 0,

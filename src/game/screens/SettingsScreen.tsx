@@ -206,6 +206,18 @@ export function SettingsScreen() {
               style={styles.numberInput}
             />
           </div>
+
+          <div style={styles.setting}>
+            <label style={styles.label}>
+              <input
+                type="checkbox"
+                checked={settings.showFastSlow}
+                onChange={(e) => updateSettings({ showFastSlow: e.target.checked })}
+                style={styles.checkbox}
+              />
+              Show FAST/SLOW
+            </label>
+          </div>
         </div>
       </div>
 
@@ -362,6 +374,12 @@ const styles = {
     border: '1px solid #666666',
     borderRadius: '4px',
     width: '150px',
+  },
+  checkbox: {
+    marginRight: '8px',
+    width: '18px',
+    height: '18px',
+    verticalAlign: 'middle',
   },
   button: {
     fontSize: '18px',
