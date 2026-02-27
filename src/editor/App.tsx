@@ -11,13 +11,16 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, STORAGE_BUCKET, songChartPath } from '../shared';
+import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath } from '../shared';
 import { serializeChart } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
+import { PreviewRangeSelector } from './components/PreviewRangeSelector';
+import type { PreviewRangeState } from './components/PreviewRangeSelector';
+import { trimAudioBuffer, encodeWav } from './audio/previewTrim';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -145,6 +148,12 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
+  // Pending preview: holds trimmed audio blob + range when preview was changed in meta modal
+  const [pendingPreview, setPendingPreview] = useState<{
+    blob: Blob;
+    startTime: number;
+    endTime: number;
+  } | null>(null);
 
   // Inject spinner keyframes once
   useEffect(() => {
@@ -1093,6 +1102,27 @@ function ChartEditorPage() {
       }, { onConflict: 'song_id,difficulty_label' });
       if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
 
+      // 3. Upload pending preview audio + update songs table if preview changed
+      if (pendingPreview) {
+        const previewPath = songPreviewPath(activeSongId, 'wav');
+        const { error: previewUploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(previewPath, pendingPreview.blob, { upsert: true });
+        if (previewUploadError) throw new Error(`Preview upload failed: ${previewUploadError.message}`);
+
+        const { error: songUpdateError } = await supabase
+          .from('songs')
+          .update({
+            preview_url: previewPath,
+            preview_start: pendingPreview.startTime,
+            preview_end: pendingPreview.endTime,
+          })
+          .eq('id', activeSongId);
+        if (songUpdateError) throw new Error(`Song preview update failed: ${songUpdateError.message}`);
+
+        setPendingPreview(null);
+      }
+
       setSavedChartSnapshot(json);
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
@@ -1101,7 +1131,7 @@ function ChartEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast]);
+  }, [chart, activeSongId, addToast, pendingPreview]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -1221,7 +1251,7 @@ function ChartEditorPage() {
         <button
           style={styles.button}
           onClick={() => {
-            const isDirty = savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot;
+            const isDirty = (savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot) || pendingPreview != null;
             if (isDirty) {
               setShowLeaveConfirm(true);
             } else {
@@ -1393,8 +1423,23 @@ function ChartEditorPage() {
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
-          onSave={(meta) => {
+          audioBuffer={playbackRef.current?.audioBufferData ?? null}
+          onSave={async (meta, previewRange) => {
+            const prevStart = chart.meta.previewStart;
+            const prevEnd = chart.meta.previewEnd;
+            const rangeChanged = previewRange != null && (
+              previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
+            );
+
             setChart({ ...chart, meta });
+
+            if (rangeChanged && previewRange && playbackRef.current?.audioBufferData) {
+              const buf = playbackRef.current.audioBufferData;
+              const trimmed = await trimAudioBuffer(buf, previewRange.startTime, previewRange.endTime);
+              const wavBlob = encodeWav(trimmed);
+              setPendingPreview({ blob: wavBlob, startTime: previewRange.startTime, endTime: previewRange.endTime });
+            }
+
             setShowMetaModal(false);
           }}
           onClose={() => setShowMetaModal(false)}
@@ -1697,9 +1742,10 @@ const eventTabStyles = {
 // Meta Edit Modal
 // ---------------------------------------------------------------------------
 
-function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
+function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
   meta: ChartMeta;
-  onSave: (meta: ChartMeta) => void;
+  audioBuffer: AudioBuffer | null;
+  onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
 }) {
@@ -1713,13 +1759,14 @@ function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
     imageFile: meta.imageFile,
     previewAudioFile: meta.previewAudioFile,
   });
+  const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
 
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
 
   const handleSave = () => {
     const level = parseInt(values.difficultyLevel);
     const offset = parseFloat(values.offsetMs);
-    onSave({
+    const updatedMeta: ChartMeta = {
       ...meta,
       title: values.title,
       artist: values.artist,
@@ -1729,7 +1776,12 @@ function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
       audioFile: values.audioFile,
       imageFile: values.imageFile,
       previewAudioFile: values.previewAudioFile,
-    });
+    };
+    if (previewRange) {
+      updatedMeta.previewStart = previewRange.startTime;
+      updatedMeta.previewEnd = previewRange.endTime;
+    }
+    onSave(updatedMeta, previewRange);
   };
 
   const fields: { label: string; key: string; type: string }[] = [
@@ -1745,7 +1797,7 @@ function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
 
   return (
     <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...modalStyles.modal, width: '500px', maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
 
         {fields.map((f) => (
@@ -1778,6 +1830,18 @@ function MetaEditModal({ meta, onSave, onClose, onLoadAudio }: {
           />
           <span style={{ fontSize: '12px', color: '#999' }}>{values.audioFile || 'No file'}</span>
         </label>
+
+        {audioBuffer && (
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ fontSize: '13px', marginBottom: '4px', display: 'block' }}>Preview Range</span>
+            <PreviewRangeSelector
+              audioBuffer={audioBuffer}
+              onChange={setPreviewRange}
+              initialStart={meta.previewStart}
+              initialEnd={meta.previewEnd}
+            />
+          </div>
+        )}
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={handleSave}>Save</button>

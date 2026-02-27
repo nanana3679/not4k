@@ -27,6 +27,10 @@ export interface ChartMeta {
   audioFile: string;
   /** 프리뷰 음원 파일 경로 */
   previewAudioFile: string;
+  /** 프리뷰 시작 시간 (초) */
+  previewStart?: number;
+  /** 프리뷰 끝 시간 (초) */
+  previewEnd?: number;
   /** 음원 재생 시작 → 0박까지의 시간 차이 (ms) */
   offsetMs: number;
 }

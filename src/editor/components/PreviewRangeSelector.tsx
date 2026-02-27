@@ -14,6 +14,8 @@ export interface PreviewRangeState {
 interface PreviewRangeSelectorProps {
   audioBuffer: AudioBuffer;
   onChange: (state: PreviewRangeState | null) => void;
+  initialStart?: number;
+  initialEnd?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,12 +52,16 @@ function clamp(value: number, min: number, max: number): number {
 // Component
 // ---------------------------------------------------------------------------
 
-export function PreviewRangeSelector({ audioBuffer, onChange }: PreviewRangeSelectorProps) {
+export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, initialEnd }: PreviewRangeSelectorProps) {
   const duration = audioBuffer.duration;
 
-  // Compute initial range
-  const initStart = Math.min(duration * 0.25, Math.max(0, duration - DEFAULT_DURATION));
-  const initEnd = Math.min(initStart + DEFAULT_DURATION, duration);
+  // Compute initial range (use provided initial values if available)
+  const initStart = initialStart != null
+    ? Math.max(0, Math.min(initialStart, duration))
+    : Math.min(duration * 0.25, Math.max(0, duration - DEFAULT_DURATION));
+  const initEnd = initialEnd != null
+    ? Math.max(initStart, Math.min(initialEnd, duration))
+    : Math.min(initStart + DEFAULT_DURATION, duration);
 
   const [startTime, setStartTime] = useState(initStart);
   const [endTime, setEndTime] = useState(initEnd);

@@ -154,7 +154,7 @@ function AddSongModal({ onDone, onClose, addToast }: {
 
       await Promise.all(uploads);
 
-      const row: Record<string, string> = {
+      const row: Record<string, unknown> = {
         id: songId,
         title: title.trim(),
         artist: artist.trim(),
@@ -166,6 +166,8 @@ function AddSongModal({ onDone, onClose, addToast }: {
       }
       if (previewRange && audioBuffer) {
         row.preview_url = songPreviewPath(songId, 'wav');
+        row.preview_start = previewRange.startTime;
+        row.preview_end = previewRange.endTime;
       }
 
       const { error } = await supabase.from('songs').insert(row);
