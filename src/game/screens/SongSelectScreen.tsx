@@ -86,6 +86,12 @@ function generateSongId(title: string): string {
   return `${slug}-${hex}`;
 }
 
+function getCircularDistance(a: number, b: number, total: number): number {
+  if (total === 0) return 0;
+  const d = Math.abs(a - b);
+  return Math.min(d, total - d);
+}
+
 // ---------------------------------------------------------------------------
 // Add Song Modal
 // ---------------------------------------------------------------------------
@@ -334,6 +340,7 @@ export function SongSelectScreen() {
   const [focusedChartIndex, setFocusedChartIndex] = useState(0);
   const songListRef = useRef<HTMLDivElement>(null);
   const songCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const wheelCooldownRef = useRef(0);
 
   // Preview audio playback
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -364,6 +371,38 @@ export function SongSelectScreen() {
   }, [isAdmin]);
 
   useEffect(() => { fetchSongs(); }, [fetchSongs]);
+
+  // Circular song navigation (with cooldown to let animation play)
+  const NAV_COOLDOWN = 100; // ms
+  const navigateSong = useCallback((direction: 1 | -1) => {
+    if (songs.length === 0) return;
+    const now = Date.now();
+    if (now - wheelCooldownRef.current < NAV_COOLDOWN) return;
+    wheelCooldownRef.current = now;
+    setFocusedSongIndex((prev) => (prev + direction + songs.length) % songs.length);
+    setFocusedChartIndex(0);
+  }, [songs.length]);
+
+  // Mouse wheel → change song selection (non-passive for preventDefault)
+  useEffect(() => {
+    const el = songListRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY > 0) navigateSong(1);
+      else if (e.deltaY < 0) navigateSong(-1);
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [navigateSong]);
+
+  // Scroll focused song card to center
+  useEffect(() => {
+    const el = songCardRefs.current.get(focusedSongIndex);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusedSongIndex]);
 
   // Preview audio: play focused song's preview in loop with fade-in/out
   useEffect(() => {
@@ -555,20 +594,10 @@ export function SongSelectScreen() {
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setFocusedSongIndex((prev) => {
-          const next = Math.max(0, prev - 1);
-          songCardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          return next;
-        });
-        setFocusedChartIndex(0);
+        navigateSong(-1);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusedSongIndex((prev) => {
-          const next = Math.min(songs.length - 1, prev + 1);
-          songCardRefs.current.get(next)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          return next;
-        });
-        setFocusedChartIndex(0);
+        navigateSong(1);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         setFocusedChartIndex((prev) => Math.max(0, prev - 1));
@@ -596,7 +625,7 @@ export function SongSelectScreen() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, handlePlay, setScreen, getSortedCharts]);
+  }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, handlePlay, setScreen, getSortedCharts, navigateSong]);
 
   // Clamp focused indices when songs change
   useEffect(() => {
@@ -758,6 +787,9 @@ export function SongSelectScreen() {
 
           {songs.map((song, songIdx) => {
             const isFocused = songIdx === focusedSongIndex;
+            const dist = getCircularDistance(songIdx, focusedSongIndex, songs.length);
+            const cardOpacity = isFocused ? 1 : Math.max(0.35, 1 - dist * 0.18);
+            const cardScale = isFocused ? 1 : Math.max(0.92, 1 - dist * 0.02);
             const sortedCharts = getSortedCharts(song);
 
             return (
@@ -767,6 +799,8 @@ export function SongSelectScreen() {
                 style={{
                   ...styles.songCard,
                   ...(isFocused ? styles.songCardFocused : {}),
+                  opacity: cardOpacity,
+                  transform: `scale(${cardScale})`,
                 }}
                 onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
               >
@@ -995,10 +1029,14 @@ const styles: Record<string, React.CSSProperties> = {
   songList: {
     flex: 1,
     overflow: 'auto',
-    padding: '16px 24px',
+    paddingTop: 'calc(50vh - 60px)',
+    paddingBottom: 'calc(50vh - 60px)',
+    paddingLeft: '24px',
+    paddingRight: '24px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    scrollbarWidth: 'none',
   },
   empty: {
     textAlign: 'center',
@@ -1017,11 +1055,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderColor: '#333',
     borderRadius: '6px',
     cursor: 'pointer',
-    transition: 'border-color 0.15s',
+    transition: 'border-color 80ms, box-shadow 80ms, opacity 80ms ease, transform 80ms ease, background-color 80ms',
+    transformOrigin: 'center',
   },
   songCardFocused: {
     borderColor: '#00ffff',
-    boxShadow: '0 0 0 1px #00ffff44',
+    boxShadow: '0 0 8px 2px #00ffff44',
+    backgroundColor: '#303030',
   },
   songInfo: {
     display: 'flex',
