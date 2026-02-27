@@ -320,7 +320,7 @@ function DifficultyModal({ existingDifficulties, onSelect, onClose }: {
 // ---------------------------------------------------------------------------
 
 export function SongSelectScreen() {
-  const { selectSong, setScreen } = useGameStore();
+  const { selectSong, setScreen, selectedSongId, selectedDifficulty } = useGameStore();
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
 
   const [songs, setSongs] = useState<DbSong[]>([]);
@@ -341,6 +341,9 @@ export function SongSelectScreen() {
   const songListRef = useRef<HTMLDivElement>(null);
   const songCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const wheelCooldownRef = useRef(0);
+
+  // Track whether last-played song focus has been restored
+  const restoredRef = useRef(false);
 
   // Preview audio playback
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -627,12 +630,32 @@ export function SongSelectScreen() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, handlePlay, setScreen, getSortedCharts, navigateSong]);
 
-  // Clamp focused indices when songs change
+  // Restore focus to last-played song on first load, or clamp indices
   useEffect(() => {
-    if (songs.length > 0) {
-      setFocusedSongIndex((prev) => Math.min(prev, songs.length - 1));
+    if (songs.length === 0) return;
+
+    if (!restoredRef.current && selectedSongId) {
+      restoredRef.current = true;
+      const songIdx = songs.findIndex((s) => s.id === selectedSongId);
+      if (songIdx >= 0) {
+        setFocusedSongIndex(songIdx);
+        // Also restore difficulty selection if available
+        if (selectedDifficulty) {
+          const sorted = getSortedCharts(songs[songIdx]);
+          const chartIdx = sorted.findIndex(
+            (c) => c.difficulty_label === selectedDifficulty,
+          );
+          if (chartIdx >= 0) {
+            setFocusedChartIndex(chartIdx);
+          }
+        }
+        return;
+      }
     }
-  }, [songs]);
+
+    restoredRef.current = true;
+    setFocusedSongIndex((prev) => Math.min(prev, songs.length - 1));
+  }, [songs, selectedSongId, selectedDifficulty, getSortedCharts]);
 
   const focusedSong = songs[focusedSongIndex] ?? null;
   const focusedSortedCharts = focusedSong ? getSortedCharts(focusedSong) : [];
