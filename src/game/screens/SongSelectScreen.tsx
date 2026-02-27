@@ -605,18 +605,22 @@ export function SongSelectScreen() {
     }
   }, [songs]);
 
+  const focusedSong = songs[focusedSongIndex] ?? null;
+  const focusedSortedCharts = focusedSong ? getSortedCharts(focusedSong) : [];
+  const focusedChart = focusedSortedCharts[focusedChartIndex] ?? null;
+  const focusedJacketUrl = focusedSong
+    ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(songJacketPath(focusedSong.id)).data.publicUrl
+    : null;
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>Song Select</h1>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Admin-only buttons */}
           {isAdmin && (
-            <>
-              <button style={styles.addSongBtn} onClick={() => setShowAddSong(true)}>
-                + Add Song
-              </button>
-            </>
+            <button style={styles.addSongBtn} onClick={() => setShowAddSong(true)}>
+              + Add Song
+            </button>
           )}
           <button style={styles.refreshBtn} onClick={fetchSongs} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
@@ -624,8 +628,6 @@ export function SongSelectScreen() {
           <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
             Settings
           </button>
-
-          {/* Auth */}
           {!authLoading && (
             user ? (
               <>
@@ -636,54 +638,44 @@ export function SongSelectScreen() {
               <button style={styles.refreshBtn} onClick={() => signInWithGoogle().catch(() => {})}>Login</button>
             )
           )}
-
           <button style={styles.backBtn} onClick={() => setScreen('title')}>
             Back
           </button>
         </div>
       </div>
 
-      <div ref={songListRef} style={styles.songList}>
-        {loading && songs.length === 0 && (
-          <div style={styles.empty}>Loading songs...</div>
-        )}
-
-        {!loading && error && (
-          <div style={styles.empty}>{error}</div>
-        )}
-
-        {!loading && !error && songs.length === 0 && (
-          <div style={styles.empty}>No songs found.</div>
-        )}
-
-        {songs.map((song, songIdx) => {
-          const isFocused = songIdx === focusedSongIndex;
-          const sortedCharts = getSortedCharts(song);
-
-          return (
-            <div
-              key={song.id}
-              ref={(el) => { if (el) songCardRefs.current.set(songIdx, el); else songCardRefs.current.delete(songIdx); }}
-              style={{
-                ...styles.songCard,
-                ...(isFocused ? styles.songCardFocused : {}),
-              }}
-              onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
-            >
-              <div style={styles.songInfo}>
-                <span style={styles.songTitle}>{song.title}</span>
-                <span style={styles.songArtist}>
-                  {song.artist}
-                  {song.duration != null && (
-                    <span style={styles.songDuration}>
-                      {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
-                    </span>
-                  )}
-                </span>
+      <div style={styles.splitContainer}>
+        {/* Left panel — song detail */}
+        <div style={styles.leftPanel}>
+          {focusedSong ? (
+            <>
+              {/* Jacket image */}
+              <div style={styles.jacketContainer}>
+                <img
+                  key={focusedSong.id}
+                  src={focusedJacketUrl!}
+                  alt=""
+                  style={styles.jacketImage}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  onLoad={(e) => { (e.target as HTMLImageElement).style.display = 'block'; }}
+                />
               </div>
-              <div style={styles.chartTags}>
-                {sortedCharts.map((chart, chartIdx) => {
-                  const isChartFocused = isFocused && chartIdx === focusedChartIndex;
+
+              {/* Song info */}
+              <div style={styles.detailInfo}>
+                <span style={styles.detailTitle}>{focusedSong.title}</span>
+                <span style={styles.detailArtist}>{focusedSong.artist}</span>
+                {focusedSong.duration != null && (
+                  <span style={styles.detailDuration}>
+                    {Math.floor(focusedSong.duration / 60)}:{String(Math.floor(focusedSong.duration % 60)).padStart(2, '0')}
+                  </span>
+                )}
+              </div>
+
+              {/* Difficulty tags */}
+              <div style={styles.detailChartTags}>
+                {focusedSortedCharts.map((chart, chartIdx) => {
+                  const isChartFocused = chartIdx === focusedChartIndex;
                   return (
                     <span
                       key={chart.id}
@@ -692,91 +684,130 @@ export function SongSelectScreen() {
                         ...getDifficultyColor(chart.difficulty_label),
                         ...(isChartFocused ? styles.chartTagFocused : {}),
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFocusedSongIndex(songIdx);
-                        setFocusedChartIndex(chartIdx);
-                      }}
+                      onClick={() => setFocusedChartIndex(chartIdx)}
                     >
                       {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
                     </span>
                   );
                 })}
               </div>
-            </div>
-          );
-        })}
-      </div>
 
-      {/* Bottom action panel */}
-      {songs.length > 0 && (() => {
-        const focusedSong = songs[focusedSongIndex];
-        const sortedCharts = focusedSong ? getSortedCharts(focusedSong) : [];
-        const focusedChart = sortedCharts[focusedChartIndex] ?? null;
-
-        return (
-          <div style={styles.bottomPanel}>
-            <div style={styles.bottomPanelInfo}>
-              <span style={styles.bottomPanelTitle}>{focusedSong?.title ?? ''}</span>
-              <span style={styles.bottomPanelArtist}>{focusedSong?.artist ?? ''}</span>
-              {focusedChart && (
-                <span
-                  style={{
-                    ...styles.bottomPanelDifficulty,
-                    ...getDifficultyColor(focusedChart.difficulty_label),
-                  }}
-                >
-                  {focusedChart.difficulty_label.toUpperCase()} Lv.{focusedChart.difficulty_level}
-                </span>
-              )}
-            </div>
-            <div style={styles.bottomPanelActions}>
-              <button
-                style={{
-                  ...styles.playBtn,
-                  ...(focusedChart ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
-                }}
-                disabled={!focusedChart}
-                onClick={() => {
-                  if (focusedSong && focusedChart) {
-                    handlePlay(focusedSong.id, focusedChart.difficulty_label, focusedSong.audio_url);
-                  }
-                }}
-              >
-                Play
-              </button>
-              {isAdmin && focusedChart && (
+              {/* Action buttons */}
+              <div style={styles.detailActions}>
                 <button
-                  style={styles.bottomEditBtn}
+                  style={{
+                    ...styles.playBtn,
+                    width: '100%',
+                    ...(focusedChart ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
+                  }}
+                  disabled={!focusedChart}
                   onClick={() => {
                     if (focusedSong && focusedChart) {
-                      handleEdit(focusedSong.id, focusedChart.difficulty_label);
+                      handlePlay(focusedSong.id, focusedChart.difficulty_label, focusedSong.audio_url);
                     }
                   }}
                 >
-                  Edit
+                  Play
                 </button>
-              )}
-              {isAdmin && focusedSong && (
-                <button
-                  style={styles.bottomNewChartBtn}
-                  onClick={() => setNewChartTarget(focusedSong)}
-                >
-                  + New Chart
-                </button>
-              )}
-              {isAdmin && focusedSong && (
-                <button
-                  style={styles.bottomDeleteBtn}
-                  onClick={() => setDeleteSongTarget(focusedSong)}
-                >
-                  Delete Song
-                </button>
-              )}
+                {isAdmin && focusedChart && (
+                  <button
+                    style={{ ...styles.bottomEditBtn, width: '100%' }}
+                    onClick={() => handleEdit(focusedSong.id, focusedChart.difficulty_label)}
+                  >
+                    Edit
+                  </button>
+                )}
+                {isAdmin && (
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button
+                      style={{ ...styles.bottomNewChartBtn, flex: 1 }}
+                      onClick={() => setNewChartTarget(focusedSong)}
+                    >
+                      + Chart
+                    </button>
+                    <button
+                      style={{ ...styles.bottomDeleteBtn, flex: 1 }}
+                      onClick={() => setDeleteSongTarget(focusedSong)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', marginTop: '40px' }}>
+              곡을 선택하세요
             </div>
-          </div>
-        );
-      })()}
+          )}
+        </div>
+
+        {/* Right panel — song list */}
+        <div ref={songListRef} style={styles.songList}>
+          {loading && songs.length === 0 && (
+            <div style={styles.empty}>Loading songs...</div>
+          )}
+
+          {!loading && error && (
+            <div style={styles.empty}>{error}</div>
+          )}
+
+          {!loading && !error && songs.length === 0 && (
+            <div style={styles.empty}>No songs found.</div>
+          )}
+
+          {songs.map((song, songIdx) => {
+            const isFocused = songIdx === focusedSongIndex;
+            const sortedCharts = getSortedCharts(song);
+
+            return (
+              <div
+                key={song.id}
+                ref={(el) => { if (el) songCardRefs.current.set(songIdx, el); else songCardRefs.current.delete(songIdx); }}
+                style={{
+                  ...styles.songCard,
+                  ...(isFocused ? styles.songCardFocused : {}),
+                }}
+                onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
+              >
+                <div style={styles.songInfo}>
+                  <span style={styles.songTitle}>{song.title}</span>
+                  <span style={styles.songArtist}>
+                    {song.artist}
+                    {song.duration != null && (
+                      <span style={styles.songDuration}>
+                        {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={styles.chartTags}>
+                  {sortedCharts.map((chart, chartIdx) => {
+                    const isChartFocused = isFocused && chartIdx === focusedChartIndex;
+                    return (
+                      <span
+                        key={chart.id}
+                        style={{
+                          ...styles.chartTag,
+                          ...getDifficultyColor(chart.difficulty_label),
+                          ...(isChartFocused ? styles.chartTagFocused : {}),
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFocusedSongIndex(songIdx);
+                          setFocusedChartIndex(chartIdx);
+                        }}
+                      >
+                        {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Add song modal (admin) */}
       {showAddSong && (
@@ -899,11 +930,72 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '13px',
   },
+  splitContainer: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+  },
+  leftPanel: {
+    width: '45%',
+    maxWidth: '480px',
+    minWidth: '320px',
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    padding: '20px',
+    borderRight: '1px solid #333',
+    overflowY: 'auto',
+  },
+  jacketContainer: {
+    width: '100%',
+    aspectRatio: '1',
+    backgroundColor: '#111',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jacketImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  detailInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  detailTitle: {
+    fontSize: '17px',
+    fontWeight: 700,
+    lineHeight: '1.3',
+  },
+  detailArtist: {
+    fontSize: '13px',
+    color: '#999',
+  },
+  detailDuration: {
+    fontSize: '12px',
+    color: '#666',
+  },
+  detailChartTags: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  },
+  detailActions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginTop: 'auto',
+    paddingTop: '12px',
+  },
   songList: {
     flex: 1,
     overflow: 'auto',
     padding: '16px 24px',
-    paddingBottom: '100px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
@@ -974,57 +1066,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   chartTagFocused: {
     boxShadow: '0 0 0 2px #00ffff',
-  },
-  bottomPanel: {
-    position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px 24px',
-    backgroundColor: '#222',
-    borderTop: '1px solid #444',
-    zIndex: 1000,
-    gap: '16px',
-  },
-  bottomPanelInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    minWidth: 0,
-    flex: 1,
-  },
-  bottomPanelTitle: {
-    fontSize: '15px',
-    fontWeight: 600,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  bottomPanelArtist: {
-    fontSize: '13px',
-    color: '#999',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  bottomPanelDifficulty: {
-    padding: '2px 10px',
-    color: '#fff',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 500,
-    flexShrink: 0,
-  },
-  bottomPanelActions: {
-    display: 'flex',
-    gap: '8px',
-    flexShrink: 0,
-    alignItems: 'center',
   },
   playBtn: {
     padding: '8px 28px',

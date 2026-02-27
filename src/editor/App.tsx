@@ -11,7 +11,7 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath, encodeWavBlob } from '../shared';
+import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath, songJacketPath, encodeWavBlob } from '../shared';
 import { serializeChart } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
@@ -153,6 +153,7 @@ function ChartEditorPage() {
     startTime: number;
     endTime: number;
   } | null>(null);
+  const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
 
   // Inject spinner keyframes once
   useEffect(() => {
@@ -1101,7 +1102,21 @@ function ChartEditorPage() {
       }, { onConflict: 'song_id,difficulty_label' });
       if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
 
-      // 3. Update songs table if preview range changed
+      // 3. Upload jacket image if changed
+      if (pendingJacketFile) {
+        const ext = pendingJacketFile.name.split('.').pop() || 'jpg';
+        const jacketPath = songJacketPath(activeSongId, ext);
+        const { error: jacketUpErr } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(jacketPath, pendingJacketFile, { upsert: true });
+        if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
+        // Update meta with correct storage path
+        const updatedMeta = { ...chart.meta, imageFile: jacketPath };
+        setChart({ ...chart, meta: updatedMeta });
+        setPendingJacketFile(null);
+      }
+
+      // 4. Update songs table if preview range changed
       if (pendingPreviewRange) {
         const songUpdate: Record<string, unknown> = {
           preview_start: pendingPreviewRange.startTime,
@@ -1137,7 +1152,7 @@ function ChartEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -1430,7 +1445,7 @@ function ChartEditorPage() {
         <MetaEditModal
           meta={chart.meta}
           audioBuffer={playbackRef.current?.audioBufferData ?? null}
-          onSave={async (meta, previewRange) => {
+          onSave={async (meta, previewRange, jacketFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
@@ -1441,6 +1456,9 @@ function ChartEditorPage() {
 
             if (rangeChanged && previewRange) {
               setPendingPreviewRange({ startTime: previewRange.startTime, endTime: previewRange.endTime });
+            }
+            if (jacketFile) {
+              setPendingJacketFile(jacketFile);
             }
 
             setShowMetaModal(false);
@@ -1749,7 +1767,7 @@ const eventTabStyles = {
 function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
   meta: ChartMeta;
   audioBuffer: AudioBuffer | null;
-  onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null) => void;
+  onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null, jacketFile: File | null) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
 }) {
@@ -1764,8 +1782,14 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
     previewAudioFile: meta.previewAudioFile,
   });
   const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
+  const [jacketError, setJacketError] = useState(false);
+  const [jacketLocalUrl, setJacketLocalUrl] = useState<string | null>(null);
+  const [jacketFile, setJacketFile] = useState<File | null>(null);
 
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
+
+  const jacketUrl = jacketLocalUrl
+    ?? (values.imageFile ? getPublicUrl(values.imageFile) : null);
 
   const handleSave = () => {
     const level = parseInt(values.difficultyLevel);
@@ -1785,7 +1809,7 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
       updatedMeta.previewStart = previewRange.startTime;
       updatedMeta.previewEnd = previewRange.endTime;
     }
-    onSave(updatedMeta, previewRange);
+    onSave(updatedMeta, previewRange, jacketFile);
   };
 
   const fields: { label: string; key: string; type: string }[] = [
@@ -1794,14 +1818,11 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
     { label: 'Difficulty Label', key: 'difficultyLabel', type: 'text' },
     { label: 'Difficulty Level', key: 'difficultyLevel', type: 'number' },
     { label: 'Offset (ms)', key: 'offsetMs', type: 'number' },
-    { label: 'Audio File', key: 'audioFile', type: 'text' },
-    { label: 'Image File', key: 'imageFile', type: 'text' },
-    { label: 'Preview Audio', key: 'previewAudioFile', type: 'text' },
   ];
 
   return (
     <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={{ ...modalStyles.modal, width: '500px', maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
 
         {fields.map((f) => (
@@ -1816,36 +1837,100 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
           </label>
         ))}
 
-        <label style={{ ...modalStyles.field, flexDirection: 'row' as const, alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <span style={{ padding: '4px 12px', backgroundColor: '#3a3a3a', border: '1px solid #555', borderRadius: '4px', fontSize: '13px' }}>
-            Load Audio
-          </span>
-          <input
-            type="file"
-            accept="audio/*"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                set('audioFile', file.name);
-                onLoadAudio(file);
-              }
-            }}
-          />
-          <span style={{ fontSize: '12px', color: '#999' }}>{values.audioFile || 'No file'}</span>
-        </label>
-
-        {audioBuffer && (
-          <div style={{ marginBottom: '12px' }}>
-            <span style={{ fontSize: '13px', marginBottom: '4px', display: 'block' }}>Preview Range</span>
-            <PreviewRangeSelector
-              audioBuffer={audioBuffer}
-              onChange={setPreviewRange}
-              initialStart={meta.previewStart}
-              initialEnd={meta.previewEnd}
-            />
+        {/* Audio section */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px' }}>Audio</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: '#3a3a3a',
+                border: '1px solid #555',
+                borderRadius: '4px',
+                fontSize: '12px',
+              }}>
+                {audioBuffer ? 'Replace Audio' : 'Upload Audio'}
+              </span>
+              <input
+                type="file"
+                accept="audio/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    set('audioFile', file.name);
+                    onLoadAudio(file);
+                  }
+                }}
+              />
+            </label>
           </div>
-        )}
+          <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
+            {audioBuffer ? (
+              <PreviewRangeSelector
+                audioBuffer={audioBuffer}
+                onChange={setPreviewRange}
+                initialStart={meta.previewStart}
+                initialEnd={meta.previewEnd}
+              />
+            ) : (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                No file
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Jacket section */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px' }}>Jacket</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: '#3a3a3a',
+                border: '1px solid #555',
+                borderRadius: '4px',
+                fontSize: '12px',
+              }}>
+                {jacketUrl && !jacketError ? 'Replace Jacket' : 'Upload Jacket'}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    set('imageFile', file.name);
+                    setJacketFile(file);
+                    setJacketLocalUrl(URL.createObjectURL(file));
+                    setJacketError(false);
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
+            {jacketUrl && !jacketError ? (
+              <img
+                src={jacketUrl}
+                alt="Jacket"
+                style={{
+                  width: '100%',
+                  maxHeight: '120px',
+                  objectFit: 'contain',
+                  borderRadius: '4px',
+                }}
+                onError={() => setJacketError(true)}
+              />
+            ) : (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                No file
+              </div>
+            )}
+          </div>
+        </div>
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={handleSave}>Save</button>
