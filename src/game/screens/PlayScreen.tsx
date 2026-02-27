@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores';
 import { AudioEngine } from '../audio';
 import { InputSystem, type KeyBinding } from '../input';
@@ -9,7 +10,8 @@ import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../renderer/constants';
 import { beatToMs, extractBpmMarkers } from '../../shared';
 
 export function PlayScreen() {
-  const { settings, setScreen, setResult, chartData, audioBuffer } = useGameStore();
+  const { settings, setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -53,13 +55,23 @@ export function PlayScreen() {
 
         // Calculate total judgment count based on note types
         let totalJudgments = 0;
-        for (const note of chartData.notes) {
+        let skippedJudgments = 0;
+        for (let i = 0; i < chartData.notes.length; i++) {
+          const note = chartData.notes[i];
+          let count: number;
           if ('endBeat' in note) {
-            totalJudgments += 1; // 바디: 끝점 판정 1회
+            count = 1; // 바디: 끝점 판정 1회
           } else if (note.type === 'double') {
-            totalJudgments += 2; // 더블 헤드: 서브판정 2회
+            count = 2; // 더블 헤드: 서브판정 2회
           } else {
-            totalJudgments += 1; // 싱글/트릴 헤드: 1회
+            count = 1; // 싱글/트릴 헤드: 1회
+          }
+          totalJudgments += count;
+          if (startTimeMs > 0) {
+            const noteTime = noteTimesMs.get(i);
+            if (noteTime !== undefined && noteTime < startTimeMs) {
+              skippedJudgments += count;
+            }
           }
         }
 
@@ -108,8 +120,8 @@ export function PlayScreen() {
         });
         renderer.setupKeyboardDisplay(laneBindingsMap);
 
-        // Create score manager
-        const scoreManager = new ScoreManager(totalJudgments || 1);
+        // Create score manager (subtract skipped notes for editor test play)
+        const scoreManager = new ScoreManager((totalJudgments - skippedJudgments) || 1);
 
         // Create judgment engine
         const judgmentEngine = new JudgmentEngine(
@@ -179,6 +191,17 @@ export function PlayScreen() {
         // Load audio buffer into AudioEngine
         audioEngine.loadBuffer(audioBuffer);
 
+        // Skip notes before startTimeMs (editor test play)
+        if (startTimeMs > 0) {
+          judgmentEngine.skipNotesBefore(startTimeMs);
+          for (let i = 0; i < chartData.notes.length; i++) {
+            const timeMs = noteTimesMs.get(i);
+            if (timeMs !== undefined && timeMs < startTimeMs) {
+              renderer.markNoteProcessed(i);
+            }
+          }
+        }
+
         // Store refs
         audioEngineRef.current = audioEngine;
         inputSystemRef.current = inputSystem;
@@ -208,7 +231,7 @@ export function PlayScreen() {
         };
 
         // Start audio playback
-        audioEngine.play(0);
+        audioEngine.play(startTimeMs);
 
         animationFrameRef.current = requestAnimationFrame(gameLoop);
 
@@ -292,7 +315,14 @@ export function PlayScreen() {
   };
 
   const handleQuit = () => {
-    setScreen('songSelect');
+    if (editorReturnUrl) {
+      const url = editorReturnUrl;
+      setStartTimeMs(0);
+      setEditorReturnUrl(null);
+      navigate(url);
+    } else {
+      setScreen('songSelect');
+    }
   };
 
   const handleResume = () => {

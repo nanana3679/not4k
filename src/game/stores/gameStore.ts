@@ -54,6 +54,12 @@ interface GameState {
   completeFirstLaunch: () => void;
   setChartData: (chart: Chart | null) => void;
   setAudioBuffer: (buffer: AudioBuffer | null) => void;
+
+  // Editor test play
+  startTimeMs: number;
+  editorReturnUrl: string | null;
+  setStartTimeMs: (ms: number) => void;
+  setEditorReturnUrl: (url: string | null) => void;
 }
 
 const TKL_BINDINGS: KeyBindings = {
@@ -93,6 +99,8 @@ export const useGameStore = create<GameState>()(
       lastResult: null,
       chartData: null,
       audioBuffer: null,
+      startTimeMs: 0,
+      editorReturnUrl: null,
 
       setScreen: (screen) => set({ screen }),
 
@@ -122,6 +130,9 @@ export const useGameStore = create<GameState>()(
       setChartData: (chart) => set({ chartData: chart }),
 
       setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
+
+      setStartTimeMs: (ms) => set({ startTimeMs: ms }),
+      setEditorReturnUrl: (url) => set({ editorReturnUrl: url }),
     }),
     {
       name: 'not4k-settings',

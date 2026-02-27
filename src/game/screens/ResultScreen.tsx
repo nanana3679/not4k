@@ -1,14 +1,27 @@
+import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores';
 
 export function ResultScreen() {
-  const { lastResult, setScreen } = useGameStore();
+  const { lastResult, setScreen, editorReturnUrl, setEditorReturnUrl, setStartTimeMs } = useGameStore();
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (editorReturnUrl) {
+      const url = editorReturnUrl;
+      setStartTimeMs(0);
+      setEditorReturnUrl(null);
+      navigate(url);
+    } else {
+      setScreen('songSelect');
+    }
+  };
 
   if (!lastResult) {
     return (
       <div style={styles.container}>
         <div style={styles.error}>No result data</div>
-        <button style={styles.button} onClick={() => setScreen('songSelect')}>
-          Back to Song Select
+        <button style={styles.button} onClick={handleBack}>
+          {editorReturnUrl ? 'Back to Editor' : 'Back to Song Select'}
         </button>
       </div>
     );

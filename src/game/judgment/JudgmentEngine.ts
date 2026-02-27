@@ -142,6 +142,19 @@ export class JudgmentEngine {
     }
   }
 
+  /**
+   * startTimeMs 이전의 노트를 모두 COMPLETE 처리 (에디터 테스트 플레이용)
+   */
+  skipNotesBefore(timeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      const noteTime = this.noteTimesMs.get(i);
+      if (noteTime === undefined) continue;
+      if (noteTime < timeMs) {
+        this.noteStates.set(i, NoteState.COMPLETE);
+      }
+    }
+  }
+
   get combo(): number {
     return this.currentCombo;
   }

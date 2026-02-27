@@ -10,7 +10,9 @@ import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
+import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath, songPreviewPath, songJacketPath, encodeWavBlob } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
@@ -50,6 +52,19 @@ export default function EditorApp() {
     if (!songId || !difficulty) {
       // No params — redirect to game song select
       window.location.href = '/game';
+      return;
+    }
+
+    // Skip chart fetch if already loaded for this song (e.g., returning from test play)
+    const existingStore = useEditorStore.getState();
+    if (existingStore.activeSongId === songId) {
+      // Re-fetch audio URL so PlaybackController reloads audio
+      supabase.from('songs').select('audio_url').eq('id', songId).single().then((result) => {
+        if (result?.data?.audio_url) {
+          setPendingAudioUrl(getPublicUrl(result.data.audio_url));
+        }
+        setChartLoading(false);
+      });
       return;
     }
 
@@ -162,6 +177,8 @@ function ChartEditorPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
+  const editorNavigate = useNavigate();
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
@@ -1310,6 +1327,29 @@ function ChartEditorPage() {
     }
   }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount]);
 
+  const handlePlayTest = useCallback((fromCursor: boolean) => {
+    const audioBuffer = playbackRef.current?.audioBufferData;
+    if (!audioBuffer) {
+      addToast('오디오가 로딩되지 않았습니다', 'error');
+      return;
+    }
+
+    // Pause editor playback
+    if (playbackRef.current?.isPlaying) {
+      playbackRef.current.pause();
+    }
+
+    const gameStore = useGameStore.getState();
+    gameStore.setChartData(chart);
+    gameStore.setAudioBuffer(audioBuffer);
+    gameStore.setStartTimeMs(fromCursor ? currentTimeMs : 0);
+    gameStore.setEditorReturnUrl(window.location.pathname + window.location.search);
+    gameStore.setScreen('play');
+
+    setShowPlayTestMenu(false);
+    editorNavigate('/game');
+  }, [chart, currentTimeMs, editorNavigate, addToast]);
+
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
       addToast('No song selected — cannot delete', 'error');
@@ -1560,6 +1600,56 @@ function ChartEditorPage() {
         >
           Scroll
         </button>
+
+        <div style={styles.separator} />
+
+        {/* Test Play */}
+        <div style={{ position: 'relative' }}>
+          <button
+            style={{ ...styles.button, backgroundColor: '#2d6b3a', borderColor: '#3a8f4e' }}
+            onClick={() => setShowPlayTestMenu((v) => !v)}
+            title="Test play this chart"
+          >
+            Test Play
+          </button>
+          {showPlayTestMenu && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                onClick={() => setShowPlayTestMenu(false)}
+              />
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #555',
+                borderRadius: '4px',
+                zIndex: 1000,
+                minWidth: '160px',
+                overflow: 'hidden',
+              }}>
+                <button
+                  style={{ display: 'block', width: '100%', padding: '8px 12px', backgroundColor: 'transparent', color: '#e0e0e0', border: 'none', cursor: 'pointer', fontSize: '13px', textAlign: 'left' }}
+                  onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = '#3a3a3a'; }}
+                  onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = 'transparent'; }}
+                  onClick={() => handlePlayTest(false)}
+                >
+                  처음부터 시작
+                </button>
+                <button
+                  style={{ display: 'block', width: '100%', padding: '8px 12px', backgroundColor: 'transparent', color: '#e0e0e0', border: 'none', cursor: 'pointer', fontSize: '13px', textAlign: 'left', borderTop: '1px solid #444' }}
+                  onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = '#3a3a3a'; }}
+                  onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = 'transparent'; }}
+                  onClick={() => handlePlayTest(true)}
+                >
+                  커서부터 시작
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         <div style={{ flex: 1 }} />
 
