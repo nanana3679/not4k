@@ -306,6 +306,8 @@ export function SongSelectScreen() {
   // Admin-only state
   const [showAddSong, setShowAddSong] = useState(false);
   const [newChartTarget, setNewChartTarget] = useState<DbSong | null>(null);
+  const [deleteSongTarget, setDeleteSongTarget] = useState<DbSong | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Keyboard navigation state
   const [focusedSongIndex, setFocusedSongIndex] = useState(0);
@@ -382,6 +384,49 @@ export function SongSelectScreen() {
       });
     });
   }, [addToast]);
+
+  // Delete song (admin)
+  const handleDeleteSong = useCallback(async (song: DbSong) => {
+    setDeleting(true);
+    try {
+      // 1. Delete chart rows from DB
+      if (song.charts.length > 0) {
+        const { error: chartErr } = await supabase
+          .from('charts')
+          .delete()
+          .eq('song_id', song.id);
+        if (chartErr) throw new Error(`Chart DB delete failed: ${chartErr.message}`);
+      }
+
+      // 2. Delete all files under songs/{songId}/ in storage
+      const { data: files } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .list(`songs/${song.id}`);
+      if (files && files.length > 0) {
+        const paths = files.map((f) => `songs/${song.id}/${f.name}`);
+        const { error: storageErr } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .remove(paths);
+        if (storageErr) throw new Error(`Storage delete failed: ${storageErr.message}`);
+      }
+
+      // 3. Delete song row from DB
+      const { error: songErr } = await supabase
+        .from('songs')
+        .delete()
+        .eq('id', song.id);
+      if (songErr) throw new Error(`Song DB delete failed: ${songErr.message}`);
+
+      addToast(`"${song.title}" 삭제 완료`, 'info');
+      setDeleteSongTarget(null);
+      fetchSongs();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }, [addToast, fetchSongs]);
 
   // Sorted charts helper
   const getSortedCharts = useCallback((song: DbSong) => {
@@ -600,6 +645,14 @@ export function SongSelectScreen() {
                   + New Chart
                 </button>
               )}
+              {isAdmin && focusedSong && (
+                <button
+                  style={styles.bottomDeleteBtn}
+                  onClick={() => setDeleteSongTarget(focusedSong)}
+                >
+                  Delete Song
+                </button>
+              )}
             </div>
           </div>
         );
@@ -621,6 +674,31 @@ export function SongSelectScreen() {
           onSelect={(diff, lv) => handleNewChart(newChartTarget, diff, lv)}
           onClose={() => setNewChartTarget(null)}
         />
+      )}
+
+      {/* Delete song confirm modal (admin) */}
+      {deleteSongTarget && (
+        <div style={modalStyles.overlay} onClick={deleting ? undefined : () => setDeleteSongTarget(null)}>
+          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>Delete Song</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
+              <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}
+            </p>
+            <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
+              곡과 모든 차트가 영구 삭제됩니다. 되돌릴 수 없습니다.
+            </p>
+            <div style={modalStyles.buttons}>
+              <button
+                style={{ ...modalStyles.saveBtn, backgroundColor: '#cc3333', opacity: deleting ? 0.5 : 1 }}
+                disabled={deleting}
+                onClick={() => handleDeleteSong(deleteSongTarget)}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}
@@ -853,6 +931,16 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '13px',
+  },
+  bottomDeleteBtn: {
+    padding: '8px 16px',
+    backgroundColor: 'transparent',
+    color: '#cc4444',
+    border: '1px solid #cc444466',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 500,
   },
   toastContainer: {
     position: 'fixed',
