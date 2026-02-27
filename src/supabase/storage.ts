@@ -9,7 +9,6 @@ import { supabase } from "./client";
 import {
   STORAGE_BUCKET,
   songAudioPath,
-  songPreviewPath,
   songJacketPath,
   songChartPath,
 } from "../shared";
@@ -65,22 +64,6 @@ export async function fetchAudio(
       'audio',
     );
   }
-  return audioCtx.decodeAudioData(arrayBuffer);
-}
-
-/**
- * 프리뷰 음원을 로드하고 AudioBuffer로 디코딩한다.
- * OGG를 먼저 시도하고 실패 시 MP3로 폴백한다 (Safari 호환).
- */
-export async function fetchPreviewAudio(
-  songId: string,
-  audioCtx: AudioContext,
-): Promise<AudioBuffer> {
-  const arrayBuffer = await fetchWithFallback(
-    songPreviewPath(songId, 'ogg'),
-    songPreviewPath(songId, 'mp3'),
-    'preview audio',
-  );
   return audioCtx.decodeAudioData(arrayBuffer);
 }
 

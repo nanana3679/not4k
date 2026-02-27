@@ -6,7 +6,6 @@ import {
   STORAGE_BUCKET,
   songChartPath,
   songAudioPath,
-  songPreviewPath,
   songJacketPath,
   beat,
   serializeChart,
@@ -14,7 +13,7 @@ import {
 import type { Chart } from '../../shared';
 import { PreviewRangeSelector } from '../../editor/components/PreviewRangeSelector';
 import type { PreviewRangeState } from '../../editor/components/PreviewRangeSelector';
-import { trimAudioBuffer, encodeWav } from '../../editor/audio/previewTrim';
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,15 +143,6 @@ function AddSongModal({ onDone, onClose, addToast }: {
         );
       }
 
-      if (previewRange && audioBuffer) {
-        const trimmedBuffer = await trimAudioBuffer(audioBuffer, previewRange.startTime, previewRange.endTime);
-        const wavBlob = encodeWav(trimmedBuffer);
-        uploads.push(
-          supabase.storage.from(STORAGE_BUCKET).upload(songPreviewPath(songId, 'wav'), wavBlob)
-            .then(({ error }) => { if (error) throw new Error(`Preview upload failed: ${error.message}`); }),
-        );
-      }
-
       await Promise.all(uploads);
 
       const row: Record<string, unknown> = {
@@ -165,8 +155,7 @@ function AddSongModal({ onDone, onClose, addToast }: {
         const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
         row.jacket_url = songJacketPath(songId, jacketExt);
       }
-      if (previewRange && audioBuffer) {
-        row.preview_url = songPreviewPath(songId, 'wav');
+      if (previewRange) {
         row.preview_start = previewRange.startTime;
         row.preview_end = previewRange.endTime;
       }

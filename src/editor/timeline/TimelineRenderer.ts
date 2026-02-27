@@ -610,48 +610,14 @@ export class TimelineRenderer {
       }
     }
 
-    // Time labels at regular intervals based on zoom level
+    // End-of-audio marker line
     if (this.waveformDurationMs > 0) {
-      // Pick interval so labels are ~80-200px apart
-      const intervals = [1, 2, 5, 10, 15, 30, 60, 120, 300];
-      const minSpacingPx = 80;
-      let intervalSec = intervals[intervals.length - 1];
-      for (const iv of intervals) {
-        if (iv * this._zoom >= minSpacingPx) {
-          intervalSec = iv;
-          break;
-        }
-      }
-
-      const durationSec = this.waveformDurationMs / 1000;
-      const fmtTime = (s: number) => {
-        const m = Math.floor(s / 60);
-        const ss = Math.floor(s % 60);
-        return `${m}:${String(ss).padStart(2, '0')}`;
-      };
-
-      for (let t = intervalSec; t <= durationSec; t += intervalSec) {
-        const y = this.timeToY(t * 1000);
-        const label = new Text({ text: fmtTime(t), style: measureLabelStyle });
-        label.style.fill = 0x66aaff;
-        label.x = TIMELINE_WIDTH + 4;
-        label.y = y - 14;
-        this.measureLabels.addChild(label);
-      }
-
-      // End-of-audio marker line + label
       const endY = this.timeToY(this.waveformDurationMs);
       const endLine = new Graphics();
       endLine.moveTo(0, endY);
       endLine.lineTo(TIMELINE_WIDTH, endY);
       endLine.stroke({ width: 1, color: 0x66aaff, alpha: 0.5 });
       this.measureLines.addChild(endLine);
-
-      const endLabel = new Text({ text: fmtTime(durationSec), style: measureLabelStyle });
-      endLabel.style.fill = 0xff6644;
-      endLabel.x = TIMELINE_WIDTH + 4;
-      endLabel.y = endY - 14;
-      this.measureLabels.addChild(endLabel);
     }
   }
 
@@ -1292,7 +1258,7 @@ export class TimelineRenderer {
 
         let noteColor: number;
         switch (note.type) {
-          case 'singleLong': noteColor = COLORS.SINGLE_LONG; break;
+          case 'long': noteColor = COLORS.SINGLE_LONG; break;
           case 'doubleLong': noteColor = COLORS.DOUBLE_LONG; break;
           case 'trillLong': noteColor = COLORS.TRILL_LONG; break;
           default: noteColor = COLORS.SINGLE_LONG;
@@ -1321,7 +1287,57 @@ export class TimelineRenderer {
       }
     }
 
-    // (5) Viewport indicator
+    // (5) Time labels
+    if (this.waveformDurationMs > 0) {
+      const intervals = [1, 2, 5, 10, 15, 30, 60, 120, 300];
+      const minSpacingPx = 30;
+      let intervalSec = intervals[intervals.length - 1];
+      for (const iv of intervals) {
+        if (iv * this._zoom * scale >= minSpacingPx) {
+          intervalSec = iv;
+          break;
+        }
+      }
+
+      const durationSec = this.waveformDurationMs / 1000;
+      const fmtTime = (s: number) => {
+        const m = Math.floor(s / 60);
+        const ss = Math.floor(s % 60);
+        return `${m}:${String(ss).padStart(2, '0')}`;
+      };
+
+      const timeLabelStyle = new TextStyle({
+        fontSize: 9,
+        fill: 0x66aaff,
+        fontFamily: 'monospace',
+      });
+
+      for (let t = intervalSec; t <= durationSec; t += intervalSec) {
+        const containerY = this.timeToY(t * 1000);
+        const my = toMinimapY(containerY);
+        if (my < 8 || my > canvasH - 4) continue;
+
+        const label = new Text({ text: fmtTime(t), style: timeLabelStyle });
+        label.x = trackX + 2;
+        label.y = my;
+        this.minimapLayer.addChild(label);
+      }
+
+      // End-of-audio time label
+      const endContainerY = this.timeToY(this.waveformDurationMs);
+      const endMy = toMinimapY(endContainerY);
+      if (endMy >= 8 && endMy <= canvasH - 4) {
+        const endLabel = new Text({
+          text: fmtTime(durationSec),
+          style: new TextStyle({ fontSize: 9, fill: 0xff6644, fontFamily: 'monospace' }),
+        });
+        endLabel.x = trackX + 2;
+        endLabel.y = endMy;
+        this.minimapLayer.addChild(endLabel);
+      }
+    }
+
+    // (6) Viewport indicator
     if (totalH > canvasH) {
       const viewportTopY = (this._scrollY / totalH) * canvasH;
       const viewportHeight = (canvasH / totalH) * canvasH;
@@ -1366,6 +1382,10 @@ export class TimelineRenderer {
       const targetScroll = ratio * totalH - canvasH / 2;
       const newScroll = Math.max(0, Math.min(maxScroll, targetScroll));
       this.options.onScroll?.(newScroll);
+      // Start dragging from the new position so user can fine-tune
+      this.minimapDragging = true;
+      this.minimapDragStartY = y;
+      this.minimapDragStartScroll = newScroll;
     }
 
     return true;

@@ -11,7 +11,7 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath } from '../shared';
+import { deserializeChart, STORAGE_BUCKET, songChartPath } from '../shared';
 import { serializeChart } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
@@ -20,7 +20,7 @@ import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
 import { PreviewRangeSelector } from './components/PreviewRangeSelector';
 import type { PreviewRangeState } from './components/PreviewRangeSelector';
-import { trimAudioBuffer, encodeWav } from './audio/previewTrim';
+
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -148,9 +148,8 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
-  // Pending preview: holds trimmed audio blob + range when preview was changed in meta modal
-  const [pendingPreview, setPendingPreview] = useState<{
-    blob: Blob;
+  // Pending preview range: set when preview range was changed in meta modal (saved with chart)
+  const [pendingPreviewRange, setPendingPreviewRange] = useState<{
     startTime: number;
     endTime: number;
   } | null>(null);
@@ -1102,25 +1101,18 @@ function ChartEditorPage() {
       }, { onConflict: 'song_id,difficulty_label' });
       if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
 
-      // 3. Upload pending preview audio + update songs table if preview changed
-      if (pendingPreview) {
-        const previewPath = songPreviewPath(activeSongId, 'wav');
-        const { error: previewUploadError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(previewPath, pendingPreview.blob, { upsert: true });
-        if (previewUploadError) throw new Error(`Preview upload failed: ${previewUploadError.message}`);
-
+      // 3. Update songs table if preview range changed
+      if (pendingPreviewRange) {
         const { error: songUpdateError } = await supabase
           .from('songs')
           .update({
-            preview_url: previewPath,
-            preview_start: pendingPreview.startTime,
-            preview_end: pendingPreview.endTime,
+            preview_start: pendingPreviewRange.startTime,
+            preview_end: pendingPreviewRange.endTime,
           })
           .eq('id', activeSongId);
         if (songUpdateError) throw new Error(`Song preview update failed: ${songUpdateError.message}`);
 
-        setPendingPreview(null);
+        setPendingPreviewRange(null);
       }
 
       setSavedChartSnapshot(json);
@@ -1131,7 +1123,7 @@ function ChartEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreview]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -1251,7 +1243,7 @@ function ChartEditorPage() {
         <button
           style={styles.button}
           onClick={() => {
-            const isDirty = (savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot) || pendingPreview != null;
+            const isDirty = (savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot) || pendingPreviewRange != null;
             if (isDirty) {
               setShowLeaveConfirm(true);
             } else {
@@ -1433,11 +1425,8 @@ function ChartEditorPage() {
 
             setChart({ ...chart, meta });
 
-            if (rangeChanged && previewRange && playbackRef.current?.audioBufferData) {
-              const buf = playbackRef.current.audioBufferData;
-              const trimmed = await trimAudioBuffer(buf, previewRange.startTime, previewRange.endTime);
-              const wavBlob = encodeWav(trimmed);
-              setPendingPreview({ blob: wavBlob, startTime: previewRange.startTime, endTime: previewRange.endTime });
+            if (rangeChanged && previewRange) {
+              setPendingPreviewRange({ startTime: previewRange.startTime, endTime: previewRange.endTime });
             }
 
             setShowMetaModal(false);
