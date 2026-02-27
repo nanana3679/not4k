@@ -12,6 +12,10 @@ export const NOTE_HEIGHT = 12; // px
 export const TIMELINE_WIDTH =
   LANE_COUNT * LANE_WIDTH + AUXILIARY_LANES * AUX_LANE_WIDTH;
 
+// Extra lanes (editor-only auxiliary lanes)
+export const EXTRA_LANE_WIDTH = 60; // px per extra lane (same as note lane)
+export const MEASURE_LABEL_WIDTH = 32; // px for measure number labels on the left
+
 export const DEFAULT_MEASURES = 16;
 export const TIMELINE_PADDING = 50; // px of empty space before first / after last measure
 
@@ -43,4 +47,7 @@ export const COLORS = {
   EVENT_BG: 0x553388,
 
   EVENT_MARKER: 0xff66aa,
+
+  EXTRA_LANE_BG_EVEN: 0x1a2e1a,
+  EXTRA_LANE_BG_ODD: 0x16291a,
 };

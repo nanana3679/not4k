@@ -11,6 +11,7 @@ import type {
   NoteEntity,
   TrillZone,
   EventMarker,
+  ExtraNoteEntity,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
@@ -40,6 +41,21 @@ interface LegacyRangeNoteJson {
 }
 
 type NoteEntityJson = PointNoteJson | RangeNoteJson;
+
+interface ExtraPointNoteJson {
+  type: "single" | "double" | "trill";
+  extraLane: number;
+  beat: string;
+}
+
+interface ExtraRangeNoteJson {
+  type: "long" | "doubleLong" | "trillLong";
+  extraLane: number;
+  beat: string;
+  endBeat: string;
+}
+
+type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
 
 interface TrillZoneJson {
   lane: 1 | 2 | 3 | 4;
@@ -201,4 +217,57 @@ export function chartFromJson(json: ChartJson): Chart {
 export function deserializeChart(str: string): Chart {
   const json: ChartJson = JSON.parse(str);
   return chartFromJson(json);
+}
+
+// ---------------------------------------------------------------------------
+// Extra 노트 직렬화 (에디터 전용)
+// ---------------------------------------------------------------------------
+
+function serializeExtraNote(n: ExtraNoteEntity): ExtraNoteEntityJson {
+  if ("endBeat" in n) {
+    return {
+      type: n.type,
+      extraLane: n.extraLane,
+      beat: beatToString(n.beat),
+      endBeat: beatToString(n.endBeat),
+    };
+  }
+  return { type: n.type, extraLane: n.extraLane, beat: beatToString(n.beat) };
+}
+
+function parseExtraNote(n: ExtraNoteEntityJson): ExtraNoteEntity {
+  if ("endBeat" in n) {
+    return {
+      type: n.type,
+      extraLane: n.extraLane,
+      beat: beatFromString(n.beat),
+      endBeat: beatFromString(n.endBeat),
+    };
+  }
+  return { type: n.type, extraLane: n.extraLane, beat: beatFromString(n.beat) };
+}
+
+/** Extra 노트 데이터 → JSON 문자열 (별도 .extra.json 파일용) */
+export function serializeExtraNotes(
+  extraNotes: ExtraNoteEntity[],
+  extraLaneCount: number,
+): string {
+  return JSON.stringify({
+    extraNotes: extraNotes.map(serializeExtraNote),
+    extraLaneCount,
+  }, null, 2);
+}
+
+/** extra JSON에서 데이터 추출 */
+export function parseExtraNotes(json: {
+  extraNotes?: ExtraNoteEntityJson[];
+  extraLaneCount?: number;
+}): {
+  extraNotes: ExtraNoteEntity[];
+  extraLaneCount: number;
+} {
+  return {
+    extraNotes: (json.extraNotes ?? []).map(parseExtraNote),
+    extraLaneCount: json.extraLaneCount ?? 0,
+  };
 }

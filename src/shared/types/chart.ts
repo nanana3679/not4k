@@ -83,6 +83,28 @@ export interface RangeNote {
 export type NoteEntity = PointNote | RangeNote;
 
 // ---------------------------------------------------------------------------
+// Extra 노트 (에디터 전용 — 게임에 등장하지 않는 보조 레인)
+// ---------------------------------------------------------------------------
+
+/** Extra 포인트 노트 */
+export interface ExtraPointNote {
+  type: "single" | "double" | "trill";
+  extraLane: number; // 1~10
+  beat: Beat;
+}
+
+/** Extra 구간 노트 */
+export interface ExtraRangeNote {
+  type: "long" | "doubleLong" | "trillLong";
+  extraLane: number; // 1~10
+  beat: Beat;
+  endBeat: Beat;
+}
+
+/** Extra 노트 엔티티 유니온 */
+export type ExtraNoteEntity = ExtraPointNote | ExtraRangeNote;
+
+// ---------------------------------------------------------------------------
 // 트릴 구간
 // ---------------------------------------------------------------------------
 

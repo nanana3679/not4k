@@ -28,6 +28,10 @@ export function songChartPath(songId: string, difficulty: string): string {
   return `songs/${songId}/${difficulty.toLowerCase()}.json`;
 }
 
+export function songChartExtraPath(songId: string, difficulty: string): string {
+  return `songs/${songId}/${difficulty.toLowerCase()}.extra.json`;
+}
+
 export function songPreviewPath(songId: string, ext = 'wav'): string {
   return `songs/${songId}/preview.${ext}`;
 }

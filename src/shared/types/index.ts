@@ -33,4 +33,7 @@ export {
   type TrillZone,
   type EventMarker,
   type Chart,
+  type ExtraPointNote,
+  type ExtraRangeNote,
+  type ExtraNoteEntity,
 } from "./chart";

@@ -1,4 +1,4 @@
-import type { Chart, NoteEntity, RangeNote, Beat, Lane } from "../../shared";
+import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
 import { validateChart, beatToFloat } from "../../shared";
 import { beatAdd, beatSub, beatEq, beatLte } from "../../shared";
 
@@ -22,12 +22,20 @@ export interface SelectModeCallbacks {
   hitTestEventEnd?: (x: number, y: number) => number | null;
   /** Get trill zone index whose end point is at (x,y), or null */
   hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
+  /** Extra lane helpers */
+  xToExtraLane?: (x: number) => number | null;
+  hitTestExtraNote?: (x: number, y: number) => number | null;
+  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  onExtraSelectionChange?: (indices: Set<number>) => void;
+  getExtraNotes?: () => ExtraNoteEntity[];
+  getExtraLaneCount?: () => number;
 }
 
 export class SelectMode {
   private chart: Chart;
   private callbacks: SelectModeCallbacks;
   private selectedIndices: Set<number> = new Set();
+  private selectedExtraIndices: Set<number> = new Set();
 
   // Drag state
   private isDragging: boolean = false;
@@ -72,6 +80,21 @@ export class SelectMode {
       this.selectedIndices = validIndices;
       this.callbacks.onSelectionChange(new Set(this.selectedIndices));
     }
+
+    // Validate extra selection bounds
+    if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes) {
+      const extraNotes = this.callbacks.getExtraNotes();
+      const validExtra = new Set<number>();
+      for (const idx of this.selectedExtraIndices) {
+        if (idx >= 0 && idx < extraNotes.length) {
+          validExtra.add(idx);
+        }
+      }
+      if (validExtra.size !== this.selectedExtraIndices.size) {
+        this.selectedExtraIndices = validExtra;
+        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+      }
+    }
   }
 
   get selection(): ReadonlySet<number> {
@@ -108,6 +131,8 @@ export class SelectMode {
   clearSelection(): void {
     this.selectedIndices.clear();
     this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+    this.selectedExtraIndices.clear();
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
   }
 
   /** Select a specific note */
@@ -151,6 +176,25 @@ export class SelectMode {
       if (zoneHit !== null) {
         const zone = this.chart.trillZones[zoneHit];
         this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
+        return;
+      }
+    }
+
+    // Extra note hit test
+    if (this.callbacks.hitTestExtraNote) {
+      const extraHit = this.callbacks.hitTestExtraNote(x, y);
+      if (extraHit !== null) {
+        if (shiftKey) {
+          this.selectedExtraIndices.add(extraHit);
+        } else if (altKey) {
+          this.selectedExtraIndices.delete(extraHit);
+        } else {
+          this.selectedIndices.clear();
+          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+          this.selectedExtraIndices.clear();
+          this.selectedExtraIndices.add(extraHit);
+        }
+        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
         return;
       }
     }
@@ -611,6 +655,15 @@ export class SelectMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
+    // Delete extra notes if selected
+    if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
+      const extraNotes = this.callbacks.getExtraNotes();
+      const newExtraNotes = extraNotes.filter((_n, idx) => !this.selectedExtraIndices.has(idx));
+      this.callbacks.onExtraNotesUpdate(newExtraNotes);
+      this.selectedExtraIndices.clear();
+      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    }
+
     if (this.selectedIndices.size === 0) return;
 
     // Create new notes array without selected indices

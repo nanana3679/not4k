@@ -11,10 +11,10 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath, songJacketPath, encodeWavBlob } from '../shared';
-import { serializeChart } from '../shared';
+import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath, songPreviewPath, songJacketPath, encodeWavBlob } from '../shared';
+import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
-import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
+import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
 import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
@@ -53,16 +53,32 @@ export default function EditorApp() {
       return;
     }
 
-    // Fetch chart from supabase storage
-    const url = getPublicUrl(songChartPath(songId, difficulty));
-    fetch(url, { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
-        return res.text();
-      })
-      .then((text) => {
-        const chart = deserializeChart(text);
+    // Fetch chart + extra data in parallel
+    const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
+    const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
+    const chartFetch = fetch(chartUrl, { cache: 'no-store' }).then((res) => {
+      if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
+      return res.text();
+    });
+    const extraFetch = fetch(extraUrl, { cache: 'no-store' })
+      .then((res) => res.ok ? res.text() : null)
+      .catch(() => null);
+
+    Promise.all([chartFetch, extraFetch])
+      .then(([chartText, extraText]) => {
+        const chart = deserializeChart(chartText);
         setChart(chart);
+        // Parse extra lane data: separate file first, fallback to legacy embedded data
+        try {
+          const extraJson = extraText
+            ? JSON.parse(extraText)
+            : JSON.parse(chartText); // legacy: extra was embedded in chart JSON
+          const extra = parseExtraNotes(extraJson);
+          if (extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
+            useEditorStore.getState().setExtraNotes(extra.extraNotes);
+            useEditorStore.getState().setExtraLaneCount(extra.extraLaneCount);
+          }
+        } catch { /* ignore parse errors for extra data */ }
         setActiveSongId(songId);
 
         // Fetch audio URL from songs table
@@ -148,6 +164,7 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
+  const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
   // Pending preview range: set when preview range was changed in meta modal (saved with chart)
   const [pendingPreviewRange, setPendingPreviewRange] = useState<{
     startTime: number;
@@ -186,6 +203,12 @@ function ChartEditorPage() {
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const setSelectedNotes = useEditorStore((s) => s.setSelectedNotes);
+  const extraNotes = useEditorStore((s) => s.extraNotes);
+  const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
+  const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
+  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
   const toasts = useEditorStore((s) => s.toasts);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
@@ -207,6 +230,17 @@ function ChartEditorPage() {
 
     const auxIndex = Math.floor((x - auxStartX) / AUX_LANE_WIDTH);
     if (auxIndex === 0) return 'event';
+    return null;
+  }, []);
+
+  // Helper: X to Extra Lane (1~N, or null)
+  const xToExtraLane = useCallback((x: number): number | null => {
+    const currentExtraLaneCount = useEditorStore.getState().extraLaneCount;
+    if (currentExtraLaneCount === 0) return null;
+    const extraStartX = TIMELINE_WIDTH;
+    if (x < extraStartX) return null;
+    const lane = Math.floor((x - extraStartX) / EXTRA_LANE_WIDTH) + 1;
+    if (lane >= 1 && lane <= currentExtraLaneCount) return lane;
     return null;
   }, []);
 
@@ -376,6 +410,32 @@ function ChartEditorPage() {
     return null;
   }, [chart.trillZones, xToLane, yToBeat]);
 
+  // Helper: Hit test extra note
+  const hitTestExtraNote = useCallback((x: number, y: number): number | null => {
+    const extraLane = xToExtraLane(x);
+    if (extraLane === null) return null;
+
+    const beat = yToBeat(y);
+    const testBeatFloat = beat.n / beat.d;
+
+    const currentExtraNotes = useEditorStore.getState().extraNotes;
+    for (let i = 0; i < currentExtraNotes.length; i++) {
+      const note = currentExtraNotes[i];
+      if (note.extraLane !== extraLane) continue;
+
+      const noteBeatFloat = note.beat.n / note.beat.d;
+      if ('endBeat' in note) {
+        const endBeatFloat = note.endBeat.n / note.endBeat.d;
+        if (testBeatFloat >= noteBeatFloat && testBeatFloat <= endBeatFloat) return i;
+      } else {
+        if (Math.abs(testBeatFloat - noteBeatFloat) < 1 / 16) return i;
+      }
+    }
+    return null;
+  }, [xToExtraLane, yToBeat]);
+
+  const hitTestExtraNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
+
   // Sync callback refs (avoids stale closures in mode handlers)
   useEffect(() => {
     yToBeatRef.current = yToBeat;
@@ -386,6 +446,7 @@ function ChartEditorPage() {
     hitTestEventEndRef.current = hitTestEventEnd;
     hitTestTrillZoneEndRef.current = hitTestTrillZoneEnd;
     hitTestTrillZoneRef.current = hitTestTrillZone;
+    hitTestExtraNoteRef.current = hitTestExtraNote;
   });
 
   // Track 'C' key state for entity type cycling (getModifierState doesn't work for letter keys)
@@ -459,6 +520,9 @@ function ChartEditorPage() {
       snapBeat,
       xToLane,
       xToAuxLane,
+      xToExtraLane: (x) => xToExtraLane(x),
+      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
@@ -479,6 +543,12 @@ function ChartEditorPage() {
       hitTestNoteEnd: (x, y) => hitTestNoteEndRef.current(x, y),
       hitTestEventEnd: (x, y) => hitTestEventEndRef.current(x, y),
       hitTestTrillZoneEnd: (x, y) => hitTestTrillZoneEndRef.current(x, y),
+      xToExtraLane: (x) => xToExtraLane(x),
+      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
+      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
     });
     selectModeRef.current = selectMode;
 
@@ -486,6 +556,10 @@ function ChartEditorPage() {
       onChartUpdate: setChart,
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestTrillZone: (x, y) => hitTestTrillZoneRef.current(x, y),
+      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
+      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
@@ -508,6 +582,7 @@ function ChartEditorPage() {
     setPendingAudioUrl(null);
     setAudioLoading(true);
     setSavedChartSnapshot(serializeChart(chart));
+    setSavedExtraSnapshot(serializeExtraNotes(useEditorStore.getState().extraNotes, useEditorStore.getState().extraLaneCount));
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
@@ -567,6 +642,25 @@ function ChartEditorPage() {
       deleteModeRef.current.setChart(chart);
     }
   }, [chart]);
+
+  // Sync extra lane state to renderer
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.setExtraLaneCount(extraLaneCount);
+    }
+  }, [extraLaneCount]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.setExtraNotes(extraNotes);
+    }
+  }, [extraNotes]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.setSelectedExtraNotes(selectedExtraNotes);
+    }
+  }, [selectedExtraNotes]);
 
   // Sync zoom to renderer
   useEffect(() => {
@@ -655,7 +749,8 @@ function ChartEditorPage() {
     const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
 
     // Check for cursor handle drag (right edge area)
-    if (x >= TIMELINE_WIDTH && rendererRef.current) {
+    const curTimelineWidth = rendererRef.current?.currentTimelineWidth ?? TIMELINE_WIDTH;
+    if (x >= curTimelineWidth && rendererRef.current) {
       isDraggingCursorRef.current = true;
       const timeMs = rendererRef.current.yToTime(y);
       playbackRef.current?.seekTo(Math.max(0, timeMs));
@@ -704,10 +799,40 @@ function ChartEditorPage() {
 
     // Right-click drag delete
     if (e.buttons & 2) {
-      const lane = xToLane(x);
-      if (!lane) return;
       const beat = yToBeat(y);
       const beatFloat = beat.n / beat.d;
+
+      // Try extra lane first
+      const extraLane = xToExtraLane(x);
+      if (extraLane !== null) {
+        const currentExtra = useEditorStore.getState().extraNotes;
+        for (let i = 0; i < currentExtra.length; i++) {
+          const en = currentExtra[i];
+          if (en.extraLane !== extraLane) continue;
+          const nb = en.beat.n / en.beat.d;
+          if ('endBeat' in en) {
+            const eb = en.endBeat.n / en.endBeat.d;
+            if (beatFloat >= nb && beatFloat <= eb) {
+              rightDragDeletedRef.current = true;
+              setExtraNotes(currentExtra.filter((_: unknown, idx: number) => idx !== i));
+              setSelectedExtraNotes(new Set());
+              return;
+            }
+          } else {
+            if (Math.abs(beatFloat - nb) < 1 / 16) {
+              rightDragDeletedRef.current = true;
+              setExtraNotes(currentExtra.filter((_: unknown, idx: number) => idx !== i));
+              setSelectedExtraNotes(new Set());
+              return;
+            }
+          }
+        }
+        return;
+      }
+
+      // Regular lane notes
+      const lane = xToLane(x);
+      if (!lane) return;
 
       const current = useEditorStore.getState().chart;
       for (let i = 0; i < current.notes.length; i++) {
@@ -759,6 +884,9 @@ function ChartEditorPage() {
           if (createModeRef.current.dragType === 'event') {
             // Event drag: show ghost marker in event aux lane
             rendererRef.current.showGhostMarker(0, timeMs);
+          } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, chart.meta.offsetMs);
+            rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
           } else if (createModeRef.current.dragLane) {
             // Note lane range drag: show range ghost
             const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, chart.meta.offsetMs);
@@ -766,15 +894,20 @@ function ChartEditorPage() {
           }
         } else {
           // Not dragging: show ghost based on hovered lane
-          const auxLane = xToAuxLane(x);
-          if (auxLane) {
-            rendererRef.current.showGhostMarker(0, timeMs);
+          const extraLane = xToExtraLane(x);
+          if (extraLane) {
+            rendererRef.current.showGhostExtraNote(extraLane, timeMs);
           } else {
-            const lane = xToLane(x);
-            if (lane) {
-              rendererRef.current.showGhostNote(lane, timeMs);
+            const auxLane = xToAuxLane(x);
+            if (auxLane) {
+              rendererRef.current.showGhostMarker(0, timeMs);
             } else {
-              rendererRef.current.hideGhostNote();
+              const lane = xToLane(x);
+              if (lane) {
+                rendererRef.current.showGhostNote(lane, timeMs);
+              } else {
+                rendererRef.current.hideGhostNote();
+              }
             }
           }
         }
@@ -947,6 +1080,15 @@ function ChartEditorPage() {
     const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
     const y = e.clientY - rect.top;
 
+    // Right-click delete — try extra note first
+    const extraHitIdx = hitTestExtraNote(x, y);
+    if (extraHitIdx !== null) {
+      const currentExtra = useEditorStore.getState().extraNotes;
+      setExtraNotes(currentExtra.filter((_n, i) => i !== extraHitIdx));
+      setSelectedExtraNotes(new Set());
+      return;
+    }
+
     // Right-click delete (mode-independent) — try note first, then trill zone
     const result = DeleteMode.deleteNoteAtPoint(chart, hitTestNote, x, y);
     if (result) {
@@ -1084,14 +1226,27 @@ function ChartEditorPage() {
 
     setSaving(true);
     try {
-      // 1. Upload chart JSON to Storage
-      const json = serializeChart(chart);
-      const path = songChartPath(activeSongId, difficulty);
-      const blob = new Blob([json], { type: 'application/json' });
-      const { error: uploadError } = await supabase.storage
+      // 1. Upload chart JSON (clean, no extra data) + extra JSON in parallel
+      const chartJson = serializeChart(chart);
+      const chartPath = songChartPath(activeSongId, difficulty);
+      const chartBlob = new Blob([chartJson], { type: 'application/json' });
+      const chartUpload = supabase.storage
         .from(STORAGE_BUCKET)
-        .upload(path, blob, { upsert: true });
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+        .upload(chartPath, chartBlob, { upsert: true });
+
+      const extraPath = songChartExtraPath(activeSongId, difficulty);
+      const hasExtra = extraLaneCount > 0 || extraNotes.length > 0;
+      const extraUpload = hasExtra
+        ? supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(extraPath, new Blob([serializeExtraNotes(extraNotes, extraLaneCount)], { type: 'application/json' }), { upsert: true })
+        : supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove([extraPath]);
+
+      const [chartResult, extraResult] = await Promise.all([chartUpload, extraUpload]);
+      if (chartResult.error) throw new Error(`Upload failed: ${chartResult.error.message}`);
+      if (hasExtra && extraResult.error) throw new Error(`Extra upload failed: ${extraResult.error.message}`);
 
       // 2. Upsert charts table row
       const { error: dbError } = await supabase.from('charts').upsert({
@@ -1144,7 +1299,8 @@ function ChartEditorPage() {
         setPendingPreviewRange(null);
       }
 
-      setSavedChartSnapshot(json);
+      setSavedChartSnapshot(chartJson);
+      setSavedExtraSnapshot(serializeExtraNotes(extraNotes, extraLaneCount));
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1152,7 +1308,7 @@ function ChartEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -1176,11 +1332,12 @@ function ChartEditorPage() {
         .eq('difficulty_label', difficulty);
       if (dbError) throw new Error(`DB delete failed: ${dbError.message}`);
 
-      // 2. Storage에서 차트 JSON 삭제
+      // 2. Storage에서 차트 JSON + extra JSON 삭제
       const path = songChartPath(activeSongId, difficulty);
+      const extraPath = songChartExtraPath(activeSongId, difficulty);
       const { error: storageError } = await supabase.storage
         .from(STORAGE_BUCKET)
-        .remove([path]);
+        .remove([path, extraPath]);
       if (storageError) throw new Error(`Storage delete failed: ${storageError.message}`);
 
       addToast('Chart deleted', 'info');
@@ -1272,7 +1429,7 @@ function ChartEditorPage() {
         <button
           style={styles.button}
           onClick={() => {
-            const isDirty = (savedChartSnapshot && serializeChart(chart) !== savedChartSnapshot) || pendingPreviewRange != null;
+            const isDirty = (savedChartSnapshot && (serializeChart(chart) !== savedChartSnapshot || serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot)) || pendingPreviewRange != null;
             if (isDirty) {
               setShowLeaveConfirm(true);
             } else {
@@ -1351,6 +1508,22 @@ function ChartEditorPage() {
             <option value="48">1/48</option>
           </optgroup>
           <option value="custom">Custom ({[4,8,16,32,3,6,12,24,48].includes(snapDivision) ? '...' : `1/${snapDivision}`})</option>
+        </select>
+
+        {/* Extra Lane selector */}
+        <span style={styles.label}>Extra:</span>
+        <select
+          style={styles.select}
+          value={extraLaneCount}
+          onChange={(e) => {
+            const newCount = parseInt(e.target.value);
+            setExtraLaneCount(newCount);
+            if (newCount < extraLaneCount) {
+              setSelectedExtraNotes(new Set());
+            }
+          }}
+        >
+          {[0,1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
         </select>
 
         {/* Zoom display */}
@@ -1545,11 +1718,16 @@ function ChartEditorPage() {
       <div style={styles.bottomBar}>
         <span>Time: {(currentTimeMs / 1000).toFixed(2)}s</span>
         <span style={{ marginLeft: '20px' }}>
-          Selected: {selectedNotes.size} notes
+          Selected: {selectedNotes.size + selectedExtraNotes.size} notes
         </span>
         <span style={{ marginLeft: '20px' }}>
           Total: {chart.notes.length} notes
         </span>
+        {extraNotes.length > 0 && (
+          <span style={{ marginLeft: '20px' }}>
+            Extra: {extraNotes.length} notes
+          </span>
+        )}
       </div>
     </div>
   );

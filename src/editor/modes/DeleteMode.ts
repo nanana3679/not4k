@@ -1,10 +1,14 @@
-import type { Chart, RangeNote } from "../../shared";
+import type { Chart, RangeNote, ExtraNoteEntity } from "../../shared";
 import { beatEq } from "../../shared";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
   hitTestNote: (x: number, y: number) => number | null;
   hitTestTrillZone?: (x: number, y: number) => number | null;
+  hitTestExtraNote?: (x: number, y: number) => number | null;
+  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  onExtraSelectionChange?: (indices: Set<number>) => void;
+  getExtraNotes?: () => ExtraNoteEntity[];
   onWarn?: (message: string) => void;
 }
 
@@ -35,6 +39,17 @@ export class DeleteMode {
       this.chart = result;
       this.callbacks.onChartUpdate(result);
       return;
+    }
+
+    // Try deleting an extra note
+    if (this.callbacks.hitTestExtraNote && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
+      const extraHit = this.callbacks.hitTestExtraNote(x, y);
+      if (extraHit !== null) {
+        const extraNotes = this.callbacks.getExtraNotes();
+        this.callbacks.onExtraNotesUpdate(extraNotes.filter((_n, i) => i !== extraHit));
+        this.callbacks.onExtraSelectionChange?.(new Set());
+        return;
+      }
     }
 
     // Try deleting a trill zone (only if empty)

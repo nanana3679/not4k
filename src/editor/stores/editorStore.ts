@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { Chart } from '../../shared';
+import type { Chart, ExtraNoteEntity } from '../../shared';
 import { beat } from '../../shared';
 import type { EntityType } from '../modes';
 
@@ -47,6 +47,11 @@ interface EditorState {
   // Selection
   selectedNotes: Set<number>;
 
+  // Extra lanes (editor-only)
+  extraNotes: ExtraNoteEntity[];
+  extraLaneCount: number;
+  selectedExtraNotes: Set<number>;
+
   // Toasts
   toasts: Toast[];
 
@@ -66,6 +71,9 @@ interface EditorState {
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setSelectedNotes: (indices: Set<number>) => void;
+  setExtraNotes: (notes: ExtraNoteEntity[]) => void;
+  setExtraLaneCount: (count: number) => void;
+  setSelectedExtraNotes: (indices: Set<number>) => void;
   addToast: (message: string, type?: Toast['type']) => void;
   removeToast: (id: number) => void;
   setEditingMarker: (marker: EditingMarker) => void;
@@ -101,6 +109,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   isPlaying: false,
   currentTimeMs: 0,
   selectedNotes: new Set(),
+  extraNotes: [],
+  extraLaneCount: 0,
+  selectedExtraNotes: new Set(),
   toasts: [],
   editingMarker: null,
 
@@ -117,6 +128,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setSelectedNotes: (selectedNotes) => set({ selectedNotes }),
+  setExtraNotes: (extraNotes) => set({ extraNotes }),
+  setExtraLaneCount: (extraLaneCount) => set({ extraLaneCount }),
+  setSelectedExtraNotes: (selectedExtraNotes) => set({ selectedExtraNotes }),
   addToast: (message, type = 'warn') => {
     const id = ++toastId;
     set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));

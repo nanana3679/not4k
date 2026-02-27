@@ -13,6 +13,9 @@ import type {
   EventMarker,
   Beat,
   Lane,
+  ExtraNoteEntity,
+  ExtraPointNote,
+  ExtraRangeNote,
 } from "../../shared";
 import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
 
@@ -33,7 +36,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
 ] as const;
 
 /** Internal drag type for tracking what kind of range entity is being created */
-type DragType = "rangeNote" | "trillZone" | "event" | null;
+type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
@@ -46,6 +49,12 @@ export interface CreateModeCallbacks {
   xToLane: (x: number) => Lane | null;
   /** Called to get what aux lane type an X falls in */
   xToAuxLane: (x: number) => "event" | null;
+  /** Called to get extra lane number (1~N) from X, or null */
+  xToExtraLane?: (x: number) => number | null;
+  /** Called when extra notes are modified */
+  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  /** Get current extra notes */
+  getExtraNotes?: () => ExtraNoteEntity[];
   /** Called to display a warning message to the user */
   onWarn?: (message: string) => void;
 }
@@ -58,6 +67,7 @@ export class CreateMode {
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
   private _dragType: DragType = null;
+  private _dragExtraLane: number | null = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -109,6 +119,11 @@ export class CreateMode {
     return this._dragType;
   }
 
+  /** The extra lane where drag started */
+  get dragExtraLane(): number | null {
+    return this._dragExtraLane;
+  }
+
   /** Update the chart reference */
   setChart(chart: Chart): void {
     this.chart = chart;
@@ -126,6 +141,27 @@ export class CreateMode {
       this.dragStartLane = null;
       this._dragType = "event";
       return;
+    }
+
+    // --- Extra lane detection ---
+    if (this.callbacks.xToExtraLane) {
+      const extraLane = this.callbacks.xToExtraLane(x);
+      if (extraLane !== null) {
+        if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
+          this.createExtraPointNote(extraLane, beat);
+          return;
+        }
+        if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
+          this.isDragging = true;
+          this.dragStartBeat = beat;
+          this.dragStartLane = null;
+          this._dragExtraLane = extraLane;
+          this._dragType = "extraRangeNote";
+          return;
+        }
+        // trillZone not supported in extra lanes
+        return;
+      }
     }
 
     // --- Note lane entities (based on selectedEntityType) ---
@@ -176,6 +212,7 @@ export class CreateMode {
     this.dragStartBeat = null;
     this.dragStartLane = null;
     this._dragType = null;
+    this._dragExtraLane = null;
   }
 
   /** Handle mouse up (end drag, finalize placement) */
@@ -196,6 +233,10 @@ export class CreateMode {
       if (this.dragStartBeat !== null) {
         this.createEvent(this.dragStartBeat, endBeat);
       }
+    } else if (this._dragType === "extraRangeNote") {
+      if (this._dragExtraLane !== null && this.dragStartBeat !== null) {
+        this.createExtraRangeNote(this._dragExtraLane, this.dragStartBeat, endBeat);
+      }
     }
 
     // Reset drag state
@@ -203,6 +244,7 @@ export class CreateMode {
     this.dragStartBeat = null;
     this.dragStartLane = null;
     this._dragType = null;
+    this._dragExtraLane = null;
   }
 
   /** Handle C+wheel for entity type cycling */
@@ -397,4 +439,40 @@ export class CreateMode {
     this.callbacks.onChartUpdate(updatedChart);
   }
 
+  // -------------------------------------------------------------------------
+  // Extra lane creation (no validateChart — editor-only)
+  // -------------------------------------------------------------------------
+
+  private createExtraPointNote(extraLane: number, beat: Beat): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+    const extraNotes = this.callbacks.getExtraNotes();
+    const newNote: ExtraPointNote = {
+      type: this.selectedEntityType as "single" | "double",
+      extraLane,
+      beat,
+    };
+    this.callbacks.onExtraNotesUpdate([...extraNotes, newNote]);
+  }
+
+  private createExtraRangeNote(extraLane: number, startBeat: Beat, endBeat: Beat): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+    const extraNotes = this.callbacks.getExtraNotes();
+
+    const actualStartBeat = beatLt(startBeat, endBeat) ? startBeat : beatMin(startBeat, endBeat);
+    const actualEndBeat = beatGt(endBeat, startBeat) ? endBeat : beatMax(startBeat, endBeat);
+
+    let headType: "single" | "double";
+    let bodyType: "long" | "doubleLong";
+    if (this.selectedEntityType === "doubleLong") {
+      headType = "double";
+      bodyType = "doubleLong";
+    } else {
+      headType = "single";
+      bodyType = "long";
+    }
+
+    const headNote: ExtraPointNote = { type: headType, extraLane, beat: actualStartBeat };
+    const bodyNote: ExtraRangeNote = { type: bodyType, extraLane, beat: actualStartBeat, endBeat: actualEndBeat };
+    this.callbacks.onExtraNotesUpdate([...extraNotes, headNote, bodyNote]);
+  }
 }

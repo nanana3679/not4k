@@ -16,6 +16,7 @@ import type {
   BpmMarker,
   TimeSignatureMarker,
   EventMarker,
+  ExtraNoteEntity,
 } from "../../shared";
 import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures, beatEq } from "../../shared";
 import {
@@ -29,6 +30,8 @@ import {
   TIMELINE_PADDING,
   COLORS,
   MINIMAP_WIDTH,
+  EXTRA_LANE_WIDTH,
+  MEASURE_LABEL_WIDTH,
 } from "./constants";
 import type { Lane } from "../../shared";
 
@@ -84,6 +87,14 @@ export class TimelineRenderer {
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: Lane; endY: number; endLane: Lane } | null = null;
+
+  // Extra lane state
+  private _extraLaneCount: number = 0;
+  private _extraNotes: ExtraNoteEntity[] = [];
+  private _selectedExtraNotes: Set<number> = new Set();
+
+  // Last playback cursor time (for re-render on layout change)
+  private _lastCursorTimeMs: number = 0;
 
   // Gradient cache
   private bodyGradientCache = new Map<number, FillGradient>();
@@ -262,6 +273,34 @@ export class TimelineRenderer {
     this.render();
   }
 
+  /** Set extra lane count */
+  setExtraLaneCount(count: number): void {
+    this._extraLaneCount = count;
+    this.render();
+    this.updatePlaybackCursor(this._lastCursorTimeMs);
+  }
+
+  get extraLaneCount(): number {
+    return this._extraLaneCount;
+  }
+
+  /** Set extra notes */
+  setExtraNotes(notes: ExtraNoteEntity[]): void {
+    this._extraNotes = notes;
+    this.render();
+  }
+
+  /** Set selected extra note indices */
+  setSelectedExtraNotes(indices: Set<number>): void {
+    this._selectedExtraNotes = indices;
+    this.render();
+  }
+
+  /** Dynamic timeline width including extra lanes */
+  get currentTimelineWidth(): number {
+    return TIMELINE_WIDTH + this._extraLaneCount * EXTRA_LANE_WIDTH;
+  }
+
   /**
    * Set move origin ghost data (shown during note drag move).
    * Pass original note entities with their original positions.
@@ -297,8 +336,9 @@ export class TimelineRenderer {
    * Horizontal offset to center the timeline content within the canvas.
    */
   get contentOffsetX(): number {
-    const contentWidth = TIMELINE_WIDTH + 32; // timeline + measure label area
-    return Math.max(0, (this.options.width - MINIMAP_WIDTH - contentWidth) / 2);
+    const contentWidth = MEASURE_LABEL_WIDTH + this.currentTimelineWidth;
+    return Math.max(0, (this.options.width - MINIMAP_WIDTH - contentWidth) / 2)
+      + MEASURE_LABEL_WIDTH;
   }
 
   /**
@@ -383,6 +423,16 @@ export class TimelineRenderer {
       const bg = new Graphics();
       bg.rect(auxStartX + i * AUX_LANE_WIDTH, topY, AUX_LANE_WIDTH, laneHeight);
       bg.fill(COLORS.AUX_LANE_BG);
+      this.laneBackgrounds.addChild(bg);
+    }
+
+    // Extra lanes (editor-only, right of event lane)
+    const extraStartX = TIMELINE_WIDTH;
+    for (let i = 0; i < this._extraLaneCount; i++) {
+      const bg = new Graphics();
+      const color = i % 2 === 0 ? COLORS.EXTRA_LANE_BG_EVEN : COLORS.EXTRA_LANE_BG_ODD;
+      bg.rect(extraStartX + i * EXTRA_LANE_WIDTH, topY, EXTRA_LANE_WIDTH, laneHeight);
+      bg.fill(color);
       this.laneBackgrounds.addChild(bg);
     }
   }
@@ -550,16 +600,17 @@ export class TimelineRenderer {
       // Measure line
       const line = new Graphics();
       line.moveTo(0, y);
-      line.lineTo(TIMELINE_WIDTH, y);
+      line.lineTo(this.currentTimelineWidth, y);
       line.stroke({ width: 2, color: COLORS.MEASURE_LINE });
       this.measureLines.addChild(line);
 
-      // Measure number label
+      // Measure number label (left side)
       const label = new Text({
         text: String(m + 1),
         style: measureLabelStyle,
       });
-      label.x = TIMELINE_WIDTH + 4;
+      label.anchor.set(1, 0);
+      label.x = -4;
       label.y = y - 14;
       this.measureLabels.addChild(label);
 
@@ -582,7 +633,7 @@ export class TimelineRenderer {
         const bY = this.timeToY(bMs);
         const beatLine = new Graphics();
         beatLine.moveTo(0, bY);
-        beatLine.lineTo(TIMELINE_WIDTH, bY);
+        beatLine.lineTo(this.currentTimelineWidth, bY);
         beatLine.stroke({ width: 1, color: COLORS.BEAT_LINE });
         this.beatLines.addChild(beatLine);
       }
@@ -604,7 +655,7 @@ export class TimelineRenderer {
         const snapY = this.timeToY(snapMs);
         const snapLine = new Graphics();
         snapLine.moveTo(0, snapY);
-        snapLine.lineTo(TIMELINE_WIDTH, snapY);
+        snapLine.lineTo(this.currentTimelineWidth, snapY);
         snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
         this.snapLines.addChild(snapLine);
       }
@@ -615,7 +666,7 @@ export class TimelineRenderer {
       const endY = this.timeToY(this.waveformDurationMs);
       const endLine = new Graphics();
       endLine.moveTo(0, endY);
-      endLine.lineTo(TIMELINE_WIDTH, endY);
+      endLine.lineTo(this.currentTimelineWidth, endY);
       endLine.stroke({ width: 1, color: 0x66aaff, alpha: 0.5 });
       this.measureLines.addChild(endLine);
     }
@@ -777,6 +828,9 @@ export class TimelineRenderer {
         this.renderRangeNote(note, isSelected);
       }
     });
+
+    // Render extra notes
+    this.renderExtraNotes();
   }
 
   /**
@@ -1006,6 +1060,176 @@ export class TimelineRenderer {
   }
 
   /**
+   * Render extra lane notes (editor-only).
+   */
+  private renderExtraNotes(): void {
+    if (!this.chart || this._extraLaneCount === 0) return;
+
+    const bpmMarkers = this.cachedBpmMarkers;
+    const meta = this.chart.meta;
+    const extraStartX = TIMELINE_WIDTH;
+
+    this._extraNotes.forEach((note, index) => {
+      const isSelected = this._selectedExtraNotes.has(index);
+      const x = extraStartX + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
+
+      if ("endBeat" in note) {
+        this.renderRangeNoteAt(x, EXTRA_LANE_WIDTH, note.beat, note.endBeat, note.type, isSelected, bpmMarkers, meta);
+      } else {
+        this.renderPointNoteAt(x, EXTRA_LANE_WIDTH, note.beat, note.type, isSelected, bpmMarkers, meta);
+      }
+    });
+  }
+
+  /** Render a point note at a specific X position (shared by normal and extra notes) */
+  private renderPointNoteAt(
+    x: number, laneWidth: number, noteBeat: Beat, noteType: string,
+    isSelected: boolean, bpmMarkers: BpmMarker[], meta: { offsetMs: number },
+  ): void {
+    const timeMs = beatToMs(noteBeat, bpmMarkers, meta.offsetMs);
+    const y = this.timeToY(timeMs);
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+
+    let color: number;
+    let shape: "rect" | "diamond" = "rect";
+    switch (noteType) {
+      case "single": color = COLORS.SINGLE_NOTE; break;
+      case "double": color = COLORS.DOUBLE_NOTE; break;
+      case "trill": color = COLORS.TRILL_NOTE; shape = "diamond"; break;
+      default: color = COLORS.SINGLE_NOTE;
+    }
+
+    const noteGfx = new Graphics();
+    if (shape === "diamond") {
+      const cx = x + laneWidth / 2;
+      noteGfx.moveTo(cx, y - h / 2);
+      noteGfx.lineTo(cx + w / 2, y);
+      noteGfx.lineTo(cx, y + h / 2);
+      noteGfx.lineTo(cx - w / 2, y);
+      noteGfx.lineTo(cx, y - h / 2);
+      noteGfx.fill(color);
+    } else {
+      const rectX = x + (laneWidth - w) / 2;
+      noteGfx.rect(rectX, y - h / 2, w, h);
+      noteGfx.fill(color);
+    }
+
+    if (isSelected) {
+      noteGfx.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
+      this.selectedNoteLayer.addChild(noteGfx);
+    } else {
+      this.noteLayer.addChild(noteGfx);
+    }
+  }
+
+  /** Render a range note at a specific X position (shared by normal and extra notes) */
+  private renderRangeNoteAt(
+    x: number, laneWidth: number, startBeat: Beat, endBeat: Beat, noteType: string,
+    isSelected: boolean, bpmMarkers: BpmMarker[], meta: { offsetMs: number },
+  ): void {
+    const startMs = beatToMs(startBeat, bpmMarkers, meta.offsetMs);
+    const endMs = beatToMs(endBeat, bpmMarkers, meta.offsetMs);
+    const startY = this.timeToY(startMs);
+    const endY = this.timeToY(endMs);
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+
+    let bodyColor: number;
+    switch (noteType) {
+      case "long": bodyColor = COLORS.SINGLE_LONG; break;
+      case "doubleLong": bodyColor = COLORS.DOUBLE_LONG; break;
+      case "trillLong": bodyColor = COLORS.TRILL_LONG; break;
+      default: bodyColor = COLORS.SINGLE_LONG;
+    }
+
+    const topY = Math.min(startY, endY);
+    const bottomY = Math.max(startY, endY);
+    const bodyTopY = topY + h / 2;
+    const bodyBottomY = bottomY - h / 2;
+    const bodyHeight = bodyBottomY - bodyTopY;
+
+    const bodyGradient = this.getBodyGradient(bodyColor);
+
+    // Body
+    if (bodyHeight > 0) {
+      const body = new Graphics();
+      body.rect(x + (laneWidth - w) / 2, bodyTopY, w, bodyHeight);
+      body.fill(bodyGradient);
+      if (isSelected) {
+        body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
+        this.selectedLongBodyLayer.addChild(body);
+      } else {
+        this.longNoteBodyLayer.addChild(body);
+      }
+    }
+
+    // End cap
+    const end = new Graphics();
+    const endX = x + (laneWidth - w) / 2;
+    end.rect(endX, endY - h / 2, w, h);
+    end.fill({ fill: bodyGradient, alpha: 0.5 });
+    if (isSelected) {
+      end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
+      this.selectedLongEndLayer.addChild(end);
+    } else {
+      this.longNoteEndLayer.addChild(end);
+    }
+
+    // Head cap
+    const head = new Graphics();
+    head.rect(x + (laneWidth - w) / 2, startY - h / 2, w, h);
+    head.fill(bodyGradient);
+    if (isSelected) {
+      head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
+      this.selectedLongHeadLayer.addChild(head);
+    } else {
+      this.longNoteHeadLayer.addChild(head);
+    }
+  }
+
+  /** Show ghost note in extra lane */
+  showGhostExtraNote(extraLane: number, timeMs: number): void {
+    this.ghostLayer.removeChildren();
+    const x = TIMELINE_WIDTH + (extraLane - 1) * EXTRA_LANE_WIDTH;
+    const y = this.timeToY(timeMs);
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = x + (EXTRA_LANE_WIDTH - w) / 2;
+
+    const ghost = new Graphics();
+    ghost.rect(rectX, y - h / 2, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    this.ghostLayer.addChild(ghost);
+  }
+
+  /** Show ghost range in extra lane */
+  showGhostExtraRange(extraLane: number, startTimeMs: number, endTimeMs: number): void {
+    this.ghostLayer.removeChildren();
+    const x = TIMELINE_WIDTH + (extraLane - 1) * EXTRA_LANE_WIDTH;
+    const startY = this.timeToY(startTimeMs);
+    const endY = this.timeToY(endTimeMs);
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = x + (EXTRA_LANE_WIDTH - w) / 2;
+    const topY = Math.min(startY, endY);
+    const bottomY = Math.max(startY, endY);
+
+    const ghost = new Graphics();
+    ghost.rect(rectX, startY - h / 2, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    ghost.rect(rectX, endY - h / 2, w, h);
+    ghost.fill({ color: 0xffffff, alpha: 0.3 });
+    const bodyTop = topY + h / 2;
+    const bodyBottom = bottomY - h / 2;
+    if (bodyBottom > bodyTop) {
+      ghost.rect(rectX, bodyTop, w, bodyBottom - bodyTop);
+      ghost.fill({ color: 0xffffff, alpha: 0.15 });
+    }
+    this.ghostLayer.addChild(ghost);
+  }
+
+  /**
    * Render BPM markers, time signature markers, and messages in aux lanes.
    */
   private renderMarkers(): void {
@@ -1070,6 +1294,7 @@ export class TimelineRenderer {
    * Update the playback cursor position. Called from App.tsx on each time update.
    */
   updatePlaybackCursor(timeMs: number): void {
+    this._lastCursorTimeMs = timeMs;
     this.playbackCursorLayer.removeChildren();
 
     const y = this.timeToY(timeMs);
@@ -1077,13 +1302,13 @@ export class TimelineRenderer {
     // Cursor line (bright green, full width)
     const line = new Graphics();
     line.moveTo(0, y);
-    line.lineTo(TIMELINE_WIDTH, y);
+    line.lineTo(this.currentTimelineWidth, y);
     line.stroke({ width: 2, color: 0x00ff88 });
     this.playbackCursorLayer.addChild(line);
 
     // Draggable handle (triangle on the right edge, pointing left)
     const handle = new Graphics();
-    const hx = TIMELINE_WIDTH + 16;
+    const hx = this.currentTimelineWidth + 16;
     const hs = 8; // half-size of handle
     handle.moveTo(hx, y - hs);
     handle.lineTo(hx - hs * 2, y);
