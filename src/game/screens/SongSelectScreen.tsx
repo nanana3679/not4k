@@ -31,6 +31,7 @@ interface DbSong {
   title: string;
   artist: string;
   audio_url: string;
+  duration: number | null;
   charts: DbChart[];
 }
 
@@ -154,6 +155,9 @@ function AddSongModal({ onDone, onClose, addToast }: {
       if (jacketFile) {
         const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
         row.jacket_url = songJacketPath(songId, jacketExt);
+      }
+      if (audioBuffer) {
+        row.duration = audioBuffer.duration;
       }
       if (previewRange) {
         row.preview_start = previewRange.startTime;
@@ -559,7 +563,14 @@ export function SongSelectScreen() {
             >
               <div style={styles.songInfo}>
                 <span style={styles.songTitle}>{song.title}</span>
-                <span style={styles.songArtist}>{song.artist}</span>
+                <span style={styles.songArtist}>
+                  {song.artist}
+                  {song.duration != null && (
+                    <span style={styles.songDuration}>
+                      {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
+                    </span>
+                  )}
+                </span>
               </div>
               <div style={styles.chartTags}>
                 {sortedCharts.map((chart, chartIdx) => {
@@ -828,6 +839,9 @@ const styles: Record<string, React.CSSProperties> = {
   songArtist: {
     fontSize: '13px',
     color: '#999',
+  },
+  songDuration: {
+    color: '#666',
   },
   chartTags: {
     display: 'flex',
