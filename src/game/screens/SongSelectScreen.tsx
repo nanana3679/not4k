@@ -7,6 +7,8 @@ import {
   songChartPath,
   songAudioPath,
   songJacketPath,
+  songPreviewPath,
+  encodeWavBlob,
   beat,
   serializeChart,
 } from '../../shared';
@@ -32,6 +34,9 @@ interface DbSong {
   artist: string;
   audio_url: string;
   duration: number | null;
+  preview_start: number | null;
+  preview_end: number | null;
+  preview_url: string | null;
   charts: DbChart[];
 }
 
@@ -162,6 +167,17 @@ function AddSongModal({ onDone, onClose, addToast }: {
       if (previewRange) {
         row.preview_start = previewRange.startTime;
         row.preview_end = previewRange.endTime;
+      }
+
+      // Generate and upload preview WAV if preview range is set and audioBuffer exists
+      if (previewRange && audioBuffer) {
+        const wavBlob = encodeWavBlob(audioBuffer, previewRange.startTime, previewRange.endTime);
+        const previewPath = songPreviewPath(songId);
+        const { error: previewUploadErr } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(previewPath, wavBlob, { upsert: true });
+        if (previewUploadErr) throw new Error(`Preview upload failed: ${previewUploadErr.message}`);
+        row.preview_url = previewPath;
       }
 
       const { error } = await supabase.from('songs').insert(row);
@@ -319,6 +335,9 @@ export function SongSelectScreen() {
   const songListRef = useRef<HTMLDivElement>(null);
   const songCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  // Preview audio playback
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const addToast = useCallback((msg: string, _type?: 'info' | 'error') => {
     const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, message: msg }]);
@@ -346,8 +365,98 @@ export function SongSelectScreen() {
 
   useEffect(() => { fetchSongs(); }, [fetchSongs]);
 
-  // Play: select chart and go to loading screen
+  // Preview audio: play focused song's preview in loop with fade-in/out
+  useEffect(() => {
+    const song = songs[focusedSongIndex];
+    const audio = previewAudioRef.current;
+    const BASE_VOL = 0.4;
+    const FADE = 0.5; // seconds
+
+    // Stop previous
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      previewAudioRef.current = null;
+    }
+
+    if (!song) return;
+
+    // If a dedicated preview file exists, play it in loop
+    if (song.preview_url) {
+      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(song.preview_url);
+      const el = new Audio(data.publicUrl);
+      previewAudioRef.current = el;
+      el.volume = 0;
+      el.loop = true;
+
+      const onTimeUpdate = () => {
+        const dur = el.duration;
+        if (!isFinite(dur)) return;
+        const t = el.currentTime;
+        if (t < FADE) el.volume = BASE_VOL * (t / FADE);
+        else if (t > dur - FADE) el.volume = BASE_VOL * ((dur - t) / FADE);
+        else el.volume = BASE_VOL;
+      };
+
+      el.addEventListener('loadeddata', () => el.play().catch(() => {}));
+      el.addEventListener('timeupdate', onTimeUpdate);
+
+      return () => {
+        el.removeEventListener('timeupdate', onTimeUpdate);
+        el.pause();
+        el.removeAttribute('src');
+        el.load();
+        previewAudioRef.current = null;
+      };
+    }
+
+    // Fallback: load full audio and loop preview_start~preview_end range
+    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(song.audio_url);
+    const el = new Audio(data.publicUrl);
+    previewAudioRef.current = el;
+    el.volume = 0;
+
+    const start = song.preview_start ?? 0;
+    const end = song.preview_end ?? (song.duration ?? 30);
+    const rangeDur = end - start;
+
+    const onLoaded = () => {
+      el.currentTime = start;
+      el.play().catch(() => {});
+    };
+
+    const onTimeUpdate = () => {
+      if (el.currentTime >= end) {
+        el.currentTime = start;
+        el.volume = 0;
+        return;
+      }
+      const pos = el.currentTime - start;
+      if (pos < FADE) el.volume = BASE_VOL * (pos / FADE);
+      else if (pos > rangeDur - FADE) el.volume = BASE_VOL * ((rangeDur - pos) / FADE);
+      else el.volume = BASE_VOL;
+    };
+
+    el.addEventListener('loadeddata', onLoaded);
+    el.addEventListener('timeupdate', onTimeUpdate);
+
+    return () => {
+      el.removeEventListener('loadeddata', onLoaded);
+      el.removeEventListener('timeupdate', onTimeUpdate);
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+      previewAudioRef.current = null;
+    };
+  }, [songs, focusedSongIndex]);
+
+  // Play: stop preview, select chart and go to loading screen
   const handlePlay = useCallback((songId: string, difficulty: string, audioUrl: string) => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
     selectSong(songId, difficulty, audioUrl);
     setScreen('loading');
   }, [selectSong, setScreen]);

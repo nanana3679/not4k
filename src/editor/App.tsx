@@ -11,7 +11,7 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import type { EntityType } from './modes';
 import { useEditorStore } from './stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, STORAGE_BUCKET, songChartPath } from '../shared';
+import { deserializeChart, STORAGE_BUCKET, songChartPath, songPreviewPath, encodeWavBlob } from '../shared';
 import { serializeChart } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH } from './timeline/constants';
@@ -1103,12 +1103,26 @@ function ChartEditorPage() {
 
       // 3. Update songs table if preview range changed
       if (pendingPreviewRange) {
+        const songUpdate: Record<string, unknown> = {
+          preview_start: pendingPreviewRange.startTime,
+          preview_end: pendingPreviewRange.endTime,
+        };
+
+        // Generate and upload preview WAV
+        const ab = playbackRef.current?.audioBufferData;
+        if (ab) {
+          const wavBlob = encodeWavBlob(ab, pendingPreviewRange.startTime, pendingPreviewRange.endTime);
+          const previewPath = songPreviewPath(activeSongId);
+          const { error: prevUpErr } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(previewPath, wavBlob, { upsert: true });
+          if (prevUpErr) throw new Error(`Preview upload failed: ${prevUpErr.message}`);
+          songUpdate.preview_url = previewPath;
+        }
+
         const { error: songUpdateError } = await supabase
           .from('songs')
-          .update({
-            preview_start: pendingPreviewRange.startTime,
-            preview_end: pendingPreviewRange.endTime,
-          })
+          .update(songUpdate)
           .eq('id', activeSongId);
         if (songUpdateError) throw new Error(`Song preview update failed: ${songUpdateError.message}`);
 
