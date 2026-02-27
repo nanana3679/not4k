@@ -587,7 +587,7 @@ export class GameRenderer {
     const rawStartY = this.calculateNoteY(startMs, songTimeMs);
     const endY = this.calculateNoteY(endMs, songTimeMs);
 
-    // 바디 시작 Y를 항상 판정선으로 클램프 (헤드는 별도 PointNote로 렌더링)
+    // 바디 시작 Y를 항상 판정선으로 클램프
     const startY = Math.min(rawStartY, this._judgmentLineY);
 
     const laneX = this.getLaneX(entity.lane);
@@ -600,6 +600,7 @@ export class GameRenderer {
     if (endY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 
     const isFailed = this.failedBodies.has(index);
+    const isPartial = this.doublePartialNotes.has(index);
 
     // Draw body
     const bodyGraphic = this.getOrCreateBodyGraphic(index);
@@ -616,16 +617,22 @@ export class GameRenderer {
     bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
     bodyGraphic.fill(bodyGradient);
 
-    // trillLong: fill diamond corner gaps with body color
+    // trillLong: fill diamond corner gaps with body color so the
+    // rectangle seamlessly connects into the diamond endpoints.
     if (entity.type === "trillLong" && bodyHeight > 0) {
       const hw = NOTE_WIDTH / 2;
       const hh = NOTE_HEIGHT / 2;
-      // Head upper corners (body bottom = bodyHeight)
+      // Head (bottom of body in local coords = bodyHeight).
+      // Diamond bounding box: (0, bodyHeight) to (NOTE_WIDTH, bodyHeight + NOTE_HEIGHT).
+      // Fill upper-left and upper-right corners of the head diamond
+      // (the area between the rect body edge and the diamond edge).
       bodyGraphic.poly([0, bodyHeight, hw, bodyHeight, 0, bodyHeight + hh]);
       bodyGraphic.fill(bodyColor);
       bodyGraphic.poly([hw, bodyHeight, NOTE_WIDTH, bodyHeight, NOTE_WIDTH, bodyHeight + hh]);
       bodyGraphic.fill(bodyColor);
-      // End lower corners (body top = 0, end diamond bottom = NOTE_HEIGHT)
+      // End (top of body in local coords = 0).
+      // Diamond bounding box: (0, 0) to (NOTE_WIDTH, NOTE_HEIGHT).
+      // Fill lower-left and lower-right corners of the end diamond.
       bodyGraphic.poly([0, hh, hw, NOTE_HEIGHT, 0, NOTE_HEIGHT]);
       bodyGraphic.fill(bodyColor);
       bodyGraphic.poly([NOTE_WIDTH, hh, NOTE_WIDTH, NOTE_HEIGHT, hw, NOTE_HEIGHT]);
@@ -634,13 +641,25 @@ export class GameRenderer {
 
     this.longNoteBodyLayer.addChild(bodyGraphic);
 
-    // Draw end
+    // Draw end diamond / rectangle
     if (endY >= -NOTE_HEIGHT && endY <= this.height + NOTE_HEIGHT) {
       const endGraphic = new Graphics();
       endGraphic.x = laneX;
       endGraphic.y = endY;
       this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5, gradient: true });
       this.longNoteEndLayer.addChild(endGraphic);
+    }
+
+    // Draw head diamond for trillLong (other types use the body edge as head)
+    if (entity.type === "trillLong") {
+      const headY = rawStartY;
+      if (headY >= -NOTE_HEIGHT && headY <= this.height + NOTE_HEIGHT) {
+        const headGraphic = new Graphics();
+        headGraphic.x = laneX;
+        headGraphic.y = headY;
+        this.drawNoteShape(headGraphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
+        this.longNoteHeadLayer.addChild(headGraphic);
+      }
     }
 
   }

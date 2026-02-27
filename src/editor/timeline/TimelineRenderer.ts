@@ -1150,12 +1150,29 @@ export class TimelineRenderer {
     const bodyHeight = bodyBottomY - bodyTopY;
 
     const bodyGradient = this.getBodyGradient(bodyColor);
+    const bodyX = x + (laneWidth - w) / 2;
+    const cx = x + laneWidth / 2;
 
     // Body
     if (bodyHeight > 0) {
       const body = new Graphics();
-      body.rect(x + (laneWidth - w) / 2, bodyTopY, w, bodyHeight);
+      body.rect(bodyX, bodyTopY, w, bodyHeight);
       body.fill(bodyGradient);
+
+      // Fill diamond corner gaps for trillLong
+      if (noteType === "trillLong") {
+        // Head upper corners (at bottomY=startY, facing body)
+        body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
+        body.fill(bodyColor);
+        body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
+        body.fill(bodyColor);
+        // End lower corners (at topY=endY, facing body)
+        body.poly([bodyX, endY, cx, endY + h / 2, bodyX, endY + h / 2]);
+        body.fill(bodyColor);
+        body.poly([bodyX + w, endY, cx, endY + h / 2, bodyX + w, endY + h / 2]);
+        body.fill(bodyColor);
+      }
+
       if (isSelected) {
         body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongBodyLayer.addChild(body);
@@ -1164,11 +1181,19 @@ export class TimelineRenderer {
       }
     }
 
-    // End cap
+    // End cap (diamond for trillLong, rect for others)
     const end = new Graphics();
-    const endX = x + (laneWidth - w) / 2;
-    end.rect(endX, endY - h / 2, w, h);
-    end.fill({ fill: bodyGradient, alpha: 0.5 });
+    if (noteType === "trillLong") {
+      end.moveTo(cx, endY - h / 2);
+      end.lineTo(cx + w / 2, endY);
+      end.lineTo(cx, endY + h / 2);
+      end.lineTo(cx - w / 2, endY);
+      end.lineTo(cx, endY - h / 2);
+      end.fill({ fill: bodyGradient, alpha: 0.5 });
+    } else {
+      end.rect(bodyX, endY - h / 2, w, h);
+      end.fill({ fill: bodyGradient, alpha: 0.5 });
+    }
     if (isSelected) {
       end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongEndLayer.addChild(end);
@@ -1176,10 +1201,19 @@ export class TimelineRenderer {
       this.longNoteEndLayer.addChild(end);
     }
 
-    // Head cap
+    // Head cap (diamond for trillLong, rect for others)
     const head = new Graphics();
-    head.rect(x + (laneWidth - w) / 2, startY - h / 2, w, h);
-    head.fill(bodyGradient);
+    if (noteType === "trillLong") {
+      head.moveTo(cx, startY - h / 2);
+      head.lineTo(cx + w / 2, startY);
+      head.lineTo(cx, startY + h / 2);
+      head.lineTo(cx - w / 2, startY);
+      head.lineTo(cx, startY - h / 2);
+      head.fill(bodyGradient);
+    } else {
+      head.rect(bodyX, startY - h / 2, w, h);
+      head.fill(bodyGradient);
+    }
     if (isSelected) {
       head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongHeadLayer.addChild(head);
