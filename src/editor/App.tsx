@@ -1452,6 +1452,7 @@ function ChartEditorPage() {
                   const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
                   const durationMs = audioBuffer.duration * 1000;
                   rendererRef.current.setWaveformData(peaks, durationMs);
+
                 }
               });
             }

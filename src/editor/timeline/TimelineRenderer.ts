@@ -609,6 +609,50 @@ export class TimelineRenderer {
         this.snapLines.addChild(snapLine);
       }
     }
+
+    // Time labels at regular intervals based on zoom level
+    if (this.waveformDurationMs > 0) {
+      // Pick interval so labels are ~80-200px apart
+      const intervals = [1, 2, 5, 10, 15, 30, 60, 120, 300];
+      const minSpacingPx = 80;
+      let intervalSec = intervals[intervals.length - 1];
+      for (const iv of intervals) {
+        if (iv * this._zoom >= minSpacingPx) {
+          intervalSec = iv;
+          break;
+        }
+      }
+
+      const durationSec = this.waveformDurationMs / 1000;
+      const fmtTime = (s: number) => {
+        const m = Math.floor(s / 60);
+        const ss = Math.floor(s % 60);
+        return `${m}:${String(ss).padStart(2, '0')}`;
+      };
+
+      for (let t = intervalSec; t <= durationSec; t += intervalSec) {
+        const y = this.timeToY(t * 1000);
+        const label = new Text({ text: fmtTime(t), style: measureLabelStyle });
+        label.style.fill = 0x66aaff;
+        label.x = TIMELINE_WIDTH + 4;
+        label.y = y - 14;
+        this.measureLabels.addChild(label);
+      }
+
+      // End-of-audio marker line + label
+      const endY = this.timeToY(this.waveformDurationMs);
+      const endLine = new Graphics();
+      endLine.moveTo(0, endY);
+      endLine.lineTo(TIMELINE_WIDTH, endY);
+      endLine.stroke({ width: 1, color: 0x66aaff, alpha: 0.5 });
+      this.measureLines.addChild(endLine);
+
+      const endLabel = new Text({ text: fmtTime(durationSec), style: measureLabelStyle });
+      endLabel.style.fill = 0xff6644;
+      endLabel.x = TIMELINE_WIDTH + 4;
+      endLabel.y = endY - 14;
+      this.measureLabels.addChild(endLabel);
+    }
   }
 
   /**

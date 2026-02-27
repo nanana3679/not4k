@@ -9,6 +9,7 @@ import {
   songPreviewPath,
   songJacketPath,
   beat,
+  serializeChart,
 } from '../../shared';
 import type { Chart } from '../../shared';
 import { PreviewRangeSelector } from '../../editor/components/PreviewRangeSelector';
@@ -214,6 +215,12 @@ function AddSongModal({ onDone, onClose, addToast }: {
           </div>
         )}
 
+        {audioBuffer && !decodingAudio && (
+          <div style={{ fontSize: '13px', color: '#aaa', marginBottom: '12px' }}>
+            Length: {Math.floor(audioBuffer.duration / 60)}:{String(Math.floor(audioBuffer.duration % 60)).padStart(2, '0')}
+          </div>
+        )}
+
         {audioBuffer && (
           <div style={{ marginBottom: '12px' }}>
             <PreviewRangeSelector audioBuffer={audioBuffer} onChange={setPreviewRange} />
@@ -359,7 +366,7 @@ export function SongSelectScreen() {
   const handleNewChart = useCallback((song: DbSong, difficulty: string, level: number) => {
     // Upload empty chart to storage first, then navigate
     const chartData = createEmptyChart(song, difficulty, level);
-    const json = JSON.stringify(chartData);
+    const json = serializeChart(chartData);
     const path = songChartPath(song.id, difficulty);
     const blob = new Blob([json], { type: 'application/json' });
 
