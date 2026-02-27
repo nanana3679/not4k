@@ -418,8 +418,8 @@ export function SongSelectScreen() {
       if (songErr) throw new Error(`Song DB delete failed: ${songErr.message}`);
 
       addToast(`"${song.title}" 삭제 완료`, 'info');
+      setSongs((prev) => prev.filter((s) => s.id !== song.id));
       setDeleteSongTarget(null);
-      fetchSongs();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       addToast(message, 'error');
