@@ -96,6 +96,9 @@ export class TimelineRenderer {
   // Last playback cursor time (for re-render on layout change)
   private _lastCursorTimeMs: number = 0;
 
+  // Viewport culling: last scrollY at which full render was performed
+  private _lastRenderScrollY: number = 0;
+
   // Gradient cache
   private bodyGradientCache = new Map<number, FillGradient>();
 
@@ -105,6 +108,7 @@ export class TimelineRenderer {
   // Waveform data
   private waveformPeaks: Float32Array | null = null;
   private waveformDurationMs: number = 0;
+  private _waveformMaxPeak: number = 0;
 
   // BPM/TimeSignature extraction cache
   private _cachedBpmMarkers: BpmMarker[] | null = null;
@@ -223,6 +227,12 @@ export class TimelineRenderer {
   setWaveformData(peaks: Float32Array, durationMs: number): void {
     this.waveformPeaks = peaks;
     this.waveformDurationMs = durationMs;
+    // Cache max peak for waveform normalization (avoids full scan every render)
+    let maxPeak = 0;
+    for (let i = 0; i < peaks.length; i++) {
+      if (peaks[i] > maxPeak) maxPeak = peaks[i];
+    }
+    this._waveformMaxPeak = maxPeak;
     this._cachedTotalTimelineMs = null;
     this.render();
   }
@@ -245,8 +255,14 @@ export class TimelineRenderer {
   set scrollY(value: number) {
     this._scrollY = value;
     this.updateScroll();
-    this.renderMinimap();
-    this.app?.render();
+
+    const threshold = this.options.height * 0.3;
+    if (Math.abs(value - this._lastRenderScrollY) > threshold) {
+      this.render();
+    } else {
+      this.renderMinimap();
+      this.app?.render();
+    }
   }
 
   get scrollY(): number {
@@ -472,12 +488,32 @@ export class TimelineRenderer {
   }
 
   /**
+   * Calculate the visible time range (ms) for viewport culling.
+   * Returns the min/max time values visible on screen, with margin to prevent
+   * pop-in during scrolling.
+   */
+  private getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number } {
+    const canvasH = this.options.height;
+    const margin = canvasH * 0.5; // 50% margin above and below viewport
+
+    const viewTopY = this._scrollY - margin;
+    const viewBottomY = this._scrollY + canvasH + margin;
+
+    // Y decreases as time increases (bottom-to-top layout)
+    const maxTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewTopY) * 1000) / this._zoom;
+    const minTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewBottomY) * 1000) / this._zoom;
+
+    return { minTimeMs: Math.max(0, minTimeMs), maxTimeMs };
+  }
+
+  /**
    * Full re-render
    */
   render(): void {
     if (!this.initialized || !this.chart) return;
 
     this._cachedTotalTimelineMs = null;
+    this._lastRenderScrollY = this._scrollY;
     this.clearDynamicLayers();
     this.renderLaneBackgrounds();
     this.renderWaveform();
@@ -522,28 +558,27 @@ export class TimelineRenderer {
     if (!this.waveformPeaks || this.waveformDurationMs === 0) return;
 
     const laneAreaWidth = LANE_COUNT * LANE_WIDTH;
-    const centerX = laneAreaWidth / 2; // center of 4 note lanes
+    const centerX = laneAreaWidth / 2;
 
     const peaks = this.waveformPeaks;
     const peakCount = peaks.length;
 
-    // Normalize: find max peak and scale so it fills the lane width
-    let maxPeak = 0;
-    for (let i = 0; i < peakCount; i++) {
-      if (peaks[i] > maxPeak) maxPeak = peaks[i];
-    }
-    const scale = maxPeak > 0 ? 1 / maxPeak : 1;
+    const scale = this._waveformMaxPeak > 0 ? 1 / this._waveformMaxPeak : 1;
 
-    // Calculate time per peak
     const msPerPeak = this.waveformDurationMs / peakCount;
+
+    // Viewport culling: only draw peaks within visible range
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
+    const startIdx = Math.max(0, Math.floor(minTimeMs / msPerPeak) - 1);
+    const endIdx = Math.min(peakCount - 1, Math.ceil(maxTimeMs / msPerPeak) + 1);
+    if (startIdx > endIdx) return;
 
     const waveform = new Graphics();
 
-    // Build the waveform shape centered within 4 note lanes
-    waveform.moveTo(centerX, this.timeToY(0));
+    waveform.moveTo(centerX, this.timeToY(startIdx * msPerPeak));
 
     // Draw upper half (positive peaks)
-    for (let i = 0; i < peakCount; i++) {
+    for (let i = startIdx; i <= endIdx; i++) {
       const timeMs = i * msPerPeak;
       const y = this.timeToY(timeMs);
       const normalized = peaks[i] * scale;
@@ -552,7 +587,7 @@ export class TimelineRenderer {
     }
 
     // Draw lower half (negative peaks) - go back in reverse
-    for (let i = peakCount - 1; i >= 0; i--) {
+    for (let i = endIdx; i >= startIdx; i--) {
       const timeMs = i * msPerPeak;
       const y = this.timeToY(timeMs);
       const normalized = peaks[i] * scale;
@@ -560,10 +595,8 @@ export class TimelineRenderer {
       waveform.lineTo(x, y);
     }
 
-    // Close the shape
-    waveform.lineTo(centerX, this.timeToY(0));
+    waveform.lineTo(centerX, this.timeToY(startIdx * msPerPeak));
 
-    // Fill with semi-transparent blue
     waveform.fill({ color: 0x0078ff, alpha: 0.3 });
 
     this.waveformLayer.addChild(waveform);
@@ -583,6 +616,7 @@ export class TimelineRenderer {
 
     const totalTimelineMs = this.getTotalTimelineMs();
     const sortedTS = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
     const measureLabelStyle = new TextStyle({
       fontSize: 11,
@@ -593,7 +627,12 @@ export class TimelineRenderer {
     for (let m = 0; ; m++) {
       const mStartBeat = measureStartBeat(m, timeSignatures);
       const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
-      if (mStartMs > totalTimelineMs) break;
+      if (mStartMs > totalTimelineMs || mStartMs > maxTimeMs) break;
+
+      // Skip measures entirely before viewport
+      const nextMStartBeat = measureStartBeat(m + 1, timeSignatures);
+      const nextMStartMs = beatToMs(nextMStartBeat, bpmMarkers, meta.offsetMs);
+      if (nextMStartMs < minTimeMs) continue;
 
       const y = this.timeToY(mStartMs);
 
@@ -662,7 +701,7 @@ export class TimelineRenderer {
     }
 
     // End-of-audio marker line
-    if (this.waveformDurationMs > 0) {
+    if (this.waveformDurationMs > 0 && this.waveformDurationMs >= minTimeMs && this.waveformDurationMs <= maxTimeMs) {
       const endY = this.timeToY(this.waveformDurationMs);
       const endLine = new Graphics();
       endLine.moveTo(0, endY);
@@ -680,10 +719,16 @@ export class TimelineRenderer {
 
     const { trillZones, meta } = this.chart;
     const bpmMarkers = this.cachedBpmMarkers;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
     for (const zone of trillZones) {
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
       const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+
+      // Viewport culling
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) continue;
       const startY = this.timeToY(startMs);
       const endY = this.timeToY(endMs);
 
@@ -710,6 +755,7 @@ export class TimelineRenderer {
     const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
     const ORIGIN_ALPHA = 0.3;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
     for (const origin of this._moveOrigins) {
       const { note, beat: origBeat, endBeat: origEndBeat, lane } = origin;
@@ -720,6 +766,7 @@ export class TimelineRenderer {
       if (!origEndBeat) {
         // Point note ghost
         const timeMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
+        if (timeMs < minTimeMs || timeMs > maxTimeMs) continue;
         const y = this.timeToY(timeMs);
 
         let color: number;
@@ -748,6 +795,9 @@ export class TimelineRenderer {
         // Range note ghost
         const startMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
         const endMs = beatToMs(origEndBeat, bpmMarkers, meta.offsetMs);
+        const lo = Math.min(startMs, endMs);
+        const hi = Math.max(startMs, endMs);
+        if (hi < minTimeMs || lo > maxTimeMs) continue;
         const startY = this.timeToY(startMs);
         const endY = this.timeToY(endMs);
 
@@ -818,8 +868,22 @@ export class TimelineRenderer {
     if (!this.chart) return;
 
     const { notes } = this.chart;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
+    const bpmMarkers = this.cachedBpmMarkers;
+    const meta = this.chart.meta;
 
     notes.forEach((note, index) => {
+      // Viewport culling
+      const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      if (this.isPointNote(note)) {
+        if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) return;
+      } else {
+        const noteEndMs = beatToMs((note as RangeNote).endBeat, bpmMarkers, meta.offsetMs);
+        const lo = Math.min(noteStartMs, noteEndMs);
+        const hi = Math.max(noteStartMs, noteEndMs);
+        if (hi < minTimeMs || lo > maxTimeMs) return;
+      }
+
       const isSelected = this._selectedNotes.has(index);
 
       if (this.isPointNote(note)) {
@@ -981,25 +1045,15 @@ export class TimelineRenderer {
       const body = new Graphics();
       const bodyX = x + (LANE_WIDTH - w) / 2;
       const bodyGradient = this.getBodyGradient(bodyColor);
-      body.rect(bodyX, bodyTopY, w, bodyHeight);
-      body.fill(bodyGradient);
-
-      // Fill diamond corner gaps for trillLong (seamless body-to-head/end connection)
       if (note.type === "trillLong") {
-        const cx = x + LANE_WIDTH / 2;
-        if (hasHead) {
-          // Head upper corners (at bottomY=startY, facing body) — only when head exists
-          body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
-          body.fill(bodyColor);
-          body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
-          body.fill(bodyColor);
-        }
-        // End lower corners (at topY=endY, facing body)
-        body.poly([bodyX, endY, cx, endY + h / 2, bodyX, endY + h / 2]);
-        body.fill(bodyColor);
-        body.poly([bodyX + w, endY, cx, endY + h / 2, bodyX + w, endY + h / 2]);
-        body.fill(bodyColor);
+        // Extend body rect by half diamond height into each endpoint
+        const extTop = h / 2;
+        const extBottom = hasHead ? h / 2 : 0;
+        body.rect(bodyX, bodyTopY - extTop, w, bodyHeight + extTop + extBottom);
+      } else {
+        body.rect(bodyX, bodyTopY, w, bodyHeight);
       }
+      body.fill(bodyGradient);
 
       if (isSelected) {
         body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
@@ -1019,7 +1073,7 @@ export class TimelineRenderer {
       end.lineTo(cx, endY + h / 2);
       end.lineTo(cx - w / 2, endY);
       end.lineTo(cx, endY - h / 2);
-      end.fill({ fill: headGradient, alpha: 0.5 });
+      end.fill(0x888888);
     } else {
       const endX = x + (LANE_WIDTH - w) / 2;
       const endNoteY = endY - h / 2;
@@ -1068,8 +1122,20 @@ export class TimelineRenderer {
     const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
     const extraStartX = TIMELINE_WIDTH;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
     this._extraNotes.forEach((note, index) => {
+      // Viewport culling
+      const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      if ("endBeat" in note) {
+        const noteEndMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const lo = Math.min(noteStartMs, noteEndMs);
+        const hi = Math.max(noteStartMs, noteEndMs);
+        if (hi < minTimeMs || lo > maxTimeMs) return;
+      } else {
+        if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) return;
+      }
+
       const isSelected = this._selectedExtraNotes.has(index);
       const x = extraStartX + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
 
@@ -1156,22 +1222,13 @@ export class TimelineRenderer {
     // Body
     if (bodyHeight > 0) {
       const body = new Graphics();
-      body.rect(bodyX, bodyTopY, w, bodyHeight);
-      body.fill(bodyGradient);
-
-      // Fill diamond corner gaps for trillLong
       if (noteType === "trillLong") {
-        // Head upper corners (at bottomY=startY, facing body)
-        body.poly([bodyX, startY - h / 2, cx, startY - h / 2, bodyX, startY]);
-        body.fill(bodyColor);
-        body.poly([cx, startY - h / 2, bodyX + w, startY - h / 2, bodyX + w, startY]);
-        body.fill(bodyColor);
-        // End lower corners (at topY=endY, facing body)
-        body.poly([bodyX, endY, cx, endY + h / 2, bodyX, endY + h / 2]);
-        body.fill(bodyColor);
-        body.poly([bodyX + w, endY, cx, endY + h / 2, bodyX + w, endY + h / 2]);
-        body.fill(bodyColor);
+        // Extend body rect by half diamond height into each endpoint
+        body.rect(bodyX, bodyTopY - h / 2, w, bodyHeight + h);
+      } else {
+        body.rect(bodyX, bodyTopY, w, bodyHeight);
       }
+      body.fill(bodyGradient);
 
       if (isSelected) {
         body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
@@ -1189,7 +1246,7 @@ export class TimelineRenderer {
       end.lineTo(cx, endY + h / 2);
       end.lineTo(cx - w / 2, endY);
       end.lineTo(cx, endY - h / 2);
-      end.fill({ fill: bodyGradient, alpha: 0.5 });
+      end.fill(0x888888);
     } else {
       end.rect(bodyX, endY - h / 2, w, h);
       end.fill({ fill: bodyGradient, alpha: 0.5 });
@@ -1272,11 +1329,18 @@ export class TimelineRenderer {
     const bpmMarkers = this.cachedBpmMarkers;
     const { events, meta } = this.chart;
     const auxStartX = LANE_COUNT * LANE_WIDTH;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
     // Events (pink, aux index 0, range)
     for (const evt of events) {
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
       const endMs = beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs);
+
+      // Viewport culling
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) continue;
+
       const startY = this.timeToY(startMs);
       const endY = this.timeToY(endMs);
       const rawHeight = Math.abs(endY - startY);

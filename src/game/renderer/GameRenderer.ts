@@ -614,30 +614,14 @@ export class GameRenderer {
 
     // Draw rectangular body for all long note types (horizontal gradient)
     const bodyGradient = this.getBodyGradient(bodyColor);
-    bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
-    bodyGraphic.fill(bodyGradient);
-
-    // trillLong: fill diamond corner gaps with body color so the
-    // rectangle seamlessly connects into the diamond endpoints.
-    if (entity.type === "trillLong" && bodyHeight > 0) {
-      const hw = NOTE_WIDTH / 2;
+    if (entity.type === "trillLong") {
+      // Shift body to cover inward half of each diamond
       const hh = NOTE_HEIGHT / 2;
-      // Head (bottom of body in local coords = bodyHeight).
-      // Diamond bounding box: (0, bodyHeight) to (NOTE_WIDTH, bodyHeight + NOTE_HEIGHT).
-      // Fill upper-left and upper-right corners of the head diamond
-      // (the area between the rect body edge and the diamond edge).
-      bodyGraphic.poly([0, bodyHeight, hw, bodyHeight, 0, bodyHeight + hh]);
-      bodyGraphic.fill(bodyColor);
-      bodyGraphic.poly([hw, bodyHeight, NOTE_WIDTH, bodyHeight, NOTE_WIDTH, bodyHeight + hh]);
-      bodyGraphic.fill(bodyColor);
-      // End (top of body in local coords = 0).
-      // Diamond bounding box: (0, 0) to (NOTE_WIDTH, NOTE_HEIGHT).
-      // Fill lower-left and lower-right corners of the end diamond.
-      bodyGraphic.poly([0, hh, hw, NOTE_HEIGHT, 0, NOTE_HEIGHT]);
-      bodyGraphic.fill(bodyColor);
-      bodyGraphic.poly([NOTE_WIDTH, hh, NOTE_WIDTH, NOTE_HEIGHT, hw, NOTE_HEIGHT]);
-      bodyGraphic.fill(bodyColor);
+      bodyGraphic.rect(0, hh, LANE_WIDTH, bodyHeight);
+    } else {
+      bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
     }
+    bodyGraphic.fill(bodyGradient);
 
     this.longNoteBodyLayer.addChild(bodyGraphic);
 
@@ -646,7 +630,11 @@ export class GameRenderer {
       const endGraphic = new Graphics();
       endGraphic.x = laneX;
       endGraphic.y = endY;
-      this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5, gradient: true });
+      if (entity.type === "trillLong") {
+        this.drawNoteShape(endGraphic, entity.type, { color: 0x888888 });
+      } else {
+        this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5, gradient: true });
+      }
       this.longNoteEndLayer.addChild(endGraphic);
     }
 
