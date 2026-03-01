@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { beatToMs, msToBeat, bpmAt } from "./index";
-import { beat, BEAT_ZERO } from "../types/beat";
-import type { BpmMarker } from "../types/chart";
+import { beatToMs, msToBeat, bpmAt, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "./index";
+import { beat, beatToFloat, BEAT_ZERO } from "../types/beat";
+import type { BpmMarker, TimeSignatureMarker, EventMarker } from "../types/chart";
 
 const SINGLE_BPM: BpmMarker[] = [{ beat: BEAT_ZERO, bpm: 120 }];
+
+// ---------------------------------------------------------------------------
+// beatToMs
+// ---------------------------------------------------------------------------
 
 describe("beatToMs", () => {
   it("0박 = offsetMs", () => {
@@ -57,6 +61,10 @@ describe("beatToMs", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// msToBeat
+// ---------------------------------------------------------------------------
+
 describe("msToBeat", () => {
   it("0ms = 0박", () => {
     expect(msToBeat(0, SINGLE_BPM)).toBe(0);
@@ -106,6 +114,10 @@ describe("msToBeat", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// bpmAt
+// ---------------------------------------------------------------------------
+
 describe("bpmAt", () => {
   it("단일 BPM", () => {
     expect(bpmAt(beat(10), SINGLE_BPM)).toBe(120);
@@ -125,5 +137,126 @@ describe("bpmAt", () => {
 
   it("빈 마커 배열이면 에러", () => {
     expect(() => bpmAt(BEAT_ZERO, [])).toThrow("bpmMarkers must not be empty");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// measureStartBeat
+// ---------------------------------------------------------------------------
+
+describe("measureStartBeat", () => {
+  const TS_4_4: TimeSignatureMarker[] = [
+    { measure: 0, beatPerMeasure: beat(4) },
+  ];
+
+  it("마디 0 = beat 0", () => {
+    const result = measureStartBeat(0, TS_4_4);
+    expect(beatToFloat(result)).toBe(0);
+  });
+
+  it("4/4에서 마디 1 = beat 4", () => {
+    const result = measureStartBeat(1, TS_4_4);
+    expect(beatToFloat(result)).toBe(4);
+  });
+
+  it("4/4에서 마디 4 = beat 16", () => {
+    const result = measureStartBeat(4, TS_4_4);
+    expect(beatToFloat(result)).toBe(16);
+  });
+
+  it("3/4 박자 처리", () => {
+    const ts: TimeSignatureMarker[] = [
+      { measure: 0, beatPerMeasure: beat(3) },
+    ];
+    // 마디 4 = 4 * 3 = 12박
+    expect(beatToFloat(measureStartBeat(4, ts))).toBe(12);
+  });
+
+  it("박자 변경 구간 처리", () => {
+    const ts: TimeSignatureMarker[] = [
+      { measure: 0, beatPerMeasure: beat(4) },  // 마디 0~7: 4박/마디
+      { measure: 8, beatPerMeasure: beat(3) },   // 마디 8~: 3박/마디
+    ];
+
+    // 마디 8 = 8 * 4 = 32박
+    expect(beatToFloat(measureStartBeat(8, ts))).toBe(32);
+
+    // 마디 10 = 32 + 2 * 3 = 38박
+    expect(beatToFloat(measureStartBeat(10, ts))).toBe(38);
+  });
+
+  it("빈 배열이면 에러", () => {
+    expect(() => measureStartBeat(0, [])).toThrow("timeSignatures must not be empty");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractBpmMarkers
+// ---------------------------------------------------------------------------
+
+describe("extractBpmMarkers", () => {
+  it("bpm 필드가 있는 이벤트만 추출", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120, beatPerMeasure: beat(4) },
+      { beat: beat(4), endBeat: beat(4), text: "hello" },
+      { beat: beat(8), endBeat: beat(8), bpm: 180 },
+    ];
+
+    const result = extractBpmMarkers(events);
+    expect(result).toHaveLength(2);
+    expect(result[0].bpm).toBe(120);
+    expect(result[1].bpm).toBe(180);
+  });
+
+  it("beat 오름차순 정렬", () => {
+    const events: EventMarker[] = [
+      { beat: beat(8), endBeat: beat(8), bpm: 180 },
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120 },
+    ];
+
+    const result = extractBpmMarkers(events);
+    expect(result[0].bpm).toBe(120);
+    expect(result[1].bpm).toBe(180);
+  });
+
+  it("bpm 이벤트가 없으면 빈 배열", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, text: "hello" },
+    ];
+    expect(extractBpmMarkers(events)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractTimeSignatures
+// ---------------------------------------------------------------------------
+
+describe("extractTimeSignatures", () => {
+  it("beatPerMeasure 필드가 있는 이벤트만 추출", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120, beatPerMeasure: beat(4) },
+      { beat: beat(4), endBeat: beat(4), text: "hello" },
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(1);
+    expect(beatToFloat(result[0].beatPerMeasure)).toBe(4);
+    expect(result[0].measure).toBe(0);
+  });
+
+  it("박자 변경 시 마디 인덱스 계산", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) }, // 16박 = 4마디 후
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(2);
+    expect(result[0].measure).toBe(0);
+    expect(result[1].measure).toBe(4);
+  });
+
+  it("빈 이벤트 배열이면 빈 배열", () => {
+    expect(extractTimeSignatures([])).toHaveLength(0);
   });
 });
