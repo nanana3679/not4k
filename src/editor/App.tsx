@@ -1708,6 +1708,7 @@ function ChartEditorPage() {
         <MetaEditModal
           meta={chart.meta}
           audioBuffer={playbackRef.current?.audioBufferData ?? null}
+          initialJacketFile={pendingJacketFile}
           onSave={async (meta, previewRange, jacketFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;
@@ -2032,12 +2033,13 @@ const eventTabStyles = {
 // Meta Edit Modal
 // ---------------------------------------------------------------------------
 
-function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
+function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initialJacketFile }: {
   meta: ChartMeta;
   audioBuffer: AudioBuffer | null;
   onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null, jacketFile: File | null) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
+  initialJacketFile?: File | null;
 }) {
   const [values, setValues] = useState<Record<string, string>>({
     title: meta.title,
@@ -2051,8 +2053,10 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
   });
   const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
   const [jacketError, setJacketError] = useState(false);
-  const [jacketLocalUrl, setJacketLocalUrl] = useState<string | null>(null);
-  const [jacketFile, setJacketFile] = useState<File | null>(null);
+  const [jacketLocalUrl, setJacketLocalUrl] = useState<string | null>(
+    initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
+  );
+  const [jacketFile, setJacketFile] = useState<File | null>(initialJacketFile ?? null);
 
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
 
