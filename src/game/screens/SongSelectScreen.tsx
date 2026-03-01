@@ -200,8 +200,8 @@ function AddSongModal({ onDone, onClose, addToast }: {
   };
 
   return (
-    <div style={modalStyles.overlay} onClick={submitting ? undefined : onClose}>
-      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+    <div style={modalStyles.overlay} onMouseDown={submitting ? undefined : onClose}>
+      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>New Song</h3>
 
         <label style={modalStyles.field}>
@@ -277,8 +277,8 @@ function DifficultyModal({ existingDifficulties, onSelect, onClose }: {
   const [level, setLevel] = useState('1');
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={modalStyles.overlay} onMouseDown={onClose}>
+      <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>New Chart</h3>
 
         <label style={modalStyles.field}>
@@ -886,8 +886,8 @@ export function SongSelectScreen() {
 
       {/* Delete song confirm modal (admin) */}
       {deleteSongTarget && (
-        <div style={modalStyles.overlay} onClick={deleting ? undefined : () => setDeleteSongTarget(null)}>
-          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
+          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={modalStyles.title}>Delete Song</h3>
             <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
               <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}

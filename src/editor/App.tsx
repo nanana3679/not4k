@@ -1758,8 +1758,8 @@ function ChartEditorPage() {
 
       {/* Leave confirm modal */}
       {showLeaveConfirm && (
-        <div style={modalStyles.overlay} onClick={() => setShowLeaveConfirm(false)}>
-          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.overlay} onMouseDown={() => setShowLeaveConfirm(false)}>
+          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={modalStyles.title}>Unsaved Changes</h3>
             <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
               저장되지 않은 변경사항이 있습니다. 나가시겠습니까?
@@ -1778,8 +1778,8 @@ function ChartEditorPage() {
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
-        <div style={modalStyles.overlay} onClick={() => setShowDeleteConfirm(false)}>
-          <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.overlay} onMouseDown={() => setShowDeleteConfirm(false)}>
+          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={modalStyles.title}>Delete Chart</h3>
             <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
               <strong>{chart.meta.difficultyLabel.toUpperCase()}</strong> 차트를 삭제하시겠습니까?<br />
@@ -1851,8 +1851,8 @@ function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, o
   const title = 'Edit Event';
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={modalStyles.overlay} onMouseDown={onClose}>
+      <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>{title}</h3>
 
         <EventTabFields values={values} setValues={setValues} />
@@ -2089,8 +2089,8 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio }: {
   ];
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+    <div style={modalStyles.overlay} onMouseDown={onClose}>
+      <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
 
         {fields.map((f) => (
@@ -2227,8 +2227,8 @@ function CustomSnapModal({ currentSnap, onSave, onClose }: {
   };
 
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={modalStyles.overlay} onMouseDown={onClose}>
+      <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Custom Snap Division</h3>
         <label style={modalStyles.field}>
           <span>1 / N (1~128)</span>
