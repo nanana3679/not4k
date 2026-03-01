@@ -178,6 +178,7 @@ function ChartEditorPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
+  const [showOffsetPanel, setShowOffsetPanel] = useState(false);
   const editorNavigate = useNavigate();
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
@@ -1578,6 +1579,90 @@ function ChartEditorPage() {
 
         {/* Zoom display */}
         <span style={styles.label}>Zoom: {zoom.toFixed(0)}px/s</span>
+
+        {/* Offset control (toggle panel) */}
+        <div style={{ position: 'relative' }}>
+          <button
+            style={{ ...styles.button, ...(showOffsetPanel ? styles.buttonActive : {}), marginLeft: '8px' }}
+            onClick={() => setShowOffsetPanel((v) => !v)}
+            title="Adjust audio offset while viewing waveform"
+          >
+            Offset
+          </button>
+          {showOffsetPanel && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                onClick={() => setShowOffsetPanel(false)}
+              />
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #555',
+                borderRadius: '6px',
+                zIndex: 1000,
+                padding: '8px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                whiteSpace: 'nowrap',
+              }}>
+                <button
+                  style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
+                  onClick={() => {
+                    const next = chart.meta.offsetMs - 10;
+                    setChart({ ...chart, meta: { ...chart.meta, offsetMs: next } });
+                  }}
+                >-10</button>
+                <button
+                  style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
+                  onClick={() => {
+                    const next = chart.meta.offsetMs - 1;
+                    setChart({ ...chart, meta: { ...chart.meta, offsetMs: next } });
+                  }}
+                >-1</button>
+                <input
+                  type="number"
+                  value={chart.meta.offsetMs}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) {
+                      setChart({ ...chart, meta: { ...chart.meta, offsetMs: v } });
+                    }
+                  }}
+                  style={{
+                    width: '72px',
+                    padding: '2px 6px',
+                    backgroundColor: '#1a1a1a',
+                    color: '#e0e0e0',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    textAlign: 'center',
+                  }}
+                />
+                <span style={{ fontSize: '12px', color: '#999' }}>ms</span>
+                <button
+                  style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
+                  onClick={() => {
+                    const next = chart.meta.offsetMs + 1;
+                    setChart({ ...chart, meta: { ...chart.meta, offsetMs: next } });
+                  }}
+                >+1</button>
+                <button
+                  style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
+                  onClick={() => {
+                    const next = chart.meta.offsetMs + 10;
+                    setChart({ ...chart, meta: { ...chart.meta, offsetMs: next } });
+                  }}
+                >+10</button>
+              </div>
+            </>
+          )}
+        </div>
 
         <div style={styles.separator} />
 
