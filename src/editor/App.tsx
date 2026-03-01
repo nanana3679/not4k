@@ -188,6 +188,7 @@ function ChartEditorPage() {
     endTime: number;
   } | null>(null);
   const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
+  const [jacketCacheBust, setJacketCacheBust] = useState(0);
 
   // Inject spinner keyframes once
   useEffect(() => {
@@ -1243,8 +1244,18 @@ function ChartEditorPage() {
 
     setSaving(true);
     try {
+      // 0. Resolve pending jacket path before serialisation so the chart JSON
+      //    contains the correct storage path (not just the local filename).
+      let chartToSave = chart;
+      let resolvedJacketPath: string | null = null;
+      if (pendingJacketFile) {
+        const ext = pendingJacketFile.name.split('.').pop() || 'jpg';
+        resolvedJacketPath = songJacketPath(activeSongId, ext);
+        chartToSave = { ...chart, meta: { ...chart.meta, imageFile: resolvedJacketPath } };
+      }
+
       // 1. Upload chart JSON (clean, no extra data) + extra JSON in parallel
-      const chartJson = serializeChart(chart);
+      const chartJson = serializeChart(chartToSave);
       const chartPath = songChartPath(activeSongId, difficulty);
       const chartBlob = new Blob([chartJson], { type: 'application/json' });
       const chartUpload = supabase.storage
@@ -1275,17 +1286,16 @@ function ChartEditorPage() {
       if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
 
       // 3. Upload jacket image if changed
-      if (pendingJacketFile) {
-        const ext = pendingJacketFile.name.split('.').pop() || 'jpg';
-        const jacketPath = songJacketPath(activeSongId, ext);
+      if (pendingJacketFile && resolvedJacketPath) {
         const { error: jacketUpErr } = await supabase.storage
           .from(STORAGE_BUCKET)
-          .upload(jacketPath, pendingJacketFile, { upsert: true });
+          .upload(resolvedJacketPath, pendingJacketFile, { upsert: true });
         if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
-        // Update meta with correct storage path
-        const updatedMeta = { ...chart.meta, imageFile: jacketPath };
-        setChart({ ...chart, meta: updatedMeta });
+        // Update songs.jacket_url so the song select screen can find it
+        await supabase.from('songs').update({ jacket_url: resolvedJacketPath }).eq('id', activeSongId);
+        setChart(chartToSave);
         setPendingJacketFile(null);
+        setJacketCacheBust(Date.now());
       }
 
       // 4. Update songs table if preview range changed
@@ -1709,6 +1719,7 @@ function ChartEditorPage() {
           meta={chart.meta}
           audioBuffer={playbackRef.current?.audioBufferData ?? null}
           initialJacketFile={pendingJacketFile}
+          jacketCacheBust={jacketCacheBust}
           onSave={async (meta, previewRange, jacketFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;
@@ -2033,13 +2044,14 @@ const eventTabStyles = {
 // Meta Edit Modal
 // ---------------------------------------------------------------------------
 
-function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initialJacketFile }: {
+function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initialJacketFile, jacketCacheBust }: {
   meta: ChartMeta;
   audioBuffer: AudioBuffer | null;
   onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null, jacketFile: File | null) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
   initialJacketFile?: File | null;
+  jacketCacheBust?: number;
 }) {
   const [values, setValues] = useState<Record<string, string>>({
     title: meta.title,
@@ -2061,7 +2073,9 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initia
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
 
   const jacketUrl = jacketLocalUrl
-    ?? (values.imageFile ? getPublicUrl(values.imageFile) : null);
+    ?? (values.imageFile
+      ? getPublicUrl(values.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
+      : null);
 
   const handleSave = () => {
     const level = parseInt(values.difficultyLevel);
@@ -2174,7 +2188,6 @@ function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initia
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    set('imageFile', file.name);
                     setJacketFile(file);
                     setJacketLocalUrl(URL.createObjectURL(file));
                     setJacketError(false);

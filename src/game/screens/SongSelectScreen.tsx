@@ -37,6 +37,7 @@ interface DbSong {
   preview_start: number | null;
   preview_end: number | null;
   preview_url: string | null;
+  jacket_url: string | null;
   charts: DbChart[];
 }
 
@@ -661,7 +662,7 @@ export function SongSelectScreen() {
   const focusedSortedCharts = focusedSong ? getSortedCharts(focusedSong) : [];
   const focusedChart = focusedSortedCharts[focusedChartIndex] ?? null;
   const focusedJacketUrl = focusedSong
-    ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(songJacketPath(focusedSong.id)).data.publicUrl
+    ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(focusedSong.jacket_url || songJacketPath(focusedSong.id)).data.publicUrl
     : null;
 
   return (
