@@ -65,33 +65,43 @@ export class PlaybackController {
     }
   }
 
-  /** Start playback */
+  /** Start playback (supports positions outside audio range as silence) */
   play(): void {
     if (!this.audioContext || !this.audioBuffer || this._isPlaying) {
       return;
     }
 
-    // Create new source node
-    this.sourceNode = this.audioContext.createBufferSource();
-    this.sourceNode.buffer = this.audioBuffer;
-    this.sourceNode.connect(this.gainNode ?? this.audioContext.destination);
-
-    // Start playback from current offset
-    this.sourceNode.start(0, this.playbackOffset);
     this.playbackStartTime = this.audioContext.currentTime;
-
     this._isPlaying = true;
     this.callbacks.onPlayStateChange(true);
-
-    // Start animation loop
     this.startAnimationLoop();
 
-    // Handle natural end of playback
-    this.sourceNode.onended = () => {
-      if (this._isPlaying) {
-        this.pause();
-      }
-    };
+    const duration = this.audioBuffer.duration;
+
+    if (this.playbackOffset >= 0 && this.playbackOffset < duration) {
+      // Cursor is within audio range — play normally
+      this.sourceNode = this.audioContext.createBufferSource();
+      this.sourceNode.buffer = this.audioBuffer;
+      this.sourceNode.connect(this.gainNode ?? this.audioContext.destination);
+      this.sourceNode.start(0, this.playbackOffset);
+      this.sourceNode.onended = () => {
+        // Audio ended but cursor may still advance — don't auto-pause
+        this.sourceNode?.disconnect();
+        this.sourceNode = null;
+      };
+    } else if (this.playbackOffset < 0) {
+      // Cursor is before audio start — schedule audio to begin after delay
+      const delaySec = -this.playbackOffset;
+      this.sourceNode = this.audioContext.createBufferSource();
+      this.sourceNode.buffer = this.audioBuffer;
+      this.sourceNode.connect(this.gainNode ?? this.audioContext.destination);
+      this.sourceNode.start(this.audioContext.currentTime + delaySec, 0);
+      this.sourceNode.onended = () => {
+        this.sourceNode?.disconnect();
+        this.sourceNode = null;
+      };
+    }
+    // If cursor is past audio end, no audio plays — cursor still advances silently
   }
 
   /** Pause playback */
@@ -100,18 +110,10 @@ export class PlaybackController {
       return;
     }
 
-    // Save current position
+    // Save current position (no audio clamping — measure-based range)
     if (this.audioContext) {
       const elapsed = this.audioContext.currentTime - this.playbackStartTime;
       this.playbackOffset += elapsed;
-
-      // Clamp to duration
-      if (this.audioBuffer) {
-        this.playbackOffset = Math.min(
-          this.playbackOffset,
-          this.audioBuffer.duration
-        );
-      }
     }
 
     // Stop source node
@@ -132,7 +134,7 @@ export class PlaybackController {
     this.stopAnimationLoop();
   }
 
-  /** Seek to position in milliseconds */
+  /** Seek to position in milliseconds (measure-based, no audio clamping) */
   seekTo(timeMs: number): void {
     const wasPlaying = this._isPlaying;
 
@@ -141,14 +143,6 @@ export class PlaybackController {
     }
 
     this.playbackOffset = timeMs / 1000;
-
-    // Clamp to duration
-    if (this.audioBuffer) {
-      this.playbackOffset = Math.max(
-        0,
-        Math.min(this.playbackOffset, this.audioBuffer.duration)
-      );
-    }
 
     // Notify time update
     this.callbacks.onTimeUpdate(this.playbackOffset * 1000);

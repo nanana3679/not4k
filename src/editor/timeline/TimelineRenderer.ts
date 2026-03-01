@@ -406,6 +406,17 @@ export class TimelineRenderer {
   }
 
   /**
+   * Clamp a time (ms) to the chart's measure range [measure 0 start, last measure end].
+   */
+  clampToMeasureRange(timeMs: number): number {
+    if (!this.chart) return timeMs;
+    const offsetMs = this.chart.meta.offsetMs;
+    const measureStartMs = offsetMs; // measure 0 starts at offsetMs
+    const measureEndMs = this.getTotalTimelineMs();
+    return Math.max(measureStartMs, Math.min(measureEndMs, timeMs));
+  }
+
+  /**
    * Minimum time in ms (negative when offset < 0, otherwise 0).
    */
   private getMinTimeMs(): number {

@@ -771,8 +771,8 @@ function ChartEditorPage() {
     const curTimelineWidth = rendererRef.current?.currentTimelineWidth ?? TIMELINE_WIDTH;
     if (x >= curTimelineWidth && rendererRef.current) {
       isDraggingCursorRef.current = true;
-      const timeMs = rendererRef.current.yToTime(y);
-      playbackRef.current?.seekTo(Math.max(0, timeMs));
+      const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
+      playbackRef.current?.seekTo(timeMs);
       canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
@@ -811,8 +811,8 @@ function ChartEditorPage() {
 
     // Handle cursor drag
     if (isDraggingCursorRef.current && rendererRef.current) {
-      const timeMs = rendererRef.current.yToTime(y);
-      playbackRef.current?.seekTo(Math.max(0, timeMs));
+      const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
+      playbackRef.current?.seekTo(timeMs);
       return;
     }
 
