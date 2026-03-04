@@ -22,6 +22,7 @@ import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
 import { PreviewRangeSelector } from './components/PreviewRangeSelector';
 import type { PreviewRangeState } from './components/PreviewRangeSelector';
+import { LoadingSpinner } from '../shared/components/LoadingSpinner';
 
 
 function getPublicUrl(path: string): string {
@@ -91,7 +92,9 @@ export default function EditorApp() {
           const extra = parseExtraNotes(extraJson);
           if (extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
             useEditorStore.getState().setExtraNotes(extra.extraNotes);
-            useEditorStore.getState().setExtraLaneCount(extra.extraLaneCount);
+            // 노트가 존재하는 최대 레인 이상으로 extraLaneCount 보장
+            const maxUsedLane = extra.extraNotes.reduce((max, n) => Math.max(max, n.extraLane), 0);
+            useEditorStore.getState().setExtraLaneCount(Math.max(extra.extraLaneCount, maxUsedLane));
           }
         } catch { /* ignore parse errors for extra data */ }
         setActiveSongId(songId);
@@ -112,7 +115,7 @@ export default function EditorApp() {
   }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl]);
 
   if (loading || chartLoading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#1a1a1a', color: '#888' }}>Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   if (!user || !isAdmin) {
@@ -190,16 +193,6 @@ function ChartEditorPage() {
   } | null>(null);
   const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
   const [jacketCacheBust, setJacketCacheBust] = useState(0);
-
-  // Inject spinner keyframes once
-  useEffect(() => {
-    const id = 'editor-spin-keyframes';
-    if (document.getElementById(id)) return;
-    const style = document.createElement('style');
-    style.id = id;
-    style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
-    document.head.appendChild(style);
-  }, []);
 
   // Get state from store
   const chart = useEditorStore((s) => s.chart);
@@ -508,6 +501,11 @@ function ChartEditorPage() {
       renderer.setChart(chart);
       renderer.zoom = zoom;
       renderer.snap = snapDivision;
+
+      // 렌더러 초기화 후 스토어에 이미 로드된 extra 데이터 동기화
+      const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
+      renderer.setExtraLaneCount(storedExtraLaneCount);
+      renderer.setExtraNotes(storedExtraNotes);
 
       // Start scrolled to bottom (time 0 visible)
       const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
@@ -1769,10 +1767,7 @@ function ChartEditorPage() {
       {/* Canvas */}
       <div ref={canvasContainerRef} style={styles.canvasContainer}>
         {audioLoading && (
-          <div style={styles.loadingOverlay}>
-            <div style={styles.spinner} />
-            <span>Loading audio...</span>
-          </div>
+          <LoadingSpinner mode="overlay" message="Loading audio..." />
         )}
         <canvas
           ref={canvasRef}
@@ -2490,27 +2485,6 @@ const styles = {
   },
   canvas: {
     display: 'block',
-  },
-  loadingOverlay: {
-    position: 'absolute' as const,
-    inset: 0,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '12px',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    color: '#ccc',
-    fontSize: '14px',
-    zIndex: 1500,
-  },
-  spinner: {
-    width: '32px',
-    height: '32px',
-    border: '3px solid #555',
-    borderTop: '3px solid #4488ff',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
   },
   toastContainer: {
     position: 'absolute' as const,
