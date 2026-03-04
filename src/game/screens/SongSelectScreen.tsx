@@ -13,6 +13,7 @@ import {
   serializeChart,
 } from '../../shared';
 import type { Chart } from '../../shared';
+import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
 import { PreviewRangeSelector } from '../../editor/components/PreviewRangeSelector';
 import type { PreviewRangeState } from '../../editor/components/PreviewRangeSelector';
 
@@ -798,7 +799,7 @@ export function SongSelectScreen() {
         {/* Right panel — song list */}
         <div ref={songListRef} style={styles.songList}>
           {loading && songs.length === 0 && (
-            <div style={styles.empty}>Loading songs...</div>
+            <LoadingSpinner mode="inline" message="Loading songs..." />
           )}
 
           {!loading && error && (

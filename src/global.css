@@ -34,3 +34,9 @@ textarea,
 select {
   font: inherit;
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

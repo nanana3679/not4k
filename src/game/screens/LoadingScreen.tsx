@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
 import { loadSongData } from '../../supabase';
+import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
@@ -55,12 +56,10 @@ export function LoadingScreen() {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.text}>Loading...</div>
-      <div style={styles.songInfo}>
-        {selectedSongId} - {selectedDifficulty}
-      </div>
-    </div>
+    <LoadingSpinner
+      message="Loading..."
+      sub={`${selectedSongId} - ${selectedDifficulty}`}
+    />
   );
 }
 
@@ -73,14 +72,6 @@ const styles = {
     height: '100vh',
     backgroundColor: '#1a1a1a',
     color: '#ffffff',
-  },
-  text: {
-    fontSize: '32px',
-    marginBottom: '16px',
-  },
-  songInfo: {
-    fontSize: '18px',
-    color: '#aaaaaa',
   },
   error: {
     fontSize: '24px',
