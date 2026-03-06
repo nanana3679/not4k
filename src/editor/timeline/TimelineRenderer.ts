@@ -76,6 +76,7 @@ export class TimelineRenderer {
   private selectedLongEndLayer!: Container;
   private selectedLongHeadLayer!: Container;
   private selectedNoteLayer!: Container;
+  private hoverLayer!: Container;
   private ghostLayer!: Container;
   private boxSelectLayer!: Container;
   private measureLabels!: Container;
@@ -100,6 +101,8 @@ export class TimelineRenderer {
   private _extraLaneCount: number = 0;
   private _extraNotes: ExtraNoteEntity[] = [];
   private _selectedExtraNotes: Set<number> = new Set();
+  private _hoveredNoteIndex: number | null = null;
+  private _hoveredExtraNoteIndex: number | null = null;
 
   // Last playback cursor time (for re-render on layout change)
   private _lastCursorTimeMs: number = 0;
@@ -181,6 +184,7 @@ export class TimelineRenderer {
     this.selectedLongEndLayer = new Container();
     this.selectedLongHeadLayer = new Container();
     this.selectedNoteLayer = new Container();
+    this.hoverLayer = new Container();
     this.ghostLayer = new Container();
     this.boxSelectLayer = new Container();
     this.measureLabels = new Container();
@@ -201,6 +205,7 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.selectedLongEndLayer);
     this.app.stage.addChild(this.selectedLongHeadLayer);
     this.app.stage.addChild(this.selectedNoteLayer);
+    this.app.stage.addChild(this.hoverLayer);
     this.app.stage.addChild(this.ghostLayer);
     this.app.stage.addChild(this.boxSelectLayer);
     this.app.stage.addChild(this.measureLabels);
@@ -318,6 +323,20 @@ export class TimelineRenderer {
   setSelectedExtraNotes(indices: Set<number>): void {
     this._selectedExtraNotes = indices;
     this.render();
+  }
+
+  /** Set hovered note index (or null to clear) — lightweight overlay update */
+  setHoveredNote(index: number | null): void {
+    if (this._hoveredNoteIndex === index) return;
+    this._hoveredNoteIndex = index;
+    this.updateHoverOverlay();
+  }
+
+  /** Set hovered extra note index (or null to clear) — lightweight overlay update */
+  setHoveredExtraNote(index: number | null): void {
+    if (this._hoveredExtraNoteIndex === index) return;
+    this._hoveredExtraNoteIndex = index;
+    this.updateHoverOverlay();
   }
 
   /** Dynamic timeline width including extra lanes */
@@ -550,6 +569,7 @@ export class TimelineRenderer {
     this.renderBoxSelectRect();
     this.renderNotes();
     this.renderMarkers();
+    this.updateHoverOverlay();
     this.updateScroll();
     this.renderMinimap();
     // Force PixiJS to repaint the canvas
@@ -574,6 +594,7 @@ export class TimelineRenderer {
     destroyChildren(this.selectedLongEndLayer);
     destroyChildren(this.selectedLongHeadLayer);
     destroyChildren(this.selectedNoteLayer);
+    destroyChildren(this.hoverLayer);
     destroyChildren(this.boxSelectLayer);
     destroyChildren(this.measureLabels);
   }
@@ -1517,6 +1538,81 @@ export class TimelineRenderer {
    */
   hideGhostNote(): void {
     destroyChildren(this.ghostLayer);
+  }
+
+  /**
+   * Draw hover outline in the dedicated hover layer (lightweight, no full re-render).
+   */
+  private updateHoverOverlay(): void {
+    destroyChildren(this.hoverLayer);
+    if (!this.chart) return;
+
+    const bpmMarkers = this.cachedBpmMarkers;
+    const meta = this.chart.meta;
+
+    // Hovered regular note
+    if (this._hoveredNoteIndex !== null && this._hoveredNoteIndex < this.chart.notes.length) {
+      const note = this.chart.notes[this._hoveredNoteIndex];
+      const x = (note.lane - 1) * LANE_WIDTH;
+      const w = NOTE_HEIGHT * 5;
+      const h = NOTE_HEIGHT;
+      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const startY = this.timeToY(startMs);
+
+      if ("endBeat" in note) {
+        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const endY = this.timeToY(endMs);
+        const topY = Math.min(startY, endY);
+        const bottomY = Math.max(startY, endY);
+        // Outline covering entire range note
+        const gfx = new Graphics();
+        const isDiamond = note.type === "trillLong";
+        if (isDiamond) {
+          gfx.rect(x + (LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
+        } else {
+          gfx.rect(x + (LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
+        }
+        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
+        this.hoverLayer.addChild(gfx);
+      } else {
+        const gfx = new Graphics();
+        if (note.type === "trill") {
+          const cx = x + LANE_WIDTH / 2;
+          gfx.moveTo(cx, startY - h / 2);
+          gfx.lineTo(cx + w / 2, startY);
+          gfx.lineTo(cx, startY + h / 2);
+          gfx.lineTo(cx - w / 2, startY);
+          gfx.lineTo(cx, startY - h / 2);
+        } else {
+          gfx.rect(x + (LANE_WIDTH - w) / 2, startY - h / 2, w, h);
+        }
+        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
+        this.hoverLayer.addChild(gfx);
+      }
+    }
+
+    // Hovered extra note
+    if (this._hoveredExtraNoteIndex !== null && this._hoveredExtraNoteIndex < this._extraNotes.length) {
+      const note = this._extraNotes[this._hoveredExtraNoteIndex];
+      const x = TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
+      const w = NOTE_HEIGHT * 5;
+      const h = NOTE_HEIGHT;
+      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const startY = this.timeToY(startMs);
+
+      const gfx = new Graphics();
+      if ("endBeat" in note) {
+        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const endY = this.timeToY(endMs);
+        const topY = Math.min(startY, endY);
+        const bottomY = Math.max(startY, endY);
+        gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
+      } else {
+        gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, startY - h / 2, w, h);
+      }
+      gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
+      this.hoverLayer.addChild(gfx);
+    }
   }
 
   /**

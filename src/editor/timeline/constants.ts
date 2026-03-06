@@ -43,6 +43,7 @@ export const COLORS = {
   TRILL_ZONE_ALPHA: 0.2,
 
   SELECTED_OUTLINE: 0xff4444,
+  HOVERED_OUTLINE: 0xffffff,
 
   EVENT_BG: 0x553388,
 

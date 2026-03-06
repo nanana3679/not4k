@@ -308,7 +308,7 @@ function ChartEditorPage() {
     const lane = xToLane(x);
     if (lane === null) return null;
 
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
 
     // Simple hit test: find note at lane and beat (within NOTE_HEIGHT/2)
     for (let i = 0; i < chart.notes.length; i++) {
@@ -336,7 +336,7 @@ function ChartEditorPage() {
     }
 
     return null;
-  }, [chart.notes, xToLane, yToBeat]);
+  }, [chart.notes, xToLane, yToBeatRaw]);
 
   // Helper: Hit test note end (for selected RangeNote endpoint resize)
   const hitTestNoteEnd = useCallback((x: number, y: number): number | null => {
@@ -406,7 +406,7 @@ function ChartEditorPage() {
     const lane = xToLane(x);
     if (lane === null) return null;
 
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
 
     for (let i = 0; i < chart.trillZones.length; i++) {
@@ -420,14 +420,14 @@ function ChartEditorPage() {
       }
     }
     return null;
-  }, [chart.trillZones, xToLane, yToBeat]);
+  }, [chart.trillZones, xToLane, yToBeatRaw]);
 
   // Helper: Hit test extra note
   const hitTestExtraNote = useCallback((x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
 
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
 
     const currentExtraNotes = useEditorStore.getState().extraNotes;
@@ -444,7 +444,7 @@ function ChartEditorPage() {
       }
     }
     return null;
-  }, [xToExtraLane, yToBeat]);
+  }, [xToExtraLane, yToBeatRaw]);
 
   const hitTestExtraNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
 
@@ -784,6 +784,9 @@ function ChartEditorPage() {
 
     if (mode === 'create' && createModeRef.current) {
       if (!isTimeInBounds(y)) return;
+      // Skip creation when clicking on an existing note
+      if (hitTestNoteRef.current(x, y) !== null) return;
+      if (hitTestExtraNoteRef.current(x, y) !== null) return;
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
@@ -807,6 +810,15 @@ function ChartEditorPage() {
     // Content-relative x (offset-adjusted)
     const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
 
+    // Hover hit test (always, regardless of mode/snap — hitTest functions use raw beat)
+    const hoverNoteHit = hitTestNoteRef.current(x, y);
+    const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
+    if (rendererRef.current) {
+      rendererRef.current.setHoveredNote(hoverNoteHit);
+      rendererRef.current.setHoveredExtraNote(hoverExtraHit);
+    }
+    const isHoveringEntity = hoverNoteHit !== null || hoverExtraHit !== null;
+
     // Handle cursor drag
     if (isDraggingCursorRef.current && rendererRef.current) {
       const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
@@ -814,10 +826,10 @@ function ChartEditorPage() {
       return;
     }
 
-    // Right-click drag delete
+    // Right-click drag delete (raw beat for snap-independent hit testing)
     if (e.buttons & 2) {
-      const beat = yToBeat(y);
-      const beatFloat = beat.n / beat.d;
+      const rawBeatDel = yToBeatRawRef.current(y);
+      const beatFloat = rawBeatDel.n / rawBeatDel.d;
 
       // Try extra lane first
       const extraLane = xToExtraLane(x);
@@ -883,8 +895,8 @@ function ChartEditorPage() {
     }
 
     if (mode === 'create' && createModeRef.current) {
-      // Hide ghost and skip if outside timeline bounds
-      if (!isTimeInBounds(y)) {
+      // Hide ghost and skip if outside timeline bounds or hovering an entity
+      if (!isTimeInBounds(y) || isHoveringEntity) {
         rendererRef.current?.hideGhostNote();
         return;
       }

@@ -357,14 +357,17 @@ export function SongSelectScreen() {
   }, []);
 
   // Fetch songs
-  const fetchSongs = useCallback(async () => {
+  const fetchSongs = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase
+    const query = supabase
       .from('songs')
       .select('*, charts(*)')
       .order('title');
+    if (signal) query.abortSignal(signal);
+    const { data, error: err } = await query;
 
+    if (signal?.aborted) return;
     if (err) {
       setError(`Failed to load songs: ${err.message}`);
       setLoading(false);
@@ -375,7 +378,11 @@ export function SongSelectScreen() {
     setLoading(false);
   }, [isAdmin]);
 
-  useEffect(() => { fetchSongs(); }, [fetchSongs]);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchSongs(ac.signal);
+    return () => ac.abort();
+  }, [fetchSongs]);
 
   // Circular song navigation (with cooldown to let animation play)
   const NAV_COOLDOWN = 100; // ms
@@ -676,7 +683,7 @@ export function SongSelectScreen() {
               + Add Song
             </button>
           )}
-          <button style={styles.refreshBtn} onClick={fetchSongs} disabled={loading}>
+          <button style={styles.refreshBtn} onClick={() => fetchSongs()} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
           <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
