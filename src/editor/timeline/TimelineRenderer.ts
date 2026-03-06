@@ -35,6 +35,14 @@ import {
 } from "./constants";
 import type { Lane } from "../../shared";
 
+/** Container의 자식을 모두 destroy하고 제거 */
+function destroyChildren(container: Container): void {
+  for (const child of container.children) {
+    child.destroy();
+  }
+  container.removeChildren();
+}
+
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
@@ -338,7 +346,7 @@ export class TimelineRenderer {
   /** Clear box select rectangle */
   clearBoxSelectRect(): void {
     this._boxSelectRect = null;
-    this.boxSelectLayer.removeChildren();
+    destroyChildren(this.boxSelectLayer);
   }
 
   /**
@@ -434,7 +442,7 @@ export class TimelineRenderer {
    * Render lane backgrounds with height matching the total timeline.
    */
   private renderLaneBackgrounds(): void {
-    this.laneBackgrounds.removeChildren();
+    destroyChildren(this.laneBackgrounds);
 
     const totalTimeMs = this.getTotalTimelineMs();
     const beat0Ms = this.chart ? this.chart.meta.offsetMs : 0;
@@ -552,22 +560,22 @@ export class TimelineRenderer {
    * Clear all dynamic content layers
    */
   private clearDynamicLayers(): void {
-    this.waveformLayer.removeChildren();
-    this.measureLines.removeChildren();
-    this.beatLines.removeChildren();
-    this.snapLines.removeChildren();
-    this.trillZoneLayer.removeChildren();
-    this.moveOriginLayer.removeChildren();
-    this.longNoteBodyLayer.removeChildren();
-    this.longNoteEndLayer.removeChildren();
-    this.longNoteHeadLayer.removeChildren();
-    this.noteLayer.removeChildren();
-    this.selectedLongBodyLayer.removeChildren();
-    this.selectedLongEndLayer.removeChildren();
-    this.selectedLongHeadLayer.removeChildren();
-    this.selectedNoteLayer.removeChildren();
-    this.boxSelectLayer.removeChildren();
-    this.measureLabels.removeChildren();
+    destroyChildren(this.waveformLayer);
+    destroyChildren(this.measureLines);
+    destroyChildren(this.beatLines);
+    destroyChildren(this.snapLines);
+    destroyChildren(this.trillZoneLayer);
+    destroyChildren(this.moveOriginLayer);
+    destroyChildren(this.longNoteBodyLayer);
+    destroyChildren(this.longNoteEndLayer);
+    destroyChildren(this.longNoteHeadLayer);
+    destroyChildren(this.noteLayer);
+    destroyChildren(this.selectedLongBodyLayer);
+    destroyChildren(this.selectedLongEndLayer);
+    destroyChildren(this.selectedLongHeadLayer);
+    destroyChildren(this.selectedNoteLayer);
+    destroyChildren(this.boxSelectLayer);
+    destroyChildren(this.measureLabels);
   }
 
   /**
@@ -856,7 +864,7 @@ export class TimelineRenderer {
    * Render box select rectangle overlay.
    */
   private renderBoxSelectRect(): void {
-    this.boxSelectLayer.removeChildren();
+    destroyChildren(this.boxSelectLayer);
     if (!this._boxSelectRect || !this.chart) return;
 
     const { startY, startLane, endY, endLane } = this._boxSelectRect;
@@ -1300,7 +1308,7 @@ export class TimelineRenderer {
 
   /** Show ghost note in extra lane */
   showGhostExtraNote(extraLane: number, timeMs: number): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
     const x = TIMELINE_WIDTH + (extraLane - 1) * EXTRA_LANE_WIDTH;
     const y = this.timeToY(timeMs);
     const w = NOTE_HEIGHT * 5;
@@ -1315,7 +1323,7 @@ export class TimelineRenderer {
 
   /** Show ghost range in extra lane */
   showGhostExtraRange(extraLane: number, startTimeMs: number, endTimeMs: number): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
     const x = TIMELINE_WIDTH + (extraLane - 1) * EXTRA_LANE_WIDTH;
     const startY = this.timeToY(startTimeMs);
     const endY = this.timeToY(endTimeMs);
@@ -1412,7 +1420,7 @@ export class TimelineRenderer {
    */
   updatePlaybackCursor(timeMs: number): void {
     this._lastCursorTimeMs = timeMs;
-    this.playbackCursorLayer.removeChildren();
+    destroyChildren(this.playbackCursorLayer);
 
     const y = this.timeToY(timeMs);
 
@@ -1439,7 +1447,7 @@ export class TimelineRenderer {
    * Show a semi-transparent ghost note at the given note lane and time.
    */
   showGhostNote(lane: Lane, timeMs: number): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
 
     const y = this.timeToY(timeMs);
     const x = (lane - 1) * LANE_WIDTH;
@@ -1459,7 +1467,7 @@ export class TimelineRenderer {
    * @param auxIndex 0=event
    */
   showGhostMarker(auxIndex: number, timeMs: number): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
 
     const y = this.timeToY(timeMs);
     const auxStartX = LANE_COUNT * LANE_WIDTH;
@@ -1475,7 +1483,7 @@ export class TimelineRenderer {
    * Show a semi-transparent ghost range (long note body + head + end).
    */
   showGhostRange(lane: Lane, startTimeMs: number, endTimeMs: number): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
 
     const startY = this.timeToY(startTimeMs);
     const endY = this.timeToY(endTimeMs);
@@ -1508,7 +1516,7 @@ export class TimelineRenderer {
    * Hide the ghost note/marker preview.
    */
   hideGhostNote(): void {
-    this.ghostLayer.removeChildren();
+    destroyChildren(this.ghostLayer);
   }
 
   /**
@@ -1528,7 +1536,7 @@ export class TimelineRenderer {
    * Shows a scaled-down overview of the entire timeline with note positions.
    */
   private renderMinimap(): void {
-    this.minimapLayer.removeChildren();
+    destroyChildren(this.minimapLayer);
     if (!this.chart) return;
 
     const canvasH = this.options.height;
