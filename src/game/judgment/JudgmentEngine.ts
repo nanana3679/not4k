@@ -215,13 +215,13 @@ export class JudgmentEngine {
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
 
+    // 끝점 판정 윈도우 내 릴리즈면 다른 키 홀드 여부와 무관하게 판정 시도
+    this.tryEndpointJudgmentOnRelease(lane, timestampMs);
+
     // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
     if (holdState.heldKeys.size === 0) {
       holdState.isHeld = false;
       holdState.lastReleaseTimeMs = timestampMs;
-
-      // 릴리즈 시점 끝점 판정 시도
-      this.tryEndpointJudgmentOnRelease(lane, timestampMs);
     }
   }
 
@@ -316,11 +316,17 @@ export class JudgmentEngine {
       const noteTime = this.noteTimesMs.get(i);
       if (noteTime === undefined) continue;
       if (songTimeMs >= noteTime) {
-        this.noteStates.set(i, NoteState.BODY_ACTIVE);
-        this.longNoteBodyStates.set(i, {
-          hasBeenPressed: false,
-          bodyStartTimeMs: noteTime,
-        });
+        // 길이 0인 롱노트는 바디 홀드 없이 바로 릴리즈 대기
+        const noteEndTime = this.noteEndTimesMs.get(i);
+        if (noteEndTime !== undefined && noteEndTime === noteTime) {
+          this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+        } else {
+          this.noteStates.set(i, NoteState.BODY_ACTIVE);
+          this.longNoteBodyStates.set(i, {
+            hasBeenPressed: false,
+            bodyStartTimeMs: noteTime,
+          });
+        }
       }
     }
 

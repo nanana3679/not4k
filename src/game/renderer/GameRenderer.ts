@@ -591,13 +591,20 @@ export class GameRenderer {
     const startY = Math.min(rawStartY, this._judgmentLineY);
 
     const laneX = this.getLaneX(entity.lane);
-    const bodyHeight = startY - endY;
+    let bodyHeight = startY - endY;
 
-    // Skip if body has no visible height (e.g. both ends past judgment line)
-    if (bodyHeight <= 0) return;
+    // Skip if body has negative height (e.g. both ends past judgment line)
+    if (bodyHeight < 0) return;
+
+    // Enforce minimum body height so zero-length LNs show the end part
+    let adjustedEndY = endY;
+    if (bodyHeight < NOTE_HEIGHT) {
+      bodyHeight = NOTE_HEIGHT;
+      adjustedEndY = startY - NOTE_HEIGHT;
+    }
 
     // Skip if completely above screen
-    if (endY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
+    if (adjustedEndY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 
     const isFailed = this.failedBodies.has(index);
     const isPartial = this.doublePartialNotes.has(index);
@@ -606,7 +613,7 @@ export class GameRenderer {
     const bodyGraphic = this.getOrCreateBodyGraphic(index);
     bodyGraphic.clear();
     bodyGraphic.x = laneX;
-    bodyGraphic.y = endY;
+    bodyGraphic.y = adjustedEndY;
 
     const bodyColor = isFailed
       ? COLORS.LONG_BODY_FAILED
@@ -626,10 +633,10 @@ export class GameRenderer {
     this.longNoteBodyLayer.addChild(bodyGraphic);
 
     // Draw end diamond / rectangle
-    if (endY >= -NOTE_HEIGHT && endY <= this.height + NOTE_HEIGHT) {
+    if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
       const endGraphic = new Graphics();
       endGraphic.x = laneX;
-      endGraphic.y = endY;
+      endGraphic.y = adjustedEndY;
       if (entity.type === "trillLong") {
         this.drawNoteShape(endGraphic, entity.type, { color: 0x888888 });
       } else {
