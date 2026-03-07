@@ -42,15 +42,28 @@ describe("hitTestNoteAt", () => {
     expect(hitTestNoteAt(notes, 3, 4)).toBe(3);
   });
 
-  it("레인지 노트 범위 밖이면 미스", () => {
-    expect(hitTestNoteAt(notes, 3, 1.9)).toBeNull();
-    expect(hitTestNoteAt(notes, 3, 4.1)).toBeNull();
+  it("레인지 노트 범위 밖이면 미스 (tolerance 포함)", () => {
+    // 2 - 1/16 - 0.01 = 1.9275 → tolerance 밖
+    expect(hitTestNoteAt(notes, 3, 1.92)).toBeNull();
+    // 4 + 1/16 + 0.01 = 4.0725 → tolerance 밖
+    expect(hitTestNoteAt(notes, 3, 4.08)).toBeNull();
   });
 
   it("snap=1/4에서도 1/16 위치 노트를 정확히 히트 (snap 독립)", () => {
     // beat 3/16 = 0.1875 — snap 1/4에서 가장 가까운 grid는 0 or 0.25
     // raw beat 0.1875로 hitTest하면 index 2를 히트해야 함
     expect(hitTestNoteAt(notes, 1, 3 / 16)).toBe(2);
+  });
+
+  it("길이 0인 롱노트도 tolerance 이내에서 히트", () => {
+    const zeroLengthNotes: NoteEntity[] = [
+      { type: "long", lane: 1 as 1, beat: beat(2), endBeat: beat(2) },
+    ];
+    expect(hitTestNoteAt(zeroLengthNotes, 1, 2)).toBe(0);
+    expect(hitTestNoteAt(zeroLengthNotes, 1, 2.05)).toBe(0);
+    expect(hitTestNoteAt(zeroLengthNotes, 1, 1.95)).toBe(0);
+    // tolerance 밖
+    expect(hitTestNoteAt(zeroLengthNotes, 1, 2.08)).toBeNull();
   });
 
   it("빈 레인에서 미스", () => {

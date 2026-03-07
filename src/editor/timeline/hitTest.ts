@@ -31,7 +31,7 @@ export function hitTestNoteAt(
     const nb = note.beat.n / note.beat.d;
     if ("endBeat" in note) {
       const eb = note.endBeat.n / note.endBeat.d;
-      if (beatFloat >= nb && beatFloat <= eb) return i;
+      if (beatFloat >= nb - tolerance && beatFloat <= eb + tolerance) return i;
     } else {
       if (Math.abs(beatFloat - nb) < tolerance) return i;
     }
@@ -56,7 +56,7 @@ export function hitTestExtraNoteAt(
     const nb = note.beat.n / note.beat.d;
     if ("endBeat" in note) {
       const eb = note.endBeat.n / note.endBeat.d;
-      if (beatFloat >= nb && beatFloat <= eb) return i;
+      if (beatFloat >= nb - tolerance && beatFloat <= eb + tolerance) return i;
     } else {
       if (Math.abs(beatFloat - nb) < tolerance) return i;
     }
