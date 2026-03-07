@@ -64,15 +64,15 @@ interface GameState {
 
 const TKL_BINDINGS: KeyBindings = {
   lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
-  lane2: ['KeyE', 'KeyD', 'KeyC'],
-  lane3: ['KeyP', 'KeyL', 'Comma'],
+  lane2: ['KeyE', 'KeyD', 'KeyC', 'PageDown', 'KeyO'],
+  lane3: ['KeyP', 'KeyL', 'Comma', 'KeyR'],
   lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
 };
 
 const NUMPAD_BINDINGS: KeyBindings = {
   lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
-  lane2: ['KeyE', 'KeyD', 'KeyC'],
-  lane3: ['Numpad7', 'Numpad4', 'Numpad1'],
+  lane2: ['KeyE', 'KeyD', 'KeyC', 'PageDown'],
+  lane3: ['Numpad7', 'Numpad4', 'Numpad1', 'KeyR'],
   lane4: ['Numpad8', 'Numpad9', 'Numpad5', 'Numpad2'],
 };
 
