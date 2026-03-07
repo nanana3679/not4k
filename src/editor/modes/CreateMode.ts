@@ -327,12 +327,6 @@ export class CreateMode {
       bodyType = "long";
     }
 
-    const headNote: PointNote = {
-      type: headType,
-      lane,
-      beat: actualStartBeat,
-    };
-
     const bodyNote: RangeNote = {
       type: bodyType,
       lane,
@@ -340,9 +334,15 @@ export class CreateMode {
       endBeat: actualEndBeat,
     };
 
+    // Length 0 (startBeat == endBeat): body only, no head note
+    const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
+    const newNotes: (PointNote | RangeNote)[] = isZeroLength
+      ? [bodyNote]
+      : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
+
     // Validate before adding
     const testChart = {
-      notes: [...this.chart.notes, headNote, bodyNote],
+      notes: [...this.chart.notes, ...newNotes],
       trillZones: this.chart.trillZones,
       events: this.chart.events,
     };
@@ -353,10 +353,9 @@ export class CreateMode {
       return;
     }
 
-    // Create new chart with immutable update (head + body pair)
     const updatedChart: Chart = {
       ...this.chart,
-      notes: [...this.chart.notes, headNote, bodyNote],
+      notes: [...this.chart.notes, ...newNotes],
     };
 
     this.chart = updatedChart;
@@ -471,8 +470,11 @@ export class CreateMode {
       bodyType = "long";
     }
 
-    const headNote: ExtraPointNote = { type: headType, extraLane, beat: actualStartBeat };
     const bodyNote: ExtraRangeNote = { type: bodyType, extraLane, beat: actualStartBeat, endBeat: actualEndBeat };
-    this.callbacks.onExtraNotesUpdate([...extraNotes, headNote, bodyNote]);
+    const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
+    const newNotes: ExtraNoteEntity[] = isZeroLength
+      ? [bodyNote]
+      : [{ type: headType, extraLane, beat: actualStartBeat } as ExtraPointNote, bodyNote];
+    this.callbacks.onExtraNotesUpdate([...extraNotes, ...newNotes]);
   }
 }
