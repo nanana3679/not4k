@@ -83,182 +83,211 @@ export function SettingsScreen() {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Settings</h1>
+      <div style={styles.header}>
+        <h1 style={styles.title}>Settings</h1>
+        <button style={styles.backBtn} onClick={() => setScreen('songSelect')}>
+          Back
+        </button>
+      </div>
 
-      <div style={styles.settingsGrid}>
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Key Bindings</h2>
+      <div style={styles.content}>
+        <div style={styles.settingsGrid}>
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Key Bindings</h2>
 
-          {warningMessage && (
-            <div style={styles.warning}>{warningMessage}</div>
-          )}
+            {warningMessage && (
+              <div style={styles.warning}>{warningMessage}</div>
+            )}
 
-          <div style={styles.keyBindings}>
-            {(['lane1', 'lane2', 'lane3', 'lane4'] as const).map((lane) => (
-              <div key={lane} style={styles.laneRow}>
-                <span style={styles.label}>{lane}:</span>
-                <div style={styles.keyChipsContainer}>
-                  {settings.keyBindings[lane].map((keyCode) => (
-                    <div key={keyCode} style={styles.keyChip}>
-                      <span>{keyCode}</span>
-                      <button
-                        style={styles.removeKeyButton}
-                        onClick={() => handleRemoveKey(lane, keyCode)}
-                        title="Remove key"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    style={{
-                      ...styles.addKeyButton,
-                      ...(listeningLane === lane ? styles.addKeyButtonListening : {}),
-                    }}
-                    onClick={() => setListeningLane(lane)}
-                    disabled={listeningLane !== null && listeningLane !== lane}
-                  >
-                    {listeningLane === lane ? 'Press any key...' : '+ Add Key'}
-                  </button>
+            <div style={styles.keyBindings}>
+              {(['lane1', 'lane2', 'lane3', 'lane4'] as const).map((lane) => (
+                <div key={lane} style={styles.laneRow}>
+                  <span style={styles.label}>{lane}:</span>
+                  <div style={styles.keyChipsContainer}>
+                    {settings.keyBindings[lane].map((keyCode) => (
+                      <div key={keyCode} style={styles.keyChip}>
+                        <span>{keyCode}</span>
+                        <button
+                          style={styles.removeKeyButton}
+                          onClick={() => handleRemoveKey(lane, keyCode)}
+                          title="Remove key"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      style={{
+                        ...styles.addKeyButton,
+                        ...(listeningLane === lane ? styles.addKeyButtonListening : {}),
+                      }}
+                      onClick={() => setListeningLane(lane)}
+                      disabled={listeningLane !== null && listeningLane !== lane}
+                    >
+                      {listeningLane === lane ? 'Press any key...' : '+ Add Key'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <div style={styles.presetButtons}>
+              <button
+                style={styles.presetButton}
+                onClick={() => handleResetToPreset('tkl')}
+              >
+                Reset to TKL Preset
+              </button>
+              <button
+                style={styles.presetButton}
+                onClick={() => handleResetToPreset('numpad')}
+              >
+                Reset to Numpad Preset
+              </button>
+            </div>
           </div>
 
-          <div style={styles.presetButtons}>
-            <button
-              style={styles.presetButton}
-              onClick={() => handleResetToPreset('tkl')}
-            >
-              Reset to TKL Preset
-            </button>
-            <button
-              style={styles.presetButton}
-              onClick={() => handleResetToPreset('numpad')}
-            >
-              Reset to Numpad Preset
-            </button>
-          </div>
-        </div>
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Gameplay</h2>
 
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Gameplay</h2>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>Scroll Speed: {settings.scrollSpeed}</label>
-            <input
-              type="range"
-              min="200"
-              max="2000"
-              step="50"
-              value={settings.scrollSpeed}
-              onChange={(e) => updateSettings({ scrollSpeed: Number(e.target.value) })}
-              style={styles.slider}
-            />
-          </div>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>Lift (%): {settings.liftPercent}</label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={settings.liftPercent}
-              onChange={(e) => updateSettings({ liftPercent: Number(e.target.value) })}
-              style={styles.slider}
-            />
-          </div>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>Sudden (%): {settings.suddenPercent}</label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={settings.suddenPercent}
-              onChange={(e) => updateSettings({ suddenPercent: Number(e.target.value) })}
-              style={styles.slider}
-            />
-          </div>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>Target FPS:</label>
-            <select
-              value={settings.targetFps}
-              onChange={(e) => updateSettings({ targetFps: Number(e.target.value) })}
-              style={styles.select}
-            >
-              <option value="60">60</option>
-              <option value="120">120</option>
-              <option value="144">144</option>
-              <option value="0">Unlimited</option>
-            </select>
-          </div>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>Audio Offset (ms):</label>
-            <input
-              type="number"
-              value={settings.offsetMs}
-              onChange={(e) => updateSettings({ offsetMs: Number(e.target.value) })}
-              style={styles.numberInput}
-            />
-          </div>
-
-          <div style={styles.setting}>
-            <label style={styles.label}>
+            <div style={styles.setting}>
+              <label style={styles.label}>Scroll Speed: {settings.scrollSpeed}</label>
               <input
-                type="checkbox"
-                checked={settings.showFastSlow}
-                onChange={(e) => updateSettings({ showFastSlow: e.target.checked })}
-                style={styles.checkbox}
+                type="range"
+                min="200"
+                max="2000"
+                step="50"
+                value={settings.scrollSpeed}
+                onChange={(e) => updateSettings({ scrollSpeed: Number(e.target.value) })}
+                style={styles.slider}
               />
-              Show FAST/SLOW
-            </label>
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>Lift (%): {settings.liftPercent}</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={settings.liftPercent}
+                onChange={(e) => updateSettings({ liftPercent: Number(e.target.value) })}
+                style={styles.slider}
+              />
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>Sudden (%): {settings.suddenPercent}</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={settings.suddenPercent}
+                onChange={(e) => updateSettings({ suddenPercent: Number(e.target.value) })}
+                style={styles.slider}
+              />
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>Target FPS:</label>
+              <select
+                value={settings.targetFps}
+                onChange={(e) => updateSettings({ targetFps: Number(e.target.value) })}
+                style={styles.select}
+              >
+                <option value="60">60</option>
+                <option value="120">120</option>
+                <option value="144">144</option>
+                <option value="0">Unlimited</option>
+              </select>
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>Audio Offset (ms):</label>
+              <input
+                type="number"
+                value={settings.offsetMs}
+                onChange={(e) => updateSettings({ offsetMs: Number(e.target.value) })}
+                style={styles.numberInput}
+              />
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>
+                <input
+                  type="checkbox"
+                  checked={settings.showFastSlow}
+                  onChange={(e) => updateSettings({ showFastSlow: e.target.checked })}
+                  style={styles.checkbox}
+                />
+                Show FAST/SLOW
+              </label>
+            </div>
           </div>
         </div>
       </div>
-
-      <button style={styles.button} onClick={() => setScreen('songSelect')}>
-        Back
-      </button>
     </div>
   );
 }
 
-const styles = {
+const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    padding: '32px',
-    minHeight: '100vh',
-    overflow: 'auto' as const,
+    flexDirection: 'column',
+    height: '100vh',
+    overflow: 'hidden',
     backgroundColor: '#1a1a1a',
-    color: '#ffffff',
+    color: '#e0e0e0',
+    fontFamily: 'system-ui, sans-serif',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '16px 24px',
+    backgroundColor: '#2a2a2a',
+    borderBottom: '1px solid #333',
   },
   title: {
-    fontSize: '48px',
-    marginBottom: '32px',
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: 600,
+  },
+  backBtn: {
+    padding: '6px 16px',
+    backgroundColor: 'transparent',
+    color: '#888',
+    border: '1px solid #444',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  content: {
+    flex: 1,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '24px',
   },
   settingsGrid: {
     display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '32px',
+    flexDirection: 'column',
+    gap: '24px',
     width: '100%',
     maxWidth: '600px',
-    marginBottom: '32px',
   },
   section: {
     backgroundColor: '#2a2a2a',
     padding: '24px',
     borderRadius: '8px',
+    border: '1px solid #333',
   },
   sectionTitle: {
-    fontSize: '24px',
-    marginBottom: '16px',
+    fontSize: '16px',
+    fontWeight: 600,
+    margin: '0 0 16px',
   },
   warning: {
     backgroundColor: '#ff6b6b',
@@ -266,24 +295,24 @@ const styles = {
     padding: '12px',
     borderRadius: '4px',
     marginBottom: '16px',
-    textAlign: 'center' as const,
+    textAlign: 'center',
     fontSize: '14px',
     fontWeight: 'bold',
   },
   keyBindings: {
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'column',
     gap: '12px',
   },
   laneRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    fontSize: '16px',
+    fontSize: '14px',
   },
   keyChipsContainer: {
     display: 'flex',
-    flexWrap: 'wrap' as const,
+    flexWrap: 'wrap',
     gap: '8px',
     flex: 1,
   },
@@ -295,7 +324,7 @@ const styles = {
     border: '1px solid #00ffff',
     borderRadius: '4px',
     padding: '6px 10px',
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#00ffff',
   },
   removeKeyButton: {
@@ -314,11 +343,11 @@ const styles = {
   },
   addKeyButton: {
     backgroundColor: '#3a3a3a',
-    border: '1px solid #666666',
+    border: '1px solid #555',
     borderRadius: '4px',
     padding: '6px 10px',
-    fontSize: '14px',
-    color: '#ffffff',
+    fontSize: '13px',
+    color: '#e0e0e0',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -335,24 +364,24 @@ const styles = {
   },
   presetButton: {
     flex: 1,
-    padding: '10px 16px',
-    fontSize: '14px',
+    padding: '8px 16px',
+    fontSize: '13px',
     backgroundColor: '#3a3a3a',
-    color: '#ffffff',
-    border: '1px solid #666666',
+    color: '#e0e0e0',
+    border: '1px solid #555',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontWeight: 'bold',
+    fontWeight: 500,
   },
   setting: {
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'column',
     gap: '8px',
     marginBottom: '16px',
   },
   label: {
-    fontSize: '16px',
-    fontWeight: 'bold',
+    fontSize: '14px',
+    fontWeight: 600,
     minWidth: '60px',
   },
   slider: {
@@ -360,18 +389,18 @@ const styles = {
   },
   select: {
     padding: '8px',
-    fontSize: '16px',
+    fontSize: '14px',
     backgroundColor: '#1a1a1a',
-    color: '#ffffff',
-    border: '1px solid #666666',
+    color: '#e0e0e0',
+    border: '1px solid #555',
     borderRadius: '4px',
   },
   numberInput: {
     padding: '8px',
-    fontSize: '16px',
+    fontSize: '14px',
     backgroundColor: '#1a1a1a',
-    color: '#ffffff',
-    border: '1px solid #666666',
+    color: '#e0e0e0',
+    border: '1px solid #555',
     borderRadius: '4px',
     width: '150px',
   },
@@ -380,15 +409,5 @@ const styles = {
     width: '18px',
     height: '18px',
     verticalAlign: 'middle',
-  },
-  button: {
-    fontSize: '18px',
-    padding: '12px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
   },
 };
