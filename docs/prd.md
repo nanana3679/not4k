@@ -160,7 +160,7 @@ PRD 초안에 없으나 코드에 구현된 시각 요소:
 | E-02 | **줌** | `pixelPerSecond = zoom`. 기본 200px/s, 범위 50~500, Ctrl+휠로 조절. BPM 무관, 그리드 간격만 변화 | `docs/spec/chart-editor.md` | 구현 |
 | E-03 | **스냅** | 박(beat) 기준 그리드 흡착 (1/4, 1/8, 1/16...) | `docs/spec/chart-editor.md` | 구현 |
 | E-04 | **편집 모드** | Create(C): 5종 엔티티(single, double, singleLong, doubleLong, trillZone), 트릴 존 내 자동 trill/trillLong 변환. Select(S): 드래그 이동, Shift 리사이즈, Alt 박스 선택, 방향키 이동. Delete(D) | `docs/spec/chart-editor.md` | 구현 |
-| E-05 | **배치 제약 조건** | 6가지 검증 — 동일위치 중복, 롱노트 겹침, 트릴 전용, 트릴 구간 겹침, 이벤트 겹침, stop 구간 내 노트 | `docs/spec/chart-editor.md` | 구현 |
+| E-05 | **배치 제약 조건** | 7가지 검증 — 동일위치 중복, 롱노트 겹침, 트릴 전용, 트릴 구간 겹침, 이벤트 겹침, stop 구간 내 노트, 길이 0 롱노트 헤드 금지 | `docs/spec/chart-editor.md` | 구현 |
 | E-06 | **단축키** | 모드 전환, 노트 타입 변경(C+휠), 노트 이동, 줌 조절 | `docs/spec/chart-editor.md` | 구현 |
 | E-07 | **모바일 터치** | 핀치 줌, 롱프레스 선택, 드래그 이동 | `docs/spec/chart-editor.md` | 미구현 |
 | E-08 | **저장/불러오기** | Supabase Storage 업로드/로드. Google OAuth(관리자 전용). 차트 공개/비공개 설정. 곡 선택 화면은 게임과 통합 — admin 유저가 곡 선택에서 Edit 버튼으로 에디터 진입 | `docs/spec/chart-editor.md` | 부분 구현 — 에디터 별도 곡 리스트 존재, 통합 미구현 |
