@@ -18,7 +18,8 @@ import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from './timeline/hitTest';
-import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
+import { msToBeat, beatToMs, extractBpmMarkers, beatEq, validateChart } from '../shared';
+import type { ValidationError } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
 import { PreviewRangeSelector } from './components/PreviewRangeSelector';
@@ -179,6 +180,7 @@ function ChartEditorPage() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
@@ -1136,7 +1138,7 @@ function ChartEditorPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when any modal is open
-      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || validationErrors.length > 0) return;
 
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
@@ -1222,6 +1224,17 @@ function ChartEditorPage() {
     const difficulty = chart.meta.difficultyLabel.toLowerCase();
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');
+      return;
+    }
+
+    // Validate chart before saving
+    const errors = validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+    });
+    if (errors.length > 0) {
+      setValidationErrors(errors);
       return;
     }
 
@@ -1864,6 +1877,29 @@ function ChartEditorPage() {
             <div style={modalStyles.buttons}>
               <button style={modalStyles.deleteBtn} onClick={handleDeleteChart}>Delete</button>
               <button style={modalStyles.cancelBtn} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation error modal */}
+      {validationErrors.length > 0 && (
+        <div style={modalStyles.overlay} onMouseDown={() => setValidationErrors([])}>
+          <div style={{ ...modalStyles.modal, maxWidth: '480px', maxHeight: '60vh', display: 'flex', flexDirection: 'column' as const }} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>배치 제약 조건 위반</h3>
+            <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#ccc' }}>
+              차트에 {validationErrors.length}건의 제약 조건 위반이 발견되어 저장할 수 없습니다.
+            </p>
+            <div style={{ overflow: 'auto', flex: 1, marginBottom: '16px' }}>
+              {validationErrors.map((err, i) => (
+                <div key={i} style={{ padding: '6px 8px', marginBottom: '4px', backgroundColor: '#1a1a1a', borderRadius: '4px', fontSize: '12px', borderLeft: '3px solid #cc3333' }}>
+                  <span style={{ color: '#ff6666', fontWeight: 'bold' }}>[{err.rule}]</span>{' '}
+                  <span style={{ color: '#ddd' }}>{err.message}</span>
+                </div>
+              ))}
+            </div>
+            <div style={modalStyles.buttons}>
+              <button style={modalStyles.cancelBtn} onClick={() => setValidationErrors([])}>닫기</button>
             </div>
           </div>
         </div>
