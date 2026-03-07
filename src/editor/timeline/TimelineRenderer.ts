@@ -518,6 +518,7 @@ export class TimelineRenderer {
       this.selectedLongEndLayer,
       this.selectedLongHeadLayer,
       this.selectedNoteLayer,
+      this.hoverLayer,
       this.ghostLayer,
       this.boxSelectLayer,
       this.measureLabels,
@@ -1546,6 +1547,10 @@ export class TimelineRenderer {
   private updateHoverOverlay(): void {
     destroyChildren(this.hoverLayer);
     if (!this.chart) return;
+
+    // Sync scroll/offset position (needed when called standalone, not from full render)
+    this.hoverLayer.x = this.contentOffsetX;
+    this.hoverLayer.y = -this._scrollY;
 
     const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;

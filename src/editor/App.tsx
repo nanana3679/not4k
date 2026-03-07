@@ -17,6 +17,7 @@ import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songCh
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
+import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from './timeline/hitTest';
 import { msToBeat, beatToMs, extractBpmMarkers, beatEq } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
@@ -303,39 +304,12 @@ function ChartEditorPage() {
   const hitTestTrillZoneEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneRef = useRef<(x: number, y: number) => number | null>(() => null);
 
-  // Helper: Hit test note
+  // Helper: Hit test note (raw beat, snap-independent)
   const hitTestNote = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);
     if (lane === null) return null;
-
-    const beat = yToBeatRaw(y);
-
-    // Simple hit test: find note at lane and beat (within NOTE_HEIGHT/2)
-    for (let i = 0; i < chart.notes.length; i++) {
-      const note = chart.notes[i];
-      if (note.lane !== lane) continue;
-
-      // Check if beat is within note bounds
-      const noteBeat = note.beat;
-      const noteBeatFloat = noteBeat.n / noteBeat.d;
-      const testBeatFloat = beat.n / beat.d;
-
-      // For range notes, check if within range
-      if ('endBeat' in note) {
-        const endBeatFloat = note.endBeat.n / note.endBeat.d;
-        if (testBeatFloat >= noteBeatFloat && testBeatFloat <= endBeatFloat) {
-          return i;
-        }
-      } else {
-        // For point notes, check if within 1/16 beat tolerance
-        const tolerance = 1 / 16;
-        if (Math.abs(testBeatFloat - noteBeatFloat) < tolerance) {
-          return i;
-        }
-      }
-    }
-
-    return null;
+    const b = yToBeatRaw(y);
+    return hitTestNoteAt(chart.notes, lane, b.n / b.d);
   }, [chart.notes, xToLane, yToBeatRaw]);
 
   // Helper: Hit test note end (for selected RangeNote endpoint resize)
@@ -422,28 +396,12 @@ function ChartEditorPage() {
     return null;
   }, [chart.trillZones, xToLane, yToBeatRaw]);
 
-  // Helper: Hit test extra note
+  // Helper: Hit test extra note (raw beat, snap-independent)
   const hitTestExtraNote = useCallback((x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
-
-    const beat = yToBeatRaw(y);
-    const testBeatFloat = beat.n / beat.d;
-
-    const currentExtraNotes = useEditorStore.getState().extraNotes;
-    for (let i = 0; i < currentExtraNotes.length; i++) {
-      const note = currentExtraNotes[i];
-      if (note.extraLane !== extraLane) continue;
-
-      const noteBeatFloat = note.beat.n / note.beat.d;
-      if ('endBeat' in note) {
-        const endBeatFloat = note.endBeat.n / note.endBeat.d;
-        if (testBeatFloat >= noteBeatFloat && testBeatFloat <= endBeatFloat) return i;
-      } else {
-        if (Math.abs(testBeatFloat - noteBeatFloat) < 1 / 16) return i;
-      }
-    }
-    return null;
+    const b = yToBeatRaw(y);
+    return hitTestExtraNoteAt(useEditorStore.getState().extraNotes, extraLane, b.n / b.d);
   }, [xToExtraLane, yToBeatRaw]);
 
   const hitTestExtraNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
@@ -923,9 +881,17 @@ function ChartEditorPage() {
           }
         } else {
           // Not dragging: show ghost based on hovered lane
+          // But suppress ghost if a note exists at the snapped position — show hover instead
+          const snappedBeatFloat = snapped.n / snapped.d;
           const extraLane = xToExtraLane(x);
           if (extraLane) {
-            rendererRef.current.showGhostExtraNote(extraLane, timeMs);
+            const extraHitAtSnap = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
+            if (extraHitAtSnap !== null) {
+              rendererRef.current.hideGhostNote();
+              rendererRef.current.setHoveredExtraNote(extraHitAtSnap);
+            } else {
+              rendererRef.current.showGhostExtraNote(extraLane, timeMs);
+            }
           } else {
             const auxLane = xToAuxLane(x);
             if (auxLane) {
@@ -933,7 +899,13 @@ function ChartEditorPage() {
             } else {
               const lane = xToLane(x);
               if (lane) {
-                rendererRef.current.showGhostNote(lane, timeMs);
+                const noteHitAtSnap = noteExistsAtSnap(useEditorStore.getState().chart.notes, lane, snappedBeatFloat);
+                if (noteHitAtSnap !== null) {
+                  rendererRef.current.hideGhostNote();
+                  rendererRef.current.setHoveredNote(noteHitAtSnap);
+                } else {
+                  rendererRef.current.showGhostNote(lane, timeMs);
+                }
               } else {
                 rendererRef.current.hideGhostNote();
               }
