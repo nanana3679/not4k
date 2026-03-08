@@ -148,16 +148,16 @@ export class SelectMode {
   }
 
   /** Current box select rectangle in pixel Y coords (for rendering) */
-  get boxSelectPixelRect(): { startY: number; startLane: Lane; endY: number; endLane: Lane; startExtraLane?: number; endExtraLane?: number } | null {
+  get boxSelectPixelRect(): { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null {
     if (!this.isBoxSelecting) return null;
     // Allow box select when either main lane or extra lane is set
     if (!this._boxStartLane && this._boxStartExtraLane === null) return null;
     if (!this._boxEndLane && this._boxEndExtraLane === null) return null;
     return {
       startY: this._boxStartY,
-      startLane: this._boxStartLane ?? (1 as Lane),
+      startLane: this._boxStartLane,
       endY: this._boxEndY,
-      endLane: this._boxEndLane ?? (4 as Lane),
+      endLane: this._boxEndLane,
       startExtraLane: this._boxStartExtraLane ?? undefined,
       endExtraLane: this._boxEndExtraLane ?? undefined,
     };

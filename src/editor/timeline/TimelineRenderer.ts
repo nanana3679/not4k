@@ -96,7 +96,7 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
-  private _boxSelectRect: { startY: number; startLane: Lane; endY: number; endLane: Lane } | null = null;
+  private _boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null = null;
 
   // Extra lane state
   private _extraLaneCount: number = 0;
@@ -377,7 +377,7 @@ export class TimelineRenderer {
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
-  setBoxSelectRect(rect: { startY: number; startLane: Lane; endY: number; endLane: Lane }): void {
+  setBoxSelectRect(rect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number }): void {
     this._boxSelectRect = rect;
   }
 
@@ -914,23 +914,47 @@ export class TimelineRenderer {
     destroyChildren(this.boxSelectLayer);
     if (!this._boxSelectRect || !this.chart) return;
 
-    const { startY, startLane, endY, endLane } = this._boxSelectRect;
+    const { startY, startLane, endY, endLane, startExtraLane, endExtraLane } = this._boxSelectRect;
 
     // startY/endY are screen pixel coords; convert to world coords by adding scroll offset
     const y1 = startY + this._scrollY;
     const y2 = endY + this._scrollY;
-
-    const minLane = Math.min(startLane, endLane);
-    const maxLane = Math.max(startLane, endLane);
-    const x1 = (minLane - 1) * LANE_WIDTH;
-    const x2 = maxLane * LANE_WIDTH;
-
     const topY = Math.min(y1, y2);
     const height = Math.max(y1, y2) - topY;
-    const width = x2 - x1;
+
+    // Compute x range: combine main lanes and extra lanes into one continuous rect
+    let x1 = Infinity;
+    let x2 = -Infinity;
+
+    if (startLane !== null || endLane !== null) {
+      const effectiveStart = startLane ?? endLane!;
+      const effectiveEnd = endLane ?? startLane!;
+      const minLane = Math.min(effectiveStart, effectiveEnd);
+      const maxLane = Math.max(effectiveStart, effectiveEnd);
+      x1 = Math.min(x1, (minLane - 1) * LANE_WIDTH);
+      x2 = Math.max(x2, maxLane * LANE_WIDTH);
+    }
+
+    if (startExtraLane !== undefined || endExtraLane !== undefined) {
+      const effectiveStart = startExtraLane ?? endExtraLane!;
+      const effectiveEnd = endExtraLane ?? startExtraLane!;
+      const minExtra = Math.min(effectiveStart, effectiveEnd);
+      const maxExtra = Math.max(effectiveStart, effectiveEnd);
+      const extraStartX = TIMELINE_WIDTH;
+      x1 = Math.min(x1, extraStartX + (minExtra - 1) * EXTRA_LANE_WIDTH);
+      x2 = Math.max(x2, extraStartX + maxExtra * EXTRA_LANE_WIDTH);
+    }
+
+    // When crossing from main to extra, fill the gap (aux lane area)
+    if ((startLane !== null || endLane !== null) && (startExtraLane !== undefined || endExtraLane !== undefined)) {
+      x1 = Math.min(x1, x1); // already covered
+      x2 = Math.max(x2, x2); // already covered
+    }
+
+    if (x1 >= x2) return;
 
     const gfx = new Graphics();
-    gfx.rect(x1, topY, width, height);
+    gfx.rect(x1, topY, x2 - x1, height);
     gfx.fill({ color: COLORS.BOX_SELECT_FILL, alpha: COLORS.BOX_SELECT_FILL_ALPHA });
     gfx.stroke({ width: COLORS.BOX_SELECT_STROKE_WIDTH, color: COLORS.BOX_SELECT_STROKE, alpha: COLORS.BOX_SELECT_STROKE_ALPHA });
     this.boxSelectLayer.addChild(gfx);
