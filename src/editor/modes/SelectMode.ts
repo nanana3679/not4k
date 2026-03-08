@@ -52,12 +52,15 @@ export class SelectMode {
   private dragType: "move" | "boxSelect" | "resize" | null = null;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
+  private dragStartExtraLane: number | null = null;
   private _boxEndBeat: Beat | null = null;
   private _boxEndLane: Lane | null = null;
+  private _boxEndExtraLane: number | null = null;
 
   // Box select pixel state (for rendering)
   private _boxStartY: number = 0;
   private _boxStartLane: Lane | null = null;
+  private _boxStartExtraLane: number | null = null;
   private _boxEndY: number = 0;
 
   // Move state
@@ -145,13 +148,18 @@ export class SelectMode {
   }
 
   /** Current box select rectangle in pixel Y coords (for rendering) */
-  get boxSelectPixelRect(): { startY: number; startLane: Lane; endY: number; endLane: Lane } | null {
-    if (!this.isBoxSelecting || !this._boxStartLane || !this._boxEndLane) return null;
+  get boxSelectPixelRect(): { startY: number; startLane: Lane; endY: number; endLane: Lane; startExtraLane?: number; endExtraLane?: number } | null {
+    if (!this.isBoxSelecting) return null;
+    // Allow box select when either main lane or extra lane is set
+    if (!this._boxStartLane && this._boxStartExtraLane === null) return null;
+    if (!this._boxEndLane && this._boxEndExtraLane === null) return null;
     return {
       startY: this._boxStartY,
-      startLane: this._boxStartLane,
+      startLane: this._boxStartLane ?? (1 as Lane),
       endY: this._boxEndY,
-      endLane: this._boxEndLane,
+      endLane: this._boxEndLane ?? (4 as Lane),
+      startExtraLane: this._boxStartExtraLane ?? undefined,
+      endExtraLane: this._boxEndExtraLane ?? undefined,
     };
   }
 
@@ -289,8 +297,10 @@ export class SelectMode {
         this.dragType = "boxSelect";
         this.dragStartBeat = this.callbacks.yToBeatRaw(y);
         this.dragStartLane = this.callbacks.xToLane(x);
+        this.dragStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
         this._boxStartY = y;
         this._boxStartLane = this.callbacks.xToLane(x);
+        this._boxStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
         this._boxEndY = y;
       }
     }
@@ -397,27 +407,13 @@ export class SelectMode {
       if (lane !== null) {
         this._boxEndLane = lane;
       }
+      const extraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+      if (extraLane !== null) {
+        this._boxEndExtraLane = extraLane;
+      }
       this._boxEndY = y;
 
-      if (this.dragStartBeat && this.dragStartLane && this._boxEndBeat && this._boxEndLane) {
-        const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-          ? this.dragStartBeat : this._boxEndBeat;
-        const maxBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-          ? this._boxEndBeat : this.dragStartBeat;
-        const minLane = Math.min(this.dragStartLane, this._boxEndLane);
-        const maxLane = Math.max(this.dragStartLane, this._boxEndLane);
-
-        this.selectedIndices.clear();
-        for (let i = 0; i < this.chart.notes.length; i++) {
-          const note = this.chart.notes[i];
-          if (note.lane >= minLane && note.lane <= maxLane
-              && beatSub(note.beat, minBeat).n >= 0
-              && beatSub(maxBeat, note.beat).n >= 0) {
-            this.selectedIndices.add(i);
-          }
-        }
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-      }
+      this.updateBoxSelection();
     }
   }
 
@@ -447,46 +443,104 @@ export class SelectMode {
       // Validate and commit or rollback
       this.confirmPlacement();
     } else if (this.dragType === "boxSelect") {
-      // Select notes in rectangle
-      const endBeat = this.callbacks.yToBeatRaw(y);
-      // Fall back to last known lane when cursor is outside lane area
-      const endLane = this.callbacks.xToLane(x) ?? this._boxEndLane;
-
-      if (this.dragStartBeat && this.dragStartLane && endLane !== null) {
-        // Find all notes within the box
-        const minBeat =
-          beatSub(this.dragStartBeat, endBeat).n < 0
-            ? this.dragStartBeat
-            : endBeat;
-        const maxBeat =
-          beatSub(this.dragStartBeat, endBeat).n < 0
-            ? endBeat
-            : this.dragStartBeat;
-        const minLane = Math.min(this.dragStartLane, endLane);
-        const maxLane = Math.max(this.dragStartLane, endLane);
-
-        this.selectedIndices.clear();
-        for (let i = 0; i < this.chart.notes.length; i++) {
-          const note = this.chart.notes[i];
-          if (
-            note.lane >= minLane &&
-            note.lane <= maxLane &&
-            beatSub(note.beat, minBeat).n >= 0 && // beatGte: note.beat >= minBeat
-            beatSub(maxBeat, note.beat).n >= 0 // beatLte: note.beat <= maxBeat
-          ) {
-            this.selectedIndices.add(i);
-          }
-        }
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+      // Update end positions from final pointer position
+      this._boxEndBeat = this.callbacks.yToBeatRaw(y);
+      const endLane = this.callbacks.xToLane(x);
+      if (endLane !== null) {
+        this._boxEndLane = endLane;
       }
+      const endExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+      if (endExtraLane !== null) {
+        this._boxEndExtraLane = endExtraLane;
+      }
+
+      this.updateBoxSelection();
     }
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
+    this._boxEndExtraLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
+    this.dragStartExtraLane = null;
+  }
+
+  // --- Box select helper ---
+
+  /** Compute selection from current box select state (shared by onPointerMove & onPointerUp) */
+  private updateBoxSelection(): void {
+    if (!this.dragStartBeat || !this._boxEndBeat) return;
+
+    const startMainLane = this.dragStartLane;
+    const endMainLane = this._boxEndLane;
+    const startExtraLane = this.dragStartExtraLane;
+    const endExtraLane = this._boxEndExtraLane;
+
+    const hasMainLane = startMainLane !== null || endMainLane !== null;
+    const hasExtraLane = startExtraLane !== null || endExtraLane !== null;
+
+    // Need at least one lane dimension
+    if (!hasMainLane && !hasExtraLane) return;
+
+    const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
+      ? this.dragStartBeat : this._boxEndBeat;
+    const maxBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
+      ? this._boxEndBeat : this.dragStartBeat;
+
+    // Determine if box crosses from main to extra or vice versa
+    // If start is in main and end is in extra (or vice versa), main range extends to lane 4
+    // and extra range starts at lane 1
+    const crossesIntoExtra = (startMainLane !== null && endExtraLane !== null) ||
+                              (startExtraLane !== null && endMainLane !== null);
+
+    // Select main lane notes
+    this.selectedIndices.clear();
+    if (hasMainLane) {
+      // When crossing into extra, include up to lane 4 on the main side
+      const effectiveStartMain = startMainLane ?? (crossesIntoExtra ? 1 as Lane : null);
+      const effectiveEndMain = endMainLane ?? (crossesIntoExtra ? 4 as Lane : null);
+
+      if (effectiveStartMain !== null && effectiveEndMain !== null) {
+        const minLane = Math.min(effectiveStartMain, effectiveEndMain);
+        const maxLane = Math.max(effectiveStartMain, effectiveEndMain);
+
+        for (let i = 0; i < this.chart.notes.length; i++) {
+          const note = this.chart.notes[i];
+          if (note.lane >= minLane && note.lane <= maxLane
+              && beatSub(note.beat, minBeat).n >= 0
+              && beatSub(maxBeat, note.beat).n >= 0) {
+            this.selectedIndices.add(i);
+          }
+        }
+      }
+    }
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+
+    // Select extra lane notes
+    this.selectedExtraIndices.clear();
+    if (hasExtraLane && this.callbacks.getExtraNotes) {
+      // When crossing from main, extra range starts at lane 1
+      const effectiveStartExtra = startExtraLane ?? (crossesIntoExtra ? 1 : null);
+      const effectiveEndExtra = endExtraLane ?? (crossesIntoExtra ? 1 : null);
+
+      if (effectiveStartExtra !== null && effectiveEndExtra !== null) {
+        const minExtraLane = Math.min(effectiveStartExtra, effectiveEndExtra);
+        const maxExtraLane = Math.max(effectiveStartExtra, effectiveEndExtra);
+        const extraNotes = this.callbacks.getExtraNotes();
+
+        for (let i = 0; i < extraNotes.length; i++) {
+          const note = extraNotes[i];
+          if (note.extraLane >= minExtraLane && note.extraLane <= maxExtraLane
+              && beatSub(note.beat, minBeat).n >= 0
+              && beatSub(maxBeat, note.beat).n >= 0) {
+            this.selectedExtraIndices.add(i);
+          }
+        }
+      }
+    }
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
   }
 
   // --- Keyboard events ---

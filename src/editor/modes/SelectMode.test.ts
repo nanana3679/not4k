@@ -44,6 +44,11 @@ function makeCallbacks(
     onViolationsChange: vi.fn(),
     onWarn: vi.fn(),
     // Extra lane callbacks
+    xToExtraLane: (x: number): number | null => {
+      // x 5..5+extraLaneCount-1 → extraLane 1..extraLaneCount
+      if (extraLaneCount > 0 && x >= 5 && x < 5 + extraLaneCount) return x - 4;
+      return null;
+    },
     getExtraNotes: () => currentExtraNotes,
     getExtraLaneCount: () => extraLaneCount,
     onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => {
@@ -825,5 +830,149 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     const calls = cb.onSelectionChange.mock.calls;
     const lastSelection = calls[calls.length - 1][0] as Set<number>;
     expect(lastSelection.size).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 박스 선택 — 엑스트라 레인 노트 선택
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 박스 선택 엑스트라 레인", () => {
+  it("엑스트라 레인 영역에서 드래그하면 해당 범위의 엑스트라 노트가 선택된다", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+      { type: "single", extraLane: 2, beat: beat(1) },
+      { type: "single", extraLane: 1, beat: beat(3) }, // 범위 밖
+    ];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb as any);
+
+    // 엑스트라 레인 1(x=5), beat 0에서 시작
+    mode.onPointerDown(5, 0, false, false);
+    // 엑스트라 레인 2(x=6), beat 2까지 드래그
+    mode.onPointerMove(6, 2);
+    mode.onPointerUp(6, 2);
+
+    const extraCalls = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    // extraNotes[0] (lane 1, beat 0)과 extraNotes[1] (lane 2, beat 1)이 선택됨
+    expect(lastExtraSel.size).toBe(2);
+    expect(lastExtraSel.has(0)).toBe(true);
+    expect(lastExtraSel.has(1)).toBe(true);
+    // extraNotes[2] (beat 3)은 범위 밖
+    expect(lastExtraSel.has(2)).toBe(false);
+  });
+
+  it("엑스트라 레인 단일 레인만 드래그하면 해당 레인 노트만 선택된다", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+      { type: "single", extraLane: 2, beat: beat(0) },
+    ];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb as any);
+
+    // 엑스트라 레인 1(x=5)에서만 드래그
+    mode.onPointerDown(5, 0, false, false);
+    mode.onPointerMove(5, 1);
+    mode.onPointerUp(5, 1);
+
+    const extraCalls = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    expect(lastExtraSel.size).toBe(1);
+    expect(lastExtraSel.has(0)).toBe(true); // extraLane 1만
+    expect(lastExtraSel.has(1)).toBe(false); // extraLane 2는 제외
+  });
+
+  it("메인 레인에서 엑스트라 레인까지 드래그하면 양쪽 노트 모두 선택된다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 3 as Lane, beat: beat(1) },
+        { type: "single", lane: 4 as Lane, beat: beat(1) },
+        { type: "single", lane: 1 as Lane, beat: beat(1) }, // 범위 밖 (레인 1-2는 미포함)
+      ],
+    });
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(1) },
+    ];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb as any);
+
+    // 메인 레인 3(x=3), beat 0에서 시작
+    mode.onPointerDown(3, 0, false, false);
+    // 엑스트라 레인 1(x=5), beat 2까지 드래그
+    mode.onPointerMove(5, 2);
+    mode.onPointerUp(5, 2);
+
+    // 메인 노트: 레인 3, 4 (beat 1)이 선택, 레인 1은 범위 밖
+    const mainCalls = cb.onSelectionChange.mock.calls;
+    const lastMainSel = mainCalls[mainCalls.length - 1][0] as Set<number>;
+    expect(lastMainSel.size).toBe(2);
+    expect(lastMainSel.has(0)).toBe(true); // lane 3
+    expect(lastMainSel.has(1)).toBe(true); // lane 4
+
+    // 엑스트라 노트: extraLane 1 (beat 1)이 선택
+    const extraCalls = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    expect(lastExtraSel.size).toBe(1);
+    expect(lastExtraSel.has(0)).toBe(true);
+  });
+
+  it("엑스트라 노트가 없는 영역에서 드래그하면 엑스트라 선택은 비어있다", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(5) }, // beat 범위 밖
+    ];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb as any);
+
+    mode.onPointerDown(5, 0, false, false);
+    mode.onPointerMove(6, 2);
+    mode.onPointerUp(6, 2);
+
+    const extraCalls = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    expect(lastExtraSel.size).toBe(0);
+  });
+
+  it("박스 선택 중 onPointerMove에서 엑스트라 노트가 실시간으로 선택된다", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+      { type: "single", extraLane: 1, beat: beat(2) },
+    ];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 1 },
+    );
+    const mode = new SelectMode(chart, cb as any);
+
+    mode.onPointerDown(5, 0, false, false);
+
+    // 작은 범위 드래그 — beat 0~1만 포함
+    mode.onPointerMove(5, 1);
+    let extraCalls = cb.onExtraSelectionChange.mock.calls;
+    let sel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    expect(sel.size).toBe(1);
+    expect(sel.has(0)).toBe(true);
+
+    // 범위 확대 — beat 0~3 포함
+    mode.onPointerMove(5, 3);
+    extraCalls = cb.onExtraSelectionChange.mock.calls;
+    sel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    expect(sel.size).toBe(2);
   });
 });
