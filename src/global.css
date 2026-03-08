@@ -35,6 +35,16 @@ select {
   font: inherit;
 }
 
+/* number input 스피너 버튼 숨김 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
