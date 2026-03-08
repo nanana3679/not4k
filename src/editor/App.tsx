@@ -17,7 +17,7 @@ import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songCh
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
-import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from './timeline/hitTest';
+import { hitTestNoteAt, hitTestExtraNoteAt } from './timeline/hitTest';
 import { msToBeat, beatToMs, extractBpmMarkers, beatEq, validateChart } from '../shared';
 import type { ValidationError } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
@@ -890,17 +890,13 @@ function ChartEditorPage() {
           }
         } else {
           // Not dragging: show ghost based on hovered lane
-          // But suppress ghost if a note exists at the snapped position — show hover instead
-          const snappedBeatFloat = snapped.n / snapped.d;
+          // Hover highlight uses raw (unsnapped) beat for direct cursor-over-note detection
+          const rawBeatFloat = beat.n / beat.d;
           const extraLane = xToExtraLane(x);
           if (extraLane) {
-            const extraHitAtSnap = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
-            if (extraHitAtSnap !== null) {
-              rendererRef.current.hideGhostNote();
-              rendererRef.current.setHoveredExtraNote(extraHitAtSnap);
-            } else {
-              rendererRef.current.showGhostExtraNote(extraLane, timeMs);
-            }
+            rendererRef.current.showGhostExtraNote(extraLane, timeMs);
+            const extraHit = hitTestExtraNoteAt(useEditorStore.getState().extraNotes, extraLane, rawBeatFloat);
+            rendererRef.current.setHoveredExtraNote(extraHit);
           } else {
             const auxLane = xToAuxLane(x);
             if (auxLane) {
@@ -908,13 +904,9 @@ function ChartEditorPage() {
             } else {
               const lane = xToLane(x);
               if (lane) {
-                const noteHitAtSnap = noteExistsAtSnap(useEditorStore.getState().chart.notes, lane, snappedBeatFloat);
-                if (noteHitAtSnap !== null) {
-                  rendererRef.current.hideGhostNote();
-                  rendererRef.current.setHoveredNote(noteHitAtSnap);
-                } else {
-                  rendererRef.current.showGhostNote(lane, timeMs);
-                }
+                rendererRef.current.showGhostNote(lane, timeMs);
+                const noteHit = hitTestNoteAt(useEditorStore.getState().chart.notes, lane, rawBeatFloat);
+                rendererRef.current.setHoveredNote(noteHit);
               } else {
                 rendererRef.current.hideGhostNote();
               }
