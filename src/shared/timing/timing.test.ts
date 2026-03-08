@@ -259,4 +259,54 @@ describe("extractTimeSignatures", () => {
   it("빈 이벤트 배열이면 빈 배열", () => {
     expect(extractTimeSignatures([])).toHaveLength(0);
   });
+
+  it("연속 3회 박자 변경 — 4/4→3/4→5/4 마디 번호 추적", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { beat: beat(8), endBeat: beat(8), beatPerMeasure: beat(3) },    // 마디 2
+      { beat: beat(14), endBeat: beat(14), beatPerMeasure: beat(5) },  // 마디 4 (8 + 3*2 = 14)
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(3);
+    expect(result[0].measure).toBe(0);
+    expect(result[1].measure).toBe(2);
+    expect(result[2].measure).toBe(4);
+  });
+
+  it("7/2 분수 박자에서 마디 번호 계산 — beat 7 = 마디 2", () => {
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(7, 2) },
+      { beat: beat(7), endBeat: beat(7), beatPerMeasure: beat(4) },  // 7 / 3.5 = 마디 2
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(2);
+    expect(result[0].measure).toBe(0);
+    expect(result[1].measure).toBe(2);
+  });
+
+  it("이벤트 정렬 순서가 뒤섞여 있어도 beat 순으로 처리", () => {
+    const events: EventMarker[] = [
+      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) },
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(2);
+    expect(result[0].measure).toBe(0);
+    expect(result[1].measure).toBe(4);
+  });
+
+  it("같은 위치에서 박자표를 변경해도 마디 번호 유지", () => {
+    // 마디 0에서 바로 박자 변경 (beat 0)
+    const events: EventMarker[] = [
+      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+    ];
+
+    const result = extractTimeSignatures(events);
+    expect(result).toHaveLength(1);
+    expect(result[0].measure).toBe(0);
+    expect(beatToFloat(result[0].beatPerMeasure)).toBe(4);
+  });
 });

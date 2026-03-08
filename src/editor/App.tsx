@@ -18,7 +18,7 @@ import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from './timeline/hitTest';
-import { msToBeat, beatToMs, extractBpmMarkers, beatEq, validateChart } from '../shared';
+import { msToBeat, beatToMs, extractBpmMarkers, extractTimeSignatures, beatEq, validateChart, isMeasureBoundary } from '../shared';
 import type { ValidationError } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
 import type { EditingMarker } from './stores';
@@ -1567,19 +1567,27 @@ function ChartEditorPage() {
       const bpmVal = parseFloat(values.eventBpm);
       if (!isNaN(bpmVal) && bpmVal > 0) patch.bpm = bpmVal;
     }
-    // beatPerMeasure
+    // beatPerMeasure — 분자/분모는 자연수(양의 정수)만 허용
     if (values.tsNumerator !== undefined && values.tsDenominator !== undefined
         && values.tsNumerator !== '' && values.tsDenominator !== '') {
-      const tsN = parseInt(values.tsNumerator);
-      const tsD = parseInt(values.tsDenominator);
-      if (!isNaN(tsN) && !isNaN(tsD) && tsN > 0 && tsD > 0) {
-        patch.beatPerMeasure = { n: tsN, d: tsD };
+      const tsN = Number(values.tsNumerator);
+      const tsD = Number(values.tsDenominator);
+      if (!Number.isInteger(tsN) || !Number.isInteger(tsD) || tsN <= 0 || tsD <= 0) {
+        addToast('박자표 분자/분모는 자연수(양의 정수)만 가능합니다'); return;
       }
+      patch.beatPerMeasure = { n: tsN, d: tsD };
     }
     // beat-0 event: bpm and beatPerMeasure are required
     if (isBeatZeroEvent) {
       if (patch.bpm === undefined) { addToast('Initial event requires BPM'); return; }
       if (patch.beatPerMeasure === undefined) { addToast('Initial event requires time signature'); return; }
+    }
+    // 박자표가 설정된 이벤트는 마디 시작 위치에만 허용 (beat 0 제외 — 항상 마디 시작)
+    if (patch.beatPerMeasure !== undefined && !isBeatZeroEvent) {
+      const currentTimeSigs = extractTimeSignatures(chart.events);
+      if (currentTimeSigs.length > 0 && !isMeasureBoundary(evt.beat, currentTimeSigs)) {
+        addToast('박자표는 마디의 시작 위치에만 배치할 수 있습니다'); return;
+      }
     }
     // stop
     if (values.stop === 'true') {
@@ -2263,6 +2271,8 @@ function EventTabFields({ values, setValues }: {
               <input
                 style={modalStyles.input}
                 type="number"
+                min="1"
+                step="1"
                 value={values.tsNumerator}
                 onChange={(e) => setValues({ ...values, tsNumerator: e.target.value })}
                 autoFocus
@@ -2273,6 +2283,8 @@ function EventTabFields({ values, setValues }: {
               <input
                 style={modalStyles.input}
                 type="number"
+                min="1"
+                step="1"
                 value={values.tsDenominator}
                 onChange={(e) => setValues({ ...values, tsDenominator: e.target.value })}
               />

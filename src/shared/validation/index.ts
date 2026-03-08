@@ -19,8 +19,9 @@ import type {
   RangeNote,
   TrillZone,
   EventMarker,
+  TimeSignatureMarker,
 } from "../types/chart";
-import { beatEq, beatLt, beatGt, beatLte, beatGte } from "../types/beat";
+import { beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
 
 export interface ValidationError {
   rule:
@@ -29,7 +30,9 @@ export interface ValidationError {
     | "trillExclusive"
     | "trillZoneOverlap"
     | "eventOverlap"
-    | "stopZone";
+    | "stopZone"
+    | "timeSigNotNatural"
+    | "timeSigNotAtMeasureStart";
   message: string;
 }
 
@@ -322,6 +325,133 @@ export function validateStopZones(
 }
 
 // ---------------------------------------------------------------------------
+// 규칙 7: 박자표 분자/분모는 자연수(양의 정수)여야 한다
+// ---------------------------------------------------------------------------
+
+/** 값이 자연수(양의 정수)인지 검사 */
+export function isNaturalNumber(v: number): boolean {
+  return Number.isInteger(v) && v > 0;
+}
+
+/**
+ * 이벤트의 beatPerMeasure가 자연수 분자/분모를 가지는지 검증한다.
+ * Beat는 약분되므로, 약분 전 원본이 아니라 약분 후 n/d를 검사한다.
+ */
+export function validateTimeSigNatural(events: readonly EventMarker[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const evt of events) {
+    if (evt.beatPerMeasure === undefined) continue;
+    const { n, d } = evt.beatPerMeasure;
+    if (!isNaturalNumber(n) || !isNaturalNumber(d)) {
+      errors.push({
+        rule: "timeSigNotNatural",
+        message: `Time signature numerator and denominator must be natural numbers, got ${n}/${d} at beat ${evt.beat.n}/${evt.beat.d}`,
+      });
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 8: 박자표는 마디의 시작 위치에만 존재해야 한다
+// ---------------------------------------------------------------------------
+
+/**
+ * 주어진 beat 위치가 마디의 시작 위치인지 검사한다.
+ * timeSignatures가 비어있으면 판단 불가이므로 false를 반환한다.
+ */
+export function isMeasureBoundary(
+  targetBeat: Beat,
+  timeSignatures: readonly TimeSignatureMarker[],
+): boolean {
+  if (timeSignatures.length === 0) return false;
+
+  const sorted = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+  const targetFloat = beatToFloat(targetBeat);
+
+  // 마디 0부터 순회하며 각 마디의 시작 beat를 계산
+  let accBeat = 0;
+  let currentBPM = sorted[0].beatPerMeasure;
+  let sigIdx = 1;
+  let measure = 0;
+
+  // targetFloat 이전의 모든 마디 시작을 검사
+  while (accBeat <= targetFloat + 1e-9) {
+    if (Math.abs(accBeat - targetFloat) < 1e-9) return true;
+
+    // 다음 timesig 변경 지점에 도달하면 업데이트
+    if (sigIdx < sorted.length && measure === sorted[sigIdx].measure) {
+      currentBPM = sorted[sigIdx].beatPerMeasure;
+      sigIdx++;
+    }
+
+    const step = beatToFloat(currentBPM);
+    if (step <= 0) return false; // 잘못된 beatPerMeasure — 무한루프 방지
+
+    accBeat += step;
+    measure++;
+  }
+
+  return false;
+}
+
+/**
+ * beatPerMeasure를 가진 이벤트가 마디의 시작 위치에 있는지 검증한다.
+ * 각 이벤트를 순차적으로 처리하면서, 이전까지의 timesig 정보를 기반으로
+ * 해당 이벤트의 beat가 마디 경계인지 검사한다.
+ */
+export function validateTimeSigAtMeasureStart(events: readonly EventMarker[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  const tsEvents = events
+    .filter((e): e is EventMarker & { beatPerMeasure: Beat } => e.beatPerMeasure !== undefined)
+    .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
+
+  if (tsEvents.length === 0) return errors;
+
+  // 첫 번째 timesig 이벤트는 beat 0이어야 한다 (이미 다른 곳에서 강제됨)
+  // 두 번째부터 마디 경계 검사
+  let accBeatFloat = 0;
+  let currentBPM = tsEvents[0].beatPerMeasure;
+
+  for (let i = 1; i < tsEvents.length; i++) {
+    const evt = tsEvents[i];
+    const evtBeatFloat = beatToFloat(evt.beat);
+
+    // 이전 timesig 기준으로 마디 경계를 찾는다
+    const beatDiff = evtBeatFloat - accBeatFloat;
+    const bpmFloat = beatToFloat(currentBPM);
+
+    // beatDiff가 bpmFloat의 정수배인지 검사
+    if (bpmFloat <= 0) {
+      // 잘못된 beatPerMeasure — 자연수 검증에서 잡힘
+      continue;
+    }
+
+    const measureCount = beatDiff / bpmFloat;
+    const roundedMeasureCount = Math.round(measureCount);
+
+    if (Math.abs(measureCount - roundedMeasureCount) > 1e-9 || roundedMeasureCount < 0) {
+      errors.push({
+        rule: "timeSigNotAtMeasureStart",
+        message: `Time signature at beat ${evt.beat.n}/${evt.beat.d} is not at a measure boundary`,
+      });
+    }
+
+    // 정수 마디일 때만 누적 업데이트 — 마디 경계가 아닌 이벤트는 무시하고
+    // 이전 timesig 기준을 유지한다. 이후 이벤트 판정도 동일한 기준을 사용한다.
+    if (Math.abs(measureCount - roundedMeasureCount) <= 1e-9 && roundedMeasureCount >= 0) {
+      accBeatFloat += roundedMeasureCount * bpmFloat;
+      currentBPM = evt.beatPerMeasure;
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
 
@@ -340,5 +470,7 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateNoTrillZoneOverlap(input.trillZones),
     ...validateNoEventOverlap(input.events),
     ...validateStopZones(input.notes, input.events),
+    ...validateTimeSigNatural(input.events),
+    ...validateTimeSigAtMeasureStart(input.events),
   ];
 }
