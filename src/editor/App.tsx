@@ -17,7 +17,7 @@ import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songCh
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from './timeline/constants';
-import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from './timeline/hitTest';
+import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion, SNAP_POSITION_TOLERANCE } from './timeline/hitTest';
 import { msToBeat, beatToMs, extractBpmMarkers, extractTimeSignatures, beatEq, validateChart, isMeasureBoundary } from '../shared';
 import type { ValidationError } from '../shared';
 import type { Beat, Lane, Chart, ChartMeta, RangeNote } from '../shared';
@@ -751,8 +751,33 @@ function ChartEditorPage() {
 
     if (mode === 'create' && createModeRef.current) {
       if (!isTimeInBounds(y)) return;
-      // Skip creation when clicking on an existing note
-      if (hitTestNoteRef.current(x, y) !== null) return;
+      // Skip creation when clicking on an existing note,
+      // but allow clicks on RangeNote head/end regions (to create missing point notes)
+      const hitIdx = hitTestNoteRef.current(x, y);
+      if (hitIdx !== null) {
+        const hitNote = chart.notes[hitIdx];
+        if ('endBeat' in hitNote) {
+          const lane = xToLane(x);
+          if (lane === null) return; // 레인 밖 클릭은 생성 차단
+          const rawBeat = yToBeatRaw(y);
+          const beatFloat = rawBeat.n / rawBeat.d;
+          const region = hitTestRangeNoteRegion(hitNote as RangeNote, beatFloat);
+          if (region === null || region === 'body') return; // 범위 밖 또는 바디 클릭은 생성 차단
+          // head/end 영역: 해당 위치에 PointNote가 이미 있으면 차단
+          if (region === 'head' || region === 'end') {
+            const targetBeat = region === 'head'
+              ? hitNote.beat.n / hitNote.beat.d
+              : (hitNote as RangeNote).endBeat.n / (hitNote as RangeNote).endBeat.d;
+            const pointExists = chart.notes.some(
+              n => !('endBeat' in n) && n.lane === lane && Math.abs(n.beat.n / n.beat.d - targetBeat) <= SNAP_POSITION_TOLERANCE
+            );
+            if (pointExists) return; // 이미 단노트 있으면 차단
+          }
+          // head/end 영역에 단노트 없으면 통과 → 생성 허용
+        } else {
+          return; // PointNote를 직접 클릭한 경우 차단
+        }
+      }
       if (hitTestExtraNoteRef.current(x, y) !== null) return;
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {

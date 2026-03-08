@@ -6,14 +6,14 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
 const POINT_NOTE_TOLERANCE = 1 / 16;
 
 /** Tolerance for snap-position note detection (tighter, exact match) */
-const SNAP_POSITION_TOLERANCE = 1 / 32;
+export const SNAP_POSITION_TOLERANCE = 1 / 32;
 
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
@@ -98,4 +98,46 @@ export function extraNoteExistsAtSnap(
   snappedBeatFloat: number,
 ): number | null {
   return hitTestExtraNoteAt(extraNotes, extraLane, snappedBeatFloat, SNAP_POSITION_TOLERANCE);
+}
+
+// ---------------------------------------------------------------------------
+// Range note region detection
+// ---------------------------------------------------------------------------
+
+/** 롱노트 클릭 시 어느 영역이 클릭되었는지를 나타낸다 */
+export type RangeNoteRegion = "head" | "body" | "end";
+
+/**
+ * RangeNote의 클릭 위치가 시작점(head), 바디(body), 끝점(end) 중 어느 영역인지 판별한다.
+ *
+ * - head: beatFloat가 startBeat ± tolerance 이내
+ * - end: beatFloat가 endBeat ± tolerance 이내
+ * - body: head/end가 아닌 범위 내 나머지 영역
+ *
+ * head와 end 영역이 겹치는 경우(짧은 롱노트), 가까운 쪽을 우선한다.
+ */
+export function hitTestRangeNoteRegion(
+  note: RangeNote,
+  beatFloat: number,
+  tolerance: number = POINT_NOTE_TOLERANCE,
+): RangeNoteRegion | null {
+  const nb = note.beat.n / note.beat.d;
+  const eb = note.endBeat.n / note.endBeat.d;
+
+  // 범위 밖이면 null
+  if (beatFloat < nb - tolerance || beatFloat > eb + tolerance) return null;
+
+  const distFromHead = Math.abs(beatFloat - nb);
+  const distFromEnd = Math.abs(beatFloat - eb);
+
+  const inHead = distFromHead <= tolerance;
+  const inEnd = distFromEnd <= tolerance;
+
+  // 둘 다 해당하면 (짧은 롱노트) 가까운 쪽 우선
+  if (inHead && inEnd) {
+    return distFromHead <= distFromEnd ? "head" : "end";
+  }
+  if (inHead) return "head";
+  if (inEnd) return "end";
+  return "body";
 }

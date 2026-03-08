@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -153,5 +153,88 @@ describe("extraNoteExistsAtSnap", () => {
 
   it("snap 위치와 extra 노트가 다르면 미스", () => {
     expect(extraNoteExistsAtSnap(extraNotes, 1, 4.05)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hitTestRangeNoteRegion
+// ---------------------------------------------------------------------------
+
+describe("hitTestRangeNoteRegion", () => {
+  const rangeNote: RangeNote = {
+    type: "long",
+    lane: 1 as 1,
+    beat: beat(2),    // startBeat = 2.0
+    endBeat: beat(6), // endBeat = 6.0
+  };
+
+  it("시작점(beat=2) 정확한 위치에서 head 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 2.0)).toBe("head");
+  });
+
+  it("시작점 tolerance(1/16) 이내에서 head 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 2.05)).toBe("head");
+    expect(hitTestRangeNoteRegion(rangeNote, 1.95)).toBe("head");
+  });
+
+  it("끝점(beat=6) 정확한 위치에서 end 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 6.0)).toBe("end");
+  });
+
+  it("끝점 tolerance(1/16) 이내에서 end 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 5.95)).toBe("end");
+    expect(hitTestRangeNoteRegion(rangeNote, 6.05)).toBe("end");
+  });
+
+  it("시작점과 끝점 사이 중간 위치에서 body 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 3.0)).toBe("body");
+    expect(hitTestRangeNoteRegion(rangeNote, 4.0)).toBe("body");
+    expect(hitTestRangeNoteRegion(rangeNote, 5.0)).toBe("body");
+  });
+
+  it("tolerance 직후 바디 영역에서 body 반환", () => {
+    // 2 + 1/16 + 약간 = 2.07 → head tolerance 밖, body 영역
+    expect(hitTestRangeNoteRegion(rangeNote, 2.07)).toBe("body");
+    // 6 - 1/16 - 약간 = 5.93 → end tolerance 밖, body 영역
+    expect(hitTestRangeNoteRegion(rangeNote, 5.93)).toBe("body");
+  });
+
+  it("범위 밖이면 null 반환", () => {
+    expect(hitTestRangeNoteRegion(rangeNote, 1.9)).toBeNull();
+    expect(hitTestRangeNoteRegion(rangeNote, 6.1)).toBeNull();
+  });
+
+  it("짧은 롱노트에서 head/end 영역 겹칠 때 가까운 쪽 반환", () => {
+    const shortNote: RangeNote = {
+      type: "long",
+      lane: 1 as 1,
+      beat: beat(4),
+      endBeat: beat(33, 8), // 4.125 — head/end tolerance 영역 겹침
+    };
+    // 정확히 시작점에서 → head
+    expect(hitTestRangeNoteRegion(shortNote, 4.0)).toBe("head");
+    // 정확히 끝점에서 → end
+    expect(hitTestRangeNoteRegion(shortNote, 4.125)).toBe("end");
+    // 중간 지점 (4.0625) → 둘 다 tolerance 이내, 거리 같음 → head 우선
+    expect(hitTestRangeNoteRegion(shortNote, 4.0625)).toBe("head");
+    // 중간보다 끝에 가까움 → end
+    expect(hitTestRangeNoteRegion(shortNote, 4.07)).toBe("end");
+  });
+
+  it("길이 0인 롱노트에서 정확한 위치는 head 반환", () => {
+    const zeroNote: RangeNote = {
+      type: "long",
+      lane: 1 as 1,
+      beat: beat(3),
+      endBeat: beat(3),
+    };
+    expect(hitTestRangeNoteRegion(zeroNote, 3.0)).toBe("head");
+  });
+
+  it("커스텀 tolerance 적용", () => {
+    // tolerance=0.5 → 2.4는 head 영역
+    expect(hitTestRangeNoteRegion(rangeNote, 2.4, 0.5)).toBe("head");
+    // tolerance=0.01 → 2.02는 head 밖
+    expect(hitTestRangeNoteRegion(rangeNote, 2.02, 0.01)).toBe("body");
   });
 });
