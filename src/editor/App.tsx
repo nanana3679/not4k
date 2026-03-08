@@ -313,8 +313,8 @@ function ChartEditorPage() {
     const lane = xToLane(x);
     if (lane === null) return null;
     const b = yToBeatRaw(y);
-    return hitTestNoteAt(chart.notes, lane, b.n / b.d);
-  }, [chart.notes, xToLane, yToBeatRaw]);
+    return hitTestNoteAt(chart.notes, lane, b.n / b.d, undefined, selectedNotes);
+  }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
 
   // Helper: Hit test note end (for selected RangeNote endpoint resize)
   const hitTestNoteEnd = useCallback((x: number, y: number): number | null => {

@@ -18,11 +18,15 @@ export const SNAP_POSITION_TOLERANCE = 1 / 32;
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 
+/** Selection priority bonus — always larger than any z-order value */
+const SELECTED_BONUS = MAX_Z_ORDER + 1;
+
 export function hitTestNoteAt(
   notes: readonly NoteEntity[],
   lane: number,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
+  selectedNotes?: ReadonlySet<number>,
 ): number | null {
   let bestIndex: number | null = null;
   let bestPriority = -1;
@@ -41,11 +45,15 @@ export function hitTestNoteAt(
     }
 
     if (hit) {
-      const priority = NOTE_Z_ORDER[note.type] ?? 0;
+      let priority = NOTE_Z_ORDER[note.type] ?? 0;
+      if (selectedNotes?.has(i)) {
+        priority += SELECTED_BONUS;
+      }
       if (priority > bestPriority) {
         bestPriority = priority;
         bestIndex = i;
-        if (priority === MAX_Z_ORDER) return i; // highest z-order, early exit
+        // Early exit only when no selection bias could override
+        if ((!selectedNotes || selectedNotes.size === 0) && priority === MAX_Z_ORDER) return i;
       }
     }
   }

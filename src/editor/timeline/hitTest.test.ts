@@ -83,6 +83,59 @@ describe("hitTestNoteAt", () => {
 });
 
 // ---------------------------------------------------------------------------
+// hitTestNoteAt — selectedNotes 우선순위
+// ---------------------------------------------------------------------------
+
+describe("hitTestNoteAt selectedNotes 우선순위", () => {
+  // 롱노트 A: beat=0~4, 롱노트 B: beat=4~8, 같은 레인
+  const sharedNotes: NoteEntity[] = [
+    { type: "long", lane: 1 as 1, beat: beat(0), endBeat: beat(4) },  // index 0
+    { type: "long", lane: 1 as 1, beat: beat(4), endBeat: beat(8) },  // index 1
+  ];
+
+  it("selectedNotes 없으면 공유 endpoint에서 먼저 발견된 노트 반환 (기존 동작)", () => {
+    // 둘 다 히트, 같은 z-order(strictly >) → 먼저 발견된 index 0
+    expect(hitTestNoteAt(sharedNotes, 1, 4)).toBe(0);
+  });
+
+  it("selectedNotes에 첫 번째 롱노트가 있으면 공유 endpoint에서 첫 번째 반환", () => {
+    const selected = new Set([0]);
+    expect(hitTestNoteAt(sharedNotes, 1, 4, undefined, selected)).toBe(0);
+  });
+
+  it("selectedNotes에 두 번째 롱노트가 있으면 공유 endpoint에서 두 번째 반환", () => {
+    const selected = new Set([1]);
+    expect(hitTestNoteAt(sharedNotes, 1, 4, undefined, selected)).toBe(1);
+  });
+
+  it("selectedNotes가 비어 있으면 기존 동작과 동일", () => {
+    const selected = new Set<number>();
+    expect(hitTestNoteAt(sharedNotes, 1, 4, undefined, selected)).toBe(0);
+  });
+
+  it("선택 우선순위가 z-order보다 높음", () => {
+    // single(z=2)과 long(z=1)이 겹칠 때, long이 선택되어 있으면 long 우선
+    const mixed: NoteEntity[] = [
+      { type: "long", lane: 1 as 1, beat: beat(0), endBeat: beat(4) },  // index 0, z=1
+      { type: "single", lane: 1 as 1, beat: beat(4) },                  // index 1, z=2
+    ];
+    // 선택 없으면 single(z=2) 우선
+    expect(hitTestNoteAt(mixed, 1, 4)).toBe(1);
+    // long이 선택되면 long(z=1+bonus) 우선
+    const selected = new Set([0]);
+    expect(hitTestNoteAt(mixed, 1, 4, undefined, selected)).toBe(0);
+  });
+
+  it("겹치지 않는 위치에서는 selectedNotes와 무관하게 정상 히트", () => {
+    const selected = new Set([0]);
+    // beat=2는 롱노트 A만 히트
+    expect(hitTestNoteAt(sharedNotes, 1, 2, undefined, selected)).toBe(0);
+    // beat=6는 롱노트 B만 히트
+    expect(hitTestNoteAt(sharedNotes, 1, 6, undefined, selected)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // hitTestExtraNoteAt
 // ---------------------------------------------------------------------------
 
