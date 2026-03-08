@@ -321,7 +321,7 @@ function ChartEditorPage() {
     const lane = xToLane(x);
     if (lane === null) return null;
 
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
 
@@ -337,7 +337,7 @@ function ChartEditorPage() {
       }
     }
     return null;
-  }, [chart.notes, selectedNotes, xToLane, yToBeat]);
+  }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
 
   // Helper: Hit test event end (for endpoint resize)
   const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
@@ -363,7 +363,7 @@ function ChartEditorPage() {
     const lane = xToLane(x);
     if (lane === null) return null;
 
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
 
@@ -377,7 +377,7 @@ function ChartEditorPage() {
       }
     }
     return null;
-  }, [chart.trillZones, xToLane, yToBeat]);
+  }, [chart.trillZones, xToLane, yToBeatRaw]);
 
   // Helper: Hit test trill zone
   const hitTestTrillZone = useCallback((x: number, y: number): number | null => {
