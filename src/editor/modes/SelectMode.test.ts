@@ -758,3 +758,72 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
     expect(lastMainSel.size).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 박스 선택 — 마디 밖 커서 처리
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 박스 선택 마디 밖 커서", () => {
+  it("박스 선택 중 pointerUp이 레인 밖(xToLane=null)에서 발생해도 선택이 유지된다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+        { type: "single", lane: 3 as Lane, beat: beat(2) },
+      ],
+    });
+    // yToBeatRaw maps y directly to beat for predictable box selection
+    const cb = makeCallbacks({
+      yToBeatRaw: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb as any);
+
+    // Start box select at lane 1, beat 0 (pointerDown on empty area)
+    mode.onPointerDown(1, 0, false, false);
+
+    // Drag to lane 3, beat 3 — covers all 3 notes
+    mode.onPointerMove(3, 3);
+
+    // Release cursor outside the lane area (x=10 → xToLane returns null)
+    mode.onPointerUp(10, 3);
+
+    // Selection should still contain the notes selected during drag
+    const calls = cb.onSelectionChange.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const lastSelection = calls[calls.length - 1][0] as Set<number>;
+    expect(lastSelection.size).toBe(3);
+  });
+
+  it("박스 선택 중 커서가 레인 밖으로 이동해도 이전 레인 범위가 유지된다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeatRaw: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb as any);
+
+    // Start box select at lane 1, beat 0
+    mode.onPointerDown(1, 0, false, false);
+
+    // Drag to lane 2, beat 2 — covers both notes
+    mode.onPointerMove(2, 2);
+
+    // Move cursor outside lane area (x=10 → xToLane returns null)
+    mode.onPointerMove(10, 2);
+
+    // The box select should still have the previous lane range
+    // isBoxSelecting should still be true
+    expect(mode.isBoxSelecting).toBe(true);
+
+    // Release inside lane area to finalize
+    mode.onPointerUp(2, 2);
+
+    const calls = cb.onSelectionChange.mock.calls;
+    const lastSelection = calls[calls.length - 1][0] as Set<number>;
+    expect(lastSelection.size).toBe(2);
+  });
+});

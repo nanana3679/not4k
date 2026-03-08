@@ -392,7 +392,11 @@ export class SelectMode {
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
-      this._boxEndLane = this.callbacks.xToLane(x);
+      const lane = this.callbacks.xToLane(x);
+      // Keep previous _boxEndLane when cursor is outside lane area
+      if (lane !== null) {
+        this._boxEndLane = lane;
+      }
       this._boxEndY = y;
 
       if (this.dragStartBeat && this.dragStartLane && this._boxEndBeat && this._boxEndLane) {
@@ -445,7 +449,8 @@ export class SelectMode {
     } else if (this.dragType === "boxSelect") {
       // Select notes in rectangle
       const endBeat = this.callbacks.yToBeatRaw(y);
-      const endLane = this.callbacks.xToLane(x);
+      // Fall back to last known lane when cursor is outside lane area
+      const endLane = this.callbacks.xToLane(x) ?? this._boxEndLane;
 
       if (this.dragStartBeat && this.dragStartLane && endLane !== null) {
         // Find all notes within the box
