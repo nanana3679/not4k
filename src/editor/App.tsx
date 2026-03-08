@@ -180,6 +180,8 @@ function ChartEditorPage() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSaveAsModal, setShowSaveAsModal] = useState(false);
+  const [saveAsOverwriteTarget, setSaveAsOverwriteTarget] = useState<{ difficulty: string; level: number } | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1138,7 +1140,7 @@ function ChartEditorPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip all shortcuts when any modal is open
-      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || validationErrors.length > 0) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || validationErrors.length > 0) return;
 
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
@@ -1212,7 +1214,7 @@ function ChartEditorPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, setMode, editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm]);
+  }, [mode, setMode, editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal]);
 
   // File handlers
 
@@ -1332,6 +1334,88 @@ function ChartEditorPage() {
       setSaving(false);
     }
   }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount]);
+
+  const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
+    if (!activeSongId) {
+      addToast('No song selected — cannot save', 'error');
+      return;
+    }
+
+    // Validate chart before saving
+    const errors = validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+    });
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setShowSaveAsModal(false);
+      return;
+    }
+
+    setSaving(true);
+    setShowSaveAsModal(false);
+    setSaveAsOverwriteTarget(null);
+    try {
+      const difficulty = targetDifficulty.toLowerCase();
+
+      // Build chart with target difficulty metadata
+      const chartToSave = {
+        ...chart,
+        meta: {
+          ...chart.meta,
+          difficultyLabel: targetDifficulty,
+          difficultyLevel: targetLevel,
+        },
+      };
+
+      // 1. Upload chart JSON + extra JSON in parallel
+      const chartJson = serializeChart(chartToSave);
+      const chartPath = songChartPath(activeSongId, difficulty);
+      const chartBlob = new Blob([chartJson], { type: 'application/json' });
+      const chartUpload = supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(chartPath, chartBlob, { upsert: true });
+
+      const extraPath = songChartExtraPath(activeSongId, difficulty);
+      const hasExtra = extraLaneCount > 0 || extraNotes.length > 0;
+      const extraUpload = hasExtra
+        ? supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(extraPath, new Blob([serializeExtraNotes(extraNotes, extraLaneCount)], { type: 'application/json' }), { upsert: true })
+        : supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove([extraPath]);
+
+      const [chartResult, extraResult] = await Promise.all([chartUpload, extraUpload]);
+      if (chartResult.error) throw new Error(`Upload failed: ${chartResult.error.message}`);
+      if (hasExtra && extraResult.error) throw new Error(`Extra upload failed: ${extraResult.error.message}`);
+
+      // 2. Upsert charts table row
+      const { error: dbError } = await supabase.from('charts').upsert({
+        song_id: activeSongId,
+        difficulty_label: difficulty,
+        difficulty_level: targetLevel,
+        offset_ms: chart.meta.offsetMs,
+      }, { onConflict: 'song_id,difficulty_label' });
+      if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
+
+      // 3. Update local chart state to new difficulty
+      setChart(chartToSave);
+      setSavedChartSnapshot(chartJson);
+      setSavedExtraSnapshot(serializeExtraNotes(extraNotes, extraLaneCount));
+
+      // 4. Update URL to new difficulty
+      window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
+
+      addToast(`Chart saved as ${targetDifficulty.toUpperCase()} Lv.${targetLevel}`, 'info');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     const audioBuffer = playbackRef.current?.audioBufferData;
@@ -1753,6 +1837,14 @@ function ChartEditorPage() {
         </button>
 
         <button
+          style={{ ...styles.button, backgroundColor: 'transparent', borderColor: '#888' }}
+          onClick={() => setShowSaveAsModal(true)}
+          disabled={saving || deleting || !activeSongId}
+        >
+          Save As
+        </button>
+
+        <button
           style={{ ...styles.button, backgroundColor: '#7b2d26', borderColor: '#a33b32' }}
           onClick={() => setShowDeleteConfirm(true)}
           disabled={saving || deleting || !activeSongId}
@@ -1866,6 +1958,47 @@ function ChartEditorPage() {
       )}
 
       {/* Delete confirm modal */}
+      {showSaveAsModal && (
+        <SaveAsModal
+          currentDifficulty={chart.meta.difficultyLabel}
+          title={chart.meta.title}
+          level={chart.meta.difficultyLevel}
+          isDirty={!!(savedChartSnapshot && (serializeChart(chart) !== savedChartSnapshot || serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot))}
+          onSave={async (targetDifficulty, targetLevel) => {
+            // Check if target difficulty already exists
+            const { data: existing } = await supabase
+              .from('charts')
+              .select('song_id')
+              .eq('song_id', activeSongId!)
+              .eq('difficulty_label', targetDifficulty.toLowerCase())
+              .maybeSingle();
+            if (existing) {
+              setSaveAsOverwriteTarget({ difficulty: targetDifficulty, level: targetLevel });
+              setShowSaveAsModal(false);
+            } else {
+              handleSaveAs(targetDifficulty, targetLevel);
+            }
+          }}
+          onClose={() => setShowSaveAsModal(false)}
+        />
+      )}
+
+      {saveAsOverwriteTarget && (
+        <div style={modalStyles.overlay} onMouseDown={() => setSaveAsOverwriteTarget(null)}>
+          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>Overwrite Existing Chart</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
+              <strong>{saveAsOverwriteTarget.difficulty.toUpperCase()}</strong> 난이도에 이미 차트가 존재합니다.<br />
+              <span style={{ color: '#ff9966', fontSize: '13px' }}>덮어쓰시겠습니까? 이 작업은 되돌릴 수 없습니다.</span>
+            </p>
+            <div style={modalStyles.buttons}>
+              <button style={modalStyles.deleteBtn} onClick={() => handleSaveAs(saveAsOverwriteTarget.difficulty, saveAsOverwriteTarget.level)}>Overwrite</button>
+              <button style={modalStyles.cancelBtn} onClick={() => setSaveAsOverwriteTarget(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && (
         <div style={modalStyles.overlay} onMouseDown={() => setShowDeleteConfirm(false)}>
           <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
@@ -2362,6 +2495,79 @@ function CustomSnapModal({ currentSnap, onSave, onClose }: {
         </label>
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={handleSave}>Apply</button>
+          <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Save As Modal
+// ---------------------------------------------------------------------------
+
+const DIFFICULTY_OPTIONS = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
+
+function SaveAsModal({ currentDifficulty, title, level, isDirty, onSave, onClose }: {
+  currentDifficulty: string;
+  title: string;
+  level: number;
+  isDirty: boolean;
+  onSave: (difficulty: string, level: number) => void;
+  onClose: () => void;
+}) {
+  const currentUpper = currentDifficulty.toUpperCase();
+  const defaultTarget = DIFFICULTY_OPTIONS.find((d) => d !== currentUpper) ?? 'EASY';
+  const [targetDifficulty, setTargetDifficulty] = useState<string>(defaultTarget);
+  const [targetLevel, setTargetLevel] = useState(level);
+
+  return (
+    <div style={modalStyles.overlay} onMouseDown={onClose}>
+      <div style={{ ...modalStyles.modal, minWidth: '320px' }} onMouseDown={(e) => e.stopPropagation()}>
+        <h3 style={modalStyles.title}>Save As (다른 이름으로 저장)</h3>
+
+        <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#aaa' }}>
+          현재: <strong style={{ color: '#e0e0e0' }}>{title} — {currentUpper} Lv.{level}</strong>
+        </p>
+
+        {isDirty && (
+          <p style={{ fontSize: '12px', margin: '0 0 12px', color: '#ff9966', backgroundColor: '#332200', padding: '6px 8px', borderRadius: '4px' }}>
+            현재 차트에 저장되지 않은 변경사항이 있습니다. Save As를 하면 현재 변경사항이 대상 난이도에 저장됩니다.
+          </p>
+        )}
+
+        <label style={modalStyles.field}>
+          <span>Target Difficulty</span>
+          <select
+            style={modalStyles.input}
+            value={targetDifficulty}
+            onChange={(e) => setTargetDifficulty(e.target.value)}
+          >
+            {DIFFICULTY_OPTIONS.map((d) => (
+              <option key={d} value={d} disabled={d === currentUpper}>
+                {d}{d === currentUpper ? ' (current)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label style={modalStyles.field}>
+          <span>Difficulty Level</span>
+          <input
+            style={modalStyles.input}
+            type="number"
+            min={1}
+            max={15}
+            value={targetLevel}
+            onChange={(e) => {
+              const v = parseInt(e.target.value);
+              if (!isNaN(v)) setTargetLevel(Math.max(1, Math.min(15, v)));
+            }}
+          />
+        </label>
+
+        <div style={modalStyles.buttons}>
+          <button style={modalStyles.saveBtn} onClick={() => onSave(targetDifficulty, targetLevel)}>Save</button>
           <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
         </div>
       </div>

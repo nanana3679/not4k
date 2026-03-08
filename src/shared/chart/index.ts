@@ -132,6 +132,25 @@ export function serializeChart(chart: Chart): string {
   return JSON.stringify(chartToJson(chart), null, 2);
 }
 
+/**
+ * Save As용 메타데이터 생성 — 대상 난이도/레벨로 변환한 ChartMeta를 반환한다.
+ * 현재 난이도와 같은 대상을 지정하면 null을 반환한다.
+ */
+export function buildSaveAsMeta(
+  meta: ChartMeta,
+  targetDifficulty: string,
+  targetLevel: number,
+): ChartMeta | null {
+  if (meta.difficultyLabel.toUpperCase() === targetDifficulty.toUpperCase()) {
+    return null;
+  }
+  return {
+    ...meta,
+    difficultyLabel: targetDifficulty,
+    difficultyLevel: targetLevel,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 역직렬화: string → ChartJson → Chart
 // ---------------------------------------------------------------------------
