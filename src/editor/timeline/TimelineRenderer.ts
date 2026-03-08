@@ -32,6 +32,7 @@ import {
   MINIMAP_WIDTH,
   EXTRA_LANE_WIDTH,
   MEASURE_LABEL_WIDTH,
+  NOTE_Z_ORDER,
 } from "./constants";
 import type { Lane } from "../../shared";
 
@@ -971,16 +972,22 @@ export class TimelineRenderer {
     const bpmMarkers = this.cachedBpmMarkers;
     const meta = this.chart.meta;
 
-    notes.forEach((note, index) => {
+    // NOTE_Z_ORDER 기준으로 정렬 (낮은 값이 먼저 렌더 = 뒤에 배치)
+    const sortedIndices = notes.map((_, i) => i).sort((a, b) =>
+      (NOTE_Z_ORDER[notes[a].type] ?? 0) - (NOTE_Z_ORDER[notes[b].type] ?? 0)
+    );
+
+    for (const index of sortedIndices) {
+      const note = notes[index];
       // Viewport culling
       const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       if (this.isPointNote(note)) {
-        if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) return;
+        if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) continue;
       } else {
         const noteEndMs = beatToMs((note as RangeNote).endBeat, bpmMarkers, meta.offsetMs);
         const lo = Math.min(noteStartMs, noteEndMs);
         const hi = Math.max(noteStartMs, noteEndMs);
-        if (hi < minTimeMs || lo > maxTimeMs) return;
+        if (hi < minTimeMs || lo > maxTimeMs) continue;
       }
 
       const isSelected = this._selectedNotes.has(index);
@@ -990,7 +997,7 @@ export class TimelineRenderer {
       } else {
         this.renderRangeNote(note, isSelected);
       }
-    });
+    }
 
     // Render extra notes
     this.renderExtraNotes();

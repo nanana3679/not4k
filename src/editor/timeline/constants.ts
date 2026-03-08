@@ -61,3 +61,16 @@ export const COLORS = {
   VIOLATION_HATCH: 0xff4444,
   VIOLATION_HATCH_ALPHA: 0.4,
 };
+
+/**
+ * 노트 타입별 z-order (낮을수록 뒤에 렌더링, 높을수록 앞에 렌더링).
+ * 렌더링 순서와 히트 테스트 우선순위 모두 이 값을 사용한다.
+ */
+export const NOTE_Z_ORDER: Record<string, number> = {
+  doubleLong: 0,
+  long: 1,
+  trillLong: 1,
+  single: 2,
+  double: 2,
+  trill: 2,
+};

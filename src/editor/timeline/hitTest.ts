@@ -7,6 +7,7 @@
  */
 
 import type { NoteEntity, ExtraNoteEntity } from "../../shared";
+import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
 const POINT_NOTE_TOLERANCE = 1 / 16;
@@ -14,29 +15,41 @@ const POINT_NOTE_TOLERANCE = 1 / 16;
 /** Tolerance for snap-position note detection (tighter, exact match) */
 const SNAP_POSITION_TOLERANCE = 1 / 32;
 
-/**
- * Find a note at the given lane and beat position.
- * Returns the index of the first matching note, or null.
- */
+/** Highest z-order value — used for early exit in hit test */
+const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
+
 export function hitTestNoteAt(
   notes: readonly NoteEntity[],
   lane: number,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
 ): number | null {
+  let bestIndex: number | null = null;
+  let bestPriority = -1;
+
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
     if (note.lane !== lane) continue;
 
     const nb = note.beat.n / note.beat.d;
+    let hit = false;
     if ("endBeat" in note) {
       const eb = note.endBeat.n / note.endBeat.d;
-      if (beatFloat >= nb - tolerance && beatFloat <= eb + tolerance) return i;
+      hit = beatFloat >= nb - tolerance && beatFloat <= eb + tolerance;
     } else {
-      if (Math.abs(beatFloat - nb) < tolerance) return i;
+      hit = Math.abs(beatFloat - nb) < tolerance;
+    }
+
+    if (hit) {
+      const priority = NOTE_Z_ORDER[note.type] ?? 0;
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        bestIndex = i;
+        if (priority === MAX_Z_ORDER) return i; // highest z-order, early exit
+      }
     }
   }
-  return null;
+  return bestIndex;
 }
 
 /**
