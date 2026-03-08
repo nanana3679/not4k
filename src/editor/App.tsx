@@ -1207,6 +1207,17 @@ function ChartEditorPage() {
         return;
       }
 
+      // Delete/Backspace: delete selected notes regardless of mode
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectModeRef.current) {
+        e.preventDefault();
+        if (selectModeRef.current.isPendingPaste) {
+          selectModeRef.current.cancelPaste();
+        } else {
+          selectModeRef.current.deleteSelected();
+        }
+        return;
+      }
+
       // Select mode shortcuts
       if (mode === 'select' && selectModeRef.current) {
         const isPaste = selectModeRef.current.isPendingPaste;
@@ -1258,15 +1269,7 @@ function ChartEditorPage() {
           }
           return;
         }
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-          e.preventDefault();
-          if (isPaste) {
-            selectModeRef.current.cancelPaste();
-          } else {
-            selectModeRef.current.deleteSelected();
-          }
-          return;
-        }
+        // Delete/Backspace handled above (mode-independent)
         if (e.key === 'Enter') {
           e.preventDefault();
           selectModeRef.current.confirmPlacement();
