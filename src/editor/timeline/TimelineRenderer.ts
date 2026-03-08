@@ -891,8 +891,9 @@ export class TimelineRenderer {
 
     const { startY, startLane, endY, endLane } = this._boxSelectRect;
 
-    const y1 = startY;
-    const y2 = endY;
+    // startY/endY are screen pixel coords; convert to world coords by adding scroll offset
+    const y1 = startY + this._scrollY;
+    const y2 = endY + this._scrollY;
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
@@ -905,8 +906,8 @@ export class TimelineRenderer {
 
     const gfx = new Graphics();
     gfx.rect(x1, topY, width, height);
-    gfx.fill({ color: 0x4488ff, alpha: 0.15 });
-    gfx.stroke({ width: 1, color: 0x4488ff, alpha: 0.6 });
+    gfx.fill({ color: COLORS.BOX_SELECT_FILL, alpha: COLORS.BOX_SELECT_FILL_ALPHA });
+    gfx.stroke({ width: COLORS.BOX_SELECT_STROKE_WIDTH, color: COLORS.BOX_SELECT_STROKE, alpha: COLORS.BOX_SELECT_STROKE_ALPHA });
     this.boxSelectLayer.addChild(gfx);
   }
 
