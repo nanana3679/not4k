@@ -35,6 +35,7 @@ import {
   NOTE_Z_ORDER,
 } from "./constants";
 import type { Lane } from "../../shared";
+import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 
 /** Container의 자식을 모두 destroy하고 제거 */
 function destroyChildren(container: Container): void {
@@ -1835,6 +1836,18 @@ export class TimelineRenderer {
         line.stroke({ width: 1, color: 0xffffff, alpha: 0.2 });
         this.minimapLayer.addChild(line);
       }
+    }
+
+    // (3.5) Trill zones
+    const trillRects = computeMinimapTrillZoneRects(
+      this.chart.trillZones, bpmMarkers, meta.offsetMs,
+      (ms) => this.timeToY(ms), toMinimapY, trackX, laneW,
+    );
+    for (const r of trillRects) {
+      const zoneGfx = new Graphics();
+      zoneGfx.rect(r.x, r.y, r.width, r.height);
+      zoneGfx.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
+      this.minimapLayer.addChild(zoneGfx);
     }
 
     // (4) Notes
