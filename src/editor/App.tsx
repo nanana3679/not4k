@@ -711,8 +711,9 @@ function ChartEditorPage() {
     if (!rendererRef.current) return false;
     const timeMs = rendererRef.current.yToTime(y);
     const totalMs = rendererRef.current.getTotalTimelineMs();
-    return timeMs >= 0 && timeMs <= totalMs;
-  }, []);
+    const minMs = Math.min(0, chart.meta.offsetMs);
+    return timeMs >= minMs && timeMs <= totalMs;
+  }, [chart.meta.offsetMs]);
 
   // Canvas event handlers
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {

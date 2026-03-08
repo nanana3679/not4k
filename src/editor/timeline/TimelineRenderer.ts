@@ -570,7 +570,7 @@ export class TimelineRenderer {
     const maxTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewTopY) * 1000) / this._zoom + minTime;
     const minTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewBottomY) * 1000) / this._zoom + minTime;
 
-    return { minTimeMs: Math.max(0, minTimeMs), maxTimeMs };
+    return { minTimeMs: Math.max(this.getMinTimeMs(), minTimeMs), maxTimeMs };
   }
 
   /**
