@@ -561,13 +561,33 @@ export class SelectMode {
     }
   }
 
-  /** Move selected notes by one lane */
+  /** Move selected notes by one lane (event 레인을 건너뛰고 메인↔엑스트라 레인 간 이동 지원) */
   moveByLane(direction: "left" | "right"): void {
+    // 엑스트라 노트가 선택된 경우
+    if (this.selectedExtraIndices.size > 0) {
+      this.moveExtraByLane(direction);
+      return;
+    }
+
+    // 메인 노트가 선택된 경우
     if (this.selectedIndices.size === 0) return;
 
     const laneOffset = direction === "left" ? -1 : 1;
+    const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
 
-    // Check if all notes can move
+    // 메인 레인 4에서 오른쪽 이동 → 엑스트라 레인 1로 변환
+    if (direction === "right") {
+      const allAtLane4 = [...this.selectedIndices].every(
+        (idx) => this.chart.notes[idx].lane === 4,
+      );
+      if (allAtLane4) {
+        if (extraLaneCount === 0) return; // 엑스트라 레인 없으면 차단
+        this.convertMainToExtra(1);
+        return;
+      }
+    }
+
+    // Check if all notes can move within main lanes
     for (const idx of this.selectedIndices) {
       const note = this.chart.notes[idx];
       const targetLane = note.lane + laneOffset;
@@ -601,6 +621,156 @@ export class SelectMode {
       this.chart = { ...this.chart, notes: newNotes };
       this.callbacks.onChartUpdate(this.chart);
     }
+  }
+
+  /** 엑스트라 노트의 레인 이동 */
+  private moveExtraByLane(direction: "left" | "right"): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+
+    const extraNotes = this.callbacks.getExtraNotes();
+    const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
+    const laneOffset = direction === "left" ? -1 : 1;
+
+    // 엑스트라 레인 1에서 왼쪽 이동 → 메인 레인 4로 변환
+    if (direction === "left") {
+      const allAtExtraLane1 = [...this.selectedExtraIndices].every(
+        (idx) => extraNotes[idx].extraLane === 1,
+      );
+      if (allAtExtraLane1) {
+        this.convertExtraToMain(4 as Lane);
+        return;
+      }
+    }
+
+    // Check if all extra notes can move within extra lanes
+    for (const idx of this.selectedExtraIndices) {
+      const note = extraNotes[idx];
+      const targetLane = note.extraLane + laneOffset;
+      if (targetLane < 1 || targetLane > extraLaneCount) return;
+    }
+
+    // Apply extra lane move
+    const newExtraNotes = [...extraNotes];
+    for (const idx of this.selectedExtraIndices) {
+      const note = newExtraNotes[idx];
+      newExtraNotes[idx] = { ...note, extraLane: note.extraLane + laneOffset };
+    }
+
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+  }
+
+  /** 메인 노트 → 엑스트라 노트로 변환 (선택된 노트를 chart.notes에서 제거하고 extraNotes에 추가) */
+  private convertMainToExtra(targetExtraLane: number): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+
+    const extraNotes = this.callbacks.getExtraNotes();
+    const selectedSorted = [...this.selectedIndices].sort((a, b) => a - b);
+
+    // 선택된 메인 노트를 엑스트라 노트로 변환
+    const convertedExtraNotes: ExtraNoteEntity[] = [];
+    for (const idx of selectedSorted) {
+      const note = this.chart.notes[idx];
+      if (this.isRangeNote(note)) {
+        convertedExtraNotes.push({
+          type: note.type,
+          extraLane: targetExtraLane,
+          beat: note.beat,
+          endBeat: note.endBeat,
+        } as ExtraNoteEntity);
+      } else {
+        convertedExtraNotes.push({
+          type: note.type,
+          extraLane: targetExtraLane,
+          beat: note.beat,
+        } as ExtraNoteEntity);
+      }
+    }
+
+    // 메인 노트에서 선택된 노트 제거
+    const newNotes = this.chart.notes.filter(
+      (_note, idx) => !this.selectedIndices.has(idx),
+    );
+    this.chart = { ...this.chart, notes: newNotes };
+    this.callbacks.onChartUpdate(this.chart);
+
+    // 엑스트라 노트에 추가
+    const newExtraNotes = [...extraNotes, ...convertedExtraNotes];
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+
+    // 선택 상태 전환: 메인 선택 해제, 엑스트라 선택 설정
+    this.selectedIndices.clear();
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+
+    this.selectedExtraIndices.clear();
+    const baseIdx = extraNotes.length;
+    for (let i = 0; i < convertedExtraNotes.length; i++) {
+      this.selectedExtraIndices.add(baseIdx + i);
+    }
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+  }
+
+  /** 엑스트라 노트 → 메인 노트로 변환 (선택된 노트를 extraNotes에서 제거하고 chart.notes에 추가) */
+  private convertExtraToMain(targetLane: Lane): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+
+    const extraNotes = this.callbacks.getExtraNotes();
+    const selectedSorted = [...this.selectedExtraIndices].sort((a, b) => a - b);
+
+    // 선택된 엑스트라 노트를 메인 노트로 변환
+    const convertedMainNotes: NoteEntity[] = [];
+    for (const idx of selectedSorted) {
+      const note = extraNotes[idx];
+      if ("endBeat" in note) {
+        convertedMainNotes.push({
+          type: note.type,
+          lane: targetLane,
+          beat: note.beat,
+          endBeat: note.endBeat,
+        } as NoteEntity);
+      } else {
+        convertedMainNotes.push({
+          type: note.type,
+          lane: targetLane,
+          beat: note.beat,
+        } as NoteEntity);
+      }
+    }
+
+    // 메인 노트에 추가
+    const newNotes = [...this.chart.notes, ...convertedMainNotes];
+    this.chart = { ...this.chart, notes: newNotes };
+
+    // Validate
+    const errors = validateChart({
+      notes: this.chart.notes,
+      trillZones: this.chart.trillZones,
+      events: this.chart.events,
+    });
+
+    if (errors.length > 0) {
+      // Rollback: 변환 취소
+      this.chart = { ...this.chart, notes: this.chart.notes.slice(0, this.chart.notes.length - convertedMainNotes.length) };
+      return;
+    }
+
+    this.callbacks.onChartUpdate(this.chart);
+
+    // 엑스트라 노트에서 선택된 노트 제거
+    const newExtraNotes = extraNotes.filter(
+      (_note, idx) => !this.selectedExtraIndices.has(idx),
+    );
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+
+    // 선택 상태 전환: 엑스트라 선택 해제, 메인 선택 설정
+    this.selectedExtraIndices.clear();
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+
+    this.selectedIndices.clear();
+    const baseIdx = this.chart.notes.length - convertedMainNotes.length;
+    for (let i = 0; i < convertedMainNotes.length; i++) {
+      this.selectedIndices.add(baseIdx + i);
+    }
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
   }
 
   /** Resize selected long note end by one snap unit */

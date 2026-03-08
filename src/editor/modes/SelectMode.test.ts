@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode } from "./SelectMode";
 import { beat } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity } from "../../shared";
+import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -16,7 +16,21 @@ function makeChart(overrides?: Partial<Chart>): Chart {
   };
 }
 
-function makeCallbacks(overrides?: Record<string, unknown>) {
+function makeCallbacks(
+  chartOrOverrides?: Chart | Record<string, unknown>,
+  opts: {
+    extraNotes?: ExtraNoteEntity[];
+    extraLaneCount?: number;
+  } = {},
+) {
+  let currentExtraNotes = opts.extraNotes ?? [];
+  const extraLaneCount = opts.extraLaneCount ?? 0;
+
+  // Support legacy overrides pattern (Record<string, unknown>)
+  const overrides = (chartOrOverrides && !('meta' in chartOrOverrides))
+    ? chartOrOverrides as Record<string, unknown>
+    : {};
+
   return {
     onChartUpdate: vi.fn(),
     onSelectionChange: vi.fn(),
@@ -29,6 +43,13 @@ function makeCallbacks(overrides?: Record<string, unknown>) {
     hitTestNote: () => null,
     onViolationsChange: vi.fn(),
     onWarn: vi.fn(),
+    // Extra lane callbacks
+    getExtraNotes: () => currentExtraNotes,
+    getExtraLaneCount: () => extraLaneCount,
+    onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => {
+      currentExtraNotes = notes;
+    }),
+    onExtraSelectionChange: vi.fn(),
     ...overrides,
   };
 }
@@ -496,5 +517,244 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
     mode.movePasteBySnap('down'); // 0 - 1 = -1 < 0 → 거부
 
     expect(cb.onChartUpdate.mock.calls.length).toBe(callCountBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveByLane — 메인 레인 내 이동
+// ---------------------------------------------------------------------------
+
+describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
+  it("레인 2 노트를 왼쪽으로 이동하면 레인 1로 이동", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 2 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("left");
+
+    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes[0].lane).toBe(1);
+  });
+
+  it("레인 1 노트를 왼쪽으로 이동하면 차단", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("left");
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("레인 3 노트를 오른쪽으로 이동하면 레인 4로 이동", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("right");
+
+    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes[0].lane).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveByLane — 메인 레인 4 → 엑스트라 레인 1 변환
+// ---------------------------------------------------------------------------
+
+describe("SelectMode.moveByLane — 메인→엑스트라 변환", () => {
+  it("레인 4 노트를 오른쪽으로 이동하면 extraLane 1로 변환 (extraLaneCount > 0)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 4 as Lane, beat: beat(2) }],
+    });
+    const cb = makeCallbacks(chart, { extraLaneCount: 2 });
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("right");
+
+    // 메인 노트에서 제거됨
+    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(0);
+
+    // 엑스트라 노트로 추가됨
+    expect(cb.onExtraNotesUpdate).toHaveBeenCalled();
+    const extraNotes = cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[];
+    expect(extraNotes).toHaveLength(1);
+    expect(extraNotes[0].extraLane).toBe(1);
+    expect(extraNotes[0].type).toBe("single");
+  });
+
+  it("레인 4 롱노트를 오른쪽으로 이동하면 endBeat 포함하여 엑스트라로 변환", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "long", lane: 4 as Lane, beat: beat(0), endBeat: beat(4) },
+      ],
+    });
+    const cb = makeCallbacks(chart, { extraLaneCount: 1 });
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("right");
+
+    const extraNotes = cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[];
+    expect(extraNotes).toHaveLength(1);
+    expect(extraNotes[0].extraLane).toBe(1);
+    expect("endBeat" in extraNotes[0]).toBe(true);
+  });
+
+  it("레인 4 노트를 오른쪽으로 이동 시 extraLaneCount=0이면 차단", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart, { extraLaneCount: 0 });
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("right");
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+  });
+
+  it("메인→엑스트라 변환 후 선택이 엑스트라로 전환됨", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart, { extraLaneCount: 2 });
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(0);
+
+    mode.moveByLane("right");
+
+    // 메인 선택 해제
+    const mainSel = cb.onSelectionChange.mock.calls;
+    const lastMainSel = mainSel[mainSel.length - 1][0] as Set<number>;
+    expect(lastMainSel.size).toBe(0);
+
+    // 엑스트라 선택 설정
+    const extraSel = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraSel[extraSel.length - 1][0] as Set<number>;
+    expect(lastExtraSel.size).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveByLane — 엑스트라 레인 내 이동
+// ---------------------------------------------------------------------------
+
+describe("SelectMode.moveByLane — 엑스트라 레인 내 이동", () => {
+  it("extraLane 1 노트를 오른쪽으로 이동하면 extraLane 2로 이동", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+    ];
+    const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
+
+    // 엑스트라 노트를 선택하기 위해 hitTestExtraNote가 0을 반환하도록 설정
+    (cb as any).hitTestExtraNote = () => 0;
+    const mode = new SelectMode(chart, cb as any);
+    mode.onPointerDown(5, 0, false, false); // 엑스트라 영역 클릭
+
+    mode.moveByLane("right");
+
+    expect(cb.onExtraNotesUpdate).toHaveBeenCalled();
+    const updated = cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[];
+    expect(updated[0].extraLane).toBe(2);
+  });
+
+  it("extraLane 최대값 노트를 오른쪽으로 이동하면 차단", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 3, beat: beat(0) },
+    ];
+    const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
+    (cb as any).hitTestExtraNote = () => 0;
+    const mode = new SelectMode(chart, cb as any);
+    mode.onPointerDown(5, 0, false, false);
+
+    mode.moveByLane("right");
+
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveByLane — 엑스트라 레인 1 → 메인 레인 4 변환
+// ---------------------------------------------------------------------------
+
+describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
+  it("extraLane 1 노트를 왼쪽으로 이동하면 메인 레인 4로 변환", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(2) },
+    ];
+    const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 2 });
+    (cb as any).hitTestExtraNote = () => 0;
+    const mode = new SelectMode(chart, cb as any);
+    mode.onPointerDown(5, 2, false, false);
+
+    mode.moveByLane("left");
+
+    // 메인 노트에 추가됨
+    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(4);
+    expect(updated.notes[0].type).toBe("single");
+
+    // 엑스트라 노트에서 제거됨
+    expect(cb.onExtraNotesUpdate).toHaveBeenCalled();
+    const updatedExtra = cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[];
+    expect(updatedExtra).toHaveLength(0);
+  });
+
+  it("extraLane 1 롱노트를 왼쪽으로 이동하면 endBeat 포함하여 메인으로 변환", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "long", extraLane: 1, beat: beat(0), endBeat: beat(4) },
+    ];
+    const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
+    (cb as any).hitTestExtraNote = () => 0;
+    const mode = new SelectMode(chart, cb as any);
+    mode.onPointerDown(5, 0, false, false);
+
+    mode.moveByLane("left");
+
+    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(4);
+    expect("endBeat" in updated.notes[0]).toBe(true);
+  });
+
+  it("엑스트라→메인 변환 후 선택이 메인으로 전환됨", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+    ];
+    const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
+    (cb as any).hitTestExtraNote = () => 0;
+    const mode = new SelectMode(chart, cb as any);
+    mode.onPointerDown(5, 0, false, false);
+
+    mode.moveByLane("left");
+
+    // 엑스트라 선택 해제
+    const extraSel = cb.onExtraSelectionChange.mock.calls;
+    const lastExtraSel = extraSel[extraSel.length - 1][0] as Set<number>;
+    expect(lastExtraSel.size).toBe(0);
+
+    // 메인 선택 설정
+    const mainSel = cb.onSelectionChange.mock.calls;
+    const lastMainSel = mainSel[mainSel.length - 1][0] as Set<number>;
+    expect(lastMainSel.size).toBe(1);
   });
 });
