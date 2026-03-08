@@ -146,7 +146,7 @@ export function buildSaveAsMeta(
   }
   return {
     ...meta,
-    difficultyLabel: targetDifficulty,
+    difficultyLabel: targetDifficulty.toUpperCase(),
     difficultyLevel: targetLevel,
   };
 }

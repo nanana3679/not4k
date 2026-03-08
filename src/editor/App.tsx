@@ -528,6 +528,10 @@ function ChartEditorPage() {
       onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
+      onViolationsChange: (indices) => {
+        rendererRef.current?.setViolatingNotes(indices);
+      },
+      onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
 
@@ -1142,6 +1146,39 @@ function ChartEditorPage() {
       // Skip all shortcuts when any modal is open
       if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || validationErrors.length > 0) return;
 
+      // Select mode: Ctrl+C / Ctrl+X / Ctrl+V (copy/cut/paste)
+      if (mode === 'select' && selectModeRef.current && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          const count = selectModeRef.current.copy();
+          if (count > 0) addToast(`${count}개 노트 복사됨`, 'info');
+          else addToast('복사할 노트를 선택하세요', 'warn');
+          return;
+        }
+        if (e.key === 'x' || e.key === 'X') {
+          e.preventDefault();
+          const count = selectModeRef.current.cut();
+          if (count > 0) addToast(`${count}개 노트 잘라냄`, 'info');
+          else addToast('잘라낼 노트를 선택하세요', 'warn');
+          return;
+        }
+        if (e.key === 'v' || e.key === 'V') {
+          e.preventDefault();
+          if (!selectModeRef.current.hasClipboard) return;
+          // Compute target beat from current playback cursor, snapped to grid
+          const cursorTimeMs = useEditorStore.getState().currentTimeMs;
+          const beatFloat = msToBeat(cursorTimeMs, bpmMarkers, chart.meta.offsetMs);
+          const sd = snapZoomRef.current?.snapDivision ?? 4;
+          const grid = 4 / sd;
+          const k = Math.round(beatFloat / grid);
+          const targetBeat = { n: k * 4, d: sd };
+
+          const count = selectModeRef.current.paste(targetBeat);
+          if (count > 0) addToast(`${count}개 노트 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
+          return;
+        }
+      }
+
       // Mode shortcuts
       if (e.key === 'c' || e.key === 'C') {
         if (!e.ctrlKey && !e.metaKey) {
@@ -1171,9 +1208,20 @@ function ChartEditorPage() {
 
       // Select mode shortcuts
       if (mode === 'select' && selectModeRef.current) {
+        const isPaste = selectModeRef.current.isPendingPaste;
+
+        // Escape: cancel paste
+        if (e.key === 'Escape' && isPaste) {
+          e.preventDefault();
+          selectModeRef.current.cancelPaste();
+          return;
+        }
+
         if (e.key === 'ArrowUp') {
           e.preventDefault();
-          if (e.shiftKey) {
+          if (isPaste) {
+            selectModeRef.current.movePasteBySnap('up');
+          } else if (e.shiftKey) {
             selectModeRef.current.resizeEndBySnap('up');
           } else {
             selectModeRef.current.moveBySnap('up');
@@ -1182,7 +1230,9 @@ function ChartEditorPage() {
         }
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          if (e.shiftKey) {
+          if (isPaste) {
+            selectModeRef.current.movePasteBySnap('down');
+          } else if (e.shiftKey) {
             selectModeRef.current.resizeEndBySnap('down');
           } else {
             selectModeRef.current.moveBySnap('down');
@@ -1191,17 +1241,29 @@ function ChartEditorPage() {
         }
         if (e.key === 'ArrowLeft') {
           e.preventDefault();
-          selectModeRef.current.moveByLane('left');
+          if (isPaste) {
+            selectModeRef.current.movePasteByLane('left');
+          } else {
+            selectModeRef.current.moveByLane('left');
+          }
           return;
         }
         if (e.key === 'ArrowRight') {
           e.preventDefault();
-          selectModeRef.current.moveByLane('right');
+          if (isPaste) {
+            selectModeRef.current.movePasteByLane('right');
+          } else {
+            selectModeRef.current.moveByLane('right');
+          }
           return;
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
           e.preventDefault();
-          selectModeRef.current.deleteSelected();
+          if (isPaste) {
+            selectModeRef.current.cancelPaste();
+          } else {
+            selectModeRef.current.deleteSelected();
+          }
           return;
         }
         if (e.key === 'Enter') {
@@ -1214,7 +1276,7 @@ function ChartEditorPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, setMode, editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal]);
+  }, [mode, setMode, editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, addToast, bpmMarkers, chart.meta.offsetMs]);
 
   // File handlers
 

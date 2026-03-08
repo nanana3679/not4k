@@ -76,6 +76,7 @@ export class TimelineRenderer {
   private selectedLongEndLayer!: Container;
   private selectedLongHeadLayer!: Container;
   private selectedNoteLayer!: Container;
+  private violationLayer!: Container;
   private hoverLayer!: Container;
   private ghostLayer!: Container;
   private boxSelectLayer!: Container;
@@ -112,6 +113,22 @@ export class TimelineRenderer {
 
   // Gradient cache
   private bodyGradientCache = new Map<number, FillGradient>();
+
+  // Reusable TextStyle cache (prevents texture leaks from repeated new TextStyle())
+  private _measureLabelStyle: TextStyle | null = null;
+  private _eventLabelStyle: TextStyle | null = null;
+  private _timeLabelStyle: TextStyle | null = null;
+  private _endTimeLabelStyle: TextStyle | null = null;
+
+  // Reusable playback cursor Graphics (avoids 60fps destroy/create)
+  private _cursorLine: Graphics | null = null;
+  private _cursorHandle: Graphics | null = null;
+
+  // Reusable minimap viewport indicator (avoids 60fps destroy/create on scroll)
+  private _minimapViewport: Graphics | null = null;
+
+  // Violation overlay state (for paste preview)
+  private _violatingNoteIndices: Set<number> = new Set();
 
   // Chart data
   private chart: Chart | null = null;
@@ -184,6 +201,7 @@ export class TimelineRenderer {
     this.selectedLongEndLayer = new Container();
     this.selectedLongHeadLayer = new Container();
     this.selectedNoteLayer = new Container();
+    this.violationLayer = new Container();
     this.hoverLayer = new Container();
     this.ghostLayer = new Container();
     this.boxSelectLayer = new Container();
@@ -205,6 +223,7 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.selectedLongEndLayer);
     this.app.stage.addChild(this.selectedLongHeadLayer);
     this.app.stage.addChild(this.selectedNoteLayer);
+    this.app.stage.addChild(this.violationLayer);
     this.app.stage.addChild(this.hoverLayer);
     this.app.stage.addChild(this.ghostLayer);
     this.app.stage.addChild(this.boxSelectLayer);
@@ -273,7 +292,7 @@ export class TimelineRenderer {
     if (Math.abs(value - this._lastRenderScrollY) > threshold) {
       this.render();
     } else {
-      this.renderMinimap();
+      this.updateMinimapViewport();
       this.app?.render();
     }
   }
@@ -518,6 +537,7 @@ export class TimelineRenderer {
       this.selectedLongEndLayer,
       this.selectedLongHeadLayer,
       this.selectedNoteLayer,
+      this.violationLayer,
       this.hoverLayer,
       this.ghostLayer,
       this.boxSelectLayer,
@@ -570,6 +590,7 @@ export class TimelineRenderer {
     this.renderBoxSelectRect();
     this.renderNotes();
     this.renderMarkers();
+    this.renderViolationOverlay();
     this.updateHoverOverlay();
     this.updateScroll();
     this.renderMinimap();
@@ -595,6 +616,7 @@ export class TimelineRenderer {
     destroyChildren(this.selectedLongEndLayer);
     destroyChildren(this.selectedLongHeadLayer);
     destroyChildren(this.selectedNoteLayer);
+    destroyChildren(this.violationLayer);
     destroyChildren(this.hoverLayer);
     destroyChildren(this.boxSelectLayer);
     destroyChildren(this.measureLabels);
@@ -667,11 +689,14 @@ export class TimelineRenderer {
     const sortedTS = [...timeSignatures].sort((a, b) => a.measure - b.measure);
     const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
 
-    const measureLabelStyle = new TextStyle({
-      fontSize: 11,
-      fill: 0x999999,
-      fontFamily: "monospace",
-    });
+    if (!this._measureLabelStyle) {
+      this._measureLabelStyle = new TextStyle({
+        fontSize: 11,
+        fill: 0x999999,
+        fontFamily: "monospace",
+      });
+    }
+    const measureLabelStyle = this._measureLabelStyle;
 
     for (let m = 0; ; m++) {
       const mStartBeat = measureStartBeat(m, timeSignatures);
@@ -1411,15 +1436,18 @@ export class TimelineRenderer {
       }
       if (evt.text !== undefined) parts.push(evt.text);
       const displayText = parts.join(' | ') || '(empty)';
-      const label = new Text({
-        text: displayText,
-        style: new TextStyle({
+      if (!this._eventLabelStyle) {
+        this._eventLabelStyle = new TextStyle({
           fontSize: 11,
           fill: 0xffffff,
           fontFamily: "monospace",
           wordWrap: true,
           wordWrapWidth: AUX_LANE_WIDTH - 4,
-        }),
+        });
+      }
+      const label = new Text({
+        text: displayText,
+        style: this._eventLabelStyle,
       });
       // Truncate if text overflows the marker height
       if (label.height > height) {
@@ -1429,7 +1457,12 @@ export class TimelineRenderer {
         const maxChars = charsPerLine * lines - 1;
         const truncated = displayText.length > maxChars ? displayText.slice(0, maxChars) + '\u2026' : displayText;
         label.text = truncated;
-        label.style.wordWrap = false;
+        // Use a clone to avoid mutating the shared cached style
+        label.style = new TextStyle({
+          fontSize: 11,
+          fill: 0xffffff,
+          fontFamily: "monospace",
+        });
       }
       label.anchor.set(0.5, 0.5);
       label.x = auxStartX + AUX_LANE_WIDTH / 2;
@@ -1443,27 +1476,33 @@ export class TimelineRenderer {
    */
   updatePlaybackCursor(timeMs: number): void {
     this._lastCursorTimeMs = timeMs;
-    destroyChildren(this.playbackCursorLayer);
-
     const y = this.timeToY(timeMs);
 
+    // Reuse existing Graphics objects — avoids 60fps destroy/create overhead
+    if (!this._cursorLine) {
+      this._cursorLine = new Graphics();
+      this.playbackCursorLayer.addChild(this._cursorLine);
+    }
+    if (!this._cursorHandle) {
+      this._cursorHandle = new Graphics();
+      this.playbackCursorLayer.addChild(this._cursorHandle);
+    }
+
     // Cursor line (bright green, full width)
-    const line = new Graphics();
-    line.moveTo(0, y);
-    line.lineTo(this.currentTimelineWidth, y);
-    line.stroke({ width: 2, color: 0x00ff88 });
-    this.playbackCursorLayer.addChild(line);
+    this._cursorLine.clear();
+    this._cursorLine.moveTo(0, y);
+    this._cursorLine.lineTo(this.currentTimelineWidth, y);
+    this._cursorLine.stroke({ width: 2, color: 0x00ff88 });
 
     // Draggable handle (triangle on the right edge, pointing left)
-    const handle = new Graphics();
+    this._cursorHandle.clear();
     const hx = this.currentTimelineWidth + 16;
     const hs = 8; // half-size of handle
-    handle.moveTo(hx, y - hs);
-    handle.lineTo(hx - hs * 2, y);
-    handle.lineTo(hx, y + hs);
-    handle.lineTo(hx, y - hs);
-    handle.fill(0x00ff88);
-    this.playbackCursorLayer.addChild(handle);
+    this._cursorHandle.moveTo(hx, y - hs);
+    this._cursorHandle.lineTo(hx - hs * 2, y);
+    this._cursorHandle.lineTo(hx, y + hs);
+    this._cursorHandle.lineTo(hx, y - hs);
+    this._cursorHandle.fill(0x00ff88);
   }
 
   /**
@@ -1622,6 +1661,80 @@ export class TimelineRenderer {
   }
 
   /**
+   * Set note indices that violate constraints (shown with red hatching overlay).
+   */
+  setViolatingNotes(indices: Set<number>): void {
+    this._violatingNoteIndices = indices;
+    this.renderViolationOverlay();
+    this.app?.render();
+  }
+
+  /**
+   * Render red hatching overlay on violating notes.
+   */
+  private renderViolationOverlay(): void {
+    destroyChildren(this.violationLayer);
+    if (!this.chart || this._violatingNoteIndices.size === 0) return;
+
+    const bpmMarkers = this.cachedBpmMarkers;
+    const meta = this.chart.meta;
+    const { minTimeMs, maxTimeMs } = this.getVisibleTimeRange();
+
+    for (const idx of this._violatingNoteIndices) {
+      if (idx >= this.chart.notes.length) continue;
+      const note = this.chart.notes[idx];
+      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+
+      const x = (note.lane - 1) * LANE_WIDTH;
+      const w = NOTE_HEIGHT * 5;
+      const h = NOTE_HEIGHT;
+      const rectX = x + (LANE_WIDTH - w) / 2;
+
+      let topY: number;
+      let height: number;
+
+      if ("endBeat" in note) {
+        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const lo = Math.min(startMs, endMs);
+        const hi = Math.max(startMs, endMs);
+        if (hi < minTimeMs || lo > maxTimeMs) continue;
+        const startY = this.timeToY(startMs);
+        const endY = this.timeToY(endMs);
+        topY = Math.min(startY, endY) - h / 2;
+        height = Math.abs(endY - startY) + h;
+      } else {
+        if (startMs < minTimeMs || startMs > maxTimeMs) continue;
+        const y = this.timeToY(startMs);
+        topY = y - h / 2;
+        height = h;
+      }
+
+      const gfx = new Graphics();
+
+      // Semi-transparent red background
+      gfx.rect(rectX, topY, w, height);
+      gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
+
+      // Diagonal hatching lines — use height-based spacing for consistent density
+      const spacing = Math.max(4, Math.min(8, height * 0.6));
+      gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
+      for (let d = -height; d < w; d += spacing) {
+        const x1 = Math.max(0, d);
+        const y1 = Math.max(0, -d);
+        const x2 = Math.min(w, d + height);
+        const y2 = Math.min(height, w - d);
+        if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
+          gfx.moveTo(rectX + x1, topY + y1);
+          gfx.lineTo(rectX + x2, topY + y2);
+        }
+      }
+      gfx.stroke();
+
+      this.violationLayer.addChild(gfx);
+    }
+  }
+
+  /**
    * Resize the renderer to new dimensions.
    */
   resize(width: number, height: number): void {
@@ -1639,6 +1752,7 @@ export class TimelineRenderer {
    */
   private renderMinimap(): void {
     destroyChildren(this.minimapLayer);
+    this._minimapViewport = null; // destroyed by destroyChildren, will be recreated
     if (!this.chart) return;
 
     const canvasH = this.options.height;
@@ -1758,11 +1872,14 @@ export class TimelineRenderer {
         return `${m}:${String(ss).padStart(2, '0')}`;
       };
 
-      const timeLabelStyle = new TextStyle({
-        fontSize: 9,
-        fill: 0x66aaff,
-        fontFamily: 'monospace',
-      });
+      if (!this._timeLabelStyle) {
+        this._timeLabelStyle = new TextStyle({
+          fontSize: 9,
+          fill: 0x66aaff,
+          fontFamily: 'monospace',
+        });
+      }
+      const timeLabelStyle = this._timeLabelStyle;
 
       for (let t = intervalSec; t <= durationSec; t += intervalSec) {
         const containerY = this.timeToY(t * 1000);
@@ -1779,9 +1896,12 @@ export class TimelineRenderer {
       const endContainerY = this.timeToY(this.waveformDurationMs);
       const endMy = toMinimapY(endContainerY);
       if (endMy >= 8 && endMy <= canvasH - 4) {
+        if (!this._endTimeLabelStyle) {
+          this._endTimeLabelStyle = new TextStyle({ fontSize: 9, fill: 0xff6644, fontFamily: 'monospace' });
+        }
         const endLabel = new Text({
           text: fmtTime(durationSec),
-          style: new TextStyle({ fontSize: 9, fill: 0xff6644, fontFamily: 'monospace' }),
+          style: this._endTimeLabelStyle,
         });
         endLabel.x = trackX + 2;
         endLabel.y = endMy;
@@ -1789,16 +1909,33 @@ export class TimelineRenderer {
       }
     }
 
-    // (6) Viewport indicator
+    // (6) Viewport indicator (reusable)
+    this.updateMinimapViewport();
+  }
+
+  /**
+   * Lightweight minimap viewport indicator update (no full minimap re-render).
+   * Called on every scroll to avoid destroying/recreating all minimap content at 60fps.
+   */
+  private updateMinimapViewport(): void {
+    const canvasH = this.options.height;
+    const totalH = this.totalTimelineHeight;
+    const trackX = this.options.width - MINIMAP_WIDTH;
+
+    if (!this._minimapViewport) {
+      this._minimapViewport = new Graphics();
+      this.minimapLayer.addChild(this._minimapViewport);
+    }
+
+    this._minimapViewport.clear();
+
     if (totalH > canvasH) {
       const viewportTopY = (this._scrollY / totalH) * canvasH;
       const viewportHeight = (canvasH / totalH) * canvasH;
 
-      const viewport = new Graphics();
-      viewport.rect(trackX, viewportTopY, MINIMAP_WIDTH, viewportHeight);
-      viewport.fill({ color: 0xffffff, alpha: 0.15 });
-      viewport.stroke({ width: 1, color: 0xffffff, alpha: 0.5 });
-      this.minimapLayer.addChild(viewport);
+      this._minimapViewport.rect(trackX, viewportTopY, MINIMAP_WIDTH, viewportHeight);
+      this._minimapViewport.fill({ color: 0xffffff, alpha: 0.15 });
+      this._minimapViewport.stroke({ width: 1, color: 0xffffff, alpha: 0.5 });
     }
   }
 
@@ -1888,8 +2025,24 @@ export class TimelineRenderer {
     canvas.removeEventListener('pointerup', this.boundMinimapPointerUp);
     canvas.removeEventListener('pointerleave', this.boundMinimapPointerUp);
     this.initialized = false;
+
+    // Destroy app first (destroys all children including Text objects referencing cached styles)
+    this.app.destroy(true, { children: true });
+
+    // Then clean up cached resources
     for (const g of this.bodyGradientCache.values()) g.destroy();
     this.bodyGradientCache.clear();
-    this.app.destroy(true, { children: true });
+
+    this._cursorLine = null;
+    this._cursorHandle = null;
+    this._minimapViewport = null;
+    this._measureLabelStyle?.destroy();
+    this._measureLabelStyle = null;
+    this._eventLabelStyle?.destroy();
+    this._eventLabelStyle = null;
+    this._timeLabelStyle?.destroy();
+    this._timeLabelStyle = null;
+    this._endTimeLabelStyle?.destroy();
+    this._endTimeLabelStyle = null;
   }
 }
