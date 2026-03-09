@@ -4,11 +4,11 @@
 
 export const LANE_COUNT = 4;
 export const GAME_HEIGHT = 600; // logical height (fixed)
-export const LANE_WIDTH = 80; // px per lane
-export const LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH; // 320px
+export const LANE_WIDTH = 100; // px per lane
+export const LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH; // 400px
 
-export const NOTE_HEIGHT = 16; // px
-export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 80px (matches lane width)
+export const NOTE_HEIGHT = 20; // px
+export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 100px (matches lane width)
 
 export const JUDGMENT_LINE_OFFSET = 100; // px from bottom
 
