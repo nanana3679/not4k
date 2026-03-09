@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:skins": "node scripts/build-skins.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",

@@ -1,6 +1,17 @@
 import { useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 
+// ?export 쿼리 파라미터가 있으면 익스포트 모드
+if (window.location.search.includes("export")) {
+  import("./export.jsx").then(({ default: ExportPage }) => {
+    createRoot(document.getElementById("root")).render(<ExportPage />);
+  });
+} else {
+  renderApp();
+}
+
+function renderApp() {
+
 const skins = [
   { id: "crystal", name: "Crystal", App: lazy(() => import("./crystal/crystal.jsx")) },
   { id: "abyssal", name: "Abyssal", App: lazy(() => import("./abyssal/abyssal.jsx")) },
@@ -63,3 +74,4 @@ function Root() {
 }
 
 createRoot(document.getElementById("root")).render(<Root />);
+}
