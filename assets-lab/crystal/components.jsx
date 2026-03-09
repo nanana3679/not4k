@@ -155,6 +155,28 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- Crystal ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  return (
+    <g>
+      {/* Outer bezel ring */}
+      <circle cx={cx} cy={cy} r={24} fill="#707880" stroke="#606870" strokeWidth="1" />
+      {/* Button face */}
+      <circle cx={cx} cy={cy} r={20} fill={pressed ? "#8890a0" : "#c0c8d4"} stroke={pressed ? "#707880" : "#d8dce4"} strokeWidth="1.5" />
+      {/* Highlight arc */}
+      {!pressed && <path d={`M${cx - 16},${cy - 7} A20,20 0 0,1 ${cx + 16},${cy - 7}`} fill="none" stroke="#e8ecf4" strokeWidth="1" opacity=".6" />}
+      {pressed && <path d={`M${cx - 16},${cy - 7} A20,20 0 0,1 ${cx + 16},${cy - 7}`} fill="none" stroke="#606870" strokeWidth="1" opacity=".5" />}
+      {/* Inner diamond */}
+      <rect x={cx - 8} y={cy - 8} width={16} height={16} transform={`rotate(45 ${cx} ${cy})`} fill={pressed ? "#707880" : "#a0a8b8"} stroke={pressed ? "#606870" : "#b8c0cc"} strokeWidth="1.5" />
+      {/* Pressed glow effects */}
+      {pressed && <>
+        <circle cx={cx} cy={cy} r={22} fill="none" stroke={P.core.glow} strokeWidth="3" opacity=".3" />
+        <rect x={cx - 6} y={cy - 6} width={12} height={12} transform={`rotate(45 ${cx} ${cy})`} fill={P.core.bright} opacity=".2" />
+      </>}
+    </g>
+  );
+}
+
 // --- Crystal BombFrame ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

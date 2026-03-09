@@ -255,6 +255,61 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- Forge ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  // Flat-top hexagon points
+  const hexPoints = (x, y, r) =>
+    Array.from({ length: 6 }, (_, k) => {
+      const a = (Math.PI / 180) * (30 + k * 60);
+      return `${(x + r * Math.cos(a)).toFixed(2)},${(y + r * Math.sin(a)).toFixed(2)}`;
+    }).join(" ");
+
+  const HEX_R = 22;
+  const hexPts = hexPoints(cx, cy, HEX_R);
+  const hexInnerPts = hexPoints(cx, cy, HEX_R - 3);
+
+  return (
+    <g>
+      {/* Hexagon outer shadow ring */}
+      <polygon points={hexPoints(cx, cy, HEX_R + 3)} fill="#0e1014" opacity=".8" />
+      {/* Hexagon main body */}
+      <polygon points={hexPts}
+        fill={pressed ? "#28303c" : "#242a30"}
+        stroke={pressed ? "#282030" : "#363e4a"}
+        strokeWidth="2" />
+      {/* Hexagon inner chamfer ring */}
+      <polygon points={hexInnerPts} fill="none" stroke={pressed ? "#181422" : "#2a3040"} strokeWidth="1" opacity=".7" />
+      {/* Top facet highlight */}
+      {!pressed && <line
+        x1={cx - HEX_R * Math.cos(Math.PI / 180 * 30)}
+        y1={cy - HEX_R * Math.sin(Math.PI / 180 * 30)}
+        x2={cx + HEX_R * Math.cos(Math.PI / 180 * 30)}
+        y2={cy - HEX_R * Math.sin(Math.PI / 180 * 30)}
+        stroke="#484e5e" strokeWidth=".8" opacity=".5" />}
+      {/* Inner diamond receptor */}
+      <rect x={cx - 8} y={cy - 8} width={16} height={16}
+        transform={`rotate(45 ${cx} ${cy})`}
+        fill={pressed ? "#1e1a28" : "#262c38"}
+        stroke={pressed ? "#18141e" : "#30384a"} strokeWidth="1.5" />
+      {/* Rune marking lines inside diamond */}
+      <line x1={cx - 5} y1={cy - 2} x2={cx - 2} y2={cy - 5} stroke="#404858" strokeWidth=".8" opacity=".7" />
+      <line x1={cx + 2} y1={cy + 5} x2={cx + 5} y2={cy + 2} stroke="#404858" strokeWidth=".8" opacity=".7" />
+      <line x1={cx - 3} y1={cy + 1} x2={cx + 3} y2={cy - 1} stroke="#505868" strokeWidth=".7" opacity=".5" />
+      {/* Pressed state: molten orange glow + ember particles */}
+      {pressed && <>
+        <polygon points={hexPts} fill="none" stroke={P.core.glow} strokeWidth="3" opacity=".4" />
+        <rect x={cx - 6} y={cy - 6} width={12} height={12}
+          transform={`rotate(45 ${cx} ${cy})`}
+          fill={P.core.bright} opacity=".3" />
+        {/* Ember particles */}
+        <circle cx={cx - 14} cy={cy - 18} r={2} fill="#ff6000" opacity=".55" />
+        <circle cx={cx + 16} cy={cy - 14} r={1.5} fill="#ff8030" opacity=".45" />
+        <circle cx={cx + 4} cy={cy - 22} r={1.2} fill="#ffa040" opacity=".35" />
+      </>}
+    </g>
+  );
+}
+
 // --- Forge BombFrame (불꽃 포물선, 금속 파편, 연기) ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

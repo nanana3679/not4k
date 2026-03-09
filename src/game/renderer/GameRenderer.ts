@@ -5,7 +5,7 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, NineSliceSprite } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, NineSliceSprite, AnimatedSprite } from "pixi.js";
 import type { FillInput } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
@@ -226,6 +226,9 @@ export class GameRenderer {
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
 
+  // Button sprites (per lane)
+  private buttonSprites: Sprite[] = [];
+
   // Gradient cache (trill fallback only)
   private bodyGradientCache = new Map<number, FillGradient>();
   private keyBeamGradient: FillGradient | null = null;
@@ -358,6 +361,7 @@ export class GameRenderer {
     this.drawBackground();
     this.drawJudgmentLine();
     this.buildKeyBeams();
+    this.buildButtons();
     this.initialized = true;
   }
 
@@ -411,10 +415,36 @@ export class GameRenderer {
     }
   }
 
+  private buildButtons(): void {
+    const BTN_SIZE = 40; // 게임 내 버튼 렌더링 크기
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const texKey = `buttonIdle${i}`;
+      let tex;
+      try { tex = this.skinManager.getTexture(texKey); } catch { continue; }
+      const sprite = new Sprite(tex);
+      sprite.width = BTN_SIZE;
+      sprite.height = BTN_SIZE;
+      sprite.anchor.set(0.5, 0);
+      sprite.x = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
+      sprite.y = this._judgmentLineY + 4;
+      sprite.alpha = 0.8;
+      this.buttonSprites.push(sprite);
+      this.backgroundLayer.addChild(sprite);
+    }
+  }
+
   setKeyBeam(lane: number, pressed: boolean): void {
     const idx = lane - 1;
     if (idx >= 0 && idx < this.keyBeamGraphics.length) {
       this.keyBeamGraphics[idx].visible = pressed;
+    }
+    // 버튼 텍스처 전환
+    if (idx >= 0 && idx < this.buttonSprites.length) {
+      const texKey = pressed ? `buttonPressed${idx}` : `buttonIdle${idx}`;
+      try {
+        this.buttonSprites[idx].texture = this.skinManager.getTexture(texKey);
+        this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
+      } catch { /* 텍스처 미로드 시 무시 */ }
     }
   }
 
@@ -888,6 +918,24 @@ export class GameRenderer {
     }
   }
 
+  /** 노트 판정 시 봄 이펙트 재생 */
+  showBombEffect(lane: number): void {
+    const textures = this.skinManager.getBombTextures();
+    if (textures.length === 0) return;
+
+    const anim = new AnimatedSprite(textures);
+    anim.anchor.set(0.5, 0.5);
+    anim.x = this.getLaneX(lane) + LANE_WIDTH / 2;
+    anim.y = this._judgmentLineY;
+    anim.animationSpeed = 16 / 60; // 16프레임을 ~267ms에 재생 (60fps 기준)
+    anim.loop = false;
+    anim.onComplete = () => {
+      anim.destroy();
+    };
+    anim.play();
+    this.effectLayer.addChild(anim);
+  }
+
   setShowFastSlow(enabled: boolean): void {
     this.showFastSlow = enabled;
   }
@@ -938,6 +986,10 @@ export class GameRenderer {
     this.accuracyText.y = this._judgmentLineY - 85;
     this.judgmentText.y = this._judgmentLineY - 45;
     this.fastSlowText.y = this._judgmentLineY - 15;
+    // Update button positions
+    for (const btn of this.buttonSprites) {
+      btn.y = this._judgmentLineY + 4;
+    }
   }
 
   setSudden(y: number): void {
@@ -1079,6 +1131,7 @@ export class GameRenderer {
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
     this.keyBeamGraphics = [];
+    this.buttonSprites = [];
     this.keyGraphicsMap.clear();
     this.keyTextMap.clear();
     this.keyLaneMap.clear();

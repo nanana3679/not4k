@@ -145,7 +145,9 @@ export function PlayScreen() {
               }
               renderer.showJudgment(result.grade, result.deltaMs);
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
-              if (result.grade === 'miss') {
+              if (result.grade !== 'miss') {
+                renderer.showBombEffect(note.lane);
+              } else {
                 renderer.markBodyFailed(result.noteIndex);
               }
 

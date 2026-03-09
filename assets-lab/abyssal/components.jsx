@@ -237,6 +237,44 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- Abyssal ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  const tentY0 = cy + 18;
+  const tentacles = [
+    `M${cx - 10},${tentY0} Q${cx - 12},${tentY0 + 7} ${cx - 10},${tentY0 + 14}`,
+    `M${cx},${tentY0} Q${cx + 3},${tentY0 + 7} ${cx},${tentY0 + 14}`,
+    `M${cx + 10},${tentY0} Q${cx + 12},${tentY0 + 7} ${cx + 10},${tentY0 + 14}`,
+  ];
+  return (
+    <g>
+      {/* Jellyfish bell -- outer ellipse */}
+      <ellipse cx={cx} cy={cy} rx={28} ry={19} fill="#08111e" stroke="rgba(30,60,100,0.8)" strokeWidth="1" />
+      <ellipse cx={cx} cy={cy} rx={26} ry={18}
+        fill={pressed ? "rgba(0,80,120,0.85)" : "rgba(20,40,80,0.80)"}
+        stroke={pressed ? "rgba(0,200,232,0.55)" : "rgba(40,100,140,0.5)"}
+        strokeWidth="1.5"
+      />
+      {/* Frosted glass dome highlight */}
+      <ellipse cx={cx - 5} cy={cy - 7} rx={12} ry={5} fill="rgba(120,220,255,0.07)" />
+      {/* Inner glass ring */}
+      <ellipse cx={cx} cy={cy} rx={20} ry={13}
+        fill="none"
+        stroke={pressed ? "rgba(0,200,232,0.22)" : "rgba(40,100,160,0.18)"}
+        strokeWidth="1"
+      />
+      {/* Bioluminescent glow on press */}
+      {pressed && <>
+        <ellipse cx={cx} cy={cy} rx={28} ry={19} fill="none" stroke={P.core.glow} strokeWidth="3" opacity=".45" />
+        <ellipse cx={cx} cy={cy} rx={22} ry={14} fill={P.core.bright} opacity=".07" />
+      </>}
+      {/* Tentacle lines */}
+      {tentacles.map((d, j) =>
+        <path key={j} d={d} fill="none" stroke={pressed ? P.core.mid : "rgba(40,80,120,0.5)"} strokeWidth=".9" opacity=".7" />
+      )}
+    </g>
+  );
+}
+
 // --- Abyssal BombFrame (water droplet shards + tentacle burst + slow underwater feel) ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

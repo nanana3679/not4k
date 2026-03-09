@@ -282,6 +282,62 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- Circuit ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  const btnColor = pressed ? P.accent : P.single.mid;
+  return (
+    <g>
+      {/* Glitch flicker -- offset outline copy when pressed */}
+      {pressed && (
+        <rect x={cx - 18 + 1.5} y={cy - 18 - 1} width={36} height={36}
+          fill="none" stroke="#00ff41" strokeWidth="1" opacity=".35" />
+      )}
+      {/* Square wireframe button */}
+      <rect x={cx - 18} y={cy - 18} width={36} height={36}
+        fill={pressed ? "#001800" : "#020902"} stroke={btnColor} strokeWidth="1.5" />
+      {/* IC pin/leg lines -- top */}
+      {[-8, 0, 8].map((off, pi) => (
+        <line key={`tp${pi}`} x1={cx + off} y1={cy - 18} x2={cx + off} y2={cy - 21}
+          stroke={btnColor} strokeWidth=".8" opacity=".5" />
+      ))}
+      {/* Bottom pins */}
+      {[-8, 0, 8].map((off, pi) => (
+        <line key={`bp${pi}`} x1={cx + off} y1={cy + 18} x2={cx + off} y2={cy + 21}
+          stroke={btnColor} strokeWidth=".8" opacity=".5" />
+      ))}
+      {/* Left pins */}
+      {[-8, 0, 8].map((off, pi) => (
+        <line key={`lp${pi}`} x1={cx - 18} y1={cy + off} x2={cx - 21} y2={cy + off}
+          stroke={btnColor} strokeWidth=".8" opacity=".5" />
+      ))}
+      {/* Right pins */}
+      {[-8, 0, 8].map((off, pi) => (
+        <line key={`rp${pi}`} x1={cx + 18} y1={cy + off} x2={cx + 21} y2={cy + off}
+          stroke={btnColor} strokeWidth=".8" opacity=".5" />
+      ))}
+      {/* Corner brackets */}
+      {[[-1,-1],[1,-1],[-1,1],[1,1]].map(([sx,sy],ci) => (
+        <g key={ci}>
+          <line x1={cx + sx*18} y1={cy + sy*18} x2={cx + sx*18 - sx*6} y2={cy + sy*18} stroke={P.accent} strokeWidth="1.5" opacity={pressed ? 1 : 0.4} />
+          <line x1={cx + sx*18} y1={cy + sy*18} x2={cx + sx*18} y2={cy + sy*18 - sy*6} stroke={P.accent} strokeWidth="1.5" opacity={pressed ? 1 : 0.4} />
+        </g>
+      ))}
+      {/* Inner diamond */}
+      <rect x={cx - 8} y={cy - 8} width={16} height={16}
+        transform={`rotate(45 ${cx} ${cy})`}
+        fill={pressed ? P.single.base : "none"} stroke={btnColor} strokeWidth="1" opacity=".8" />
+      {pressed && (
+        <rect x={cx - 5} y={cy - 5} width={10} height={10}
+          transform={`rotate(45 ${cx} ${cy})`}
+          fill={P.accent} opacity=".3" />
+      )}
+      {/* Binary "01" text */}
+      <text x={cx - 8} y={cy + 16} fontSize="5" fill={btnColor} opacity=".2"
+        fontFamily="'JetBrains Mono', monospace">01</text>
+    </g>
+  );
+}
+
 // --- Circuit BombFrame ---
 // 글리치 폭발: RGB 색분리(오프셋 3벌), 픽셀 파편(회전 없는 사각형)
 export function BombFrame({ cx, cy, frame, id }) {

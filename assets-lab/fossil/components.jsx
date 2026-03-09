@@ -336,6 +336,54 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- Fossil ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  const btnTopW = 40, btnBotW = 28, btnH = 36;
+  const btnTopY = cy - btnH / 2, btnBotY = cy + btnH / 2;
+  const rayLen = pressed ? 10 : 7;
+  const sunR = pressed ? 7 : 5;
+  const sunFill = pressed ? P.core.bright : "#9a7248";
+  const sunStroke = pressed ? P.core.highlight : "#c4986a";
+
+  return (
+    <g>
+      {/* Trapezoidal button -- stone surround */}
+      <polygon
+        points={`${cx - btnTopW / 2 - 3},${btnTopY - 3} ${cx + btnTopW / 2 + 3},${btnTopY - 3} ${cx + btnBotW / 2 + 3},${btnBotY + 3} ${cx - btnBotW / 2 - 3},${btnBotY + 3}`}
+        fill="#604830" stroke="#4a3618" strokeWidth="1" />
+      {/* Trapezoidal button -- face */}
+      <polygon
+        points={`${cx - btnTopW / 2},${btnTopY} ${cx + btnTopW / 2},${btnTopY} ${cx + btnBotW / 2},${btnBotY} ${cx - btnBotW / 2},${btnBotY}`}
+        fill={pressed ? "#907060" : "#c8a878"}
+        stroke={pressed ? "#704830" : "#ddb888"}
+        strokeWidth="1.5" />
+      {/* Top bevel highlight */}
+      {!pressed && <line x1={cx - btnTopW / 2 + 3} y1={btnTopY + 2} x2={cx + btnTopW / 2 - 3} y2={btnTopY + 2} stroke="#edd9aa" strokeWidth=".8" opacity=".5" />}
+      {pressed && <line x1={cx - btnTopW / 2 + 3} y1={btnTopY + 2} x2={cx + btnTopW / 2 - 3} y2={btnTopY + 2} stroke="#4a3618" strokeWidth=".8" opacity=".4" />}
+      {/* Amber glow when pressed */}
+      {pressed && (
+        <polygon
+          points={`${cx - btnTopW / 2 - 1},${btnTopY - 1} ${cx + btnTopW / 2 + 1},${btnTopY - 1} ${cx + btnBotW / 2 + 1},${btnBotY + 1} ${cx - btnBotW / 2 - 1},${btnBotY + 1}`}
+          fill="none" stroke={P.core.glow} strokeWidth="3" opacity=".4" />
+      )}
+      {/* Sun disc receptor */}
+      <circle cx={cx} cy={cy} r={sunR + 2} fill={pressed ? "#604830" : "#7a5030"} />
+      <circle cx={cx} cy={cy} r={sunR} fill={sunFill} stroke={sunStroke} strokeWidth="1" />
+      {/* N ray */}
+      <polygon points={`${cx - 3},${cy - sunR - 1} ${cx + 3},${cy - sunR - 1} ${cx},${cy - sunR - 1 - rayLen}`} fill={sunFill} opacity=".85" />
+      {/* S ray */}
+      <polygon points={`${cx - 3},${cy + sunR + 1} ${cx + 3},${cy + sunR + 1} ${cx},${cy + sunR + 1 + rayLen}`} fill={sunFill} opacity=".85" />
+      {/* E ray */}
+      <polygon points={`${cx + sunR + 1},${cy - 3} ${cx + sunR + 1},${cy + 3} ${cx + sunR + 1 + rayLen},${cy}`} fill={sunFill} opacity=".85" />
+      {/* W ray */}
+      <polygon points={`${cx - sunR - 1},${cy - 3} ${cx - sunR - 1},${cy + 3} ${cx - sunR - 1 - rayLen},${cy}`} fill={sunFill} opacity=".85" />
+      {pressed && (
+        <circle cx={cx} cy={cy} r={sunR + 4} fill="none" stroke={P.core.bright} strokeWidth="1" opacity=".3" />
+      )}
+    </g>
+  );
+}
+
 // --- Fossil BombFrame: 돌 균열 + 석재 파편 + 먼지 구름 ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

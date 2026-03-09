@@ -337,6 +337,58 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- SAKURA ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  return (
+    <g>
+      <defs>
+        <radialGradient id="sakura_btn_idle" cx="38%" cy="32%" r="62%">
+          <stop offset="0%" stopColor="#9aaa88" />
+          <stop offset="55%" stopColor="#6a7a52" />
+          <stop offset="100%" stopColor="#4a5a34" />
+        </radialGradient>
+        <radialGradient id="sakura_btn_pressed" cx="50%" cy="55%" r="60%">
+          <stop offset="0%" stopColor="#8a6010" />
+          <stop offset="100%" stopColor="#5a3800" />
+        </radialGradient>
+        <radialGradient id="sakura_btn_shadow" cx="50%" cy="60%" r="55%">
+          <stop offset="0%" stopColor="#000000" stopOpacity=".35" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {/* Shadow */}
+      <ellipse cx={cx + 1} cy={cy + 3} rx={26} ry={13} fill="url(#sakura_btn_shadow)" />
+      {/* Cobblestone main */}
+      <ellipse cx={cx} cy={cy} rx={25} ry={22}
+        fill={pressed ? "url(#sakura_btn_pressed)" : "url(#sakura_btn_idle)"}
+        stroke={pressed ? P.core.mid : "#3a4a22"} strokeWidth="1.5" />
+      {/* Highlight spots (idle only) */}
+      {!pressed && (<>
+        <ellipse cx={cx - 5} cy={cy - 7} rx={9} ry={5.5}
+          fill="white" opacity=".13"
+          transform={`rotate(-18 ${cx - 5} ${cy - 7})`} />
+        <ellipse cx={cx + 7} cy={cy - 4} rx={4} ry={2.5}
+          fill="white" opacity=".09"
+          transform={`rotate(10 ${cx + 7} ${cy - 4})`} />
+        <ellipse cx={cx - 8} cy={cy + 4} rx={3} ry={1.8}
+          fill="white" opacity=".07"
+          transform={`rotate(-5 ${cx - 8} ${cy + 4})`} />
+      </>)}
+      {/* Pressed golden glow border */}
+      {pressed && (
+        <ellipse cx={cx} cy={cy} rx={28} ry={25}
+          fill="none" stroke={P.core.glow} strokeWidth="3.5" opacity=".4" />
+      )}
+      {/* Gold receptor */}
+      {pressed ? (
+        <circle cx={cx} cy={cy} r={8} fill={P.core.bright} opacity=".45" />
+      ) : (
+        <circle cx={cx} cy={cy} r={6} fill="none" stroke={P.core.offMid} strokeWidth="1.5" opacity=".6" />
+      )}
+    </g>
+  );
+}
+
 // --- SAKURA BombFrame — 꽃잎 펼침 + 먹물 스플래시 ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

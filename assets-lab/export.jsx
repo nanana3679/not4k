@@ -16,6 +16,7 @@ const skins = {
 };
 
 const BODY_H = 60; // NineSlice용 바디 높이
+const BTN_SIZE = 60; // 버튼 export 크기
 
 function SvgWrap({ id, w, h, children }) {
   return (
@@ -69,6 +70,20 @@ function SkinExports({ skinId, C }) {
           <C.BombFrame cx={40} cy={40} frame={fi} id={`${skinId}_export_${fi}`} />
         </SvgWrap>
       ))}
+
+      {/* 버튼 (idle × 4, pressed × 4) */}
+      {C.ButtonExport && [false, true].map(pressed =>
+        [1, 2, 3, 4].map(lane => (
+          <SvgWrap
+            key={`btn-${pressed ? "p" : "i"}-${lane}`}
+            id={`${skinId}--button-${pressed ? "pressed" : "idle"}-${lane}`}
+            w={BTN_SIZE}
+            h={BTN_SIZE}
+          >
+            <C.ButtonExport cx={BTN_SIZE / 2} cy={BTN_SIZE / 2} pressed={pressed} />
+          </SvgWrap>
+        ))
+      )}
     </>
   );
 }

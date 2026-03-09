@@ -279,6 +279,76 @@ export function LongNote({ x, y, bodyH = 80, type = "single", held = false, core
   );
 }
 
+// --- PRISM ButtonExport ---
+export function ButtonExport({ cx, cy, pressed }) {
+  // Rounded hexagon path helper
+  const hexPath = (x, y, r) => {
+    const pts = Array.from({ length: 6 }, (_, i) => {
+      const a = (Math.PI / 180) * (60 * i - 30);
+      return [x + r * Math.cos(a), y + r * Math.sin(a)];
+    });
+    const bevel = r * 0.18;
+    let d = "";
+    for (let i = 0; i < 6; i++) {
+      const prev = pts[(i + 5) % 6];
+      const cur = pts[i];
+      const next = pts[(i + 1) % 6];
+      const dx1 = cur[0] - prev[0], dy1 = cur[1] - prev[1];
+      const len1 = Math.hypot(dx1, dy1);
+      const dx2 = next[0] - cur[0], dy2 = next[1] - cur[1];
+      const len2 = Math.hypot(dx2, dy2);
+      const p1 = [cur[0] - dx1 / len1 * bevel, cur[1] - dy1 / len1 * bevel];
+      const p2 = [cur[0] + dx2 / len2 * bevel, cur[1] + dy2 / len2 * bevel];
+      d += i === 0 ? `M${p1[0].toFixed(2)},${p1[1].toFixed(2)}` : `L${p1[0].toFixed(2)},${p1[1].toFixed(2)}`;
+      d += ` Q${cur[0].toFixed(2)},${cur[1].toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
+    }
+    return d + "Z";
+  };
+
+  const rainbowColor = P.rainbow[pressed ? 4 : 0];
+  return (
+    <g>
+      <defs>
+        <linearGradient id="prism_btn_holo" x1="0" y1="0" x2="1" y2="1">
+          {P.rainbow.map((c, i) => (
+            <stop key={i} offset={`${Math.round(i * 100 / (P.rainbow.length - 1))}%`} stopColor={c} stopOpacity="0.5" />
+          ))}
+        </linearGradient>
+      </defs>
+      {/* Button outer dark ring */}
+      <path d={hexPath(cx, cy, 26)} fill="rgba(30,20,60,0.75)" stroke="rgba(140,120,220,0.25)" strokeWidth="1" />
+      {/* Holographic iridescent ring */}
+      <circle cx={cx} cy={cy} r={24}
+        fill="none" stroke="url(#prism_btn_holo)" strokeWidth="1.2"
+        strokeDasharray="3 2" opacity=".6" />
+      {/* Button face */}
+      <path d={hexPath(cx, cy, 21)}
+        fill={pressed ? "rgba(140,120,240,0.4)" : "rgba(220,210,255,0.12)"}
+        stroke={pressed ? rainbowColor : "rgba(200,180,255,0.3)"} strokeWidth="1.5" />
+      {/* Specular highlight arc */}
+      {!pressed && <path d={`M${cx - 14},${cy - 8} A18,18 0 0,1 ${cx + 14},${cy - 8}`} fill="none" stroke="rgba(240,230,255,0.45)" strokeWidth="1" />}
+      {pressed && <path d={`M${cx - 14},${cy - 8} A18,18 0 0,1 ${cx + 14},${cy - 8}`} fill="none" stroke="rgba(100,80,180,0.4)" strokeWidth="1" />}
+      {/* 4-star core arms */}
+      <polygon points={`${cx},${cy - 8} ${cx + 2.5},${cy - 1} ${cx - 2.5},${cy - 1}`}
+        fill={pressed ? P.core.points[0] : "rgba(255,80,100,0.55)"} />
+      <polygon points={`${cx + 8},${cy} ${cx + 1},${cy - 2.5} ${cx + 1},${cy + 2.5}`}
+        fill={pressed ? P.core.points[1] : "rgba(80,255,160,0.55)"} />
+      <polygon points={`${cx},${cy + 8} ${cx - 2.5},${cy + 1} ${cx + 2.5},${cy + 1}`}
+        fill={pressed ? P.core.points[2] : "rgba(80,160,255,0.55)"} />
+      <polygon points={`${cx - 8},${cy} ${cx - 1},${cy + 2.5} ${cx - 1},${cy - 2.5}`}
+        fill={pressed ? P.core.points[3] : "rgba(255,220,80,0.55)"} />
+      {/* Center dot */}
+      <circle cx={cx} cy={cy} r={2} fill={pressed ? "white" : "rgba(220,200,255,0.5)"} opacity=".8" />
+      {/* Pressed state glow */}
+      {pressed && <>
+        <circle cx={cx} cy={cy} r={23} fill="none" stroke={rainbowColor} strokeWidth="3.5" opacity=".45" />
+        <polygon points={`${cx},${cy - 10} ${cx + 3},${cy - 1} ${cx + 10},${cy} ${cx + 3},${cy + 1} ${cx},${cy + 10} ${cx - 3},${cy + 1} ${cx - 10},${cy} ${cx - 3},${cy - 1}`}
+          fill="white" opacity=".18" />
+      </>}
+    </g>
+  );
+}
+
 // --- PRISM BombFrame: 7색 방사선 + 별 파편 + 무지개 링 ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

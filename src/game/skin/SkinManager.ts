@@ -51,6 +51,14 @@ export class SkinManager {
       entries.push([`bomb${i}`, assets.bomb[i]]);
     }
 
+    // 버튼 (idle + pressed × 4)
+    for (let i = 0; i < assets.buttonIdle.length; i++) {
+      entries.push([`buttonIdle${i}`, assets.buttonIdle[i]]);
+    }
+    for (let i = 0; i < assets.buttonPressed.length; i++) {
+      entries.push([`buttonPressed${i}`, assets.buttonPressed[i]]);
+    }
+
     // 모든 텍스처를 병렬 로드
     const loadPromises = entries.map(async ([key, path]) => {
       const texture = await Assets.load<Texture>(path);

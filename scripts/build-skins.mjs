@@ -37,6 +37,8 @@ const ASSETS = [
   ...Array.from({ length: 16 }, (_, i) =>
     `bomb-${String(i).padStart(2, "0")}`
   ),
+  ...Array.from({ length: 4 }, (_, i) => `button-idle-${i + 1}`),
+  ...Array.from({ length: 4 }, (_, i) => `button-pressed-${i + 1}`),
 ];
 
 async function main() {
