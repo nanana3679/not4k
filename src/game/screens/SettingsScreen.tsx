@@ -1,4 +1,5 @@
 import { useGameStore, PRESET_BINDINGS } from '../stores';
+import { SKIN_LIST } from '../skin';
 import { useState, useEffect, useRef } from 'react';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
@@ -225,6 +226,33 @@ export function SettingsScreen() {
               </label>
             </div>
           </div>
+
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Skin</h2>
+            <div style={styles.skinGrid}>
+              {SKIN_LIST.map((skin) => {
+                const isSelected = settings.skinId === skin.theme.id;
+                return (
+                  <button
+                    key={skin.theme.id}
+                    style={{
+                      ...styles.skinCard,
+                      ...(isSelected ? styles.skinCardSelected : {}),
+                    }}
+                    onClick={() => updateSettings({ skinId: skin.theme.id })}
+                  >
+                    <div
+                      style={{
+                        ...styles.skinSwatch,
+                        backgroundColor: `#${skin.theme.accent.toString(16).padStart(6, '0')}`,
+                      }}
+                    />
+                    <span style={styles.skinName}>{skin.theme.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -409,5 +437,34 @@ const styles: Record<string, React.CSSProperties> = {
     width: '18px',
     height: '18px',
     verticalAlign: 'middle',
+  },
+  skinGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+    gap: '12px',
+  },
+  skinCard: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px',
+    backgroundColor: '#1a1a1a',
+    border: '2px solid #333',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'border-color 0.2s',
+  },
+  skinCardSelected: {
+    borderColor: '#00ffff',
+  },
+  skinSwatch: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+  },
+  skinName: {
+    fontSize: '13px',
+    fontWeight: 600,
   },
 };
