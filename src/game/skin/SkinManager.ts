@@ -1,0 +1,109 @@
+import { Assets, Texture } from "pixi.js";
+import type { SkinManifest, SkinTheme } from "./types";
+import { getSkinManifest } from "./skins";
+
+/**
+ * 스킨 에셋 로더 + 텍스처 캐시 관리
+ *
+ * 사용:
+ *   const sm = new SkinManager();
+ *   await sm.loadSkin("crystal");
+ *   const tex = sm.getTexture("noteSingle");
+ */
+export class SkinManager {
+  private manifest: SkinManifest | null = null;
+  private textures = new Map<string, Texture>();
+  private bombTextures: Texture[] = [];
+  private loaded = false;
+
+  /** 현재 로드된 스킨 ID */
+  get skinId(): string | null {
+    return this.manifest?.theme.id ?? null;
+  }
+
+  /** 스킨의 모든 에셋을 로드 */
+  async loadSkin(skinId: string): Promise<void> {
+    // 같은 스킨이면 스킵
+    if (this.loaded && this.manifest?.theme.id === skinId) return;
+
+    // 기존 텍스처 해제
+    this.dispose();
+
+    const manifest = getSkinManifest(skinId);
+    this.manifest = manifest;
+
+    const { assets } = manifest;
+
+    // 개별 에셋 로드
+    const entries: [string, string][] = [
+      ["noteSingle", assets.noteSingle],
+      ["noteDouble", assets.noteDouble],
+      ["terminalSingle", assets.terminalSingle],
+      ["terminalDouble", assets.terminalDouble],
+      ["bodySingle", assets.bodySingle],
+      ["bodyDouble", assets.bodyDouble],
+      ["bodySingleHeld", assets.bodySingleHeld],
+      ["bodyDoubleHeld", assets.bodyDoubleHeld],
+    ];
+
+    // 봄 프레임
+    for (let i = 0; i < assets.bomb.length; i++) {
+      entries.push([`bomb${i}`, assets.bomb[i]]);
+    }
+
+    // 모든 텍스처를 병렬 로드
+    const loadPromises = entries.map(async ([key, path]) => {
+      const texture = await Assets.load<Texture>(path);
+      this.textures.set(key, texture);
+    });
+
+    await Promise.all(loadPromises);
+
+    // 봄 텍스처 배열 구성
+    this.bombTextures = [];
+    for (let i = 0; i < assets.bomb.length; i++) {
+      this.bombTextures.push(this.textures.get(`bomb${i}`)!);
+    }
+
+    this.loaded = true;
+  }
+
+  /** 개별 텍스처 조회 */
+  getTexture(key: string): Texture {
+    if (!this.loaded) {
+      throw new Error("SkinManager: no skin loaded");
+    }
+    const tex = this.textures.get(key);
+    if (!tex) {
+      throw new Error(`SkinManager: unknown texture key "${key}"`);
+    }
+    return tex;
+  }
+
+  /** 봄 AnimatedSprite용 16프레임 텍스처 배열 */
+  getBombTextures(): Texture[] {
+    if (!this.loaded) {
+      throw new Error("SkinManager: no skin loaded");
+    }
+    return this.bombTextures;
+  }
+
+  /** 런타임 테마 (키빔, 글로우 등 동적 색상) */
+  getTheme(): SkinTheme {
+    if (!this.manifest) {
+      throw new Error("SkinManager: no skin loaded");
+    }
+    return this.manifest.theme;
+  }
+
+  /** 텍스처 메모리 해제 */
+  dispose(): void {
+    for (const [key] of this.textures) {
+      Assets.unload(key).catch(() => {});
+    }
+    this.textures.clear();
+    this.bombTextures = [];
+    this.manifest = null;
+    this.loaded = false;
+  }
+}
