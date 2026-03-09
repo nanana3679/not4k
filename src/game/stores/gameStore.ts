@@ -21,6 +21,7 @@ interface GameSettings {
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
+  skinId: string;
 }
 
 interface PlayResult {
@@ -86,6 +87,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
+  skinId: 'crystal',
 };
 
 export const useGameStore = create<GameState>()(

@@ -7,6 +7,7 @@ import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../renderer/constants';
+import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers } from '../../shared';
 
 export function PlayScreen() {
@@ -89,11 +90,14 @@ export function PlayScreen() {
 
         // Initialize game objects
         const audioEngine = new AudioEngine();
+        const skinManager = new SkinManager();
+        await skinManager.loadSkin(settings.skinId);
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
           width: logicalW,
           height: GAME_HEIGHT,
           resolution: scale * dpr,
+          skinManager,
         });
         await renderer.init();
 

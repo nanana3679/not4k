@@ -5,11 +5,12 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, FillGradient } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, NineSliceSprite } from "pixi.js";
 import type { FillInput } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
+import type { SkinManager } from "../skin";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -164,6 +165,7 @@ export interface GameRendererOptions {
   width: number;
   height: number;
   resolution?: number;
+  skinManager: SkinManager;
 }
 
 interface NoteRenderData {
@@ -204,7 +206,15 @@ export class GameRenderer {
   private judgmentTimer: number = 0;
   private showFastSlow: boolean = true;
 
-  // Object pools
+  // Skin
+  private skinManager: SkinManager;
+
+  // Object pools — Sprite-based (single/double/long/doubleLong)
+  private noteSpritePool: Map<number, Sprite> = new Map();
+  private bodySpritePool: Map<number, NineSliceSprite> = new Map();
+  private terminalSpritePool: Map<number, Sprite> = new Map();
+
+  // Object pools — Graphics fallback (trill/trillLong)
   private noteGraphicsPool: Map<number, Graphics> = new Map();
   private bodyGraphicsPool: Map<number, Graphics> = new Map();
   private failedBodies: Set<number> = new Set();
@@ -216,7 +226,7 @@ export class GameRenderer {
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
 
-  // Gradient cache
+  // Gradient cache (trill fallback only)
   private bodyGradientCache = new Map<number, FillGradient>();
   private keyBeamGradient: FillGradient | null = null;
 
@@ -249,6 +259,7 @@ export class GameRenderer {
     this.resolution = options.resolution ?? 1;
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this._judgmentLineY = options.height - JUDGMENT_LINE_OFFSET;
+    this.skinManager = options.skinManager;
 
     this.app = new Application();
 
@@ -322,7 +333,7 @@ export class GameRenderer {
       width: this.width,
       height: this.height,
       resolution: this.resolution,
-      backgroundColor: COLORS.BG,
+      backgroundColor: this.skinManager.getTheme().bg,
     });
 
     // Build scene graph
@@ -372,13 +383,17 @@ export class GameRenderer {
   }
 
   private buildKeyBeams(): void {
+    const bc = this.skinManager.getTheme().beamColor;
+    const br = (bc >> 16) & 0xff;
+    const bg = (bc >> 8) & 0xff;
+    const bb = bc & 0xff;
     this.keyBeamGradient = new FillGradient({
       type: 'linear',
       start: { x: 0.5, y: 0 },
       end: { x: 0.5, y: 1 },
       colorStops: [
-        { offset: 0, color: 'rgba(255,255,255,0)' },
-        { offset: 1, color: 'rgba(255,255,255,1)' },
+        { offset: 0, color: `rgba(${br},${bg},${bb},0)` },
+        { offset: 1, color: `rgba(${br},${bg},${bb},1)` },
       ],
       textureSpace: 'local',
     });
@@ -456,6 +471,9 @@ export class GameRenderer {
     }
 
     // Clear pools
+    this.noteSpritePool.clear();
+    this.bodySpritePool.clear();
+    this.terminalSpritePool.clear();
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
@@ -558,21 +576,27 @@ export class GameRenderer {
     if (this.completedNotes.has(index)) return;
 
     const y = this.calculateNoteY(timeMs, songTimeMs);
-
-    // Skip if above screen
     if (y < -NOTE_HEIGHT) return;
 
-    const graphic = this.getOrCreateNoteGraphic(index);
     const laneX = this.getLaneX(entity.lane);
-
-    graphic.x = laneX;
-    graphic.y = y;
-
-    // Draw note shape (50% alpha for double partial)
     const isPartial = this.doublePartialNotes.has(index);
-    this.drawNoteShape(graphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
 
-    this.noteLayer.addChild(graphic);
+    if (entity.type === "trill") {
+      // Trill: Graphics diamond fallback
+      const graphic = this.getOrCreateNoteGraphic(index);
+      graphic.x = laneX;
+      graphic.y = y;
+      this.drawNoteShape(graphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
+      this.noteLayer.addChild(graphic);
+    } else {
+      // Single/Double: Sprite from skin texture
+      const texKey = entity.type === "double" ? "noteDouble" : "noteSingle";
+      const sprite = this.getOrCreateNoteSprite(index, texKey);
+      sprite.x = laneX;
+      sprite.y = y;
+      sprite.alpha = isPartial ? 0.5 : 1;
+      this.noteLayer.addChild(sprite);
+    }
   }
 
   private renderLongNote(
@@ -609,44 +633,30 @@ export class GameRenderer {
     const isFailed = this.failedBodies.has(index);
     const isPartial = this.doublePartialNotes.has(index);
 
-    // Draw body
-    const bodyGraphic = this.getOrCreateBodyGraphic(index);
-    bodyGraphic.clear();
-    bodyGraphic.x = laneX;
-    bodyGraphic.y = adjustedEndY;
-
-    const bodyColor = isFailed
-      ? COLORS.LONG_BODY_FAILED
-      : this.getLongBodyColor(entity.type);
-
-    // Draw rectangular body for all long note types (horizontal gradient)
-    const bodyGradient = this.getBodyGradient(bodyColor);
     if (entity.type === "trillLong") {
-      // Shift body to cover inward half of each diamond
+      // ── Trill long: Graphics fallback (diamond head/terminal + gradient body) ──
+      const bodyGraphic = this.getOrCreateBodyGraphic(index);
+      bodyGraphic.clear();
+      bodyGraphic.x = laneX;
+      bodyGraphic.y = adjustedEndY;
+
+      const bodyColor = isFailed ? COLORS.LONG_BODY_FAILED : this.getLongBodyColor(entity.type);
+      const bodyGradient = this.getBodyGradient(bodyColor);
       const hh = NOTE_HEIGHT / 2;
       bodyGraphic.rect(0, hh, LANE_WIDTH, bodyHeight);
-    } else {
-      bodyGraphic.rect(0, 0, LANE_WIDTH, bodyHeight);
-    }
-    bodyGraphic.fill(bodyGradient);
+      bodyGraphic.fill(bodyGradient);
+      this.longNoteBodyLayer.addChild(bodyGraphic);
 
-    this.longNoteBodyLayer.addChild(bodyGraphic);
-
-    // Draw end diamond / rectangle
-    if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-      const endGraphic = new Graphics();
-      endGraphic.x = laneX;
-      endGraphic.y = adjustedEndY;
-      if (entity.type === "trillLong") {
+      // End diamond
+      if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        const endGraphic = new Graphics();
+        endGraphic.x = laneX;
+        endGraphic.y = adjustedEndY;
         this.drawNoteShape(endGraphic, entity.type, { color: 0x888888 });
-      } else {
-        this.drawNoteShape(endGraphic, entity.type, { color: bodyColor, alpha: 0.5, gradient: true });
+        this.longNoteEndLayer.addChild(endGraphic);
       }
-      this.longNoteEndLayer.addChild(endGraphic);
-    }
 
-    // Draw head diamond for trillLong (other types use the body edge as head)
-    if (entity.type === "trillLong") {
+      // Head diamond
       const headY = rawStartY;
       if (headY >= -NOTE_HEIGHT && headY <= this.height + NOTE_HEIGHT) {
         const headGraphic = new Graphics();
@@ -655,8 +665,31 @@ export class GameRenderer {
         this.drawNoteShape(headGraphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
         this.longNoteHeadLayer.addChild(headGraphic);
       }
-    }
+    } else {
+      // ── long / doubleLong: Sprite-based ──
+      const isDouble = entity.type === "doubleLong";
+      const bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+      const termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
 
+      // Body (NineSliceSprite)
+      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
+      bodySprite.x = laneX;
+      bodySprite.y = adjustedEndY;
+      bodySprite.width = LANE_WIDTH;
+      bodySprite.height = bodyHeight;
+      bodySprite.tint = isFailed ? COLORS.LONG_BODY_FAILED : 0xffffff;
+      bodySprite.alpha = isPartial ? 0.5 : 1;
+      this.longNoteBodyLayer.addChild(bodySprite);
+
+      // Terminal (end cap)
+      if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
+        termSprite.x = laneX;
+        termSprite.y = adjustedEndY;
+        termSprite.alpha = isFailed ? 0.5 : 1;
+        this.longNoteEndLayer.addChild(termSprite);
+      }
+    }
   }
 
   private drawNoteShape(
@@ -741,6 +774,39 @@ export class GameRenderer {
 
   private getLaneX(lane: number): number {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
+  }
+
+  private getOrCreateNoteSprite(index: number, texKey: string): Sprite {
+    let sprite = this.noteSpritePool.get(index);
+    if (!sprite) {
+      sprite = new Sprite(this.skinManager.getTexture(texKey));
+      this.noteSpritePool.set(index, sprite);
+    }
+    return sprite;
+  }
+
+  private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite {
+    let sprite = this.bodySpritePool.get(index);
+    if (!sprite) {
+      sprite = new NineSliceSprite({
+        texture: this.skinManager.getTexture(texKey),
+        leftWidth: 4,
+        rightWidth: 4,
+        topHeight: 4,
+        bottomHeight: 4,
+      });
+      this.bodySpritePool.set(index, sprite);
+    }
+    return sprite;
+  }
+
+  private getOrCreateTerminalSprite(index: number, texKey: string): Sprite {
+    let sprite = this.terminalSpritePool.get(index);
+    if (!sprite) {
+      sprite = new Sprite(this.skinManager.getTexture(texKey));
+      this.terminalSpritePool.set(index, sprite);
+    }
+    return sprite;
   }
 
   private getOrCreateNoteGraphic(index: number): Graphics {
@@ -1004,6 +1070,9 @@ export class GameRenderer {
     if (!this.initialized) return;
     this.initialized = false;
     this.app.destroy(true, { children: true, texture: true });
+    this.noteSpritePool.clear();
+    this.bodySpritePool.clear();
+    this.terminalSpritePool.clear();
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
     this.failedBodies.clear();
