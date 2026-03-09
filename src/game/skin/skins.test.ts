@@ -36,3 +36,34 @@ describe("getSkinManifest", () => {
     );
   });
 });
+
+describe("SkinTheme", () => {
+  it("모든 스킨의 테마 색상값이 유효한 24비트 정수", () => {
+    const colorKeys = ["accent", "beamColor", "heldLine", "heldGlow", "bg", "text"] as const;
+    for (const skin of SKIN_LIST) {
+      for (const key of colorKeys) {
+        const value = skin.theme[key];
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThanOrEqual(0xffffff);
+        expect(Number.isInteger(value)).toBe(true);
+      }
+    }
+  });
+
+  it("모든 스킨의 에셋 경로가 .png 확장자", () => {
+    for (const skin of SKIN_LIST) {
+      const { assets } = skin;
+      const paths = [
+        assets.noteSingle, assets.noteDouble,
+        assets.terminalSingle, assets.terminalDouble,
+        assets.bodySingle, assets.bodyDouble,
+        assets.bodySingleHeld, assets.bodyDoubleHeld,
+        assets.gearFrame,
+        ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
+      ];
+      for (const p of paths) {
+        expect(p).toMatch(/\.png$/);
+      }
+    }
+  });
+});
