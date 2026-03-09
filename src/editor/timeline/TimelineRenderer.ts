@@ -1163,7 +1163,6 @@ export class TimelineRenderer {
       body.fill(bodyGradient);
 
       if (isSelected) {
-        body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongBodyLayer.addChild(body);
       } else {
         this.longNoteBodyLayer.addChild(body);
@@ -1189,7 +1188,6 @@ export class TimelineRenderer {
     }
 
     if (isSelected) {
-      end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongEndLayer.addChild(end);
     } else {
       this.longNoteEndLayer.addChild(end);
@@ -1212,11 +1210,15 @@ export class TimelineRenderer {
         startCap.fill(headGradient);
       }
       if (isSelected) {
-        startCap.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongHeadLayer.addChild(startCap);
       } else {
         this.longNoteHeadLayer.addChild(startCap);
       }
+    }
+
+    // 선택 윤곽선: 전체 범위를 하나의 rect로 (호버와 동일 로직)
+    if (isSelected) {
+      this.drawRangeNoteOutline(topY, bottomY, x, LANE_WIDTH, w, h, COLORS.SELECTED_OUTLINE, 2, this.selectedLongBodyLayer);
     }
   }
 
@@ -1338,7 +1340,6 @@ export class TimelineRenderer {
       body.fill(bodyGradient);
 
       if (isSelected) {
-        body.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
         this.selectedLongBodyLayer.addChild(body);
       } else {
         this.longNoteBodyLayer.addChild(body);
@@ -1359,7 +1360,6 @@ export class TimelineRenderer {
       end.fill({ fill: bodyGradient, alpha: 0.5 });
     }
     if (isSelected) {
-      end.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongEndLayer.addChild(end);
     } else {
       this.longNoteEndLayer.addChild(end);
@@ -1379,11 +1379,29 @@ export class TimelineRenderer {
       head.fill(bodyGradient);
     }
     if (isSelected) {
-      head.stroke({ width: 2, color: COLORS.SELECTED_OUTLINE, alignment: 0 });
       this.selectedLongHeadLayer.addChild(head);
     } else {
       this.longNoteHeadLayer.addChild(head);
     }
+
+    // 선택 윤곽선: 전체 범위를 하나의 rect로 (호버와 동일 로직)
+    if (isSelected) {
+      this.drawRangeNoteOutline(topY, bottomY, x, laneWidth, w, h, COLORS.SELECTED_OUTLINE, 2, this.selectedLongBodyLayer);
+    }
+  }
+
+  /**
+   * 롱노트 전체 범위를 하나의 rect 윤곽선으로 그린다.
+   * 선택/호버 하이라이트에서 공통으로 사용한다.
+   */
+  private drawRangeNoteOutline(
+    topY: number, bottomY: number, x: number, laneWidth: number,
+    w: number, h: number, color: number, lineWidth: number, layer: Container,
+  ): void {
+    const gfx = new Graphics();
+    gfx.rect(x + (laneWidth - w) / 2, topY - h / 2, w, bottomY - topY + h);
+    gfx.stroke({ width: lineWidth, color, alignment: 0 });
+    layer.addChild(gfx);
   }
 
   /** Show ghost note in extra lane */
@@ -1641,16 +1659,7 @@ export class TimelineRenderer {
         const endY = this.timeToY(endMs);
         const topY = Math.min(startY, endY);
         const bottomY = Math.max(startY, endY);
-        // Outline covering entire range note
-        const gfx = new Graphics();
-        const isDiamond = note.type === "trillLong";
-        if (isDiamond) {
-          gfx.rect(x + (LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
-        } else {
-          gfx.rect(x + (LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
-        }
-        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
-        this.hoverLayer.addChild(gfx);
+        this.drawRangeNoteOutline(topY, bottomY, x, LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.hoverLayer);
       } else {
         const gfx = new Graphics();
         if (note.type === "trill") {
@@ -1677,18 +1686,18 @@ export class TimelineRenderer {
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const startY = this.timeToY(startMs);
 
-      const gfx = new Graphics();
       if ("endBeat" in note) {
         const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
         const endY = this.timeToY(endMs);
         const topY = Math.min(startY, endY);
         const bottomY = Math.max(startY, endY);
-        gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, topY - h / 2, w, bottomY - topY + h);
+        this.drawRangeNoteOutline(topY, bottomY, x, EXTRA_LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.hoverLayer);
       } else {
+        const gfx = new Graphics();
         gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, startY - h / 2, w, h);
+        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
+        this.hoverLayer.addChild(gfx);
       }
-      gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
-      this.hoverLayer.addChild(gfx);
     }
   }
 
