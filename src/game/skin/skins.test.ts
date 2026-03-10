@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { SKIN_LIST, getSkinManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
-  it("7개 스킨이 등록되어 있음", () => {
-    expect(SKIN_LIST).toHaveLength(7);
+  it("8개 스킨이 등록되어 있음", () => {
+    expect(SKIN_LIST).toHaveLength(8);
   });
 
   it("모든 스킨 ID가 고유함", () => {

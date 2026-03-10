@@ -23,6 +23,7 @@ const SKIN_IDS = [
   "forge",
   "prism",
   "fossil",
+  "classic",
 ];
 
 const ASSETS = [

@@ -98,6 +98,16 @@ export const SKIN_LIST: SkinManifest[] = [
     bg: 0x1a1208,
     text: 0xd8c8a0,
   }),
+  buildManifest("classic", {
+    id: "classic",
+    name: "Classic",
+    accent: 0x4488ff,
+    beamColor: 0xffffff,
+    heldLine: 0x4488ff,
+    heldGlow: 0x4488ff,
+    bg: 0x0a0a14,
+    text: 0xe0e0e0,
+  }),
 ];
 
 export function getSkinManifest(skinId: string): SkinManifest {

@@ -927,7 +927,9 @@ export class GameRenderer {
     anim.anchor.set(0.5, 0.5);
     anim.x = this.getLaneX(lane) + LANE_WIDTH / 2;
     anim.y = this._judgmentLineY;
-    anim.animationSpeed = 16 / 60; // 16프레임을 ~267ms에 재생 (60fps 기준)
+    anim.width = 120;  // 원본 80 × 1.5
+    anim.height = 120;
+    anim.animationSpeed = 1; // 1프레임/틱 → 60fps에서 16프레임 = 267ms
     anim.loop = false;
     anim.onComplete = () => {
       anim.destroy();

@@ -10,9 +10,10 @@ import * as sakura from "./sakura/components.jsx";
 import * as forge from "./forge/components.jsx";
 import * as prism from "./prism/components.jsx";
 import * as fossil from "./fossil/components.jsx";
+import * as classic from "./classic/components.jsx";
 
 const skins = {
-  crystal, abyssal, circuit, sakura, forge, prism, fossil,
+  crystal, abyssal, circuit, sakura, forge, prism, fossil, classic,
 };
 
 const BODY_H = 60; // NineSlice용 바디 높이
