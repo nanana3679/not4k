@@ -1,23 +1,20 @@
 import { SharedDefs } from "./shared/ui.jsx";
-import { CW, CH } from "./shared/constants.js";
+import { CW, CH, GF_W, GF_H } from "./shared/constants.js";
 import { BOMB_FRAMES } from "./shared/bomb.js";
 
 // 각 스킨의 컴포넌트와 팔레트를 정적으로 import
 import * as crystal from "./crystal/components.jsx";
-import * as abyssal from "./abyssal/components.jsx";
-import * as circuit from "./circuit/components.jsx";
-import * as sakura from "./sakura/components.jsx";
-import * as forge from "./forge/components.jsx";
 import * as prism from "./prism/components.jsx";
-import * as fossil from "./fossil/components.jsx";
 import * as classic from "./classic/components.jsx";
 
 const skins = {
-  crystal, abyssal, circuit, sakura, forge, prism, fossil, classic,
+  crystal, prism, classic,
 };
 
 const BODY_H = 60; // NineSlice용 바디 높이
 const BTN_SIZE = 60; // 버튼 export 크기
+const GEAR_W = GF_W; // 447
+const GEAR_H = GF_H; // 1080
 
 function SvgWrap({ id, w, h, children }) {
   return (
@@ -71,6 +68,13 @@ function SkinExports({ skinId, C }) {
           <C.BombFrame cx={40} cy={40} frame={fi} id={`${skinId}_export_${fi}`} />
         </SvgWrap>
       ))}
+
+      {/* 기어 프레임 */}
+      {C.GearFrameExport && (
+        <SvgWrap id={`${skinId}--gear-frame`} w={GEAR_W} h={GEAR_H}>
+          <C.GearFrameExport />
+        </SvgWrap>
+      )}
 
       {/* 버튼 (idle × 4, pressed × 4) */}
       {C.ButtonExport && [false, true].map(pressed =>

@@ -17,14 +17,11 @@ const OUTPUT = resolve(ROOT, "public/skins");
 
 const SKIN_IDS = [
   "crystal",
-  "abyssal",
-  "circuit",
-  "sakura",
-  "forge",
   "prism",
-  "fossil",
   "classic",
 ];
+
+const SCALES = [1, 2];
 
 const ASSETS = [
   "note-single",
@@ -40,6 +37,7 @@ const ASSETS = [
   ),
   ...Array.from({ length: 4 }, (_, i) => `button-idle-${i + 1}`),
   ...Array.from({ length: 4 }, (_, i) => `button-pressed-${i + 1}`),
+  "gear-frame",
 ];
 
 async function main() {
@@ -58,42 +56,50 @@ async function main() {
 
   // 2. Playwright 브라우저 시작
   const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.goto(url, { waitUntil: "networkidle" });
 
-  // export-ready 마커 대기
-  await page.waitForSelector("#export-ready", { timeout: 10000, state: "attached" });
-  console.log("  Export page loaded\n");
-
-  // 3. 각 스킨의 각 에셋 캡처
   let total = 0;
-  for (const skinId of SKIN_IDS) {
-    const skinDir = resolve(OUTPUT, skinId);
-    if (!existsSync(skinDir)) {
-      mkdirSync(skinDir, { recursive: true });
-    }
+  for (const scale of SCALES) {
+    const scaleLabel = scale === 1 ? "@1x" : `@${scale}x`;
+    console.log(`\n  === ${scaleLabel} ===`);
 
-    const results = [];
-    for (const asset of ASSETS) {
-      const elId = `${skinId}--${asset}`;
-      const el = page.locator(`#${elId}`);
+    const context = await browser.newContext({ deviceScaleFactor: scale });
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "networkidle" });
+    await page.waitForSelector("#export-ready", { timeout: 10000, state: "attached" });
 
-      const count = await el.count();
-      if (count === 0) {
-        console.warn(`  ⚠ Missing: ${elId}`);
-        continue;
+    // 3. 각 스킨의 각 에셋 캡처
+    for (const skinId of SKIN_IDS) {
+      const skinDir = scale === 1
+        ? resolve(OUTPUT, skinId)
+        : resolve(OUTPUT, skinId, `@${scale}x`);
+      if (!existsSync(skinDir)) {
+        mkdirSync(skinDir, { recursive: true });
       }
 
-      const outPath = resolve(skinDir, `${asset}.png`);
-      await el.screenshot({
-        path: outPath,
-        omitBackground: true,
-      });
-      results.push(asset);
-      total++;
+      const results = [];
+      for (const asset of ASSETS) {
+        const elId = `${skinId}--${asset}`;
+        const el = page.locator(`#${elId}`);
+
+        const count = await el.count();
+        if (count === 0) {
+          console.warn(`  ⚠ Missing: ${elId}`);
+          continue;
+        }
+
+        const outPath = resolve(skinDir, `${asset}.png`);
+        await el.screenshot({
+          path: outPath,
+          omitBackground: true,
+        });
+        results.push(asset);
+        total++;
+      }
+
+      console.log(`  ✓ ${skinId} ${scaleLabel}: ${results.length} assets`);
     }
 
-    console.log(`  ✓ ${skinId}: ${results.length} assets`);
+    await context.close();
   }
 
   // 4. 정리
