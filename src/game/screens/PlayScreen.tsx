@@ -81,8 +81,7 @@ export function PlayScreen() {
         const containerH = containerRef.current!.clientHeight;
         const aspectRatio = containerW / containerH;
         const logicalW = Math.max(Math.round(GAME_HEIGHT * aspectRatio), LANE_AREA_WIDTH + 80);
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const scale = containerH / GAME_HEIGHT;
+        const resolution = settings.renderHeight / GAME_HEIGHT;
 
         // Set canvas CSS size to fill container
         canvasRef.current.style.width = `${containerW}px`;
@@ -96,7 +95,7 @@ export function PlayScreen() {
           canvas: canvasRef.current,
           width: logicalW,
           height: GAME_HEIGHT,
-          resolution: scale * dpr,
+          resolution,
           skinManager,
         });
         await renderer.init();

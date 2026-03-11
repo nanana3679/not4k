@@ -191,6 +191,19 @@ export function SettingsScreen() {
             </div>
 
             <div style={styles.setting}>
+              <label style={styles.label}>Render Resolution:</label>
+              <select
+                value={settings.renderHeight}
+                onChange={(e) => updateSettings({ renderHeight: Number(e.target.value) })}
+                style={styles.select}
+              >
+                <option value="720">720p</option>
+                <option value="1080">1080p</option>
+                <option value="1440">1440p</option>
+              </select>
+            </div>
+
+            <div style={styles.setting}>
               <label style={styles.label}>Target FPS:</label>
               <select
                 value={settings.targetFps}

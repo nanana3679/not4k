@@ -22,6 +22,7 @@ interface GameSettings {
   isFirstLaunch: boolean;
   showFastSlow: boolean;
   skinId: string;
+  renderHeight: number;
 }
 
 interface PlayResult {
@@ -88,6 +89,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   isFirstLaunch: true,
   showFastSlow: true,
   skinId: 'crystal',
+  renderHeight: 1080,
 };
 
 export const useGameStore = create<GameState>()(
