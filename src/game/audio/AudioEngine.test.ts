@@ -60,6 +60,43 @@ beforeEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe("AudioEngine getOutputLatencyMs", () => {
+  it("AudioContext가 없으면 0 반환", () => {
+    // ctx는 constructor에서 항상 생성되므로, ctx의 속성이 없는 케이스를 테스트
+    // baseLatency와 outputLatency 둘 다 undefined인 경우
+    const ctxWithoutLatency = createMockAudioContext();
+    delete ctxWithoutLatency.baseLatency;
+    delete ctxWithoutLatency.outputLatency;
+    (globalThis as any).AudioContext = function () {
+      return ctxWithoutLatency;
+    };
+    const engine = new AudioEngine();
+    expect(engine.getOutputLatencyMs()).toBe(0);
+  });
+
+  it("baseLatency만 있으면 baseLatency * 1000 반환", () => {
+    const ctxWithBase = createMockAudioContext();
+    ctxWithBase.baseLatency = 0.005; // 5ms
+    delete ctxWithBase.outputLatency;
+    (globalThis as any).AudioContext = function () {
+      return ctxWithBase;
+    };
+    const engine = new AudioEngine();
+    expect(engine.getOutputLatencyMs()).toBe(5);
+  });
+
+  it("baseLatency + outputLatency 둘 다 있으면 합산 * 1000 반환", () => {
+    const ctxWithBoth = createMockAudioContext();
+    ctxWithBoth.baseLatency = 0.005; // 5ms
+    ctxWithBoth.outputLatency = 0.01; // 10ms
+    (globalThis as any).AudioContext = function () {
+      return ctxWithBoth;
+    };
+    const engine = new AudioEngine();
+    expect(engine.getOutputLatencyMs()).toBe(15);
+  });
+});
+
 describe("AudioEngine playbackRate", () => {
   it("기본 playbackRate = 1.0", () => {
     const engine = new AudioEngine();

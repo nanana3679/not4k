@@ -231,6 +231,18 @@ export class AudioEngine {
   }
 
   /**
+   * Get audio output latency in milliseconds.
+   * Combines baseLatency and outputLatency from AudioContext.
+   * Returns 0 if AudioContext or properties are unavailable.
+   */
+  getOutputLatencyMs(): number {
+    if (!this.ctx) return 0;
+    const base = this.ctx.baseLatency ?? 0;
+    const output = (this.ctx as any).outputLatency ?? 0;
+    return (base + output) * 1000;
+  }
+
+  /**
    * Dispose resources and close audio context
    * Call when engine is no longer needed
    */
