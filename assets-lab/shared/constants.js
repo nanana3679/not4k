@@ -13,7 +13,3 @@ export const LANE_BOT = LANE_TOP + LANE_H;
 export const JUDGE_Y = LANE_BOT - CH * 2;
 
 export const noteX = (i) => GEAR_PAD + i * LANE_W + (LANE_W - CW) / 2;
-
-/** 기어 프레임 전체 크기 */
-export const GF_W = 447;
-export const GF_H = 1080;

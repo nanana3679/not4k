@@ -12,7 +12,7 @@ const skins = {
 };
 
 const BODY_H = 60; // NineSlice용 바디 높이
-const BTN_SIZE = 70; // 버튼 export 크기 (게임 렌더링 크기와 1:1 매칭)
+const BTN_SIZE = 60; // 버튼 export 크기
 const GEAR_W = GF_W; // 447
 const GEAR_H = GF_H; // 1080
 
@@ -85,7 +85,7 @@ function SkinExports({ skinId, C }) {
             w={BTN_SIZE}
             h={BTN_SIZE}
           >
-            <C.ButtonExport cx={BTN_SIZE / 2} cy={BTN_SIZE / 2} pressed={pressed} lane={lane} />
+            <C.ButtonExport cx={BTN_SIZE / 2} cy={BTN_SIZE / 2} pressed={pressed} />
           </SvgWrap>
         ))
       )}

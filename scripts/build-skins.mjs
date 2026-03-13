@@ -21,7 +21,7 @@ const SKIN_IDS = [
   "classic",
 ];
 
-const SCALES = [4];
+const SCALES = [1, 2];
 
 const ASSETS = [
   "note-single",
@@ -69,7 +69,9 @@ async function main() {
 
     // 3. 각 스킨의 각 에셋 캡처
     for (const skinId of SKIN_IDS) {
-      const skinDir = resolve(OUTPUT, skinId);
+      const skinDir = scale === 1
+        ? resolve(OUTPUT, skinId)
+        : resolve(OUTPUT, skinId, `@${scale}x`);
       if (!existsSync(skinDir)) {
         mkdirSync(skinDir, { recursive: true });
       }
