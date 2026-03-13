@@ -5,3 +5,4 @@ export { LoadingScreen } from './LoadingScreen';
 export { PlayScreen } from './PlayScreen';
 export { ResultScreen } from './ResultScreen';
 export { SettingsScreen } from './SettingsScreen';
+export { CalibrationScreen } from './CalibrationScreen';
