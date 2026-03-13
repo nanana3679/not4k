@@ -152,6 +152,18 @@ export function SettingsScreen() {
             <h2 style={styles.sectionTitle}>Gameplay</h2>
 
             <div style={styles.setting}>
+              <label style={styles.label}>Judgment Mode:</label>
+              <select
+                value={settings.judgmentMode ?? 'normal'}
+                onChange={(e) => updateSettings({ judgmentMode: e.target.value as 'normal' | 'easy' })}
+                style={styles.select}
+              >
+                <option value="normal">Normal</option>
+                <option value="easy">Easy</option>
+              </select>
+            </div>
+
+            <div style={styles.setting}>
               <label style={styles.label}>Play Speed: x{(settings.playSpeed ?? 1).toFixed(2)}</label>
               <input
                 type="range"

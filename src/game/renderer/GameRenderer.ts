@@ -208,6 +208,7 @@ export class GameRenderer {
   private judgmentTimer: number = 0;
   private showFastSlow: boolean = true;
   private showTimingDiff: boolean = false;
+  private perfectWindow: number = JUDGMENT_WINDOWS.PERFECT;
 
   // Skin
   private skinManager: SkinManager;
@@ -941,7 +942,7 @@ export class GameRenderer {
     this.judgmentText.alpha = 1;
 
     // Update FAST/SLOW text (hide within inner half of Perfect window)
-    const fastSlowThreshold = JUDGMENT_WINDOWS.PERFECT / 2;
+    const fastSlowThreshold = this.perfectWindow / 2;
     if (this.showFastSlow && deltaMs != null && grade !== "miss" && Math.abs(deltaMs) > fastSlowThreshold) {
       if (deltaMs < 0) {
         this.fastSlowText.text = "FAST";
@@ -999,6 +1000,10 @@ export class GameRenderer {
 
   setShowTimingDiff(enabled: boolean): void {
     this.showTimingDiff = enabled;
+  }
+
+  setPerfectWindow(windowMs: number): void {
+    this.perfectWindow = windowMs;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {

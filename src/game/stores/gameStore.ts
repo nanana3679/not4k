@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Chart } from '../../shared';
+import type { JudgmentMode } from '../../shared/constants/judgment';
 
 type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings';
 
@@ -25,6 +26,7 @@ interface GameSettings {
   skinId: string;
   renderHeight: number;
   playSpeed: number;
+  judgmentMode: JudgmentMode;
 }
 
 interface PlayResult {
@@ -94,6 +96,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   skinId: 'crystal',
   renderHeight: 1080,
   playSpeed: 1.0,
+  judgmentMode: 'normal' as JudgmentMode,
 };
 
 export const useGameStore = create<GameState>()(

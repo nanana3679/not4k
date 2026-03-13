@@ -8,7 +8,7 @@ import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../renderer/constants';
 import { SkinManager } from '../skin';
-import { beatToMs, extractBpmMarkers } from '../../shared';
+import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
 
 export function PlayScreen() {
   const { settings, setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -112,6 +112,7 @@ export function PlayScreen() {
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setShowFastSlow(settings.showFastSlow);
         renderer.setShowTimingDiff(settings.showTimingDiff);
+        renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
         renderer.setLift(GAME_HEIGHT * settings.liftPercent / 100);
         renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
 
@@ -129,7 +130,7 @@ export function PlayScreen() {
         const scoreManager = new ScoreManager((totalJudgments - skippedJudgments) || 1);
 
         // Create judgment engine
-        // TODO: Easy 모드 구현 시 getJudgmentWindows(settings.judgmentMode)를 5번째 인자로 전달
+        const windows = getJudgmentWindows(settings.judgmentMode);
         const judgmentEngine = new JudgmentEngine(
           chartData.notes,
           noteTimesMs,
@@ -167,7 +168,8 @@ export function PlayScreen() {
             onComboUpdate: (combo: number) => {
               renderer.updateCombo(combo);
             },
-          }
+          },
+          windows
         );
 
         // Create input system
