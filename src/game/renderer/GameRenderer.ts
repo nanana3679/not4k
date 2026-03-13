@@ -442,7 +442,7 @@ export class GameRenderer {
   }
 
   private buildButtons(): void {
-    const BTN_SIZE = 40; // 게임 내 버튼 렌더링 크기
+    const BTN_SIZE = 70; // 에셋 원본 크기와 1:1 매칭
     for (let i = 0; i < LANE_COUNT; i++) {
       const texKey = `buttonIdle${i}`;
       let tex;
@@ -450,12 +450,9 @@ export class GameRenderer {
       const sprite = new Sprite(tex);
       sprite.width = BTN_SIZE;
       sprite.height = BTN_SIZE;
-      sprite.anchor.set(0.5, 0);
+      sprite.anchor.set(0.5, 0.5);
       sprite.x = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
-      sprite.y = this._judgmentLineY + 4;
       sprite.alpha = 0.8;
-      const lane = i + 1;
-      sprite.tint = KB_IDLE_COLORS[lane] ?? 0x222222;
       this.buttonSprites.push(sprite);
       this.buttonLayer.addChild(sprite);
     }
@@ -470,12 +467,8 @@ export class GameRenderer {
     if (idx >= 0 && idx < this.buttonSprites.length) {
       const texKey = pressed ? `buttonPressed${idx}` : `buttonIdle${idx}`;
       try {
-        const lane = idx + 1;
         this.buttonSprites[idx].texture = this.skinManager.getTexture(texKey);
         this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
-        this.buttonSprites[idx].tint = pressed
-          ? (KB_PRESSED_COLORS[lane] ?? 0x888888)
-          : (KB_IDLE_COLORS[lane] ?? 0x222222);
       } catch { /* 텍스처 미로드 시 무시 */ }
     }
   }
@@ -484,9 +477,36 @@ export class GameRenderer {
     this.laneCoverGraphic.clear();
     const coverY = this._judgmentLineY + 2;
     const coverHeight = this.height - coverY;
-    if (coverHeight > 0) {
-      this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, coverHeight);
-      this.laneCoverGraphic.fill(0x000000);
+    if (coverHeight <= 0) return;
+
+    // 전체 검은 배경
+    this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, coverHeight);
+    this.laneCoverGraphic.fill(0x000000);
+
+    // 레인별 셀 배경 + 구분선
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const laneX = this.laneAreaX + i * LANE_WIDTH;
+      // 짝수/홀수 레인 미세 톤 차이
+      const cellColor = i % 2 === 0 ? 0x0a0a18 : 0x080814;
+      this.laneCoverGraphic.rect(laneX, coverY, LANE_WIDTH, coverHeight);
+      this.laneCoverGraphic.fill(cellColor);
+    }
+
+    // 레인 구분선
+    for (let i = 1; i < LANE_COUNT; i++) {
+      const sepX = this.laneAreaX + i * LANE_WIDTH;
+      this.laneCoverGraphic.rect(sepX - 0.5, coverY, 1, coverHeight);
+      this.laneCoverGraphic.fill({ color: 0x333355, alpha: 0.6 });
+    }
+
+    // 상단 하이라이트 라인 (판정선 바로 아래)
+    this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, 1);
+    this.laneCoverGraphic.fill({ color: 0x444466, alpha: 0.5 });
+
+    // 버튼 높이 기준 가운데 정렬
+    const btnCenterY = coverY + coverHeight / 2;
+    for (const btn of this.buttonSprites) {
+      btn.y = btnCenterY;
     }
   }
 
@@ -862,6 +882,8 @@ export class GameRenderer {
     let sprite = this.noteSpritePool.get(index);
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
+      sprite.width = NOTE_WIDTH;
+      sprite.height = NOTE_HEIGHT;
       this.noteSpritePool.set(index, sprite);
     }
     return sprite;
@@ -886,6 +908,8 @@ export class GameRenderer {
     let sprite = this.terminalSpritePool.get(index);
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
+      sprite.width = NOTE_WIDTH;
+      sprite.height = NOTE_HEIGHT;
       this.terminalSpritePool.set(index, sprite);
     }
     return sprite;
@@ -1077,10 +1101,7 @@ export class GameRenderer {
     this.judgmentText.y = this.height / 2 + 20;
     this.fastSlowText.y = this.height / 2 + 50;
     this.timingDiffText.y = this.height / 2;
-    // Update button positions
-    for (const btn of this.buttonSprites) {
-      btn.y = this._judgmentLineY + 4;
-    }
+    // 버튼 위치는 drawLaneCover에서 갱신됨
   }
 
   setSudden(y: number): void {

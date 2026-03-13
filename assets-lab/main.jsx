@@ -14,12 +14,8 @@ function renderApp() {
 
 const skins = [
   { id: "crystal", name: "Crystal", App: lazy(() => import("./crystal/crystal.jsx")) },
-  { id: "abyssal", name: "Abyssal", App: lazy(() => import("./abyssal/abyssal.jsx")) },
-  { id: "circuit", name: "Circuit", App: lazy(() => import("./circuit/circuit.jsx")) },
-  { id: "sakura", name: "Sakura", App: lazy(() => import("./sakura/sakura.jsx")) },
-  { id: "forge", name: "Forge", App: lazy(() => import("./forge/forge.jsx")) },
   { id: "prism", name: "Prism", App: lazy(() => import("./prism/prism.jsx")) },
-  { id: "fossil", name: "Fossil", App: lazy(() => import("./fossil/fossil.jsx")) },
+  { id: "btn-samples", name: "Buttons", App: lazy(() => import("./classic/button-samples.jsx")) },
 ];
 
 function Root() {

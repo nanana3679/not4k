@@ -106,14 +106,29 @@ export function Core() { return null; }
 export function Holder() { return null; }
 export function Wire() { return null; }
 
-/* ── 버튼 ── */
-export function ButtonExport({ cx, cy, pressed }) {
+/* ── 버튼 (다이아몬드 스타, 레인별 색상) ── */
+const BTN_COLORS = {
+  idle:    { 1: "#662222", 2: "#663333", 3: "#223366", 4: "#222266" },
+  pressed: { 1: "#ff4444", 2: "#ff6655", 3: "#5588ff", 4: "#4466ff" },
+};
+
+export function ButtonExport({ cx, cy, pressed, lane = 1 }) {
+  const col = pressed ? (BTN_COLORS.pressed[lane] || "#ccccdd") : (BTN_COLORS.idle[lane] || "#888899");
+  const S = 9.3, s = 2.6;
+  const star = `M${cx},${cy-S} L${cx+s},${cy-s} L${cx+S},${cy} L${cx+s},${cy+s} L${cx},${cy+S} L${cx-s},${cy+s} L${cx-S},${cy} L${cx-s},${cy-s}Z`;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={22} fill={pressed ? "#555566" : "#333355"} stroke="#444466" strokeWidth="1.5" />
-      <circle cx={cx} cy={cy} r={16} fill={pressed ? "#6666aa" : "#444477"} stroke={pressed ? "#8888cc" : "#555588"} strokeWidth="1" />
+      {/* 외곽 다이아몬드 (대각선 ~57px, 70px 캔버스 내) */}
+      <rect x={cx-20} y={cy-20} width="40" height="40"
+        transform={`rotate(45 ${cx} ${cy})`}
+        fill={col} stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+      {/* 중앙 별 */}
+      <path d={star} fill={pressed ? "#ffffff" : "rgba(255,255,255,0.6)"} strokeWidth="0.5" />
+      {/* pressed 글로우 (대각선 ~65px, 70px 캔버스 내) */}
       {pressed && (
-        <circle cx={cx} cy={cy} r={18} fill="none" stroke={P.single.bright} strokeWidth="2" opacity=".4" />
+        <rect x={cx-23} y={cy-23} width="46" height="46"
+          transform={`rotate(45 ${cx} ${cy})`}
+          fill="none" stroke={col} strokeWidth="2" opacity=".5" />
       )}
     </g>
   );
