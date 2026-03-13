@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Chart } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
 
-type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings';
+type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings' | 'calibration';
 
 interface KeyBindings {
   lane1: string[];
