@@ -275,6 +275,15 @@ export function SettingsScreen() {
             </div>
 
             <div style={styles.setting}>
+              <button
+                style={styles.calibrationBtn}
+                onClick={() => setScreen('calibration')}
+              >
+                Calibrate Offsets
+              </button>
+            </div>
+
+            <div style={styles.setting}>
               <label style={styles.label}>
                 <input
                   type="checkbox"
@@ -549,6 +558,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   skinName: {
     fontSize: '13px',
+    fontWeight: 600,
+  },
+  calibrationBtn: {
+    width: '100%',
+    padding: '10px 24px',
+    backgroundColor: '#00ffff',
+    color: '#1a1a1a',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
     fontWeight: 600,
   },
 };
