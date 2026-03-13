@@ -275,6 +275,18 @@ export function SettingsScreen() {
                 Show Timing Diff
               </label>
             </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>
+                <input
+                  type="checkbox"
+                  checked={settings.debugMode ?? false}
+                  onChange={(e) => updateSettings({ debugMode: e.target.checked })}
+                  style={styles.checkbox}
+                />
+                Debug Mode
+              </label>
+            </div>
           </div>
 
           <div style={styles.section}>

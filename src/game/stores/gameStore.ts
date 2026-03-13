@@ -27,6 +27,7 @@ interface GameSettings {
   renderHeight: number;
   playSpeed: number;
   judgmentMode: JudgmentMode;
+  debugMode: boolean;
 }
 
 interface PlayResult {
@@ -97,6 +98,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   renderHeight: 1080,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
+  debugMode: false,
 };
 
 export const useGameStore = create<GameState>()(
