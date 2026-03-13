@@ -342,7 +342,7 @@ export class GameRenderer {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = this.width / 2;
-    this.timingDiffText.y = this._judgmentLineY - 15;
+    this.timingDiffText.y = this._judgmentLineY - 68;
     this.timingDiffText.alpha = 0;
   }
 
@@ -1022,7 +1022,7 @@ export class GameRenderer {
     this.accuracyText.y = this._judgmentLineY - 85;
     this.judgmentText.y = this._judgmentLineY - 45;
     this.fastSlowText.y = this._judgmentLineY - 15;
-    this.timingDiffText.y = this._judgmentLineY - 15;
+    this.timingDiffText.y = this._judgmentLineY - 68;
     // Update button positions
     for (const btn of this.buttonSprites) {
       btn.y = this._judgmentLineY + 4;
