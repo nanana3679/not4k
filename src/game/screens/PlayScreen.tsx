@@ -202,15 +202,21 @@ export function PlayScreen() {
         });
 
         const inputSystem = new InputSystem(keyBindings, {
-          onLanePress: (lane, _timestampMs, keyCode) => {
-            const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
-            judgmentEngine.onLanePress(lane, songTimeMs, keyCode);
+          onLanePress: (lane, timestampMs, keyCode) => {
+            const now = performance.now();
+            const currentAudioMs = audioEngine.currentTimeMs;
+            const handlerDelay = Math.max(0, now - timestampMs);
+            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.offsetMs;
+            judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
           },
-          onLaneRelease: (lane, _timestampMs, keyCode) => {
-            const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
-            judgmentEngine.onLaneRelease(lane, songTimeMs, keyCode);
+          onLaneRelease: (lane, timestampMs, keyCode) => {
+            const now = performance.now();
+            const currentAudioMs = audioEngine.currentTimeMs;
+            const handlerDelay = Math.max(0, now - timestampMs);
+            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.offsetMs;
+            judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
           },
@@ -244,6 +250,7 @@ export function PlayScreen() {
         const gameLoop = (timestamp: number) => {
           if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
+            const visualTimeMs = songTimeMs + audioEngine.getOutputLatencyMs();
 
             // Record frame timing for debug logger
             if (debugLogger && lastFrameTime !== null) {
@@ -254,8 +261,8 @@ export function PlayScreen() {
             // Update judgment engine
             judgmentEngine.update(songTimeMs);
 
-            // Render frame
-            renderer.renderFrame(songTimeMs);
+            // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
+            renderer.renderFrame(visualTimeMs);
 
             // Check if song ended
             if (audioEngine.currentTimeMs >= audioEngine.duration && audioEngine.duration > 0) {
