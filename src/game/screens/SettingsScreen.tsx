@@ -152,7 +152,7 @@ export function SettingsScreen() {
             <h2 style={styles.sectionTitle}>Gameplay</h2>
 
             <div style={styles.setting}>
-              <label style={styles.label}>Play Speed: x{settings.playSpeed.toFixed(2)}</label>
+              <label style={styles.label}>Play Speed: x{(settings.playSpeed ?? 1).toFixed(2)}</label>
               <input
                 type="range"
                 min="0.5"

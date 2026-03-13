@@ -143,6 +143,13 @@ export const useGameStore = create<GameState>()(
     {
       name: 'not4k-settings',
       partialize: (state) => ({ settings: state.settings }),
+      merge: (persisted, current) => {
+        const p = persisted as { settings?: Partial<GameSettings> };
+        return {
+          ...current,
+          settings: { ...(current as GameState).settings, ...p.settings },
+        };
+      },
     }
   )
 );
