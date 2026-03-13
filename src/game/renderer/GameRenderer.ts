@@ -1153,6 +1153,7 @@ export class GameRenderer {
     this.terminalSpritePool.clear();
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
+    this.graceGlowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();

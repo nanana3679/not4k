@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { JudgmentEngine } from "./JudgmentEngine";
 import type { JudgmentResult, JudgmentCallbacks } from "./JudgmentEngine";
-import { JudgmentGrade, JUDGMENT_WINDOWS, JUDGMENT_WINDOWS_EASY, NoteType, beat } from "../../shared";
+import { JudgmentGrade, JUDGMENT_WINDOWS_EASY, NoteType, beat } from "../../shared";
 import type { Lane, NoteEntity, Beat } from "../../shared";
 
 /** 테스트 헬퍼: 롱노트 바디(RangeNote) 생성 */
