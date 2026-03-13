@@ -18,7 +18,7 @@ import type {
   EventMarker,
   ExtraNoteEntity,
 } from "../../shared";
-import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures, beatEq } from "../../shared";
+import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, extractBpmMarkers, extractTimeSignatures, beatEq, isGraceNote } from "../../shared";
 import {
   LANE_COUNT,
   AUXILIARY_LANES,
@@ -1047,6 +1047,18 @@ export class TimelineRenderer {
         color = COLORS.TRILL_NOTE;
         shape = "diamond";
         break;
+    }
+
+    // Grace glow (behind note)
+    const isGrace = isGraceNote(note);
+    if (isGrace) {
+      const glow = new Graphics();
+      const w = NOTE_HEIGHT * 5 + COLORS.GRACE_GLOW_PAD * 2;
+      const h = NOTE_HEIGHT + COLORS.GRACE_GLOW_PAD * 2;
+      const glowX = x + (LANE_WIDTH - w) / 2;
+      glow.roundRect(glowX, y - h / 2, w, h, 4);
+      glow.fill({ color: COLORS.GRACE_GLOW, alpha: COLORS.GRACE_GLOW_ALPHA });
+      this.noteLayer.addChild(glow);
     }
 
     const noteGfx = new Graphics();

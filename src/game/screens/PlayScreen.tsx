@@ -128,6 +128,7 @@ export function PlayScreen() {
         const scoreManager = new ScoreManager((totalJudgments - skippedJudgments) || 1);
 
         // Create judgment engine
+        // TODO: Easy 모드 구현 시 getJudgmentWindows(settings.judgmentMode)를 5번째 인자로 전달
         const judgmentEngine = new JudgmentEngine(
           chartData.notes,
           noteTimesMs,

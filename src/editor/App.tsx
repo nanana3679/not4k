@@ -1233,6 +1233,33 @@ function ChartEditorPage() {
         return;
       }
 
+      // G: toggle grace flag on selected point notes
+      if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey) {
+        const state = useEditorStore.getState();
+        const selected = state.selectedNotes;
+        const currentChart = state.chart;
+        if (selected.size > 0 && currentChart) {
+          e.preventDefault();
+          const newNotes = [...currentChart.notes];
+          let toggled = 0;
+          for (const idx of selected) {
+            const note = newNotes[idx];
+            if (note && !('endBeat' in note)) {
+              const pn = { ...note } as import('../shared').PointNote;
+              pn.grace = !pn.grace;
+              if (!pn.grace) delete pn.grace;
+              newNotes[idx] = pn;
+              toggled++;
+            }
+          }
+          if (toggled > 0) {
+            state.setChart({ ...currentChart, notes: newNotes });
+            addToast(`Grace 토글: ${toggled}개 노트`, 'info');
+          }
+          return;
+        }
+      }
+
       // Delete/Backspace: delete selected notes regardless of mode
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectModeRef.current) {
         e.preventDefault();

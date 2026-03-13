@@ -64,6 +64,8 @@ export interface PointNote {
   type: "single" | "double" | "trill";
   lane: Lane;
   beat: Beat;
+  /** Grace 플래그 — Good 윈도우 내 입력 시 항상 Perfect */
+  grace?: boolean;
 }
 
 /**
@@ -81,6 +83,11 @@ export interface RangeNote {
 
 /** 노트 엔티티 유니온 */
 export type NoteEntity = PointNote | RangeNote;
+
+/** Grace 노트 여부 확인 — PointNote이면서 grace 플래그가 true */
+export function isGraceNote(note: NoteEntity): boolean {
+  return !("endBeat" in note) && (note as PointNote).grace === true;
+}
 
 // ---------------------------------------------------------------------------
 // Extra 노트 (에디터 전용 — 게임에 등장하지 않는 보조 레인)

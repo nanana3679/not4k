@@ -36,4 +36,5 @@ export {
   type ExtraPointNote,
   type ExtraRangeNote,
   type ExtraNoteEntity,
+  isGraceNote,
 } from "./chart";
