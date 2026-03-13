@@ -152,6 +152,19 @@ export function SettingsScreen() {
             <h2 style={styles.sectionTitle}>Gameplay</h2>
 
             <div style={styles.setting}>
+              <label style={styles.label}>Play Speed: x{settings.playSpeed.toFixed(2)}</label>
+              <input
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.05"
+                value={settings.playSpeed}
+                onChange={(e) => updateSettings({ playSpeed: Number(e.target.value) })}
+                style={styles.slider}
+              />
+            </div>
+
+            <div style={styles.setting}>
               <label style={styles.label}>Scroll Speed: {settings.scrollSpeed}</label>
               <input
                 type="range"

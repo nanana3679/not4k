@@ -23,6 +23,7 @@ interface GameSettings {
   showFastSlow: boolean;
   skinId: string;
   renderHeight: number;
+  playSpeed: number;
 }
 
 interface PlayResult {
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showFastSlow: true,
   skinId: 'crystal',
   renderHeight: 1080,
+  playSpeed: 1.0,
 };
 
 export const useGameStore = create<GameState>()(

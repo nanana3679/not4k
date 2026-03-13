@@ -16,9 +16,31 @@ export class AudioEngine {
   private startOffset: number = 0; // offset into the buffer when playback started (seconds)
   private _playing: boolean = false;
   private pauseTime: number = 0; // position in buffer when paused (seconds)
+  private _playbackRate: number = 1.0;
 
   constructor() {
     this.ctx = new AudioContext();
+  }
+
+  /**
+   * Set playback rate (e.g., 0.5 = half speed, 2.0 = double speed)
+   */
+  set playbackRate(rate: number) {
+    const clamped = Math.max(0.1, Math.min(rate, 4.0));
+    if (this._playing) {
+      // 현재까지의 위치를 누적하고 startTime을 리셋
+      const elapsed = this.ctx.currentTime - this.startTime;
+      this.startOffset += elapsed * this._playbackRate;
+      this.startTime = this.ctx.currentTime;
+    }
+    this._playbackRate = clamped;
+    if (this.source) {
+      this.source.playbackRate.value = clamped;
+    }
+  }
+
+  get playbackRate(): number {
+    return this._playbackRate;
   }
 
   /**
@@ -86,6 +108,9 @@ export class AudioEngine {
     // Convert offset from ms to seconds
     const offsetSeconds = offsetMs / 1000;
 
+    // Apply playback rate
+    this.source.playbackRate.value = this._playbackRate;
+
     // Start playback
     this.startOffset = offsetSeconds;
     this.startTime = this.ctx.currentTime;
@@ -103,8 +128,8 @@ export class AudioEngine {
       return;
     }
 
-    // Calculate current position before stopping
-    this.pauseTime = this.startOffset + (this.ctx.currentTime - this.startTime);
+    // Calculate current position before stopping (elapsed wall time * playbackRate)
+    this.pauseTime = this.startOffset + (this.ctx.currentTime - this.startTime) * this._playbackRate;
 
     // Stop the source
     if (this.source) {
@@ -142,6 +167,7 @@ export class AudioEngine {
       }
     };
 
+    this.source.playbackRate.value = this._playbackRate;
     this.startOffset = this.pauseTime;
     this.startTime = this.ctx.currentTime;
     this.source.start(0, this.startOffset);
@@ -178,9 +204,9 @@ export class AudioEngine {
     }
 
     if (this._playing) {
-      // Calculate current position from start offset and elapsed time
+      // Calculate current position from start offset and elapsed time * playbackRate
       const elapsed = this.ctx.currentTime - this.startTime;
-      const position = this.startOffset + elapsed;
+      const position = this.startOffset + elapsed * this._playbackRate;
 
       // Clamp to buffer duration
       return Math.min(position * 1000, this.duration);
