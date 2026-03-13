@@ -6,9 +6,10 @@ import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
-import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../renderer/constants';
+import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
+import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
   const { settings, setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -26,6 +27,7 @@ export function PlayScreen() {
   const judgmentEngineRef = useRef<JudgmentEngine | null>(null);
   const scoreManagerRef = useRef<ScoreManager | null>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
+  const debugLoggerRef = useRef<DebugLogger | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -126,6 +128,13 @@ export function PlayScreen() {
         });
         renderer.setupKeyboardDisplay(laneBindingsMap);
 
+        // Create debug logger if debug mode is enabled
+        const judgmentLineY = GAME_HEIGHT - JUDGMENT_LINE_OFFSET - (GAME_HEIGHT * settings.liftPercent / 100);
+        const debugLogger = settings.debugMode
+          ? new DebugLogger(settings.scrollSpeed, settings.targetFps, judgmentLineY)
+          : null;
+        debugLoggerRef.current = debugLogger;
+
         // Create score manager (subtract skipped notes for editor test play)
         const scoreManager = new ScoreManager((totalJudgments - skippedJudgments) || 1);
 
@@ -139,6 +148,16 @@ export function PlayScreen() {
             onJudgment: (result: JudgmentResult) => {
               const note = chartData.notes[result.noteIndex];
               const isBody = 'endBeat' in note;
+
+              // Debug logging
+              if (debugLogger && !isBody) {
+                const noteTimeMs = noteTimesMs.get(result.noteIndex);
+                if (noteTimeMs !== undefined) {
+                  const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
+                  const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
+                  debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs);
+                }
+              }
 
               // Pass deltaMs only for head judgments (not body)
               if (isBody) {
@@ -224,6 +243,14 @@ export function PlayScreen() {
           if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
 
+            // Track note positions for debug logger
+            if (debugLogger) {
+              for (const [idx, timeMs] of noteTimesMs) {
+                const noteY = judgmentLineY - ((timeMs - songTimeMs) * settings.scrollSpeed) / 1000;
+                debugLogger.trackNotePosition(idx, noteY);
+              }
+            }
+
             // Update judgment engine
             judgmentEngine.update(songTimeMs);
 
@@ -298,6 +325,12 @@ export function PlayScreen() {
   const handleSongEnd = () => {
     const scoreManager = scoreManagerRef.current;
     if (!scoreManager || !chartData) return;
+
+    // Output debug log if debug mode was active
+    const debugLogger = debugLoggerRef.current;
+    if (debugLogger) {
+      console.log(debugLogger.exportAsText());
+    }
 
     const state = scoreManager.getState();
 
