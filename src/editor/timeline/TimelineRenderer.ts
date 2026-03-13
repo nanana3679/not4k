@@ -1049,6 +1049,18 @@ export class TimelineRenderer {
         break;
     }
 
+    // Grace glow (behind note)
+    const isGrace = note.grace === true;
+    if (isGrace) {
+      const glow = new Graphics();
+      const w = NOTE_HEIGHT * 5 + COLORS.GRACE_GLOW_PAD * 2;
+      const h = NOTE_HEIGHT + COLORS.GRACE_GLOW_PAD * 2;
+      const glowX = x + (LANE_WIDTH - w) / 2;
+      glow.roundRect(glowX, y - h / 2, w, h, 4);
+      glow.fill({ color: COLORS.GRACE_GLOW, alpha: COLORS.GRACE_GLOW_ALPHA });
+      this.noteLayer.addChild(glow);
+    }
+
     const noteGfx = new Graphics();
 
     if (shape === "diamond") {

@@ -60,6 +60,10 @@ export const COLORS = {
 
   VIOLATION_HATCH: 0xff4444,
   VIOLATION_HATCH_ALPHA: 0.4,
+
+  GRACE_GLOW: 0xffffff,
+  GRACE_GLOW_ALPHA: 0.35,
+  GRACE_GLOW_PAD: 4,
 };
 
 /**

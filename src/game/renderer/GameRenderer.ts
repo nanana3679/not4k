@@ -7,7 +7,7 @@
 
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, NineSliceSprite, AnimatedSprite } from "pixi.js";
 import type { FillInput } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
+import type { NoteEntity, PointNote, TrillZone, BpmMarker, EventMarker } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -610,6 +610,15 @@ export class GameRenderer {
 
     const laneX = this.getLaneX(entity.lane);
     const isPartial = this.doublePartialNotes.has(index);
+    const isGrace = !("endBeat" in entity) && (entity as PointNote).grace === true;
+
+    // Grace glow effect — 노트 뒤에 밝게 빛나는 배경
+    if (isGrace) {
+      const glow = this.getOrCreateGraceGlow(index);
+      glow.x = laneX - COLORS.GRACE_GLOW_PAD;
+      glow.y = y - COLORS.GRACE_GLOW_PAD;
+      this.noteLayer.addChild(glow);
+    }
 
     if (entity.type === "trill") {
       // Trill: Graphics diamond fallback
@@ -855,6 +864,21 @@ export class GameRenderer {
       this.bodyGraphicsPool.set(index, graphic);
     }
     return graphic;
+  }
+
+  /** Grace 노트 글로우 이펙트 — 노트 뒤에 밝게 빛나는 직사각형 */
+  private graceGlowPool: Map<number, Graphics> = new Map();
+  private getOrCreateGraceGlow(index: number): Graphics {
+    let glow = this.graceGlowPool.get(index);
+    if (!glow) {
+      glow = new Graphics();
+      this.graceGlowPool.set(index, glow);
+    }
+    glow.clear();
+    const pad = COLORS.GRACE_GLOW_PAD;
+    glow.roundRect(0, 0, NOTE_WIDTH + pad * 2, NOTE_HEIGHT + pad * 2, 4);
+    glow.fill({ color: COLORS.GRACE_GLOW, alpha: COLORS.GRACE_GLOW_ALPHA });
+    return glow;
   }
 
   private getBodyGradient(color: number): FillGradient {

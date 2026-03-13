@@ -64,6 +64,8 @@ export interface PointNote {
   type: "single" | "double" | "trill";
   lane: Lane;
   beat: Beat;
+  /** Grace 플래그 — Good 윈도우 내 입력 시 항상 Perfect */
+  grace?: boolean;
 }
 
 /**

@@ -1,8 +1,12 @@
 export {
   JUDGMENT_WINDOWS,
+  JUDGMENT_WINDOWS_EASY,
   GRACE_PERIOD_MS,
   JudgmentGrade,
   JUDGMENT_SCORES,
+  JudgmentMode,
+  getJudgmentWindows,
+  type JudgmentWindows,
 } from "./judgment";
 export { Rank, RANK_THRESHOLDS, getRank } from "./rank";
 export {

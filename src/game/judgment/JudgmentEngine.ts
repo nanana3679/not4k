@@ -11,6 +11,7 @@ import {
   GRACE_PERIOD_MS,
   NoteType,
 } from "../../shared";
+import type { JudgmentWindows } from "../../shared";
 import type { Lane } from "../../shared";
 
 /**
@@ -99,6 +100,7 @@ export class JudgmentEngine {
   private readonly noteTimesMs: ReadonlyMap<number, number>;
   private readonly noteEndTimesMs: ReadonlyMap<number, number>;
   private readonly callbacks: JudgmentCallbacks;
+  private readonly windows: JudgmentWindows;
 
   /** 노트별 처리 상태 */
   private readonly noteStates: Map<number, NoteState> = new Map();
@@ -120,11 +122,13 @@ export class JudgmentEngine {
     noteTimesMs: ReadonlyMap<number, number>,
     noteEndTimesMs: ReadonlyMap<number, number>,
     callbacks: JudgmentCallbacks,
+    windows: JudgmentWindows = JUDGMENT_WINDOWS,
   ) {
     this.notes = notes;
     this.noteTimesMs = noteTimesMs;
     this.noteEndTimesMs = noteEndTimesMs;
     this.callbacks = callbacks;
+    this.windows = windows;
 
     // 모든 노트를 UNPROCESSED로 초기화
     for (let i = 0; i < notes.length; i++) {
@@ -244,8 +248,8 @@ export class JudgmentEngine {
       if (state === NoteState.BODY_ACTIVE) {
         // 끝점 판정 윈도우 내 릴리즈인지 확인 (Good 이전 ~ Bad 이후)
         if (
-          releaseTimeMs >= noteEndTime - JUDGMENT_WINDOWS.GOOD &&
-          releaseTimeMs <= noteEndTime + JUDGMENT_WINDOWS.BAD
+          releaseTimeMs >= noteEndTime - this.windows.GOOD &&
+          releaseTimeMs <= noteEndTime + this.windows.BAD
         ) {
           const isConnection = this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime);
 
@@ -285,22 +289,22 @@ export class JudgmentEngine {
         note.type === NoteType.SINGLE ||
         note.type === NoteType.TRILL
       ) {
-        if (songTimeMs > noteTime + JUDGMENT_WINDOWS.BAD) {
-          this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
+        if (songTimeMs > noteTime + this.windows.BAD) {
+          this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + this.windows.BAD - noteTime);
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
         }
       } else if (note.type === NoteType.DOUBLE) {
         // 더블 노트 자동 Miss
-        if (songTimeMs > noteTime + JUDGMENT_WINDOWS.BAD) {
+        if (songTimeMs > noteTime + this.windows.BAD) {
           const doubleState = this.doubleNoteStates.get(i);
           if (doubleState?.firstInputReceived) {
             // 첫 번째만 받은 경우 두 번째는 Miss
-            this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
+            this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + this.windows.BAD - noteTime);
           } else {
             // 아무 입력도 없으면 둘 다 Miss
-            this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
-            this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + JUDGMENT_WINDOWS.BAD - noteTime);
+            this.emitJudgment(i, JudgmentGrade.MISS, 0, noteTime + this.windows.BAD - noteTime);
+            this.emitJudgment(i, JudgmentGrade.MISS, 1, noteTime + this.windows.BAD - noteTime);
           }
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
@@ -366,7 +370,12 @@ export class JudgmentEngine {
       }
 
       const deltaMs = timestampMs - noteTime;
-      if (Math.abs(deltaMs) <= JUDGMENT_WINDOWS.BAD) {
+
+      // Grace 노트: early는 Good 윈도우까지만 매칭 (early Bad 없음)
+      const isGrace = !("endBeat" in note) && (note as import("../../shared").PointNote).grace === true;
+      const earlyLimit = isGrace ? this.windows.GOOD : this.windows.BAD;
+
+      if (deltaMs >= -earlyLimit && deltaMs <= this.windows.BAD) {
         if (noteTime < earliestTime) {
           earliestTime = noteTime;
           earliestIndex = i;
@@ -381,7 +390,9 @@ export class JudgmentEngine {
    * 싱글 노트 입력 처리
    */
   private processSingleNoteInput(noteIndex: number, deltaMs: number, _keyCode: string): void {
-    const grade = this.calculateGrade(deltaMs);
+    const note = this.notes[noteIndex];
+    const isGrace = !("endBeat" in note) && (note as import("../../shared").PointNote).grace === true;
+    const grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
     this.emitJudgment(noteIndex, grade, 0, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
 
@@ -396,6 +407,9 @@ export class JudgmentEngine {
    * 더블 노트 입력 처리
    */
   private processDoubleNoteInput(noteIndex: number, deltaMs: number, keyCode: string): void {
+    const note = this.notes[noteIndex];
+    const isGrace = !("endBeat" in note) && (note as import("../../shared").PointNote).grace === true;
+
     let doubleState = this.doubleNoteStates.get(noteIndex);
 
     if (!doubleState) {
@@ -405,7 +419,7 @@ export class JudgmentEngine {
 
     if (!doubleState.firstInputReceived) {
       // 첫 번째 입력
-      const grade = this.calculateGrade(deltaMs);
+      const grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
       doubleState.firstInputReceived = true;
       doubleState.firstKeyCode = keyCode;
       doubleState.firstGrade = grade;
@@ -425,7 +439,7 @@ export class JudgmentEngine {
         return;
       }
 
-      const grade = this.calculateGrade(deltaMs);
+      const grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
       this.emitJudgment(noteIndex, grade, 1, deltaMs);
       this.noteStates.set(noteIndex, NoteState.COMPLETE);
 
@@ -446,12 +460,13 @@ export class JudgmentEngine {
     keyCode: string,
     lane: Lane,
   ): void {
+    const note = this.notes[noteIndex];
+    const isGrace = !("endBeat" in note) && (note as import("../../shared").PointNote).grace === true;
     const lastKeyCode = this.trillAlternation.get(lane);
-    let grade = this.calculateGrade(deltaMs);
+    let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
-    // 교대 체크 (첫 트릴이 아닌 경우)
+    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇
     if (lastKeyCode !== null && keyCode === lastKeyCode) {
-      // 교대 실패 → Good◇ 강제
       grade = JudgmentGrade.GOOD_TRILL;
     }
 
@@ -492,7 +507,7 @@ export class JudgmentEngine {
 
       // 1. 시작점 허용 구간 (+120ms)
       if (!bodyState.hasBeenPressed) {
-        if (songTimeMs <= bodyState.bodyStartTimeMs + JUDGMENT_WINDOWS.GOOD) {
+        if (songTimeMs <= bodyState.bodyStartTimeMs + this.windows.GOOD) {
           if (holdState.isHeld) {
             bodyState.hasBeenPressed = true;
           }
@@ -508,7 +523,7 @@ export class JudgmentEngine {
       }
 
       // 2. 끝점 허용 구간 (-120ms) — 끝점 판정에 위임
-      if (songTimeMs >= noteEndTime - JUDGMENT_WINDOWS.GOOD) {
+      if (songTimeMs >= noteEndTime - this.windows.GOOD) {
         continue;
       }
 
@@ -560,7 +575,7 @@ export class JudgmentEngine {
 
       // --- BODY_AWAITING_RELEASE: 타임아웃 체크 ---
       if (state === NoteState.BODY_AWAITING_RELEASE) {
-        if (songTimeMs > noteEndTime + JUDGMENT_WINDOWS.BAD) {
+        if (songTimeMs > noteEndTime + this.windows.BAD) {
           // 릴리즈 없이 BAD 윈도우 초과 → Miss 타임아웃
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
@@ -645,13 +660,31 @@ export class JudgmentEngine {
   private calculateGrade(deltaMs: number): JudgmentGrade {
     const absDelta = Math.abs(deltaMs);
 
-    if (absDelta <= JUDGMENT_WINDOWS.PERFECT) {
+    if (absDelta <= this.windows.PERFECT) {
       return JudgmentGrade.PERFECT;
-    } else if (absDelta <= JUDGMENT_WINDOWS.GREAT) {
+    } else if (absDelta <= this.windows.GREAT) {
       return JudgmentGrade.GREAT;
-    } else if (absDelta <= JUDGMENT_WINDOWS.GOOD) {
+    } else if (absDelta <= this.windows.GOOD) {
       return JudgmentGrade.GOOD;
-    } else if (absDelta <= JUDGMENT_WINDOWS.BAD) {
+    } else if (absDelta <= this.windows.BAD) {
+      return JudgmentGrade.BAD;
+    } else {
+      return JudgmentGrade.MISS;
+    }
+  }
+
+  /**
+   * Grace 노트 판정 등급 계산 (종결 판정과 동일 모델)
+   *
+   * Good 윈도우(±120ms) 내 → Perfect, Late Bad(+120~+160ms) → Bad.
+   * Early Bad는 발생하지 않는다 (findEarliestUnprocessedNote에서 이미 필터링).
+   */
+  private calculateGraceGrade(deltaMs: number): JudgmentGrade {
+    const absDelta = Math.abs(deltaMs);
+    if (absDelta <= this.windows.GOOD) {
+      return JudgmentGrade.PERFECT;
+    } else if (deltaMs > 0 && deltaMs <= this.windows.BAD) {
+      // Late Bad
       return JudgmentGrade.BAD;
     } else {
       return JudgmentGrade.MISS;
