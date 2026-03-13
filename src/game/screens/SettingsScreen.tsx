@@ -9,6 +9,8 @@ export function SettingsScreen() {
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [warningMessage, setWarningMessage] = useState<string>('');
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [audioOffsetText, setAudioOffsetText] = useState(String(settings.audioOffsetMs));
+  const [judgmentOffsetText, setJudgmentOffsetText] = useState(String(settings.judgmentOffsetMs));
 
   // Cleanup warning timeout on unmount
   useEffect(() => {
@@ -246,8 +248,13 @@ export function SettingsScreen() {
               <label style={styles.label}>Audio Offset (ms):</label>
               <input
                 type="number"
-                value={settings.audioOffsetMs}
-                onChange={(e) => updateSettings({ audioOffsetMs: Number(e.target.value) })}
+                value={audioOffsetText}
+                onChange={(e) => setAudioOffsetText(e.target.value)}
+                onBlur={() => {
+                  const n = Number(audioOffsetText);
+                  updateSettings({ audioOffsetMs: isNaN(n) ? 0 : n });
+                  setAudioOffsetText(String(isNaN(n) ? 0 : n));
+                }}
                 style={styles.numberInput}
               />
             </div>
@@ -256,8 +263,13 @@ export function SettingsScreen() {
               <label style={styles.label}>Judgment Offset (ms):</label>
               <input
                 type="number"
-                value={settings.judgmentOffsetMs}
-                onChange={(e) => updateSettings({ judgmentOffsetMs: Number(e.target.value) })}
+                value={judgmentOffsetText}
+                onChange={(e) => setJudgmentOffsetText(e.target.value)}
+                onBlur={() => {
+                  const n = Number(judgmentOffsetText);
+                  updateSettings({ judgmentOffsetMs: isNaN(n) ? 0 : n });
+                  setJudgmentOffsetText(String(isNaN(n) ? 0 : n));
+                }}
                 style={styles.numberInput}
               />
             </div>
