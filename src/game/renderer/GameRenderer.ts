@@ -191,6 +191,8 @@ export class GameRenderer {
   private longNoteHeadLayer: Container;
   private noteLayer: Container;
   private judgmentLineGraphic: Graphics;
+  private laneCoverGraphic: Graphics;
+  private buttonLayer: Container;
   private effectLayer: Container;
   private uiLayer: Container;
 
@@ -281,6 +283,8 @@ export class GameRenderer {
     this.longNoteHeadLayer = new Container();
     this.noteLayer = new Container();
     this.judgmentLineGraphic = new Graphics();
+    this.laneCoverGraphic = new Graphics();
+    this.buttonLayer = new Container();
     this.effectLayer = new Container();
     this.uiLayer = new Container();
 
@@ -295,7 +299,7 @@ export class GameRenderer {
     this.comboText = new Text({ text: "", style: comboStyle });
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.x = this.width / 2;
-    this.comboText.y = this._judgmentLineY - 130;
+    this.comboText.y = this.height / 2 - 65;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "Arial",
@@ -306,7 +310,7 @@ export class GameRenderer {
     this.accuracyText = new Text({ text: "", style: accuracyStyle });
     this.accuracyText.anchor.set(0.5, 0.5);
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = this._judgmentLineY - 85;
+    this.accuracyText.y = this.height / 2 - 20;
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Arial",
@@ -318,7 +322,7 @@ export class GameRenderer {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = this.width / 2;
-    this.judgmentText.y = this._judgmentLineY - 45;
+    this.judgmentText.y = this.height / 2 + 20;
     this.judgmentText.alpha = 0;
 
     const fastSlowStyle = new TextStyle({
@@ -331,7 +335,7 @@ export class GameRenderer {
     this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
     this.fastSlowText.anchor.set(0.5, 0.5);
     this.fastSlowText.x = this.width / 2;
-    this.fastSlowText.y = this._judgmentLineY - 15;
+    this.fastSlowText.y = this.height / 2 + 50;
     this.fastSlowText.alpha = 0;
 
     const timingDiffStyle = new TextStyle({
@@ -344,7 +348,7 @@ export class GameRenderer {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = this.width / 2;
-    this.timingDiffText.y = this._judgmentLineY - 68;
+    this.timingDiffText.y = this.height / 2;
     this.timingDiffText.alpha = 0;
   }
 
@@ -366,6 +370,8 @@ export class GameRenderer {
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
     this.app.stage.addChild(this.noteLayer);
+    this.app.stage.addChild(this.laneCoverGraphic);
+    this.app.stage.addChild(this.buttonLayer);
     this.app.stage.addChild(this.judgmentLineGraphic);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
@@ -379,6 +385,7 @@ export class GameRenderer {
     // Draw static elements
     this.drawBackground();
     this.drawJudgmentLine();
+    this.drawLaneCover();
     this.buildKeyBeams();
     this.buildButtons();
     this.initialized = true;
@@ -447,8 +454,10 @@ export class GameRenderer {
       sprite.x = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
       sprite.y = this._judgmentLineY + 4;
       sprite.alpha = 0.8;
+      const lane = i + 1;
+      sprite.tint = KB_IDLE_COLORS[lane] ?? 0x222222;
       this.buttonSprites.push(sprite);
-      this.backgroundLayer.addChild(sprite);
+      this.buttonLayer.addChild(sprite);
     }
   }
 
@@ -461,9 +470,23 @@ export class GameRenderer {
     if (idx >= 0 && idx < this.buttonSprites.length) {
       const texKey = pressed ? `buttonPressed${idx}` : `buttonIdle${idx}`;
       try {
+        const lane = idx + 1;
         this.buttonSprites[idx].texture = this.skinManager.getTexture(texKey);
         this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
+        this.buttonSprites[idx].tint = pressed
+          ? (KB_PRESSED_COLORS[lane] ?? 0x888888)
+          : (KB_IDLE_COLORS[lane] ?? 0x222222);
       } catch { /* 텍스처 미로드 시 무시 */ }
+    }
+  }
+
+  private drawLaneCover(): void {
+    this.laneCoverGraphic.clear();
+    const coverY = this._judgmentLineY + 2;
+    const coverHeight = this.height - coverY;
+    if (coverHeight > 0) {
+      this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, coverHeight);
+      this.laneCoverGraphic.fill(0x000000);
     }
   }
 
@@ -1047,12 +1070,13 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
+    this.drawLaneCover();
     // Update UI positions (top→bottom: combo, accuracy, judgment, fast/slow)
-    this.comboText.y = this._judgmentLineY - 130;
-    this.accuracyText.y = this._judgmentLineY - 85;
-    this.judgmentText.y = this._judgmentLineY - 45;
-    this.fastSlowText.y = this._judgmentLineY - 15;
-    this.timingDiffText.y = this._judgmentLineY - 68;
+    this.comboText.y = this.height / 2 - 65;
+    this.accuracyText.y = this.height / 2 - 20;
+    this.judgmentText.y = this.height / 2 + 20;
+    this.fastSlowText.y = this.height / 2 + 50;
+    this.timingDiffText.y = this.height / 2;
     // Update button positions
     for (const btn of this.buttonSprites) {
       btn.y = this._judgmentLineY + 4;
