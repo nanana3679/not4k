@@ -251,6 +251,18 @@ export function SettingsScreen() {
                 Show FAST/SLOW
               </label>
             </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>
+                <input
+                  type="checkbox"
+                  checked={settings.showTimingDiff}
+                  onChange={(e) => updateSettings({ showTimingDiff: e.target.checked })}
+                  style={styles.checkbox}
+                />
+                Show Timing Diff
+              </label>
+            </div>
           </div>
 
           <div style={styles.section}>
