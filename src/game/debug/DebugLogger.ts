@@ -10,6 +10,8 @@ import type { JudgmentGrade } from '../../shared/constants/judgment';
 export interface DebugNoteEntry {
   /** 노트 인덱스 */
   noteIndex: number;
+  /** 더블 노트 서브 인덱스 (0 또는 1, 더블이 아니면 undefined) */
+  subIndex?: number;
   /** 판정 시점의 노트 중앙 Y 위치 */
   noteCenterY: number;
   /** 판정선 Y 위치 */
@@ -24,7 +26,7 @@ export interface DebugNoteEntry {
   scrollSpeed: number;
   /** 프레임당 예상 노트 이동 거리 (scrollSpeed / targetFps) */
   expectedDeltaPxPerFrame: number;
-  /** 실제 프레임간 노트 이동 거리 (이전 프레임의 Y와 비교) */
+  /** 직전 프레임의 실제 노트 이동 거리 (프레임 시간 × scrollSpeed) */
   actualDeltaPx: number | null;
 }
 
@@ -40,10 +42,12 @@ export interface DebugSummary {
 
 export class DebugLogger {
   private entries: DebugNoteEntry[] = [];
-  private previousNoteY: Map<number, number> = new Map();
   private readonly scrollSpeed: number;
   private readonly targetFps: number;
   private readonly judgmentLineY: number;
+
+  /** 직전 프레임의 실제 경과 시간 (ms) */
+  private lastFrameDeltaMs: number | null = null;
 
   constructor(scrollSpeed: number, targetFps: number, judgmentLineY: number) {
     this.scrollSpeed = scrollSpeed;
@@ -52,10 +56,10 @@ export class DebugLogger {
   }
 
   /**
-   * 프레임마다 호출 -- 노트의 현재 Y 위치를 기록하여 다음 판정 시 actualDeltaPx 계산에 사용
+   * 프레임마다 호출 -- 실제 프레임 간 시간을 기록
    */
-  trackNotePosition(noteIndex: number, currentY: number): void {
-    this.previousNoteY.set(noteIndex, currentY);
+  recordFrameTiming(frameDeltaMs: number): void {
+    this.lastFrameDeltaMs = frameDeltaMs;
   }
 
   /**
@@ -66,14 +70,19 @@ export class DebugLogger {
     noteCenterY: number,
     grade: JudgmentGrade,
     deltaMs: number,
+    subIndex?: number,
   ): void {
-    const prevY = this.previousNoteY.get(noteIndex) ?? null;
-    const actualDeltaPx = prevY !== null ? Math.abs(noteCenterY - prevY) : null;
     const effectiveFps = this.targetFps > 0 ? this.targetFps : 60;
     const expectedDeltaPxPerFrame = this.scrollSpeed / effectiveFps;
 
+    // 직전 프레임의 실제 이동 거리 = 프레임 경과 시간 × scrollSpeed / 1000
+    const actualDeltaPx = this.lastFrameDeltaMs !== null
+      ? (this.lastFrameDeltaMs * this.scrollSpeed) / 1000
+      : null;
+
     const entry: DebugNoteEntry = {
       noteIndex,
+      subIndex,
       noteCenterY,
       judgmentLineY: this.judgmentLineY,
       yDifference: noteCenterY - this.judgmentLineY,
@@ -149,8 +158,9 @@ export class DebugLogger {
     lines.push('');
 
     for (const e of this.entries) {
+      const sub = e.subIndex !== undefined ? `[${e.subIndex}]` : '';
       lines.push(
-        `[Note #${e.noteIndex}] grade=${e.grade} deltaMs=${e.deltaMs.toFixed(1)} ` +
+        `[Note #${e.noteIndex}${sub}] grade=${e.grade} deltaMs=${e.deltaMs.toFixed(1)} ` +
         `yDiff=${e.yDifference.toFixed(1)}px ` +
         `noteCenterY=${e.noteCenterY.toFixed(1)} judgmentLineY=${e.judgmentLineY.toFixed(1)} ` +
         `expectedPx/f=${e.expectedDeltaPxPerFrame.toFixed(2)} ` +
@@ -168,6 +178,20 @@ export class DebugLogger {
     lines.push(`Avg |deltaMs|: ${s.avgAbsDeltaMs.toFixed(2)}ms`);
     lines.push(`Speed consistency (stddev): ${s.speedConsistency !== null ? s.speedConsistency.toFixed(2) + 'px' : 'N/A'}`);
     lines.push(`Grade distribution: ${JSON.stringify(s.gradeDistribution)}`);
+
+    // 오프셋 추천
+    if (s.totalNotes > 0) {
+      const recommended = -Math.round(s.avgDeltaMs);
+      lines.push('');
+      lines.push('=== Offset Recommendation ===');
+      if (Math.abs(s.avgDeltaMs) < 5) {
+        lines.push(`현재 오프셋이 적절합니다 (평균 편차 ${s.avgDeltaMs.toFixed(1)}ms)`);
+      } else {
+        const direction = s.avgDeltaMs > 0 ? 'SLOW (늦게 누름)' : 'FAST (빨리 누름)';
+        lines.push(`평균 편향: ${s.avgDeltaMs.toFixed(1)}ms ${direction}`);
+        lines.push(`추천 오프셋 조정: ${recommended > 0 ? '+' : ''}${recommended}ms (현재 오프셋에 더할 값)`);
+      }
+    }
 
     return lines.join('\n');
   }

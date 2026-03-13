@@ -149,13 +149,14 @@ export function PlayScreen() {
               const note = chartData.notes[result.noteIndex];
               const isBody = 'endBeat' in note;
 
-              // Debug logging
+              // Debug logging (헤드/포인트 노트만, 바디 제외)
               if (debugLogger && !isBody) {
                 const noteTimeMs = noteTimesMs.get(result.noteIndex);
                 if (noteTimeMs !== undefined) {
                   const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
                   const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                  debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs);
+                  const isDouble = note.type === 'double';
+                  debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs, isDouble ? result.subIndex : undefined);
                 }
               }
 
@@ -239,17 +240,16 @@ export function PlayScreen() {
         rendererRef.current = renderer;
 
         // Start game loop
-        const gameLoop = () => {
+        let lastFrameTime: number | null = null;
+        const gameLoop = (timestamp: number) => {
           if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
             const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
 
-            // Track note positions for debug logger
-            if (debugLogger) {
-              for (const [idx, timeMs] of noteTimesMs) {
-                const noteY = judgmentLineY - ((timeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                debugLogger.trackNotePosition(idx, noteY);
-              }
+            // Record frame timing for debug logger
+            if (debugLogger && lastFrameTime !== null) {
+              debugLogger.recordFrameTiming(timestamp - lastFrameTime);
             }
+            lastFrameTime = timestamp;
 
             // Update judgment engine
             judgmentEngine.update(songTimeMs);
@@ -358,6 +358,12 @@ export function PlayScreen() {
   };
 
   const handleQuit = () => {
+    // Output debug log if debug mode was active
+    const debugLogger = debugLoggerRef.current;
+    if (debugLogger) {
+      console.log(debugLogger.exportAsText());
+    }
+
     if (editorReturnUrl) {
       const url = editorReturnUrl;
       setStartTimeMs(0);

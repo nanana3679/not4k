@@ -33,6 +33,38 @@ describe('DebugLogger', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // subIndex (더블 노트 구분)
+  // ---------------------------------------------------------------------------
+
+  it('subIndex 전달 시 엔트리에 저장됨', () => {
+    const logger = new DebugLogger(800, 60, 500);
+    logger.recordJudgment(5, 510, JudgmentGrade.PERFECT, 10, 0);
+    logger.recordJudgment(5, 515, JudgmentGrade.GREAT, 15, 1);
+
+    const log = logger.getLog();
+    expect(log[0].subIndex).toBe(0);
+    expect(log[1].subIndex).toBe(1);
+  });
+
+  it('subIndex 미전달 시 undefined', () => {
+    const logger = new DebugLogger(800, 60, 500);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
+
+    expect(logger.getLog()[0].subIndex).toBeUndefined();
+  });
+
+  it('exportAsText에서 더블 노트는 [0], [1] 서브인덱스 표시', () => {
+    const logger = new DebugLogger(800, 60, 500);
+    logger.recordFrameTiming(16.67);
+    logger.recordJudgment(3, 510, JudgmentGrade.PERFECT, 10, 0);
+    logger.recordJudgment(3, 515, JudgmentGrade.GREAT, 15, 1);
+
+    const text = logger.exportAsText();
+    expect(text).toContain('Note #3[0]');
+    expect(text).toContain('Note #3[1]');
+  });
+
+  // ---------------------------------------------------------------------------
   // expectedDeltaPxPerFrame 계산
   // ---------------------------------------------------------------------------
 
@@ -51,22 +83,32 @@ describe('DebugLogger', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // actualDeltaPx 계산
+  // actualDeltaPx (프레임 시간 기반)
   // ---------------------------------------------------------------------------
 
-  it('이전 프레임 위치가 없으면 actualDeltaPx=null', () => {
+  it('recordFrameTiming 호출 전이면 actualDeltaPx=null', () => {
     const logger = new DebugLogger(800, 60, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     expect(logger.getLog()[0].actualDeltaPx).toBeNull();
   });
 
-  it('이전 프레임 Y=487에서 판정 시 Y=500이면 actualDeltaPx=13', () => {
+  it('프레임 16.67ms, scrollSpeed=800이면 actualDeltaPx=13.33', () => {
     const logger = new DebugLogger(800, 60, 500);
-    logger.trackNotePosition(0, 487);
+    logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
-    expect(logger.getLog()[0].actualDeltaPx).toBe(13);
+    expect(logger.getLog()[0].actualDeltaPx).toBeCloseTo(16.67 * 800 / 1000, 2);
+  });
+
+  it('프레임 33.33ms(30fps)이면 actualDeltaPx는 expected의 약 2배', () => {
+    const logger = new DebugLogger(800, 60, 500);
+    logger.recordFrameTiming(33.33);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
+
+    const entry = logger.getLog()[0];
+    expect(entry.actualDeltaPx).toBeCloseTo(33.33 * 800 / 1000, 2);
+    expect(entry.actualDeltaPx! / entry.expectedDeltaPxPerFrame).toBeCloseTo(2, 0);
   });
 
   // ---------------------------------------------------------------------------
@@ -107,30 +149,30 @@ describe('DebugLogger', () => {
 
   it('actualDeltaPx 값이 1개뿐이면 speedConsistency=null', () => {
     const logger = new DebugLogger(800, 60, 500);
-    logger.trackNotePosition(0, 487);
+    logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     const summary = logger.getSummary();
     expect(summary.speedConsistency).toBeNull();
   });
 
-  it('actualDeltaPx가 모두 동일하면 speedConsistency=0', () => {
+  it('동일 프레임 시간이면 speedConsistency=0', () => {
     const logger = new DebugLogger(800, 60, 500);
-    logger.trackNotePosition(0, 487);
+    logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
-    logger.trackNotePosition(1, 487);
+    logger.recordFrameTiming(16.67);
     logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0);
 
     const summary = logger.getSummary();
     expect(summary.speedConsistency).toBeCloseTo(0, 5);
   });
 
-  it('actualDeltaPx 편차가 있으면 speedConsistency > 0', () => {
+  it('프레임 시간 편차가 있으면 speedConsistency > 0', () => {
     const logger = new DebugLogger(800, 60, 500);
-    logger.trackNotePosition(0, 490);
-    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0); // delta = 10
-    logger.trackNotePosition(1, 480);
-    logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0); // delta = 20
+    logger.recordFrameTiming(16.67);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
+    logger.recordFrameTiming(33.33);
+    logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0);
 
     const summary = logger.getSummary();
     expect(summary.speedConsistency).toBeGreaterThan(0);
