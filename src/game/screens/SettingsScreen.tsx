@@ -246,8 +246,18 @@ export function SettingsScreen() {
               <label style={styles.label}>Audio Offset (ms):</label>
               <input
                 type="number"
-                value={settings.offsetMs}
-                onChange={(e) => updateSettings({ offsetMs: Number(e.target.value) })}
+                value={settings.audioOffsetMs}
+                onChange={(e) => updateSettings({ audioOffsetMs: Number(e.target.value) })}
+                style={styles.numberInput}
+              />
+            </div>
+
+            <div style={styles.setting}>
+              <label style={styles.label}>Judgment Offset (ms):</label>
+              <input
+                type="number"
+                value={settings.judgmentOffsetMs}
+                onChange={(e) => updateSettings({ judgmentOffsetMs: Number(e.target.value) })}
                 style={styles.numberInput}
               />
             </div>

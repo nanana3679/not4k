@@ -18,7 +18,8 @@ interface GameSettings {
   liftPercent: number;
   suddenPercent: number;
   targetFps: number;
-  offsetMs: number;
+  audioOffsetMs: number;
+  judgmentOffsetMs: number;
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
@@ -89,7 +90,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   liftPercent: 0,
   suddenPercent: 0,
   targetFps: 60,
-  offsetMs: 0,
+  audioOffsetMs: 0,
+  judgmentOffsetMs: 0,
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
@@ -100,6 +102,26 @@ const DEFAULT_SETTINGS: GameSettings = {
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
 };
+
+/** @internal 테스트용으로 export. persist merge 콜백. */
+export function mergePersistedSettings(
+  persisted: unknown,
+  current: unknown,
+) {
+  const p = persisted as { settings?: Partial<GameSettings> };
+  const cur = current as GameState;
+  const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
+  // Migration: 기존 offsetMs → audioOffsetMs
+  const raw = p.settings as Record<string, unknown> | undefined;
+  if (raw && 'offsetMs' in raw && !('audioOffsetMs' in raw)) {
+    merged.audioOffsetMs = raw.offsetMs;
+  }
+  delete merged.offsetMs;
+  return {
+    ...cur,
+    settings: merged as unknown as GameSettings,
+  };
+}
 
 export const useGameStore = create<GameState>()(
   persist(
@@ -150,13 +172,7 @@ export const useGameStore = create<GameState>()(
     {
       name: 'not4k-settings',
       partialize: (state) => ({ settings: state.settings }),
-      merge: (persisted, current) => {
-        const p = persisted as { settings?: Partial<GameSettings> };
-        return {
-          ...current,
-          settings: { ...(current as GameState).settings, ...p.settings },
-        };
-      },
+      merge: mergePersistedSettings,
     }
   )
 );
