@@ -4,7 +4,8 @@
  * 플레이어 입력을 노트와 매칭하여 판정을 생성하고, 콤보를 추적한다.
  */
 
-import type { NoteEntity, PointNote, RangeNote } from "../../shared";
+import type { NoteEntity, RangeNote } from "../../shared";
+import { isGraceNote } from "../../shared";
 import {
   JudgmentGrade,
   JUDGMENT_WINDOWS,
@@ -372,7 +373,7 @@ export class JudgmentEngine {
       const deltaMs = timestampMs - noteTime;
 
       // Grace 노트: early는 Good 윈도우까지만 매칭 (early Bad 없음)
-      const isGrace = this.isGraceNote(note);
+      const isGrace = isGraceNote(note);
       const earlyLimit = isGrace ? this.windows.GOOD : this.windows.BAD;
 
       if (deltaMs >= -earlyLimit && deltaMs <= this.windows.BAD) {
@@ -391,7 +392,7 @@ export class JudgmentEngine {
    */
   private processSingleNoteInput(noteIndex: number, deltaMs: number, _keyCode: string): void {
     const note = this.notes[noteIndex];
-    const isGrace = this.isGraceNote(note);
+    const isGrace = isGraceNote(note);
     const grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
     this.emitJudgment(noteIndex, grade, 0, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
@@ -408,7 +409,7 @@ export class JudgmentEngine {
    */
   private processDoubleNoteInput(noteIndex: number, deltaMs: number, keyCode: string): void {
     const note = this.notes[noteIndex];
-    const isGrace = this.isGraceNote(note);
+    const isGrace = isGraceNote(note);
 
     let doubleState = this.doubleNoteStates.get(noteIndex);
 
@@ -461,7 +462,7 @@ export class JudgmentEngine {
     lane: Lane,
   ): void {
     const note = this.notes[noteIndex];
-    const isGrace = this.isGraceNote(note);
+    const isGrace = isGraceNote(note);
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
@@ -721,13 +722,6 @@ export class JudgmentEngine {
     } else {
       this.breakCombo();
     }
-  }
-
-  /**
-   * Grace 노트 여부 확인
-   */
-  private isGraceNote(note: NoteEntity): boolean {
-    return !("endBeat" in note) && (note as PointNote).grace === true;
   }
 
   /**

@@ -7,7 +7,8 @@
 
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, NineSliceSprite, AnimatedSprite } from "pixi.js";
 import type { FillInput } from "pixi.js";
-import type { NoteEntity, PointNote, TrillZone, BpmMarker, EventMarker } from "../../shared";
+import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
+import { isGraceNote } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -610,7 +611,7 @@ export class GameRenderer {
 
     const laneX = this.getLaneX(entity.lane);
     const isPartial = this.doublePartialNotes.has(index);
-    const isGrace = !("endBeat" in entity) && (entity as PointNote).grace === true;
+    const isGrace = isGraceNote(entity);
 
     // Grace glow effect — 노트 뒤에 밝게 빛나는 배경
     if (isGrace) {
