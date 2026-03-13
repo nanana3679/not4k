@@ -1,0 +1,324 @@
+/* ==========================================================================
+   Shared Arcade UI Components
+   ========================================================================== */
+
+/* ---- CRT Scanline Overlay ---- */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+}
+
+/* ---- Arcade Frame / Panel ---- */
+.panel {
+  background-color: var(--arc-surface);
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  border-radius: var(--arc-radius-lg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--arc-space-lg) var(--arc-space-xl);
+  background-color: var(--arc-surface-alt);
+  border-bottom: var(--arc-border-pixel) solid var(--arc-border);
+}
+
+/* ---- Retro Buttons ---- */
+.btn {
+  font-family: var(--arc-font);
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 18px;
+  border: var(--arc-border-width) solid var(--arc-border-light);
+  border-radius: var(--arc-radius-sm);
+  background-color: var(--arc-surface-alt);
+  color: var(--arc-text);
+  cursor: pointer;
+  transition: all var(--arc-transition);
+  position: relative;
+}
+
+.btn:hover {
+  border-color: var(--arc-cyan);
+  color: var(--arc-cyan);
+  box-shadow: var(--arc-glow-cyan);
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btnPrimary {
+  composes: btn;
+  background-color: var(--arc-cyan);
+  color: var(--arc-bg);
+  border-color: var(--arc-cyan);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btnPrimary:hover {
+  background-color: #33eeff;
+  color: var(--arc-bg);
+  box-shadow: var(--arc-glow-cyan);
+}
+
+.btnDanger {
+  composes: btn;
+  color: var(--arc-red);
+  border-color: rgba(255, 51, 51, 0.4);
+}
+
+.btnDanger:hover {
+  border-color: var(--arc-red);
+  box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
+}
+
+.btnGhost {
+  composes: btn;
+  background-color: transparent;
+  color: var(--arc-text-dim);
+  border-color: var(--arc-border);
+}
+
+.btnGhost:hover {
+  color: var(--arc-cyan);
+  border-color: var(--arc-cyan);
+}
+
+/* ---- Dot Divider ---- */
+.dotDivider {
+  width: 100%;
+  height: 1px;
+  border: none;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--arc-border-light) 0,
+    var(--arc-border-light) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  margin: var(--arc-space-lg) 0;
+}
+
+/* ---- Neon Title ---- */
+.neonTitle {
+  font-family: var(--arc-font-display);
+  color: var(--arc-cyan);
+  text-shadow:
+    0 0 7px var(--arc-cyan),
+    0 0 20px var(--arc-cyan-dim),
+    0 0 40px var(--arc-cyan-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ---- Section Title ---- */
+.sectionTitle {
+  font-family: var(--arc-font);
+  font-size: var(--arc-fs-md);
+  font-weight: 700;
+  color: var(--arc-yellow);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 0 0 var(--arc-space-lg);
+  text-shadow: 0 0 6px var(--arc-yellow-dim);
+}
+
+/* ---- Pixel Border Frame ---- */
+.pixelFrame {
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  box-shadow:
+    inset 0 0 0 1px var(--arc-border-light),
+    0 0 0 1px var(--arc-bg);
+  position: relative;
+}
+
+/* ---- Dot Background Pattern ---- */
+.dotBg {
+  background-image: radial-gradient(
+    circle,
+    var(--arc-border) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+}
+
+/* ---- Form Controls ---- */
+.select {
+  font-family: var(--arc-font);
+  padding: 8px 12px;
+  font-size: var(--arc-fs-sm);
+  background-color: var(--arc-bg-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--arc-cyan);
+  box-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.numberInput {
+  font-family: var(--arc-font);
+  padding: 8px 12px;
+  font-size: var(--arc-fs-sm);
+  background-color: var(--arc-bg-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  width: 150px;
+}
+
+.numberInput:focus {
+  outline: none;
+  border-color: var(--arc-cyan);
+  box-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.checkbox {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  accent-color: var(--arc-cyan);
+}
+
+/* ---- Modal ---- */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  composes: panel;
+  padding: var(--arc-space-xl);
+  min-width: 280px;
+  color: var(--arc-text);
+  font-family: var(--arc-font);
+  animation: modalIn 0.15s ease-out;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modalTitle {
+  composes: neonTitle;
+  font-size: var(--arc-fs-lg);
+  margin: 0 0 var(--arc-space-lg);
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arc-space-xs);
+  margin-bottom: var(--arc-space-md);
+  font-size: var(--arc-fs-sm);
+  font-family: var(--arc-font);
+  color: var(--arc-text-dim);
+}
+
+.modalInput {
+  padding: 6px 8px;
+  background-color: var(--arc-bg-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  font-size: var(--arc-fs-sm);
+  font-family: var(--arc-font);
+}
+
+.modalInput:focus {
+  outline: none;
+  border-color: var(--arc-cyan);
+  box-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.modalButtons {
+  display: flex;
+  gap: var(--arc-space-sm);
+  margin-top: var(--arc-space-lg);
+}
+
+/* ---- Blink Animation (Press Start) ---- */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.blink {
+  animation: blink 1.2s step-end infinite;
+}
+
+/* ---- Pulse glow ---- */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 4px var(--arc-cyan-dim); }
+  50% { box-shadow: 0 0 16px var(--arc-cyan), 0 0 30px var(--arc-cyan-dim); }
+}
+
+.pulseGlow {
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+/* ---- Toast ---- */
+.toastContainer {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 8px 16px;
+  background-color: rgba(255, 107, 53, 0.92);
+  color: #fff;
+  border: 1px solid var(--arc-orange);
+  border-radius: var(--arc-radius-sm);
+  font-size: var(--arc-fs-sm);
+  font-family: var(--arc-font);
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(255, 107, 53, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---- Slider retro ---- */
+.slider {
+  width: 100%;
+  accent-color: var(--arc-cyan);
+}
