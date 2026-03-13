@@ -111,6 +111,7 @@ export function PlayScreen() {
         );
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setShowFastSlow(settings.showFastSlow);
+        renderer.setShowTimingDiff(settings.showTimingDiff);
         renderer.setLift(GAME_HEIGHT * settings.liftPercent / 100);
         renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
 

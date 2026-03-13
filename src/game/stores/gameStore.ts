@@ -21,6 +21,7 @@ interface GameSettings {
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
+  showTimingDiff: boolean;
   skinId: string;
   renderHeight: number;
   playSpeed: number;
@@ -89,6 +90,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
+  showTimingDiff: false,
   skinId: 'crystal',
   renderHeight: 1080,
   playSpeed: 1.0,

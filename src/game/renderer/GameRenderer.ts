@@ -21,6 +21,7 @@ import {
   JUDGMENT_LINE_OFFSET,
   COLORS,
 } from "./constants";
+import { formatTimingDiff } from "./formatTimingDiff";
 
 // Keyboard layout display constants
 const KB_KEY_SIZE = 10;
@@ -206,6 +207,7 @@ export class GameRenderer {
   // Visual state
   private judgmentTimer: number = 0;
   private showFastSlow: boolean = true;
+  private showTimingDiff: boolean = false;
 
   // Skin
   private skinManager: SkinManager;
@@ -239,6 +241,7 @@ export class GameRenderer {
   private accuracyText: Text;
   private judgmentText: Text;
   private fastSlowText: Text;
+  private timingDiffText: Text;
 
   // Dimensions
   private width: number;
@@ -329,6 +332,19 @@ export class GameRenderer {
     this.fastSlowText.x = this.width / 2;
     this.fastSlowText.y = this._judgmentLineY - 15;
     this.fastSlowText.alpha = 0;
+
+    const timingDiffStyle = new TextStyle({
+      fontFamily: "Arial",
+      fontSize: 22,
+      fontWeight: "bold",
+      fill: 0xffffff,
+      align: "center",
+    });
+    this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
+    this.timingDiffText.anchor.set(0.5, 0.5);
+    this.timingDiffText.x = this.width / 2;
+    this.timingDiffText.y = this._judgmentLineY - 68;
+    this.timingDiffText.alpha = 0;
   }
 
   async init(): Promise<void> {
@@ -357,6 +373,7 @@ export class GameRenderer {
     this.uiLayer.addChild(this.accuracyText);
     this.uiLayer.addChild(this.judgmentText);
     this.uiLayer.addChild(this.fastSlowText);
+    this.uiLayer.addChild(this.timingDiffText);
 
     // Draw static elements
     this.drawBackground();
@@ -520,6 +537,7 @@ export class GameRenderer {
       const alpha = Math.max(0, this.judgmentTimer / 500);
       this.judgmentText.alpha = alpha;
       this.fastSlowText.alpha = alpha;
+      this.timingDiffText.alpha = alpha;
     }
 
     // Clear dynamic layers
@@ -941,6 +959,18 @@ export class GameRenderer {
       this.fastSlowText.text = "";
       this.fastSlowText.alpha = 0;
     }
+
+    // Update timing diff text
+    const timingDiffStr = this.showTimingDiff
+      ? formatTimingDiff(deltaMs, grade === "miss")
+      : null;
+    if (timingDiffStr) {
+      this.timingDiffText.text = timingDiffStr;
+      this.timingDiffText.alpha = 1;
+    } else {
+      this.timingDiffText.text = "";
+      this.timingDiffText.alpha = 0;
+    }
   }
 
   /** 노트 판정 시 봄 이펙트 재생 */
@@ -965,6 +995,10 @@ export class GameRenderer {
 
   setShowFastSlow(enabled: boolean): void {
     this.showFastSlow = enabled;
+  }
+
+  setShowTimingDiff(enabled: boolean): void {
+    this.showTimingDiff = enabled;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {
@@ -1013,6 +1047,7 @@ export class GameRenderer {
     this.accuracyText.y = this._judgmentLineY - 85;
     this.judgmentText.y = this._judgmentLineY - 45;
     this.fastSlowText.y = this._judgmentLineY - 15;
+    this.timingDiffText.y = this._judgmentLineY - 68;
     // Update button positions
     for (const btn of this.buttonSprites) {
       btn.y = this._judgmentLineY + 4;
