@@ -191,6 +191,8 @@ export class GameRenderer {
   private longNoteHeadLayer: Container;
   private noteLayer: Container;
   private judgmentLineGraphic: Graphics;
+  private laneCoverGraphic: Graphics;
+  private buttonLayer: Container;
   private effectLayer: Container;
   private uiLayer: Container;
 
@@ -281,6 +283,8 @@ export class GameRenderer {
     this.longNoteHeadLayer = new Container();
     this.noteLayer = new Container();
     this.judgmentLineGraphic = new Graphics();
+    this.laneCoverGraphic = new Graphics();
+    this.buttonLayer = new Container();
     this.effectLayer = new Container();
     this.uiLayer = new Container();
 
@@ -295,7 +299,7 @@ export class GameRenderer {
     this.comboText = new Text({ text: "", style: comboStyle });
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.x = this.width / 2;
-    this.comboText.y = this._judgmentLineY - 130;
+    this.comboText.y = this.height / 2 - 65;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "Arial",
@@ -306,7 +310,7 @@ export class GameRenderer {
     this.accuracyText = new Text({ text: "", style: accuracyStyle });
     this.accuracyText.anchor.set(0.5, 0.5);
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = this._judgmentLineY - 85;
+    this.accuracyText.y = this.height / 2 - 20;
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Arial",
@@ -318,7 +322,7 @@ export class GameRenderer {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = this.width / 2;
-    this.judgmentText.y = this._judgmentLineY - 45;
+    this.judgmentText.y = this.height / 2 + 20;
     this.judgmentText.alpha = 0;
 
     const fastSlowStyle = new TextStyle({
@@ -331,7 +335,7 @@ export class GameRenderer {
     this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
     this.fastSlowText.anchor.set(0.5, 0.5);
     this.fastSlowText.x = this.width / 2;
-    this.fastSlowText.y = this._judgmentLineY - 15;
+    this.fastSlowText.y = this.height / 2 + 50;
     this.fastSlowText.alpha = 0;
 
     const timingDiffStyle = new TextStyle({
@@ -344,7 +348,7 @@ export class GameRenderer {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = this.width / 2;
-    this.timingDiffText.y = this._judgmentLineY - 68;
+    this.timingDiffText.y = this.height / 2;
     this.timingDiffText.alpha = 0;
   }
 
@@ -366,6 +370,8 @@ export class GameRenderer {
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
     this.app.stage.addChild(this.noteLayer);
+    this.app.stage.addChild(this.laneCoverGraphic);
+    this.app.stage.addChild(this.buttonLayer);
     this.app.stage.addChild(this.judgmentLineGraphic);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
@@ -379,6 +385,7 @@ export class GameRenderer {
     // Draw static elements
     this.drawBackground();
     this.drawJudgmentLine();
+    this.drawLaneCover();
     this.buildKeyBeams();
     this.buildButtons();
     this.initialized = true;
@@ -435,7 +442,7 @@ export class GameRenderer {
   }
 
   private buildButtons(): void {
-    const BTN_SIZE = 40; // 게임 내 버튼 렌더링 크기
+    const BTN_SIZE = 70; // 에셋 원본 크기와 1:1 매칭
     for (let i = 0; i < LANE_COUNT; i++) {
       const texKey = `buttonIdle${i}`;
       let tex;
@@ -443,12 +450,11 @@ export class GameRenderer {
       const sprite = new Sprite(tex);
       sprite.width = BTN_SIZE;
       sprite.height = BTN_SIZE;
-      sprite.anchor.set(0.5, 0);
+      sprite.anchor.set(0.5, 0.5);
       sprite.x = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
-      sprite.y = this._judgmentLineY + 4;
       sprite.alpha = 0.8;
       this.buttonSprites.push(sprite);
-      this.backgroundLayer.addChild(sprite);
+      this.buttonLayer.addChild(sprite);
     }
   }
 
@@ -464,6 +470,43 @@ export class GameRenderer {
         this.buttonSprites[idx].texture = this.skinManager.getTexture(texKey);
         this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
       } catch { /* 텍스처 미로드 시 무시 */ }
+    }
+  }
+
+  private drawLaneCover(): void {
+    this.laneCoverGraphic.clear();
+    const coverY = this._judgmentLineY + 2;
+    const coverHeight = this.height - coverY;
+    if (coverHeight <= 0) return;
+
+    // 전체 검은 배경
+    this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, coverHeight);
+    this.laneCoverGraphic.fill(0x000000);
+
+    // 레인별 셀 배경 + 구분선
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const laneX = this.laneAreaX + i * LANE_WIDTH;
+      // 짝수/홀수 레인 미세 톤 차이
+      const cellColor = i % 2 === 0 ? 0x0a0a18 : 0x080814;
+      this.laneCoverGraphic.rect(laneX, coverY, LANE_WIDTH, coverHeight);
+      this.laneCoverGraphic.fill(cellColor);
+    }
+
+    // 레인 구분선
+    for (let i = 1; i < LANE_COUNT; i++) {
+      const sepX = this.laneAreaX + i * LANE_WIDTH;
+      this.laneCoverGraphic.rect(sepX - 0.5, coverY, 1, coverHeight);
+      this.laneCoverGraphic.fill({ color: 0x333355, alpha: 0.6 });
+    }
+
+    // 상단 하이라이트 라인 (판정선 바로 아래)
+    this.laneCoverGraphic.rect(this.laneAreaX, coverY, LANE_AREA_WIDTH, 1);
+    this.laneCoverGraphic.fill({ color: 0x444466, alpha: 0.5 });
+
+    // 버튼 높이 기준 가운데 정렬
+    const btnCenterY = coverY + coverHeight / 2;
+    for (const btn of this.buttonSprites) {
+      btn.y = btnCenterY;
     }
   }
 
@@ -839,6 +882,8 @@ export class GameRenderer {
     let sprite = this.noteSpritePool.get(index);
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
+      sprite.width = NOTE_WIDTH;
+      sprite.height = NOTE_HEIGHT;
       this.noteSpritePool.set(index, sprite);
     }
     return sprite;
@@ -863,6 +908,8 @@ export class GameRenderer {
     let sprite = this.terminalSpritePool.get(index);
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
+      sprite.width = NOTE_WIDTH;
+      sprite.height = NOTE_HEIGHT;
       this.terminalSpritePool.set(index, sprite);
     }
     return sprite;
@@ -1047,16 +1094,14 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
+    this.drawLaneCover();
     // Update UI positions (top→bottom: combo, accuracy, judgment, fast/slow)
-    this.comboText.y = this._judgmentLineY - 130;
-    this.accuracyText.y = this._judgmentLineY - 85;
-    this.judgmentText.y = this._judgmentLineY - 45;
-    this.fastSlowText.y = this._judgmentLineY - 15;
-    this.timingDiffText.y = this._judgmentLineY - 68;
-    // Update button positions
-    for (const btn of this.buttonSprites) {
-      btn.y = this._judgmentLineY + 4;
-    }
+    this.comboText.y = this.height / 2 - 65;
+    this.accuracyText.y = this.height / 2 - 20;
+    this.judgmentText.y = this.height / 2 + 20;
+    this.fastSlowText.y = this.height / 2 + 50;
+    this.timingDiffText.y = this.height / 2;
+    // 버튼 위치는 drawLaneCover에서 갱신됨
   }
 
   setSudden(y: number): void {

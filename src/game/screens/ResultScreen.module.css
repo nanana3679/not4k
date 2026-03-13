@@ -1,0 +1,244 @@
+/* ==========================================================================
+   ResultScreen — Arcade Score Board
+   ========================================================================== */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--arc-bg);
+  color: var(--arc-text);
+  font-family: var(--arc-font);
+  position: relative;
+}
+
+/* Scanline overlay */
+.container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  z-index: 10;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--arc-space-lg) var(--arc-space-xl);
+  background-color: var(--arc-surface-alt);
+  border-bottom: var(--arc-border-pixel) solid var(--arc-border);
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: var(--arc-fs-lg);
+  font-weight: 700;
+  font-family: var(--arc-font-display);
+  color: var(--arc-yellow);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 0 6px var(--arc-yellow-dim);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--arc-space-xl);
+  gap: var(--arc-space-xl);
+}
+
+/* ---- Main Score Display ---- */
+.scoreFrame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--arc-space-md);
+  padding: var(--arc-space-2xl) var(--arc-space-2xl);
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  background-color: var(--arc-surface);
+  position: relative;
+  min-width: 320px;
+}
+
+/* Corner decorations */
+.scoreFrame::before,
+.scoreFrame::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: var(--arc-border-width) solid var(--arc-yellow);
+}
+
+.scoreFrame::before {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.scoreFrame::after {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+}
+
+.achievementLabel {
+  font-size: var(--arc-fs-xs);
+  color: var(--arc-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+
+.achievement {
+  font-size: 52px;
+  font-weight: bold;
+  font-family: var(--arc-font-display);
+  color: var(--arc-cyan);
+  text-shadow:
+    0 0 10px var(--arc-cyan),
+    0 0 30px var(--arc-cyan-dim);
+  letter-spacing: 2px;
+}
+
+.rank {
+  font-size: 44px;
+  font-weight: bold;
+  font-family: var(--arc-font-display);
+  color: var(--arc-yellow);
+  text-shadow:
+    0 0 10px var(--arc-yellow),
+    0 0 30px var(--arc-yellow-dim);
+  letter-spacing: 4px;
+}
+
+/* Dot divider inside score frame */
+.scoreDivider {
+  width: 80%;
+  height: 1px;
+  border: none;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--arc-border-light) 0,
+    var(--arc-border-light) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  margin: var(--arc-space-sm) 0;
+}
+
+/* ---- Stats Grid ---- */
+.statsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arc-space-sm);
+  max-width: 420px;
+  width: 100%;
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--arc-fs-md);
+  padding: 10px 14px;
+  background-color: var(--arc-surface);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  font-family: var(--arc-font);
+}
+
+.statLabel {
+  color: var(--arc-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: var(--arc-fs-sm);
+}
+
+.statValue {
+  color: var(--arc-cyan);
+  font-weight: 700;
+}
+
+.statValueYes {
+  color: var(--arc-green);
+  font-weight: 700;
+  text-shadow: 0 0 6px var(--arc-green-dim);
+}
+
+.statValueNo {
+  color: var(--arc-text-muted);
+  font-weight: 700;
+}
+
+/* ---- Judgment Section ---- */
+.judgmentSection {
+  max-width: 420px;
+  width: 100%;
+}
+
+.judgmentGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.judgmentRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--arc-fs-md);
+  padding: 10px 14px;
+  background-color: var(--arc-surface);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  font-family: var(--arc-font);
+}
+
+.judgmentLabel {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: var(--arc-fs-sm);
+}
+
+.judgmentCount {
+  color: var(--arc-cyan);
+  font-weight: 700;
+  font-family: var(--arc-font-display);
+}
+
+.fastLabel {
+  composes: judgmentLabel;
+  color: #44aaff;
+  text-shadow: 0 0 4px rgba(68, 170, 255, 0.4);
+}
+
+.slowLabel {
+  composes: judgmentLabel;
+  color: var(--arc-orange);
+  text-shadow: 0 0 4px rgba(255, 107, 53, 0.4);
+}
+
+/* ---- Error State ---- */
+.error {
+  font-size: var(--arc-fs-lg);
+  color: var(--arc-red);
+  margin-top: 40px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px rgba(255, 51, 51, 0.4);
+}

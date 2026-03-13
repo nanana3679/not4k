@@ -2,14 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../stores';
 import {
   calculateCalibrationResult,
+  calculateMedian,
   CALIBRATION_INTERVAL_MS,
   CALIBRATION_TOTAL_TAPS,
   CALIBRATION_WARMUP_TAPS,
   type CalibrationResult,
 } from '../calibration/calibrationLogic';
 
-type CalibrationType = 'visual' | 'audio';
-type Phase = 'select' | 'running' | 'result';
+type CalibrationType = 'visual' | 'audio' | 'verify';
+type Phase = 'select' | 'running' | 'result' | 'verify';
 
 /** 비프음을 생성하여 재생한다 (OscillatorNode 사용). */
 function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
@@ -28,12 +29,25 @@ function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
   osc.stop(now + durationMs / 1000 + 0.01);
 }
 
+/** 판정 등급을 diff(ms)로부터 결정한다. */
+function getJudgmentLabel(absMs: number): { text: string; color: string } {
+  if (absMs <= 41) return { text: 'Perfect', color: '#ffff00' };
+  if (absMs <= 82) return { text: 'Great', color: '#00ff88' };
+  if (absMs <= 120) return { text: 'Good', color: '#00aaff' };
+  if (absMs <= 160) return { text: 'Bad', color: '#ff6b6b' };
+  return { text: 'Miss', color: '#888' };
+}
+
 export function CalibrationScreen() {
-  const { updateSettings, setScreen } = useGameStore();
+  const { settings, updateSettings, setScreen } = useGameStore();
   const [phase, setPhase] = useState<Phase>('select');
   const [calibType, setCalibType] = useState<CalibrationType>('visual');
   const [tapCount, setTapCount] = useState(0);
   const [result, setResult] = useState<CalibrationResult | null>(null);
+
+  // Verify mode state
+  const [verifyDiffs, setVerifyDiffs] = useState<number[]>([]);
+  const [lastDiff, setLastDiff] = useState<number | null>(null);
 
   const diffsRef = useRef<number[]>([]);
   const nextBeatTimeRef = useRef<number>(0);
@@ -75,9 +89,30 @@ export function CalibrationScreen() {
 
     if (type === 'visual') {
       startVisualLoop();
-    } else {
+    } else if (type === 'audio') {
       startAudioLoop(audioCtx);
+    } else {
+      // verify: both visual + audio
+      startVerifyLoop(audioCtx);
     }
+  }, []);
+
+  const startVerify = useCallback(() => {
+    setPhase('verify');
+    setVerifyDiffs([]);
+    setLastDiff(null);
+    diffsRef.current = [];
+    beatIndexRef.current = 0;
+    runningRef.current = true;
+
+    const audioCtx = new AudioContext();
+    audioCtxRef.current = audioCtx;
+
+    const startDelay = 1500;
+    startTimeRef.current = performance.now() + startDelay;
+    nextBeatTimeRef.current = startTimeRef.current;
+
+    startVerifyLoop(audioCtx);
   }, []);
 
   // --- Visual calibration: render falling bar on canvas ---
@@ -185,9 +220,92 @@ export function CalibrationScreen() {
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
 
+  // --- Verify mode: visual + audio combined with offsets ---
+  const startVerifyLoop = useCallback((audioCtx: AudioContext) => {
+    const audioOffsetMs = settings.audioOffsetMs;
+    const judgmentOffsetMs = settings.judgmentOffsetMs;
+
+    const render = () => {
+      if (!runningRef.current) return;
+      const canvas = canvasRef.current;
+      const now = performance.now();
+      const startTime = startTimeRef.current;
+      const interval = CALIBRATION_INTERVAL_MS;
+
+      if (now < startTime) {
+        animFrameRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      const elapsed = now - startTime;
+      const currentBeatIdx = Math.floor(elapsed / interval);
+
+      // Play beep (with audio offset applied to scheduling)
+      if (currentBeatIdx >= beatIndexRef.current) {
+        // audioOffsetMs > 0 means audio plays late, so we schedule accordingly
+        const beatTime = startTime + currentBeatIdx * interval;
+        const scheduledAudioTime = beatTime + audioOffsetMs;
+        if (now >= scheduledAudioTime) {
+          playBeep(audioCtx);
+          beatIndexRef.current = currentBeatIdx + 1;
+        }
+      }
+
+      // Render falling notes (with judgment offset applied to visual timing)
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const w = canvas.width;
+          const h = canvas.height;
+          ctx.clearRect(0, 0, w, h);
+
+          const judgmentY = h * 0.85;
+
+          // Judgment line
+          ctx.strokeStyle = '#00ffff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(0, judgmentY);
+          ctx.lineTo(w, judgmentY);
+          ctx.stroke();
+
+          ctx.fillStyle = '#00ffff';
+          ctx.font = '14px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText('TAP', w / 2, judgmentY + 20);
+
+          const travelTime = interval;
+
+          for (let i = currentBeatIdx - 1; i <= currentBeatIdx + 2; i++) {
+            if (i < 0) continue;
+            // Apply judgment offset: shift visual timing
+            const beatTime = startTime + i * interval + judgmentOffsetMs;
+            const progress = (now - beatTime + travelTime) / travelTime;
+
+            if (progress < 0 || progress > 1.5) continue;
+
+            const noteY = progress * judgmentY;
+            const noteWidth = 120;
+            const noteHeight = 12;
+
+            const alpha = progress > 1.0 ? Math.max(0, 1 - (progress - 1.0) * 4) : 1;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fillRect(w / 2 - noteWidth / 2, noteY - noteHeight / 2, noteWidth, noteHeight);
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(render);
+    };
+
+    animFrameRef.current = requestAnimationFrame(render);
+  }, [settings.audioOffsetMs, settings.judgmentOffsetMs]);
+
   // --- Handle tap input ---
   useEffect(() => {
-    if (phase !== 'running') return;
+    if (phase !== 'running' && phase !== 'verify') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -202,12 +320,21 @@ export function CalibrationScreen() {
       const elapsed = now - startTime;
       const interval = CALIBRATION_INTERVAL_MS;
       const closestBeatIdx = Math.round(elapsed / interval);
-      const closestBeatTime = startTime + closestBeatIdx * interval;
+      // verify 모드에서는 오프셋이 적용된 시점 기준으로 diff 계산
+      const offsetAdjust = phase === 'verify' ? settings.judgmentOffsetMs : 0;
+      const closestBeatTime = startTime + closestBeatIdx * interval + offsetAdjust;
 
       const diff = now - closestBeatTime;
 
       // Ignore taps that are way too far from any beat (> half interval)
       if (Math.abs(diff) > interval / 2) return;
+
+      if (phase === 'verify') {
+        // Verify mode: unlimited taps, real-time feedback
+        setLastDiff(Math.round(diff));
+        setVerifyDiffs((prev) => [...prev.slice(-19), Math.round(diff)]);
+        return;
+      }
 
       const currentTap = tapCount + 1;
       setTapCount(currentTap);
@@ -234,7 +361,7 @@ export function CalibrationScreen() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, tapCount, totalTaps]);
+  }, [phase, tapCount, totalTaps, settings.judgmentOffsetMs]);
 
   const applyResult = () => {
     if (!result) return;
@@ -295,6 +422,21 @@ export function CalibrationScreen() {
               Start Audio Calibration
             </button>
           </div>
+          <div style={{ ...styles.card, borderColor: '#555' }}>
+            <h2 style={{ ...styles.cardTitle, color: '#aaffaa' }}>Verify Calibration</h2>
+            <p style={styles.cardDesc}>
+              현재 오프셋이 적용된 상태에서 시각+오디오를 동시에 확인합니다.
+              <br />
+              노트와 소리가 동시에 나오며, 탭 타이밍 차이를 실시간으로 표시합니다.
+              <br />
+              <span style={{ color: '#e0e0e0' }}>
+                Audio: {settings.audioOffsetMs}ms / Judgment: {settings.judgmentOffsetMs}ms
+              </span>
+            </p>
+            <button style={{ ...styles.startBtn, backgroundColor: '#aaffaa' }} onClick={startVerify}>
+              Start Verification
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -339,6 +481,107 @@ export function CalibrationScreen() {
                 }}
               />
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // phase === 'verify'
+  if (phase === 'verify') {
+    const avg = verifyDiffs.length > 0
+      ? Math.round(verifyDiffs.reduce((s, v) => s + v, 0) / verifyDiffs.length)
+      : null;
+    const judgment = lastDiff !== null ? getJudgmentLabel(Math.abs(lastDiff)) : null;
+
+    // 5탭 이상이면 중앙값 기반 보정량 산출
+    const canAdjust = verifyDiffs.length >= 5;
+    const median = canAdjust ? calculateMedian(verifyDiffs) : 0;
+    const adjustment = canAdjust ? Math.round(median) : 0;
+
+    const applyAdjustment = () => {
+      if (adjustment === 0) return;
+      const newOffset = settings.judgmentOffsetMs + adjustment;
+      updateSettings({ judgmentOffsetMs: newOffset });
+      // 보정 적용 후 측정 초기화
+      setVerifyDiffs([]);
+      setLastDiff(null);
+    };
+
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>Verify Calibration</h1>
+          <button style={styles.backBtn} onClick={handleBack}>Stop</button>
+        </div>
+        <div style={styles.runningContent}>
+          <canvas
+            ref={canvasRef}
+            width={400}
+            height={400}
+            style={styles.canvas}
+          />
+          <div style={styles.verifyFeedback}>
+            {lastDiff !== null && judgment && (
+              <div style={styles.verifyJudgment}>
+                <span style={{ ...styles.verifyJudgmentText, color: judgment.color }}>
+                  {judgment.text}
+                </span>
+                <span style={styles.verifyDiffText}>
+                  {lastDiff > 0 ? '+' : ''}{lastDiff} ms
+                  <span style={{ color: '#888', marginLeft: 8 }}>
+                    ({lastDiff > 0 ? 'SLOW' : lastDiff < 0 ? 'FAST' : 'EXACT'})
+                  </span>
+                </span>
+              </div>
+            )}
+            {avg !== null && (
+              <div style={styles.verifyStats}>
+                <span>Avg: {avg > 0 ? '+' : ''}{avg} ms</span>
+                <span>Taps: {verifyDiffs.length}</span>
+              </div>
+            )}
+            <div style={styles.verifyDiffBar}>
+              {verifyDiffs.map((d, i) => {
+                const j = getJudgmentLabel(Math.abs(d));
+                const barPos = Math.max(-150, Math.min(150, d));
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      position: 'absolute',
+                      left: `calc(50% + ${barPos}px)`,
+                      width: 4,
+                      height: 16,
+                      backgroundColor: j.color,
+                      borderRadius: 2,
+                      opacity: 0.4 + (i / verifyDiffs.length) * 0.6,
+                      transition: 'left 0.1s',
+                    }}
+                  />
+                );
+              })}
+              {/* Center line */}
+              <div style={styles.verifyDiffCenter} />
+              {/* Scale labels */}
+              <span style={{ ...styles.verifyScaleLabel, left: 'calc(50% - 152px)' }}>-150</span>
+              <span style={{ ...styles.verifyScaleLabel, left: 'calc(50% - 2px)' }}>0</span>
+              <span style={{ ...styles.verifyScaleLabel, left: 'calc(50% + 140px)' }}>+150</span>
+            </div>
+            {canAdjust && adjustment !== 0 && (
+              <button style={styles.adjustBtn} onClick={applyAdjustment}>
+                Judgment Offset {adjustment > 0 ? '+' : ''}{adjustment}ms 보정 적용
+                ({settings.judgmentOffsetMs} → {settings.judgmentOffsetMs + adjustment}ms)
+              </button>
+            )}
+            {canAdjust && adjustment === 0 && (
+              <p style={{ fontSize: 13, color: '#aaffaa', margin: 0 }}>
+                오프셋이 정확합니다!
+              </p>
+            )}
+            <p style={{ fontSize: 12, color: '#666', margin: 0, textAlign: 'center' }}>
+              Audio: {settings.audioOffsetMs}ms / Judgment: {settings.judgmentOffsetMs}ms
+            </p>
           </div>
         </div>
       </div>
@@ -580,5 +823,66 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: 500,
+  },
+  verifyFeedback: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '16px',
+    width: '100%',
+    maxWidth: '400px',
+  },
+  verifyJudgment: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  verifyJudgmentText: {
+    fontSize: '28px',
+    fontWeight: 700,
+  },
+  verifyDiffText: {
+    fontSize: '16px',
+    color: '#e0e0e0',
+  },
+  verifyStats: {
+    display: 'flex',
+    gap: '24px',
+    fontSize: '13px',
+    color: '#888',
+  },
+  verifyDiffBar: {
+    position: 'relative' as const,
+    width: '100%',
+    height: '24px',
+    backgroundColor: '#222',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  verifyDiffCenter: {
+    position: 'absolute' as const,
+    left: 'calc(50% - 1px)',
+    top: 0,
+    width: '2px',
+    height: '100%',
+    backgroundColor: '#555',
+  },
+  verifyScaleLabel: {
+    position: 'absolute' as const,
+    bottom: '-16px',
+    fontSize: '10px',
+    color: '#555',
+  },
+  adjustBtn: {
+    padding: '10px 20px',
+    backgroundColor: '#2a4a2a',
+    color: '#aaffaa',
+    border: '1px solid #aaffaa',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 600,
+    transition: 'background-color 0.2s',
   },
 };

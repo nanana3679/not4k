@@ -1,0 +1,365 @@
+/* ==========================================================================
+   SettingsScreen — Arcade DIP Switch Panel
+   ========================================================================== */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--arc-bg);
+  color: var(--arc-text);
+  font-family: var(--arc-font);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--arc-space-lg) var(--arc-space-xl);
+  background-color: var(--arc-surface-alt);
+  border-bottom: var(--arc-border-pixel) solid var(--arc-border);
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: var(--arc-fs-lg);
+  font-weight: 700;
+  font-family: var(--arc-font-display);
+  color: var(--arc-yellow);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 0 6px var(--arc-yellow-dim);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--arc-space-xl);
+}
+
+.settingsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--arc-space-xl);
+  width: 100%;
+  max-width: 600px;
+}
+
+/* ---- Section Panel ---- */
+.section {
+  background-color: var(--arc-surface);
+  padding: var(--arc-space-xl);
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 2px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+/* Pixel corner accents on sections */
+.section::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 8px;
+  height: 8px;
+  border-top: var(--arc-border-width) solid var(--arc-yellow);
+  border-left: var(--arc-border-width) solid var(--arc-yellow);
+}
+
+.section::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-bottom: var(--arc-border-width) solid var(--arc-yellow);
+  border-right: var(--arc-border-width) solid var(--arc-yellow);
+}
+
+.sectionTitle {
+  font-size: var(--arc-fs-md);
+  font-weight: 700;
+  margin: 0 0 var(--arc-space-lg);
+  color: var(--arc-yellow);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px var(--arc-yellow-dim);
+  font-family: var(--arc-font-display);
+}
+
+/* ---- Warning ---- */
+.warning {
+  background-color: rgba(255, 51, 51, 0.15);
+  color: var(--arc-red);
+  border: var(--arc-border-width) solid var(--arc-red);
+  padding: 12px;
+  border-radius: var(--arc-radius-sm);
+  margin-bottom: var(--arc-space-lg);
+  text-align: center;
+  font-size: var(--arc-fs-sm);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ---- Key Bindings ---- */
+.keyBindings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.laneRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--arc-fs-sm);
+}
+
+.laneLabel {
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  min-width: 60px;
+  color: var(--arc-cyan);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.keyChipsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.keyChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--arc-bg-alt);
+  border: var(--arc-border-width) solid var(--arc-cyan);
+  border-radius: var(--arc-radius-sm);
+  padding: 6px 10px;
+  font-size: var(--arc-fs-sm);
+  color: var(--arc-cyan);
+  font-family: var(--arc-font);
+  text-shadow: 0 0 4px var(--arc-cyan-dim);
+  box-shadow: 0 0 4px var(--arc-cyan-dim);
+}
+
+.removeKeyBtn {
+  background-color: transparent;
+  border: none;
+  color: var(--arc-red);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-family: var(--arc-font);
+}
+
+.removeKeyBtn:hover {
+  text-shadow: 0 0 6px rgba(255, 51, 51, 0.6);
+}
+
+.addKeyBtn {
+  background-color: var(--arc-surface-alt);
+  border: var(--arc-border-width) solid var(--arc-border-light);
+  border-radius: var(--arc-radius-sm);
+  padding: 6px 10px;
+  font-size: var(--arc-fs-sm);
+  color: var(--arc-text-dim);
+  cursor: pointer;
+  transition: all var(--arc-transition);
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.addKeyBtn:hover {
+  border-color: var(--arc-cyan);
+  color: var(--arc-cyan);
+}
+
+.addKeyBtnListening {
+  background-color: var(--arc-cyan);
+  color: var(--arc-bg);
+  border-color: var(--arc-cyan);
+  box-shadow: var(--arc-glow-cyan);
+  animation: pulseKey 1s infinite;
+}
+
+@keyframes pulseKey {
+  0%, 100% { box-shadow: 0 0 4px var(--arc-cyan-dim); }
+  50% { box-shadow: 0 0 16px var(--arc-cyan), 0 0 30px var(--arc-cyan-dim); }
+}
+
+.presetButtons {
+  display: flex;
+  gap: 12px;
+  margin-top: var(--arc-space-lg);
+}
+
+.presetBtn {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: var(--arc-fs-sm);
+  background-color: var(--arc-surface-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border-light);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all var(--arc-transition);
+}
+
+.presetBtn:hover {
+  border-color: var(--arc-cyan);
+  color: var(--arc-cyan);
+  box-shadow: var(--arc-glow-cyan);
+}
+
+/* ---- Setting Row ---- */
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--arc-space-lg);
+}
+
+.label {
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  min-width: 60px;
+  color: var(--arc-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.select {
+  font-family: var(--arc-font);
+  padding: 8px 12px;
+  font-size: var(--arc-fs-sm);
+  background-color: var(--arc-bg-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--arc-cyan);
+  box-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.numberInput {
+  font-family: var(--arc-font);
+  padding: 8px 12px;
+  font-size: var(--arc-fs-sm);
+  background-color: var(--arc-bg-alt);
+  color: var(--arc-text);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  width: 150px;
+}
+
+.numberInput:focus {
+  outline: none;
+  border-color: var(--arc-cyan);
+  box-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--arc-cyan);
+}
+
+.checkbox {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  accent-color: var(--arc-cyan);
+}
+
+/* ---- Calibration Button ---- */
+.calibrationBtn {
+  width: 100%;
+  padding: 10px 24px;
+  background-color: var(--arc-magenta);
+  color: #fff;
+  border: var(--arc-border-width) solid var(--arc-magenta);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all var(--arc-transition);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.calibrationBtn:hover {
+  box-shadow: var(--arc-glow-magenta);
+}
+
+/* ---- Skin Grid ---- */
+.skinGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.skinCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--arc-bg-alt);
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  transition: all var(--arc-transition);
+}
+
+.skinCard:hover {
+  border-color: var(--arc-border-light);
+}
+
+.skinCardSelected {
+  border-color: var(--arc-cyan) !important;
+  box-shadow: 0 0 8px var(--arc-cyan-dim);
+}
+
+.skinSwatch {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--arc-radius-sm);
+  border: var(--arc-border-width) solid var(--arc-border);
+}
+
+.skinName {
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}

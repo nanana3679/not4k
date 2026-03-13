@@ -16,6 +16,8 @@ import type { Chart } from '../../shared';
 import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
 import { PreviewRangeSelector } from '../../editor/components/PreviewRangeSelector';
 import type { PreviewRangeState } from '../../editor/components/PreviewRangeSelector';
+import css from './SongSelectScreen.module.css';
+import arcCss from '../styles/arcade.module.css';
 
 
 // ---------------------------------------------------------------------------
@@ -48,11 +50,11 @@ interface DbSong {
 
 function getDifficultyColor(difficulty: string): React.CSSProperties {
   switch (difficulty.toLowerCase()) {
-    case 'easy': return { backgroundColor: '#2d6a4f', borderColor: '#40916c' };
-    case 'normal': return { backgroundColor: '#1d4e89', borderColor: '#2a6db5' };
-    case 'hard': return { backgroundColor: '#7b2d26', borderColor: '#a33b32' };
-    case 'expert': return { backgroundColor: '#5c2d82', borderColor: '#7b3fa8' };
-    default: return { backgroundColor: '#3a3a3a', borderColor: '#555' };
+    case 'easy': return { backgroundColor: 'var(--arc-diff-easy-bg)', borderColor: 'var(--arc-diff-easy-border)' };
+    case 'normal': return { backgroundColor: 'var(--arc-diff-normal-bg)', borderColor: 'var(--arc-diff-normal-border)' };
+    case 'hard': return { backgroundColor: 'var(--arc-diff-hard-bg)', borderColor: 'var(--arc-diff-hard-border)' };
+    case 'expert': return { backgroundColor: 'var(--arc-diff-expert-bg)', borderColor: 'var(--arc-diff-expert-border)' };
+    default: return { backgroundColor: 'var(--arc-surface-alt)', borderColor: 'var(--arc-border-light)' };
   }
 }
 
@@ -202,38 +204,38 @@ function AddSongModal({ onDone, onClose, addToast }: {
   };
 
   return (
-    <div style={modalStyles.overlay} onMouseDown={submitting ? undefined : onClose}>
-      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw' }} onMouseDown={(e) => e.stopPropagation()}>
-        <h3 style={modalStyles.title}>New Song</h3>
+    <div className={arcCss.modalOverlay} onMouseDown={submitting ? undefined : onClose}>
+      <div className={arcCss.modal} style={{ minWidth: '340px', width: '500px', maxWidth: '90vw' }} onMouseDown={(e) => e.stopPropagation()}>
+        <h3 className={arcCss.modalTitle}>New Song</h3>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Title *</span>
-          <input style={modalStyles.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" />
+          <input className={arcCss.modalInput} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" />
         </label>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Artist *</span>
-          <input style={modalStyles.input} value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist name" />
+          <input className={arcCss.modalInput} value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist name" />
         </label>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Audio * (ogg/mp3)</span>
-          <input style={modalStyles.input} type="file" accept=".ogg,.mp3,audio/ogg,audio/mpeg" onChange={(e) => handleAudioChange(e.target.files?.[0] ?? null)} />
+          <input className={arcCss.modalInput} type="file" accept=".ogg,.mp3,audio/ogg,audio/mpeg" onChange={(e) => handleAudioChange(e.target.files?.[0] ?? null)} />
         </label>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Jacket (image)</span>
-          <input style={modalStyles.input} type="file" accept="image/*" onChange={(e) => setJacketFile(e.target.files?.[0] ?? null)} />
+          <input className={arcCss.modalInput} type="file" accept="image/*" onChange={(e) => setJacketFile(e.target.files?.[0] ?? null)} />
         </label>
 
         {decodingAudio && (
-          <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--arc-text-muted)', marginBottom: '12px', fontFamily: 'var(--arc-font)' }}>
             오디오 디코딩 중...
           </div>
         )}
 
         {audioBuffer && !decodingAudio && (
-          <div style={{ fontSize: '13px', color: '#aaa', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--arc-text-dim)', marginBottom: '12px', fontFamily: 'var(--arc-font)' }}>
             Length: {Math.floor(audioBuffer.duration / 60)}:{String(Math.floor(audioBuffer.duration % 60)).padStart(2, '0')}
           </div>
         )}
@@ -244,15 +246,16 @@ function AddSongModal({ onDone, onClose, addToast }: {
           </div>
         )}
 
-        <div style={modalStyles.buttons}>
+        <div className={arcCss.modalButtons}>
           <button
-            style={{ ...modalStyles.saveBtn, opacity: canSubmit ? 1 : 0.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
+            className={arcCss.btnPrimary}
+            style={{ opacity: canSubmit ? 1 : 0.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >
             {submitting ? 'Uploading...' : 'Add Song'}
           </button>
-          <button style={modalStyles.cancelBtn} onClick={onClose} disabled={submitting}>Cancel</button>
+          <button className={arcCss.btnGhost} onClick={onClose} disabled={submitting} style={{ marginLeft: 'auto' }}>Cancel</button>
         </div>
       </div>
     </div>
@@ -279,29 +282,29 @@ function DifficultyModal({ existingDifficulties, onSelect, onClose }: {
   const [level, setLevel] = useState('1');
 
   return (
-    <div style={modalStyles.overlay} onMouseDown={onClose}>
-      <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-        <h3 style={modalStyles.title}>New Chart</h3>
+    <div className={arcCss.modalOverlay} onMouseDown={onClose}>
+      <div className={arcCss.modal} onMouseDown={(e) => e.stopPropagation()}>
+        <h3 className={arcCss.modalTitle}>New Chart</h3>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Difficulty</span>
           {available.length > 0 ? (
-            <select style={modalStyles.input} value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+            <select className={arcCss.modalInput} value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               {available.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           ) : (
-            <span style={{ color: '#888', fontSize: '13px' }}>All difficulties taken</span>
+            <span style={{ color: 'var(--arc-text-muted)', fontSize: '13px' }}>All difficulties taken</span>
           )}
         </label>
 
-        <label style={modalStyles.field}>
+        <label className={arcCss.modalField}>
           <span>Level (1~15)</span>
-          <input style={modalStyles.input} type="number" min="1" max="15" value={level} onChange={(e) => setLevel(e.target.value)} />
+          <input className={arcCss.modalInput} type="number" min="1" max="15" value={level} onChange={(e) => setLevel(e.target.value)} />
         </label>
 
-        <div style={modalStyles.buttons}>
+        <div className={arcCss.modalButtons}>
           <button
-            style={modalStyles.saveBtn}
+            className={arcCss.btnPrimary}
             disabled={!difficulty}
             onClick={() => {
               const lv = parseInt(level);
@@ -310,7 +313,7 @@ function DifficultyModal({ existingDifficulties, onSelect, onClose }: {
           >
             Create
           </button>
-          <button style={modalStyles.cancelBtn} onClick={onClose}>Cancel</button>
+          <button className={arcCss.btnGhost} onClick={onClose} style={{ marginLeft: 'auto' }}>Cancel</button>
         </div>
       </div>
     </div>
@@ -674,77 +677,74 @@ export function SongSelectScreen() {
     : null;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Song Select</h1>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div className={css.container}>
+      <div className={css.header}>
+        <h1 className={css.headerTitle}>Song Select</h1>
+        <div className={css.headerActions}>
           {isAdmin && (
-            <button style={styles.addSongBtn} onClick={() => setShowAddSong(true)}>
+            <button className={css.addSongBtn} onClick={() => setShowAddSong(true)}>
               + Add Song
             </button>
           )}
-          <button style={styles.refreshBtn} onClick={() => fetchSongs()} disabled={loading}>
+          <button className={arcCss.btn} onClick={() => fetchSongs()} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
-          <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
+          <button className={arcCss.btn} onClick={() => setScreen('settings')}>
             Settings
           </button>
           {!authLoading && (
             user ? (
               <>
-                <span style={{ fontSize: '12px', color: '#888' }}>{user.email}</span>
-                <button style={styles.backBtn} onClick={signOut}>Logout</button>
+                <span className={css.headerEmail}>{user.email}</span>
+                <button className={arcCss.btnGhost} onClick={signOut}>Logout</button>
               </>
             ) : (
-              <button style={styles.refreshBtn} onClick={() => signInWithGoogle().catch(() => {})}>Login</button>
+              <button className={arcCss.btn} onClick={() => signInWithGoogle().catch(() => {})}>Login</button>
             )
           )}
-          <button style={styles.backBtn} onClick={() => setScreen('title')}>
+          <button className={arcCss.btnGhost} onClick={() => setScreen('title')}>
             Back
           </button>
         </div>
       </div>
 
-      <div style={styles.splitContainer}>
+      <div className={css.splitContainer}>
         {/* Left panel — song detail */}
-        <div style={styles.leftPanel}>
+        <div className={css.leftPanel}>
           {focusedSong ? (
             <>
               {/* Jacket image */}
-              <div style={styles.jacketContainer}>
+              <div className={css.jacketContainer}>
                 <img
                   key={focusedSong.id}
                   src={focusedJacketUrl!}
                   alt=""
-                  style={styles.jacketImage}
+                  className={css.jacketImage}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   onLoad={(e) => { (e.target as HTMLImageElement).style.display = 'block'; }}
                 />
               </div>
 
               {/* Song info */}
-              <div style={styles.detailInfo}>
-                <span style={styles.detailTitle}>{focusedSong.title}</span>
-                <span style={styles.detailArtist}>{focusedSong.artist}</span>
+              <div className={css.detailInfo}>
+                <span className={css.detailTitle}>{focusedSong.title}</span>
+                <span className={css.detailArtist}>{focusedSong.artist}</span>
                 {focusedSong.duration != null && (
-                  <span style={styles.detailDuration}>
+                  <span className={css.detailDuration}>
                     {Math.floor(focusedSong.duration / 60)}:{String(Math.floor(focusedSong.duration % 60)).padStart(2, '0')}
                   </span>
                 )}
               </div>
 
               {/* Difficulty tags */}
-              <div style={styles.detailChartTags}>
+              <div className={css.detailChartTags}>
                 {focusedSortedCharts.map((chart, chartIdx) => {
                   const isChartFocused = chartIdx === focusedChartIndex;
                   return (
                     <span
                       key={chart.id}
-                      style={{
-                        ...styles.chartTag,
-                        ...getDifficultyColor(chart.difficulty_label),
-                        ...(isChartFocused ? styles.chartTagFocused : {}),
-                      }}
+                      className={`${css.chartTag} ${isChartFocused ? css.chartTagFocused : ''}`}
+                      style={getDifficultyColor(chart.difficulty_label)}
                       onClick={() => setFocusedChartIndex(chartIdx)}
                     >
                       {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
@@ -754,10 +754,10 @@ export function SongSelectScreen() {
               </div>
 
               {/* Action buttons */}
-              <div style={styles.detailActions}>
+              <div className={css.detailActions}>
                 <button
+                  className={css.playBtn}
                   style={{
-                    ...styles.playBtn,
                     width: '100%',
                     ...(focusedChart ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
                   }}
@@ -772,7 +772,8 @@ export function SongSelectScreen() {
                 </button>
                 {isAdmin && focusedChart && (
                   <button
-                    style={{ ...styles.bottomEditBtn, width: '100%' }}
+                    className={css.editBtn}
+                    style={{ width: '100%' }}
                     onClick={() => handleEdit(focusedSong.id, focusedChart.difficulty_label)}
                   >
                     Edit
@@ -781,13 +782,15 @@ export function SongSelectScreen() {
                 {isAdmin && (
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <button
-                      style={{ ...styles.bottomNewChartBtn, flex: 1 }}
+                      className={css.newChartBtn}
+                      style={{ flex: 1 }}
                       onClick={() => setNewChartTarget(focusedSong)}
                     >
                       + Chart
                     </button>
                     <button
-                      style={{ ...styles.bottomDeleteBtn, flex: 1 }}
+                      className={css.deleteBtn}
+                      style={{ flex: 1 }}
                       onClick={() => setDeleteSongTarget(focusedSong)}
                     >
                       Delete
@@ -797,24 +800,24 @@ export function SongSelectScreen() {
               </div>
             </>
           ) : (
-            <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', marginTop: '40px' }}>
+            <div className={css.emptyDetail}>
               곡을 선택하세요
             </div>
           )}
         </div>
 
         {/* Right panel — song list */}
-        <div ref={songListRef} style={styles.songList}>
+        <div ref={songListRef} className={css.songList}>
           {loading && songs.length === 0 && (
             <LoadingSpinner mode="inline" message="Loading songs..." />
           )}
 
           {!loading && error && (
-            <div style={styles.empty}>{error}</div>
+            <div className={css.empty}>{error}</div>
           )}
 
           {!loading && !error && songs.length === 0 && (
-            <div style={styles.empty}>No songs found.</div>
+            <div className={css.empty}>No songs found.</div>
           )}
 
           {songs.map((song, songIdx) => {
@@ -828,36 +831,32 @@ export function SongSelectScreen() {
               <div
                 key={song.id}
                 ref={(el) => { if (el) songCardRefs.current.set(songIdx, el); else songCardRefs.current.delete(songIdx); }}
+                className={`${css.songCard} ${isFocused ? css.songCardFocused : ''}`}
                 style={{
-                  ...styles.songCard,
-                  ...(isFocused ? styles.songCardFocused : {}),
                   opacity: cardOpacity,
                   transform: `scale(${cardScale})`,
                 }}
                 onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
               >
-                <div style={styles.songInfo}>
-                  <span style={styles.songTitle}>{song.title}</span>
-                  <span style={styles.songArtist}>
+                <div className={css.songInfo}>
+                  <span className={css.songTitle}>{song.title}</span>
+                  <span className={css.songArtist}>
                     {song.artist}
                     {song.duration != null && (
-                      <span style={styles.songDuration}>
+                      <span className={css.songDuration}>
                         {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
                       </span>
                     )}
                   </span>
                 </div>
-                <div style={styles.chartTags}>
+                <div className={css.chartTags}>
                   {sortedCharts.map((chart, chartIdx) => {
                     const isChartFocused = isFocused && chartIdx === focusedChartIndex;
                     return (
                       <span
                         key={chart.id}
-                        style={{
-                          ...styles.chartTag,
-                          ...getDifficultyColor(chart.difficulty_label),
-                          ...(isChartFocused ? styles.chartTagFocused : {}),
-                        }}
+                        className={`${css.chartTag} ${isChartFocused ? css.chartTagFocused : ''}`}
+                        style={getDifficultyColor(chart.difficulty_label)}
                         onClick={(e) => {
                           e.stopPropagation();
                           setFocusedSongIndex(songIdx);
@@ -895,24 +894,25 @@ export function SongSelectScreen() {
 
       {/* Delete song confirm modal (admin) */}
       {deleteSongTarget && (
-        <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
-          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <h3 style={modalStyles.title}>Delete Song</h3>
-            <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
+        <div className={arcCss.modalOverlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
+          <div className={arcCss.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 className={arcCss.modalTitle}>Delete Song</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 8px', color: 'var(--arc-text)', fontFamily: 'var(--arc-font)' }}>
               <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}
             </p>
-            <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
+            <p style={{ fontSize: '13px', margin: '0 0 16px', color: 'var(--arc-red)', fontFamily: 'var(--arc-font)' }}>
               곡과 모든 차트가 영구 삭제됩니다. 되돌릴 수 없습니다.
             </p>
-            <div style={modalStyles.buttons}>
+            <div className={arcCss.modalButtons}>
               <button
-                style={{ ...modalStyles.saveBtn, backgroundColor: '#cc3333', opacity: deleting ? 0.5 : 1 }}
+                className={arcCss.btnDanger}
+                style={{ opacity: deleting ? 0.5 : 1 }}
                 disabled={deleting}
                 onClick={() => handleDeleteSong(deleteSongTarget)}
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
-              <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
+              <button className={arcCss.btnGhost} onClick={() => setDeleteSongTarget(null)} disabled={deleting} style={{ marginLeft: 'auto' }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -920,9 +920,9 @@ export function SongSelectScreen() {
 
       {/* Toast notifications */}
       {toasts.length > 0 && (
-        <div style={styles.toastContainer}>
+        <div className={arcCss.toastContainer}>
           {toasts.map((toast) => (
-            <div key={toast.id} style={styles.toast}>
+            <div key={toast.id} className={arcCss.toast}>
               {toast.message}
             </div>
           ))}
@@ -931,334 +931,3 @@ export function SongSelectScreen() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
-    position: 'relative',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-  },
-  title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
-  },
-  addSongBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#4488ff',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 500,
-  },
-  refreshBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  settingsBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  backBtn: {
-    padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  splitContainer: {
-    display: 'flex',
-    flex: 1,
-    overflow: 'hidden',
-  },
-  leftPanel: {
-    width: '45%',
-    maxWidth: '480px',
-    minWidth: '320px',
-    flexShrink: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    padding: '20px',
-    borderRight: '1px solid #333',
-    overflowY: 'auto',
-  },
-  jacketContainer: {
-    width: '100%',
-    aspectRatio: '1',
-    backgroundColor: '#111',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  jacketImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  detailInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  detailTitle: {
-    fontSize: '17px',
-    fontWeight: 700,
-    lineHeight: '1.3',
-  },
-  detailArtist: {
-    fontSize: '13px',
-    color: '#999',
-  },
-  detailDuration: {
-    fontSize: '12px',
-    color: '#666',
-  },
-  detailChartTags: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '6px',
-  },
-  detailActions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginTop: 'auto',
-    paddingTop: '12px',
-  },
-  songList: {
-    flex: 1,
-    overflow: 'auto',
-    paddingTop: 'calc(50vh - 60px)',
-    paddingBottom: 'calc(50vh - 60px)',
-    paddingLeft: '24px',
-    paddingRight: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    scrollbarWidth: 'none',
-  },
-  empty: {
-    textAlign: 'center',
-    color: '#888',
-    marginTop: '40px',
-    fontSize: '14px',
-  },
-  songCard: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px 16px',
-    backgroundColor: '#2a2a2a',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#333',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'border-color 80ms, box-shadow 80ms, opacity 80ms ease, transform 80ms ease, background-color 80ms',
-    transformOrigin: 'center',
-  },
-  songCardFocused: {
-    borderColor: '#00ffff',
-    boxShadow: '0 0 8px 2px #00ffff44',
-    backgroundColor: '#303030',
-  },
-  songInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    minWidth: 0,
-    flex: 1,
-  },
-  songTitle: {
-    fontSize: '15px',
-    fontWeight: 600,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  songArtist: {
-    fontSize: '13px',
-    color: '#999',
-  },
-  songDuration: {
-    color: '#666',
-  },
-  chartTags: {
-    display: 'flex',
-    gap: '6px',
-    flexShrink: 0,
-    marginLeft: '16px',
-    alignItems: 'center',
-  },
-  chartTag: {
-    padding: '3px 10px',
-    color: '#fff',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#555',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '11px',
-    fontWeight: 500,
-    transition: 'box-shadow 0.15s',
-    userSelect: 'none',
-  },
-  chartTagFocused: {
-    boxShadow: '0 0 0 2px #00ffff',
-  },
-  playBtn: {
-    padding: '8px 28px',
-    backgroundColor: '#22aa44',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    fontWeight: 600,
-  },
-  bottomEditBtn: {
-    padding: '8px 20px',
-    backgroundColor: 'transparent',
-    color: '#4488ff',
-    border: '1px solid #4488ff66',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 500,
-  },
-  bottomNewChartBtn: {
-    padding: '8px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px dashed #555',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  bottomDeleteBtn: {
-    padding: '8px 16px',
-    backgroundColor: 'transparent',
-    color: '#cc4444',
-    border: '1px solid #cc444466',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 500,
-  },
-  toastContainer: {
-    position: 'fixed',
-    bottom: '80px',
-    right: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    zIndex: 3000,
-    pointerEvents: 'none',
-  },
-  toast: {
-    padding: '8px 16px',
-    backgroundColor: 'rgba(180, 80, 0, 0.9)',
-    color: '#fff',
-    borderRadius: '6px',
-    fontSize: '13px',
-    whiteSpace: 'nowrap',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-  },
-};
-
-const modalStyles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2000,
-  },
-  modal: {
-    backgroundColor: '#2a2a2a',
-    border: '1px solid #555',
-    borderRadius: '8px',
-    padding: '20px',
-    minWidth: '280px',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  title: {
-    margin: '0 0 16px',
-    fontSize: '16px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    marginBottom: '12px',
-    fontSize: '13px',
-  },
-  input: {
-    padding: '6px 8px',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    fontSize: '14px',
-  },
-  buttons: {
-    display: 'flex',
-    gap: '8px',
-    marginTop: '16px',
-  },
-  saveBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#4488ff',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  cancelBtn: {
-    padding: '6px 16px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    marginLeft: 'auto',
-  },
-};
