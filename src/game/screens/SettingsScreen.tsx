@@ -1,6 +1,8 @@
 import { useGameStore, PRESET_BINDINGS } from '../stores';
 import { SKIN_LIST } from '../skin';
 import { useState, useEffect, useRef } from 'react';
+import css from './SettingsScreen.module.css';
+import arcCss from '../styles/arcade.module.css';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 
@@ -85,33 +87,33 @@ export function SettingsScreen() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Settings</h1>
-        <button style={styles.backBtn} onClick={() => setScreen('songSelect')}>
+    <div className={css.container}>
+      <div className={css.header}>
+        <h1 className={css.headerTitle}>Settings</h1>
+        <button className={arcCss.btnGhost} onClick={() => setScreen('songSelect')}>
           Back
         </button>
       </div>
 
-      <div style={styles.content}>
-        <div style={styles.settingsGrid}>
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Key Bindings</h2>
+      <div className={css.content}>
+        <div className={css.settingsGrid}>
+          <div className={css.section}>
+            <h2 className={css.sectionTitle}>Key Bindings</h2>
 
             {warningMessage && (
-              <div style={styles.warning}>{warningMessage}</div>
+              <div className={css.warning}>{warningMessage}</div>
             )}
 
-            <div style={styles.keyBindings}>
+            <div className={css.keyBindings}>
               {(['lane1', 'lane2', 'lane3', 'lane4'] as const).map((lane) => (
-                <div key={lane} style={styles.laneRow}>
-                  <span style={styles.label}>{lane}:</span>
-                  <div style={styles.keyChipsContainer}>
+                <div key={lane} className={css.laneRow}>
+                  <span className={css.laneLabel}>{lane}</span>
+                  <div className={css.keyChipsContainer}>
                     {settings.keyBindings[lane].map((keyCode) => (
-                      <div key={keyCode} style={styles.keyChip}>
+                      <div key={keyCode} className={css.keyChip}>
                         <span>{keyCode}</span>
                         <button
-                          style={styles.removeKeyButton}
+                          className={css.removeKeyBtn}
                           onClick={() => handleRemoveKey(lane, keyCode)}
                           title="Remove key"
                         >
@@ -120,10 +122,7 @@ export function SettingsScreen() {
                       </div>
                     ))}
                     <button
-                      style={{
-                        ...styles.addKeyButton,
-                        ...(listeningLane === lane ? styles.addKeyButtonListening : {}),
-                      }}
+                      className={`${css.addKeyBtn} ${listeningLane === lane ? css.addKeyBtnListening : ''}`}
                       onClick={() => setListeningLane(lane)}
                       disabled={listeningLane !== null && listeningLane !== lane}
                     >
@@ -134,39 +133,39 @@ export function SettingsScreen() {
               ))}
             </div>
 
-            <div style={styles.presetButtons}>
+            <div className={css.presetButtons}>
               <button
-                style={styles.presetButton}
+                className={css.presetBtn}
                 onClick={() => handleResetToPreset('tkl')}
               >
-                Reset to TKL Preset
+                Reset to TKL
               </button>
               <button
-                style={styles.presetButton}
+                className={css.presetBtn}
                 onClick={() => handleResetToPreset('numpad')}
               >
-                Reset to Numpad Preset
+                Reset to Numpad
               </button>
             </div>
           </div>
 
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Gameplay</h2>
+          <div className={css.section}>
+            <h2 className={css.sectionTitle}>Gameplay</h2>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Judgment Mode:</label>
+            <div className={css.setting}>
+              <label className={css.label}>Judgment Mode</label>
               <select
                 value={settings.judgmentMode ?? 'normal'}
                 onChange={(e) => updateSettings({ judgmentMode: e.target.value as 'normal' | 'easy' })}
-                style={styles.select}
+                className={css.select}
               >
                 <option value="normal">Normal</option>
                 <option value="easy">Easy</option>
               </select>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Play Speed: x{(settings.playSpeed ?? 1).toFixed(2)}</label>
+            <div className={css.setting}>
+              <label className={css.label}>Play Speed: x{(settings.playSpeed ?? 1).toFixed(2)}</label>
               <input
                 type="range"
                 min="0.5"
@@ -174,12 +173,12 @@ export function SettingsScreen() {
                 step="0.05"
                 value={settings.playSpeed}
                 onChange={(e) => updateSettings({ playSpeed: Number(e.target.value) })}
-                style={styles.slider}
+                className={css.slider}
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Scroll Speed: {settings.scrollSpeed}</label>
+            <div className={css.setting}>
+              <label className={css.label}>Scroll Speed: {settings.scrollSpeed}</label>
               <input
                 type="range"
                 min="200"
@@ -187,12 +186,12 @@ export function SettingsScreen() {
                 step="50"
                 value={settings.scrollSpeed}
                 onChange={(e) => updateSettings({ scrollSpeed: Number(e.target.value) })}
-                style={styles.slider}
+                className={css.slider}
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Lift (%): {settings.liftPercent}</label>
+            <div className={css.setting}>
+              <label className={css.label}>Lift (%): {settings.liftPercent}</label>
               <input
                 type="range"
                 min="0"
@@ -200,12 +199,12 @@ export function SettingsScreen() {
                 step="1"
                 value={settings.liftPercent}
                 onChange={(e) => updateSettings({ liftPercent: Number(e.target.value) })}
-                style={styles.slider}
+                className={css.slider}
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Sudden (%): {settings.suddenPercent}</label>
+            <div className={css.setting}>
+              <label className={css.label}>Sudden (%): {settings.suddenPercent}</label>
               <input
                 type="range"
                 min="0"
@@ -213,16 +212,16 @@ export function SettingsScreen() {
                 step="1"
                 value={settings.suddenPercent}
                 onChange={(e) => updateSettings({ suddenPercent: Number(e.target.value) })}
-                style={styles.slider}
+                className={css.slider}
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Render Resolution:</label>
+            <div className={css.setting}>
+              <label className={css.label}>Render Resolution</label>
               <select
                 value={settings.renderHeight}
                 onChange={(e) => updateSettings({ renderHeight: Number(e.target.value) })}
-                style={styles.select}
+                className={css.select}
               >
                 <option value="720">720p</option>
                 <option value="1080">1080p</option>
@@ -230,12 +229,12 @@ export function SettingsScreen() {
               </select>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Target FPS:</label>
+            <div className={css.setting}>
+              <label className={css.label}>Target FPS</label>
               <select
                 value={settings.targetFps}
                 onChange={(e) => updateSettings({ targetFps: Number(e.target.value) })}
-                style={styles.select}
+                className={css.select}
               >
                 <option value="60">60</option>
                 <option value="120">120</option>
@@ -244,8 +243,8 @@ export function SettingsScreen() {
               </select>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Audio Offset (ms):</label>
+            <div className={css.setting}>
+              <label className={css.label}>Audio Offset (ms)</label>
               <input
                 type="number"
                 value={audioOffsetText}
@@ -255,12 +254,12 @@ export function SettingsScreen() {
                   updateSettings({ audioOffsetMs: isNaN(n) ? 0 : n });
                   setAudioOffsetText(String(isNaN(n) ? 0 : n));
                 }}
-                style={styles.numberInput}
+                className={css.numberInput}
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Judgment Offset (ms):</label>
+            <div className={css.setting}>
+              <label className={css.label}>Judgment Offset (ms)</label>
               <input
                 type="number"
                 value={judgmentOffsetText}
@@ -270,77 +269,74 @@ export function SettingsScreen() {
                   updateSettings({ judgmentOffsetMs: isNaN(n) ? 0 : n });
                   setJudgmentOffsetText(String(isNaN(n) ? 0 : n));
                 }}
-                style={styles.numberInput}
+                className={css.numberInput}
               />
             </div>
 
-            <div style={styles.setting}>
+            <div className={css.setting}>
               <button
-                style={styles.calibrationBtn}
+                className={css.calibrationBtn}
                 onClick={() => setScreen('calibration')}
               >
                 Calibrate Offsets
               </button>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>
+            <div className={css.setting}>
+              <label className={css.label}>
                 <input
                   type="checkbox"
                   checked={settings.showFastSlow}
                   onChange={(e) => updateSettings({ showFastSlow: e.target.checked })}
-                  style={styles.checkbox}
+                  className={css.checkbox}
                 />
                 Show FAST/SLOW
               </label>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>
+            <div className={css.setting}>
+              <label className={css.label}>
                 <input
                   type="checkbox"
                   checked={settings.showTimingDiff}
                   onChange={(e) => updateSettings({ showTimingDiff: e.target.checked })}
-                  style={styles.checkbox}
+                  className={css.checkbox}
                 />
                 Show Timing Diff
               </label>
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>
+            <div className={css.setting}>
+              <label className={css.label}>
                 <input
                   type="checkbox"
                   checked={settings.debugMode ?? false}
                   onChange={(e) => updateSettings({ debugMode: e.target.checked })}
-                  style={styles.checkbox}
+                  className={css.checkbox}
                 />
                 Debug Mode
               </label>
             </div>
           </div>
 
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Skin</h2>
-            <div style={styles.skinGrid}>
+          <div className={css.section}>
+            <h2 className={css.sectionTitle}>Skin</h2>
+            <div className={css.skinGrid}>
               {SKIN_LIST.map((skin) => {
                 const isSelected = settings.skinId === skin.theme.id;
                 return (
                   <button
                     key={skin.theme.id}
-                    style={{
-                      ...styles.skinCard,
-                      ...(isSelected ? styles.skinCardSelected : {}),
-                    }}
+                    className={`${css.skinCard} ${isSelected ? css.skinCardSelected : ''}`}
                     onClick={() => updateSettings({ skinId: skin.theme.id })}
                   >
                     <div
+                      className={css.skinSwatch}
                       style={{
-                        ...styles.skinSwatch,
                         backgroundColor: `#${skin.theme.accent.toString(16).padStart(6, '0')}`,
                       }}
                     />
-                    <span style={styles.skinName}>{skin.theme.name}</span>
+                    <span className={css.skinName}>{skin.theme.name}</span>
                   </button>
                 );
               })}
@@ -351,224 +347,3 @@ export function SettingsScreen() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-  },
-  title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
-  },
-  backBtn: {
-    padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  content: {
-    flex: 1,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: '24px',
-  },
-  settingsGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '24px',
-    width: '100%',
-    maxWidth: '600px',
-  },
-  section: {
-    backgroundColor: '#2a2a2a',
-    padding: '24px',
-    borderRadius: '8px',
-    border: '1px solid #333',
-  },
-  sectionTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    margin: '0 0 16px',
-  },
-  warning: {
-    backgroundColor: '#ff6b6b',
-    color: '#ffffff',
-    padding: '12px',
-    borderRadius: '4px',
-    marginBottom: '16px',
-    textAlign: 'center',
-    fontSize: '14px',
-    fontWeight: 'bold',
-  },
-  keyBindings: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  laneRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    fontSize: '14px',
-  },
-  keyChipsContainer: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px',
-    flex: 1,
-  },
-  keyChip: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    backgroundColor: '#1a1a1a',
-    border: '1px solid #00ffff',
-    borderRadius: '4px',
-    padding: '6px 10px',
-    fontSize: '13px',
-    color: '#00ffff',
-  },
-  removeKeyButton: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: '#ff6b6b',
-    fontSize: '18px',
-    cursor: 'pointer',
-    padding: '0',
-    width: '18px',
-    height: '18px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-  },
-  addKeyButton: {
-    backgroundColor: '#3a3a3a',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    padding: '6px 10px',
-    fontSize: '13px',
-    color: '#e0e0e0',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  addKeyButtonListening: {
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: '1px solid #00ffff',
-    animation: 'pulse 1s infinite',
-  },
-  presetButtons: {
-    display: 'flex',
-    gap: '12px',
-    marginTop: '16px',
-  },
-  presetButton: {
-    flex: 1,
-    padding: '8px 16px',
-    fontSize: '13px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 500,
-  },
-  setting: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '16px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 600,
-    minWidth: '60px',
-  },
-  slider: {
-    width: '100%',
-  },
-  select: {
-    padding: '8px',
-    fontSize: '14px',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-  },
-  numberInput: {
-    padding: '8px',
-    fontSize: '14px',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    width: '150px',
-  },
-  checkbox: {
-    marginRight: '8px',
-    width: '18px',
-    height: '18px',
-    verticalAlign: 'middle',
-  },
-  skinGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-    gap: '12px',
-  },
-  skinCard: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px',
-    backgroundColor: '#1a1a1a',
-    border: '2px solid #333',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'border-color 0.2s',
-  },
-  skinCardSelected: {
-    borderColor: '#00ffff',
-  },
-  skinSwatch: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-  },
-  skinName: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  calibrationBtn: {
-    width: '100%',
-    padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-  },
-};

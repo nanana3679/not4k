@@ -1,0 +1,378 @@
+/* ==========================================================================
+   SongSelectScreen — Arcade Song Selection
+   ========================================================================== */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--arc-bg);
+  color: var(--arc-text);
+  font-family: var(--arc-font);
+  position: relative;
+}
+
+/* Subtle dot pattern background */
+.container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    var(--arc-border) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--arc-space-lg) var(--arc-space-xl);
+  background-color: var(--arc-surface-alt);
+  border-bottom: var(--arc-border-pixel) solid var(--arc-border);
+  z-index: 1;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: var(--arc-fs-lg);
+  font-weight: 700;
+  font-family: var(--arc-font-display);
+  color: var(--arc-cyan);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 0 6px var(--arc-cyan-dim);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.headerEmail {
+  font-size: var(--arc-fs-xs);
+  color: var(--arc-text-muted);
+  font-family: var(--arc-font);
+}
+
+/* ---- Split Layout ---- */
+.splitContainer {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Left Panel (Song Detail) ---- */
+.leftPanel {
+  width: 45%;
+  max-width: 480px;
+  min-width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-right: var(--arc-border-pixel) solid var(--arc-border);
+  overflow-y: auto;
+  background-color: rgba(18, 18, 30, 0.5);
+}
+
+.jacketContainer {
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--arc-bg);
+  border: var(--arc-border-pixel) solid var(--arc-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Corner decorations on jacket */
+.jacketContainer::before,
+.jacketContainer::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  z-index: 1;
+}
+
+.jacketContainer::before {
+  top: 4px;
+  left: 4px;
+  border-top: var(--arc-border-width) solid var(--arc-cyan);
+  border-left: var(--arc-border-width) solid var(--arc-cyan);
+}
+
+.jacketContainer::after {
+  bottom: 4px;
+  right: 4px;
+  border-bottom: var(--arc-border-width) solid var(--arc-cyan);
+  border-right: var(--arc-border-width) solid var(--arc-cyan);
+}
+
+.jacketImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detailInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailTitle {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-family: var(--arc-font);
+}
+
+.detailArtist {
+  font-size: var(--arc-fs-sm);
+  color: var(--arc-text-dim);
+}
+
+.detailDuration {
+  font-size: var(--arc-fs-xs);
+  color: var(--arc-text-muted);
+  font-family: var(--arc-font);
+}
+
+/* Difficulty tags */
+.detailChartTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---- Actions ---- */
+.detailActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.playBtn {
+  padding: 10px 28px;
+  background-color: var(--arc-green);
+  color: var(--arc-bg);
+  border: var(--arc-border-width) solid var(--arc-green);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-md);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: all var(--arc-transition);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.playBtn:hover {
+  box-shadow: var(--arc-glow-green);
+}
+
+.editBtn {
+  padding: 8px 20px;
+  background-color: transparent;
+  color: var(--arc-blue);
+  border: var(--arc-border-width) solid rgba(68, 136, 255, 0.4);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all var(--arc-transition);
+}
+
+.editBtn:hover {
+  border-color: var(--arc-blue);
+  box-shadow: 0 0 8px rgba(68, 136, 255, 0.3);
+}
+
+.newChartBtn {
+  padding: 8px 16px;
+  background-color: transparent;
+  color: var(--arc-text-muted);
+  border: var(--arc-border-width) dashed var(--arc-border-light);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-sm);
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all var(--arc-transition);
+}
+
+.newChartBtn:hover {
+  border-color: var(--arc-cyan);
+  color: var(--arc-cyan);
+}
+
+.deleteBtn {
+  padding: 8px 16px;
+  background-color: transparent;
+  color: var(--arc-red);
+  border: var(--arc-border-width) solid rgba(255, 51, 51, 0.3);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all var(--arc-transition);
+}
+
+.deleteBtn:hover {
+  border-color: var(--arc-red);
+  box-shadow: 0 0 8px rgba(255, 51, 51, 0.3);
+}
+
+.emptyDetail {
+  color: var(--arc-text-muted);
+  font-size: var(--arc-fs-sm);
+  text-align: center;
+  margin-top: 40px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* ---- Right Panel (Song List) ---- */
+.songList {
+  flex: 1;
+  overflow: auto;
+  padding-top: calc(50vh - 60px);
+  padding-bottom: calc(50vh - 60px);
+  padding-left: var(--arc-space-xl);
+  padding-right: var(--arc-space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: none;
+}
+
+.songList::-webkit-scrollbar {
+  display: none;
+}
+
+.empty {
+  text-align: center;
+  color: var(--arc-text-muted);
+  margin-top: 40px;
+  font-size: var(--arc-fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* ---- Song Card ---- */
+.songCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: var(--arc-surface);
+  border: var(--arc-border-width) solid var(--arc-border);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  transition: border-color 80ms, box-shadow 80ms, opacity 80ms ease, transform 80ms ease, background-color 80ms;
+  transform-origin: center;
+}
+
+.songCardFocused {
+  border-color: var(--arc-cyan);
+  box-shadow:
+    0 0 8px var(--arc-cyan-dim),
+    inset 0 0 20px rgba(0, 229, 255, 0.03);
+  background-color: var(--arc-surface-alt);
+}
+
+.songInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.songTitle {
+  font-size: var(--arc-fs-md);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--arc-font);
+}
+
+.songArtist {
+  font-size: var(--arc-fs-sm);
+  color: var(--arc-text-dim);
+}
+
+.songDuration {
+  color: var(--arc-text-muted);
+}
+
+/* ---- Chart Tags ---- */
+.chartTags {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: var(--arc-space-lg);
+  align-items: center;
+}
+
+.chartTag {
+  padding: 3px 10px;
+  color: #fff;
+  border: var(--arc-border-width) solid var(--arc-border-light);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-xs);
+  font-weight: 700;
+  transition: box-shadow 0.15s;
+  user-select: none;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chartTagFocused {
+  box-shadow: 0 0 0 2px var(--arc-cyan), 0 0 8px var(--arc-cyan-dim);
+}
+
+/* ---- Header Buttons ---- */
+.addSongBtn {
+  padding: 6px 16px;
+  background-color: var(--arc-blue);
+  color: #fff;
+  border: var(--arc-border-width) solid var(--arc-blue);
+  border-radius: var(--arc-radius-sm);
+  cursor: pointer;
+  font-size: var(--arc-fs-sm);
+  font-weight: 700;
+  font-family: var(--arc-font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all var(--arc-transition);
+}
+
+.addSongBtn:hover {
+  box-shadow: 0 0 8px rgba(68, 136, 255, 0.4);
+}
