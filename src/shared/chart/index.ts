@@ -234,7 +234,24 @@ export function chartFromJson(json: ChartJson): Chart {
 
 /** JSON 문자열 → Chart */
 export function deserializeChart(str: string): Chart {
-  const json: ChartJson = JSON.parse(str);
+  let json: ChartJson;
+  try {
+    json = JSON.parse(str);
+  } catch {
+    throw new Error("차트 파싱 실패: 유효한 JSON이 아닙니다");
+  }
+  if (!json || typeof json !== "object") {
+    throw new Error("차트 파싱 실패: 최상위 값이 객체가 아닙니다");
+  }
+  if (!json.meta || typeof json.meta !== "object") {
+    throw new Error("차트 파싱 실패: meta 필드가 없거나 유효하지 않습니다");
+  }
+  if (!Array.isArray(json.notes)) {
+    throw new Error("차트 파싱 실패: notes 필드가 배열이 아닙니다");
+  }
+  if (!Array.isArray(json.trillZones)) {
+    throw new Error("차트 파싱 실패: trillZones 필드가 배열이 아닙니다");
+  }
   return chartFromJson(json);
 }
 
