@@ -3,6 +3,14 @@ import { beat } from '../../../shared';
 import type { Chart } from '../../../shared';
 import type { DbSong } from './types';
 
+export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
+
+const DIFFICULTY_ORDER = new Map(DIFFICULTIES.map((d, i) => [d, i]));
+
+export function getDifficultyOrder(label: string): number {
+  return DIFFICULTY_ORDER.get(label.toUpperCase()) ?? DIFFICULTIES.length;
+}
+
 export function getDifficultyColor(difficulty: string): React.CSSProperties {
   switch (difficulty.toLowerCase()) {
     case 'easy': return { backgroundColor: '#2d6a4f', borderColor: '#40916c' };

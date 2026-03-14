@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { modalStyles } from './modalStyles';
-
-const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'];
+import { DIFFICULTIES } from './helpers';
 
 export interface DifficultyModalProps {
   existingDifficulties: string[];

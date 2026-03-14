@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, type RefObject, type MutableR
 import { supabase } from '../../supabase';
 import { useGameStore } from '../stores';
 import type { DbSong } from '../screens/songSelect/types';
+import { getDifficultyOrder } from '../screens/songSelect/helpers';
 
 const NAV_COOLDOWN = 100; // ms
 
@@ -47,7 +48,10 @@ export function useSongNavigation(options: {
   const restoredRef = useRef(false);
 
   const getSortedCharts = useCallback((song: DbSong) => {
-    return [...song.charts].sort((a, b) => a.difficulty_level - b.difficulty_level);
+    return [...song.charts].sort((a, b) =>
+      getDifficultyOrder(a.difficulty_label) - getDifficultyOrder(b.difficulty_label)
+      || a.difficulty_level - b.difficulty_level
+    );
   }, []);
 
   // Supabase fetch
