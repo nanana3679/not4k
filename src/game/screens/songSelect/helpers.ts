@@ -8,7 +8,7 @@ export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
 const DIFFICULTY_ORDER = new Map(DIFFICULTIES.map((d, i) => [d, i]));
 
 export function getDifficultyOrder(label: string): number {
-  return DIFFICULTY_ORDER.get(label.toUpperCase()) ?? DIFFICULTIES.length;
+  return DIFFICULTY_ORDER.get(label.toUpperCase() as typeof DIFFICULTIES[number]) ?? DIFFICULTIES.length;
 }
 
 export function getDifficultyColor(difficulty: string): React.CSSProperties {

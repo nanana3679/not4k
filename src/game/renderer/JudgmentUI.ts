@@ -19,10 +19,7 @@ export class JudgmentUI {
   private showTimingDiff: boolean = false;
   private perfectWindow: number = JUDGMENT_WINDOWS.PERFECT;
 
-  private judgmentLineY: number;
-
   constructor(uiLayer: Container, judgmentLineY: number, width: number) {
-    this.judgmentLineY = judgmentLineY;
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Arial",
@@ -140,7 +137,6 @@ export class JudgmentUI {
   }
 
   setPosition(judgmentLineY: number): void {
-    this.judgmentLineY = judgmentLineY;
     this.judgmentText.y = judgmentLineY - 45;
     this.fastSlowText.y = judgmentLineY - 15;
     this.timingDiffText.y = judgmentLineY - 68;
