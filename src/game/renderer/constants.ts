@@ -2,7 +2,7 @@
  * Visual constants for the game renderer
  */
 
-export const LANE_COUNT = 4;
+export { LANE_COUNT } from '../../shared/constants/note';
 export const GAME_HEIGHT = 600; // logical height (fixed)
 export const LANE_WIDTH = 100; // px per lane
 export const LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH; // 400px
