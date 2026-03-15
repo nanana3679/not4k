@@ -9,6 +9,7 @@ import { getWaveformPeaks } from './timeline/waveform';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode } from './modes';
 import { useEditorStore } from './stores';
+import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
@@ -175,7 +176,6 @@ function ChartEditorPage() {
 
   // UI 상태
   const [showMetaModal, setShowMetaModal] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
@@ -327,6 +327,7 @@ function ChartEditorPage() {
       onTimeUpdate: setCurrentTimeMs,
       onPlayStateChange: setIsPlaying,
     });
+    playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
     const createMode = new CreateMode(chart, {
@@ -388,6 +389,14 @@ function ChartEditorPage() {
       playback.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // masterVolume 변경 시 PlaybackController에 반영
+  const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
+  useEffect(() => {
+    if (playbackRef.current) {
+      playbackRef.current.volume = masterVolume;
+    }
+  }, [masterVolume]);
 
   // 오디오 로드
   useEffect(() => {
@@ -561,8 +570,6 @@ function ChartEditorPage() {
       {/* 툴바 */}
       <EditorToolbar
         playbackRef={playbackRef}
-        volume={volume}
-        setVolume={setVolume}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}
         showOffsetPanel={showOffsetPanel}

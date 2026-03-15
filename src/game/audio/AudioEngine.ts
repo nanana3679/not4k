@@ -12,6 +12,7 @@ export class AudioEngine {
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
   private buffer: AudioBuffer | null = null;
+  private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
   private startOffset: number = 0; // offset into the buffer when playback started (seconds)
   private _playing: boolean = false;
@@ -20,6 +21,17 @@ export class AudioEngine {
 
   constructor() {
     this.ctx = new AudioContext();
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.connect(this.ctx.destination);
+  }
+
+  /** Set master volume (0.0 to 1.0) */
+  set masterVolume(value: number) {
+    this.masterGain.gain.value = Math.max(0, Math.min(1, value));
+  }
+
+  get masterVolume(): number {
+    return this.masterGain.gain.value;
   }
 
   /**
@@ -95,7 +107,7 @@ export class AudioEngine {
     // Create new source node
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
-    this.source.connect(this.ctx.destination);
+    this.source.connect(this.masterGain);
 
     // Handle natural playback end
     this.source.onended = () => {
@@ -157,7 +169,7 @@ export class AudioEngine {
     // Create new source and start from pause position
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
-    this.source.connect(this.ctx.destination);
+    this.source.connect(this.masterGain);
 
     // Handle natural playback end
     this.source.onended = () => {
