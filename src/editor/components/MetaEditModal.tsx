@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ChartMeta } from '../../shared';
 import { STORAGE_BUCKET } from '../../shared';
 import { supabase } from '../../supabase';
@@ -38,6 +38,13 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
     initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
   );
   const [jacketFile, setJacketFile] = useState<File | null>(initialJacketFile ?? null);
+  const prevJacketUrlRef = useRef<string | null>(jacketLocalUrl);
+
+  useEffect(() => {
+    return () => {
+      if (prevJacketUrlRef.current) URL.revokeObjectURL(prevJacketUrlRef.current);
+    };
+  }, []);
 
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
 
@@ -157,8 +164,11 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    if (prevJacketUrlRef.current) URL.revokeObjectURL(prevJacketUrlRef.current);
+                    const newUrl = URL.createObjectURL(file);
+                    prevJacketUrlRef.current = newUrl;
                     setJacketFile(file);
-                    setJacketLocalUrl(URL.createObjectURL(file));
+                    setJacketLocalUrl(newUrl);
                     setJacketError(false);
                   }
                 }}
