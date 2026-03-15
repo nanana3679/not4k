@@ -32,6 +32,20 @@ const ASSETS = [
   "body-double",
   "body-single-held",
   "body-double-held",
+  // 실패 에셋
+  "note-single-failed",
+  "note-double-failed",
+  "body-single-failed",
+  "body-double-failed",
+  "terminal-single-failed",
+  "terminal-double-failed",
+  // 부분 실패 에셋 (더블 롱노트)
+  "body-double-partial-failed-left",
+  "body-double-partial-failed-right",
+  "terminal-double-partial-failed-left",
+  "terminal-double-partial-failed-right",
+  "note-double-partial-failed-left",
+  "note-double-partial-failed-right",
   ...Array.from({ length: 16 }, (_, i) =>
     `bomb-${String(i).padStart(2, "0")}`
   ),
