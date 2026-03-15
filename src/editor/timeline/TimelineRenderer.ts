@@ -615,6 +615,7 @@ export class TimelineRenderer {
     this.gridRenderer.renderTrillZones();
     this.overlayRenderer.renderMoveOrigins();
     this.overlayRenderer.renderBoxSelectRect();
+    this.noteRenderer.beginRender();
     this.noteRenderer.renderNotes();
     this.gridRenderer.renderMarkers(this.noteLayer, this._eventLabelStyle, (style) => { this._eventLabelStyle = style; });
     this.overlayRenderer.renderViolationOverlay();
@@ -635,14 +636,8 @@ export class TimelineRenderer {
     destroyChildren(this.snapLines);
     destroyChildren(this.trillZoneLayer);
     destroyChildren(this.moveOriginLayer);
-    destroyChildren(this.longNoteBodyLayer);
-    destroyChildren(this.longNoteEndLayer);
-    destroyChildren(this.longNoteHeadLayer);
-    destroyChildren(this.noteLayer);
-    destroyChildren(this.selectedLongBodyLayer);
-    destroyChildren(this.selectedLongEndLayer);
-    destroyChildren(this.selectedLongHeadLayer);
-    destroyChildren(this.selectedNoteLayer);
+    // 노트 레이어는 NoteRenderer.beginRender()에서 removeChildren으로 관리
+    // (destroy 없이 풀링하여 GC 압력 감소)
     destroyChildren(this.violationLayer);
     destroyChildren(this.hoverLayer);
     destroyChildren(this.boxSelectLayer);
@@ -799,6 +794,8 @@ export class TimelineRenderer {
     this._measureLabelStyle = null;
     this._eventLabelStyle?.destroy();
     this._eventLabelStyle = null;
+    // app.destroy가 자식을 이미 파괴했으므로 풀 참조만 정리
+    this.noteRenderer.dispose();
     this.minimapRenderer.dispose();
   }
 }
