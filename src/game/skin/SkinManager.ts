@@ -45,7 +45,6 @@ export class SkinManager {
       ["bodySingleHeld", assets.bodySingleHeld],
       ["bodyDoubleHeld", assets.bodyDoubleHeld],
       // 실패 에셋
-      ["noteSingleFailed", assets.noteSingleFailed],
       ["noteDoubleFailed", assets.noteDoubleFailed],
       ["bodySingleFailed", assets.bodySingleFailed],
       ["bodyDoubleFailed", assets.bodyDoubleFailed],

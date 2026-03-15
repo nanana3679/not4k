@@ -13,7 +13,6 @@ function buildManifest(id: string, theme: SkinManifest["theme"]): SkinManifest {
       bodyDouble: `${base}/body-double.png`,
       bodySingleHeld: `${base}/body-single-held.png`,
       bodyDoubleHeld: `${base}/body-double-held.png`,
-      noteSingleFailed: `${base}/note-single-failed.png`,
       noteDoubleFailed: `${base}/note-double-failed.png`,
       bodySingleFailed: `${base}/body-single-failed.png`,
       bodyDoubleFailed: `${base}/body-double-failed.png`,

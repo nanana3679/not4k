@@ -128,8 +128,8 @@ export class GameNoteRenderer {
     } else {
       const isDouble = entity.type === "double";
       let texKey: string;
-      if (isMissed) {
-        texKey = isDouble ? "noteDoubleFailed" : "noteSingleFailed";
+      if (isMissed && isDouble) {
+        texKey = "noteDoubleFailed";
       } else {
         texKey = isDouble ? "noteDouble" : "noteSingle";
       }

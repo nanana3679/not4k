@@ -33,7 +33,6 @@ export interface SkinManifest {
     bodySingleHeld: string;
     bodyDoubleHeld: string;
     /** 실패 에셋 */
-    noteSingleFailed: string;
     noteDoubleFailed: string;
     bodySingleFailed: string;
     bodyDoubleFailed: string;
