@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { serializeChart, deserializeChart, chartToJson, chartFromJson } from "./index";
 import { beat } from "../types/beat";
-import type { Chart } from "../types/chart";
+import type { Chart, PointNote } from "../types/chart";
 
 const SAMPLE_CHART: Chart = {
   meta: {
@@ -193,5 +193,56 @@ describe("레거시 마이그레이션 (v1 → v2)", () => {
     const v2Json = chartToJson(SAMPLE_CHART);
     const chart = chartFromJson(v2Json);
     expect(chart).toEqual(SAMPLE_CHART);
+  });
+});
+
+describe("grace 플래그 직렬화/역직렬화", () => {
+  it("grace: true인 포인트 노트를 직렬화하면 JSON에 grace: true 포함", () => {
+    const note: PointNote = { type: "single", lane: 1, beat: beat(0), grace: true };
+    const chart: Chart = { meta: SAMPLE_CHART.meta, notes: [note], trillZones: [], events: [] };
+    const json = chartToJson(chart);
+    expect(json.notes[0]).toHaveProperty("grace", true);
+  });
+
+  it("grace 플래그가 없는 포인트 노트를 직렬화하면 JSON에 grace 미포함", () => {
+    const note: PointNote = { type: "single", lane: 1, beat: beat(0) };
+    const chart: Chart = { meta: SAMPLE_CHART.meta, notes: [note], trillZones: [], events: [] };
+    const json = chartToJson(chart);
+    expect(json.notes[0]).not.toHaveProperty("grace");
+  });
+
+  it("grace: true인 JSON을 역직렬화하면 NoteEntity에 grace: true 복원", () => {
+    const json = {
+      version: 2,
+      meta: SAMPLE_CHART.meta,
+      notes: [{ type: "single" as const, lane: 1 as const, beat: "0", grace: true }],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(json);
+    expect((chart.notes[0] as PointNote).grace).toBe(true);
+  });
+
+  it("grace가 없는 JSON을 역직렬화하면 grace 프로퍼티 없음", () => {
+    const json = {
+      version: 2,
+      meta: SAMPLE_CHART.meta,
+      notes: [{ type: "single" as const, lane: 1 as const, beat: "0" }],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(json);
+    expect(chart.notes[0]).not.toHaveProperty("grace");
+  });
+
+  it("전체 차트 직렬화→역직렬화 라운드트립에서 grace 플래그 보존", () => {
+    const graceNote: PointNote = { type: "single", lane: 2, beat: beat(4), grace: true };
+    const normalNote: PointNote = { type: "double", lane: 3, beat: beat(8) };
+    const chart: Chart = { meta: SAMPLE_CHART.meta, notes: [graceNote, normalNote], trillZones: [], events: [] };
+
+    const restored = deserializeChart(serializeChart(chart));
+
+    expect((restored.notes[0] as PointNote).grace).toBe(true);
+    expect(restored.notes[1]).not.toHaveProperty("grace");
   });
 });

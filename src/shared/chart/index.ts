@@ -9,6 +9,7 @@ import type {
   Chart,
   ChartMeta,
   NoteEntity,
+  PointNote,
   TrillZone,
   EventMarker,
   ExtraNoteEntity,
@@ -23,6 +24,7 @@ interface PointNoteJson {
   type: "single" | "double" | "trill";
   lane: 1 | 2 | 3 | 4;
   beat: string;
+  grace?: boolean;
 }
 
 interface RangeNoteJson {
@@ -93,7 +95,9 @@ function serializeNote(n: NoteEntity): NoteEntityJson {
       endBeat: beatToString(n.endBeat),
     };
   }
-  return { type: n.type, lane: n.lane, beat: beatToString(n.beat) };
+  const json: PointNoteJson = { type: n.type, lane: n.lane, beat: beatToString(n.beat) };
+  if (n.grace) json.grace = true;
+  return json;
 }
 
 function serializeTrillZone(z: TrillZone): TrillZoneJson {
@@ -164,7 +168,9 @@ function parseNote(n: NoteEntityJson): NoteEntity {
       endBeat: beatFromString(n.endBeat),
     };
   }
-  return { type: n.type, lane: n.lane, beat: beatFromString(n.beat) };
+  const note: PointNote = { type: n.type, lane: n.lane, beat: beatFromString(n.beat) };
+  if (n.grace) note.grace = true;
+  return note;
 }
 
 function parseTrillZone(z: TrillZoneJson): TrillZone {
