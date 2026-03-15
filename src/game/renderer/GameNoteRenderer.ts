@@ -447,6 +447,11 @@ export class GameNoteRenderer {
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
       this.noteSpritePool.set(index, sprite);
+    } else {
+      const newTex = this.skinManager.getTexture(texKey);
+      if (sprite.texture !== newTex) {
+        sprite.texture = newTex;
+      }
     }
     return sprite;
   }
@@ -462,6 +467,12 @@ export class GameNoteRenderer {
         bottomHeight: 4,
       });
       this.bodySpritePool.set(index, sprite);
+    } else {
+      // 텍스처가 변경되었으면 업데이트 (부분 실패 등 상태 전환)
+      const newTex = this.skinManager.getTexture(texKey);
+      if (sprite.texture !== newTex) {
+        sprite.texture = newTex;
+      }
     }
     return sprite;
   }
@@ -471,6 +482,11 @@ export class GameNoteRenderer {
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
       this.terminalSpritePool.set(index, sprite);
+    } else {
+      const newTex = this.skinManager.getTexture(texKey);
+      if (sprite.texture !== newTex) {
+        sprite.texture = newTex;
+      }
     }
     return sprite;
   }
