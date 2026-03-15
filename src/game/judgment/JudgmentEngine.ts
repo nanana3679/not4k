@@ -630,6 +630,7 @@ export class JudgmentEngine {
                   key2: { keyCode: heldKeysArr[1], failed: false, lastReleaseTimeMs: null },
                 });
               }
+              // 1키만 눌려있으면 아직 대기 — 허용 구간 내에서 2번째 키 입력을 기다림
             }
           }
           // 아직 허용 구간 내 — skip
@@ -688,7 +689,6 @@ export class JudgmentEngine {
     const dlState = this.doubleLongKeyStates.get(noteIndex);
 
     // 아직 2키 추적이 초기화되지 않은 경우 (1키만 눌려서 시작)
-    // → 레인 수준의 기존 홀드 체크로 폴백
     if (!dlState) {
       // 2키가 됐으면 초기화
       if (holdState.heldKeys.size >= 2) {
@@ -699,13 +699,30 @@ export class JudgmentEngine {
         });
         return;
       }
-      // 1키만 눌려있으면 아직 레인 수준으로 체크
-      if (holdState.isHeld) return;
+
+      // 1키만 눌려있음 — Good 윈도우 초과 시 미입력 쪽만 부분 실패
+      const bodyState = this.longNoteBodyStates.get(noteIndex);
+      if (holdState.isHeld && holdState.heldKeys.size === 1) {
+        if (bodyState && songTimeMs > bodyState.bodyStartTimeMs + this.windows.GOOD) {
+          // 2번째 키 입력 없이 Good 윈도우 초과 → 1키로 초기화 + 미입력 쪽 부분 실패
+          const heldKey = Array.from(holdState.heldKeys)[0];
+          this.doubleLongKeyStates.set(noteIndex, {
+            key1: { keyCode: heldKey, failed: false, lastReleaseTimeMs: null },
+            key2: { keyCode: '__missing__', failed: true, lastReleaseTimeMs: null },
+          });
+          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0, true, 'right');
+          this.breakCombo();
+        }
+        return;
+      }
+
+      // 키가 전혀 안 눌려있음 → grace period 체크
       if (
         holdState.lastReleaseTimeMs !== null &&
         songTimeMs - holdState.lastReleaseTimeMs > GRACE_PERIOD_MS
       ) {
         this.noteStates.set(noteIndex, NoteState.BODY_FAILED);
+        this.doubleLongKeyStates.delete(noteIndex);
         this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0);
         this.breakCombo();
       }
