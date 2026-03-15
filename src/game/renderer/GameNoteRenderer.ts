@@ -91,6 +91,13 @@ export class GameNoteRenderer {
 
     const y = this.calculateNoteY(timeMs, songTimeMs);
     if (y < -NOTE_HEIGHT) return;
+    // 화면 아래로 벗어난 miss 노트는 완료 처리하여 렌더링 누적 방지
+    if (y > this.height + NOTE_HEIGHT) {
+      if (this.missedNotes.has(index)) {
+        this.completedNotes.add(index);
+      }
+      return;
+    }
 
     const laneX = this.getLaneX(entity.lane);
     const isPartial = this.doublePartialNotes.has(index);
@@ -122,7 +129,7 @@ export class GameNoteRenderer {
       sprite.x = laneX;
       sprite.y = y;
       sprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
-      sprite.alpha = isPartial ? 0.7 : 1;
+      sprite.alpha = isMissed ? 1 : (isPartial ? 0.7 : 1);
       this.noteLayer.addChild(sprite);
     }
   }
@@ -138,6 +145,12 @@ export class GameNoteRenderer {
 
     const rawStartY = this.calculateNoteY(startMs, songTimeMs);
     const endY = this.calculateNoteY(endMs, songTimeMs);
+
+    // 화면 아래로 완전히 벗어난 miss 롱노트는 완료 처리
+    if (endY > this.height + NOTE_HEIGHT && this.missedNotes.has(index)) {
+      this.completedNotes.add(index);
+      return;
+    }
 
     // 바디 시작 Y를 항상 판정선으로 클램프
     const startY = Math.min(rawStartY, this.judgmentLineY);
