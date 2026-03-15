@@ -109,6 +109,7 @@ export function PlayScreen() {
 
         // Initialize game objects
         const audioEngine = new AudioEngine();
+        audioEngine.masterVolume = settings.masterVolume ?? 1;
         audioEngine.playbackRate = settings.playSpeed;
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);

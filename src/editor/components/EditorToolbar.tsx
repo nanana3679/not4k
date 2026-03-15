@@ -2,11 +2,13 @@
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
 
+import { useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
 import { serializeChart, serializeExtraNotes } from '../../shared';
 import { useEditorStore } from '../stores';
+import { useGameStore } from '../../game/stores';
 
 const styles = {
   toolbar: {
@@ -59,8 +61,6 @@ const styles = {
 
 interface EditorToolbarProps {
   playbackRef: RefObject<PlaybackController | null>;
-  volume: number;
-  setVolume: (v: number) => void;
   autoScroll: boolean;
   setAutoScroll: (v: boolean) => void;
   showOffsetPanel: boolean;
@@ -90,8 +90,6 @@ const entityTypeOptions: EntityType[] = [
 
 export function EditorToolbar({
   playbackRef,
-  volume,
-  setVolume,
   autoScroll,
   setAutoScroll,
   showOffsetPanel,
@@ -110,6 +108,10 @@ export function EditorToolbar({
   onOpenMeta,
   onOpenCustomSnap,
 }: EditorToolbarProps) {
+  const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
+  const updateSettings = useGameStore((s) => s.updateSettings);
+  const [showSettingsPopover, setShowSettingsPopover] = useState(false);
+
   const mode = useEditorStore((s) => s.mode);
   const setMode = useEditorStore((s) => s.setMode);
   const entityType = useEditorStore((s) => s.entityType);
@@ -315,21 +317,57 @@ export function EditorToolbar({
         {isPlaying ? 'Pause' : 'Play'}
       </button>
 
-      {/* 볼륨 슬라이더 */}
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        value={volume}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          setVolume(v);
-          if (playbackRef.current) playbackRef.current.volume = v;
-        }}
-        style={styles.volumeSlider}
-        title={`Volume: ${Math.round(volume * 100)}%`}
-      />
+      {/* 세팅 팝오버 (마스터 볼륨) */}
+      <div style={{ position: 'relative' }}>
+        <button
+          style={{ ...styles.button, ...(showSettingsPopover ? styles.buttonActive : {}) }}
+          onClick={() => setShowSettingsPopover((v) => !v)}
+          title={`Master Volume: ${Math.round(masterVolume * 100)}%`}
+        >
+          Settings
+        </button>
+        {showSettingsPopover && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+              onClick={() => setShowSettingsPopover(false)}
+            />
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: '4px',
+              backgroundColor: '#2a2a2a',
+              border: '1px solid #555',
+              borderRadius: '6px',
+              zIndex: 1000,
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+            }}>
+              <span style={{ fontSize: '12px', color: '#999' }}>Volume</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={masterVolume}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  updateSettings({ masterVolume: v });
+                  if (playbackRef.current) playbackRef.current.volume = v;
+                }}
+                style={styles.volumeSlider}
+              />
+              <span style={{ fontSize: '12px', color: '#e0e0e0', minWidth: '32px', textAlign: 'right' }}>
+                {Math.round(masterVolume * 100)}%
+              </span>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* 자동 스크롤 토글 */}
       <button

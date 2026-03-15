@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../../supabase';
 import { STORAGE_BUCKET } from '../../shared';
+import { useGameStore } from '../stores';
 import type { DbSong } from '../screens/songSelect/types';
 
 /**
@@ -12,10 +13,11 @@ import type { DbSong } from '../screens/songSelect/types';
  */
 export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
 
   useEffect(() => {
     const song = songs[focusedSongIndex];
-    const BASE_VOL = 0.4;
+    const BASE_VOL = 0.4 * masterVolume;
     const FADE = 0.5; // seconds
 
     // 이전 오디오 정지
@@ -96,7 +98,7 @@ export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
       el.load();
       audioRef.current = null;
     };
-  }, [songs, focusedSongIndex]);
+  }, [songs, focusedSongIndex, masterVolume]);
 
   const stopPreview = () => {
     const audio = audioRef.current;

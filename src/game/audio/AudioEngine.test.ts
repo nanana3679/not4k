@@ -18,6 +18,11 @@ function createMockAudioContext() {
     destination: {},
     decodeAudioData: vi.fn(),
     createBufferSource: vi.fn(),
+    createGain: vi.fn(() => ({
+      gain: { value: 1 },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    })),
     // test helper: advance wall-clock time
     _advanceTime(seconds: number) {
       _currentTime += seconds;

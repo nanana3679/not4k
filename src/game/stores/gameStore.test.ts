@@ -47,3 +47,36 @@ describe('mergePersistedSettings', () => {
     expect(result.settings.judgmentOffsetMs).toBe(-15);
   });
 });
+
+describe('gameStore — masterVolume', () => {
+  const makeCurrentState = () => ({
+    settings: {
+      masterVolume: 1.0,
+      scrollSpeed: 800,
+    },
+  });
+
+  it('masterVolume 기본값 = 1.0 — 저장 데이터에 masterVolume이 없으면 현재 기본값 유지', () => {
+    const persisted = { settings: { scrollSpeed: 900 } };
+    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
+      settings: { masterVolume: number };
+    };
+    expect(result.settings.masterVolume).toBe(1.0);
+  });
+
+  it('저장된 masterVolume = 0.5이면 0.5로 복원된다', () => {
+    const persisted = { settings: { masterVolume: 0.5 } };
+    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
+      settings: { masterVolume: number };
+    };
+    expect(result.settings.masterVolume).toBe(0.5);
+  });
+
+  it('저장된 masterVolume = 0이면 0으로 복원된다', () => {
+    const persisted = { settings: { masterVolume: 0 } };
+    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
+      settings: { masterVolume: number };
+    };
+    expect(result.settings.masterVolume).toBe(0);
+  });
+});
