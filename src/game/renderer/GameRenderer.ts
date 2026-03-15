@@ -50,6 +50,7 @@ export class GameRenderer {
   private longNoteEndLayer: Container;
   private longNoteHeadLayer: Container;
   private noteLayer: Container;
+  private maskGraphic: Graphics;
   private judgmentLineGraphic: Graphics;
   private effectLayer: Container;
   private uiLayer: Container;
@@ -119,6 +120,7 @@ export class GameRenderer {
     this.longNoteEndLayer = new Container();
     this.longNoteHeadLayer = new Container();
     this.noteLayer = new Container();
+    this.maskGraphic = new Graphics();
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
     this.uiLayer = new Container();
@@ -167,6 +169,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
     this.app.stage.addChild(this.noteLayer);
+    this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
@@ -191,6 +194,7 @@ export class GameRenderer {
     // Draw static elements
     this.drawBackground();
     this.drawJudgmentLine();
+    this.drawMask();
     this.buildKeyBeams();
     this.buildButtons();
     this.initialized = true;
@@ -285,6 +289,15 @@ export class GameRenderer {
       4
     );
     this.judgmentLineGraphic.fill(COLORS.JUDGMENT_LINE);
+  }
+
+  private drawMask(): void {
+    this.maskGraphic.clear();
+    const maskY = this._judgmentLineY + 2; // just below the judgment line
+    const maskHeight = this.height - maskY;
+    if (maskHeight <= 0) return;
+    this.maskGraphic.rect(this.laneAreaX, maskY, LANE_AREA_WIDTH, maskHeight);
+    this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
   setChart(
@@ -473,6 +486,7 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
+    this.drawMask();
     this.comboText.y = this.height / 2 - 80;
     this.accuracyText.y = this.height / 2 + 20;
     this.judgmentUI.setPosition(this._judgmentLineY, this.height);
