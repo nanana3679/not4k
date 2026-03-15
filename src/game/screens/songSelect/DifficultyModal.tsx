@@ -10,7 +10,10 @@ export interface DifficultyModalProps {
 
 export function DifficultyModal({ existingDifficulties, onSelect, onClose }: DifficultyModalProps) {
   const available = useMemo(
-    () => DIFFICULTIES.filter((d) => !existingDifficulties.includes(d.toLowerCase())),
+    () => {
+      const existing = existingDifficulties.map((d) => d.toUpperCase());
+      return DIFFICULTIES.filter((d) => !existing.includes(d));
+    },
     [existingDifficulties],
   );
 
