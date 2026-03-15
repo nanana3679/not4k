@@ -9,6 +9,7 @@ import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
+import type { Lane } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
@@ -58,6 +59,20 @@ export function PlayScreen() {
             noteEndTimesMs.set(index, endTimeMs);
           }
         });
+
+        // 트릴 구간 시작 시간 목록 (레인별, 정렬됨)
+        const trillZoneStartTimesMs = new Map<Lane, number[]>();
+        for (const zone of chartData.trillZones) {
+          const startMs = beatToMs(zone.beat, bpmMarkers, chartData.meta.offsetMs);
+          if (!trillZoneStartTimesMs.has(zone.lane)) {
+            trillZoneStartTimesMs.set(zone.lane, []);
+          }
+          trillZoneStartTimesMs.get(zone.lane)!.push(startMs);
+        }
+        // 시간 순 정렬
+        for (const times of trillZoneStartTimesMs.values()) {
+          times.sort((a, b) => a - b);
+        }
 
         // Calculate total judgment count based on note types
         let totalJudgments = 0;
@@ -192,7 +207,8 @@ export function PlayScreen() {
               renderer.updateCombo(combo);
             },
           },
-          windows
+          windows,
+          trillZoneStartTimesMs,
         );
 
         // Create input system

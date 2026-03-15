@@ -4,16 +4,16 @@
  * 플레이어 입력을 노트와 매칭하여 판정을 생성하고, 콤보를 추적한다.
  */
 
-import type { NoteEntity, RangeNote } from "../../shared";
-import { isGraceNote } from "../../shared";
+import type { NoteEntity, RangeNote } from "../../shared/types";
+import { isGraceNote } from "../../shared/types";
 import {
   JudgmentGrade,
   JUDGMENT_WINDOWS,
   GRACE_PERIOD_MS,
   NoteType,
-} from "../../shared";
-import type { JudgmentWindows } from "../../shared";
-import type { Lane } from "../../shared";
+} from "../../shared/constants";
+import type { JudgmentWindows } from "../../shared/constants";
+import type { Lane } from "../../shared/constants";
 
 /**
  * 판정 결과
@@ -109,6 +109,10 @@ export class JudgmentEngine {
   private readonly doubleNoteStates: Map<number, DoubleNoteState> = new Map();
   /** 레인별 트릴 교대 추적 (마지막으로 누른 키) */
   private readonly trillAlternation: Map<Lane, string | null> = new Map();
+  /** 레인별 트릴 구간 시작 시간 목록 (정렬됨, 구간 시작 시 교대 상태 리셋용) */
+  private readonly trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]>;
+  /** 레인별 다음으로 처리할 트릴 구간 시작 인덱스 */
+  private readonly trillZoneNextIndex: Map<Lane, number> = new Map();
   /** 레인별 홀드 상태 */
   private readonly laneHoldStates: Map<Lane, LaneHoldState> = new Map();
   /** 롱노트별 바디 추적 상태 */
@@ -124,12 +128,14 @@ export class JudgmentEngine {
     noteEndTimesMs: ReadonlyMap<number, number>,
     callbacks: JudgmentCallbacks,
     windows: JudgmentWindows = JUDGMENT_WINDOWS,
+    trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]> = new Map(),
   ) {
     this.notes = notes;
     this.noteTimesMs = noteTimesMs;
     this.noteEndTimesMs = noteEndTimesMs;
     this.callbacks = callbacks;
     this.windows = windows;
+    this.trillZoneStartTimesMs = trillZoneStartTimesMs;
 
     // 모든 노트를 UNPROCESSED로 초기화
     for (let i = 0; i < notes.length; i++) {
@@ -144,6 +150,7 @@ export class JudgmentEngine {
         heldKeys: new Set(),
       });
       this.trillAlternation.set(lane, null);
+      this.trillZoneNextIndex.set(lane, 0);
     }
   }
 
@@ -311,6 +318,18 @@ export class JudgmentEngine {
           this.breakCombo();
         }
       }
+    }
+
+    // 트릴 구간 시작 시 교대 추적 상태 리셋
+    for (const lane of [1, 2, 3, 4] as Lane[]) {
+      const startTimes = this.trillZoneStartTimesMs.get(lane);
+      if (!startTimes) continue;
+      let nextIdx = this.trillZoneNextIndex.get(lane)!;
+      while (nextIdx < startTimes.length && songTimeMs >= startTimes[nextIdx]) {
+        this.trillAlternation.set(lane, null);
+        nextIdx++;
+      }
+      this.trillZoneNextIndex.set(lane, nextIdx);
     }
 
     // 바디 노트 자동 활성화 (시작 시간 도달 시)
