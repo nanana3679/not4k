@@ -38,7 +38,51 @@ export interface NoteHost {
 }
 
 export class NoteRenderer {
+  /** Graphics 오브젝트 풀 — destroy 없이 재사용하여 GC 압력 감소 */
+  private pool: Graphics[] = [];
+  private poolIdx = 0;
+
   constructor(private host: NoteHost) {}
+
+  /**
+   * 렌더 사이클 시작 — 풀 인덱스 리셋 및 노트 레이어 자식 분리 (destroy 없이)
+   */
+  beginRender(): void {
+    this.poolIdx = 0;
+    this.host.longNoteBodyLayer.removeChildren();
+    this.host.longNoteEndLayer.removeChildren();
+    this.host.longNoteHeadLayer.removeChildren();
+    this.host.noteLayer.removeChildren();
+    this.host.selectedLongBodyLayer.removeChildren();
+    this.host.selectedLongEndLayer.removeChildren();
+    this.host.selectedLongHeadLayer.removeChildren();
+    this.host.selectedNoteLayer.removeChildren();
+  }
+
+  /**
+   * 풀에서 Graphics 획득 (재사용 또는 신규 생성)
+   */
+  private acquireGraphics(): Graphics {
+    if (this.poolIdx < this.pool.length) {
+      const g = this.pool[this.poolIdx++];
+      g.clear();
+      return g;
+    }
+    const g = new Graphics();
+    this.pool.push(g);
+    this.poolIdx++;
+    return g;
+  }
+
+  /**
+   * 풀 참조 정리 (dispose 시 호출).
+   * Graphics 자체는 TimelineRenderer.dispose()의 app.destroy()에서 이미 파괴되므로
+   * 여기서는 참조만 해제한다.
+   */
+  dispose(): void {
+    this.pool.length = 0;
+    this.poolIdx = 0;
+  }
 
   /**
    * 그래디언트 캐시 조회/생성
@@ -88,7 +132,7 @@ export class NoteRenderer {
     topY: number, bottomY: number, x: number, laneWidth: number,
     w: number, h: number, color: number, lineWidth: number, layer: Container,
   ): void {
-    const gfx = new Graphics();
+    const gfx = this.acquireGraphics();
     gfx.rect(x + (laneWidth - w) / 2, topY - h / 2, w, bottomY - topY + h);
     gfx.stroke({ width: lineWidth, color, alignment: 0 });
     layer.addChild(gfx);
@@ -125,7 +169,7 @@ export class NoteRenderer {
 
     const isGrace = isGraceNote(note);
     if (isGrace) {
-      const glow = new Graphics();
+      const glow = this.acquireGraphics();
       const w = NOTE_HEIGHT * 5 + COLORS.GRACE_GLOW_PAD * 2;
       const h = NOTE_HEIGHT + COLORS.GRACE_GLOW_PAD * 2;
       const glowX = x + (LANE_WIDTH - w) / 2;
@@ -134,7 +178,7 @@ export class NoteRenderer {
       this.host.noteLayer.addChild(glow);
     }
 
-    const noteGfx = new Graphics();
+    const noteGfx = this.acquireGraphics();
 
     if (shape === "diamond") {
       const w = NOTE_HEIGHT * 5;
@@ -206,7 +250,7 @@ export class NoteRenderer {
     const bodyHeight = bodyBottomY - bodyTopY;
 
     if (bodyHeight > 0) {
-      const body = new Graphics();
+      const body = this.acquireGraphics();
       const bodyX = x + (LANE_WIDTH - w) / 2;
       const bodyGradient = this.getBodyGradient(bodyColor);
       if (note.type === "trillLong") {
@@ -226,7 +270,7 @@ export class NoteRenderer {
     }
 
     const headGradient = this.getBodyGradient(bodyColor);
-    const end = new Graphics();
+    const end = this.acquireGraphics();
     if (note.type === "trillLong") {
       const cx = x + LANE_WIDTH / 2;
       end.moveTo(cx, endY - h / 2);
@@ -249,7 +293,7 @@ export class NoteRenderer {
     }
 
     if (!hasHead) {
-      const startCap = new Graphics();
+      const startCap = this.acquireGraphics();
       if (note.type === "trillLong") {
         const cx = x + LANE_WIDTH / 2;
         startCap.moveTo(cx, startY - h / 2);
@@ -296,7 +340,7 @@ export class NoteRenderer {
       default: color = COLORS.SINGLE_NOTE;
     }
 
-    const noteGfx = new Graphics();
+    const noteGfx = this.acquireGraphics();
     if (shape === "diamond") {
       const cx = x + laneWidth / 2;
       noteGfx.moveTo(cx, y - h / 2);
@@ -352,7 +396,7 @@ export class NoteRenderer {
     const cx = x + laneWidth / 2;
 
     if (bodyHeight > 0) {
-      const body = new Graphics();
+      const body = this.acquireGraphics();
       if (noteType === "trillLong") {
         body.rect(bodyX, bodyTopY - h / 2, w, bodyHeight + h);
       } else {
@@ -367,7 +411,7 @@ export class NoteRenderer {
       }
     }
 
-    const end = new Graphics();
+    const end = this.acquireGraphics();
     if (noteType === "trillLong") {
       end.moveTo(cx, endY - h / 2);
       end.lineTo(cx + w / 2, endY);
@@ -385,7 +429,7 @@ export class NoteRenderer {
       this.host.longNoteEndLayer.addChild(end);
     }
 
-    const head = new Graphics();
+    const head = this.acquireGraphics();
     if (noteType === "trillLong") {
       head.moveTo(cx, startY - h / 2);
       head.lineTo(cx + w / 2, startY);

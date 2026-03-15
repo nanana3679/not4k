@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../../supabase';
 import { STORAGE_BUCKET } from '../../shared';
+import { useGameStore } from '../stores';
 import type { DbSong } from '../screens/songSelect/types';
 
 /**
@@ -12,10 +13,23 @@ import type { DbSong } from '../screens/songSelect/types';
  */
 export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
+  const masterVolumeRef = useRef(masterVolume);
+  masterVolumeRef.current = masterVolume;
+
+  // masterVolume 변경 시 기존 오디오 엘리먼트의 볼륨만 업데이트 (재생성 없이)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    // timeupdate 콜백이 다음 틱에서 최신 masterVolumeRef를 참조하므로
+    // 즉시 반영을 위해 현재 볼륨을 BASE_VOL 비율로 스케일링
+    const BASE_VOL = 0.4 * masterVolume;
+    // 페이드 중일 수 있으므로 최대 BASE_VOL로 클램핑
+    el.volume = Math.min(el.volume, BASE_VOL);
+  }, [masterVolume]);
 
   useEffect(() => {
     const song = songs[focusedSongIndex];
-    const BASE_VOL = 0.4;
     const FADE = 0.5; // seconds
 
     // 이전 오디오 정지
@@ -38,6 +52,7 @@ export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
       el.loop = true;
 
       const onTimeUpdate = () => {
+        const BASE_VOL = 0.4 * masterVolumeRef.current;
         const dur = el.duration;
         if (!isFinite(dur)) return;
         const t = el.currentTime;
@@ -74,6 +89,7 @@ export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
     };
 
     const onTimeUpdate = () => {
+      const BASE_VOL = 0.4 * masterVolumeRef.current;
       if (el.currentTime >= end) {
         el.currentTime = start;
         el.volume = 0;

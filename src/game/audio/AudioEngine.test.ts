@@ -18,6 +18,11 @@ function createMockAudioContext() {
     destination: {},
     decodeAudioData: vi.fn(),
     createBufferSource: vi.fn(),
+    createGain: vi.fn(() => ({
+      gain: { value: 1 },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    })),
     // test helper: advance wall-clock time
     _advanceTime(seconds: number) {
       _currentTime += seconds;
@@ -94,6 +99,37 @@ describe("AudioEngine getOutputLatencyMs", () => {
     };
     const engine = new AudioEngine();
     expect(engine.getOutputLatencyMs()).toBe(15);
+  });
+});
+
+describe("AudioEngine masterVolume", () => {
+  it("기본 masterVolume = 1.0", () => {
+    const engine = new AudioEngine();
+    expect(engine.masterVolume).toBe(1.0);
+  });
+
+  it("masterVolume을 0.5로 설정하면 gainNode.gain.value에 0.5 반영", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 0.5;
+    expect(engine.masterVolume).toBe(0.5);
+  });
+
+  it("masterVolume에 음수(-0.5)를 설정하면 0으로 클램핑", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = -0.5;
+    expect(engine.masterVolume).toBe(0);
+  });
+
+  it("masterVolume에 1 초과(1.5)를 설정하면 1로 클램핑", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 1.5;
+    expect(engine.masterVolume).toBe(1);
+  });
+
+  it("masterVolume을 0으로 설정하면 0 반환", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 0;
+    expect(engine.masterVolume).toBe(0);
   });
 });
 

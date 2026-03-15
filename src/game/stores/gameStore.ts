@@ -28,6 +28,7 @@ interface GameSettings {
   playSpeed: number;
   judgmentMode: JudgmentMode;
   debugMode: boolean;
+  masterVolume: number;
 }
 
 interface PlayResult {
@@ -99,6 +100,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
+  masterVolume: 1.0,
 };
 
 /** @internal 테스트용으로 export. persist merge 콜백. */

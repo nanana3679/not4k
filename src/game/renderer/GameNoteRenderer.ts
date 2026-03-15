@@ -44,6 +44,8 @@ export class GameNoteRenderer {
   // Object pools — Graphics fallback (trill/trillLong)
   private noteGraphicsPool: Map<number, Graphics> = new Map();
   private bodyGraphicsPool: Map<number, Graphics> = new Map();
+  private trillEndPool: Map<number, Graphics> = new Map();
+  private trillHeadPool: Map<number, Graphics> = new Map();
   private graceGlowPool: Map<number, Graphics> = new Map();
 
   // Gradient cache (trill fallback only)
@@ -163,7 +165,7 @@ export class GameNoteRenderer {
       this.longNoteBodyLayer.addChild(bodyGraphic);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        const endGraphic = new Graphics();
+        const endGraphic = this.getOrCreateTrillEnd(index);
         endGraphic.x = laneX;
         endGraphic.y = adjustedEndY;
         this.drawNoteShape(endGraphic, entity.type, { color: 0x888888 });
@@ -172,7 +174,7 @@ export class GameNoteRenderer {
 
       const headY = rawStartY;
       if (headY >= -NOTE_HEIGHT && headY <= this.height + NOTE_HEIGHT) {
-        const headGraphic = new Graphics();
+        const headGraphic = this.getOrCreateTrillHead(index);
         headGraphic.x = laneX;
         headGraphic.y = headY;
         this.drawNoteShape(headGraphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
@@ -226,6 +228,8 @@ export class GameNoteRenderer {
     this.terminalSpritePool.clear();
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
+    this.trillEndPool.clear();
+    this.trillHeadPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -408,6 +412,24 @@ export class GameNoteRenderer {
     return graphic;
   }
 
+  private getOrCreateTrillEnd(index: number): Graphics {
+    let graphic = this.trillEndPool.get(index);
+    if (!graphic) {
+      graphic = new Graphics();
+      this.trillEndPool.set(index, graphic);
+    }
+    return graphic;
+  }
+
+  private getOrCreateTrillHead(index: number): Graphics {
+    let graphic = this.trillHeadPool.get(index);
+    if (!graphic) {
+      graphic = new Graphics();
+      this.trillHeadPool.set(index, graphic);
+    }
+    return graphic;
+  }
+
   /** Grace 노트 글로우 이펙트 */
   private getOrCreateGraceGlow(index: number): Graphics {
     let glow = this.graceGlowPool.get(index);
@@ -428,6 +450,8 @@ export class GameNoteRenderer {
     this.terminalSpritePool.clear();
     this.noteGraphicsPool.clear();
     this.bodyGraphicsPool.clear();
+    this.trillEndPool.clear();
+    this.trillHeadPool.clear();
     this.graceGlowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
