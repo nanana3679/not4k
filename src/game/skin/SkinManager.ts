@@ -52,6 +52,7 @@ export class SkinManager {
       ["noteDoubleFailed", assets.noteDoubleFailed],
       ["bodySingleFailed", assets.bodySingleFailed],
       ["bodyDoubleFailed", assets.bodyDoubleFailed],
+      ["bodyDoublePartialFailed", assets.bodyDoublePartialFailed],
       ["terminalSingleFailed", assets.terminalSingleFailed],
       ["terminalDoubleFailed", assets.terminalDoubleFailed],
     ].filter((e): e is [string, string] => e[1] != null);

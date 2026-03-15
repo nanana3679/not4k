@@ -13,6 +13,11 @@ function makeLongNote(lane: Lane, beat: Beat, endBeat: Beat): NoteEntity {
   return { type: NoteType.LONG, lane, beat, endBeat } as NoteEntity;
 }
 
+/** 테스트 헬퍼: 더블 롱노트 바디(RangeNote) 생성 */
+function makeDoubleLongNote(lane: Lane, b: Beat, endBeat: Beat): NoteEntity {
+  return { type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity;
+}
+
 /** 테스트 헬퍼: 싱글 노트 생성 */
 function makeSingleNote(lane: Lane, b: Beat): NoteEntity {
   return { type: NoteType.SINGLE, lane, beat: b } as NoteEntity;
@@ -761,5 +766,170 @@ describe("트릴 구간 경계 입력 추적 보호", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.GOOD); // 이전 구간 노트 — 늦은 입력 (delta=110ms)
     expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Good◇ 아님
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 교대 성공
+  });
+});
+
+describe("더블 롱노트 2키 독립 홀드 추적", () => {
+  const lane: Lane = 1;
+
+  it("2키 모두 유지하면 바디가 정상 활성 상태를 유지한다", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    // 2키 누르기
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    // 바디 활성화
+    engine.update(startMs);
+
+    // 중간 시점까지 유지
+    engine.update(startMs + 1000);
+
+    // 부분 실패 판정 없음
+    expect(judgments.length).toBe(0);
+  });
+
+  it("1키 릴리즈 후 grace period(12ms) 초과 시 해당 키만 부분 실패", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    engine.update(startMs);
+    engine.update(startMs + 500);
+
+    // KeyA 릴리즈
+    engine.onLaneRelease(lane, startMs + 500, "KeyA");
+
+    // grace period 내 — 아직 실패 아님
+    engine.update(startMs + 510);
+    expect(judgments.length).toBe(0);
+
+    // grace period 초과 (12ms 이상)
+    engine.update(startMs + 520);
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+    expect(judgments[0].isPartialBodyFail).toBe(true);
+  });
+
+  it("1키 실패 후 나머지 1키가 유지되면 노트는 BODY_ACTIVE 유지", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    engine.update(startMs);
+    engine.update(startMs + 500);
+
+    // KeyA 릴리즈 → grace period 초과
+    engine.onLaneRelease(lane, startMs + 500, "KeyA");
+    engine.update(startMs + 520);
+
+    // 부분 실패 1회
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].isPartialBodyFail).toBe(true);
+
+    // KeyB는 계속 유지 → 추가 실패 없음
+    engine.update(startMs + 1000);
+    expect(judgments.length).toBe(1);
+  });
+
+  it("양쪽 키 모두 릴리즈 시 전체 BODY_FAILED", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    engine.update(startMs);
+    engine.update(startMs + 500);
+
+    // KeyA 릴리즈 → 부분 실패
+    engine.onLaneRelease(lane, startMs + 500, "KeyA");
+    engine.update(startMs + 520);
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].isPartialBodyFail).toBe(true);
+
+    // KeyB도 릴리즈 → 전체 실패
+    engine.onLaneRelease(lane, startMs + 600, "KeyB");
+    engine.update(startMs + 620);
+
+    expect(judgments.length).toBe(2);
+    expect(judgments[1].grade).toBe(JudgmentGrade.MISS);
+    expect(judgments[1].isPartialBodyFail).toBeUndefined();
+  });
+
+  it("1키 릴리즈 후 grace period 내 재입력 시 실패하지 않는다", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    engine.update(startMs);
+    engine.update(startMs + 500);
+
+    // KeyA 릴리즈
+    engine.onLaneRelease(lane, startMs + 500, "KeyA");
+
+    // grace period 내 재입력 (10ms < 12ms)
+    engine.onLanePress(lane, startMs + 510, "KeyA");
+
+    // grace period 이후 체크 — 재입력 되었으므로 실패 아님
+    engine.update(startMs + 520);
+
+    expect(judgments.length).toBe(0);
+  });
+
+  it("더블 롱노트에서 끝점 도달 시 키 유지 중이면 릴리즈 대기 후 정상 종결 판정", () => {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
+    const startMs = 0;
+    const endMs = 2000;
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+
+    engine.update(startMs);
+    engine.update(endMs);
+
+    // 끝점 도달 후 릴리즈
+    engine.onLaneRelease(lane, endMs + 30, "KeyA");
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 });

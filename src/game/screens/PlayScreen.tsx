@@ -189,6 +189,9 @@ export function PlayScreen() {
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
               if (result.grade !== 'miss') {
                 renderer.showBombEffect(note.lane);
+              } else if (result.isPartialBodyFail) {
+                // 더블 롱노트 부분 실패 — 한쪽만 실패 에셋으로 교체
+                renderer.markBodyPartialFailed(result.noteIndex);
               } else {
                 renderer.markBodyFailed(result.noteIndex);
               }
@@ -196,8 +199,9 @@ export function PlayScreen() {
               // Note visibility updates
               const isDouble = note.type === 'double';
 
-              if (result.grade === 'miss') {
+              if (result.grade === 'miss' && !result.isPartialBodyFail) {
                 // miss된 노트는 사라지지 않고 실패 에셋으로 교체
+                // (부분 실패는 노트가 BODY_ACTIVE를 유지하므로 miss 마킹하지 않음)
                 renderer.markNoteMissed(result.noteIndex);
               } else if (isBody) {
                 renderer.markNoteProcessed(result.noteIndex);

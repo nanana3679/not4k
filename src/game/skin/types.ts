@@ -37,6 +37,7 @@ export interface SkinManifest {
     noteDoubleFailed?: string;
     bodySingleFailed?: string;
     bodyDoubleFailed?: string;
+    bodyDoublePartialFailed?: string;
     terminalSingleFailed?: string;
     terminalDoubleFailed?: string;
     /** 봄 16프레임 */
