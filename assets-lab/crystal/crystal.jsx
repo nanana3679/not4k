@@ -1,6 +1,7 @@
 import { useState } from "react";
 import P from "./palette.js";
-import { NoteContainer, LongNote, TerminalCap, BombFrame } from "./components.jsx";
+import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap } from "./components.jsx";
+import { GF_W, GF_H } from "../shared/constants.js";
 import { CW, CH, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
 import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, Slider, BombPlayer } from "../shared/ui.jsx";
@@ -90,115 +91,43 @@ export default function App() {
         </Row>
       </Section>
 
-      {/* === GEAR === */}
-      <Section title="▸ Gear" {...uiP}>
+      {/* === GEAR (GearFrameExport) === */}
+      <Section title="▸ Gear Frame" {...uiP}>
         {(() => {
-          const SVG_W = FIELD_W + GEAR_PAD * 2 + 16;
-          const SVG_H = LANE_H + 120;
-          const FR = 4;
-          const FR_W = SVG_W - FR * 2;
-          const FR_H = SVG_H - FR * 2;
-          const FLD_X = GEAR_PAD;
-          const FLD_R = FLD_X + FIELD_W;
-
+          const SCALE = 0.55;
+          const BTN_CX_GF = [99, 182, 265, 348];
+          const BTN_Y_GF = 838;
           return (
-            <div style={{ background: "#02030a", border: `1px solid ${P.border}`, padding: 0, overflow: "hidden" }}
+            <div style={{ background: "#02030a", border: `1px solid ${P.border}`, padding: 8, overflow: "hidden", display: "flex", justifyContent: "center" }}
               onMouseDown={() => setHoldState(true)} onMouseUp={() => setHoldState(false)}
               onMouseLeave={() => setHoldState(false)} onTouchStart={() => setHoldState(true)} onTouchEnd={() => setHoldState(false)}>
-              <svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`} style={{ display: "block", margin: "0 auto" }}>
+              <svg width={GF_W * SCALE} height={GF_H * SCALE} viewBox={`0 0 ${GF_W} ${GF_H}`} style={{ display: "block" }}>
                 <SharedDefs glowIntensity={glowIntensity} />
-                <defs>
-                  <linearGradient id="keybeam" x1="0" y1="1" x2="0" y2="0">
-                    <stop offset="0%" stopColor="#fff" stopOpacity=".18" />
-                    <stop offset="25%" stopColor="#c8d0e0" stopOpacity=".08" />
-                    <stop offset="70%" stopColor="#8090b0" stopOpacity=".02" />
-                    <stop offset="100%" stopColor="#8090b0" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Gear frame — bright chrome */}
-                <rect x={FR} y={FR} width={FR_W} height={FR_H} fill="#c8ccd8" />
-                <line x1={FR} y1={FR} x2={FR + FR_W} y2={FR} stroke="#e8ecf4" strokeWidth="2" />
-                <line x1={FR} y1={FR} x2={FR} y2={FR + FR_H} stroke="#e8ecf4" strokeWidth="2" />
-                <line x1={FR} y1={FR + FR_H} x2={FR + FR_W} y2={FR + FR_H} stroke="#8890a0" strokeWidth="2" />
-                <line x1={FR + FR_W} y1={FR} x2={FR + FR_W} y2={FR + FR_H} stroke="#8890a0" strokeWidth="2" />
-                <rect x={FR + 4} y={FR + 4} width={FR_W - 8} height={FR_H - 8} fill="#b0b8c8" />
-                <rect x={FR + 8} y={FR + 8} width={FR_W - 16} height={FR_H - 16} fill="#a0a8b8" stroke="#8890a0" strokeWidth=".5" />
-
-                {/* Lane field — dark inset */}
-                <rect x={FLD_X} y={LANE_TOP} width={FIELD_W} height={LANE_H} fill="#04060c" />
-                <line x1={FLD_X} y1={LANE_TOP} x2={FLD_R} y2={LANE_TOP} stroke="#020408" strokeWidth="1.5" />
-                <line x1={FLD_X} y1={LANE_TOP} x2={FLD_X} y2={LANE_BOT} stroke="#020408" strokeWidth="1.5" />
-
-                {/* Lane dividers */}
-                {[0, 1, 2, 3, 4].map(i => <line key={i} x1={FLD_X + i * LANE_W} y1={LANE_TOP} x2={FLD_X + i * LANE_W} y2={LANE_BOT} stroke="#101420" strokeWidth="1" />)}
-
-                {/* Key beams */}
-                {[0, 1, 2, 3].map(i => {
-                  const lx = FLD_X + i * LANE_W;
-                  const isActive = holdState && (i === 1 || i === 3);
-                  if (!isActive) return null;
-                  return <g key={`kb${i}`}>
-                    <rect x={lx + 1} y={LANE_TOP} width={LANE_W - 2} height={LANE_H} fill="url(#keybeam)" />
-                    <rect x={lx + LANE_W / 2 - 14} y={JUDGE_Y - 200} width={28} height={200 + LANE_BOT - JUDGE_Y} fill="url(#keybeam)" opacity=".5" />
-                    <ellipse cx={lx + LANE_W / 2} cy={LANE_BOT - 2} rx={LANE_W / 3} ry={5} fill="white" opacity=".06" />
-                  </g>;
-                })}
-
-                {/* Notes */}
-                <NoteContainer x={noteX(0)} y={JUDGE_Y - 10} type="single" {...noteProps} />
-                <NoteContainer x={noteX(0)} y={JUDGE_Y - 120} type="single" {...noteProps} />
-                <LongNote x={noteX(1)} y={JUDGE_Y - 200} bodyH={170} type="single" held={holdState} {...longProps} />
-                <NoteContainer x={noteX(2)} y={JUDGE_Y - 60} type="double" {...noteProps} dimLeft={dimL} dimRight={dimR} />
-                <NoteContainer x={noteX(2)} y={JUDGE_Y - 180} type="double" {...noteProps} />
-                <LongNote x={noteX(3)} y={JUDGE_Y - 260} bodyH={230} type="double" held={holdState} {...longProps} dimLeft={dimL} dimRight={dimR} />
-
-                {/* Bomb preview on lane 1 at judgment line */}
-                <BombFrame cx={noteX(0) + CW / 2} cy={JUDGE_Y + CH / 2} frame={6} id="gear" />
-
-                {/* JUDGMENT LINE */}
-                <line x1={FLD_X} y1={JUDGE_Y} x2={FLD_R} y2={JUDGE_Y} stroke="rgba(255,255,255,.1)" strokeWidth="8" />
-                <line x1={FLD_X} y1={JUDGE_Y} x2={FLD_R} y2={JUDGE_Y} stroke="#e0e4ec" strokeWidth="2" opacity=".7" />
-                <line x1={FLD_X + FIELD_W * .2} y1={JUDGE_Y} x2={FLD_R - FIELD_W * .2} y2={JUDGE_Y} stroke="#fff" strokeWidth="1" opacity=".4" />
-                <text x={FLD_R + 4} y={JUDGE_Y + 3} fontSize="6" fill="#606870" fontFamily="'JetBrains Mono', monospace">JUDGE</text>
-
-                {/* Button dock */}
-                <rect x={FR + 8} y={LANE_BOT + 4} width={FR_W - 16} height={SVG_H - LANE_BOT - FR - 8} fill="#b8c0d0" />
-                <line x1={FR + 8} y1={LANE_BOT + 4} x2={FR + FR_W - 8} y2={LANE_BOT + 4} stroke="#9098a8" strokeWidth="1.5" />
-                <rect x={FLD_X} y={LANE_BOT + 10} width={FIELD_W} height={SVG_H - LANE_BOT - FR - 14} fill="#a8b0c0" stroke="#9098a8" strokeWidth=".5" />
-
-                {/* Connectors + Buttons */}
-                {[0, 1, 2, 3].map(i => {
-                  const cx = FLD_X + LANE_W / 2 + i * LANE_W;
-                  const laneL = FLD_X + i * LANE_W + 4, laneR = FLD_X + (i + 1) * LANE_W - 4;
-                  const dockY = LANE_BOT + 10, btnY = LANE_BOT + 44;
+                <GearFrameExport />
+                {/* Buttons */}
+                {BTN_CX_GF.map((cx, i) => {
                   const isPressed = holdState && (i === 1 || i === 3);
-                  return <g key={`btn${i}`}>
-                    <polygon points={`${laneL},${dockY} ${laneR},${dockY} ${cx + 22},${dockY + 20} ${cx - 22},${dockY + 20}`} fill={isPressed ? "#c0c8d8" : "#9aa0b0"} stroke="#8890a0" strokeWidth=".5" />
-                    <line x1={laneL} y1={dockY} x2={laneR} y2={dockY} stroke="#c8d0d8" strokeWidth=".5" />
-                    <circle cx={cx} cy={btnY} r={24} fill="#707880" stroke="#606870" strokeWidth="1" />
-                    <circle cx={cx} cy={btnY} r={20} fill={isPressed ? "#8890a0" : "#c0c8d4"} stroke={isPressed ? "#707880" : "#d8dce4"} strokeWidth="1.5" />
-                    {!isPressed && <path d={`M${cx - 16},${btnY - 7} A20,20 0 0,1 ${cx + 16},${btnY - 7}`} fill="none" stroke="#e8ecf4" strokeWidth="1" opacity=".6" />}
-                    {isPressed && <path d={`M${cx - 16},${btnY - 7} A20,20 0 0,1 ${cx + 16},${btnY - 7}`} fill="none" stroke="#606870" strokeWidth="1" opacity=".5" />}
-                    <rect x={cx - 8} y={btnY - 8} width={16} height={16} transform={`rotate(45 ${cx} ${btnY})`} fill={isPressed ? "#707880" : "#a0a8b8"} stroke={isPressed ? "#606870" : "#b8c0cc"} strokeWidth="1.5" />
-                    {isPressed && <>
-                      <circle cx={cx} cy={btnY} r={22} fill="none" stroke={P.core.glow} strokeWidth="3" opacity=".3" filter="url(#coreGlow)" />
-                      <rect x={cx - 6} y={btnY - 6} width={12} height={12} transform={`rotate(45 ${cx} ${btnY})`} fill={P.core.bright} opacity=".2" />
-                    </>}
-                    <text x={cx} y={btnY + 1} textAnchor="middle" dominantBaseline="middle" fontSize="8" fill={isPressed ? "#d0d4dc" : "#606870"} fontFamily="'JetBrains Mono', monospace" fontWeight="700">{i + 1}</text>
-                  </g>;
+                  return <ButtonExport key={i} cx={cx} cy={BTN_Y_GF} pressed={isPressed} />;
                 })}
-
-                {/* Corner bolts */}
-                {[[FR + 12, FR + 12], [FR + FR_W - 12, FR + 12], [FR + 12, FR + FR_H - 12], [FR + FR_W - 12, FR + FR_H - 12]].map(([bx, by], i) =>
-                  <g key={`b${i}`}><circle cx={bx} cy={by} r={4.5} fill="#b8c0cc" stroke="#9098a8" strokeWidth="1" /><circle cx={bx} cy={by} r={2} fill="#d0d8e0" /><circle cx={bx - .8} cy={by - .8} r={.8} fill="#e8ecf4" opacity=".6" /></g>
-                )}
-                <text x={SVG_W / 2} y={SVG_H - 6} textAnchor="middle" fontSize="6" fill="#808890" fontFamily="'JetBrains Mono', monospace" letterSpacing=".15em">CRYSTAL GEAR</text>
               </svg>
             </div>
           );
         })()}
-        <div style={{ fontSize: 9, color: P.textDim, textAlign: "center", marginTop: 5 }}>Press & hold — lanes 2 & 4 · Gap {LANE_GAP}px · Judge at 2×CH from bottom</div>
+        <div style={{ fontSize: 9, color: P.textDim, textAlign: "center", marginTop: 5 }}>Press & hold — lanes 2 & 4 · GearFrameExport {GF_W}×{GF_H}</div>
+      </Section>
+
+      {/* === FAILED STATE === */}
+      <Section title="▸ Failed Notes" {...uiP}>
+        <Row>
+          <Card label="Failed S" gi={glowIntensity} {...uiP}><FailedNoteContainer x={15} y={17} type="single" {...noteProps} /></Card>
+          <Card label="Failed D" gi={glowIntensity} {...uiP}><FailedNoteContainer x={15} y={17} type="double" {...noteProps} /></Card>
+          <Card label="F.Term S" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="single" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+          <Card label="F.Term D" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="double" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+        </Row>
+        <Row>
+          <Card label="F.Body S" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="single" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+          <Card label="F.Body D" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="double" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+        </Row>
       </Section>
 
       {/* Bomb animated player */}
