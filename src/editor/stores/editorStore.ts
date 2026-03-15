@@ -92,7 +92,7 @@ const createDefaultChart = (): Chart => ({
   },
   notes: [],
   trillZones: [],
-  events: [{ beat: beat(0, 1), endBeat: beat(0, 1), bpm: 120, beatPerMeasure: { n: 4, d: 1 } }],
+  events: [{ beat: beat(0, 1), endBeat: beat(0, 1), bpm: 120, beatPerMeasure: beat(4, 1) }],
 });
 
 export const useEditorStore = create<EditorState>((set) => ({
