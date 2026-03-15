@@ -16,6 +16,7 @@ import {
   EXTRA_LANE_WIDTH,
   COLORS,
 } from "./constants";
+import { destroyChildren } from "./utils";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
@@ -42,14 +43,6 @@ export interface GridHost {
   readonly snapLines: Container;
   readonly trillZoneLayer: Container;
   readonly measureLabels: Container;
-}
-
-/** Container의 자식을 모두 destroy하고 제거 */
-function destroyChildren(container: Container): void {
-  for (const child of container.children) {
-    child.destroy();
-  }
-  container.removeChildren();
 }
 
 export class GridRenderer {

@@ -16,6 +16,7 @@ import {
   COLORS,
 } from "./constants";
 import type { NoteRenderer } from "./NoteRenderer";
+import { destroyChildren } from "./utils";
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
@@ -39,14 +40,6 @@ export interface OverlayHost {
 
   // NoteRenderer reference for shared drawing utilities
   readonly noteRenderer: NoteRenderer;
-}
-
-/** Container의 자식을 모두 destroy하고 제거 */
-function destroyChildren(container: Container): void {
-  for (const child of container.children) {
-    child.destroy();
-  }
-  container.removeChildren();
 }
 
 export class OverlayRenderer {
