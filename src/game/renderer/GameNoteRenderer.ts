@@ -439,8 +439,21 @@ export class GameNoteRenderer {
     }
     glow.clear();
     const pad = COLORS.GRACE_GLOW_PAD;
-    glow.roundRect(0, 0, NOTE_WIDTH + pad * 2, NOTE_HEIGHT + pad * 2, 4);
-    glow.fill({ color: COLORS.GRACE_GLOW, alpha: COLORS.GRACE_GLOW_ALPHA });
+    const baseAlpha = COLORS.GRACE_GLOW_ALPHA;
+    const steps = 4;
+    // 안쪽→바깥쪽 겹쳐 그려 중심에서 멀어질수록 약해지는 글로우
+    for (let i = 0; i < steps; i++) {
+      const stepPad = pad * (i + 1) / steps;
+      glow.roundRect(
+        pad - stepPad, pad - stepPad,
+        NOTE_WIDTH + stepPad * 2, NOTE_HEIGHT + stepPad * 2,
+        4 + stepPad * 0.3,
+      );
+      glow.fill({ color: COLORS.GRACE_GLOW, alpha: baseAlpha / steps });
+    }
+    // 노트 내부 윤곽선 (흰색)
+    glow.rect(pad, pad, NOTE_WIDTH, NOTE_HEIGHT);
+    glow.stroke({ width: COLORS.GRACE_OUTLINE_WIDTH, color: COLORS.GRACE_OUTLINE, alignment: 0 });
     return glow;
   }
 

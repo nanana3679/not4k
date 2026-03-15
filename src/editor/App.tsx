@@ -417,6 +417,8 @@ function ChartEditorPage() {
         const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
         const durationMs = audioBuffer.duration * 1000;
         rendererRef.current.setWaveformData(peaks, durationMs);
+        // Update playback end boundary after waveform changes total timeline
+        playback.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
       }
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -453,6 +455,10 @@ function ChartEditorPage() {
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
+    // Update playback end boundary when chart changes (measure count may change)
+    if (rendererRef.current && playbackRef.current) {
+      playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
+    }
   }, [chart]);
 
   // extraLaneCount → renderer

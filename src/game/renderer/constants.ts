@@ -45,6 +45,8 @@ export const COLORS = {
   SLOW_TEXT: 0xff6644,
 
   GRACE_GLOW: 0xffffff,
-  GRACE_GLOW_ALPHA: 0.45,
-  GRACE_GLOW_PAD: 6,
+  GRACE_GLOW_ALPHA: 0.25,
+  GRACE_GLOW_PAD: 14,
+  GRACE_OUTLINE: 0xffffff,
+  GRACE_OUTLINE_WIDTH: 2,
 } as const;
