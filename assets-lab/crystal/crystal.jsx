@@ -1,8 +1,7 @@
 import { useState } from "react";
 import P from "./palette.js";
 import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap } from "./components.jsx";
-import { GF_W, GF_H } from "../shared/constants.js";
-import { CW, CH, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
+import { CW, CH, GF_W, GF_H, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
 import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, Slider, BombPlayer } from "../shared/ui.jsx";
 

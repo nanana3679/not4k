@@ -1,5 +1,5 @@
 import P from "./palette.js";
-import { CW, CH, GF_W, GF_H } from "../shared/constants.js";
+import { CW, CH } from "../shared/constants.js";
 import { BOMB_FRAMES, SHARD_DIRS, BURST_ANGS } from "../shared/bomb.js";
 
 // --- 실패 상태 무채색 팔레트 ---
