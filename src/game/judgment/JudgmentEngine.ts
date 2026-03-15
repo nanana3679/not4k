@@ -113,6 +113,8 @@ export class JudgmentEngine {
   private readonly trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]>;
   /** 레인별 다음으로 처리할 트릴 구간 시작 인덱스 */
   private readonly trillZoneNextIndex: Map<Lane, number> = new Map();
+  /** 레인별 현재 활성 트릴 구간의 시작 시간 (경계 입력 추적 판단용) */
+  private readonly trillZoneCurrentStartMs: Map<Lane, number | null> = new Map();
   /** 레인별 홀드 상태 */
   private readonly laneHoldStates: Map<Lane, LaneHoldState> = new Map();
   /** 롱노트별 바디 추적 상태 */
@@ -151,6 +153,7 @@ export class JudgmentEngine {
       });
       this.trillAlternation.set(lane, null);
       this.trillZoneNextIndex.set(lane, 0);
+      this.trillZoneCurrentStartMs.set(lane, null);
     }
   }
 
@@ -327,6 +330,7 @@ export class JudgmentEngine {
       let nextIdx = this.trillZoneNextIndex.get(lane)!;
       while (nextIdx < startTimes.length && songTimeMs >= startTimes[nextIdx]) {
         this.trillAlternation.set(lane, null);
+        this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
         nextIdx++;
       }
       this.trillZoneNextIndex.set(lane, nextIdx);
@@ -490,7 +494,20 @@ export class JudgmentEngine {
       grade = JudgmentGrade.GOOD_TRILL;
     }
 
-    this.trillAlternation.set(lane, keyCode);
+    // 노트의 원래 위치가 현재 활성 트릴 구간에 속하는지 확인
+    // - 속하면: 교대 추적에 키를 기록 (정상)
+    // - 속하지 않으면: 교대 추적에 기록하지 않음 (경계 입력 보호)
+    const noteTime = this.noteTimesMs.get(noteIndex);
+    const currentZoneStart = this.trillZoneCurrentStartMs.get(lane);
+    const belongsToCurrentZone =
+      currentZoneStart === null ||
+      currentZoneStart === undefined ||
+      noteTime === undefined ||
+      noteTime >= currentZoneStart;
+
+    if (belongsToCurrentZone) {
+      this.trillAlternation.set(lane, keyCode);
+    }
 
     this.emitJudgment(noteIndex, grade, 0, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
