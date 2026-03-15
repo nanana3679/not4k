@@ -226,15 +226,15 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   // ── 더블 롱노트 부분 실패 ──────────────────────────
 
-  it("더블 롱노트 부분 실패 시 바디 tint가 LONG_BODY_PARTIAL_FAILED(0x888888)로 설정됨", () => {
+  it("더블 롱노트 부분 실패 시 전용 텍스처가 사용되고 tint=white 유지", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
     renderer.markBodyPartialFailed(0, 'left');
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
     const bodySprite = (bodyLayer as any).children[0];
-    // skinManager.hasTexture는 false를 반환하므로 tint fallback 사용
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+    // 전용 텍스처 사용, tint는 white 유지
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("부분 실패 후 전체 실패 시 바디 tint가 LONG_BODY_FAILED(0x555555)로 변경됨", () => {

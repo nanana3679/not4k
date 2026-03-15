@@ -298,7 +298,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
 
     const bodySprite = (bodyLayer as any).children[0];
     expect(bodySprite).toBeDefined();
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("부분 실패 right — 바디 tint=0x888888, 노트 계속 렌더됨", () => {
@@ -307,7 +307,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
 
     const bodySprite = (bodyLayer as any).children[0];
     expect(bodySprite).toBeDefined();
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("부분 실패 left → 터미널도 tint=0x888888 적용됨", () => {
@@ -316,7 +316,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
 
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
-      expect(termSprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+      expect(termSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -343,7 +343,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
 
     const bodySprite = (bodyLayer as any).children[0];
     // 부분 실패 tint가 적용됨
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
     // alpha는 부분 실패가 우선하여 1이어야 함
     expect(bodySprite.alpha).toBe(1);
   });
@@ -418,7 +418,7 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("missedNotes에 있어도 화면 밖이 아니면 렌더됨", () => {

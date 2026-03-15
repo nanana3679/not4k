@@ -216,13 +216,9 @@ export class GameNoteRenderer {
       // long / doubleLong: Sprite-based
       const isDouble = entity.type === "doubleLong";
 
-      // 부분 실패 시 전용 에셋 사용, 없으면 기본 에셋 + tint fallback
       let bodyTexKey: string;
       if (isDouble && isPartialFailed && !isFailed && !isMissed) {
-        const sideBodyKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
-        bodyTexKey = this.skinManager.hasTexture(sideBodyKey)
-          ? sideBodyKey
-          : "bodyDouble";
+        bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
       } else {
         bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
       }
@@ -236,12 +232,6 @@ export class GameNoteRenderer {
 
       if (isFailed || isMissed) {
         bodySprite.tint = COLORS.LONG_BODY_FAILED;
-      } else if (isPartialFailed && isDouble) {
-        // 부분 실패: 전용 텍스처가 있으면 tint 없음, 없으면 중간 tint
-        const sideBodyKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
-        bodySprite.tint = this.skinManager.hasTexture(sideBodyKey)
-          ? 0xffffff
-          : COLORS.LONG_BODY_PARTIAL_FAILED;
       } else {
         bodySprite.tint = 0xffffff;
       }
@@ -249,26 +239,13 @@ export class GameNoteRenderer {
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        // 부분 실패 시 터미널 전용 에셋 사용
         if (isDouble && isPartialFailed && !isFailed && !isMissed) {
-          const sideTermKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
-          if (this.skinManager.hasTexture(sideTermKey)) {
-            termTexKey = sideTermKey;
-          }
+          termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
         }
         const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
         termSprite.x = laneX;
         termSprite.y = adjustedEndY;
-        if (isMissed) {
-          termSprite.tint = COLORS.LONG_BODY_FAILED;
-        } else if (isDouble && isPartialFailed && !isFailed) {
-          const sideTermKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
-          termSprite.tint = this.skinManager.hasTexture(sideTermKey)
-            ? 0xffffff
-            : COLORS.LONG_BODY_PARTIAL_FAILED;
-        } else {
-          termSprite.tint = 0xffffff;
-        }
+        termSprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
         termSprite.alpha = isFailed ? 0.5 : 1;
         this.longNoteEndLayer.addChild(termSprite);
       }
