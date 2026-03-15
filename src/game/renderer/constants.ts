@@ -49,4 +49,6 @@ export const COLORS = {
   GRACE_GLOW_PAD: 14,
   GRACE_OUTLINE: 0xffffff,
   GRACE_OUTLINE_WIDTH: 2,
+
+  MASK_BELOW_JUDGMENT: 0x04060c,
 } as const;
