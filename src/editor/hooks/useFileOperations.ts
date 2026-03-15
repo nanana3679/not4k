@@ -345,8 +345,15 @@ export function useFileOperations(
       patch.stop = true;
     }
 
-    const { text: _t, bpm: _b, beatPerMeasure: _bp, stop: _s, ...base } = evt;
-    updated.events[editingMarker.index] = { ...base, ...patch };
+    const merged = { ...evt, ...patch };
+    // patch에 포함되지 않은 optional 필드는 기존 값 유지,
+    // 명시적으로 빈 값이 입력된 필드만 제거
+    if (values.text !== undefined && values.text === '') delete merged.text;
+    if (values.eventBpm !== undefined && values.eventBpm === '') delete merged.bpm;
+    if (values.tsNumerator !== undefined && values.tsNumerator === ''
+        && values.tsDenominator !== undefined && values.tsDenominator === '') delete merged.beatPerMeasure;
+    if (values.stop === undefined || values.stop !== 'true') delete merged.stop;
+    updated.events[editingMarker.index] = merged;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);
