@@ -23,6 +23,12 @@ describe("crystal/components export 검증", () => {
     expect(typeof C.FailedBody).toBe("function");
     expect(typeof C.FailedTerminalCap).toBe("function");
   });
+
+  it("부분 실패 컴포넌트 3종이 함수로 export 되어야 한다", () => {
+    expect(typeof C.PartialFailedBody).toBe("function");
+    expect(typeof C.PartialFailedTerminalCap).toBe("function");
+    expect(typeof C.PartialFailedNoteContainer).toBe("function");
+  });
 });
 
 describe("FAIL 팔레트 검증", () => {

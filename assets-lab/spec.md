@@ -339,6 +339,9 @@ interface Skin {
   GearButton: Component; // 버튼 (Idle/Pressed 상태별 별도 에셋)
   GearMask: Component; // 판정선 하단 노트 클리핑 마스크
   JudgmentLine: Component;
+  PartialFailedBody: Component; // 더블 롱노트 부분 실패 바디
+  PartialFailedTerminalCap: Component; // 더블 롱노트 부분 실패 터미널
+  PartialFailedNoteContainer: Component; // 더블 롱노트 부분 실패 헤드
 }
 ```
 
@@ -375,7 +378,27 @@ interface Skin {
 - 2키 중 1키만 유지 실패한 경우, 실패한 쪽의 바디 라인만 무채색으로 전환된다.
 - 나머지 1키의 바디 라인은 정상 색상(held/released)을 유지한다.
 
-#### 2. 더블 노트 부분 입력 상태 (Partial Input)
+#### 2. 더블 롱노트 부분 실패 상태 (Partial Body Failure)
+
+더블 롱노트에서 2키 중 1키만 유지 실패한 경우, 실패한 쪽만 무채색으로 전환하고 나머지는 정상 색상을 유지한다.
+
+**전환 대상 및 에셋:**
+
+| 에셋 | 설명 | 색상 규칙 |
+|------|------|-----------|
+| `PartialFailedBody` | 한쪽만 실패한 더블 바디 | failedSide의 라인만 무채색(`#333333`), 반대쪽은 정상(`P.core.offBright`). 배경은 정상 double 색상 유지. 와이어는 양쪽 모두 검정 |
+| `PartialFailedTerminalCap` | 한쪽만 실패한 더블 터미널 | failedSide의 코어만 무채색 dimmed(`FAIL.core`), 반대쪽은 정상 빈 코어. 라인 규칙은 바디와 동일 |
+| `PartialFailedNoteContainer` | 한쪽만 실패한 더블 헤드 | failedSide의 코어만 무채색 dimmed, 반대쪽은 정상 활성. 컨테이너 배경은 정상 double 색상 유지 |
+
+**props:**
+- `failedSide: 'left' | 'right'` — 실패한 쪽
+
+**적용 조건:**
+- 2키 중 1키만 유예시간(12ms) 초과 릴리즈 시 즉시 전환
+- 나머지 1키도 실패하면 완전 실패 상태(`FailedBody` 등)로 전환
+- 전환은 비가역적 — 부분 실패로 전환되면 해당 쪽은 끝까지 무채색 유지
+
+#### 3. 더블 노트 부분 입력 상태 (Partial Input)
 
 더블 노트에서 2개 중 1개만 입력된 상태를 코어의 점등으로 표현한다. 숏 노트와 롱노트 모두에 적용된다.
 

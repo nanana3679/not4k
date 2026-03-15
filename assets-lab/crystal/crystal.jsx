@@ -1,6 +1,6 @@
 import { useState } from "react";
 import P from "./palette.js";
-import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap } from "./components.jsx";
+import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap, PartialFailedNoteContainer, PartialFailedBody, PartialFailedTerminalCap } from "./components.jsx";
 import { CW, CH, GF_W, GF_H, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
 import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, Slider, BombPlayer } from "../shared/ui.jsx";
@@ -126,6 +126,16 @@ export default function App() {
         <Row>
           <Card label="F.Body S" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="single" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
           <Card label="F.Body D" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="double" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+        </Row>
+        <Row>
+          <Card label="Partial L" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="left" /></Card>
+          <Card label="Partial R" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="right" /></Card>
+          <Card label="PF.Term L" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="left" /></Card>
+          <Card label="PF.Term R" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="right" /></Card>
+        </Row>
+        <Row>
+          <Card label="PF.Head L" gi={glowIntensity} {...uiP}><PartialFailedNoteContainer x={15} y={17} coreSize={coreSize} coreGap={coreGap} failedSide="left" /></Card>
+          <Card label="PF.Head R" gi={glowIntensity} {...uiP}><PartialFailedNoteContainer x={15} y={17} coreSize={coreSize} coreGap={coreGap} failedSide="right" /></Card>
         </Row>
       </Section>
 

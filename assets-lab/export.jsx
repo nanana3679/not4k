@@ -99,6 +99,36 @@ function SkinExports({ skinId, C }) {
         </SvgWrap>
       </>}
 
+      {/* 부분 실패 바디 */}
+      {C.PartialFailedBody && <>
+        <SvgWrap id={`${skinId}--body-double-partial-failed-left`} w={CW} h={BODY_H}>
+          <C.PartialFailedBody x={0} y={0} height={BODY_H} failedSide="left" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--body-double-partial-failed-right`} w={CW} h={BODY_H}>
+          <C.PartialFailedBody x={0} y={0} height={BODY_H} failedSide="right" />
+        </SvgWrap>
+      </>}
+
+      {/* 부분 실패 터미널 */}
+      {C.PartialFailedTerminalCap && <>
+        <SvgWrap id={`${skinId}--terminal-double-partial-failed-left`} w={CW} h={CH}>
+          <C.PartialFailedTerminalCap x={0} y={0} failedSide="left" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--terminal-double-partial-failed-right`} w={CW} h={CH}>
+          <C.PartialFailedTerminalCap x={0} y={0} failedSide="right" />
+        </SvgWrap>
+      </>}
+
+      {/* 부분 실패 노트 헤드 */}
+      {C.PartialFailedNoteContainer && <>
+        <SvgWrap id={`${skinId}--note-double-partial-failed-left`} w={CW} h={CH}>
+          <C.PartialFailedNoteContainer x={0} y={0} failedSide="left" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--note-double-partial-failed-right`} w={CW} h={CH}>
+          <C.PartialFailedNoteContainer x={0} y={0} failedSide="right" />
+        </SvgWrap>
+      </>}
+
       {/* 기어 프레임 */}
       {C.GearFrameExport && (
         <SvgWrap id={`${skinId}--gear-frame`} w={GEAR_W} h={GEAR_H}>
