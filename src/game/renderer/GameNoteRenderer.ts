@@ -245,7 +245,7 @@ export class GameNoteRenderer {
       } else {
         bodySprite.tint = 0xffffff;
       }
-      bodySprite.alpha = isPartial ? 0.7 : 1;
+      bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
