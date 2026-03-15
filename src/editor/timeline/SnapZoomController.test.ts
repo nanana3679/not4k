@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SnapZoomController } from "./SnapZoomController";
 import { beat, BEAT_ZERO, beatToFloat } from "../../shared/types/beat";
-import { beatToMs } from "../../shared/timing";
 import type { BpmMarker } from "../../shared/types/chart";
 
 const SINGLE_BPM: BpmMarker[] = [{ beat: BEAT_ZERO, bpm: 120 }];

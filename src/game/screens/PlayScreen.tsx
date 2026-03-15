@@ -38,10 +38,10 @@ export function PlayScreen() {
       if (!chartData || !audioBuffer) {
         setError('No chart or audio data loaded');
         return;
+      }
 
       // 초기화 시점의 설정 스냅샷 — settings 객체 변경에 의한 재초기화 방지
       const settings = useGameStore.getState().settings;
-      }
 
       try {
         // Convert chart notes to time maps
