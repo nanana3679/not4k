@@ -56,6 +56,8 @@ export class GameNoteRenderer {
   private completedNotes: Set<number> = new Set();
   private doublePartialNotes: Set<number> = new Set();
   private missedNotes: Set<number> = new Set();
+  /** 더블 롱노트 부분 실패 (1키만 실패) */
+  private partialFailedBodies: Set<number> = new Set();
 
   constructor(
     longNoteBodyLayer: Container,
@@ -171,6 +173,7 @@ export class GameNoteRenderer {
     const isFailed = this.failedBodies.has(index);
     const isMissed = this.missedNotes.has(index);
     const isPartial = this.doublePartialNotes.has(index);
+    const isPartialFailed = this.partialFailedBodies.has(index);
 
     if (entity.type === "trillLong") {
       // Trill long: Graphics fallback
@@ -211,7 +214,16 @@ export class GameNoteRenderer {
     } else {
       // long / doubleLong: Sprite-based
       const isDouble = entity.type === "doubleLong";
-      const bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+
+      // 부분 실패 시 전용 에셋 사용, 없으면 기본 에셋 + tint fallback
+      let bodyTexKey: string;
+      if (isDouble && isPartialFailed && !isFailed && !isMissed) {
+        bodyTexKey = this.skinManager.hasTexture("bodyDoublePartialFailed")
+          ? "bodyDoublePartialFailed"
+          : "bodyDouble";
+      } else {
+        bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+      }
       const termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
 
       const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
@@ -219,7 +231,17 @@ export class GameNoteRenderer {
       bodySprite.y = adjustedEndY;
       bodySprite.width = LANE_WIDTH;
       bodySprite.height = bodyHeight;
-      bodySprite.tint = (isFailed || isMissed) ? COLORS.LONG_BODY_FAILED : 0xffffff;
+
+      if (isFailed || isMissed) {
+        bodySprite.tint = COLORS.LONG_BODY_FAILED;
+      } else if (isPartialFailed && isDouble) {
+        // 부분 실패: 전용 텍스처가 있으면 tint 없음, 없으면 중간 tint
+        bodySprite.tint = this.skinManager.hasTexture("bodyDoublePartialFailed")
+          ? 0xffffff
+          : COLORS.LONG_BODY_PARTIAL_FAILED;
+      } else {
+        bodySprite.tint = 0xffffff;
+      }
       bodySprite.alpha = isPartial ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
@@ -238,6 +260,10 @@ export class GameNoteRenderer {
 
   markBodyFailed(noteIndex: number): void {
     this.failedBodies.add(noteIndex);
+  }
+
+  markBodyPartialFailed(noteIndex: number): void {
+    this.partialFailedBodies.add(noteIndex);
   }
 
   markNoteProcessed(noteIndex: number): void {
@@ -268,6 +294,7 @@ export class GameNoteRenderer {
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
     this.missedNotes.clear();
+    this.partialFailedBodies.clear();
   }
 
   // ── 설정 업데이트 ─────────────────────────────────────────
@@ -505,6 +532,7 @@ export class GameNoteRenderer {
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
     this.missedNotes.clear();
+    this.partialFailedBodies.clear();
     for (const g of this.bodyGradientCache.values()) g.destroy();
     this.bodyGradientCache.clear();
   }

@@ -519,6 +519,10 @@ export class GameRenderer {
     this.noteRenderer.markBodyFailed(noteIndex);
   }
 
+  markBodyPartialFailed(noteIndex: number): void {
+    this.noteRenderer.markBodyPartialFailed(noteIndex);
+  }
+
   markNoteProcessed(noteIndex: number): void {
     this.noteRenderer.markNoteProcessed(noteIndex);
   }
