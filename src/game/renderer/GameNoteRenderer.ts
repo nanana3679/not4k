@@ -55,6 +55,7 @@ export class GameNoteRenderer {
   private failedBodies: Set<number> = new Set();
   private completedNotes: Set<number> = new Set();
   private doublePartialNotes: Set<number> = new Set();
+  private missedNotes: Set<number> = new Set();
 
   constructor(
     longNoteBodyLayer: Container,
@@ -93,10 +94,11 @@ export class GameNoteRenderer {
 
     const laneX = this.getLaneX(entity.lane);
     const isPartial = this.doublePartialNotes.has(index);
+    const isMissed = this.missedNotes.has(index);
     const isGrace = isGraceNote(entity);
 
-    // Grace glow effect
-    if (isGrace) {
+    // Grace glow effect (miss 시에는 표시하지 않음)
+    if (isGrace && !isMissed) {
       const glow = this.getOrCreateGraceGlow(index);
       glow.x = laneX - COLORS.GRACE_GLOW_PAD;
       glow.y = y - COLORS.GRACE_GLOW_PAD;
@@ -107,14 +109,20 @@ export class GameNoteRenderer {
       const graphic = this.getOrCreateNoteGraphic(index);
       graphic.x = laneX;
       graphic.y = y;
-      this.drawNoteShape(graphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
+      const overrides = isMissed
+        ? { color: COLORS.LONG_BODY_FAILED }
+        : isPartial
+          ? { alpha: 0.5 }
+          : undefined;
+      this.drawNoteShape(graphic, entity.type, overrides);
       this.noteLayer.addChild(graphic);
     } else {
       const texKey = entity.type === "double" ? "noteDouble" : "noteSingle";
       const sprite = this.getOrCreateNoteSprite(index, texKey);
       sprite.x = laneX;
       sprite.y = y;
-      sprite.alpha = isPartial ? 0.5 : 1;
+      sprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
+      sprite.alpha = isPartial ? 0.7 : 1;
       this.noteLayer.addChild(sprite);
     }
   }
@@ -148,6 +156,7 @@ export class GameNoteRenderer {
     if (adjustedEndY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 
     const isFailed = this.failedBodies.has(index);
+    const isMissed = this.missedNotes.has(index);
     const isPartial = this.doublePartialNotes.has(index);
 
     if (entity.type === "trillLong") {
@@ -157,7 +166,7 @@ export class GameNoteRenderer {
       bodyGraphic.x = laneX;
       bodyGraphic.y = adjustedEndY;
 
-      const bodyColor = isFailed ? COLORS.LONG_BODY_FAILED : this.getLongBodyColor(entity.type);
+      const bodyColor = (isFailed || isMissed) ? COLORS.LONG_BODY_FAILED : this.getLongBodyColor(entity.type);
       const bodyGradient = this.getBodyGradient(bodyColor);
       const hh = NOTE_HEIGHT / 2;
       bodyGraphic.rect(0, hh, LANE_WIDTH, bodyHeight);
@@ -168,7 +177,8 @@ export class GameNoteRenderer {
         const endGraphic = this.getOrCreateTrillEnd(index);
         endGraphic.x = laneX;
         endGraphic.y = adjustedEndY;
-        this.drawNoteShape(endGraphic, entity.type, { color: 0x888888 });
+        const termColor = isMissed ? COLORS.LONG_BODY_FAILED : 0x888888;
+        this.drawNoteShape(endGraphic, entity.type, { color: termColor });
         this.longNoteEndLayer.addChild(endGraphic);
       }
 
@@ -177,7 +187,12 @@ export class GameNoteRenderer {
         const headGraphic = this.getOrCreateTrillHead(index);
         headGraphic.x = laneX;
         headGraphic.y = headY;
-        this.drawNoteShape(headGraphic, entity.type, isPartial ? { alpha: 0.5 } : undefined);
+        const headOverrides = isMissed
+          ? { color: COLORS.LONG_BODY_FAILED }
+          : isPartial
+            ? { alpha: 0.5 }
+            : undefined;
+        this.drawNoteShape(headGraphic, entity.type, headOverrides);
         this.longNoteHeadLayer.addChild(headGraphic);
       }
     } else {
@@ -191,14 +206,15 @@ export class GameNoteRenderer {
       bodySprite.y = adjustedEndY;
       bodySprite.width = LANE_WIDTH;
       bodySprite.height = bodyHeight;
-      bodySprite.tint = isFailed ? COLORS.LONG_BODY_FAILED : 0xffffff;
-      bodySprite.alpha = isPartial ? 0.5 : 1;
+      bodySprite.tint = (isFailed || isMissed) ? COLORS.LONG_BODY_FAILED : 0xffffff;
+      bodySprite.alpha = isPartial ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
         const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
         termSprite.x = laneX;
         termSprite.y = adjustedEndY;
+        termSprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
         termSprite.alpha = isFailed ? 0.5 : 1;
         this.longNoteEndLayer.addChild(termSprite);
       }
@@ -220,6 +236,11 @@ export class GameNoteRenderer {
     this.doublePartialNotes.add(noteIndex);
   }
 
+  markNoteMissed(noteIndex: number): void {
+    this.missedNotes.add(noteIndex);
+    this.failedBodies.add(noteIndex);
+  }
+
   // ── 풀/상태 초기화 ────────────────────────────────────────
 
   clearPools(): void {
@@ -233,6 +254,7 @@ export class GameNoteRenderer {
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
+    this.missedNotes.clear();
   }
 
   // ── 설정 업데이트 ─────────────────────────────────────────
@@ -469,6 +491,7 @@ export class GameNoteRenderer {
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
+    this.missedNotes.clear();
     for (const g of this.bodyGradientCache.values()) g.destroy();
     this.bodyGradientCache.clear();
   }

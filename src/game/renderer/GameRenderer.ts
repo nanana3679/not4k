@@ -527,6 +527,10 @@ export class GameRenderer {
     this.noteRenderer.markDoublePartial(noteIndex);
   }
 
+  markNoteMissed(noteIndex: number): void {
+    this.noteRenderer.markNoteMissed(noteIndex);
+  }
+
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
