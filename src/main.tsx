@@ -6,6 +6,9 @@ import { LoadingSpinner } from './shared/components/LoadingSpinner';
 
 const GameApp = lazy(() => import('./game/App'));
 const EditorApp = lazy(() => import('./editor/App'));
+const TestPage = import.meta.env.DEV
+  ? lazy(() => import('./game/screens/test/TestPage'))
+  : null;
 
 function App() {
   return (
@@ -14,6 +17,7 @@ function App() {
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
           <Route path="/editor/*" element={<EditorApp />} />
+          {TestPage && <Route path="/test" element={<TestPage />} />}
           <Route path="*" element={<Navigate to="/game" replace />} />
         </Routes>
       </Suspense>
