@@ -20,6 +20,7 @@ export class PlaybackController {
   private _isPlaying = false;
   private playbackStartTime = 0; // AudioContext.currentTime when play() was called
   private playbackOffset = 0; // Position in seconds where playback should start
+  private _endTimeMs: number | null = null; // Maximum playback boundary (auto-pause when reached)
 
   private animationFrameId: number | null = null;
 
@@ -186,6 +187,11 @@ export class PlaybackController {
     return this.gainNode?.gain.value ?? this.pendingVolume;
   }
 
+  /** Set the maximum playback boundary in ms (auto-pauses when reached). null = no limit. */
+  setEndTimeMs(ms: number | null): void {
+    this._endTimeMs = ms;
+  }
+
   /** Get the current AudioBuffer (for waveform extraction) */
   get audioBufferData(): AudioBuffer | null {
     return this.audioBuffer;
@@ -214,7 +220,16 @@ export class PlaybackController {
         return;
       }
 
-      this.callbacks.onTimeUpdate(this.currentTimeMs);
+      const timeMs = this.currentTimeMs;
+
+      // Auto-pause when reaching the end boundary
+      if (this._endTimeMs !== null && timeMs >= this._endTimeMs) {
+        this.seekTo(this._endTimeMs);
+        this.pause();
+        return;
+      }
+
+      this.callbacks.onTimeUpdate(timeMs);
       this.animationFrameId = requestAnimationFrame(loop);
     };
 
