@@ -83,7 +83,7 @@ export class AudioEngine {
 
     // Resume AudioContext if suspended (autoplay policy)
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
 
     // Stop existing playback if any
@@ -151,7 +151,7 @@ export class AudioEngine {
 
     // Resume AudioContext if suspended
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
 
     // Create new source and start from pause position
