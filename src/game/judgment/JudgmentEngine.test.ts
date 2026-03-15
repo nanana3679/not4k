@@ -572,3 +572,194 @@ describe("트릴 구간 경계의 교대 추적 초기화", () => {
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
   });
 });
+
+describe("트릴 구간 경계 입력 추적 보호", () => {
+  const lane: Lane = 1;
+
+  it("트릴 구간 직전 노트를 늦게 쳐서 트릴 구간 안에서 처리해도 교대 추적에 기록되지 않는다", () => {
+    // 이전 트릴 구간: 노트 1900ms (구간 1500ms 시작)
+    // 새 트릴 구간: 2000ms 시작, 노트 2000ms / 2200ms
+    // 1900ms 노트를 2010ms에 처리(delta=110ms, Bad 윈도우 내)
+    // → 새 구간 시작 이후이지만 noteTime < 2000ms이므로 추적 제외
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 1900ms — 이전 구간 마지막 노트
+      makeTrillNote(lane, beat(1, 1)),  // 2000ms — 새 구간 첫 노트
+      makeTrillNote(lane, beat(2, 1)),  // 2200ms — 새 구간 두 번째 노트
+    ];
+    const noteTimesMs = new Map([
+      [0, 1900], [1, 2000], [2, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1500, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 이전 구간 시작
+    engine.update(1500);
+
+    // 새 구간 시작 → 교대 추적 리셋
+    engine.update(2000);
+
+    // 1900ms 노트를 늦게(2010ms) 입력 — KeyA (delta=110ms, Bad 윈도우 내)
+    // noteTime=1900 < currentZoneStart=2000 → 교대 추적에 기록되지 않음
+    engine.onLanePress(lane, 2010, "KeyA");
+
+    // 새 구간 첫 노트(2000ms)를 2020ms에 입력 — KeyA
+    // 교대 추적이 null이므로(이전 입력이 기록되지 않음) 교대 성공
+    engine.onLanePress(lane, 2020, "KeyA");
+
+    // 새 구간 두 번째 노트(2200ms)를 입력 — KeyB
+    engine.onLanePress(lane, 2200, "KeyB");
+
+    expect(judgments).toHaveLength(3);
+    // 이전 구간 노트는 정상 판정 — Good (delta=110ms, Good 윈도우 내)
+    expect(judgments[0].grade).toBe(JudgmentGrade.GOOD);
+    // 새 구간 첫 노트 — 이전의 KeyA가 기록되지 않았으므로 KeyA로 시작해도 교대 성공
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    // 새 구간 두 번째 노트 — KeyA → KeyB 교대 성공
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("트릴 구간 시작과 동시에 등장한 트릴 노트를 일찍 쳐서 구간 밖에서 처리해도 교대 추적이 정상 동작한다", () => {
+    // 트릴 구간: 2000ms 시작, 노트 2000ms / 2200ms
+    // 2000ms 노트를 1960ms에 처리 → 구간 시작 전이지만 noteTime >= 2000ms이므로 추적 포함
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 2000ms — 구간 첫 노트
+      makeTrillNote(lane, beat(1, 1)),  // 2200ms — 구간 두 번째 노트
+    ];
+    const noteTimesMs = new Map([
+      [0, 2000], [1, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 아직 구간 시작 전 (update가 2000ms 이전)
+    engine.update(1950);
+
+    // 2000ms 노트를 일찍(1960ms) 입력 — KeyA
+    // noteTime=2000 >= currentZoneStart(null이므로 조건 충족) → 교대 추적 기록
+    engine.onLanePress(lane, 1960, "KeyA");
+
+    // 구간 시작 (교대 추적 리셋되지만, 이미 위에서 기록됨)
+    // 하지만! update(2000)이 호출되면 리셋된다.
+    // 이 시나리오에서는 update(2000) 전에 입력이 들어왔으므로,
+    // currentZoneStart는 아직 null → noteTime >= null은 true → 기록됨
+    // 그리고 update(2000)에서 리셋 → trillAlternation이 null로 돌아감
+    // 결과: 두 번째 노트에서 어떤 키든 교대 성공
+    engine.update(2000);
+
+    // 두 번째 노트(2200ms) — KeyA
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(2);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    // update(2000)에서 리셋되므로 KeyA 연속이어도 교대 성공
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("트릴 노트를 일찍 쳐서 구간 밖에서 처리했을 때 교대 추적이 기록되어 같은 키 연속 시 Good◇ 발생", () => {
+    // 트릴 구간: 2000ms 시작, 노트 2000ms / 2200ms
+    // update(2000) 호출 후 → 리셋 완료 상태에서 첫 노트를 일찍 입력
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 2000ms
+      makeTrillNote(lane, beat(1, 1)),  // 2200ms
+    ];
+    const noteTimesMs = new Map([
+      [0, 2000], [1, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 구간 시작
+    engine.update(2000);
+
+    // 첫 노트를 정확히 입력 — KeyA
+    // noteTime=2000 >= currentZoneStart=2000 → 교대 추적 기록
+    engine.onLanePress(lane, 2000, "KeyA");
+
+    // 두 번째 노트에서 같은 키 → 교대 실패
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(2);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+  });
+
+  it("이전 구간 마지막 노트를 늦게 쳐도 판정 자체는 정상 수행된다 — 교대 추적만 제외", () => {
+    // 교대 체크는 여전히 수행됨 (trillAlternation에서 읽기는 함)
+    // trillAlternation.set만 스킵함
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 1900ms — 이전 구간
+      makeTrillNote(lane, beat(1, 1)),  // 2000ms — 새 구간
+    ];
+    const noteTimesMs = new Map([
+      [0, 1900], [1, 2000],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1500, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1500);
+    engine.update(2000);
+
+    // 이전 구간 노트를 늦게 입력 — 판정은 정상 (Bad, delta=110ms)
+    engine.onLanePress(lane, 2010, "KeyA");
+
+    expect(judgments).toHaveLength(1);
+    // Good 윈도우 내이므로 판정이 발생 (delta=110ms)
+    expect(judgments[0].noteIndex).toBe(0);
+    expect(judgments[0].grade).toBe(JudgmentGrade.GOOD);
+  });
+
+  it("연속 트릴 구간에서 이전 구간 노트의 늦은 입력이 새 구간의 교대 판정을 오염시키지 않는다", () => {
+    // 구간 1: 1000ms 시작, 마지막 노트 1900ms
+    // 구간 2: 2000ms 시작, 노트 2000ms/2200ms
+    // 구간 1의 마지막 노트(1900ms)를 2010ms에 KeyB로 입력 (delta=110ms, Bad 내)
+    // → 새 구간의 교대 추적에 KeyB가 기록되지 않아야 함
+    // → 새 구간 첫 노트(2000ms)를 KeyB로 입력해도 교대 성공
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 1900ms — 구간 1 마지막
+      makeTrillNote(lane, beat(1, 1)),  // 2000ms — 구간 2 첫 노트
+      makeTrillNote(lane, beat(2, 1)),  // 2200ms — 구간 2 두 번째
+    ];
+    const noteTimesMs = new Map([
+      [0, 1900], [1, 2000], [2, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.update(2000);
+
+    // 이전 구간 마지막 노트를 늦게 입력 — KeyB (delta=110ms, Bad 내, 교대 추적 미기록)
+    engine.onLanePress(lane, 2010, "KeyB");
+
+    // 새 구간 첫 노트 — KeyB (이전 입력이 기록되지 않았으므로 교대 성공)
+    engine.onLanePress(lane, 2020, "KeyB");
+
+    // 새 구간 두 번째 — KeyA (교대 성공)
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(3);
+    expect(judgments[0].grade).toBe(JudgmentGrade.GOOD); // 이전 구간 노트 — 늦은 입력 (delta=110ms)
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Good◇ 아님
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 교대 성공
+  });
+});
