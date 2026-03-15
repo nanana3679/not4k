@@ -17,7 +17,12 @@ function buildManifest(id: string, theme: SkinManifest["theme"]): SkinManifest {
       noteDoubleFailed: `${base}/note-double-failed.png`,
       bodySingleFailed: `${base}/body-single-failed.png`,
       bodyDoubleFailed: `${base}/body-double-failed.png`,
-      bodyDoublePartialFailed: `${base}/body-double-partial-failed.png`,
+      bodyDoublePartialFailedLeft: `${base}/body-double-partial-failed-left.png`,
+      bodyDoublePartialFailedRight: `${base}/body-double-partial-failed-right.png`,
+      terminalDoublePartialFailedLeft: `${base}/terminal-double-partial-failed-left.png`,
+      terminalDoublePartialFailedRight: `${base}/terminal-double-partial-failed-right.png`,
+      noteDoublePartialFailedLeft: `${base}/note-double-partial-failed-left.png`,
+      noteDoublePartialFailedRight: `${base}/note-double-partial-failed-right.png`,
       terminalSingleFailed: `${base}/terminal-single-failed.png`,
       terminalDoubleFailed: `${base}/terminal-double-failed.png`,
       bomb: Array.from({ length: 16 }, (_, i) =>

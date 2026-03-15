@@ -29,6 +29,8 @@ export interface JudgmentResult {
   deltaMs: number;
   /** 더블 롱노트 부분 실패 — 한쪽 키만 실패한 경우 */
   isPartialBodyFail?: boolean;
+  /** 부분 실패 시 실패한 쪽 (key1=left, key2=right) */
+  failedSide?: 'left' | 'right';
 }
 
 /**
@@ -736,6 +738,7 @@ export class JudgmentEngine {
 
         // 부분 실패 판정 emit
         const otherKey = keyState === dlState.key1 ? dlState.key2 : dlState.key1;
+        const side: 'left' | 'right' = keyState === dlState.key1 ? 'left' : 'right';
         if (otherKey.failed) {
           // 양쪽 모두 실패 → 노트 전체 BODY_FAILED
           this.noteStates.set(noteIndex, NoteState.BODY_FAILED);
@@ -744,7 +747,7 @@ export class JudgmentEngine {
           this.breakCombo();
         } else {
           // 한쪽만 실패 → 부분 실패 emit (노트는 BODY_ACTIVE 유지)
-          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0, true);
+          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0, true, side);
           this.breakCombo();
         }
       }
@@ -968,6 +971,7 @@ export class JudgmentEngine {
     subIndex: number | undefined,
     deltaMs: number,
     isPartialBodyFail?: boolean,
+    failedSide?: 'left' | 'right',
   ): void {
     this.callbacks.onJudgment({
       noteIndex,
@@ -975,6 +979,7 @@ export class JudgmentEngine {
       subIndex,
       deltaMs,
       ...(isPartialBodyFail ? { isPartialBodyFail: true } : {}),
+      ...(failedSide ? { failedSide } : {}),
     });
   }
 

@@ -228,7 +228,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("더블 롱노트 부분 실패 시 바디 tint가 LONG_BODY_PARTIAL_FAILED(0x888888)로 설정됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0);
+    renderer.markBodyPartialFailed(0, 'left');
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -239,7 +239,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("부분 실패 후 전체 실패 시 바디 tint가 LONG_BODY_FAILED(0x555555)로 변경됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0);
+    renderer.markBodyPartialFailed(0, 'left');
     renderer.markBodyFailed(0);
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
@@ -250,7 +250,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("싱글 롱노트에서는 부분 실패가 적용되지 않음 — 기본 tint 유지", () => {
     const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0);
+    renderer.markBodyPartialFailed(0, 'left');
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -261,7 +261,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("clearPools 호출 후 partialFailedBodies 상태가 초기화됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0);
+    renderer.markBodyPartialFailed(0, 'left');
     renderer.clearPools();
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
