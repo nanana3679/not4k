@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { JudgmentEngine } from "./JudgmentEngine";
 import type { JudgmentResult, JudgmentCallbacks } from "./JudgmentEngine";
-import { JudgmentGrade, JUDGMENT_WINDOWS_EASY, NoteType, beat } from "../../shared";
-import type { Lane, NoteEntity, Beat } from "../../shared";
+import { JudgmentGrade, JUDGMENT_WINDOWS_EASY, NoteType } from "../../shared/constants";
+import { beat } from "../../shared/types/beat";
+import type { Beat } from "../../shared/types/beat";
+import type { Lane } from "../../shared/constants/note";
+import type { NoteEntity } from "../../shared/types/chart";
+import type { JudgmentWindows } from "../../shared/constants/judgment";
 
 /** 테스트 헬퍼: 롱노트 바디(RangeNote) 생성 */
 function makeLongNote(lane: Lane, beat: Beat, endBeat: Beat): NoteEntity {
@@ -29,19 +33,25 @@ function makeGraceTrillNote(lane: Lane, b: Beat): NoteEntity {
   return { type: NoteType.TRILL, lane, beat: b, grace: true } as NoteEntity;
 }
 
+/** 테스트 헬퍼: 트릴 노트 생성 */
+function makeTrillNote(lane: Lane, b: Beat): NoteEntity {
+  return { type: NoteType.TRILL, lane, beat: b } as NoteEntity;
+}
+
 /** 테스트 헬퍼: 판정 엔진 + 콜백 셋업 */
 function setup(
   notes: NoteEntity[],
   noteTimesMs: Map<number, number>,
   noteEndTimesMs: Map<number, number>,
-  windows?: import("../../shared").JudgmentWindows,
+  windows?: JudgmentWindows,
+  trillZoneStartTimesMs?: Map<Lane, number[]>,
 ) {
   const judgments: JudgmentResult[] = [];
   const callbacks: JudgmentCallbacks = {
     onJudgment: (r) => judgments.push(r),
     onComboUpdate: vi.fn(),
   };
-  const engine = new JudgmentEngine(notes, noteTimesMs, noteEndTimesMs, callbacks, windows);
+  const engine = new JudgmentEngine(notes, noteTimesMs, noteEndTimesMs, callbacks, windows, trillZoneStartTimesMs);
   return { engine, judgments, callbacks };
 }
 
@@ -420,5 +430,145 @@ describe("Grace 트릴 노트 판정", () => {
     engine.onLanePress(lane, noteTime2, "KeyA"); // 같은 키 → 교대 실패
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
     expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+  });
+});
+
+describe("트릴 구간 경계의 교대 추적 초기화", () => {
+  const lane: Lane = 1;
+
+  it("다른 트릴 구간의 첫 노트에서 이전 구간과 같은 키를 사용해도 Good◇이 발생하지 않는다", () => {
+    // 트릴 구간 1: 1000ms 시작, 노트 1000ms / 1200ms
+    // 트릴 구간 2: 2000ms 시작, 노트 2000ms / 2200ms
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),   // 1000ms
+      makeTrillNote(lane, beat(1, 1)),   // 1200ms
+      makeTrillNote(lane, beat(2, 1)),   // 2000ms — 새 구간 첫 노트
+      makeTrillNote(lane, beat(3, 1)),   // 2200ms
+    ];
+    const noteTimesMs = new Map([
+      [0, 1000], [1, 1200], [2, 2000], [3, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 구간 1 시작 → 교대 추적 리셋
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+
+    // 구간 2 시작 → 교대 추적 리셋
+    engine.update(2000);
+    // 이전 구간 마지막 키가 KeyB였으나, 새 구간이므로 KeyB로 시작해도 교대 성공
+    engine.onLanePress(lane, 2000, "KeyB");
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // 구간1 첫 노트
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // 구간1 교대 성공
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 구간2 첫 노트 — Good◇ 아님
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT); // 구간2 교대 성공
+  });
+
+  it("같은 트릴 구간 내에서 같은 키 연속 입력 시 Good◇ 발생", () => {
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),
+      makeTrillNote(lane, beat(1, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyA"); // 같은 키 → 교대 실패
+
+    expect(judgments).toHaveLength(2);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+  });
+
+  it("트릴 구간 경계에서 교대 추적 상태가 초기화된다", () => {
+    // 트릴 구간 1: 노트 1000ms에서 KeyA 입력
+    // 트릴 구간 2: 노트 3000ms에서 KeyA 입력 — 리셋 후이므로 교대 성공
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),
+      makeTrillNote(lane, beat(1, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 3000]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000, 3000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+
+    engine.update(3000);
+    engine.onLanePress(lane, 3000, "KeyA"); // 새 구간 → 리셋 → 교대 성공
+
+    expect(judgments).toHaveLength(2);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Good◇ 아님
+  });
+
+  it("trillZoneStartTimesMs 미전달 시 기존 동작 유지 — 게임 시작 시 첫 트릴은 교대 성공", () => {
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),
+      makeTrillNote(lane, beat(1, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+
+    // trillZoneStartTimesMs 전달 없이 생성
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyA"); // 같은 키 → 교대 실패
+
+    expect(judgments).toHaveLength(2);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // 첫 트릴은 null이므로 교대 성공
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL); // 같은 키 연속
+  });
+
+  it("다른 레인의 트릴 구간 시작은 해당 레인의 교대 추적에만 영향", () => {
+    const lane1: Lane = 1;
+    const lane2: Lane = 2;
+
+    const notes = [
+      makeTrillNote(lane1, beat(0, 1)),  // 1000ms
+      makeTrillNote(lane1, beat(1, 1)),  // 1200ms
+      makeTrillNote(lane2, beat(2, 1)),  // 2000ms
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200], [2, 2000]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane1, [1000]],
+      [lane2, [2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane1, 1000, "KeyA");
+    engine.onLanePress(lane1, 1200, "KeyA"); // lane1에서 같은 키 → Good◇
+
+    engine.update(2000);
+    // lane2의 구간 시작이 lane1의 상태를 리셋하지 않는다
+    engine.onLanePress(lane2, 2000, "KeyC"); // lane2 첫 노트 → 교대 성공
+
+    expect(judgments).toHaveLength(3);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
   });
 });
