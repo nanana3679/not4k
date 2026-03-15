@@ -196,7 +196,10 @@ export function PlayScreen() {
               // Note visibility updates
               const isDouble = note.type === 'double';
 
-              if (isBody) {
+              if (result.grade === 'miss') {
+                // miss된 노트는 사라지지 않고 실패 에셋으로 교체
+                renderer.markNoteMissed(result.noteIndex);
+              } else if (isBody) {
                 renderer.markNoteProcessed(result.noteIndex);
               } else if (isDouble && result.subIndex === 0) {
                 renderer.markDoublePartial(result.noteIndex);

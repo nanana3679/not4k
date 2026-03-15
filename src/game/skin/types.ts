@@ -32,6 +32,13 @@ export interface SkinManifest {
     bodyDouble: string;
     bodySingleHeld: string;
     bodyDoubleHeld: string;
+    /** miss 에셋 (optional — 없으면 tint fallback) */
+    noteSingleFailed?: string;
+    noteDoubleFailed?: string;
+    bodySingleFailed?: string;
+    bodyDoubleFailed?: string;
+    terminalSingleFailed?: string;
+    terminalDoubleFailed?: string;
     /** 봄 16프레임 */
     bomb: string[];
     gearFrame: string;
