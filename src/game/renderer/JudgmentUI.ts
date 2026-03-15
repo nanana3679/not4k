@@ -19,10 +19,11 @@ export class JudgmentUI {
   private showTimingDiff: boolean = false;
   private perfectWindow: number = JUDGMENT_WINDOWS.PERFECT;
 
-  constructor(uiLayer: Container, judgmentLineY: number, width: number) {
+  constructor(uiLayer: Container, _judgmentLineY: number, width: number, height: number) {
+    const centerY = height / 2;
 
     const judgmentStyle = new TextStyle({
-      fontFamily: "Arial",
+      fontFamily: "Audiowide",
       fontSize: 36,
       fontWeight: "bold",
       fill: 0xffffff,
@@ -31,11 +32,11 @@ export class JudgmentUI {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = width / 2;
-    this.judgmentText.y = judgmentLineY - 45;
+    this.judgmentText.y = centerY + 80;
     this.judgmentText.alpha = 0;
 
     const fastSlowStyle = new TextStyle({
-      fontFamily: "Arial",
+      fontFamily: "Audiowide",
       fontSize: 20,
       fontWeight: "bold",
       fill: 0xffffff,
@@ -44,11 +45,11 @@ export class JudgmentUI {
     this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
     this.fastSlowText.anchor.set(0.5, 0.5);
     this.fastSlowText.x = width / 2;
-    this.fastSlowText.y = judgmentLineY - 15;
+    this.fastSlowText.y = centerY + 115;
     this.fastSlowText.alpha = 0;
 
     const timingDiffStyle = new TextStyle({
-      fontFamily: "Arial",
+      fontFamily: "Audiowide",
       fontSize: 22,
       fontWeight: "bold",
       fill: 0xffffff,
@@ -57,7 +58,7 @@ export class JudgmentUI {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = width / 2;
-    this.timingDiffText.y = judgmentLineY - 68;
+    this.timingDiffText.y = centerY + 55;
     this.timingDiffText.alpha = 0;
 
     uiLayer.addChild(this.judgmentText);
@@ -136,10 +137,11 @@ export class JudgmentUI {
     this.perfectWindow = windowMs;
   }
 
-  setPosition(judgmentLineY: number): void {
-    this.judgmentText.y = judgmentLineY - 45;
-    this.fastSlowText.y = judgmentLineY - 15;
-    this.timingDiffText.y = judgmentLineY - 68;
+  setPosition(_judgmentLineY: number, height: number): void {
+    const centerY = height / 2;
+    this.judgmentText.y = centerY + 80;
+    this.fastSlowText.y = centerY + 115;
+    this.timingDiffText.y = centerY + 55;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {

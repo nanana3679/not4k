@@ -125,27 +125,28 @@ export class GameRenderer {
 
     // Create combo / accuracy text (owned by GameRenderer)
     const comboStyle = new TextStyle({
-      fontFamily: "Arial",
-      fontSize: 48,
-      fontWeight: "bold",
+      fontFamily: "'Alumni Sans Collegiate One'",
+      fontSize: 120,
       fill: COLORS.COMBO_TEXT,
       align: "center",
     });
     this.comboText = new Text({ text: "", style: comboStyle });
     this.comboText.anchor.set(0.5, 0.5);
+    this.comboText.alpha = 0.5;
     this.comboText.x = this.width / 2;
-    this.comboText.y = this._judgmentLineY - 130;
+    this.comboText.y = this.height / 2 - 80;
 
     const accuracyStyle = new TextStyle({
-      fontFamily: "Arial",
+      fontFamily: "'Zen Dots'",
       fontSize: 20,
       fill: 0xaaaaaa,
       align: "center",
     });
-    this.accuracyText = new Text({ text: "", style: accuracyStyle });
+    this.accuracyText = new Text({ text: "00.00%", style: accuracyStyle });
     this.accuracyText.anchor.set(0.5, 0.5);
+    this.accuracyText.alpha = 0.5;
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = this._judgmentLineY - 85;
+    this.accuracyText.y = this.height / 2 + 20;
   }
 
   async init(): Promise<void> {
@@ -174,7 +175,7 @@ export class GameRenderer {
     this.uiLayer.addChild(this.accuracyText);
 
     // Create sub-renderers (after uiLayer is ready)
-    this.judgmentUI = new JudgmentUI(this.uiLayer, this._judgmentLineY, this.width);
+    this.judgmentUI = new JudgmentUI(this.uiLayer, this._judgmentLineY, this.width, this.height);
     this.noteRenderer = new GameNoteRenderer(
       this.longNoteBodyLayer,
       this.longNoteEndLayer,
@@ -472,9 +473,9 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
-    this.comboText.y = this._judgmentLineY - 130;
-    this.accuracyText.y = this._judgmentLineY - 85;
-    this.judgmentUI.setPosition(this._judgmentLineY);
+    this.comboText.y = this.height / 2 - 80;
+    this.accuracyText.y = this.height / 2 + 20;
+    this.judgmentUI.setPosition(this._judgmentLineY, this.height);
     this.noteRenderer.setJudgmentLineY(this._judgmentLineY);
     for (const btn of this.buttonSprites) {
       btn.y = this._judgmentLineY + 4;
