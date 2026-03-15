@@ -357,7 +357,7 @@ export function PlayScreen() {
       difficulty: chartData.meta.difficultyLabel || 'NORMAL',
       achievementRate: state.achievementRate,
       rank: state.rank,
-      maxCombo: state.maxCombo,
+      maxCombo: judgmentEngineRef.current!.maxCombo,
       isFullCombo: state.isFullCombo,
       judgmentCounts: state.judgmentCounts,
       goodTrillCount: state.goodTrillCount,

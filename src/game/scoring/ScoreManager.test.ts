@@ -36,51 +36,7 @@ describe("ScoreManager", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 콤보
-  // ---------------------------------------------------------------------------
-
-  it("Perfect/Great/Good/Good_Trill은 콤보 증가", () => {
-    const sm = new ScoreManager(10);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.GREAT);
-    sm.recordJudgment(JudgmentGrade.GOOD);
-    sm.recordJudgment(JudgmentGrade.GOOD_TRILL);
-    expect(sm.getState().combo).toBe(4);
-    expect(sm.getState().maxCombo).toBe(4);
-  });
-
-  it("Bad는 콤보 리셋", () => {
-    const sm = new ScoreManager(10);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.BAD);
-    expect(sm.getState().combo).toBe(0);
-    expect(sm.getState().maxCombo).toBe(2);
-  });
-
-  it("Miss는 콤보 리셋", () => {
-    const sm = new ScoreManager(10);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.MISS);
-    expect(sm.getState().combo).toBe(0);
-    expect(sm.getState().maxCombo).toBe(1);
-  });
-
-  it("maxCombo는 최대값 유지", () => {
-    const sm = new ScoreManager(10);
-    // 3콤보 → 끊김 → 2콤보
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.MISS);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    sm.recordJudgment(JudgmentGrade.PERFECT);
-    expect(sm.getState().maxCombo).toBe(3);
-    expect(sm.getState().combo).toBe(2);
-  });
-
-  // ---------------------------------------------------------------------------
-  // isFullCombo
+  // isFullCombo (콤보 추적은 JudgmentEngine이 담당)
   // ---------------------------------------------------------------------------
 
   it("Bad/Miss 없으면 풀콤보", () => {
@@ -207,8 +163,6 @@ describe("ScoreManager", () => {
     expect(s.totalNotes).toBe(10);
     expect(s.processedNotes).toBe(0);
     expect(s.earnedScore).toBe(0);
-    expect(s.combo).toBe(0);
-    expect(s.maxCombo).toBe(0);
     expect(s.isFullCombo).toBe(true);
     expect(s.fastCount).toBe(0);
     expect(s.slowCount).toBe(0);
