@@ -371,6 +371,129 @@ export function FailedBody({ x, y, height, type = "single", coreGap = 26, wireTh
   );
 }
 
+// --- Crystal PartialFailedNoteContainer ---
+export function PartialFailedNoteContainer({ x, y, coreSize = 7, coreGap = 26, failedSide = "left" }) {
+  const pal = P.double;
+  const uid = `pfnc_${failedSide}_${x}_${y}`;
+  const cx = x + CW / 2, cy = y + CH / 2, half = coreGap / 2;
+  const failCore = { base: FAIL.core.off, mid: FAIL.core.offBase, bright: FAIL.core.offMid, highlight: FAIL.core.offBright };
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`${uid}_g`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={pal.bright} />
+          <stop offset="40%" stopColor={pal.mid} />
+          <stop offset="100%" stopColor={pal.deep} />
+        </linearGradient>
+      </defs>
+      <rect x={x + 2} y={y + 2} width={CW} height={CH} fill="black" opacity=".4" />
+      <rect x={x} y={y} width={CW} height={CH} fill={`url(#${uid}_g)`} />
+      <line x1={x + 2} y1={y + .5} x2={x + CW - 2} y2={y + .5} stroke={pal.specular} strokeWidth=".8" opacity=".3" />
+      <line x1={x} y1={y + CH} x2={x + CW} y2={y + CH} stroke="black" strokeWidth="1" opacity=".5" />
+      <rect x={x} y={y} width="1" height={CH} fill={pal.highlight} opacity=".1" />
+      <rect x={x + CW - 1} y={y} width="1" height={CH} fill="black" opacity=".2" />
+      {/* Left core */}
+      <Holder cx={cx - half} cy={cy} size={coreSize} />
+      {failedSide === "left" ? (
+        <rect x={cx - half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
+          transform={`rotate(45 ${cx - half} ${cy})`} fill={failCore.base} />
+      ) : (
+        <Core cx={cx - half} cy={cy} size={coreSize} filled glowing />
+      )}
+      {/* Right core */}
+      <Holder cx={cx + half} cy={cy} size={coreSize} />
+      {failedSide === "right" ? (
+        <rect x={cx + half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
+          transform={`rotate(45 ${cx + half} ${cy})`} fill={failCore.base} />
+      ) : (
+        <Core cx={cx + half} cy={cy} size={coreSize} filled glowing />
+      )}
+    </g>
+  );
+}
+
+// --- Crystal PartialFailedBody ---
+export function PartialFailedBody({ x, y, height, coreGap = 26, wireThickness = 6, lineThickness = 2, failedSide = "left" }) {
+  const pal = P.body.double, cx = x + CW / 2, bx = x + 8, bw = CW - 16, half = coreGap / 2;
+  const positions = [cx - half, cx + half]; // [left, right]
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`pfbbg_${failedSide}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
+          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={height} fill={`url(#pfbbg_${failedSide}_${x}_${y})`} />
+      {positions.map((px, pi) => {
+        const isFailed = (pi === 0 && failedSide === "left") || (pi === 1 && failedSide === "right");
+        return (
+          <g key={pi}>
+            <Wire cx={px} y={y} height={height} thickness={wireThickness} />
+            <line x1={px} y1={y} x2={px} y2={y + height}
+              stroke={isFailed ? "#333333" : P.core.offBright}
+              strokeWidth={lineThickness} opacity=".9" />
+            {!isFailed && (
+              <line x1={px} y1={y} x2={px} y2={y + height}
+                stroke={P.core.offMid} strokeWidth={lineThickness * .5} opacity=".5" />
+            )}
+          </g>
+        );
+      })}
+      <line x1={bx} y1={y} x2={bx} y2={y + height} stroke={pal.base} strokeWidth="1" opacity=".35" />
+      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + height} stroke="black" strokeWidth="1" opacity=".3" />
+    </g>
+  );
+}
+
+// --- Crystal PartialFailedTerminalCap ---
+export function PartialFailedTerminalCap({ x, y, coreSize = 7, coreGap = 26, wireThickness = 6, lineThickness = 2, failedSide = "left" }) {
+  const pal = P.body.double, cx = x + CW / 2, cy = y + CH / 2;
+  const bx = x + 8, bw = CW - 16, half = coreGap / 2;
+  const positions = [cx - half, cx + half]; // [left, right]
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`pftbg_${failedSide}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
+          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#pftbg_${failedSide}_${x}_${y})`} />
+      <line x1={bx} y1={y} x2={bx + bw} y2={y} stroke={pal.base} strokeWidth="1" opacity=".5" />
+      {positions.map((px, pi) => {
+        const isFailed = (pi === 0 && failedSide === "left") || (pi === 1 && failedSide === "right");
+        return (
+          <g key={pi}>
+            <Wire cx={px} y={y} height={CH} thickness={wireThickness} />
+            <line x1={px} y1={y} x2={px} y2={y + CH}
+              stroke={isFailed ? "#333333" : P.core.offBright}
+              strokeWidth={lineThickness} opacity=".9" />
+          </g>
+        );
+      })}
+      <line x1={bx} y1={y} x2={bx} y2={y + CH} stroke={pal.base} strokeWidth="1" opacity=".35" />
+      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + CH} stroke="black" strokeWidth="1" opacity=".3" />
+      {/* Left core */}
+      <Holder cx={cx - half} cy={cy} size={coreSize} />
+      {failedSide === "left" ? (
+        <rect x={cx - half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
+          transform={`rotate(45 ${cx - half} ${cy})`} fill="none" stroke={FAIL.core.offMid} strokeWidth="1.2" />
+      ) : (
+        <Core cx={cx - half} cy={cy} size={coreSize} filled={false} />
+      )}
+      {/* Right core */}
+      <Holder cx={cx + half} cy={cy} size={coreSize} />
+      {failedSide === "right" ? (
+        <rect x={cx + half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
+          transform={`rotate(45 ${cx + half} ${cy})`} fill="none" stroke={FAIL.core.offMid} strokeWidth="1.2" />
+      ) : (
+        <Core cx={cx + half} cy={cy} size={coreSize} filled={false} />
+      )}
+    </g>
+  );
+}
+
 // --- Crystal FailedTerminalCap ---
 export function FailedTerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 26, wireThickness = 6, lineThickness = 2 }) {
   const pal = FAIL.body[type], isDouble = type === "double", cx = x + CW / 2, cy = y + CH / 2;
