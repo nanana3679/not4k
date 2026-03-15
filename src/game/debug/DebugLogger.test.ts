@@ -8,7 +8,7 @@ describe('DebugLogger', () => {
   // ---------------------------------------------------------------------------
 
   it('판정 기록 시 노트 인덱스, 등급, deltaMs가 정확히 저장됨', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 5);
 
     const log = logger.getLog();
@@ -19,14 +19,14 @@ describe('DebugLogger', () => {
   });
 
   it('noteCenterY=500, judgmentLineY=500이면 yDifference=0', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     expect(logger.getLog()[0].yDifference).toBe(0);
   });
 
   it('noteCenterY=520, judgmentLineY=500이면 yDifference=20', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 520, JudgmentGrade.GREAT, 10);
 
     expect(logger.getLog()[0].yDifference).toBe(20);
@@ -37,7 +37,7 @@ describe('DebugLogger', () => {
   // ---------------------------------------------------------------------------
 
   it('subIndex 전달 시 엔트리에 저장됨', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(5, 510, JudgmentGrade.PERFECT, 10, 0);
     logger.recordJudgment(5, 515, JudgmentGrade.GREAT, 15, 1);
 
@@ -47,14 +47,14 @@ describe('DebugLogger', () => {
   });
 
   it('subIndex 미전달 시 undefined', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     expect(logger.getLog()[0].subIndex).toBeUndefined();
   });
 
   it('exportAsText에서 더블 노트는 [0], [1] 서브인덱스 표시', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(16.67);
     logger.recordJudgment(3, 510, JudgmentGrade.PERFECT, 10, 0);
     logger.recordJudgment(3, 515, JudgmentGrade.GREAT, 15, 1);
@@ -68,15 +68,8 @@ describe('DebugLogger', () => {
   // expectedDeltaPxPerFrame 계산
   // ---------------------------------------------------------------------------
 
-  it('scrollSpeed=800, targetFps=60이면 expectedDeltaPxPerFrame=13.33', () => {
-    const logger = new DebugLogger(800, 60, 500);
-    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
-
-    expect(logger.getLog()[0].expectedDeltaPxPerFrame).toBeCloseTo(800 / 60, 2);
-  });
-
-  it('targetFps=0(Unlimited)이면 60fps로 대체하여 계산', () => {
-    const logger = new DebugLogger(800, 0, 500);
+  it('scrollSpeed=800이면 expectedDeltaPxPerFrame=13.33 (60fps 기준)', () => {
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     expect(logger.getLog()[0].expectedDeltaPxPerFrame).toBeCloseTo(800 / 60, 2);
@@ -87,14 +80,14 @@ describe('DebugLogger', () => {
   // ---------------------------------------------------------------------------
 
   it('recordFrameTiming 호출 전이면 actualDeltaPx=null', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
     expect(logger.getLog()[0].actualDeltaPx).toBeNull();
   });
 
   it('프레임 16.67ms, scrollSpeed=800이면 actualDeltaPx=13.33', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
@@ -102,7 +95,7 @@ describe('DebugLogger', () => {
   });
 
   it('프레임 33.33ms(30fps)이면 actualDeltaPx는 expected의 약 2배', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(33.33);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
@@ -116,7 +109,7 @@ describe('DebugLogger', () => {
   // ---------------------------------------------------------------------------
 
   it('노트 0개일 때 getSummary 기본값 반환', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     const summary = logger.getSummary();
 
     expect(summary.totalNotes).toBe(0);
@@ -127,7 +120,7 @@ describe('DebugLogger', () => {
   });
 
   it('Perfect 2개, Great 1개 기록 시 gradeDistribution 정확', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
     logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 5);
     logger.recordJudgment(2, 510, JudgmentGrade.GREAT, 50);
@@ -138,7 +131,7 @@ describe('DebugLogger', () => {
   });
 
   it('yDifference +10과 -10의 평균은 0, 절대값 평균은 10', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 510, JudgmentGrade.PERFECT, 0); // yDiff = +10
     logger.recordJudgment(1, 490, JudgmentGrade.PERFECT, 0); // yDiff = -10
 
@@ -148,7 +141,7 @@ describe('DebugLogger', () => {
   });
 
   it('actualDeltaPx 값이 1개뿐이면 speedConsistency=null', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
 
@@ -157,7 +150,7 @@ describe('DebugLogger', () => {
   });
 
   it('동일 프레임 시간이면 speedConsistency=0', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
     logger.recordFrameTiming(16.67);
@@ -168,7 +161,7 @@ describe('DebugLogger', () => {
   });
 
   it('프레임 시간 편차가 있으면 speedConsistency > 0', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordFrameTiming(16.67);
     logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0);
     logger.recordFrameTiming(33.33);
@@ -183,7 +176,7 @@ describe('DebugLogger', () => {
   // ---------------------------------------------------------------------------
 
   it('exportAsText는 Summary 섹션을 포함한 문자열 반환', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     logger.recordJudgment(0, 505, JudgmentGrade.PERFECT, 3);
 
     const text = logger.exportAsText();
@@ -195,7 +188,7 @@ describe('DebugLogger', () => {
   });
 
   it('빈 로그에서 exportAsText는 Total notes: 0 포함', () => {
-    const logger = new DebugLogger(800, 60, 500);
+    const logger = new DebugLogger(800, 500);
     const text = logger.exportAsText();
     expect(text).toContain('Total notes: 0');
   });

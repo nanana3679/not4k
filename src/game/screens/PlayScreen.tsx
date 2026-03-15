@@ -134,7 +134,7 @@ export function PlayScreen() {
         // Create debug logger if debug mode is enabled
         const judgmentLineY = GAME_HEIGHT - JUDGMENT_LINE_OFFSET - (GAME_HEIGHT * settings.liftPercent / 100);
         const debugLogger = settings.debugMode
-          ? new DebugLogger(settings.scrollSpeed, settings.targetFps, judgmentLineY)
+          ? new DebugLogger(settings.scrollSpeed, judgmentLineY)
           : null;
         debugLoggerRef.current = debugLogger;
 

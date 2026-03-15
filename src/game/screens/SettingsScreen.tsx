@@ -231,20 +231,6 @@ export function SettingsScreen() {
             </div>
 
             <div style={styles.setting}>
-              <label style={styles.label}>Target FPS:</label>
-              <select
-                value={settings.targetFps}
-                onChange={(e) => updateSettings({ targetFps: Number(e.target.value) })}
-                style={styles.select}
-              >
-                <option value="60">60</option>
-                <option value="120">120</option>
-                <option value="144">144</option>
-                <option value="0">Unlimited</option>
-              </select>
-            </div>
-
-            <div style={styles.setting}>
               <label style={styles.label}>Audio Offset (ms):</label>
               <input
                 type="number"
