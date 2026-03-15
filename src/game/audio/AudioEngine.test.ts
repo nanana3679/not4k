@@ -102,6 +102,37 @@ describe("AudioEngine getOutputLatencyMs", () => {
   });
 });
 
+describe("AudioEngine masterVolume", () => {
+  it("기본 masterVolume = 1.0", () => {
+    const engine = new AudioEngine();
+    expect(engine.masterVolume).toBe(1.0);
+  });
+
+  it("masterVolume을 0.5로 설정하면 gainNode.gain.value에 0.5 반영", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 0.5;
+    expect(engine.masterVolume).toBe(0.5);
+  });
+
+  it("masterVolume에 음수(-0.5)를 설정하면 0으로 클램핑", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = -0.5;
+    expect(engine.masterVolume).toBe(0);
+  });
+
+  it("masterVolume에 1 초과(1.5)를 설정하면 1로 클램핑", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 1.5;
+    expect(engine.masterVolume).toBe(1);
+  });
+
+  it("masterVolume을 0으로 설정하면 0 반환", () => {
+    const engine = new AudioEngine();
+    engine.masterVolume = 0;
+    expect(engine.masterVolume).toBe(0);
+  });
+});
+
 describe("AudioEngine playbackRate", () => {
   it("기본 playbackRate = 1.0", () => {
     const engine = new AudioEngine();
