@@ -203,7 +203,7 @@ export function PlayScreen() {
                 // miss된 노트는 사라지지 않고 실패 에셋으로 교체
                 // (부분 실패는 노트가 BODY_ACTIVE를 유지하므로 miss 마킹하지 않음)
                 renderer.markNoteMissed(result.noteIndex);
-              } else if (isBody) {
+              } else if (isBody && !result.isPartialBodyFail) {
                 renderer.markNoteProcessed(result.noteIndex);
               } else if (isDouble && result.subIndex === 0) {
                 renderer.markDoublePartial(result.noteIndex);

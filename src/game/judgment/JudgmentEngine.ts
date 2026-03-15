@@ -739,6 +739,7 @@ export class JudgmentEngine {
         if (otherKey.failed) {
           // 양쪽 모두 실패 → 노트 전체 BODY_FAILED
           this.noteStates.set(noteIndex, NoteState.BODY_FAILED);
+          this.doubleLongKeyStates.delete(noteIndex);
           this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0);
           this.breakCombo();
         } else {
@@ -772,6 +773,7 @@ export class JudgmentEngine {
       if (state === NoteState.BODY_FAILED) {
         if (songTimeMs >= noteEndTime) {
           this.noteStates.set(i, NoteState.COMPLETE);
+          this.doubleLongKeyStates.delete(i);
         }
         continue;
       }
