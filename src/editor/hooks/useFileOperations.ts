@@ -162,8 +162,8 @@ export function useFileOperations(
       setSavedExtraSnapshot(serializeExtraNotes(extraNotes, extraLaneCount));
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(message, 'error');
+      console.error('useFileOperations:', err);
+      addToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
       setSaving(false);
     }
@@ -236,8 +236,8 @@ export function useFileOperations(
 
       addToast(`Chart saved as ${targetDifficulty.toUpperCase()} Lv.${targetLevel}`, 'info');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(message, 'error');
+      console.error('useFileOperations:', err);
+      addToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
       setSaving(false);
     }
@@ -296,8 +296,8 @@ export function useFileOperations(
       addToast('Chart deleted', 'info');
       window.location.href = '/game';
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(message, 'error');
+      console.error('useFileOperations:', err);
+      addToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
       setDeleting(false);
     }

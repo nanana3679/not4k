@@ -110,8 +110,8 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
       addToast(`Song "${title.trim()}" added`, 'info');
       onDone();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(message, 'error');
+      console.error('AddSongModal:', err);
+      addToast('곡 추가에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
       setSubmitting(false);
     }

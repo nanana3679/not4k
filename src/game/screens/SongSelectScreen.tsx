@@ -148,8 +148,8 @@ export function SongSelectScreen() {
       setDeleteSongTarget(null);
       fetchSongs();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(message, 'error');
+      console.error('SongSelect delete:', err);
+      addToast('곡 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
       setDeleting(false);
     }
