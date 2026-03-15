@@ -52,7 +52,12 @@ export class SkinManager {
       ["noteDoubleFailed", assets.noteDoubleFailed],
       ["bodySingleFailed", assets.bodySingleFailed],
       ["bodyDoubleFailed", assets.bodyDoubleFailed],
-      ["bodyDoublePartialFailed", assets.bodyDoublePartialFailed],
+      ["bodyDoublePartialFailedLeft", assets.bodyDoublePartialFailedLeft],
+      ["bodyDoublePartialFailedRight", assets.bodyDoublePartialFailedRight],
+      ["terminalDoublePartialFailedLeft", assets.terminalDoublePartialFailedLeft],
+      ["terminalDoublePartialFailedRight", assets.terminalDoublePartialFailedRight],
+      ["noteDoublePartialFailedLeft", assets.noteDoublePartialFailedLeft],
+      ["noteDoublePartialFailedRight", assets.noteDoublePartialFailedRight],
       ["terminalSingleFailed", assets.terminalSingleFailed],
       ["terminalDoubleFailed", assets.terminalDoubleFailed],
     ].filter((e): e is [string, string] => e[1] != null);

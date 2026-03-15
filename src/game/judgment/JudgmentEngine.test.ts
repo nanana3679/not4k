@@ -823,6 +823,7 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
     expect(judgments.length).toBe(1);
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
     expect(judgments[0].isPartialBodyFail).toBe(true);
+    expect(judgments[0].failedSide).toBe('left');
   });
 
   it("1키 실패 후 나머지 1키가 유지되면 노트는 BODY_ACTIVE 유지", () => {
@@ -847,6 +848,7 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
     // 부분 실패 1회
     expect(judgments.length).toBe(1);
     expect(judgments[0].isPartialBodyFail).toBe(true);
+    expect(judgments[0].failedSide).toBe('left');
 
     // KeyB는 계속 유지 → 추가 실패 없음
     engine.update(startMs + 1000);
@@ -874,6 +876,7 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
 
     expect(judgments.length).toBe(1);
     expect(judgments[0].isPartialBodyFail).toBe(true);
+    expect(judgments[0].failedSide).toBe('left');
 
     // KeyB도 릴리즈 → 전체 실패
     engine.onLaneRelease(lane, startMs + 600, "KeyB");
@@ -882,6 +885,7 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
     expect(judgments.length).toBe(2);
     expect(judgments[1].grade).toBe(JudgmentGrade.MISS);
     expect(judgments[1].isPartialBodyFail).toBeUndefined();
+    expect(judgments[1].failedSide).toBeUndefined();
   });
 
   it("1키 릴리즈 후 grace period 내 재입력 시 실패하지 않는다", () => {

@@ -56,8 +56,8 @@ export class GameNoteRenderer {
   private completedNotes: Set<number> = new Set();
   private doublePartialNotes: Set<number> = new Set();
   private missedNotes: Set<number> = new Set();
-  /** 더블 롱노트 부분 실패 (1키만 실패) */
-  private partialFailedBodies: Set<number> = new Set();
+  /** 더블 롱노트 부분 실패 (1키만 실패) — side 정보 포함 */
+  private partialFailedBodies: Map<number, 'left' | 'right'> = new Map();
 
   constructor(
     longNoteBodyLayer: Container,
@@ -173,7 +173,8 @@ export class GameNoteRenderer {
     const isFailed = this.failedBodies.has(index);
     const isMissed = this.missedNotes.has(index);
     const isPartial = this.doublePartialNotes.has(index);
-    const isPartialFailed = this.partialFailedBodies.has(index);
+    const partialSide = this.partialFailedBodies.get(index);
+    const isPartialFailed = partialSide !== undefined;
 
     if (entity.type === "trillLong") {
       // Trill long: Graphics fallback
@@ -218,13 +219,14 @@ export class GameNoteRenderer {
       // 부분 실패 시 전용 에셋 사용, 없으면 기본 에셋 + tint fallback
       let bodyTexKey: string;
       if (isDouble && isPartialFailed && !isFailed && !isMissed) {
-        bodyTexKey = this.skinManager.hasTexture("bodyDoublePartialFailed")
-          ? "bodyDoublePartialFailed"
+        const sideBodyKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
+        bodyTexKey = this.skinManager.hasTexture(sideBodyKey)
+          ? sideBodyKey
           : "bodyDouble";
       } else {
         bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
       }
-      const termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
+      let termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
 
       const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
       bodySprite.x = laneX;
@@ -236,7 +238,8 @@ export class GameNoteRenderer {
         bodySprite.tint = COLORS.LONG_BODY_FAILED;
       } else if (isPartialFailed && isDouble) {
         // 부분 실패: 전용 텍스처가 있으면 tint 없음, 없으면 중간 tint
-        bodySprite.tint = this.skinManager.hasTexture("bodyDoublePartialFailed")
+        const sideBodyKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
+        bodySprite.tint = this.skinManager.hasTexture(sideBodyKey)
           ? 0xffffff
           : COLORS.LONG_BODY_PARTIAL_FAILED;
       } else {
@@ -246,10 +249,26 @@ export class GameNoteRenderer {
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        // 부분 실패 시 터미널 전용 에셋 사용
+        if (isDouble && isPartialFailed && !isFailed && !isMissed) {
+          const sideTermKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
+          if (this.skinManager.hasTexture(sideTermKey)) {
+            termTexKey = sideTermKey;
+          }
+        }
         const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
         termSprite.x = laneX;
         termSprite.y = adjustedEndY;
-        termSprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
+        if (isMissed) {
+          termSprite.tint = COLORS.LONG_BODY_FAILED;
+        } else if (isDouble && isPartialFailed && !isFailed) {
+          const sideTermKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
+          termSprite.tint = this.skinManager.hasTexture(sideTermKey)
+            ? 0xffffff
+            : COLORS.LONG_BODY_PARTIAL_FAILED;
+        } else {
+          termSprite.tint = 0xffffff;
+        }
         termSprite.alpha = isFailed ? 0.5 : 1;
         this.longNoteEndLayer.addChild(termSprite);
       }
@@ -262,8 +281,8 @@ export class GameNoteRenderer {
     this.failedBodies.add(noteIndex);
   }
 
-  markBodyPartialFailed(noteIndex: number): void {
-    this.partialFailedBodies.add(noteIndex);
+  markBodyPartialFailed(noteIndex: number, side: 'left' | 'right'): void {
+    this.partialFailedBodies.set(noteIndex, side);
   }
 
   markNoteProcessed(noteIndex: number): void {
