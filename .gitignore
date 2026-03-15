@@ -5,6 +5,7 @@
 
 node_modules/
 dist/
+public/skins/
 *.tsbuildinfo
 .vite/
 playwright-report/
