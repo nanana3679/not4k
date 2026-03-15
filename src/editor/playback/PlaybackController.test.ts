@@ -223,3 +223,103 @@ describe("PlaybackController.volume", () => {
     expect(controller.volume).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// setEndTimeMs — 재생 종료 경계 (마지막 마디 자동 정지)
+// ---------------------------------------------------------------------------
+
+describe("PlaybackController.setEndTimeMs", () => {
+  it("endTimeMs 도달 시 자동 정지하고 커서가 endTimeMs에 위치", async () => {
+    let lastTimeMs = 0;
+    let lastPlayState = false;
+    const controller = new PlaybackController({
+      onTimeUpdate: (t) => { lastTimeMs = t; },
+      onPlayStateChange: (playing) => { lastPlayState = playing; },
+    });
+
+    const mockCtx = setupAudioContextMock(30);
+    await controller.loadAudioFile(new File([""], "test.wav"));
+
+    controller.setEndTimeMs(5000); // 5초에서 자동 정지
+    controller.seekTo(4000); // 4초에서 시작
+    controller.play();
+    expect(controller.isPlaying).toBe(true);
+
+    // 시간을 2초 진행 → currentTimeMs = 6000 → endTimeMs(5000) 초과
+    mockCtx._advanceTime(2);
+
+    // rAF 콜백 실행 (mock에서 등록된 콜백 직접 호출)
+    const rafCallback = vi.mocked(requestAnimationFrame).mock.calls[0][0];
+    rafCallback(0);
+
+    expect(controller.isPlaying).toBe(false);
+    expect(lastPlayState).toBe(false);
+    expect(lastTimeMs).toBe(5000);
+    expect(controller.currentTimeMs).toBe(5000);
+  });
+
+  it("endTimeMs 미만일 때는 정상 재생 계속", async () => {
+    let lastTimeMs = 0;
+    const controller = new PlaybackController({
+      onTimeUpdate: (t) => { lastTimeMs = t; },
+      onPlayStateChange: () => {},
+    });
+
+    const mockCtx = setupAudioContextMock(30);
+    await controller.loadAudioFile(new File([""], "test.wav"));
+
+    controller.setEndTimeMs(10000);
+    controller.seekTo(3000);
+    controller.play();
+
+    // 시간을 1초 진행 → currentTimeMs = 4000 → endTimeMs(10000) 미만
+    mockCtx._advanceTime(1);
+
+    const rafCallback = vi.mocked(requestAnimationFrame).mock.calls[0][0];
+    rafCallback(0);
+
+    expect(controller.isPlaying).toBe(true);
+    expect(lastTimeMs).toBe(4000);
+  });
+
+  it("endTimeMs가 null이면 경계 없이 무한 재생", async () => {
+    let lastTimeMs = 0;
+    const controller = new PlaybackController({
+      onTimeUpdate: (t) => { lastTimeMs = t; },
+      onPlayStateChange: () => {},
+    });
+
+    const mockCtx = setupAudioContextMock(30);
+    await controller.loadAudioFile(new File([""], "test.wav"));
+
+    controller.setEndTimeMs(null);
+    controller.seekTo(25000);
+    controller.play();
+
+    mockCtx._advanceTime(10);
+
+    const rafCallback = vi.mocked(requestAnimationFrame).mock.calls[0][0];
+    rafCallback(0);
+
+    expect(controller.isPlaying).toBe(true);
+    expect(lastTimeMs).toBe(35000);
+  });
+
+  it("seekTo는 endTimeMs와 무관하게 자유롭게 이동 가능", async () => {
+    let lastTimeMs = 0;
+    const controller = new PlaybackController({
+      onTimeUpdate: (t) => { lastTimeMs = t; },
+      onPlayStateChange: () => {},
+    });
+
+    setupAudioContextMock(30);
+    await controller.loadAudioFile(new File([""], "test.wav"));
+
+    controller.setEndTimeMs(5000);
+
+    // endTimeMs 넘는 위치로 seekTo 가능
+    controller.seekTo(8000);
+    expect(lastTimeMs).toBe(8000);
+    expect(controller.currentTimeMs).toBe(8000);
+  });
+});
