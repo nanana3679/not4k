@@ -204,15 +204,15 @@ export function SettingsScreen() {
               />
             </div>
 
-            <div style={styles.setting}>
-              <label style={styles.label}>Sudden (%): {settings.suddenPercent}</label>
+            <div style={{ ...styles.setting, opacity: 0.4 }}>
+              <label style={styles.label}>Sudden (%): {settings.suddenPercent} (미구현)</label>
               <input
                 type="range"
                 min="0"
                 max="100"
                 step="1"
                 value={settings.suddenPercent}
-                onChange={(e) => updateSettings({ suddenPercent: Number(e.target.value) })}
+                disabled
                 style={styles.slider}
               />
             </div>
