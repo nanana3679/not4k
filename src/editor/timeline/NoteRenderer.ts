@@ -64,8 +64,14 @@ export class NoteRenderer {
    */
   private acquireGraphics(): Graphics {
     if (this.poolIdx < this.pool.length) {
-      const g = this.pool[this.poolIdx++];
-      g.clear();
+      let g = this.pool[this.poolIdx];
+      if (g.destroyed) {
+        g = new Graphics();
+        this.pool[this.poolIdx] = g;
+      } else {
+        g.clear();
+      }
+      this.poolIdx++;
       return g;
     }
     const g = new Graphics();
