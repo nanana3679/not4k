@@ -12,7 +12,7 @@ import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
-  const { settings, setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+  const { setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +39,9 @@ export function PlayScreen() {
         setError('No chart or audio data loaded');
         return;
       }
+
+      // 초기화 시점의 설정 스냅샷 — settings 객체 변경에 의한 재초기화 방지
+      const settings = useGameStore.getState().settings;
 
       try {
         // Convert chart notes to time maps
@@ -253,8 +256,9 @@ export function PlayScreen() {
             const visualTimeMs = songTimeMs + audioEngine.getOutputLatencyMs();
 
             // Record frame timing for debug logger
+            const frameDeltaMs = lastFrameTime !== null ? timestamp - lastFrameTime : 16;
             if (debugLogger && lastFrameTime !== null) {
-              debugLogger.recordFrameTiming(timestamp - lastFrameTime);
+              debugLogger.recordFrameTiming(frameDeltaMs);
             }
             lastFrameTime = timestamp;
 
@@ -262,7 +266,7 @@ export function PlayScreen() {
             judgmentEngine.update(songTimeMs);
 
             // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
-            renderer.renderFrame(visualTimeMs);
+            renderer.renderFrame(visualTimeMs, frameDeltaMs);
 
             // Check if song ended
             if (audioEngine.currentTimeMs >= audioEngine.duration && audioEngine.duration > 0) {
@@ -301,7 +305,7 @@ export function PlayScreen() {
         rendererRef.current.dispose();
       }
     };
-  }, [settings, retryKey]);
+  }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps -- settings는 init 내부에서 getState() 스냅샷으로 접근
 
   // Sync isPaused to ref
   useEffect(() => {
@@ -336,7 +340,14 @@ export function PlayScreen() {
     // Output debug log if debug mode was active
     const debugLogger = debugLoggerRef.current;
     if (debugLogger) {
-      console.log(debugLogger.exportAsText());
+      const text = debugLogger.exportAsText();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-log-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     const state = scoreManager.getState();
@@ -368,7 +379,14 @@ export function PlayScreen() {
     // Output debug log if debug mode was active
     const debugLogger = debugLoggerRef.current;
     if (debugLogger) {
-      console.log(debugLogger.exportAsText());
+      const text = debugLogger.exportAsText();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-log-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     if (editorReturnUrl) {

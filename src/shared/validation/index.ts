@@ -124,26 +124,34 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
  */
 export function validateNoLongOverlap(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const rangeNotes = notes.filter(isRangeNote);
 
-  for (const rn of rangeNotes) {
-    for (const other of notes) {
-      if (other === rn || other.lane !== rn.lane) continue;
+  // 레인별로 그룹화하여 비교 범위를 축소
+  const byLane = new Map<number, NoteEntity[]>();
+  for (const n of notes) {
+    let arr = byLane.get(n.lane);
+    if (!arr) { arr = []; byLane.set(n.lane, arr); }
+    arr.push(n);
+  }
 
-      // other의 모든 위치를 체크
-      const positions: Beat[] = isRangeNote(other)
-        ? beatEq(other.beat, other.endBeat)
-          ? [other.beat]
-          : [other.beat, other.endBeat]
-        : [other.beat];
+  for (const laneNotes of byLane.values()) {
+    const rangeNotes = laneNotes.filter(isRangeNote);
+    for (const rn of rangeNotes) {
+      for (const other of laneNotes) {
+        if (other === rn) continue;
 
-      for (const b of positions) {
-        // 열린 구간: beat < b < endBeat (경계 제외)
-        if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
-          errors.push({
-            rule: "longOverlap",
-            message: `Note at lane ${other.lane}, beat ${b.n}/${b.d} overlaps long note body (${rn.beat.n}/${rn.beat.d} ~ ${rn.endBeat.n}/${rn.endBeat.d})`,
-          });
+        const positions: Beat[] = isRangeNote(other)
+          ? beatEq(other.beat, other.endBeat)
+            ? [other.beat]
+            : [other.beat, other.endBeat]
+          : [other.beat];
+
+        for (const b of positions) {
+          if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
+            errors.push({
+              rule: "longOverlap",
+              message: `Note at lane ${other.lane}, beat ${b.n}/${b.d} overlaps long note body (${rn.beat.n}/${rn.beat.d} ~ ${rn.endBeat.n}/${rn.endBeat.d})`,
+            });
+          }
         }
       }
     }

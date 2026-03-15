@@ -1,14 +1,8 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
 import { validateChart, beatToFloat } from "../../shared";
-import { beatAdd, beatSub, beatEq, beatLte, beatGt, beatLt, beatGte } from "../../shared";
-
-/** Clipboard data for copy/paste */
-interface NoteClipboard {
-  notes: NoteEntity[];
-  extraNotes: ExtraNoteEntity[];
-  /** Earliest beat among copied notes (relative offset anchor) */
-  anchorBeat: Beat;
-}
+import { beatAdd, beatSub, beatEq, beatLt, beatLte } from "../../shared";
+import { ClipboardManager } from "./ClipboardManager";
+import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -76,12 +70,7 @@ export class SelectMode {
   private resizingOriginalBeat: Beat | null = null;
 
   // Clipboard & paste state
-  private clipboard: NoteClipboard | null = null;
-  private _isPendingPaste: boolean = false;
-  private prePasteNotes: NoteEntity[] | null = null;
-  private prePasteExtraNotes: ExtraNoteEntity[] | null = null;
-  private pastedNoteIndices: Set<number> = new Set();
-  private pastedExtraNoteIndices: Set<number> = new Set();
+  private clipboardManager: ClipboardManager = new ClipboardManager();
 
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
@@ -139,12 +128,12 @@ export class SelectMode {
 
   /** Whether paste preview is active (notes placed but not yet confirmed) */
   get isPendingPaste(): boolean {
-    return this._isPendingPaste;
+    return this.clipboardManager.isPendingPaste;
   }
 
   /** Whether clipboard has data */
   get hasClipboard(): boolean {
-    return this.clipboard !== null;
+    return this.clipboardManager.hasClipboard;
   }
 
   /** Current box select rectangle in pixel Y coords (for rendering) */
@@ -185,7 +174,7 @@ export class SelectMode {
   /** Handle pointer down */
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean): void {
     // During pending paste: click empty space to confirm
-    if (this._isPendingPaste) {
+    if (this.clipboardManager.isPendingPaste) {
       const hitIdx = this.callbacks.hitTestNote(x, y);
       if (hitIdx === null) {
         this.confirmPlacement();
@@ -484,10 +473,9 @@ export class SelectMode {
     // Need at least one lane dimension
     if (!hasMainLane && !hasExtraLane) return;
 
-    const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-      ? this.dragStartBeat : this._boxEndBeat;
-    const maxBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-      ? this._boxEndBeat : this.dragStartBeat;
+    const startFirst = beatLt(this.dragStartBeat, this._boxEndBeat);
+    const minBeat = startFirst ? this.dragStartBeat : this._boxEndBeat;
+    const maxBeat = startFirst ? this._boxEndBeat : this.dragStartBeat;
 
     // Determine if box crosses from main to extra or vice versa
     // If start is in main and end is in extra (or vice versa), main range extends to lane 4
@@ -624,7 +612,7 @@ export class SelectMode {
   moveByLane(direction: "left" | "right"): void {
     // 엑스트라 노트가 선택된 경우
     if (this.selectedExtraIndices.size > 0) {
-      this.moveExtraByLane(direction);
+      this.moveExtraByLaneImpl(direction);
       return;
     }
 
@@ -641,7 +629,7 @@ export class SelectMode {
       );
       if (allAtLane4) {
         if (extraLaneCount === 0) return; // 엑스트라 레인 없으면 차단
-        this.convertMainToExtra(1);
+        this.convertMainToExtraImpl(1);
         return;
       }
     }
@@ -683,12 +671,11 @@ export class SelectMode {
   }
 
   /** 엑스트라 노트의 레인 이동 */
-  private moveExtraByLane(direction: "left" | "right"): void {
+  private moveExtraByLaneImpl(direction: "left" | "right"): void {
     if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
 
     const extraNotes = this.callbacks.getExtraNotes();
     const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
-    const laneOffset = direction === "left" ? -1 : 1;
 
     // 엑스트라 레인 1에서 왼쪽 이동 → 메인 레인 4로 변환
     if (direction === "left") {
@@ -696,140 +683,47 @@ export class SelectMode {
         (idx) => extraNotes[idx].extraLane === 1,
       );
       if (allAtExtraLane1) {
-        this.convertExtraToMain(4 as Lane);
+        this.convertExtraToMainImpl(4 as Lane);
         return;
       }
     }
 
-    // Check if all extra notes can move within extra lanes
-    for (const idx of this.selectedExtraIndices) {
-      const note = extraNotes[idx];
-      const targetLane = note.extraLane + laneOffset;
-      if (targetLane < 1 || targetLane > extraLaneCount) return;
-    }
-
-    // Apply extra lane move
-    const newExtraNotes = [...extraNotes];
-    for (const idx of this.selectedExtraIndices) {
-      const note = newExtraNotes[idx];
-      newExtraNotes[idx] = { ...note, extraLane: note.extraLane + laneOffset };
-    }
-
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    moveExtraByLane(
+      this.selectedExtraIndices,
+      direction,
+      extraLaneCount,
+      this.callbacks,
+    );
   }
 
-  /** 메인 노트 → 엑스트라 노트로 변환 (선택된 노트를 chart.notes에서 제거하고 extraNotes에 추가) */
-  private convertMainToExtra(targetExtraLane: number): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-
-    const extraNotes = this.callbacks.getExtraNotes();
-    const selectedSorted = [...this.selectedIndices].sort((a, b) => a - b);
-
-    // 선택된 메인 노트를 엑스트라 노트로 변환
-    const convertedExtraNotes: ExtraNoteEntity[] = [];
-    for (const idx of selectedSorted) {
-      const note = this.chart.notes[idx];
-      if (this.isRangeNote(note)) {
-        convertedExtraNotes.push({
-          type: note.type,
-          extraLane: targetExtraLane,
-          beat: note.beat,
-          endBeat: note.endBeat,
-        } as ExtraNoteEntity);
-      } else {
-        convertedExtraNotes.push({
-          type: note.type,
-          extraLane: targetExtraLane,
-          beat: note.beat,
-        } as ExtraNoteEntity);
-      }
-    }
-
-    // 메인 노트에서 선택된 노트 제거
-    const newNotes = this.chart.notes.filter(
-      (_note, idx) => !this.selectedIndices.has(idx),
+  /** 메인 노트 → 엑스트라 노트로 변환 */
+  private convertMainToExtraImpl(targetExtraLane: number): void {
+    const result = convertMainToExtra(
+      this.chart,
+      this.selectedIndices,
+      targetExtraLane,
+      this.callbacks,
     );
-    this.chart = { ...this.chart, notes: newNotes };
-    this.callbacks.onChartUpdate(this.chart);
-
-    // 엑스트라 노트에 추가
-    const newExtraNotes = [...extraNotes, ...convertedExtraNotes];
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
-
-    // 선택 상태 전환: 메인 선택 해제, 엑스트라 선택 설정
-    this.selectedIndices.clear();
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-
-    this.selectedExtraIndices.clear();
-    const baseIdx = extraNotes.length;
-    for (let i = 0; i < convertedExtraNotes.length; i++) {
-      this.selectedExtraIndices.add(baseIdx + i);
+    if (result) {
+      this.chart = result.chart;
+      this.selectedIndices = result.selectedIndices;
+      this.selectedExtraIndices = result.selectedExtraIndices;
     }
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
   }
 
-  /** 엑스트라 노트 → 메인 노트로 변환 (선택된 노트를 extraNotes에서 제거하고 chart.notes에 추가) */
-  private convertExtraToMain(targetLane: Lane): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-
-    const extraNotes = this.callbacks.getExtraNotes();
-    const selectedSorted = [...this.selectedExtraIndices].sort((a, b) => a - b);
-
-    // 선택된 엑스트라 노트를 메인 노트로 변환
-    const convertedMainNotes: NoteEntity[] = [];
-    for (const idx of selectedSorted) {
-      const note = extraNotes[idx];
-      if ("endBeat" in note) {
-        convertedMainNotes.push({
-          type: note.type,
-          lane: targetLane,
-          beat: note.beat,
-          endBeat: note.endBeat,
-        } as NoteEntity);
-      } else {
-        convertedMainNotes.push({
-          type: note.type,
-          lane: targetLane,
-          beat: note.beat,
-        } as NoteEntity);
-      }
-    }
-
-    // 메인 노트에 추가
-    const newNotes = [...this.chart.notes, ...convertedMainNotes];
-    this.chart = { ...this.chart, notes: newNotes };
-
-    // Validate
-    const errors = validateChart({
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    });
-
-    if (errors.length > 0) {
-      // Rollback: 변환 취소
-      this.chart = { ...this.chart, notes: this.chart.notes.slice(0, this.chart.notes.length - convertedMainNotes.length) };
-      return;
-    }
-
-    this.callbacks.onChartUpdate(this.chart);
-
-    // 엑스트라 노트에서 선택된 노트 제거
-    const newExtraNotes = extraNotes.filter(
-      (_note, idx) => !this.selectedExtraIndices.has(idx),
+  /** 엑스트라 노트 → 메인 노트로 변환 */
+  private convertExtraToMainImpl(targetLane: Lane): void {
+    const result = convertExtraToMain(
+      this.chart,
+      this.selectedExtraIndices,
+      targetLane,
+      this.callbacks,
     );
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
-
-    // 선택 상태 전환: 엑스트라 선택 해제, 메인 선택 설정
-    this.selectedExtraIndices.clear();
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-
-    this.selectedIndices.clear();
-    const baseIdx = this.chart.notes.length - convertedMainNotes.length;
-    for (let i = 0; i < convertedMainNotes.length; i++) {
-      this.selectedIndices.add(baseIdx + i);
+    if (result) {
+      this.chart = result.chart;
+      this.selectedIndices = result.selectedIndices;
+      this.selectedExtraIndices = result.selectedExtraIndices;
     }
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
   }
 
   /** Resize selected long note end by one snap unit */
@@ -900,27 +794,20 @@ export class SelectMode {
 
   /** Confirm placement (Enter key or empty click) */
   confirmPlacement(): void {
-    if (this._isPendingPaste) {
+    if (this.clipboardManager.isPendingPaste) {
       // Paste mode: validate, reject if violations exist (don't rollback)
-      const errors = validateChart({
-        notes: this.chart.notes,
-        trillZones: this.chart.trillZones,
-        events: this.chart.events,
-      });
-
-      if (errors.length === 0) {
-        // Valid: commit paste
-        this._isPendingPaste = false;
-        this.prePasteNotes = null;
-        this.prePasteExtraNotes = null;
-        this.pastedNoteIndices.clear();
-        this.pastedExtraNoteIndices.clear();
-        this.callbacks.onChartUpdate(this.chart);
-        this.callbacks.onViolationsChange?.(new Set());
-      } else {
-        // Invalid: reject but keep paste state
-        this.callbacks.onWarn?.(`제약 위반 ${errors.length}건 — 배치할 수 없습니다`);
-      }
+      this.clipboardManager.confirmPaste(
+        this.chart,
+        this.callbacks,
+        (chart) => {
+          const errors = validateChart({
+            notes: chart.notes,
+            trillZones: chart.trillZones,
+            events: chart.events,
+          });
+          return errors.map((e) => String(e));
+        },
+      );
       return;
     }
 
@@ -949,47 +836,17 @@ export class SelectMode {
 
   /** Copy selected notes to clipboard */
   copy(): number {
-    if (this._isPendingPaste) return 0;
-
-    const noteCount = this.selectedIndices.size;
-    const extraNotes: ExtraNoteEntity[] = [];
-    const extraIndices = this.selectedExtraIndices;
-
-    if (noteCount === 0 && extraIndices.size === 0) return 0;
-
-    // Deep copy selected notes
-    const copiedNotes: NoteEntity[] = [];
-    let anchorBeat: Beat | null = null;
-
-    for (const idx of this.selectedIndices) {
-      const note = { ...this.chart.notes[idx] };
-      copiedNotes.push(note);
-      if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
-        anchorBeat = note.beat;
-      }
-    }
-
-    // Deep copy selected extra notes
-    if (extraIndices.size > 0 && this.callbacks.getExtraNotes) {
-      const allExtra = this.callbacks.getExtraNotes();
-      for (const idx of extraIndices) {
-        const note = { ...allExtra[idx] };
-        extraNotes.push(note);
-        if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
-          anchorBeat = note.beat;
-        }
-      }
-    }
-
-    if (anchorBeat === null) return 0;
-
-    this.clipboard = { notes: copiedNotes, extraNotes, anchorBeat };
-    return noteCount + extraNotes.length;
+    return this.clipboardManager.copy(
+      this.chart,
+      this.selectedIndices,
+      this.selectedExtraIndices,
+      this.callbacks,
+    );
   }
 
   /** Cut selected notes (copy + delete) */
   cut(): number {
-    if (this._isPendingPaste) return 0;
+    if (this.clipboardManager.isPendingPaste) return 0;
     const count = this.copy();
     if (count > 0) {
       this.deleteSelected();
@@ -999,134 +856,27 @@ export class SelectMode {
 
   /** Paste clipboard at the given target beat. Returns count of pasted notes, 0 if clipboard empty. */
   paste(targetBeat: Beat): number {
-    if (!this.clipboard) return 0;
+    const result = this.clipboardManager.paste(
+      this.chart,
+      targetBeat,
+      this.callbacks,
+      () => this.clearSelection(),
+    );
+    if (result === null) return 0;
 
-    // Cancel any existing pending paste first
-    if (this._isPendingPaste) {
-      this.cancelPaste();
-    }
-
-    const { notes: clipNotes, extraNotes: clipExtra, anchorBeat } = this.clipboard;
-    if (clipNotes.length === 0 && clipExtra.length === 0) return 0;
-
-    // Save pre-paste state for rollback
-    this.prePasteNotes = [...this.chart.notes];
-    this.prePasteExtraNotes = this.callbacks.getExtraNotes?.() ?? null;
-
-    // Calculate beat offset: targetBeat - anchorBeat
-    const beatOffset = beatSub(targetBeat, anchorBeat);
-
-    // Build pasted notes to check bounds before committing
-    const pastedEntries: NoteEntity[] = [];
-    for (const clipNote of clipNotes) {
-      const newBeat = beatAdd(clipNote.beat, beatOffset);
-      if (this.isRangeNote(clipNote)) {
-        const rn = clipNote as RangeNote;
-        const newEndBeat = beatAdd(rn.endBeat, beatOffset);
-        pastedEntries.push({ ...rn, beat: newBeat, endBeat: newEndBeat });
-      } else {
-        pastedEntries.push({ ...clipNote, beat: newBeat });
-      }
-    }
-
-    // Bounds check: all pasted notes must be within [0, maxBeat]
-    const maxFloat = this.callbacks.getMaxBeatFloat();
-    for (const note of pastedEntries) {
-      const bf = beatToFloat(note.beat);
-      if (bf < 0 || bf > maxFloat) {
-        this.callbacks.onWarn?.('붙여넣기 위치가 차트 범위를 벗어납니다');
-        return 0;
-      }
-      if (this.isRangeNote(note)) {
-        const ef = beatToFloat(note.endBeat);
-        if (ef < 0 || ef > maxFloat) {
-          this.callbacks.onWarn?.('붙여넣기 위치가 차트 범위를 벗어납니다');
-          return 0;
-        }
-      }
-    }
-
-    // Clear current selection
-    this.clearSelection();
-
-    // Append pasted notes
-    const newNotes = [...this.chart.notes];
-    this.pastedNoteIndices.clear();
-
-    for (const pasted of pastedEntries) {
-      const idx = newNotes.length;
-      newNotes.push(pasted);
-      this.pastedNoteIndices.add(idx);
-      this.selectedIndices.add(idx);
-    }
-
-    this.chart = { ...this.chart, notes: newNotes };
-
-    // Paste extra notes
-    this.pastedExtraNoteIndices.clear();
-    if (clipExtra.length > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraNotes = [...this.callbacks.getExtraNotes()];
-      for (const clipNote of clipExtra) {
-        const newBeat = beatAdd(clipNote.beat, beatOffset);
-        let pasted: ExtraNoteEntity;
-
-        if ('endBeat' in clipNote) {
-          const newEndBeat = beatAdd(clipNote.endBeat, beatOffset);
-          pasted = { ...clipNote, beat: newBeat, endBeat: newEndBeat };
-        } else {
-          pasted = { ...clipNote, beat: newBeat };
-        }
-
-        const idx = extraNotes.length;
-        extraNotes.push(pasted);
-        this.pastedExtraNoteIndices.add(idx);
-        this.selectedExtraIndices.add(idx);
-      }
-
-      this.callbacks.onExtraNotesUpdate(extraNotes);
-      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-    }
-
-    // Enter pending paste mode
-    this._isPendingPaste = true;
-
-    // Update state
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-    this.callbacks.onChartUpdate(this.chart);
-
-    // Compute and report violations
-    this.updatePasteViolations();
-
-    return clipNotes.length + clipExtra.length;
+    this.chart = result.chart;
+    this.selectedIndices = result.selectedIndices;
+    this.selectedExtraIndices = result.selectedExtraIndices;
+    return result.count;
   }
 
   /** Cancel pending paste — remove pasted notes, restore pre-paste state */
   cancelPaste(): void {
-    if (!this._isPendingPaste) return;
-
-    // Restore regular notes
-    if (this.prePasteNotes) {
-      this.chart = { ...this.chart, notes: this.prePasteNotes };
-      this.prePasteNotes = null;
-    }
-
-    // Restore extra notes
-    if (this.prePasteExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      this.callbacks.onExtraNotesUpdate(this.prePasteExtraNotes);
-      this.prePasteExtraNotes = null;
-    }
-
-    // Clear paste state
-    this._isPendingPaste = false;
-    this.pastedNoteIndices.clear();
-    this.pastedExtraNoteIndices.clear();
-
-    // Clear selection
-    this.clearSelection();
-
-    // Update
-    this.callbacks.onChartUpdate(this.chart);
-    this.callbacks.onViolationsChange?.(new Set());
+    this.chart = this.clipboardManager.cancelPaste(
+      this.chart,
+      this.callbacks,
+      () => this.clearSelection(),
+    );
   }
 
   /**
@@ -1134,48 +884,14 @@ export class SelectMode {
    * Unlike normal moveBySnap, this does NOT auto-rollback on violations.
    */
   movePasteBySnap(direction: "up" | "down"): void {
-    if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return;
-
-    const snapStep = this.callbacks.getSnapStep();
-    const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
-
-    const newNotes = [...this.chart.notes];
-    for (const idx of this.pastedNoteIndices) {
-      const note = newNotes[idx];
-      const newBeat = beatAdd(note.beat, offset);
-
-      if (this.isRangeNote(note)) {
-        const rn = note as RangeNote;
-        const duration = beatSub(rn.endBeat, rn.beat);
-        newNotes[idx] = { ...rn, beat: newBeat, endBeat: beatAdd(newBeat, duration) };
-      } else {
-        newNotes[idx] = { ...note, beat: newBeat };
-      }
+    const newChart = this.clipboardManager.movePasteBySnap(
+      this.chart,
+      direction,
+      this.callbacks,
+    );
+    if (newChart !== null) {
+      this.chart = newChart;
     }
-
-    // Bounds check
-    if (!this.areNotesInBounds(newNotes, this.pastedNoteIndices)) return;
-
-    this.chart = { ...this.chart, notes: newNotes };
-
-    // Also move pasted extra notes
-    if (this.pastedExtraNoteIndices.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraNotes = [...this.callbacks.getExtraNotes()];
-      for (const idx of this.pastedExtraNoteIndices) {
-        const note = extraNotes[idx];
-        const newBeat = beatAdd(note.beat, offset);
-        if ('endBeat' in note) {
-          const duration = beatSub(note.endBeat, note.beat);
-          extraNotes[idx] = { ...note, beat: newBeat, endBeat: beatAdd(newBeat, duration) };
-        } else {
-          extraNotes[idx] = { ...note, beat: newBeat };
-        }
-      }
-      this.callbacks.onExtraNotesUpdate(extraNotes);
-    }
-
-    this.callbacks.onChartUpdate(this.chart);
-    this.updatePasteViolations();
   }
 
   /**
@@ -1183,115 +899,15 @@ export class SelectMode {
    * Does NOT auto-rollback on violations.
    */
   movePasteByLane(direction: "left" | "right"): void {
-    if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return;
-
-    const laneOffset = direction === "left" ? -1 : 1;
-
-    // Check bounds for all pasted notes
-    for (const idx of this.pastedNoteIndices) {
-      const note = this.chart.notes[idx];
-      const targetLane = note.lane + laneOffset;
-      if (targetLane < 1 || targetLane > 4) return;
+    const newChart = this.clipboardManager.movePasteByLane(
+      this.chart,
+      direction,
+      this.callbacks,
+      (chart) => this.clipboardManager.updatePasteViolations(chart, this.callbacks),
+    );
+    if (newChart !== null) {
+      this.chart = newChart;
     }
-
-    const newNotes = [...this.chart.notes];
-    for (const idx of this.pastedNoteIndices) {
-      const note = newNotes[idx];
-      newNotes[idx] = { ...note, lane: (note.lane + laneOffset) as Lane };
-    }
-
-    this.chart = { ...this.chart, notes: newNotes };
-    this.callbacks.onChartUpdate(this.chart);
-    this.updatePasteViolations();
-  }
-
-  /**
-   * Find which pasted note indices violate constraints against existing notes.
-   */
-  private updatePasteViolations(): void {
-    const violations = new Set<number>();
-    const notes = this.chart.notes;
-    const { trillZones, events } = this.chart;
-
-    for (const pidx of this.pastedNoteIndices) {
-      const p = notes[pidx];
-      const pIsRange = this.isRangeNote(p);
-
-      for (let i = 0; i < notes.length; i++) {
-        if (i === pidx) continue;
-        const other = notes[i];
-        if (other.lane !== p.lane) continue;
-
-        const otherIsRange = this.isRangeNote(other);
-
-        // Rule 1: Duplicate position (same slot type)
-        if (!pIsRange && !otherIsRange && beatEq(p.beat, other.beat)) {
-          violations.add(pidx);
-        }
-        if (pIsRange && otherIsRange && beatEq(p.beat, other.beat)) {
-          violations.add(pidx);
-        }
-
-        // Rule 2: Long note overlap
-        if (otherIsRange) {
-          const rn = other as RangeNote;
-          const positions: Beat[] = pIsRange
-            ? [p.beat, (p as RangeNote).endBeat]
-            : [p.beat];
-          for (const b of positions) {
-            if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
-              violations.add(pidx);
-            }
-          }
-        }
-        if (pIsRange) {
-          const rn = p as RangeNote;
-          const positions: Beat[] = otherIsRange
-            ? [other.beat, (other as RangeNote).endBeat]
-            : [other.beat];
-          for (const b of positions) {
-            if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
-              violations.add(pidx);
-            }
-          }
-        }
-      }
-
-      // Rule 3: Trill zone exclusive
-      const isTrill = p.type === "trill" || p.type === "trillLong";
-      let inZone: boolean;
-      if (p.type === "trillLong" && pIsRange) {
-        const rn = p as RangeNote;
-        inZone = trillZones.some(
-          (z) => z.lane === p.lane &&
-            beatGte(p.beat, z.beat) && beatLte(p.beat, z.endBeat) &&
-            beatGte(rn.endBeat, z.beat) && beatLte(rn.endBeat, z.endBeat),
-        );
-      } else {
-        inZone = trillZones.some(
-          (z) => z.lane === p.lane &&
-            beatGte(p.beat, z.beat) && beatLte(p.beat, z.endBeat),
-        );
-      }
-      if (isTrill && !inZone) violations.add(pidx);
-      if (!isTrill && inZone) violations.add(pidx);
-
-      // Rule 6: Stop zone
-      for (const evt of events) {
-        if (!evt.stop) continue;
-        if (beatGte(p.beat, evt.beat) && beatLte(p.beat, evt.endBeat)) {
-          violations.add(pidx);
-        }
-        if (pIsRange) {
-          const rn = p as RangeNote;
-          if (beatGte(rn.endBeat, evt.beat) && beatLte(rn.endBeat, evt.endBeat)) {
-            violations.add(pidx);
-          }
-        }
-      }
-    }
-
-    this.callbacks.onViolationsChange?.(violations);
   }
 
   /** Delete selected notes */

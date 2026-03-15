@@ -83,7 +83,7 @@ export class AudioEngine {
 
     // Resume AudioContext if suspended (autoplay policy)
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
 
     // Stop existing playback if any
@@ -151,7 +151,7 @@ export class AudioEngine {
 
     // Resume AudioContext if suspended
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
 
     // Create new source and start from pause position
@@ -182,7 +182,9 @@ export class AudioEngine {
       try {
         this.source.stop();
       } catch (e) {
-        // Source may already be stopped
+        if (!(e instanceof DOMException && e.name === 'InvalidStateError')) {
+          console.warn('AudioEngine.stop: unexpected error', e);
+        }
       }
       this.source.disconnect();
       this.source = null;

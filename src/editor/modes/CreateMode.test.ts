@@ -5,7 +5,7 @@ import type { Chart, Beat, Lane } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
-    meta: { title: "", artist: "", bpm: 120, offset: 0, music: "" },
+    meta: { title: "", artist: "", difficultyLabel: "", difficultyLevel: 0, imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
     notes: [],
     trillZones: [],
     events: [],
@@ -13,9 +13,9 @@ function makeChart(overrides?: Partial<Chart>): Chart {
   };
 }
 
-function makeCallbacks(chart: Chart, overrides?: Record<string, unknown>) {
+function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
   return {
-    onChartUpdate: vi.fn((c: Chart) => { chart = c; }),
+    onChartUpdate: vi.fn((_c: Chart) => {}),
     yToBeat: (y: number): Beat => beat(y),
     snapBeat: (b: Beat): Beat => b,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),

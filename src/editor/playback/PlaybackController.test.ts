@@ -64,7 +64,7 @@ describe("PlaybackController.seekTo", () => {
   });
 
   it("음원 길이를 초과하는 위치로 이동 가능", async () => {
-    const mockCtx = setupAudioContextMock(10); // 10초 음원
+    setupAudioContextMock(10); // 10초 음원
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     // 15초(15000ms) — 음원 길이(10초) 초과
@@ -73,7 +73,7 @@ describe("PlaybackController.seekTo", () => {
   });
 
   it("음수 시간으로 이동 가능 (음수 offset 시나리오)", async () => {
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(-500);
@@ -81,7 +81,7 @@ describe("PlaybackController.seekTo", () => {
   });
 
   it("0ms로 정확히 이동", async () => {
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(3000);
@@ -102,7 +102,7 @@ describe("PlaybackController.pause", () => {
       onPlayStateChange: () => {},
     });
 
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     // 음원 끝 이후 위치에서 시작
@@ -125,7 +125,7 @@ describe("PlaybackController.play", () => {
       onPlayStateChange: () => {},
     });
 
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(3000); // 3초
@@ -140,7 +140,7 @@ describe("PlaybackController.play", () => {
       onPlayStateChange: () => {},
     });
 
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(15000); // 음원 길이(10초) 초과
@@ -156,7 +156,7 @@ describe("PlaybackController.play", () => {
       onPlayStateChange: () => {},
     });
 
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(-2000); // 2초 전
@@ -177,7 +177,7 @@ describe("PlaybackController.currentTimeMs", () => {
       onPlayStateChange: () => {},
     });
 
-    const mockCtx = setupAudioContextMock(10);
+    setupAudioContextMock(10);
     await controller.loadAudioFile(new File([""], "test.wav"));
 
     controller.seekTo(5000);

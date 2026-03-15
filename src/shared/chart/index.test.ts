@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSaveAsMeta } from './index';
+import { buildSaveAsMeta, deserializeChart } from './index';
 import type { ChartMeta } from '../types/chart';
 
 const baseMeta: ChartMeta = {
@@ -47,5 +47,27 @@ describe('buildSaveAsMeta', () => {
     expect(result).not.toBeNull();
     expect(result!.difficultyLabel).toBe('EXPERT');
     expect(result!.difficultyLevel).toBe(14);
+  });
+});
+
+describe('deserializeChart 입력 검증', () => {
+  it('유효하지 않은 JSON이면 에러', () => {
+    expect(() => deserializeChart('not json')).toThrow('유효한 JSON이 아닙니다');
+  });
+
+  it('최상위 값이 객체가 아니면 에러', () => {
+    expect(() => deserializeChart('"string"')).toThrow('최상위 값이 객체가 아닙니다');
+  });
+
+  it('meta 필드가 없으면 에러', () => {
+    expect(() => deserializeChart('{"notes":[],"trillZones":[]}')).toThrow('meta 필드가 없거나 유효하지 않습니다');
+  });
+
+  it('notes 필드가 배열이 아니면 에러', () => {
+    expect(() => deserializeChart('{"meta":{},"notes":"bad","trillZones":[]}')).toThrow('notes 필드가 배열이 아닙니다');
+  });
+
+  it('trillZones 필드가 배열이 아니면 에러', () => {
+    expect(() => deserializeChart('{"meta":{},"notes":[],"trillZones":"bad"}')).toThrow('trillZones 필드가 배열이 아닙니다');
   });
 });

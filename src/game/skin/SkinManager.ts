@@ -12,7 +12,7 @@ import { getSkinManifest } from "./skins";
  */
 export class SkinManager {
   private manifest: SkinManifest | null = null;
-  private textures = new Map<string, Texture>();
+  private textures = new Map<string, { texture: Texture; path: string }>();
   private bombTextures: Texture[] = [];
   private loaded = false;
 
@@ -62,7 +62,7 @@ export class SkinManager {
     // 모든 텍스처를 병렬 로드
     const loadPromises = entries.map(async ([key, path]) => {
       const texture = await Assets.load<Texture>(path);
-      this.textures.set(key, texture);
+      this.textures.set(key, { texture, path });
     });
 
     await Promise.all(loadPromises);
@@ -70,7 +70,7 @@ export class SkinManager {
     // 봄 텍스처 배열 구성
     this.bombTextures = [];
     for (let i = 0; i < assets.bomb.length; i++) {
-      this.bombTextures.push(this.textures.get(`bomb${i}`)!);
+      this.bombTextures.push(this.textures.get(`bomb${i}`)!.texture);
     }
 
     this.loaded = true;
@@ -81,11 +81,11 @@ export class SkinManager {
     if (!this.loaded) {
       throw new Error("SkinManager: no skin loaded");
     }
-    const tex = this.textures.get(key);
-    if (!tex) {
+    const entry = this.textures.get(key);
+    if (!entry) {
       throw new Error(`SkinManager: unknown texture key "${key}"`);
     }
-    return tex;
+    return entry.texture;
   }
 
   /** 봄 AnimatedSprite용 16프레임 텍스처 배열 */
@@ -106,8 +106,8 @@ export class SkinManager {
 
   /** 텍스처 메모리 해제 */
   dispose(): void {
-    for (const [key] of this.textures) {
-      Assets.unload(key).catch(() => {});
+    for (const [key, { path }] of this.textures) {
+      Assets.unload(path).catch((e) => console.warn('SkinManager: failed to unload', key, e));
     }
     this.textures.clear();
     this.bombTextures = [];

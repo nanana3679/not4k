@@ -1,0 +1,65 @@
+import type React from 'react';
+
+export const modalStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000,
+  },
+  modal: {
+    backgroundColor: '#2a2a2a',
+    border: '1px solid #555',
+    borderRadius: '8px',
+    padding: '20px',
+    minWidth: '280px',
+    color: '#e0e0e0',
+    fontFamily: 'system-ui, sans-serif',
+  },
+  title: {
+    margin: '0 0 16px',
+    fontSize: '16px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    marginBottom: '12px',
+    fontSize: '13px',
+  },
+  input: {
+    padding: '6px 8px',
+    backgroundColor: '#1a1a1a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    fontSize: '14px',
+  },
+  buttons: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '16px',
+  },
+  saveBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#4488ff',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  },
+  cancelBtn: {
+    padding: '6px 16px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    marginLeft: 'auto',
+  },
+};
