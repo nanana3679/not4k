@@ -182,7 +182,9 @@ export class AudioEngine {
       try {
         this.source.stop();
       } catch (e) {
-        // Source may already be stopped
+        if (!(e instanceof DOMException && e.name === 'InvalidStateError')) {
+          console.warn('AudioEngine.stop: unexpected error', e);
+        }
       }
       this.source.disconnect();
       this.source = null;

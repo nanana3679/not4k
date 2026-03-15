@@ -107,7 +107,7 @@ export class SkinManager {
   /** 텍스처 메모리 해제 */
   dispose(): void {
     for (const [key] of this.textures) {
-      Assets.unload(key).catch(() => {});
+      Assets.unload(key).catch((e) => console.warn('SkinManager: failed to unload', key, e));
     }
     this.textures.clear();
     this.bombTextures = [];
