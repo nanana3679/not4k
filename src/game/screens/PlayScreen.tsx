@@ -191,7 +191,7 @@ export function PlayScreen() {
                 renderer.showBombEffect(note.lane);
               } else if (result.isPartialBodyFail) {
                 // 더블 롱노트 부분 실패 — 한쪽만 실패 에셋으로 교체
-                renderer.markBodyPartialFailed(result.noteIndex);
+                renderer.markBodyPartialFailed(result.noteIndex, result.failedSide!);
               } else {
                 renderer.markBodyFailed(result.noteIndex);
               }
