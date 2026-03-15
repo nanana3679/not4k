@@ -290,6 +290,9 @@ export class GameNoteRenderer {
     this.bodyGraphicsPool.clear();
     this.trillEndPool.clear();
     this.trillHeadPool.clear();
+    this.bodyTexKeyCache.clear();
+    this.termTexKeyCache.clear();
+    this.noteTexKeyCache.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -423,23 +426,30 @@ export class GameNoteRenderer {
 
   // ── 오브젝트 풀 ───────────────────────────────────────────
 
+  private noteTexKeyCache: Map<number, string> = new Map();
+
   private getOrCreateNoteSprite(index: number, texKey: string): Sprite {
     let sprite = this.noteSpritePool.get(index);
-    if (!sprite) {
+    const cachedKey = this.noteTexKeyCache.get(index);
+
+    if (!sprite || cachedKey !== texKey) {
+      if (sprite) sprite.destroy();
       sprite = new Sprite(this.skinManager.getTexture(texKey));
       this.noteSpritePool.set(index, sprite);
-    } else {
-      const newTex = this.skinManager.getTexture(texKey);
-      if (sprite.texture !== newTex) {
-        sprite.texture = newTex;
-      }
+      this.noteTexKeyCache.set(index, texKey);
     }
     return sprite;
   }
 
+  private bodyTexKeyCache: Map<number, string> = new Map();
+
   private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite {
     let sprite = this.bodySpritePool.get(index);
-    if (!sprite) {
+    const cachedKey = this.bodyTexKeyCache.get(index);
+
+    if (!sprite || cachedKey !== texKey) {
+      // 텍스처가 바뀌면 NineSliceSprite를 재생성 (texture setter가 시각 업데이트 안 됨)
+      if (sprite) sprite.destroy();
       sprite = new NineSliceSprite({
         texture: this.skinManager.getTexture(texKey),
         leftWidth: 4,
@@ -448,26 +458,22 @@ export class GameNoteRenderer {
         bottomHeight: 4,
       });
       this.bodySpritePool.set(index, sprite);
-    } else {
-      // 텍스처가 변경되었으면 업데이트 (부분 실패 등 상태 전환)
-      const newTex = this.skinManager.getTexture(texKey);
-      if (sprite.texture !== newTex) {
-        sprite.texture = newTex;
-      }
+      this.bodyTexKeyCache.set(index, texKey);
     }
     return sprite;
   }
 
+  private termTexKeyCache: Map<number, string> = new Map();
+
   private getOrCreateTerminalSprite(index: number, texKey: string): Sprite {
     let sprite = this.terminalSpritePool.get(index);
-    if (!sprite) {
+    const cachedKey = this.termTexKeyCache.get(index);
+
+    if (!sprite || cachedKey !== texKey) {
+      if (sprite) sprite.destroy();
       sprite = new Sprite(this.skinManager.getTexture(texKey));
       this.terminalSpritePool.set(index, sprite);
-    } else {
-      const newTex = this.skinManager.getTexture(texKey);
-      if (sprite.texture !== newTex) {
-        sprite.texture = newTex;
-      }
+      this.termTexKeyCache.set(index, texKey);
     }
     return sprite;
   }
@@ -544,6 +550,9 @@ export class GameNoteRenderer {
     this.trillEndPool.clear();
     this.trillHeadPool.clear();
     this.graceGlowPool.clear();
+    this.bodyTexKeyCache.clear();
+    this.termTexKeyCache.clear();
+    this.noteTexKeyCache.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
