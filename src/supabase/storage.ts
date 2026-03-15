@@ -78,11 +78,12 @@ async function fetchWithFallback(
   const primaryUrl = getPublicUrl(primaryPath);
   const res = await fetch(primaryUrl, { cache: 'no-cache' });
   if (res.ok) return res.arrayBuffer();
+  const primaryStatus = res.status;
 
   const fallbackUrl = getPublicUrl(fallbackPath);
   const fallbackRes = await fetch(fallbackUrl, { cache: 'no-cache' });
   if (!fallbackRes.ok) {
-    throw new Error(`Failed to fetch ${label}: ${fallbackRes.status}`);
+    throw new Error(`Failed to fetch ${label}: primary=${primaryStatus}, fallback=${fallbackRes.status}`);
   }
   return fallbackRes.arrayBuffer();
 }
