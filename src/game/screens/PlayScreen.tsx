@@ -191,10 +191,8 @@ export function PlayScreen() {
                 renderer.showBombEffect(note.lane);
               } else if (result.isPartialBodyFail) {
                 // 더블 롱노트 부분 실패 — 한쪽만 실패 에셋으로 교체
-                console.log(`[PARTIAL FAIL] noteIndex=${result.noteIndex} side=${result.failedSide} type=${note.type}`);
                 renderer.markBodyPartialFailed(result.noteIndex, result.failedSide!);
               } else {
-                console.log(`[BODY FAIL] noteIndex=${result.noteIndex} type=${note.type} isBody=${isBody}`);
                 renderer.markBodyFailed(result.noteIndex);
               }
 
@@ -202,7 +200,6 @@ export function PlayScreen() {
               const isDouble = note.type === 'double';
 
               if (result.isPartialBodyFail) {
-                console.log(`[VISIBILITY] noteIndex=${result.noteIndex} → partialBodyFail, no change`);
                 // 부분 실패: 노트는 BODY_ACTIVE를 유지하므로 visibility 변경 없음
               } else if (result.grade === 'miss') {
                 // miss된 노트는 사라지지 않고 실패 에셋으로 교체

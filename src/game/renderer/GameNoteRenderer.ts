@@ -232,7 +232,6 @@ export class GameNoteRenderer {
       } else if (isDouble && isPartialFailed) {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
-        console.log(`[RENDER] note=${index} partialFailed side=${partialSide} bodyTex=${bodyTexKey} termTex=${termTexKey}`);
       } else {
         bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
         termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
@@ -265,7 +264,6 @@ export class GameNoteRenderer {
   }
 
   markBodyPartialFailed(noteIndex: number, side: 'left' | 'right'): void {
-    console.log(`[RENDERER] markBodyPartialFailed noteIndex=${noteIndex} side=${side}`);
     this.partialFailedBodies.set(noteIndex, side);
   }
 
