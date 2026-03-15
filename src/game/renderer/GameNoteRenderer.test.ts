@@ -223,4 +223,50 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     const bodySprite = (bodyLayer as any).children[0];
     expect(bodySprite.alpha).toBe(0.7);
   });
+
+  // ── 더블 롱노트 부분 실패 ──────────────────────────
+
+  it("더블 롱노트 부분 실패 시 바디 tint가 LONG_BODY_PARTIAL_FAILED(0x888888)로 설정됨", () => {
+    const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+    renderer.markBodyPartialFailed(0);
+
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+
+    const bodySprite = (bodyLayer as any).children[0];
+    // skinManager.hasTexture는 false를 반환하므로 tint fallback 사용
+    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_PARTIAL_FAILED);
+  });
+
+  it("부분 실패 후 전체 실패 시 바디 tint가 LONG_BODY_FAILED(0x555555)로 변경됨", () => {
+    const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+    renderer.markBodyPartialFailed(0);
+    renderer.markBodyFailed(0);
+
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+
+    const bodySprite = (bodyLayer as any).children[0];
+    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+  });
+
+  it("싱글 롱노트에서는 부분 실패가 적용되지 않음 — 기본 tint 유지", () => {
+    const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+    renderer.markBodyPartialFailed(0);
+
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+
+    const bodySprite = (bodyLayer as any).children[0];
+    // 싱글 롱노트는 isDouble이 false이므로 부분 실패 tint가 적용되지 않음
+    expect(bodySprite.tint).toBe(0xffffff);
+  });
+
+  it("clearPools 호출 후 partialFailedBodies 상태가 초기화됨", () => {
+    const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+    renderer.markBodyPartialFailed(0);
+    renderer.clearPools();
+
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+
+    const bodySprite = (bodyLayer as any).children[0];
+    expect(bodySprite.tint).toBe(0xffffff);
+  });
 });
