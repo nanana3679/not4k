@@ -132,7 +132,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     // noteLayer에 추가된 sprite의 tint 확인
     const sprite = (noteLayer as any).children[0];
-    expect(sprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(sprite.tint).toBe(0xffffff);
   });
 
   it("miss되지 않은 포인트 노트의 tint는 0xffffff(기본값)", () => {
@@ -174,7 +174,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("miss된 롱노트 터미널의 tint가 LONG_BODY_FAILED로 설정됨", () => {
@@ -186,7 +186,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     // endLayer에 터미널 추가됨 (adjustedEndY가 화면 범위 내)
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
-      expect(termSprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+      expect(termSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -245,7 +245,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("싱글 롱노트에서는 부분 실패가 적용되지 않음 — 기본 tint 유지", () => {

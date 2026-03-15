@@ -44,23 +44,21 @@ export class SkinManager {
       ["bodyDouble", assets.bodyDouble],
       ["bodySingleHeld", assets.bodySingleHeld],
       ["bodyDoubleHeld", assets.bodyDoubleHeld],
-    ];
-
-    // 실패 에셋 (optional)
-    const optionalEntries: [string, string][] = [
+      // 실패 에셋
       ["noteSingleFailed", assets.noteSingleFailed],
       ["noteDoubleFailed", assets.noteDoubleFailed],
       ["bodySingleFailed", assets.bodySingleFailed],
       ["bodyDoubleFailed", assets.bodyDoubleFailed],
+      ["terminalSingleFailed", assets.terminalSingleFailed],
+      ["terminalDoubleFailed", assets.terminalDoubleFailed],
+      // 부분 실패 에셋
       ["bodyDoublePartialFailedLeft", assets.bodyDoublePartialFailedLeft],
       ["bodyDoublePartialFailedRight", assets.bodyDoublePartialFailedRight],
       ["terminalDoublePartialFailedLeft", assets.terminalDoublePartialFailedLeft],
       ["terminalDoublePartialFailedRight", assets.terminalDoublePartialFailedRight],
       ["noteDoublePartialFailedLeft", assets.noteDoublePartialFailedLeft],
       ["noteDoublePartialFailedRight", assets.noteDoublePartialFailedRight],
-      ["terminalSingleFailed", assets.terminalSingleFailed],
-      ["terminalDoubleFailed", assets.terminalDoubleFailed],
-    ].filter((e): e is [string, string] => e[1] != null);
+    ];
 
     // 봄 프레임
     for (let i = 0; i < assets.bomb.length; i++) {
@@ -83,17 +81,6 @@ export class SkinManager {
 
     await Promise.all(loadPromises);
 
-    // 실패 에셋은 optional — 로드 실패 시 무시
-    const optionalLoadPromises = optionalEntries.map(async ([key, path]) => {
-      try {
-        const texture = await Assets.load<Texture>(path);
-        this.textures.set(key, { texture, path });
-      } catch {
-        // 실패 에셋이 없으면 무시 (tint fallback 사용)
-      }
-    });
-    await Promise.all(optionalLoadPromises);
-
     // 봄 텍스처 배열 구성
     this.bombTextures = [];
     for (let i = 0; i < assets.bomb.length; i++) {
@@ -101,11 +88,6 @@ export class SkinManager {
     }
 
     this.loaded = true;
-  }
-
-  /** 텍스처 존재 여부 확인 */
-  hasTexture(key: string): boolean {
-    return this.textures.has(key);
   }
 
   /** 개별 텍스처 조회 */

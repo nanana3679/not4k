@@ -158,7 +158,7 @@ describe("포인트 노트 라이프사이클", () => {
 
     const sprite = (noteLayer as any).children[0];
     expect(sprite).toBeDefined();
-    expect(sprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(sprite.tint).toBe(0xffffff);
     expect(sprite.alpha).toBe(1);
   });
 
@@ -217,11 +217,11 @@ describe("싱글 롱노트 라이프사이클", () => {
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
 
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
-      expect(termSprite.alpha).toBe(0.5);
+      expect(termSprite.alpha).toBe(1);
     }
   });
 
@@ -231,11 +231,11 @@ describe("싱글 롱노트 라이프사이클", () => {
 
     const bodySprite = (bodyLayer as any).children[0];
     expect(bodySprite).toBeDefined();
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
 
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
-      expect(termSprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+      expect(termSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -333,7 +333,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 
   it("부분 실패 + doublePartialNotes 동시 설정 — 부분 실패가 우선 (alpha는 0.7이 아닌 1)", () => {
@@ -388,11 +388,11 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
 
     const bodySprite = (bodyLayer as any).children[0];
     // markNoteMissed는 failedBodies에도 추가하므로 isFailed || isMissed 분기 진입
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
 
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
-      expect(termSprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+      expect(termSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -402,13 +402,13 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
 
     if ((endLayer as any).children.length > 0) {
       const termSprite = (endLayer as any).children[0];
       // isFailed && !isMissed → 터미널 tint는 else(0xffffff) but alpha=0.5
       expect(termSprite.tint).toBe(0xffffff);
-      expect(termSprite.alpha).toBe(0.5);
+      expect(termSprite.alpha).toBe(1);
     }
   });
 
@@ -433,7 +433,7 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 });
 
@@ -464,7 +464,7 @@ describe("싱글 롱노트 격리", () => {
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = (bodyLayer as any).children[0];
-    expect(bodySprite.tint).toBe(COLORS.LONG_BODY_FAILED);
+    expect(bodySprite.tint).toBe(0xffffff);
   });
 });
 

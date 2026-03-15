@@ -126,11 +126,17 @@ export class GameNoteRenderer {
       this.drawNoteShape(graphic, entity.type, overrides);
       this.noteLayer.addChild(graphic);
     } else {
-      const texKey = entity.type === "double" ? "noteDouble" : "noteSingle";
+      const isDouble = entity.type === "double";
+      let texKey: string;
+      if (isMissed) {
+        texKey = isDouble ? "noteDoubleFailed" : "noteSingleFailed";
+      } else {
+        texKey = isDouble ? "noteDouble" : "noteSingle";
+      }
       const sprite = this.getOrCreateNoteSprite(index, texKey);
       sprite.x = laneX;
       sprite.y = y;
-      sprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
+      sprite.tint = 0xffffff;
       sprite.alpha = isMissed ? 1 : (isPartial ? 0.7 : 1);
       this.noteLayer.addChild(sprite);
     }
@@ -217,36 +223,34 @@ export class GameNoteRenderer {
       const isDouble = entity.type === "doubleLong";
 
       let bodyTexKey: string;
-      if (isDouble && isPartialFailed && !isFailed && !isMissed) {
+      let termTexKey: string;
+
+      if (isFailed || isMissed) {
+        bodyTexKey = isDouble ? "bodyDoubleFailed" : "bodySingleFailed";
+        termTexKey = isDouble ? "terminalDoubleFailed" : "terminalSingleFailed";
+      } else if (isDouble && isPartialFailed) {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
+        termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
         bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+        termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
       }
-      let termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
 
       const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
       bodySprite.x = laneX;
       bodySprite.y = adjustedEndY;
       bodySprite.width = LANE_WIDTH;
       bodySprite.height = bodyHeight;
-
-      if (isFailed || isMissed) {
-        bodySprite.tint = COLORS.LONG_BODY_FAILED;
-      } else {
-        bodySprite.tint = 0xffffff;
-      }
+      bodySprite.tint = 0xffffff;
       bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        if (isDouble && isPartialFailed && !isFailed && !isMissed) {
-          termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
-        }
         const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
         termSprite.x = laneX;
         termSprite.y = adjustedEndY;
-        termSprite.tint = isMissed ? COLORS.LONG_BODY_FAILED : 0xffffff;
-        termSprite.alpha = isFailed ? 0.5 : 1;
+        termSprite.tint = 0xffffff;
+        termSprite.alpha = 1;
         this.longNoteEndLayer.addChild(termSprite);
       }
     }
