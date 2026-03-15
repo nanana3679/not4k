@@ -13,8 +13,6 @@ export interface ScoreState {
   earnedScore: number; // sum of judgment scores
   achievementRate: number; // (earnedScore / processedNotes*3) * 100, based on processed notes
   rank: Rank; // computed from achievementRate
-  combo: number;
-  maxCombo: number;
   isFullCombo: boolean; // no Bad or Miss
   judgmentCounts: Record<JudgmentGrade, number>; // per-grade count
   goodTrillCount: number; // separate GOOD_TRILL count (also in judgmentCounts)
@@ -26,8 +24,6 @@ export class ScoreManager {
   private totalNotes: number;
   private processedNotes: number;
   private earnedScore: number;
-  private combo: number;
-  private maxCombo: number;
   private hasBadOrMiss: boolean;
   private judgmentCounts: Record<JudgmentGrade, number>;
   private fastCount: number;
@@ -37,8 +33,6 @@ export class ScoreManager {
     this.totalNotes = totalJudgmentCount;
     this.processedNotes = 0;
     this.earnedScore = 0;
-    this.combo = 0;
-    this.maxCombo = 0;
     this.hasBadOrMiss = false;
     this.fastCount = 0;
     this.slowCount = 0;
@@ -69,20 +63,8 @@ export class ScoreManager {
       else if (deltaMs > 0) this.slowCount++;
     }
 
-    // Update combo
-    if (
-      grade === JudgmentGrade.PERFECT ||
-      grade === JudgmentGrade.GREAT ||
-      grade === JudgmentGrade.GOOD ||
-      grade === JudgmentGrade.GOOD_TRILL
-    ) {
-      this.combo++;
-      if (this.combo > this.maxCombo) {
-        this.maxCombo = this.combo;
-      }
-    } else {
-      // Bad or Miss
-      this.combo = 0;
+    // Track Bad/Miss for fullCombo
+    if (grade === JudgmentGrade.BAD || grade === JudgmentGrade.MISS) {
       this.hasBadOrMiss = true;
     }
   }
@@ -101,8 +83,6 @@ export class ScoreManager {
       earnedScore: this.earnedScore,
       achievementRate,
       rank: getRank(achievementRate),
-      combo: this.combo,
-      maxCombo: this.maxCombo,
       isFullCombo: !this.hasBadOrMiss,
       judgmentCounts: { ...this.judgmentCounts },
       goodTrillCount: this.judgmentCounts[JudgmentGrade.GOOD_TRILL],
@@ -116,8 +96,6 @@ export class ScoreManager {
     this.totalNotes = totalJudgmentCount;
     this.processedNotes = 0;
     this.earnedScore = 0;
-    this.combo = 0;
-    this.maxCombo = 0;
     this.hasBadOrMiss = false;
     this.fastCount = 0;
     this.slowCount = 0;

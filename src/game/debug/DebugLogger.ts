@@ -24,7 +24,7 @@ export interface DebugNoteEntry {
   grade: JudgmentGrade;
   /** 현재 스크롤 속도 (px/s) */
   scrollSpeed: number;
-  /** 프레임당 예상 노트 이동 거리 (scrollSpeed / targetFps) */
+  /** 프레임당 예상 노트 이동 거리 (scrollSpeed / 60, 60fps 기준) */
   expectedDeltaPxPerFrame: number;
   /** 직전 프레임의 실제 노트 이동 거리 (프레임 시간 × scrollSpeed) */
   actualDeltaPx: number | null;
@@ -43,15 +43,13 @@ export interface DebugSummary {
 export class DebugLogger {
   private entries: DebugNoteEntry[] = [];
   private readonly scrollSpeed: number;
-  private readonly targetFps: number;
   private readonly judgmentLineY: number;
 
   /** 직전 프레임의 실제 경과 시간 (ms) */
   private lastFrameDeltaMs: number | null = null;
 
-  constructor(scrollSpeed: number, targetFps: number, judgmentLineY: number) {
+  constructor(scrollSpeed: number, judgmentLineY: number) {
     this.scrollSpeed = scrollSpeed;
-    this.targetFps = targetFps;
     this.judgmentLineY = judgmentLineY;
   }
 
@@ -72,8 +70,7 @@ export class DebugLogger {
     deltaMs: number,
     subIndex?: number,
   ): void {
-    const effectiveFps = this.targetFps > 0 ? this.targetFps : 60;
-    const expectedDeltaPxPerFrame = this.scrollSpeed / effectiveFps;
+    const expectedDeltaPxPerFrame = this.scrollSpeed / 60;
 
     // 직전 프레임의 실제 이동 거리 = 프레임 경과 시간 × scrollSpeed / 1000
     const actualDeltaPx = this.lastFrameDeltaMs !== null

@@ -68,6 +68,10 @@ export class GameRenderer {
   // Skin
   private skinManager: SkinManager;
 
+  // Object pools for dynamic graphics
+  private measureLinePool: Graphics[] = [];
+  private trillZonePool: Graphics[] = [];
+
   // Lane flash
   private keyBeamGraphics: Graphics[] = [];
   private keyBeamGradient: FillGradient | null = null;
@@ -322,9 +326,9 @@ export class GameRenderer {
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     this.judgmentUI.updateFade(deltaMs);
 
-    // Clear dynamic layers
-    this.measureLineLayer.removeChildren();
-    this.trillZoneLayer.removeChildren();
+    // Hide all pooled graphics
+    for (const g of this.measureLinePool) g.visible = false;
+    for (const g of this.trillZonePool) g.visible = false;
     this.longNoteBodyLayer.removeChildren();
     this.longNoteEndLayer.removeChildren();
     this.longNoteHeadLayer.removeChildren();
@@ -354,19 +358,42 @@ export class GameRenderer {
     }
   }
 
+  private getMeasureLineFromPool(index: number): Graphics {
+    if (index < this.measureLinePool.length) {
+      return this.measureLinePool[index];
+    }
+    const g = new Graphics();
+    this.measureLinePool.push(g);
+    this.measureLineLayer.addChild(g);
+    return g;
+  }
+
+  private getTrillZoneFromPool(index: number): Graphics {
+    if (index < this.trillZonePool.length) {
+      return this.trillZonePool[index];
+    }
+    const g = new Graphics();
+    this.trillZonePool.push(g);
+    this.trillZoneLayer.addChild(g);
+    return g;
+  }
+
   private renderMeasureLines(songTimeMs: number): void {
+    let poolIdx = 0;
     for (const mMs of this.measureTimesMs) {
       const y = this.noteRenderer.calculateNoteY(mMs, songTimeMs);
       if (y < -2 || y > this.height + 2) continue;
 
-      const line = new Graphics();
+      const line = this.getMeasureLineFromPool(poolIdx++);
+      line.clear();
       line.rect(this.laneAreaX, y - 1, LANE_AREA_WIDTH, 1);
       line.fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
-      this.measureLineLayer.addChild(line);
+      line.visible = true;
     }
   }
 
   private renderTrillZones(songTimeMs: number): void {
+    let poolIdx = 0;
     for (const zone of this.trillZones) {
       const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
       const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
@@ -376,7 +403,8 @@ export class GameRenderer {
 
       if (startY < -50 || endY > this.height + 50) continue;
 
-      const zoneGraphic = new Graphics();
+      const zoneGraphic = this.getTrillZoneFromPool(poolIdx++);
+      zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
       const rawHeight = startY - endY;
@@ -384,8 +412,7 @@ export class GameRenderer {
       const adjustedEndY = rawHeight > 0 ? endY : endY - NOTE_HEIGHT / 2;
       zoneGraphic.rect(laneX, adjustedEndY, LANE_WIDTH, height);
       zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
-
-      this.trillZoneLayer.addChild(zoneGraphic);
+      zoneGraphic.visible = true;
     }
   }
 

@@ -81,7 +81,7 @@ expectedDeltaPxPerFrame = scrollSpeed / targetFps
 
 ## 출력 형식
 
-곡 종료 시 `console.log`로 전체 로그를 텍스트 형식으로 출력한다:
+곡 종료 시 전체 로그를 텍스트 파일로 다운로드한다:
 
 ```
 === Debug Note Log ===

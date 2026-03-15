@@ -17,7 +17,6 @@ interface GameSettings {
   scrollSpeed: number;
   liftPercent: number;
   suddenPercent: number;
-  targetFps: number;
   audioOffsetMs: number;
   judgmentOffsetMs: number;
   preset: 'numpad' | 'tkl';
@@ -72,7 +71,7 @@ interface GameState {
 
 const TKL_BINDINGS: KeyBindings = {
   lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
-  lane2: ['KeyE', 'KeyD', 'KeyC', 'PageDown', 'KeyO'],
+  lane2: ['KeyE', 'KeyD', 'KeyC', 'KeyO'],
   lane3: ['KeyP', 'KeyL', 'Comma', 'KeyR'],
   lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
 };
@@ -89,7 +88,6 @@ const DEFAULT_SETTINGS: GameSettings = {
   scrollSpeed: 800,
   liftPercent: 0,
   suddenPercent: 0,
-  targetFps: 60,
   audioOffsetMs: 0,
   judgmentOffsetMs: 0,
   preset: 'tkl',
