@@ -37,9 +37,10 @@ export class GameNoteRenderer {
   private height: number;
 
   // Object pools — Sprite-based (single/double/long/doubleLong)
-  private noteSpritePool: Map<number, Sprite> = new Map();
-  private bodySpritePool: Map<number, NineSliceSprite> = new Map();
-  private terminalSpritePool: Map<number, Sprite> = new Map();
+  // 노트 인덱스 → (texKey → Sprite) : 상태별 스프라이트를 모두 보유
+  private noteSpritePool: Map<number, Map<string, Sprite>> = new Map();
+  private bodySpritePool: Map<number, Map<string, NineSliceSprite>> = new Map();
+  private terminalSpritePool: Map<number, Map<string, Sprite>> = new Map();
 
   // Object pools — Graphics fallback (trill/trillLong)
   private noteGraphicsPool: Map<number, Graphics> = new Map();
@@ -290,9 +291,6 @@ export class GameNoteRenderer {
     this.bodyGraphicsPool.clear();
     this.trillEndPool.clear();
     this.trillHeadPool.clear();
-    this.bodyTexKeyCache.clear();
-    this.termTexKeyCache.clear();
-    this.noteTexKeyCache.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -426,30 +424,28 @@ export class GameNoteRenderer {
 
   // ── 오브젝트 풀 ───────────────────────────────────────────
 
-  private noteTexKeyCache: Map<number, string> = new Map();
-
   private getOrCreateNoteSprite(index: number, texKey: string): Sprite {
-    let sprite = this.noteSpritePool.get(index);
-    const cachedKey = this.noteTexKeyCache.get(index);
-
-    if (!sprite || cachedKey !== texKey) {
-      if (sprite) sprite.destroy();
+    let pool = this.noteSpritePool.get(index);
+    if (!pool) {
+      pool = new Map();
+      this.noteSpritePool.set(index, pool);
+    }
+    let sprite = pool.get(texKey);
+    if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
-      this.noteSpritePool.set(index, sprite);
-      this.noteTexKeyCache.set(index, texKey);
+      pool.set(texKey, sprite);
     }
     return sprite;
   }
 
-  private bodyTexKeyCache: Map<number, string> = new Map();
-
   private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite {
-    let sprite = this.bodySpritePool.get(index);
-    const cachedKey = this.bodyTexKeyCache.get(index);
-
-    if (!sprite || cachedKey !== texKey) {
-      // 텍스처가 바뀌면 NineSliceSprite를 재생성 (texture setter가 시각 업데이트 안 됨)
-      if (sprite) sprite.destroy();
+    let pool = this.bodySpritePool.get(index);
+    if (!pool) {
+      pool = new Map();
+      this.bodySpritePool.set(index, pool);
+    }
+    let sprite = pool.get(texKey);
+    if (!sprite) {
       sprite = new NineSliceSprite({
         texture: this.skinManager.getTexture(texKey),
         leftWidth: 4,
@@ -457,23 +453,21 @@ export class GameNoteRenderer {
         topHeight: 4,
         bottomHeight: 4,
       });
-      this.bodySpritePool.set(index, sprite);
-      this.bodyTexKeyCache.set(index, texKey);
+      pool.set(texKey, sprite);
     }
     return sprite;
   }
 
-  private termTexKeyCache: Map<number, string> = new Map();
-
   private getOrCreateTerminalSprite(index: number, texKey: string): Sprite {
-    let sprite = this.terminalSpritePool.get(index);
-    const cachedKey = this.termTexKeyCache.get(index);
-
-    if (!sprite || cachedKey !== texKey) {
-      if (sprite) sprite.destroy();
+    let pool = this.terminalSpritePool.get(index);
+    if (!pool) {
+      pool = new Map();
+      this.terminalSpritePool.set(index, pool);
+    }
+    let sprite = pool.get(texKey);
+    if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
-      this.terminalSpritePool.set(index, sprite);
-      this.termTexKeyCache.set(index, texKey);
+      pool.set(texKey, sprite);
     }
     return sprite;
   }
@@ -550,9 +544,6 @@ export class GameNoteRenderer {
     this.trillEndPool.clear();
     this.trillHeadPool.clear();
     this.graceGlowPool.clear();
-    this.bodyTexKeyCache.clear();
-    this.termTexKeyCache.clear();
-    this.noteTexKeyCache.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
