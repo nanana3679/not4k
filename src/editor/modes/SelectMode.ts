@@ -1,6 +1,6 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
 import { validateChart, beatToFloat } from "../../shared";
-import { beatAdd, beatSub, beatEq, beatLte } from "../../shared";
+import { beatAdd, beatSub, beatEq, beatLt, beatLte } from "../../shared";
 import { ClipboardManager } from "./ClipboardManager";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 
@@ -473,10 +473,9 @@ export class SelectMode {
     // Need at least one lane dimension
     if (!hasMainLane && !hasExtraLane) return;
 
-    const minBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-      ? this.dragStartBeat : this._boxEndBeat;
-    const maxBeat = beatSub(this.dragStartBeat, this._boxEndBeat).n < 0
-      ? this._boxEndBeat : this.dragStartBeat;
+    const startFirst = beatLt(this.dragStartBeat, this._boxEndBeat);
+    const minBeat = startFirst ? this.dragStartBeat : this._boxEndBeat;
+    const maxBeat = startFirst ? this._boxEndBeat : this.dragStartBeat;
 
     // Determine if box crosses from main to extra or vice versa
     // If start is in main and end is in extra (or vice versa), main range extends to lane 4
