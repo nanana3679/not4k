@@ -256,8 +256,9 @@ export function PlayScreen() {
             const visualTimeMs = songTimeMs + audioEngine.getOutputLatencyMs();
 
             // Record frame timing for debug logger
+            const frameDeltaMs = lastFrameTime !== null ? timestamp - lastFrameTime : 16;
             if (debugLogger && lastFrameTime !== null) {
-              debugLogger.recordFrameTiming(timestamp - lastFrameTime);
+              debugLogger.recordFrameTiming(frameDeltaMs);
             }
             lastFrameTime = timestamp;
 
@@ -265,7 +266,7 @@ export function PlayScreen() {
             judgmentEngine.update(songTimeMs);
 
             // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
-            renderer.renderFrame(visualTimeMs);
+            renderer.renderFrame(visualTimeMs, frameDeltaMs);
 
             // Check if song ended
             if (audioEngine.currentTimeMs >= audioEngine.duration && audioEngine.duration > 0) {

@@ -319,9 +319,8 @@ export class GameRenderer {
     this.noteRenderer.clearPools();
   }
 
-  renderFrame(songTimeMs: number): void {
-    // 판정 텍스트 페이드 (~16ms / 60fps)
-    this.judgmentUI.updateFade(16);
+  renderFrame(songTimeMs: number, deltaMs: number = 16): void {
+    this.judgmentUI.updateFade(deltaMs);
 
     // Clear dynamic layers
     this.measureLineLayer.removeChildren();
