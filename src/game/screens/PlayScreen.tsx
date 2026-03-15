@@ -199,11 +199,12 @@ export function PlayScreen() {
               // Note visibility updates
               const isDouble = note.type === 'double';
 
-              if (result.grade === 'miss' && !result.isPartialBodyFail) {
+              if (result.isPartialBodyFail) {
+                // 부분 실패: 노트는 BODY_ACTIVE를 유지하므로 visibility 변경 없음
+              } else if (result.grade === 'miss') {
                 // miss된 노트는 사라지지 않고 실패 에셋으로 교체
-                // (부분 실패는 노트가 BODY_ACTIVE를 유지하므로 miss 마킹하지 않음)
                 renderer.markNoteMissed(result.noteIndex);
-              } else if (isBody && !result.isPartialBodyFail) {
+              } else if (isBody) {
                 renderer.markNoteProcessed(result.noteIndex);
               } else if (isDouble && result.subIndex === 0) {
                 renderer.markDoublePartial(result.noteIndex);

@@ -259,6 +259,21 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
+  it("부분 실패 노트는 completedNotes에 추가되지 않아 계속 렌더링됨", () => {
+    const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+    renderer.markBodyPartialFailed(0, 'left');
+
+    // 렌더링 시도 — completedNotes에 없으므로 렌더링되어야 함
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+    expect((bodyLayer as any).children.length).toBeGreaterThan(0);
+
+    // markNoteProcessed를 호출하면 사라짐 — 부분 실패 시에는 호출하면 안 됨
+    renderer.markNoteProcessed(0);
+    (bodyLayer as any).children = [];
+    renderer.renderLongNote(entity, 0, 500, 800, 500);
+    expect((bodyLayer as any).children.length).toBe(0); // completedNotes에 있으므로 렌더 안 됨
+  });
+
   it("clearPools 호출 후 partialFailedBodies 상태가 초기화됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
     renderer.markBodyPartialFailed(0, 'left');
