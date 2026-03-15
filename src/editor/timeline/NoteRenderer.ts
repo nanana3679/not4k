@@ -175,12 +175,23 @@ export class NoteRenderer {
 
     const isGrace = isGraceNote(note);
     if (isGrace) {
+      const pad = COLORS.GRACE_GLOW_PAD;
+      const baseAlpha = COLORS.GRACE_GLOW_ALPHA;
+      const steps = 4;
       const glow = this.acquireGraphics();
-      const w = NOTE_HEIGHT * 5 + COLORS.GRACE_GLOW_PAD * 2;
-      const h = NOTE_HEIGHT + COLORS.GRACE_GLOW_PAD * 2;
-      const glowX = x + (LANE_WIDTH - w) / 2;
-      glow.roundRect(glowX, y - h / 2, w, h, 4);
-      glow.fill({ color: COLORS.GRACE_GLOW, alpha: COLORS.GRACE_GLOW_ALPHA });
+      const noteW = NOTE_HEIGHT * 5;
+      const noteH = NOTE_HEIGHT;
+      const noteX = x + (LANE_WIDTH - noteW) / 2;
+      // 안쪽→바깥쪽 겹쳐 그려 중심에서 멀어질수록 약해지는 글로우
+      for (let i = 0; i < steps; i++) {
+        const stepPad = pad * (i + 1) / steps;
+        glow.roundRect(
+          noteX - stepPad, y - noteH / 2 - stepPad,
+          noteW + stepPad * 2, noteH + stepPad * 2,
+          3 + stepPad * 0.3,
+        );
+        glow.fill({ color: COLORS.GRACE_GLOW, alpha: baseAlpha / steps });
+      }
       this.host.noteLayer.addChild(glow);
     }
 
@@ -206,6 +217,10 @@ export class NoteRenderer {
 
       noteGfx.rect(rectX, rectY, w, h);
       noteGfx.fill(color);
+    }
+
+    if (isGrace) {
+      noteGfx.stroke({ width: COLORS.GRACE_OUTLINE_WIDTH, color: COLORS.GRACE_OUTLINE, alignment: 0 });
     }
 
     if (isSelected) {
