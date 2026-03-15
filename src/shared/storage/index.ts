@@ -51,9 +51,9 @@ export function songPreviewPath(songId: string, ext = 'wav'): string {
 }
 
 export function tutorialAudioPath(phase: string): string {
-  return `tutorials/${phase}.ogg`;
+  return `tutorials/${sanitize(phase, 'phase')}.ogg`;
 }
 
 export function tutorialChartPath(phase: string): string {
-  return `tutorials/${phase}.json`;
+  return `tutorials/${sanitize(phase, 'phase')}.json`;
 }
