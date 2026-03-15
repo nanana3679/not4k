@@ -12,7 +12,7 @@ import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
-  const { settings, setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+  const { setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +38,9 @@ export function PlayScreen() {
       if (!chartData || !audioBuffer) {
         setError('No chart or audio data loaded');
         return;
+
+      // 초기화 시점의 설정 스냅샷 — settings 객체 변경에 의한 재초기화 방지
+      const settings = useGameStore.getState().settings;
       }
 
       try {
@@ -301,7 +304,7 @@ export function PlayScreen() {
         rendererRef.current.dispose();
       }
     };
-  }, [settings, retryKey]);
+  }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps -- settings는 init 내부에서 getState() 스냅샷으로 접근
 
   // Sync isPaused to ref
   useEffect(() => {
