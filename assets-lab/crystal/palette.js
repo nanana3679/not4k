@@ -1,12 +1,12 @@
 /** Crystal 스킨 팔레트 */
 const P = {
   single: {
-    deep: "#2a3468", base: "#4a5a98", mid: "#7088cc",
-    bright: "#9ab4ee", highlight: "#c0d4ff", specular: "#e4ecff",
+    deep: "#1a3068", base: "#2a4a98", mid: "#3668cc",
+    bright: "#4488ff", highlight: "#88bbff", specular: "#d0e4ff",
   },
   double: {
-    deep: "#5e5028", base: "#8a7a40", mid: "#b8a860",
-    bright: "#dece88", highlight: "#f0e4aa", specular: "#fdf6d8",
+    deep: "#604800", base: "#997218", mid: "#cc9e00",
+    bright: "#ffcc00", highlight: "#ffdd55", specular: "#fff4cc",
   },
   core: {
     deep: "#4a0018", base: "#8b0028", mid: "#cc1040",
@@ -16,8 +16,8 @@ const P = {
   },
   holder: { stroke: "#080808", fill: "#0c0c0c" },
   body: {
-    single: { base: "#2a3468", edge: "#1a2248" },
-    double: { base: "#5e5028", edge: "#3a3218" },
+    single: { base: "#1a3068", edge: "#102048" },
+    double: { base: "#604800", edge: "#402e00" },
   },
   bg: "#06070c",
   bgCard: "#0c0e16",
