@@ -421,9 +421,10 @@ export class GameRenderer {
       zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
+      const hh = NOTE_HEIGHT / 2;
       const rawHeight = startY - endY;
-      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
-      const adjustedEndY = rawHeight > 0 ? endY : endY - NOTE_HEIGHT / 2;
+      const height = (rawHeight > 0 ? rawHeight : NOTE_HEIGHT) + NOTE_HEIGHT; // 위아래 hh씩 확장
+      const adjustedEndY = (rawHeight > 0 ? endY : endY - hh) - hh;
       zoneGraphic.rect(laneX, adjustedEndY, LANE_WIDTH, height);
       zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
       zoneGraphic.visible = true;

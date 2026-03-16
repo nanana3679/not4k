@@ -129,6 +129,36 @@ function SkinExports({ skinId, C }) {
         </SvgWrap>
       </>}
 
+      {/* 트릴 노트 */}
+      <SvgWrap id={`${skinId}--note-trill`} w={CW} h={CH}>
+        <C.TrillNoteContainer x={0} y={0} />
+      </SvgWrap>
+
+      <SvgWrap id={`${skinId}--terminal-trill`} w={CW} h={CH}>
+        <C.TrillTerminalCap x={0} y={0} />
+      </SvgWrap>
+
+      <SvgWrap id={`${skinId}--body-trill`} w={CW} h={BODY_H}>
+        <C.TrillBodySegment x={0} y={0} height={BODY_H} held={false} />
+      </SvgWrap>
+
+      <SvgWrap id={`${skinId}--body-trill-held`} w={CW} h={BODY_H}>
+        <C.TrillBodySegment x={0} y={0} height={BODY_H} held={true} />
+      </SvgWrap>
+
+      {/* 트릴 실패 */}
+      {C.FailedTrillNoteContainer && <>
+        <SvgWrap id={`${skinId}--note-trill-failed`} w={CW} h={CH}>
+          <C.FailedTrillNoteContainer x={0} y={0} />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--body-trill-failed`} w={CW} h={BODY_H}>
+          <C.FailedTrillBody x={0} y={0} height={BODY_H} />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--terminal-trill-failed`} w={CW} h={CH}>
+          <C.FailedTrillTerminalCap x={0} y={0} />
+        </SvgWrap>
+      </>}
+
       {/* 기어 프레임 */}
       {C.GearFrameExport && (
         <SvgWrap id={`${skinId}--gear-frame`} w={GEAR_W} h={GEAR_H}>

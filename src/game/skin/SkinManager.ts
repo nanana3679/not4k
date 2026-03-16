@@ -57,6 +57,14 @@ export class SkinManager {
       ["terminalDoublePartialFailedRight", assets.terminalDoublePartialFailedRight],
       ["noteDoublePartialFailedLeft", assets.noteDoublePartialFailedLeft],
       ["noteDoublePartialFailedRight", assets.noteDoublePartialFailedRight],
+      // 트릴 에셋
+      ["noteTrill", assets.noteTrill],
+      ["terminalTrill", assets.terminalTrill],
+      ["bodyTrill", assets.bodyTrill],
+      ["bodyTrillHeld", assets.bodyTrillHeld],
+      ["noteTrillFailed", assets.noteTrillFailed],
+      ["bodyTrillFailed", assets.bodyTrillFailed],
+      ["terminalTrillFailed", assets.terminalTrillFailed],
     ];
 
     // 봄 프레임

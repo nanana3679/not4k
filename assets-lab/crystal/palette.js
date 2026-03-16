@@ -1,30 +1,30 @@
-/** Crystal 스킨 팔레트 */
+/** Crystal 스킨 팔레트 — 보라 언더톤 통일 */
 const P = {
   single: {
-    deep: "#3c78d8", base: "#4280e4", mid: "#4888f0",
-    bright: "#5090ff", highlight: "#6ca0f0", specular: "#c0d8ff",
+    deep: "#4468d0", base: "#4c72dc", mid: "#5480e8",
+    bright: "#5c88f4", highlight: "#6880dc", specular: "#b8c8f8",
   },
   double: {
-    deep: "#d4a800", base: "#e2b600", mid: "#f0c400",
-    bright: "#ffd214", highlight: "#ddb830", specular: "#ffefaa",
+    deep: "#c09420", base: "#cca428", mid: "#d8b430",
+    bright: "#e4c43a", highlight: "#c8a830", specular: "#f0dea0",
   },
   core: {
-    deep: "#5a1828", base: "#9a2838", mid: "#cc3850",
-    bright: "#e84868", highlight: "#f08098", specular: "#f8c0d0",
-    glow: "rgba(232,72,104,0.55)",
-    off: "#1e0a0a", offBase: "#2e1010", offMid: "#3a1818", offBright: "#4a2222",
+    deep: "#682040", base: "#983858", mid: "#c04878",
+    bright: "#e06898", highlight: "#f090b0", specular: "#f8c8d8",
+    glow: "rgba(224,104,152,0.55)",
+    off: "#381828", offBase: "#502038", offMid: "#683850", offBright: "#885068",
   },
   holder: { stroke: "#080808", fill: "#0c0c0c" },
   body: {
-    single: { base: "#3c78d8", edge: "#3068c0" },
-    double: { base: "#d4a800", edge: "#b89200" },
+    single: { base: "#4468d0", edge: "#3858b8" },
+    double: { base: "#c09420", edge: "#a07e18" },
   },
   bg: "#06070c",
   bgCard: "#0c0e16",
   text: "#c8cdd8",
   textDim: "#4a5068",
   border: "#181c2a",
-  accent: "#e84868",
+  accent: "#e06898",
 };
 
 export default P;

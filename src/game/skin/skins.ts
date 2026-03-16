@@ -24,6 +24,13 @@ function buildManifest(id: string, theme: SkinManifest["theme"]): SkinManifest {
       noteDoublePartialFailedRight: `${base}/note-double-partial-failed-right.png`,
       terminalSingleFailed: `${base}/terminal-single-failed.png`,
       terminalDoubleFailed: `${base}/terminal-double-failed.png`,
+      noteTrill: `${base}/note-trill.png`,
+      terminalTrill: `${base}/terminal-trill.png`,
+      bodyTrill: `${base}/body-trill.png`,
+      bodyTrillHeld: `${base}/body-trill-held.png`,
+      noteTrillFailed: `${base}/note-trill-failed.png`,
+      bodyTrillFailed: `${base}/body-trill-failed.png`,
+      terminalTrillFailed: `${base}/terminal-trill-failed.png`,
       bomb: Array.from({ length: 16 }, (_, i) =>
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),

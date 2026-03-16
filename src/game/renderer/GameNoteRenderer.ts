@@ -11,9 +11,7 @@ import {
   Graphics,
   Sprite,
   NineSliceSprite,
-  FillGradient,
 } from "pixi.js";
-import type { FillInput } from "pixi.js";
 import type { NoteEntity } from "../../shared";
 import { isGraceNote } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -42,15 +40,8 @@ export class GameNoteRenderer {
   private bodySpritePool: Map<number, Map<string, NineSliceSprite>> = new Map();
   private terminalSpritePool: Map<number, Map<string, Sprite>> = new Map();
 
-  // Object pools — Graphics fallback (trill/trillLong)
-  private noteGraphicsPool: Map<number, Graphics> = new Map();
-  private bodyGraphicsPool: Map<number, Graphics> = new Map();
-  private trillEndPool: Map<number, Graphics> = new Map();
-  private trillHeadPool: Map<number, Graphics> = new Map();
+  // Object pools — Graphics (grace glow only)
   private graceGlowPool: Map<number, Graphics> = new Map();
-
-  // Gradient cache (trill fallback only)
-  private bodyGradientCache = new Map<number, FillGradient>();
 
   // Note state sets
   private failedBodies: Set<number> = new Set();
@@ -116,16 +107,13 @@ export class GameNoteRenderer {
     }
 
     if (entity.type === "trill") {
-      const graphic = this.getOrCreateNoteGraphic(index);
-      graphic.x = laneX;
-      graphic.y = y;
-      const overrides = isMissed
-        ? { color: COLORS.LONG_BODY_FAILED }
-        : isPartial
-          ? { alpha: 0.5 }
-          : undefined;
-      this.drawNoteShape(graphic, entity.type, overrides);
-      this.noteLayer.addChild(graphic);
+      const texKey = isMissed ? "noteTrillFailed" : "noteTrill";
+      const sprite = this.getOrCreateNoteSprite(index, texKey);
+      sprite.x = laneX;
+      sprite.y = y;
+      sprite.tint = 0xffffff;
+      sprite.alpha = isMissed ? 1 : (isPartial ? 0.5 : 1);
+      this.noteLayer.addChild(sprite);
     } else {
       const isDouble = entity.type === "double";
       let texKey: string;
@@ -184,40 +172,46 @@ export class GameNoteRenderer {
     const isPartialFailed = partialSide !== undefined;
 
     if (entity.type === "trillLong") {
-      // Trill long: Graphics fallback
-      const bodyGraphic = this.getOrCreateBodyGraphic(index);
-      bodyGraphic.clear();
-      bodyGraphic.x = laneX;
-      bodyGraphic.y = adjustedEndY;
+      // Trill long: Sprite-based
+      let bodyTexKey: string;
+      let termTexKey: string;
 
-      const bodyColor = (isFailed || isMissed) ? COLORS.LONG_BODY_FAILED : this.getLongBodyColor(entity.type);
-      const bodyGradient = this.getBodyGradient(bodyColor);
-      const hh = NOTE_HEIGHT / 2;
-      bodyGraphic.rect(0, hh, LANE_WIDTH, bodyHeight);
-      bodyGraphic.fill(bodyGradient);
-      this.longNoteBodyLayer.addChild(bodyGraphic);
+      if (isFailed || isMissed) {
+        bodyTexKey = "bodyTrillFailed";
+        termTexKey = "terminalTrillFailed";
+      } else {
+        const isHeld = rawStartY >= this.judgmentLineY;
+        bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
+        termTexKey = "terminalTrill";
+      }
+
+      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
+      bodySprite.x = laneX;
+      bodySprite.y = adjustedEndY;
+      bodySprite.width = LANE_WIDTH;
+      bodySprite.height = bodyHeight;
+      bodySprite.tint = 0xffffff;
+      bodySprite.alpha = 1;
+      this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        const endGraphic = this.getOrCreateTrillEnd(index);
-        endGraphic.x = laneX;
-        endGraphic.y = adjustedEndY;
-        const termColor = isMissed ? COLORS.LONG_BODY_FAILED : 0x888888;
-        this.drawNoteShape(endGraphic, entity.type, { color: termColor });
-        this.longNoteEndLayer.addChild(endGraphic);
+        const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
+        termSprite.x = laneX;
+        termSprite.y = adjustedEndY;
+        termSprite.tint = 0xffffff;
+        termSprite.alpha = 1;
+        this.longNoteEndLayer.addChild(termSprite);
       }
 
       const headY = rawStartY;
       if (headY >= -NOTE_HEIGHT && headY <= this.height + NOTE_HEIGHT) {
-        const headGraphic = this.getOrCreateTrillHead(index);
-        headGraphic.x = laneX;
-        headGraphic.y = headY;
-        const headOverrides = isMissed
-          ? { color: COLORS.LONG_BODY_FAILED }
-          : isPartial
-            ? { alpha: 0.5 }
-            : undefined;
-        this.drawNoteShape(headGraphic, entity.type, headOverrides);
-        this.longNoteHeadLayer.addChild(headGraphic);
+        const headTexKey = isMissed ? "noteTrillFailed" : "noteTrill";
+        const headSprite = this.getOrCreateNoteSprite(index, headTexKey);
+        headSprite.x = laneX;
+        headSprite.y = headY;
+        headSprite.tint = 0xffffff;
+        headSprite.alpha = isPartial ? 0.5 : 1;
+        this.longNoteHeadLayer.addChild(headSprite);
       }
     } else {
       // long / doubleLong: Sprite-based
@@ -292,10 +286,6 @@ export class GameNoteRenderer {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
     this.terminalSpritePool.clear();
-    this.noteGraphicsPool.clear();
-    this.bodyGraphicsPool.clear();
-    this.trillEndPool.clear();
-    this.trillHeadPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -323,108 +313,6 @@ export class GameNoteRenderer {
 
   getLaneX(lane: number): number {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
-  }
-
-  // ── 도형 그리기 ───────────────────────────────────────────
-
-  private drawNoteShape(
-    graphic: Graphics,
-    type: string,
-    override?: { color?: number; alpha?: number; gradient?: boolean },
-  ): void {
-    graphic.clear();
-
-    const color = override?.color ?? this.getNoteColor(type);
-
-    let fillInput: FillInput;
-    if (override?.gradient) {
-      const grad = this.getBodyGradient(color);
-      fillInput = override?.alpha != null
-        ? { fill: grad, alpha: override.alpha }
-        : grad;
-    } else {
-      fillInput = override?.alpha != null
-        ? { color, alpha: override.alpha }
-        : color;
-    }
-
-    if (type === "trill" || type === "trillLong") {
-      this.drawDiamond(graphic, fillInput);
-    } else {
-      graphic.rect(0, 0, NOTE_WIDTH, NOTE_HEIGHT);
-      graphic.fill(fillInput);
-    }
-  }
-
-  private drawDiamond(graphic: Graphics, fillStyle: FillInput): void {
-    const centerX = NOTE_WIDTH / 2;
-    const centerY = NOTE_HEIGHT / 2;
-
-    graphic.poly([
-      centerX, 0,
-      NOTE_WIDTH, centerY,
-      centerX, NOTE_HEIGHT,
-      0, centerY,
-    ]);
-    graphic.fill(fillStyle);
-  }
-
-  // ── 색상 ─────────────────────────────────────────────────
-
-  private getNoteColor(type: string): number {
-    switch (type) {
-      case "single":
-      case "long":
-        return COLORS.SINGLE_NOTE;
-      case "double":
-      case "doubleLong":
-        return COLORS.DOUBLE_NOTE;
-      case "trill":
-      case "trillLong":
-        return COLORS.TRILL_NOTE;
-      default:
-        return COLORS.SINGLE_NOTE;
-    }
-  }
-
-  private getLongBodyColor(type: string): number {
-    switch (type) {
-      case "long":
-        return COLORS.SINGLE_LONG;
-      case "doubleLong":
-        return COLORS.DOUBLE_LONG;
-      case "trillLong":
-        return COLORS.TRILL_LONG;
-      default:
-        return COLORS.SINGLE_LONG;
-    }
-  }
-
-  // ── 그라디언트 캐시 ───────────────────────────────────────
-
-  private getBodyGradient(color: number): FillGradient {
-    let gradient = this.bodyGradientCache.get(color);
-    if (!gradient) {
-      const r = (color >> 16) & 0xff;
-      const g = (color >> 8) & 0xff;
-      const b = color & 0xff;
-      const lr = Math.round(r + (255 - r) * 0.7);
-      const lg = Math.round(g + (255 - g) * 0.7);
-      const lb = Math.round(b + (255 - b) * 0.7);
-      gradient = new FillGradient({
-        type: "linear",
-        start: { x: 0, y: 0.5 },
-        end: { x: 1, y: 0.5 },
-        colorStops: [
-          { offset: 0, color: `rgb(${lr},${lg},${lb})` },
-          { offset: 0.5, color: `rgb(${r},${g},${b})` },
-          { offset: 1, color: `rgb(${lr},${lg},${lb})` },
-        ],
-        textureSpace: "local",
-      });
-      this.bodyGradientCache.set(color, gradient);
-    }
-    return gradient;
   }
 
   // ── 오브젝트 풀 ───────────────────────────────────────────
@@ -477,42 +365,6 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateNoteGraphic(index: number): Graphics {
-    let graphic = this.noteGraphicsPool.get(index);
-    if (!graphic) {
-      graphic = new Graphics();
-      this.noteGraphicsPool.set(index, graphic);
-    }
-    return graphic;
-  }
-
-  private getOrCreateBodyGraphic(index: number): Graphics {
-    let graphic = this.bodyGraphicsPool.get(index);
-    if (!graphic) {
-      graphic = new Graphics();
-      this.bodyGraphicsPool.set(index, graphic);
-    }
-    return graphic;
-  }
-
-  private getOrCreateTrillEnd(index: number): Graphics {
-    let graphic = this.trillEndPool.get(index);
-    if (!graphic) {
-      graphic = new Graphics();
-      this.trillEndPool.set(index, graphic);
-    }
-    return graphic;
-  }
-
-  private getOrCreateTrillHead(index: number): Graphics {
-    let graphic = this.trillHeadPool.get(index);
-    if (!graphic) {
-      graphic = new Graphics();
-      this.trillHeadPool.set(index, graphic);
-    }
-    return graphic;
-  }
-
   /** Grace 노트 글로우 이펙트 */
   private getOrCreateGraceGlow(index: number): Graphics {
     let glow = this.graceGlowPool.get(index);
@@ -544,17 +396,11 @@ export class GameNoteRenderer {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
     this.terminalSpritePool.clear();
-    this.noteGraphicsPool.clear();
-    this.bodyGraphicsPool.clear();
-    this.trillEndPool.clear();
-    this.trillHeadPool.clear();
     this.graceGlowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
     this.missedNotes.clear();
     this.partialFailedBodies.clear();
-    for (const g of this.bodyGradientCache.values()) g.destroy();
-    this.bodyGradientCache.clear();
   }
 }

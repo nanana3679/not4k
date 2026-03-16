@@ -349,6 +349,130 @@ export function ButtonExport({ cx, cy, pressed }) {
   );
 }
 
+// --- PRISM TrillNoteContainer (다이아몬드 모양, 흰색 + 홀로그래픽) ---
+export function TrillNoteContainer({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
+  const skew = 6;
+  const uid = `trill_nc_${x}_${y}`;
+  // 다이아몬드 꼭짓점 (평행사변형 스큐 적용)
+  const poly = `${cx + skew / 2},${y} ${x + CW + skew / 2},${cy} ${cx - skew / 2},${y + CH} ${x - skew / 2},${cy}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`${uid}_cd`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+          <stop offset="30%" stopColor="rgba(255,200,255,0.12)" />
+          <stop offset="50%" stopColor="rgba(200,255,255,0.18)" />
+          <stop offset="70%" stopColor="rgba(200,200,255,0.12)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+        <clipPath id={`${uid}_clip`}>
+          <polygon points={poly} />
+        </clipPath>
+      </defs>
+      <polygon points={`${cx + skew / 2 + 2},${y + 2} ${x + CW + skew / 2 + 2},${cy + 2} ${cx - skew / 2 + 2},${y + CH + 2} ${x - skew / 2 + 2},${cy + 2}`}
+        fill="black" opacity="0.35" />
+      <polygon points={poly} fill="white" />
+      <g clipPath={`url(#${uid}_clip)`}>
+        <rect x={x - skew} y={y} width={CW + skew * 2} height={CH} fill={`url(#${uid}_cd)`} opacity="0.9" />
+      </g>
+    </g>
+  );
+}
+
+// --- PRISM TrillBodySegment ---
+export function TrillBodySegment({ x, y, height, held = false }) {
+  const baseCol = held ? "#ffffff" : "#aaaaaa";
+  const bx = x + 8, bw = CW - 16;
+  const uid = `trill_bbg_${held ? "h" : "r"}_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={uid} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#333333" />
+          <stop offset="25%" stopColor={baseCol} />
+          <stop offset="75%" stopColor={baseCol} />
+          <stop offset="100%" stopColor="#333333" />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={height} fill={`url(#${uid})`} />
+      {held && <rect x={bx} y={y} width={bw} height={height} fill="white" opacity="0.07" />}
+      <line x1={bx} y1={y} x2={bx} y2={y + height} stroke={baseCol} strokeWidth="1" opacity="0.3" />
+      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + height} stroke="black" strokeWidth="1" opacity="0.25" />
+    </g>
+  );
+}
+
+// --- PRISM TrillTerminalCap ---
+export function TrillTerminalCap({ x, y }) {
+  const bx = x + 8, bw = CW - 16;
+  const uid = `trill_tbg_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={uid} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#333333" />
+          <stop offset="25%" stopColor="#aaaaaa" />
+          <stop offset="75%" stopColor="#aaaaaa" />
+          <stop offset="100%" stopColor="#333333" />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#${uid})`} />
+      <line x1={bx} y1={y} x2={bx + bw} y2={y} stroke="#aaaaaa" strokeWidth="1" opacity="0.45" />
+      <line x1={bx} y1={y} x2={bx} y2={y + CH} stroke="#aaaaaa" strokeWidth="1" opacity="0.3" />
+      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + CH} stroke="black" strokeWidth="1" opacity="0.25" />
+    </g>
+  );
+}
+
+// --- PRISM FailedTrillNoteContainer ---
+export function FailedTrillNoteContainer({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
+  return (
+    <g>
+      <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" />
+    </g>
+  );
+}
+
+// --- PRISM FailedTrillBody ---
+export function FailedTrillBody({ x, y, height }) {
+  const bx = x + 8, bw = CW - 16;
+  const uid = `trill_fbg_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={uid} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#222222" />
+          <stop offset="25%" stopColor="#555555" />
+          <stop offset="75%" stopColor="#555555" />
+          <stop offset="100%" stopColor="#222222" />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={height} fill={`url(#${uid})`} />
+    </g>
+  );
+}
+
+// --- PRISM FailedTrillTerminalCap ---
+export function FailedTrillTerminalCap({ x, y }) {
+  const bx = x + 8, bw = CW - 16;
+  const uid = `trill_ftbg_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={uid} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#222222" />
+          <stop offset="25%" stopColor="#555555" />
+          <stop offset="75%" stopColor="#555555" />
+          <stop offset="100%" stopColor="#222222" />
+        </linearGradient>
+      </defs>
+      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#${uid})`} />
+    </g>
+  );
+}
+
 // --- PRISM BombFrame: 7색 방사선 + 별 파편 + 무지개 링 ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];

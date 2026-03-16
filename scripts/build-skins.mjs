@@ -44,6 +44,14 @@ const ASSETS = [
   "body-double-partial-failed-right",
   "terminal-double-partial-failed-left",
   "terminal-double-partial-failed-right",
+  // 트릴 에셋
+  "note-trill",
+  "terminal-trill",
+  "body-trill",
+  "body-trill-held",
+  "note-trill-failed",
+  "body-trill-failed",
+  "terminal-trill-failed",
   "note-double-partial-failed-left",
   "note-double-partial-failed-right",
   ...Array.from({ length: 16 }, (_, i) =>

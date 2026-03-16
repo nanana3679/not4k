@@ -45,6 +45,14 @@ export interface SkinManifest {
     terminalDoublePartialFailedRight: string;
     noteDoublePartialFailedLeft: string;
     noteDoublePartialFailedRight: string;
+    /** 트릴 에셋 */
+    noteTrill: string;
+    terminalTrill: string;
+    bodyTrill: string;
+    bodyTrillHeld: string;
+    noteTrillFailed: string;
+    bodyTrillFailed: string;
+    terminalTrillFailed: string;
     /** 봄 16프레임 */
     bomb: string[];
     gearFrame: string;

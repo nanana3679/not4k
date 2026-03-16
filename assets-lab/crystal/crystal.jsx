@@ -3,14 +3,9 @@ import P from "./palette.js";
 import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap, PartialFailedNoteContainer, PartialFailedBody, PartialFailedTerminalCap } from "./components.jsx";
 import { CW, CH, GF_W, GF_H, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
 import { BOMB_FRAMES } from "../shared/bomb.js";
-import { SharedDefs, Section, Card, Row, Slider, BombPlayer } from "../shared/ui.jsx";
+import { SharedDefs, Section, Card, Row, BombPlayer } from "../shared/ui.jsx";
 
 export default function App() {
-  const [coreSize, setCoreSize] = useState(5);
-  const [coreGap, setCoreGap] = useState(18);
-  const [wireThickness, setWireThickness] = useState(6);
-  const [lineThickness, setLineThickness] = useState(2);
-  const [glowIntensity, setGlowIntensity] = useState(3);
   const [holdState, setHoldState] = useState(false);
   const [dimMode, setDimMode] = useState("none");
   const dimL = dimMode === "left", dimR = dimMode === "right";
@@ -20,8 +15,6 @@ export default function App() {
     border: `1px solid ${active ? P.accent : P.border}`, padding: "4px 10px",
     fontSize: 10, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", transition: "all .12s",
   });
-  const noteProps = { coreSize, coreGap };
-  const longProps = { ...noteProps, wireThickness, lineThickness, glowIntensity };
 
   // 공통 UI prop
   const uiP = { textDim: P.textDim, text: P.text, accent: P.accent, border: P.border, bgCard: P.bgCard };
@@ -45,13 +38,6 @@ export default function App() {
       {/* Controls */}
       <div style={{ background: P.bgCard, border: `1px solid ${P.border}`, padding: "14px 16px", width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontSize: 10, color: P.textDim, textTransform: "uppercase", letterSpacing: ".1em" }}>Options</div>
-        <Slider label="Core Size" value={coreSize} onChange={setCoreSize} min={5} max={12} suffix="px" {...uiP} />
-        <Slider label="Double Gap" value={coreGap} onChange={setCoreGap} min={14} max={40} suffix="px" {...uiP} />
-        <Slider label="Glow" value={glowIntensity} onChange={setGlowIntensity} min={0} max={10} step={.5} {...uiP} />
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}><Slider label="Line" value={lineThickness} onChange={setLineThickness} min={1} max={6} suffix="px" {...uiP} /></div>
-          <div style={{ flex: 1 }}><Slider label="Wire" value={wireThickness} onChange={setWireThickness} min={4} max={16} suffix="px" {...uiP} /></div>
-        </div>
         <div>
           <div style={{ fontSize: 10, color: P.textDim, marginBottom: 5 }}>Double Dim</div>
           <div style={{ display: "flex", gap: 5 }}>
@@ -74,19 +60,19 @@ export default function App() {
       {/* Note assets */}
       <Section title="▸ Notes" {...uiP}>
         <Row>
-          <Card label="Single" gi={glowIntensity} {...uiP}><NoteContainer x={15} y={17} type="single" {...noteProps} /></Card>
-          <Card label="Double" gi={glowIntensity} {...uiP}><NoteContainer x={15} y={17} type="double" {...noteProps} /></Card>
-          <Card label="Term S" svgW={130} svgH={55} {...uiP}><TerminalCap x={15} y={17} type="single" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
-          <Card label="Term D" svgW={130} svgH={55} {...uiP}><TerminalCap x={15} y={17} type="double" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+          <Card label="Single" {...uiP}><NoteContainer x={15} y={17} type="single" /></Card>
+          <Card label="Double" {...uiP}><NoteContainer x={15} y={17} type="double" /></Card>
+          <Card label="Term S" svgW={130} svgH={55} {...uiP}><TerminalCap x={15} y={17} type="single" /></Card>
+          <Card label="Term D" svgW={130} svgH={55} {...uiP}><TerminalCap x={15} y={17} type="double" /></Card>
         </Row>
       </Section>
 
       <Section title="▸ Long Notes" {...uiP}>
         <Row>
-          <Card label="Sgl Off" svgW={130} svgH={175} gi={glowIntensity} {...uiP}><LongNote x={15} y={8} bodyH={107} type="single" held={false} {...longProps} /></Card>
-          <Card label="Sgl Held" svgW={130} svgH={175} gi={glowIntensity} {...uiP}><LongNote x={15} y={8} bodyH={107} type="single" held {...longProps} /></Card>
-          <Card label="Dbl Off" svgW={130} svgH={175} gi={glowIntensity} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held={false} {...longProps} dimLeft={dimL} dimRight={dimR} /></Card>
-          <Card label="Dbl Held" svgW={130} svgH={175} gi={glowIntensity} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held {...longProps} dimLeft={dimL} dimRight={dimR} /></Card>
+          <Card label="Sgl Off" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="single" held={false} /></Card>
+          <Card label="Sgl Held" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="single" held /></Card>
+          <Card label="Dbl Off" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held={false} dimLeft={dimL} dimRight={dimR} /></Card>
+          <Card label="Dbl Held" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held dimLeft={dimL} dimRight={dimR} /></Card>
         </Row>
       </Section>
 
@@ -101,7 +87,7 @@ export default function App() {
               onMouseDown={() => setHoldState(true)} onMouseUp={() => setHoldState(false)}
               onMouseLeave={() => setHoldState(false)} onTouchStart={() => setHoldState(true)} onTouchEnd={() => setHoldState(false)}>
               <svg width={GF_W * SCALE} height={GF_H * SCALE} viewBox={`0 0 ${GF_W} ${GF_H}`} style={{ display: "block" }}>
-                <SharedDefs glowIntensity={glowIntensity} />
+                <SharedDefs />
                 <GearFrameExport />
                 {/* Buttons */}
                 {BTN_CX_GF.map((cx, i) => {
@@ -118,24 +104,24 @@ export default function App() {
       {/* === FAILED STATE === */}
       <Section title="▸ Failed Notes" {...uiP}>
         <Row>
-          <Card label="Failed S" gi={glowIntensity} {...uiP}><FailedNoteContainer x={15} y={17} type="single" {...noteProps} /></Card>
-          <Card label="Failed D" gi={glowIntensity} {...uiP}><FailedNoteContainer x={15} y={17} type="double" {...noteProps} /></Card>
-          <Card label="F.Term S" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="single" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
-          <Card label="F.Term D" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="double" coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+          <Card label="Failed S" {...uiP}><FailedNoteContainer x={15} y={17} type="single" /></Card>
+          <Card label="Failed D" {...uiP}><FailedNoteContainer x={15} y={17} type="double" /></Card>
+          <Card label="F.Term S" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="single" /></Card>
+          <Card label="F.Term D" svgW={130} svgH={55} {...uiP}><FailedTerminalCap x={15} y={17} type="double" /></Card>
         </Row>
         <Row>
-          <Card label="F.Body S" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="single" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
-          <Card label="F.Body D" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="double" coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} /></Card>
+          <Card label="F.Body S" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="single" /></Card>
+          <Card label="F.Body D" svgW={130} svgH={100} {...uiP}><FailedBody x={15} y={5} height={90} type="double" /></Card>
         </Row>
         <Row>
-          <Card label="Partial L" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="left" /></Card>
-          <Card label="Partial R" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="right" /></Card>
-          <Card label="PF.Term L" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="left" /></Card>
-          <Card label="PF.Term R" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} coreSize={coreSize} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} failedSide="right" /></Card>
+          <Card label="Partial L" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} failedSide="left" /></Card>
+          <Card label="Partial R" svgW={130} svgH={100} {...uiP}><PartialFailedBody x={15} y={5} height={90} failedSide="right" /></Card>
+          <Card label="PF.Term L" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} failedSide="left" /></Card>
+          <Card label="PF.Term R" svgW={130} svgH={55} {...uiP}><PartialFailedTerminalCap x={15} y={17} failedSide="right" /></Card>
         </Row>
         <Row>
-          <Card label="PF.Head L" gi={glowIntensity} {...uiP}><PartialFailedNoteContainer x={15} y={17} coreSize={coreSize} coreGap={coreGap} failedSide="left" /></Card>
-          <Card label="PF.Head R" gi={glowIntensity} {...uiP}><PartialFailedNoteContainer x={15} y={17} coreSize={coreSize} coreGap={coreGap} failedSide="right" /></Card>
+          <Card label="PF.Head L" {...uiP}><PartialFailedNoteContainer x={15} y={17} failedSide="left" /></Card>
+          <Card label="PF.Head R" {...uiP}><PartialFailedNoteContainer x={15} y={17} failedSide="right" /></Card>
         </Row>
       </Section>
 
@@ -161,7 +147,7 @@ export default function App() {
       <Section title="▸ Bomb · Sprite Sheet" {...uiP}>
         <div style={{ background: P.bgCard, border: `1px solid ${P.border}`, padding: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
           <svg width={640} height={160} viewBox="0 0 640 160">
-            <SharedDefs glowIntensity={glowIntensity} />
+            <SharedDefs />
             <rect width={640} height={160} fill="#04060c" />
             {BOMB_FRAMES.map((_, fi) => {
               const col = fi % 8, row = Math.floor(fi / 8);
@@ -235,7 +221,7 @@ export default function App() {
                   </div>
                   <div style={{ marginLeft: 8 }}>
                     <svg width={130} height={54} viewBox="0 0 130 54" style={{ display: "block" }}>
-                      <SharedDefs glowIntensity={glowIntensity} />
+                      <SharedDefs />
                       <defs>
                         <linearGradient id={`cmp_ng_${opt.name}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={P.single.bright} />

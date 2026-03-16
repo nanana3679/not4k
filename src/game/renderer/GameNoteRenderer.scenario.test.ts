@@ -51,7 +51,6 @@ import { Container } from "pixi.js";
 import { GameNoteRenderer } from "./GameNoteRenderer";
 import type { SkinManager } from "../skin";
 import type { NoteEntity } from "../../shared";
-import { COLORS } from "./constants";
 
 // ── 헬퍼 ─────────────────────────────────────────────────────
 

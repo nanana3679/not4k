@@ -101,6 +101,79 @@ export function BombFrame({ cx, cy, frame, id }) {
   );
 }
 
+/* ── 트릴 노트 (다이아몬드 모양, 흰색) ── */
+export function TrillNoteContainer({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
+  return (
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="white" />
+  );
+}
+
+export function TrillBodySegment({ x, y, height, held = false }) {
+  const col = held ? "#ffffff" : "#aaaaaa";
+  const r = parseInt(col.slice(1, 3), 16);
+  const g = parseInt(col.slice(3, 5), 16);
+  const b = parseInt(col.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `classic_trill_body_${held ? "h" : "r"}_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={col} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
+        </linearGradient>
+      </defs>
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
+    </g>
+  );
+}
+
+export function TrillTerminalCap({ x, y }) {
+  return (
+    <rect x={x} y={y} width={CW} height={CH} fill="#aaaaaa" opacity={0.7} rx={2} />
+  );
+}
+
+export function FailedTrillNoteContainer({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
+  return (
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" />
+  );
+}
+
+export function FailedTrillBody({ x, y, height }) {
+  const col = "#555555";
+  const r = parseInt(col.slice(1, 3), 16);
+  const g = parseInt(col.slice(3, 5), 16);
+  const b = parseInt(col.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `classic_trill_fbody_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={col} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
+        </linearGradient>
+      </defs>
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
+    </g>
+  );
+}
+
+export function FailedTrillTerminalCap({ x, y }) {
+  return (
+    <rect x={x} y={y} width={CW} height={CH} fill="#555555" opacity={0.7} rx={2} />
+  );
+}
+
 /* ── 더미 (다른 스킨과 인터페이스 통일) ── */
 export function Core() { return null; }
 export function Holder() { return null; }
