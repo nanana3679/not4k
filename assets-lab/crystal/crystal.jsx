@@ -6,8 +6,8 @@ import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, Slider, BombPlayer } from "../shared/ui.jsx";
 
 export default function App() {
-  const [coreSize, setCoreSize] = useState(7);
-  const [coreGap, setCoreGap] = useState(26);
+  const [coreSize, setCoreSize] = useState(5);
+  const [coreGap, setCoreGap] = useState(18);
   const [wireThickness, setWireThickness] = useState(6);
   const [lineThickness, setLineThickness] = useState(2);
   const [glowIntensity, setGlowIntensity] = useState(3);
@@ -192,6 +192,71 @@ export default function App() {
             <ellipse cx={25} cy={112} rx={16} ry={4} fill="white" opacity=".08" />
           </Card>
         </Row>
+      </Section>
+
+      {/* Core Color Compare */}
+      <Section title="▸ Core Color Compare" {...uiP}>
+        {(() => {
+          const options = [
+            { name: "Current (0.19)", bright: "#ff3060", mid: "#cc1040", deep: "#8b0028", highlight: "#ff7098", glow: "rgba(255,48,96,0.55)" },
+            { name: "Option A (0.14)", bright: "#e84868", mid: "#cc3850", deep: "#9a2838", highlight: "#f08098", glow: "rgba(232,72,104,0.55)" },
+            { name: "Option B (0.11)", bright: "#cc5878", mid: "#a84060", deep: "#7a3048", highlight: "#d88898", glow: "rgba(204,88,120,0.55)" },
+          ];
+          const noteColors = [
+            { name: "Single", color: P.single.bright },
+            { name: "Double", color: P.double.bright },
+          ];
+          const sw = (color, size = 24) => ({ width: size, height: size, background: color, border: "1px solid #333", display: "inline-block" });
+          const diamond = (color, size = 20) => ({
+            width: size, height: size, background: color, border: "1px solid #333",
+            transform: "rotate(45deg)", display: "inline-block",
+          });
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Note color reference */}
+              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                <div style={{ fontSize: 10, color: P.textDim, width: 80 }}>Notes</div>
+                {noteColors.map(n => (
+                  <div key={n.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={sw(n.color)} />
+                    <span style={{ fontSize: 10, color: P.text }}>{n.name}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Core options */}
+              {options.map(opt => (
+                <div key={opt.name} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <div style={{ fontSize: 10, color: P.textDim, width: 80, flexShrink: 0 }}>{opt.name}</div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <div style={sw(opt.deep, 20)} title="deep" />
+                    <div style={sw(opt.mid, 20)} title="mid" />
+                    <div style={sw(opt.bright)} title="bright" />
+                    <div style={sw(opt.highlight, 20)} title="highlight" />
+                  </div>
+                  <div style={{ marginLeft: 8 }}>
+                    <svg width={130} height={54} viewBox="0 0 130 54" style={{ display: "block" }}>
+                      <SharedDefs glowIntensity={glowIntensity} />
+                      <defs>
+                        <linearGradient id={`cmp_ng_${opt.name}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={P.single.bright} />
+                          <stop offset="40%" stopColor={P.single.mid} />
+                          <stop offset="100%" stopColor={P.single.deep} />
+                        </linearGradient>
+                      </defs>
+                      {/* Note head with this core */}
+                      <rect x={0} y={17} width={CW} height={CH} fill={`url(#cmp_ng_${opt.name})`} />
+                      {/* Core diamond */}
+                      <rect x={CW/2 - 5} y={27 - 5} width={10} height={10}
+                        transform={`rotate(45 ${CW/2} 27)`} fill={opt.bright} />
+                      <rect x={CW/2 - 5} y={27 - 5} width={10} height={10}
+                        transform={`rotate(45 ${CW/2} 27)`} fill="none" stroke={opt.glow} strokeWidth="2" opacity=".6" />
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </Section>
 
       {/* Spec */}

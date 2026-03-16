@@ -21,8 +21,6 @@ export function Core({ cx, cy, size = 7, filled = true, glowing = false, dimmed 
   const c = lit ? P.core : { base: P.core.off, mid: P.core.offBase, bright: P.core.offMid, highlight: P.core.offBright };
   return (
     <g>
-      {lit && <rect x={cx - s - 3} y={cy - s - 3} width={(s + 3) * 2} height={(s + 3) * 2}
-        transform={`rotate(45 ${cx} ${cy})`} fill={P.core.glow} filter="url(#coreGlow)" />}
       <polygon points={`${cx},${cy - s} ${cx - s},${cy} ${cx},${cy}`} fill={c.base} />
       <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy}`} fill={c.mid} />
       <polygon points={`${cx - s},${cy} ${cx},${cy + s} ${cx},${cy}`} fill={c.bright} />
@@ -38,11 +36,17 @@ export function Core({ cx, cy, size = 7, filled = true, glowing = false, dimmed 
 }
 
 // --- Crystal Holder ---
-export function Holder({ cx, cy, size = 7, pad = 2 }) {
-  const hs = size + pad;
+export function Holder({ cx, cy, size = 7, pad = 1 }) {
+  const d = (size + pad) * Math.SQRT2; // 다이아몬드 꼭짓점 거리
+  // 꼭짓점: top(cx, cy-d), right(cx+d, cy), bottom(cx, cy+d), left(cx-d, cy)
   return (
-    <rect x={cx - hs} y={cy - hs} width={hs * 2} height={hs * 2}
-      transform={`rotate(45 ${cx} ${cy})`} fill={P.holder.fill} stroke={P.holder.stroke} strokeWidth="2" />
+    <g>
+      <polygon points={`${cx},${cy - d} ${cx + d},${cy} ${cx},${cy + d} ${cx - d},${cy}`}
+        fill={P.holder.fill} stroke={P.holder.stroke} strokeWidth="0.6" />
+      {/* 윤기 — 상단 두 변 하이라이트 */}
+      <line x1={cx - d} y1={cy} x2={cx} y2={cy - d} stroke="#333" strokeWidth="0.5" opacity=".5" />
+      <line x1={cx} y1={cy - d} x2={cx + d} y2={cy} stroke="#2a2a2a" strokeWidth="0.4" opacity=".35" />
+    </g>
   );
 }
 
@@ -58,7 +62,7 @@ export function Wire({ cx, y, height, thickness = 6 }) {
 }
 
 // --- Crystal NoteContainer ---
-export function NoteContainer({ x, y, type = "single", coreSize = 7, coreGap = 26, dimLeft = false, dimRight = false }) {
+export function NoteContainer({ x, y, type = "single", coreSize = 5, coreGap = 18, dimLeft = false, dimRight = false }) {
   const pal = P[type];
   const uid = `nc_${type}_${x}_${y}`;
   const cx = x + CW / 2, cy = y + CH / 2, isDouble = type === "double", half = coreGap / 2;
@@ -87,20 +91,28 @@ export function NoteContainer({ x, y, type = "single", coreSize = 7, coreGap = 2
   );
 }
 
-// --- Crystal BodySegment ---
-export function BodySegment({ x, y, height, type = "single", held = false, coreGap = 26, wireThickness = 6, lineThickness = 2, glowIntensity = 3 }) {
-  const pal = P.body[type], isDouble = type === "double", cx = x + CW / 2, bx = x + 8, bw = CW - 16, half = coreGap / 2;
+// --- Crystal BodySegment (Classic-style background + Crystal wire/lines) ---
+export function BodySegment({ x, y, height, type = "single", held = false, coreGap = 18, wireThickness = 6, lineThickness = 2, glowIntensity = 3 }) {
+  const baseCol = held ? P[type].bright : P[type].highlight;
+  const r = parseInt(baseCol.slice(1, 3), 16);
+  const g = parseInt(baseCol.slice(3, 5), 16);
+  const b = parseInt(baseCol.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `cbody_${type}_${held ? "h" : "r"}_${x}_${y}`;
+  const isDouble = type === "double", cx = x + CW / 2, half = coreGap / 2;
   const positions = isDouble ? [cx - half, cx + half] : [cx], gw = lineThickness + 4 + glowIntensity;
   return (
     <g>
       <defs>
-        <linearGradient id={`bbg_${type}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={baseCol} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
         </linearGradient>
       </defs>
-      <rect x={bx} y={y} width={bw} height={height} fill={`url(#bbg_${type}_${x}_${y})`} />
-      {held && <rect x={bx} y={y} width={bw} height={height} fill={P.core.glow} opacity=".06" />}
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
       {positions.map((px, pi) => (
         <g key={pi}>
           <Wire cx={px} y={y} height={height} thickness={wireThickness} />
@@ -113,35 +125,17 @@ export function BodySegment({ x, y, height, type = "single", held = false, coreG
           </>)}
         </g>
       ))}
-      <line x1={bx} y1={y} x2={bx} y2={y + height} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + height} stroke="black" strokeWidth="1" opacity=".3" />
     </g>
   );
 }
 
-// --- Crystal TerminalCap ---
-export function TerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 26, wireThickness = 6, lineThickness = 2 }) {
-  const pal = P.body[type], isDouble = type === "double", cx = x + CW / 2, cy = y + CH / 2;
-  const bx = x + 8, bw = CW - 16, half = coreGap / 2;
-  const positions = isDouble ? [cx - half, cx + half] : [cx];
+// --- Crystal TerminalCap (Classic style + empty core) ---
+export function TerminalCap({ x, y, type = "single", coreSize = 5, coreGap = 18 }) {
+  const col = P[type].highlight;
+  const cx = x + CW / 2, cy = y + CH / 2, isDouble = type === "double", half = coreGap / 2;
   return (
     <g>
-      <defs>
-        <linearGradient id={`tbg_${type}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
-        </linearGradient>
-      </defs>
-      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#tbg_${type}_${x}_${y})`} />
-      <line x1={bx} y1={y} x2={bx + bw} y2={y} stroke={pal.base} strokeWidth="1" opacity=".5" />
-      {positions.map((px, pi) => (
-        <g key={pi}>
-          <Wire cx={px} y={y} height={CH} thickness={wireThickness} />
-          <line x1={px} y1={y} x2={px} y2={y + CH} stroke={P.core.offBright} strokeWidth={lineThickness} opacity=".9" />
-        </g>
-      ))}
-      <line x1={bx} y1={y} x2={bx} y2={y + CH} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + CH} stroke="black" strokeWidth="1" opacity=".3" />
+      <rect x={x} y={y} width={CW} height={CH} fill={col} opacity={0.7} />
       {isDouble ? (<>
         <Holder cx={cx - half} cy={cy} size={coreSize} /><Core cx={cx - half} cy={cy} size={coreSize} filled={false} />
         <Holder cx={cx + half} cy={cy} size={coreSize} /><Core cx={cx + half} cy={cy} size={coreSize} filled={false} />
@@ -153,7 +147,7 @@ export function TerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 26,
 }
 
 // --- Crystal LongNote ---
-export function LongNote({ x, y, bodyH = 80, type = "single", held = false, coreSize, coreGap = 26, dimLeft = false, dimRight = false, wireThickness, lineThickness, glowIntensity }) {
+export function LongNote({ x, y, bodyH = 80, type = "single", held = false, coreSize, coreGap = 18, dimLeft = false, dimRight = false, wireThickness, lineThickness, glowIntensity }) {
   return (
     <g>
       <BodySegment x={x} y={y + CH} height={bodyH} type={type} held={held} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} glowIntensity={glowIntensity} />
@@ -185,31 +179,50 @@ export function ButtonExport({ cx, cy, pressed }) {
   );
 }
 
-// --- Crystal BombFrame ---
+// --- Crystal BombFrame (diamond core explosion) ---
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];
   const gid = `bomb_${id}_${frame}`;
+  const coreRot = frame * 8; // 코어 회전 애니메이션
   return (
     <g>
       <defs>
         <radialGradient id={gid}>
           <stop offset="0%" stopColor="#fff" stopOpacity={f.glowOp} />
-          <stop offset="18%" stopColor="#ffc0d4" stopOpacity={f.glowOp * .7} />
+          <stop offset="18%" stopColor={P.core.specular} stopOpacity={f.glowOp * .7} />
           <stop offset="45%" stopColor={P.core.bright} stopOpacity={f.glowOp * .35} />
           <stop offset="100%" stopColor={P.core.bright} stopOpacity="0" />
         </radialGradient>
       </defs>
-      {f.glowR > 0 && <circle cx={cx} cy={cy} r={f.glowR} fill={`url(#${gid})`} />}
-      {f.ringOp > 0 && <circle cx={cx} cy={cy} r={f.ringR} fill="none" stroke={P.core.highlight} strokeWidth={f.ringW} opacity={f.ringOp} />}
+      {/* Glow — diamond shaped */}
+      {f.glowR > 0 && <rect x={cx - f.glowR} y={cy - f.glowR} width={f.glowR * 2} height={f.glowR * 2}
+        transform={`rotate(45 ${cx} ${cy})`} fill={`url(#${gid})`} />}
+      {/* Ring — diamond outline */}
+      {f.ringOp > 0 && <rect x={cx - f.ringR} y={cy - f.ringR} width={f.ringR * 2} height={f.ringR * 2}
+        transform={`rotate(45 ${cx} ${cy})`} fill="none" stroke={P.core.highlight} strokeWidth={f.ringW} opacity={f.ringOp} />}
+      {/* Burst rays */}
       {f.burstLen > 0 && BURST_ANGS.map((ang, li) => {
         const r = ang * Math.PI / 180, inner = f.burstLen * .3;
         return <line key={li} x1={cx + Math.cos(r) * inner} y1={cy + Math.sin(r) * inner} x2={cx + Math.cos(r) * f.burstLen} y2={cy + Math.sin(r) * f.burstLen} stroke={P.core.highlight} strokeWidth={Math.max(.3, f.burstOp * 2.5)} opacity={f.burstOp} />;
       })}
+      {/* Shards — spinning diamonds */}
       {f.shardSz > 0 && SHARD_DIRS.map((sa, si) => {
         const sx = cx + sa.dx * f.shardDist, sy = cy + sa.dy * f.shardDist, rot = sa.rot + frame * 12;
         return <rect key={si} x={sx - f.shardSz / 2} y={sy - f.shardSz / 2} width={f.shardSz} height={f.shardSz} transform={`rotate(${rot} ${sx} ${sy})`} fill={P.core.highlight} opacity={f.shardOp} />;
       })}
-      {f.coreR > 0 && <circle cx={cx} cy={cy} r={f.coreR} fill="white" opacity={f.coreOp} />}
+      {/* Core — spinning diamond with facets */}
+      {f.coreR > 0 && (() => {
+        const s = f.coreR;
+        return (
+          <g transform={`rotate(${coreRot} ${cx} ${cy})`}>
+            <polygon points={`${cx},${cy - s} ${cx - s},${cy} ${cx},${cy}`} fill={P.core.base} opacity={f.coreOp} />
+            <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy}`} fill={P.core.mid} opacity={f.coreOp} />
+            <polygon points={`${cx - s},${cy} ${cx},${cy + s} ${cx},${cy}`} fill={P.core.bright} opacity={f.coreOp} />
+            <polygon points={`${cx + s},${cy} ${cx},${cy + s} ${cx},${cy}`} fill={P.core.highlight} opacity={f.coreOp} />
+            <polygon points={`${cx},${cy - s * .5} ${cx - s * .3},${cy} ${cx + s * .2},${cy - s * .3}`} fill="white" opacity={f.coreOp * .6} />
+          </g>
+        );
+      })()}
     </g>
   );
 }
@@ -310,7 +323,7 @@ export function GearFrameExport() {
 }
 
 // --- Crystal FailedNoteContainer ---
-export function FailedNoteContainer({ x, y, type = "single", coreSize = 7, coreGap = 26, dimLeft = false, dimRight = false }) {
+export function FailedNoteContainer({ x, y, type = "single", coreSize = 5, coreGap = 18, dimLeft = false, dimRight = false }) {
   const pal = FAIL[type];
   const uid = `fnc_${type}_${x}_${y}`;
   const cx = x + CW / 2, cy = y + CH / 2, isDouble = type === "double", half = coreGap / 2;
@@ -347,32 +360,39 @@ export function FailedNoteContainer({ x, y, type = "single", coreSize = 7, coreG
 }
 
 // --- Crystal FailedBody ---
-export function FailedBody({ x, y, height, type = "single", coreGap = 26, wireThickness = 6, lineThickness = 2 }) {
-  const pal = FAIL.body[type], isDouble = type === "double", cx = x + CW / 2, bx = x + 8, bw = CW - 16, half = coreGap / 2;
+export function FailedBody({ x, y, height, type = "single", coreGap = 18, wireThickness = 6, lineThickness = 2 }) {
+  const col = FAIL[type].bright;
+  const r = parseInt(col.slice(1, 3), 16);
+  const g = parseInt(col.slice(3, 5), 16);
+  const b = parseInt(col.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `fbody_${type}_${x}_${y}`;
+  const isDouble = type === "double", cx = x + CW / 2, half = coreGap / 2;
   const positions = isDouble ? [cx - half, cx + half] : [cx];
   return (
     <g>
       <defs>
-        <linearGradient id={`fbbg_${type}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={col} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
         </linearGradient>
       </defs>
-      <rect x={bx} y={y} width={bw} height={height} fill={`url(#fbbg_${type}_${x}_${y})`} />
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
       {positions.map((px, pi) => (
         <g key={pi}>
           <Wire cx={px} y={y} height={height} thickness={wireThickness} />
           <line x1={px} y1={y} x2={px} y2={y + height} stroke="#333333" strokeWidth={lineThickness} opacity=".9" />
         </g>
       ))}
-      <line x1={bx} y1={y} x2={bx} y2={y + height} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + height} stroke="black" strokeWidth="1" opacity=".3" />
     </g>
   );
 }
 
 // --- Crystal PartialFailedNoteContainer ---
-export function PartialFailedNoteContainer({ x, y, coreSize = 7, coreGap = 26, failedSide = "left" }) {
+export function PartialFailedNoteContainer({ x, y, coreSize = 5, coreGap = 18, failedSide = "left" }) {
   const pal = P.double;
   const uid = `pfnc_${failedSide}_${x}_${y}`;
   const cx = x + CW / 2, cy = y + CH / 2, half = coreGap / 2;
@@ -412,69 +432,57 @@ export function PartialFailedNoteContainer({ x, y, coreSize = 7, coreGap = 26, f
   );
 }
 
-// --- Crystal PartialFailedBody ---
-export function PartialFailedBody({ x, y, height, coreGap = 26, wireThickness = 6, lineThickness = 2, failedSide = "left" }) {
-  const pal = P.body.double, cx = x + CW / 2, bx = x + 8, bw = CW - 16, half = coreGap / 2;
-  const positions = [cx - half, cx + half]; // [left, right]
+// --- Crystal PartialFailedBody (Classic-style background + wire/lines) ---
+export function PartialFailedBody({ x, y, height, coreGap = 18, wireThickness = 6, lineThickness = 2, failedSide = "left" }) {
+  const col = P.double.highlight;
+  const r = parseInt(col.slice(1, 3), 16);
+  const g = parseInt(col.slice(3, 5), 16);
+  const b = parseInt(col.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `pfbody_${failedSide}_${x}_${y}`;
+  const cx = x + CW / 2, half = coreGap / 2;
+  const positions = [cx - half, cx + half];
   return (
     <g>
       <defs>
-        <linearGradient id={`pfbbg_${failedSide}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={col} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
         </linearGradient>
       </defs>
-      <rect x={bx} y={y} width={bw} height={height} fill={`url(#pfbbg_${failedSide}_${x}_${y})`} />
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
       {positions.map((px, pi) => {
         const isFailed = (pi === 0 && failedSide === "left") || (pi === 1 && failedSide === "right");
         return (
           <g key={pi}>
             <Wire cx={px} y={y} height={height} thickness={wireThickness} />
-            <line x1={px} y1={y} x2={px} y2={y + height}
-              stroke={isFailed ? "#333333" : P.core.offBright}
-              strokeWidth={lineThickness} opacity=".9" />
-            {!isFailed && (
+            {isFailed ? (
               <line x1={px} y1={y} x2={px} y2={y + height}
-                stroke={P.core.offMid} strokeWidth={lineThickness * .5} opacity=".5" />
-            )}
+                stroke={P.core.offBright} strokeWidth={lineThickness} opacity=".9" />
+            ) : (<>
+              <line x1={px} y1={y} x2={px} y2={y + height}
+                stroke={P.core.bright} strokeWidth={lineThickness} opacity=".95" />
+              <line x1={px} y1={y} x2={px} y2={y + height}
+                stroke={P.core.glow} strokeWidth={lineThickness + 4 + 3} opacity=".2" filter="url(#coreGlow)" />
+            </>)}
           </g>
         );
       })}
-      <line x1={bx} y1={y} x2={bx} y2={y + height} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + height} stroke="black" strokeWidth="1" opacity=".3" />
     </g>
   );
 }
 
-// --- Crystal PartialFailedTerminalCap ---
-export function PartialFailedTerminalCap({ x, y, coreSize = 7, coreGap = 26, wireThickness = 6, lineThickness = 2, failedSide = "left" }) {
-  const pal = P.body.double, cx = x + CW / 2, cy = y + CH / 2;
-  const bx = x + 8, bw = CW - 16, half = coreGap / 2;
-  const positions = [cx - half, cx + half]; // [left, right]
+// --- Crystal PartialFailedTerminalCap (Classic style + empty core) ---
+export function PartialFailedTerminalCap({ x, y, coreSize = 5, coreGap = 18, failedSide = "left" }) {
+  const col = P.double.highlight;
+  const cx = x + CW / 2, cy = y + CH / 2, half = coreGap / 2;
+  const failCore = { base: FAIL.core.off, mid: FAIL.core.offBase, bright: FAIL.core.offMid, highlight: FAIL.core.offBright };
   return (
     <g>
-      <defs>
-        <linearGradient id={`pftbg_${failedSide}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
-        </linearGradient>
-      </defs>
-      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#pftbg_${failedSide}_${x}_${y})`} />
-      <line x1={bx} y1={y} x2={bx + bw} y2={y} stroke={pal.base} strokeWidth="1" opacity=".5" />
-      {positions.map((px, pi) => {
-        const isFailed = (pi === 0 && failedSide === "left") || (pi === 1 && failedSide === "right");
-        return (
-          <g key={pi}>
-            <Wire cx={px} y={y} height={CH} thickness={wireThickness} />
-            <line x1={px} y1={y} x2={px} y2={y + CH}
-              stroke={isFailed ? "#333333" : P.core.offBright}
-              strokeWidth={lineThickness} opacity=".9" />
-          </g>
-        );
-      })}
-      <line x1={bx} y1={y} x2={bx} y2={y + CH} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + CH} stroke="black" strokeWidth="1" opacity=".3" />
-      {/* Left core */}
+      <rect x={x} y={y} width={CW} height={CH} fill={col} opacity={0.7} />
       <Holder cx={cx - half} cy={cy} size={coreSize} />
       {failedSide === "left" ? (
         <rect x={cx - half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
@@ -482,7 +490,6 @@ export function PartialFailedTerminalCap({ x, y, coreSize = 7, coreGap = 26, wir
       ) : (
         <Core cx={cx - half} cy={cy} size={coreSize} filled={false} />
       )}
-      {/* Right core */}
       <Holder cx={cx + half} cy={cy} size={coreSize} />
       {failedSide === "right" ? (
         <rect x={cx + half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}
@@ -494,29 +501,13 @@ export function PartialFailedTerminalCap({ x, y, coreSize = 7, coreGap = 26, wir
   );
 }
 
-// --- Crystal FailedTerminalCap ---
-export function FailedTerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 26, wireThickness = 6, lineThickness = 2 }) {
-  const pal = FAIL.body[type], isDouble = type === "double", cx = x + CW / 2, cy = y + CH / 2;
-  const bx = x + 8, bw = CW - 16, half = coreGap / 2;
-  const positions = isDouble ? [cx - half, cx + half] : [cx];
+// --- Crystal FailedTerminalCap (Classic style + empty core) ---
+export function FailedTerminalCap({ x, y, type = "single", coreSize = 5, coreGap = 18 }) {
+  const col = FAIL[type].bright;
+  const cx = x + CW / 2, cy = y + CH / 2, isDouble = type === "double", half = coreGap / 2;
   return (
     <g>
-      <defs>
-        <linearGradient id={`ftbg_${type}_${x}_${y}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={pal.edge} /><stop offset="25%" stopColor={pal.base} />
-          <stop offset="75%" stopColor={pal.base} /><stop offset="100%" stopColor={pal.edge} />
-        </linearGradient>
-      </defs>
-      <rect x={bx} y={y} width={bw} height={CH} fill={`url(#ftbg_${type}_${x}_${y})`} />
-      <line x1={bx} y1={y} x2={bx + bw} y2={y} stroke={pal.base} strokeWidth="1" opacity=".5" />
-      {positions.map((px, pi) => (
-        <g key={pi}>
-          <Wire cx={px} y={y} height={CH} thickness={wireThickness} />
-          <line x1={px} y1={y} x2={px} y2={y + CH} stroke="#333333" strokeWidth={lineThickness} opacity=".9" />
-        </g>
-      ))}
-      <line x1={bx} y1={y} x2={bx} y2={y + CH} stroke={pal.base} strokeWidth="1" opacity=".35" />
-      <line x1={bx + bw} y1={y} x2={bx + bw} y2={y + CH} stroke="black" strokeWidth="1" opacity=".3" />
+      <rect x={x} y={y} width={CW} height={CH} fill={col} opacity={0.7} />
       {isDouble ? (<>
         <Holder cx={cx - half} cy={cy} size={coreSize} />
         <rect x={cx - half - coreSize} y={cy - coreSize} width={coreSize * 2} height={coreSize * 2}

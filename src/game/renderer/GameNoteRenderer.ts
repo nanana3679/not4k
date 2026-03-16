@@ -233,7 +233,12 @@ export class GameNoteRenderer {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
-        bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+        const isHeld = rawStartY >= this.judgmentLineY;
+        if (isHeld) {
+          bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
+        } else {
+          bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+        }
         termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
       }
 
