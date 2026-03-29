@@ -10,11 +10,6 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
-  TextEvent,
-  AutoEvent,
-  StopEvent,
-  BpmEvent,
-  TimeSignatureEvent,
   ChartEvent,
   Beat,
   Lane,
@@ -449,24 +444,22 @@ export class CreateMode {
     let newEvent: ChartEvent;
     switch (this.selectedEntityType) {
       case "bpm":
-        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120, editorLane } as BpmEvent;
+        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120, editorLane };
         break;
       case "timeSignature":
-        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 }, editorLane } as TimeSignatureEvent;
+        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 }, editorLane };
         break;
       case "text":
-        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane } as TextEvent;
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane };
         break;
       case "auto":
-        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat, editorLane } as AutoEvent;
+        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat, editorLane };
         break;
       case "stop":
-        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat, editorLane } as StopEvent;
+        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat, editorLane };
         break;
       default:
-        // Fallback: text event (legacy behavior)
-        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane } as TextEvent;
-        break;
+        throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
     }
 
     // Validate before adding
