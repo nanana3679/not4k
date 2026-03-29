@@ -129,15 +129,13 @@ export function useCoordinateHelpers(
 
   const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
-    if (extraLane === null || !rendererRef.current) return null;
-    const extraLaneCol = extraLane - 1; // 0-based column index
-    const assignments = rendererRef.current.getEventLaneAssignments();
+    if (extraLane === null) return null;
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
-      if (assignments[i] !== extraLaneCol) continue;
       const evt = chart.events[i];
+      if ((evt.editorLane ?? 1) !== extraLane) continue;
       if (!('endBeat' in evt)) continue;
       const endBeatFloat = evt.endBeat.n / evt.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;

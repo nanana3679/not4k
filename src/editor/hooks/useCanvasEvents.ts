@@ -56,18 +56,16 @@ export function useCanvasEvents(
 
   const rightDragDeletedRef = useRef(false);
 
-  // 마커 히트테스트 (extra lane — events now on extra lanes, lane-aware)
+  // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
     const extraLane = xToExtraLane(x);
-    if (!extraLane || !rendererRef.current) return null;
-    const extraLaneCol = extraLane - 1; // 0-based column index
-    const assignments = rendererRef.current.getEventLaneAssignments();
+    if (!extraLane) return null;
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
-      if (assignments[i] !== extraLaneCol) continue;
       const evt = chart.events[i];
+      if ((evt.editorLane ?? 1) !== extraLane) continue;
       const startFloat = evt.beat.n / evt.beat.d;
       const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;
       if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
@@ -260,7 +258,7 @@ export function useCanvasEvents(
           if (extraLane) {
             if (isEventEntityType(entityType as import('../modes').EntityType)) {
               // Show ghost marker for event entity types on extra lanes
-              rendererRef.current.showGhostMarker(0, timeMs);
+              rendererRef.current.showGhostMarker(extraLane, timeMs);
             } else {
               const existingExtra = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
               if (existingExtra === null) {

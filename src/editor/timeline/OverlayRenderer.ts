@@ -193,15 +193,16 @@ export class OverlayRenderer {
   /**
    * 엑스트라 레인에 고스트 마커 표시 (이벤트용)
    */
-  showGhostMarker(_auxIndex: number, timeMs: number): void {
+  showGhostMarker(extraLane: number, timeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
     const y = this.host.timeToY(timeMs);
-    const eventRenderX = TIMELINE_WIDTH; // start of extra lanes
-    const eventRenderWidth = EXTRA_LANE_WIDTH;
+    // extraLane is 1-based, convert to 0-based column
+    const col = Math.max(0, extraLane - 1);
+    const x = TIMELINE_WIDTH + col * EXTRA_LANE_WIDTH;
 
     const ghost = new Graphics();
-    ghost.rect(eventRenderX, y - NOTE_HEIGHT / 2, eventRenderWidth, NOTE_HEIGHT);
+    ghost.rect(x, y - NOTE_HEIGHT / 2, EXTRA_LANE_WIDTH, NOTE_HEIGHT);
     ghost.fill({ color: 0xffffff, alpha: 0.3 });
     this.host.ghostLayer.addChild(ghost);
   }

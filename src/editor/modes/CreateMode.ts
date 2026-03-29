@@ -92,6 +92,7 @@ export class CreateMode {
   private dragStartLane: Lane | null = null;
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
+  private _createEventLane: number | null = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -165,7 +166,9 @@ export class CreateMode {
         if (isEventEntityType(this.selectedEntityType)) {
           if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
             // Point events (bpm, timeSignature): create immediately, no drag
+            this._createEventLane = extraLane;
             this.createEvent(beat, beat);
+            this._createEventLane = null;
             return;
           }
           if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
@@ -441,26 +444,28 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
+    const editorLane = this._createEventLane ?? this._dragExtraLane ?? 1;
+
     let newEvent: ChartEvent;
     switch (this.selectedEntityType) {
       case "bpm":
-        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120 } as BpmEvent;
+        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120, editorLane } as BpmEvent;
         break;
       case "timeSignature":
-        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 } } as TimeSignatureEvent;
+        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 }, editorLane } as TimeSignatureEvent;
         break;
       case "text":
-        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message" } as TextEvent;
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane } as TextEvent;
         break;
       case "auto":
-        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat } as AutoEvent;
+        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat, editorLane } as AutoEvent;
         break;
       case "stop":
-        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat } as StopEvent;
+        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat, editorLane } as StopEvent;
         break;
       default:
         // Fallback: text event (legacy behavior)
-        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message" } as TextEvent;
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane } as TextEvent;
         break;
     }
 
