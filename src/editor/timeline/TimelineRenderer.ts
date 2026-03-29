@@ -774,6 +774,14 @@ export class TimelineRenderer {
   }
 
   /**
+   * 이벤트 레인 배치 결과 반환 (hitTest에서 사용).
+   * renderMarkers()에서 계산된 결과를 캐시하여 반환한다.
+   */
+  getEventLaneAssignments(): number[] {
+    return this.gridRenderer.getEventLaneAssignments();
+  }
+
+  /**
    * Cleanup
    */
   dispose(): void {

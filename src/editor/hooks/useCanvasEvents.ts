@@ -56,14 +56,17 @@ export function useCanvasEvents(
 
   const rightDragDeletedRef = useRef(false);
 
-  // 마커 히트테스트 (extra lane — events now on extra lanes)
+  // 마커 히트테스트 (extra lane — events now on extra lanes, lane-aware)
   const hitTestMarker = useCallback((x: number, y: number) => {
     const extraLane = xToExtraLane(x);
     if (!extraLane || !rendererRef.current) return null;
+    const extraLaneCol = extraLane - 1; // 0-based column index
+    const assignments = rendererRef.current.getEventLaneAssignments();
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
+      if (assignments[i] !== extraLaneCol) continue;
       const evt = chart.events[i];
       const startFloat = evt.beat.n / evt.beat.d;
       const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;

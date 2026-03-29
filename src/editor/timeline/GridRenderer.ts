@@ -5,7 +5,7 @@
 
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "../../shared";
-import type { BpmMarker, TimeSignatureMarker } from "../../shared";
+import type { BpmMarker, TimeSignatureMarker, ChartEvent } from "../../shared";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -43,8 +43,54 @@ export interface GridHost {
   readonly measureLabels: Container;
 }
 
+/**
+ * 이벤트 레인 자동 분배 — 겹치는 이벤트를 별도 extra lane 컬럼에 배치.
+ * 결과 배열의 i번째 값 = events[i]가 배치될 extra lane 컬럼 인덱스 (0-based).
+ */
+function assignEventLanes(events: ChartEvent[], bpmMarkers: BpmMarker[], offsetMs: number): number[] {
+  const lanes: number[] = new Array(events.length).fill(0);
+  // Track occupied intervals per column: column -> array of [startMs, endMs]
+  const columns: [number, number][][] = [];
+
+  for (let i = 0; i < events.length; i++) {
+    const evt = events[i];
+    const startMs = beatToMs(evt.beat, bpmMarkers, offsetMs);
+    const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, offsetMs) : startMs;
+    // Point events need some minimum visual height for overlap detection
+    const effectiveEndMs = Math.max(endMs, startMs + 100);
+
+    // Find first column with no overlap
+    let assigned = false;
+    for (let col = 0; col < columns.length; col++) {
+      const hasOverlap = columns[col].some(([s, e]) =>
+        effectiveEndMs > s && startMs < e
+      );
+      if (!hasOverlap) {
+        columns[col].push([startMs, effectiveEndMs]);
+        lanes[i] = col;
+        assigned = true;
+        break;
+      }
+    }
+    if (!assigned) {
+      columns.push([[startMs, effectiveEndMs]]);
+      lanes[i] = columns.length - 1;
+    }
+  }
+
+  return lanes;
+}
+
 export class GridRenderer {
+  /** 마지막으로 계산된 이벤트 레인 배치 (hitTest 공유용) */
+  private _eventLaneAssignments: number[] = [];
+
   constructor(private host: GridHost) {}
+
+  /** 이벤트 레인 배치 결과 반환 (hitTest에서 사용) */
+  getEventLaneAssignments(): number[] {
+    return this._eventLaneAssignments;
+  }
 
   /**
    * 레인 배경 렌더링
@@ -249,14 +295,18 @@ export class GridRenderer {
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { events, meta } = chart;
-    const eventRenderX = TIMELINE_WIDTH; // start of extra lanes
+    const eventRenderBaseX = TIMELINE_WIDTH; // start of extra lanes
     const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
-    // Only render events if there are extra lanes
-    if (this.host.extraLaneCount === 0) return;
+    // Compute lane assignments for auto-distribution
+    this._eventLaneAssignments = assignEventLanes(events, bpmMarkers, meta.offsetMs);
 
-    for (const evt of events) {
+    for (let i = 0; i < events.length; i++) {
+      const evt = events[i];
+      const col = this._eventLaneAssignments[i];
+      const eventRenderX = eventRenderBaseX + col * EXTRA_LANE_WIDTH;
+
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
       const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : startMs;
 
