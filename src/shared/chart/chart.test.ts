@@ -244,3 +244,94 @@ describe("grace 플래그 직렬화/역직렬화", () => {
     expect(restored.notes[1]).not.toHaveProperty("grace");
   });
 });
+
+describe("editorLane 직렬화/역직렬화", () => {
+  it("editorLane이 있는 이벤트를 직렬화하면 JSON에 editorLane 포함", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "bpm", beat: beat(0), bpm: 120, editorLane: 2 },
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 3 },
+      ],
+    };
+    const json = chartToJson(chart);
+    expect((json.events[0] as any).editorLane).toBe(2);
+    expect((json.events[1] as any).editorLane).toBe(3);
+  });
+
+  it("editorLane이 없는 이벤트를 직렬화하면 JSON에 editorLane 미포함", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [{ type: "bpm", beat: beat(0), bpm: 120 }],
+    };
+    const json = chartToJson(chart);
+    expect(json.events[0]).not.toHaveProperty("editorLane");
+  });
+
+  it("editorLane이 있는 JSON을 역직렬화하면 ChartEvent에 editorLane 복원", () => {
+    const json = {
+      version: 3,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "bpm" as const, beat: "0", bpm: 120, editorLane: 2 },
+        { type: "text" as const, beat: "0", endBeat: "4", text: "msg", editorLane: 5 },
+        { type: "auto" as const, beat: "0", endBeat: "4", editorLane: 1 },
+        { type: "stop" as const, beat: "0", endBeat: "4", editorLane: 3 },
+        { type: "timeSignature" as const, beat: "0", beatPerMeasure: "4", editorLane: 4 },
+      ],
+    };
+    const chart = chartFromJson(json);
+    expect(chart.events[0].editorLane).toBe(2);
+    expect(chart.events[1].editorLane).toBe(5);
+    expect(chart.events[2].editorLane).toBe(1);
+    expect(chart.events[3].editorLane).toBe(3);
+    expect(chart.events[4].editorLane).toBe(4);
+  });
+
+  it("editorLane이 없는 JSON을 역직렬화하면 editorLane 프로퍼티 없음", () => {
+    const json = {
+      version: 3,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [{ type: "bpm" as const, beat: "0", bpm: 120 }],
+    };
+    const chart = chartFromJson(json);
+    expect(chart.events[0]).not.toHaveProperty("editorLane");
+  });
+
+  it("전체 차트 직렬화→역직렬화 라운드트립에서 editorLane 보존", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "bpm", beat: beat(0), bpm: 120, editorLane: 2 },
+        { type: "text", beat: beat(0), endBeat: beat(4), text: "msg" },
+        { type: "stop", beat: beat(4), endBeat: beat(8), editorLane: 3 },
+      ],
+    };
+    const restored = deserializeChart(serializeChart(chart));
+    expect(restored.events[0].editorLane).toBe(2);
+    expect(restored.events[1]).not.toHaveProperty("editorLane");
+    expect(restored.events[2].editorLane).toBe(3);
+  });
+
+  it("레거시 이벤트 마이그레이션에서 editorLane 없음 (기본값 1로 취급)", () => {
+    const legacyJson = {
+      version: 2,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [{ beat: "0", endBeat: "0", bpm: 120 }],
+    };
+    const chart = chartFromJson(legacyJson as any);
+    expect(chart.events[0]).not.toHaveProperty("editorLane");
+  });
+});

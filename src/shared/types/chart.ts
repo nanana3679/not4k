@@ -134,6 +134,7 @@ export interface BpmEvent {
   type: "bpm";
   beat: Beat;
   bpm: number;
+  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 박자표 변경 — 시점 이벤트 */
@@ -141,6 +142,7 @@ export interface TimeSignatureEvent {
   type: "timeSignature";
   beat: Beat;
   beatPerMeasure: Beat;
+  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 메시지 표시 — 구간 이벤트 */
@@ -149,6 +151,7 @@ export interface TextEvent {
   beat: Beat;
   endBeat: Beat;
   text: string;
+  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 자동 연주 구간 — 구간 이벤트 */
@@ -156,6 +159,7 @@ export interface AutoEvent {
   type: "auto";
   beat: Beat;
   endBeat: Beat;
+  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 정지 구간 — 구간 내 싱글/더블/롱노트 배치 금지 */
@@ -163,6 +167,7 @@ export interface StopEvent {
   type: "stop";
   beat: Beat;
   endBeat: Beat;
+  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 차트 이벤트 유니온 */

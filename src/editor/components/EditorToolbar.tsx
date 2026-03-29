@@ -80,13 +80,8 @@ interface EditorToolbarProps {
   onOpenCustomSnap: () => void;
 }
 
-const entityTypeOptions: EntityType[] = [
-  'single',
-  'double',
-  'long',
-  'doubleLong',
-  'trillZone',
-];
+const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
+const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
 
 export function EditorToolbar({
   playbackRef,
@@ -181,11 +176,20 @@ export function EditorToolbar({
           value={entityType}
           onChange={(e) => setEntityType(e.target.value as EntityType)}
         >
-          {entityTypeOptions.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
+          <optgroup label="Notes">
+            {noteTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Events">
+            {eventTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </optgroup>
         </select>
       )}
 

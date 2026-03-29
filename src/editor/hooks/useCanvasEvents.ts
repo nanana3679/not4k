@@ -7,7 +7,7 @@ import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode } from '../modes';
-import { DeleteMode } from '../modes';
+import { DeleteMode, isEventEntityType } from '../modes';
 import { TIMELINE_WIDTH } from '../timeline/constants';
 import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
 import { beatToMs, beatEq } from '../../shared';
@@ -46,7 +46,7 @@ export function useCanvasEvents(
   const addToast = useEditorStore((s) => s.addToast);
 
   const {
-    xToLane, xToAuxLane, xToExtraLane,
+    xToLane, xToExtraLane,
     yToBeat, yToBeatRaw, snapBeat,
     bpmMarkers,
     hitTestNoteRef, hitTestExtraNoteRef,
@@ -56,15 +56,16 @@ export function useCanvasEvents(
 
   const rightDragDeletedRef = useRef(false);
 
-  // 마커 히트테스트 (aux lane)
+  // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
-    const auxLane = xToAuxLane(x);
-    if (!auxLane || !rendererRef.current) return null;
+    const extraLane = xToExtraLane(x);
+    if (!extraLane) return null;
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
       const evt = chart.events[i];
+      if ((evt.editorLane ?? 1) !== extraLane) continue;
       const startFloat = evt.beat.n / evt.beat.d;
       const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;
       if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
@@ -72,7 +73,7 @@ export function useCanvasEvents(
       }
     }
     return null;
-  }, [chart.events, xToAuxLane, yToBeat]);
+  }, [chart.events, xToExtraLane, yToBeat]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -243,7 +244,7 @@ export function useCanvasEvents(
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
           if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostMarker(0, timeMs);
+            rendererRef.current.showGhostMarker(createModeRef.current.dragExtraLane ?? 1, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
             const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
@@ -255,30 +256,30 @@ export function useCanvasEvents(
           const snappedBeatFloat = snapped.n / snapped.d;
           const extraLane = xToExtraLane(x);
           if (extraLane) {
-            const existingExtra = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
-            if (existingExtra === null) {
-              rendererRef.current.showGhostExtraNote(extraLane, timeMs);
+            if (isEventEntityType(entityType as import('../modes').EntityType)) {
+              // Show ghost marker for event entity types on extra lanes
+              rendererRef.current.showGhostMarker(extraLane, timeMs);
             } else {
-              rendererRef.current.hideGhostNote();
-              rendererRef.current.setHoveredExtraNote(existingExtra);
-            }
-          } else {
-            const auxLane = xToAuxLane(x);
-            if (auxLane) {
-              rendererRef.current.showGhostMarker(0, timeMs);
-            } else {
-              const lane = xToLane(x);
-              if (lane) {
-                const existingNote = noteExistsAtSnap(useEditorStore.getState().chart.notes, lane, snappedBeatFloat);
-                if (existingNote === null) {
-                  rendererRef.current.showGhostNote(lane, timeMs);
-                } else {
-                  rendererRef.current.hideGhostNote();
-                  rendererRef.current.setHoveredNote(existingNote);
-                }
+              const existingExtra = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
+              if (existingExtra === null) {
+                rendererRef.current.showGhostExtraNote(extraLane, timeMs);
               } else {
                 rendererRef.current.hideGhostNote();
+                rendererRef.current.setHoveredExtraNote(existingExtra);
               }
+            }
+          } else {
+            const lane = xToLane(x);
+            if (lane) {
+              const existingNote = noteExistsAtSnap(useEditorStore.getState().chart.notes, lane, snappedBeatFloat);
+              if (existingNote === null) {
+                rendererRef.current.showGhostNote(lane, timeMs);
+              } else {
+                rendererRef.current.hideGhostNote();
+                rendererRef.current.setHoveredNote(existingNote);
+              }
+            } else {
+              rendererRef.current.hideGhostNote();
             }
           }
         }
@@ -305,7 +306,7 @@ export function useCanvasEvents(
         }
       }
     }
-  }, [mode, entityType, xToLane, xToAuxLane, xToExtraLane, yToBeat, snapBeat, bpmMarkers, isTimeInBounds, setChart, setExtraNotes, setSelectedExtraNotes]);
+  }, [mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat, bpmMarkers, isTimeInBounds, setChart, setExtraNotes, setSelectedExtraNotes]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     rendererRef.current?.handleMinimapPointerUp();

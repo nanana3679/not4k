@@ -335,7 +335,6 @@ function ChartEditorPage() {
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
-      xToAuxLane: coords.xToAuxLane,
       xToExtraLane: (x) => xToExtraLane(x),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
       getExtraNotes: () => useEditorStore.getState().extraNotes,

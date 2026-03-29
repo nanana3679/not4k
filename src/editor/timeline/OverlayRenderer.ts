@@ -7,11 +7,9 @@ import { Container, Graphics } from "pixi.js";
 import { beatToMs } from "../../shared";
 import type { Chart, Beat, NoteEntity, BpmMarker, ExtraNoteEntity, Lane } from "../../shared";
 import {
-  LANE_COUNT,
   LANE_WIDTH,
   NOTE_HEIGHT,
   TIMELINE_WIDTH,
-  AUX_LANE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
 } from "./constants";
@@ -193,17 +191,18 @@ export class OverlayRenderer {
   }
 
   /**
-   * 보조 레인에 고스트 마커 표시
+   * 엑스트라 레인에 고스트 마커 표시 (이벤트용)
    */
-  showGhostMarker(auxIndex: number, timeMs: number): void {
+  showGhostMarker(extraLane: number, timeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
     const y = this.host.timeToY(timeMs);
-    const auxStartX = LANE_COUNT * LANE_WIDTH;
-    const x = auxStartX + auxIndex * AUX_LANE_WIDTH;
+    // extraLane is 1-based, convert to 0-based column
+    const col = Math.max(0, extraLane - 1);
+    const x = TIMELINE_WIDTH + col * EXTRA_LANE_WIDTH;
 
     const ghost = new Graphics();
-    ghost.rect(x, y - NOTE_HEIGHT / 2, AUX_LANE_WIDTH, NOTE_HEIGHT);
+    ghost.rect(x, y - NOTE_HEIGHT / 2, EXTRA_LANE_WIDTH, NOTE_HEIGHT);
     ghost.fill({ color: 0xffffff, alpha: 0.3 });
     this.host.ghostLayer.addChild(ghost);
   }

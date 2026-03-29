@@ -71,12 +71,14 @@ interface BpmEventJson {
   type: "bpm";
   beat: string;
   bpm: number;
+  editorLane?: number;
 }
 
 interface TimeSignatureEventJson {
   type: "timeSignature";
   beat: string;
   beatPerMeasure: string;
+  editorLane?: number;
 }
 
 interface TextEventJson {
@@ -84,18 +86,21 @@ interface TextEventJson {
   beat: string;
   endBeat: string;
   text: string;
+  editorLane?: number;
 }
 
 interface AutoEventJson {
   type: "auto";
   beat: string;
   endBeat: string;
+  editorLane?: number;
 }
 
 interface StopEventJson {
   type: "stop";
   beat: string;
   endBeat: string;
+  editorLane?: number;
 }
 
 type ChartEventJson = BpmEventJson | TimeSignatureEventJson | TextEventJson | AutoEventJson | StopEventJson;
@@ -158,15 +163,15 @@ function serializeTrillZone(z: TrillZone): TrillZoneJson {
 function serializeEvent(e: ChartEvent): ChartEventJson {
   switch (e.type) {
     case "bpm":
-      return { type: "bpm", beat: beatToString(e.beat), bpm: e.bpm };
+      return { type: "bpm", beat: beatToString(e.beat), bpm: e.bpm, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "timeSignature":
-      return { type: "timeSignature", beat: beatToString(e.beat), beatPerMeasure: beatToString(e.beatPerMeasure) };
+      return { type: "timeSignature", beat: beatToString(e.beat), beatPerMeasure: beatToString(e.beatPerMeasure), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "text":
-      return { type: "text", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), text: e.text };
+      return { type: "text", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), text: e.text, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "auto":
-      return { type: "auto", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat) };
+      return { type: "auto", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "stop":
-      return { type: "stop", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat) };
+      return { type: "stop", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
   }
 }
 
@@ -235,15 +240,15 @@ function parseTrillZone(z: TrillZoneJson): TrillZone {
 function parseEvent(e: ChartEventJson): ChartEvent {
   switch (e.type) {
     case "bpm":
-      return { type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm };
+      return { type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "timeSignature":
-      return { type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure) };
+      return { type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "text":
-      return { type: "text", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), text: e.text };
+      return { type: "text", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), text: e.text, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "auto":
-      return { type: "auto", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat) };
+      return { type: "auto", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "stop":
-      return { type: "stop", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat) };
+      return { type: "stop", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
   }
 }
 

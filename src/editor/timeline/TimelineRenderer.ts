@@ -773,6 +773,7 @@ export class TimelineRenderer {
     this.minimapRenderer.handlePointerUp();
   }
 
+
   /**
    * Cleanup
    */

@@ -10,7 +10,7 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
-  TextEvent,
+  ChartEvent,
   Beat,
   Lane,
   ExtraNoteEntity,
@@ -24,7 +24,12 @@ export type EntityType =
   | "double"
   | "long"
   | "doubleLong"
-  | "trillZone";
+  | "trillZone"
+  | "bpm"
+  | "timeSignature"
+  | "text"
+  | "auto"
+  | "stop";
 
 /** All available entity types for cycling (note lane entities only) */
 const ENTITY_TYPES: readonly EntityType[] = [
@@ -34,6 +39,20 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "doubleLong",
   "trillZone",
 ] as const;
+
+/** Event entity types (created on extra lanes) */
+const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop"];
+
+/** Check if an entity type is an event type */
+export function isEventEntityType(t: EntityType): boolean {
+  return EVENT_ENTITY_TYPES.includes(t);
+}
+
+/** Point event types (no drag needed) */
+const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
+
+/** Range event types (need drag for endBeat) */
+const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
 type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
@@ -45,10 +64,8 @@ export interface CreateModeCallbacks {
   yToBeat: (y: number) => Beat;
   /** Called to snap a beat to grid */
   snapBeat: (beat: Beat) => Beat;
-  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null for aux) */
+  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null otherwise) */
   xToLane: (x: number) => Lane | null;
-  /** Called to get what aux lane type an X falls in */
-  xToAuxLane: (x: number) => "event" | null;
   /** Called to get extra lane number (1~N) from X, or null */
   xToExtraLane?: (x: number) => number | null;
   /** Called when extra notes are modified */
@@ -68,6 +85,7 @@ export class CreateMode {
   private dragStartLane: Lane | null = null;
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
+  private _createEventLane: number | null = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -133,20 +151,30 @@ export class CreateMode {
   onPointerDown(x: number, y: number): void {
     const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
 
-    // --- Aux lane auto-detection (always, regardless of selectedEntityType) ---
-    const auxType = this.callbacks.xToAuxLane(x);
-    if (auxType === "event") {
-      this.isDragging = true;
-      this.dragStartBeat = beat;
-      this.dragStartLane = null;
-      this._dragType = "event";
-      return;
-    }
-
     // --- Extra lane detection ---
     if (this.callbacks.xToExtraLane) {
       const extraLane = this.callbacks.xToExtraLane(x);
       if (extraLane !== null) {
+        // Event entity types on extra lanes
+        if (isEventEntityType(this.selectedEntityType)) {
+          if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
+            // Point events (bpm, timeSignature): create immediately, no drag
+            this._createEventLane = extraLane;
+            this.createEvent(beat, beat);
+            this._createEventLane = null;
+            return;
+          }
+          if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
+            // Range events (text, auto, stop): start drag
+            this.isDragging = true;
+            this.dragStartBeat = beat;
+            this.dragStartLane = null;
+            this._dragExtraLane = extraLane;
+            this._dragType = "event";
+            return;
+          }
+          return;
+        }
         if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
           this.createExtraPointNote(extraLane, beat);
           return;
@@ -409,12 +437,28 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
-    const newEvent: TextEvent = {
-      type: "text",
-      beat: actualStartBeat,
-      endBeat: actualEndBeat,
-      text: "New Message",
-    };
+    const editorLane = this._createEventLane ?? this._dragExtraLane ?? 1;
+
+    let newEvent: ChartEvent;
+    switch (this.selectedEntityType) {
+      case "bpm":
+        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120, editorLane };
+        break;
+      case "timeSignature":
+        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 }, editorLane };
+        break;
+      case "text":
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane };
+        break;
+      case "auto":
+        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat, editorLane };
+        break;
+      case "stop":
+        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat, editorLane };
+        break;
+      default:
+        throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
+    }
 
     // Validate before adding
     const testChart = {

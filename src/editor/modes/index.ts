@@ -2,7 +2,7 @@
  * Editor modes barrel export
  */
 
-export { CreateMode } from "./CreateMode";
+export { CreateMode, isEventEntityType } from "./CreateMode";
 export type { EntityType, CreateModeCallbacks } from "./CreateMode";
 
 export { SelectMode } from "./SelectMode";

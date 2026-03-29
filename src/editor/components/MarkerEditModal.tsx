@@ -1,165 +1,110 @@
 import { useState } from 'react';
-import type { Chart } from '../../shared';
+import type { Chart, ChartEvent } from '../../shared';
 import type { EditingMarker } from '../stores';
 import { modalStyles } from './modalStyles';
 
 // ---------------------------------------------------------------------------
-// Event Tab Fields (BPM / TimeSig / Message tabs)
+// Type-specific field renderers
 // ---------------------------------------------------------------------------
 
-type EventTab = 'message' | 'bpm' | 'timeSig' | 'stop';
+function getEventTypeLabel(evt: ChartEvent): string {
+  switch (evt.type) {
+    case 'bpm': return 'BPM';
+    case 'timeSignature': return 'Time Signature';
+    case 'text': return 'Text';
+    case 'auto': return 'Auto Section';
+    case 'stop': return 'Stop Zone';
+  }
+}
 
-export function EventTabFields({ values, setValues }: {
+function getInitialValues(evt: ChartEvent): Record<string, string> {
+  switch (evt.type) {
+    case 'bpm':
+      return { eventBpm: String(evt.bpm) };
+    case 'timeSignature':
+      return { tsNumerator: String(evt.beatPerMeasure.n), tsDenominator: String(evt.beatPerMeasure.d) };
+    case 'text':
+      return { text: evt.text };
+    case 'auto':
+    case 'stop':
+      return {};
+  }
+}
+
+function EventFields({ evt, values, setValues }: {
+  evt: ChartEvent;
   values: Record<string, string>;
   setValues: (v: Record<string, string>) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<EventTab>('message');
-
-  const hasMessage = !!values.text;
-  const hasBpm = !!values.eventBpm;
-  const hasTimeSig = !!values.tsNumerator || !!values.tsDenominator;
-  const hasStop = values.stop === 'true';
-
-  const tabs: { key: EventTab; label: string; hasValue: boolean }[] = [
-    { key: 'message', label: 'Message', hasValue: hasMessage },
-    { key: 'bpm', label: 'BPM', hasValue: hasBpm },
-    { key: 'timeSig', label: 'TimeSig', hasValue: hasTimeSig },
-    { key: 'stop', label: 'Stop', hasValue: hasStop },
-  ];
-
-  return (
-    <>
-      <div style={eventTabStyles.tabBar}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            style={{
-              ...eventTabStyles.tab,
-              ...(activeTab === tab.key ? eventTabStyles.tabActive : {}),
-              ...(tab.hasValue && activeTab !== tab.key ? eventTabStyles.tabFilled : {}),
-            }}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.hasValue && <span style={eventTabStyles.dot} />}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={eventTabStyles.tabContent}>
-        {activeTab === 'message' && (
+  switch (evt.type) {
+    case 'bpm':
+      return (
+        <label style={modalStyles.field}>
+          <span>BPM</span>
+          <input
+            style={modalStyles.input}
+            type="number"
+            value={values.eventBpm}
+            onChange={(e) => setValues({ ...values, eventBpm: e.target.value })}
+            autoFocus
+          />
+        </label>
+      );
+    case 'timeSignature':
+      return (
+        <div style={{ display: 'flex', gap: '8px' }}>
           <label style={modalStyles.field}>
-            <span>Text</span>
-            <input
-              style={modalStyles.input}
-              type="text"
-              value={values.text}
-              onChange={(e) => setValues({ ...values, text: e.target.value })}
-              autoFocus
-            />
-          </label>
-        )}
-
-        {activeTab === 'bpm' && (
-          <label style={modalStyles.field}>
-            <span>BPM</span>
+            <span>Numerator</span>
             <input
               style={modalStyles.input}
               type="number"
-              value={values.eventBpm}
-              onChange={(e) => setValues({ ...values, eventBpm: e.target.value })}
+              min="1"
+              step="1"
+              value={values.tsNumerator}
+              onChange={(e) => setValues({ ...values, tsNumerator: e.target.value })}
               autoFocus
             />
           </label>
-        )}
-
-        {activeTab === 'timeSig' && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <label style={modalStyles.field}>
-              <span>Numerator</span>
-              <input
-                style={modalStyles.input}
-                type="number"
-                min="1"
-                step="1"
-                value={values.tsNumerator}
-                onChange={(e) => setValues({ ...values, tsNumerator: e.target.value })}
-                autoFocus
-              />
-            </label>
-            <label style={modalStyles.field}>
-              <span>Denominator</span>
-              <input
-                style={modalStyles.input}
-                type="number"
-                min="1"
-                step="1"
-                value={values.tsDenominator}
-                onChange={(e) => setValues({ ...values, tsDenominator: e.target.value })}
-              />
-            </label>
-          </div>
-        )}
-
-        {activeTab === 'stop' && (
-          <label style={{ ...modalStyles.field, flexDirection: 'row', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <label style={modalStyles.field}>
+            <span>Denominator</span>
             <input
-              type="checkbox"
-              checked={values.stop === 'true'}
-              onChange={(e) => setValues({ ...values, stop: e.target.checked ? 'true' : 'false' })}
-              style={{ width: '16px', height: '16px', accentColor: '#4488ff' }}
+              style={modalStyles.input}
+              type="number"
+              min="1"
+              step="1"
+              value={values.tsDenominator}
+              onChange={(e) => setValues({ ...values, tsDenominator: e.target.value })}
             />
-            <span>Stop (구간 내 싱글/더블/롱노트 배치 금지)</span>
           </label>
-        )}
-      </div>
-    </>
-  );
+        </div>
+      );
+    case 'text':
+      return (
+        <label style={modalStyles.field}>
+          <span>Text</span>
+          <input
+            style={modalStyles.input}
+            type="text"
+            value={values.text}
+            onChange={(e) => setValues({ ...values, text: e.target.value })}
+            autoFocus
+          />
+        </label>
+      );
+    case 'auto':
+      return (
+        <div style={{ padding: '8px 0', color: '#aaa', fontSize: '13px' }}>
+          Auto Section (no editable fields)
+        </div>
+      );
+    case 'stop':
+      return (
+        <div style={{ padding: '8px 0', color: '#aaa', fontSize: '13px' }}>
+          Stop Zone (no editable fields)
+        </div>
+      );
+  }
 }
-
-export const eventTabStyles = {
-  tabBar: {
-    display: 'flex',
-    gap: '4px',
-    marginBottom: '12px',
-    borderBottom: '1px solid #444',
-    paddingBottom: '8px',
-  },
-  tab: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    padding: '5px 12px',
-    backgroundColor: '#333',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px 4px 0 0',
-    cursor: 'pointer',
-    fontSize: '12px',
-    transition: 'background-color 0.15s',
-  } as React.CSSProperties,
-  tabActive: {
-    backgroundColor: '#4488ff',
-    color: '#fff',
-    borderColor: '#4488ff',
-  },
-  tabFilled: {
-    color: '#ccc',
-    borderColor: '#668',
-    backgroundColor: '#3a3a4a',
-  },
-  dot: {
-    display: 'inline-block',
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    backgroundColor: '#6cf',
-    flexShrink: 0,
-  } as React.CSSProperties,
-  tabContent: {
-    minHeight: '60px',
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Marker Edit Modal
@@ -175,27 +120,19 @@ export interface MarkerEditModalProps {
 }
 
 export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: MarkerEditModalProps) {
-  const getInitialValues = (): Record<string, string> => {
-    const evt = chart.events[editingMarker.index];
-    return {
-      text: evt && evt.type === 'text' ? evt.text : '',
-      eventBpm: evt && evt.type === 'bpm' ? String(evt.bpm) : '',
-      tsNumerator: evt && evt.type === 'timeSignature' ? String(evt.beatPerMeasure.n) : '',
-      tsDenominator: evt && evt.type === 'timeSignature' ? String(evt.beatPerMeasure.d) : '',
-      stop: evt?.type === 'stop' ? 'true' : 'false',
-    };
-  };
+  const evt = chart.events[editingMarker.index];
+  if (!evt) { onClose(); return null; }
 
-  const [values, setValues] = useState<Record<string, string>>(getInitialValues);
+  const [values, setValues] = useState<Record<string, string>>(() => getInitialValues(evt));
 
-  const title = 'Edit Event';
+  const title = `Edit ${getEventTypeLabel(evt)} Event`;
 
   return (
     <div style={modalStyles.overlay} onMouseDown={onClose}>
       <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>{title}</h3>
 
-        <EventTabFields values={values} setValues={setValues} />
+        <EventFields evt={evt} values={values} setValues={setValues} />
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>

@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { SnapZoomController } from '../timeline/SnapZoomController';
-import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
+import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt } from '../timeline/hitTest';
 import { msToBeat, extractBpmMarkers } from '../../shared';
 import type { Beat, Lane } from '../../shared';
@@ -14,7 +14,6 @@ import { useEditorStore } from '../stores';
 
 export interface CoordinateHelpers {
   xToLane: (x: number) => Lane | null;
-  xToAuxLane: (x: number) => 'event' | null;
   xToExtraLane: (x: number) => number | null;
   yToBeat: (y: number) => Beat;
   yToBeatRaw: (y: number) => Beat;
@@ -54,14 +53,6 @@ export function useCoordinateHelpers(
   const xToLane = useCallback((x: number): Lane | null => {
     const lane = Math.floor(x / LANE_WIDTH) + 1;
     if (lane >= 1 && lane <= LANE_COUNT) return lane as Lane;
-    return null;
-  }, []);
-
-  const xToAuxLane = useCallback((x: number): 'event' | null => {
-    const auxStartX = LANE_COUNT * LANE_WIDTH;
-    if (x < auxStartX) return null;
-    const auxIndex = Math.floor((x - auxStartX) / AUX_LANE_WIDTH);
-    if (auxIndex === 0) return 'event';
     return null;
   }, []);
 
@@ -131,19 +122,20 @@ export function useCoordinateHelpers(
   }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
 
   const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
-    const auxLane = xToAuxLane(x);
-    if (auxLane !== 'event') return null;
+    const extraLane = xToExtraLane(x);
+    if (extraLane === null) return null;
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
       const evt = chart.events[i];
+      if ((evt.editorLane ?? 1) !== extraLane) continue;
       if (!('endBeat' in evt)) continue;
       const endBeatFloat = evt.endBeat.n / evt.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
     }
     return null;
-  }, [chart.events, xToAuxLane, yToBeat]);
+  }, [chart.events, xToExtraLane, yToBeat]);
 
   const hitTestTrillZoneEnd = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);
@@ -208,7 +200,6 @@ export function useCoordinateHelpers(
 
   return {
     xToLane,
-    xToAuxLane,
     xToExtraLane,
     yToBeat,
     yToBeatRaw,
