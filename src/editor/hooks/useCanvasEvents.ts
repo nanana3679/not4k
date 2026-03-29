@@ -244,7 +244,7 @@ export function useCanvasEvents(
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
           if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostMarker(0, timeMs);
+            rendererRef.current.showGhostMarker(createModeRef.current.dragExtraLane ?? 1, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
             const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
