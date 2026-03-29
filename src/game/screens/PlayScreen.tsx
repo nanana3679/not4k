@@ -281,6 +281,8 @@ export function PlayScreen() {
         // Auto-play tracking: which notes have been auto-pressed/released
         const autoPressed = new Set<number>();
         const autoReleased = new Set<number>();
+        // 포인트 노트의 자동 release 시간 (setTimeout 대신 게임 루프 내에서 처리)
+        const autoPendingRelease = new Map<number, number>(); // noteIndex → releaseTimeMs
 
         // Start game loop
         let lastFrameTime: number | null = null;
@@ -301,34 +303,60 @@ export function PlayScreen() {
               for (let i = 0; i < chartData.notes.length; i++) {
                 const note = chartData.notes[i];
                 const noteTime = noteTimesMs.get(i)!;
-                const noteEndTime = noteEndTimesMs.get(i);
 
-                // Auto press at note time
-                if (!autoPressed.has(i) && songTimeMs >= noteTime && songTimeMs < noteTime + 200) {
-                  autoPressed.add(i);
-                  const lane = note.lane as 1 | 2 | 3 | 4;
-                  const syntheticKey = `auto_${lane}`;
-                  judgmentEngine.onLanePress(lane, noteTime, syntheticKey);
-                  renderer.setKeyBeam(lane, true);
-                  // Auto release for point notes (after brief delay)
-                  if (!('endBeat' in note)) {
-                    setTimeout(() => {
-                      judgmentEngine.onLaneRelease(lane, noteTime + 10, syntheticKey);
-                      renderer.setKeyBeam(lane, false);
-                    }, 50);
-                  }
-                }
+                // 이미 처리됐거나 아직 시점이 아닌 노트는 스킵
+                if (autoPressed.has(i) || songTimeMs < noteTime || songTimeMs >= noteTime + 200) continue;
 
-                // Auto release for range notes at endBeat
-                if ('endBeat' in note && noteEndTime !== undefined
-                    && !autoReleased.has(i) && autoPressed.has(i)
-                    && songTimeMs >= noteEndTime) {
-                  autoReleased.add(i);
-                  const lane = note.lane as 1 | 2 | 3 | 4;
-                  const syntheticKey = `auto_${lane}`;
-                  judgmentEngine.onLaneRelease(lane, noteEndTime, syntheticKey);
-                  renderer.setKeyBeam(lane, false);
+                autoPressed.add(i);
+                const lane = note.lane as 1 | 2 | 3 | 4;
+                const isDouble = note.type === 'double' || note.type === 'doubleLong';
+
+                // Auto press — 더블 노트는 2키 입력
+                const key1 = `auto_${lane}_a`;
+                judgmentEngine.onLanePress(lane, noteTime, key1);
+                if (isDouble) {
+                  const key2 = `auto_${lane}_b`;
+                  judgmentEngine.onLanePress(lane, noteTime, key2);
                 }
+                renderer.setKeyBeam(lane, true);
+
+                if (!('endBeat' in note)) {
+                  // 포인트 노트: release를 pending에 등록 (50ms 후)
+                  autoPendingRelease.set(i, noteTime + 50);
+                }
+              }
+            }
+
+            // Auto-play: pending release 처리 (포인트 노트)
+            for (const [idx, releaseMs] of autoPendingRelease) {
+              if (songTimeMs >= releaseMs) {
+                autoPendingRelease.delete(idx);
+                const note = chartData.notes[idx];
+                const lane = note.lane as 1 | 2 | 3 | 4;
+                const isDouble = note.type === 'double';
+                judgmentEngine.onLaneRelease(lane, releaseMs, `auto_${lane}_a`);
+                if (isDouble) {
+                  judgmentEngine.onLaneRelease(lane, releaseMs, `auto_${lane}_b`);
+                }
+                renderer.setKeyBeam(lane, false);
+              }
+            }
+
+            // Auto-play: 롱노트 release at endBeat
+            for (let i = 0; i < chartData.notes.length; i++) {
+              if (!autoPressed.has(i) || autoReleased.has(i)) continue;
+              const note = chartData.notes[i];
+              if (!('endBeat' in note)) continue;
+              const noteEndTime = noteEndTimesMs.get(i);
+              if (noteEndTime !== undefined && songTimeMs >= noteEndTime) {
+                autoReleased.add(i);
+                const lane = note.lane as 1 | 2 | 3 | 4;
+                const isDouble = note.type === 'doubleLong';
+                judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_a`);
+                if (isDouble) {
+                  judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_b`);
+                }
+                renderer.setKeyBeam(lane, false);
               }
             }
 

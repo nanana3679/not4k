@@ -503,11 +503,6 @@ export class GameRenderer {
     return false;
   }
 
-  /** auto 구간 데이터를 반환 (PlayScreen에서 사용) */
-  getAutoEvents(): readonly AutoEventRenderData[] {
-    return this.autoEvents;
-  }
-
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void {
     this.judgmentUI.showJudgment(grade, deltaMs);
   }
