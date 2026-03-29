@@ -4,6 +4,7 @@ import {
   validateNoLongOverlap,
   validateTrillExclusive,
   validateNoTrillZoneOverlap,
+  validateNoEventDuplicate,
   validateNoEventOverlap,
   validateStopZones,
   validateChart,
@@ -199,7 +200,55 @@ describe("validateNoTrillZoneOverlap", () => {
 });
 
 // =========================================================================
-// 규칙 5: 이벤트 마커 겹침 금지
+// 규칙 5: 같은 beat에 같은 타입 시점 이벤트 중복 금지
+// =========================================================================
+
+describe("validateNoEventDuplicate", () => {
+  it("같은 beat에 bpm이 2개면 에러", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 },
+      { type: "bpm", beat: beat(0), bpm: 180 },
+    ];
+    const errors = validateNoEventDuplicate(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("eventDuplicate");
+  });
+
+  it("같은 beat에 timeSignature가 2개면 에러", () => {
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(3) },
+    ];
+    expect(validateNoEventDuplicate(events)).toHaveLength(1);
+  });
+
+  it("같은 beat에 bpm + timeSignature는 다른 타입이므로 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+    ];
+    expect(validateNoEventDuplicate(events)).toEqual([]);
+  });
+
+  it("다른 beat에 같은 타입은 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 },
+      { type: "bpm", beat: beat(4), bpm: 180 },
+    ];
+    expect(validateNoEventDuplicate(events)).toEqual([]);
+  });
+
+  it("구간 이벤트(text, auto, stop)는 검사하지 않음", () => {
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },
+      { type: "text", beat: beat(0), endBeat: beat(8), text: "B" },
+    ];
+    expect(validateNoEventDuplicate(events)).toEqual([]);
+  });
+});
+
+// =========================================================================
+// 규칙 6: 이벤트 마커 겹침 금지
 // =========================================================================
 
 describe("validateNoEventOverlap", () => {

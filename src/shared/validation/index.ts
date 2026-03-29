@@ -33,6 +33,7 @@ export interface ValidationError {
     | "trillExclusive"
     | "trillZoneOverlap"
     | "eventOverlap"
+    | "eventDuplicate"
     | "stopZone"
     | "timeSigNotNatural"
     | "timeSigNotAtMeasureStart";
@@ -255,7 +256,37 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 5: 이벤트 마커 겹침 금지
+// 규칙 5: 같은 beat에 같은 타입의 시점 이벤트 중복 금지
+// ---------------------------------------------------------------------------
+
+/**
+ * 같은 beat 위치에 같은 타입의 시점 이벤트(bpm, timeSignature)가
+ * 두 개 이상 존재하면 모순이므로 에러.
+ */
+export function validateNoEventDuplicate(events: readonly ChartEvent[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const seen = new Map<string, number>(); // "type:beatN/beatD" → first index
+
+  for (let i = 0; i < events.length; i++) {
+    const evt = events[i];
+    if (evt.type !== "bpm" && evt.type !== "timeSignature") continue;
+
+    const key = `${evt.type}:${evt.beat.n}/${evt.beat.d}`;
+    if (seen.has(key)) {
+      errors.push({
+        rule: "eventDuplicate",
+        message: `Duplicate ${evt.type} event at beat ${evt.beat.n}/${evt.beat.d} (events ${seen.get(key)}, ${i})`,
+      });
+    } else {
+      seen.set(key, i);
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 6: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
 /** 구간 이벤트만 필터링 (text, auto, stop) */
@@ -491,6 +522,7 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
     ...validateNoTrillZoneOverlap(input.trillZones),
+    ...validateNoEventDuplicate(input.events),
     ...validateNoEventOverlap(input.events),
     ...validateStopZones(input.notes, input.events),
     ...validateTimeSigNatural(input.events),
