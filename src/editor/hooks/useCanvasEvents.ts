@@ -46,7 +46,7 @@ export function useCanvasEvents(
   const addToast = useEditorStore((s) => s.addToast);
 
   const {
-    xToLane, xToAuxLane, xToExtraLane,
+    xToLane, xToExtraLane,
     yToBeat, yToBeatRaw, snapBeat,
     bpmMarkers,
     hitTestNoteRef, hitTestExtraNoteRef,
@@ -306,7 +306,7 @@ export function useCanvasEvents(
         }
       }
     }
-  }, [mode, entityType, xToLane, xToAuxLane, xToExtraLane, yToBeat, snapBeat, bpmMarkers, isTimeInBounds, setChart, setExtraNotes, setSelectedExtraNotes]);
+  }, [mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat, bpmMarkers, isTimeInBounds, setChart, setExtraNotes, setSelectedExtraNotes]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     rendererRef.current?.handleMinimapPointerUp();

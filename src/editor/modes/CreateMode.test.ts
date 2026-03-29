@@ -19,7 +19,6 @@ function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
     yToBeat: (y: number): Beat => beat(y),
     snapBeat: (b: Beat): Beat => b,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
-    xToAuxLane: () => null,
     onWarn: vi.fn(),
     ...overrides,
   };

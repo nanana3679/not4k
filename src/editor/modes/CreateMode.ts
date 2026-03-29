@@ -64,10 +64,8 @@ export interface CreateModeCallbacks {
   yToBeat: (y: number) => Beat;
   /** Called to snap a beat to grid */
   snapBeat: (beat: Beat) => Beat;
-  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null for aux) */
+  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null otherwise) */
   xToLane: (x: number) => Lane | null;
-  /** Called to get what aux lane type an X falls in */
-  xToAuxLane: (x: number) => "event" | null;
   /** Called to get extra lane number (1~N) from X, or null */
   xToExtraLane?: (x: number) => number | null;
   /** Called when extra notes are modified */

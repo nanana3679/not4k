@@ -14,7 +14,6 @@ import { useEditorStore } from '../stores';
 
 export interface CoordinateHelpers {
   xToLane: (x: number) => Lane | null;
-  xToAuxLane: (x: number) => 'event' | null;
   xToExtraLane: (x: number) => number | null;
   yToBeat: (y: number) => Beat;
   yToBeatRaw: (y: number) => Beat;
@@ -54,11 +53,6 @@ export function useCoordinateHelpers(
   const xToLane = useCallback((x: number): Lane | null => {
     const lane = Math.floor(x / LANE_WIDTH) + 1;
     if (lane >= 1 && lane <= LANE_COUNT) return lane as Lane;
-    return null;
-  }, []);
-
-  const xToAuxLane = useCallback((_x: number): 'event' | null => {
-    // Auxiliary lanes removed — events now created on extra lanes
     return null;
   }, []);
 
@@ -206,7 +200,6 @@ export function useCoordinateHelpers(
 
   return {
     xToLane,
-    xToAuxLane,
     xToExtraLane,
     yToBeat,
     yToBeatRaw,

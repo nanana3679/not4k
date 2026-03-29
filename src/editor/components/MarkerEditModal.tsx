@@ -121,6 +121,7 @@ export interface MarkerEditModalProps {
 
 export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: MarkerEditModalProps) {
   const evt = chart.events[editingMarker.index];
+  if (!evt) { onClose(); return null; }
 
   const [values, setValues] = useState<Record<string, string>>(() => getInitialValues(evt));
 

@@ -3,11 +3,8 @@
  */
 
 export const LANE_COUNT = 4;
-export const AUXILIARY_LANES = 0; // removed: events now on extra lanes
-export const TOTAL_LANES = LANE_COUNT + AUXILIARY_LANES;
 
 export const LANE_WIDTH = 60; // px per lane
-export const AUX_LANE_WIDTH = 40; // px per auxiliary lane (kept for backward compat)
 export const NOTE_HEIGHT = 12; // px
 export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
@@ -25,7 +22,6 @@ export const MINIMAP_WIDTH = 60;
 export const COLORS = {
   LANE_BG_EVEN: 0x1a1a2e,
   LANE_BG_ODD: 0x16213e,
-  AUX_LANE_BG: 0x0f0f1a,
   MEASURE_LINE: 0xffffff,
   BEAT_LINE: 0x666666,
   SNAP_LINE: 0x333333,
