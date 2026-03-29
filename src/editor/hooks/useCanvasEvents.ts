@@ -66,7 +66,7 @@ export function useCanvasEvents(
     for (let i = 0; i < chart.events.length; i++) {
       const evt = chart.events[i];
       const startFloat = evt.beat.n / evt.beat.d;
-      const endFloat = evt.endBeat.n / evt.endBeat.d;
+      const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;
       if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
         return { type: 'event' as const, index: i };
       }

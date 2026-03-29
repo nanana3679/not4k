@@ -6,7 +6,7 @@
  */
 
 import type { Beat } from "../types/beat";
-import type { BpmMarker, TimeSignatureMarker, EventMarker } from "../types/chart";
+import type { BpmMarker, TimeSignatureMarker, ChartEvent, BpmEvent, TimeSignatureEvent } from "../types/chart";
 import {
   beatToFloat,
   beatLte,
@@ -17,27 +17,27 @@ import {
 } from "../types/beat";
 
 // ---------------------------------------------------------------------------
-// EventMarker → BpmMarker[] / TimeSignatureMarker[] 변환
+// ChartEvent[] → BpmMarker[] / TimeSignatureMarker[] 변환
 // ---------------------------------------------------------------------------
 
 /**
- * 이벤트 배열에서 bpm 필드를 가진 이벤트를 BpmMarker 배열로 변환한다.
+ * 이벤트 배열에서 BpmEvent를 BpmMarker 배열로 변환한다.
  * beat 오름차순 정렬.
  */
-export function extractBpmMarkers(events: readonly EventMarker[]): BpmMarker[] {
+export function extractBpmMarkers(events: readonly ChartEvent[]): BpmMarker[] {
   return events
-    .filter((e): e is EventMarker & { bpm: number } => e.bpm !== undefined)
+    .filter((e): e is BpmEvent => e.type === "bpm")
     .map((e) => ({ beat: e.beat, bpm: e.bpm }))
     .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
 }
 
 /**
- * 이벤트 배열에서 beatPerMeasure 필드를 가진 이벤트를 TimeSignatureMarker 배열로 변환한다.
+ * 이벤트 배열에서 TimeSignatureEvent를 TimeSignatureMarker 배열로 변환한다.
  * beat 위치를 마디 인덱스로 변환하여 measure 기반 마커를 생성한다.
  */
-export function extractTimeSignatures(events: readonly EventMarker[]): TimeSignatureMarker[] {
+export function extractTimeSignatures(events: readonly ChartEvent[]): TimeSignatureMarker[] {
   const tsEvents = events
-    .filter((e): e is EventMarker & { beatPerMeasure: Beat } => e.beatPerMeasure !== undefined)
+    .filter((e): e is TimeSignatureEvent => e.type === "timeSignature")
     .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
 
   if (tsEvents.length === 0) return [];

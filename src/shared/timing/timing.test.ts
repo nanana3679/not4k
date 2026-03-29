@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { beatToMs, msToBeat, bpmAt, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "./index";
 import { beat, beatToFloat, BEAT_ZERO } from "../types/beat";
-import type { BpmMarker, TimeSignatureMarker, EventMarker } from "../types/chart";
+import type { BpmMarker, TimeSignatureMarker, ChartEvent } from "../types/chart";
 
 const SINGLE_BPM: BpmMarker[] = [{ beat: BEAT_ZERO, bpm: 120 }];
 
@@ -196,10 +196,11 @@ describe("measureStartBeat", () => {
 
 describe("extractBpmMarkers", () => {
   it("bpm 필드가 있는 이벤트만 추출", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120, beatPerMeasure: beat(4) },
-      { beat: beat(4), endBeat: beat(4), text: "hello" },
-      { beat: beat(8), endBeat: beat(8), bpm: 180 },
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: BEAT_ZERO, bpm: 120 },
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { type: "text", beat: beat(4), endBeat: beat(4), text: "hello" },
+      { type: "bpm", beat: beat(8), bpm: 180 },
     ];
 
     const result = extractBpmMarkers(events);
@@ -209,9 +210,9 @@ describe("extractBpmMarkers", () => {
   });
 
   it("beat 오름차순 정렬", () => {
-    const events: EventMarker[] = [
-      { beat: beat(8), endBeat: beat(8), bpm: 180 },
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120 },
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(8), bpm: 180 },
+      { type: "bpm", beat: BEAT_ZERO, bpm: 120 },
     ];
 
     const result = extractBpmMarkers(events);
@@ -220,8 +221,8 @@ describe("extractBpmMarkers", () => {
   });
 
   it("bpm 이벤트가 없으면 빈 배열", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, text: "hello" },
+    const events: ChartEvent[] = [
+      { type: "text", beat: BEAT_ZERO, endBeat: BEAT_ZERO, text: "hello" },
     ];
     expect(extractBpmMarkers(events)).toHaveLength(0);
   });
@@ -232,10 +233,11 @@ describe("extractBpmMarkers", () => {
 // ---------------------------------------------------------------------------
 
 describe("extractTimeSignatures", () => {
-  it("beatPerMeasure 필드가 있는 이벤트만 추출", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, bpm: 120, beatPerMeasure: beat(4) },
-      { beat: beat(4), endBeat: beat(4), text: "hello" },
+  it("timeSignature 이벤트만 추출", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: BEAT_ZERO, bpm: 120 },
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { type: "text", beat: beat(4), endBeat: beat(4), text: "hello" },
     ];
 
     const result = extractTimeSignatures(events);
@@ -245,9 +247,9 @@ describe("extractTimeSignatures", () => {
   });
 
   it("박자 변경 시 마디 인덱스 계산", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
-      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) }, // 16박 = 4마디 후
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(16), beatPerMeasure: beat(3) }, // 16박 = 4마디 후
     ];
 
     const result = extractTimeSignatures(events);
@@ -261,10 +263,10 @@ describe("extractTimeSignatures", () => {
   });
 
   it("연속 3회 박자 변경 — 4/4→3/4→5/4 마디 번호 추적", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
-      { beat: beat(8), endBeat: beat(8), beatPerMeasure: beat(3) },    // 마디 2
-      { beat: beat(14), endBeat: beat(14), beatPerMeasure: beat(5) },  // 마디 4 (8 + 3*2 = 14)
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(8), beatPerMeasure: beat(3) },    // 마디 2
+      { type: "timeSignature", beat: beat(14), beatPerMeasure: beat(5) },  // 마디 4 (8 + 3*2 = 14)
     ];
 
     const result = extractTimeSignatures(events);
@@ -275,9 +277,9 @@ describe("extractTimeSignatures", () => {
   });
 
   it("7/2 분수 박자에서 마디 번호 계산 — beat 7 = 마디 2", () => {
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(7, 2) },
-      { beat: beat(7), endBeat: beat(7), beatPerMeasure: beat(4) },  // 7 / 3.5 = 마디 2
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(7, 2) },
+      { type: "timeSignature", beat: beat(7), beatPerMeasure: beat(4) },  // 7 / 3.5 = 마디 2
     ];
 
     const result = extractTimeSignatures(events);
@@ -287,9 +289,9 @@ describe("extractTimeSignatures", () => {
   });
 
   it("이벤트 정렬 순서가 뒤섞여 있어도 beat 순으로 처리", () => {
-    const events: EventMarker[] = [
-      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) },
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(16), beatPerMeasure: beat(3) },
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
     ];
 
     const result = extractTimeSignatures(events);
@@ -300,8 +302,8 @@ describe("extractTimeSignatures", () => {
 
   it("같은 위치에서 박자표를 변경해도 마디 번호 유지", () => {
     // 마디 0에서 바로 박자 변경 (beat 0)
-    const events: EventMarker[] = [
-      { beat: BEAT_ZERO, endBeat: BEAT_ZERO, beatPerMeasure: beat(4) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: BEAT_ZERO, beatPerMeasure: beat(4) },
     ];
 
     const result = extractTimeSignatures(events);

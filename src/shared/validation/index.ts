@@ -18,8 +18,11 @@ import type {
   NoteEntity,
   RangeNote,
   TrillZone,
-  EventMarker,
+  ChartEvent,
+  RangeEvent,
   TimeSignatureMarker,
+  TimeSignatureEvent,
+  StopEvent,
 } from "../types/chart";
 import { beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
 
@@ -255,17 +258,29 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
 // 규칙 5: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
+/** 구간 이벤트만 필터링 (text, auto, stop) */
+function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
+  return events.filter((e): e is RangeEvent =>
+    e.type === "text" || e.type === "auto" || e.type === "stop",
+  );
+}
+
 /**
- * 이벤트 마커 열린 구간 안에 다른 이벤트 마커의 시작/끝이 있는지 검사한다.
+ * 같은 타입의 구간 이벤트끼리 열린 구간이 겹치는지 검사한다.
+ * 다른 타입 간(text + auto 등)은 독립적이므로 겹침을 허용한다.
  * 끝-시작 인접(같은 박자)은 허용.
  */
-export function validateNoEventOverlap(events: readonly EventMarker[]): ValidationError[] {
+export function validateNoEventOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
+  const rangeEvents = getRangeEvents(events);
 
-  for (let i = 0; i < events.length; i++) {
-    for (let j = i + 1; j < events.length; j++) {
-      const a = events[i];
-      const b = events[j];
+  for (let i = 0; i < rangeEvents.length; i++) {
+    for (let j = i + 1; j < rangeEvents.length; j++) {
+      const a = rangeEvents[i];
+      const b = rangeEvents[j];
+
+      // 다른 타입은 겹침 허용
+      if (a.type !== b.type) continue;
 
       const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
       const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
@@ -275,7 +290,7 @@ export function validateNoEventOverlap(events: readonly EventMarker[]): Validati
       if (bStartInA || bEndInA || aStartInB || aEndInB) {
         errors.push({
           rule: "eventOverlap",
-          message: `Events overlap: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          message: `Events overlap: ${a.type} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
         });
       }
     }
@@ -295,10 +310,10 @@ export function validateNoEventOverlap(events: readonly EventMarker[]): Validati
  */
 export function validateStopZones(
   notes: readonly NoteEntity[],
-  events: readonly EventMarker[],
+  events: readonly ChartEvent[],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const stopEvents = events.filter((e) => e.stop);
+  const stopEvents = events.filter((e): e is StopEvent => e.type === "stop");
   if (stopEvents.length === 0) return errors;
 
   for (const stop of stopEvents) {
@@ -345,11 +360,11 @@ export function isNaturalNumber(v: number): boolean {
  * 이벤트의 beatPerMeasure가 자연수 분자/분모를 가지는지 검증한다.
  * Beat는 약분되므로, 약분 전 원본이 아니라 약분 후 n/d를 검사한다.
  */
-export function validateTimeSigNatural(events: readonly EventMarker[]): ValidationError[] {
+export function validateTimeSigNatural(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
   for (const evt of events) {
-    if (evt.beatPerMeasure === undefined) continue;
+    if (evt.type !== "timeSignature") continue;
     const { n, d } = evt.beatPerMeasure;
     if (!isNaturalNumber(n) || !isNaturalNumber(d)) {
       errors.push({
@@ -410,11 +425,11 @@ export function isMeasureBoundary(
  * 각 이벤트를 순차적으로 처리하면서, 이전까지의 timesig 정보를 기반으로
  * 해당 이벤트의 beat가 마디 경계인지 검사한다.
  */
-export function validateTimeSigAtMeasureStart(events: readonly EventMarker[]): ValidationError[] {
+export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
   const tsEvents = events
-    .filter((e): e is EventMarker & { beatPerMeasure: Beat } => e.beatPerMeasure !== undefined)
+    .filter((e): e is TimeSignatureEvent => e.type === "timeSignature")
     .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
 
   if (tsEvents.length === 0) return errors;
@@ -466,7 +481,7 @@ export function validateTimeSigAtMeasureStart(events: readonly EventMarker[]): V
 export interface ChartValidationInput {
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
-  events: readonly EventMarker[];
+  events: readonly ChartEvent[];
 }
 
 /** 차트의 모든 배치 제약 조건을 한 번에 검증한다 */

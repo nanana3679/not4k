@@ -10,7 +10,7 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
-  EventMarker,
+  TextEvent,
   Beat,
   Lane,
   ExtraNoteEntity,
@@ -409,7 +409,8 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
-    const newEvent: EventMarker = {
+    const newEvent: TextEvent = {
+      type: "text",
       beat: actualStartBeat,
       endBeat: actualEndBeat,
       text: "New Message",

@@ -199,6 +199,7 @@ export class SelectMode {
       const evtHit = this.callbacks.hitTestEventEnd(x, y);
       if (evtHit !== null) {
         const evt = this.chart.events[evtHit];
+        if (!('endBeat' in evt)) return;
         this.startResize("event", evtHit, evt.beat, evt.endBeat);
         return;
       }
@@ -316,8 +317,11 @@ export class SelectMode {
           }
         } else if (this.resizingEntityType === "event") {
           const newEvents = [...this.chart.events];
-          newEvents[this.resizingIndex] = { ...newEvents[this.resizingIndex], endBeat: newEndBeat };
-          this.chart = { ...this.chart, events: newEvents };
+          const evtToResize = newEvents[this.resizingIndex];
+          if ('endBeat' in evtToResize) {
+            newEvents[this.resizingIndex] = { ...evtToResize, endBeat: newEndBeat };
+            this.chart = { ...this.chart, events: newEvents };
+          }
         } else if (this.resizingEntityType === "trillZone") {
           const newZones = [...this.chart.trillZones];
           newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
@@ -1010,8 +1014,11 @@ export class SelectMode {
       }
     } else if (this.resizingEntityType === "event") {
       const newEvents = [...this.chart.events];
-      newEvents[this.resizingIndex] = { ...newEvents[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };
-      this.chart = { ...this.chart, events: newEvents };
+      const evtToRollback = newEvents[this.resizingIndex];
+      if ('endBeat' in evtToRollback) {
+        newEvents[this.resizingIndex] = { ...evtToRollback, endBeat: this.resizingOriginalEndBeat };
+        this.chart = { ...this.chart, events: newEvents };
+      }
     } else if (this.resizingEntityType === "trillZone") {
       const newZones = [...this.chart.trillZones];
       newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: this.resizingOriginalEndBeat };

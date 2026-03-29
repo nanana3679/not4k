@@ -265,7 +265,7 @@ export class GridRenderer {
 
     for (const evt of events) {
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs);
+      const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : startMs;
 
       const lo = Math.min(startMs, endMs);
       const hi = Math.max(startMs, endMs);
@@ -283,13 +283,13 @@ export class GridRenderer {
       noteLayer.addChild(gfx);
 
       const parts: string[] = [];
-      if (evt.stop) parts.push('STOP');
-      if (evt.bpm !== undefined) parts.push(`BPM:${evt.bpm}`);
-      if (evt.beatPerMeasure !== undefined) {
+      if (evt.type === 'stop') parts.push('STOP');
+      if (evt.type === 'bpm') parts.push(`BPM:${evt.bpm}`);
+      if (evt.type === 'timeSignature') {
         const bp = evt.beatPerMeasure;
         parts.push(`TS:${bp.n}/${bp.d}`);
       }
-      if (evt.text !== undefined) parts.push(evt.text);
+      if (evt.type === 'text') parts.push(evt.text);
       const displayText = parts.join(' | ') || '(empty)';
       if (!eventLabelStyle) {
         eventLabelStyle = new TextStyle({

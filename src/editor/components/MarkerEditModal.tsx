@@ -178,11 +178,11 @@ export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDe
   const getInitialValues = (): Record<string, string> => {
     const evt = chart.events[editingMarker.index];
     return {
-      text: evt?.text ?? '',
-      eventBpm: evt?.bpm !== undefined ? String(evt.bpm) : '',
-      tsNumerator: evt?.beatPerMeasure !== undefined ? String(evt.beatPerMeasure.n) : '',
-      tsDenominator: evt?.beatPerMeasure !== undefined ? String(evt.beatPerMeasure.d) : '',
-      stop: evt?.stop ? 'true' : 'false',
+      text: evt && evt.type === 'text' ? evt.text : '',
+      eventBpm: evt && evt.type === 'bpm' ? String(evt.bpm) : '',
+      tsNumerator: evt && evt.type === 'timeSignature' ? String(evt.beatPerMeasure.n) : '',
+      tsDenominator: evt && evt.type === 'timeSignature' ? String(evt.beatPerMeasure.d) : '',
+      stop: evt?.type === 'stop' ? 'true' : 'false',
     };
   };
 

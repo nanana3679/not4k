@@ -138,6 +138,7 @@ export function useCoordinateHelpers(
     const tolerance = 1 / 8;
     for (let i = 0; i < chart.events.length; i++) {
       const evt = chart.events[i];
+      if (!('endBeat' in evt)) continue;
       const endBeatFloat = evt.endBeat.n / evt.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
     }
