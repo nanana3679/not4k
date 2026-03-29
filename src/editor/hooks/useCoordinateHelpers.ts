@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { SnapZoomController } from '../timeline/SnapZoomController';
-import { LANE_WIDTH, AUX_LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
+import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt } from '../timeline/hitTest';
 import { msToBeat, extractBpmMarkers } from '../../shared';
 import type { Beat, Lane } from '../../shared';
@@ -57,11 +57,8 @@ export function useCoordinateHelpers(
     return null;
   }, []);
 
-  const xToAuxLane = useCallback((x: number): 'event' | null => {
-    const auxStartX = LANE_COUNT * LANE_WIDTH;
-    if (x < auxStartX) return null;
-    const auxIndex = Math.floor((x - auxStartX) / AUX_LANE_WIDTH);
-    if (auxIndex === 0) return 'event';
+  const xToAuxLane = useCallback((_x: number): 'event' | null => {
+    // Auxiliary lanes removed — events now created on extra lanes
     return null;
   }, []);
 
@@ -131,8 +128,8 @@ export function useCoordinateHelpers(
   }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
 
   const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
-    const auxLane = xToAuxLane(x);
-    if (auxLane !== 'event') return null;
+    const extraLane = xToExtraLane(x);
+    if (extraLane === null) return null;
     const beat = yToBeat(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 8;
@@ -143,7 +140,7 @@ export function useCoordinateHelpers(
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
     }
     return null;
-  }, [chart.events, xToAuxLane, yToBeat]);
+  }, [chart.events, xToExtraLane, yToBeat]);
 
   const hitTestTrillZoneEnd = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);

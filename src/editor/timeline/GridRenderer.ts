@@ -8,9 +8,7 @@ import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "../../sha
 import type { BpmMarker, TimeSignatureMarker } from "../../shared";
 import {
   LANE_COUNT,
-  AUXILIARY_LANES,
   LANE_WIDTH,
-  AUX_LANE_WIDTH,
   NOTE_HEIGHT,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
@@ -70,16 +68,7 @@ export class GridRenderer {
       this.host.laneBackgrounds.addChild(bg);
     }
 
-    // Auxiliary lanes (event only)
-    const auxStartX = LANE_COUNT * LANE_WIDTH;
-    for (let i = 0; i < AUXILIARY_LANES; i++) {
-      const bg = new Graphics();
-      bg.rect(auxStartX + i * AUX_LANE_WIDTH, topY, AUX_LANE_WIDTH, laneHeight);
-      bg.fill(COLORS.AUX_LANE_BG);
-      this.host.laneBackgrounds.addChild(bg);
-    }
-
-    // Extra lanes (editor-only, right of event lane)
+    // Extra lanes (editor-only, right of note lanes)
     const extraStartX = TIMELINE_WIDTH;
     for (let i = 0; i < this.host.extraLaneCount; i++) {
       const bg = new Graphics();
@@ -260,8 +249,12 @@ export class GridRenderer {
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { events, meta } = chart;
-    const auxStartX = LANE_COUNT * LANE_WIDTH;
+    const eventRenderX = TIMELINE_WIDTH; // start of extra lanes
+    const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
+
+    // Only render events if there are extra lanes
+    if (this.host.extraLaneCount === 0) return;
 
     for (const evt of events) {
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
@@ -277,7 +270,7 @@ export class GridRenderer {
       const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
       const topY = rawHeight > 0 ? Math.min(startY, endY) : Math.min(startY, endY) - NOTE_HEIGHT / 2;
       const gfx = new Graphics();
-      gfx.rect(auxStartX, topY, AUX_LANE_WIDTH, height);
+      gfx.rect(eventRenderX, topY, eventRenderWidth, height);
       gfx.fill({ color: COLORS.EVENT_MARKER, alpha: 0.5 });
       gfx.stroke({ width: 1.5, color: 0xffbbdd, alpha: 0.6, alignment: 0 });
       noteLayer.addChild(gfx);
@@ -290,6 +283,7 @@ export class GridRenderer {
         parts.push(`TS:${bp.n}/${bp.d}`);
       }
       if (evt.type === 'text') parts.push(evt.text);
+      if (evt.type === 'auto') parts.push('AUTO');
       const displayText = parts.join(' | ') || '(empty)';
       if (!eventLabelStyle) {
         eventLabelStyle = new TextStyle({
@@ -297,7 +291,7 @@ export class GridRenderer {
           fill: 0xffffff,
           fontFamily: "monospace",
           wordWrap: true,
-          wordWrapWidth: AUX_LANE_WIDTH - 4,
+          wordWrapWidth: eventRenderWidth - 4,
         });
         setEventLabelStyle(eventLabelStyle);
       }
@@ -306,7 +300,7 @@ export class GridRenderer {
         style: eventLabelStyle,
       });
       if (label.height > height) {
-        const charsPerLine = Math.floor((AUX_LANE_WIDTH - 4) / 7);
+        const charsPerLine = Math.floor((eventRenderWidth - 4) / 7);
         const lines = Math.max(1, Math.floor(height / 13));
         const maxChars = charsPerLine * lines - 1;
         const truncated = displayText.length > maxChars ? displayText.slice(0, maxChars) + '\u2026' : displayText;
@@ -318,7 +312,7 @@ export class GridRenderer {
         });
       }
       label.anchor.set(0.5, 0.5);
-      label.x = auxStartX + AUX_LANE_WIDTH / 2;
+      label.x = eventRenderX + eventRenderWidth / 2;
       label.y = topY + height / 2;
       noteLayer.addChild(label);
     }

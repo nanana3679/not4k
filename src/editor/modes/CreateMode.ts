@@ -11,6 +11,11 @@ import type {
   RangeNote,
   TrillZone,
   TextEvent,
+  AutoEvent,
+  StopEvent,
+  BpmEvent,
+  TimeSignatureEvent,
+  ChartEvent,
   Beat,
   Lane,
   ExtraNoteEntity,
@@ -24,7 +29,12 @@ export type EntityType =
   | "double"
   | "long"
   | "doubleLong"
-  | "trillZone";
+  | "trillZone"
+  | "bpm"
+  | "timeSignature"
+  | "text"
+  | "auto"
+  | "stop";
 
 /** All available entity types for cycling (note lane entities only) */
 const ENTITY_TYPES: readonly EntityType[] = [
@@ -34,6 +44,20 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "doubleLong",
   "trillZone",
 ] as const;
+
+/** Event entity types (created on extra lanes) */
+const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop"];
+
+/** Check if an entity type is an event type */
+export function isEventEntityType(t: EntityType): boolean {
+  return EVENT_ENTITY_TYPES.includes(t);
+}
+
+/** Point event types (no drag needed) */
+const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
+
+/** Range event types (need drag for endBeat) */
+const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
 type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
@@ -133,20 +157,28 @@ export class CreateMode {
   onPointerDown(x: number, y: number): void {
     const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
 
-    // --- Aux lane auto-detection (always, regardless of selectedEntityType) ---
-    const auxType = this.callbacks.xToAuxLane(x);
-    if (auxType === "event") {
-      this.isDragging = true;
-      this.dragStartBeat = beat;
-      this.dragStartLane = null;
-      this._dragType = "event";
-      return;
-    }
-
     // --- Extra lane detection ---
     if (this.callbacks.xToExtraLane) {
       const extraLane = this.callbacks.xToExtraLane(x);
       if (extraLane !== null) {
+        // Event entity types on extra lanes
+        if (isEventEntityType(this.selectedEntityType)) {
+          if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
+            // Point events (bpm, timeSignature): create immediately, no drag
+            this.createEvent(beat, beat);
+            return;
+          }
+          if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
+            // Range events (text, auto, stop): start drag
+            this.isDragging = true;
+            this.dragStartBeat = beat;
+            this.dragStartLane = null;
+            this._dragExtraLane = extraLane;
+            this._dragType = "event";
+            return;
+          }
+          return;
+        }
         if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
           this.createExtraPointNote(extraLane, beat);
           return;
@@ -409,12 +441,28 @@ export class CreateMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
-    const newEvent: TextEvent = {
-      type: "text",
-      beat: actualStartBeat,
-      endBeat: actualEndBeat,
-      text: "New Message",
-    };
+    let newEvent: ChartEvent;
+    switch (this.selectedEntityType) {
+      case "bpm":
+        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120 } as BpmEvent;
+        break;
+      case "timeSignature":
+        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 } } as TimeSignatureEvent;
+        break;
+      case "text":
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message" } as TextEvent;
+        break;
+      case "auto":
+        newEvent = { type: "auto", beat: actualStartBeat, endBeat: actualEndBeat } as AutoEvent;
+        break;
+      case "stop":
+        newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat } as StopEvent;
+        break;
+      default:
+        // Fallback: text event (legacy behavior)
+        newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message" } as TextEvent;
+        break;
+    }
 
     // Validate before adding
     const testChart = {

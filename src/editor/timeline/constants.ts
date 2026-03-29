@@ -3,14 +3,13 @@
  */
 
 export const LANE_COUNT = 4;
-export const AUXILIARY_LANES = 1; // event only
+export const AUXILIARY_LANES = 0; // removed: events now on extra lanes
 export const TOTAL_LANES = LANE_COUNT + AUXILIARY_LANES;
 
 export const LANE_WIDTH = 60; // px per lane
-export const AUX_LANE_WIDTH = 40; // px per auxiliary lane
+export const AUX_LANE_WIDTH = 40; // px per auxiliary lane (kept for backward compat)
 export const NOTE_HEIGHT = 12; // px
-export const TIMELINE_WIDTH =
-  LANE_COUNT * LANE_WIDTH + AUXILIARY_LANES * AUX_LANE_WIDTH;
+export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
 // Extra lanes (editor-only auxiliary lanes)
 export const EXTRA_LANE_WIDTH = 60; // px per extra lane (same as note lane)
