@@ -92,7 +92,7 @@ const createDefaultChart = (): Chart => ({
   },
   notes: [],
   trillZones: [],
-  events: [{ type: "bpm" as const, beat: beat(0, 1), bpm: 120 }, { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1) }],
+  events: [{ type: "bpm" as const, beat: beat(0, 1), bpm: 120, editorLane: 1 }, { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 }],
 });
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -110,7 +110,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   currentTimeMs: 0,
   selectedNotes: new Set(),
   extraNotes: [],
-  extraLaneCount: 0,
+  extraLaneCount: 2,
   selectedExtraNotes: new Set(),
   toasts: [],
   editingMarker: null,

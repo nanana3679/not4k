@@ -238,7 +238,7 @@ export function EditorToolbar({
           }
         }}
       >
-        {[0,1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+        {[2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
       </select>
 
       {/* 줌 표시 */}
