@@ -304,7 +304,8 @@ export function useFileOperations(
   }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
   // 마커 편집 핸들러
-  const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
+  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
+  const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   const handleMarkerSave = useCallback((values: Record<string, string>) => {
     if (!editingMarker) return;
@@ -350,7 +351,7 @@ export function useFileOperations(
   const handleMarkerDelete = useCallback(() => {
     if (!editingMarker) return;
 
-    if (isEditingBeatZero) {
+    if (isEditingInitial) {
       addToast('Cannot delete initial event marker');
       return;
     }
@@ -360,7 +361,7 @@ export function useFileOperations(
       events: chart.events.filter((_, i) => i !== editingMarker.index),
     });
     setEditingMarker(null);
-  }, [editingMarker, isEditingBeatZero, chart, setChart, setEditingMarker, addToast]);
+  }, [editingMarker, isEditingInitial, chart, setChart, setEditingMarker, addToast]);
 
   return {
     handleSaveChart,

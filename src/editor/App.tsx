@@ -568,7 +568,8 @@ function ChartEditorPage() {
     return () => document.removeEventListener('wheel', preventBrowserZoom);
   }, []);
 
-  const isEditingBeatZero = editingMarker && chart.events[editingMarker.index]?.beat.n === 0;
+  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
+  const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   return (
     <div style={styles.container}>
@@ -614,7 +615,7 @@ function ChartEditorPage() {
         <MarkerEditModal
           editingMarker={editingMarker}
           chart={chart}
-          isBeatZero={!!isEditingBeatZero}
+          isBeatZero={!!isEditingInitial}
           onSave={fileOps.handleMarkerSave}
           onDelete={fileOps.handleMarkerDelete}
           onClose={() => setEditingMarker(null)}

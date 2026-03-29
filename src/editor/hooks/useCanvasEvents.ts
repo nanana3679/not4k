@@ -402,7 +402,8 @@ export function useCanvasEvents(
 
     const markerHit = hitTestMarker(x, y);
     if (markerHit) {
-      if (currentChart.events[markerHit.index]?.beat.n === 0) {
+      const evt = currentChart.events[markerHit.index];
+      if (evt && evt.beat.n === 0 && (evt.type === 'bpm' || evt.type === 'timeSignature')) {
         addToast('Cannot delete initial event marker');
         return;
       }
