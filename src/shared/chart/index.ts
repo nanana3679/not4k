@@ -11,7 +11,7 @@ import type {
   NoteEntity,
   PointNote,
   TrillZone,
-  EventMarker,
+  ChartEvent,
   ExtraNoteEntity,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
@@ -65,7 +65,44 @@ interface TrillZoneJson {
   endBeat: string;
 }
 
-interface EventMarkerJson {
+// -- v3 이벤트 JSON (디스크리미네이티드 유니온) --
+
+interface BpmEventJson {
+  type: "bpm";
+  beat: string;
+  bpm: number;
+}
+
+interface TimeSignatureEventJson {
+  type: "timeSignature";
+  beat: string;
+  beatPerMeasure: string;
+}
+
+interface TextEventJson {
+  type: "text";
+  beat: string;
+  endBeat: string;
+  text: string;
+}
+
+interface AutoEventJson {
+  type: "auto";
+  beat: string;
+  endBeat: string;
+}
+
+interface StopEventJson {
+  type: "stop";
+  beat: string;
+  endBeat: string;
+}
+
+type ChartEventJson = BpmEventJson | TimeSignatureEventJson | TextEventJson | AutoEventJson | StopEventJson;
+
+// -- v2 레거시 이벤트 JSON (composable 구조) --
+
+interface LegacyEventMarkerJson {
   beat: string;
   endBeat: string;
   text?: string;
@@ -74,12 +111,22 @@ interface EventMarkerJson {
   stop?: true;
 }
 
+/** 입력용 (역직렬화 — 레거시 이벤트도 허용) */
 export interface ChartJson {
   version?: number;
   meta: ChartMeta;
   notes: NoteEntityJson[];
   trillZones: TrillZoneJson[];
-  events: EventMarkerJson[];
+  events: (ChartEventJson | LegacyEventMarkerJson)[];
+}
+
+/** 출력용 (직렬화 — 항상 v3 ChartEventJson) */
+export interface ChartJsonV3 {
+  version: 3;
+  meta: ChartMeta;
+  notes: NoteEntityJson[];
+  trillZones: TrillZoneJson[];
+  events: ChartEventJson[];
 }
 
 // ---------------------------------------------------------------------------
@@ -108,22 +155,25 @@ function serializeTrillZone(z: TrillZone): TrillZoneJson {
   };
 }
 
-function serializeEvent(e: EventMarker): EventMarkerJson {
-  const json: EventMarkerJson = {
-    beat: beatToString(e.beat),
-    endBeat: beatToString(e.endBeat),
-  };
-  if (e.text !== undefined) json.text = e.text;
-  if (e.bpm !== undefined) json.bpm = e.bpm;
-  if (e.beatPerMeasure !== undefined) json.beatPerMeasure = beatToString(e.beatPerMeasure);
-  if (e.stop) json.stop = true;
-  return json;
+function serializeEvent(e: ChartEvent): ChartEventJson {
+  switch (e.type) {
+    case "bpm":
+      return { type: "bpm", beat: beatToString(e.beat), bpm: e.bpm };
+    case "timeSignature":
+      return { type: "timeSignature", beat: beatToString(e.beat), beatPerMeasure: beatToString(e.beatPerMeasure) };
+    case "text":
+      return { type: "text", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), text: e.text };
+    case "auto":
+      return { type: "auto", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat) };
+    case "stop":
+      return { type: "stop", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat) };
+  }
 }
 
-/** Chart → JSON 객체 */
-export function chartToJson(chart: Chart): ChartJson {
+/** Chart → JSON 객체 (v3) */
+export function chartToJson(chart: Chart): ChartJsonV3 {
   return {
-    version: 2,
+    version: 3,
     meta: chart.meta,
     notes: chart.notes.map(serializeNote),
     trillZones: chart.trillZones.map(serializeTrillZone),
@@ -181,32 +231,79 @@ function parseTrillZone(z: TrillZoneJson): TrillZone {
   };
 }
 
-function parseEvent(e: EventMarkerJson): EventMarker {
-  const marker: EventMarker = {
-    beat: beatFromString(e.beat),
-    endBeat: beatFromString(e.endBeat),
-  };
-  if (e.text !== undefined) marker.text = e.text;
-  if (e.bpm !== undefined) marker.bpm = e.bpm;
-  if (e.beatPerMeasure !== undefined) marker.beatPerMeasure = beatFromString(e.beatPerMeasure);
-  if (e.stop) marker.stop = true;
-  return marker;
+/** v3 ChartEventJson → ChartEvent */
+function parseEvent(e: ChartEventJson): ChartEvent {
+  switch (e.type) {
+    case "bpm":
+      return { type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm };
+    case "timeSignature":
+      return { type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure) };
+    case "text":
+      return { type: "text", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), text: e.text };
+    case "auto":
+      return { type: "auto", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat) };
+    case "stop":
+      return { type: "stop", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat) };
+  }
 }
 
-/** JSON 객체 → Chart (레거시 bpmMarkers/timeSignatures 필드는 무시) */
+/**
+ * v2 레거시 EventMarkerJson → ChartEvent[] 마이그레이션.
+ * 하나의 composable 이벤트를 여러 개의 독립 이벤트로 분리한다.
+ */
+function migrateLegacyEvent(e: LegacyEventMarkerJson): ChartEvent[] {
+  const events: ChartEvent[] = [];
+  if (e.bpm !== undefined) {
+    events.push({ type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm });
+  }
+  if (e.beatPerMeasure !== undefined) {
+    events.push({ type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure) });
+  }
+  if (e.text !== undefined) {
+    events.push({ type: "text", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), text: e.text });
+  }
+  if (e.stop) {
+    events.push({ type: "stop", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat) });
+  }
+  return events;
+}
+
+/** 이벤트 JSON이 v3 형식(type 필드 보유)인지 판별 */
+function isChartEventJson(e: ChartEventJson | LegacyEventMarkerJson): e is ChartEventJson {
+  return "type" in e;
+}
+
+/** JSON 객체 → Chart */
 export function chartFromJson(json: ChartJson): Chart {
-  // v2+: 새 포맷 — 그대로 파싱
-  if (json.version && json.version >= 2) {
+  // v3: 디스크리미네이티드 유니온 이벤트
+  if (json.version && json.version >= 3) {
     return {
       meta: json.meta,
       notes: json.notes.map(parseNote),
       trillZones: json.trillZones.map(parseTrillZone),
-      events: (json.events ?? []).map(parseEvent),
+      events: (json.events ?? []).map((e) => parseEvent(e as ChartEventJson)),
     };
   }
 
-  // 레거시 (version 없음): v1은 이미 헤드+바디가 별도 엔티티.
-  // "singleLong" → "long" 타입명 변경만 수행 (doubleLong, trillLong은 이름 동일).
+  // v2: composable EventMarker → ChartEvent[] 마이그레이션
+  if (json.version && json.version >= 2) {
+    const events: ChartEvent[] = [];
+    for (const e of json.events ?? []) {
+      if (isChartEventJson(e)) {
+        events.push(parseEvent(e));
+      } else {
+        events.push(...migrateLegacyEvent(e));
+      }
+    }
+    return {
+      meta: json.meta,
+      notes: json.notes.map(parseNote),
+      trillZones: json.trillZones.map(parseTrillZone),
+      events,
+    };
+  }
+
+  // v1 레거시: "singleLong" → "long" 타입명 변경
   const legacyNotes = json.notes as (PointNoteJson | LegacyRangeNoteJson)[];
   const migratedNotes: NoteEntity[] = [];
 
@@ -214,7 +311,6 @@ export function chartFromJson(json: ChartJson): Chart {
     if ("endBeat" in n) {
       const ln = n as LegacyRangeNoteJson;
       if (ln.type === "singleLong") {
-        // singleLong → long (타입명만 변경, 헤드는 이미 별도 PointNote로 존재)
         migratedNotes.push({
           type: "long",
           lane: ln.lane,
@@ -222,7 +318,6 @@ export function chartFromJson(json: ChartJson): Chart {
           endBeat: beatFromString(ln.endBeat),
         });
       } else {
-        // doubleLong, trillLong — 타입명 동일, 그대로 파싱
         migratedNotes.push(parseNote(n as RangeNoteJson));
       }
     } else {
@@ -230,11 +325,20 @@ export function chartFromJson(json: ChartJson): Chart {
     }
   }
 
+  const events: ChartEvent[] = [];
+  for (const e of json.events ?? []) {
+    if (isChartEventJson(e)) {
+      events.push(parseEvent(e));
+    } else {
+      events.push(...migrateLegacyEvent(e));
+    }
+  }
+
   return {
     meta: json.meta,
     notes: migratedNotes,
     trillZones: json.trillZones.map(parseTrillZone),
-    events: (json.events ?? []).map(parseEvent),
+    events,
   };
 }
 

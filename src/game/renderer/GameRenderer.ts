@@ -6,7 +6,7 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker, EventMarker } from "../../shared";
+import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -37,6 +37,17 @@ interface NoteRenderData {
   endTimeMs?: number; // for range notes
 }
 
+interface TextEventRenderData {
+  text: string;
+  startMs: number;
+  endMs: number;
+}
+
+interface AutoEventRenderData {
+  startMs: number;
+  endMs: number;
+}
+
 export class GameRenderer {
   private app: Application;
   private initialized: boolean = false;
@@ -65,6 +76,8 @@ export class GameRenderer {
   private bpmMarkers: readonly BpmMarker[] = [];
   private measureTimesMs: number[] = [];
   private offsetMs: number = 0;
+  private textEvents: TextEventRenderData[] = [];
+  private autoEvents: AutoEventRenderData[] = [];
 
   // Skin
   private skinManager: SkinManager;
@@ -83,6 +96,7 @@ export class GameRenderer {
   // UI elements
   private comboText: Text;
   private accuracyText: Text;
+  private eventMessageText: Text;
 
   // Dimensions
   private width: number;
@@ -149,6 +163,21 @@ export class GameRenderer {
     this.accuracyText.alpha = 0.5;
     this.accuracyText.x = this.width / 2;
     this.accuracyText.y = this.height / 2 + 20;
+
+    // Event message text (right side)
+    const msgStyle = new TextStyle({
+      fontFamily: "sans-serif",
+      fontSize: 22,
+      fill: 0xffffff,
+      align: "right",
+      wordWrap: true,
+      wordWrapWidth: Math.max(120, (this.width - LANE_AREA_WIDTH) / 2 - 40),
+    });
+    this.eventMessageText = new Text({ text: "", style: msgStyle });
+    this.eventMessageText.anchor.set(1, 0);
+    this.eventMessageText.x = this.width - 20;
+    this.eventMessageText.y = 40;
+    this.eventMessageText.alpha = 0.9;
   }
 
   async init(): Promise<void> {
@@ -176,6 +205,7 @@ export class GameRenderer {
 
     this.uiLayer.addChild(this.comboText);
     this.uiLayer.addChild(this.accuracyText);
+    this.uiLayer.addChild(this.eventMessageText);
 
     // Create sub-renderers (after uiLayer is ready)
     this.judgmentUI = new JudgmentUI(this.uiLayer, this._judgmentLineY, this.width, this.height);
@@ -303,7 +333,7 @@ export class GameRenderer {
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
-    events: readonly EventMarker[],
+    events: readonly ChartEvent[],
     offsetMs: number,
     durationMs: number = 0,
   ): void {
@@ -331,6 +361,24 @@ export class GameRenderer {
         const mMs = beatToMs(mBeat, bpmMarkers, offsetMs);
         if (mMs > durationMs) break;
         this.measureTimesMs.push(mMs);
+      }
+    }
+
+    // Extract text/auto events with time ranges
+    this.textEvents = [];
+    this.autoEvents = [];
+    for (const evt of events) {
+      if (evt.type === "text") {
+        this.textEvents.push({
+          text: evt.text,
+          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
+          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+        });
+      } else if (evt.type === "auto") {
+        this.autoEvents.push({
+          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
+          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+        });
       }
     }
 
@@ -370,6 +418,9 @@ export class GameRenderer {
         this.noteRenderer.renderPointNote(entity, index, timeMs, songTimeMs);
       }
     }
+
+    // Render active text events on the right side
+    this.renderTextEvents(songTimeMs);
   }
 
   private getMeasureLineFromPool(index: number): Graphics {
@@ -429,6 +480,32 @@ export class GameRenderer {
       zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
       zoneGraphic.visible = true;
     }
+  }
+
+  private renderTextEvents(songTimeMs: number): void {
+    // 현재 시간에 활성화된 텍스트 이벤트 중 마지막 것을 표시
+    let activeText = "";
+    for (const evt of this.textEvents) {
+      if (songTimeMs >= evt.startMs && songTimeMs <= evt.endMs) {
+        activeText = evt.text;
+      }
+    }
+    this.eventMessageText.text = activeText;
+  }
+
+  /** 현재 시간이 auto 구간 내인지 반환 */
+  isAutoSection(songTimeMs: number): boolean {
+    for (const evt of this.autoEvents) {
+      if (songTimeMs >= evt.startMs && songTimeMs <= evt.endMs) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** auto 구간 데이터를 반환 (PlayScreen에서 사용) */
+  getAutoEvents(): readonly AutoEventRenderData[] {
+    return this.autoEvents;
   }
 
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void {

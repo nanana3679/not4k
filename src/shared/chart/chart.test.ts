@@ -30,8 +30,10 @@ const SAMPLE_CHART: Chart = {
     { lane: 3, beat: beat(0), endBeat: beat(8) },
   ],
   events: [
-    { beat: beat(0), endBeat: beat(4), bpm: 120, beatPerMeasure: beat(4), text: "첫 번째 메시지" },
-    { beat: beat(4), endBeat: beat(8), text: "두 번째 메시지" },
+    { type: "bpm" as const, beat: beat(0), bpm: 120 },
+    { type: "timeSignature" as const, beat: beat(0), beatPerMeasure: beat(4) },
+    { type: "text" as const, beat: beat(0), endBeat: beat(4), text: "첫 번째 메시지" },
+    { type: "text" as const, beat: beat(4), endBeat: beat(8), text: "두 번째 메시지" },
   ],
 };
 
@@ -41,8 +43,10 @@ describe("chartToJson / chartFromJson", () => {
 
     expect(json.notes[1].beat).toBe("1/2");
     expect(json.notes[2].beat).toBe("3/4");
-    expect(json.events[0].bpm).toBe(120);
-    expect(json.events[0].beatPerMeasure).toBe("4");
+    expect(json.events[0].type).toBe("bpm");
+    expect((json.events[0] as { bpm?: number }).bpm).toBe(120);
+    expect(json.events[1].type).toBe("timeSignature");
+    expect((json.events[1] as { beatPerMeasure?: string }).beatPerMeasure).toBe("4");
   });
 
   it("구간 엔티티의 endBeat도 문자열로 직렬화된다", () => {
@@ -101,27 +105,21 @@ describe("serializeChart / deserializeChart", () => {
     expect(restored).toEqual(emptyChart);
   });
 
-  it("복합 이벤트(bpm + beatPerMeasure + text) 라운드트립", () => {
-    const chartWithComposite: Chart = {
+  it("여러 이벤트 타입 혼합 라운드트립", () => {
+    const chartWithMixed: Chart = {
       ...SAMPLE_CHART,
       events: [
-        { beat: beat(0), endBeat: beat(4), text: "메시지", bpm: 180, beatPerMeasure: beat(3, 4) },
-        { beat: beat(4), endBeat: beat(8), bpm: 200 },
-        { beat: beat(8), endBeat: beat(12), beatPerMeasure: beat(7, 8) },
+        { type: "bpm" as const, beat: beat(0), bpm: 180 },
+        { type: "timeSignature" as const, beat: beat(0), beatPerMeasure: beat(3, 4) },
+        { type: "text" as const, beat: beat(0), endBeat: beat(4), text: "메시지" },
+        { type: "bpm" as const, beat: beat(4), bpm: 200 },
+        { type: "timeSignature" as const, beat: beat(8), beatPerMeasure: beat(7, 8) },
       ],
     };
-    const restored = deserializeChart(serializeChart(chartWithComposite));
-    expect(restored).toEqual(chartWithComposite);
+    const restored = deserializeChart(serializeChart(chartWithMixed));
+    expect(restored).toEqual(chartWithMixed);
   });
 
-  it("레거시 { type: 'message' } JSON도 파싱 가능", () => {
-    const legacyJson = {
-      ...chartToJson(SAMPLE_CHART),
-      events: [{ type: "message", beat: "0", endBeat: "4", text: "legacy" }],
-    };
-    const parsed = chartFromJson(legacyJson as any);
-    expect(parsed.events[0]).toEqual({ beat: beat(0), endBeat: beat(4), text: "legacy" });
-  });
 });
 
 describe("레거시 마이그레이션 (v1 → v2)", () => {

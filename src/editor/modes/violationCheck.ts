@@ -89,7 +89,7 @@ export function computePasteViolations(
 
     // stop 이벤트 검사
     for (const evt of events) {
-      if (!evt.stop) continue;
+      if (evt.type !== 'stop') continue;
       if (beatGte(p.beat, evt.beat) && beatLte(p.beat, evt.endBeat)) {
         violations.add(pidx);
       }

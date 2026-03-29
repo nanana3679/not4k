@@ -126,7 +126,7 @@ export class TimelineRenderer {
   // BPM/TimeSignature extraction cache
   private _cachedBpmMarkers: BpmMarker[] | null = null;
   private _cachedTimeSignatures: TimeSignatureMarker[] | null = null;
-  private _cachedEventsRef: readonly import("../../shared").EventMarker[] | null = null;
+  private _cachedEventsRef: readonly import("../../shared").ChartEvent[] | null = null;
 
   // getTotalTimelineMs cache
   private _cachedTotalTimelineMs: number | null = null;

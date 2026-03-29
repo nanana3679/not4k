@@ -235,7 +235,10 @@ export function PlayScreen() {
             const currentAudioMs = audioEngine.currentTimeMs;
             const handlerDelay = Math.max(0, now - timestampMs);
             const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
+            // Auto 구간이면 판정엔진에 전달하지 않음
+            if (!renderer.isAutoSection(correctedSongTimeMs)) {
+              judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
+            }
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
           },
@@ -244,7 +247,9 @@ export function PlayScreen() {
             const currentAudioMs = audioEngine.currentTimeMs;
             const handlerDelay = Math.max(0, now - timestampMs);
             const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
+            if (!renderer.isAutoSection(correctedSongTimeMs)) {
+              judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
+            }
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
           },
@@ -273,6 +278,10 @@ export function PlayScreen() {
         scoreManagerRef.current = scoreManager;
         rendererRef.current = renderer;
 
+        // Auto-play tracking: which notes have been auto-pressed/released
+        const autoPressed = new Set<number>();
+        const autoReleased = new Set<number>();
+
         // Start game loop
         let lastFrameTime: number | null = null;
         const gameLoop = (timestamp: number) => {
@@ -286,6 +295,42 @@ export function PlayScreen() {
               debugLogger.recordFrameTiming(frameDeltaMs);
             }
             lastFrameTime = timestamp;
+
+            // Auto-play: inject synthetic inputs for notes in auto sections
+            if (renderer.isAutoSection(songTimeMs)) {
+              for (let i = 0; i < chartData.notes.length; i++) {
+                const note = chartData.notes[i];
+                const noteTime = noteTimesMs.get(i)!;
+                const noteEndTime = noteEndTimesMs.get(i);
+
+                // Auto press at note time
+                if (!autoPressed.has(i) && songTimeMs >= noteTime && songTimeMs < noteTime + 200) {
+                  autoPressed.add(i);
+                  const lane = note.lane as 1 | 2 | 3 | 4;
+                  const syntheticKey = `auto_${lane}`;
+                  judgmentEngine.onLanePress(lane, noteTime, syntheticKey);
+                  renderer.setKeyBeam(lane, true);
+                  // Auto release for point notes (after brief delay)
+                  if (!('endBeat' in note)) {
+                    setTimeout(() => {
+                      judgmentEngine.onLaneRelease(lane, noteTime + 10, syntheticKey);
+                      renderer.setKeyBeam(lane, false);
+                    }, 50);
+                  }
+                }
+
+                // Auto release for range notes at endBeat
+                if ('endBeat' in note && noteEndTime !== undefined
+                    && !autoReleased.has(i) && autoPressed.has(i)
+                    && songTimeMs >= noteEndTime) {
+                  autoReleased.add(i);
+                  const lane = note.lane as 1 | 2 | 3 | 4;
+                  const syntheticKey = `auto_${lane}`;
+                  judgmentEngine.onLaneRelease(lane, noteEndTime, syntheticKey);
+                  renderer.setKeyBeam(lane, false);
+                }
+              }
+            }
 
             // Update judgment engine
             judgmentEngine.update(songTimeMs);

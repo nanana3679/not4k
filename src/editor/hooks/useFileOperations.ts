@@ -313,47 +313,34 @@ export function useFileOperations(
     updated.events = [...chart.events];
     const evt = updated.events[editingMarker.index];
     const isBeatZeroEvent = evt.beat.n === 0;
-    const patch: Partial<typeof evt> = {};
 
-    if (values.text !== undefined && values.text !== '') {
-      patch.text = values.text;
-    }
-    if (values.eventBpm !== undefined && values.eventBpm !== '') {
-      const bpmVal = parseFloat(values.eventBpm);
-      if (!isNaN(bpmVal) && bpmVal > 0) patch.bpm = bpmVal;
-    }
-    if (values.tsNumerator !== undefined && values.tsDenominator !== undefined
-        && values.tsNumerator !== '' && values.tsDenominator !== '') {
+    // Build updated event based on its existing type
+    let newEvt: typeof evt;
+    if (evt.type === 'bpm') {
+      const bpmVal = parseFloat(values.eventBpm ?? '');
+      if (isNaN(bpmVal) || bpmVal <= 0) { addToast('BPM은 0보다 큰 숫자여야 합니다'); return; }
+      newEvt = { ...evt, bpm: bpmVal };
+    } else if (evt.type === 'timeSignature') {
       const tsN = Number(values.tsNumerator);
       const tsD = Number(values.tsDenominator);
       if (!Number.isInteger(tsN) || !Number.isInteger(tsD) || tsN <= 0 || tsD <= 0) {
         addToast('박자표 분자/분모는 자연수(양의 정수)만 가능합니다'); return;
       }
-      patch.beatPerMeasure = { n: tsN, d: tsD };
-    }
-    if (isBeatZeroEvent) {
-      if (patch.bpm === undefined) { addToast('Initial event requires BPM'); return; }
-      if (patch.beatPerMeasure === undefined) { addToast('Initial event requires time signature'); return; }
-    }
-    if (patch.beatPerMeasure !== undefined && !isBeatZeroEvent) {
-      const currentTimeSigs = extractTimeSignatures(chart.events);
-      if (currentTimeSigs.length > 0 && !isMeasureBoundary(evt.beat, currentTimeSigs)) {
-        addToast('박자표는 마디의 시작 위치에만 배치할 수 있습니다'); return;
+      if (!isBeatZeroEvent) {
+        const currentTimeSigs = extractTimeSignatures(chart.events);
+        if (currentTimeSigs.length > 0 && !isMeasureBoundary(evt.beat, currentTimeSigs)) {
+          addToast('박자표는 마디의 시작 위치에만 배치할 수 있습니다'); return;
+        }
       }
-    }
-    if (values.stop === 'true') {
-      patch.stop = true;
+      newEvt = { ...evt, beatPerMeasure: { n: tsN, d: tsD } };
+    } else if (evt.type === 'text') {
+      newEvt = { ...evt, text: values.text ?? '' };
+    } else {
+      // 'auto' | 'stop' — no editable fields beyond beat/endBeat
+      newEvt = evt;
     }
 
-    const merged = { ...evt, ...patch };
-    // patch에 포함되지 않은 optional 필드는 기존 값 유지,
-    // 명시적으로 빈 값이 입력된 필드만 제거
-    if (values.text !== undefined && values.text === '') delete merged.text;
-    if (values.eventBpm !== undefined && values.eventBpm === '') delete merged.bpm;
-    if (values.tsNumerator !== undefined && values.tsNumerator === ''
-        && values.tsDenominator !== undefined && values.tsDenominator === '') delete merged.beatPerMeasure;
-    if (values.stop === undefined || values.stop !== 'true') delete merged.stop;
-    updated.events[editingMarker.index] = merged;
+    updated.events[editingMarker.index] = newEvt;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);

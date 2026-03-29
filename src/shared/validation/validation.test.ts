@@ -13,7 +13,7 @@ import {
   isMeasureBoundary,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, EventMarker, TimeSignatureMarker } from "../types/chart";
+import type { NoteEntity, TrillZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -204,25 +204,25 @@ describe("validateNoTrillZoneOverlap", () => {
 
 describe("validateNoEventOverlap", () => {
   it("겹치지 않으면 에러 없음", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), text: "A" },
-      { beat: beat(4), endBeat: beat(8), text: "B" },
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },
+      { type: "text", beat: beat(4), endBeat: beat(8), text: "B" },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
   it("열린 구간이 겹치면 에러", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), text: "A" },
-      { beat: beat(2), endBeat: beat(6), text: "B" },
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },
+      { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },
     ];
     expect(validateNoEventOverlap(events)).toHaveLength(1);
   });
 
   it("완전 포함도 에러", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(8), text: "A" },
-      { beat: beat(2), endBeat: beat(6), text: "B" },
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(8), text: "A" },
+      { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },
     ];
     expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
   });
@@ -237,8 +237,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: beat(5) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateStopZones(notes, events)).toEqual([]);
   });
@@ -247,8 +247,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     const errors = validateStopZones(notes, events);
     expect(errors).toHaveLength(1);
@@ -259,8 +259,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "double", lane: 2, beat: beat(1) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateStopZones(notes, events)).toHaveLength(1);
   });
@@ -269,8 +269,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "long", lane: 1, beat: beat(2), endBeat: beat(6) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     const errors = validateStopZones(notes, events);
     expect(errors).toHaveLength(1);
@@ -280,8 +280,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "doubleLong", lane: 1, beat: beat(0), endBeat: beat(3) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(2), endBeat: beat(6), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(2), endBeat: beat(6) },
     ];
     const errors = validateStopZones(notes, events);
     expect(errors).toHaveLength(1);
@@ -291,8 +291,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "trill", lane: 1, beat: beat(2) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateStopZones(notes, events)).toHaveLength(1);
   });
@@ -301,8 +301,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "trillLong", lane: 1, beat: beat(1), endBeat: beat(3) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(0), endBeat: beat(4) },
     ];
     expect(validateStopZones(notes, events)).toHaveLength(2);
   });
@@ -311,8 +311,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "long", lane: 1, beat: beat(0), endBeat: beat(8) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(2), endBeat: beat(6), stop: true },
+    const events: ChartEvent[] = [
+      { type: "stop", beat: beat(2), endBeat: beat(6) },
     ];
     expect(validateStopZones(notes, events)).toEqual([]);
   });
@@ -321,8 +321,8 @@ describe("validateStopZones", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2) },
     ];
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(4), text: "hello" },
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "hello" },
     ];
     expect(validateStopZones(notes, events)).toEqual([]);
   });
@@ -356,8 +356,8 @@ describe("validateChart", () => {
       ],
       trillZones: [],
       events: [
-        { beat: beat(0), endBeat: beat(4), text: "A" },
-        { beat: beat(2), endBeat: beat(6), text: "B" }, // overlap
+        { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },
+        { type: "text", beat: beat(2), endBeat: beat(6), text: "B" }, // overlap
       ],
     });
     expect(result.length).toBeGreaterThanOrEqual(3);
@@ -368,7 +368,7 @@ describe("validateChart", () => {
       notes: [],
       trillZones: [],
       events: [
-        { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(-4) },
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(-4) },
       ],
     });
     expect(result.some(e => e.rule === "timeSigNotNatural")).toBe(true);
@@ -411,24 +411,24 @@ describe("isNaturalNumber", () => {
 
 describe("validateTimeSigNatural", () => {
   it("분자/분모가 양의 정수이면 에러 없음", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(16), beatPerMeasure: beat(3) },
     ];
     expect(validateTimeSigNatural(events)).toEqual([]);
   });
 
   it("beatPerMeasure가 없는 이벤트는 검사하지 않음", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), bpm: 120 },
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 },
     ];
     expect(validateTimeSigNatural(events)).toEqual([]);
   });
 
   it("분자가 음수이면 에러 — beat(-4)는 약분 후 n=-4, d=1", () => {
     // beat(-4) = { n: -4, d: 1 }
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(-4) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(-4) },
     ];
     const errors = validateTimeSigNatural(events);
     expect(errors).toHaveLength(1);
@@ -436,8 +436,8 @@ describe("validateTimeSigNatural", () => {
   });
 
   it("분자가 0이면 에러 — beat(0)은 n=0", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: { n: 0, d: 1 } },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: { n: 0, d: 1 } },
     ];
     const errors = validateTimeSigNatural(events);
     expect(errors).toHaveLength(1);
@@ -445,8 +445,8 @@ describe("validateTimeSigNatural", () => {
   });
 
   it("7/2 같은 분수 박자도 자연수이므로 허용", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(7, 2) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(7, 2) },
     ];
     expect(validateTimeSigNatural(events)).toEqual([]);
   });
@@ -527,17 +527,17 @@ describe("isMeasureBoundary", () => {
 
 describe("validateTimeSigAtMeasureStart", () => {
   it("모든 박자표가 마디 시작에 있으면 에러 없음", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(16), endBeat: beat(16), beatPerMeasure: beat(3) }, // 마디 4 시작
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(16), beatPerMeasure: beat(3) }, // 마디 4 시작
     ];
     expect(validateTimeSigAtMeasureStart(events)).toEqual([]);
   });
 
   it("마디 중간에 박자표가 있으면 에러", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(5), endBeat: beat(5), beatPerMeasure: beat(3) }, // beat 5는 마디 중간
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(5), beatPerMeasure: beat(3) }, // beat 5는 마디 중간
     ];
     const errors = validateTimeSigAtMeasureStart(events);
     expect(errors).toHaveLength(1);
@@ -545,34 +545,34 @@ describe("validateTimeSigAtMeasureStart", () => {
   });
 
   it("단일 이벤트는 항상 유효 (첫 번째 이벤트는 검사 생략)", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
     ];
     expect(validateTimeSigAtMeasureStart(events)).toEqual([]);
   });
 
   it("beatPerMeasure 없는 이벤트는 무시", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(5), endBeat: beat(5), bpm: 120 }, // timesig 없음 — 무시
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "bpm", beat: beat(5), bpm: 120 }, // timesig 없음 — 무시
     ];
     expect(validateTimeSigAtMeasureStart(events)).toEqual([]);
   });
 
   it("연속 박자 변경 — 4/4→3/4→5/4 모두 마디 시작이면 에러 없음", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(8), endBeat: beat(8), beatPerMeasure: beat(3) },   // 마디 2 시작
-      { beat: beat(14), endBeat: beat(14), beatPerMeasure: beat(5) }, // 마디 4 시작 (8 + 3*2 = 14)
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(8), beatPerMeasure: beat(3) },   // 마디 2 시작
+      { type: "timeSignature", beat: beat(14), beatPerMeasure: beat(5) }, // 마디 4 시작 (8 + 3*2 = 14)
     ];
     expect(validateTimeSigAtMeasureStart(events)).toEqual([]);
   });
 
   it("연속 박자 변경에서 두 번째가 마디 중간이면 에러", () => {
-    const events: EventMarker[] = [
-      { beat: beat(0), endBeat: beat(0), beatPerMeasure: beat(4) },
-      { beat: beat(8), endBeat: beat(8), beatPerMeasure: beat(3) },   // 마디 2 시작 OK
-      { beat: beat(13), endBeat: beat(13), beatPerMeasure: beat(5) }, // beat 13 = 8 + 5 — 마디 중간
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(8), beatPerMeasure: beat(3) },   // 마디 2 시작 OK
+      { type: "timeSignature", beat: beat(13), beatPerMeasure: beat(5) }, // beat 13 = 8 + 5 — 마디 중간
     ];
     const errors = validateTimeSigAtMeasureStart(events);
     expect(errors).toHaveLength(1);

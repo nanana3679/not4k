@@ -126,27 +126,55 @@ export interface TrillZone {
 }
 
 // ---------------------------------------------------------------------------
-// 이벤트 마커
+// 차트 이벤트 — 디스크리미네이티드 유니온
 // ---------------------------------------------------------------------------
 
-/**
- * 이벤트 마커 — 복합(composable) 구조.
- * 하나의 마커에 메시지/BPM 변경/박자표 변경을 조합할 수 있다.
- * 모든 역할 필드는 optional; 최소 하나 이상 존재해야 유효하다.
- * 겹침 금지 (끝-시작 인접은 허용).
- */
-export interface EventMarker {
+/** BPM 변경 — 시점 이벤트 */
+export interface BpmEvent {
+  type: "bpm";
+  beat: Beat;
+  bpm: number;
+}
+
+/** 박자표 변경 — 시점 이벤트 */
+export interface TimeSignatureEvent {
+  type: "timeSignature";
+  beat: Beat;
+  beatPerMeasure: Beat;
+}
+
+/** 메시지 표시 — 구간 이벤트 */
+export interface TextEvent {
+  type: "text";
   beat: Beat;
   endBeat: Beat;
-  /** 메시지 텍스트 (선택) */
-  text?: string;
-  /** BPM 변경 (선택) */
-  bpm?: number;
-  /** 박자표 변경 (선택) */
-  beatPerMeasure?: Beat;
-  /** 정지 구간 — 구간 내 싱글/더블/롱노트 배치 금지 (선택) */
-  stop?: true;
+  text: string;
 }
+
+/** 자동 연주 구간 — 구간 이벤트 */
+export interface AutoEvent {
+  type: "auto";
+  beat: Beat;
+  endBeat: Beat;
+}
+
+/** 정지 구간 — 구간 내 싱글/더블/롱노트 배치 금지 */
+export interface StopEvent {
+  type: "stop";
+  beat: Beat;
+  endBeat: Beat;
+}
+
+/** 차트 이벤트 유니온 */
+export type ChartEvent = BpmEvent | TimeSignatureEvent | TextEvent | AutoEvent | StopEvent;
+
+/** 구간 이벤트 (beat + endBeat를 가지는 이벤트) */
+export type RangeEvent = TextEvent | AutoEvent | StopEvent;
+
+/**
+ * @deprecated 하위호환용 — ChartEvent를 사용할 것
+ */
+export type EventMarker = ChartEvent;
 
 // ---------------------------------------------------------------------------
 // 차트 전체
@@ -156,5 +184,5 @@ export interface Chart {
   meta: ChartMeta;
   notes: NoteEntity[];
   trillZones: TrillZone[];
-  events: EventMarker[];
+  events: ChartEvent[];
 }
