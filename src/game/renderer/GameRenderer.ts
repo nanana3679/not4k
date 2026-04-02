@@ -5,7 +5,7 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, RenderTexture, Mesh, MeshGeometry } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade } from "../../shared";
@@ -18,7 +18,7 @@ import {
   JUDGMENT_LINE_OFFSET,
   COLORS,
 } from "./constants";
-import { KeyboardDisplay } from "./KeyboardDisplay";
+import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
 
@@ -93,6 +93,30 @@ export class GameRenderer {
   // Button sprites (per lane)
   private buttonSprites: Sprite[] = [];
 
+  // Gear frame
+  private gearFrameLayer: Container;
+  private gearFrameSprite: Sprite | null = null;
+  private gearAdjustMode = false;
+  private gearOffsetX = 0;
+  private gearOffsetY = 0;
+  private gearScaleOverride: number | null = null;
+  private judgmentLineAdjust = 0;
+  private gearAdjustText: Text | null = null;
+  private gearAdjustHandler: ((e: KeyboardEvent) => void) | null = null;
+  private onAdjustModeChange: ((active: boolean) => void) | null = null;
+  // 키보드 디스플레이 조정
+  private adjustTarget: 'gear' | 'keyboard' = 'gear';
+  private kbOffsetX = -418;
+  private kbOffsetY = -44;
+  private kbWidth = 416;
+  private kbHeight = 107;
+  private kbPerspective = 0.06;
+  private kbSectionIdx = -1;  // -1 = 전체, 0-7 = 개별 섹션
+  private kbGuide: Graphics | null = null;
+  private kbMesh: Mesh<MeshGeometry> | null = null;
+  private kbRenderTexture: RenderTexture | null = null;
+
+
   // UI elements
   private comboText: Text;
   private accuracyText: Text;
@@ -137,6 +161,7 @@ export class GameRenderer {
     this.maskGraphic = new Graphics();
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
+    this.gearFrameLayer = new Container();
     this.uiLayer = new Container();
 
     // Create combo / accuracy text (owned by GameRenderer)
@@ -150,7 +175,7 @@ export class GameRenderer {
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.alpha = 0.5;
     this.comboText.x = this.width / 2;
-    this.comboText.y = this.height / 2 - 80;
+    this.comboText.y = this._judgmentLineY - 280;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "'Zen Dots'",
@@ -162,7 +187,7 @@ export class GameRenderer {
     this.accuracyText.anchor.set(0.5, 0.5);
     this.accuracyText.alpha = 0.5;
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = this.height / 2 + 20;
+    this.accuracyText.y = this._judgmentLineY - 180;
 
     // Event message text (right side)
     const msgStyle = new TextStyle({
@@ -201,6 +226,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
     this.app.stage.addChild(this.effectLayer);
+    this.app.stage.addChild(this.gearFrameLayer);
     this.app.stage.addChild(this.uiLayer);
 
     this.uiLayer.addChild(this.comboText);
@@ -227,6 +253,7 @@ export class GameRenderer {
     this.drawMask();
     this.buildKeyBeams();
     this.buildButtons();
+    this.buildGearFrame();
     this.initialized = true;
   }
 
@@ -293,6 +320,441 @@ export class GameRenderer {
       sprite.alpha = 0.8;
       this.buttonSprites.push(sprite);
       this.backgroundLayer.addChild(sprite);
+    }
+  }
+
+  // 기어 프레임 원본 이미지 내 빈 공간(기둥 사이) 치수
+  private static readonly GEAR_INNER_WIDTH = 1710;
+  private static readonly GEAR_INNER_LEFT = 972;
+  private static readonly GEAR_INNER_TOP = 670;
+  private static readonly GEAR_INNER_HEIGHT = 2630;
+
+  private buildGearFrame(): void {
+    let tex;
+    try { tex = this.skinManager.getTexture("gearFrame"); } catch { return; }
+    const sprite = new Sprite(tex);
+    this.gearFrameSprite = sprite;
+    this.gearFrameLayer.addChild(sprite);
+    this.updateGearFrameTransform();
+
+    // 조정 모드 HUD 텍스트
+    const adjustStyle = new TextStyle({
+      fontFamily: "monospace",
+      fontSize: 14,
+      fill: 0x00ff00,
+      stroke: { color: 0x000000, width: 3 },
+    });
+    this.gearAdjustText = new Text({ text: "", style: adjustStyle });
+    this.gearAdjustText.x = 8;
+    this.gearAdjustText.y = 8;
+    this.gearAdjustText.visible = false;
+    this.uiLayer.addChild(this.gearAdjustText);
+
+    // 키 핸들러 등록
+    this.gearAdjustHandler = (e: KeyboardEvent) => this.handleGearAdjustKey(e);
+    window.addEventListener("keydown", this.gearAdjustHandler);
+  }
+
+  private updateGearFrameTransform(): void {
+    const sprite = this.gearFrameSprite;
+    if (!sprite) return;
+    const { GEAR_INNER_WIDTH, GEAR_INNER_LEFT, GEAR_INNER_TOP, GEAR_INNER_HEIGHT } = GameRenderer;
+    const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
+    sprite.scale.set(scale);
+    sprite.x = this.laneAreaX - GEAR_INNER_LEFT * scale + this.gearOffsetX;
+    sprite.y = this._judgmentLineY - (GEAR_INNER_TOP + GEAR_INNER_HEIGHT) * scale + this.gearOffsetY;
+  }
+
+  private handleGearAdjustKey(e: KeyboardEvent): void {
+    // G 키로 조정 모드 토글
+    if (e.code === "KeyG" && !e.repeat) {
+      this.gearAdjustMode = !this.gearAdjustMode;
+      if (this.gearAdjustText) {
+        this.gearAdjustText.visible = this.gearAdjustMode;
+      }
+      if (this.gearAdjustMode) {
+        this.updateGearAdjustHUD();
+      }
+      this.applyKeyboardDisplayTransform();
+      this.onAdjustModeChange?.(this.gearAdjustMode);
+      return;
+    }
+
+    if (!this.gearAdjustMode) return;
+
+    // K 키로 조정 대상 전환
+    if (e.code === "KeyK" && !e.repeat) {
+      this.adjustTarget = this.adjustTarget === 'gear' ? 'keyboard' : 'gear';
+      this.applyKeyboardDisplayTransform();
+      this.updateGearAdjustHUD();
+      return;
+    }
+
+    const step = e.shiftKey ? 1 : 10;
+    const scaleStep = e.shiftKey ? 0.001 : 0.01;
+
+    if (this.adjustTarget === 'keyboard') {
+      // Tab: 다음 섹션, Backspace: 이전/나가기
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        this.kbSectionIdx = this.kbSectionIdx >= KB_SECTIONS.length - 1 ? -1 : this.kbSectionIdx + 1;
+        this.updateGearAdjustHUD();
+        return;
+      }
+      if (e.code === 'Backspace') {
+        e.preventDefault();
+        this.kbSectionIdx = this.kbSectionIdx <= -1 ? KB_SECTIONS.length - 1 : this.kbSectionIdx - 1;
+        this.updateGearAdjustHUD();
+        return;
+      }
+
+      // 개별 섹션 모드
+      if (this.kbSectionIdx >= 0) {
+        const section = KB_SECTIONS[this.kbSectionIdx];
+        const cur = this.keyboardDisplay?.getSectionOffset(section) ?? { x: 0, y: 0 };
+        const curScale = this.keyboardDisplay?.getSectionScale(section) ?? { sx: 1, sy: 1 };
+        switch (e.code) {
+          case "ArrowLeft":  cur.x -= step; break;
+          case "ArrowRight": cur.x += step; break;
+          case "ArrowUp":    cur.y -= step; break;
+          case "ArrowDown":  cur.y += step; break;
+          case "Equal":
+          case "NumpadAdd":
+            curScale.sx += scaleStep; curScale.sy += scaleStep; break;
+          case "Minus":
+          case "NumpadSubtract":
+            curScale.sx = Math.max(0.1, curScale.sx - scaleStep);
+            curScale.sy = Math.max(0.1, curScale.sy - scaleStep); break;
+          case "KeyR":       // X 간격만
+            curScale.sx += scaleStep; break;
+          case "KeyT":
+            curScale.sx = Math.max(0.1, curScale.sx - scaleStep); break;
+          case "KeyF":       // Y 간격만
+            curScale.sy += scaleStep; break;
+          case "KeyV":
+            curScale.sy = Math.max(0.1, curScale.sy - scaleStep); break;
+          case "Digit0":
+            cur.x = 0; cur.y = 0; curScale.sx = 1; curScale.sy = 1; break;
+          case "Enter":
+          case "NumpadEnter": {
+            const lines: string[] = [];
+            for (const s of KB_SECTIONS) {
+              const o = this.keyboardDisplay?.getSectionOffset(s) ?? { x: 0, y: 0 };
+              const sc = this.keyboardDisplay?.getSectionScale(s) ?? { sx: 1, sy: 1 };
+              const hasOffset = o.x !== 0 || o.y !== 0;
+              const hasScale = sc.sx !== 1 || sc.sy !== 1;
+              if (hasOffset || hasScale) {
+                let info = `  ${s}: offset(${o.x}, ${o.y})`;
+                if (hasScale) info += ` scale(${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
+                lines.push(info);
+              }
+            }
+            console.log(`[KeyboardDisplay Sections]\n${lines.join('\n') || '  (all default)'}`);
+            break;
+          }
+          default: return;
+        }
+        e.preventDefault();
+        this.keyboardDisplay?.setSectionOffset(section, cur.x, cur.y);
+        this.keyboardDisplay?.setSectionScale(section, curScale.sx, curScale.sy);
+        this.buildKeyboardMesh();
+        this.updateGearAdjustHUD();
+        return;
+      }
+
+      // 전체 모드 (기존)
+      switch (e.code) {
+        case "ArrowLeft":  this.kbOffsetX -= step; break;
+        case "ArrowRight": this.kbOffsetX += step; break;
+        case "ArrowUp":    this.kbOffsetY -= step; break;
+        case "ArrowDown":  this.kbOffsetY += step; break;
+        case "Equal":
+        case "NumpadAdd":
+          this.kbWidth += step; break;
+        case "Minus":
+        case "NumpadSubtract":
+          this.kbWidth = Math.max(10, this.kbWidth - step); break;
+        case "KeyR":
+          this.kbHeight = Math.max(10, this.kbHeight - step); break;
+        case "KeyT":
+          this.kbHeight += step; break;
+        case "KeyF":
+          this.kbPerspective += (e.shiftKey ? 0.01 : 0.05); break;
+        case "KeyV":
+          this.kbPerspective -= (e.shiftKey ? 0.01 : 0.05); break;
+        case "BracketLeft": {
+          const sp = (this.keyboardDisplay?.getGlobalSpacing() ?? 0) - (e.shiftKey ? 0.1 : 0.5);
+          this.keyboardDisplay?.setGlobalSpacing(sp);
+          this.buildKeyboardMesh();
+          break;
+        }
+        case "BracketRight": {
+          const sp = (this.keyboardDisplay?.getGlobalSpacing() ?? 0) + (e.shiftKey ? 0.1 : 0.5);
+          this.keyboardDisplay?.setGlobalSpacing(sp);
+          this.buildKeyboardMesh();
+          break;
+        }
+        case "Digit0":
+          this.kbOffsetX = -418; this.kbOffsetY = -44;
+          this.kbWidth = 416; this.kbHeight = 107;
+          this.kbPerspective = 0.06;
+          this.keyboardDisplay?.resetSectionOffsets();
+          this.keyboardDisplay?.setGlobalSpacing(1.5);
+          this.keyboardDisplay?.setSectionOffset('esc', 0, 1);
+          this.keyboardDisplay?.setSectionOffset('fn1', -4, 1);
+          this.keyboardDisplay?.setSectionOffset('fn2', -2, 1);
+          this.keyboardDisplay?.setSectionOffset('fn3', 1, 1);
+          this.keyboardDisplay?.setSectionOffset('main', 0, -3);
+          this.keyboardDisplay?.setSectionOffset('navTop', 0, 1);
+          this.keyboardDisplay?.setSectionOffset('navBottom', 0, -4);
+          this.keyboardDisplay?.setSectionOffset('arrows', 0, -5);
+          this.keyboardDisplay?.setSectionOffset('numpad', 0, -5);
+          this.kbSectionIdx = -1;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          const sectionLines: string[] = [];
+          for (const s of KB_SECTIONS) {
+            const o = this.keyboardDisplay?.getSectionOffset(s) ?? { x: 0, y: 0 };
+            const sc = this.keyboardDisplay?.getSectionScale(s) ?? { sx: 1, sy: 1 };
+            const hasOffset = o.x !== 0 || o.y !== 0;
+            const hasScale = sc.sx !== 1 || sc.sy !== 1;
+            if (hasOffset || hasScale) {
+              let info = `  ${s}: offset(${o.x}, ${o.y})`;
+              if (hasScale) info += ` scale(${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
+              sectionLines.push(info);
+            }
+          }
+          const spacing = this.keyboardDisplay?.getGlobalSpacing() ?? 0;
+          console.log(
+            `[KeyboardDisplay] 현재 값:\n` +
+            `  offset: (${this.kbOffsetX}, ${this.kbOffsetY})  width: ${this.kbWidth}  height: ${this.kbHeight}  perspective: ${this.kbPerspective.toFixed(4)}  spacing: ${spacing.toFixed(1)}\n` +
+            `  sections:\n${sectionLines.join('\n') || '    (all default)'}`
+          );
+          break;
+        }
+        default: return;
+      }
+      e.preventDefault();
+      this.applyKeyboardDisplayTransform();
+      this.updateKeyboardMesh();
+      this.updateGearAdjustHUD();
+      return;
+    }
+
+    // 기어 프레임 조정 (기존 로직)
+    const { GEAR_INNER_WIDTH } = GameRenderer;
+    const currentScale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
+
+    switch (e.code) {
+      case "ArrowLeft":  this.gearOffsetX -= step; break;
+      case "ArrowRight": this.gearOffsetX += step; break;
+      case "ArrowUp":    this.gearOffsetY -= step; break;
+      case "ArrowDown":  this.gearOffsetY += step; break;
+      case "Equal":
+      case "NumpadAdd":
+        this.gearScaleOverride = currentScale + scaleStep; break;
+      case "Minus":
+      case "NumpadSubtract":
+        this.gearScaleOverride = Math.max(0.01, currentScale - scaleStep); break;
+      case "PageUp":
+        this.judgmentLineAdjust += step;
+        this.setLift(this.judgmentLineAdjust);
+        this.updateGearFrameTransform();
+        break;
+      case "PageDown":
+        this.judgmentLineAdjust -= step;
+        this.setLift(this.judgmentLineAdjust);
+        this.updateGearFrameTransform();
+        break;
+      case "Digit0":
+        this.gearOffsetX = 0;
+        this.gearOffsetY = 0;
+        this.gearScaleOverride = null;
+        this.judgmentLineAdjust = 0;
+        this.setLift(0);
+        this.updateGearFrameTransform();
+        break;
+      case "Enter":
+      case "NumpadEnter": {
+        const s = this.gearScaleOverride ?? LANE_AREA_WIDTH / GameRenderer.GEAR_INNER_WIDTH;
+        console.log(
+          `[GearFrame] 현재 값을 constants에 반영하세요:\n` +
+          `  GEAR_INNER_LEFT = ${Math.round(GameRenderer.GEAR_INNER_LEFT - this.gearOffsetX / s)}\n` +
+          `  GEAR_INNER_TOP = ${Math.round(GameRenderer.GEAR_INNER_TOP - this.gearOffsetY / s)}\n` +
+          `  GEAR_INNER_WIDTH = ${this.gearScaleOverride ? Math.round(LANE_AREA_WIDTH / this.gearScaleOverride) : GameRenderer.GEAR_INNER_WIDTH}\n` +
+          `  JUDGMENT_LINE_OFFSET = ${JUDGMENT_LINE_OFFSET + this.judgmentLineAdjust}\n` +
+          `  offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${s.toFixed(4)}  judgmentLineAdjust: ${this.judgmentLineAdjust}`
+        );
+        break;
+      }
+      default: return;
+    }
+    e.preventDefault();
+    this.updateGearFrameTransform();
+    this.updateGearAdjustHUD();
+  }
+
+  /** 키보드 영역 가이드 사다리꼴 그리기 (조정 모드용) */
+  private applyKeyboardDisplayTransform(): void {
+    if (!this.gearAdjustMode || this.adjustTarget !== 'keyboard') {
+      if (this.kbGuide) this.kbGuide.visible = false;
+      return;
+    }
+
+    if (!this.kbGuide) {
+      this.kbGuide = new Graphics();
+      this.uiLayer.addChild(this.kbGuide);
+    }
+
+    const baseW = this.kbWidth;
+    const baseH = this.kbHeight;
+    const p = this.kbPerspective;
+    const topInset = baseW * p / 2;
+
+    // 우하단 기준점
+    const anchorX = this.width - baseW - 4 + this.kbOffsetX;
+    const anchorY = this.height - baseH - 4 + this.kbOffsetY;
+
+    this.kbGuide.clear();
+    this.kbGuide.moveTo(anchorX + topInset, anchorY);
+    this.kbGuide.lineTo(anchorX + baseW - topInset, anchorY);
+    this.kbGuide.lineTo(anchorX + baseW, anchorY + baseH);
+    this.kbGuide.lineTo(anchorX, anchorY + baseH);
+    this.kbGuide.closePath();
+    this.kbGuide.fill({ color: 0x00ff00, alpha: 0.15 });
+    this.kbGuide.stroke({ width: 1, color: 0x00ff00, alpha: 0.8 });
+    this.kbGuide.visible = true;
+  }
+
+  // 키보드 텍스처 캡처 해상도 배율
+  private static readonly KB_RENDER_SCALE = 4;
+  // 메시 세분화 수 (가로×세로 셀)
+  private static readonly KB_MESH_COLS = 16;
+  private static readonly KB_MESH_ROWS = 8;
+
+  /** 키보드 디스플레이를 사다리꼴 Mesh로 렌더링 */
+  private buildKeyboardMesh(): void {
+    if (!this.keyboardDisplay || !this.app.renderer) return;
+    const c = this.keyboardDisplay.container;
+    const rs = GameRenderer.KB_RENDER_SCALE;
+
+    // 원본 위치 저장 후 고해상도 캡처용으로 리셋
+    const savedX = c.x, savedY = c.y, savedAlpha = c.alpha;
+    c.x = 0; c.y = 0; c.alpha = 1;
+    c.scale.set(rs); c.skew.set(0, 0); c.rotation = 0;
+
+    const bounds = c.getLocalBounds();
+    const tw = Math.ceil((bounds.width + bounds.x) * rs);
+    const th = Math.ceil((bounds.height + bounds.y) * rs);
+    if (tw <= 0 || th <= 0) { c.x = savedX; c.y = savedY; c.alpha = savedAlpha; return; }
+
+    this.kbRenderTexture?.destroy();
+    this.kbRenderTexture = RenderTexture.create({ width: tw, height: th });
+    this.app.renderer.render({ container: c, target: this.kbRenderTexture, clear: true });
+
+    c.x = savedX; c.y = savedY; c.alpha = 0;
+
+    // 세분화된 메시 생성
+    const { positions, uvs, indices } = this.buildSubdividedMesh();
+
+    if (this.kbMesh) this.kbMesh.destroy();
+    const geometry = new MeshGeometry({ positions, uvs, indices });
+    this.kbMesh = new Mesh({ geometry, texture: this.kbRenderTexture });
+    this.kbMesh.x = this.width - this.kbWidth - 4 + this.kbOffsetX;
+    this.kbMesh.y = this.height - this.kbHeight - 4 + this.kbOffsetY;
+    this.uiLayer.addChild(this.kbMesh);
+  }
+
+  /** 세분화된 사다리꼴 메시 꼭짓점 생성 */
+  private buildSubdividedMesh(): { positions: Float32Array; uvs: Float32Array; indices: Uint32Array } {
+    const cols = GameRenderer.KB_MESH_COLS;
+    const rows = GameRenderer.KB_MESH_ROWS;
+    const w = this.kbWidth;
+    const h = this.kbHeight;
+    const p = this.kbPerspective;
+    const topInset = w * p / 2;
+
+    const vCount = (cols + 1) * (rows + 1);
+    const positions = new Float32Array(vCount * 2);
+    const uvs = new Float32Array(vCount * 2);
+
+    for (let r = 0; r <= rows; r++) {
+      const v = r / rows;
+      // 행별 좌우 경계 보간: 위(topInset) → 아래(0)
+      const leftX = topInset * (1 - v);
+      const rightX = w - topInset * (1 - v);
+      for (let c = 0; c <= cols; c++) {
+        const u = c / cols;
+        const idx = (r * (cols + 1) + c) * 2;
+        positions[idx] = leftX + (rightX - leftX) * u;
+        positions[idx + 1] = h * v;
+        uvs[idx] = u;
+        uvs[idx + 1] = v;
+      }
+    }
+
+    const iCount = cols * rows * 6;
+    const indices = new Uint32Array(iCount);
+    let ii = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const tl = r * (cols + 1) + c;
+        const tr = tl + 1;
+        const bl = (r + 1) * (cols + 1) + c;
+        const br = bl + 1;
+        indices[ii++] = tl; indices[ii++] = tr; indices[ii++] = br;
+        indices[ii++] = tl; indices[ii++] = br; indices[ii++] = bl;
+      }
+    }
+    return { positions, uvs, indices };
+  }
+
+  /** 키 상태 변경 시 Mesh 텍스처 갱신 */
+  private updateKeyboardMeshTexture(): void {
+    if (!this.keyboardDisplay || !this.kbRenderTexture || !this.app.renderer) return;
+    const c = this.keyboardDisplay.container;
+    const rs = GameRenderer.KB_RENDER_SCALE;
+    const savedX = c.x, savedY = c.y, savedAlpha = c.alpha;
+    c.x = 0; c.y = 0; c.alpha = 1;
+    c.scale.set(rs); c.skew.set(0, 0); c.rotation = 0;
+    this.app.renderer.render({ container: c, target: this.kbRenderTexture, clear: true });
+    c.x = savedX; c.y = savedY; c.alpha = savedAlpha;
+  }
+
+  /** G모드에서 가이드 변경 후 Mesh 갱신 */
+  private updateKeyboardMesh(): void {
+    if (!this.kbMesh) return;
+    const { positions } = this.buildSubdividedMesh();
+    this.kbMesh.geometry.positions = positions;
+    this.kbMesh.x = this.width - this.kbWidth - 4 + this.kbOffsetX;
+    this.kbMesh.y = this.height - this.kbHeight - 4 + this.kbOffsetY;
+  }
+
+  private updateGearAdjustHUD(): void {
+    if (!this.gearAdjustText) return;
+    const { GEAR_INNER_WIDTH } = GameRenderer;
+
+    if (this.adjustTarget === 'keyboard') {
+      if (this.kbSectionIdx >= 0) {
+        const section = KB_SECTIONS[this.kbSectionIdx];
+        const o = this.keyboardDisplay?.getSectionOffset(section) ?? { x: 0, y: 0 };
+        const sc = this.keyboardDisplay?.getSectionScale(section) ?? { sx: 1, sy: 1 };
+        this.gearAdjustText.text =
+          `[Section: ${section}] Tab:next  Bksp:prev  Arrows:move  +/-:scale  R/T:scaleX  F/V:scaleY  0:reset  Enter:export\n` +
+          `offset: (${o.x}, ${o.y})  scale: (${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
+      } else {
+        const sp = this.keyboardDisplay?.getGlobalSpacing() ?? 0;
+        this.gearAdjustText.text =
+          `[Keyboard ALL] Tab:section  K:→gear  Arrows:move  +/-:width  R/T:height  F/V:perspective  [/]:spacing  0:reset  Enter:export\n` +
+          `offset: (${this.kbOffsetX}, ${this.kbOffsetY})  size: ${this.kbWidth}×${this.kbHeight}  perspective: ${this.kbPerspective.toFixed(3)}  spacing: ${sp.toFixed(1)}`;
+      }
+    } else {
+      const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
+      const jlOffset = JUDGMENT_LINE_OFFSET + this.judgmentLineAdjust;
+      this.gearAdjustText.text =
+        `[Gear Adjust] G:close  K:switch to keyboard  Arrows:move  +/-:scale  PgUp/Dn:judgmentLine  Shift:fine  0:reset  Enter:export\n` +
+        `offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${scale.toFixed(4)}  JUDGMENT_LINE_OFFSET: ${jlOffset}`;
     }
   }
 
@@ -556,13 +1018,18 @@ export class GameRenderer {
     return this._scrollSpeed;
   }
 
+  /** G 모드 토글 시 호출되는 콜백 설정 */
+  setAdjustModeCallback(cb: (active: boolean) => void): void {
+    this.onAdjustModeChange = cb;
+  }
+
   setLift(y: number): void {
     this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
     this.drawJudgmentLine();
     this.drawMask();
-    this.comboText.y = this.height / 2 - 80;
-    this.accuracyText.y = this.height / 2 + 20;
-    this.judgmentUI.setPosition(this._judgmentLineY, this.height);
+    this.comboText.y = this._judgmentLineY - 280;
+    this.accuracyText.y = this._judgmentLineY - 180;
+    this.judgmentUI.setPosition(this._judgmentLineY);
     this.noteRenderer.setJudgmentLineY(this._judgmentLineY);
     for (const btn of this.buttonSprites) {
       btn.y = this._judgmentLineY + 4;
@@ -582,10 +1049,23 @@ export class GameRenderer {
 
     this.keyboardDisplay = new KeyboardDisplay(this.uiLayer, this.width, this.height);
     this.keyboardDisplay.setup(laneBindings, []);
+    // 확정된 간격 및 섹션 오프셋 적용
+    this.keyboardDisplay.setGlobalSpacing(1.5);
+    this.keyboardDisplay.setSectionOffset('esc', 0, 1);
+    this.keyboardDisplay.setSectionOffset('fn1', -4, 1);
+    this.keyboardDisplay.setSectionOffset('fn2', -2, 1);
+    this.keyboardDisplay.setSectionOffset('fn3', 1, 1);
+    this.keyboardDisplay.setSectionOffset('main', 0, -3);
+    this.keyboardDisplay.setSectionOffset('navTop', 0, 1);
+    this.keyboardDisplay.setSectionOffset('navBottom', 0, -4);
+    this.keyboardDisplay.setSectionOffset('arrows', 0, -5);
+    this.keyboardDisplay.setSectionOffset('numpad', 0, -5);
+    this.buildKeyboardMesh();
   }
 
   setKeyState(keyCode: string, pressed: boolean): void {
     this.keyboardDisplay?.setKeyState(keyCode, pressed);
+    if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
   }
 
   markBodyFailed(noteIndex: number): void {
@@ -623,6 +1103,22 @@ export class GameRenderer {
     if (this.keyBeamGradient) {
       this.keyBeamGradient.destroy();
       this.keyBeamGradient = null;
+    }
+    if (this.gearAdjustHandler) {
+      window.removeEventListener("keydown", this.gearAdjustHandler);
+      this.gearAdjustHandler = null;
+    }
+    if (this.kbGuide) {
+      this.kbGuide.destroy();
+      this.kbGuide = null;
+    }
+    if (this.kbMesh) {
+      this.kbMesh.destroy();
+      this.kbMesh = null;
+    }
+    if (this.kbRenderTexture) {
+      this.kbRenderTexture.destroy();
+      this.kbRenderTexture = null;
     }
   }
 }

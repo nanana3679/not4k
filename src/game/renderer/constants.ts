@@ -11,7 +11,7 @@ export const LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH; // 400px
 export const NOTE_HEIGHT = 20; // px
 export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 100px (matches lane width)
 
-export const JUDGMENT_LINE_OFFSET = 100; // px from bottom
+export const JUDGMENT_LINE_OFFSET = 160; // px from bottom
 
 export const COLORS = {
   BG: 0x0a0a14,

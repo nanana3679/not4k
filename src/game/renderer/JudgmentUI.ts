@@ -19,8 +19,7 @@ export class JudgmentUI {
   private showTimingDiff: boolean = false;
   private perfectWindow: number = JUDGMENT_WINDOWS.PERFECT;
 
-  constructor(uiLayer: Container, _judgmentLineY: number, width: number, height: number) {
-    const centerY = height / 2;
+  constructor(uiLayer: Container, judgmentLineY: number, width: number, _height: number) {
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Audiowide",
@@ -32,7 +31,7 @@ export class JudgmentUI {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = width / 2;
-    this.judgmentText.y = centerY + 80;
+    this.judgmentText.y = judgmentLineY - 120;
     this.judgmentText.alpha = 0;
 
     const fastSlowStyle = new TextStyle({
@@ -45,7 +44,7 @@ export class JudgmentUI {
     this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
     this.fastSlowText.anchor.set(0.5, 0.5);
     this.fastSlowText.x = width / 2;
-    this.fastSlowText.y = centerY + 115;
+    this.fastSlowText.y = judgmentLineY - 85;
     this.fastSlowText.alpha = 0;
 
     const timingDiffStyle = new TextStyle({
@@ -58,7 +57,7 @@ export class JudgmentUI {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = width / 2;
-    this.timingDiffText.y = centerY + 55;
+    this.timingDiffText.y = judgmentLineY - 145;
     this.timingDiffText.alpha = 0;
 
     uiLayer.addChild(this.judgmentText);
@@ -137,11 +136,10 @@ export class JudgmentUI {
     this.perfectWindow = windowMs;
   }
 
-  setPosition(_judgmentLineY: number, height: number): void {
-    const centerY = height / 2;
-    this.judgmentText.y = centerY + 80;
-    this.fastSlowText.y = centerY + 115;
-    this.timingDiffText.y = centerY + 55;
+  setPosition(judgmentLineY: number): void {
+    this.judgmentText.y = judgmentLineY - 120;
+    this.fastSlowText.y = judgmentLineY - 85;
+    this.timingDiffText.y = judgmentLineY - 145;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {

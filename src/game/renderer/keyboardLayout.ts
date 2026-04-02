@@ -9,6 +9,7 @@ export interface KbKeyDef {
   x: number; // position in key-units
   y: number;
   w?: number; // width in key-units (default 1)
+  h?: number; // height in key-units (default 1)
 }
 
 // Full TKL keyboard layout (ANSI)
@@ -117,22 +118,34 @@ export const KB_NUMPAD_KEYS: KbKeyDef[] = [
   { code: 'Numpad7', label: '7', x: 19, y: 2.5 },
   { code: 'Numpad8', label: '8', x: 20, y: 2.5 },
   { code: 'Numpad9', label: '9', x: 21, y: 2.5 },
-  { code: 'NumpadAdd', label: '+', x: 22, y: 2.5 },
+  { code: 'NumpadAdd', label: '+', x: 22, y: 2.5, h: 2 },
   { code: 'Numpad4', label: '4', x: 19, y: 3.5 },
   { code: 'Numpad5', label: '5', x: 20, y: 3.5 },
   { code: 'Numpad6', label: '6', x: 21, y: 3.5 },
   { code: 'Numpad1', label: '1', x: 19, y: 4.5 },
   { code: 'Numpad2', label: '2', x: 20, y: 4.5 },
   { code: 'Numpad3', label: '3', x: 21, y: 4.5 },
-  { code: 'NumpadEnter', label: 'En', x: 22, y: 4.5 },
+  { code: 'NumpadEnter', label: 'En', x: 22, y: 4.5, h: 2 },
   { code: 'Numpad0', label: '0', x: 19, y: 5.5, w: 2 },
   { code: 'NumpadDecimal', label: '.', x: 21, y: 5.5 },
 ];
 
+/** 외곽선 색상 */
 export const KB_IDLE_COLORS: Record<number, number> = {
-  1: 0x662222, 2: 0x663333, 3: 0x223366, 4: 0x222266,
+  1: 0x00cc88, 2: 0x00aacc, 3: 0xaa00cc, 4: 0xcc0088,
 };
 
+/** 눌림 외곽선 색상 */
 export const KB_PRESSED_COLORS: Record<number, number> = {
-  1: 0xff4444, 2: 0xff6655, 3: 0x5588ff, 4: 0x4466ff,
+  1: 0x00ffaa, 2: 0x00ddff, 3: 0xcc00ff, 4: 0xff00aa,
+};
+
+/** idle 채우기 — 각 레인 색상과 흰색의 중간 */
+export const KB_IDLE_FILL: Record<number, number> = {
+  1: 0x80e6c4, 2: 0x80d5e6, 3: 0xd580e6, 4: 0xe680c4,
+};
+
+/** pressed 채우기 — 흰색에 가까운 밝은 톤 */
+export const KB_PRESSED_FILL: Record<number, number> = {
+  1: 0xb3ffd9, 2: 0xb3eeff, 3: 0xe6b3ff, 4: 0xffb3d9,
 };
