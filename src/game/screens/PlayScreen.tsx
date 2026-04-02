@@ -131,6 +131,15 @@ export function PlayScreen() {
           audioBuffer.duration * 1000,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
+        renderer.setAdjustModeCallback((active) => {
+          if (active) {
+            audioEngine.pause();
+            isPausedRef.current = true;
+          } else {
+            audioEngine.resume();
+            isPausedRef.current = false;
+          }
+        });
         renderer.setShowFastSlow(settings.showFastSlow);
         renderer.setShowTimingDiff(settings.showTimingDiff);
         renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
@@ -235,10 +244,7 @@ export function PlayScreen() {
             const currentAudioMs = audioEngine.currentTimeMs;
             const handlerDelay = Math.max(0, now - timestampMs);
             const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            // Auto 구간이면 판정엔진에 전달하지 않음
-            if (!renderer.isAutoSection(correctedSongTimeMs)) {
-              judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
-            }
+            judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
           },
@@ -247,9 +253,7 @@ export function PlayScreen() {
             const currentAudioMs = audioEngine.currentTimeMs;
             const handlerDelay = Math.max(0, now - timestampMs);
             const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            if (!renderer.isAutoSection(correctedSongTimeMs)) {
-              judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
-            }
+            judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
           },
@@ -281,8 +285,10 @@ export function PlayScreen() {
         // Auto-play tracking: which notes have been auto-pressed/released
         const autoPressed = new Set<number>();
         const autoReleased = new Set<number>();
-        // 포인트 노트의 자동 release 시간 (setTimeout 대신 게임 루프 내에서 처리)
-        const autoPendingRelease = new Map<number, number>(); // noteIndex → releaseTimeMs
+        // 포인트 노트의 자동 release 정보 (setTimeout 대신 게임 루프 내에서 처리)
+        const autoPendingRelease = new Map<number, { releaseMs: number; key1: string; key2: string | null }>(); // noteIndex → release info
+        // 트릴 교대 추적: 레인별 마지막 사용 키 suffix ('a' | 'b')
+        const autoTrillLastSuffix = new Map<number, 'a' | 'b'>();
 
         // Start game loop
         let lastFrameTime: number | null = null;
@@ -310,9 +316,18 @@ export function PlayScreen() {
                 autoPressed.add(i);
                 const lane = note.lane as 1 | 2 | 3 | 4;
                 const isDouble = note.type === 'double' || note.type === 'doubleLong';
+                const isTrill = note.type === 'trill';
+
+                // 트릴 노트: 키 교대 (GOOD_TRILL 방지)
+                let suffix1: 'a' | 'b' = 'a';
+                if (isTrill) {
+                  const lastSuffix = autoTrillLastSuffix.get(lane) ?? 'b';
+                  suffix1 = lastSuffix === 'a' ? 'b' : 'a';
+                  autoTrillLastSuffix.set(lane, suffix1);
+                }
 
                 // Auto press — 더블 노트는 2키 입력
-                const key1 = `auto_${lane}_a`;
+                const key1 = `auto_${lane}_${suffix1}`;
                 judgmentEngine.onLanePress(lane, noteTime, key1);
                 if (isDouble) {
                   const key2 = `auto_${lane}_b`;
@@ -322,21 +337,24 @@ export function PlayScreen() {
 
                 if (!('endBeat' in note)) {
                   // 포인트 노트: release를 pending에 등록 (50ms 후)
-                  autoPendingRelease.set(i, noteTime + 50);
+                  autoPendingRelease.set(i, {
+                    releaseMs: noteTime + 50,
+                    key1,
+                    key2: isDouble ? `auto_${lane}_b` : null,
+                  });
                 }
               }
             }
 
             // Auto-play: pending release 처리 (포인트 노트)
-            for (const [idx, releaseMs] of autoPendingRelease) {
-              if (songTimeMs >= releaseMs) {
+            for (const [idx, info] of autoPendingRelease) {
+              if (songTimeMs >= info.releaseMs) {
                 autoPendingRelease.delete(idx);
                 const note = chartData.notes[idx];
                 const lane = note.lane as 1 | 2 | 3 | 4;
-                const isDouble = note.type === 'double';
-                judgmentEngine.onLaneRelease(lane, releaseMs, `auto_${lane}_a`);
-                if (isDouble) {
-                  judgmentEngine.onLaneRelease(lane, releaseMs, `auto_${lane}_b`);
+                judgmentEngine.onLaneRelease(lane, info.releaseMs, info.key1);
+                if (info.key2) {
+                  judgmentEngine.onLaneRelease(lane, info.releaseMs, info.key2);
                 }
                 renderer.setKeyBeam(lane, false);
               }
