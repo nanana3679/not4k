@@ -287,8 +287,29 @@ export function PlayScreen() {
         const autoReleased = new Set<number>();
         // 포인트 노트의 자동 release 정보 (setTimeout 대신 게임 루프 내에서 처리)
         const autoPendingRelease = new Map<number, { releaseMs: number; key1: string; key2: string | null }>(); // noteIndex → release info
-        // 트릴 교대 추적: 레인별 마지막 사용 키 suffix ('a' | 'b')
-        const autoTrillLastSuffix = new Map<number, 'a' | 'b'>();
+
+        // 헤드-롱노트 쌍 연결: 같은 lane + 같은 beat에 포인트 노트(헤드)와 range 노트(롱)가 함께 있으면
+        // auto 모드에서 헤드 press가 롱 hold를 제공하고, 헤드 release 시점을 롱 endBeat로 연장한다.
+        // (그러지 않으면 doubleLong 바디 auto-활성화가 헤드 키 대신 바디 키를 따로 추적하다가
+        //  헤드 release 시 grace period 초과로 BODY_FAILED 처리됨)
+        const rangeToHead = new Map<number, number>(); // rangeIdx → headIdx
+        const headToRange = new Map<number, number>(); // headIdx → rangeIdx
+        for (let r = 0; r < chartData.notes.length; r++) {
+          const rNote = chartData.notes[r];
+          if (!('endBeat' in rNote)) continue;
+          const rTime = noteTimesMs.get(r)!;
+          for (let h = 0; h < chartData.notes.length; h++) {
+            if (h === r) continue;
+            const hNote = chartData.notes[h];
+            if ('endBeat' in hNote) continue;
+            if (hNote.lane !== rNote.lane) continue;
+            const hTime = noteTimesMs.get(h)!;
+            if (Math.abs(hTime - rTime) > 1) continue;
+            rangeToHead.set(r, h);
+            headToRange.set(h, r);
+            break;
+          }
+        }
 
         // Start game loop
         let lastFrameTime: number | null = null;
@@ -312,39 +333,43 @@ export function PlayScreen() {
 
                 // 이미 처리됐거나 아직 시점이 아닌 노트는 스킵
                 if (autoPressed.has(i) || songTimeMs < noteTime || songTimeMs >= noteTime + 200) continue;
+                // 헤드가 있는 롱노트 바디는 헤드 press가 hold를 제공하므로 별도 press 안 함
+                if (rangeToHead.has(i)) { autoPressed.add(i); continue; }
 
                 autoPressed.add(i);
                 const lane = note.lane as 1 | 2 | 3 | 4;
                 const isDouble = note.type === 'double' || note.type === 'doubleLong';
-                const isTrill = note.type === 'trill';
 
-                // 트릴 노트: 키 교대 (GOOD_TRILL 방지)
-                let suffix1: 'a' | 'b' = 'a';
-                if (isTrill) {
-                  const lastSuffix = autoTrillLastSuffix.get(lane) ?? 'b';
-                  suffix1 = lastSuffix === 'a' ? 'b' : 'a';
-                  autoTrillLastSuffix.set(lane, suffix1);
-                }
-
-                // Auto press — 더블 노트는 2키 입력
-                const key1 = `auto_${lane}_${suffix1}`;
+                // 노트 인덱스별 유일한 가상 키코드 — 같은 레인의 다른 노트와 키 충돌 방지
+                const key1 = `auto_${lane}_${i}_a`;
+                const key2 = isDouble ? `auto_${lane}_${i}_b` : null;
                 judgmentEngine.onLanePress(lane, noteTime, key1);
-                if (isDouble) {
-                  const key2 = `auto_${lane}_b`;
+                if (key2) {
                   judgmentEngine.onLanePress(lane, noteTime, key2);
                 }
                 renderer.setKeyBeam(lane, true);
 
                 if (!('endBeat' in note)) {
-                  // 포인트 노트: release를 pending에 등록 (50ms 후)
+                  // 포인트 노트: release 시점 계산
+                  // - 연결된 롱노트가 있으면 롱노트 endBeat까지 연장 (hold 유지)
+                  // - 아니면 기본 50ms 후
+                  const linkedRangeIdx = headToRange.get(i);
+                  const releaseMs = linkedRangeIdx !== undefined
+                    ? noteEndTimesMs.get(linkedRangeIdx)!
+                    : noteTime + 50;
                   autoPendingRelease.set(i, {
-                    releaseMs: noteTime + 50,
+                    releaseMs,
                     key1,
-                    key2: isDouble ? `auto_${lane}_b` : null,
+                    key2,
                   });
                 }
               }
             }
+
+            // 판정 엔진 업데이트를 release보다 먼저 호출해서 바디 노트를 auto-활성화한다.
+            // (그러지 않으면 길이 0인 롱노트의 경우 press → release가 한 프레임에 일어나는데
+            //  release 시점에 바디 상태가 아직 UNPROCESSED라 tryEndpointJudgmentOnRelease가 놓침)
+            judgmentEngine.update(songTimeMs);
 
             // Auto-play: pending release 처리 (포인트 노트)
             for (const [idx, info] of autoPendingRelease) {
@@ -360,26 +385,24 @@ export function PlayScreen() {
               }
             }
 
-            // Auto-play: 롱노트 release at endBeat
+            // Auto-play: 롱노트 release at endBeat (헤드가 있으면 헤드의 pending release가 처리)
             for (let i = 0; i < chartData.notes.length; i++) {
               if (!autoPressed.has(i) || autoReleased.has(i)) continue;
               const note = chartData.notes[i];
               if (!('endBeat' in note)) continue;
+              if (rangeToHead.has(i)) continue; // 헤드가 있으면 스킵
               const noteEndTime = noteEndTimesMs.get(i);
               if (noteEndTime !== undefined && songTimeMs >= noteEndTime) {
                 autoReleased.add(i);
                 const lane = note.lane as 1 | 2 | 3 | 4;
                 const isDouble = note.type === 'doubleLong';
-                judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_a`);
+                judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_${i}_a`);
                 if (isDouble) {
-                  judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_b`);
+                  judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_${i}_b`);
                 }
                 renderer.setKeyBeam(lane, false);
               }
             }
-
-            // Update judgment engine
-            judgmentEngine.update(songTimeMs);
 
             // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
             renderer.renderFrame(visualTimeMs, frameDeltaMs);
