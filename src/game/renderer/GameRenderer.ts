@@ -225,8 +225,8 @@ export class GameRenderer {
     this.app.stage.addChild(this.noteLayer);
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
-    this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.gearFrameLayer);
+    this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
 
     this.uiLayer.addChild(this.comboText);
