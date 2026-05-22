@@ -27,10 +27,27 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 
+const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+function useCompactEditorLayout(): boolean {
+  const [compact, setCompact] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(COMPACT_EDITOR_QUERY).matches
+  ));
+
+  useEffect(() => {
+    const media = window.matchMedia(COMPACT_EDITOR_QUERY);
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  return compact;
 }
 
 export default function EditorApp() {
@@ -173,6 +190,8 @@ function ChartEditorPage() {
   const deleteModeRef = useRef<DeleteMode | null>(null);
   const isDraggingCursorRef = useRef(false);
   const cKeyHeldRef = useRef(false);
+  const minimapHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const compactEditor = useCompactEditorLayout();
 
   // UI 상태
   const [showMetaModal, setShowMetaModal] = useState(false);
@@ -254,12 +273,32 @@ function ChartEditorPage() {
     }
   }, [canvasSize.height, setScrollY]);
 
+  const showMinimapTemporarily = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    renderer.setMinimapVisible(true);
+    if (minimapHideTimerRef.current !== null) {
+      window.clearTimeout(minimapHideTimerRef.current);
+    }
+    minimapHideTimerRef.current = window.setTimeout(() => {
+      rendererRef.current?.setMinimapVisible(false);
+      minimapHideTimerRef.current = null;
+    }, 1400);
+  }, []);
+
+  const handleHorizontalPan = useCallback((deltaX: number) => {
+    if (Math.abs(deltaX) < 0.5) return;
+    rendererRef.current?.panHorizontally(deltaX);
+  }, []);
+
   // 캔버스 이벤트 훅
   const canvasEvents = useCanvasEvents(
     canvasRef, rendererRef, playbackRef,
     createModeRef, selectModeRef, deleteModeRef,
     isDraggingCursorRef, coords, isTimeInBounds,
     handlePinchZoom,
+    handleHorizontalPan,
+    showMinimapTemporarily,
   );
 
   // 파일 오퍼레이션 훅
@@ -288,6 +327,10 @@ function ChartEditorPage() {
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => {
+      if (minimapHideTimerRef.current !== null) {
+        window.clearTimeout(minimapHideTimerRef.current);
+        minimapHideTimerRef.current = null;
+      }
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
     };
@@ -563,6 +606,16 @@ function ChartEditorPage() {
       return;
     }
 
+    const horizontalDelta = e.shiftKey
+      ? e.deltaY
+      : Math.abs(e.deltaX) > Math.abs(e.deltaY)
+        ? e.deltaX
+        : 0;
+    if (horizontalDelta !== 0) {
+      rendererRef.current?.panHorizontally(horizontalDelta);
+      return;
+    }
+
     if (mode === 'create' && createModeRef.current) {
       if (createModeRef.current.onWheel(e.deltaY, cKeyHeldRef.current)) {
         useEditorStore.getState().setEntityType(createModeRef.current.entityType);
@@ -574,7 +627,8 @@ function ChartEditorPage() {
       ? Math.max(0, rendererRef.current.totalTimelineHeight - canvasSize.height)
       : Infinity;
     setScrollY(Math.min(maxScroll, Math.max(0, scrollY + e.deltaY)));
-  }, [mode, scrollY, canvasSize.height, setScrollY]);
+    showMinimapTemporarily();
+  }, [mode, scrollY, canvasSize.height, setScrollY, showMinimapTemporarily]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -596,6 +650,7 @@ function ChartEditorPage() {
     <div style={styles.container}>
       {/* 툴바 */}
       <EditorToolbar
+        compact={compactEditor}
         playbackRef={playbackRef}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}

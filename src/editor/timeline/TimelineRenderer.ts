@@ -20,10 +20,14 @@ import {
   TIMELINE_WIDTH,
   DEFAULT_MEASURES,
   TIMELINE_PADDING,
-  MINIMAP_WIDTH,
   EXTRA_LANE_WIDTH,
   MEASURE_LABEL_WIDTH,
 } from "./constants";
+import {
+  clampHorizontalPan,
+  getTimelineContentOffsetX,
+  screenXToTimelineX as mapScreenXToTimelineX,
+} from "./timelineViewport";
 import type { Lane } from "../../shared";
 import { MinimapRenderer } from "./MinimapRenderer";
 import { GridRenderer } from "./GridRenderer";
@@ -84,6 +88,8 @@ export class TimelineRenderer {
   // State
   private _zoom: number = 200; // pixelPerSecond
   private _scrollY: number = 0;
+  private _horizontalPanX: number = 0;
+  private _minimapVisible: boolean = false;
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
@@ -243,6 +249,7 @@ export class TimelineRenderer {
       getTotalTimelineMs() { return self.getTotalTimelineMs(); },
       timeToY(timeMs: number) { return self.timeToY(timeMs); },
       get minimapLayer() { return self.minimapLayer; },
+      get minimapVisible() { return self._minimapVisible; },
     });
 
     // GridRenderer host
@@ -392,6 +399,12 @@ export class TimelineRenderer {
   /** Set extra lane count */
   setExtraLaneCount(count: number): void {
     this._extraLaneCount = count;
+    this._horizontalPanX = clampHorizontalPan({
+      requestedPanX: this._horizontalPanX,
+      timelineWidth: this.currentTimelineWidth,
+      viewportWidth: this.options.width,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+    });
     this.render();
     this.updatePlaybackCursor(this._lastCursorTimeMs);
   }
@@ -431,6 +444,35 @@ export class TimelineRenderer {
     return TIMELINE_WIDTH + this._extraLaneCount * EXTRA_LANE_WIDTH;
   }
 
+  set horizontalPanX(value: number) {
+    const next = clampHorizontalPan({
+      requestedPanX: value,
+      timelineWidth: this.currentTimelineWidth,
+      viewportWidth: this.options.width,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+    });
+    if (next === this._horizontalPanX) return;
+    this._horizontalPanX = next;
+    this.updateScroll();
+    this.updatePlaybackCursor(this._lastCursorTimeMs);
+    this.app?.render();
+  }
+
+  get horizontalPanX(): number {
+    return this._horizontalPanX;
+  }
+
+  panHorizontally(deltaX: number): void {
+    this.horizontalPanX = this._horizontalPanX + deltaX;
+  }
+
+  setMinimapVisible(visible: boolean): void {
+    if (this._minimapVisible === visible) return;
+    this._minimapVisible = visible;
+    this.minimapRenderer.render();
+    this.app?.render();
+  }
+
   /**
    * Set move origin ghost data (shown during note drag move).
    * Pass original note entities with their original positions.
@@ -466,9 +508,17 @@ export class TimelineRenderer {
    * Horizontal offset to center the timeline content within the canvas.
    */
   get contentOffsetX(): number {
-    const contentWidth = MEASURE_LABEL_WIDTH + this.currentTimelineWidth;
-    return Math.max(0, (this.options.width - MINIMAP_WIDTH - contentWidth) / 2)
-      + MEASURE_LABEL_WIDTH;
+    return getTimelineContentOffsetX({
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      horizontalPanX: this._horizontalPanX,
+    });
+  }
+
+  screenXToTimelineX(screenX: number): number {
+    return mapScreenXToTimelineX({
+      screenX,
+      contentOffsetX: this.contentOffsetX,
+    });
   }
 
   /**
@@ -568,7 +618,6 @@ export class TimelineRenderer {
       this.hoverLayer,
       this.ghostLayer,
       this.boxSelectLayer,
-      this.measureLabels,
       this.playbackCursorLayer,
     ];
 
@@ -577,6 +626,8 @@ export class TimelineRenderer {
       layer.x = offsetX;
       layer.y = -this._scrollY;
     }
+    this.measureLabels.x = MEASURE_LABEL_WIDTH;
+    this.measureLabels.y = -this._scrollY;
     // minimapLayer is NOT scrolled/offset — stays fixed on screen
   }
 
@@ -667,12 +718,12 @@ export class TimelineRenderer {
     this._cursorLine.lineTo(this.currentTimelineWidth, y);
     this._cursorLine.stroke({ width: 2, color: 0x00ff88 });
 
-    // Draggable handle (triangle on the right edge, pointing left)
+    // Draggable handle fixed inside the left rail.
     this._cursorHandle.clear();
-    const hx = this.currentTimelineWidth + 16;
+    const hx = this._horizontalPanX - 8;
     const hs = 8; // half-size of handle
     this._cursorHandle.moveTo(hx, y - hs);
-    this._cursorHandle.lineTo(hx - hs * 2, y);
+    this._cursorHandle.lineTo(hx + hs * 2, y);
     this._cursorHandle.lineTo(hx, y + hs);
     this._cursorHandle.lineTo(hx, y - hs);
     this._cursorHandle.fill(0x00ff88);
@@ -739,6 +790,12 @@ export class TimelineRenderer {
   resize(width: number, height: number): void {
     this.options.width = width;
     this.options.height = height;
+    this._horizontalPanX = clampHorizontalPan({
+      requestedPanX: this._horizontalPanX,
+      timelineWidth: this.currentTimelineWidth,
+      viewportWidth: this.options.width,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+    });
     if (this.initialized) {
       this.app.renderer.resize(width, height);
       this.render();

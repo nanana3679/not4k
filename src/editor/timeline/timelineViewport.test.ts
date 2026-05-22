@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import {
+  clampHorizontalPan,
+  getTimelineContentOffsetX,
+  screenXToTimelineX,
+} from "./timelineViewport";
+
+describe("timeline viewport geometry", () => {
+  it("keeps the timeline content anchored after the fixed left rail", () => {
+    expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
+    expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(-88);
+  });
+
+  it("converts screen x to timeline-local x using the content offset", () => {
+    expect(screenXToTimelineX({ screenX: 92, contentOffsetX: 32 })).toBe(60);
+    expect(screenXToTimelineX({ screenX: 92, contentOffsetX: -88 })).toBe(180);
+  });
+
+  it("clamps horizontal pan to the content that exceeds the body viewport", () => {
+    expect(clampHorizontalPan({
+      requestedPanX: -10,
+      timelineWidth: 600,
+      viewportWidth: 360,
+      leftRailWidth: 32,
+    })).toBe(0);
+
+    expect(clampHorizontalPan({
+      requestedPanX: 500,
+      timelineWidth: 600,
+      viewportWidth: 360,
+      leftRailWidth: 32,
+    })).toBe(272);
+  });
+});

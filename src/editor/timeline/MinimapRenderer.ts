@@ -3,7 +3,7 @@
  * Composition 패턴으로 TimelineRenderer에 포함된다.
  */
 
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics, TextStyle } from "pixi.js";
 import { beatToMs, measureStartBeat } from "../../shared";
 import {
   LANE_COUNT,
@@ -26,6 +26,7 @@ export interface MinimapHost {
   getTotalTimelineMs(): number;
   timeToY(timeMs: number): number;
   readonly minimapLayer: Container;
+  readonly minimapVisible: boolean;
 }
 
 export class MinimapRenderer {
@@ -69,7 +70,7 @@ export class MinimapRenderer {
    * Check if a screen-space x coordinate is within the minimap area.
    */
   isInMinimapArea(x: number): boolean {
-    return x >= this.host.options.width - MINIMAP_WIDTH;
+    return x >= 0 && x <= MINIMAP_WIDTH;
   }
 
   /**
@@ -145,6 +146,8 @@ export class MinimapRenderer {
     minimapLayer.removeChildren();
     this._viewport = null; // destroyed above, will be recreated
 
+    if (!this.host.minimapVisible) return;
+
     const chart = this.host.chart;
     if (!chart) return;
 
@@ -152,7 +155,7 @@ export class MinimapRenderer {
     const totalH = this.host.totalTimelineHeight;
     if (totalH <= 0) return;
 
-    const trackX = this.host.options.width - MINIMAP_WIDTH;
+    const trackX = 0;
     const minimapContentWidth = MINIMAP_WIDTH;
     const scale = canvasH / totalH;
 
@@ -258,63 +261,7 @@ export class MinimapRenderer {
       }
     }
 
-    // (5) Time labels
-    if (this.host.waveformDurationMs > 0) {
-      const intervals = [1, 2, 5, 10, 15, 30, 60, 120, 300];
-      const minSpacingPx = 30;
-      let intervalSec = intervals[intervals.length - 1];
-      for (const iv of intervals) {
-        if (iv * this.host.zoom * scale >= minSpacingPx) {
-          intervalSec = iv;
-          break;
-        }
-      }
-
-      const durationSec = this.host.waveformDurationMs / 1000;
-      const fmtTime = (s: number) => {
-        const m = Math.floor(s / 60);
-        const ss = Math.floor(s % 60);
-        return `${m}:${String(ss).padStart(2, "0")}`;
-      };
-
-      if (!this._timeLabelStyle) {
-        this._timeLabelStyle = new TextStyle({
-          fontSize: 9,
-          fill: 0x66aaff,
-          fontFamily: "monospace",
-        });
-      }
-      const timeLabelStyle = this._timeLabelStyle;
-
-      for (let t = intervalSec; t <= durationSec; t += intervalSec) {
-        const containerY = this.host.timeToY(t * 1000);
-        const my = toMinimapY(containerY);
-        if (my < 8 || my > canvasH - 4) continue;
-
-        const label = new Text({ text: fmtTime(t), style: timeLabelStyle });
-        label.x = trackX + 2;
-        label.y = my;
-        minimapLayer.addChild(label);
-      }
-
-      // End-of-audio time label
-      const endContainerY = this.host.timeToY(this.host.waveformDurationMs);
-      const endMy = toMinimapY(endContainerY);
-      if (endMy >= 8 && endMy <= canvasH - 4) {
-        if (!this._endTimeLabelStyle) {
-          this._endTimeLabelStyle = new TextStyle({ fontSize: 9, fill: 0xff6644, fontFamily: "monospace" });
-        }
-        const endLabel = new Text({
-          text: fmtTime(durationSec),
-          style: this._endTimeLabelStyle,
-        });
-        endLabel.x = trackX + 2;
-        endLabel.y = endMy;
-        minimapLayer.addChild(endLabel);
-      }
-    }
-
-    // (6) Viewport indicator (reusable)
+    // (5) Viewport indicator (reusable)
     this.updateViewport();
   }
 
@@ -325,7 +272,9 @@ export class MinimapRenderer {
   updateViewport(): void {
     const canvasH = this.host.options.height;
     const totalH = this.host.totalTimelineHeight;
-    const trackX = this.host.options.width - MINIMAP_WIDTH;
+    const trackX = 0;
+
+    if (!this.host.minimapVisible) return;
 
     if (!this._viewport) {
       this._viewport = new Graphics();

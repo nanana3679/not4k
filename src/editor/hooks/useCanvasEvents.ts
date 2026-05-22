@@ -76,6 +76,8 @@ export function useCanvasEvents(
   coords: CoordinateHelpers,
   isTimeInBounds: (y: number) => boolean,
   onPinchZoom?: (previousDistance: number, currentDistance: number, centerCanvasY: number) => void,
+  onHorizontalPan?: (deltaX: number) => void,
+  onNavigationInteraction?: () => void,
 ): CanvasEventHandlers {
   const mode = useEditorStore((s) => s.mode);
   const entityType = useEditorStore((s) => s.entityType);
@@ -98,6 +100,7 @@ export function useCanvasEvents(
   const rightDragDeletedRef = useRef(false);
   const activeTouchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
   const pinchPreviousDistanceRef = useRef<number | null>(null);
+  const pinchPreviousCenterRef = useRef<TouchPoint | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const longPressRef = useRef<{
     pointerId: number;
@@ -130,6 +133,7 @@ export function useCanvasEvents(
     activeTouchPointsRef.current.delete(pointerId);
     if (activeTouchPointsRef.current.size < 2) {
       pinchPreviousDistanceRef.current = null;
+      pinchPreviousCenterRef.current = null;
     }
   }, []);
 
@@ -141,6 +145,7 @@ export function useCanvasEvents(
     if (distance <= 0) return true;
 
     pinchPreviousDistanceRef.current = distance;
+    pinchPreviousCenterRef.current = getTouchCenter(points);
     clearLongPress();
     createModeRef.current?.cancelDrag();
     rendererRef.current?.hideGhostNote();
@@ -152,17 +157,22 @@ export function useCanvasEvents(
     if (points.length < 2) return false;
 
     const previousDistance = pinchPreviousDistanceRef.current;
+    const previousCenter = pinchPreviousCenterRef.current;
     const currentDistance = getTouchDistance(points);
+    const center = getTouchCenter(points);
+    if (previousCenter) {
+      onHorizontalPan?.(previousCenter.clientX - center.clientX);
+    }
     if (previousDistance !== null && currentDistance > 0) {
-      const center = getTouchCenter(points);
       onPinchZoom?.(previousDistance, currentDistance, center.clientY - rect.top);
       pinchPreviousDistanceRef.current = currentDistance;
     } else if (currentDistance > 0) {
       pinchPreviousDistanceRef.current = currentDistance;
     }
+    pinchPreviousCenterRef.current = center;
 
     return true;
-  }, [onPinchZoom]);
+  }, [onHorizontalPan, onPinchZoom]);
 
   const scheduleLongPress = useCallback((
     e: React.PointerEvent<HTMLCanvasElement>,
@@ -257,12 +267,16 @@ export function useCanvasEvents(
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    if (rendererRef.current?.isInMinimapArea(rawX)) {
+      onNavigationInteraction?.();
+    }
+
     if (rendererRef.current?.handleMinimapPointerDown(rawX, y)) {
       canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
 
-    const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
+    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
     const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
 
@@ -352,7 +366,7 @@ export function useCanvasEvents(
     updateTouchPoint, startPinchIfNeeded, scheduleLongPress,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef,
+    selectModeRef, onNavigationInteraction,
   ]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -370,9 +384,13 @@ export function useCanvasEvents(
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    if (rendererRef.current?.isInMinimapArea(rawX)) {
+      onNavigationInteraction?.();
+    }
+
     if (rendererRef.current?.handleMinimapPointerMove(rawX, y)) return;
 
-    const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
+    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
@@ -537,7 +555,7 @@ export function useCanvasEvents(
     setSelectedExtraNotes, updateTouchPoint, updateTouchMovement,
     handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, yToBeatRawRef,
+    selectModeRef, yToBeatRawRef, onNavigationInteraction,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -569,7 +587,8 @@ export function useCanvasEvents(
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
+    const rawX = e.clientX - rect.left;
+    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
     if (mode === 'create' && createModeRef.current) {
@@ -625,7 +644,8 @@ export function useCanvasEvents(
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
+    const rawX = e.clientX - rect.left;
+    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
     const hit = hitTestMarker(x, y);
@@ -643,7 +663,8 @@ export function useCanvasEvents(
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = (e.clientX - rect.left) - (rendererRef.current?.contentOffsetX ?? 0);
+    const rawX = e.clientX - rect.left;
+    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
     const extraHitIdx = hitTestExtraNote(x, y);

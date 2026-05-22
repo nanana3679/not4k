@@ -67,9 +67,102 @@ const styles = {
     cursor: 'pointer',
     accentColor: '#4488ff',
   },
+  compactToolbar: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    padding: '6px',
+    backgroundColor: '#242424',
+    borderBottom: '1px solid #333',
+    flexShrink: 0,
+  },
+  compactTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    minHeight: '40px',
+  },
+  compactControlRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    overflowX: 'auto' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    scrollbarWidth: 'none' as const,
+  },
+  compactButton: {
+    minHeight: '40px',
+    padding: '6px 10px',
+    backgroundColor: '#343434',
+    color: '#ededed',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 600,
+    whiteSpace: 'nowrap' as const,
+    touchAction: 'manipulation' as const,
+  },
+  compactPrimaryButton: {
+    backgroundColor: '#2f67d8',
+    borderColor: '#4b7df0',
+    color: '#fff',
+  },
+  compactSelect: {
+    minHeight: '40px',
+    padding: '6px 8px',
+    backgroundColor: '#343434',
+    color: '#ededed',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+    fontSize: '13px',
+    touchAction: 'manipulation' as const,
+  },
+  compactDirty: {
+    color: '#ffcc66',
+    fontSize: '12px',
+    whiteSpace: 'nowrap' as const,
+  },
+  compactMoreMenu: {
+    position: 'absolute' as const,
+    top: '46px',
+    right: 0,
+    minWidth: '210px',
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    backgroundColor: '#262626',
+    border: '1px solid #555',
+    borderRadius: '8px',
+    zIndex: 1000,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+  },
+  compactMenuButton: {
+    minHeight: '40px',
+    padding: '8px 10px',
+    backgroundColor: '#343434',
+    color: '#ededed',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    textAlign: 'left' as const,
+  },
+  compactMenuLabel: {
+    fontSize: '12px',
+    color: '#999',
+  },
+  compactVolumeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 4px',
+  },
 };
 
 interface EditorToolbarProps {
+  compact?: boolean;
   playbackRef: RefObject<PlaybackController | null>;
   autoScroll: boolean;
   setAutoScroll: (v: boolean) => void;
@@ -94,6 +187,7 @@ const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong',
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
 
 export function EditorToolbar({
+  compact = false,
   playbackRef,
   autoScroll,
   setAutoScroll,
@@ -116,6 +210,8 @@ export function EditorToolbar({
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [compactExpanded, setCompactExpanded] = useState(true);
 
   const mode = useEditorStore((s) => s.mode);
   const setMode = useEditorStore((s) => s.setMode);
@@ -137,6 +233,200 @@ export function EditorToolbar({
     serializeChart(chart) !== savedChartSnapshot ||
     serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null;
+
+  if (compact) {
+    return (
+      <div style={styles.compactToolbar}>
+        <div style={styles.compactTopRow}>
+          <button
+            style={styles.compactButton}
+            onClick={() => {
+              if (isDirty) {
+                window.dispatchEvent(new CustomEvent('editor:requestLeave'));
+              } else {
+                window.location.href = '/game';
+              }
+            }}
+            title="Back to song list"
+          >
+            &larr;
+          </button>
+          <span style={styles.compactDirty}>{isDirty ? 'Unsaved' : 'Saved'}</span>
+          <div style={{ flex: 1 }} />
+          <button
+            style={styles.compactButton}
+            onClick={() => setCompactExpanded((v) => !v)}
+            title="Show editor controls"
+          >
+            {compactExpanded ? 'Hide' : 'Edit'}
+          </button>
+          <button
+            style={{ ...styles.compactButton, ...styles.compactPrimaryButton }}
+            onClick={onSaveChart}
+            disabled={saving || deleting}
+            title="Save chart"
+          >
+            {saving ? 'Saving' : 'Save'}
+          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              style={{ ...styles.compactButton, ...(showMoreMenu ? styles.buttonActive : {}) }}
+              onClick={() => setShowMoreMenu((v) => !v)}
+              title="More editor actions"
+            >
+              ...
+            </button>
+            {showMoreMenu && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                  onClick={() => setShowMoreMenu(false)}
+                />
+                <div style={styles.compactMoreMenu}>
+                  <button style={styles.compactMenuButton} onClick={() => { setShowMoreMenu(false); onOpenMeta(); }}>
+                    Meta
+                  </button>
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => setShowOffsetPanel((v) => !v)}
+                  >
+                    Offset
+                  </button>
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => { setShowMoreMenu(false); onSaveAs(); }}
+                    disabled={saving || deleting || !activeSongId}
+                  >
+                    Save As
+                  </button>
+                  <button
+                    style={{ ...styles.compactMenuButton, color: '#ffb4a8' }}
+                    onClick={() => { setShowMoreMenu(false); onDeleteChart(); }}
+                    disabled={saving || deleting || !activeSongId}
+                  >
+                    {deleting ? 'Deleting' : 'Delete Chart'}
+                  </button>
+                  <label style={styles.compactMenuLabel}>Extra lanes</label>
+                  <select
+                    style={styles.compactSelect}
+                    value={extraLaneCount}
+                    onChange={(e) => {
+                      const newCount = parseInt(e.target.value);
+                      setExtraLaneCount(newCount);
+                      if (newCount < extraLaneCount) {
+                        setSelectedExtraNotes(new Set());
+                      }
+                    }}
+                  >
+                    {[2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <label style={styles.compactMenuLabel}>Volume</label>
+                  <div style={styles.compactVolumeRow}>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={masterVolume}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateSettings({ masterVolume: v });
+                        if (playbackRef.current) playbackRef.current.volume = v;
+                      }}
+                      style={{ ...styles.volumeSlider, width: '130px' }}
+                    />
+                    <span style={{ fontSize: '12px', color: '#e0e0e0', minWidth: '34px', textAlign: 'right' }}>
+                      {Math.round(masterVolume * 100)}%
+                    </span>
+                  </div>
+                  <button
+                    style={{ ...styles.compactMenuButton, ...(autoScroll ? styles.buttonActive : {}) }}
+                    onClick={() => setAutoScroll(!autoScroll)}
+                  >
+                    Auto Scroll
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {compactExpanded && (
+          <div style={styles.compactControlRow}>
+            <select
+              style={styles.compactSelect}
+              value={mode}
+              onChange={(e) => setMode(e.target.value as typeof mode)}
+            >
+              <option value="create">Create</option>
+              <option value="select">Select</option>
+              <option value="delete">Delete</option>
+            </select>
+            {mode === 'create' && (
+              <select
+                style={styles.compactSelect}
+                value={entityType}
+                onChange={(e) => setEntityType(e.target.value as EntityType)}
+              >
+                <optgroup label="Notes">
+                  {noteTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Events">
+                  {eventTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </optgroup>
+              </select>
+            )}
+            <select
+              style={styles.compactSelect}
+              value={[4, 8, 16, 32, 3, 6, 12, 24, 48].includes(snapDivision) ? String(snapDivision) : 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  onOpenCustomSnap();
+                } else {
+                  setSnapDivision(parseInt(val));
+                }
+              }}
+            >
+              <option value="4">1/4</option>
+              <option value="8">1/8</option>
+              <option value="16">1/16</option>
+              <option value="32">1/32</option>
+              <option value="3">1/3</option>
+              <option value="6">1/6</option>
+              <option value="12">1/12</option>
+              <option value="24">1/24</option>
+              <option value="48">1/48</option>
+              <option value="custom">Custom</option>
+            </select>
+            <span style={{ ...styles.compactDirty, color: '#888' }}>{zoom.toFixed(0)}px/s</span>
+          </div>
+        )}
+
+        {showOffsetPanel && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto' }}>
+            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 10 } })}>-10</button>
+            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 1 } })}>-1</button>
+            <input
+              type="number"
+              value={chart.meta.offsetMs}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v)) setChart({ ...chart, meta: { ...chart.meta, offsetMs: v } });
+              }}
+              style={{ width: '76px', minHeight: '40px', padding: '6px', backgroundColor: '#1a1a1a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', textAlign: 'center' }}
+            />
+            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 1 } })}>+1</button>
+            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 10 } })}>+10</button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={styles.toolbar}>
