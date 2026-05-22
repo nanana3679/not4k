@@ -79,8 +79,10 @@ const styles = {
   compactTopRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '4px',
     minHeight: '40px',
+    flexWrap: 'nowrap' as const,
+    overflow: 'visible' as const,
   },
   compactControlRow: {
     display: 'flex',
@@ -103,10 +105,26 @@ const styles = {
     whiteSpace: 'nowrap' as const,
     touchAction: 'manipulation' as const,
   },
+  compactIconButton: {
+    width: '40px',
+    minWidth: '40px',
+    height: '40px',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   compactPrimaryButton: {
     backgroundColor: '#2f67d8',
     borderColor: '#4b7df0',
     color: '#fff',
+  },
+  compactStatusDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
   },
   compactSelect: {
     minHeight: '40px',
@@ -160,6 +178,81 @@ const styles = {
     padding: '6px 4px',
   },
 };
+
+type ToolbarIconName = 'back' | 'controls' | 'edit' | 'map' | 'save' | 'more';
+
+function ToolbarIcon({ name }: { name: ToolbarIconName }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+    focusable: false,
+  };
+
+  if (name === 'back') {
+    return (
+      <svg {...common}>
+        <path d="M19 12H5" />
+        <path d="M12 19l-7-7 7-7" />
+      </svg>
+    );
+  }
+
+  if (name === 'controls') {
+    return (
+      <svg {...common}>
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+        <path d="M8 6v4" />
+        <path d="M16 12v4" />
+      </svg>
+    );
+  }
+
+  if (name === 'edit') {
+    return (
+      <svg {...common}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    );
+  }
+
+  if (name === 'map') {
+    return (
+      <svg {...common}>
+        <path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3Z" />
+        <path d="M9 3v15" />
+        <path d="M15 6v15" />
+      </svg>
+    );
+  }
+
+  if (name === 'save') {
+    return (
+      <svg {...common}>
+        <path d="M5 3h12l2 2v16H5Z" />
+        <path d="M8 3v6h8V3" />
+        <path d="M8 21v-7h8v7" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M12 12h.01" />
+      <path d="M19 12h.01" />
+      <path d="M5 12h.01" />
+    </svg>
+  );
+}
 
 interface EditorToolbarProps {
   compact?: boolean;
@@ -243,7 +336,7 @@ export function EditorToolbar({
       <div style={styles.compactToolbar}>
         <div style={styles.compactTopRow}>
           <button
-            style={styles.compactButton}
+            style={{ ...styles.compactButton, ...styles.compactIconButton }}
             onClick={() => {
               if (isDirty) {
                 window.dispatchEvent(new CustomEvent('editor:requestLeave'));
@@ -252,40 +345,52 @@ export function EditorToolbar({
               }
             }}
             title="Back to song list"
+            aria-label="Back to song list"
           >
-            &larr;
+            <ToolbarIcon name="back" />
           </button>
-          <span style={styles.compactDirty}>{isDirty ? 'Unsaved' : 'Saved'}</span>
+          <span
+            style={{
+              ...styles.compactStatusDot,
+              backgroundColor: isDirty ? '#ffcc66' : '#5ccf7a',
+            }}
+            title={isDirty ? 'Unsaved changes' : 'Saved'}
+            aria-label={isDirty ? 'Unsaved changes' : 'Saved'}
+          />
           <div style={{ flex: 1 }} />
           <button
-            style={styles.compactButton}
+            style={{ ...styles.compactButton, ...styles.compactIconButton }}
             onClick={() => setCompactExpanded((v) => !v)}
-            title="Show editor controls"
+            title={compactExpanded ? 'Hide editor controls' : 'Show editor controls'}
+            aria-label={compactExpanded ? 'Hide editor controls' : 'Show editor controls'}
           >
-            {compactExpanded ? 'Hide' : 'Edit'}
+            <ToolbarIcon name={compactExpanded ? 'controls' : 'edit'} />
           </button>
           <button
-            style={{ ...styles.compactButton, ...(minimapVisible ? styles.buttonActive : {}) }}
+            style={{ ...styles.compactButton, ...styles.compactIconButton, ...(minimapVisible ? styles.buttonActive : {}) }}
             onClick={onToggleMinimap}
             title="Toggle minimap"
+            aria-label="Toggle minimap"
           >
-            Map
+            <ToolbarIcon name="map" />
           </button>
           <button
-            style={{ ...styles.compactButton, ...styles.compactPrimaryButton }}
+            style={{ ...styles.compactButton, ...styles.compactIconButton, ...styles.compactPrimaryButton }}
             onClick={onSaveChart}
             disabled={saving || deleting}
-            title="Save chart"
+            title={saving ? 'Saving chart' : 'Save chart'}
+            aria-label={saving ? 'Saving chart' : 'Save chart'}
           >
-            {saving ? 'Saving' : 'Save'}
+            <ToolbarIcon name="save" />
           </button>
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
-              style={{ ...styles.compactButton, ...(showMoreMenu ? styles.buttonActive : {}) }}
+              style={{ ...styles.compactButton, ...styles.compactIconButton, ...(showMoreMenu ? styles.buttonActive : {}) }}
               onClick={() => setShowMoreMenu((v) => !v)}
               title="More editor actions"
+              aria-label="More editor actions"
             >
-              ...
+              <ToolbarIcon name="more" />
             </button>
             {showMoreMenu && (
               <>
