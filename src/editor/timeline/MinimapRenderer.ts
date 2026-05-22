@@ -79,6 +79,7 @@ export class MinimapRenderer {
    * Handle minimap pointer down. Returns true if the event was consumed.
    */
   handlePointerDown(x: number, y: number): boolean {
+    if (!this.host.minimapVisible) return false;
     if (!this.isInMinimapArea(x)) return false;
 
     const canvasH = this.host.options.height;
