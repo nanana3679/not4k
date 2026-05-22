@@ -652,6 +652,7 @@ function ChartEditorPage() {
       <EditorToolbar
         compact={compactEditor}
         playbackRef={playbackRef}
+        selectModeRef={selectModeRef}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}
         showOffsetPanel={showOffsetPanel}
@@ -861,22 +862,6 @@ function ChartEditorPage() {
           ))}
         </div>
       )}
-
-      {/* 하단 상태바 */}
-      <div style={styles.bottomBar}>
-        <span>Time: {(currentTimeMs / 1000).toFixed(2)}s</span>
-        <span style={{ marginLeft: '20px' }}>
-          Selected: {selectedNotes.size + selectedExtraNotes.size} notes
-        </span>
-        <span style={{ marginLeft: '20px' }}>
-          Total: {chart.notes.length} notes
-        </span>
-        {extraNotes.length > 0 && (
-          <span style={{ marginLeft: '20px' }}>
-            Extra: {extraNotes.length} notes
-          </span>
-        )}
-      </div>
     </div>
   );
 }
@@ -970,14 +955,5 @@ const styles = {
     fontSize: '13px',
     whiteSpace: 'nowrap' as const,
     boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-  },
-  bottomBar: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '4px 16px',
-    backgroundColor: '#2a2a2a',
-    borderTop: '1px solid #333',
-    height: '30px',
-    fontSize: '13px',
   },
 };

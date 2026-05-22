@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampHorizontalPan,
   getTimelineContentOffsetX,
+  isFixedRailX,
   screenXToTimelineX,
 } from "./timelineViewport";
 
@@ -30,5 +31,10 @@ describe("timeline viewport geometry", () => {
       viewportWidth: 360,
       leftRailWidth: 32,
     })).toBe(272);
+  });
+
+  it("keeps fixed-rail pointer capture out of lane 1", () => {
+    expect(isFixedRailX({ screenX: 31, leftRailWidth: 32 })).toBe(true);
+    expect(isFixedRailX({ screenX: 33, leftRailWidth: 32 })).toBe(false);
   });
 });

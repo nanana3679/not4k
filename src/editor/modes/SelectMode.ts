@@ -275,33 +275,15 @@ export class SelectMode {
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       } else if (isAlreadySelected && this.selectedIndices.size > 0) {
         // Start move drag on selected note
-        this.isDragging = true;
-        this.dragType = "move";
-        this.dragStartBeat = this.callbacks.yToBeat(y);
-        this.dragStartLane = this.callbacks.xToLane(x);
-
-        // Store original positions
-        this.originalPositions.clear();
-        for (const idx of this.selectedIndices) {
-          const note = this.chart.notes[idx];
-          if (this.isRangeNote(note)) {
-            this.originalPositions.set(idx, {
-              beat: note.beat,
-              endBeat: note.endBeat,
-              lane: note.lane,
-            });
-          } else {
-            this.originalPositions.set(idx, {
-              beat: note.beat,
-              lane: note.lane,
-            });
-          }
-        }
+        this.startMainMoveDrag(x, y);
       } else {
         // Select this note only
         this.selectedIndices.clear();
         this.selectedIndices.add(hitIndex);
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+        this.selectedExtraIndices.clear();
+        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+        this.startMainMoveDrag(x, y);
       }
     } else {
       // Clicking empty space
@@ -564,6 +546,11 @@ export class SelectMode {
 
   /** Move selected notes by one snap unit */
   moveBySnap(direction: "up" | "down"): void {
+    if (this.selectedExtraIndices.size > 0) {
+      this.moveExtraBySnapImpl(direction);
+      return;
+    }
+
     if (this.selectedIndices.size === 0) return;
 
     // Get snap unit from current snap setting (assume 1/snap beat)
@@ -697,6 +684,46 @@ export class SelectMode {
       this.chart = { ...this.chart, notes: newNotes };
       this.callbacks.onChartUpdate(this.chart);
     }
+  }
+
+  /** 엑스트라 노트의 스냅 이동 */
+  private moveExtraBySnapImpl(direction: "up" | "down"): void {
+    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
+
+    const extraNotes = this.callbacks.getExtraNotes();
+    const snapStep = this.callbacks.getSnapStep();
+    const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
+    const maxFloat = this.callbacks.getMaxBeatFloat();
+    const newExtraNotes = [...extraNotes];
+
+    for (const idx of this.selectedExtraIndices) {
+      const note = newExtraNotes[idx];
+      if (!note) continue;
+
+      const newBeat = beatAdd(note.beat, offset);
+      const newBeatFloat = beatToFloat(newBeat);
+      if (newBeatFloat < 0 || newBeatFloat > maxFloat) return;
+
+      if ("endBeat" in note) {
+        const duration = beatSub(note.endBeat, note.beat);
+        const newEndBeat = beatAdd(newBeat, duration);
+        const newEndFloat = beatToFloat(newEndBeat);
+        if (newEndFloat < 0 || newEndFloat > maxFloat) return;
+
+        newExtraNotes[idx] = {
+          ...note,
+          beat: newBeat,
+          endBeat: newEndBeat,
+        };
+      } else {
+        newExtraNotes[idx] = {
+          ...note,
+          beat: newBeat,
+        };
+      }
+    }
+
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
   }
 
   /** 엑스트라 노트의 레인 이동 */
@@ -992,6 +1019,34 @@ export class SelectMode {
   }
 
   // --- Private helpers ---
+
+  private startMainMoveDrag(x: number, y: number): void {
+    const lane = this.callbacks.xToLane(x);
+    if (lane === null || this.selectedIndices.size === 0) return;
+
+    this.isDragging = true;
+    this.dragType = "move";
+    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.dragStartLane = lane;
+    this.dragStartExtraLane = null;
+
+    this.originalPositions.clear();
+    for (const idx of this.selectedIndices) {
+      const note = this.chart.notes[idx];
+      if (this.isRangeNote(note)) {
+        this.originalPositions.set(idx, {
+          beat: note.beat,
+          endBeat: note.endBeat,
+          lane: note.lane,
+        });
+      } else {
+        this.originalPositions.set(idx, {
+          beat: note.beat,
+          lane: note.lane,
+        });
+      }
+    }
+  }
 
   private isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;

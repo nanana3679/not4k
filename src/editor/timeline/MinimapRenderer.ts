@@ -9,7 +9,9 @@ import {
   LANE_COUNT,
   COLORS,
   MINIMAP_WIDTH,
+  MEASURE_LABEL_WIDTH,
 } from "./constants";
+import { isFixedRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import type { Chart } from "../../shared";
 
@@ -70,7 +72,7 @@ export class MinimapRenderer {
    * Check if a screen-space x coordinate is within the minimap area.
    */
   isInMinimapArea(x: number): boolean {
-    return x >= 0 && x <= MINIMAP_WIDTH;
+    return isFixedRailX({ screenX: x, leftRailWidth: MEASURE_LABEL_WIDTH });
   }
 
   /**

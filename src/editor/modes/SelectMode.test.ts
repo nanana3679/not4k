@@ -171,6 +171,52 @@ describe("SelectMode — 모바일 터치 선택", () => {
     expect([...mainSelected]).toEqual([]);
     expect([...extraSelected]).toEqual([0]);
   });
+
+  it("선택되지 않은 메인 노트를 첫 드래그로 바로 이동", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 0 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(2, 1);
+    mode.onPointerUp(2, 1);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[0].lane).toBe(2);
+    expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(1);
+  });
+
+  it("선택된 엑스트라 노트를 snap 단위로 위아래 이동", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(2) },
+    ];
+    const cb = makeCallbacks(
+      {
+        hitTestExtraNote: () => 0,
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(5, 2, false, false);
+    mode.moveBySnap("up");
+
+    const movedUp = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(movedUp[0].beat.n / movedUp[0].beat.d).toBe(3);
+
+    mode.moveBySnap("down");
+
+    const movedDown = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(movedDown[0].beat.n / movedDown[0].beat.d).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,13 @@ export function screenXToTimelineX(input: {
   return input.screenX - input.contentOffsetX;
 }
 
+export function isFixedRailX(input: {
+  screenX: number;
+  leftRailWidth: number;
+}): boolean {
+  return input.screenX >= 0 && input.screenX < input.leftRailWidth;
+}
+
 export function clampHorizontalPan(input: {
   requestedPanX: number;
   timelineWidth: number;

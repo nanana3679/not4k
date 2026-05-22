@@ -16,7 +16,7 @@ export const DEFAULT_MEASURES = 16;
 export const TIMELINE_PADDING = 50; // px of empty space before first / after last measure
 
 // Minimap
-export const MINIMAP_WIDTH = 60;
+export const MINIMAP_WIDTH = MEASURE_LABEL_WIDTH;
 
 // Colors
 export const COLORS = {
