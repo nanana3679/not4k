@@ -4,6 +4,7 @@ import {
   clampVerticalScroll,
   getTimelineContentOffsetX,
   isFixedRailX,
+  isPlaybackCursorSeekArea,
   screenXToTimelineX,
 } from "./timelineViewport";
 
@@ -37,6 +38,29 @@ describe("timeline viewport geometry", () => {
   it("keeps fixed-rail pointer capture out of lane 1", () => {
     expect(isFixedRailX({ screenX: 31, leftRailWidth: 32 })).toBe(true);
     expect(isFixedRailX({ screenX: 33, leftRailWidth: 32 })).toBe(false);
+  });
+
+  it("treats the fixed left rail as a playback cursor seek area", () => {
+    expect(isPlaybackCursorSeekArea({
+      screenX: 24,
+      timelineX: -8,
+      timelineWidth: 240,
+      leftRailWidth: 32,
+    })).toBe(true);
+
+    expect(isPlaybackCursorSeekArea({
+      screenX: 120,
+      timelineX: 88,
+      timelineWidth: 240,
+      leftRailWidth: 32,
+    })).toBe(false);
+
+    expect(isPlaybackCursorSeekArea({
+      screenX: 300,
+      timelineX: 268,
+      timelineWidth: 240,
+      leftRailWidth: 32,
+    })).toBe(true);
   });
 
   it("clamps vertical pan to the scrollable timeline range", () => {

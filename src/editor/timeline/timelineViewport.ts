@@ -30,6 +30,18 @@ export function clampHorizontalPan(input: {
   return Math.max(0, Math.min(maxPanX, input.requestedPanX));
 }
 
+export function isPlaybackCursorSeekArea(input: {
+  screenX: number;
+  timelineX: number;
+  timelineWidth: number;
+  leftRailWidth: number;
+}): boolean {
+  return isFixedRailX({
+    screenX: input.screenX,
+    leftRailWidth: input.leftRailWidth,
+  }) || input.timelineX >= input.timelineWidth;
+}
+
 export function clampVerticalScroll(input: {
   requestedScrollY: number;
   timelineHeight: number;

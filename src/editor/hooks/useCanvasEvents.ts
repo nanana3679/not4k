@@ -8,7 +8,8 @@ import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode } from '../modes';
 import { DeleteMode, isEventEntityType } from '../modes';
-import { TIMELINE_WIDTH } from '../timeline/constants';
+import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
+import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
 import { beatToMs, beatEq } from '../../shared';
 import type { Beat, Lane, RangeNote } from '../../shared';
@@ -278,20 +279,26 @@ export function useCanvasEvents(
       return;
     }
 
-    const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
-    const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
-    const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
-
-    scheduleLongPress(e, x, y, touchNoteHit, touchExtraHit);
-
+    const renderer = rendererRef.current;
+    const x = renderer?.screenXToTimelineX(rawX) ?? rawX;
     const curTimelineWidth = rendererRef.current?.currentTimelineWidth ?? TIMELINE_WIDTH;
-    if (x >= curTimelineWidth && rendererRef.current) {
+    if (renderer && isPlaybackCursorSeekArea({
+      screenX: rawX,
+      timelineX: x,
+      timelineWidth: curTimelineWidth,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+    })) {
       isDraggingCursorRef.current = true;
-      const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
+      const timeMs = renderer.clampToMeasureRange(renderer.yToTime(y));
       playbackRef.current?.seekTo(timeMs);
       canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
+
+    const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
+    const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
+
+    scheduleLongPress(e, x, y, touchNoteHit, touchExtraHit);
 
     if (e.button === 2) {
       rightDragDeletedRef.current = false;
