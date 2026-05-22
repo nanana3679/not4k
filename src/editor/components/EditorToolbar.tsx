@@ -71,7 +71,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '6px',
-    padding: '4px',
+    padding: '3px',
     backgroundColor: '#242424',
     borderBottom: '1px solid #333',
     flexShrink: 0,
@@ -79,13 +79,13 @@ const styles = {
   compactTopRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '3px',
-    minHeight: '38px',
+    gap: '2px',
+    minHeight: '36px',
     flexWrap: 'nowrap' as const,
     overflow: 'visible' as const,
   },
   compactButton: {
-    minHeight: '38px',
+    minHeight: '36px',
     padding: '6px 10px',
     backgroundColor: '#343434',
     color: '#ededed',
@@ -98,9 +98,9 @@ const styles = {
     touchAction: 'manipulation' as const,
   },
   compactIconButton: {
-    width: '38px',
-    minWidth: '38px',
-    height: '38px',
+    width: '34px',
+    minWidth: '34px',
+    height: '36px',
     padding: 0,
     boxSizing: 'border-box' as const,
     display: 'inline-flex',
@@ -111,6 +111,11 @@ const styles = {
   compactPrimaryButton: {
     backgroundColor: '#2f67d8',
     borderColor: '#4b7df0',
+    color: '#fff',
+  },
+  compactPlayButton: {
+    backgroundColor: '#2d6b3a',
+    borderColor: '#3a8f4e',
     color: '#fff',
   },
   compactStatusDot: {
@@ -215,7 +220,7 @@ const styles = {
   },
 };
 
-type ToolbarIconName = 'back' | 'map' | 'save' | 'more' | 'mode' | 'entity' | 'snap' | 'extra' | 'close';
+type ToolbarIconName = 'back' | 'map' | 'play' | 'pause' | 'save' | 'more' | 'mode' | 'entity' | 'snap' | 'extra' | 'close';
 type CompactPicker = 'mode' | 'entity' | 'snap' | 'extra';
 
 function ToolbarIcon({ name }: { name: ToolbarIconName }) {
@@ -247,6 +252,23 @@ function ToolbarIcon({ name }: { name: ToolbarIconName }) {
         <path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3Z" />
         <path d="M9 3v15" />
         <path d="M15 6v15" />
+      </svg>
+    );
+  }
+
+  if (name === 'play') {
+    return (
+      <svg {...common}>
+        <path d="M8 5v14l11-7Z" />
+      </svg>
+    );
+  }
+
+  if (name === 'pause') {
+    return (
+      <svg {...common}>
+        <path d="M8 5v14" />
+        <path d="M16 5v14" />
       </svg>
     );
   }
@@ -598,6 +620,14 @@ export function EditorToolbar({
             aria-label="Toggle minimap"
           >
             <ToolbarIcon name="map" />
+          </button>
+          <button
+            style={{ ...styles.compactButton, ...styles.compactIconButton, ...styles.compactPlayButton, ...(isPlaying ? styles.buttonActive : {}) }}
+            onClick={() => playbackRef.current?.togglePlay()}
+            title={isPlaying ? 'Pause' : 'Play'}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            <ToolbarIcon name={isPlaying ? 'pause' : 'play'} />
           </button>
           <button
             style={{ ...styles.compactButton, ...styles.compactIconButton, ...styles.compactPrimaryButton }}
