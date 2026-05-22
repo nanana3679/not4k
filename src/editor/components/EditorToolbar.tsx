@@ -71,7 +71,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '6px',
-    padding: '6px',
+    padding: '4px',
     backgroundColor: '#242424',
     borderBottom: '1px solid #333',
     flexShrink: 0,
@@ -79,20 +79,13 @@ const styles = {
   compactTopRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    minHeight: '40px',
+    gap: '3px',
+    minHeight: '38px',
     flexWrap: 'nowrap' as const,
     overflow: 'visible' as const,
   },
-  compactControlRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    minHeight: '40px',
-    flexWrap: 'nowrap' as const,
-  },
   compactButton: {
-    minHeight: '40px',
+    minHeight: '38px',
     padding: '6px 10px',
     backgroundColor: '#343434',
     color: '#ededed',
@@ -105,10 +98,11 @@ const styles = {
     touchAction: 'manipulation' as const,
   },
   compactIconButton: {
-    width: '40px',
-    minWidth: '40px',
-    height: '40px',
+    width: '38px',
+    minWidth: '38px',
+    height: '38px',
     padding: 0,
+    boxSizing: 'border-box' as const,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -124,11 +118,6 @@ const styles = {
     height: '8px',
     borderRadius: '50%',
     flexShrink: 0,
-  },
-  compactDirty: {
-    color: '#ffcc66',
-    fontSize: '12px',
-    whiteSpace: 'nowrap' as const,
   },
   compactMoreMenu: {
     position: 'absolute' as const,
@@ -226,7 +215,7 @@ const styles = {
   },
 };
 
-type ToolbarIconName = 'back' | 'controls' | 'edit' | 'map' | 'save' | 'more' | 'mode' | 'entity' | 'snap' | 'extra' | 'close';
+type ToolbarIconName = 'back' | 'map' | 'save' | 'more' | 'mode' | 'entity' | 'snap' | 'extra' | 'close';
 type CompactPicker = 'mode' | 'entity' | 'snap' | 'extra';
 
 function ToolbarIcon({ name }: { name: ToolbarIconName }) {
@@ -248,27 +237,6 @@ function ToolbarIcon({ name }: { name: ToolbarIconName }) {
       <svg {...common}>
         <path d="M19 12H5" />
         <path d="M12 19l-7-7 7-7" />
-      </svg>
-    );
-  }
-
-  if (name === 'controls') {
-    return (
-      <svg {...common}>
-        <path d="M4 6h16" />
-        <path d="M4 12h16" />
-        <path d="M4 18h16" />
-        <path d="M8 6v4" />
-        <path d="M16 12v4" />
-      </svg>
-    );
-  }
-
-  if (name === 'edit') {
-    return (
-      <svg {...common}>
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
       </svg>
     );
   }
@@ -426,7 +394,6 @@ export function EditorToolbar({
   const updateSettings = useGameStore((s) => s.updateSettings);
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [compactExpanded, setCompactExpanded] = useState(true);
   const [compactPicker, setCompactPicker] = useState<CompactPicker | null>(null);
 
   const mode = useEditorStore((s) => s.mode);
@@ -598,14 +565,31 @@ export function EditorToolbar({
             title={isDirty ? 'Unsaved changes' : 'Saved'}
             aria-label={isDirty ? 'Unsaved changes' : 'Saved'}
           />
-          <div style={{ flex: 1 }} />
           <button
-            style={{ ...styles.compactButton, ...styles.compactIconButton }}
-            onClick={() => setCompactExpanded((v) => !v)}
-            title={compactExpanded ? 'Hide editor controls' : 'Show editor controls'}
-            aria-label={compactExpanded ? 'Hide editor controls' : 'Show editor controls'}
+            style={compactActiveIconStyle}
+            onClick={() => setCompactPicker('mode')}
+            title={`Mode: ${mode}`}
+            aria-label={`Mode: ${mode}`}
           >
-            <ToolbarIcon name={compactExpanded ? 'controls' : 'edit'} />
+            <ToolbarIcon name="mode" />
+          </button>
+          {mode === 'create' && (
+            <button
+              style={compactIconStyle}
+              onClick={() => setCompactPicker('entity')}
+              title={`Entity: ${entityLabels[entityType]}`}
+              aria-label={`Entity: ${entityLabels[entityType]}`}
+            >
+              <ToolbarIcon name="entity" />
+            </button>
+          )}
+          <button
+            style={compactIconStyle}
+            onClick={() => setCompactPicker('snap')}
+            title={`Snap: 1/${snapDivision}`}
+            aria-label={`Snap: 1/${snapDivision}`}
+          >
+            <ToolbarIcon name="snap" />
           </button>
           <button
             style={{ ...styles.compactButton, ...styles.compactIconButton, ...(minimapVisible ? styles.buttonActive : {}) }}
@@ -702,38 +686,6 @@ export function EditorToolbar({
             )}
           </div>
         </div>
-
-        {compactExpanded && (
-          <div style={styles.compactControlRow}>
-            <button
-              style={compactActiveIconStyle}
-              onClick={() => setCompactPicker('mode')}
-              title={`Mode: ${mode}`}
-              aria-label={`Mode: ${mode}`}
-            >
-              <ToolbarIcon name="mode" />
-            </button>
-            {mode === 'create' && (
-              <button
-                style={compactIconStyle}
-                onClick={() => setCompactPicker('entity')}
-                title={`Entity: ${entityLabels[entityType]}`}
-                aria-label={`Entity: ${entityLabels[entityType]}`}
-              >
-                <ToolbarIcon name="entity" />
-              </button>
-            )}
-            <button
-              style={compactIconStyle}
-              onClick={() => setCompactPicker('snap')}
-              title={`Snap: 1/${snapDivision}`}
-              aria-label={`Snap: 1/${snapDivision}`}
-            >
-              <ToolbarIcon name="snap" />
-            </button>
-            <span style={{ ...styles.compactDirty, color: '#888' }}>{zoom.toFixed(0)}px/s</span>
-          </div>
-        )}
 
         {renderCompactPicker()}
 
