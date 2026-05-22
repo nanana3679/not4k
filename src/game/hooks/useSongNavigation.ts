@@ -31,8 +31,20 @@ export function useSongNavigation(options: {
   newChartTarget: DbSong | null;
   onPlay: (songId: string, difficulty: string, audioUrl: string) => void;
   onEscape: () => void;
+  allowPlay?: boolean;
+  centerFocusedCard?: boolean;
+  enableWheelNavigation?: boolean;
 }): UseSongNavigationResult {
-  const { isAdmin, showAddSong, newChartTarget, onPlay, onEscape } = options;
+  const {
+    isAdmin,
+    showAddSong,
+    newChartTarget,
+    onPlay,
+    onEscape,
+    allowPlay = true,
+    centerFocusedCard = true,
+    enableWheelNavigation = true,
+  } = options;
   const { selectedSongId, selectedDifficulty } = useGameStore();
 
   const [songs, setSongs] = useState<DbSong[]>([]);
@@ -94,6 +106,7 @@ export function useSongNavigation(options: {
 
   // 마우스 휠 → 곡 변경 (non-passive)
   useEffect(() => {
+    if (!enableWheelNavigation) return;
     const el = songListRef.current;
     if (!el) return;
     const handleWheel = (e: WheelEvent) => {
@@ -103,15 +116,16 @@ export function useSongNavigation(options: {
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
-  }, [navigateSong]);
+  }, [enableWheelNavigation, navigateSong]);
 
   // 포커스된 카드 스크롤 중앙 정렬
   useEffect(() => {
+    if (!centerFocusedCard) return;
     const el = songCardRefs.current.get(focusedSongIndex);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [focusedSongIndex]);
+  }, [centerFocusedCard, focusedSongIndex]);
 
   // 키보드 네비게이션
   useEffect(() => {
@@ -135,7 +149,7 @@ export function useSongNavigation(options: {
           const maxIdx = getSortedCharts(song).length - 1;
           setFocusedChartIndex((prev) => Math.min(maxIdx, prev + 1));
         }
-      } else if (e.key === 'Enter') {
+      } else if (e.key === 'Enter' && allowPlay) {
         e.preventDefault();
         const song = songs[focusedSongIndex];
         if (song) {
@@ -152,7 +166,7 @@ export function useSongNavigation(options: {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, onPlay, onEscape, getSortedCharts, navigateSong]);
+  }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, onPlay, onEscape, getSortedCharts, navigateSong, allowPlay]);
 
   // 마지막 플레이 곡으로 포커스 복원, 또는 인덱스 클램프
   useEffect(() => {

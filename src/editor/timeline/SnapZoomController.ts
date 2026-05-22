@@ -98,6 +98,21 @@ export class SnapZoomController {
   }
 
   /**
+   * Handle a two-finger pinch zoom.
+   * @param startDistance Distance between touches at gesture start in px.
+   * @param currentDistance Current distance between touches in px.
+   * @returns true if the pinch was valid and zoom changed.
+   */
+  handlePinchZoom(startDistance: number, currentDistance: number): boolean {
+    if (startDistance <= 0 || currentDistance <= 0) {
+      return false;
+    }
+
+    this.zoom = this.state.zoom * (currentDistance / startDistance);
+    return true;
+  }
+
+  /**
    * Snap a time (ms) to the nearest grid position
    * @param timeMs Time in milliseconds
    * @param bpmMarkers BPM markers array

@@ -475,14 +475,12 @@ describe("풀 초기화 후 상태 격리", () => {
   let renderer: GameNoteRenderer;
   let noteLayer: Container;
   let bodyLayer: Container;
-  let endLayer: Container;
 
   beforeEach(() => {
     const created = createRenderer();
     renderer = created.renderer;
     noteLayer = created.noteLayer;
     bodyLayer = created.bodyLayer;
-    endLayer = created.endLayer;
   });
 
   it("clearPools 후 모든 상태(completed, failed, missed, partial, partialFailed)가 초기화됨", () => {

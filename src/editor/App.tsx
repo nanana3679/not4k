@@ -179,6 +179,7 @@ function ChartEditorPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [loadedAudioBuffer, setLoadedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
@@ -236,11 +237,29 @@ function ChartEditorPage() {
     return timeMs >= minMs && timeMs <= totalMs;
   }, [chart.meta.offsetMs]);
 
+  const handlePinchZoom = useCallback((previousDistance: number, currentDistance: number, centerCanvasY: number) => {
+    const snapZoom = snapZoomRef.current;
+    if (!snapZoom) return;
+
+    const renderer = rendererRef.current;
+    const anchorTimeMs = renderer?.yToTime(centerCanvasY) ?? null;
+    const handled = snapZoom.handlePinchZoom(previousDistance, currentDistance);
+    if (!handled) return;
+
+    if (renderer && anchorTimeMs !== null) {
+      renderer.zoom = snapZoom.zoom;
+      const newContentY = renderer.timeToY(anchorTimeMs);
+      const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
+      setScrollY(Math.max(0, Math.min(maxScroll, newContentY - centerCanvasY)));
+    }
+  }, [canvasSize.height, setScrollY]);
+
   // 캔버스 이벤트 훅
   const canvasEvents = useCanvasEvents(
     canvasRef, rendererRef, playbackRef,
     createModeRef, selectModeRef, deleteModeRef,
     isDraggingCursorRef, coords, isTimeInBounds,
+    handlePinchZoom,
   );
 
   // 파일 오퍼레이션 훅
@@ -411,6 +430,7 @@ function ChartEditorPage() {
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
+      setLoadedAudioBuffer(audioBuffer ?? null);
       if (audioBuffer && rendererRef.current) {
         const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
         const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
@@ -421,6 +441,7 @@ function ChartEditorPage() {
       }
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
+      setLoadedAudioBuffer(null);
       addToast(`Audio load failed: ${message}`, 'error');
     }).finally(() => {
       setAudioLoading(false);
@@ -518,7 +539,7 @@ function ChartEditorPage() {
       const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
       setScrollY(Math.max(0, Math.min(maxScroll, targetScroll)));
     }
-  }, [currentTimeMs, autoScroll, isPlaying, canvasSize.height]);
+  }, [currentTimeMs, autoScroll, isPlaying, canvasSize.height, setScrollY]);
 
   // 휠 핸들러 (passive: false 필요)
   const handleWheelNative = useCallback((e: WheelEvent) => {
@@ -604,6 +625,7 @@ function ChartEditorPage() {
           onPointerDown={canvasEvents.handlePointerDown}
           onPointerMove={canvasEvents.handlePointerMove}
           onPointerUp={canvasEvents.handlePointerUp}
+          onPointerCancel={canvasEvents.handlePointerCancel}
           onPointerLeave={canvasEvents.handlePointerLeave}
           onDoubleClick={canvasEvents.handleDoubleClick}
           onContextMenu={canvasEvents.handleContextMenu}
@@ -626,7 +648,7 @@ function ChartEditorPage() {
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
-          audioBuffer={playbackRef.current?.audioBufferData ?? null}
+          audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
           onSave={async (meta, previewRange, jacketFile) => {
@@ -647,6 +669,7 @@ function ChartEditorPage() {
             if (playbackRef.current) {
               playbackRef.current.loadAudioFile(file).then(() => {
                 const audioBuffer = playbackRef.current?.audioBufferData;
+                setLoadedAudioBuffer(audioBuffer ?? null);
                 if (audioBuffer && rendererRef.current) {
                   const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
                   const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
@@ -807,7 +830,7 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column' as const,
-    height: '100vh',
+    height: '100dvh',
     backgroundColor: '#1a1a1a',
     color: '#e0e0e0',
     fontFamily: 'system-ui, sans-serif',
@@ -860,12 +883,19 @@ const styles = {
   },
   canvasContainer: {
     flex: 1,
+    minHeight: 0,
     position: 'relative' as const,
     overflow: 'hidden',
     backgroundColor: '#000',
   },
   canvas: {
     display: 'block',
+    width: '100%',
+    height: '100%',
+    touchAction: 'none',
+    userSelect: 'none' as const,
+    WebkitUserSelect: 'none' as const,
+    WebkitTouchCallout: 'none' as const,
   },
   toastContainer: {
     position: 'absolute' as const,

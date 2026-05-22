@@ -10,3 +10,4 @@ public/skins/
 .vite/
 playwright-report/
 test-results/
+.vercel

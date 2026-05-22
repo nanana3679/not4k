@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { JudgmentEngine, DEFAULT_JUDGMENT_WINDOWS } from './JudgmentEngine';
+import { JudgmentEngine } from './JudgmentEngine';
+import { JUDGMENT_WINDOWS } from '../../shared/constants';
 import type { NoteEntity } from '../../shared/types/chart';
-import type { Lane } from './JudgmentEngine';
+import type { Lane } from '../../shared/constants';
 
 // PlayScreen auto-play loop을 그대로 복제해서 버그를 찾는다
 function runAutoPlay(
@@ -16,7 +17,7 @@ function runAutoPlay(
     noteTimes,
     noteEndTimes,
     { onJudgment: (r) => judgments.push(r), onComboUpdate: () => {} },
-    DEFAULT_JUDGMENT_WINDOWS,
+    JUDGMENT_WINDOWS,
     new Map([[1 as Lane, []], [2 as Lane, []], [3 as Lane, []], [4 as Lane, []]]),
   );
 

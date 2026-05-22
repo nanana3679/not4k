@@ -1,4 +1,5 @@
 import { useGameStore } from './stores';
+import { useGameExperience } from './hooks/useGameExperience';
 import {
   TitleScreen,
   PresetSetupScreen,
@@ -12,6 +13,11 @@ import {
 
 export default function GameApp() {
   const screen = useGameStore((state) => state.screen);
+  const experience = useGameExperience();
+
+  if (experience === 'mobileSongList') {
+    return <SongSelectScreen mobileListOnly />;
+  }
 
   switch (screen) {
     case 'title':

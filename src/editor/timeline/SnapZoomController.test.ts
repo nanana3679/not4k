@@ -148,6 +148,29 @@ describe("SnapZoomController zoom", () => {
     expect(handled).toBe(false);
     expect(ctrl.zoom).toBe(200);
   });
+
+  it("핀치 거리가 100px에서 150px로 늘어나면 줌이 200에서 300으로 증가", () => {
+    let lastZoom = 200;
+    const ctrl = new SnapZoomController({
+      onZoomChange: (z) => { lastZoom = z; },
+      onSnapChange: () => {},
+    }, { zoom: 200 });
+
+    const handled = ctrl.handlePinchZoom(100, 150);
+
+    expect(handled).toBe(true);
+    expect(ctrl.zoom).toBe(300);
+    expect(lastZoom).toBe(300);
+  });
+
+  it("핀치 시작 거리가 0px이면 줌을 변경하지 않음", () => {
+    const ctrl = new SnapZoomController(noop, { zoom: 200 });
+
+    const handled = ctrl.handlePinchZoom(0, 150);
+
+    expect(handled).toBe(false);
+    expect(ctrl.zoom).toBe(200);
+  });
 });
 
 // ---------------------------------------------------------------------------

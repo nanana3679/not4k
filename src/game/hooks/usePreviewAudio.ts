@@ -11,7 +11,12 @@ import type { DbSong } from '../screens/songSelect/types';
  *
  * 반환값: stopPreview — play 버튼 클릭 시 오디오를 즉시 정지하기 위한 함수
  */
-export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
+export function usePreviewAudio(
+  songs: DbSong[],
+  focusedSongIndex: number,
+  options: { enabled?: boolean } = {},
+) {
+  const { enabled = true } = options;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
   const masterVolumeRef = useRef(masterVolume);
@@ -41,7 +46,7 @@ export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
       audioRef.current = null;
     }
 
-    if (!song) return;
+    if (!enabled || !song) return;
 
     // 전용 preview_url이 있는 경우: 루프 재생
     if (song.preview_url) {
@@ -112,7 +117,7 @@ export function usePreviewAudio(songs: DbSong[], focusedSongIndex: number) {
       el.load();
       audioRef.current = null;
     };
-  }, [songs, focusedSongIndex]);
+  }, [songs, focusedSongIndex, enabled]);
 
   const stopPreview = () => {
     const audio = audioRef.current;

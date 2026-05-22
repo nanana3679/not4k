@@ -17,14 +17,20 @@ import { AddSongModal } from './songSelect/AddSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
+import { canStartGameplay } from '../hooks/useGameExperience';
 
 // ---------------------------------------------------------------------------
 // SongSelectScreen (unified)
 // ---------------------------------------------------------------------------
 
-export function SongSelectScreen() {
+interface SongSelectScreenProps {
+  mobileListOnly?: boolean;
+}
+
+export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenProps) {
   const { selectSong, setScreen } = useGameStore();
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const playAllowed = canStartGameplay(mobileListOnly ? 'mobileSongList' : 'fullGame');
 
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const toastIdRef = useRef(0);
@@ -46,10 +52,11 @@ export function SongSelectScreen() {
 
   // Play: stop preview, select chart and go to loading screen
   const handlePlay = useCallback((songId: string, difficulty: string, audioUrl: string) => {
+    if (!playAllowed) return;
     stopPreviewRef.current();
     selectSong(songId, difficulty, audioUrl);
     setScreen('loading');
-  }, [selectSong, setScreen]);
+  }, [playAllowed, selectSong, setScreen]);
 
   const {
     songs,
@@ -68,10 +75,15 @@ export function SongSelectScreen() {
     showAddSong,
     newChartTarget,
     onPlay: handlePlay,
-    onEscape: () => setScreen('title'),
+    onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
+    allowPlay: playAllowed,
+    centerFocusedCard: !mobileListOnly,
+    enableWheelNavigation: !mobileListOnly,
   });
 
-  const { stopPreview } = usePreviewAudio(songs, focusedSongIndex);
+  const { stopPreview } = usePreviewAudio(songs, focusedSongIndex, {
+    enabled: !mobileListOnly,
+  });
   // ref를 최신 stopPreview로 동기화
   stopPreviewRef.current = stopPreview;
 
@@ -161,6 +173,200 @@ export function SongSelectScreen() {
   const focusedJacketUrl = focusedSong
     ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(focusedSong.jacket_url || songJacketPath(focusedSong.id)).data.publicUrl
     : null;
+
+  const renderOverlays = () => (
+    <>
+      {showAddSong && (
+        <AddSongModal
+          addToast={addToast}
+          onDone={() => { setShowAddSong(false); fetchSongs(); }}
+          onClose={() => setShowAddSong(false)}
+        />
+      )}
+
+      {newChartTarget && (
+        <DifficultyModal
+          existingDifficulties={newChartTarget.charts.map((c) => c.difficulty_label)}
+          onSelect={(diff, lv) => handleNewChart(newChartTarget, diff, lv)}
+          onClose={() => setNewChartTarget(null)}
+        />
+      )}
+
+      {deleteSongTarget && (
+        <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
+          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={modalStyles.title}>Delete Song</h3>
+            <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
+              <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}
+            </p>
+            <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
+              곡과 모든 차트가 영구 삭제됩니다. 되돌릴 수 없습니다.
+            </p>
+            <div style={modalStyles.buttons}>
+              <button
+                style={{ ...modalStyles.saveBtn, backgroundColor: '#cc3333', opacity: deleting ? 0.5 : 1 }}
+                disabled={deleting}
+                onClick={() => handleDeleteSong(deleteSongTarget)}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toasts.length > 0 && (
+        <div style={styles.toastContainer}>
+          {toasts.map((toast) => (
+            <div key={toast.id} style={styles.toast}>
+              {toast.message}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  if (mobileListOnly) {
+    return (
+      <div style={styles.mobileContainer}>
+        <div style={styles.mobileHeader}>
+          <div style={styles.mobileHeaderTop}>
+            <h1 style={styles.mobileTitle}>Songs</h1>
+            {!authLoading && user && (
+              <span style={styles.mobileEmail}>{user.email}</span>
+            )}
+          </div>
+          <div style={styles.mobileHeaderActions}>
+            {isAdmin && (
+              <button
+                style={{ ...styles.mobileActionButton, ...styles.mobilePrimaryActionButton }}
+                onClick={() => setShowAddSong(true)}
+              >
+                + Song
+              </button>
+            )}
+            <button
+              style={styles.mobileActionButton}
+              onClick={() => fetchSongs()}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+            {!authLoading && (
+              user ? (
+                <button style={styles.mobileActionButton} onClick={signOut}>
+                  Logout
+                </button>
+              ) : (
+                <button style={styles.mobileActionButton} onClick={() => signInWithGoogle().catch(() => {})}>
+                  Login
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        <div ref={songListRef} style={styles.mobileSongList}>
+          {loading && songs.length === 0 && (
+            <LoadingSpinner mode="inline" message="Loading songs..." />
+          )}
+
+          {!loading && error && (
+            <div style={styles.empty}>{error}</div>
+          )}
+
+          {!loading && !error && songs.length === 0 && (
+            <div style={styles.empty}>No songs found.</div>
+          )}
+
+          {songs.map((song, songIdx) => {
+            const isFocused = songIdx === focusedSongIndex;
+            const sortedCharts = getSortedCharts(song);
+
+            return (
+              <div
+                key={song.id}
+                ref={(el) => { if (el) songCardRefs.current.set(songIdx, el); else songCardRefs.current.delete(songIdx); }}
+                style={{
+                  ...styles.mobileSongCard,
+                  ...(isFocused ? styles.mobileSongCardFocused : {}),
+                }}
+                onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
+              >
+                <div style={styles.mobileSongInfo}>
+                  <span style={styles.mobileSongTitle}>{song.title}</span>
+                  <span style={styles.mobileSongArtist}>
+                    {song.artist}
+                    {song.duration != null && (
+                      <span style={styles.songDuration}>
+                        {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                <div style={styles.mobileChartRows}>
+                  {sortedCharts.map((chart, chartIdx) => (
+                    <div
+                      key={chart.id}
+                      style={styles.mobileChartRow}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFocusedSongIndex(songIdx);
+                        setFocusedChartIndex(chartIdx);
+                      }}
+                    >
+                      <div style={styles.mobileChartInfo}>
+                        <span
+                          style={{
+                            ...styles.mobileChartTag,
+                            ...getDifficultyColor(chart.difficulty_label),
+                          }}
+                        >
+                          {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                        </span>
+                      </div>
+                      <button
+                        style={{
+                          ...styles.mobileEditBtn,
+                          ...(isAdmin ? {} : styles.mobileEditBtnDisabled),
+                        }}
+                        disabled={!isAdmin}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isAdmin) {
+                            handleEdit(song.id, chart.difficulty_label);
+                          }
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  ))}
+
+                  {isAdmin && (
+                    <button
+                      style={styles.mobileNewChartBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNewChartTarget(song);
+                      }}
+                    >
+                      + Chart
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {renderOverlays()}
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -420,4 +626,3 @@ export function SongSelectScreen() {
     </div>
   );
 }
-

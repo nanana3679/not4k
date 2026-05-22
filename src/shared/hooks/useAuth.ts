@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../supabase';
 import type { User } from '@supabase/supabase-js';
+import { getAuthRedirectTo, type AuthRedirectLocation } from './authRedirect';
+
+export function getGoogleRedirectTo(location: AuthRedirectLocation): string {
+  return getAuthRedirectTo(location);
+}
 
 async function fetchIsAdmin(uid: string): Promise<boolean> {
   try {
@@ -52,7 +57,7 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: getGoogleRedirectTo(window.location) },
     });
     if (error) throw error;
   };

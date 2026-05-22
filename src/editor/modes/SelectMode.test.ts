@@ -110,6 +110,70 @@ describe("SelectMode — 복사/잘라내기", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 모바일 터치 선택
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 모바일 터치 선택", () => {
+  it("터치 토글 선택에서 선택되지 않은 노트를 탭하면 기존 선택을 유지하고 추가", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: (x: number) => (x === 1 ? 0 : x === 2 ? 1 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.onPointerDown(2, 1, false, false, true);
+
+    const selected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect([...selected].sort()).toEqual([0, 1]);
+  });
+
+  it("터치 토글 선택에서 이미 선택된 노트를 탭하면 선택에서 제거", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: () => 0,
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.onPointerDown(1, 0, false, false, true);
+
+    const selected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect([...selected]).toEqual([]);
+  });
+
+  it("롱프레스용 selectExtraNote는 메인 선택을 비우고 엑스트라 노트만 선택", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+      ],
+    });
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(2) },
+    ];
+    const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 1 });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.selectExtraNote(0);
+
+    const mainSelected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const extraSelected = cb.onExtraSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect([...mainSelected]).toEqual([]);
+    expect([...extraSelected]).toEqual([0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 붙여넣기
 // ---------------------------------------------------------------------------
 

@@ -169,10 +169,22 @@ export class SelectMode {
     }
   }
 
+  /** Select a specific extra note */
+  selectExtraNote(index: number): void {
+    const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
+    if (index >= 0 && index < extraNotes.length) {
+      this.selectedIndices.clear();
+      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+      this.selectedExtraIndices.clear();
+      this.selectedExtraIndices.add(index);
+      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    }
+  }
+
   // --- Pointer events ---
 
   /** Handle pointer down */
-  onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean): void {
+  onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
       const hitIdx = this.callbacks.hitTestNote(x, y);
@@ -219,7 +231,13 @@ export class SelectMode {
     if (this.callbacks.hitTestExtraNote) {
       const extraHit = this.callbacks.hitTestExtraNote(x, y);
       if (extraHit !== null) {
-        if (shiftKey) {
+        if (toggleSelection) {
+          if (this.selectedExtraIndices.has(extraHit)) {
+            this.selectedExtraIndices.delete(extraHit);
+          } else {
+            this.selectedExtraIndices.add(extraHit);
+          }
+        } else if (shiftKey) {
           this.selectedExtraIndices.add(extraHit);
         } else if (altKey) {
           this.selectedExtraIndices.delete(extraHit);
@@ -240,7 +258,14 @@ export class SelectMode {
       // Clicking a note
       const isAlreadySelected = this.selectedIndices.has(hitIndex);
 
-      if (shiftKey) {
+      if (toggleSelection) {
+        if (isAlreadySelected) {
+          this.selectedIndices.delete(hitIndex);
+        } else {
+          this.selectedIndices.add(hitIndex);
+        }
+        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+      } else if (shiftKey) {
         // Add to selection
         this.selectedIndices.add(hitIndex);
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));

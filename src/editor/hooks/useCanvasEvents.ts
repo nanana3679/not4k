@@ -19,10 +19,50 @@ export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   handlePointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   handlePointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  handlePointerCancel: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   handlePointerLeave: () => void;
   handleDoubleClick: (e: React.MouseEvent<HTMLCanvasElement>) => void;
   handleContextMenu: (e: React.MouseEvent<HTMLCanvasElement>) => void;
   rightDragDeletedRef: RefObject<boolean>;
+}
+
+const LONG_PRESS_MS = 450;
+const TOUCH_MOVE_CANCEL_PX = 10;
+
+interface TouchPoint {
+  clientX: number;
+  clientY: number;
+}
+
+type TouchTapToggleCandidate =
+  | {
+      pointerId: number;
+      kind: 'note';
+      x: number;
+      y: number;
+      moved: boolean;
+      selectedAtDown: boolean;
+      startClientX: number;
+      startClientY: number;
+    }
+  | {
+      pointerId: number;
+      kind: 'extra';
+      moved: boolean;
+      startClientX: number;
+      startClientY: number;
+    };
+
+function getTouchDistance(points: TouchPoint[]): number {
+  if (points.length < 2) return 0;
+  return Math.hypot(points[0].clientX - points[1].clientX, points[0].clientY - points[1].clientY);
+}
+
+function getTouchCenter(points: TouchPoint[]): TouchPoint {
+  return {
+    clientX: (points[0].clientX + points[1].clientX) / 2,
+    clientY: (points[0].clientY + points[1].clientY) / 2,
+  };
 }
 
 export function useCanvasEvents(
@@ -35,6 +75,7 @@ export function useCanvasEvents(
   isDraggingCursorRef: RefObject<boolean>,
   coords: CoordinateHelpers,
   isTimeInBounds: (y: number) => boolean,
+  onPinchZoom?: (previousDistance: number, currentDistance: number, centerCanvasY: number) => void,
 ): CanvasEventHandlers {
   const mode = useEditorStore((s) => s.mode);
   const entityType = useEditorStore((s) => s.entityType);
@@ -55,6 +96,130 @@ export function useCanvasEvents(
   } = coords;
 
   const rightDragDeletedRef = useRef(false);
+  const activeTouchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
+  const pinchPreviousDistanceRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const longPressRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    x: number;
+    y: number;
+    noteHit: number | null;
+    extraHit: number | null;
+    fired: boolean;
+  } | null>(null);
+  const touchMultiSelectRef = useRef(false);
+  const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
+  const suppressContextMenuUntilRef = useRef(0);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressRef.current = null;
+  }, []);
+
+  const updateTouchPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType !== 'touch') return;
+    activeTouchPointsRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  }, []);
+
+  const removeTouchPoint = useCallback((pointerId: number) => {
+    activeTouchPointsRef.current.delete(pointerId);
+    if (activeTouchPointsRef.current.size < 2) {
+      pinchPreviousDistanceRef.current = null;
+    }
+  }, []);
+
+  const startPinchIfNeeded = useCallback((): boolean => {
+    const points = [...activeTouchPointsRef.current.values()];
+    if (points.length < 2) return false;
+
+    const distance = getTouchDistance(points);
+    if (distance <= 0) return true;
+
+    pinchPreviousDistanceRef.current = distance;
+    clearLongPress();
+    createModeRef.current?.cancelDrag();
+    rendererRef.current?.hideGhostNote();
+    return true;
+  }, [clearLongPress, createModeRef, rendererRef]);
+
+  const handlePinchMove = useCallback((rect: DOMRect): boolean => {
+    const points = [...activeTouchPointsRef.current.values()];
+    if (points.length < 2) return false;
+
+    const previousDistance = pinchPreviousDistanceRef.current;
+    const currentDistance = getTouchDistance(points);
+    if (previousDistance !== null && currentDistance > 0) {
+      const center = getTouchCenter(points);
+      onPinchZoom?.(previousDistance, currentDistance, center.clientY - rect.top);
+      pinchPreviousDistanceRef.current = currentDistance;
+    } else if (currentDistance > 0) {
+      pinchPreviousDistanceRef.current = currentDistance;
+    }
+
+    return true;
+  }, [onPinchZoom]);
+
+  const scheduleLongPress = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    x: number,
+    y: number,
+    noteHit: number | null,
+    extraHit: number | null,
+  ) => {
+    if (e.pointerType !== 'touch' || mode === 'delete') return;
+    if (noteHit === null && extraHit === null) return;
+
+    clearLongPress();
+    longPressRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      x,
+      y,
+      noteHit,
+      extraHit,
+      fired: false,
+    };
+    longPressTimerRef.current = window.setTimeout(() => {
+      const pending = longPressRef.current;
+      if (!pending || pending.pointerId !== e.pointerId || pending.fired) return;
+      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+
+      pending.fired = true;
+      suppressContextMenuUntilRef.current = Date.now() + 1200;
+      touchMultiSelectRef.current = true;
+      useEditorStore.getState().setMode('select');
+      if (pending.noteHit !== null) {
+        selectModeRef.current?.selectNote(pending.noteHit);
+      } else if (pending.extraHit !== null) {
+        selectModeRef.current?.selectExtraNote(pending.extraHit);
+      }
+      rendererRef.current?.hideGhostNote();
+    }, LONG_PRESS_MS);
+  }, [clearLongPress, mode, rendererRef, selectModeRef]);
+
+  const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    const pendingLongPress = longPressRef.current;
+    if (pendingLongPress?.pointerId === e.pointerId && !pendingLongPress.fired) {
+      const moved = Math.hypot(e.clientX - pendingLongPress.startClientX, e.clientY - pendingLongPress.startClientY);
+      if (moved > TOUCH_MOVE_CANCEL_PX) {
+        clearLongPress();
+      }
+    }
+
+    const tapToggle = touchTapToggleRef.current;
+    if (tapToggle?.pointerId === e.pointerId && !tapToggle.moved) {
+      const moved = Math.hypot(e.clientX - tapToggle.startClientX, e.clientY - tapToggle.startClientY);
+      if (moved > TOUCH_MOVE_CANCEL_PX) {
+        tapToggle.moved = true;
+      }
+    }
+  }, [clearLongPress]);
 
   // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
@@ -76,6 +241,16 @@ export function useCanvasEvents(
   }, [chart.events, xToExtraLane, yToBeat]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === 'touch') {
+      e.preventDefault();
+      suppressContextMenuUntilRef.current = Date.now() + 1200;
+      updateTouchPoint(e);
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      if (activeTouchPointsRef.current.size >= 2 && startPinchIfNeeded()) {
+        return;
+      }
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -88,6 +263,10 @@ export function useCanvasEvents(
     }
 
     const x = rawX - (rendererRef.current?.contentOffsetX ?? 0);
+    const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
+    const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
+
+    scheduleLongPress(e, x, y, touchNoteHit, touchExtraHit);
 
     const curTimelineWidth = rendererRef.current?.currentTimelineWidth ?? TIMELINE_WIDTH;
     if (x >= curTimelineWidth && rendererRef.current) {
@@ -132,15 +311,61 @@ export function useCanvasEvents(
       if (hitTestExtraNoteRef.current(x, y) !== null) return;
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
+      if (e.pointerType === 'touch' && touchMultiSelectRef.current) {
+        if (touchExtraHit !== null) {
+          selectModeRef.current.onPointerDown(x, y, false, false, true);
+          touchTapToggleRef.current = {
+            pointerId: e.pointerId,
+            kind: 'extra',
+            moved: false,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+          };
+          return;
+        }
+
+        if (touchNoteHit !== null) {
+          const selectedAtDown = useEditorStore.getState().selectedNotes.has(touchNoteHit);
+          touchTapToggleRef.current = {
+            pointerId: e.pointerId,
+            kind: 'note',
+            x,
+            y,
+            moved: false,
+            selectedAtDown,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+          };
+
+          if (!selectedAtDown) {
+            selectModeRef.current.onPointerDown(x, y, false, false, true);
+            return;
+          }
+        }
+      }
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
     } else if (mode === 'delete' && deleteModeRef.current) {
       deleteModeRef.current.onPointerDown(x, y);
     }
-  }, [mode, isTimeInBounds, chart.notes, xToLane, yToBeatRaw]);
+  }, [
+    mode, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
+    updateTouchPoint, startPinchIfNeeded, scheduleLongPress,
+    canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
+    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    selectModeRef,
+  ]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === 'touch') {
+      e.preventDefault();
+      updateTouchPoint(e);
+      updateTouchMovement(e);
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
+
+    if (e.pointerType === 'touch' && handlePinchMove(rect)) return;
 
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -306,13 +531,36 @@ export function useCanvasEvents(
         }
       }
     }
-  }, [mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat, bpmMarkers, isTimeInBounds, setChart, setExtraNotes, setSelectedExtraNotes]);
+  }, [
+    mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
+    bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
+    setSelectedExtraNotes, updateTouchPoint, updateTouchMovement,
+    handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
+    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    selectModeRef, yToBeatRawRef,
+  ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    let wasPinching = false;
+    if (e.pointerType === 'touch') {
+      e.preventDefault();
+      updateTouchMovement(e);
+      wasPinching = pinchPreviousDistanceRef.current !== null || activeTouchPointsRef.current.size >= 2;
+      removeTouchPoint(e.pointerId);
+      const pendingLongPress = longPressRef.current;
+      if (pendingLongPress?.pointerId === e.pointerId) {
+        clearLongPress();
+      }
+    }
+
     rendererRef.current?.handleMinimapPointerUp();
 
     if (isDraggingCursorRef.current) {
       isDraggingCursorRef.current = false;
+      return;
+    }
+
+    if (wasPinching) {
       return;
     }
 
@@ -336,11 +584,42 @@ export function useCanvasEvents(
       rendererRef.current?.clearMoveOrigins();
       rendererRef.current?.clearBoxSelectRect();
     }
-  }, [mode, isTimeInBounds]);
+
+    const tapToggle = touchTapToggleRef.current;
+    if (
+      e.pointerType === 'touch' &&
+      tapToggle?.pointerId === e.pointerId &&
+      tapToggle.kind === 'note' &&
+      tapToggle.selectedAtDown &&
+      !tapToggle.moved &&
+      selectModeRef.current
+    ) {
+      selectModeRef.current.onPointerDown(tapToggle.x, tapToggle.y, false, false, true);
+    }
+    if (tapToggle?.pointerId === e.pointerId) {
+      touchTapToggleRef.current = null;
+    }
+  }, [
+    mode, isTimeInBounds, removeTouchPoint, clearLongPress,
+    updateTouchMovement, canvasRef, createModeRef, isDraggingCursorRef,
+    rendererRef, selectModeRef,
+  ]);
+
+  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === 'touch') {
+      removeTouchPoint(e.pointerId);
+      clearLongPress();
+      touchTapToggleRef.current = null;
+    }
+    rendererRef.current?.handleMinimapPointerUp();
+    rendererRef.current?.clearMoveOrigins();
+    rendererRef.current?.clearBoxSelectRect();
+    createModeRef.current?.cancelDrag();
+  }, [clearLongPress, createModeRef, removeTouchPoint, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
-  }, []);
+  }, [rendererRef]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -353,11 +632,12 @@ export function useCanvasEvents(
     if (hit) {
       setEditingMarker(hit);
     }
-  }, [hitTestMarker, setEditingMarker]);
+  }, [canvasRef, hitTestMarker, rendererRef, setEditingMarker]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
 
+    if (Date.now() < suppressContextMenuUntilRef.current) return;
     if (rightDragDeletedRef.current) return;
 
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -412,12 +692,13 @@ export function useCanvasEvents(
         events: currentChart.events.filter((_, i) => i !== markerHit.index),
       });
     }
-  }, [hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, setChart, setExtraNotes, setSelectedExtraNotes, addToast]);
+  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, setExtraNotes, setSelectedExtraNotes, addToast]);
 
   return {
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
     handlePointerLeave,
     handleDoubleClick,
     handleContextMenu,
