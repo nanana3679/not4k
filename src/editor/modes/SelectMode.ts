@@ -363,7 +363,10 @@ export class SelectMode {
         currentLane !== null
       ) {
         // Calculate offset
-        const beatOffset = beatSub(currentBeat, this.dragStartBeat);
+        const beatOffset = beatSub(
+          this.callbacks.snapBeat(currentBeat),
+          this.callbacks.snapBeat(this.dragStartBeat),
+        );
         const laneOffset = currentLane - this.dragStartLane;
 
         // Check if lane offset is valid for ALL selected notes
@@ -381,9 +384,7 @@ export class SelectMode {
           if (!original) continue;
 
           const newLane = (original.lane + laneOffset) as Lane;
-          const newBeat = this.callbacks.snapBeat(
-            beatAdd(original.beat, beatOffset)
-          );
+          const newBeat = beatAdd(original.beat, beatOffset);
 
           if (this.isRangeNote(newNotes[idx])) {
             const rangeNote = newNotes[idx] as RangeNote;
@@ -424,7 +425,10 @@ export class SelectMode {
         this.callbacks.getExtraNotes &&
         this.callbacks.onExtraNotesUpdate
       ) {
-        const beatOffset = beatSub(currentBeat, this.dragStartBeat);
+        const beatOffset = beatSub(
+          this.callbacks.snapBeat(currentBeat),
+          this.callbacks.snapBeat(this.dragStartBeat),
+        );
         const laneOffset = currentExtraLane - this.dragStartExtraLane;
         const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
 
@@ -443,9 +447,7 @@ export class SelectMode {
           if (!original || !note) continue;
 
           const newExtraLane = original.extraLane + laneOffset;
-          const newBeat = this.callbacks.snapBeat(
-            beatAdd(original.beat, beatOffset),
-          );
+          const newBeat = beatAdd(original.beat, beatOffset);
 
           if ("endBeat" in note) {
             const duration = beatSub(original.endBeat!, original.beat);

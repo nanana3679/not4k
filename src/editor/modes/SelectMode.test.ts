@@ -239,6 +239,35 @@ describe("SelectMode — 모바일 터치 선택", () => {
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(1);
   });
 
+  it("여러 메인 노트 드래그 이동은 결과 위치가 아니라 이동량만 snap 단위로 적용", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(1, 16) },
+        { type: "single", lane: 2 as Lane, beat: beat(2, 16) },
+        { type: "single", lane: 3 as Lane, beat: beat(3, 16) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y, 16),
+      snapBeat: (b: Beat): Beat => beat(Math.round((b.n / b.d) * 4), 4),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    (mode as any).selectedIndices.add(1);
+    (mode as any).selectedIndices.add(2);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(1, 4);
+    mode.onPointerUp(1, 4);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes.map((n) => n.beat.n / n.beat.d)).toEqual([
+      5 / 16,
+      6 / 16,
+      7 / 16,
+    ]);
+  });
+
   it("선택된 엑스트라 노트를 롱프레스 시작점에서 드래그 이동", () => {
     const chart = makeChart();
     const extraNotes: ExtraNoteEntity[] = [
@@ -260,6 +289,34 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const updated = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
     expect(updated[0].extraLane).toBe(2);
     expect(updated[0].beat.n / updated[0].beat.d).toBe(3);
+  });
+
+  it("여러 엑스트라 노트 드래그 이동도 기존 세부 오프셋을 보존", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(1, 16) },
+      { type: "single", extraLane: 1, beat: beat(2, 16) },
+    ];
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y, 16),
+        snapBeat: (b: Beat): Beat => beat(Math.round((b.n / b.d) * 4), 4),
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectExtraNote(0);
+    (mode as any).selectedExtraIndices.add(1);
+    mode.beginMoveDrag(5, 0);
+    mode.onPointerMove(5, 4);
+    mode.onPointerUp(5, 4);
+
+    const updated = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(updated.map((n) => n.beat.n / n.beat.d)).toEqual([
+      5 / 16,
+      6 / 16,
+    ]);
   });
 });
 
