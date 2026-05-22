@@ -652,7 +652,6 @@ function ChartEditorPage() {
       <EditorToolbar
         compact={compactEditor}
         playbackRef={playbackRef}
-        selectModeRef={selectModeRef}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}
         showOffsetPanel={showOffsetPanel}

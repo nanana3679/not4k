@@ -6,7 +6,6 @@ import { useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import type { SelectMode } from '../modes/SelectMode';
 import { serializeChart, serializeExtraNotes } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -160,45 +159,11 @@ const styles = {
     gap: '8px',
     padding: '6px 4px',
   },
-  compactMoveGroup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    flexShrink: 0,
-  },
-  compactMoveButton: {
-    minWidth: '40px',
-    minHeight: '40px',
-    padding: '6px 0',
-    backgroundColor: '#343434',
-    color: '#ededed',
-    border: '1px solid #505050',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '15px',
-    fontWeight: 700,
-    textAlign: 'center' as const,
-    touchAction: 'manipulation' as const,
-  },
-  compactDeleteButton: {
-    minHeight: '40px',
-    padding: '6px 10px',
-    backgroundColor: '#4a2b28',
-    color: '#ffcec8',
-    border: '1px solid #80544d',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 700,
-    whiteSpace: 'nowrap' as const,
-    touchAction: 'manipulation' as const,
-  },
 };
 
 interface EditorToolbarProps {
   compact?: boolean;
   playbackRef: RefObject<PlaybackController | null>;
-  selectModeRef: RefObject<SelectMode | null>;
   autoScroll: boolean;
   setAutoScroll: (v: boolean) => void;
   showOffsetPanel: boolean;
@@ -224,7 +189,6 @@ const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 
 export function EditorToolbar({
   compact = false,
   playbackRef,
-  selectModeRef,
   autoScroll,
   setAutoScroll,
   showOffsetPanel,
@@ -439,50 +403,6 @@ export function EditorToolbar({
               <option value="48">1/48</option>
               <option value="custom">Custom</option>
             </select>
-            {mode === 'select' && (
-              <div style={styles.compactMoveGroup} aria-label="Move selected notes">
-                <button
-                  type="button"
-                  style={styles.compactMoveButton}
-                  onClick={() => selectModeRef.current?.moveByLane('left')}
-                  title="Move selected left"
-                >
-                  &larr;
-                </button>
-                <button
-                  type="button"
-                  style={styles.compactMoveButton}
-                  onClick={() => selectModeRef.current?.moveBySnap('up')}
-                  title="Move selected later by snap"
-                >
-                  &uarr;
-                </button>
-                <button
-                  type="button"
-                  style={styles.compactMoveButton}
-                  onClick={() => selectModeRef.current?.moveBySnap('down')}
-                  title="Move selected earlier by snap"
-                >
-                  &darr;
-                </button>
-                <button
-                  type="button"
-                  style={styles.compactMoveButton}
-                  onClick={() => selectModeRef.current?.moveByLane('right')}
-                  title="Move selected right"
-                >
-                  &rarr;
-                </button>
-                <button
-                  type="button"
-                  style={styles.compactDeleteButton}
-                  onClick={() => selectModeRef.current?.deleteSelected()}
-                  title="Delete selected notes"
-                >
-                  Del
-                </button>
-              </div>
-            )}
             <span style={{ ...styles.compactDirty, color: '#888' }}>{zoom.toFixed(0)}px/s</span>
           </div>
         )}

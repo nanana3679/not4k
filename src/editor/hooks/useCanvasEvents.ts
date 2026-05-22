@@ -41,13 +41,14 @@ type TouchTapToggleCandidate =
       x: number;
       y: number;
       moved: boolean;
-      selectedAtDown: boolean;
       startClientX: number;
       startClientY: number;
     }
   | {
       pointerId: number;
       kind: 'extra';
+      x: number;
+      y: number;
       moved: boolean;
       startClientX: number;
       startClientY: number;
@@ -206,8 +207,10 @@ export function useCanvasEvents(
       useEditorStore.getState().setMode('select');
       if (pending.noteHit !== null) {
         selectModeRef.current?.selectNote(pending.noteHit);
+        selectModeRef.current?.beginMoveDrag(pending.x, pending.y);
       } else if (pending.extraHit !== null) {
         selectModeRef.current?.selectExtraNote(pending.extraHit);
+        selectModeRef.current?.beginMoveDrag(pending.x, pending.y);
       }
       rendererRef.current?.hideGhostNote();
     }, LONG_PRESS_MS);
@@ -325,12 +328,13 @@ export function useCanvasEvents(
       if (hitTestExtraNoteRef.current(x, y) !== null) return;
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
-      if (e.pointerType === 'touch' && touchMultiSelectRef.current) {
+      if (e.pointerType === 'touch' && (touchNoteHit !== null || touchExtraHit !== null)) {
         if (touchExtraHit !== null) {
-          selectModeRef.current.onPointerDown(x, y, false, false, true);
           touchTapToggleRef.current = {
             pointerId: e.pointerId,
             kind: 'extra',
+            x,
+            y,
             moved: false,
             startClientX: e.clientX,
             startClientY: e.clientY,
@@ -339,22 +343,16 @@ export function useCanvasEvents(
         }
 
         if (touchNoteHit !== null) {
-          const selectedAtDown = useEditorStore.getState().selectedNotes.has(touchNoteHit);
           touchTapToggleRef.current = {
             pointerId: e.pointerId,
             kind: 'note',
             x,
             y,
             moved: false,
-            selectedAtDown,
             startClientX: e.clientX,
             startClientY: e.clientY,
           };
-
-          if (!selectedAtDown) {
-            selectModeRef.current.onPointerDown(x, y, false, false, true);
-            return;
-          }
+          return;
         }
       }
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
@@ -403,6 +401,28 @@ export function useCanvasEvents(
     if (isDraggingCursorRef.current && rendererRef.current) {
       const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
       playbackRef.current?.seekTo(timeMs);
+      return;
+    }
+
+    const activeLongPress = longPressRef.current;
+    if (
+      e.pointerType === 'touch' &&
+      activeLongPress?.pointerId === e.pointerId &&
+      activeLongPress.fired &&
+      selectModeRef.current
+    ) {
+      selectModeRef.current.onPointerMove(x, y);
+
+      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
+        const origins = selectModeRef.current.moveOrigins;
+        if (origins.size > 0) {
+          const originData: { note: import('../../shared').NoteEntity; beat: import('../../shared').Beat; endBeat?: import('../../shared').Beat; lane: import('../../shared').Lane }[] = [];
+          for (const [idx, pos] of origins) {
+            originData.push({ note: useEditorStore.getState().chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
+          }
+          rendererRef.current.setMoveOrigins(originData);
+        }
+      }
       return;
     }
 
@@ -560,6 +580,7 @@ export function useCanvasEvents(
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let wasPinching = false;
+    let longPressFired = false;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
@@ -567,6 +588,7 @@ export function useCanvasEvents(
       removeTouchPoint(e.pointerId);
       const pendingLongPress = longPressRef.current;
       if (pendingLongPress?.pointerId === e.pointerId) {
+        longPressFired = pendingLongPress.fired;
         clearLongPress();
       }
     }
@@ -591,7 +613,11 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    if (mode === 'create' && createModeRef.current) {
+    if (longPressFired && selectModeRef.current) {
+      selectModeRef.current.onPointerUp(x, y);
+      rendererRef.current?.clearMoveOrigins();
+      rendererRef.current?.clearBoxSelectRect();
+    } else if (mode === 'create' && createModeRef.current) {
       if (!isTimeInBounds(y)) {
         createModeRef.current.cancelDrag();
         rendererRef.current?.hideGhostNote();
@@ -609,11 +635,33 @@ export function useCanvasEvents(
       e.pointerType === 'touch' &&
       tapToggle?.pointerId === e.pointerId &&
       tapToggle.kind === 'note' &&
-      tapToggle.selectedAtDown &&
       !tapToggle.moved &&
+      !longPressFired &&
       selectModeRef.current
     ) {
-      selectModeRef.current.onPointerDown(tapToggle.x, tapToggle.y, false, false, true);
+      selectModeRef.current.onPointerDown(
+        tapToggle.x,
+        tapToggle.y,
+        false,
+        false,
+        touchMultiSelectRef.current,
+      );
+    }
+    if (
+      e.pointerType === 'touch' &&
+      tapToggle?.pointerId === e.pointerId &&
+      tapToggle.kind === 'extra' &&
+      !tapToggle.moved &&
+      !longPressFired &&
+      selectModeRef.current
+    ) {
+      selectModeRef.current.onPointerDown(
+        tapToggle.x,
+        tapToggle.y,
+        false,
+        false,
+        touchMultiSelectRef.current,
+      );
     }
     if (tapToggle?.pointerId === e.pointerId) {
       touchTapToggleRef.current = null;

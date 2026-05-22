@@ -43,7 +43,7 @@ export class SelectMode {
 
   // Drag state
   private isDragging: boolean = false;
-  private dragType: "move" | "boxSelect" | "resize" | null = null;
+  private dragType: "move" | "moveExtra" | "boxSelect" | "resize" | null = null;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
   private dragStartExtraLane: number | null = null;
@@ -61,6 +61,10 @@ export class SelectMode {
   private originalPositions: Map<
     number,
     { beat: Beat; endBeat?: Beat; lane: Lane }
+  > = new Map();
+  private originalExtraPositions: Map<
+    number,
+    { beat: Beat; endBeat?: Beat; extraLane: number }
   > = new Map();
 
   // Resize state
@@ -113,7 +117,7 @@ export class SelectMode {
 
   /** Whether a move drag is currently in progress */
   get isMoveDragging(): boolean {
-    return this.isDragging && this.dragType === "move";
+    return this.isDragging && (this.dragType === "move" || this.dragType === "moveExtra");
   }
 
   /** Original positions of notes being moved (available during move drag) */
@@ -179,6 +183,15 @@ export class SelectMode {
       this.selectedExtraIndices.add(index);
       this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
     }
+  }
+
+  /** Begin dragging the current selection from the given pointer location. */
+  beginMoveDrag(x: number, y: number): void {
+    if (this.selectedExtraIndices.size > 0) {
+      this.startExtraMoveDrag(x, y);
+      return;
+    }
+    this.startMainMoveDrag(x, y);
   }
 
   // --- Pointer events ---
@@ -275,7 +288,7 @@ export class SelectMode {
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       } else if (isAlreadySelected && this.selectedIndices.size > 0) {
         // Start move drag on selected note
-        this.startMainMoveDrag(x, y);
+        this.beginMoveDrag(x, y);
       } else {
         // Select this note only
         this.selectedIndices.clear();
@@ -283,7 +296,7 @@ export class SelectMode {
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));
         this.selectedExtraIndices.clear();
         this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-        this.startMainMoveDrag(x, y);
+        this.beginMoveDrag(x, y);
       }
     } else {
       // Clicking empty space
@@ -400,6 +413,61 @@ export class SelectMode {
         this.chart = { ...this.chart, notes: newNotes };
         this.callbacks.onChartUpdate(this.chart);
       }
+    } else if (this.dragType === "moveExtra") {
+      const currentBeat = this.callbacks.yToBeat(y);
+      const currentExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+
+      if (
+        this.dragStartBeat &&
+        this.dragStartExtraLane !== null &&
+        currentExtraLane !== null &&
+        this.callbacks.getExtraNotes &&
+        this.callbacks.onExtraNotesUpdate
+      ) {
+        const beatOffset = beatSub(currentBeat, this.dragStartBeat);
+        const laneOffset = currentExtraLane - this.dragStartExtraLane;
+        const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
+
+        for (const idx of this.selectedExtraIndices) {
+          const original = this.originalExtraPositions.get(idx);
+          if (!original) continue;
+          const targetLane = original.extraLane + laneOffset;
+          if (targetLane < 1 || targetLane > extraLaneCount) return;
+        }
+
+        const extraNotes = this.callbacks.getExtraNotes();
+        const newExtraNotes = [...extraNotes];
+        for (const idx of this.selectedExtraIndices) {
+          const original = this.originalExtraPositions.get(idx);
+          const note = newExtraNotes[idx];
+          if (!original || !note) continue;
+
+          const newExtraLane = original.extraLane + laneOffset;
+          const newBeat = this.callbacks.snapBeat(
+            beatAdd(original.beat, beatOffset),
+          );
+
+          if ("endBeat" in note) {
+            const duration = beatSub(original.endBeat!, original.beat);
+            newExtraNotes[idx] = {
+              ...note,
+              extraLane: newExtraLane,
+              beat: newBeat,
+              endBeat: beatAdd(newBeat, duration),
+            };
+          } else {
+            newExtraNotes[idx] = {
+              ...note,
+              extraLane: newExtraLane,
+              beat: newBeat,
+            };
+          }
+        }
+
+        if (!this.areExtraNotesInBounds(newExtraNotes, this.selectedExtraIndices)) return;
+
+        this.callbacks.onExtraNotesUpdate(newExtraNotes);
+      }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
       const lane = this.callbacks.xToLane(x);
@@ -442,6 +510,8 @@ export class SelectMode {
     } else if (this.dragType === "move") {
       // Validate and commit or rollback
       this.confirmPlacement();
+    } else if (this.dragType === "moveExtra") {
+      this.originalExtraPositions.clear();
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
@@ -1031,6 +1101,7 @@ export class SelectMode {
     this.dragStartExtraLane = null;
 
     this.originalPositions.clear();
+    this.originalExtraPositions.clear();
     for (const idx of this.selectedIndices) {
       const note = this.chart.notes[idx];
       if (this.isRangeNote(note)) {
@@ -1043,6 +1114,43 @@ export class SelectMode {
         this.originalPositions.set(idx, {
           beat: note.beat,
           lane: note.lane,
+        });
+      }
+    }
+  }
+
+  private startExtraMoveDrag(x: number, y: number): void {
+    const extraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+    if (
+      extraLane === null ||
+      this.selectedExtraIndices.size === 0 ||
+      !this.callbacks.getExtraNotes
+    ) {
+      return;
+    }
+
+    const extraNotes = this.callbacks.getExtraNotes();
+    this.isDragging = true;
+    this.dragType = "moveExtra";
+    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.dragStartLane = null;
+    this.dragStartExtraLane = extraLane;
+
+    this.originalPositions.clear();
+    this.originalExtraPositions.clear();
+    for (const idx of this.selectedExtraIndices) {
+      const note = extraNotes[idx];
+      if (!note) continue;
+      if ("endBeat" in note) {
+        this.originalExtraPositions.set(idx, {
+          beat: note.beat,
+          endBeat: note.endBeat,
+          extraLane: note.extraLane,
+        });
+      } else {
+        this.originalExtraPositions.set(idx, {
+          beat: note.beat,
+          extraLane: note.extraLane,
         });
       }
     }
@@ -1061,6 +1169,22 @@ export class SelectMode {
       const beatFloat = beatToFloat(note.beat);
       if (beatFloat < 0 || beatFloat > maxFloat) return false;
       if (this.isRangeNote(note)) {
+        const endFloat = beatToFloat(note.endBeat);
+        if (endFloat < 0 || endFloat > maxFloat) return false;
+      }
+    }
+    return true;
+  }
+
+  private areExtraNotesInBounds(notes: ExtraNoteEntity[], indices: Set<number>): boolean {
+    const maxFloat = this.callbacks.getMaxBeatFloat();
+
+    for (const idx of indices) {
+      const note = notes[idx];
+      if (!note) continue;
+      const beatFloat = beatToFloat(note.beat);
+      if (beatFloat < 0 || beatFloat > maxFloat) return false;
+      if ("endBeat" in note) {
         const endFloat = beatToFloat(note.endBeat);
         if (endFloat < 0 || endFloat > maxFloat) return false;
       }

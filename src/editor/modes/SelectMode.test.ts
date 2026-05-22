@@ -217,6 +217,50 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const movedDown = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
     expect(movedDown[0].beat.n / movedDown[0].beat.d).toBe(2);
   });
+
+  it("선택된 메인 노트를 롱프레스 시작점에서 드래그 이동", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 1);
+    mode.onPointerUp(2, 1);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[0].lane).toBe(2);
+    expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(1);
+  });
+
+  it("선택된 엑스트라 노트를 롱프레스 시작점에서 드래그 이동", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(2) },
+    ];
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectExtraNote(0);
+    mode.beginMoveDrag(5, 2);
+    mode.onPointerMove(6, 3);
+    mode.onPointerUp(6, 3);
+
+    const updated = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(updated[0].extraLane).toBe(2);
+    expect(updated[0].beat.n / updated[0].beat.d).toBe(3);
+  });
 });
 
 // ---------------------------------------------------------------------------
