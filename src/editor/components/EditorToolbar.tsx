@@ -88,9 +88,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    overflowX: 'auto' as const,
-    WebkitOverflowScrolling: 'touch' as const,
-    scrollbarWidth: 'none' as const,
+    minHeight: '40px',
+    flexWrap: 'nowrap' as const,
   },
   compactButton: {
     minHeight: '40px',
@@ -125,16 +124,6 @@ const styles = {
     height: '8px',
     borderRadius: '50%',
     flexShrink: 0,
-  },
-  compactSelect: {
-    minHeight: '40px',
-    padding: '6px 8px',
-    backgroundColor: '#343434',
-    color: '#ededed',
-    border: '1px solid #505050',
-    borderRadius: '6px',
-    fontSize: '13px',
-    touchAction: 'manipulation' as const,
   },
   compactDirty: {
     color: '#ffcc66',
@@ -177,9 +166,68 @@ const styles = {
     gap: '8px',
     padding: '6px 4px',
   },
+  compactPickerOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    zIndex: 1200,
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    padding: '8px',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  compactPickerPanel: {
+    width: '100%',
+    maxWidth: '420px',
+    maxHeight: '76vh',
+    padding: '10px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+    backgroundColor: '#242424',
+    border: '1px solid #555',
+    borderRadius: '10px',
+    boxShadow: '0 12px 28px rgba(0,0,0,0.45)',
+    overflowY: 'auto' as const,
+  },
+  compactPickerHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  compactPickerTitle: {
+    flex: 1,
+    color: '#ededed',
+    fontSize: '13px',
+    fontWeight: 700,
+  },
+  compactPickerSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+  },
+  compactPickerGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '6px',
+  },
+  compactPickerOption: {
+    minHeight: '44px',
+    padding: '8px 6px',
+    backgroundColor: '#343434',
+    color: '#ededed',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 650,
+    textAlign: 'center' as const,
+    touchAction: 'manipulation' as const,
+  },
 };
 
-type ToolbarIconName = 'back' | 'controls' | 'edit' | 'map' | 'save' | 'more';
+type ToolbarIconName = 'back' | 'controls' | 'edit' | 'map' | 'save' | 'more' | 'mode' | 'entity' | 'snap' | 'extra' | 'close';
+type CompactPicker = 'mode' | 'entity' | 'snap' | 'extra';
 
 function ToolbarIcon({ name }: { name: ToolbarIconName }) {
   const common = {
@@ -245,6 +293,61 @@ function ToolbarIcon({ name }: { name: ToolbarIconName }) {
     );
   }
 
+  if (name === 'mode') {
+    return (
+      <svg {...common}>
+        <path d="M5 5h5v5H5Z" />
+        <path d="M14 5h5v5h-5Z" />
+        <path d="M5 14h5v5H5Z" />
+        <path d="M14 14h5v5h-5Z" />
+      </svg>
+    );
+  }
+
+  if (name === 'entity') {
+    return (
+      <svg {...common}>
+        <path d="M7 17a5 5 0 0 1 10 0" />
+        <path d="M7 7h10" />
+        <path d="M7 7v10" />
+        <path d="M17 7v10" />
+        <path d="M12 7v10" />
+      </svg>
+    );
+  }
+
+  if (name === 'snap') {
+    return (
+      <svg {...common}>
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+        <path d="M8 4v16" />
+        <path d="M16 4v16" />
+      </svg>
+    );
+  }
+
+  if (name === 'extra') {
+    return (
+      <svg {...common}>
+        <path d="M5 4v16" />
+        <path d="M10 4v16" />
+        <path d="M15 4v16" />
+        <path d="M20 4v16" />
+      </svg>
+    );
+  }
+
+  if (name === 'close') {
+    return (
+      <svg {...common}>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    );
+  }
+
   return (
     <svg {...common}>
       <path d="M12 12h.01" />
@@ -280,6 +383,21 @@ interface EditorToolbarProps {
 
 const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
+const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
+const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+const entityLabels: Record<EntityType, string> = {
+  single: 'Single',
+  double: 'Double',
+  long: 'Long',
+  doubleLong: 'D.Long',
+  trillZone: 'Trill',
+  bpm: 'BPM',
+  timeSignature: 'Time',
+  text: 'Text',
+  auto: 'Auto',
+  stop: 'Stop',
+};
 
 export function EditorToolbar({
   compact = false,
@@ -309,6 +427,7 @@ export function EditorToolbar({
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [compactExpanded, setCompactExpanded] = useState(true);
+  const [compactPicker, setCompactPicker] = useState<CompactPicker | null>(null);
 
   const mode = useEditorStore((s) => s.mode);
   const setMode = useEditorStore((s) => s.setMode);
@@ -330,6 +449,128 @@ export function EditorToolbar({
     serializeChart(chart) !== savedChartSnapshot ||
     serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null;
+
+  const compactIconStyle = {
+    ...styles.compactButton,
+    ...styles.compactIconButton,
+  };
+
+  const compactActiveIconStyle = {
+    ...compactIconStyle,
+    ...styles.buttonActive,
+  };
+
+  const renderCompactOption = (
+    key: string | number,
+    label: string,
+    active: boolean,
+    onClick: () => void,
+  ) => (
+    <button
+      key={key}
+      style={{ ...styles.compactPickerOption, ...(active ? styles.buttonActive : {}) }}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+
+  const renderCompactPicker = () => {
+    if (!compactPicker) return null;
+
+    const closePicker = () => setCompactPicker(null);
+    const titleByPicker: Record<CompactPicker, string> = {
+      mode: 'Mode',
+      entity: 'Entity',
+      snap: 'Snap',
+      extra: 'Extra lanes',
+    };
+
+    return (
+      <div style={styles.compactPickerOverlay} onClick={closePicker}>
+        <div style={styles.compactPickerPanel} onClick={(e) => e.stopPropagation()}>
+          <div style={styles.compactPickerHeader}>
+            <div style={styles.compactPickerTitle}>{titleByPicker[compactPicker]}</div>
+            <button
+              style={compactIconStyle}
+              onClick={closePicker}
+              title="Close"
+              aria-label="Close"
+            >
+              <ToolbarIcon name="close" />
+            </button>
+          </div>
+
+          {compactPicker === 'mode' && (
+            <div style={styles.compactPickerGrid}>
+              {renderCompactOption('create', 'Create', mode === 'create', () => {
+                setMode('create');
+                closePicker();
+              })}
+              {renderCompactOption('select', 'Select', mode === 'select', () => {
+                setMode('select');
+                closePicker();
+              })}
+              {renderCompactOption('delete', 'Delete', mode === 'delete', () => {
+                setMode('delete');
+                closePicker();
+              })}
+            </div>
+          )}
+
+          {compactPicker === 'entity' && (
+            <>
+              <div style={styles.compactPickerSection}>
+                <label style={styles.compactMenuLabel}>Notes</label>
+                <div style={styles.compactPickerGrid}>
+                  {noteTypeOptions.map((type) => renderCompactOption(type, entityLabels[type], entityType === type, () => {
+                    setEntityType(type);
+                    setMode('create');
+                    closePicker();
+                  }))}
+                </div>
+              </div>
+              <div style={styles.compactPickerSection}>
+                <label style={styles.compactMenuLabel}>Events</label>
+                <div style={styles.compactPickerGrid}>
+                  {eventTypeOptions.map((type) => renderCompactOption(type, entityLabels[type], entityType === type, () => {
+                    setEntityType(type);
+                    setMode('create');
+                    closePicker();
+                  }))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {compactPicker === 'snap' && (
+            <div style={styles.compactPickerGrid}>
+              {standardSnapOptions.map((value) => renderCompactOption(value, `1/${value}`, snapDivision === value, () => {
+                setSnapDivision(value);
+                closePicker();
+              }))}
+              {renderCompactOption('custom', standardSnapOptions.includes(snapDivision) ? 'Custom' : `1/${snapDivision}`, !standardSnapOptions.includes(snapDivision), () => {
+                closePicker();
+                onOpenCustomSnap();
+              })}
+            </div>
+          )}
+
+          {compactPicker === 'extra' && (
+            <div style={styles.compactPickerGrid}>
+              {extraLaneOptions.map((value) => renderCompactOption(value, String(value), extraLaneCount === value, () => {
+                setExtraLaneCount(value);
+                if (value < extraLaneCount) {
+                  setSelectedExtraNotes(new Set());
+                }
+                closePicker();
+              }))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   if (compact) {
     return (
@@ -422,20 +663,15 @@ export function EditorToolbar({
                   >
                     {deleting ? 'Deleting' : 'Delete Chart'}
                   </button>
-                  <label style={styles.compactMenuLabel}>Extra lanes</label>
-                  <select
-                    style={styles.compactSelect}
-                    value={extraLaneCount}
-                    onChange={(e) => {
-                      const newCount = parseInt(e.target.value);
-                      setExtraLaneCount(newCount);
-                      if (newCount < extraLaneCount) {
-                        setSelectedExtraNotes(new Set());
-                      }
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setCompactPicker('extra');
                     }}
                   >
-                    {[2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                    Extra lanes: {extraLaneCount}
+                  </button>
                   <label style={styles.compactMenuLabel}>Volume</label>
                   <div style={styles.compactVolumeRow}>
                     <input
@@ -469,59 +705,37 @@ export function EditorToolbar({
 
         {compactExpanded && (
           <div style={styles.compactControlRow}>
-            <select
-              style={styles.compactSelect}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as typeof mode)}
+            <button
+              style={compactActiveIconStyle}
+              onClick={() => setCompactPicker('mode')}
+              title={`Mode: ${mode}`}
+              aria-label={`Mode: ${mode}`}
             >
-              <option value="create">Create</option>
-              <option value="select">Select</option>
-              <option value="delete">Delete</option>
-            </select>
+              <ToolbarIcon name="mode" />
+            </button>
             {mode === 'create' && (
-              <select
-                style={styles.compactSelect}
-                value={entityType}
-                onChange={(e) => setEntityType(e.target.value as EntityType)}
+              <button
+                style={compactIconStyle}
+                onClick={() => setCompactPicker('entity')}
+                title={`Entity: ${entityLabels[entityType]}`}
+                aria-label={`Entity: ${entityLabels[entityType]}`}
               >
-                <optgroup label="Notes">
-                  {noteTypeOptions.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Events">
-                  {eventTypeOptions.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </optgroup>
-              </select>
+                <ToolbarIcon name="entity" />
+              </button>
             )}
-            <select
-              style={styles.compactSelect}
-              value={[4, 8, 16, 32, 3, 6, 12, 24, 48].includes(snapDivision) ? String(snapDivision) : 'custom'}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === 'custom') {
-                  onOpenCustomSnap();
-                } else {
-                  setSnapDivision(parseInt(val));
-                }
-              }}
+            <button
+              style={compactIconStyle}
+              onClick={() => setCompactPicker('snap')}
+              title={`Snap: 1/${snapDivision}`}
+              aria-label={`Snap: 1/${snapDivision}`}
             >
-              <option value="4">1/4</option>
-              <option value="8">1/8</option>
-              <option value="16">1/16</option>
-              <option value="32">1/32</option>
-              <option value="3">1/3</option>
-              <option value="6">1/6</option>
-              <option value="12">1/12</option>
-              <option value="24">1/24</option>
-              <option value="48">1/48</option>
-              <option value="custom">Custom</option>
-            </select>
+              <ToolbarIcon name="snap" />
+            </button>
             <span style={{ ...styles.compactDirty, color: '#888' }}>{zoom.toFixed(0)}px/s</span>
           </div>
         )}
+
+        {renderCompactPicker()}
 
         {showOffsetPanel && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto' }}>
