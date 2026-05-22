@@ -170,6 +170,8 @@ interface EditorToolbarProps {
   setShowOffsetPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   showPlayTestMenu: boolean;
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
+  minimapVisible: boolean;
+  onToggleMinimap: () => void;
   saving: boolean;
   deleting: boolean;
   savedChartSnapshot: string;
@@ -195,6 +197,8 @@ export function EditorToolbar({
   setShowOffsetPanel,
   showPlayTestMenu,
   setShowPlayTestMenu,
+  minimapVisible,
+  onToggleMinimap,
   saving,
   deleting,
   savedChartSnapshot,
@@ -259,6 +263,13 @@ export function EditorToolbar({
             title="Show editor controls"
           >
             {compactExpanded ? 'Hide' : 'Edit'}
+          </button>
+          <button
+            style={{ ...styles.compactButton, ...(minimapVisible ? styles.buttonActive : {}) }}
+            onClick={onToggleMinimap}
+            title="Toggle minimap"
+          >
+            Map
           </button>
           <button
             style={{ ...styles.compactButton, ...styles.compactPrimaryButton }}
@@ -613,6 +624,17 @@ export function EditorToolbar({
           </>
         )}
       </div>
+
+      <div style={styles.separator} />
+
+      {/* 미니맵 토글 */}
+      <button
+        style={{ ...styles.button, ...(minimapVisible ? styles.buttonActive : {}) }}
+        onClick={onToggleMinimap}
+        title="Toggle minimap"
+      >
+        Map
+      </button>
 
       <div style={styles.separator} />
 

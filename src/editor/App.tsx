@@ -26,6 +26,7 @@ import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
+import { clampVerticalScroll } from './timeline/timelineViewport';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -190,7 +191,6 @@ function ChartEditorPage() {
   const deleteModeRef = useRef<DeleteMode | null>(null);
   const isDraggingCursorRef = useRef(false);
   const cKeyHeldRef = useRef(false);
-  const minimapHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const compactEditor = useCompactEditorLayout();
 
   // UI 상태
@@ -208,6 +208,7 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetPanel, setShowOffsetPanel] = useState(false);
+  const [minimapVisible, setMinimapVisible] = useState(false);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
   const [pendingPreviewRange, setPendingPreviewRange] = useState<{ startTime: number; endTime: number } | null>(null);
@@ -273,22 +274,32 @@ function ChartEditorPage() {
     }
   }, [canvasSize.height, setScrollY]);
 
-  const showMinimapTemporarily = useCallback(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.setMinimapVisible(true);
-    if (minimapHideTimerRef.current !== null) {
-      window.clearTimeout(minimapHideTimerRef.current);
-    }
-    minimapHideTimerRef.current = window.setTimeout(() => {
-      rendererRef.current?.setMinimapVisible(false);
-      minimapHideTimerRef.current = null;
-    }, 1400);
-  }, []);
-
   const handleHorizontalPan = useCallback((deltaX: number) => {
     if (Math.abs(deltaX) < 0.5) return;
     rendererRef.current?.panHorizontally(deltaX);
+  }, []);
+
+  const handleVerticalPan = useCallback((deltaY: number) => {
+    if (Math.abs(deltaY) < 0.5) return;
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+
+    const currentScrollY = useEditorStore.getState().scrollY;
+    const nextScrollY = clampVerticalScroll({
+      requestedScrollY: currentScrollY + deltaY,
+      timelineHeight: renderer.totalTimelineHeight,
+      viewportHeight: canvasSize.height,
+    });
+    renderer.scrollY = nextScrollY;
+    setScrollY(nextScrollY);
+  }, [canvasSize.height, setScrollY]);
+
+  const toggleMinimap = useCallback(() => {
+    setMinimapVisible((visible) => {
+      const next = !visible;
+      rendererRef.current?.setMinimapVisible(next);
+      return next;
+    });
   }, []);
 
   // 캔버스 이벤트 훅
@@ -298,7 +309,7 @@ function ChartEditorPage() {
     isDraggingCursorRef, coords, isTimeInBounds,
     handlePinchZoom,
     handleHorizontalPan,
-    showMinimapTemporarily,
+    handleVerticalPan,
   );
 
   // 파일 오퍼레이션 훅
@@ -327,10 +338,6 @@ function ChartEditorPage() {
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => {
-      if (minimapHideTimerRef.current !== null) {
-        window.clearTimeout(minimapHideTimerRef.current);
-        minimapHideTimerRef.current = null;
-      }
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
     };
@@ -450,6 +457,10 @@ function ChartEditorPage() {
       playback.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    rendererRef.current?.setMinimapVisible(minimapVisible);
+  }, [minimapVisible]);
 
   // masterVolume 변경 시 PlaybackController에 반영
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
@@ -627,8 +638,7 @@ function ChartEditorPage() {
       ? Math.max(0, rendererRef.current.totalTimelineHeight - canvasSize.height)
       : Infinity;
     setScrollY(Math.min(maxScroll, Math.max(0, scrollY + e.deltaY)));
-    showMinimapTemporarily();
-  }, [mode, scrollY, canvasSize.height, setScrollY, showMinimapTemporarily]);
+  }, [mode, scrollY, canvasSize.height, setScrollY]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -658,6 +668,8 @@ function ChartEditorPage() {
         setShowOffsetPanel={setShowOffsetPanel}
         showPlayTestMenu={showPlayTestMenu}
         setShowPlayTestMenu={setShowPlayTestMenu}
+        minimapVisible={minimapVisible}
+        onToggleMinimap={toggleMinimap}
         saving={saving}
         deleting={deleting}
         savedChartSnapshot={savedChartSnapshot}

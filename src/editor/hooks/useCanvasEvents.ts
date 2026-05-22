@@ -9,7 +9,6 @@ import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode } from '../modes';
 import { DeleteMode, isEventEntityType } from '../modes';
 import { TIMELINE_WIDTH } from '../timeline/constants';
-import { shouldRevealMinimapFromEdgeSwipe } from '../timeline/timelineViewport';
 import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
 import { beatToMs, beatEq } from '../../shared';
 import type { Beat, Lane, RangeNote } from '../../shared';
@@ -29,8 +28,6 @@ export interface CanvasEventHandlers {
 
 const LONG_PRESS_MS = 450;
 const TOUCH_MOVE_CANCEL_PX = 10;
-const MINIMAP_EDGE_SWIPE_START_PX = 16;
-const MINIMAP_EDGE_SWIPE_REVEAL_PX = 24;
 
 interface TouchPoint {
   clientX: number;
@@ -81,6 +78,7 @@ export function useCanvasEvents(
   isTimeInBounds: (y: number) => boolean,
   onPinchZoom?: (previousDistance: number, currentDistance: number, centerCanvasY: number) => void,
   onHorizontalPan?: (deltaX: number) => void,
+  onVerticalPan?: (deltaY: number) => void,
   onNavigationInteraction?: () => void,
 ): CanvasEventHandlers {
   const mode = useEditorStore((s) => s.mode);
@@ -119,12 +117,6 @@ export function useCanvasEvents(
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
-  const minimapEdgeSwipeRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    revealed: boolean;
-  } | null>(null);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -172,6 +164,7 @@ export function useCanvasEvents(
     const center = getTouchCenter(points);
     if (previousCenter) {
       onHorizontalPan?.(previousCenter.clientX - center.clientX);
+      onVerticalPan?.(previousCenter.clientY - center.clientY);
     }
     if (previousDistance !== null && currentDistance > 0) {
       onPinchZoom?.(previousDistance, currentDistance, center.clientY - rect.top);
@@ -182,7 +175,7 @@ export function useCanvasEvents(
     pinchPreviousCenterRef.current = center;
 
     return true;
-  }, [onHorizontalPan, onPinchZoom]);
+  }, [onHorizontalPan, onPinchZoom, onVerticalPan]);
 
   const scheduleLongPress = useCallback((
     e: React.PointerEvent<HTMLCanvasElement>,
@@ -282,17 +275,6 @@ export function useCanvasEvents(
     if (rendererRef.current?.handleMinimapPointerDown(rawX, y)) {
       onNavigationInteraction?.();
       canvasRef.current?.setPointerCapture(e.pointerId);
-      return;
-    }
-
-    if (e.pointerType === 'touch' && rawX <= MINIMAP_EDGE_SWIPE_START_PX) {
-      minimapEdgeSwipeRef.current = {
-        pointerId: e.pointerId,
-        startX: rawX,
-        startY: y,
-        revealed: false,
-      };
-      clearLongPress();
       return;
     }
 
@@ -398,22 +380,6 @@ export function useCanvasEvents(
 
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
-    const edgeSwipe = minimapEdgeSwipeRef.current;
-    if (e.pointerType === 'touch' && edgeSwipe?.pointerId === e.pointerId) {
-      if (!edgeSwipe.revealed && shouldRevealMinimapFromEdgeSwipe({
-        startX: edgeSwipe.startX,
-        startY: edgeSwipe.startY,
-        currentX: rawX,
-        currentY: y,
-        edgeWidth: MINIMAP_EDGE_SWIPE_START_PX,
-        revealDistance: MINIMAP_EDGE_SWIPE_REVEAL_PX,
-      })) {
-        edgeSwipe.revealed = true;
-        onNavigationInteraction?.();
-      }
-      return;
-    }
 
     if (rendererRef.current?.handleMinimapPointerMove(rawX, y)) {
       onNavigationInteraction?.();
@@ -623,9 +589,6 @@ export function useCanvasEvents(
         longPressFired = pendingLongPress.fired;
         clearLongPress();
       }
-      if (minimapEdgeSwipeRef.current?.pointerId === e.pointerId) {
-        minimapEdgeSwipeRef.current = null;
-      }
     }
 
     rendererRef.current?.handleMinimapPointerUp();
@@ -712,9 +675,6 @@ export function useCanvasEvents(
       removeTouchPoint(e.pointerId);
       clearLongPress();
       touchTapToggleRef.current = null;
-      if (minimapEdgeSwipeRef.current?.pointerId === e.pointerId) {
-        minimapEdgeSwipeRef.current = null;
-      }
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();

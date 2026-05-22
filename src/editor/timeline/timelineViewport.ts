@@ -19,23 +19,6 @@ export function isFixedRailX(input: {
   return input.screenX >= 0 && input.screenX < input.leftRailWidth;
 }
 
-export function shouldRevealMinimapFromEdgeSwipe(input: {
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  edgeWidth: number;
-  revealDistance: number;
-}): boolean {
-  if (input.startX < 0 || input.startX > input.edgeWidth) return false;
-
-  const deltaX = input.currentX - input.startX;
-  const deltaY = input.currentY - input.startY;
-  if (deltaX < input.revealDistance) return false;
-
-  return deltaX > Math.abs(deltaY);
-}
-
 export function clampHorizontalPan(input: {
   requestedPanX: number;
   timelineWidth: number;
@@ -45,4 +28,13 @@ export function clampHorizontalPan(input: {
   const bodyViewportWidth = Math.max(0, input.viewportWidth - input.leftRailWidth);
   const maxPanX = Math.max(0, input.timelineWidth - bodyViewportWidth);
   return Math.max(0, Math.min(maxPanX, input.requestedPanX));
+}
+
+export function clampVerticalScroll(input: {
+  requestedScrollY: number;
+  timelineHeight: number;
+  viewportHeight: number;
+}): number {
+  const maxScrollY = Math.max(0, input.timelineHeight - input.viewportHeight);
+  return Math.max(0, Math.min(maxScrollY, input.requestedScrollY));
 }

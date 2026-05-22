@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   clampHorizontalPan,
+  clampVerticalScroll,
   getTimelineContentOffsetX,
   isFixedRailX,
   screenXToTimelineX,
-  shouldRevealMinimapFromEdgeSwipe,
 } from "./timelineViewport";
 
 describe("timeline viewport geometry", () => {
@@ -39,41 +39,17 @@ describe("timeline viewport geometry", () => {
     expect(isFixedRailX({ screenX: 33, leftRailWidth: 32 })).toBe(false);
   });
 
-  it("reveals the minimap only for a rightward swipe from the screen edge", () => {
-    expect(shouldRevealMinimapFromEdgeSwipe({
-      startX: 8,
-      startY: 120,
-      currentX: 36,
-      currentY: 124,
-      edgeWidth: 16,
-      revealDistance: 24,
-    })).toBe(true);
+  it("clamps vertical pan to the scrollable timeline range", () => {
+    expect(clampVerticalScroll({
+      requestedScrollY: -20,
+      timelineHeight: 1000,
+      viewportHeight: 360,
+    })).toBe(0);
 
-    expect(shouldRevealMinimapFromEdgeSwipe({
-      startX: 24,
-      startY: 120,
-      currentX: 60,
-      currentY: 121,
-      edgeWidth: 16,
-      revealDistance: 24,
-    })).toBe(false);
-
-    expect(shouldRevealMinimapFromEdgeSwipe({
-      startX: 8,
-      startY: 120,
-      currentX: 18,
-      currentY: 122,
-      edgeWidth: 16,
-      revealDistance: 24,
-    })).toBe(false);
-
-    expect(shouldRevealMinimapFromEdgeSwipe({
-      startX: 8,
-      startY: 120,
-      currentX: 40,
-      currentY: 170,
-      edgeWidth: 16,
-      revealDistance: 24,
-    })).toBe(false);
+    expect(clampVerticalScroll({
+      requestedScrollY: 700,
+      timelineHeight: 1000,
+      viewportHeight: 360,
+    })).toBe(640);
   });
 });
