@@ -47,6 +47,38 @@ describe("CreateMode — 롱노트 생성 시 헤드 노트", () => {
     expect("endBeat" in updatedChart.notes[0]).toBe(true);
   });
 
+  it("single 입력 상태에서도 명시적 롱노트 시작은 길이 0 롱노트를 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    expect(mode.beginRangeNoteAt(1, 2, "long")).toBe(true);
+    mode.onPointerUp(1, 2);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updatedChart = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updatedChart.notes).toHaveLength(1);
+    expect(updatedChart.notes[0].type).toBe("long");
+    expect("endBeat" in updatedChart.notes[0]).toBe(true);
+  });
+
+  it("double 입력 상태에서도 명시적 더블 롱노트 시작은 더블 헤드와 바디를 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "double";
+
+    expect(mode.beginRangeNoteAt(1, 0, "doubleLong")).toBe(true);
+    mode.onPointerUp(1, 3);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updatedChart = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updatedChart.notes).toHaveLength(2);
+    expect(updatedChart.notes[0].type).toBe("double");
+    expect(updatedChart.notes[1].type).toBe("doubleLong");
+  });
+
   it("길이가 있는 롱노트 생성 시 헤드 노트 + 바디 함께 생성", () => {
     const chart = makeChart();
     const callbacks = makeCallbacks(chart);
@@ -160,6 +192,22 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     expect(notes).toHaveLength(2);
     expect(notes[0].type).toBe("single");
     expect(notes[1].type).toBe("long");
+  });
+
+  it("single 입력 상태의 명시적 롱노트 시작은 Extra 레인에도 길이 0 롱노트를 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeExtraCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    expect(mode.beginRangeNoteAt(10, 3, "long")).toBe(true);
+    mode.onPointerUp(10, 3);
+
+    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
+    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(notes).toHaveLength(1);
+    expect(notes[0].type).toBe("long");
+    expect("endBeat" in notes[0]).toBe(true);
   });
 });
 

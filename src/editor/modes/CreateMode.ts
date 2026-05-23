@@ -56,6 +56,7 @@ const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
 type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
+type RangeNoteEntityType = "long" | "doubleLong";
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
@@ -86,6 +87,7 @@ export class CreateMode {
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
   private _createEventLane: number | null = null;
+  private _dragEntityTypeOverride: RangeNoteEntityType | null = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -145,6 +147,37 @@ export class CreateMode {
   /** Update the chart reference */
   setChart(chart: Chart): void {
     this.chart = chart;
+  }
+
+  /** Begin range-note creation with an explicit long-note type. */
+  beginRangeNoteAt(x: number, y: number, type: RangeNoteEntityType): boolean {
+    const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+
+    if (this.callbacks.xToExtraLane) {
+      const extraLane = this.callbacks.xToExtraLane(x);
+      if (extraLane !== null) {
+        this.cancelDrag();
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "extraRangeNote";
+        this._dragEntityTypeOverride = type;
+        return true;
+      }
+    }
+
+    const lane = this.callbacks.xToLane(x);
+    if (lane === null) return false;
+
+    this.cancelDrag();
+    this.isDragging = true;
+    this.dragStartBeat = beat;
+    this.dragStartLane = lane;
+    this._dragExtraLane = null;
+    this._dragType = "rangeNote";
+    this._dragEntityTypeOverride = type;
+    return true;
   }
 
   /** Handle mouse down on timeline */
@@ -241,6 +274,7 @@ export class CreateMode {
     this.dragStartLane = null;
     this._dragType = null;
     this._dragExtraLane = null;
+    this._dragEntityTypeOverride = null;
   }
 
   /** Handle mouse up (end drag, finalize placement) */
@@ -273,6 +307,7 @@ export class CreateMode {
     this.dragStartLane = null;
     this._dragType = null;
     this._dragExtraLane = null;
+    this._dragEntityTypeOverride = null;
   }
 
   /** Handle C+wheel for entity type cycling */
@@ -347,7 +382,7 @@ export class CreateMode {
     if (inTrill) {
       headType = "trill";
       bodyType = "trillLong";
-    } else if (this.selectedEntityType === "doubleLong") {
+    } else if (this.currentRangeNoteType() === "doubleLong") {
       headType = "double";
       bodyType = "doubleLong";
     } else {
@@ -507,7 +542,7 @@ export class CreateMode {
 
     let headType: "single" | "double";
     let bodyType: "long" | "doubleLong";
-    if (this.selectedEntityType === "doubleLong") {
+    if (this.currentRangeNoteType() === "doubleLong") {
       headType = "double";
       bodyType = "doubleLong";
     } else {
@@ -521,5 +556,9 @@ export class CreateMode {
       ? [bodyNote]
       : [{ type: headType, extraLane, beat: actualStartBeat } as ExtraPointNote, bodyNote];
     this.callbacks.onExtraNotesUpdate([...extraNotes, ...newNotes]);
+  }
+
+  private currentRangeNoteType(): RangeNoteEntityType {
+    return this._dragEntityTypeOverride ?? (this.selectedEntityType === "doubleLong" ? "doubleLong" : "long");
   }
 }

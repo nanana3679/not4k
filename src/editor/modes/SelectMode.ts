@@ -194,6 +194,20 @@ export class SelectMode {
     this.startMainMoveDrag(x, y);
   }
 
+  /** Begin resizing a main range note end, used by touch long-press handles. */
+  beginNoteEndResizeDrag(index: number): boolean {
+    const note = this.chart.notes[index];
+    if (!note || !this.isRangeNote(note)) return false;
+
+    this.selectedIndices.clear();
+    this.selectedIndices.add(index);
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+    this.selectedExtraIndices.clear();
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    this.startResize("note", index, note.beat, note.endBeat);
+    return true;
+  }
+
   // --- Pointer events ---
 
   /** Handle pointer down */

@@ -6,7 +6,7 @@ import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
-import type { CreateMode, SelectMode } from '../modes';
+import type { CreateMode, SelectMode, EntityType } from '../modes';
 import { DeleteMode, isEventEntityType } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
@@ -55,6 +55,23 @@ type TouchTapToggleCandidate =
       startClientY: number;
     };
 
+type TouchCreateCandidate = {
+  pointerId: number;
+  x: number;
+  y: number;
+  moved: boolean;
+  fired: boolean;
+  startClientX: number;
+  startClientY: number;
+  rangeType: "long" | "doubleLong";
+};
+
+function getLongPressRangeType(type: EntityType): "long" | "doubleLong" | null {
+  if (type === "single") return "long";
+  if (type === "double") return "doubleLong";
+  return null;
+}
+
 function getTouchDistance(points: TouchPoint[]): number {
   if (points.length < 2) return 0;
   return Math.hypot(points[0].clientX - points[1].clientX, points[0].clientY - points[1].clientY);
@@ -95,7 +112,7 @@ export function useCanvasEvents(
     xToLane, xToExtraLane,
     yToBeat, yToBeatRaw, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestExtraNoteRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
   } = coords;
@@ -112,9 +129,11 @@ export function useCanvasEvents(
     x: number;
     y: number;
     noteHit: number | null;
+    noteEndHit: number | null;
     extraHit: number | null;
     fired: boolean;
   } | null>(null);
+  const touchCreateCandidateRef = useRef<TouchCreateCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
@@ -126,6 +145,16 @@ export function useCanvasEvents(
     }
     longPressRef.current = null;
   }, []);
+
+  const cancelTouchCreateCandidate = useCallback(() => {
+    const pending = touchCreateCandidateRef.current;
+    touchCreateCandidateRef.current = null;
+    clearLongPress();
+    if (pending?.fired) {
+      createModeRef.current?.cancelDrag();
+      rendererRef.current?.hideGhostNote();
+    }
+  }, [clearLongPress, createModeRef, rendererRef]);
 
   const updateTouchPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType !== 'touch') return;
@@ -150,10 +179,11 @@ export function useCanvasEvents(
     pinchPreviousDistanceRef.current = distance;
     pinchPreviousCenterRef.current = getTouchCenter(points);
     clearLongPress();
+    cancelTouchCreateCandidate();
     createModeRef.current?.cancelDrag();
     rendererRef.current?.hideGhostNote();
     return true;
-  }, [clearLongPress, createModeRef, rendererRef]);
+  }, [cancelTouchCreateCandidate, clearLongPress, createModeRef, rendererRef]);
 
   const handlePinchMove = useCallback((rect: DOMRect): boolean => {
     const points = [...activeTouchPointsRef.current.values()];
@@ -183,12 +213,14 @@ export function useCanvasEvents(
     x: number,
     y: number,
     noteHit: number | null,
+    noteEndHit: number | null,
     extraHit: number | null,
   ) => {
     if (e.pointerType !== 'touch' || mode === 'delete') return;
-    if (noteHit === null && extraHit === null) return;
+    if (noteHit === null && noteEndHit === null && extraHit === null) return;
 
     clearLongPress();
+    touchCreateCandidateRef.current = null;
     longPressRef.current = {
       pointerId: e.pointerId,
       startClientX: e.clientX,
@@ -196,6 +228,7 @@ export function useCanvasEvents(
       x,
       y,
       noteHit,
+      noteEndHit,
       extraHit,
       fired: false,
     };
@@ -208,7 +241,9 @@ export function useCanvasEvents(
       suppressContextMenuUntilRef.current = Date.now() + 1200;
       touchMultiSelectRef.current = true;
       useEditorStore.getState().setMode('select');
-      if (pending.noteHit !== null) {
+      if (pending.noteEndHit !== null) {
+        selectModeRef.current?.beginNoteEndResizeDrag(pending.noteEndHit);
+      } else if (pending.noteHit !== null) {
         selectModeRef.current?.selectNote(pending.noteHit);
         selectModeRef.current?.beginMoveDrag(pending.x, pending.y);
       } else if (pending.extraHit !== null) {
@@ -219,11 +254,49 @@ export function useCanvasEvents(
     }, LONG_PRESS_MS);
   }, [clearLongPress, mode, rendererRef, selectModeRef]);
 
+  const scheduleTouchCreateRange = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    x: number,
+    y: number,
+    rangeType: "long" | "doubleLong",
+  ) => {
+    clearLongPress();
+    touchCreateCandidateRef.current = {
+      pointerId: e.pointerId,
+      x,
+      y,
+      moved: false,
+      fired: false,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      rangeType,
+    };
+    longPressTimerRef.current = window.setTimeout(() => {
+      const pending = touchCreateCandidateRef.current;
+      if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
+      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+
+      pending.fired = true;
+      suppressContextMenuUntilRef.current = Date.now() + 1200;
+      createModeRef.current?.beginRangeNoteAt(pending.x, pending.y, pending.rangeType);
+      rendererRef.current?.hideGhostNote();
+    }, LONG_PRESS_MS);
+  }, [clearLongPress, createModeRef, rendererRef]);
+
   const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const pendingLongPress = longPressRef.current;
     if (pendingLongPress?.pointerId === e.pointerId && !pendingLongPress.fired) {
       const moved = Math.hypot(e.clientX - pendingLongPress.startClientX, e.clientY - pendingLongPress.startClientY);
       if (moved > TOUCH_MOVE_CANCEL_PX) {
+        clearLongPress();
+      }
+    }
+
+    const createCandidate = touchCreateCandidateRef.current;
+    if (createCandidate?.pointerId === e.pointerId && !createCandidate.fired && !createCandidate.moved) {
+      const moved = Math.hypot(e.clientX - createCandidate.startClientX, e.clientY - createCandidate.startClientY);
+      if (moved > TOUCH_MOVE_CANCEL_PX) {
+        createCandidate.moved = true;
         clearLongPress();
       }
     }
@@ -296,9 +369,10 @@ export function useCanvasEvents(
     }
 
     const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
+    const touchNoteEndHit = e.pointerType === 'touch' ? hitTestNoteEndRef.current(x, y) : null;
     const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
 
-    scheduleLongPress(e, x, y, touchNoteHit, touchExtraHit);
+    scheduleLongPress(e, x, y, touchNoteHit, touchNoteEndHit, touchExtraHit);
 
     if (e.button === 2) {
       rightDragDeletedRef.current = false;
@@ -332,6 +406,11 @@ export function useCanvasEvents(
         }
       }
       if (hitTestExtraNoteRef.current(x, y) !== null) return;
+      const touchRangeType = e.pointerType === 'touch' ? getLongPressRangeType(entityType as EntityType) : null;
+      if (touchRangeType) {
+        scheduleTouchCreateRange(e, x, y, touchRangeType);
+        return;
+      }
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
       if (e.pointerType === 'touch' && (touchNoteHit !== null || touchExtraHit !== null)) {
@@ -366,10 +445,10 @@ export function useCanvasEvents(
       deleteModeRef.current.onPointerDown(x, y);
     }
   }, [
-    mode, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
-    updateTouchPoint, startPinchIfNeeded, scheduleLongPress,
+    mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
+    updateTouchPoint, startPinchIfNeeded, scheduleLongPress, scheduleTouchCreateRange,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
 
@@ -394,6 +473,16 @@ export function useCanvasEvents(
     }
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
+    const pendingTouchCreate = touchCreateCandidateRef.current;
+    if (
+      e.pointerType === 'touch' &&
+      pendingTouchCreate?.pointerId === e.pointerId &&
+      pendingTouchCreate.moved &&
+      !pendingTouchCreate.fired
+    ) {
+      rendererRef.current?.hideGhostNote();
+      return;
+    }
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
@@ -586,6 +675,7 @@ export function useCanvasEvents(
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let wasPinching = false;
     let longPressFired = false;
+    let touchCreateCandidate: TouchCreateCandidate | null = null;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
@@ -594,6 +684,12 @@ export function useCanvasEvents(
       const pendingLongPress = longPressRef.current;
       if (pendingLongPress?.pointerId === e.pointerId) {
         longPressFired = pendingLongPress.fired;
+        clearLongPress();
+      }
+      const pendingCreate = touchCreateCandidateRef.current;
+      if (pendingCreate?.pointerId === e.pointerId) {
+        touchCreateCandidate = pendingCreate;
+        touchCreateCandidateRef.current = null;
         clearLongPress();
       }
     }
@@ -617,6 +713,20 @@ export function useCanvasEvents(
     const rawX = e.clientX - rect.left;
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
+
+    if (touchCreateCandidate && createModeRef.current) {
+      if (touchCreateCandidate.fired) {
+        if (!isTimeInBounds(y)) {
+          createModeRef.current.cancelDrag();
+        } else {
+          createModeRef.current.onPointerUp(x, y);
+        }
+      } else if (!touchCreateCandidate.moved && isTimeInBounds(touchCreateCandidate.y)) {
+        createModeRef.current.onPointerDown(touchCreateCandidate.x, touchCreateCandidate.y);
+      }
+      rendererRef.current?.hideGhostNote();
+      return;
+    }
 
     if (longPressFired && selectModeRef.current) {
       selectModeRef.current.onPointerUp(x, y);
@@ -681,13 +791,14 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch') {
       removeTouchPoint(e.pointerId);
       clearLongPress();
+      cancelTouchCreateCandidate();
       touchTapToggleRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [clearLongPress, createModeRef, removeTouchPoint, rendererRef]);
+  }, [cancelTouchCreateCandidate, clearLongPress, createModeRef, removeTouchPoint, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();

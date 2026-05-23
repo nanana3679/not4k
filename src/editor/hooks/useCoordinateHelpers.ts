@@ -113,13 +113,12 @@ export function useCoordinateHelpers(
     for (let i = 0; i < chart.notes.length; i++) {
       const note = chart.notes[i];
       if (note.lane !== lane) continue;
-      if (!selectedNotes.has(i)) continue;
       if (!('endBeat' in note)) continue;
       const endBeatFloat = note.endBeat.n / note.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
     }
     return null;
-  }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
+  }, [chart.notes, xToLane, yToBeatRaw]);
 
   const hitTestEventEnd = useCallback((x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);

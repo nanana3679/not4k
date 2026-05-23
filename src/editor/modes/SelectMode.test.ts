@@ -318,6 +318,52 @@ describe("SelectMode — 모바일 터치 선택", () => {
       6 / 16,
     ]);
   });
+
+  it("길이 0인 롱노트를 롱프레스 시작점에서 드래그 이동", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "long", lane: 1 as Lane, beat: beat(1), endBeat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 1);
+    mode.onPointerMove(2, 3);
+    mode.onPointerUp(2, 3);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[0]).toMatchObject({
+      lane: 2,
+      beat: beat(3),
+      endBeat: beat(3),
+    });
+  });
+
+  it("길이 0인 롱노트 끝점을 롱프레스로 리사이즈", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "long", lane: 1 as Lane, beat: beat(1), endBeat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    expect(mode.beginNoteEndResizeDrag(0)).toBe(true);
+    mode.onPointerMove(1, 3);
+    mode.onPointerUp(1, 3);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[0]).toMatchObject({
+      beat: beat(1),
+      endBeat: beat(3),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
