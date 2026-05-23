@@ -118,11 +118,16 @@ const styles = {
     borderColor: '#3a8f4e',
     color: '#fff',
   },
-  compactStatusDot: {
-    width: '8px',
-    height: '8px',
+  compactDirtyBadge: {
+    position: 'absolute' as const,
+    top: '5px',
+    right: '5px',
+    width: '7px',
+    height: '7px',
     borderRadius: '50%',
-    flexShrink: 0,
+    backgroundColor: '#ffcc66',
+    boxShadow: '0 0 0 2px #2f67d8',
+    pointerEvents: 'none' as const,
   },
   compactMoreMenu: {
     position: 'absolute' as const,
@@ -579,14 +584,6 @@ export function EditorToolbar({
           >
             <ToolbarIcon name="back" />
           </button>
-          <span
-            style={{
-              ...styles.compactStatusDot,
-              backgroundColor: isDirty ? '#ffcc66' : '#5ccf7a',
-            }}
-            title={isDirty ? 'Unsaved changes' : 'Saved'}
-            aria-label={isDirty ? 'Unsaved changes' : 'Saved'}
-          />
           <button
             style={compactActiveIconStyle}
             onClick={() => setCompactPicker('mode')}
@@ -630,13 +627,19 @@ export function EditorToolbar({
             <ToolbarIcon name={isPlaying ? 'pause' : 'play'} />
           </button>
           <button
-            style={{ ...styles.compactButton, ...styles.compactIconButton, ...styles.compactPrimaryButton }}
+            style={{
+              ...styles.compactButton,
+              ...styles.compactIconButton,
+              ...styles.compactPrimaryButton,
+              position: 'relative',
+            }}
             onClick={onSaveChart}
             disabled={saving || deleting}
-            title={saving ? 'Saving chart' : 'Save chart'}
-            aria-label={saving ? 'Saving chart' : 'Save chart'}
+            title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
+            aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
           >
             <ToolbarIcon name="save" />
+            {isDirty && <span style={styles.compactDirtyBadge} />}
           </button>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
