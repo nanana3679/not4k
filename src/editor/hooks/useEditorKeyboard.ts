@@ -36,6 +36,31 @@ export function useEditorKeyboard(
       // 모달이 열려 있으면 단축키 비활성화
       if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetModal || validationErrorsCount > 0) return;
 
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        const state = useEditorStore.getState();
+        if (e.shiftKey) {
+          if (state.historyFuture.length > 0) {
+            state.redo();
+            addToast('Redo', 'info');
+          }
+        } else if (state.historyPast.length > 0) {
+          state.undo();
+          addToast('Undo', 'info');
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        const state = useEditorStore.getState();
+        if (state.historyFuture.length > 0) {
+          state.redo();
+          addToast('Redo', 'info');
+        }
+        return;
+      }
+
       // Select mode: Ctrl+C / Ctrl+X / Ctrl+V
       if (mode === 'select' && selectModeRef.current && (e.ctrlKey || e.metaKey)) {
         if (e.key === 'c' || e.key === 'C') {

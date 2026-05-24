@@ -9,6 +9,11 @@ import type { EntityType } from '../modes';
 
 type EditorMode = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
+type HistorySnapshot = {
+  chart: Chart;
+  extraNotes: ExtraNoteEntity[];
+  extraLaneCount: number;
+};
 
 export interface Toast {
   id: number;
@@ -21,6 +26,8 @@ export type EditingMarker =
   | null;
 
 let toastId = 0;
+const HISTORY_LIMIT = 100;
+const HISTORY_COALESCE_MS = 600;
 
 interface EditorState {
   // Page navigation
@@ -52,6 +59,11 @@ interface EditorState {
   extraLaneCount: number;
   selectedExtraNotes: Set<number>;
 
+  // Undo/redo history
+  historyPast: HistorySnapshot[];
+  historyFuture: HistorySnapshot[];
+  historyLastCaptureAt: number;
+
   // Toasts
   toasts: Toast[];
 
@@ -74,6 +86,9 @@ interface EditorState {
   setExtraNotes: (notes: ExtraNoteEntity[]) => void;
   setExtraLaneCount: (count: number) => void;
   setSelectedExtraNotes: (indices: Set<number>) => void;
+  undo: () => void;
+  redo: () => void;
+  resetHistory: () => void;
   addToast: (message: string, type?: Toast['type']) => void;
   removeToast: (id: number) => void;
   setEditingMarker: (marker: EditingMarker) => void;
@@ -95,6 +110,31 @@ const createDefaultChart = (): Chart => ({
   events: [{ type: "bpm" as const, beat: beat(0, 1), bpm: 120, editorLane: 1 }, { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 }],
 });
 
+const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraNotes' | 'extraLaneCount'>): HistorySnapshot {
+  return {
+    chart: cloneJson(state.chart),
+    extraNotes: cloneJson(state.extraNotes),
+    extraLaneCount: state.extraLaneCount,
+  };
+}
+
+function captureHistory(state: EditorState): Partial<EditorState> {
+  const now = Date.now();
+  if (state.historyPast.length > 0 && now - state.historyLastCaptureAt < HISTORY_COALESCE_MS) {
+    return {
+      historyFuture: [],
+    };
+  }
+
+  return {
+    historyPast: [...state.historyPast, createHistorySnapshot(state)].slice(-HISTORY_LIMIT),
+    historyFuture: [],
+    historyLastCaptureAt: now,
+  };
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   // Initial state
   activePage: 'songList',
@@ -112,6 +152,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   extraNotes: [],
   extraLaneCount: 2,
   selectedExtraNotes: new Set(),
+  historyPast: [],
+  historyFuture: [],
+  historyLastCaptureAt: 0,
   toasts: [],
   editingMarker: null,
 
@@ -119,7 +162,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActivePage: (activePage) => set({ activePage }),
   setActiveSongId: (activeSongId) => set({ activeSongId }),
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
-  setChart: (chart) => set({ chart }),
+  setChart: (chart) => set((state) => ({ ...captureHistory(state), chart })),
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
   setZoom: (zoom) => set({ zoom }),
@@ -128,9 +171,40 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setSelectedNotes: (selectedNotes) => set({ selectedNotes }),
-  setExtraNotes: (extraNotes) => set({ extraNotes }),
-  setExtraLaneCount: (extraLaneCount) => set({ extraLaneCount }),
+  setExtraNotes: (extraNotes) => set((state) => ({ ...captureHistory(state), extraNotes })),
+  setExtraLaneCount: (extraLaneCount) => set((state) => ({ ...captureHistory(state), extraLaneCount })),
   setSelectedExtraNotes: (selectedExtraNotes) => set({ selectedExtraNotes }),
+  undo: () => set((state) => {
+    const previous = state.historyPast.at(-1);
+    if (!previous) return {};
+    const current = createHistorySnapshot(state);
+    return {
+      chart: previous.chart,
+      extraNotes: previous.extraNotes,
+      extraLaneCount: previous.extraLaneCount,
+      selectedNotes: new Set(),
+      selectedExtraNotes: new Set(),
+      historyPast: state.historyPast.slice(0, -1),
+      historyFuture: [current, ...state.historyFuture].slice(0, HISTORY_LIMIT),
+      historyLastCaptureAt: 0,
+    };
+  }),
+  redo: () => set((state) => {
+    const next = state.historyFuture[0];
+    if (!next) return {};
+    const current = createHistorySnapshot(state);
+    return {
+      chart: next.chart,
+      extraNotes: next.extraNotes,
+      extraLaneCount: next.extraLaneCount,
+      selectedNotes: new Set(),
+      selectedExtraNotes: new Set(),
+      historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
+      historyFuture: state.historyFuture.slice(1),
+      historyLastCaptureAt: 0,
+    };
+  }),
+  resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0 }),
   addToast: (message, type = 'warn') => {
     const id = ++toastId;
     set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));

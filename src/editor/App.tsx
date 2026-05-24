@@ -57,6 +57,7 @@ export default function EditorApp() {
   const setChart = useEditorStore((s) => s.setChart);
   const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
+  const resetHistory = useEditorStore((s) => s.resetHistory);
 
   const [chartLoading, setChartLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +121,7 @@ export default function EditorApp() {
           }
         } catch { /* ignore parse errors for extra data */ }
         setActiveSongId(songId);
+        resetHistory();
 
         // Fetch audio URL from songs table
         return supabase.from('songs').select('audio_url').eq('id', songId).single();
@@ -134,7 +136,7 @@ export default function EditorApp() {
         setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
-  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl]);
+  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl, resetHistory]);
 
   if (loading || chartLoading) {
     return <LoadingSpinner />;
@@ -302,6 +304,16 @@ function ChartEditorPage() {
       return next;
     });
   }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    const total = selectedNotes.size + selectedExtraNotes.size;
+    if (total === 0) {
+      addToast('삭제할 노트를 선택하세요', 'warn');
+      return;
+    }
+    selectModeRef.current?.deleteSelected();
+    addToast(`${total}개 선택 항목 삭제됨`, 'info');
+  }, [addToast, selectedExtraNotes.size, selectedNotes.size]);
 
   // 캔버스 이벤트 훅
   const canvasEvents = useCanvasEvents(
@@ -680,6 +692,7 @@ function ChartEditorPage() {
         onSaveChart={fileOps.handleSaveChart}
         onSaveAs={() => setShowSaveAsModal(true)}
         onDeleteChart={() => setShowDeleteConfirm(true)}
+        onDeleteSelected={handleDeleteSelected}
         onOpenMeta={() => setShowMetaModal(true)}
         onOpenCustomSnap={() => setShowCustomSnapModal(true)}
       />

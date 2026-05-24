@@ -372,6 +372,7 @@ interface EditorToolbarProps {
   onSaveChart: () => void;
   onSaveAs: () => void;
   onDeleteChart: () => void;
+  onDeleteSelected: () => void;
   onOpenMeta: () => void;
   onOpenCustomSnap: () => void;
 }
@@ -415,6 +416,7 @@ export function EditorToolbar({
   onSaveChart,
   onSaveAs,
   onDeleteChart,
+  onDeleteSelected,
   onOpenMeta,
   onOpenCustomSnap,
 }: EditorToolbarProps) {
@@ -438,6 +440,14 @@ export function EditorToolbar({
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
   const activeSongId = useEditorStore((s) => s.activeSongId);
+  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const historyPastCount = useEditorStore((s) => s.historyPast.length);
+  const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  const addToast = useEditorStore((s) => s.addToast);
+  const selectedCount = selectedNotes.size + selectedExtraNotes.size;
 
   const isDirty = !!(savedChartSnapshot && (
     serializeChart(chart) !== savedChartSnapshot ||
@@ -659,6 +669,35 @@ export function EditorToolbar({
                 <div style={styles.compactMoreMenu}>
                   <button style={styles.compactMenuButton} onClick={() => { setShowMoreMenu(false); onOpenMeta(); }}>
                     Meta
+                  </button>
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => {
+                      undo();
+                      addToast('Undo', 'info');
+                      setShowMoreMenu(false);
+                    }}
+                    disabled={historyPastCount === 0}
+                  >
+                    Undo
+                  </button>
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => {
+                      redo();
+                      addToast('Redo', 'info');
+                      setShowMoreMenu(false);
+                    }}
+                    disabled={historyFutureCount === 0}
+                  >
+                    Redo
+                  </button>
+                  <button
+                    style={styles.compactMenuButton}
+                    onClick={() => { setShowMoreMenu(false); onDeleteSelected(); }}
+                    disabled={selectedCount === 0}
+                  >
+                    Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
                   </button>
                   <button
                     style={styles.compactMenuButton}
