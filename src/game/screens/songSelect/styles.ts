@@ -134,11 +134,16 @@ export const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     scrollbarWidth: 'none',
   },
+  songListState: {
+    paddingTop: '20px',
+    paddingBottom: '20px',
+    justifyContent: 'center',
+  },
   empty: {
     textAlign: 'center',
     color: '#888',
-    marginTop: '40px',
     fontSize: '14px',
+    padding: '24px',
   },
   songCard: {
     display: 'flex',
@@ -317,6 +322,11 @@ export const styles: Record<string, React.CSSProperties> = {
     WebkitOverflowScrolling: 'touch',
     overscrollBehavior: 'contain',
     scrollPaddingBottom: '88px',
+  },
+  mobileSongListState: {
+    paddingTop: '20px',
+    paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+    justifyContent: 'center',
   },
   mobileSongCard: {
     display: 'flex',

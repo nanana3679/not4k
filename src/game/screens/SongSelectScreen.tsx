@@ -189,6 +189,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const focusedJacketUrl = focusedSong
     ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(focusedSong.jacket_url || songJacketPath(focusedSong.id)).data.publicUrl
     : null;
+  const showSongListState = songs.length === 0;
 
   const renderOverlays = () => (
     <>
@@ -284,9 +285,15 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           </div>
         </div>
 
-        <div ref={songListRef} style={styles.mobileSongList}>
+        <div
+          ref={songListRef}
+          style={{
+            ...styles.mobileSongList,
+            ...(showSongListState ? styles.mobileSongListState : {}),
+          }}
+        >
           {loading && songs.length === 0 && (
-            <LoadingSpinner mode="inline" message="Loading songs..." />
+            <LoadingSpinner mode="panel" message="Loading songs..." />
           )}
 
           {!loading && error && (
@@ -470,9 +477,15 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
         </div>
 
         {/* Right panel — song list */}
-        <div ref={songListRef} style={styles.songList}>
+        <div
+          ref={songListRef}
+          style={{
+            ...styles.songList,
+            ...(showSongListState ? styles.songListState : {}),
+          }}
+        >
           {loading && songs.length === 0 && (
-            <LoadingSpinner mode="inline" message="Loading songs..." />
+            <LoadingSpinner mode="panel" message="Loading songs..." />
           )}
 
           {!loading && error && (
