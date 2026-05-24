@@ -5,6 +5,7 @@ import {
   getTimelineContentOffsetX,
   isFixedRailX,
   isPlaybackCursorSeekArea,
+  isRightRailX,
   screenXToTimelineX,
 } from "./timelineViewport";
 
@@ -38,6 +39,13 @@ describe("timeline viewport geometry", () => {
   it("keeps fixed-rail pointer capture out of lane 1", () => {
     expect(isFixedRailX({ screenX: 31, leftRailWidth: 32 })).toBe(true);
     expect(isFixedRailX({ screenX: 33, leftRailWidth: 32 })).toBe(false);
+  });
+
+  it("detects the fixed right rail for minimap interaction", () => {
+    expect(isRightRailX({ screenX: 327, viewportWidth: 360, railWidth: 32 })).toBe(false);
+    expect(isRightRailX({ screenX: 328, viewportWidth: 360, railWidth: 32 })).toBe(true);
+    expect(isRightRailX({ screenX: 359, viewportWidth: 360, railWidth: 32 })).toBe(true);
+    expect(isRightRailX({ screenX: 360, viewportWidth: 360, railWidth: 32 })).toBe(false);
   });
 
   it("treats the fixed left rail as a playback cursor seek area", () => {

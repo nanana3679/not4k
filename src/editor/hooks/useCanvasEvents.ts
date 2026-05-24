@@ -66,6 +66,28 @@ type TouchCreateCandidate = {
   rangeType: "long" | "doubleLong";
 };
 
+type TouchPanCandidate = {
+  pointerId: number;
+  x: number;
+  y: number;
+  active: boolean;
+  moved: boolean;
+  startClientX: number;
+  startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
+};
+
+type TouchDeleteCandidate = {
+  pointerId: number;
+  x: number;
+  y: number;
+  moved: boolean;
+  fired: boolean;
+  startClientX: number;
+  startClientY: number;
+};
+
 function getLongPressRangeType(type: EntityType): "long" | "doubleLong" | null {
   if (type === "single") return "long";
   if (type === "double") return "doubleLong";
@@ -134,6 +156,8 @@ export function useCanvasEvents(
     fired: boolean;
   } | null>(null);
   const touchCreateCandidateRef = useRef<TouchCreateCandidate | null>(null);
+  const touchPanCandidateRef = useRef<TouchPanCandidate | null>(null);
+  const touchDeleteCandidateRef = useRef<TouchDeleteCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
@@ -146,6 +170,39 @@ export function useCanvasEvents(
     longPressRef.current = null;
   }, []);
 
+  const startTouchPanCandidate = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    x: number,
+    y: number,
+    startClientX = e.clientX,
+    startClientY = e.clientY,
+  ) => {
+    touchPanCandidateRef.current = {
+      pointerId: e.pointerId,
+      x,
+      y,
+      active: false,
+      moved: false,
+      startClientX,
+      startClientY,
+      lastClientX: startClientX,
+      lastClientY: startClientY,
+    };
+  }, []);
+
+  const activateTouchPanCandidate = useCallback((pointerId: number) => {
+    const pending = touchPanCandidateRef.current;
+    if (!pending || pending.pointerId !== pointerId) return;
+    pending.active = true;
+    pending.moved = true;
+    pending.lastClientX = pending.startClientX;
+    pending.lastClientY = pending.startClientY;
+  }, []);
+
+  const clearTouchPanCandidate = useCallback(() => {
+    touchPanCandidateRef.current = null;
+  }, []);
+
   const cancelTouchCreateCandidate = useCallback(() => {
     const pending = touchCreateCandidateRef.current;
     touchCreateCandidateRef.current = null;
@@ -155,6 +212,10 @@ export function useCanvasEvents(
       rendererRef.current?.hideGhostNote();
     }
   }, [clearLongPress, createModeRef, rendererRef]);
+
+  const deleteAtPoint = useCallback((x: number, y: number) => {
+    deleteModeRef.current?.onPointerDown(x, y);
+  }, [deleteModeRef]);
 
   const updateTouchPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType !== 'touch') return;
@@ -283,12 +344,40 @@ export function useCanvasEvents(
     }, LONG_PRESS_MS);
   }, [clearLongPress, createModeRef, rendererRef]);
 
+  const scheduleTouchDeleteDrag = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    x: number,
+    y: number,
+  ) => {
+    clearLongPress();
+    touchDeleteCandidateRef.current = {
+      pointerId: e.pointerId,
+      x,
+      y,
+      moved: false,
+      fired: false,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+    };
+    longPressTimerRef.current = window.setTimeout(() => {
+      const pending = touchDeleteCandidateRef.current;
+      if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
+      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+
+      pending.fired = true;
+      suppressContextMenuUntilRef.current = Date.now() + 1200;
+      deleteAtPoint(pending.x, pending.y);
+    }, LONG_PRESS_MS);
+  }, [clearLongPress, deleteAtPoint]);
+
   const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const pendingLongPress = longPressRef.current;
     if (pendingLongPress?.pointerId === e.pointerId && !pendingLongPress.fired) {
       const moved = Math.hypot(e.clientX - pendingLongPress.startClientX, e.clientY - pendingLongPress.startClientY);
       if (moved > TOUCH_MOVE_CANCEL_PX) {
         clearLongPress();
+        startTouchPanCandidate(e, pendingLongPress.x, pendingLongPress.y, pendingLongPress.startClientX, pendingLongPress.startClientY);
+        activateTouchPanCandidate(e.pointerId);
       }
     }
 
@@ -298,6 +387,27 @@ export function useCanvasEvents(
       if (moved > TOUCH_MOVE_CANCEL_PX) {
         createCandidate.moved = true;
         clearLongPress();
+        startTouchPanCandidate(e, createCandidate.x, createCandidate.y, createCandidate.startClientX, createCandidate.startClientY);
+        activateTouchPanCandidate(e.pointerId);
+      }
+    }
+
+    const deleteCandidate = touchDeleteCandidateRef.current;
+    if (deleteCandidate?.pointerId === e.pointerId && !deleteCandidate.fired && !deleteCandidate.moved) {
+      const moved = Math.hypot(e.clientX - deleteCandidate.startClientX, e.clientY - deleteCandidate.startClientY);
+      if (moved > TOUCH_MOVE_CANCEL_PX) {
+        deleteCandidate.moved = true;
+        clearLongPress();
+        startTouchPanCandidate(e, deleteCandidate.x, deleteCandidate.y, deleteCandidate.startClientX, deleteCandidate.startClientY);
+        activateTouchPanCandidate(e.pointerId);
+      }
+    }
+
+    const panCandidate = touchPanCandidateRef.current;
+    if (panCandidate?.pointerId === e.pointerId && !panCandidate.active && !panCandidate.moved) {
+      const moved = Math.hypot(e.clientX - panCandidate.startClientX, e.clientY - panCandidate.startClientY);
+      if (moved > TOUCH_MOVE_CANCEL_PX) {
+        activateTouchPanCandidate(e.pointerId);
       }
     }
 
@@ -308,7 +418,7 @@ export function useCanvasEvents(
         tapToggle.moved = true;
       }
     }
-  }, [clearLongPress]);
+  }, [activateTouchPanCandidate, clearLongPress, startTouchPanCandidate]);
 
   // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
@@ -440,13 +550,22 @@ export function useCanvasEvents(
           return;
         }
       }
+      if (e.pointerType === 'touch') {
+        startTouchPanCandidate(e, x, y);
+        return;
+      }
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
     } else if (mode === 'delete' && deleteModeRef.current) {
+      if (e.pointerType === 'touch') {
+        scheduleTouchDeleteDrag(e, x, y);
+        return;
+      }
       deleteModeRef.current.onPointerDown(x, y);
     }
   }, [
     mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
     updateTouchPoint, startPinchIfNeeded, scheduleLongPress, scheduleTouchCreateRange,
+    scheduleTouchDeleteDrag, startTouchPanCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
@@ -473,6 +592,31 @@ export function useCanvasEvents(
     }
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
+    const panCandidate = touchPanCandidateRef.current;
+    if (
+      e.pointerType === 'touch' &&
+      panCandidate?.pointerId === e.pointerId &&
+      panCandidate.active
+    ) {
+      onHorizontalPan?.(panCandidate.lastClientX - e.clientX);
+      onVerticalPan?.(panCandidate.lastClientY - e.clientY);
+      panCandidate.lastClientX = e.clientX;
+      panCandidate.lastClientY = e.clientY;
+      onNavigationInteraction?.();
+      rendererRef.current?.hideGhostNote();
+      return;
+    }
+
+    const deleteCandidate = touchDeleteCandidateRef.current;
+    if (
+      e.pointerType === 'touch' &&
+      deleteCandidate?.pointerId === e.pointerId &&
+      deleteCandidate.fired
+    ) {
+      deleteAtPoint(x, y);
+      return;
+    }
+
     const pendingTouchCreate = touchCreateCandidateRef.current;
     if (
       e.pointerType === 'touch' &&
@@ -669,13 +813,16 @@ export function useCanvasEvents(
     setSelectedExtraNotes, updateTouchPoint, updateTouchMovement,
     handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, yToBeatRawRef, onNavigationInteraction,
+    selectModeRef, yToBeatRawRef, deleteAtPoint,
+    onHorizontalPan, onNavigationInteraction, onVerticalPan,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let wasPinching = false;
     let longPressFired = false;
     let touchCreateCandidate: TouchCreateCandidate | null = null;
+    let touchPanCandidate: TouchPanCandidate | null = null;
+    let touchDeleteCandidate: TouchDeleteCandidate | null = null;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
@@ -690,6 +837,17 @@ export function useCanvasEvents(
       if (pendingCreate?.pointerId === e.pointerId) {
         touchCreateCandidate = pendingCreate;
         touchCreateCandidateRef.current = null;
+        clearLongPress();
+      }
+      const pendingPan = touchPanCandidateRef.current;
+      if (pendingPan?.pointerId === e.pointerId) {
+        touchPanCandidate = pendingPan;
+        touchPanCandidateRef.current = null;
+      }
+      const pendingDelete = touchDeleteCandidateRef.current;
+      if (pendingDelete?.pointerId === e.pointerId) {
+        touchDeleteCandidate = pendingDelete;
+        touchDeleteCandidateRef.current = null;
         clearLongPress();
       }
     }
@@ -713,6 +871,25 @@ export function useCanvasEvents(
     const rawX = e.clientX - rect.left;
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
+
+    if (touchDeleteCandidate) {
+      if (touchDeleteCandidate.fired || !touchDeleteCandidate.moved) {
+        deleteAtPoint(x, y);
+      }
+      rendererRef.current?.hideGhostNote();
+      return;
+    }
+
+    if (touchPanCandidate) {
+      if (!touchPanCandidate.moved && mode === 'select' && selectModeRef.current) {
+        selectModeRef.current.onPointerDown(touchPanCandidate.x, touchPanCandidate.y, false, false);
+        selectModeRef.current.onPointerUp(touchPanCandidate.x, touchPanCandidate.y);
+        rendererRef.current?.clearMoveOrigins();
+        rendererRef.current?.clearBoxSelectRect();
+      }
+      rendererRef.current?.hideGhostNote();
+      return;
+    }
 
     if (touchCreateCandidate && createModeRef.current) {
       if (touchCreateCandidate.fired) {
@@ -784,7 +961,7 @@ export function useCanvasEvents(
   }, [
     mode, isTimeInBounds, removeTouchPoint, clearLongPress,
     updateTouchMovement, canvasRef, createModeRef, isDraggingCursorRef,
-    rendererRef, selectModeRef,
+    deleteAtPoint, rendererRef, selectModeRef,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -792,13 +969,15 @@ export function useCanvasEvents(
       removeTouchPoint(e.pointerId);
       clearLongPress();
       cancelTouchCreateCandidate();
+      clearTouchPanCandidate();
+      touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [cancelTouchCreateCandidate, clearLongPress, createModeRef, removeTouchPoint, rendererRef]);
+  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchPanCandidate, createModeRef, removeTouchPoint, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();

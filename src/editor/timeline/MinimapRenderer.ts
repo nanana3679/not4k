@@ -11,7 +11,7 @@ import {
   MINIMAP_WIDTH,
   MEASURE_LABEL_WIDTH,
 } from "./constants";
-import { isFixedRailX } from "./timelineViewport";
+import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import type { Chart } from "../../shared";
 
@@ -72,7 +72,11 @@ export class MinimapRenderer {
    * Check if a screen-space x coordinate is within the minimap area.
    */
   isInMinimapArea(x: number): boolean {
-    return isFixedRailX({ screenX: x, leftRailWidth: MEASURE_LABEL_WIDTH });
+    return isRightRailX({
+      screenX: x,
+      viewportWidth: this.host.options.width,
+      railWidth: MEASURE_LABEL_WIDTH,
+    });
   }
 
   /**
@@ -158,7 +162,7 @@ export class MinimapRenderer {
     const totalH = this.host.totalTimelineHeight;
     if (totalH <= 0) return;
 
-    const trackX = 0;
+    const trackX = this.host.options.width - MINIMAP_WIDTH;
     const minimapContentWidth = MINIMAP_WIDTH;
     const scale = canvasH / totalH;
 
@@ -275,7 +279,7 @@ export class MinimapRenderer {
   updateViewport(): void {
     const canvasH = this.host.options.height;
     const totalH = this.host.totalTimelineHeight;
-    const trackX = 0;
+    const trackX = this.host.options.width - MINIMAP_WIDTH;
 
     if (!this.host.minimapVisible) return;
 

@@ -19,6 +19,14 @@ export function isFixedRailX(input: {
   return input.screenX >= 0 && input.screenX < input.leftRailWidth;
 }
 
+export function isRightRailX(input: {
+  screenX: number;
+  viewportWidth: number;
+  railWidth: number;
+}): boolean {
+  return input.screenX >= input.viewportWidth - input.railWidth && input.screenX < input.viewportWidth;
+}
+
 export function clampHorizontalPan(input: {
   requestedPanX: number;
   timelineWidth: number;
