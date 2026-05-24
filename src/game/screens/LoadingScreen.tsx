@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
 import { loadSongData } from '../../supabase';
-import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
+import { PageLoading } from '../../shared/components/LoadingSpinner';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
@@ -56,7 +56,7 @@ export function LoadingScreen() {
   }
 
   return (
-    <LoadingSpinner
+    <PageLoading
       message="Loading..."
       sub={`${selectedSongId} - ${selectedDifficulty}`}
     />

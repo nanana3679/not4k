@@ -8,7 +8,7 @@ import {
   songJacketPath,
   serializeChart,
 } from '../../shared';
-import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
+import { PageLoading } from '../../shared/components/LoadingSpinner';
 import type { DbSong } from './songSelect/types';
 import {
   getDifficultyColor,
@@ -247,7 +247,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   );
 
   if (isInitialSongLoading) {
-    return <LoadingSpinner message="Loading songs..." />;
+    return <PageLoading message="Loading songs..." />;
   }
 
   if (mobileListOnly) {

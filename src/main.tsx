@@ -3,14 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import './global.css';
-import { LoadingSpinner } from './shared/components/LoadingSpinner';
+import { PageLoading } from './shared/components/LoadingSpinner';
 
 const GameApp = lazy(() => import('./game/App'));
 const EditorApp = lazy(() => import('./editor/App'));
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<LoadingSpinner />}>
+      <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
           <Route path="/editor/*" element={<EditorApp />} />

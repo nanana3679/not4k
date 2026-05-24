@@ -5,11 +5,15 @@ type LoadingSpinnerProps = {
   message?: string;
   /** 메시지 아래 보조 텍스트 */
   sub?: string;
-  /** fullscreen: 전체 화면 / overlay: 반투명 오버레이 / inline: 작은 인라인 */
-  mode?: 'fullscreen' | 'overlay' | 'inline';
 };
 
-export function LoadingSpinner({ message = 'Loading...', sub, mode = 'fullscreen' }: LoadingSpinnerProps) {
+type LoadingSpinnerMode = 'fullscreen' | 'overlay' | 'inline';
+
+type InternalLoadingSpinnerProps = LoadingSpinnerProps & {
+  mode: LoadingSpinnerMode;
+};
+
+function LoadingSpinner({ message = 'Loading...', sub, mode }: InternalLoadingSpinnerProps) {
   const containerStyle: CSSProperties =
     mode === 'overlay'
       ? styles.overlay
@@ -24,6 +28,29 @@ export function LoadingSpinner({ message = 'Loading...', sub, mode = 'fullscreen
       {sub && <span style={styles.sub}>{sub}</span>}
     </div>
   );
+}
+
+/**
+ * Use PageLoading before the page chrome exists.
+ * It owns the full viewport and should not be nested inside page layouts.
+ */
+export function PageLoading(props: LoadingSpinnerProps) {
+  return <LoadingSpinner {...props} mode="fullscreen" />;
+}
+
+/**
+ * Use OverlayLoading when an existing surface stays visible but is temporarily blocked.
+ * The parent must establish the positioning context.
+ */
+export function OverlayLoading(props: LoadingSpinnerProps) {
+  return <LoadingSpinner {...props} mode="overlay" />;
+}
+
+/**
+ * Use InlineLoading for local, non-blocking slots within an existing layout.
+ */
+export function InlineLoading(props: LoadingSpinnerProps) {
+  return <LoadingSpinner {...props} mode="inline" />;
 }
 
 const styles: Record<string, CSSProperties> = {

@@ -15,7 +15,7 @@ import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songCh
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
 import type { ValidationError } from '../shared';
-import { LoadingSpinner } from '../shared/components/LoadingSpinner';
+import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
@@ -120,7 +120,7 @@ export default function EditorApp() {
   }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl, resetHistory]);
 
   if (loading || chartLoading) {
-    return <LoadingSpinner message="Loading editor..." />;
+    return <PageLoading message="Loading editor..." />;
   }
 
   if (!user || !isAdmin) {
@@ -659,7 +659,7 @@ function ChartEditorPage() {
 
       {/* 캔버스 */}
       <div ref={canvasContainerRef} style={styles.canvasContainer}>
-        {audioLoading && <LoadingSpinner mode="overlay" message="Loading audio..." />}
+        {audioLoading && <OverlayLoading message="Loading audio..." />}
         <canvas
           ref={canvasRef}
           style={styles.canvas}
