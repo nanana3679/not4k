@@ -284,6 +284,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           {songs.map((song, songIdx) => {
             const isFocused = songIdx === focusedSongIndex;
             const sortedCharts = getSortedCharts(song);
+            const selectedChart = isFocused ? sortedCharts[focusedChartIndex] : null;
+            const mobileJacketUrl = supabase.storage
+              .from(STORAGE_BUCKET)
+              .getPublicUrl(song.jacket_url || songJacketPath(song.id)).data.publicUrl;
 
             return (
               <div
@@ -295,69 +299,74 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                 }}
                 onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
               >
-                <div style={styles.mobileSongInfo}>
-                  <span style={styles.mobileSongTitle}>{song.title}</span>
-                  <span style={styles.mobileSongArtist}>
-                    {song.artist}
-                    {song.duration != null && (
-                      <span style={styles.songDuration}>
-                        {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
-                      </span>
-                    )}
-                  </span>
+                <div style={styles.mobileSongHeader}>
+                  <div style={styles.mobileJacket}>
+                    <img
+                      src={mobileJacketUrl}
+                      alt=""
+                      style={styles.mobileJacketImage}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                  <div style={styles.mobileSongInfo}>
+                    <span style={styles.mobileSongTitle}>{song.title}</span>
+                    <span style={styles.mobileSongArtist}>
+                      {song.artist}
+                      {song.duration != null && (
+                        <span style={styles.songDuration}>
+                          {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={styles.mobileChartRows}>
-                  {sortedCharts.map((chart, chartIdx) => (
-                    <div
-                      key={chart.id}
-                      style={styles.mobileChartRow}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFocusedSongIndex(songIdx);
-                        setFocusedChartIndex(chartIdx);
-                      }}
-                    >
-                      <div style={styles.mobileChartInfo}>
-                        <span
-                          style={{
-                            ...styles.mobileChartTag,
-                            ...getDifficultyColor(chart.difficulty_label),
-                          }}
-                        >
-                          {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
-                        </span>
-                      </div>
+                  {sortedCharts.map((chart, chartIdx) => {
+                    const isChartFocused = isFocused && chartIdx === focusedChartIndex;
+                    return (
                       <button
+                        key={chart.id}
                         style={{
-                          ...styles.mobileEditBtn,
-                          ...(isAdmin ? {} : styles.mobileEditBtnDisabled),
+                          ...styles.mobileChartTag,
+                          ...getDifficultyColor(chart.difficulty_label),
+                          ...(isChartFocused ? styles.mobileChartTagFocused : {}),
                         }}
-                        disabled={!isAdmin}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isAdmin) {
-                            handleEdit(song.id, chart.difficulty_label);
-                          }
+                          setFocusedSongIndex(songIdx);
+                          setFocusedChartIndex(chartIdx);
                         }}
                       >
-                        Edit
+                        {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
                       </button>
-                    </div>
-                  ))}
-
-                  {isAdmin && (
-                    <button
-                      style={styles.mobileNewChartBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setNewChartTarget(song);
-                      }}
-                    >
-                      + Chart
-                    </button>
-                  )}
+                    );
+                  })}
                 </div>
+
+                {isAdmin && selectedChart && (
+                  <button
+                    style={styles.mobileEditBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(song.id, selectedChart.difficulty_label);
+                    }}
+                  >
+                    Edit {selectedChart.difficulty_label.toUpperCase()} Lv.{selectedChart.difficulty_level}
+                  </button>
+                )}
+
+                {isAdmin && (
+                  <button
+                    style={styles.mobileNewChartBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNewChartTarget(song);
+                    }}
+                  >
+                    + Chart
+                  </button>
+                )}
               </div>
             );
           })}
