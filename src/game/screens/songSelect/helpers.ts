@@ -58,3 +58,17 @@ export function getCircularDistance(a: number, b: number, total: number): number
   const d = Math.abs(a - b);
   return Math.min(d, total - d);
 }
+
+export interface SelectedChartRef {
+  songId: string;
+  chartId: string;
+}
+
+export function getSelectedChartForSong(
+  song: DbSong,
+  sortedCharts: DbSong['charts'],
+  selection: SelectedChartRef | null,
+): DbSong['charts'][number] | null {
+  if (!selection || selection.songId !== song.id) return null;
+  return sortedCharts.find((chart) => chart.id === selection.chartId) ?? null;
+}

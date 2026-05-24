@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getDifficultyOrder, DIFFICULTIES } from './helpers';
+import { getDifficultyOrder, DIFFICULTIES, getSelectedChartForSong } from './helpers';
+import type { DbSong } from './types';
 
 describe('getDifficultyOrder', () => {
   it('EASY < NORMAL < HARD < EXPERT 순서', () => {
@@ -21,5 +22,37 @@ describe('getDifficultyOrder', () => {
 describe('DIFFICULTIES', () => {
   it('4개 난이도가 순서대로 정의됨', () => {
     expect([...DIFFICULTIES]).toEqual(['EASY', 'NORMAL', 'HARD', 'EXPERT']);
+  });
+});
+
+describe('getSelectedChartForSong', () => {
+  const song: DbSong = {
+    id: 'song-1',
+    title: 'Song',
+    artist: 'Artist',
+    audio_url: 'song.wav',
+    duration: null,
+    preview_start: null,
+    preview_end: null,
+    preview_url: null,
+    jacket_url: null,
+    charts: [
+      { id: 'chart-easy', song_id: 'song-1', difficulty_label: 'EASY', difficulty_level: 3 },
+      { id: 'chart-hard', song_id: 'song-1', difficulty_label: 'HARD', difficulty_level: 9 },
+    ],
+  };
+
+  it('선택한 곡과 차트 id가 일치할 때 해당 차트를 반환', () => {
+    expect(getSelectedChartForSong(song, song.charts, {
+      songId: 'song-1',
+      chartId: 'chart-hard',
+    })?.difficulty_label).toBe('HARD');
+  });
+
+  it('다른 곡의 선택 상태는 현재 곡의 Edit 표시로 쓰지 않음', () => {
+    expect(getSelectedChartForSong(song, song.charts, {
+      songId: 'song-2',
+      chartId: 'chart-hard',
+    })).toBeNull();
   });
 });

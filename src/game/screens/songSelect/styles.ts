@@ -335,13 +335,13 @@ export const styles: Record<string, React.CSSProperties> = {
   },
   mobileSongHeader: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
+    alignItems: 'flex-start',
+    gap: '14px',
     minWidth: 0,
   },
   mobileJacket: {
-    width: '64px',
-    height: '64px',
+    width: 'clamp(96px, 28vw, 124px)',
+    aspectRatio: '1',
     flexShrink: 0,
     backgroundColor: '#151515',
     border: '1px solid #3a3a3a',
@@ -359,6 +359,7 @@ export const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '3px',
     minWidth: 0,
+    paddingTop: '2px',
   },
   mobileSongTitle: {
     fontSize: '16px',

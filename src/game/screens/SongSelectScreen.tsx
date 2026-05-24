@@ -10,7 +10,13 @@ import {
 } from '../../shared';
 import { LoadingSpinner } from '../../shared/components/LoadingSpinner';
 import type { DbSong } from './songSelect/types';
-import { getDifficultyColor, createEmptyChart, getCircularDistance } from './songSelect/helpers';
+import {
+  getDifficultyColor,
+  createEmptyChart,
+  getCircularDistance,
+  getSelectedChartForSong,
+  type SelectedChartRef,
+} from './songSelect/helpers';
 import { styles } from './songSelect/styles';
 import { modalStyles } from './songSelect/modalStyles';
 import { AddSongModal } from './songSelect/AddSongModal';
@@ -40,6 +46,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [newChartTarget, setNewChartTarget] = useState<DbSong | null>(null);
   const [deleteSongTarget, setDeleteSongTarget] = useState<DbSong | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
 
   const addToast = useCallback((msg: string, _type?: 'info' | 'error') => {
     const id = ++toastIdRef.current;
@@ -284,7 +291,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           {songs.map((song, songIdx) => {
             const isFocused = songIdx === focusedSongIndex;
             const sortedCharts = getSortedCharts(song);
-            const selectedChart = isFocused ? sortedCharts[focusedChartIndex] : null;
+            const selectedChart = getSelectedChartForSong(song, sortedCharts, mobileEditSelection);
             const mobileJacketUrl = supabase.storage
               .from(STORAGE_BUCKET)
               .getPublicUrl(song.jacket_url || songJacketPath(song.id)).data.publicUrl;
@@ -297,7 +304,11 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   ...styles.mobileSongCard,
                   ...(isFocused ? styles.mobileSongCardFocused : {}),
                 }}
-                onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
+                onClick={() => {
+                  setFocusedSongIndex(songIdx);
+                  setFocusedChartIndex(0);
+                  setMobileEditSelection(null);
+                }}
               >
                 <div style={styles.mobileSongHeader}>
                   <div style={styles.mobileJacket}>
@@ -323,7 +334,9 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
                 <div style={styles.mobileChartRows}>
                   {sortedCharts.map((chart, chartIdx) => {
-                    const isChartFocused = isFocused && chartIdx === focusedChartIndex;
+                    const isChartFocused = mobileEditSelection?.songId === song.id
+                      ? mobileEditSelection.chartId === chart.id
+                      : isFocused && chartIdx === focusedChartIndex;
                     return (
                       <button
                         key={chart.id}
@@ -336,6 +349,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                           e.stopPropagation();
                           setFocusedSongIndex(songIdx);
                           setFocusedChartIndex(chartIdx);
+                          setMobileEditSelection({ songId: song.id, chartId: chart.id });
                         }}
                       >
                         {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
