@@ -190,6 +190,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(focusedSong.jacket_url || songJacketPath(focusedSong.id)).data.publicUrl
     : null;
   const showSongListState = songs.length === 0;
+  const isInitialSongLoading = loading && songs.length === 0;
 
   const renderOverlays = () => (
     <>
@@ -245,6 +246,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     </>
   );
 
+  if (isInitialSongLoading) {
+    return <LoadingSpinner message="Loading songs..." />;
+  }
+
   if (mobileListOnly) {
     return (
       <div style={styles.mobileContainer}>
@@ -292,10 +297,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
             ...(showSongListState ? styles.mobileSongListState : {}),
           }}
         >
-          {loading && songs.length === 0 && (
-            <LoadingSpinner mode="panel" message="Loading songs..." />
-          )}
-
           {!loading && error && (
             <div style={styles.empty}>{error}</div>
           )}
@@ -484,10 +485,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
             ...(showSongListState ? styles.songListState : {}),
           }}
         >
-          {loading && songs.length === 0 && (
-            <LoadingSpinner mode="panel" message="Loading songs..." />
-          )}
-
           {!loading && error && (
             <div style={styles.empty}>{error}</div>
           )}
