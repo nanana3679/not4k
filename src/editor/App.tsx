@@ -139,7 +139,7 @@ export default function EditorApp() {
   }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl, resetHistory]);
 
   if (loading || chartLoading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Loading editor..." />;
   }
 
   if (!user || !isAdmin) {

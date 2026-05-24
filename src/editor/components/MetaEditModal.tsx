@@ -137,7 +137,7 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
               />
             ) : (
               <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
-                No file
+                Select an audio file
               </div>
             )}
           </div>
@@ -190,7 +190,7 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
               />
             ) : (
               <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
-                No file
+                Select a jacket image
               </div>
             )}
           </div>

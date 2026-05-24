@@ -281,7 +281,7 @@ export class GridRenderer {
       if (evt.type === 'bpm') parts.push(`BPM:${evt.bpm}`);
       if (evt.type === 'timeSignature') {
         const bp = evt.beatPerMeasure;
-        parts.push(`TS:${bp.n}/${bp.d}`);
+        parts.push(`TS:${bp.d === 1 ? bp.n : `${bp.n}/${bp.d}`}`);
       }
       if (evt.type === 'text') parts.push(evt.text);
       if (evt.type === 'auto') parts.push('AUTO');
