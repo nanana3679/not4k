@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../supabase';
 import { STORAGE_BUCKET } from '../../shared';
 import { useGameStore } from '../stores';
@@ -14,16 +14,17 @@ import type { DbSong } from '../screens/songSelect/types';
 export function usePreviewAudio(
   songs: DbSong[],
   focusedSongIndex: number,
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; autoPlay?: boolean } = {},
 ) {
-  const { enabled = true } = options;
+  const { enabled = true, autoPlay = true } = options;
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
   const masterVolumeRef = useRef(masterVolume);
-  masterVolumeRef.current = masterVolume;
 
   // masterVolume 변경 시 기존 오디오 엘리먼트의 볼륨만 업데이트 (재생성 없이)
   useEffect(() => {
+    masterVolumeRef.current = masterVolume;
     const el = audioRef.current;
     if (!el) return;
     // timeupdate 콜백이 다음 틱에서 최신 masterVolumeRef를 참조하므로
@@ -33,19 +34,26 @@ export function usePreviewAudio(
     el.volume = Math.min(el.volume, BASE_VOL);
   }, [masterVolume]);
 
-  useEffect(() => {
-    const song = songs[focusedSongIndex];
-    const FADE = 0.5; // seconds
-
-    // 이전 오디오 정지
-    const prev = audioRef.current;
-    if (prev) {
-      prev.pause();
-      prev.removeAttribute('src');
-      prev.load();
-      audioRef.current = null;
+  const stopPreview = useCallback(() => {
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+      return;
     }
 
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      audioRef.current = null;
+    }
+  }, []);
+
+  const playPreview = useCallback((song: DbSong | null | undefined) => {
+    const FADE = 0.5; // seconds
+
+    stopPreview();
     if (!enabled || !song) return;
 
     // 전용 preview_url이 있는 경우: 루프 재생
@@ -66,16 +74,17 @@ export function usePreviewAudio(
         else el.volume = BASE_VOL;
       };
 
-      el.addEventListener('loadeddata', () => el.play().catch(() => {}));
       el.addEventListener('timeupdate', onTimeUpdate);
-
-      return () => {
+      cleanupRef.current = () => {
         el.removeEventListener('timeupdate', onTimeUpdate);
         el.pause();
         el.removeAttribute('src');
         el.load();
-        audioRef.current = null;
+        if (audioRef.current === el) audioRef.current = null;
       };
+
+      void el.play().catch(() => {});
+      return;
     }
 
     // fallback: audio_url에서 preview_start~preview_end 구간 루프
@@ -84,13 +93,16 @@ export function usePreviewAudio(
     audioRef.current = el;
     el.volume = 0;
 
-    const start = song.preview_start ?? 0;
-    const end = song.preview_end ?? (song.duration ?? 30);
+    const start = Math.max(0, song.preview_start ?? 0);
+    const end = Math.max(start + 0.1, song.preview_end ?? (song.duration ?? 30));
     const rangeDur = end - start;
 
-    const onLoaded = () => {
-      el.currentTime = start;
-      el.play().catch(() => {});
+    const seekToStart = () => {
+      try {
+        el.currentTime = start;
+      } catch {
+        // Some mobile browsers only allow seeking after metadata is ready.
+      }
     };
 
     const onTimeUpdate = () => {
@@ -106,26 +118,35 @@ export function usePreviewAudio(
       else el.volume = BASE_VOL;
     };
 
-    el.addEventListener('loadeddata', onLoaded);
+    el.addEventListener('loadedmetadata', seekToStart);
     el.addEventListener('timeupdate', onTimeUpdate);
-
-    return () => {
-      el.removeEventListener('loadeddata', onLoaded);
+    cleanupRef.current = () => {
+      el.removeEventListener('loadedmetadata', seekToStart);
       el.removeEventListener('timeupdate', onTimeUpdate);
       el.pause();
       el.removeAttribute('src');
       el.load();
-      audioRef.current = null;
+      if (audioRef.current === el) audioRef.current = null;
     };
-  }, [songs, focusedSongIndex, enabled]);
 
-  const stopPreview = () => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audioRef.current = null;
+    seekToStart();
+    void el.play().catch(() => {});
+  }, [enabled, stopPreview]);
+
+  useEffect(() => {
+    if (!enabled) {
+      stopPreview();
+      return;
     }
-  };
+    if (!autoPlay) return;
+    playPreview(songs[focusedSongIndex]);
+  }, [songs, focusedSongIndex, enabled, autoPlay, playPreview, stopPreview]);
 
-  return { stopPreview };
+  useEffect(() => stopPreview, [stopPreview]);
+
+  const playPreviewAt = useCallback((songIndex: number) => {
+    playPreview(songs[songIndex]);
+  }, [songs, playPreview]);
+
+  return { stopPreview, playPreviewAt };
 }

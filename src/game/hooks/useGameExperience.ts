@@ -19,6 +19,14 @@ export function canStartGameplay(experience: GameExperience): boolean {
   return experience === 'fullGame';
 }
 
+export function canPreviewSongs(_experience: GameExperience): boolean {
+  return true;
+}
+
+export function canAutoPreviewSongs(experience: GameExperience): boolean {
+  return experience === 'fullGame';
+}
+
 function readGameExperience(): GameExperience {
   if (typeof window === 'undefined') return 'fullGame';
   return window.matchMedia(MOBILE_GAME_MEDIA_QUERY).matches

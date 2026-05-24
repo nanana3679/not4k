@@ -23,7 +23,11 @@ import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
-import { canStartGameplay } from '../hooks/useGameExperience';
+import {
+  canAutoPreviewSongs,
+  canPreviewSongs,
+  canStartGameplay,
+} from '../hooks/useGameExperience';
 
 // ---------------------------------------------------------------------------
 // SongSelectScreen (unified)
@@ -36,7 +40,10 @@ interface SongSelectScreenProps {
 export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenProps) {
   const { selectSong, setScreen } = useGameStore();
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
-  const playAllowed = canStartGameplay(mobileListOnly ? 'mobileSongList' : 'fullGame');
+  const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
+  const playAllowed = canStartGameplay(gameExperience);
+  const previewAllowed = canPreviewSongs(gameExperience);
+  const previewAutoPlay = canAutoPreviewSongs(gameExperience);
 
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const toastIdRef = useRef(0);
@@ -88,14 +95,16 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     enableWheelNavigation: !mobileListOnly,
   });
 
-  const { stopPreview } = usePreviewAudio(songs, focusedSongIndex, {
-    enabled: !mobileListOnly,
+  const { stopPreview, playPreviewAt } = usePreviewAudio(songs, focusedSongIndex, {
+    enabled: previewAllowed,
+    autoPlay: previewAutoPlay,
   });
   // ref를 최신 stopPreview로 동기화
   stopPreviewRef.current = stopPreview;
 
   // Edit: navigate to /editor with URL params
   const handleEdit = useCallback((songId: string, difficulty: string) => {
+    stopPreviewRef.current();
     window.location.href = `/editor?songId=${encodeURIComponent(songId)}&difficulty=${encodeURIComponent(difficulty)}`;
   }, []);
 
@@ -310,11 +319,13 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   setFocusedSongIndex(index);
                   setFocusedChartIndex(0);
                   setMobileEditSelection(null);
+                  playPreviewAt(index);
                 }}
                 onSelectChart={(index, chartIndex, selection) => {
                   setFocusedSongIndex(index);
                   setFocusedChartIndex(chartIndex);
                   setMobileEditSelection(selection);
+                  playPreviewAt(index);
                 }}
                 onEdit={handleEdit}
                 onNewChart={setNewChartTarget}

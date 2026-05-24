@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAutoPreviewSongs,
+  canPreviewSongs,
   canStartGameplay,
   getGameExperience,
 } from "./useGameExperience";
@@ -31,5 +33,25 @@ describe("canStartGameplay", () => {
 
   it("allows gameplay in the full game experience", () => {
     expect(canStartGameplay("fullGame")).toBe(true);
+  });
+});
+
+describe("canPreviewSongs", () => {
+  it("allows preview audio in the mobile song list experience", () => {
+    expect(canPreviewSongs("mobileSongList")).toBe(true);
+  });
+
+  it("allows preview audio in the full game experience", () => {
+    expect(canPreviewSongs("fullGame")).toBe(true);
+  });
+});
+
+describe("canAutoPreviewSongs", () => {
+  it("does not auto-preview on mobile because playback needs a tap gesture", () => {
+    expect(canAutoPreviewSongs("mobileSongList")).toBe(false);
+  });
+
+  it("keeps desktop auto-preview behavior", () => {
+    expect(canAutoPreviewSongs("fullGame")).toBe(true);
   });
 });
