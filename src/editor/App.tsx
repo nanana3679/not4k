@@ -20,6 +20,7 @@ import { MarkerEditModal } from './components/MarkerEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
+import { OffsetModal } from './components/OffsetModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
@@ -327,7 +328,7 @@ function ChartEditorPage() {
   useEditorKeyboard(
     playbackRef, selectModeRef, snapZoomRef, bpmMarkers,
     editingMarker, showMetaModal, showCustomSnapModal,
-    showDeleteConfirm, showLeaveConfirm, showSaveAsModal,
+    showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetPanel,
     validationErrors.length,
   );
 
@@ -758,6 +759,15 @@ function ChartEditorPage() {
             setShowCustomSnapModal(false);
           }}
           onClose={() => setShowCustomSnapModal(false)}
+        />
+      )}
+
+      {/* 오프셋 모달 */}
+      {showOffsetPanel && (
+        <OffsetModal
+          offsetMs={chart.meta.offsetMs}
+          onChange={(offsetMs) => setChart({ ...chart, meta: { ...chart.meta, offsetMs } })}
+          onClose={() => setShowOffsetPanel(false)}
         />
       )}
 

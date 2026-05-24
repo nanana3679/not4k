@@ -23,6 +23,7 @@ export function useEditorKeyboard(
   showDeleteConfirm: boolean,
   showLeaveConfirm: boolean,
   showSaveAsModal: boolean,
+  showOffsetModal: boolean,
   validationErrorsCount: number,
 ) {
   const mode = useEditorStore((s) => s.mode);
@@ -33,7 +34,7 @@ export function useEditorKeyboard(
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 모달이 열려 있으면 단축키 비활성화
-      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || validationErrorsCount > 0) return;
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetModal || validationErrorsCount > 0) return;
 
       // Select mode: Ctrl+C / Ctrl+X / Ctrl+V
       if (mode === 'select' && selectModeRef.current && (e.ctrlKey || e.metaKey)) {
@@ -170,7 +171,7 @@ export function useEditorKeyboard(
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     mode, setMode,
-    editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, validationErrorsCount,
+    editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetModal, validationErrorsCount,
     addToast, bpmMarkers, chart.meta.offsetMs,
   ]);
 }

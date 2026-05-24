@@ -79,7 +79,7 @@ const styles = {
   compactTopRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '2px',
+    gap: '4px',
     minHeight: '36px',
     flexWrap: 'nowrap' as const,
     overflow: 'visible' as const,
@@ -170,7 +170,7 @@ const styles = {
     inset: 0,
     zIndex: 1200,
     display: 'flex',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
     padding: '8px',
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -377,6 +377,7 @@ interface EditorToolbarProps {
 }
 
 const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
+const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -432,7 +433,6 @@ export function EditorToolbar({
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
-  const setChart = useEditorStore((s) => s.setChart);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
@@ -517,7 +517,7 @@ export function EditorToolbar({
               <div style={styles.compactPickerSection}>
                 <label style={styles.compactMenuLabel}>Notes</label>
                 <div style={styles.compactPickerGrid}>
-                  {noteTypeOptions.map((type) => renderCompactOption(type, entityLabels[type], entityType === type, () => {
+                  {compactNoteTypeOptions.map((type) => renderCompactOption(type, entityLabels[type], entityType === type, () => {
                     setEntityType(type);
                     setMode('create');
                     closePicker();
@@ -662,7 +662,7 @@ export function EditorToolbar({
                   </button>
                   <button
                     style={styles.compactMenuButton}
-                    onClick={() => setShowOffsetPanel((v) => !v)}
+                    onClick={() => { setShowMoreMenu(false); setShowOffsetPanel((v) => !v); }}
                   >
                     Offset
                   </button>
@@ -722,23 +722,6 @@ export function EditorToolbar({
 
         {renderCompactPicker()}
 
-        {showOffsetPanel && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto' }}>
-            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 10 } })}>-10</button>
-            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 1 } })}>-1</button>
-            <input
-              type="number"
-              value={chart.meta.offsetMs}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v)) setChart({ ...chart, meta: { ...chart.meta, offsetMs: v } });
-              }}
-              style={{ width: '76px', minHeight: '40px', padding: '6px', backgroundColor: '#1a1a1a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '6px', fontSize: '13px', textAlign: 'center' }}
-            />
-            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 1 } })}>+1</button>
-            <button style={styles.compactButton} onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 10 } })}>+10</button>
-          </div>
-        )}
       </div>
     );
   }
@@ -868,65 +851,6 @@ export function EditorToolbar({
         >
           Offset
         </button>
-        {showOffsetPanel && (
-          <>
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-              onClick={() => setShowOffsetPanel(false)}
-            />
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              marginTop: '4px',
-              backgroundColor: '#2a2a2a',
-              border: '1px solid #555',
-              borderRadius: '6px',
-              zIndex: 1000,
-              padding: '8px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              whiteSpace: 'nowrap',
-            }}>
-              <button
-                style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
-                onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 10 } })}
-              >-10</button>
-              <button
-                style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
-                onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs - 1 } })}
-              >-1</button>
-              <input
-                type="number"
-                value={chart.meta.offsetMs}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) setChart({ ...chart, meta: { ...chart.meta, offsetMs: v } });
-                }}
-                style={{
-                  width: '72px',
-                  padding: '2px 6px',
-                  backgroundColor: '#1a1a1a',
-                  color: '#e0e0e0',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  textAlign: 'center',
-                }}
-              />
-              <span style={{ fontSize: '12px', color: '#999' }}>ms</span>
-              <button
-                style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
-                onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 1 } })}
-              >+1</button>
-              <button
-                style={{ ...styles.button, padding: '2px 6px', fontSize: '12px' }}
-                onClick={() => setChart({ ...chart, meta: { ...chart.meta, offsetMs: chart.meta.offsetMs + 10 } })}
-              >+10</button>
-            </div>
-          </>
-        )}
       </div>
 
       <div style={styles.separator} />
