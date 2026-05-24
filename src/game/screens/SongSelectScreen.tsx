@@ -14,13 +14,13 @@ import {
   getDifficultyColor,
   createEmptyChart,
   getCircularDistance,
-  getSelectedChartForSong,
   type SelectedChartRef,
 } from './songSelect/helpers';
 import { styles } from './songSelect/styles';
 import { modalStyles } from './songSelect/modalStyles';
 import { AddSongModal } from './songSelect/AddSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
+import { MobileSongCard } from './songSelect/MobileSongCard';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
 import { canStartGameplay } from '../hooks/useGameExperience';
@@ -291,97 +291,34 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           {songs.map((song, songIdx) => {
             const isFocused = songIdx === focusedSongIndex;
             const sortedCharts = getSortedCharts(song);
-            const selectedChart = getSelectedChartForSong(song, sortedCharts, mobileEditSelection);
-            const mobileJacketUrl = supabase.storage
-              .from(STORAGE_BUCKET)
-              .getPublicUrl(song.jacket_url || songJacketPath(song.id)).data.publicUrl;
 
             return (
-              <div
+              <MobileSongCard
                 key={song.id}
-                ref={(el) => { if (el) songCardRefs.current.set(songIdx, el); else songCardRefs.current.delete(songIdx); }}
-                style={{
-                  ...styles.mobileSongCard,
-                  ...(isFocused ? styles.mobileSongCardFocused : {}),
+                song={song}
+                songIndex={songIdx}
+                sortedCharts={sortedCharts}
+                isFocused={isFocused}
+                focusedChartIndex={focusedChartIndex}
+                mobileEditSelection={mobileEditSelection}
+                isAdmin={isAdmin}
+                registerCardElement={(index, element) => {
+                  if (element) songCardRefs.current.set(index, element);
+                  else songCardRefs.current.delete(index);
                 }}
-                onClick={() => {
-                  setFocusedSongIndex(songIdx);
+                onSelectSong={(index) => {
+                  setFocusedSongIndex(index);
                   setFocusedChartIndex(0);
                   setMobileEditSelection(null);
                 }}
-              >
-                <div style={styles.mobileSongHeader}>
-                  <div style={styles.mobileJacket}>
-                    <img
-                      src={mobileJacketUrl}
-                      alt=""
-                      style={styles.mobileJacketImage}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  </div>
-                  <div style={styles.mobileSongInfo}>
-                    <span style={styles.mobileSongTitle}>{song.title}</span>
-                    <span style={styles.mobileSongArtist}>
-                      {song.artist}
-                      {song.duration != null && (
-                        <span style={styles.songDuration}>
-                          {' '}· {Math.floor(song.duration / 60)}:{String(Math.floor(song.duration % 60)).padStart(2, '0')}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={styles.mobileChartRows}>
-                  {sortedCharts.map((chart, chartIdx) => {
-                    const isChartFocused = mobileEditSelection?.songId === song.id
-                      ? mobileEditSelection.chartId === chart.id
-                      : isFocused && chartIdx === focusedChartIndex;
-                    return (
-                      <button
-                        key={chart.id}
-                        style={{
-                          ...styles.mobileChartTag,
-                          ...getDifficultyColor(chart.difficulty_label),
-                          ...(isChartFocused ? styles.mobileChartTagFocused : {}),
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFocusedSongIndex(songIdx);
-                          setFocusedChartIndex(chartIdx);
-                          setMobileEditSelection({ songId: song.id, chartId: chart.id });
-                        }}
-                      >
-                        {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {isAdmin && selectedChart && (
-                  <button
-                    style={styles.mobileEditBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(song.id, selectedChart.difficulty_label);
-                    }}
-                  >
-                    Edit {selectedChart.difficulty_label.toUpperCase()} Lv.{selectedChart.difficulty_level}
-                  </button>
-                )}
-
-                {isAdmin && (
-                  <button
-                    style={styles.mobileNewChartBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNewChartTarget(song);
-                    }}
-                  >
-                    + Chart
-                  </button>
-                )}
-              </div>
+                onSelectChart={(index, chartIndex, selection) => {
+                  setFocusedSongIndex(index);
+                  setFocusedChartIndex(chartIndex);
+                  setMobileEditSelection(selection);
+                }}
+                onEdit={handleEdit}
+                onNewChart={setNewChartTarget}
+              />
             );
           })}
         </div>

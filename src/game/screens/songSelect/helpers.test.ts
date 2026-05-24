@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { getDifficultyOrder, DIFFICULTIES, getSelectedChartForSong } from './helpers';
+import {
+  getDifficultyOrder,
+  DIFFICULTIES,
+  getMobileSongCardActionState,
+  getSelectedChartForSong,
+} from './helpers';
 import type { DbSong } from './types';
 
 describe('getDifficultyOrder', () => {
@@ -54,5 +59,28 @@ describe('getSelectedChartForSong', () => {
       songId: 'song-2',
       chartId: 'chart-hard',
     })).toBeNull();
+  });
+});
+
+describe('getMobileSongCardActionState', () => {
+  const selectedChart = {
+    id: 'chart-hard',
+    song_id: 'song-1',
+    difficulty_label: 'HARD',
+    difficulty_level: 9,
+  };
+
+  it('선택한 차트가 있으면 admin 여부와 무관하게 Edit 표시', () => {
+    expect(getMobileSongCardActionState({ selectedChart, isAdmin: true }).showEdit).toBe(true);
+    expect(getMobileSongCardActionState({ selectedChart, isAdmin: false }).showEdit).toBe(true);
+  });
+
+  it('선택한 차트가 없으면 Edit 숨김', () => {
+    expect(getMobileSongCardActionState({ selectedChart: null, isAdmin: true }).showEdit).toBe(false);
+  });
+
+  it('New Chart 액션은 admin-only 유지', () => {
+    expect(getMobileSongCardActionState({ selectedChart, isAdmin: true }).showNewChart).toBe(true);
+    expect(getMobileSongCardActionState({ selectedChart, isAdmin: false }).showNewChart).toBe(false);
   });
 });

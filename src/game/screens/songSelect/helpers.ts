@@ -1,7 +1,7 @@
 import type React from 'react';
 import { beat } from '../../../shared';
 import type { Chart } from '../../../shared';
-import type { DbSong } from './types';
+import type { DbChart, DbSong } from './types';
 
 export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
 
@@ -71,4 +71,24 @@ export function getSelectedChartForSong(
 ): DbSong['charts'][number] | null {
   if (!selection || selection.songId !== song.id) return null;
   return sortedCharts.find((chart) => chart.id === selection.chartId) ?? null;
+}
+
+interface MobileSongCardActionInput {
+  selectedChart: DbChart | null;
+  isAdmin: boolean;
+}
+
+export interface MobileSongCardActionState {
+  showEdit: boolean;
+  showNewChart: boolean;
+}
+
+export function getMobileSongCardActionState({
+  selectedChart,
+  isAdmin,
+}: MobileSongCardActionInput): MobileSongCardActionState {
+  return {
+    showEdit: selectedChart !== null,
+    showNewChart: isAdmin,
+  };
 }
