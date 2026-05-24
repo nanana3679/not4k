@@ -211,7 +211,6 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetPanel, setShowOffsetPanel] = useState(false);
-  const [minimapVisible, setMinimapVisible] = useState(false);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
   const [pendingPreviewRange, setPendingPreviewRange] = useState<{ startTime: number; endTime: number } | null>(null);
@@ -296,14 +295,6 @@ function ChartEditorPage() {
     renderer.scrollY = nextScrollY;
     setScrollY(nextScrollY);
   }, [canvasSize.height, setScrollY]);
-
-  const toggleMinimap = useCallback(() => {
-    setMinimapVisible((visible) => {
-      const next = !visible;
-      rendererRef.current?.setMinimapVisible(next);
-      return next;
-    });
-  }, []);
 
   const handleDeleteSelected = useCallback(() => {
     const total = selectedNotes.size + selectedExtraNotes.size;
@@ -470,10 +461,6 @@ function ChartEditorPage() {
       playback.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    rendererRef.current?.setMinimapVisible(minimapVisible);
-  }, [minimapVisible]);
 
   // masterVolume 변경 시 PlaybackController에 반영
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
@@ -681,8 +668,6 @@ function ChartEditorPage() {
         setShowOffsetPanel={setShowOffsetPanel}
         showPlayTestMenu={showPlayTestMenu}
         setShowPlayTestMenu={setShowPlayTestMenu}
-        minimapVisible={minimapVisible}
-        onToggleMinimap={toggleMinimap}
         saving={saving}
         deleting={deleting}
         savedChartSnapshot={savedChartSnapshot}

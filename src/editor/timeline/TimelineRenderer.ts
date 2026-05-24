@@ -89,7 +89,7 @@ export class TimelineRenderer {
   private _zoom: number = 200; // pixelPerSecond
   private _scrollY: number = 0;
   private _horizontalPanX: number = 0;
-  private _minimapVisible: boolean = false;
+  private _minimapVisible: boolean = true;
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
@@ -464,13 +464,6 @@ export class TimelineRenderer {
 
   panHorizontally(deltaX: number): void {
     this.horizontalPanX = this._horizontalPanX + deltaX;
-  }
-
-  setMinimapVisible(visible: boolean): void {
-    if (this._minimapVisible === visible) return;
-    this._minimapVisible = visible;
-    this.minimapRenderer.render();
-    this.app?.render();
   }
 
   /**

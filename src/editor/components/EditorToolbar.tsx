@@ -361,8 +361,6 @@ interface EditorToolbarProps {
   setShowOffsetPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   showPlayTestMenu: boolean;
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
-  minimapVisible: boolean;
-  onToggleMinimap: () => void;
   saving: boolean;
   deleting: boolean;
   savedChartSnapshot: string;
@@ -405,8 +403,6 @@ export function EditorToolbar({
   setShowOffsetPanel,
   showPlayTestMenu,
   setShowPlayTestMenu,
-  minimapVisible,
-  onToggleMinimap,
   saving,
   deleting,
   savedChartSnapshot,
@@ -619,14 +615,6 @@ export function EditorToolbar({
             aria-label={`Snap: 1/${snapDivision}`}
           >
             <ToolbarIcon name="snap" />
-          </button>
-          <button
-            style={{ ...styles.compactButton, ...styles.compactIconButton, ...(minimapVisible ? styles.buttonActive : {}) }}
-            onClick={onToggleMinimap}
-            title="Toggle minimap"
-            aria-label="Toggle minimap"
-          >
-            <ToolbarIcon name="map" />
           </button>
           <button
             style={{ ...styles.compactButton, ...styles.compactIconButton, ...styles.compactPlayButton, ...(isPlaying ? styles.buttonActive : {}) }}
@@ -891,17 +879,6 @@ export function EditorToolbar({
           Offset
         </button>
       </div>
-
-      <div style={styles.separator} />
-
-      {/* 미니맵 토글 */}
-      <button
-        style={{ ...styles.button, ...(minimapVisible ? styles.buttonActive : {}) }}
-        onClick={onToggleMinimap}
-        title="Toggle minimap"
-      >
-        Map
-      </button>
 
       <div style={styles.separator} />
 
