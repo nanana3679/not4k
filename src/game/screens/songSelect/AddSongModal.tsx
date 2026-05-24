@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState } from 'react';
 import { supabase } from '../../../supabase';
 import {
@@ -11,6 +12,132 @@ import { PreviewRangeSelector } from '../../../editor/components/PreviewRangeSel
 import type { PreviewRangeState } from '../../../editor/components/PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
 import { generateSongId } from './helpers';
+
+const filePickerStyles: Record<string, React.CSSProperties> = {
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginBottom: '12px',
+    fontSize: '13px',
+  },
+  control: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minHeight: '44px',
+    padding: '6px',
+    backgroundColor: '#1a1a1a',
+    border: '1px solid #555',
+    borderRadius: '4px',
+  },
+  chooseButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '32px',
+    padding: '0 12px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #666',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  fileName: {
+    minWidth: 0,
+    flex: 1,
+    color: '#aaa',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  fileNameSelected: {
+    color: '#e0e0e0',
+  },
+  clearButton: {
+    minHeight: '32px',
+    padding: '0 10px',
+    backgroundColor: 'transparent',
+    color: '#aaa',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+  },
+  hiddenInput: {
+    display: 'none',
+  },
+};
+
+interface FilePickerFieldProps {
+  label: string;
+  accept: string;
+  file: File | null;
+  placeholder: string;
+  chooseLabel: string;
+  changeLabel: string;
+  onChange: (file: File | null) => void;
+  required?: boolean;
+  disabled?: boolean;
+}
+
+function FilePickerField({
+  label,
+  accept,
+  file,
+  placeholder,
+  chooseLabel,
+  changeLabel,
+  onChange,
+  required = false,
+  disabled = false,
+}: FilePickerFieldProps) {
+  const inputId = `new-song-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+  return (
+    <div style={filePickerStyles.field}>
+      <span>{label}{required ? ' *' : ''}</span>
+      <div style={filePickerStyles.control}>
+        <label
+          htmlFor={inputId}
+          style={{
+            ...filePickerStyles.chooseButton,
+            ...(disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+          }}
+        >
+          {file ? changeLabel : chooseLabel}
+        </label>
+        <input
+          id={inputId}
+          style={filePickerStyles.hiddenInput}
+          type="file"
+          accept={accept}
+          disabled={disabled}
+          onChange={(e) => {
+            onChange(e.target.files?.[0] ?? null);
+            e.currentTarget.value = '';
+          }}
+        />
+        <span style={{ ...filePickerStyles.fileName, ...(file ? filePickerStyles.fileNameSelected : {}) }}>
+          {file?.name ?? placeholder}
+        </span>
+        {file && (
+          <button
+            type="button"
+            style={filePickerStyles.clearButton}
+            onClick={() => onChange(null)}
+            disabled={disabled}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export interface AddSongModalProps {
   onDone: () => void;
@@ -132,15 +259,28 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
           <input style={modalStyles.input} value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist name" />
         </label>
 
-        <label style={modalStyles.field}>
-          <span>Audio * (ogg/mp3)</span>
-          <input style={modalStyles.input} type="file" accept=".ogg,.mp3,audio/ogg,audio/mpeg" onChange={(e) => handleAudioChange(e.target.files?.[0] ?? null)} />
-        </label>
+        <FilePickerField
+          label="Audio (ogg/mp3)"
+          accept=".ogg,.mp3,audio/ogg,audio/mpeg"
+          file={audioFile}
+          placeholder="No audio selected"
+          chooseLabel="Choose audio"
+          changeLabel="Change audio"
+          required
+          disabled={submitting || decodingAudio}
+          onChange={handleAudioChange}
+        />
 
-        <label style={modalStyles.field}>
-          <span>Jacket (image)</span>
-          <input style={modalStyles.input} type="file" accept="image/*" onChange={(e) => setJacketFile(e.target.files?.[0] ?? null)} />
-        </label>
+        <FilePickerField
+          label="Jacket (image)"
+          accept="image/*"
+          file={jacketFile}
+          placeholder="No jacket selected"
+          chooseLabel="Choose jacket"
+          changeLabel="Change jacket"
+          disabled={submitting}
+          onChange={setJacketFile}
+        />
 
         {decodingAudio && (
           <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
