@@ -28,27 +28,9 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { clampVerticalScroll } from './timeline/timelineViewport';
 
-const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
-
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
-}
-
-function useCompactEditorLayout(): boolean {
-  const [compact, setCompact] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia(COMPACT_EDITOR_QUERY).matches
-  ));
-
-  useEffect(() => {
-    const media = window.matchMedia(COMPACT_EDITOR_QUERY);
-    const update = () => setCompact(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-
-  return compact;
 }
 
 export default function EditorApp() {
@@ -193,7 +175,6 @@ function ChartEditorPage() {
   const deleteModeRef = useRef<DeleteMode | null>(null);
   const isDraggingCursorRef = useRef(false);
   const cKeyHeldRef = useRef(false);
-  const compactEditor = useCompactEditorLayout();
 
   // UI 상태
   const [showMetaModal, setShowMetaModal] = useState(false);
@@ -208,7 +189,6 @@ function ChartEditorPage() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
@@ -320,7 +300,7 @@ function ChartEditorPage() {
     playbackRef,
     rendererRef as React.RefObject<{ setChart: (c: unknown) => void } | null>,
     setSaving, setDeleting, setValidationErrors,
-    setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm, setShowPlayTestMenu,
+    setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm,
     setSavedChartSnapshot, setSavedExtraSnapshot,
     setPendingPreviewRange, setPendingJacketFile, setJacketCacheBust,
     pendingPreviewRange, pendingJacketFile,
@@ -659,20 +639,16 @@ function ChartEditorPage() {
     <div style={styles.container}>
       {/* 툴바 */}
       <EditorToolbar
-        compact={compactEditor}
         playbackRef={playbackRef}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}
         showOffsetToolbar={showOffsetToolbar}
         setShowOffsetToolbar={setShowOffsetToolbar}
-        showPlayTestMenu={showPlayTestMenu}
-        setShowPlayTestMenu={setShowPlayTestMenu}
         saving={saving}
         deleting={deleting}
         savedChartSnapshot={savedChartSnapshot}
         savedExtraSnapshot={savedExtraSnapshot}
         pendingPreviewRange={pendingPreviewRange}
-        onPlayTest={fileOps.handlePlayTest}
         onSaveChart={fileOps.handleSaveChart}
         onSaveAs={() => setShowSaveAsModal(true)}
         onDeleteChart={() => setShowDeleteConfirm(true)}

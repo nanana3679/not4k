@@ -1,11 +1,10 @@
 /**
- * useFileOperations — 파일 저장/삭제/테스트플레이 핸들러
+ * useFileOperations — 파일 저장/삭제 핸들러
  */
 
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
-import { useNavigate } from 'react-router-dom';
 import {
   serializeChart,
   serializeExtraNotes,
@@ -22,12 +21,10 @@ import {
 import type { ValidationError } from '../../shared';
 import { supabase } from '../../supabase';
 import { useEditorStore } from '../stores';
-import { useGameStore } from '../../game/stores';
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
   handleSaveAs: (targetDifficulty: string, targetLevel: number) => Promise<void>;
-  handlePlayTest: (fromCursor: boolean) => void;
   handleDeleteChart: () => Promise<void>;
   handleMarkerSave: (values: Record<string, string>) => void;
   handleMarkerDelete: () => void;
@@ -42,7 +39,6 @@ export function useFileOperations(
   setShowSaveAsModal: (v: boolean) => void,
   setSaveAsOverwriteTarget: (v: { difficulty: string; level: number } | null) => void,
   setShowDeleteConfirm: (v: boolean) => void,
-  setShowPlayTestMenu: (v: boolean) => void,
   setSavedChartSnapshot: (v: string) => void,
   setSavedExtraSnapshot: (v: string) => void,
   setPendingPreviewRange: (v: { startTime: number; endTime: number } | null) => void,
@@ -56,12 +52,9 @@ export function useFileOperations(
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
-
-  const editorNavigate = useNavigate();
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -167,7 +160,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingJacketFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingJacketFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -242,28 +235,6 @@ export function useFileOperations(
       setSaving(false);
     }
   }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
-
-  const handlePlayTest = useCallback((fromCursor: boolean) => {
-    const audioBuffer = playbackRef.current?.audioBufferData;
-    if (!audioBuffer) {
-      addToast('오디오가 로딩되지 않았습니다', 'error');
-      return;
-    }
-
-    if (playbackRef.current?.isPlaying) {
-      playbackRef.current.pause();
-    }
-
-    const gameStore = useGameStore.getState();
-    gameStore.setChartData(chart);
-    gameStore.setAudioBuffer(audioBuffer);
-    gameStore.setStartTimeMs(fromCursor ? currentTimeMs : 0);
-    gameStore.setEditorReturnUrl(window.location.pathname + window.location.search);
-    gameStore.setScreen('play');
-
-    setShowPlayTestMenu(false);
-    editorNavigate('/game');
-  }, [chart, currentTimeMs, editorNavigate, addToast, setShowPlayTestMenu]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -346,7 +317,7 @@ export function useFileOperations(
     setChart(updated);
     rendererRef.current?.setChart(updated);
     setEditingMarker(null);
-  }, [editingMarker, chart, setChart, setEditingMarker, addToast]);
+  }, [editingMarker, chart, rendererRef, setChart, setEditingMarker, addToast]);
 
   const handleMarkerDelete = useCallback(() => {
     if (!editingMarker) return;
@@ -366,7 +337,6 @@ export function useFileOperations(
   return {
     handleSaveChart,
     handleSaveAs,
-    handlePlayTest,
     handleDeleteChart,
     handleMarkerSave,
     handleMarkerDelete,
