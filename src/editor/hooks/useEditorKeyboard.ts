@@ -16,14 +16,14 @@ export function useEditorKeyboard(
   selectModeRef: RefObject<SelectMode | null>,
   snapZoomRef: RefObject<SnapZoomController | null>,
   bpmMarkers: BpmMarker[],
-  // 모달 열림 상태 (단축키 비활성화 조건)
+  // Focused editor UI state (disables global shortcuts)
   editingMarker: unknown,
   showMetaModal: boolean,
   showCustomSnapModal: boolean,
   showDeleteConfirm: boolean,
   showLeaveConfirm: boolean,
   showSaveAsModal: boolean,
-  showOffsetModal: boolean,
+  showOffsetToolbar: boolean,
   validationErrorsCount: number,
 ) {
   const mode = useEditorStore((s) => s.mode);
@@ -33,8 +33,8 @@ export function useEditorKeyboard(
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 모달이 열려 있으면 단축키 비활성화
-      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetModal || validationErrorsCount > 0) return;
+      // Disable shortcuts while focused editor UI is open.
+      if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0) return;
 
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
@@ -196,7 +196,7 @@ export function useEditorKeyboard(
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     mode, setMode,
-    editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetModal, validationErrorsCount,
+    editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     addToast, bpmMarkers, chart.meta.offsetMs,
   ]);
 }

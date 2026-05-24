@@ -20,7 +20,6 @@ import { MarkerEditModal } from './components/MarkerEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
-import { OffsetModal } from './components/OffsetModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
@@ -210,7 +209,7 @@ function ChartEditorPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
-  const [showOffsetPanel, setShowOffsetPanel] = useState(false);
+  const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
   const [pendingPreviewRange, setPendingPreviewRange] = useState<{ startTime: number; endTime: number } | null>(null);
@@ -331,7 +330,7 @@ function ChartEditorPage() {
   useEditorKeyboard(
     playbackRef, selectModeRef, snapZoomRef, bpmMarkers,
     editingMarker, showMetaModal, showCustomSnapModal,
-    showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetPanel,
+    showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
   );
 
@@ -664,8 +663,8 @@ function ChartEditorPage() {
         playbackRef={playbackRef}
         autoScroll={autoScroll}
         setAutoScroll={setAutoScroll}
-        showOffsetPanel={showOffsetPanel}
-        setShowOffsetPanel={setShowOffsetPanel}
+        showOffsetToolbar={showOffsetToolbar}
+        setShowOffsetToolbar={setShowOffsetToolbar}
         showPlayTestMenu={showPlayTestMenu}
         setShowPlayTestMenu={setShowPlayTestMenu}
         saving={saving}
@@ -757,15 +756,6 @@ function ChartEditorPage() {
             setShowCustomSnapModal(false);
           }}
           onClose={() => setShowCustomSnapModal(false)}
-        />
-      )}
-
-      {/* 오프셋 모달 */}
-      {showOffsetPanel && (
-        <OffsetModal
-          offsetMs={chart.meta.offsetMs}
-          onChange={(offsetMs) => setChart({ ...chart, meta: { ...chart.meta, offsetMs } })}
-          onClose={() => setShowOffsetPanel(false)}
         />
       )}
 

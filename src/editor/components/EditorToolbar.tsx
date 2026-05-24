@@ -2,7 +2,7 @@
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
@@ -54,6 +54,55 @@ const styles = {
     fontSize: '13px',
     marginLeft: '8px',
     whiteSpace: 'nowrap' as const,
+  },
+  offsetToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 12px',
+    backgroundColor: '#242424',
+    borderBottom: '1px solid #3d4b66',
+    minHeight: '48px',
+    overflowX: 'auto' as const,
+    overflowY: 'hidden' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    flexShrink: 0,
+  },
+  offsetCompactToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '3px',
+    backgroundColor: '#242424',
+    borderBottom: '1px solid #3d4b66',
+    minHeight: '42px',
+    overflowX: 'auto' as const,
+    overflowY: 'hidden' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    flexShrink: 0,
+  },
+  offsetInput: {
+    width: '92px',
+    minHeight: '44px',
+    padding: '6px 8px',
+    backgroundColor: '#303030',
+    color: '#e0e0e0',
+    border: '1px solid #626262',
+    borderRadius: '4px',
+    fontSize: '14px',
+    textAlign: 'center' as const,
+  },
+  offsetCompactInput: {
+    width: '78px',
+    minWidth: '78px',
+    minHeight: '36px',
+    padding: '4px 6px',
+    backgroundColor: '#303030',
+    color: '#ededed',
+    border: '1px solid #626262',
+    borderRadius: '6px',
+    fontSize: '13px',
+    textAlign: 'center' as const,
   },
   separator: {
     width: '1px',
@@ -357,8 +406,8 @@ interface EditorToolbarProps {
   playbackRef: RefObject<PlaybackController | null>;
   autoScroll: boolean;
   setAutoScroll: (v: boolean) => void;
-  showOffsetPanel: boolean;
-  setShowOffsetPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
+  showOffsetToolbar: boolean;
+  setShowOffsetToolbar: (v: boolean | ((prev: boolean) => boolean)) => void;
   showPlayTestMenu: boolean;
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
@@ -399,8 +448,8 @@ export function EditorToolbar({
   playbackRef,
   autoScroll,
   setAutoScroll,
-  showOffsetPanel,
-  setShowOffsetPanel,
+  showOffsetToolbar,
+  setShowOffsetToolbar,
   showPlayTestMenu,
   setShowPlayTestMenu,
   saving,
@@ -431,6 +480,7 @@ export function EditorToolbar({
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
+  const setChart = useEditorStore((s) => s.setChart);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
@@ -444,6 +494,13 @@ export function EditorToolbar({
   const redo = useEditorStore((s) => s.redo);
   const addToast = useEditorStore((s) => s.addToast);
   const selectedCount = selectedNotes.size + selectedExtraNotes.size;
+  const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
+
+  useEffect(() => {
+    if (showOffsetToolbar) {
+      setOffsetDraft(String(chart.meta.offsetMs));
+    }
+  }, [chart.meta.offsetMs, showOffsetToolbar]);
 
   const isDirty = !!(savedChartSnapshot && (
     serializeChart(chart) !== savedChartSnapshot ||
@@ -458,6 +515,65 @@ export function EditorToolbar({
   const compactActiveIconStyle = {
     ...compactIconStyle,
     ...styles.buttonActive,
+  };
+
+  const applyOffset = (offsetMs: number) => {
+    const currentChart = useEditorStore.getState().chart;
+    setOffsetDraft(String(offsetMs));
+    if (currentChart.meta.offsetMs === offsetMs) return;
+    setChart({ ...currentChart, meta: { ...currentChart.meta, offsetMs } });
+  };
+
+  const commitOffsetDraft = () => {
+    const parsed = parseFloat(offsetDraft);
+    if (Number.isNaN(parsed)) {
+      setOffsetDraft(String(chart.meta.offsetMs));
+      return;
+    }
+    applyOffset(parsed);
+  };
+
+  const closeOffsetToolbar = () => {
+    commitOffsetDraft();
+    setShowOffsetToolbar(false);
+  };
+
+  const renderOffsetToolbar = () => {
+    const toolbarStyle = compact ? styles.offsetCompactToolbar : styles.offsetToolbar;
+    const buttonStyle = compact ? styles.compactButton : styles.button;
+    const primaryButtonStyle = compact
+      ? { ...styles.compactButton, ...styles.compactPrimaryButton }
+      : { ...styles.button, ...styles.buttonActive };
+    const inputStyle = compact ? styles.offsetCompactInput : styles.offsetInput;
+    const stepDelta = (delta: number) => applyOffset(chart.meta.offsetMs + delta);
+
+    return (
+      <div style={toolbarStyle}>
+        <button style={primaryButtonStyle} onClick={closeOffsetToolbar}>
+          Done
+        </button>
+        <span style={styles.label}>Offset</span>
+        <input
+          type="number"
+          value={offsetDraft}
+          onChange={(e) => setOffsetDraft(e.target.value)}
+          onBlur={commitOffsetDraft}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitOffsetDraft();
+              e.currentTarget.blur();
+            }
+          }}
+          style={inputStyle}
+          aria-label="Audio offset milliseconds"
+        />
+        <span style={{ ...styles.label, marginLeft: 0 }}>ms</span>
+        <button style={buttonStyle} onClick={() => stepDelta(-10)}>-10</button>
+        <button style={buttonStyle} onClick={() => stepDelta(-1)}>-1</button>
+        <button style={buttonStyle} onClick={() => stepDelta(1)}>+1</button>
+        <button style={buttonStyle} onClick={() => stepDelta(10)}>+10</button>
+      </div>
+    );
   };
 
   const renderCompactOption = (
@@ -571,6 +687,10 @@ export function EditorToolbar({
       </div>
     );
   };
+
+  if (showOffsetToolbar) {
+    return renderOffsetToolbar();
+  }
 
   if (compact) {
     return (
@@ -689,7 +809,7 @@ export function EditorToolbar({
                   </button>
                   <button
                     style={styles.compactMenuButton}
-                    onClick={() => { setShowMoreMenu(false); setShowOffsetPanel((v) => !v); }}
+                    onClick={() => { setShowMoreMenu(false); setShowOffsetToolbar(true); }}
                   >
                     Offset
                   </button>
@@ -869,11 +989,11 @@ export function EditorToolbar({
       {/* 줌 표시 */}
       <span style={styles.label}>Zoom: {zoom.toFixed(0)}px/s</span>
 
-      {/* 오프셋 패널 */}
+      {/* 오프셋 툴바 */}
       <div style={{ position: 'relative' }}>
         <button
-          style={{ ...styles.button, ...(showOffsetPanel ? styles.buttonActive : {}), marginLeft: '8px' }}
-          onClick={() => setShowOffsetPanel((v) => !v)}
+          style={{ ...styles.button, marginLeft: '8px' }}
+          onClick={() => setShowOffsetToolbar(true)}
           title="Adjust audio offset while viewing waveform"
         >
           Offset
