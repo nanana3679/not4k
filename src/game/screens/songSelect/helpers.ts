@@ -59,6 +59,21 @@ export function getCircularDistance(a: number, b: number, total: number): number
   return Math.min(d, total - d);
 }
 
+export interface SongCardFocusState {
+  songIndex: number;
+  chartIndex: number;
+}
+
+export function resolveSongCardFocus(
+  current: SongCardFocusState,
+  nextSongIndex: number,
+): SongCardFocusState {
+  return {
+    songIndex: nextSongIndex,
+    chartIndex: current.songIndex === nextSongIndex ? current.chartIndex : 0,
+  };
+}
+
 export interface SelectedChartRef {
   songId: string;
   chartId: string;

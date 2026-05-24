@@ -14,6 +14,7 @@ import {
   getDifficultyColor,
   createEmptyChart,
   getCircularDistance,
+  resolveSongCardFocus,
   type SelectedChartRef,
 } from './songSelect/helpers';
 import { styles } from './songSelect/styles';
@@ -101,6 +102,21 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   });
   // ref를 최신 stopPreview로 동기화
   stopPreviewRef.current = stopPreview;
+
+  const handleSelectSongCard = useCallback((index: number, options?: { preview?: boolean }) => {
+    const nextFocus = resolveSongCardFocus(
+      { songIndex: focusedSongIndex, chartIndex: focusedChartIndex },
+      index,
+    );
+    setFocusedSongIndex(nextFocus.songIndex);
+    setFocusedChartIndex(nextFocus.chartIndex);
+    if (nextFocus.songIndex !== focusedSongIndex) {
+      setMobileEditSelection(null);
+    }
+    if (options?.preview) {
+      playPreviewAt(index);
+    }
+  }, [focusedSongIndex, focusedChartIndex, playPreviewAt, setFocusedChartIndex, setFocusedSongIndex]);
 
   // Edit: navigate to /editor with URL params
   const handleEdit = useCallback((songId: string, difficulty: string) => {
@@ -323,12 +339,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   if (element) songCardRefs.current.set(index, element);
                   else songCardRefs.current.delete(index);
                 }}
-                onSelectSong={(index) => {
-                  setFocusedSongIndex(index);
-                  setFocusedChartIndex(0);
-                  setMobileEditSelection(null);
-                  playPreviewAt(index);
-                }}
+                onSelectSong={(index) => handleSelectSongCard(index, { preview: true })}
                 onSelectChart={(index, chartIndex, selection) => {
                   setFocusedSongIndex(index);
                   setFocusedChartIndex(chartIndex);
@@ -510,7 +521,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   opacity: cardOpacity,
                   transform: `scale(${cardScale})`,
                 }}
-                onClick={() => { setFocusedSongIndex(songIdx); setFocusedChartIndex(0); }}
+                onClick={() => handleSelectSongCard(songIdx)}
               >
                 <div style={styles.songInfo}>
                   <span style={styles.songTitle}>{song.title}</span>

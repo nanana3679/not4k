@@ -4,6 +4,7 @@ import {
   DIFFICULTIES,
   getMobileSongCardActionState,
   getSelectedChartForSong,
+  resolveSongCardFocus,
 } from './helpers';
 import type { DbSong } from './types';
 
@@ -82,5 +83,21 @@ describe('getMobileSongCardActionState', () => {
   it('New Chart 액션은 admin-only 유지', () => {
     expect(getMobileSongCardActionState({ selectedChart, isAdmin: true }).showNewChart).toBe(true);
     expect(getMobileSongCardActionState({ selectedChart, isAdmin: false }).showNewChart).toBe(false);
+  });
+});
+
+describe('resolveSongCardFocus', () => {
+  it('이미 포커스된 곡을 다시 선택하면 현재 난이도 인덱스를 유지', () => {
+    expect(resolveSongCardFocus({ songIndex: 2, chartIndex: 1 }, 2)).toEqual({
+      songIndex: 2,
+      chartIndex: 1,
+    });
+  });
+
+  it('다른 곡을 선택하면 난이도 인덱스를 첫 번째로 초기화', () => {
+    expect(resolveSongCardFocus({ songIndex: 2, chartIndex: 1 }, 3)).toEqual({
+      songIndex: 3,
+      chartIndex: 0,
+    });
   });
 });
