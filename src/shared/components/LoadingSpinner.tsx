@@ -9,18 +9,27 @@ type LoadingSpinnerProps = {
 };
 
 type LoadingSpinnerMode = 'fullscreen' | 'overlay' | 'inline';
+type PageLoadingBackground = 'solid' | 'transparent';
 
 type InternalLoadingSpinnerProps = LoadingSpinnerProps & {
   mode: LoadingSpinnerMode;
+  background?: PageLoadingBackground;
 };
 
-function LoadingSpinner({ message = 'Loading...', sub, mode }: InternalLoadingSpinnerProps) {
+type PageLoadingProps = LoadingSpinnerProps & {
+  background?: PageLoadingBackground;
+};
+
+function LoadingSpinner({ message = 'Loading...', sub, mode, background = 'solid' }: InternalLoadingSpinnerProps) {
   const containerStyle: CSSProperties =
     mode === 'overlay'
       ? styles.overlay
       : mode === 'inline'
         ? styles.inline
-        : styles.fullscreen;
+        : {
+            ...styles.fullscreen,
+            ...(background === 'transparent' ? styles.fullscreenTransparent : {}),
+          };
 
   return (
     <div style={containerStyle} role="status" aria-live="polite">
@@ -35,7 +44,7 @@ function LoadingSpinner({ message = 'Loading...', sub, mode }: InternalLoadingSp
  * Use PageLoading before the page chrome exists.
  * It owns the full viewport and should not be nested inside page layouts.
  */
-export function PageLoading(props: LoadingSpinnerProps) {
+export function PageLoading(props: PageLoadingProps) {
   const element = <LoadingSpinner {...props} mode="fullscreen" />;
   if (typeof document === 'undefined') return element;
   return createPortal(element, document.body);
@@ -72,6 +81,9 @@ const styles: Record<string, CSSProperties> = {
     color: '#ccc',
     fontFamily: 'system-ui, sans-serif',
     textAlign: 'center',
+  },
+  fullscreenTransparent: {
+    backgroundColor: 'transparent',
   },
   overlay: {
     position: 'absolute',

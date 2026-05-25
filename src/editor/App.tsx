@@ -647,7 +647,9 @@ function ChartEditorPage() {
   return (
     <div style={styles.container}>
       {/* 툴바 */}
-      {audioLoadingSurface === 'page' && <PageLoading message="Loading audio..." />}
+      {audioLoadingSurface === 'transparentPage' && (
+        <PageLoading message="Loading audio..." background="transparent" />
+      )}
       <EditorToolbar
         playbackRef={playbackRef}
         autoScroll={autoScroll}
