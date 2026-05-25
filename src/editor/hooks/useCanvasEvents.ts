@@ -17,8 +17,11 @@ import { useEditorStore } from '../stores';
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
+  type TouchGesturePoint,
+  type TouchNavigationMode,
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
+  resolveTouchNavigationMode,
 } from './touchGesture';
 
 export interface CanvasEventHandlers {
@@ -142,6 +145,9 @@ export function useCanvasEvents(
 
   const rightDragDeletedRef = useRef(false);
   const activeTouchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
+  const touchNavigationModeRef = useRef<TouchNavigationMode | null>(null);
+  const touchNavigationStartDistanceRef = useRef<number | null>(null);
+  const touchNavigationStartCenterRef = useRef<TouchGesturePoint | null>(null);
   const pinchPreviousDistanceRef = useRef<number | null>(null);
   const pinchPreviousCenterRef = useRef<TouchPoint | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
@@ -212,6 +218,9 @@ export function useCanvasEvents(
   const removeTouchPoint = useCallback((pointerId: number) => {
     activeTouchPointsRef.current.delete(pointerId);
     if (activeTouchPointsRef.current.size < 2) {
+      touchNavigationModeRef.current = null;
+      touchNavigationStartDistanceRef.current = null;
+      touchNavigationStartCenterRef.current = null;
       pinchPreviousDistanceRef.current = null;
       pinchPreviousCenterRef.current = null;
     }
@@ -224,8 +233,12 @@ export function useCanvasEvents(
     const distance = getTouchDistance(points);
     if (distance <= 0) return true;
 
+    const center = getTouchCenter(points);
+    touchNavigationModeRef.current = null;
+    touchNavigationStartDistanceRef.current = distance;
+    touchNavigationStartCenterRef.current = center;
     pinchPreviousDistanceRef.current = distance;
-    pinchPreviousCenterRef.current = getTouchCenter(points);
+    pinchPreviousCenterRef.current = center;
     clearLongPress();
     cancelTouchCreateCandidate();
     touchEmptySelectCandidateRef.current = null;
@@ -244,14 +257,30 @@ export function useCanvasEvents(
     const previousCenter = pinchPreviousCenterRef.current;
     const currentDistance = getTouchDistance(points);
     const center = getTouchCenter(points);
-    if (previousCenter) {
-      onHorizontalPan?.(previousCenter.clientX - center.clientX);
-      onVerticalPan?.(previousCenter.clientY - center.clientY);
+
+    if (touchNavigationStartDistanceRef.current === null || touchNavigationStartCenterRef.current === null) {
+      touchNavigationStartDistanceRef.current = currentDistance;
+      touchNavigationStartCenterRef.current = center;
     }
-    if (previousDistance !== null && currentDistance > 0) {
+
+    const mode = resolveTouchNavigationMode({
+      currentMode: touchNavigationModeRef.current,
+      startCenter: touchNavigationStartCenterRef.current,
+      currentCenter: center,
+      startDistance: touchNavigationStartDistanceRef.current,
+      currentDistance,
+    });
+    touchNavigationModeRef.current = mode;
+
+    if (mode === "horizontalScroll" && previousCenter) {
+      onHorizontalPan?.(previousCenter.clientX - center.clientX);
+    } else if (mode === "verticalScroll" && previousCenter) {
+      onVerticalPan?.(previousCenter.clientY - center.clientY);
+    } else if (mode === "resize" && previousDistance !== null && currentDistance > 0) {
       onPinchZoom?.(previousDistance, currentDistance, center.clientY - rect.top);
-      pinchPreviousDistanceRef.current = currentDistance;
-    } else if (currentDistance > 0) {
+    }
+
+    if (currentDistance > 0) {
       pinchPreviousDistanceRef.current = currentDistance;
     }
     pinchPreviousCenterRef.current = center;
@@ -970,6 +999,9 @@ export function useCanvasEvents(
       clearTouchEmptySelectCandidate();
       touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
+      touchNavigationModeRef.current = null;
+      touchNavigationStartDistanceRef.current = null;
+      touchNavigationStartCenterRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();
