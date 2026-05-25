@@ -496,6 +496,14 @@ export function EditorToolbar({
     addToast('Redo', 'info');
   };
 
+  const requestBackToSongs = () => {
+    if (isDirty) {
+      window.dispatchEvent(new CustomEvent('editor:requestLeave'));
+    } else {
+      window.location.href = '/game';
+    }
+  };
+
   const applyOffset = (offsetMs: number) => {
     const currentChart = useEditorStore.getState().chart;
     setOffsetDraft(String(offsetMs));
@@ -661,23 +669,6 @@ export function EditorToolbar({
         <div style={styles.compactTopRow}>
           <div style={styles.compactGroup}>
             <button
-              style={compactIconStyle}
-              onClick={() => {
-                if (isDirty) {
-                  window.dispatchEvent(new CustomEvent('editor:requestLeave'));
-                } else {
-                  window.location.href = '/game';
-                }
-              }}
-              title="Back to song list"
-              aria-label="Back to song list"
-            >
-              <ToolbarIcon name="back" />
-            </button>
-          </div>
-
-          <div style={styles.compactGroup}>
-            <button
               style={getIconButtonStyle(false, historyPastCount === 0)}
               onClick={runUndo}
               disabled={historyPastCount === 0}
@@ -788,6 +779,15 @@ export function EditorToolbar({
                     onClick={() => setShowMoreMenu(false)}
                   />
                   <div style={styles.compactMoreMenu}>
+                    <button
+                      style={styles.compactMenuButton}
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        requestBackToSongs();
+                      }}
+                    >
+                      Back to Songs
+                    </button>
                     <button style={styles.compactMenuButton} onClick={() => { setShowMoreMenu(false); onOpenMeta(); }}>
                       Meta
                     </button>
