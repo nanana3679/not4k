@@ -27,6 +27,7 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { clampVerticalScroll } from './timeline/timelineViewport';
+import { getEditorAudioLoadingSurface } from './editorLoading';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -181,6 +182,8 @@ function ChartEditorPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [initialAudioPending, setInitialAudioPending] = useState(() => Boolean(useEditorStore.getState().pendingAudioUrl));
+  const hasCompletedInitialAudioLoadRef = useRef(!useEditorStore.getState().pendingAudioUrl);
   const [loadedAudioBuffer, setLoadedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -224,6 +227,7 @@ function ChartEditorPage() {
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const mode = useEditorStore((s) => s.mode);
+  const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // 좌표 변환 / 히트테스트 훅
   const coords = useCoordinateHelpers(rendererRef, snapZoomRef);
@@ -456,6 +460,9 @@ function ChartEditorPage() {
     if (!playback) return;
 
     const url = pendingAudioUrl;
+    if (!hasCompletedInitialAudioLoadRef.current) {
+      setInitialAudioPending(true);
+    }
     setPendingAudioUrl(null);
     setAudioLoading(true);
     setSavedChartSnapshot(serializeChart(chart));
@@ -478,6 +485,8 @@ function ChartEditorPage() {
       addToast(`Audio load failed: ${message}`, 'error');
     }).finally(() => {
       setAudioLoading(false);
+      hasCompletedInitialAudioLoadRef.current = true;
+      setInitialAudioPending(false);
     });
   }, [pendingAudioUrl, setPendingAudioUrl, addToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -638,6 +647,7 @@ function ChartEditorPage() {
   return (
     <div style={styles.container}>
       {/* 툴바 */}
+      {audioLoadingSurface === 'page' && <PageLoading message="Loading audio..." />}
       <EditorToolbar
         playbackRef={playbackRef}
         autoScroll={autoScroll}
@@ -659,7 +669,7 @@ function ChartEditorPage() {
 
       {/* 캔버스 */}
       <div ref={canvasContainerRef} style={styles.canvasContainer}>
-        {audioLoading && <OverlayLoading message="Loading audio..." />}
+        {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
         <canvas
           ref={canvasRef}
           style={styles.canvas}

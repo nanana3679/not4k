@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 type LoadingSpinnerProps = {
   /** 표시할 메시지 (기본: 'Loading...') */
@@ -35,7 +36,9 @@ function LoadingSpinner({ message = 'Loading...', sub, mode }: InternalLoadingSp
  * It owns the full viewport and should not be nested inside page layouts.
  */
 export function PageLoading(props: LoadingSpinnerProps) {
-  return <LoadingSpinner {...props} mode="fullscreen" />;
+  const element = <LoadingSpinner {...props} mode="fullscreen" />;
+  if (typeof document === 'undefined') return element;
+  return createPortal(element, document.body);
 }
 
 /**
@@ -55,6 +58,8 @@ export function InlineLoading(props: LoadingSpinnerProps) {
 
 const styles: Record<string, CSSProperties> = {
   fullscreen: {
+    position: 'fixed',
+    inset: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -63,6 +68,7 @@ const styles: Record<string, CSSProperties> = {
     width: '100%',
     minHeight: '100dvh',
     backgroundColor: '#1a1a1a',
+    zIndex: 3000,
     color: '#ccc',
     fontFamily: 'system-ui, sans-serif',
     textAlign: 'center',
