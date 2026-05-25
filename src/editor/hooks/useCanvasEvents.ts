@@ -15,6 +15,11 @@ import { beatToMs, beatEq } from '../../shared';
 import type { Beat, Lane, RangeNote } from '../../shared';
 import { useEditorStore } from '../stores';
 import type { CoordinateHelpers } from './useCoordinateHelpers';
+import {
+  TOUCH_MOVE_CANCEL_PX,
+  didTouchMoveBeyondTapSlop,
+  isTouchNavigationGesture,
+} from './touchGesture';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -28,7 +33,6 @@ export interface CanvasEventHandlers {
 }
 
 const LONG_PRESS_MS = 450;
-const TOUCH_MOVE_CANCEL_PX = 10;
 
 interface TouchPoint {
   clientX: number;
@@ -66,16 +70,13 @@ type TouchCreateCandidate = {
   rangeType: "long" | "doubleLong";
 };
 
-type TouchPanCandidate = {
+type TouchEmptySelectCandidate = {
   pointerId: number;
   x: number;
   y: number;
-  active: boolean;
   moved: boolean;
   startClientX: number;
   startClientY: number;
-  lastClientX: number;
-  lastClientY: number;
 };
 
 type TouchDeleteCandidate = {
@@ -156,7 +157,7 @@ export function useCanvasEvents(
     fired: boolean;
   } | null>(null);
   const touchCreateCandidateRef = useRef<TouchCreateCandidate | null>(null);
-  const touchPanCandidateRef = useRef<TouchPanCandidate | null>(null);
+  const touchEmptySelectCandidateRef = useRef<TouchEmptySelectCandidate | null>(null);
   const touchDeleteCandidateRef = useRef<TouchDeleteCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
@@ -170,37 +171,23 @@ export function useCanvasEvents(
     longPressRef.current = null;
   }, []);
 
-  const startTouchPanCandidate = useCallback((
+  const startTouchEmptySelectCandidate = useCallback((
     e: React.PointerEvent<HTMLCanvasElement>,
     x: number,
     y: number,
-    startClientX = e.clientX,
-    startClientY = e.clientY,
   ) => {
-    touchPanCandidateRef.current = {
+    touchEmptySelectCandidateRef.current = {
       pointerId: e.pointerId,
       x,
       y,
-      active: false,
       moved: false,
-      startClientX,
-      startClientY,
-      lastClientX: startClientX,
-      lastClientY: startClientY,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
     };
   }, []);
 
-  const activateTouchPanCandidate = useCallback((pointerId: number) => {
-    const pending = touchPanCandidateRef.current;
-    if (!pending || pending.pointerId !== pointerId) return;
-    pending.active = true;
-    pending.moved = true;
-    pending.lastClientX = pending.startClientX;
-    pending.lastClientY = pending.startClientY;
-  }, []);
-
-  const clearTouchPanCandidate = useCallback(() => {
-    touchPanCandidateRef.current = null;
+  const clearTouchEmptySelectCandidate = useCallback(() => {
+    touchEmptySelectCandidateRef.current = null;
   }, []);
 
   const cancelTouchCreateCandidate = useCallback(() => {
@@ -232,7 +219,7 @@ export function useCanvasEvents(
 
   const startPinchIfNeeded = useCallback((): boolean => {
     const points = [...activeTouchPointsRef.current.values()];
-    if (points.length < 2) return false;
+    if (!isTouchNavigationGesture(points.length)) return false;
 
     const distance = getTouchDistance(points);
     if (distance <= 0) return true;
@@ -241,6 +228,9 @@ export function useCanvasEvents(
     pinchPreviousCenterRef.current = getTouchCenter(points);
     clearLongPress();
     cancelTouchCreateCandidate();
+    touchEmptySelectCandidateRef.current = null;
+    touchDeleteCandidateRef.current = null;
+    touchTapToggleRef.current = null;
     createModeRef.current?.cancelDrag();
     rendererRef.current?.hideGhostNote();
     return true;
@@ -248,7 +238,7 @@ export function useCanvasEvents(
 
   const handlePinchMove = useCallback((rect: DOMRect): boolean => {
     const points = [...activeTouchPointsRef.current.values()];
-    if (points.length < 2) return false;
+    if (!isTouchNavigationGesture(points.length)) return false;
 
     const previousDistance = pinchPreviousDistanceRef.current;
     const previousCenter = pinchPreviousCenterRef.current;
@@ -373,52 +363,75 @@ export function useCanvasEvents(
   const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const pendingLongPress = longPressRef.current;
     if (pendingLongPress?.pointerId === e.pointerId && !pendingLongPress.fired) {
-      const moved = Math.hypot(e.clientX - pendingLongPress.startClientX, e.clientY - pendingLongPress.startClientY);
-      if (moved > TOUCH_MOVE_CANCEL_PX) {
+      if (didTouchMoveBeyondTapSlop({
+        startClientX: pendingLongPress.startClientX,
+        startClientY: pendingLongPress.startClientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })) {
         clearLongPress();
-        startTouchPanCandidate(e, pendingLongPress.x, pendingLongPress.y, pendingLongPress.startClientX, pendingLongPress.startClientY);
-        activateTouchPanCandidate(e.pointerId);
+        rendererRef.current?.hideGhostNote();
       }
     }
 
     const createCandidate = touchCreateCandidateRef.current;
     if (createCandidate?.pointerId === e.pointerId && !createCandidate.fired && !createCandidate.moved) {
-      const moved = Math.hypot(e.clientX - createCandidate.startClientX, e.clientY - createCandidate.startClientY);
-      if (moved > TOUCH_MOVE_CANCEL_PX) {
+      if (didTouchMoveBeyondTapSlop({
+        startClientX: createCandidate.startClientX,
+        startClientY: createCandidate.startClientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })) {
         createCandidate.moved = true;
         clearLongPress();
-        startTouchPanCandidate(e, createCandidate.x, createCandidate.y, createCandidate.startClientX, createCandidate.startClientY);
-        activateTouchPanCandidate(e.pointerId);
+        rendererRef.current?.hideGhostNote();
       }
     }
 
     const deleteCandidate = touchDeleteCandidateRef.current;
     if (deleteCandidate?.pointerId === e.pointerId && !deleteCandidate.fired && !deleteCandidate.moved) {
-      const moved = Math.hypot(e.clientX - deleteCandidate.startClientX, e.clientY - deleteCandidate.startClientY);
-      if (moved > TOUCH_MOVE_CANCEL_PX) {
+      if (didTouchMoveBeyondTapSlop({
+        startClientX: deleteCandidate.startClientX,
+        startClientY: deleteCandidate.startClientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })) {
         deleteCandidate.moved = true;
         clearLongPress();
-        startTouchPanCandidate(e, deleteCandidate.x, deleteCandidate.y, deleteCandidate.startClientX, deleteCandidate.startClientY);
-        activateTouchPanCandidate(e.pointerId);
+        rendererRef.current?.hideGhostNote();
       }
     }
 
-    const panCandidate = touchPanCandidateRef.current;
-    if (panCandidate?.pointerId === e.pointerId && !panCandidate.active && !panCandidate.moved) {
-      const moved = Math.hypot(e.clientX - panCandidate.startClientX, e.clientY - panCandidate.startClientY);
-      if (moved > TOUCH_MOVE_CANCEL_PX) {
-        activateTouchPanCandidate(e.pointerId);
+    const emptySelectCandidate = touchEmptySelectCandidateRef.current;
+    if (emptySelectCandidate?.pointerId === e.pointerId && !emptySelectCandidate.moved) {
+      if (didTouchMoveBeyondTapSlop({
+        startClientX: emptySelectCandidate.startClientX,
+        startClientY: emptySelectCandidate.startClientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })) {
+        emptySelectCandidate.moved = true;
+        rendererRef.current?.hideGhostNote();
       }
     }
 
     const tapToggle = touchTapToggleRef.current;
     if (tapToggle?.pointerId === e.pointerId && !tapToggle.moved) {
-      const moved = Math.hypot(e.clientX - tapToggle.startClientX, e.clientY - tapToggle.startClientY);
-      if (moved > TOUCH_MOVE_CANCEL_PX) {
+      if (didTouchMoveBeyondTapSlop({
+        startClientX: tapToggle.startClientX,
+        startClientY: tapToggle.startClientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })) {
         tapToggle.moved = true;
       }
     }
-  }, [activateTouchPanCandidate, clearLongPress, startTouchPanCandidate]);
+  }, [clearLongPress, rendererRef]);
 
   // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
@@ -551,7 +564,7 @@ export function useCanvasEvents(
         }
       }
       if (e.pointerType === 'touch') {
-        startTouchPanCandidate(e, x, y);
+        startTouchEmptySelectCandidate(e, x, y);
         return;
       }
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
@@ -565,7 +578,7 @@ export function useCanvasEvents(
   }, [
     mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
     updateTouchPoint, startPinchIfNeeded, scheduleLongPress, scheduleTouchCreateRange,
-    scheduleTouchDeleteDrag, startTouchPanCandidate,
+    scheduleTouchDeleteDrag, startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
@@ -592,21 +605,6 @@ export function useCanvasEvents(
     }
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
-    const panCandidate = touchPanCandidateRef.current;
-    if (
-      e.pointerType === 'touch' &&
-      panCandidate?.pointerId === e.pointerId &&
-      panCandidate.active
-    ) {
-      onHorizontalPan?.(panCandidate.lastClientX - e.clientX);
-      onVerticalPan?.(panCandidate.lastClientY - e.clientY);
-      panCandidate.lastClientX = e.clientX;
-      panCandidate.lastClientY = e.clientY;
-      onNavigationInteraction?.();
-      rendererRef.current?.hideGhostNote();
-      return;
-    }
-
     const deleteCandidate = touchDeleteCandidateRef.current;
     if (
       e.pointerType === 'touch' &&
@@ -814,14 +812,14 @@ export function useCanvasEvents(
     handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
-    onHorizontalPan, onNavigationInteraction, onVerticalPan,
+    onNavigationInteraction,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let wasPinching = false;
     let longPressFired = false;
     let touchCreateCandidate: TouchCreateCandidate | null = null;
-    let touchPanCandidate: TouchPanCandidate | null = null;
+    let touchEmptySelectCandidate: TouchEmptySelectCandidate | null = null;
     let touchDeleteCandidate: TouchDeleteCandidate | null = null;
     if (e.pointerType === 'touch') {
       e.preventDefault();
@@ -839,10 +837,10 @@ export function useCanvasEvents(
         touchCreateCandidateRef.current = null;
         clearLongPress();
       }
-      const pendingPan = touchPanCandidateRef.current;
-      if (pendingPan?.pointerId === e.pointerId) {
-        touchPanCandidate = pendingPan;
-        touchPanCandidateRef.current = null;
+      const pendingEmptySelect = touchEmptySelectCandidateRef.current;
+      if (pendingEmptySelect?.pointerId === e.pointerId) {
+        touchEmptySelectCandidate = pendingEmptySelect;
+        touchEmptySelectCandidateRef.current = null;
       }
       const pendingDelete = touchDeleteCandidateRef.current;
       if (pendingDelete?.pointerId === e.pointerId) {
@@ -880,10 +878,10 @@ export function useCanvasEvents(
       return;
     }
 
-    if (touchPanCandidate) {
-      if (!touchPanCandidate.moved && mode === 'select' && selectModeRef.current) {
-        selectModeRef.current.onPointerDown(touchPanCandidate.x, touchPanCandidate.y, false, false);
-        selectModeRef.current.onPointerUp(touchPanCandidate.x, touchPanCandidate.y);
+    if (touchEmptySelectCandidate) {
+      if (!touchEmptySelectCandidate.moved && mode === 'select' && selectModeRef.current) {
+        selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
+        selectModeRef.current.onPointerUp(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y);
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
       }
@@ -969,7 +967,7 @@ export function useCanvasEvents(
       removeTouchPoint(e.pointerId);
       clearLongPress();
       cancelTouchCreateCandidate();
-      clearTouchPanCandidate();
+      clearTouchEmptySelectCandidate();
       touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
     }
@@ -977,7 +975,7 @@ export function useCanvasEvents(
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchPanCandidate, createModeRef, removeTouchPoint, rendererRef]);
+  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchEmptySelectCandidate, createModeRef, removeTouchPoint, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
