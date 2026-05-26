@@ -2,12 +2,44 @@ import { describe, expect, it } from "vitest";
 import {
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
+  shouldRunTouchBoxSelectDrag,
   resolveTouchNavigationMode,
 } from "./touchGesture";
 
 describe("editor touch gesture policy", () => {
   it("does not treat one-finger drag as canvas navigation", () => {
     expect(isTouchNavigationGesture(1)).toBe(false);
+  });
+
+  it("uses one-finger movement in select mode for box selection", () => {
+    expect(shouldRunTouchBoxSelectDrag({
+      pointerType: "touch",
+      editorMode: "select",
+      candidatePointerId: 7,
+      pointerId: 7,
+      moved: true,
+      activeTouchCount: 1,
+    })).toBe(true);
+  });
+
+  it("does not start touch box selection before movement or with navigation touches", () => {
+    expect(shouldRunTouchBoxSelectDrag({
+      pointerType: "touch",
+      editorMode: "select",
+      candidatePointerId: 7,
+      pointerId: 7,
+      moved: false,
+      activeTouchCount: 1,
+    })).toBe(false);
+
+    expect(shouldRunTouchBoxSelectDrag({
+      pointerType: "touch",
+      editorMode: "select",
+      candidatePointerId: 7,
+      pointerId: 7,
+      moved: true,
+      activeTouchCount: 2,
+    })).toBe(false);
   });
 
   it("treats two-finger drag as canvas navigation", () => {

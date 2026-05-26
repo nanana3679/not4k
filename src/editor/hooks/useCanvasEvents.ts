@@ -22,6 +22,7 @@ import {
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
   resolveTouchNavigationMode,
+  shouldRunTouchBoxSelectDrag,
 } from './touchGesture';
 
 export interface CanvasEventHandlers {
@@ -655,6 +656,39 @@ export function useCanvasEvents(
       return;
     }
 
+    const emptySelectCandidate = touchEmptySelectCandidateRef.current;
+    if (
+      emptySelectCandidate &&
+      shouldRunTouchBoxSelectDrag({
+        pointerType: e.pointerType,
+        editorMode: mode,
+        candidatePointerId: emptySelectCandidate.pointerId,
+        pointerId: e.pointerId,
+        moved: emptySelectCandidate.moved,
+        activeTouchCount: activeTouchPointsRef.current.size,
+      }) &&
+      selectModeRef.current
+    ) {
+      if (!selectModeRef.current.isBoxSelecting) {
+        selectModeRef.current.onPointerDown(
+          emptySelectCandidate.x,
+          emptySelectCandidate.y,
+          false,
+          false,
+        );
+      }
+      selectModeRef.current.onPointerMove(x, y);
+
+      if (rendererRef.current) {
+        const boxRect = selectModeRef.current.boxSelectPixelRect;
+        if (boxRect) {
+          rendererRef.current.setBoxSelectRect(boxRect);
+          rendererRef.current.render();
+        }
+      }
+      return;
+    }
+
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
     if (rendererRef.current) {
@@ -908,9 +942,14 @@ export function useCanvasEvents(
     }
 
     if (touchEmptySelectCandidate) {
-      if (!touchEmptySelectCandidate.moved && mode === 'select' && selectModeRef.current) {
-        selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
-        selectModeRef.current.onPointerUp(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y);
+      if (mode === 'select' && selectModeRef.current) {
+        if (!selectModeRef.current.isBoxSelecting) {
+          selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
+        }
+        selectModeRef.current.onPointerUp(
+          touchEmptySelectCandidate.moved ? x : touchEmptySelectCandidate.x,
+          touchEmptySelectCandidate.moved ? y : touchEmptySelectCandidate.y,
+        );
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
       }

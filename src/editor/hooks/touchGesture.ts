@@ -12,6 +12,23 @@ export function isTouchNavigationGesture(activeTouchCount: number): boolean {
   return activeTouchCount >= 2;
 }
 
+export function shouldRunTouchBoxSelectDrag(input: {
+  pointerType: string;
+  editorMode: string;
+  candidatePointerId: number | null;
+  pointerId: number;
+  moved: boolean;
+  activeTouchCount: number;
+}): boolean {
+  return (
+    input.pointerType === "touch" &&
+    input.editorMode === "select" &&
+    input.candidatePointerId === input.pointerId &&
+    input.moved &&
+    input.activeTouchCount === 1
+  );
+}
+
 export function didTouchMoveBeyondTapSlop(input: {
   startClientX: number;
   startClientY: number;
