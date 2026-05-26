@@ -5,13 +5,14 @@ import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import './global.css';
 import { PageLoading } from './shared/components/LoadingSpinner';
+import { SONNER_TOASTER_POSITION } from './shared/toast';
 
 const GameApp = lazy(() => import('./game/App'));
 const EditorApp = lazy(() => import('./editor/App'));
 function App() {
   return (
     <BrowserRouter>
-      <Toaster theme="dark" position="top-right" richColors closeButton />
+      <Toaster theme="dark" position={SONNER_TOASTER_POSITION} richColors closeButton />
       <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/game/*" element={<GameApp />} />

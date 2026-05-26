@@ -15,7 +15,13 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-import { showToast } from './toast';
+import { SONNER_TOASTER_POSITION, showToast } from './toast';
+
+describe('SONNER_TOASTER_POSITION', () => {
+  it('places toast messages at the bottom of the screen', () => {
+    expect(SONNER_TOASTER_POSITION).toBe('bottom-center');
+  });
+});
 
 describe('showToast', () => {
   beforeEach(() => {
