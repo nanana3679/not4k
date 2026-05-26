@@ -25,6 +25,13 @@ import {
   MINIMAP_WIDTH,
 } from "./constants";
 import {
+  getTimelineContentHeight,
+  getTimelineTotalHeight,
+  getVisibleTimelineTimeRange,
+  screenYToTimelineTime,
+  timeToTimelineY,
+} from "./timelineProjection";
+import {
   clampHorizontalPan,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
@@ -519,7 +526,10 @@ export class TimelineRenderer {
    * Content height: total timeline or canvas height, whichever is larger.
    */
   private get contentHeight(): number {
-    return Math.max(this.totalTimelineHeight, this.options.height);
+    return getTimelineContentHeight({
+      totalTimelineHeight: this.totalTimelineHeight,
+      viewportHeight: this.options.height,
+    });
   }
 
   /**
@@ -602,7 +612,13 @@ export class TimelineRenderer {
    * Time flows bottom-to-top: minTime = near bottom (with padding below), later time = higher (lower Y).
    */
   timeToY(timeMs: number): number {
-    return this.contentHeight - TIMELINE_PADDING - ((timeMs - this.getMinTimeMs()) * this._zoom) / 1000;
+    return timeToTimelineY({
+      timeMs,
+      contentHeight: this.contentHeight,
+      padding: TIMELINE_PADDING,
+      zoom: this._zoom,
+      minTimeMs: this.getMinTimeMs(),
+    });
   }
 
   /**
@@ -610,8 +626,14 @@ export class TimelineRenderer {
    * Accounts for scroll offset, bottom-to-top layout, and bottom padding.
    */
   yToTime(y: number): number {
-    const containerY = y + this._scrollY;
-    return ((this.contentHeight - TIMELINE_PADDING - containerY) * 1000) / this._zoom + this.getMinTimeMs();
+    return screenYToTimelineTime({
+      screenY: y,
+      scrollY: this._scrollY,
+      contentHeight: this.contentHeight,
+      padding: TIMELINE_PADDING,
+      zoom: this._zoom,
+      minTimeMs: this.getMinTimeMs(),
+    });
   }
 
   /**
@@ -667,7 +689,12 @@ export class TimelineRenderer {
    * Total timeline height in pixels (for scroll bounds), including padding.
    */
   get totalTimelineHeight(): number {
-    return ((this.getTotalTimelineMs() - this.getMinTimeMs()) * this._zoom) / 1000 + TIMELINE_PADDING * 2;
+    return getTimelineTotalHeight({
+      totalTimelineMs: this.getTotalTimelineMs(),
+      minTimeMs: this.getMinTimeMs(),
+      zoom: this._zoom,
+      padding: TIMELINE_PADDING,
+    });
   }
 
   /**
@@ -697,18 +724,15 @@ export class TimelineRenderer {
    * pop-in during scrolling.
    */
   private getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number } {
-    const canvasH = this.options.height;
-    const margin = canvasH * 0.5; // 50% margin above and below viewport
-
-    const viewTopY = this._scrollY - margin;
-    const viewBottomY = this._scrollY + canvasH + margin;
-
-    // Y decreases as time increases (bottom-to-top layout)
-    const minTime = this.getMinTimeMs();
-    const maxTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewTopY) * 1000) / this._zoom + minTime;
-    const minTimeMs = ((this.contentHeight - TIMELINE_PADDING - viewBottomY) * 1000) / this._zoom + minTime;
-
-    return { minTimeMs: Math.max(this.getMinTimeMs(), minTimeMs), maxTimeMs };
+    return getVisibleTimelineTimeRange({
+      scrollY: this._scrollY,
+      viewportHeight: this.options.height,
+      contentHeight: this.contentHeight,
+      padding: TIMELINE_PADDING,
+      zoom: this._zoom,
+      minTimeMs: this.getMinTimeMs(),
+      marginRatio: 0.5,
+    });
   }
 
   /**

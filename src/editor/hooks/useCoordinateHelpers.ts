@@ -8,6 +8,12 @@ import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { SnapZoomController } from '../timeline/SnapZoomController';
 import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt } from '../timeline/hitTest';
+import {
+  beatFloatToRawBeat,
+  beatFloatToSnapBeat,
+  timelineXToExtraLane,
+  timelineXToLane,
+} from '../timeline/timelineProjection';
 import { msToBeat, extractBpmMarkers } from '../../shared';
 import type { Beat, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
@@ -51,49 +57,47 @@ export function useCoordinateHelpers(
   // --- 기본 좌표 변환 ---
 
   const xToLane = useCallback((x: number): Lane | null => {
-    const lane = Math.floor(x / LANE_WIDTH) + 1;
-    if (lane >= 1 && lane <= LANE_COUNT) return lane as Lane;
-    return null;
+    return timelineXToLane({
+      timelineX: x,
+      laneWidth: LANE_WIDTH,
+      laneCount: LANE_COUNT,
+    });
   }, []);
 
   const xToExtraLane = useCallback((x: number): number | null => {
     const currentExtraLaneCount = useEditorStore.getState().extraLaneCount;
-    if (currentExtraLaneCount === 0) return null;
-    const extraStartX = TIMELINE_WIDTH;
-    if (x < extraStartX) return null;
-    const lane = Math.floor((x - extraStartX) / EXTRA_LANE_WIDTH) + 1;
-    if (lane >= 1 && lane <= currentExtraLaneCount) return lane;
-    return null;
+    return timelineXToExtraLane({
+      timelineX: x,
+      timelineWidth: TIMELINE_WIDTH,
+      extraLaneWidth: EXTRA_LANE_WIDTH,
+      extraLaneCount: currentExtraLaneCount,
+    });
   }, []);
 
   const yToBeat = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };
     const timeMs = rendererRef.current.yToTime(y);
     const beatFloat = msToBeat(timeMs, bpmMarkers, chart.meta.offsetMs);
-    const grid = 4 / snapDivision;
-    const k = Math.round(beatFloat / grid);
-    return { n: k * 4, d: snapDivision };
-  }, [bpmMarkers, chart.meta.offsetMs, snapDivision]);
+    return beatFloatToSnapBeat({ beatFloat, snapDivision });
+  }, [bpmMarkers, chart.meta.offsetMs, rendererRef, snapDivision]);
 
   const yToBeatRaw = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };
     const timeMs = rendererRef.current.yToTime(y);
     const beatFloat = msToBeat(timeMs, bpmMarkers, chart.meta.offsetMs);
-    const d = 960;
-    const n = Math.round(beatFloat * d);
-    return { n, d };
-  }, [bpmMarkers, chart.meta.offsetMs]);
+    return beatFloatToRawBeat({ beatFloat });
+  }, [bpmMarkers, chart.meta.offsetMs, rendererRef]);
 
   const snapBeat = useCallback((beat: Beat): Beat => {
     if (!snapZoomRef.current) return beat;
     return snapZoomRef.current.snapBeat(beat);
-  }, []);
+  }, [snapZoomRef]);
 
   const getMaxBeatFloat = useCallback((): number => {
     if (!rendererRef.current) return 0;
     const totalMs = rendererRef.current.getTotalTimelineMs();
     return msToBeat(totalMs, bpmMarkers, chart.meta.offsetMs);
-  }, [bpmMarkers, chart.meta.offsetMs]);
+  }, [bpmMarkers, chart.meta.offsetMs, rendererRef]);
 
   // --- 히트테스트 ---
 

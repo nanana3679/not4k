@@ -7,4 +7,5 @@ export type { TimelineRendererOptions } from "./TimelineRenderer";
 export { SnapZoomController } from "./SnapZoomController";
 export type { SnapZoomState, SnapZoomCallbacks } from "./SnapZoomController";
 export { getWaveformPeaks } from "./waveform";
+export * from "./timelineProjection";
 export * from "./constants";
