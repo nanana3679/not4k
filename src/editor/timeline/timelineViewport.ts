@@ -32,6 +32,20 @@ export function getPlaybackCursorLineEndX(input: {
   return input.viewportWidth;
 }
 
+export function getTimelineContentViewportRect(input: {
+  viewportWidth: number;
+  viewportHeight: number;
+  leftRailWidth: number;
+  rightRailWidth: number;
+}): { x: number; y: number; width: number; height: number } {
+  return {
+    x: input.leftRailWidth,
+    y: 0,
+    width: Math.max(0, input.viewportWidth - input.leftRailWidth - input.rightRailWidth),
+    height: input.viewportHeight,
+  };
+}
+
 export function screenXToTimelineX(input: {
   screenX: number;
   contentOffsetX: number;
@@ -59,8 +73,12 @@ export function clampHorizontalPan(input: {
   timelineWidth: number;
   viewportWidth: number;
   leftRailWidth: number;
+  rightRailWidth?: number;
 }): number {
-  const bodyViewportWidth = Math.max(0, input.viewportWidth - input.leftRailWidth);
+  const bodyViewportWidth = Math.max(
+    0,
+    input.viewportWidth - input.leftRailWidth - (input.rightRailWidth ?? 0),
+  );
   const maxPanX = Math.max(0, input.timelineWidth - bodyViewportWidth);
   return Math.max(0, Math.min(maxPanX, input.requestedPanX));
 }

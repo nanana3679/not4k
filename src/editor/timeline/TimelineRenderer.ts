@@ -22,12 +22,14 @@ import {
   TIMELINE_PADDING,
   EXTRA_LANE_WIDTH,
   MEASURE_LABEL_WIDTH,
+  MINIMAP_WIDTH,
 } from "./constants";
 import {
   clampHorizontalPan,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
   getPlaybackCursorLineEndX,
+  getTimelineContentViewportRect,
   getTimelineContentOffsetX,
   screenXToTimelineX as mapScreenXToTimelineX,
   shouldRenderPlaybackCursorHandle,
@@ -82,6 +84,7 @@ export class TimelineRenderer {
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
   private minimapLayer!: Container;
+  private scrollableContentMask!: Graphics;
 
   // Sub-renderers (composition)
   private minimapRenderer!: MinimapRenderer;
@@ -224,6 +227,11 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.boxSelectLayer);
     this.app.stage.addChild(this.measureLabels);
     this.app.stage.addChild(this.playbackCursorLayer);
+
+    this.scrollableContentMask = new Graphics();
+    this.app.stage.addChild(this.scrollableContentMask);
+    this.applyScrollableContentMask();
+    this.updateScrollableContentMask();
 
     // Minimap layer (topmost, not affected by scroll)
     this.minimapLayer = new Container();
@@ -410,6 +418,7 @@ export class TimelineRenderer {
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
       leftRailWidth: MEASURE_LABEL_WIDTH,
+      rightRailWidth: this.rightRailWidth,
     });
     this.render();
     this.updatePlaybackCursor(this._lastCursorTimeMs);
@@ -450,12 +459,17 @@ export class TimelineRenderer {
     return TIMELINE_WIDTH + this._extraLaneCount * EXTRA_LANE_WIDTH;
   }
 
+  private get rightRailWidth(): number {
+    return this._minimapVisible ? MINIMAP_WIDTH : 0;
+  }
+
   set horizontalPanX(value: number) {
     const next = clampHorizontalPan({
       requestedPanX: value,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
       leftRailWidth: MEASURE_LABEL_WIDTH,
+      rightRailWidth: this.rightRailWidth,
     });
     if (next === this._horizontalPanX) return;
     this._horizontalPanX = next;
@@ -518,6 +532,51 @@ export class TimelineRenderer {
       screenX,
       contentOffsetX: this.contentOffsetX,
     });
+  }
+
+  private getScrollableContentLayers(): Container[] {
+    return [
+      this.laneBackgrounds,
+      this.waveformLayer,
+      this.measureLines,
+      this.beatLines,
+      this.snapLines,
+      this.trillZoneLayer,
+      this.moveOriginLayer,
+      this.longNoteBodyLayer,
+      this.longNoteEndLayer,
+      this.longNoteHeadLayer,
+      this.noteLayer,
+      this.selectedLongBodyLayer,
+      this.selectedLongEndLayer,
+      this.selectedLongHeadLayer,
+      this.selectedNoteLayer,
+      this.violationLayer,
+      this.hoverLayer,
+      this.ghostLayer,
+      this.boxSelectLayer,
+    ];
+  }
+
+  private applyScrollableContentMask(): void {
+    for (const layer of this.getScrollableContentLayers()) {
+      layer.mask = this.scrollableContentMask;
+    }
+  }
+
+  private updateScrollableContentMask(): void {
+    const rect = getTimelineContentViewportRect({
+      viewportWidth: this.options.width,
+      viewportHeight: this.options.height,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      rightRailWidth: this.rightRailWidth,
+    });
+
+    this.scrollableContentMask.clear();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    this.scrollableContentMask.rect(rect.x, rect.y, rect.width, rect.height);
+    this.scrollableContentMask.fill(0xffffff);
   }
 
   /**
@@ -597,30 +656,8 @@ export class TimelineRenderer {
    * Update scroll position for all layers (except minimap layer which stays fixed)
    */
   private updateScroll(): void {
-    const layers = [
-      this.laneBackgrounds,
-      this.waveformLayer,
-      this.measureLines,
-      this.beatLines,
-      this.snapLines,
-      this.trillZoneLayer,
-      this.moveOriginLayer,
-      this.longNoteBodyLayer,
-      this.longNoteEndLayer,
-      this.longNoteHeadLayer,
-      this.noteLayer,
-      this.selectedLongBodyLayer,
-      this.selectedLongEndLayer,
-      this.selectedLongHeadLayer,
-      this.selectedNoteLayer,
-      this.violationLayer,
-      this.hoverLayer,
-      this.ghostLayer,
-      this.boxSelectLayer,
-    ];
-
     const offsetX = this.contentOffsetX;
-    for (const layer of layers) {
+    for (const layer of this.getScrollableContentLayers()) {
       layer.x = offsetX;
       layer.y = -this._scrollY;
     }
@@ -809,9 +846,11 @@ export class TimelineRenderer {
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
       leftRailWidth: MEASURE_LABEL_WIDTH,
+      rightRailWidth: this.rightRailWidth,
     });
     if (this.initialized) {
       this.app.renderer.resize(width, height);
+      this.updateScrollableContentMask();
       this.render();
     }
   }

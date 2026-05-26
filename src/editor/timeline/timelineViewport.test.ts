@@ -5,6 +5,7 @@ import {
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
   getPlaybackCursorLineEndX,
+  getTimelineContentViewportRect,
   getTimelineContentOffsetX,
   isFixedRailX,
   isPlaybackCursorSeekArea,
@@ -53,6 +54,23 @@ describe("timeline viewport geometry", () => {
       viewportWidth: 360,
       leftRailWidth: 32,
     })).toBe(272);
+  });
+
+  it("reserves the fixed right rail for the minimap", () => {
+    expect(getTimelineContentViewportRect({
+      viewportWidth: 360,
+      viewportHeight: 640,
+      leftRailWidth: 32,
+      rightRailWidth: 32,
+    })).toEqual({ x: 32, y: 0, width: 296, height: 640 });
+
+    expect(clampHorizontalPan({
+      requestedPanX: 999,
+      timelineWidth: 360,
+      viewportWidth: 360,
+      leftRailWidth: 32,
+      rightRailWidth: 32,
+    })).toBe(64);
   });
 
   it("keeps fixed-rail pointer capture out of lane 1", () => {
