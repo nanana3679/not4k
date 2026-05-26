@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   clampHorizontalPan,
   clampVerticalScroll,
+  getFixedTimelineOverlayOffsetX,
+  getMeasureLabelLayerOffsetX,
+  getPlaybackCursorLineEndX,
+  getPlaybackCursorHandleX,
   getTimelineContentOffsetX,
   isFixedRailX,
   isPlaybackCursorSeekArea,
@@ -13,6 +17,20 @@ describe("timeline viewport geometry", () => {
   it("keeps the timeline content anchored after the fixed left rail", () => {
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(-88);
+  });
+
+  it("keeps cursor and measure-number screen layers independent from horizontal pan", () => {
+    expect(getFixedTimelineOverlayOffsetX({ horizontalPanX: 0 })).toBe(0);
+    expect(getFixedTimelineOverlayOffsetX({ horizontalPanX: 120 })).toBe(0);
+
+    expect(getMeasureLabelLayerOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
+    expect(getMeasureLabelLayerOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(32);
+
+    expect(getPlaybackCursorHandleX({ leftRailWidth: 32, horizontalPanX: 0, handleHalfSize: 8 })).toBe(24);
+    expect(getPlaybackCursorHandleX({ leftRailWidth: 32, horizontalPanX: 120, handleHalfSize: 8 })).toBe(24);
+
+    expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 0 })).toBe(360);
+    expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 120 })).toBe(360);
   });
 
   it("converts screen x to timeline-local x using the content offset", () => {

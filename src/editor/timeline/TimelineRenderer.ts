@@ -25,6 +25,10 @@ import {
 } from "./constants";
 import {
   clampHorizontalPan,
+  getFixedTimelineOverlayOffsetX,
+  getMeasureLabelLayerOffsetX,
+  getPlaybackCursorHandleX,
+  getPlaybackCursorLineEndX,
   getTimelineContentOffsetX,
   screenXToTimelineX as mapScreenXToTimelineX,
 } from "./timelineViewport";
@@ -234,6 +238,8 @@ export class TimelineRenderer {
   }
 
   private _initSubRenderers(): void {
+    // Host getter objects below need a stable reference to the renderer instance.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
     // MinimapRenderer host
@@ -611,7 +617,6 @@ export class TimelineRenderer {
       this.hoverLayer,
       this.ghostLayer,
       this.boxSelectLayer,
-      this.playbackCursorLayer,
     ];
 
     const offsetX = this.contentOffsetX;
@@ -619,8 +624,15 @@ export class TimelineRenderer {
       layer.x = offsetX;
       layer.y = -this._scrollY;
     }
-    this.measureLabels.x = MEASURE_LABEL_WIDTH;
+    this.measureLabels.x = getMeasureLabelLayerOffsetX({
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      horizontalPanX: this._horizontalPanX,
+    });
     this.measureLabels.y = -this._scrollY;
+    this.playbackCursorLayer.x = getFixedTimelineOverlayOffsetX({
+      horizontalPanX: this._horizontalPanX,
+    });
+    this.playbackCursorLayer.y = -this._scrollY;
     // minimapLayer is NOT scrolled/offset — stays fixed on screen
   }
 
@@ -708,13 +720,20 @@ export class TimelineRenderer {
     // Cursor line (bright green, full width)
     this._cursorLine.clear();
     this._cursorLine.moveTo(0, y);
-    this._cursorLine.lineTo(this.currentTimelineWidth, y);
+    this._cursorLine.lineTo(getPlaybackCursorLineEndX({
+      viewportWidth: this.options.width,
+      horizontalPanX: this._horizontalPanX,
+    }), y);
     this._cursorLine.stroke({ width: 2, color: 0x00ff88 });
 
     // Draggable handle fixed inside the left rail.
     this._cursorHandle.clear();
-    const hx = this._horizontalPanX - 8;
     const hs = 8; // half-size of handle
+    const hx = getPlaybackCursorHandleX({
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      horizontalPanX: this._horizontalPanX,
+      handleHalfSize: hs,
+    });
     this._cursorHandle.moveTo(hx, y - hs);
     this._cursorHandle.lineTo(hx + hs * 2, y);
     this._cursorHandle.lineTo(hx, y + hs);

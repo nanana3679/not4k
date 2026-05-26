@@ -5,6 +5,38 @@ export function getTimelineContentOffsetX(input: {
   return input.leftRailWidth - input.horizontalPanX;
 }
 
+export function getFixedTimelineOverlayOffsetX(input: {
+  horizontalPanX: number;
+}): number {
+  void input.horizontalPanX;
+  return 0;
+}
+
+export function getMeasureLabelLayerOffsetX(input: {
+  leftRailWidth: number;
+  horizontalPanX: number;
+}): number {
+  void input.horizontalPanX;
+  return input.leftRailWidth;
+}
+
+export function getPlaybackCursorHandleX(input: {
+  leftRailWidth: number;
+  horizontalPanX: number;
+  handleHalfSize: number;
+}): number {
+  void input.horizontalPanX;
+  return input.leftRailWidth - input.handleHalfSize;
+}
+
+export function getPlaybackCursorLineEndX(input: {
+  viewportWidth: number;
+  horizontalPanX: number;
+}): number {
+  void input.horizontalPanX;
+  return input.viewportWidth;
+}
+
 export function screenXToTimelineX(input: {
   screenX: number;
   contentOffsetX: number;
