@@ -96,6 +96,35 @@ describe("editor touch gesture policy", () => {
     })).toBe("resize");
   });
 
+  it("waits to lock while two-finger navigation modes are within the debounce margin", () => {
+    const startCenter = { clientX: 100, clientY: 100 };
+    const ambiguousGestures = [
+      {
+        currentCenter: { clientX: 112, clientY: 110 },
+        startDistance: 100,
+        currentDistance: 102,
+      },
+      {
+        currentCenter: { clientX: 112, clientY: 101 },
+        startDistance: 100,
+        currentDistance: 110,
+      },
+      {
+        currentCenter: { clientX: 101, clientY: 112 },
+        startDistance: 100,
+        currentDistance: 110,
+      },
+    ];
+
+    for (const gesture of ambiguousGestures) {
+      expect(resolveTouchNavigationMode({
+        currentMode: null,
+        startCenter,
+        ...gesture,
+      })).toBeNull();
+    }
+  });
+
   it("keeps the existing two-finger mode once locked", () => {
     expect(resolveTouchNavigationMode({
       currentMode: "horizontalScroll",
