@@ -1,23 +1,76 @@
-# Project Agents Configuration
+# Project Guidelines
 
-This file provides context and instructions to AI agents working on this project.
+이 파일은 이 저장소에서 작업하는 AI agent가 따라야 할 공통 규칙이다. `CLAUDE.md`는 의도적으로 비워 두고, 실제 지침은 이 `AGENTS.md`에만 둔다.
 
-## Project Overview
+## 테스트 규칙
 
-<!-- Describe your project here -->
+- 기능 구현 시 반드시 해당 기능의 단위 테스트를 함께 작성할 것
+- 테스트 프레임워크: Vitest (`npx vitest run`)
+- 테스트 파일 위치: 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴
+- 테스트 실행 후 모든 테스트가 통과하는지 확인할 것
 
-## Architecture
+### 테스트명 작성 규칙
 
-<!-- Describe the architecture and key components -->
+테스트명은 구체적인 동작 문서를 대신해야 한다. 코드를 읽지 않아도 테스트명만으로 기능의 동작을 이해할 수 있게 작성할 것.
 
-## Conventions
+- **[상황] + [행동] + [결과]** 패턴으로 작성
+  - 좋은 예: `"120 BPM에서 1박 = 500ms"`, `"Bad 있으면 풀콤보 아님"`, `"음원 길이를 초과하는 위치로 이동 가능"`
+  - 나쁜 예: `"테스트1"`, `"beatToMs 작동"`, `"에러 처리"`
+- 구체적인 입력값과 기대값을 테스트명에 포함할 것
+  - 좋은 예: `"99.5% → SSS"`, `"snap=4에서 중간값은 가까운 박으로 스냅"`
+  - 나쁜 예: `"랭크 계산"`, `"스냅 동작"`
+- 경계값/에지케이스는 조건을 명시할 것
+  - 좋은 예: `"빈 마커 배열이면 에러"`, `"노트 0개일 때 달성률 0%"`
+- 한국어로 작성하되, 코드 식별자는 원문 그대로 사용
 
-<!-- List coding conventions, naming patterns, etc. -->
+## 커밋 메시지 규칙
 
-## Important Files
+`<type>: <한국어 설명>` 형식을 반드시 따를 것.
 
-<!-- List key files agents should know about -->
+### Type 목록
 
-## Common Tasks
+| type | 용도 |
+| --- | --- |
+| `feat` | 새 기능 추가 |
+| `fix` | 버그 수정 |
+| `refactor` | 동작 변경 없는 코드 구조 개선 |
+| `docs` | 문서만 변경 |
+| `test` | 테스트 추가/수정 |
+| `chore` | 빌드, 설정, 의존성 등 기타 변경 |
+| `perf` | 성능 개선 |
+| `style` | 포맷팅, CSS 등 시각적 변경 |
 
-<!-- Describe common development tasks and how to perform them -->
+### 작성 규칙
+
+- type 뒤에 콜론과 공백 하나를 붙이고 한국어 설명 작성: `feat: 복사/붙여넣기 기능 구현`
+- 설명은 간결하게, 무엇을 했는지 한 문장으로 작성
+- 부연이 필요하면 `-` 뒤에 추가: `fix: 롱노트 히트테스트 수정 - 범위 노트에 tolerance 적용`
+- 여러 type에 걸치는 변경이면 핵심 변경의 type을 사용
+
+## 용어 규칙
+
+- 프로젝트 고유 용어나 모르는 용어를 만나면 추측하지 말고 먼저 `CONTEXT-MAP.md`를 읽고, 관련 `CONTEXT.md`와 `docs/context/glossary.md`를 참조할 것
+- 새로운 개념이나 용어를 도입할 때는 관련 `CONTEXT.md` 또는 `docs/context/glossary.md`에 정의를 추가할 것
+
+## 문서 업데이트 규칙
+
+코드 변경 시 해당 스코프에 관련된 문서가 있으면 함께 수정할 것.
+
+- `docs/spec/`: 기능 스펙 문서. 새 기능 추가나 기존 동작 변경 시 해당 스펙 문서를 업데이트
+- `e2e/`: E2E 테스트 스펙. UI 동작이나 사용자 플로우가 바뀌면 관련 e2e 스펙을 업데이트
+- 문서가 존재하지 않는 새 기능이라면 기존 문서 컨벤션을 따라 새 스펙 문서를 생성
+- 변경사항과 무관한 문서는 건드리지 않을 것
+
+## Agent skills
+
+### Issue tracker
+
+이 저장소의 이슈와 PRD는 GitHub Issues에서 관리한다. `gh` CLI를 사용한다. 자세한 내용은 `docs/agents/issue-tracker.md`를 참고한다.
+
+### Triage labels
+
+기본 triage 라벨 vocabulary를 그대로 사용한다: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. 자세한 내용은 `docs/agents/triage-labels.md`를 참고한다.
+
+### Domain docs
+
+멀티 컨텍스트 저장소로 취급한다. 먼저 루트 `CONTEXT-MAP.md`를 읽고, 작업 영역에 맞는 `CONTEXT.md`를 추가로 읽는다. 자세한 내용은 `docs/agents/domain.md`를 참고한다.
