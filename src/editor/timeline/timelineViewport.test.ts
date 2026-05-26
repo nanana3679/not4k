@@ -5,12 +5,12 @@ import {
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
   getPlaybackCursorLineEndX,
-  getPlaybackCursorHandleX,
   getTimelineContentOffsetX,
   isFixedRailX,
   isPlaybackCursorSeekArea,
   isRightRailX,
   screenXToTimelineX,
+  shouldRenderPlaybackCursorHandle,
 } from "./timelineViewport";
 
 describe("timeline viewport geometry", () => {
@@ -26,11 +26,12 @@ describe("timeline viewport geometry", () => {
     expect(getMeasureLabelLayerOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
     expect(getMeasureLabelLayerOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(32);
 
-    expect(getPlaybackCursorHandleX({ leftRailWidth: 32, horizontalPanX: 0, handleHalfSize: 8 })).toBe(24);
-    expect(getPlaybackCursorHandleX({ leftRailWidth: 32, horizontalPanX: 120, handleHalfSize: 8 })).toBe(24);
-
     expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 0 })).toBe(360);
     expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 120 })).toBe(360);
+  });
+
+  it("omits the triangular playback cursor handle", () => {
+    expect(shouldRenderPlaybackCursorHandle()).toBe(false);
   });
 
   it("converts screen x to timeline-local x using the content offset", () => {

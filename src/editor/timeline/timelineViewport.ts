@@ -20,13 +20,8 @@ export function getMeasureLabelLayerOffsetX(input: {
   return input.leftRailWidth;
 }
 
-export function getPlaybackCursorHandleX(input: {
-  leftRailWidth: number;
-  horizontalPanX: number;
-  handleHalfSize: number;
-}): number {
-  void input.horizontalPanX;
-  return input.leftRailWidth - input.handleHalfSize;
+export function shouldRenderPlaybackCursorHandle(): boolean {
+  return false;
 }
 
 export function getPlaybackCursorLineEndX(input: {

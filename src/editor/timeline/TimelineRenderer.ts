@@ -27,10 +27,10 @@ import {
   clampHorizontalPan,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
-  getPlaybackCursorHandleX,
   getPlaybackCursorLineEndX,
   getTimelineContentOffsetX,
   screenXToTimelineX as mapScreenXToTimelineX,
+  shouldRenderPlaybackCursorHandle,
 } from "./timelineViewport";
 import type { Lane } from "../../shared";
 import { MinimapRenderer } from "./MinimapRenderer";
@@ -712,10 +712,6 @@ export class TimelineRenderer {
       this._cursorLine = new Graphics();
       this.playbackCursorLayer.addChild(this._cursorLine);
     }
-    if (!this._cursorHandle) {
-      this._cursorHandle = new Graphics();
-      this.playbackCursorLayer.addChild(this._cursorHandle);
-    }
 
     // Cursor line (bright green, full width)
     this._cursorLine.clear();
@@ -726,14 +722,20 @@ export class TimelineRenderer {
     }), y);
     this._cursorLine.stroke({ width: 2, color: 0x00ff88 });
 
+    if (!shouldRenderPlaybackCursorHandle()) {
+      this._cursorHandle?.clear();
+      return;
+    }
+
     // Draggable handle fixed inside the left rail.
-    this._cursorHandle.clear();
+    if (!this._cursorHandle) {
+      this._cursorHandle = new Graphics();
+      this.playbackCursorLayer.addChild(this._cursorHandle);
+    }
+
     const hs = 8; // half-size of handle
-    const hx = getPlaybackCursorHandleX({
-      leftRailWidth: MEASURE_LABEL_WIDTH,
-      horizontalPanX: this._horizontalPanX,
-      handleHalfSize: hs,
-    });
+    const hx = MEASURE_LABEL_WIDTH - hs;
+    this._cursorHandle.clear();
     this._cursorHandle.moveTo(hx, y - hs);
     this._cursorHandle.lineTo(hx + hs * 2, y);
     this._cursorHandle.lineTo(hx, y + hs);
