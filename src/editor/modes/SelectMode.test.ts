@@ -172,6 +172,68 @@ describe("SelectMode — 모바일 터치 선택", () => {
     expect([...extraSelected]).toEqual([0]);
   });
 
+  it("롱프레스 이동을 이미 선택된 노트에서 시작하면 기존 다중 선택을 유지", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: (x: number) => (x === 1 ? 0 : x === 2 ? 1 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.onPointerDown(2, 1, false, false, true);
+    mode.beginTouchMoveDragFromNote(0, 1, 0);
+
+    expect([...mode.selection].sort()).toEqual([0, 1]);
+    expect(mode.isMoveDragging).toBe(true);
+    expect(mode.moveOrigins.size).toBe(2);
+  });
+
+  it("롱프레스 이동을 선택되지 않은 노트에서 시작하면 해당 노트만 이동 대상으로 선택", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginTouchMoveDragFromNote(1, 2, 1);
+
+    expect([...mode.selection]).toEqual([1]);
+    expect(mode.isMoveDragging).toBe(true);
+    expect(mode.moveOrigins.size).toBe(1);
+  });
+
+  it("롱프레스 이동을 이미 선택된 엑스트라 노트에서 시작하면 기존 엑스트라 다중 선택을 유지", () => {
+    const chart = makeChart();
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+      { type: "single", extraLane: 2, beat: beat(1) },
+    ];
+    const cb = makeCallbacks(
+      {
+        hitTestExtraNote: (x: number) => (x === 5 ? 0 : x === 6 ? 1 : null),
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectExtraNote(0);
+    mode.onPointerDown(6, 1, false, false, true);
+    mode.beginTouchMoveDragFromExtraNote(0, 5, 0);
+
+    const extraSelected = cb.onExtraSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect([...extraSelected].sort()).toEqual([0, 1]);
+    expect(mode.isMoveDragging).toBe(true);
+  });
+
   it("선택되지 않은 메인 노트를 첫 드래그로 바로 이동", () => {
     const chart = makeChart({
       notes: [

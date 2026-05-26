@@ -185,6 +185,37 @@ export class SelectMode {
     }
   }
 
+  /** Begin a touch long-press move from a main note without collapsing an existing multi-selection. */
+  beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
+    if (index < 0 || index >= this.chart.notes.length) return false;
+
+    if (!this.selectedIndices.has(index)) {
+      this.selectNote(index);
+    } else if (this.selectedExtraIndices.size > 0) {
+      this.selectedExtraIndices.clear();
+      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    }
+
+    this.startMainMoveDrag(x, y);
+    return this.isMoveDragging;
+  }
+
+  /** Begin a touch long-press move from an extra note without collapsing an existing multi-selection. */
+  beginTouchMoveDragFromExtraNote(index: number, x: number, y: number): boolean {
+    const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
+    if (index < 0 || index >= extraNotes.length) return false;
+
+    if (!this.selectedExtraIndices.has(index)) {
+      this.selectExtraNote(index);
+    } else if (this.selectedIndices.size > 0) {
+      this.selectedIndices.clear();
+      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+    }
+
+    this.startExtraMoveDrag(x, y);
+    return this.isMoveDragging;
+  }
+
   /** Begin dragging the current selection from the given pointer location. */
   beginMoveDrag(x: number, y: number): void {
     if (this.selectedExtraIndices.size > 0) {

@@ -325,11 +325,9 @@ export function useCanvasEvents(
       if (pending.noteEndHit !== null) {
         selectModeRef.current?.beginNoteEndResizeDrag(pending.noteEndHit);
       } else if (pending.noteHit !== null) {
-        selectModeRef.current?.selectNote(pending.noteHit);
-        selectModeRef.current?.beginMoveDrag(pending.x, pending.y);
+        selectModeRef.current?.beginTouchMoveDragFromNote(pending.noteHit, pending.x, pending.y);
       } else if (pending.extraHit !== null) {
-        selectModeRef.current?.selectExtraNote(pending.extraHit);
-        selectModeRef.current?.beginMoveDrag(pending.x, pending.y);
+        selectModeRef.current?.beginTouchMoveDragFromExtraNote(pending.extraHit, pending.x, pending.y);
       }
       rendererRef.current?.hideGhostNote();
     }, LONG_PRESS_MS);
