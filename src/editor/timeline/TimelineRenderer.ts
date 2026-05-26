@@ -51,6 +51,7 @@ import type { NoteHost } from "./NoteRenderer";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
+import { disableStaticLayerCache, enableStaticLayerCache } from "./staticLayerCache";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
@@ -573,6 +574,28 @@ export class TimelineRenderer {
     ];
   }
 
+  private getPlaybackStaticCacheLayers(): Container[] {
+    return [
+      this.trillZoneLayer,
+      this.longNoteBodyLayer,
+      this.longNoteEndLayer,
+      this.longNoteHeadLayer,
+      this.noteLayer,
+      this.selectedLongBodyLayer,
+      this.selectedLongEndLayer,
+      this.selectedLongHeadLayer,
+      this.selectedNoteLayer,
+    ];
+  }
+
+  private enablePlaybackStaticLayerCache(): void {
+    enableStaticLayerCache(this.getPlaybackStaticCacheLayers());
+  }
+
+  private disablePlaybackStaticLayerCache(): void {
+    disableStaticLayerCache(this.getPlaybackStaticCacheLayers());
+  }
+
   private applyScrollableContentMask(): void {
     for (const layer of this.getScrollableContentLayers()) {
       layer.mask = this.scrollableContentMask;
@@ -743,6 +766,7 @@ export class TimelineRenderer {
 
     this._cachedTotalTimelineMs = null;
     this._lastRenderScrollY = this._scrollY;
+    this.disablePlaybackStaticLayerCache();
     this.clearDynamicLayers();
     this.gridRenderer.renderLaneBackgrounds();
     this.gridRenderer.renderWaveform();
@@ -757,6 +781,7 @@ export class TimelineRenderer {
     this.updateHoverOverlay();
     this.updateScroll();
     this.minimapRenderer.render();
+    this.enablePlaybackStaticLayerCache();
     // Force PixiJS to repaint the canvas
     this.app.render();
   }
@@ -933,6 +958,7 @@ export class TimelineRenderer {
   dispose(): void {
     if (!this.initialized) return;
     this.minimapRenderer.removeEvents();
+    this.disablePlaybackStaticLayerCache();
     this.initialized = false;
 
     // Destroy app first (destroys all children including Text objects referencing cached styles)
