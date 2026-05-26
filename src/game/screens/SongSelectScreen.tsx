@@ -29,6 +29,7 @@ import {
   canPreviewSongs,
   canStartGameplay,
 } from '../hooks/useGameExperience';
+import { showToast, type ToastType } from '../../shared/toast';
 
 // ---------------------------------------------------------------------------
 // SongSelectScreen (unified)
@@ -46,9 +47,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const previewAllowed = canPreviewSongs(gameExperience);
   const previewAutoPlay = canAutoPreviewSongs(gameExperience);
 
-  const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
-  const toastIdRef = useRef(0);
-
   // Admin-only state
   const [showAddSong, setShowAddSong] = useState(false);
   const [newChartTarget, setNewChartTarget] = useState<DbSong | null>(null);
@@ -56,10 +54,8 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
 
-  const addToast = useCallback((msg: string, _type?: 'info' | 'error') => {
-    const id = ++toastIdRef.current;
-    setToasts((prev) => [...prev, { id, message: msg }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
+  const addToast = useCallback((msg: string, type: ToastType = 'info') => {
+    showToast(msg, type);
   }, []);
 
   // stopPreview를 ref로 감싸 handlePlay → useSongNavigation → usePreviewAudio 순서 문제 해결
@@ -247,16 +243,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
               <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {toasts.length > 0 && (
-        <div style={styles.toastContainer}>
-          {toasts.map((toast) => (
-            <div key={toast.id} style={styles.toast}>
-              {toast.message}
-            </div>
-          ))}
         </div>
       )}
     </>
@@ -602,17 +588,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
               <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Toast notifications */}
-      {toasts.length > 0 && (
-        <div style={styles.toastContainer}>
-          {toasts.map((toast) => (
-            <div key={toast.id} style={styles.toast}>
-              {toast.message}
-            </div>
-          ))}
         </div>
       )}
     </div>

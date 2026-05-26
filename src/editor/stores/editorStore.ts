@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import type { Chart, ExtraNoteEntity } from '../../shared';
 import { beat } from '../../shared';
+import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 
 type EditorMode = 'create' | 'select' | 'delete';
@@ -15,17 +16,10 @@ type HistorySnapshot = {
   extraLaneCount: number;
 };
 
-export interface Toast {
-  id: number;
-  message: string;
-  type: 'warn' | 'error' | 'info';
-}
-
 export type EditingMarker =
   | { type: 'event'; index: number }
   | null;
 
-let toastId = 0;
 const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
@@ -64,9 +58,6 @@ interface EditorState {
   historyFuture: HistorySnapshot[];
   historyLastCaptureAt: number;
 
-  // Toasts
-  toasts: Toast[];
-
   // Marker editing
   editingMarker: EditingMarker;
 
@@ -89,8 +80,7 @@ interface EditorState {
   undo: () => void;
   redo: () => void;
   resetHistory: () => void;
-  addToast: (message: string, type?: Toast['type']) => void;
-  removeToast: (id: number) => void;
+  addToast: (message: string, type?: ToastType) => void;
   setEditingMarker: (marker: EditingMarker) => void;
 }
 
@@ -155,7 +145,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   historyPast: [],
   historyFuture: [],
   historyLastCaptureAt: 0,
-  toasts: [],
   editingMarker: null,
 
   // Actions
@@ -205,13 +194,6 @@ export const useEditorStore = create<EditorState>((set) => ({
     };
   }),
   resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0 }),
-  addToast: (message, type = 'warn') => {
-    const id = ++toastId;
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-    setTimeout(() => {
-      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-    }, 3000);
-  },
-  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+  addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
 }));

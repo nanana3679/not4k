@@ -441,23 +441,4 @@ export const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     touchAction: 'manipulation',
   },
-  toastContainer: {
-    position: 'fixed',
-    bottom: '80px',
-    right: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    zIndex: 3000,
-    pointerEvents: 'none',
-  },
-  toast: {
-    padding: '8px 16px',
-    backgroundColor: 'rgba(180, 80, 0, 0.9)',
-    color: '#fff',
-    borderRadius: '6px',
-    fontSize: '13px',
-    whiteSpace: 'nowrap',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-  },
 };

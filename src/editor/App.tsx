@@ -222,7 +222,6 @@ function ChartEditorPage() {
   const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
   const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
   const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
-  const toasts = useEditorStore((s) => s.toasts);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -849,17 +848,6 @@ function ChartEditorPage() {
           </div>
         </div>
       )}
-
-      {/* 토스트 알림 */}
-      {toasts.length > 0 && (
-        <div style={styles.toastContainer}>
-          {toasts.map((toast) => (
-            <div key={toast.id} style={styles.toast}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -934,24 +922,5 @@ const styles = {
     userSelect: 'none' as const,
     WebkitUserSelect: 'none' as const,
     WebkitTouchCallout: 'none' as const,
-  },
-  toastContainer: {
-    position: 'absolute' as const,
-    bottom: '48px',
-    right: '24px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '6px',
-    zIndex: 3000,
-    pointerEvents: 'none' as const,
-  },
-  toast: {
-    padding: '8px 16px',
-    backgroundColor: 'rgba(180, 80, 0, 0.9)',
-    color: '#fff',
-    borderRadius: '6px',
-    fontSize: '13px',
-    whiteSpace: 'nowrap' as const,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
   },
 };

@@ -8,6 +8,7 @@ import {
   songPreviewPath,
   encodeWavBlob,
 } from '../../../shared';
+import type { ToastType } from '../../../shared/toast';
 import { PreviewRangeSelector } from '../../../editor/components/PreviewRangeSelector';
 import type { PreviewRangeState } from '../../../editor/components/PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
@@ -142,7 +143,7 @@ function FilePickerField({
 export interface AddSongModalProps {
   onDone: () => void;
   onClose: () => void;
-  addToast: (msg: string, type?: 'info' | 'error') => void;
+  addToast: (msg: string, type?: ToastType) => void;
 }
 
 export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {

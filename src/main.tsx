@@ -2,6 +2,7 @@ import 'pixi.js/unsafe-eval';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
+import { Toaster } from 'sonner';
 import './global.css';
 import { PageLoading } from './shared/components/LoadingSpinner';
 
@@ -10,6 +11,7 @@ const EditorApp = lazy(() => import('./editor/App'));
 function App() {
   return (
     <BrowserRouter>
+      <Toaster theme="dark" position="top-right" richColors closeButton />
       <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
