@@ -7,5 +7,6 @@ export * from "./timing";
 export * from "./validation";
 export * from "./chart";
 export * from "./storage";
+export * from "./songAssets";
 export { encodeWavBlob } from "./audio/encodeWav";
 export { useAuth } from "./hooks/useAuth";

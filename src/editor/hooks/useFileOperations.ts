@@ -6,11 +6,7 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import {
-  serializeChart,
-  serializeExtraNotes,
   STORAGE_BUCKET,
-  songChartPath,
-  songChartExtraPath,
   songPreviewPath,
   songJacketPath,
   encodeWavBlob,
@@ -19,7 +15,11 @@ import {
   isMeasureBoundary,
 } from '../../shared';
 import type { ValidationError } from '../../shared';
-import { supabase } from '../../supabase';
+import {
+  deleteChartAsset as persistDeleteChartAsset,
+  saveChartAsset as persistChartAsset,
+  supabase,
+} from '../../supabase';
 import { useEditorStore } from '../stores';
 
 export interface FileOperationHandlers {
@@ -87,32 +87,13 @@ export function useFileOperations(
         chartToSave = { ...chart, meta: { ...chart.meta, imageFile: resolvedJacketPath } };
       }
 
-      const chartJson = serializeChart(chartToSave);
-      const chartPath = songChartPath(activeSongId, difficulty);
-      const chartBlob = new Blob([chartJson], { type: 'application/json' });
-      const chartUpload = supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(chartPath, chartBlob, { upsert: true });
-
-      const extraPath = songChartExtraPath(activeSongId, difficulty);
-      const hasExtra = extraLaneCount > 0 || extraNotes.length > 0;
-      const extraUpload = hasExtra
-        ? supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(extraPath, new Blob([serializeExtraNotes(extraNotes, extraLaneCount)], { type: 'application/json' }), { upsert: true })
-        : supabase.storage.from(STORAGE_BUCKET).remove([extraPath]);
-
-      const [chartResult, extraResult] = await Promise.all([chartUpload, extraUpload]);
-      if (chartResult.error) throw new Error(`Upload failed: ${chartResult.error.message}`);
-      if (hasExtra && extraResult.error) throw new Error(`Extra upload failed: ${extraResult.error.message}`);
-
-      const { error: dbError } = await supabase.from('charts').upsert({
-        song_id: activeSongId,
-        difficulty_label: difficulty,
-        difficulty_level: chart.meta.difficultyLevel,
-        offset_ms: chart.meta.offsetMs,
-      }, { onConflict: 'song_id,difficulty_label' });
-      if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
+      const savedAsset = await persistChartAsset({
+        songId: activeSongId,
+        difficulty,
+        chart: chartToSave,
+        extraNotes,
+        extraLaneCount,
+      });
 
       if (pendingJacketFile && resolvedJacketPath) {
         const { error: jacketUpErr } = await supabase.storage
@@ -151,8 +132,8 @@ export function useFileOperations(
         setPendingPreviewRange(null);
       }
 
-      setSavedChartSnapshot(chartJson);
-      setSavedExtraSnapshot(serializeExtraNotes(extraNotes, extraLaneCount));
+      setSavedChartSnapshot(savedAsset.chartJson);
+      setSavedExtraSnapshot(savedAsset.extraJson);
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
@@ -194,36 +175,17 @@ export function useFileOperations(
         },
       };
 
-      const chartJson = serializeChart(chartToSave);
-      const chartPath = songChartPath(activeSongId, difficulty);
-      const chartBlob = new Blob([chartJson], { type: 'application/json' });
-      const chartUpload = supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(chartPath, chartBlob, { upsert: true });
-
-      const extraPath = songChartExtraPath(activeSongId, difficulty);
-      const hasExtra = extraLaneCount > 0 || extraNotes.length > 0;
-      const extraUpload = hasExtra
-        ? supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(extraPath, new Blob([serializeExtraNotes(extraNotes, extraLaneCount)], { type: 'application/json' }), { upsert: true })
-        : supabase.storage.from(STORAGE_BUCKET).remove([extraPath]);
-
-      const [chartResult, extraResult] = await Promise.all([chartUpload, extraUpload]);
-      if (chartResult.error) throw new Error(`Upload failed: ${chartResult.error.message}`);
-      if (hasExtra && extraResult.error) throw new Error(`Extra upload failed: ${extraResult.error.message}`);
-
-      const { error: dbError } = await supabase.from('charts').upsert({
-        song_id: activeSongId,
-        difficulty_label: difficulty,
-        difficulty_level: targetLevel,
-        offset_ms: chart.meta.offsetMs,
-      }, { onConflict: 'song_id,difficulty_label' });
-      if (dbError) throw new Error(`DB save failed: ${dbError.message}`);
+      const savedAsset = await persistChartAsset({
+        songId: activeSongId,
+        difficulty,
+        chart: chartToSave,
+        extraNotes,
+        extraLaneCount,
+      });
 
       setChart(chartToSave);
-      setSavedChartSnapshot(chartJson);
-      setSavedExtraSnapshot(serializeExtraNotes(extraNotes, extraLaneCount));
+      setSavedChartSnapshot(savedAsset.chartJson);
+      setSavedExtraSnapshot(savedAsset.extraJson);
 
       window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
 
@@ -250,19 +212,10 @@ export function useFileOperations(
     setDeleting(true);
     setShowDeleteConfirm(false);
     try {
-      const { error: dbError } = await supabase
-        .from('charts')
-        .delete()
-        .eq('song_id', activeSongId)
-        .eq('difficulty_label', difficulty);
-      if (dbError) throw new Error(`DB delete failed: ${dbError.message}`);
-
-      const path = songChartPath(activeSongId, difficulty);
-      const extraPath = songChartExtraPath(activeSongId, difficulty);
-      const { error: storageError } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .remove([path, extraPath]);
-      if (storageError) throw new Error(`Storage delete failed: ${storageError.message}`);
+      await persistDeleteChartAsset({
+        songId: activeSongId,
+        difficulty,
+      });
 
       addToast('Chart deleted', 'info');
       window.location.href = '/game';

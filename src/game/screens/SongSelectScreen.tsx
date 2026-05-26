@@ -1,12 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
-import { supabase } from '../../supabase';
+import { createChartAsset, supabase } from '../../supabase';
 import {
   STORAGE_BUCKET,
-  songChartPath,
   songJacketPath,
-  serializeChart,
 } from '../../shared';
 import { PageLoading } from '../../shared/components/LoadingSpinner';
 import type { DbSong } from './songSelect/types';
@@ -122,33 +120,18 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
   // New Chart (admin): create empty chart and navigate to editor
   const handleNewChart = useCallback((song: DbSong, difficulty: string, level: number) => {
-    // Upload empty chart to storage first, then navigate
     const chartData = createEmptyChart(song, difficulty, level);
-    const json = serializeChart(chartData);
-    const path = songChartPath(song.id, difficulty);
-    const blob = new Blob([json], { type: 'application/json' });
-
-    supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { upsert: true }).then(({ error: uploadErr }) => {
-      if (uploadErr) {
-        addToast(`Upload failed: ${uploadErr.message}`, 'error');
-        setNewChartTarget(null);
-        return;
-      }
-      // Insert charts row
-      supabase.from('charts').upsert({
-        song_id: song.id,
-        difficulty_label: difficulty,
-        difficulty_level: level,
-        offset_ms: 0,
-      }, { onConflict: 'song_id,difficulty_label' }).then(({ error: dbErr }) => {
-        if (dbErr) {
-          addToast(`DB save failed: ${dbErr.message}`, 'error');
-          setNewChartTarget(null);
-          return;
-        }
-        setNewChartTarget(null);
-        window.location.href = `/editor?songId=${encodeURIComponent(song.id)}&difficulty=${encodeURIComponent(difficulty)}`;
-      });
+    createChartAsset({
+      songId: song.id,
+      difficulty,
+      chart: chartData,
+    }).then(() => {
+      setNewChartTarget(null);
+      window.location.href = `/editor?songId=${encodeURIComponent(song.id)}&difficulty=${encodeURIComponent(difficulty)}`;
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(`Chart create failed: ${message}`, 'error');
+      setNewChartTarget(null);
     });
   }, [addToast]);
 
