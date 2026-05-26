@@ -1,6 +1,10 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
 import { validateChart, beatToFloat } from "../../shared";
-import { beatAdd, beatSub, beatEq, beatLt, beatLte } from "../../shared";
+import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
+import {
+  deleteChartNotesAtIndices,
+  deleteExtraNotesAtIndices,
+} from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 
@@ -1088,7 +1092,7 @@ export class SelectMode {
     // Delete extra notes if selected
     if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
       const extraNotes = this.callbacks.getExtraNotes();
-      const newExtraNotes = extraNotes.filter((_n, idx) => !this.selectedExtraIndices.has(idx));
+      const newExtraNotes = deleteExtraNotesAtIndices(extraNotes, this.selectedExtraIndices);
       this.callbacks.onExtraNotesUpdate(newExtraNotes);
       this.selectedExtraIndices.clear();
       this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
@@ -1096,41 +1100,7 @@ export class SelectMode {
 
     if (this.selectedIndices.size === 0) return;
 
-    // Create new notes array without selected indices
-    const newNotes = this.chart.notes.filter(
-      (_note, idx) => !this.selectedIndices.has(idx)
-    );
-
-    // Also check if any selected notes are trill zones and remove them
-    const selectedNotes = Array.from(this.selectedIndices).map(
-      (idx) => this.chart.notes[idx]
-    );
-    const trillZonesToRemove = new Set<number>();
-
-    for (let i = 0; i < this.chart.trillZones.length; i++) {
-      const zone = this.chart.trillZones[i];
-      for (const note of selectedNotes) {
-        // Check if this note corresponds to this trill zone
-        if (
-          note.lane === zone.lane &&
-          beatEq(note.beat, zone.beat) &&
-          this.isRangeNote(note) &&
-          beatEq((note as RangeNote).endBeat, zone.endBeat)
-        ) {
-          trillZonesToRemove.add(i);
-        }
-      }
-    }
-
-    const newTrillZones = this.chart.trillZones.filter(
-      (_zone, idx) => !trillZonesToRemove.has(idx)
-    );
-
-    this.chart = {
-      ...this.chart,
-      notes: newNotes,
-      trillZones: newTrillZones,
-    };
+    this.chart = deleteChartNotesAtIndices(this.chart, this.selectedIndices);
     this.clearSelection();
     this.callbacks.onChartUpdate(this.chart);
   }

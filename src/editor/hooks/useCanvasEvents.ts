@@ -11,9 +11,15 @@ import { DeleteMode, isEventEntityType } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
-import { beatToMs, beatEq } from '../../shared';
-import type { Beat, Lane, RangeNote } from '../../shared';
+import { beatToMs } from '../../shared';
+import type { RangeNote } from '../../shared';
 import { useEditorStore } from '../stores';
+import {
+  deleteChartNoteAtLaneBeat,
+  deleteEmptyTrillZoneAtIndex,
+  deleteExtraNoteAtIndex,
+  deleteExtraNoteAtLaneBeat,
+} from '../editing/editApplication';
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
@@ -688,26 +694,11 @@ export function useCanvasEvents(
       const extraLane = xToExtraLane(x);
       if (extraLane !== null) {
         const currentExtra = useEditorStore.getState().extraNotes;
-        for (let i = 0; i < currentExtra.length; i++) {
-          const en = currentExtra[i];
-          if (en.extraLane !== extraLane) continue;
-          const nb = en.beat.n / en.beat.d;
-          if ('endBeat' in en) {
-            const eb = en.endBeat.n / en.endBeat.d;
-            if (beatFloat >= nb && beatFloat <= eb) {
-              rightDragDeletedRef.current = true;
-              setExtraNotes(currentExtra.filter((_: unknown, idx: number) => idx !== i));
-              setSelectedExtraNotes(new Set());
-              return;
-            }
-          } else {
-            if (Math.abs(beatFloat - nb) < 1 / 16) {
-              rightDragDeletedRef.current = true;
-              setExtraNotes(currentExtra.filter((_: unknown, idx: number) => idx !== i));
-              setSelectedExtraNotes(new Set());
-              return;
-            }
-          }
+        const updatedExtra = deleteExtraNoteAtLaneBeat(currentExtra, { extraLane, beatFloat });
+        if (updatedExtra !== null) {
+          rightDragDeletedRef.current = true;
+          setExtraNotes(updatedExtra);
+          setSelectedExtraNotes(new Set());
         }
         return;
       }
@@ -716,32 +707,10 @@ export function useCanvasEvents(
       if (!lane) return;
 
       const current = useEditorStore.getState().chart;
-      for (let i = 0; i < current.notes.length; i++) {
-        const note = current.notes[i];
-        if (note.lane !== lane) continue;
-        const nb = note.beat.n / note.beat.d;
-        if ('endBeat' in note) {
-          const eb = note.endBeat.n / note.endBeat.d;
-          if (beatFloat >= nb && beatFloat <= eb) {
-            rightDragDeletedRef.current = true;
-            const newNotes = current.notes.filter((_: unknown, idx: number) => idx !== i);
-            let newTrillZones = current.trillZones;
-            if (note.type === 'long' || note.type === 'doubleLong' || note.type === 'trillLong') {
-              const rangeNote = note as RangeNote;
-              newTrillZones = current.trillZones.filter((zone: { lane: Lane; beat: Beat; endBeat: Beat }) =>
-                !(zone.lane === rangeNote.lane && beatEq(zone.beat, rangeNote.beat) && beatEq(zone.endBeat, rangeNote.endBeat))
-              );
-            }
-            setChart({ ...current, notes: newNotes, trillZones: newTrillZones });
-            return;
-          }
-        } else {
-          if (Math.abs(beatFloat - nb) < 1 / 16) {
-            rightDragDeletedRef.current = true;
-            setChart({ ...current, notes: current.notes.filter((_: unknown, idx: number) => idx !== i) });
-            return;
-          }
-        }
+      const updatedChart = deleteChartNoteAtLaneBeat(current, { lane, beatFloat });
+      if (updatedChart !== null) {
+        rightDragDeletedRef.current = true;
+        setChart(updatedChart);
       }
       return;
     }
@@ -1035,7 +1004,9 @@ export function useCanvasEvents(
     const extraHitIdx = hitTestExtraNote(x, y);
     if (extraHitIdx !== null) {
       const currentExtra = useEditorStore.getState().extraNotes;
-      setExtraNotes(currentExtra.filter((_n, i) => i !== extraHitIdx));
+      const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
+      if (updatedExtra === null) return;
+      setExtraNotes(updatedExtra);
       setSelectedExtraNotes(new Set());
       return;
     }
@@ -1049,20 +1020,9 @@ export function useCanvasEvents(
 
     const zoneIdx = hitTestTrillZone(x, y);
     if (zoneIdx !== null) {
-      const zone = currentChart.trillZones[zoneIdx];
-      const hasNotes = currentChart.notes.some((n) =>
-        n.lane === zone.lane &&
-        n.beat.n / n.beat.d >= zone.beat.n / zone.beat.d &&
-        n.beat.n / n.beat.d <= zone.endBeat.n / zone.endBeat.d
-      );
-      if (hasNotes) {
-        addToast('Zone contains notes — remove them first');
-      } else {
-        setChart({
-          ...currentChart,
-          trillZones: currentChart.trillZones.filter((_, i) => i !== zoneIdx),
-        });
-      }
+      const zoneDelete = deleteEmptyTrillZoneAtIndex(currentChart, zoneIdx);
+      if (zoneDelete.blockedReason) addToast(zoneDelete.blockedReason);
+      if (zoneDelete.chart) setChart(zoneDelete.chart);
       return;
     }
 

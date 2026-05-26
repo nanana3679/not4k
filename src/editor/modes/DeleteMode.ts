@@ -1,5 +1,9 @@
-import type { Chart, RangeNote, ExtraNoteEntity } from "../../shared";
-import { beatEq } from "../../shared";
+import type { Chart, ExtraNoteEntity } from "../../shared";
+import {
+  deleteChartNoteAtIndex,
+  deleteEmptyTrillZoneAtIndex,
+  deleteExtraNoteAtIndex,
+} from "../editing/editApplication";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -46,7 +50,9 @@ export class DeleteMode {
       const extraHit = this.callbacks.hitTestExtraNote(x, y);
       if (extraHit !== null) {
         const extraNotes = this.callbacks.getExtraNotes();
-        this.callbacks.onExtraNotesUpdate(extraNotes.filter((_n, i) => i !== extraHit));
+        const updatedExtraNotes = deleteExtraNoteAtIndex(extraNotes, extraHit);
+        if (updatedExtraNotes === null) return;
+        this.callbacks.onExtraNotesUpdate(updatedExtraNotes);
         this.callbacks.onExtraSelectionChange?.(new Set());
         return;
       }
@@ -56,20 +62,14 @@ export class DeleteMode {
     if (this.callbacks.hitTestTrillZone) {
       const zoneIdx = this.callbacks.hitTestTrillZone(x, y);
       if (zoneIdx !== null) {
-        const zone = this.chart.trillZones[zoneIdx];
-        const hasNotes = this.chart.notes.some((n) =>
-          n.lane === zone.lane &&
-          n.beat.n / n.beat.d >= zone.beat.n / zone.beat.d &&
-          n.beat.n / n.beat.d <= zone.endBeat.n / zone.endBeat.d
-        );
-        if (hasNotes) {
-          this.callbacks.onWarn?.('Zone contains notes — remove them first');
+        const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
+        if (result.blockedReason) {
+          this.callbacks.onWarn?.(result.blockedReason);
+        } else if (result.chart) {
+          this.chart = result.chart;
+          this.callbacks.onChartUpdate(result.chart);
         } else {
-          this.chart = {
-            ...this.chart,
-            trillZones: this.chart.trillZones.filter((_, i) => i !== zoneIdx),
-          };
-          this.callbacks.onChartUpdate(this.chart);
+          return;
         }
       }
     }
@@ -84,37 +84,6 @@ export class DeleteMode {
   ): Chart | null {
     const hitIndex = hitTestNote(x, y);
     if (hitIndex === null) return null;
-
-    const noteToDelete = chart.notes[hitIndex];
-
-    // 헤드와 바디는 독립 엔티티 — 클릭한 노트만 개별 삭제
-    const newNotes = chart.notes.filter((_note, idx) => idx !== hitIndex);
-
-    // Check if deleted notes correspond to a trill zone and remove it
-    let newTrillZones = chart.trillZones;
-    if (this.isRangeNote(noteToDelete)) {
-      const rangeNote = noteToDelete as RangeNote;
-      newTrillZones = chart.trillZones.filter((zone) => {
-        return !(
-          zone.lane === rangeNote.lane &&
-          beatEq(zone.beat, rangeNote.beat) &&
-          beatEq(zone.endBeat, rangeNote.endBeat)
-        );
-      });
-    }
-
-    return {
-      ...chart,
-      notes: newNotes,
-      trillZones: newTrillZones,
-    };
-  }
-
-  private static isRangeNote(note: { type: string }): boolean {
-    return (
-      note.type === "long" ||
-      note.type === "doubleLong" ||
-      note.type === "trillLong"
-    );
+    return deleteChartNoteAtIndex(chart, hitIndex);
   }
 }
