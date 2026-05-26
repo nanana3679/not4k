@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  advanceTouchNavigationSession,
+  beginTouchNavigationSession,
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
   shouldRunTouchBoxSelectDrag,
@@ -143,5 +145,44 @@ describe("editor touch gesture policy", () => {
       startDistance: 100,
       currentDistance: 104,
     })).toBeNull();
+  });
+
+  it("keeps a two-finger navigation session locked to the first resolved mode", () => {
+    const session = beginTouchNavigationSession([
+      { clientX: 50, clientY: 100 },
+      { clientX: 150, clientY: 100 },
+    ]);
+    expect(session).not.toBeNull();
+
+    const locked = advanceTouchNavigationSession(session!, [
+      { clientX: 20, clientY: 104 },
+      { clientX: 120, clientY: 104 },
+    ]);
+    expect(locked?.mode).toBe("horizontalScroll");
+    expect(locked?.deltaX).toBe(30);
+
+    const stillHorizontal = advanceTouchNavigationSession(locked!.session, [
+      { clientX: 0, clientY: 103 },
+      { clientX: 180, clientY: 103 },
+    ]);
+    expect(stillHorizontal?.mode).toBe("horizontalScroll");
+    expect(stillHorizontal?.deltaX).toBe(-20);
+    expect(stillHorizontal?.session.mode).toBe("horizontalScroll");
+  });
+
+  it("keeps ambiguous two-finger movement pending while still advancing previous touch state", () => {
+    const session = beginTouchNavigationSession([
+      { clientX: 50, clientY: 100 },
+      { clientX: 150, clientY: 100 },
+    ]);
+
+    const pending = advanceTouchNavigationSession(session!, [
+      { clientX: 40, clientY: 106 },
+      { clientX: 140, clientY: 106 },
+    ]);
+
+    expect(pending?.mode).toBeNull();
+    expect(pending?.session.previousCenter).toEqual({ clientX: 90, clientY: 106 });
+    expect(pending?.session.previousDistance).toBe(100);
   });
 });

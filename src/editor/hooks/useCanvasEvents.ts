@@ -17,12 +17,13 @@ import { useEditorStore } from '../stores';
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
-  type TouchGesturePoint,
-  type TouchNavigationMode,
+  advanceTouchNavigationSession,
+  beginTouchNavigationSession,
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
-  resolveTouchNavigationMode,
   shouldRunTouchBoxSelectDrag,
+  type TouchGesturePoint,
+  type TouchNavigationSession,
 } from './touchGesture';
 
 export interface CanvasEventHandlers {
@@ -37,11 +38,6 @@ export interface CanvasEventHandlers {
 }
 
 const LONG_PRESS_MS = 450;
-
-interface TouchPoint {
-  clientX: number;
-  clientY: number;
-}
 
 type TouchTapToggleCandidate =
   | {
@@ -99,18 +95,6 @@ function getLongPressRangeType(type: EntityType): "long" | "doubleLong" | null {
   return null;
 }
 
-function getTouchDistance(points: TouchPoint[]): number {
-  if (points.length < 2) return 0;
-  return Math.hypot(points[0].clientX - points[1].clientX, points[0].clientY - points[1].clientY);
-}
-
-function getTouchCenter(points: TouchPoint[]): TouchPoint {
-  return {
-    clientX: (points[0].clientX + points[1].clientX) / 2,
-    clientY: (points[0].clientY + points[1].clientY) / 2,
-  };
-}
-
 export function useCanvasEvents(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   rendererRef: RefObject<TimelineRenderer | null>,
@@ -145,12 +129,8 @@ export function useCanvasEvents(
   } = coords;
 
   const rightDragDeletedRef = useRef(false);
-  const activeTouchPointsRef = useRef<Map<number, TouchPoint>>(new Map());
-  const touchNavigationModeRef = useRef<TouchNavigationMode | null>(null);
-  const touchNavigationStartDistanceRef = useRef<number | null>(null);
-  const touchNavigationStartCenterRef = useRef<TouchGesturePoint | null>(null);
-  const pinchPreviousDistanceRef = useRef<number | null>(null);
-  const pinchPreviousCenterRef = useRef<TouchPoint | null>(null);
+  const activeTouchPointsRef = useRef<Map<number, TouchGesturePoint>>(new Map());
+  const touchNavigationSessionRef = useRef<TouchNavigationSession | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const longPressRef = useRef<{
     pointerId: number;
@@ -219,11 +199,7 @@ export function useCanvasEvents(
   const removeTouchPoint = useCallback((pointerId: number) => {
     activeTouchPointsRef.current.delete(pointerId);
     if (activeTouchPointsRef.current.size < 2) {
-      touchNavigationModeRef.current = null;
-      touchNavigationStartDistanceRef.current = null;
-      touchNavigationStartCenterRef.current = null;
-      pinchPreviousDistanceRef.current = null;
-      pinchPreviousCenterRef.current = null;
+      touchNavigationSessionRef.current = null;
     }
   }, []);
 
@@ -231,15 +207,9 @@ export function useCanvasEvents(
     const points = [...activeTouchPointsRef.current.values()];
     if (!isTouchNavigationGesture(points.length)) return false;
 
-    const distance = getTouchDistance(points);
-    if (distance <= 0) return true;
-
-    const center = getTouchCenter(points);
-    touchNavigationModeRef.current = null;
-    touchNavigationStartDistanceRef.current = distance;
-    touchNavigationStartCenterRef.current = center;
-    pinchPreviousDistanceRef.current = distance;
-    pinchPreviousCenterRef.current = center;
+    const session = beginTouchNavigationSession(points);
+    if (!session) return true;
+    touchNavigationSessionRef.current = session;
     clearLongPress();
     cancelTouchCreateCandidate();
     touchEmptySelectCandidateRef.current = null;
@@ -254,37 +224,24 @@ export function useCanvasEvents(
     const points = [...activeTouchPointsRef.current.values()];
     if (!isTouchNavigationGesture(points.length)) return false;
 
-    const previousDistance = pinchPreviousDistanceRef.current;
-    const previousCenter = pinchPreviousCenterRef.current;
-    const currentDistance = getTouchDistance(points);
-    const center = getTouchCenter(points);
+    const session = touchNavigationSessionRef.current ?? beginTouchNavigationSession(points);
+    if (!session) return true;
 
-    if (touchNavigationStartDistanceRef.current === null || touchNavigationStartCenterRef.current === null) {
-      touchNavigationStartDistanceRef.current = currentDistance;
-      touchNavigationStartCenterRef.current = center;
+    const update = advanceTouchNavigationSession(session, points);
+    if (!update) return true;
+    touchNavigationSessionRef.current = update.session;
+
+    if (update.mode === "horizontalScroll" && update.deltaX !== undefined) {
+      onHorizontalPan?.(update.deltaX);
+    } else if (update.mode === "verticalScroll" && update.deltaY !== undefined) {
+      onVerticalPan?.(update.deltaY);
+    } else if (
+      update.mode === "resize" &&
+      update.previousDistance !== undefined &&
+      update.currentDistance !== undefined
+    ) {
+      onPinchZoom?.(update.previousDistance, update.currentDistance, update.center.clientY - rect.top);
     }
-
-    const mode = resolveTouchNavigationMode({
-      currentMode: touchNavigationModeRef.current,
-      startCenter: touchNavigationStartCenterRef.current,
-      currentCenter: center,
-      startDistance: touchNavigationStartDistanceRef.current,
-      currentDistance,
-    });
-    touchNavigationModeRef.current = mode;
-
-    if (mode === "horizontalScroll" && previousCenter) {
-      onHorizontalPan?.(previousCenter.clientX - center.clientX);
-    } else if (mode === "verticalScroll" && previousCenter) {
-      onVerticalPan?.(previousCenter.clientY - center.clientY);
-    } else if (mode === "resize" && previousDistance !== null && currentDistance > 0) {
-      onPinchZoom?.(previousDistance, currentDistance, center.clientY - rect.top);
-    }
-
-    if (currentDistance > 0) {
-      pinchPreviousDistanceRef.current = currentDistance;
-    }
-    pinchPreviousCenterRef.current = center;
 
     return true;
   }, [onHorizontalPan, onPinchZoom, onVerticalPan]);
@@ -885,7 +842,7 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
-      wasPinching = pinchPreviousDistanceRef.current !== null || activeTouchPointsRef.current.size >= 2;
+      wasPinching = touchNavigationSessionRef.current !== null || activeTouchPointsRef.current.size >= 2;
       removeTouchPoint(e.pointerId);
       const pendingLongPress = longPressRef.current;
       if (pendingLongPress?.pointerId === e.pointerId) {
@@ -1036,9 +993,7 @@ export function useCanvasEvents(
       clearTouchEmptySelectCandidate();
       touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
-      touchNavigationModeRef.current = null;
-      touchNavigationStartDistanceRef.current = null;
-      touchNavigationStartCenterRef.current = null;
+      touchNavigationSessionRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();

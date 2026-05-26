@@ -9,8 +9,115 @@ export interface TouchGesturePoint {
   clientY: number;
 }
 
+export interface TouchNavigationSession {
+  mode: TouchNavigationMode | null;
+  startCenter: TouchGesturePoint;
+  startDistance: number;
+  previousCenter: TouchGesturePoint;
+  previousDistance: number;
+}
+
+export interface TouchNavigationUpdate {
+  mode: TouchNavigationMode | null;
+  session: TouchNavigationSession;
+  deltaX?: number;
+  deltaY?: number;
+  previousDistance?: number;
+  currentDistance?: number;
+  center: TouchGesturePoint;
+}
+
 export function isTouchNavigationGesture(activeTouchCount: number): boolean {
   return activeTouchCount >= 2;
+}
+
+export function getTouchDistance(points: readonly TouchGesturePoint[]): number {
+  if (points.length < 2) return 0;
+  return Math.hypot(
+    points[0].clientX - points[1].clientX,
+    points[0].clientY - points[1].clientY,
+  );
+}
+
+export function getTouchCenter(points: readonly TouchGesturePoint[]): TouchGesturePoint {
+  return {
+    clientX: (points[0].clientX + points[1].clientX) / 2,
+    clientY: (points[0].clientY + points[1].clientY) / 2,
+  };
+}
+
+export function beginTouchNavigationSession(
+  points: readonly TouchGesturePoint[],
+): TouchNavigationSession | null {
+  if (!isTouchNavigationGesture(points.length)) return null;
+  const startDistance = getTouchDistance(points);
+  if (startDistance <= 0) return null;
+  const startCenter = getTouchCenter(points);
+  return {
+    mode: null,
+    startCenter,
+    startDistance,
+    previousCenter: startCenter,
+    previousDistance: startDistance,
+  };
+}
+
+export function advanceTouchNavigationSession(
+  session: TouchNavigationSession,
+  points: readonly TouchGesturePoint[],
+): TouchNavigationUpdate | null {
+  if (!isTouchNavigationGesture(points.length)) return null;
+
+  const currentDistance = getTouchDistance(points);
+  const center = getTouchCenter(points);
+  const mode = resolveTouchNavigationMode({
+    currentMode: session.mode,
+    startCenter: session.startCenter,
+    currentCenter: center,
+    startDistance: session.startDistance,
+    currentDistance,
+  });
+
+  const nextSession: TouchNavigationSession = {
+    ...session,
+    mode,
+    previousCenter: center,
+    previousDistance: currentDistance > 0 ? currentDistance : session.previousDistance,
+  };
+
+  if (mode === "horizontalScroll") {
+    return {
+      mode,
+      session: nextSession,
+      deltaX: session.previousCenter.clientX - center.clientX,
+      center,
+    };
+  }
+
+  if (mode === "verticalScroll") {
+    return {
+      mode,
+      session: nextSession,
+      deltaY: session.previousCenter.clientY - center.clientY,
+      center,
+    };
+  }
+
+  if (mode === "resize" && currentDistance > 0) {
+    return {
+      mode,
+      session: nextSession,
+      previousDistance: session.previousDistance,
+      currentDistance,
+      center,
+    };
+  }
+
+  return {
+    mode: null,
+    session: nextSession,
+    center,
+  };
 }
 
 export function shouldRunTouchBoxSelectDrag(input: {
