@@ -28,6 +28,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { clampVerticalScroll } from './timeline/timelineViewport';
 import { getEditorAudioLoadingSurface } from './editorLoading';
+import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -751,16 +752,16 @@ function ChartEditorPage() {
       {showLeaveConfirm && (
         <div style={modalStyles.overlay} onMouseDown={() => setShowLeaveConfirm(false)}>
           <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <h3 style={modalStyles.title}>Unsaved Changes</h3>
+            <h3 style={modalStyles.title}>{LEAVE_CONFIRM_COPY.title}</h3>
             <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
-              저장되지 않은 변경사항이 있습니다. 나가시겠습니까?
+              {LEAVE_CONFIRM_COPY.body}
             </p>
             <div style={modalStyles.buttons}>
               <button style={modalStyles.deleteBtn} onClick={() => { setShowLeaveConfirm(false); window.location.href = '/game'; }}>
-                Leave
+                {LEAVE_CONFIRM_COPY.confirm}
               </button>
               <button style={modalStyles.cancelBtn} onClick={() => setShowLeaveConfirm(false)}>
-                Cancel
+                {LEAVE_CONFIRM_COPY.cancel}
               </button>
             </div>
           </div>
