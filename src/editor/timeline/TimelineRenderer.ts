@@ -28,6 +28,7 @@ import {
   clampHorizontalPan,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
+  getMeasureLabelRailBackground,
   getPlaybackCursorLineEndX,
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
@@ -81,6 +82,7 @@ export class TimelineRenderer {
   private hoverLayer!: Container;
   private ghostLayer!: Container;
   private boxSelectLayer!: Container;
+  private measureLabelBackground!: Graphics;
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
   private minimapLayer!: Container;
@@ -203,6 +205,7 @@ export class TimelineRenderer {
     this.hoverLayer = new Container();
     this.ghostLayer = new Container();
     this.boxSelectLayer = new Container();
+    this.measureLabelBackground = new Graphics();
     this.measureLabels = new Container();
     this.playbackCursorLayer = new Container();
 
@@ -225,13 +228,15 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.hoverLayer);
     this.app.stage.addChild(this.ghostLayer);
     this.app.stage.addChild(this.boxSelectLayer);
-    this.app.stage.addChild(this.measureLabels);
     this.app.stage.addChild(this.playbackCursorLayer);
+    this.app.stage.addChild(this.measureLabelBackground);
+    this.app.stage.addChild(this.measureLabels);
 
     this.scrollableContentMask = new Graphics();
     this.app.stage.addChild(this.scrollableContentMask);
     this.applyScrollableContentMask();
     this.updateScrollableContentMask();
+    this.updateMeasureLabelBackground();
 
     // Minimap layer (topmost, not affected by scroll)
     this.minimapLayer = new Container();
@@ -579,6 +584,19 @@ export class TimelineRenderer {
     this.scrollableContentMask.fill(0xffffff);
   }
 
+  private updateMeasureLabelBackground(): void {
+    const bg = getMeasureLabelRailBackground({
+      viewportHeight: this.options.height,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+    });
+
+    this.measureLabelBackground.clear();
+    if (bg.width <= 0 || bg.height <= 0) return;
+
+    this.measureLabelBackground.rect(bg.x, bg.y, bg.width, bg.height);
+    this.measureLabelBackground.fill({ color: bg.color, alpha: bg.alpha });
+  }
+
   /**
    * Convert time (ms) to Y pixel position (container-local space).
    * Time flows bottom-to-top: minTime = near bottom (with padding below), later time = higher (lower Y).
@@ -851,6 +869,7 @@ export class TimelineRenderer {
     if (this.initialized) {
       this.app.renderer.resize(width, height);
       this.updateScrollableContentMask();
+      this.updateMeasureLabelBackground();
       this.render();
     }
   }

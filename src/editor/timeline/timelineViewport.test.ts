@@ -4,6 +4,7 @@ import {
   clampVerticalScroll,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
+  getMeasureLabelRailBackground,
   getPlaybackCursorLineEndX,
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
@@ -29,6 +30,13 @@ describe("timeline viewport geometry", () => {
 
     expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 0 })).toBe(360);
     expect(getPlaybackCursorLineEndX({ viewportWidth: 360, horizontalPanX: 120 })).toBe(360);
+  });
+
+  it("draws the measure-number rail with an opaque black background", () => {
+    expect(getMeasureLabelRailBackground({
+      viewportHeight: 640,
+      leftRailWidth: 32,
+    })).toEqual({ x: 0, y: 0, width: 32, height: 640, color: 0x000000, alpha: 1 });
   });
 
   it("omits the triangular playback cursor handle", () => {

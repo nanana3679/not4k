@@ -20,6 +20,20 @@ export function getMeasureLabelLayerOffsetX(input: {
   return input.leftRailWidth;
 }
 
+export function getMeasureLabelRailBackground(input: {
+  viewportHeight: number;
+  leftRailWidth: number;
+}): { x: number; y: number; width: number; height: number; color: number; alpha: number } {
+  return {
+    x: 0,
+    y: 0,
+    width: input.leftRailWidth,
+    height: input.viewportHeight,
+    color: 0x000000,
+    alpha: 1,
+  };
+}
+
 export function shouldRenderPlaybackCursorHandle(): boolean {
   return false;
 }
