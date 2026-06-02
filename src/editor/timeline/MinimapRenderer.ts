@@ -221,8 +221,22 @@ export class MinimapRenderer {
       minimapLayer.addChild(zoneGfx);
     }
 
-    // (4) Notes
+    // (4) Notes: 대량 차트에서 노트마다 DisplayObject를 만들지 않도록 시각 스타일별로 묶는다.
     const { notes } = chart;
+    const pointBatches = new Map<number, { gfx: Graphics; count: number }>();
+    const rangeBatches = new Map<number, { gfx: Graphics; count: number }>();
+    const getBatch = (
+      batches: Map<number, { gfx: Graphics; count: number }>,
+      color: number,
+    ): { gfx: Graphics; count: number } => {
+      let batch = batches.get(color);
+      if (!batch) {
+        batch = { gfx: new Graphics(), count: 0 };
+        batches.set(color, batch);
+      }
+      return batch;
+    };
+
     for (const note of notes) {
       const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const containerY = this.host.timeToY(timeMs);
@@ -247,10 +261,9 @@ export class MinimapRenderer {
 
         const topY = Math.min(my, endMy);
         const height = Math.max(1, Math.abs(endMy - my));
-        const longGfx = new Graphics();
-        longGfx.rect(noteX, topY, laneW, height);
-        longGfx.fill({ color: noteColor, alpha: 0.5 });
-        minimapLayer.addChild(longGfx);
+        const batch = getBatch(rangeBatches, noteColor);
+        batch.gfx.rect(noteX, topY, laneW, height);
+        batch.count++;
       } else {
         // Point note: 1px height horizontal line
         let noteColor: number;
@@ -261,11 +274,21 @@ export class MinimapRenderer {
           default: noteColor = COLORS.SINGLE_NOTE;
         }
 
-        const noteGfx = new Graphics();
-        noteGfx.rect(noteX, my, laneW, 1);
-        noteGfx.fill(noteColor);
-        minimapLayer.addChild(noteGfx);
+        const batch = getBatch(pointBatches, noteColor);
+        batch.gfx.rect(noteX, my, laneW, 1);
+        batch.count++;
       }
+    }
+
+    for (const [color, batch] of rangeBatches) {
+      if (batch.count === 0) continue;
+      batch.gfx.fill({ color, alpha: 0.5 });
+      minimapLayer.addChild(batch.gfx);
+    }
+    for (const [color, batch] of pointBatches) {
+      if (batch.count === 0) continue;
+      batch.gfx.fill(color);
+      minimapLayer.addChild(batch.gfx);
     }
 
     // (5) Viewport indicator (reusable)

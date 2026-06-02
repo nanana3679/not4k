@@ -207,7 +207,7 @@ not4k의 다중키 바인딩이 만들어내는 고유한 차트 어휘. `chart-
 
 한 곡에 배정되는 차트의 이름. 리듬게임에서는 일반적으로 한 곡에 여러 난이도의 차트가 존재하며, 각 차트에 난이도명이 붙는다 (예: IIDX의 NORMAL/HYPER/ANOTHER, DJMAX의 NM/HD/MX).
 
-not4k의 난이도명은 **EASY / NORMAL / HARD / EXPERT**의 4단계 구성으로 결정하였다. 판정명(Perfect/Great/Good/Bad/Miss)도 잠정적이며, 게임 컨셉에 따라 변경 가능하다.
+not4k의 난이도명은 현재 **EASY / NORMAL / HARD**의 3단계를 **임시 채택** 중이다. 세계관 옷과 함께 확정되며, 이때 계층 언어(Beginner/Expert 등) 재검토도 함께 이루어진다(`stance.md` §2 원칙 5 단서, §4 유보 테이블 참조). 판정명(Perfect/Great/Good/Bad/Miss) 역시 잠정적이며 같은 시점에 재검토된다.
 
 난이도명은 차트 레벨(Lv.)과는 별개의 개념이다. 난이도명은 같은 곡 내에서 차트를 구분하는 라벨이고, 차트 레벨은 차트의 절대적 난이도 수치이다.
 
