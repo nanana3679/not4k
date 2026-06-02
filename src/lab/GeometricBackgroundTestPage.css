@@ -4,8 +4,8 @@
   height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 28%, rgba(168, 196, 218, 0.16), transparent 34%),
-    linear-gradient(180deg, #05080d 0%, #0c141b 34%, #06080d 36%, #030509 100%);
+    radial-gradient(ellipse at 50% 48%, rgba(34, 55, 68, 0.18), transparent 58%),
+    linear-gradient(180deg, #05080d 0%, #0c141b 34%, #06080d 62%, #030509 100%);
   color: #eef3f8;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -14,39 +14,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 29%, rgba(126, 160, 184, 0.45), rgba(38, 64, 80, 0.18) 18%, transparent 38%),
-    linear-gradient(180deg, rgba(20, 35, 46, 0.75) 0%, rgba(10, 17, 25, 0.18) 29%, transparent 45%);
-  pointer-events: none;
-}
-
-.geometric-test-skyline::before,
-.geometric-test-skyline::after {
-  position: absolute;
-  content: "";
-  left: 0;
-  right: 0;
-  top: var(--surface-horizon-y);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(214, 228, 236, 0.46), transparent);
-}
-
-.geometric-test-skyline::after {
-  top: var(--surface-horizon-y);
-  height: 34px;
-  background: linear-gradient(180deg, rgba(126, 160, 184, 0.2), transparent);
-  filter: blur(1.2px);
-}
-
-.geometric-test-horizon {
-  position: absolute;
-  left: -6%;
-  right: -6%;
-  top: calc(var(--surface-horizon-y) - 3%);
-  height: 15%;
-  background:
-    radial-gradient(ellipse at 50% 42%, rgba(207, 222, 232, 0.22), transparent 42%),
-    linear-gradient(180deg, transparent 0%, rgba(100, 132, 150, 0.2) 37%, rgba(234, 241, 246, 0.2) 43%, transparent 56%);
-  filter: blur(1.4px);
+    radial-gradient(ellipse at 50% 100%, rgba(var(--static-background-tint), 0.2), rgba(93, 121, 138, 0.1) 46%, transparent 76%),
+    linear-gradient(180deg, rgba(var(--static-background-tint), 0.1) 0%, rgba(var(--static-background-tint), 0.04) 100%);
   pointer-events: none;
 }
 
@@ -108,6 +77,17 @@
   stroke: rgba(238, 246, 250, 0.68);
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+}
+
+.geometric-test-forward-light {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 78% var(--front-light-height) at 50% 104%, rgba(255, 231, 176, 0.5) 0%, rgba(126, 215, 232, 0.2) 42%, transparent 100%),
+    linear-gradient(0deg, rgba(255, 228, 168, 0.22) 0%, transparent var(--front-light-height));
+  mix-blend-mode: screen;
+  opacity: var(--front-light-opacity);
+  pointer-events: none;
 }
 
 .geometric-test-vignette {

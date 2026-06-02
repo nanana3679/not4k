@@ -20,6 +20,8 @@ describe("geometricBackground", () => {
       parallaxSpeedPxPerSec: 8,
       parallaxSpeedMinPxPerSec: 8,
       parallaxSpeedMaxPxPerSec: 88,
+      forwardLightOpacity: 0,
+      forwardLightHeightPercent: 26,
       horizonOpacity: 1,
       horizonTopPercent: 30,
       groundTopPercent: 33,
@@ -35,6 +37,8 @@ describe("geometricBackground", () => {
       parallaxSpeedPxPerSec: 88,
       parallaxSpeedMinPxPerSec: 8,
       parallaxSpeedMaxPxPerSec: 88,
+      forwardLightOpacity: 0.62,
+      forwardLightHeightPercent: 62,
       horizonOpacity: 0.35,
       horizonTopPercent: -18,
       groundTopPercent: -15,
@@ -50,6 +54,8 @@ describe("geometricBackground", () => {
       parallaxSpeedPxPerSec: 48,
       parallaxSpeedMinPxPerSec: 8,
       parallaxSpeedMaxPxPerSec: 88,
+      forwardLightOpacity: 0.31,
+      forwardLightHeightPercent: 44,
       horizonOpacity: 0.675,
       horizonTopPercent: 6,
       groundTopPercent: 9,
@@ -89,6 +95,54 @@ describe("geometricBackground", () => {
     })).toMatchObject({
       tileSizePx: 152,
       parallaxSpeedPxPerSec: 72,
+    });
+  });
+
+  it("speed max=2400px/s이면 2000px/s로 보정하고 altitude=0에서 2000px/s", () => {
+    expect(getGeometricBackgroundParams(0, {
+      parallaxSpeedMinPxPerSec: 12,
+      parallaxSpeedMaxPxPerSec: 2400,
+    })).toMatchObject({
+      parallaxSpeedMaxPxPerSec: 2000,
+      parallaxSpeedPxPerSec: 2000,
+    });
+  });
+
+  it("커스텀 light min/max에서 altitude=1이면 강도와 높이 min 값을 사용", () => {
+    expect(getGeometricBackgroundParams(1, {
+      forwardLightIntensityMin: 0.12,
+      forwardLightIntensityMax: 0.86,
+      forwardLightHeightMinPercent: 18,
+      forwardLightHeightMaxPercent: 88,
+    })).toMatchObject({
+      forwardLightOpacity: 0.12,
+      forwardLightHeightPercent: 18,
+    });
+  });
+
+  it("커스텀 light min/max에서 altitude=0이면 강도와 높이 max 값을 사용", () => {
+    expect(getGeometricBackgroundParams(0, {
+      forwardLightIntensityMin: 0.12,
+      forwardLightIntensityMax: 0.86,
+      forwardLightHeightMinPercent: 18,
+      forwardLightHeightMaxPercent: 88,
+    })).toMatchObject({
+      forwardLightOpacity: 0.86,
+      forwardLightHeightPercent: 88,
+    });
+  });
+
+  it("light intensity max=1.4, height max=140%이면 허용 범위로 보정", () => {
+    expect(getGeometricBackgroundParams(0, {
+      forwardLightIntensityMin: 0.12,
+      forwardLightIntensityMax: 1.4,
+      forwardLightHeightMinPercent: 18,
+      forwardLightHeightMaxPercent: 140,
+    })).toMatchObject({
+      forwardLightIntensityMax: 1,
+      forwardLightHeightMaxPercent: 100,
+      forwardLightOpacity: 1,
+      forwardLightHeightPercent: 100,
     });
   });
 

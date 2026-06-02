@@ -7,6 +7,10 @@ export interface GeometricBackgroundRangeParams {
   tileSizeMaxPx: number;
   parallaxSpeedMinPxPerSec: number;
   parallaxSpeedMaxPxPerSec: number;
+  forwardLightIntensityMin: number;
+  forwardLightIntensityMax: number;
+  forwardLightHeightMinPercent: number;
+  forwardLightHeightMaxPercent: number;
 }
 
 export type GeometricBackgroundRangeInput = Partial<GeometricBackgroundRangeParams>;
@@ -16,12 +20,18 @@ export const DEFAULT_GEOMETRIC_BACKGROUND_RANGES: GeometricBackgroundRangeParams
   tileSizeMaxPx: 180,
   parallaxSpeedMinPxPerSec: 8,
   parallaxSpeedMaxPxPerSec: 88,
+  forwardLightIntensityMin: 0,
+  forwardLightIntensityMax: 0.62,
+  forwardLightHeightMinPercent: 26,
+  forwardLightHeightMaxPercent: 62,
 };
 
 export interface GeometricBackgroundParams extends GeometricBackgroundRangeParams {
   altitude: number;
   tileSizePx: number;
   parallaxSpeedPxPerSec: number;
+  forwardLightOpacity: number;
+  forwardLightHeightPercent: number;
   horizonOpacity: number;
   horizonTopPercent: number;
   groundTopPercent: number;
@@ -79,7 +89,23 @@ export function getGeometricBackgroundParams(
     DEFAULT_GEOMETRIC_BACKGROUND_RANGES.parallaxSpeedMinPxPerSec,
     DEFAULT_GEOMETRIC_BACKGROUND_RANGES.parallaxSpeedMaxPxPerSec,
     0,
-    180,
+    2000,
+  );
+  const [forwardLightIntensityMin, forwardLightIntensityMax] = normalizeClampedRange(
+    input.forwardLightIntensityMin,
+    input.forwardLightIntensityMax,
+    DEFAULT_GEOMETRIC_BACKGROUND_RANGES.forwardLightIntensityMin,
+    DEFAULT_GEOMETRIC_BACKGROUND_RANGES.forwardLightIntensityMax,
+    0,
+    1,
+  );
+  const [forwardLightHeightMinPercent, forwardLightHeightMaxPercent] = normalizeClampedRange(
+    input.forwardLightHeightMinPercent,
+    input.forwardLightHeightMaxPercent,
+    DEFAULT_GEOMETRIC_BACKGROUND_RANGES.forwardLightHeightMinPercent,
+    DEFAULT_GEOMETRIC_BACKGROUND_RANGES.forwardLightHeightMaxPercent,
+    0,
+    100,
   );
 
   return {
@@ -90,6 +116,12 @@ export function getGeometricBackgroundParams(
     parallaxSpeedPxPerSec: lerp(parallaxSpeedMinPxPerSec, parallaxSpeedMaxPxPerSec, lowAltitudeFactor),
     parallaxSpeedMinPxPerSec,
     parallaxSpeedMaxPxPerSec,
+    forwardLightIntensityMin,
+    forwardLightIntensityMax,
+    forwardLightOpacity: lerp(forwardLightIntensityMin, forwardLightIntensityMax, lowAltitudeFactor),
+    forwardLightHeightMinPercent,
+    forwardLightHeightMaxPercent,
+    forwardLightHeightPercent: lerp(forwardLightHeightMinPercent, forwardLightHeightMaxPercent, lowAltitudeFactor),
     horizonOpacity: lerp(0.35, 1, clampedAltitude),
     horizonTopPercent: lerp(-18, 30, clampedAltitude),
     groundTopPercent: lerp(-15, 33, clampedAltitude),

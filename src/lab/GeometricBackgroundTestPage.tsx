@@ -52,6 +52,9 @@ export default function GeometricBackgroundTestPage() {
     "--surface-horizon-y": `${funnelParams.vanishingPointYPercent}%`,
     "--surface-bend-radius-x": "140%",
     "--surface-bend-radius-y": "82%",
+    "--static-background-tint": "207, 222, 232",
+    "--front-light-opacity": params.forwardLightOpacity,
+    "--front-light-height": `${params.forwardLightHeightPercent}%`,
   } as CSSProperties;
 
   const setFunnelValue = (key: keyof FunnelGridParams, value: number) => {
@@ -99,11 +102,10 @@ export default function GeometricBackgroundTestPage() {
     <main className="geometric-test-page" style={pageStyle}>
       <div
         className="geometric-test-skyline"
-        style={{ opacity: params.horizonOpacity }}
-      />
-      <div
-        className="geometric-test-horizon"
-        style={{ opacity: params.horizonOpacity }}
+        style={{
+          opacity: params.horizonOpacity,
+          clipPath: "polygon(0 0, 100% 0, 100% var(--surface-horizon-y), 0 var(--surface-horizon-y))",
+        }}
       />
       <div
         className="geometric-test-funnel-grid"
@@ -125,6 +127,7 @@ export default function GeometricBackgroundTestPage() {
         ))}
       </svg>
 
+      <div className="geometric-test-forward-light" />
       <div className="geometric-test-vignette" />
       <section
         className="geometric-test-lane-shield"
@@ -157,6 +160,8 @@ export default function GeometricBackgroundTestPage() {
         <div className="geometric-test-stats">
           <span className="geometric-test-stat">tile {Math.round(params.tileSizePx)}px</span>
           <span className="geometric-test-stat">speed {Math.round(params.parallaxSpeedPxPerSec)}px/s</span>
+          <span className="geometric-test-stat">light {formatSliderValue(params.forwardLightOpacity, 0.01)}</span>
+          <span className="geometric-test-stat">light h {Math.round(params.forwardLightHeightPercent)}%</span>
           <span className="geometric-test-stat">vanish y {Math.round(funnelParams.vanishingPointYPercent)}%</span>
           <span className="geometric-test-stat">lane opacity {CENTRAL_LANE_OPACITY}</span>
         </div>
@@ -177,12 +182,37 @@ export default function GeometricBackgroundTestPage() {
             id="speed-range"
             label="Speed"
             min={0}
-            max={180}
+            max={2000}
             step={1}
             minValue={params.parallaxSpeedMinPxPerSec}
             maxValue={params.parallaxSpeedMaxPxPerSec}
             suffix="px/s"
             onChange={(range) => setBackgroundRangePair("parallaxSpeedMinPxPerSec", "parallaxSpeedMaxPxPerSec", range)}
+          />
+          <DualRangeControl
+            id="front-light-intensity-range"
+            label="Light"
+            min={0}
+            max={1}
+            step={0.01}
+            minValue={params.forwardLightIntensityMin}
+            maxValue={params.forwardLightIntensityMax}
+            onChange={(range) => setBackgroundRangePair("forwardLightIntensityMin", "forwardLightIntensityMax", range)}
+          />
+          <DualRangeControl
+            id="front-light-height-range"
+            label="Light Height"
+            min={0}
+            max={100}
+            step={1}
+            minValue={params.forwardLightHeightMinPercent}
+            maxValue={params.forwardLightHeightMaxPercent}
+            suffix="%"
+            onChange={(range) => setBackgroundRangePair(
+              "forwardLightHeightMinPercent",
+              "forwardLightHeightMaxPercent",
+              range,
+            )}
           />
           <DualRangeControl
             id="vanishing-y-range"
