@@ -1,0 +1,21 @@
+{
+  "width": 3404,
+  "height": 4704,
+  "source": "gear.png",
+  "glowPixels": 1375661,
+  "averageGlowAlpha": 76.31325668169701,
+  "columnBoxes": {
+    "left": {
+      "x": 435,
+      "y": 559,
+      "width": 1056,
+      "height": 3073
+    },
+    "right": {
+      "x": 1914,
+      "y": 590,
+      "width": 1273,
+      "height": 3042
+    }
+  }
+}

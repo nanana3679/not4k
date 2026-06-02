@@ -1,0 +1,21 @@
+{
+  "width": 1065,
+  "height": 1477,
+  "source": "ig_0016e61a148bb3f2016a1c5fa9fb648191b47fc3099c5984d3.png",
+  "glowPixels": 105177,
+  "averageGlowAlpha": 122.93198132671591,
+  "columnBoxes": {
+    "left": {
+      "x": 62,
+      "y": 42,
+      "width": 226,
+      "height": 1099
+    },
+    "right": {
+      "x": 778,
+      "y": 42,
+      "width": 228,
+      "height": 1099
+    }
+  }
+}

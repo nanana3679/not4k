@@ -9,6 +9,7 @@ import { SONNER_TOASTER_POSITION } from './shared/toast';
 
 const GameApp = lazy(() => import('./game/App'));
 const EditorApp = lazy(() => import('./editor/App'));
+const GearLightTestPage = lazy(() => import('./lab/GearLightTestPage'));
 function App() {
   return (
     <BrowserRouter>
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
           <Route path="/editor/*" element={<EditorApp />} />
+          <Route path="/lab/gear-light" element={<GearLightTestPage />} />
           <Route path="*" element={<Navigate to="/game" replace />} />
         </Routes>
       </Suspense>
