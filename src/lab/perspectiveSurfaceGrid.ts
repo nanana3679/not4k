@@ -19,6 +19,26 @@ export interface PerspectiveSurfaceGridParams {
 }
 
 export type PerspectiveSurfaceGridInput = Partial<PerspectiveSurfaceGridParams>;
+export type PerspectiveSurfaceGridAltitudeRangeKey =
+  | "horizonYPercent"
+  | "cameraHeight"
+  | "fieldOfView"
+  | "surfaceAngleDeg"
+  | "radialVanishingYPercent"
+  | "radialVanishingZ"
+  | "radialStrength"
+  | "gridSpacing"
+  | "zFar";
+
+export interface PerspectiveSurfaceGridNumberRange {
+  altitude0: number;
+  altitude1: number;
+}
+
+export type PerspectiveSurfaceGridAltitudeRanges = Record<
+  PerspectiveSurfaceGridAltitudeRangeKey,
+  PerspectiveSurfaceGridNumberRange
+>;
 
 export interface ProjectedGroundPoint extends GroundPoint {
   screenXPercent: number;
@@ -42,6 +62,18 @@ export interface PerspectiveSurfaceGrid {
 }
 
 export const PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT = 50;
+export const DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE = 1;
+export const PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGE_KEYS: PerspectiveSurfaceGridAltitudeRangeKey[] = [
+  "horizonYPercent",
+  "cameraHeight",
+  "fieldOfView",
+  "surfaceAngleDeg",
+  "radialVanishingYPercent",
+  "radialVanishingZ",
+  "radialStrength",
+  "gridSpacing",
+  "zFar",
+];
 
 export const DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS: PerspectiveSurfaceGridParams = {
   horizonYPercent: 30,
@@ -56,6 +88,18 @@ export const DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS: PerspectiveSurfaceGridPara
   xMax: 16,
   zNear: 4,
   zFar: 28,
+};
+
+export const DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGES: PerspectiveSurfaceGridAltitudeRanges = {
+  horizonYPercent: { altitude0: 12, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.horizonYPercent },
+  cameraHeight: { altitude0: 3, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.cameraHeight },
+  fieldOfView: { altitude0: 8, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.fieldOfView },
+  surfaceAngleDeg: { altitude0: 24, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.surfaceAngleDeg },
+  radialVanishingYPercent: { altitude0: -14, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingYPercent },
+  radialVanishingZ: { altitude0: 4, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingZ },
+  radialStrength: { altitude0: 0.08, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialStrength },
+  gridSpacing: { altitude0: 2, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridSpacing },
+  zFar: { altitude0: 16, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zFar },
 };
 
 export function normalizePerspectiveSurfaceGridParams(
@@ -105,6 +149,22 @@ export function normalizePerspectiveSurfaceGridParams(
     zNear,
     zFar,
   };
+}
+
+export function resolvePerspectiveSurfaceGridParamsFromAltitude(
+  altitude: number,
+  ranges: PerspectiveSurfaceGridAltitudeRanges = DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGES,
+  baseInput: PerspectiveSurfaceGridInput = {},
+): PerspectiveSurfaceGridParams {
+  const normalizedAltitude = clamp01(altitude);
+  const resolvedInput: PerspectiveSurfaceGridInput = { ...baseInput };
+
+  PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGE_KEYS.forEach((key) => {
+    const range = ranges[key];
+    resolvedInput[key] = lerp(range.altitude0, range.altitude1, normalizedAltitude);
+  });
+
+  return normalizePerspectiveSurfaceGridParams(resolvedInput);
 }
 
 export function projectGroundPoint(

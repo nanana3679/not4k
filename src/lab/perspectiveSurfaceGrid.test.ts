@@ -3,6 +3,7 @@ import {
   buildPerspectiveSurfaceGrid,
   getPerspectiveGridObjectMarker,
   projectGroundPoint,
+  resolvePerspectiveSurfaceGridParamsFromAltitude,
 } from "./perspectiveSurfaceGrid";
 
 const NO_RADIAL_WARP = { radialStrength: 0 };
@@ -225,6 +226,66 @@ describe("perspectiveSurfaceGrid", () => {
 
     expect(grid.rows.map((row) => row.z)).toEqual([4, 8, 12, 16]);
     expect(grid.columns.map((column) => column.x)).toEqual([-8, -4, 0, 4, 8]);
+  });
+
+  it("altitude=0.25이면 horizonYPercent Alt 0=10, Alt 1=50에서 20으로 보간", () => {
+    const params = resolvePerspectiveSurfaceGridParamsFromAltitude(0.25, {
+      horizonYPercent: { altitude0: 10, altitude1: 50 },
+      cameraHeight: { altitude0: 2, altitude1: 6 },
+      fieldOfView: { altitude0: 8, altitude1: 20 },
+      surfaceAngleDeg: { altitude0: 10, altitude1: 70 },
+      radialVanishingYPercent: { altitude0: -20, altitude1: 40 },
+      radialVanishingZ: { altitude0: 4, altitude1: 20 },
+      radialStrength: { altitude0: 0.1, altitude1: 0.9 },
+      gridSpacing: { altitude0: 2, altitude1: 10 },
+      zFar: { altitude0: 16, altitude1: 48 },
+    });
+
+    expect(params.horizonYPercent).toBeCloseTo(20, 6);
+    expect(params.cameraHeight).toBeCloseTo(3, 6);
+    expect(params.fieldOfView).toBeCloseTo(11, 6);
+    expect(params.surfaceAngleDeg).toBeCloseTo(25, 6);
+    expect(params.radialVanishingYPercent).toBeCloseTo(-5, 6);
+    expect(params.radialVanishingZ).toBeCloseTo(8, 6);
+    expect(params.radialStrength).toBeCloseTo(0.3, 6);
+    expect(params.gridSpacing).toBeCloseTo(4, 6);
+    expect(params.zFar).toBeCloseTo(24, 6);
+  });
+
+  it("altitude=0.25이면 horizonYPercent Alt 0=50, Alt 1=10에서 1-altitude 가중치로 40이 됨", () => {
+    const params = resolvePerspectiveSurfaceGridParamsFromAltitude(0.25, {
+      horizonYPercent: { altitude0: 50, altitude1: 10 },
+      cameraHeight: { altitude0: 6, altitude1: 2 },
+      fieldOfView: { altitude0: 20, altitude1: 8 },
+      surfaceAngleDeg: { altitude0: 70, altitude1: 10 },
+      radialVanishingYPercent: { altitude0: 40, altitude1: -20 },
+      radialVanishingZ: { altitude0: 20, altitude1: 4 },
+      radialStrength: { altitude0: 0.9, altitude1: 0.1 },
+      gridSpacing: { altitude0: 10, altitude1: 2 },
+      zFar: { altitude0: 48, altitude1: 16 },
+    });
+
+    expect(params.horizonYPercent).toBeCloseTo(40, 6);
+    expect(params.cameraHeight).toBeCloseTo(5, 6);
+    expect(params.fieldOfView).toBeCloseTo(17, 6);
+    expect(params.radialStrength).toBeCloseTo(0.7, 6);
+  });
+
+  it("altitude=-1과 altitude=2는 각각 0과 1로 clamp되어 Alt 0/Alt 1 끝값을 사용", () => {
+    const ranges = {
+      horizonYPercent: { altitude0: 10, altitude1: 50 },
+      cameraHeight: { altitude0: 2, altitude1: 6 },
+      fieldOfView: { altitude0: 8, altitude1: 20 },
+      surfaceAngleDeg: { altitude0: 10, altitude1: 70 },
+      radialVanishingYPercent: { altitude0: -20, altitude1: 40 },
+      radialVanishingZ: { altitude0: 4, altitude1: 20 },
+      radialStrength: { altitude0: 0.1, altitude1: 0.9 },
+      gridSpacing: { altitude0: 2, altitude1: 10 },
+      zFar: { altitude0: 16, altitude1: 48 },
+    };
+
+    expect(resolvePerspectiveSurfaceGridParamsFromAltitude(-1, ranges).horizonYPercent).toBe(10);
+    expect(resolvePerspectiveSurfaceGridParamsFromAltitude(2, ranges).horizonYPercent).toBe(50);
   });
 });
 
