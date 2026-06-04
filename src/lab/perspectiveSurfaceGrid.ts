@@ -8,6 +8,9 @@ export interface PerspectiveSurfaceGridParams {
   cameraHeight: number;
   fieldOfView: number;
   surfaceAngleDeg: number;
+  radialVanishingYPercent: number;
+  radialVanishingZ: number;
+  radialStrength: number;
   gridSpacing: number;
   xMin: number;
   xMax: number;
@@ -45,6 +48,9 @@ export const DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS: PerspectiveSurfaceGridPara
   cameraHeight: 5,
   fieldOfView: 13,
   surfaceAngleDeg: 45,
+  radialVanishingYPercent: 8,
+  radialVanishingZ: 8,
+  radialStrength: 0.28,
   gridSpacing: 4,
   xMin: -16,
   xMax: 16,
@@ -60,6 +66,10 @@ export function normalizePerspectiveSurfaceGridParams(
   const xMax = clampNumber(input.xMax, 0, 80, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.xMax);
   const zNear = clampNumber(input.zNear, 1, 40, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zNear);
   const zFar = clampNumber(input.zFar, zNear + gridSpacing, 120, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zFar);
+  const radialVanishingZFallback = Math.min(
+    zFar,
+    Math.max(zNear, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingZ),
+  );
 
   return {
     horizonYPercent: clampNumber(
@@ -71,6 +81,24 @@ export function normalizePerspectiveSurfaceGridParams(
     cameraHeight: clampNumber(input.cameraHeight, 1, 18, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.cameraHeight),
     fieldOfView: clampNumber(input.fieldOfView, 4, 28, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.fieldOfView),
     surfaceAngleDeg: clampNumber(input.surfaceAngleDeg, 0, 90, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.surfaceAngleDeg),
+    radialVanishingYPercent: clampNumber(
+      input.radialVanishingYPercent,
+      -60,
+      140,
+      DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingYPercent,
+    ),
+    radialVanishingZ: clampNumber(
+      input.radialVanishingZ,
+      zNear,
+      zFar,
+      radialVanishingZFallback,
+    ),
+    radialStrength: clampNumber(
+      input.radialStrength,
+      0,
+      1,
+      DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialStrength,
+    ),
     gridSpacing,
     xMin,
     xMax,
@@ -96,8 +124,17 @@ export function projectGroundPoint(
   const wallXPercent = PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT + x * wallScale;
   const yCurveExponent = 1 + angleFactor * (1 - angleFactor) * 10;
   const distanceFromHorizon = ((1 - normalizedDepth) ** yCurveExponent) * (params.zFar - params.zNear) * wallScale;
-  const screenXPercent = lerp(edgeXPercent, wallXPercent, angleFactor);
-  const screenYPercent = params.horizonYPercent + distanceFromHorizon * angleFactor;
+  const baseXPercent = lerp(edgeXPercent, wallXPercent, angleFactor);
+  const baseYPercent = params.horizonYPercent + distanceFromHorizon * angleFactor;
+  const polarPoint = projectPolarGroundPoint({
+    x,
+    z,
+    params,
+    wallScale,
+    angleFactor,
+  });
+  const screenXPercent = lerp(baseXPercent, polarPoint.screenXPercent, params.radialStrength);
+  const screenYPercent = lerp(baseYPercent, polarPoint.screenYPercent, params.radialStrength);
 
   return {
     x,
@@ -106,6 +143,29 @@ export function projectGroundPoint(
     screenYPercent,
     scale: perspective / nearPerspective,
     alpha: 1 - normalizedDepth * 0.72,
+  };
+}
+
+function projectPolarGroundPoint({
+  x,
+  z,
+  params,
+  wallScale,
+  angleFactor,
+}: {
+  x: number;
+  z: number;
+  params: PerspectiveSurfaceGridParams;
+  wallScale: number;
+  angleFactor: number;
+}): Pick<ProjectedGroundPoint, "screenXPercent" | "screenYPercent"> {
+  const radialWorldRadius = Math.max(0.001, params.radialVanishingZ + (params.zFar - z) * angleFactor);
+  const radialScreenDistance = radialWorldRadius * wallScale;
+  const radialAngle = x / Math.max(0.001, params.radialVanishingZ);
+
+  return {
+    screenXPercent: PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT + Math.sin(radialAngle) * radialScreenDistance,
+    screenYPercent: params.radialVanishingYPercent + radialScreenDistance,
   };
 }
 

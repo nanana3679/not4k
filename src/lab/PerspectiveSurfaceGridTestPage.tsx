@@ -91,6 +91,13 @@ export default function PerspectiveSurfaceGridTestPage() {
           cy={grid.params.horizonYPercent}
           r="0.42"
         />
+        <circle
+          className="perspective-surface-grid-radial-vanishing-point"
+          cx={PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT}
+          cy={grid.params.radialVanishingYPercent}
+          r="0.36"
+          data-radial-z={grid.params.radialVanishingZ}
+        />
       </svg>
 
       <section className="perspective-surface-grid-control" aria-label="Perspective surface grid controls">
@@ -134,6 +141,33 @@ export default function PerspectiveSurfaceGridTestPage() {
             max={90}
             step={1}
             onChange={(value) => setGridValue("surfaceAngleDeg", value)}
+          />
+          <RangeControl
+            id="perspective-radial-y"
+            label="Radial Y"
+            value={grid.params.radialVanishingYPercent}
+            min={-60}
+            max={140}
+            step={1}
+            onChange={(value) => setGridValue("radialVanishingYPercent", value)}
+          />
+          <RangeControl
+            id="perspective-radial-z"
+            label="Radial Z"
+            value={grid.params.radialVanishingZ}
+            min={grid.params.zNear}
+            max={grid.params.zFar}
+            step={1}
+            onChange={(value) => setGridValue("radialVanishingZ", value)}
+          />
+          <RangeControl
+            id="perspective-radial-strength"
+            label="Radial"
+            value={grid.params.radialStrength}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(value) => setGridValue("radialStrength", value)}
           />
           <RangeControl
             id="perspective-grid-spacing"

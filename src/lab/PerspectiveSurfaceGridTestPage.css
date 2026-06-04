@@ -64,6 +64,11 @@
   filter: drop-shadow(0 0 5px rgba(255, 211, 115, 0.54));
 }
 
+.perspective-surface-grid-radial-vanishing-point {
+  fill: rgba(109, 232, 229, 0.92);
+  filter: drop-shadow(0 0 5px rgba(109, 232, 229, 0.48));
+}
+
 .perspective-surface-grid-control {
   position: absolute;
   left: 14px;
