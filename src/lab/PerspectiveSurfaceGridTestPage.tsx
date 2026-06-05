@@ -5,7 +5,7 @@ import {
   DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS,
   PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT,
   buildPerspectiveSurfaceGrid,
-  getPerspectiveGridObjectMarker,
+  getPerspectiveGridObjectTrail,
   resolvePerspectiveSurfaceGridParamsFromAltitude,
   resolveSpanCellFromGroundPoint,
   resolveSpanGridSize,
@@ -20,6 +20,10 @@ import {
 import "./PerspectiveSurfaceGridTestPage.css";
 
 const DEFAULT_OBJECT_POINTS: GroundPoint[] = [{ x: 4, z: 8 }];
+const DEFAULT_OBJECT_LIGHT_TRAIL = {
+  timeSeconds: 0.18,
+  opacity: 0.72,
+};
 type ControlTab = "surface" | "span" | "object";
 type RangeBound = "altitude0" | "altitude1";
 
@@ -61,6 +65,7 @@ export default function PerspectiveSurfaceGridTestPage() {
   );
   const [scrollOffsetZ, setScrollOffsetZ] = useState(0);
   const [objectPoints, setObjectPoints] = useState<GroundPoint[]>(DEFAULT_OBJECT_POINTS);
+  const [objectLightTrail, setObjectLightTrail] = useState(DEFAULT_OBJECT_LIGHT_TRAIL);
   const [spanGridSize, setSpanGridSize] = useState(() => resolveSpanGridSize(DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS));
   const gridInput = useMemo(
     () => resolvePerspectiveSurfaceGridParamsFromAltitude(altitude, surfaceRanges, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS),
@@ -82,12 +87,17 @@ export default function PerspectiveSurfaceGridTestPage() {
     ),
     [grid.params, objectPoints, spanGridSize],
   );
-  const objectMarkers = useMemo(
-    () => objectPoints.map((point) => ({
-      point,
-      marker: getPerspectiveGridObjectMarker(point, grid.params),
-    })),
-    [grid.params, objectPoints],
+  const objectVisuals = useMemo(
+    () => objectPoints.map((point) => {
+      const trail = getPerspectiveGridObjectTrail(point, grid.params, objectLightTrail.timeSeconds);
+
+      return {
+        point,
+        marker: trail.head,
+        trail,
+      };
+    }),
+    [grid.params, objectLightTrail.timeSeconds, objectPoints],
   );
   const scrollSpan = grid.params.zFar - grid.params.zNear;
   const pageStyle = {
@@ -98,6 +108,13 @@ export default function PerspectiveSurfaceGridTestPage() {
 
   const setObjectSpanCell = (cell: PerspectiveSurfaceGridSpanCell) => {
     setObjectPoints((current) => toggleGroundPointAtSpanCell(current, cell, spanGridSize, grid.params));
+  };
+
+  const setObjectLightTrailValue = (key: keyof typeof objectLightTrail, value: number) => {
+    setObjectLightTrail((current) => ({
+      ...current,
+      [key]: value,
+    }));
   };
 
   const setSpanGridSizeValue = (key: keyof typeof spanGridSize, value: number) => {
@@ -171,7 +188,23 @@ export default function PerspectiveSurfaceGridTestPage() {
             opacity="0.74"
           />
         ))}
-        {objectMarkers.map(({ point, marker }, index) => (
+        {objectVisuals.map(({ point, trail }, objectIndex) => (
+          trail.segments.map((segment, segmentIndex) => (
+            <path
+              key={`${point.x}-${point.z}-${objectIndex}-trail-${segmentIndex}`}
+              className="perspective-surface-grid-object-trail"
+              d={segment.path}
+              opacity={(segment.alpha * objectLightTrail.opacity).toFixed(3)}
+              strokeWidth={getLightTrailStrokeWidth(segment.end)}
+              data-object-trail-index={objectIndex}
+              data-object-trail-segment-index={segmentIndex}
+              data-ground-x={point.x}
+              data-ground-z={point.z}
+              data-light-trail-time={objectLightTrail.timeSeconds}
+            />
+          ))
+        ))}
+        {objectVisuals.map(({ point, marker }, index) => (
           <g
             key={`${point.x}-${point.z}-${index}`}
             className="perspective-surface-grid-object"
@@ -331,6 +364,29 @@ export default function PerspectiveSurfaceGridTestPage() {
               <strong>{objectPoints.length}</strong>
             </span>
           </div>
+          <fieldset className="perspective-surface-grid-object-trail-controls">
+            <legend>Light Trail</legend>
+            <div className="perspective-surface-grid-control-grid">
+              <RangeControl
+                id="perspective-object-trail-time"
+                label="Trail Time"
+                value={objectLightTrail.timeSeconds}
+                min={0}
+                max={0.6}
+                step={0.01}
+                onChange={(value) => setObjectLightTrailValue("timeSeconds", value)}
+              />
+              <RangeControl
+                id="perspective-object-trail-opacity"
+                label="Trail Opacity"
+                value={objectLightTrail.opacity}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={(value) => setObjectLightTrailValue("opacity", value)}
+              />
+            </div>
+          </fieldset>
         </div>
       </section>
     </main>
@@ -515,6 +571,10 @@ function formatSpanPosition(position: { x: number; z: number } | null): string {
   if (position === null) return "none";
 
   return `${formatValue(position.x, 0.01)} / ${formatValue(position.z, 0.01)}`;
+}
+
+function getLightTrailStrokeWidth(point: { scale: number }): string {
+  return (0.96 * point.scale).toFixed(3);
 }
 
 function getLineOpacity(z: number, zNear: number, zFar: number): string {

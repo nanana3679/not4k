@@ -13,7 +13,11 @@ describe("PerspectiveSurfaceGridTestPage", () => {
     expect(markup).toContain("perspective-surface-grid-row");
     expect(markup).toContain("perspective-surface-grid-column");
     expect(markup).toContain("perspective-surface-grid-object");
+    expect(markup).toContain("perspective-surface-grid-object-trail");
     expect(markup).toContain('data-object-index="0"');
+    expect(markup).toContain('data-object-trail-index="0"');
+    expect(markup).toContain('data-object-trail-segment-index="0"');
+    expect(markup).toContain('data-light-trail-time="0.18"');
     expect(markup).toContain("perspective-surface-grid-forward-light");
     expect(markup).toContain("--perspective-forward-light-opacity:");
     expect(markup).toContain("--perspective-forward-light-height:");
@@ -98,6 +102,11 @@ describe("PerspectiveSurfaceGridTestPage", () => {
 
     expect(markup).toContain('aria-labelledby="perspective-tab-object"');
     expect(markup).toContain("Selected Cell");
+    expect(markup).toContain("Light Trail");
+    expect(markup).toContain('id="perspective-object-trail-time"');
+    expect(markup).toContain('id="perspective-object-trail-opacity"');
+    expect(markup).not.toContain('id="perspective-object-trail-length"');
+    expect(markup).not.toContain('id="perspective-object-trail-width"');
     expect(markup).not.toContain('id="perspective-object-x"');
     expect(markup).not.toContain('id="perspective-object-z"');
   });

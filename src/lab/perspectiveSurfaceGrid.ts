@@ -85,6 +85,22 @@ export interface PerspectiveSurfaceGrid {
   columns: PerspectiveSurfaceGridLine[];
 }
 
+export interface PerspectiveSurfaceGridObjectTrailSegment {
+  start: ProjectedGroundPoint;
+  end: ProjectedGroundPoint;
+  path: string;
+  alpha: number;
+}
+
+export interface PerspectiveSurfaceGridObjectTrail {
+  head: ProjectedGroundPoint;
+  tail: ProjectedGroundPoint;
+  points: ProjectedGroundPoint[];
+  segments: PerspectiveSurfaceGridObjectTrailSegment[];
+  path: string;
+  durationSeconds: number;
+}
+
 export const PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT = 50;
 export const DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE = 1;
 export const PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGE_KEYS: PerspectiveSurfaceGridAltitudeRangeKey[] = [
@@ -312,6 +328,51 @@ export function getPerspectiveGridObjectMarker(
     },
     params,
   );
+}
+
+export function getPerspectiveGridObjectTrail(
+  point: GroundPoint,
+  input: PerspectiveSurfaceGridInput = {},
+  durationSeconds = 0,
+): PerspectiveSurfaceGridObjectTrail {
+  const params = normalizePerspectiveSurfaceGridParams(input);
+  const normalizedDurationSeconds = clampNumber(durationSeconds, 0, 2, 0);
+  const scrollSpan = getScrollSpan(params);
+  const trailDistance = params.scrollSpeed * normalizedDurationSeconds;
+  const sampleCount = Math.max(8, Math.ceil(trailDistance / Math.max(0.5, params.gridSpacing / 2)) + 1);
+  const points = Array.from({ length: sampleCount }, (_, index) => {
+    const ageFactor = 1 - index / (sampleCount - 1);
+    const sampleParams = {
+      ...params,
+      scrollOffsetZ: params.scrollOffsetZ - params.scrollSpeed * normalizedDurationSeconds * ageFactor,
+    };
+
+    return projectGroundPoint({ x: point.x, z: getScrolledGroundZ(point.z, sampleParams) }, sampleParams);
+  });
+  const segments = points.slice(0, -1).flatMap((start, index) => {
+    const end = points[index + 1];
+    if (Math.abs(end.z - start.z) > scrollSpan / 2) return [];
+
+    const brightnessFactor = (index + 1) / (points.length - 1);
+
+    return [{
+      start,
+      end,
+      path: formatPolylinePath([start, end]),
+      alpha: roundToPrecision(0.1 + (brightnessFactor ** 1.35) * 0.9),
+    }];
+  });
+  const head = points[points.length - 1];
+  const tail = points[0];
+
+  return {
+    head,
+    tail,
+    points,
+    segments,
+    path: formatPolylinePath(points),
+    durationSeconds: normalizedDurationSeconds,
+  };
 }
 
 export function resolveGroundPointFromSpanPosition(

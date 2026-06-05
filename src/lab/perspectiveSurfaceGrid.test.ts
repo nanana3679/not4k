@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPerspectiveSurfaceGrid,
   getPerspectiveGridObjectMarker,
+  getPerspectiveGridObjectTrail,
   projectGroundPoint,
   resolveGroundPointFromSpanCell,
   resolveGroundPointFromSpanPosition,
@@ -301,6 +302,54 @@ describe("perspectiveSurfaceGrid", () => {
     );
 
     expect(marker.z).toBe(27);
+  });
+
+  it("object trail time=0.2초와 scrollSpeed=10이면 과거 이동 경로를 여러 segment로 만들고 끝으로 갈수록 어두워짐", () => {
+    const trail = getPerspectiveGridObjectTrail(
+      { x: 4, z: 20 },
+      {
+        ...NO_RADIAL_WARP,
+        gridSpacing: 4,
+        scrollOffsetZ: 4,
+        scrollSpeed: 10,
+        xMin: -8,
+        xMax: 8,
+        zNear: 4,
+        zFar: 28,
+      },
+      0.2,
+    );
+
+    expect(trail.durationSeconds).toBe(0.2);
+    expect(trail.head.z).toBe(16);
+    expect(trail.tail.z).toBe(18);
+    expect(trail.points.length).toBeGreaterThan(2);
+    expect(trail.segments).toHaveLength(trail.points.length - 1);
+    expect(trail.path.split(" L ")).toHaveLength(trail.points.length);
+    expect(trail.segments[0].alpha).toBeLessThan(trail.segments.at(-1)?.alpha ?? 0);
+  });
+
+  it("object trail이 scroll span 경계를 지나면 zFar와 zNear를 잇는 래핑 segment는 만들지 않음", () => {
+    const trail = getPerspectiveGridObjectTrail(
+      { x: 4, z: 8 },
+      {
+        ...NO_RADIAL_WARP,
+        gridSpacing: 4,
+        scrollOffsetZ: 4.1,
+        scrollSpeed: 10,
+        xMin: -8,
+        xMax: 8,
+        zNear: 4,
+        zFar: 28,
+      },
+      0.2,
+    );
+
+    expect(trail.points.some((point) => point.z > 27)).toBe(true);
+    expect(trail.points.some((point) => point.z < 5)).toBe(true);
+    expect(trail.segments.every((segment) => (
+      Math.abs(segment.end.z - segment.start.z) < 2
+    ))).toBe(true);
   });
 
   it("span x=0.75, z=0.5이면 x=-8~8, z=4~28 범위에서 object는 x=4, z=16에 배치", () => {
