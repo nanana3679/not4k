@@ -13,17 +13,23 @@ describe("PerspectiveSurfaceGridTestPage", () => {
     expect(markup).toContain("perspective-surface-grid-row");
     expect(markup).toContain("perspective-surface-grid-column");
     expect(markup).toContain("perspective-surface-grid-object");
+    expect(markup).toContain('data-object-index="0"');
+    expect(markup).toContain("perspective-surface-grid-forward-light");
+    expect(markup).toContain("--perspective-forward-light-opacity:");
+    expect(markup).toContain("--perspective-forward-light-height:");
     expect(markup).toContain('data-ground-x="4"');
     expect(markup).toContain('data-ground-z="8"');
   });
 
-  it("새 perspective surface grid 랩은 Surface/Object 탭과 altitude 기반 surface Alt 0/Alt 1 UI를 제공", () => {
+  it("새 perspective surface grid 랩은 Surface/Span/Object 탭과 altitude 기반 surface Alt 0/Alt 1 UI를 제공", () => {
     const markup = renderToStaticMarkup(createElement(PerspectiveSurfaceGridTestPage));
 
     expect(markup).toContain('role="tablist"');
     expect(markup).toContain('id="perspective-tab-surface"');
+    expect(markup).toContain('id="perspective-tab-span"');
     expect(markup).toContain('id="perspective-tab-object"');
     expect(markup).toContain('id="perspective-panel-surface"');
+    expect(markup).toContain('id="perspective-panel-span"');
     expect(markup).toContain('id="perspective-panel-object"');
     expect(markup).toContain('id="perspective-altitude"');
     expect(markup).toContain('id="perspective-horizon-y-altitude-0"');
@@ -35,15 +41,24 @@ describe("PerspectiveSurfaceGridTestPage", () => {
     expect(markup).toContain('id="perspective-fov-altitude-1"');
     expect(markup).toContain('id="perspective-surface-angle-altitude-0"');
     expect(markup).toContain('id="perspective-surface-angle-altitude-1"');
-    expect(markup).toContain('id="perspective-radial-y-altitude-0"');
-    expect(markup).toContain('id="perspective-radial-y-altitude-1"');
-    expect(markup).toContain('id="perspective-radial-z-altitude-0"');
-    expect(markup).toContain('id="perspective-radial-z-altitude-1"');
+    expect(markup).not.toContain('id="perspective-radial-y-altitude-0"');
+    expect(markup).not.toContain('id="perspective-radial-y-altitude-1"');
+    expect(markup).not.toContain('id="perspective-radial-z-altitude-0"');
+    expect(markup).not.toContain('id="perspective-radial-z-altitude-1"');
     expect(markup).toContain('id="perspective-radial-strength-altitude-0"');
     expect(markup).toContain('id="perspective-radial-strength-altitude-1"');
     expect(markup).not.toContain('id="perspective-radial-x"');
+    expect(markup).not.toContain("perspective-surface-grid-radial-vanishing-point");
     expect(markup).toContain('id="perspective-grid-spacing-altitude-0"');
     expect(markup).toContain('id="perspective-grid-spacing-altitude-1"');
+    expect(markup).toContain('id="perspective-grid-count-altitude-0"');
+    expect(markup).toContain('id="perspective-grid-count-altitude-1"');
+    expect(markup).toContain('id="perspective-scroll-speed-altitude-0"');
+    expect(markup).toContain('id="perspective-scroll-speed-altitude-1"');
+    expect(markup).toContain('id="perspective-forward-light-altitude-0"');
+    expect(markup).toContain('id="perspective-forward-light-altitude-1"');
+    expect(markup).toContain('id="perspective-forward-light-height-altitude-0"');
+    expect(markup).toContain('id="perspective-forward-light-height-altitude-1"');
     expect(markup).toContain('id="perspective-z-far-altitude-0"');
     expect(markup).toContain('id="perspective-z-far-altitude-1"');
   });
@@ -78,12 +93,32 @@ describe("PerspectiveSurfaceGridTestPage", () => {
     expect(markup).toContain('data-handle-face="1"');
   });
 
-  it("새 perspective surface grid 랩은 object 좌표와 snap 컨트롤을 Object 탭 패널에 분리", () => {
+  it("Object 탭은 배치용 x/z 슬라이더 없이 현재 object 상태만 분리해서 표시", () => {
     const markup = renderToStaticMarkup(createElement(PerspectiveSurfaceGridTestPage));
 
-    expect(markup).toContain('id="perspective-object-x"');
-    expect(markup).toContain('id="perspective-object-z"');
-    expect(markup).toContain('id="perspective-object-snap"');
     expect(markup).toContain('aria-labelledby="perspective-tab-object"');
+    expect(markup).toContain("Selected Cell");
+    expect(markup).not.toContain('id="perspective-object-x"');
+    expect(markup).not.toContain('id="perspective-object-z"');
+  });
+
+  it("Span 탭은 x/z range input 대신 가로세로 cell grid button으로 object 배치 UI를 제공", () => {
+    const markup = renderToStaticMarkup(createElement(PerspectiveSurfaceGridTestPage));
+
+    expect(markup).toContain('aria-labelledby="perspective-tab-span"');
+    expect(markup).toContain("Scroll Span");
+    expect(markup).toContain("Objects");
+    expect(markup).toContain("Span Width");
+    expect(markup).toContain("Span Height");
+    expect(markup).toContain('id="perspective-span-columns"');
+    expect(markup).toContain('id="perspective-span-rows"');
+    expect(markup).toContain("perspective-surface-grid-span-picker");
+    expect(markup).toContain("perspective-surface-grid-span-cell");
+    expect(markup).toContain('data-span-cell-column="0"');
+    expect(markup).toContain('data-span-cell-row="0"');
+    expect(markup).toContain('data-span-cell-has-object="true"');
+    expect(markup).toContain('aria-label="Span cell column 1 row 1"');
+    expect(markup).not.toContain('id="perspective-span-object-x"');
+    expect(markup).not.toContain('id="perspective-span-object-z"');
   });
 });

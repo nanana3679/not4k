@@ -1,4 +1,4 @@
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE,
   DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGES,
@@ -7,14 +7,20 @@ import {
   buildPerspectiveSurfaceGrid,
   getPerspectiveGridObjectMarker,
   resolvePerspectiveSurfaceGridParamsFromAltitude,
+  resolveSpanCellFromGroundPoint,
+  resolveSpanGridSize,
+  resolveSpanPositionFromGroundPoint,
+  toggleGroundPointAtSpanCell,
+  type GroundPoint,
+  type PerspectiveSurfaceGridSpanCell,
   type PerspectiveSurfaceGridAltitudeRangeKey,
   type PerspectiveSurfaceGridAltitudeRanges,
   type PerspectiveSurfaceGridNumberRange,
 } from "./perspectiveSurfaceGrid";
 import "./PerspectiveSurfaceGridTestPage.css";
 
-const DEFAULT_OBJECT_POINT = { x: 4, z: 8 };
-type ControlTab = "surface" | "object";
+const DEFAULT_OBJECT_POINTS: GroundPoint[] = [{ x: 4, z: 8 }];
+type ControlTab = "surface" | "span" | "object";
 type RangeBound = "altitude0" | "altitude1";
 
 interface SurfaceRangeControlConfig {
@@ -31,10 +37,19 @@ const SURFACE_RANGE_CONTROLS: SurfaceRangeControlConfig[] = [
   { key: "cameraHeight", id: "perspective-camera-height", label: "Camera H", min: 1, max: 18, step: 0.25 },
   { key: "fieldOfView", id: "perspective-fov", label: "FOV", min: 4, max: 28, step: 0.25 },
   { key: "surfaceAngleDeg", id: "perspective-surface-angle", label: "Angle", min: 0, max: 90, step: 1 },
-  { key: "radialVanishingYPercent", id: "perspective-radial-y", label: "Radial Y", min: -60, max: 140, step: 1 },
-  { key: "radialVanishingZ", id: "perspective-radial-z", label: "Radial Z", min: 1, max: 120, step: 1 },
   { key: "radialStrength", id: "perspective-radial-strength", label: "Radial", min: 0, max: 1, step: 0.01 },
   { key: "gridSpacing", id: "perspective-grid-spacing", label: "Spacing", min: 1, max: 12, step: 1 },
+  { key: "gridCount", id: "perspective-grid-count", label: "Grid Count", min: 2, max: 32, step: 1 },
+  { key: "scrollSpeed", id: "perspective-scroll-speed", label: "Scroll Speed", min: 0, max: 80, step: 1 },
+  { key: "forwardLightOpacity", id: "perspective-forward-light", label: "Light", min: 0, max: 1, step: 0.01 },
+  {
+    key: "forwardLightHeightPercent",
+    id: "perspective-forward-light-height",
+    label: "Light Height",
+    min: 0,
+    max: 100,
+    step: 1,
+  },
   { key: "zFar", id: "perspective-z-far", label: "Far Z", min: 8, max: 80, step: 1 },
 ];
 
@@ -44,34 +59,52 @@ export default function PerspectiveSurfaceGridTestPage() {
   const [surfaceRanges, setSurfaceRanges] = useState<PerspectiveSurfaceGridAltitudeRanges>(
     DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGES,
   );
-  const [objectPoint, setObjectPoint] = useState(DEFAULT_OBJECT_POINT);
-  const [snapObject, setSnapObject] = useState(true);
+  const [scrollOffsetZ, setScrollOffsetZ] = useState(0);
+  const [objectPoints, setObjectPoints] = useState<GroundPoint[]>(DEFAULT_OBJECT_POINTS);
+  const [spanGridSize, setSpanGridSize] = useState(() => resolveSpanGridSize(DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS));
   const gridInput = useMemo(
     () => resolvePerspectiveSurfaceGridParamsFromAltitude(altitude, surfaceRanges, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS),
     [altitude, surfaceRanges],
   );
-  const grid = useMemo(() => buildPerspectiveSurfaceGrid(gridInput), [gridInput]);
-  const objectGroundPoint = useMemo(() => {
-    if (!snapObject) return objectPoint;
-
-    return {
-      x: snapToStep(objectPoint.x, grid.params.gridSpacing),
-      z: snapToStep(objectPoint.z, grid.params.gridSpacing),
-    };
-  }, [grid.params.gridSpacing, objectPoint, snapObject]);
-  const objectMarker = useMemo(
-    () => getPerspectiveGridObjectMarker(objectGroundPoint, grid.params),
-    [grid.params, objectGroundPoint],
+  const grid = useMemo(() => buildPerspectiveSurfaceGrid({ ...gridInput, scrollOffsetZ }), [gridInput, scrollOffsetZ]);
+  const primaryObjectPoint = objectPoints[0] ?? null;
+  const primaryObjectSpanPosition = useMemo(
+    () => primaryObjectPoint === null ? null : resolveSpanPositionFromGroundPoint(primaryObjectPoint, grid.params),
+    [grid.params, primaryObjectPoint],
   );
+  const primarySpanCell = useMemo(
+    () => primaryObjectPoint === null ? null : resolveSpanCellFromGroundPoint(primaryObjectPoint, spanGridSize, grid.params),
+    [grid.params, primaryObjectPoint, spanGridSize],
+  );
+  const occupiedSpanCellKeys = useMemo(
+    () => new Set(
+      objectPoints.map((point) => getSpanCellKey(resolveSpanCellFromGroundPoint(point, spanGridSize, grid.params))),
+    ),
+    [grid.params, objectPoints, spanGridSize],
+  );
+  const objectMarkers = useMemo(
+    () => objectPoints.map((point) => ({
+      point,
+      marker: getPerspectiveGridObjectMarker(point, grid.params),
+    })),
+    [grid.params, objectPoints],
+  );
+  const scrollSpan = grid.params.zFar - grid.params.zNear;
   const pageStyle = {
     "--perspective-horizon-y": `${grid.params.horizonYPercent}%`,
-    "--perspective-object-x": `${objectMarker.screenXPercent}%`,
-    "--perspective-object-y": `${objectMarker.screenYPercent}%`,
-    "--perspective-object-scale": objectMarker.scale,
+    "--perspective-forward-light-opacity": grid.params.forwardLightOpacity,
+    "--perspective-forward-light-height": `${grid.params.forwardLightHeightPercent}%`,
   } as CSSProperties;
 
-  const setObjectValue = (key: keyof typeof objectPoint, value: number) => {
-    setObjectPoint((current) => ({ ...current, [key]: value }));
+  const setObjectSpanCell = (cell: PerspectiveSurfaceGridSpanCell) => {
+    setObjectPoints((current) => toggleGroundPointAtSpanCell(current, cell, spanGridSize, grid.params));
+  };
+
+  const setSpanGridSizeValue = (key: keyof typeof spanGridSize, value: number) => {
+    setSpanGridSize((current) => ({
+      ...current,
+      [key]: Math.max(1, Math.min(32, Math.round(value))),
+    }));
   };
 
   const setSurfaceRangeValue = (
@@ -88,6 +121,23 @@ export default function PerspectiveSurfaceGridTestPage() {
       };
     });
   };
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let rafId = 0;
+    let previousTime = performance.now();
+
+    const tick = (time: number) => {
+      const deltaSec = Math.min(0.05, (time - previousTime) / 1000);
+      previousTime = time;
+      setScrollOffsetZ((current) => current + gridInput.scrollSpeed * deltaSec);
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [gridInput.scrollSpeed]);
 
   return (
     <main className="perspective-surface-grid-page" style={pageStyle}>
@@ -121,35 +171,33 @@ export default function PerspectiveSurfaceGridTestPage() {
             opacity="0.74"
           />
         ))}
-        <g
-          className="perspective-surface-grid-object"
-          data-ground-x={objectGroundPoint.x}
-          data-ground-z={objectGroundPoint.z}
-          transform={`translate(${objectMarker.screenXPercent.toFixed(3)} ${objectMarker.screenYPercent.toFixed(3)})`}
-        >
-          <circle className="perspective-surface-grid-object-glow" r={(1.7 * objectMarker.scale).toFixed(3)} />
-          <circle className="perspective-surface-grid-object-core" r={(0.48 * objectMarker.scale).toFixed(3)} />
-          <line className="perspective-surface-grid-object-pin" x1="0" y1="0" x2="0" y2={(-3.4 * objectMarker.scale).toFixed(3)} />
-        </g>
+        {objectMarkers.map(({ point, marker }, index) => (
+          <g
+            key={`${point.x}-${point.z}-${index}`}
+            className="perspective-surface-grid-object"
+            data-object-index={index}
+            data-ground-x={point.x}
+            data-ground-z={point.z}
+            transform={`translate(${marker.screenXPercent.toFixed(3)} ${marker.screenYPercent.toFixed(3)})`}
+          >
+            <circle className="perspective-surface-grid-object-glow" r={(1.7 * marker.scale).toFixed(3)} />
+            <circle className="perspective-surface-grid-object-core" r={(0.48 * marker.scale).toFixed(3)} />
+            <line className="perspective-surface-grid-object-pin" x1="0" y1="0" x2="0" y2={(-3.4 * marker.scale).toFixed(3)} />
+          </g>
+        ))}
         <circle
           className="perspective-surface-grid-vanishing-point"
           cx={PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT}
           cy={grid.params.horizonYPercent}
           r="0.42"
         />
-        <circle
-          className="perspective-surface-grid-radial-vanishing-point"
-          cx={PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT}
-          cy={grid.params.radialVanishingYPercent}
-          r="0.36"
-          data-radial-z={grid.params.radialVanishingZ}
-        />
       </svg>
+      <div className="perspective-surface-grid-forward-light" aria-hidden="true" />
 
       <section className="perspective-surface-grid-control" aria-label="Perspective surface grid controls">
         <div className="perspective-surface-grid-control-header">
           <strong>Perspective Surface Grid</strong>
-          <span>alt {altitude.toFixed(2)} / x {objectGroundPoint.x} / z {objectGroundPoint.z}</span>
+          <span>alt {altitude.toFixed(2)} / objects {objectPoints.length}</span>
         </div>
         <div className="perspective-surface-grid-tabs" role="tablist" aria-label="Perspective controls">
           <button
@@ -161,6 +209,16 @@ export default function PerspectiveSurfaceGridTestPage() {
             onClick={() => setActiveTab("surface")}
           >
             Surface
+          </button>
+          <button
+            id="perspective-tab-span"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "span"}
+            aria-controls="perspective-panel-span"
+            onClick={() => setActiveTab("span")}
+          >
+            Span
           </button>
           <button
             id="perspective-tab-object"
@@ -206,41 +264,73 @@ export default function PerspectiveSurfaceGridTestPage() {
           </div>
         </div>
         <div
+          id="perspective-panel-span"
+          className="perspective-surface-grid-panel"
+          role="tabpanel"
+          aria-labelledby="perspective-tab-span"
+          hidden={activeTab !== "span"}
+        >
+          <div className="perspective-surface-grid-span-summary" aria-label="Scroll span values">
+            <span>
+              <span>Scroll Span</span>
+              <strong>{formatValue(scrollSpan, 1)}</strong>
+            </span>
+            <span>
+              <span>Objects</span>
+              <strong>{objectPoints.length}</strong>
+            </span>
+            <span>
+              <span>First Cell</span>
+              <strong>{formatSpanCell(primarySpanCell)}</strong>
+            </span>
+          </div>
+          <div className="perspective-surface-grid-control-grid perspective-surface-grid-span-size-controls">
+            <RangeControl
+              id="perspective-span-columns"
+              label="Span Width"
+              value={spanGridSize.columns}
+              min={1}
+              max={32}
+              step={1}
+              onChange={(value) => setSpanGridSizeValue("columns", value)}
+            />
+            <RangeControl
+              id="perspective-span-rows"
+              label="Span Height"
+              value={spanGridSize.rows}
+              min={1}
+              max={32}
+              step={1}
+              onChange={(value) => setSpanGridSizeValue("rows", value)}
+            />
+          </div>
+          <SpanCellPicker
+            gridSize={spanGridSize}
+            occupiedCellKeys={occupiedSpanCellKeys}
+            onSelect={setObjectSpanCell}
+          />
+        </div>
+        <div
           id="perspective-panel-object"
           className="perspective-surface-grid-panel"
           role="tabpanel"
           aria-labelledby="perspective-tab-object"
           hidden={activeTab !== "object"}
         >
-          <div className="perspective-surface-grid-control-grid perspective-surface-grid-object-controls">
-            <RangeControl
-              id="perspective-object-x"
-              label="Object X"
-              value={objectPoint.x}
-              min={grid.params.xMin}
-              max={grid.params.xMax}
-              step={1}
-              onChange={(value) => setObjectValue("x", value)}
-            />
-            <RangeControl
-              id="perspective-object-z"
-              label="Object Z"
-              value={objectPoint.z}
-              min={grid.params.zNear}
-              max={grid.params.zFar}
-              step={1}
-              onChange={(value) => setObjectValue("z", value)}
-            />
+          <div className="perspective-surface-grid-span-summary" aria-label="Object placement values">
+            <span>
+              <span>Selected Cell</span>
+              <strong>{formatSpanCell(primarySpanCell)}</strong>
+            </span>
+            <span>
+              <span>Span</span>
+              <strong>{formatSpanPosition(primaryObjectSpanPosition)}</strong>
+            </span>
+            <span>
+              <span>Objects</span>
+              <strong>{objectPoints.length}</strong>
+            </span>
           </div>
-          <label className="perspective-surface-grid-checkbox" htmlFor="perspective-object-snap">
-            <input
-              id="perspective-object-snap"
-              type="checkbox"
-              checked={snapObject}
-              onChange={(event) => setSnapObject(event.target.checked)}
-            />
-            <span>Snap object to grid</span>
-          </label>
         </div>
       </section>
     </main>
@@ -266,6 +356,52 @@ interface RangePairControlProps {
   max: number;
   step: number;
   onChange: (bound: RangeBound, value: number) => void;
+}
+
+interface SpanCellPickerProps {
+  gridSize: {
+    columns: number;
+    rows: number;
+  };
+  occupiedCellKeys: Set<string>;
+  onSelect: (cell: PerspectiveSurfaceGridSpanCell) => void;
+}
+
+function SpanCellPicker({ gridSize, occupiedCellKeys, onSelect }: SpanCellPickerProps) {
+  const pickerStyle = {
+    "--span-grid-columns": gridSize.columns,
+  } as CSSProperties;
+
+  return (
+    <div
+      className="perspective-surface-grid-span-picker"
+      style={pickerStyle}
+      role="grid"
+      aria-label="Span object placement grid"
+    >
+      {Array.from({ length: gridSize.rows }, (_, row) => (
+        Array.from({ length: gridSize.columns }, (_, column) => {
+          const hasObject = occupiedCellKeys.has(getSpanCellKey({ column, row }));
+
+          return (
+            <button
+              key={`${column}-${row}`}
+              className="perspective-surface-grid-span-cell"
+              type="button"
+              aria-label={`Span cell column ${column + 1} row ${row + 1}`}
+              aria-pressed={hasObject}
+              data-span-cell-column={column}
+              data-span-cell-row={row}
+              data-span-cell-has-object={hasObject}
+              onClick={() => onSelect({ column, row })}
+            >
+              <span aria-hidden="true" />
+            </button>
+          );
+        })
+      ))}
+    </div>
+  );
 }
 
 function RangePairControl({ id, label, value, range, min, max, step, onChange }: RangePairControlProps) {
@@ -365,10 +501,20 @@ function RangeControl({ id, label, value, min, max, step, onChange }: RangeContr
   );
 }
 
-function snapToStep(value: number, step: number): number {
-  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return value;
+function getSpanCellKey(cell: PerspectiveSurfaceGridSpanCell): string {
+  return `${cell.column}:${cell.row}`;
+}
 
-  return Math.round(value / step) * step;
+function formatSpanCell(cell: PerspectiveSurfaceGridSpanCell | null): string {
+  if (cell === null) return "none";
+
+  return `${cell.column + 1} / ${cell.row + 1}`;
+}
+
+function formatSpanPosition(position: { x: number; z: number } | null): string {
+  if (position === null) return "none";
+
+  return `${formatValue(position.x, 0.01)} / ${formatValue(position.z, 0.01)}`;
 }
 
 function getLineOpacity(z: number, zNear: number, zFar: number): string {

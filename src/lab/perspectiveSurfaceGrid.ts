@@ -3,6 +3,21 @@ export interface GroundPoint {
   z: number;
 }
 
+export interface PerspectiveSurfaceGridSpanPosition {
+  x: number;
+  z: number;
+}
+
+export interface PerspectiveSurfaceGridSpanCell {
+  column: number;
+  row: number;
+}
+
+export interface PerspectiveSurfaceGridSpanGridSize {
+  columns: number;
+  rows: number;
+}
+
 export interface PerspectiveSurfaceGridParams {
   horizonYPercent: number;
   cameraHeight: number;
@@ -12,6 +27,11 @@ export interface PerspectiveSurfaceGridParams {
   radialVanishingZ: number;
   radialStrength: number;
   gridSpacing: number;
+  gridCount: number;
+  scrollSpeed: number;
+  scrollOffsetZ: number;
+  forwardLightOpacity: number;
+  forwardLightHeightPercent: number;
   xMin: number;
   xMax: number;
   zNear: number;
@@ -28,6 +48,10 @@ export type PerspectiveSurfaceGridAltitudeRangeKey =
   | "radialVanishingZ"
   | "radialStrength"
   | "gridSpacing"
+  | "gridCount"
+  | "scrollSpeed"
+  | "forwardLightOpacity"
+  | "forwardLightHeightPercent"
   | "zFar";
 
 export interface PerspectiveSurfaceGridNumberRange {
@@ -72,6 +96,10 @@ export const PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGE_KEYS: PerspectiveSurfaceGri
   "radialVanishingZ",
   "radialStrength",
   "gridSpacing",
+  "gridCount",
+  "scrollSpeed",
+  "forwardLightOpacity",
+  "forwardLightHeightPercent",
   "zFar",
 ];
 
@@ -84,8 +112,13 @@ export const DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS: PerspectiveSurfaceGridPara
   radialVanishingZ: 8,
   radialStrength: 0.28,
   gridSpacing: 4,
-  xMin: -16,
-  xMax: 16,
+  gridCount: 6,
+  scrollSpeed: 5,
+  scrollOffsetZ: 0,
+  forwardLightOpacity: 0.16,
+  forwardLightHeightPercent: 30,
+  xMin: -24,
+  xMax: 24,
   zNear: 4,
   zFar: 28,
 };
@@ -99,6 +132,13 @@ export const DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE_RANGES: PerspectiveSurfac
   radialVanishingZ: { altitude0: 4, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingZ },
   radialStrength: { altitude0: 0.08, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialStrength },
   gridSpacing: { altitude0: 2, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridSpacing },
+  gridCount: { altitude0: 8, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridCount },
+  scrollSpeed: { altitude0: 20, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.scrollSpeed },
+  forwardLightOpacity: { altitude0: 0.72, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.forwardLightOpacity },
+  forwardLightHeightPercent: {
+    altitude0: 70,
+    altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.forwardLightHeightPercent,
+  },
   zFar: { altitude0: 16, altitude1: DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zFar },
 };
 
@@ -106,10 +146,21 @@ export function normalizePerspectiveSurfaceGridParams(
   input: PerspectiveSurfaceGridInput = {},
 ): PerspectiveSurfaceGridParams {
   const gridSpacing = clampNumber(input.gridSpacing, 1, 12, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridSpacing);
-  const xMin = clampNumber(input.xMin, -80, 0, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.xMin);
-  const xMax = clampNumber(input.xMax, 0, 80, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.xMax);
+  const gridCount = Math.round(clampNumber(input.gridCount, 2, 40, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridCount));
+  const useGridCountExtent = input.gridCount !== undefined || (input.xMin === undefined && input.xMax === undefined);
+  const xMin = useGridCountExtent
+    ? -gridSpacing * gridCount
+    : clampNumber(input.xMin, -80, 0, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.xMin);
+  const xMax = useGridCountExtent
+    ? gridSpacing * gridCount
+    : clampNumber(input.xMax, 0, 80, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.xMax);
   const zNear = clampNumber(input.zNear, 1, 40, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zNear);
-  const zFar = clampNumber(input.zFar, zNear + gridSpacing, 120, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zFar);
+  const requestedZFar = clampNumber(input.zFar, zNear + gridSpacing, 120, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.zFar);
+  const gridCountZFar = zNear + gridSpacing * gridCount;
+  const zFar = input.gridCount === undefined ? requestedZFar : Math.max(requestedZFar, gridCountZFar);
+  const scrollOffsetZ = typeof input.scrollOffsetZ === "number" && Number.isFinite(input.scrollOffsetZ)
+    ? input.scrollOffsetZ
+    : 0;
   const radialVanishingZFallback = Math.min(
     zFar,
     Math.max(zNear, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialVanishingZ),
@@ -144,6 +195,21 @@ export function normalizePerspectiveSurfaceGridParams(
       DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.radialStrength,
     ),
     gridSpacing,
+    gridCount,
+    scrollSpeed: clampNumber(input.scrollSpeed, 0, 80, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.scrollSpeed),
+    scrollOffsetZ,
+    forwardLightOpacity: clampNumber(
+      input.forwardLightOpacity,
+      0,
+      1,
+      DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.forwardLightOpacity,
+    ),
+    forwardLightHeightPercent: clampNumber(
+      input.forwardLightHeightPercent,
+      0,
+      100,
+      DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.forwardLightHeightPercent,
+    ),
     xMin,
     xMax,
     zNear,
@@ -180,58 +246,30 @@ export function projectGroundPoint(
   const farPerspective = params.cameraHeight * params.fieldOfView / params.zFar;
   const perspective = lerp(nearPerspective, farPerspective, normalizedDepth ** 0.75);
   const wallScale = params.fieldOfView / params.cameraHeight;
-  const edgeXPercent = PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT + x * perspective;
-  const wallXPercent = PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT + x * wallScale;
   const yCurveExponent = 1 + angleFactor * (1 - angleFactor) * 10;
   const distanceFromHorizon = ((1 - normalizedDepth) ** yCurveExponent) * (params.zFar - params.zNear) * wallScale;
-  const baseXPercent = lerp(edgeXPercent, wallXPercent, angleFactor);
   const baseYPercent = params.horizonYPercent + distanceFromHorizon * angleFactor;
-  const polarPoint = projectPolarGroundPoint({
-    x,
-    z,
-    params,
-    wallScale,
-    angleFactor,
-  });
-  const screenXPercent = lerp(baseXPercent, polarPoint.screenXPercent, params.radialStrength);
-  const screenYPercent = lerp(baseYPercent, polarPoint.screenYPercent, params.radialStrength);
+  const taperWidthScale = getTaperWidthScale(normalizedDepth);
+  const screenXPercent = PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT
+    + x * wallScale * lerp(1, taperWidthScale, params.radialStrength);
 
   return {
     x,
     z,
     screenXPercent,
-    screenYPercent,
+    screenYPercent: baseYPercent,
     scale: perspective / nearPerspective,
     alpha: 1 - normalizedDepth * 0.72,
   };
 }
 
-function projectPolarGroundPoint({
-  x,
-  z,
-  params,
-  wallScale,
-  angleFactor,
-}: {
-  x: number;
-  z: number;
-  params: PerspectiveSurfaceGridParams;
-  wallScale: number;
-  angleFactor: number;
-}): Pick<ProjectedGroundPoint, "screenXPercent" | "screenYPercent"> {
-  const radialWorldRadius = Math.max(0.001, params.radialVanishingZ + (params.zFar - z) * angleFactor);
-  const radialScreenDistance = radialWorldRadius * wallScale;
-  const radialAngle = x / Math.max(0.001, params.radialVanishingZ);
-
-  return {
-    screenXPercent: PERSPECTIVE_SURFACE_GRID_VANISHING_X_PERCENT + Math.sin(radialAngle) * radialScreenDistance,
-    screenYPercent: params.radialVanishingYPercent + radialScreenDistance,
-  };
+function getTaperWidthScale(normalizedDepth: number): number {
+  return lerp(1.45, 0.45, clamp01(normalizedDepth));
 }
 
 export function buildPerspectiveSurfaceGrid(input: PerspectiveSurfaceGridInput = {}): PerspectiveSurfaceGrid {
   const params = normalizePerspectiveSurfaceGridParams(input);
-  const rowZValues = createSteppedValues(params.zNear, params.zFar, params.gridSpacing);
+  const rowZValues = createScrolledSteppedValues(params.zNear, params.zFar, params.gridSpacing, params.scrollOffsetZ);
   const columnXValues = createSteppedValues(params.xMin, params.xMax, params.gridSpacing);
 
   return {
@@ -265,7 +303,155 @@ export function getPerspectiveGridObjectMarker(
   point: GroundPoint,
   input: PerspectiveSurfaceGridInput = {},
 ): ProjectedGroundPoint {
-  return projectGroundPoint(point, input);
+  const params = normalizePerspectiveSurfaceGridParams(input);
+
+  return projectGroundPoint(
+    {
+      x: point.x,
+      z: getScrolledGroundZ(point.z, params),
+    },
+    params,
+  );
+}
+
+export function resolveGroundPointFromSpanPosition(
+  position: PerspectiveSurfaceGridSpanPosition,
+  input: PerspectiveSurfaceGridInput = {},
+): GroundPoint {
+  const params = normalizePerspectiveSurfaceGridParams(input);
+
+  return {
+    x: roundToPrecision(lerp(params.xMin, params.xMax, clamp01(position.x))),
+    z: roundToPrecision(lerp(params.zNear, params.zFar, clamp01(position.z))),
+  };
+}
+
+export function resolveSpanPositionFromGroundPoint(
+  point: GroundPoint,
+  input: PerspectiveSurfaceGridInput = {},
+): PerspectiveSurfaceGridSpanPosition {
+  const params = normalizePerspectiveSurfaceGridParams(input);
+
+  return {
+    x: roundToPrecision(inverseLerp(params.xMin, params.xMax, point.x)),
+    z: roundToPrecision(inverseLerp(params.zNear, params.zFar, point.z)),
+  };
+}
+
+export function resolveSpanGridSize(input: PerspectiveSurfaceGridInput = {}): PerspectiveSurfaceGridSpanGridSize {
+  const params = normalizePerspectiveSurfaceGridParams(input);
+
+  return {
+    columns: Math.max(1, Math.round((params.xMax - params.xMin) / params.gridSpacing)),
+    rows: Math.max(1, Math.round((params.zFar - params.zNear) / params.gridSpacing)),
+  };
+}
+
+export function resolveGroundPointFromSpanCell(
+  cell: PerspectiveSurfaceGridSpanCell,
+  size: PerspectiveSurfaceGridSpanGridSize,
+  input: PerspectiveSurfaceGridInput = {},
+): GroundPoint {
+  return resolveGroundPointFromSpanPosition(resolveSpanPositionFromSpanCell(cell, size), input);
+}
+
+export function resolveSpanCellFromGroundPoint(
+  point: GroundPoint,
+  size: PerspectiveSurfaceGridSpanGridSize,
+  input: PerspectiveSurfaceGridInput = {},
+): PerspectiveSurfaceGridSpanCell {
+  return resolveSpanCellFromSpanPosition(resolveSpanPositionFromGroundPoint(point, input), size);
+}
+
+export function toggleGroundPointAtSpanCell(
+  points: GroundPoint[],
+  cell: PerspectiveSurfaceGridSpanCell,
+  size: PerspectiveSurfaceGridSpanGridSize,
+  input: PerspectiveSurfaceGridInput = {},
+): GroundPoint[] {
+  const matchingCellIndex = points.findIndex((point) => (
+    areSpanCellsEqual(resolveSpanCellFromGroundPoint(point, size, input), cell)
+  ));
+
+  if (matchingCellIndex >= 0) {
+    return points.filter((_, index) => index !== matchingCellIndex);
+  }
+
+  return [
+    ...points,
+    resolveGroundPointFromSpanCell(cell, size, input),
+  ];
+}
+
+function areSpanCellsEqual(left: PerspectiveSurfaceGridSpanCell, right: PerspectiveSurfaceGridSpanCell): boolean {
+  return left.column === right.column && left.row === right.row;
+}
+
+function resolveSpanPositionFromSpanCell(
+  cell: PerspectiveSurfaceGridSpanCell,
+  size: PerspectiveSurfaceGridSpanGridSize,
+): PerspectiveSurfaceGridSpanPosition {
+  const normalizedSize = normalizeSpanGridSize(size);
+  const column = clampInteger(cell.column, 0, normalizedSize.columns - 1);
+  const row = clampInteger(cell.row, 0, normalizedSize.rows - 1);
+
+  return {
+    x: (column + 0.5) / normalizedSize.columns,
+    z: (normalizedSize.rows - row - 0.5) / normalizedSize.rows,
+  };
+}
+
+function resolveSpanCellFromSpanPosition(
+  position: PerspectiveSurfaceGridSpanPosition,
+  size: PerspectiveSurfaceGridSpanGridSize,
+): PerspectiveSurfaceGridSpanCell {
+  const normalizedSize = normalizeSpanGridSize(size);
+  const column = Math.min(normalizedSize.columns - 1, Math.floor(clamp01(position.x) * normalizedSize.columns));
+  const zIndexFromNear = Math.min(normalizedSize.rows - 1, Math.floor(clamp01(position.z) * normalizedSize.rows));
+
+  return {
+    column,
+    row: normalizedSize.rows - 1 - zIndexFromNear,
+  };
+}
+
+function normalizeSpanGridSize(size: PerspectiveSurfaceGridSpanGridSize): PerspectiveSurfaceGridSpanGridSize {
+  return {
+    columns: Math.max(1, Math.round(Number.isFinite(size.columns) ? size.columns : 1)),
+    rows: Math.max(1, Math.round(Number.isFinite(size.rows) ? size.rows : 1)),
+  };
+}
+
+function getScrolledGroundZ(z: number, params: PerspectiveSurfaceGridParams): number {
+  const rawZ = Number.isFinite(z) ? z : params.zNear;
+  const phase = getWrappedScrollSpanOffset(params.scrollOffsetZ, getScrollSpan(params));
+  if (phase === 0) return rawZ;
+
+  const span = getScrollSpan(params);
+  let scrolledZ = rawZ - phase;
+
+  while (scrolledZ < params.zNear) scrolledZ += span;
+  while (scrolledZ > params.zFar) scrolledZ -= span;
+
+  return roundToPrecision(scrolledZ);
+}
+
+function getScrollSpan(params: PerspectiveSurfaceGridParams): number {
+  return Math.max(params.gridSpacing, params.zFar - params.zNear);
+}
+
+function createScrolledSteppedValues(min: number, max: number, step: number, offset: number): number[] {
+  const phase = getWrappedStepOffset(offset, step);
+  if (phase === 0) return createSteppedValues(min, max, step);
+
+  const values: number[] = [];
+  const firstValue = min + step - phase;
+
+  for (let value = firstValue; value <= max; value += step) {
+    values.push(roundToPrecision(value));
+  }
+
+  return values;
 }
 
 function createSteppedValues(min: number, max: number, step: number): number[] {
@@ -282,6 +468,16 @@ function createSteppedValues(min: number, max: number, step: number): number[] {
   return values;
 }
 
+function getWrappedStepOffset(offset: number, step: number): number {
+  if (!Number.isFinite(offset) || !Number.isFinite(step) || step <= 0) return 0;
+  return roundToPrecision(((offset % step) + step) % step);
+}
+
+function getWrappedScrollSpanOffset(offset: number, span: number): number {
+  if (!Number.isFinite(offset) || !Number.isFinite(span) || span <= 0) return 0;
+  return roundToPrecision(((offset % span) + span) % span);
+}
+
 function formatPolylinePath(points: ProjectedGroundPoint[]): string {
   return `M ${points.map((point) => (
     `${point.screenXPercent.toFixed(3)} ${point.screenYPercent.toFixed(3)}`
@@ -296,6 +492,18 @@ function clampNumber(value: number | undefined, min: number, max: number, fallba
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function inverseLerp(min: number, max: number, value: number): number {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
+
+  return clamp01((value - min) / (max - min));
 }
 
 function roundToPrecision(value: number): number {
