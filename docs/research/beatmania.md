@@ -54,6 +54,29 @@ IIDX는 단순한 노트 외에 다양한 특수 노트를 통해 조작의 복�
 | **Hell Charge Note (HCN)** | 누르는 동안 게이지 회복, 놓치면 감소 | 기존 CN과 달리 '생존'과 직결됨. 미스 시 리스크가 커서 유저에게 강한 심리적 압박(Stress)을 줌 |
 | **Multi-Spin Scratch (MSS)** | 방향 전환이 포함된 연속 스크래치 | 손목의 회전 반경과 속도를 정밀하게 제어해야 함. 물리적 피로도가 매우 높음 |
 
+### 2.3 게이지 옵션과 생존 압박
+
+IIDX의 게이지는 정확도 점수와 별도로 "클리어/생존"을 판정하는 축이다. Standard 모드의 기본 클리어는 곡 종료 시 게이지의 붉은 영역이 남아 있는지를 보며, HARD/EX HARD 옵션은 게이지가 소진되는 즉시 게임 오버가 된다. not4k의 비행 규칙은 이 구조를 복제하지 않고, 고도와 실패 조건을 설계하기 위한 참조 모델로만 사용한다.
+
+| 구분 | IIDX 동작 요약 | UX 압박 | not4k 참조 |
+| --- | --- | --- | --- |
+| Normal / Groove Gauge | 낮은 값에서 시작해 GOOD 이상으로 회복하고 BAD/POOR로 감소한다. 곡 종료 시 80% 이상이면 클리어한다. 게이지 0 자체가 즉시 실패는 아니다. | 끝까지 플레이한 뒤 마지막 기준을 넘겨야 하는 종료 판정 압박 | **Takeoff**: 낮은 고도에서 시작해 종료 기준을 넘기는 모델 |
+| Hard Gauge | 100%에서 시작하며 BAD/POOR로 감소하고 GOOD 이상으로 회복한다. 0% 도달 시 즉시 실패한다. | 모든 구간이 위험해지는 생존 압박 | **Ascent**: 고도를 유지하고 0이면 실패하는 모델 |
+| EX-HARD Gauge | 100%에서 시작하고 0% 도달 시 즉시 실패한다. Hard보다 피해량이 훨씬 크지만 회복은 존재한다. | 실수 허용 폭이 매우 좁은 안정성 검증 | **Breakthrough**의 직접 모델로 쓰지 않는다. "가혹한 생존 게이지" 정도만 참조한다. |
+| TIME HELL mode | 표준 게이지 옵션명이 아니라 특정 시리즈의 요일 보너스/특수 모드이다. HARD 또는 EX HARD 기반 게이지를 선택하고, 게이지가 회복하지 않는다. | 실수가 누적되는 회복 불가 소모전 | **Breakthrough**: 회복 불가 고도 규칙의 가장 가까운 참조 모델 |
+
+중요한 용어상 주의점은 `Time Hell Gauge`라고 쓰지 않는 것이다. 공식적으로 안전한 표현은 **beatmania IIDX의 TIME HELL mode에서 보이는 회복 불가 HARD/EX-HARD 계열 동작**이다. 또한 EX-HARD 자체는 회복 불가 게이지가 아니므로, not4k의 Breakthrough를 EX-HARD의 단순 복제처럼 설명하면 안 된다.
+
+참고 자료:
+
+- [beatmania IIDX 33 Sparkle Shower 공식 게임 모드](https://p.eagate.573.jp/game/2dx/33/howto/mode/game_mode.html)
+- [beatmania IIDX 33 Sparkle Shower 공식 게임 옵션](https://p.eagate.573.jp/game/2dx/33/howto/play/option.html)
+- [iidx.org Gauge Options](https://iidx.org/beginner/gauge)
+- [iidx.org Gauge Calculation and Timing Windows](https://iidx.org/compendium/gauges_and_timing)
+- [beatmania IIDX 25 CANNON BALLERS 공식 게임 모드](https://p.eagate.573.jp/game/2dx/25/p/howto/mode/game_mode.html)
+- [beatmania IIDX 29 CastHour 공식 요일 보너스](https://p.eagate.573.jp/game/2dx/29/howto/play/day_bonus.html)
+- [iidx.org History of Notable Changes](https://iidx.org/compendium/feature_history)
+
 ---
 
 ## 3. 인지 시스템과 시각 정보 처리
