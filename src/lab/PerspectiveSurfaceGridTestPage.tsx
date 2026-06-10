@@ -68,7 +68,7 @@ const SURFACE_RANGE_CONTROLS: SurfaceRangeControlConfig[] = [
   { key: "surfaceAngleDeg", id: "perspective-surface-angle", label: "Angle", min: 0, max: 90, step: 1 },
   { key: "radialStrength", id: "perspective-radial-strength", label: "Radial", min: 0, max: 1, step: 0.01 },
   { key: "gridSpacing", id: "perspective-grid-spacing", label: "Spacing", min: 1, max: 12, step: 1 },
-  { key: "gridCount", id: "perspective-grid-count", label: "Grid Count", min: 2, max: 32, step: 1 },
+  { key: "gridCount", id: "perspective-grid-count", label: "Grid Count", min: 2, max: 64, step: 1 },
   { key: "scrollSpeed", id: "perspective-scroll-speed", label: "Scroll Speed", min: 0, max: 80, step: 1 },
   { key: "forwardLightOpacity", id: "perspective-forward-light", label: "Light", min: 0, max: 1, step: 0.01 },
   {

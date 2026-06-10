@@ -245,6 +245,21 @@ describe("perspectiveSurfaceGrid", () => {
     ]);
   });
 
+  it("gridCount=80이면 최대값 64로 clamp되어 x와 z 범위도 64칸 기준으로 생성", () => {
+    const grid = buildPerspectiveSurfaceGrid({
+      ...NO_RADIAL_WARP,
+      gridCount: 80,
+      gridSpacing: 2,
+      zNear: 4,
+      zFar: 16,
+    });
+
+    expect(grid.params.gridCount).toBe(64);
+    expect(grid.params.xMin).toBe(-128);
+    expect(grid.params.xMax).toBe(128);
+    expect(grid.params.zFar).toBe(132);
+  });
+
   it("gridSpacing=4이면 triangle tile은 ground x/z에서 변 길이 4인 정삼각형 꼭짓점 3개로 생성", () => {
     const grid = buildPerspectiveSurfaceGrid({
       ...NO_RADIAL_WARP,

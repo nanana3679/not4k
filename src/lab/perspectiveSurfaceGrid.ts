@@ -269,7 +269,7 @@ export function normalizePerspectiveSurfaceGridParams(
   input: PerspectiveSurfaceGridInput = {},
 ): PerspectiveSurfaceGridParams {
   const gridSpacing = clampNumber(input.gridSpacing, 1, 12, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridSpacing);
-  const gridCount = Math.round(clampNumber(input.gridCount, 2, 40, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridCount));
+  const gridCount = Math.round(clampNumber(input.gridCount, 2, 64, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS.gridCount));
   const useGridCountExtent = input.gridCount !== undefined || (input.xMin === undefined && input.xMax === undefined);
   const xMin = useGridCountExtent
     ? -gridSpacing * gridCount

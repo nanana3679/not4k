@@ -74,6 +74,8 @@ describe("PerspectiveSurfaceGridTestPage", () => {
     expect(markup).toContain('id="perspective-grid-spacing-altitude-1"');
     expect(markup).toContain('id="perspective-grid-count-altitude-0"');
     expect(markup).toContain('id="perspective-grid-count-altitude-1"');
+    expect(markup).toMatch(/id="perspective-grid-count-altitude-0"[^>]*max="64"/);
+    expect(markup).toMatch(/id="perspective-grid-count-altitude-1"[^>]*max="64"/);
     expect(markup).toContain('id="perspective-scroll-speed-altitude-0"');
     expect(markup).toContain('id="perspective-scroll-speed-altitude-1"');
     expect(markup).toContain('id="perspective-forward-light-altitude-0"');
