@@ -163,8 +163,8 @@ _Avoid_: 이륙, 활주
 _Avoid_: 도약, 상승, Leap
 
 **Breakthrough**:
-100에서 시작해 감점만 누적되며 0 도달 시 실패하는 회복 불가 비행 규칙이다. UI와 코드에서는 영어 `Breakthrough`/`breakthrough`를 사용한다. beatmania IIDX 참조 모델은 EX-HARD 자체가 아니라 TIME HELL mode의 회복 불가 동작이다.
-_Avoid_: 돌파, HARD, 최상급
+100에서 시작해 **Perfect로만 고도를 회복**하고 0 도달 시 실패하는 비행 규칙이다. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 고도를 감소시킨다. UI와 코드에서는 영어 `Breakthrough`/`breakthrough`를 사용한다. beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
+_Avoid_: 돌파, HARD, 최상급, Time Hell Gauge, EX-HARD
 
 **난이도 등급**:
 Lv. 구간을 입문, 초급, 중급, 상급, 최상급으로 묶은 분류이다.

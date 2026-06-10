@@ -11,8 +11,11 @@
 - [`docs/context/glossary.md`](../context/glossary.md) — 난이도명, Lv., 게이지 등 용어 정의
 - [`docs/spec/scoring.md`](../spec/scoring.md) — 달성률, 랭크, 콤보, 풀콤보
 - [`docs/research/beatmania.md`](../research/beatmania.md) — IIDX 게이지 참조 모델
+- [`docs/rfd/0002-breakthrough-perfect-only-recovery.md`](0002-breakthrough-perfect-only-recovery.md) — Breakthrough 회복 규칙 후속 결정
 
 ---
+
+**후속 결정:** RFC 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFC 0001의 Play/Observer 경계, 비행 규칙 명칭, 난이도 축 분리 결정은 유지한다.
 
 ## 1. 배경
 
@@ -33,12 +36,13 @@ not4k가 수치와 세부 동작을 그대로 복제한다는 뜻은 아니다. 
 | --- | --- | --- | --- | --- |
 | 이륙 | Takeoff | 쉬움 | Normal / Groove Gauge: 낮은 값에서 시작해 종료 시 기준 이상이면 클리어 | 고도 0 시작, 종료 시 기준 고도 이상이면 클리어 |
 | 도약 | Ascent | 중간 | Hard Gauge: 100% 시작, 0% 도달 시 즉시 실패, 회복 있음 | 고도 0 도달 시 게임 오버 |
-| 돌파 | Breakthrough | 어려움 | TIME HELL mode: HARD/EX HARD 기반 게이지가 회복하지 않는 특수 모드 | 고도 100 시작, 0 도달 시 게임 오버, 회복 불가 |
+| 돌파 | Breakthrough | 어려움 | 초기 검토: TIME HELL mode. 현재 결정: RFC 0002의 Perfect-only 회복 | 고도 100 시작, Perfect로만 회복, 0 도달 시 게임 오버 |
 
 주의할 점은 `Time Hell Gauge`를 표준 게이지 옵션명처럼 쓰지 않는 것이다.
 IIDX의 EX-HARD는 회복 불가 게이지가 아니라 피해량이 큰 생존 게이지이며,
-Breakthrough의 회복 불가 모델은 EX-HARD 자체가 아니라 TIME HELL mode의
-회복 불가 동작을 참조한다.
+Breakthrough의 현재 모델은 EX-HARD나 TIME HELL mode를 복제하지 않는다.
+Breakthrough는 RFC 0002에 따라 beatmania IIDX에 상응하는 게이지가 없는
+not4k 고유 비행 규칙이다.
 
 이 초안은 비행 메타포와 시각 연출 측면에서 강하지만,
 기존의 "Play도 무조건 완주" 결정과 충돌한다.
@@ -85,7 +89,7 @@ Observer 계열  실패 조건 없이 차트를 관찰하거나 학습하는 흐
 | --- | --- |
 | Takeoff | 0에서 시작해 종료 시 기준 고도 이상이면 클리어 |
 | Ascent | 고도를 유지하며 진행하고 0 도달 시 실패 |
-| Breakthrough | 100에서 시작해 감점만 누적되며 0 도달 시 실패 |
+| Breakthrough | 100에서 시작해 Perfect로만 회복하고 0 도달 시 실패 |
 
 초안의 `이륙 / 도약 / 돌파` 감정선은 유지하되, 변수명과 UI 라벨은
 `takeoff / ascent / breakthrough`로 통일한다. `Leap`은 비행보다 점프에
