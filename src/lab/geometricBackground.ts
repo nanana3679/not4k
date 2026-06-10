@@ -32,6 +32,8 @@ export interface GeometricBackgroundParams extends GeometricBackgroundRangeParam
   parallaxSpeedPxPerSec: number;
   forwardLightOpacity: number;
   forwardLightHeightPercent: number;
+  surfaceCometOpacity: number;
+  surfaceCometHeadRadiusPx: number;
   horizonOpacity: number;
   horizonTopPercent: number;
   groundTopPercent: number;
@@ -54,6 +56,26 @@ export interface NumericRange {
 }
 
 export type RangeBoundary = keyof NumericRange;
+
+export interface SurfaceCoordinate {
+  u: number;
+  v: number;
+}
+
+export interface SurfaceProjectionParams {
+  horizonYPercent: number;
+}
+
+export interface SurfaceProjectedPoint extends SurfaceCoordinate {
+  x: number;
+  y: number;
+  scale: number;
+  alpha: number;
+  tangentX: number;
+  tangentY: number;
+  normalX: number;
+  normalY: number;
+}
 
 export const DEFAULT_FUNNEL_GRID_PARAMS: FunnelGridParams = {
   vanishingPointXPercent: 50,
@@ -122,6 +144,8 @@ export function getGeometricBackgroundParams(
     forwardLightHeightMinPercent,
     forwardLightHeightMaxPercent,
     forwardLightHeightPercent: lerp(forwardLightHeightMinPercent, forwardLightHeightMaxPercent, lowAltitudeFactor),
+    surfaceCometOpacity: lerp(0.52, 0.88, lowAltitudeFactor),
+    surfaceCometHeadRadiusPx: lerp(0.3, 0.72, lowAltitudeFactor),
     horizonOpacity: lerp(0.35, 1, clampedAltitude),
     horizonTopPercent: lerp(-18, 30, clampedAltitude),
     groundTopPercent: lerp(-15, 33, clampedAltitude),
@@ -194,8 +218,82 @@ export function getPerspectiveSurfaceDepths(lineCount: number, exponent = 2.55, 
   }).sort((a, b) => a - b);
 }
 
+export function projectSurfaceCoordinate(
+  coordinate: SurfaceCoordinate,
+  params: SurfaceProjectionParams,
+): SurfaceProjectedPoint {
+  const u = Number.isFinite(coordinate.u) ? coordinate.u : 50;
+  const v = clampNumber(coordinate.v, 0.01, 0.99, 0.01);
+  const horizonYPercent = clampNumber(params.horizonYPercent, -120, 140, 18);
+  const point = projectSurfacePosition(u, v, horizonYPercent);
+  const before = projectSurfacePosition(u - 1, v, horizonYPercent);
+  const after = projectSurfacePosition(u + 1, v, horizonYPercent);
+  const tangent = normalizeVector(after.x - before.x, after.y - before.y);
+
+  return {
+    u,
+    v,
+    x: point.x,
+    y: point.y,
+    scale: point.scale,
+    alpha: Math.min(1, Math.max(0, 0.12 + v * 0.88)),
+    tangentX: tangent.x,
+    tangentY: tangent.y,
+    normalX: -tangent.y,
+    normalY: tangent.x,
+  };
+}
+
+export function getSurfaceRowPoints(
+  v: number,
+  uSamples: number[],
+  params: SurfaceProjectionParams,
+): SurfaceProjectedPoint[] {
+  return uSamples.map((u) => projectSurfaceCoordinate({ u, v }, params));
+}
+
+export function getSurfaceColumnPoints(
+  u: number,
+  vSamples: number[],
+  params: SurfaceProjectionParams,
+): SurfaceProjectedPoint[] {
+  return vSamples.map((v) => projectSurfaceCoordinate({ u, v }, params));
+}
+
 function lerp(from: number, to: number, factor: number): number {
   return from + (to - from) * factor;
+}
+
+function projectSurfacePosition(u: number, v: number, horizonYPercent: number) {
+  const scale = 0.04 + v ** 0.86 * 0.96;
+  const x = 50 + (u - 50) * scale;
+  const baseY = horizonYPercent + (100 - horizonYPercent) * v;
+  const edgeDrop = 7.5 * (1 - v);
+  const bendLift = 18 * v * (1 - v);
+  const edgeY = baseY + edgeDrop;
+  const centerY = baseY - bendLift;
+  const t = Math.min(1, Math.max(0, (x + 8) / 116));
+
+  return {
+    x,
+    y: cubicBezier(edgeY, centerY, centerY, edgeY, t),
+    scale,
+  };
+}
+
+function normalizeVector(x: number, y: number): { x: number; y: number } {
+  const length = Math.hypot(x, y);
+  if (!Number.isFinite(length) || length === 0) return { x: 1, y: 0 };
+
+  return { x: x / length, y: y / length };
+}
+
+function cubicBezier(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const inverse = 1 - t;
+  return inverse ** 3 * p0
+    + 3 * inverse ** 2 * t * p1
+    + 3 * inverse * t ** 2 * p2
+    + t ** 3 * p3;
 }
 
 function clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {

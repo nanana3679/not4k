@@ -79,4 +79,42 @@ describe("GeometricBackgroundTestPage", () => {
     expect(markup).toContain('max="100"');
     expect(markup).toContain("--front-light-height:26%");
   });
+
+  it("surface comet은 지표면 타일 선 위의 head만 렌더링하고 tail은 렌더링하지 않음", () => {
+    const markup = renderToStaticMarkup(createElement(GeometricBackgroundTestPage));
+    const surfaceLineIndex = markup.indexOf("geometric-test-surface-lines");
+    const tileColumnIndex = markup.indexOf("geometric-test-surface-tile-columns");
+    const cometIndex = markup.indexOf("geometric-test-surface-comets");
+    const forwardLightIndex = markup.indexOf("geometric-test-forward-light");
+    const cometTileWorldXs = [...markup.matchAll(/data-surface-tile-world-x="(-?\d+)"/g)]
+      .map((match) => Number(match[1]));
+    const tileColumnWorldXs = [-74, -50, -26, -2, 24, 50, 76, 102, 126, 150, 174];
+
+    expect(markup).toContain("geometric-test-surface-tile-columns");
+    expect(markup).toContain("geometric-test-surface-comets");
+    expect(markup).toContain('data-surface-coordinate-model="shared-uv"');
+    expect(markup).toContain("geometric-test-surface-comet-head");
+    expect(markup).toContain("--surface-comet-opacity:0.52");
+    expect(markup).toContain("--surface-comet-head-radius:0.3px");
+    expect(markup.match(/geometric-test-surface-comet-head/g)).toHaveLength(10);
+    expect(cometTileWorldXs).toHaveLength(10);
+    expect(cometTileWorldXs.every((worldX) => tileColumnWorldXs.includes(worldX))).toBe(true);
+    expect(surfaceLineIndex).toBeLessThan(cometIndex);
+    expect(tileColumnIndex).toBeLessThan(cometIndex);
+    expect(cometIndex).toBeLessThan(forwardLightIndex);
+    expect(markup).not.toContain("geometric-test-surface-comet-tail");
+    expect(markup).not.toContain('data-tail-length="');
+    expect(markup).not.toContain('data-tail-axis="');
+    expect(markup).not.toContain('data-speed-factor="');
+    expect(markup).not.toContain("geometric-test-surface-accents");
+    expect(markup).not.toContain("geometric-test-surface-depth-highlight");
+    expect(markup).not.toContain("geometric-test-surface-tile-column-highlight");
+    expect(markup).not.toContain("geometric-test-surface-decals");
+    expect(markup).not.toContain("geometric-test-surface-decal");
+    expect(markup).not.toContain('data-surface-row="');
+    expect(markup).not.toContain('data-surface-column="');
+    expect(markup).not.toContain('data-surface-depth="');
+    expect(markup).not.toContain("translate(0");
+    expect(markup).not.toContain("geometric-test-near-field");
+  });
 });

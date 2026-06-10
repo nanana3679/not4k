@@ -7,6 +7,9 @@ import {
   getFunnelGridParams,
   getPerspectiveSurfaceDepths,
   getRadiatingFlowPhasePx,
+  getSurfaceColumnPoints,
+  getSurfaceRowPoints,
+  projectSurfaceCoordinate,
   updateRangeBoundary,
 } from "./geometricBackground";
 
@@ -144,6 +147,48 @@ describe("geometricBackground", () => {
       forwardLightOpacity: 1,
       forwardLightHeightPercent: 100,
     });
+  });
+
+  it("altitude=1이면 surface comet은 작고 희미한 지표면 발광점으로 유지", () => {
+    expect(getGeometricBackgroundParams(1)).toMatchObject({
+      surfaceCometOpacity: 0.52,
+      surfaceCometHeadRadiusPx: 0.3,
+    });
+  });
+
+  it("altitude=0이면 surface comet은 같은 지표면 위에서 더 선명하고 커짐", () => {
+    const params = getGeometricBackgroundParams(0);
+
+    expect(params.surfaceCometOpacity).toBeCloseTo(0.88);
+    expect(params.surfaceCometHeadRadiusPx).toBeCloseTo(0.72);
+  });
+
+  it("altitude=0.5이면 surface comet 파라미터는 고고도와 저고도의 중간값", () => {
+    const params = getGeometricBackgroundParams(0.5);
+
+    expect(params.surfaceCometOpacity).toBeCloseTo(0.7);
+    expect(params.surfaceCometHeadRadiusPx).toBeCloseTo(0.51);
+  });
+
+  it("u=24, v=0.44는 row와 column에서 같은 지표면 투영 좌표를 공유", () => {
+    const projectionParams = { horizonYPercent: 18 };
+    const rowPoint = getSurfaceRowPoints(0.44, [24], projectionParams)[0];
+    const columnPoint = getSurfaceColumnPoints(24, [0.44], projectionParams)[0];
+
+    expect(rowPoint.u).toBe(24);
+    expect(rowPoint.v).toBe(0.44);
+    expect(rowPoint.x).toBeCloseTo(columnPoint.x, 6);
+    expect(rowPoint.y).toBeCloseTo(columnPoint.y, 6);
+  });
+
+  it("u=-50은 v=0.05에서 중앙에 가깝고 v=0.9에서 화면 바깥쪽으로 더 퍼짐", () => {
+    const projectionParams = { horizonYPercent: 18 };
+    const farPoint = projectSurfaceCoordinate({ u: -50, v: 0.05 }, projectionParams);
+    const nearPoint = projectSurfaceCoordinate({ u: -50, v: 0.9 }, projectionParams);
+
+    expect(Math.abs(farPoint.x - 50)).toBeLessThan(Math.abs(nearPoint.x - 50));
+    expect(nearPoint.y).toBeGreaterThan(farPoint.y);
+    expect(farPoint.scale).toBeLessThan(nearPoint.scale);
   });
 
   it("altitude=-0.25이면 0으로 보정", () => {

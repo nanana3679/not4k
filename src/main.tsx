@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-import 'pixi.js/unsafe-eval';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';

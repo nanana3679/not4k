@@ -184,6 +184,7 @@ export class TimelineRenderer {
    */
   async init(): Promise<void> {
     this.app = new Application();
+    await import("pixi.js/unsafe-eval");
     await this.app.init({
       canvas: this.options.canvas,
       width: this.options.width,

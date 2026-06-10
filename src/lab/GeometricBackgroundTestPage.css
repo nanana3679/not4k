@@ -51,7 +51,7 @@
   mask-composite: intersect;
   clip-path: polygon(0 var(--surface-horizon-y), 100% var(--surface-horizon-y), 100% 100%, 0 100%);
   mix-blend-mode: screen;
-  opacity: 0.82;
+  opacity: 0.34;
   pointer-events: none;
   contain: paint;
 }
@@ -77,6 +77,49 @@
   stroke: rgba(238, 246, 250, 0.68);
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+}
+
+.geometric-test-surface-tile-columns {
+  pointer-events: none;
+}
+
+.geometric-test-surface-tile-column {
+  fill: none;
+  stroke: rgba(103, 219, 234, 0.48);
+  stroke-linecap: round;
+  stroke-width: 0.18px;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometric-test-surface-tile-column-amber {
+  stroke: rgba(241, 198, 103, 0.36);
+}
+
+.geometric-test-surface-comets {
+  filter: drop-shadow(0 0 5px rgba(112, 226, 238, 0.32));
+  opacity: var(--surface-comet-opacity);
+  pointer-events: none;
+}
+
+.geometric-test-surface-comet {
+  mix-blend-mode: screen;
+}
+
+.geometric-test-surface-comet-head {
+  fill: rgba(231, 252, 255, 0.98);
+  filter: drop-shadow(0 0 2px rgba(221, 252, 255, 0.95));
+}
+
+.geometric-test-surface-comet-glow {
+  fill: rgba(117, 225, 236, 0.08);
+}
+
+.geometric-test-surface-comet-amber .geometric-test-surface-comet-glow {
+  fill: rgba(241, 198, 103, 0.1);
+}
+
+.geometric-test-surface-comet-ghost .geometric-test-surface-comet-glow {
+  fill: rgba(208, 240, 242, 0.08);
 }
 
 .geometric-test-forward-light {

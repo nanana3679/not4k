@@ -21,6 +21,19 @@ import {
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
+import {
+  buildPerspectiveSurfaceGrid,
+  getPerspectiveGridObjectConnectionSegment,
+  getPerspectiveGridObjectTrail,
+  projectPerspectiveGridObjectSurfaceShape,
+  resolvePerspectiveSurfaceGridParamsFromAltitude,
+  type PerspectiveSurfaceGridLine,
+  type PerspectiveSurfaceGridObjectAppearance,
+  type PerspectiveSurfaceGridParams,
+  type ProjectedGroundPoint,
+} from "../../lab/perspectiveSurfaceGrid";
+import { DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET } from "./perspectiveSurfaceGridPreset";
+import { derivePlaceholderPerspectiveSurfaceAltitude } from "./perspectiveSurfaceAltitude";
 
 export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
@@ -53,6 +66,8 @@ export class GameRenderer {
   private initialized: boolean = false;
 
   // Layers (bottom to top)
+  private surfaceLayer: Container;
+  private surfaceGraphic: Graphics;
   private backgroundLayer: Container;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
@@ -78,6 +93,8 @@ export class GameRenderer {
   private offsetMs: number = 0;
   private textEvents: TextEventRenderData[] = [];
   private autoEvents: AutoEventRenderData[] = [];
+  private chartDurationMs: number = 0;
+  private surfaceScrollOffsetZ: number = 0;
 
   // Skin
   private skinManager: SkinManager;
@@ -150,6 +167,8 @@ export class GameRenderer {
     this.app = new Application();
 
     // Pre-create layers
+    this.surfaceLayer = new Container();
+    this.surfaceGraphic = new Graphics();
     this.backgroundLayer = new Container();
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
@@ -206,6 +225,7 @@ export class GameRenderer {
   }
 
   async init(): Promise<void> {
+    await import("pixi.js/unsafe-eval");
     await this.app.init({
       canvas: this.canvas,
       width: this.width,
@@ -215,6 +235,8 @@ export class GameRenderer {
     });
 
     // Build scene graph
+    this.surfaceLayer.addChild(this.surfaceGraphic);
+    this.app.stage.addChild(this.surfaceLayer);
     this.app.stage.addChild(this.backgroundLayer);
     this.app.stage.addChild(this.keyBeamLayer);
     this.app.stage.addChild(this.measureLineLayer);
@@ -792,6 +814,207 @@ export class GameRenderer {
     this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
+  private renderPerspectiveSurface(songTimeMs: number, deltaMs: number): void {
+    const altitude = derivePlaceholderPerspectiveSurfaceAltitude({
+      songTimeMs,
+      chartDurationMs: this.chartDurationMs,
+    });
+    const baseParams = resolvePerspectiveSurfaceGridParamsFromAltitude(
+      altitude,
+      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfaceRanges,
+      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.params,
+    );
+    const deltaSeconds = Math.max(0, Math.min(0.05, deltaMs / 1000));
+    this.surfaceScrollOffsetZ += baseParams.scrollSpeed * deltaSeconds;
+
+    const params: PerspectiveSurfaceGridParams = {
+      ...baseParams,
+      scrollOffsetZ: this.surfaceScrollOffsetZ,
+    };
+    const grid = buildPerspectiveSurfaceGrid(params);
+    const surface = this.surfaceGraphic;
+
+    surface.clear();
+    surface.rect(0, 0, this.width, this.height);
+    surface.fill(0x05080d);
+    this.drawPerspectiveSurfaceSky(surface, params);
+    this.drawPerspectiveSurfaceForwardLight(surface, params);
+
+    if (DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfacePattern === "triangles") {
+      grid.triangles.forEach((triangle, index) => {
+        const color = index % 9 === 0 ? 0xffd27c : 0x52d4e6;
+        this.strokePerspectiveSurfaceLine(surface, triangle.points, color, 0.16, 1);
+      });
+    } else {
+      grid.rows.forEach((row, index) => {
+        const alpha = this.getPerspectiveSurfaceRowAlpha(row, params);
+        const color = index % 5 === 0 ? 0xffd27c : 0x5ee9ee;
+        this.strokePerspectiveSurfaceLine(surface, row.points, color, alpha, 1);
+      });
+
+      grid.columns.forEach((column, index) => {
+        const color = index % 7 === 0 ? 0xffd27c : 0x52d4e6;
+        this.strokePerspectiveSurfaceLine(surface, column.points, color, 0.28, 1);
+      });
+    }
+
+    this.drawPerspectiveSurfaceObjects(surface, params);
+  }
+
+  private drawPerspectiveSurfaceSky(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
+    const horizonY = this.toSurfaceY(params.horizonYPercent);
+    const skyHeight = Math.max(0, Math.min(this.height, horizonY));
+    if (skyHeight <= 0) return;
+
+    surface.rect(0, 0, this.width, skyHeight);
+    surface.fill({ color: 0x111a21, alpha: 0.58 });
+  }
+
+  private drawPerspectiveSurfaceForwardLight(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
+    if (params.forwardLightOpacity <= 0) return;
+
+    const lightTopY = this.toSurfaceY(params.forwardLightHeightPercent);
+    const clampedTopY = Math.max(0, Math.min(this.height, lightTopY));
+    const alpha = Math.min(0.24, params.forwardLightOpacity * 0.24);
+    if (alpha <= 0 || clampedTopY >= this.height) return;
+
+    surface.rect(0, clampedTopY, this.width, this.height - clampedTopY);
+    surface.fill({ color: 0xc6fff7, alpha });
+  }
+
+  private drawPerspectiveSurfaceObjects(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
+    const {
+      objectConnections = [],
+      objectPlacements,
+      objectLightTrail,
+    } = DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET;
+
+    objectConnections.forEach((connection) => {
+      const segment = getPerspectiveGridObjectConnectionSegment(connection, objectPlacements, params);
+      if (segment === null) return;
+
+      this.strokePerspectiveSurfaceLine(
+        surface,
+        [segment.from, segment.to],
+        GameRenderer.parseHexColor(segment.color),
+        0.42,
+        1.2,
+      );
+    });
+
+    objectPlacements.forEach((placement) => {
+      const trail = getPerspectiveGridObjectTrail(placement, params, objectLightTrail.timeSeconds);
+      const trailPoints = trail.points.slice(0, -1);
+      trailPoints.forEach((point, index) => {
+        const progress = (index + 1) / Math.max(1, trailPoints.length);
+        this.fillPerspectiveSurfaceObjectShape(
+          surface,
+          point,
+          placement.appearance,
+          params,
+          objectLightTrail.opacity * 0.5 * progress ** 1.45,
+        );
+      });
+
+      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, {
+        ...placement.appearance,
+        diameter: placement.appearance.diameter * 1.75,
+      }, params, 0.16);
+      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, placement.appearance, params, 0.92);
+    });
+  }
+
+  private fillPerspectiveSurfaceObjectShape(
+    surface: Graphics,
+    center: ProjectedGroundPoint,
+    appearance: PerspectiveSurfaceGridObjectAppearance,
+    params: PerspectiveSurfaceGridParams,
+    alpha: number,
+  ): void {
+    if (alpha <= 0) return;
+
+    const shape = projectPerspectiveGridObjectSurfaceShape(center, appearance, params);
+    const first = shape.vertices[0];
+    if (!first) return;
+    const color = GameRenderer.parseHexColor(appearance.color);
+    const renderMode = appearance.renderMode ?? "filled";
+    const outlineWidth = GameRenderer.getPerspectiveSurfaceObjectOutlineWidth(appearance);
+
+    if (appearance.shape === "point") {
+      surface.circle(
+        this.toSurfaceX(shape.center.screenXPercent),
+        this.toSurfaceY(shape.center.screenYPercent),
+        Math.max(1, appearance.diameter * shape.center.scale * 1.4),
+      );
+      if (renderMode === "outline") {
+        surface.stroke({ width: outlineWidth, color, alpha });
+      } else {
+        surface.fill({ color, alpha });
+      }
+      return;
+    }
+
+    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
+    for (const vertex of shape.vertices.slice(1)) {
+      surface.lineTo(this.toSurfaceX(vertex.screenXPercent), this.toSurfaceY(vertex.screenYPercent));
+    }
+    surface.closePath();
+    if (renderMode === "outline") {
+      surface.stroke({ width: outlineWidth, color, alpha, alignment: 0.5 });
+    } else {
+      surface.fill({ color, alpha });
+    }
+  }
+
+  private static getPerspectiveSurfaceObjectOutlineWidth(appearance: PerspectiveSurfaceGridObjectAppearance): number {
+    const outlineWidth = appearance.outlineWidth ?? 0.18;
+    if (!Number.isFinite(outlineWidth)) return 1.2;
+
+    return Math.max(0.25, Math.min(6, outlineWidth * 6.667));
+  }
+
+  private strokePerspectiveSurfaceLine(
+    surface: Graphics,
+    points: ProjectedGroundPoint[],
+    color: number,
+    alpha: number,
+    width: number,
+  ): void {
+    const first = points[0];
+    if (!first || alpha <= 0) return;
+
+    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
+    for (const point of points.slice(1)) {
+      surface.lineTo(this.toSurfaceX(point.screenXPercent), this.toSurfaceY(point.screenYPercent));
+    }
+    surface.stroke({ width, color, alpha, alignment: 0.5 });
+  }
+
+  private getPerspectiveSurfaceRowAlpha(
+    row: PerspectiveSurfaceGridLine,
+    params: PerspectiveSurfaceGridParams,
+  ): number {
+    if (row.z === undefined) return 0.18;
+
+    const depth = (row.z - params.zNear) / Math.max(1, params.zFar - params.zNear);
+    return Math.max(0.05, Math.min(0.38, 0.08 + (1 - depth) ** 1.2 * 0.3));
+  }
+
+  private toSurfaceX(percent: number): number {
+    return (percent / 100) * this.width;
+  }
+
+  private toSurfaceY(percent: number): number {
+    return (percent / 100) * this.height;
+  }
+
+  private static parseHexColor(value: string): number {
+    const normalized = value.trim().replace(/^#/, "");
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return 0xebfffb;
+
+    return Number.parseInt(normalized, 16);
+  }
+
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
@@ -805,6 +1028,8 @@ export class GameRenderer {
     this.bpmMarkers = bpmMarkers;
     this.offsetMs = offsetMs;
     this.trillZones = trillZones;
+    this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
+    this.surfaceScrollOffsetZ = 0;
 
     this.noteRenderData = notes.map((entity, index) => {
       const timeMs = beatToMs(entity.beat, bpmMarkers, offsetMs);
@@ -849,6 +1074,7 @@ export class GameRenderer {
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     this.judgmentUI.updateFade(deltaMs);
+    this.renderPerspectiveSurface(songTimeMs, deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
