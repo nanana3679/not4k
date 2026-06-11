@@ -22,6 +22,13 @@ import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
 import {
+  applyPerspectiveSurfaceJudgment,
+  createPerspectiveSurfaceAltitudeState,
+  resolvePerspectiveSurfaceAltitude,
+  stepPerspectiveSurfaceAltitude,
+  type PerspectiveSurfaceAltitudeState,
+} from "./perspectiveSurfaceAltitude";
+import {
   buildPerspectiveSurfaceGrid,
   getPerspectiveGridObjectConnectionSegment,
   getPerspectiveGridObjectTrail,
@@ -33,7 +40,6 @@ import {
   type ProjectedGroundPoint,
 } from "../../lab/perspectiveSurfaceGrid";
 import { DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET } from "./perspectiveSurfaceGridPreset";
-import { derivePlaceholderPerspectiveSurfaceAltitude } from "./perspectiveSurfaceAltitude";
 import {
   GEAR_GAUGE_METADATA,
   getGaugeSpritePlacement,
@@ -100,6 +106,7 @@ export class GameRenderer {
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
   private surfaceScrollOffsetZ: number = 0;
+  private perspectiveSurfaceAltitudeState: PerspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
 
   // Skin
   private skinManager: SkinManager;
@@ -891,7 +898,18 @@ export class GameRenderer {
     this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
-  private renderPerspectiveSurface(altitude: number, deltaMs: number): void {
+  private renderPerspectiveSurface(songTimeMs: number, deltaMs: number): void {
+    this.perspectiveSurfaceAltitudeState = stepPerspectiveSurfaceAltitude(
+      this.perspectiveSurfaceAltitudeState,
+      deltaMs,
+    );
+    const altitude = resolvePerspectiveSurfaceAltitude({
+      state: this.perspectiveSurfaceAltitudeState,
+      songTimeMs,
+      chartDurationMs: this.chartDurationMs,
+    });
+    this.updateGearGauge(altitude);
+
     const baseParams = resolvePerspectiveSurfaceGridParamsFromAltitude(
       altitude,
       DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfaceRanges,
@@ -1103,6 +1121,7 @@ export class GameRenderer {
     this.trillZones = trillZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.surfaceScrollOffsetZ = 0;
+    this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
 
     this.noteRenderData = notes.map((entity, index) => {
       const timeMs = beatToMs(entity.beat, bpmMarkers, offsetMs);
@@ -1147,13 +1166,7 @@ export class GameRenderer {
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     this.judgmentUI.updateFade(deltaMs);
-    // 고도(게이지)는 비행 규칙 구현 전까지 임시 모델로 파생 — 구현 시 이 지점만 교체
-    const altitude = derivePlaceholderPerspectiveSurfaceAltitude({
-      songTimeMs,
-      chartDurationMs: this.chartDurationMs,
-    });
-    this.renderPerspectiveSurface(altitude, deltaMs);
-    this.updateGearGauge(altitude);
+    this.renderPerspectiveSurface(songTimeMs, deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1188,6 +1201,13 @@ export class GameRenderer {
 
     // Render active text events on the right side
     this.renderTextEvents(songTimeMs);
+  }
+
+  recordPerspectiveSurfaceJudgment(grade: JudgmentGrade): void {
+    this.perspectiveSurfaceAltitudeState = applyPerspectiveSurfaceJudgment(
+      this.perspectiveSurfaceAltitudeState,
+      grade,
+    );
   }
 
   private getMeasureLineFromPool(index: number): Graphics {

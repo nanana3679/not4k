@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { derivePlaceholderPerspectiveSurfaceAltitude } from "./perspectiveSurfaceAltitude";
+import { JudgmentGrade } from "../../shared";
+import {
+  applyPerspectiveSurfaceJudgment,
+  createPerspectiveSurfaceAltitudeState,
+  derivePlaceholderPerspectiveSurfaceAltitude,
+  resolvePerspectiveSurfaceAltitude,
+  stepPerspectiveSurfaceAltitude,
+} from "./perspectiveSurfaceAltitude";
 
 describe("derivePlaceholderPerspectiveSurfaceAltitude", () => {
   it("곡 시작 songTimeMs=0, duration=100000이면 placeholder altitude는 1", () => {
@@ -35,5 +42,62 @@ describe("derivePlaceholderPerspectiveSurfaceAltitude", () => {
       songTimeMs: 50_000,
       chartDurationMs: 0,
     })).toBe(1);
+  });
+});
+
+describe("perspective surface altitude state", () => {
+  it("miss 판정이면 같은 곡 위치에서 altitude가 즉시 낮아짐", () => {
+    const initialState = createPerspectiveSurfaceAltitudeState();
+    const missedState = applyPerspectiveSurfaceJudgment(initialState, JudgmentGrade.MISS);
+
+    expect(resolvePerspectiveSurfaceAltitude({
+      state: missedState,
+      songTimeMs: 20_000,
+      chartDurationMs: 100_000,
+    })).toBeLessThan(resolvePerspectiveSurfaceAltitude({
+      state: initialState,
+      songTimeMs: 20_000,
+      chartDurationMs: 100_000,
+    }));
+  });
+
+  it("bad 판정은 miss보다 altitude 하락폭이 작음", () => {
+    const initialState = createPerspectiveSurfaceAltitudeState();
+    const badState = applyPerspectiveSurfaceJudgment(initialState, JudgmentGrade.BAD);
+    const missState = applyPerspectiveSurfaceJudgment(initialState, JudgmentGrade.MISS);
+
+    const badAltitude = resolvePerspectiveSurfaceAltitude({
+      state: badState,
+      songTimeMs: 40_000,
+      chartDurationMs: 100_000,
+    });
+    const missAltitude = resolvePerspectiveSurfaceAltitude({
+      state: missState,
+      songTimeMs: 40_000,
+      chartDurationMs: 100_000,
+    });
+
+    expect(badAltitude).toBeGreaterThan(missAltitude);
+  });
+
+  it("perfect 판정 후 500ms가 지나면 altitude가 천천히 회복됨", () => {
+    const droppedState = applyPerspectiveSurfaceJudgment(
+      createPerspectiveSurfaceAltitudeState(),
+      JudgmentGrade.MISS,
+    );
+    const recoveringState = applyPerspectiveSurfaceJudgment(droppedState, JudgmentGrade.PERFECT);
+    const beforeRecovery = resolvePerspectiveSurfaceAltitude({
+      state: recoveringState,
+      songTimeMs: 40_000,
+      chartDurationMs: 100_000,
+    });
+    const afterRecovery = resolvePerspectiveSurfaceAltitude({
+      state: stepPerspectiveSurfaceAltitude(recoveringState, 500),
+      songTimeMs: 40_500,
+      chartDurationMs: 100_000,
+    });
+
+    expect(afterRecovery).toBeGreaterThan(beforeRecovery);
+    expect(afterRecovery).toBeLessThan(1);
   });
 });

@@ -229,6 +229,7 @@ export function PlayScreen() {
               } else {
                 scoreManager.recordJudgment(result.grade, result.deltaMs);
               }
+              renderer.recordPerspectiveSurfaceJudgment(result.grade);
               renderer.showJudgment(result.grade, result.deltaMs);
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
               if (result.grade !== 'miss') {
