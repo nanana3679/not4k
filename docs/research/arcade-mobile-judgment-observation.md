@@ -225,7 +225,7 @@ not4k는 **키음이 없는 웹 기반 PC 리듬게임**이다. 이 조합이 �
 
 1. **오디오 절대 지연은 문제가 아니다.** 키음이 없으므로 WASAPI Shared의 수십 ms 추가 지연은 `audioOffsetMs` 캘리브레이션으로 완전히 흡수된다. 플레이어는 오프셋을 한 번 잡으면 일관된 판정 경험을 얻는다.
 
-2. **오디오 분산(지터)이 진짜 적이다.** 절대 지연이 크더라도 표준편차가 작으면 캘리브레이션이 유효하다. 지터가 크면 오프셋을 잡아도 판정이 흔들린다. → `io-timing-consistency-rfc.md` W1~W4가 이 축을 다룬다.
+2. **오디오 분산(지터)이 진짜 적이다.** 절대 지연이 크더라도 표준편차가 작으면 캘리브레이션이 유효하다. 지터가 크면 오프셋을 잡아도 판정이 흔들린다. → `../rfd/0004-io-timing-consistency.md`(RFD 0004) W1~W4가 이 축을 다룬다.
 
 3. **ASIO/네이티브 전환의 실익이 없다.** 키음이 없는 한, ASIO로 얻는 절대 지연 감소는 "캘리브레이션 오프셋 값이 작아진다" 이상의 체감 개선을 만들지 않는다.
 
@@ -263,7 +263,7 @@ not4k는 **키음이 없는 웹 기반 PC 리듬게임**이다. 이 조합이 �
 
 ### 프로젝트 내부
 - `docs/research/judgment-windows.md` — 판정 윈도우 종합 분석
-- `docs/research/io-timing-consistency-rfc.md` — IO 타이밍 일관성 RFC
+- `docs/rfd/0004-io-timing-consistency.md` — IO 타이밍 일관성 개선 (RFD 0004)
 - `docs/research/perf-bottleneck-hypothesis.md` — 성능 병목 가설 검증
 - `docs/spec/audio-visual-sync.md` — 오디오/비주얼/입력 동기화 설계
 - `docs/context/stance.md` — 프로젝트 태도

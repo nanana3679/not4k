@@ -293,6 +293,6 @@ UI 문구, 튜토리얼, 로딩 팁, 알림 — 게임은 수많은 곳에서 �
 - 장르적 근거: `rationale.md`
 - 게임 시스템 상세: `overview.md`
 - 노트 시스템 스펙: `note-system.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 키 바인딩 규칙: `keybinding.md`
 - 용어 사전: `glossary.md`

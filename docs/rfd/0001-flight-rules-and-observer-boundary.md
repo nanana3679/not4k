@@ -1,4 +1,4 @@
-# RFC 0001: 비행 규칙과 Observer 경계
+# RFD 0001: 비행 규칙과 Observer 경계
 
 **Status:** Accepted (2026-06-09)
 
@@ -16,7 +16,7 @@
 
 ---
 
-**후속 결정:** RFC 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFC 0003이 비행 규칙의 도입 목적(입문 유저 동기 장치)과 Takeoff/Ascent의 관대한 밸런싱 방향을 확정한다. 특히 Ascent의 IIDX Hard Gauge 참조는 구조 참조이지 체감 난이도 참조가 아니다. RFC 0001의 Play/Observer 경계, 비행 규칙 명칭, 난이도 축 분리 결정은 유지한다.
+**후속 결정:** RFD 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFD 0003이 비행 규칙의 도입 목적(입문 유저 동기 장치)과 Takeoff/Ascent의 관대한 밸런싱 방향을 확정한다. 특히 Ascent의 IIDX Hard Gauge 참조는 구조 참조이지 체감 난이도 참조가 아니다. RFD 0001의 Play/Observer 경계, 비행 규칙 명칭, 난이도 축 분리 결정은 유지한다.
 
 ## 1. 배경
 
@@ -37,12 +37,12 @@ not4k가 수치와 세부 동작을 그대로 복제한다는 뜻은 아니다. 
 | --- | --- | --- | --- | --- |
 | 이륙 | Takeoff | 쉬움 | Normal / Groove Gauge: 낮은 값에서 시작해 종료 시 기준 이상이면 클리어 | 고도 0 시작, 종료 시 기준 고도 이상이면 클리어 |
 | 도약 | Ascent | 중간 | Hard Gauge: 100% 시작, 0% 도달 시 즉시 실패, 회복 있음 | 고도 0 도달 시 게임 오버 |
-| 돌파 | Breakthrough | 어려움 | 초기 검토: TIME HELL mode. 현재 결정: RFC 0002의 Perfect-only 회복 | 고도 100 시작, Perfect로만 회복, 0 도달 시 게임 오버 |
+| 돌파 | Breakthrough | 어려움 | 초기 검토: TIME HELL mode. 현재 결정: RFD 0002의 Perfect-only 회복 | 고도 100 시작, Perfect로만 회복, 0 도달 시 게임 오버 |
 
 주의할 점은 `Time Hell Gauge`를 표준 게이지 옵션명처럼 쓰지 않는 것이다.
 IIDX의 EX-HARD는 회복 불가 게이지가 아니라 피해량이 큰 생존 게이지이며,
 Breakthrough의 현재 모델은 EX-HARD나 TIME HELL mode를 복제하지 않는다.
-Breakthrough는 RFC 0002에 따라 beatmania IIDX에 상응하는 게이지가 없는
+Breakthrough는 RFD 0002에 따라 beatmania IIDX에 상응하는 게이지가 없는
 not4k 고유 비행 규칙이다.
 
 이 초안은 비행 메타포와 시각 연출 측면에서 강하지만,
@@ -199,7 +199,7 @@ Play에는 비행 규칙을 적용하되, 입력 가능한 무기록 완주 모�
 
 ## 8. 영향 받는 문서
 
-이 RFC가 Accepted 되면 다음 문서를 업데이트해야 한다.
+이 RFD가 Accepted 되면 다음 문서를 업데이트해야 한다.
 
 - `src/game/CONTEXT.md`
   - `게이지`가 "현재 존재하지 않는 개념"이라는 설명을 교체
@@ -235,7 +235,7 @@ Play에는 비행 규칙을 적용하되, 입력 가능한 무기록 완주 모�
 
 ## 10. Acceptance Criteria
 
-이 RFC를 Accepted로 바꾸려면 다음이 결정되어야 한다.
+이 RFD를 Accepted로 바꾸려면 다음이 결정되어야 한다.
 
 - Play가 실패 가능한 흐름인지 확정
 - Observer 계열이 담당하는 완주/관찰/학습 범위 확정

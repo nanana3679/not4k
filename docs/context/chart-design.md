@@ -182,7 +182,7 @@ not4k는 새로운 노트 처리 방식(레인당 복수 키, 트릴/더블)을 
 - 노트 시스템 상세: `note-system.md`
 - 피스 표기법: `piece-notation.md`
 - 피스 정의 (PP-000 체계): `piece-definition.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 스코어링: `scoring.md`
 - 존재 이유: `rationale.md`
 - 용어 사전: `glossary.md`

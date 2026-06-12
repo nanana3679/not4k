@@ -113,7 +113,7 @@ not4k는 이를 두 가지 장치로 관리한다.
 
 - 게임 시스템 상세: `overview.md`
 - 노트 시스템 스펙: `note-system.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 키 바인딩 규칙: `keybinding.md`
 - 용어 사전: `glossary.md`
 - 역기획 원본 자료: `../research/`

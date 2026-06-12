@@ -61,7 +61,7 @@
 ## 설계 특징
 
 - **도메인 모델 중심 설계**: Value Object(유리수 Beat), 도메인 규칙 캡슐화(배치 제약 검증), 유비쿼터스 언어(용어 사전 기반 코드-문서 용어 통일)
-- **스펙 주도 개발**: 27개 설계 문서(기획 8 + 구현 12 + 역기획 6 + PRD 1)를 선행 작성한 뒤 구현
+- **스펙 주도 개발**: 기획(context)·구현(spec)·역기획(research)·결정 기록(rfd) 문서를 선행 작성한 뒤 구현
 - **단일 진실 소스**: `shared/` 모듈을 게임 클라이언트와 채보 에디터가 공유, 데이터 불일치 방지
 - **기존 게임 분석 기반 설계**: IIDX, DJMAX, SDVX, 츄니즘, maimai 등 9종 리듬게임의 판정 윈도우·메커니즘을 비교 분석하여 설계 근거 도출
 
@@ -73,13 +73,14 @@
 
 - **context/** — 설계 의도와 맥락을 담은 문서. "왜 이렇게 만드는가", "무엇을 만드는가"에 답한다. 코드를 쓰지 않아도 읽을 수 있고, 구현 중에는 설계 결정의 근거가 필요할 때만 참조한다.
 - **spec/** — 구현에 필요한 구체적 수치·포맷·규칙을 담은 문서. "어떻게 만드는가"에 답한다. 코딩할 때 옆에 펴놓고 보는 문서다.
-- **research/** — 기존 리듬게임의 역기획 분석. context의 근거 자료로, 설계 결정이 어떤 사례에서 출발했는지 보여준다.
+- **research/** — 기존 리듬게임의 역기획 분석과 기술 가설 검증. context와 spec의 근거 자료다.
+- **rfd/** — 결정 기록(RFD). 되돌리기 어려운 제품 결정의 기존 결정, 문제의식, 대안, 채택안을 기록한다.
 
 분류 판단 기준: 해당 문서를 읽지 않으면 **코드를 작성할 수 없는가?** 그렇다면 spec, 아니라면 context.
 
 ---
 
-## context — 기획 문서 (8개)
+## context — 기획 문서
 
 "왜, 무엇을" — 설계 철학, 게임 디자인 의도, 용어 정의
 
@@ -87,14 +88,14 @@
 |------|------|
 | [overview.md](docs/context/overview.md) | **게임 설계 개요**. 핵심 메커니즘(4레인 + 다중키 바인딩), 노트 타입/피스 요약, 난이도 체계 요약. 전체 문서의 진입점 |
 | [rationale.md](docs/context/rationale.md) | **이 게임은 왜 존재하는가**. 기존 리듬게임의 3가지 구조적 문제와 아케이드 게임이 보여준 해법의 단서 |
-| [glossary.md](docs/context/glossary.md) | **용어 사전**. 게임 구조, 입력 체계, 노트 타입, 피스, 채보 설계, 판정/스코어링, 표기법 심볼의 통합 정의 |
+| [stance.md](docs/context/stance.md) | **이 게임은 플레이어를 어떻게 대하는가**. 북극성("게임은 목격자지 심판이 아니다")과 다섯 디자인 원칙, 시스템 채택/불채택 결정 |
+| [glossary.md](docs/context/glossary.md) | **용어 사전 (용어 정의의 권위 문서)**. 게임 구조, 입력 체계, 노트 타입, 피스, 채보 설계, 판정/스코어링, 표기법 심볼의 통합 정의 |
 | [chart-design.md](docs/context/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 건너가기 등 not4k 고유의 채보 설계 개념 |
-| [difficulty-design.md](docs/context/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급, 등급별 핵심 경험, 등급 간 전이 설계 |
-| [tutorial.md](docs/context/tutorial.md) | **튜토리얼 설계**. Phase 1~4의 단계적 학습 구조 |
-| [review.md](docs/context/review.md) | **문서 리뷰**. 문서 교차 검토 결과 — 해결된 모순/불일치, 미완료 항목 추적 |
+| [trill-boundary-input.md](docs/context/trill-boundary-input.md) | **트릴 구간 경계의 입력 추적 보호**. 트릴 구간 경계에서의 교대 추적 처리 배경 |
+| [review.md](docs/context/review.md) | **문서 리뷰 기록**. 과거 리뷰의 결정 기록. 미정 사항 추적은 `prd.md` §12로 단일화 |
 | [review-cross-reference.md](docs/context/review-cross-reference.md) | **교차 검토 결과**. 문서 간 모순·불일치 정리 |
 
-## spec — 구현 문서 (12개)
+## spec — 구현 문서
 
 "어떻게" — 구체적 수치, 데이터 포맷, 판정 규칙, 기술 스택
 
@@ -103,15 +104,32 @@
 | [mvp-scope.md](docs/spec/mvp-scope.md) | **MVP 스코프**. Phase A(프로토타입) / Phase B(알파) 기능 범위. **구현 진입점** |
 | [tech-stack.md](docs/spec/tech-stack.md) | **기술 스택**. React 19 + PixiJS v8 + Supabase + Web Audio API. 모노레포, 배포, 차트 JSON 포맷 |
 | [note-system.md](docs/spec/note-system.md) | **노트 시스템 상세**. 싱글/롱/트릴/더블 노트의 메커니즘, 판정, 유예 시간(12ms), 피스 정의 |
+| [difficulty-design.md](docs/spec/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급, 등급별 핵심 경험, 난이도명별 패턴 제한, 등급 간 전이 설계 |
+| [tutorial.md](docs/spec/tutorial.md) | **튜토리얼 설계**. Phase 1~4의 단계적 학습 구조 |
 | [piece-definition.md](docs/spec/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001~PP-010 카탈로그, PLv. 메타데이터 |
 | [piece-notation.md](docs/spec/piece-notation.md) | **피스 표기법**. 수직/수평 표기법 문법, 심볼 정의 |
 | [chart-editor.md](docs/spec/chart-editor.md) | **차트 편집기**. 타임라인·줌·스냅·편집 모드·단축키·배치 제약 조건, 엔티티 정의 |
+| [save-as-ux-storyline.md](docs/spec/save-as-ux-storyline.md) | **Save As UX 스토리라인**. 차트 에디터 "다른 이름으로 저장"의 사용자 경험 시나리오 |
 | [scoring.md](docs/spec/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 달성률, 랭크, 콤보 규칙 |
-| [game-core.md](docs/spec/game-core.md) | **게임 코어 설계**. 플랫폼, 인증, 랭킹, 입력 매칭, 스크롤, 오프셋, 상태 흐름 |
-| [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 약중검엄 손배치, 키보드 레이아웃, 4키→10키 프리셋 |
+| [game-core.md](docs/spec/game-core.md) | **게임 코어 설계**. 플랫폼, 인증, 랭킹, 입력 매칭, 스크롤, 비행 규칙, 오프셋, 상태 흐름 |
+| [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 약중검엄 손배치, 키보드 레이아웃, 16키 기본 프리셋, 주키/보조키 |
 | [observer-mode.md](docs/spec/observer-mode.md) | **옵저버 모드**. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |
+| [audio-visual-sync.md](docs/spec/audio-visual-sync.md) | **오디오-비주얼 동기화**. 노트 위치·음악·입력의 레이턴시 보정 설계 |
 | [grace-period-polling-rate.md](docs/spec/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 폴링 레이트별 동작 분석 |
+| [song-preview.md](docs/spec/song-preview.md) | **곡 프리뷰 구간 설정**. 프리뷰 구간 지정과 프리뷰 오디오 저장 |
+| [debug-mode.md](docs/spec/debug-mode.md) | **디버그 모드**. 노트 판정 로깅 시스템 |
 | [project-assets.md](docs/spec/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 단계별 수급 계획 |
+
+## rfd — 결정 기록
+
+되돌리기 어려운 제품 결정의 배경, 대안, 채택안을 기록한다 (`AGENTS.md` 결정 기록 규칙).
+
+| 문서 | 설명 |
+|------|------|
+| [0001](docs/rfd/0001-flight-rules-and-observer-boundary.md) | **비행 규칙과 Observer 경계**. Play 실패 가능 + Observer가 완주/학습 담당 |
+| [0002](docs/rfd/0002-breakthrough-perfect-only-recovery.md) | **Breakthrough Perfect-only 회복**. 정확도 중심 고유 규칙 |
+| [0003](docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md) | **비행 규칙 포지셔닝**. 게이지는 입문 유저 동기 장치, Takeoff/Ascent는 관대하게 밸런싱 |
+| [0004](docs/rfd/0004-io-timing-consistency.md) | **IO 타이밍 일관성 개선**. 입력·오디오 지터 제거 작업 계획 |
 
 ## 제품 요구사항
 
@@ -119,18 +137,29 @@
 |------|------|
 | [prd.md](docs/prd.md) | **PRD**. 문제 정의, 해법, 타겟 유저, 기능 범위, 성공 지표를 종합. context와 spec을 하나로 요약한 최상위 문서 |
 
-## research — 역기획 (6개)
+## research — 리서치
 
-기존 리듬게임의 역기획 분석. context의 근거 자료.
+기존 리듬게임의 역기획 분석과 기술 가설 검증. context와 spec의 근거 자료.
+
+### 역기획 보고서
 
 | 문서 | 대상 게임 | 핵심 참조 포인트 |
 |------|-----------|-----------------|
-| [beatmania.md](docs/research/beatmania.md) | beatmania IIDX | 7+1키 구조, 스크래치 복합, 4756 문제, 파지법, 소플란, 지력표 |
+| [beatmania.md](docs/research/beatmania.md) | beatmania IIDX | 7+1키 구조, 스크래치 복합, 4756 문제, 파지법, 소플란, 지력표, 게이지 옵션 |
 | [djmax.md](docs/research/djmax.md) | DJMAX RESPECT V 5B | 중앙 레인 공유(가변 손배치의 원형), 키 모드 간 전이 비용, 연타 문제 |
 | [soundvoltex.md](docs/research/soundvoltex.md) | Sound Voltex | 아날로그 노브 + 건반 복합, BT 버튼 근접 배치에 의한 손배치 자유도, 볼포스 |
 | [chunithm.md](docs/research/chunithm.md) | CHUNITHM | 물리적 칸막이 없는 슬라이더, 32분할 센서, 홀드 위 탭 공존, 입력의 면적화 |
 | [maimai.md](docs/research/maimai.md) | maimai DX | 8버튼 원형 배치, 교차 패턴, Break 노트의 가중치, 실시간 손배치 재구성 |
 | [judgment-windows.md](docs/research/judgment-windows.md) | 복수 게임 비교 | IIDX/SDVX/DDR/PIU/EZ2ON/DJMAX/osu!/프세카/Arcaea의 판정 윈도우 수집·비교 |
+
+### 관찰·가설 검증
+
+| 문서 | 주제 |
+|------|------|
+| [arcade-mobile-judgment-observation.md](docs/research/arcade-mobile-judgment-observation.md) | 모바일/아케이드 리듬게임 판정 시스템 관찰 |
+| [auto-best-judgment-note.md](docs/research/auto-best-judgment-note.md) | 최고판정 노트(Grace 노트의 원형) 기존 사례 분석 |
+| [perf-bottleneck-hypothesis.md](docs/research/perf-bottleneck-hypothesis.md) | 성능 병목 원인 가정 검증 (Draft) |
+| [realworld-frame-drops-hypothesis.md](docs/research/realworld-frame-drops-hypothesis.md) | 실사용자 환경 프레임 드롭 가설 검증 (Draft) |
 
 ---
 
@@ -138,36 +167,43 @@
 
 ```
 docs/
-├── prd.md                          # 제품 요구사항 (최상위)
-├── context/                        # 기획 — "왜, 무엇을" (8개)
+├── prd.md                          # 제품 요구사항 (최상위) — 미정 사항 단일 추적(§12)
+├── context/                        # 기획 — "왜, 무엇을"
 │   ├── overview.md                 #   게임 설계 개요 ← 시작점
 │   ├── rationale.md                #   존재 이유
-│   ├── glossary.md                 #   용어 사전
+│   ├── stance.md                   #   플레이어를 대하는 태도
+│   ├── glossary.md                 #   용어 사전 (용어 정의의 권위)
 │   ├── chart-design.md             #   차트 디자인 어휘
-│   ├── difficulty-design.md        #   난이도 설계
-│   ├── tutorial.md                 #   튜토리얼 설계
-│   ├── review.md                   #   문서 리뷰
+│   ├── trill-boundary-input.md     #   트릴 구간 경계 입력 추적
+│   ├── review.md                   #   문서 리뷰 기록
 │   └── review-cross-reference.md   #   교차 검토 결과
-├── spec/                           # 구현 — "어떻게" (12개)
+├── spec/                           # 구현 — "어떻게"
 │   ├── mvp-scope.md                #   MVP 스코프 ← 구현 진입점
 │   ├── tech-stack.md               #   기술 스택
 │   ├── note-system.md              #   노트 시스템 상세
+│   ├── difficulty-design.md        #   난이도 설계
+│   ├── tutorial.md                 #   튜토리얼 설계
 │   ├── piece-definition.md         #   피스 정의 (PP-000 체계)
 │   ├── piece-notation.md           #   피스 표기법
 │   ├── chart-editor.md             #   차트 편집기
+│   ├── save-as-ux-storyline.md     #   Save As UX 스토리라인
 │   ├── scoring.md                  #   스코어링 시스템
-│   ├── game-core.md                #   게임 코어
-│   ├── keybinding.md               #   키 바인딩 시스템
+│   ├── game-core.md                #   게임 코어 (비행 규칙 포함)
+│   ├── keybinding.md               #   키 바인딩 시스템 (주키/보조키)
 │   ├── observer-mode.md            #   옵저버 모드
+│   ├── audio-visual-sync.md        #   오디오-비주얼 동기화
 │   ├── grace-period-polling-rate.md #  유예 시간과 폴링 레이트
+│   ├── song-preview.md             #   곡 프리뷰 구간 설정
+│   ├── debug-mode.md               #   디버그 모드
 │   └── project-assets.md           #   프로젝트 에셋 정의
-└── research/                       # 역기획 보고서 (6개)
-    ├── beatmania.md
-    ├── djmax.md
-    ├── soundvoltex.md
-    ├── chunithm.md
-    ├── maimai.md
-    └── judgment-windows.md
+├── rfd/                            # 결정 기록 (RFD)
+│   ├── 0001-flight-rules-and-observer-boundary.md
+│   ├── 0002-breakthrough-perfect-only-recovery.md
+│   ├── 0003-flight-rules-positioning-newcomer-motivation.md
+│   └── 0004-io-timing-consistency.md
+├── research/                       # 역기획 보고서 + 관찰·가설 검증
+├── review/                         # 코드 리뷰 문서
+└── agents/                         # AI agent 운용 규칙
 ```
 
 ---
@@ -207,9 +243,10 @@ not4k/
 │       └── records/             #   플레이 기록 저장
 │
 ├── docs/                        # 설계 문서 (현재)
-│   ├── context/                 #   기획 문서 (8개)
-│   ├── spec/                    #   구현 문서 (12개)
-│   └── research/                #   역기획 보고서 (6개)
+│   ├── context/                 #   기획 문서
+│   ├── spec/                    #   구현 문서
+│   ├── rfd/                     #   결정 기록
+│   └── research/                #   역기획 보고서·가설 검증
 │
 └── assets/                      # 에셋 원본
     ├── visual/                  #   노트 그래픽, UI, 레인, 이펙트
@@ -238,7 +275,7 @@ game ──→ core ←── editor
 
 1. [rationale.md](docs/context/rationale.md) — 왜 이 게임이 필요한지
 2. [overview.md](docs/context/overview.md) — 게임이 어떻게 작동하는지
-3. [difficulty-design.md](docs/context/difficulty-design.md) — 난이도가 어떻게 상승하는지
+3. [difficulty-design.md](docs/spec/difficulty-design.md) — 난이도가 어떻게 상승하는지
 4. 나머지 context/ 문서와 research/ 는 필요에 따라 참조
 
 **구현을 시작하려면** (spec 순):

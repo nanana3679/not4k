@@ -1,10 +1,10 @@
-# IO 타이밍 일관성 개선 RFC
+# RFD 0004: IO 타이밍 일관성 개선
 
 **Status:** Draft (2026-04-11)
 **선행 문서:**
 - [`docs/spec/audio-visual-sync.md`](../spec/audio-visual-sync.md) — 오디오/비주얼/입력 동기화 설계 (기존 스펙)
-- [`docs/research/perf-bottleneck-hypothesis.md`](./perf-bottleneck-hypothesis.md) — 프레임 시간 지배 카테고리 측정
-- [`docs/research/realworld-frame-drops-hypothesis.md`](./realworld-frame-drops-hypothesis.md) — 실사용자 프레임 드롭 텔레메트리 설계
+- [`docs/research/perf-bottleneck-hypothesis.md`](../research/perf-bottleneck-hypothesis.md) — 프레임 시간 지배 카테고리 측정
+- [`docs/research/realworld-frame-drops-hypothesis.md`](../research/realworld-frame-drops-hypothesis.md) — 실사용자 프레임 드롭 텔레메트리 설계
 
 ---
 
@@ -12,12 +12,12 @@
 
 리듬게임에서 판정 일관성은 최상위 품질 축이다. not4k의 타깃 유저층은 오디오 인터페이스 수준의 하드웨어 투자로 ms 단위 지연을 줄이려는 플레이어이며, 게임이 **추가 지터**를 얹으면 그 하드웨어 투자가 통계적으로 무의미해진다.
 
-본 RFC가 다루는 것은 "절대 지연 감소"가 아니라 "추가 지터를 만드는 범인의 제거"이다. 절대 지연은 이미 `audio-visual-sync.md`가 설계로 다루고 있으며(일부 미구현 포함), 본 RFC는 그 스펙을 보완하면서 **지터·분산** 축에서 비어 있는 작업 항목을 채운다.
+본 RFD가 다루는 것은 "절대 지연 감소"가 아니라 "추가 지터를 만드는 범인의 제거"이다. 절대 지연은 이미 `audio-visual-sync.md`가 설계로 다루고 있으며(일부 미구현 포함), 본 RFD는 그 스펙을 보완하면서 **지터·분산** 축에서 비어 있는 작업 항목을 채운다.
 
 ## 2. 전제 (Scope)
 
 - **타깃 환경**: 유선 키보드 + 유선 오디오(또는 오디오 인터페이스). BT/무선은 범위 밖
-- **절대 지연 한계**: 브라우저(Chrome)는 Windows WASAPI shared mode로 동작하며 네이티브 ASIO 대비 수십 ms 불리. 이 차이는 웹 기술로 극복 불가능. 본 RFC는 이를 좁히는 것을 목표로 하지 않음
+- **절대 지연 한계**: 브라우저(Chrome)는 Windows WASAPI shared mode로 동작하며 네이티브 ASIO 대비 수십 ms 불리. 이 차이는 웹 기술로 극복 불가능. 본 RFD는 이를 좁히는 것을 목표로 하지 않음
 - **히트 사운드 없음**: 오디오 출력 경로의 지터원은 곡 재생 1개뿐. 이펙트 사운드 스케줄링은 고려 대상이 아님
 - **캘리브레이션**: 시각/오디오 분리되어 이미 구현됨 (`audioOffsetMs`, `judgmentOffsetMs`)
 - **이미 구현된 대응**: `KeyboardEvent.timeStamp` 사용, 핸들러 큐 지연(`handlerDelay`) 보정 — 회귀 방지 대상
@@ -159,9 +159,9 @@ renderer.renderFrame(visualTimeMs);     // 렌더: 출력 지연만큼 미래
 
 ---
 
-## 5. 연기 항목 (Future Work — 본 RFC에서 구현하지 않음)
+## 5. 연기 항목 (Future Work — 본 RFD에서 구현하지 않음)
 
-다음 항목들은 본 RFC 범위 밖이지만, 추후 별도 작업이 가능하도록 설계 결정을 문서화한다. 각 항목은 독립적으로 진행 가능.
+다음 항목들은 본 RFD 범위 밖이지만, 추후 별도 작업이 가능하도록 설계 결정을 문서화한다. 각 항목은 독립적으로 진행 가능.
 
 ### F1. 판정 히스토그램 (리절트 화면 + 플레이 중 옵션)
 
@@ -222,15 +222,15 @@ renderer.renderFrame(visualTimeMs);     // 렌더: 출력 지연만큼 미래
 
 ## 7. ASIO 한계 고지
 
-본 RFC의 모든 작업 항목은 다음 약속의 구현체이다:
+본 RFD의 모든 작업 항목은 다음 약속의 구현체이다:
 
 > **"당신의 환경이 제공하는 기본 지연에 not4k는 추가 지터를 얹지 않는다"**
 
-not4k는 네이티브 ASIO 환경을 **대체하지 않는다**. 브라우저(Chrome)는 Windows에서 WASAPI shared mode로 동작하며, 네이티브 ASIO exclusive mode 대비 절대 지연에서 수십 ms 불리하다. 이 차이는 본 RFC가 해결하지 못한다.
+not4k는 네이티브 ASIO 환경을 **대체하지 않는다**. 브라우저(Chrome)는 Windows에서 WASAPI shared mode로 동작하며, 네이티브 ASIO exclusive mode 대비 절대 지연에서 수십 ms 불리하다. 이 차이는 본 RFD가 해결하지 못한다.
 
-not4k가 줄일 수 있는 것은 **분산**이다. 평균 지연이 ASIO 환경보다 크더라도, 그 값의 표준편차가 작다면 사용자는 캘리브레이션으로 평균을 잡아낸 뒤 일관된 판정 경험을 얻는다. 타깃 유저층의 요구는 **"절대 지연 0"이 아니라 "예측 가능한 지연"** 이라는 가정 위에 본 RFC가 설계된다.
+not4k가 줄일 수 있는 것은 **분산**이다. 평균 지연이 ASIO 환경보다 크더라도, 그 값의 표준편차가 작다면 사용자는 캘리브레이션으로 평균을 잡아낸 뒤 일관된 판정 경험을 얻는다. 타깃 유저층의 요구는 **"절대 지연 0"이 아니라 "예측 가능한 지연"** 이라는 가정 위에 본 RFD가 설계된다.
 
-이 가정이 틀리면 RFC 전제가 무너진다. 가정이 맞는지는 F1~F4의 데이터 수집 이후 사용자 피드백으로 재검증한다.
+이 가정이 틀리면 RFD 전제가 무너진다. 가정이 맞는지는 F1~F4의 데이터 수집 이후 사용자 피드백으로 재검증한다.
 
 ---
 
@@ -267,16 +267,16 @@ not4k가 줄일 수 있는 것은 **분산**이다. 평균 지연이 ASIO 환경
 ### 8.5 측정 도구 제약
 - **영상 분석**은 W3 검증에 필요하나 자동화 어려움. 수동 측정 허용
 - **Allocation sampling**은 Chrome DevTools에 의존. 재현성을 위해 동일 브라우저 버전 기록
-- **엔드-투-엔드 마이크+카메라 측정**은 본 RFC 범위 밖 (비용 과다). 단 F1~F4 도입 후 사용자 보고 불일치 시에는 이 방법이 유일한 지상진실임
+- **엔드-투-엔드 마이크+카메라 측정**은 본 RFD 범위 밖 (비용 과다). 단 F1~F4 도입 후 사용자 보고 불일치 시에는 이 방법이 유일한 지상진실임
 
 ---
 
 ## 9. 타 문서와의 관계
 
-- **`audio-visual-sync.md`**: 본 RFC의 W4는 이 문서의 §A 구현. 본 RFC 머지 후 `audio-visual-sync.md`의 "구현 우선순위" 표에서 A 항목 상태를 갱신할 것 (`[미구현]` → `[구현 완료]`)
-- **`perf-bottleneck-hypothesis.md`**: 본 RFC는 이 문서의 §4.2가 드러낸 `judge` 카테고리의 throttling 민감성과는 **별개 축**이다. 그 문서는 "절대 프레임 시간", 본 RFC는 "분산"이다
-- **`realworld-frame-drops-hypothesis.md`**: F2·F3가 이 문서의 텔레메트리와 통합 가능. 그 RFC가 먼저 머지되면 F2·F3는 필드 추가만으로 구현
-- **CLAUDE.md 테스트 규칙**: 본 RFC의 모든 W 항목은 Vitest 단위 테스트 동반 필수
+- **`audio-visual-sync.md`**: 본 RFD의 W4는 이 문서의 §A 구현. 본 RFD 머지 후 `audio-visual-sync.md`의 "구현 우선순위" 표에서 A 항목 상태를 갱신할 것 (`[미구현]` → `[구현 완료]`)
+- **`perf-bottleneck-hypothesis.md`**: 본 RFD는 이 문서의 §4.2가 드러낸 `judge` 카테고리의 throttling 민감성과는 **별개 축**이다. 그 문서는 "절대 프레임 시간", 본 RFD는 "분산"이다
+- **`realworld-frame-drops-hypothesis.md`**: F2·F3가 이 문서의 텔레메트리와 통합 가능. 그 RFD가 먼저 머지되면 F2·F3는 필드 추가만으로 구현
+- **CLAUDE.md 테스트 규칙**: 본 RFD의 모든 W 항목은 Vitest 단위 테스트 동반 필수
 
 ---
 
@@ -298,7 +298,7 @@ not4k가 줄일 수 있는 것은 **분산**이다. 평균 지연이 ASIO 환경
 
 ---
 
-## 부록 A. 본 RFC 범위 밖이지만 관련 있음
+## 부록 A. 본 RFD 범위 밖이지만 관련 있음
 
 - 판정 윈도우 설계: `docs/research/judgment-windows.md`, `docs/spec/scoring.md`
 - 디버그 지표 검증: `docs/spec/debug-mode.md`

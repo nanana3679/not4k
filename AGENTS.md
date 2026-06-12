@@ -50,7 +50,10 @@
 ## 용어 규칙
 
 - 프로젝트 고유 용어나 모르는 용어를 만나면 추측하지 말고 먼저 `CONTEXT-MAP.md`를 읽고, 관련 `CONTEXT.md`와 `docs/context/glossary.md`를 참조할 것
-- 새로운 개념이나 용어를 도입할 때는 관련 `CONTEXT.md` 또는 `docs/context/glossary.md`에 정의를 추가할 것
+- **용어 정의의 권위는 `docs/context/glossary.md`이다.** 풀 정의·세부 규칙·배경 링크는 glossary에 둔다
+- 루트 및 모듈 `CONTEXT.md`에는 한두 줄 요약 정의만 두고, 세부는 glossary 또는 관련 RFD 링크로 연결할 것
+- 새로운 개념이나 용어를 도입할 때는 `docs/context/glossary.md`에 먼저 정의를 추가하고, 관련 `CONTEXT.md`에 요약을 동기화할 것
+- 용어의 의미가 바뀌면 glossary를 먼저 갱신하고, 같은 용어를 요약한 `CONTEXT.md`들을 함께 동기화할 것
 
 ## 문서 업데이트 규칙
 
@@ -71,6 +74,8 @@
 - 이후 `CONTEXT.md`와 관련 컨텍스트 문서에는 변경 내역이 아니라 현재 확정된 용어와 규칙만 반영할 것
 - `CONTEXT.md`에는 필요한 경우 해당 RFD 링크를 남길 것
 - 단순 구현 세부사항이나 되돌리기 쉬운 변경은 RFD를 만들지 말 것
+- 결정 문서의 정식 명칭은 **RFD**로 통일한다. 파일 제목과 본문에서 RFC, ADR을 사용하지 말 것
+- 미정/미결정 사항의 추적은 `docs/prd.md`의 "미정 사항" 섹션에서 단일하게 관리할 것. 다른 문서에 미정 추적 표를 중복으로 만들지 말고 PRD를 링크할 것
 
 ## Agent skills
 

@@ -14,7 +14,7 @@ maimai나 Sound Voltex처럼, 고난이도 차트에서는 인지적 부하가 �
 
 ### Play/Observer 경계
 
-Play에 비행 규칙(고도 기반 클리어/실패)이 도입되면서(RFC 0001), **실패 조건 없는 완주·관찰·구간 반복 학습은 Observer 계열이 담당한다.** Play에서 실패할 수 있는 차트를 끝까지 확인하고 싶은 유저는 옵저버 모드를 사용한다. 입력 가능한 무기록 완주 흐름(가칭 Free Flight)이 필요한지는 미결 상태다(`../rfd/0001-flight-rules-and-observer-boundary.md` §9).
+Play에 비행 규칙(고도 기반 클리어/실패)이 도입되면서(RFD 0001), **실패 조건 없는 완주·관찰·구간 반복 학습은 Observer 계열이 담당한다.** Play에서 실패할 수 있는 차트를 끝까지 확인하고 싶은 유저는 옵저버 모드를 사용한다. 입력 가능한 무기록 완주 흐름(가칭 Free Flight)이 필요한지는 미결 상태다(`../rfd/0001-flight-rules-and-observer-boundary.md` §9).
 
 ---
 

@@ -254,7 +254,7 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 ### 난이도 축 (Difficulty Axis)
 
-레벨을 구성하는 4가지 독립적인 차원. `difficulty-design.md`에서 정의한다.
+레벨을 구성하는 4가지 독립적인 차원. `../spec/difficulty-design.md`에서 정의한다.
 
 1. **노트 밀도** — 초당 입력 수 (BPM × 비트 분할)
 2. **트릴 복합도** — 트릴의 길이, 속도, 다른 레인과의 동시 진행 여부
@@ -405,7 +405,7 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 - 게임 개요: `overview.md`
 - 노트 시스템: `note-system.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 차트 디자인: `chart-design.md`
 - 피스 표기법: `piece-notation.md`
 - 피스 정의 (PP-000 체계): `piece-definition.md`

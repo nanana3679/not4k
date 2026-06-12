@@ -103,7 +103,7 @@ not4k가 지향하는 난이도는 **"정확한 타이밍"이 아니라 "트릭�
 
 ## 난이도 설계 요약
 
-자세한 설계는 `difficulty-design.md`를 참고한다.
+자세한 설계는 `../spec/difficulty-design.md`를 참고한다.
 
 **모든 노트 타입은 가장 쉬운 레벨(Lv.1)부터 등장한다.** 난이도에 따라 변하는 것은 등장 여부가 아니라 빈도와 복합도이다.
 
@@ -131,12 +131,12 @@ not4k가 지향하는 난이도는 **"정확한 타이밍"이 아니라 "트릭�
 
 - 존재 이유: `rationale.md`
 - 노트 시스템 상세: `note-system.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 차트 디자인 어휘: `chart-design.md`
 - 피스 표기법: `piece-notation.md`
 - 피스 정의 (PP-000 체계): `piece-definition.md`
 - 스코어링 시스템: `scoring.md`
 - 키 바인딩 규칙: `keybinding.md`
 - 옵저버 모드: `observer-mode.md`
-- 튜토리얼 설계: `tutorial.md`
+- 튜토리얼 설계: `../spec/tutorial.md`
 - 용어 사전: `glossary.md`

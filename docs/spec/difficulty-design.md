@@ -146,5 +146,5 @@ EASY와 NORMAL 차트에서 싱글→더블 전환이 필요한 경우, 반드�
 - 키 바인딩: `keybinding.md`
 - 피스 표기법: `piece-notation.md`
 - 피스 정의 (PP-000 체계): `piece-definition.md`
-- 차트 디자인 어휘: `chart-design.md`
-- 용어 사전: `glossary.md`
+- 차트 디자인 어휘: `../context/chart-design.md`
+- 용어 사전: `../context/glossary.md`
