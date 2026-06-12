@@ -1,4 +1,4 @@
-# RFC 0002: Breakthrough Perfect-only 회복
+# RFD 0002: Breakthrough Perfect-only 회복
 
 **Status:** Accepted (2026-06-10)
 
@@ -13,7 +13,7 @@
 
 ## 1. 배경
 
-RFC 0001은 `Takeoff / Ascent / Breakthrough`를 not4k의 비행 규칙 이름으로 채택했다.
+RFD 0001은 `Takeoff / Ascent / Breakthrough`를 not4k의 비행 규칙 이름으로 채택했다.
 그중 Breakthrough는 처음에 beatmania IIDX의 `TIME HELL mode`처럼 회복하지 않는
 HARD/EX HARD 계열 동작을 참조 모델로 검토했다.
 
@@ -129,16 +129,16 @@ Breakthrough의 메시지는 "덜 틀려라"가 아니라 **"정확히 쳐야 �
 
 **C. Perfect-only 회복**을 채택한다.
 
-RFC 0001의 Play/Observer 경계, `Takeoff / Ascent / Breakthrough` 명칭,
+RFD 0001의 Play/Observer 경계, `Takeoff / Ascent / Breakthrough` 명칭,
 비행 규칙과 Lv./난이도명의 분리 결정은 유지한다.
-이 RFC는 Breakthrough의 참조 모델과 회복 규칙만 대체한다.
+이 RFD는 Breakthrough의 참조 모델과 회복 규칙만 대체한다.
 
 ---
 
 ## 7. 영향 받는 문서
 
 - `docs/rfd/0001-flight-rules-and-observer-boundary.md`
-  - Breakthrough의 `TIME HELL mode` 참조가 RFC 0002로 대체되었음을 표시한다.
+  - Breakthrough의 `TIME HELL mode` 참조가 RFD 0002로 대체되었음을 표시한다.
 - `docs/research/beatmania.md`
   - `TIME HELL mode`는 과거 검토한 참조 모델이며, 현재 Breakthrough 모델이 아님을 표시한다.
 - `CONTEXT.md`

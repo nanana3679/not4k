@@ -38,6 +38,14 @@
 
 not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4손가락을 사용하고 소지를 배제한다. 인체공학적으로 자연스러운 자세를 유지하면서 레인당 2키 바인딩을 구현한다.
 
+### 주키 (Main Key)
+
+기본 손 위치에서 주로 사용하는 바인딩 키. 시스템상으로는 모든 바인딩 키가 동등하며(`keybinding.md` 핵심 규칙 2), 주키/보조키는 유저의 운용 개념이다.
+
+### 보조키 (Auxiliary Key)
+
+손 옮기기 등 특정 패턴에서만 한정적으로 사용하는 바인딩 키. 16키 프리셋이라도 16키를 동시에 사용하는 구간은 없다 — 동시 활용은 최대 8키 수준이며, 패턴마다 유도되는 보조키가 달라져 차트 전체에서는 최대 16키가 활용될 수 있다. 사운드 볼텍스의 손 위치 이동(좌/우 분담을 12/34에서 12/23으로 옮기는 동작)을 키보드의 다중키 바인딩으로 치환한 것이 보조키의 대표 용도다. 상세는 `../spec/keybinding.md`의 "주키와 보조키" 섹션을 따른다.
+
 ---
 
 ## 입력방식
@@ -217,6 +225,8 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 현재 비행 규칙 용어는 **Takeoff / Ascent / Breakthrough**이다. UI와 코드는 영어 명칭(`takeoff`, `ascent`, `breakthrough`)을 사용한다. Takeoff와 Ascent의 beatmania IIDX 참조 모델은 `../research/beatmania.md`의 게이지 옵션 보충 자료를 따른다. Breakthrough는 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `../rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
 
+비행 규칙은 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하는 장치로 포지셔닝한다. Takeoff와 Ascent는 숙련 유저 기준 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며, 숙련 유저 대상 정확도 압박은 Breakthrough가 전담한다. 포지셔닝 배경은 `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`를 따른다.
+
 | 비행 규칙 | 정의 |
 | --------- | ---- |
 | **Takeoff** | 0에서 시작해 곡 종료 시 기준 고도 이상이면 클리어되는 비행 규칙 |
@@ -244,7 +254,7 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 ### 난이도 축 (Difficulty Axis)
 
-레벨을 구성하는 4가지 독립적인 차원. `difficulty-design.md`에서 정의한다.
+레벨을 구성하는 4가지 독립적인 차원. `../spec/difficulty-design.md`에서 정의한다.
 
 1. **노트 밀도** — 초당 입력 수 (BPM × 비트 분할)
 2. **트릴 복합도** — 트릴의 길이, 속도, 다른 레인과의 동시 진행 여부
@@ -395,7 +405,7 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 - 게임 개요: `overview.md`
 - 노트 시스템: `note-system.md`
-- 난이도 설계: `difficulty-design.md`
+- 난이도 설계: `../spec/difficulty-design.md`
 - 차트 디자인: `chart-design.md`
 - 피스 표기법: `piece-notation.md`
 - 피스 정의 (PP-000 체계): `piece-definition.md`
