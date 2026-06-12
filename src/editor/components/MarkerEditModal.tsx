@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Chart, ChartEvent } from '../../shared';
 import type { EditingMarker } from '../stores';
 import { modalStyles } from './modalStyles';
@@ -121,9 +121,15 @@ export interface MarkerEditModalProps {
 
 export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: MarkerEditModalProps) {
   const evt = chart.events[editingMarker.index];
-  if (!evt) { onClose(); return null; }
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    evt ? getInitialValues(evt) : {},
+  );
 
-  const [values, setValues] = useState<Record<string, string>>(() => getInitialValues(evt));
+  useEffect(() => {
+    if (!evt) onClose();
+  }, [evt, onClose]);
+
+  if (!evt) return null;
 
   const title = `Edit ${getEventTypeLabel(evt)} Event`;
 

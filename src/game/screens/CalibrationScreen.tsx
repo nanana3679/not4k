@@ -56,30 +56,6 @@ export function CalibrationScreen() {
     };
   }, []);
 
-  const startCalibration = useCallback((type: CalibrationType) => {
-    setCalibType(type);
-    setPhase('running');
-    setTapCount(0);
-    setResult(null);
-    diffsRef.current = [];
-    beatIndexRef.current = 0;
-    runningRef.current = true;
-
-    const audioCtx = new AudioContext();
-    audioCtxRef.current = audioCtx;
-
-    // Start after a short delay to let user prepare
-    const startDelay = 1500;
-    startTimeRef.current = performance.now() + startDelay;
-    nextBeatTimeRef.current = startTimeRef.current;
-
-    if (type === 'visual') {
-      startVisualLoop();
-    } else {
-      startAudioLoop(audioCtx);
-    }
-  }, []);
-
   // --- Visual calibration: render falling bar on canvas ---
   const startVisualLoop = useCallback(() => {
     const render = () => {
@@ -184,6 +160,30 @@ export function CalibrationScreen() {
 
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
+
+  const startCalibration = useCallback((type: CalibrationType) => {
+    setCalibType(type);
+    setPhase('running');
+    setTapCount(0);
+    setResult(null);
+    diffsRef.current = [];
+    beatIndexRef.current = 0;
+    runningRef.current = true;
+
+    const audioCtx = new AudioContext();
+    audioCtxRef.current = audioCtx;
+
+    // Start after a short delay to let user prepare
+    const startDelay = 1500;
+    startTimeRef.current = performance.now() + startDelay;
+    nextBeatTimeRef.current = startTimeRef.current;
+
+    if (type === 'visual') {
+      startVisualLoop();
+    } else {
+      startAudioLoop(audioCtx);
+    }
+  }, [startVisualLoop, startAudioLoop]);
 
   // --- Handle tap input ---
   useEffect(() => {

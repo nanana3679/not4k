@@ -198,5 +198,6 @@ export function useEditorKeyboard(
     mode, setMode,
     editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     addToast, bpmMarkers, chart.meta.offsetMs,
+    playbackRef, selectModeRef, snapZoomRef,
   ]);
 }

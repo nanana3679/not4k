@@ -36,7 +36,7 @@ export function hitTestNoteAt(
     if (note.lane !== lane) continue;
 
     const nb = note.beat.n / note.beat.d;
-    let hit = false;
+    let hit: boolean;
     if ("endBeat" in note) {
       const eb = note.endBeat.n / note.endBeat.d;
       hit = beatFloat >= nb - tolerance && beatFloat <= eb + tolerance;
