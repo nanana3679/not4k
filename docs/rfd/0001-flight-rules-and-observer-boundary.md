@@ -12,10 +12,11 @@
 - [`docs/spec/scoring.md`](../spec/scoring.md) — 달성률, 랭크, 콤보, 풀콤보
 - [`docs/research/beatmania.md`](../research/beatmania.md) — IIDX 게이지 참조 모델
 - [`docs/rfd/0002-breakthrough-perfect-only-recovery.md`](0002-breakthrough-perfect-only-recovery.md) — Breakthrough 회복 규칙 후속 결정
+- [`docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md`](0003-flight-rules-positioning-newcomer-motivation.md) — 비행 규칙 포지셔닝 후속 결정
 
 ---
 
-**후속 결정:** RFC 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFC 0001의 Play/Observer 경계, 비행 규칙 명칭, 난이도 축 분리 결정은 유지한다.
+**후속 결정:** RFC 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFC 0003이 비행 규칙의 도입 목적(입문 유저 동기 장치)과 Takeoff/Ascent의 관대한 밸런싱 방향을 확정한다. 특히 Ascent의 IIDX Hard Gauge 참조는 구조 참조이지 체감 난이도 참조가 아니다. RFC 0001의 Play/Observer 경계, 비행 규칙 명칭, 난이도 축 분리 결정은 유지한다.
 
 ## 1. 배경
 

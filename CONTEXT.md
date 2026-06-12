@@ -147,7 +147,7 @@ _Avoid_: Lv.
 _Avoid_: 차트 레벨
 
 **비행 규칙**:
-Play에서 **고도** 기반 클리어/실패를 결정하는 규칙이다. **난이도명**, **Lv.**, **난이도 등급**과 별개의 축이다. 결정 배경은 `docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따른다.
+Play에서 **고도** 기반 클리어/실패를 결정하는 규칙이다. **난이도명**, **Lv.**, **난이도 등급**과 별개의 축이다. 리듬게임에 익숙하지 않은 유저에게 동기를 제공하는 장치로 포지셔닝하며, Takeoff/Ascent는 숙련 유저 기준 관대하게 밸런싱한다. 결정 배경은 `docs/rfd/0001-flight-rules-and-observer-boundary.md`와 `docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md`를 따른다.
 _Avoid_: 난이도명, 차트 레벨
 
 **고도**:
