@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   getDifficultyOrder,
   DIFFICULTIES,
+  filterVisibleSongs,
+  findRestoredFocus,
   getMobileSongCardActionState,
   getSelectedChartForSong,
   resolveSongCardFocus,
+  sortChartsByDifficulty,
 } from './helpers';
-import type { DbSong } from './types';
+import type { DbChart, DbSong } from './types';
 
 describe('getDifficultyOrder', () => {
   it('EASY < NORMAL < HARD < EXPERT 순서', () => {
@@ -28,6 +31,125 @@ describe('getDifficultyOrder', () => {
 describe('DIFFICULTIES', () => {
   it('4개 난이도가 순서대로 정의됨', () => {
     expect([...DIFFICULTIES]).toEqual(['EASY', 'NORMAL', 'HARD', 'EXPERT']);
+  });
+});
+
+describe('sortChartsByDifficulty', () => {
+  const chart = (id: string, label: string, level: number): DbChart => ({
+    id,
+    song_id: 'song-1',
+    difficulty_label: label,
+    difficulty_level: level,
+  });
+
+  it('HARD, EASY, NORMAL 입력 시 EASY, NORMAL, HARD 순서로 정렬', () => {
+    const sorted = sortChartsByDifficulty([
+      chart('c1', 'HARD', 9),
+      chart('c2', 'EASY', 3),
+      chart('c3', 'NORMAL', 6),
+    ]);
+    expect(sorted.map((c) => c.difficulty_label)).toEqual(['EASY', 'NORMAL', 'HARD']);
+  });
+
+  it('같은 난이도 라벨이면 레벨 오름차순으로 정렬', () => {
+    const sorted = sortChartsByDifficulty([
+      chart('c1', 'HARD', 11),
+      chart('c2', 'HARD', 8),
+    ]);
+    expect(sorted.map((c) => c.id)).toEqual(['c2', 'c1']);
+  });
+
+  it('원본 배열을 변경하지 않음', () => {
+    const original = [chart('c1', 'HARD', 9), chart('c2', 'EASY', 3)];
+    sortChartsByDifficulty(original);
+    expect(original.map((c) => c.id)).toEqual(['c1', 'c2']);
+  });
+});
+
+describe('filterVisibleSongs', () => {
+  const makeSong = (id: string, charts: DbChart[]): DbSong => ({
+    id,
+    title: id,
+    artist: 'Artist',
+    audio_url: `${id}.wav`,
+    duration: null,
+    preview_start: null,
+    preview_end: null,
+    preview_url: null,
+    jacket_url: null,
+    charts,
+  });
+  const chartless = makeSong('no-charts', []);
+  const withChart = makeSong('with-charts', [
+    { id: 'c1', song_id: 'with-charts', difficulty_label: 'EASY', difficulty_level: 3 },
+  ]);
+
+  it('admin이 아니면 차트 없는 곡 숨김', () => {
+    expect(filterVisibleSongs([chartless, withChart], false)).toEqual([withChart]);
+  });
+
+  it('admin이면 차트 없는 곡도 표시', () => {
+    expect(filterVisibleSongs([chartless, withChart], true)).toEqual([chartless, withChart]);
+  });
+});
+
+describe('findRestoredFocus', () => {
+  const songs: DbSong[] = [
+    {
+      id: 'song-a',
+      title: 'A',
+      artist: 'Artist',
+      audio_url: 'a.wav',
+      duration: null,
+      preview_start: null,
+      preview_end: null,
+      preview_url: null,
+      jacket_url: null,
+      charts: [
+        { id: 'a-easy', song_id: 'song-a', difficulty_label: 'EASY', difficulty_level: 3 },
+      ],
+    },
+    {
+      id: 'song-b',
+      title: 'B',
+      artist: 'Artist',
+      audio_url: 'b.wav',
+      duration: null,
+      preview_start: null,
+      preview_end: null,
+      preview_url: null,
+      jacket_url: null,
+      charts: [
+        { id: 'b-hard', song_id: 'song-b', difficulty_label: 'HARD', difficulty_level: 9 },
+        { id: 'b-easy', song_id: 'song-b', difficulty_label: 'EASY', difficulty_level: 3 },
+      ],
+    },
+  ];
+
+  it('마지막 플레이 곡과 난이도가 있으면 해당 인덱스로 복원', () => {
+    expect(findRestoredFocus(songs, 'song-b', 'HARD')).toEqual({
+      songIndex: 1,
+      chartIndex: 1, // 정렬 후 [EASY, HARD]에서 HARD는 1번
+    });
+  });
+
+  it('난이도가 목록에 없으면 차트 인덱스는 0', () => {
+    expect(findRestoredFocus(songs, 'song-b', 'EXPERT')).toEqual({
+      songIndex: 1,
+      chartIndex: 0,
+    });
+  });
+
+  it('선택된 곡이 null이면 복원하지 않음', () => {
+    expect(findRestoredFocus(songs, null, 'HARD')).toBeNull();
+  });
+
+  it('선택된 곡이 목록에 없으면 복원하지 않음', () => {
+    expect(findRestoredFocus(songs, 'deleted-song', 'HARD')).toBeNull();
+  });
+
+  it('빈 곡 목록이면 복원하지 않음', () => {
+    expect(findRestoredFocus([], 'song-a', 'EASY')).toBeNull();
   });
 });
 

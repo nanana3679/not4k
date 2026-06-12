@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, type RefObject, type MutableR
 import { supabase } from '../../supabase';
 import { useGameStore } from '../stores';
 import type { DbSong } from '../screens/songSelect/types';
-import { getDifficultyOrder } from '../screens/songSelect/helpers';
+import { filterVisibleSongs, findRestoredFocus, sortChartsByDifficulty } from '../screens/songSelect/helpers';
 
 const NAV_COOLDOWN = 100; // ms
 
@@ -45,7 +45,6 @@ export function useSongNavigation(options: {
     centerFocusedCard = true,
     enableWheelNavigation = true,
   } = options;
-  const { selectedSongId, selectedDifficulty } = useGameStore();
 
   const [songs, setSongs] = useState<DbSong[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,39 +59,63 @@ export function useSongNavigation(options: {
   const restoredRef = useRef(false);
 
   const getSortedCharts = useCallback((song: DbSong) => {
-    return [...song.charts].sort((a, b) =>
-      getDifficultyOrder(a.difficulty_label) - getDifficultyOrder(b.difficulty_label)
-      || a.difficulty_level - b.difficulty_level
-    );
+    return sortChartsByDifficulty(song.charts);
   }, []);
 
-  // Supabase fetch
-  const fetchSongs = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setError(null);
+  // 곡 목록 갱신과 동시에 포커스를 조정한다.
+  // 첫 로드에는 마지막 플레이 곡/난이도로 복원하고, 이후에는 범위를 벗어난 인덱스만 클램프한다.
+  const applyFetchedSongs = useCallback((allSongs: DbSong[]) => {
+    const next = filterVisibleSongs(allSongs, isAdmin);
+    setSongs(next);
+    if (next.length === 0) return;
+
+    if (!restoredRef.current) {
+      restoredRef.current = true;
+      const { selectedSongId, selectedDifficulty } = useGameStore.getState();
+      const restored = findRestoredFocus(next, selectedSongId, selectedDifficulty);
+      if (restored) {
+        setFocusedSongIndex(restored.songIndex);
+        setFocusedChartIndex(restored.chartIndex);
+        return;
+      }
+    }
+    setFocusedSongIndex((prev) => Math.min(prev, next.length - 1));
+  }, [isAdmin]);
+
+  // Supabase fetch 본체. 시작 시 동기 setState 없이 응답 콜백에서만 상태를 갱신하므로
+  // effect에서 직접 호출해도 cascading render가 생기지 않는다.
+  const fetchSongsCore = useCallback((signal?: AbortSignal) => {
     const query = supabase
       .from('songs')
       .select('*, charts(*)')
       .order('title');
     if (signal) query.abortSignal(signal);
-    const { data, error: err } = await query;
-
-    if (signal?.aborted) return;
-    if (err) {
-      setError(`Failed to load songs: ${err.message}`);
+    return Promise.resolve(query).then(({ data, error: err }) => {
+      if (signal?.aborted) return;
+      if (err) {
+        setError(`Failed to load songs: ${err.message}`);
+        setLoading(false);
+        return;
+      }
+      setError(null);
+      applyFetchedSongs((data ?? []) as DbSong[]);
       setLoading(false);
-      return;
-    }
-    const allSongs = (data ?? []) as DbSong[];
-    setSongs(isAdmin ? allSongs : allSongs.filter((s) => s.charts.length > 0));
-    setLoading(false);
-  }, [isAdmin]);
+    });
+  }, [applyFetchedSongs]);
 
+  // 수동 재호출(삭제/추가 후 갱신 등) 진입점 — 로딩 상태를 표시한 뒤 다시 fetch한다.
+  const fetchSongs = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
+    await fetchSongsCore(signal);
+  }, [fetchSongsCore]);
+
+  // 마운트/isAdmin 변경 시 fetch. loading 초기값이 true라 시작 시점의 setState가 필요 없다.
   useEffect(() => {
     const ac = new AbortController();
-    fetchSongs(ac.signal);
+    fetchSongsCore(ac.signal);
     return () => ac.abort();
-  }, [fetchSongs]);
+  }, [fetchSongsCore]);
 
   // 원형 곡 네비게이션 (cooldown 포함)
   const navigateSong = useCallback((direction: 1 | -1) => {
@@ -167,32 +190,6 @@ export function useSongNavigation(options: {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, onPlay, onEscape, getSortedCharts, navigateSong, allowPlay]);
-
-  // 마지막 플레이 곡으로 포커스 복원, 또는 인덱스 클램프
-  useEffect(() => {
-    if (songs.length === 0) return;
-
-    if (!restoredRef.current && selectedSongId) {
-      restoredRef.current = true;
-      const songIdx = songs.findIndex((s) => s.id === selectedSongId);
-      if (songIdx >= 0) {
-        setFocusedSongIndex(songIdx);
-        if (selectedDifficulty) {
-          const sorted = getSortedCharts(songs[songIdx]);
-          const chartIdx = sorted.findIndex(
-            (c) => c.difficulty_label === selectedDifficulty,
-          );
-          if (chartIdx >= 0) {
-            setFocusedChartIndex(chartIdx);
-          }
-        }
-        return;
-      }
-    }
-
-    restoredRef.current = true;
-    setFocusedSongIndex((prev) => Math.min(prev, songs.length - 1));
-  }, [songs, selectedSongId, selectedDifficulty, getSortedCharts]);
 
   return {
     songs,

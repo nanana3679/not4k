@@ -11,6 +11,40 @@ export function getDifficultyOrder(label: string): number {
   return DIFFICULTY_ORDER.get(label.toUpperCase() as typeof DIFFICULTIES[number]) ?? DIFFICULTIES.length;
 }
 
+export function sortChartsByDifficulty(charts: DbChart[]): DbChart[] {
+  return [...charts].sort((a, b) =>
+    getDifficultyOrder(a.difficulty_label) - getDifficultyOrder(b.difficulty_label)
+    || a.difficulty_level - b.difficulty_level
+  );
+}
+
+/** admin이 아니면 차트가 없는 곡을 숨긴다. */
+export function filterVisibleSongs(allSongs: DbSong[], isAdmin: boolean): DbSong[] {
+  return isAdmin ? allSongs : allSongs.filter((s) => s.charts.length > 0);
+}
+
+/**
+ * 마지막 플레이 곡/난이도에 해당하는 포커스 인덱스를 찾는다.
+ * 선택된 곡이 없거나 목록에 존재하지 않으면 null을 반환한다.
+ */
+export function findRestoredFocus(
+  songs: DbSong[],
+  selectedSongId: string | null,
+  selectedDifficulty: string | null,
+): { songIndex: number; chartIndex: number } | null {
+  if (!selectedSongId) return null;
+  const songIndex = songs.findIndex((s) => s.id === selectedSongId);
+  if (songIndex < 0) return null;
+
+  let chartIndex = 0;
+  if (selectedDifficulty) {
+    const sorted = sortChartsByDifficulty(songs[songIndex].charts);
+    const idx = sorted.findIndex((c) => c.difficulty_label === selectedDifficulty);
+    if (idx >= 0) chartIndex = idx;
+  }
+  return { songIndex, chartIndex };
+}
+
 export function getDifficultyColor(difficulty: string): React.CSSProperties {
   switch (difficulty.toLowerCase()) {
     case 'easy': return { backgroundColor: '#2d6a4f', borderColor: '#40916c' };
