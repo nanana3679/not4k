@@ -34,7 +34,10 @@ function buildManifest(id: string, theme: SkinManifest["theme"]): SkinManifest {
       bomb: Array.from({ length: 16 }, (_, i) =>
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
-      gearFrame: `${base}/gear-frame.png`,
+      // 기어 프레임/게이지는 스킨 공통 공유 에셋 (scripts/split-gear-gauge.mjs 산출물)
+      gearFrame: "/gear/gear-frame.png",
+      gearGaugeLeft: "/gear/gear-gauge-left.png",
+      gearGaugeRight: "/gear/gear-gauge-right.png",
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

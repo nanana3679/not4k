@@ -5,7 +5,7 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, RenderTexture, Mesh, MeshGeometry } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
 import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
 import { JudgmentGrade } from "../../shared";
@@ -34,6 +34,11 @@ import {
 } from "../../lab/perspectiveSurfaceGrid";
 import { DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET } from "./perspectiveSurfaceGridPreset";
 import { derivePlaceholderPerspectiveSurfaceAltitude } from "./perspectiveSurfaceAltitude";
+import {
+  GEAR_GAUGE_METADATA,
+  getGaugeSpritePlacement,
+  getGaugeTextureFrame,
+} from "./gearGauge";
 
 export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
@@ -113,6 +118,16 @@ export class GameRenderer {
   // Gear frame
   private gearFrameLayer: Container;
   private gearFrameSprite: Sprite | null = null;
+  // 기둥 게이지 (분리된 발광 레이어, 게이지 값에 따라 아래 기준으로 클리핑)
+  private gearGauges: {
+    side: "left" | "right";
+    sprite: Sprite;
+    texture: Texture;
+    fullWidth: number;
+    fullHeight: number;
+    lastFrameHeight: number;
+    lastVisible: boolean;
+  }[] = [];
   private gearAdjustMode = false;
   private gearOffsetX = 0;
   private gearOffsetY = 0;
@@ -357,6 +372,7 @@ export class GameRenderer {
     const sprite = new Sprite(tex);
     this.gearFrameSprite = sprite;
     this.gearFrameLayer.addChild(sprite);
+    this.buildGearGauges();
     this.updateGearFrameTransform();
 
     // 조정 모드 HUD 텍스트
@@ -377,14 +393,75 @@ export class GameRenderer {
     window.addEventListener("keydown", this.gearAdjustHandler);
   }
 
+  /** 기둥 게이지 스프라이트 생성 — Assets 캐시 텍스처를 변형하지 않도록 사이드별 서브 텍스처 사용 */
+  private buildGearGauges(): void {
+    for (const side of ["left", "right"] as const) {
+      let base;
+      try {
+        base = this.skinManager.getTexture(side === "left" ? "gearGaugeLeft" : "gearGaugeRight");
+      } catch { continue; }
+      const texture = new Texture({
+        source: base.source,
+        frame: new Rectangle(0, 0, base.width, base.height),
+        dynamic: true, // frame을 매 갱신마다 변형하므로 sprite가 update 이벤트를 구독하게 함
+      });
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0, 1); // 좌하단 기준 — 게이지가 아래에서 차오름
+      this.gearFrameLayer.addChild(sprite);
+      this.gearGauges.push({
+        side,
+        sprite,
+        texture,
+        fullWidth: base.width,
+        fullHeight: base.height,
+        lastFrameHeight: -1,
+        lastVisible: true,
+      });
+    }
+  }
+
   private updateGearFrameTransform(): void {
     const sprite = this.gearFrameSprite;
     if (!sprite) return;
     const { GEAR_INNER_WIDTH, GEAR_INNER_LEFT, GEAR_INNER_TOP, GEAR_INNER_HEIGHT } = GameRenderer;
+    // scale은 원본(gear.png) 픽셀→화면 배율. 텍스처는 outputScale로 다운스케일되어 있어 보정한다.
     const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
-    sprite.scale.set(scale);
+    const { outputScale, columnBoxes } = GEAR_GAUGE_METADATA;
+    sprite.scale.set(scale / outputScale);
     sprite.x = this.laneAreaX - GEAR_INNER_LEFT * scale + this.gearOffsetX;
     sprite.y = this._judgmentLineY - (GEAR_INNER_TOP + GEAR_INNER_HEIGHT) * scale + this.gearOffsetY;
+
+    for (const gauge of this.gearGauges) {
+      const placement = getGaugeSpritePlacement(
+        columnBoxes[gauge.side],
+        scale,
+        sprite.x,
+        sprite.y,
+        outputScale,
+      );
+      gauge.sprite.scale.set(placement.scale);
+      gauge.sprite.x = placement.x;
+      gauge.sprite.y = placement.y;
+    }
+  }
+
+  /** 게이지 값(0~1)에 따라 기둥 게이지의 보이는 높이를 갱신 (아래 기준) */
+  private updateGearGauge(gaugeValue: number): void {
+    for (const gauge of this.gearGauges) {
+      const frame = getGaugeTextureFrame(
+        { width: gauge.fullWidth, height: gauge.fullHeight },
+        gaugeValue,
+      );
+      // 픽셀 행 단위로 변화 없으면 uv 갱신 스킵
+      if (frame.height === gauge.lastFrameHeight && frame.visible === gauge.lastVisible) continue;
+      gauge.lastFrameHeight = frame.height;
+      gauge.lastVisible = frame.visible;
+      gauge.sprite.visible = frame.visible;
+      if (!frame.visible) continue;
+      gauge.texture.frame.y = frame.y;
+      gauge.texture.frame.height = frame.height;
+      gauge.texture.update();
+    }
   }
 
   private handleGearAdjustKey(e: KeyboardEvent): void {
@@ -814,11 +891,7 @@ export class GameRenderer {
     this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
-  private renderPerspectiveSurface(songTimeMs: number, deltaMs: number): void {
-    const altitude = derivePlaceholderPerspectiveSurfaceAltitude({
-      songTimeMs,
-      chartDurationMs: this.chartDurationMs,
-    });
+  private renderPerspectiveSurface(altitude: number, deltaMs: number): void {
     const baseParams = resolvePerspectiveSurfaceGridParamsFromAltitude(
       altitude,
       DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfaceRanges,
@@ -1074,7 +1147,13 @@ export class GameRenderer {
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     this.judgmentUI.updateFade(deltaMs);
-    this.renderPerspectiveSurface(songTimeMs, deltaMs);
+    // 고도(게이지)는 비행 규칙 구현 전까지 임시 모델로 파생 — 구현 시 이 지점만 교체
+    const altitude = derivePlaceholderPerspectiveSurfaceAltitude({
+      songTimeMs,
+      chartDurationMs: this.chartDurationMs,
+    });
+    this.renderPerspectiveSurface(altitude, deltaMs);
+    this.updateGearGauge(altitude);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1322,6 +1401,11 @@ export class GameRenderer {
     this.judgmentUI.dispose();
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
+    // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음
+    for (const gauge of this.gearGauges) {
+      if (!gauge.texture.destroyed) gauge.texture.destroy(false);
+    }
+    this.gearGauges = [];
     if (this.keyboardDisplay) {
       this.keyboardDisplay.dispose();
       this.keyboardDisplay = null;

@@ -55,7 +55,11 @@ export interface SkinManifest {
     terminalTrillFailed: string;
     /** 봄 16프레임 */
     bomb: string[];
+    /** 기어 프레임 (스킨 공통, 기둥 게이지는 분리됨) */
     gearFrame: string;
+    /** 기둥 게이지 발광 레이어 (좌/우) */
+    gearGaugeLeft: string;
+    gearGaugeRight: string;
     /** 4개 버튼 idle */
     buttonIdle: string[];
     /** 4개 버튼 pressed */

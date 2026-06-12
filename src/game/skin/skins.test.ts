@@ -22,6 +22,14 @@ describe("SKIN_LIST", () => {
       expect(skin.assets.buttonPressed).toHaveLength(4);
     }
   });
+
+  it("기어 프레임과 기둥 게이지는 모든 스킨이 공통 /gear/ 경로를 사용", () => {
+    for (const skin of SKIN_LIST) {
+      expect(skin.assets.gearFrame).toBe("/gear/gear-frame.png");
+      expect(skin.assets.gearGaugeLeft).toBe("/gear/gear-gauge-left.png");
+      expect(skin.assets.gearGaugeRight).toBe("/gear/gear-gauge-right.png");
+    }
+  });
 });
 
 describe("getSkinManifest", () => {
@@ -58,7 +66,7 @@ describe("SkinTheme", () => {
         assets.terminalSingle, assets.terminalDouble,
         assets.bodySingle, assets.bodyDouble,
         assets.bodySingleHeld, assets.bodyDoubleHeld,
-        assets.gearFrame,
+        assets.gearFrame, assets.gearGaugeLeft, assets.gearGaugeRight,
         ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
       ];
       for (const p of paths) {
