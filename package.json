@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "build:skins": "node scripts/build-skins.mjs"
+    "build:skins": "node scripts/build-skins.mjs",
+    "split:gear": "node scripts/split-gear-gauge.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",

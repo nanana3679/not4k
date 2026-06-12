@@ -1,0 +1,20 @@
+{
+  "source": "gear.png",
+  "sourceWidth": 3404,
+  "sourceHeight": 4704,
+  "outputScale": 0.5,
+  "columnBoxes": {
+    "left": {
+      "x": 435,
+      "y": 559,
+      "width": 1056,
+      "height": 3073
+    },
+    "right": {
+      "x": 1914,
+      "y": 590,
+      "width": 1273,
+      "height": 3042
+    }
+  }
+}

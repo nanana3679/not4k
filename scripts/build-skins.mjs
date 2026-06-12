@@ -59,7 +59,7 @@ const ASSETS = [
   ),
   ...Array.from({ length: 4 }, (_, i) => `button-idle-${i + 1}`),
   ...Array.from({ length: 4 }, (_, i) => `button-pressed-${i + 1}`),
-  "gear-frame",
+  // gear-frame은 스킨 공통 비트맵으로 분리됨 (scripts/split-gear-gauge.mjs → public/gear/)
 ];
 
 async function main() {

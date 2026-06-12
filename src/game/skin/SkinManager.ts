@@ -65,8 +65,10 @@ export class SkinManager {
       ["noteTrillFailed", assets.noteTrillFailed],
       ["bodyTrillFailed", assets.bodyTrillFailed],
       ["terminalTrillFailed", assets.terminalTrillFailed],
-      // 기어 프레임
+      // 기어 프레임 + 기둥 게이지
       ["gearFrame", assets.gearFrame],
+      ["gearGaugeLeft", assets.gearGaugeLeft],
+      ["gearGaugeRight", assets.gearGaugeRight],
     ];
 
     // 봄 프레임
