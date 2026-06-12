@@ -55,13 +55,15 @@ export default function GearLightTestPage() {
   const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const [viewMode, setViewMode] = useState<ViewMode>('adjusted');
   const [showBoxes, setShowBoxes] = useState(true);
-  const [metadata, setMetadata] = useState<GearLightMetadata | null>(null);
+  const [loadedMetadata, setLoadedMetadata] = useState<{ src: string; metadata: GearLightMetadata } | null>(null);
 
   const selectedSample = useMemo(() => getGearLightSample(selectedSampleId), [selectedSampleId]);
 
+  // 샘플 변경 시 리셋은 렌더 중 파생으로 처리 — 현재 샘플의 metadata만 유효하다.
+  const metadata = loadedMetadata?.src === selectedSample.metadataSrc ? loadedMetadata.metadata : null;
+
   useEffect(() => {
     const controller = new AbortController();
-    setMetadata(null);
 
     fetch(selectedSample.metadataSrc, { signal: controller.signal })
       .then((response) => {
@@ -70,7 +72,7 @@ export default function GearLightTestPage() {
         }
         return response.json() as Promise<GearLightMetadata>;
       })
-      .then((nextMetadata) => setMetadata(nextMetadata))
+      .then((nextMetadata) => setLoadedMetadata({ src: selectedSample.metadataSrc, metadata: nextMetadata }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error(error);
