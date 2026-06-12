@@ -12,6 +12,7 @@ const EditorApp = lazy(() => import('./editor/App'));
 const GeometricBackgroundTestPage = lazy(() => import('./lab/GeometricBackgroundTestPage'));
 const PerspectiveSurfaceGridTestPage = lazy(() => import('./lab/PerspectiveSurfaceGridTestPage'));
 const GearLightTestPage = lazy(() => import('./lab/GearLightTestPage'));
+const GearMeasurePulseTestPage = lazy(() => import('./lab/GearMeasurePulseTestPage'));
 function App() {
   return (
     <BrowserRouter>
@@ -23,6 +24,7 @@ function App() {
           <Route path="/lab/geometric-background" element={<GeometricBackgroundTestPage />} />
           <Route path="/lab/perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
           <Route path="/lab/gear-light" element={<GearLightTestPage />} />
+          <Route path="/lab/gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
           <Route path="*" element={<Navigate to="/game" replace />} />
         </Routes>
       </Suspense>

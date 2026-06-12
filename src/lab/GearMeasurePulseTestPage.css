@@ -1,0 +1,219 @@
+.gear-pulse-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(300px, 390px);
+  gap: 20px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 24% 12%, rgba(58, 75, 96, 0.24), transparent 32%),
+    linear-gradient(145deg, #050608 0%, #0b0d12 52%, #06070a 100%);
+  color: #eef3f7;
+  font-family: "Rajdhani", "Noto Sans KR", system-ui, sans-serif;
+}
+
+.gear-pulse-stage-shell {
+  min-height: calc(100vh - 36px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(156, 184, 204, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    #020308;
+  background-size: 28px 28px;
+}
+
+.gear-pulse-stage {
+  position: relative;
+  width: min(58vw, 560px);
+  max-width: 100%;
+  max-height: calc(100vh - 56px);
+  filter: drop-shadow(0 18px 44px rgba(0, 0, 0, 0.72));
+}
+
+.gear-pulse-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.gear-pulse-glow {
+  mix-blend-mode: screen;
+  will-change: mask-image, filter, opacity;
+}
+
+.gear-pulse-lane-line {
+  position: absolute;
+  height: 2px;
+  margin-top: -1px;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+.gear-pulse-controls {
+  min-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(156, 184, 204, 0.16);
+  border-radius: 8px;
+  background: rgba(10, 13, 18, 0.86);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.34);
+  overflow: auto;
+}
+
+.gear-pulse-controls-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.gear-pulse-eyebrow {
+  margin: 0 0 3px;
+  color: #7b8798;
+  font-family: "Oxanium", "Rajdhani", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.gear-pulse-controls h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1;
+  color: #f7f9fb;
+}
+
+.gear-pulse-reset,
+.gear-pulse-playback button {
+  border: 1px solid rgba(158, 183, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(24, 29, 38, 0.86);
+  color: #cbd5df;
+  font: 700 12px/1 "Oxanium", "Rajdhani", sans-serif;
+  cursor: pointer;
+}
+
+.gear-pulse-reset {
+  height: 34px;
+  padding: 0 12px;
+}
+
+.gear-pulse-reset:hover,
+.gear-pulse-playback button:hover {
+  border-color: rgba(189, 219, 238, 0.36);
+  color: #ffffff;
+}
+
+.gear-pulse-playback {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.gear-pulse-playback button {
+  height: 36px;
+}
+
+.gear-pulse-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gear-pulse-stats span {
+  min-width: 100px;
+  padding: 6px 8px;
+  border: 1px solid rgba(150, 173, 193, 0.14);
+  border-radius: 6px;
+  background: rgba(4, 6, 10, 0.5);
+  color: #7f8d9b;
+  font-family: "Oxanium", "Rajdhani", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gear-pulse-slider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid rgba(150, 173, 193, 0.16);
+  border-radius: 8px;
+  background: rgba(16, 20, 28, 0.78);
+}
+
+.gear-pulse-slider {
+  display: grid;
+  grid-template-columns: 76px 1fr 64px;
+  align-items: center;
+  gap: 12px;
+  color: #aab6c2;
+  font-size: 13px;
+}
+
+.gear-pulse-slider input {
+  width: 100%;
+  accent-color: #9addec;
+}
+
+.gear-pulse-slider strong {
+  color: #9bddec;
+  font-family: "Oxanium", "Rajdhani", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.gear-pulse-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #b9c4cf;
+  font-size: 13px;
+}
+
+.gear-pulse-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #8ed7ed;
+}
+
+@media (max-width: 920px) {
+  .gear-pulse-page {
+    grid-template-columns: 1fr;
+  }
+
+  .gear-pulse-stage-shell,
+  .gear-pulse-controls {
+    min-height: auto;
+  }
+
+  .gear-pulse-stage {
+    width: min(86vw, 520px);
+    max-height: 72vh;
+  }
+}
+
+@media (max-width: 520px) {
+  .gear-pulse-page {
+    padding: 10px;
+  }
+
+  .gear-pulse-controls {
+    padding: 14px;
+  }
+
+  .gear-pulse-slider {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+}
