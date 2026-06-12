@@ -32,7 +32,7 @@ interface PerspectiveSurfaceGridPixiPreviewProps {
   onObjectSelect: (index: number) => void;
 }
 
-interface PreviewConfig extends PerspectiveSurfaceGridPixiPreviewProps {}
+type PreviewConfig = PerspectiveSurfaceGridPixiPreviewProps;
 
 interface PreviewSize {
   width: number;

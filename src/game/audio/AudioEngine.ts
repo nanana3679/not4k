@@ -71,7 +71,10 @@ export class AudioEngine {
       // Reset playback state when new audio is loaded
       this.stop();
     } catch (error) {
-      throw new Error(`Failed to load audio: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to load audio: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
   }
 
@@ -252,7 +255,7 @@ export class AudioEngine {
   getOutputLatencyMs(): number {
     if (!this.ctx) return 0;
     const base = this.ctx.baseLatency ?? 0;
-    const output = (this.ctx as any).outputLatency ?? 0;
+    const output = this.ctx.outputLatency ?? 0;
     return (base + output) * 1000;
   }
 

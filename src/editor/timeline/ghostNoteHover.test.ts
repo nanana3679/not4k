@@ -21,7 +21,7 @@ const beat = (n: number, d: number = 1) => ({ n, d });
 
 describe("고스트 노트 호버 — 메인 레인", () => {
   const notes: NoteEntity[] = [
-    { type: "single", lane: 1 as 1, beat: beat(1) },  // beat 1.0
+    { type: "single", lane: 1 as const, beat: beat(1) },  // beat 1.0
   ];
 
   it("커서가 노트 위에 직접 있으면 hitTestNoteAt으로 히트 (raw beat = 1.0)", () => {
@@ -104,7 +104,7 @@ describe("고스트 노트 호버 — 엑스트라 레인", () => {
 
 describe("고스트 노트 호버 — 롱노트 범위", () => {
   const notes: NoteEntity[] = [
-    { type: "long", lane: 2 as 2, beat: beat(4), endBeat: beat(8) },
+    { type: "long", lane: 2 as const, beat: beat(4), endBeat: beat(8) },
   ];
 
   it("커서가 롱노트 범위 안에 있으면 히트", () => {

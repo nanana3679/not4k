@@ -1,14 +1,50 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import { AudioEngine } from "./AudioEngine";
 
 // ---------------------------------------------------------------------------
 // Web Audio API mock
 // ---------------------------------------------------------------------------
 
-function createMockAudioContext() {
+interface MockAudioSource {
+  buffer: AudioBuffer | null;
+  playbackRate: { value: number };
+  connect: Mock;
+  disconnect: Mock;
+  start: Mock;
+  stop: Mock;
+  onended: (() => void) | null;
+}
+
+interface MockAudioContext {
+  readonly currentTime: number;
+  state: string;
+  resume: Mock;
+  close: Mock;
+  destination: object;
+  decodeAudioData: Mock;
+  createBufferSource: Mock<() => MockAudioSource>;
+  createGain: Mock;
+  baseLatency?: number;
+  outputLatency?: number;
+  /** test helper: advance wall-clock time */
+  _advanceTime(seconds: number): void;
+}
+
+function createMockAudioContext(): MockAudioContext {
   let _currentTime = 0;
 
-  const ctx: any = {
+  const createSource = (): MockAudioSource => ({
+    buffer: null,
+    playbackRate: { value: 1 },
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    onended: null,
+  });
+
+  const ctx: MockAudioContext = {
     get currentTime() {
       return _currentTime;
     },
@@ -17,7 +53,7 @@ function createMockAudioContext() {
     close: vi.fn().mockResolvedValue(undefined),
     destination: {},
     decodeAudioData: vi.fn(),
-    createBufferSource: vi.fn(),
+    createBufferSource: vi.fn(createSource),
     createGain: vi.fn(() => ({
       gain: { value: 1 },
       connect: vi.fn(),
@@ -29,22 +65,14 @@ function createMockAudioContext() {
     },
   };
 
-  const createSource = () => {
-    const source: any = {
-      buffer: null,
-      playbackRate: { value: 1 },
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-      start: vi.fn(),
-      stop: vi.fn(),
-      onended: null,
-    };
-    return source;
-  };
-
-  ctx.createBufferSource.mockImplementation(createSource);
-
   return ctx;
+}
+
+/** globalThis.AudioContext를 지정한 mock 컨텍스트를 반환하는 생성자로 교체 */
+function stubGlobalAudioContext(ctx: MockAudioContext): void {
+  (globalThis as unknown as { AudioContext: unknown }).AudioContext = function () {
+    return ctx;
+  };
 }
 
 function createMockBuffer(durationSeconds: number): AudioBuffer {
@@ -56,9 +84,7 @@ let mockCtx: ReturnType<typeof createMockAudioContext>;
 
 beforeEach(() => {
   mockCtx = createMockAudioContext();
-  (globalThis as any).AudioContext = function () {
-    return mockCtx;
-  };
+  stubGlobalAudioContext(mockCtx);
 });
 
 // ---------------------------------------------------------------------------
@@ -72,9 +98,7 @@ describe("AudioEngine getOutputLatencyMs", () => {
     const ctxWithoutLatency = createMockAudioContext();
     delete ctxWithoutLatency.baseLatency;
     delete ctxWithoutLatency.outputLatency;
-    (globalThis as any).AudioContext = function () {
-      return ctxWithoutLatency;
-    };
+    stubGlobalAudioContext(ctxWithoutLatency);
     const engine = new AudioEngine();
     expect(engine.getOutputLatencyMs()).toBe(0);
   });
@@ -83,9 +107,7 @@ describe("AudioEngine getOutputLatencyMs", () => {
     const ctxWithBase = createMockAudioContext();
     ctxWithBase.baseLatency = 0.005; // 5ms
     delete ctxWithBase.outputLatency;
-    (globalThis as any).AudioContext = function () {
-      return ctxWithBase;
-    };
+    stubGlobalAudioContext(ctxWithBase);
     const engine = new AudioEngine();
     expect(engine.getOutputLatencyMs()).toBe(5);
   });
@@ -94,9 +116,7 @@ describe("AudioEngine getOutputLatencyMs", () => {
     const ctxWithBoth = createMockAudioContext();
     ctxWithBoth.baseLatency = 0.005; // 5ms
     ctxWithBoth.outputLatency = 0.01; // 10ms
-    (globalThis as any).AudioContext = function () {
-      return ctxWithBoth;
-    };
+    stubGlobalAudioContext(ctxWithBoth);
     const engine = new AudioEngine();
     expect(engine.getOutputLatencyMs()).toBe(15);
   });

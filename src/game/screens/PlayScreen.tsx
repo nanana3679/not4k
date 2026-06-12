@@ -31,6 +31,41 @@ export function PlayScreen() {
   const debugLoggerRef = useRef<DebugLogger | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  const handleSongEnd = () => {
+    const scoreManager = scoreManagerRef.current;
+    if (!scoreManager || !chartData) return;
+
+    // Output debug log if debug mode was active
+    const debugLogger = debugLoggerRef.current;
+    if (debugLogger) {
+      const text = debugLogger.exportAsText();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-log-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const state = scoreManager.getState();
+
+    setResult({
+      songId: chartData.meta.title || 'unknown',
+      difficulty: chartData.meta.difficultyLabel || 'NORMAL',
+      achievementRate: state.achievementRate,
+      rank: state.rank,
+      maxCombo: judgmentEngineRef.current!.maxCombo,
+      isFullCombo: state.isFullCombo,
+      judgmentCounts: state.judgmentCounts,
+      goodTrillCount: state.goodTrillCount,
+      fastCount: state.fastCount,
+      slowCount: state.slowCount,
+    });
+
+    setScreen('result');
+  };
+
   useEffect(() => {
     const init = async () => {
       if (!canvasRef.current || !containerRef.current) return;
@@ -471,41 +506,6 @@ export function PlayScreen() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const handleSongEnd = () => {
-    const scoreManager = scoreManagerRef.current;
-    if (!scoreManager || !chartData) return;
-
-    // Output debug log if debug mode was active
-    const debugLogger = debugLoggerRef.current;
-    if (debugLogger) {
-      const text = debugLogger.exportAsText();
-      const blob = new Blob([text], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `debug-log-${Date.now()}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    const state = scoreManager.getState();
-
-    setResult({
-      songId: chartData.meta.title || 'unknown',
-      difficulty: chartData.meta.difficultyLabel || 'NORMAL',
-      achievementRate: state.achievementRate,
-      rank: state.rank,
-      maxCombo: judgmentEngineRef.current!.maxCombo,
-      isFullCombo: state.isFullCombo,
-      judgmentCounts: state.judgmentCounts,
-      goodTrillCount: state.goodTrillCount,
-      fastCount: state.fastCount,
-      slowCount: state.slowCount,
-    });
-
-    setScreen('result');
-  };
 
   const handleRetry = () => {
     setIsPaused(false);
