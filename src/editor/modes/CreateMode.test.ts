@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
 import { beat } from "../../shared";
-import type { Chart, Beat, Lane } from "../../shared";
+import type { Chart, Beat, Lane, ExtraNoteEntity } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -152,13 +152,13 @@ describe("CreateMode — 롱노트 생성 시 헤드 노트", () => {
 
 describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () => {
   function makeExtraCallbacks(chart: Chart) {
-    let extraNotes: any[] = [];
+    let extraNotes: ExtraNoteEntity[] = [];
     return {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
       getExtraNotes: () => extraNotes,
-      onExtraNotesUpdate: vi.fn((notes: any[]) => { extraNotes = notes; }),
+      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
     };
   }
 

@@ -9,10 +9,10 @@ import type { NoteEntity, ExtraNoteEntity, RangeNote } from "../../shared";
 
 describe("hitTestNoteAt", () => {
   const notes: NoteEntity[] = [
-    { type: "single", lane: 1 as 1, beat: beat(0) },           // index 0: beat 0
-    { type: "single", lane: 2 as 2, beat: beat(1) },           // index 1: beat 1
-    { type: "single", lane: 1 as 1, beat: beat(3, 16) },       // index 2: beat 3/16 (non-snap position)
-    { type: "long", lane: 3 as 3, beat: beat(2), endBeat: beat(4) }, // index 3: range 2~4
+    { type: "single", lane: 1 as const, beat: beat(0) },           // index 0: beat 0
+    { type: "single", lane: 2 as const, beat: beat(1) },           // index 1: beat 1
+    { type: "single", lane: 1 as const, beat: beat(3, 16) },       // index 2: beat 3/16 (non-snap position)
+    { type: "long", lane: 3 as const, beat: beat(2), endBeat: beat(4) }, // index 3: range 2~4
   ];
 
   it("포인트 노트의 정확한 위치에서 히트", () => {
@@ -57,7 +57,7 @@ describe("hitTestNoteAt", () => {
 
   it("길이 0인 롱노트도 tolerance 이내에서 히트", () => {
     const zeroLengthNotes: NoteEntity[] = [
-      { type: "long", lane: 1 as 1, beat: beat(2), endBeat: beat(2) },
+      { type: "long", lane: 1 as const, beat: beat(2), endBeat: beat(2) },
     ];
     expect(hitTestNoteAt(zeroLengthNotes, 1, 2)).toBe(0);
     expect(hitTestNoteAt(zeroLengthNotes, 1, 2.05)).toBe(0);
@@ -89,8 +89,8 @@ describe("hitTestNoteAt", () => {
 describe("hitTestNoteAt selectedNotes 우선순위", () => {
   // 롱노트 A: beat=0~4, 롱노트 B: beat=4~8, 같은 레인
   const sharedNotes: NoteEntity[] = [
-    { type: "long", lane: 1 as 1, beat: beat(0), endBeat: beat(4) },  // index 0
-    { type: "long", lane: 1 as 1, beat: beat(4), endBeat: beat(8) },  // index 1
+    { type: "long", lane: 1 as const, beat: beat(0), endBeat: beat(4) },  // index 0
+    { type: "long", lane: 1 as const, beat: beat(4), endBeat: beat(8) },  // index 1
   ];
 
   it("selectedNotes 없으면 공유 endpoint에서 먼저 발견된 노트 반환 (기존 동작)", () => {
@@ -116,8 +116,8 @@ describe("hitTestNoteAt selectedNotes 우선순위", () => {
   it("선택 우선순위가 z-order보다 높음", () => {
     // single(z=2)과 long(z=1)이 겹칠 때, long이 선택되어 있으면 long 우선
     const mixed: NoteEntity[] = [
-      { type: "long", lane: 1 as 1, beat: beat(0), endBeat: beat(4) },  // index 0, z=1
-      { type: "single", lane: 1 as 1, beat: beat(4) },                  // index 1, z=2
+      { type: "long", lane: 1 as const, beat: beat(0), endBeat: beat(4) },  // index 0, z=1
+      { type: "single", lane: 1 as const, beat: beat(4) },                  // index 1, z=2
     ];
     // 선택 없으면 single(z=2) 우선
     expect(hitTestNoteAt(mixed, 1, 4)).toBe(1);
@@ -166,9 +166,9 @@ describe("hitTestExtraNoteAt", () => {
 
 describe("noteExistsAtSnap", () => {
   const notes: NoteEntity[] = [
-    { type: "single", lane: 1 as 1, beat: beat(1) },            // beat 1.0
-    { type: "single", lane: 1 as 1, beat: beat(3, 16) },        // beat 0.1875
-    { type: "long", lane: 2 as 2, beat: beat(0), endBeat: beat(2) },
+    { type: "single", lane: 1 as const, beat: beat(1) },            // beat 1.0
+    { type: "single", lane: 1 as const, beat: beat(3, 16) },        // beat 0.1875
+    { type: "long", lane: 2 as const, beat: beat(0), endBeat: beat(2) },
   ];
 
   it("snap 위치와 노트가 정확히 일치하면 히트", () => {
@@ -216,7 +216,7 @@ describe("extraNoteExistsAtSnap", () => {
 describe("hitTestRangeNoteRegion", () => {
   const rangeNote: RangeNote = {
     type: "long",
-    lane: 1 as 1,
+    lane: 1 as const,
     beat: beat(2),    // startBeat = 2.0
     endBeat: beat(6), // endBeat = 6.0
   };
@@ -260,7 +260,7 @@ describe("hitTestRangeNoteRegion", () => {
   it("짧은 롱노트에서 head/end 영역 겹칠 때 가까운 쪽 반환", () => {
     const shortNote: RangeNote = {
       type: "long",
-      lane: 1 as 1,
+      lane: 1 as const,
       beat: beat(4),
       endBeat: beat(33, 8), // 4.125 — head/end tolerance 영역 겹침
     };
@@ -277,7 +277,7 @@ describe("hitTestRangeNoteRegion", () => {
   it("길이 0인 롱노트에서 정확한 위치는 head 반환", () => {
     const zeroNote: RangeNote = {
       type: "long",
-      lane: 1 as 1,
+      lane: 1 as const,
       beat: beat(3),
       endBeat: beat(3),
     };

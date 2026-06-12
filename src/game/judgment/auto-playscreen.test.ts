@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { JudgmentEngine } from './JudgmentEngine';
+import type { JudgmentResult } from './JudgmentEngine';
 import { JUDGMENT_WINDOWS } from '../../shared/constants';
 import type { NoteEntity } from '../../shared/types/chart';
 import type { Lane } from '../../shared/constants';
@@ -11,7 +12,7 @@ function runAutoPlay(
   noteEndTimes: Map<number, number>,
   songEndMs: number,
 ) {
-  const judgments: any[] = [];
+  const judgments: JudgmentResult[] = [];
   const engine = new JudgmentEngine(
     notes,
     noteTimes,
@@ -97,7 +98,7 @@ function runAutoPlay(
 
 describe('PlayScreen auto-play simulation', () => {
   it('헤더 없는 long 노트 단독', () => {
-    const notes: NoteEntity[] = [{ beat: 4, endBeat: 8, lane: 1, type: 'long' } as any];
+    const notes: NoteEntity[] = [{ beat: 4, endBeat: 8, lane: 1, type: 'long' } as unknown as NoteEntity];
     const { judgments } = runAutoPlay(notes, new Map([[0, 1000]]), new Map([[0, 2000]]), 3000);
     console.log('headless long:', judgments);
     expect(judgments).toHaveLength(1);
@@ -105,7 +106,7 @@ describe('PlayScreen auto-play simulation', () => {
   });
 
   it('길이 0 long 단독 (headless)', () => {
-    const notes: NoteEntity[] = [{ beat: 4, endBeat: 4, lane: 1, type: 'long' } as any];
+    const notes: NoteEntity[] = [{ beat: 4, endBeat: 4, lane: 1, type: 'long' } as unknown as NoteEntity];
     const { judgments } = runAutoPlay(notes, new Map([[0, 1000]]), new Map([[0, 1000]]), 3000);
     console.log('length-0 headless long:', judgments);
     expect(judgments).toHaveLength(1);
@@ -114,8 +115,8 @@ describe('PlayScreen auto-play simulation', () => {
 
   it('길이 0 long + single 헤드 같은 beat', () => {
     const notes: NoteEntity[] = [
-      { beat: 4, lane: 1, type: 'single' } as any,
-      { beat: 4, endBeat: 4, lane: 1, type: 'long' } as any,
+      { beat: 4, lane: 1, type: 'single' } as unknown as NoteEntity,
+      { beat: 4, endBeat: 4, lane: 1, type: 'long' } as unknown as NoteEntity,
     ];
     const noteTimes = new Map([[0, 1000], [1, 1000]]);
     const noteEndTimes = new Map([[1, 1000]]);
@@ -126,7 +127,7 @@ describe('PlayScreen auto-play simulation', () => {
   });
 
   it('doubleLong 단독', () => {
-    const notes: NoteEntity[] = [{ beat: 4, endBeat: 8, lane: 1, type: 'doubleLong' } as any];
+    const notes: NoteEntity[] = [{ beat: 4, endBeat: 8, lane: 1, type: 'doubleLong' } as unknown as NoteEntity];
     const { judgments } = runAutoPlay(notes, new Map([[0, 1000]]), new Map([[0, 2000]]), 3000);
     console.log('doubleLong:', judgments);
     expect(judgments).toHaveLength(1);
@@ -135,8 +136,8 @@ describe('PlayScreen auto-play simulation', () => {
 
   it('double 헤드 + doubleLong 바디 같은 beat (회귀)', () => {
     const notes: NoteEntity[] = [
-      { beat: 4, lane: 1, type: 'double' } as any,
-      { beat: 4, endBeat: 8, lane: 1, type: 'doubleLong' } as any,
+      { beat: 4, lane: 1, type: 'double' } as unknown as NoteEntity,
+      { beat: 4, endBeat: 8, lane: 1, type: 'doubleLong' } as unknown as NoteEntity,
     ];
     const noteTimes = new Map([[0, 1000], [1, 1000]]);
     const noteEndTimes = new Map([[1, 2000]]);
@@ -148,8 +149,8 @@ describe('PlayScreen auto-play simulation', () => {
 
   it('single 헤드 + long 바디 같은 beat', () => {
     const notes: NoteEntity[] = [
-      { beat: 4, lane: 1, type: 'single' } as any,
-      { beat: 4, endBeat: 8, lane: 1, type: 'long' } as any,
+      { beat: 4, lane: 1, type: 'single' } as unknown as NoteEntity,
+      { beat: 4, endBeat: 8, lane: 1, type: 'long' } as unknown as NoteEntity,
     ];
     const noteTimes = new Map([[0, 1000], [1, 1000]]);
     const noteEndTimes = new Map([[1, 2000]]);
@@ -161,8 +162,8 @@ describe('PlayScreen auto-play simulation', () => {
 
   it('single + 헤드없는 long 같은 레인 연속', () => {
     const notes: NoteEntity[] = [
-      { beat: 2, lane: 1, type: 'single' } as any,
-      { beat: 4, endBeat: 8, lane: 1, type: 'long' } as any,
+      { beat: 2, lane: 1, type: 'single' } as unknown as NoteEntity,
+      { beat: 4, endBeat: 8, lane: 1, type: 'long' } as unknown as NoteEntity,
     ];
     const noteTimes = new Map([[0, 500], [1, 1000]]);
     const noteEndTimes = new Map([[1, 2000]]);

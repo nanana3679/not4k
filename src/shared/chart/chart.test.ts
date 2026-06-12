@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { serializeChart, deserializeChart, chartToJson, chartFromJson } from "./index";
+import type { ChartJson } from "./index";
 import { beat } from "../types/beat";
 import type { Chart, PointNote } from "../types/chart";
 
@@ -133,7 +134,7 @@ describe("레거시 마이그레이션 (v1 → v2)", () => {
       trillZones: [],
       events: [],
     };
-    const chart = chartFromJson(legacyJson as any);
+    const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.notes).toHaveLength(2);
     expect(chart.notes[0]).toEqual({ type: "single", lane: 1, beat: beat(0) });
     expect(chart.notes[1]).toEqual({ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) });
@@ -149,7 +150,7 @@ describe("레거시 마이그레이션 (v1 → v2)", () => {
       trillZones: [],
       events: [],
     };
-    const chart = chartFromJson(legacyJson as any);
+    const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.notes).toHaveLength(2);
     expect(chart.notes[0]).toEqual({ type: "double", lane: 2, beat: beat(0) });
     expect(chart.notes[1]).toEqual({ type: "doubleLong", lane: 2, beat: beat(0), endBeat: beat(8) });
@@ -165,7 +166,7 @@ describe("레거시 마이그레이션 (v1 → v2)", () => {
       trillZones: [],
       events: [],
     };
-    const chart = chartFromJson(legacyJson as any);
+    const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.notes).toHaveLength(2);
     expect(chart.notes[0]).toEqual({ type: "trill", lane: 3, beat: beat(2) });
     expect(chart.notes[1]).toEqual({ type: "trillLong", lane: 3, beat: beat(2), endBeat: beat(6) });
@@ -181,7 +182,7 @@ describe("레거시 마이그레이션 (v1 → v2)", () => {
       trillZones: [],
       events: [],
     };
-    const chart = chartFromJson(legacyJson as any);
+    const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.notes).toHaveLength(2);
     expect(chart.notes[0]).toEqual({ type: "single", lane: 1, beat: beat(0) });
     expect(chart.notes[1]).toEqual({ type: "double", lane: 2, beat: beat(1) });
@@ -257,8 +258,8 @@ describe("editorLane 직렬화/역직렬화", () => {
       ],
     };
     const json = chartToJson(chart);
-    expect((json.events[0] as any).editorLane).toBe(2);
-    expect((json.events[1] as any).editorLane).toBe(3);
+    expect(json.events[0].editorLane).toBe(2);
+    expect(json.events[1].editorLane).toBe(3);
   });
 
   it("editorLane이 없는 이벤트를 직렬화하면 JSON에 editorLane 미포함", () => {
@@ -331,7 +332,7 @@ describe("editorLane 직렬화/역직렬화", () => {
       trillZones: [],
       events: [{ beat: "0", endBeat: "0", bpm: 120 }],
     };
-    const chart = chartFromJson(legacyJson as any);
+    const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.events[0]).not.toHaveProperty("editorLane");
   });
 });

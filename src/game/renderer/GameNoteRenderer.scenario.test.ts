@@ -54,6 +54,19 @@ import type { NoteEntity } from "../../shared";
 
 // ── 헬퍼 ─────────────────────────────────────────────────────
 
+/** 모킹된 Sprite/NineSliceSprite가 노출하는 속성 */
+interface MockSprite {
+  x: number;
+  y: number;
+  tint: number;
+  alpha: number;
+}
+
+/** 모킹된 Container의 children 배열에 접근 */
+function childrenOf(layer: Container): MockSprite[] {
+  return (layer as unknown as { children: MockSprite[] }).children;
+}
+
 function createMockSkinManager(): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
@@ -86,7 +99,7 @@ function createRenderer() {
 /** 모든 레이어의 children을 비운다 (렌더 사이에 호출) */
 function clearLayers(...layers: Container[]) {
   for (const l of layers) {
-    (l as any).children = [];
+    childrenOf(l).length = 0;
   }
 }
 
@@ -120,7 +133,7 @@ describe("포인트 노트 라이프사이클", () => {
   it("정상 싱글 노트 — tint=white, alpha=1로 렌더됨", () => {
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite).toBeDefined();
     expect(sprite.tint).toBe(0xffffff);
     expect(sprite.alpha).toBe(1);
@@ -129,7 +142,7 @@ describe("포인트 노트 라이프사이클", () => {
   it("정상 더블 노트 — tint=white, alpha=1로 렌더됨", () => {
     renderer.renderPointNote(doubleNote, 0, SONG_TIME, SONG_TIME);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite).toBeDefined();
     expect(sprite.tint).toBe(0xffffff);
     expect(sprite.alpha).toBe(1);
@@ -139,7 +152,7 @@ describe("포인트 노트 라이프사이클", () => {
     renderer.markDoublePartial(0);
     renderer.renderPointNote(doubleNote, 0, SONG_TIME, SONG_TIME);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.alpha).toBe(0.7);
     expect(sprite.tint).toBe(0xffffff); // miss가 아니므로 기본 tint
   });
@@ -148,14 +161,14 @@ describe("포인트 노트 라이프사이클", () => {
     renderer.markNoteProcessed(0);
     renderer.renderPointNote(doubleNote, 0, SONG_TIME, SONG_TIME);
 
-    expect((noteLayer as any).children.length).toBe(0);
+    expect(childrenOf(noteLayer).length).toBe(0);
   });
 
   it("싱글 노트 miss — tint=0x555555, 계속 렌더됨", () => {
     renderer.markNoteMissed(0);
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite).toBeDefined();
     expect(sprite.tint).toBe(0xffffff);
     expect(sprite.alpha).toBe(1);
@@ -172,11 +185,11 @@ describe("포인트 노트 라이프사이클", () => {
     renderer.renderPointNote(singleNote, 0, 300, SONG_TIME);
 
     // 첫 호출에서 completedNotes에 추가되고 렌더 안 됨
-    expect((noteLayer as any).children.length).toBe(0);
+    expect(childrenOf(noteLayer).length).toBe(0);
 
     // 이후 정상 위치에서도 렌더 안 됨 (completedNotes에 있으므로)
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
-    expect((noteLayer as any).children.length).toBe(0);
+    expect(childrenOf(noteLayer).length).toBe(0);
   });
 });
 
@@ -199,13 +212,13 @@ describe("싱글 롱노트 라이프사이클", () => {
   it("정상 상태 — 바디 tint=white, 터미널 alpha=1로 렌더됨", () => {
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite).toBeDefined();
     expect(bodySprite.tint).toBe(0xffffff);
     expect(bodySprite.alpha).toBe(1);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.alpha).toBe(1);
       expect(termSprite.tint).toBe(0xffffff);
     }
@@ -215,11 +228,11 @@ describe("싱글 롱노트 라이프사이클", () => {
     renderer.markBodyFailed(0);
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.alpha).toBe(1);
     }
   });
@@ -228,12 +241,12 @@ describe("싱글 롱노트 라이프사이클", () => {
     renderer.markNoteMissed(0);
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite).toBeDefined();
     expect(bodySprite.tint).toBe(0xffffff);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.tint).toBe(0xffffff);
     }
   });
@@ -247,19 +260,19 @@ describe("싱글 롱노트 라이프사이클", () => {
     renderer.renderLongNote(longNote, 0, SONG_TIME, -200, SONG_TIME);
 
     // completedNotes에 추가되어 렌더 안 됨
-    expect((bodyLayer as any).children.length).toBe(0);
+    expect(childrenOf(bodyLayer).length).toBe(0);
 
     // 이후에도 렌더 안 됨
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
-    expect((bodyLayer as any).children.length).toBe(0);
+    expect(childrenOf(bodyLayer).length).toBe(0);
   });
 
   it("completed — 렌더에서 완전히 제외", () => {
     renderer.markNoteProcessed(0);
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    expect((bodyLayer as any).children.length).toBe(0);
-    expect((endLayer as any).children.length).toBe(0);
+    expect(childrenOf(bodyLayer).length).toBe(0);
+    expect(childrenOf(endLayer).length).toBe(0);
   });
 });
 
@@ -282,11 +295,11 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   it("정상 상태 — 바디 tint=white, 터미널 tint=white", () => {
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.tint).toBe(0xffffff);
     }
   });
@@ -295,7 +308,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markBodyPartialFailed(0, 'left');
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite).toBeDefined();
     expect(bodySprite.tint).toBe(0xffffff);
   });
@@ -304,7 +317,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markBodyPartialFailed(0, 'right');
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite).toBeDefined();
     expect(bodySprite.tint).toBe(0xffffff);
   });
@@ -313,8 +326,8 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markBodyPartialFailed(0, 'left');
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.tint).toBe(0xffffff);
     }
   });
@@ -323,7 +336,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markBodyPartialFailed(0, 'left');
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    expect((bodyLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(bodyLayer).length).toBeGreaterThan(0);
   });
 
   it("부분 실패 후 전체 실패(failedBodies 추가) — tint가 0x555555로 변경됨 (0x888888 아님)", () => {
@@ -331,7 +344,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markBodyFailed(0);
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -340,7 +353,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.markDoublePartial(0);
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     // 부분 실패 tint가 적용됨
     expect(bodySprite.tint).toBe(0xffffff);
     // alpha는 부분 실패가 우선하여 1이어야 함
@@ -373,11 +386,11 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.markDoublePartial(0);
 
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
-    expect((noteLayer as any).children.length).toBe(0);
+    expect(childrenOf(noteLayer).length).toBe(0);
 
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
-    expect((bodyLayer as any).children.length).toBe(0);
-    expect((endLayer as any).children.length).toBe(0);
+    expect(childrenOf(bodyLayer).length).toBe(0);
+    expect(childrenOf(endLayer).length).toBe(0);
   });
 
   it("missedNotes > partialFailedBodies — miss된 노트는 부분 실패 tint가 아닌 실패 tint", () => {
@@ -385,12 +398,12 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.markBodyPartialFailed(0, 'left');
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     // markNoteMissed는 failedBodies에도 추가하므로 isFailed || isMissed 분기 진입
     expect(bodySprite.tint).toBe(0xffffff);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.tint).toBe(0xffffff);
     }
   });
@@ -400,11 +413,11 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.markBodyFailed(0);
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
 
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       // isFailed && !isMissed → 터미널 tint는 else(0xffffff) but alpha=0.5
       expect(termSprite.tint).toBe(0xffffff);
       expect(termSprite.alpha).toBe(1);
@@ -416,7 +429,7 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.markDoublePartial(0);
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -424,14 +437,14 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     renderer.markNoteMissed(0);
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
 
-    expect((noteLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(noteLayer).length).toBeGreaterThan(0);
   });
 
   it("failedBodies에 있고 isMissed도 true — tint=0x555555 (동일)", () => {
     renderer.markNoteMissed(0); // missedNotes + failedBodies 둘 다 추가
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 });
@@ -454,7 +467,7 @@ describe("싱글 롱노트 격리", () => {
     renderer.markBodyPartialFailed(0, 'left');
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -462,7 +475,7 @@ describe("싱글 롱노트 격리", () => {
     renderer.markBodyFailed(0);
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 });
@@ -493,31 +506,31 @@ describe("풀 초기화 후 상태 격리", () => {
 
     // completed가 초기화되었으므로 index 0 렌더 가능
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
-    expect((noteLayer as any).children.length).toBeGreaterThan(0);
-    const sprite0 = (noteLayer as any).children[0];
+    expect(childrenOf(noteLayer).length).toBeGreaterThan(0);
+    const sprite0 = childrenOf(noteLayer)[0];
     expect(sprite0.tint).toBe(0xffffff);
 
     // failed가 초기화되었으므로 index 1 기본 tint
     renderer.renderLongNote(longNote, 1, SONG_TIME, 800, SONG_TIME);
-    const bodySprite1 = (bodyLayer as any).children[0];
+    const bodySprite1 = childrenOf(bodyLayer)[0];
     expect(bodySprite1.tint).toBe(0xffffff);
 
     // missed가 초기화되었으므로 index 2 기본 tint
     clearLayers(noteLayer);
     renderer.renderPointNote(singleNote, 2, SONG_TIME, SONG_TIME);
-    const sprite2 = (noteLayer as any).children[0];
+    const sprite2 = childrenOf(noteLayer)[0];
     expect(sprite2.tint).toBe(0xffffff);
 
     // doublePartial 초기화되었으므로 index 3 alpha=1
     clearLayers(noteLayer);
     renderer.renderPointNote(doubleNote, 3, SONG_TIME, SONG_TIME);
-    const sprite3 = (noteLayer as any).children[0];
+    const sprite3 = childrenOf(noteLayer)[0];
     expect(sprite3.alpha).toBe(1);
 
     // partialFailed 초기화되었으므로 index 4 기본 tint
     clearLayers(bodyLayer);
     renderer.renderLongNote(doubleLongNote, 4, SONG_TIME, 800, SONG_TIME);
-    const bodySprite4 = (bodyLayer as any).children[0];
+    const bodySprite4 = childrenOf(bodyLayer)[0];
     expect(bodySprite4.tint).toBe(0xffffff);
   });
 
@@ -531,29 +544,29 @@ describe("풀 초기화 후 상태 격리", () => {
 
     // completed가 초기화되었으므로 index 0 렌더 가능
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
-    expect((noteLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(noteLayer).length).toBeGreaterThan(0);
 
     // failed가 초기화되었으므로 index 1 기본 tint
     renderer.renderLongNote(longNote, 1, SONG_TIME, 800, SONG_TIME);
-    const bodySprite1 = (bodyLayer as any).children[0];
+    const bodySprite1 = childrenOf(bodyLayer)[0];
     expect(bodySprite1.tint).toBe(0xffffff);
 
     // missed가 초기화되었으므로 index 2 기본 tint
     clearLayers(noteLayer);
     renderer.renderPointNote(singleNote, 2, SONG_TIME, SONG_TIME);
-    const sprite2 = (noteLayer as any).children[0];
+    const sprite2 = childrenOf(noteLayer)[0];
     expect(sprite2.tint).toBe(0xffffff);
 
     // doublePartial 초기화되었으므로 index 3 alpha=1
     clearLayers(noteLayer);
     renderer.renderPointNote(doubleNote, 3, SONG_TIME, SONG_TIME);
-    const sprite3 = (noteLayer as any).children[0];
+    const sprite3 = childrenOf(noteLayer)[0];
     expect(sprite3.alpha).toBe(1);
 
     // partialFailed 초기화되었으므로 index 4 기본 tint
     clearLayers(bodyLayer);
     renderer.renderLongNote(doubleLongNote, 4, SONG_TIME, 800, SONG_TIME);
-    const bodySprite4 = (bodyLayer as any).children[0];
+    const bodySprite4 = childrenOf(bodyLayer)[0];
     expect(bodySprite4.tint).toBe(0xffffff);
   });
 });

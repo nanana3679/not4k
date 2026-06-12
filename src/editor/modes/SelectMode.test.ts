@@ -59,6 +59,14 @@ function makeCallbacks(
   };
 }
 
+/** 테스트에서 private 선택 상태를 직접 조작하기 위한 헬퍼 */
+function selectionOf(mode: SelectMode) {
+  return mode as unknown as {
+    selectedIndices: Set<number>;
+    selectedExtraIndices: Set<number>;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
@@ -316,8 +324,8 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const mode = new SelectMode(chart, cb);
 
     mode.selectNote(0);
-    (mode as any).selectedIndices.add(1);
-    (mode as any).selectedIndices.add(2);
+    selectionOf(mode).selectedIndices.add(1);
+    selectionOf(mode).selectedIndices.add(2);
     mode.beginMoveDrag(1, 0);
     mode.onPointerMove(1, 4);
     mode.onPointerUp(1, 4);
@@ -369,7 +377,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const mode = new SelectMode(chart, cb);
 
     mode.selectExtraNote(0);
-    (mode as any).selectedExtraIndices.add(1);
+    selectionOf(mode).selectedExtraIndices.add(1);
     mode.beginMoveDrag(5, 0);
     mode.onPointerMove(5, 4);
     mode.onPointerUp(5, 4);
@@ -505,7 +513,7 @@ describe("SelectMode — 붙여넣기", () => {
     // 두 노트 모두 선택
     mode.selectNote(0);
     // Directly manipulate for test: copy with both selected
-    (mode as any).selectedIndices.add(1);
+    selectionOf(mode).selectedIndices.add(1);
     mode.copy();
 
     // beat(10)에 붙여넣기 — anchor = beat(2), offset = beat(8)
@@ -675,13 +683,12 @@ describe("SelectMode — 붙여넣기 위반 감지", () => {
 
     // beat(0) lane(1) 노트를 복사하고 beat(4)에 붙여넣기 → 기존 노트와 중복
     // 먼저 복사할 노트 추가
-    (mode as any).chart = makeChart({
+    mode.setChart(makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
         { type: "single", lane: 1 as Lane, beat: beat(4) }, // 기존 노트
       ],
-    });
-    mode.setChart((mode as any).chart);
+    }));
     mode.selectNote(0);
     mode.copy();
     mode.paste(beat(4)); // beat(0) + offset(4) = beat(4) → 중복
@@ -770,7 +777,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
 
     // beat(2)와 beat(0) 모두 선택 — anchor는 beat(0)
     mode.selectNote(0);
-    (mode as any).selectedIndices.add(1);
+    selectionOf(mode).selectedIndices.add(1);
     mode.copy();
 
     // beat(0)에 붙여넣기하면 anchor=beat(0)이므로 beat(0)과 beat(2)에 배치 → OK
@@ -985,8 +992,7 @@ describe("SelectMode.moveByLane — 엑스트라 레인 내 이동", () => {
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
 
     // 엑스트라 노트를 선택하기 위해 hitTestExtraNote가 0을 반환하도록 설정
-    (cb as any).hitTestExtraNote = () => 0;
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false); // 엑스트라 영역 클릭
 
     mode.moveByLane("right");
@@ -1002,8 +1008,7 @@ describe("SelectMode.moveByLane — 엑스트라 레인 내 이동", () => {
       { type: "single", extraLane: 3, beat: beat(0) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
-    (cb as any).hitTestExtraNote = () => 0;
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("right");
@@ -1023,8 +1028,7 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "single", extraLane: 1, beat: beat(2) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 2 });
-    (cb as any).hitTestExtraNote = () => 0;
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 2, false, false);
 
     mode.moveByLane("left");
@@ -1047,8 +1051,7 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "long", extraLane: 1, beat: beat(0), endBeat: beat(4) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
-    (cb as any).hitTestExtraNote = () => 0;
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("left");
@@ -1065,8 +1068,7 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "single", extraLane: 1, beat: beat(0) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
-    (cb as any).hitTestExtraNote = () => 0;
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("left");
@@ -1100,7 +1102,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     const cb = makeCallbacks({
       yToBeatRaw: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     // Start box select at lane 1, beat 0 (pointerDown on empty area)
     mode.onPointerDown(1, 0, false, false);
@@ -1128,7 +1130,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     const cb = makeCallbacks({
       yToBeatRaw: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     // Start box select at lane 1, beat 0
     mode.onPointerDown(1, 0, false, false);
@@ -1168,7 +1170,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     // 엑스트라 레인 1(x=5), beat 0에서 시작
     mode.onPointerDown(5, 0, false, false);
@@ -1196,7 +1198,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     // 엑스트라 레인 1(x=5)에서만 드래그
     mode.onPointerDown(5, 0, false, false);
@@ -1225,7 +1227,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     // 메인 레인 3(x=3), beat 0에서 시작
     mode.onPointerDown(3, 0, false, false);
@@ -1256,7 +1258,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     mode.onPointerDown(5, 0, false, false);
     mode.onPointerMove(6, 2);
@@ -1277,7 +1279,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 1 },
     );
-    const mode = new SelectMode(chart, cb as any);
+    const mode = new SelectMode(chart, cb);
 
     mode.onPointerDown(5, 0, false, false);
 

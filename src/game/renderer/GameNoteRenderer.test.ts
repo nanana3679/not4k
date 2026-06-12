@@ -52,6 +52,19 @@ import { GameNoteRenderer } from "./GameNoteRenderer";
 import type { SkinManager } from "../skin";
 import type { NoteEntity } from "../../shared";
 
+/** 모킹된 Sprite/NineSliceSprite가 노출하는 속성 */
+interface MockSprite {
+  x: number;
+  y: number;
+  tint: number;
+  alpha: number;
+}
+
+/** 모킹된 Container의 children 배열에 접근 */
+function childrenOf(layer: Container): MockSprite[] {
+  return (layer as unknown as { children: MockSprite[] }).children;
+}
+
 function createMockSkinManager(): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
@@ -103,7 +116,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     // completedNotes에 없으므로 렌더링 시 noteLayer에 child가 추가됨
     renderer.renderPointNote(entity, 0, 500, 500);
-    expect((noteLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(noteLayer).length).toBeGreaterThan(0);
   });
 
   it("markNoteProcessed 호출 후에는 포인트 노트가 렌더링되지 않음", () => {
@@ -111,7 +124,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     renderer.markNoteProcessed(0);
 
     renderer.renderPointNote(entity, 0, 500, 500);
-    expect((noteLayer as any).children.length).toBe(0);
+    expect(childrenOf(noteLayer).length).toBe(0);
   });
 
   it("markNoteMissed는 failedBodies에도 추가됨 — 롱노트 바디가 실패 색상으로 표시", () => {
@@ -120,7 +133,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
     // 렌더링이 수행됨 (completedNotes에 없으므로)
-    expect((bodyLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(bodyLayer).length).toBeGreaterThan(0);
   });
 
   it("miss된 포인트 노트의 tint가 LONG_BODY_FAILED(0x555555)로 설정됨", () => {
@@ -130,7 +143,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     renderer.renderPointNote(entity, 0, 500, 500);
 
     // noteLayer에 추가된 sprite의 tint 확인
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.tint).toBe(0xffffff);
   });
 
@@ -139,7 +152,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderPointNote(entity, 0, 500, 500);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.tint).toBe(0xffffff);
   });
 
@@ -151,7 +164,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderPointNote(entity, 0, 500, 500);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.alpha).toBe(0.7);
   });
 
@@ -160,7 +173,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderPointNote(entity, 0, 500, 500);
 
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.alpha).toBe(1);
   });
 
@@ -172,7 +185,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -183,8 +196,8 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
     // endLayer에 터미널 추가됨 (adjustedEndY가 화면 범위 내)
-    if ((endLayer as any).children.length > 0) {
-      const termSprite = (endLayer as any).children[0];
+    if (childrenOf(endLayer).length > 0) {
+      const termSprite = childrenOf(endLayer)[0];
       expect(termSprite.tint).toBe(0xffffff);
     }
   });
@@ -194,7 +207,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -207,7 +220,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     // clearPools 후 렌더링하면 miss 상태가 아니므로 기본 tint
     renderer.renderPointNote(entity, 0, 500, 500);
-    const sprite = (noteLayer as any).children[0];
+    const sprite = childrenOf(noteLayer)[0];
     expect(sprite.tint).toBe(0xffffff);
   });
 
@@ -219,7 +232,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.alpha).toBe(0.7);
   });
 
@@ -231,7 +244,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     // 전용 텍스처 사용, tint는 white 유지
     expect(bodySprite.tint).toBe(0xffffff);
   });
@@ -243,7 +256,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 
@@ -253,7 +266,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     // 싱글 롱노트는 isDouble이 false이므로 부분 실패 tint가 적용되지 않음
     expect(bodySprite.tint).toBe(0xffffff);
   });
@@ -264,13 +277,13 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     // 렌더링 시도 — completedNotes에 없으므로 렌더링되어야 함
     renderer.renderLongNote(entity, 0, 500, 800, 500);
-    expect((bodyLayer as any).children.length).toBeGreaterThan(0);
+    expect(childrenOf(bodyLayer).length).toBeGreaterThan(0);
 
     // markNoteProcessed를 호출하면 사라짐 — 부분 실패 시에는 호출하면 안 됨
     renderer.markNoteProcessed(0);
-    (bodyLayer as any).children = [];
+    childrenOf(bodyLayer).length = 0;
     renderer.renderLongNote(entity, 0, 500, 800, 500);
-    expect((bodyLayer as any).children.length).toBe(0); // completedNotes에 있으므로 렌더 안 됨
+    expect(childrenOf(bodyLayer).length).toBe(0); // completedNotes에 있으므로 렌더 안 됨
   });
 
   it("clearPools 호출 후 partialFailedBodies 상태가 초기화됨", () => {
@@ -280,7 +293,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
-    const bodySprite = (bodyLayer as any).children[0];
+    const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
   });
 });
