@@ -130,6 +130,24 @@ def parse_rect(value: str):
     return left, top, right, bottom
 
 
+def parse_gauge_window(value: str):
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 6:
+        raise argparse.ArgumentTypeError("gauge window must be id,left,top,right,bottom,radius")
+    gauge_id = parts[0]
+    if not gauge_id:
+        raise argparse.ArgumentTypeError("gauge id must not be empty")
+    left, top, right, bottom, radius = [int(part) for part in parts[1:]]
+    if left >= right or top >= bottom:
+        raise argparse.ArgumentTypeError("gauge window must have positive width and height")
+    return {
+        "id": gauge_id,
+        "label": gauge_id.replace("-", " ").replace("_", " "),
+        "rect": (left, top, right, bottom),
+        "radius": radius,
+    }
+
+
 def rounded_rect_contains(x: int, y: int, left: int, top: int, right: int, bottom: int, radius: int) -> bool:
     if not (left <= x < right and top <= y < bottom):
         return False
@@ -146,54 +164,73 @@ def set_pixel(rgba: bytearray, width: int, x: int, y: int, color: tuple[int, int
     rgba[idx : idx + 4] = bytes(color)
 
 
-def make_layers(source: bytearray, width: int, height: int, rect: tuple[int, int, int, int], radius: int):
-    left, top, right, bottom = rect
+def make_layers(source: bytearray, width: int, height: int, gauges: list[dict]):
     front = bytearray(source)
     back = bytearray(source)
     inner = (9, 15, 25, 255)
     edge = (21, 32, 49, 255)
 
-    for y in range(top, bottom):
-        for x in range(left, right):
-            if not rounded_rect_contains(x, y, left, top, right, bottom, radius):
-                continue
-            set_pixel(front, width, x, y, (0, 0, 0, 0))
-            distance_to_edge = min(x - left, right - 1 - x, y - top, bottom - 1 - y)
-            color = edge if distance_to_edge < 3 else inner
-            set_pixel(back, width, x, y, color)
+    for gauge in gauges:
+        left, top, right, bottom = gauge["rect"]
+        radius = gauge["radius"]
+        for y in range(top, bottom):
+            for x in range(left, right):
+                if not rounded_rect_contains(x, y, left, top, right, bottom, radius):
+                    continue
+                set_pixel(front, width, x, y, (0, 0, 0, 0))
+                distance_to_edge = min(x - left, right - 1 - x, y - top, bottom - 1 - y)
+                color = edge if distance_to_edge < 3 else inner
+                set_pixel(back, width, x, y, color)
     return back, front
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample-dir", required=True, type=Path)
-    parser.add_argument("--window", required=True, type=parse_rect)
+    parser.add_argument("--source-file", type=Path)
+    parser.add_argument("--window", type=parse_rect)
+    parser.add_argument("--gauge-window", action="append", default=[], type=parse_gauge_window)
     parser.add_argument("--radius", default=0, type=int)
     parser.add_argument("--direction", default="bottom-to-top", choices=["bottom-to-top", "top-to-bottom"])
     args = parser.parse_args()
 
     sample_dir = args.sample_dir
-    source = sample_dir / "gear-source.png"
+    source = args.source_file or sample_dir / "gear-source.png"
     width, height, rgba = read_png(source)
-    left, top, right, bottom = args.window
+    gauges = args.gauge_window
+    if not gauges:
+        if args.window is None:
+            raise SystemExit("--window or at least one --gauge-window is required")
+        gauges = [
+            {
+                "id": "leftAltitude",
+                "label": "Left altitude",
+                "rect": args.window,
+                "radius": args.radius,
+            }
+        ]
 
-    back, front = make_layers(rgba, width, height, args.window, args.radius)
+    back, front = make_layers(rgba, width, height, gauges)
     write_png(sample_dir / "gear-back.png", width, height, back)
     write_png(sample_dir / "gear-front.png", width, height, front)
 
     config = {
         "canvas": {"width": width, "height": height},
         "layers": {"back": "gear-back.png", "front": "gear-front.png"},
-        "gauges": [
+        "gauges": [],
+    }
+    for gauge in gauges:
+        left, top, right, bottom = gauge["rect"]
+        config["gauges"].append(
             {
-                "id": "leftAltitude",
-                "label": "Left altitude",
+                "id": gauge["id"],
+                "label": gauge["label"],
                 "window": {
                     "x": left,
                     "y": top,
                     "width": right - left,
                     "height": bottom - top,
-                    "radius": args.radius,
+                    "radius": gauge["radius"],
                 },
                 "direction": args.direction,
                 "gradient": [
@@ -203,8 +240,7 @@ def main() -> None:
                 ],
                 "innerGlow": {"color": "#24e6ff", "blur": 18, "alpha": 0.46},
             }
-        ],
-    }
+        )
     (sample_dir / "skin-runtime-config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

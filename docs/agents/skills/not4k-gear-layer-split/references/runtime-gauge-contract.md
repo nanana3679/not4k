@@ -48,6 +48,8 @@ The bar is not stored as a cropped image, so continuous gradients and animated g
 }
 ```
 
+Multiple gauge windows are allowed for original-style two-column gears. Each window is rendered as an independent runtime bar between the same back/front image layers.
+
 ## Validation
 
 - `gear-back.png` and `gear-front.png` must match `gear-source.png` dimensions.

@@ -92,7 +92,7 @@ function runtimeGaugeFillStyle(config: RuntimeGaugeConfig, gauge: RuntimeGaugeDe
 }
 
 export default function GearLightTestPage() {
-  const [selectedSampleId, setSelectedSampleId] = useState('compact-runtime-03');
+  const [selectedSampleId, setSelectedSampleId] = useState('original');
   const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const [viewMode, setViewMode] = useState<ViewMode>('runtime');
   const [showBoxes, setShowBoxes] = useState(true);

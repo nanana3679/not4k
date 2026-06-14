@@ -33,9 +33,21 @@ const makeRuntimeGaugeSample = (id: string, label: string, basePath: string): Ge
   runtimeConfigSrc: `${basePath}/skin-runtime-config.json`,
 });
 
+const makeOriginalRuntimeSample = (): GearLightSample => ({
+  id: 'original',
+  label: 'Original Runtime',
+  sourceSrc: '/lab/gear-light/gear-source.png',
+  baseSrc: '/lab/gear-light/gear-base.png',
+  glowSrc: '/lab/gear-light/gear-glow.png',
+  metadataSrc: '/lab/gear-light/gear-metadata.json',
+  runtimeBackSrc: '/lab/gear-light/gear-back.png',
+  runtimeFrontSrc: '/lab/gear-light/gear-front.png',
+  runtimeConfigSrc: '/lab/gear-light/skin-runtime-config.json',
+});
+
 export const GEAR_LIGHT_SAMPLES: GearLightSample[] = [
+  makeOriginalRuntimeSample(),
   makeRuntimeGaugeSample('compact-runtime-03', 'Runtime Gauge Demo', '/lab/gear-samples/compact-set-03'),
-  makeSample('original', 'Original', '/lab/gear-light'),
   makeSample('option-01', '01 Violet Rail', '/lab/gear-samples/option-01'),
   makeSample('option-02', '02 Crystal White', '/lab/gear-samples/option-02'),
   makeSample('option-03', '03 Red Industrial', '/lab/gear-samples/option-03'),

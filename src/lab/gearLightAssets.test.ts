@@ -2,10 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { GEAR_LIGHT_SAMPLES, getGearLightSample } from './gearLightAssets';
 
 describe('gearLightAssets', () => {
-  it('런타임 게이지 데모 1개, 원본 1개, 생성 샘플 27개를 합쳐 총 29개 선택지를 제공함', () => {
+  it('원본 런타임 게이지 1개, 보조 런타임 데모 1개, 생성 샘플 27개를 합쳐 총 29개 선택지를 제공함', () => {
     expect(GEAR_LIGHT_SAMPLES).toHaveLength(29);
-    expect(GEAR_LIGHT_SAMPLES[0].id).toBe('compact-runtime-03');
+    expect(GEAR_LIGHT_SAMPLES[0].id).toBe('original');
+    expect(GEAR_LIGHT_SAMPLES[1].id).toBe('compact-runtime-03');
     expect(GEAR_LIGHT_SAMPLES.at(-1)?.id).toBe('ai-option-03');
+  });
+
+  it('original은 기존 원본 이미지와 원본 runtime back/front/config 경로를 모두 가짐', () => {
+    expect(getGearLightSample('original')).toEqual({
+      id: 'original',
+      label: 'Original Runtime',
+      sourceSrc: '/lab/gear-light/gear-source.png',
+      baseSrc: '/lab/gear-light/gear-base.png',
+      glowSrc: '/lab/gear-light/gear-glow.png',
+      metadataSrc: '/lab/gear-light/gear-metadata.json',
+      runtimeBackSrc: '/lab/gear-light/gear-back.png',
+      runtimeFrontSrc: '/lab/gear-light/gear-front.png',
+      runtimeConfigSrc: '/lab/gear-light/skin-runtime-config.json',
+    });
   });
 
   it('compact-runtime-03은 gear-back/front와 runtime config 경로를 모두 가짐', () => {
