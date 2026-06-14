@@ -30,6 +30,15 @@ import {
   formatRuntimeGaugeGradient,
   getRuntimeGaugeFillBox,
 } from './runtimeGauge';
+import {
+  STAGE_ZOOM_DEFAULT,
+  STAGE_ZOOM_MAX,
+  STAGE_ZOOM_MIN,
+  STAGE_ZOOM_STEP,
+  clampStageZoom,
+  formatStageZoom,
+  stepStageZoom,
+} from './gearStageViewport';
 import './GearLightTestPage.css';
 
 type ViewMode = GearLightPreviewMode;
@@ -137,6 +146,7 @@ export default function GearLightTestPage() {
   const [loadedMetadata, setLoadedMetadata] = useState<{ src: string; metadata: GearLightMetadata } | null>(null);
   const [runtimeGaugeValue, setRuntimeGaugeValue] = useState(0.62);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeGaugeConfig | null>(null);
+  const [stageZoom, setStageZoom] = useState(STAGE_ZOOM_DEFAULT);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibrationLayer, setCalibrationLayer] = useState<GaugeCalibrationLayer>('gaugeWindow');
   const [calibration, setCalibration] = useState<GaugeCalibrationState | null>(null);
@@ -233,6 +243,7 @@ export default function GearLightTestPage() {
     setShowGaugeLayer(true);
     setGaugeHeight(0.78);
     setRuntimeGaugeValue(0.62);
+    setStageZoom(STAGE_ZOOM_DEFAULT);
     setCalibration(runtimeConfig ? createGaugeCalibration(runtimeConfig) : null);
   };
 
@@ -241,6 +252,10 @@ export default function GearLightTestPage() {
     : metadata
       ? `${metadata.width} / ${metadata.height}`
       : '1672 / 941';
+  const stageStyle = {
+    aspectRatio: stageAspectRatio,
+    '--gear-stage-zoom': stageZoom,
+  } as CSSProperties;
   const gaugeSrc = selectedSample.gaugeSrc;
   const columnBoxes = hasGearLightSideBoxes(metadata?.columnBoxes) ? metadata.columnBoxes : null;
   const gaugeBoxes = hasGearLightSideBoxes(metadata?.gaugeBoxes) ? metadata.gaugeBoxes : null;
@@ -342,14 +357,52 @@ export default function GearLightTestPage() {
   return (
     <main className="gear-light-page">
       <section className="gear-light-stage-shell" aria-label="Gear light preview">
-        <div
-          ref={stageRef}
-          className="gear-light-stage"
-          style={{ aspectRatio: stageAspectRatio }}
-          onPointerMove={moveCalibrationDrag}
-          onPointerUp={stopCalibrationDrag}
-          onPointerCancel={stopCalibrationDrag}
-        >
+        <div className="gear-light-stage-toolbar" aria-label="Main image viewport controls">
+          <div className="gear-light-zoom-control">
+            <button
+              type="button"
+              onClick={() => setStageZoom((current) => stepStageZoom(current, 'out'))}
+              aria-label="메인 이미지 축소"
+            >
+              -
+            </button>
+            <input
+              type="range"
+              min={STAGE_ZOOM_MIN}
+              max={STAGE_ZOOM_MAX}
+              step={STAGE_ZOOM_STEP}
+              value={stageZoom}
+              onChange={(event) => setStageZoom(clampStageZoom(Number(event.currentTarget.value)))}
+              aria-label="메인 이미지 확대 비율"
+            />
+            <button
+              type="button"
+              onClick={() => setStageZoom((current) => stepStageZoom(current, 'in'))}
+              aria-label="메인 이미지 확대"
+            >
+              +
+            </button>
+            <span>{formatStageZoom(stageZoom)}</span>
+          </div>
+          <button
+            className="gear-light-zoom-reset"
+            type="button"
+            onClick={() => setStageZoom(STAGE_ZOOM_DEFAULT)}
+          >
+            100%
+          </button>
+        </div>
+
+        <div className="gear-light-stage-viewport">
+          <div className="gear-light-stage-scroll">
+            <div
+              ref={stageRef}
+              className="gear-light-stage"
+              style={stageStyle}
+              onPointerMove={moveCalibrationDrag}
+              onPointerUp={stopCalibrationDrag}
+              onPointerCancel={stopCalibrationDrag}
+            >
           {!canRenderSelectedSample && (
             <img className="gear-light-layer" src={selectedSample.sourceSrc} alt="selected gear sample" />
           )}
@@ -469,6 +522,8 @@ export default function GearLightTestPage() {
               }))}
             </div>
           )}
+            </div>
+          </div>
         </div>
       </section>
 

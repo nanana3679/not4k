@@ -13,11 +13,72 @@
 
 .gear-light-stage-shell {
   min-height: calc(100vh - 36px);
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(156, 184, 204, 0.16);
   border-radius: 8px;
+  background: #020308;
+}
+
+.gear-light-stage-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(156, 184, 204, 0.14);
+  background: rgba(10, 13, 18, 0.9);
+}
+
+.gear-light-zoom-control {
+  display: grid;
+  grid-template-columns: 32px minmax(120px, 220px) 32px 48px;
+  align-items: center;
+  gap: 8px;
+}
+
+.gear-light-zoom-control button,
+.gear-light-zoom-reset {
+  height: 32px;
+  border: 1px solid rgba(158, 183, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(24, 29, 38, 0.86);
+  color: #cbd5df;
+  cursor: pointer;
+  font: 700 12px/1 "Oxanium", "Rajdhani", sans-serif;
+  letter-spacing: 0;
+}
+
+.gear-light-zoom-control button:hover,
+.gear-light-zoom-reset:hover {
+  border-color: rgba(189, 219, 238, 0.36);
+  color: #ffffff;
+}
+
+.gear-light-zoom-control input {
+  width: 100%;
+  accent-color: #9addec;
+}
+
+.gear-light-zoom-control span {
+  color: #9bddec;
+  font-family: "Oxanium", "Rajdhani", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.gear-light-zoom-reset {
+  min-width: 58px;
+  padding: 0 10px;
+}
+
+.gear-light-stage-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -25,11 +86,23 @@
   background-size: 28px 28px;
 }
 
+.gear-light-stage-scroll {
+  width: max-content;
+  min-width: 100%;
+  height: max-content;
+  min-height: 100%;
+  display: grid;
+  align-content: safe center;
+  justify-content: safe center;
+  box-sizing: border-box;
+  padding: 18px;
+}
+
 .gear-light-stage {
   position: relative;
-  width: min(58vw, 560px);
-  max-width: 100%;
-  max-height: calc(100vh - 56px);
+  width: calc(min(58vw, 560px) * var(--gear-stage-zoom, 1));
+  max-width: none;
+  max-height: none;
   filter: drop-shadow(0 18px 44px rgba(0, 0, 0, 0.72));
 }
 
@@ -516,9 +589,13 @@
     min-height: auto;
   }
 
+  .gear-light-stage-viewport {
+    flex: none;
+    height: 72vh;
+  }
+
   .gear-light-stage {
-    width: min(86vw, 520px);
-    max-height: 72vh;
+    width: calc(min(86vw, 520px) * var(--gear-stage-zoom, 1));
   }
 
   .gear-light-sample-grid {
@@ -538,6 +615,15 @@
   .gear-light-controls-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .gear-light-stage-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gear-light-zoom-control {
+    grid-template-columns: 32px minmax(0, 1fr) 32px 48px;
   }
 
   .gear-light-reset {

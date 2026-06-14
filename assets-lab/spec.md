@@ -202,6 +202,8 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다.
 
+메인 프리뷰 영역은 50%~400% 확대/축소와 상하좌우 스크롤을 지원해 게이지 구멍, erase mask 경계, 하단 키보드부 같은 세부 영역을 확대해서 보정한다.
+
 ### 마디 펄스 랩
 
 `/lab/gear-measure-pulse`는 인게임 레인 안의 마디선을 기어 프레임 발광으로 대체하는 안(동행 하이라이트)을 튜닝하는 테스트 페이지이다. `gear-base.png` 위에 `gear-glow.png`를 가로 밴드 그라데이션 마스크로 잘라 얹고, 그 밴드가 마디선 y좌표를 따라 위에서 아래로 내려온다. 스크롤 매핑은 게임과 동일한 선형 공식(`y = 판정선 - Δt × scrollSpeed / 1000`)을 progress 0(레인 상단)~1(판정선)로 정규화해 사용하므로, 여기서 정한 파라미터를 그대로 `GameRenderer` 이식 기준으로 쓸 수 있다.
