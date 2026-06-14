@@ -34,6 +34,17 @@ export default defineConfig({
       },
       testDir: './e2e/game',
     },
+    {
+      name: 'lab',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:3000',
+        launchOptions: {
+          args: ['--use-gl=swiftshader'],
+        },
+      },
+      testDir: './e2e/lab',
+    },
   ],
   webServer: {
     command: 'pnpm dev',

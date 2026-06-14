@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 function generateSilentWav(durationSeconds: number, sampleRate = 44100): Buffer {
   const numChannels = 1;
@@ -35,7 +36,7 @@ function generateSilentWav(durationSeconds: number, sampleRate = 44100): Buffer 
 }
 
 export default function globalSetup() {
-  const fixturesDir = join(__dirname, 'fixtures');
+  const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
   const wavPath = join(fixturesDir, 'test-audio.wav');
 
   if (!existsSync(fixturesDir)) {
