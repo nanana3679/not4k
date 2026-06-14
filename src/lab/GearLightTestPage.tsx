@@ -9,6 +9,11 @@ import {
 } from './gearLight';
 import { GEAR_LIGHT_SAMPLES, getGearLightSample } from './gearLightAssets';
 import {
+  hasGearLightSideBoxes,
+  resolveGearLightViewMode,
+  type GearLightPreviewMode,
+} from './gearLightPreviewMode';
+import {
   type RuntimeGaugeConfig,
   type RuntimeGaugeDefinition,
   formatRuntimeGaugeGradient,
@@ -16,7 +21,7 @@ import {
 } from './runtimeGauge';
 import './GearLightTestPage.css';
 
-type ViewMode = 'runtime' | 'adjusted' | 'source' | 'glow' | 'gauge';
+type ViewMode = GearLightPreviewMode;
 
 interface SideControl {
   height: number;
@@ -186,10 +191,30 @@ export default function GearLightTestPage() {
       ? `${metadata.width} / ${metadata.height}`
       : '1672 / 941';
   const gaugeSrc = selectedSample.gaugeSrc;
-  const gaugeBoxes = metadata?.gaugeBoxes;
+  const columnBoxes = hasGearLightSideBoxes(metadata?.columnBoxes) ? metadata.columnBoxes : null;
+  const gaugeBoxes = hasGearLightSideBoxes(metadata?.gaugeBoxes) ? metadata.gaugeBoxes : null;
   const canShowGauge = Boolean(gaugeSrc && gaugeBoxes);
+  const canShowAdjusted = Boolean(metadata && columnBoxes);
   const canShowRuntimeGauge = Boolean(selectedSample.runtimeBackSrc && selectedSample.runtimeFrontSrc && runtimeConfig);
   const canRenderSelectedSample = Boolean(metadata || runtimeConfig);
+  const resolvedViewMode = resolveGearLightViewMode({
+    viewMode,
+    canShowAdjusted,
+    canShowGauge,
+    canShowRuntimeGauge,
+  });
+
+  useEffect(() => {
+    if (!metadata) return;
+
+    if (viewMode === 'adjusted' && !canShowAdjusted) {
+      setViewMode(canShowGauge ? 'gauge' : 'source');
+    }
+
+    if (viewMode === 'gauge' && !canShowGauge) {
+      setViewMode(canShowAdjusted ? 'adjusted' : 'source');
+    }
+  }, [canShowAdjusted, canShowGauge, metadata, viewMode]);
 
   return (
     <main className="gear-light-page">
@@ -204,19 +229,19 @@ export default function GearLightTestPage() {
 
           {canRenderSelectedSample && (
             <>
-              {viewMode === 'source' && (
+              {resolvedViewMode === 'source' && (
                 <img className="gear-light-layer" src={selectedSample.sourceSrc} alt="selected gear sample" />
               )}
 
-              {viewMode === 'glow' && (
+              {resolvedViewMode === 'glow' && (
                 <img className="gear-light-layer gear-light-glow-only" src={selectedSample.glowSrc} alt="separated glow layer" />
               )}
 
-              {viewMode === 'gauge' && gaugeSrc && (
+              {resolvedViewMode === 'gauge' && gaugeSrc && (
                 <img className="gear-light-layer gear-light-gauge-layer" src={gaugeSrc} alt="separated gauge layer" />
               )}
 
-              {viewMode === 'runtime' && selectedSample.runtimeBackSrc && selectedSample.runtimeFrontSrc && runtimeConfig && (
+              {resolvedViewMode === 'runtime' && selectedSample.runtimeBackSrc && selectedSample.runtimeFrontSrc && runtimeConfig && (
                 <>
                   <img className="gear-light-layer" src={selectedSample.runtimeBackSrc} alt="gear runtime back layer" />
                   {runtimeConfig.gauges.map((gauge) => (
@@ -236,11 +261,11 @@ export default function GearLightTestPage() {
                 </>
               )}
 
-              {viewMode === 'adjusted' && metadata && (
+              {resolvedViewMode === 'adjusted' && metadata && columnBoxes && (
                 <>
                   <img className="gear-light-layer" src={selectedSample.baseSrc} alt="gear without separated pillar glow" />
                   {SIDES.map(({ id }) => {
-                    const clip = getClipInsetPercent(metadata, metadata.columnBoxes[id], controls[id].height);
+                    const clip = getClipInsetPercent(metadata, columnBoxes[id], controls[id].height);
                     const glow = getGlowPresentation(controls[id].intensity);
                     const style: CSSProperties = {
                       clipPath: formatClipInset(clip),
@@ -274,7 +299,7 @@ export default function GearLightTestPage() {
                     );
                   })}
                   {showBoxes && SIDES.map(({ id }) => {
-                    const visibleBox = getVisibleLightBox(metadata.columnBoxes[id], controls[id].height);
+                    const visibleBox = getVisibleLightBox(columnBoxes[id], controls[id].height);
 
                     return (
                       <div
@@ -327,15 +352,15 @@ export default function GearLightTestPage() {
             <button
               key={mode.id}
               type="button"
-              className={viewMode === mode.id ? 'is-active' : ''}
+              className={resolvedViewMode === mode.id ? 'is-active' : ''}
               onClick={() => setViewMode(mode.id)}
               disabled={
                 (mode.id === 'gauge' && !selectedSample.gaugeSrc)
-                || (mode.id === 'adjusted' && Boolean(selectedSample.runtimeConfigSrc))
+                || (mode.id === 'adjusted' && (Boolean(selectedSample.runtimeConfigSrc) || (metadata !== null && !canShowAdjusted)))
                 || (mode.id === 'runtime' && !selectedSample.runtimeConfigSrc)
               }
               role="tab"
-              aria-selected={viewMode === mode.id}
+              aria-selected={resolvedViewMode === mode.id}
             >
               {mode.label}
             </button>
@@ -347,7 +372,7 @@ export default function GearLightTestPage() {
             type="checkbox"
             checked={showBoxes}
             onChange={(event) => setShowBoxes(event.currentTarget.checked)}
-            disabled={viewMode !== 'adjusted'}
+            disabled={resolvedViewMode !== 'adjusted'}
           />
           <span>조정 영역 표시</span>
         </label>
@@ -357,7 +382,7 @@ export default function GearLightTestPage() {
             type="checkbox"
             checked={showGaugeLayer}
             onChange={(event) => setShowGaugeLayer(event.currentTarget.checked)}
-            disabled={viewMode !== 'adjusted' || !canShowGauge}
+            disabled={resolvedViewMode !== 'adjusted' || !canShowGauge}
           />
           <span>게이지 레이어 표시</span>
         </label>
@@ -372,7 +397,7 @@ export default function GearLightTestPage() {
               step="0.01"
               value={gaugeHeight}
               onChange={(event) => setGaugeHeight(Number(event.currentTarget.value))}
-              disabled={viewMode !== 'adjusted' || !showGaugeLayer}
+              disabled={resolvedViewMode !== 'adjusted' || !showGaugeLayer}
             />
           </label>
         )}
@@ -387,7 +412,7 @@ export default function GearLightTestPage() {
               step="0.01"
               value={runtimeGaugeValue}
               onChange={(event) => setRuntimeGaugeValue(Number(event.currentTarget.value))}
-              disabled={viewMode !== 'runtime'}
+              disabled={resolvedViewMode !== 'runtime'}
             />
           </label>
         )}
