@@ -1,0 +1,36 @@
+{
+  "width": 1024,
+  "height": 1536,
+  "source": "gear-source.png",
+  "conceptLabel": "AI option 02 - teal/orange vertical meter rails",
+  "gaugeRole": "고도/생존 게이지(survival/altitude indicator)",
+  "gaugeBoxes": {
+    "left": {
+      "x": 210,
+      "y": 220,
+      "width": 60,
+      "height": 790
+    },
+    "right": {
+      "x": 755,
+      "y": 220,
+      "width": 60,
+      "height": 790
+    }
+  },
+  "layerMethod": "Playwright canvas raster extraction from flattened gear-source.png: manual gauge bounding boxes, strict RGB hue/saturation/value pixel masks with channel-separation gates, radius-expanded alpha for immediate gauge glow, local dark low-saturation rail sampling for base neutralization, and conservative saturated-light extraction outside padded gauge boxes for gear-glow.png.",
+  "caveats": [
+    "Source is a flattened generated bitmap, so gear-base.png uses dark rail approximation rather than true inpainting.",
+    "Gauge extraction is intentionally conservative: it keeps saturated bright cells/tubes and nearby glow, while leaving dark frames, separators, and ambiguous metal detail mostly in the base.",
+    "gear-glow.png excludes padded gauge boxes and only captures clearly saturated non-gauge lights, so faint reflections, rust, and low-saturation highlights are intentionally omitted."
+  ],
+  "extractionStats": {
+    "gaugePixels": 67460,
+    "averageGaugeAlpha": 162.11,
+    "gaugeSeedPixels": 45444,
+    "glowPixels": 5423,
+    "averageGlowAlpha": 91.91,
+    "glowSeedPixels": 1773,
+    "baseCoveredPixels": 67171
+  }
+}

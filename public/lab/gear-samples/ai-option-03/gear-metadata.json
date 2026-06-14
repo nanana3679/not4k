@@ -1,0 +1,36 @@
+{
+  "width": 1024,
+  "height": 1536,
+  "source": "gear-source.png",
+  "conceptLabel": "AI option 03 - teal/violet reactor tube meters",
+  "gaugeRole": "고도/생존 게이지(survival/altitude indicator)",
+  "gaugeBoxes": {
+    "left": {
+      "x": 190,
+      "y": 360,
+      "width": 85,
+      "height": 810
+    },
+    "right": {
+      "x": 735,
+      "y": 365,
+      "width": 80,
+      "height": 800
+    }
+  },
+  "layerMethod": "Playwright canvas raster extraction from flattened gear-source.png: manual gauge bounding boxes, strict RGB hue/saturation/value pixel masks with channel-separation gates, radius-expanded alpha for immediate gauge glow, local dark low-saturation rail sampling for base neutralization, and conservative saturated-light extraction outside padded gauge boxes for gear-glow.png.",
+  "caveats": [
+    "Source is a flattened generated bitmap, so gear-base.png uses dark rail approximation rather than true inpainting.",
+    "Gauge extraction is intentionally conservative: it keeps saturated bright cells/tubes and nearby glow, while leaving dark frames, separators, and ambiguous metal detail mostly in the base.",
+    "gear-glow.png excludes padded gauge boxes and only captures clearly saturated non-gauge lights, so faint reflections, rust, and low-saturation highlights are intentionally omitted."
+  ],
+  "extractionStats": {
+    "gaugePixels": 89868,
+    "averageGaugeAlpha": 91.54,
+    "gaugeSeedPixels": 40448,
+    "glowPixels": 8042,
+    "averageGlowAlpha": 40.8,
+    "glowSeedPixels": 1952,
+    "baseCoveredPixels": 86845
+  }
+}

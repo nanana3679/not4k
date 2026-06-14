@@ -1,0 +1,43 @@
+{
+  "canvas": {
+    "width": 1672,
+    "height": 941
+  },
+  "layers": {
+    "back": "gear-back.png",
+    "front": "gear-front.png"
+  },
+  "gauges": [
+    {
+      "id": "leftAltitude",
+      "label": "Left altitude",
+      "window": {
+        "x": 608,
+        "y": 116,
+        "width": 42,
+        "height": 498,
+        "radius": 9
+      },
+      "direction": "bottom-to-top",
+      "gradient": [
+        {
+          "at": 0,
+          "color": "#18d7ff"
+        },
+        {
+          "at": 0.62,
+          "color": "#69f5d1"
+        },
+        {
+          "at": 1,
+          "color": "#ffd166"
+        }
+      ],
+      "innerGlow": {
+        "color": "#24e6ff",
+        "blur": 18,
+        "alpha": 0.46
+      }
+    }
+  ]
+}

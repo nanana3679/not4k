@@ -53,6 +53,50 @@
   filter: brightness(1.25) saturate(1.04) drop-shadow(0 0 18px rgba(173, 238, 255, 0.34));
 }
 
+.gear-light-gauge-layer {
+  mix-blend-mode: screen;
+  filter: brightness(1.1) saturate(1.12) drop-shadow(0 0 12px rgba(128, 232, 255, 0.26));
+}
+
+.gear-light-runtime-gauge-window {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.gear-light-runtime-gauge-window::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.12)),
+    radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.22), transparent 42%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+.gear-light-runtime-gauge-fill {
+  position: absolute;
+  overflow: hidden;
+  filter: saturate(1.15);
+}
+
+.gear-light-runtime-gauge-fill::before {
+  position: absolute;
+  inset: -35% 0;
+  content: "";
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.28) 0,
+    rgba(255, 255, 255, 0.28) 2px,
+    transparent 2px,
+    transparent 14px
+  );
+  mix-blend-mode: screen;
+  opacity: 0.34;
+}
+
 .gear-light-box {
   position: absolute;
   border: 1px solid rgba(185, 236, 255, 0.62);
@@ -139,7 +183,7 @@
 
 .gear-light-view-modes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -152,6 +196,12 @@
   background: linear-gradient(180deg, rgba(77, 104, 119, 0.58), rgba(28, 36, 45, 0.92));
   color: #f5fbff;
   box-shadow: 0 0 18px rgba(112, 203, 233, 0.16);
+}
+
+.gear-light-view-modes button:disabled {
+  border-color: rgba(106, 123, 137, 0.1);
+  color: #53606b;
+  cursor: not-allowed;
 }
 
 .gear-light-sample-grid {
@@ -257,7 +307,7 @@
 
 .gear-light-slider {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 76px 1fr;
   align-items: center;
   gap: 12px;
   color: #aab6c2;
@@ -267,6 +317,10 @@
 .gear-light-slider input {
   width: 100%;
   accent-color: #9addec;
+}
+
+.gear-light-slider input:disabled {
+  opacity: 0.42;
 }
 
 .gear-light-side-stats {

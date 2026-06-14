@@ -1,0 +1,39 @@
+{
+  "width": 3404,
+  "height": 4704,
+  "source": "generated-gear-gauge-samples.mjs",
+  "theme": "service bay console, dense lower controls and quiet side mass",
+  "density": {
+    "left": 6,
+    "right": 13,
+    "bottom": 18
+  },
+  "columnBoxes": {
+    "left": {
+      "x": 430,
+      "y": 535,
+      "width": 470,
+      "height": 2960
+    },
+    "right": {
+      "x": 2504,
+      "y": 535,
+      "width": 498,
+      "height": 2960
+    }
+  },
+  "gaugeBoxes": {
+    "left": {
+      "x": 744,
+      "y": 710,
+      "width": 78,
+      "height": 2504
+    },
+    "right": {
+      "x": 2582,
+      "y": 710,
+      "width": 78,
+      "height": 2504
+    }
+  }
+}

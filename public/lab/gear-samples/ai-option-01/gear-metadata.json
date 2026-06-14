@@ -1,0 +1,35 @@
+{
+  "width": 1024,
+  "height": 1536,
+  "source": "gear-source.png",
+  "conceptLabel": "AI option 01 - cyan industrial altitude gauge rails",
+  "gaugeRole": "고도/생존 게이지(survival/altitude indicator)",
+  "gaugeBoxes": {
+    "left": {
+      "x": 190,
+      "y": 296,
+      "width": 56,
+      "height": 842
+    },
+    "right": {
+      "x": 778,
+      "y": 296,
+      "width": 56,
+      "height": 842
+    }
+  },
+  "layerMethod": "Pure Node raster extraction from flattened gear-source.png: manual gauge bounding boxes, RGB hue/saturation pixel masks, blur-expanded alpha for immediate gauge glow, local dark-rail sampling for base neutralization, and conservative non-gauge saturated-light extraction outside padded gauge boxes.",
+  "caveats": [
+    "Source is a flattened generated bitmap, so gauge removal is approximate rather than true inpainting.",
+    "gear-base.png strongly neutralizes bright gauge cells/tubes and nearby glow; faint rail ghosts or softened separators may remain where the source had no clean background pixels.",
+    "gear-glow.png is conservative and excludes padded gauge boxes, so ambiguous glow near the altitude gauge is intentionally left out."
+  ],
+  "extractionStats": {
+    "gaugePixels": 121945,
+    "averageGaugeAlpha": 132.44,
+    "glowPixels": 62908,
+    "averageGlowAlpha": 42.23,
+    "gaugeSeedPixels": 52457,
+    "glowSeedPixels": 5086
+  }
+}

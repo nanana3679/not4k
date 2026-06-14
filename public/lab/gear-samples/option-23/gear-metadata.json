@@ -1,0 +1,39 @@
+{
+  "width": 3404,
+  "height": 4704,
+  "source": "generated-gear-gauge-samples.mjs",
+  "theme": "split reactor columns, sparse keyboard deck, high contrast gauge cells",
+  "density": {
+    "left": 10,
+    "right": 10,
+    "bottom": 6
+  },
+  "columnBoxes": {
+    "left": {
+      "x": 430,
+      "y": 535,
+      "width": 470,
+      "height": 2960
+    },
+    "right": {
+      "x": 2504,
+      "y": 535,
+      "width": 498,
+      "height": 2960
+    }
+  },
+  "gaugeBoxes": {
+    "left": {
+      "x": 744,
+      "y": 710,
+      "width": 78,
+      "height": 2504
+    },
+    "right": {
+      "x": 2582,
+      "y": 710,
+      "width": 78,
+      "height": 2504
+    }
+  }
+}

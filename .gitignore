@@ -7,6 +7,42 @@
 node_modules/
 dist/
 public/skins/
+__pycache__/
+*.pyc
+
+# AI-generated image experiments are large and reproducible.
+# Generated images, prompts, and per-run metadata stay local.
+# Keep only the storage convention doc in Git.
+public/lab/gear-samples/**
+!public/lab/gear-samples/
+!public/lab/gear-samples/README.md
+
+# Example generated pair names covered by the directory-wide ignore above.
+public/lab/gear-samples/**/gear-source.png
+public/lab/gear-samples/**/gear-source.md
+public/lab/gear-samples/**/metadata.json
+
+# Adopted lab demo fixture for the runtime gauge layer preview.
+!public/lab/gear-samples/compact-set-03/
+!public/lab/gear-samples/compact-set-03/gear-source.png
+!public/lab/gear-samples/compact-set-03/gear-back.png
+!public/lab/gear-samples/compact-set-03/gear-front.png
+!public/lab/gear-samples/compact-set-03/skin-runtime-config.json
+
+# Curated lab fixtures referenced by src/lab/gearLightAssets.ts.
+!public/lab/gear-samples/option-2[1-4]/
+!public/lab/gear-samples/option-2[1-4]/gear-source.png
+!public/lab/gear-samples/option-2[1-4]/gear-base.png
+!public/lab/gear-samples/option-2[1-4]/gear-glow.png
+!public/lab/gear-samples/option-2[1-4]/gear-gauge.png
+!public/lab/gear-samples/option-2[1-4]/gear-metadata.json
+!public/lab/gear-samples/ai-option-0[1-3]/
+!public/lab/gear-samples/ai-option-0[1-3]/gear-source.png
+!public/lab/gear-samples/ai-option-0[1-3]/gear-base.png
+!public/lab/gear-samples/ai-option-0[1-3]/gear-glow.png
+!public/lab/gear-samples/ai-option-0[1-3]/gear-gauge.png
+!public/lab/gear-samples/ai-option-0[1-3]/gear-metadata.json
+
 *.tsbuildinfo
 .vite/
 playwright-report/
