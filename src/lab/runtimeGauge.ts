@@ -22,6 +22,12 @@ export interface RuntimeGaugeDefinition {
   innerGlow: RuntimeGaugeGlow;
 }
 
+export interface RuntimeGaugeEraseMask extends GearLightBox {
+  id: string;
+  sourceGaugeId: string;
+  radius?: number;
+}
+
 export interface RuntimeGaugeConfig {
   canvas: {
     width: number;
@@ -31,6 +37,7 @@ export interface RuntimeGaugeConfig {
     back: string;
     front: string;
   };
+  eraseMasks?: RuntimeGaugeEraseMask[];
   gauges: RuntimeGaugeDefinition[];
 }
 

@@ -59,7 +59,10 @@ export function createGaugeCalibration(config: RuntimeGaugeConfig, erasePadding 
       radius: gauge.window.radius ?? 0,
     }, config.canvas);
     gaugeWindows[gauge.id] = window;
-    eraseMasks[gauge.id] = expandCalibrationRect(window, erasePadding, config.canvas);
+    const eraseMask = config.eraseMasks?.find((mask) => mask.sourceGaugeId === gauge.id);
+    eraseMasks[gauge.id] = eraseMask
+      ? clampCalibrationRect({ ...eraseMask, radius: eraseMask.radius ?? 0 }, config.canvas)
+      : expandCalibrationRect(window, erasePadding, config.canvas);
   }
 
   return {

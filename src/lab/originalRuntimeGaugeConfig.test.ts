@@ -24,4 +24,37 @@ describe('original runtime gauge config', () => {
       front: 'gear-front.png',
     });
   });
+
+  it('원본 runtime config는 사람이 보정한 eraseMask와 gauge window 좌표를 유지함', () => {
+    expect(config.eraseMasks).toEqual([
+      {
+        id: 'leftAltitudeErase',
+        sourceGaugeId: 'leftAltitude',
+        x: 425,
+        y: 273,
+        width: 23,
+        height: 1226,
+        radius: 11,
+      },
+      {
+        id: 'rightAltitudeErase',
+        sourceGaugeId: 'rightAltitude',
+        x: 1378,
+        y: 271,
+        width: 20,
+        height: 1219,
+        radius: 10,
+      },
+    ]);
+    expect(config.gauges.map((gauge) => ({ id: gauge.id, window: gauge.window }))).toEqual([
+      {
+        id: 'leftAltitude',
+        window: { x: 412, y: 267, width: 58, height: 1230, radius: 14 },
+      },
+      {
+        id: 'rightAltitude',
+        window: { x: 1358, y: 271, width: 62, height: 1224, radius: 14 },
+      },
+    ]);
+  });
 });

@@ -202,6 +202,8 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 두 overlay는 개별 표시 토글로 숨기거나 다시 켤 수 있고, 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다. 오른쪽 조정 패널은 화면보다 내용이 길어지면 자체 세로 스크롤로 이동한다.
 
+채택된 runtime config는 `gauges[].window`와 함께 `eraseMasks[]`를 저장할 수 있으며, 랩의 영역 보정 초기값은 `sourceGaugeId`가 일치하는 `eraseMasks[]`를 우선 사용한다.
+
 메인 프리뷰 영역은 50%~400% 확대/축소와 상하좌우 스크롤을 지원해 게이지 구멍, erase mask 경계, 하단 키보드부 같은 세부 영역을 확대해서 보정한다.
 
 ### 마디 펄스 랩

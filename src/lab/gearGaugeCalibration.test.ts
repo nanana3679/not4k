@@ -40,6 +40,29 @@ describe('gearGaugeCalibration', () => {
     });
   });
 
+  it('runtime config에 eraseMasks가 있으면 padding 확장 대신 sourceGaugeId가 같은 eraseMask를 사용함', () => {
+    expect(createGaugeCalibration({
+      ...runtimeConfig,
+      eraseMasks: [
+        {
+          id: 'leftAltitudeErase',
+          sourceGaugeId: 'leftAltitude',
+          x: 45,
+          y: 35,
+          width: 24,
+          height: 132,
+          radius: 12,
+        },
+      ],
+    }, 10).eraseMasks.leftAltitude).toEqual({
+      x: 45,
+      y: 35,
+      width: 24,
+      height: 132,
+      radius: 12,
+    });
+  });
+
   it('좌표를 -80, -70 이동하면 eraseMask가 canvas 밖으로 나가지 않고 0,0에 고정됨', () => {
     const rect = moveCalibrationRect(
       { x: 40, y: 30, width: 50, height: 140, radius: 18 },

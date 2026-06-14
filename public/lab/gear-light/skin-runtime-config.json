@@ -7,15 +7,35 @@
     "back": "gear-back.png",
     "front": "gear-front.png"
   },
+  "eraseMasks": [
+    {
+      "id": "leftAltitudeErase",
+      "sourceGaugeId": "leftAltitude",
+      "x": 425,
+      "y": 273,
+      "width": 23,
+      "height": 1226,
+      "radius": 11
+    },
+    {
+      "id": "rightAltitudeErase",
+      "sourceGaugeId": "rightAltitude",
+      "x": 1378,
+      "y": 271,
+      "width": 20,
+      "height": 1219,
+      "radius": 10
+    }
+  ],
   "gauges": [
     {
       "id": "leftAltitude",
       "label": "leftAltitude",
       "window": {
         "x": 412,
-        "y": 321,
+        "y": 267,
         "width": 58,
-        "height": 1197,
+        "height": 1230,
         "radius": 14
       },
       "direction": "bottom-to-top",
@@ -44,9 +64,9 @@
       "label": "rightAltitude",
       "window": {
         "x": 1358,
-        "y": 316,
+        "y": 271,
         "width": 62,
-        "height": 1194,
+        "height": 1224,
         "radius": 14
       },
       "direction": "bottom-to-top",
