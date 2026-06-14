@@ -21,6 +21,7 @@ gear-front.png
 
 - A sample directory under `public/lab/gear-samples/<sample>/`
 - `gear-source.png` in that directory
+- Optional `skin-runtime-config.json` with accepted `gauges[].window` and `eraseMasks[]`
 - Optional `gear-source.md` if the original image-generation prompt was recorded
 
 ## Required References
@@ -42,7 +43,7 @@ Read these before executing:
    - `gauge.direction`: usually `bottom-to-top`
    - optional gradient/glow defaults that match the skin
 3. Generate:
-   - `gear-back.png`: source-sized image with a dark empty gauge track behind the window
+   - `gear-back.png`: source-sized image with the accepted `eraseMasks[]` turned into a dark empty track; when no erase mask exists, fall back to the full gauge window
    - `gear-front.png`: source-sized transparent PNG where only the gauge window is punched out
    - `skin-runtime-config.json`: runtime gauge coordinates, direction, gradient, glow, and layer paths
 4. Use `scripts/make_runtime_gauge_layers.py` for deterministic first-pass output.
@@ -54,6 +55,14 @@ Read these before executing:
    - runtime drawing clips the bar and glow to the window before `gear-front.png` is drawn
 
 Example:
+
+```bash
+python3 docs/agents/skills/not4k-gear-layer-split/scripts/make_runtime_gauge_layers.py \
+  --sample-dir public/lab/gear-samples/<sample> \
+  --config-file public/lab/gear-samples/<sample>/skin-runtime-config.json
+```
+
+For a one-off window without an existing config:
 
 ```bash
 python3 docs/agents/skills/not4k-gear-layer-split/scripts/make_runtime_gauge_layers.py \

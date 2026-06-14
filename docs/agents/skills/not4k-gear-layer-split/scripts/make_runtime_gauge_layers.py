@@ -105,12 +105,41 @@ def png_chunk(kind: bytes, payload: bytes) -> bytes:
 
 
 def write_png(path: Path, width: int, height: int, rgba: bytes) -> None:
+    def signed_filter_score(row: bytes) -> int:
+        return sum(abs(value - 256 if value > 127 else value) for value in row)
+
+    def filter_row(filter_type: int, row: bytes, previous: bytes, channels: int) -> bytes:
+        encoded = bytearray(len(row))
+        for i, value in enumerate(row):
+            left = row[i - channels] if i >= channels else 0
+            up = previous[i]
+            upper_left = previous[i - channels] if i >= channels else 0
+            if filter_type == 0:
+                predictor = 0
+            elif filter_type == 1:
+                predictor = left
+            elif filter_type == 2:
+                predictor = up
+            elif filter_type == 3:
+                predictor = (left + up) // 2
+            elif filter_type == 4:
+                predictor = paeth(left, up, upper_left)
+            else:
+                raise ValueError(f"unsupported PNG filter {filter_type}")
+            encoded[i] = (value - predictor) & 0xFF
+        return bytes(encoded)
+
     raw = bytearray()
     stride = width * 4
+    previous = bytes(stride)
     for y in range(height):
-        raw.append(0)
         start = y * stride
-        raw.extend(rgba[start : start + stride])
+        row = bytes(rgba[start : start + stride])
+        candidates = [(filter_type, filter_row(filter_type, row, previous, 4)) for filter_type in range(5)]
+        filter_type, encoded = min(candidates, key=lambda candidate: signed_filter_score(candidate[1]))
+        raw.append(filter_type)
+        raw.extend(encoded)
+        previous = row
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
     path.write_bytes(
         PNG_SIGNATURE
@@ -164,6 +193,42 @@ def set_pixel(rgba: bytearray, width: int, x: int, y: int, color: tuple[int, int
     rgba[idx : idx + 4] = bytes(color)
 
 
+def scale_rect(rect: dict, scale_x: float, scale_y: float) -> tuple[int, int, int, int]:
+    left = round(rect["x"] * scale_x)
+    top = round(rect["y"] * scale_y)
+    right = round((rect["x"] + rect["width"]) * scale_x)
+    bottom = round((rect["y"] + rect["height"]) * scale_y)
+    return left, top, right, bottom
+
+
+def scale_radius(radius: int | float, scale_x: float, scale_y: float) -> int:
+    return round(radius * min(scale_x, scale_y))
+
+
+def config_to_gauges(config: dict, source_width: int, source_height: int):
+    canvas = config["canvas"]
+    scale_x = source_width / canvas["width"]
+    scale_y = source_height / canvas["height"]
+    masks = {mask["sourceGaugeId"]: mask for mask in config.get("eraseMasks", [])}
+    gauges = []
+
+    for gauge in config["gauges"]:
+        window = gauge["window"]
+        erase_mask = masks.get(gauge["id"])
+        item = {
+            "id": gauge["id"],
+            "label": gauge.get("label", gauge["id"]),
+            "rect": scale_rect(window, scale_x, scale_y),
+            "radius": scale_radius(window.get("radius", 0), scale_x, scale_y),
+        }
+        if erase_mask:
+            item["erase_rect"] = scale_rect(erase_mask, scale_x, scale_y)
+            item["erase_radius"] = scale_radius(erase_mask.get("radius", 0), scale_x, scale_y)
+        gauges.append(item)
+
+    return gauges
+
+
 def make_layers(source: bytearray, width: int, height: int, gauges: list[dict]):
     front = bytearray(source)
     back = bytearray(source)
@@ -178,6 +243,13 @@ def make_layers(source: bytearray, width: int, height: int, gauges: list[dict]):
                 if not rounded_rect_contains(x, y, left, top, right, bottom, radius):
                     continue
                 set_pixel(front, width, x, y, (0, 0, 0, 0))
+
+        erase_left, erase_top, erase_right, erase_bottom = gauge.get("erase_rect", gauge["rect"])
+        erase_radius = gauge.get("erase_radius", radius)
+        for y in range(erase_top, erase_bottom):
+            for x in range(erase_left, erase_right):
+                if not rounded_rect_contains(x, y, erase_left, erase_top, erase_right, erase_bottom, erase_radius):
+                    continue
                 distance_to_edge = min(x - left, right - 1 - x, y - top, bottom - 1 - y)
                 color = edge if distance_to_edge < 3 else inner
                 set_pixel(back, width, x, y, color)
@@ -188,6 +260,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample-dir", required=True, type=Path)
     parser.add_argument("--source-file", type=Path)
+    parser.add_argument("--config-file", type=Path)
     parser.add_argument("--window", type=parse_rect)
     parser.add_argument("--gauge-window", action="append", default=[], type=parse_gauge_window)
     parser.add_argument("--radius", default=0, type=int)
@@ -197,7 +270,12 @@ def main() -> None:
     sample_dir = args.sample_dir
     source = args.source_file or sample_dir / "gear-source.png"
     width, height, rgba = read_png(source)
+    config_file = args.config_file or sample_dir / "skin-runtime-config.json"
+    config = None
     gauges = args.gauge_window
+    if not gauges and config_file.exists():
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        gauges = config_to_gauges(config, width, height)
     if not gauges:
         if args.window is None:
             raise SystemExit("--window or at least one --gauge-window is required")
@@ -214,33 +292,34 @@ def main() -> None:
     write_png(sample_dir / "gear-back.png", width, height, back)
     write_png(sample_dir / "gear-front.png", width, height, front)
 
-    config = {
-        "canvas": {"width": width, "height": height},
-        "layers": {"back": "gear-back.png", "front": "gear-front.png"},
-        "gauges": [],
-    }
-    for gauge in gauges:
-        left, top, right, bottom = gauge["rect"]
-        config["gauges"].append(
-            {
-                "id": gauge["id"],
-                "label": gauge["label"],
-                "window": {
-                    "x": left,
-                    "y": top,
-                    "width": right - left,
-                    "height": bottom - top,
-                    "radius": gauge["radius"],
-                },
-                "direction": args.direction,
-                "gradient": [
-                    {"at": 0, "color": "#18d7ff"},
-                    {"at": 0.62, "color": "#69f5d1"},
-                    {"at": 1, "color": "#ffd166"},
-                ],
-                "innerGlow": {"color": "#24e6ff", "blur": 18, "alpha": 0.46},
-            }
-        )
+    if config is None:
+        config = {
+            "canvas": {"width": width, "height": height},
+            "layers": {"back": "gear-back.png", "front": "gear-front.png"},
+            "gauges": [],
+        }
+        for gauge in gauges:
+            left, top, right, bottom = gauge["rect"]
+            config["gauges"].append(
+                {
+                    "id": gauge["id"],
+                    "label": gauge["label"],
+                    "window": {
+                        "x": left,
+                        "y": top,
+                        "width": right - left,
+                        "height": bottom - top,
+                        "radius": gauge["radius"],
+                    },
+                    "direction": args.direction,
+                    "gradient": [
+                        {"at": 0, "color": "#18d7ff"},
+                        {"at": 0.62, "color": "#69f5d1"},
+                        {"at": 1, "color": "#ffd166"},
+                    ],
+                    "innerGlow": {"color": "#24e6ff", "blur": 18, "alpha": 0.46},
+                }
+            )
     (sample_dir / "skin-runtime-config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
