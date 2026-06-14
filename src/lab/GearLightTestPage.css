@@ -275,7 +275,8 @@
 }
 
 .gear-light-controls {
-  min-height: calc(100vh - 36px);
+  height: calc(100vh - 36px);
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -473,6 +474,12 @@
   border-color: rgba(159, 224, 245, 0.64);
   background: linear-gradient(180deg, rgba(77, 104, 119, 0.58), rgba(28, 36, 45, 0.92));
   color: #f5fbff;
+}
+
+.gear-light-calibration-visibility {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .gear-light-calibration-grid {

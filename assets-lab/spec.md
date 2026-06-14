@@ -200,7 +200,7 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 테스트 페이지는 선택된 샘플의 metadata를 읽고 base 레이어 위에 glow 레이어를 좌·우 기둥 bbox로 clipping해서 다시 얹는다. 높이는 bbox 하단 기준으로 위쪽을 잘라 조정하고, 세기는 glow 레이어의 opacity, brightness, drop-shadow로 조정한다. `gear-gauge.png`가 있는 샘플은 게이지 레이어만 따로 보거나, adjusted 모드에서 `gaugeBoxes`를 기준으로 고도 채움 높이를 preview할 수 있다.
 
-런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다.
+런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 두 overlay는 개별 표시 토글로 숨기거나 다시 켤 수 있고, 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다. 오른쪽 조정 패널은 화면보다 내용이 길어지면 자체 세로 스크롤로 이동한다.
 
 메인 프리뷰 영역은 50%~400% 확대/축소와 상하좌우 스크롤을 지원해 게이지 구멍, erase mask 경계, 하단 키보드부 같은 세부 영역을 확대해서 보정한다.
 

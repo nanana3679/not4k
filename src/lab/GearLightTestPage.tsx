@@ -73,6 +73,11 @@ const CALIBRATION_LAYERS: Array<{ id: GaugeCalibrationLayer; label: string }> = 
   { id: 'gaugeWindow', label: 'Window' },
 ];
 
+const DEFAULT_CALIBRATION_VISIBILITY: Record<GaugeCalibrationLayer, boolean> = {
+  eraseMask: true,
+  gaugeWindow: true,
+};
+
 const RESIZE_HANDLES: CalibrationResizeHandle[] = ['left', 'right', 'top', 'bottom'];
 
 const DEFAULT_CONTROLS: Record<GearLightSide, SideControl> = {
@@ -149,6 +154,7 @@ export default function GearLightTestPage() {
   const [stageZoom, setStageZoom] = useState(STAGE_ZOOM_DEFAULT);
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibrationLayer, setCalibrationLayer] = useState<GaugeCalibrationLayer>('gaugeWindow');
+  const [calibrationVisibility, setCalibrationVisibility] = useState(DEFAULT_CALIBRATION_VISIBILITY);
   const [calibration, setCalibration] = useState<GaugeCalibrationState | null>(null);
   const [dragState, setDragState] = useState<{
     gaugeId: string;
@@ -244,6 +250,7 @@ export default function GearLightTestPage() {
     setGaugeHeight(0.78);
     setRuntimeGaugeValue(0.62);
     setStageZoom(STAGE_ZOOM_DEFAULT);
+    setCalibrationVisibility(DEFAULT_CALIBRATION_VISIBILITY);
     setCalibration(runtimeConfig ? createGaugeCalibration(runtimeConfig) : null);
   };
 
@@ -352,6 +359,13 @@ export default function GearLightTestPage() {
       { [key]: value },
       runtimeConfig.canvas,
     ));
+  };
+
+  const setCalibrationVisibilityValue = (layer: GaugeCalibrationLayer, value: boolean) => {
+    setCalibrationVisibility((current) => ({
+      ...current,
+      [layer]: value,
+    }));
   };
 
   return (
@@ -498,6 +512,7 @@ export default function GearLightTestPage() {
           {showCalibration && runtimeConfig && calibration && (
             <div className="gear-light-calibration-layer" aria-hidden="true">
               {runtimeConfig.gauges.flatMap((gauge) => CALIBRATION_LAYERS.map(({ id: layer }) => {
+                if (!calibrationVisibility[layer]) return null;
                 const rect = getCalibrationRect(calibration, layer, gauge.id);
                 if (!rect) return null;
                 const isActive = calibration.activeGaugeId === gauge.id && calibrationLayer === layer;
@@ -662,6 +677,19 @@ export default function GearLightTestPage() {
                 >
                   {layer.label}
                 </button>
+              ))}
+            </div>
+
+            <div className="gear-light-calibration-visibility">
+              {CALIBRATION_LAYERS.map((layer) => (
+                <label key={layer.id} className="gear-light-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={calibrationVisibility[layer.id]}
+                    onChange={(event) => setCalibrationVisibilityValue(layer.id, event.currentTarget.checked)}
+                  />
+                  <span>{layer.label} 표시</span>
+                </label>
               ))}
             </div>
 
