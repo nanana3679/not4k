@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type GearLightBox,
   type GearLightSide,
@@ -13,6 +13,17 @@ import {
   resolveGearLightViewMode,
   type GearLightPreviewMode,
 } from './gearLightPreviewMode';
+import {
+  createGaugeCalibration,
+  exportGaugeCalibration,
+  moveCalibrationRect,
+  resizeCalibrationRect,
+  updateCalibrationRect,
+  type CalibrationRect,
+  type CalibrationResizeHandle,
+  type GaugeCalibrationLayer,
+  type GaugeCalibrationState,
+} from './gearGaugeCalibration';
 import {
   type RuntimeGaugeConfig,
   type RuntimeGaugeDefinition,
@@ -47,6 +58,13 @@ const VIEW_MODES: Array<{ id: ViewMode; label: string }> = [
   { id: 'glow', label: '발광' },
   { id: 'gauge', label: '게이지' },
 ];
+
+const CALIBRATION_LAYERS: Array<{ id: GaugeCalibrationLayer; label: string }> = [
+  { id: 'eraseMask', label: 'Erase' },
+  { id: 'gaugeWindow', label: 'Window' },
+];
+
+const RESIZE_HANDLES: CalibrationResizeHandle[] = ['left', 'right', 'top', 'bottom'];
 
 const DEFAULT_CONTROLS: Record<GearLightSide, SideControl> = {
   left: { height: 0.82, intensity: 1 },
@@ -91,7 +109,25 @@ function runtimeGaugeFillStyle(config: RuntimeGaugeConfig, gauge: RuntimeGaugeDe
   };
 }
 
+function calibrationRectToStyle(config: RuntimeGaugeConfig, rect: CalibrationRect): CSSProperties {
+  return {
+    ...runtimeBoxToStyle(config, rect),
+    borderRadius: `${(rect.radius / Math.max(rect.width, 1)) * 100}% / ${(rect.radius / Math.max(rect.height, 1)) * 100}%`,
+  };
+}
+
+function getCalibrationRect(
+  calibration: GaugeCalibrationState,
+  layer: GaugeCalibrationLayer,
+  gaugeId: string,
+) {
+  return layer === 'eraseMask'
+    ? calibration.eraseMasks[gaugeId]
+    : calibration.gaugeWindows[gaugeId];
+}
+
 export default function GearLightTestPage() {
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState('original');
   const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const [viewMode, setViewMode] = useState<ViewMode>('runtime');
@@ -101,6 +137,16 @@ export default function GearLightTestPage() {
   const [loadedMetadata, setLoadedMetadata] = useState<{ src: string; metadata: GearLightMetadata } | null>(null);
   const [runtimeGaugeValue, setRuntimeGaugeValue] = useState(0.62);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeGaugeConfig | null>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
+  const [calibrationLayer, setCalibrationLayer] = useState<GaugeCalibrationLayer>('gaugeWindow');
+  const [calibration, setCalibration] = useState<GaugeCalibrationState | null>(null);
+  const [dragState, setDragState] = useState<{
+    gaugeId: string;
+    layer: GaugeCalibrationLayer;
+    mode: 'move' | CalibrationResizeHandle;
+    startPoint: { x: number; y: number };
+    startRect: CalibrationRect;
+  } | null>(null);
 
   const selectedSample = useMemo(() => getGearLightSample(selectedSampleId), [selectedSampleId]);
 
@@ -145,7 +191,11 @@ export default function GearLightTestPage() {
         }
         return response.json() as Promise<RuntimeGaugeConfig>;
       })
-      .then((nextConfig) => setRuntimeConfig(nextConfig))
+      .then((nextConfig) => {
+        setRuntimeConfig(nextConfig);
+        setCalibration(createGaugeCalibration(nextConfig));
+        setCalibrationLayer('gaugeWindow');
+      })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error(error);
@@ -183,6 +233,7 @@ export default function GearLightTestPage() {
     setShowGaugeLayer(true);
     setGaugeHeight(0.78);
     setRuntimeGaugeValue(0.62);
+    setCalibration(runtimeConfig ? createGaugeCalibration(runtimeConfig) : null);
   };
 
   const stageAspectRatio = runtimeConfig
@@ -197,6 +248,12 @@ export default function GearLightTestPage() {
   const canShowAdjusted = Boolean(metadata && columnBoxes);
   const canShowRuntimeGauge = Boolean(selectedSample.runtimeBackSrc && selectedSample.runtimeFrontSrc && runtimeConfig);
   const canRenderSelectedSample = Boolean(metadata || runtimeConfig);
+  const activeCalibrationRect = runtimeConfig && calibration
+    ? getCalibrationRect(calibration, calibrationLayer, calibration.activeGaugeId)
+    : null;
+  const calibrationExport = runtimeConfig && calibration
+    ? JSON.stringify(exportGaugeCalibration(runtimeConfig, calibration), null, 2)
+    : '';
   const resolvedViewMode = resolveGearLightViewMode({
     viewMode,
     canShowAdjusted,
@@ -216,12 +273,82 @@ export default function GearLightTestPage() {
     }
   }, [canShowAdjusted, canShowGauge, metadata, viewMode]);
 
+  const getCanvasPoint = (event: ReactPointerEvent) => {
+    const element = stageRef.current;
+    if (!element || !runtimeConfig) return null;
+    const rect = element.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * runtimeConfig.canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * runtimeConfig.canvas.height,
+    };
+  };
+
+  const startCalibrationDrag = (
+    event: ReactPointerEvent,
+    layer: GaugeCalibrationLayer,
+    gaugeId: string,
+    mode: 'move' | CalibrationResizeHandle,
+  ) => {
+    if (!runtimeConfig || !calibration) return;
+    const startPoint = getCanvasPoint(event);
+    const startRect = getCalibrationRect(calibration, layer, gaugeId);
+    if (!startPoint || !startRect) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCalibrationLayer(layer);
+    setCalibration((current) => current ? { ...current, activeGaugeId: gaugeId } : current);
+    setDragState({ gaugeId, layer, mode, startPoint, startRect });
+  };
+
+  const moveCalibrationDrag = (event: ReactPointerEvent) => {
+    if (!runtimeConfig || !calibration || !dragState) return;
+    const point = getCanvasPoint(event);
+    if (!point) return;
+    const delta = {
+      dx: point.x - dragState.startPoint.x,
+      dy: point.y - dragState.startPoint.y,
+    };
+    const nextRect = dragState.mode === 'move'
+      ? moveCalibrationRect(dragState.startRect, delta, runtimeConfig.canvas)
+      : resizeCalibrationRect(dragState.startRect, dragState.mode, delta, runtimeConfig.canvas);
+
+    setCalibration(updateCalibrationRect(
+      calibration,
+      dragState.layer,
+      dragState.gaugeId,
+      nextRect,
+      runtimeConfig.canvas,
+    ));
+  };
+
+  const stopCalibrationDrag = () => {
+    setDragState(null);
+  };
+
+  const setCalibrationValue = (key: keyof CalibrationRect, value: number) => {
+    if (!runtimeConfig || !calibration) return;
+    setCalibration(updateCalibrationRect(
+      calibration,
+      calibrationLayer,
+      calibration.activeGaugeId,
+      { [key]: value },
+      runtimeConfig.canvas,
+    ));
+  };
+
   return (
     <main className="gear-light-page">
       <section className="gear-light-stage-shell" aria-label="Gear light preview">
         <div
+          ref={stageRef}
           className="gear-light-stage"
           style={{ aspectRatio: stageAspectRatio }}
+          onPointerMove={moveCalibrationDrag}
+          onPointerUp={stopCalibrationDrag}
+          onPointerCancel={stopCalibrationDrag}
         >
           {!canRenderSelectedSample && (
             <img className="gear-light-layer" src={selectedSample.sourceSrc} alt="selected gear sample" />
@@ -313,6 +440,34 @@ export default function GearLightTestPage() {
                 </>
               )}
             </>
+          )}
+
+          {showCalibration && runtimeConfig && calibration && (
+            <div className="gear-light-calibration-layer" aria-hidden="true">
+              {runtimeConfig.gauges.flatMap((gauge) => CALIBRATION_LAYERS.map(({ id: layer }) => {
+                const rect = getCalibrationRect(calibration, layer, gauge.id);
+                if (!rect) return null;
+                const isActive = calibration.activeGaugeId === gauge.id && calibrationLayer === layer;
+
+                return (
+                  <div
+                    key={`${gauge.id}-${layer}`}
+                    className={`gear-light-calibration-rect gear-light-calibration-${layer} ${isActive ? 'is-active' : ''}`}
+                    style={calibrationRectToStyle(runtimeConfig, rect)}
+                    onPointerDown={(event) => startCalibrationDrag(event, layer, gauge.id, 'move')}
+                  >
+                    <span>{layer === 'eraseMask' ? 'erase' : 'window'}</span>
+                    {isActive && RESIZE_HANDLES.map((handle) => (
+                      <i
+                        key={handle}
+                        className={`gear-light-calibration-handle gear-light-calibration-handle-${handle}`}
+                        onPointerDown={(event) => startCalibrationDrag(event, layer, gauge.id, handle)}
+                      />
+                    ))}
+                  </div>
+                );
+              }))}
+            </div>
           )}
         </div>
       </section>
@@ -415,6 +570,77 @@ export default function GearLightTestPage() {
               disabled={resolvedViewMode !== 'runtime'}
             />
           </label>
+        )}
+
+        <label className="gear-light-checkbox">
+          <input
+            type="checkbox"
+            checked={showCalibration}
+            onChange={(event) => setShowCalibration(event.currentTarget.checked)}
+            disabled={!runtimeConfig}
+          />
+          <span>영역 보정</span>
+        </label>
+
+        {runtimeConfig && calibration && (
+          <section className="gear-light-calibration-panel">
+            <div className="gear-light-calibration-tabs" role="tablist" aria-label="Gauge calibration target">
+              {runtimeConfig.gauges.map((gauge) => (
+                <button
+                  key={gauge.id}
+                  type="button"
+                  className={calibration.activeGaugeId === gauge.id ? 'is-active' : ''}
+                  onClick={() => setCalibration((current) => current ? { ...current, activeGaugeId: gauge.id } : current)}
+                >
+                  {gauge.id}
+                </button>
+              ))}
+            </div>
+
+            <div className="gear-light-calibration-tabs" role="tablist" aria-label="Gauge calibration layer">
+              {CALIBRATION_LAYERS.map((layer) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  className={calibrationLayer === layer.id ? 'is-active' : ''}
+                  onClick={() => setCalibrationLayer(layer.id)}
+                >
+                  {layer.label}
+                </button>
+              ))}
+            </div>
+
+            {activeCalibrationRect && (
+              <div className="gear-light-calibration-grid">
+                {(['x', 'y', 'width', 'height', 'radius'] as const).map((key) => (
+                  <label key={key}>
+                    <span>{key}</span>
+                    <input
+                      type="number"
+                      value={activeCalibrationRect[key]}
+                      min="0"
+                      onChange={(event) => setCalibrationValue(key, Number(event.currentTarget.value))}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <button
+              className="gear-light-reset"
+              type="button"
+              onClick={() => setCalibration(createGaugeCalibration(runtimeConfig))}
+            >
+              보정 초기화
+            </button>
+
+            <textarea
+              className="gear-light-calibration-export"
+              readOnly
+              value={calibrationExport}
+              aria-label="Gauge calibration JSON export"
+            />
+          </section>
         )}
 
         <div className="gear-light-side-list">

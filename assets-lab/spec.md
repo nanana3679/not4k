@@ -200,6 +200,8 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 테스트 페이지는 선택된 샘플의 metadata를 읽고 base 레이어 위에 glow 레이어를 좌·우 기둥 bbox로 clipping해서 다시 얹는다. 높이는 bbox 하단 기준으로 위쪽을 잘라 조정하고, 세기는 glow 레이어의 opacity, brightness, drop-shadow로 조정한다. `gear-gauge.png`가 있는 샘플은 게이지 레이어만 따로 보거나, adjusted 모드에서 `gaugeBoxes`를 기준으로 고도 채움 높이를 preview할 수 있다.
 
+런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다.
+
 ### 마디 펄스 랩
 
 `/lab/gear-measure-pulse`는 인게임 레인 안의 마디선을 기어 프레임 발광으로 대체하는 안(동행 하이라이트)을 튜닝하는 테스트 페이지이다. `gear-base.png` 위에 `gear-glow.png`를 가로 밴드 그라데이션 마스크로 잘라 얹고, 그 밴드가 마디선 y좌표를 따라 위에서 아래로 내려온다. 스크롤 매핑은 게임과 동일한 선형 공식(`y = 판정선 - Δt × scrollSpeed / 1000`)을 progress 0(레인 상단)~1(판정선)로 정규화해 사용하므로, 여기서 정한 파라미터를 그대로 `GameRenderer` 이식 기준으로 쓸 수 있다.
