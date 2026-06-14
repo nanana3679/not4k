@@ -6,6 +6,7 @@ export function encodeWavBlob(
   audioBuffer: AudioBuffer,
   startTime: number,
   endTime: number,
+  options: { fadeInTime?: number; fadeOutTime?: number } = {},
 ): Blob {
   const sampleRate = audioBuffer.sampleRate;
   const numChannels = audioBuffer.numberOfChannels;
@@ -44,10 +45,18 @@ export function encodeWavBlob(
     channels.push(audioBuffer.getChannelData(ch));
   }
 
+  const maxFadeSamples = Math.floor(numSamples / 2);
+  const fadeInSamples = clampFadeSamples(options.fadeInTime ?? 0, sampleRate, maxFadeSamples);
+  const fadeOutSamples = clampFadeSamples(options.fadeOutTime ?? 0, sampleRate, maxFadeSamples);
+
   let offset = 44;
   for (let i = 0; i < numSamples; i++) {
+    const gain = Math.min(
+      getFadeInGain(i, fadeInSamples),
+      getFadeOutGain(i, numSamples, fadeOutSamples),
+    );
     for (let ch = 0; ch < numChannels; ch++) {
-      const sample = channels[ch][startSample + i];
+      const sample = channels[ch][startSample + i] * gain;
       const clamped = Math.max(-1, Math.min(1, sample));
       view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF, true);
       offset += 2;
@@ -55,6 +64,21 @@ export function encodeWavBlob(
   }
 
   return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function clampFadeSamples(fadeTime: number, sampleRate: number, maxFadeSamples: number): number {
+  if (!Number.isFinite(fadeTime) || fadeTime <= 0) return 0;
+  return Math.min(Math.floor(fadeTime * sampleRate), maxFadeSamples);
+}
+
+function getFadeInGain(sampleIndex: number, fadeInSamples: number): number {
+  if (fadeInSamples <= 0) return 1;
+  return Math.min(1, sampleIndex / fadeInSamples);
+}
+
+function getFadeOutGain(sampleIndex: number, numSamples: number, fadeOutSamples: number): number {
+  if (fadeOutSamples <= 0) return 1;
+  return Math.min(1, (numSamples - 1 - sampleIndex) / fadeOutSamples);
 }
 
 function writeString(view: DataView, offset: number, str: string): void {

@@ -11,10 +11,10 @@ import { CreateMode, SelectMode, DeleteMode } from './modes';
 import { useEditorStore } from './stores';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { supabase } from '../supabase';
-import type { ValidationError } from '../shared';
+import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
@@ -35,8 +35,37 @@ function getPublicUrl(path: string): string {
   return data.publicUrl;
 }
 
+interface SongGameplayRow {
+  duration: number | null;
+  gameplay_start: number | null;
+  gameplay_end: number | null;
+  gameplay_fade_in: number | null;
+  gameplay_fade_out: number | null;
+}
+
+function songRowToPlaybackRange(row: SongGameplayRow | null | undefined): PlaybackRange | null {
+  if (!row || row.gameplay_start == null || row.gameplay_end == null) return null;
+  const duration = row.duration != null && Number.isFinite(row.duration) && row.duration > 0
+    ? row.duration
+    : row.gameplay_end;
+  return normalizePlaybackRange({
+    startTime: row.gameplay_start,
+    endTime: row.gameplay_end,
+    fadeInTime: row.gameplay_fade_in ?? 0,
+    fadeOutTime: row.gameplay_fade_out ?? 0,
+  }, duration);
+}
+
+function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.startTime === b.startTime
+    && a.endTime === b.endTime
+    && a.fadeInTime === b.fadeInTime
+    && a.fadeOutTime === b.fadeOutTime;
+}
+
 export default function EditorApp() {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
   const setChart = useEditorStore((s) => s.setChart);
   const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
@@ -136,7 +165,11 @@ export default function EditorApp() {
             <button onClick={signOut} style={{ padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
               Sign Out
             </button>
-          ) : null}
+          ) : (
+            <button onClick={() => signInWithGoogle().catch(() => {})} style={{ padding: '8px 20px', backgroundColor: '#4a7cff', color: '#fff', border: '1px solid #6f96ff', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+              Login
+            </button>
+          )}
           <button onClick={() => { window.location.href = '/game'; }} style={{ padding: '8px 20px', backgroundColor: '#3a3a3a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
             Back to Songs
           </button>
@@ -196,7 +229,9 @@ function ChartEditorPage() {
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
   const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>('');
   const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>('');
-  const [pendingPreviewRange, setPendingPreviewRange] = useState<{ startTime: number; endTime: number } | null>(null);
+  const [pendingPreviewRange, setPendingPreviewRange] = useState<PlaybackRange | null>(null);
+  const [pendingGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
+  const [songGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
   const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
   const [jacketCacheBust, setJacketCacheBust] = useState(0);
 
@@ -306,9 +341,29 @@ function ChartEditorPage() {
     setSaving, setDeleting, setValidationErrors,
     setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm,
     setSavedChartSnapshot, setSavedExtraSnapshot,
-    setPendingPreviewRange, setPendingJacketFile, setJacketCacheBust,
-    pendingPreviewRange, pendingJacketFile,
+    setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
+    pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
   );
+
+  useEffect(() => {
+    if (!activeSongId) {
+      setSongGameplayRange(null);
+      return;
+    }
+    let mounted = true;
+    supabase
+      .from('songs')
+      .select('duration,gameplay_start,gameplay_end,gameplay_fade_in,gameplay_fade_out')
+      .eq('id', activeSongId)
+      .single()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSongGameplayRange(songRowToPlaybackRange(data as SongGameplayRow | null));
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeSongId]);
 
   // 키보드 단축키 훅
   useEditorKeyboard(
@@ -661,6 +716,7 @@ function ChartEditorPage() {
         savedChartSnapshot={savedChartSnapshot}
         savedExtraSnapshot={savedExtraSnapshot}
         pendingPreviewRange={pendingPreviewRange}
+        pendingGameplayRange={pendingGameplayRange}
         onSaveChart={fileOps.handleSaveChart}
         onSaveAs={() => setShowSaveAsModal(true)}
         onDeleteChart={() => setShowDeleteConfirm(true)}
@@ -704,7 +760,8 @@ function ChartEditorPage() {
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
-          onSave={async (meta, previewRange, jacketFile) => {
+          initialGameplayRange={songGameplayRange}
+          onSave={async (meta, previewRange, jacketFile, gameplayRange) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
@@ -712,7 +769,24 @@ function ChartEditorPage() {
             );
             setChart({ ...chart, meta });
             if (rangeChanged && previewRange) {
-              setPendingPreviewRange({ startTime: previewRange.startTime, endTime: previewRange.endTime });
+              setPendingPreviewRange({
+                startTime: previewRange.startTime,
+                endTime: previewRange.endTime,
+                fadeInTime: previewRange.fadeInTime,
+                fadeOutTime: previewRange.fadeOutTime,
+              });
+            }
+            const nextGameplayRange = gameplayRange
+              ? {
+                startTime: gameplayRange.startTime,
+                endTime: gameplayRange.endTime,
+                fadeInTime: gameplayRange.fadeInTime,
+                fadeOutTime: gameplayRange.fadeOutTime,
+              }
+              : null;
+            if (!samePlaybackRange(nextGameplayRange, songGameplayRange)) {
+              setSongGameplayRange(nextGameplayRange);
+              setPendingGameplayRange(nextGameplayRange);
             }
             if (jacketFile) setPendingJacketFile(jacketFile);
             setShowMetaModal(false);

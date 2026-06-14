@@ -154,12 +154,14 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [decodingAudio, setDecodingAudio] = useState(false);
   const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
+  const [gameplayRange, setGameplayRange] = useState<PreviewRangeState | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleAudioChange = async (file: File | null) => {
     setAudioFile(file);
     setAudioBuffer(null);
     setPreviewRange(null);
+    setGameplayRange(null);
     if (file) {
       setDecodingAudio(true);
       try {
@@ -209,6 +211,15 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
         artist: artist.trim(),
         audio_url: songAudioPath(songId, audioExt),
       };
+      const resolvedGameplayRange = audioBuffer
+        ? gameplayRange ?? {
+          startTime: 0,
+          endTime: audioBuffer.duration,
+          enabled: true,
+          fadeInTime: 0,
+          fadeOutTime: 0,
+        }
+        : null;
       if (jacketFile) {
         const jacketExt = jacketFile.name.split('.').pop()?.toLowerCase() || 'jpg';
         row.jacket_url = songJacketPath(songId, jacketExt);
@@ -220,10 +231,19 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
         row.preview_start = previewRange.startTime;
         row.preview_end = previewRange.endTime;
       }
+      if (resolvedGameplayRange) {
+        row.gameplay_start = resolvedGameplayRange.startTime;
+        row.gameplay_end = resolvedGameplayRange.endTime;
+        row.gameplay_fade_in = resolvedGameplayRange.fadeInTime;
+        row.gameplay_fade_out = resolvedGameplayRange.fadeOutTime;
+      }
 
       // Generate and upload preview WAV if preview range is set and audioBuffer exists
       if (previewRange && audioBuffer) {
-        const wavBlob = encodeWavBlob(audioBuffer, previewRange.startTime, previewRange.endTime);
+        const wavBlob = encodeWavBlob(audioBuffer, previewRange.startTime, previewRange.endTime, {
+          fadeInTime: previewRange.fadeInTime,
+          fadeOutTime: previewRange.fadeOutTime,
+        });
         const previewPath = songPreviewPath(songId);
         const { error: previewUploadErr } = await supabase.storage
           .from(STORAGE_BUCKET)
@@ -247,7 +267,7 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
 
   return (
     <div style={modalStyles.overlay} onMouseDown={submitting ? undefined : onClose}>
-      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw' }} onMouseDown={(e) => e.stopPropagation()}>
+      <div style={{ ...modalStyles.modal, minWidth: '340px', width: '500px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>New Song</h3>
 
         <label style={modalStyles.field}>
@@ -296,8 +316,24 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
         )}
 
         {audioBuffer && (
-          <div style={{ marginBottom: '12px' }}>
-            <PreviewRangeSelector audioBuffer={audioBuffer} onChange={setPreviewRange} />
+          <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <PreviewRangeSelector
+              audioBuffer={audioBuffer}
+              label="프리뷰 구간"
+              enabledLabel="프리뷰 사용"
+              onChange={setPreviewRange}
+            />
+            <PreviewRangeSelector
+              audioBuffer={audioBuffer}
+              label="인게임 구간"
+              canDisable={false}
+              defaultStart={0}
+              defaultEnd={audioBuffer.duration}
+              defaultDuration={audioBuffer.duration}
+              minDuration={1}
+              showFadeControls
+              onChange={setGameplayRange}
+            />
           </div>
         )}
 

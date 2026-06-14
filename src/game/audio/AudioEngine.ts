@@ -8,9 +8,12 @@
  * - High-precision playback time via AudioContext.currentTime
  * - Offset support for chart synchronization
  */
+import { normalizePlaybackRange, type PlaybackRange } from '../../shared';
+
 export class AudioEngine {
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
+  private sourceGain: GainNode | null = null;
   private buffer: AudioBuffer | null = null;
   private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
@@ -18,6 +21,8 @@ export class AudioEngine {
   private _playing: boolean = false;
   private pauseTime: number = 0; // position in buffer when paused (seconds)
   private _playbackRate: number = 1.0;
+  private requestedPlaybackRange: PlaybackRange | null = null;
+  private playbackRange: PlaybackRange | null = null;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -42,7 +47,7 @@ export class AudioEngine {
     if (this._playing) {
       // 현재까지의 위치를 누적하고 startTime을 리셋
       const elapsed = this.ctx.currentTime - this.startTime;
-      this.startOffset += elapsed * this._playbackRate;
+      this.startOffset = Math.min(this.getRangeDurationSeconds(), this.startOffset + elapsed * this._playbackRate);
       this.startTime = this.ctx.currentTime;
     }
     this._playbackRate = clamped;
@@ -67,6 +72,7 @@ export class AudioEngine {
       }
       const arrayBuffer = await response.arrayBuffer();
       this.buffer = await this.ctx.decodeAudioData(arrayBuffer);
+      this.applyRequestedPlaybackRange();
 
       // Reset playback state when new audio is loaded
       this.stop();
@@ -84,6 +90,13 @@ export class AudioEngine {
    */
   loadBuffer(buffer: AudioBuffer): void {
     this.buffer = buffer;
+    this.applyRequestedPlaybackRange();
+    this.stop();
+  }
+
+  setPlaybackRange(range: PlaybackRange | null): void {
+    this.requestedPlaybackRange = range;
+    this.applyRequestedPlaybackRange();
     this.stop();
   }
 
@@ -101,35 +114,46 @@ export class AudioEngine {
       void this.ctx.resume();
     }
 
-    // Stop existing playback if any
     if (this.source) {
-      this.source.stop();
-      this.source.disconnect();
+      try {
+        this.source.stop();
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === 'InvalidStateError')) {
+          console.warn('AudioEngine.play: unexpected stop error', e);
+        }
+      }
     }
+    this.stopActiveSource();
 
     // Create new source node
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
-    this.source.connect(this.masterGain);
+    this.sourceGain = this.ctx.createGain();
+    this.source.connect(this.sourceGain);
+    this.sourceGain.connect(this.masterGain);
 
     // Handle natural playback end
     this.source.onended = () => {
       if (this._playing) {
         this._playing = false;
-        this.pauseTime = this.buffer?.duration ?? 0;
+        this.pauseTime = this.getRangeDurationSeconds();
       }
     };
 
     // Convert offset from ms to seconds
-    const offsetSeconds = offsetMs / 1000;
+    const offsetSeconds = Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
+    const rangeStart = this.getRangeStartSeconds();
+    const actualOffsetSeconds = rangeStart + offsetSeconds;
+    const remainingSeconds = Math.max(0, this.getRangeDurationSeconds() - offsetSeconds);
 
     // Apply playback rate
     this.source.playbackRate.value = this._playbackRate;
+    this.scheduleRangeFade(this.sourceGain, offsetSeconds);
 
     // Start playback
     this.startOffset = offsetSeconds;
     this.startTime = this.ctx.currentTime;
-    this.source.start(0, offsetSeconds);
+    this.source.start(0, actualOffsetSeconds, remainingSeconds);
     this._playing = true;
     this.pauseTime = 0;
   }
@@ -144,14 +168,15 @@ export class AudioEngine {
     }
 
     // Calculate current position before stopping (elapsed wall time * playbackRate)
-    this.pauseTime = this.startOffset + (this.ctx.currentTime - this.startTime) * this._playbackRate;
+    this.pauseTime = Math.min(
+      this.getRangeDurationSeconds(),
+      this.startOffset + (this.ctx.currentTime - this.startTime) * this._playbackRate,
+    );
 
-    // Stop the source
     if (this.source) {
       this.source.stop();
-      this.source.disconnect();
-      this.source = null;
     }
+    this.stopActiveSource();
 
     this._playing = false;
   }
@@ -164,29 +189,7 @@ export class AudioEngine {
       return;
     }
 
-    // Resume AudioContext if suspended
-    if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
-    }
-
-    // Create new source and start from pause position
-    this.source = this.ctx.createBufferSource();
-    this.source.buffer = this.buffer;
-    this.source.connect(this.masterGain);
-
-    // Handle natural playback end
-    this.source.onended = () => {
-      if (this._playing) {
-        this._playing = false;
-        this.pauseTime = this.buffer?.duration ?? 0;
-      }
-    };
-
-    this.source.playbackRate.value = this._playbackRate;
-    this.startOffset = this.pauseTime;
-    this.startTime = this.ctx.currentTime;
-    this.source.start(0, this.startOffset);
-    this._playing = true;
+    this.play(this.pauseTime * 1000);
   }
 
   /**
@@ -201,9 +204,8 @@ export class AudioEngine {
           console.warn('AudioEngine.stop: unexpected error', e);
         }
       }
-      this.source.disconnect();
-      this.source = null;
     }
+    this.stopActiveSource();
 
     this._playing = false;
     this.startTime = 0;
@@ -225,7 +227,7 @@ export class AudioEngine {
       const elapsed = this.ctx.currentTime - this.startTime;
       const position = this.startOffset + elapsed * this._playbackRate;
 
-      // Clamp to buffer duration
+      // Clamp to playable range duration
       return Math.min(position * 1000, this.duration);
     } else {
       // Return paused position or 0
@@ -244,7 +246,7 @@ export class AudioEngine {
    * Get total duration in milliseconds
    */
   get duration(): number {
-    return this.buffer ? this.buffer.duration * 1000 : 0;
+    return this.buffer ? this.getRangeDurationSeconds() * 1000 : 0;
   }
 
   /**
@@ -266,5 +268,76 @@ export class AudioEngine {
   async dispose(): Promise<void> {
     this.stop();
     await this.ctx.close();
+  }
+
+  private applyRequestedPlaybackRange(): void {
+    this.playbackRange = this.buffer
+      ? normalizePlaybackRange(this.requestedPlaybackRange, this.buffer.duration)
+      : null;
+  }
+
+  private getRangeStartSeconds(): number {
+    return this.playbackRange?.startTime ?? 0;
+  }
+
+  private getRangeEndSeconds(): number {
+    return this.playbackRange?.endTime ?? this.buffer?.duration ?? 0;
+  }
+
+  private getRangeDurationSeconds(): number {
+    return Math.max(0, this.getRangeEndSeconds() - this.getRangeStartSeconds());
+  }
+
+  private getRangeGainAt(logicalPositionSeconds: number): number {
+    if (!this.playbackRange) return 1;
+    const duration = this.getRangeDurationSeconds();
+    const fadeIn = this.playbackRange.fadeInTime;
+    const fadeOut = this.playbackRange.fadeOutTime;
+    const fadeInGain = fadeIn > 0 ? Math.min(1, Math.max(0, logicalPositionSeconds / fadeIn)) : 1;
+    const remaining = duration - logicalPositionSeconds;
+    const fadeOutGain = fadeOut > 0 ? Math.min(1, Math.max(0, remaining / fadeOut)) : 1;
+    return Math.min(fadeInGain, fadeOutGain);
+  }
+
+  private scheduleRangeFade(gainNode: GainNode, logicalOffsetSeconds: number): void {
+    const gain = gainNode.gain;
+    const now = this.ctx.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(this.getRangeGainAt(logicalOffsetSeconds), now);
+    if (!this.playbackRange) {
+      gain.setValueAtTime(1, now);
+      return;
+    }
+
+    const rate = Math.max(0.1, this._playbackRate);
+    const duration = this.getRangeDurationSeconds();
+
+    if (this.playbackRange.fadeInTime > logicalOffsetSeconds) {
+      const fadeInRemaining = this.playbackRange.fadeInTime - logicalOffsetSeconds;
+      gain.linearRampToValueAtTime(1, now + fadeInRemaining / rate);
+    }
+
+    if (this.playbackRange.fadeOutTime > 0) {
+      const fadeOutStart = Math.max(0, duration - this.playbackRange.fadeOutTime);
+      const fadeOutStartFromNow = fadeOutStart - logicalOffsetSeconds;
+      const rangeEndFromNow = duration - logicalOffsetSeconds;
+      if (rangeEndFromNow > 0) {
+        if (fadeOutStartFromNow > 0) {
+          gain.setValueAtTime(1, now + fadeOutStartFromNow / rate);
+        }
+        gain.linearRampToValueAtTime(0, now + rangeEndFromNow / rate);
+      }
+    }
+  }
+
+  private stopActiveSource(): void {
+    if (this.source) {
+      this.source.disconnect();
+      this.source = null;
+    }
+    if (this.sourceGain) {
+      this.sourceGain.disconnect();
+      this.sourceGain = null;
+    }
   }
 }

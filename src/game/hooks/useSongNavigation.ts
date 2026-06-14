@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef, type RefObject, type MutableRefObject } from 'react';
 import { supabase } from '../../supabase';
 import { useGameStore } from '../stores';
+import type { PlaybackRange } from '../../shared';
 import type { DbSong } from '../screens/songSelect/types';
-import { filterVisibleSongs, findRestoredFocus, sortChartsByDifficulty } from '../screens/songSelect/helpers';
+import { filterVisibleSongs, findRestoredFocus, resolveGameplayRange, sortChartsByDifficulty } from '../screens/songSelect/helpers';
 
 const NAV_COOLDOWN = 100; // ms
 
@@ -29,7 +30,7 @@ export function useSongNavigation(options: {
   isAdmin: boolean;
   showAddSong: boolean;
   newChartTarget: DbSong | null;
-  onPlay: (songId: string, difficulty: string, audioUrl: string) => void;
+  onPlay: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
   onEscape: () => void;
   allowPlay?: boolean;
   centerFocusedCard?: boolean;
@@ -179,7 +180,7 @@ export function useSongNavigation(options: {
           const sorted = getSortedCharts(song);
           const chart = sorted[focusedChartIndex];
           if (chart) {
-            onPlay(song.id, chart.difficulty_label, song.audio_url);
+            onPlay(song.id, chart.difficulty_label, song.audio_url, resolveGameplayRange(song));
           }
         }
       } else if (e.key === 'Escape') {

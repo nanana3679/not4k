@@ -12,9 +12,11 @@ import {
   getDifficultyColor,
   createEmptyChart,
   getCircularDistance,
+  resolveGameplayRange,
   resolveSongCardFocus,
   type SelectedChartRef,
 } from './songSelect/helpers';
+import type { PlaybackRange } from '../../shared';
 import { styles } from './songSelect/styles';
 import { modalStyles } from './songSelect/modalStyles';
 import { AddSongModal } from './songSelect/AddSongModal';
@@ -60,10 +62,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const stopPreviewRef = useRef<() => void>(() => {});
 
   // Play: stop preview, select chart and go to loading screen
-  const handlePlay = useCallback((songId: string, difficulty: string, audioUrl: string) => {
+  const handlePlay = useCallback((songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => {
     if (!playAllowed) return;
     stopPreviewRef.current();
-    selectSong(songId, difficulty, audioUrl);
+    selectSong(songId, difficulty, audioUrl, playbackRange ?? null);
     setScreen('loading');
   }, [playAllowed, selectSong, setScreen]);
 
@@ -418,7 +420,12 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   disabled={!focusedChart}
                   onClick={() => {
                     if (focusedSong && focusedChart) {
-                      handlePlay(focusedSong.id, focusedChart.difficulty_label, focusedSong.audio_url);
+                      handlePlay(
+                        focusedSong.id,
+                        focusedChart.difficulty_label,
+                        focusedSong.audio_url,
+                        resolveGameplayRange(focusedSong),
+                      );
                     }
                   }}
                 >

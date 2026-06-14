@@ -25,4 +25,17 @@ describe("getGoogleRedirectTo", () => {
       "https://not4k.vercel.app/editor?songId=s1&difficulty=EXPERT",
     );
   });
+
+  it("localhost:3000의 editor URL에서 로그인하면 같은 차트 편집 화면으로 돌아옴", () => {
+    const redirectTo = getGoogleRedirectTo({
+      origin: "http://localhost:3000",
+      pathname: "/editor",
+      search: "?songId=s1&difficulty=easy",
+      hash: "",
+    });
+
+    expect(redirectTo).toBe(
+      "http://localhost:3000/editor?songId=s1&difficulty=easy",
+    );
+  });
 });

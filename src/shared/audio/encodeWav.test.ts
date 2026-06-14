@@ -106,4 +106,29 @@ describe("encodeWavBlob", () => {
     // Third sample: 0
     expect(view.getInt16(48, true)).toBe(0);
   });
+
+  it("fadeInTime=0.2초이면 10Hz WAV의 첫 샘플은 0, 두 번째 샘플은 0.5", async () => {
+    const samples = [new Float32Array(10).fill(1)];
+    const buf = createMockAudioBuffer(10, 1, samples);
+
+    const blob = encodeWavBlob(buf, 0, 1, { fadeInTime: 0.2, fadeOutTime: 0 });
+    const arrayBuffer = await blob.arrayBuffer();
+    const view = new DataView(arrayBuffer);
+
+    expect(view.getInt16(44, true)).toBe(0);
+    expect(view.getInt16(46, true)).toBe(16383);
+    expect(view.getInt16(48, true)).toBe(32767);
+  });
+
+  it("fadeOutTime=0.2초이면 10Hz WAV의 마지막 샘플은 0, 직전 샘플은 0.5", async () => {
+    const samples = [new Float32Array(10).fill(1)];
+    const buf = createMockAudioBuffer(10, 1, samples);
+
+    const blob = encodeWavBlob(buf, 0, 1, { fadeInTime: 0, fadeOutTime: 0.2 });
+    const arrayBuffer = await blob.arrayBuffer();
+    const view = new DataView(arrayBuffer);
+
+    expect(view.getInt16(60, true)).toBe(16383);
+    expect(view.getInt16(62, true)).toBe(0);
+  });
 });

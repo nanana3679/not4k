@@ -18,6 +18,10 @@ export interface DbSong {
   preview_start: number | null;
   preview_end: number | null;
   preview_url: string | null;
+  gameplay_start: number | null;
+  gameplay_end: number | null;
+  gameplay_fade_in: number | null;
+  gameplay_fade_out: number | null;
   jacket_url: string | null;
   charts: DbChart[];
 }

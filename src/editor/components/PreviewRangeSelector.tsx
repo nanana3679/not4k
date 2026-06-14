@@ -9,6 +9,8 @@ export interface PreviewRangeState {
   startTime: number;
   endTime: number;
   enabled: boolean;
+  fadeInTime: number;
+  fadeOutTime: number;
 }
 
 interface PreviewRangeSelectorProps {
@@ -16,6 +18,17 @@ interface PreviewRangeSelectorProps {
   onChange: (state: PreviewRangeState | null) => void;
   initialStart?: number;
   initialEnd?: number;
+  initialFadeInTime?: number;
+  initialFadeOutTime?: number;
+  label?: string;
+  enabledLabel?: string;
+  canDisable?: boolean;
+  defaultStart?: number;
+  defaultEnd?: number;
+  defaultDuration?: number;
+  minDuration?: number;
+  maxDuration?: number;
+  showFadeControls?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -24,6 +37,7 @@ interface PreviewRangeSelectorProps {
 
 const CANVAS_HEIGHT = 80;
 const DEFAULT_DURATION = 15;
+const DEFAULT_PREVIEW_FADE = 0.5;
 const HANDLE_HIT_PX = 6;
 const COLOR_WAVE = '#4488ff';
 const COLOR_WAVE_SELECTED = '#66aaff';
@@ -52,20 +66,44 @@ function clamp(value: number, min: number, max: number): number {
 // Component
 // ---------------------------------------------------------------------------
 
-export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, initialEnd }: PreviewRangeSelectorProps) {
+export function PreviewRangeSelector({
+  audioBuffer,
+  onChange,
+  initialStart,
+  initialEnd,
+  initialFadeInTime,
+  initialFadeOutTime,
+  label,
+  enabledLabel = '프리뷰 사용',
+  canDisable = true,
+  defaultStart,
+  defaultEnd,
+  defaultDuration = DEFAULT_DURATION,
+  minDuration = 0.1,
+  maxDuration,
+  showFadeControls = false,
+}: PreviewRangeSelectorProps) {
   const duration = audioBuffer.duration;
+  const maxRangeDuration = Math.min(maxDuration ?? duration, duration);
+  const minRangeDuration = Math.min(minDuration, duration);
 
   // Compute initial range (use provided initial values if available)
   const initStart = initialStart != null
     ? Math.max(0, Math.min(initialStart, duration))
-    : Math.min(duration * 0.25, Math.max(0, duration - DEFAULT_DURATION));
+    : defaultStart != null
+      ? Math.max(0, Math.min(defaultStart, duration))
+      : Math.min(duration * 0.25, Math.max(0, duration - defaultDuration));
   const initEnd = initialEnd != null
     ? Math.max(initStart, Math.min(initialEnd, duration))
-    : Math.min(initStart + DEFAULT_DURATION, duration);
+    : defaultEnd != null
+      ? Math.max(initStart, Math.min(defaultEnd, duration))
+      : Math.min(initStart + defaultDuration, duration);
 
   const [startTime, setStartTime] = useState(initStart);
   const [endTime, setEndTime] = useState(initEnd);
   const [enabled, setEnabled] = useState(true);
+  const [fadeInTime, setFadeInTime] = useState(initialFadeInTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
+  const [fadeOutTime, setFadeOutTime] = useState(initialFadeOutTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>(null);
@@ -84,8 +122,17 @@ export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, init
 
   // Notify parent
   useEffect(() => {
-    onChange(enabled ? { startTime, endTime, enabled } : null);
-  }, [startTime, endTime, enabled, onChange]);
+    const maxFade = Math.max(0, (endTime - startTime) / 2);
+    const nextFadeIn = clamp(fadeInTime, 0, maxFade);
+    const nextFadeOut = clamp(fadeOutTime, 0, maxFade);
+    onChange(enabled ? {
+      startTime,
+      endTime,
+      enabled,
+      fadeInTime: nextFadeIn,
+      fadeOutTime: nextFadeOut,
+    } : null);
+  }, [startTime, endTime, enabled, fadeInTime, fadeOutTime, onChange]);
 
   // Cache peaks
   const getPeaks = useCallback(() => {
@@ -321,13 +368,15 @@ export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, init
     const selDuration = dragEndTimeRef.current - dragStartTimeRef.current;
 
     if (dragMode === 'start') {
-      // Resize from start handle — free range, just keep start < end
-      const newStart = clamp(t, 0, dragEndTimeRef.current - 0.1);
+      const lower = Math.max(0, dragEndTimeRef.current - maxRangeDuration);
+      const upper = Math.max(lower, dragEndTimeRef.current - minRangeDuration);
+      const newStart = clamp(t, lower, upper);
       setStartTime(newStart);
       setEndTime(dragEndTimeRef.current);
     } else if (dragMode === 'end') {
-      // Resize from end handle — free range, just keep end > start
-      const newEnd = clamp(t, dragStartTimeRef.current + 0.1, duration);
+      const lower = Math.min(duration, dragStartTimeRef.current + minRangeDuration);
+      const upper = Math.min(duration, dragStartTimeRef.current + maxRangeDuration);
+      const newEnd = clamp(t, lower, Math.max(lower, upper));
       setStartTime(dragStartTimeRef.current);
       setEndTime(newEnd);
     } else if (dragMode === 'move') {
@@ -342,7 +391,7 @@ export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, init
       setStartTime(newStart);
       setEndTime(newStart + selDuration);
     }
-  }, [enabled, dragMode, hitTest, getTimeFromX, duration]);
+  }, [enabled, dragMode, hitTest, getTimeFromX, duration, minRangeDuration, maxRangeDuration]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -354,17 +403,27 @@ export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, init
   // ---------------------------------------------------------------------------
 
   const selDuration = endTime - startTime;
+  const maxFade = Math.max(0, selDuration / 2);
+  const clampedFadeIn = clamp(fadeInTime, 0, maxFade);
+  const clampedFadeOut = clamp(fadeOutTime, 0, maxFade);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        프리뷰 사용
-      </label>
+      {(label || canDisable) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          {label && <span style={{ color: '#e0e0e0', fontSize: '13px', fontWeight: 700 }}>{label}</span>}
+          {canDisable && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+              />
+              {enabledLabel}
+            </label>
+          )}
+        </div>
+      )}
 
       <div
         ref={containerRef}
@@ -408,6 +467,35 @@ export function PreviewRangeSelector({ audioBuffer, onChange, initialStart, init
           {formatTime(startTime)} – {formatTime(endTime)} ({selDuration.toFixed(1)}s)
         </span>
       </div>
+
+      {showFadeControls && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#aaa' }}>
+            Fade In
+            <input
+              type="number"
+              min={0}
+              max={maxFade}
+              step={0.1}
+              value={clampedFadeIn}
+              onChange={(e) => setFadeInTime(clamp(parseFloat(e.target.value) || 0, 0, maxFade))}
+              style={{ padding: '6px 8px', backgroundColor: '#1a1a1a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#aaa' }}>
+            Fade Out
+            <input
+              type="number"
+              min={0}
+              max={maxFade}
+              step={0.1}
+              value={clampedFadeOut}
+              onChange={(e) => setFadeOutTime(clamp(parseFloat(e.target.value) || 0, 0, maxFade))}
+              style={{ padding: '6px 8px', backgroundColor: '#1a1a1a', color: '#e0e0e0', border: '1px solid #555', borderRadius: '4px' }}
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }

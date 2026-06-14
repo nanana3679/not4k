@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ChartMeta } from '../../shared';
+import type { PlaybackRange } from '../../shared';
 import { STORAGE_BUCKET } from '../../shared';
 import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
@@ -14,14 +15,29 @@ function getPublicUrl(path: string): string {
 export interface MetaEditModalProps {
   meta: ChartMeta;
   audioBuffer: AudioBuffer | null;
-  onSave: (meta: ChartMeta, previewRange: PreviewRangeState | null, jacketFile: File | null) => void;
+  onSave: (
+    meta: ChartMeta,
+    previewRange: PreviewRangeState | null,
+    jacketFile: File | null,
+    gameplayRange: PreviewRangeState | null,
+  ) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
   initialJacketFile?: File | null;
   jacketCacheBust?: number;
+  initialGameplayRange?: PlaybackRange | null;
 }
 
-export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio, initialJacketFile, jacketCacheBust }: MetaEditModalProps) {
+export function MetaEditModal({
+  meta,
+  audioBuffer,
+  onSave,
+  onClose,
+  onLoadAudio,
+  initialJacketFile,
+  jacketCacheBust,
+  initialGameplayRange,
+}: MetaEditModalProps) {
   const [values, setValues] = useState<Record<string, string>>({
     title: meta.title,
     artist: meta.artist,
@@ -33,6 +49,7 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
     previewAudioFile: meta.previewAudioFile,
   });
   const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
+  const [gameplayRange, setGameplayRange] = useState<PreviewRangeState | null>(null);
   const [jacketError, setJacketError] = useState(false);
   const [jacketLocalUrl, setJacketLocalUrl] = useState<string | null>(
     initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
@@ -71,7 +88,7 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
       updatedMeta.previewStart = previewRange.startTime;
       updatedMeta.previewEnd = previewRange.endTime;
     }
-    onSave(updatedMeta, previewRange, jacketFile);
+    onSave(updatedMeta, previewRange, jacketFile, gameplayRange);
   };
 
   const fields: { label: string; key: string; type: string }[] = [
@@ -129,12 +146,31 @@ export function MetaEditModal({ meta, audioBuffer, onSave, onClose, onLoadAudio,
           </div>
           <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
             {audioBuffer ? (
-              <PreviewRangeSelector
-                audioBuffer={audioBuffer}
-                onChange={setPreviewRange}
-                initialStart={meta.previewStart}
-                initialEnd={meta.previewEnd}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <PreviewRangeSelector
+                  audioBuffer={audioBuffer}
+                  label="프리뷰 구간"
+                  enabledLabel="프리뷰 사용"
+                  onChange={setPreviewRange}
+                  initialStart={meta.previewStart}
+                  initialEnd={meta.previewEnd}
+                />
+                <PreviewRangeSelector
+                  audioBuffer={audioBuffer}
+                  label="인게임 구간"
+                  canDisable={false}
+                  defaultStart={0}
+                  defaultEnd={audioBuffer.duration}
+                  defaultDuration={audioBuffer.duration}
+                  minDuration={1}
+                  showFadeControls
+                  initialStart={initialGameplayRange?.startTime}
+                  initialEnd={initialGameplayRange?.endTime}
+                  initialFadeInTime={initialGameplayRange?.fadeInTime}
+                  initialFadeOutTime={initialGameplayRange?.fadeOutTime}
+                  onChange={setGameplayRange}
+                />
+              </div>
             ) : (
               <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
                 Select an audio file

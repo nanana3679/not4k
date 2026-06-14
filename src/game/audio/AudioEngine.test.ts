@@ -16,6 +16,19 @@ interface MockAudioSource {
   onended: (() => void) | null;
 }
 
+interface MockGainParam {
+  value: number;
+  setValueAtTime: Mock;
+  linearRampToValueAtTime: Mock;
+  cancelScheduledValues: Mock;
+}
+
+interface MockGainNode {
+  gain: MockGainParam;
+  connect: Mock;
+  disconnect: Mock;
+}
+
 interface MockAudioContext {
   readonly currentTime: number;
   state: string;
@@ -24,7 +37,7 @@ interface MockAudioContext {
   destination: object;
   decodeAudioData: Mock;
   createBufferSource: Mock<() => MockAudioSource>;
-  createGain: Mock;
+  createGain: Mock<() => MockGainNode>;
   baseLatency?: number;
   outputLatency?: number;
   /** test helper: advance wall-clock time */
@@ -55,7 +68,12 @@ function createMockAudioContext(): MockAudioContext {
     decodeAudioData: vi.fn(),
     createBufferSource: vi.fn(createSource),
     createGain: vi.fn(() => ({
-      gain: { value: 1 },
+      gain: {
+        value: 1,
+        setValueAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+        cancelScheduledValues: vi.fn(),
+      },
       connect: vi.fn(),
       disconnect: vi.fn(),
     })),
@@ -312,5 +330,63 @@ describe("AudioEngine playbackRate", () => {
     // 벽시계 1초 더 경과 (2x 속도 → 추가 2초 → 총 4초 = 4000ms)
     mockCtx._advanceTime(1);
     expect(engine.currentTimeMs).toBeCloseTo(4000);
+  });
+});
+
+describe("AudioEngine playbackRange", () => {
+  it("setPlaybackRange(30~90초) 후 duration은 60000ms", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(120));
+
+    engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 0, fadeOutTime: 0 });
+
+    expect(engine.duration).toBe(60000);
+  });
+
+  it("setPlaybackRange(30~90초) 후 play(0)는 source.start offset=30초,duration=60초", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(120));
+    engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 0, fadeOutTime: 0 });
+
+    engine.play();
+
+    const source = mockCtx.createBufferSource.mock.results[0].value;
+    expect(source.start).toHaveBeenCalledWith(0, 30, 60);
+  });
+
+  it("setPlaybackRange(30~90초) 후 play(10000)는 source.start offset=40초,duration=50초", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(120));
+    engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 0, fadeOutTime: 0 });
+
+    engine.play(10000);
+
+    const source = mockCtx.createBufferSource.mock.results[0].value;
+    expect(source.start).toHaveBeenCalledWith(0, 40, 50);
+  });
+
+  it("setPlaybackRange(30~90초) 후 벽시계 2초 경과 시 currentTimeMs는 2000ms", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(120));
+    engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 0, fadeOutTime: 0 });
+    engine.play();
+
+    mockCtx._advanceTime(2);
+
+    expect(engine.currentTimeMs).toBe(2000);
+  });
+
+  it("fadeIn=1초,fadeOut=2초이면 source gain은 0→1 후 종료 2초 전부터 0으로 예약", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(120));
+    engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 1, fadeOutTime: 2 });
+
+    engine.play();
+
+    const sourceGain = mockCtx.createGain.mock.results[1].value;
+    expect(sourceGain.gain.setValueAtTime).toHaveBeenCalledWith(0, 0);
+    expect(sourceGain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, 1);
+    expect(sourceGain.gain.setValueAtTime).toHaveBeenCalledWith(1, 58);
+    expect(sourceGain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 60);
   });
 });

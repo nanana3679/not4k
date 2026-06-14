@@ -8,12 +8,12 @@ import { ScoreManager } from '../scoring';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
-import { beatToMs, extractBpmMarkers, getJudgmentWindows } from '../../shared';
+import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import type { Lane } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
-  const { setScreen, setResult, chartData, audioBuffer, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+  const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +78,10 @@ export function PlayScreen() {
 
       // 초기화 시점의 설정 스냅샷 — settings 객체 변경에 의한 재초기화 방지
       const settings = useGameStore.getState().settings;
+      const playbackRange = normalizePlaybackRange(selectedPlaybackRange, audioBuffer.duration);
+      const playableDurationMs = playbackRange
+        ? (playbackRange.endTime - playbackRange.startTime) * 1000
+        : audioBuffer.duration * 1000;
 
       try {
         // Convert chart notes to time maps
@@ -163,7 +167,7 @@ export function PlayScreen() {
           chartData.trillZones,
           chartData.events,
           chartData.meta.offsetMs,
-          audioBuffer.duration * 1000,
+          playableDurationMs,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setAdjustModeCallback((active) => {
@@ -299,6 +303,7 @@ export function PlayScreen() {
 
         // Load audio buffer into AudioEngine
         audioEngine.loadBuffer(audioBuffer);
+        audioEngine.setPlaybackRange(playbackRange);
 
         // Skip notes before startTimeMs (editor test play)
         if (startTimeMs > 0) {

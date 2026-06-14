@@ -6,6 +6,7 @@ import {
   findRestoredFocus,
   getMobileSongCardActionState,
   getSelectedChartForSong,
+  resolveGameplayRange,
   resolveSongCardFocus,
   sortChartsByDifficulty,
 } from './helpers';
@@ -76,6 +77,10 @@ describe('filterVisibleSongs', () => {
     preview_start: null,
     preview_end: null,
     preview_url: null,
+    gameplay_start: null,
+    gameplay_end: null,
+    gameplay_fade_in: null,
+    gameplay_fade_out: null,
     jacket_url: null,
     charts,
   });
@@ -104,6 +109,10 @@ describe('findRestoredFocus', () => {
       preview_start: null,
       preview_end: null,
       preview_url: null,
+      gameplay_start: null,
+      gameplay_end: null,
+      gameplay_fade_in: null,
+      gameplay_fade_out: null,
       jacket_url: null,
       charts: [
         { id: 'a-easy', song_id: 'song-a', difficulty_label: 'EASY', difficulty_level: 3 },
@@ -118,6 +127,10 @@ describe('findRestoredFocus', () => {
       preview_start: null,
       preview_end: null,
       preview_url: null,
+      gameplay_start: null,
+      gameplay_end: null,
+      gameplay_fade_in: null,
+      gameplay_fade_out: null,
       jacket_url: null,
       charts: [
         { id: 'b-hard', song_id: 'song-b', difficulty_label: 'HARD', difficulty_level: 9 },
@@ -163,6 +176,10 @@ describe('getSelectedChartForSong', () => {
     preview_start: null,
     preview_end: null,
     preview_url: null,
+    gameplay_start: null,
+    gameplay_end: null,
+    gameplay_fade_in: null,
+    gameplay_fade_out: null,
     jacket_url: null,
     charts: [
       { id: 'chart-easy', song_id: 'song-1', difficulty_label: 'EASY', difficulty_level: 3 },
@@ -220,6 +237,58 @@ describe('resolveSongCardFocus', () => {
     expect(resolveSongCardFocus({ songIndex: 2, chartIndex: 1 }, 3)).toEqual({
       songIndex: 3,
       chartIndex: 0,
+    });
+  });
+});
+
+describe('resolveGameplayRange', () => {
+  const makeSong = (override: Partial<DbSong>): DbSong => ({
+    id: 'song-1',
+    title: 'Song',
+    artist: 'Artist',
+    audio_url: 'song.wav',
+    duration: 120,
+    preview_start: null,
+    preview_end: null,
+    preview_url: null,
+    gameplay_start: null,
+    gameplay_end: null,
+    gameplay_fade_in: null,
+    gameplay_fade_out: null,
+    jacket_url: null,
+    charts: [],
+    ...override,
+  });
+
+  it('gameplay_start=30,gameplay_end=90이면 30~90초 인게임 구간 반환', () => {
+    expect(resolveGameplayRange(makeSong({
+      gameplay_start: 30,
+      gameplay_end: 90,
+      gameplay_fade_in: 1,
+      gameplay_fade_out: 2,
+    }))).toEqual({
+      startTime: 30,
+      endTime: 90,
+      fadeInTime: 1,
+      fadeOutTime: 2,
+    });
+  });
+
+  it('gameplay 구간이 없으면 null을 반환해 전체 음원을 재생', () => {
+    expect(resolveGameplayRange(makeSong({}))).toBeNull();
+  });
+
+  it('gameplay_end=150,duration=120이면 endTime은 120으로 클램핑', () => {
+    expect(resolveGameplayRange(makeSong({
+      gameplay_start: 30,
+      gameplay_end: 150,
+      gameplay_fade_in: 0,
+      gameplay_fade_out: 0,
+    }))).toEqual({
+      startTime: 30,
+      endTime: 120,
+      fadeInTime: 0,
+      fadeOutTime: 0,
     });
   });
 });

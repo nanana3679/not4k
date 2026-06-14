@@ -7,6 +7,7 @@ import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
 import { serializeChart, serializeExtraNotes } from '../../shared';
+import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 
@@ -394,7 +395,8 @@ interface EditorToolbarProps {
   deleting: boolean;
   savedChartSnapshot: string;
   savedExtraSnapshot: string;
-  pendingPreviewRange: { startTime: number; endTime: number } | null;
+  pendingPreviewRange: PlaybackRange | null;
+  pendingGameplayRange: PlaybackRange | null;
   onSaveChart: () => void;
   onSaveAs: () => void;
   onDeleteChart: () => void;
@@ -432,6 +434,7 @@ export function EditorToolbar({
   savedChartSnapshot,
   savedExtraSnapshot,
   pendingPreviewRange,
+  pendingGameplayRange,
   onSaveChart,
   onSaveAs,
   onDeleteChart,
@@ -471,7 +474,7 @@ export function EditorToolbar({
   const isDirty = !!(savedChartSnapshot && (
     serializeChart(chart) !== savedChartSnapshot ||
     serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
-  )) || pendingPreviewRange != null;
+  )) || pendingPreviewRange != null || pendingGameplayRange != null;
 
   const compactIconStyle = {
     ...styles.compactButton,

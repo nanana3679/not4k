@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergePersistedSettings } from './gameStore';
+import { mergePersistedSettings, useGameStore } from './gameStore';
 
 describe('mergePersistedSettings', () => {
   const makeCurrentState = () => ({
@@ -78,5 +78,23 @@ describe('gameStore — masterVolume', () => {
       settings: { masterVolume: number };
     };
     expect(result.settings.masterVolume).toBe(0);
+  });
+});
+
+describe('gameStore — gameplayRange', () => {
+  it('selectSong에 30~90초 인게임 구간을 넘기면 selectedPlaybackRange로 저장', () => {
+    useGameStore.getState().selectSong('song-1', 'HARD', 'songs/song-1/audio.ogg', {
+      startTime: 30,
+      endTime: 90,
+      fadeInTime: 1,
+      fadeOutTime: 2,
+    });
+
+    expect(useGameStore.getState().selectedPlaybackRange).toEqual({
+      startTime: 30,
+      endTime: 90,
+      fadeInTime: 1,
+      fadeOutTime: 2,
+    });
   });
 });

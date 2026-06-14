@@ -9,4 +9,8 @@ export * from "./chart";
 export * from "./storage";
 export * from "./songAssets";
 export { encodeWavBlob } from "./audio/encodeWav";
+export {
+  normalizePlaybackRange,
+  type PlaybackRange,
+} from "./audio/playbackRange";
 export { useAuth } from "./hooks/useAuth";

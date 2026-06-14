@@ -116,7 +116,7 @@
 | [observer-mode.md](docs/spec/observer-mode.md) | **옵저버 모드**. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |
 | [audio-visual-sync.md](docs/spec/audio-visual-sync.md) | **오디오-비주얼 동기화**. 노트 위치·음악·입력의 레이턴시 보정 설계 |
 | [grace-period-polling-rate.md](docs/spec/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 폴링 레이트별 동작 분석 |
-| [song-preview.md](docs/spec/song-preview.md) | **곡 프리뷰 구간 설정**. 프리뷰 구간 지정과 프리뷰 오디오 저장 |
+| [song-preview.md](docs/spec/song-preview.md) | **곡 프리뷰/인게임 구간 설정**. 프리뷰 오디오 저장, 실제 플레이 구간과 페이드 설정 |
 | [debug-mode.md](docs/spec/debug-mode.md) | **디버그 모드**. 노트 판정 로깅 시스템 |
 | [project-assets.md](docs/spec/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 단계별 수급 계획 |
 
@@ -193,7 +193,7 @@ docs/
 │   ├── observer-mode.md            #   옵저버 모드
 │   ├── audio-visual-sync.md        #   오디오-비주얼 동기화
 │   ├── grace-period-polling-rate.md #  유예 시간과 폴링 레이트
-│   ├── song-preview.md             #   곡 프리뷰 구간 설정
+│   ├── song-preview.md             #   곡 프리뷰/인게임 구간 설정
 │   ├── debug-mode.md               #   디버그 모드
 │   └── project-assets.md           #   프로젝트 에셋 정의
 ├── rfd/                            # 결정 기록 (RFD)

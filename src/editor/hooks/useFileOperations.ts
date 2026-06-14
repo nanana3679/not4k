@@ -14,7 +14,7 @@ import {
   extractTimeSignatures,
   isMeasureBoundary,
 } from '../../shared';
-import type { ValidationError } from '../../shared';
+import type { PlaybackRange, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -41,10 +41,12 @@ export function useFileOperations(
   setShowDeleteConfirm: (v: boolean) => void,
   setSavedChartSnapshot: (v: string) => void,
   setSavedExtraSnapshot: (v: string) => void,
-  setPendingPreviewRange: (v: { startTime: number; endTime: number } | null) => void,
+  setPendingPreviewRange: (v: PlaybackRange | null) => void,
+  setPendingGameplayRange: (v: PlaybackRange | null) => void,
   setPendingJacketFile: (v: File | null) => void,
   setJacketCacheBust: (v: number) => void,
-  pendingPreviewRange: { startTime: number; endTime: number } | null,
+  pendingPreviewRange: PlaybackRange | null,
+  pendingGameplayRange: PlaybackRange | null,
   pendingJacketFile: File | null,
 ): FileOperationHandlers {
   const chart = useEditorStore((s) => s.chart);
@@ -106,15 +108,20 @@ export function useFileOperations(
         setJacketCacheBust(Date.now());
       }
 
+      const songUpdate: Record<string, unknown> = {};
+
       if (pendingPreviewRange) {
-        const songUpdate: Record<string, unknown> = {
+        Object.assign(songUpdate, {
           preview_start: pendingPreviewRange.startTime,
           preview_end: pendingPreviewRange.endTime,
-        };
+        });
 
         const ab = playbackRef.current?.audioBufferData;
         if (ab) {
-          const wavBlob = encodeWavBlob(ab, pendingPreviewRange.startTime, pendingPreviewRange.endTime);
+          const wavBlob = encodeWavBlob(ab, pendingPreviewRange.startTime, pendingPreviewRange.endTime, {
+            fadeInTime: pendingPreviewRange.fadeInTime,
+            fadeOutTime: pendingPreviewRange.fadeOutTime,
+          });
           const previewPath = songPreviewPath(activeSongId);
           const { error: prevUpErr } = await supabase.storage
             .from(STORAGE_BUCKET)
@@ -122,14 +129,26 @@ export function useFileOperations(
           if (prevUpErr) throw new Error(`Preview upload failed: ${prevUpErr.message}`);
           songUpdate.preview_url = previewPath;
         }
+      }
 
+      if (pendingGameplayRange) {
+        Object.assign(songUpdate, {
+          gameplay_start: pendingGameplayRange.startTime,
+          gameplay_end: pendingGameplayRange.endTime,
+          gameplay_fade_in: pendingGameplayRange.fadeInTime,
+          gameplay_fade_out: pendingGameplayRange.fadeOutTime,
+        });
+      }
+
+      if (Object.keys(songUpdate).length > 0) {
         const { error: songUpdateError } = await supabase
           .from('songs')
           .update(songUpdate)
           .eq('id', activeSongId);
-        if (songUpdateError) throw new Error(`Song preview update failed: ${songUpdateError.message}`);
+        if (songUpdateError) throw new Error(`Song settings update failed: ${songUpdateError.message}`);
 
         setPendingPreviewRange(null);
+        setPendingGameplayRange(null);
       }
 
       setSavedChartSnapshot(savedAsset.chartJson);
@@ -141,7 +160,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingJacketFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingJacketFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {

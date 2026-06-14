@@ -1,6 +1,6 @@
 import type React from 'react';
-import { beat } from '../../../shared';
-import type { Chart } from '../../../shared';
+import { beat, normalizePlaybackRange } from '../../../shared';
+import type { Chart, PlaybackRange } from '../../../shared';
 import type { DbChart, DbSong } from './types';
 
 export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
@@ -43,6 +43,20 @@ export function findRestoredFocus(
     if (idx >= 0) chartIndex = idx;
   }
   return { songIndex, chartIndex };
+}
+
+export function resolveGameplayRange(song: DbSong): PlaybackRange | null {
+  if (song.gameplay_start == null || song.gameplay_end == null) return null;
+  const duration = song.duration != null && Number.isFinite(song.duration) && song.duration > 0
+    ? song.duration
+    : song.gameplay_end;
+
+  return normalizePlaybackRange({
+    startTime: song.gameplay_start,
+    endTime: song.gameplay_end,
+    fadeInTime: song.gameplay_fade_in ?? 0,
+    fadeOutTime: song.gameplay_fade_out ?? 0,
+  }, duration);
 }
 
 export function getDifficultyColor(difficulty: string): React.CSSProperties {
