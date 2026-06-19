@@ -82,7 +82,7 @@ _Avoid_: 리프트
 _Avoid_: 달성률
 
 **비행 규칙**:
-Play에서 고도 기반 클리어/실패를 결정하는 규칙이다. 현재 비행 규칙은 Takeoff, Ascent, Breakthrough이며, UI와 코드는 영어 명칭을 사용한다. 기본 경계는 `../../docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따른다. Breakthrough의 Perfect-only 회복 결정은 `../../docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
+Play에서 고도 기반 클리어/실패를 결정하는 규칙이다. 현재 비행 규칙은 Liftoff, Survival 2종이며, UI와 코드는 영어 명칭을 사용한다. 기본 경계는 `../../docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따르고, 2종 재편은 `../../docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다. Survival의 Perfect-only 회복 결정은 `../../docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
 _Avoid_: 난이도명
 
 **고도**:
@@ -117,5 +117,5 @@ _Avoid_: 달성률
 - **랭크**는 결과 등급이고 **난이도 등급**은 차트 레벨 구간이다.
 - **오디오 오프셋**과 **입력 오프셋**은 합치지 않는다.
 - **비행 규칙**은 **난이도명**, **Lv.**, **난이도 등급**과 바꿔 쓰지 않는다.
-- **Breakthrough**는 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, Perfect로만 고도를 회복한다.
+- **Survival**은 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, Perfect로만 고도를 회복한다.
 - **고도**는 **달성률**이나 **랭크**와 다르다.

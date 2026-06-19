@@ -8,6 +8,11 @@
 - [`docs/research/beatmania.md`](../research/beatmania.md) — IIDX 게이지 참조 모델과 한계
 - [`docs/context/glossary.md`](../context/glossary.md) — 비행 규칙 용어 정의
 - [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md) — Gameplay 컨텍스트
+- [`docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`](0005-flight-rules-two-tier-liftoff-survival.md) — 비행 규칙 2종 재편 후속 결정
+
+---
+
+**후속 결정:** RFD 0005가 Breakthrough를 `Survival`로 이름만 바꿔 계승한다. 이 문서의 Perfect-only 회복 규칙은 그대로 유효하며, 현재 명칭은 `Survival`이다.
 
 ---
 

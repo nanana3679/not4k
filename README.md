@@ -128,8 +128,9 @@
 |------|------|
 | [0001](docs/rfd/0001-flight-rules-and-observer-boundary.md) | **비행 규칙과 Observer 경계**. Play 실패 가능 + Observer가 완주/학습 담당 |
 | [0002](docs/rfd/0002-breakthrough-perfect-only-recovery.md) | **Breakthrough Perfect-only 회복**. 정확도 중심 고유 규칙 |
-| [0003](docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md) | **비행 규칙 포지셔닝**. 게이지는 입문 유저 동기 장치, Takeoff/Ascent는 관대하게 밸런싱 |
+| [0003](docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md) | **비행 규칙 포지셔닝**. 게이지는 입문 유저 동기 장치, 관대 규칙은 관대하게 밸런싱 |
 | [0004](docs/rfd/0004-io-timing-consistency.md) | **IO 타이밍 일관성 개선**. 입력·오디오 지터 제거 작업 계획 |
+| [0005](docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md) | **비행 규칙 2종 재편**. Liftoff(관대, 기본값) / Survival(숙련자 정확도)로 통합 |
 
 ## 제품 요구사항
 

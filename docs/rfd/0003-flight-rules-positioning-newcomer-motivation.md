@@ -10,6 +10,11 @@
 - [`docs/context/stance.md`](../context/stance.md) — not4k가 플레이어를 대하는 태도
 - [`docs/context/glossary.md`](../context/glossary.md) — 비행 규칙 용어 정의
 - [`docs/prd.md`](../prd.md) — 타겟 유저 정의 (1차/2차 타깃)
+- [`docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`](0005-flight-rules-two-tier-liftoff-survival.md) — 비행 규칙 2종 재편 후속 결정
+
+---
+
+**후속 결정:** RFD 0005가 비행 규칙을 2종으로 재편한다. 이 문서가 역할 중복으로 지적한 Takeoff/Ascent는 관대 규칙 `Liftoff` 하나로 통합되고, 숙련자 정확도 압박을 전담하던 Breakthrough는 `Survival`로 계승된다. 이 문서의 입문 유저 동기 포지셔닝은 그대로 유지되며, "관대 규칙은 기본값(Liftoff)으로 두고 정확도 압박은 Survival이 전담한다"로 읽는다.
 
 ---
 
