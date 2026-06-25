@@ -14,7 +14,7 @@ import {
   extractTimeSignatures,
   isMeasureBoundary,
 } from '../../shared';
-import type { PlaybackRange, ValidationError } from '../../shared';
+import type { Chart, PlaybackRange, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -30,6 +30,59 @@ export interface FileOperationHandlers {
   handleDeleteChart: () => Promise<void>;
   handleMarkerSave: (values: Record<string, string>) => void;
   handleMarkerDelete: () => void;
+}
+
+/** 테스트 플레이가 게임 스토어에 적용하는 액션 (테스트에서 주입 가능하도록 분리) */
+export interface PlayTestGameActions {
+  setChartData: (chart: Chart | null) => void;
+  setAudioBuffer: (buffer: AudioBuffer | null) => void;
+  setStartTimeMs: (ms: number) => void;
+  setEditorReturnUrl: (url: string | null) => void;
+  setScreen: (screen: 'play') => void;
+}
+
+export interface PerformPlayTestParams {
+  /** true면 현재 커서 위치부터, false면 처음(0)부터 시작 */
+  fromCursor: boolean;
+  audioBuffer: AudioBuffer | null;
+  isPlaying: boolean;
+  pause: () => void;
+  chart: Chart;
+  currentTimeMs: number;
+  returnUrl: string;
+  game: PlayTestGameActions;
+  addToast: (message: string, type: 'error') => void;
+  closeMenu: () => void;
+  navigate: () => void;
+}
+
+/**
+ * 테스트 플레이 전환 로직 (순수: 의존성 주입).
+ * 오디오가 로딩되지 않았으면 에러 토스트만 띄우고 화면 전환 없이 false를 반환한다.
+ * 성공 시 게임 스토어를 채우고 play 화면으로 전환한 뒤 true를 반환한다.
+ */
+export function performPlayTest(params: PerformPlayTestParams): boolean {
+  const {
+    fromCursor, audioBuffer, isPlaying, pause, chart, currentTimeMs,
+    returnUrl, game, addToast, closeMenu, navigate,
+  } = params;
+
+  if (!audioBuffer) {
+    addToast('오디오가 로딩되지 않았습니다', 'error');
+    return false;
+  }
+
+  if (isPlaying) pause();
+
+  game.setChartData(chart);
+  game.setAudioBuffer(audioBuffer);
+  game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
+  game.setEditorReturnUrl(returnUrl);
+  game.setScreen('play');
+
+  closeMenu();
+  navigate();
+  return true;
 }
 
 export function useFileOperations(
@@ -222,25 +275,26 @@ export function useFileOperations(
   }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
-    const audioBuffer = playbackRef.current?.audioBufferData;
-    if (!audioBuffer) {
-      addToast('오디오가 로딩되지 않았습니다', 'error');
-      return;
-    }
-
-    if (playbackRef.current?.isPlaying) {
-      playbackRef.current.pause();
-    }
-
-    const gameStore = useGameStore.getState();
-    gameStore.setChartData(chart);
-    gameStore.setAudioBuffer(audioBuffer);
-    gameStore.setStartTimeMs(fromCursor ? currentTimeMs : 0);
-    gameStore.setEditorReturnUrl(window.location.pathname + window.location.search);
-    gameStore.setScreen('play');
-
-    setShowPlayTestMenu(false);
-    window.location.href = '/game';
+    const game = useGameStore.getState();
+    performPlayTest({
+      fromCursor,
+      audioBuffer: playbackRef.current?.audioBufferData ?? null,
+      isPlaying: playbackRef.current?.isPlaying ?? false,
+      pause: () => playbackRef.current?.pause(),
+      chart,
+      currentTimeMs,
+      returnUrl: window.location.pathname + window.location.search,
+      game: {
+        setChartData: game.setChartData,
+        setAudioBuffer: game.setAudioBuffer,
+        setStartTimeMs: game.setStartTimeMs,
+        setEditorReturnUrl: game.setEditorReturnUrl,
+        setScreen: game.setScreen,
+      },
+      addToast,
+      closeMenu: () => setShowPlayTestMenu(false),
+      navigate: () => { window.location.href = '/game'; },
+    });
   }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef]);
 
   const handleDeleteChart = useCallback(async () => {
