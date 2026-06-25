@@ -2,7 +2,7 @@
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
@@ -12,14 +12,79 @@ import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 
 const styles = {
+  toolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 12px',
+    backgroundColor: '#2a2a2a',
+    borderBottom: '1px solid #333',
+    minHeight: '48px',
+    overflowX: 'auto' as const,
+    overflowY: 'hidden' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    flexShrink: 0,
+  },
+  button: {
+    minHeight: '44px',
+    padding: '6px 12px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    whiteSpace: 'nowrap' as const,
+    touchAction: 'manipulation' as const,
+  },
   buttonActive: {
     backgroundColor: '#4488ff',
     borderColor: '#4488ff',
+  },
+  select: {
+    minHeight: '44px',
+    padding: '6px 8px',
+    backgroundColor: '#3a3a3a',
+    color: '#e0e0e0',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    fontSize: '13px',
+    touchAction: 'manipulation' as const,
   },
   label: {
     fontSize: '13px',
     marginLeft: '8px',
     whiteSpace: 'nowrap' as const,
+  },
+  offsetToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 12px',
+    backgroundColor: '#242424',
+    borderBottom: '1px solid #3d4b66',
+    minHeight: '48px',
+    overflowX: 'auto' as const,
+    overflowY: 'hidden' as const,
+    WebkitOverflowScrolling: 'touch' as const,
+    flexShrink: 0,
+  },
+  offsetInput: {
+    width: '92px',
+    minHeight: '44px',
+    padding: '6px 8px',
+    backgroundColor: '#303030',
+    color: '#e0e0e0',
+    border: '1px solid #626262',
+    borderRadius: '4px',
+    fontSize: '14px',
+    textAlign: 'center' as const,
+  },
+  separator: {
+    width: '1px',
+    height: '24px',
+    backgroundColor: '#555',
+    margin: '0 8px',
   },
   offsetCompactToolbar: {
     display: 'flex',
@@ -386,17 +451,21 @@ function ToolbarIcon({ name }: { name: ToolbarIconName }) {
 }
 
 interface EditorToolbarProps {
+  compact?: boolean;
   playbackRef: RefObject<PlaybackController | null>;
   autoScroll: boolean;
   setAutoScroll: (v: boolean) => void;
   showOffsetToolbar: boolean;
   setShowOffsetToolbar: (v: boolean | ((prev: boolean) => boolean)) => void;
+  showPlayTestMenu: boolean;
+  setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
   deleting: boolean;
   savedChartSnapshot: string;
   savedExtraSnapshot: string;
   pendingPreviewRange: PlaybackRange | null;
   pendingGameplayRange: PlaybackRange | null;
+  onPlayTest: (fromCursor: boolean) => void;
   onSaveChart: () => void;
   onSaveAs: () => void;
   onDeleteChart: () => void;
@@ -405,6 +474,7 @@ interface EditorToolbarProps {
   onOpenCustomSnap: () => void;
 }
 
+const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
 const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
@@ -424,17 +494,21 @@ const entityLabels: Record<EntityType, string> = {
 };
 
 export function EditorToolbar({
+  compact = false,
   playbackRef,
   autoScroll,
   setAutoScroll,
   showOffsetToolbar,
   setShowOffsetToolbar,
+  showPlayTestMenu,
+  setShowPlayTestMenu,
   saving,
   deleting,
   savedChartSnapshot,
   savedExtraSnapshot,
   pendingPreviewRange,
   pendingGameplayRange,
+  onPlayTest,
   onSaveChart,
   onSaveAs,
   onDeleteChart,
@@ -447,10 +521,25 @@ export function EditorToolbar({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [compactPicker, setCompactPicker] = useState<CompactPicker | null>(null);
 
+  // 데스크톱 Play 드롭다운: 툴바 overflow에 잘리지 않게 fixed + ref 좌표로 앵커
+  const playMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const [playMenuPos, setPlayMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const togglePlayMenu = () => {
+    setShowPlayTestMenu((prev) => {
+      const next = !prev;
+      if (next && playMenuBtnRef.current) {
+        const r = playMenuBtnRef.current.getBoundingClientRect();
+        setPlayMenuPos({ top: r.bottom + 4, left: r.left });
+      }
+      return next;
+    });
+  };
+
   const mode = useEditorStore((s) => s.mode);
   const setMode = useEditorStore((s) => s.setMode);
   const entityType = useEditorStore((s) => s.entityType);
   const setEntityType = useEditorStore((s) => s.setEntityType);
+  const zoom = useEditorStore((s) => s.zoom);
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
@@ -534,10 +623,12 @@ export function EditorToolbar({
   };
 
   const renderOffsetToolbar = () => {
-    const toolbarStyle = styles.offsetCompactToolbar;
-    const buttonStyle = styles.compactButton;
-    const primaryButtonStyle = { ...styles.compactButton, ...styles.compactPrimaryButton };
-    const inputStyle = styles.offsetCompactInput;
+    const toolbarStyle = compact ? styles.offsetCompactToolbar : styles.offsetToolbar;
+    const buttonStyle = compact ? styles.compactButton : styles.button;
+    const primaryButtonStyle = compact
+      ? { ...styles.compactButton, ...styles.compactPrimaryButton }
+      : { ...styles.button, ...styles.buttonActive };
+    const inputStyle = compact ? styles.offsetCompactInput : styles.offsetInput;
     const stepDelta = (delta: number) => applyOffset(chart.meta.offsetMs + delta);
 
     return (
@@ -667,7 +758,8 @@ export function EditorToolbar({
     return renderOffsetToolbar();
   }
 
-  return (
+  if (compact) {
+    return (
       <div style={styles.compactToolbar}>
         <div style={styles.compactTopRow}>
           <div style={styles.compactGroup}>
@@ -865,5 +957,275 @@ export function EditorToolbar({
         {renderCompactPicker()}
 
       </div>
+    );
+  }
+
+  return (
+    <div style={styles.toolbar}>
+      {/* Undo / Redo (아이콘) */}
+      <div style={styles.compactGroup}>
+        <button
+          style={getIconButtonStyle(false, historyPastCount === 0)}
+          onClick={runUndo}
+          disabled={historyPastCount === 0}
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+        >
+          <ToolbarIcon name="undo" />
+        </button>
+        <button
+          style={getIconButtonStyle(false, historyFutureCount === 0)}
+          onClick={runRedo}
+          disabled={historyFutureCount === 0}
+          title="Redo (Ctrl+Shift+Z)"
+          aria-label="Redo"
+        >
+          <ToolbarIcon name="redo" />
+        </button>
+      </div>
+
+      <div style={styles.separator} />
+
+      {/* 모드 버튼 */}
+      <button
+        style={{ ...styles.button, ...(mode === 'create' ? styles.buttonActive : {}) }}
+        onClick={() => setMode('create')}
+      >
+        Create
+      </button>
+      <button
+        style={{ ...styles.button, ...(mode === 'select' ? styles.buttonActive : {}) }}
+        onClick={() => setMode('select')}
+      >
+        Select
+      </button>
+      <button
+        style={{ ...styles.button, ...(mode === 'delete' ? styles.buttonActive : {}) }}
+        onClick={() => setMode('delete')}
+      >
+        Delete
+      </button>
+
+      {/* Entity type 드롭다운 (create 모드에서만) */}
+      {mode === 'create' && (
+        <select
+          style={styles.select}
+          value={entityType}
+          onChange={(e) => setEntityType(e.target.value as EntityType)}
+        >
+          <optgroup label="Notes">
+            {noteTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Events">
+            {eventTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      )}
+
+      <div style={styles.separator} />
+
+      {/* 스냅 선택 */}
+      <span style={styles.label}>Snap:</span>
+      <select
+        style={styles.select}
+        value={standardSnapOptions.includes(snapDivision) ? String(snapDivision) : 'custom'}
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val === 'custom') {
+            onOpenCustomSnap();
+          } else {
+            setSnapDivision(parseInt(val));
+          }
+        }}
+      >
+        <optgroup label="2-beat">
+          <option value="4">1/4</option>
+          <option value="8">1/8</option>
+          <option value="16">1/16</option>
+          <option value="32">1/32</option>
+        </optgroup>
+        <optgroup label="3-beat">
+          <option value="3">1/3</option>
+          <option value="6">1/6</option>
+          <option value="12">1/12</option>
+          <option value="24">1/24</option>
+          <option value="48">1/48</option>
+        </optgroup>
+        <option value="custom">Custom ({standardSnapOptions.includes(snapDivision) ? '...' : `1/${snapDivision}`})</option>
+      </select>
+
+      {/* 줌 표시 */}
+      <span style={styles.label}>Zoom: {zoom.toFixed(0)}px/s</span>
+
+      <div style={styles.separator} />
+
+      {/* 재생 컨트롤: 재생/정지 + 드롭다운(오토스크롤, 테스트 플레이) */}
+      <button
+        style={{ ...styles.button, ...(isPlaying ? styles.buttonActive : {}) }}
+        onClick={() => playbackRef.current?.togglePlay()}
+        title={isPlaying ? 'Pause' : 'Play'}
+      >
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <button
+        ref={playMenuBtnRef}
+        style={{ ...styles.button, padding: '6px 8px', ...(showPlayTestMenu ? styles.buttonActive : {}) }}
+        onClick={togglePlayMenu}
+        title="Playback options (auto-scroll, test play)"
+        aria-label="Playback options"
+      >
+        ▾
+      </button>
+      {showPlayTestMenu && playMenuPos && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={() => setShowPlayTestMenu(false)}
+          />
+          <div style={{ ...styles.compactMoreMenu, top: playMenuPos.top, left: playMenuPos.left, right: 'auto', minWidth: '180px' }}>
+            <button
+              style={{ ...styles.compactMenuButton, ...(autoScroll ? styles.buttonActive : {}) }}
+              onClick={() => setAutoScroll(!autoScroll)}
+              title="Auto-scroll: follow playback cursor"
+            >
+              Auto Scroll{autoScroll ? ' ✓' : ''}
+            </button>
+            <label style={styles.compactMenuLabel}>Test Play</label>
+            <button
+              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton }}
+              onClick={() => onPlayTest(false)}
+            >
+              처음부터 시작
+            </button>
+            <button
+              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton }}
+              onClick={() => onPlayTest(true)}
+            >
+              커서부터 시작
+            </button>
+          </div>
+        </>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* Save Chart (아이콘 + 변경사항 칩) */}
+      <button
+        style={{
+          ...getIconButtonStyle(false, saving || deleting),
+          ...styles.compactPrimaryButton,
+          position: 'relative',
+        }}
+        onClick={onSaveChart}
+        disabled={saving || deleting}
+        title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
+        aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
+      >
+        <ToolbarIcon name="save" />
+        {isDirty && <span style={styles.compactDirtyBadge} />}
+      </button>
+
+      {/* More 메뉴 — 모바일 more 메뉴와 동일 구성 */}
+      <div style={{ position: 'relative' }}>
+        <button
+          style={getIconButtonStyle(showMoreMenu)}
+          onClick={() => setShowMoreMenu((v) => !v)}
+          title="More editor actions"
+          aria-label="More editor actions"
+        >
+          <ToolbarIcon name="more" />
+        </button>
+        {showMoreMenu && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+              onClick={() => setShowMoreMenu(false)}
+            />
+            <div style={styles.compactMoreMenu}>
+              <button
+                style={styles.compactMenuButton}
+                onClick={() => { setShowMoreMenu(false); requestBackToSongs(); }}
+              >
+                Back to Songs
+              </button>
+              <button
+                style={styles.compactMenuButton}
+                onClick={() => { setShowMoreMenu(false); onOpenMeta(); }}
+              >
+                Meta
+              </button>
+              <button
+                style={{ ...styles.compactMenuButton, ...(selectedCount === 0 ? styles.compactButtonDisabled : {}) }}
+                onClick={() => { setShowMoreMenu(false); onDeleteSelected(); }}
+                disabled={selectedCount === 0}
+              >
+                Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
+              </button>
+              <button
+                style={styles.compactMenuButton}
+                onClick={() => { setShowMoreMenu(false); openOffsetToolbar(); }}
+              >
+                Offset
+              </button>
+              <button
+                style={{ ...styles.compactMenuButton, ...((saving || deleting || !activeSongId) ? styles.compactButtonDisabled : {}) }}
+                onClick={() => { setShowMoreMenu(false); onSaveAs(); }}
+                disabled={saving || deleting || !activeSongId}
+              >
+                Save As
+              </button>
+              <button
+                style={{ ...styles.compactMenuButton, ...styles.compactDangerButton, ...((saving || deleting || !activeSongId) ? styles.compactButtonDisabled : {}) }}
+                onClick={() => { setShowMoreMenu(false); onDeleteChart(); }}
+                disabled={saving || deleting || !activeSongId}
+              >
+                {deleting ? 'Deleting' : 'Delete Chart'}
+              </button>
+              <label style={styles.compactMenuLabel}>Extra lanes</label>
+              <select
+                style={styles.select}
+                value={extraLaneCount}
+                onChange={(e) => {
+                  const newCount = parseInt(e.target.value);
+                  setExtraLaneCount(newCount);
+                  if (newCount < extraLaneCount) {
+                    setSelectedExtraNotes(new Set());
+                  }
+                }}
+              >
+                {extraLaneOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <label style={styles.compactMenuLabel}>Volume</label>
+              <div style={styles.compactVolumeRow}>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={masterVolume}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    updateSettings({ masterVolume: v });
+                    if (playbackRef.current) playbackRef.current.volume = v;
+                  }}
+                  style={{ ...styles.volumeSlider, width: '130px' }}
+                />
+                <span style={{ fontSize: '12px', color: '#e0e0e0', minWidth: '34px', textAlign: 'right' }}>
+                  {Math.round(masterVolume * 100)}%
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
