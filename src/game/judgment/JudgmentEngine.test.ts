@@ -937,3 +937,86 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 });
+
+describe("hold-only 싱글 롱노트 끝점 판정", () => {
+  const lane: Lane = 1;
+  const startMs = 0;
+  const endMs = 2000;
+
+  /** 테스트 헬퍼: hold-only 싱글 롱노트 생성 */
+  function makeHoldOnlyLongNote(l: Lane, b: Beat, endBeat: Beat): NoteEntity {
+    return { type: NoteType.LONG, lane: l, beat: b, endBeat, holdOnly: true } as NoteEntity;
+  }
+
+  function holdOnlySetup() {
+    const notes = [makeHoldOnlyLongNote(lane, beat(0, 1), beat(4, 1))];
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("끝점까지 홀드를 유지하면 떼지 않아도 끝점 시점에 Perfect", () => {
+    const { engine, judgments } = holdOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.update(startMs);
+    engine.update(startMs + 1000);
+    engine.update(endMs); // 끝점 도달, 키 유지 중 — 릴리즈 없이 즉시 판정
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점을 지나 계속 눌러도 Perfect는 1회만 발생", () => {
+    const { engine, judgments } = holdOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.update(startMs);
+    engine.update(endMs);
+    engine.update(endMs + 500); // 안 떼고 계속 유지
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 전 Good 윈도우(-50ms)에 떼면 그 릴리즈 시점에 Perfect", () => {
+    const { engine, judgments } = holdOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.update(startMs);
+    engine.update(startMs + 1000);
+    engine.onLaneRelease(lane, endMs - 50, "KeyA"); // 끝점 전 Good 윈도우 내 릴리즈
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("바디 유예시간(12ms) 초과 릴리즈 시 끝점 Miss — 유지 판정은 면제되지 않음", () => {
+    const { engine, judgments } = holdOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.update(startMs);
+    engine.update(startMs + 500);
+    engine.onLaneRelease(lane, startMs + 500, "KeyA"); // 바디 중간 릴리즈
+    engine.update(startMs + 520); // 유예 시간 초과
+
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("일반 롱노트는 끝점 유지 시 릴리즈를 기다리지만 hold-only는 즉시 Perfect", () => {
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+
+    // 대조군: 일반 롱노트 — 끝점에서 키 유지 중이면 릴리즈 대기(판정 없음)
+    const normal = setup([makeLongNote(lane, beat(0, 1), beat(4, 1))], noteTimesMs, noteEndTimesMs);
+    normal.engine.onLanePress(lane, startMs, "KeyA");
+    normal.engine.update(startMs);
+    normal.engine.update(endMs);
+    expect(normal.judgments.length).toBe(0);
+
+    // hold-only: 같은 상황에서 즉시 Perfect
+    const ho = holdOnlySetup();
+    ho.engine.onLanePress(lane, startMs, "KeyA");
+    ho.engine.update(startMs);
+    ho.engine.update(endMs);
+    expect(ho.judgments.length).toBe(1);
+    expect(ho.judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+});

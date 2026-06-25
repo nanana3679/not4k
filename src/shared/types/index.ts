@@ -44,4 +44,5 @@ export {
   type ExtraRangeNote,
   type ExtraNoteEntity,
   isGraceNote,
+  isHoldOnlyNote,
 } from "./chart";

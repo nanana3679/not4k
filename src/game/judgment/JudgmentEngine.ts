@@ -5,7 +5,7 @@
  */
 
 import type { NoteEntity, RangeNote } from "../../shared/types";
-import { isGraceNote } from "../../shared/types";
+import { isGraceNote, isHoldOnlyNote } from "../../shared/types";
 import {
   JudgmentGrade,
   JUDGMENT_WINDOWS,
@@ -838,8 +838,15 @@ export class JudgmentEngine {
       } else {
         // 종결 판정
         if (holdState.isHeld) {
-          // 키 유지 중 → 릴리즈 대기
-          this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+          if (isHoldOnlyNote(note)) {
+            // hold-only: 끝점 도달 시 유지 중이면 릴리즈를 기다리지 않고 즉시 Perfect
+            this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
+            this.noteStates.set(i, NoteState.COMPLETE);
+            this.incrementCombo();
+          } else {
+            // 키 유지 중 → 릴리즈 대기
+            this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+          }
         } else if (holdState.lastReleaseTimeMs !== null) {
           // 이미 릴리즈됨 → 릴리즈 시점 기준 판정
           this.executeTerminationJudgment(i, holdState.lastReleaseTimeMs, noteEndTime);

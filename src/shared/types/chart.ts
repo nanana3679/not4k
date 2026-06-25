@@ -79,6 +79,8 @@ export interface RangeNote {
   lane: Lane;
   beat: Beat;
   endBeat: Beat;
+  /** hold-only — 끝점의 떼는 판정을 면제. 유지만 하면 Perfect (RFD 0005) */
+  holdOnly?: boolean;
 }
 
 /** 노트 엔티티 유니온 */
@@ -87,6 +89,11 @@ export type NoteEntity = PointNote | RangeNote;
 /** Grace 노트 여부 확인 — PointNote이면서 grace 플래그가 true */
 export function isGraceNote(note: NoteEntity): boolean {
   return !("endBeat" in note) && (note as PointNote).grace === true;
+}
+
+/** hold-only 노트 여부 확인 — RangeNote이면서 holdOnly 플래그가 true */
+export function isHoldOnlyNote(note: NoteEntity): boolean {
+  return "endBeat" in note && (note as RangeNote).holdOnly === true;
 }
 
 // ---------------------------------------------------------------------------
