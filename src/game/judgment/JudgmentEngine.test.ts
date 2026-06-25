@@ -1020,3 +1020,64 @@ describe("hold-only 싱글 롱노트 끝점 판정", () => {
     expect(ho.judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 });
+
+describe("hold-only 길이 0 (슬라이드형) 판정", () => {
+  const lane: Lane = 1;
+  const noteTime = 1000;
+
+  /** 테스트 헬퍼: 길이 0 hold-only(슬라이드) 노트 생성 */
+  function makeSlideNote(l: Lane, b: Beat): NoteEntity {
+    return { type: NoteType.LONG, lane: l, beat: b, endBeat: b, holdOnly: true } as NoteEntity;
+  }
+
+  function slideSetup() {
+    const notes = [makeSlideNote(lane, beat(0, 1))];
+    const noteTimesMs = new Map([[0, noteTime]]);
+    const noteEndTimesMs = new Map([[0, noteTime]]); // 길이 0: 시작 = 끝
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("이전부터 눌러 노트 시점에 held이면 새 입력 없이 노트 시점에 Perfect", () => {
+    const { engine, judgments } = slideSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 윈도우 진입 전부터 누르고 유지
+    engine.update(noteTime); // 노트 시점 — 여전히 held → keydown 소비 없이 통과
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("노트 시점 전 Good 윈도우(-50ms)에 떼면 떼는 시점에 Perfect", () => {
+    const { engine, judgments } = slideSetup();
+    engine.onLanePress(lane, noteTime - 100, "KeyA");
+    engine.onLaneRelease(lane, noteTime - 50, "KeyA"); // 노트 시점 전, 윈도우 내 완전 릴리즈
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("노트 시점 이후 Good 윈도우(+50ms)에 처음 누르면 Perfect", () => {
+    const { engine, judgments } = slideSetup();
+    engine.update(noteTime); // 아직 안 눌림 — 판정 없음
+    expect(judgments.length).toBe(0);
+    engine.onLanePress(lane, noteTime + 50, "KeyA");
+    engine.update(noteTime + 60);
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("Good 윈도우 내내 한 번도 누르지 않으면 Miss", () => {
+    const { engine, judgments } = slideSetup();
+    engine.update(noteTime);
+    engine.update(noteTime + 130); // Good 윈도우(+120ms) 초과
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("Good 윈도우 밖(-150ms)에 떼면 통과로 인정되지 않아 Miss", () => {
+    const { engine, judgments } = slideSetup();
+    engine.onLanePress(lane, noteTime - 200, "KeyA");
+    engine.onLaneRelease(lane, noteTime - 150, "KeyA"); // 윈도우(-120ms) 밖에서 릴리즈
+    expect(judgments.length).toBe(0); // 릴리즈 시점 판정 없음
+    engine.update(noteTime + 130);
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+});

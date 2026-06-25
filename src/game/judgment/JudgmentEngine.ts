@@ -275,6 +275,8 @@ export class JudgmentEngine {
     if (holdState.heldKeys.size === 0) {
       holdState.isHeld = false;
       holdState.lastReleaseTimeMs = timestampMs;
+      // 길이 0 hold-only(슬라이드): 노트 시점 전 윈도우 내 완전 릴리즈 시 그 시점에 판정
+      this.checkSlideReleaseOnRelease(lane, timestampMs);
     }
   }
 
@@ -405,7 +407,10 @@ export class JudgmentEngine {
         // 길이 0인 롱노트는 바디 홀드 없이 바로 릴리즈 대기
         const noteEndTime = this.noteEndTimesMs.get(i);
         if (noteEndTime !== undefined && noteEndTime === noteTime) {
-          this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+          // 길이 0 hold-only(슬라이드)는 checkLengthZeroHoldOnly가 held 기반으로 처리하므로 활성화 스킵
+          if (!isHoldOnlyNote(note)) {
+            this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
+          }
         } else {
           this.noteStates.set(i, NoteState.BODY_ACTIVE);
           this.longNoteBodyStates.set(i, {
@@ -436,6 +441,9 @@ export class JudgmentEngine {
 
     // 롱노트 바디 끝 판정
     this.checkLongNoteBodyEnd(songTimeMs);
+
+    // 길이 0 hold-only(슬라이드) 판정
+    this.checkLengthZeroHoldOnly(songTimeMs);
   }
 
   /**
@@ -856,6 +864,69 @@ export class JudgmentEngine {
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
         }
+      }
+    }
+  }
+
+  /**
+   * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 호출
+   *
+   * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(연결 판정과 같은 Perfect/Miss 이분법).
+   * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
+   * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
+   * 노트 시점 전 윈도우 내 릴리즈 시점 판정은 onLaneRelease의 checkSlideReleaseOnRelease가 담당한다.
+   */
+  private checkLengthZeroHoldOnly(songTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
+      const note = this.notes[i];
+      if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
+
+      const noteTime = this.noteTimesMs.get(i);
+      const endTime = this.noteEndTimesMs.get(i);
+      if (noteTime === undefined || endTime === undefined || endTime !== noteTime) continue;
+
+      const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+
+      // 노트 시점 도달 + 해당 레인 held → Perfect (노트 시점에 표시)
+      if (songTimeMs >= noteTime && holdState?.isHeld) {
+        this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
+        this.noteStates.set(i, NoteState.COMPLETE);
+        this.incrementCombo();
+        continue;
+      }
+
+      // 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
+      if (songTimeMs > noteTime + this.windows.GOOD) {
+        this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+        this.noteStates.set(i, NoteState.COMPLETE);
+        this.breakCombo();
+      }
+    }
+  }
+
+  /**
+   * 길이 0 hold-only(슬라이드) 릴리즈 시점 판정 — 레인의 모든 키가 떼어졌을 때 호출
+   *
+   * 노트 시점 전 Good 윈도우 내에서 완전히 떼면, 그 직전까지 눌려 있었으므로
+   * 떼는 시점에 Perfect를 부여한다(미리 떼는 케이스의 표시 시점).
+   */
+  private checkSlideReleaseOnRelease(lane: Lane, releaseTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
+      const note = this.notes[i];
+      if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
+      if ((note as RangeNote).lane !== lane) continue;
+
+      const noteTime = this.noteTimesMs.get(i);
+      const endTime = this.noteEndTimesMs.get(i);
+      if (noteTime === undefined || endTime === undefined || endTime !== noteTime) continue;
+
+      // 노트 시점 전 Good 윈도우 내 완전 릴리즈 → Perfect (떼는 시점)
+      if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
+        this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
+        this.noteStates.set(i, NoteState.COMPLETE);
+        this.incrementCombo();
       }
     }
   }
