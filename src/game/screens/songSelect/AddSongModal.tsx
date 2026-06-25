@@ -259,7 +259,10 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
       onDone();
     } catch (err: unknown) {
       console.error('AddSongModal:', err);
-      addToast('곡 추가에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      // 프로덕션 빌드에서는 import.meta.env.DEV가 false로 제거되어 일반 메시지만 노출,
+      // 개발 모드에서는 실제 원인을 토스트에 함께 표시해 콘솔 없이 디버깅할 수 있게 한다.
+      const detail = import.meta.env.DEV && err instanceof Error ? ` (${err.message})` : '';
+      addToast(`곡 추가에 실패했습니다. 잠시 후 다시 시도해주세요.${detail}`, 'error');
     } finally {
       setSubmitting(false);
     }
