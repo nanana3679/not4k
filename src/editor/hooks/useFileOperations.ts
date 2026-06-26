@@ -9,6 +9,7 @@ import {
   STORAGE_BUCKET,
   songPreviewPath,
   songJacketPath,
+  songAudioPath,
   encodeWavBlob,
   validateChart,
   extractTimeSignatures,
@@ -85,6 +86,44 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
   return true;
 }
 
+/**
+ * 교체할 오디오 파일이 있으면 업로드 대상 storage 경로를 계산한다.
+ * 파일 확장자를 그대로 쓰되, 없으면 기본 'ogg'를 사용한다.
+ * 교체 파일이 없으면 null을 반환한다.
+ */
+export function resolveAudioUploadPath(
+  pendingAudioFile: File | null,
+  songId: string,
+): string | null {
+  if (!pendingAudioFile) return null;
+  const ext = pendingAudioFile.name.split('.').pop() || 'ogg';
+  return songAudioPath(songId, ext);
+}
+
+/**
+ * 프리뷰 클립(preview.wav)을 재생성해야 하는 구간을 결정한다.
+ * - 프리뷰 구간을 새로 지정/변경했으면 그 구간을 사용한다.
+ * - 구간 변경은 없지만 오디오를 교체했고 기존 프리뷰 구간이 있으면,
+ *   같은 구간을 새 음원 기준으로 다시 인코딩하기 위해 그 구간을 반환한다(페이드 없음).
+ * - 둘 다 아니면 null(재생성 안 함).
+ */
+export function resolvePreviewRegenRange(
+  pendingPreviewRange: PlaybackRange | null,
+  audioReplaced: boolean,
+  meta: { previewStart?: number; previewEnd?: number },
+): PlaybackRange | null {
+  if (pendingPreviewRange) return pendingPreviewRange;
+  if (audioReplaced && meta.previewStart != null && meta.previewEnd != null) {
+    return {
+      startTime: meta.previewStart,
+      endTime: meta.previewEnd,
+      fadeInTime: 0,
+      fadeOutTime: 0,
+    };
+  }
+  return null;
+}
+
 export function useFileOperations(
   playbackRef: RefObject<PlaybackController | null>,
   rendererRef: RefObject<{ setChart: (c: unknown) => void } | null>,
@@ -104,6 +143,8 @@ export function useFileOperations(
   pendingPreviewRange: PlaybackRange | null,
   pendingGameplayRange: PlaybackRange | null,
   pendingJacketFile: File | null,
+  setPendingAudioFile: (v: File | null) => void,
+  pendingAudioFile: File | null,
 ): FileOperationHandlers {
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
@@ -143,7 +184,12 @@ export function useFileOperations(
       if (pendingJacketFile) {
         const ext = pendingJacketFile.name.split('.').pop() || 'jpg';
         resolvedJacketPath = songJacketPath(activeSongId, ext);
-        chartToSave = { ...chart, meta: { ...chart.meta, imageFile: resolvedJacketPath } };
+        chartToSave = { ...chartToSave, meta: { ...chartToSave.meta, imageFile: resolvedJacketPath } };
+      }
+
+      const resolvedAudioPath = resolveAudioUploadPath(pendingAudioFile, activeSongId);
+      if (resolvedAudioPath) {
+        chartToSave = { ...chartToSave, meta: { ...chartToSave.meta, audioFile: resolvedAudioPath } };
       }
 
       const savedAsset = await persistChartAsset({
@@ -165,6 +211,16 @@ export function useFileOperations(
         setJacketCacheBust(Date.now());
       }
 
+      if (pendingAudioFile && resolvedAudioPath) {
+        const { error: audioUpErr } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(resolvedAudioPath, pendingAudioFile, { upsert: true });
+        if (audioUpErr) throw new Error(`Audio upload failed: ${audioUpErr.message}`);
+        await supabase.from('songs').update({ audio_url: resolvedAudioPath }).eq('id', activeSongId);
+        setChart(chartToSave);
+        setPendingAudioFile(null);
+      }
+
       const songUpdate: Record<string, unknown> = {};
 
       if (pendingPreviewRange) {
@@ -172,12 +228,20 @@ export function useFileOperations(
           preview_start: pendingPreviewRange.startTime,
           preview_end: pendingPreviewRange.endTime,
         });
+      }
 
+      // 프리뷰 클립은 (1) 구간 변경 시 또는 (2) 오디오 교체 시(기존 구간 유지) 재생성한다.
+      const previewRegenRange = resolvePreviewRegenRange(
+        pendingPreviewRange,
+        pendingAudioFile != null,
+        chart.meta,
+      );
+      if (previewRegenRange) {
         const ab = playbackRef.current?.audioBufferData;
         if (ab) {
-          const wavBlob = encodeWavBlob(ab, pendingPreviewRange.startTime, pendingPreviewRange.endTime, {
-            fadeInTime: pendingPreviewRange.fadeInTime,
-            fadeOutTime: pendingPreviewRange.fadeOutTime,
+          const wavBlob = encodeWavBlob(ab, previewRegenRange.startTime, previewRegenRange.endTime, {
+            fadeInTime: previewRegenRange.fadeInTime,
+            fadeOutTime: previewRegenRange.fadeOutTime,
           });
           const previewPath = songPreviewPath(activeSongId);
           const { error: prevUpErr } = await supabase.storage
@@ -217,7 +281,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {

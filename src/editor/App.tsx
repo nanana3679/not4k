@@ -253,6 +253,7 @@ function ChartEditorPage() {
   const [pendingGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
   const [songGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
   const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
+  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
   const [jacketCacheBust, setJacketCacheBust] = useState(0);
 
   // Store 상태
@@ -363,6 +364,7 @@ function ChartEditorPage() {
     setSavedChartSnapshot, setSavedExtraSnapshot,
     setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
     pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
+    setPendingAudioFile, pendingAudioFile,
   );
 
   useEffect(() => {
@@ -791,7 +793,7 @@ function ChartEditorPage() {
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
           initialGameplayRange={songGameplayRange}
-          onSave={async (meta, previewRange, jacketFile, gameplayRange) => {
+          onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
@@ -819,6 +821,7 @@ function ChartEditorPage() {
               setPendingGameplayRange(nextGameplayRange);
             }
             if (jacketFile) setPendingJacketFile(jacketFile);
+            if (audioFile) setPendingAudioFile(audioFile);
             setShowMetaModal(false);
           }}
           onClose={() => setShowMetaModal(false)}

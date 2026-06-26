@@ -20,6 +20,7 @@ export interface MetaEditModalProps {
     previewRange: PreviewRangeState | null,
     jacketFile: File | null,
     gameplayRange: PreviewRangeState | null,
+    audioFile: File | null,
   ) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
@@ -55,6 +56,7 @@ export function MetaEditModal({
     initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
   );
   const [jacketFile, setJacketFile] = useState<File | null>(initialJacketFile ?? null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const prevJacketUrlRef = useRef<string | null>(jacketLocalUrl);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export function MetaEditModal({
       updatedMeta.previewStart = previewRange.startTime;
       updatedMeta.previewEnd = previewRange.endTime;
     }
-    onSave(updatedMeta, previewRange, jacketFile, gameplayRange);
+    onSave(updatedMeta, previewRange, jacketFile, gameplayRange, audioFile);
   };
 
   const fields: { label: string; key: string; type: string }[] = [
@@ -138,6 +140,7 @@ export function MetaEditModal({
                   const file = e.target.files?.[0];
                   if (file) {
                     set('audioFile', file.name);
+                    setAudioFile(file);
                     onLoadAudio(file);
                   }
                 }}
