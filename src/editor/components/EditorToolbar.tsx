@@ -539,6 +539,8 @@ export function EditorToolbar({
   const setMode = useEditorStore((s) => s.setMode);
   const entityType = useEditorStore((s) => s.entityType);
   const setEntityType = useEditorStore((s) => s.setEntityType);
+  const graceMode = useEditorStore((s) => s.graceMode);
+  const setGraceMode = useEditorStore((s) => s.setGraceMode);
   const zoom = useEditorStore((s) => s.zoom);
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
@@ -820,6 +822,14 @@ export function EditorToolbar({
               >
                 <ToolbarIcon name="entity" />
               </button>
+              <button
+                style={{ ...compactIconStyle, ...(graceMode ? styles.buttonActive : {}) }}
+                onClick={() => setGraceMode(!graceMode)}
+                title="Grace mode (배치 시 면제 플래그)"
+                aria-label="Grace mode"
+              >
+                G
+              </button>
             </div>
           )}
 
@@ -1028,6 +1038,15 @@ export function EditorToolbar({
             ))}
           </optgroup>
         </select>
+      )}
+      {mode === 'create' && (
+        <button
+          style={{ ...styles.button, ...(graceMode ? styles.buttonActive : {}) }}
+          onClick={() => setGraceMode(!graceMode)}
+          title="Grace mode: 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→hold-only)"
+        >
+          Grace
+        </button>
       )}
 
       <div style={styles.separator} />

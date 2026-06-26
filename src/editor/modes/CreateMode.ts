@@ -81,6 +81,7 @@ export class CreateMode {
   private chart: Chart;
   private callbacks: CreateModeCallbacks;
   private selectedEntityType: EntityType = "single";
+  private _graceMode = false;
   private isDragging: boolean = false;
   private dragStartBeat: Beat | null = null;
   private dragStartLane: Lane | null = null;
@@ -102,6 +103,15 @@ export class CreateMode {
   /** Set the currently selected entity type */
   set entityType(type: EntityType) {
     this.selectedEntityType = type;
+  }
+
+  /** Grace mode — 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→holdOnly) */
+  get graceMode(): boolean {
+    return this._graceMode;
+  }
+
+  set graceMode(v: boolean) {
+    this._graceMode = v;
   }
 
   /** Cycle to next entity type (for C+wheel) */
@@ -339,6 +349,7 @@ export class CreateMode {
       type: inTrill ? "trill" : (this.selectedEntityType as "single" | "double"),
       lane,
       beat,
+      ...(this._graceMode ? { grace: true } : {}),
     };
 
     // Validate before adding
@@ -395,6 +406,7 @@ export class CreateMode {
       lane,
       beat: actualStartBeat,
       endBeat: actualEndBeat,
+      ...(this._graceMode && bodyType === "long" ? { holdOnly: true } : {}),
     };
 
     // Length 0 (startBeat == endBeat): body only, no head note

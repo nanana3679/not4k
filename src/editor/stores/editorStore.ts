@@ -35,6 +35,7 @@ interface EditorState {
   // Editor mode
   mode: EditorMode;
   entityType: EntityType;
+  graceMode: boolean; // Create 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→holdOnly)
 
   // Timeline state
   zoom: number;
@@ -68,6 +69,7 @@ interface EditorState {
   setChart: (chart: Chart) => void;
   setMode: (mode: EditorMode) => void;
   setEntityType: (entityType: EntityType) => void;
+  setGraceMode: (graceMode: boolean) => void;
   setZoom: (zoom: number) => void;
   setSnapDivision: (snap: number) => void;
   setScrollY: (scrollY: number) => void;
@@ -133,6 +135,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   chart: createDefaultChart(),
   mode: 'create',
   entityType: 'single',
+  graceMode: false,
   zoom: 200,
   snapDivision: 4,
   scrollY: 0,
@@ -154,6 +157,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setChart: (chart) => set((state) => ({ ...captureHistory(state), chart })),
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
+  setGraceMode: (graceMode) => set({ graceMode }),
   setZoom: (zoom) => set({ zoom }),
   setSnapDivision: (snapDivision) => set({ snapDivision }),
   setScrollY: (scrollY) => set({ scrollY }),

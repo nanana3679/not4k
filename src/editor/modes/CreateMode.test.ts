@@ -25,6 +25,69 @@ function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
 }
 
 // ---------------------------------------------------------------------------
+// graceMode 배치 (면제 플래그 부여)
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — graceMode 배치", () => {
+  it("graceMode ON에서 single 배치 시 grace 플래그 부여", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+    mode.graceMode = true;
+
+    mode.onPointerDown(1, 2); // single은 즉시 생성
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect((updated.notes[0] as { grace?: boolean }).grace).toBe(true);
+  });
+
+  it("graceMode ON에서 싱글 롱노트 배치 시 바디에 holdOnly 부여, 헤드엔 미부여", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "long";
+    mode.graceMode = true;
+
+    mode.onPointerDown(1, 0);
+    mode.onPointerUp(1, 3); // 길이 > 0
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    const body = updated.notes.find((n) => "endBeat" in n) as { holdOnly?: boolean };
+    const head = updated.notes.find((n) => !("endBeat" in n)) as { grace?: boolean };
+    expect(body.holdOnly).toBe(true);
+    expect(head.grace).toBeUndefined();
+  });
+
+  it("graceMode ON에서 더블 롱노트 배치 시 holdOnly 미부여 (1차 미지원)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "doubleLong";
+    mode.graceMode = true;
+
+    mode.onPointerDown(1, 0);
+    mode.onPointerUp(1, 3);
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    const body = updated.notes.find((n) => "endBeat" in n) as { holdOnly?: boolean };
+    expect(body.holdOnly).toBeUndefined();
+  });
+
+  it("graceMode OFF에서 배치 시 면제 플래그 없음", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(1, 2);
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect((updated.notes[0] as { grace?: boolean }).grace).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 롱노트 생성 시 헤드 노트 동작
 // ---------------------------------------------------------------------------
 

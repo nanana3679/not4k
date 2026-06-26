@@ -640,6 +640,12 @@ function ChartEditorPage() {
     if (createModeRef.current) createModeRef.current.entityType = entityType;
   }, [entityType]);
 
+  // graceMode → createMode
+  const graceMode = useEditorStore((s) => s.graceMode);
+  useEffect(() => {
+    if (createModeRef.current) createModeRef.current.graceMode = graceMode;
+  }, [graceMode]);
+
   // create 모드 이탈 시 ghost 숨기기
   useEffect(() => {
     if (mode !== 'create') rendererRef.current?.hideGhostNote();
