@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +11,7 @@ import {
 } from "./src/lab/perspectiveSurfaceGridPreset";
 
 export default defineConfig({
-  plugins: [react(), perspectiveSurfaceGridPresetPlugin()],
+  plugins: [react(), perspectiveSurfaceGridPresetPlugin(), excludeLabFromBuildPlugin()],
   server: {
     port: 3000,
   },
@@ -18,6 +19,23 @@ export default defineConfig({
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 const perspectiveSurfaceGridPresetPath = resolve(workspaceRoot, PERSPECTIVE_SURFACE_GRID_PRESET_OUTPUT_PATH);
+
+/**
+ * 프로덕션 빌드에서 public/lab 에셋(dist/lab)을 제거한다.
+ * lab 테스트 페이지는 개발 전용이며, vite는 public/을 무조건 dist로 복사하므로
+ * 빌드 산출물에서만 lab 에셋을 제거해 배포 크기를 줄인다. dev 서버에는 영향이 없다.
+ */
+function excludeLabFromBuildPlugin() {
+  return {
+    name: "not4k-exclude-lab-from-build",
+    apply: "build" as const,
+    closeBundle() {
+      rmSync(resolve(workspaceRoot, "dist/lab"), { recursive: true, force: true });
+      // eslint-disable-next-line no-console
+      console.log("[not4k] 프로덕션 빌드에서 dist/lab 에셋 제거됨");
+    },
+  };
+}
 
 function perspectiveSurfaceGridPresetPlugin() {
   return {

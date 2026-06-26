@@ -9,10 +9,10 @@ import { SONNER_TOASTER_POSITION } from './shared/toast';
 
 const GameApp = lazy(() => import('./game/App'));
 const EditorApp = lazy(() => import('./editor/App'));
-const GeometricBackgroundTestPage = lazy(() => import('./lab/GeometricBackgroundTestPage'));
-const PerspectiveSurfaceGridTestPage = lazy(() => import('./lab/PerspectiveSurfaceGridTestPage'));
-const GearLightTestPage = lazy(() => import('./lab/GearLightTestPage'));
-const GearMeasurePulseTestPage = lazy(() => import('./lab/GearMeasurePulseTestPage'));
+// Lab 테스트 페이지는 개발 빌드에서만 로드한다.
+// 프로덕션에서는 import.meta.env.DEV가 false로 치환되어 삼항이 null이 되고,
+// lab import가 dead code로 제거되어 번들·라우트에서 모두 빠진다.
+const LabRoutes = import.meta.env.DEV ? lazy(() => import('./lab/LabRoutes')) : null;
 function App() {
   return (
     <BrowserRouter>
@@ -21,10 +21,7 @@ function App() {
         <Routes>
           <Route path="/game/*" element={<GameApp />} />
           <Route path="/editor/*" element={<EditorApp />} />
-          <Route path="/lab/geometric-background" element={<GeometricBackgroundTestPage />} />
-          <Route path="/lab/perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
-          <Route path="/lab/gear-light" element={<GearLightTestPage />} />
-          <Route path="/lab/gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
+          {LabRoutes && <Route path="/lab/*" element={<LabRoutes />} />}
           <Route path="*" element={<Navigate to="/game" replace />} />
         </Routes>
       </Suspense>
