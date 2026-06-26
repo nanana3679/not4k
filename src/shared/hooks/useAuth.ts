@@ -26,6 +26,15 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 개발 전용: .env.local에 VITE_DEV_ADMIN=true 설정 시 로그인 없이 admin으로 진입 (로컬 OAuth redirect 우회).
+    // 배포 빌드에서는 import.meta.env.DEV가 false라 이 분기가 제거된다.
+    if (import.meta.env.DEV && import.meta.env.VITE_DEV_ADMIN === 'true') {
+      setUser({ id: 'dev-user', email: 'dev@local' } as User);
+      setIsAdmin(true);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
 
     const handleSession = async (session: { user: User } | null) => {
