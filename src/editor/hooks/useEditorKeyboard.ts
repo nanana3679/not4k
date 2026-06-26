@@ -110,7 +110,7 @@ export function useEditorKeyboard(
         return;
       }
 
-      // G: grace 플래그 토글 (선택된 포인트 노트)
+      // G: 정밀도 면제 토글 — 포인트 노트는 grace, 싱글 롱노트는 hold-only
       if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey) {
         const state = useEditorStore.getState();
         const selected = state.selectedNotes;
@@ -127,11 +127,18 @@ export function useEditorKeyboard(
               if (!pn.grace) delete pn.grace;
               newNotes[idx] = pn;
               toggled++;
+            } else if (note && 'endBeat' in note && note.type === 'long') {
+              // 싱글 롱노트: hold-only 토글 (grace와 동일한 G 조작)
+              const rn = { ...note } as import('../../shared').RangeNote;
+              rn.holdOnly = !rn.holdOnly;
+              if (!rn.holdOnly) delete rn.holdOnly;
+              newNotes[idx] = rn;
+              toggled++;
             }
           }
           if (toggled > 0) {
             state.setChart({ ...currentChart, notes: newNotes });
-            addToast(`Grace 토글: ${toggled}개 노트`, 'info');
+            addToast(`Grace/hold-only 토글: ${toggled}개 노트`, 'info');
           }
           return;
         }
