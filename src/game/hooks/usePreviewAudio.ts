@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../supabase';
-import { STORAGE_BUCKET } from '../../shared';
+import { STORAGE_BUCKET, withCacheBust } from '../../shared';
 import { useGameStore } from '../stores';
 import type { DbSong } from '../screens/songSelect/types';
 
@@ -59,7 +59,7 @@ export function usePreviewAudio(
     // 전용 preview_url이 있는 경우: 루프 재생
     if (song.preview_url) {
       const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(song.preview_url);
-      const el = new Audio(data.publicUrl);
+      const el = new Audio(withCacheBust(data.publicUrl, song.updated_at));
       audioRef.current = el;
       el.volume = 0;
       el.loop = true;
@@ -89,7 +89,7 @@ export function usePreviewAudio(
 
     // fallback: audio_url에서 preview_start~preview_end 구간 루프
     const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(song.audio_url);
-    const el = new Audio(data.publicUrl);
+    const el = new Audio(withCacheBust(data.publicUrl, song.updated_at));
     audioRef.current = el;
     el.volume = 0;
 

@@ -261,6 +261,13 @@ export function useFileOperations(
         });
       }
 
+      // 오디오/프리뷰 파일을 교체하면 storage 경로(URL)는 그대로라 브라우저 캐시가
+      // 옛 파일을 제공한다. updated_at을 갱신해 프리뷰 재생 URL의 캐시버스트 토큰으로 쓴다.
+      // (songs.updated_at은 default now()라 UPDATE 시 자동 갱신되지 않으므로 직접 넣는다.)
+      if (pendingAudioFile != null || previewRegenRange != null) {
+        songUpdate.updated_at = new Date().toISOString();
+      }
+
       if (Object.keys(songUpdate).length > 0) {
         const { error: songUpdateError } = await supabase
           .from('songs')

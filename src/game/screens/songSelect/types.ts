@@ -23,5 +23,6 @@ export interface DbSong {
   gameplay_fade_in: number | null;
   gameplay_fade_out: number | null;
   jacket_url: string | null;
+  updated_at?: string | null;
   charts: DbChart[];
 }

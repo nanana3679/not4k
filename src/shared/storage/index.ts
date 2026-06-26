@@ -57,3 +57,23 @@ export function tutorialAudioPath(phase: string): string {
 export function tutorialChartPath(phase: string): string {
   return `tutorials/${sanitize(phase, 'phase')}.json`;
 }
+
+// ---------------------------------------------------------------------------
+// 캐시 무효화
+// ---------------------------------------------------------------------------
+
+/**
+ * 퍼블릭 URL에 캐시버스트 쿼리(`v=token`)를 붙인다.
+ *
+ * Storage는 같은 경로에 upsert로 덮어써도 URL이 동일해, 브라우저 HTTP 캐시가
+ * 옛 파일을 계속 제공한다(특히 `<audio>` 엘리먼트는 fetch의 no-cache를 못 쓴다).
+ * 곡의 `updated_at` 같은 "내용이 바뀔 때만 변하는" 값을 token으로 넘기면
+ * 변경된 곡만 정확히 캐시가 무효화되고, 변화 없는 곡은 캐시를 그대로 재사용한다.
+ *
+ * token이 비어 있으면(null/undefined/'') URL을 그대로 반환한다.
+ */
+export function withCacheBust(url: string, token?: string | null): string {
+  if (!token) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}v=${encodeURIComponent(token)}`;
+}
