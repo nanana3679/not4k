@@ -6,7 +6,11 @@
 
 node_modules/
 dist/
-public/skins/
+# 빌드된 스킨 PNG는 산출물이라 기본 무시.
+# 단 crystal은 배포 빌드(build:skins 미실행)에 포함시키기 위해 커밋한다.
+# prism/classic은 failed 에셋이 소스(assets-lab)에 없어 불완전하므로 아직 커밋하지 않음.
+public/skins/*
+!public/skins/crystal/
 __pycache__/
 *.pyc
 
