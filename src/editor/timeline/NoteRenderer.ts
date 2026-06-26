@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, FillGradient } from "pixi.js";
-import { beatToMs, beatEq, isGraceNote } from "../../shared";
+import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote } from "../../shared";
 import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker, ExtraNoteEntity } from "../../shared";
 import {
   LANE_WIDTH,
@@ -290,6 +290,21 @@ export class NoteRenderer {
       }
     }
 
+    // hold-only: 끝점에 면제 글로우 (grace와 동일 색)
+    if (isHoldOnlyNote(note)) {
+      const pad = COLORS.GRACE_GLOW_PAD;
+      const baseAlpha = COLORS.GRACE_GLOW_ALPHA;
+      const steps = 4;
+      const glow = this.acquireGraphics();
+      const glowX = x + (LANE_WIDTH - w) / 2;
+      for (let i = 0; i < steps; i++) {
+        const stepPad = pad * (i + 1) / steps;
+        glow.roundRect(glowX - stepPad, endY - h / 2 - stepPad, w + stepPad * 2, h + stepPad * 2, 3 + stepPad * 0.3);
+        glow.fill({ color: COLORS.GRACE_GLOW, alpha: baseAlpha / steps });
+      }
+      (isSelected ? this.host.selectedLongEndLayer : this.host.longNoteEndLayer).addChild(glow);
+    }
+
     const headGradient = this.getBodyGradient(bodyColor);
     const end = this.acquireGraphics();
     if (note.type === "trillLong") {
@@ -305,6 +320,11 @@ export class NoteRenderer {
       const endNoteY = endY - h / 2;
       end.rect(endX, endNoteY, w, h);
       end.fill({ fill: headGradient, alpha: 0.5 });
+    }
+
+    // hold-only(싱글 롱) 끝점 윤곽선 (grace와 동일)
+    if (isHoldOnlyNote(note) && note.type === "long") {
+      end.stroke({ width: COLORS.GRACE_OUTLINE_WIDTH, color: COLORS.GRACE_OUTLINE, alignment: 0 });
     }
 
     if (isSelected) {
