@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
@@ -216,6 +217,7 @@ export default function EditorApp() {
 // ---------------------------------------------------------------------------
 
 function ChartEditorPage() {
+  const playTestNavigate = useNavigate();
   // Imperative refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -365,6 +367,7 @@ function ChartEditorPage() {
     setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
     pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
     setPendingAudioFile, pendingAudioFile,
+    playTestNavigate,
   );
 
   useEffect(() => {

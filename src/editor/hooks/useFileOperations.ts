@@ -145,6 +145,8 @@ export function useFileOperations(
   pendingJacketFile: File | null,
   setPendingAudioFile: (v: File | null) => void,
   pendingAudioFile: File | null,
+  /** 테스트 플레이 시 /game으로 이동. 전체 리로드 대신 react-router 네비게이션을 주입한다. */
+  navigateTo: (path: string) => void,
 ): FileOperationHandlers {
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
@@ -364,9 +366,12 @@ export function useFileOperations(
       },
       addToast,
       closeMenu: () => setShowPlayTestMenu(false),
-      navigate: () => { window.location.href = '/game'; },
+      // 전체 페이지 리로드(window.location)를 쓰면 게임 스토어의 비영속 상태
+      // (screen='play', chartData, audioBuffer 등)가 초기화돼 타이틀 화면으로 떨어진다.
+      // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
+      navigate: () => navigateTo('/game'),
     });
-  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef]);
+  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
