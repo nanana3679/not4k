@@ -1300,3 +1300,125 @@ describe("릴리즈 노트(길이 0 일반) keydown 흡수 — 직후 포인트 
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 });
+
+describe("더블 hold-only 롱노트 (길이 > 0) 판정 — 병렬 (RFD 0005)", () => {
+  const lane: Lane = 1;
+  const startMs = 1000;
+  const endMs = 2000;
+
+  function makeDoubleHoldOnly(l: Lane, b: Beat, endBeat: Beat): NoteEntity {
+    return { type: NoteType.DOUBLE_LONG, lane: l, beat: b, endBeat, holdOnly: true } as NoteEntity;
+  }
+
+  function doubleHoldOnlySetup() {
+    const notes = [makeDoubleHoldOnly(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, startMs]]);
+    const noteEndTimesMs = new Map([[0, endMs]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("2키를 끝까지 유지하면 끝점에 Perfect 1회 (떼는 판정 면제)", () => {
+    const { engine, judgments } = doubleHoldOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+    engine.update(startMs + 10); // 2키 추적 활성화
+    engine.update(endMs); // 끝점 — 2키 유지 중
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("1키만 누르면 미입력 쪽은 부분 Miss, 누른 키는 끝점에 Perfect (병렬)", () => {
+    const { engine, judgments } = doubleHoldOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA"); // KeyB 미입력
+    engine.update(startMs + 10);
+    engine.update(startMs + 130); // 시작 Good 윈도우 초과 → 미입력 쪽 부분 Miss
+    expect(judgments.some((j) => j.isPartialBodyFail && j.failedSide === 'right')).toBe(true);
+    engine.update(endMs); // 끝점 — KeyA 유지 중 → Perfect
+    expect(judgments.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+
+  it("2키 유지 중 1키를 떼고 grace 초과하면 그 키만 부분 Miss, 나머지는 끝점 Perfect", () => {
+    const { engine, judgments } = doubleHoldOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+    engine.update(startMs + 10);
+    engine.onLaneRelease(lane, startMs + 500, "KeyA"); // A 뗌
+    engine.update(startMs + 520); // grace 초과 → A 부분 Miss
+    expect(judgments.some((j) => j.isPartialBodyFail && j.failedSide === 'left')).toBe(true);
+    engine.update(endMs); // B 유지 → Perfect
+    expect(judgments.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+
+  it("2키 모두 떼고 grace 초과하면 전체 Miss (Perfect 없음)", () => {
+    const { engine, judgments } = doubleHoldOnlySetup();
+    engine.onLanePress(lane, startMs, "KeyA");
+    engine.onLanePress(lane, startMs + 5, "KeyB");
+    engine.update(startMs + 10);
+    engine.onLaneRelease(lane, startMs + 500, "KeyA");
+    engine.onLaneRelease(lane, startMs + 502, "KeyB");
+    engine.update(startMs + 520); // 둘 다 grace 초과
+    engine.update(endMs);
+    expect(judgments.length).toBeGreaterThan(0);
+    expect(judgments.every((j) => j.grade === JudgmentGrade.MISS)).toBe(true);
+  });
+});
+
+describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () => {
+  const lane: Lane = 1;
+  const noteTime = 1000;
+
+  function makeDoubleSlide(l: Lane, b: Beat): NoteEntity {
+    return { type: NoteType.DOUBLE_LONG, lane: l, beat: b, endBeat: b, holdOnly: true } as NoteEntity;
+  }
+
+  function doubleSlideSetup() {
+    const notes = [makeDoubleSlide(lane, beat(0, 1))];
+    const noteTimesMs = new Map([[0, noteTime]]);
+    const noteEndTimesMs = new Map([[0, noteTime]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("2키가 동시에 눌려 있으면 노트 시점에 Perfect", () => {
+    const { engine, judgments } = doubleSlideSetup();
+    engine.onLanePress(lane, noteTime - 50, "KeyA");
+    engine.onLanePress(lane, noteTime - 45, "KeyB");
+    engine.update(noteTime);
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("1키만 눌려 있으면 Miss (둘 다 필요)", () => {
+    const { engine, judgments } = doubleSlideSetup();
+    engine.onLanePress(lane, noteTime - 50, "KeyA"); // KeyB 없음
+    engine.update(noteTime);
+    expect(judgments.length).toBe(0); // 아직 Good 윈도우 내
+    engine.update(noteTime + 130); // Good 윈도우 초과
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("2키 눌렀다가 1키를 노트 시점 전에 떼면 Miss (노트 시점에 둘 다 필요)", () => {
+    const { engine, judgments } = doubleSlideSetup();
+    engine.onLanePress(lane, noteTime - 80, "KeyA");
+    engine.onLanePress(lane, noteTime - 75, "KeyB");
+    engine.onLaneRelease(lane, noteTime - 30, "KeyA"); // A를 노트 시점 전에 뗌
+    engine.update(noteTime); // B만 유지 → 미충족
+    engine.update(noteTime + 130);
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("1키 흡수 후 update가 끼어도 둘째 키는 더블 슬라이드가 흡수하고 직후 포인트로 새지 않는다", () => {
+    // 더블 슬라이드(idx0, 1000) + 직후 포인트(idx1, 1100). held-marker가 1키만으로 흡수 종료시키면 누설.
+    const notes = [makeDoubleSlide(lane, beat(0, 1)), makeSingleNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, noteTime], [1, 1100]]);
+    const noteEndTimesMs = new Map([[0, noteTime]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+    engine.onLanePress(lane, noteTime, "KeyA"); // 1키 흡수 (size 1 < 2)
+    engine.update(noteTime - 10); // held-marker: 1키만이라 미충족 → 조기 흡수 종료 없음
+    engine.onLanePress(lane, noteTime, "KeyB"); // 둘째 키 → 더블 슬라이드가 흡수
+    engine.update(noteTime + 10); // 2키 동시 → Perfect
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 직후 포인트 보호
+  });
+});

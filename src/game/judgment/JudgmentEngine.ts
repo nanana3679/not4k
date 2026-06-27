@@ -15,9 +15,6 @@ import {
 import type { JudgmentWindows } from "../../shared/constants";
 import type { Lane } from "../../shared/constants";
 
-/** 헤드 없는 슬라이드가 keydown 없이 held로 흡수 종료됐음을 표시하는 sentinel 키 */
-const HELD_ABSORB_SENTINEL = "__held__";
-
 /**
  * 판정 결과
  */
@@ -149,7 +146,7 @@ export class JudgmentEngine {
    * 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료 = 후보에서 빠진다.
    * 길이>0은 BODY_ACTIVE 승격으로도 빠지지만, keydown과 다음 update 사이 프레임,
    * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
-   * 슬라이드가 keydown 없이 held로 진입한 경우는 HELD_ABSORB_SENTINEL로 표시한다.
+   * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
    */
   private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
 
@@ -962,9 +959,12 @@ export class JudgmentEngine {
         // 종결 판정
         if (holdState.isHeld) {
           if (isHoldOnlyNote(note)) {
-            // hold-only: 끝점 도달 시 유지 중이면 릴리즈를 기다리지 않고 즉시 Perfect
+            // hold-only: 끝점 도달 시 유지 중이면 릴리즈를 기다리지 않고 즉시 Perfect.
+            // 더블 hold-only는 키별 부분 실패(checkDoubleLongKeyHold)가 바디에서 이미 처리됐고,
+            // 끝점에 유지 중인 키(들)에 대해 Perfect를 준다(병렬 — RFD 0005, 1키만 유지 시 그 키만 Perfect).
             this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
             this.noteStates.set(i, NoteState.COMPLETE);
+            this.doubleLongKeyStates.delete(i);
             this.incrementCombo();
           } else {
             // 키 유지 중 → 릴리즈 대기
@@ -981,6 +981,17 @@ export class JudgmentEngine {
         }
       }
     }
+  }
+
+  /**
+   * hold-only 슬라이드(길이 0)의 유지 충족 여부.
+   * 싱글은 1키라도 눌려 있으면 충족, 더블(DOUBLE_LONG)은 2키가 동시에 눌려 있어야 충족.
+   * (길이 0은 바디가 없어 키별 독립 추적을 하지 않으므로 더블은 "둘 다 필요"로 본다.)
+   */
+  private isHoldOnlySlideHeld(note: NoteEntity, holdState: LaneHoldState | undefined): boolean {
+    if (!holdState?.isHeld) return false;
+    if (note.type === NoteType.DOUBLE_LONG) return holdState.heldKeys.size >= 2;
+    return true;
   }
 
   /**
@@ -1003,14 +1014,15 @@ export class JudgmentEngine {
 
       const holdState = this.laneHoldStates.get((note as RangeNote).lane);
 
-      // 시작 윈도우(-Good) 진입 + held → 흡수 표시(후보 제외 조기화).
-      // 직후 노트가 이 held 입력을 early로 가로채는 것을 막는다(keydown 없이 held로 진입한 경우 포함).
-      if (songTimeMs >= noteTime - this.windows.GOOD && holdState?.isHeld) {
-        this.markLongAbsorbed(i, HELD_ABSORB_SENTINEL);
+      // 시작 윈도우(-Good) 진입 + 충족(싱글 1키 / 더블 2키 동시) → 흡수 표시(후보 제외 조기화).
+      // 충족된 슬라이드의 실제 held 키들을 등록해, 직후 노트가 그 입력을 가로채거나
+      // 후속 keydown이 이미 충족된 슬라이드를 재흡수하는 것을 막는다.
+      if (songTimeMs >= noteTime - this.windows.GOOD && this.isHoldOnlySlideHeld(note, holdState)) {
+        for (const key of holdState!.heldKeys) this.markLongAbsorbed(i, key);
       }
 
-      // 노트 시점 도달 + 해당 레인 held → Perfect (노트 시점에 표시)
-      if (songTimeMs >= noteTime && holdState?.isHeld) {
+      // 노트 시점 도달 + 충족(싱글=1키, 더블=2키 동시) → Perfect (노트 시점에 표시)
+      if (songTimeMs >= noteTime && this.isHoldOnlySlideHeld(note, holdState)) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
         this.absorbedLongKeys.delete(i);
@@ -1040,6 +1052,8 @@ export class JudgmentEngine {
       const note = this.notes[i];
       if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
       if ((note as RangeNote).lane !== lane) continue;
+      // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정(미리 떼기 Perfect 미지원).
+      if (note.type === NoteType.DOUBLE_LONG) continue;
 
       const noteTime = this.noteTimesMs.get(i);
       const endTime = this.noteEndTimesMs.get(i);

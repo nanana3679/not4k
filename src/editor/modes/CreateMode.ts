@@ -406,7 +406,7 @@ export class CreateMode {
       lane,
       beat: actualStartBeat,
       endBeat: actualEndBeat,
-      ...(this._graceMode && bodyType === "long" ? { holdOnly: true } : {}),
+      ...(this._graceMode && (bodyType === "long" || bodyType === "doubleLong") ? { holdOnly: true } : {}),
     };
 
     // Length 0 (startBeat == endBeat): body only, no head note

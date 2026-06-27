@@ -246,8 +246,8 @@ export class GameNoteRenderer {
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        // hold-only(싱글 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
-        if (entity.type === "long" && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
+        // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
+        if ((entity.type === "long" || entity.type === "doubleLong") && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
           const glow = this.getOrCreateGraceGlow(index);
           glow.x = laneX - COLORS.GRACE_GLOW_PAD;
           glow.y = adjustedEndY - COLORS.GRACE_GLOW_PAD;

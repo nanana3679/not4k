@@ -127,8 +127,8 @@ export function useEditorKeyboard(
               if (!pn.grace) delete pn.grace;
               newNotes[idx] = pn;
               toggled++;
-            } else if (note && 'endBeat' in note && note.type === 'long') {
-              // 싱글 롱노트: hold-only 토글 (grace와 동일한 G 조작)
+            } else if (note && 'endBeat' in note && (note.type === 'long' || note.type === 'doubleLong')) {
+              // 싱글·더블 롱노트: hold-only 토글 (grace와 동일한 G 조작)
               const rn = { ...note } as import('../../shared').RangeNote;
               rn.holdOnly = !rn.holdOnly;
               if (!rn.holdOnly) delete rn.holdOnly;

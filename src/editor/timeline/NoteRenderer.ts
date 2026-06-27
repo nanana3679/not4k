@@ -290,8 +290,8 @@ export class NoteRenderer {
       }
     }
 
-    // hold-only: 끝점에 면제 글로우 (grace와 동일 색)
-    if (isHoldOnlyNote(note)) {
+    // hold-only(싱글·더블 롱): 끝점에 면제 글로우 (grace와 동일 색, 윤곽선과 동일 타입 가드)
+    if (isHoldOnlyNote(note) && (note.type === "long" || note.type === "doubleLong")) {
       const pad = COLORS.GRACE_GLOW_PAD;
       const baseAlpha = COLORS.GRACE_GLOW_ALPHA;
       const steps = 4;
@@ -322,8 +322,8 @@ export class NoteRenderer {
       end.fill({ fill: headGradient, alpha: 0.5 });
     }
 
-    // hold-only(싱글 롱) 끝점 윤곽선 (grace와 동일)
-    if (isHoldOnlyNote(note) && note.type === "long") {
+    // hold-only(싱글·더블 롱) 끝점 윤곽선 (grace와 동일)
+    if (isHoldOnlyNote(note) && (note.type === "long" || note.type === "doubleLong")) {
       end.stroke({ width: COLORS.GRACE_OUTLINE_WIDTH, color: COLORS.GRACE_OUTLINE, alignment: 0 });
     }
 

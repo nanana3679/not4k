@@ -59,7 +59,7 @@ describe("CreateMode — graceMode 배치", () => {
     expect(head.grace).toBeUndefined();
   });
 
-  it("graceMode ON에서 더블 롱노트 배치 시 holdOnly 미부여 (1차 미지원)", () => {
+  it("graceMode ON에서 더블 롱노트 배치 시 바디에 holdOnly 부여", () => {
     const chart = makeChart();
     const callbacks = makeCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
@@ -71,7 +71,7 @@ describe("CreateMode — graceMode 배치", () => {
 
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     const body = updated.notes.find((n) => "endBeat" in n) as { holdOnly?: boolean };
-    expect(body.holdOnly).toBeUndefined();
+    expect(body.holdOnly).toBe(true);
   });
 
   it("graceMode OFF에서 배치 시 면제 플래그 없음", () => {
