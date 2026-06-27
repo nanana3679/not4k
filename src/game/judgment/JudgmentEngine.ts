@@ -149,6 +149,13 @@ export class JudgmentEngine {
    * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
    */
   private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
+  /**
+   * 레인별 release 락아웃 만료 시각 (RFD 0007).
+   * held로 노트를 완료한 직후의 "놓기" release가 직후 슬라이드의 미리-떼기 Perfect를
+   * 트리거하지 못하게 한다(checkSlideReleaseOnRelease 한정). 끝점/릴리즈 노트 표면은
+   * lane-held 단일 롱노트의 키 귀속 불가 + 동시 롱·릴리즈탭 과차단 때문에 락아웃하지 않는다.
+   */
+  private readonly releaseLockoutUntilMs: Map<Lane, number> = new Map();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -955,6 +962,10 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
+        // 유지 중 연결 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
+        if (holdState.isHeld) {
+          this.releaseLockoutUntilMs.set(note.lane, songTimeMs + this.windows.GOOD);
+        }
       } else {
         // 종결 판정
         if (holdState.isHeld) {
@@ -966,6 +977,8 @@ export class JudgmentEngine {
             this.noteStates.set(i, NoteState.COMPLETE);
             this.doubleLongKeyStates.delete(i);
             this.incrementCombo();
+            // held로 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
+            this.releaseLockoutUntilMs.set(note.lane, songTimeMs + this.windows.GOOD);
           } else {
             // 키 유지 중 → 릴리즈 대기
             this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
@@ -1027,6 +1040,8 @@ export class JudgmentEngine {
         this.noteStates.set(i, NoteState.COMPLETE);
         this.absorbedLongKeys.delete(i);
         this.incrementCombo();
+        // held로 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
+        this.releaseLockoutUntilMs.set((note as RangeNote).lane, songTimeMs + this.windows.GOOD);
         continue;
       }
 
@@ -1047,6 +1062,9 @@ export class JudgmentEngine {
    * 떼는 시점에 Perfect를 부여한다(미리 떼는 케이스의 표시 시점).
    */
   private checkSlideReleaseOnRelease(lane: Lane, releaseTimeMs: number): void {
+    // held 완료 직후 "놓기" release는 직후 슬라이드 미리-떼기를 트리거하지 않음 (RFD 0007)
+    const lockUntil = this.releaseLockoutUntilMs.get(lane);
+    if (lockUntil !== undefined && releaseTimeMs < lockUntil) return;
     for (let i = 0; i < this.notes.length; i++) {
       if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
       const note = this.notes[i];
