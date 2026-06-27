@@ -139,7 +139,7 @@ RFD 0005(hold-only)에서 헤드 없는 롱노트, 특히 길이 0 슬라이드�
 
 §3.4의 더블 롱노트·릴리즈 노트 흡수를 판정 로직 수준에서 구현했다.
 
-- **헤드 없는 더블 롱노트 2키 흡수**: 흡수 추적을 `absorbedLong: Set<number>` → `absorbedLongKeys: Map<number, Set<string>>`(노트별 흡수한 키 집합)로 바꿔, 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료(`isHeadlessAbsorbable`에서 `size >= requiredAbsorbCount`). 서로 다른 키 2개를 채워야 종료되고 같은 키 재입력은 Set 특성상 무효. `headlessLongCache`에 DOUBLE_LONG 포함. **단 에디터는 여전히 헤드 없는 doubleLong을 만들 수 없으므로**(doubleLong은 항상 더블 헤드와 함께 생성됨) 차트에 등장하면 올바르게 동작하는 **방어적 구현**이다(authoring 미추가).
+- **헤드 없는 더블 롱노트 2키 흡수**: 흡수 추적을 `absorbedLong: Set<number>` → `absorbedLongKeys: Map<number, Set<string>>`(노트별 흡수한 키 집합)로 바꿔, 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료(`isHeadlessAbsorbable`에서 `size >= requiredAbsorbCount`). 서로 다른 키 2개를 채워야 종료되고 같은 키 재입력은 Set 특성상 무효. `headlessLongCache`에 DOUBLE_LONG 포함. 이 2키 흡수는 앞으로 넣을 **더블 hold-only(`doubleLong` + `holdOnly`) 입력의 판정 그라운드워크**다 — 헤드 없는 더블 홀드 자체는 이미 동작하며, 현재 입력이 안 되는 것은 더블 hold-only다.
 - **릴리즈 노트(길이 0 일반)**: 별도 작업이 거의 불필요했다 — 릴리즈 노트는 type LONG이라 1차의 일반 LONG 흡수가 그대로 적용된다(keydown 흡수 → 직후 포인트 보호 → `BODY_AWAITING_RELEASE` + keyup 종결 판정). `executeTerminationJudgment`에 흡수 표시 정리(`absorbedLongKeys.delete`)만 추가하고 확인 테스트를 더했다.
 - **held sentinel**: 길이 0 슬라이드가 keydown 없이 held로 시작 윈도우에 진입한 경우는 `HELD_ABSORB_SENTINEL`을 키 집합에 넣어 흡수 표시(필요 키 수 1을 충족).
 
@@ -147,4 +147,6 @@ RFD 0005(hold-only)에서 헤드 없는 롱노트, 특히 길이 0 슬라이드�
 
 **경계(적대적 검증에서 확인)**: doubleLong의 흡수 종료는 "흡수에 닿은 서로 다른 키의 합집합 카운트"인데, 바디 2키 추적은 "활성화 프레임의 동시 홀드 키 수"다. 둘은 **비동시 입력(A를 눌렀다 떼고 B를 누름)**에서 갈린다. 그러나 이는 판정 결과상 회귀가 아니다 — 더블 홀드는 본래 2키 *동시* 유지가 필요하므로 비동시 입력은 변경 전에도 부분 실패(1키 유지 + 1키 Miss)였고, 흡수 변경은 오히려 직후 노트를 보호한다. 정상 플레이(2키 동시)에서는 발생하지 않으며, 헤드 없는 doubleLong은 미authoring이라 차트에 등장하지도 않는다. 따라서 흡수 종료를 "동시 홀드"로 좁혀 이중 홀드 의미를 바꾸는 대신, 현 동작(union 카운트 + 기존 부분 실패 판정)을 유지하고 테스트로 명시했다.
 
-남은 것: 헤드 없는 doubleLong의 **에디터 authoring**(게임 메커니즘 확장 — 별도 제품 결정 시). authoring을 도입한다면 흡수 종료의 동시성 의미도 함께 재확정한다.
+남은 것(hold-only 확장 — `../rfd/0005-hold-only-long-note.md` 스코프):
+- **더블 hold-only(`doubleLong` + `holdOnly`) 입력·authoring** — 추가 예정. 길이 0이면 "더블 슬라이드"이며, 판정은 `checkLengthZeroHoldOnly`의 단일키 held 체크를 2키로 확장해야 한다(현재는 싱글 기준). 본 RFD의 2키 흡수가 그 입력 매칭 토대를 이미 제공한다.
+- **트릴 hold-only(`trillLong` + `holdOnly`)** — 추가 논의 필요.
