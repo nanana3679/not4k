@@ -30,8 +30,12 @@ _Avoid_: 스코어 화면
 _Avoid_: 키 이벤트 처리
 
 **가장 이른 노트 매칭**:
-판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 싱글 롱노트(길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 흡수(consume)하되 판정은 분리한다 — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
+판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 롱노트(싱글/더블, 길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 흡수(consume)하되 판정은 분리한다(필요 키 수 싱글 1/더블 2) — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
 _Avoid_: 가장 가까운 노트 매칭
+
+**release 귀속**:
+롱노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)은 그 노트를 engage(fresh keydown으로 매칭/흡수)한 키의 release에만 응답한다. hold-only를 held로 완료시킨 키는 "소진"되어 놓기 release가 직후 노트로 새지 않는다 — 세부는 `docs/rfd/0008-release-engage-key-attribution.md`.
+_Avoid_: 레인 단위 release 브로드캐스트
 
 **빈 레인 입력**:
 시각적으로 비어 보이는 레인에 입력했지만 판정 윈도우 안의 노트와 연결될 수 있는 입력이다.
