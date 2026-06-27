@@ -15,6 +15,9 @@ import {
 import type { JudgmentWindows } from "../../shared/constants";
 import type { Lane } from "../../shared/constants";
 
+/** 헤드 없는 슬라이드가 keydown 없이 held로 흡수 종료됐음을 표시하는 sentinel 키 */
+const HELD_ABSORB_SENTINEL = "__held__";
+
 /**
  * 판정 결과
  */
@@ -136,17 +139,19 @@ export class JudgmentEngine {
   /** 더블 롱노트의 키별 홀드 상태 */
   private readonly doubleLongKeyStates: Map<number, DoubleLongKeyState> = new Map();
   /**
-   * 노트별 "헤드 없는 싱글 롱노트" 여부 (생성자에서 1회 계산).
+   * 노트별 "헤드 없는 롱노트" 여부 (생성자에서 1회 계산).
    * 같은 lane에 시작 시각이 일치하는 PointNote(헤드)가 없으면 헤드 없음 = true.
-   * 1차 흡수 대상은 NoteType.LONG 만 (doubleLong/trillLong 제외).
+   * 흡수 대상은 NoteType.LONG(싱글, 필요 키 수 1)과 NoteType.DOUBLE_LONG(필요 키 수 2).
    */
   private readonly headlessLongCache: Map<number, boolean> = new Map();
   /**
-   * 헤드 없는 롱노트가 keydown/held로 흡수 종료됐는지 (재흡수·후보 제외용).
-   * 길이>0은 BODY_ACTIVE 승격으로도 후보에서 빠지지만, keydown과 다음 update 사이 프레임,
-   * 그리고 BODY 상태가 없는 길이 0 슬라이드를 위해 이 Set으로 흡수 완료를 추적한다.
+   * 헤드 없는 롱노트가 흡수한 keydown 키 집합 (노트별, 재흡수·후보 제외용).
+   * 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료 = 후보에서 빠진다.
+   * 길이>0은 BODY_ACTIVE 승격으로도 빠지지만, keydown과 다음 update 사이 프레임,
+   * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
+   * 슬라이드가 keydown 없이 held로 진입한 경우는 HELD_ABSORB_SENTINEL로 표시한다.
    */
-  private readonly absorbedLong: Set<number> = new Set();
+  private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -189,17 +194,17 @@ export class JudgmentEngine {
   }
 
   /**
-   * 헤드 없는 싱글 롱노트 캐시 계산 (생성자 1회).
+   * 헤드 없는 롱노트 캐시 계산 (생성자 1회).
    *
    * 같은 lane의 PointNote 중 시작 시각이 1ms 이내로 일치하는 것이 있으면
    * "헤드 있음"(false), 없으면 "헤드 없음"(true). 부동소수 동일성 위험을
-   * 피하려고 ≤1ms tolerance를 쓴다. 1차 흡수 대상은 NoteType.LONG 만.
+   * 피하려고 ≤1ms tolerance를 쓴다. 흡수 대상은 LONG(싱글)·DOUBLE_LONG(더블).
    */
   private computeHeadlessLongCache(): void {
     const HEAD_TOLERANCE_MS = 1;
     for (let i = 0; i < this.notes.length; i++) {
       const note = this.notes[i];
-      if (!("endBeat" in note) || note.type !== NoteType.LONG) {
+      if (!("endBeat" in note) || (note.type !== NoteType.LONG && note.type !== NoteType.DOUBLE_LONG)) {
         this.headlessLongCache.set(i, false);
         continue;
       }
@@ -297,9 +302,9 @@ export class JudgmentEngine {
 
     const deltaMs = timestampMs - noteTime;
 
-    // 헤드 없는 싱글 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
+    // 헤드 없는 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
     if ("endBeat" in note) {
-      this.absorbHeadlessLongPress(targetNoteIndex);
+      this.markLongAbsorbed(targetNoteIndex, keyCode);
       return;
     }
 
@@ -476,7 +481,7 @@ export class JudgmentEngine {
             bodyStartTimeMs: noteTime,
           });
           // BODY_ACTIVE가 되면 state로 후보 제외되므로 흡수 표시는 정리한다.
-          this.absorbedLong.delete(i);
+          this.absorbedLongKeys.delete(i);
 
           // doubleLong: 현재 눌린 키들로 2키 독립 추적 초기화
           if (note.type === NoteType.DOUBLE_LONG) {
@@ -564,7 +569,9 @@ export class JudgmentEngine {
   private isHeadlessAbsorbable(noteIndex: number, timestampMs: number): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
-    if (this.absorbedLong.has(noteIndex)) return false;
+    // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 흡수 종료 → 후보 아님
+    const absorbed = this.absorbedLongKeys.get(noteIndex)?.size ?? 0;
+    if (absorbed >= this.requiredAbsorbCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
     // 흡수 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
@@ -573,18 +580,30 @@ export class JudgmentEngine {
     return deltaMs >= -this.windows.GOOD && deltaMs <= this.windows.GOOD;
   }
 
+  /** 헤드 없는 롱노트의 흡수 필요 키 수 (싱글 LONG 1 / 더블 DOUBLE_LONG 2). */
+  private requiredAbsorbCount(noteIndex: number): number {
+    return this.notes[noteIndex].type === NoteType.DOUBLE_LONG ? 2 : 1;
+  }
+
   /**
-   * 헤드 없는 싱글 롱노트의 keydown 흡수 (판정 emit 없음).
+   * 헤드 없는 롱노트의 keydown 흡수 표시 (판정 emit 없음).
    *
-   * keydown을 소비만 한다. 실제 판정은 update()의 held 경로가 전담한다:
-   *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold
+   * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
+   *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
    *  - 길이0 슬라이드: checkLengthZeroHoldOnly / checkSlideReleaseOnRelease
+   *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup 종결 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
-   * 흡수 표시는 같은 프레임/윈도우의 후속 keydown이 이 노트를 재흡수해 다음 노트를 막는 것을 방지한다.
+   * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재흡수해 다음 노트를 막는 것을
+   * 방지하고, 더블 롱노트는 서로 다른 키 2개를 채워야 흡수 종료된다(같은 키 재입력은 무효).
    * (holdState.heldKeys 는 onLanePress 진입부에서 이미 갱신됨 — 여기서 키를 만지지 않는다.)
    */
-  private absorbHeadlessLongPress(noteIndex: number): void {
-    this.absorbedLong.add(noteIndex);
+  private markLongAbsorbed(noteIndex: number, keyCode: string): void {
+    let keys = this.absorbedLongKeys.get(noteIndex);
+    if (!keys) {
+      keys = new Set();
+      this.absorbedLongKeys.set(noteIndex, keys);
+    }
+    keys.add(keyCode);
   }
 
   /**
@@ -987,14 +1006,14 @@ export class JudgmentEngine {
       // 시작 윈도우(-Good) 진입 + held → 흡수 표시(후보 제외 조기화).
       // 직후 노트가 이 held 입력을 early로 가로채는 것을 막는다(keydown 없이 held로 진입한 경우 포함).
       if (songTimeMs >= noteTime - this.windows.GOOD && holdState?.isHeld) {
-        this.absorbedLong.add(i);
+        this.markLongAbsorbed(i, HELD_ABSORB_SENTINEL);
       }
 
       // 노트 시점 도달 + 해당 레인 held → Perfect (노트 시점에 표시)
       if (songTimeMs >= noteTime && holdState?.isHeld) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLong.delete(i);
+        this.absorbedLongKeys.delete(i);
         this.incrementCombo();
         continue;
       }
@@ -1003,7 +1022,7 @@ export class JudgmentEngine {
       if (songTimeMs > noteTime + this.windows.GOOD) {
         this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLong.delete(i);
+        this.absorbedLongKeys.delete(i);
         this.breakCombo();
       }
     }
@@ -1030,7 +1049,7 @@ export class JudgmentEngine {
       if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLong.delete(i);
+        this.absorbedLongKeys.delete(i);
         this.incrementCombo();
       }
     }
@@ -1123,6 +1142,7 @@ export class JudgmentEngine {
 
     this.emitJudgment(noteIndex, grade, undefined, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
+    this.absorbedLongKeys.delete(noteIndex); // 헤드 없는 롱노트 흡수 표시 정리(릴리즈 노트 등)
 
     if (this.isComboMaintaining(grade)) {
       this.incrementCombo();

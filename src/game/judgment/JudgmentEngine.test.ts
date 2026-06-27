@@ -1207,3 +1207,96 @@ describe("헤드 있는 롱노트는 헤드만 흡수해 더블/직후 포인트
     expect(judgments.some((j) => j.noteIndex === 2)).toBe(false);
   });
 });
+
+describe("헤드 없는 더블 롱노트 2키 흡수 (RFD 0006)", () => {
+  const lane: Lane = 1;
+
+  /** 헤드 없는 더블 롱노트(idx0, 1000~2000) + 직후 포인트(idx1, 1100) */
+  function headlessDoubleLongThenPointSetup() {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1100]]);
+    const noteEndTimesMs = new Map([[0, 2000]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("서로 다른 두 키를 시작 시각에 누르면 둘 다 흡수돼 직후 포인트는 보호되고, 셋째 입력이 포인트로 간다", () => {
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 1키째 흡수 (미충족, 후보 유지)
+    engine.onLanePress(lane, 1000, "KeyB"); // 2키째 흡수 (충족, 흡수 종료)
+    engine.update(1000); // 더블 롱노트 BODY_ACTIVE (2키 추적)
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 직후 포인트 보호
+    engine.onLanePress(lane, 1100, "KeyC"); // 흡수 종료된 뒤 → 포인트로
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // delta 0
+  });
+
+  it("첫 keydown 하나만으로는 흡수 종료되지 않아 둘째 keydown도 더블 롱노트가 흡수한다 (포인트로 안 샘)", () => {
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 1키째 — 아직 미충족
+    engine.onLanePress(lane, 1000, "KeyB"); // 더블 롱노트(1000)가 포인트(1100)보다 이르므로 둘째도 흡수
+    engine.update(1010);
+    // 만약 1키만으로 흡수 종료됐다면 둘째가 포인트로 새 early Good이 떴을 것 — 떠선 안 됨
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+  });
+
+  it("같은 키를 두 번 누르면 흡수 키 수가 1로 유지되어 흡수 종료되지 않는다", () => {
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 1키째
+    engine.onLanePress(lane, 1000, "KeyA"); // 같은 키 — 집합 크기 1 유지(무효)
+    engine.onLanePress(lane, 1000, "KeyB"); // 2키째(다른 키) → 흡수 종료
+    engine.update(1000);
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트 보호 유지
+    engine.onLanePress(lane, 1100, "KeyC"); // 흡수 종료 후 → 포인트
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("비동시 2키 입력(A를 떼고 B)이어도 두 keydown을 흡수해 직후 포인트를 보호한다 (더블 홀드 자체는 비동시라 부분 실패)", () => {
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 1키째 흡수
+    engine.onLaneRelease(lane, 1005, "KeyA"); // A를 뗌 (비동시)
+    engine.onLanePress(lane, 1008, "KeyB"); // 2키째 흡수 — 포인트로 새지 않음
+    engine.update(1010); // 더블 롱노트 활성화 (동시 2키 아님)
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 직후 포인트 보호
+    engine.update(1100 + 170); // 포인트 윈도우 종료
+    // 두 keydown이 모두 흡수돼 포인트는 early로 안 새고, 안 쳐서 Miss (보호 성립)
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("더블 헤드(D)가 있는 더블 롱노트는 흡수 후보가 아니어서 헤드가 입력을 받고 직후 포인트는 미흡수", () => {
+    // idx0 = 더블 롱노트(1000~2000), idx1 = 더블 헤드(1000), idx2 = 직후 포인트(1100)
+    const notes = [
+      makeDoubleLongNote(lane, beat(0, 1), beat(8, 1)),
+      { type: NoteType.DOUBLE, lane, beat: beat(0, 1) } as NoteEntity, // 더블 헤드(시작 시각 일치)
+      makeSingleNote(lane, beat(1, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1000], [2, 1100]]);
+    const noteEndTimesMs = new Map([[0, 2000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+    engine.onLanePress(lane, 1000, "KeyA"); // 더블 헤드(idx1) 첫 입력
+    engine.update(1000 + 10);
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(true); // 헤드가 받음
+    expect(judgments.some((j) => j.noteIndex === 2)).toBe(false); // 직후 포인트 미흡수
+  });
+});
+
+describe("릴리즈 노트(길이 0 일반) keydown 흡수 — 직후 포인트 보호 (RFD 0006)", () => {
+  const lane: Lane = 1;
+
+  /** 릴리즈 노트(idx0, 1000, 길이0 non-holdOnly) + 직후 포인트(idx1, 1100) */
+  function releaseThenPointSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(0, 1)), makeSingleNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1100]]);
+    const noteEndTimesMs = new Map([[0, 1000]]); // 길이 0
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("누르고 떼는 릴리즈 노트: keydown은 릴리즈 노트가 흡수하고 keyup으로 판정, 직후 포인트는 보호된다", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // keydown 흡수 (판정 emit 없음)
+    engine.update(1000); // 길이0 일반 → BODY_AWAITING_RELEASE
+    engine.onLaneRelease(lane, 1010, "KeyA"); // keyup → 종결 판정
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // delta +10
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트 미흡수
+    engine.onLanePress(lane, 1100, "KeyB"); // 흡수 종료 후 → 포인트 정타
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
