@@ -150,12 +150,16 @@ export class JudgmentEngine {
    */
   private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 레인별 release 락아웃 만료 시각 (RFD 0007).
-   * held로 노트를 완료한 직후의 "놓기" release가 직후 슬라이드의 미리-떼기 Perfect를
-   * 트리거하지 못하게 한다(checkSlideReleaseOnRelease 한정). 끝점/릴리즈 노트 표면은
-   * lane-held 단일 롱노트의 키 귀속 불가 + 동시 롱·릴리즈탭 과차단 때문에 락아웃하지 않는다.
+   * 노트별 engage-키 집합 — 그 노트를 fresh keydown으로 매칭/흡수한 키 (RFD 0008).
+   * held-marker(held로 진입한 키)는 포함하지 않는다 — release 귀속 전용.
    */
-  private readonly releaseLockoutUntilMs: Map<Lane, number> = new Map();
+  private readonly engageKeys: Map<number, Set<string>> = new Map();
+  /**
+   * 레인별 "소진된(spent)" 키 — hold-only/슬라이드를 held로 완료시킨 engage-키 (RFD 0008).
+   * 이 키의 release는 "놓기"이므로, 그 키가 engage하지 않은 직후 노트의 release 판정
+   * (끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다. 키를 떼거나 다시 누르면 정리.
+   */
+  private readonly spentReleaseKeys: Map<Lane, Set<string>> = new Map();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -191,6 +195,7 @@ export class JudgmentEngine {
         lastReleaseTimeMs: null,
         heldKeys: new Set(),
       });
+      this.spentReleaseKeys.set(lane, new Set());
       this.trillAlternation.set(lane, null);
       this.trillZoneNextIndex.set(lane, 0);
       this.trillZoneCurrentStartMs.set(lane, null);
@@ -265,6 +270,7 @@ export class JudgmentEngine {
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
+    this.spentReleaseKeys.get(lane)?.delete(keyCode); // 다시 누르면 소진 해제 (RFD 0008)
     // Grace period 내 재입력 시 릴리즈 기록 클리어 (프레임 기반 오판 방지)
     if (
       holdState.lastReleaseTimeMs !== null &&
@@ -309,6 +315,7 @@ export class JudgmentEngine {
     // 헤드 없는 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
     if ("endBeat" in note) {
       this.markLongAbsorbed(targetNoteIndex, keyCode);
+      this.recordEngageKey(targetNoteIndex, keyCode); // release 귀속용 (RFD 0008)
       return;
     }
 
@@ -336,15 +343,18 @@ export class JudgmentEngine {
     this.updateDoubleLongKeyRelease(lane, keyCode, timestampMs);
 
     // 끝점 판정 윈도우 내 릴리즈면 다른 키 홀드 여부와 무관하게 판정 시도
-    this.tryEndpointJudgmentOnRelease(lane, timestampMs);
+    this.tryEndpointJudgmentOnRelease(lane, timestampMs, keyCode);
 
     // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
     if (holdState.heldKeys.size === 0) {
       holdState.isHeld = false;
       holdState.lastReleaseTimeMs = timestampMs;
       // 길이 0 hold-only(슬라이드): 노트 시점 전 윈도우 내 완전 릴리즈 시 그 시점에 판정
-      this.checkSlideReleaseOnRelease(lane, timestampMs);
+      this.checkSlideReleaseOnRelease(lane, timestampMs, keyCode);
     }
+
+    // 놓기 release 처리 후 소진 키 해제 (RFD 0008)
+    this.spentReleaseKeys.get(lane)?.delete(keyCode);
   }
 
   /**
@@ -370,7 +380,7 @@ export class JudgmentEngine {
   /**
    * 레인의 모든 키가 릴리즈되었을 때 끝점 판정 시도
    */
-  private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number): void {
+  private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
     for (let i = 0; i < this.notes.length; i++) {
       const state = this.noteStates.get(i);
       if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_AWAITING_RELEASE) {
@@ -379,6 +389,8 @@ export class JudgmentEngine {
 
       const note = this.notes[i] as RangeNote;
       if (note.lane !== lane) continue;
+      // 다른 노트를 완료시킨 "놓기" 키는 이 노트의 끝점 종결을 트리거하지 않음 (RFD 0008)
+      if (this.isReleaseSpentForOther(lane, keyCode, i)) continue;
 
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
@@ -608,6 +620,33 @@ export class JudgmentEngine {
       this.absorbedLongKeys.set(noteIndex, keys);
     }
     keys.add(keyCode);
+  }
+
+  /** 그 노트를 fresh keydown으로 engage한 키 기록 (RFD 0008, release 귀속용) */
+  private recordEngageKey(noteIndex: number, keyCode: string): void {
+    let s = this.engageKeys.get(noteIndex);
+    if (!s) {
+      s = new Set();
+      this.engageKeys.set(noteIndex, s);
+    }
+    s.add(keyCode);
+  }
+
+  /**
+   * held로 완료된 노트를 유지하던 키(완료 시점의 실제 held 키)를 레인의 소진 집합에 추가 (RFD 0008).
+   * engageKeys가 아니라 held 키를 쓰므로, 흡수 없이 held로 진입한 pre-held 케이스도 닫힌다.
+   */
+  private spendHeldKeys(lane: Lane): void {
+    const holdState = this.laneHoldStates.get(lane);
+    const spent = this.spentReleaseKeys.get(lane);
+    if (!holdState || !spent) return;
+    for (const k of holdState.heldKeys) spent.add(k);
+  }
+
+  /** 그 키의 release가 "놓기"(소진)인지 — engage하지 않은 노트의 release 판정을 막는다 (RFD 0008) */
+  private isReleaseSpentForOther(lane: Lane, keyCode: string, noteIndex: number): boolean {
+    if (this.spentReleaseKeys.get(lane)?.has(keyCode) !== true) return false;
+    return this.engageKeys.get(noteIndex)?.has(keyCode) !== true;
   }
 
   /**
@@ -962,9 +1001,9 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 유지 중 연결 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
+        // 유지 중 연결 완료 → 유지 키 소진 (RFD 0008)
         if (holdState.isHeld) {
-          this.releaseLockoutUntilMs.set(note.lane, songTimeMs + this.windows.GOOD);
+          this.spendHeldKeys(note.lane);
         }
       } else {
         // 종결 판정
@@ -977,8 +1016,8 @@ export class JudgmentEngine {
             this.noteStates.set(i, NoteState.COMPLETE);
             this.doubleLongKeyStates.delete(i);
             this.incrementCombo();
-            // held로 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
-            this.releaseLockoutUntilMs.set(note.lane, songTimeMs + this.windows.GOOD);
+            // held로 완료 → 유지 키 소진 (직후 "놓기" release 차단, RFD 0008)
+            this.spendHeldKeys(note.lane);
           } else {
             // 키 유지 중 → 릴리즈 대기
             this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
@@ -1040,8 +1079,8 @@ export class JudgmentEngine {
         this.noteStates.set(i, NoteState.COMPLETE);
         this.absorbedLongKeys.delete(i);
         this.incrementCombo();
-        // held로 완료 → 직후 "놓기" release 락아웃 (RFD 0007)
-        this.releaseLockoutUntilMs.set((note as RangeNote).lane, songTimeMs + this.windows.GOOD);
+        // held로 완료 → 유지 키 소진 (RFD 0008)
+        this.spendHeldKeys((note as RangeNote).lane);
         continue;
       }
 
@@ -1061,15 +1100,14 @@ export class JudgmentEngine {
    * 노트 시점 전 Good 윈도우 내에서 완전히 떼면, 그 직전까지 눌려 있었으므로
    * 떼는 시점에 Perfect를 부여한다(미리 떼는 케이스의 표시 시점).
    */
-  private checkSlideReleaseOnRelease(lane: Lane, releaseTimeMs: number): void {
-    // held 완료 직후 "놓기" release는 직후 슬라이드 미리-떼기를 트리거하지 않음 (RFD 0007)
-    const lockUntil = this.releaseLockoutUntilMs.get(lane);
-    if (lockUntil !== undefined && releaseTimeMs < lockUntil) return;
+  private checkSlideReleaseOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
     for (let i = 0; i < this.notes.length; i++) {
       if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
       const note = this.notes[i];
       if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
       if ((note as RangeNote).lane !== lane) continue;
+      // 다른 노트를 완료시킨 "놓기" 키는 이 슬라이드를 미리-떼기 하지 않음 (RFD 0008)
+      if (this.isReleaseSpentForOther(lane, keyCode, i)) continue;
       // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정(미리 떼기 Perfect 미지원).
       if (note.type === NoteType.DOUBLE_LONG) continue;
 

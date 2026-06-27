@@ -1423,7 +1423,7 @@ describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () =
   });
 });
 
-describe("release 락아웃 — held 완료 직후 놓기 누설 방지 (RFD 0007)", () => {
+describe("release engage-키 귀속 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
   const lane: Lane = 1;
 
   function holdOnlyLong(b: Beat, endBeat: Beat): NoteEntity {
@@ -1447,16 +1447,59 @@ describe("release 락아웃 — held 완료 직후 놓기 누설 방지 (RFD 000
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 슬라이드 B 미판정(보호)
   });
 
-  it("락아웃(GOOD) 만료 후의 release는 직후 슬라이드를 정상으로 미리-떼기 판정한다", () => {
-    // A: hold-only 롱 1000~2000, C: 슬라이드 2300 (락아웃 2120 만료 후)
+  it("다른(fresh) 키로 슬라이드를 engage한 뒤 미리 떼면 정상 Perfect (소진 키와 무관)", () => {
+    // A: hold-only 롱 1000~2000 (KeyA engage), C: 슬라이드 2300
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(12, 1))];
     const t = new Map([[0, 1000], [1, 2300]]);
     const e = new Map([[0, 2000], [1, 2300]]);
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A Perfect + 락아웃 until 2120
-    engine.onLaneRelease(lane, 2250, "KeyA"); // 만료 후(2250>2120), C 미리-떼기 윈도우[2180,2300) → 정상 Perfect
+    engine.update(2000); // A held Perfect → KeyA 소진
+    engine.onLaneRelease(lane, 2010, "KeyA"); // A 놓기(소진 키 해제)
+    engine.onLanePress(lane, 2250, "KeyB"); // C를 fresh 키로 engage
+    engine.onLaneRelease(lane, 2260, "KeyB"); // C 미리-떼기 윈도우[2180,2300) → 정상 Perfect
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("hold-only 완료 후 놓기 release가 직후 릴리즈 노트(길이0 일반)로 누설되지 않는다", () => {
+    // A: hold-only 롱 1000~2000 (KeyA), R: 릴리즈 노트 2050
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(9, 1), beat(9, 1))];
+    const t = new Map([[0, 1000], [1, 2050]]);
+    const e = new Map([[0, 2000], [1, 2050]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // A Perfect → KeyA 소진
+    engine.update(2055); // R → BODY_AWAITING_RELEASE
+    engine.onLaneRelease(lane, 2060, "KeyA"); // 놓기 — R로 새면 안 됨
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+  });
+
+  it("동시 진행 중인 다른 키 롱노트의 끝점 release는 소진 키와 무관하게 정상 판정", () => {
+    // A: hold-only 롱 1000~2000 (KeyA), B: 일반 롱 1000~2050 (KeyB) — 한 레인 두 키
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(0, 1), beat(9, 1))];
+    const t = new Map([[0, 1000], [1, 1000]]);
+    const e = new Map([[0, 2000], [1, 2050]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // A engage (idx0, 더 이른 인덱스)
+    engine.onLanePress(lane, 1005, "KeyB"); // B engage
+    engine.update(1000);
+    engine.update(2000); // A Perfect → KeyA 소진, B는 BODY_ACTIVE
+    engine.onLaneRelease(lane, 2050, "KeyB"); // B 끝점 — KeyB는 소진 아님 → 정상 종결
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("pre-held(흡수 윈도우 밖에서 미리 누른) hold-only 완료 후 놓기도 직후 슬라이드로 안 샌다", () => {
+    // KeyA를 흡수 윈도우 밖(800ms, 노트 1000 gate [880,1120])에 미리 누름 → 흡수·engage 기록 없음
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
+    const t = new Map([[0, 1000], [1, 2050]]);
+    const e = new Map([[0, 2000], [1, 2050]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 800, "KeyA"); // pre-held (흡수 안 됨)
+    engine.update(1000); // A BODY_ACTIVE (held로 진입)
+    engine.update(2000); // A held Perfect → 유지 키(KeyA) 소진
+    engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B로 새면 안 됨
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
   });
 });

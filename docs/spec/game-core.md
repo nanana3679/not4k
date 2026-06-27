@@ -91,7 +91,7 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 
 ### release 락아웃
 
-keydown과 달리 release(keyup)는 레인 단위로 관련 노트(롱노트 끝점·길이 0 슬라이드 미리-떼기)에 전달된다. hold-only처럼 **held로 완료**된 노트는 떼는 판정이 면제되는데, 그 직후 유저가 손을 놓는 release가 직후 **슬라이드의 미리-떼기 Perfect**로 새는 것을 막기 위해 **락아웃**을 둔다 — held로 노트를 완료한 시점부터 **Good 윈도우 동안**의 release는 직후 슬라이드 미리-떼기를 트리거하지 않는다. 끝점 종결(릴리즈탭·동시 진행 롱노트)은 release를 노트에 귀속시킬 수 없어 락아웃하지 않는다. Sonolus의 `disallowEnd` 패턴에 해당하며, 자세한 규칙·근거·한계는 [RFD 0007](../rfd/0007-release-lockout.md)을 참조한다.
+keydown과 달리 release(keyup)는 레인 단위로 관련 노트(롱노트 끝점·길이 0 슬라이드 미리-떼기·릴리즈 노트)에 전달된다. release 판정도 keydown처럼 **그 노트를 engage한(눌러서 매칭·흡수한) 키**에 귀속한다 — hold-only/슬라이드를 **held로 완료시킨 키**는 "소진(spent)"되어, 그 키를 놓는 release가 (그 키가 engage하지 않은) 직후 노트의 release 판정(슬라이드 미리-떼기·릴리즈 노트·끝점 종결)을 트리거하지 않는다. 소진 키는 떼거나 다시 누르면 해제된다. 이로써 hold-only를 놓는 release가 직후 노트로 새는 누설을 막는다(Sonolus `disallowEnd`의 키-귀속 일반화). 이 방식 도입으로 **한 롱노트 안에서 다른 키로 교대(홀드 이어잡기)는 deprecate**된다(대응 피스 없음). 자세한 규칙·근거·한계는 [RFD 0008](../rfd/0008-release-engage-key-attribution.md)을 참조한다.
 
 ### 빈 레인 입력
 
