@@ -135,6 +135,18 @@ export class JudgmentEngine {
   private readonly longNoteBodyStates: Map<number, LongNoteBodyState> = new Map();
   /** 더블 롱노트의 키별 홀드 상태 */
   private readonly doubleLongKeyStates: Map<number, DoubleLongKeyState> = new Map();
+  /**
+   * 노트별 "헤드 없는 싱글 롱노트" 여부 (생성자에서 1회 계산).
+   * 같은 lane에 시작 시각이 일치하는 PointNote(헤드)가 없으면 헤드 없음 = true.
+   * 1차 흡수 대상은 NoteType.LONG 만 (doubleLong/trillLong 제외).
+   */
+  private readonly headlessLongCache: Map<number, boolean> = new Map();
+  /**
+   * 헤드 없는 롱노트가 keydown/held로 흡수 종료됐는지 (재흡수·후보 제외용).
+   * 길이>0은 BODY_ACTIVE 승격으로도 후보에서 빠지지만, keydown과 다음 update 사이 프레임,
+   * 그리고 BODY 상태가 없는 길이 0 슬라이드를 위해 이 Set으로 흡수 완료를 추적한다.
+   */
+  private readonly absorbedLong: Set<number> = new Set();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -160,6 +172,9 @@ export class JudgmentEngine {
       this.noteStates.set(i, NoteState.UNPROCESSED);
     }
 
+    // 헤드 없는 싱글 롱노트 캐시 계산 (흡수 후보 판정용)
+    this.computeHeadlessLongCache();
+
     // 레인 홀드 상태 초기화
     for (const lane of [1, 2, 3, 4] as Lane[]) {
       this.laneHoldStates.set(lane, {
@@ -170,6 +185,43 @@ export class JudgmentEngine {
       this.trillAlternation.set(lane, null);
       this.trillZoneNextIndex.set(lane, 0);
       this.trillZoneCurrentStartMs.set(lane, null);
+    }
+  }
+
+  /**
+   * 헤드 없는 싱글 롱노트 캐시 계산 (생성자 1회).
+   *
+   * 같은 lane의 PointNote 중 시작 시각이 1ms 이내로 일치하는 것이 있으면
+   * "헤드 있음"(false), 없으면 "헤드 없음"(true). 부동소수 동일성 위험을
+   * 피하려고 ≤1ms tolerance를 쓴다. 1차 흡수 대상은 NoteType.LONG 만.
+   */
+  private computeHeadlessLongCache(): void {
+    const HEAD_TOLERANCE_MS = 1;
+    for (let i = 0; i < this.notes.length; i++) {
+      const note = this.notes[i];
+      if (!("endBeat" in note) || note.type !== NoteType.LONG) {
+        this.headlessLongCache.set(i, false);
+        continue;
+      }
+      const startTime = this.noteTimesMs.get(i);
+      if (startTime === undefined) {
+        this.headlessLongCache.set(i, false);
+        continue;
+      }
+      let hasHead = false;
+      for (let j = 0; j < this.notes.length; j++) {
+        if (j === i) continue;
+        const other = this.notes[j];
+        if ("endBeat" in other) continue; // PointNote만 헤드 후보
+        if (other.lane !== note.lane) continue;
+        const otherTime = this.noteTimesMs.get(j);
+        if (otherTime === undefined) continue;
+        if (Math.abs(otherTime - startTime) <= HEAD_TOLERANCE_MS) {
+          hasHead = true;
+          break;
+        }
+      }
+      this.headlessLongCache.set(i, !hasHead);
     }
   }
 
@@ -244,6 +296,12 @@ export class JudgmentEngine {
     if (noteTime === undefined) return;
 
     const deltaMs = timestampMs - noteTime;
+
+    // 헤드 없는 싱글 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
+    if ("endBeat" in note) {
+      this.absorbHeadlessLongPress(targetNoteIndex);
+      return;
+    }
 
     // 노트 타입에 따른 처리 (헤드는 항상 PointNote)
     if (note.type === NoteType.SINGLE) {
@@ -417,6 +475,8 @@ export class JudgmentEngine {
             hasBeenPressed: false,
             bodyStartTimeMs: noteTime,
           });
+          // BODY_ACTIVE가 되면 state로 후보 제외되므로 흡수 표시는 정리한다.
+          this.absorbedLong.delete(i);
 
           // doubleLong: 현재 눌린 키들로 2키 독립 추적 초기화
           if (note.type === NoteType.DOUBLE_LONG) {
@@ -457,8 +517,11 @@ export class JudgmentEngine {
       const note = this.notes[i];
       if (note.lane !== lane) continue;
 
-      // 바디 노트(RangeNote)는 입력 대상이 아님 — 자동 활성화로 처리
-      if ("endBeat" in note) continue;
+      // 바디 노트(RangeNote)는 원칙적으로 입력 대상이 아니나, 헤드 없는 싱글 롱노트가
+      // 흡수 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown 흡수 후보가 된다.
+      if ("endBeat" in note) {
+        if (!this.isHeadlessAbsorbable(i, timestampMs)) continue;
+      }
 
       const state = this.noteStates.get(i);
       const noteTime = this.noteTimesMs.get(i);
@@ -489,6 +552,39 @@ export class JudgmentEngine {
     }
 
     return earliestIndex;
+  }
+
+  /**
+   * 해당 인덱스의 노트가 "헤드 없는 흡수 가능 싱글 롱노트"인지.
+   *
+   * 조건: (1) 헤드 없음 캐시 true (NoteType.LONG 한정)
+   *       (2) 아직 흡수 종료 안 됨 (UNPROCESSED + absorbedLong 미등록)
+   *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 흡수 방지)
+   */
+  private isHeadlessAbsorbable(noteIndex: number, timestampMs: number): boolean {
+    if (!this.headlessLongCache.get(noteIndex)) return false;
+    if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
+    if (this.absorbedLong.has(noteIndex)) return false;
+    const startTime = this.noteTimesMs.get(noteIndex);
+    if (startTime === undefined) return false;
+    // 흡수 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
+    // early Bad/late Bad까지 열면 직후 노트를 과보호하거나 홀드 직전 탭을 삼킨다.
+    const deltaMs = timestampMs - startTime;
+    return deltaMs >= -this.windows.GOOD && deltaMs <= this.windows.GOOD;
+  }
+
+  /**
+   * 헤드 없는 싱글 롱노트의 keydown 흡수 (판정 emit 없음).
+   *
+   * keydown을 소비만 한다. 실제 판정은 update()의 held 경로가 전담한다:
+   *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold
+   *  - 길이0 슬라이드: checkLengthZeroHoldOnly / checkSlideReleaseOnRelease
+   * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
+   * 흡수 표시는 같은 프레임/윈도우의 후속 keydown이 이 노트를 재흡수해 다음 노트를 막는 것을 방지한다.
+   * (holdState.heldKeys 는 onLanePress 진입부에서 이미 갱신됨 — 여기서 키를 만지지 않는다.)
+   */
+  private absorbHeadlessLongPress(noteIndex: number): void {
+    this.absorbedLong.add(noteIndex);
   }
 
   /**
@@ -888,10 +984,17 @@ export class JudgmentEngine {
 
       const holdState = this.laneHoldStates.get((note as RangeNote).lane);
 
+      // 시작 윈도우(-Good) 진입 + held → 흡수 표시(후보 제외 조기화).
+      // 직후 노트가 이 held 입력을 early로 가로채는 것을 막는다(keydown 없이 held로 진입한 경우 포함).
+      if (songTimeMs >= noteTime - this.windows.GOOD && holdState?.isHeld) {
+        this.absorbedLong.add(i);
+      }
+
       // 노트 시점 도달 + 해당 레인 held → Perfect (노트 시점에 표시)
       if (songTimeMs >= noteTime && holdState?.isHeld) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
+        this.absorbedLong.delete(i);
         this.incrementCombo();
         continue;
       }
@@ -900,6 +1003,7 @@ export class JudgmentEngine {
       if (songTimeMs > noteTime + this.windows.GOOD) {
         this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
+        this.absorbedLong.delete(i);
         this.breakCombo();
       }
     }
@@ -926,6 +1030,7 @@ export class JudgmentEngine {
       if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
         this.noteStates.set(i, NoteState.COMPLETE);
+        this.absorbedLong.delete(i);
         this.incrementCombo();
       }
     }

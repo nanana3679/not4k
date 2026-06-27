@@ -30,7 +30,7 @@ _Avoid_: 스코어 화면
 _Avoid_: 키 이벤트 처리
 
 **가장 이른 노트 매칭**:
-판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다.
+판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 싱글 롱노트(길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 흡수(consume)하되 판정은 분리한다 — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
 _Avoid_: 가장 가까운 노트 매칭
 
 **빈 레인 입력**:

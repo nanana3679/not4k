@@ -1081,3 +1081,129 @@ describe("hold-only 길이 0 (슬라이드형) 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 });
+
+describe("헤드 없는 슬라이드 keydown 흡수 — 직후 포인트 보호 (RFD 0006)", () => {
+  const lane: Lane = 1;
+  const slideTime = 1000;
+  const pointTime = 1100;
+
+  function makeSlideNote(l: Lane, b: Beat): NoteEntity {
+    return { type: NoteType.LONG, lane: l, beat: b, endBeat: b, holdOnly: true } as NoteEntity;
+  }
+
+  /** 슬라이드(idx0, 1000ms) + 직후 포인트(idx1, 1100ms) */
+  function slideThenPointSetup() {
+    const notes = [makeSlideNote(lane, beat(0, 1)), makeSingleNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, slideTime], [1, pointTime]]);
+    const noteEndTimesMs = new Map([[0, slideTime]]); // 슬라이드만 끝시각(=시작) 보유
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("슬라이드를 입력 1번으로 탭하면 그 keydown은 슬라이드만 흡수하고 직후 포인트는 판정되지 않음", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, slideTime, "KeyA");
+    engine.update(slideTime + 10);
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].noteIndex).toBe(0);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("슬라이드만 탭하고 포인트를 안 치면 포인트는 자기 윈도우 종료 시 Miss", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, slideTime, "KeyA");
+    engine.update(pointTime + 170); // 포인트 1100 + Bad 160 초과
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("슬라이드 시점에 서로 다른 두 키를 누르면 1번째는 슬라이드, 2번째는 직후 포인트로 early Good(-100)", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, slideTime, "KeyA"); // 슬라이드 흡수
+    engine.onLanePress(lane, slideTime, "KeyB"); // 슬라이드 흡수 종료됨 → 포인트로
+    engine.update(slideTime + 10);
+    const slideJ = judgments.find((j) => j.noteIndex === 0);
+    expect(slideJ?.grade).toBe(JudgmentGrade.PERFECT);
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-100);
+  });
+
+  it("a를 미리 눌러 슬라이드 시점에 held이면 슬라이드는 a로 충족되고 b 입력은 포인트 early Good(-100)", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 윈도우 밖에서 미리 누름 → 흡수 안 됨, held만
+    engine.update(slideTime); // 노트 시점 held → 슬라이드 Perfect + 흡수 종료
+    engine.onLanePress(lane, slideTime, "KeyB"); // 슬라이드는 이미 종료 → 포인트로
+    const slideJ = judgments.find((j) => j.noteIndex === 0);
+    expect(slideJ?.grade).toBe(JudgmentGrade.PERFECT);
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-100);
+  });
+
+  it("a를 슬라이드 윈도우 안에서 미리(980ms) 떼면 슬라이드는 뗀 시점에 Perfect, b는 포인트 정타 Perfect", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, 900, "KeyA"); // 슬라이드 흡수
+    engine.onLaneRelease(lane, 980, "KeyA"); // 노트 시점 직전 윈도우 내 완전 릴리즈
+    engine.onLanePress(lane, pointTime, "KeyB"); // 포인트 정타
+    const slideJ = judgments.find((j) => j.noteIndex === 0);
+    expect(slideJ?.grade).toBe(JudgmentGrade.PERFECT);
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
+
+describe("헤드 없는 길이>0 롱노트 흡수 — 직후 포인트 보호와 홀드 중 탭 (RFD 0006)", () => {
+  const lane: Lane = 1;
+
+  /** 헤드 없는 롱노트(idx0, 1000~2000) + 직후 포인트(idx1, 1100) */
+  function headlessLongThenPointSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1100]]);
+    const noteEndTimesMs = new Map([[0, 2000]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs);
+  }
+
+  it("롱노트 시작 탭은 롱노트가 흡수해 직후 포인트로 새지 않고, 포인트는 자기 윈도우 종료 시 Miss", () => {
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 롱노트 시작 (흡수)
+    engine.update(1000);
+    // 직후 포인트는 흡수 안 됨 — 아직 미판정 (early Good로 새지 않음)
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+    engine.update(1100 + 170); // 포인트 윈도우 종료 (롱노트는 계속 held)
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("홀드 중(1500ms) 다른 키로 친 입력은 롱노트에 흡수되지 않고 같은 시점 포인트로 간다", () => {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(4, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1500]]); // 포인트가 롱노트 홀드 구간 안
+    const noteEndTimesMs = new Map([[0, 2000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+    engine.onLanePress(lane, 1000, "KeyA"); // 롱노트 시작
+    engine.update(1000); // 롱노트 BODY_ACTIVE
+    engine.onLanePress(lane, 1500, "KeyB"); // 홀드 중 탭 → 포인트로
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.PERFECT); // delta 0
+  });
+});
+
+describe("헤드 있는 롱노트는 헤드만 흡수해 더블/직후 포인트 오흡수가 없다 (RFD 0006)", () => {
+  const lane: Lane = 1;
+
+  it("시작 시각에 헤드 포인트가 겹친 롱노트는 흡수 후보가 아니어서, keydown은 헤드만 판정하고 직후 포인트를 추가 흡수하지 않는다", () => {
+    // idx0 = 롱노트(1000~3000), idx1 = 헤드 포인트(1000), idx2 = 직후 포인트(1100)
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(8, 1)),
+      makeSingleNote(lane, beat(0, 1)), // 헤드 (시작 시각 일치)
+      makeSingleNote(lane, beat(1, 1)), // 직후 포인트
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1000], [2, 1100]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+    engine.onLanePress(lane, 1000, "KeyA"); // 헤드(idx1) 판정
+    engine.update(1000 + 10);
+    // 헤드만 판정, 직후 포인트(idx2)는 미흡수
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(true);
+    expect(judgments.some((j) => j.noteIndex === 2)).toBe(false);
+  });
+});
