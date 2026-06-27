@@ -1423,7 +1423,7 @@ describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () =
   });
 });
 
-describe("release engage-키 귀속 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
+describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
   const lane: Lane = 1;
 
   function holdOnlyLong(b: Beat, endBeat: Beat): NoteEntity {
@@ -1476,22 +1476,21 @@ describe("release engage-키 귀속 — held 완료 직후 놓기 누설 방지 
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
   });
 
-  it("동시 진행 중인 다른 키 롱노트의 끝점 release는 소진 키와 무관하게 정상 판정", () => {
-    // A: hold-only 롱 1000~2000 (KeyA), B: 일반 롱 1000~2050 (KeyB) — 한 레인 두 키
-    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(0, 1), beat(9, 1))];
-    const t = new Map([[0, 1000], [1, 1000]]);
-    const e = new Map([[0, 2000], [1, 2050]]);
+  it("연결 체인(hold-only → 일반 롱)에서 끝까지 유지 후 release-tap이 소진에 막히지 않는다", () => {
+    // L1: hold-only 롱 1000~2000, L2: 일반 롱 2000~3000 (연결: L1 끝=L2 시작). 한 키로 쭉 유지.
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(8, 1), beat(16, 1))];
+    const t = new Map([[0, 1000], [1, 2000]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
     const { engine, judgments } = setup(notes, t, e);
-    engine.onLanePress(lane, 1000, "KeyA"); // A engage (idx0, 더 이른 인덱스)
-    engine.onLanePress(lane, 1005, "KeyB"); // B engage
+    engine.onLanePress(lane, 1000, "KeyA"); // L1 engage, 쭉 유지
     engine.update(1000);
-    engine.update(2000); // A Perfect → KeyA 소진, B는 BODY_ACTIVE
-    engine.onLaneRelease(lane, 2050, "KeyB"); // B 끝점 — KeyB는 소진 아님 → 정상 종결
+    engine.update(2000); // L1 끝점 → L2와 연결(held Perfect). 연결은 소진 안 함
+    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 release-tap — 소진에 막히면 안 됨
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
   it("pre-held(흡수 윈도우 밖에서 미리 누른) hold-only 완료 후 놓기도 직후 슬라이드로 안 샌다", () => {
-    // KeyA를 흡수 윈도우 밖(800ms, 노트 1000 gate [880,1120])에 미리 누름 → 흡수·engage 기록 없음
+    // KeyA를 흡수 윈도우 밖(800ms, 노트 1000 gate [880,1120])에 미리 누름 → 흡수 기록 없음(pre-held)
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
     const t = new Map([[0, 1000], [1, 2050]]);
     const e = new Map([[0, 2000], [1, 2050]]);

@@ -89,9 +89,9 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 
 헤드 없는 롱노트(길이 0 슬라이드·릴리즈 노트 포함)는 시작 시각 **±Good 윈도우** 안에서 keydown 매칭 후보가 된다. 매칭되면 그 keydown을 **흡수(consume)** 하되 판정은 그 입력으로 내리지 않고, 유지(held)/릴리즈(keyup) 경로가 따로 판정한다. 필요 키 수는 노트 타입을 따른다(싱글 롱노트 1, 더블 롱노트는 서로 다른 키 2개). 한 keydown은 가장 이른 한 노트에만 귀속되므로(consume), 슬라이드 직후 가까이 놓인 포인트 노트가 그 입력을 early로 가로채는 흡수 문제가 사라진다. 흡수 후보는 시작 ±Good 근접일 때만이므로 **홀드 중/직전의 다른 탭은 흡수되지 않고** 다음 노트로 흐른다. 헤드가 있는 롱노트는 헤드(포인트)가 입력을 대표로 흡수하므로 롱노트 자신은 후보에서 빠진다(더블 방지). 자세한 규칙·근거는 [RFD 0006](../rfd/0006-earliest-matching-headless-long-note.md)을 참조한다.
 
-### release 귀속 (engage-키)
+### release 누설 차단 (소진 키)
 
-keydown과 달리 release(keyup)는 레인 단위로 관련 노트(롱노트 끝점·길이 0 슬라이드 미리-떼기·릴리즈 노트)에 전달된다. release 판정도 keydown처럼 **그 노트를 engage한(눌러서 매칭·흡수한) 키**에 귀속한다 — hold-only/슬라이드를 **held로 완료시킨 키**는 "소진(spent)"되어, 그 키를 놓는 release가 (그 키가 engage하지 않은) 직후 노트의 release 판정(슬라이드 미리-떼기·릴리즈 노트·끝점 종결)을 트리거하지 않는다. 소진 키는 떼거나 다시 누르면 해제된다. 이로써 hold-only를 놓는 release가 직후 노트로 새는 누설을 막는다(Sonolus `disallowEnd`의 키-귀속 일반화). **유지 충족은 lane-held 그대로**라 홀드 이어잡기(키 교대)는 보존된다 — 이 변경은 release 판정의 귀속만 좁힌다. 자세한 규칙·근거·한계는 [RFD 0008](../rfd/0008-release-engage-key-attribution.md)을 참조한다.
+keydown과 달리 release(keyup)는 레인 단위로 관련 노트(롱노트 끝점·길이 0 슬라이드 미리-떼기·릴리즈 노트)에 전달된다. **terminal hold-only/슬라이드를 held로 완료시킨 키**는 "소진(spent)"되어, 그 키를 놓는 release("놓기")가 직후 노트의 release 판정(슬라이드 미리-떼기·릴리즈 노트·끝점 종결)을 트리거하지 않는다(노트별 예외 없이 무조건 스킵). 소진 키는 떼거나 다시 누르면 해제된다. **연결은 "계속 잡는 것"이라 소진하지 않는다.** 이로써 hold-only를 놓는 release가 직후 노트로 새는 누설을 막는다(Sonolus `disallowEnd`의 일반화). 이 단순화의 안전성은 **한 레인 롱노트 겹침 불가** 불변에 의존한다(`note-system.md`·`src/game/CONTEXT.md`). **유지 충족은 lane-held 그대로**라 홀드 이어잡기(키 교대)는 보존된다. 자세한 규칙·근거·한계는 [RFD 0008](../rfd/0008-release-engage-key-attribution.md)을 참조한다.
 
 ### 빈 레인 입력
 

@@ -150,14 +150,11 @@ export class JudgmentEngine {
    */
   private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 노트별 engage-키 집합 — 그 노트를 fresh keydown으로 매칭/흡수한 키 (RFD 0008).
-   * held-marker(held로 진입한 키)는 포함하지 않는다 — release 귀속 전용.
-   */
-  private readonly engageKeys: Map<number, Set<string>> = new Map();
-  /**
-   * 레인별 "소진된(spent)" 키 — hold-only/슬라이드를 held로 완료시킨 engage-키 (RFD 0008).
-   * 이 키의 release는 "놓기"이므로, 그 키가 engage하지 않은 직후 노트의 release 판정
-   * (끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다. 키를 떼거나 다시 누르면 정리.
+   * 레인별 "소진된(spent)" 키 — terminal hold-only/슬라이드를 held로 완료시킨 키 (RFD 0008).
+   * 이 키의 release는 "놓기"이므로 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을
+   * 트리거하지 않는다. 키를 떼거나 다시 누르면 정리.
+   * 롱노트는 한 레인에서 겹칠 수 없으므로(배치 제약 — 다중키 구간은 doubleLong 한 노트, 경계는 연결),
+   * 소진 키가 다른 진행 중 롱의 키와 충돌하지 않는다 → 예외 없이 무조건 스킵한다.
    */
   private readonly spentReleaseKeys: Map<Lane, Set<string>> = new Map();
 
@@ -315,7 +312,6 @@ export class JudgmentEngine {
     // 헤드 없는 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
     if ("endBeat" in note) {
       this.markLongAbsorbed(targetNoteIndex, keyCode);
-      this.recordEngageKey(targetNoteIndex, keyCode); // release 귀속용 (RFD 0008)
       return;
     }
 
@@ -389,8 +385,8 @@ export class JudgmentEngine {
 
       const note = this.notes[i] as RangeNote;
       if (note.lane !== lane) continue;
-      // 다른 노트를 완료시킨 "놓기" 키는 이 노트의 끝점 종결을 트리거하지 않음 (RFD 0008)
-      if (this.isReleaseSpentForOther(lane, keyCode, i)) continue;
+      // 다른 노트를 완료시킨 "놓기" 키는 끝점 종결을 트리거하지 않음 (RFD 0008)
+      if (this.isSpentRelease(lane, keyCode)) continue;
 
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
@@ -622,19 +618,9 @@ export class JudgmentEngine {
     keys.add(keyCode);
   }
 
-  /** 그 노트를 fresh keydown으로 engage한 키 기록 (RFD 0008, release 귀속용) */
-  private recordEngageKey(noteIndex: number, keyCode: string): void {
-    let s = this.engageKeys.get(noteIndex);
-    if (!s) {
-      s = new Set();
-      this.engageKeys.set(noteIndex, s);
-    }
-    s.add(keyCode);
-  }
-
   /**
    * held로 완료된 노트를 유지하던 키(완료 시점의 실제 held 키)를 레인의 소진 집합에 추가 (RFD 0008).
-   * engageKeys가 아니라 held 키를 쓰므로, 흡수 없이 held로 진입한 pre-held 케이스도 닫힌다.
+   * 완료 시점의 held 키를 쓰므로, 흡수 없이 held로 진입한 pre-held 케이스도 닫힌다.
    */
   private spendHeldKeys(lane: Lane): void {
     const holdState = this.laneHoldStates.get(lane);
@@ -643,10 +629,9 @@ export class JudgmentEngine {
     for (const k of holdState.heldKeys) spent.add(k);
   }
 
-  /** 그 키의 release가 "놓기"(소진)인지 — engage하지 않은 노트의 release 판정을 막는다 (RFD 0008) */
-  private isReleaseSpentForOther(lane: Lane, keyCode: string, noteIndex: number): boolean {
-    if (this.spentReleaseKeys.get(lane)?.has(keyCode) !== true) return false;
-    return this.engageKeys.get(noteIndex)?.has(keyCode) !== true;
+  /** 그 키의 release가 "놓기"(소진)인지 — 직후 노트의 release 판정을 막는다 (RFD 0008) */
+  private isSpentRelease(lane: Lane, keyCode: string): boolean {
+    return this.spentReleaseKeys.get(lane)?.has(keyCode) === true;
   }
 
   /**
@@ -1001,10 +986,7 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 유지 중 연결 완료 → 유지 키 소진 (RFD 0008)
-        if (holdState.isHeld) {
-          this.spendHeldKeys(note.lane);
-        }
+        // 연결은 "계속 잡는 것"이라 소진하지 않는다(놓기가 아님). 소진은 terminal hold-only/슬라이드만.
       } else {
         // 종결 판정
         if (holdState.isHeld) {
@@ -1106,8 +1088,8 @@ export class JudgmentEngine {
       const note = this.notes[i];
       if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
       if ((note as RangeNote).lane !== lane) continue;
-      // 다른 노트를 완료시킨 "놓기" 키는 이 슬라이드를 미리-떼기 하지 않음 (RFD 0008)
-      if (this.isReleaseSpentForOther(lane, keyCode, i)) continue;
+      // 다른 노트를 완료시킨 "놓기" 키는 슬라이드 미리-떼기를 트리거하지 않음 (RFD 0008)
+      if (this.isSpentRelease(lane, keyCode)) continue;
       // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정(미리 떼기 Perfect 미지원).
       if (note.type === NoteType.DOUBLE_LONG) continue;
 
