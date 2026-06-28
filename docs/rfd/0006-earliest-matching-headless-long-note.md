@@ -141,7 +141,7 @@ RFD 0005(hold-only)에서 헤드 없는 롱노트, 특히 길이 0 슬라이드�
 
 - **헤드 없는 더블 롱노트 2키 흡수**: 흡수 추적을 `consumedLongKeys: Set<number>` → `consumedLongKeys: Map<number, Set<string>>`(노트별 흡수한 키 집합)로 바꿔, 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료(`isHeadlessConsumable`에서 `size >= requiredConsumeCount`). 서로 다른 키 2개를 채워야 종료되고 같은 키 재입력은 Set 특성상 무효. `headlessLongCache`에 DOUBLE_LONG 포함. 이 2키 흡수는 앞으로 넣을 **더블 hold-only(`doubleLong` + `holdOnly`) 입력의 판정 그라운드워크**다 — 헤드 없는 더블 홀드 자체는 이미 동작하며, 현재 입력이 안 되는 것은 더블 hold-only다.
 - **릴리즈 노트(길이 0 일반)**: 별도 작업이 거의 불필요했다 — 릴리즈 노트는 type LONG이라 1차의 일반 LONG 흡수가 그대로 적용된다(keydown 흡수 → 직후 포인트 보호 → `BODY_AWAITING_RELEASE` + keyup 종결 판정). `executeTerminationJudgment`에 흡수 표시 정리(`consumedLongKeys.delete`)만 추가하고 확인 테스트를 더했다.
-- **held sentinel**: 길이 0 슬라이드가 keydown 없이 held로 시작 윈도우에 진입한 경우는 `HELD_ABSORB_SENTINEL`을 키 집합에 넣어 흡수 표시(필요 키 수 1을 충족).
+- **held로 진입한 슬라이드 흡수**: 길이 0 슬라이드가 keydown 없이 held로 시작 윈도우에 진입한 경우, 그 시점의 **실제 held 키들(`holdState.heldKeys`)을 `markLongConsumed`로 등록**해 흡수 표시한다(필요 키 수 충족). 별도의 sentinel 상수는 쓰지 않는다.
 
 검증: 더블 롱노트 5개 + 릴리즈 노트 1개 테스트 추가(서로 다른 2키 흡수·같은 키 무효·비동시 입력 보호·더블 헤드 더블 방지·릴리즈 keyup 판정), 전체 911개 통과 + `tsc --noEmit` 클린.
 
