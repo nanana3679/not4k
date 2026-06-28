@@ -120,7 +120,7 @@ export function PlayScreen() {
           const note = chartData.notes[i];
           let count: number;
           if ('endBeat' in note) {
-            count = 1; // 바디: 끝점 판정 1회
+            count = note.type === 'doubleLong' ? 2 : 1; // 더블롱 바디: 키별 2회, 그 외 바디: 1회
           } else if (note.type === 'double') {
             count = 2; // 더블 헤드: 서브판정 2회
           } else {

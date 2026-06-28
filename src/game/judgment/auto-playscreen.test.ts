@@ -126,12 +126,11 @@ describe('PlayScreen auto-play simulation', () => {
     expect(bodyResult?.grade).toBe('perfect');
   });
 
-  it('doubleLong 단독', () => {
+  it('doubleLong 단독 — 키별 2판정 (Perfect 2개)', () => {
     const notes: NoteEntity[] = [{ beat: 4, endBeat: 8, lane: 1, type: 'doubleLong' } as unknown as NoteEntity];
     const { judgments } = runAutoPlay(notes, new Map([[0, 1000]]), new Map([[0, 2000]]), 3000);
-    console.log('doubleLong:', judgments);
-    expect(judgments).toHaveLength(1);
-    expect(judgments[0].grade).toBe('perfect');
+    expect(judgments).toHaveLength(2);
+    expect(judgments.every(j => j.grade === 'perfect')).toBe(true);
   });
 
   it('double 헤드 + doubleLong 바디 같은 beat (회귀)', () => {

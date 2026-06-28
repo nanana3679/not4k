@@ -89,10 +89,10 @@ interface LongNoteBodyState {
  * 더블 롱노트의 키별 홀드 상태
  */
 interface DoubleLongKeyState {
-  /** 키1 (먼저 눌린 키) */
-  key1: { keyCode: string; failed: boolean; lastReleaseTimeMs: number | null };
+  /** 키1 (먼저 눌린 키). judged = 그 키의 최종 서브판정(바디 실패 또는 끝점)이 emit됨 */
+  key1: { keyCode: string; failed: boolean; judged: boolean; lastReleaseTimeMs: number | null };
   /** 키2 (나중에 눌린 키) */
-  key2: { keyCode: string; failed: boolean; lastReleaseTimeMs: number | null };
+  key2: { keyCode: string; failed: boolean; judged: boolean; lastReleaseTimeMs: number | null };
 }
 
 /**
@@ -391,6 +391,27 @@ export class JudgmentEngine {
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
 
+      // 더블롱: 떼어진 키만 키별 종결 판정 (hold-only/연결은 끝점 update가 처리)
+      if (note.type === NoteType.DOUBLE_LONG) {
+        if (state !== NoteState.BODY_ACTIVE) continue;
+        if (isHoldOnlyNote(note)) continue;
+        if (this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime)) continue;
+        if (
+          releaseTimeMs < noteEndTime - this.windows.GOOD ||
+          releaseTimeMs > noteEndTime + this.windows.BAD
+        ) {
+          continue;
+        }
+        const dl = this.doubleLongKeyStates.get(i);
+        if (!dl) continue;
+        const keyState =
+          dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
+        if (!keyState || keyState.judged) continue;
+        const deltaMs = releaseTimeMs - noteEndTime;
+        this.judgeDoubleLongKey(i, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
+        continue;
+      }
+
       if (state === NoteState.BODY_ACTIVE) {
         // 끝점 판정 윈도우 내 릴리즈인지 확인 (Good 이전 ~ Bad 이후)
         if (
@@ -502,8 +523,8 @@ export class JudgmentEngine {
               const heldKeysArr = Array.from(holdState.heldKeys);
               if (heldKeysArr.length >= 2) {
                 this.doubleLongKeyStates.set(i, {
-                  key1: { keyCode: heldKeysArr[0], failed: false, lastReleaseTimeMs: null },
-                  key2: { keyCode: heldKeysArr[1], failed: false, lastReleaseTimeMs: null },
+                  key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+                  key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
                 });
               }
               // 1키만 눌려있으면 허용 구간에서 2키 입력을 대기
@@ -777,8 +798,8 @@ export class JudgmentEngine {
               const heldKeysArr = Array.from(holdState.heldKeys);
               if (heldKeysArr.length >= 2) {
                 this.doubleLongKeyStates.set(i, {
-                  key1: { keyCode: heldKeysArr[0], failed: false, lastReleaseTimeMs: null },
-                  key2: { keyCode: heldKeysArr[1], failed: false, lastReleaseTimeMs: null },
+                  key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+                  key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
                 });
               }
               // 1키만 눌려있으면 아직 대기 — 허용 구간 내에서 2번째 키 입력을 기다림
@@ -789,7 +810,13 @@ export class JudgmentEngine {
         } else {
           // 허용 구간 초과, 키 입력 없음 → 실패
           this.noteStates.set(i, NoteState.BODY_FAILED);
-          this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+          if (note.type === NoteType.DOUBLE_LONG) {
+            // 더블롱은 키별 2판정 불변 — 한 번도 안 눌려도 두 키 모두 Miss
+            this.emitJudgment(i, JudgmentGrade.MISS, 0, 0);
+            this.emitJudgment(i, JudgmentGrade.MISS, 1, 0);
+          } else {
+            this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
+          }
           this.breakCombo();
           continue;
         }
@@ -827,10 +854,128 @@ export class JudgmentEngine {
   }
 
   /**
-   * 더블 롱노트의 2키 독립 홀드 체크
+   * 더블롱 키별 서브판정 emit (subIndex 0=key1/1=key2) + judged 마킹 + 콤보 + 완료 체크.
+   * 더블롱 range 노트는 키별로 정확히 1회씩, 총 2회 판정된다(스펙 §146 / 분할 릴리즈).
+   */
+  private judgeDoubleLongKey(
+    noteIndex: number,
+    dl: DoubleLongKeyState,
+    keyState: DoubleLongKeyState["key1"],
+    grade: JudgmentGrade,
+    deltaMs: number,
+    partialSide?: "left" | "right",
+  ): void {
+    if (keyState.judged) return;
+    keyState.judged = true;
+    if (grade === JudgmentGrade.MISS) keyState.failed = true;
+    const subIndex = keyState === dl.key1 ? 0 : 1;
+    if (partialSide) {
+      this.emitJudgment(noteIndex, grade, subIndex, deltaMs, true, partialSide);
+    } else {
+      this.emitJudgment(noteIndex, grade, subIndex, deltaMs);
+    }
+    if (this.isComboMaintaining(grade)) this.incrementCombo();
+    else this.breakCombo();
+    this.completeDoubleLongIfDone(noteIndex);
+  }
+
+  /** 더블롱 두 키 모두 판정되면 COMPLETE + 상태 정리 */
+  private completeDoubleLongIfDone(noteIndex: number): void {
+    const dl = this.doubleLongKeyStates.get(noteIndex);
+    if (!dl || !dl.key1.judged || !dl.key2.judged) return;
+    this.noteStates.set(noteIndex, NoteState.COMPLETE);
+    this.doubleLongKeyStates.delete(noteIndex);
+  }
+
+  /** 종결 판정 등급: Good 이상은 Perfect로 상향, 그 외(Bad/Miss)는 그대로 */
+  private terminationGrade(deltaMs: number): JudgmentGrade {
+    const grade = this.calculateGrade(deltaMs);
+    if (
+      grade === JudgmentGrade.GOOD ||
+      grade === JudgmentGrade.GREAT ||
+      grade === JudgmentGrade.PERFECT
+    ) {
+      return JudgmentGrade.PERFECT;
+    }
+    return grade;
+  }
+
+  /**
+   * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
+   * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
+   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
+   * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
+   */
+  private judgeDoubleLongEndpoint(
+    noteIndex: number,
+    note: RangeNote,
+    songTimeMs: number,
+    noteEndTime: number,
+    holdState: LaneHoldState,
+  ): void {
+    const dl = this.doubleLongKeyStates.get(noteIndex);
+    if (!dl) {
+      // 2키 추적이 한 번도 없었음(2키 입력 없음) → 두 키 모두 Miss
+      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
+      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
+      this.breakCombo();
+      this.noteStates.set(noteIndex, NoteState.COMPLETE);
+      return;
+    }
+
+    const isConnection = this.hasImmediateFollowingLongNote(noteIndex, note.lane, noteEndTime);
+    const holdOnly = isHoldOnlyNote(note);
+
+    for (const keyState of [dl.key1, dl.key2]) {
+      if (keyState.judged) continue;
+      const held = holdState.heldKeys.has(keyState.keyCode);
+
+      if (isConnection) {
+        // 연결: 키별 held/grace → Perfect, 아님 → Miss (소진 안 함)
+        const grace =
+          keyState.lastReleaseTimeMs !== null &&
+          songTimeMs - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
+        this.judgeDoubleLongKey(
+          noteIndex,
+          dl,
+          keyState,
+          held || grace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS,
+          0,
+        );
+      } else if (holdOnly) {
+        // hold-only: 끝점에 유지 중이거나 바디에서 실패 안 한 키 → Perfect (떼는 판정 면제)
+        const survived = held || keyState.lastReleaseTimeMs !== null;
+        this.judgeDoubleLongKey(
+          noteIndex,
+          dl,
+          keyState,
+          survived ? JudgmentGrade.PERFECT : JudgmentGrade.MISS,
+          0,
+        );
+      } else if (held) {
+        // 일반, 아직 유지 중 — end+BAD 초과면 타임아웃 Miss, 아니면 release까지 대기
+        if (songTimeMs > noteEndTime + this.windows.BAD) {
+          this.judgeDoubleLongKey(noteIndex, dl, keyState, JudgmentGrade.MISS, songTimeMs - noteEndTime);
+        }
+      } else if (keyState.lastReleaseTimeMs !== null) {
+        // 일반, 이미 뗌 — release 시점 기준 (윈도우 밖 조기 release면 큰 음수 delta → Miss)
+        const deltaMs = keyState.lastReleaseTimeMs - noteEndTime;
+        this.judgeDoubleLongKey(noteIndex, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
+      } else {
+        // release 기록 없음 → Miss
+        this.judgeDoubleLongKey(noteIndex, dl, keyState, JudgmentGrade.MISS, 0);
+      }
+    }
+
+    // hold-only는 held로 완료 시 유지 키 소진 (직후 "놓기" release 차단, RFD 0008)
+    if (holdOnly) this.spendHeldKeys(note.lane);
+  }
+
+  /**
+   * 더블 롱노트의 2키 독립 홀드 체크 (바디 구간, 끝점 Good 윈도우 진입 전까지만 호출됨)
    *
    * 각 키가 독립적으로 추적되며, 한 키가 릴리즈되어 grace period를 초과하면
-   * 해당 키만 실패 처리된다 (부분 실패). 양쪽 모두 실패하면 노트 전체가 BODY_FAILED.
+   * 해당 키만 부분 Miss로 판정된다(키별 1회). 두 키 모두 판정되면 노트 COMPLETE.
    */
   private checkDoubleLongKeyHold(
     noteIndex: number,
@@ -845,8 +990,8 @@ export class JudgmentEngine {
       if (holdState.heldKeys.size >= 2) {
         const heldKeysArr = Array.from(holdState.heldKeys);
         this.doubleLongKeyStates.set(noteIndex, {
-          key1: { keyCode: heldKeysArr[0], failed: false, lastReleaseTimeMs: null },
-          key2: { keyCode: heldKeysArr[1], failed: false, lastReleaseTimeMs: null },
+          key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+          key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
         });
         return;
       }
@@ -858,31 +1003,32 @@ export class JudgmentEngine {
           // 2번째 키 입력 없이 Good 윈도우 초과 → 1키로 초기화 + 미입력 쪽 부분 실패
           const heldKey = Array.from(holdState.heldKeys)[0];
           this.doubleLongKeyStates.set(noteIndex, {
-            key1: { keyCode: heldKey, failed: false, lastReleaseTimeMs: null },
-            key2: { keyCode: '__missing__', failed: true, lastReleaseTimeMs: null },
+            key1: { keyCode: heldKey, failed: false, judged: false, lastReleaseTimeMs: null },
+            key2: { keyCode: '__missing__', failed: true, judged: true, lastReleaseTimeMs: null },
           });
-          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0, true, 'right');
+          this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, 'right');
           this.breakCombo();
         }
         return;
       }
 
-      // 키가 전혀 안 눌려있음 → grace period 체크
+      // 키가 전혀 안 눌려있음 → grace period 체크 (2키 추적 전 모두 떼고 grace 초과 → 두 키 모두 Miss)
       if (
         holdState.lastReleaseTimeMs !== null &&
         songTimeMs - holdState.lastReleaseTimeMs > GRACE_PERIOD_MS
       ) {
         this.noteStates.set(noteIndex, NoteState.BODY_FAILED);
         this.doubleLongKeyStates.delete(noteIndex);
-        this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0);
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
         this.breakCombo();
       }
       return;
     }
 
-    // 각 키 독립 체크
+    // 각 키 독립 체크 — 부분 실패는 키별 1회(subIndex), 두 키 판정되면 judgeDoubleLongKey가 COMPLETE
     for (const keyState of [dlState.key1, dlState.key2]) {
-      if (keyState.failed) continue; // 이미 실패한 키는 스킵
+      if (keyState.judged) continue; // 이미 판정된 키는 스킵
 
       const isKeyHeld = holdState.heldKeys.has(keyState.keyCode);
 
@@ -899,25 +1045,10 @@ export class JudgmentEngine {
         continue;
       }
 
-      // grace period 체크
+      // grace period 초과 → 해당 키만 부분 Miss
       if (songTimeMs - keyState.lastReleaseTimeMs > GRACE_PERIOD_MS) {
-        // Grace period 초과 → 해당 키 실패
-        keyState.failed = true;
-
-        // 부분 실패 판정 emit
-        const otherKey = keyState === dlState.key1 ? dlState.key2 : dlState.key1;
         const side: 'left' | 'right' = keyState === dlState.key1 ? 'left' : 'right';
-        if (otherKey.failed) {
-          // 양쪽 모두 실패 → 노트 전체 BODY_FAILED
-          this.noteStates.set(noteIndex, NoteState.BODY_FAILED);
-          this.doubleLongKeyStates.delete(noteIndex);
-          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0);
-          this.breakCombo();
-        } else {
-          // 한쪽만 실패 → 부분 실패 emit (노트는 BODY_ACTIVE 유지)
-          this.emitJudgment(noteIndex, JudgmentGrade.MISS, undefined, 0, true, side);
-          this.breakCombo();
-        }
+        this.judgeDoubleLongKey(noteIndex, dlState, keyState, JudgmentGrade.MISS, 0, side);
       }
     }
   }
@@ -966,6 +1097,12 @@ export class JudgmentEngine {
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) {
         this.noteStates.set(i, NoteState.COMPLETE);
+        continue;
+      }
+
+      // 더블롱: 키별 독립 끝점 판정 (스펙 §146 / 분할 릴리즈) — 싱글롱 경로와 분리
+      if (note.type === NoteType.DOUBLE_LONG) {
+        this.judgeDoubleLongEndpoint(i, note, songTimeMs, noteEndTime, holdState);
         continue;
       }
 
@@ -1055,7 +1192,37 @@ export class JudgmentEngine {
         for (const key of holdState!.heldKeys) this.markLongAbsorbed(i, key);
       }
 
-      // 노트 시점 도달 + 충족(싱글=1키, 더블=2키 동시) → Perfect (노트 시점에 표시)
+      // 더블 길이0 슬라이드: 키별 2판정 (subIndex 0/1)
+      if (note.type === NoteType.DOUBLE_LONG) {
+        const heldCount = holdState?.heldKeys.size ?? 0;
+        if (songTimeMs >= noteTime && heldCount >= 2) {
+          // 2키 동시 → Perfect × 2
+          this.emitJudgment(i, JudgmentGrade.PERFECT, 0, 0);
+          this.emitJudgment(i, JudgmentGrade.PERFECT, 1, 0);
+          this.incrementCombo();
+          this.incrementCombo();
+          this.noteStates.set(i, NoteState.COMPLETE);
+          this.absorbedLongKeys.delete(i);
+          this.spendHeldKeys((note as RangeNote).lane);
+          continue;
+        }
+        if (songTimeMs > noteTime + this.windows.GOOD) {
+          // 타임아웃 — 현재 held 키만큼 Perfect, 나머지 Miss (총 2)
+          const perfects = Math.min(heldCount, 2);
+          for (let s = 0; s < 2; s++) {
+            const g = s < perfects ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
+            this.emitJudgment(i, g, s, 0);
+            if (this.isComboMaintaining(g)) this.incrementCombo();
+            else this.breakCombo();
+          }
+          this.noteStates.set(i, NoteState.COMPLETE);
+          this.absorbedLongKeys.delete(i);
+          if (perfects > 0) this.spendHeldKeys((note as RangeNote).lane);
+        }
+        continue;
+      }
+
+      // 싱글 길이0 슬라이드: 노트 시점 도달 + held → Perfect (노트 시점에 표시)
       if (songTimeMs >= noteTime && this.isHoldOnlySlideHeld(note, holdState)) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
