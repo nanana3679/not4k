@@ -6,8 +6,8 @@ import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { SnapZoomController } from '../timeline/SnapZoomController';
-import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from '../timeline/constants';
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt } from '../timeline/hitTest';
+import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, TRILL_ZONE_HANDLE_SIZE } from '../timeline/constants';
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt } from '../timeline/hitTest';
 import {
   beatFloatToRawBeat,
   beatFloatToSnapBeat,
@@ -30,6 +30,7 @@ export interface CoordinateHelpers {
   hitTestEventEnd: (x: number, y: number) => number | null;
   hitTestTrillZoneEnd: (x: number, y: number) => number | null;
   hitTestTrillZone: (x: number, y: number) => number | null;
+  hitTestTrillZoneHandle: (x: number, y: number) => number | null;
   hitTestExtraNote: (x: number, y: number) => number | null;
   // ref 버전 (stale closure 방지용)
   yToBeatRef: RefObject<(y: number) => Beat>;
@@ -40,6 +41,7 @@ export interface CoordinateHelpers {
   hitTestEventEndRef: RefObject<(x: number, y: number) => number | null>;
   hitTestTrillZoneEndRef: RefObject<(x: number, y: number) => number | null>;
   hitTestTrillZoneRef: RefObject<(x: number, y: number) => number | null>;
+  hitTestTrillZoneHandleRef: RefObject<(x: number, y: number) => number | null>;
   hitTestExtraNoteRef: RefObject<(x: number, y: number) => number | null>;
   bpmMarkers: ReturnType<typeof extractBpmMarkers>;
 }
@@ -162,6 +164,14 @@ export function useCoordinateHelpers(
     return hitTestTrillZoneAt(chart.trillZones, lane, beat.n / beat.d);
   }, [chart.trillZones, xToLane, yToBeatRaw]);
 
+  const hitTestTrillZoneHandle = useCallback((x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+    const beat = yToBeatRaw(y);
+    const xInLane = x - (lane - 1) * LANE_WIDTH;
+    return hitTestTrillZoneHandleAt(chart.trillZones, lane, beat.n / beat.d, xInLane, TRILL_ZONE_HANDLE_SIZE);
+  }, [chart.trillZones, xToLane, yToBeatRaw]);
+
   const hitTestExtraNote = useCallback((x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
@@ -179,6 +189,7 @@ export function useCoordinateHelpers(
   const hitTestEventEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestTrillZoneHandleRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestExtraNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
 
   useEffect(() => {
@@ -190,6 +201,7 @@ export function useCoordinateHelpers(
     hitTestEventEndRef.current = hitTestEventEnd;
     hitTestTrillZoneEndRef.current = hitTestTrillZoneEnd;
     hitTestTrillZoneRef.current = hitTestTrillZone;
+    hitTestTrillZoneHandleRef.current = hitTestTrillZoneHandle;
     hitTestExtraNoteRef.current = hitTestExtraNote;
   });
 
@@ -205,6 +217,7 @@ export function useCoordinateHelpers(
     hitTestEventEnd,
     hitTestTrillZoneEnd,
     hitTestTrillZone,
+    hitTestTrillZoneHandle,
     hitTestExtraNote,
     yToBeatRef,
     yToBeatRawRef,
@@ -214,6 +227,7 @@ export function useCoordinateHelpers(
     hitTestEventEndRef,
     hitTestTrillZoneEndRef,
     hitTestTrillZoneRef,
+    hitTestTrillZoneHandleRef,
     hitTestExtraNoteRef,
     bpmMarkers,
   };

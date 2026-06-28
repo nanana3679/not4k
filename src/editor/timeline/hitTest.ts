@@ -110,6 +110,32 @@ export function hitTestTrillZoneAt(
 }
 
 /**
+ * 트릴 구간의 "선택 핸들" 히트 테스트.
+ *
+ * 핸들은 구간의 끝(endBeat, 화면상 위쪽)의 **좌측 코너**에 둔다. 끝 영역의 나머지는
+ * 리사이즈(hitTestTrillZoneEnd)가 차지하므로, 레인 왼쪽 `handleWidth`px 이내(xInLane)
+ * 이면서 beatFloat가 endBeat ±tolerance인 경우에만 핸들로 인정한다.
+ * onPointerDown에서 리사이즈보다 먼저 검사하여, 코너는 선택 핸들이 우선한다.
+ */
+export function hitTestTrillZoneHandleAt(
+  trillZones: readonly TrillZone[],
+  lane: number,
+  beatFloat: number,
+  xInLane: number,
+  handleWidth: number,
+  tolerance: number = POINT_NOTE_TOLERANCE,
+): number | null {
+  if (xInLane < 0 || xInLane > handleWidth) return null;
+  for (let i = 0; i < trillZones.length; i++) {
+    const zone = trillZones[i];
+    if (zone.lane !== lane) continue;
+    const end = zone.endBeat.n / zone.endBeat.d;
+    if (Math.abs(beatFloat - end) <= tolerance) return i;
+  }
+  return null;
+}
+
+/**
  * Check if a note exists at the snapped beat position (tighter tolerance).
  * Used to suppress ghost note when it would overlap an existing note.
  */
