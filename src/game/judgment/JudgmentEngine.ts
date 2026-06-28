@@ -412,12 +412,6 @@ export class JudgmentEngine {
         continue;
       }
 
-      // (b) 단독 롱은 레인을 완전히 떼야(heldKeys 비면) 종결한다. 홀드 중 탭 등 다른 키가
-      //     아직 눌려 있으면 이 릴리즈로는 종결하지 않는다(update 경로의 isHeld/lastRelease 기준과 일치).
-      //     더블롱은 위에서 키별로 처리되므로 이 게이트는 단독 롱에만 적용된다.
-      const holdState = this.laneHoldStates.get(lane);
-      if (holdState && holdState.heldKeys.size > 0) continue;
-
       if (state === NoteState.BODY_ACTIVE) {
         // 연결은 스트레이 릴리즈로 판정하지 않고 끝점 update(held-or-grace)에 위임한다.
         // (연결 헤드를 친 다른 키의 릴리즈가 연결을 MISS시키거나, 연결을 가로지르는
