@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -81,6 +81,30 @@ export function hitTestExtraNoteAt(
     } else {
       if (Math.abs(beatFloat - nb) < tolerance) return i;
     }
+  }
+  return null;
+}
+
+/**
+ * Find a trill zone at the given lane and beat position.
+ *
+ * Range zones are hit within [beat, endBeat]; a tolerance is applied on both
+ * ends so a zero-length zone (beat === endBeat) — which the renderer still
+ * draws as a NOTE_HEIGHT band centered on the beat — stays clickable for
+ * deletion. Returns the index of the first matching zone, or null.
+ */
+export function hitTestTrillZoneAt(
+  trillZones: readonly TrillZone[],
+  lane: number,
+  beatFloat: number,
+  tolerance: number = POINT_NOTE_TOLERANCE,
+): number | null {
+  for (let i = 0; i < trillZones.length; i++) {
+    const zone = trillZones[i];
+    if (zone.lane !== lane) continue;
+    const start = zone.beat.n / zone.beat.d;
+    const end = zone.endBeat.n / zone.endBeat.d;
+    if (beatFloat >= start - tolerance && beatFloat <= end + tolerance) return i;
   }
   return null;
 }

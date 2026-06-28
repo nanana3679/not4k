@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity, RangeNote } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -157,6 +157,61 @@ describe("hitTestExtraNoteAt", () => {
   it("다른 extra 레인은 미스", () => {
     expect(hitTestExtraNoteAt(extraNotes, 1, 1.5)).toBeNull();
     expect(hitTestExtraNoteAt(extraNotes, 3, 2)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hitTestTrillZoneAt
+// ---------------------------------------------------------------------------
+
+describe("hitTestTrillZoneAt", () => {
+  const zones: TrillZone[] = [
+    { lane: 1 as const, beat: beat(2), endBeat: beat(4) },   // index 0: 범위 2~4
+    { lane: 2 as const, beat: beat(3), endBeat: beat(3) },   // index 1: 길이 0 (beat=3)
+  ];
+
+  it("범위 구간(2~4)의 시작/중간/끝에서 히트", () => {
+    expect(hitTestTrillZoneAt(zones, 1, 2)).toBe(0);
+    expect(hitTestTrillZoneAt(zones, 1, 3)).toBe(0);
+    expect(hitTestTrillZoneAt(zones, 1, 4)).toBe(0);
+  });
+
+  it("범위 구간 밖(tolerance 1/16 초과)이면 미스", () => {
+    // 2 - 1/16 - 0.01 = 1.9275 → tolerance 밖
+    expect(hitTestTrillZoneAt(zones, 1, 1.92)).toBeNull();
+    // 4 + 1/16 + 0.01 = 4.0725 → tolerance 밖
+    expect(hitTestTrillZoneAt(zones, 1, 4.08)).toBeNull();
+  });
+
+  it("다른 레인의 구간은 히트하지 않음", () => {
+    expect(hitTestTrillZoneAt(zones, 2, 3)).toBe(1);
+    expect(hitTestTrillZoneAt(zones, 1, 3)).toBe(0);
+    // lane 2의 beat 3 구간을 lane 3에서 찾으면 미스
+    expect(hitTestTrillZoneAt(zones, 3, 3)).toBeNull();
+  });
+
+  it("길이 0 구간(beat=3)을 정확한 위치에서 히트", () => {
+    expect(hitTestTrillZoneAt(zones, 2, 3)).toBe(1);
+  });
+
+  it("길이 0 구간을 tolerance(1/16) 이내에서 히트", () => {
+    // 3 ± 0.05 → tolerance(0.0625) 이내라 히트해야 함 (삭제 가능)
+    expect(hitTestTrillZoneAt(zones, 2, 3.05)).toBe(1);
+    expect(hitTestTrillZoneAt(zones, 2, 2.95)).toBe(1);
+  });
+
+  it("길이 0 구간도 tolerance 밖이면 미스", () => {
+    // 3 + 0.08 → tolerance(0.0625) 초과
+    expect(hitTestTrillZoneAt(zones, 2, 3.08)).toBeNull();
+  });
+
+  it("빈 구간 배열에서 미스", () => {
+    expect(hitTestTrillZoneAt([], 1, 3)).toBeNull();
+  });
+
+  it("커스텀 tolerance(0.01) 적용 시 길이 0 구간 히트 범위가 좁아짐", () => {
+    expect(hitTestTrillZoneAt(zones, 2, 3.005, 0.01)).toBe(1);
+    expect(hitTestTrillZoneAt(zones, 2, 3.05, 0.01)).toBeNull();
   });
 });
 
