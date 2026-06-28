@@ -33,9 +33,9 @@ import {
 } from "./timelineProjection";
 import {
   clampHorizontalPan,
+  getContentCenterShiftX,
   getFixedTimelineOverlayOffsetX,
   getMeasureLabelLayerOffsetX,
-  getMeasureLabelRailBackground,
   getPlaybackCursorLineEndX,
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
@@ -108,6 +108,7 @@ export class TimelineRenderer {
   private _minimapVisible: boolean = true;
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
+  private _selectedTrillZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null = null;
 
@@ -285,6 +286,7 @@ export class TimelineRenderer {
       get zoom() { return self._zoom; },
       get snap() { return self._snap; },
       get extraLaneCount() { return self._extraLaneCount; },
+      get selectedTrillZones() { return self._selectedTrillZones; },
       get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
@@ -423,6 +425,12 @@ export class TimelineRenderer {
     this.render();
   }
 
+  /** Set trill zone indices that are selected alongside notes (for highlight) */
+  setSelectedTrillZones(indices: Set<number>): void {
+    this._selectedTrillZones = indices;
+    this.render();
+  }
+
   /** Set extra lane count */
   setExtraLaneCount(count: number): void {
     this._extraLaneCount = count;
@@ -534,12 +542,27 @@ export class TimelineRenderer {
   }
 
   /**
-   * Horizontal offset to center the timeline content within the canvas.
+   * 콘텐츠 블록(마디 레일 + 레인)을 가로 중앙 정렬하기 위한 추가 오프셋(px).
+   * 미니맵(우측 레일)은 이 정렬에서 제외되어 항상 우측 끝에 고정된다.
+   */
+  get contentCenterShiftX(): number {
+    return getContentCenterShiftX({
+      viewportWidth: this.options.width,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      timelineWidth: this.currentTimelineWidth,
+      rightRailWidth: this.rightRailWidth,
+    });
+  }
+
+  /**
+   * Horizontal offset that anchors the timeline content right after the fixed
+   * left rail, plus the center-shift, minus the horizontal pan.
    */
   get contentOffsetX(): number {
     return getTimelineContentOffsetX({
       leftRailWidth: MEASURE_LABEL_WIDTH,
       horizontalPanX: this._horizontalPanX,
+      centerShiftX: this.contentCenterShiftX,
     });
   }
 
@@ -596,16 +619,10 @@ export class TimelineRenderer {
   }
 
   private updateMeasureLabelBackground(): void {
-    const bg = getMeasureLabelRailBackground({
-      viewportHeight: this.options.height,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
-    });
-
+    // 마디 번호 레일에는 별도 배경을 그리지 않는다.
+    // 캔버스 배경이 이미 검정이고, 불투명 배경이 재생 커서를 가렸으며,
+    // 스크롤 콘텐츠는 마스크 때문에 레일 영역으로 들어오지 않는다.
     this.measureLabelBackground.clear();
-    if (bg.width <= 0 || bg.height <= 0) return;
-
-    this.measureLabelBackground.rect(bg.x, bg.y, bg.width, bg.height);
-    this.measureLabelBackground.fill({ color: bg.color, alpha: bg.alpha });
   }
 
   /**
@@ -710,6 +727,7 @@ export class TimelineRenderer {
     this.measureLabels.x = getMeasureLabelLayerOffsetX({
       leftRailWidth: MEASURE_LABEL_WIDTH,
       horizontalPanX: this._horizontalPanX,
+      centerShiftX: this.contentCenterShiftX,
     });
     this.measureLabels.y = -this._scrollY;
     this.playbackCursorLayer.x = getFixedTimelineOverlayOffsetX({
@@ -757,6 +775,8 @@ export class TimelineRenderer {
     this.overlayRenderer.renderViolationOverlay();
     this.updateHoverOverlay();
     this.updateScroll();
+    // center-shift가 바뀌면(추가 레인 로드 등) 마디 레일 배경도 같은 위치로 다시 그린다
+    this.updateMeasureLabelBackground();
     this.minimapRenderer.render();
     // Force PixiJS to repaint the canvas
     this.app.render();

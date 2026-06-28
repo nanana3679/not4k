@@ -7,6 +7,14 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
+import {
+  classifySelection,
+  selectionBlockReason,
+  filterHomogeneousSelection,
+  clampTrillBeatOffset,
+  translateTrillZone,
+} from "./trillZoneSelection";
+import type { TrillZone } from "../../shared";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -28,6 +36,10 @@ export interface SelectModeCallbacks {
   hitTestEventEnd?: (x: number, y: number) => number | null;
   /** Get trill zone index whose end point is at (x,y), or null */
   hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
+  /** Get trill zone index whose selection handle is at (x,y), or null */
+  hitTestTrillZoneHandle?: (x: number, y: number) => number | null;
+  /** 구간 단위로 선택된 트릴존 인덱스가 바뀔 때 호출 (강조 표시용) */
+  onTrillZoneSelectionChange?: (indices: Set<number>) => void;
   /** Extra lane helpers */
   xToExtraLane?: (x: number) => number | null;
   hitTestExtraNote?: (x: number, y: number) => number | null;
@@ -70,6 +82,12 @@ export class SelectMode {
     number,
     { beat: Beat; endBeat?: Beat; extraLane: number }
   > = new Map();
+  // 트릴 노트 단위 이동 시, 이동을 가두는 트릴 구간(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
+  private _trillMoveZone: TrillZone | null = null;
+  // 구간 단위 선택: 선택된 트릴존 인덱스. 비어있지 않으면 "구간 단위" 선택 모드.
+  private selectedZoneIndices: Set<number> = new Set();
+  // 구간 단위 이동 시작 시점의 트릴존 원본 좌표 (인덱스 → 원본)
+  private originalZonePositions: Map<number, TrillZone> = new Map();
 
   // Resize state
   private resizingEntityType: "note" | "event" | "trillZone" | null = null;
@@ -113,10 +131,68 @@ export class SelectMode {
         this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
       }
     }
+
+    // Validate zone-unit selection bounds
+    if (this.selectedZoneIndices.size > 0) {
+      const validZones = new Set<number>();
+      for (const idx of this.selectedZoneIndices) {
+        if (idx >= 0 && idx < chart.trillZones.length) validZones.add(idx);
+      }
+      if (validZones.size !== this.selectedZoneIndices.size) {
+        this.selectedZoneIndices = validZones;
+        this.emitZoneSelection();
+      }
+    }
   }
 
   get selection(): ReadonlySet<number> {
     return this.selectedIndices;
+  }
+
+  /** 구간 단위로 선택된 트릴존 인덱스 */
+  get selectedZones(): ReadonlySet<number> {
+    return this.selectedZoneIndices;
+  }
+
+  /** 현재 선택이 구간 단위(트릴존 핸들로 선택)인지 */
+  private get isZoneUnitSelection(): boolean {
+    return this.selectedZoneIndices.size > 0;
+  }
+
+  private emitZoneSelection(): void {
+    this.callbacks.onTrillZoneSelectionChange?.(new Set(this.selectedZoneIndices));
+  }
+
+  /** 구간 단위 선택 상태를 해제한다(노트 단위 선택으로 전환 시). */
+  private clearZoneSelectionState(): void {
+    if (this.selectedZoneIndices.size > 0) {
+      this.selectedZoneIndices = new Set();
+      this.emitZoneSelection();
+    }
+  }
+
+  /**
+   * 트릴존을 구간 단위로 선택한다. 구간 + 그 안의 모든 트릴노트가 한 덩어리로 선택된다.
+   * 기존 노트/엑스트라 선택은 해제된다.
+   */
+  selectZoneUnit(zoneIndex: number): void {
+    if (zoneIndex < 0 || zoneIndex >= this.chart.trillZones.length) return;
+    this.selectedZoneIndices = new Set([zoneIndex]);
+    // 구간에 포함된 트릴노트들을 노트 선택에 채운다(이동·삭제·복사 공용)
+    const zone = this.chart.trillZones[zoneIndex];
+    this.selectedIndices = new Set();
+    for (let i = 0; i < this.chart.notes.length; i++) {
+      const n = this.chart.notes[i];
+      if (n.lane === zone.lane
+        && beatToFloat(n.beat) >= beatToFloat(zone.beat)
+        && beatToFloat("endBeat" in n ? (n as RangeNote).endBeat : n.beat) <= beatToFloat(zone.endBeat)) {
+        this.selectedIndices.add(i);
+      }
+    }
+    this.selectedExtraIndices.clear();
+    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    this.emitZoneSelection();
   }
 
   /** Whether a move drag is currently in progress */
@@ -166,11 +242,16 @@ export class SelectMode {
     this.callbacks.onSelectionChange(new Set(this.selectedIndices));
     this.selectedExtraIndices.clear();
     this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    if (this.selectedZoneIndices.size > 0) {
+      this.selectedZoneIndices = new Set();
+      this.emitZoneSelection();
+    }
   }
 
   /** Select a specific note */
   selectNote(index: number): void {
     if (index >= 0 && index < this.chart.notes.length) {
+      this.clearZoneSelectionState();
       this.selectedIndices.clear();
       this.selectedIndices.add(index);
       this.callbacks.onSelectionChange(new Set(this.selectedIndices));
@@ -243,6 +324,24 @@ export class SelectMode {
     return true;
   }
 
+  /**
+   * 동질성 규칙을 지키며 노트를 선택에 추가한다.
+   * 트릴 노트는 같은 트릴존끼리만, 트릴/일반은 섞을 수 없다.
+   * 막히면 토스트로 이유를 알리고 false를 반환한다(추가 안 됨).
+   */
+  private tryAddNoteToSelection(index: number): boolean {
+    const note = this.chart.notes[index];
+    if (!note) return false;
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    const reason = selectionBlockReason(kind, this.chart.trillZones, note);
+    if (reason) {
+      this.callbacks.onWarn?.(reason);
+      return false;
+    }
+    this.selectedIndices.add(index);
+    return true;
+  }
+
   // --- Pointer events ---
 
   /** Handle pointer down */
@@ -279,7 +378,18 @@ export class SelectMode {
       }
     }
 
-    // 3. Trill zone endpoints
+    // 3. Trill zone selection handle (끝의 좌측 코너) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
+    //    리사이즈(끝)보다 먼저 검사해 코너는 선택 핸들이 우선한다.
+    if (this.callbacks.hitTestTrillZoneHandle) {
+      const handleHit = this.callbacks.hitTestTrillZoneHandle(x, y);
+      if (handleHit !== null) {
+        this.selectZoneUnit(handleHit);
+        this.beginMoveDrag(x, y);
+        return;
+      }
+    }
+
+    // 4. Trill zone endpoints (resize)
     if (this.callbacks.hitTestTrillZoneEnd) {
       const zoneHit = this.callbacks.hitTestTrillZoneEnd(x, y);
       if (zoneHit !== null) {
@@ -317,20 +427,22 @@ export class SelectMode {
     const hitIndex = this.callbacks.hitTestNote(x, y);
 
     if (hitIndex !== null) {
-      // Clicking a note
+      // Clicking a note → 노트 단위 선택으로 전환(구간 단위 해제)
+      this.clearZoneSelectionState();
       const isAlreadySelected = this.selectedIndices.has(hitIndex);
 
       if (toggleSelection) {
         if (isAlreadySelected) {
           this.selectedIndices.delete(hitIndex);
-        } else {
-          this.selectedIndices.add(hitIndex);
+          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+        } else if (this.tryAddNoteToSelection(hitIndex)) {
+          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
         }
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
       } else if (shiftKey) {
-        // Add to selection
-        this.selectedIndices.add(hitIndex);
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+        // Add to selection (동질성 규칙 적용)
+        if (this.tryAddNoteToSelection(hitIndex)) {
+          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+        }
       } else if (altKey) {
         // Remove from selection
         this.selectedIndices.delete(hitIndex);
@@ -412,11 +524,17 @@ export class SelectMode {
         currentLane !== null
       ) {
         // Calculate offset
-        const beatOffset = beatSub(
+        let beatOffset = beatSub(
           this.callbacks.snapBeat(currentBeat),
           this.callbacks.snapBeat(this.dragStartBeat),
         );
-        const laneOffset = currentLane - this.dragStartLane;
+        let laneOffset = currentLane - this.dragStartLane;
+
+        // 트릴 노트 단위 이동은 구간 안으로만: 레인 변경 금지 + 박자 오프셋 클램프
+        if (this._trillMoveZone) {
+          laneOffset = 0;
+          beatOffset = clampTrillBeatOffset(this._trillMoveZone, this.movePositionList(), beatOffset);
+        }
 
         // Check if lane offset is valid for ALL selected notes
         for (const idx of this.selectedIndices) {
@@ -459,8 +577,15 @@ export class SelectMode {
         // Block if any note goes out of timeline bounds
         if (!this.areNotesInBounds(newNotes, this.selectedIndices)) return;
 
+        // 구간 단위 이동이면 트릴존도 같은 오프셋으로 함께 이동(겹침/범위 검증)
+        let newZones = this.chart.trillZones;
+        if (this.isZoneUnitSelection) {
+          newZones = this.buildMovedZones(laneOffset, beatOffset);
+          if (!this.movedZonesInBounds(newZones)) return;
+        }
+
         // Update chart with new positions (preview)
-        this.chart = { ...this.chart, notes: newNotes };
+        this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "moveExtra") {
@@ -636,6 +761,13 @@ export class SelectMode {
         }
       }
     }
+    // 동질성 규칙: 박스에 트릴/일반 또는 서로 다른 구간이 섞이면 한 그룹만 남긴다.
+    // (드래그 중 매 프레임 호출되므로 토스트는 띄우지 않고 조용히 한 그룹으로 정리)
+    this.selectedIndices = filterHomogeneousSelection(
+      this.chart.trillZones,
+      this.chart.notes,
+      this.selectedIndices,
+    ).kept;
     this.callbacks.onSelectionChange(new Set(this.selectedIndices));
 
     // Select extra lane notes
@@ -672,13 +804,36 @@ export class SelectMode {
       return;
     }
 
-    if (this.selectedIndices.size === 0) return;
+    // 구간 단위(빈 구간 포함)는 노트가 없어도 이동 가능
+    if (this.selectedIndices.size === 0 && !this.isZoneUnitSelection) return;
 
     // Get snap unit from current snap setting (assume 1/snap beat)
     const snapStep = this.callbacks.getSnapStep();
     // Timeline: bottom = time 0, up = later time.
     // ArrowUp = increase time (add snap), ArrowDown = decrease time (subtract snap).
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
+
+    // 구간 단위 선택이면 구간+노트를 함께 자유 이동(상/하)
+    if (this.isZoneUnitSelection) {
+      this.captureNoteOrigins();
+      this.captureZoneOrigins();
+      this.applyZoneUnitMove(0, offset);
+      return;
+    }
+
+    // 트릴 노트 단위 이동은 구간 안에서만: 한 스텝이 구간을 벗어나면 차단
+    const snapTrillZone = this.trillZoneOfSelection();
+    if (snapTrillZone) {
+      const positions = [...this.selectedIndices]
+        .map((i) => this.chart.notes[i])
+        .filter((n): n is NoteEntity => Boolean(n))
+        .map((n) => ({ beat: n.beat, endBeat: "endBeat" in n ? n.endBeat : undefined }));
+      const clamped = clampTrillBeatOffset(snapTrillZone, positions, offset);
+      if (beatToFloat(clamped) !== beatToFloat(offset)) {
+        this.callbacks.onWarn?.("트릴 노트는 구간 안에서만 이동할 수 있습니다");
+        return;
+      }
+    }
 
     // Store original positions
     this.originalPositions.clear();
@@ -753,8 +908,23 @@ export class SelectMode {
       return;
     }
 
-    // 메인 노트가 선택된 경우
-    if (this.selectedIndices.size === 0) return;
+    // 메인 노트가 선택된 경우 (구간 단위는 빈 구간도 가능)
+    if (this.selectedIndices.size === 0 && !this.isZoneUnitSelection) return;
+
+    // 구간 단위 선택이면 구간+노트를 함께 자유 이동(좌/우 레인)
+    if (this.isZoneUnitSelection) {
+      const laneOffset = direction === "left" ? -1 : 1;
+      this.captureNoteOrigins();
+      this.captureZoneOrigins();
+      this.applyZoneUnitMove(laneOffset, { n: 0, d: 1 });
+      return;
+    }
+
+    // 트릴 노트 단위 선택은 구간(한 레인)을 벗어날 수 없으므로 레인 이동 차단
+    if (this.trillZoneOfSelection()) {
+      this.callbacks.onWarn?.("트릴 노트는 구간을 벗어날 수 없어 레인 이동이 불가합니다");
+      return;
+    }
 
     const laneOffset = direction === "left" ? -1 : 1;
     const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
@@ -1001,6 +1171,8 @@ export class SelectMode {
       // Valid: commit
       this.callbacks.onChartUpdate(this.chart);
       this.originalPositions.clear();
+      this.originalZonePositions.clear();
+      this._trillMoveZone = null;
     } else {
       // Invalid: rollback
       this.rollbackMove();
@@ -1012,12 +1184,26 @@ export class SelectMode {
   // ---------------------------------------------------------------------------
 
   /** Copy selected notes to clipboard */
+  /**
+   * 복사 대상 트릴 구간을 결정한다.
+   * - 구간 단위 선택: 선택된 구간들
+   * - 노트 단위 트릴 선택: 그 노트들이 속한 구간(구간 단위로 승격)
+   * - 그 외: 없음
+   */
+  private trillZonesToCopy(): Set<number> {
+    if (this.isZoneUnitSelection) return new Set(this.selectedZoneIndices);
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    if (kind.kind === "trill" && kind.zoneIndex >= 0) return new Set([kind.zoneIndex]);
+    return new Set();
+  }
+
   copy(): number {
     return this.clipboardManager.copy(
       this.chart,
       this.selectedIndices,
       this.selectedExtraIndices,
       this.callbacks,
+      this.trillZonesToCopy(),
     );
   }
 
@@ -1089,6 +1275,16 @@ export class SelectMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
+    // 구간 단위 선택: 구간 + 안의 노트를 함께 삭제 (빈 구간도 삭제)
+    if (this.isZoneUnitSelection) {
+      const notes = this.chart.notes.filter((_n, i) => !this.selectedIndices.has(i));
+      const trillZones = this.chart.trillZones.filter((_z, i) => !this.selectedZoneIndices.has(i));
+      this.chart = { ...this.chart, notes, trillZones };
+      this.clearSelection();
+      this.callbacks.onChartUpdate(this.chart);
+      return;
+    }
+
     // Delete extra notes if selected
     if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
       const extraNotes = this.callbacks.getExtraNotes();
@@ -1109,7 +1305,8 @@ export class SelectMode {
 
   private startMainMoveDrag(x: number, y: number): void {
     const lane = this.callbacks.xToLane(x);
-    if (lane === null || this.selectedIndices.size === 0) return;
+    // 구간 단위(빈 구간 포함)는 노트가 없어도 이동 가능
+    if (lane === null || (this.selectedIndices.size === 0 && !this.isZoneUnitSelection)) return;
 
     this.isDragging = true;
     this.dragType = "move";
@@ -1134,6 +1331,132 @@ export class SelectMode {
         });
       }
     }
+    // 구간 단위면 이동할 트릴존 원본을 캡처(자유 이동), 노트 단위면 가둘 구간을 캡처(제약 이동).
+    if (this.isZoneUnitSelection) {
+      this._trillMoveZone = null;
+      this.captureZoneOrigins();
+    } else {
+      this._trillMoveZone = this.trillZoneOfSelection();
+      this.originalZonePositions.clear();
+    }
+  }
+
+  /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 트릴 구간을, 아니면 null을 반환한다. */
+  private trillZoneOfSelection(): TrillZone | null {
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    if (kind.kind !== "trill" || kind.zoneIndex < 0) return null;
+    return this.chart.trillZones[kind.zoneIndex] ?? null;
+  }
+
+  /** originalPositions를 {beat, endBeat?} 배열로 변환 (클램프 계산용). */
+  private movePositionList(): Array<{ beat: Beat; endBeat?: Beat }> {
+    return [...this.originalPositions.values()].map((p) => ({ beat: p.beat, endBeat: p.endBeat }));
+  }
+
+  // --- 구간 단위 이동 (선택된 트릴존 + 노트를 한 덩어리로) ---
+
+  /** 이동 시작 시점, 선택된 트릴존들의 원본 좌표를 기록한다. */
+  private captureZoneOrigins(): void {
+    this.originalZonePositions.clear();
+    for (const idx of this.selectedZoneIndices) {
+      const zone = this.chart.trillZones[idx];
+      if (zone) this.originalZonePositions.set(idx, { ...zone });
+    }
+  }
+
+  /** 기록된 원본 좌표에 오프셋을 적용한 새 트릴존 배열을 만든다. */
+  private buildMovedZones(laneOffset: number, beatOffset: Beat): TrillZone[] {
+    if (this.originalZonePositions.size === 0) return this.chart.trillZones;
+    const zones = [...this.chart.trillZones];
+    for (const [idx, origin] of this.originalZonePositions) {
+      zones[idx] = translateTrillZone(origin, laneOffset, beatOffset);
+    }
+    return zones;
+  }
+
+  /** 이동된 트릴존들이 레인(1~4)·타임라인 범위 안에 있는지 검사한다. */
+  private movedZonesInBounds(zones: TrillZone[]): boolean {
+    const maxFloat = this.callbacks.getMaxBeatFloat();
+    for (const idx of this.originalZonePositions.keys()) {
+      const zone = zones[idx];
+      if (!zone) continue;
+      if (zone.lane < 1 || zone.lane > 4) return false;
+      if (beatToFloat(zone.beat) < 0 || beatToFloat(zone.endBeat) > maxFloat) return false;
+    }
+    return true;
+  }
+
+  /** 기록된 원본 좌표로 트릴존을 되돌린 새 배열을 만든다. */
+  private restoredZones(): TrillZone[] {
+    if (this.originalZonePositions.size === 0) return this.chart.trillZones;
+    const zones = [...this.chart.trillZones];
+    for (const [idx, origin] of this.originalZonePositions) {
+      zones[idx] = { ...origin };
+    }
+    return zones;
+  }
+
+  /** 선택된 노트들의 원본 좌표를 기록한다(이동용). */
+  private captureNoteOrigins(): void {
+    this.originalPositions.clear();
+    for (const idx of this.selectedIndices) {
+      const note = this.chart.notes[idx];
+      if (this.isRangeNote(note)) {
+        this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
+      } else {
+        this.originalPositions.set(idx, { beat: note.beat, lane: note.lane });
+      }
+    }
+  }
+
+  /**
+   * 구간 단위 이동(키보드 등 단발 이동)을 적용한다.
+   * originalPositions/originalZonePositions가 미리 캡처되어 있어야 한다.
+   * 레인/범위/구간겹침 검증을 통과하면 커밋, 아니면 토스트 후 무변경.
+   */
+  private applyZoneUnitMove(laneOffset: number, beatOffset: Beat): void {
+    const newNotes = [...this.chart.notes];
+    for (const [idx, original] of this.originalPositions) {
+      const newLane = (original.lane + laneOffset) as Lane;
+      const newBeat = beatAdd(original.beat, beatOffset);
+      if (this.isRangeNote(newNotes[idx])) {
+        const duration = beatSub(original.endBeat!, original.beat);
+        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat, endBeat: beatAdd(newBeat, duration) } as RangeNote;
+      } else {
+        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
+      }
+    }
+    const newZones = this.buildMovedZones(laneOffset, beatOffset);
+
+    // 노트 레인(1~4)·범위, 구간 레인·범위 검증
+    let laneOk = true;
+    for (const idx of this.originalPositions.keys()) {
+      const l = newNotes[idx].lane;
+      if (l < 1 || l > 4) { laneOk = false; break; }
+    }
+    if (!laneOk
+      || !this.areNotesInBounds(newNotes, this.selectedIndices)
+      || !this.movedZonesInBounds(newZones)) {
+      this.callbacks.onWarn?.("더 이상 이동할 수 없습니다");
+      this.originalPositions.clear();
+      this.originalZonePositions.clear();
+      return;
+    }
+
+    const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
+    const errors = validateChart({
+      notes: candidate.notes,
+      trillZones: candidate.trillZones,
+      events: candidate.events,
+    });
+    if (errors.length === 0) {
+      this.chart = candidate;
+      this.callbacks.onChartUpdate(this.chart);
+    } else {
+      this.callbacks.onWarn?.("다른 트릴 구간과 겹쳐 이동할 수 없습니다");
+    }
+    this.originalPositions.clear();
+    this.originalZonePositions.clear();
   }
 
   private startExtraMoveDrag(x: number, y: number): void {
@@ -1267,8 +1590,12 @@ export class SelectMode {
         };
       }
     }
-    this.chart = { ...this.chart, notes: newNotes };
+    // 구간 단위 이동이었다면 트릴존도 원위치로 되돌린다.
+    const restoredZones = this.restoredZones();
+    this.chart = { ...this.chart, notes: newNotes, trillZones: restoredZones };
     this.callbacks.onChartUpdate(this.chart);
     this.originalPositions.clear();
+    this.originalZonePositions.clear();
+    this._trillMoveZone = null;
   }
 }

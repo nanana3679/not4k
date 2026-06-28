@@ -474,6 +474,7 @@ export function useCanvasEvents(
       timelineX: x,
       timelineWidth: curTimelineWidth,
       leftRailWidth: MEASURE_LABEL_WIDTH,
+      railStartX: renderer.contentCenterShiftX,
     })) {
       isDraggingCursorRef.current = true;
       const timeMs = renderer.clampToMeasureRange(renderer.yToTime(y));

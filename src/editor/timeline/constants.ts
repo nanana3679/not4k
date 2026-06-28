@@ -6,6 +6,7 @@ export const LANE_COUNT = 4;
 
 export const LANE_WIDTH = 60; // px per lane
 export const NOTE_HEIGHT = 12; // px
+export const TRILL_ZONE_HANDLE_SIZE = 10; // px — 트릴존 구간 단위 선택 핸들 크기
 export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
 // Extra lanes (editor-only auxiliary lanes)

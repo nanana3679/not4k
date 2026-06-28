@@ -1,4 +1,4 @@
-import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
+import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity, TrillZone } from "../../shared";
 import { beatToFloat } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
 import { computePasteViolations } from "./violationCheck";
@@ -7,7 +7,9 @@ import { computePasteViolations } from "./violationCheck";
 export interface NoteClipboard {
   notes: NoteEntity[];
   extraNotes: ExtraNoteEntity[];
-  /** Earliest beat among copied notes (relative offset anchor) */
+  /** 함께 복사된 트릴 구간(트릴 선택 시 구간째 복사) */
+  trillZones: TrillZone[];
+  /** Earliest beat among copied notes/zones (relative offset anchor) */
   anchorBeat: Beat;
 }
 
@@ -41,8 +43,10 @@ export class ClipboardManager {
   private _isPendingPaste = false;
   private prePasteNotes: NoteEntity[] | null = null;
   private prePasteExtraNotes: ExtraNoteEntity[] | null = null;
+  private prePasteZones: TrillZone[] | null = null;
   private pastedNoteIndices: Set<number> = new Set();
   private pastedExtraNoteIndices: Set<number> = new Set();
+  private pastedZoneIndices: Set<number> = new Set();
 
   /** Whether clipboard has data */
   get hasClipboard(): boolean {
@@ -73,13 +77,14 @@ export class ClipboardManager {
     selectedIndices: ReadonlySet<number>,
     selectedExtraIndices: ReadonlySet<number>,
     callbacks: Pick<ClipboardCallbacks, "getExtraNotes">,
+    trillZoneIndices: ReadonlySet<number> = new Set(),
   ): number {
     if (this._isPendingPaste) return 0;
 
     const noteCount = selectedIndices.size;
     const extraNotes: ExtraNoteEntity[] = [];
 
-    if (noteCount === 0 && selectedExtraIndices.size === 0) return 0;
+    if (noteCount === 0 && selectedExtraIndices.size === 0 && trillZoneIndices.size === 0) return 0;
 
     const copiedNotes: NoteEntity[] = [];
     let anchorBeat: Beat | null = null;
@@ -103,10 +108,21 @@ export class ClipboardManager {
       }
     }
 
+    // 트릴 구간도 함께 복사. 구간 시작도 anchor 후보(구간째 정렬 기준)
+    const trillZones: TrillZone[] = [];
+    for (const idx of trillZoneIndices) {
+      const zone = chart.trillZones[idx];
+      if (!zone) continue;
+      trillZones.push({ ...zone });
+      if (anchorBeat === null || beatToFloat(zone.beat) < beatToFloat(anchorBeat)) {
+        anchorBeat = zone.beat;
+      }
+    }
+
     if (anchorBeat === null) return 0;
 
-    this.clipboard = { notes: copiedNotes, extraNotes, anchorBeat };
-    return noteCount + extraNotes.length;
+    this.clipboard = { notes: copiedNotes, extraNotes, trillZones, anchorBeat };
+    return noteCount + extraNotes.length + trillZones.length;
   }
 
   /**
@@ -125,11 +141,12 @@ export class ClipboardManager {
       this._cancelPasteInternal(chart, callbacks);
     }
 
-    const { notes: clipNotes, extraNotes: clipExtra, anchorBeat } = this.clipboard;
-    if (clipNotes.length === 0 && clipExtra.length === 0) return null;
+    const { notes: clipNotes, extraNotes: clipExtra, trillZones: clipZones, anchorBeat } = this.clipboard;
+    if (clipNotes.length === 0 && clipExtra.length === 0 && clipZones.length === 0) return null;
 
     this.prePasteNotes = [...chart.notes];
     this.prePasteExtraNotes = callbacks.getExtraNotes?.() ?? null;
+    this.prePasteZones = [...chart.trillZones];
 
     const beatOffset = beatSub(targetBeat, anchorBeat);
 
@@ -160,6 +177,15 @@ export class ClipboardManager {
         }
       }
     }
+    // 트릴 구간 범위 검증
+    for (const clipZone of clipZones) {
+      const sf = beatToFloat(beatAdd(clipZone.beat, beatOffset));
+      const ef = beatToFloat(beatAdd(clipZone.endBeat, beatOffset));
+      if (sf < 0 || ef > maxFloat) {
+        callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
+        return null;
+      }
+    }
 
     clearSelection();
 
@@ -174,7 +200,20 @@ export class ClipboardManager {
       newSelectedIndices.add(idx);
     }
 
-    const newChart = { ...chart, notes: newNotes };
+    // 트릴 구간도 함께 붙여넣기(같은 beatOffset, 레인 유지)
+    const newZones = [...chart.trillZones];
+    this.pastedZoneIndices.clear();
+    for (const clipZone of clipZones) {
+      const idx = newZones.length;
+      newZones.push({
+        ...clipZone,
+        beat: beatAdd(clipZone.beat, beatOffset),
+        endBeat: beatAdd(clipZone.endBeat, beatOffset),
+      });
+      this.pastedZoneIndices.add(idx);
+    }
+
+    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
 
     this.pastedExtraNoteIndices.clear();
     const newSelectedExtraIndices = new Set<number>();
@@ -215,7 +254,7 @@ export class ClipboardManager {
       selectedExtraIndices: newSelectedExtraIndices,
       pastedNoteIndices: new Set(this.pastedNoteIndices),
       pastedExtraNoteIndices: new Set(this.pastedExtraNoteIndices),
-      count: clipNotes.length + clipExtra.length,
+      count: clipNotes.length + clipExtra.length + clipZones.length,
     };
   }
 
@@ -240,8 +279,13 @@ export class ClipboardManager {
     let newChart = chart;
 
     if (this.prePasteNotes) {
-      newChart = { ...chart, notes: this.prePasteNotes };
+      newChart = { ...newChart, notes: this.prePasteNotes };
       this.prePasteNotes = null;
+    }
+
+    if (this.prePasteZones) {
+      newChart = { ...newChart, trillZones: this.prePasteZones };
+      this.prePasteZones = null;
     }
 
     if (this.prePasteExtraNotes && callbacks.onExtraNotesUpdate) {
@@ -252,6 +296,7 @@ export class ClipboardManager {
     this._isPendingPaste = false;
     this.pastedNoteIndices.clear();
     this.pastedExtraNoteIndices.clear();
+    this.pastedZoneIndices.clear();
 
     clearSelection?.();
 
@@ -295,7 +340,18 @@ export class ClipboardManager {
       return null;
     }
 
-    const newChart = { ...chart, notes: newNotes };
+    // 붙여넣은 트릴 구간도 함께 이동(상/하)
+    const newZones = [...chart.trillZones];
+    for (const idx of this.pastedZoneIndices) {
+      const zone = newZones[idx];
+      newZones[idx] = {
+        ...zone,
+        beat: beatAdd(zone.beat, offset),
+        endBeat: beatAdd(zone.endBeat, offset),
+      };
+    }
+
+    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
 
     if (
       this.pastedExtraNoteIndices.size > 0 &&
@@ -342,14 +398,24 @@ export class ClipboardManager {
       const targetLane = note.lane + laneOffset;
       if (targetLane < 1 || targetLane > 4) return null;
     }
+    // 붙여넣은 트릴 구간도 레인 범위 검사
+    for (const idx of this.pastedZoneIndices) {
+      const targetLane = chart.trillZones[idx].lane + laneOffset;
+      if (targetLane < 1 || targetLane > 4) return null;
+    }
 
     const newNotes = [...chart.notes];
     for (const idx of this.pastedNoteIndices) {
       const note = newNotes[idx];
       newNotes[idx] = { ...note, lane: (note.lane + laneOffset) as Lane };
     }
+    const newZones = [...chart.trillZones];
+    for (const idx of this.pastedZoneIndices) {
+      const zone = newZones[idx];
+      newZones[idx] = { ...zone, lane: (zone.lane + laneOffset) as Lane };
+    }
 
-    const newChart = { ...chart, notes: newNotes };
+    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
     callbacks.onChartUpdate(newChart);
     updateViolationsFn(newChart);
 
@@ -371,8 +437,10 @@ export class ClipboardManager {
       this._isPendingPaste = false;
       this.prePasteNotes = null;
       this.prePasteExtraNotes = null;
+      this.prePasteZones = null;
       this.pastedNoteIndices.clear();
       this.pastedExtraNoteIndices.clear();
+      this.pastedZoneIndices.clear();
       callbacks.onChartUpdate(chart);
       callbacks.onViolationsChange?.(new Set());
       return true;

@@ -10,6 +10,7 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   NOTE_HEIGHT,
+  TRILL_ZONE_HANDLE_SIZE,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
@@ -22,6 +23,7 @@ export interface GridHost {
   readonly zoom: number;
   readonly snap: number;
   readonly extraLaneCount: number;
+  readonly selectedTrillZones: ReadonlySet<number>;
   readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
@@ -330,7 +332,8 @@ export class GridRenderer {
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
-    for (const zone of trillZones) {
+    for (let i = 0; i < trillZones.length; i++) {
+      const zone = trillZones[i];
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
       const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
 
@@ -347,10 +350,24 @@ export class GridRenderer {
       const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
       const adjustedTopY = rawHeight > 0 ? topY : topY - NOTE_HEIGHT / 2;
 
+      const selected = this.host.selectedTrillZones.has(i);
+
       const bg = new Graphics();
       bg.rect(x, adjustedTopY, width, height);
       bg.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
+      // 구간 단위로 선택된 트릴존은 선택 강조 테두리를 그린다
+      if (selected) {
+        bg.rect(x, adjustedTopY, width, height);
+        bg.stroke({ color: COLORS.SELECTED_OUTLINE, width: 2 });
+      }
       this.host.trillZoneLayer.addChild(bg);
+
+      // 구간 단위 선택용 핸들 마커 (구간 끝=위쪽의 좌측 코너). 끝 영역의 나머지는
+      // 리사이즈가 차지하므로 코너에만 둔다. 클릭 시 구간 단위로 선택된다.
+      const handle = new Graphics();
+      handle.rect(x, endY - TRILL_ZONE_HANDLE_SIZE / 2, TRILL_ZONE_HANDLE_SIZE, TRILL_ZONE_HANDLE_SIZE);
+      handle.fill({ color: selected ? COLORS.SELECTED_OUTLINE : COLORS.TRILL_ZONE, alpha: 0.95 });
+      this.host.trillZoneLayer.addChild(handle);
     }
   }
 }
