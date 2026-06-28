@@ -103,6 +103,53 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 
+  // o-o(롱 + 끝점 단노트) 종결 귀속 — 종결 트리거는 키 단위 release 이벤트다(레인 비움 아님).
+  // 논쟁 판정(입장 B): L은 그것을 잡던 키(a)의 release로 종결되며, T를 친 b의 held 여부와 무관.
+  it("o-o: b를 누른 채 a를 끝점 윈도우 내 release하면 L 종결 Perfect (키 단위 종결)", () => {
+    const lane: Lane = 1;
+    const endMs = 2000;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(8, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, endMs]]), new Map([[0, endMs]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // L 유지
+    engine.update(1000);
+    engine.update(endMs);
+    engine.onLanePress(lane, endMs, "KeyB"); // T 탭 (keydown)
+    engine.onLaneRelease(lane, endMs + 10, "KeyA"); // a release (b 아직 눌림) → L 종결
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // T
+  });
+
+  it("o-o: a를 끝점에 release 후 b를 윈도우 밖까지 held → L은 a-release에 이미 종결(Miss 아님)", () => {
+    const lane: Lane = 1;
+    const endMs = 2000;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(8, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, endMs]]), new Map([[0, endMs]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(endMs);
+    engine.onLanePress(lane, endMs, "KeyB"); // T 탭
+    engine.onLaneRelease(lane, endMs, "KeyA"); // a를 끝점에 release → L 종결
+    engine.update(endMs + 1000); // b를 안 뗀 채 시간 경과해도 추가 판정 없음
+    const l = judgments.filter((j) => j.noteIndex === 0);
+    expect(l.length).toBe(1);
+    expect(l[0].grade).toBe(JudgmentGrade.PERFECT); // 타임아웃 Miss로 안 떨어짐
+  });
+
+  it("진짜 릴리즈탭(b를 press+release 탭) → L Perfect (게이트 없이도)", () => {
+    const lane: Lane = 1;
+    const endMs = 2000;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(8, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, endMs]]), new Map([[0, endMs]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(endMs);
+    engine.onLanePress(lane, endMs, "KeyB"); // T 탭 press
+    engine.onLaneRelease(lane, endMs + 5, "KeyB"); // T 탭 release
+    engine.onLaneRelease(lane, endMs + 10, "KeyA"); // L 유지 키 release
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
   it("끝점 윈도우 밖 릴리즈는 판정을 트리거하지 않음", () => {
     const lane: Lane = 1;
     const b = beat(0, 1);
