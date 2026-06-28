@@ -81,7 +81,7 @@ osu!mania, DJMAX 등 4키+ 리듬게임 경험자 중 고난이도에서 **신�
 | ID | 기능 | 상세 | 근거 문서 | 상태 |
 |----|------|------|-----------|------|
 | G-01 | **노트 낙하 플레이** | 4레인 노트 낙하, 키 입력으로 판정. BPM 독립 절대 스크롤 속도 | `docs/spec/game-core.md` | 구현 |
-| G-02 | **6종 노트 타입** | 포인트 3종(single, double, trill) + 구간 3종(singleLong, doubleLong, trillLong). 트릴 계열은 다이아몬드 형상 | `docs/spec/note-system.md` | 구현 |
+| G-02 | **6종 노트 타입** | 포인트 3종(single, double, trill) + 구간 3종(long, doubleLong, trillLong). 트릴 계열은 다이아몬드 형상 | `docs/spec/note-system.md` | 구현 |
 | G-03 | **홀드 이어잡기** | 롱노트(시작점·바디·끝점 구조) 중 다른 키로 홀드 전환 가능. 유예 시간 12ms. 바디 중 릴리스 즉시 실패 없음, 끝점에서 판정. 헤드는 시작점에 일반 노트를 별도 배치하여 구현 | `docs/spec/note-system.md` | 구현 |
 | G-04 | **판정 시스템** | Perfect(±41ms) / Great(±82ms) / Good(±120ms) / Bad(±160ms) / Miss | `docs/spec/scoring.md` | 구현 |
 | G-05 | **스코어링** | 달성률(100% 기준), 랭크(SSS~F 10단계), 콤보, 풀콤보 | `docs/spec/scoring.md` | 구현 |
@@ -160,7 +160,7 @@ PRD 초안에 없으나 코드에 구현된 시각 요소:
 | E-01 | **타임라인** | 노트 레인 4개 + BPM 레인 + 박자 레인. 파형 표시, 박자 그리드 오버레이 | `docs/spec/chart-editor.md` | 구현 |
 | E-02 | **줌** | `pixelPerSecond = zoom`. 기본 200px/s, 범위 50~500, Ctrl+휠로 조절. BPM 무관, 그리드 간격만 변화 | `docs/spec/chart-editor.md` | 구현 |
 | E-03 | **스냅** | 박(beat) 기준 그리드 흡착 (1/4, 1/8, 1/16...) | `docs/spec/chart-editor.md` | 구현 |
-| E-04 | **편집 모드** | Create(C): 5종 엔티티(single, double, singleLong, doubleLong, trillZone), 트릴 존 내 자동 trill/trillLong 변환. Select(S): 드래그 이동, Shift 리사이즈, Alt 박스 선택, 방향키 이동. Delete(D) | `docs/spec/chart-editor.md` | 구현 |
+| E-04 | **편집 모드** | Create(C): 5종 엔티티(single, double, long, doubleLong, trillZone), 트릴 존 내 자동 trill/trillLong 변환. Select(S): 드래그 이동, Shift 리사이즈, Alt 박스 선택, 방향키 이동. Delete(D) | `docs/spec/chart-editor.md` | 구현 |
 | E-05 | **배치 제약 조건** | 7가지 검증 — 동일위치 중복, 롱노트 겹침, 트릴 전용, 트릴 구간 겹침, 이벤트 겹침, stop 구간 내 노트, 길이 0 롱노트 헤드 금지 | `docs/spec/chart-editor.md` | 구현 |
 | E-06 | **단축키** | 모드 전환, 노트 타입 변경(C+휠), 노트 이동, 줌 조절 | `docs/spec/chart-editor.md` | 구현 |
 | E-07 | **모바일 터치** | 핀치 줌, 롱프레스 선택, 드래그 이동 | `docs/spec/chart-editor.md` | 미구현 |
@@ -177,7 +177,7 @@ PRD 초안에 없으나 코드에 구현된 시각 요소:
 
 | ID | 구성요소 | 디렉토리 | 내용 | 공유 이유 |
 |----|----------|----------|------|-----------|
-| C-01 | **데이터 모델** | `types/` | **ChartMeta**(제목, 아티스트, 난이도 라벨/레벨, 오프셋, 음원/프리뷰/자켓 경로), **NoteEntity**(PointNote: single·double·trill + RangeNote: singleLong·doubleLong·trillLong), **TrillZone**(레인+시작/종료 박자), **EventMarker**(BPM·박자표·메시지·stop 복합, 시작/종료 박자) | 에디터가 저장하고 게임이 읽는 동일 구조 |
+| C-01 | **데이터 모델** | `types/` | **ChartMeta**(제목, 아티스트, 난이도 라벨/레벨, 오프셋, 음원/프리뷰/자켓 경로), **NoteEntity**(PointNote: single·double·trill + RangeNote: long·doubleLong·trillLong), **TrillZone**(레인+시작/종료 박자), **EventMarker**(BPM·박자표·메시지·stop 복합, 시작/종료 박자) | 에디터가 저장하고 게임이 읽는 동일 구조 |
 | C-02 | **배치 검증** | `validation/` | 배치 제약 조건의 검증 로직 | 에디터 배치 시 + 게임 로드 시 무결성 체크 |
 | C-03 | **시간 변환** | `timing/` | BPM 마커 리스트 기반 `박자수 → ms` / `ms → 박자수` 변환 | 에디터 그리드 = 게임 노트 타이밍 |
 | C-04 | **차트 연산** | `chart/` | 분수 박자 연산, 차트 유틸리티 | 에디터와 게임 모두 사용 |
@@ -213,7 +213,7 @@ PRD 초안에 없으나 코드에 구현된 시각 요소:
 | **싱글** | single | 레인 내 아무 키 1개 | 1+ | 1회 | 직사각형 | #4488ff |
 | **더블** | double | 서로 다른 키 **2개 동시** | 2+ | 독립 싱글 판정 × 2 | 직사각형 | #ffcc00 |
 | **트릴** | trill | 직전 키와 **다른 키**. 트릴 구간 내에서만 등장 | 2+ | 1회 (교대 실패 시 Good◇) | 다이아몬드 | #ffffff |
-| **싱글롱** | singleLong | 키 누르기 → 유지 → 떼기. 시작점·바디·끝점 구조 | 1+ | 최대 2회 (헤드+릴리즈) | 직사각형 | #88bbff |
+| **싱글롱** | long | 키 누르기 → 유지 → 떼기. 시작점·바디·끝점 구조 | 1+ | 최대 2회 (헤드+릴리즈) | 직사각형 | #88bbff |
 | **더블롱** | doubleLong | 2키 동시 홀드 | 2+ | 헤드+릴리즈 각각 더블 판정 | 직사각형 | #ffee88 |
 | **트릴롱** | trillLong | 트릴 구간 내 롱노트 | 2+ | 헤드+릴리즈 (교대 실패 시 Good◇) | 다이아몬드 | #aaaaaa |
 

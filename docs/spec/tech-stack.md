@@ -176,12 +176,14 @@ storage/
 | `single` | 싱글 노트 | lane, beat |
 | `double` | 더블 노트 | lane, beat |
 | `trill` | 트릴 노트 | lane, beat |
-| `singleLong` | 싱글 롱노트 시작점/끝점 | lane, beat, endBeat |
+| `long` | 싱글 롱노트 시작점/끝점 | lane, beat, endBeat |
 | `doubleLong` | 더블 롱노트 시작점/끝점 | lane, beat, endBeat |
 | `trillLong` | 트릴 롱노트 시작점/끝점 | lane, beat, endBeat |
 | `trillZone` | 트릴 구간 시작/끝 | lane, beat, endBeat |
 
 에디터에서 시작/끝 쌍으로 표현되는 구간 엔티티(롱노트, 트릴 구간)는 JSON에서 `beat`(시작)과 `endBeat`(끝)를 가진 단일 객체로 직렬화한다.
+
+> **v1 레거시**: 과거 포맷의 `singleLong` 타입은 로더(`src/shared/chart`)가 읽는 즉시 현재 타입 `long`으로 마이그레이션한다. 현재 저장 포맷은 싱글 롱노트를 `long`으로 쓴다.
 
 #### 예시
 
@@ -208,7 +210,7 @@ storage/
     { "type": "single", "lane": 1, "beat": "0" },
     { "type": "single", "lane": 3, "beat": "1/2" },
     { "type": "double", "lane": 1, "beat": "2" },
-    { "type": "singleLong", "lane": 2, "beat": "1", "endBeat": "3" },
+    { "type": "long", "lane": 2, "beat": "1", "endBeat": "3" },
     { "type": "doubleLong", "lane": 3, "beat": "4", "endBeat": "7" },
     { "type": "trillZone", "lane": 1, "beat": "8", "endBeat": "12" },
     { "type": "trill", "lane": 1, "beat": "8" },
