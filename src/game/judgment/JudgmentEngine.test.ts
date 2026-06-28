@@ -1490,6 +1490,100 @@ describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () =
   });
 });
 
+describe("o-o- 연결 — 끝점 헤드/스트레이 릴리즈에 강건 (release 귀속)", () => {
+  const lane: Lane = 1;
+  const END = 2000;
+  const Lng = (b: Beat, eb: Beat) => makeLongNote(lane, b, eb);
+  const Sgl = (b: Beat) => makeSingleNote(lane, b);
+
+  // 헤드 있음/없음 o-o-. KeyA가 L1→L2를 쭉 유지(3000에 뗌), KeyB를 kbReleaseMs에 탭. L1 등급 반환.
+  function playL1(headed: boolean, kbReleaseMs: number): JudgmentGrade | undefined {
+    const notes = headed
+      ? [Sgl(beat(0, 1)), Lng(beat(0, 1), beat(8, 1)), Sgl(beat(8, 1)), Lng(beat(8, 1), beat(16, 1))]
+      : [Lng(beat(0, 1), beat(8, 1)), Lng(beat(8, 1), beat(16, 1))];
+    const t = headed
+      ? new Map([[0, 1000], [1, 1000], [2, END], [3, END]])
+      : new Map([[0, 1000], [1, END]]);
+    const e = headed ? new Map([[1, END], [3, 3000]]) : new Map([[0, END], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    const l1Idx = headed ? 1 : 0;
+    engine.onLanePress(lane, 1000, "KeyA");
+    let kb = false;
+    let ka = false;
+    for (let st = 1000; st <= 3200; st += 16) {
+      if (!kb && st >= kbReleaseMs) {
+        engine.onLanePress(lane, kbReleaseMs - 5, "KeyB");
+        engine.onLaneRelease(lane, kbReleaseMs, "KeyB");
+        kb = true;
+      }
+      engine.update(st);
+      if (!ka && st >= 3000) {
+        engine.onLaneRelease(lane, 3000, "KeyA");
+        ka = true;
+      }
+    }
+    return judgments.find((j) => j.noteIndex === l1Idx)?.grade;
+  }
+
+  it("헤드 있는 o-o-: KeyB 헤드 탭을 일찍(-100) 떼도 L1은 KeyA 유지로 Perfect", () => {
+    expect(playL1(true, END - 100)).toBe(JudgmentGrade.PERFECT);
+  });
+  it("헤드 있는 o-o-: KeyB를 끝점에 떼도 Perfect", () => {
+    expect(playL1(true, END)).toBe(JudgmentGrade.PERFECT);
+  });
+  it("헤드 있는 o-o-: KeyB를 늦게(+150) 떼도 Perfect (Bad로 안 떨어짐)", () => {
+    expect(playL1(true, END + 150)).toBe(JudgmentGrade.PERFECT);
+  });
+  it("헤드 있는 o-o-: KeyB를 윈도우 밖(+300)에 떼도 Perfect (Miss로 안 떨어짐)", () => {
+    expect(playL1(true, END + 300)).toBe(JudgmentGrade.PERFECT);
+  });
+  it("헤드 없는 o-o-: KeyB 스트레이 릴리즈가 연결 MISS를 유발하지 않음", () => {
+    expect(playL1(false, END - 100)).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("연결 롱보다 앞 인덱스에 윈도우 밖 점 노트가 있어도 연결 감지 (배열 순서 무관)", () => {
+    // L1 end 2000. 점 노트(idx1)가 2015(윈도우 밖)이고 연결 롱 L2(idx2, 2000)보다 앞 인덱스.
+    const notes = [Lng(beat(0, 1), beat(8, 1)), Sgl(beat(9, 1)), Lng(beat(8, 1), beat(16, 1))];
+    const t = new Map([[0, 1000], [1, END + 15], [2, END]]);
+    const e = new Map([[0, END], [2, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // L1→L2 쭉 유지, 스트레이 릴리즈 없음
+    for (let st = 1000; st <= 3200; st += 16) {
+      engine.update(st);
+      if (st >= 3000) {
+        engine.onLaneRelease(lane, 3000, "KeyA");
+        break;
+      }
+    }
+    // L1(idx0)이 연결로 잡혀 KeyA 유지로 Perfect (종결 오판 시 KeyA가 3000까지 잡아 Miss)
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("연결을 가로지르는 이어잡기: KeyA 떼고 KeyB로 이어받아도 L1 Perfect", () => {
+    const notes = [Lng(beat(0, 1), beat(8, 1)), Lng(beat(8, 1), beat(16, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, END]]), new Map([[0, END], [1, 3000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 직전 KeyA 뗌
+    engine.onLanePress(lane, 2000, "KeyB"); // KeyB로 이어받기
+    engine.update(2000); // 연결 판정: KeyB held → Perfect
+    engine.update(3000);
+    engine.onLaneRelease(lane, 3000, "KeyB");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("연결에서 모두 떼고 다시 안 잡으면 L1 연결 MISS (정상 실패는 유지)", () => {
+    const notes = [Lng(beat(0, 1), beat(8, 1)), Lng(beat(8, 1), beat(16, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, END]]), new Map([[0, END], [1, 3000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1950, "KeyA"); // 끝점 전 떼고 안 잡음 (grace 초과)
+    engine.update(2000);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+});
+
 describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
   const lane: Lane = 1;
 

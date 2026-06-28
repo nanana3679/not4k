@@ -413,22 +413,18 @@ export class JudgmentEngine {
       }
 
       if (state === NoteState.BODY_ACTIVE) {
-        // 끝점 판정 윈도우 내 릴리즈인지 확인 (Good 이전 ~ Bad 이후)
+        // 연결은 스트레이 릴리즈로 판정하지 않고 끝점 update(held-or-grace)에 위임한다.
+        // (연결 헤드를 친 다른 키의 릴리즈가 연결을 MISS시키거나, 연결을 가로지르는
+        //  이어잡기 키 스왑을 깨지 않게 — release 귀속)
+        if (this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime)) {
+          continue;
+        }
+        // 종결 대상: 끝점 판정 윈도우(Good 이전 ~ Bad 이후) 내 릴리즈 → 릴리즈 타이밍 기반 판정
         if (
           releaseTimeMs >= noteEndTime - this.windows.GOOD &&
           releaseTimeMs <= noteEndTime + this.windows.BAD
         ) {
-          const isConnection = this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime);
-
-          if (isConnection) {
-            // 연결 대상: 모든 키 릴리즈 = held 아님 → Miss
-            this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
-            this.noteStates.set(i, NoteState.COMPLETE);
-            this.breakCombo();
-          } else {
-            // 종결 대상: 릴리즈 타이밍 기반 판정
-            this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
-          }
+          this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
         }
       } else {
         // BODY_AWAITING_RELEASE: 끝점 도달 후 릴리즈 대기 중이던 노트
@@ -1287,13 +1283,11 @@ export class JudgmentEngine {
       const nextNoteTime = this.noteTimesMs.get(i);
       if (nextNoteTime === undefined) continue;
 
-      if (Math.abs(nextNoteTime - endTimeMs) <= threshold) {
-        return "endBeat" in nextNote;
-      }
-
-      // 다음 노트가 너무 멀면 중단
-      if (nextNoteTime > endTimeMs + threshold) {
-        break;
+      // threshold 내 롱이 하나라도 있으면 연결. notes 배열의 시간 정렬을 가정하지 않으므로
+      // 조기 종료(break) 없이 전체를 스캔한다 — 끝점에 헤드(점 노트)가 같이 있거나,
+      // 윈도우 밖 노트가 연결 롱보다 앞 인덱스여도 연결을 놓치지 않는다.
+      if (Math.abs(nextNoteTime - endTimeMs) <= threshold && "endBeat" in nextNote) {
+        return true;
       }
     }
 
