@@ -31,6 +31,7 @@ export interface ValidationError {
     | "duplicate"
     | "longOverlap"
     | "trillExclusive"
+    | "trillLongInvalid"
     | "trillZoneOverlap"
     | "eventOverlap"
     | "eventDuplicate"
@@ -213,6 +214,41 @@ export function validateTrillExclusive(
       errors.push({
         rule: "trillExclusive",
         message: `Non-trill note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside a trill zone`,
+      });
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * 트릴 롱노트는 헤드(트릴 포인트 노트) 필수 + hold-only 불가.
+ * 트릴 교대 판정은 헤드 keydown 기반이라, 헤드가 없으면(교대 비교 대상 없음) 또는
+ * hold-only면("잡고만 있어도 됨"이 "같은 키 유지=교대 위반"과 모순) 교대 규칙이 무너진다.
+ * 결정 근거: docs/rfd/0005-hold-only-long-note.md, docs/spec/note-system.md "트릴 롱노트".
+ */
+export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const note of notes) {
+    if (note.type !== "trillLong") continue;
+    const rn = note as RangeNote;
+
+    if (rn.holdOnly) {
+      errors.push({
+        rule: "trillLongInvalid",
+        message: `trillLong cannot be hold-only (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+      });
+    }
+
+    // 헤드 필수: 같은 레인·같은 시작 박에 trill 포인트 노트가 있어야 한다 (길이 무관)
+    const hasHead = notes.some(
+      (n) => n.type === "trill" && n.lane === note.lane && beatEq(n.beat, note.beat),
+    );
+    if (!hasHead) {
+      errors.push({
+        rule: "trillLongInvalid",
+        message: `trillLong must have a trill head (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
       });
     }
   }
@@ -521,6 +557,7 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateNoDuplicates(input.notes),
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
+    ...validateTrillLong(input.notes),
     ...validateNoTrillZoneOverlap(input.trillZones),
     ...validateNoEventDuplicate(input.events),
     ...validateNoEventOverlap(input.events),

@@ -3,6 +3,7 @@ import {
   validateNoDuplicates,
   validateNoLongOverlap,
   validateTrillExclusive,
+  validateTrillLong,
   validateNoTrillZoneOverlap,
   validateNoEventDuplicate,
   validateNoEventOverlap,
@@ -216,6 +217,56 @@ describe("validateTrillExclusive", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 2, beat: beat(2) }];
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateTrillExclusive(notes, zones)).toEqual([]);
+  });
+});
+
+// =========================================================================
+// 트릴 롱노트: 헤드 필수 + hold-only 불가 (RFD 0005, 교대는 헤드 keydown 기반)
+// =========================================================================
+
+describe("validateTrillLong", () => {
+  it("헤드(trill 포인트)가 있는 일반 trillLong은 OK", () => {
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(0) }, // 헤드
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    expect(validateTrillLong(notes)).toEqual([]);
+  });
+
+  it("hold-only trillLong이면 에러 (교대 보상↔처벌 모순)", () => {
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(0) },
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true },
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+
+  it("헤드 없는 trillLong(length>0)이면 에러 — 교대 비교 대상 없음", () => {
+    const notes: NoteEntity[] = [
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) }, // 헤드 없음
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+
+  it("헤드 없는 length-0 trillLong(트릴 슬라이드)도 에러 (length 무관 금지)", () => {
+    const notes: NoteEntity[] = [
+      { type: "trillLong", lane: 1, beat: beat(2), endBeat: beat(2) }, // length 0, 헤드 없음
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+
+  it("일반 long/doubleLong은 hold-only·헤드 없음 모두 허용 (트릴 아님)", () => {
+    const notes: NoteEntity[] = [
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 헤드 없는 hold-only 롱 OK
+      { type: "doubleLong", lane: 2, beat: beat(0), endBeat: beat(2), holdOnly: true },
+    ];
+    expect(validateTrillLong(notes)).toEqual([]);
   });
 });
 
