@@ -130,6 +130,63 @@ describe("validateNoLongOverlap", () => {
 });
 
 // =========================================================================
+// 불변 잠금: 한 레인 롱노트 바디 겹침 불가 (RFD 0008 §4·§10 의존)
+//
+// 판정 엔진의 소진 키 누설 차단은 "한 레인에서 두 롱노트 바디가 겹치지 않는다"는
+// 배치 불변을 전제한다. 이 불변은 별도 규칙이 아니라 기존 두 규칙의 합으로 강제된다:
+//   - 같은 시작 박 → validateNoDuplicates ("Duplicate range start")
+//   - 시작 박이 다르면서 겹침 → 한쪽 끝점이 상대 열린 바디에 들어가 validateNoLongOverlap
+// 어느 규칙이 잡든 validateChart 레벨에서 거부됨을 잠근다(누가 규칙을 느슨하게 바꾸면 깨지도록).
+// =========================================================================
+
+describe("롱노트 겹침 불가 불변 (validateChart, RFD 0008)", () => {
+  const chartOf = (notes: NoteEntity[]) =>
+    validateChart({ notes, trillZones: [], events: [] });
+
+  it("시작 박이 다르고 바디가 겹치는 두 롱(L1 0~4, L2 2~6)이면 거부", () => {
+    expect(chartOf([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(6) },
+    ]).length).toBeGreaterThan(0);
+  });
+
+  it("한 롱이 다른 롱을 완전히 포함(L1 0~6, L2 2~4)하면 거부", () => {
+    expect(chartOf([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(6) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) },
+    ]).length).toBeGreaterThan(0);
+  });
+
+  it("같은 시작 박의 두 롱(L1 0~4, L2 0~6)이면 거부 (중복 시작점)", () => {
+    expect(chartOf([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(6) },
+    ]).length).toBeGreaterThan(0);
+  });
+
+  it("doubleLong과 long의 바디가 겹쳐도(같은 레인) 거부", () => {
+    expect(chartOf([
+      { type: "doubleLong", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(6) },
+    ]).length).toBeGreaterThan(0);
+  });
+
+  it("연결(끝점=시작점 맞닿음, L1 0~2 / L2 2~4)은 허용 — 겹침 아님", () => {
+    expect(chartOf([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) },
+    ])).toEqual([]);
+  });
+
+  it("다른 레인의 롱노트 바디 겹침은 허용", () => {
+    expect(chartOf([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: "long", lane: 2, beat: beat(2), endBeat: beat(6) },
+    ])).toEqual([]);
+  });
+});
+
+// =========================================================================
 // 규칙 3: 트릴 구간 전용
 // =========================================================================
 
