@@ -232,17 +232,16 @@ not4k의 난이도명은 현재 **EASY / NORMAL / HARD**의 3단계를 **임시 
 
 ### 비행 규칙 (Flight Rule)
 
-Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도명, 차트 레벨(Lv.), 난이도 등급과는 별개의 축이다. 결정 배경은 `../rfd/0001-flight-rules-and-observer-boundary.md`를 따른다.
+Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도명, 차트 레벨(Lv.), 난이도 등급과는 별개의 축이다. 결정 배경은 `../rfd/0001-flight-rules-and-observer-boundary.md`를 따르며, 2종(Liftoff/Survival) 재편은 `../rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
 
-현재 비행 규칙 용어는 **Takeoff / Ascent / Breakthrough**이다. UI와 코드는 영어 명칭(`takeoff`, `ascent`, `breakthrough`)을 사용한다. Takeoff와 Ascent의 beatmania IIDX 참조 모델은 `../research/beatmania.md`의 게이지 옵션 보충 자료를 따른다. Breakthrough는 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `../rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
+현재 비행 규칙 용어는 **Liftoff / Survival** 2종이다. UI와 코드는 영어 명칭(`liftoff`, `survival`)을 사용한다. Liftoff는 종전 Takeoff/Ascent의 관대 역할을 통합한 규칙으로, 종료 기준 모델은 `../research/beatmania.md`의 Normal/Groove Gauge 참조를 따른다. Survival은 종전 Breakthrough를 계승한 규칙으로, beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며 Perfect-only 회복은 `../rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
 
-비행 규칙은 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하는 장치로 포지셔닝한다. Takeoff와 Ascent는 숙련 유저 기준 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며, 숙련 유저 대상 정확도 압박은 Breakthrough가 전담한다. 포지셔닝 배경은 `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`를 따른다.
+비행 규칙은 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하는 장치로 포지셔닝한다. Liftoff는 숙련 유저 기준 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며 비행 규칙의 기본값으로 둔다. 숙련 유저 대상 정확도 압박은 Survival이 전담한다. 포지셔닝 배경은 `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`를 따른다.
 
 | 비행 규칙 | 정의 |
 | --------- | ---- |
-| **Takeoff** | 0에서 시작해 곡 종료 시 기준 고도 이상이면 클리어되는 비행 규칙 |
-| **Ascent** | 고도를 유지하며 진행하고 0 도달 시 실패하는 비행 규칙 |
-| **Breakthrough** | 100에서 시작해 Perfect로만 고도를 회복하고 0 도달 시 실패하는 비행 규칙. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 고도를 감소시킨다. |
+| **Liftoff** | 고도 0에서 시작해 곡 종료 시 기준 고도 이상이면 클리어되는 관대한 비행 규칙. 곡 중 게임 오버가 없다. 비행 규칙의 기본값이다. |
+| **Survival** | 고도 100에서 시작해 Perfect로만 고도를 회복하고 0 도달 시 실패하는 비행 규칙. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 고도를 감소시킨다. |
 
 ### 고도 (Altitude)
 

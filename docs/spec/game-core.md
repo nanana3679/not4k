@@ -196,15 +196,15 @@ Play에는 **고도** 기반 클리어/실패를 결정하는 **비행 규칙**�
 
 **도입 이유**: 첫째, 비행이라는 가벼운 내러티브를 게임 규칙과 연결하기 위해서다. 고도에 따라 배경 연출(수평선, 격자, 시야각)이 변하는 비행 콘셉트는, 고도가 장식이 아니라 실제 클리어/실패와 연결될 때 의미를 가진다. 둘째, 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하기 위해서다(RFD 0003).
 
-**비행 규칙 종류**: Takeoff / Ascent / Breakthrough. 각 규칙의 정의는 `../context/glossary.md`의 비행 규칙 항목을 따른다.
+**비행 규칙 종류**: Liftoff / Survival 2종(RFD 0005). 각 규칙의 정의는 `../context/glossary.md`의 비행 규칙 항목을 따른다.
 
-**관대한 밸런싱**: Takeoff와 Ascent는 숙련 유저 기준으로 사실상 실패하지 않는 수준으로 관대하게 밸런싱한다(RFD 0003). 따라서 숙련 유저의 플레이 경험은 기존 "무조건 완주"와 사실상 동일하며, 가변 손배치 학습이 중도 실패로 끊기지 않는다는 기존 철학은 유지된다. 숙련 유저 대상 정확도 압박은 Breakthrough가 전담한다.
+**관대한 밸런싱**: Liftoff는 숙련 유저 기준으로 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며 비행 규칙의 기본값으로 둔다(RFD 0003, RFD 0005). 따라서 숙련 유저의 플레이 경험은 기존 "무조건 완주"와 사실상 동일하며, 가변 손배치 학습이 중도 실패로 끊기지 않는다는 기존 철학은 유지된다. 숙련 유저 대상 정확도 압박은 Survival이 전담한다.
 
 **실패 조건 없는 완주/학습**: 실패 조건 없이 차트를 끝까지 확인하거나 구간을 반복 학습하려는 유저는 Observer 계열을 사용한다(`observer-mode.md`).
 
 **미정 사항**: 실패 시 결과 화면 전환 방식, 비행 규칙의 기본값과 선택 방식, 기록·랭킹의 비행 규칙별 분리, 고도 수치 밸런싱은 미정이다(RFD 0001 §9, RFD 0002 §8).
 
-**결정 배경**: `../rfd/0001-flight-rules-and-observer-boundary.md`, `../rfd/0002-breakthrough-perfect-only-recovery.md`, `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`
+**결정 배경**: `../rfd/0001-flight-rules-and-observer-boundary.md`, `../rfd/0002-breakthrough-perfect-only-recovery.md`, `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`, `../rfd/0005-flight-rules-two-tier-liftoff-survival.md`
 
 ---
 
