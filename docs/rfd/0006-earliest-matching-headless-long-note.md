@@ -128,9 +128,9 @@ RFD 0005(hold-only)에서 헤드 없는 롱노트, 특히 길이 0 슬라이드�
 
 `src/game/judgment/JudgmentEngine.ts`에 싱글 헤드 없는 롱노트(길이 0 슬라이드 포함) keydown 흡수를 구현. 적대적 검증(서브에이전트)에서 초안의 결함을 잡아 다음과 같이 수정 반영했다:
 
-- **흡수 후보 = 시작 ±Good 근접 게이트**: `isHeadlessAbsorbable`가 `deltaMs ∈ [-Good, +Good]`를 요구한다. 흡수 윈도우를 Bad까지 열면 직후 포인트를 과보호하거나(early 흡수) 홀드 직전 탭을 삼킨다.
-- **consume만, BODY_ACTIVE 강제 승격 없음**: 매칭 시 `absorbedLong` Set에 표시만 하고 판정은 emit하지 않는다. 길이>0은 `update()` 자동활성화 + `checkLongNoteBodyHold`(held)가, 길이0은 `checkLengthZeroHoldOnly`(held)/`checkSlideReleaseOnRelease`(keyup)가 판정한다. keydown 시점에 BODY_ACTIVE로 앞당기면 시작점 허용 윈도우를 우회해 판정 타이밍이 왜곡되므로 하지 않는다.
-- **재흡수 방지(단일 진입점)**: `absorbedLong`로 같은 프레임/윈도우의 후속 입력이 같은 노트를 다시 흡수하지 못하게 하고, COMPLETE/활성화 시 정리한다. 길이0은 held로 시작 윈도우에 진입한 시점에도 흡수 표시해, keydown 없이 held로 진입한 경우의 직후 포인트도 보호한다.
+- **흡수 후보 = 시작 ±Good 근접 게이트**: `isHeadlessConsumable`가 `deltaMs ∈ [-Good, +Good]`를 요구한다. 흡수 윈도우를 Bad까지 열면 직후 포인트를 과보호하거나(early 흡수) 홀드 직전 탭을 삼킨다.
+- **consume만, BODY_ACTIVE 강제 승격 없음**: 매칭 시 `consumedLongKeys` Set에 표시만 하고 판정은 emit하지 않는다. 길이>0은 `update()` 자동활성화 + `checkLongNoteBodyHold`(held)가, 길이0은 `checkLengthZeroHoldOnly`(held)/`checkSlideReleaseOnRelease`(keyup)가 판정한다. keydown 시점에 BODY_ACTIVE로 앞당기면 시작점 허용 윈도우를 우회해 판정 타이밍이 왜곡되므로 하지 않는다.
+- **재흡수 방지(단일 진입점)**: `consumedLongKeys`로 같은 프레임/윈도우의 후속 입력이 같은 노트를 다시 흡수하지 못하게 하고, COMPLETE/활성화 시 정리한다. 길이0은 held로 시작 윈도우에 진입한 시점에도 흡수 표시해, keydown 없이 held로 진입한 경우의 직후 포인트도 보호한다.
 - **헤드 유무**: 생성자에서 같은 lane·시작 시각(±1ms)의 PointNote 존재 여부로 `headlessLongCache`를 1회 계산(NoteType.LONG 한정). 헤드 있는 롱노트는 후보에서 빠져 헤드가 입력을 대표 흡수(더블 방지).
 
 검증: `JudgmentEngine.test.ts`에 흡수/회귀 테스트 8개 추가(슬라이드 직후 포인트 보호, 다중키 a held+b, 미리 떼기 980ms, 길이>0 홀드 중 탭, 헤드 있는 롱노트 더블 방지). 전체 905개 테스트 통과, `tsc --noEmit` 클린, 회귀 0건.
@@ -139,8 +139,8 @@ RFD 0005(hold-only)에서 헤드 없는 롱노트, 특히 길이 0 슬라이드�
 
 §3.4의 더블 롱노트·릴리즈 노트 흡수를 판정 로직 수준에서 구현했다.
 
-- **헤드 없는 더블 롱노트 2키 흡수**: 흡수 추적을 `absorbedLong: Set<number>` → `absorbedLongKeys: Map<number, Set<string>>`(노트별 흡수한 키 집합)로 바꿔, 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료(`isHeadlessAbsorbable`에서 `size >= requiredAbsorbCount`). 서로 다른 키 2개를 채워야 종료되고 같은 키 재입력은 Set 특성상 무효. `headlessLongCache`에 DOUBLE_LONG 포함. 이 2키 흡수는 앞으로 넣을 **더블 hold-only(`doubleLong` + `holdOnly`) 입력의 판정 그라운드워크**다 — 헤드 없는 더블 홀드 자체는 이미 동작하며, 현재 입력이 안 되는 것은 더블 hold-only다.
-- **릴리즈 노트(길이 0 일반)**: 별도 작업이 거의 불필요했다 — 릴리즈 노트는 type LONG이라 1차의 일반 LONG 흡수가 그대로 적용된다(keydown 흡수 → 직후 포인트 보호 → `BODY_AWAITING_RELEASE` + keyup 종결 판정). `executeTerminationJudgment`에 흡수 표시 정리(`absorbedLongKeys.delete`)만 추가하고 확인 테스트를 더했다.
+- **헤드 없는 더블 롱노트 2키 흡수**: 흡수 추적을 `consumedLongKeys: Set<number>` → `consumedLongKeys: Map<number, Set<string>>`(노트별 흡수한 키 집합)로 바꿔, 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료(`isHeadlessConsumable`에서 `size >= requiredConsumeCount`). 서로 다른 키 2개를 채워야 종료되고 같은 키 재입력은 Set 특성상 무효. `headlessLongCache`에 DOUBLE_LONG 포함. 이 2키 흡수는 앞으로 넣을 **더블 hold-only(`doubleLong` + `holdOnly`) 입력의 판정 그라운드워크**다 — 헤드 없는 더블 홀드 자체는 이미 동작하며, 현재 입력이 안 되는 것은 더블 hold-only다.
+- **릴리즈 노트(길이 0 일반)**: 별도 작업이 거의 불필요했다 — 릴리즈 노트는 type LONG이라 1차의 일반 LONG 흡수가 그대로 적용된다(keydown 흡수 → 직후 포인트 보호 → `BODY_AWAITING_RELEASE` + keyup 종결 판정). `executeTerminationJudgment`에 흡수 표시 정리(`consumedLongKeys.delete`)만 추가하고 확인 테스트를 더했다.
 - **held sentinel**: 길이 0 슬라이드가 keydown 없이 held로 시작 윈도우에 진입한 경우는 `HELD_ABSORB_SENTINEL`을 키 집합에 넣어 흡수 표시(필요 키 수 1을 충족).
 
 검증: 더블 롱노트 5개 + 릴리즈 노트 1개 테스트 추가(서로 다른 2키 흡수·같은 키 무효·비동시 입력 보호·더블 헤드 더블 방지·릴리즈 keyup 판정), 전체 911개 통과 + `tsc --noEmit` 클린.

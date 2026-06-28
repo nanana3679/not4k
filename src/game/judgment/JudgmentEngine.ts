@@ -148,7 +148,7 @@ export class JudgmentEngine {
    * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
    * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
    */
-  private readonly absorbedLongKeys: Map<number, Set<string>> = new Map();
+  private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
    * 레인별 "소진된(spent)" 키 — terminal hold-only/슬라이드를 held로 완료시킨 키 (RFD 0008).
    * 이 키의 release는 "놓기"이므로 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을
@@ -311,7 +311,7 @@ export class JudgmentEngine {
 
     // 헤드 없는 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
     if ("endBeat" in note) {
-      this.markLongAbsorbed(targetNoteIndex, keyCode);
+      this.markLongConsumed(targetNoteIndex, keyCode);
       return;
     }
 
@@ -510,7 +510,7 @@ export class JudgmentEngine {
             bodyStartTimeMs: noteTime,
           });
           // BODY_ACTIVE가 되면 state로 후보 제외되므로 흡수 표시는 정리한다.
-          this.absorbedLongKeys.delete(i);
+          this.consumedLongKeys.delete(i);
 
           // doubleLong: 현재 눌린 키들로 2키 독립 추적 초기화
           if (note.type === NoteType.DOUBLE_LONG) {
@@ -554,7 +554,7 @@ export class JudgmentEngine {
       // 바디 노트(RangeNote)는 원칙적으로 입력 대상이 아니나, 헤드 없는 싱글 롱노트가
       // 흡수 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown 흡수 후보가 된다.
       if ("endBeat" in note) {
-        if (!this.isHeadlessAbsorbable(i, timestampMs)) continue;
+        if (!this.isHeadlessConsumable(i, timestampMs)) continue;
       }
 
       const state = this.noteStates.get(i);
@@ -592,15 +592,15 @@ export class JudgmentEngine {
    * 해당 인덱스의 노트가 "헤드 없는 흡수 가능 싱글 롱노트"인지.
    *
    * 조건: (1) 헤드 없음 캐시 true (NoteType.LONG 한정)
-   *       (2) 아직 흡수 종료 안 됨 (UNPROCESSED + absorbedLong 미등록)
+   *       (2) 아직 흡수 종료 안 됨 (UNPROCESSED + consumedLongKeys 미등록)
    *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 흡수 방지)
    */
-  private isHeadlessAbsorbable(noteIndex: number, timestampMs: number): boolean {
+  private isHeadlessConsumable(noteIndex: number, timestampMs: number): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
     // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 흡수 종료 → 후보 아님
-    const absorbed = this.absorbedLongKeys.get(noteIndex)?.size ?? 0;
-    if (absorbed >= this.requiredAbsorbCount(noteIndex)) return false;
+    const consumed = this.consumedLongKeys.get(noteIndex)?.size ?? 0;
+    if (consumed >= this.requiredConsumeCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
     // 흡수 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
@@ -610,7 +610,7 @@ export class JudgmentEngine {
   }
 
   /** 헤드 없는 롱노트의 흡수 필요 키 수 (싱글 LONG 1 / 더블 DOUBLE_LONG 2). */
-  private requiredAbsorbCount(noteIndex: number): number {
+  private requiredConsumeCount(noteIndex: number): number {
     return this.notes[noteIndex].type === NoteType.DOUBLE_LONG ? 2 : 1;
   }
 
@@ -626,11 +626,11 @@ export class JudgmentEngine {
    * 방지하고, 더블 롱노트는 서로 다른 키 2개를 채워야 흡수 종료된다(같은 키 재입력은 무효).
    * (holdState.heldKeys 는 onLanePress 진입부에서 이미 갱신됨 — 여기서 키를 만지지 않는다.)
    */
-  private markLongAbsorbed(noteIndex: number, keyCode: string): void {
-    let keys = this.absorbedLongKeys.get(noteIndex);
+  private markLongConsumed(noteIndex: number, keyCode: string): void {
+    let keys = this.consumedLongKeys.get(noteIndex);
     if (!keys) {
       keys = new Set();
-      this.absorbedLongKeys.set(noteIndex, keys);
+      this.consumedLongKeys.set(noteIndex, keys);
     }
     keys.add(keyCode);
   }
@@ -1185,7 +1185,7 @@ export class JudgmentEngine {
       // 충족된 슬라이드의 실제 held 키들을 등록해, 직후 노트가 그 입력을 가로채거나
       // 후속 keydown이 이미 충족된 슬라이드를 재흡수하는 것을 막는다.
       if (songTimeMs >= noteTime - this.windows.GOOD && this.isHoldOnlySlideHeld(note, holdState)) {
-        for (const key of holdState!.heldKeys) this.markLongAbsorbed(i, key);
+        for (const key of holdState!.heldKeys) this.markLongConsumed(i, key);
       }
 
       // 더블 길이0 슬라이드: 키별 2판정 (subIndex 0/1)
@@ -1198,7 +1198,7 @@ export class JudgmentEngine {
           this.incrementCombo();
           this.incrementCombo();
           this.noteStates.set(i, NoteState.COMPLETE);
-          this.absorbedLongKeys.delete(i);
+          this.consumedLongKeys.delete(i);
           this.spendHeldKeys((note as RangeNote).lane);
           continue;
         }
@@ -1212,7 +1212,7 @@ export class JudgmentEngine {
             else this.breakCombo();
           }
           this.noteStates.set(i, NoteState.COMPLETE);
-          this.absorbedLongKeys.delete(i);
+          this.consumedLongKeys.delete(i);
           if (perfects > 0) this.spendHeldKeys((note as RangeNote).lane);
         }
         continue;
@@ -1222,7 +1222,7 @@ export class JudgmentEngine {
       if (songTimeMs >= noteTime && this.isHoldOnlySlideHeld(note, holdState)) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLongKeys.delete(i);
+        this.consumedLongKeys.delete(i);
         this.incrementCombo();
         // held로 완료 → 유지 키 소진 (RFD 0008)
         this.spendHeldKeys((note as RangeNote).lane);
@@ -1233,7 +1233,7 @@ export class JudgmentEngine {
       if (songTimeMs > noteTime + this.windows.GOOD) {
         this.emitJudgment(i, JudgmentGrade.MISS, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLongKeys.delete(i);
+        this.consumedLongKeys.delete(i);
         this.breakCombo();
       }
     }
@@ -1264,7 +1264,7 @@ export class JudgmentEngine {
       if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
         this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
         this.noteStates.set(i, NoteState.COMPLETE);
-        this.absorbedLongKeys.delete(i);
+        this.consumedLongKeys.delete(i);
         this.incrementCombo();
       }
     }
@@ -1355,7 +1355,7 @@ export class JudgmentEngine {
 
     this.emitJudgment(noteIndex, grade, undefined, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
-    this.absorbedLongKeys.delete(noteIndex); // 헤드 없는 롱노트 흡수 표시 정리(릴리즈 노트 등)
+    this.consumedLongKeys.delete(noteIndex); // 헤드 없는 롱노트 흡수 표시 정리(릴리즈 노트 등)
 
     if (this.isComboMaintaining(grade)) {
       this.incrementCombo();

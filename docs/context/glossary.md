@@ -307,15 +307,27 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 ### 종결 판정
 
-롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 종결 판정이 발생한다. 키를 뗀 타이밍을 기준으로 판정하며, Good 이상은 Perfect로 상향된다. Good 윈도우 이후에 릴리즈하면 Bad/Miss가 부여된다. 종결 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 행위에 판정을 부여하여 이를 방지한다. 키 단위로 held 상태를 추적하여 릴리즈 타이밍을 판별한다.
+롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 종결 판정이 발생한다. 키를 뗀 타이밍을 기준으로 판정하며, Good 이상은 Perfect로 상향된다. Good 윈도우 이후에 릴리즈하면 Bad/Miss가 부여된다. 종결 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 행위에 판정을 부여하여 이를 방지한다. **종결 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 종결을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
+
+**구현**: `tryEndpointJudgmentOnRelease`, `executeTerminationJudgment`, `terminationGrade`(Good 이상 → Perfect 상향).
 
 ### 연결 판정
 
 롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 존재할 때 발생하는 끝점 판정. 판정 촉발 시점(끝점 Good 윈도우 내 릴리즈 시점 또는 끝점)에 해당 레인에 홀드가 유지되고 있는지를 확인한다. 유지 시 Perfect, 미유지 시 Miss. 홀드 중 탭과 릴리즈탭 모두 인정하되, 홀드를 완전히 생략하는 입력(`o-o-`를 `o.o-`로 처리)에 점수 차이를 두기 위한 설계.
 
+**구현**: `hasImmediateFollowingLongNote`(연결 여부 판정), 끝점 update의 held-or-grace 위임(스트레이 릴리즈로 촉발·실패 안 함).
+
 ### 유지 판정
 
 바디 구간 동안 해당 레인의 held 상태가 지속되는지를 감시하는 판정. 시작점·끝점 근처의 Good 윈도우 구간에서는 완화된다. 끝점 Good 윈도우 내 릴리즈 시 끝점 판정(연결/종결)이 촉발된다. 시작 조건은 헤드 노트 유무와 무관한 단일 규칙이다. 유예 시간 이내의 릴리즈는 유지 실패로 처리하지 않는다. 유지 실패 시 끝점 판정이 Miss로 확정된다. 길이 0 롱노트는 바디 구간이 없으므로 유지 판정을 생략하고 릴리즈 이벤트 기반의 종결 판정만 수행한다. 구체적인 수치는 `scoring.md` 참조.
+
+**구현**: `checkLongNoteBodyHold`, `longNoteBodyStates`, `checkDoubleLongKeyHold`(더블롱 키별).
+
+### lane-held (레인 유지 모델)
+
+롱노트 유지를 *특정 키*가 아니라 *레인 단위*로 보는 모델. 레인의 아무 키나 눌려 있으면 유지 중이고, 모든 키가 유예 시간을 넘겨 떼어지면 유지 실패. [[가변 손배치]](홀드 이어잡기·홀드 중 탭)의 토대다. **유지 성립은 레인 단위이지만 종결 트리거는 키 단위 release 이벤트**라는 *층위 분리*가 핵심(종결 판정 참조).
+
+**구현**: `laneHoldStates`(레인별 `LaneHoldState`), `heldKeys`(레인의 눌린 키 집합), `isHeld`, `lastReleaseTimeMs`.
 
 ### 유예 시간 (Grace Period)
 
@@ -330,6 +342,16 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 ### 흡수 (consume)
 
 한 keydown이 가장 이른 한 노트에만 귀속되어 소진되는 것. 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다("한 입력 = 한 노트" 불변). 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
+
+> **영문 표기는 `consume`로 통일**한다(흡수 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
+
+**구현**: `consumedLongKeys`(흡수된 키 집합), `markLongConsumed`, `isHeadlessConsumable`(흡수 후보 판정), `requiredConsumeCount`(필요 키 수 싱글 1/더블 2).
+
+### 소진 키 (spent key)
+
+terminal hold-only/슬라이드를 held로 완료시킨 키. 그 키의 "놓기" release는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 **노트별 예외 없이 무조건 스킵**해 누설을 막는다(RFD 0008). 떼거나 다시 누르면 해제된다. (흡수=keydown 소비와 구분 — *소진*은 release 차단.)
+
+**구현**: `spentReleaseKeys`, `isSpentRelease`, `spendHeldKeys`.
 
 ### 이벤트 라우팅
 
