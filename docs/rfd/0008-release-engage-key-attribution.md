@@ -90,4 +90,7 @@ keydown은 "가장 이른 노트 매칭 + 흡수(RFD 0006)"로 한 입력이 한
 ## 10. 한계/미해결
 
 - **소진 가드의 안전성은 §4 배치 불변(겹침 불가)에 의존한다.** 판정 엔진 자체는 이를 런타임에 강제하지 않지만, **차트 검증(`validateChart`)이 이를 강제한다** — `validateNoDuplicates` + `validateNoLongOverlap`의 합이 한 레인 롱노트 바디 겹침을 모두 거부하며(`validation.test.ts` "롱노트 겹침 불가 불변" 회귀 테스트로 잠금), 에디터 저장·배치·붙여넣기 경로가 이 검증을 통과한 차트만 만든다. (별도의 `validateNoLongNoteBodyOverlap` 규칙은 기존 두 규칙과 완전히 중복이라 추가하지 않았다.)
-- **(부분 해소) 홀드 중 탭의 탭 키 과발화**: 끝점에 연결 헤드가 있는 `o-o-`에서, 유지 키가 아닌 다른 키(연결 헤드 탭)의 릴리즈가 L1 연결을 가로채 **하드 MISS 또는 탭 타이밍에 따라 Bad/Miss**가 나던 심각 케이스는 해소했다 — `hasImmediateFollowingLongNote`가 끝점에 헤드가 섞여도 뒤따르는 롱을 찾도록 보정(전체 스캔)하고, `tryEndpointJudgmentOnRelease`의 연결 분기를 제거해 **연결은 끝점 update의 held-or-grace에만 위임**한다(`JudgmentEngine.test.ts` "o-o- 연결 … 강건" 회귀). 다만 후속 롱이 없는 **종결**(`o-o`)에서 다른 키의 탭 릴리즈가 롱을 종결시키는 동작은 남아 있다(Good→Perfect 상향으로 대체로 무해, 멀리 일찍 떼면 Bad). 키 단위 release 귀속의 완전 일반화는 후속 과제.
+- **(해소) 홀드 중 탭의 탭 키 과발화**: 유지 키가 아닌 다른 키(끝점 헤드/탭)의 릴리즈가 롱의 판정을 가로채던 문제를 **연결(`o-o-`)과 종결(`o-o`) 모두에서** 해소했다.
+  - **연결**: `hasImmediateFollowingLongNote`가 끝점에 헤드가 섞여도 뒤따르는 롱을 찾도록 보정(전체 스캔)하고, `tryEndpointJudgmentOnRelease`의 연결 분기를 제거해 **연결은 끝점 update의 held-or-grace에 위임**한다.
+  - **종결**: 단독 롱은 **레인이 완전히 떼질 때(heldKeys 비면)만 종결**하도록 게이트한다 — 다른 키가 남아 있으면 그 릴리즈로 종결하지 않으므로 탭 키가 종결을 가로채지 않는다. update 경로의 isHeld/lastRelease 기준과 일치하며 lane-held·이어잡기와 일관.
+  - 회귀: "홀드 중 탭(o-o)", "… 레인 완전 릴리즈에 종결", "o-o- 연결 … 강건". (엣지: 유지 키를 탭 키보다 먼저 떼는 비정상 순서에서는 마지막 릴리즈 타이밍을 쓰지만 부당한 손해는 없음 — 적대적 검증 확인.)

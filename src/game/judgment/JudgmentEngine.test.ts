@@ -62,45 +62,48 @@ function setup(
 
 describe("롱노트 종료 시점 릴리즈 판정", () => {
   /**
-   * 시나리오: 레인1에 키 A, B 두 개가 바인딩.
-   * 롱노트 바디 진행 중, 끝점 판정 윈도우 안에서 키 A만 릴리즈.
-   * 키 B는 여전히 홀드 상태.
-   * → 릴리즈 판정이 발생해야 한다.
+   * 시나리오: 레인1에 키 A, B 두 개로 롱노트를 유지.
+   * 끝점 윈도우 안에서 A만 떼고 B는 홀드 → 레인이 아직 유지되므로 종결하지 않는다(b).
+   * 두 키를 모두 떼면(heldKeys 비면) 그때 종결한다 — lane-held·이어잡기와 일관.
    */
-  it("끝점 윈도우 내 릴리즈 시 다른 키가 홀드 상태여도 종결 판정 발생", () => {
+  it("끝점 윈도우 내 한 키만 떼고 다른 키가 홀드면 종결 안 함, 레인 완전 릴리즈에 종결", () => {
     const lane: Lane = 1;
-    const b = beat(0, 1);
-    const endB = beat(4, 1);
-
-    const notes: NoteEntity[] = [makeLongNote(lane, b, endB)];
-    const startMs = 0;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(4, 1))];
     const endMs = 2000;
-    const noteTimesMs = new Map([[0, startMs]]);
-    const noteEndTimesMs = new Map([[0, endMs]]);
+    const { engine, judgments } = setup(notes, new Map([[0, 0]]), new Map([[0, endMs]]));
 
-    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
-
-    // 키 A, B로 홀드 시작
-    engine.onLanePress(lane, startMs, "KeyA");
-    engine.onLanePress(lane, startMs + 10, "KeyB");
-
-    // 바디 활성화
-    engine.update(startMs);
-
-    // 바디 유지 중 (중간 시점)
-    engine.update(startMs + 1000);
-
-    // 끝점 도달
+    engine.onLanePress(lane, 0, "KeyA");
+    engine.onLanePress(lane, 10, "KeyB");
+    engine.update(0);
+    engine.update(1000);
     engine.update(endMs);
 
-    // 끝점 윈도우 내에서 키 A만 릴리즈 (키 B는 홀드 유지)
-    const releaseTime = endMs + 30; // Good 윈도우 내
-    engine.onLaneRelease(lane, releaseTime, "KeyA");
+    engine.onLaneRelease(lane, endMs + 20, "KeyA"); // A만 뗌 (B 유지) → 종결 안 함
+    expect(judgments.length).toBe(0);
 
+    engine.onLaneRelease(lane, endMs + 30, "KeyB"); // B도 뗌 (레인 완전 릴리즈) → 종결
     expect(judgments.length).toBe(1);
     expect(judgments[0].noteIndex).toBe(0);
-    // Good 이상이면 Perfect로 상향
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("홀드 중 탭(o-o): KeyB로 끝점 탭을 쳐도 L은 KeyA 릴리즈 타이밍으로만 종결", () => {
+    // L(1000~2000) + 끝점 탭 T@2000(같은 레인). KeyA로 L 유지, KeyB로 T 탭.
+    const lane: Lane = 1;
+    const endMs = 2000;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(8, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, endMs]]), new Map([[0, endMs]]));
+
+    engine.onLanePress(lane, 1000, "KeyA"); // L 유지
+    engine.update(1000);
+    engine.update(endMs);
+    engine.onLanePress(lane, endMs, "KeyB"); // T 탭 (head)
+    engine.onLaneRelease(lane, endMs + 5, "KeyB"); // KeyB 떼도 KeyA 남아 → L 종결 안 함
+    expect(judgments.filter((j) => j.noteIndex === 0).length).toBe(0);
+
+    engine.onLaneRelease(lane, endMs + 10, "KeyA"); // KeyA 떼면 L 종결 (delta +10)
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // T 탭 정상
   });
 
   it("끝점 윈도우 밖 릴리즈는 판정을 트리거하지 않음", () => {
@@ -128,7 +131,7 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     expect(judgments.length).toBe(0);
   });
 
-  it("BODY_AWAITING_RELEASE 상태에서 다른 키 홀드 중 릴리즈해도 종결 판정 발생", () => {
+  it("BODY_AWAITING_RELEASE에서 한 키만 떼면 유지, 레인 완전 릴리즈에 종결", () => {
     const lane: Lane = 1;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -152,14 +155,17 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     // 아직 판정 없음 (키 유지 중이므로 릴리즈 대기)
     expect(judgments.length).toBe(0);
 
-    // 키 A만 릴리즈 (키 B 홀드 유지)
+    // 키 A만 릴리즈 (키 B 홀드 유지) → 레인 아직 유지되므로 종결 안 함 (b)
     engine.onLaneRelease(lane, endMs + 50, "KeyA");
+    expect(judgments.length).toBe(0);
 
+    // 키 B도 릴리즈 (레인 완전 릴리즈) → 종결
+    engine.onLaneRelease(lane, endMs + 60, "KeyB");
     expect(judgments.length).toBe(1);
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("BODY_ACTIVE 상태에서 끝점 Good 윈도우 내 단일 키 릴리즈로 종결 판정 발생", () => {
+  it("BODY_ACTIVE 끝점 Good 윈도우에서 레인 완전 릴리즈로 종결", () => {
     const lane: Lane = 2;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -178,10 +184,12 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     engine.update(startMs);
     engine.update(startMs + 1000);
 
-    // 끝점 Good 윈도우 진입 직후 (끝점 전) 키 하나 릴리즈
-    const releaseTime = endMs - 50; // Good 윈도우 내
-    engine.onLaneRelease(lane, releaseTime, "KeyE");
+    // 끝점 Good 윈도우 내에서 한 키만 떼면 유지 (b)
+    engine.onLaneRelease(lane, endMs - 50, "KeyE");
+    expect(judgments.length).toBe(0);
 
+    // 나머지 키도 떼면 (레인 완전 릴리즈, 윈도우 내) 종결
+    engine.onLaneRelease(lane, endMs - 45, "KeyC");
     expect(judgments.length).toBe(1);
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
