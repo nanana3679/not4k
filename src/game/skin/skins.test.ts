@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SKIN_LIST, getSkinManifest } from "./skins";
+import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
   it("3개 스킨이 등록되어 있음", () => {
@@ -28,6 +28,25 @@ describe("SKIN_LIST", () => {
       expect(skin.assets.gearFrame).toBe("/gear/gear-frame.png");
       expect(skin.assets.gearGaugeLeft).toBe("/gear/gear-gauge-left.png");
       expect(skin.assets.gearGaugeRight).toBe("/gear/gear-gauge-right.png");
+    }
+  });
+});
+
+describe("AVAILABLE_SKINS", () => {
+  it("available=true인 스킨만 포함하며 crystal만 선택 가능", () => {
+    const ids = AVAILABLE_SKINS.map((s) => s.theme.id);
+    expect(ids).toEqual(["crystal"]);
+  });
+
+  it("prism, classic은 available=false라 선택지에서 제외됨", () => {
+    const ids = AVAILABLE_SKINS.map((s) => s.theme.id);
+    expect(ids).not.toContain("prism");
+    expect(ids).not.toContain("classic");
+  });
+
+  it("AVAILABLE_SKINS의 모든 스킨은 available 플래그가 true", () => {
+    for (const skin of AVAILABLE_SKINS) {
+      expect(skin.theme.available).toBe(true);
     }
   });
 });

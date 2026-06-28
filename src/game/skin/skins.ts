@@ -52,6 +52,7 @@ export const SKIN_LIST: SkinManifest[] = [
   buildManifest("crystal", {
     id: "crystal",
     name: "Crystal",
+    available: true,
     accent: 0xff3060,
     beamColor: 0xffffff,
     heldLine: 0xff3060,
@@ -62,6 +63,7 @@ export const SKIN_LIST: SkinManifest[] = [
   buildManifest("prism", {
     id: "prism",
     name: "Prism",
+    available: false,
     accent: 0xa060f0,
     beamColor: 0x00ff88,
     heldLine: 0xffffff,
@@ -72,6 +74,7 @@ export const SKIN_LIST: SkinManifest[] = [
   buildManifest("classic", {
     id: "classic",
     name: "Classic",
+    available: false,
     accent: 0x4488ff,
     beamColor: 0xffffff,
     heldLine: 0x4488ff,
@@ -80,6 +83,11 @@ export const SKIN_LIST: SkinManifest[] = [
     text: 0xe0e0e0,
   }),
 ];
+
+/** 에셋이 준비되어 실제 선택 가능한 스킨만 추린 목록 (선택 UI용) */
+export const AVAILABLE_SKINS: SkinManifest[] = SKIN_LIST.filter(
+  (s) => s.theme.available
+);
 
 export function getSkinManifest(skinId: string): SkinManifest {
   const skin = SKIN_LIST.find((s) => s.theme.id === skinId);

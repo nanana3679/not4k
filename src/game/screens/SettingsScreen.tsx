@@ -1,5 +1,5 @@
 import { useGameStore, PRESET_BINDINGS } from '../stores';
-import { SKIN_LIST } from '../skin';
+import { AVAILABLE_SKINS } from '../skin';
 import { useState, useEffect, useRef } from 'react';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
@@ -322,7 +322,7 @@ export function SettingsScreen() {
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Skin</h2>
             <div style={styles.skinGrid}>
-              {SKIN_LIST.map((skin) => {
+              {AVAILABLE_SKINS.map((skin) => {
                 const isSelected = settings.skinId === skin.theme.id;
                 return (
                   <button

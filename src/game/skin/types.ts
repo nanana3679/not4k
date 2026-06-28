@@ -4,6 +4,8 @@
 export interface SkinTheme {
   id: string;
   name: string;
+  /** 에셋(PNG)이 모두 준비되어 실제 선택 가능한지 여부. false면 선택지에서 숨긴다 */
+  available: boolean;
   /** 강조색 (판정 이펙트 등) */
   accent: number;
   /** 키빔 색상 */
