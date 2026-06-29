@@ -6,8 +6,12 @@ export const LANE_COUNT = 4;
 
 export const LANE_WIDTH = 60; // px per lane
 export const NOTE_HEIGHT = 12; // px
-export const TRILL_ZONE_HANDLE_SIZE = 12; // px — 트릴존 구간 단위 선택(이동) 핸들 크기. 구간 시작(아래)의 좌측 코너에 그립 점(⠿) 아이콘과 함께 표시
-export const TRILL_ZONE_RESIZE_BAR_HEIGHT = 4; // px — 트릴존 끝점 리사이즈 핸들(수평 바) 두께. 구간 끝(위) 가장자리에 표시
+// 트릴존 핸들 — 테두리·글리프 없는 단색 도형 2개를 모양(실루엣)으로 구분(hover 시에만).
+export const TRILL_RESIZE_CAP_HEIGHT = 5;  // px — 리사이즈 캡(끝=위, 풀폭 가로 바) 높이
+export const TRILL_RESIZE_CAP_INSET = 4;   // px — 캡 좌우 인셋(인접 레인 구분선과 분리)
+export const TRILL_MOVE_PILL_WIDTH = 24;   // px — 이동 필(시작=아래, 라운드 캡슐) 폭. 이동 핸들 가로 히트폭도 겸함
+export const TRILL_MOVE_PILL_HEIGHT = 8;   // px — 이동 필 높이
+export const TRILL_HANDLE_SELECTED_BUMP = 1; // px — 구간 단위 선택 시 도형 높이 증가(색+형태 이중 채널)
 export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
 // Extra lanes (editor-only auxiliary lanes)

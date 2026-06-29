@@ -118,6 +118,7 @@ export class TimelineRenderer {
   private _selectedExtraNotes: Set<number> = new Set();
   private _hoveredNoteIndex: number | null = null;
   private _hoveredExtraNoteIndex: number | null = null;
+  private _hoveredTrillZoneIndex: number | null = null;
 
   // Last playback cursor time (for re-render on layout change)
   private _lastCursorTimeMs: number = 0;
@@ -332,6 +333,7 @@ export class TimelineRenderer {
     const overlayHost: OverlayHost = {
       get chart() { return self.chart; },
       get extraNotes() { return self._extraNotes; },
+      get selectedTrillZones() { return self._selectedTrillZones; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
@@ -472,6 +474,13 @@ export class TimelineRenderer {
   setHoveredExtraNote(index: number | null): void {
     if (this._hoveredExtraNoteIndex === index) return;
     this._hoveredExtraNoteIndex = index;
+    this.updateHoverOverlay();
+  }
+
+  /** Set hovered trill zone index (or null to clear) — 핸들을 hover 시에만 표시 */
+  setHoveredTrillZone(index: number | null): void {
+    if (this._hoveredTrillZoneIndex === index) return;
+    this._hoveredTrillZoneIndex = index;
     this.updateHoverOverlay();
   }
 
@@ -886,7 +895,7 @@ export class TimelineRenderer {
    * Draw hover outline in the dedicated hover layer (lightweight, no full re-render).
    */
   private updateHoverOverlay(): void {
-    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredExtraNoteIndex);
+    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredExtraNoteIndex, this._hoveredTrillZoneIndex);
   }
 
   /**

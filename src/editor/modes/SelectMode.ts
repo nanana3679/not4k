@@ -205,6 +205,20 @@ export class SelectMode {
     return this.originalPositions;
   }
 
+  /**
+   * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 트릴 구간 인덱스. 없으면 null.
+   * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위해 사용한다.
+   */
+  get draggingTrillZoneIndex(): number | null {
+    if (this.dragType === "resize" && this.resizingEntityType === "trillZone") {
+      return this.resizingIndex;
+    }
+    if (this.isMoveDragging && this.selectedZoneIndices.size === 1) {
+      return [...this.selectedZoneIndices][0];
+    }
+    return null;
+  }
+
   /** Whether a box select drag is currently in progress */
   get isBoxSelecting(): boolean {
     return this.isDragging && this.dragType === "boxSelect";
@@ -378,8 +392,8 @@ export class SelectMode {
       }
     }
 
-    // 3. Trill zone selection handle (시작=아래의 좌측 코너) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
-    //    이동(시작)과 리사이즈(끝)는 양 끝으로 분리된다. 길이 0 구간(시작==끝)에서는 코너가 선택 핸들로 우선한다.
+    // 3. Trill zone selection handle (시작=아래의 가로 중앙 박스) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
+    //    이동(시작)과 리사이즈(끝)는 양 끝으로 분리된다. 길이 0 구간(시작==끝)은 이동 핸들 비활성(리사이즈만).
     if (this.callbacks.hitTestTrillZoneHandle) {
       const handleHit = this.callbacks.hitTestTrillZoneHandle(x, y);
       if (handleHit !== null) {

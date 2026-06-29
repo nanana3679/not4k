@@ -15,11 +15,13 @@ import {
 } from "./constants";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
+import { drawTrillZoneHandles } from "./trillZoneHandles";
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
   readonly extraNotes: ExtraNoteEntity[];
+  readonly selectedTrillZones: Set<number>;
   readonly violatingNoteIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
@@ -292,7 +294,7 @@ export class OverlayRenderer {
   /**
    * 호버 오버레이 업데이트 (경량, 풀 리렌더 없음)
    */
-  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredExtraNoteIndex: number | null): void {
+  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredExtraNoteIndex: number | null, hoveredTrillZoneIndex: number | null = null): void {
     destroyChildren(this.host.hoverLayer);
     if (!this.host.chart) return;
 
@@ -353,6 +355,16 @@ export class OverlayRenderer {
         gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
         this.host.hoverLayer.addChild(gfx);
       }
+    }
+
+    // hover한 트릴 구간의 이동/리사이즈 핸들 (hover 시에만 표시)
+    if (hoveredTrillZoneIndex !== null && hoveredTrillZoneIndex < this.host.chart.trillZones.length) {
+      const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
+      const x = (zone.lane - 1) * LANE_WIDTH;
+      const startY = this.host.timeToY(beatToMs(zone.beat, bpmMarkers, meta.offsetMs));
+      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
+      const selected = this.host.selectedTrillZones.has(hoveredTrillZoneIndex);
+      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, startY, endY, selected);
     }
   }
 

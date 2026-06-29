@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { SnapZoomController } from '../timeline/SnapZoomController';
-import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, TRILL_ZONE_HANDLE_SIZE } from '../timeline/constants';
+import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, TRILL_MOVE_PILL_WIDTH } from '../timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt } from '../timeline/hitTest';
 import {
   beatFloatToRawBeat,
@@ -169,7 +169,7 @@ export function useCoordinateHelpers(
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const xInLane = x - (lane - 1) * LANE_WIDTH;
-    return hitTestTrillZoneHandleAt(chart.trillZones, lane, beat.n / beat.d, xInLane, TRILL_ZONE_HANDLE_SIZE);
+    return hitTestTrillZoneHandleAt(chart.trillZones, lane, beat.n / beat.d, xInLane, TRILL_MOVE_PILL_WIDTH, LANE_WIDTH);
   }, [chart.trillZones, xToLane, yToBeatRaw]);
 
   const hitTestExtraNote = useCallback((x: number, y: number): number | null => {

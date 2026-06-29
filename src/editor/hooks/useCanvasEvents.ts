@@ -129,7 +129,8 @@ export function useCanvasEvents(
     xToLane, xToExtraLane,
     yToBeat, yToBeatRaw, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
+    hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
   } = coords;
@@ -653,9 +654,25 @@ export function useCanvasEvents(
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
+    // 트릴 구간 핸들은 select 모드에서만 표시한다.
+    const hoverTrillZoneHit = mode === 'select' ? hitTestTrillZoneRef.current(x, y) : null;
+    // 트릴 구간을 리사이즈/이동하는 동안엔 커서가 구간 밖으로 나가도 핸들을 계속 표시한다.
+    const draggingTrillZone = selectModeRef.current?.draggingTrillZoneIndex ?? null;
     if (rendererRef.current) {
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredExtraNote(hoverExtraHit);
+      rendererRef.current.setHoveredTrillZone(draggingTrillZone !== null ? draggingTrillZone : hoverTrillZoneHit);
+    }
+
+    // 트릴 핸들 위 커서: 이동 필=move, 리사이즈 캡=ns-resize(↕). select 모드에서만.
+    const canvasEl = canvasRef.current;
+    if (canvasEl) {
+      let cursor = '';
+      if (mode === 'select') {
+        if (hitTestTrillZoneHandleRef.current(x, y) !== null) cursor = 'move';
+        else if (hitTestTrillZoneEndRef.current(x, y) !== null) cursor = 'ns-resize';
+      }
+      if (canvasEl.style.cursor !== cursor) canvasEl.style.cursor = cursor;
     }
     const isHoveringEntity = hoverNoteHit !== null || hoverExtraHit !== null;
 
