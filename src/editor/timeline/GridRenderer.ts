@@ -10,7 +10,6 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   NOTE_HEIGHT,
-  TRILL_ZONE_HANDLE_SIZE,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
@@ -362,12 +361,8 @@ export class GridRenderer {
       }
       this.host.trillZoneLayer.addChild(bg);
 
-      // 구간 단위 선택용 핸들 마커 (구간 끝=위쪽의 좌측 코너). 끝 영역의 나머지는
-      // 리사이즈가 차지하므로 코너에만 둔다. 클릭 시 구간 단위로 선택된다.
-      const handle = new Graphics();
-      handle.rect(x, endY - TRILL_ZONE_HANDLE_SIZE / 2, TRILL_ZONE_HANDLE_SIZE, TRILL_ZONE_HANDLE_SIZE);
-      handle.fill({ color: selected ? COLORS.SELECTED_OUTLINE : COLORS.TRILL_ZONE, alpha: 0.95 });
-      this.host.trillZoneLayer.addChild(handle);
+      // 이동/리사이즈 핸들은 hover 시에만 hoverLayer(OverlayRenderer)에 그린다.
+      // 구간 배경(bg)만 항상 렌더링한다.
     }
   }
 }
