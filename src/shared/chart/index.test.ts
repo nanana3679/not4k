@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildSaveAsMeta, deserializeChart } from './index';
-import type { ChartMeta } from '../types/chart';
+import { buildSaveAsMeta, deserializeChart, serializeChart } from './index';
+import type { ChartMeta, RangeNote } from '../types/chart';
 
 const baseMeta: ChartMeta = {
   title: 'Test Song',
@@ -69,5 +69,34 @@ describe('deserializeChart 입력 검증', () => {
 
   it('trillZones 필드가 배열이 아니면 에러', () => {
     expect(() => deserializeChart('{"meta":{},"notes":[],"trillZones":"bad"}')).toThrow('trillZones 필드가 배열이 아닙니다');
+  });
+});
+
+describe('holdOnly 저장→불러오기 왕복 보존', () => {
+  function chartJson(notes: object[]): string {
+    return JSON.stringify({ version: 3, meta: baseMeta, notes, trillZones: [], events: [] });
+  }
+
+  it('holdOnly 롱노트는 저장→불러오기 왕복 후에도 holdOnly=true 유지', () => {
+    const loaded = deserializeChart(chartJson([{ type: 'long', lane: 1, beat: '0', endBeat: '4', holdOnly: true }]));
+    const roundTripped = deserializeChart(serializeChart(loaded));
+    expect((roundTripped.notes[0] as RangeNote).holdOnly).toBe(true);
+  });
+
+  it('holdOnly 더블롱도 왕복 후 holdOnly=true 유지', () => {
+    const loaded = deserializeChart(chartJson([{ type: 'doubleLong', lane: 2, beat: '0', endBeat: '4', holdOnly: true }]));
+    const roundTripped = deserializeChart(serializeChart(loaded));
+    expect((roundTripped.notes[0] as RangeNote).holdOnly).toBe(true);
+  });
+
+  it('serializeChart 출력 JSON에 holdOnly 필드가 포함된다', () => {
+    const loaded = deserializeChart(chartJson([{ type: 'long', lane: 1, beat: '0', endBeat: '4', holdOnly: true }]));
+    expect(serializeChart(loaded)).toContain('"holdOnly": true');
+  });
+
+  it('holdOnly 없는 롱노트는 왕복 후에도 holdOnly 미부여(undefined)', () => {
+    const loaded = deserializeChart(chartJson([{ type: 'long', lane: 1, beat: '0', endBeat: '4' }]));
+    const roundTripped = deserializeChart(serializeChart(loaded));
+    expect((roundTripped.notes[0] as RangeNote).holdOnly).toBeUndefined();
   });
 });

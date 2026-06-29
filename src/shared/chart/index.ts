@@ -10,6 +10,7 @@ import type {
   ChartMeta,
   NoteEntity,
   PointNote,
+  RangeNote,
   TrillZone,
   ChartEvent,
   ExtraNoteEntity,
@@ -32,6 +33,7 @@ interface RangeNoteJson {
   lane: 1 | 2 | 3 | 4;
   beat: string;
   endBeat: string;
+  holdOnly?: boolean;
 }
 
 /** 레거시 v1 포맷 (singleLong 결합 엔티티) */
@@ -140,12 +142,14 @@ export interface ChartJsonV3 {
 
 function serializeNote(n: NoteEntity): NoteEntityJson {
   if ("endBeat" in n) {
-    return {
+    const json: RangeNoteJson = {
       type: n.type,
       lane: n.lane,
       beat: beatToString(n.beat),
       endBeat: beatToString(n.endBeat),
     };
+    if (n.holdOnly) json.holdOnly = true;
+    return json;
   }
   const json: PointNoteJson = { type: n.type, lane: n.lane, beat: beatToString(n.beat) };
   if (n.grace) json.grace = true;
@@ -216,12 +220,14 @@ export function buildSaveAsMeta(
 
 function parseNote(n: NoteEntityJson): NoteEntity {
   if ("endBeat" in n) {
-    return {
+    const note: RangeNote = {
       type: n.type,
       lane: n.lane,
       beat: beatFromString(n.beat),
       endBeat: beatFromString(n.endBeat),
     };
+    if (n.holdOnly) note.holdOnly = true;
+    return note;
   }
   const note: PointNote = { type: n.type, lane: n.lane, beat: beatFromString(n.beat) };
   if (n.grace) note.grace = true;
