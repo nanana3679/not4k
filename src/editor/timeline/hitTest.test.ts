@@ -216,37 +216,37 @@ describe("hitTestTrillZoneAt", () => {
 });
 
 // ---------------------------------------------------------------------------
-// hitTestTrillZoneHandleAt — 구간 단위 선택 핸들(구간 시작점)
+// hitTestTrillZoneHandleAt — 구간 단위 선택(이동) 핸들(구간 시작점=아래)
 // ---------------------------------------------------------------------------
 
 describe("hitTestTrillZoneHandleAt", () => {
   const zones: TrillZone[] = [
-    { lane: 1 as const, beat: beat(2), endBeat: beat(4) }, // 0: 끝 beat4
-    { lane: 2 as const, beat: beat(6), endBeat: beat(8) }, // 1: 끝 beat8
+    { lane: 1 as const, beat: beat(2), endBeat: beat(4) }, // 0: 시작 beat2
+    { lane: 2 as const, beat: beat(6), endBeat: beat(8) }, // 1: 시작 beat6
   ];
   const W = 10; // handleWidth(px)
 
-  it("구간 끝(위)의 좌측 코너에서 핸들 히트", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 4, 0, W)).toBe(0);   // 코너(xInLane 0)
-    expect(hitTestTrillZoneHandleAt(zones, 2, 8, 5, W)).toBe(1);
+  it("구간 시작(아래)의 좌측 코너에서 핸들 히트", () => {
+    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 0, W)).toBe(0);   // 코너(xInLane 0)
+    expect(hitTestTrillZoneHandleAt(zones, 2, 6, 5, W)).toBe(1);
   });
 
-  it("끝점이라도 코너 밖(xInLane > handleWidth)이면 미스 — 리사이즈 영역", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 4, 30, W)).toBeNull();
+  it("시작점이라도 코너 밖(xInLane > handleWidth)이면 미스", () => {
+    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 30, W)).toBeNull();
   });
 
-  it("끝점 tolerance(1/16) 이내 + 코너면 히트", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 4.05, 0, W)).toBe(0);
-    expect(hitTestTrillZoneHandleAt(zones, 1, 3.95, 2, W)).toBe(0);
+  it("시작점 tolerance(1/16) 이내 + 코너면 히트", () => {
+    expect(hitTestTrillZoneHandleAt(zones, 1, 2.05, 0, W)).toBe(0);
+    expect(hitTestTrillZoneHandleAt(zones, 1, 1.95, 2, W)).toBe(0);
   });
 
-  it("구간 시작/중간은 핸들이 아니다(끝점만)", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 0, W)).toBeNull();
+  it("구간 끝/중간은 핸들이 아니다(시작점만) — 끝은 리사이즈 영역", () => {
+    expect(hitTestTrillZoneHandleAt(zones, 1, 4, 0, W)).toBeNull();
     expect(hitTestTrillZoneHandleAt(zones, 1, 3, 0, W)).toBeNull();
   });
 
   it("다른 레인은 미스", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 2, 4, 0, W)).toBeNull();
+    expect(hitTestTrillZoneHandleAt(zones, 2, 2, 0, W)).toBeNull();
   });
 });
 

@@ -6,7 +6,8 @@ export const LANE_COUNT = 4;
 
 export const LANE_WIDTH = 60; // px per lane
 export const NOTE_HEIGHT = 12; // px
-export const TRILL_ZONE_HANDLE_SIZE = 10; // px — 트릴존 구간 단위 선택 핸들 크기
+export const TRILL_ZONE_HANDLE_SIZE = 12; // px — 트릴존 구간 단위 선택(이동) 핸들 크기. 구간 시작(아래)의 좌측 코너에 그립 점(⠿) 아이콘과 함께 표시
+export const TRILL_ZONE_RESIZE_BAR_HEIGHT = 4; // px — 트릴존 끝점 리사이즈 핸들(수평 바) 두께. 구간 끝(위) 가장자리에 표시
 export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
 // Extra lanes (editor-only auxiliary lanes)

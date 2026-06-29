@@ -110,12 +110,12 @@ export function hitTestTrillZoneAt(
 }
 
 /**
- * 트릴 구간의 "선택 핸들" 히트 테스트.
+ * 트릴 구간의 "선택(이동) 핸들" 히트 테스트.
  *
- * 핸들은 구간의 끝(endBeat, 화면상 위쪽)의 **좌측 코너**에 둔다. 끝 영역의 나머지는
- * 리사이즈(hitTestTrillZoneEnd)가 차지하므로, 레인 왼쪽 `handleWidth`px 이내(xInLane)
- * 이면서 beatFloat가 endBeat ±tolerance인 경우에만 핸들로 인정한다.
- * onPointerDown에서 리사이즈보다 먼저 검사하여, 코너는 선택 핸들이 우선한다.
+ * 핸들은 구간의 시작(beat, 화면상 아래쪽)의 **좌측 코너**에 둔다. 끝(endBeat, 위쪽)
+ * 가장자리는 리사이즈(hitTestTrillZoneEnd)가 차지하므로, 두 동작을 양 끝으로 분리한다.
+ * 레인 왼쪽 `handleWidth`px 이내(xInLane)이면서 beatFloat가 시작 beat ±tolerance인
+ * 경우에만 핸들로 인정한다. 길이 0인 구간(시작==끝)에서는 코너가 선택 핸들로 우선한다.
  */
 export function hitTestTrillZoneHandleAt(
   trillZones: readonly TrillZone[],
@@ -129,8 +129,8 @@ export function hitTestTrillZoneHandleAt(
   for (let i = 0; i < trillZones.length; i++) {
     const zone = trillZones[i];
     if (zone.lane !== lane) continue;
-    const end = zone.endBeat.n / zone.endBeat.d;
-    if (Math.abs(beatFloat - end) <= tolerance) return i;
+    const start = zone.beat.n / zone.beat.d;
+    if (Math.abs(beatFloat - start) <= tolerance) return i;
   }
   return null;
 }

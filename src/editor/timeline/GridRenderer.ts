@@ -11,6 +11,7 @@ import {
   LANE_WIDTH,
   NOTE_HEIGHT,
   TRILL_ZONE_HANDLE_SIZE,
+  TRILL_ZONE_RESIZE_BAR_HEIGHT,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
@@ -362,12 +363,58 @@ export class GridRenderer {
       }
       this.host.trillZoneLayer.addChild(bg);
 
-      // 구간 단위 선택용 핸들 마커 (구간 끝=위쪽의 좌측 코너). 끝 영역의 나머지는
-      // 리사이즈가 차지하므로 코너에만 둔다. 클릭 시 구간 단위로 선택된다.
+      const handleColor = selected ? COLORS.SELECTED_OUTLINE : COLORS.TRILL_ZONE;
+
+      // 끝점 리사이즈 핸들 (구간 끝=위쪽 가장자리의 얇은 수평 바 + 수직 양방향 화살표 ↕).
+      // 끝 가장자리를 드래그하면 endBeat가 변경된다. ↕는 끝점이 세로(시간축)로만 늘어남을 알린다.
+      const resizeBar = new Graphics();
+      resizeBar.rect(x, endY - TRILL_ZONE_RESIZE_BAR_HEIGHT / 2, width, TRILL_ZONE_RESIZE_BAR_HEIGHT);
+      resizeBar.fill({ color: handleColor, alpha: 0.95 });
+      drawResizeIcon(resizeBar, x + width / 2, endY);
+      this.host.trillZoneLayer.addChild(resizeBar);
+
+      // 구간 단위 선택(이동) 핸들 마커 (구간 시작=아래쪽의 좌측 코너 + 그립 점 ⠿).
+      // 끝의 리사이즈 바와 양 끝으로 분리해 동작을 구분한다. 클릭 시 구간 단위 선택, 드래그 시
+      // 구간째 이동. 점 형태로 리사이즈 ↕와 구분된다.
       const handle = new Graphics();
-      handle.rect(x, endY - TRILL_ZONE_HANDLE_SIZE / 2, TRILL_ZONE_HANDLE_SIZE, TRILL_ZONE_HANDLE_SIZE);
-      handle.fill({ color: selected ? COLORS.SELECTED_OUTLINE : COLORS.TRILL_ZONE, alpha: 0.95 });
+      handle.rect(x, startY - TRILL_ZONE_HANDLE_SIZE / 2, TRILL_ZONE_HANDLE_SIZE, TRILL_ZONE_HANDLE_SIZE);
+      handle.fill({ color: handleColor, alpha: 0.95 });
+      drawMoveIcon(handle, x + TRILL_ZONE_HANDLE_SIZE / 2, startY);
       this.host.trillZoneLayer.addChild(handle);
     }
   }
+}
+
+/** 핸들 아이콘 색 — 밝은 핸들(초록/선택 시 빨강) 위에서 대비되는 어두운 색 */
+const TRILL_HANDLE_ICON_COLOR = 0x07101f;
+
+/**
+ * 이동 핸들용 그립 점(⠿) 아이콘을 핸들 중심(cx, cy)에 그린다.
+ * 2열 × 3행의 점으로 "잡아서 옮기는" 드래그 핸들임을 나타낸다(리사이즈 ↕와 형태로 구분).
+ */
+function drawMoveIcon(g: Graphics, cx: number, cy: number): void {
+  const dx = 2.4; // 점 가로 간격(중심 기준)
+  const dy = 3;   // 점 세로 간격
+  const r = 1;    // 점 반지름
+  for (const ox of [-dx, dx]) {
+    for (const oy of [-dy, 0, dy]) {
+      g.circle(cx + ox, cy + oy, r);
+    }
+  }
+  g.fill({ color: TRILL_HANDLE_ICON_COLOR });
+}
+
+/**
+ * 리사이즈 핸들용 수직 양방향 화살표(↕) 아이콘을 (cx, cy)에 그린다.
+ * 끝점이 세로(시간축)로만 늘어남을 의미한다.
+ */
+function drawResizeIcon(g: Graphics, cx: number, cy: number): void {
+  const a = 5;    // 화살표 절반 길이
+  const hw = 3;   // 화살촉 반폭
+  const hl = 2.5; // 화살촉 길이
+  g.moveTo(cx, cy - a).lineTo(cx, cy + a);
+  g.stroke({ color: TRILL_HANDLE_ICON_COLOR, width: 1.2 });
+  g.poly([cx, cy - a - hl, cx - hw, cy - a, cx + hw, cy - a]); // 위 화살촉
+  g.poly([cx, cy + a + hl, cx - hw, cy + a, cx + hw, cy + a]); // 아래 화살촉
+  g.fill({ color: TRILL_HANDLE_ICON_COLOR });
 }

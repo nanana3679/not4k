@@ -378,8 +378,8 @@ export class SelectMode {
       }
     }
 
-    // 3. Trill zone selection handle (끝의 좌측 코너) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
-    //    리사이즈(끝)보다 먼저 검사해 코너는 선택 핸들이 우선한다.
+    // 3. Trill zone selection handle (시작=아래의 좌측 코너) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
+    //    이동(시작)과 리사이즈(끝)는 양 끝으로 분리된다. 길이 0 구간(시작==끝)에서는 코너가 선택 핸들로 우선한다.
     if (this.callbacks.hitTestTrillZoneHandle) {
       const handleHit = this.callbacks.hitTestTrillZoneHandle(x, y);
       if (handleHit !== null) {
