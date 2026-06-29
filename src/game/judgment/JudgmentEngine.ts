@@ -150,13 +150,13 @@ export class JudgmentEngine {
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 레인별 "소진된(spent)" 키 — terminal hold-only/슬라이드를 held로 완료시킨 키 (RFD 0008).
+   * 레인별 공릴리즈 키 (empty release keys) — terminal hold-only/슬라이드를 held로 완료시킨 키 (RFD 0008).
    * 이 키의 release는 "놓기"이므로 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을
    * 트리거하지 않는다. 키를 떼거나 다시 누르면 정리.
    * 롱노트는 한 레인에서 겹칠 수 없으므로(배치 제약 — 다중키 구간은 doubleLong 한 노트, 경계는 연결),
-   * 소진 키가 다른 진행 중 롱의 키와 충돌하지 않는다 → 예외 없이 무조건 스킵한다.
+   * 공릴리즈 키가 다른 진행 중 롱의 키와 충돌하지 않는다 → 예외 없이 무조건 스킵한다.
    */
-  private readonly spentReleaseKeys: Map<Lane, Set<string>> = new Map();
+  private readonly emptyReleaseKeys: Map<Lane, Set<string>> = new Map();
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -192,7 +192,7 @@ export class JudgmentEngine {
         lastReleaseTimeMs: null,
         heldKeys: new Set(),
       });
-      this.spentReleaseKeys.set(lane, new Set());
+      this.emptyReleaseKeys.set(lane, new Set());
       this.trillAlternation.set(lane, null);
       this.trillZoneNextIndex.set(lane, 0);
       this.trillZoneCurrentStartMs.set(lane, null);
@@ -267,7 +267,7 @@ export class JudgmentEngine {
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
-    this.spentReleaseKeys.get(lane)?.delete(keyCode); // 다시 누르면 소진 해제 (RFD 0008)
+    this.emptyReleaseKeys.get(lane)?.delete(keyCode); // 다시 누르면 공릴리즈 해제 (RFD 0008)
     // Grace period 내 재입력 시 릴리즈 기록 클리어 (프레임 기반 오판 방지)
     if (
       holdState.lastReleaseTimeMs !== null &&
@@ -349,8 +349,8 @@ export class JudgmentEngine {
       this.checkSlideReleaseOnRelease(lane, timestampMs, keyCode);
     }
 
-    // 놓기 release 처리 후 소진 키 해제 (RFD 0008)
-    this.spentReleaseKeys.get(lane)?.delete(keyCode);
+    // 놓기 release 처리 후 공릴리즈 키 해제 (RFD 0008)
+    this.emptyReleaseKeys.get(lane)?.delete(keyCode);
   }
 
   /**
@@ -386,7 +386,7 @@ export class JudgmentEngine {
       const note = this.notes[i] as RangeNote;
       if (note.lane !== lane) continue;
       // 다른 노트를 완료시킨 "놓기" 키는 끝점 종결을 트리거하지 않음 (RFD 0008)
-      if (this.isSpentRelease(lane, keyCode)) continue;
+      if (this.isEmptyRelease(lane, keyCode)) continue;
 
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
@@ -636,19 +636,19 @@ export class JudgmentEngine {
   }
 
   /**
-   * held로 완료된 노트를 유지하던 키(완료 시점의 실제 held 키)를 레인의 소진 집합에 추가 (RFD 0008).
+   * held로 완료된 노트를 유지하던 키(완료 시점의 실제 held 키)를 레인의 공릴리즈 집합에 추가 (RFD 0008).
    * 완료 시점의 held 키를 쓰므로, 흡수 없이 held로 진입한 pre-held 케이스도 닫힌다.
    */
-  private spendHeldKeys(lane: Lane): void {
+  private markEmptyRelease(lane: Lane): void {
     const holdState = this.laneHoldStates.get(lane);
-    const spent = this.spentReleaseKeys.get(lane);
-    if (!holdState || !spent) return;
-    for (const k of holdState.heldKeys) spent.add(k);
+    const emptySet = this.emptyReleaseKeys.get(lane);
+    if (!holdState || !emptySet) return;
+    for (const k of holdState.heldKeys) emptySet.add(k);
   }
 
-  /** 그 키의 release가 "놓기"(소진)인지 — 직후 노트의 release 판정을 막는다 (RFD 0008) */
-  private isSpentRelease(lane: Lane, keyCode: string): boolean {
-    return this.spentReleaseKeys.get(lane)?.has(keyCode) === true;
+  /** 그 키의 release가 "놓기"(공릴리즈)인지 — 직후 노트의 release 판정을 막는다 (RFD 0008) */
+  private isEmptyRelease(lane: Lane, keyCode: string): boolean {
+    return this.emptyReleaseKeys.get(lane)?.has(keyCode) === true;
   }
 
   /**
@@ -927,7 +927,7 @@ export class JudgmentEngine {
       const held = holdState.heldKeys.has(keyState.keyCode);
 
       if (isConnection) {
-        // 연결: 키별 held/grace → Perfect, 아님 → Miss (소진 안 함)
+        // 연결: 키별 held/grace → Perfect, 아님 → Miss (공릴리즈로 표시 안 함)
         const grace =
           keyState.lastReleaseTimeMs !== null &&
           songTimeMs - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
@@ -963,8 +963,8 @@ export class JudgmentEngine {
       }
     }
 
-    // hold-only는 held로 완료 시 유지 키 소진 (직후 "놓기" release 차단, RFD 0008)
-    if (holdOnly) this.spendHeldKeys(note.lane);
+    // hold-only는 held로 완료 시 유지 키를 공릴리즈로 표시 (직후 "놓기" release 차단, RFD 0008)
+    if (holdOnly) this.markEmptyRelease(note.lane);
   }
 
   /**
@@ -1119,7 +1119,7 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 연결은 "계속 잡는 것"이라 소진하지 않는다(놓기가 아님). 소진은 terminal hold-only/슬라이드만.
+        // 연결은 "계속 잡는 것"이라 공릴리즈로 표시하지 않는다(놓기가 아님). 공릴리즈는 terminal hold-only/슬라이드만.
       } else {
         // 종결 판정
         if (holdState.isHeld) {
@@ -1131,8 +1131,8 @@ export class JudgmentEngine {
             this.noteStates.set(i, NoteState.COMPLETE);
             this.doubleLongKeyStates.delete(i);
             this.incrementCombo();
-            // held로 완료 → 유지 키 소진 (직후 "놓기" release 차단, RFD 0008)
-            this.spendHeldKeys(note.lane);
+            // held로 완료 → 유지 키를 공릴리즈로 표시 (직후 "놓기" release 차단, RFD 0008)
+            this.markEmptyRelease(note.lane);
           } else {
             // 키 유지 중 → 릴리즈 대기
             this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
@@ -1199,7 +1199,7 @@ export class JudgmentEngine {
           this.incrementCombo();
           this.noteStates.set(i, NoteState.COMPLETE);
           this.consumedLongKeys.delete(i);
-          this.spendHeldKeys((note as RangeNote).lane);
+          this.markEmptyRelease((note as RangeNote).lane);
           continue;
         }
         if (songTimeMs > noteTime + this.windows.GOOD) {
@@ -1213,7 +1213,7 @@ export class JudgmentEngine {
           }
           this.noteStates.set(i, NoteState.COMPLETE);
           this.consumedLongKeys.delete(i);
-          if (perfects > 0) this.spendHeldKeys((note as RangeNote).lane);
+          if (perfects > 0) this.markEmptyRelease((note as RangeNote).lane);
         }
         continue;
       }
@@ -1224,8 +1224,8 @@ export class JudgmentEngine {
         this.noteStates.set(i, NoteState.COMPLETE);
         this.consumedLongKeys.delete(i);
         this.incrementCombo();
-        // held로 완료 → 유지 키 소진 (RFD 0008)
-        this.spendHeldKeys((note as RangeNote).lane);
+        // held로 완료 → 유지 키를 공릴리즈로 표시 (RFD 0008)
+        this.markEmptyRelease((note as RangeNote).lane);
         continue;
       }
 
@@ -1252,7 +1252,7 @@ export class JudgmentEngine {
       if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
       if ((note as RangeNote).lane !== lane) continue;
       // 다른 노트를 완료시킨 "놓기" 키는 슬라이드 미리-떼기를 트리거하지 않음 (RFD 0008)
-      if (this.isSpentRelease(lane, keyCode)) continue;
+      if (this.isEmptyRelease(lane, keyCode)) continue;
       // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정(미리 떼기 Perfect 미지원).
       if (note.type === NoteType.DOUBLE_LONG) continue;
 

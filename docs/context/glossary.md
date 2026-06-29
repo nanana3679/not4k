@@ -64,7 +64,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### 홀드 이어잡기 (Hold Succession)
 
-롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0008의 소진 키 누설 차단은 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다.)
+롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0008의 공릴리즈 누설 차단은 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다.)
 
 ### 홀드 트릴 (Hold Trill)
 
@@ -343,17 +343,19 @@ Play에서 **고도** 기반 클리어/실패를 결정하는 규칙. 난이도�
 
 ### 흡수 (consume)
 
-한 keydown이 가장 이른 한 노트에만 귀속되어 소진되는 것. 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다("한 입력 = 한 노트" 불변). 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
+한 keydown이 가장 이른 한 노트에만 귀속되어 소비되는 것(consume). 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다("한 입력 = 한 노트" 불변). 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
 
 > **영문 표기는 `consume`로 통일**한다(흡수 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
 
 **구현**: `consumedLongKeys`(흡수된 키 집합), `markLongConsumed`, `isHeadlessConsumable`(흡수 후보 판정), `requiredConsumeCount`(필요 키 수 싱글 1/더블 2).
 
-### 소진 키 (spent key)
+### 공릴리즈 (empty release)
 
-terminal hold-only/슬라이드를 held로 완료시킨 키. 그 키의 "놓기" release는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 **노트별 예외 없이 무조건 스킵**해 누설을 막는다(RFD 0008). 떼거나 다시 누르면 해제된다. (흡수=keydown 소비와 구분 — *소진*은 release 차단.)
+terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release. 이 release는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 **노트별 예외 없이 무조건 스킵**해 누설을 막는다(RFD 0008). 키를 떼거나 다시 누르면 해제된다. 흡수(consume)=keydown이 한 노트에 *쓰이는* 것과 대비해, **공릴리즈는 keyup이 어느 판정에도 *안 쓰이는*(빈) release**다 — 공푸어/공폭의 "공(空, 친 데 아무것도 없음)"과 같은 결.
 
-**구현**: `spentReleaseKeys`, `isSpentRelease`, `spendHeldKeys`.
+> **공릴리즈는 처벌이 아니라 스킵**이다. 공푸어(빈 입력 → Poor)와 달리, 공릴리즈는 판정을 *만들지 않고* 그냥 무시된다(이미 held로 완료돼 떼는 판정이 면제된 hold-only의 놓기이므로).
+
+**구현**: `emptyReleaseKeys`(레인별 공릴리즈 키 집합), `markEmptyRelease`(held 완료 시 등록), `isEmptyRelease`(가드).
 
 ### 이벤트 라우팅
 

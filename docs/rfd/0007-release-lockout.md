@@ -1,6 +1,6 @@
 # RFD 0007: held 완료 직후 release 락아웃 (release 누설 방지)
 
-**Status:** Superseded by [RFD 0008](0008-release-engage-key-attribution.md) (2026-06-27) — 슬라이드 락아웃은 제거되고, **소진 키(spent key)** 모델로 일반화되어 끝점·릴리즈 노트 누설까지 막는다(소진 키의 놓기 release는 직후 노트 판정을 무조건 스킵, 노트별 예외 없음). 아래는 그 중간 단계의 기록이다.
+**Status:** Superseded by [RFD 0008](0008-release-engage-key-attribution.md) (2026-06-27) — 슬라이드 락아웃은 제거되고, **공릴리즈 키(empty release)** 모델로 일반화되어 끝점·릴리즈 노트 누설까지 막는다(공릴리즈 키의 놓기 release는 직후 노트 판정을 무조건 스킵, 노트별 예외 없음). 아래는 그 중간 단계의 기록이다.
 
 ## 관련 문서
 

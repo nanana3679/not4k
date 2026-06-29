@@ -1631,7 +1631,7 @@ describe("o-o- 연결 — 끝점 헤드/스트레이 릴리즈에 강건 (releas
   });
 });
 
-describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
+describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
   const lane: Lane = 1;
 
   function holdOnlyLong(b: Beat, endBeat: Beat): NoteEntity {
@@ -1655,7 +1655,7 @@ describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 슬라이드 B 미판정(보호)
   });
 
-  it("다른(fresh) 키로 슬라이드를 engage한 뒤 미리 떼면 정상 Perfect (소진 키와 무관)", () => {
+  it("다른(fresh) 키로 슬라이드를 engage한 뒤 미리 떼면 정상 Perfect (공릴리즈 키와 무관)", () => {
     // A: hold-only 롱 1000~2000 (KeyA engage), C: 슬라이드 2300
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(12, 1))];
     const t = new Map([[0, 1000], [1, 2300]]);
@@ -1663,8 +1663,8 @@ describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A held Perfect → KeyA 소진
-    engine.onLaneRelease(lane, 2010, "KeyA"); // A 놓기(소진 키 해제)
+    engine.update(2000); // A held Perfect → KeyA 공릴리즈
+    engine.onLaneRelease(lane, 2010, "KeyA"); // A 놓기(공릴리즈 키 해제)
     engine.onLanePress(lane, 2250, "KeyB"); // C를 fresh 키로 engage
     engine.onLaneRelease(lane, 2260, "KeyB"); // C 미리-떼기 윈도우[2180,2300) → 정상 Perfect
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
@@ -1678,13 +1678,13 @@ describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A Perfect → KeyA 소진
+    engine.update(2000); // A Perfect → KeyA 공릴리즈
     engine.update(2055); // R → BODY_AWAITING_RELEASE
     engine.onLaneRelease(lane, 2060, "KeyA"); // 놓기 — R로 새면 안 됨
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
   });
 
-  it("연결 체인(hold-only → 일반 롱)에서 끝까지 유지 후 release-tap이 소진에 막히지 않는다", () => {
+  it("연결 체인(hold-only → 일반 롱)에서 끝까지 유지 후 release-tap이 공릴리즈에 막히지 않는다", () => {
     // L1: hold-only 롱 1000~2000, L2: 일반 롱 2000~3000 (연결: L1 끝=L2 시작). 한 키로 쭉 유지.
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(8, 1), beat(16, 1))];
     const t = new Map([[0, 1000], [1, 2000]]);
@@ -1692,8 +1692,8 @@ describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA"); // L1 engage, 쭉 유지
     engine.update(1000);
-    engine.update(2000); // L1 끝점 → L2와 연결(held Perfect). 연결은 소진 안 함
-    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 release-tap — 소진에 막히면 안 됨
+    engine.update(2000); // L1 끝점 → L2와 연결(held Perfect). 연결은 공릴리즈 안 함
+    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 release-tap — 공릴리즈에 막히면 안 됨
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
@@ -1705,7 +1705,7 @@ describe("release 소진 키 누설 차단 — held 완료 직후 놓기 누설 
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 800, "KeyA"); // pre-held (흡수 안 됨)
     engine.update(1000); // A BODY_ACTIVE (held로 진입)
-    engine.update(2000); // A held Perfect → 유지 키(KeyA) 소진
+    engine.update(2000); // A held Perfect → 유지 키(KeyA) 공릴리즈
     engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B로 새면 안 됨
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
   });
