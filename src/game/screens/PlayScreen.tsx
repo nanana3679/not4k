@@ -5,6 +5,7 @@ import { AudioEngine } from '../audio';
 import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
 import { ScoreManager } from '../scoring';
+import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
@@ -150,6 +151,12 @@ export function PlayScreen() {
         const audioEngine = new AudioEngine();
         audioEngine.masterVolume = settings.masterVolume ?? 1;
         audioEngine.playbackRate = settings.playSpeed;
+        // 이 플레이 세션의 시간 권위. 판정/시각/입력 시간을 단일 출처에서 파생한다.
+        // offset은 세션 동안 불변이므로 여기서 캡처한다.
+        const gameClock = new GameClock(audioEngine, {
+          audioOffsetMs: settings.audioOffsetMs,
+          judgmentOffsetMs: settings.judgmentOffsetMs,
+        });
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);
         const renderer = new GameRenderer({
@@ -220,7 +227,7 @@ export function PlayScreen() {
               if (debugLogger && !isBody) {
                 const noteTimeMs = noteTimesMs.get(result.noteIndex);
                 if (noteTimeMs !== undefined) {
-                  const songTimeMs = audioEngine.currentTimeMs + settings.audioOffsetMs;
+                  const songTimeMs = gameClock.judgmentTimeMs();
                   const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
                   const isDouble = note.type === 'double';
                   debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs, isDouble ? result.subIndex : undefined);
@@ -280,20 +287,12 @@ export function PlayScreen() {
 
         const inputSystem = new InputSystem(keyBindings, {
           onLanePress: (lane, timestampMs, keyCode) => {
-            const now = performance.now();
-            const currentAudioMs = audioEngine.currentTimeMs;
-            const handlerDelay = Math.max(0, now - timestampMs);
-            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
+            judgmentEngine.onLanePress(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
           },
           onLaneRelease: (lane, timestampMs, keyCode) => {
-            const now = performance.now();
-            const currentAudioMs = audioEngine.currentTimeMs;
-            const handlerDelay = Math.max(0, now - timestampMs);
-            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
+            judgmentEngine.onLaneRelease(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
           },
@@ -356,8 +355,8 @@ export function PlayScreen() {
         let lastFrameTime: number | null = null;
         const gameLoop = (timestamp: number) => {
           if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
-            const songTimeMs = audioEngine.currentTimeMs + settings.audioOffsetMs;
-            const visualTimeMs = songTimeMs + audioEngine.getOutputLatencyMs();
+            const songTimeMs = gameClock.judgmentTimeMs();
+            const visualTimeMs = gameClock.visualTimeMs();
 
             // Record frame timing for debug logger
             const frameDeltaMs = lastFrameTime !== null ? timestamp - lastFrameTime : 16;
