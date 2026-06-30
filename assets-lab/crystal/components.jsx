@@ -580,7 +580,6 @@ export function TrillNoteContainer({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;
   return (
     <g>
-      <rect x={x + 2} y={y + 2} width={CW} height={CH} fill="black" opacity=".4" />
       <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="white" />
       <polygon points={`${cx},${y + 1} ${x + CW - 2},${cy} ${cx},${cy}`} fill="white" opacity=".3" />
     </g>
@@ -612,26 +611,12 @@ export function TrillBodySegment({ x, y, height, held = false }) {
   );
 }
 
-// --- Crystal TrillTerminalCap ---
+// --- Crystal TrillTerminalCap (헤드와 같은 다이아몬드 모양, 어두운 색) ---
 export function TrillTerminalCap({ x, y }) {
-  const baseCol = "#aaaaaa";
-  const r = parseInt(baseCol.slice(1, 3), 16);
-  const g = parseInt(baseCol.slice(3, 5), 16);
-  const b = parseInt(baseCol.slice(5, 7), 16);
-  const lr = Math.round(r + (255 - r) * 0.7);
-  const lg = Math.round(g + (255 - g) * 0.7);
-  const lb = Math.round(b + (255 - b) * 0.7);
-  const gradId = `trill_term_${x}_${y}`;
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
     <g>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
-          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
-          <stop offset="50%" stopColor={baseCol} />
-          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
-        </linearGradient>
-      </defs>
-      <rect x={x} y={y} width={CW} height={CH} fill={`url(#${gradId})`} />
+      <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#6a6a6a" />
     </g>
   );
 }
@@ -641,7 +626,6 @@ export function FailedTrillNoteContainer({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;
   return (
     <g>
-      <rect x={x + 2} y={y + 2} width={CW} height={CH} fill="black" opacity=".4" />
       <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" />
     </g>
   );
@@ -671,26 +655,12 @@ export function FailedTrillBody({ x, y, height }) {
   );
 }
 
-// --- Crystal FailedTrillTerminalCap ---
+// --- Crystal FailedTrillTerminalCap (헤드와 같은 다이아몬드 모양) ---
 export function FailedTrillTerminalCap({ x, y }) {
-  const baseCol = "#555555";
-  const r = parseInt(baseCol.slice(1, 3), 16);
-  const g = parseInt(baseCol.slice(3, 5), 16);
-  const b = parseInt(baseCol.slice(5, 7), 16);
-  const lr = Math.round(r + (255 - r) * 0.7);
-  const lg = Math.round(g + (255 - g) * 0.7);
-  const lb = Math.round(b + (255 - b) * 0.7);
-  const gradId = `trill_fterm_${x}_${y}`;
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
     <g>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
-          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
-          <stop offset="50%" stopColor={baseCol} />
-          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
-        </linearGradient>
-      </defs>
-      <rect x={x} y={y} width={CW} height={CH} fill={`url(#${gradId})`} />
+      <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" />
     </g>
   );
 }

@@ -1274,11 +1274,12 @@ export class GameRenderer {
       zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
-      const hh = NOTE_HEIGHT / 2;
-      const rawHeight = startY - endY;
-      const height = (rawHeight > 0 ? rawHeight : NOTE_HEIGHT) + NOTE_HEIGHT; // 위아래 hh씩 확장
-      const adjustedEndY = (rawHeight > 0 ? endY : endY - hh) - hh;
-      zoneGraphic.rect(laneX, adjustedEndY, LANE_WIDTH, height);
+      // 트릴 구간은 같은 시작/끝 박의 롱노트 body와 같은 길이·위치로 그린다.
+      // 롱노트 body: top = endY(끝 박스 상단), bottom = startY + NOTE_HEIGHT(시작 박스 하단).
+      // (startY/endY는 박스 상단 기준. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치)
+      const topY = endY;
+      const height = Math.max(startY + NOTE_HEIGHT - endY, NOTE_HEIGHT); // 최소 한 칸(길이 0)
+      zoneGraphic.rect(laneX, topY, LANE_WIDTH, height);
       zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
       zoneGraphic.visible = true;
     }

@@ -456,4 +456,18 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(bodyLayer).length).toBe(1);
     expect(childrenOf(endLayer).length).toBe(1);
   });
+
+  it("바디는 처음·끝 각각 10px 줄어든다 — 끝점 y=200,길이220 → y=210,높이200", () => {
+    // 끝점 y=200(=adjustedEndY), 머리 startY=420, bodyHeight=220
+    renderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
+    const bodySprite = childrenOf(bodyLayer)[0] as MockSprite & { height: number };
+    expect(bodySprite.y).toBe(210);
+    expect(bodySprite.height).toBe(200);
+  });
+
+  it("길이 0 트릴 롱노트는 바디가 생략된다(20px-20px=0) — 끝 다이아몬드만 남음", () => {
+    renderer.renderLongNote(trillLongEntity(), 0, 100, 100, 0);
+    expect(childrenOf(bodyLayer).length).toBe(0);
+    expect(childrenOf(endLayer).length).toBe(1);
+  });
 });

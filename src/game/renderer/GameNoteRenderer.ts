@@ -201,14 +201,21 @@ export class GameNoteRenderer {
         endCapTexKey = "terminalTrill";
       }
 
-      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-      bodySprite.x = laneX;
-      bodySprite.y = adjustedEndY;
-      bodySprite.width = LANE_WIDTH;
-      bodySprite.height = bodyHeight;
-      bodySprite.tint = 0xffffff;
-      bodySprite.alpha = 1;
-      this.longNoteBodyLayer.addChild(bodySprite);
+      // 바디는 처음(끝점 쪽)·끝(머리 쪽) 각각 10px 줄여, 헤드/끝 다이아몬드가
+      // 캡처럼 드러나게 한다. 줄인 높이가 0 이하면(아주 짧은 트릴 롱) 바디는 생략.
+      const TRILL_BODY_END_INSET = 10;
+      const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
+      const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
+      if (insetBodyHeight > 0) {
+        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
+        bodySprite.x = laneX;
+        bodySprite.y = insetBodyY;
+        bodySprite.width = LANE_WIDTH;
+        bodySprite.height = insetBodyHeight;
+        bodySprite.tint = 0xffffff;
+        bodySprite.alpha = 1;
+        this.longNoteBodyLayer.addChild(bodySprite);
+      }
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
