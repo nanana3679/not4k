@@ -28,8 +28,12 @@ vi.mock("pixi.js", () => {
     y = 0;
     tint = 0xffffff;
     alpha = 1;
+    width = 0;
+    height = 0;
+    texture: unknown = null;
+    scale = { x: 1, y: 1 };
     static from() { return new Sprite(); }
-    constructor() {}
+    constructor(tex?: unknown) { this.texture = tex ?? null; }
   }
   class NineSliceSprite {
     x = 0;
@@ -70,6 +74,7 @@ function childrenOf(layer: Container): MockSprite[] {
 function createMockSkinManager(): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
+    getHalfCapTexture: vi.fn(() => ({})),
     hasTexture: vi.fn(() => false),
   } as unknown as SkinManager;
 }
@@ -218,9 +223,9 @@ describe("싱글 롱노트 라이프사이클", () => {
     expect(bodySprite.alpha).toBe(1);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.alpha).toBe(1);
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.alpha).toBe(1);
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -232,8 +237,8 @@ describe("싱글 롱노트 라이프사이클", () => {
     expect(bodySprite.tint).toBe(0xffffff);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.alpha).toBe(1);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.alpha).toBe(1);
     }
   });
 
@@ -246,8 +251,8 @@ describe("싱글 롱노트 라이프사이클", () => {
     expect(bodySprite.tint).toBe(0xffffff);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -299,8 +304,8 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     expect(bodySprite.tint).toBe(0xffffff);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -327,8 +332,8 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -403,8 +408,8 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     expect(bodySprite.tint).toBe(0xffffff);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -417,10 +422,10 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
     expect(bodySprite.tint).toBe(0xffffff);
 
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
+      const endCapSprite = childrenOf(endLayer)[0];
       // isFailed && !isMissed → 터미널 tint는 else(0xffffff) but alpha=0.5
-      expect(termSprite.tint).toBe(0xffffff);
-      expect(termSprite.alpha).toBe(1);
+      expect(endCapSprite.tint).toBe(0xffffff);
+      expect(endCapSprite.alpha).toBe(1);
     }
   });
 

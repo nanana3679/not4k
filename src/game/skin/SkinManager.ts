@@ -1,4 +1,4 @@
-import { Assets, Texture } from "pixi.js";
+import { Assets, Texture, Rectangle } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
 import { getSkinManifest } from "./skins";
 
@@ -14,6 +14,8 @@ export class SkinManager {
   private manifest: SkinManifest | null = null;
   private textures = new Map<string, { texture: Texture; path: string }>();
   private bombTextures: Texture[] = [];
+  /** terminal 텍스처에서 잘라낸 캡 텍스처 캐시 (texKey → 윗부분 절반) */
+  private capTextures = new Map<string, Texture>();
   private loaded = false;
 
   /** 현재 로드된 스킨 ID */
@@ -113,6 +115,28 @@ export class SkinManager {
     return entry.texture;
   }
 
+  /**
+   * 롱노트 캡 텍스처 — terminal 텍스처의 윗부분 절반(=캡 모양)만 잘라낸다.
+   * 시작 캡(상하반전)·끝 캡 양쪽에서 같은 텍스처를 공유한다.
+   *
+   * TODO(assets-lab): 지금은 끝점 전용 terminal 에셋을 런타임에 crop해 임시로 캡을 만든다.
+   * 추후 assets-lab(components.jsx의 TerminalCap, build-skins.mjs ASSETS)에 10px짜리
+   * 전용 캡 에셋을 추가하고, 여기서는 그 전용 에셋을 로드하도록 교체할 것.
+   */
+  getHalfCapTexture(key: string): Texture {
+    const cached = this.capTextures.get(key);
+    if (cached) return cached;
+
+    const base = this.getTexture(key);
+    const f = base.frame;
+    const cap = new Texture({
+      source: base.source,
+      frame: new Rectangle(f.x, f.y, f.width, f.height / 2),
+    });
+    this.capTextures.set(key, cap);
+    return cap;
+  }
+
   /** 봄 AnimatedSprite용 16프레임 텍스처 배열 */
   getBombTextures(): Texture[] {
     if (!this.loaded) {
@@ -135,6 +159,8 @@ export class SkinManager {
       Assets.unload(path).catch((e) => console.warn('SkinManager: failed to unload', key, e));
     }
     this.textures.clear();
+    // 캡 텍스처는 base의 source를 공유하므로 unload 없이 캐시만 비운다
+    this.capTextures.clear();
     this.bombTextures = [];
     this.manifest = null;
     this.loaded = false;

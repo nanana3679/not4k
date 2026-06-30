@@ -38,7 +38,9 @@ export class GameNoteRenderer {
   // 노트 인덱스 → (texKey → Sprite) : 상태별 스프라이트를 모두 보유
   private noteSpritePool: Map<number, Map<string, Sprite>> = new Map();
   private bodySpritePool: Map<number, Map<string, NineSliceSprite>> = new Map();
-  private terminalSpritePool: Map<number, Map<string, Sprite>> = new Map();
+  private endCapSpritePool: Map<number, Map<string, Sprite>> = new Map();
+  // 롱노트 시작 캡 (끝 캡 텍스처를 상하반전해 재사용)
+  private startCapSpritePool: Map<number, Map<string, Sprite>> = new Map();
 
   // Object pools — Graphics (grace glow only)
   private graceGlowPool: Map<number, Graphics> = new Map();
@@ -180,15 +182,15 @@ export class GameNoteRenderer {
     if (entity.type === "trillLong") {
       // Trill long: Sprite-based
       let bodyTexKey: string;
-      let termTexKey: string;
+      let endCapTexKey: string;
 
       if (isFailed || isMissed) {
         bodyTexKey = "bodyTrillFailed";
-        termTexKey = "terminalTrillFailed";
+        endCapTexKey = "terminalTrillFailed";
       } else {
         const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
-        termTexKey = "terminalTrill";
+        endCapTexKey = "terminalTrill";
       }
 
       const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
@@ -201,12 +203,12 @@ export class GameNoteRenderer {
       this.longNoteBodyLayer.addChild(bodySprite);
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
-        termSprite.x = laneX;
-        termSprite.y = adjustedEndY;
-        termSprite.tint = 0xffffff;
-        termSprite.alpha = 1;
-        this.longNoteEndLayer.addChild(termSprite);
+        const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
+        endCapSprite.x = laneX;
+        endCapSprite.y = adjustedEndY;
+        endCapSprite.tint = 0xffffff;
+        endCapSprite.alpha = 1;
+        this.longNoteEndLayer.addChild(endCapSprite);
       }
 
       const headY = rawStartY;
@@ -224,14 +226,14 @@ export class GameNoteRenderer {
       const isDouble = entity.type === "doubleLong";
 
       let bodyTexKey: string;
-      let termTexKey: string;
+      let endCapTexKey: string;
 
       if (isFailed || isMissed) {
         bodyTexKey = isDouble ? "bodyDoubleFailed" : "bodySingleFailed";
-        termTexKey = isDouble ? "terminalDoubleFailed" : "terminalSingleFailed";
+        endCapTexKey = isDouble ? "terminalDoubleFailed" : "terminalSingleFailed";
       } else if (isDouble && isPartialFailed) {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
-        termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
+        endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
         const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
         if (isHeld) {
@@ -239,7 +241,7 @@ export class GameNoteRenderer {
         } else {
           bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
         }
-        termTexKey = isDouble ? "terminalDouble" : "terminalSingle";
+        endCapTexKey = isDouble ? "terminalDouble" : "terminalSingle";
       }
 
       const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
@@ -251,6 +253,12 @@ export class GameNoteRenderer {
       bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
+      // 끝 캡·시작 캡은 기본적으로 노트 높이의 절반(10px)으로 양 끝을 마감한다.
+      // 단, 길이가 짧은 롱노트(특히 길이 0)에서는 두 캡이 body를 꽉 덮어 가운데 심지(wire)가
+      // 가려지므로, 캡 사이에 최소 WIRE_MIN_PX의 심지가 남도록 캡 높이를 제한한다.
+      const WIRE_MIN_PX = 5;
+      const capHeight = Math.min(NOTE_HEIGHT / 2, (bodyHeight - WIRE_MIN_PX) / 2);
+
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
         // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
         if ((entity.type === "long" || entity.type === "doubleLong") && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
@@ -259,12 +267,30 @@ export class GameNoteRenderer {
           glow.y = adjustedEndY - COLORS.GRACE_GLOW_PAD;
           this.longNoteEndLayer.addChild(glow);
         }
-        const termSprite = this.getOrCreateTerminalSprite(index, termTexKey);
-        termSprite.x = laneX;
-        termSprite.y = adjustedEndY;
-        termSprite.tint = 0xffffff;
-        termSprite.alpha = 1;
-        this.longNoteEndLayer.addChild(termSprite);
+        // 끝 캡 — terminal 텍스처 윗부분 절반을 끝점에 그린다
+        const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
+        endCapSprite.texture = this.skinManager.getHalfCapTexture(endCapTexKey);
+        endCapSprite.x = laneX;
+        endCapSprite.y = adjustedEndY;
+        endCapSprite.width = LANE_WIDTH;
+        endCapSprite.height = capHeight;
+        endCapSprite.tint = 0xffffff;
+        endCapSprite.alpha = 1;
+        this.longNoteEndLayer.addChild(endCapSprite);
+      }
+
+      // 시작 캡 — 같은 캡 텍스처를 상하반전(scale.y<0)해 머리 끝(startY)에 그린다
+      if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
+        const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey);
+        startCap.texture = this.skinManager.getHalfCapTexture(endCapTexKey);
+        startCap.x = laneX;
+        startCap.y = startY;
+        startCap.width = LANE_WIDTH;
+        startCap.height = capHeight;
+        startCap.scale.y = -Math.abs(startCap.scale.y); // 상하반전 → [startY-capHeight, startY]
+        startCap.tint = 0xffffff;
+        startCap.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
+        this.longNoteHeadLayer.addChild(startCap);
       }
     }
   }
@@ -298,7 +324,8 @@ export class GameNoteRenderer {
   clearPools(): void {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
-    this.terminalSpritePool.clear();
+    this.endCapSpritePool.clear();
+    this.startCapSpritePool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -364,15 +391,29 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateTerminalSprite(index: number, texKey: string): Sprite {
-    let pool = this.terminalSpritePool.get(index);
+  private getOrCreateEndCapSprite(index: number, texKey: string): Sprite {
+    let pool = this.endCapSpritePool.get(index);
     if (!pool) {
       pool = new Map();
-      this.terminalSpritePool.set(index, pool);
+      this.endCapSpritePool.set(index, pool);
     }
     let sprite = pool.get(texKey);
     if (!sprite) {
       sprite = new Sprite(this.skinManager.getTexture(texKey));
+      pool.set(texKey, sprite);
+    }
+    return sprite;
+  }
+
+  private getOrCreateStartCapSprite(index: number, texKey: string): Sprite {
+    let pool = this.startCapSpritePool.get(index);
+    if (!pool) {
+      pool = new Map();
+      this.startCapSpritePool.set(index, pool);
+    }
+    let sprite = pool.get(texKey);
+    if (!sprite) {
+      sprite = new Sprite(this.skinManager.getHalfCapTexture(texKey));
       pool.set(texKey, sprite);
     }
     return sprite;
@@ -408,7 +449,8 @@ export class GameNoteRenderer {
   dispose(): void {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
-    this.terminalSpritePool.clear();
+    this.endCapSpritePool.clear();
+    this.startCapSpritePool.clear();
     this.graceGlowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
