@@ -119,6 +119,8 @@ export class TimelineRenderer {
   private _hoveredNoteIndex: number | null = null;
   private _hoveredExtraNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
+  // 롱노트 리사이즈 캡을 hover로 표시할 노트 인덱스(= select 모드에서 hover 중인 노트). 캡 표시 게이팅용.
+  private _resizeHoverNoteIndex: number | null = null;
 
   // Last playback cursor time (for re-render on layout change)
   private _lastCursorTimeMs: number = 0;
@@ -333,7 +335,9 @@ export class TimelineRenderer {
     const overlayHost: OverlayHost = {
       get chart() { return self.chart; },
       get extraNotes() { return self._extraNotes; },
+      get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
+      get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
@@ -481,6 +485,13 @@ export class TimelineRenderer {
   setHoveredTrillZone(index: number | null): void {
     if (this._hoveredTrillZoneIndex === index) return;
     this._hoveredTrillZoneIndex = index;
+    this.updateHoverOverlay();
+  }
+
+  /** 롱노트 리사이즈 캡을 hover로 표시할 노트 인덱스 설정 (select 모드 게이팅은 호출부에서) */
+  setResizeHoverNote(index: number | null): void {
+    if (this._resizeHoverNoteIndex === index) return;
+    this._resizeHoverNoteIndex = index;
     this.updateHoverOverlay();
   }
 

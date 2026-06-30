@@ -371,13 +371,27 @@ export class SelectMode {
 
     // Check for endpoint resize first
 
-    // 1. Selected RangeNote endpoints
+    // 1. RangeNote endpoints — 끝 캡을 잡으면 리사이즈.
+    //    이미 선택된 노트는 물론, 그 위치에서 z-order상 최상위(= hitTestNote가 가리키는)
+    //    롱노트라면 미리 선택돼 있지 않아도 단독 선택으로 전환하며 바로 리사이즈한다.
+    //    끝점이 겹치는 o-o- 패턴에서 다른 노트가 위에 있으면 가로채지 않는다.
     if (this.callbacks.hitTestNoteEnd) {
       const endHit = this.callbacks.hitTestNoteEnd(x, y);
-      if (endHit !== null && this.selectedIndices.has(endHit) && this.isRangeNote(this.chart.notes[endHit])) {
-        const note = this.chart.notes[endHit] as RangeNote;
-        this.startResize("note", endHit, note.beat, note.endBeat);
-        return;
+      if (endHit !== null && this.isRangeNote(this.chart.notes[endHit])) {
+        const isSelected = this.selectedIndices.has(endHit);
+        const topmost = this.callbacks.hitTestNote(x, y);
+        if (isSelected || topmost === endHit) {
+          if (!isSelected) {
+            this.clearZoneSelectionState();
+            this.selectedIndices = new Set([endHit]);
+            this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+            this.selectedExtraIndices.clear();
+            this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+          }
+          const note = this.chart.notes[endHit] as RangeNote;
+          this.startResize("note", endHit, note.beat, note.endBeat);
+          return;
+        }
       }
     }
 

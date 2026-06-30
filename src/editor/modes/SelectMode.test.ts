@@ -438,6 +438,52 @@ describe("SelectMode — 모바일 터치 선택", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 롱노트 끝 캡 리사이즈 (미선택 상태에서 한 동작으로)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
+  it("롱노트 끝 캡을 잡으면 미리 선택 안 해도 리사이즈되고 그 노트가 선택된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "long", lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestNote: () => 0, // 끝 위치의 z-order 최상위 = 롱노트 0
+      hitTestNoteEnd: () => 0,
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 6, false, false);
+    mode.onPointerMove(1, 9);
+    mode.onPointerUp(1, 9);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[0]).toMatchObject({ beat: beat(2), endBeat: beat(9) });
+    expect([...selectionOf(mode).selectedIndices]).toEqual([0]);
+  });
+
+  it("끝점에 다른 노트가 위에 있으면(o-o- 겹침) 끝 캡 리사이즈가 가로채지 않는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "long", lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }, // idx0
+        { type: "single", lane: 1 as Lane, beat: beat(6) }, // idx1: 롱노트 끝점 위에 겹친 단노트
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestNote: () => 1, // 최상위는 단노트
+      hitTestNoteEnd: () => 0, // 끝점은 롱노트 0
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 6, false, false);
+
+    // 리사이즈로 가로채지 않고 단노트(idx1)가 선택돼야 한다.
+    expect([...selectionOf(mode).selectedIndices]).toEqual([1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 붙여넣기
 // ---------------------------------------------------------------------------
 

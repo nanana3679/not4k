@@ -15,13 +15,16 @@ import {
 } from "./constants";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
-import { drawTrillZoneHandles } from "./trillZoneHandles";
+import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
   readonly extraNotes: ExtraNoteEntity[];
+  readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
+  /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
+  readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
@@ -366,6 +369,22 @@ export class OverlayRenderer {
       const selected = this.host.selectedTrillZones.has(hoveredTrillZoneIndex);
       drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, startY, endY, selected);
     }
+
+    // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.
+    // 트릴 롱노트(trillLong)도 끝점 리사이즈가 가능하므로 캡을 그린다.
+    const notes = this.host.chart.notes;
+    const drawnCaps = new Set<number>();
+    const drawNoteCap = (index: number, selected: boolean): void => {
+      if (index < 0 || index >= notes.length || drawnCaps.has(index)) return;
+      const note = notes[index];
+      if (!("endBeat" in note)) return;
+      const x = (note.lane - 1) * LANE_WIDTH;
+      const endY = this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs));
+      drawNoteResizeHandle(this.host.hoverLayer, x, LANE_WIDTH, endY, selected);
+      drawnCaps.add(index);
+    };
+    for (const idx of this.host.selectedNotes) drawNoteCap(idx, true);
+    if (this.host.resizeHoverNoteIndex !== null) drawNoteCap(this.host.resizeHoverNoteIndex, false);
   }
 
   /**
