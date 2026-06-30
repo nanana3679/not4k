@@ -30,7 +30,10 @@ const styles = {
     padding: '6px 12px',
     backgroundColor: '#3a3a3a',
     color: '#e0e0e0',
-    border: '1px solid #555',
+    // longhand: borderColor만 덮어쓰는 변형(buttonActive)과 shorthand 충돌 방지
+    borderWidth: '1px',
+    borderStyle: 'solid' as const,
+    borderColor: '#555',
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '13px',
@@ -152,7 +155,10 @@ const styles = {
     padding: '6px 10px',
     backgroundColor: '#343434',
     color: '#ededed',
-    border: '1px solid #505050',
+    // longhand: borderColor만 덮어쓰는 변형(compactPrimary/PlayButton)과 shorthand 충돌 방지
+    borderWidth: '1px',
+    borderStyle: 'solid' as const,
+    borderColor: '#505050',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '13px',
@@ -525,14 +531,15 @@ export function EditorToolbar({
   const playMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [playMenuPos, setPlayMenuPos] = useState<{ top: number; left: number } | null>(null);
   const togglePlayMenu = () => {
-    setShowPlayTestMenu((prev) => {
-      const next = !prev;
-      if (next && playMenuBtnRef.current) {
-        const r = playMenuBtnRef.current.getBoundingClientRect();
-        setPlayMenuPos({ top: r.bottom + 4, left: r.left });
-      }
-      return next;
-    });
+    // updater 함수 안에서 다른 setState(setPlayMenuPos)를 호출하면 부모 상태 갱신이
+    // 렌더 단계에서 실행될 때 자식 setState가 함께 일어나 React 경고가 난다.
+    // → 핸들러에서 직접 두 상태를 설정한다.
+    const next = !showPlayTestMenu;
+    setShowPlayTestMenu(next);
+    if (next && playMenuBtnRef.current) {
+      const r = playMenuBtnRef.current.getBoundingClientRect();
+      setPlayMenuPos({ top: r.bottom + 4, left: r.left });
+    }
   };
 
   const mode = useEditorStore((s) => s.mode);
