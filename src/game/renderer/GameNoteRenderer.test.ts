@@ -49,6 +49,7 @@ vi.mock("pixi.js", () => {
 
 import { Container } from "pixi.js";
 import { GameNoteRenderer } from "./GameNoteRenderer";
+import { NOTE_HEIGHT } from "./constants";
 import type { SkinManager } from "../skin";
 import type { NoteEntity } from "../../shared";
 
@@ -295,5 +296,73 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     const bodySprite = childrenOf(bodyLayer)[0];
     expect(bodySprite.tint).toBe(0xffffff);
+  });
+});
+
+describe("GameNoteRenderer 노트 정렬", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // songTime=0, 노트 100ms → calculateNoteY = 500 - 100*1000/1000 = 400.
+  // 포인트 노트는 시간 위치를 박스 상단으로 쓰므로 박스 = [400, 420].
+  let renderer: GameNoteRenderer;
+  let noteLayer: Container;
+  let bodyLayer: Container;
+  let endLayer: Container;
+
+  beforeEach(() => {
+    const created = createRenderer();
+    renderer = created.renderer;
+    noteLayer = created.noteLayer;
+    bodyLayer = created.bodyLayer;
+    endLayer = created.endLayer;
+  });
+
+  it("같은 박자(100ms)의 포인트 노트 박스 하단과 롱노트 머리 하단이 모두 y=420으로 일치", () => {
+    const point = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
+    renderer.renderPointNote(point, 0, 100, 0);
+    const pointSprite = childrenOf(noteLayer)[0];
+
+    const long = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & {
+      endBeat: unknown;
+    };
+    renderer.renderLongNote(long, 1, 100, 300, 0);
+    const bodySprite = childrenOf(bodyLayer)[0] as MockSprite & { height: number };
+
+    expect(pointSprite.y).toBe(400);
+    expect(pointSprite.y + NOTE_HEIGHT).toBe(420);
+    // 롱노트 body 하단(= 머리의 아래 가장자리)이 포인트 노트 박스 하단과 일치해야 한다
+    expect(bodySprite.y + bodySprite.height).toBe(pointSprite.y + NOTE_HEIGHT);
+  });
+
+  it("길이 0 롱노트는 같은 박자(100ms) 포인트 노트와 같은 칸(y=400, 높이 20)에 그려짐", () => {
+    const point = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
+    renderer.renderPointNote(point, 0, 100, 0);
+    const pointSprite = childrenOf(noteLayer)[0];
+
+    const zeroLong = { type: "long", beat: 0, lane: 1, endBeat: 0, holdOnly: true } as unknown as NoteEntity & {
+      endBeat: unknown;
+    };
+    renderer.renderLongNote(zeroLong, 1, 100, 100, 0);
+    const bodySprite = childrenOf(bodyLayer)[0] as MockSprite & { height: number };
+
+    // 박스 상단·높이·하단이 모두 포인트 노트와 동일 → 같은 박자에서 완전히 겹친다
+    expect(bodySprite.y).toBe(pointSprite.y);
+    expect(bodySprite.height).toBe(NOTE_HEIGHT);
+    expect(bodySprite.y + bodySprite.height).toBe(pointSprite.y + NOTE_HEIGHT);
+  });
+
+  it("롱노트 끝점(300ms)과 같은 박자 포인트 노트 박스 상단이 모두 y=200으로 일치", () => {
+    const point = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
+    renderer.renderPointNote(point, 0, 300, 0);
+    const pointSprite = childrenOf(noteLayer)[0];
+
+    const long = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & {
+      endBeat: unknown;
+    };
+    renderer.renderLongNote(long, 1, 100, 300, 0);
+    const termSprite = childrenOf(endLayer)[0];
+
+    // 끝점(terminal) 상단이 끝 시간의 포인트 노트 박스 상단과 같은 y에 와야 한다
+    expect(pointSprite.y).toBe(200);
+    expect(termSprite.y).toBe(pointSprite.y);
   });
 });
