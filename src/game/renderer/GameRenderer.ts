@@ -21,6 +21,7 @@ import {
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
+import { computeConnectedLongNotePredecessors } from "./longNoteConnection";
 import {
   applyPerspectiveSurfaceJudgment,
   createPerspectiveSurfaceAltitudeState,
@@ -1162,6 +1163,20 @@ export class GameRenderer {
     }
 
     this.noteRenderer.clearPools();
+
+    // 이어진 롱노트 연결 정보 계산 — 앞 롱노트가 held면 뒤 롱노트에도 불이 들어오게 한다
+    const startMsByIndex = new Map<number, number>();
+    const endMsByIndex = new Map<number, number>();
+    for (const data of this.noteRenderData) {
+      startMsByIndex.set(data.index, data.timeMs);
+      if (data.endTimeMs !== undefined) endMsByIndex.set(data.index, data.endTimeMs);
+    }
+    const connectedPredecessor = computeConnectedLongNotePredecessors(
+      notes,
+      startMsByIndex,
+      endMsByIndex,
+    );
+    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex);
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
