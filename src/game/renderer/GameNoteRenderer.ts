@@ -140,7 +140,13 @@ export class GameNoteRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    const rawStartY = this.calculateNoteY(startMs, songTimeMs);
+    // 포인트 노트는 시간 위치를 박스 상단 기준으로 그린다(박스 = [y, y+NOTE_HEIGHT]).
+    // 롱노트도 같은 기준으로 맞춘다:
+    //  - 머리: 시작 시간 위치가 머리 박스 상단이 되도록 +NOTE_HEIGHT 내린다
+    //    (body 하단 = 시작 시간 + NOTE_HEIGHT → 포인트 노트 박스 하단과 일치).
+    //  - 끝점: 끝 시간 위치가 끝 박스 상단(terminal.y)이 되도록 보정 없이 그대로 쓴다.
+    // 이러면 길이 0 롱노트는 bodyHeight가 정확히 NOTE_HEIGHT가 되어 포인트 노트와 같은 칸에 온다.
+    const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
     const endY = this.calculateNoteY(endMs, songTimeMs);
 
     // 화면 아래로 완전히 벗어난 miss 롱노트는 완료 처리
@@ -149,8 +155,8 @@ export class GameNoteRenderer {
       return;
     }
 
-    // 바디 시작 Y를 항상 판정선으로 클램프
-    const startY = Math.min(rawStartY, this.judgmentLineY);
+    // 바디 시작 Y를 판정선으로 클램프 (머리 박스 상단이 판정선에 고정되도록 +NOTE_HEIGHT)
+    const startY = Math.min(rawStartY, this.judgmentLineY + NOTE_HEIGHT);
 
     const laneX = this.getLaneX(entity.lane);
     let bodyHeight = startY - endY;
@@ -180,7 +186,7 @@ export class GameNoteRenderer {
         bodyTexKey = "bodyTrillFailed";
         termTexKey = "terminalTrillFailed";
       } else {
-        const isHeld = rawStartY >= this.judgmentLineY;
+        const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
         termTexKey = "terminalTrill";
       }
@@ -227,7 +233,7 @@ export class GameNoteRenderer {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         termTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
-        const isHeld = rawStartY >= this.judgmentLineY;
+        const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
         if (isHeld) {
           bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
         } else {
