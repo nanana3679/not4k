@@ -53,6 +53,12 @@ export class GameNoteRenderer {
   /** 더블 롱노트 부분 실패 (1키만 실패) — side 정보 포함 */
   private partialFailedBodies: Map<number, 'left' | 'right'> = new Map();
 
+  // 이어진 롱노트(connected long note) 정보 — 앞 롱노트가 held면 뒤 롱노트도 불이 들어오게 한다
+  /** 롱노트 인덱스 → 이어진 선행 롱노트 인덱스 */
+  private connectedPredecessor: Map<number, number> = new Map();
+  /** 노트 인덱스 → 시작 시간(ms) — 선행 노트의 held 여부 계산용 */
+  private noteStartMsByIndex: Map<number, number> = new Map();
+
   constructor(
     longNoteBodyLayer: Container,
     longNoteEndLayer: Container,
@@ -188,7 +194,9 @@ export class GameNoteRenderer {
         bodyTexKey = "bodyTrillFailed";
         endCapTexKey = "terminalTrillFailed";
       } else {
-        const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
+        const isHeld =
+          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+          this.hasConnectedHeldPredecessor(index, songTimeMs);
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
         endCapTexKey = "terminalTrill";
       }
@@ -235,7 +243,9 @@ export class GameNoteRenderer {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
-        const isHeld = rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
+        const isHeld =
+          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+          this.hasConnectedHeldPredecessor(index, songTimeMs);
         if (isHeld) {
           bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
         } else {
@@ -331,9 +341,24 @@ export class GameNoteRenderer {
     this.doublePartialNotes.clear();
     this.missedNotes.clear();
     this.partialFailedBodies.clear();
+    this.connectedPredecessor.clear();
+    this.noteStartMsByIndex.clear();
   }
 
   // ── 설정 업데이트 ─────────────────────────────────────────
+
+  /**
+   * 이어진 롱노트 연결 정보를 설정한다. setChart에서 차트별로 1회 호출.
+   * @param connectedPredecessor 롱노트 인덱스 → 이어진 선행 롱노트 인덱스
+   * @param noteStartMsByIndex 노트 인덱스 → 시작 시간(ms)
+   */
+  setLongNoteConnections(
+    connectedPredecessor: ReadonlyMap<number, number>,
+    noteStartMsByIndex: ReadonlyMap<number, number>,
+  ): void {
+    this.connectedPredecessor = new Map(connectedPredecessor);
+    this.noteStartMsByIndex = new Map(noteStartMsByIndex);
+  }
 
   setJudgmentLineY(y: number): void {
     this.judgmentLineY = y;
@@ -344,6 +369,34 @@ export class GameNoteRenderer {
   }
 
   // ── 계산 헬퍼 ────────────────────────────────────────────
+
+  /**
+   * 이어진 선행 롱노트가 현재 held(불 들어옴) 상태인지 — 그러면 이 롱노트에도 불을 켠다.
+   * `o-o-`에서 앞 롱노트가 held면 뒤 롱노트도 held로 보이게 하는 전파.
+   */
+  private hasConnectedHeldPredecessor(index: number, songTimeMs: number): boolean {
+    const pred = this.connectedPredecessor.get(index);
+    if (pred === undefined) return false;
+    return this.isLongNoteHeldVisually(pred, songTimeMs);
+  }
+
+  /**
+   * 롱노트가 시각적으로 held 상태인지 (자기 머리가 판정선에 닿았거나,
+   * 이어진 선행 롱노트가 held). 실패/미스한 롱노트는 연속 홀드가 끊긴 것이므로 전파하지 않는다.
+   */
+  private isLongNoteHeldVisually(index: number, songTimeMs: number): boolean {
+    if (this.failedBodies.has(index) || this.missedNotes.has(index)) return false;
+
+    const startMs = this.noteStartMsByIndex.get(index);
+    if (startMs !== undefined) {
+      const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
+      if (rawStartY >= this.judgmentLineY + NOTE_HEIGHT) return true;
+    }
+
+    const pred = this.connectedPredecessor.get(index);
+    if (pred !== undefined) return this.isLongNoteHeldVisually(pred, songTimeMs);
+    return false;
+  }
 
   calculateNoteY(noteTimeMs: number, songTimeMs: number): number {
     return (
