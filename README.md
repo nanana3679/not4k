@@ -54,7 +54,7 @@
 
 ### 채보 유효성 검증
 
-- **[문제]** 채보 에디터에서 중복 배치, 롱노트 교차, 트릴 구간 침범 등 무효한 채보 생성 가능
+- **[문제]** 채보 에디터에서 중복 배치, 롱노트 교차, `trillZone` 침범 등 무효한 채보 생성 가능
 - **[해결]** 3가지 배치 제약 조건을 도메인 레이어(`shared/validation/`)에서 실시간 검증
 - **[결과]** 저장 전 오류 원천 차단, 게임 클라이언트 런타임 에러 제거
 
@@ -90,8 +90,8 @@
 | [rationale.md](docs/context/rationale.md) | **이 게임은 왜 존재하는가**. 기존 리듬게임의 3가지 구조적 문제와 아케이드 게임이 보여준 해법의 단서 |
 | [stance.md](docs/context/stance.md) | **이 게임은 플레이어를 어떻게 대하는가**. 북극성("게임은 목격자지 심판이 아니다")과 다섯 디자인 원칙, 시스템 채택/불채택 결정 |
 | [glossary.md](docs/context/glossary.md) | **용어 사전 (용어 정의의 권위 문서)**. 게임 구조, 입력 체계, 노트 타입, 피스, 채보 설계, 판정/스코어링, 표기법 심볼의 통합 정의 |
-| [chart-design.md](docs/context/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 건너가기 등 not4k 고유의 채보 설계 개념 |
-| [trill-boundary-input.md](docs/context/trill-boundary-input.md) | **트릴 구간 경계의 입력 추적 보호**. 트릴 구간 경계에서의 교대 추적 처리 배경 |
+| [chart-design.md](docs/context/chart-design.md) | **차트 디자인 어휘**. 앵커, 레인 내 분리, 가변 분할, 수평 이동 등 not4k 고유의 채보 설계 개념 |
+| [trill-boundary-input.md](docs/context/trill-boundary-input.md) | **`trillZone` 경계의 입력 추적 보호**. `trillZone` 경계에서의 교대 추적 처리 배경 |
 | [review.md](docs/context/review.md) | **문서 리뷰 기록**. 과거 리뷰의 결정 기록. 미정 사항 추적은 `prd.md` §12로 단일화 |
 | [review-cross-reference.md](docs/context/review-cross-reference.md) | **교차 검토 결과**. 문서 간 모순·불일치 정리 |
 
@@ -112,7 +112,7 @@
 | [save-as-ux-storyline.md](docs/spec/save-as-ux-storyline.md) | **Save As UX 스토리라인**. 차트 에디터 "다른 이름으로 저장"의 사용자 경험 시나리오 |
 | [scoring.md](docs/spec/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 달성률, 랭크, 콤보 규칙 |
 | [game-core.md](docs/spec/game-core.md) | **게임 코어 설계**. 플랫폼, 인증, 랭킹, 입력 매칭, 스크롤, 비행 규칙, 오프셋, 상태 흐름 |
-| [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 약중검엄 손배치, 키보드 레이아웃, 16키 기본 프리셋, 주키/보조키 |
+| [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 엄검중약 손배치, 키보드 레이아웃, 16키 기본 프리셋, 주키/보조키 |
 | [observer-mode.md](docs/spec/observer-mode.md) | **옵저버 모드**. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |
 | [audio-visual-sync.md](docs/spec/audio-visual-sync.md) | **오디오-비주얼 동기화**. 노트 위치·음악·입력의 레이턴시 보정 설계 |
 | [grace-period-polling-rate.md](docs/spec/grace-period-polling-rate.md) | **유예 시간과 폴링 레이트**. 12ms 유예 시간의 폴링 레이트별 동작 분석 |
@@ -175,7 +175,7 @@ docs/
 │   ├── stance.md                   #   플레이어를 대하는 태도
 │   ├── glossary.md                 #   용어 사전 (용어 정의의 권위)
 │   ├── chart-design.md             #   차트 디자인 어휘
-│   ├── trill-boundary-input.md     #   트릴 구간 경계 입력 추적
+│   ├── trill-boundary-input.md     #   `trillZone` 경계 입력 추적
 │   ├── review.md                   #   문서 리뷰 기록
 │   └── review-cross-reference.md   #   교차 검토 결과
 ├── spec/                           # 구현 — "어떻게"
@@ -223,7 +223,7 @@ not4k/
 │   │   └── chart-io/            #   차트 직렬화/역직렬화
 │   │
 │   ├── game/                    # 게임 클라이언트 (웹)
-│   │   ├── engine/              #   판정 엔진 (윈도우, 입력-노트 매칭, 홀드 이어잡기)
+│   │   ├── engine/              #   판정 엔진 (윈도우, 입력-노트 매칭, 홀드 교대)
 │   │   ├── scoring/             #   달성률, 랭크, 콤보, Good◇ 집계
 │   │   ├── renderer/            #   노트 낙하, 레인, 이펙트 렌더링
 │   │   ├── input/               #   키 바인딩, 입력 처리

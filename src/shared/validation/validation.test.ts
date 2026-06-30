@@ -133,7 +133,7 @@ describe("validateNoLongOverlap", () => {
 // =========================================================================
 // 불변 잠금: 한 레인 롱노트 바디 겹침 불가 (RFD 0008 §4·§10 의존)
 //
-// 판정 엔진의 공릴리즈 누설 차단은 "한 레인에서 두 롱노트 바디가 겹치지 않는다"는
+// 판정 엔진의 emptyRelease 누설 차단은 "한 레인에서 두 롱노트 바디가 겹치지 않는다"는
 // 배치 불변을 전제한다. 이 불변은 별도 규칙이 아니라 기존 두 규칙의 합으로 강제된다:
 //   - 같은 시작 박 → validateNoDuplicates ("Duplicate range start")
 //   - 시작 박이 다르면서 겹침 → 한쪽 끝점이 상대 열린 바디에 들어가 validateNoLongOverlap
@@ -188,11 +188,11 @@ describe("롱노트 겹침 불가 불변 (validateChart, RFD 0008)", () => {
 });
 
 // =========================================================================
-// 규칙 3: 트릴 구간 전용
+// 규칙 3: trillZone 전용
 // =========================================================================
 
 describe("validateTrillExclusive", () => {
-  it("트릴 노트가 트릴 구간 안에 있으면 OK", () => {
+  it("트릴 노트가 trillZone 안에 있으면 OK", () => {
     const notes: NoteEntity[] = [
       { type: "trill", lane: 1, beat: beat(0) },
       { type: "trill", lane: 1, beat: beat(1) },
@@ -201,19 +201,19 @@ describe("validateTrillExclusive", () => {
     expect(validateTrillExclusive(notes, zones)).toEqual([]);
   });
 
-  it("트릴 노트가 트릴 구간 밖이면 에러", () => {
+  it("트릴 노트가 trillZone 밖이면 에러", () => {
     const notes: NoteEntity[] = [{ type: "trill", lane: 1, beat: beat(5) }];
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateTrillExclusive(notes, zones)).toHaveLength(1);
   });
 
-  it("비-트릴 노트가 트릴 구간 안이면 에러", () => {
+  it("비-트릴 노트가 trillZone 안이면 에러", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(2) }];
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateTrillExclusive(notes, zones)).toHaveLength(1);
   });
 
-  it("다른 레인의 트릴 구간은 무관", () => {
+  it("다른 레인의 trillZone은 무관", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 2, beat: beat(2) }];
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateTrillExclusive(notes, zones)).toEqual([]);
@@ -271,7 +271,7 @@ describe("validateTrillLong", () => {
 });
 
 // =========================================================================
-// 규칙 4: 트릴 구간 겹침 금지
+// 규칙 4: trillZone 겹침 금지
 // =========================================================================
 
 describe("validateNoTrillZoneOverlap", () => {
@@ -300,8 +300,8 @@ describe("validateNoTrillZoneOverlap", () => {
     expect(validateNoTrillZoneOverlap(zones)[0].rule).toBe("trillZoneOverlap");
   });
 
-  it("트릴 구간은 노트/롱노트와 독립 (여기서 검사하지 않음)", () => {
-    // 이 함수는 트릴 구간끼리만 검사한다
+  it("trillZone은 노트/롱노트와 독립 (여기서 검사하지 않음)", () => {
+    // 이 함수는 trillZone끼리만 검사한다
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateNoTrillZoneOverlap(zones)).toEqual([]);
   });

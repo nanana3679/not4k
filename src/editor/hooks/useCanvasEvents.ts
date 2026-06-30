@@ -654,9 +654,9 @@ export function useCanvasEvents(
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
-    // 트릴 구간 핸들은 select 모드에서만 표시한다.
+    // trillZone 핸들은 select 모드에서만 표시한다.
     const hoverTrillZoneHit = mode === 'select' ? hitTestTrillZoneRef.current(x, y) : null;
-    // 트릴 구간을 리사이즈/이동하는 동안엔 커서가 구간 밖으로 나가도 핸들을 계속 표시한다.
+    // trillZone을 리사이즈/이동하는 동안엔 커서가 구간 밖으로 나가도 핸들을 계속 표시한다.
     const draggingTrillZone = selectModeRef.current?.draggingTrillZoneIndex ?? null;
     if (rendererRef.current) {
       rendererRef.current.setHoveredNote(hoverNoteHit);

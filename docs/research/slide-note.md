@@ -63,7 +63,7 @@
 
 ## 4. not4k의 현재 구현
 
-not4k의 슬라이드 노트는 **"길이 0 hold-only" 노트**로 구현되어 있다(`../rfd/0005-hold-only-long-note.md`).
+not4k의 슬라이드 노트는 **"길이 0 `holdOnly`" 노트**로 구현되어 있다(`../rfd/0009-hold-only-long-note.md`).
 
 - **판정**: 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect를 부여한다(Perfect/Miss 이분법). 즉 **그 시점에 손가락이 눌려 있기만 하면 통과하는 체크포인트**이다.
 - **분류**: **존재 확인형** — 프로세카·디모 II 계열에 해당한다. 4키 키보드에는 "면적/궤적 이동"이라는 물리적 슬라이드가 없으므로, 모션 요구형(뱅드림·츄니즘·디모 원작)을 그대로 이식할 수 없고 "그 시점의 held 존재"로 번역한 결과다.
@@ -82,7 +82,7 @@ not4k의 슬라이드 노트는 **"길이 0 hold-only" 노트**로 구현되어 
 ## 관련 문서
 
 - 노트 시스템: `../spec/note-system.md`
-- hold-only 롱노트 결정: `../rfd/0005-hold-only-long-note.md`
+- `holdOnly` 롱노트 결정: `../rfd/0009-hold-only-long-note.md`
 - 최고판정 노트 리서치: `auto-best-judgment-note.md`
 - 판정 윈도우 리서치: `judgment-windows.md`
 - 츄니즘 리서치: `chunithm.md`

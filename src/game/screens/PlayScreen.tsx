@@ -99,7 +99,7 @@ export function PlayScreen() {
           }
         });
 
-        // 트릴 구간 시작 시간 목록 (레인별, 정렬됨)
+        // trillZone 시작 시간 목록 (레인별, 정렬됨)
         const trillZoneStartTimesMs = new Map<Lane, number[]>();
         for (const zone of chartData.trillZones) {
           const startMs = beatToMs(zone.beat, bpmMarkers, chartData.meta.offsetMs);

@@ -10,12 +10,12 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 - **롱노트는 한 레인에서 겹치지 않는다** (배치 제약, `src/shared/validation`의 `validateNoDuplicates`
   + `validateNoLongOverlap`로 강제). 다중키 동시 유지 구간은 `doubleLong` 한 노트(key1/key2 추적),
-  순차 전환은 연결(`-=-`: `-`끝=`=`시작, `=`끝=`-`시작)로 표현된다.
+  순차 전환은 `connection`(`-=-`: `-`끝=`=`시작, `=`끝=`-`시작)로 표현된다.
   → 한 순간 레인당 진행 중 롱은 최대 하나. "겹친 두 별개 롱(다른 키, 엇갈린 끝점)"을
-  가정한 방어 코드는 불필요(공릴리즈 키 단순화가 여기 의존 — `docs/rfd/0008-…`).
+  가정한 방어 코드는 불필요(`emptyRelease` 키 단순화가 여기 의존 — `docs/rfd/0008-…`).
 - **롱노트 유지는 lane-held** — 특정 키가 아니라 레인의 아무 키로든 유지된다(가변 손배치).
-  키 교대(홀드 이어잡기) 자유. → "롱노트를 특정 키로만 유지/귀속"하는 모델은 이 불변을 깬다.
-- **겹침 ≠ 연결** — 연결은 끝점=시작점이 맞닿음(동시 held 구간·릴리즈 판정 없음). 동시 held
+  키 교대(홀드 교대) 자유. → "롱노트를 특정 키로만 유지/귀속"하는 모델은 이 불변을 깬다.
+- **겹침 ≠ `connection`** — `connection`은 끝점=시작점이 맞닿음(동시 held 구간·릴리즈 판정 없음). 동시 held
   구간이 생기는 "겹침"은 위 제약으로 불가능.
 
 근거는 `docs/spec/note-system.md`(배치)·`docs/context/glossary.md`(용어 권위)에 둔다.
@@ -39,7 +39,7 @@ _Avoid_: 파일 선택
 _Avoid_: 게임 화면
 
 **결과 화면**:
-플레이 세션이 끝난 뒤 판정 집계, 달성률, 랭크, 풀콤보 여부, 비행 규칙의 클리어/실패 여부를 보여주는 화면이다.
+플레이 세션이 끝난 뒤 판정 집계, 달성률, 랭크, 풀콤보 여부, `flightRule`의 클리어/실패 여부를 보여주는 화면이다.
 _Avoid_: 스코어 화면
 
 **입력-노트 매칭**:
@@ -47,11 +47,11 @@ _Avoid_: 스코어 화면
 _Avoid_: 키 이벤트 처리
 
 **가장 이른 노트 매칭**:
-판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 롱노트(싱글/더블, 길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 흡수(consume)하되 판정은 분리한다(필요 키 수 싱글 1/더블 2) — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
+판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 롱노트(싱글/더블, 길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 `consume`하되 판정은 분리한다(필요 키 수 싱글 1/더블 2) — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
 _Avoid_: 가장 가까운 노트 매칭
 
-**공릴리즈 키 (empty release)**:
-terminal hold-only/슬라이드를 held로 완료시킨 시점의 held 키. 이 키의 release("놓기")는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다(무조건 스킵). 연결은 "계속 잡는 것"이라 공릴리즈로 표시하지 않는다. 안전성은 "롱노트 겹침 불가" 불변에 의존 — 세부는 `docs/rfd/0008-release-engage-key-attribution.md`.
+**`emptyRelease` 키**:
+terminal `holdOnly`/슬라이드를 held로 완료시킨 시점의 held 키. 이 키의 release("놓기")는 직후 노트의 release 판정(끝점 `termination`·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다(무조건 스킵). `connection`은 "계속 잡는 것"이라 `emptyRelease`로 표시하지 않는다. 안전성은 "롱노트 겹침 불가" 불변에 의존 — 세부는 `docs/rfd/0008-release-engage-key-attribution.md`.
 _Avoid_: 레인 단위 release 브로드캐스트, engage-키 귀속(제거됨)
 
 **빈 레인 입력**:
@@ -102,25 +102,25 @@ _Avoid_: 리프트
 플레이 중 실패 여부를 결정하는 생존 지표이다.
 _Avoid_: 달성률
 
-**비행 규칙**:
-Play에서 고도 기반 클리어/실패를 결정하는 규칙이다. 현재 비행 규칙은 Liftoff, Survival 2종이며, UI와 코드는 영어 명칭을 사용한다. 기본 경계는 `../../docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따르고, 2종 재편은 `../../docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다. Survival의 Perfect-only 회복 결정은 `../../docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
+**`flightRule`**:
+Play에서 `altitude` 기반 클리어/실패를 결정하는 규칙이다. 현재 `flightRule`은 Liftoff, Survival 2종이며, UI와 코드는 영어 명칭을 사용한다. 기본 경계는 `../../docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따르고, 2종 재편은 `../../docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다. Survival의 Perfect-only 회복 결정은 `../../docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
 _Avoid_: 난이도명
 
-**고도**:
-비행 규칙의 현재 상태를 표현하는 플레이 중 지표이다. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다.
+**`altitude`**:
+`flightRule`의 현재 상태를 표현하는 플레이 중 지표이다. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다.
 _Avoid_: 달성률
 
 ## Relationships
 
-- **플레이 세션**은 하나의 **차트**와 하나의 **비행 규칙**을 대상으로 진행된다.
+- **플레이 세션**은 하나의 **차트**와 하나의 **`flightRule`**을 대상으로 진행된다.
 - **Observer 계열**은 실패 조건 없이 차트를 관찰하고 학습하는 흐름이며, 기록 대상 Play와 구분된다.
 - **곡 선택**은 **플레이 세션** 전에 곡과 차트를 결정한다.
 - **플레이 화면**은 입력을 **입력-노트 매칭**으로 연결하고 판정을 만든다.
 - **가장 이른 노트 매칭**은 노트 배치 순서와 판정 순서를 일치시킨다.
 - **처리된 노트**는 읽기 부담을 줄이기 위해 플레이 화면에서 제거된다.
-- **결과 화면**은 **달성률**, **랭크**, **콤보**, **풀콤보**, **비행 규칙** 결과를 보여준다.
-- Play는 **비행 규칙**에 따라 실패할 수 있으며, 실패 조건 없는 완주와 관찰은 **Observer 계열**이 담당한다.
-- **고도**는 **게이지**의 비행 콘셉트 표현이며, **달성률**이나 **랭크**와 구분한다.
+- **결과 화면**은 **달성률**, **랭크**, **콤보**, **풀콤보**, **`flightRule`** 결과를 보여준다.
+- Play는 **`flightRule`**에 따라 실패할 수 있으며, 실패 조건 없는 완주와 관찰은 **Observer 계열**이 담당한다.
+- **`altitude`**는 **게이지**의 비행 콘셉트 표현이며, **달성률**이나 **랭크**와 구분한다.
 - **오디오 오프셋**과 **입력 오프셋**은 서로 다른 지연 원인을 보정한다.
 - **인게임 구간**이 있으면 플레이 화면의 songTime 0ms는 원본 음원의 해당 구간 시작점에 대응한다.
 - **리프트**와 **서든**은 판정 규칙이 아니라 시야 조절 설정이다.
@@ -130,13 +130,13 @@ _Avoid_: 달성률
 > **Dev:** "빈 레인에서 누른 입력은 그냥 버리면 되나요?"
 > **Domain expert:** "판정 윈도우 안에 노트가 있으면 **빈 레인 입력**으로 Bad가 날 수 있어요. 무조건 무시하면 안 됩니다."
 >
-> **Dev:** "끝까지 쳐보고 싶은데 Play에서 비행 규칙 실패가 나면 어떻게 하나요?"
-> **Domain expert:** "완주와 관찰은 **Observer 계열**이 담당합니다. Play는 **비행 규칙**에 따른 클리어/실패가 있는 기록 대상 흐름입니다."
+> **Dev:** "끝까지 쳐보고 싶은데 Play에서 `flightRule` 실패가 나면 어떻게 하나요?"
+> **Domain expert:** "완주와 관찰은 **Observer 계열**이 담당합니다. Play는 **`flightRule`**에 따른 클리어/실패가 있는 기록 대상 흐름입니다."
 
 ## Flagged ambiguities
 
 - **랭크**는 결과 등급이고 **난이도 등급**은 차트 레벨 구간이다.
 - **오디오 오프셋**과 **입력 오프셋**은 합치지 않는다.
-- **비행 규칙**은 **난이도명**, **Lv.**, **난이도 등급**과 바꿔 쓰지 않는다.
-- **Survival**은 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, Perfect로만 고도를 회복한다.
-- **고도**는 **달성률**이나 **랭크**와 다르다.
+- **`flightRule`**은 **난이도명**, **Lv.**, **난이도 등급**과 바꿔 쓰지 않는다.
+- **Survival**은 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, Perfect로만 `altitude`를 회복한다.
+- **`altitude`**는 **달성률**이나 **랭크**와 다르다.

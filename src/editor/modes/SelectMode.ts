@@ -82,7 +82,7 @@ export class SelectMode {
     number,
     { beat: Beat; endBeat?: Beat; extraLane: number }
   > = new Map();
-  // 트릴 노트 단위 이동 시, 이동을 가두는 트릴 구간(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
+  // 트릴 노트 단위 이동 시, 이동을 가두는 trillZone(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
   private _trillMoveZone: TrillZone | null = null;
   // 구간 단위 선택: 선택된 트릴존 인덱스. 비어있지 않으면 "구간 단위" 선택 모드.
   private selectedZoneIndices: Set<number> = new Set();
@@ -206,7 +206,7 @@ export class SelectMode {
   }
 
   /**
-   * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 트릴 구간 인덱스. 없으면 null.
+   * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 trillZone 인덱스. 없으면 null.
    * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위해 사용한다.
    */
   get draggingTrillZoneIndex(): number | null {
@@ -1213,7 +1213,7 @@ export class SelectMode {
 
   /** Copy selected notes to clipboard */
   /**
-   * 복사 대상 트릴 구간을 결정한다.
+   * 복사 대상 trillZone을 결정한다.
    * - 구간 단위 선택: 선택된 구간들
    * - 노트 단위 트릴 선택: 그 노트들이 속한 구간(구간 단위로 승격)
    * - 그 외: 없음
@@ -1369,7 +1369,7 @@ export class SelectMode {
     }
   }
 
-  /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 트릴 구간을, 아니면 null을 반환한다. */
+  /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 trillZone을, 아니면 null을 반환한다. */
   private trillZoneOfSelection(): TrillZone | null {
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
     if (kind.kind !== "trill" || kind.zoneIndex < 0) return null;

@@ -39,7 +39,7 @@ zoom setter → render() → clearDynamicLayers() → 모든 레이어 재구축
 2. **`renderLaneBackgrounds()`** — 레인 배경 Graphics 생성 (4~N개)
 3. **`renderWaveform()`** — 웨이브폼 폴리곤 전체 재구축 (피크 수만큼 lineTo)
 4. **`renderGridLines()`** — 마디선 + 비트선 + 스냅선 + Text 라벨 생성 (마디 수 * 스냅 수)
-5. **`renderTrillZones()`** — 트릴 구간 사각형
+5. **`renderTrillZones()`** — `trillZone` 사각형
 6. **`renderMoveOrigins()`** — 이동 중 원본 위치 고스트
 7. **`renderBoxSelectRect()`** — 범위 선택 사각형
 8. **`renderNotes()`** — 모든 노트를 순회하며 Graphics 생성 (노트 수 비례)
