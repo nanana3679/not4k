@@ -424,3 +424,36 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(NOTE_HEIGHT - endCapSprite.height - startCap.height).toBe(5);
   });
 });
+
+describe("GameNoteRenderer 트릴 롱노트", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // 트릴롱 100~300ms, song=0 → 끝점 y=200, 머리 startY=420.
+  let renderer: GameNoteRenderer;
+  let bodyLayer: Container;
+  let endLayer: Container;
+  let headLayer: Container;
+
+  beforeEach(() => {
+    const created = createRenderer();
+    renderer = created.renderer;
+    bodyLayer = created.bodyLayer;
+    endLayer = created.endLayer;
+    headLayer = created.headLayer;
+  });
+
+  const trillLongEntity = () =>
+    ({ type: "trillLong", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & {
+      endBeat: unknown;
+    };
+
+  it("트릴롱노트는 자체 헤드 다이아몬드를 그리지 않는다 — headLayer 비어 있음 (헤드는 별도 trill 포인트 노트가 담당)", () => {
+    renderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
+    expect(childrenOf(headLayer).length).toBe(0);
+  });
+
+  it("트릴롱노트는 body와 끝 캡을 각 레이어에 그린다", () => {
+    renderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
+    expect(childrenOf(bodyLayer).length).toBe(1);
+    expect(childrenOf(endLayer).length).toBe(1);
+  });
+});

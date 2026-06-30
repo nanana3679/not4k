@@ -219,16 +219,11 @@ export class GameNoteRenderer {
         this.longNoteEndLayer.addChild(endCapSprite);
       }
 
-      const headY = rawStartY;
-      if (headY >= -NOTE_HEIGHT && headY <= this.height + NOTE_HEIGHT) {
-        const headTexKey = isMissed ? "noteTrillFailed" : "noteTrill";
-        const headSprite = this.getOrCreateNoteSprite(index, headTexKey);
-        headSprite.x = laneX;
-        headSprite.y = headY;
-        headSprite.tint = 0xffffff;
-        headSprite.alpha = isPartial ? 0.5 : 1;
-        this.longNoteHeadLayer.addChild(headSprite);
-      }
+      // 헤드 다이아몬드는 그리지 않는다. trillLong은 검증 규칙상 항상 같은 레인·같은
+      // 시작 박에 별도의 trill 포인트 노트(헤드)를 가지며(validateTrillLong, RFD 0009),
+      // 그 노트가 renderPointNote에서 올바른 위치·올바른 헤드 판정 상태로 다이아몬드를 그린다.
+      // 여기서 또 그리면 헤드가 중복 렌더되고, body 정렬용 +NOTE_HEIGHT 보정 때문에
+      // NOTE_HEIGHT만큼 어긋난 두 번째 다이아몬드가 보인다.
     } else {
       // long / doubleLong: Sprite-based
       const isDouble = entity.type === "doubleLong";
