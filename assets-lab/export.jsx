@@ -46,6 +46,22 @@ function SkinExports({ skinId, C }) {
         <C.TerminalCap x={0} y={0} type="double" />
       </SvgWrap>
 
+      {/* 롱노트 끝/시작 캡 (10px = CH/2, start/end 공용 — 가로 그라데이션이라 상하 대칭) */}
+      {C.EndCap && <>
+        <SvgWrap id={`${skinId}--end-cap-single`} w={CW} h={CH / 2}>
+          <C.EndCap x={0} y={0} type="single" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--end-cap-double`} w={CW} h={CH / 2}>
+          <C.EndCap x={0} y={0} type="double" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--end-cap-single-failed`} w={CW} h={CH / 2}>
+          <C.EndCap x={0} y={0} type="single" failed />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--end-cap-double-failed`} w={CW} h={CH / 2}>
+          <C.EndCap x={0} y={0} type="double" failed />
+        </SvgWrap>
+      </>}
+
       {/* 바디 (released) */}
       <SvgWrap id={`${skinId}--body-single`} w={CW} h={BODY_H}>
         <C.BodySegment x={0} y={0} height={BODY_H} type="single" held={false} />

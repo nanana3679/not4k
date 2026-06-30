@@ -28,6 +28,11 @@ const ASSETS = [
   "note-double",
   "terminal-single",
   "terminal-double",
+  // 롱노트 끝/시작 캡 (10px, start/end 공용) — 일부 스킨에만 존재(없으면 경고 후 skip)
+  "end-cap-single",
+  "end-cap-double",
+  "end-cap-single-failed",
+  "end-cap-double-failed",
   "body-single",
   "body-double",
   "body-single-held",

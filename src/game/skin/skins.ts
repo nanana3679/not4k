@@ -1,10 +1,23 @@
 import type { SkinManifest } from "./types";
 
-function buildManifest(id: string, theme: SkinManifest["theme"]): SkinManifest {
+function buildManifest(
+  id: string,
+  theme: SkinManifest["theme"],
+  withCaps = false,
+): SkinManifest {
   const base = `/skins/${id}`;
+  const caps = withCaps
+    ? {
+        endCapSingle: `${base}/end-cap-single.png`,
+        endCapDouble: `${base}/end-cap-double.png`,
+        endCapSingleFailed: `${base}/end-cap-single-failed.png`,
+        endCapDoubleFailed: `${base}/end-cap-double-failed.png`,
+      }
+    : {};
   return {
     theme,
     assets: {
+      ...caps,
       noteSingle: `${base}/note-single.png`,
       noteDouble: `${base}/note-double.png`,
       terminalSingle: `${base}/terminal-single.png`,
@@ -59,7 +72,7 @@ export const SKIN_LIST: SkinManifest[] = [
     heldGlow: 0xff3060,
     bg: 0x06070c,
     text: 0xc8cdd8,
-  }),
+  }, true),
   buildManifest("prism", {
     id: "prism",
     name: "Prism",

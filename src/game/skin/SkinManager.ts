@@ -3,6 +3,20 @@ import type { SkinManifest, SkinTheme } from "./types";
 import { getSkinManifest } from "./skins";
 
 /**
+ * 롱노트 캡 텍스처 키 매핑: terminal texKey → 전용 endCap texKey.
+ * 전용 캡 에셋이 로드된 스킨이면 이 키의 텍스처를 사용하고, 없으면 crop fallback한다.
+ * partial-failed 캡은 윗부분 색이 double과 같아 endCapDouble을 재사용한다.
+ */
+const CAP_TEXTURE_KEY: Record<string, string> = {
+  terminalSingle: "endCapSingle",
+  terminalDouble: "endCapDouble",
+  terminalSingleFailed: "endCapSingleFailed",
+  terminalDoubleFailed: "endCapDoubleFailed",
+  terminalDoublePartialFailedLeft: "endCapDouble",
+  terminalDoublePartialFailedRight: "endCapDouble",
+};
+
+/**
  * 스킨 에셋 로더 + 텍스처 캐시 관리
  *
  * 사용:
@@ -73,6 +87,12 @@ export class SkinManager {
       ["gearGaugeRight", assets.gearGaugeRight],
     ];
 
+    // 롱노트 전용 캡 에셋 (있는 스킨만 — 없으면 getHalfCapTexture가 terminal crop으로 fallback)
+    if (assets.endCapSingle) entries.push(["endCapSingle", assets.endCapSingle]);
+    if (assets.endCapDouble) entries.push(["endCapDouble", assets.endCapDouble]);
+    if (assets.endCapSingleFailed) entries.push(["endCapSingleFailed", assets.endCapSingleFailed]);
+    if (assets.endCapDoubleFailed) entries.push(["endCapDoubleFailed", assets.endCapDoubleFailed]);
+
     // 봄 프레임
     for (let i = 0; i < assets.bomb.length; i++) {
       entries.push([`bomb${i}`, assets.bomb[i]]);
@@ -116,14 +136,22 @@ export class SkinManager {
   }
 
   /**
-   * 롱노트 캡 텍스처 — terminal 텍스처의 윗부분 절반(=캡 모양)만 잘라낸다.
+   * 롱노트 캡 텍스처. 전용 캡 에셋(endCap*)이 로드된 스킨은 그것을 사용하고,
+   * 없는 스킨은 terminal 텍스처의 윗부분 절반(=캡 모양)을 런타임 crop해 fallback한다.
    * 시작 캡(상하반전)·끝 캡 양쪽에서 같은 텍스처를 공유한다.
    *
-   * TODO(assets-lab): 지금은 끝점 전용 terminal 에셋을 런타임에 crop해 임시로 캡을 만든다.
-   * 추후 assets-lab(components.jsx의 TerminalCap, build-skins.mjs ASSETS)에 10px짜리
-   * 전용 캡 에셋을 추가하고, 여기서는 그 전용 에셋을 로드하도록 교체할 것.
+   * TODO(assets-lab): crystal 외 스킨(prism/classic)은 아직 crop fallback을 쓴다.
+   * 추후 해당 스킨에도 전용 캡 에셋(assets-lab의 EndCap)을 추가하면 crop 경로를 제거할 수 있다.
    */
   getHalfCapTexture(key: string): Texture {
+    // 전용 캡 에셋 우선
+    const dedicatedKey = CAP_TEXTURE_KEY[key];
+    if (dedicatedKey) {
+      const entry = this.textures.get(dedicatedKey);
+      if (entry) return entry.texture;
+    }
+
+    // fallback: terminal 텍스처의 윗부분 절반을 런타임 crop
     const cached = this.capTextures.get(key);
     if (cached) return cached;
 
