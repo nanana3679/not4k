@@ -567,9 +567,9 @@ export function PlayScreen() {
       <canvas key={retryKey} ref={canvasRef} style={styles.canvas} />
 
       {isPaused && (
-        <div style={styles.pauseOverlay}>
-          <div style={styles.pauseModal}>
-            <h2 style={styles.pauseTitle}>Paused</h2>
+        <div style={import.meta.env.DEV ? styles.pauseOverlayDev : styles.pauseOverlay}>
+          <div style={import.meta.env.DEV ? styles.pauseModalDev : styles.pauseModal}>
+            <h2 style={import.meta.env.DEV ? styles.pauseTitleDev : styles.pauseTitle}>Paused</h2>
             <div style={styles.pauseButtons}>
               <button style={styles.button} onClick={handleResume}>
                 Resume
@@ -634,6 +634,37 @@ const styles = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     gap: '32px',
+  },
+  // 개발 모드 전용: dim 없이 우상단에 작게 띄워 플레이 화면을 가리지 않는다.
+  pauseOverlayDev: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    padding: '12px',
+    pointerEvents: 'none' as const, // 오버레이는 클릭 통과, 모달만 입력 받음
+  },
+  pauseModalDev: {
+    backgroundColor: 'rgba(42, 42, 42, 0.9)',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '10px',
+    pointerEvents: 'auto' as const,
+    transform: 'scale(0.8)',
+    transformOrigin: 'top right',
+  },
+  pauseTitleDev: {
+    fontSize: '18px',
+    color: '#ffffff',
+    margin: 0,
   },
   pauseTitle: {
     fontSize: '48px',
