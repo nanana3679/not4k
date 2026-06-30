@@ -170,6 +170,32 @@ export function TerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 18,
   );
 }
 
+// --- Crystal EndCap (롱노트 양 끝 캡 = 그라데이션 띠, 심지 없음) ---
+// TerminalCap의 윗부분(심지 없는 영역)과 동일한 모양을 높이 CH/2(10px)로 추출한 것.
+// 가로 그라데이션이라 상하 대칭 → 시작 캡(상하반전)·끝 캡이 같은 에셋을 공유한다.
+export function EndCap({ x, y, type = "single", failed = false }) {
+  const baseCol = failed ? FAIL[type].bright : P[type].highlight;
+  const r = parseInt(baseCol.slice(1, 3), 16);
+  const g = parseInt(baseCol.slice(3, 5), 16);
+  const b = parseInt(baseCol.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `cendcap_${failed ? "f" : "n"}_${type}_${x}_${y}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={baseCol} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
+        </linearGradient>
+      </defs>
+      <rect x={x} y={y} width={CW} height={CH / 2} fill={`url(#${gradId})`} />
+    </g>
+  );
+}
+
 // --- Crystal LongNote ---
 export function LongNote({ x, y, bodyH = 80, type = "single", held = false, coreSize, coreGap = 18, holderPad, dimLeft = false, dimRight = false, wireThickness, lineThickness, glowIntensity }) {
   return (

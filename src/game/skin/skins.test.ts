@@ -94,3 +94,23 @@ describe("SkinTheme", () => {
     }
   });
 });
+
+describe("롱노트 캡 에셋", () => {
+  it("crystal은 전용 endCap 경로 4종(single/double/single-failed/double-failed)을 가짐", () => {
+    const crystal = getSkinManifest("crystal");
+    expect(crystal.assets.endCapSingle).toBe("/skins/crystal/end-cap-single.png");
+    expect(crystal.assets.endCapDouble).toBe("/skins/crystal/end-cap-double.png");
+    expect(crystal.assets.endCapSingleFailed).toBe("/skins/crystal/end-cap-single-failed.png");
+    expect(crystal.assets.endCapDoubleFailed).toBe("/skins/crystal/end-cap-double-failed.png");
+  });
+
+  it("prism·classic은 endCap 경로가 없어 terminal crop으로 fallback함", () => {
+    for (const id of ["prism", "classic"]) {
+      const skin = getSkinManifest(id);
+      expect(skin.assets.endCapSingle).toBeUndefined();
+      expect(skin.assets.endCapDouble).toBeUndefined();
+      expect(skin.assets.endCapSingleFailed).toBeUndefined();
+      expect(skin.assets.endCapDoubleFailed).toBeUndefined();
+    }
+  });
+});

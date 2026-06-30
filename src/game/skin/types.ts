@@ -40,6 +40,15 @@ export interface SkinManifest {
     bodyDoubleFailed: string;
     terminalSingleFailed: string;
     terminalDoubleFailed: string;
+    /**
+     * 롱노트 양 끝 캡 (10px, start/end 공용). 전용 캡 에셋이 있는 스킨만 채운다.
+     * 없으면 SkinManager가 terminal 텍스처 윗부분을 런타임 crop해 fallback한다.
+     * partial-failed 캡은 윗부분 색이 double과 같아 endCapDouble을 재사용한다.
+     */
+    endCapSingle?: string;
+    endCapDouble?: string;
+    endCapSingleFailed?: string;
+    endCapDoubleFailed?: string;
     /** 부분 실패 에셋 (더블 롱노트) */
     bodyDoublePartialFailedLeft: string;
     bodyDoublePartialFailedRight: string;
