@@ -20,6 +20,52 @@ import {
 } from "./constants";
 
 /**
+ * 리사이즈 캡(끝=위): 레인 폭을 가로지르는 풀폭 단색 가로 바(직각)를 endY에 그린다.
+ * 트릴 구간과 롱노트가 공유하는 리사이즈 핸들 도형이다.
+ * @param x        레인의 좌측 x (= (lane-1) * laneWidth)
+ * @param laneWidth 레인 폭
+ * @param endY     끝(위) 화면 y — 캡의 세로 중심
+ * @param color    채움색
+ * @param bump     높이 가산(px) — 강조용
+ */
+export function drawResizeCap(
+  layer: Container,
+  x: number,
+  laneWidth: number,
+  endY: number,
+  color: number,
+  bump = 0,
+): void {
+  const capH = TRILL_RESIZE_CAP_HEIGHT + bump;
+  const capW = laneWidth - TRILL_RESIZE_CAP_INSET * 2;
+  const cap = new Graphics();
+  cap.rect(x + TRILL_RESIZE_CAP_INSET, endY - capH / 2, capW, capH);
+  cap.fill({ color });
+  layer.addChild(cap);
+}
+
+/**
+ * 이동 필(시작=아래): 레인 중앙의 짧은 라운드 캡슐을 startY에 그린다.
+ * @param cx      레인 가로 중심 x
+ * @param startY  시작(아래) 화면 y — 필의 세로 중심
+ * @param color   채움색
+ * @param bump    높이 가산(px) — 강조용
+ */
+export function drawMovePill(
+  layer: Container,
+  cx: number,
+  startY: number,
+  color: number,
+  bump = 0,
+): void {
+  const pillH = TRILL_MOVE_PILL_HEIGHT + bump;
+  const pill = new Graphics();
+  pill.roundRect(cx - TRILL_MOVE_PILL_WIDTH / 2, startY - pillH / 2, TRILL_MOVE_PILL_WIDTH, pillH, pillH / 2);
+  pill.fill({ color });
+  layer.addChild(pill);
+}
+
+/**
  * 한 트릴 구간의 이동/리사이즈 핸들을 layer에 그린다.
  * @param x        구간 레인의 좌측 x (= (lane-1) * laneWidth)
  * @param laneWidth 레인 폭
@@ -37,23 +83,33 @@ export function drawTrillZoneHandles(
 ): void {
   const accent = selected ? COLORS.SELECTED_OUTLINE : COLORS.TRILL_ZONE;
   const bump = selected ? TRILL_HANDLE_SELECTED_BUMP : 0;
-  const cx = x + laneWidth / 2;
 
   // 리사이즈 캡 (끝=위): 풀폭 단색 가로 바(직각)
-  const capH = TRILL_RESIZE_CAP_HEIGHT + bump;
-  const capW = laneWidth - TRILL_RESIZE_CAP_INSET * 2;
-  const cap = new Graphics();
-  cap.rect(x + TRILL_RESIZE_CAP_INSET, endY - capH / 2, capW, capH);
-  cap.fill({ color: accent });
-  layer.addChild(cap);
+  drawResizeCap(layer, x, laneWidth, endY, accent, bump);
 
   // 이동 필 (시작=아래): 짧은 라운드 캡슐.
   // 길이 0 구간(시작==끝)에서는 두 도형이 같은 지점에 겹치고 이동도 무의미하므로 캡만 그린다.
   if (endY !== startY) {
-    const pillH = TRILL_MOVE_PILL_HEIGHT + bump;
-    const pill = new Graphics();
-    pill.roundRect(cx - TRILL_MOVE_PILL_WIDTH / 2, startY - pillH / 2, TRILL_MOVE_PILL_WIDTH, pillH, pillH / 2);
-    pill.fill({ color: accent });
-    layer.addChild(pill);
+    drawMovePill(layer, x + laneWidth / 2, startY, accent, bump);
   }
+}
+
+/**
+ * 롱노트의 리사이즈 핸들(끝=위의 풀폭 가로 캡)을 layer에 그린다.
+ * 트릴 구간과 같은 캡 도형을 쓰되, 색은 노트 hover/선택 언어를 따른다
+ * (hover=흰색 외곽선색, 선택=빨강).
+ * @param x        노트 레인의 좌측 x (= (lane-1) * laneWidth)
+ * @param laneWidth 레인 폭
+ * @param endY     롱노트 끝(위) 화면 y
+ * @param selected 노트 선택 여부
+ */
+export function drawNoteResizeHandle(
+  layer: Container,
+  x: number,
+  laneWidth: number,
+  endY: number,
+  selected: boolean,
+): void {
+  const color = selected ? COLORS.SELECTED_OUTLINE : COLORS.HOVERED_OUTLINE;
+  drawResizeCap(layer, x, laneWidth, endY, color);
 }

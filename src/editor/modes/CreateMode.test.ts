@@ -36,7 +36,8 @@ describe("CreateMode — graceMode 배치", () => {
     mode.entityType = "single";
     mode.graceMode = true;
 
-    mode.onPointerDown(1, 2); // single은 즉시 생성
+    mode.onPointerDown(1, 2); // 통합 입력: 클릭(길이 0)=단노트
+    mode.onPointerUp(1, 2);
 
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect((updated.notes[0] as { grace?: boolean }).grace).toBe(true);
@@ -81,9 +82,110 @@ describe("CreateMode — graceMode 배치", () => {
     mode.entityType = "single";
 
     mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 2);
 
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect((updated.notes[0] as { grace?: boolean }).grace).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 통합 입력 (single/double: 클릭=단노트 / 드래그=롱노트)
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — 통합 입력 (single/double)", () => {
+  it("single 선택 후 클릭만(드래그 0) 하면 단노트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 2); // 같은 위치 = 길이 0
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].type).toBe("single");
+    expect("endBeat" in updated.notes[0]).toBe(false);
+  });
+
+  it("single 선택 후 누른 채 드래그하면 헤드(single)+롱 바디 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 5); // 길이 > 0
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(2);
+    expect(updated.notes[0].type).toBe("single"); // 헤드
+    expect(updated.notes[1].type).toBe("long"); // 바디
+  });
+
+  it("double 선택 후 클릭만 하면 더블 단노트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "double";
+
+    mode.onPointerDown(2, 1);
+    mode.onPointerUp(2, 1);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].type).toBe("double");
+    expect("endBeat" in updated.notes[0]).toBe(false);
+  });
+
+  it("double 선택 후 누른 채 드래그하면 더블 헤드+더블롱 바디 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "double";
+
+    mode.onPointerDown(1, 0);
+    mode.onPointerUp(1, 3);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(2);
+    expect(updated.notes[0].type).toBe("double");
+    expect(updated.notes[1].type).toBe("doubleLong");
+  });
+
+  it("single 선택 후 Extra 레인 클릭만 하면 단노트, 드래그하면 헤드+롱", () => {
+    const chart = makeChart();
+    let extraNotes: ExtraNoteEntity[] = [];
+    const callbacks = {
+      ...makeCallbacks(chart),
+      xToLane: () => null,
+      xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
+      getExtraNotes: () => extraNotes,
+      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
+    };
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    // 클릭만 → 단노트
+    mode.onPointerDown(10, 3);
+    mode.onPointerUp(10, 3);
+    let notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(notes).toHaveLength(1);
+    expect(notes[0].type).toBe("single");
+    expect("endBeat" in notes[0]).toBe(false);
+
+    // 드래그 → 헤드+롱
+    mode.onPointerDown(10, 1);
+    mode.onPointerUp(10, 5);
+    notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(notes).toHaveLength(3); // 기존 단노트1 + 헤드 + 롱
+    expect(notes[1].type).toBe("single");
+    expect(notes[2].type).toBe("long");
   });
 });
 

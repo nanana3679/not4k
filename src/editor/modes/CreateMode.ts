@@ -89,6 +89,9 @@ export class CreateMode {
   private _dragExtraLane: number | null = null;
   private _createEventLane: number | null = null;
   private _dragEntityTypeOverride: RangeNoteEntityType | null = null;
+  // single/double로 시작한 드래그에서, 길이 0이면 점노트로 떨어뜨리기 위한 폴백 타입.
+  // 명시적 long/doubleLong 드래그(=beginRangeNoteAt, 또는 long 엔티티)에서는 null로 둔다.
+  private _dragPointFallback: "single" | "double" | null = null;
 
   constructor(chart: Chart, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -219,7 +222,14 @@ export class CreateMode {
           return;
         }
         if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
-          this.createExtraPointNote(extraLane, beat);
+          // 통합 입력: 클릭(길이 0)=단노트, 누른 채 드래그=롱노트. pointerUp에서 결정.
+          this.isDragging = true;
+          this.dragStartBeat = beat;
+          this.dragStartLane = null;
+          this._dragExtraLane = extraLane;
+          this._dragType = "extraRangeNote";
+          this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
+          this._dragPointFallback = this.selectedEntityType;
           return;
         }
         if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
@@ -239,16 +249,22 @@ export class CreateMode {
     const lane = this.callbacks.xToLane(x);
     if (lane === null) return; // Outside all lanes
 
-    // Point entities: single, double
+    // Point/range 통합: single/double는 클릭(길이 0)=단노트, 누른 채 드래그=롱노트.
+    // 드래그로 시작하고 pointerUp에서 길이로 결정한다.
     if (
       this.selectedEntityType === "single" ||
       this.selectedEntityType === "double"
     ) {
-      this.createPointNote(lane, beat);
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = lane;
+      this._dragType = "rangeNote";
+      this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
+      this._dragPointFallback = this.selectedEntityType;
       return;
     }
 
-    // Range entities: long bodies
+    // Range entities: long bodies (명시적 long/doubleLong 엔티티 — 길이 0이면 길이 0 바디)
     if (
       this.selectedEntityType === "long" ||
       this.selectedEntityType === "doubleLong"
@@ -285,6 +301,12 @@ export class CreateMode {
     this._dragType = null;
     this._dragExtraLane = null;
     this._dragEntityTypeOverride = null;
+    this._dragPointFallback = null;
+  }
+
+  /** 두 Beat가 같은 값인지(분수 동치) */
+  private isSameBeat(a: Beat, b: Beat): boolean {
+    return a.n * b.d === b.n * a.d;
   }
 
   /** Handle mouse up (end drag, finalize placement) */
@@ -295,7 +317,12 @@ export class CreateMode {
 
     if (this._dragType === "rangeNote") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
-        this.createRangeNote(this.dragStartLane, this.dragStartBeat, endBeat);
+        // single/double 통합 드래그가 길이 0이면 단노트로 떨어뜨린다.
+        if (this._dragPointFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
+          this.createPointNote(this.dragStartLane, this.dragStartBeat);
+        } else {
+          this.createRangeNote(this.dragStartLane, this.dragStartBeat, endBeat);
+        }
       }
     } else if (this._dragType === "trillZone") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
@@ -307,7 +334,11 @@ export class CreateMode {
       }
     } else if (this._dragType === "extraRangeNote") {
       if (this._dragExtraLane !== null && this.dragStartBeat !== null) {
-        this.createExtraRangeNote(this._dragExtraLane, this.dragStartBeat, endBeat);
+        if (this._dragPointFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
+          this.createExtraPointNote(this._dragExtraLane, this.dragStartBeat);
+        } else {
+          this.createExtraRangeNote(this._dragExtraLane, this.dragStartBeat, endBeat);
+        }
       }
     }
 
@@ -318,6 +349,7 @@ export class CreateMode {
     this._dragType = null;
     this._dragExtraLane = null;
     this._dragEntityTypeOverride = null;
+    this._dragPointFallback = null;
   }
 
   /** Handle C+wheel for entity type cycling */

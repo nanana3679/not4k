@@ -662,6 +662,8 @@ export function useCanvasEvents(
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredExtraNote(hoverExtraHit);
       rendererRef.current.setHoveredTrillZone(draggingTrillZone !== null ? draggingTrillZone : hoverTrillZoneHit);
+      // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
+      rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }
 
     // 트릴 핸들 위 커서: 이동 필=move, 리사이즈 캡=ns-resize(↕). select 모드에서만.
@@ -671,6 +673,11 @@ export function useCanvasEvents(
       if (mode === 'select') {
         if (hitTestTrillZoneHandleRef.current(x, y) !== null) cursor = 'move';
         else if (hitTestTrillZoneEndRef.current(x, y) !== null) cursor = 'ns-resize';
+        else {
+          // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
+          const noteEnd = hitTestNoteEndRef.current(x, y);
+          if (noteEnd !== null && hitTestNoteRef.current(x, y) === noteEnd) cursor = 'ns-resize';
+        }
       }
       if (canvasEl.style.cursor !== cursor) canvasEl.style.cursor = cursor;
     }
@@ -907,7 +914,9 @@ export function useCanvasEvents(
           createModeRef.current.onPointerUp(x, y);
         }
       } else if (!touchCreateCandidate.moved && isTimeInBounds(touchCreateCandidate.y)) {
+        // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
         createModeRef.current.onPointerDown(touchCreateCandidate.x, touchCreateCandidate.y);
+        createModeRef.current.onPointerUp(touchCreateCandidate.x, touchCreateCandidate.y);
       }
       rendererRef.current?.hideGhostNote();
       return;
