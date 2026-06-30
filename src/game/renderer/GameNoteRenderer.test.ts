@@ -28,8 +28,12 @@ vi.mock("pixi.js", () => {
     y = 0;
     tint = 0xffffff;
     alpha = 1;
+    width = 0;
+    height = 0;
+    texture: unknown = null;
+    scale = { x: 1, y: 1 };
     static from() { return new Sprite(); }
-    constructor() {}
+    constructor(tex?: unknown) { this.texture = tex ?? null; }
   }
   class NineSliceSprite {
     x = 0;
@@ -59,6 +63,9 @@ interface MockSprite {
   y: number;
   tint: number;
   alpha: number;
+  width: number;
+  height: number;
+  scale: { x: number; y: number };
 }
 
 /** 모킹된 Container의 children 배열에 접근 */
@@ -69,6 +76,7 @@ function childrenOf(layer: Container): MockSprite[] {
 function createMockSkinManager(): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
+    getHalfCapTexture: vi.fn(() => ({})),
     hasTexture: vi.fn(() => false),
   } as unknown as SkinManager;
 }
@@ -198,8 +206,8 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
     // endLayer에 터미널 추가됨 (adjustedEndY가 화면 범위 내)
     if (childrenOf(endLayer).length > 0) {
-      const termSprite = childrenOf(endLayer)[0];
-      expect(termSprite.tint).toBe(0xffffff);
+      const endCapSprite = childrenOf(endLayer)[0];
+      expect(endCapSprite.tint).toBe(0xffffff);
     }
   });
 
@@ -359,10 +367,60 @@ describe("GameNoteRenderer 노트 정렬", () => {
       endBeat: unknown;
     };
     renderer.renderLongNote(long, 1, 100, 300, 0);
-    const termSprite = childrenOf(endLayer)[0];
+    const endCapSprite = childrenOf(endLayer)[0];
 
     // 끝점(terminal) 상단이 끝 시간의 포인트 노트 박스 상단과 같은 y에 와야 한다
     expect(pointSprite.y).toBe(200);
-    expect(termSprite.y).toBe(pointSprite.y);
+    expect(endCapSprite.y).toBe(pointSprite.y);
+  });
+});
+
+describe("GameNoteRenderer 롱노트 캡", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // 롱노트 100~300ms, song=0 → 끝점 y=200, 머리 startY=420.
+  let renderer: GameNoteRenderer;
+  let endLayer: Container;
+  let headLayer: Container;
+
+  beforeEach(() => {
+    const created = createRenderer();
+    renderer = created.renderer;
+    endLayer = created.endLayer;
+    headLayer = created.headLayer;
+  });
+
+  const longEntity = () =>
+    ({ type: "long", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & {
+      endBeat: unknown;
+    };
+
+  it("끝 캡이 끝점(y=200)에 노트 높이 절반(10px)으로 그려짐", () => {
+    renderer.renderLongNote(longEntity(), 0, 100, 300, 0);
+    const endCapSprite = childrenOf(endLayer)[0];
+
+    expect(endCapSprite.y).toBe(200);
+    expect(endCapSprite.height).toBe(NOTE_HEIGHT / 2);
+  });
+
+  it("시작 캡이 머리(y=420)에 10px 높이로 상하반전(scale.y<0)되어 headLayer에 추가됨", () => {
+    renderer.renderLongNote(longEntity(), 0, 100, 300, 0);
+    const startCap = childrenOf(headLayer)[0];
+
+    expect(startCap).toBeDefined();
+    expect(startCap.y).toBe(420);
+    expect(startCap.height).toBe(NOTE_HEIGHT / 2);
+    expect(startCap.scale.y).toBeLessThan(0);
+  });
+
+  it("길이 0 롱노트는 시작·끝 캡이 (NOTE_HEIGHT-5)/2로 줄어 가운데 심지 5px가 남음", () => {
+    renderer.renderLongNote(longEntity(), 0, 100, 100, 0);
+    const endCapSprite = childrenOf(endLayer)[0];
+    const startCap = childrenOf(headLayer)[0];
+
+    const expectedCap = (NOTE_HEIGHT - 5) / 2; // 7.5px
+    expect(endCapSprite.height).toBe(expectedCap);
+    expect(startCap.height).toBe(expectedCap);
+    // body 전체(NOTE_HEIGHT) 중 두 캡 사이에 심지 5px가 남아야 한다
+    expect(NOTE_HEIGHT - endCapSprite.height - startCap.height).toBe(5);
   });
 });
