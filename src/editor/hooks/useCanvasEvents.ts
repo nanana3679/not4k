@@ -914,7 +914,9 @@ export function useCanvasEvents(
           createModeRef.current.onPointerUp(x, y);
         }
       } else if (!touchCreateCandidate.moved && isTimeInBounds(touchCreateCandidate.y)) {
+        // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
         createModeRef.current.onPointerDown(touchCreateCandidate.x, touchCreateCandidate.y);
+        createModeRef.current.onPointerUp(touchCreateCandidate.x, touchCreateCandidate.y);
       }
       rendererRef.current?.hideGhostNote();
       return;
