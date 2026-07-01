@@ -4,6 +4,7 @@ import { useGameStore } from '../stores';
 import { AudioEngine } from '../audio';
 import { InputSystem, type KeyBinding } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
+import { computeConnectionSources } from '../judgment/longNoteConnection';
 import { ScoreManager } from '../scoring';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
@@ -214,6 +215,8 @@ export function PlayScreen() {
 
         // Create judgment engine
         const windows = getJudgmentWindows(settings.judgmentMode);
+        // 롱노트 connection 관계는 맵 로드 시 1회 계산해 주입한다 (렌더러 held 전파와 같은 소유자).
+        const connectionSources = computeConnectionSources(chartData.notes, noteTimesMs, noteEndTimesMs);
         const judgmentEngine = new JudgmentEngine(
           chartData.notes,
           noteTimesMs,
@@ -274,6 +277,7 @@ export function PlayScreen() {
           },
           windows,
           trillZoneStartTimesMs,
+          connectionSources,
         );
 
         // Create input system
