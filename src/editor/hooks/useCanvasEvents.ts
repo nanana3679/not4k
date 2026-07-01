@@ -27,6 +27,7 @@ import {
   shouldRunTouchBoxSelectDrag,
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
+import { resolveLongPressAction } from './longPressRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -266,12 +267,17 @@ export function useCanvasEvents(
       suppressContextMenuUntilRef.current = Date.now() + 1200;
       touchMultiSelectRef.current = true;
       useEditorStore.getState().setMode('select');
-      if (pending.noteEndHit !== null) {
-        selectModeRef.current?.beginNoteEndResizeDrag(pending.noteEndHit);
-      } else if (pending.noteHit !== null) {
-        selectModeRef.current?.beginTouchMoveDragFromNote(pending.noteHit, pending.x, pending.y);
-      } else if (pending.extraHit !== null) {
-        selectModeRef.current?.beginTouchMoveDragFromExtraNote(pending.extraHit, pending.x, pending.y);
+      const action = resolveLongPressAction({
+        noteEndHit: pending.noteEndHit,
+        noteHit: pending.noteHit,
+        extraHit: pending.extraHit,
+      });
+      if (action.kind === 'resizeNoteEnd') {
+        selectModeRef.current?.beginNoteEndResizeDrag(action.index);
+      } else if (action.kind === 'moveNote') {
+        selectModeRef.current?.beginTouchMoveDragFromNote(action.index, pending.x, pending.y);
+      } else if (action.kind === 'moveExtra') {
+        selectModeRef.current?.beginTouchMoveDragFromExtraNote(action.index, pending.x, pending.y);
       }
       rendererRef.current?.hideGhostNote();
     }, LONG_PRESS_MS);
