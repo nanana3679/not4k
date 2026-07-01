@@ -14,6 +14,7 @@ import {
 } from "../../shared/constants";
 import type { JudgmentWindows } from "../../shared/constants";
 import type { Lane } from "../../shared/constants";
+import { computeConnectionSources } from "./longNoteConnection";
 
 /**
  * 판정 결과
@@ -157,6 +158,12 @@ export class JudgmentEngine {
    * 공릴리즈 키가 다른 진행 중 롱의 키와 충돌하지 않는다 → 예외 없이 무조건 스킵한다.
    */
   private readonly emptyReleaseKeys: Map<Lane, Set<string>> = new Map();
+  /**
+   * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합.
+   * connection 정의의 단일 소유자 `longNoteConnection`이 계산한다 — 생성자에서 주입받거나(맵 로드 시
+   * 1회) 미주입 시 내부에서 파생한다. 렌더러의 held 전파 뷰와 같은 계산에서 나오므로 항상 일치한다.
+   */
+  private readonly connectionSources: ReadonlySet<number>;
 
   private currentCombo = 0;
   private maxComboValue = 0;
@@ -169,6 +176,7 @@ export class JudgmentEngine {
     callbacks: JudgmentCallbacks,
     windows: JudgmentWindows = JUDGMENT_WINDOWS,
     trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]> = new Map(),
+    connectionSources?: ReadonlySet<number>,
   ) {
     this.notes = notes;
     this.noteTimesMs = noteTimesMs;
@@ -176,6 +184,8 @@ export class JudgmentEngine {
     this.callbacks = callbacks;
     this.windows = windows;
     this.trillZoneStartTimesMs = trillZoneStartTimesMs;
+    // connection 관계는 맵 로드 시 1회 계산해 주입받는다. 미주입(단위 테스트 등)이면 같은 소유자에서 파생.
+    this.connectionSources = connectionSources ?? computeConnectionSources(notes, noteTimesMs, noteEndTimesMs);
 
     // 모든 노트를 UNPROCESSED로 초기화
     for (let i = 0; i < notes.length; i++) {
@@ -377,6 +387,7 @@ export class JudgmentEngine {
    * 레인의 모든 키가 릴리즈되었을 때 끝점 판정 시도
    */
   private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
+    let didTerminate = false;
     for (let i = 0; i < this.notes.length; i++) {
       const state = this.noteStates.get(i);
       if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_AWAITING_RELEASE) {
@@ -395,7 +406,7 @@ export class JudgmentEngine {
       if (note.type === NoteType.DOUBLE_LONG) {
         if (state !== NoteState.BODY_ACTIVE) continue;
         if (isHoldOnlyNote(note)) continue;
-        if (this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime)) continue;
+        if (this.connectionSources.has(i)) continue;
         if (
           releaseTimeMs < noteEndTime - this.windows.GOOD ||
           releaseTimeMs > noteEndTime + this.windows.BAD
@@ -409,6 +420,7 @@ export class JudgmentEngine {
         if (!keyState || keyState.judged) continue;
         const deltaMs = releaseTimeMs - noteEndTime;
         this.judgeDoubleLongKey(i, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
+        didTerminate = true;
         continue;
       }
 
@@ -416,7 +428,7 @@ export class JudgmentEngine {
         // 연결은 스트레이 릴리즈로 판정하지 않고 끝점 update(held-or-grace)에 위임한다.
         // (연결 헤드를 친 다른 키의 릴리즈가 연결을 MISS시키거나, 연결을 가로지르는
         //  이어잡기 키 스왑을 깨지 않게 — release 귀속)
-        if (this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime)) {
+        if (this.connectionSources.has(i)) {
           continue;
         }
         // 종결 대상: 끝점 판정 윈도우(Good 이전 ~ Bad 이후) 내 릴리즈 → 릴리즈 타이밍 기반 판정
@@ -425,12 +437,18 @@ export class JudgmentEngine {
           releaseTimeMs <= noteEndTime + this.windows.BAD
         ) {
           this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+          didTerminate = true;
         }
       } else {
         // BODY_AWAITING_RELEASE: 끝점 도달 후 릴리즈 대기 중이던 노트
         this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+        didTerminate = true;
       }
     }
+
+    // RFD 0011: 종결에 소비된 키는 같은 keyup의 직후 release-대상(슬라이드 미리-떼기 등)으로
+    // 번지지 않는다. 공릴리즈 가드를 재사용하며, onLaneRelease 끝에서 키와 함께 해제된다.
+    if (didTerminate) this.emptyReleaseKeys.get(lane)?.add(keyCode);
   }
 
   /**
@@ -919,7 +937,7 @@ export class JudgmentEngine {
       return;
     }
 
-    const isConnection = this.hasImmediateFollowingLongNote(noteIndex, note.lane, noteEndTime);
+    const isConnection = this.connectionSources.has(noteIndex);
     const holdOnly = isHoldOnlyNote(note);
 
     for (const keyState of [dl.key1, dl.key2]) {
@@ -1102,7 +1120,7 @@ export class JudgmentEngine {
         continue;
       }
 
-      const isConnection = this.hasImmediateFollowingLongNote(i, note.lane, noteEndTime);
+      const isConnection = this.connectionSources.has(i);
       const isHeldOrGrace =
         holdState.isHeld ||
         (holdState.lastReleaseTimeMs !== null &&
@@ -1268,30 +1286,6 @@ export class JudgmentEngine {
         this.incrementCombo();
       }
     }
-  }
-
-  /**
-   * 해당 노트 바로 다음에 같은 레인의 롱노트가 이어지는지 확인 (연결 판정 대상)
-   */
-  private hasImmediateFollowingLongNote(noteIndex: number, lane: Lane, endTimeMs: number): boolean {
-    const threshold = 10; // 10ms 이내면 immediate로 간주
-
-    for (let i = noteIndex + 1; i < this.notes.length; i++) {
-      const nextNote = this.notes[i];
-      if (nextNote.lane !== lane) continue;
-
-      const nextNoteTime = this.noteTimesMs.get(i);
-      if (nextNoteTime === undefined) continue;
-
-      // threshold 내 롱이 하나라도 있으면 연결. notes 배열의 시간 정렬을 가정하지 않으므로
-      // 조기 종료(break) 없이 전체를 스캔한다 — 끝점에 헤드(점 노트)가 같이 있거나,
-      // 윈도우 밖 노트가 연결 롱보다 앞 인덱스여도 연결을 놓치지 않는다.
-      if (Math.abs(nextNoteTime - endTimeMs) <= threshold && "endBeat" in nextNote) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   /**

@@ -357,6 +357,8 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 
 **구현**: `emptyReleaseKeys`(레인별 공릴리즈 키 집합), `markEmptyRelease`(held 완료 시 등록), `isEmptyRelease`(가드).
 
+> **release 소비 (RFD 0011):** 일반 롱노트를 release로 **종결시킨** 키도 같은 keyup의 직후 release-대상(슬라이드 미리-떼기 등)으로 번지지 않도록 같은 가드(`emptyReleaseKeys`)에 등록된다. 공릴리즈가 "held 완료로 *빈* release"라면, 소비는 "이미 종결 판정에 *쓰인* release"다 — 이유는 다르나 "이 keyup은 직후 노트로 안 간다"는 결과가 같아 가드를 공유한다. keydown 흡수(consume)의 release 대칭이며, 이로써 "롱 끝 직후 슬라이드/릴리즈 노트 금지"를 차트 배치로 관리하던 것(RFD 0007 §5)을 대체한다. 근거는 `docs/rfd/0011-normal-release-consume.md`.
+
 ### 이벤트 라우팅
 
 롱노트 시작점에 헤드 노트가 동시에 존재할 때의 입력 처리 모델. 가장 이른 노트 매칭에 의해 헤드가 `keydown` 이벤트를 소비하고, 롱노트는 해당 키의 held 상태를 독립적으로 체크한다. 이벤트 소비와 상태 체크가 분리되어 있으므로, 헤드가 Early Bad여도 키가 눌려 있으면 롱노트 유지 판정은 정상 진행되고, 헤드가 Late Bad/Miss이면 키가 눌려 있지 않으므로 롱노트도 자연스럽게 실패한다.
