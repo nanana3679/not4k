@@ -86,7 +86,7 @@ _Avoid_: 포인터 이벤트
 _Avoid_: 편집 제스처
 
 **`EditGesture`**:
-차트를 편집하는 의미를 갖는 제스처이다. 현재는 진행 중 편집을 폐기하는 `editCancel`이 있고, tap·longPress·drag·box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+차트를 편집하는 의미를 갖는 제스처이다. 현재는 편집 폐기 신호 `editCancel`과 단일 터치를 유지하는 `longPress`가 있고, tap·drag·box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
 _Avoid_: 뷰포트 제스처
 
 ## Relationships

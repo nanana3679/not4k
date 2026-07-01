@@ -12,10 +12,15 @@
 import {
   advanceTouchNavigationSession,
   beginTouchNavigationSession,
+  didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
+  TOUCH_MOVE_CANCEL_PX,
   type TouchGesturePoint,
   type TouchNavigationSession,
 } from './touchGesture';
+
+/** 롱프레스 발화까지의 유지 시간(ms). useCanvasEvents의 LONG_PRESS_MS와 동일해야 한다. */
+const LONG_PRESS_MS = 450;
 
 /** 정규화된 포인터 입력 한 건. 어댑터(훅)가 DOM PointerEvent에서 만들어 넣는다. */
 export interface PointerSample {
@@ -50,16 +55,33 @@ export type ViewportGesture =
     };
 
 /**
- * 차트를 편집하는 제스처. 슬라이스 1a에서는 "진행 중 편집을 폐기하라"는 `editCancel`만 존재한다
- * (두 손가락 내비가 편집을 가로챌 때). tap/longPress/drag/box는 후속 슬라이스에서 추가된다.
+ * 차트를 편집하는 의미를 갖는 제스처.
+ * - `editCancel`: 두 손가락 내비가 편집을 가로챌 때 진행 중 편집을 폐기하라는 신호.
+ * - `longPress`: 단일 터치를 tap-slop 안에서 LONG_PRESS_MS 유지했을 때(좌표는 down 시점 위치).
+ *   무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트테스트를 아는 어댑터가 정한다.
+ * tap/drag/box 트랜잭션은 후속 슬라이스에서 추가된다.
  */
-export type EditGesture = { kind: 'editCancel' };
+export type EditGesture =
+  | { kind: 'editCancel' }
+  | { kind: 'longPress'; x: number; y: number };
 
 export type Gesture = EditGesture | ViewportGesture;
 
 export class GestureRecognizer {
   private activePoints = new Map<number, TouchGesturePoint>();
   private navSession: TouchNavigationSession | null = null;
+  /** 진행 중인 롱프레스 후보(단일 터치). down 좌표와 시작 시각을 기억한다. */
+  private hold:
+    | {
+        pointerId: number;
+        x: number;
+        y: number;
+        startClientX: number;
+        startClientY: number;
+        downTimeMs: number;
+        fired: boolean;
+      }
+    | null = null;
 
   /** 현재 화면에 닿아 있는 터치 포인트 수. */
   get activeTouchCount(): number {
@@ -99,24 +121,69 @@ export class GestureRecognizer {
     }
   }
 
-  /** 시간 기반 제스처(롱프레스) 발화용. 슬라이스 1c에서 채워진다. */
-  tick(_nowMs: number): Gesture[] {
+  /**
+   * 주입된 시각으로 시간 기반 제스처(롱프레스)를 발화한다. 어댑터가 down 이후 적절한 시점에 부른다.
+   * 단일 터치가 tap-slop 안에서 LONG_PRESS_MS 이상 유지되면 longPress를 한 번 방출한다.
+   */
+  tick(nowMs: number): Gesture[] {
+    const hold = this.hold;
+    if (
+      hold &&
+      !hold.fired &&
+      this.activePoints.size === 1 &&
+      this.activePoints.has(hold.pointerId) &&
+      nowMs - hold.downTimeMs >= LONG_PRESS_MS
+    ) {
+      hold.fired = true;
+      return [{ kind: 'longPress', x: hold.x, y: hold.y }];
+    }
     return [];
   }
 
   private onTouchDown(sample: PointerSample): Gesture[] {
     this.activePoints.set(sample.pointerId, { clientX: sample.clientX, clientY: sample.clientY });
-    if (!isTouchNavigationGesture(this.activePoints.size)) return [];
 
-    // 두 손가락 이상 → 내비게이션이 편집을 가로챈다. 진행 중이던 편집 후보를 폐기하라고 알린다.
-    const session = beginTouchNavigationSession([...this.activePoints.values()]);
-    if (session) this.navSession = session;
-    return [{ kind: 'editCancel' }];
+    if (isTouchNavigationGesture(this.activePoints.size)) {
+      // 두 손가락 이상 → 내비게이션이 편집을 가로챈다. 롱프레스 후보를 버리고 편집 폐기를 알린다.
+      this.hold = null;
+      const session = beginTouchNavigationSession([...this.activePoints.values()]);
+      if (session) this.navSession = session;
+      return [{ kind: 'editCancel' }];
+    }
+
+    // 단일 터치 → 롱프레스 후보를 무장한다(down 좌표·시각 기억). 실제 의미는 어댑터가 정한다.
+    this.hold = {
+      pointerId: sample.pointerId,
+      x: sample.x,
+      y: sample.y,
+      startClientX: sample.clientX,
+      startClientY: sample.clientY,
+      downTimeMs: sample.timeMs,
+      fired: false,
+    };
+    return [];
   }
 
   private onTouchMove(sample: PointerSample): Gesture[] {
     // legacy updateTouchPoint와 동일하게 무조건 add-or-update 한다.
     this.activePoints.set(sample.pointerId, { clientX: sample.clientX, clientY: sample.clientY });
+
+    // tap-slop을 넘어가면 롱프레스 후보를 취소한다(발화 전에만).
+    const hold = this.hold;
+    if (
+      hold &&
+      !hold.fired &&
+      hold.pointerId === sample.pointerId &&
+      didTouchMoveBeyondTapSlop({
+        startClientX: hold.startClientX,
+        startClientY: hold.startClientY,
+        clientX: sample.clientX,
+        clientY: sample.clientY,
+        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+      })
+    ) {
+      this.hold = null;
+    }
 
     const points = [...this.activePoints.values()];
     if (!isTouchNavigationGesture(points.length)) return [];
@@ -151,6 +218,9 @@ export class GestureRecognizer {
 
   private onTouchEnd(sample: PointerSample): Gesture[] {
     this.activePoints.delete(sample.pointerId);
+    if (this.hold?.pointerId === sample.pointerId) {
+      this.hold = null;
+    }
     if (this.activePoints.size < 2) {
       this.navSession = null;
     }
