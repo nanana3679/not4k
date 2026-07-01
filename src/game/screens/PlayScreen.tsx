@@ -8,6 +8,7 @@ import { computeConnectionSources } from '../judgment/longNoteConnection';
 import { ScoreManager } from '../scoring';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
+import { noteDisplayEffect } from '../renderer/noteDisplayEffect';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
@@ -246,30 +247,12 @@ export function PlayScreen() {
               renderer.recordPerspectiveSurfaceJudgment(result.grade);
               renderer.showJudgment(result.grade, result.deltaMs);
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
+              // 순간 효과(bomb)는 표시 상태가 아니므로 별도 처리
               if (result.grade !== 'miss') {
                 renderer.showBombEffect(note.lane);
-              } else if (result.isPartialBodyFail) {
-                // 더블 롱노트 부분 실패 — 한쪽만 실패 에셋으로 교체
-                renderer.markBodyPartialFailed(result.noteIndex, result.failedSide!);
-              } else {
-                renderer.markBodyFailed(result.noteIndex);
               }
-
-              // Note visibility updates
-              const isDouble = note.type === 'double';
-
-              if (result.isPartialBodyFail) {
-                // 부분 실패: 노트는 BODY_ACTIVE를 유지하므로 visibility 변경 없음
-              } else if (result.grade === 'miss') {
-                // miss된 노트는 사라지지 않고 실패 에셋으로 교체
-                renderer.markNoteMissed(result.noteIndex);
-              } else if (isBody) {
-                renderer.markNoteProcessed(result.noteIndex);
-              } else if (isDouble && result.subIndex === 0) {
-                renderer.markDoublePartial(result.noteIndex);
-              } else {
-                renderer.markNoteProcessed(result.noteIndex);
-              }
+              // 표시 상태는 순수 함수가 단일 결정 → 렌더러가 캐시에 적용
+              renderer.applyNoteDisplayEffect(result.noteIndex, noteDisplayEffect(result, note));
             },
             onComboUpdate: (combo: number) => {
               renderer.updateCombo(combo);
@@ -314,7 +297,7 @@ export function PlayScreen() {
           for (let i = 0; i < chartData.notes.length; i++) {
             const timeMs = noteTimesMs.get(i);
             if (timeMs !== undefined && timeMs < startTimeMs) {
-              renderer.markNoteProcessed(i);
+              renderer.applyNoteDisplayEffect(i, { body: null, visibility: 'processed' });
             }
           }
         }
