@@ -139,7 +139,7 @@ describe("이어진 롱노트 held 전파", () => {
       new Map([[1, 0]]),
       new Map([[0, 0], [1, 1000]]),
     );
-    renderer.markNoteMissed(0); // 앞 롱노트 miss
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' }); // 앞 롱노트 miss
 
     renderer.renderLongNote(longNote(1), 1, 1000, 2000, SONG_TIME);
 

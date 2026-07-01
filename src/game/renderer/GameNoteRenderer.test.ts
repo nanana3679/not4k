@@ -121,7 +121,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("markNoteMissed 호출 후에도 포인트 노트가 계속 렌더링됨", () => {
     const entity = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     // completedNotes에 없으므로 렌더링 시 noteLayer에 child가 추가됨
     renderer.renderPointNote(entity, 0, 500, 500);
@@ -130,7 +130,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("markNoteProcessed 호출 후에는 포인트 노트가 렌더링되지 않음", () => {
     const entity = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
-    renderer.markNoteProcessed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
 
     renderer.renderPointNote(entity, 0, 500, 500);
     expect(childrenOf(noteLayer).length).toBe(0);
@@ -138,7 +138,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("markNoteMissed는 failedBodies에도 추가됨 — 롱노트 바디가 실패 색상으로 표시", () => {
     const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
     // 렌더링이 수행됨 (completedNotes에 없으므로)
@@ -147,7 +147,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("miss된 포인트 노트의 tint가 LONG_BODY_FAILED(0x555555)로 설정됨", () => {
     const entity = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     renderer.renderPointNote(entity, 0, 500, 500);
 
@@ -169,7 +169,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("더블 부분 입력 시 alpha가 0.7로 설정됨", () => {
     const entity = { type: "double", beat: 0, lane: 1 } as unknown as NoteEntity;
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
 
     renderer.renderPointNote(entity, 0, 500, 500);
 
@@ -190,7 +190,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("miss된 롱노트 바디의 tint가 LONG_BODY_FAILED로 설정됨", () => {
     const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -200,7 +200,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("miss된 롱노트 터미널의 tint가 LONG_BODY_FAILED로 설정됨", () => {
     const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -224,7 +224,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("clearPools 호출 후 missedNotes 상태가 초기화됨", () => {
     const entity = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
     renderer.clearPools();
 
     // clearPools 후 렌더링하면 miss 상태가 아니므로 기본 tint
@@ -237,7 +237,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("더블 롱노트 부분 입력 시 바디 alpha가 0.7로 설정됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -249,7 +249,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("더블 롱노트 부분 실패 시 전용 텍스처가 사용되고 tint=white 유지", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -260,8 +260,8 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("부분 실패 후 전체 실패 시 바디 tint가 LONG_BODY_FAILED(0x555555)로 변경됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markBodyFailed(0);
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'unchanged' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -271,7 +271,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("싱글 롱노트에서는 부분 실패가 적용되지 않음 — 기본 tint 유지", () => {
     const entity = { type: "long", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);
 
@@ -282,14 +282,14 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("부분 실패 노트는 completedNotes에 추가되지 않아 계속 렌더링됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
 
     // 렌더링 시도 — completedNotes에 없으므로 렌더링되어야 함
     renderer.renderLongNote(entity, 0, 500, 800, 500);
     expect(childrenOf(bodyLayer).length).toBeGreaterThan(0);
 
     // markNoteProcessed를 호출하면 사라짐 — 부분 실패 시에는 호출하면 안 됨
-    renderer.markNoteProcessed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
     childrenOf(bodyLayer).length = 0;
     renderer.renderLongNote(entity, 0, 500, 800, 500);
     expect(childrenOf(bodyLayer).length).toBe(0); // completedNotes에 있으므로 렌더 안 됨
@@ -297,7 +297,7 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 
   it("clearPools 호출 후 partialFailedBodies 상태가 초기화됨", () => {
     const entity = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.clearPools();
 
     renderer.renderLongNote(entity, 0, 500, 800, 500);

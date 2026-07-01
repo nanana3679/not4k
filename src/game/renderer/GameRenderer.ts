@@ -21,6 +21,7 @@ import {
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
+import type { NoteDisplayEffect } from "./noteDisplayEffect";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
   applyPerspectiveSurfaceJudgment,
@@ -1429,24 +1430,8 @@ export class GameRenderer {
     if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
   }
 
-  markBodyFailed(noteIndex: number): void {
-    this.noteRenderer.markBodyFailed(noteIndex);
-  }
-
-  markBodyPartialFailed(noteIndex: number, side: 'left' | 'right'): void {
-    this.noteRenderer.markBodyPartialFailed(noteIndex, side);
-  }
-
-  markNoteProcessed(noteIndex: number): void {
-    this.noteRenderer.markNoteProcessed(noteIndex);
-  }
-
-  markDoublePartial(noteIndex: number): void {
-    this.noteRenderer.markDoublePartial(noteIndex);
-  }
-
-  markNoteMissed(noteIndex: number): void {
-    this.noteRenderer.markNoteMissed(noteIndex);
+  applyNoteDisplayEffect(noteIndex: number, effect: NoteDisplayEffect): void {
+    this.noteRenderer.applyNoteDisplayEffect(noteIndex, effect);
   }
 
   dispose(): void {
