@@ -51,7 +51,7 @@ _Avoid_: 키 이벤트 처리
 _Avoid_: 가장 가까운 노트 매칭
 
 **공릴리즈 키 (empty release)**:
-terminal hold-only/슬라이드를 held로 완료시킨 시점의 held 키. 이 키의 release("놓기")는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다(무조건 스킵). 연결은 "계속 잡는 것"이라 공릴리즈로 표시하지 않는다. 안전성은 "롱노트 겹침 불가" 불변에 의존 — 세부는 `docs/rfd/0008-release-engage-key-attribution.md`.
+terminal hold-only/슬라이드를 held로 완료시킨 시점의 held 키. 이 키의 release("놓기")는 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을 트리거하지 않는다(무조건 스킵). 연결은 "계속 잡는 것"이라 공릴리즈로 표시하지 않는다. 안전성은 "롱노트 겹침 불가" 불변에 의존 — 세부는 `docs/rfd/0008-release-engage-key-attribution.md`. **release 소비(RFD 0011)**: 일반 롱노트를 release로 종결시킨 키도 같은 가드를 공유해 직후 슬라이드/릴리즈 노트로 번지지 않는다 — 세부는 `docs/rfd/0011-normal-release-consume.md`.
 _Avoid_: 레인 단위 release 브로드캐스트, engage-키 귀속(제거됨)
 
 **빈 레인 입력**:

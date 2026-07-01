@@ -51,7 +51,7 @@
 
 **한 레인에서 두 롱노트의 바디 구간이 시간상 겹칠 수 없다.** 다중키를 동시에 유지하는 구간은 별개의 두 롱노트가 아니라 **`doubleLong` 한 노트**(key1/key2를 독립 추적)로 표현하고, 키 수가 바뀌는 순차 전환은 **연결**로 표현한다(`-=-`: `-`끝=`=`시작, `=`끝=`-`시작 — 연결 경계엔 동시 held 구간이 없다). 따라서 한 순간 레인당 진행 중인 롱노트는 최대 하나다.
 
-이 불변은 판정 엔진이 *전제*하는 것으로(엔진 런타임 강제 아님), release 누설 차단(공릴리즈)의 안전성이 여기 의존한다 — `game-core.md` "release 누설 차단", [RFD 0008](../rfd/0008-release-engage-key-attribution.md) §4·§10, `src/game/CONTEXT.md` 불변 섹션. **차트 검증(`src/shared/validation`의 `validateNoDuplicates` + `validateNoLongOverlap`)이 한 레인 롱노트 바디 겹침을 모두 거부하여 이 불변을 강제한다**(`validation.test.ts` "롱노트 겹침 불가 불변" 회귀 테스트로 잠금).
+이 불변은 판정 엔진이 *전제*하는 것으로(엔진 런타임 강제 아님), release 누설 차단(공릴리즈, 그리고 일반 롱 종결의 release 소비)의 안전성이 여기 의존한다 — `game-core.md` "release 누설 차단", [RFD 0008](../rfd/0008-release-engage-key-attribution.md) §4·§10, [RFD 0011](../rfd/0011-normal-release-consume.md) §7, `src/game/CONTEXT.md` 불변 섹션. **차트 검증(`src/shared/validation`의 `validateNoDuplicates` + `validateNoLongOverlap`)이 한 레인 롱노트 바디 겹침을 모두 거부하여 이 불변을 강제한다**(`validation.test.ts` "롱노트 겹침 불가 불변" 회귀 테스트로 잠금).
 
 ### 메커니즘
 

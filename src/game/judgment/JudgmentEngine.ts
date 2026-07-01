@@ -377,6 +377,7 @@ export class JudgmentEngine {
    * 레인의 모든 키가 릴리즈되었을 때 끝점 판정 시도
    */
   private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
+    let didTerminate = false;
     for (let i = 0; i < this.notes.length; i++) {
       const state = this.noteStates.get(i);
       if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_AWAITING_RELEASE) {
@@ -409,6 +410,7 @@ export class JudgmentEngine {
         if (!keyState || keyState.judged) continue;
         const deltaMs = releaseTimeMs - noteEndTime;
         this.judgeDoubleLongKey(i, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
+        didTerminate = true;
         continue;
       }
 
@@ -425,12 +427,18 @@ export class JudgmentEngine {
           releaseTimeMs <= noteEndTime + this.windows.BAD
         ) {
           this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+          didTerminate = true;
         }
       } else {
         // BODY_AWAITING_RELEASE: 끝점 도달 후 릴리즈 대기 중이던 노트
         this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
+        didTerminate = true;
       }
     }
+
+    // RFD 0011: 종결에 소비된 키는 같은 keyup의 직후 release-대상(슬라이드 미리-떼기 등)으로
+    // 번지지 않는다. 공릴리즈 가드를 재사용하며, onLaneRelease 끝에서 키와 함께 해제된다.
+    if (didTerminate) this.emptyReleaseKeys.get(lane)?.add(keyCode);
   }
 
   /**
