@@ -206,7 +206,8 @@ export function useCanvasEvents(
     y: e.clientY,
     clientX: e.clientX,
     clientY: e.clientY,
-    timeMs: e.timeStamp,
+    // tick(performance.now())과 반드시 같은 시계여야 경과 계산이 맞다(Time-A).
+    timeMs: performance.now(),
     button: e.button,
     buttons: e.buttons,
   }), []);
@@ -261,7 +262,12 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = longPressRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired) return;
-      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
+      // 발화 조건(경과 450ms·단일 터치·tap-slop 내)은 recognizer.tick이 판정한다(Time-A).
+      // setTimeout은 ~450ms 시점에 tick을 한 번 poke하는 스케줄러 역할만 한다.
+      const longPressFired = recognizerRef.current
+        .tick(performance.now())
+        .some((g) => g.kind === 'longPress');
+      if (!longPressFired) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
