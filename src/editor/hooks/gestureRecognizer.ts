@@ -71,6 +71,16 @@ export class GestureRecognizer {
     return this.navSession !== null;
   }
 
+  /** 특정 포인터가 현재 닿아 있는지(터치 후보 타이머의 단일 터치 확인용). */
+  hasTouch(pointerId: number): boolean {
+    return this.activePoints.has(pointerId);
+  }
+
+  /** 내비게이션 세션을 강제 종료한다(pointercancel 등 전면 teardown용). 터치 포인트는 건드리지 않는다. */
+  clearNavigation(): void {
+    this.navSession = null;
+  }
+
   /** 포인터 샘플 하나를 먹여 방출되는 제스처들을 받는다(없으면 빈 배열). */
   feed(sample: PointerSample): Gesture[] {
     // 슬라이스 1a는 터치 내비게이션만 인식한다. 마우스/펜은 아직 어댑터가 직접 처리한다.
@@ -105,9 +115,8 @@ export class GestureRecognizer {
   }
 
   private onTouchMove(sample: PointerSample): Gesture[] {
-    if (this.activePoints.has(sample.pointerId)) {
-      this.activePoints.set(sample.pointerId, { clientX: sample.clientX, clientY: sample.clientY });
-    }
+    // legacy updateTouchPoint와 동일하게 무조건 add-or-update 한다.
+    this.activePoints.set(sample.pointerId, { clientX: sample.clientX, clientY: sample.clientY });
 
     const points = [...this.activePoints.values()];
     if (!isTouchNavigationGesture(points.length)) return [];

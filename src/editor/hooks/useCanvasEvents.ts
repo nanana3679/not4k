@@ -23,14 +23,10 @@ import {
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
-  advanceTouchNavigationSession,
-  beginTouchNavigationSession,
   didTouchMoveBeyondTapSlop,
-  isTouchNavigationGesture,
   shouldRunTouchBoxSelectDrag,
-  type TouchGesturePoint,
-  type TouchNavigationSession,
 } from './touchGesture';
+import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -136,8 +132,7 @@ export function useCanvasEvents(
   } = coords;
 
   const rightDragDeletedRef = useRef(false);
-  const activeTouchPointsRef = useRef<Map<number, TouchGesturePoint>>(new Map());
-  const touchNavigationSessionRef = useRef<TouchNavigationSession | null>(null);
+  const recognizerRef = useRef(new GestureRecognizer());
   const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const longPressRef = useRef<{
     pointerId: number;
@@ -198,25 +193,25 @@ export function useCanvasEvents(
     deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef]);
 
-  const updateTouchPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (e.pointerType !== 'touch') return;
-    activeTouchPointsRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-  }, []);
+  const toSample = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    phase: PointerSample['phase'],
+  ): PointerSample => ({
+    pointerId: e.pointerId,
+    pointerType: e.pointerType as PointerSample['pointerType'],
+    phase,
+    // 1b: 내비게이션은 x/y를 쓰지 않는다(client 좌표만 사용). 편집 제스처 이관(1c) 시 캔버스 좌표로 채운다.
+    x: e.clientX,
+    y: e.clientY,
+    clientX: e.clientX,
+    clientY: e.clientY,
+    timeMs: e.timeStamp,
+    button: e.button,
+    buttons: e.buttons,
+  }), []);
 
-  const removeTouchPoint = useCallback((pointerId: number) => {
-    activeTouchPointsRef.current.delete(pointerId);
-    if (activeTouchPointsRef.current.size < 2) {
-      touchNavigationSessionRef.current = null;
-    }
-  }, []);
-
-  const startPinchIfNeeded = useCallback((): boolean => {
-    const points = [...activeTouchPointsRef.current.values()];
-    if (!isTouchNavigationGesture(points.length)) return false;
-
-    const session = beginTouchNavigationSession(points);
-    if (!session) return true;
-    touchNavigationSessionRef.current = session;
+  // 두 손가락 내비가 편집을 가로챌 때(editCancel) 진행 중이던 편집 후보를 폐기한다.
+  const handleEditCancel = useCallback(() => {
     clearLongPress();
     cancelTouchCreateCandidate();
     touchEmptySelectCandidateRef.current = null;
@@ -224,33 +219,18 @@ export function useCanvasEvents(
     touchTapToggleRef.current = null;
     createModeRef.current?.cancelDrag();
     rendererRef.current?.hideGhostNote();
-    return true;
   }, [cancelTouchCreateCandidate, clearLongPress, createModeRef, rendererRef]);
 
-  const handlePinchMove = useCallback((rect: DOMRect): boolean => {
-    const points = [...activeTouchPointsRef.current.values()];
-    if (!isTouchNavigationGesture(points.length)) return false;
-
-    const session = touchNavigationSessionRef.current ?? beginTouchNavigationSession(points);
-    if (!session) return true;
-
-    const update = advanceTouchNavigationSession(session, points);
-    if (!update) return true;
-    touchNavigationSessionRef.current = update.session;
-
-    if (update.mode === "horizontalScroll" && update.deltaX !== undefined) {
-      onHorizontalPan?.(update.deltaX);
-    } else if (update.mode === "verticalScroll" && update.deltaY !== undefined) {
-      onVerticalPan?.(update.deltaY);
-    } else if (
-      update.mode === "resize" &&
-      update.previousDistance !== undefined &&
-      update.currentDistance !== undefined
-    ) {
-      onPinchZoom?.(update.previousDistance, update.currentDistance, update.center.clientY - rect.top);
+  const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
+    for (const g of gestures) {
+      if (g.kind === "viewportScroll" && g.axis === "horizontal") {
+        onHorizontalPan?.(g.deltaX);
+      } else if (g.kind === "viewportScroll" && g.axis === "vertical") {
+        onVerticalPan?.(g.deltaY);
+      } else if (g.kind === "viewportZoom") {
+        onPinchZoom?.(g.previousDistance, g.currentDistance, g.centerClientY - rect.top);
+      }
     }
-
-    return true;
   }, [onHorizontalPan, onPinchZoom, onVerticalPan]);
 
   const scheduleLongPress = useCallback((
@@ -280,7 +260,7 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = longPressRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
@@ -317,7 +297,7 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = touchCreateCandidateRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
@@ -344,7 +324,7 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = touchDeleteCandidateRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
+      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
@@ -448,9 +428,10 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch') {
       e.preventDefault();
       suppressContextMenuUntilRef.current = Date.now() + 1200;
-      updateTouchPoint(e);
+      const navGestures = recognizerRef.current.feed(toSample(e, 'down'));
       canvasRef.current?.setPointerCapture(e.pointerId);
-      if (activeTouchPointsRef.current.size >= 2 && startPinchIfNeeded()) {
+      if (navGestures.some((g) => g.kind === 'editCancel')) {
+        handleEditCancel();
         return;
       }
     }
@@ -570,7 +551,7 @@ export function useCanvasEvents(
     }
   }, [
     mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
-    updateTouchPoint, startPinchIfNeeded, scheduleLongPress, scheduleTouchCreateRange,
+    toSample, handleEditCancel, scheduleLongPress, scheduleTouchCreateRange,
     scheduleTouchDeleteDrag, startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
@@ -578,16 +559,20 @@ export function useCanvasEvents(
   ]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    let navGestures: Gesture[] = [];
     if (e.pointerType === 'touch') {
       e.preventDefault();
-      updateTouchPoint(e);
+      navGestures = recognizerRef.current.feed(toSample(e, 'move'));
       updateTouchMovement(e);
     }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (e.pointerType === 'touch' && handlePinchMove(rect)) return;
+    if (e.pointerType === 'touch' && recognizerRef.current.activeTouchCount >= 2) {
+      routeViewportGestures(navGestures, rect);
+      return;
+    }
 
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -628,7 +613,7 @@ export function useCanvasEvents(
         candidatePointerId: emptySelectCandidate.pointerId,
         pointerId: e.pointerId,
         moved: emptySelectCandidate.moved,
-        activeTouchCount: activeTouchPointsRef.current.size,
+        activeTouchCount: recognizerRef.current.activeTouchCount,
       }) &&
       selectModeRef.current
     ) {
@@ -820,8 +805,8 @@ export function useCanvasEvents(
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
     bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
-    setSelectedExtraNotes, updateTouchPoint, updateTouchMovement,
-    handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
+    setSelectedExtraNotes, toSample, updateTouchMovement,
+    routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
     onNavigationInteraction,
@@ -836,8 +821,8 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
-      wasPinching = touchNavigationSessionRef.current !== null || activeTouchPointsRef.current.size >= 2;
-      removeTouchPoint(e.pointerId);
+      wasPinching = recognizerRef.current.isNavigating || recognizerRef.current.activeTouchCount >= 2;
+      recognizerRef.current.feed(toSample(e, 'up'));
       const pendingLongPress = longPressRef.current;
       if (pendingLongPress?.pointerId === e.pointerId) {
         longPressFired = pendingLongPress.fired;
@@ -976,26 +961,26 @@ export function useCanvasEvents(
       touchTapToggleRef.current = null;
     }
   }, [
-    mode, isTimeInBounds, removeTouchPoint, clearLongPress,
+    mode, isTimeInBounds, toSample, clearLongPress,
     updateTouchMovement, canvasRef, createModeRef, isDraggingCursorRef,
     deleteAtPoint, rendererRef, selectModeRef,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === 'touch') {
-      removeTouchPoint(e.pointerId);
+      recognizerRef.current.feed(toSample(e, 'cancel'));
+      recognizerRef.current.clearNavigation();
       clearLongPress();
       cancelTouchCreateCandidate();
       clearTouchEmptySelectCandidate();
       touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
-      touchNavigationSessionRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchEmptySelectCandidate, createModeRef, removeTouchPoint, rendererRef]);
+  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchEmptySelectCandidate, createModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
