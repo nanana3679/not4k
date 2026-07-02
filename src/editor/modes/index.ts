@@ -10,3 +10,6 @@ export type { SelectModeCallbacks } from "./SelectMode";
 
 export { DeleteMode } from "./DeleteMode";
 export type { DeleteModeCallbacks } from "./DeleteMode";
+
+export { activeEditorMode } from "./editorMode";
+export type { EditorMode, PointerGesture } from "./editorMode";

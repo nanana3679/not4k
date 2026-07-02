@@ -8,7 +8,7 @@ import { beat } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 
-type EditorMode = 'create' | 'select' | 'delete';
+export type EditorModeName = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
 type HistorySnapshot = {
   chart: Chart;
@@ -33,7 +33,7 @@ interface EditorState {
   chart: Chart;
 
   // Editor mode
-  mode: EditorMode;
+  mode: EditorModeName;
   entityType: EntityType;
   graceMode: boolean; // Create 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→holdOnly)
 
@@ -67,7 +67,7 @@ interface EditorState {
   setActiveSongId: (songId: string | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: Chart) => void;
-  setMode: (mode: EditorMode) => void;
+  setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
   setZoom: (zoom: number) => void;

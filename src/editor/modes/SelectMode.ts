@@ -16,6 +16,7 @@ import {
   translateTrillZone,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
+import type { EditorMode } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -52,7 +53,7 @@ export interface SelectModeCallbacks {
   onWarn?: (msg: string) => void;
 }
 
-export class SelectMode {
+export class SelectMode implements EditorMode {
   private chart: Chart;
   private callbacks: SelectModeCallbacks;
   private selectedIndices: Set<number> = new Set();
@@ -377,6 +378,11 @@ export class SelectMode {
   // --- Pointer events ---
 
   /** Handle pointer down */
+  /** Select 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
+  onWheel(): null {
+    return null;
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {

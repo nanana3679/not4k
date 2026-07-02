@@ -4,6 +4,7 @@ import {
   deleteEmptyTrillZoneAtIndex,
   deleteExtraNoteAtIndex,
 } from "../editing/editApplication";
+import type { EditorMode } from "./editorMode";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -16,7 +17,7 @@ export interface DeleteModeCallbacks {
   onWarn?: (message: string) => void;
 }
 
-export class DeleteMode {
+export class DeleteMode implements EditorMode {
   private chart: Chart;
   private callbacks: DeleteModeCallbacks;
 
@@ -27,6 +28,11 @@ export class DeleteMode {
 
   setChart(chart: Chart): void {
     this.chart = chart;
+  }
+
+  /** Delete 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
+  onWheel(): null {
+    return null;
   }
 
   /** Click to delete */

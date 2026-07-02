@@ -8,7 +8,7 @@ import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
 import { PlaybackController } from './playback/PlaybackController';
-import { CreateMode, SelectMode, DeleteMode } from './modes';
+import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
@@ -703,11 +703,11 @@ function ChartEditorPage() {
       return;
     }
 
-    if (mode === 'create' && createModeRef.current) {
-      if (createModeRef.current.onWheel(e.deltaY, cKeyHeldRef.current)) {
-        useEditorStore.getState().setEntityType(createModeRef.current.entityType);
-        return;
-      }
+    const active = activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current);
+    const wheeledEntityType = active?.onWheel(e.deltaY, cKeyHeldRef.current);
+    if (wheeledEntityType != null) {
+      useEditorStore.getState().setEntityType(wheeledEntityType);
+      return;
     }
 
     const maxScroll = rendererRef.current

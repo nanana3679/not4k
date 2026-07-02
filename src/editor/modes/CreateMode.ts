@@ -18,6 +18,7 @@ import type {
   ExtraRangeNote,
 } from "../../shared";
 import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
+import type { EditorMode } from "./editorMode";
 
 export type EntityType =
   | "single"
@@ -77,7 +78,7 @@ export interface CreateModeCallbacks {
   onWarn?: (message: string) => void;
 }
 
-export class CreateMode {
+export class CreateMode implements EditorMode {
   private chart: Chart;
   private callbacks: CreateModeCallbacks;
   private selectedEntityType: EntityType = "single";
@@ -353,8 +354,8 @@ export class CreateMode {
   }
 
   /** Handle C+wheel for entity type cycling */
-  onWheel(deltaY: number, cKeyHeld: boolean): boolean {
-    if (!cKeyHeld) return false;
+  onWheel(deltaY: number, cKeyHeld: boolean): EntityType | null {
+    if (!cKeyHeld) return null;
 
     if (deltaY > 0) {
       this.nextEntityType();
@@ -362,7 +363,7 @@ export class CreateMode {
       this.prevEntityType();
     }
 
-    return true; // Handled
+    return this.entityType; // Handled → 새 엔티티 타입
   }
 
   // -------------------------------------------------------------------------
