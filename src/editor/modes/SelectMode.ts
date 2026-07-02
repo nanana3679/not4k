@@ -6,6 +6,7 @@ import {
   deleteExtraNotesAtIndices,
 } from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
+import { resolveLongPressAction } from "./longPressRouting";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 import {
   classifySelection,
@@ -15,6 +16,7 @@ import {
   translateTrillZone,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
+import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -51,7 +53,7 @@ export interface SelectModeCallbacks {
   onWarn?: (msg: string) => void;
 }
 
-export class SelectMode {
+export class SelectMode implements EditorMode {
   private chart: Chart;
   private callbacks: SelectModeCallbacks;
   private selectedIndices: Set<number> = new Set();
@@ -339,6 +341,23 @@ export class SelectMode {
   }
 
   /**
+   * 터치 롱프레스 발화 시, down에서 계산된 히트로 드래그 종류를 정해 시작한다.
+   * 노트 끝→리사이즈 / 노트→이동 / 엑스트라→이동. 히트가 없으면 아무것도 안 하고 false.
+   * (라우팅을 호출자에서 모드로 흡수 — begin* 프리미티브는 그대로 두고 그 위에 얹는다.)
+   */
+  beginLongPressDrag(
+    x: number,
+    y: number,
+    hits: { noteEndHit: number | null; noteHit: number | null; extraHit: number | null },
+  ): boolean {
+    const action = resolveLongPressAction(hits);
+    if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
+    if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);
+    if (action.kind === "moveExtra") return this.beginTouchMoveDragFromExtraNote(action.index, x, y);
+    return false;
+  }
+
+  /**
    * 동질성 규칙을 지키며 노트를 선택에 추가한다.
    * 트릴 노트는 같은 트릴존끼리만, 트릴/일반은 섞을 수 없다.
    * 막히면 토스트로 이유를 알리고 false를 반환한다(추가 안 됨).
@@ -359,6 +378,22 @@ export class SelectMode {
   // --- Pointer events ---
 
   /** Handle pointer down */
+  /** Select 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
+  onWheel(): null {
+    return null;
+  }
+
+  /** 통합 포인터 down 진입점. gesture의 shift/alt/toggle 수식자를 onPointerDown으로 운반한다. */
+  handlePointerDown(gesture: PointerGesture): void {
+    this.onPointerDown(gesture.x, gesture.y, gesture.shiftKey, gesture.altKey, gesture.toggleSelection);
+  }
+
+  /** 통합 포인터 up 진입점. 드래그를 커밋하고 이동/박스 프리뷰 정리를 신호한다. */
+  handlePointerUp(gesture: PointerGesture): EditResult {
+    this.onPointerUp(gesture.x, gesture.y);
+    return { clearDragPreview: true };
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
@@ -368,6 +403,10 @@ export class SelectMode {
       }
       return;
     }
+
+    // 박스 셀렉트 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
+    // 훅이 empty-select 후보의 박스 시작을 첫 move/up까지 미루고 재호출해도 안전하게 만든다.
+    if (this.isBoxSelecting) return;
 
     // Check for endpoint resize first
 
@@ -505,8 +544,34 @@ export class SelectMode {
     }
   }
 
-  /** Handle pointer move */
-  onPointerMove(x: number, y: number): void {
+  /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
+  onPointerMove(x: number, y: number): EditResult {
+    this.applyPointerMove(x, y);
+    return { preview: this.buildMovePreview() };
+  }
+
+  /** 이동/박스 드래그의 현재 프리뷰를 만든다(렌더러 PUSH용). */
+  private buildMovePreview(): EditPreview {
+    const preview: EditPreview = {};
+    if (this.isBoxSelecting) {
+      const rect = this.boxSelectPixelRect;
+      if (rect) preview.boxSelectRect = rect;
+    }
+    if (this.isMoveDragging) {
+      const origins = this.moveOrigins;
+      if (origins.size > 0) {
+        const data: MoveOriginDatum[] = [];
+        for (const [idx, pos] of origins) {
+          data.push({ note: this.chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
+        }
+        preview.moveOrigins = data;
+      }
+    }
+    return preview;
+  }
+
+  /** Handle pointer move (내부 적용 로직) */
+  private applyPointerMove(x: number, y: number): void {
     if (!this.isDragging) return;
 
     if (this.dragType === "resize") {
