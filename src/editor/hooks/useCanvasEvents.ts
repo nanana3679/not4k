@@ -28,6 +28,7 @@ import {
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
 import { resolveLongPressAction } from './longPressRouting';
+import { resolveTouchCreateUpAction, shouldFireTapToggle } from './touchEditRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -904,13 +905,17 @@ export function useCanvasEvents(
     }
 
     if (touchCreateCandidate && createModeRef.current) {
-      if (touchCreateCandidate.fired) {
-        if (!isTimeInBounds(y)) {
-          createModeRef.current.cancelDrag();
-        } else {
-          createModeRef.current.onPointerUp(x, y);
-        }
-      } else if (!touchCreateCandidate.moved && isTimeInBounds(touchCreateCandidate.y)) {
+      const createAction = resolveTouchCreateUpAction({
+        fired: touchCreateCandidate.fired,
+        moved: touchCreateCandidate.moved,
+        endInBounds: isTimeInBounds(y),
+        candidateStartInBounds: isTimeInBounds(touchCreateCandidate.y),
+      });
+      if (createAction === 'commitDrag') {
+        createModeRef.current.onPointerUp(x, y);
+      } else if (createAction === 'cancelDrag') {
+        createModeRef.current.cancelDrag();
+      } else if (createAction === 'createPointTap') {
         // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
         createModeRef.current.onPointerDown(touchCreateCandidate.x, touchCreateCandidate.y);
         createModeRef.current.onPointerUp(touchCreateCandidate.x, touchCreateCandidate.y);
@@ -936,30 +941,13 @@ export function useCanvasEvents(
       rendererRef.current?.clearBoxSelectRect();
     }
 
+    // 노트·엑스트라 탭 토글은 동일 처리 — 하나로 합친다.
     const tapToggle = touchTapToggleRef.current;
     if (
       e.pointerType === 'touch' &&
       tapToggle?.pointerId === e.pointerId &&
-      tapToggle.kind === 'note' &&
-      !tapToggle.moved &&
-      !longPressFired &&
-      selectModeRef.current
-    ) {
-      selectModeRef.current.onPointerDown(
-        tapToggle.x,
-        tapToggle.y,
-        false,
-        false,
-        touchMultiSelectRef.current,
-      );
-    }
-    if (
-      e.pointerType === 'touch' &&
-      tapToggle?.pointerId === e.pointerId &&
-      tapToggle.kind === 'extra' &&
-      !tapToggle.moved &&
-      !longPressFired &&
-      selectModeRef.current
+      selectModeRef.current &&
+      shouldFireTapToggle({ moved: tapToggle.moved, longPressFired })
     ) {
       selectModeRef.current.onPointerDown(
         tapToggle.x,
