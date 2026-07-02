@@ -305,7 +305,11 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = touchCreateCandidateRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
+      // 발화 판정(경과 450ms·단일 터치·미이동)은 recognizer.tick에 위임(Time-A, 롱프레스와 통일).
+      const longPressFired = recognizerRef.current
+        .tick(performance.now())
+        .some((g) => g.kind === 'longPress');
+      if (!longPressFired) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
@@ -332,7 +336,11 @@ export function useCanvasEvents(
     longPressTimerRef.current = window.setTimeout(() => {
       const pending = touchDeleteCandidateRef.current;
       if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!recognizerRef.current.hasTouch(e.pointerId) || recognizerRef.current.activeTouchCount !== 1) return;
+      // 발화 판정(경과 450ms·단일 터치·미이동)은 recognizer.tick에 위임(Time-A, 롱프레스와 통일).
+      const longPressFired = recognizerRef.current
+        .tick(performance.now())
+        .some((g) => g.kind === 'longPress');
+      if (!longPressFired) return;
 
       pending.fired = true;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
