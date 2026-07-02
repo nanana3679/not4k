@@ -7,7 +7,7 @@ import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode, EntityType } from '../modes';
-import { DeleteMode, isEventEntityType, isCreatePlacementBlocked } from '../modes';
+import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
@@ -118,7 +118,7 @@ export function useCanvasEvents(
 
   const {
     xToLane, xToExtraLane,
-    yToBeat, yToBeatRaw, snapBeat,
+    yToBeat, snapBeat,
     bpmMarkers,
     hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
     hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef,
@@ -484,26 +484,17 @@ export function useCanvasEvents(
       return;
     }
 
-    if (mode === 'create' && createModeRef.current) {
-      const hitIdx = hitTestNoteRef.current(x, y);
-      const rawBeat = yToBeatRaw(y);
-      const placementBlocked = isCreatePlacementBlocked({
-        inBounds: isTimeInBounds(y),
-        hitNote: hitIdx !== null ? chart.notes[hitIdx] : null,
-        lane: xToLane(x),
-        beatFloatRaw: rawBeat.n / rawBeat.d,
-        notes: chart.notes,
-        extraHit: hitTestExtraNoteRef.current(x, y),
-      });
-      if (placementBlocked) return;
-      const touchRangeType = e.pointerType === 'touch' ? getLongPressRangeType(entityType as EntityType) : null;
-      if (touchRangeType) {
-        scheduleTouchCreateRange(e, x, y, touchRangeType);
-        return;
-      }
-      createModeRef.current.onPointerDown(x, y);
-    } else if (mode === 'select' && selectModeRef.current) {
-      if (e.pointerType === 'touch') {
+    if (e.pointerType === 'touch') {
+      // 터치 down 예약은 모드별로 갈린다 (인식기/예약 글루 — 드래그 트랜잭션 슬라이스에서 통합).
+      if (mode === 'create' && createModeRef.current) {
+        if (createModeRef.current.isPlacementBlocked(x, y)) return;
+        const touchRangeType = getLongPressRangeType(entityType as EntityType);
+        if (touchRangeType) {
+          scheduleTouchCreateRange(e, x, y, touchRangeType);
+          return;
+        }
+        // 레인지 타입이 아니면 아래 통합 디스패치로 폴스루(점노트 배치).
+      } else if (mode === 'select' && selectModeRef.current) {
         const schedule = resolveSelectTouchDownSchedule({ noteHit: touchNoteHit, extraHit: touchExtraHit });
         if (schedule === 'tapToggle') {
           touchTapToggleRef.current = {
@@ -518,17 +509,17 @@ export function useCanvasEvents(
           startTouchEmptySelectCandidate(e, x, y);
         }
         return;
-      }
-      selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
-    } else if (mode === 'delete' && deleteModeRef.current) {
-      if (e.pointerType === 'touch') {
+      } else if (mode === 'delete' && deleteModeRef.current) {
         scheduleTouchDeleteDrag(e, x, y);
         return;
       }
-      deleteModeRef.current.onPointerDown(x, y);
     }
+
+    // 마우스 down(및 레인지 타입 아닌 터치 create)은 모드 다형 디스패치로 통합한다.
+    activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
+      ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
   }, [
-    mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
+    mode, entityType,
     toSample, handleEditCancel, scheduleLongPress, scheduleTouchCreateRange,
     scheduleTouchDeleteDrag, startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
