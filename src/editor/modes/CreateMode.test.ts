@@ -73,6 +73,28 @@ describe("CreateMode — handlePointerDown 배치 제약(가드 흡수)", () => 
   });
 });
 
+describe("CreateMode — handlePointerUp", () => {
+  it("범위 밖이면 드래그 취소 + hideGhost 신호", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const mode = new CreateMode(chart, callbacks);
+    const cancelSpy = vi.spyOn(mode, "cancelDrag");
+    const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(cancelSpy).toHaveBeenCalled();
+    expect(result.hideGhost).toBe(true);
+  });
+
+  it("범위 안이면 onPointerUp으로 배치 확정(hideGhost 없음)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => true });
+    const mode = new CreateMode(chart, callbacks);
+    const upSpy = vi.spyOn(mode, "onPointerUp");
+    const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(upSpy).toHaveBeenCalledWith(1, 2);
+    expect(result.hideGhost).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // graceMode 배치 (면제 플래그 부여)
 // ---------------------------------------------------------------------------

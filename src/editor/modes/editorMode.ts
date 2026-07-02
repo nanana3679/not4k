@@ -32,11 +32,15 @@ export interface EditPreview {
 }
 
 /**
- * 편집 모드가 입력을 처리한 결과. 지금은 프리뷰만 담는다.
+ * 편집 모드가 입력을 처리한 결과. 렌더러가 PUSH로 반영한다.
  * (후속 슬라이스에서 chart/hover/cursor 등이 추가될 수 있다.)
  */
 export interface EditResult {
   preview?: EditPreview;
+  /** 드래그 프리뷰(이동 원본 + 박스 사각형)를 지운다(드래그 커밋/취소 후 정리). */
+  clearDragPreview?: boolean;
+  /** 고스트 노트를 숨긴다(예: create 취소). */
+  hideGhost?: boolean;
 }
 
 /**
@@ -63,6 +67,12 @@ export interface EditorMode {
    * 모드마다 다른 배치 제약·수식자 해석은 각 모드가 gesture로부터 스스로 처리한다.
    */
   handlePointerDown(gesture: PointerGesture): void;
+
+  /**
+   * 포인터 up 한 건을 이 모드의 의미로 처리(드래그 커밋/취소)하고,
+   * 렌더러가 반영할 결과(프리뷰 정리·고스트 숨김 등)를 반환한다.
+   */
+  handlePointerUp(gesture: PointerGesture): EditResult;
 
   /**
    * 휠 입력을 처리하고, 처리했으면 그 결과로 선택돼야 할 엔티티 타입을 반환한다.

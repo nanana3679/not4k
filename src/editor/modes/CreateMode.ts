@@ -18,7 +18,7 @@ import type {
   ExtraRangeNote,
 } from "../../shared";
 import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
-import type { EditorMode, PointerGesture } from "./editorMode";
+import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
 export type EntityType =
@@ -228,6 +228,16 @@ export class CreateMode implements EditorMode {
       notes: this.chart.notes,
       extraHit: this.callbacks.hitTestExtraNote(x, y),
     });
+  }
+
+  /** 통합 포인터 up 진입점. 범위 밖이면 드래그 취소+고스트 숨김, 아니면 배치 확정. */
+  handlePointerUp(gesture: PointerGesture): EditResult {
+    if (!this.callbacks.isTimeInBounds(gesture.y)) {
+      this.cancelDrag();
+      return { hideGhost: true };
+    }
+    this.onPointerUp(gesture.x, gesture.y);
+    return {};
   }
 
   onPointerDown(x: number, y: number): void {

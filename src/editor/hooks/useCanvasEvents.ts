@@ -6,7 +6,7 @@ import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
-import type { CreateMode, SelectMode, EntityType, EditPreview } from '../modes';
+import type { CreateMode, SelectMode, EntityType, EditResult } from '../modes';
 import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
@@ -527,16 +527,24 @@ export function useCanvasEvents(
     selectModeRef, onNavigationInteraction,
   ]);
 
-  // 모드가 반환한 프리뷰를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
-  const applyEditPreview = useCallback((preview?: EditPreview) => {
+  // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
+  const applyEditResult = useCallback((result?: EditResult) => {
     const renderer = rendererRef.current;
-    if (!renderer || !preview) return;
-    if (preview.boxSelectRect) {
+    if (!renderer || !result) return;
+    const preview = result.preview;
+    if (preview?.boxSelectRect) {
       renderer.setBoxSelectRect(preview.boxSelectRect);
       renderer.render();
     }
-    if (preview.moveOrigins) {
+    if (preview?.moveOrigins) {
       renderer.setMoveOrigins(preview.moveOrigins);
+    }
+    if (result.clearDragPreview) {
+      renderer.clearMoveOrigins();
+      renderer.clearBoxSelectRect();
+    }
+    if (result.hideGhost) {
+      renderer.hideGhostNote();
     }
   }, [rendererRef]);
 
@@ -608,7 +616,7 @@ export function useCanvasEvents(
         );
       }
       const boxResult = selectModeRef.current.onPointerMove(x, y);
-      applyEditPreview(boxResult.preview);
+      applyEditResult(boxResult);
       return;
     }
 
@@ -657,7 +665,7 @@ export function useCanvasEvents(
       selectModeRef.current
     ) {
       const longPressResult = selectModeRef.current.onPointerMove(x, y);
-      applyEditPreview(longPressResult.preview);
+      applyEditResult(longPressResult);
       return;
     }
 
@@ -747,7 +755,7 @@ export function useCanvasEvents(
       }
     } else if (mode === 'select' && selectModeRef.current) {
       const selectResult = selectModeRef.current.onPointerMove(x, y);
-      applyEditPreview(selectResult.preview);
+      applyEditResult(selectResult);
     }
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
@@ -756,7 +764,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
-    onNavigationInteraction, applyEditPreview,
+    onNavigationInteraction, applyEditResult,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -858,21 +866,15 @@ export function useCanvasEvents(
       return;
     }
 
+    // 마우스 up(및 롱프레스 이동 커밋)은 모드 다형 디스패치로 통합한다.
+    const upGesture = { x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false };
     if (longPressFired && selectModeRef.current) {
-      selectModeRef.current.onPointerUp(x, y);
-      rendererRef.current?.clearMoveOrigins();
-      rendererRef.current?.clearBoxSelectRect();
-    } else if (mode === 'create' && createModeRef.current) {
-      if (!isTimeInBounds(y)) {
-        createModeRef.current.cancelDrag();
-        rendererRef.current?.hideGhostNote();
-      } else {
-        createModeRef.current.onPointerUp(x, y);
-      }
-    } else if (mode === 'select' && selectModeRef.current) {
-      selectModeRef.current.onPointerUp(x, y);
-      rendererRef.current?.clearMoveOrigins();
-      rendererRef.current?.clearBoxSelectRect();
+      applyEditResult(selectModeRef.current.handlePointerUp(upGesture));
+    } else {
+      applyEditResult(
+        activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
+          ?.handlePointerUp(upGesture),
+      );
     }
 
     // 노트·엑스트라 탭 토글은 동일 처리 — 하나로 합친다.
@@ -896,8 +898,8 @@ export function useCanvasEvents(
     }
   }, [
     mode, isTimeInBounds, toSample, clearLongPress,
-    updateTouchMovement, canvasRef, createModeRef, isDraggingCursorRef,
-    deleteAtPoint, rendererRef, selectModeRef,
+    updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
+    deleteAtPoint, rendererRef, selectModeRef, applyEditResult,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {

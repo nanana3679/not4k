@@ -388,6 +388,12 @@ export class SelectMode implements EditorMode {
     this.onPointerDown(gesture.x, gesture.y, gesture.shiftKey, gesture.altKey, gesture.toggleSelection);
   }
 
+  /** 통합 포인터 up 진입점. 드래그를 커밋하고 이동/박스 프리뷰 정리를 신호한다. */
+  handlePointerUp(gesture: PointerGesture): EditResult {
+    this.onPointerUp(gesture.x, gesture.y);
+    return { clearDragPreview: true };
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {

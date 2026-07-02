@@ -129,6 +129,18 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
   });
 });
 
+describe("SelectMode — handlePointerUp", () => {
+  it("onPointerUp을 호출하고 clearDragPreview 신호를 반환", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+    const spy = vi.spyOn(mode, "onPointerUp");
+    const result = mode.handlePointerUp({ x: 2, y: 3, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(spy).toHaveBeenCalledWith(2, 3);
+    expect(result.clearDragPreview).toBe(true);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
