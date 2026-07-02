@@ -459,6 +459,36 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 
 ---
 
+## 에디터 입력
+
+차트 편집기의 포인터 입력을 제스처로 인식하고 편집 의도로 라우팅하는 계층. raw 입력(입력층)과 도메인 판정(히트 테스트·스냅, 도메인층)을 2층으로 분리한다.
+
+### GestureRecognizer
+
+raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `tick(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`. 내비게이션 순수 함수는 `touchGesture.ts`를 내부 부품으로 재사용.
+
+### PointerSample
+
+DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 tap-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`.
+
+### EditGesture
+
+차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 tap-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. tap/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`(타입), 라우팅 `longPressRouting.ts`·`touchEditRouting.ts`.
+
+### ViewportGesture
+
+차트를 건드리지 않고 뷰포트만 움직이는 제스처. `viewportZoom`(핀치)·가로/세로 `viewportScroll`(두 손가락 팬). 셋은 이동량이 가장 큰 축으로 하나만 잠겨 동시 발생(부들거림)을 막는다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`.
+
+---
+
 ## 관련 문서
 
 - 게임 개요: `overview.md`

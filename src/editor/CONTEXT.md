@@ -74,19 +74,19 @@ _Avoid_: 렌더링 제한
 _Avoid_: 숨겨진 노트
 
 **`GestureRecognizer`**:
-raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신이다. 도메인(히트 테스트·스냅)을 모르고(입력층/도메인층 2층 분리), 시간을 `PointerSample.timeMs`와 `tick`으로 주입받아 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 뱉은 제스처만 받고 터치 상태는 모른다.
+raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신이다(입력층/도메인층 2층 분리, 시간 주입으로 시퀀스 테스트). 풀 정의는 glossary "에디터 입력".
 _Avoid_: 이벤트 핸들러
 
 **`PointerSample`**:
-DOM 포인터 입력을 정규화한 한 건이다. 마우스·터치·펜을 같은 모양으로 만들어 `GestureRecognizer`에 넣는다.
+DOM 포인터 입력을 정규화한 한 건이다. 마우스·터치·펜을 같은 모양으로 `GestureRecognizer`에 넣는다. 풀 정의는 glossary "에디터 입력".
 _Avoid_: 포인터 이벤트
 
 **`ViewportGesture`**:
-차트를 건드리지 않고 뷰포트만 움직이는 제스처(`viewportZoom`·가로/세로 `viewportScroll`)이다. 셋은 서로 배타적으로 잠긴다(동시 발생 방지).
+차트를 건드리지 않고 뷰포트만 움직이는 제스처다(zoom·가로/세로 scroll, 서로 배타 잠금). 풀 정의는 glossary "에디터 입력".
 _Avoid_: 편집 제스처
 
 **`EditGesture`**:
-차트를 편집하는 의미를 갖는 제스처이다. 현재는 편집 폐기 신호 `editCancel`과 단일 터치를 유지하는 `longPress`가 있고, tap·drag·box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+차트를 편집하는 의미를 갖는 제스처다(현재 `editCancel`·`longPress`). 풀 정의는 glossary "에디터 입력".
 _Avoid_: 뷰포트 제스처
 
 ## Relationships
