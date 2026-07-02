@@ -48,17 +48,33 @@ export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boo
   return input.fired || !input.moved;
 }
 
-/** select 모드 터치 down에서 어떤 후보를 예약(schedule)할지. */
+/**
+ * select 모드 터치 down에서 어떤 후보를 예약(schedule)할지.
+ * - `tapToggle`: 뗄 때 노트/엑스트라 선택을 토글하는 후보.
+ * - `emptySelectBox`: 첫 move/up에서 onPointerDown을 재생하는 지연-드래그 후보.
+ *   빈 곳 박스 셀렉트뿐 아니라 트릴존 핸들/끝 리사이즈·이동도 이 경로로 시작된다.
+ */
 export type SelectTouchDownSchedule = 'tapToggle' | 'emptySelectBox';
 
 /**
  * select 모드에서 터치 down 시 예약할 후보를 정한다.
- * 노트·엑스트라 어느 쪽이든 히트가 있으면 탭 토글 후보, 빈 곳이면 박스 선택 후보.
+ *
+ * 트릴존 이동 핸들(구간 시작)·리사이즈 캡(구간 끝)은 노트 탭보다 우선한다.
+ * 트릴존은 첫/마지막 트릴노트에서 시작·끝나므로 핸들/캡 위엔 항상 노트가 겹치는데,
+ * 그 노트가 tapToggle로 가로채면 핸들/캡에 영영 도달 못 한다. 마우스 onPointerDown
+ * 우선순위(트릴존 핸들/끝 > 점노트)와 일치시켜, 겹쳐도 지연-드래그 후보로 보낸다.
+ *
+ * 그 외에는 노트·엑스트라 히트가 있으면 탭 토글, 빈 곳이면 박스 선택 후보.
  * (up에서 note/extra 토글이 동일 처리되므로 히트 종류는 구분하지 않는다.)
  */
 export function resolveSelectTouchDownSchedule(hits: {
   noteHit: number | null;
   extraHit: number | null;
+  zoneHandleHit?: number | null;
+  zoneEndHit?: number | null;
 }): SelectTouchDownSchedule {
+  if ((hits.zoneHandleHit ?? null) !== null || (hits.zoneEndHit ?? null) !== null) {
+    return 'emptySelectBox';
+  }
   return hits.noteHit !== null || hits.extraHit !== null ? 'tapToggle' : 'emptySelectBox';
 }

@@ -404,9 +404,11 @@ export class SelectMode implements EditorMode {
       return;
     }
 
-    // 박스 셀렉트 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
-    // 훅이 empty-select 후보의 박스 시작을 첫 move/up까지 미루고 재호출해도 안전하게 만든다.
-    if (this.isBoxSelecting) return;
+    // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
+    // 훅의 empty-select 후보 재생 경로는 매 move마다 onPointerDown을 재호출하는데,
+    // box뿐 아니라 resize/트릴존 핸들 이동도 그 좌표에서 시작될 수 있다. 종류 무관하게
+    // 진행 중 드래그면 재진입을 막아, 매 move마다 resize/move origin이 리셋되는 걸 방지한다.
+    if (this.isDragging) return;
 
     // Check for endpoint resize first
 
@@ -582,27 +584,41 @@ export class SelectMode implements EditorMode {
           ? this.resizingOriginalBeat
           : currentBeat;
 
+        let tentativeChart: Chart | null = null;
         if (this.resizingEntityType === "note") {
           const note = this.chart.notes[this.resizingIndex];
           if (this.isRangeNote(note)) {
             const newNotes = [...this.chart.notes];
             newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
-            this.chart = { ...this.chart, notes: newNotes };
+            tentativeChart = { ...this.chart, notes: newNotes };
           }
         } else if (this.resizingEntityType === "event") {
           const newEvents = [...this.chart.events];
           const evtToResize = newEvents[this.resizingIndex];
           if ('endBeat' in evtToResize) {
             newEvents[this.resizingIndex] = { ...evtToResize, endBeat: newEndBeat };
-            this.chart = { ...this.chart, events: newEvents };
+            tentativeChart = { ...this.chart, events: newEvents };
           }
         } else if (this.resizingEntityType === "trillZone") {
           const newZones = [...this.chart.trillZones];
           newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
-          this.chart = { ...this.chart, trillZones: newZones };
+          tentativeChart = { ...this.chart, trillZones: newZones };
         }
 
-        this.callbacks.onChartUpdate(this.chart);
+        // 프리뷰도 커밋(onPointerUp)과 동일한 제약을 지킨다. 위반 상태(예: 트릴존을
+        // 트릴노트 밖으로 축소, 비트릴노트를 삼키도록 확장)면 적용하지 않아 직전 유효
+        // 프리뷰를 유지한다 → 프리뷰가 커밋 가능 상태를 거짓말하지 않는다.
+        if (tentativeChart !== null) {
+          const errors = validateChart({
+            notes: tentativeChart.notes,
+            trillZones: tentativeChart.trillZones,
+            events: tentativeChart.events,
+          });
+          if (errors.length === 0) {
+            this.chart = tentativeChart;
+            this.callbacks.onChartUpdate(this.chart);
+          }
+        }
       }
       return;
     }
