@@ -495,7 +495,13 @@ export function useCanvasEvents(
         }
         // 레인지 타입이 아니면 아래 통합 디스패치로 폴스루(점노트 배치).
       } else if (mode === 'select' && selectModeRef.current) {
-        const schedule = resolveSelectTouchDownSchedule({ noteHit: touchNoteHit, extraHit: touchExtraHit });
+        // 트릴존 핸들/끝은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
+        const schedule = resolveSelectTouchDownSchedule({
+          noteHit: touchNoteHit,
+          extraHit: touchExtraHit,
+          zoneHandleHit: hitTestTrillZoneHandleRef.current(x, y),
+          zoneEndHit: hitTestTrillZoneEndRef.current(x, y),
+        });
         if (schedule === 'tapToggle') {
           touchTapToggleRef.current = {
             pointerId: e.pointerId,
@@ -523,7 +529,8 @@ export function useCanvasEvents(
     toSample, handleEditCancel, scheduleLongPress, scheduleTouchCreateRange,
     scheduleTouchDeleteDrag, startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
+    isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
 
