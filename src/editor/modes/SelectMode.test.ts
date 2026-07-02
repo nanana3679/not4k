@@ -159,6 +159,36 @@ describe("SelectMode — 박스 셀렉트 idempotency", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 드래그 재진입 가드 — 트릴존 리사이즈 재시작 버그
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 드래그 재진입 가드", () => {
+  it("트릴존 리사이즈 진행 중 onPointerDown 재호출은 무시된다(매 move마다 origin 리셋 방지)", () => {
+    // 터치 empty-select 후보 재생 경로는 매 move마다 onPointerDown(startX,startY)을 재호출한다.
+    // 그 좌표가 트릴존 끝이면 resize가 매번 재시작돼 origin이 현재(이동된) 값으로 리셋된다.
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+    const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
+
+    mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
+    expect(mode.draggingTrillZoneIndex).toBe(0);
+
+    mode.onPointerMove(9, 10); // 끝을 beat10으로 늘림 → zone.endBeat=10
+    expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // origin은 원래값 유지
+
+    mode.onPointerDown(9, 10, false, false); // 재호출 → 가드로 무시(재시작 안 됨)
+    expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // 이동된 10으로 리셋되지 않음
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
 

@@ -404,9 +404,11 @@ export class SelectMode implements EditorMode {
       return;
     }
 
-    // 박스 셀렉트 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
-    // 훅이 empty-select 후보의 박스 시작을 첫 move/up까지 미루고 재호출해도 안전하게 만든다.
-    if (this.isBoxSelecting) return;
+    // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
+    // 훅의 empty-select 후보 재생 경로는 매 move마다 onPointerDown을 재호출하는데,
+    // box뿐 아니라 resize/트릴존 핸들 이동도 그 좌표에서 시작될 수 있다. 종류 무관하게
+    // 진행 중 드래그면 재진입을 막아, 매 move마다 resize/move origin이 리셋되는 걸 방지한다.
+    if (this.isDragging) return;
 
     // Check for endpoint resize first
 
