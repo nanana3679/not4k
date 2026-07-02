@@ -47,3 +47,18 @@ export function shouldFireTapToggle(input: {
 export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boolean {
   return input.fired || !input.moved;
 }
+
+/** select 모드 터치 down에서 어떤 후보를 예약(schedule)할지. */
+export type SelectTouchDownSchedule = 'tapToggle' | 'emptySelectBox';
+
+/**
+ * select 모드에서 터치 down 시 예약할 후보를 정한다.
+ * 노트·엑스트라 어느 쪽이든 히트가 있으면 탭 토글 후보, 빈 곳이면 박스 선택 후보.
+ * (up에서 note/extra 토글이 동일 처리되므로 히트 종류는 구분하지 않는다.)
+ */
+export function resolveSelectTouchDownSchedule(hits: {
+  noteHit: number | null;
+  extraHit: number | null;
+}): SelectTouchDownSchedule {
+  return hits.noteHit !== null || hits.extraHit !== null ? 'tapToggle' : 'emptySelectBox';
+}
