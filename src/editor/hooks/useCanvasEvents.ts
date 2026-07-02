@@ -28,7 +28,7 @@ import {
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
 import { resolveLongPressAction } from './longPressRouting';
-import { resolveTouchCreateUpAction, shouldFireTapToggle } from './touchEditRouting';
+import { resolveTouchCreateUpAction, shouldDeleteOnUp, shouldFireTapToggle } from './touchEditRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -881,7 +881,7 @@ export function useCanvasEvents(
     const y = e.clientY - rect.top;
 
     if (touchDeleteCandidate) {
-      if (touchDeleteCandidate.fired || !touchDeleteCandidate.moved) {
+      if (shouldDeleteOnUp({ fired: touchDeleteCandidate.fired, moved: touchDeleteCandidate.moved })) {
         deleteAtPoint(x, y);
       }
       rendererRef.current?.hideGhostNote();

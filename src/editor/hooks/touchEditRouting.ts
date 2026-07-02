@@ -38,3 +38,12 @@ export function shouldFireTapToggle(input: {
 }): boolean {
   return !input.moved && !input.longPressFired;
 }
+
+/**
+ * delete 모드 터치 후보가 뗄 때 삭제를 실행할지.
+ * 롱프레스로 드래그 삭제가 발화했거나(fired), 이동 없이 뗀 탭(!moved)이면 삭제한다.
+ * 이동만 하고 발화 안 했으면(스크롤성 이동) 삭제하지 않는다.
+ */
+export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boolean {
+  return input.fired || !input.moved;
+}

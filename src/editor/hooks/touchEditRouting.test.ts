@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTouchCreateUpAction, shouldFireTapToggle } from "./touchEditRouting";
+import { resolveTouchCreateUpAction, shouldDeleteOnUp, shouldFireTapToggle } from "./touchEditRouting";
 
 describe("resolveTouchCreateUpAction — create 후보 up 확정", () => {
   it("범위 드래그 발화 + 뗀 지점이 범위 안이면 commitDrag", () => {
@@ -39,5 +39,19 @@ describe("shouldFireTapToggle — 노트/엑스트라 탭 토글 발화 여부",
 
   it("롱프레스가 발화했으면 false(이미 드래그로 처리됨)", () => {
     expect(shouldFireTapToggle({ moved: false, longPressFired: true })).toBe(false);
+  });
+});
+
+describe("shouldDeleteOnUp — delete 후보 up 삭제 여부", () => {
+  it("드래그 삭제가 발화했으면 true", () => {
+    expect(shouldDeleteOnUp({ fired: true, moved: true })).toBe(true);
+  });
+
+  it("이동 없이 뗀 탭이면 true", () => {
+    expect(shouldDeleteOnUp({ fired: false, moved: false })).toBe(true);
+  });
+
+  it("발화 없이 이동만 했으면 false(스크롤성 이동)", () => {
+    expect(shouldDeleteOnUp({ fired: false, moved: true })).toBe(false);
   });
 });
