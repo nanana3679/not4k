@@ -18,7 +18,8 @@ import type {
   ExtraRangeNote,
 } from "../../shared";
 import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
-import type { EditorMode } from "./editorMode";
+import type { EditorMode, PointerGesture } from "./editorMode";
+import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
 export type EntityType =
   | "single"
@@ -68,6 +69,14 @@ export interface CreateModeCallbacks {
   snapBeat: (beat: Beat) => Beat;
   /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null otherwise) */
   xToLane: (x: number) => Lane | null;
+  /** 배치 위치가 편집 가능한 시간 범위 안인지 (배치 제약용) */
+  isTimeInBounds: (y: number) => boolean;
+  /** raw y→beat (스냅 전, 롱노트 head/end 캡 판정용) */
+  yToBeatRaw: (y: number) => Beat;
+  /** 좌표의 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
+  hitTestNote: (x: number, y: number) => number | null;
+  /** 좌표의 엑스트라 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
+  hitTestExtraNote: (x: number, y: number) => number | null;
   /** Called to get extra lane number (1~N) from X, or null */
   xToExtraLane?: (x: number) => number | null;
   /** Called when extra notes are modified */
@@ -195,6 +204,32 @@ export class CreateMode implements EditorMode {
   }
 
   /** Handle mouse down on timeline */
+  /**
+   * 통합 포인터 down 진입점. 배치 제약을 스스로 검사하고 통과 시에만 배치한다.
+   * (Create 모드는 gesture의 shift/alt/toggle 수식자를 쓰지 않는다.)
+   */
+  handlePointerDown(gesture: PointerGesture): void {
+    if (this.isPlacementBlocked(gesture.x, gesture.y)) return;
+    this.onPointerDown(gesture.x, gesture.y);
+  }
+
+  /**
+   * 이 좌표에 배치가 차단되는지 질의한다(배치 제약).
+   * 훅의 터치 예약 게이트에서도 재사용한다.
+   */
+  isPlacementBlocked(x: number, y: number): boolean {
+    const hitIdx = this.callbacks.hitTestNote(x, y);
+    const rawBeat = this.callbacks.yToBeatRaw(y);
+    return isCreatePlacementBlocked({
+      inBounds: this.callbacks.isTimeInBounds(y),
+      hitNote: hitIdx !== null ? this.chart.notes[hitIdx] : null,
+      lane: this.callbacks.xToLane(x),
+      beatFloatRaw: rawBeat.n / rawBeat.d,
+      notes: this.chart.notes,
+      extraHit: this.callbacks.hitTestExtraNote(x, y),
+    });
+  }
+
   onPointerDown(x: number, y: number): void {
     const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
 

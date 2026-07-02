@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { activeEditorMode, type EditorMode } from "./editorMode";
 
 describe("activeEditorMode", () => {
-  const create: EditorMode = { onWheel: () => null };
-  const select: EditorMode = { onWheel: () => null };
-  const del: EditorMode = { onWheel: () => null };
+  const create: EditorMode = { handlePointerDown: () => {}, onWheel: () => null };
+  const select: EditorMode = { handlePointerDown: () => {}, onWheel: () => null };
+  const del: EditorMode = { handlePointerDown: () => {}, onWheel: () => null };
 
   it("create 모드면 create 모드 객체를 반환", () => {
     expect(activeEditorMode("create", create, select, del)).toBe(create);

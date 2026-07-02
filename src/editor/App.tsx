@@ -300,6 +300,10 @@ function ChartEditorPage() {
     return timeMs >= minMs && timeMs <= totalMs;
   }, [chart.meta.offsetMs]);
 
+  // 모드 콜백에서 최신 isTimeInBounds를 참조하기 위한 ref (모드는 1회 생성 후 재사용).
+  const isTimeInBoundsRef = useRef(isTimeInBounds);
+  useEffect(() => { isTimeInBoundsRef.current = isTimeInBounds; }, [isTimeInBounds]);
+
   const handlePinchZoom = useCallback((previousDistance: number, currentDistance: number, centerCanvasY: number) => {
     const snapZoom = snapZoomRef.current;
     if (!snapZoom) return;
@@ -471,6 +475,10 @@ function ChartEditorPage() {
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
+      isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
+      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
+      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
       getExtraNotes: () => useEditorStore.getState().extraNotes,

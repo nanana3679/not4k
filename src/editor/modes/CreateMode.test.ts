@@ -19,10 +19,59 @@ function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
     yToBeat: (y: number): Beat => beat(y),
     snapBeat: (b: Beat): Beat => b,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
+    isTimeInBounds: (_y: number): boolean => true,
+    yToBeatRaw: (y: number): Beat => beat(y),
+    hitTestNote: (_x: number, _y: number): number | null => null,
+    hitTestExtraNote: (_x: number, _y: number): number | null => null,
     onWarn: vi.fn(),
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// handlePointerDown 배치 제약 (가드 흡수)
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — handlePointerDown 배치 제약(가드 흡수)", () => {
+  it("isPlacementBlocked: 점노트를 히트하면 true", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(2) }] });
+    const callbacks = makeCallbacks(chart, { hitTestNote: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(true);
+  });
+
+  it("isPlacementBlocked: 빈 곳(히트 없음)이면 false", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(false);
+  });
+
+  it("isPlacementBlocked: 시간 범위 밖이면 true", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(true);
+  });
+
+  it("handlePointerDown: 배치 제약 통과 시 배치를 시작한다(dragging=true)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+    mode.handlePointerDown({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(mode.dragging).toBe(true);
+  });
+
+  it("handlePointerDown: 배치 제약에 걸리면 배치를 시작하지 않는다(dragging=false)", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(2) }] });
+    const callbacks = makeCallbacks(chart, { hitTestNote: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+    mode.handlePointerDown({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(mode.dragging).toBe(false);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // graceMode 배치 (면제 플래그 부여)

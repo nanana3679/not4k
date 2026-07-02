@@ -69,6 +69,21 @@ function selectionOf(mode: SelectMode) {
 }
 
 // ---------------------------------------------------------------------------
+// handlePointerDown 수식자 운반
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — handlePointerDown 수식자 운반", () => {
+  it("gesture의 x/y/shift/alt/toggle를 onPointerDown으로 그대로 전달", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+    const spy = vi.spyOn(mode, "onPointerDown");
+    mode.handlePointerDown({ x: 5, y: 3, shiftKey: true, altKey: true, toggleSelection: true });
+    expect(spy).toHaveBeenCalledWith(5, 3, true, true, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
 

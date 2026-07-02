@@ -16,7 +16,7 @@ import {
   translateTrillZone,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
-import type { EditorMode } from "./editorMode";
+import type { EditorMode, PointerGesture } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -381,6 +381,11 @@ export class SelectMode implements EditorMode {
   /** Select 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
   onWheel(): null {
     return null;
+  }
+
+  /** 통합 포인터 down 진입점. gesture의 shift/alt/toggle 수식자를 onPointerDown으로 운반한다. */
+  handlePointerDown(gesture: PointerGesture): void {
+    this.onPointerDown(gesture.x, gesture.y, gesture.shiftKey, gesture.altKey, gesture.toggleSelection);
   }
 
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {

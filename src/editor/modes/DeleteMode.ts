@@ -4,7 +4,7 @@ import {
   deleteEmptyTrillZoneAtIndex,
   deleteExtraNoteAtIndex,
 } from "../editing/editApplication";
-import type { EditorMode } from "./editorMode";
+import type { EditorMode, PointerGesture } from "./editorMode";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -33,6 +33,11 @@ export class DeleteMode implements EditorMode {
   /** Delete 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
   onWheel(): null {
     return null;
+  }
+
+  /** 통합 포인터 down 진입점. (Delete 모드는 수식자를 쓰지 않는다.) */
+  handlePointerDown(gesture: PointerGesture): void {
+    this.onPointerDown(gesture.x, gesture.y);
   }
 
   /** Click to delete */

@@ -21,6 +21,12 @@ export interface PointerGesture {
  */
 export interface EditorMode {
   /**
+   * 포인터 down 한 건을 이 모드의 의미로 처리한다.
+   * 모드마다 다른 배치 제약·수식자 해석은 각 모드가 gesture로부터 스스로 처리한다.
+   */
+  handlePointerDown(gesture: PointerGesture): void;
+
+  /**
    * 휠 입력을 처리하고, 처리했으면 그 결과로 선택돼야 할 엔티티 타입을 반환한다.
    * 처리하지 않으면 null. 현재 Create 모드만 실제로 처리하고 Select/Delete는 항상 null이다.
    */
