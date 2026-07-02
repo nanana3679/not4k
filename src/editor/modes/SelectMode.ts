@@ -40,6 +40,8 @@ export interface SelectModeCallbacks {
   hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
   /** Get trill zone index whose selection handle is at (x,y), or null */
   hitTestTrillZoneHandle?: (x: number, y: number) => number | null;
+  /** Get trill zone index whose region contains (x,y), or null (hover 표시용) */
+  hitTestTrillZone?: (x: number, y: number) => number | null;
   /** 구간 단위로 선택된 트릴존 인덱스가 바뀔 때 호출 (강조 표시용) */
   onTrillZoneSelectionChange?: (indices: Set<number>) => void;
   /** Extra lane helpers */
@@ -209,9 +211,10 @@ export class SelectMode implements EditorMode {
 
   /**
    * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 트릴 구간 인덱스. 없으면 null.
-   * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위해 사용한다.
+   * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위한 래치.
+   * 훅으로 노출하지 않고 computeHoveredTrillZone 내부에서만 쓴다(getter PULL 누출 제거).
    */
-  get draggingTrillZoneIndex(): number | null {
+  private get draggingTrillZoneIndex(): number | null {
     if (this.dragType === "resize" && this.resizingEntityType === "trillZone") {
       return this.resizingIndex;
     }
@@ -219,6 +222,17 @@ export class SelectMode implements EditorMode {
       return [...this.selectedZoneIndices][0];
     }
     return null;
+  }
+
+  /**
+   * 현재 표시할 트릴존 hover 인덱스. 드래그(리사이즈/구간 이동) 중이면 그 구간을 래치해
+   * 커서가 구간 밖으로 나가도 계속 표시하고, 아니면 (x,y) 위의 구간을 hover한다.
+   * 훅이 draggingTrillZoneIndex getter를 PULL하던 것을 이 PUSH 메서드로 대체한다.
+   */
+  computeHoveredTrillZone(x: number, y: number): number | null {
+    const latched = this.draggingTrillZoneIndex;
+    if (latched !== null) return latched;
+    return this.callbacks.hitTestTrillZone?.(x, y) ?? null;
   }
 
   /** Whether a box select drag is currently in progress */
