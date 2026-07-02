@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveTouchCreateUpAction, shouldDeleteOnUp, shouldFireTapToggle } from "./touchEditRouting";
+import {
+  resolveSelectTouchDownSchedule,
+  resolveTouchCreateUpAction,
+  shouldDeleteOnUp,
+  shouldFireTapToggle,
+} from "./touchEditRouting";
 
 describe("resolveTouchCreateUpAction — create 후보 up 확정", () => {
   it("범위 드래그 발화 + 뗀 지점이 범위 안이면 commitDrag", () => {
@@ -53,5 +58,23 @@ describe("shouldDeleteOnUp — delete 후보 up 삭제 여부", () => {
 
   it("발화 없이 이동만 했으면 false(스크롤성 이동)", () => {
     expect(shouldDeleteOnUp({ fired: false, moved: true })).toBe(false);
+  });
+});
+
+describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", () => {
+  it("노트 히트가 있으면 tapToggle 예약", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: 3, extraHit: null })).toBe("tapToggle");
+  });
+
+  it("엑스트라 히트가 있으면 tapToggle 예약", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: null, extraHit: 2 })).toBe("tapToggle");
+  });
+
+  it("노트 히트 인덱스가 0이어도(falsy) tapToggle 예약", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: 0, extraHit: null })).toBe("tapToggle");
+  });
+
+  it("아무 히트도 없으면 emptySelectBox 예약", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: null, extraHit: null })).toBe("emptySelectBox");
   });
 });

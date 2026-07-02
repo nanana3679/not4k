@@ -28,7 +28,12 @@ import {
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
 import { resolveLongPressAction } from './longPressRouting';
-import { resolveTouchCreateUpAction, shouldDeleteOnUp, shouldFireTapToggle } from './touchEditRouting';
+import {
+  resolveSelectTouchDownSchedule,
+  resolveTouchCreateUpAction,
+  shouldDeleteOnUp,
+  shouldFireTapToggle,
+} from './touchEditRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -43,25 +48,15 @@ export interface CanvasEventHandlers {
 
 const LONG_PRESS_MS = 450;
 
-type TouchTapToggleCandidate =
-  | {
-      pointerId: number;
-      kind: 'note';
-      x: number;
-      y: number;
-      moved: boolean;
-      startClientX: number;
-      startClientY: number;
-    }
-  | {
-      pointerId: number;
-      kind: 'extra';
-      x: number;
-      y: number;
-      moved: boolean;
-      startClientX: number;
-      startClientY: number;
-    };
+// 노트·엑스트라 탭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
+type TouchTapToggleCandidate = {
+  pointerId: number;
+  x: number;
+  y: number;
+  moved: boolean;
+  startClientX: number;
+  startClientY: number;
+};
 
 type TouchCreateCandidate = {
   pointerId: number;
@@ -523,35 +518,20 @@ export function useCanvasEvents(
       }
       createModeRef.current.onPointerDown(x, y);
     } else if (mode === 'select' && selectModeRef.current) {
-      if (e.pointerType === 'touch' && (touchNoteHit !== null || touchExtraHit !== null)) {
-        if (touchExtraHit !== null) {
-          touchTapToggleRef.current = {
-            pointerId: e.pointerId,
-            kind: 'extra',
-            x,
-            y,
-            moved: false,
-            startClientX: e.clientX,
-            startClientY: e.clientY,
-          };
-          return;
-        }
-
-        if (touchNoteHit !== null) {
-          touchTapToggleRef.current = {
-            pointerId: e.pointerId,
-            kind: 'note',
-            x,
-            y,
-            moved: false,
-            startClientX: e.clientX,
-            startClientY: e.clientY,
-          };
-          return;
-        }
-      }
       if (e.pointerType === 'touch') {
-        startTouchEmptySelectCandidate(e, x, y);
+        const schedule = resolveSelectTouchDownSchedule({ noteHit: touchNoteHit, extraHit: touchExtraHit });
+        if (schedule === 'tapToggle') {
+          touchTapToggleRef.current = {
+            pointerId: e.pointerId,
+            x,
+            y,
+            moved: false,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+          };
+        } else {
+          startTouchEmptySelectCandidate(e, x, y);
+        }
         return;
       }
       selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
