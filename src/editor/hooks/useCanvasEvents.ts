@@ -7,12 +7,11 @@ import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode, EntityType } from '../modes';
-import { DeleteMode, isEventEntityType } from '../modes';
+import { DeleteMode, isEventEntityType, isCreatePlacementBlocked } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
-import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
+import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
 import { beatToMs } from '../../shared';
-import type { RangeNote } from '../../shared';
 import { useEditorStore } from '../stores';
 import {
   deleteChartNoteAtLaneBeat,
@@ -486,31 +485,17 @@ export function useCanvasEvents(
     }
 
     if (mode === 'create' && createModeRef.current) {
-      if (!isTimeInBounds(y)) return;
       const hitIdx = hitTestNoteRef.current(x, y);
-      if (hitIdx !== null) {
-        const hitNote = chart.notes[hitIdx];
-        if ('endBeat' in hitNote) {
-          const lane = xToLane(x);
-          if (lane === null) return;
-          const rawBeat = yToBeatRaw(y);
-          const beatFloat = rawBeat.n / rawBeat.d;
-          const region = hitTestRangeNoteRegion(hitNote as RangeNote, beatFloat);
-          if (region === null || region === 'body') return;
-          if (region === 'head' || region === 'end') {
-            const targetBeat = region === 'head'
-              ? hitNote.beat.n / hitNote.beat.d
-              : (hitNote as RangeNote).endBeat.n / (hitNote as RangeNote).endBeat.d;
-            const pointExists = chart.notes.some(
-              n => !('endBeat' in n) && n.lane === lane && Math.abs(n.beat.n / n.beat.d - targetBeat) <= SNAP_POSITION_TOLERANCE
-            );
-            if (pointExists) return;
-          }
-        } else {
-          return;
-        }
-      }
-      if (hitTestExtraNoteRef.current(x, y) !== null) return;
+      const rawBeat = yToBeatRaw(y);
+      const placementBlocked = isCreatePlacementBlocked({
+        inBounds: isTimeInBounds(y),
+        hitNote: hitIdx !== null ? chart.notes[hitIdx] : null,
+        lane: xToLane(x),
+        beatFloatRaw: rawBeat.n / rawBeat.d,
+        notes: chart.notes,
+        extraHit: hitTestExtraNoteRef.current(x, y),
+      });
+      if (placementBlocked) return;
       const touchRangeType = e.pointerType === 'touch' ? getLongPressRangeType(entityType as EntityType) : null;
       if (touchRangeType) {
         scheduleTouchCreateRange(e, x, y, touchRangeType);
