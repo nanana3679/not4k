@@ -1,5 +1,43 @@
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
+import type { NoteEntity, Beat, Lane } from "../../shared";
+
+/** 이동 드래그 중 한 노트의 원본 위치(고스트로 그려짐). */
+export interface MoveOriginDatum {
+  note: NoteEntity;
+  beat: Beat;
+  endBeat?: Beat;
+  lane: Lane;
+}
+
+/** 박스 셀렉트 사각형(픽셀/레인 좌표). */
+export interface BoxSelectRect {
+  startY: number;
+  startLane: Lane | null;
+  endY: number;
+  endLane: Lane | null;
+  startExtraLane?: number;
+  endExtraLane?: number;
+}
+
+/**
+ * 입력 처리 결과로 렌더러가 PUSH로 반영할 프리뷰.
+ * 훅이 모드 내부 getter를 매 move마다 PULL하던 것을 대체한다.
+ */
+export interface EditPreview {
+  /** 박스 셀렉트 사각형. 있으면 렌더러 setBoxSelectRect + render. */
+  boxSelectRect?: BoxSelectRect;
+  /** 이동 드래그 원본 위치들. 있으면 렌더러 setMoveOrigins. */
+  moveOrigins?: MoveOriginDatum[];
+}
+
+/**
+ * 편집 모드가 입력을 처리한 결과. 지금은 프리뷰만 담는다.
+ * (후속 슬라이스에서 chart/hover/cursor 등이 추가될 수 있다.)
+ */
+export interface EditResult {
+  preview?: EditPreview;
+}
 
 /**
  * 포인터 입력 한 건을 편집 모드에 전달하기 위한 정규화된 제스처.

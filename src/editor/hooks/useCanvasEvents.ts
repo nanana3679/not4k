@@ -6,7 +6,7 @@ import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
-import type { CreateMode, SelectMode, EntityType } from '../modes';
+import type { CreateMode, SelectMode, EntityType, EditPreview } from '../modes';
 import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
@@ -527,6 +527,19 @@ export function useCanvasEvents(
     selectModeRef, onNavigationInteraction,
   ]);
 
+  // 모드가 반환한 프리뷰를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
+  const applyEditPreview = useCallback((preview?: EditPreview) => {
+    const renderer = rendererRef.current;
+    if (!renderer || !preview) return;
+    if (preview.boxSelectRect) {
+      renderer.setBoxSelectRect(preview.boxSelectRect);
+      renderer.render();
+    }
+    if (preview.moveOrigins) {
+      renderer.setMoveOrigins(preview.moveOrigins);
+    }
+  }, [rendererRef]);
+
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let navGestures: Gesture[] = [];
     if (e.pointerType === 'touch') {
@@ -594,15 +607,8 @@ export function useCanvasEvents(
           false,
         );
       }
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (rendererRef.current) {
-        const boxRect = selectModeRef.current.boxSelectPixelRect;
-        if (boxRect) {
-          rendererRef.current.setBoxSelectRect(boxRect);
-          rendererRef.current.render();
-        }
-      }
+      const boxResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditPreview(boxResult.preview);
       return;
     }
 
@@ -650,18 +656,8 @@ export function useCanvasEvents(
       activeLongPress.fired &&
       selectModeRef.current
     ) {
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
-        const origins = selectModeRef.current.moveOrigins;
-        if (origins.size > 0) {
-          const originData: { note: import('../../shared').NoteEntity; beat: import('../../shared').Beat; endBeat?: import('../../shared').Beat; lane: import('../../shared').Lane }[] = [];
-          for (const [idx, pos] of origins) {
-            originData.push({ note: useEditorStore.getState().chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
-          }
-          rendererRef.current.setMoveOrigins(originData);
-        }
-      }
+      const longPressResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditPreview(longPressResult.preview);
       return;
     }
 
@@ -750,26 +746,8 @@ export function useCanvasEvents(
         }
       }
     } else if (mode === 'select' && selectModeRef.current) {
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (selectModeRef.current.isBoxSelecting && rendererRef.current) {
-        const boxRect = selectModeRef.current.boxSelectPixelRect;
-        if (boxRect) {
-          rendererRef.current.setBoxSelectRect(boxRect);
-          rendererRef.current.render();
-        }
-      }
-
-      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
-        const origins = selectModeRef.current.moveOrigins;
-        if (origins.size > 0) {
-          const originData: { note: import('../../shared').NoteEntity; beat: import('../../shared').Beat; endBeat?: import('../../shared').Beat; lane: import('../../shared').Lane }[] = [];
-          for (const [idx, pos] of origins) {
-            originData.push({ note: useEditorStore.getState().chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
-          }
-          rendererRef.current.setMoveOrigins(originData);
-        }
-      }
+      const selectResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditPreview(selectResult.preview);
     }
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
@@ -778,7 +756,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
-    onNavigationInteraction,
+    onNavigationInteraction, applyEditPreview,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {

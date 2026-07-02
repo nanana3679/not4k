@@ -16,7 +16,7 @@ import {
   translateTrillZone,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
-import type { EditorMode, PointerGesture } from "./editorMode";
+import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -534,8 +534,34 @@ export class SelectMode implements EditorMode {
     }
   }
 
-  /** Handle pointer move */
-  onPointerMove(x: number, y: number): void {
+  /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
+  onPointerMove(x: number, y: number): EditResult {
+    this.applyPointerMove(x, y);
+    return { preview: this.buildMovePreview() };
+  }
+
+  /** 이동/박스 드래그의 현재 프리뷰를 만든다(렌더러 PUSH용). */
+  private buildMovePreview(): EditPreview {
+    const preview: EditPreview = {};
+    if (this.isBoxSelecting) {
+      const rect = this.boxSelectPixelRect;
+      if (rect) preview.boxSelectRect = rect;
+    }
+    if (this.isMoveDragging) {
+      const origins = this.moveOrigins;
+      if (origins.size > 0) {
+        const data: MoveOriginDatum[] = [];
+        for (const [idx, pos] of origins) {
+          data.push({ note: this.chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
+        }
+        preview.moveOrigins = data;
+      }
+    }
+    return preview;
+  }
+
+  /** Handle pointer move (내부 적용 로직) */
+  private applyPointerMove(x: number, y: number): void {
     if (!this.isDragging) return;
 
     if (this.dragType === "resize") {

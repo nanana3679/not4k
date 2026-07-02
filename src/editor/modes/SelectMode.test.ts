@@ -84,6 +84,52 @@ describe("SelectMode — handlePointerDown 수식자 운반", () => {
 });
 
 // ---------------------------------------------------------------------------
+// onPointerMove 프리뷰 PUSH (훅이 getter를 PULL하던 것 대체)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — onPointerMove 프리뷰 반환", () => {
+  it("이동 드래그 중 onPointerMove는 원본 위치를 담은 preview.moveOrigins를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    const result = mode.onPointerMove(2, 1); // 레인 1 → 2로 이동
+
+    expect(mode.isMoveDragging).toBe(true);
+    expect(result.preview?.moveOrigins?.length).toBe(1);
+    // moveOrigins는 이동 전 원본 레인(1)을 유지한다
+    expect(result.preview?.moveOrigins?.[0].lane).toBe(1);
+  });
+
+  it("박스 셀렉트 중 onPointerMove는 preview.boxSelectRect를 반환", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트 시작
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false);
+    const result = mode.onPointerMove(2, 5);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(result.preview?.boxSelectRect).toBeDefined();
+  });
+
+  it("드래그 중이 아니면 preview는 비어 있다", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+
+    const result = mode.onPointerMove(2, 5);
+
+    expect(result.preview?.boxSelectRect).toBeUndefined();
+    expect(result.preview?.moveOrigins).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
 

@@ -12,7 +12,14 @@ export { DeleteMode } from "./DeleteMode";
 export type { DeleteModeCallbacks } from "./DeleteMode";
 
 export { activeEditorMode } from "./editorMode";
-export type { EditorMode, PointerGesture } from "./editorMode";
+export type {
+  EditorMode,
+  PointerGesture,
+  EditResult,
+  EditPreview,
+  MoveOriginDatum,
+  BoxSelectRect,
+} from "./editorMode";
 
 export { isCreatePlacementBlocked } from "./createPlacementGuard";
 export type { CreatePlacementQuery } from "./createPlacementGuard";
