@@ -243,6 +243,43 @@ describe("SelectMode — 모바일 터치 선택", () => {
     expect(mode.isMoveDragging).toBe(true);
   });
 
+  it("beginLongPressDrag: 노트 히트면 이동 드래그를 시작한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: 0, extraHit: null });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+    expect([...mode.selection]).toEqual([0]);
+  });
+
+  it("beginLongPressDrag: 노트 끝 히트가 노트보다 우선해 리사이즈(이동 아님)를 시작한다", () => {
+    const chart = makeChart({
+      notes: [{ type: "long", lane: 1 as Lane, beat: beat(1), endBeat: beat(1) }],
+    });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 1, { noteEndHit: 0, noteHit: 0, extraHit: null });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(false); // 리사이즈라 이동 드래그가 아니다
+    expect([...mode.selection]).toEqual([0]);
+  });
+
+  it("beginLongPressDrag: 노트 히트 없고 엑스트라 히트면 엑스트라 이동을 시작한다", () => {
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(0) }];
+    const cb = makeCallbacks({}, { extraNotes, extraLaneCount: 2 });
+    const mode = new SelectMode(makeChart(), cb);
+    const started = mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+  });
+
+  it("beginLongPressDrag: 아무 히트도 없으면 드래그를 시작하지 않고 false를 반환한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: null, extraHit: null });
+    expect(started).toBe(false);
+    expect(mode.isMoveDragging).toBe(false);
+  });
+
   it("선택되지 않은 메인 노트를 첫 드래그로 바로 이동", () => {
     const chart = makeChart({
       notes: [

@@ -6,6 +6,7 @@ import {
   deleteExtraNotesAtIndices,
 } from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
+import { resolveLongPressAction } from "./longPressRouting";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 import {
   classifySelection,
@@ -336,6 +337,23 @@ export class SelectMode {
     this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
     this.startResize("note", index, note.beat, note.endBeat);
     return true;
+  }
+
+  /**
+   * 터치 롱프레스 발화 시, down에서 계산된 히트로 드래그 종류를 정해 시작한다.
+   * 노트 끝→리사이즈 / 노트→이동 / 엑스트라→이동. 히트가 없으면 아무것도 안 하고 false.
+   * (라우팅을 호출자에서 모드로 흡수 — begin* 프리미티브는 그대로 두고 그 위에 얹는다.)
+   */
+  beginLongPressDrag(
+    x: number,
+    y: number,
+    hits: { noteEndHit: number | null; noteHit: number | null; extraHit: number | null },
+  ): boolean {
+    const action = resolveLongPressAction(hits);
+    if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
+    if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);
+    if (action.kind === "moveExtra") return this.beginTouchMoveDragFromExtraNote(action.index, x, y);
+    return false;
   }
 
   /**
