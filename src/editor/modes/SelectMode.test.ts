@@ -189,6 +189,47 @@ describe("SelectMode — 드래그 재진입 가드", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 리사이즈 프리뷰 제약 — 커밋과 동일한 validateChart 게이트
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 리사이즈 프리뷰 제약", () => {
+  // 구간[2,6] 레인1, 안에 트릴노트 beat4
+  function setup() {
+    const chart = makeChart({
+      notes: [{ type: "trill", lane: 1 as Lane, beat: beat(4) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+    return { mode, cb, priv };
+  }
+
+  it("트릴존 끝을 트릴노트 안쪽(beat5)까지 축소하면 프리뷰 적용됨", () => {
+    const { mode, priv } = setup();
+    mode.onPointerDown(9, 6, false, false); // 리사이즈 시작
+    mode.onPointerMove(9, 5); // endBeat 6→5, 트릴노트 beat4 여전히 안 → 유효
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
+  });
+
+  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰 미적용(직전 유효값 유지)", () => {
+    const { mode, cb, priv } = setup();
+    mode.onPointerDown(9, 6, false, false);
+    mode.onPointerMove(9, 5); // 유효 → endBeat=5
+    const callsAfterValid = cb.onChartUpdate.mock.calls.length;
+
+    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖 → 위반 → 미적용
+
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5); // 5에서 안 줄어듦
+    expect(cb.onChartUpdate.mock.calls.length).toBe(callsAfterValid); // onChartUpdate 재호출 없음
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
 

@@ -584,27 +584,41 @@ export class SelectMode implements EditorMode {
           ? this.resizingOriginalBeat
           : currentBeat;
 
+        let tentativeChart: Chart | null = null;
         if (this.resizingEntityType === "note") {
           const note = this.chart.notes[this.resizingIndex];
           if (this.isRangeNote(note)) {
             const newNotes = [...this.chart.notes];
             newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
-            this.chart = { ...this.chart, notes: newNotes };
+            tentativeChart = { ...this.chart, notes: newNotes };
           }
         } else if (this.resizingEntityType === "event") {
           const newEvents = [...this.chart.events];
           const evtToResize = newEvents[this.resizingIndex];
           if ('endBeat' in evtToResize) {
             newEvents[this.resizingIndex] = { ...evtToResize, endBeat: newEndBeat };
-            this.chart = { ...this.chart, events: newEvents };
+            tentativeChart = { ...this.chart, events: newEvents };
           }
         } else if (this.resizingEntityType === "trillZone") {
           const newZones = [...this.chart.trillZones];
           newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
-          this.chart = { ...this.chart, trillZones: newZones };
+          tentativeChart = { ...this.chart, trillZones: newZones };
         }
 
-        this.callbacks.onChartUpdate(this.chart);
+        // 프리뷰도 커밋(onPointerUp)과 동일한 제약을 지킨다. 위반 상태(예: 트릴존을
+        // 트릴노트 밖으로 축소, 비트릴노트를 삼키도록 확장)면 적용하지 않아 직전 유효
+        // 프리뷰를 유지한다 → 프리뷰가 커밋 가능 상태를 거짓말하지 않는다.
+        if (tentativeChart !== null) {
+          const errors = validateChart({
+            notes: tentativeChart.notes,
+            trillZones: tentativeChart.trillZones,
+            events: tentativeChart.events,
+          });
+          if (errors.length === 0) {
+            this.chart = tentativeChart;
+            this.callbacks.onChartUpdate(this.chart);
+          }
+        }
       }
       return;
     }
