@@ -607,14 +607,13 @@ export function useCanvasEvents(
       }) &&
       selectModeRef.current
     ) {
-      if (!selectModeRef.current.isBoxSelecting) {
-        selectModeRef.current.onPointerDown(
-          emptySelectCandidate.x,
-          emptySelectCandidate.y,
-          false,
-          false,
-        );
-      }
+      // 박스 시작은 SelectMode.onPointerDown이 idempotent하게 처리한다(진행 중이면 no-op).
+      selectModeRef.current.onPointerDown(
+        emptySelectCandidate.x,
+        emptySelectCandidate.y,
+        false,
+        false,
+      );
       const boxResult = selectModeRef.current.onPointerMove(x, y);
       applyEditResult(boxResult);
       return;
@@ -832,9 +831,8 @@ export function useCanvasEvents(
 
     if (touchEmptySelectCandidate) {
       if (mode === 'select' && selectModeRef.current) {
-        if (!selectModeRef.current.isBoxSelecting) {
-          selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
-        }
+        // 박스 시작은 SelectMode.onPointerDown이 idempotent하게 처리한다(진행 중이면 no-op).
+        selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
         selectModeRef.current.onPointerUp(
           touchEmptySelectCandidate.moved ? x : touchEmptySelectCandidate.x,
           touchEmptySelectCandidate.moved ? y : touchEmptySelectCandidate.y,

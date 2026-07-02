@@ -404,6 +404,10 @@ export class SelectMode implements EditorMode {
       return;
     }
 
+    // 박스 셀렉트 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
+    // 훅이 empty-select 후보의 박스 시작을 첫 move/up까지 미루고 재호출해도 안전하게 만든다.
+    if (this.isBoxSelecting) return;
+
     // Check for endpoint resize first
 
     // 1. RangeNote endpoints — 끝 캡을 잡으면 리사이즈.

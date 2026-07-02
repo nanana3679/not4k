@@ -141,6 +141,23 @@ describe("SelectMode — handlePointerUp", () => {
   });
 });
 
+describe("SelectMode — 박스 셀렉트 idempotency", () => {
+  it("박스 진행 중 onPointerDown 재호출은 무시된다(중복 시작·시작점 리셋 방지)", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false); // 박스 시작 at y=0
+    mode.onPointerMove(2, 5);
+    const startYBefore = mode.boxSelectPixelRect?.startY;
+
+    mode.onPointerDown(3, 9, false, false); // 재호출 → 가드로 무시
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(mode.boxSelectPixelRect?.startY).toBe(startYBefore); // 시작점 유지
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
