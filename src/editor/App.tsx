@@ -503,6 +503,7 @@ function ChartEditorPage() {
       hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
+      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       onTrillZoneSelectionChange: (indices) => { rendererRef.current?.setSelectedTrillZones(indices); },
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),

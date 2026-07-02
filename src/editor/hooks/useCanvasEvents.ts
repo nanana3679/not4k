@@ -120,7 +120,7 @@ export function useCanvasEvents(
     xToLane, xToExtraLane,
     yToBeat, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
     hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
@@ -628,14 +628,15 @@ export function useCanvasEvents(
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
-    // 트릴 구간 핸들은 select 모드에서만 표시한다.
-    const hoverTrillZoneHit = mode === 'select' ? hitTestTrillZoneRef.current(x, y) : null;
-    // 트릴 구간을 리사이즈/이동하는 동안엔 커서가 구간 밖으로 나가도 핸들을 계속 표시한다.
-    const draggingTrillZone = selectModeRef.current?.draggingTrillZoneIndex ?? null;
+    // 트릴 구간 hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
+    // 그 구간을 래치해 커서가 밖으로 나가도 계속 표시한다(래치 결정을 모드가 소유 = PUSH).
+    const hoveredTrillZone = mode === 'select'
+      ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
+      : null;
     if (rendererRef.current) {
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredExtraNote(hoverExtraHit);
-      rendererRef.current.setHoveredTrillZone(draggingTrillZone !== null ? draggingTrillZone : hoverTrillZoneHit);
+      rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }

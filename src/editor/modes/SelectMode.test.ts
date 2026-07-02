@@ -178,13 +178,39 @@ describe("SelectMode — 드래그 재진입 가드", () => {
     const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
-    expect(mode.draggingTrillZoneIndex).toBe(0);
+    expect(mode.computeHoveredTrillZone(0, 0)).toBe(0); // 드래그 중이면 hover 히트 없어도 래치로 0
 
     mode.onPointerMove(9, 10); // 끝을 beat10으로 늘림 → zone.endBeat=10
     expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // origin은 원래값 유지
 
     mode.onPointerDown(9, 10, false, false); // 재호출 → 가드로 무시(재시작 안 됨)
     expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // 이동된 10으로 리셋되지 않음
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 트릴존 hover 래치 — draggingTrillZoneIndex getter PULL을 대체하는 PUSH 메서드
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — computeHoveredTrillZone", () => {
+  it("드래그 아닐 때는 (x,y) 위 구간의 hitTestTrillZone 결과를 반환", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number): number | null => (x === 7 ? 2 : null) });
+    const mode = new SelectMode(makeChart(), cb);
+    expect(mode.computeHoveredTrillZone(7, 0)).toBe(2); // 구간 위 → hover
+    expect(mode.computeHoveredTrillZone(1, 0)).toBe(null); // 빈 곳 → null
+  });
+
+  it("리사이즈 드래그 중이면 hover 히트와 무관하게 래치된 구간을 반환", () => {
+    const chart = makeChart({ trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }] });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+      hitTestTrillZone: (): number | null => 2, // 커서가 다른 구간(2) 위여도
+    });
+    const mode = new SelectMode(chart, cb);
+    mode.onPointerDown(9, 6, false, false); // 구간0 리사이즈 시작 → 래치 0
+    expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // hover=2 무시하고 래치 0 유지
   });
 });
 
