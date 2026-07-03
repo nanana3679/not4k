@@ -49,6 +49,18 @@ export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boo
 }
 
 /**
+ * 터치 다중선택 래치(touchMultiSelect)의 다음 상태.
+ *
+ * 래치는 롱프레스 select-drag가 발화할 때 켜져, 이어지는 노트 탭이 기존 선택을 대체하지 않고
+ * 누적 토글되게 한다. 선택이 0개가 되면(빈 곳 탭 해제·마지막 노트 토글 해제 등) 누적 모드를
+ * 끝내야 하므로 꺼진다 — 그 외에는 현재 값을 유지한다. 끄는 지점이 없으면 한 번 켜진 뒤
+ * 세션 내내 모든 탭이 누적 토글로 굳는 버그가 된다.
+ */
+export function nextTouchMultiSelectLatch(current: boolean, selectionSize: number): boolean {
+  return selectionSize === 0 ? false : current;
+}
+
+/**
  * select 모드 터치 down에서 어떤 후보를 예약(schedule)할지.
  * - `tapToggle`: 뗄 때 노트/엑스트라 선택을 토글하는 후보.
  * - `emptySelectBox`: 첫 move/up에서 onPointerDown을 재생하는 지연-드래그 후보.
@@ -77,4 +89,67 @@ export function resolveSelectTouchDownSchedule(hits: {
     return 'emptySelectBox';
   }
   return hits.noteHit !== null || hits.extraHit !== null ? 'tapToggle' : 'emptySelectBox';
+}
+
+/** 롱프레스 hold 후보를 무장·발화할 때 참조하는 down 시점 히트. */
+export interface HoldHits {
+  noteHit: number | null;
+  noteEndHit: number | null;
+  extraHit: number | null;
+}
+
+/** 편집 모드 3종. 스토어 mode를 그대로 넘긴다. */
+export type EditorTouchMode = 'create' | 'select' | 'delete';
+
+function hasAnyHoldHit(hits: HoldHits): boolean {
+  return hits.noteHit !== null || hits.noteEndHit !== null || hits.extraHit !== null;
+}
+
+/**
+ * down에서 롱프레스 hold 타이머를 걸지 결정한다(= 어떤 hold 후보든 무장되는가).
+ *
+ * - delete: 항상(빈 곳도 롱프레스 드래그 삭제 시작 지점).
+ * - create + rangeType: 범위 생성이 가능하면(미차단) 항상. 차단됐으면(기존 노트 위 등)
+ *   히트가 있을 때만 — 그 노트를 잡는 select-drag로 간다.
+ * - 그 외(create-point / select): 노트/끝/엑스트라 히트가 있을 때만.
+ *   (히트 없는 create-point는 down에서 점노트가 배치되고, 히트 없는 select는 박스 후보로 간다.)
+ */
+export function shouldArmHoldTimer(input: {
+  mode: EditorTouchMode;
+  rangeType: 'long' | 'doubleLong' | null;
+  /** create 모드에서 이 지점에 배치가 막히는지(기존 노트/차선 점유/범위 밖). create 외엔 무시. */
+  placementBlocked: boolean;
+  hits: HoldHits;
+}): boolean {
+  if (input.mode === 'delete') return true;
+  if (input.mode === 'create' && input.rangeType !== null) {
+    return !input.placementBlocked || hasAnyHoldHit(input.hits);
+  }
+  return hasAnyHoldHit(input.hits);
+}
+
+/** 롱프레스 발화 시 실행할 액션. */
+export type HoldFireAction = 'delete' | 'createRange' | 'selectDrag' | 'none';
+
+/**
+ * 롱프레스가 발화(LONG_PRESS_MS 유지)했을 때 무엇을 할지, 발화 좌표의 히트로 재도출한다.
+ *
+ * 의도는 armed 후보 종류가 아니라 (mode, rangeType, placementBlocked, 히트)로 결정된다 —
+ * 그래야 후보 상태를 인식기로 옮기고도(재-히트테스트) 같은 분기를 재현할 수 있다.
+ * - create + rangeType + 미차단: `createRange`(범위 노트 생성).
+ * - create + rangeType + 차단 + 히트: `selectDrag`(범위 못 만드니 그 노트를 잡는다).
+ * - create-point에서 기존 노트를 롱프레스: `selectDrag`.
+ * (down 좌표=발화 좌표, 수동 hold 동안 chart 불변이라 down때 히트·차단 판정과 동일.)
+ */
+export function resolveHoldFireAction(input: {
+  mode: EditorTouchMode;
+  rangeType: 'long' | 'doubleLong' | null;
+  placementBlocked: boolean;
+  hits: HoldHits;
+}): HoldFireAction {
+  if (input.mode === 'delete') return 'delete';
+  if (input.mode === 'create' && input.rangeType !== null && !input.placementBlocked) {
+    return 'createRange';
+  }
+  return hasAnyHoldHit(input.hits) ? 'selectDrag' : 'none';
 }

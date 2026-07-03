@@ -59,11 +59,16 @@ export type ViewportGesture =
  * - `editCancel`: 두 손가락 내비가 편집을 가로챌 때 진행 중 편집을 폐기하라는 신호.
  * - `longPress`: 단일 터치를 tap-slop 안에서 LONG_PRESS_MS 유지했을 때(좌표는 down 시점 위치).
  *   무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트테스트를 아는 어댑터가 정한다.
- * tap/drag/box 트랜잭션은 후속 슬라이스에서 추가된다.
+ * - `holdEnd`: hold 후보를 가진 단일 터치가 떨어질(up/cancel) 때, 그 결말(`fired`·`moved`)과
+ *   down 좌표(`x`·`y`)를 실어 방출한다. 어댑터는 이 입력층 사실만으로 커밋/취소/탭을 판정한다
+ *   (범위·스냅 같은 도메인은 여전히 어댑터가 합친다 — 인식기는 도메인을 모른다). 발화·이동이
+ *   없었으면 탭, 이동만 했으면 스크롤성, 발화했으면 드래그 결말로 어댑터가 해석한다. down 좌표는
+ *   탭 폴백(범위 엔티티를 탭하면 점노트 생성)이 시작 지점을 그대로 쓰도록 실어 보낸다.
  */
 export type EditGesture =
   | { kind: 'editCancel' }
-  | { kind: 'longPress'; x: number; y: number };
+  | { kind: 'longPress'; x: number; y: number }
+  | { kind: 'holdEnd'; pointerId: number; x: number; y: number; fired: boolean; moved: boolean };
 
 export type Gesture = EditGesture | ViewportGesture;
 
@@ -79,7 +84,10 @@ export class GestureRecognizer {
         startClientX: number;
         startClientY: number;
         downTimeMs: number;
+        /** LONG_PRESS_MS 유지로 longPress가 발화했는지. */
         fired: boolean;
+        /** tap-slop을 넘게 움직였는지(발화 봉인). up까지 존속시켜 holdEnd에 실어 보낸다. */
+        moved: boolean;
       }
     | null = null;
 
@@ -96,6 +104,15 @@ export class GestureRecognizer {
   /** 특정 포인터가 현재 닿아 있는지(터치 후보 타이머의 단일 터치 확인용). */
   hasTouch(pointerId: number): boolean {
     return this.activePoints.has(pointerId);
+  }
+
+  /**
+   * 진행 중인 hold의 결말 상태(fired·moved)를 조회한다. 해당 pointer의 hold가 없으면 null.
+   * move 중 어댑터가 "발화한 드래그가 진행 중인가/이동으로 봉인됐나"를 읽는 데 쓴다(holdEnd는 up 전용).
+   */
+  holdState(pointerId: number): { fired: boolean; moved: boolean } | null {
+    if (!this.hold || this.hold.pointerId !== pointerId) return null;
+    return { fired: this.hold.fired, moved: this.hold.moved };
   }
 
   /** 내비게이션 세션을 강제 종료한다(pointercancel 등 전면 teardown용). 터치 포인트는 건드리지 않는다. */
@@ -132,6 +149,7 @@ export class GestureRecognizer {
       !hold.fired &&
       this.activePoints.size === 1 &&
       this.activePoints.has(hold.pointerId) &&
+      !hold.moved &&
       nowMs - hold.downTimeMs >= LONG_PRESS_MS
     ) {
       hold.fired = true;
@@ -160,6 +178,7 @@ export class GestureRecognizer {
       startClientY: sample.clientY,
       downTimeMs: sample.timeMs,
       fired: false,
+      moved: false,
     };
     return [];
   }
@@ -182,7 +201,9 @@ export class GestureRecognizer {
         tapSlopPx: TOUCH_MOVE_CANCEL_PX,
       })
     ) {
-      this.hold = null;
+      // 발화만 봉인하고 hold는 up까지 존속시킨다 — moved 사실을 holdEnd에 실어 보내
+      // 어댑터가 "이동(스크롤성) vs 무이동(탭)"을 구분할 수 있게 한다.
+      hold.moved = true;
     }
 
     const points = [...this.activePoints.values()];
@@ -218,12 +239,23 @@ export class GestureRecognizer {
 
   private onTouchEnd(sample: PointerSample): Gesture[] {
     this.activePoints.delete(sample.pointerId);
+    const gestures: Gesture[] = [];
+    // hold를 가진 그 손가락이 떨어지면 결말(fired·moved)을 holdEnd로 방출한다.
+    // (두 손가락 내비로 이미 취소된 hold는 null이므로 방출하지 않는다 — editCancel이 그 신호였다.)
     if (this.hold?.pointerId === sample.pointerId) {
+      gestures.push({
+        kind: 'holdEnd',
+        pointerId: sample.pointerId,
+        x: this.hold.x,
+        y: this.hold.y,
+        fired: this.hold.fired,
+        moved: this.hold.moved,
+      });
       this.hold = null;
     }
     if (this.activePoints.size < 2) {
       this.navSession = null;
     }
-    return [];
+    return gestures;
   }
 }

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  nextTouchMultiSelectLatch,
+  resolveHoldFireAction,
   resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
+  shouldArmHoldTimer,
   shouldDeleteOnUp,
   shouldFireTapToggle,
 } from "./touchEditRouting";
+
+const noHits = { noteHit: null, noteEndHit: null, extraHit: null };
+const noteHit = { noteHit: 3, noteEndHit: null, extraHit: null };
+const endHit = { noteHit: null, noteEndHit: 3, extraHit: null };
+const extraHit = { noteHit: null, noteEndHit: null, extraHit: 2 };
 
 describe("resolveTouchCreateUpAction — create 후보 up 확정", () => {
   it("범위 드래그 발화 + 뗀 지점이 범위 안이면 commitDrag", () => {
@@ -93,5 +101,95 @@ describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", 
 
   it("트릴존 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
     expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneHandleHit: null, zoneEndHit: null })).toBe("tapToggle");
+  });
+});
+
+describe("shouldArmHoldTimer — 롱프레스 hold 타이머 무장 여부", () => {
+  it("delete 모드는 히트 없어도 무장(빈 곳 드래그 삭제 시작)", () => {
+    expect(shouldArmHoldTimer({ mode: "delete", rangeType: null, placementBlocked: false, hits: noHits })).toBe(true);
+  });
+
+  it("create + rangeType(long) + 미차단은 히트 없어도 무장(빈 타임라인 범위 생성)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: false, hits: noHits })).toBe(true);
+  });
+
+  it("create + rangeType + 차단 + 히트는 무장(그 노트 잡는 select-drag)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: true, hits: noteHit })).toBe(true);
+  });
+
+  it("create + rangeType + 차단 + 히트 없음은 무장 안 함(범위도 못 만들고 잡을 것도 없음)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: true, hits: noHits })).toBe(false);
+  });
+
+  it("create-point(rangeType null)은 히트 없으면 무장 안 함(점노트는 down 배치)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: false, hits: noHits })).toBe(false);
+  });
+
+  it("create-point이라도 노트 히트가 있으면 무장(롱프레스로 그 노트 선택 드래그)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: true, hits: noteHit })).toBe(true);
+  });
+
+  it("select은 히트 없으면 무장 안 함(빈 곳은 박스 후보)", () => {
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: noHits })).toBe(false);
+  });
+
+  it("select + 노트 끝 히트면 무장", () => {
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: endHit })).toBe(true);
+  });
+
+  it("select + 엑스트라 히트면 무장", () => {
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: extraHit })).toBe(true);
+  });
+});
+
+describe("resolveHoldFireAction — 롱프레스 발화 액션 재도출", () => {
+  it("delete 모드는 delete", () => {
+    expect(resolveHoldFireAction({ mode: "delete", rangeType: null, placementBlocked: false, hits: noHits })).toBe("delete");
+  });
+
+  it("create + rangeType + 미차단은 createRange", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "doubleLong", placementBlocked: false, hits: noHits })).toBe("createRange");
+  });
+
+  it("create + rangeType + 차단 + 히트는 selectDrag(범위 못 만드니 그 노트를 잡는다)", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "long", placementBlocked: true, hits: noteHit })).toBe("selectDrag");
+  });
+
+  it("create + rangeType + 차단 + 히트 없음은 none", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "long", placementBlocked: true, hits: noHits })).toBe("none");
+  });
+
+  it("create-point + 노트 히트는 selectDrag(그 노트를 잡는다)", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: true, hits: noteHit })).toBe("selectDrag");
+  });
+
+  it("create-point + 히트 없음은 none(점노트는 이미 down 배치)", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: false, hits: noHits })).toBe("none");
+  });
+
+  it("select + 노트 히트는 selectDrag", () => {
+    expect(resolveHoldFireAction({ mode: "select", rangeType: null, placementBlocked: false, hits: noteHit })).toBe("selectDrag");
+  });
+
+  it("select + 히트 없음은 none", () => {
+    expect(resolveHoldFireAction({ mode: "select", rangeType: null, placementBlocked: false, hits: noHits })).toBe("none");
+  });
+});
+
+describe("nextTouchMultiSelectLatch — 터치 다중선택 래치 리셋", () => {
+  it("선택이 0개면 래치가 켜져 있어도 꺼진다", () => {
+    expect(nextTouchMultiSelectLatch(true, 0)).toBe(false);
+  });
+
+  it("선택이 남아 있으면(1개 이상) 켜진 래치를 유지한다", () => {
+    expect(nextTouchMultiSelectLatch(true, 1)).toBe(true);
+  });
+
+  it("선택이 남아 있어도 꺼진 래치는 계속 꺼져 있다", () => {
+    expect(nextTouchMultiSelectLatch(false, 3)).toBe(false);
+  });
+
+  it("선택이 0개면 꺼진 래치는 그대로 꺼져 있다", () => {
+    expect(nextTouchMultiSelectLatch(false, 0)).toBe(false);
   });
 });

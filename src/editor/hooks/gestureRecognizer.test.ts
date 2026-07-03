@@ -178,3 +178,65 @@ describe("GestureRecognizer — 롱프레스(Time-A)", () => {
     expect(r.tick(450)).toEqual([]);
   });
 });
+
+describe("GestureRecognizer — holdEnd(결말 방출)", () => {
+  it("이동·발화 없이 뗀 up은 holdEnd{fired:false, moved:false} (탭)", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    expect(r.feed(touch("up", 1, 100, 200, 100))).toEqual([
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: false, moved: false },
+    ]);
+  });
+
+  it("tap-slop(10px) 넘게 이동 후 뗀 up은 holdEnd{fired:false, moved:true} (스크롤성)", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    r.feed(touch("move", 1, 100, 215, 100)); // 15px > 10
+    expect(r.feed(touch("up", 1, 100, 215, 200))).toEqual([
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: false, moved: true },
+    ]);
+  });
+
+  it("이동으로 봉인된 hold는 이후 tick해도 longPress를 발화하지 않는다", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    r.feed(touch("move", 1, 100, 215, 100)); // 15px > 10 → moved 봉인
+    expect(r.tick(450)).toEqual([]);
+  });
+
+  it("450ms 유지로 발화한 뒤 뗀 up은 holdEnd{fired:true, moved:false} (드래그)", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.feed(touch("up", 1, 100, 200, 500))).toEqual([
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
+    ]);
+  });
+
+  it("발화 후 tap-slop 안 이동은 moved를 켜지 않는다 (발화 뒤 드래그는 스크롤성 아님)", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    r.tick(450); // 발화
+    r.feed(touch("move", 1, 100, 250, 500)); // 발화 후 이동
+    expect(r.feed(touch("up", 1, 100, 250, 600))).toEqual([
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
+    ]);
+  });
+
+  it("두 번째 손가락으로 취소(editCancel)된 hold는 이후 up에서 holdEnd를 방출하지 않는다", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    r.feed(touch("down", 2, 300, 200, 10)); // editCancel, hold 폐기
+    expect(r.feed(touch("up", 1, 100, 200, 100))).toEqual([]);
+  });
+
+  it("tap-slop 안(5px) 이동은 moved를 켜지 않아 발화·holdEnd{moved:false}", () => {
+    const r = new GestureRecognizer();
+    r.feed(touch("down", 1, 100, 200, 0));
+    r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10
+    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.feed(touch("up", 1, 103, 204, 200))).toEqual([
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
+    ]);
+  });
+});
