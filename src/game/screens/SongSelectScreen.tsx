@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { createChartAsset, supabase } from '../../supabase';
@@ -22,6 +22,7 @@ import { modalStyles } from './songSelect/modalStyles';
 import { AddSongModal } from './songSelect/AddSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
+import { TutorialHelpModal } from './songSelect/TutorialHelpModal';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
 import {
@@ -53,6 +54,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleteSongTarget, setDeleteSongTarget] = useState<DbSong | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
+  const [showTutorialHelp, setShowTutorialHelp] = useState(false);
 
   const addToast = useCallback((msg: string, type: ToastType = 'info') => {
     showToast(msg, type);
@@ -83,7 +85,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    showAddSong,
+    showAddSong: showAddSong || showTutorialHelp,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -189,8 +191,26 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const showSongListState = songs.length === 0;
   const isInitialSongLoading = loading && songs.length === 0;
 
+  const renderTutorialHelpButton = (style: CSSProperties) => (
+    <button
+      type="button"
+      style={style}
+      aria-label="Open tutorial help"
+      aria-haspopup="dialog"
+      aria-expanded={showTutorialHelp}
+      title="Tutorial"
+      onClick={() => setShowTutorialHelp(true)}
+    >
+      ?
+    </button>
+  );
+
   const renderOverlays = () => (
     <>
+      {showTutorialHelp && (
+        <TutorialHelpModal isAdmin={isAdmin} onClose={() => setShowTutorialHelp(false)} />
+      )}
+
       {showAddSong && (
         <AddSongModal
           addToast={addToast}
@@ -248,6 +268,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
             )}
           </div>
           <div style={styles.mobileHeaderActions}>
+            {renderTutorialHelpButton({
+              ...styles.mobileActionButton,
+              ...styles.mobileTutorialHelpBtn,
+            })}
             {isAdmin && (
               <button
                 style={{ ...styles.mobileActionButton, ...styles.mobilePrimaryActionButton }}
@@ -334,6 +358,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       <div style={styles.header}>
         <h1 style={styles.title}>Song Select</h1>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {renderTutorialHelpButton(styles.tutorialHelpBtn)}
           {isAdmin && (
             <button style={styles.addSongBtn} onClick={() => setShowAddSong(true)}>
               + Add Song
@@ -538,48 +563,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
         </div>
       </div>
 
-      {/* Add song modal (admin) */}
-      {showAddSong && (
-        <AddSongModal
-          addToast={addToast}
-          onDone={() => { setShowAddSong(false); fetchSongs(); }}
-          onClose={() => setShowAddSong(false)}
-        />
-      )}
-
-      {/* New chart difficulty modal (admin) */}
-      {newChartTarget && (
-        <DifficultyModal
-          existingDifficulties={newChartTarget.charts.map((c) => c.difficulty_label)}
-          onSelect={(diff, lv) => handleNewChart(newChartTarget, diff, lv)}
-          onClose={() => setNewChartTarget(null)}
-        />
-      )}
-
-      {/* Delete song confirm modal (admin) */}
-      {deleteSongTarget && (
-        <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
-          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <h3 style={modalStyles.title}>Delete Song</h3>
-            <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
-              <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}
-            </p>
-            <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
-              곡과 모든 차트가 영구 삭제됩니다. 되돌릴 수 없습니다.
-            </p>
-            <div style={modalStyles.buttons}>
-              <button
-                style={{ ...modalStyles.saveBtn, backgroundColor: '#cc3333', opacity: deleting ? 0.5 : 1 }}
-                disabled={deleting}
-                onClick={() => handleDeleteSong(deleteSongTarget)}
-              >
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-              <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderOverlays()}
     </div>
   );
 }

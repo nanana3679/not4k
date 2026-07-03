@@ -15,7 +15,7 @@ import {
   extractTimeSignatures,
   isMeasureBoundary,
 } from '../../shared';
-import type { Chart, PlaybackRange, ValidationError } from '../../shared';
+import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -435,6 +435,30 @@ export function useFileOperations(
       newEvt = { ...evt, beatPerMeasure: { n: tsN, d: tsD } };
     } else if (evt.type === 'text') {
       newEvt = { ...evt, text: values.text ?? '' };
+    } else if (evt.type === 'tutorialInput') {
+      const lane = Number(values.inputLane);
+      const keyCode = (values.keyCode ?? '').trim();
+      const keyLabel = (values.keyLabel ?? '').trim();
+      if (![1, 2, 3, 4].includes(lane)) {
+        addToast('튜토리얼 입력 레인은 L1~L4 중 하나여야 합니다'); return;
+      }
+      if (!keyCode) {
+        addToast('튜토리얼 입력 keyCode는 비워둘 수 없습니다'); return;
+      }
+      const baseEvent = { ...evt, lane: lane as Lane, keyCode };
+      if (keyLabel) {
+        newEvt = { ...baseEvent, keyLabel };
+      } else {
+        const { keyLabel: _removed, ...withoutLabel } = baseEvent;
+        void _removed;
+        newEvt = withoutLabel;
+      }
+    } else if (evt.type === 'tutorialDiagram') {
+      const diagramId = (values.diagramId ?? '').trim();
+      if (diagramId !== 'connected-switch' && diagramId !== 'connected-overlap') {
+        addToast('튜토리얼 도식은 connected-switch 또는 connected-overlap 중 하나여야 합니다'); return;
+      }
+      newEvt = { ...evt, diagramId: diagramId as TutorialDiagramId };
     } else {
       // 'auto' | 'stop' — no editable fields beyond beat/endBeat
       newEvt = evt;

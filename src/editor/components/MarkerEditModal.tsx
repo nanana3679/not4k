@@ -14,6 +14,8 @@ function getEventTypeLabel(evt: ChartEvent): string {
     case 'text': return 'Text';
     case 'auto': return 'Auto Section';
     case 'stop': return 'Stop Zone';
+    case 'tutorialInput': return 'Tutorial Input';
+    case 'tutorialDiagram': return 'Tutorial Diagram';
   }
 }
 
@@ -25,6 +27,14 @@ function getInitialValues(evt: ChartEvent): Record<string, string> {
       return { tsNumerator: String(evt.beatPerMeasure.n), tsDenominator: String(evt.beatPerMeasure.d) };
     case 'text':
       return { text: evt.text };
+    case 'tutorialInput':
+      return {
+        inputLane: String(evt.lane),
+        keyCode: evt.keyCode,
+        keyLabel: evt.keyLabel ?? '',
+      };
+    case 'tutorialDiagram':
+      return { diagramId: evt.diagramId };
     case 'auto':
     case 'stop':
       return {};
@@ -102,6 +112,60 @@ function EventFields({ evt, values, setValues }: {
         <div style={{ padding: '8px 0', color: '#aaa', fontSize: '13px' }}>
           Stop Zone (no editable fields)
         </div>
+      );
+    case 'tutorialInput':
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr', gap: '8px' }}>
+          <label style={modalStyles.field}>
+            <span>Lane</span>
+            <select
+              style={modalStyles.input}
+              value={values.inputLane}
+              onChange={(e) => setValues({ ...values, inputLane: e.target.value })}
+              autoFocus
+            >
+              <option value="1">L1</option>
+              <option value="2">L2</option>
+              <option value="3">L3</option>
+              <option value="4">L4</option>
+            </select>
+          </label>
+          <label style={modalStyles.field}>
+            <span>Key Code</span>
+            <input
+              style={modalStyles.input}
+              type="text"
+              value={values.keyCode}
+              onChange={(e) => setValues({ ...values, keyCode: e.target.value })}
+              placeholder="KeyD"
+            />
+          </label>
+          <label style={modalStyles.field}>
+            <span>Label</span>
+            <input
+              style={modalStyles.input}
+              type="text"
+              value={values.keyLabel}
+              onChange={(e) => setValues({ ...values, keyLabel: e.target.value })}
+              placeholder="D"
+            />
+          </label>
+        </div>
+      );
+    case 'tutorialDiagram':
+      return (
+        <label style={modalStyles.field}>
+          <span>Diagram</span>
+          <select
+            style={modalStyles.input}
+            value={values.diagramId}
+            onChange={(e) => setValues({ ...values, diagramId: e.target.value })}
+            autoFocus
+          >
+            <option value="connected-switch">Connected switch</option>
+            <option value="connected-overlap">Connected overlap</option>
+          </select>
+        </label>
       );
   }
 }

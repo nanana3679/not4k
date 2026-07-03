@@ -482,7 +482,7 @@ interface EditorToolbarProps {
 
 const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
 const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone'];
-const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop'];
+const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -497,6 +497,8 @@ const entityLabels: Record<EntityType, string> = {
   text: 'Text',
   auto: 'Auto',
   stop: 'Stop',
+  tutorialInput: 'Input',
+  tutorialDiagram: 'Diagram',
 };
 
 export function EditorToolbar({
