@@ -1725,4 +1725,21 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     engine.update(3200); // 미종결이면 타임아웃 확정
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
+
+  it("A 끝점과 B 바디 시작이 한 프레임에 겹쳐도 B는 정상 종결된다 (RFD 0012 프레임 독립성)", () => {
+    // 좁은 갭: A[1000~2000], B[2016~3000]. [2000,2016) 사이에 프레임이 안 떨어지면
+    // 한 프레임(2016)이 A 끝점 완료(부여)와 B 바디 시작(회수)을 함께 덮는다 — 30fps 흔들림급.
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2016]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyA로 A 잡기 — 이후 안 뗌
+    engine.update(1000); // A 유지 시작 (시작 윈도우 내)
+    engine.update(1983); // A 유지 중 (끝점 전 마지막 프레임)
+    engine.update(2016); // ★한 프레임★: A 끝점 완료(부여) + B 바디 시작(회수) 동시
+    engine.update(3000); // B 끝점 → AWAITING
+    engine.onLaneRelease(lane, 3005, "KeyA"); // B 종결 시도
+    engine.update(3200);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
 });

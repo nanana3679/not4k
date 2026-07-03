@@ -661,6 +661,16 @@ export class JudgmentEngine {
     const holdState = this.laneHoldStates.get(lane);
     const emptySet = this.emptyReleaseKeys.get(lane);
     if (!holdState || !emptySet) return;
+    // RFD 0012: held 키가 이미 이 레인의 다른 롱노트 바디를 유지(load-bearing) 중이면
+    // 놓기 도장을 찍지 않는다. 한 프레임이 이 노트의 held 완료(부여)와 다음 롱의 바디 시작(회수)을
+    // 함께 덮을 때, update() pass 순서(Hold 회수 → End 부여)로 회수가 no-op이 되고 도장이 잔류하는
+    // 것을 막는다. (checkLongNoteBodyHold의 회수는 부여가 먼저 일어나는 다중 프레임 케이스 담당 —
+    // 둘이 상호보완이라 프레임 정렬과 무관하게 견고. 완료 노트는 이미 COMPLETE라 여기 안 걸린다.)
+    for (let j = 0; j < this.notes.length; j++) {
+      if (this.noteStates.get(j) !== NoteState.BODY_ACTIVE) continue;
+      if ((this.notes[j] as RangeNote).lane !== lane) continue;
+      if (this.longNoteBodyStates.get(j)?.hasBeenPressed === true) return;
+    }
     for (const k of holdState.heldKeys) emptySet.add(k);
   }
 
