@@ -58,6 +58,7 @@ hold-only A [1000~2000]   ← KeyA로 유지, 끝점 held Perfect → KeyA 공�
   - **(1) 회수** — `checkLongNoteBodyHold`에서 바디의 `hasBeenPressed`가 `false→true`로 전이하는 순간, 그 레인의 현재 눌린 키들을 `emptyReleaseKeys`에서 제거한다. **부여가 앞 프레임에 먼저 일어난 다중 프레임 케이스**(앞 프레임에서 도장 부여 → 뒤 프레임에서 새 바디 시작)를 담당한다.
   - **(2) 부여 조건화** — `markEmptyRelease`가 도장을 찍기 전, 그 레인에 눌린 키가 load-bearing 중인 다른 롱이 있으면 도장을 찍지 않는다. **load-bearing = `BODY_ACTIVE`(유지 성립: `hasBeenPressed`) 또는 `BODY_AWAITING_RELEASE`(끝점 지나 release 대기 — 그 키의 다음 release가 곧 종결이라 놓기가 아님).** **한 프레임이 부여와 회수를 함께 덮는 케이스**를 담당한다. 이때 회수는 아직 도장이 없어 no-op이라, 회수만으로는 못 막는다.
 - **왜 둘 다인가 (프레임 독립성)**: 한 프레임이 앞 노트의 held 완료(부여)와 다음 롱의 바디 시작(회수)을 함께 덮으면, pass 순서상 회수(Hold)가 부여(End)보다 먼저 실행돼 no-op이 되고, 도장이 뒤늦게 부여돼 잔류한다 → 다음 롱의 정당한 종결이 막혀 Miss. 이는 랙 스파이크가 아니라 **평범한 30fps 프레임 흔들림 + 촘촘한 HARD 차트**에서 재현되는 **프레임레이트 의존 correctness 버그**다(프로젝트 최상위 품질 축 IO 타이밍/판정 일관성에 정면으로 걸림). 회수만으로는 단일 프레임을, 부여 조건화만으로는 다중 프레임을 각각 못 막으므로, 둘을 함께 둬 **프레임 정렬과 무관하게** 견고하게 만든다. 실증: 회수를 끄면 다중 프레임 회귀 테스트가, 부여 조건화를 끄면 단일 프레임 회귀 테스트가 각각 red로 떨어진다.
+- **부여는 롱의 모든 죽음 경로를 커버해야 한다**: 부여 조건화(2)가 도장을 스킵하는 암묵적 전제는 "그 keyup은 load-bearing 롱의 종결로 소비되고 [RFD 0011](0011-normal-release-consume.md)의 `didTerminate` 도장이 이어받는다"이다. 그런데 대기 중이던(`BODY_AWAITING_RELEASE`) 롱이 keyup이 아니라 **update 타임아웃**으로 먼저 죽으면 아무도 도장을 안 남겨, 이후의 놓기 keyup이 후속 슬라이드로 샌다(관대형 누설 — 공짜 Perfect). 따라서 **타임아웃 Miss 분기에서도, 죽은 롱을 아직 잡고 있는 키가 있으면 `markEmptyRelease`로 도장을 남긴다.** 이로써 도장 부여가 롱의 세 결말 — **keyup 종결(0011) · held 완료(0008) · 타임아웃(이 RFD)** — 을 모두 덮어, keyup/타임아웃 어느 경로로 죽든 프레임 정렬과 무관하게 놓기 누설이 닫힌다.
 
 **"lane held == 0" 종결 게이트(대안 A)는 도입하지 않는다** — 키 단위 종결은 릴리즈탭·홀드 중 탭을 위해 유지되는 의도된 설계다(note-system "종결 판정", RFD 0008 §10). 이 RFD는 종결 트리거를 바꾸지 않고, 오직 **낡은 도장의 회수 시점만** 정밀화한다.
 
@@ -76,16 +77,18 @@ RFD 0008 §4·0011 §7과 동일. 한 레인에 진행 중 롱은 최대 하나�
 | 두 키(KeyA 도장 + KeyB fresh)로 B 유지 | 정상 종결 | 둘 다 load-bearing → 둘 다 회수, 어느 키 release로도 종결 |
 | **A 끝점과 B 바디 시작이 한 프레임**에 겹침 | **B Perfect** | 부여 조건화(2)가 B의 `hasBeenPressed`를 보고 도장을 안 찍음 — 프레임 독립 (30fps 흔들림급 재현 회귀) |
 | 일반 롱 B가 `AWAITING_RELEASE`인 채 직후 슬라이드 완료 → B 지각 release | **B 정상 종결** | 부여 조건화(2)가 `AWAITING_RELEASE`도 load-bearing으로 봄 (RFD 0008부터 있던 거울상 누설, 리뷰 발견) |
+| B가 keyup 아닌 **타임아웃**으로 죽은 뒤 놓기 keyup → 직후 슬라이드 S | **S 미리-떼기 안 됨(→ 타임아웃 Miss)** | 타임아웃 Miss 분기가 held 키에 도장을 남김 — keyup/타임아웃 결말 무관하게 놓기 차단 (부여 조건화가 만든 회귀, 리뷰 발견) |
 
 ## 8. 영향 문서/코드
 
-- 구현: `src/game/judgment/JudgmentEngine.ts` — (1) `checkLongNoteBodyHold`의 `hasBeenPressed` 전이에서 held 키의 `emptyReleaseKeys` 회수, (2) `markEmptyRelease`가 다른 `BODY_ACTIVE`+`hasBeenPressed` 롱이 있으면 도장 부여 스킵.
-- 회귀: `src/game/judgment/JudgmentEngine.test.ts` — 다중 프레임 누설 차단 + **단일 프레임(부여·회수 겹침) 프레임 독립성** + 슬라이드 보호·릴리즈탭 무회귀.
+- 구현: `src/game/judgment/JudgmentEngine.ts` — (1) `checkLongNoteBodyHold`의 `hasBeenPressed` 전이에서 held 키의 `emptyReleaseKeys` 회수, (2) `markEmptyRelease`가 load-bearing 롱(`BODY_ACTIVE`+`hasBeenPressed` 또는 `BODY_AWAITING_RELEASE`)이 있으면 도장 부여 스킵, (3) `checkLongNoteBodyEnd`의 `BODY_AWAITING_RELEASE` 타임아웃 Miss 분기에서 held 키에 `markEmptyRelease`.
+- 회귀: `src/game/judgment/JudgmentEngine.test.ts` — 다중 프레임 누설 + **단일 프레임 프레임 독립성** + **AWAITING 거울상** + **타임아웃 결말** + 슬라이드 보호·릴리즈탭 무회귀.
 - [`docs/context/glossary.md`](../context/glossary.md), [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md) — 공릴리즈 도장의 회수 조건에 "새 롱노트 바디 유지 시작"을 추가.
 - RFD 0008 §10 / RFD 0011 §10 미해결 항목에 이 케이스가 해소되었음을 링크.
 
 ## 9. 미해결 / 열린 질문
 
 - **(해소, 리뷰 발견 1차)** 1차 구현은 회수(1)만 뒀다가, 한 프레임이 부여와 회수를 함께 덮으면 pass 순서로 회수가 no-op이 되는 **프레임레이트 의존 누설**이 리뷰에서 발견됐다. 부여 조건화(2)를 추가해 해소(§5). "부여 조건화로 회수를 *교체*"하는 안은 다중 프레임을 되레 회귀시켜 기각 — 둘 다 필요함을 실증했다.
+- **(해소, 리뷰 발견 3차 — 부여 조건화가 만든 회귀)** 부여 조건화(2)로 도장을 스킵한 뒤, 대기 중이던 롱이 keyup이 아니라 **update 타임아웃**으로 죽으면 아무도 도장을 안 남겨 이후 놓기 keyup이 후속 슬라이드로 새던 **관대형 누설(공짜 Perfect)**이 발견됐다(535a5f5가 만든 좁은 회귀, 심각도 낮음 — 이미 BAD 넘겨 Miss난 뒤라 처벌이 아니라 관대 방향). 타임아웃 Miss 분기에서 held 키에 `markEmptyRelease`를 남겨 해소(§5 "모든 죽음 경로 커버"). 이로써 도장이 프레임 정렬로 갈리던 성질(§5가 배격한 것)도 제거.
 - **(해소, 리뷰 발견 2차)** 부여 조건화(2)의 스캔이 `BODY_ACTIVE`만 봐서, 일반 롱이 `BODY_AWAITING_RELEASE`(끝점 지나 release 대기)인 채 같은 키로 직후 슬라이드가 완료되면 도장이 찍혀 그 롱의 지각 종결이 막히던 누설이 발견됐다(RFD 0008부터 있던 **거울상** — 0012는 도장이 *나중* 노트 종결을, 이 건은 *먼저* 노트 종결을 막음. 프레임 독립·결정론적). 스캔에 `BODY_AWAITING_RELEASE`를 추가해 해소.
 - **분할 릴리즈(`D=-`)와의 상호작용**: 더블 롱노트의 두 키를 시간차로 뗄 때, 앞선 hold-only 도장이 두 키에 걸쳐 있으면 회수가 키별로 정확히 동작하는지 — 현재 회수는 "유지 시작 시점의 held 키 전체"라 두 키를 함께 회수한다. doubleLong 바디 유지 케이스의 회귀를 추가로 확인할 것.
