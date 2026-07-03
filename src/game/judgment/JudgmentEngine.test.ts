@@ -1864,3 +1864,31 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
   });
 });
+
+describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 4판정 (note-system §분할 릴리즈)", () => {
+  const lane: Lane = 1;
+  const DOUBLE = (b: Beat): NoteEntity => ({ type: NoteType.DOUBLE, lane, beat: b } as NoteEntity);
+  const DLONG = (b: Beat, endBeat: Beat): NoteEntity =>
+    ({ type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity);
+
+  it("헤드 DOUBLE(같은 beat) + 바디 DOUBLE_LONG을 2키로 치고 분할 릴리즈 → 헤드 2 + 바디 2 = 4판정", () => {
+    // idx0 = 헤드 더블(1000), idx1 = 바디 더블롱[1000~2000]. 헤드는 keydown 흡수해 판정, 바디는 held 독립 추적.
+    const notes = [DOUBLE(beat(0, 1)), DLONG(beat(0, 1), beat(8, 1))];
+    const t = new Map([[0, 1000], [1, 1000]]);
+    const e = new Map([[0, 1000], [1, 2000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // 바디 2키 추적
+    engine.update(2000); // 끝점
+    engine.onLaneRelease(lane, 2000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 2010, "KeyB"); // 분할 릴리즈 2
+    engine.update(2100);
+    const head = judgments.filter((j) => j.noteIndex === 0);
+    const body = judgments.filter((j) => j.noteIndex === 1);
+    expect(head.length).toBe(2); // 헤드 더블: 독립 싱글 × 2
+    expect(body.length).toBe(2); // 바디 더블롱: 키별 종결 × 2
+    expect(judgments.length).toBe(4); // 총 4판정 (스펙 §분할 릴리즈)
+    expect([...head, ...body].every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+});
