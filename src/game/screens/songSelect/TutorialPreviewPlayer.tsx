@@ -356,6 +356,10 @@ export function TutorialPreviewPlayer({
         });
         await renderer.init();
         if (disposed || !renderer) {
+          // init()이 끝나기 전에 언마운트되면 cleanup의 dispose()가 아직 initialized=false라
+          // no-op으로 지나간다. 여기서 이미 초기화된 renderer(WebGL 컨텍스트)를 직접 정리하지 않으면
+          // PIXI Application이 orphan으로 남아 누수된다. dispose()는 idempotent라 이중 호출도 안전하다.
+          disposeTutorialPreviewRenderer(renderer);
           skinManager.dispose();
           return;
         }

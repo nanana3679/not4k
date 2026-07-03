@@ -219,4 +219,27 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('function disposeTutorialPreviewRenderer(renderer: GameRenderer | null): void');
     expect(tutorialPreviewPlayerSource).toContain("console.warn('TutorialPreviewPlayer: renderer dispose failed', err)");
   });
+
+  it('init 완료 후 이미 언마운트된 경우 renderer를 skinManager보다 먼저 dispose 해 WebGL 컨텍스트 누수를 막음', () => {
+    expect(tutorialPreviewPlayerSource).toContain(
+      [
+        '        await renderer.init();',
+        '        if (disposed || !renderer) {',
+      ].join('\n'),
+    );
+    // disposed 분기에서 renderer를 정리하지 않으면 init 중 언마운트 시 PIXI Application이 orphan으로 남는다.
+    // renderer.dispose()가 skinManager.dispose()보다 먼저 와야 스킨 텍스처 참조 중 파괴를 피한다.
+    expect(tutorialPreviewPlayerSource).toContain(
+      [
+        '        if (disposed || !renderer) {',
+        '          // init()이 끝나기 전에 언마운트되면 cleanup의 dispose()가 아직 initialized=false라',
+        '          // no-op으로 지나간다. 여기서 이미 초기화된 renderer(WebGL 컨텍스트)를 직접 정리하지 않으면',
+        '          // PIXI Application이 orphan으로 남아 누수된다. dispose()는 idempotent라 이중 호출도 안전하다.',
+        '          disposeTutorialPreviewRenderer(renderer);',
+        '          skinManager.dispose();',
+        '          return;',
+        '        }',
+      ].join('\n'),
+    );
+  });
 });
