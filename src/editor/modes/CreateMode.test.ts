@@ -381,12 +381,14 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
 // ---------------------------------------------------------------------------
 
 describe("isEventEntityType", () => {
-  it("bpm, timeSignature, text, auto, stop은 이벤트 타입", () => {
+  it("bpm, timeSignature, text, auto, stop, tutorialInput, tutorialDiagram은 이벤트 타입", () => {
     expect(isEventEntityType("bpm")).toBe(true);
     expect(isEventEntityType("timeSignature")).toBe(true);
     expect(isEventEntityType("text")).toBe(true);
     expect(isEventEntityType("auto")).toBe(true);
     expect(isEventEntityType("stop")).toBe(true);
+    expect(isEventEntityType("tutorialInput")).toBe(true);
+    expect(isEventEntityType("tutorialDiagram")).toBe(true);
   });
 
   it("single, double, long, doubleLong, trillZone은 이벤트 타입이 아님", () => {
@@ -493,6 +495,48 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.events[0].type).toBe("stop");
     expect("endBeat" in updated.events[0]).toBe(true);
+  });
+
+  it("tutorialInput 타입 선택 후 Extra 레인 드래그 시 L1 KeyD 입력 이벤트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeEventCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "tutorialInput";
+
+    mode.onPointerDown(10, 1);
+    mode.onPointerUp(10, 3);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.events[0]).toMatchObject({
+      type: "tutorialInput",
+      beat: beat(1),
+      endBeat: beat(3),
+      lane: 1,
+      keyCode: "KeyD",
+      keyLabel: "D",
+      editorLane: 1,
+    });
+  });
+
+  it("tutorialDiagram 타입 선택 후 Extra 레인 드래그 시 connected-switch 도식 이벤트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeEventCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "tutorialDiagram";
+
+    mode.onPointerDown(11, 2);
+    mode.onPointerUp(11, 6);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.events[0]).toMatchObject({
+      type: "tutorialDiagram",
+      beat: beat(2),
+      endBeat: beat(6),
+      diagramId: "connected-switch",
+      editorLane: 2,
+    });
   });
 
   it("이벤트 타입 선택 시 노트 레인 클릭하면 아무것도 생성되지 않음", () => {

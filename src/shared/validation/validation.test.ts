@@ -7,6 +7,7 @@ import {
   validateNoTrillZoneOverlap,
   validateNoEventDuplicate,
   validateNoEventOverlap,
+  validateNoTutorialInputOverlap,
   validateStopZones,
   validateChart,
   isNaturalNumber,
@@ -382,6 +383,70 @@ describe("validateNoEventOverlap", () => {
       { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },
     ];
     expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
+  });
+
+  it("tutorialInput은 일반 구간 이벤트 겹침 검사에서 제외", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+    ];
+    expect(validateNoEventOverlap(events)).toEqual([]);
+  });
+
+  it("tutorialDiagram은 같은 시간에 겹쳐도 일반 구간 이벤트 겹침 검사에서 제외", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch" },
+      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap" },
+    ];
+    expect(validateNoEventOverlap(events)).toEqual([]);
+  });
+});
+
+describe("validateNoTutorialInputOverlap", () => {
+  it("같은 lane+keyCode의 tutorialInput 구간이 겹치면 에러", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+    ];
+    const errors = validateNoTutorialInputOverlap(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("tutorialInputOverlap");
+  });
+
+  it("같은 lane+keyCode라도 끝과 시작이 같은 tutorialInput 구간은 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(4), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("같은 lane에서 다른 keyCode의 tutorialInput 구간이 겹치면 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("다른 lane의 같은 keyCode tutorialInput 구간이 겹치면 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 2, keyCode: "KeyD" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("validateChart는 같은 키의 tutorialInput 겹침을 tutorialInputOverlap으로 보고", () => {
+    const errors = validateChart({
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+        { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+      ],
+    });
+    expect(errors.some((error) => error.rule === "tutorialInputOverlap")).toBe(true);
   });
 });
 

@@ -14,6 +14,7 @@ import type {
   TrillZone,
   ChartEvent,
   ExtraNoteEntity,
+  TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
@@ -105,7 +106,32 @@ interface StopEventJson {
   editorLane?: number;
 }
 
-type ChartEventJson = BpmEventJson | TimeSignatureEventJson | TextEventJson | AutoEventJson | StopEventJson;
+interface TutorialInputEventJson {
+  type: "tutorialInput";
+  beat: string;
+  endBeat: string;
+  lane: 1 | 2 | 3 | 4;
+  keyCode: string;
+  keyLabel?: string;
+  editorLane?: number;
+}
+
+interface TutorialDiagramEventJson {
+  type: "tutorialDiagram";
+  beat: string;
+  endBeat: string;
+  diagramId: TutorialDiagramId;
+  editorLane?: number;
+}
+
+type ChartEventJson =
+  | BpmEventJson
+  | TimeSignatureEventJson
+  | TextEventJson
+  | AutoEventJson
+  | StopEventJson
+  | TutorialInputEventJson
+  | TutorialDiagramEventJson;
 
 // -- v2 레거시 이벤트 JSON (composable 구조) --
 
@@ -176,6 +202,24 @@ function serializeEvent(e: ChartEvent): ChartEventJson {
       return { type: "auto", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "stop":
       return { type: "stop", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+    case "tutorialInput":
+      return {
+        type: "tutorialInput",
+        beat: beatToString(e.beat),
+        endBeat: beatToString(e.endBeat),
+        lane: e.lane,
+        keyCode: e.keyCode,
+        ...(e.keyLabel !== undefined && { keyLabel: e.keyLabel }),
+        ...(e.editorLane !== undefined && { editorLane: e.editorLane }),
+      };
+    case "tutorialDiagram":
+      return {
+        type: "tutorialDiagram",
+        beat: beatToString(e.beat),
+        endBeat: beatToString(e.endBeat),
+        diagramId: e.diagramId,
+        ...(e.editorLane !== undefined && { editorLane: e.editorLane }),
+      };
   }
 }
 
@@ -255,6 +299,24 @@ function parseEvent(e: ChartEventJson): ChartEvent {
       return { type: "auto", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "stop":
       return { type: "stop", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+    case "tutorialInput":
+      return {
+        type: "tutorialInput",
+        beat: beatFromString(e.beat),
+        endBeat: beatFromString(e.endBeat),
+        lane: e.lane,
+        keyCode: e.keyCode,
+        ...(e.keyLabel !== undefined && { keyLabel: e.keyLabel }),
+        ...(e.editorLane !== undefined && { editorLane: e.editorLane }),
+      };
+    case "tutorialDiagram":
+      return {
+        type: "tutorialDiagram",
+        beat: beatFromString(e.beat),
+        endBeat: beatFromString(e.endBeat),
+        diagramId: e.diagramId,
+        ...(e.editorLane !== undefined && { editorLane: e.editorLane }),
+      };
   }
 }
 
