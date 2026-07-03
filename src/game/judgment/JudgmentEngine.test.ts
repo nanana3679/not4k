@@ -485,6 +485,61 @@ describe("Grace 트릴 노트 판정", () => {
   });
 });
 
+describe("트릴 교대 '직전 키만 아니면 된다' 원칙 (3키 바인딩)", () => {
+  const lane: Lane = 1;
+
+  // 노트 4개, 한 트릴 구간(1000ms 시작). 모두 정시에 눌러 deltaMs=0(Perfect 후보).
+  function setupFourNoteZone() {
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),
+      makeTrillNote(lane, beat(1, 1)),
+      makeTrillNote(lane, beat(2, 1)),
+      makeTrillNote(lane, beat(3, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200], [2, 1400], [3, 1600]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([[lane, [1000]]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+  }
+
+  it("A→B→A→C: 직전 키와만 다르면 전부 교대 성공 — 재등장한 두 번째 A도 Perfect", () => {
+    // 스펙 note-system.md §226: 3키 바인딩에서 A→B→A→C는 모든 입력이 직전과 다르므로 교대 성공.
+    // 두 번째 A는 "직전(B)"과 다르다 — 과거에 A를 이미 썼는지는 무관하다.
+    // 만약 교대 추적이 "지금까지 쓴 모든 키"를 봤다면 이 A에서 Good◇로 깨진다(가드 케이스).
+    const { engine, judgments } = setupFourNoteZone();
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    engine.onLanePress(lane, 1400, "KeyA"); // 직전 B와 다름 → 성공 (재등장 A)
+    engine.onLanePress(lane, 1600, "KeyC");
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 재등장 A — "직전 키만" 원칙의 핵심 가드
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("A→B→B→C: 직전과 같은 두 번째 B만 Good◇, 그 다음 C는 다시 교대 성공", () => {
+    // 스펙 note-system.md §227, §277: 두 번째 B가 직전 B와 동일 → 교대 실패(Good◇).
+    // 실패 후에도 마지막 키는 B로 기록되므로, 이어지는 C(≠B)는 정상 교대 성공.
+    const { engine, judgments } = setupFourNoteZone();
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    engine.onLanePress(lane, 1400, "KeyB"); // 직전 B와 동일 → 교대 실패
+    engine.onLanePress(lane, 1600, "KeyC"); // 직전 B와 다름 → 교대 성공
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[2].grade).toBe(JudgmentGrade.GOOD_TRILL);
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
+
 describe("트릴 구간 경계의 교대 추적 초기화", () => {
   const lane: Lane = 1;
 
