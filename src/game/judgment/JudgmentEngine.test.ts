@@ -679,6 +679,45 @@ describe("트릴 구간 경계의 교대 추적 초기화", () => {
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
   });
 
+  it("두 레인 트릴을 같은 키로 인터리브해도 각 레인이 독립 교대 추적 — 전역 추적이면 Good◇날 배치가 전부 성공 (L1↔L4)", () => {
+    // 스펙 note-system.md §283: 각 레인은 자체 '직전 입력 키' 상태를 가지며 L1 입력이 L4 교대 판정에 영향 없음.
+    // 배치: L1 A → L4 A → L1 B → L4 B → L1 A. 만약 교대 추적이 전역이었다면 입력열 A,A,B,B,A가 되어
+    // 두 번째 A(L4)·두 번째 B(L4)가 직전과 같아 Good◇가 나야 한다. per-lane이면 각 레인은 A→B→A / A→B라 전부 성공.
+    const lane1: Lane = 1;
+    const lane4: Lane = 4;
+    const notes = [
+      makeTrillNote(lane1, beat(0, 1)),  // 1000ms — L1
+      makeTrillNote(lane4, beat(1, 1)),  // 1100ms — L4
+      makeTrillNote(lane1, beat(2, 1)),  // 1200ms — L1
+      makeTrillNote(lane4, beat(3, 1)),  // 1300ms — L4
+      makeTrillNote(lane1, beat(4, 1)),  // 1400ms — L1
+    ];
+    const noteTimesMs = new Map([
+      [0, 1000], [1, 1100], [2, 1200], [3, 1300], [4, 1400],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane1, [1000]],
+      [lane4, [1000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000); // 두 레인 모두 구간 리셋
+    engine.onLanePress(lane1, 1000, "KeyA"); // L1 첫 노트
+    engine.onLanePress(lane4, 1100, "KeyA"); // L4 첫 노트 — 전역이면 직전 A와 같아 Good◇, per-lane이면 성공
+    engine.onLanePress(lane1, 1200, "KeyB"); // L1: A→B 성공
+    engine.onLanePress(lane4, 1300, "KeyB"); // L4: A→B 성공 (전역이면 직전 B와 같아 Good◇)
+    engine.onLanePress(lane1, 1400, "KeyA"); // L1: B→A 성공
+
+    expect(judgments).toHaveLength(5);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // L1 A
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // L4 A — 레인 독립 핵심 가드
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // L1 B
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT); // L4 B — 레인 독립 핵심 가드
+    expect(judgments[4].grade).toBe(JudgmentGrade.PERFECT); // L1 A
+  });
+
   it("새 구간 첫 노트를 리셋 update 전에 일찍 쳐도 이전 구간 키와 무관하게 성공 (프레임 타이밍 독립)", () => {
     // 리셋은 update(프레임), 교대 체크는 async keydown. 구간2 첫 노트(2000)를 update(2000) 전에 1970에 치면
     // alternation이 아직 구간1 마지막 키(KeyB)라, 같은 KeyB면 잘못된 Good◇이 나던 버그. 입력 시점에도 구간 리셋 따라잡기.
