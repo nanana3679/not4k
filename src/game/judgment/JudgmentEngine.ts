@@ -413,8 +413,15 @@ export class JudgmentEngine {
         ) {
           continue;
         }
-        const dl = this.doubleLongKeyStates.get(i);
-        if (!dl) continue;
+        let dl = this.doubleLongKeyStates.get(i);
+        if (!dl) {
+          // 짧은 더블롱: dl 추적이 없던 채 유지 키가 끝점 update 프레임보다 먼저 keyup으로 도착
+          // (라이브 keyup은 rAF update와 비동기 — P3가 고친 update 폴백 경로의 거울상).
+          // heldKeys엔 방금 뗀 keyCode가 이미 빠졌으므로 참여 키 맨 앞에 포함해 재구성한다.
+          const holdState = this.laneHoldStates.get(lane);
+          const participants = [keyCode, ...(holdState ? holdState.heldKeys : [])];
+          dl = this.reconstructShortDoubleLongKeyStates(i, participants);
+        }
         const keyState =
           dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
         if (!keyState || keyState.judged) continue;
@@ -939,6 +946,32 @@ export class JudgmentEngine {
    * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
    * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
    */
+  /**
+   * dl 추적이 없던 짧은 더블롱(길이<Good, checkDoubleLongKeyHold 스킵)을 끝점에서 재구성한다.
+   * participants = 이 노트에 실제 참여한 키들(유지 중 + 방금 뗀 키). 반드시 1개 이상이어야 한다.
+   * 1키뿐이면 나머지 슬롯을 __missing__으로 채우고 미입력 쪽 부분 Miss를 emit한다
+   * (checkDoubleLongKeyHold 1키 분기 미러링 — 병렬 판정: 유지/뗀 키는 호출측이 판정).
+   */
+  private reconstructShortDoubleLongKeyStates(
+    noteIndex: number,
+    participants: string[],
+  ): DoubleLongKeyState {
+    const mk = (keyCode: string) => ({ keyCode, failed: false, judged: false, lastReleaseTimeMs: null });
+    const dl: DoubleLongKeyState =
+      participants.length >= 2
+        ? { key1: mk(participants[0]), key2: mk(participants[1]) }
+        : {
+            key1: mk(participants[0]),
+            key2: { keyCode: "__missing__", failed: true, judged: true, lastReleaseTimeMs: null },
+          };
+    this.doubleLongKeyStates.set(noteIndex, dl);
+    if (participants.length < 2) {
+      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, "right");
+      this.breakCombo();
+    }
+    return dl;
+  }
+
   private judgeDoubleLongEndpoint(
     noteIndex: number,
     note: RangeNote,
@@ -960,22 +993,7 @@ export class JudgmentEngine {
         this.noteStates.set(noteIndex, NoteState.COMPLETE);
         return;
       }
-      dl =
-        held.length >= 2
-          ? {
-              key1: { keyCode: held[0], failed: false, judged: false, lastReleaseTimeMs: null },
-              key2: { keyCode: held[1], failed: false, judged: false, lastReleaseTimeMs: null },
-            }
-          : {
-              key1: { keyCode: held[0], failed: false, judged: false, lastReleaseTimeMs: null },
-              key2: { keyCode: "__missing__", failed: true, judged: true, lastReleaseTimeMs: null },
-            };
-      this.doubleLongKeyStates.set(noteIndex, dl);
-      if (held.length < 2) {
-        // 1키만 유지 → 미입력 쪽 부분 Miss (checkDoubleLongKeyHold 미러링). held 키는 아래 루프서 판정.
-        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, "right");
-        this.breakCombo();
-      }
+      dl = this.reconstructShortDoubleLongKeyStates(noteIndex, held);
     }
 
     const isConnection = this.connectionSources.has(noteIndex);

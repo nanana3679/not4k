@@ -1489,6 +1489,22 @@ describe("더블롱(일반) 끝점 키별 2판정 (목표 — 스펙 §146 / 분
     expect(dl.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 유지한 KeyA
     expect(dl.some((j) => j.grade === JudgmentGrade.MISS)).toBe(true); // 미입력 KeyB
   });
+
+  it("짧은 더블롱 1키 유지 — 유지 키를 끝점 update보다 먼저 놓아도 유지 키 Perfect (keyup primary 재구성)", () => {
+    // P3는 재구성을 update 폴백에만 넣었다. 라이브 keyup은 rAF update와 비동기라, 유지 키의 release가
+    // 끝점을 넘는 update 프레임보다 먼저 도착하면(짧은 더블롱은 dl 미생성) keyup 경로가 !dl로 빠지고,
+    // 다음 update는 heldKeys가 이미 비어 두 키 모두 Miss로 샜다(P3의 거울상 빈틈). keyup에서도 재구성해야 한다.
+    const notes = [makeDoubleLong(lane, beat(0, 1), beat(1, 1))]; // 길이 50ms(<120)
+    const { engine, judgments } = setup(notes, new Map([[0, 1000]]), new Map([[0, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyB 미입력
+    engine.update(1000);
+    // ★ 끝점(1050)을 넘는 update 없이 ★ 유지 키를 놓는다 → keyup이 primary로 종결해야 한다.
+    engine.onLaneRelease(lane, 1050, "KeyA");
+    const dl = dlOf(judgments);
+    expect(dl.length).toBe(2); // 유지 키 Perfect + 미입력 키 Miss
+    expect(dl.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 유지한 KeyA
+    expect(dl.some((j) => j.grade === JudgmentGrade.MISS)).toBe(true); // 미입력 KeyB
+  });
 });
 
 describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () => {
