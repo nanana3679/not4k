@@ -459,6 +459,18 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 
 ---
 
+## 게임 입력
+
+플레이 세션에서 판정 엔진에 레인 press/release 이벤트를 공급하는 계층. 실제 키보드(`InputSystem`)와 합성 입력(`AutoPlayer`)이 같은 seam에 서는 두 어댑터다.
+
+### AutoPlayer
+
+**Auto 구간**의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신. 키보드 대신 차트에서 입력을 만든다는 점만 빼면 `InputSystem`과 같은 자리(판정 엔진 입력 seam)에 선다. 판정 엔진·렌더러를 모르며, 시간을 주입받아 `pressesAt(songTimeMs)`/`releasesAt(songTimeMs)`로 이벤트를 반환한다 — 호출자는 매 틱 `presses 먹임 → engine.update → releases 먹임` 순서를 지킨다(길이 0 롱노트가 한 틱에 press+release되는 케이스 때문). press는 Auto 구간 안에서만 만들지만 release는 구간과 무관하다 — 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문(게이팅 비대칭). 헤드-롱노트 쌍은 헤드 press가 hold를 제공하고 헤드 release를 롱 endBeat로 연장한다.
+
+**구현**: `src/game/input/AutoPlayer.ts`.
+
+---
+
 ## 에디터 입력
 
 차트 편집기의 포인터 입력을 제스처로 인식하고 편집 의도로 라우팅하는 계층. raw 입력(입력층)과 도메인 판정(히트 테스트·스냅, 도메인층)을 2층으로 분리한다.
