@@ -890,6 +890,52 @@ describe("트릴 구간 경계 입력 추적 보호", () => {
     expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Good◇ 아님
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 교대 성공
   });
+
+  it("이전 구간에서 이미 기록된 키와 같은 키로 늦은 구간밖 노트를 쳐도 Good◇가 아니라 타이밍 판정 — 구간 리셋이 lastKey를 null로 밀기 때문", () => {
+    // 스펙 note-system.md §296 "교대 체크도 기존 상태 기준으로 수행"의 실제 귀결을 못박는다.
+    // earliest-match(가장 이른 noteTime 우선)상 구간2 노트는 pending 구간1 노트보다 먼저 소비될 수 없으므로,
+    // belongsToCurrentZone=false(보호 발동)가 되는 순간 currentZoneStart를 새 구간으로 민 것은 update()뿐이고
+    // update는 항상 lastKey=null로 리셋한다. 따라서 늦은 구간밖 노트는 이전 기록 키와 같아도 교대 실패가 될 수 없다.
+    // 826 테스트는 앞서 기록된 키가 없어(첫 입력) 이 커플링(리셋→null)의 회귀를 잡지 못한다.
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 1000ms — 구간1 첫 노트 (KeyA 기록)
+      makeTrillNote(lane, beat(1, 1)),  // 1900ms — 구간1 마지막 노트 (늦게 침)
+      makeTrillNote(lane, beat(2, 1)),  // 2000ms — 구간2 첫 노트
+      makeTrillNote(lane, beat(3, 1)),  // 2200ms — 구간2 두 번째 노트
+    ];
+    const noteTimesMs = new Map([
+      [0, 1000], [1, 1900], [2, 2000], [3, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 구간1 시작 → 첫 노트 KeyA 정상 기록 (lastKey=KeyA)
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+
+    // 구간2 시작 → 리셋(lastKey=null, currentZoneStart=2000). idx1(1900)은 delta=100으로 아직 살아있음
+    engine.update(2000);
+
+    // 구간1 마지막 노트(1900)를 늦게(2010) KeyA로 침 — 이전 기록 키(KeyA)와 동일
+    // → lastKey는 리셋으로 null이라 교대 체크 스킵, 순수 타이밍(GOOD). belongs=false라 기록도 안 함.
+    engine.onLanePress(lane, 2010, "KeyA");
+
+    // 구간2 첫 노트(2000)를 KeyA로 — 새 구간 첫 노트라 교대 성공(구간 독립, 스펙 §292)
+    engine.onLanePress(lane, 2020, "KeyA");
+
+    // 구간2 두 번째(2200)를 KeyA로 — 같은 키 연속 → Good◇ (구간2 추적은 정상 동작, 늦은 입력에 오염 안 됨)
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);   // 구간1 첫 노트
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD);      // 늦은 구간밖 노트 — Good◇ 아님(핵심 가드)
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);   // 구간2 첫 노트 — 구간 독립
+    expect(judgments[3].grade).toBe(JudgmentGrade.GOOD_TRILL); // 구간2 같은 키 연속
+  });
 });
 
 describe("더블 롱노트 2키 독립 홀드 추적", () => {
