@@ -106,61 +106,73 @@ describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", 
 
 describe("shouldArmHoldTimer — 롱프레스 hold 타이머 무장 여부", () => {
   it("delete 모드는 히트 없어도 무장(빈 곳 드래그 삭제 시작)", () => {
-    expect(shouldArmHoldTimer({ mode: "delete", rangeType: null, hits: noHits })).toBe(true);
+    expect(shouldArmHoldTimer({ mode: "delete", rangeType: null, placementBlocked: false, hits: noHits })).toBe(true);
   });
 
-  it("create + rangeType(long)은 히트 없어도 무장(빈 타임라인 범위 생성)", () => {
-    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", hits: noHits })).toBe(true);
+  it("create + rangeType(long) + 미차단은 히트 없어도 무장(빈 타임라인 범위 생성)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: false, hits: noHits })).toBe(true);
+  });
+
+  it("create + rangeType + 차단 + 히트는 무장(그 노트 잡는 select-drag)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: true, hits: noteHit })).toBe(true);
+  });
+
+  it("create + rangeType + 차단 + 히트 없음은 무장 안 함(범위도 못 만들고 잡을 것도 없음)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: true, hits: noHits })).toBe(false);
   });
 
   it("create-point(rangeType null)은 히트 없으면 무장 안 함(점노트는 down 배치)", () => {
-    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, hits: noHits })).toBe(false);
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: false, hits: noHits })).toBe(false);
   });
 
   it("create-point이라도 노트 히트가 있으면 무장(롱프레스로 그 노트 선택 드래그)", () => {
-    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, hits: noteHit })).toBe(true);
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: true, hits: noteHit })).toBe(true);
   });
 
   it("select은 히트 없으면 무장 안 함(빈 곳은 박스 후보)", () => {
-    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, hits: noHits })).toBe(false);
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: noHits })).toBe(false);
   });
 
   it("select + 노트 끝 히트면 무장", () => {
-    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, hits: endHit })).toBe(true);
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: endHit })).toBe(true);
   });
 
   it("select + 엑스트라 히트면 무장", () => {
-    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, hits: extraHit })).toBe(true);
+    expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: extraHit })).toBe(true);
   });
 });
 
 describe("resolveHoldFireAction — 롱프레스 발화 액션 재도출", () => {
   it("delete 모드는 delete", () => {
-    expect(resolveHoldFireAction({ mode: "delete", rangeType: null, hits: noHits })).toBe("delete");
+    expect(resolveHoldFireAction({ mode: "delete", rangeType: null, placementBlocked: false, hits: noHits })).toBe("delete");
   });
 
-  it("create + rangeType은 createRange", () => {
-    expect(resolveHoldFireAction({ mode: "create", rangeType: "doubleLong", hits: noHits })).toBe("createRange");
+  it("create + rangeType + 미차단은 createRange", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "doubleLong", placementBlocked: false, hits: noHits })).toBe("createRange");
+  });
+
+  it("create + rangeType + 차단 + 히트는 selectDrag(범위 못 만드니 그 노트를 잡는다)", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "long", placementBlocked: true, hits: noteHit })).toBe("selectDrag");
+  });
+
+  it("create + rangeType + 차단 + 히트 없음은 none", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: "long", placementBlocked: true, hits: noHits })).toBe("none");
   });
 
   it("create-point + 노트 히트는 selectDrag(그 노트를 잡는다)", () => {
-    expect(resolveHoldFireAction({ mode: "create", rangeType: null, hits: noteHit })).toBe("selectDrag");
+    expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: true, hits: noteHit })).toBe("selectDrag");
   });
 
   it("create-point + 히트 없음은 none(점노트는 이미 down 배치)", () => {
-    expect(resolveHoldFireAction({ mode: "create", rangeType: null, hits: noHits })).toBe("none");
+    expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: false, hits: noHits })).toBe("none");
   });
 
   it("select + 노트 히트는 selectDrag", () => {
-    expect(resolveHoldFireAction({ mode: "select", rangeType: null, hits: noteHit })).toBe("selectDrag");
+    expect(resolveHoldFireAction({ mode: "select", rangeType: null, placementBlocked: false, hits: noteHit })).toBe("selectDrag");
   });
 
   it("select + 히트 없음은 none", () => {
-    expect(resolveHoldFireAction({ mode: "select", rangeType: null, hits: noHits })).toBe("none");
-  });
-
-  it("create + rangeType은 노트가 겹쳐도 createRange 우선(범위 생성이 이긴다)", () => {
-    expect(resolveHoldFireAction({ mode: "create", rangeType: "long", hits: noteHit })).toBe("createRange");
+    expect(resolveHoldFireAction({ mode: "select", rangeType: null, placementBlocked: false, hits: noHits })).toBe("none");
   });
 });
 

@@ -184,7 +184,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     expect(r.feed(touch("up", 1, 100, 200, 100))).toEqual([
-      { kind: "holdEnd", pointerId: 1, fired: false, moved: false },
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: false, moved: false },
     ]);
   });
 
@@ -193,7 +193,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 100, 215, 100)); // 15px > 10
     expect(r.feed(touch("up", 1, 100, 215, 200))).toEqual([
-      { kind: "holdEnd", pointerId: 1, fired: false, moved: true },
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: false, moved: true },
     ]);
   });
 
@@ -209,7 +209,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     r.feed(touch("down", 1, 100, 200, 0));
     expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
     expect(r.feed(touch("up", 1, 100, 200, 500))).toEqual([
-      { kind: "holdEnd", pointerId: 1, fired: true, moved: false },
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
     ]);
   });
 
@@ -219,7 +219,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     r.tick(450); // 발화
     r.feed(touch("move", 1, 100, 250, 500)); // 발화 후 이동
     expect(r.feed(touch("up", 1, 100, 250, 600))).toEqual([
-      { kind: "holdEnd", pointerId: 1, fired: true, moved: false },
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
     ]);
   });
 
@@ -236,7 +236,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10
     expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
     expect(r.feed(touch("up", 1, 103, 204, 200))).toEqual([
-      { kind: "holdEnd", pointerId: 1, fired: true, moved: false },
+      { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
     ]);
   });
 });
