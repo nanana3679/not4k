@@ -54,7 +54,10 @@ hold-only A [1000~2000]   ← KeyA로 유지, 끝점 held Perfect → KeyA 공�
 **공릴리즈 도장의 회수 계기에 "그 키가 새 롱노트 바디를 유지하기 시작함"을 추가한다.**
 
 - 도장의 의미는 "이 키의 다음 release는 이미 완료된 hold의 놓기다"이다. 그런데 그 키가 새 롱노트의 바디를 유지하기 시작하면, 그 키는 더 이상 "쉬는 키"가 아니라 **새 노트를 떠받치는 load-bearing 키**다. 그 키의 release는 놓기가 아니라 **새 노트의 종결**이다. 따라서 도장은 낡았고 회수해야 한다.
-- 구현: `checkLongNoteBodyHold`에서 롱노트 바디의 `hasBeenPressed`가 `false→true`로 전이하는 순간(= 시작 허용 구간에서 레인이 held라 유지가 성립한 순간), 그 레인의 **현재 눌린 키들**을 `emptyReleaseKeys`에서 제거한다.
+- 구현은 **상호보완적 두 메커니즘**이다. `update()`는 한 프레임에서 `checkLongNoteBodyHold`(회수) → `checkLongNoteBodyEnd`/`checkLengthZeroHoldOnly`(부여) 순으로 돈다:
+  - **(1) 회수** — `checkLongNoteBodyHold`에서 바디의 `hasBeenPressed`가 `false→true`로 전이하는 순간, 그 레인의 현재 눌린 키들을 `emptyReleaseKeys`에서 제거한다. **부여가 앞 프레임에 먼저 일어난 다중 프레임 케이스**(앞 프레임에서 도장 부여 → 뒤 프레임에서 새 바디 시작)를 담당한다.
+  - **(2) 부여 조건화** — `markEmptyRelease`가 도장을 찍기 전, 그 레인에 이미 다른 `BODY_ACTIVE` + `hasBeenPressed` 롱이 있으면(= 눌린 키가 그 롱을 load-bearing 중) 도장을 찍지 않는다. **한 프레임이 부여와 회수를 함께 덮는 케이스**를 담당한다. 이때 회수는 아직 도장이 없어 no-op이라, 회수만으로는 못 막는다.
+- **왜 둘 다인가 (프레임 독립성)**: 한 프레임이 앞 노트의 held 완료(부여)와 다음 롱의 바디 시작(회수)을 함께 덮으면, pass 순서상 회수(Hold)가 부여(End)보다 먼저 실행돼 no-op이 되고, 도장이 뒤늦게 부여돼 잔류한다 → 다음 롱의 정당한 종결이 막혀 Miss. 이는 랙 스파이크가 아니라 **평범한 30fps 프레임 흔들림 + 촘촘한 HARD 차트**에서 재현되는 **프레임레이트 의존 correctness 버그**다(프로젝트 최상위 품질 축 IO 타이밍/판정 일관성에 정면으로 걸림). 회수만으로는 단일 프레임을, 부여 조건화만으로는 다중 프레임을 각각 못 막으므로, 둘을 함께 둬 **프레임 정렬과 무관하게** 견고하게 만든다. 실증: 회수를 끄면 다중 프레임 회귀 테스트가, 부여 조건화를 끄면 단일 프레임 회귀 테스트가 각각 red로 떨어진다.
 
 **"lane held == 0" 종결 게이트(대안 A)는 도입하지 않는다** — 키 단위 종결은 릴리즈탭·홀드 중 탭을 위해 유지되는 의도된 설계다(note-system "종결 판정", RFD 0008 §10). 이 RFD는 종결 트리거를 바꾸지 않고, 오직 **낡은 도장의 회수 시점만** 정밀화한다.
 
@@ -71,14 +74,16 @@ RFD 0008 §4·0011 §7과 동일. 한 레인에 진행 중 롱은 최대 하나�
 | 릴리즈탭 `A(release)+B(press)` | 롱 정상 종결 | 키 단위 종결 유지, 도장 회수는 새 바디 유지 시작에만 (RFD 0008 §10 무영향) |
 | 연결 체인(hold-only→일반 롱) 끝 release-tap | 정상 종결 | 연결은 애초에 도장을 안 찍음 (RFD 0008 §3.3) |
 | 두 키(KeyA 도장 + KeyB fresh)로 B 유지 | 정상 종결 | 둘 다 load-bearing → 둘 다 회수, 어느 키 release로도 종결 |
+| **A 끝점과 B 바디 시작이 한 프레임**에 겹침 | **B Perfect** | 부여 조건화(2)가 B의 `hasBeenPressed`를 보고 도장을 안 찍음 — 프레임 독립 (30fps 흔들림급 재현 회귀) |
 
 ## 8. 영향 문서/코드
 
-- 구현: `src/game/judgment/JudgmentEngine.ts` — `checkLongNoteBodyHold`의 `hasBeenPressed` 전이에서 held 키의 `emptyReleaseKeys` 회수.
-- 회귀: `src/game/judgment/JudgmentEngine.test.ts` — 이 RFD §7 케이스(누설 차단 + 슬라이드 보호·릴리즈탭 무회귀).
+- 구현: `src/game/judgment/JudgmentEngine.ts` — (1) `checkLongNoteBodyHold`의 `hasBeenPressed` 전이에서 held 키의 `emptyReleaseKeys` 회수, (2) `markEmptyRelease`가 다른 `BODY_ACTIVE`+`hasBeenPressed` 롱이 있으면 도장 부여 스킵.
+- 회귀: `src/game/judgment/JudgmentEngine.test.ts` — 다중 프레임 누설 차단 + **단일 프레임(부여·회수 겹침) 프레임 독립성** + 슬라이드 보호·릴리즈탭 무회귀.
 - [`docs/context/glossary.md`](../context/glossary.md), [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md) — 공릴리즈 도장의 회수 조건에 "새 롱노트 바디 유지 시작"을 추가.
 - RFD 0008 §10 / RFD 0011 §10 미해결 항목에 이 케이스가 해소되었음을 링크.
 
 ## 9. 미해결 / 열린 질문
 
+- **(해소, 리뷰 발견)** 1차 구현은 회수(1)만 뒀다가, 한 프레임이 부여와 회수를 함께 덮으면 pass 순서로 회수가 no-op이 되는 **프레임레이트 의존 누설**이 리뷰에서 발견됐다. 부여 조건화(2)를 추가해 해소(§5). "부여 조건화로 회수를 *교체*"하는 안은 다중 프레임을 되레 회귀시켜 기각 — 둘 다 필요함을 실증했다.
 - **분할 릴리즈(`D=-`)와의 상호작용**: 더블 롱노트의 두 키를 시간차로 뗄 때, 앞선 hold-only 도장이 두 키에 걸쳐 있으면 회수가 키별로 정확히 동작하는지 — 현재 회수는 "유지 시작 시점의 held 키 전체"라 두 키를 함께 회수한다. doubleLong 바디 유지 케이스의 회귀를 추가로 확인할 것.
