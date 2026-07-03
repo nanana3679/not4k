@@ -483,6 +483,26 @@ describe("Grace 트릴 노트 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
     expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
   });
+
+  it("교대 성공 + delta=100ms(일반 노트면 Good일 타이밍)이어도 Grace라 Perfect — 타이밍 면제 확인", () => {
+    // 스펙 §486: Grace는 타이밍 부담을 제거한다. calculateGraceGrade는 Good 윈도우(±120) 전체를 Perfect로 매핑.
+    // delta=100은 일반 calculateGrade면 GOOD이지만, Grace 경로라 PERFECT여야 한다(교대 성공 전제).
+    const { engine, judgments } = graceTrillSetup();
+    engine.onLanePress(lane, noteTime1, "KeyA");
+    engine.onLanePress(lane, noteTime2 + 100, "KeyB"); // delta=+100, 교대 성공
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Grace 타이밍 면제 — Good 아님
+  });
+
+  it("교대 실패 + delta=100ms여도 Good◇ — Grace의 Perfect 위에 교대 override가 얹혀 타이밍과 무관", () => {
+    // 교대 override는 grade 계산 뒤에 적용되므로, Grace가 delta=100을 Perfect로 올려도 실패면 Good◇로 덮인다.
+    // 479(delta=0)와 달리 타이밍이 어긋난 상태에서도 override가 유지됨을 못박는다.
+    const { engine, judgments } = graceTrillSetup();
+    engine.onLanePress(lane, noteTime1, "KeyA");
+    engine.onLanePress(lane, noteTime2 + 100, "KeyA"); // delta=+100, 같은 키 → 교대 실패
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL); // Perfect 아님
+  });
 });
 
 describe("트릴 교대 '직전 키만 아니면 된다' 원칙 (3키 바인딩)", () => {
