@@ -49,6 +49,18 @@ export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boo
 }
 
 /**
+ * 터치 다중선택 래치(touchMultiSelect)의 다음 상태.
+ *
+ * 래치는 롱프레스 select-drag가 발화할 때 켜져, 이어지는 노트 탭이 기존 선택을 대체하지 않고
+ * 누적 토글되게 한다. 선택이 0개가 되면(빈 곳 탭 해제·마지막 노트 토글 해제 등) 누적 모드를
+ * 끝내야 하므로 꺼진다 — 그 외에는 현재 값을 유지한다. 끄는 지점이 없으면 한 번 켜진 뒤
+ * 세션 내내 모든 탭이 누적 토글로 굳는 버그가 된다.
+ */
+export function nextTouchMultiSelectLatch(current: boolean, selectionSize: number): boolean {
+  return selectionSize === 0 ? false : current;
+}
+
+/**
  * select 모드 터치 down에서 어떤 후보를 예약(schedule)할지.
  * - `tapToggle`: 뗄 때 노트/엑스트라 선택을 토글하는 후보.
  * - `emptySelectBox`: 첫 move/up에서 onPointerDown을 재생하는 지연-드래그 후보.

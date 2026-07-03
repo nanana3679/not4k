@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  nextTouchMultiSelectLatch,
   resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
   shouldDeleteOnUp,
@@ -93,5 +94,23 @@ describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", 
 
   it("트릴존 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
     expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneHandleHit: null, zoneEndHit: null })).toBe("tapToggle");
+  });
+});
+
+describe("nextTouchMultiSelectLatch — 터치 다중선택 래치 리셋", () => {
+  it("선택이 0개면 래치가 켜져 있어도 꺼진다", () => {
+    expect(nextTouchMultiSelectLatch(true, 0)).toBe(false);
+  });
+
+  it("선택이 남아 있으면(1개 이상) 켜진 래치를 유지한다", () => {
+    expect(nextTouchMultiSelectLatch(true, 1)).toBe(true);
+  });
+
+  it("선택이 남아 있어도 꺼진 래치는 계속 꺼져 있다", () => {
+    expect(nextTouchMultiSelectLatch(false, 3)).toBe(false);
+  });
+
+  it("선택이 0개면 꺼진 래치는 그대로 꺼져 있다", () => {
+    expect(nextTouchMultiSelectLatch(false, 0)).toBe(false);
   });
 });

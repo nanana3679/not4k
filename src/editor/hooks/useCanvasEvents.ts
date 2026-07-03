@@ -27,6 +27,7 @@ import {
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
 import {
+  nextTouchMultiSelectLatch,
   resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
   shouldDeleteOnUp,
@@ -847,6 +848,12 @@ export function useCanvasEvents(
         );
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
+        // 빈 곳 탭/박스로 선택이 비면 다중선택 래치를 끈다(누적 토글 모드 종료).
+        const sel = useEditorStore.getState();
+        touchMultiSelectRef.current = nextTouchMultiSelectLatch(
+          touchMultiSelectRef.current,
+          sel.selectedNotes.size + sel.selectedExtraNotes.size,
+        );
       }
       rendererRef.current?.hideGhostNote();
       return;
@@ -897,6 +904,12 @@ export function useCanvasEvents(
         false,
         false,
         touchMultiSelectRef.current,
+      );
+      // 토글로 마지막 선택까지 해제됐으면 다중선택 래치를 끈다(누적 토글 모드 종료).
+      const sel = useEditorStore.getState();
+      touchMultiSelectRef.current = nextTouchMultiSelectLatch(
+        touchMultiSelectRef.current,
+        sel.selectedNotes.size + sel.selectedExtraNotes.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
