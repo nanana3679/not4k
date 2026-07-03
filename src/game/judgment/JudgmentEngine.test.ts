@@ -1758,4 +1758,27 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // B 종결(지각 상향)
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // S도 Perfect
   });
+
+  it("AWAITING 롱이 keyup이 아니라 타임아웃으로 죽은 뒤의 놓기 keyup은 직후 슬라이드로 새지 않는다 (RFD 0012 타임아웃 분기)", () => {
+    // B 일반 롱[1000~2000], S1 슬라이드 2050(B AWAITING이라 도장 스킵), S2 슬라이드 2250.
+    // B는 keyup 없이 타임아웃(2160)으로 Miss. 그 뒤 2200 놓기 keyup이 S2로 새면 안 됨.
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(8, 1)),
+      slide(beat(9, 1)),
+      slide(beat(11, 1)),
+    ];
+    const t = new Map([[0, 1000], [1, 2050], [2, 2250]]);
+    const e = new Map([[0, 2000], [1, 2050], [2, 2250]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000); // B BODY_ACTIVE
+    engine.update(2000); // B 끝점 → AWAITING
+    engine.update(2050); // S1 슬라이드 완료 → 도장 스킵(B AWAITING이 load-bearing)
+    engine.update(2170); // B 타임아웃(>2160) → Miss, COMPLETE (keyup 아님!)
+    engine.onLaneRelease(lane, 2200, "KeyA"); // 놓기 keyup — S2로 새면 안 됨
+    engine.update(2400);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS); // B는 타임아웃 Miss
+    // 놓기가 막혀 S2는 미리-떼기 Perfect를 못 받고 타임아웃 Miss. 공짜 Perfect 누설이면 여기서 실패.
+    expect(judgments.find((j) => j.noteIndex === 2)?.grade).toBe(JudgmentGrade.MISS);
+  });
 });

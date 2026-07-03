@@ -1120,6 +1120,11 @@ export class JudgmentEngine {
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
+          // RFD 0012: keyup 종결이면 0011의 didTerminate 도장이 놓기 누설을 막지만, 타임아웃으로
+          // 죽은 롱은 그 도장을 못 남긴다. 죽은 롱을 아직 잡고 있는 키의 다음 release는 "놓기"이므로
+          // 여기서 공릴리즈 표시 → keyup/타임아웃 어느 경로로 죽든 프레임 정렬과 무관하게 닫힌다.
+          // (markEmptyRelease의 load-bearing 스캔이, 그 사이 새 롱 유지가 시작된 경우는 걸러낸다.)
+          this.markEmptyRelease(note.lane);
         }
         continue;
       }
