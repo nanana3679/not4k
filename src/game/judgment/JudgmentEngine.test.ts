@@ -1892,3 +1892,26 @@ describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 
     expect([...head, ...body].every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
   });
 });
+
+describe("연결 doubleLong 끝점 판정 (P2)", () => {
+  const lane: Lane = 1;
+  const DLONG = (b: Beat, endBeat: Beat): NoteEntity =>
+    ({ type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity);
+
+  it("더블롱 A가 더블롱 B로 연결(끝=시작 맞닿음), 2키 계속 유지 → A 연결 Perfect×2", () => {
+    // A[1000,2000] 끝 = B[2000,3000] 시작 → 자동 연결. 연결 끝점은 held/grace로만 판정하며
+    // tryEndpoint의 도장 가드·lastReleaseTimeMs를 아예 타지 않아 도장 carryover에 구조적으로 완전 면역
+    // (general doubleLong의 회수/폴백 이중화와 달리 회수 유무와 무관 — 토글로 실측). 이 테스트는 연결 등급을 잠근다.
+    const notes = [DLONG(beat(0, 1), beat(8, 1)), DLONG(beat(8, 1), beat(16, 1))];
+    const t = new Map([[0, 1000], [1, 2000]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // A 2키 추적
+    engine.update(2000); // A 끝점=B 시작 → A 연결 판정 (held → Perfect×2)
+    const a = judgments.filter((j) => j.noteIndex === 0);
+    expect(a.length).toBe(2); // 키별 2판정
+    expect(a.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+});
