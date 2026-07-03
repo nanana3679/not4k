@@ -623,6 +623,31 @@ describe("트릴 구간 경계의 교대 추적 초기화", () => {
     expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
   });
+
+  it("새 구간 첫 노트를 리셋 update 전에 일찍 쳐도 이전 구간 키와 무관하게 성공 (프레임 타이밍 독립)", () => {
+    // 리셋은 update(프레임), 교대 체크는 async keydown. 구간2 첫 노트(2000)를 update(2000) 전에 1970에 치면
+    // alternation이 아직 구간1 마지막 키(KeyB)라, 같은 KeyB면 잘못된 Good◇이 나던 버그. 입력 시점에도 구간 리셋 따라잡기.
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)), // 1000 구간1
+      makeTrillNote(lane, beat(1, 1)), // 1200 구간1
+      makeTrillNote(lane, beat(2, 1)), // 2000 구간2 첫 노트
+      makeTrillNote(lane, beat(3, 1)), // 2200 구간2
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200], [2, 2000], [3, 2200]]);
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([[lane, [1000, 2000]]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, new Map(), undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    // ★ update(2000) 리셋 없이 ★ 구간2 첫 노트를 1970에 일찍 침 (Good 윈도우 내, -30ms)
+    engine.onLanePress(lane, 1970, "KeyB"); // 구간2 첫 노트 — 새 구간이니 KeyB여도 성공이어야
+    engine.update(2000);
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 구간2 첫 노트 — Good◇ 아님
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT); // 구간2 교대 성공
+  });
 });
 
 describe("트릴 구간 경계 입력 추적 보호", () => {
@@ -694,25 +719,21 @@ describe("트릴 구간 경계 입력 추적 보호", () => {
     // 아직 구간 시작 전 (update가 2000ms 이전)
     engine.update(1950);
 
-    // 2000ms 노트를 일찍(1960ms) 입력 — KeyA
-    // noteTime=2000 >= currentZoneStart(null이므로 조건 충족) → 교대 추적 기록
+    // 2000ms 노트를 일찍(1960ms) 입력 — KeyA. 입력 시점에 구간 리셋을 따라잡으므로(noteTime=2000이 구간
+    // 시작 2000에 속함) idx0는 이 구간의 첫 노트로 KeyA를 정상 기록한다 (스펙 297 "교대 추적 정상 동작").
     engine.onLanePress(lane, 1960, "KeyA");
 
-    // 구간 시작 (교대 추적 리셋되지만, 이미 위에서 기록됨)
-    // 하지만! update(2000)이 호출되면 리셋된다.
-    // 이 시나리오에서는 update(2000) 전에 입력이 들어왔으므로,
-    // currentZoneStart는 아직 null → noteTime >= null은 true → 기록됨
-    // 그리고 update(2000)에서 리셋 → trillAlternation이 null로 돌아감
-    // 결과: 두 번째 노트에서 어떤 키든 교대 성공
+    // update(2000): 입력에서 이미 리셋을 따라잡아 nextIdx가 소진됐으므로 여기선 재리셋(기록 삭제)이 없다.
+    // → idx0의 KeyA 기록이 유지된다 (타이밍 독립: idx0를 일찍 치든 제때 치든 idx1 판정이 같다).
     engine.update(2000);
 
-    // 두 번째 노트(2200ms) — KeyA
+    // 두 번째 노트(2200ms) — KeyA (idx0와 같은 키)
     engine.onLanePress(lane, 2200, "KeyA");
 
     expect(judgments).toHaveLength(2);
-    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
-    // update(2000)에서 리셋되므로 KeyA 연속이어도 교대 성공
-    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // 구간 첫 노트 — 항상 성공 (스펙 292)
+    // idx0의 KeyA가 기록되어 있으므로 같은 KeyA는 교대 실패 → Good◇ (타이밍 독립, A 해석)
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
   });
 
   it("트릴 노트를 일찍 쳐서 구간 밖에서 처리했을 때 교대 추적이 기록되어 같은 키 연속 시 Good◇ 발생", () => {
