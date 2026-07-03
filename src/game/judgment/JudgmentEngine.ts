@@ -666,10 +666,13 @@ export class JudgmentEngine {
     // 함께 덮을 때, update() pass 순서(Hold 회수 → End 부여)로 회수가 no-op이 되고 도장이 잔류하는
     // 것을 막는다. (checkLongNoteBodyHold의 회수는 부여가 먼저 일어나는 다중 프레임 케이스 담당 —
     // 둘이 상호보완이라 프레임 정렬과 무관하게 견고. 완료 노트는 이미 COMPLETE라 여기 안 걸린다.)
+    // load-bearing = BODY_ACTIVE(유지 성립: hasBeenPressed) 또는 BODY_AWAITING_RELEASE
+    // (끝점 지나 release 대기 중 — 그 키의 다음 release가 곧 종결이라 놓기가 아님. 도달 자체가 held 전제).
     for (let j = 0; j < this.notes.length; j++) {
-      if (this.noteStates.get(j) !== NoteState.BODY_ACTIVE) continue;
+      const st = this.noteStates.get(j);
+      if (st !== NoteState.BODY_ACTIVE && st !== NoteState.BODY_AWAITING_RELEASE) continue;
       if ((this.notes[j] as RangeNote).lane !== lane) continue;
-      if (this.longNoteBodyStates.get(j)?.hasBeenPressed === true) return;
+      if (st === NoteState.BODY_AWAITING_RELEASE || this.longNoteBodyStates.get(j)?.hasBeenPressed === true) return;
     }
     for (const k of holdState.heldKeys) emptySet.add(k);
   }

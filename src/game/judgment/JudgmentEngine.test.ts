@@ -1742,4 +1742,20 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     engine.update(3200);
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
+
+  it("AWAITING_RELEASE 롱을 같은 키로 유지 중 직후 슬라이드가 완료돼도 그 롱의 지각 종결이 막히지 않는다 (RFD 0012 거울상)", () => {
+    // B: 일반 롱 [1000~2000], S: 슬라이드 2050. KeyA로 B 유지 → 2000 AWAITING → S pre-held Perfect → KeyA 2060에 뗌(B 지각 종결 +60)
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
+    const t = new Map([[0, 1000], [1, 2050]]);
+    const e = new Map([[0, 2000], [1, 2050]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000); // B BODY_ACTIVE
+    engine.update(2000); // B 끝점 → AWAITING (KeyA held)
+    engine.update(2050); // S 슬라이드 held Perfect → markEmptyRelease (스캔이 AWAITING인 B를 봐야 함)
+    engine.onLaneRelease(lane, 2060, "KeyA"); // B 지각 종결 (delta +60, 윈도우 내)
+    engine.update(2200); // 미종결이면 타임아웃 확정
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // B 종결(지각 상향)
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // S도 Perfect
+  });
 });
