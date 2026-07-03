@@ -1784,9 +1784,11 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
 
   it("hold-only 더블롱을 2키로 유지 완료 후 안 떼고 이어서 더블롱 B 유지, 분할 릴리즈로 B 양쪽 정상 종결 (RFD 0012 doubleLong)", () => {
     // A: hold-only 더블롱[1000~2000](KeyA+KeyB 유지), 갭, 일반 더블롱 B[2500~3000]. 2키 계속 유지 후 B 끝에서 분할 릴리즈.
-    // doubleLong 종결은 키별 lastReleaseTimeMs(update 패스 judgeDoubleLongEndpoint)로 처리돼 isEmptyRelease
-    // 도장 가드(400줄)를 타지 않는다 → lane-broadcast 종결인 단일 롱과 달리 도장 carryover에 구조적으로 면역.
-    // (회수/부여 조건화 유무와 무관하게 정상 — 이 테스트는 그 불변을 잠근다.)
+    // doubleLong의 keyup 종결 분기(tryEndpointJudgmentOnRelease)는 isEmptyRelease 도장 가드 뒤에 있어
+    // 도장에 막힐 수 있다. 그래도 등급이 보존되는 근거는 "이중화": updateDoubleLongKeyRelease가 가드보다
+    // 앞에서 lastReleaseTimeMs를 무조건 기록하고, update 폴백(judgeDoubleLongEndpoint)이 그 시각으로 같은
+    // 등급을 재판정한다(막힌 경우 emit만 끝점 이후 첫 update 프레임으로 지연). 회수/부여 조건화 유무와
+    // 무관하게 등급 결과가 동일함(결과 면역)을 이 테스트가 잠근다 — 폴백의 released-키 재판정을 없애면 깨진다.
     const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
     const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
     const t = new Map([[0, 1000], [1, 2500]]);
@@ -1803,6 +1805,6 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     engine.update(3200);
     const dl = judgments.filter((j) => j.noteIndex === 1);
     expect(dl.length).toBe(2); // 키별 2판정
-    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 양쪽 다 정상 종결(키별 종결이라 도장 무관)
+    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 양쪽 다 정상 종결(keyup 즉시든 폴백이든 등급 동일)
   });
 });
