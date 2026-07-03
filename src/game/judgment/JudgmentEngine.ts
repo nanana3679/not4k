@@ -946,14 +946,36 @@ export class JudgmentEngine {
     noteEndTime: number,
     holdState: LaneHoldState,
   ): void {
-    const dl = this.doubleLongKeyStates.get(noteIndex);
+    let dl = this.doubleLongKeyStates.get(noteIndex);
     if (!dl) {
-      // 2키 추적이 한 번도 없었음(2키 입력 없음) → 두 키 모두 Miss
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
-      this.breakCombo();
-      this.noteStates.set(noteIndex, NoteState.COMPLETE);
-      return;
+      // 짧은 더블롱(길이<Good)은 checkDoubleLongKeyHold가 끝점−Good 구간에서 스킵돼 __missing__ 추적이
+      // 안 생겼을 수 있다. 진짜 미입력과 "1키만 유지"를 구분해, 끝점에서 실제 held 키로 추적을 재구성한다
+      // (병렬 판정 — 스펙 §더블 롱노트 바디: 1키 유지 시 그 키 Perfect).
+      const held = Array.from(holdState.heldKeys);
+      if (held.length === 0) {
+        // 진짜 미입력 → 두 키 모두 Miss
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
+        this.breakCombo();
+        this.noteStates.set(noteIndex, NoteState.COMPLETE);
+        return;
+      }
+      dl =
+        held.length >= 2
+          ? {
+              key1: { keyCode: held[0], failed: false, judged: false, lastReleaseTimeMs: null },
+              key2: { keyCode: held[1], failed: false, judged: false, lastReleaseTimeMs: null },
+            }
+          : {
+              key1: { keyCode: held[0], failed: false, judged: false, lastReleaseTimeMs: null },
+              key2: { keyCode: "__missing__", failed: true, judged: true, lastReleaseTimeMs: null },
+            };
+      this.doubleLongKeyStates.set(noteIndex, dl);
+      if (held.length < 2) {
+        // 1키만 유지 → 미입력 쪽 부분 Miss (checkDoubleLongKeyHold 미러링). held 키는 아래 루프서 판정.
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, "right");
+        this.breakCombo();
+      }
     }
 
     const isConnection = this.connectionSources.has(noteIndex);

@@ -1473,6 +1473,22 @@ describe("더블롱(일반) 끝점 키별 2판정 (목표 — 스펙 §146 / 분
     expect(dl.length).toBe(2);
     expect(dl.every((j) => j.grade === JudgmentGrade.MISS)).toBe(true);
   });
+
+  it("길이 < Good 윈도우인 짧은 더블롱을 1키만 유지해도 유지 키는 Perfect (미입력만 Miss)", () => {
+    // 길이 50ms(<120) doubleLong. 끝점 −Good 구간이 시작과 겹쳐 checkDoubleLongKeyHold(__missing__ 생성)가
+    // 스킵되지만, 끝점 판정이 실제 held 키로 추적을 재구성해야 한다 (스펙: 1키 유지 시 그 키 Perfect — 병렬 판정).
+    const notes = [makeDoubleLong(lane, beat(0, 1), beat(1, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000]]), new Map([[0, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyB 미입력
+    engine.update(1000);
+    engine.update(1050);
+    engine.onLaneRelease(lane, 1050, "KeyA");
+    engine.update(1100);
+    const dl = dlOf(judgments);
+    expect(dl.length).toBe(2); // count 불변
+    expect(dl.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 유지한 KeyA
+    expect(dl.some((j) => j.grade === JudgmentGrade.MISS)).toBe(true); // 미입력 KeyB
+  });
 });
 
 describe("더블 hold-only 슬라이드 (길이 0) — 2키 동시 필요", () => {
