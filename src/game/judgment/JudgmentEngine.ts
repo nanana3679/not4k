@@ -500,17 +500,9 @@ export class JudgmentEngine {
       }
     }
 
-    // 트릴 구간 시작 시 교대 추적 상태 리셋
+    // 트릴 구간 시작 시 교대 추적 상태 리셋 (프레임 시각 기준)
     for (const lane of [1, 2, 3, 4] as Lane[]) {
-      const startTimes = this.trillZoneStartTimesMs.get(lane);
-      if (!startTimes) continue;
-      let nextIdx = this.trillZoneNextIndex.get(lane)!;
-      while (nextIdx < startTimes.length && songTimeMs >= startTimes[nextIdx]) {
-        this.trillAlternation.set(lane, null);
-        this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
-        nextIdx++;
-      }
-      this.trillZoneNextIndex.set(lane, nextIdx);
+      this.advanceTrillZoneReset(lane, songTimeMs);
     }
 
     // 바디 노트 자동 활성화 (시작 시간 도달 시)
@@ -757,6 +749,24 @@ export class JudgmentEngine {
   /**
    * 트릴 노트 입력 처리
    */
+  /**
+   * 트릴 구간 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
+   * update(songTime)와 입력(processTrillNoteInput, noteTime) 양쪽이 공유한다: 리셋이 프레임에만 있으면
+   * async keydown이 프레임보다 일찍 도착할 때 새 구간 첫 노트가 이전 구간 키와 비교돼 잘못된 Good◇을
+   * 받는다. nextIdx는 단조 증가만 하므로 update·입력이 각자 시각으로 호출해도 이중 리셋되지 않는다.
+   */
+  private advanceTrillZoneReset(lane: Lane, uptoMs: number): void {
+    const startTimes = this.trillZoneStartTimesMs.get(lane);
+    if (!startTimes) return;
+    let nextIdx = this.trillZoneNextIndex.get(lane) ?? 0;
+    while (nextIdx < startTimes.length && uptoMs >= startTimes[nextIdx]) {
+      this.trillAlternation.set(lane, null);
+      this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
+      nextIdx++;
+    }
+    this.trillZoneNextIndex.set(lane, nextIdx);
+  }
+
   private processTrillNoteInput(
     noteIndex: number,
     deltaMs: number,
@@ -765,6 +775,10 @@ export class JudgmentEngine {
   ): void {
     const note = this.notes[noteIndex];
     const isGrace = isGraceNote(note);
+    // 입력 시점에도 구간 리셋 따라잡기: 노트의 원래 위치(noteTime)까지 시작한 구간을 리셋해,
+    // 프레임(update)보다 일찍 친 새 구간 첫 노트가 이전 구간 키로 잘못된 Good◇을 받지 않게 한다.
+    const noteTimeForReset = this.noteTimesMs.get(noteIndex);
+    if (noteTimeForReset !== undefined) this.advanceTrillZoneReset(lane, noteTimeForReset);
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
@@ -941,12 +955,6 @@ export class JudgmentEngine {
   }
 
   /**
-   * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
-   * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
-   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
-   * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
-   */
-  /**
    * dl 추적이 없던 짧은 더블롱(길이<Good, checkDoubleLongKeyHold 스킵)을 끝점에서 재구성한다.
    * participants = 이 노트에 실제 참여한 키들(유지 중 + 방금 뗀 키). 반드시 1개 이상이어야 한다.
    * 1키뿐이면 나머지 슬롯을 __missing__으로 채우고 미입력 쪽 부분 Miss를 emit한다
@@ -972,6 +980,12 @@ export class JudgmentEngine {
     return dl;
   }
 
+  /**
+   * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
+   * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
+   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
+   * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
+   */
   private judgeDoubleLongEndpoint(
     noteIndex: number,
     note: RangeNote,
