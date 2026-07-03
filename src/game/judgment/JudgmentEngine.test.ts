@@ -1709,4 +1709,20 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B로 새면 안 됨
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
   });
+
+  it("hold-only 완료 키를 안 떼고 이어서 .- 롱을 유지하면, 그 롱 끝 release로 정상 종결된다 (RFD 0012)", () => {
+    // L1: hold-only A[1000~2000], 갭, 헤드없는 롱 B[2500~3000] (비연결). KeyA로 쭉 유지.
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyA로 A 잡기 — 이후 안 뗌
+    engine.update(1000); // A BODY_ACTIVE
+    engine.update(2000); // A held Perfect → KeyA 공릴리즈 도장
+    engine.update(2500); // B BODY_ACTIVE (KeyA pre-held로 유지 시작) → 도장 회수돼야 함
+    engine.update(3000); // B 끝점 → BODY_AWAITING_RELEASE
+    engine.onLaneRelease(lane, 3005, "KeyA"); // B 종결 시도
+    engine.update(3200); // 미종결이면 타임아웃 확정
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
 });

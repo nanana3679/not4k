@@ -807,6 +807,12 @@ export class JudgmentEngine {
           if (holdState.isHeld) {
             bodyState.hasBeenPressed = true;
 
+            // RFD 0012: 이 바디를 유지하기 시작한 held 키는 이제 load-bearing이므로,
+            // 이전 hold-only 완료로 남은 공릴리즈 도장이 있으면 회수한다(놓기 대상 → 종결 유지 키).
+            // 안 그러면 안 떼고 이어잡은 키의 낡은 도장이 이 노트의 정당한 종결 release를 막는다.
+            const emptySet = this.emptyReleaseKeys.get(note.lane);
+            if (emptySet) for (const k of holdState.heldKeys) emptySet.delete(k);
+
             // doubleLong: 허용 구간 내 키 입력 시 2키 추적 초기화/업데이트
             if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(i)) {
               const heldKeysArr = Array.from(holdState.heldKeys);
