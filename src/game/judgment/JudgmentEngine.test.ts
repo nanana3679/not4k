@@ -1807,4 +1807,28 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     expect(dl.length).toBe(2); // 키별 2판정
     expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 양쪽 다 정상 종결(keyup 즉시든 폴백이든 등급 동일)
   });
+
+  it("doubleLong 종결이 keyup 시점에 즉시 emit된다 — 회수가 primary, 폴백으로 지연되면 회귀 (RFD 0012 doubleLong 타이밍)", () => {
+    // 위 테스트와 같은 차트지만 추가 update 없이 keyup 직후 판정을 확인한다.
+    // 회수 정상: keyup을 tryEndpoint가 즉시 판정 → 2판정. 회수 깨짐: 도장 잔류로 keyup 막힘 →
+    // 폴백(judgeDoubleLongEndpoint)이 다음 update로 emit 지연 → 이 시점엔 0판정 → 단언 실패(silent→loud).
+    // "결과 면역"의 primary 담지자(회수)를 못박아, 회수 회귀를 폴백이 조용히 가리는 것을 막는다.
+    const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
+    const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010);
+    engine.update(2000);
+    engine.update(2500);
+    engine.update(3000); // B 끝점 (2키 유지 중 → release 대기)
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 3010, "KeyB"); // 분할 릴리즈 2
+    // ★ 추가 update 없이 ★ keyup 직후 이미 2판정이어야 한다 (회수 primary). 폴백 지연이면 여기서 0.
+    const dl = judgments.filter((j) => j.noteIndex === 1);
+    expect(dl.length).toBe(2);
+    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
 });
