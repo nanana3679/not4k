@@ -1781,4 +1781,28 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     // 놓기가 막혀 S2는 미리-떼기 Perfect를 못 받고 타임아웃 Miss. 공짜 Perfect 누설이면 여기서 실패.
     expect(judgments.find((j) => j.noteIndex === 2)?.grade).toBe(JudgmentGrade.MISS);
   });
+
+  it("hold-only 더블롱을 2키로 유지 완료 후 안 떼고 이어서 더블롱 B 유지, 분할 릴리즈로 B 양쪽 정상 종결 (RFD 0012 doubleLong)", () => {
+    // A: hold-only 더블롱[1000~2000](KeyA+KeyB 유지), 갭, 일반 더블롱 B[2500~3000]. 2키 계속 유지 후 B 끝에서 분할 릴리즈.
+    // doubleLong 종결은 키별 lastReleaseTimeMs(update 패스 judgeDoubleLongEndpoint)로 처리돼 isEmptyRelease
+    // 도장 가드(400줄)를 타지 않는다 → lane-broadcast 종결인 단일 롱과 달리 도장 carryover에 구조적으로 면역.
+    // (회수/부여 조건화 유무와 무관하게 정상 — 이 테스트는 그 불변을 잠근다.)
+    const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
+    const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // A 2키 유지 시작
+    engine.update(2000); // A held 완료
+    engine.update(2500); // B BODY_ACTIVE, 2키 pre-held로 유지 시작
+    engine.update(3000); // B 끝점
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 3010, "KeyB"); // 분할 릴리즈 2
+    engine.update(3200);
+    const dl = judgments.filter((j) => j.noteIndex === 1);
+    expect(dl.length).toBe(2); // 키별 2판정
+    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 양쪽 다 정상 종결(키별 종결이라 도장 무관)
+  });
 });
