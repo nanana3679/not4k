@@ -134,6 +134,39 @@ describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와
     expect(judgments).toHaveLength(1);
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
+
+  it("early: noteTime 이전(-50)에 눌러 홀드 중이면 활성화 시 그 홀드로 바디 시작 — 활성화 후 새 입력 없이 완주", () => {
+    // 시작 수락 기준은 '일찍 눌렀는지'가 아니라 '시작 윈도우 동안 홀드 중인지'다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 950, "KeyA"); // noteTime 이전 — 흡수 윈도우 내, 이후 계속 홀드
+    engine.update(1000);                   // 활성화 — 홀드 중이므로 시작 수락(새 keydown 불필요)
+    engine.update(3000);
+    engine.onLaneRelease(lane, 3000, "KeyA");
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("early 입력만으로는 불충분: 활성화 전에 떼고 다시 안 누르면 시작 윈도우 내 홀드 없어 Miss", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 950, "KeyA");   // 일찍 눌렀으나
+    engine.onLaneRelease(lane, 980, "KeyA"); // 활성화(1000) 전에 뗌
+    engine.update(1000);                     // 안 눌림 — 대기
+    engine.update(1130);                     // 윈도우 초과, 홀드 없음 → 실패
+
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
 });
 
 describe("롱노트 종료 시점 릴리즈 판정", () => {
