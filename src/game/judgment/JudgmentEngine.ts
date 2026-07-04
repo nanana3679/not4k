@@ -782,8 +782,14 @@ export class JudgmentEngine {
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
-    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇
-    if (lastKeyCode !== null && keyCode === lastKeyCode) {
+    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇.
+    // Good◇는 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 Good◇로 끌어내리고,
+    // 타이밍이 그보다 나쁘면(Bad/Miss) 그 판정을 유지한다 — 미스타이밍을 교대 실패로 보상하지 않는다 (RFD 0013).
+    const timingIsGoodOrBetter =
+      grade === JudgmentGrade.PERFECT ||
+      grade === JudgmentGrade.GREAT ||
+      grade === JudgmentGrade.GOOD;
+    if (lastKeyCode !== null && keyCode === lastKeyCode && timingIsGoodOrBetter) {
       grade = JudgmentGrade.GOOD_TRILL;
     }
 

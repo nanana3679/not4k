@@ -505,6 +505,38 @@ describe("Grace 트릴 노트 판정", () => {
   });
 });
 
+describe("트릴 교대 실패의 판정 상한 — 미스타이밍을 Good◇로 보상하지 않음", () => {
+  const lane: Lane = 1;
+
+  it("Late Bad(delta=140) + 같은 키(교대 실패)는 Good◇가 아니라 Bad 유지 — 상한만 Good (RFD 0013)", () => {
+    // 스펙 §276 "Good으로 고정"은 상한(good timing→Good)만 의미. 타이밍이 Good보다 나쁘면 그 판정을 유지한다.
+    // 교대 실패가 미스타이밍(Bad)을 Good◇(1점)로 상향시키면 실패가 정타보다 유리해지는 역전이 생긴다.
+    const notes = [makeTrillNote(lane, beat(0, 1)), makeTrillNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");  // delta=0 → Perfect, KeyA 기록
+    engine.onLanePress(lane, 1340, "KeyA");  // note 1200, delta=+140 → Bad, 같은 키 → 교대 실패
+
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.BAD); // Good◇로 상향되지 않음
+  });
+
+  it("Good 윈도우 내(delta=100) + 교대 실패는 상한이 걸려 Good◇", () => {
+    // 대비군: 타이밍이 Good 이상이면 교대 실패 상한 Good◇가 정상 적용된다.
+    const notes = [makeTrillNote(lane, beat(0, 1)), makeTrillNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");  // Perfect, KeyA 기록
+    engine.onLanePress(lane, 1300, "KeyA");  // note 1200, delta=+100 → Good, 같은 키 → 교대 실패
+
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+  });
+});
+
 describe("트릴 교대 '직전 키만 아니면 된다' 원칙 (3키 바인딩)", () => {
   const lane: Lane = 1;
 
