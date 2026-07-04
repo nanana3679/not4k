@@ -60,6 +60,50 @@ function setup(
   return { engine, judgments, callbacks };
 }
 
+describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와 별개, 시작조건 슬라이스 P1)", () => {
+  it("시작 윈도우(+120) 내 +115ms에 눌렀고 관측 update가 +130ms에 떨어져도 정상 시작해 끝까지 Perfect", () => {
+    // 시작 윈도우는 시간으로 정의된다([noteTime, noteTime+GOOD]). 수락을 프레임에서만 하면 윈도우 내
+    // 유효 입력이라도 관측 프레임이 윈도우 밖에 떨어질 때 실패로 샌다(async keydown vs rAF update).
+    // 입력(onLanePress) 시점에도 시작 수락을 평가해 이 경계 의존을 제거한다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);                    // 바디 활성화, 아직 안 눌림
+    engine.update(1050);                    // 윈도우 내, 아직 안 눌림 (대기)
+    engine.onLanePress(lane, 1115, "KeyA"); // 윈도우 [1000,1120] 내 유효 입력
+    engine.update(1130);                    // 관측 프레임이 윈도우(+120) 밖 — 여기서 실패하면 버그
+    engine.update(3000);                    // 끝점 도달, 키 유지 중 → 릴리즈 대기
+    engine.onLaneRelease(lane, 3010, "KeyA"); // 끝점 윈도우 내 릴리즈 → 종결
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("doubleLong 2키를 시작 윈도우 내에 눌렀고 관측 update가 윈도우 밖에 떨어져도 두 키 모두 정상 시작", () => {
+    // 헬퍼가 doubleLong 2키 추적 초기화를 입력 시점에도(멱등) 수행하는지 잠근다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeDoubleLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);                    // 활성화, 아직 안 눌림
+    engine.onLanePress(lane, 1110, "KeyA"); // 윈도우 내 1키
+    engine.onLanePress(lane, 1118, "KeyB"); // 윈도우 내 2키
+    engine.update(1130);                    // 관측 프레임 윈도우 밖 — 시작 실패 나면 버그
+    engine.update(3000);                    // 끝점 도달, 2키 유지 중
+    engine.onLaneRelease(lane, 3010, "KeyA");
+    engine.onLaneRelease(lane, 3010, "KeyB");
+
+    // 두 키 모두 시작 실패(MISS) 없이 정상 종결되어야 한다 (doubleLong은 키별 2판정)
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments).toHaveLength(2);
+  });
+});
+
 describe("롱노트 종료 시점 릴리즈 판정", () => {
   /**
    * 시나리오: 레인1에 키 A, B 두 개가 바인딩.

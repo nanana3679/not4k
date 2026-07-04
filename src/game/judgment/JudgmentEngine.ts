@@ -305,6 +305,15 @@ export class JudgmentEngine {
       }
     }
 
+    // 롱노트 바디 시작점 허용을 입력 시점에도 평가 — 윈도우 내 유효 입력이 프레임 경계 때문에 실패로
+    // 새는 것을 막는다 (트릴 P2와 동일 패턴). 한 레인에 진행 중 롱은 최대 하나(겹침 불가 불변).
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
+      const rn = this.notes[i];
+      if (!("endBeat" in rn) || rn.lane !== lane) continue;
+      this.tryAcceptLongBodyStart(i, holdState, timestampMs);
+    }
+
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
     const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs);
 
@@ -819,6 +828,41 @@ export class JudgmentEngine {
   }
 
   /**
+   * 롱노트 바디 시작점 허용 — atTimeMs가 시작 윈도우(+GOOD) 내이고 레인이 홀드 중이면 시작을 수락한다.
+   * update(프레임)와 onLanePress(입력) 양쪽이 공유한다: 수락이 프레임에서만 일어나면, 윈도우 내 유효 입력이라도
+   * 그 held를 관측할 프레임이 윈도우 밖에 떨어질 때 실패로 샌다(트릴 P2와 동일한 "async keydown vs rAF update"
+   * 버그 클래스). hasBeenPressed 플립·공릴리즈 회수는 1회, doubleLong 2키 초기화는 멱등하게 수행한다.
+   */
+  private tryAcceptLongBodyStart(noteIndex: number, holdState: LaneHoldState, atTimeMs: number): void {
+    if (this.noteStates.get(noteIndex) !== NoteState.BODY_ACTIVE) return;
+    const bodyState = this.longNoteBodyStates.get(noteIndex);
+    if (!bodyState) return;
+    if (atTimeMs > bodyState.bodyStartTimeMs + this.windows.GOOD) return; // 시작 윈도우 밖
+    if (!holdState.isHeld) return;
+
+    const note = this.notes[noteIndex] as RangeNote;
+
+    if (!bodyState.hasBeenPressed) {
+      bodyState.hasBeenPressed = true;
+      // RFD 0012: 이 바디를 유지하기 시작한 held 키는 이제 load-bearing이므로, 이전 hold-only 완료로 남은
+      // 공릴리즈 도장이 있으면 회수한다(놓기 대상 → 종결 유지 키).
+      const emptySet = this.emptyReleaseKeys.get(note.lane);
+      if (emptySet) for (const k of holdState.heldKeys) emptySet.delete(k);
+    }
+
+    // doubleLong: 허용 구간 내 2키가 모이면 독립 추적 초기화 (멱등 — 이미 초기화됐으면 스킵)
+    if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(noteIndex)) {
+      const heldKeysArr = Array.from(holdState.heldKeys);
+      if (heldKeysArr.length >= 2) {
+        this.doubleLongKeyStates.set(noteIndex, {
+          key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+          key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
+        });
+      }
+    }
+  }
+
+  /**
    * 롱노트 바디 홀드 체크
    *
    * 매 프레임 호출되어 BODY_ACTIVE 노트의 홀드 상태를 검증한다.
@@ -841,30 +885,10 @@ export class JudgmentEngine {
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) continue;
 
-      // 1. 시작점 허용 구간 (+120ms)
+      // 1. 시작점 허용 구간 (+120ms) — update·입력 공유 헬퍼로 수락 (프레임 경계 독립)
       if (!bodyState.hasBeenPressed) {
         if (songTimeMs <= bodyState.bodyStartTimeMs + this.windows.GOOD) {
-          if (holdState.isHeld) {
-            bodyState.hasBeenPressed = true;
-
-            // RFD 0012: 이 바디를 유지하기 시작한 held 키는 이제 load-bearing이므로,
-            // 이전 hold-only 완료로 남은 공릴리즈 도장이 있으면 회수한다(놓기 대상 → 종결 유지 키).
-            // 안 그러면 안 떼고 이어잡은 키의 낡은 도장이 이 노트의 정당한 종결 release를 막는다.
-            const emptySet = this.emptyReleaseKeys.get(note.lane);
-            if (emptySet) for (const k of holdState.heldKeys) emptySet.delete(k);
-
-            // doubleLong: 허용 구간 내 키 입력 시 2키 추적 초기화/업데이트
-            if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(i)) {
-              const heldKeysArr = Array.from(holdState.heldKeys);
-              if (heldKeysArr.length >= 2) {
-                this.doubleLongKeyStates.set(i, {
-                  key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
-                  key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
-                });
-              }
-              // 1키만 눌려있으면 아직 대기 — 허용 구간 내에서 2번째 키 입력을 기다림
-            }
-          }
+          this.tryAcceptLongBodyStart(i, holdState, songTimeMs);
           // 아직 허용 구간 내 — skip
           continue;
         } else {
