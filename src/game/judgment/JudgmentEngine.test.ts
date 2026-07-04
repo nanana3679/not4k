@@ -1542,6 +1542,28 @@ describe("헤드 있는 롱노트는 헤드만 흡수해 더블/직후 포인트
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(true);
     expect(judgments.some((j) => j.noteIndex === 2)).toBe(false);
   });
+
+  it("헤드 keydown이 헤드를 판정하고 그 홀드로 바디가 시작돼 끝점까지 완주 — 헤드+끝 정확히 2판정", () => {
+    // 헤드있는 롱의 전체 수명: 바디(idx0)는 입력 후보에서 빠지고 헤드(idx1) keydown이 판정을 대표하되,
+    // 그 홀드가 바디 시작(hasBeenPressed)을 수락시켜 끝점 종결까지 이어져야 한다. 기존 1529는 시작 직후만 봄.
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(8, 1)), // idx0 바디 1000~3000
+      makeSingleNote(lane, beat(0, 1)),           // idx1 헤드 1000
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");   // 헤드 판정 + 홀드 시작
+    engine.update(1000);                      // 바디 활성화 + 시작 수락(isHeld)
+    engine.update(3000);                      // 끝점 도달, 키 유지 → 릴리즈 대기
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 끝점 종결
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // 헤드
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // 바디/끝
+    expect(judgments).toHaveLength(2); // 헤드 + 끝, 바디 keydown 중복 판정 없음
+  });
 });
 
 describe("헤드 없는 더블 롱노트 2키 흡수 (RFD 0006)", () => {
