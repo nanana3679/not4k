@@ -268,6 +268,38 @@ describe("validateTrillLong", () => {
     ];
     expect(validateTrillLong(notes)).toEqual([]);
   });
+
+  it("hold-only이면서 헤드도 없으면 두 규칙 위반이 각각 보고된다 (두 검사 독립)", () => {
+    // 두 검사가 else-if로 묶이거나 하나가 다른 하나를 가리면 이 케이스가 1건만 보고된다.
+    const notes: NoteEntity[] = [
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 헤드 없음 + hold-only
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(2);
+    expect(errors.every((e) => e.rule === "trillLongInvalid")).toBe(true);
+  });
+
+  it("trill 노트가 다른 레인에 있으면 헤드로 인정되지 않아 에러 — 헤드는 같은 레인이어야", () => {
+    // hasHead의 lane 조건 가드. 엉뚱한 레인의 trill이 헤드로 오인되면 안 된다.
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 2, beat: beat(0) },              // 다른 레인의 trill
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+
+  it("trill 노트가 다른 박에 있으면 헤드로 인정되지 않아 에러 — 헤드는 같은 시작 박이어야", () => {
+    // hasHead의 beat 조건 가드. 시작 박이 어긋난 trill은 헤드가 아니다.
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(1) },              // 시작 박이 다른 trill
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
 });
 
 // =========================================================================
