@@ -102,6 +102,38 @@ describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와
     expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
     expect(judgments).toHaveLength(2);
   });
+
+  it("시작 윈도우 경계: 정확히 +120ms 입력은 이내로 수락되어 정상 시작 (스펙 §127 '이내'=포함)", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1120, "KeyA"); // 정확히 +120 — 윈도우 [1000,1120] 경계 포함
+    engine.update(1130);
+    engine.update(3000);
+    engine.onLaneRelease(lane, 3010, "KeyA");
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("시작 윈도우 경계: +121ms 입력은 윈도우 밖이라 시작 실패(Miss)", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1121, "KeyA"); // +121 — 윈도우 밖
+    engine.update(1130);                    // !hasBeenPressed + 윈도우 초과 → 실패
+
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
 });
 
 describe("롱노트 종료 시점 릴리즈 판정", () => {
