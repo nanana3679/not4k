@@ -112,10 +112,11 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('zIndex: 1');
   });
 
-  it('튜토리얼 키 이벤트는 기존 JudgmentEngine 컨트롤러가 만든 판정과 노트 이펙트를 표시', () => {
+  it('튜토리얼 키 이벤트는 기존 JudgmentEngine 컨트롤러가 만든 판정 효과(판정 텍스트·bomb)를 표시', () => {
     expect(tutorialPreviewPlayerSource).toContain('createTutorialPreviewJudgmentController');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.showJudgment(result.grade, result.deltaMs)');
-    expect(tutorialPreviewPlayerSource).toContain("if (result.grade !== JudgmentGrade.MISS)");
+    expect(tutorialPreviewPlayerSource).toContain('decideJudgmentEffects(result, note)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs)');
+    expect(tutorialPreviewPlayerSource).toContain('if (effects.bomb !== null)');
     expect(tutorialPreviewPlayerSource).not.toContain('currentRenderer.showJudgment(JudgmentGrade.PERFECT, 0)');
   });
 
