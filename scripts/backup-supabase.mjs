@@ -47,24 +47,38 @@ async function loadEnv() {
   return { url, key };
 }
 
+const PAGE = 1000;
+
+// PostgREST는 기본 1000행 상한이 있어 Range 헤더로 전 페이지를 순회한다.
 async function dumpTable(cfg, table, outDir) {
-  const res = await fetch(`${cfg.url}/rest/v1/${table}?select=*`, {
-    headers: { apikey: cfg.key },
-  });
-  if (!res.ok) throw new Error(`${table} 조회 실패: HTTP ${res.status}`);
-  const rows = await res.json();
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await fetch(`${cfg.url}/rest/v1/${table}?select=*&order=id`, {
+      headers: { apikey: cfg.key, Range: `${from}-${from + PAGE - 1}` },
+    });
+    if (!res.ok) throw new Error(`${table} 조회 실패: HTTP ${res.status}`);
+    const page = await res.json();
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
   await writeFile(path.join(outDir, `${table}.json`), JSON.stringify(rows, null, 2));
   return rows.length;
 }
 
 async function listStorage(cfg, prefix) {
-  const res = await fetch(`${cfg.url}/storage/v1/object/list/${BUCKET}`, {
-    method: "POST",
-    headers: { apikey: cfg.key, "Content-Type": "application/json" },
-    body: JSON.stringify({ prefix, limit: 1000 }),
-  });
-  if (!res.ok) throw new Error(`storage list 실패 (${prefix}): HTTP ${res.status}`);
-  return res.json();
+  const entries = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const res = await fetch(`${cfg.url}/storage/v1/object/list/${BUCKET}`, {
+      method: "POST",
+      headers: { apikey: cfg.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix, limit: PAGE, offset }),
+    });
+    if (!res.ok) throw new Error(`storage list 실패 (${prefix}): HTTP ${res.status}`);
+    const page = await res.json();
+    entries.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return entries;
 }
 
 /** 폴더(id=null 엔트리)는 재귀 진입, 파일은 경로 수집 */
@@ -83,9 +97,13 @@ async function collectFilePaths(cfg, prefix) {
 }
 
 async function downloadFile(cfg, storagePath, outDir) {
+  const storageRoot = path.join(outDir, "storage");
+  const dest = path.resolve(storageRoot, storagePath);
+  if (!dest.startsWith(storageRoot + path.sep)) {
+    throw new Error(`경로 이탈 감지, 건너뜀 없이 중단: ${storagePath}`);
+  }
   const res = await fetch(`${cfg.url}/storage/v1/object/public/${BUCKET}/${storagePath}`);
   if (!res.ok) throw new Error(`다운로드 실패 (${storagePath}): HTTP ${res.status}`);
-  const dest = path.join(outDir, "storage", storagePath);
   await mkdir(path.dirname(dest), { recursive: true });
   await writeFile(dest, Buffer.from(await res.arrayBuffer()));
 }
