@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
-import { JudgmentGrade } from '../../../shared';
+import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
 import { useGameStore } from '../../stores';
 import {
   TUTORIAL_PREVIEWS,
@@ -382,9 +382,11 @@ export function TutorialPreviewPlayer({
               const note = preview.chart.notes[result.noteIndex];
               if (!note) return;
 
-              renderer.showJudgment(result.grade, result.deltaMs);
-              if (result.grade !== JudgmentGrade.MISS) {
-                renderer.showBombEffect(note.lane);
+              // 판정 효과의 부분 적용 — 루프 재생 프리뷰라 점수·노트 표시 상태·디버그는 쓰지 않는다.
+              const effects = decideJudgmentEffects(result, note);
+              renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs);
+              if (effects.bomb !== null) {
+                renderer.showBombEffect(effects.bomb);
               }
             },
             onComboUpdate: () => {},

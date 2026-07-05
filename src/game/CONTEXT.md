@@ -98,6 +98,10 @@ _Avoid_: songTime을 호출자가 직접 계산
 **Auto 구간**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
 _Avoid_: 오토 판정(판정은 여전히 판정 엔진이 한다)
 
+**`JudgmentEffects` (판정 효과)**:
+판정 하나가 점수·화면에 일으키는 효과 전체의 순수 기술이다. `decideJudgmentEffects(result, note)`가 점수 기록·판정 텍스트·밤 이펙트·노트 표시 상태 전이(`NoteDisplayEffect`)·디버그 기록을 하나의 데이터로 결정하고, 소비자(플레이 화면 풀 적용 / 튜토리얼 프리뷰 부분 적용)는 이 값만 해석한다. 풀 정의는 glossary "판정 효과".
+_Avoid_: onJudgment 콜백에서 분기 재구현
+
 **리프트**:
 판정선 위치를 위로 올려 유저의 시야 중심을 조정하는 플레이 설정이다.
 _Avoid_: 스크롤 속도
