@@ -305,6 +305,15 @@ export class JudgmentEngine {
       }
     }
 
+    // 롱노트 바디 시작점 허용을 입력 시점에도 평가 — 윈도우 내 유효 입력이 프레임 경계 때문에 실패로
+    // 새는 것을 막는다 (트릴 P2와 동일 패턴). 한 레인에 진행 중 롱은 최대 하나(겹침 불가 불변).
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
+      const rn = this.notes[i];
+      if (!("endBeat" in rn) || rn.lane !== lane) continue;
+      this.tryAcceptLongBodyStart(i, holdState, timestampMs);
+    }
+
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
     const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs);
 
@@ -413,8 +422,15 @@ export class JudgmentEngine {
         ) {
           continue;
         }
-        const dl = this.doubleLongKeyStates.get(i);
-        if (!dl) continue;
+        let dl = this.doubleLongKeyStates.get(i);
+        if (!dl) {
+          // 짧은 더블롱: dl 추적이 없던 채 유지 키가 끝점 update 프레임보다 먼저 keyup으로 도착
+          // (라이브 keyup은 rAF update와 비동기 — P3가 고친 update 폴백 경로의 거울상).
+          // heldKeys엔 방금 뗀 keyCode가 이미 빠졌으므로 참여 키 맨 앞에 포함해 재구성한다.
+          const holdState = this.laneHoldStates.get(lane);
+          const participants = [keyCode, ...(holdState ? holdState.heldKeys : [])];
+          dl = this.reconstructShortDoubleLongKeyStates(i, participants);
+        }
         const keyState =
           dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
         if (!keyState || keyState.judged) continue;
@@ -493,17 +509,9 @@ export class JudgmentEngine {
       }
     }
 
-    // 트릴 구간 시작 시 교대 추적 상태 리셋
+    // 트릴 구간 시작 시 교대 추적 상태 리셋 (프레임 시각 기준)
     for (const lane of [1, 2, 3, 4] as Lane[]) {
-      const startTimes = this.trillZoneStartTimesMs.get(lane);
-      if (!startTimes) continue;
-      let nextIdx = this.trillZoneNextIndex.get(lane)!;
-      while (nextIdx < startTimes.length && songTimeMs >= startTimes[nextIdx]) {
-        this.trillAlternation.set(lane, null);
-        this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
-        nextIdx++;
-      }
-      this.trillZoneNextIndex.set(lane, nextIdx);
+      this.advanceTrillZoneReset(lane, songTimeMs);
     }
 
     // 바디 노트 자동 활성화 (시작 시간 도달 시)
@@ -661,6 +669,19 @@ export class JudgmentEngine {
     const holdState = this.laneHoldStates.get(lane);
     const emptySet = this.emptyReleaseKeys.get(lane);
     if (!holdState || !emptySet) return;
+    // RFD 0012: held 키가 이미 이 레인의 다른 롱노트 바디를 유지(load-bearing) 중이면
+    // 놓기 도장을 찍지 않는다. 한 프레임이 이 노트의 held 완료(부여)와 다음 롱의 바디 시작(회수)을
+    // 함께 덮을 때, update() pass 순서(Hold 회수 → End 부여)로 회수가 no-op이 되고 도장이 잔류하는
+    // 것을 막는다. (checkLongNoteBodyHold의 회수는 부여가 먼저 일어나는 다중 프레임 케이스 담당 —
+    // 둘이 상호보완이라 프레임 정렬과 무관하게 견고. 완료 노트는 이미 COMPLETE라 여기 안 걸린다.)
+    // load-bearing = BODY_ACTIVE(유지 성립: hasBeenPressed) 또는 BODY_AWAITING_RELEASE
+    // (끝점 지나 release 대기 중 — 그 키의 다음 release가 곧 종결이라 놓기가 아님. 도달 자체가 held 전제).
+    for (let j = 0; j < this.notes.length; j++) {
+      const st = this.noteStates.get(j);
+      if (st !== NoteState.BODY_ACTIVE && st !== NoteState.BODY_AWAITING_RELEASE) continue;
+      if ((this.notes[j] as RangeNote).lane !== lane) continue;
+      if (st === NoteState.BODY_AWAITING_RELEASE || this.longNoteBodyStates.get(j)?.hasBeenPressed === true) return;
+    }
     for (const k of holdState.heldKeys) emptySet.add(k);
   }
 
@@ -737,6 +758,24 @@ export class JudgmentEngine {
   /**
    * 트릴 노트 입력 처리
    */
+  /**
+   * 트릴 구간 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
+   * update(songTime)와 입력(processTrillNoteInput, noteTime) 양쪽이 공유한다: 리셋이 프레임에만 있으면
+   * async keydown이 프레임보다 일찍 도착할 때 새 구간 첫 노트가 이전 구간 키와 비교돼 잘못된 Good◇을
+   * 받는다. nextIdx는 단조 증가만 하므로 update·입력이 각자 시각으로 호출해도 이중 리셋되지 않는다.
+   */
+  private advanceTrillZoneReset(lane: Lane, uptoMs: number): void {
+    const startTimes = this.trillZoneStartTimesMs.get(lane);
+    if (!startTimes) return;
+    let nextIdx = this.trillZoneNextIndex.get(lane) ?? 0;
+    while (nextIdx < startTimes.length && uptoMs >= startTimes[nextIdx]) {
+      this.trillAlternation.set(lane, null);
+      this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
+      nextIdx++;
+    }
+    this.trillZoneNextIndex.set(lane, nextIdx);
+  }
+
   private processTrillNoteInput(
     noteIndex: number,
     deltaMs: number,
@@ -745,11 +784,21 @@ export class JudgmentEngine {
   ): void {
     const note = this.notes[noteIndex];
     const isGrace = isGraceNote(note);
+    // 입력 시점에도 구간 리셋 따라잡기: 노트의 원래 위치(noteTime)까지 시작한 구간을 리셋해,
+    // 프레임(update)보다 일찍 친 새 구간 첫 노트가 이전 구간 키로 잘못된 Good◇을 받지 않게 한다.
+    const noteTimeForReset = this.noteTimesMs.get(noteIndex);
+    if (noteTimeForReset !== undefined) this.advanceTrillZoneReset(lane, noteTimeForReset);
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
-    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇
-    if (lastKeyCode !== null && keyCode === lastKeyCode) {
+    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇.
+    // Good◇는 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 Good◇로 끌어내리고,
+    // 타이밍이 그보다 나쁘면(Bad/Miss) 그 판정을 유지한다 — 미스타이밍을 교대 실패로 보상하지 않는다 (RFD 0013).
+    const timingIsGoodOrBetter =
+      grade === JudgmentGrade.PERFECT ||
+      grade === JudgmentGrade.GREAT ||
+      grade === JudgmentGrade.GOOD;
+    if (lastKeyCode !== null && keyCode === lastKeyCode && timingIsGoodOrBetter) {
       grade = JudgmentGrade.GOOD_TRILL;
     }
 
@@ -779,6 +828,41 @@ export class JudgmentEngine {
   }
 
   /**
+   * 롱노트 바디 시작점 허용 — atTimeMs가 시작 윈도우(+GOOD) 내이고 레인이 홀드 중이면 시작을 수락한다.
+   * update(프레임)와 onLanePress(입력) 양쪽이 공유한다: 수락이 프레임에서만 일어나면, 윈도우 내 유효 입력이라도
+   * 그 held를 관측할 프레임이 윈도우 밖에 떨어질 때 실패로 샌다(트릴 P2와 동일한 "async keydown vs rAF update"
+   * 버그 클래스). hasBeenPressed 플립·공릴리즈 회수는 1회, doubleLong 2키 초기화는 멱등하게 수행한다.
+   */
+  private tryAcceptLongBodyStart(noteIndex: number, holdState: LaneHoldState, atTimeMs: number): void {
+    if (this.noteStates.get(noteIndex) !== NoteState.BODY_ACTIVE) return;
+    const bodyState = this.longNoteBodyStates.get(noteIndex);
+    if (!bodyState) return;
+    if (atTimeMs > bodyState.bodyStartTimeMs + this.windows.GOOD) return; // 시작 윈도우 밖
+    if (!holdState.isHeld) return;
+
+    const note = this.notes[noteIndex] as RangeNote;
+
+    if (!bodyState.hasBeenPressed) {
+      bodyState.hasBeenPressed = true;
+      // RFD 0012: 이 바디를 유지하기 시작한 held 키는 이제 load-bearing이므로, 이전 hold-only 완료로 남은
+      // 공릴리즈 도장이 있으면 회수한다(놓기 대상 → 종결 유지 키).
+      const emptySet = this.emptyReleaseKeys.get(note.lane);
+      if (emptySet) for (const k of holdState.heldKeys) emptySet.delete(k);
+    }
+
+    // doubleLong: 허용 구간 내 2키가 모이면 독립 추적 초기화 (멱등 — 이미 초기화됐으면 스킵)
+    if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(noteIndex)) {
+      const heldKeysArr = Array.from(holdState.heldKeys);
+      if (heldKeysArr.length >= 2) {
+        this.doubleLongKeyStates.set(noteIndex, {
+          key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+          key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
+        });
+      }
+    }
+  }
+
+  /**
    * 롱노트 바디 홀드 체크
    *
    * 매 프레임 호출되어 BODY_ACTIVE 노트의 홀드 상태를 검증한다.
@@ -801,24 +885,10 @@ export class JudgmentEngine {
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) continue;
 
-      // 1. 시작점 허용 구간 (+120ms)
+      // 1. 시작점 허용 구간 (+120ms) — update·입력 공유 헬퍼로 수락 (프레임 경계 독립)
       if (!bodyState.hasBeenPressed) {
         if (songTimeMs <= bodyState.bodyStartTimeMs + this.windows.GOOD) {
-          if (holdState.isHeld) {
-            bodyState.hasBeenPressed = true;
-
-            // doubleLong: 허용 구간 내 키 입력 시 2키 추적 초기화/업데이트
-            if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(i)) {
-              const heldKeysArr = Array.from(holdState.heldKeys);
-              if (heldKeysArr.length >= 2) {
-                this.doubleLongKeyStates.set(i, {
-                  key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
-                  key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
-                });
-              }
-              // 1키만 눌려있으면 아직 대기 — 허용 구간 내에서 2번째 키 입력을 기다림
-            }
-          }
+          this.tryAcceptLongBodyStart(i, holdState, songTimeMs);
           // 아직 허용 구간 내 — skip
           continue;
         } else {
@@ -915,6 +985,32 @@ export class JudgmentEngine {
   }
 
   /**
+   * dl 추적이 없던 짧은 더블롱(길이<Good, checkDoubleLongKeyHold 스킵)을 끝점에서 재구성한다.
+   * participants = 이 노트에 실제 참여한 키들(유지 중 + 방금 뗀 키). 반드시 1개 이상이어야 한다.
+   * 1키뿐이면 나머지 슬롯을 __missing__으로 채우고 미입력 쪽 부분 Miss를 emit한다
+   * (checkDoubleLongKeyHold 1키 분기 미러링 — 병렬 판정: 유지/뗀 키는 호출측이 판정).
+   */
+  private reconstructShortDoubleLongKeyStates(
+    noteIndex: number,
+    participants: string[],
+  ): DoubleLongKeyState {
+    const mk = (keyCode: string) => ({ keyCode, failed: false, judged: false, lastReleaseTimeMs: null });
+    const dl: DoubleLongKeyState =
+      participants.length >= 2
+        ? { key1: mk(participants[0]), key2: mk(participants[1]) }
+        : {
+            key1: mk(participants[0]),
+            key2: { keyCode: "__missing__", failed: true, judged: true, lastReleaseTimeMs: null },
+          };
+    this.doubleLongKeyStates.set(noteIndex, dl);
+    if (participants.length < 2) {
+      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, "right");
+      this.breakCombo();
+    }
+    return dl;
+  }
+
+  /**
    * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
    * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
    * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
@@ -927,14 +1023,21 @@ export class JudgmentEngine {
     noteEndTime: number,
     holdState: LaneHoldState,
   ): void {
-    const dl = this.doubleLongKeyStates.get(noteIndex);
+    let dl = this.doubleLongKeyStates.get(noteIndex);
     if (!dl) {
-      // 2키 추적이 한 번도 없었음(2키 입력 없음) → 두 키 모두 Miss
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
-      this.breakCombo();
-      this.noteStates.set(noteIndex, NoteState.COMPLETE);
-      return;
+      // 짧은 더블롱(길이<Good)은 checkDoubleLongKeyHold가 끝점−Good 구간에서 스킵돼 __missing__ 추적이
+      // 안 생겼을 수 있다. 진짜 미입력과 "1키만 유지"를 구분해, 끝점에서 실제 held 키로 추적을 재구성한다
+      // (병렬 판정 — 스펙 §더블 롱노트 바디: 1키 유지 시 그 키 Perfect).
+      const held = Array.from(holdState.heldKeys);
+      if (held.length === 0) {
+        // 진짜 미입력 → 두 키 모두 Miss
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
+        this.breakCombo();
+        this.noteStates.set(noteIndex, NoteState.COMPLETE);
+        return;
+      }
+      dl = this.reconstructShortDoubleLongKeyStates(noteIndex, held);
     }
 
     const isConnection = this.connectionSources.has(noteIndex);
@@ -1101,6 +1204,11 @@ export class JudgmentEngine {
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
+          // RFD 0012: keyup 종결이면 0011의 didTerminate 도장이 놓기 누설을 막지만, 타임아웃으로
+          // 죽은 롱은 그 도장을 못 남긴다. 죽은 롱을 아직 잡고 있는 키의 다음 release는 "놓기"이므로
+          // 여기서 공릴리즈 표시 → keyup/타임아웃 어느 경로로 죽든 프레임 정렬과 무관하게 닫힌다.
+          // (markEmptyRelease의 load-bearing 스캔이, 그 사이 새 롱 유지가 시작된 경우는 걸러낸다.)
+          this.markEmptyRelease(note.lane);
         }
         continue;
       }

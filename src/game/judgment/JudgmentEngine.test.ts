@@ -60,6 +60,115 @@ function setup(
   return { engine, judgments, callbacks };
 }
 
+describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와 별개, 시작조건 슬라이스 P1)", () => {
+  it("시작 윈도우(+120) 내 +115ms에 눌렀고 관측 update가 +130ms에 떨어져도 정상 시작해 끝까지 Perfect", () => {
+    // 시작 윈도우는 시간으로 정의된다([noteTime, noteTime+GOOD]). 수락을 프레임에서만 하면 윈도우 내
+    // 유효 입력이라도 관측 프레임이 윈도우 밖에 떨어질 때 실패로 샌다(async keydown vs rAF update).
+    // 입력(onLanePress) 시점에도 시작 수락을 평가해 이 경계 의존을 제거한다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);                    // 바디 활성화, 아직 안 눌림
+    engine.update(1050);                    // 윈도우 내, 아직 안 눌림 (대기)
+    engine.onLanePress(lane, 1115, "KeyA"); // 윈도우 [1000,1120] 내 유효 입력
+    engine.update(1130);                    // 관측 프레임이 윈도우(+120) 밖 — 여기서 실패하면 버그
+    engine.update(3000);                    // 끝점 도달, 키 유지 중 → 릴리즈 대기
+    engine.onLaneRelease(lane, 3010, "KeyA"); // 끝점 윈도우 내 릴리즈 → 종결
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("doubleLong 2키를 시작 윈도우 내에 눌렀고 관측 update가 윈도우 밖에 떨어져도 두 키 모두 정상 시작", () => {
+    // 헬퍼가 doubleLong 2키 추적 초기화를 입력 시점에도(멱등) 수행하는지 잠근다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeDoubleLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);                    // 활성화, 아직 안 눌림
+    engine.onLanePress(lane, 1110, "KeyA"); // 윈도우 내 1키
+    engine.onLanePress(lane, 1118, "KeyB"); // 윈도우 내 2키
+    engine.update(1130);                    // 관측 프레임 윈도우 밖 — 시작 실패 나면 버그
+    engine.update(3000);                    // 끝점 도달, 2키 유지 중
+    engine.onLaneRelease(lane, 3010, "KeyA");
+    engine.onLaneRelease(lane, 3010, "KeyB");
+
+    // 두 키 모두 시작 실패(MISS) 없이 정상 종결되어야 한다 (doubleLong은 키별 2판정)
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments).toHaveLength(2);
+  });
+
+  it("시작 윈도우 경계: 정확히 +120ms 입력은 이내로 수락되어 정상 시작 (스펙 §127 '이내'=포함)", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1120, "KeyA"); // 정확히 +120 — 윈도우 [1000,1120] 경계 포함
+    engine.update(1130);
+    engine.update(3000);
+    engine.onLaneRelease(lane, 3010, "KeyA");
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("시작 윈도우 경계: +121ms 입력은 윈도우 밖이라 시작 실패(Miss)", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1121, "KeyA"); // +121 — 윈도우 밖
+    engine.update(1130);                    // !hasBeenPressed + 윈도우 초과 → 실패
+
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("early: noteTime 이전(-50)에 눌러 홀드 중이면 활성화 시 그 홀드로 바디 시작 — 활성화 후 새 입력 없이 완주", () => {
+    // 시작 수락 기준은 '일찍 눌렀는지'가 아니라 '시작 윈도우 동안 홀드 중인지'다.
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 950, "KeyA"); // noteTime 이전 — 흡수 윈도우 내, 이후 계속 홀드
+    engine.update(1000);                   // 활성화 — 홀드 중이므로 시작 수락(새 keydown 불필요)
+    engine.update(3000);
+    engine.onLaneRelease(lane, 3000, "KeyA");
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.at(-1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("early 입력만으로는 불충분: 활성화 전에 떼고 다시 안 누르면 시작 윈도우 내 홀드 없어 Miss", () => {
+    const lane: Lane = 1;
+    const notes: NoteEntity[] = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    const noteTimesMs = new Map([[0, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 950, "KeyA");   // 일찍 눌렀으나
+    engine.onLaneRelease(lane, 980, "KeyA"); // 활성화(1000) 전에 뗌
+    engine.update(1000);                     // 안 눌림 — 대기
+    engine.update(1130);                     // 윈도우 초과, 홀드 없음 → 실패
+
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+});
+
 describe("롱노트 종료 시점 릴리즈 판정", () => {
   /**
    * 시나리오: 레인1에 키 A, B 두 개가 바인딩.
@@ -483,6 +592,113 @@ describe("Grace 트릴 노트 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
     expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
   });
+
+  it("교대 성공 + delta=100ms(일반 노트면 Good일 타이밍)이어도 Grace라 Perfect — 타이밍 면제 확인", () => {
+    // 스펙 §486: Grace는 타이밍 부담을 제거한다. calculateGraceGrade는 Good 윈도우(±120) 전체를 Perfect로 매핑.
+    // delta=100은 일반 calculateGrade면 GOOD이지만, Grace 경로라 PERFECT여야 한다(교대 성공 전제).
+    const { engine, judgments } = graceTrillSetup();
+    engine.onLanePress(lane, noteTime1, "KeyA");
+    engine.onLanePress(lane, noteTime2 + 100, "KeyB"); // delta=+100, 교대 성공
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Grace 타이밍 면제 — Good 아님
+  });
+
+  it("교대 실패 + delta=100ms여도 Good◇ — Grace의 Perfect 위에 교대 override가 얹혀 타이밍과 무관", () => {
+    // 교대 override는 grade 계산 뒤에 적용되므로, Grace가 delta=100을 Perfect로 올려도 실패면 Good◇로 덮인다.
+    // 479(delta=0)와 달리 타이밍이 어긋난 상태에서도 override가 유지됨을 못박는다.
+    const { engine, judgments } = graceTrillSetup();
+    engine.onLanePress(lane, noteTime1, "KeyA");
+    engine.onLanePress(lane, noteTime2 + 100, "KeyA"); // delta=+100, 같은 키 → 교대 실패
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL); // Perfect 아님
+  });
+});
+
+describe("트릴 교대 실패의 판정 상한 — 미스타이밍을 Good◇로 보상하지 않음", () => {
+  const lane: Lane = 1;
+
+  it("Late Bad(delta=140) + 같은 키(교대 실패)는 Good◇가 아니라 Bad 유지 — 상한만 Good (RFD 0013)", () => {
+    // 스펙 §276 "Good으로 고정"은 상한(good timing→Good)만 의미. 타이밍이 Good보다 나쁘면 그 판정을 유지한다.
+    // 교대 실패가 미스타이밍(Bad)을 Good◇(1점)로 상향시키면 실패가 정타보다 유리해지는 역전이 생긴다.
+    const notes = [makeTrillNote(lane, beat(0, 1)), makeTrillNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");  // delta=0 → Perfect, KeyA 기록
+    engine.onLanePress(lane, 1340, "KeyA");  // note 1200, delta=+140 → Bad, 같은 키 → 교대 실패
+
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.BAD); // Good◇로 상향되지 않음
+  });
+
+  it("Good 윈도우 내(delta=100) + 교대 실패는 상한이 걸려 Good◇", () => {
+    // 대비군: 타이밍이 Good 이상이면 교대 실패 상한 Good◇가 정상 적용된다.
+    const notes = [makeTrillNote(lane, beat(0, 1)), makeTrillNote(lane, beat(1, 1))];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");  // Perfect, KeyA 기록
+    engine.onLanePress(lane, 1300, "KeyA");  // note 1200, delta=+100 → Good, 같은 키 → 교대 실패
+
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
+  });
+});
+
+describe("트릴 교대 '직전 키만 아니면 된다' 원칙 (3키 바인딩)", () => {
+  const lane: Lane = 1;
+
+  // 노트 4개, 한 트릴 구간(1000ms 시작). 모두 정시에 눌러 deltaMs=0(Perfect 후보).
+  function setupFourNoteZone() {
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),
+      makeTrillNote(lane, beat(1, 1)),
+      makeTrillNote(lane, beat(2, 1)),
+      makeTrillNote(lane, beat(3, 1)),
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200], [2, 1400], [3, 1600]]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([[lane, [1000]]]);
+    return setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+  }
+
+  it("A→B→A→C: 직전 키와만 다르면 전부 교대 성공 — 재등장한 두 번째 A도 Perfect", () => {
+    // 스펙 note-system.md §226: 3키 바인딩에서 A→B→A→C는 모든 입력이 직전과 다르므로 교대 성공.
+    // 두 번째 A는 "직전(B)"과 다르다 — 과거에 A를 이미 썼는지는 무관하다.
+    // 만약 교대 추적이 "지금까지 쓴 모든 키"를 봤다면 이 A에서 Good◇로 깨진다(가드 케이스).
+    const { engine, judgments } = setupFourNoteZone();
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    engine.onLanePress(lane, 1400, "KeyA"); // 직전 B와 다름 → 성공 (재등장 A)
+    engine.onLanePress(lane, 1600, "KeyC");
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 재등장 A — "직전 키만" 원칙의 핵심 가드
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("A→B→B→C: 직전과 같은 두 번째 B만 Good◇, 그 다음 C는 다시 교대 성공", () => {
+    // 스펙 note-system.md §227, §277: 두 번째 B가 직전 B와 동일 → 교대 실패(Good◇).
+    // 실패 후에도 마지막 키는 B로 기록되므로, 이어지는 C(≠B)는 정상 교대 성공.
+    const { engine, judgments } = setupFourNoteZone();
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    engine.onLanePress(lane, 1400, "KeyB"); // 직전 B와 동일 → 교대 실패
+    engine.onLanePress(lane, 1600, "KeyC"); // 직전 B와 다름 → 교대 성공
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[2].grade).toBe(JudgmentGrade.GOOD_TRILL);
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT);
+  });
 });
 
 describe("트릴 구간 경계의 교대 추적 초기화", () => {
@@ -623,6 +839,70 @@ describe("트릴 구간 경계의 교대 추적 초기화", () => {
     expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);
   });
+
+  it("두 레인 트릴을 같은 키로 인터리브해도 각 레인이 독립 교대 추적 — 전역 추적이면 Good◇날 배치가 전부 성공 (L1↔L4)", () => {
+    // 스펙 note-system.md §283: 각 레인은 자체 '직전 입력 키' 상태를 가지며 L1 입력이 L4 교대 판정에 영향 없음.
+    // 배치: L1 A → L4 A → L1 B → L4 B → L1 A. 만약 교대 추적이 전역이었다면 입력열 A,A,B,B,A가 되어
+    // 두 번째 A(L4)·두 번째 B(L4)가 직전과 같아 Good◇가 나야 한다. per-lane이면 각 레인은 A→B→A / A→B라 전부 성공.
+    const lane1: Lane = 1;
+    const lane4: Lane = 4;
+    const notes = [
+      makeTrillNote(lane1, beat(0, 1)),  // 1000ms — L1
+      makeTrillNote(lane4, beat(1, 1)),  // 1100ms — L4
+      makeTrillNote(lane1, beat(2, 1)),  // 1200ms — L1
+      makeTrillNote(lane4, beat(3, 1)),  // 1300ms — L4
+      makeTrillNote(lane1, beat(4, 1)),  // 1400ms — L1
+    ];
+    const noteTimesMs = new Map([
+      [0, 1000], [1, 1100], [2, 1200], [3, 1300], [4, 1400],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane1, [1000]],
+      [lane4, [1000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    engine.update(1000); // 두 레인 모두 구간 리셋
+    engine.onLanePress(lane1, 1000, "KeyA"); // L1 첫 노트
+    engine.onLanePress(lane4, 1100, "KeyA"); // L4 첫 노트 — 전역이면 직전 A와 같아 Good◇, per-lane이면 성공
+    engine.onLanePress(lane1, 1200, "KeyB"); // L1: A→B 성공
+    engine.onLanePress(lane4, 1300, "KeyB"); // L4: A→B 성공 (전역이면 직전 B와 같아 Good◇)
+    engine.onLanePress(lane1, 1400, "KeyA"); // L1: B→A 성공
+
+    expect(judgments).toHaveLength(5);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // L1 A
+    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // L4 A — 레인 독립 핵심 가드
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // L1 B
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT); // L4 B — 레인 독립 핵심 가드
+    expect(judgments[4].grade).toBe(JudgmentGrade.PERFECT); // L1 A
+  });
+
+  it("새 구간 첫 노트를 리셋 update 전에 일찍 쳐도 이전 구간 키와 무관하게 성공 (프레임 타이밍 독립)", () => {
+    // 리셋은 update(프레임), 교대 체크는 async keydown. 구간2 첫 노트(2000)를 update(2000) 전에 1970에 치면
+    // alternation이 아직 구간1 마지막 키(KeyB)라, 같은 KeyB면 잘못된 Good◇이 나던 버그. 입력 시점에도 구간 리셋 따라잡기.
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)), // 1000 구간1
+      makeTrillNote(lane, beat(1, 1)), // 1200 구간1
+      makeTrillNote(lane, beat(2, 1)), // 2000 구간2 첫 노트
+      makeTrillNote(lane, beat(3, 1)), // 2200 구간2
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1200], [2, 2000], [3, 2200]]);
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([[lane, [1000, 2000]]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, new Map(), undefined, trillZoneStartTimesMs);
+
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1200, "KeyB");
+    // ★ update(2000) 리셋 없이 ★ 구간2 첫 노트를 1970에 일찍 침 (Good 윈도우 내, -30ms)
+    engine.onLanePress(lane, 1970, "KeyB"); // 구간2 첫 노트 — 새 구간이니 KeyB여도 성공이어야
+    engine.update(2000);
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 구간2 첫 노트 — Good◇ 아님
+    expect(judgments[3].grade).toBe(JudgmentGrade.PERFECT); // 구간2 교대 성공
+  });
 });
 
 describe("트릴 구간 경계 입력 추적 보호", () => {
@@ -694,25 +974,21 @@ describe("트릴 구간 경계 입력 추적 보호", () => {
     // 아직 구간 시작 전 (update가 2000ms 이전)
     engine.update(1950);
 
-    // 2000ms 노트를 일찍(1960ms) 입력 — KeyA
-    // noteTime=2000 >= currentZoneStart(null이므로 조건 충족) → 교대 추적 기록
+    // 2000ms 노트를 일찍(1960ms) 입력 — KeyA. 입력 시점에 구간 리셋을 따라잡으므로(noteTime=2000이 구간
+    // 시작 2000에 속함) idx0는 이 구간의 첫 노트로 KeyA를 정상 기록한다 (스펙 297 "교대 추적 정상 동작").
     engine.onLanePress(lane, 1960, "KeyA");
 
-    // 구간 시작 (교대 추적 리셋되지만, 이미 위에서 기록됨)
-    // 하지만! update(2000)이 호출되면 리셋된다.
-    // 이 시나리오에서는 update(2000) 전에 입력이 들어왔으므로,
-    // currentZoneStart는 아직 null → noteTime >= null은 true → 기록됨
-    // 그리고 update(2000)에서 리셋 → trillAlternation이 null로 돌아감
-    // 결과: 두 번째 노트에서 어떤 키든 교대 성공
+    // update(2000): 입력에서 이미 리셋을 따라잡아 nextIdx가 소진됐으므로 여기선 재리셋(기록 삭제)이 없다.
+    // → idx0의 KeyA 기록이 유지된다 (타이밍 독립: idx0를 일찍 치든 제때 치든 idx1 판정이 같다).
     engine.update(2000);
 
-    // 두 번째 노트(2200ms) — KeyA
+    // 두 번째 노트(2200ms) — KeyA (idx0와 같은 키)
     engine.onLanePress(lane, 2200, "KeyA");
 
     expect(judgments).toHaveLength(2);
-    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
-    // update(2000)에서 리셋되므로 KeyA 연속이어도 교대 성공
-    expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT); // 구간 첫 노트 — 항상 성공 (스펙 292)
+    // idx0의 KeyA가 기록되어 있으므로 같은 KeyA는 교대 실패 → Good◇ (타이밍 독립, A 해석)
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD_TRILL);
   });
 
   it("트릴 노트를 일찍 쳐서 구간 밖에서 처리했을 때 교대 추적이 기록되어 같은 키 연속 시 Good◇ 발생", () => {
@@ -813,6 +1089,52 @@ describe("트릴 구간 경계 입력 추적 보호", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.GOOD); // 이전 구간 노트 — 늦은 입력 (delta=110ms)
     expect(judgments[1].grade).toBe(JudgmentGrade.PERFECT); // Good◇ 아님
     expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT); // 교대 성공
+  });
+
+  it("이전 구간에서 이미 기록된 키와 같은 키로 늦은 구간밖 노트를 쳐도 Good◇가 아니라 타이밍 판정 — 구간 리셋이 lastKey를 null로 밀기 때문", () => {
+    // 스펙 note-system.md §296 "교대 체크도 기존 상태 기준으로 수행"의 실제 귀결을 못박는다.
+    // earliest-match(가장 이른 noteTime 우선)상 구간2 노트는 pending 구간1 노트보다 먼저 소비될 수 없으므로,
+    // belongsToCurrentZone=false(보호 발동)가 되는 순간 currentZoneStart를 새 구간으로 민 것은 update()뿐이고
+    // update는 항상 lastKey=null로 리셋한다. 따라서 늦은 구간밖 노트는 이전 기록 키와 같아도 교대 실패가 될 수 없다.
+    // 826 테스트는 앞서 기록된 키가 없어(첫 입력) 이 커플링(리셋→null)의 회귀를 잡지 못한다.
+    const notes = [
+      makeTrillNote(lane, beat(0, 1)),  // 1000ms — 구간1 첫 노트 (KeyA 기록)
+      makeTrillNote(lane, beat(1, 1)),  // 1900ms — 구간1 마지막 노트 (늦게 침)
+      makeTrillNote(lane, beat(2, 1)),  // 2000ms — 구간2 첫 노트
+      makeTrillNote(lane, beat(3, 1)),  // 2200ms — 구간2 두 번째 노트
+    ];
+    const noteTimesMs = new Map([
+      [0, 1000], [1, 1900], [2, 2000], [3, 2200],
+    ]);
+    const noteEndTimesMs = new Map<number, number>();
+    const trillZoneStartTimesMs = new Map<Lane, number[]>([
+      [lane, [1000, 2000]],
+    ]);
+
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs, undefined, trillZoneStartTimesMs);
+
+    // 구간1 시작 → 첫 노트 KeyA 정상 기록 (lastKey=KeyA)
+    engine.update(1000);
+    engine.onLanePress(lane, 1000, "KeyA");
+
+    // 구간2 시작 → 리셋(lastKey=null, currentZoneStart=2000). idx1(1900)은 delta=100으로 아직 살아있음
+    engine.update(2000);
+
+    // 구간1 마지막 노트(1900)를 늦게(2010) KeyA로 침 — 이전 기록 키(KeyA)와 동일
+    // → lastKey는 리셋으로 null이라 교대 체크 스킵, 순수 타이밍(GOOD). belongs=false라 기록도 안 함.
+    engine.onLanePress(lane, 2010, "KeyA");
+
+    // 구간2 첫 노트(2000)를 KeyA로 — 새 구간 첫 노트라 교대 성공(구간 독립, 스펙 §292)
+    engine.onLanePress(lane, 2020, "KeyA");
+
+    // 구간2 두 번째(2200)를 KeyA로 — 같은 키 연속 → Good◇ (구간2 추적은 정상 동작, 늦은 입력에 오염 안 됨)
+    engine.onLanePress(lane, 2200, "KeyA");
+
+    expect(judgments).toHaveLength(4);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);   // 구간1 첫 노트
+    expect(judgments[1].grade).toBe(JudgmentGrade.GOOD);      // 늦은 구간밖 노트 — Good◇ 아님(핵심 가드)
+    expect(judgments[2].grade).toBe(JudgmentGrade.PERFECT);   // 구간2 첫 노트 — 구간 독립
+    expect(judgments[3].grade).toBe(JudgmentGrade.GOOD_TRILL); // 구간2 같은 키 연속
   });
 });
 
@@ -1253,6 +1575,28 @@ describe("헤드 있는 롱노트는 헤드만 흡수해 더블/직후 포인트
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(true);
     expect(judgments.some((j) => j.noteIndex === 2)).toBe(false);
   });
+
+  it("헤드 keydown이 헤드를 판정하고 그 홀드로 바디가 시작돼 끝점까지 완주 — 헤드+끝 정확히 2판정", () => {
+    // 헤드있는 롱의 전체 수명: 바디(idx0)는 입력 후보에서 빠지고 헤드(idx1) keydown이 판정을 대표하되,
+    // 그 홀드가 바디 시작(hasBeenPressed)을 수락시켜 끝점 종결까지 이어져야 한다. 기존 1529는 시작 직후만 봄.
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(8, 1)), // idx0 바디 1000~3000
+      makeSingleNote(lane, beat(0, 1)),           // idx1 헤드 1000
+    ];
+    const noteTimesMs = new Map([[0, 1000], [1, 1000]]);
+    const noteEndTimesMs = new Map([[0, 3000]]);
+    const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
+
+    engine.onLanePress(lane, 1000, "KeyA");   // 헤드 판정 + 홀드 시작
+    engine.update(1000);                      // 바디 활성화 + 시작 수락(isHeld)
+    engine.update(3000);                      // 끝점 도달, 키 유지 → 릴리즈 대기
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 끝점 종결
+
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // 헤드
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // 바디/끝
+    expect(judgments).toHaveLength(2); // 헤드 + 끝, 바디 keydown 중복 판정 없음
+  });
 });
 
 describe("헤드 없는 더블 롱노트 2키 흡수 (RFD 0006)", () => {
@@ -1472,6 +1816,38 @@ describe("더블롱(일반) 끝점 키별 2판정 (목표 — 스펙 §146 / 분
     const dl = dlOf(judgments);
     expect(dl.length).toBe(2);
     expect(dl.every((j) => j.grade === JudgmentGrade.MISS)).toBe(true);
+  });
+
+  it("길이 < Good 윈도우인 짧은 더블롱을 1키만 유지해도 유지 키는 Perfect (미입력만 Miss)", () => {
+    // 길이 50ms(<120) doubleLong. 끝점 −Good 구간이 시작과 겹쳐 checkDoubleLongKeyHold(__missing__ 생성)가
+    // 스킵되지만, 끝점 판정이 실제 held 키로 추적을 재구성해야 한다 (스펙: 1키 유지 시 그 키 Perfect — 병렬 판정).
+    const notes = [makeDoubleLong(lane, beat(0, 1), beat(1, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000]]), new Map([[0, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyB 미입력
+    engine.update(1000);
+    engine.update(1050);
+    engine.onLaneRelease(lane, 1050, "KeyA");
+    engine.update(1100);
+    const dl = dlOf(judgments);
+    expect(dl.length).toBe(2); // count 불변
+    expect(dl.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 유지한 KeyA
+    expect(dl.some((j) => j.grade === JudgmentGrade.MISS)).toBe(true); // 미입력 KeyB
+  });
+
+  it("짧은 더블롱 1키 유지 — 유지 키를 끝점 update보다 먼저 놓아도 유지 키 Perfect (keyup primary 재구성)", () => {
+    // P3는 재구성을 update 폴백에만 넣었다. 라이브 keyup은 rAF update와 비동기라, 유지 키의 release가
+    // 끝점을 넘는 update 프레임보다 먼저 도착하면(짧은 더블롱은 dl 미생성) keyup 경로가 !dl로 빠지고,
+    // 다음 update는 heldKeys가 이미 비어 두 키 모두 Miss로 샜다(P3의 거울상 빈틈). keyup에서도 재구성해야 한다.
+    const notes = [makeDoubleLong(lane, beat(0, 1), beat(1, 1))]; // 길이 50ms(<120)
+    const { engine, judgments } = setup(notes, new Map([[0, 1000]]), new Map([[0, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyB 미입력
+    engine.update(1000);
+    // ★ 끝점(1050)을 넘는 update 없이 ★ 유지 키를 놓는다 → keyup이 primary로 종결해야 한다.
+    engine.onLaneRelease(lane, 1050, "KeyA");
+    const dl = dlOf(judgments);
+    expect(dl.length).toBe(2); // 유지 키 Perfect + 미입력 키 Miss
+    expect(dl.some((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 유지한 KeyA
+    expect(dl.some((j) => j.grade === JudgmentGrade.MISS)).toBe(true); // 미입력 KeyB
   });
 });
 
@@ -1708,5 +2084,178 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     engine.update(2000); // A held Perfect → 유지 키(KeyA) 공릴리즈
     engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B로 새면 안 됨
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+  });
+
+  it("hold-only 완료 키를 안 떼고 이어서 .- 롱을 유지하면, 그 롱 끝 release로 정상 종결된다 (RFD 0012)", () => {
+    // L1: hold-only A[1000~2000], 갭, 헤드없는 롱 B[2500~3000] (비연결). KeyA로 쭉 유지.
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyA로 A 잡기 — 이후 안 뗌
+    engine.update(1000); // A BODY_ACTIVE
+    engine.update(2000); // A held Perfect → KeyA 공릴리즈 도장
+    engine.update(2500); // B BODY_ACTIVE (KeyA pre-held로 유지 시작) → 도장 회수돼야 함
+    engine.update(3000); // B 끝점 → BODY_AWAITING_RELEASE
+    engine.onLaneRelease(lane, 3005, "KeyA"); // B 종결 시도
+    engine.update(3200); // 미종결이면 타임아웃 확정
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("A 끝점과 B 바디 시작이 한 프레임에 겹쳐도 B는 정상 종결된다 (RFD 0012 프레임 독립성)", () => {
+    // 좁은 갭: A[1000~2000], B[2016~3000]. [2000,2016) 사이에 프레임이 안 떨어지면
+    // 한 프레임(2016)이 A 끝점 완료(부여)와 B 바디 시작(회수)을 함께 덮는다 — 30fps 흔들림급.
+    const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2016]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA"); // KeyA로 A 잡기 — 이후 안 뗌
+    engine.update(1000); // A 유지 시작 (시작 윈도우 내)
+    engine.update(1983); // A 유지 중 (끝점 전 마지막 프레임)
+    engine.update(2016); // ★한 프레임★: A 끝점 완료(부여) + B 바디 시작(회수) 동시
+    engine.update(3000); // B 끝점 → AWAITING
+    engine.onLaneRelease(lane, 3005, "KeyA"); // B 종결 시도
+    engine.update(3200);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("AWAITING_RELEASE 롱을 같은 키로 유지 중 직후 슬라이드가 완료돼도 그 롱의 지각 종결이 막히지 않는다 (RFD 0012 거울상)", () => {
+    // B: 일반 롱 [1000~2000], S: 슬라이드 2050. KeyA로 B 유지 → 2000 AWAITING → S pre-held Perfect → KeyA 2060에 뗌(B 지각 종결 +60)
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
+    const t = new Map([[0, 1000], [1, 2050]]);
+    const e = new Map([[0, 2000], [1, 2050]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000); // B BODY_ACTIVE
+    engine.update(2000); // B 끝점 → AWAITING (KeyA held)
+    engine.update(2050); // S 슬라이드 held Perfect → markEmptyRelease (스캔이 AWAITING인 B를 봐야 함)
+    engine.onLaneRelease(lane, 2060, "KeyA"); // B 지각 종결 (delta +60, 윈도우 내)
+    engine.update(2200); // 미종결이면 타임아웃 확정
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // B 종결(지각 상향)
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // S도 Perfect
+  });
+
+  it("AWAITING 롱이 keyup이 아니라 타임아웃으로 죽은 뒤의 놓기 keyup은 직후 슬라이드로 새지 않는다 (RFD 0012 타임아웃 분기)", () => {
+    // B 일반 롱[1000~2000], S1 슬라이드 2050(B AWAITING이라 도장 스킵), S2 슬라이드 2250.
+    // B는 keyup 없이 타임아웃(2160)으로 Miss. 그 뒤 2200 놓기 keyup이 S2로 새면 안 됨.
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(8, 1)),
+      slide(beat(9, 1)),
+      slide(beat(11, 1)),
+    ];
+    const t = new Map([[0, 1000], [1, 2050], [2, 2250]]);
+    const e = new Map([[0, 2000], [1, 2050], [2, 2250]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000); // B BODY_ACTIVE
+    engine.update(2000); // B 끝점 → AWAITING
+    engine.update(2050); // S1 슬라이드 완료 → 도장 스킵(B AWAITING이 load-bearing)
+    engine.update(2170); // B 타임아웃(>2160) → Miss, COMPLETE (keyup 아님!)
+    engine.onLaneRelease(lane, 2200, "KeyA"); // 놓기 keyup — S2로 새면 안 됨
+    engine.update(2400);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS); // B는 타임아웃 Miss
+    // 놓기가 막혀 S2는 미리-떼기 Perfect를 못 받고 타임아웃 Miss. 공짜 Perfect 누설이면 여기서 실패.
+    expect(judgments.find((j) => j.noteIndex === 2)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("hold-only 더블롱을 2키로 유지 완료 후 안 떼고 이어서 더블롱 B 유지, 분할 릴리즈로 B 양쪽 정상 종결 (RFD 0012 doubleLong)", () => {
+    // A: hold-only 더블롱[1000~2000](KeyA+KeyB 유지), 갭, 일반 더블롱 B[2500~3000]. 2키 계속 유지 후 B 끝에서 분할 릴리즈.
+    // doubleLong의 keyup 종결 분기(tryEndpointJudgmentOnRelease)는 isEmptyRelease 도장 가드 뒤에 있어
+    // 도장에 막힐 수 있다. 그래도 등급이 보존되는 근거는 "이중화": updateDoubleLongKeyRelease가 가드보다
+    // 앞에서 lastReleaseTimeMs를 무조건 기록하고, update 폴백(judgeDoubleLongEndpoint)이 그 시각으로 같은
+    // 등급을 재판정한다(막힌 경우 emit만 끝점 이후 첫 update 프레임으로 지연). 회수/부여 조건화 유무와
+    // 무관하게 등급 결과가 동일함(결과 면역)을 이 테스트가 잠근다 — 폴백의 released-키 재판정을 없애면 깨진다.
+    const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
+    const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // A 2키 유지 시작
+    engine.update(2000); // A held 완료
+    engine.update(2500); // B BODY_ACTIVE, 2키 pre-held로 유지 시작
+    engine.update(3000); // B 끝점
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 3010, "KeyB"); // 분할 릴리즈 2
+    engine.update(3200);
+    const dl = judgments.filter((j) => j.noteIndex === 1);
+    expect(dl.length).toBe(2); // 키별 2판정
+    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true); // 양쪽 다 정상 종결(keyup 즉시든 폴백이든 등급 동일)
+  });
+
+  it("doubleLong 종결이 keyup 시점에 즉시 emit된다 — 회수가 primary, 폴백으로 지연되면 회귀 (RFD 0012 doubleLong 타이밍)", () => {
+    // 위 테스트와 같은 차트지만 추가 update 없이 keyup 직후 판정을 확인한다.
+    // 회수 정상: keyup을 tryEndpoint가 즉시 판정 → 2판정. 회수 깨짐: 도장 잔류로 keyup 막힘 →
+    // 폴백(judgeDoubleLongEndpoint)이 다음 update로 emit 지연 → 이 시점엔 0판정 → 단언 실패(silent→loud).
+    // "결과 면역"의 primary 담지자(회수)를 못박아, 회수 회귀를 폴백이 조용히 가리는 것을 막는다.
+    const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
+    const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
+    const t = new Map([[0, 1000], [1, 2500]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010);
+    engine.update(2000);
+    engine.update(2500);
+    engine.update(3000); // B 끝점 (2키 유지 중 → release 대기)
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 3010, "KeyB"); // 분할 릴리즈 2
+    // ★ 추가 update 없이 ★ keyup 직후 이미 2판정이어야 한다 (회수 primary). 폴백 지연이면 여기서 0.
+    const dl = judgments.filter((j) => j.noteIndex === 1);
+    expect(dl.length).toBe(2);
+    expect(dl.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+});
+
+describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 4판정 (note-system §분할 릴리즈)", () => {
+  const lane: Lane = 1;
+  const DOUBLE = (b: Beat): NoteEntity => ({ type: NoteType.DOUBLE, lane, beat: b } as NoteEntity);
+  const DLONG = (b: Beat, endBeat: Beat): NoteEntity =>
+    ({ type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity);
+
+  it("헤드 DOUBLE(같은 beat) + 바디 DOUBLE_LONG을 2키로 치고 분할 릴리즈 → 헤드 2 + 바디 2 = 4판정", () => {
+    // idx0 = 헤드 더블(1000), idx1 = 바디 더블롱[1000~2000]. 헤드는 keydown 흡수해 판정, 바디는 held 독립 추적.
+    const notes = [DOUBLE(beat(0, 1)), DLONG(beat(0, 1), beat(8, 1))];
+    const t = new Map([[0, 1000], [1, 1000]]);
+    const e = new Map([[0, 1000], [1, 2000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // 바디 2키 추적
+    engine.update(2000); // 끝점
+    engine.onLaneRelease(lane, 2000, "KeyA"); // 분할 릴리즈 1
+    engine.onLaneRelease(lane, 2010, "KeyB"); // 분할 릴리즈 2
+    engine.update(2100);
+    const head = judgments.filter((j) => j.noteIndex === 0);
+    const body = judgments.filter((j) => j.noteIndex === 1);
+    expect(head.length).toBe(2); // 헤드 더블: 독립 싱글 × 2
+    expect(body.length).toBe(2); // 바디 더블롱: 키별 종결 × 2
+    expect(judgments.length).toBe(4); // 총 4판정 (스펙 §분할 릴리즈)
+    expect([...head, ...body].every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+});
+
+describe("연결 doubleLong 끝점 판정 (P2)", () => {
+  const lane: Lane = 1;
+  const DLONG = (b: Beat, endBeat: Beat): NoteEntity =>
+    ({ type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity);
+
+  it("더블롱 A가 더블롱 B로 연결(끝=시작 맞닿음), 2키 계속 유지 → A 연결 Perfect×2", () => {
+    // A[1000,2000] 끝 = B[2000,3000] 시작 → 자동 연결. 연결 끝점은 held/grace로만 판정하며
+    // tryEndpoint의 도장 가드·lastReleaseTimeMs를 아예 타지 않아 도장 carryover에 구조적으로 완전 면역
+    // (general doubleLong의 회수/폴백 이중화와 달리 회수 유무와 무관 — 토글로 실측). 이 테스트는 연결 등급을 잠근다.
+    const notes = [DLONG(beat(0, 1), beat(8, 1)), DLONG(beat(8, 1), beat(16, 1))];
+    const t = new Map([[0, 1000], [1, 2000]]);
+    const e = new Map([[0, 2000], [1, 3000]]);
+    const { engine, judgments } = setup(notes, t, e);
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1005, "KeyB");
+    engine.update(1010); // A 2키 추적
+    engine.update(2000); // A 끝점=B 시작 → A 연결 판정 (held → Perfect×2)
+    const a = judgments.filter((j) => j.noteIndex === 0);
+    expect(a.length).toBe(2); // 키별 2판정
+    expect(a.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
   });
 });
