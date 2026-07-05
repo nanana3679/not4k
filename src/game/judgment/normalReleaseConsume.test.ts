@@ -1,9 +1,9 @@
 /**
- * RFD 0011 — 일반 롱노트 종결 release의 직후 슬라이드 누설 차단 (release 소비).
+ * release 소비 — 한 keyup은 같은 레인의 가장 이른 release-대상 하나에 소비된다.
  *
- * 한 keyup은 자신이 정당히 판정한 첫 release-대상(끝점 종결)에 소비되고,
- * 같은 레인의 직후 release-대상(슬라이드 미리-떼기)으로 번지지 않는다.
- * 공릴리즈(RFD 0008, hold-only 완료 잉여)와 함께 같은 가드를 공유한다.
+ * RFD 0011의 소비를 RFD 0015가 R2(release-대상 전반)로 일반화·승계했다.
+ * 소비된 keyup은 직후 release-대상(슬라이드 미리-떼기)으로 번지지 않고,
+ * 소비되지 않은 놓기 keyup은 도장 없이 살아있는 이벤트로 남는다 (§7-3 관대).
  */
 import { describe, it, expect, vi } from "vitest";
 import { JudgmentEngine } from "./JudgmentEngine";
@@ -62,16 +62,16 @@ describe("RFD 0011 일반 롱노트 종결 release의 슬라이드 누설 차단
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
   });
 
-  it("대조군: hold-only 완료 후 놓기도 공릴리즈로 여전히 보호된다 (RFD 0008 무영향)", () => {
+  it("[기대값 반전] hold-only 완료 후 놓기가 직후 슬라이드 윈도우 내면 슬라이드 Perfect (RFD 0015 §7-3 — 구 도장 차단)", () => {
     const notes = [makeLong(lane, true), makeSlide(lane, beat(5, 1))];
     const { engine, judgments } = setup(notes, new Map([[0, 0], [1, B_TIME]]), new Map([[0, A_END], [1, B_TIME]]));
 
     engine.onLanePress(lane, 0, "KeyA");
     engine.update(0);
-    engine.update(A_END); // hold-only held 완료 → markEmptyRelease
-    engine.onLaneRelease(lane, RELEASE, "KeyA");
+    engine.update(A_END); // hold-only held 완료 Perfect — keyup 소비 없음(도장도 없음)
+    engine.onLaneRelease(lane, RELEASE, "KeyA"); // 놓기 — B 윈도우 [930, 1050) 안 → B를 살린다
 
-    expect(judgments.find((j) => j.noteIndex === 1)).toBeUndefined();
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
   it("보존: 선행 종결이 없는 고립 슬라이드의 미리-떼기는 그대로 Perfect", () => {

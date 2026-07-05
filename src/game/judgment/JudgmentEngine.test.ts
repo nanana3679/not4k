@@ -1631,7 +1631,7 @@ describe("o-o- 연결 — 끝점 헤드/스트레이 릴리즈에 강건 (releas
   });
 });
 
-describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 누설 방지 (RFD 0008)", () => {
+describe("hold-only 완료 후 놓기의 관대 재분류 — 놓기 keyup도 정당한 R2 이벤트 (RFD 0015 §7-3, 구 RFD 0008 도장 반전)", () => {
   const lane: Lane = 1;
 
   function holdOnlyLong(b: Beat, endBeat: Beat): NoteEntity {
@@ -1641,7 +1641,7 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     return { type: NoteType.LONG, lane, beat: b, endBeat: b, holdOnly: true } as NoteEntity;
   }
 
-  it("hold-only 롱노트를 유지 완료한 뒤 놓는 release가 직후 슬라이드로 누설되지 않는다", () => {
+  it("[기대값 반전] hold-only 완료 후 놓기 keyup이 직후 슬라이드 윈도우에 들어가면 슬라이드 Perfect (구: 도장 차단)", () => {
     // A: hold-only 롱 1000~2000, B: 슬라이드 2050
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
     const t = new Map([[0, 1000], [1, 2050]]);
@@ -1649,13 +1649,13 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A 끝점 held → Perfect + 락아웃(until 2120)
-    engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B의 미리-떼기로 새면 안 됨
+    engine.update(2000); // A 끝점 held → Perfect (도장 없음)
+    engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B 미리-떼기 윈도우 [1930, 2050) 안 → B를 살린다
     expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
-    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 슬라이드 B 미판정(보호)
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // §7-3 관대
   });
 
-  it("다른(fresh) 키로 슬라이드를 engage한 뒤 미리 떼면 정상 Perfect (공릴리즈 키와 무관)", () => {
+  it("놓기 keyup이 다음 슬라이드 윈도우 밖이면 무매칭 소멸 — 슬라이드는 자기 이벤트로 Perfect", () => {
     // A: hold-only 롱 1000~2000 (KeyA engage), C: 슬라이드 2300
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(12, 1))];
     const t = new Map([[0, 1000], [1, 2300]]);
@@ -1663,28 +1663,28 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A held Perfect → KeyA 공릴리즈
-    engine.onLaneRelease(lane, 2010, "KeyA"); // A 놓기(공릴리즈 키 해제)
+    engine.update(2000); // A held Perfect
+    engine.onLaneRelease(lane, 2010, "KeyA"); // A 놓기 — C 윈도우[2180,2300) 밖 → 무매칭
     engine.onLanePress(lane, 2250, "KeyB"); // C를 fresh 키로 engage
-    engine.onLaneRelease(lane, 2260, "KeyB"); // C 미리-떼기 윈도우[2180,2300) → 정상 Perfect
+    engine.onLaneRelease(lane, 2260, "KeyB"); // C 미리-떼기 윈도우 안 → Perfect
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("hold-only 완료 후 놓기 release가 직후 릴리즈 노트(길이0 일반)로 누설되지 않는다", () => {
-    // A: hold-only 롱 1000~2000 (KeyA), R: 릴리즈 노트 2050
+  it("[기대값 반전] hold-only → 릴리즈 노트를 한 손가락으로: 놓기 keyup이 릴리즈 노트 Perfect (0007 §7 차트 제한 해제)", () => {
+    // A: hold-only 롱 1000~2000 (KeyA), R: 릴리즈 노트 2050 — 한 손가락 플레이가 합법 패턴
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(9, 1), beat(9, 1))];
     const t = new Map([[0, 1000], [1, 2050]]);
     const e = new Map([[0, 2000], [1, 2050]]);
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA");
     engine.update(1000);
-    engine.update(2000); // A Perfect → KeyA 공릴리즈
+    engine.update(2000); // A held Perfect (도장 없음)
     engine.update(2055); // R → BODY_AWAITING_RELEASE
-    engine.onLaneRelease(lane, 2060, "KeyA"); // 놓기 — R로 새면 안 됨
-    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+    engine.onLaneRelease(lane, 2060, "KeyA"); // 놓기 — R 윈도우 내 → R Perfect
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("연결 체인(hold-only → 일반 롱)에서 끝까지 유지 후 release-tap이 공릴리즈에 막히지 않는다", () => {
+  it("연결 체인(hold-only → 일반 롱)에서 끝까지 유지 후 끝점 뗌이 L2 종결 Perfect", () => {
     // L1: hold-only 롱 1000~2000, L2: 일반 롱 2000~3000 (연결: L1 끝=L2 시작). 한 키로 쭉 유지.
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), makeLongNote(lane, beat(8, 1), beat(16, 1))];
     const t = new Map([[0, 1000], [1, 2000]]);
@@ -1692,21 +1692,208 @@ describe("release 공릴리즈 키 누설 차단 — held 완료 직후 놓기 �
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 1000, "KeyA"); // L1 engage, 쭉 유지
     engine.update(1000);
-    engine.update(2000); // L1 끝점 → L2와 연결(held Perfect). 연결은 공릴리즈 안 함
-    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 release-tap — 공릴리즈에 막히면 안 됨
+    engine.update(2000); // L1 끝점 → L2와 연결(held Perfect)
+    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 뗌 → R2 종결 Perfect
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("pre-held(흡수 윈도우 밖에서 미리 누른) hold-only 완료 후 놓기도 직후 슬라이드로 안 샌다", () => {
-    // KeyA를 흡수 윈도우 밖(800ms, 노트 1000 gate [880,1120])에 미리 누름 → 흡수 기록 없음(pre-held)
+  it("[기대값 반전] pre-held hold-only 완료 후 놓기도 직후 슬라이드 윈도우 내면 슬라이드 Perfect (§7-3)", () => {
+    // KeyA를 흡수 윈도우 밖(800ms)에 미리 누름 — 놓기 keyup은 의도 플레이와 물리적으로 동일한 이벤트
     const notes = [holdOnlyLong(beat(0, 1), beat(8, 1)), slide(beat(9, 1))];
     const t = new Map([[0, 1000], [1, 2050]]);
     const e = new Map([[0, 2000], [1, 2050]]);
     const { engine, judgments } = setup(notes, t, e);
     engine.onLanePress(lane, 800, "KeyA"); // pre-held (흡수 안 됨)
     engine.update(1000); // A BODY_ACTIVE (held로 진입)
-    engine.update(2000); // A held Perfect → 유지 키(KeyA) 공릴리즈
-    engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B로 새면 안 됨
-    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+    engine.update(2000); // A held Perfect (도장 없음)
+    engine.onLaneRelease(lane, 2010, "KeyA"); // 놓기 — B 미리-떼기 윈도우 안 → B Perfect
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
+
+describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Bad 폴딩 (RFD 0015)", () => {
+  const lane: Lane = 1;
+  const Lng = (b: Beat, eb: Beat) => makeLongNote(lane, b, eb);
+  const holdOnly = (b: Beat, eb: Beat) =>
+    ({ type: NoteType.LONG, lane, beat: b, endBeat: eb, holdOnly: true }) as NoteEntity;
+  const slide = (b: Beat) =>
+    ({ type: NoteType.LONG, lane, beat: b, endBeat: b, holdOnly: true }) as NoteEntity;
+
+  it("S1 변형: 끝점 +130ms까지 안 떼면 +120에 타임아웃 Miss (구: +130 뗌 = Bad)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // AWAITING (held)
+    engine.update(2125); // end+Good(2120) 초과 → 타임아웃 Miss
+    engine.onLaneRelease(lane, 2130, "KeyA"); // 늦은 뗌 — 이미 죽은 노트, 무매칭
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+    expect(judgments.some((j) => j.grade === JudgmentGrade.BAD)).toBe(false);
+  });
+
+  it("늦은 keyup(+130)이 타임아웃 update보다 먼저 도착해도 Bad 없이 타임아웃 Miss (async keyup vs rAF)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // AWAITING
+    engine.onLaneRelease(lane, 2130, "KeyA"); // 윈도우(±120) 밖 keyup → 무매칭 소멸
+    engine.update(2140); // 다음 프레임에서 타임아웃
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("끝점 절벽: -120ms 뗌 = Perfect (윈도우 경계 포함)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1500);
+    engine.onLaneRelease(lane, 1880, "KeyA"); // end-Good 정확히
+    expect(judgments[0]?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 절벽: -121ms 뗌 = Miss (유지 실패 — 현행 절벽 유지, 무악화)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1500);
+    engine.onLaneRelease(lane, 1879, "KeyA"); // 윈도우 1ms 밖 → 무매칭
+    engine.update(1885);
+    engine.update(2000); // 끝점: 뗀 시점(-121) 기준 → Miss
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("S2 이어잡기: KeyA→KeyB 스왑 후 끝점에 KeyB로 떼도 Perfect (이동 제스처 불필요)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.onLanePress(lane, 1495, "KeyB");
+    engine.onLaneRelease(lane, 1500, "KeyA"); // 스왑 — 레인은 KeyB로 계속 held
+    engine.update(1600);
+    engine.update(2000); // AWAITING
+    engine.onLaneRelease(lane, 2000, "KeyB");
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("o-o → 릴리즈 노트 R, 두 손가락: a↑로 롱 종결 + b↑로 R = 둘 다 Perfect (이벤트 2개 = 노트 2개)", () => {
+    const notes = [Lng(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(5, 1))]; // 롱 [1000,2000] + 릴리즈 노트 2050
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 2050]]), new Map([[0, 2000], [1, 2050]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.onLanePress(lane, 1500, "KeyB"); // 보조 손가락
+    engine.update(1990);
+    engine.onLaneRelease(lane, 2000, "KeyA"); // 롱 종결에 소비
+    engine.update(2055); // R → 종결 대기
+    engine.onLaneRelease(lane, 2060, "KeyB"); // R에 소비
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("RFD 0012 재현: hold-only → 안 떼고 헤드 없는 롱 이어 잡기 → 끝점 뗌 = 뒤 롱 Perfect (도장 잔류 문제 자체가 없음)", () => {
+    const notes = [holdOnly(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(12, 1))]; // A [1000,2000], B [2050,3000]
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 2050]]), new Map([[0, 2000], [1, 3000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // A held 완료 Perfect — 안 떼고 계속 유지
+    engine.update(2060); // B pre-held 진입
+    engine.update(2990);
+    engine.onLaneRelease(lane, 3000, "KeyA"); // 끝점 뗌
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("[기대값 반전] 타임아웃 Miss 후 놓기 → 직후 슬라이드 윈도우 내면 슬라이드 Perfect (죽은 롱은 Miss 그대로)", () => {
+    const notes = [Lng(beat(0, 1), beat(4, 1)), slide(beat(9, 1))]; // A [1000,2000], B 슬라이드 2200
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 2200]]), new Map([[0, 2000], [1, 2200]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // AWAITING
+    engine.update(2125); // 타임아웃 Miss (안 뗌)
+    engine.onLaneRelease(lane, 2150, "KeyA"); // 놓기 — B 윈도우 [2080, 2200) 안 → B Perfect
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("wrong-count: 2키로 싱글 롱을 시작해도 첫 윈도우 내 keyup으로 종결 Perfect (잉여 입력 패널티 없음)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1002, "KeyB"); // 잉여 키
+    engine.update(1005);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyB"); // 첫 윈도우 내 keyup — 아무 키든 종결
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    engine.onLaneRelease(lane, 2005, "KeyA"); // 남은 놓기 — 대상 없음, 무해
+    expect(judgments.length).toBe(1);
+  });
+
+  it("더블 헤드 + 싱글 롱: lane-held 유지 + 윈도우 내 아무 keyup → 롱 Perfect (권리 출생 질문 소멸)", () => {
+    const notes = [{ type: NoteType.DOUBLE, lane, beat: beat(0, 1) } as NoteEntity, Lng(beat(0, 1), beat(4, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1000]]), new Map([[1, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // 더블 헤드 1
+    engine.onLanePress(lane, 1003, "KeyB"); // 더블 헤드 2
+    engine.update(1005);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyB"); // 아무 keyup으로 종결
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("슬립 복구: 윈도우 밖 뗌(-700) → grace 내 재잡기 → 끝점 뗌 = Perfect (우선순위 사다리 불필요)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1300, "KeyA"); // 슬립 — 끝점 윈도우 밖, 무매칭 소멸
+    engine.onLanePress(lane, 1305, "KeyA"); // grace(12ms) 내 재잡기
+    engine.update(1310);
+    engine.update(2000); // AWAITING
+    engine.onLaneRelease(lane, 2000, "KeyA");
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("탭 직후 릴리즈 노트 a-a, 윈도우 내(+80) 가로채기 = Perfect (무해 — 하향 경로 없음)", () => {
+    const notes = [makeSingleNote(lane, beat(0, 1)), Lng(beat(1, 4), beat(1, 4))]; // 포인트 1000, 릴리즈 노트 1050
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1050]]), new Map([[1, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA"); // 포인트 Perfect
+    engine.update(1055); // R → 종결 대기
+    engine.onLaneRelease(lane, 1130, "KeyA"); // 같은 키 keyup이 R 윈도우 내 → Perfect
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("탭 직후 릴리즈 노트 a-a, 윈도우 밖(+130) keyup = 타임아웃 Miss (구 모델의 +130 BAD 가로채기 소멸)", () => {
+    const notes = [makeSingleNote(lane, beat(0, 1)), Lng(beat(1, 4), beat(1, 4))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1050]]), new Map([[1, 1050]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1055);
+    engine.onLaneRelease(lane, 1180, "KeyA"); // R 윈도우(1050±120) 밖 → 무매칭
+    engine.update(1185); // 타임아웃 Miss
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+    expect(judgments.some((j) => j.grade === JudgmentGrade.BAD)).toBe(false);
+  });
+
+  it("슬라이드 미리-떼기: 부분 릴리즈(다른 키 유지 중)여도 keyup 시점에 Perfect (완전 릴리즈 게이트 폐지)", () => {
+    const { engine, judgments } = setup([slide(beat(0, 1))], new Map([[0, 1000]]), new Map([[0, 1000]]));
+    engine.onLanePress(lane, 900, "KeyA");
+    engine.onLanePress(lane, 905, "KeyB");
+    engine.onLaneRelease(lane, 950, "KeyA"); // KeyB는 아직 held — 구 게이트라면 미발화
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments[0].deltaMs).toBe(-50);
+    engine.update(1000); // 이미 COMPLETE — 중복 판정 없음
+    expect(judgments.length).toBe(1);
+  });
+
+  it("keyup 1개가 두 슬라이드(1000, 1040) 윈도우에 걸리면 가장 이른 것 하나만 소비, 나머지는 굶어 Miss (이벤트 회계)", () => {
+    const notes = [slide(beat(0, 1)), slide(beat(1, 8))]; // 1000, 1040
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1040]]), new Map([[0, 1000], [1, 1040]]));
+    engine.onLanePress(lane, 900, "KeyA");
+    engine.onLaneRelease(lane, 950, "KeyA"); // 양 윈도우 [880,1000)·[920,1040)에 모두 걸림
+    expect(judgments.length).toBe(1);
+    expect(judgments[0].noteIndex).toBe(0);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+    engine.update(1170); // 둘째 슬라이드는 자기 이벤트 부재 → 타임아웃 Miss
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
   });
 });
