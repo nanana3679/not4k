@@ -1317,16 +1317,6 @@ export class GameRenderer {
     this.eventMessageText.text = activeText;
   }
 
-  /** 현재 시간이 auto 구간 내인지 반환 */
-  isAutoSection(songTimeMs: number): boolean {
-    for (const evt of this.autoEvents) {
-      if (songTimeMs >= evt.startMs && songTimeMs <= evt.endMs) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void {
     this.judgmentUI.showJudgment(grade, deltaMs);
   }
