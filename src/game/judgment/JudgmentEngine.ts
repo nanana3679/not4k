@@ -668,7 +668,7 @@ export class JudgmentEngine {
    *
    * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
    *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
-   *  - 길이0 슬라이드: checkLengthZeroHoldOnly / checkSlideReleaseOnRelease
+   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 R2 매칭)
    *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup 종결 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
    * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재흡수해 다음 노트를 막는 것을
