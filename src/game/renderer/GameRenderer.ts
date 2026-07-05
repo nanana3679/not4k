@@ -21,7 +21,7 @@ import {
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
-import type { NoteDisplayEffect } from "./noteDisplayEffect";
+import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
   applyPerspectiveSurfaceJudgment,

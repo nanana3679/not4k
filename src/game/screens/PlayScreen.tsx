@@ -8,7 +8,7 @@ import { computeConnectionSources } from '../judgment/longNoteConnection';
 import { ScoreManager } from '../scoring';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
-import { noteDisplayEffect } from '../renderer/noteDisplayEffect';
+import { noteDisplayEffect } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';

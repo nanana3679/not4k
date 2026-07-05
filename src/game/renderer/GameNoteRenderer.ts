@@ -15,7 +15,7 @@ import {
 import type { NoteEntity } from "../../shared";
 import { isGraceNote, isHoldOnlyNote } from "../../shared";
 import type { SkinManager } from "../skin";
-import type { NoteDisplayEffect } from "./noteDisplayEffect";
+import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,

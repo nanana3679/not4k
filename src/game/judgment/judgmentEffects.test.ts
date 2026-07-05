@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { noteDisplayEffect } from "./noteDisplayEffect";
-import type { JudgmentResult } from "../judgment/JudgmentEngine";
+import { decideJudgmentEffects, noteDisplayEffect } from "./judgmentEffects";
+import type { JudgmentResult } from "./JudgmentEngine";
 import { JudgmentGrade, NoteType } from "../../shared/constants";
 import { beat } from "../../shared/types/beat";
 import type { NoteEntity } from "../../shared/types/chart";
@@ -63,5 +63,51 @@ describe("noteDisplayEffect", () => {
       body: null,
       visibility: "processed",
     });
+  });
+});
+
+describe("decideJudgmentEffects", () => {
+  it("비-miss 싱글(deltaMs=12) → 점수에 deltaMs 반영 + bomb 레인 1 + debug 기록", () => {
+    const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.GREAT, deltaMs: 12 }), single);
+    expect(fx.noteIndex).toBe(0);
+    expect(fx.scoreRecord).toEqual({ grade: JudgmentGrade.GREAT, deltaMs: 12 });
+    expect(fx.judgmentText).toEqual({ grade: JudgmentGrade.GREAT, deltaMs: 12 });
+    expect(fx.bomb).toBe(1);
+    expect(fx.noteDisplay).toEqual({ body: null, visibility: "processed" });
+    expect(fx.debug).toEqual({
+      grade: JudgmentGrade.GREAT,
+      deltaMs: 12,
+      doubleSubIndex: undefined,
+    });
+  });
+
+  it("비-miss 롱노트 바디 → 점수에서 deltaMs 생략, 표시(judgmentText)에는 유지, debug 없음", () => {
+    const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.PERFECT, deltaMs: 5 }), long);
+    expect(fx.scoreRecord).toEqual({ grade: JudgmentGrade.PERFECT });
+    expect(fx.judgmentText).toEqual({ grade: JudgmentGrade.PERFECT, deltaMs: 5 });
+    expect(fx.bomb).toBe(1);
+    expect(fx.debug).toBeNull();
+  });
+
+  it("miss 싱글 → bomb 없음 + 미스 표시 + 바디 실패 표시", () => {
+    const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.MISS }), single);
+    expect(fx.bomb).toBeNull();
+    expect(fx.noteDisplay).toEqual({ body: "failed", visibility: "missed" });
+  });
+
+  it("더블 롱노트 부분 실패(right) → bomb 없음 + 부분실패 표시 + 가시성 변화 없음 + 점수는 miss(deltaMs 생략)", () => {
+    const fx = decideJudgmentEffects(
+      result({ grade: JudgmentGrade.MISS, isPartialBodyFail: true, failedSide: "right" }),
+      long,
+    );
+    expect(fx.bomb).toBeNull();
+    expect(fx.scoreRecord).toEqual({ grade: JudgmentGrade.MISS });
+    expect(fx.noteDisplay).toEqual({ body: { partialFailed: "right" }, visibility: "unchanged" });
+  });
+
+  it("더블 노트 첫 입력(subIndex 0) → debug에 doubleSubIndex 0 운반 + 더블 부분 표시", () => {
+    const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.PERFECT, subIndex: 0 }), double);
+    expect(fx.debug?.doubleSubIndex).toBe(0);
+    expect(fx.noteDisplay.visibility).toBe("doublePartial");
   });
 });
