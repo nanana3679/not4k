@@ -53,7 +53,7 @@ function makeAdapter(input: { songFiles?: string[] } = {}) {
       removes.push(paths);
     },
     upsertChartRow: async (row) => {
-      calls.push(`upsert:${row.song_id}:${row.difficulty_label}`);
+      calls.push(`upsert:${row.songId}:${row.difficulty}`);
       upserts.push(row);
     },
     deleteChartRow: async (target) => {
@@ -94,10 +94,10 @@ describe("saveChartAsset", () => {
     expect(JSON.parse(fake.uploads[0].content).meta.difficultyLevel).toBe(13);
     expect(fake.removes).toEqual([["songs/song-one/hard.extra.json"]]);
     expect(fake.upserts).toEqual([{
-      song_id: "song-one",
-      difficulty_label: "hard",
-      difficulty_level: 13,
-      offset_ms: -12,
+      songId: "song-one",
+      difficulty: "hard",
+      difficultyLevel: 13,
+      offsetMs: -12,
     }]);
     expect(result).toMatchObject({
       chartPath: "songs/song-one/hard.json",
@@ -146,10 +146,10 @@ describe("createChartAsset", () => {
     expect(fake.uploads.map((upload) => upload.path)).toEqual(["songs/song-three/normal.json"]);
     expect(fake.removes).toEqual([]);
     expect(fake.upserts).toEqual([{
-      song_id: "song-three",
-      difficulty_label: "normal",
-      difficulty_level: 5,
-      offset_ms: 34,
+      songId: "song-three",
+      difficulty: "normal",
+      difficultyLevel: 5,
+      offsetMs: 34,
     }]);
   });
 });

@@ -15,6 +15,7 @@ import {
 import type { NoteEntity } from "../../shared";
 import { isGraceNote, isHoldOnlyNote } from "../../shared";
 import type { SkinManager } from "../skin";
+import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -309,26 +310,32 @@ export class GameNoteRenderer {
 
   // ── 노트 상태 마킹 ────────────────────────────────────────
 
-  markBodyFailed(noteIndex: number): void {
-    this.failedBodies.add(noteIndex);
-  }
+  /**
+   * 판정 결과에서 유도된 표시 상태(`noteDisplayEffect`)를 노트별 캐시에 적용한다.
+   * 이전의 5개 mark* 를 대체 — "무엇을 켤지" 결정은 순수 함수가, 적용·저장은 여기가 담당.
+   */
+  applyNoteDisplayEffect(noteIndex: number, effect: NoteDisplayEffect): void {
+    if (effect.body === 'failed') {
+      this.failedBodies.add(noteIndex);
+    } else if (effect.body) {
+      this.partialFailedBodies.set(noteIndex, effect.body.partialFailed);
+    }
 
-  markBodyPartialFailed(noteIndex: number, side: 'left' | 'right'): void {
-    this.partialFailedBodies.set(noteIndex, side);
-  }
-
-  markNoteProcessed(noteIndex: number): void {
-    this.completedNotes.add(noteIndex);
-    this.doublePartialNotes.delete(noteIndex);
-  }
-
-  markDoublePartial(noteIndex: number): void {
-    this.doublePartialNotes.add(noteIndex);
-  }
-
-  markNoteMissed(noteIndex: number): void {
-    this.missedNotes.add(noteIndex);
-    this.failedBodies.add(noteIndex);
+    switch (effect.visibility) {
+      case 'processed':
+        this.completedNotes.add(noteIndex);
+        this.doublePartialNotes.delete(noteIndex);
+        break;
+      case 'missed':
+        this.missedNotes.add(noteIndex);
+        this.failedBodies.add(noteIndex);
+        break;
+      case 'doublePartial':
+        this.doublePartialNotes.add(noteIndex);
+        break;
+      case 'unchanged':
+        break;
+    }
   }
 
   // ── 풀/상태 초기화 ────────────────────────────────────────

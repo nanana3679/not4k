@@ -177,11 +177,40 @@ export interface StopEvent {
   editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
+/** 튜토리얼 입력 시연 — 키를 누르는 시점부터 떼는 시점까지의 구간 */
+export interface TutorialInputEvent {
+  type: "tutorialInput";
+  beat: Beat;
+  endBeat: Beat;
+  lane: Lane;
+  keyCode: string;
+  keyLabel?: string;
+  editorLane?: number; // editor-only: extra lane position (1-based)
+}
+
+/** 튜토리얼 도식 — 미니 재생기 위에 노트 에셋 설명 패턴을 표시하는 구간 */
+export type TutorialDiagramId = "connected-switch" | "connected-overlap";
+
+export interface TutorialDiagramEvent {
+  type: "tutorialDiagram";
+  beat: Beat;
+  endBeat: Beat;
+  diagramId: TutorialDiagramId;
+  editorLane?: number; // editor-only: extra lane position (1-based)
+}
+
 /** 차트 이벤트 유니온 */
-export type ChartEvent = BpmEvent | TimeSignatureEvent | TextEvent | AutoEvent | StopEvent;
+export type ChartEvent =
+  | BpmEvent
+  | TimeSignatureEvent
+  | TextEvent
+  | AutoEvent
+  | StopEvent
+  | TutorialInputEvent
+  | TutorialDiagramEvent;
 
 /** 구간 이벤트 (beat + endBeat를 가지는 이벤트) */
-export type RangeEvent = TextEvent | AutoEvent | StopEvent;
+export type RangeEvent = TextEvent | AutoEvent | StopEvent | TutorialInputEvent | TutorialDiagramEvent;
 
 /**
  * @deprecated 하위호환용 — ChartEvent를 사용할 것

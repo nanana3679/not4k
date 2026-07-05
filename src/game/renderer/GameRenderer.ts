@@ -21,6 +21,7 @@ import {
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer } from "./GameNoteRenderer";
+import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
   applyPerspectiveSurfaceJudgment,
@@ -53,6 +54,10 @@ export interface GameRendererOptions {
   height: number;
   resolution?: number;
   skinManager: SkinManager;
+  showGearFrame?: boolean;
+  showPerspectiveSurface?: boolean;
+  showComboAndAccuracy?: boolean;
+  judgmentLineOffset?: number;
 }
 
 interface NoteRenderData {
@@ -173,6 +178,10 @@ export class GameRenderer {
 
   private resolution: number;
   private laneAreaX: number;
+  private showGearFrame: boolean;
+  private showPerspectiveSurface: boolean;
+  private showComboAndAccuracy: boolean;
+  private judgmentLineOffset: number;
 
   // Sub-renderers
   private judgmentUI!: JudgmentUI;
@@ -184,8 +193,12 @@ export class GameRenderer {
     this.height = options.height;
     this.resolution = options.resolution ?? 1;
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
-    this._judgmentLineY = options.height - JUDGMENT_LINE_OFFSET;
+    this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
+    this._judgmentLineY = options.height - this.judgmentLineOffset;
     this.skinManager = options.skinManager;
+    this.showGearFrame = options.showGearFrame ?? true;
+    this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
+    this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
 
     this.app = new Application();
 
@@ -218,6 +231,7 @@ export class GameRenderer {
     this.comboText.alpha = 0.5;
     this.comboText.x = this.width / 2;
     this.comboText.y = this._judgmentLineY - 280;
+    this.comboText.visible = this.showComboAndAccuracy;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "'Zen Dots'",
@@ -230,6 +244,7 @@ export class GameRenderer {
     this.accuracyText.alpha = 0.5;
     this.accuracyText.x = this.width / 2;
     this.accuracyText.y = this._judgmentLineY - 180;
+    this.accuracyText.visible = this.showComboAndAccuracy;
 
     // Event message text (right side)
     const msgStyle = new TextStyle({
@@ -254,6 +269,7 @@ export class GameRenderer {
       width: this.width,
       height: this.height,
       resolution: this.resolution,
+      autoStart: false,
       backgroundColor: this.skinManager.getTheme().bg,
     });
 
@@ -298,7 +314,9 @@ export class GameRenderer {
     this.drawMask();
     this.buildKeyBeams();
     this.buildButtons();
-    this.buildGearFrame();
+    if (this.showGearFrame) {
+      this.buildGearFrame();
+    }
     this.initialized = true;
   }
 
@@ -690,7 +708,7 @@ export class GameRenderer {
           `  GEAR_INNER_LEFT = ${Math.round(GameRenderer.GEAR_INNER_LEFT - this.gearOffsetX / s)}\n` +
           `  GEAR_INNER_TOP = ${Math.round(GameRenderer.GEAR_INNER_TOP - this.gearOffsetY / s)}\n` +
           `  GEAR_INNER_WIDTH = ${this.gearScaleOverride ? Math.round(LANE_AREA_WIDTH / this.gearScaleOverride) : GameRenderer.GEAR_INNER_WIDTH}\n` +
-          `  JUDGMENT_LINE_OFFSET = ${JUDGMENT_LINE_OFFSET + this.judgmentLineAdjust}\n` +
+          `  JUDGMENT_LINE_OFFSET = ${this.judgmentLineOffset + this.judgmentLineAdjust}\n` +
           `  offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${s.toFixed(4)}  judgmentLineAdjust: ${this.judgmentLineAdjust}`
         );
         break;
@@ -858,7 +876,7 @@ export class GameRenderer {
       }
     } else {
       const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
-      const jlOffset = JUDGMENT_LINE_OFFSET + this.judgmentLineAdjust;
+      const jlOffset = this.judgmentLineOffset + this.judgmentLineAdjust;
       this.gearAdjustText.text =
         `[Gear Adjust] G:close  K:switch to keyboard  Arrows:move  +/-:scale  PgUp/Dn:judgmentLine  Shift:fine  0:reset  Enter:export\n` +
         `offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${scale.toFixed(4)}  JUDGMENT_LINE_OFFSET: ${jlOffset}`;
@@ -1181,7 +1199,9 @@ export class GameRenderer {
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     this.judgmentUI.updateFade(deltaMs);
-    this.renderPerspectiveSurface(songTimeMs, deltaMs);
+    if (this.showPerspectiveSurface) {
+      this.renderPerspectiveSurface(songTimeMs, deltaMs);
+    }
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1216,6 +1236,7 @@ export class GameRenderer {
 
     // Render active text events on the right side
     this.renderTextEvents(songTimeMs);
+    this.app.render();
   }
 
   recordPerspectiveSurfaceJudgment(grade: JudgmentGrade): void {
@@ -1296,16 +1317,6 @@ export class GameRenderer {
     this.eventMessageText.text = activeText;
   }
 
-  /** 현재 시간이 auto 구간 내인지 반환 */
-  isAutoSection(songTimeMs: number): boolean {
-    for (const evt of this.autoEvents) {
-      if (songTimeMs >= evt.startMs && songTimeMs <= evt.endMs) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void {
     this.judgmentUI.showJudgment(grade, deltaMs);
   }
@@ -1365,7 +1376,7 @@ export class GameRenderer {
   }
 
   setLift(y: number): void {
-    this._judgmentLineY = this.height - JUDGMENT_LINE_OFFSET - y;
+    this._judgmentLineY = this.height - this.judgmentLineOffset - y;
     this.drawJudgmentLine();
     this.drawMask();
     this.comboText.y = this._judgmentLineY - 280;
@@ -1409,32 +1420,15 @@ export class GameRenderer {
     if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
   }
 
-  markBodyFailed(noteIndex: number): void {
-    this.noteRenderer.markBodyFailed(noteIndex);
-  }
-
-  markBodyPartialFailed(noteIndex: number, side: 'left' | 'right'): void {
-    this.noteRenderer.markBodyPartialFailed(noteIndex, side);
-  }
-
-  markNoteProcessed(noteIndex: number): void {
-    this.noteRenderer.markNoteProcessed(noteIndex);
-  }
-
-  markDoublePartial(noteIndex: number): void {
-    this.noteRenderer.markDoublePartial(noteIndex);
-  }
-
-  markNoteMissed(noteIndex: number): void {
-    this.noteRenderer.markNoteMissed(noteIndex);
+  applyNoteDisplayEffect(noteIndex: number, effect: NoteDisplayEffect): void {
+    this.noteRenderer.applyNoteDisplayEffect(noteIndex, effect);
   }
 
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
-    this.app.destroy(true, { children: true, texture: true });
     this.noteRenderer.dispose();
-    this.judgmentUI.dispose();
+    this.app.destroy(true, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
     // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음

@@ -627,7 +627,7 @@
 
 ### ChartEvent 모델
 
-코드상 BPM 마커, 박자 마커, 메시지, auto, stop 이벤트는 **ChartEvent**라는 디스크리미네이티드 유니온 타입으로 구현되어 있다. 각 이벤트는 `type` 필드로 구분된다.
+코드상 BPM 마커, 박자 마커, 메시지, auto, stop, tutorial input, tutorial diagram 이벤트는 **ChartEvent**라는 디스크리미네이티드 유니온 타입으로 구현되어 있다. 각 이벤트는 `type` 필드로 구분된다.
 
 | type | 종류 | 고유 속성 | 설명 |
 |------|------|-----------|------|
@@ -636,10 +636,16 @@
 | `text` | 구간 | `text: string`, `endBeat: Beat` | 메시지 표시 (게임에서 화면 오른쪽에 표시) |
 | `auto` | 구간 | `endBeat: Beat` | 자동 연주 구간 (사용자 입력 차단, 노트 자동 Perfect 판정) |
 | `stop` | 구간 | `endBeat: Beat` | 정지 구간 (구간 내 노트 배치 금지) |
+| `tutorialInput` | 구간 | `endBeat: Beat`, `lane: Lane`, `keyCode: string`, `keyLabel?: string` | 튜토리얼 미리보기/튜토리얼 차트에서 키를 누르고 떼는 시연 입력 |
+| `tutorialDiagram` | 구간 | `endBeat: Beat`, `diagramId: TutorialDiagramId` | 튜토리얼 미리보기에서 에디터 노트 렌더러 방식 도식을 표시 |
 
 모든 이벤트는 `beat` (시작 박자수)를 가지며, 구간 이벤트는 추가로 `endBeat` (종료 박자수)를 가진다. 에디터에서는 `editorLane?: number` 필드로 엑스트라 레인 배치 위치를 저장한다 (게임에서 무시).
 
 **에디터에서의 생성**: Create 모드에서 엔티티 타입 드롭다운의 Events 그룹에서 이벤트 종류를 선택한 뒤, 엑스트라 레인을 클릭(시점 이벤트) 또는 드래그(구간 이벤트)하여 생성한다.
+
+**튜토리얼 입력 이벤트 편집**: `tutorialInput` 이벤트는 다른 구간 이벤트처럼 Select 모드에서 끝점을 리사이즈할 수 있고, 속성 모달에서 `lane`, `keyCode`, `keyLabel`을 편집한다. 검증은 같은 `lane + keyCode` 구간이 겹치는 경우만 막는다. 다른 키나 다른 레인의 `tutorialInput` 겹침은 더블 입력, 롱 유지 중 탭 시연을 위해 허용한다.
+
+**튜토리얼 도식 이벤트 편집**: `tutorialDiagram` 이벤트는 다른 구간 이벤트처럼 Select 모드에서 끝점을 리사이즈할 수 있고, 속성 모달에서 `diagramId`를 편집한다. 현재 `connected-switch`, `connected-overlap` 도식을 제공하며, 튜토리얼 미리보기는 해당 구간 동안 축소 재생기 위에 에디터 `NoteRenderer`와 같은 사각 노트/롱노트 gradient 표기법의 패턴을 표시한다.
 
 ---
 

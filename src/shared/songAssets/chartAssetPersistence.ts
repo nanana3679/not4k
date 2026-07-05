@@ -9,11 +9,15 @@ export interface TextAssetUpload {
   upsert: boolean;
 }
 
-export interface ChartAssetRow {
-  song_id: string;
-  difficulty_label: string;
-  difficulty_level: number;
-  offset_ms: number;
+/**
+ * 차트 에셋 메타 upsert 페이로드 (도메인 언어).
+ * DB 스키마(snake_case 행 타입)는 adapter 구현이 소유한다.
+ */
+export interface ChartAssetUpsert {
+  songId: string;
+  difficulty: string;
+  difficultyLevel: number;
+  offsetMs: number;
 }
 
 export interface ChartAssetTarget {
@@ -24,7 +28,7 @@ export interface ChartAssetTarget {
 export interface SongAssetPersistenceAdapter {
   uploadText: (asset: TextAssetUpload) => Promise<void>;
   remove: (paths: string[]) => Promise<void>;
-  upsertChartRow: (row: ChartAssetRow) => Promise<void>;
+  upsertChartRow: (row: ChartAssetUpsert) => Promise<void>;
   deleteChartRow: (target: ChartAssetTarget) => Promise<void>;
   listSongFiles: (songId: string) => Promise<string[]>;
   deleteSongRow: (songId: string) => Promise<void>;
@@ -71,7 +75,7 @@ export async function saveChartAsset(
     : adapter.remove([asset.extraPath]);
 
   await Promise.all([chartUpload, extraWrite]);
-  await adapter.upsertChartRow(toChartRow(input.songId, asset.difficulty, input.chart));
+  await adapter.upsertChartRow(toChartUpsert(input.songId, asset.difficulty, input.chart));
 
   return asset;
 }
@@ -92,7 +96,7 @@ export async function createChartAsset(
     contentType: "application/json",
     upsert: true,
   });
-  await adapter.upsertChartRow(toChartRow(input.songId, asset.difficulty, input.chart));
+  await adapter.upsertChartRow(toChartUpsert(input.songId, asset.difficulty, input.chart));
 
   return {
     chartPath: asset.chartPath,
@@ -168,12 +172,12 @@ function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
   };
 }
 
-function toChartRow(songId: string, difficulty: string, chart: Chart): ChartAssetRow {
+function toChartUpsert(songId: string, difficulty: string, chart: Chart): ChartAssetUpsert {
   return {
-    song_id: songId,
-    difficulty_label: difficulty,
-    difficulty_level: chart.meta.difficultyLevel,
-    offset_ms: chart.meta.offsetMs,
+    songId,
+    difficulty,
+    difficultyLevel: chart.meta.difficultyLevel,
+    offsetMs: chart.meta.offsetMs,
   };
 }
 

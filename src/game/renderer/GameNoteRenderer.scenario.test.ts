@@ -154,7 +154,7 @@ describe("포인트 노트 라이프사이클", () => {
   });
 
   it("더블 노트 첫 입력(partial) — alpha=0.7로 렌더됨", () => {
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
     renderer.renderPointNote(doubleNote, 0, SONG_TIME, SONG_TIME);
 
     const sprite = childrenOf(noteLayer)[0];
@@ -163,14 +163,14 @@ describe("포인트 노트 라이프사이클", () => {
   });
 
   it("더블 노트 완료(processed) — 렌더에서 제외됨", () => {
-    renderer.markNoteProcessed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
     renderer.renderPointNote(doubleNote, 0, SONG_TIME, SONG_TIME);
 
     expect(childrenOf(noteLayer).length).toBe(0);
   });
 
   it("싱글 노트 miss — tint=0x555555, 계속 렌더됨", () => {
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
 
     const sprite = childrenOf(noteLayer)[0];
@@ -180,7 +180,7 @@ describe("포인트 노트 라이프사이클", () => {
   });
 
   it("miss 노트가 화면 아래로 벗어나면 — completedNotes에 추가되어 렌더 제외", () => {
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     // timeMs를 매우 작게 해서 y가 height 이상이 되게 한다
     // y = 500 - ((timeMs - songTimeMs) * 1000) / 1000
@@ -230,7 +230,7 @@ describe("싱글 롱노트 라이프사이클", () => {
   });
 
   it("바디 실패(failedBodies) — 바디 tint=0x555555, 터미널 alpha=0.5", () => {
-    renderer.markBodyFailed(0);
+    renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'unchanged' });
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -243,7 +243,7 @@ describe("싱글 롱노트 라이프사이클", () => {
   });
 
   it("miss(missedNotes) — 바디 tint=0x555555, 터미널 tint=0x555555, 계속 렌더됨", () => {
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -257,7 +257,7 @@ describe("싱글 롱노트 라이프사이클", () => {
   });
 
   it("miss 후 화면 아래로 벗어나면 — completedNotes에 추가", () => {
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
 
     // endY가 화면 아래로 벗어나도록 — endMs를 작게 해서 endY > height + NOTE_HEIGHT
     // endY = 500 - ((endMs - 500) * 1000) / 1000 = 500 - (endMs - 500)
@@ -273,7 +273,7 @@ describe("싱글 롱노트 라이프사이클", () => {
   });
 
   it("completed — 렌더에서 완전히 제외", () => {
-    renderer.markNoteProcessed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     expect(childrenOf(bodyLayer).length).toBe(0);
@@ -310,7 +310,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   });
 
   it("부분 실패 left — 바디 tint=0x888888 (전용 텍스처 없을 때), 노트 계속 렌더됨", () => {
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -319,7 +319,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   });
 
   it("부분 실패 right — 바디 tint=0x888888, 노트 계속 렌더됨", () => {
-    renderer.markBodyPartialFailed(0, 'right');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'right' }, visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -328,7 +328,7 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   });
 
   it("부분 실패 left → 터미널도 tint=0x888888 적용됨", () => {
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     if (childrenOf(endLayer).length > 0) {
@@ -338,15 +338,15 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   });
 
   it("부분 실패 후 completedNotes에 없어서 계속 렌더됨 — markNoteProcessed 호출 안 됨", () => {
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     expect(childrenOf(bodyLayer).length).toBeGreaterThan(0);
   });
 
   it("부분 실패 후 전체 실패(failedBodies 추가) — tint가 0x555555로 변경됨 (0x888888 아님)", () => {
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markBodyFailed(0);
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -354,8 +354,8 @@ describe("더블 롱노트 부분 실패 라이프사이클", () => {
   });
 
   it("부분 실패 + doublePartialNotes 동시 설정 — 부분 실패가 우선 (alpha는 0.7이 아닌 1)", () => {
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -385,10 +385,10 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
   });
 
   it("completedNotes > 모든 상태 — completed이면 어떤 다른 상태든 렌더 안 됨", () => {
-    renderer.markNoteProcessed(0);
-    renderer.markNoteMissed(0);
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
 
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
     expect(childrenOf(noteLayer).length).toBe(0);
@@ -399,8 +399,8 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
   });
 
   it("missedNotes > partialFailedBodies — miss된 노트는 부분 실패 tint가 아닌 실패 tint", () => {
-    renderer.markNoteMissed(0);
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -414,8 +414,8 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
   });
 
   it("failedBodies > partialFailedBodies — 전체 실패가 부분 실패보다 우선", () => {
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markBodyFailed(0);
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'unchanged' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -430,8 +430,8 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
   });
 
   it("partialFailedBodies > doublePartialNotes — 부분 실패가 더블 부분 입력보다 우선", () => {
-    renderer.markBodyPartialFailed(0, 'left');
-    renderer.markDoublePartial(0);
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'doublePartial' });
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -439,14 +439,14 @@ describe("상태 우선순위 — 복합 상태에서 올바른 에셋이 선택
   });
 
   it("missedNotes에 있어도 화면 밖이 아니면 렌더됨", () => {
-    renderer.markNoteMissed(0);
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' });
     renderer.renderPointNote(singleNote, 0, SONG_TIME, SONG_TIME);
 
     expect(childrenOf(noteLayer).length).toBeGreaterThan(0);
   });
 
   it("failedBodies에 있고 isMissed도 true — tint=0x555555 (동일)", () => {
-    renderer.markNoteMissed(0); // missedNotes + failedBodies 둘 다 추가
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'missed' }); // missedNotes + failedBodies 둘 다 추가
     renderer.renderLongNote(doubleLongNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -469,7 +469,7 @@ describe("싱글 롱노트 격리", () => {
   });
 
   it("싱글 롱노트에 partialFailedBodies 설정 — 부분 실패 tint 미적용 (isDouble=false)", () => {
-    renderer.markBodyPartialFailed(0, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -477,7 +477,7 @@ describe("싱글 롱노트 격리", () => {
   });
 
   it("싱글 롱노트 실패 — 기존 failedBodies 동작 유지", () => {
-    renderer.markBodyFailed(0);
+    renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'unchanged' });
     renderer.renderLongNote(longNote, 0, SONG_TIME, 800, SONG_TIME);
 
     const bodySprite = childrenOf(bodyLayer)[0];
@@ -502,11 +502,11 @@ describe("풀 초기화 후 상태 격리", () => {
   });
 
   it("clearPools 후 모든 상태(completed, failed, missed, partial, partialFailed)가 초기화됨", () => {
-    renderer.markNoteProcessed(0);
-    renderer.markBodyFailed(1);
-    renderer.markNoteMissed(2);
-    renderer.markDoublePartial(3);
-    renderer.markBodyPartialFailed(4, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
+    renderer.applyNoteDisplayEffect(1, { body: 'failed', visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(2, { body: null, visibility: 'missed' });
+    renderer.applyNoteDisplayEffect(3, { body: null, visibility: 'doublePartial' });
+    renderer.applyNoteDisplayEffect(4, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.clearPools();
 
     // completed가 초기화되었으므로 index 0 렌더 가능
@@ -540,11 +540,11 @@ describe("풀 초기화 후 상태 격리", () => {
   });
 
   it("dispose 후에도 동일하게 초기화됨", () => {
-    renderer.markNoteProcessed(0);
-    renderer.markBodyFailed(1);
-    renderer.markNoteMissed(2);
-    renderer.markDoublePartial(3);
-    renderer.markBodyPartialFailed(4, 'left');
+    renderer.applyNoteDisplayEffect(0, { body: null, visibility: 'processed' });
+    renderer.applyNoteDisplayEffect(1, { body: 'failed', visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(2, { body: null, visibility: 'missed' });
+    renderer.applyNoteDisplayEffect(3, { body: null, visibility: 'doublePartial' });
+    renderer.applyNoteDisplayEffect(4, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
     renderer.dispose();
 
     // completed가 초기화되었으므로 index 0 렌더 가능

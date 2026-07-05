@@ -4,7 +4,7 @@ export {
   deleteSongAsset,
   saveChartAsset,
   SongHasChartsError,
-  type ChartAssetRow,
+  type ChartAssetUpsert,
   type ChartAssetTarget,
   type ChartAssetWriteResult,
   type CreateChartAssetInput,
