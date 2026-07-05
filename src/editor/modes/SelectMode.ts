@@ -836,6 +836,71 @@ export class SelectMode implements EditorMode {
     this.dragStartExtraLane = null;
   }
 
+  /**
+   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)처럼
+   * 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그 시작
+   * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
+   */
+  cancel(): EditResult {
+    if (!this.isDragging) return {};
+
+    if (this.dragType === "resize") {
+      this.rollbackResize();
+      this.resizingEntityType = null;
+      this.resizingIndex = null;
+      this.resizingOriginalEndBeat = null;
+      this.resizingOriginalBeat = null;
+    } else if (this.dragType === "move") {
+      this.rollbackMove();
+    } else if (this.dragType === "moveExtra") {
+      this.rollbackMoveExtra();
+    }
+    // boxSelect는 차트를 변이하지 않으므로 아래 공통 정리로 충분하다.
+
+    this._boxEndBeat = null;
+    this._boxEndLane = null;
+    this._boxEndExtraLane = null;
+    this.isDragging = false;
+    this.dragType = null;
+    this.dragStartBeat = null;
+    this.dragStartLane = null;
+    this.dragStartExtraLane = null;
+    return { clearDragPreview: true };
+  }
+
+  /**
+   * moveExtra 드래그를 시작 시점 좌표로 되돌린다.
+   * (커밋 경로는 라이브 적용이라 롤백이 없다 — cancel 전용.)
+   */
+  private rollbackMoveExtra(): void {
+    const extraNotes = this.callbacks.getExtraNotes?.();
+    if (!extraNotes || !this.callbacks.onExtraNotesUpdate) {
+      this.originalExtraPositions.clear();
+      return;
+    }
+    const newExtraNotes = [...extraNotes];
+    for (const [idx, original] of this.originalExtraPositions) {
+      const note = newExtraNotes[idx];
+      if (!note) continue;
+      if ("endBeat" in note) {
+        newExtraNotes[idx] = {
+          ...note,
+          extraLane: original.extraLane,
+          beat: original.beat,
+          endBeat: original.endBeat!,
+        };
+      } else {
+        newExtraNotes[idx] = {
+          ...note,
+          extraLane: original.extraLane,
+          beat: original.beat,
+        };
+      }
+    }
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    this.originalExtraPositions.clear();
+  }
+
   // --- Box select helper ---
 
   /** Compute selection from current box select state (shared by onPointerMove & onPointerUp) */

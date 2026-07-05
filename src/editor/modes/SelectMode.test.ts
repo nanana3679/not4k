@@ -1918,3 +1918,87 @@ describe("SelectMode — 트릴존 복붙", () => {
     expect(mode.copy()).toBe(1); // 노트만
   });
 });
+
+// ---------------------------------------------------------------------------
+// cancel — editCancel(두 손가락 내비 가로채기)로 드래그가 커밋 없이 끊길 때
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
+  it("이동 드래그 중 cancel은 노트를 드래그 시작 레인(1)으로 되돌리고 clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0); // 레인 1 → 2로 이동(라이브 적용)
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isMoveDragging).toBe(false);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1); // 원위치
+  });
+
+  it("트릴존 리사이즈 중 cancel은 endBeat를 원본(6)으로 되돌린다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(9, 6, false, false); // 트릴존 끝 잡고 리사이즈 시작
+    mode.onPointerMove(9, 10); // endBeat 6→10 (라이브 적용)
+    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).trillZones[0].endBeat)).toBe(10);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).trillZones[0].endBeat)).toBe(6);
+  });
+
+  it("엑스트라 노트 이동 중 cancel은 extraLane을 원본(1)으로 되돌린다", () => {
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(0) }];
+    const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 2 });
+    const mode = new SelectMode(makeChart(), cb);
+
+    mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
+    mode.onPointerMove(6, 0); // extraLane 1 → 2 (라이브 적용)
+    expect((cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[])[0].extraLane).toBe(2);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect((cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[])[0].extraLane).toBe(1);
+  });
+
+  it("박스 선택 중 cancel은 차트 변이 없이 박스만 닫는다", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(); // 빈 영역 → 박스 셀렉트
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(2, 5);
+    expect(mode.isBoxSelecting).toBe(true);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("드래그 중이 아니면 cancel은 아무것도 하지 않는다", () => {
+    const mode = new SelectMode(makeChart(), makeCallbacks());
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBeUndefined();
+  });
+});

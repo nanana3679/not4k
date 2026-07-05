@@ -239,8 +239,14 @@ export function useCanvasEvents(
     touchEmptySelectCandidateRef.current = null;
     touchTapToggleRef.current = null;
     createModeRef.current?.cancelDrag();
+    // 발화했을 수 있는 select 드래그(이동/리사이즈/박스)도 폐기하고 프리뷰를 걷는다.
+    const selectResult = selectModeRef.current?.cancel();
+    if (selectResult?.clearDragPreview) {
+      rendererRef.current?.clearMoveOrigins();
+      rendererRef.current?.clearBoxSelectRect();
+    }
     rendererRef.current?.hideGhostNote();
-  }, [clearHoldTimer, createModeRef, rendererRef]);
+  }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
