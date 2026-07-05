@@ -151,14 +151,6 @@ export class JudgmentEngine {
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 레인별 공릴리즈 키 (empty release keys) — terminal hold-only/슬라이드를 held로 완료시킨 키 (RFD 0008).
-   * 이 키의 release는 "놓기"이므로 직후 노트의 release 판정(끝점 종결·슬라이드 미리-떼기·릴리즈 노트)을
-   * 트리거하지 않는다. 키를 떼거나 다시 누르면 정리.
-   * 롱노트는 한 레인에서 겹칠 수 없으므로(배치 제약 — 다중키 구간은 doubleLong 한 노트, 경계는 연결),
-   * 공릴리즈 키가 다른 진행 중 롱의 키와 충돌하지 않는다 → 예외 없이 무조건 스킵한다.
-   */
-  private readonly emptyReleaseKeys: Map<Lane, Set<string>> = new Map();
-  /**
    * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합.
    * connection 정의의 단일 소유자 `longNoteConnection`이 계산한다 — 생성자에서 주입받거나(맵 로드 시
    * 1회) 미주입 시 내부에서 파생한다. 렌더러의 held 전파 뷰와 같은 계산에서 나오므로 항상 일치한다.
@@ -202,7 +194,6 @@ export class JudgmentEngine {
         lastReleaseTimeMs: null,
         heldKeys: new Set(),
       });
-      this.emptyReleaseKeys.set(lane, new Set());
       this.trillAlternation.set(lane, null);
       this.trillZoneNextIndex.set(lane, 0);
       this.trillZoneCurrentStartMs.set(lane, null);
@@ -277,7 +268,6 @@ export class JudgmentEngine {
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
-    this.emptyReleaseKeys.get(lane)?.delete(keyCode); // 다시 누르면 공릴리즈 해제 (RFD 0008)
     // Grace period 내 재입력 시 릴리즈 기록 클리어 (프레임 기반 오판 방지)
     if (
       holdState.lastReleaseTimeMs !== null &&
@@ -303,6 +293,15 @@ export class JudgmentEngine {
           }
         }
       }
+    }
+
+    // 롱노트 바디 시작점 허용을 입력 시점에도 평가 — 윈도우 내 유효 입력이 프레임 경계 때문에 실패로
+    // 새는 것을 막는다 (트릴 P2와 동일 패턴). 한 레인에 진행 중 롱은 최대 하나(겹침 불가 불변).
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
+      const rn = this.notes[i];
+      if (!("endBeat" in rn) || rn.lane !== lane) continue;
+      this.tryAcceptLongBodyStart(i, holdState, timestampMs);
     }
 
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
@@ -337,6 +336,9 @@ export class JudgmentEngine {
 
   /**
    * 레인 키 릴리스 처리
+   *
+   * R2 (RFD 0015): keyup은 익명 이벤트로, 같은 레인의 가장 이른 release-대상
+   * 하나에 소비된 뒤 사라진다. keydown↔keyup 짝·출신 키는 추적하지 않는다.
    */
   onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
     const holdState = this.laneHoldStates.get(lane);
@@ -345,22 +347,17 @@ export class JudgmentEngine {
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
 
-    // 더블 롱노트의 키별 릴리즈 시간 기록
+    // 더블 롱노트의 키별 릴리즈 시간 기록 (바디 유지 추적용 — 판정 아님)
     this.updateDoubleLongKeyRelease(lane, keyCode, timestampMs);
 
-    // 끝점 판정 윈도우 내 릴리즈면 다른 키 홀드 여부와 무관하게 판정 시도
-    this.tryEndpointJudgmentOnRelease(lane, timestampMs, keyCode);
+    // R2: 가장 이른 release-대상 매칭 + 소비 (RFD 0015)
+    this.consumeReleaseTarget(lane, timestampMs, keyCode);
 
     // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
     if (holdState.heldKeys.size === 0) {
       holdState.isHeld = false;
       holdState.lastReleaseTimeMs = timestampMs;
-      // 길이 0 hold-only(슬라이드): 노트 시점 전 윈도우 내 완전 릴리즈 시 그 시점에 판정
-      this.checkSlideReleaseOnRelease(lane, timestampMs, keyCode);
     }
-
-    // 놓기 release 처리 후 공릴리즈 키 해제 (RFD 0008)
-    this.emptyReleaseKeys.get(lane)?.delete(keyCode);
   }
 
   /**
@@ -384,71 +381,125 @@ export class JudgmentEngine {
   }
 
   /**
-   * 레인의 모든 키가 릴리즈되었을 때 끝점 판정 시도
+   * R2 (RFD 0015): keyup을 같은 레인의 가장 이른 release-대상 하나에 소비한다.
+   *
+   * release-대상 후보:
+   *  (1) 종결 대기 끝점 (BODY_AWAITING_RELEASE — 릴리즈 노트 포함)
+   *  (2) 끝점 Good 윈도우 내의 진행 중 롱 (BODY_ACTIVE — 연결 제외, 더블롱은 키별.
+   *      싱글 hold-only는 끝점 Good 윈도우 완화(미리-떼기)로 포함 — 이 keyup도 소비되어야
+   *      직후 노트로 이중 크레딧이 가지 않는다. 더블 hold-only는 키별 update 경로 전담)
+   *  (3) 슬라이드 미리-떼기 (길이 0 hold-only, 노트 시점 전 Good 윈도우 — 완전 릴리즈 게이트 폐지)
+   *
+   * 판정은 이진: 윈도우 내 keyup = Perfect (RFD 0015 §3). 윈도우 밖 keyup은 어느 대상에도
+   * 매칭되지 않고 소멸한다 — 굶은 대상은 update()의 타임아웃(+Good)으로 Miss.
+   * 매칭된 keyup은 그 대상 하나에 소비되어 직후 release-대상으로 번지지 않는다(RFD 0011 승계).
+   * 도장(공릴리즈, RFD 0008)은 폐지 — 소비는 이벤트와 함께 소멸하므로 수명 관리가 없다(§5).
    */
-  private tryEndpointJudgmentOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
-    let didTerminate = false;
+  private consumeReleaseTarget(lane: Lane, releaseTimeMs: number, keyCode: string): void {
+    let bestIndex: number | null = null;
+    let bestTargetTime = Infinity;
+
     for (let i = 0; i < this.notes.length; i++) {
-      const state = this.noteStates.get(i);
-      if (state !== NoteState.BODY_ACTIVE && state !== NoteState.BODY_AWAITING_RELEASE) {
-        continue;
-      }
-
-      const note = this.notes[i] as RangeNote;
+      const note = this.notes[i];
       if (note.lane !== lane) continue;
-      // 다른 노트를 완료시킨 "놓기" 키는 끝점 종결을 트리거하지 않음 (RFD 0008)
-      if (this.isEmptyRelease(lane, keyCode)) continue;
+      if (!("endBeat" in note)) continue;
 
+      const state = this.noteStates.get(i);
+      const noteTime = this.noteTimesMs.get(i);
       const noteEndTime = this.noteEndTimesMs.get(i);
-      if (noteEndTime === undefined) continue;
+      if (noteTime === undefined || noteEndTime === undefined) continue;
 
-      // 더블롱: 떼어진 키만 키별 종결 판정 (hold-only/연결은 끝점 update가 처리)
-      if (note.type === NoteType.DOUBLE_LONG) {
-        if (state !== NoteState.BODY_ACTIVE) continue;
-        if (isHoldOnlyNote(note)) continue;
-        if (this.connectionSources.has(i)) continue;
+      let targetTime: number | null = null;
+
+      if (state === NoteState.BODY_AWAITING_RELEASE) {
+        // 종결 대기 (릴리즈 노트 포함). 더블롱은 키별 경로(BODY_ACTIVE)만 쓴다.
         if (
-          releaseTimeMs < noteEndTime - this.windows.GOOD ||
-          releaseTimeMs > noteEndTime + this.windows.BAD
+          note.type !== NoteType.DOUBLE_LONG &&
+          Math.abs(releaseTimeMs - noteEndTime) <= this.windows.GOOD
         ) {
-          continue;
+          targetTime = noteEndTime;
         }
-        const dl = this.doubleLongKeyStates.get(i);
-        if (!dl) continue;
-        const keyState =
-          dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
-        if (!keyState || keyState.judged) continue;
-        const deltaMs = releaseTimeMs - noteEndTime;
-        this.judgeDoubleLongKey(i, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
-        didTerminate = true;
-        continue;
-      }
-
-      if (state === NoteState.BODY_ACTIVE) {
+      } else if (state === NoteState.BODY_ACTIVE) {
         // 연결은 스트레이 릴리즈로 판정하지 않고 끝점 update(held-or-grace)에 위임한다.
         // (연결 헤드를 친 다른 키의 릴리즈가 연결을 MISS시키거나, 연결을 가로지르는
-        //  이어잡기 키 스왑을 깨지 않게 — release 귀속)
-        if (this.connectionSources.has(i)) {
-          continue;
+        //  이어잡기 키 스왑을 깨지 않게)
+        if (this.connectionSources.has(i)) continue;
+        if (Math.abs(releaseTimeMs - noteEndTime) > this.windows.GOOD) continue;
+        if (note.type === NoteType.DOUBLE_LONG) {
+          // 더블 hold-only는 키별 update 경로(judgeDoubleLongEndpoint)가 전담
+          if (isHoldOnlyNote(note)) continue;
+          // 더블롱: 떼어진 키가 추적 중이고 미판정일 때만 후보 (키별 R2).
+          // dl 미초기화(짧은 더블롱의 keyup이 끝점 update 프레임보다 먼저 도착)면
+          // executeReleaseJudgment가 재구성하므로 후보로 남긴다 (P3 keyup 거울상).
+          const dl = this.doubleLongKeyStates.get(i);
+          if (dl) {
+            const keyState =
+              dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
+            if (!keyState || keyState.judged) continue;
+          }
         }
-        // 종결 대상: 끝점 판정 윈도우(Good 이전 ~ Bad 이후) 내 릴리즈 → 릴리즈 타이밍 기반 판정
-        if (
-          releaseTimeMs >= noteEndTime - this.windows.GOOD &&
-          releaseTimeMs <= noteEndTime + this.windows.BAD
-        ) {
-          this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
-          didTerminate = true;
+        targetTime = noteEndTime;
+      } else if (state === NoteState.UNPROCESSED) {
+        // 슬라이드 미리-떼기: 노트 시점 전 Good 윈도우 내 keyup → Perfect (RFD 0005 게이트 폐지)
+        if (!isHoldOnlyNote(note)) continue;
+        // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정 (미리-떼기 미지원)
+        if (note.type === NoteType.DOUBLE_LONG) continue;
+        if (noteEndTime !== noteTime) continue;
+        if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
+          targetTime = noteTime;
         }
-      } else {
-        // BODY_AWAITING_RELEASE: 끝점 도달 후 릴리즈 대기 중이던 노트
-        this.executeTerminationJudgment(i, releaseTimeMs, noteEndTime);
-        didTerminate = true;
+      }
+
+      if (targetTime !== null && targetTime < bestTargetTime) {
+        bestTargetTime = targetTime;
+        bestIndex = i;
       }
     }
 
-    // RFD 0011: 종결에 소비된 키는 같은 keyup의 직후 release-대상(슬라이드 미리-떼기 등)으로
-    // 번지지 않는다. 공릴리즈 가드를 재사용하며, onLaneRelease 끝에서 키와 함께 해제된다.
-    if (didTerminate) this.emptyReleaseKeys.get(lane)?.add(keyCode);
+    if (bestIndex === null) return;
+    this.executeReleaseJudgment(bestIndex, releaseTimeMs, keyCode);
+  }
+
+  /**
+   * R2 매칭된 release-대상의 판정 실행 (consumeReleaseTarget이 윈도우 검증을 마친 뒤 호출)
+   */
+  private executeReleaseJudgment(noteIndex: number, releaseTimeMs: number, keyCode: string): void {
+    const note = this.notes[noteIndex];
+    const state = this.noteStates.get(noteIndex);
+    const noteTime = this.noteTimesMs.get(noteIndex);
+    const noteEndTime = this.noteEndTimesMs.get(noteIndex);
+    if (noteTime === undefined || noteEndTime === undefined) return;
+
+    // 슬라이드 미리-떼기 → Perfect (떼는 시점 표시)
+    if (state === NoteState.UNPROCESSED) {
+      this.emitJudgment(noteIndex, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
+      this.noteStates.set(noteIndex, NoteState.COMPLETE);
+      this.consumedLongKeys.delete(noteIndex);
+      this.incrementCombo();
+      return;
+    }
+
+    // 더블롱: 떼어진 키만 키별 종결 판정
+    if (note.type === NoteType.DOUBLE_LONG) {
+      let dl = this.doubleLongKeyStates.get(noteIndex);
+      if (!dl) {
+        // 짧은 더블롱: dl 추적이 없던 채 유지 키가 끝점 update 프레임보다 먼저 keyup으로 도착
+        // (라이브 keyup은 rAF update와 비동기 — P3가 고친 update 폴백 경로의 거울상).
+        // heldKeys엔 방금 뗀 keyCode가 이미 빠졌으므로 참여 키 맨 앞에 포함해 재구성한다.
+        const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+        const participants = [keyCode, ...(holdState ? holdState.heldKeys : [])];
+        dl = this.reconstructShortDoubleLongKeyStates(noteIndex, participants);
+      }
+      const keyState =
+        dl.key1.keyCode === keyCode ? dl.key1 : dl.key2.keyCode === keyCode ? dl.key2 : null;
+      if (!keyState || keyState.judged) return;
+      const deltaMs = releaseTimeMs - noteEndTime;
+      this.judgeDoubleLongKey(noteIndex, dl, keyState, this.terminationGrade(deltaMs), deltaMs);
+      return;
+    }
+
+    // 싱글 롱 종결
+    this.executeTerminationJudgment(noteIndex, releaseTimeMs, noteEndTime);
   }
 
   /**
@@ -493,17 +544,9 @@ export class JudgmentEngine {
       }
     }
 
-    // 트릴 구간 시작 시 교대 추적 상태 리셋
+    // 트릴 구간 시작 시 교대 추적 상태 리셋 (프레임 시각 기준)
     for (const lane of [1, 2, 3, 4] as Lane[]) {
-      const startTimes = this.trillZoneStartTimesMs.get(lane);
-      if (!startTimes) continue;
-      let nextIdx = this.trillZoneNextIndex.get(lane)!;
-      while (nextIdx < startTimes.length && songTimeMs >= startTimes[nextIdx]) {
-        this.trillAlternation.set(lane, null);
-        this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
-        nextIdx++;
-      }
-      this.trillZoneNextIndex.set(lane, nextIdx);
+      this.advanceTrillZoneReset(lane, songTimeMs);
     }
 
     // 바디 노트 자동 활성화 (시작 시간 도달 시)
@@ -637,7 +680,7 @@ export class JudgmentEngine {
    *
    * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
    *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
-   *  - 길이0 슬라이드: checkLengthZeroHoldOnly / checkSlideReleaseOnRelease
+   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 R2 매칭)
    *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup 종결 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
    * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재흡수해 다음 노트를 막는 것을
@@ -651,22 +694,6 @@ export class JudgmentEngine {
       this.consumedLongKeys.set(noteIndex, keys);
     }
     keys.add(keyCode);
-  }
-
-  /**
-   * held로 완료된 노트를 유지하던 키(완료 시점의 실제 held 키)를 레인의 공릴리즈 집합에 추가 (RFD 0008).
-   * 완료 시점의 held 키를 쓰므로, 흡수 없이 held로 진입한 pre-held 케이스도 닫힌다.
-   */
-  private markEmptyRelease(lane: Lane): void {
-    const holdState = this.laneHoldStates.get(lane);
-    const emptySet = this.emptyReleaseKeys.get(lane);
-    if (!holdState || !emptySet) return;
-    for (const k of holdState.heldKeys) emptySet.add(k);
-  }
-
-  /** 그 키의 release가 "놓기"(공릴리즈)인지 — 직후 노트의 release 판정을 막는다 (RFD 0008) */
-  private isEmptyRelease(lane: Lane, keyCode: string): boolean {
-    return this.emptyReleaseKeys.get(lane)?.has(keyCode) === true;
   }
 
   /**
@@ -737,6 +764,24 @@ export class JudgmentEngine {
   /**
    * 트릴 노트 입력 처리
    */
+  /**
+   * 트릴 구간 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
+   * update(songTime)와 입력(processTrillNoteInput, noteTime) 양쪽이 공유한다: 리셋이 프레임에만 있으면
+   * async keydown이 프레임보다 일찍 도착할 때 새 구간 첫 노트가 이전 구간 키와 비교돼 잘못된 Good◇을
+   * 받는다. nextIdx는 단조 증가만 하므로 update·입력이 각자 시각으로 호출해도 이중 리셋되지 않는다.
+   */
+  private advanceTrillZoneReset(lane: Lane, uptoMs: number): void {
+    const startTimes = this.trillZoneStartTimesMs.get(lane);
+    if (!startTimes) return;
+    let nextIdx = this.trillZoneNextIndex.get(lane) ?? 0;
+    while (nextIdx < startTimes.length && uptoMs >= startTimes[nextIdx]) {
+      this.trillAlternation.set(lane, null);
+      this.trillZoneCurrentStartMs.set(lane, startTimes[nextIdx]);
+      nextIdx++;
+    }
+    this.trillZoneNextIndex.set(lane, nextIdx);
+  }
+
   private processTrillNoteInput(
     noteIndex: number,
     deltaMs: number,
@@ -745,11 +790,21 @@ export class JudgmentEngine {
   ): void {
     const note = this.notes[noteIndex];
     const isGrace = isGraceNote(note);
+    // 입력 시점에도 구간 리셋 따라잡기: 노트의 원래 위치(noteTime)까지 시작한 구간을 리셋해,
+    // 프레임(update)보다 일찍 친 새 구간 첫 노트가 이전 구간 키로 잘못된 Good◇을 받지 않게 한다.
+    const noteTimeForReset = this.noteTimesMs.get(noteIndex);
+    if (noteTimeForReset !== undefined) this.advanceTrillZoneReset(lane, noteTimeForReset);
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
-    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇
-    if (lastKeyCode !== null && keyCode === lastKeyCode) {
+    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇.
+    // Good◇는 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 Good◇로 끌어내리고,
+    // 타이밍이 그보다 나쁘면(Bad/Miss) 그 판정을 유지한다 — 미스타이밍을 교대 실패로 보상하지 않는다 (RFD 0013).
+    const timingIsGoodOrBetter =
+      grade === JudgmentGrade.PERFECT ||
+      grade === JudgmentGrade.GREAT ||
+      grade === JudgmentGrade.GOOD;
+    if (lastKeyCode !== null && keyCode === lastKeyCode && timingIsGoodOrBetter) {
       grade = JudgmentGrade.GOOD_TRILL;
     }
 
@@ -779,6 +834,37 @@ export class JudgmentEngine {
   }
 
   /**
+   * 롱노트 바디 시작점 허용 — atTimeMs가 시작 윈도우(+GOOD) 내이고 레인이 홀드 중이면 시작을 수락한다.
+   * update(프레임)와 onLanePress(입력) 양쪽이 공유한다: 수락이 프레임에서만 일어나면, 윈도우 내 유효 입력이라도
+   * 그 held를 관측할 프레임이 윈도우 밖에 떨어질 때 실패로 샌다(트릴 P2와 동일한 "async keydown vs rAF update"
+   * 버그 클래스). hasBeenPressed 플립은 1회, doubleLong 2키 초기화는 멱등하게 수행한다.
+   */
+  private tryAcceptLongBodyStart(noteIndex: number, holdState: LaneHoldState, atTimeMs: number): void {
+    if (this.noteStates.get(noteIndex) !== NoteState.BODY_ACTIVE) return;
+    const bodyState = this.longNoteBodyStates.get(noteIndex);
+    if (!bodyState) return;
+    if (atTimeMs > bodyState.bodyStartTimeMs + this.windows.GOOD) return; // 시작 윈도우 밖
+    if (!holdState.isHeld) return;
+
+    const note = this.notes[noteIndex] as RangeNote;
+
+    if (!bodyState.hasBeenPressed) {
+      bodyState.hasBeenPressed = true;
+    }
+
+    // doubleLong: 허용 구간 내 2키가 모이면 독립 추적 초기화 (멱등 — 이미 초기화됐으면 스킵)
+    if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(noteIndex)) {
+      const heldKeysArr = Array.from(holdState.heldKeys);
+      if (heldKeysArr.length >= 2) {
+        this.doubleLongKeyStates.set(noteIndex, {
+          key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
+          key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
+        });
+      }
+    }
+  }
+
+  /**
    * 롱노트 바디 홀드 체크
    *
    * 매 프레임 호출되어 BODY_ACTIVE 노트의 홀드 상태를 검증한다.
@@ -801,24 +887,10 @@ export class JudgmentEngine {
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) continue;
 
-      // 1. 시작점 허용 구간 (+120ms)
+      // 1. 시작점 허용 구간 (+120ms) — update·입력 공유 헬퍼로 수락 (프레임 경계 독립)
       if (!bodyState.hasBeenPressed) {
         if (songTimeMs <= bodyState.bodyStartTimeMs + this.windows.GOOD) {
-          if (holdState.isHeld) {
-            bodyState.hasBeenPressed = true;
-
-            // doubleLong: 허용 구간 내 키 입력 시 2키 추적 초기화/업데이트
-            if (note.type === NoteType.DOUBLE_LONG && !this.doubleLongKeyStates.has(i)) {
-              const heldKeysArr = Array.from(holdState.heldKeys);
-              if (heldKeysArr.length >= 2) {
-                this.doubleLongKeyStates.set(i, {
-                  key1: { keyCode: heldKeysArr[0], failed: false, judged: false, lastReleaseTimeMs: null },
-                  key2: { keyCode: heldKeysArr[1], failed: false, judged: false, lastReleaseTimeMs: null },
-                });
-              }
-              // 1키만 눌려있으면 아직 대기 — 허용 구간 내에서 2번째 키 입력을 기다림
-            }
-          }
+          this.tryAcceptLongBodyStart(i, holdState, songTimeMs);
           // 아직 허용 구간 내 — skip
           continue;
         } else {
@@ -901,17 +973,41 @@ export class JudgmentEngine {
     this.doubleLongKeyStates.delete(noteIndex);
   }
 
-  /** 종결 판정 등급: Good 이상은 Perfect로 상향, 그 외(Bad/Miss)는 그대로 */
+  /**
+   * 종결 판정 등급 — 이진 릴리즈 (RFD 0015 §3).
+   * 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 아니면 Miss.
+   * release는 "떼는 동작의 존재"를 판정하며, 정밀도는 판정하지 않는다 (late-Bad 폴딩).
+   */
   private terminationGrade(deltaMs: number): JudgmentGrade {
-    const grade = this.calculateGrade(deltaMs);
-    if (
-      grade === JudgmentGrade.GOOD ||
-      grade === JudgmentGrade.GREAT ||
-      grade === JudgmentGrade.PERFECT
-    ) {
-      return JudgmentGrade.PERFECT;
+    return Math.abs(deltaMs) <= this.windows.GOOD
+      ? JudgmentGrade.PERFECT
+      : JudgmentGrade.MISS;
+  }
+
+  /**
+   * dl 추적이 없던 짧은 더블롱(길이<Good, checkDoubleLongKeyHold 스킵)을 끝점에서 재구성한다.
+   * participants = 이 노트에 실제 참여한 키들(유지 중 + 방금 뗀 키). 반드시 1개 이상이어야 한다.
+   * 1키뿐이면 나머지 슬롯을 __missing__으로 채우고 미입력 쪽 부분 Miss를 emit한다
+   * (checkDoubleLongKeyHold 1키 분기 미러링 — 병렬 판정: 유지/뗀 키는 호출측이 판정).
+   */
+  private reconstructShortDoubleLongKeyStates(
+    noteIndex: number,
+    participants: string[],
+  ): DoubleLongKeyState {
+    const mk = (keyCode: string) => ({ keyCode, failed: false, judged: false, lastReleaseTimeMs: null });
+    const dl: DoubleLongKeyState =
+      participants.length >= 2
+        ? { key1: mk(participants[0]), key2: mk(participants[1]) }
+        : {
+            key1: mk(participants[0]),
+            key2: { keyCode: "__missing__", failed: true, judged: true, lastReleaseTimeMs: null },
+          };
+    this.doubleLongKeyStates.set(noteIndex, dl);
+    if (participants.length < 2) {
+      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0, true, "right");
+      this.breakCombo();
     }
-    return grade;
+    return dl;
   }
 
   /**
@@ -927,14 +1023,21 @@ export class JudgmentEngine {
     noteEndTime: number,
     holdState: LaneHoldState,
   ): void {
-    const dl = this.doubleLongKeyStates.get(noteIndex);
+    let dl = this.doubleLongKeyStates.get(noteIndex);
     if (!dl) {
-      // 2키 추적이 한 번도 없었음(2키 입력 없음) → 두 키 모두 Miss
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
-      this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
-      this.breakCombo();
-      this.noteStates.set(noteIndex, NoteState.COMPLETE);
-      return;
+      // 짧은 더블롱(길이<Good)은 checkDoubleLongKeyHold가 끝점−Good 구간에서 스킵돼 __missing__ 추적이
+      // 안 생겼을 수 있다. 진짜 미입력과 "1키만 유지"를 구분해, 끝점에서 실제 held 키로 추적을 재구성한다
+      // (병렬 판정 — 스펙 §더블 롱노트 바디: 1키 유지 시 그 키 Perfect).
+      const held = Array.from(holdState.heldKeys);
+      if (held.length === 0) {
+        // 진짜 미입력 → 두 키 모두 Miss
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 0, 0);
+        this.emitJudgment(noteIndex, JudgmentGrade.MISS, 1, 0);
+        this.breakCombo();
+        this.noteStates.set(noteIndex, NoteState.COMPLETE);
+        return;
+      }
+      dl = this.reconstructShortDoubleLongKeyStates(noteIndex, held);
     }
 
     const isConnection = this.connectionSources.has(noteIndex);
@@ -945,7 +1048,7 @@ export class JudgmentEngine {
       const held = holdState.heldKeys.has(keyState.keyCode);
 
       if (isConnection) {
-        // 연결: 키별 held/grace → Perfect, 아님 → Miss (공릴리즈로 표시 안 함)
+        // 연결: 키별 held/grace → Perfect, 아님 → Miss
         const grace =
           keyState.lastReleaseTimeMs !== null &&
           songTimeMs - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
@@ -967,8 +1070,8 @@ export class JudgmentEngine {
           0,
         );
       } else if (held) {
-        // 일반, 아직 유지 중 — end+BAD 초과면 타임아웃 Miss, 아니면 release까지 대기
-        if (songTimeMs > noteEndTime + this.windows.BAD) {
+        // 일반, 아직 유지 중 — end+Good 초과면 타임아웃 Miss(RFD 0015 §3), 아니면 release까지 대기
+        if (songTimeMs > noteEndTime + this.windows.GOOD) {
           this.judgeDoubleLongKey(noteIndex, dl, keyState, JudgmentGrade.MISS, songTimeMs - noteEndTime);
         }
       } else if (keyState.lastReleaseTimeMs !== null) {
@@ -980,9 +1083,6 @@ export class JudgmentEngine {
         this.judgeDoubleLongKey(noteIndex, dl, keyState, JudgmentGrade.MISS, 0);
       }
     }
-
-    // hold-only는 held로 완료 시 유지 키를 공릴리즈로 표시 (직후 "놓기" release 차단, RFD 0008)
-    if (holdOnly) this.markEmptyRelease(note.lane);
   }
 
   /**
@@ -1096,11 +1196,13 @@ export class JudgmentEngine {
 
       // --- BODY_AWAITING_RELEASE: 타임아웃 체크 ---
       if (state === NoteState.BODY_AWAITING_RELEASE) {
-        if (songTimeMs > noteEndTime + this.windows.BAD) {
-          // 릴리즈 없이 BAD 윈도우 초과 → Miss 타임아웃
+        if (songTimeMs > noteEndTime + this.windows.GOOD) {
+          // 릴리즈 없이 Good 윈도우 초과 → Miss 타임아웃 (이진 릴리즈 — RFD 0015 §3, late-Bad 폴딩)
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
+          // 타임아웃으로 죽은 롱을 잡고 있던 키의 놓기 keyup은 도장 없이 살아있는 이벤트로 남고,
+          // 직후 노트 윈도우에 들어가면 그 노트를 살린다 (의도된 관대 — RFD 0015 §7-3).
         }
         continue;
       }
@@ -1137,7 +1239,7 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 연결은 "계속 잡는 것"이라 공릴리즈로 표시하지 않는다(놓기가 아님). 공릴리즈는 terminal hold-only/슬라이드만.
+        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (R2 대상 아님 — RFD 0015).
       } else {
         // 종결 판정
         if (holdState.isHeld) {
@@ -1149,8 +1251,6 @@ export class JudgmentEngine {
             this.noteStates.set(i, NoteState.COMPLETE);
             this.doubleLongKeyStates.delete(i);
             this.incrementCombo();
-            // held로 완료 → 유지 키를 공릴리즈로 표시 (직후 "놓기" release 차단, RFD 0008)
-            this.markEmptyRelease(note.lane);
           } else {
             // 키 유지 중 → 릴리즈 대기
             this.noteStates.set(i, NoteState.BODY_AWAITING_RELEASE);
@@ -1185,7 +1285,7 @@ export class JudgmentEngine {
    * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(연결 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
-   * 노트 시점 전 윈도우 내 릴리즈 시점 판정은 onLaneRelease의 checkSlideReleaseOnRelease가 담당한다.
+   * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 R2 매칭(consumeReleaseTarget)이 담당한다.
    */
   private checkLengthZeroHoldOnly(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
@@ -1217,7 +1317,6 @@ export class JudgmentEngine {
           this.incrementCombo();
           this.noteStates.set(i, NoteState.COMPLETE);
           this.consumedLongKeys.delete(i);
-          this.markEmptyRelease((note as RangeNote).lane);
           continue;
         }
         if (songTimeMs > noteTime + this.windows.GOOD) {
@@ -1231,7 +1330,6 @@ export class JudgmentEngine {
           }
           this.noteStates.set(i, NoteState.COMPLETE);
           this.consumedLongKeys.delete(i);
-          if (perfects > 0) this.markEmptyRelease((note as RangeNote).lane);
         }
         continue;
       }
@@ -1242,8 +1340,6 @@ export class JudgmentEngine {
         this.noteStates.set(i, NoteState.COMPLETE);
         this.consumedLongKeys.delete(i);
         this.incrementCombo();
-        // held로 완료 → 유지 키를 공릴리즈로 표시 (RFD 0008)
-        this.markEmptyRelease((note as RangeNote).lane);
         continue;
       }
 
@@ -1253,37 +1349,6 @@ export class JudgmentEngine {
         this.noteStates.set(i, NoteState.COMPLETE);
         this.consumedLongKeys.delete(i);
         this.breakCombo();
-      }
-    }
-  }
-
-  /**
-   * 길이 0 hold-only(슬라이드) 릴리즈 시점 판정 — 레인의 모든 키가 떼어졌을 때 호출
-   *
-   * 노트 시점 전 Good 윈도우 내에서 완전히 떼면, 그 직전까지 눌려 있었으므로
-   * 떼는 시점에 Perfect를 부여한다(미리 떼는 케이스의 표시 시점).
-   */
-  private checkSlideReleaseOnRelease(lane: Lane, releaseTimeMs: number, keyCode: string): void {
-    for (let i = 0; i < this.notes.length; i++) {
-      if (this.noteStates.get(i) !== NoteState.UNPROCESSED) continue;
-      const note = this.notes[i];
-      if (!("endBeat" in note) || !isHoldOnlyNote(note)) continue;
-      if ((note as RangeNote).lane !== lane) continue;
-      // 다른 노트를 완료시킨 "놓기" 키는 슬라이드 미리-떼기를 트리거하지 않음 (RFD 0008)
-      if (this.isEmptyRelease(lane, keyCode)) continue;
-      // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정(미리 떼기 Perfect 미지원).
-      if (note.type === NoteType.DOUBLE_LONG) continue;
-
-      const noteTime = this.noteTimesMs.get(i);
-      const endTime = this.noteEndTimesMs.get(i);
-      if (noteTime === undefined || endTime === undefined || endTime !== noteTime) continue;
-
-      // 노트 시점 전 Good 윈도우 내 완전 릴리즈 → Perfect (떼는 시점)
-      if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
-        this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
-        this.noteStates.set(i, NoteState.COMPLETE);
-        this.consumedLongKeys.delete(i);
-        this.incrementCombo();
       }
     }
   }
@@ -1328,7 +1393,7 @@ export class JudgmentEngine {
   /**
    * 종결 판정 실행 (릴리즈 타이밍 기반)
    *
-   * Good 이상 → Perfect로 상향, Bad → Bad, Miss → Miss.
+   * 이진 릴리즈 (RFD 0015): Good 윈도우 내 → Perfect, 밖 → Miss.
    * 콤보 처리 + COMPLETE 전환까지 수행.
    */
   private executeTerminationJudgment(
@@ -1337,15 +1402,7 @@ export class JudgmentEngine {
     endTimeMs: number,
   ): void {
     const deltaMs = releaseTimeMs - endTimeMs;
-    let grade = this.calculateGrade(deltaMs);
-
-    if (
-      grade === JudgmentGrade.GOOD ||
-      grade === JudgmentGrade.GREAT ||
-      grade === JudgmentGrade.PERFECT
-    ) {
-      grade = JudgmentGrade.PERFECT;
-    }
+    const grade = this.terminationGrade(deltaMs);
 
     this.emitJudgment(noteIndex, grade, undefined, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);

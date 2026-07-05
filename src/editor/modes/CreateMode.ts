@@ -31,7 +31,9 @@ export type EntityType =
   | "timeSignature"
   | "text"
   | "auto"
-  | "stop";
+  | "stop"
+  | "tutorialInput"
+  | "tutorialDiagram";
 
 /** All available entity types for cycling (note lane entities only) */
 const ENTITY_TYPES: readonly EntityType[] = [
@@ -43,7 +45,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
 ] as const;
 
 /** Event entity types (created on extra lanes) */
-const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop"];
+const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Check if an entity type is an event type */
 export function isEventEntityType(t: EntityType): boolean {
@@ -54,7 +56,7 @@ export function isEventEntityType(t: EntityType): boolean {
 const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
 
 /** Range event types (need drag for endBeat) */
-const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop"];
+const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
 type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
@@ -580,6 +582,26 @@ export class CreateMode implements EditorMode {
         break;
       case "stop":
         newEvent = { type: "stop", beat: actualStartBeat, endBeat: actualEndBeat, editorLane };
+        break;
+      case "tutorialInput":
+        newEvent = {
+          type: "tutorialInput",
+          beat: actualStartBeat,
+          endBeat: actualEndBeat,
+          lane: 1,
+          keyCode: "KeyD",
+          keyLabel: "D",
+          editorLane,
+        };
+        break;
+      case "tutorialDiagram":
+        newEvent = {
+          type: "tutorialDiagram",
+          beat: actualStartBeat,
+          endBeat: actualEndBeat,
+          diagramId: "connected-switch",
+          editorLane,
+        };
         break;
       default:
         throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
