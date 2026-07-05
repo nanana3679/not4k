@@ -8,7 +8,7 @@ import { computeConnectionSources } from '../judgment/longNoteConnection';
 import { ScoreManager } from '../scoring';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
-import { noteDisplayEffect } from '../judgment/judgmentEffects';
+import { decideJudgmentEffects } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
@@ -224,35 +224,28 @@ export function PlayScreen() {
           noteEndTimesMs,
           {
             onJudgment: (result: JudgmentResult) => {
-              const note = chartData.notes[result.noteIndex];
-              const isBody = 'endBeat' in note;
+              // 결정은 전부 순수 함수(판정 효과)가 소유 — 이 적용자는 effects만 해석한다.
+              const effects = decideJudgmentEffects(result, chartData.notes[result.noteIndex]);
 
-              // Debug logging (헤드/포인트 노트만, 바디 제외)
-              if (debugLogger && !isBody) {
-                const noteTimeMs = noteTimesMs.get(result.noteIndex);
+              // 디버그 기록 — 화면 좌표 계산은 표시 시점의 관심사라 적용자 몫
+              if (debugLogger && effects.debug) {
+                const noteTimeMs = noteTimesMs.get(effects.noteIndex);
                 if (noteTimeMs !== undefined) {
                   const songTimeMs = gameClock.judgmentTimeMs();
                   const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                  const isDouble = note.type === 'double';
-                  debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs, isDouble ? result.subIndex : undefined);
+                  debugLogger.recordJudgment(effects.noteIndex, noteCenterY, effects.debug.grade, effects.debug.deltaMs, effects.debug.doubleSubIndex);
                 }
               }
 
-              // Pass deltaMs only for head judgments (not body)
-              if (isBody) {
-                scoreManager.recordJudgment(result.grade);
-              } else {
-                scoreManager.recordJudgment(result.grade, result.deltaMs);
-              }
-              renderer.recordPerspectiveSurfaceJudgment(result.grade);
-              renderer.showJudgment(result.grade, result.deltaMs);
+              scoreManager.recordJudgment(effects.scoreRecord.grade, effects.scoreRecord.deltaMs);
+              renderer.recordPerspectiveSurfaceJudgment(effects.judgmentText.grade);
+              renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs);
+              // accuracy는 기록 "후" 상태 재조회 — 적용 순서만 여기서 보장한다
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
-              // 순간 효과(bomb)는 표시 상태가 아니므로 별도 처리
-              if (result.grade !== 'miss') {
-                renderer.showBombEffect(note.lane);
+              if (effects.bomb !== null) {
+                renderer.showBombEffect(effects.bomb);
               }
-              // 표시 상태는 순수 함수가 단일 결정 → 렌더러가 캐시에 적용
-              renderer.applyNoteDisplayEffect(result.noteIndex, noteDisplayEffect(result, note));
+              renderer.applyNoteDisplayEffect(effects.noteIndex, effects.noteDisplay);
             },
             onComboUpdate: (combo: number) => {
               renderer.updateCombo(combo);
