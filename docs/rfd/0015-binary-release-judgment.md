@@ -2,7 +2,7 @@
 
 **Status:** Proposed (2026-07-05) — 프로토타입 미검증
 
-**번호·베이스 주석:** 이 문서는 **0015**를 사용한다 — 0014는 권리 토큰 초안(타 워크트리 미커밋, §6.4)이 선점했고, 폐기되더라도 번호 혼동을 피하기 위해 재사용하지 않는다. 0012·0013(트릴 상한) 결정 기록은 이 문서와 함께 main에 선반입되며, **그 구현은 판정 엔진 브랜치의 후속 머지로 도착한다**(문서-구현 시차는 PR에 명시). 별도 미커밋 초안 `0013-stroke-resource-judgment-model`은 트릴 0013과 번호가 충돌하며, 그 동기가 본 결정으로 해소되므로(§6.5) 폐기 또는 Rejected 재번호를 권고한다.
+**번호·베이스 주석:** 이 문서는 **0015**를 사용한다 — 0014는 권리 토큰 문서(§6.4, `worktree-bridge-cse_0184J8AfSNKBuidTLwyHMftj` 브랜치에 5커밋 `d465ee6`~`8852bea`로 존재)가 선점했으므로 재사용하지 않는다. 구 0014는 RFD 0007 선례(삭제 대신 Superseded 헤더 존치)대로 `Status: Superseded by RFD 0015`로 마킹해 후속 머지한다 — P1~P18 프로브 부록이 정식 보존된다. 0012·0013(트릴 상한) 결정 기록은 이 문서와 함께 main에 선반입되며, **그 구현은 판정 엔진 브랜치의 후속 머지로 도착한다**(문서-구현 시차는 PR에 명시). 별도 미커밋 초안 `0013-stroke-resource-judgment-model`은 트릴 0013과 번호가 충돌하며, 그 동기가 본 결정으로 해소되므로(§6.5) 폐기 또는 Rejected 재번호를 권고한다.
 
 ## 관련 문서
 
@@ -11,7 +11,7 @@
 - [`docs/rfd/0008-release-engage-key-attribution.md`](0008-release-engage-key-attribution.md) — 공릴리즈 도장. 이 RFD가 **폐지**한다.
 - [`docs/rfd/0011-normal-release-consume.md`](0011-normal-release-consume.md) — release 소비. 이 RFD가 release-대상 전반으로 **일반화·승계**한다.
 - [`docs/rfd/0012-empty-release-stamp-carryover.md`](0012-empty-release-stamp-carryover.md) — 도장 회수 정밀화. 도장 폐지로 이 RFD의 장치 전체가 **불필요**해진다(문제 자체가 소멸).
-- 구 RFD 0014 초안 `0014-press-release-pairing-key-lifecycle.md` (타 워크트리 미커밋, 권리 토큰 모델) — 이 RFD가 폐기하고 번호를 승계한다(§6.4).
+- 구 RFD 0014 `0014-press-release-pairing-key-lifecycle.md` (권리 토큰 모델, `worktree-bridge-cse_0184…` 브랜치 커밋) — 이 RFD가 **대체**한다. Superseded 마킹 후 존치(§6.4), 번호는 승계하지 않는다.
 - [`docs/spec/note-system.md`](../spec/note-system.md) "롱노트 판정", [`docs/context/glossary.md`](../context/glossary.md), [`docs/context/long-note-judgment-rationale.md`](../context/long-note-judgment-rationale.md)
 
 ---
@@ -57,8 +57,9 @@ keydown은 RFD 0006 이후 단순하다: 가장 이른 매칭 + 소비. 그러�
 엔진 전체가 한 문장이다: **모든 입력 이벤트는 익명이고, 자기 윈도우에 맞는 가장 이른 노트 하나에 쓰인 뒤 사라진다.**
 
 - **R1 (keydown)**: 가장 이른 매칭 + 소비. RFD 0006 그대로, 무변경. early Bad 등 press 쪽 등급·처벌도 무변경.
-- **R2 (keyup)**: 가장 이른 release-대상(종결 대기 끝점, 슬라이드 미리-떼기, 릴리즈 노트) 매칭 + 소비. 윈도우 내 = Perfect (이진). RFD 0011의 소비를 release-대상 전반으로 일반화한 것.
-- **익명성**: keydown↔keyup 짝·출신·주인 키를 아무도 추적하지 않는다. "이 keyup이 어느 keydown에서 왔는가"라는 질문 자체가 없다.
+- **R2 (keyup)**: **같은 레인의** 가장 이른 release-대상(종결 대기 끝점, 슬라이드 미리-떼기, 릴리즈 노트) 매칭 + 소비. 윈도우 내 = Perfect (이진). RFD 0011의 소비를 release-대상 전반으로 일반화한 것.
+  - **슬라이드 미리-떼기의 "완전 릴리즈" 게이트(RFD 0005, `heldKeys.size === 0`)는 폐지한다** — 미리-떼기도 균일한 R2 keyup-대상이 된다. 부분 릴리즈가 미리-떼기를 조기 발화해도 이진성상 held-check와 동일한 Perfect이며, 노트 유형별 레인 상태 조건은 이 RFD가 제거하려는 예외 목록의 일종이다. RFD 0005 의미 변경이므로 note-system 동기화 대상(§10).
+- **익명성**: keydown↔keyup 짝·출신·주인 키를 아무도 추적하지 않는다. "이 keyup이 어느 keydown에서 왔는가"라는 질문 자체가 없다. 더블롱의 "키별 R2"는 이 선언의 예외가 아니다 — 익명성은 press~release **짝 추적의 부재**를 말하며, 더블롱의 side 귀속은 노트 구조가 요구하는 키 추적으로 층위가 다르다.
 
 **무변경 배경 규칙**: 유지 판정(lane-held, grace 12ms, 시작/끝점 Good 윈도우 완화), 연결(held-check 위임, release 판정 없음), 더블롱(키별 독립 ×2, 키별 R2 적용), 트릴(keydown 기반 교대, RFD 0013 상한). 이 RFD는 release **판정과 이벤트 회계**만 바꾼다.
 
@@ -86,7 +87,7 @@ keydown은 RFD 0006 이후 단순하다: 가장 이른 매칭 + 소비. 그러�
 - wrong-count 패널티(잉여 키로 시작하면 비권리 키 release가 무효 → 타임아웃 Miss)는 대칭적으로는 정당하나, 유저 입장에서 "정확한 시각에 뗐는데 Miss"로 체감된다.
 - 이진성 아래에서는 토큰이 지키려던 것(등급 오염 방지)이 애초에 존재하지 않는다.
 
-상세 프로브 기록(P1~P18)은 구 초안 §11 부록에 있다. 폐기하되 기록은 보존한다.
+상세 프로브 기록(P1~P18)은 구 문서 §11 부록에 있다. 처분: RFD 0007 선례대로 `Status: Superseded by RFD 0015` 헤더를 달아 **존치·후속 머지**한다 — 기록이 정식 보존되고, 0014 번호 불재사용 방침과도 정합한다.
 
 ### 6.5 스트로크 자원 초안(`0013-stroke-resource-judgment-model`, 미커밋 Draft)과의 관계
 
@@ -108,10 +109,13 @@ keydown은 RFD 0006 이후 단순하다: 가장 이른 매칭 + 소비. 그러�
 
 3의 근거(플레이 철학): **위험 비대칭 — 하향 위험은 press에만 있고, release는 무해하거나 이득이다.** 따라서 유저는 의도치 않은 뗌이 판정될 수 있음을 인식하고 **덜 입력하는 것**이 올바른 전략이며, 이것이 실제 배드말림 탈출법이다(판단이 안 되면 레인을 수 초 통째로 놓는 것이 스트레이 입력보다 싸다). 인플레이션의 상한은 "물리 keyup 1개 = 크레딧 ≤1"로 유한하다.
 
+덧붙여, 이 불변은 구 0014 세션 P3에서 저자가 "release는 윈도우 안 Perfect뿐이라는 전제는 견고하지 않다(원하면 Good을 열 수도 있다)"고 반박했던 입장의 **의도적 번복**이다. 수용 근거: **윈도우 내 Perfect 상향은 인식난이 큰 이 게임에서 부담을 덜기 위한 판정 업그레이드이지 액션 면제가 아니다 — 유저는 여전히 액션 자체를 수행해야 하고 그 횟수가 중요하므로(이벤트 회계), 스킬 모델의 본질을 흐리지 않는다.** 이 번복과 근거는 rationale "고려했다 접은 입장들"에도 기록한다(§10).
+
 ## 8. 의존하는 불변 / 재개봉 조건
 
 - **레인당 진행 중 롱 최대 1** (RFD 0008 §4, 0011 §7): keyup의 종결 대상이 유일함을 보장. `validateNoDuplicates` + `validateNoLongOverlap`가 강제.
 - **이진성 자체가 이 RFD의 1급 의존이다.** 엔진의 귀속 간소화(익명 이벤트, 임의의 가장 이른 매칭)는 "윈도우 내 등급 상수"에 정당성을 얻는다. **등급형 release를 재도입하면 오귀속이 하향을 만들 수 있게 되어, 귀속 문제(도장 또는 토큰)가 재개봉된다.** 이 비용표를 여기 명시함으로써, 암묵적 의존이 아니라 기록된 불변 위의 설계가 된다.
+- **외부 실증**: [`docs/research/slide-note-input-matching.md`](../research/slide-note-input-matching.md) — **Malody**는 release 등급이 없고(tail = held 확인) 귀속 장치가 전무하며, **Sonolus pjsekai**는 등급형 SlideEnd라서 `claimEnd`+`disallowEnd` 귀속 장치를 필요로 한다. "등급이 귀속을 강제한다"는 본 RFD의 축이 기성 엔진들에서도 관찰된다.
 
 ## 9. 케이스 검증 (예정 회귀 — 프로토타입 테스트 목록)
 
@@ -147,10 +151,10 @@ keydown은 RFD 0006 이후 단순하다: 가장 이른 매칭 + 소비. 그러�
   - `emptyReleaseKeys` 상태·부여(0008 held 완료, 0012 타임아웃)·회수(0012 3장치) **전부 제거**
   - keyup 소비를 release-대상 전반으로 일반화 (0011 `didTerminate` 도장 재사용 구현 → 소비 전용 메커니즘으로 교체; 도장 폐지에 따른 재구현)
 - **테스트**: `normalReleaseConsume.test.ts` 소비 케이스 승계, 0008/0012 회귀 중 **기대값 반전 2건**(§9 표) 수정, §9 표 전체를 신규 회귀로. 홀드 트릴 포함 0008 §9 회귀 목록(릴리즈탭·홀드 트릴·홀드 중 탭·더블롱) 필수 통과.
-- [`docs/spec/note-system.md`](../spec/note-system.md): "종결 판정"(Bad 티어 제거·이진 명시), "바디 판정 결과 = Perfect/Miss", release 소비 일반화, RFD 0007 §7 제한 해제 반영.
+- [`docs/spec/note-system.md`](../spec/note-system.md): "종결 판정"(Bad 티어 제거·이진 명시), "바디 판정 결과 = Perfect/Miss", release 소비 일반화, RFD 0007 §7 제한 해제, 슬라이드 미리-떼기 완전 릴리즈 게이트 폐지(RFD 0005 의미 변경, §4) 반영.
 - [`docs/spec/scoring.md`](../spec/scoring.md): 바디 Bad 소멸에 따른 집계 확인.
 - [`docs/context/glossary.md`](../context/glossary.md): **이진 릴리즈** 불변 등재, **소비** 정의를 keydown/keyup 대칭으로 갱신, **공릴리즈** 항목을 폐지 이력으로 이관 (용어 권위 규칙에 따라 glossary 먼저).
-- [`docs/context/long-note-judgment-rationale.md`](../context/long-note-judgment-rationale.md): §4에 권리 토큰·이진 릴리즈 항목 추가.
+- [`docs/context/long-note-judgment-rationale.md`](../context/long-note-judgment-rationale.md): §4에 권리 토큰·이진 릴리즈(P3 번복 포함) 항목 추가, S1의 "떼는 타이밍이 판정된다" 문구를 "떼는 동작의 존재가 판정된다"로 갱신.
 - `src/game/CONTEXT.md`: 공릴리즈 요약 제거, 이 RFD 링크.
 
 ## 11. 미해결 / 열린 질문
@@ -159,4 +163,4 @@ keydown은 RFD 0006 이후 단순하다: 가장 이른 매칭 + 소비. 그러�
 - **더블롱 분할 릴리즈의 소비 단위**: 키별 소비로 자연 해소될 것으로 예상하나(0011 §10 승계 질문), 구현 시 확인.
 - **§7-3 이완 총량의 실플레이 수용성**: §7-3은 도장이 구체적으로 막던 것을 여는 **측정 가능한 release 측 이완**이다(§9 기대값 반전 2건이 그 표식). 규칙 단순성과 맞바꾼 의도된 결정이지만, 유저가 이 이완의 총량을 실플레이에서 받아들일지는 Accepted 이후에도 남는 제품 리스크 — 실플레이 검증 항목으로 추적한다.
 - **과관대 체감 시 되돌릴 수단**: 실플레이·차트에서 §7-3 인플레이션이 문제로 체감되면, 도장 재도입이 아니라 **윈도우 튜닝**(미리-떼기 윈도우 축소 등)을 먼저 검토한다. 도장 재도입은 §8의 재개봉 비용을 수반한다.
-- **Accepted 전환 조건**: ① §9 표 전체가 `JudgmentEngine.test.ts`에서 green ② **채점 회귀** — 바디 Bad 소멸이 scoring 집계·콤보에 미치는 영향 검증 green ③ 기존 무관 회귀 무손상 ④ 문서 첫머리 번호·베이스 주석의 잔여 정리(구 0014 권리 토큰·`0013-stroke-resource` 초안의 폐기 또는 Rejected 재번호) 이행.
+- **Accepted 전환 조건**: ① §9 표 전체가 `JudgmentEngine.test.ts`에서 green ② **채점 회귀** — 바디 Bad 소멸이 scoring 집계·콤보에 미치는 영향 검증 green ③ 기존 무관 회귀 무손상 ④ 문서 첫머리 번호·베이스 주석의 잔여 정리(구 0014 Superseded 마킹·후속 머지, `0013-stroke-resource` 초안 폐기 또는 Rejected 재번호) 이행.
