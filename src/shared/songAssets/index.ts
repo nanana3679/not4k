@@ -2,7 +2,7 @@ export {
   createChartAsset,
   deleteChartAsset,
   saveChartAsset,
-  type ChartAssetRow,
+  type ChartAssetUpsert,
   type ChartAssetTarget,
   type ChartAssetWriteResult,
   type CreateChartAssetInput,
