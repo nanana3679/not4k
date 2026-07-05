@@ -26,6 +26,8 @@ export interface SongAssetPersistenceAdapter {
   remove: (paths: string[]) => Promise<void>;
   upsertChartRow: (row: ChartAssetRow) => Promise<void>;
   deleteChartRow: (target: ChartAssetTarget) => Promise<void>;
+  listSongFiles: (songId: string) => Promise<string[]>;
+  deleteSongRow: (songId: string) => Promise<void>;
 }
 
 export interface SaveChartAssetInput extends ChartAssetTarget {
@@ -98,6 +100,47 @@ export async function createChartAsset(
     chartJson: asset.chartJson,
     difficulty: asset.difficulty,
   };
+}
+
+export interface DeleteSongAssetInput {
+  songId: string;
+  /** 호출 시점에 이 곡에 남아 있는 차트 수. 0이 아니면 삭제를 거부한다. */
+  chartCount: number;
+}
+
+/** 차트가 남아 있는 곡을 지우려 할 때 던져진다. DB의 FK restrict와 같은 규칙의 앱 레벨 표현. */
+export class SongHasChartsError extends Error {
+  readonly chartCount: number;
+
+  constructor(chartCount: number) {
+    super(`차트 ${chartCount}개가 남아 있어 곡을 삭제할 수 없습니다. 에디터에서 차트를 먼저 삭제하세요.`);
+    this.name = "SongHasChartsError";
+    this.chartCount = chartCount;
+  }
+}
+
+/**
+ * 곡을 삭제한다. 차트가 전부 지워진 곡만 삭제할 수 있다.
+ *
+ * songs 행을 Storage 파일보다 먼저 지운다: 클라이언트가 세는 chartCount가
+ * 낡았더라도 DB의 FK restrict가 행 삭제 단계에서 거부하므로, 그 시점에는
+ * 아직 아무 파일도 파괴되지 않은 상태다.
+ */
+export async function deleteSongAsset(
+  adapter: SongAssetPersistenceAdapter,
+  input: DeleteSongAssetInput,
+): Promise<{ removedPaths: string[] }> {
+  if (input.chartCount > 0) {
+    throw new SongHasChartsError(input.chartCount);
+  }
+
+  await adapter.deleteSongRow(input.songId);
+
+  const paths = await adapter.listSongFiles(input.songId);
+  if (paths.length > 0) {
+    await adapter.remove(paths);
+  }
+  return { removedPaths: paths };
 }
 
 export async function deleteChartAsset(

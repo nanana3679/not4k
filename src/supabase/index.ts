@@ -8,5 +8,6 @@ export {
 export {
   createChartAsset,
   deleteChartAsset,
+  deleteSongAsset,
   saveChartAsset,
 } from "./songAssets";
