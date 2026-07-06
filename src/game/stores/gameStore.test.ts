@@ -82,7 +82,7 @@ describe('gameStore — masterVolume', () => {
 });
 
 describe('gameStore — gameplayRange', () => {
-  it('selectSong에 30~90초 인게임 구간을 넘기면 selectedPlaybackRange로 저장', () => {
+  it('selectSong에 30~90초 gameplayRange를 넘기면 selectedPlaybackRange로 저장', () => {
     useGameStore.getState().selectSong('song-1', 'HARD', 'songs/song-1/audio.ogg', {
       startTime: 30,
       endTime: 90,

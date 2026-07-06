@@ -23,24 +23,20 @@
 | 유지 전용 롱노트(hold-only) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
 | 연결 판정 | `connection` | `isConnection`/`Connection` |
 | 종결 판정 | `termination` | `executeTerminationJudgment`/`terminationGrade` |
-| 유지 판정(lane-held) | `bodyHold`/`laneHeld` | `checkLongNoteBodyHold`/`laneHoldStates` |
-| 가장 이른 매칭 | `earliest` | `earliest`/`earliestIndex` |
 | 인게임 구간 | `gameplayRange` | `gameplayRange` |
-| 다중키 바인딩 | `keyBindings` | `keyBindings`/`KeyBinding`/`laneBindings` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 인게임 페이드 | `fadeInTime`/`fadeOutTime` | 동일 |
-| 차트 레벨(Lv.) | `difficultyLevel` | 동일 |
-| 난이도명 | `difficultyLabel` | 동일 |
+| 난이도명 | `difficultyLabel` (⚠️ 2026-07-06 결정 대기 — 문서 전환 미실행) | 동일 |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 
 ## B. 기존 개념 — established 이름 유지
 
-레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 홀드 중 탭, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기).
+레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 홀드 중 탭, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `laneHoldStates`/`checkLongNoteBodyHold`. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류).
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
@@ -51,6 +47,7 @@
 | 릴리즈탭 | 릴리즈탭 | `-o` (`-` 떼며 `o` 탭) |
 | 홀드 중 탭 | 홀드 중 탭 | 키 라벨층 `a-- / .b.` |
 | 홀드 교대 (← 홀드 이어잡기 개명) | 홀드 교대 | (보면 비가시 — 표기 없음) |
+| 다중키 바인딩 | 다중키 바인딩 | 구현: `keyBindings`/`KeyBinding`/`laneBindings` — 배열명이 "다중" 의미를 못 담아 캐논 부적합 (2026-07-06 A에서 재분류) |
 | 분할 릴리즈 | 분할 릴리즈 | `D=-` |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
 
@@ -79,5 +76,6 @@
 ## 미구현·주의
 
 - **비행 규칙 / 고도**: 미구현이나 영어 명칭이 design-first로 확정돼 **선행 적용 완료** — `flightRule`(우산), `Liftoff`/`Survival`(하위), `altitude`. 고도는 **게임플레이 값 = 렌더러 시각 고도가 동일 값**(판정 잘하면 시각 고도 상승)이라 `altitude`로 통일(별개 식별자·충돌 아님). → §2.2 no-code 규칙의 design-first 예외.
+- **가장 이른 매칭**: 규칙의 정식 이름은 RFD 0015의 **R1(keydown 소비)/R2(keyup 소비)**다. "가장 이른 매칭"은 그 규칙 동작의 *서술*로 한국어를 유지한다. `earliest`는 지역 변수명일 뿐 개념 캐논이 아님 (2026-07-06 A에서 제외).
 - **A1 재전환**: 2026-06-30 "텍스트 이벤트→메시지 이벤트" 정정은 이 정책으로 `TextEvent`(영어)로 다시 간다.
 - **표기법 스펙(B 작업)**: `piece-notation.md`의 `-o` 정의 등은 AI 작성본이라 별도 정정 패스 필요(용어 정책과 분리). 현재 이름(릴리즈탭/홀드중탭)은 소통 문제없어 유지.
