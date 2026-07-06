@@ -509,7 +509,7 @@ export function useCanvasEvents(
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
-    // 트릴 구간 hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
+    // trillZone hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
     // 그 구간을 래치해 커서가 밖으로 나가도 계속 표시한다(래치 결정을 모드가 소유 = PUSH).
     const hoveredTrillZone = mode === 'select'
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null

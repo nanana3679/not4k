@@ -360,7 +360,7 @@ export class OverlayRenderer {
       }
     }
 
-    // hover한 트릴 구간의 이동/리사이즈 핸들 (hover 시에만 표시)
+    // hover한 trillZone의 이동/리사이즈 핸들 (hover 시에만 표시)
     if (hoveredTrillZoneIndex !== null && hoveredTrillZoneIndex < this.host.chart.trillZones.length) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
       const x = (zone.lane - 1) * LANE_WIDTH;

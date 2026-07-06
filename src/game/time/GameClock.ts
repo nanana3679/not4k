@@ -11,7 +11,7 @@
  *    입력 오프셋(judgmentOffsetMs)은 입력 경로에만 적용되며, 판정/시각 시간에는 닿지 않는다.
  *
  * 의존 방향은 game → GameClock 단방향이다. 이 클럭은 게임 상태(노트·점수·일시정지·auto)를
- * 일절 보유하지 않는다. 일시정지·재생배속·인게임 구간 클램프는 audio.currentTimeMs가 이미
+ * 일절 보유하지 않는다. 일시정지·재생배속·gameplayRange 클램프는 audio.currentTimeMs가 이미
  * 반영하므로 여기서 재구현하지 않고 그대로 상속한다.
  *
  * 설계 배경은 `docs/spec/audio-visual-sync.md`(3개 레이턴시 경로)를 따른다.

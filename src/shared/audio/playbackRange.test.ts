@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { normalizePlaybackRange } from "./playbackRange";
 
 describe("normalizePlaybackRange", () => {
-  it("start=30,end=90,duration=120이면 60초 인게임 구간으로 정규화", () => {
+  it("start=30,end=90,duration=120이면 60초 gameplayRange로 정규화", () => {
     expect(normalizePlaybackRange({
       startTime: 30,
       endTime: 90,

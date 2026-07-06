@@ -7,7 +7,7 @@ import { computePasteViolations } from "./violationCheck";
 export interface NoteClipboard {
   notes: NoteEntity[];
   extraNotes: ExtraNoteEntity[];
-  /** 함께 복사된 트릴 구간(트릴 선택 시 구간째 복사) */
+  /** 함께 복사된 trillZone(트릴 선택 시 구간째 복사) */
   trillZones: TrillZone[];
   /** Earliest beat among copied notes/zones (relative offset anchor) */
   anchorBeat: Beat;
@@ -108,7 +108,7 @@ export class ClipboardManager {
       }
     }
 
-    // 트릴 구간도 함께 복사. 구간 시작도 anchor 후보(구간째 정렬 기준)
+    // trillZone도 함께 복사. 구간 시작도 anchor 후보(구간째 정렬 기준)
     const trillZones: TrillZone[] = [];
     for (const idx of trillZoneIndices) {
       const zone = chart.trillZones[idx];
@@ -177,7 +177,7 @@ export class ClipboardManager {
         }
       }
     }
-    // 트릴 구간 범위 검증
+    // trillZone 범위 검증
     for (const clipZone of clipZones) {
       const sf = beatToFloat(beatAdd(clipZone.beat, beatOffset));
       const ef = beatToFloat(beatAdd(clipZone.endBeat, beatOffset));
@@ -200,7 +200,7 @@ export class ClipboardManager {
       newSelectedIndices.add(idx);
     }
 
-    // 트릴 구간도 함께 붙여넣기(같은 beatOffset, 레인 유지)
+    // trillZone도 함께 붙여넣기(같은 beatOffset, 레인 유지)
     const newZones = [...chart.trillZones];
     this.pastedZoneIndices.clear();
     for (const clipZone of clipZones) {
@@ -340,7 +340,7 @@ export class ClipboardManager {
       return null;
     }
 
-    // 붙여넣은 트릴 구간도 함께 이동(상/하)
+    // 붙여넣은 trillZone도 함께 이동(상/하)
     const newZones = [...chart.trillZones];
     for (const idx of this.pastedZoneIndices) {
       const zone = newZones[idx];
@@ -398,7 +398,7 @@ export class ClipboardManager {
       const targetLane = note.lane + laneOffset;
       if (targetLane < 1 || targetLane > 4) return null;
     }
-    // 붙여넣은 트릴 구간도 레인 범위 검사
+    // 붙여넣은 trillZone도 레인 범위 검사
     for (const idx of this.pastedZoneIndices) {
       const targetLane = chart.trillZones[idx].lane + laneOffset;
       if (targetLane < 1 || targetLane > 4) return null;

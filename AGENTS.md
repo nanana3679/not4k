@@ -51,6 +51,7 @@
 
 - 프로젝트 고유 용어나 모르는 용어를 만나면 추측하지 말고 먼저 `CONTEXT-MAP.md`를 읽고, 관련 `CONTEXT.md`와 `docs/context/glossary.md`를 참조할 것
 - **용어 정의의 권위는 `docs/context/glossary.md`이다.** 풀 정의·세부 규칙·배경 링크는 glossary에 둔다
+- **용어 표기 언어는 출처 기반으로 정한다(RFD 0010):** 프로젝트가 발명한 구성물(코드 식별자가 있는 것)은 영어 코드 식별자(`백틱`)로, 원래 있는 개념은 established 이름(자연스러우면 한국어, 커뮤니티 표준이 영어면 영어)으로 표기한다. prose(서술)는 한국어를 유지한다. 용어별 분류는 `docs/context/term-map.md`를 따른다
 - 루트 및 모듈 `CONTEXT.md`에는 한두 줄 요약 정의만 두고, 세부는 glossary 또는 관련 RFD 링크로 연결할 것
 - 새로운 개념이나 용어를 도입할 때는 `docs/context/glossary.md`에 먼저 정의를 추가하고, 관련 `CONTEXT.md`에 요약을 동기화할 것
 - 용어의 의미가 바뀌면 glossary를 먼저 갱신하고, 같은 용어를 요약한 `CONTEXT.md`들을 함께 동기화할 것

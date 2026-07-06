@@ -8,8 +8,8 @@
  *    - 포인트 노트 + 구간 시작/끝은 공존 가능 (롱노트 헤드)
  *    - 구간 끝 + 구간 시작은 공존 가능 (o-o- 패턴)
  * 2. 롱노트 구간 내 겹침 금지 — 바디 열린 구간 안에 다른 노트 불가
- * 3. 트릴 구간 전용 — 트릴 노트 ↔ 트릴 구간 상호 배타
- * 4. 트릴 구간 겹침 금지 — 트릴 구간끼리만 겹침 검사 (노트/롱노트와 독립)
+ * 3. trillZone 전용 — 트릴 노트 ↔ trillZone 상호 배타
+ * 4. trillZone 겹침 금지 — trillZone끼리만 겹침 검사 (노트/롱노트와 독립)
  * 5. 메시지 겹침 금지 — 메시지 열린 구간 안에 다른 메시지 시작/끝 불가
  */
 
@@ -168,12 +168,12 @@ export function validateNoLongOverlap(notes: readonly NoteEntity[]): ValidationE
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 3: 트릴 구간 전용
+// 규칙 3: trillZone 전용
 // ---------------------------------------------------------------------------
 
 /**
- * 트릴 노트가 트릴 구간 안에만 존재하는지,
- * 트릴 구간 안에 비-트릴 노트가 없는지 검사한다.
+ * 트릴 노트가 trillZone 안에만 존재하는지,
+ * trillZone 안에 비-트릴 노트가 없는지 검사한다.
  */
 export function validateTrillExclusive(
   notes: readonly NoteEntity[],
@@ -259,13 +259,13 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 4: 트릴 구간 겹침 금지
+// 규칙 4: trillZone 겹침 금지
 // ---------------------------------------------------------------------------
 
 /**
- * 같은 레인의 트릴 구간끼리 열린 구간이 겹치는지 검사한다.
+ * 같은 레인의 trillZone끼리 열린 구간이 겹치는지 검사한다.
  * 끝-시작 인접(같은 박자)은 허용.
- * 트릴 구간은 노트/롱노트와는 독립적으로 배치된다.
+ * trillZone은 노트/롱노트와는 독립적으로 배치된다.
  */
 export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): ValidationError[] {
   const errors: ValidationError[] = [];

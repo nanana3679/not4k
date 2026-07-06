@@ -115,8 +115,8 @@ describe("AutoPlayer 합성 입력 시뮬레이션", () => {
   });
 });
 
-describe("AutoPlayer Auto 구간 게이팅", () => {
-  it("Auto 구간 밖 노트(1000ms, 구간 5000-6000ms)는 press를 만들지 않는다", () => {
+describe("AutoPlayer AutoEvent 게이팅", () => {
+  it("AutoEvent 밖 노트(1000ms, 구간 5000-6000ms)는 press를 만들지 않는다", () => {
     const notes: NoteEntity[] = [{ beat: 4, lane: 1, type: "single" } as unknown as NoteEntity];
     const { presses } = runAutoPlay(
       notes,

@@ -21,7 +21,7 @@ import {
 
 /**
  * 리사이즈 캡(끝=위): 레인 폭을 가로지르는 풀폭 단색 가로 바(직각)를 endY에 그린다.
- * 트릴 구간과 롱노트가 공유하는 리사이즈 핸들 도형이다.
+ * trillZone과 롱노트가 공유하는 리사이즈 핸들 도형이다.
  * @param x        레인의 좌측 x (= (lane-1) * laneWidth)
  * @param laneWidth 레인 폭
  * @param endY     끝(위) 화면 y — 캡의 세로 중심
@@ -66,7 +66,7 @@ export function drawMovePill(
 }
 
 /**
- * 한 트릴 구간의 이동/리사이즈 핸들을 layer에 그린다.
+ * 한 trillZone의 이동/리사이즈 핸들을 layer에 그린다.
  * @param x        구간 레인의 좌측 x (= (lane-1) * laneWidth)
  * @param laneWidth 레인 폭
  * @param startY   구간 시작(아래) 화면 y
@@ -96,7 +96,7 @@ export function drawTrillZoneHandles(
 
 /**
  * 롱노트의 리사이즈 핸들(끝=위의 풀폭 가로 캡)을 layer에 그린다.
- * 트릴 구간과 같은 캡 도형을 쓰되, 색은 노트 hover/선택 언어를 따른다
+ * trillZone과 같은 캡 도형을 쓰되, 색은 노트 hover/선택 언어를 따른다
  * (hover=흰색 외곽선색, 선택=빨강).
  * @param x        노트 레인의 좌측 x (= (lane-1) * laneWidth)
  * @param laneWidth 레인 폭
