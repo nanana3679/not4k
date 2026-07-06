@@ -175,7 +175,7 @@ Grace 노트의 설계 의도와 메커니즘 상세는 `note-system.md`의 "Gra
 - **점수 기여는 일반 롱노트와 동일**하다. `holdOnly`의 Perfect도 3점이며, 달성률·`altitude`(Breakthrough `altitude` 회복 포함)에 그대로 반영된다. 점수 시스템에서 차별하지 않으며, 공짜 Perfect 남용은 배치 빈도로 관리한다(난이도명 제한 없음).
 - **유지 판정은 그대로** 적용된다. 유예 시간(12ms)을 넘겨 릴리즈하면 끝점 Miss.
 
-설계 의도와 메커니즘 상세는 `note-system.md`의 "`holdOnly` 롱노트" 섹션과 `../rfd/0009-`holdOnly`-long-note.md`를 참고한다.
+설계 의도와 메커니즘 상세는 `note-system.md`의 "`holdOnly` 롱노트" 섹션과 `../rfd/0009-hold-only-long-note.md`를 참고한다.
 
 ### 배드말림 (Bad Train)
 

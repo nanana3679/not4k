@@ -312,7 +312,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 - **헤드 판정**: 싱글 헤드는 싱글 판정 × 1, 더블 헤드는 독립된 싱글 판정 × 2. 헤드는 이벤트 라우팅에 의해 입력 이벤트를 소비하고, 롱노트는 held 상태를 독립적으로 체크한다.
 - **유지 판정**: 바디 구간 동안 해당 레인의 held 상태를 감시한다. 시작점·끝점 근처의 Good 윈도우 구간과 유예 시간 이내의 릴리즈는 유지 실패로 처리하지 않는다. 유지 실패 시 끝점 판정이 Miss로 확정된다. 길이 0 롱노트는 유지 판정을 생략한다. 구체적인 수치는 `scoring.md` 참조.
-- **끝점 판정**: 결과는 Perfect/Miss 이진. 두 종류가 있다. (1) **`termination` 판정** — 끝점에 다른 롱노트의 시작점이 없을 때 발생. 끝점 Good 윈도우(±120ms) 내에 keyup이 있으면 Perfect, 없으면 타임아웃 Miss([[이진 릴리즈]] — RFD 0015). (2) **`connection` 판정** — 끝점에 같은 레인의 다른 롱노트 시작점이 있을 때 발생. 끝점에서 홀드 유지 여부를 확인 (유지 시 Perfect, 미유지 시 Miss).
+- **끝점 판정**: 결과는 Perfect/Miss 이진. 두 종류가 있다. (1) **`termination` 판정** — 끝점에 다른 롱노트의 시작점이 없을 때 발생. 끝점 Good 윈도우(±120ms) 내에 keyup이 있으면 Perfect, 없으면 타임아웃 Miss(이진 릴리즈 — RFD 0015). (2) **`connection` 판정** — 끝점에 같은 레인의 다른 롱노트 시작점이 있을 때 발생. 끝점에서 홀드 유지 여부를 확인 (유지 시 Perfect, 미유지 시 Miss).
 - **더블 롱노트**: 독립된 싱글 롱노트 × 2로 병렬 판정한다. 한 키의 유지 실패가 다른 키의 판정에 영향을 주지 않는다.
 
 ### 분할 릴리즈 (Split Release)
@@ -326,7 +326,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 ### `termination` 판정
 
-롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 `termination` 판정이 발생한다. 판정은 [[이진 릴리즈]]: 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 윈도우 끝(+120ms)까지 keyup 부재 = 타임아웃 Miss. `termination` 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 **동작의 존재**에 판정을 부여하여 이를 방지한다(정밀도는 판정하지 않음). **`termination` 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 `termination`을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
+롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 `termination` 판정이 발생한다. 판정은 이진 릴리즈: 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 윈도우 끝(+120ms)까지 keyup 부재 = 타임아웃 Miss. `termination` 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 **동작의 존재**에 판정을 부여하여 이를 방지한다(정밀도는 판정하지 않음). **`termination` 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 `termination`을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
 
 **구현**: `consumeReleaseTarget`(R2 매칭+소비), `executeTerminationJudgment`, `terminationGrade`(윈도우 내 Perfect / 밖 Miss 이진).
 
@@ -336,7 +336,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 > **영문 표기는 `connection`으로 통일**한다.
 
-**구현**: `hasImmediateFollowingLongNote`(`connection` 여부 검출 — "바로 뒤 롱노트 존재"가 판정 조건), 지역 판정값 `isConnection`, 끝점 update의 held-or-grace 위임(스트레이 릴리즈로 촉발·실패 안 함).
+**구현**: `computeConnectionSources`/`connectionSources`(`connection` 여부 검출 — "바로 뒤 롱노트 존재"가 판정 조건), 지역 판정값 `isConnection`, 끝점 update의 held-or-grace 위임(스트레이 릴리즈로 촉발·실패 안 함).
 
 ### 유지 판정
 
@@ -346,7 +346,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 ### lane-held (레인 유지 모델)
 
-롱노트 유지를 *특정 키*가 아니라 *레인 단위*로 보는 모델. 레인의 아무 키나 눌려 있으면 유지 중이고, 모든 키가 유예 시간을 넘겨 떼어지면 유지 실패. [[가변 손배치]](홀드 교대·홀드 중 탭)의 토대다. **유지 성립은 레인 단위이지만 `termination` 트리거는 키 단위 release 이벤트**라는 *층위 분리*가 핵심(`termination` 판정 참조).
+롱노트 유지를 *특정 키*가 아니라 *레인 단위*로 보는 모델. 레인의 아무 키나 눌려 있으면 유지 중이고, 모든 키가 유예 시간을 넘겨 떼어지면 유지 실패. 가변 손배치(홀드 교대·홀드 중 탭)의 토대다. **유지 성립은 레인 단위이지만 `termination` 트리거는 키 단위 release 이벤트**라는 *층위 분리*가 핵심(`termination` 판정 참조).
 
 **구현**: `laneHoldStates`(레인별 `LaneHoldState`), `heldKeys`(레인의 눌린 키 집합), `isHeld`, `lastReleaseTimeMs`.
 
@@ -365,7 +365,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 모든 입력 이벤트(keydown·keyup)는 익명이고, 자기 윈도우에 맞는 **같은 레인의 가장 이른 노트 하나**에 쓰인 뒤 사라진다("한 입력 = 한 노트" 불변, RFD 0015 2규칙).
 
 - **R1 (keydown 흡수)**: 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다. 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
-- **R2 (keyup 소비)**: keyup은 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된다. 윈도우 내 = Perfect([[이진 릴리즈]]). 소비된 keyup은 직후 release-대상으로 번지지 않고(RFD 0011 승계·일반화), keyup 수가 release-대상 수보다 적으면 남은 대상은 굶어 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성).
+- **R2 (keyup 소비)**: keyup은 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된다. 윈도우 내 = Perfect(이진 릴리즈). 소비된 keyup은 직후 release-대상으로 번지지 않고(RFD 0011 승계·일반화), keyup 수가 release-대상 수보다 적으면 남은 대상은 굶어 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성).
 
 > **영문 표기는 `consume`로 통일**한다(흡수/소비 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
 
@@ -373,7 +373,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 ### 공릴리즈 (`emptyRelease`) — 폐지 (RFD 0015)
 
-**폐지된 장치.** terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release를 무효화하던 도장 모델(RFD 0008)과 그 회수 정밀화(RFD 0012). 등급형 `termination` 시절에는 새는 keyup이 판정을 오염(Bad 하향)시킬 수 있어 막을 가치가 있었으나, [[이진 릴리즈]]의 일방향성(스트레이 keyup은 상향 또는 무매칭뿐) 아래에서는 도장이 막는 것이 "덜 의도된 Perfect"뿐이라 소비(consume)만으로 회계가 성립한다. 도장은 수명이 있어 rAF 프레임 순서와 얽힌 잔류 버그(RFD 0012)의 서식지였고, 폐지로 문제 자체가 소멸했다. hold-only 완료·타임아웃 사망 후의 놓기 keyup이 직후 노트를 살리는 것은 이제 버그가 아니라 **의도된 관대**다(RFD 0015 §7-3). 폐지 경위는 `../rfd/0015-binary-release-judgment.md` §5.
+**폐지된 장치.** terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release를 무효화하던 도장 모델(RFD 0008)과 그 회수 정밀화(RFD 0012). 등급형 `termination` 시절에는 새는 keyup이 판정을 오염(Bad 하향)시킬 수 있어 막을 가치가 있었으나, 이진 릴리즈의 일방향성(스트레이 keyup은 상향 또는 무매칭뿐) 아래에서는 도장이 막는 것이 "덜 의도된 Perfect"뿐이라 소비(consume)만으로 회계가 성립한다. 도장은 수명이 있어 rAF 프레임 순서와 얽힌 잔류 버그(RFD 0012)의 서식지였고, 폐지로 문제 자체가 소멸했다. hold-only 완료·타임아웃 사망 후의 놓기 keyup이 직후 노트를 살리는 것은 이제 버그가 아니라 **의도된 관대**다(RFD 0015 §7-3). 폐지 경위는 `../rfd/0015-binary-release-judgment.md` §5.
 
 ### 이벤트 라우팅
 
@@ -387,7 +387,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 **release 판정의 불변** (RFD 0015): 끝점 Good 윈도우(±120ms) 내에 keyup이 발생하면 Perfect, 아니면 Miss. release는 "떼는 동작의 존재"를 판정하며, 정밀도는 판정하지 않는다. late-Bad 티어(+120~160ms → Bad)는 Miss로 폴딩되었고, 종결 타임아웃은 +120ms(Good 윈도우 끝)이다. 이로써 바디 판정 결과는 {Perfect, Miss}이고, "잡고 떼는" 계열 전체(종결·hold-only·슬라이드·연결)가 이진이다 — 등급은 "치는" 것(포인트·트릴)에만 남는다. 유저 규칙 한 문장: **"치는 건 얼마나 정확한지, 잡는 건 했는지 안 했는지."**
 
-이진성은 엔진 귀속 간소화(익명 이벤트, 가장 이른 매칭+소비 — [[흡수·소비 (consume)]])의 1급 의존이다: 윈도우 내 등급이 상수이므로 오귀속이 등급을 바꿀 수 없다(일방향성). **등급형 release를 재도입하면 귀속 문제(도장 또는 토큰)가 재개봉된다** — 재개봉 조건은 RFD 0015 §8. (구 "종결 판정 상향" — Good 이상 Perfect 상향, Perfect/Bad/Miss 삼분법 — 은 이 불변으로 대체되었다.)
+이진성은 엔진 귀속 간소화(익명 이벤트, 가장 이른 매칭+소비 — `consume`)의 1급 의존이다: 윈도우 내 등급이 상수이므로 오귀속이 등급을 바꿀 수 없다(일방향성). **등급형 release를 재도입하면 귀속 문제(도장 또는 토큰)가 재개봉된다** — 재개봉 조건은 RFD 0015 §8. (구 "종결 판정 상향" — Good 이상 Perfect 상향, Perfect/Bad/Miss 삼분법 — 은 이 불변으로 대체되었다.)
 
 ### `goodTrill` (트릴 오입력 Good — 화면 표시 GOOD◇)
 
@@ -492,7 +492,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레�
 
 ### AutoPlayer
 
-**Auto 구간**의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신. 키보드 대신 차트에서 입력을 만든다는 점만 빼면 `InputSystem`과 같은 자리(판정 엔진 입력 seam)에 선다. 판정 엔진·렌더러를 모르며, 시간을 주입받아 `pressesAt(songTimeMs)`/`releasesAt(songTimeMs)`로 이벤트를 반환한다 — 호출자는 매 틱 `presses 먹임 → engine.update → releases 먹임` 순서를 지킨다(길이 0 롱노트가 한 틱에 press+release되는 케이스 때문). press는 Auto 구간 안에서만 만들지만 release는 구간과 무관하다 — 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문(게이팅 비대칭). 헤드-롱노트 쌍은 헤드 press가 hold를 제공하고 헤드 release를 롱 endBeat로 연장한다.
+**`AutoEvent`**의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신. 키보드 대신 차트에서 입력을 만든다는 점만 빼면 `InputSystem`과 같은 자리(판정 엔진 입력 seam)에 선다. 판정 엔진·렌더러를 모르며, 시간을 주입받아 `pressesAt(songTimeMs)`/`releasesAt(songTimeMs)`로 이벤트를 반환한다 — 호출자는 매 틱 `presses 먹임 → engine.update → releases 먹임` 순서를 지킨다(길이 0 롱노트가 한 틱에 press+release되는 케이스 때문). press는 `AutoEvent` 안에서만 만들지만 release는 구간과 무관하다 — 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문(게이팅 비대칭). 헤드-롱노트 쌍은 헤드 press가 hold를 제공하고 헤드 release를 롱 endBeat로 연장한다.
 
 **구현**: `src/game/input/AutoPlayer.ts`.
 

@@ -8,21 +8,21 @@ export interface AutoInput {
   key: string;
 }
 
-/** Auto 구간의 ms 범위 (차트 이벤트 type "auto"에서 파생). */
+/** AutoEvent의 ms 범위 (차트 이벤트 type "auto"에서 파생). */
 export interface AutoSectionMs {
   startMs: number;
   endMs: number;
 }
 
 /**
- * Auto 구간의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신.
+ * AutoEvent의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신.
  * 키보드 대신 차트에서 입력을 만든다는 점만 빼면 InputSystem과 같은 자리(판정 엔진 입력 seam)에 선다.
  *
  * 호출 계약: 매 틱 `pressesAt(t) 먹임 → engine.update(t) → releasesAt(t) 먹임` 순서를 지킬 것.
  * (길이 0 롱노트는 press와 release가 같은 틱에 일어나는데, update가 바디를 auto-활성화하기 전에
  *  release가 들어가면 tryEndpointJudgmentOnRelease가 놓친다.)
  *
- * 게이팅 비대칭: press는 Auto 구간 안에서만 만들지만, release는 구간과 무관하게 방출한다 —
+ * 게이팅 비대칭: press는 AutoEvent 안에서만 만들지만, release는 구간과 무관하게 방출한다 —
  * 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문.
  */
 export class AutoPlayer {
@@ -84,7 +84,7 @@ export class AutoPlayer {
     return false;
   }
 
-  /** 이번 틱에 만들 press 이벤트. Auto 구간 밖이면 빈 배열. */
+  /** 이번 틱에 만들 press 이벤트. AutoEvent 밖이면 빈 배열. */
   pressesAt(songTimeMs: number): AutoInput[] {
     const out: AutoInput[] = [];
     if (!this.isAutoAt(songTimeMs)) return out;
@@ -126,7 +126,7 @@ export class AutoPlayer {
     return out;
   }
 
-  /** 이번 틱에 만들 release 이벤트. Auto 구간과 무관하게 방출한다. */
+  /** 이번 틱에 만들 release 이벤트. AutoEvent과 무관하게 방출한다. */
   releasesAt(songTimeMs: number): AutoInput[] {
     const out: AutoInput[] = [];
 

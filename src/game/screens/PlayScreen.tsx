@@ -302,7 +302,7 @@ export function PlayScreen() {
         scoreManagerRef.current = scoreManager;
         rendererRef.current = renderer;
 
-        // Auto-play: Auto 구간 ms 범위 파생 (렌더러 autoEvents와 같은 소스·같은 변환의 순수 파생값)
+        // Auto-play: AutoEvent ms 범위 파생 (렌더러 autoEvents와 같은 소스·같은 변환의 순수 파생값)
         const autoSectionsMs: AutoSectionMs[] = [];
         for (const evt of chartData.events) {
           if (evt.type === 'auto') {
@@ -328,7 +328,7 @@ export function PlayScreen() {
             }
             lastFrameTime = timestamp;
 
-            // Auto-play: Auto 구간의 합성 press 주입 (구간 게이팅은 AutoPlayer 내부)
+            // Auto-play: AutoEvent의 합성 press 주입 (구간 게이팅은 AutoPlayer 내부)
             for (const p of autoPlayer.pressesAt(songTimeMs)) {
               judgmentEngine.onLanePress(p.lane, p.timeMs, p.key);
               renderer.setKeyBeam(p.lane, true);
@@ -340,7 +340,7 @@ export function PlayScreen() {
             judgmentEngine.update(songTimeMs);
 
             // Auto-play: 합성 release 주입 (포인트 노트 예약 release + 롱노트 endBeat release,
-            // Auto 구간이 끝나도 잡고 있던 홀드는 endBeat에서 놓는다 — 게이팅 비대칭은 AutoPlayer 내부)
+            // AutoEvent이 끝나도 잡고 있던 홀드는 endBeat에서 놓는다 — 게이팅 비대칭은 AutoPlayer 내부)
             for (const r of autoPlayer.releasesAt(songTimeMs)) {
               judgmentEngine.onLaneRelease(r.lane, r.timeMs, r.key);
               renderer.setKeyBeam(r.lane, false);

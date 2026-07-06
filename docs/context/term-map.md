@@ -27,7 +27,7 @@
 | 가장 이른 매칭 | `earliest` | `earliest`/`earliestIndex` |
 | 인게임 구간 | `gameplayRange` | `gameplayRange` |
 | 다중키 바인딩 | `keyBindings` | `keyBindings`/`KeyBinding`/`laneBindings` |
-| Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.goodTrill` |
+| Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |

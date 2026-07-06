@@ -1295,7 +1295,7 @@ export class GameRenderer {
       zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
-      // 트릴 구간은 같은 시작/끝 박의 롱노트 body와 같은 길이·위치로 그린다.
+      // trillZone은 같은 시작/끝 박의 롱노트 body와 같은 길이·위치로 그린다.
       // 롱노트 body: top = endY(끝 박스 상단), bottom = startY + NOTE_HEIGHT(시작 박스 하단).
       // (startY/endY는 박스 상단 기준. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치)
       const topY = endY;
@@ -1307,7 +1307,7 @@ export class GameRenderer {
   }
 
   private renderTextEvents(songTimeMs: number): void {
-    // 현재 시간에 활성화된 텍스트 이벤트 중 마지막 것을 표시
+    // 현재 시간에 활성화된 TextEvent 중 마지막 것을 표시
     let activeText = "";
     for (const evt of this.textEvents) {
       if (songTimeMs >= evt.startMs && songTimeMs <= evt.endMs) {

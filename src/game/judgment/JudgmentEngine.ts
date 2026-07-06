@@ -56,7 +56,7 @@ enum NoteState {
   BODY_ACTIVE = "bodyActive",
   /** 바디 실패 (홀드 끊김) */
   BODY_FAILED = "bodyFailed",
-  /** 끝점 도달, 키 유지 중 — 릴리즈 대기 (종결 판정) */
+  /** 끝점 도달, 키 유지 중 — 릴리즈 대기 (termination 판정) */
   BODY_AWAITING_RELEASE = "bodyAwaitingRelease",
   /** 완전히 처리 완료 */
   COMPLETE = "complete",
@@ -151,7 +151,7 @@ export class JudgmentEngine {
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합.
+   * 끝점이 다음 롱노트로 이어지는 노트(connection 판정 대상) 인덱스 집합.
    * connection 정의의 단일 소유자 `longNoteConnection`이 계산한다 — 생성자에서 주입받거나(맵 로드 시
    * 1회) 미주입 시 내부에서 파생한다. 렌더러의 held 전파 뷰와 같은 계산에서 나오므로 항상 일치한다.
    */
@@ -479,7 +479,7 @@ export class JudgmentEngine {
       return;
     }
 
-    // 더블롱: 떼어진 키만 키별 종결 판정
+    // 더블롱: 떼어진 키만 키별 termination 판정
     if (note.type === NoteType.DOUBLE_LONG) {
       let dl = this.doubleLongKeyStates.get(noteIndex);
       if (!dl) {
@@ -681,7 +681,7 @@ export class JudgmentEngine {
    * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
    *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
    *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 R2 매칭)
-   *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup 종결 판정
+   *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup termination 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
    * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재consume해 다음 노트를 막는 것을
    * 방지하고, 더블 롱노트는 서로 다른 키 2개를 채워야 consume 종료된다(같은 키 재입력은 무효).
@@ -765,7 +765,7 @@ export class JudgmentEngine {
    * 트릴 노트 입력 처리
    */
   /**
-   * 트릴 구간 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
+   * trillZone 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
    * update(songTime)와 입력(processTrillNoteInput, noteTime) 양쪽이 공유한다: 리셋이 프레임에만 있으면
    * async keydown이 프레임보다 일찍 도착할 때 새 구간 첫 노트가 이전 구간 키와 비교돼 잘못된 Good◇을
    * 받는다. nextIdx는 단조 증가만 하므로 update·입력이 각자 시각으로 호출해도 이중 리셋되지 않는다.
@@ -798,7 +798,7 @@ export class JudgmentEngine {
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
     // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 goodTrill.
-    // goodTrill는 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 goodTrill로 끌어내리고,
+    // goodTrill은 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 goodTrill로 끌어내리고,
     // 타이밍이 그보다 나쁘면(Bad/Miss) 그 판정을 유지한다 — 미스타이밍을 교대 실패로 보상하지 않는다 (RFD 0013).
     const timingIsGoodOrBetter =
       grade === JudgmentGrade.PERFECT ||
@@ -974,7 +974,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * 종결 판정 등급 — 이진 릴리즈 (RFD 0015 §3).
+   * termination 판정 등급 — 이진 릴리즈 (RFD 0015 §3).
    * 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 아니면 Miss.
    * release는 "떼는 동작의 존재"를 판정하며, 정밀도는 판정하지 않는다 (late-Bad 폴딩).
    */
@@ -1229,7 +1229,7 @@ export class JudgmentEngine {
           songTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
 
       if (isConnection) {
-        // 연결 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
+        // connection 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
         const grade = isHeldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
         this.emitJudgment(i, grade, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
@@ -1241,7 +1241,7 @@ export class JudgmentEngine {
         }
         // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (R2 대상 아님 — RFD 0015).
       } else {
-        // 종결 판정
+        // termination 판정
         if (holdState.isHeld) {
           if (isHoldOnlyNote(note)) {
             // hold-only: 끝점 도달 시 유지 중이면 릴리즈를 기다리지 않고 즉시 Perfect.
@@ -1282,7 +1282,7 @@ export class JudgmentEngine {
   /**
    * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 호출
    *
-   * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(연결 판정과 같은 Perfect/Miss 이분법).
+   * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(connection 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
    * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 R2 매칭(consumeReleaseTarget)이 담당한다.
@@ -1373,7 +1373,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * Grace 노트 판정 등급 계산 (종결 판정과 동일 모델)
+   * Grace 노트 판정 등급 계산 (termination 판정과 동일 모델)
    *
    * Good 윈도우(±120ms) 내 → Perfect, Late Bad(+120~+160ms) → Bad.
    * Early Bad는 발생하지 않는다 (findEarliestUnprocessedNote에서 이미 필터링).
@@ -1391,7 +1391,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * 종결 판정 실행 (릴리즈 타이밍 기반)
+   * termination 판정 실행 (릴리즈 타이밍 기반)
    *
    * 이진 릴리즈 (RFD 0015): Good 윈도우 내 → Perfect, 밖 → Miss.
    * 콤보 처리 + COMPLETE 전환까지 수행.

@@ -95,7 +95,7 @@ _Avoid_: 오디오 오프셋
 _Avoid_: songTime을 호출자가 직접 계산
 
 **`AutoPlayer`**:
-**Auto 구간**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
+**`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
 _Avoid_: 오토 판정(판정은 여전히 판정 엔진이 한다)
 
 **`JudgmentEffects` (판정 효과)**:

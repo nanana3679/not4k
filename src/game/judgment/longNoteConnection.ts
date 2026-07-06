@@ -7,7 +7,7 @@
  * 연결의 정의(같은 레인 + 끝 시간 ≈ 시작 시간, threshold 이내)와 임계값을 이 모듈이 단독으로 소유하며
  * 두 소비처가 각자 필요한 뷰를 여기서 얻는다 — 정의가 두 곳으로 갈라져 어긋나는 것을 막는다:
  *  - 렌더러: `computeConnectedLongNotePredecessors`(뒤보기) → 앞 롱이 held면 뒤 연결 롱도 불 들어옴.
- *  - 판정: `computeConnectionSources`(앞보기) → 끝점이 다음 롱으로 이어지는 노트(연결/종결 판정 대상).
+ *  - 판정: `computeConnectionSources`(앞보기) → 끝점이 다음 롱으로 이어지는 노트(연결/termination 판정 대상).
  * 두 뷰는 같은 계산에서 파생되므로 항상 일치한다.
  */
 
@@ -70,7 +70,7 @@ export function computeConnectedLongNotePredecessors(
 }
 
 /**
- * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합 — 판정 엔진의 앞보기 뷰.
+ * 끝점이 다음 롱노트로 이어지는 노트(connection 판정 대상) 인덱스 집합 — 판정 엔진의 앞보기 뷰.
  *
  * predecessor map의 값 집합과 동일하다: 어떤 노트 cur의 연결 선행이 prev라면, prev는 "뒤에
  * 이어지는 롱노트를 가진" 노트다. 같은 계산에서 파생하므로 렌더러의 뒤보기 뷰와 항상 일치한다.

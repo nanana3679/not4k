@@ -143,7 +143,7 @@ describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와
     const noteEndTimesMs = new Map([[0, 3000]]);
     const { engine, judgments } = setup(notes, noteTimesMs, noteEndTimesMs);
 
-    engine.onLanePress(lane, 950, "KeyA"); // noteTime 이전 — 흡수 윈도우 내, 이후 계속 홀드
+    engine.onLanePress(lane, 950, "KeyA"); // noteTime 이전 — consume 윈도우 내, 이후 계속 홀드
     engine.update(1000);                   // 활성화 — 홀드 중이므로 시작 수락(새 keydown 불필요)
     engine.update(3000);
     engine.onLaneRelease(lane, 3000, "KeyA");
@@ -176,7 +176,7 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
    * 키 B는 여전히 홀드 상태.
    * → 릴리즈 판정이 발생해야 한다.
    */
-  it("끝점 윈도우 내 릴리즈 시 다른 키가 홀드 상태여도 종결 판정 발생", () => {
+  it("끝점 윈도우 내 릴리즈 시 다른 키가 홀드 상태여도 termination 판정 발생", () => {
     const lane: Lane = 1;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -284,7 +284,7 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     expect(judgments.length).toBe(0);
   });
 
-  it("BODY_AWAITING_RELEASE 상태에서 다른 키 홀드 중 릴리즈해도 종결 판정 발생", () => {
+  it("BODY_AWAITING_RELEASE 상태에서 다른 키 홀드 중 릴리즈해도 termination 판정 발생", () => {
     const lane: Lane = 1;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -315,7 +315,7 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("BODY_ACTIVE 상태에서 끝점 Good 윈도우 내 단일 키 릴리즈로 종결 판정 발생", () => {
+  it("BODY_ACTIVE 상태에서 끝점 Good 윈도우 내 단일 키 릴리즈로 termination 판정 발생", () => {
     const lane: Lane = 2;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -342,7 +342,7 @@ describe("롱노트 종료 시점 릴리즈 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
   });
 
-  it("모든 키를 동시에 릴리즈해도 정상적으로 종결 판정 1회만 발생", () => {
+  it("모든 키를 동시에 릴리즈해도 정상적으로 termination 판정 1회만 발생", () => {
     const lane: Lane = 1;
     const b = beat(0, 1);
     const endB = beat(4, 1);
@@ -649,7 +649,7 @@ describe("트릴 교대 실패의 판정 상한 — 미스타이밍을 Good◇�
 describe("트릴 교대 '직전 키만 아니면 된다' 원칙 (3키 바인딩)", () => {
   const lane: Lane = 1;
 
-  // 노트 4개, 한 트릴 구간(1000ms 시작). 모두 정시에 눌러 deltaMs=0(Perfect 후보).
+  // 노트 4개, 한 trillZone(1000ms 시작). 모두 정시에 눌러 deltaMs=0(Perfect 후보).
   function setupFourNoteZone() {
     const notes = [
       makeTrillNote(lane, beat(0, 1)),
@@ -1284,7 +1284,7 @@ describe("더블 롱노트 2키 독립 홀드 추적", () => {
     expect(judgments.length).toBe(0);
   });
 
-  it("더블 롱노트에서 끝점 도달 시 키 유지 중이면 릴리즈 대기 후 정상 종결 판정", () => {
+  it("더블 롱노트에서 끝점 도달 시 키 유지 중이면 릴리즈 대기 후 정상 termination 판정", () => {
     const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(4, 1))];
     const startMs = 0;
     const endMs = 2000;
@@ -1684,7 +1684,7 @@ describe("릴리즈 노트(길이 0 일반) keydown consume — 직후 포인트
     const { engine, judgments } = releaseThenPointSetup();
     engine.onLanePress(lane, 1000, "KeyA"); // keydown consume (판정 emit 없음)
     engine.update(1000); // 길이0 일반 → BODY_AWAITING_RELEASE
-    engine.onLaneRelease(lane, 1010, "KeyA"); // keyup → 종결 판정
+    engine.onLaneRelease(lane, 1010, "KeyA"); // keyup → termination 판정
     expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT); // delta +10
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트 미consume
     engine.onLanePress(lane, 1100, "KeyB"); // consume 종료 후 → 포인트 정타
@@ -1990,7 +1990,7 @@ describe("o-o- 연결 — 끝점 헤드/스트레이 릴리즈에 강건 (releas
     engine.update(1990);
     engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 직전 KeyA 뗌
     engine.onLanePress(lane, 2000, "KeyB"); // KeyB로 이어받기
-    engine.update(2000); // 연결 판정: KeyB held → Perfect
+    engine.update(2000); // connection 판정: KeyB held → Perfect
     engine.update(3000);
     engine.onLaneRelease(lane, 3000, "KeyB");
     expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
@@ -2401,7 +2401,7 @@ describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 
     ({ type: NoteType.DOUBLE_LONG, lane, beat: b, endBeat } as NoteEntity);
 
   it("헤드 DOUBLE(같은 beat) + 바디 DOUBLE_LONG을 2키로 치고 분할 릴리즈 → 헤드 2 + 바디 2 = 4판정", () => {
-    // idx0 = 헤드 더블(1000), idx1 = 바디 더블롱[1000~2000]. 헤드는 keydown 흡수해 판정, 바디는 held 독립 추적.
+    // idx0 = 헤드 더블(1000), idx1 = 바디 더블롱[1000~2000]. 헤드는 keydown을 consume해 판정, 바디는 held 독립 추적.
     const notes = [DOUBLE(beat(0, 1)), DLONG(beat(0, 1), beat(8, 1))];
     const t = new Map([[0, 1000], [1, 1000]]);
     const e = new Map([[0, 1000], [1, 2000]]);
@@ -2437,7 +2437,7 @@ describe("연결 doubleLong 끝점 판정 (P2)", () => {
     engine.onLanePress(lane, 1000, "KeyA");
     engine.onLanePress(lane, 1005, "KeyB");
     engine.update(1010); // A 2키 추적
-    engine.update(2000); // A 끝점=B 시작 → A 연결 판정 (held → Perfect×2)
+    engine.update(2000); // A 끝점=B 시작 → A connection 판정 (held → Perfect×2)
     const a = judgments.filter((j) => j.noteIndex === 0);
     expect(a.length).toBe(2); // 키별 2판정
     expect(a.every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
