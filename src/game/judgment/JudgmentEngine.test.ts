@@ -2668,6 +2668,68 @@ describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 
   });
 });
 
+describe("connection 끝점 held-or-grace — 프레임 독립 (슬라이스3 P4, 스펙 §76 유예는 끝점 기준)", () => {
+  const lane: Lane = 1;
+
+  /** 연결: L1[1000,2000] → L2[2000,3000] (같은 레인, 끝=시작) */
+  function connectionSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeLongNote(lane, beat(4, 1), beat(8, 1))];
+    return setup(notes, new Map([[0, 1000], [1, 2000]]), new Map([[0, 2000], [1, 3000]]));
+  }
+
+  it("끝점까지 홀드하고 +3에 뗌 — 관측 프레임이 +130에 와도 connection Perfect (뗌 직전 상태가 판정)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 이후 스톨
+    engine.onLaneRelease(lane, 2003, "KeyA"); // connection은 keyup 소비 제외라 이 경로만이 구제
+    engine.update(2130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -5ms에 뗌(유예 12ms 이내) — 프레임이 +130에 와도 Perfect (유예는 프레임 시각이 아닌 끝점 기준)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 기준 -5 ≤ 12
+    engine.update(2130); // 프레임 기준이면 135 > 12로 Miss였던 지점
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -5ms 뗌 + 프레임 +10 — Perfect (프레임이 제때 와도 동일 결과, 프레임 독립 대조군)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA");
+    engine.update(2005);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -100ms에 떼고(유예 밖) +50에 재잡기 — 프레임이 늦어도 connection Miss (재잡기 keydown이 직전 상태로 먼저 판정, 부활 금지)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA"); // -100 > 유예 12 → 연결 실패가 진실
+    engine.onLanePress(lane, 2050, "KeyB"); // 재잡기 — L2 시작 윈도우 내(구제는 L2만)
+    engine.update(2060); // 끝점 후 첫 프레임이 재잡기 뒤
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("끝점 -100ms 뗌 + 프레임 +10(재잡기 전) — Miss (프레임 독립 대조군)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA");
+    engine.update(2010);
+    engine.onLanePress(lane, 2050, "KeyB");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+});
+
 describe("연결 doubleLong 끝점 판정 (P2)", () => {
   const lane: Lane = 1;
   const DLONG = (b: Beat, endBeat: Beat): NoteEntity =>

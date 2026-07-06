@@ -277,6 +277,9 @@ export class JudgmentEngine {
     // 관측되고, 윈도우 밖(+Good 초과)에서 시작하는 이 keydown은 타임아웃이 먼저 닫아
     // Perfect를 주장할 수 없다 (슬라이스6 P1 — 늦은 홀드 상향/이중 크레딧 차단).
     this.checkLengthZeroHoldOnly(timestampMs);
+    // 끝점이 지난 connection도 이 입력의 직전 상태로 먼저 판정 — 유예 밖 뗌 후 늦은
+    // 재잡기(이 keydown)가 connection을 부활시키지 못한다 (슬라이스3 P4).
+    this.evalConnectionEndpoints(timestampMs);
 
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
@@ -361,6 +364,9 @@ export class JudgmentEngine {
     // 걸쳐 홀드했는데 관측 프레임 전에 떼면 "held였던 사실"이 유실되어 Miss로 새는
     // 하향을 막는다 (슬라이스6 P1 release 거울상, 프레임 독립).
     this.checkLengthZeroHoldOnly(timestampMs);
+    // 끝점을 걸쳐 홀드하다 떼는 경우, 뗌 직전 상태(held)로 connection을 먼저 판정 —
+    // 관측 프레임 전에 떼도 Perfect가 유실되지 않는다 (슬라이스3 P4).
+    this.evalConnectionEndpoints(timestampMs);
 
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
@@ -1264,24 +1270,9 @@ export class JudgmentEngine {
         continue;
       }
 
-      const isConnection = this.connectionSources.has(i);
-      const isHeldOrGrace =
-        holdState.isHeld ||
-        (holdState.lastReleaseTimeMs !== null &&
-          songTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
-
-      if (isConnection) {
-        // connection 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
-        const grade = isHeldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
-        this.emitJudgment(i, grade, undefined, 0);
-        this.noteStates.set(i, NoteState.COMPLETE);
-
-        if (this.isComboMaintaining(grade)) {
-          this.incrementCombo();
-        } else {
-          this.breakCombo();
-        }
-        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
+      if (this.connectionSources.has(i)) {
+        // connection 판정: 홀드 중(또는 끝점 기준 grace 이내) → Perfect, 아님 → Miss
+        this.judgeConnectionEndpoint(i, noteEndTime, holdState);
       } else {
         // termination 판정
         if (holdState.isHeld) {
@@ -1307,6 +1298,52 @@ export class JudgmentEngine {
           this.breakCombo();
         }
       }
+    }
+  }
+
+  /**
+   * connection 판정 실행 — 끝점 기준 held-or-grace (프레임 독립, 슬라이스3 P4).
+   *
+   * 스펙 §76: 유예(12ms)는 "끝점 시점에 떼어진 지 얼마나 됐나"의 시간 정의다 — 프레임
+   * 시각으로 재면 관측이 밀릴수록 유예가 증발한다(끝점 기준으로 잰다). isHeld는 "끝점 이후
+   * 첫 평가 시점의 홀드"인데, 입력 이벤트 경계(pre-mutation)에서도 평가하므로 끝점~프레임
+   * 사이에 홀드를 바꾸는 이벤트가 있으면 그 이벤트의 직전 상태가 먼저 판정한다 — 끝점을
+   * 걸친 홀드는 뗌 이벤트가 Perfect로 관측하고, 유예 밖 뗌 후 늦은 재잡기는 재잡기 keydown이
+   * 직전 상태(미유지)로 Miss를 먼저 확정해 connection을 부활시키지 못한다.
+   */
+  private judgeConnectionEndpoint(
+    noteIndex: number,
+    noteEndTimeMs: number,
+    holdState: LaneHoldState,
+  ): void {
+    const heldOrGrace =
+      holdState.isHeld ||
+      (holdState.lastReleaseTimeMs !== null &&
+        noteEndTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
+    const grade = heldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
+    this.emitJudgment(noteIndex, grade, undefined, 0);
+    this.noteStates.set(noteIndex, NoteState.COMPLETE);
+
+    if (this.isComboMaintaining(grade)) {
+      this.incrementCombo();
+    } else {
+      this.breakCombo();
+    }
+    // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
+  }
+
+  /** 끝점이 지난 connection 롱을 입력 이벤트 경계에서 판정 (홀드 상태 변경 전 호출 — 프레임 독립) */
+  private evalConnectionEndpoints(evalTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
+      if (!this.connectionSources.has(i)) continue;
+      const note = this.notes[i];
+      if (note.type === NoteType.DOUBLE_LONG) continue; // 더블롱 끝점은 키별 경로 전담
+      const noteEndTime = this.noteEndTimesMs.get(i);
+      if (noteEndTime === undefined || evalTimeMs < noteEndTime) continue;
+      const holdState = this.laneHoldStates.get(note.lane);
+      if (!holdState) continue;
+      this.judgeConnectionEndpoint(i, noteEndTime, holdState);
     }
   }
 
