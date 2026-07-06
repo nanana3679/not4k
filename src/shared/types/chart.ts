@@ -2,7 +2,7 @@
  * 차트 데이터 모델 — chart-editor.md 기준
  *
  * 게임 클라이언트와 에디터가 공유하는 차트 JSON 포맷.
- * 구간 엔티티(롱노트·트릴 구간·메시지)는 시작/끝을 하나의 객체로 표현한다.
+ * 구간 엔티티(롱노트·trillZone·메시지)는 시작/끝을 하나의 객체로 표현한다.
  */
 
 import type { Beat } from "./beat";
@@ -119,11 +119,11 @@ export interface ExtraRangeNote {
 export type ExtraNoteEntity = ExtraPointNote | ExtraRangeNote;
 
 // ---------------------------------------------------------------------------
-// 트릴 구간
+// trillZone
 // ---------------------------------------------------------------------------
 
 /**
- * 트릴 구간 — 트릴 노트가 등장할 수 있는 시각적 영역.
+ * trillZone — 트릴 노트가 등장할 수 있는 시각적 영역.
  * 자체는 입력을 요구하지 않는다.
  */
 export interface TrillZone {

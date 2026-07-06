@@ -518,7 +518,7 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     expect(updated.events[0]).toHaveProperty("beatPerMeasure");
   });
 
-  it("text 타입 선택 후 Extra 레인 드래그 시 텍스트 이벤트 생성 (구간)", () => {
+  it("text 타입 선택 후 Extra 레인 드래그 시 TextEvent 생성 (구간)", () => {
     const chart = makeChart();
     const callbacks = makeEventCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);

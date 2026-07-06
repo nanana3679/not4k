@@ -260,7 +260,7 @@ describe('resolveGameplayRange', () => {
     ...override,
   });
 
-  it('gameplay_start=30,gameplay_end=90이면 30~90초 인게임 구간 반환', () => {
+  it('gameplay_start=30,gameplay_end=90이면 30~90초 gameplayRange 반환', () => {
     expect(resolveGameplayRange(makeSong({
       gameplay_start: 30,
       gameplay_end: 90,

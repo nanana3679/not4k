@@ -7,6 +7,7 @@ import type { Chart, ExtraNoteEntity } from '../../shared';
 import { beat, validateChart } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
+import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 
 export type EditorModeName = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
@@ -23,7 +24,8 @@ export type EditingMarker =
 const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
-interface EditorState {
+// 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)는 ViewportSlice가 단독 소유한다.
+interface EditorState extends ViewportSlice {
   // Page navigation
   activePage: EditorPage;
   activeSongId: string | null;
@@ -36,11 +38,6 @@ interface EditorState {
   mode: EditorModeName;
   entityType: EntityType;
   graceMode: boolean; // Create 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→holdOnly)
-
-  // Timeline state
-  zoom: number;
-  snapDivision: number;
-  scrollY: number;
 
   // Playback
   isPlaying: boolean;
@@ -76,9 +73,6 @@ interface EditorState {
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
-  setZoom: (zoom: number) => void;
-  setSnapDivision: (snap: number) => void;
-  setScrollY: (scrollY: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setSelectedNotes: (indices: Set<number>) => void;
@@ -133,7 +127,10 @@ function captureHistory(state: EditorState): Partial<EditorState> {
   };
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
+  // 뷰포트 슬라이스 (상태 + 클램프 내장 액션)
+  ...createViewportSlice(set, get),
+
   // Initial state
   activePage: 'songList',
   activeSongId: null,
@@ -142,9 +139,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   mode: 'create',
   entityType: 'single',
   graceMode: false,
-  zoom: 200,
-  snapDivision: 4,
-  scrollY: 0,
   isPlaying: false,
   currentTimeMs: 0,
   selectedNotes: new Set(),
@@ -191,9 +185,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
   setGraceMode: (graceMode) => set({ graceMode }),
-  setZoom: (zoom) => set({ zoom }),
-  setSnapDivision: (snapDivision) => set({ snapDivision }),
-  setScrollY: (scrollY) => set({ scrollY }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setSelectedNotes: (selectedNotes) => set({ selectedNotes }),

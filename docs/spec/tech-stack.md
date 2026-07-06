@@ -56,7 +56,7 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 | 60fps 유지 | v8은 100k 스프라이트에서 ~15ms/프레임. not4k는 수십~수백 개의 노트만 화면에 존재하므로 여유 충분 |
 | 판정 이펙트/파티클 | ParticleContainer, Filters로 구현 가능 |
 | 텍스트 렌더링 (콤보, 판정) | BitmapText (고속) 또는 Text (유연) |
-| 트릴 구간 배경 | Graphics API로 반투명 영역 렌더링 |
+| `trillZone` 배경 | Graphics API로 반투명 영역 렌더링 |
 | 레이어 순서 제어 | Render Layers (v8.7.0+) |
 
 ### @pixi/react v8 주의사항
@@ -179,9 +179,9 @@ storage/
 | `long` | 싱글 롱노트 시작점/끝점 | lane, beat, endBeat |
 | `doubleLong` | 더블 롱노트 시작점/끝점 | lane, beat, endBeat |
 | `trillLong` | 트릴 롱노트 시작점/끝점 | lane, beat, endBeat |
-| `trillZone` | 트릴 구간 시작/끝 | lane, beat, endBeat |
+| `trillZone` | `trillZone` 시작/끝 | lane, beat, endBeat |
 
-에디터에서 시작/끝 쌍으로 표현되는 구간 엔티티(롱노트, 트릴 구간)는 JSON에서 `beat`(시작)과 `endBeat`(끝)를 가진 단일 객체로 직렬화한다.
+에디터에서 시작/끝 쌍으로 표현되는 구간 엔티티(롱노트, `trillZone`)는 JSON에서 `beat`(시작)과 `endBeat`(끝)를 가진 단일 객체로 직렬화한다.
 
 > **v1 레거시**: 과거 포맷의 `singleLong` 타입은 로더(`src/shared/chart`)가 읽는 즉시 현재 타입 `long`으로 마이그레이션한다. 현재 저장 포맷은 싱글 롱노트를 `long`으로 쓴다.
 

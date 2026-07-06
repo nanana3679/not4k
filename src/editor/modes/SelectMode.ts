@@ -87,7 +87,7 @@ export class SelectMode implements EditorMode {
     number,
     { beat: Beat; endBeat?: Beat; extraLane: number }
   > = new Map();
-  // 트릴 노트 단위 이동 시, 이동을 가두는 트릴 구간(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
+  // 트릴 노트 단위 이동 시, 이동을 가두는 trillZone(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
   private _trillMoveZone: TrillZone | null = null;
   // 구간 단위 선택: 선택된 트릴존 인덱스. 비어있지 않으면 "구간 단위" 선택 모드.
   private selectedZoneIndices: Set<number> = new Set();
@@ -211,7 +211,7 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 트릴 구간 인덱스. 없으면 null.
+   * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 trillZone 인덱스. 없으면 null.
    * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위한 래치.
    * 훅으로 노출하지 않고 computeHoveredTrillZone 내부에서만 쓴다(getter PULL 누출 제거).
    */
@@ -851,6 +851,71 @@ export class SelectMode implements EditorMode {
     this.dragStartExtraLane = null;
   }
 
+  /**
+   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)처럼
+   * 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그 시작
+   * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
+   */
+  cancel(): EditResult {
+    if (!this.isDragging) return {};
+
+    if (this.dragType === "resize") {
+      this.rollbackResize();
+      this.resizingEntityType = null;
+      this.resizingIndex = null;
+      this.resizingOriginalEndBeat = null;
+      this.resizingOriginalBeat = null;
+    } else if (this.dragType === "move") {
+      this.rollbackMove();
+    } else if (this.dragType === "moveExtra") {
+      this.rollbackMoveExtra();
+    }
+    // boxSelect는 차트를 변이하지 않으므로 아래 공통 정리로 충분하다.
+
+    this._boxEndBeat = null;
+    this._boxEndLane = null;
+    this._boxEndExtraLane = null;
+    this.isDragging = false;
+    this.dragType = null;
+    this.dragStartBeat = null;
+    this.dragStartLane = null;
+    this.dragStartExtraLane = null;
+    return { clearDragPreview: true };
+  }
+
+  /**
+   * moveExtra 드래그를 시작 시점 좌표로 되돌린다.
+   * (커밋 경로는 라이브 적용이라 롤백이 없다 — cancel 전용.)
+   */
+  private rollbackMoveExtra(): void {
+    const extraNotes = this.callbacks.getExtraNotes?.();
+    if (!extraNotes || !this.callbacks.onExtraNotesUpdate) {
+      this.originalExtraPositions.clear();
+      return;
+    }
+    const newExtraNotes = [...extraNotes];
+    for (const [idx, original] of this.originalExtraPositions) {
+      const note = newExtraNotes[idx];
+      if (!note) continue;
+      if ("endBeat" in note) {
+        newExtraNotes[idx] = {
+          ...note,
+          extraLane: original.extraLane,
+          beat: original.beat,
+          endBeat: original.endBeat!,
+        };
+      } else {
+        newExtraNotes[idx] = {
+          ...note,
+          extraLane: original.extraLane,
+          beat: original.beat,
+        };
+      }
+    }
+    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    this.originalExtraPositions.clear();
+  }
+
   // --- Box select helper ---
 
   /** Compute selection from current box select state (shared by onPointerMove & onPointerUp) */
@@ -1323,7 +1388,7 @@ export class SelectMode implements EditorMode {
 
   /** Copy selected notes to clipboard */
   /**
-   * 복사 대상 트릴 구간을 결정한다.
+   * 복사 대상 trillZone을 결정한다.
    * - 구간 단위 선택: 선택된 구간들
    * - 노트 단위 트릴 선택: 그 노트들이 속한 구간(구간 단위로 승격)
    * - 그 외: 없음
@@ -1479,7 +1544,7 @@ export class SelectMode implements EditorMode {
     }
   }
 
-  /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 트릴 구간을, 아니면 null을 반환한다. */
+  /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 trillZone을, 아니면 null을 반환한다. */
   private trillZoneOfSelection(): TrillZone | null {
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
     if (kind.kind !== "trill" || kind.zoneIndex < 0) return null;

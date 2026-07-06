@@ -4,11 +4,11 @@
 
 **관련 문서:**
 
-- [`docs/rfd/0001-flight-rules-and-observer-boundary.md`](0001-flight-rules-and-observer-boundary.md) — 비행 규칙과 Observer 경계
+- [`docs/rfd/0001-flight-rules-and-observer-boundary.md`](0001-flight-rules-and-observer-boundary.md) — `flightRule`과 Observer 경계
 - [`docs/research/beatmania.md`](../research/beatmania.md) — IIDX 게이지 참조 모델과 한계
-- [`docs/context/glossary.md`](../context/glossary.md) — 비행 규칙 용어 정의
+- [`docs/context/glossary.md`](../context/glossary.md) — `flightRule` 용어 정의
 - [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md) — Gameplay 컨텍스트
-- [`docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`](0005-flight-rules-two-tier-liftoff-survival.md) — 비행 규칙 2종 재편 후속 결정
+- [`docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`](0005-flight-rules-two-tier-liftoff-survival.md) — `flightRule` 2종 재편 후속 결정
 
 ---
 
@@ -18,7 +18,7 @@
 
 ## 1. 배경
 
-RFD 0001은 `Takeoff / Ascent / Breakthrough`를 not4k의 비행 규칙 이름으로 채택했다.
+RFD 0001은 `Takeoff / Ascent / Breakthrough`를 not4k의 `flightRule` 이름으로 채택했다.
 그중 Breakthrough는 처음에 beatmania IIDX의 `TIME HELL mode`처럼 회복하지 않는
 HARD/EX HARD 계열 동작을 참조 모델로 검토했다.
 
@@ -26,7 +26,7 @@ HARD/EX HARD 계열 동작을 참조 모델로 검토했다.
 회복이 전혀 없으면 유저는 차트를 정확히 치기보다, 위험한 구간에서 입력을 뭉개거나
 최대한 덜 틀리는 방향으로 최적화할 수 있다.
 
-not4k의 Breakthrough는 단순 생존이 아니라 **정확한 입력으로 고도를 되찾는 규칙**이어야 한다.
+not4k의 Breakthrough는 단순 생존이 아니라 **정확한 입력으로 `altitude`를 되찾는 규칙**이어야 한다.
 
 ---
 
@@ -35,7 +35,7 @@ not4k의 Breakthrough는 단순 생존이 아니라 **정확한 입력으로 고
 회복 불가 Breakthrough는 다음 위험을 만든다.
 
 - `Perfect`를 노리는 동기가 약해진다.
-- 이미 낮아진 고도를 회복할 방법이 없으므로 후반부 플레이가 방어적으로 바뀐다.
+- 이미 낮아진 `altitude`를 회복할 방법이 없으므로 후반부 플레이가 방어적으로 바뀐다.
 - 유저가 패턴을 정확히 읽고 치기보다 손실을 줄이는 입력을 선택할 수 있다.
 - `TIME HELL mode` 참조가 강해질수록 not4k 고유의 정확도 중심 철학이 흐려진다.
 
@@ -45,22 +45,22 @@ not4k의 Breakthrough는 단순 생존이 아니라 **정확한 입력으로 고
 
 ## 3. 결정
 
-**Breakthrough는 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 비행 규칙으로 둔다.**
+**Breakthrough는 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 `flightRule`으로 둔다.**
 
 Breakthrough의 기본 규칙은 다음과 같다.
 
-| 판정 | 고도 변화 |
+| 판정 | `altitude` 변화 |
 | --- | --- |
-| Perfect | 고도 회복 |
+| Perfect | `altitude` 회복 |
 | Great / Good | 회복 없음 |
-| Bad / Miss | 고도 감소 |
-| 빈 레인 입력으로 발생한 Bad | 고도 감소 |
+| Bad / Miss | `altitude` 감소 |
+| 빈 레인 입력으로 발생한 Bad | `altitude` 감소 |
 
 추가 규칙:
 
-- 고도는 100에서 시작한다.
-- 고도는 100을 초과하지 않는다.
-- 고도 0에 도달하면 실패한다.
+- `altitude`는 100에서 시작한다.
+- `altitude`는 100을 초과하지 않는다.
+- `altitude` 0에 도달하면 실패한다.
 - 구체적인 회복량과 감소량은 밸런싱 단계에서 정한다.
 - `Breakthrough`의 참조 모델을 `TIME HELL mode`, `Time Hell Gauge`, `EX-HARD`로 설명하지 않는다.
 
@@ -83,7 +83,7 @@ Breakthrough의 메시지는 "덜 틀려라"가 아니라 **"정확히 쳐야 �
 
 ### A. 회복 불가 유지
 
-`TIME HELL mode`처럼 고도가 회복하지 않는 Breakthrough를 유지한다.
+`TIME HELL mode`처럼 `altitude`가 회복하지 않는 Breakthrough를 유지한다.
 
 **장점**
 
@@ -94,7 +94,7 @@ Breakthrough의 메시지는 "덜 틀려라"가 아니라 **"정확히 쳐야 �
 **단점**
 
 - 정확도보다 손실 최소화가 우선될 수 있다.
-- 이미 잃은 고도를 되찾을 방법이 없어 플레이 감정이 방어적으로 바뀐다.
+- 이미 잃은 `altitude`를 되찾을 방법이 없어 플레이 감정이 방어적으로 바뀐다.
 - not4k의 "정확한 손배치와 입력" 목표와 어긋난다.
 
 ### B. Hard/EX-HARD식 일반 회복
@@ -114,7 +114,7 @@ Breakthrough의 메시지는 "덜 틀려라"가 아니라 **"정확히 쳐야 �
 
 ### C. Perfect-only 회복
 
-`Perfect`만 고도를 회복하고, `Great / Good`은 회복하지 않는다.
+`Perfect`만 `altitude`를 회복하고, `Great / Good`은 회복하지 않는다.
 
 **장점**
 
@@ -135,7 +135,7 @@ Breakthrough의 메시지는 "덜 틀려라"가 아니라 **"정확히 쳐야 �
 **C. Perfect-only 회복**을 채택한다.
 
 RFD 0001의 Play/Observer 경계, `Takeoff / Ascent / Breakthrough` 명칭,
-비행 규칙과 Lv./난이도명의 분리 결정은 유지한다.
+`flightRule`과 Lv./난이도명의 분리 결정은 유지한다.
 이 RFD는 Breakthrough의 참조 모델과 회복 규칙만 대체한다.
 
 ---
@@ -149,7 +149,7 @@ RFD 0001의 Play/Observer 경계, `Takeoff / Ascent / Breakthrough` 명칭,
 - `CONTEXT.md`
   - Breakthrough 정의를 Perfect-only 회복 규칙으로 갱신한다.
 - `docs/context/glossary.md`
-  - 비행 규칙 용어 정의를 갱신한다.
+  - `flightRule` 용어 정의를 갱신한다.
 - `src/game/CONTEXT.md`
   - Gameplay 컨텍스트에서 Breakthrough의 게이지 참조 혼동을 제거한다.
 

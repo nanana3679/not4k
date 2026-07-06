@@ -53,7 +53,7 @@ describe("computeMinimapTrillZoneRects", () => {
     expect(rects[0].height).toBe(1);
   });
 
-  it("여러 트릴 구간이 각각 독립적인 rect로 변환됨", () => {
+  it("여러 trillZone이 각각 독립적인 rect로 변환됨", () => {
     const rects = computeMinimapTrillZoneRects(
       [zone(1, 0, 1), zone(2, 2, 4)],
       bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,

@@ -188,7 +188,7 @@ describe("filterHomogeneousSelection", () => {
     { type: "trill", lane: 2, beat: beat(7) },   // 3: zone 1
   ];
 
-  it("가장 작은 인덱스(0=트릴 구간0) 기준으로 같은 구간 트릴만 남기고 나머지 제외", () => {
+  it("가장 작은 인덱스(0=trillZone0) 기준으로 같은 구간 트릴만 남기고 나머지 제외", () => {
     const { kept, dropped } = filterHomogeneousSelection(zones, notes, new Set([0, 1, 2, 3]));
     expect(kept).toEqual(new Set([0, 2])); // 구간0 트릴만
     expect(dropped).toBe(2); // 일반(1) + 다른 구간 트릴(3)

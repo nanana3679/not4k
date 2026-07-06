@@ -14,9 +14,9 @@
 | README 누락 문서 | tech-stack.md, mvp-scope.md, grace-period-polling-rate.md 추가, 문서 수 16→19 | README.md |
 | README 배치 제약 조건 | "4종" → "3종", "롱노트 시작점" 삭제 (이미 삭제된 제약의 미반영) | README.md |
 | PRD 스페셜 땡스 | S-10 스페셜 땡스 추가, 상태 흐름에 `타이틀 → 스페셜 땡스 → 타이틀` 추가 | prd.md |
-| TGood 표기 | "TGood" → "Good◇" 통일 | mvp-scope.md |
+| TGood 표기 | "TGood" → "`goodTrill`" 통일 | mvp-scope.md |
 | PRD 관련 문서 누락 | §14에 tech-stack.md, mvp-scope.md 추가 | prd.md |
-| 차트 JSON/에디터 통일 | JSON 타입명을 chart-editor.md 엔티티와 1:1 대응, 트릴 구간 엔티티 추가, 메타데이터 필드 통일 | tech-stack.md, chart-editor.md |
+| 차트 JSON/에디터 통일 | JSON 타입명을 chart-editor.md 엔티티와 1:1 대응, `trillZone` 엔티티 추가, 메타데이터 필드 통일 | tech-stack.md, chart-editor.md |
 
 ---
 
@@ -32,15 +32,15 @@
 
 **심각도: 중간**
 
-입문 등급에는 가장 단순한 개별 노트 타입만 등장해야 한다. 입력방식(홀드 이어잡기, 홀드 중 탭 등)은 입문에서 등장하지 않는다.
+입문 등급에는 가장 단순한 개별 노트 타입만 등장해야 한다. 입력방식(홀드 교대, 홀드 중 탭 등)은 입문에서 등장하지 않는다.
 
 | 문서 | 입문 등급 기술 | 문제 |
 |------|---------------|------|
-| `note-system.md` (노트 타입의 등장 원칙) | "싱글 90%↑ / 트릴·더블·**홀드 이어잡기·홀드 중 탭** 극소량으로 존재를 인지" | **홀드 이어잡기·홀드 중 탭은 입력방식이며, 입문에서 등장하지 않아야 함** |
+| `note-system.md` (노트 타입의 등장 원칙) | "싱글 90%↑ / 트릴·더블·**홀드 교대·홀드 중 탭** 극소량으로 존재를 인지" | **홀드 교대·홀드 중 탭은 입력방식이며, 입문에서 등장하지 않아야 함** |
 | `difficulty-design.md` (입문 §) | "싱글 90%↑ / 트릴·더블 극소량 등장" | 올바름 |
 | `difficulty-design.md` (설계 원칙 4) | "트릴·더블·**홀드 중 탭**이 극소량 등장" | **홀드 중 탭은 입문에서 등장하지 않아야 함** |
 
-**권장**: note-system.md의 입문 기술에서 "홀드 이어잡기·홀드 중 탭"을 제거. difficulty-design.md 설계 원칙 4에서도 "홀드 중 탭"을 제거.
+**권장**: note-system.md의 입문 기술에서 "홀드 교대·홀드 중 탭"을 제거. difficulty-design.md 설계 원칙 4에서도 "홀드 중 탭"을 제거.
 
 ---
 
@@ -115,7 +115,7 @@ AGENTS.md가 빈 템플릿 상태이다. AI 에이전트 설정 파일로서 내
 | **홀드 중 탭** | PP-003: **레인 내 분리** (홀드 + 탭 공존) | **레인 내 분리** (홀드 + 탭) | PRD/overview가 입력방식 이름으로 피스를 지칭 |
 | **릴리즈탭** | PP-004: **롱노트 끝 교대에서 트릴로** | (미언급) | PRD/overview가 입력방식 이름으로 복합 피스를 지칭. 범위도 다름 |
 
-나머지 피스(짧은 트릴, 앵커, 싱글→더블 전환, 가변 분할, 비트 복합 트릴, 건너가기, 홀드 트릴)은 문서 간 이름이 일치한다.
+나머지 피스(짧은 트릴, 앵커, 싱글→더블 전환, 가변 분할, 비트 복합 트릴, 수평 이동, 홀드 트릴)은 문서 간 이름이 일치한다.
 
 **권장**: piece-definition.md에 별칭(alias)을 추가하거나, PRD/overview에서 정식 명칭을 사용하고 괄호 안에 입력방식명을 부기.
 
@@ -141,7 +141,7 @@ review.md에서 이미 추적 중인 항목은 중복 기재하지 않으며 참
 
 | # | 유형 | 내용 | 관련 문서 |
 |---|------|------|-----------|
-| 1-2 | 모순 | 입문 등급 노트 구성 — note-system.md에 홀드 이어잡기·홀드 중 탭 잔존 | note-system, difficulty-design |
+| 1-2 | 모순 | 입문 등급 노트 구성 — note-system.md에 홀드 교대·홀드 중 탭 잔존 | note-system, difficulty-design |
 | 2-1 | 누락 | PP-006 부재 | piece-definition |
 | 3-1 | 표기 | 릴리즈탭의 이중 성격(입력방식 + 피스) 미명시 | glossary, note-system, PRD, overview, piece-definition |
 | 3-2 | 표기 | 피스명 불일치 (홀드 중 탭 vs 레인 내 분리, 릴리즈탭 vs 롱노트 끝 교대에서 트릴로) | PRD, overview, piece-definition |

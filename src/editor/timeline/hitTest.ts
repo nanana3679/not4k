@@ -110,7 +110,7 @@ export function hitTestTrillZoneAt(
 }
 
 /**
- * 트릴 구간의 "선택(이동) 핸들" 히트 테스트.
+ * trillZone의 "선택(이동) 핸들" 히트 테스트.
  *
  * 핸들은 구간의 시작(beat, 화면상 아래쪽)의 **레인 가로 중앙**에 둔 `handleWidth`px 박스다.
  * 끝(endBeat, 위쪽)은 리사이즈(hitTestTrillZoneEnd)가 차지하므로 두 동작을 양 끝으로 분리한다.

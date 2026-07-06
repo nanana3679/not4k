@@ -56,7 +56,7 @@ enum NoteState {
   BODY_ACTIVE = "bodyActive",
   /** 바디 실패 (홀드 끊김) */
   BODY_FAILED = "bodyFailed",
-  /** 끝점 도달, 키 유지 중 — 릴리즈 대기 (종결 판정) */
+  /** 끝점 도달, 키 유지 중 — 릴리즈 대기 (termination 판정) */
   BODY_AWAITING_RELEASE = "bodyAwaitingRelease",
   /** 완전히 처리 완료 */
   COMPLETE = "complete",
@@ -124,11 +124,11 @@ export class JudgmentEngine {
   private readonly doubleNoteStates: Map<number, DoubleNoteState> = new Map();
   /** 레인별 트릴 교대 추적 (마지막으로 누른 키) */
   private readonly trillAlternation: Map<Lane, string | null> = new Map();
-  /** 레인별 트릴 구간 시작 시간 목록 (정렬됨, 구간 시작 시 교대 상태 리셋용) */
+  /** 레인별 trillZone 시작 시간 목록 (정렬됨, 구간 시작 시 교대 상태 리셋용) */
   private readonly trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]>;
-  /** 레인별 다음으로 처리할 트릴 구간 시작 인덱스 */
+  /** 레인별 다음으로 처리할 trillZone 시작 인덱스 */
   private readonly trillZoneNextIndex: Map<Lane, number> = new Map();
-  /** 레인별 현재 활성 트릴 구간의 시작 시간 (경계 입력 추적 판단용) */
+  /** 레인별 현재 활성 trillZone의 시작 시간 (경계 입력 추적 판단용) */
   private readonly trillZoneCurrentStartMs: Map<Lane, number | null> = new Map();
   /** 레인별 홀드 상태 */
   private readonly laneHoldStates: Map<Lane, LaneHoldState> = new Map();
@@ -139,19 +139,19 @@ export class JudgmentEngine {
   /**
    * 노트별 "헤드 없는 롱노트" 여부 (생성자에서 1회 계산).
    * 같은 lane에 시작 시각이 일치하는 PointNote(헤드)가 없으면 헤드 없음 = true.
-   * 흡수 대상은 NoteType.LONG(싱글, 필요 키 수 1)과 NoteType.DOUBLE_LONG(필요 키 수 2).
+   * consume 대상은 NoteType.LONG(싱글, 필요 키 수 1)과 NoteType.DOUBLE_LONG(필요 키 수 2).
    */
   private readonly headlessLongCache: Map<number, boolean> = new Map();
   /**
-   * 헤드 없는 롱노트가 흡수한 keydown 키 집합 (노트별, 재흡수·후보 제외용).
-   * 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 흡수 종료 = 후보에서 빠진다.
+   * 헤드 없는 롱노트가 consume한 keydown 키 집합 (노트별, 재consume·후보 제외용).
+   * 필요 키 수(LONG 1 / DOUBLE_LONG 2)를 채우면 consume 종료 = 후보에서 빠진다.
    * 길이>0은 BODY_ACTIVE 승격으로도 빠지지만, keydown과 다음 update 사이 프레임,
    * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
    * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
-   * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합.
+   * 끝점이 다음 롱노트로 이어지는 노트(connection 판정 대상) 인덱스 집합.
    * connection 정의의 단일 소유자 `longNoteConnection`이 계산한다 — 생성자에서 주입받거나(맵 로드 시
    * 1회) 미주입 시 내부에서 파생한다. 렌더러의 held 전파 뷰와 같은 계산에서 나오므로 항상 일치한다.
    */
@@ -184,7 +184,7 @@ export class JudgmentEngine {
       this.noteStates.set(i, NoteState.UNPROCESSED);
     }
 
-    // 헤드 없는 싱글 롱노트 캐시 계산 (흡수 후보 판정용)
+    // 헤드 없는 싱글 롱노트 캐시 계산 (consume 후보 판정용)
     this.computeHeadlessLongCache();
 
     // 레인 홀드 상태 초기화
@@ -205,7 +205,7 @@ export class JudgmentEngine {
    *
    * 같은 lane의 PointNote 중 시작 시각이 1ms 이내로 일치하는 것이 있으면
    * "헤드 있음"(false), 없으면 "헤드 없음"(true). 부동소수 동일성 위험을
-   * 피하려고 ≤1ms tolerance를 쓴다. 흡수 대상은 LONG(싱글)·DOUBLE_LONG(더블).
+   * 피하려고 ≤1ms tolerance를 쓴다. consume 대상은 LONG(싱글)·DOUBLE_LONG(더블).
    */
   private computeHeadlessLongCache(): void {
     const HEAD_TOLERANCE_MS = 1;
@@ -318,7 +318,7 @@ export class JudgmentEngine {
 
     const deltaMs = timestampMs - noteTime;
 
-    // 헤드 없는 롱노트: keydown을 흡수만 하고 판정은 emit하지 않는다(held 경로가 전담).
+    // 헤드 없는 롱노트: keydown을 consume만 하고 판정은 emit하지 않는다(held 경로가 전담).
     if ("endBeat" in note) {
       this.markLongConsumed(targetNoteIndex, keyCode);
       return;
@@ -337,7 +337,7 @@ export class JudgmentEngine {
   /**
    * 레인 키 릴리스 처리
    *
-   * R2 (RFD 0015): keyup은 익명 이벤트로, 같은 레인의 가장 이른 release-대상
+   * keyup 소비 — 약칭 R2 (RFD 0015): keyup은 익명 이벤트로, 같은 레인의 가장 이른 release-대상
    * 하나에 소비된 뒤 사라진다. keydown↔keyup 짝·출신 키는 추적하지 않는다.
    */
   onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
@@ -350,7 +350,7 @@ export class JudgmentEngine {
     // 더블 롱노트의 키별 릴리즈 시간 기록 (바디 유지 추적용 — 판정 아님)
     this.updateDoubleLongKeyRelease(lane, keyCode, timestampMs);
 
-    // R2: 가장 이른 release-대상 매칭 + 소비 (RFD 0015)
+    // keyup 소비: 가장 이른 release-대상 매칭 (RFD 0015)
     this.consumeReleaseTarget(lane, timestampMs, keyCode);
 
     // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
@@ -381,7 +381,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * R2 (RFD 0015): keyup을 같은 레인의 가장 이른 release-대상 하나에 소비한다.
+   * keyup 소비 (RFD 0015): keyup을 같은 레인의 가장 이른 release-대상 하나에 소비한다.
    *
    * release-대상 후보:
    *  (1) 종결 대기 끝점 (BODY_AWAITING_RELEASE — 릴리즈 노트 포함)
@@ -428,7 +428,7 @@ export class JudgmentEngine {
         if (note.type === NoteType.DOUBLE_LONG) {
           // 더블 hold-only는 키별 update 경로(judgeDoubleLongEndpoint)가 전담
           if (isHoldOnlyNote(note)) continue;
-          // 더블롱: 떼어진 키가 추적 중이고 미판정일 때만 후보 (키별 R2).
+          // 더블롱: 떼어진 키가 추적 중이고 미판정일 때만 후보 (키별 keyup 소비).
           // dl 미초기화(짧은 더블롱의 keyup이 끝점 update 프레임보다 먼저 도착)면
           // executeReleaseJudgment가 재구성하므로 후보로 남긴다 (P3 keyup 거울상).
           const dl = this.doubleLongKeyStates.get(i);
@@ -461,7 +461,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * R2 매칭된 release-대상의 판정 실행 (consumeReleaseTarget이 윈도우 검증을 마친 뒤 호출)
+   * keyup 소비로 매칭된 release-대상의 판정 실행 (consumeReleaseTarget이 윈도우 검증을 마친 뒤 호출)
    */
   private executeReleaseJudgment(noteIndex: number, releaseTimeMs: number, keyCode: string): void {
     const note = this.notes[noteIndex];
@@ -479,7 +479,7 @@ export class JudgmentEngine {
       return;
     }
 
-    // 더블롱: 떼어진 키만 키별 종결 판정
+    // 더블롱: 떼어진 키만 키별 termination 판정
     if (note.type === NoteType.DOUBLE_LONG) {
       let dl = this.doubleLongKeyStates.get(noteIndex);
       if (!dl) {
@@ -544,7 +544,7 @@ export class JudgmentEngine {
       }
     }
 
-    // 트릴 구간 시작 시 교대 추적 상태 리셋 (프레임 시각 기준)
+    // trillZone 시작 시 교대 추적 상태 리셋 (프레임 시각 기준)
     for (const lane of [1, 2, 3, 4] as Lane[]) {
       this.advanceTrillZoneReset(lane, songTimeMs);
     }
@@ -570,7 +570,7 @@ export class JudgmentEngine {
             hasBeenPressed: false,
             bodyStartTimeMs: noteTime,
           });
-          // BODY_ACTIVE가 되면 state로 후보 제외되므로 흡수 표시는 정리한다.
+          // BODY_ACTIVE가 되면 state로 후보 제외되므로 consume 표시는 정리한다.
           this.consumedLongKeys.delete(i);
 
           // doubleLong: 현재 눌린 키들로 2키 독립 추적 초기화
@@ -613,7 +613,7 @@ export class JudgmentEngine {
       if (note.lane !== lane) continue;
 
       // 바디 노트(RangeNote)는 원칙적으로 입력 대상이 아니나, 헤드 없는 싱글 롱노트가
-      // 흡수 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown 흡수 후보가 된다.
+      // consume 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown consume 후보가 된다.
       if ("endBeat" in note) {
         if (!this.isHeadlessConsumable(i, timestampMs)) continue;
       }
@@ -650,41 +650,41 @@ export class JudgmentEngine {
   }
 
   /**
-   * 해당 인덱스의 노트가 "헤드 없는 흡수 가능 싱글 롱노트"인지.
+   * 해당 인덱스의 노트가 "헤드 없는 consume 가능 싱글 롱노트"인지.
    *
    * 조건: (1) 헤드 없음 캐시 true (NoteType.LONG 한정)
-   *       (2) 아직 흡수 종료 안 됨 (UNPROCESSED + consumedLongKeys 미등록)
-   *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 흡수 방지)
+   *       (2) 아직 consume 종료 안 됨 (UNPROCESSED + consumedLongKeys 미등록)
+   *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 consume 방지)
    */
   private isHeadlessConsumable(noteIndex: number, timestampMs: number): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
-    // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 흡수 종료 → 후보 아님
+    // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 consume 종료 → 후보 아님
     const consumed = this.consumedLongKeys.get(noteIndex)?.size ?? 0;
     if (consumed >= this.requiredConsumeCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
-    // 흡수 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
+    // consume 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
     // early Bad/late Bad까지 열면 직후 노트를 과보호하거나 홀드 직전 탭을 삼킨다.
     const deltaMs = timestampMs - startTime;
     return deltaMs >= -this.windows.GOOD && deltaMs <= this.windows.GOOD;
   }
 
-  /** 헤드 없는 롱노트의 흡수 필요 키 수 (싱글 LONG 1 / 더블 DOUBLE_LONG 2). */
+  /** 헤드 없는 롱노트의 consume 필요 키 수 (싱글 LONG 1 / 더블 DOUBLE_LONG 2). */
   private requiredConsumeCount(noteIndex: number): number {
     return this.notes[noteIndex].type === NoteType.DOUBLE_LONG ? 2 : 1;
   }
 
   /**
-   * 헤드 없는 롱노트의 keydown 흡수 표시 (판정 emit 없음).
+   * 헤드 없는 롱노트의 keydown consume 표시 (판정 emit 없음).
    *
    * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
    *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
-   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 R2 매칭)
-   *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup 종결 판정
+   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 keyup 소비 매칭)
+   *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup termination 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
-   * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재흡수해 다음 노트를 막는 것을
-   * 방지하고, 더블 롱노트는 서로 다른 키 2개를 채워야 흡수 종료된다(같은 키 재입력은 무효).
+   * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재consume해 다음 노트를 막는 것을
+   * 방지하고, 더블 롱노트는 서로 다른 키 2개를 채워야 consume 종료된다(같은 키 재입력은 무효).
    * (holdState.heldKeys 는 onLanePress 진입부에서 이미 갱신됨 — 여기서 키를 만지지 않는다.)
    */
   private markLongConsumed(noteIndex: number, keyCode: string): void {
@@ -765,7 +765,7 @@ export class JudgmentEngine {
    * 트릴 노트 입력 처리
    */
   /**
-   * 트릴 구간 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
+   * trillZone 리셋 따라잡기 — uptoMs까지 시작한 구간들에 대해 교대 추적(trillAlternation)을 리셋한다.
    * update(songTime)와 입력(processTrillNoteInput, noteTime) 양쪽이 공유한다: 리셋이 프레임에만 있으면
    * async keydown이 프레임보다 일찍 도착할 때 새 구간 첫 노트가 이전 구간 키와 비교돼 잘못된 Good◇을
    * 받는다. nextIdx는 단조 증가만 하므로 update·입력이 각자 시각으로 호출해도 이중 리셋되지 않는다.
@@ -797,8 +797,8 @@ export class JudgmentEngine {
     const lastKeyCode = this.trillAlternation.get(lane);
     let grade = isGrace ? this.calculateGraceGrade(deltaMs) : this.calculateGrade(deltaMs);
 
-    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 Good◇.
-    // Good◇는 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 Good◇로 끌어내리고,
+    // 교대 체크 (첫 트릴이 아닌 경우) — Grace여도 교대 실패는 goodTrill.
+    // goodTrill은 상한일 뿐 하한이 아니다: 타이밍 등급이 Good 이상일 때만 goodTrill로 끌어내리고,
     // 타이밍이 그보다 나쁘면(Bad/Miss) 그 판정을 유지한다 — 미스타이밍을 교대 실패로 보상하지 않는다 (RFD 0013).
     const timingIsGoodOrBetter =
       grade === JudgmentGrade.PERFECT ||
@@ -808,7 +808,7 @@ export class JudgmentEngine {
       grade = JudgmentGrade.GOOD_TRILL;
     }
 
-    // 노트의 원래 위치가 현재 활성 트릴 구간에 속하는지 확인
+    // 노트의 원래 위치가 현재 활성 trillZone에 속하는지 확인
     // - 속하면: 교대 추적에 키를 기록 (정상)
     // - 속하지 않으면: 교대 추적에 기록하지 않음 (경계 입력 보호)
     const noteTime = this.noteTimesMs.get(noteIndex);
@@ -974,7 +974,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * 종결 판정 등급 — 이진 릴리즈 (RFD 0015 §3).
+   * termination 판정 등급 — 이진 릴리즈 (RFD 0015 §3).
    * 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 아니면 Miss.
    * release는 "떼는 동작의 존재"를 판정하며, 정밀도는 판정하지 않는다 (late-Bad 폴딩).
    */
@@ -1229,7 +1229,7 @@ export class JudgmentEngine {
           songTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
 
       if (isConnection) {
-        // 연결 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
+        // connection 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
         const grade = isHeldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
         this.emitJudgment(i, grade, undefined, 0);
         this.noteStates.set(i, NoteState.COMPLETE);
@@ -1239,9 +1239,9 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (R2 대상 아님 — RFD 0015).
+        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
       } else {
-        // 종결 판정
+        // termination 판정
         if (holdState.isHeld) {
           if (isHoldOnlyNote(note)) {
             // hold-only: 끝점 도달 시 유지 중이면 릴리즈를 기다리지 않고 즉시 Perfect.
@@ -1282,10 +1282,10 @@ export class JudgmentEngine {
   /**
    * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 호출
    *
-   * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(연결 판정과 같은 Perfect/Miss 이분법).
+   * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(connection 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
-   * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 R2 매칭(consumeReleaseTarget)이 담당한다.
+   * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 keyup 소비 매칭(consumeReleaseTarget)이 담당한다.
    */
   private checkLengthZeroHoldOnly(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
@@ -1299,9 +1299,9 @@ export class JudgmentEngine {
 
       const holdState = this.laneHoldStates.get((note as RangeNote).lane);
 
-      // 시작 윈도우(-Good) 진입 + 충족(싱글 1키 / 더블 2키 동시) → 흡수 표시(후보 제외 조기화).
+      // 시작 윈도우(-Good) 진입 + 충족(싱글 1키 / 더블 2키 동시) → consume 표시(후보 제외 조기화).
       // 충족된 슬라이드의 실제 held 키들을 등록해, 직후 노트가 그 입력을 가로채거나
-      // 후속 keydown이 이미 충족된 슬라이드를 재흡수하는 것을 막는다.
+      // 후속 keydown이 이미 충족된 슬라이드를 재consume하는 것을 막는다.
       if (songTimeMs >= noteTime - this.windows.GOOD && this.isHoldOnlySlideHeld(note, holdState)) {
         for (const key of holdState!.heldKeys) this.markLongConsumed(i, key);
       }
@@ -1373,7 +1373,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * Grace 노트 판정 등급 계산 (종결 판정과 동일 모델)
+   * Grace 노트 판정 등급 계산 (termination 판정과 동일 모델)
    *
    * Good 윈도우(±120ms) 내 → Perfect, Late Bad(+120~+160ms) → Bad.
    * Early Bad는 발생하지 않는다 (findEarliestUnprocessedNote에서 이미 필터링).
@@ -1391,7 +1391,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * 종결 판정 실행 (릴리즈 타이밍 기반)
+   * termination 판정 실행 (릴리즈 타이밍 기반)
    *
    * 이진 릴리즈 (RFD 0015): Good 윈도우 내 → Perfect, 밖 → Miss.
    * 콤보 처리 + COMPLETE 전환까지 수행.
@@ -1406,7 +1406,7 @@ export class JudgmentEngine {
 
     this.emitJudgment(noteIndex, grade, undefined, deltaMs);
     this.noteStates.set(noteIndex, NoteState.COMPLETE);
-    this.consumedLongKeys.delete(noteIndex); // 헤드 없는 롱노트 흡수 표시 정리(릴리즈 노트 등)
+    this.consumedLongKeys.delete(noteIndex); // 헤드 없는 롱노트 consume 표시 정리(릴리즈 노트 등)
 
     if (this.isComboMaintaining(grade)) {
       this.incrementCombo();

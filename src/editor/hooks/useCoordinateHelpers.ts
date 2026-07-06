@@ -5,7 +5,6 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
-import type { SnapZoomController } from '../timeline/SnapZoomController';
 import { LANE_WIDTH, LANE_COUNT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, TRILL_MOVE_PILL_WIDTH } from '../timeline/constants';
 import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt } from '../timeline/hitTest';
 import {
@@ -14,7 +13,7 @@ import {
   timelineXToExtraLane,
   timelineXToLane,
 } from '../timeline/timelineProjection';
-import { msToBeat, extractBpmMarkers } from '../../shared';
+import { msToBeat, beatToFloat, extractBpmMarkers } from '../../shared';
 import type { Beat, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
 
@@ -48,7 +47,6 @@ export interface CoordinateHelpers {
 
 export function useCoordinateHelpers(
   rendererRef: RefObject<TimelineRenderer | null>,
-  snapZoomRef: RefObject<SnapZoomController | null>,
 ): CoordinateHelpers {
   const chart = useEditorStore((s) => s.chart);
   const snapDivision = useEditorStore((s) => s.snapDivision);
@@ -90,10 +88,13 @@ export function useCoordinateHelpers(
     return beatFloatToRawBeat({ beatFloat });
   }, [bpmMarkers, chart.meta.offsetMs, rendererRef]);
 
+  // 모드가 1회 생성 시 캡처하는 콜백이므로 snapDivision은 호출 시점에 읽는다(stale 방지).
   const snapBeat = useCallback((beat: Beat): Beat => {
-    if (!snapZoomRef.current) return beat;
-    return snapZoomRef.current.snapBeat(beat);
-  }, [snapZoomRef]);
+    return beatFloatToSnapBeat({
+      beatFloat: beatToFloat(beat),
+      snapDivision: useEditorStore.getState().snapDivision,
+    });
+  }, []);
 
   const getMaxBeatFloat = useCallback((): number => {
     if (!rendererRef.current) return 0;
