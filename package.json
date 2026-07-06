@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "build:skins": "node scripts/build-skins.mjs",
-    "split:gear": "node scripts/split-gear-gauge.mjs"
+    "split:gear": "node scripts/split-gear-gauge.mjs",
+    "backup": "node scripts/backup-supabase.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",

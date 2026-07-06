@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
-import { createChartAsset, supabase } from '../../supabase';
+import { createChartAsset, deleteSongAsset, supabase } from '../../supabase';
+import { SongHasChartsError } from '../../shared/songAssets';
 import {
   STORAGE_BUCKET,
   songJacketPath,
@@ -18,8 +19,8 @@ import {
 } from './songSelect/helpers';
 import type { PlaybackRange } from '../../shared';
 import { styles } from './songSelect/styles';
-import { modalStyles } from './songSelect/modalStyles';
 import { AddSongModal } from './songSelect/AddSongModal';
+import { DeleteSongModal } from './songSelect/DeleteSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
 import { TutorialHelpModal } from './songSelect/TutorialHelpModal';
@@ -139,44 +140,21 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     });
   }, [addToast]);
 
-  // Delete song (admin)
+  // Delete song (admin) — 차트가 모두 삭제된 곡만 지울 수 있다 (DB FK restrict와 같은 규칙)
   const handleDeleteSong = useCallback(async (song: DbSong) => {
     setDeleting(true);
     try {
-      // 1. Delete chart rows from DB
-      if (song.charts.length > 0) {
-        const { error: chartErr } = await supabase
-          .from('charts')
-          .delete()
-          .eq('song_id', song.id);
-        if (chartErr) throw new Error(`Chart DB delete failed: ${chartErr.message}`);
-      }
-
-      // 2. Delete all files under songs/{songId}/ in storage
-      const { data: files } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .list(`songs/${song.id}`);
-      if (files && files.length > 0) {
-        const paths = files.map((f) => `songs/${song.id}/${f.name}`);
-        const { error: storageErr } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .remove(paths);
-        if (storageErr) throw new Error(`Storage delete failed: ${storageErr.message}`);
-      }
-
-      // 3. Delete song row from DB
-      const { error: songErr } = await supabase
-        .from('songs')
-        .delete()
-        .eq('id', song.id);
-      if (songErr) throw new Error(`Song DB delete failed: ${songErr.message}`);
-
+      await deleteSongAsset({ songId: song.id, chartCount: song.charts.length });
       addToast(`"${song.title}" 삭제 완료`, 'info');
       setDeleteSongTarget(null);
       fetchSongs();
     } catch (err: unknown) {
       console.error('SongSelect delete:', err);
-      addToast('곡 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      if (err instanceof SongHasChartsError) {
+        addToast(err.message, 'error');
+      } else {
+        addToast('곡 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      }
     } finally {
       setDeleting(false);
     }
@@ -228,27 +206,12 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       )}
 
       {deleteSongTarget && (
-        <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : () => setDeleteSongTarget(null)}>
-          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <h3 style={modalStyles.title}>Delete Song</h3>
-            <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
-              <strong>{deleteSongTarget.title}</strong> — {deleteSongTarget.artist}
-            </p>
-            <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
-              곡과 모든 차트가 영구 삭제됩니다. 되돌릴 수 없습니다.
-            </p>
-            <div style={modalStyles.buttons}>
-              <button
-                style={{ ...modalStyles.saveBtn, backgroundColor: '#cc3333', opacity: deleting ? 0.5 : 1 }}
-                disabled={deleting}
-                onClick={() => handleDeleteSong(deleteSongTarget)}
-              >
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-              <button style={modalStyles.cancelBtn} onClick={() => setDeleteSongTarget(null)} disabled={deleting}>Cancel</button>
-            </div>
-          </div>
-        </div>
+        <DeleteSongModal
+          song={deleteSongTarget}
+          deleting={deleting}
+          onConfirm={handleDeleteSong}
+          onClose={() => setDeleteSongTarget(null)}
+        />
       )}
     </>
   );

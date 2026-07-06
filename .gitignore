@@ -52,3 +52,6 @@ public/lab/gear-samples/**/metadata.json
 playwright-report/
 test-results/
 .vercel
+
+# Supabase 로컬 백업 (scripts/backup-supabase.mjs 산출물)
+backups/
