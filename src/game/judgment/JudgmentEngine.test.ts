@@ -2327,6 +2327,51 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("정확히 +120 프레임에선 타임아웃이 안 나고('>' 배제), +120 keyup은 윈도우 포함('≤')으로 Perfect — late 경계 양면", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // AWAITING (held)
+    engine.update(2120); // 경계 프레임 — 타임아웃 미발화
+    expect(judgments).toHaveLength(0);
+    engine.onLaneRelease(lane, 2120, "KeyA"); // 경계 keyup — 포함
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("+121 프레임에 타임아웃 Miss, 그 뒤 keyup(+125)은 죽은 노트에 무매칭 소멸 — 판정 1회뿐", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000);
+    engine.update(2121); // 첫 초과 시점
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+    engine.onLaneRelease(lane, 2125, "KeyA");
+    expect(judgments).toHaveLength(1);
+  });
+
+  it("끝점 후 keyup(+50)이 AWAITING 전환 프레임보다 먼저 도착해도 termination Perfect (BODY_ACTIVE 수용 — 프레임 독립)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 전환 없음(스톨)
+    engine.onLaneRelease(lane, 2050, "KeyA"); // BODY_ACTIVE 상태의 윈도우 내 keyup
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 전 프레임 후 2500까지 스톨하고 안 뗌 — 늦은 AWAITING 전환에도 타임아웃 Miss 정확히 1회", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.update(2500); // held → AWAITING 전환이 여기서야 일어남
+    engine.update(2510); // 타임아웃
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
   it("hold-only 끝점 지나 +130까지 잡고 있다 뗌 — 관측 프레임이 늦어도 Perfect (떼는 타이밍 면제, 뗌 직전 상태로 확정)", () => {
     // hold-only의 즉시 Perfect가 update 프레임 전용이면, 윈도우 밖 keyup(+130)은 소멸하고
     // termination 폴백이 Miss를 낸다 (슬라이스3 P5 — 입력 이벤트 경계 판정으로 프레임 독립).
