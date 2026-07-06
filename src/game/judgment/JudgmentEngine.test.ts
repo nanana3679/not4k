@@ -1440,6 +1440,29 @@ describe("hold-only 길이 0 (슬라이드형) 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("윈도우 내내 안 눌리고 +130에 처음 누르면 관측 프레임이 늦어도(+135) Miss — 윈도우 밖에서 시작한 홀드는 충족 아님", () => {
+    // 슬라이드 전이는 입력 이벤트 경계(pre-mutation)에서도 평가된다. 늦은 keydown은 자신이
+    // 홀드 상태를 바꾸기 전에 타임아웃이 먼저 닫아, 프레임이 밀려도 Perfect를 주장할 수 없다 (슬라이스6 P1).
+    const { engine, judgments } = slideSetup();
+    engine.update(noteTime);
+    engine.update(noteTime + 115); // 윈도우 내 마지막 프레임 — 안 눌림
+    engine.onLanePress(lane, noteTime + 130, "KeyA"); // 윈도우(+120) 밖 첫 홀드
+    engine.update(noteTime + 135); // 타임아웃 프레임이 홀드보다 늦게 도착
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("-10에 눌러 +10에 뗐으면 노트 시점에 held — 사이에 관측 프레임이 없어도 Perfect (release가 전이를 관측)", () => {
+    // 뗌 직전 홀드 상태로 전이를 평가하므로, noteTime을 걸친 짧은 홀드가 프레임 스톨로 유실되지 않는다 (슬라이스6 P1).
+    const { engine, judgments } = slideSetup();
+    engine.update(900);
+    engine.onLanePress(lane, noteTime - 10, "KeyA");
+    engine.onLaneRelease(lane, noteTime + 10, "KeyA"); // noteTime 관측 프레임 없이 뗌
+    engine.update(noteTime + 125);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
   it("Good 윈도우 밖(-150ms)에 떼면 통과로 인정되지 않아 Miss", () => {
     const { engine, judgments } = slideSetup();
     engine.onLanePress(lane, noteTime - 200, "KeyA");
@@ -1509,6 +1532,55 @@ describe("헤드 없는 슬라이드 keydown consume — 직후 포인트 보호
     expect(pointJ?.deltaMs).toBe(-100);
   });
 
+  it("+120 keydown은 소비 윈도우 경계 포함이라 슬라이드가 consume — 포인트(delta +20 Perfect)로 안 샘", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.update(slideTime);
+    engine.onLanePress(lane, slideTime + 120, "KeyA"); // 정확히 +120 — [−Good,+Good] 경계 포함
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트로 안 샘
+    engine.update(slideTime + 125);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("+121 keydown은 소비 윈도우 밖 — 포인트 Perfect(+21)로 가고 슬라이드는 Miss (이중 크레딧 없음)", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.update(slideTime);
+    engine.update(slideTime + 115);
+    engine.onLanePress(lane, slideTime + 121, "KeyA"); // 소비 윈도우 밖 → 포인트가 가져감
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(pointJ?.deltaMs).toBe(21);
+    engine.update(slideTime + 125); // 홀드 중이지만 홀드 시작이 윈도우 밖 → 슬라이드 Miss
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("-120 keydown은 소비 윈도우 경계 포함이라 슬라이드가 consume — Bad 경계(-160)의 포인트(1040)로 안 샘", () => {
+    const notes = [makeSlideNote(lane, beat(0, 1)), makeSingleNote(lane, beat(1, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, slideTime], [1, 1040]]), new Map([[0, slideTime]]));
+    engine.update(870);
+    engine.onLanePress(lane, 880, "KeyA"); // 정확히 -120
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트로 안 샘
+    engine.update(slideTime);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("a를 미리 눌러 held인데 윈도우 진입 후 update 프레임 없이 b(1000ms)를 쳐도 b는 포인트 early Good(-100) — held 충족은 keydown 시점 즉석 평가", () => {
+    // held 충족 소비 표시(checkLengthZeroHoldOnly)는 update 프레임에서만 일어난다. 프레임 스톨로
+    // 윈도우 진입(880)~keydown 사이에 프레임이 없으면 이미 충족된 슬라이드가 b를 삼킨다
+    // (async keydown vs rAF update 클래스, 슬라이스6 P2). 충족은 keydown 도착 시점의
+    // 실제 홀드 상태로 즉석 평가되어야 프레임 독립이다.
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 윈도우 밖 미리 누름 — held만
+    engine.update(870); // 마지막 프레임이 윈도우 진입(880) 직전 — 이후 프레임 스톨
+    engine.onLanePress(lane, slideTime, "KeyB"); // 프레임 없이 도착 — a held로 슬라이드는 충족 상태
+    engine.update(slideTime + 5);
+    engine.update(1300); // 포인트 윈도우 종료
+    const slideJ = judgments.find((j) => j.noteIndex === 0);
+    expect(slideJ?.grade).toBe(JudgmentGrade.PERFECT);
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-100);
+  });
+
   it("a를 슬라이드 윈도우 안에서 미리(980ms) 떼면 슬라이드는 뗀 시점에 Perfect, b는 포인트 정타 Perfect", () => {
     const { engine, judgments } = slideThenPointSetup();
     engine.onLanePress(lane, 900, "KeyA"); // 슬라이드 consume
@@ -1541,6 +1613,46 @@ describe("헤드 없는 길이>0 롱노트 consume — 직후 포인트 보호�
     engine.update(1100 + 170); // 포인트 윈도우 종료 (롱노트는 계속 held)
     const pointJ = judgments.find((j) => j.noteIndex === 1);
     expect(pointJ?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("a를 미리 홀드해 시작이 충족될 롱노트는 noteTime 전(990ms) b 입력을 삼키지 않고 포인트 early Good(-110)로 보낸다", () => {
+    // 길이>0 헤드없는 롱은 활성화(update, noteTime) 전까지 소비 후보로 남는데, 이미 레인을
+    // 홀드 중이면 필요 키 수(1)가 held로 충족된 상태다(RFD 0006 §3.1 "held로 충족하는 것 포함").
+    // 충족 평가가 없으면 990ms 탭은 삼켜지고 1010ms 탭은 통과하는 시작경계 비일관이 생긴다 (슬라이스6 P2).
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 미리 홀드 — 활성화 시 이 홀드가 시작을 충족(시작조건 P4)
+    engine.update(900); // 프레임 정상 순회 — 레이스가 아니라 규칙 부재임을 보인다
+    engine.update(980);
+    engine.onLanePress(lane, 990, "KeyB"); // noteTime 전 -10, 롱 소비 윈도우 내 + 포인트 윈도우 내(-110)
+    engine.update(1000); // 활성화 — a(+b) held로 시작 충족
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+  });
+
+  it("롱을 A(950)로 consume한 뒤 떼고 B(990)를 치면 소비 종료된 롱을 통과해 포인트 early Good(-110) — B의 홀드는 롱 시작도 충족", () => {
+    // consume 종료(필요 키 수 충족)는 키를 떼도 유지된다 — 후속 keydown은 다음 노트로 (슬라이스6 P3).
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 롱 consume (필요 1 충족 → 종료)
+    engine.onLaneRelease(lane, 970, "KeyA");
+    engine.onLanePress(lane, 990, "KeyB"); // 종료된 롱 통과 → 포인트로
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+    engine.update(1000); // B 홀드로 롱 시작 충족 (헤드 있는 롱의 "헤드 판정 + 바디 홀드"와 같은 모양)
+    engine.update(2000);
+    engine.onLaneRelease(lane, 2000, "KeyB");
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+  });
+
+  it("롱을 A(950)로 consume한 뒤 떼고 같은 A(990)를 재탭해도 소비 종료된 롱은 재consume하지 않아 포인트 early Good(-110)", () => {
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA");
+    engine.onLaneRelease(lane, 970, "KeyA");
+    engine.onLanePress(lane, 990, "KeyA"); // 같은 키 재탭
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
   });
 
   it("홀드 중(1500ms) 다른 키로 친 입력은 롱노트에 consume되지 않고 같은 시점 포인트로 간다", () => {
@@ -1599,6 +1711,50 @@ describe("헤드 있는 롱노트는 헤드만 consume해 더블/직후 포인�
   });
 });
 
+describe("헤드 판정 캐시 경계 — ±1ms tolerance·레인·트릴 헤드 (슬라이스6 P4)", () => {
+  const lane: Lane = 1;
+
+  it("시작+1ms 포인트는 헤드로 인정(tolerance 포함) — keydown(1000)은 헤드 판정 Perfect로 가고 롱이 삼키지 않음", () => {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeSingleNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1001]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("시작+2ms 포인트는 헤드가 아님(tolerance 밖) — keydown(1000)은 헤드 없는 롱이 consume해 무판정", () => {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeSingleNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1002]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    // 헤드로 오인했다면 롱이 후보에서 빠져 포인트(delta -2 Perfect)가 떴을 것
+    expect(judgments).toHaveLength(0);
+  });
+
+  it("다른 레인(L2) 동시각 포인트는 헤드가 아님 — L1 keydown(1000)은 롱이 consume해 L1 직후 포인트(1100)로 안 샘", () => {
+    const lane2: Lane = 2;
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(4, 1)), // L1 롱 1000~2000
+      makeSingleNote(lane2, beat(0, 1)), // L2 포인트 1000 (헤드 아님)
+      makeSingleNote(lane, beat(1, 1)), // L1 직후 포인트 1100
+    ];
+    const { engine, judgments } = setup(
+      notes,
+      new Map([[0, 1000], [1, 1000], [2, 1100]]),
+      new Map([[0, 2000]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    // 헤드로 오인해 롱이 빠지면 keydown이 L1 직후 포인트(delta -100 Good)로 샜을 것
+    expect(judgments).toHaveLength(0);
+  });
+
+  it("같은 레인 동시각 트릴 포인트는 헤드로 인정 — keydown(1000)은 트릴 판정 Perfect로 가고 롱이 삼키지 않음 (trillLong 구조 정합)", () => {
+    // 롱을 idx0에 앞세움 — 캐시가 트릴을 헤드로 못 보면 tie-break(인덱스 순)로 롱이 먼저 삼킨다
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeTrillNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
+
 describe("헤드 없는 더블 롱노트 2키 consume (RFD 0006)", () => {
   const lane: Lane = 1;
 
@@ -1618,6 +1774,18 @@ describe("헤드 없는 더블 롱노트 2키 consume (RFD 0006)", () => {
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 직후 포인트 보호
     engine.onLanePress(lane, 1100, "KeyC"); // consume 종료된 뒤 → 포인트로
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // delta 0
+  });
+
+  it("더블 롱을 a 홀드(800)+b 탭(1000) 혼합으로 채우면 c(1005)는 활성화 프레임 전이라도 포인트 early Good(-95)로 간다", () => {
+    // 필요 키 수 2는 "consume한 키 ∪ 현재 홀드 키" 합집합으로 즉석 평가된다 (P2 규칙 × P3 통과).
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // held — 필요 2 중 1을 홀드로
+    engine.update(900);
+    engine.onLanePress(lane, 1000, "KeyB"); // keydown consume — 2/2 충족, 종료
+    engine.onLanePress(lane, 1005, "KeyC"); // 활성화 update 전 — 그래도 종료 평가로 통과
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-95);
   });
 
   it("첫 keydown 하나만으로는 consume 종료되지 않아 둘째 keydown도 더블 롱노트가 consume한다 (포인트로 안 샘)", () => {
@@ -1689,6 +1857,47 @@ describe("릴리즈 노트(길이 0 일반) keydown consume — 직후 포인트
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트 미consume
     engine.onLanePress(lane, 1100, "KeyB"); // consume 종료 후 → 포인트 정타
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("keydown(-50)은 소비돼 무판정으로 포인트를 보호하고, 800부터 홀드한 경우도 새 keydown 없이 keyup(+30)만으로 Perfect", () => {
+    // 소비 윈도우 전 진입(held만)과 윈도우 내 keydown 소비 두 변형 모두 keyup이 판정 전담 (RFD 0006 §3.4)
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 소비 — 직후 포인트로 안 샘
+    expect(judgments).toHaveLength(0);
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1030, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+  });
+
+  it("노트 시점 전 keyup(-30)도 끝점 ±Good 윈도우 내이므로 Perfect — 활성화 상태와 무관 (RFD 0015 §3, 슬라이스6 P5)", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.update(900);
+    engine.onLanePress(lane, 920, "KeyA"); // 소비
+    engine.onLaneRelease(lane, 970, "KeyA"); // 끝점(1000) 기준 -30 — 활성화(1000) 전
+    engine.update(1130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("노트 시점 직후 keyup(+10)이 활성화 update 프레임보다 먼저 도착해도 Perfect (async keyup vs rAF, 슬라이스6 P5)", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.update(940); // 마지막 프레임이 noteTime 전 — 이후 스톨
+    engine.onLanePress(lane, 950, "KeyA");
+    engine.onLaneRelease(lane, 1010, "KeyA"); // BODY_AWAITING_RELEASE 전환 전 도착
+    engine.update(1130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("A(950) 소비 후 B(990) 탭은 소비 종료된 릴리즈 노트를 통과해 포인트 early Good(-110), A keyup(+10)은 릴리즈 Perfect", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 소비 (1/1 충족)
+    engine.onLanePress(lane, 990, "KeyB"); // 종료된 릴리즈 노트 통과 → 포인트
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1010, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 });
 

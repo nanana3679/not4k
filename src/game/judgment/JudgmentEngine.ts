@@ -148,6 +148,12 @@ export class JudgmentEngine {
    * 길이>0은 BODY_ACTIVE 승격으로도 빠지지만, keydown과 다음 update 사이 프레임,
    * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
    * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
+   *
+   * 수명 폐포 (슬라이스6 P6): 등록은 UNPROCESSED에서만(markLongConsumed), 판독도
+   * UNPROCESSED 게이트 뒤에서만(isHeadlessConsumable). 정리는 UNPROCESSED를 벗어나는
+   * 모든 전이에서 — 활성화(BODY_ACTIVE), 슬라이드 완료 4종, termination(릴리즈 노트),
+   * 슬라이드 미리-떼기, AWAITING 타임아웃. UNPROCESSED로 되돌아가는 경로는 없다
+   * (재시작 = 새 엔진 인스턴스).
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
@@ -265,6 +271,13 @@ export class JudgmentEngine {
     const holdState = this.laneHoldStates.get(lane);
     if (!holdState) return;
 
+    // 슬라이드(길이 0 hold-only) 전이를 이 입력의 직전 홀드 상태로 먼저 평가한다.
+    // 홀드 상태는 press/release 이벤트로만 바뀌므로, 매 이벤트 경계에서 pre-mutation
+    // 상태로 평가하면 프레임 독립이 된다: 윈도우를 걸쳐 지속된 홀드는 여기서 Perfect로
+    // 관측되고, 윈도우 밖(+Good 초과)에서 시작하는 이 keydown은 타임아웃이 먼저 닫아
+    // Perfect를 주장할 수 없다 (슬라이스6 P1 — 늦은 홀드 상향/이중 크레딧 차단).
+    this.checkLengthZeroHoldOnly(timestampMs);
+
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
@@ -305,7 +318,7 @@ export class JudgmentEngine {
     }
 
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
-    const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs);
+    const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs, keyCode);
 
     if (targetNoteIndex === null) {
       // Bad 윈도우 내에 노트가 없으면 무시
@@ -343,6 +356,11 @@ export class JudgmentEngine {
   onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
     const holdState = this.laneHoldStates.get(lane);
     if (!holdState) return;
+
+    // 슬라이드(길이 0 hold-only) 전이를 뗌 직전 홀드 상태로 먼저 평가한다 — noteTime을
+    // 걸쳐 홀드했는데 관측 프레임 전에 떼면 "held였던 사실"이 유실되어 Miss로 새는
+    // 하향을 막는다 (슬라이스6 P1 release 거울상, 프레임 독립).
+    this.checkLengthZeroHoldOnly(timestampMs);
 
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
@@ -440,13 +458,20 @@ export class JudgmentEngine {
         }
         targetTime = noteEndTime;
       } else if (state === NoteState.UNPROCESSED) {
-        // 슬라이드 미리-떼기: 노트 시점 전 Good 윈도우 내 keyup → Perfect (RFD 0005 게이트 폐지)
-        if (!isHoldOnlyNote(note)) continue;
-        // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정 (미리-떼기 미지원)
+        // 더블은 UNPROCESSED 단계 keyup 매칭 없음 (미리-떼기 미지원 / 키별 경로 전담)
         if (note.type === NoteType.DOUBLE_LONG) continue;
         if (noteEndTime !== noteTime) continue;
-        if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
-          targetTime = noteTime;
+        if (isHoldOnlyNote(note)) {
+          // 슬라이드 미리-떼기: 노트 시점 전 Good 윈도우 내 keyup → Perfect (RFD 0005 게이트 폐지)
+          if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
+            targetTime = noteTime;
+          }
+        } else if (Math.abs(releaseTimeMs - noteEndTime) <= this.windows.GOOD) {
+          // 릴리즈 노트: 판정은 keyup 이벤트가 끝점 ±Good 내인지로 정의되며 활성화
+          // (BODY_AWAITING_RELEASE, update 프레임) 여부와 무관하다. AWAITING에만 묶으면
+          // early keyup(노트 시점 전)이 결정적으로 죽고, 노트 시점 직후 keyup도 활성화
+          // 프레임보다 먼저 도착하면 유실된다 (슬라이스6 P5, RFD 0015 §3 이진 릴리즈).
+          targetTime = noteEndTime;
         }
       }
 
@@ -470,12 +495,17 @@ export class JudgmentEngine {
     const noteEndTime = this.noteEndTimesMs.get(noteIndex);
     if (noteTime === undefined || noteEndTime === undefined) return;
 
-    // 슬라이드 미리-떼기 → Perfect (떼는 시점 표시)
     if (state === NoteState.UNPROCESSED) {
-      this.emitJudgment(noteIndex, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
-      this.noteStates.set(noteIndex, NoteState.COMPLETE);
-      this.consumedLongKeys.delete(noteIndex);
-      this.incrementCombo();
+      // 슬라이드 미리-떼기 → Perfect (떼는 시점 표시)
+      if (isHoldOnlyNote(note)) {
+        this.emitJudgment(noteIndex, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
+        this.noteStates.set(noteIndex, NoteState.COMPLETE);
+        this.consumedLongKeys.delete(noteIndex);
+        this.incrementCombo();
+        return;
+      }
+      // 릴리즈 노트: 활성화 전 keyup — termination 판정 (이진, 매칭이 윈도우를 이미 검증)
+      this.executeTerminationJudgment(noteIndex, releaseTimeMs, noteEndTime);
       return;
     }
 
@@ -604,7 +634,7 @@ export class JudgmentEngine {
   /**
    * 해당 레인에서 timestampMs의 Bad 윈도우 내에 있는 가장 빠른 미처리 노트 찾기
    */
-  private findEarliestUnprocessedNote(lane: Lane, timestampMs: number): number | null {
+  private findEarliestUnprocessedNote(lane: Lane, timestampMs: number, keyCode: string): number | null {
     let earliestIndex: number | null = null;
     let earliestTime = Infinity;
 
@@ -615,7 +645,7 @@ export class JudgmentEngine {
       // 바디 노트(RangeNote)는 원칙적으로 입력 대상이 아니나, 헤드 없는 싱글 롱노트가
       // consume 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown consume 후보가 된다.
       if ("endBeat" in note) {
-        if (!this.isHeadlessConsumable(i, timestampMs)) continue;
+        if (!this.isHeadlessConsumable(i, timestampMs, keyCode)) continue;
       }
 
       const state = this.noteStates.get(i);
@@ -653,15 +683,24 @@ export class JudgmentEngine {
    * 해당 인덱스의 노트가 "헤드 없는 consume 가능 싱글 롱노트"인지.
    *
    * 조건: (1) 헤드 없음 캐시 true (NoteType.LONG 한정)
-   *       (2) 아직 consume 종료 안 됨 (UNPROCESSED + consumedLongKeys 미등록)
+   *       (2) 아직 consume 종료 안 됨 — 필요 키 수를 "consume한 키 ∪ 지금 홀드 중인 키(방금
+   *           눌린 키 제외)"로 keydown 도착 시점에 즉석 평가한다(RFD 0006 §3.1 "held로 충족하는
+   *           것 포함"). update 프레임에서 표시된 것만 보면 프레임 스톨/시작경계(noteTime 전
+   *           [-Good,0)의 미리 홀드)에서 이미 충족된 노트가 keydown을 삼킨다. 무상태 평가라
+   *           홀드를 일찍 떼면 그 키는 즉시 카운트에서 빠진다(케이스 표 6행 보존).
    *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 consume 방지)
    */
-  private isHeadlessConsumable(noteIndex: number, timestampMs: number): boolean {
+  private isHeadlessConsumable(noteIndex: number, timestampMs: number, keyCode: string): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
-    // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 consume 종료 → 후보 아님
-    const consumed = this.consumedLongKeys.get(noteIndex)?.size ?? 0;
-    if (consumed >= this.requiredConsumeCount(noteIndex)) return false;
+    const filled = new Set(this.consumedLongKeys.get(noteIndex));
+    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    if (holdState) {
+      for (const held of holdState.heldKeys) {
+        if (held !== keyCode) filled.add(held);
+      }
+    }
+    if (filled.size >= this.requiredConsumeCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
     // consume 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
@@ -1200,6 +1239,9 @@ export class JudgmentEngine {
           // 릴리즈 없이 Good 윈도우 초과 → Miss 타임아웃 (이진 릴리즈 — RFD 0015 §3, late-Bad 폴딩)
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
+          // 소비된 채 keyup 기아로 죽은 릴리즈 노트의 consume 표시 정리 (수명 폐포 — 유일하게
+          // 남아 있던 미정리 전이. UNPROCESSED 게이트가 판독을 막아 행동 영향은 없는 위생 정리)
+          this.consumedLongKeys.delete(i);
           this.breakCombo();
           // 타임아웃으로 죽은 롱을 잡고 있던 키의 놓기 keyup은 도장 없이 살아있는 이벤트로 남고,
           // 직후 노트 윈도우에 들어가면 그 노트를 살린다 (의도된 관대 — RFD 0015 §7-3).
@@ -1280,12 +1322,17 @@ export class JudgmentEngine {
   }
 
   /**
-   * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 호출
+   * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 + 입력 이벤트 경계(pre-mutation)에서 호출
    *
    * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(connection 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
    * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 keyup 소비 매칭(consumeReleaseTarget)이 담당한다.
+   *
+   * 프레임 독립: onLanePress/onLaneRelease가 홀드 상태를 바꾸기 전에 이 함수를 이벤트
+   * 타임스탬프로 호출한다. 홀드 상태는 이벤트로만 바뀌므로 "이벤트 직전 상태 = 직전
+   * 이벤트부터 지속된 홀드"가 성립해, held-Perfect(타임아웃 분기보다 먼저 평가)와
+   * 타임아웃-Miss가 프레임 사정과 무관하게 스펙 윈도우대로 갈린다 (슬라이스6 P1).
    */
   private checkLengthZeroHoldOnly(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
