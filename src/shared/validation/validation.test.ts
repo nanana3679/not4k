@@ -832,3 +832,28 @@ describe("validateTimeSigAtMeasureStart", () => {
     expect(errors).toHaveLength(1);
   });
 });
+
+describe("validateChart memo", () => {
+  it("세 배열 참조가 같으면 결과 배열을 재사용한다 (프리뷰 이중검증 비용 절감)", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: { n: 0, d: 1 } }];
+    const trillZones: TrillZone[] = [];
+    const events: ChartEvent[] = [];
+
+    const first = validateChart({ notes, trillZones, events });
+    const second = validateChart({ notes, trillZones, events }); // 입력 객체는 새로, 배열 참조는 동일
+
+    expect(second).toBe(first);
+  });
+
+  it("배열 참조가 하나라도 다르면 새로 검증한다", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: { n: 0, d: 1 } }];
+    const trillZones: TrillZone[] = [];
+    const events: ChartEvent[] = [];
+
+    const first = validateChart({ notes, trillZones, events });
+    const second = validateChart({ notes: [...notes], trillZones, events });
+
+    expect(second).not.toBe(first);
+    expect(second).toEqual(first);
+  });
+});
