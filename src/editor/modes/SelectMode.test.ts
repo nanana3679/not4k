@@ -2058,3 +2058,61 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     expect(result.clearDragPreview).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 트릴 쌍 동반 선택 — 쌍소멸과 대칭: 한쪽만 선택-이동하면 배치 제약(헤드 필수)에
+// 걸려 롤백되므로, trill 헤드 ↔ trillLong 바디는 한 단위로 선택한다
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 트릴 쌍 동반 선택", () => {
+  const pairChart = () =>
+    makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(0) }, // 헤드
+        { type: "trillLong", lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }, // 바디
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(4) }],
+    });
+
+  it("trill 헤드를 selectNote하면 trillLong 바디도 함께 선택된다", () => {
+    const mode = new SelectMode(pairChart(), makeCallbacks());
+
+    mode.selectNote(0);
+
+    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+  });
+
+  it("노트 클릭(onPointerDown 실경로)으로도 트릴 쌍이 함께 선택된다", () => {
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = new SelectMode(pairChart(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 마우스 클릭 선택 분기 (selectNote 미경유)
+
+    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+  });
+
+  it("trillLong 바디를 selectNote해도 헤드가 함께 선택된다", () => {
+    const mode = new SelectMode(pairChart(), makeCallbacks());
+
+    mode.selectNote(1);
+
+    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+  });
+
+  it("쌍 선택 후 +1박 이동(존 안)은 롤백 없이 헤드·바디가 함께 움직인다", () => {
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    cb.yToBeat = (y: number): Beat => beat(y);
+    cb.snapBeat = (b: Beat): Beat => b;
+    const mode = new SelectMode(pairChart(), cb);
+
+    mode.selectNote(0); // 쌍 동반 선택
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(1, 1); // 레인 유지 +1박 (트릴 단위 이동은 존 안 클램프)
+    mode.onPointerUp(1, 1);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.notes[0].beat)).toBe(1); // 헤드 이동
+    expect(beatToFloat(updated.notes[1].beat)).toBe(1); // 바디 시작 이동
+    expect(beatToFloat((updated.notes[1] as { endBeat: Beat }).endBeat)).toBe(3); // 길이 보존
+  });
+});

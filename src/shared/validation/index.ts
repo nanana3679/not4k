@@ -227,7 +227,7 @@ export function validateTrillExclusive(
  * 트릴 롱노트는 헤드(트릴 포인트 노트) 필수 + hold-only 불가.
  * 트릴 교대 판정은 헤드 keydown 기반이라, 헤드가 없으면(교대 비교 대상 없음) 또는
  * hold-only면("잡고만 있어도 됨"이 "같은 키 유지=교대 위반"과 모순) 교대 규칙이 무너진다.
- * 결정 근거: docs/rfd/0005-hold-only-long-note.md, docs/spec/note-system.md "트릴 롱노트".
+ * 결정 근거: docs/rfd/0009-hold-only-long-note.md, docs/spec/note-system.md "트릴 롱노트".
  */
 export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -580,9 +580,30 @@ export interface ChartValidationInput {
   events: readonly ChartEvent[];
 }
 
-/** 차트의 모든 배치 제약 조건을 한 번에 검증한다 */
+// 검증 memo — 편집 프리뷰가 매 pointer-move마다 "모드 사전검증 + 차트 변이 게이트"로
+// 같은 입력을 두 번 검증하므로, 세 배열의 참조가 모두 같으면 결과를 재사용한다.
+// 차트 데이터는 불변으로 다뤄진다(모든 변이가 새 배열을 만든다)는 전제에 의존한다.
+const validationMemo = new WeakMap<
+  readonly NoteEntity[],
+  WeakMap<readonly TrillZone[], WeakMap<readonly ChartEvent[], ValidationError[]>>
+>();
+
+/** 차트의 모든 배치 제약 조건을 한 번에 검증한다 (동일 참조 입력은 memo 재사용) */
 export function validateChart(input: ChartValidationInput): ValidationError[] {
-  return [
+  let byZones = validationMemo.get(input.notes);
+  if (!byZones) {
+    byZones = new WeakMap();
+    validationMemo.set(input.notes, byZones);
+  }
+  let byEvents = byZones.get(input.trillZones);
+  if (!byEvents) {
+    byEvents = new WeakMap();
+    byZones.set(input.trillZones, byEvents);
+  }
+  const cached = byEvents.get(input.events);
+  if (cached) return cached;
+
+  const errors = [
     ...validateNoDuplicates(input.notes),
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
@@ -595,4 +616,6 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateTimeSigNatural(input.events),
     ...validateTimeSigAtMeasureStart(input.events),
   ];
+  byEvents.set(input.events, errors);
+  return errors;
 }

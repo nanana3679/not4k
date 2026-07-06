@@ -136,7 +136,8 @@ export default function EditorApp() {
     Promise.all([chartFetch, extraFetch])
       .then(([chartText, extraText]) => {
         const chart = deserializeChart(chartText);
-        setChart(chart);
+        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
+        useEditorStore.getState().loadChart(chart);
         // Parse extra lane data: separate file first, fallback to legacy embedded data
         try {
           const extraJson = extraText

@@ -129,3 +129,57 @@ describe("editor edit application", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 트릴 쌍 쌍소멸 — trill 헤드 ↔ trillLong 바디는 어느 쪽을 지우든 함께 지운다
+// (트릴 롱은 헤드 필수 — validateTrillLong, RFD 0009)
+// ---------------------------------------------------------------------------
+
+describe("트릴 쌍 쌍소멸", () => {
+  const trillPairChart = () =>
+    makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(0) }, // 헤드
+        { type: "trillLong", lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }, // 바디
+        { type: "single", lane: 2 as Lane, beat: beat(0) }, // 무관 노트
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+
+  it("trill 헤드를 삭제하면 같은 레인·박의 trillLong 바디도 함께 삭제된다", () => {
+    const result = deleteChartNoteAtIndex(trillPairChart(), 0)!;
+
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0].type).toBe("single"); // 쌍만 소멸, 무관 노트 유지
+  });
+
+  it("trillLong 바디를 삭제하면 헤드도 함께 삭제되고 매칭 트릴존도 정리된다", () => {
+    const result = deleteChartNoteAtIndex(trillPairChart(), 1)!;
+
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0].type).toBe("single");
+    expect(result.trillZones).toHaveLength(0); // 기존 존 정리 규칙과 결합
+  });
+
+  it("우클릭 드래그 경로(deleteChartNoteAtLaneBeat)로 헤드를 지목해도 쌍소멸한다", () => {
+    const result = deleteChartNoteAtLaneBeat(trillPairChart(), { lane: 1 as Lane, beatFloat: 0 })!;
+
+    expect(result.notes.some((n) => n.type === "trillLong")).toBe(false);
+    expect(result.notes.some((n) => n.type === "trill")).toBe(false);
+  });
+
+  it("다른 박에서 시작하는 trill 노트는 쌍이 아니므로 확장하지 않는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(1) }, // 구간 안이지만 시작 박이 다름
+        { type: "trillLong", lane: 1 as Lane, beat: beat(0), endBeat: beat(2) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+
+    const result = deleteChartNotesAtIndices(chart, new Set([0]));
+
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0].type).toBe("trillLong");
+  });
+});

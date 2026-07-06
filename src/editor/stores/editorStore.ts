@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import type { Chart, ExtraNoteEntity } from '../../shared';
-import { beat } from '../../shared';
+import { beat, validateChart } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -64,6 +64,12 @@ interface EditorState extends ViewportSlice {
   setActiveSongId: (songId: string | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: Chart) => void;
+  /**
+   * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
+   * 재저장은 저장 게이트(useFileOperations의 validateChart)가 차단하므로
+   * 위반 상태가 저장·전파되지는 않는다. 로드 외의 경로에서 쓰지 말 것.
+   */
+  loadChart: (chart: Chart) => void;
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
@@ -148,7 +154,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActivePage: (activePage) => set({ activePage }),
   setActiveSongId: (activeSongId) => set({ activeSongId }),
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
-  setChart: (chart) => set((state) => ({ ...captureHistory(state), chart })),
+  setChart: (chart) => {
+    // 차트 변이 게이트 — 모델 불변(배치 제약, 층1)은 이 한 곳에서 강제된다.
+    // 정상 편집 경로는 모드의 사전검증에서 이미 걸리므로, 여기 도달한 위반은
+    // 무검증 경로(삭제·토글 등)의 버그 신호다. 거부 시 차트·히스토리 무변.
+    const errors = validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+    });
+    if (errors.length > 0) {
+      console.error('차트 변이 거부 (배치 제약 위반):', errors);
+      showToast(`배치 제약 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
+      return;
+    }
+    set((state) => ({ ...captureHistory(state), chart }));
+  },
+  loadChart: (chart) => {
+    const errors = validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+    });
+    if (errors.length > 0) {
+      console.error('로드된 차트에 배치 제약 위반:', errors);
+      showToast(`이 차트에 배치 제약 위반 ${errors.length}건이 있습니다 — 수리 후 저장할 수 있습니다`, 'warn');
+    }
+    set({ chart });
+  },
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
   setGraceMode: (graceMode) => set({ graceMode }),
