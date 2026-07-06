@@ -1994,6 +1994,62 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     expect(cb.onChartUpdate).not.toHaveBeenCalled();
   });
 
+  it("구간 단위(트릴존+노트) 이동 중 cancel은 구간과 안의 노트를 전부 원위치로 되돌린다", () => {
+    const cb = makeCallbacks({
+      hitTestTrillZoneHandle: () => 0,
+      onTrillZoneSelectionChange: vi.fn(),
+    });
+    cb.yToBeat = (y: number): Beat => beat(y);
+    cb.snapBeat = (b: Beat): Beat => b;
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 2, false, false); // 핸들 히트 → 구간 단위 드래그 시작
+    mode.onPointerMove(2, 5); // +1레인 +3박 (라이브 적용)
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(moved.trillZones[0].lane).toBe(2);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(restored.trillZones[0].lane).toBe(1);
+    expect(beatToFloat(restored.trillZones[0].beat)).toBe(2);
+    expect(beatToFloat(restored.trillZones[0].endBeat)).toBe(4);
+    expect(restored.notes[0].lane).toBe(1);
+    expect(beatToFloat(restored.notes[0].beat)).toBe(2);
+    expect(beatToFloat(restored.notes[1].beat)).toBe(3);
+  });
+
+  it("엑스트라 롱노트 이동 중 cancel은 beat(0)와 endBeat(2)를 원위치로 되돌린다", () => {
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "long", extraLane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 2 });
+    cb.yToBeat = (y: number): Beat => beat(y);
+    const mode = new SelectMode(makeChart(), cb);
+
+    mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
+    mode.onPointerMove(6, 3); // +1레인 +3박 (라이브 적용)
+    const moved = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(moved[0].extraLane).toBe(2);
+    expect(beatToFloat(moved[0].beat)).toBe(3);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    const restored = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(restored[0].extraLane).toBe(1);
+    expect(beatToFloat(restored[0].beat)).toBe(0);
+    expect("endBeat" in restored[0] ? beatToFloat(restored[0].endBeat) : -1).toBe(2);
+  });
+
   it("드래그 중이 아니면 cancel은 아무것도 하지 않는다", () => {
     const mode = new SelectMode(makeChart(), makeCallbacks());
 
