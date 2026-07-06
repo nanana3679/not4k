@@ -32,7 +32,7 @@ export function deleteChartNoteAtIndex(chart: Chart, index: number): Chart | nul
 }
 
 /**
- * 트릴 쌍 확장(쌍소멸) — 트릴 롱은 헤드(trill)가 필수라(validateTrillLong, RFD 0005)
+ * 트릴 쌍 확장(쌍소멸) — 트릴 롱은 헤드(trill)가 필수라(validateTrillLong, RFD 0009)
  * 헤드만 지우면 모델이 성립하지 않는다. 쌍의 어느 쪽을 지목하든 함께 지운다:
  * trill 헤드 ↔ 같은 레인·같은 박에서 시작하는 trillLong 바디.
  * (바디만 지우고 헤드를 남기는 것은 합법—단독 트릴 노트—이지만, 쌍은 생성도
