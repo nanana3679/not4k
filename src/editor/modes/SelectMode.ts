@@ -4,6 +4,7 @@ import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
   deleteExtraNotesAtIndices,
+  expandTrillPairIndices,
 } from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
@@ -284,7 +285,19 @@ export class SelectMode implements EditorMode {
       this.clearZoneSelectionState();
       this.selectedIndices.clear();
       this.selectedIndices.add(index);
+      this.expandTrillPairSelection();
       this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+    }
+  }
+
+  /**
+   * 트릴 쌍(trill 헤드 ↔ trillLong 바디)은 한 단위로 선택한다 — 한쪽만 이동하면
+   * 배치 제약(트릴 롱 헤드 필수)에 걸려 롤백되므로, 삭제(쌍소멸)와 대칭으로
+   * 선택도 쌍을 동반한다. 쌍은 정의상 동질(같은 존의 트릴 계열)이라 동질성 가드와 충돌하지 않는다.
+   */
+  private expandTrillPairSelection(): void {
+    for (const paired of expandTrillPairIndices(this.chart.notes, this.selectedIndices)) {
+      this.selectedIndices.add(paired);
     }
   }
 
@@ -386,6 +399,7 @@ export class SelectMode implements EditorMode {
       return false;
     }
     this.selectedIndices.add(index);
+    this.expandTrillPairSelection();
     return true;
   }
 
