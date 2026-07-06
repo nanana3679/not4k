@@ -7,6 +7,7 @@
  */
 
 import { Application, Container, Graphics, TextStyle, FillGradient } from "pixi.js";
+import type { ViewportSource } from "../stores/viewportSlice";
 import type {
   Chart,
   Beat,
@@ -56,6 +57,12 @@ export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
+  /**
+   * 뷰포트 상태(zoom·snapDivision·scrollY)의 읽기 전용 소스.
+   * 렌더러는 구독만 하며 쓰기 표면(setter)이 없다 — 쓰기는 뷰포트 슬라이스 액션만.
+   */
+  viewport: ViewportSource;
+  /** 미니맵 드래그의 스크롤 의도를 소유자(뷰포트 슬라이스 액션)로 전달한다. */
   onScroll?: (scrollY: number) => void;
 }
 
@@ -181,6 +188,41 @@ export class TimelineRenderer {
 
   constructor(options: TimelineRendererOptions) {
     this.options = options;
+    // 뷰포트 초기값은 소유자(뷰포트 슬라이스)에서 온다.
+    const viewport = options.viewport.get();
+    this._zoom = viewport.zoom;
+    this._snap = viewport.snapDivision;
+    this._scrollY = viewport.scrollY;
+  }
+
+  private unsubscribeViewport: (() => void) | null = null;
+
+  /**
+   * 뷰포트 변경 반영 — 구 set zoom/set snap/set scrollY 본문과 동일한 갱신 경로.
+   * zoom·snap은 전체 재렌더, scrollY는 임계값(뷰포트 30%) 기반 부분/전체 렌더.
+   */
+  private onViewportChanged(): void {
+    const viewport = this.options.viewport.get();
+    const zoomOrSnapChanged = viewport.zoom !== this._zoom || viewport.snapDivision !== this._snap;
+    const scrollChanged = viewport.scrollY !== this._scrollY;
+    this._zoom = viewport.zoom;
+    this._snap = viewport.snapDivision;
+    this._scrollY = viewport.scrollY;
+
+    if (zoomOrSnapChanged) {
+      this.render();
+      return;
+    }
+    if (scrollChanged) {
+      this.updateScroll();
+      const threshold = this.options.height * 0.3;
+      if (Math.abs(this._scrollY - this._lastRenderScrollY) > threshold) {
+        this.render();
+      } else {
+        this.minimapRenderer.updateViewport();
+        this.app?.render();
+      }
+    }
   }
 
   /**
@@ -260,6 +302,8 @@ export class TimelineRenderer {
     this.minimapRenderer.setupEvents();
 
     this.initialized = true;
+    // 레이어가 모두 준비된 뒤에만 뷰포트 변경을 반영한다.
+    this.unsubscribeViewport = this.options.viewport.subscribe(() => this.onViewportChanged());
   }
 
   private _initSubRenderers(): void {
@@ -380,43 +424,14 @@ export class TimelineRenderer {
   }
 
   /**
-   * Update zoom level (pixelPerSecond)
+   * 뷰포트 읽기 getter — 쓰기는 뷰포트 슬라이스 액션만 (setter 없음, ViewportSource 구독으로 반영).
    */
-  set zoom(value: number) {
-    this._zoom = value;
-    this.render();
-  }
-
   get zoom(): number {
     return this._zoom;
   }
 
-  /**
-   * Update scroll position (pixels)
-   */
-  set scrollY(value: number) {
-    this._scrollY = value;
-    this.updateScroll();
-
-    const threshold = this.options.height * 0.3;
-    if (Math.abs(value - this._lastRenderScrollY) > threshold) {
-      this.render();
-    } else {
-      this.minimapRenderer.updateViewport();
-      this.app?.render();
-    }
-  }
-
   get scrollY(): number {
     return this._scrollY;
-  }
-
-  /**
-   * Update snap division (1/N beat)
-   */
-  set snap(value: number) {
-    this._snap = value;
-    this.render();
   }
 
   get snap(): number {
@@ -973,6 +988,8 @@ export class TimelineRenderer {
    */
   dispose(): void {
     if (!this.initialized) return;
+    this.unsubscribeViewport?.();
+    this.unsubscribeViewport = null;
     this.minimapRenderer.removeEvents();
     this.initialized = false;
 
