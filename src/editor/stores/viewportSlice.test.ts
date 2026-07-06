@@ -102,6 +102,27 @@ describe('뷰포트 액션', () => {
     expect(useEditorStore.getState().scrollY).toBe(700);
   });
 
+  it('zoomByWheelAnchored: 앵커 시간(5000ms)의 화면 y(200px)가 줌 후에도 고정되고, 통지는 1회만 발생한다', () => {
+    const s = useEditorStore.getState();
+    s.setTimelineRangeMs({ minTimeMs: 0, totalTimelineMs: 10000 });
+    s.setViewportHeightPx(400);
+    s.setZoom(100);
+    // zoom=100: contentY(5000ms) = (10000×100/1000+100) − 50 − 500 = 550 → 화면 y 200이 되도록 scrollY=350
+    useEditorStore.getState().setScrollY(350);
+
+    const listener = vi.fn();
+    viewportSourceFromStore(useEditorStore).subscribe(listener);
+
+    useEditorStore.getState().zoomByWheelAnchored(-1, { timeMs: 5000, canvasY: 200 });
+
+    const { zoom, scrollY } = useEditorStore.getState();
+    expect(zoom).toBeCloseTo(110);
+    // 앵커 고정: contentY(새 zoom) − scrollY == canvasY
+    const contentY = (10000 * zoom) / 1000 + 100 - 50 - (5000 * zoom) / 1000;
+    expect(contentY - scrollY).toBeCloseTo(200);
+    expect(listener).toHaveBeenCalledTimes(1); // 줌+스크롤이 한 번의 set = 렌더 1회 보장
+  });
+
   it('줌아웃하면 scrollY가 새 maxScroll로 함께 재클램프된다', () => {
     const s = useEditorStore.getState();
     s.setZoom(100);

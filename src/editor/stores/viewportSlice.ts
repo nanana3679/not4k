@@ -14,7 +14,11 @@
  * 클램프 입력(타임라인 ms 범위, 뷰포트 높이)은 외부 세계의 사실로 이 슬라이스에
  * 입주한다. 아직 배선되지 않아 null이면 클램프는 관대하게 통과한다(inert 슬라이스).
  */
-import { getTimelineTotalHeight } from '../timeline/timelineProjection';
+import {
+  getTimelineContentHeight,
+  getTimelineTotalHeight,
+  timeToTimelineY,
+} from '../timeline/timelineProjection';
 import { clampVerticalScroll } from '../timeline/timelineViewport';
 import { TIMELINE_PADDING } from '../timeline/constants';
 
@@ -79,6 +83,17 @@ export interface ViewportSlice {
   setZoom: (zoom: number) => void;
   zoomByWheel: (deltaY: number) => void;
   zoomByPinch: (startDistance: number, currentDistance: number) => void;
+  /**
+   * 앵커(화면 canvasY에 있던 timeMs)를 고정한 채 줌 — 줌과 보정 스크롤을
+   * 한 번의 set으로 커밋해 구독 통지·렌더가 1회만 일어난다(휠 연타 성능).
+   * 클램프 입력 미배선이면 앵커 보정 없이 줌만 적용한다.
+   */
+  zoomByWheelAnchored: (deltaY: number, anchor: { timeMs: number; canvasY: number }) => void;
+  zoomByPinchAnchored: (
+    startDistance: number,
+    currentDistance: number,
+    anchor: { timeMs: number; canvasY: number },
+  ) => void;
   setSnapDivision: (snapDivision: number) => void;
   cycleSnap: (direction: 'next' | 'prev') => void;
   setScrollY: (scrollY: number) => void;
@@ -123,6 +138,42 @@ export function createViewportSlice(set: SliceSet, get: () => ViewportSlice): Vi
     });
   };
 
+  /** 앵커 고정 줌 — 렌더러의 timeToY와 동일한 순수 공식으로 새 scrollY를 역산한다. */
+  const applyZoomAnchored = (nextZoomRaw: number, anchor: { timeMs: number; canvasY: number }) => {
+    set((state) => {
+      const zoom = clampZoom(nextZoomRaw);
+      if (zoom === state.zoom) return {};
+      if (state.timelineRangeMs === null || state.viewportHeightPx === null) {
+        return { zoom, scrollY: clampScrollYFor({ ...state, zoom }, state.scrollY) };
+      }
+      const { minTimeMs, totalTimelineMs } = state.timelineRangeMs;
+      const totalTimelineHeight = getTimelineTotalHeight({
+        totalTimelineMs,
+        minTimeMs,
+        zoom,
+        padding: TIMELINE_PADDING,
+      });
+      const contentY = timeToTimelineY({
+        timeMs: anchor.timeMs,
+        contentHeight: getTimelineContentHeight({
+          totalTimelineHeight,
+          viewportHeight: state.viewportHeightPx,
+        }),
+        padding: TIMELINE_PADDING,
+        zoom,
+        minTimeMs,
+      });
+      return {
+        zoom,
+        scrollY: clampVerticalScroll({
+          requestedScrollY: contentY - anchor.canvasY,
+          timelineHeight: totalTimelineHeight,
+          viewportHeight: state.viewportHeightPx,
+        }),
+      };
+    });
+  };
+
   return {
     zoom: 200,
     snapDivision: 4,
@@ -136,6 +187,12 @@ export function createViewportSlice(set: SliceSet, get: () => ViewportSlice): Vi
     zoomByPinch: (startDistance, currentDistance) => {
       const next = zoomAfterPinch(get().zoom, startDistance, currentDistance);
       if (next !== null) applyZoom(next);
+    },
+    zoomByWheelAnchored: (deltaY, anchor) =>
+      applyZoomAnchored(zoomAfterWheel(get().zoom, deltaY), anchor),
+    zoomByPinchAnchored: (startDistance, currentDistance, anchor) => {
+      const next = zoomAfterPinch(get().zoom, startDistance, currentDistance);
+      if (next !== null) applyZoomAnchored(next, anchor);
     },
     setSnapDivision: (snapDivision) => {
       if (snapDivision < 1) return; // 구 SnapZoomController 가드 보존

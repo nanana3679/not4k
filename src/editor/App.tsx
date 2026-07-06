@@ -301,20 +301,19 @@ function ChartEditorPage() {
   useEffect(() => { isTimeInBoundsRef.current = isTimeInBounds; }, [isTimeInBounds]);
 
   const handlePinchZoom = useCallback((previousDistance: number, currentDistance: number, centerCanvasY: number) => {
-    const renderer = rendererRef.current;
     // 앵커 시간은 줌 변경 "전" 좌표계로 계산해야 핀치 중심이 고정된다.
-    const anchorTimeMs = renderer?.yToTime(centerCanvasY) ?? null;
-    const zoomBefore = useEditorStore.getState().zoom;
-    useEditorStore.getState().zoomByPinch(previousDistance, currentDistance);
-    const zoomAfter = useEditorStore.getState().zoom;
-    if (zoomAfter === zoomBefore) return;
-
-    if (renderer && anchorTimeMs !== null) {
-      // 구독이 동기라 renderer는 이미 새 zoom — timeToY가 새 좌표계를 쓴다. 클램프는 setScrollY 내장.
-      const newContentY = renderer.timeToY(anchorTimeMs);
-      setScrollY(newContentY - centerCanvasY);
+    const anchorTimeMs = rendererRef.current?.yToTime(centerCanvasY) ?? null;
+    const store = useEditorStore.getState();
+    if (anchorTimeMs === null) {
+      store.zoomByPinch(previousDistance, currentDistance);
+      return;
     }
-  }, [setScrollY]);
+    // 줌+앵커 보정 스크롤을 단일 set으로 커밋 — 구독 통지·렌더 1회.
+    store.zoomByPinchAnchored(previousDistance, currentDistance, {
+      timeMs: anchorTimeMs,
+      canvasY: centerCanvasY,
+    });
+  }, []);
 
   const handleHorizontalPan = useCallback((deltaX: number) => {
     if (Math.abs(deltaX) < 0.5) return;
@@ -673,12 +672,13 @@ function ChartEditorPage() {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (renderer && rect) {
         const cursorCanvasY = e.clientY - rect.top;
-        // 커서 아래 시간은 줌 변경 "전" 좌표계로 계산해야 커서 위치가 고정된다.
+        // 커서 아래 시간은 줌 변경 "전" 좌표계로 계산한다. 줌+앵커 보정 스크롤은
+        // 단일 set으로 커밋해 구독 통지·렌더가 1회만 일어난다(휠 연타 성능).
         const cursorTimeMs = renderer.yToTime(cursorCanvasY);
-        useEditorStore.getState().zoomByWheel(e.deltaY);
-        // 구독이 동기라 renderer는 이미 새 zoom — timeToY가 새 좌표계를 쓴다. 클램프는 setScrollY 내장.
-        const newContentY = renderer.timeToY(cursorTimeMs);
-        setScrollY(newContentY - cursorCanvasY);
+        useEditorStore.getState().zoomByWheelAnchored(e.deltaY, {
+          timeMs: cursorTimeMs,
+          canvasY: cursorCanvasY,
+        });
       } else {
         useEditorStore.getState().zoomByWheel(e.deltaY);
       }
