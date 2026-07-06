@@ -1630,6 +1630,31 @@ describe("헤드 없는 길이>0 롱노트 consume — 직후 포인트 보호�
     expect(pointJ?.deltaMs).toBe(-110);
   });
 
+  it("롱을 A(950)로 consume한 뒤 떼고 B(990)를 치면 소비 종료된 롱을 통과해 포인트 early Good(-110) — B의 홀드는 롱 시작도 충족", () => {
+    // consume 종료(필요 키 수 충족)는 키를 떼도 유지된다 — 후속 keydown은 다음 노트로 (슬라이스6 P3).
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 롱 consume (필요 1 충족 → 종료)
+    engine.onLaneRelease(lane, 970, "KeyA");
+    engine.onLanePress(lane, 990, "KeyB"); // 종료된 롱 통과 → 포인트로
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+    engine.update(1000); // B 홀드로 롱 시작 충족 (헤드 있는 롱의 "헤드 판정 + 바디 홀드"와 같은 모양)
+    engine.update(2000);
+    engine.onLaneRelease(lane, 2000, "KeyB");
+    expect(judgments.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(0);
+  });
+
+  it("롱을 A(950)로 consume한 뒤 떼고 같은 A(990)를 재탭해도 소비 종료된 롱은 재consume하지 않아 포인트 early Good(-110)", () => {
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA");
+    engine.onLaneRelease(lane, 970, "KeyA");
+    engine.onLanePress(lane, 990, "KeyA"); // 같은 키 재탭
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+  });
+
   it("홀드 중(1500ms) 다른 키로 친 입력은 롱노트에 consume되지 않고 같은 시점 포인트로 간다", () => {
     const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(4, 1))];
     const noteTimesMs = new Map([[0, 1000], [1, 1500]]); // 포인트가 롱노트 홀드 구간 안
@@ -1705,6 +1730,18 @@ describe("헤드 없는 더블 롱노트 2키 consume (RFD 0006)", () => {
     expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 직후 포인트 보호
     engine.onLanePress(lane, 1100, "KeyC"); // consume 종료된 뒤 → 포인트로
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT); // delta 0
+  });
+
+  it("더블 롱을 a 홀드(800)+b 탭(1000) 혼합으로 채우면 c(1005)는 활성화 프레임 전이라도 포인트 early Good(-95)로 간다", () => {
+    // 필요 키 수 2는 "consume한 키 ∪ 현재 홀드 키" 합집합으로 즉석 평가된다 (P2 규칙 × P3 통과).
+    const { engine, judgments } = headlessDoubleLongThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // held — 필요 2 중 1을 홀드로
+    engine.update(900);
+    engine.onLanePress(lane, 1000, "KeyB"); // keydown consume — 2/2 충족, 종료
+    engine.onLanePress(lane, 1005, "KeyC"); // 활성화 update 전 — 그래도 종료 평가로 통과
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-95);
   });
 
   it("첫 keydown 하나만으로는 consume 종료되지 않아 둘째 keydown도 더블 롱노트가 consume한다 (포인트로 안 샘)", () => {
