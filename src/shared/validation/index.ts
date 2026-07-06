@@ -227,7 +227,7 @@ export function validateTrillExclusive(
  * 트릴 롱노트는 헤드(트릴 포인트 노트) 필수 + hold-only 불가.
  * 트릴 교대 판정은 헤드 keydown 기반이라, 헤드가 없으면(교대 비교 대상 없음) 또는
  * hold-only면("잡고만 있어도 됨"이 "같은 키 유지=교대 위반"과 모순) 교대 규칙이 무너진다.
- * 결정 근거: docs/rfd/0005-hold-only-long-note.md, docs/spec/note-system.md "트릴 롱노트".
+ * 결정 근거: docs/rfd/0009-hold-only-long-note.md, docs/spec/note-system.md "트릴 롱노트".
  */
 export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
