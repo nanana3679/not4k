@@ -5,11 +5,11 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
-import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
+import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
@@ -27,7 +27,6 @@ import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
-import { clampVerticalScroll } from './timeline/timelineViewport';
 import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
@@ -223,7 +222,6 @@ function ChartEditorPage() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-  const snapZoomRef = useRef<SnapZoomController | null>(null);
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
@@ -261,7 +259,6 @@ function ChartEditorPage() {
   // Store 상태
   const chart = useEditorStore((s) => s.chart);
   const scrollY = useEditorStore((s) => s.scrollY);
-  const zoom = useEditorStore((s) => s.zoom);
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
@@ -269,7 +266,6 @@ function ChartEditorPage() {
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
-  const setZoom = useEditorStore((s) => s.setZoom);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
@@ -288,7 +284,7 @@ function ChartEditorPage() {
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // 좌표 변환 / 히트테스트 훅
-  const coords = useCoordinateHelpers(rendererRef, snapZoomRef);
+  const coords = useCoordinateHelpers(rendererRef);
   const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestExtraNoteRef } = coords;
 
   // isTimeInBounds 헬퍼
@@ -305,21 +301,19 @@ function ChartEditorPage() {
   useEffect(() => { isTimeInBoundsRef.current = isTimeInBounds; }, [isTimeInBounds]);
 
   const handlePinchZoom = useCallback((previousDistance: number, currentDistance: number, centerCanvasY: number) => {
-    const snapZoom = snapZoomRef.current;
-    if (!snapZoom) return;
-
-    const renderer = rendererRef.current;
-    const anchorTimeMs = renderer?.yToTime(centerCanvasY) ?? null;
-    const handled = snapZoom.handlePinchZoom(previousDistance, currentDistance);
-    if (!handled) return;
-
-    if (renderer && anchorTimeMs !== null) {
-      renderer.zoom = snapZoom.zoom;
-      const newContentY = renderer.timeToY(anchorTimeMs);
-      const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
-      setScrollY(Math.max(0, Math.min(maxScroll, newContentY - centerCanvasY)));
+    // 앵커 시간은 줌 변경 "전" 좌표계로 계산해야 핀치 중심이 고정된다.
+    const anchorTimeMs = rendererRef.current?.yToTime(centerCanvasY) ?? null;
+    const store = useEditorStore.getState();
+    if (anchorTimeMs === null) {
+      store.zoomByPinch(previousDistance, currentDistance);
+      return;
     }
-  }, [canvasSize.height, setScrollY]);
+    // 줌+앵커 보정 스크롤을 단일 set으로 커밋 — 구독 통지·렌더 1회.
+    store.zoomByPinchAnchored(previousDistance, currentDistance, {
+      timeMs: anchorTimeMs,
+      canvasY: centerCanvasY,
+    });
+  }, []);
 
   const handleHorizontalPan = useCallback((deltaX: number) => {
     if (Math.abs(deltaX) < 0.5) return;
@@ -328,18 +322,9 @@ function ChartEditorPage() {
 
   const handleVerticalPan = useCallback((deltaY: number) => {
     if (Math.abs(deltaY) < 0.5) return;
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-
-    const currentScrollY = useEditorStore.getState().scrollY;
-    const nextScrollY = clampVerticalScroll({
-      requestedScrollY: currentScrollY + deltaY,
-      timelineHeight: renderer.totalTimelineHeight,
-      viewportHeight: canvasSize.height,
-    });
-    renderer.scrollY = nextScrollY;
-    setScrollY(nextScrollY);
-  }, [canvasSize.height, setScrollY]);
+    const store = useEditorStore.getState();
+    store.setScrollY(store.scrollY + deltaY); // 클램프는 액션 내장, 렌더러는 구독으로 따라온다
+  }, []);
 
   const handleDeleteSelected = useCallback(() => {
     const total = selectedNotes.size + selectedExtraNotes.size;
@@ -396,7 +381,7 @@ function ChartEditorPage() {
 
   // 키보드 단축키 훅
   useEditorKeyboard(
-    playbackRef, selectModeRef, snapZoomRef, bpmMarkers,
+    playbackRef, selectModeRef, bpmMarkers,
     editingMarker, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
@@ -437,6 +422,8 @@ function ChartEditorPage() {
       canvas,
       width: initWidth,
       height: initHeight,
+      // 렌더러는 뷰포트 소유자(뷰포트 슬라이스)를 구독만 한다 — setter 없음.
+      viewport: viewportSourceFromStore(useEditorStore),
       onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
@@ -445,23 +432,23 @@ function ChartEditorPage() {
 
       rendererRef.current = renderer;
       renderer.setChart(chart);
-      renderer.zoom = zoom;
-      renderer.snap = snapDivision;
 
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
       renderer.setExtraNotes(storedExtraNotes);
 
+      // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
+      const store = useEditorStore.getState();
+      store.setViewportHeightPx(initHeight);
+      store.setTimelineRangeMs({
+        minTimeMs: Math.min(0, chart.meta.offsetMs),
+        totalTimelineMs: renderer.getTotalTimelineMs(),
+      });
+
       const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
       setScrollY(initScroll);
-      renderer.scrollY = initScroll;
     });
 
-    const snapZoom = new SnapZoomController(
-      { onZoomChange: setZoom, onSnapChange: setSnapDivision },
-      { zoom, snapDivision }
-    );
-    snapZoomRef.current = snapZoom;
 
     const playback = new PlaybackController({
       onTimeUpdate: setCurrentTimeMs,
@@ -493,8 +480,7 @@ function ChartEditorPage() {
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
       getSnapStep: () => {
-        const sd = snapZoomRef.current?.snapDivision ?? 4;
-        return { n: 4, d: sd };
+        return { n: 4, d: useEditorStore.getState().snapDivision };
       },
       getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
       xToLane,
@@ -531,7 +517,6 @@ function ChartEditorPage() {
     return () => {
       mounted = false;
       renderer.dispose();
-      snapZoom.dispose();
       playback.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -569,6 +554,11 @@ function ChartEditorPage() {
         rendererRef.current.setWaveformData(peaks, durationMs);
         // Update playback end boundary after waveform changes total timeline
         playback.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
+        // 스크롤 클램프 입력(타임라인 범위)도 음원 길이를 따라간다
+        useEditorStore.getState().setTimelineRangeMs({
+          minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
+          totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
+        });
       }
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -597,9 +587,10 @@ function ChartEditorPage() {
     return () => observer.disconnect();
   }, []);
 
-  // canvasSize → renderer
+  // canvasSize → renderer + 스크롤 클램프 입력(뷰포트 높이)
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.resize(canvasSize.width, canvasSize.height);
+    useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
   // chart → renderer + modes
@@ -611,6 +602,13 @@ function ChartEditorPage() {
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
+    }
+    // 스크롤 클램프 입력(타임라인 범위)도 차트 변경을 따라간다
+    if (rendererRef.current) {
+      useEditorStore.getState().setTimelineRangeMs({
+        minTimeMs: Math.min(0, chart.meta.offsetMs),
+        totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
+      });
     }
   }, [chart]);
 
@@ -629,21 +627,8 @@ function ChartEditorPage() {
     if (rendererRef.current) rendererRef.current.setSelectedExtraNotes(selectedExtraNotes);
   }, [selectedExtraNotes]);
 
-  // zoom → renderer
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.zoom = zoom;
-  }, [zoom]);
-
-  // snapDivision → renderer + snapZoom
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.snap = snapDivision;
-    if (snapZoomRef.current) snapZoomRef.current.snapDivision = snapDivision;
-  }, [snapDivision]);
-
-  // scrollY → renderer
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.scrollY = scrollY;
-  }, [scrollY, zoom, chart]);
+  // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
+  // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.
 
   // selectedNotes → renderer
   useEffect(() => {
@@ -674,9 +659,7 @@ function ChartEditorPage() {
     renderer.updatePlaybackCursor(currentTimeMs);
     if (autoScroll && isPlaying) {
       const cursorY = renderer.timeToY(currentTimeMs);
-      const targetScroll = cursorY - canvasSize.height / 2;
-      const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
-      setScrollY(Math.max(0, Math.min(maxScroll, targetScroll)));
+      setScrollY(cursorY - canvasSize.height / 2); // 클램프는 setScrollY 내장
     }
   }, [currentTimeMs, autoScroll, isPlaying, canvasSize.height, setScrollY]);
 
@@ -684,20 +667,20 @@ function ChartEditorPage() {
   const handleWheelNative = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
-    if (e.ctrlKey && snapZoomRef.current) {
+    if (e.ctrlKey) {
       const renderer = rendererRef.current;
       const rect = canvasRef.current?.getBoundingClientRect();
       if (renderer && rect) {
         const cursorCanvasY = e.clientY - rect.top;
+        // 커서 아래 시간은 줌 변경 "전" 좌표계로 계산한다. 줌+앵커 보정 스크롤은
+        // 단일 set으로 커밋해 구독 통지·렌더가 1회만 일어난다(휠 연타 성능).
         const cursorTimeMs = renderer.yToTime(cursorCanvasY);
-        snapZoomRef.current.handleWheel(e);
-        renderer.zoom = snapZoomRef.current.zoom;
-        const newContentY = renderer.timeToY(cursorTimeMs);
-        const newScrollY = newContentY - cursorCanvasY;
-        const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
-        setScrollY(Math.max(0, Math.min(maxScroll, newScrollY)));
+        useEditorStore.getState().zoomByWheelAnchored(e.deltaY, {
+          timeMs: cursorTimeMs,
+          canvasY: cursorCanvasY,
+        });
       } else {
-        snapZoomRef.current.handleWheel(e);
+        useEditorStore.getState().zoomByWheel(e.deltaY);
       }
       return;
     }
@@ -719,11 +702,8 @@ function ChartEditorPage() {
       return;
     }
 
-    const maxScroll = rendererRef.current
-      ? Math.max(0, rendererRef.current.totalTimelineHeight - canvasSize.height)
-      : Infinity;
-    setScrollY(Math.min(maxScroll, Math.max(0, scrollY + e.deltaY)));
-  }, [mode, scrollY, canvasSize.height, setScrollY]);
+    setScrollY(scrollY + e.deltaY); // 클램프는 setScrollY 내장
+  }, [mode, scrollY, setScrollY]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

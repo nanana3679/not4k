@@ -6,7 +6,6 @@ import { useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { SelectMode } from '../modes';
-import type { SnapZoomController } from '../timeline/SnapZoomController';
 import { msToBeat } from '../../shared';
 import type { BpmMarker } from '../../shared';
 import { useEditorStore } from '../stores';
@@ -14,7 +13,6 @@ import { useEditorStore } from '../stores';
 export function useEditorKeyboard(
   playbackRef: RefObject<PlaybackController | null>,
   selectModeRef: RefObject<SelectMode | null>,
-  snapZoomRef: RefObject<SnapZoomController | null>,
   bpmMarkers: BpmMarker[],
   // Focused editor UI state (disables global shortcuts)
   editingMarker: unknown,
@@ -82,7 +80,7 @@ export function useEditorKeyboard(
           if (!selectModeRef.current.hasClipboard) return;
           const cursorTimeMs = useEditorStore.getState().currentTimeMs;
           const beatFloat = msToBeat(cursorTimeMs, bpmMarkers, chart.meta.offsetMs);
-          const sd = snapZoomRef.current?.snapDivision ?? 4;
+          const sd = useEditorStore.getState().snapDivision;
           const grid = 4 / sd;
           const k = Math.round(beatFloat / grid);
           const targetBeat = { n: k * 4, d: sd };
@@ -205,6 +203,6 @@ export function useEditorKeyboard(
     mode, setMode,
     editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     addToast, bpmMarkers, chart.meta.offsetMs,
-    playbackRef, selectModeRef, snapZoomRef,
+    playbackRef, selectModeRef,
   ]);
 }
