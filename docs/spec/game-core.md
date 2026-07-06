@@ -89,9 +89,9 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 
 헤드 없는 롱노트(길이 0 슬라이드·릴리즈 노트 포함)는 시작 시각 **±Good 윈도우** 안에서 keydown 매칭 후보가 된다. 매칭되면 그 keydown을 **`consume`** 하되 판정은 그 입력으로 내리지 않고, 유지(held)/릴리즈(keyup) 경로가 따로 판정한다. 필요 키 수는 노트 타입을 따른다(싱글 롱노트 1, 더블 롱노트는 서로 다른 키 2개). 한 keydown은 가장 이른 한 노트에만 귀속되므로(consume), 슬라이드 직후 가까이 놓인 포인트 노트가 그 입력을 early로 가로채는 `consume` 문제가 사라진다. `consume` 후보는 시작 ±Good 근접일 때만이므로 **홀드 중/직전의 다른 탭은 `consume`되지 않고** 다음 노트로 흐른다. 헤드가 있는 롱노트는 헤드(포인트)가 입력을 대표로 `consume`하므로 롱노트 자신은 후보에서 빠진다(더블 방지). 자세한 규칙·근거는 [RFD 0006](../rfd/0006-earliest-matching-headless-long-note.md)을 참조한다.
 
-### release 소비 (R2 — keyup의 가장 이른 매칭)
+### keyup 소비 (약칭 R2 — 가장 이른 매칭)
 
-keydown(R1)과 대칭으로, keyup도 **같은 레인의 가장 이른 release-대상**(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 매칭되어 **소비(consume)**된 뒤 사라진다(RFD 0015 2규칙). 판정은 이진 — 윈도우 내 keyup = Perfect. 소비된 keyup은 직후 release-대상으로 번지지 않고, keyup 수가 release-대상 수보다 적으면 남은 대상은 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성). **연결은 release 판정이 없어** R2 대상이 아니고 끝점 held-check에 위임된다. hold-only 완료·타임아웃 사망 후의 "놓기" keyup은 소비되지 않은 살아있는 이벤트로, 직후 노트 윈도우에 들어가면 그 노트를 살린다(의도된 관대 — RFD 0015 §7-3, 구 공릴리즈 도장 폐지). keyup의 종결 대상 유일성은 **한 레인 롱노트 겹침 불가** 불변에 의존한다(`note-system.md`·`src/game/CONTEXT.md`). **유지 충족은 lane-held 그대로**라 홀드 교대(키 교대)는 보존된다. 자세한 규칙·근거는 [RFD 0015](../rfd/0015-binary-release-judgment.md)를 참조한다.
+keydown 소비(R1)와 대칭으로, keyup도 **같은 레인의 가장 이른 release-대상**(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 매칭되어 **소비(consume)**된 뒤 사라진다(RFD 0015 2규칙). 판정은 이진 — 윈도우 내 keyup = Perfect. 소비된 keyup은 직후 release-대상으로 번지지 않고, keyup 수가 release-대상 수보다 적으면 남은 대상은 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성). **연결은 release 판정이 없어** keyup 소비 대상이 아니고 끝점 held-check에 위임된다. hold-only 완료·타임아웃 사망 후의 "놓기" keyup은 소비되지 않은 살아있는 이벤트로, 직후 노트 윈도우에 들어가면 그 노트를 살린다(의도된 관대 — RFD 0015 §7-3, 구 공릴리즈 도장 폐지). keyup의 종결 대상 유일성은 **한 레인 롱노트 겹침 불가** 불변에 의존한다(`note-system.md`·`src/game/CONTEXT.md`). **유지 충족은 lane-held 그대로**라 홀드 교대(키 교대)는 보존된다. 자세한 규칙·근거는 [RFD 0015](../rfd/0015-binary-release-judgment.md)를 참조한다.
 
 ### 빈 레인 입력
 

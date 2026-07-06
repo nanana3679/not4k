@@ -337,7 +337,7 @@ export class JudgmentEngine {
   /**
    * 레인 키 릴리스 처리
    *
-   * R2 (RFD 0015): keyup은 익명 이벤트로, 같은 레인의 가장 이른 release-대상
+   * keyup 소비 — 약칭 R2 (RFD 0015): keyup은 익명 이벤트로, 같은 레인의 가장 이른 release-대상
    * 하나에 소비된 뒤 사라진다. keydown↔keyup 짝·출신 키는 추적하지 않는다.
    */
   onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
@@ -350,7 +350,7 @@ export class JudgmentEngine {
     // 더블 롱노트의 키별 릴리즈 시간 기록 (바디 유지 추적용 — 판정 아님)
     this.updateDoubleLongKeyRelease(lane, keyCode, timestampMs);
 
-    // R2: 가장 이른 release-대상 매칭 + 소비 (RFD 0015)
+    // keyup 소비: 가장 이른 release-대상 매칭 (RFD 0015)
     this.consumeReleaseTarget(lane, timestampMs, keyCode);
 
     // 모든 키가 떼어졌을 때만 레인 릴리스 상태로 전환
@@ -381,7 +381,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * R2 (RFD 0015): keyup을 같은 레인의 가장 이른 release-대상 하나에 소비한다.
+   * keyup 소비 (RFD 0015): keyup을 같은 레인의 가장 이른 release-대상 하나에 소비한다.
    *
    * release-대상 후보:
    *  (1) 종결 대기 끝점 (BODY_AWAITING_RELEASE — 릴리즈 노트 포함)
@@ -428,7 +428,7 @@ export class JudgmentEngine {
         if (note.type === NoteType.DOUBLE_LONG) {
           // 더블 hold-only는 키별 update 경로(judgeDoubleLongEndpoint)가 전담
           if (isHoldOnlyNote(note)) continue;
-          // 더블롱: 떼어진 키가 추적 중이고 미판정일 때만 후보 (키별 R2).
+          // 더블롱: 떼어진 키가 추적 중이고 미판정일 때만 후보 (키별 keyup 소비).
           // dl 미초기화(짧은 더블롱의 keyup이 끝점 update 프레임보다 먼저 도착)면
           // executeReleaseJudgment가 재구성하므로 후보로 남긴다 (P3 keyup 거울상).
           const dl = this.doubleLongKeyStates.get(i);
@@ -461,7 +461,7 @@ export class JudgmentEngine {
   }
 
   /**
-   * R2 매칭된 release-대상의 판정 실행 (consumeReleaseTarget이 윈도우 검증을 마친 뒤 호출)
+   * keyup 소비로 매칭된 release-대상의 판정 실행 (consumeReleaseTarget이 윈도우 검증을 마친 뒤 호출)
    */
   private executeReleaseJudgment(noteIndex: number, releaseTimeMs: number, keyCode: string): void {
     const note = this.notes[noteIndex];
@@ -680,7 +680,7 @@ export class JudgmentEngine {
    *
    * keydown(또는 held sentinel)을 소비만 한다. 실제 판정은 update()의 held 경로가 전담:
    *  - 길이>0: 자동활성화(BODY_ACTIVE) + checkLongNoteBodyHold / checkDoubleLongKeyHold
-   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 R2 매칭)
+   *  - 길이0 슬라이드: checkLengthZeroHoldOnly (미리-떼기는 consumeReleaseTarget의 keyup 소비 매칭)
    *  - 릴리즈 노트(길이0 일반): BODY_AWAITING_RELEASE + keyup termination 판정
    * BODY_ACTIVE로 강제 승격하지 않는다 — 시작점 허용 윈도우를 우회하면 판정 타이밍이 왜곡된다.
    * 키 집합으로 추적해 같은 프레임/윈도우의 후속 keydown이 노트를 재consume해 다음 노트를 막는 것을
@@ -1239,7 +1239,7 @@ export class JudgmentEngine {
         } else {
           this.breakCombo();
         }
-        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (R2 대상 아님 — RFD 0015).
+        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
       } else {
         // termination 판정
         if (holdState.isHeld) {
@@ -1285,7 +1285,7 @@ export class JudgmentEngine {
    * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(connection 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
-   * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 R2 매칭(consumeReleaseTarget)이 담당한다.
+   * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 keyup 소비 매칭(consumeReleaseTarget)이 담당한다.
    */
   private checkLengthZeroHoldOnly(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {

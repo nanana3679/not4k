@@ -2007,7 +2007,7 @@ describe("o-o- 연결 — 끝점 헤드/스트레이 릴리즈에 강건 (releas
   });
 });
 
-describe("hold-only 완료 후 놓기의 관대 재분류 — 놓기 keyup도 정당한 R2 이벤트 (RFD 0015 §7-3, 구 RFD 0008 도장 반전)", () => {
+describe("hold-only 완료 후 놓기의 관대 재분류 — 놓기 keyup도 정당한 keyup 소비 이벤트 (RFD 0015 §7-3, 구 RFD 0008 도장 반전)", () => {
   const lane: Lane = 1;
 
   function holdOnlyLong(b: Beat, endBeat: Beat): NoteEntity {
@@ -2069,7 +2069,7 @@ describe("hold-only 완료 후 놓기의 관대 재분류 — 놓기 keyup도 �
     engine.onLanePress(lane, 1000, "KeyA"); // L1 engage, 쭉 유지
     engine.update(1000);
     engine.update(2000); // L1 끝점 → L2와 연결(held Perfect)
-    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 뗌 → R2 종결 Perfect
+    engine.onLaneRelease(lane, 3000, "KeyA"); // L2 끝에서 뗌 → keyup 소비로 termination Perfect
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
@@ -2348,7 +2348,7 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
 
   it("hold-only 더블롱을 2키로 유지 완료 후 안 떼고 이어서 더블롱 B 유지, 분할 릴리즈로 B 양쪽 정상 종결 (RFD 0012 doubleLong)", () => {
     // A: hold-only 더블롱[1000~2000](KeyA+KeyB 유지), 갭, 일반 더블롱 B[2500~3000]. 2키 계속 유지 후 B 끝에서 분할 릴리즈.
-    // 도장 폐지(RFD 0015) 후 keyup은 R2(consumeReleaseTarget)로 즉시 키별 종결된다. 이중화는 유지:
+    // 도장 폐지(RFD 0015) 후 keyup은 keyup 소비(consumeReleaseTarget)로 즉시 키별 종결된다. 이중화는 유지:
     // updateDoubleLongKeyRelease가 lastReleaseTimeMs를 무조건 기록하고, update 폴백(judgeDoubleLongEndpoint)이
     // 같은 시각으로 같은 등급을 재판정할 수 있다. 이 테스트는 분할 릴리즈의 등급 결과를 잠근다.
     const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
@@ -2372,7 +2372,7 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
 
   it("doubleLong 종결이 keyup 시점에 즉시 emit된다 — 회수가 primary, 폴백으로 지연되면 회귀 (RFD 0012 doubleLong 타이밍)", () => {
     // 위 테스트와 같은 차트지만 추가 update 없이 keyup 직후 판정을 확인한다.
-    // R2(consumeReleaseTarget)가 keyup 시점에 즉시 키별 종결을 emit해야 한다(primary).
+    // keyup 소비(consumeReleaseTarget)가 keyup 시점에 즉시 키별 종결을 emit해야 한다(primary).
     // 폴백(judgeDoubleLongEndpoint)으로 emit이 다음 update 프레임까지 지연되면 이 단언이 잡는다(silent→loud).
     const holdOnlyDL = { type: NoteType.DOUBLE_LONG, lane, beat: beat(0, 1), endBeat: beat(8, 1), holdOnly: true } as NoteEntity;
     const notes = [holdOnlyDL, makeDoubleLongNote(lane, beat(10, 1), beat(12, 1))];
@@ -2429,7 +2429,7 @@ describe("연결 doubleLong 끝점 판정 (P2)", () => {
 
   it("더블롱 A가 더블롱 B로 연결(끝=시작 맞닿음), 2키 계속 유지 → A 연결 Perfect×2", () => {
     // A[1000,2000] 끝 = B[2000,3000] 시작 → 자동 연결. 연결 끝점은 held/grace로만 판정하며
-    // R2 release 매칭(consumeReleaseTarget)의 대상이 아예 아니다(connectionSources 제외). 이 테스트는 연결 등급을 잠근다.
+    // keyup 소비 매칭(consumeReleaseTarget)의 대상이 아예 아니다(connectionSources 제외). 이 테스트는 연결 등급을 잠근다.
     const notes = [DLONG(beat(0, 1), beat(8, 1)), DLONG(beat(8, 1), beat(16, 1))];
     const t = new Map([[0, 1000], [1, 2000]]);
     const e = new Map([[0, 2000], [1, 3000]]);

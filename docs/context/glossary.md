@@ -87,7 +87,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### 홀드 교대
 
-롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0015의 이진 릴리즈·R2 소비도 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다 — 교대는 grace 역학만으로 성립하며 별도 이동 제스처가 필요 없다.)
+롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0015의 이진 릴리즈·keyup 소비도 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다 — 교대는 grace 역학만으로 성립하며 별도 이동 제스처가 필요 없다.)
 
 ### 홀드 트릴 (Hold Trill)
 
@@ -328,7 +328,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 `termination` 판정이 발생한다. 판정은 이진 릴리즈: 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 윈도우 끝(+120ms)까지 keyup 부재 = 타임아웃 Miss. `termination` 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 **동작의 존재**에 판정을 부여하여 이를 방지한다(정밀도는 판정하지 않음). **`termination` 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 `termination`을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
 
-**구현**: `consumeReleaseTarget`(R2 매칭+소비), `executeTerminationJudgment`, `terminationGrade`(윈도우 내 Perfect / 밖 Miss 이진).
+**구현**: `consumeReleaseTarget`(keyup 소비 매칭), `executeTerminationJudgment`, `terminationGrade`(윈도우 내 Perfect / 밖 Miss 이진).
 
 ### `connection` 판정
 
@@ -364,8 +364,10 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 모든 입력 이벤트(keydown·keyup)는 익명이고, 자기 윈도우에 맞는 **같은 레인의 가장 이른 노트 하나**에 쓰인 뒤 사라진다("한 입력 = 한 노트" 불변, RFD 0015 2규칙).
 
-- **R1 (keydown 흡수)**: 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다. 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
-- **R2 (keyup 소비)**: keyup은 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된다. 윈도우 내 = Perfect(이진 릴리즈). 소비된 keyup은 직후 release-대상으로 번지지 않고(RFD 0011 승계·일반화), keyup 수가 release-대상 수보다 적으면 남은 대상은 굶어 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성).
+정식 이름은 **keydown 소비 / keyup 소비**이고, R1/R2는 두 규칙을 쌍으로 부를 때의 약칭이다.
+
+- **keydown 소비 (약칭 R1)**: 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다. 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
+- **keyup 소비 (약칭 R2)**: keyup은 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된다. 윈도우 내 = Perfect(이진 릴리즈). 소비된 keyup은 직후 release-대상으로 번지지 않고(RFD 0011 승계·일반화), keyup 수가 release-대상 수보다 적으면 남은 대상은 굶어 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성).
 
 > **영문 표기는 `consume`로 통일**한다(흡수/소비 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
 

@@ -50,7 +50,7 @@ _Avoid_: 키 이벤트 처리
 판정 윈도우 안에 여러 노트가 있을 때 시간상 가장 앞선 노트가 입력을 먼저 받는 규칙이다. 헤드 없는 롱노트(싱글/더블, 길이 0 슬라이드 포함)도 시작 ±Good 근접 시 매칭 후보가 되어 keydown을 `consume`하되 판정은 분리한다(필요 키 수 싱글 1/더블 2) — 세부는 `docs/context/glossary.md`·`docs/rfd/0006-earliest-matching-headless-long-note.md`.
 _Avoid_: 가장 가까운 노트 매칭
 
-**이진 릴리즈 / release 소비 (R2)**:
+**이진 릴리즈 / keyup 소비 (약칭 R2)**:
 release 판정은 이진 — 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 아니면 타임아웃 Miss(late-Bad 폴딩). keyup은 익명 이벤트로 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된 뒤 사라진다. 연결은 release 판정 없음(held-check 위임). hold-only 완료·타임아웃 사망 후의 "놓기" keyup이 직후 노트를 살리는 것은 의도된 관대(§7-3). 종결 대상 유일성은 "롱노트 겹침 불가" 불변에 의존 — 세부는 `docs/rfd/0015-binary-release-judgment.md`, 용어는 `docs/context/glossary.md`.
 _Avoid_: 공릴리즈 도장(폐지됨 — RFD 0008/0012), keydown↔keyup 짝 추적, 등급형 release
 
