@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores';
 import { AudioEngine } from '../audio';
-import { InputSystem, type KeyBinding } from '../input';
+import { InputSystem, AutoPlayer, type KeyBinding, type AutoSectionMs } from '../input';
 import { JudgmentEngine, type JudgmentResult } from '../judgment';
+import { computeConnectionSources } from '../judgment/longNoteConnection';
 import { ScoreManager } from '../scoring';
+import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
+import { decideJudgmentEffects } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
@@ -150,6 +153,12 @@ export function PlayScreen() {
         const audioEngine = new AudioEngine();
         audioEngine.masterVolume = settings.masterVolume ?? 1;
         audioEngine.playbackRate = settings.playSpeed;
+        // 이 플레이 세션의 시간 권위. 판정/시각/입력 시간을 단일 출처에서 파생한다.
+        // offset은 세션 동안 불변이므로 여기서 캡처한다.
+        const gameClock = new GameClock(audioEngine, {
+          audioOffsetMs: settings.audioOffsetMs,
+          judgmentOffsetMs: settings.judgmentOffsetMs,
+        });
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);
         const renderer = new GameRenderer({
@@ -207,59 +216,36 @@ export function PlayScreen() {
 
         // Create judgment engine
         const windows = getJudgmentWindows(settings.judgmentMode);
+        // 롱노트 connection 관계는 맵 로드 시 1회 계산해 주입한다 (렌더러 held 전파와 같은 소유자).
+        const connectionSources = computeConnectionSources(chartData.notes, noteTimesMs, noteEndTimesMs);
         const judgmentEngine = new JudgmentEngine(
           chartData.notes,
           noteTimesMs,
           noteEndTimesMs,
           {
             onJudgment: (result: JudgmentResult) => {
-              const note = chartData.notes[result.noteIndex];
-              const isBody = 'endBeat' in note;
+              // 결정은 전부 순수 함수(판정 효과)가 소유 — 이 적용자는 effects만 해석한다.
+              const effects = decideJudgmentEffects(result, chartData.notes[result.noteIndex]);
 
-              // Debug logging (헤드/포인트 노트만, 바디 제외)
-              if (debugLogger && !isBody) {
-                const noteTimeMs = noteTimesMs.get(result.noteIndex);
+              // 디버그 기록 — 화면 좌표 계산은 표시 시점의 관심사라 적용자 몫
+              if (debugLogger && effects.debug) {
+                const noteTimeMs = noteTimesMs.get(effects.noteIndex);
                 if (noteTimeMs !== undefined) {
-                  const songTimeMs = audioEngine.currentTimeMs + settings.audioOffsetMs;
+                  const songTimeMs = gameClock.judgmentTimeMs();
                   const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                  const isDouble = note.type === 'double';
-                  debugLogger.recordJudgment(result.noteIndex, noteCenterY, result.grade, result.deltaMs, isDouble ? result.subIndex : undefined);
+                  debugLogger.recordJudgment(effects.noteIndex, noteCenterY, effects.debug.grade, effects.debug.deltaMs, effects.debug.doubleSubIndex);
                 }
               }
 
-              // Pass deltaMs only for head judgments (not body)
-              if (isBody) {
-                scoreManager.recordJudgment(result.grade);
-              } else {
-                scoreManager.recordJudgment(result.grade, result.deltaMs);
-              }
-              renderer.recordPerspectiveSurfaceJudgment(result.grade);
-              renderer.showJudgment(result.grade, result.deltaMs);
+              scoreManager.recordJudgment(effects.scoreRecord.grade, effects.scoreRecord.deltaMs);
+              renderer.recordPerspectiveSurfaceJudgment(effects.judgmentText.grade);
+              renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs);
+              // accuracy는 기록 "후" 상태 재조회 — 적용 순서만 여기서 보장한다
               renderer.updateAccuracy(scoreManager.getState().achievementRate);
-              if (result.grade !== 'miss') {
-                renderer.showBombEffect(note.lane);
-              } else if (result.isPartialBodyFail) {
-                // 더블 롱노트 부분 실패 — 한쪽만 실패 에셋으로 교체
-                renderer.markBodyPartialFailed(result.noteIndex, result.failedSide!);
-              } else {
-                renderer.markBodyFailed(result.noteIndex);
+              if (effects.bomb !== null) {
+                renderer.showBombEffect(effects.bomb);
               }
-
-              // Note visibility updates
-              const isDouble = note.type === 'double';
-
-              if (result.isPartialBodyFail) {
-                // 부분 실패: 노트는 BODY_ACTIVE를 유지하므로 visibility 변경 없음
-              } else if (result.grade === 'miss') {
-                // miss된 노트는 사라지지 않고 실패 에셋으로 교체
-                renderer.markNoteMissed(result.noteIndex);
-              } else if (isBody) {
-                renderer.markNoteProcessed(result.noteIndex);
-              } else if (isDouble && result.subIndex === 0) {
-                renderer.markDoublePartial(result.noteIndex);
-              } else {
-                renderer.markNoteProcessed(result.noteIndex);
-              }
+              renderer.applyNoteDisplayEffect(effects.noteIndex, effects.noteDisplay);
             },
             onComboUpdate: (combo: number) => {
               renderer.updateCombo(combo);
@@ -267,6 +253,7 @@ export function PlayScreen() {
           },
           windows,
           trillZoneStartTimesMs,
+          connectionSources,
         );
 
         // Create input system
@@ -280,20 +267,12 @@ export function PlayScreen() {
 
         const inputSystem = new InputSystem(keyBindings, {
           onLanePress: (lane, timestampMs, keyCode) => {
-            const now = performance.now();
-            const currentAudioMs = audioEngine.currentTimeMs;
-            const handlerDelay = Math.max(0, now - timestampMs);
-            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
+            judgmentEngine.onLanePress(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
           },
           onLaneRelease: (lane, timestampMs, keyCode) => {
-            const now = performance.now();
-            const currentAudioMs = audioEngine.currentTimeMs;
-            const handlerDelay = Math.max(0, now - timestampMs);
-            const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.audioOffsetMs + settings.judgmentOffsetMs;
-            judgmentEngine.onLaneRelease(lane, correctedSongTimeMs, keyCode);
+            judgmentEngine.onLaneRelease(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
           },
@@ -311,7 +290,7 @@ export function PlayScreen() {
           for (let i = 0; i < chartData.notes.length; i++) {
             const timeMs = noteTimesMs.get(i);
             if (timeMs !== undefined && timeMs < startTimeMs) {
-              renderer.markNoteProcessed(i);
+              renderer.applyNoteDisplayEffect(i, { body: null, visibility: 'processed' });
             }
           }
         }
@@ -323,41 +302,24 @@ export function PlayScreen() {
         scoreManagerRef.current = scoreManager;
         rendererRef.current = renderer;
 
-        // Auto-play tracking: which notes have been auto-pressed/released
-        const autoPressed = new Set<number>();
-        const autoReleased = new Set<number>();
-        // 포인트 노트의 자동 release 정보 (setTimeout 대신 게임 루프 내에서 처리)
-        const autoPendingRelease = new Map<number, { releaseMs: number; key1: string; key2: string | null }>(); // noteIndex → release info
-
-        // 헤드-롱노트 쌍 연결: 같은 lane + 같은 beat에 포인트 노트(헤드)와 range 노트(롱)가 함께 있으면
-        // auto 모드에서 헤드 press가 롱 hold를 제공하고, 헤드 release 시점을 롱 endBeat로 연장한다.
-        // (그러지 않으면 doubleLong 바디 auto-활성화가 헤드 키 대신 바디 키를 따로 추적하다가
-        //  헤드 release 시 grace period 초과로 BODY_FAILED 처리됨)
-        const rangeToHead = new Map<number, number>(); // rangeIdx → headIdx
-        const headToRange = new Map<number, number>(); // headIdx → rangeIdx
-        for (let r = 0; r < chartData.notes.length; r++) {
-          const rNote = chartData.notes[r];
-          if (!('endBeat' in rNote)) continue;
-          const rTime = noteTimesMs.get(r)!;
-          for (let h = 0; h < chartData.notes.length; h++) {
-            if (h === r) continue;
-            const hNote = chartData.notes[h];
-            if ('endBeat' in hNote) continue;
-            if (hNote.lane !== rNote.lane) continue;
-            const hTime = noteTimesMs.get(h)!;
-            if (Math.abs(hTime - rTime) > 1) continue;
-            rangeToHead.set(r, h);
-            headToRange.set(h, r);
-            break;
+        // Auto-play: Auto 구간 ms 범위 파생 (렌더러 autoEvents와 같은 소스·같은 변환의 순수 파생값)
+        const autoSectionsMs: AutoSectionMs[] = [];
+        for (const evt of chartData.events) {
+          if (evt.type === 'auto') {
+            autoSectionsMs.push({
+              startMs: beatToMs(evt.beat, bpmMarkers, chartData.meta.offsetMs),
+              endMs: beatToMs(evt.endBeat, bpmMarkers, chartData.meta.offsetMs),
+            });
           }
         }
+        const autoPlayer = new AutoPlayer(chartData.notes, noteTimesMs, noteEndTimesMs, autoSectionsMs);
 
         // Start game loop
         let lastFrameTime: number | null = null;
         const gameLoop = (timestamp: number) => {
           if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
-            const songTimeMs = audioEngine.currentTimeMs + settings.audioOffsetMs;
-            const visualTimeMs = songTimeMs + audioEngine.getOutputLatencyMs();
+            const songTimeMs = gameClock.judgmentTimeMs();
+            const visualTimeMs = gameClock.visualTimeMs();
 
             // Record frame timing for debug logger
             const frameDeltaMs = lastFrameTime !== null ? timestamp - lastFrameTime : 16;
@@ -366,45 +328,10 @@ export function PlayScreen() {
             }
             lastFrameTime = timestamp;
 
-            // Auto-play: inject synthetic inputs for notes in auto sections
-            if (renderer.isAutoSection(songTimeMs)) {
-              for (let i = 0; i < chartData.notes.length; i++) {
-                const note = chartData.notes[i];
-                const noteTime = noteTimesMs.get(i)!;
-
-                // 이미 처리됐거나 아직 시점이 아닌 노트는 스킵
-                if (autoPressed.has(i) || songTimeMs < noteTime || songTimeMs >= noteTime + 200) continue;
-                // 헤드가 있는 롱노트 바디는 헤드 press가 hold를 제공하므로 별도 press 안 함
-                if (rangeToHead.has(i)) { autoPressed.add(i); continue; }
-
-                autoPressed.add(i);
-                const lane = note.lane as 1 | 2 | 3 | 4;
-                const isDouble = note.type === 'double' || note.type === 'doubleLong';
-
-                // 노트 인덱스별 유일한 가상 키코드 — 같은 레인의 다른 노트와 키 충돌 방지
-                const key1 = `auto_${lane}_${i}_a`;
-                const key2 = isDouble ? `auto_${lane}_${i}_b` : null;
-                judgmentEngine.onLanePress(lane, noteTime, key1);
-                if (key2) {
-                  judgmentEngine.onLanePress(lane, noteTime, key2);
-                }
-                renderer.setKeyBeam(lane, true);
-
-                if (!('endBeat' in note)) {
-                  // 포인트 노트: release 시점 계산
-                  // - 연결된 롱노트가 있으면 롱노트 endBeat까지 연장 (hold 유지)
-                  // - 아니면 기본 50ms 후
-                  const linkedRangeIdx = headToRange.get(i);
-                  const releaseMs = linkedRangeIdx !== undefined
-                    ? noteEndTimesMs.get(linkedRangeIdx)!
-                    : noteTime + 50;
-                  autoPendingRelease.set(i, {
-                    releaseMs,
-                    key1,
-                    key2,
-                  });
-                }
-              }
+            // Auto-play: Auto 구간의 합성 press 주입 (구간 게이팅은 AutoPlayer 내부)
+            for (const p of autoPlayer.pressesAt(songTimeMs)) {
+              judgmentEngine.onLanePress(p.lane, p.timeMs, p.key);
+              renderer.setKeyBeam(p.lane, true);
             }
 
             // 판정 엔진 업데이트를 release보다 먼저 호출해서 바디 노트를 auto-활성화한다.
@@ -412,37 +339,11 @@ export function PlayScreen() {
             //  release 시점에 바디 상태가 아직 UNPROCESSED라 tryEndpointJudgmentOnRelease가 놓침)
             judgmentEngine.update(songTimeMs);
 
-            // Auto-play: pending release 처리 (포인트 노트)
-            for (const [idx, info] of autoPendingRelease) {
-              if (songTimeMs >= info.releaseMs) {
-                autoPendingRelease.delete(idx);
-                const note = chartData.notes[idx];
-                const lane = note.lane as 1 | 2 | 3 | 4;
-                judgmentEngine.onLaneRelease(lane, info.releaseMs, info.key1);
-                if (info.key2) {
-                  judgmentEngine.onLaneRelease(lane, info.releaseMs, info.key2);
-                }
-                renderer.setKeyBeam(lane, false);
-              }
-            }
-
-            // Auto-play: 롱노트 release at endBeat (헤드가 있으면 헤드의 pending release가 처리)
-            for (let i = 0; i < chartData.notes.length; i++) {
-              if (!autoPressed.has(i) || autoReleased.has(i)) continue;
-              const note = chartData.notes[i];
-              if (!('endBeat' in note)) continue;
-              if (rangeToHead.has(i)) continue; // 헤드가 있으면 스킵
-              const noteEndTime = noteEndTimesMs.get(i);
-              if (noteEndTime !== undefined && songTimeMs >= noteEndTime) {
-                autoReleased.add(i);
-                const lane = note.lane as 1 | 2 | 3 | 4;
-                const isDouble = note.type === 'doubleLong';
-                judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_${i}_a`);
-                if (isDouble) {
-                  judgmentEngine.onLaneRelease(lane, noteEndTime, `auto_${lane}_${i}_b`);
-                }
-                renderer.setKeyBeam(lane, false);
-              }
+            // Auto-play: 합성 release 주입 (포인트 노트 예약 release + 롱노트 endBeat release,
+            // Auto 구간이 끝나도 잡고 있던 홀드는 endBeat에서 놓는다 — 게이팅 비대칭은 AutoPlayer 내부)
+            for (const r of autoPlayer.releasesAt(songTimeMs)) {
+              judgmentEngine.onLaneRelease(r.lane, r.timeMs, r.key);
+              renderer.setKeyBeam(r.lane, false);
             }
 
             // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
@@ -567,9 +468,9 @@ export function PlayScreen() {
       <canvas key={retryKey} ref={canvasRef} style={styles.canvas} />
 
       {isPaused && (
-        <div style={styles.pauseOverlay}>
-          <div style={styles.pauseModal}>
-            <h2 style={styles.pauseTitle}>Paused</h2>
+        <div style={import.meta.env.DEV ? styles.pauseOverlayDev : styles.pauseOverlay}>
+          <div style={import.meta.env.DEV ? styles.pauseModalDev : styles.pauseModal}>
+            <h2 style={import.meta.env.DEV ? styles.pauseTitleDev : styles.pauseTitle}>Paused</h2>
             <div style={styles.pauseButtons}>
               <button style={styles.button} onClick={handleResume}>
                 Resume
@@ -634,6 +535,37 @@ const styles = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     gap: '32px',
+  },
+  // 개발 모드 전용: dim 없이 우상단에 작게 띄워 플레이 화면을 가리지 않는다.
+  pauseOverlayDev: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    padding: '12px',
+    pointerEvents: 'none' as const, // 오버레이는 클릭 통과, 모달만 입력 받음
+  },
+  pauseModalDev: {
+    backgroundColor: 'rgba(42, 42, 42, 0.9)',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '10px',
+    pointerEvents: 'auto' as const,
+    transform: 'scale(0.8)',
+    transformOrigin: 'top right',
+  },
+  pauseTitleDev: {
+    fontSize: '18px',
+    color: '#ffffff',
+    margin: 0,
   },
   pauseTitle: {
     fontSize: '48px',

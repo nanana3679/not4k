@@ -7,6 +7,7 @@ import {
   validateNoTrillZoneOverlap,
   validateNoEventDuplicate,
   validateNoEventOverlap,
+  validateNoTutorialInputOverlap,
   validateStopZones,
   validateChart,
   isNaturalNumber,
@@ -131,10 +132,10 @@ describe("validateNoLongOverlap", () => {
 });
 
 // =========================================================================
-// 불변 잠금: 한 레인 롱노트 바디 겹침 불가 (RFD 0008 §4·§10 의존)
+// 불변 잠금: 한 레인 롱노트 바디 겹침 불가 (RFD 0015 §8 의존)
 //
-// 판정 엔진의 emptyRelease 누설 차단은 "한 레인에서 두 롱노트 바디가 겹치지 않는다"는
-// 배치 불변을 전제한다. 이 불변은 별도 규칙이 아니라 기존 두 규칙의 합으로 강제된다:
+// 판정 엔진의 R2 keyup 소비(가장 이른 release-대상 매칭)는 "한 레인에서 두 롱노트
+// 바디가 겹치지 않는다"(→ keyup의 종결 대상 유일)는 배치 불변을 전제한다. 이 불변은 별도 규칙이 아니라 기존 두 규칙의 합으로 강제된다:
 //   - 같은 시작 박 → validateNoDuplicates ("Duplicate range start")
 //   - 시작 박이 다르면서 겹침 → 한쪽 끝점이 상대 열린 바디에 들어가 validateNoLongOverlap
 // 어느 규칙이 잡든 validateChart 레벨에서 거부됨을 잠근다(누가 규칙을 느슨하게 바꾸면 깨지도록).
@@ -268,6 +269,38 @@ describe("validateTrillLong", () => {
     ];
     expect(validateTrillLong(notes)).toEqual([]);
   });
+
+  it("hold-only이면서 헤드도 없으면 두 규칙 위반이 각각 보고된다 (두 검사 독립)", () => {
+    // 두 검사가 else-if로 묶이거나 하나가 다른 하나를 가리면 이 케이스가 1건만 보고된다.
+    const notes: NoteEntity[] = [
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 헤드 없음 + hold-only
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(2);
+    expect(errors.every((e) => e.rule === "trillLongInvalid")).toBe(true);
+  });
+
+  it("trill 노트가 다른 레인에 있으면 헤드로 인정되지 않아 에러 — 헤드는 같은 레인이어야", () => {
+    // hasHead의 lane 조건 가드. 엉뚱한 레인의 trill이 헤드로 오인되면 안 된다.
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 2, beat: beat(0) },              // 다른 레인의 trill
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+
+  it("trill 노트가 다른 박에 있으면 헤드로 인정되지 않아 에러 — 헤드는 같은 시작 박이어야", () => {
+    // hasHead의 beat 조건 가드. 시작 박이 어긋난 trill은 헤드가 아니다.
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(1) },              // 시작 박이 다른 trill
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillLongInvalid");
+  });
 });
 
 // =========================================================================
@@ -382,6 +415,70 @@ describe("validateNoEventOverlap", () => {
       { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },
     ];
     expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
+  });
+
+  it("tutorialInput은 일반 구간 이벤트 겹침 검사에서 제외", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+    ];
+    expect(validateNoEventOverlap(events)).toEqual([]);
+  });
+
+  it("tutorialDiagram은 같은 시간에 겹쳐도 일반 구간 이벤트 겹침 검사에서 제외", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch" },
+      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap" },
+    ];
+    expect(validateNoEventOverlap(events)).toEqual([]);
+  });
+});
+
+describe("validateNoTutorialInputOverlap", () => {
+  it("같은 lane+keyCode의 tutorialInput 구간이 겹치면 에러", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+    ];
+    const errors = validateNoTutorialInputOverlap(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("tutorialInputOverlap");
+  });
+
+  it("같은 lane+keyCode라도 끝과 시작이 같은 tutorialInput 구간은 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(4), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("같은 lane에서 다른 keyCode의 tutorialInput 구간이 겹치면 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("다른 lane의 같은 keyCode tutorialInput 구간이 겹치면 허용", () => {
+    const events: ChartEvent[] = [
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 2, keyCode: "KeyD" },
+    ];
+    expect(validateNoTutorialInputOverlap(events)).toEqual([]);
+  });
+
+  it("validateChart는 같은 키의 tutorialInput 겹침을 tutorialInputOverlap으로 보고", () => {
+    const errors = validateChart({
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
+        { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyD" },
+      ],
+    });
+    expect(errors.some((error) => error.rule === "tutorialInputOverlap")).toBe(true);
   });
 });
 

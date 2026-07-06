@@ -18,8 +18,8 @@
 | 현 한국어 표제어 | → 캐논 | 코드 식별자 |
 |---|---|---|
 | 트릴 구간 | `trillZone` | `trillZone`/`TrillZone`/`trillZones` |
-| 공릴리즈 | `emptyRelease` | `emptyReleaseKeys`/`markEmptyRelease`/`isEmptyRelease` |
-| 흡수 | `consume` | `consumedLongKeys`/`markLongConsumed`/`requiredConsumeCount` |
+| 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
+| 흡수·소비 | `consume` | `consumedLongKeys`/`markLongConsumed`/`requiredConsumeCount`/`consumeReleaseTarget`/`executeReleaseJudgment` |
 | 유지 전용 롱노트(hold-only) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
 | 연결 판정 | `connection` | `isConnection`/`Connection` |
 | 종결 판정 | `termination` | `executeTerminationJudgment`/`terminationGrade` |

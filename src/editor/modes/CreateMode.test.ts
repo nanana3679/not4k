@@ -19,10 +19,81 @@ function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
     yToBeat: (y: number): Beat => beat(y),
     snapBeat: (b: Beat): Beat => b,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
+    isTimeInBounds: (_y: number): boolean => true,
+    yToBeatRaw: (y: number): Beat => beat(y),
+    hitTestNote: (_x: number, _y: number): number | null => null,
+    hitTestExtraNote: (_x: number, _y: number): number | null => null,
     onWarn: vi.fn(),
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// handlePointerDown 배치 제약 (가드 흡수)
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — handlePointerDown 배치 제약(가드 흡수)", () => {
+  it("isPlacementBlocked: 점노트를 히트하면 true", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(2) }] });
+    const callbacks = makeCallbacks(chart, { hitTestNote: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(true);
+  });
+
+  it("isPlacementBlocked: 빈 곳(히트 없음)이면 false", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(false);
+  });
+
+  it("isPlacementBlocked: 시간 범위 밖이면 true", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const mode = new CreateMode(chart, callbacks);
+    expect(mode.isPlacementBlocked(1, 2)).toBe(true);
+  });
+
+  it("handlePointerDown: 배치 제약 통과 시 배치를 시작한다(dragging=true)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+    mode.handlePointerDown({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(mode.dragging).toBe(true);
+  });
+
+  it("handlePointerDown: 배치 제약에 걸리면 배치를 시작하지 않는다(dragging=false)", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(2) }] });
+    const callbacks = makeCallbacks(chart, { hitTestNote: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+    mode.handlePointerDown({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(mode.dragging).toBe(false);
+  });
+});
+
+describe("CreateMode — handlePointerUp", () => {
+  it("범위 밖이면 드래그 취소 + hideGhost 신호", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const mode = new CreateMode(chart, callbacks);
+    const cancelSpy = vi.spyOn(mode, "cancelDrag");
+    const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(cancelSpy).toHaveBeenCalled();
+    expect(result.hideGhost).toBe(true);
+  });
+
+  it("범위 안이면 onPointerUp으로 배치 확정(hideGhost 없음)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => true });
+    const mode = new CreateMode(chart, callbacks);
+    const upSpy = vi.spyOn(mode, "onPointerUp");
+    const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(upSpy).toHaveBeenCalledWith(1, 2);
+    expect(result.hideGhost).toBeUndefined();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // graceMode 배치 (면제 플래그 부여)
@@ -381,12 +452,14 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
 // ---------------------------------------------------------------------------
 
 describe("isEventEntityType", () => {
-  it("bpm, timeSignature, text, auto, stop은 이벤트 타입", () => {
+  it("bpm, timeSignature, text, auto, stop, tutorialInput, tutorialDiagram은 이벤트 타입", () => {
     expect(isEventEntityType("bpm")).toBe(true);
     expect(isEventEntityType("timeSignature")).toBe(true);
     expect(isEventEntityType("text")).toBe(true);
     expect(isEventEntityType("auto")).toBe(true);
     expect(isEventEntityType("stop")).toBe(true);
+    expect(isEventEntityType("tutorialInput")).toBe(true);
+    expect(isEventEntityType("tutorialDiagram")).toBe(true);
   });
 
   it("single, double, long, doubleLong, trillZone은 이벤트 타입이 아님", () => {
@@ -493,6 +566,48 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.events[0].type).toBe("stop");
     expect("endBeat" in updated.events[0]).toBe(true);
+  });
+
+  it("tutorialInput 타입 선택 후 Extra 레인 드래그 시 L1 KeyD 입력 이벤트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeEventCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "tutorialInput";
+
+    mode.onPointerDown(10, 1);
+    mode.onPointerUp(10, 3);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.events[0]).toMatchObject({
+      type: "tutorialInput",
+      beat: beat(1),
+      endBeat: beat(3),
+      lane: 1,
+      keyCode: "KeyD",
+      keyLabel: "D",
+      editorLane: 1,
+    });
+  });
+
+  it("tutorialDiagram 타입 선택 후 Extra 레인 드래그 시 connected-switch 도식 이벤트 생성", () => {
+    const chart = makeChart();
+    const callbacks = makeEventCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "tutorialDiagram";
+
+    mode.onPointerDown(11, 2);
+    mode.onPointerUp(11, 6);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.events[0]).toMatchObject({
+      type: "tutorialDiagram",
+      beat: beat(2),
+      endBeat: beat(6),
+      diagramId: "connected-switch",
+      editorLane: 2,
+    });
   });
 
   it("이벤트 타입 선택 시 노트 레인 클릭하면 아무것도 생성되지 않음", () => {

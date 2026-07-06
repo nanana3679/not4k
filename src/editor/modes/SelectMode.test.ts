@@ -69,6 +69,193 @@ function selectionOf(mode: SelectMode) {
 }
 
 // ---------------------------------------------------------------------------
+// handlePointerDown 수식자 운반
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — handlePointerDown 수식자 운반", () => {
+  it("gesture의 x/y/shift/alt/toggle를 onPointerDown으로 그대로 전달", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+    const spy = vi.spyOn(mode, "onPointerDown");
+    mode.handlePointerDown({ x: 5, y: 3, shiftKey: true, altKey: true, toggleSelection: true });
+    expect(spy).toHaveBeenCalledWith(5, 3, true, true, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onPointerMove 프리뷰 PUSH (훅이 getter를 PULL하던 것 대체)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — onPointerMove 프리뷰 반환", () => {
+  it("이동 드래그 중 onPointerMove는 원본 위치를 담은 preview.moveOrigins를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = new SelectMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    const result = mode.onPointerMove(2, 1); // 레인 1 → 2로 이동
+
+    expect(mode.isMoveDragging).toBe(true);
+    expect(result.preview?.moveOrigins?.length).toBe(1);
+    // moveOrigins는 이동 전 원본 레인(1)을 유지한다
+    expect(result.preview?.moveOrigins?.[0].lane).toBe(1);
+  });
+
+  it("박스 셀렉트 중 onPointerMove는 preview.boxSelectRect를 반환", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트 시작
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false);
+    const result = mode.onPointerMove(2, 5);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(result.preview?.boxSelectRect).toBeDefined();
+  });
+
+  it("드래그 중이 아니면 preview는 비어 있다", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+
+    const result = mode.onPointerMove(2, 5);
+
+    expect(result.preview?.boxSelectRect).toBeUndefined();
+    expect(result.preview?.moveOrigins).toBeUndefined();
+  });
+});
+
+describe("SelectMode — handlePointerUp", () => {
+  it("onPointerUp을 호출하고 clearDragPreview 신호를 반환", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks();
+    const mode = new SelectMode(chart, cb);
+    const spy = vi.spyOn(mode, "onPointerUp");
+    const result = mode.handlePointerUp({ x: 2, y: 3, shiftKey: false, altKey: false, toggleSelection: false });
+    expect(spy).toHaveBeenCalledWith(2, 3);
+    expect(result.clearDragPreview).toBe(true);
+  });
+});
+
+describe("SelectMode — 박스 셀렉트 idempotency", () => {
+  it("박스 진행 중 onPointerDown 재호출은 무시된다(중복 시작·시작점 리셋 방지)", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트
+    const mode = new SelectMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false); // 박스 시작 at y=0
+    mode.onPointerMove(2, 5);
+    const startYBefore = mode.boxSelectPixelRect?.startY;
+
+    mode.onPointerDown(3, 9, false, false); // 재호출 → 가드로 무시
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(mode.boxSelectPixelRect?.startY).toBe(startYBefore); // 시작점 유지
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 드래그 재진입 가드 — 트릴존 리사이즈 재시작 버그
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 드래그 재진입 가드", () => {
+  it("트릴존 리사이즈 진행 중 onPointerDown 재호출은 무시된다(매 move마다 origin 리셋 방지)", () => {
+    // 터치 empty-select 후보 재생 경로는 매 move마다 onPointerDown(startX,startY)을 재호출한다.
+    // 그 좌표가 트릴존 끝이면 resize가 매번 재시작돼 origin이 현재(이동된) 값으로 리셋된다.
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+    const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
+
+    mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
+    expect(mode.computeHoveredTrillZone(0, 0)).toBe(0); // 드래그 중이면 hover 히트 없어도 래치로 0
+
+    mode.onPointerMove(9, 10); // 끝을 beat10으로 늘림 → zone.endBeat=10
+    expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // origin은 원래값 유지
+
+    mode.onPointerDown(9, 10, false, false); // 재호출 → 가드로 무시(재시작 안 됨)
+    expect(beatToFloat(priv.resizingOriginalEndBeat!)).toBe(6); // 이동된 10으로 리셋되지 않음
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 트릴존 hover 래치 — draggingTrillZoneIndex getter PULL을 대체하는 PUSH 메서드
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — computeHoveredTrillZone", () => {
+  it("드래그 아닐 때는 (x,y) 위 구간의 hitTestTrillZone 결과를 반환", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number): number | null => (x === 7 ? 2 : null) });
+    const mode = new SelectMode(makeChart(), cb);
+    expect(mode.computeHoveredTrillZone(7, 0)).toBe(2); // 구간 위 → hover
+    expect(mode.computeHoveredTrillZone(1, 0)).toBe(null); // 빈 곳 → null
+  });
+
+  it("리사이즈 드래그 중이면 hover 히트와 무관하게 래치된 구간을 반환", () => {
+    const chart = makeChart({ trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }] });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+      hitTestTrillZone: (): number | null => 2, // 커서가 다른 구간(2) 위여도
+    });
+    const mode = new SelectMode(chart, cb);
+    mode.onPointerDown(9, 6, false, false); // 구간0 리사이즈 시작 → 래치 0
+    expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // hover=2 무시하고 래치 0 유지
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 리사이즈 프리뷰 제약 — 커밋과 동일한 validateChart 게이트
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 리사이즈 프리뷰 제약", () => {
+  // 구간[2,6] 레인1, 안에 트릴노트 beat4
+  function setup() {
+    const chart = makeChart({
+      notes: [{ type: "trill", lane: 1 as Lane, beat: beat(4) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = new SelectMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+    return { mode, cb, priv };
+  }
+
+  it("트릴존 끝을 트릴노트 안쪽(beat5)까지 축소하면 프리뷰 적용됨", () => {
+    const { mode, priv } = setup();
+    mode.onPointerDown(9, 6, false, false); // 리사이즈 시작
+    mode.onPointerMove(9, 5); // endBeat 6→5, 트릴노트 beat4 여전히 안 → 유효
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
+  });
+
+  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰 미적용(직전 유효값 유지)", () => {
+    const { mode, cb, priv } = setup();
+    mode.onPointerDown(9, 6, false, false);
+    mode.onPointerMove(9, 5); // 유효 → endBeat=5
+    const callsAfterValid = cb.onChartUpdate.mock.calls.length;
+
+    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖 → 위반 → 미적용
+
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5); // 5에서 안 줄어듦
+    expect(cb.onChartUpdate.mock.calls.length).toBe(callsAfterValid); // onChartUpdate 재호출 없음
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 복사 / 잘라내기
 // ---------------------------------------------------------------------------
 
@@ -241,6 +428,43 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const extraSelected = cb.onExtraSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
     expect([...extraSelected].sort()).toEqual([0, 1]);
     expect(mode.isMoveDragging).toBe(true);
+  });
+
+  it("beginLongPressDrag: 노트 히트면 이동 드래그를 시작한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: 0, extraHit: null });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+    expect([...mode.selection]).toEqual([0]);
+  });
+
+  it("beginLongPressDrag: 노트 끝 히트가 노트보다 우선해 리사이즈(이동 아님)를 시작한다", () => {
+    const chart = makeChart({
+      notes: [{ type: "long", lane: 1 as Lane, beat: beat(1), endBeat: beat(1) }],
+    });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 1, { noteEndHit: 0, noteHit: 0, extraHit: null });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(false); // 리사이즈라 이동 드래그가 아니다
+    expect([...mode.selection]).toEqual([0]);
+  });
+
+  it("beginLongPressDrag: 노트 히트 없고 엑스트라 히트면 엑스트라 이동을 시작한다", () => {
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(0) }];
+    const cb = makeCallbacks({}, { extraNotes, extraLaneCount: 2 });
+    const mode = new SelectMode(makeChart(), cb);
+    const started = mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
+    expect(started).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+  });
+
+  it("beginLongPressDrag: 아무 히트도 없으면 드래그를 시작하지 않고 false를 반환한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
+    const mode = new SelectMode(chart, makeCallbacks());
+    const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: null, extraHit: null });
+    expect(started).toBe(false);
+    expect(mode.isMoveDragging).toBe(false);
   });
 
   it("선택되지 않은 메인 노트를 첫 드래그로 바로 이동", () => {

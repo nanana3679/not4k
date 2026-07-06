@@ -3,4 +3,4 @@
  */
 
 export { useEditorStore } from './editorStore';
-export type { EditingMarker } from './editorStore';
+export type { EditingMarker, EditorModeName } from './editorStore';

@@ -1,0 +1,57 @@
+# Supabase 데이터 자동 백업 (다중화)
+#
+# - 매일 03:00 KST: DB 덤프 + 차트 JSON (~수백 KB)
+# - 매주 일요일 04:00 KST: 풀 백업 (음원·자켓 포함, ~수백 MB)
+# - 수동 실행(workflow_dispatch)도 가능. full 체크 시 풀 백업.
+#
+# 결과는 Actions 아티팩트로 90일 보관된다.
+# 필요 시크릿: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
+# (둘 다 클라이언트 번들에 포함되는 공개 값이지만 시크릿으로 관리한다)
+
+name: backup
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 03:00 KST — charts-only
+    - cron: "0 19 * * 0" # 일요일 04:00 KST — full
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "풀 백업 (음원·자켓 포함)"
+        type: boolean
+        default: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 백업 모드 결정
+        id: mode
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 19 * * 0" ] || [ "${{ inputs.full }}" = "true" ]; then
+            echo "flag=" >> "$GITHUB_OUTPUT"
+            echo "kind=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=--charts-only" >> "$GITHUB_OUTPUT"
+            echo "kind=charts" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 백업 실행
+        run: node scripts/backup-supabase.mjs ${{ steps.mode.outputs.flag }}
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ steps.mode.outputs.kind }}-${{ github.run_id }}
+          path: backups/
+          retention-days: 90
+          if-no-files-found: error

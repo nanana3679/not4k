@@ -286,6 +286,8 @@ export class GridRenderer {
       }
       if (evt.type === 'text') parts.push(evt.text);
       if (evt.type === 'auto') parts.push('AUTO');
+      if (evt.type === 'tutorialInput') parts.push(`L${evt.lane} ${evt.keyLabel || evt.keyCode}`);
+      if (evt.type === 'tutorialDiagram') parts.push(`DIAGRAM:${evt.diagramId}`);
       const displayText = parts.join(' | ') || '(empty)';
       if (!eventLabelStyle) {
         eventLabelStyle = new TextStyle({

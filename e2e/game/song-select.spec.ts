@@ -65,4 +65,87 @@ test.describe('Song Select Screen', () => {
     const supabaseError = page.getByText('Supabase not configured');
     await expect(loadingText.or(supabaseError)).toBeVisible();
   });
+
+  test('? 버튼으로 중앙 튜토리얼 팝업을 열고 닫을 수 있음', async ({ page }) => {
+    const helpButton = page.getByRole('button', { name: 'Open tutorial help' });
+    await expect(helpButton).toHaveText('?');
+
+    await helpButton.click();
+
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-tutorial-preview-canvas="true"]')).toHaveCount(2);
+
+    const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
+    await expect(activeSlot.locator('[data-tutorial-preview-canvas="true"]')).toBeVisible();
+    await expect(activeSlot.locator('[data-tutorial-key]')).toHaveCount(8);
+
+    await dialog.locator('[data-tutorial-index-item="connected-long-note-switch"]').click();
+    const diagramModal = dialog.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(diagramModal).toBeVisible();
+    await expect(diagramModal.locator('[data-tutorial-diagram-id="connected-switch"]')).toBeVisible();
+    await expect(diagramModal.locator('[data-tutorial-diagram-ok="true"]')).toBeVisible();
+    await page.waitForTimeout(1200);
+    await expect(diagramModal).toBeVisible();
+    await diagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
+    await expect(diagramModal).toBeHidden();
+
+    await dialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]').click();
+    await expect(dialog.locator(
+      '[data-tutorial-carousel-track][data-tutorial-transition-phase="animating"]'
+    )).toBeVisible();
+    const enteringOverlapSlot = dialog.locator(
+      '[data-tutorial-preview-slot="entering"][data-tutorial-preview-id="connected-long-note-overlap"]'
+    );
+    await expect(enteringOverlapSlot.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
+    const activeOverlapSlot = dialog.locator(
+      '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
+    );
+    const overlapDiagramModal = activeOverlapSlot.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(overlapDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
+    const firstOverlapInstanceId = await activeOverlapSlot.getAttribute('data-tutorial-preview-instance');
+    await page.getByRole('button', { name: 'Next tutorial' }).click();
+    await expect(dialog.locator('[data-tutorial-diagram-modal="true"]')).toBeHidden();
+    await expect(dialog.locator(
+      '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="headless-long-note"]'
+    )).toBeVisible();
+    await page.getByRole('button', { name: 'Previous tutorial' }).click();
+    const restoredOverlapSlot = dialog.locator(
+      '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
+    );
+    await expect(restoredOverlapSlot).not.toHaveAttribute(
+      'data-tutorial-preview-instance',
+      firstOverlapInstanceId ?? ''
+    );
+    const restoredDiagramModal = restoredOverlapSlot.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(restoredDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
+    await restoredDiagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
+    await expect(restoredDiagramModal).toBeHidden();
+
+    await page.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toBeHidden();
+
+    await helpButton.click();
+    const reopenedDialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(reopenedDialog).toBeVisible();
+    await expect(
+      reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
+    ).toHaveAttribute('data-tutorial-index-seen', 'true');
+    await expect(
+      reopenedDialog.locator(
+        '[data-tutorial-index-item="connected-long-note-overlap"] [data-tutorial-index-check="true"]'
+      )
+    ).toBeVisible();
+    await reopenedDialog.locator('[data-tutorial-reset-viewed-cache="true"]').click();
+    await expect(
+      reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
+    ).toHaveAttribute('data-tutorial-index-seen', 'false');
+    await expect(
+      reopenedDialog.locator(
+        '[data-tutorial-index-item="connected-long-note-overlap"] [data-tutorial-index-check="true"]'
+      )
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(reopenedDialog).toBeHidden();
+  });
 });

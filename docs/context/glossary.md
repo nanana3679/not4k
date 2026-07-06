@@ -87,7 +87,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### 홀드 교대
 
-롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0008의 `emptyRelease` 누설 차단은 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다.)
+롱노트 진행 중에 같은 레인의 다른 키로 홀드를 이어받는 메커니즘. 여러 손가락으로 홀드를 이어받으며, 유예 시간(Grace Period) 내에 전환하면 롱노트가 끊기지 않는다. 홀드 중 탭의 기반이 되는 메커니즘. 대응 피스 없음 (메커니즘 단위). (RFD 0015의 이진 릴리즈·R2 소비도 유지 충족을 lane-held로 그대로 두므로 이 메커니즘은 보존된다 — 교대는 grace 역학만으로 성립하며 별도 이동 제스처가 필요 없다.)
 
 ### 홀드 트릴 (Hold Trill)
 
@@ -144,7 +144,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### Grace 노트 (Grace Note)
 
-기존 포인트 노트(싱글/더블/트릴)에 Grace 플래그를 부여한 노트. Good 윈도우 내에서 입력하기만 하면 타이밍 정밀도와 무관하게 최고 판정(Perfect)을 부여한다. 롱노트 `termination` 판정과 동일한 모델 — Good 이내는 Perfect, Late Bad는 Bad, Early Bad는 발생하지 않는다. 음악 용어의 장식음(grace note)에서 이름을 가져왔다. 판정 윈도우 수치는 `scoring.md` 참조.
+기존 포인트 노트(싱글/더블/트릴)에 Grace 플래그를 부여한 노트. Good 윈도우 내에서 입력하기만 하면 타이밍 정밀도와 무관하게 최고 판정(Perfect)을 부여한다. Good 이내는 Perfect, Late Bad(+120~160ms)는 Bad, Early Bad는 발생하지 않는다 — press 판정이므로 late-Bad 티어가 남아 있다(release의 이진 릴리즈와 달리). 음악 용어의 장식음(grace note)에서 이름을 가져왔다. 판정 윈도우 수치는 `scoring.md` 참조.
 
 - **설계 의도**: not4k는 타이밍 정밀도보다 손배치 인식이 핵심 난이도인 게임이다. 손배치 전환이 복잡한 구간에서 타이밍 부담까지 동시에 요구하면 난이도가 불합리하게 치솟으므로, Grace 노트로 타이밍 부담을 제거하여 유저가 "어떤 손으로 칠 것인가"라는 인식 판단에 집중할 수 있게 한다.
 - **활용**: 곡의 하이라이트 강조, 손배치 전환이 복잡한 구간의 부담 완화, 새로운 입력방식의 학습 보조.
@@ -312,7 +312,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 - **헤드 판정**: 싱글 헤드는 싱글 판정 × 1, 더블 헤드는 독립된 싱글 판정 × 2. 헤드는 이벤트 라우팅에 의해 입력 이벤트를 소비하고, 롱노트는 held 상태를 독립적으로 체크한다.
 - **유지 판정**: 바디 구간 동안 해당 레인의 held 상태를 감시한다. 시작점·끝점 근처의 Good 윈도우 구간과 유예 시간 이내의 릴리즈는 유지 실패로 처리하지 않는다. 유지 실패 시 끝점 판정이 Miss로 확정된다. 길이 0 롱노트는 유지 판정을 생략한다. 구체적인 수치는 `scoring.md` 참조.
-- **끝점 판정**: 결과는 Perfect/Bad/Miss 세 가지. 두 종류가 있다. (1) **`termination` 판정** — 끝점에 다른 롱노트의 시작점이 없을 때 발생. 키를 뗀 타이밍으로 판정하되 Good 이상은 Perfect로 상향. Good 이후 릴리즈 시 Bad/Miss. (2) **`connection` 판정** — 끝점에 같은 레인의 다른 롱노트 시작점이 있을 때 발생. 끝점에서 홀드 유지 여부를 확인 (유지 시 Perfect, 미유지 시 Miss).
+- **끝점 판정**: 결과는 Perfect/Miss 이진. 두 종류가 있다. (1) **`termination` 판정** — 끝점에 다른 롱노트의 시작점이 없을 때 발생. 끝점 Good 윈도우(±120ms) 내에 keyup이 있으면 Perfect, 없으면 타임아웃 Miss([[이진 릴리즈]] — RFD 0015). (2) **`connection` 판정** — 끝점에 같은 레인의 다른 롱노트 시작점이 있을 때 발생. 끝점에서 홀드 유지 여부를 확인 (유지 시 Perfect, 미유지 시 Miss).
 - **더블 롱노트**: 독립된 싱글 롱노트 × 2로 병렬 판정한다. 한 키의 유지 실패가 다른 키의 판정에 영향을 주지 않는다.
 
 ### 분할 릴리즈 (Split Release)
@@ -326,9 +326,9 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 ### `termination` 판정
 
-롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 `termination` 판정이 발생한다. 키를 뗀 타이밍을 기준으로 판정하며, Good 이상은 Perfect로 상향된다. Good 윈도우 이후에 릴리즈하면 Bad/Miss가 부여된다. `termination` 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 행위에 판정을 부여하여 이를 방지한다. **`termination` 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 `termination`을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
+롱노트 끝점에 같은 레인의 다른 롱노트 시작점이 없을 때 발생하는 끝점 판정. 싱글/더블/트릴 등 롱노트가 아닌 노트가 있더라도 `termination` 판정이 발생한다. 판정은 [[이진 릴리즈]]: 끝점 Good 윈도우(±120ms) 내 keyup = Perfect, 윈도우 끝(+120ms)까지 keyup 부재 = 타임아웃 Miss. `termination` 판정이 없다면 바인딩된 키를 계속 누르고 있는 것만으로 모든 롱노트를 통과할 수 있으므로, 키를 떼는 **동작의 존재**에 판정을 부여하여 이를 방지한다(정밀도는 판정하지 않음). **`termination` 트리거는 키 단위 release 이벤트다** — 끝점 윈도우 내 *어느 키의* keyup이든 `termination`을 촉발하며, 레인의 다른 키 held 여부와 무관하다(유지 성립이 레인 단위인 것과 층위가 다름). 시나리오 해설은 `long-note-judgment-rationale.md`.
 
-**구현**: `tryEndpointJudgmentOnRelease`, `executeTerminationJudgment`, `terminationGrade`(Good 이상 → Perfect 상향).
+**구현**: `consumeReleaseTarget`(R2 매칭+소비), `executeTerminationJudgment`, `terminationGrade`(윈도우 내 Perfect / 밖 Miss 이진).
 
 ### `connection` 판정
 
@@ -360,21 +360,20 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 - **헤드 없는 롱노트 포함**: 헤드 없는 롱노트(길이 0 슬라이드·릴리즈 노트 포함)도 시작 시각 ±Good 윈도우에서 매칭 후보가 된다. 매칭되면 keydown을 **`consume`** 하되 판정은 유지(held)/릴리즈(keyup) 경로가 따로 내린다. 필요 키 수는 노트 타입을 따른다 — 싱글 롱노트 1, 더블 롱노트 2(서로 다른 키 2개를 채워야 `consume` 종료). 한 입력은 가장 이른 한 노트에만 귀속되므로, 슬라이드 직후 가까운 포인트가 그 입력을 가로채지 못한다. 결정·근거는 `../rfd/0006-earliest-matching-headless-long-note.md`.
 
-### `consume` (구 표기: 흡수)
+### `consume` (구 표기: 흡수·소비)
 
-한 keydown이 가장 이른 한 노트에만 귀속되어 소비되는 것(consume). 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다("한 입력 = 한 노트" 불변). 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
+모든 입력 이벤트(keydown·keyup)는 익명이고, 자기 윈도우에 맞는 **같은 레인의 가장 이른 노트 하나**에 쓰인 뒤 사라진다("한 입력 = 한 노트" 불변, RFD 0015 2규칙).
 
-> **영문 표기는 `consume`로 통일**한다(흡수 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
+- **R1 (keydown 흡수)**: 헤드 없는 롱노트가 keydown을 흡수하면 판정은 분리(held/keyup)하고, 같은 프레임/윈도우의 후속 입력이 그 노트를 재흡수하거나 그 입력이 다음 노트로 새지 않도록 보장한다. 필요 키 수는 노트 타입을 따른다 — 싱글 1, 더블 2(서로 다른 키 2개). Sonolus pjsekai의 ClaimManager(사전 1칸 = 1 touch)와 동등한 보장이며, 조사 근거는 `../research/slide-note-input-matching.md`.
+- **R2 (keyup 소비)**: keyup은 같은 레인의 가장 이른 release-대상(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 소비된다. 윈도우 내 = Perfect([[이진 릴리즈]]). 소비된 keyup은 직후 release-대상으로 번지지 않고(RFD 0011 승계·일반화), keyup 수가 release-대상 수보다 적으면 남은 대상은 굶어 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성).
 
-**구현**: `consumedLongKeys`(흡수된 키 집합), `markLongConsumed`, `isHeadlessConsumable`(흡수 후보 판정), `requiredConsumeCount`(필요 키 수 싱글 1/더블 2).
+> **영문 표기는 `consume`로 통일**한다(흡수/소비 = consume). 코드 식별자도 `consume`을 쓴다(`absorb` 아님).
 
-### `emptyRelease` (구 표기: 공릴리즈)
+**구현**: keydown — `consumedLongKeys`, `markLongConsumed`, `isHeadlessConsumable`, `requiredConsumeCount`. keyup — `consumeReleaseTarget`(가장 이른 release-대상 매칭+소비), `executeReleaseJudgment`.
 
-terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release. 이 release는 직후 노트의 release 판정(끝점 `termination`·슬라이드 미리-떼기·릴리즈 노트)을 **노트별 예외 없이 무조건 스킵**해 누설을 막는다(RFD 0008). 키를 떼거나 다시 누르면 해제된다. 흡수(consume)=keydown이 한 노트에 *쓰이는* 것과 대비해, **`emptyRelease`는 keyup이 어느 판정에도 *안 쓰이는*(빈) release**다 — 공푸어/공폭의 "공(空, 친 데 아무것도 없음)"과 같은 결.
+### 공릴리즈 (`emptyRelease`) — 폐지 (RFD 0015)
 
-> **`emptyRelease`는 처벌이 아니라 스킵**이다. 공푸어(빈 입력 → Poor)와 달리, `emptyRelease`는 판정을 *만들지 않고* 그냥 무시된다(이미 held로 완료돼 떼는 판정이 면제된 hold-only의 놓기이므로).
-
-**구현**: `emptyReleaseKeys`(레인별 `emptyRelease` 키 집합), `markEmptyRelease`(held 완료 시 등록), `isEmptyRelease`(가드).
+**폐지된 장치.** terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release를 무효화하던 도장 모델(RFD 0008)과 그 회수 정밀화(RFD 0012). 등급형 `termination` 시절에는 새는 keyup이 판정을 오염(Bad 하향)시킬 수 있어 막을 가치가 있었으나, [[이진 릴리즈]]의 일방향성(스트레이 keyup은 상향 또는 무매칭뿐) 아래에서는 도장이 막는 것이 "덜 의도된 Perfect"뿐이라 소비(consume)만으로 회계가 성립한다. 도장은 수명이 있어 rAF 프레임 순서와 얽힌 잔류 버그(RFD 0012)의 서식지였고, 폐지로 문제 자체가 소멸했다. hold-only 완료·타임아웃 사망 후의 놓기 keyup이 직후 노트를 살리는 것은 이제 버그가 아니라 **의도된 관대**다(RFD 0015 §7-3). 폐지 경위는 `../rfd/0015-binary-release-judgment.md` §5.
 
 ### 이벤트 라우팅
 
@@ -384,9 +383,11 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 
 길이 0인 롱노트의 `termination` 판정에서, `keyup` 이벤트를 기반으로 판정하는 노트. 일반 싱글 노트가 `keydown` 이벤트로 판정되는 것과 대칭적이다. 바디 구간이 없으므로 유지 판정을 생략하고, keydown 선행 조건 없이 판정 윈도우 내의 keyup 이벤트만으로 판정한다.
 
-### `termination` 판정 상향
+### 이진 릴리즈 (binary release)
 
-롱노트 릴리즈 시 Good 이상이면 Perfect로 상향 보정되는 규칙. 유저의 인지 자원을 릴리즈 정밀도가 아닌 다음 노트 처리에 집중시키기 위한 설계. Bad는 그대로 Bad로 유지되고, 바디 유지 실패는 Miss이다. 결과적으로 끝점 판정은 Perfect/Bad/Miss 삼분법이 된다.
+**release 판정의 불변** (RFD 0015): 끝점 Good 윈도우(±120ms) 내에 keyup이 발생하면 Perfect, 아니면 Miss. release는 "떼는 동작의 존재"를 판정하며, 정밀도는 판정하지 않는다. late-Bad 티어(+120~160ms → Bad)는 Miss로 폴딩되었고, 종결 타임아웃은 +120ms(Good 윈도우 끝)이다. 이로써 바디 판정 결과는 {Perfect, Miss}이고, "잡고 떼는" 계열 전체(종결·hold-only·슬라이드·연결)가 이진이다 — 등급은 "치는" 것(포인트·트릴)에만 남는다. 유저 규칙 한 문장: **"치는 건 얼마나 정확한지, 잡는 건 했는지 안 했는지."**
+
+이진성은 엔진 귀속 간소화(익명 이벤트, 가장 이른 매칭+소비 — [[흡수·소비 (consume)]])의 1급 의존이다: 윈도우 내 등급이 상수이므로 오귀속이 등급을 바꿀 수 없다(일방향성). **등급형 release를 재도입하면 귀속 문제(도장 또는 토큰)가 재개봉된다** — 재개봉 조건은 RFD 0015 §8. (구 "종결 판정 상향" — Good 이상 Perfect 상향, Perfect/Bad/Miss 삼분법 — 은 이 불변으로 대체되었다.)
 
 ### `goodTrill` (트릴 오입력 Good — 화면 표시 GOOD◇)
 
@@ -397,6 +398,15 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 ### 배드말림 (Bad Train)
 
 더블 노트를 싱글 입력으로 처리했을 때, 미처리된 입력이 이후 노트의 판정을 연쇄적으로 밀어내는 현상. IIDX에서 유래한 용어. not4k에서는 **의도적으로 해제**한다. 더블 노트의 미처리 2번째 입력이 후속 노트를 `consume`하지 않도록 하여, 더블 노트를 놓쳐도 연쇄 실패가 발생하지 않는다. 유저 경험 개선이 목적.
+
+### 판정 효과 (JudgmentEffects)
+
+판정 하나가 점수·화면에 일으키는 효과 전체의 순수 기술. `decideJudgmentEffects(result, note)`가 점수 기록(바디는 deltaMs 생략), 판정 텍스트, 밤 이펙트 레인, 노트 표시 상태 전이, 디버그 기록을 하나의 데이터로 결정하고, 소비자(적용자)는 이 값만 해석한다 — 플레이 화면은 전체를, 튜토리얼 프리뷰는 부분(판정 텍스트·밤)만 적용한다. 적용 순서와 화면 좌표 계산은 결정이 아니므로 적용자 몫이다. 이전에는 이 분기들이 `PlayScreen.onJudgment` 인라인 캐스케이드에 흩어져 있어 소비자마다 재구현해야 했다.
+
+**노트 표시 효과(NoteDisplayEffect)** 는 그 부분집합 — 판정 결과 → 노트 시각 표시 상태 전이(`{body, visibility}`). 렌더러는 판정을 event로 한 번 받아 매 프레임 다시 그리므로 노트별 표시 상태를 캐시하는데, "그 캐시에 무엇을 켤지"를 이 순수 함수가 단독 결정하고 렌더러(`GameNoteRenderer.applyNoteDisplayEffect`)는 적용만 한다.
+
+**구현**: `src/game/judgment/judgmentEffects.ts`.
+_Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레젠테이션(점수 기록 포함이 어색함)
 
 ---
 
@@ -473,6 +483,48 @@ terminal hold-only/슬라이드를 held로 완료시킨 키의 "놓기" release.
 ### Debug Mode
 
 개발/디버깅용 설정. 활성화하면 각 노트 판정 시점의 위치(Y), 타이밍(deltaMs), 프레임당 이동 거리(actualDeltaPx) 등을 기록하여 게임 로직이 정상 동작하는지 검증할 수 있다. 곡 종료 시 전체 로그와 통계 요약을 파일로 다운로드한다. 게임 플레이에 영향을 주지 않으며 로그 수집만 수행한다. 상세: `docs/spec/debug-mode.md`.
+
+---
+
+## 게임 입력
+
+플레이 세션에서 판정 엔진에 레인 press/release 이벤트를 공급하는 계층. 실제 키보드(`InputSystem`)와 합성 입력(`AutoPlayer`)이 같은 seam에 서는 두 어댑터다.
+
+### AutoPlayer
+
+**Auto 구간**의 노트를 합성 입력(press/release 이벤트)으로 변환하는 순수 상태머신. 키보드 대신 차트에서 입력을 만든다는 점만 빼면 `InputSystem`과 같은 자리(판정 엔진 입력 seam)에 선다. 판정 엔진·렌더러를 모르며, 시간을 주입받아 `pressesAt(songTimeMs)`/`releasesAt(songTimeMs)`로 이벤트를 반환한다 — 호출자는 매 틱 `presses 먹임 → engine.update → releases 먹임` 순서를 지킨다(길이 0 롱노트가 한 틱에 press+release되는 케이스 때문). press는 Auto 구간 안에서만 만들지만 release는 구간과 무관하다 — 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문(게이팅 비대칭). 헤드-롱노트 쌍은 헤드 press가 hold를 제공하고 헤드 release를 롱 endBeat로 연장한다.
+
+**구현**: `src/game/input/AutoPlayer.ts`.
+
+---
+
+## 에디터 입력
+
+차트 편집기의 포인터 입력을 제스처로 인식하고 편집 의도로 라우팅하는 계층. raw 입력(입력층)과 도메인 판정(히트 테스트·스냅, 도메인층)을 2층으로 분리한다.
+
+### GestureRecognizer
+
+raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `tick(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`. 내비게이션 순수 함수는 `touchGesture.ts`를 내부 부품으로 재사용.
+
+### PointerSample
+
+DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 tap-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`.
+
+### EditGesture
+
+차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 tap-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. tap/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`(타입), 라우팅 `longPressRouting.ts`·`touchEditRouting.ts`.
+
+### ViewportGesture
+
+차트를 건드리지 않고 뷰포트만 움직이는 제스처. `viewportZoom`(핀치)·가로/세로 `viewportScroll`(두 손가락 팬). 셋은 이동량이 가장 큰 축으로 하나만 잠겨 동시 발생(부들거림)을 막는다.
+
+**구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
 ---
 

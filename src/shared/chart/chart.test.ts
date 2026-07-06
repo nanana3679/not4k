@@ -113,6 +113,8 @@ describe("serializeChart / deserializeChart", () => {
         { type: "bpm" as const, beat: beat(0), bpm: 180 },
         { type: "timeSignature" as const, beat: beat(0), beatPerMeasure: beat(3, 4) },
         { type: "text" as const, beat: beat(0), endBeat: beat(4), text: "메시지" },
+        { type: "tutorialInput" as const, beat: beat(1), endBeat: beat(2), lane: 1 as const, keyCode: "KeyD", keyLabel: "D", editorLane: 4 },
+        { type: "tutorialDiagram" as const, beat: beat(2), endBeat: beat(4), diagramId: "connected-switch", editorLane: 5 },
         { type: "bpm" as const, beat: beat(4), bpm: 200 },
         { type: "timeSignature" as const, beat: beat(8), beatPerMeasure: beat(7, 8) },
       ],
@@ -121,6 +123,116 @@ describe("serializeChart / deserializeChart", () => {
     expect(restored).toEqual(chartWithMixed);
   });
 
+});
+
+describe("tutorialInput 이벤트 직렬화/역직렬화", () => {
+  it("tutorialInput 이벤트를 직렬화하면 beat/endBeat는 문자열이고 lane/keyCode/keyLabel은 보존", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialInput", beat: beat(1, 2), endBeat: beat(3, 2), lane: 2, keyCode: "KeyF", keyLabel: "F", editorLane: 6 },
+      ],
+    };
+
+    const json = chartToJson(chart);
+
+    expect(json.events[0]).toEqual({
+      type: "tutorialInput",
+      beat: "1/2",
+      endBeat: "3/2",
+      lane: 2,
+      keyCode: "KeyF",
+      keyLabel: "F",
+      editorLane: 6,
+    });
+  });
+
+  it("tutorialInput JSON을 역직렬화하면 ChartEvent에 입력 시연 속성이 복원", () => {
+    const json = {
+      version: 3,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialInput" as const, beat: "1/2", endBeat: "3/2", lane: 2 as const, keyCode: "KeyF", keyLabel: "F", editorLane: 6 },
+      ],
+    };
+
+    const chart = chartFromJson(json);
+
+    expect(chart.events[0]).toEqual({
+      type: "tutorialInput",
+      beat: beat(1, 2),
+      endBeat: beat(3, 2),
+      lane: 2,
+      keyCode: "KeyF",
+      keyLabel: "F",
+      editorLane: 6,
+    });
+  });
+
+  it("keyLabel이 없는 tutorialInput은 라운드트립 후 keyLabel 프로퍼티 없음", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialInput", beat: beat(0), endBeat: beat(1), lane: 1, keyCode: "KeyD" },
+      ],
+    };
+
+    const restored = deserializeChart(serializeChart(chart));
+
+    expect(restored.events[0]).toEqual(chart.events[0]);
+    expect(restored.events[0]).not.toHaveProperty("keyLabel");
+  });
+});
+
+describe("tutorialDiagram 이벤트 직렬화/역직렬화", () => {
+  it("tutorialDiagram 이벤트를 직렬화하면 beat/endBeat는 문자열이고 diagramId는 보존", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch", editorLane: 7 },
+      ],
+    };
+
+    const json = chartToJson(chart);
+
+    expect(json.events[0]).toEqual({
+      type: "tutorialDiagram",
+      beat: "0",
+      endBeat: "4",
+      diagramId: "connected-switch",
+      editorLane: 7,
+    });
+  });
+
+  it("tutorialDiagram JSON을 역직렬화하면 ChartEvent에 도식 ID가 복원", () => {
+    const json = {
+      version: 3,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "tutorialDiagram" as const, beat: "4", endBeat: "8", diagramId: "connected-overlap" as const, editorLane: 8 },
+      ],
+    };
+
+    const chart = chartFromJson(json);
+
+    expect(chart.events[0]).toEqual({
+      type: "tutorialDiagram",
+      beat: beat(4),
+      endBeat: beat(8),
+      diagramId: "connected-overlap",
+      editorLane: 8,
+    });
+  });
 });
 
 describe("레거시 마이그레이션 (v1 → v2)", () => {

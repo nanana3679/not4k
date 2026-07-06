@@ -6,13 +6,12 @@ import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
-import type { CreateMode, SelectMode, EntityType } from '../modes';
-import { DeleteMode, isEventEntityType } from '../modes';
+import type { CreateMode, SelectMode, EntityType, EditResult } from '../modes';
+import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
-import { hitTestRangeNoteRegion, noteExistsAtSnap, extraNoteExistsAtSnap, SNAP_POSITION_TOLERANCE } from '../timeline/hitTest';
+import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
 import { beatToMs } from '../../shared';
-import type { RangeNote } from '../../shared';
 import { useEditorStore } from '../stores';
 import {
   deleteChartNoteAtLaneBeat,
@@ -23,14 +22,21 @@ import {
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
-  advanceTouchNavigationSession,
-  beginTouchNavigationSession,
   didTouchMoveBeyondTapSlop,
-  isTouchNavigationGesture,
   shouldRunTouchBoxSelectDrag,
-  type TouchGesturePoint,
-  type TouchNavigationSession,
 } from './touchGesture';
+import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
+import {
+  nextTouchMultiSelectLatch,
+  resolveHoldFireAction,
+  resolveSelectTouchDownSchedule,
+  resolveTouchCreateUpAction,
+  shouldArmHoldTimer,
+  shouldDeleteOnUp,
+  shouldFireTapToggle,
+  type EditorTouchMode,
+  type HoldHits,
+} from './touchEditRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -45,35 +51,14 @@ export interface CanvasEventHandlers {
 
 const LONG_PRESS_MS = 450;
 
-type TouchTapToggleCandidate =
-  | {
-      pointerId: number;
-      kind: 'note';
-      x: number;
-      y: number;
-      moved: boolean;
-      startClientX: number;
-      startClientY: number;
-    }
-  | {
-      pointerId: number;
-      kind: 'extra';
-      x: number;
-      y: number;
-      moved: boolean;
-      startClientX: number;
-      startClientY: number;
-    };
-
-type TouchCreateCandidate = {
+// 노트·엑스트라 탭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
+type TouchTapToggleCandidate = {
   pointerId: number;
   x: number;
   y: number;
   moved: boolean;
-  fired: boolean;
   startClientX: number;
   startClientY: number;
-  rangeType: "long" | "doubleLong";
 };
 
 type TouchEmptySelectCandidate = {
@@ -81,16 +66,6 @@ type TouchEmptySelectCandidate = {
   x: number;
   y: number;
   moved: boolean;
-  startClientX: number;
-  startClientY: number;
-};
-
-type TouchDeleteCandidate = {
-  pointerId: number;
-  x: number;
-  y: number;
-  moved: boolean;
-  fired: boolean;
   startClientX: number;
   startClientY: number;
 };
@@ -127,42 +102,29 @@ export function useCanvasEvents(
 
   const {
     xToLane, xToExtraLane,
-    yToBeat, yToBeatRaw, snapBeat,
+    yToBeat, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
     hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
   } = coords;
 
   const rightDragDeletedRef = useRef(false);
-  const activeTouchPointsRef = useRef<Map<number, TouchGesturePoint>>(new Map());
-  const touchNavigationSessionRef = useRef<TouchNavigationSession | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
-  const longPressRef = useRef<{
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    x: number;
-    y: number;
-    noteHit: number | null;
-    noteEndHit: number | null;
-    extraHit: number | null;
-    fired: boolean;
-  } | null>(null);
-  const touchCreateCandidateRef = useRef<TouchCreateCandidate | null>(null);
+  const recognizerRef = useRef(new GestureRecognizer());
+  // 롱프레스 hold 생명주기(arm/moved/발화/결말)는 recognizer가 소유한다.
+  // 훅은 tick을 ~450ms 시점에 한 번 poke하는 타이머만 붙든다(Time-A 스케줄러).
+  const holdTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const touchEmptySelectCandidateRef = useRef<TouchEmptySelectCandidate | null>(null);
-  const touchDeleteCandidateRef = useRef<TouchDeleteCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
 
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+  const clearHoldTimer = useCallback(() => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
     }
-    longPressRef.current = null;
   }, []);
 
   const startTouchEmptySelectCandidate = useCallback((
@@ -184,219 +146,117 @@ export function useCanvasEvents(
     touchEmptySelectCandidateRef.current = null;
   }, []);
 
-  const cancelTouchCreateCandidate = useCallback(() => {
-    const pending = touchCreateCandidateRef.current;
-    touchCreateCandidateRef.current = null;
-    clearLongPress();
-    if (pending?.fired) {
-      createModeRef.current?.cancelDrag();
-      rendererRef.current?.hideGhostNote();
-    }
-  }, [clearLongPress, createModeRef, rendererRef]);
-
   const deleteAtPoint = useCallback((x: number, y: number) => {
     deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef]);
 
-  const updateTouchPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (e.pointerType !== 'touch') return;
-    activeTouchPointsRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-  }, []);
+  // 터치 down에서 롱프레스 hold 타이머를 무장한다. arm 여부는 (mode, rangeType, 히트)로 결정한다.
+  // 발화(~450ms)하면 recognizer.tick을 poke해 longPress를 확인하고, 발화 좌표를 다시 히트테스트해
+  // 액션(범위 생성/선택 드래그/삭제)을 재도출한다 — 후보 payload를 훅에 두지 않아 form A를 지킨다.
+  // mode·entityType은 arm 시점 값을 클로저로 고정한다(수동 hold 동안 불변).
+  const armHoldTimer = useCallback((
+    x: number,
+    y: number,
+    hits: HoldHits,
+    mode: EditorTouchMode,
+    entityType: EntityType,
+  ) => {
+    const rangeType = getLongPressRangeType(entityType);
+    const placementBlocked = mode === 'create'
+      ? (createModeRef.current?.isPlacementBlocked(x, y) ?? false)
+      : false;
+    if (!shouldArmHoldTimer({ mode, rangeType, placementBlocked, hits })) return;
+    clearHoldTimer();
+    holdTimerRef.current = window.setTimeout(() => {
+      const fired = recognizerRef.current
+        .tick(performance.now())
+        .find((g): g is Extract<Gesture, { kind: 'longPress' }> => g.kind === 'longPress');
+      if (!fired) return;
+      const { x: fx, y: fy } = fired;
+      const fireHits: HoldHits = {
+        noteHit: hitTestNoteRef.current(fx, fy),
+        noteEndHit: hitTestNoteEndRef.current(fx, fy),
+        extraHit: hitTestExtraNoteRef.current(fx, fy),
+      };
+      const firePlacementBlocked = mode === 'create'
+        ? (createModeRef.current?.isPlacementBlocked(fx, fy) ?? false)
+        : false;
+      const action = resolveHoldFireAction({ mode, rangeType, placementBlocked: firePlacementBlocked, hits: fireHits });
+      if (action === 'none') return;
+      suppressContextMenuUntilRef.current = Date.now() + 1200;
+      if (action === 'delete') {
+        deleteAtPoint(fx, fy);
+      } else if (action === 'createRange' && rangeType) {
+        createModeRef.current?.beginRangeNoteAt(fx, fy, rangeType);
+        rendererRef.current?.hideGhostNote();
+      } else if (action === 'selectDrag') {
+        touchMultiSelectRef.current = true;
+        useEditorStore.getState().setMode('select');
+        selectModeRef.current?.beginLongPressDrag(fx, fy, {
+          noteEndHit: fireHits.noteEndHit,
+          noteHit: fireHits.noteHit,
+          extraHit: fireHits.extraHit,
+        });
+        rendererRef.current?.hideGhostNote();
+      }
+    }, LONG_PRESS_MS);
+  }, [
+    clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
+  ]);
 
-  const removeTouchPoint = useCallback((pointerId: number) => {
-    activeTouchPointsRef.current.delete(pointerId);
-    if (activeTouchPointsRef.current.size < 2) {
-      touchNavigationSessionRef.current = null;
-    }
-  }, []);
+  const toSample = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    phase: PointerSample['phase'],
+  ): PointerSample => {
+    // x/y는 편집 제스처(longPress/holdEnd)에 실려 모드로 전달되는 타임라인/캔버스 좌표다.
+    // 발화 시 이 좌표로 히트테스트·생성·이동을 하므로 반드시 down 핸들러와 같은 변환이어야 한다.
+    // (내비게이션은 clientX/clientY만 쓰므로 x/y 변경에 영향받지 않는다.)
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const rawX = e.clientX - (rect?.left ?? 0);
+    const canvasY = e.clientY - (rect?.top ?? 0);
+    const timelineX = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
+    return {
+      pointerId: e.pointerId,
+      pointerType: e.pointerType as PointerSample['pointerType'],
+      phase,
+      x: timelineX,
+      y: canvasY,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      // tick(performance.now())과 반드시 같은 시계여야 경과 계산이 맞다(Time-A).
+      timeMs: performance.now(),
+      button: e.button,
+      buttons: e.buttons,
+    };
+  }, [canvasRef, rendererRef]);
 
-  const startPinchIfNeeded = useCallback((): boolean => {
-    const points = [...activeTouchPointsRef.current.values()];
-    if (!isTouchNavigationGesture(points.length)) return false;
-
-    const session = beginTouchNavigationSession(points);
-    if (!session) return true;
-    touchNavigationSessionRef.current = session;
-    clearLongPress();
-    cancelTouchCreateCandidate();
+  // 두 손가락 내비가 편집을 가로챌 때(editCancel) 진행 중이던 편집 후보를 폐기한다.
+  // recognizer는 2번째 손가락 down에서 자기 hold를 이미 버렸다(editCancel 방출). 훅은 타이머와
+  // 남은 후보(empty-select/tap-toggle)만 정리하고, 발화했을 수 있는 create 드래그를 취소한다.
+  const handleEditCancel = useCallback(() => {
+    clearHoldTimer();
     touchEmptySelectCandidateRef.current = null;
-    touchDeleteCandidateRef.current = null;
     touchTapToggleRef.current = null;
     createModeRef.current?.cancelDrag();
     rendererRef.current?.hideGhostNote();
-    return true;
-  }, [cancelTouchCreateCandidate, clearLongPress, createModeRef, rendererRef]);
+  }, [clearHoldTimer, createModeRef, rendererRef]);
 
-  const handlePinchMove = useCallback((rect: DOMRect): boolean => {
-    const points = [...activeTouchPointsRef.current.values()];
-    if (!isTouchNavigationGesture(points.length)) return false;
-
-    const session = touchNavigationSessionRef.current ?? beginTouchNavigationSession(points);
-    if (!session) return true;
-
-    const update = advanceTouchNavigationSession(session, points);
-    if (!update) return true;
-    touchNavigationSessionRef.current = update.session;
-
-    if (update.mode === "horizontalScroll" && update.deltaX !== undefined) {
-      onHorizontalPan?.(update.deltaX);
-    } else if (update.mode === "verticalScroll" && update.deltaY !== undefined) {
-      onVerticalPan?.(update.deltaY);
-    } else if (
-      update.mode === "resize" &&
-      update.previousDistance !== undefined &&
-      update.currentDistance !== undefined
-    ) {
-      onPinchZoom?.(update.previousDistance, update.currentDistance, update.center.clientY - rect.top);
+  const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
+    for (const g of gestures) {
+      if (g.kind === "viewportScroll" && g.axis === "horizontal") {
+        onHorizontalPan?.(g.deltaX);
+      } else if (g.kind === "viewportScroll" && g.axis === "vertical") {
+        onVerticalPan?.(g.deltaY);
+      } else if (g.kind === "viewportZoom") {
+        onPinchZoom?.(g.previousDistance, g.currentDistance, g.centerClientY - rect.top);
+      }
     }
-
-    return true;
   }, [onHorizontalPan, onPinchZoom, onVerticalPan]);
 
-  const scheduleLongPress = useCallback((
-    e: React.PointerEvent<HTMLCanvasElement>,
-    x: number,
-    y: number,
-    noteHit: number | null,
-    noteEndHit: number | null,
-    extraHit: number | null,
-  ) => {
-    if (e.pointerType !== 'touch' || mode === 'delete') return;
-    if (noteHit === null && noteEndHit === null && extraHit === null) return;
-
-    clearLongPress();
-    touchCreateCandidateRef.current = null;
-    longPressRef.current = {
-      pointerId: e.pointerId,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      x,
-      y,
-      noteHit,
-      noteEndHit,
-      extraHit,
-      fired: false,
-    };
-    longPressTimerRef.current = window.setTimeout(() => {
-      const pending = longPressRef.current;
-      if (!pending || pending.pointerId !== e.pointerId || pending.fired) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
-
-      pending.fired = true;
-      suppressContextMenuUntilRef.current = Date.now() + 1200;
-      touchMultiSelectRef.current = true;
-      useEditorStore.getState().setMode('select');
-      if (pending.noteEndHit !== null) {
-        selectModeRef.current?.beginNoteEndResizeDrag(pending.noteEndHit);
-      } else if (pending.noteHit !== null) {
-        selectModeRef.current?.beginTouchMoveDragFromNote(pending.noteHit, pending.x, pending.y);
-      } else if (pending.extraHit !== null) {
-        selectModeRef.current?.beginTouchMoveDragFromExtraNote(pending.extraHit, pending.x, pending.y);
-      }
-      rendererRef.current?.hideGhostNote();
-    }, LONG_PRESS_MS);
-  }, [clearLongPress, mode, rendererRef, selectModeRef]);
-
-  const scheduleTouchCreateRange = useCallback((
-    e: React.PointerEvent<HTMLCanvasElement>,
-    x: number,
-    y: number,
-    rangeType: "long" | "doubleLong",
-  ) => {
-    clearLongPress();
-    touchCreateCandidateRef.current = {
-      pointerId: e.pointerId,
-      x,
-      y,
-      moved: false,
-      fired: false,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      rangeType,
-    };
-    longPressTimerRef.current = window.setTimeout(() => {
-      const pending = touchCreateCandidateRef.current;
-      if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
-
-      pending.fired = true;
-      suppressContextMenuUntilRef.current = Date.now() + 1200;
-      createModeRef.current?.beginRangeNoteAt(pending.x, pending.y, pending.rangeType);
-      rendererRef.current?.hideGhostNote();
-    }, LONG_PRESS_MS);
-  }, [clearLongPress, createModeRef, rendererRef]);
-
-  const scheduleTouchDeleteDrag = useCallback((
-    e: React.PointerEvent<HTMLCanvasElement>,
-    x: number,
-    y: number,
-  ) => {
-    clearLongPress();
-    touchDeleteCandidateRef.current = {
-      pointerId: e.pointerId,
-      x,
-      y,
-      moved: false,
-      fired: false,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-    };
-    longPressTimerRef.current = window.setTimeout(() => {
-      const pending = touchDeleteCandidateRef.current;
-      if (!pending || pending.pointerId !== e.pointerId || pending.fired || pending.moved) return;
-      if (!activeTouchPointsRef.current.has(e.pointerId) || activeTouchPointsRef.current.size !== 1) return;
-
-      pending.fired = true;
-      suppressContextMenuUntilRef.current = Date.now() + 1200;
-      deleteAtPoint(pending.x, pending.y);
-    }, LONG_PRESS_MS);
-  }, [clearLongPress, deleteAtPoint]);
-
+  // hold 후보(롱프레스/create/delete)의 tap-slop·moved 추적은 recognizer.feed(move)가 소유한다.
+  // 훅은 아직 recognizer로 옮기지 않은 후보(empty-select/tap-toggle)의 moved만 여기서 갱신한다.
   const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const pendingLongPress = longPressRef.current;
-    if (pendingLongPress?.pointerId === e.pointerId && !pendingLongPress.fired) {
-      if (didTouchMoveBeyondTapSlop({
-        startClientX: pendingLongPress.startClientX,
-        startClientY: pendingLongPress.startClientY,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
-      })) {
-        clearLongPress();
-        rendererRef.current?.hideGhostNote();
-      }
-    }
-
-    const createCandidate = touchCreateCandidateRef.current;
-    if (createCandidate?.pointerId === e.pointerId && !createCandidate.fired && !createCandidate.moved) {
-      if (didTouchMoveBeyondTapSlop({
-        startClientX: createCandidate.startClientX,
-        startClientY: createCandidate.startClientY,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
-      })) {
-        createCandidate.moved = true;
-        clearLongPress();
-        rendererRef.current?.hideGhostNote();
-      }
-    }
-
-    const deleteCandidate = touchDeleteCandidateRef.current;
-    if (deleteCandidate?.pointerId === e.pointerId && !deleteCandidate.fired && !deleteCandidate.moved) {
-      if (didTouchMoveBeyondTapSlop({
-        startClientX: deleteCandidate.startClientX,
-        startClientY: deleteCandidate.startClientY,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
-      })) {
-        deleteCandidate.moved = true;
-        clearLongPress();
-        rendererRef.current?.hideGhostNote();
-      }
-    }
-
     const emptySelectCandidate = touchEmptySelectCandidateRef.current;
     if (emptySelectCandidate?.pointerId === e.pointerId && !emptySelectCandidate.moved) {
       if (didTouchMoveBeyondTapSlop({
@@ -423,7 +283,7 @@ export function useCanvasEvents(
         tapToggle.moved = true;
       }
     }
-  }, [clearLongPress, rendererRef]);
+  }, [rendererRef]);
 
   // 마커 히트테스트 (extra lane — editorLane 기반)
   const hitTestMarker = useCallback((x: number, y: number) => {
@@ -448,9 +308,10 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch') {
       e.preventDefault();
       suppressContextMenuUntilRef.current = Date.now() + 1200;
-      updateTouchPoint(e);
+      const navGestures = recognizerRef.current.feed(toSample(e, 'down'));
       canvasRef.current?.setPointerCapture(e.pointerId);
-      if (activeTouchPointsRef.current.size >= 2 && startPinchIfNeeded()) {
+      if (navGestures.some((g) => g.kind === 'editCancel')) {
+        handleEditCancel();
         return;
       }
     }
@@ -488,106 +349,104 @@ export function useCanvasEvents(
     const touchNoteEndHit = e.pointerType === 'touch' ? hitTestNoteEndRef.current(x, y) : null;
     const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
 
-    scheduleLongPress(e, x, y, touchNoteHit, touchNoteEndHit, touchExtraHit);
-
     if (e.button === 2) {
       rightDragDeletedRef.current = false;
       canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
 
-    if (mode === 'create' && createModeRef.current) {
-      if (!isTimeInBounds(y)) return;
-      const hitIdx = hitTestNoteRef.current(x, y);
-      if (hitIdx !== null) {
-        const hitNote = chart.notes[hitIdx];
-        if ('endBeat' in hitNote) {
-          const lane = xToLane(x);
-          if (lane === null) return;
-          const rawBeat = yToBeatRaw(y);
-          const beatFloat = rawBeat.n / rawBeat.d;
-          const region = hitTestRangeNoteRegion(hitNote as RangeNote, beatFloat);
-          if (region === null || region === 'body') return;
-          if (region === 'head' || region === 'end') {
-            const targetBeat = region === 'head'
-              ? hitNote.beat.n / hitNote.beat.d
-              : (hitNote as RangeNote).endBeat.n / (hitNote as RangeNote).endBeat.d;
-            const pointExists = chart.notes.some(
-              n => !('endBeat' in n) && n.lane === lane && Math.abs(n.beat.n / n.beat.d - targetBeat) <= SNAP_POSITION_TOLERANCE
-            );
-            if (pointExists) return;
-          }
-        } else {
-          return;
-        }
-      }
-      if (hitTestExtraNoteRef.current(x, y) !== null) return;
-      const touchRangeType = e.pointerType === 'touch' ? getLongPressRangeType(entityType as EntityType) : null;
-      if (touchRangeType) {
-        scheduleTouchCreateRange(e, x, y, touchRangeType);
-        return;
-      }
-      createModeRef.current.onPointerDown(x, y);
-    } else if (mode === 'select' && selectModeRef.current) {
-      if (e.pointerType === 'touch' && (touchNoteHit !== null || touchExtraHit !== null)) {
-        if (touchExtraHit !== null) {
-          touchTapToggleRef.current = {
-            pointerId: e.pointerId,
-            kind: 'extra',
-            x,
-            y,
-            moved: false,
-            startClientX: e.clientX,
-            startClientY: e.clientY,
-          };
-          return;
-        }
+    if (e.pointerType === 'touch') {
+      // 롱프레스 hold(범위 생성/선택 드래그/드래그 삭제) 타이머를 무장한다.
+      // arm 여부·발화 액션은 순수함수가 (mode, rangeType, 히트)로 정한다(recognizer가 hold 생명주기 소유).
+      armHoldTimer(
+        x,
+        y,
+        { noteHit: touchNoteHit, noteEndHit: touchNoteEndHit, extraHit: touchExtraHit },
+        mode,
+        entityType as EntityType,
+      );
 
-        if (touchNoteHit !== null) {
+      if (mode === 'create' && createModeRef.current) {
+        if (createModeRef.current.isPlacementBlocked(x, y)) return;
+        // 범위 엔티티(single/double 롱프레스)는 hold가 처리 — down에서 점노트를 배치하지 않는다.
+        if (getLongPressRangeType(entityType as EntityType)) return;
+        // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치).
+      } else if (mode === 'select' && selectModeRef.current) {
+        // 트릴존 핸들/끝은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
+        const schedule = resolveSelectTouchDownSchedule({
+          noteHit: touchNoteHit,
+          extraHit: touchExtraHit,
+          zoneHandleHit: hitTestTrillZoneHandleRef.current(x, y),
+          zoneEndHit: hitTestTrillZoneEndRef.current(x, y),
+        });
+        if (schedule === 'tapToggle') {
           touchTapToggleRef.current = {
             pointerId: e.pointerId,
-            kind: 'note',
             x,
             y,
             moved: false,
             startClientX: e.clientX,
             startClientY: e.clientY,
           };
-          return;
+        } else {
+          startTouchEmptySelectCandidate(e, x, y);
         }
-      }
-      if (e.pointerType === 'touch') {
-        startTouchEmptySelectCandidate(e, x, y);
+        return;
+      } else if (mode === 'delete' && deleteModeRef.current) {
+        // 드래그 삭제(hold 발화)와 탭 삭제(up)는 hold + holdEnd 경로가 처리한다.
         return;
       }
-      selectModeRef.current.onPointerDown(x, y, e.shiftKey, e.altKey);
-    } else if (mode === 'delete' && deleteModeRef.current) {
-      if (e.pointerType === 'touch') {
-        scheduleTouchDeleteDrag(e, x, y);
-        return;
-      }
-      deleteModeRef.current.onPointerDown(x, y);
     }
+
+    // 마우스 down(및 레인지 타입 아닌 터치 create)은 모드 다형 디스패치로 통합한다.
+    activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
+      ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
   }, [
-    mode, entityType, isTimeInBounds, chart.notes, xToLane, yToBeatRaw,
-    updateTouchPoint, startPinchIfNeeded, scheduleLongPress, scheduleTouchCreateRange,
-    scheduleTouchDeleteDrag, startTouchEmptySelectCandidate,
+    mode, entityType,
+    toSample, handleEditCancel, armHoldTimer,
+    startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteEndRef, hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
+    isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
 
+  // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
+  const applyEditResult = useCallback((result?: EditResult) => {
+    const renderer = rendererRef.current;
+    if (!renderer || !result) return;
+    const preview = result.preview;
+    if (preview?.boxSelectRect) {
+      renderer.setBoxSelectRect(preview.boxSelectRect);
+      renderer.render();
+    }
+    if (preview?.moveOrigins) {
+      renderer.setMoveOrigins(preview.moveOrigins);
+    }
+    if (result.clearDragPreview) {
+      renderer.clearMoveOrigins();
+      renderer.clearBoxSelectRect();
+    }
+    if (result.hideGhost) {
+      renderer.hideGhostNote();
+    }
+  }, [rendererRef]);
+
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    let navGestures: Gesture[] = [];
     if (e.pointerType === 'touch') {
       e.preventDefault();
-      updateTouchPoint(e);
+      navGestures = recognizerRef.current.feed(toSample(e, 'move'));
       updateTouchMovement(e);
     }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (e.pointerType === 'touch' && handlePinchMove(rect)) return;
+    if (e.pointerType === 'touch' && recognizerRef.current.activeTouchCount >= 2) {
+      routeViewportGestures(navGestures, rect);
+      return;
+    }
 
     const rawX = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -598,22 +457,26 @@ export function useCanvasEvents(
     }
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
-    const deleteCandidate = touchDeleteCandidateRef.current;
-    if (
-      e.pointerType === 'touch' &&
-      deleteCandidate?.pointerId === e.pointerId &&
-      deleteCandidate.fired
-    ) {
+
+    // hold 생명주기는 recognizer가 소유 — 이 pointer의 발화/이동 상태를 조회해 연속 처리를 가른다.
+    const holdState = e.pointerType === 'touch'
+      ? recognizerRef.current.holdState(e.pointerId)
+      : null;
+
+    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다.
+    if (mode === 'delete' && holdState?.fired) {
       deleteAtPoint(x, y);
       return;
     }
 
-    const pendingTouchCreate = touchCreateCandidateRef.current;
+    // create 범위 후보가 발화 전 tap-slop을 넘으면(스크롤성) 고스트를 숨기고 만다.
+    // (범위 엔티티일 때만 — 점노트 모드에서 노트를 롱프레스한 hold는 select-drag 의도라 여기서 걸지 않는다.)
     if (
-      e.pointerType === 'touch' &&
-      pendingTouchCreate?.pointerId === e.pointerId &&
-      pendingTouchCreate.moved &&
-      !pendingTouchCreate.fired
+      mode === 'create' &&
+      getLongPressRangeType(entityType as EntityType) &&
+      holdState &&
+      holdState.moved &&
+      !holdState.fired
     ) {
       rendererRef.current?.hideGhostNote();
       return;
@@ -628,40 +491,33 @@ export function useCanvasEvents(
         candidatePointerId: emptySelectCandidate.pointerId,
         pointerId: e.pointerId,
         moved: emptySelectCandidate.moved,
-        activeTouchCount: activeTouchPointsRef.current.size,
+        activeTouchCount: recognizerRef.current.activeTouchCount,
       }) &&
       selectModeRef.current
     ) {
-      if (!selectModeRef.current.isBoxSelecting) {
-        selectModeRef.current.onPointerDown(
-          emptySelectCandidate.x,
-          emptySelectCandidate.y,
-          false,
-          false,
-        );
-      }
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (rendererRef.current) {
-        const boxRect = selectModeRef.current.boxSelectPixelRect;
-        if (boxRect) {
-          rendererRef.current.setBoxSelectRect(boxRect);
-          rendererRef.current.render();
-        }
-      }
+      // 박스 시작은 SelectMode.onPointerDown이 idempotent하게 처리한다(진행 중이면 no-op).
+      selectModeRef.current.onPointerDown(
+        emptySelectCandidate.x,
+        emptySelectCandidate.y,
+        false,
+        false,
+      );
+      const boxResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditResult(boxResult);
       return;
     }
 
     const hoverNoteHit = hitTestNoteRef.current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
-    // trillZone 핸들은 select 모드에서만 표시한다.
-    const hoverTrillZoneHit = mode === 'select' ? hitTestTrillZoneRef.current(x, y) : null;
-    // trillZone을 리사이즈/이동하는 동안엔 커서가 구간 밖으로 나가도 핸들을 계속 표시한다.
-    const draggingTrillZone = selectModeRef.current?.draggingTrillZoneIndex ?? null;
+    // trillZone hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
+    // 그 구간을 래치해 커서가 밖으로 나가도 계속 표시한다(래치 결정을 모드가 소유 = PUSH).
+    const hoveredTrillZone = mode === 'select'
+      ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
+      : null;
     if (rendererRef.current) {
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredExtraNote(hoverExtraHit);
-      rendererRef.current.setHoveredTrillZone(draggingTrillZone !== null ? draggingTrillZone : hoverTrillZoneHit);
+      rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }
@@ -689,25 +545,10 @@ export function useCanvasEvents(
       return;
     }
 
-    const activeLongPress = longPressRef.current;
-    if (
-      e.pointerType === 'touch' &&
-      activeLongPress?.pointerId === e.pointerId &&
-      activeLongPress.fired &&
-      selectModeRef.current
-    ) {
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
-        const origins = selectModeRef.current.moveOrigins;
-        if (origins.size > 0) {
-          const originData: { note: import('../../shared').NoteEntity; beat: import('../../shared').Beat; endBeat?: import('../../shared').Beat; lane: import('../../shared').Lane }[] = [];
-          for (const [idx, pos] of origins) {
-            originData.push({ note: useEditorStore.getState().chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
-          }
-          rendererRef.current.setMoveOrigins(originData);
-        }
-      }
+    // 선택 드래그: 발화한 select hold(롱프레스 이동/리사이즈)는 이동을 모드로 흘려보낸다.
+    if (mode === 'select' && holdState?.fired && selectModeRef.current) {
+      const longPressResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditResult(longPressResult);
       return;
     }
 
@@ -796,69 +637,43 @@ export function useCanvasEvents(
         }
       }
     } else if (mode === 'select' && selectModeRef.current) {
-      selectModeRef.current.onPointerMove(x, y);
-
-      if (selectModeRef.current.isBoxSelecting && rendererRef.current) {
-        const boxRect = selectModeRef.current.boxSelectPixelRect;
-        if (boxRect) {
-          rendererRef.current.setBoxSelectRect(boxRect);
-          rendererRef.current.render();
-        }
-      }
-
-      if (selectModeRef.current.isMoveDragging && rendererRef.current) {
-        const origins = selectModeRef.current.moveOrigins;
-        if (origins.size > 0) {
-          const originData: { note: import('../../shared').NoteEntity; beat: import('../../shared').Beat; endBeat?: import('../../shared').Beat; lane: import('../../shared').Lane }[] = [];
-          for (const [idx, pos] of origins) {
-            originData.push({ note: useEditorStore.getState().chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
-          }
-          rendererRef.current.setMoveOrigins(originData);
-        }
-      }
+      const selectResult = selectModeRef.current.onPointerMove(x, y);
+      applyEditResult(selectResult);
     }
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
     bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
-    setSelectedExtraNotes, updateTouchPoint, updateTouchMovement,
-    handlePinchMove, canvasRef, createModeRef, hitTestExtraNoteRef,
+    setSelectedExtraNotes, toSample, updateTouchMovement,
+    routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
-    onNavigationInteraction,
+    onNavigationInteraction, applyEditResult,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let wasPinching = false;
-    let longPressFired = false;
-    let touchCreateCandidate: TouchCreateCandidate | null = null;
+    // hold 결말은 recognizer가 feed(up)에서 holdEnd로 알려준다(fired·moved·down 좌표).
+    let holdFired = false;
+    let holdMoved = false;
+    let holdDown: { x: number; y: number } | null = null; // 있으면 = 이 pointer에 hold가 있었음
     let touchEmptySelectCandidate: TouchEmptySelectCandidate | null = null;
-    let touchDeleteCandidate: TouchDeleteCandidate | null = null;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
-      wasPinching = touchNavigationSessionRef.current !== null || activeTouchPointsRef.current.size >= 2;
-      removeTouchPoint(e.pointerId);
-      const pendingLongPress = longPressRef.current;
-      if (pendingLongPress?.pointerId === e.pointerId) {
-        longPressFired = pendingLongPress.fired;
-        clearLongPress();
+      wasPinching = recognizerRef.current.isNavigating || recognizerRef.current.activeTouchCount >= 2;
+      const holdEnd = recognizerRef.current
+        .feed(toSample(e, 'up'))
+        .find((g): g is Extract<Gesture, { kind: 'holdEnd' }> => g.kind === 'holdEnd');
+      if (holdEnd) {
+        holdFired = holdEnd.fired;
+        holdMoved = holdEnd.moved;
+        holdDown = { x: holdEnd.x, y: holdEnd.y };
       }
-      const pendingCreate = touchCreateCandidateRef.current;
-      if (pendingCreate?.pointerId === e.pointerId) {
-        touchCreateCandidate = pendingCreate;
-        touchCreateCandidateRef.current = null;
-        clearLongPress();
-      }
+      clearHoldTimer();
       const pendingEmptySelect = touchEmptySelectCandidateRef.current;
       if (pendingEmptySelect?.pointerId === e.pointerId) {
         touchEmptySelectCandidate = pendingEmptySelect;
         touchEmptySelectCandidateRef.current = null;
-      }
-      const pendingDelete = touchDeleteCandidateRef.current;
-      if (pendingDelete?.pointerId === e.pointerId) {
-        touchDeleteCandidate = pendingDelete;
-        touchDeleteCandidateRef.current = null;
-        clearLongPress();
       }
     }
 
@@ -882,8 +697,9 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    if (touchDeleteCandidate) {
-      if (touchDeleteCandidate.fired || !touchDeleteCandidate.moved) {
+    // 드래그 삭제(발화) / 탭 삭제(무이동). delete 모드에서 hold가 있었을 때만.
+    if (mode === 'delete' && holdDown) {
+      if (shouldDeleteOnUp({ fired: holdFired, moved: holdMoved })) {
         deleteAtPoint(x, y);
       }
       rendererRef.current?.hideGhostNote();
@@ -892,61 +708,65 @@ export function useCanvasEvents(
 
     if (touchEmptySelectCandidate) {
       if (mode === 'select' && selectModeRef.current) {
-        if (!selectModeRef.current.isBoxSelecting) {
-          selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
-        }
+        // 박스 시작은 SelectMode.onPointerDown이 idempotent하게 처리한다(진행 중이면 no-op).
+        selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
         selectModeRef.current.onPointerUp(
           touchEmptySelectCandidate.moved ? x : touchEmptySelectCandidate.x,
           touchEmptySelectCandidate.moved ? y : touchEmptySelectCandidate.y,
         );
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
+        // 빈 곳 탭/박스로 선택이 비면 다중선택 래치를 끈다(누적 토글 모드 종료).
+        const sel = useEditorStore.getState();
+        touchMultiSelectRef.current = nextTouchMultiSelectLatch(
+          touchMultiSelectRef.current,
+          sel.selectedNotes.size + sel.selectedExtraNotes.size,
+        );
       }
       rendererRef.current?.hideGhostNote();
       return;
     }
 
-    if (touchCreateCandidate && createModeRef.current) {
-      if (touchCreateCandidate.fired) {
-        if (!isTimeInBounds(y)) {
-          createModeRef.current.cancelDrag();
-        } else {
-          createModeRef.current.onPointerUp(x, y);
-        }
-      } else if (!touchCreateCandidate.moved && isTimeInBounds(touchCreateCandidate.y)) {
-        // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
-        createModeRef.current.onPointerDown(touchCreateCandidate.x, touchCreateCandidate.y);
-        createModeRef.current.onPointerUp(touchCreateCandidate.x, touchCreateCandidate.y);
-      }
-      rendererRef.current?.hideGhostNote();
-      return;
-    }
-
-    if (longPressFired && selectModeRef.current) {
-      selectModeRef.current.onPointerUp(x, y);
-      rendererRef.current?.clearMoveOrigins();
-      rendererRef.current?.clearBoxSelectRect();
-    } else if (mode === 'create' && createModeRef.current) {
-      if (!isTimeInBounds(y)) {
-        createModeRef.current.cancelDrag();
-        rendererRef.current?.hideGhostNote();
-      } else {
+    // 범위 노트 후보의 up: create 모드 + 범위 엔티티(single/double)에서 hold가 있었을 때만.
+    // (점노트 모드에서 노트를 롱프레스한 hold는 select-drag 의도라 발화 시 select 모드로 넘어가 있다.)
+    if (mode === 'create' && getLongPressRangeType(entityType as EntityType) && holdDown && createModeRef.current) {
+      const createAction = resolveTouchCreateUpAction({
+        fired: holdFired,
+        moved: holdMoved,
+        endInBounds: isTimeInBounds(y),
+        candidateStartInBounds: isTimeInBounds(holdDown.y),
+      });
+      if (createAction === 'commitDrag') {
         createModeRef.current.onPointerUp(x, y);
+      } else if (createAction === 'cancelDrag') {
+        createModeRef.current.cancelDrag();
+      } else if (createAction === 'createPointTap') {
+        // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
+        createModeRef.current.onPointerDown(holdDown.x, holdDown.y);
+        createModeRef.current.onPointerUp(holdDown.x, holdDown.y);
       }
-    } else if (mode === 'select' && selectModeRef.current) {
-      selectModeRef.current.onPointerUp(x, y);
-      rendererRef.current?.clearMoveOrigins();
-      rendererRef.current?.clearBoxSelectRect();
+      rendererRef.current?.hideGhostNote();
+      return;
     }
 
+    // 마우스 up(및 롱프레스 이동 커밋)은 모드 다형 디스패치로 통합한다.
+    const upGesture = { x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false };
+    if (holdFired && mode === 'select' && selectModeRef.current) {
+      applyEditResult(selectModeRef.current.handlePointerUp(upGesture));
+    } else {
+      applyEditResult(
+        activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
+          ?.handlePointerUp(upGesture),
+      );
+    }
+
+    // 노트·엑스트라 탭 토글은 동일 처리 — 하나로 합친다.
     const tapToggle = touchTapToggleRef.current;
     if (
       e.pointerType === 'touch' &&
       tapToggle?.pointerId === e.pointerId &&
-      tapToggle.kind === 'note' &&
-      !tapToggle.moved &&
-      !longPressFired &&
-      selectModeRef.current
+      selectModeRef.current &&
+      shouldFireTapToggle({ moved: tapToggle.moved, longPressFired: holdFired })
     ) {
       selectModeRef.current.onPointerDown(
         tapToggle.x,
@@ -955,47 +775,36 @@ export function useCanvasEvents(
         false,
         touchMultiSelectRef.current,
       );
-    }
-    if (
-      e.pointerType === 'touch' &&
-      tapToggle?.pointerId === e.pointerId &&
-      tapToggle.kind === 'extra' &&
-      !tapToggle.moved &&
-      !longPressFired &&
-      selectModeRef.current
-    ) {
-      selectModeRef.current.onPointerDown(
-        tapToggle.x,
-        tapToggle.y,
-        false,
-        false,
+      // 토글로 마지막 선택까지 해제됐으면 다중선택 래치를 끈다(누적 토글 모드 종료).
+      const sel = useEditorStore.getState();
+      touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
+        sel.selectedNotes.size + sel.selectedExtraNotes.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
       touchTapToggleRef.current = null;
     }
   }, [
-    mode, isTimeInBounds, removeTouchPoint, clearLongPress,
-    updateTouchMovement, canvasRef, createModeRef, isDraggingCursorRef,
-    deleteAtPoint, rendererRef, selectModeRef,
+    mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
+    updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
+    deleteAtPoint, rendererRef, selectModeRef, applyEditResult,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === 'touch') {
-      removeTouchPoint(e.pointerId);
-      clearLongPress();
-      cancelTouchCreateCandidate();
+      // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
+      recognizerRef.current.feed(toSample(e, 'cancel'));
+      recognizerRef.current.clearNavigation();
+      clearHoldTimer();
       clearTouchEmptySelectCandidate();
-      touchDeleteCandidateRef.current = null;
       touchTapToggleRef.current = null;
-      touchNavigationSessionRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [cancelTouchCreateCandidate, clearLongPress, clearTouchEmptySelectCandidate, createModeRef, removeTouchPoint, rendererRef]);
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();

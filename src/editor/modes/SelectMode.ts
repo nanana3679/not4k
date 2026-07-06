@@ -6,6 +6,7 @@ import {
   deleteExtraNotesAtIndices,
 } from "../editing/editApplication";
 import { ClipboardManager } from "./ClipboardManager";
+import { resolveLongPressAction } from "./longPressRouting";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
 import {
   classifySelection,
@@ -15,6 +16,7 @@ import {
   translateTrillZone,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
+import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
@@ -38,6 +40,8 @@ export interface SelectModeCallbacks {
   hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
   /** Get trill zone index whose selection handle is at (x,y), or null */
   hitTestTrillZoneHandle?: (x: number, y: number) => number | null;
+  /** Get trill zone index whose region contains (x,y), or null (hover 표시용) */
+  hitTestTrillZone?: (x: number, y: number) => number | null;
   /** 구간 단위로 선택된 트릴존 인덱스가 바뀔 때 호출 (강조 표시용) */
   onTrillZoneSelectionChange?: (indices: Set<number>) => void;
   /** Extra lane helpers */
@@ -51,7 +55,7 @@ export interface SelectModeCallbacks {
   onWarn?: (msg: string) => void;
 }
 
-export class SelectMode {
+export class SelectMode implements EditorMode {
   private chart: Chart;
   private callbacks: SelectModeCallbacks;
   private selectedIndices: Set<number> = new Set();
@@ -207,9 +211,10 @@ export class SelectMode {
 
   /**
    * 현재 드래그(끝점 리사이즈 / 구간 단위 이동) 중인 trillZone 인덱스. 없으면 null.
-   * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위해 사용한다.
+   * hover-only 핸들을 드래그 중에는 hover 여부와 무관하게 계속 표시하기 위한 래치.
+   * 훅으로 노출하지 않고 computeHoveredTrillZone 내부에서만 쓴다(getter PULL 누출 제거).
    */
-  get draggingTrillZoneIndex(): number | null {
+  private get draggingTrillZoneIndex(): number | null {
     if (this.dragType === "resize" && this.resizingEntityType === "trillZone") {
       return this.resizingIndex;
     }
@@ -217,6 +222,17 @@ export class SelectMode {
       return [...this.selectedZoneIndices][0];
     }
     return null;
+  }
+
+  /**
+   * 현재 표시할 트릴존 hover 인덱스. 드래그(리사이즈/구간 이동) 중이면 그 구간을 래치해
+   * 커서가 구간 밖으로 나가도 계속 표시하고, 아니면 (x,y) 위의 구간을 hover한다.
+   * 훅이 draggingTrillZoneIndex getter를 PULL하던 것을 이 PUSH 메서드로 대체한다.
+   */
+  computeHoveredTrillZone(x: number, y: number): number | null {
+    const latched = this.draggingTrillZoneIndex;
+    if (latched !== null) return latched;
+    return this.callbacks.hitTestTrillZone?.(x, y) ?? null;
   }
 
   /** Whether a box select drag is currently in progress */
@@ -339,6 +355,23 @@ export class SelectMode {
   }
 
   /**
+   * 터치 롱프레스 발화 시, down에서 계산된 히트로 드래그 종류를 정해 시작한다.
+   * 노트 끝→리사이즈 / 노트→이동 / 엑스트라→이동. 히트가 없으면 아무것도 안 하고 false.
+   * (라우팅을 호출자에서 모드로 흡수 — begin* 프리미티브는 그대로 두고 그 위에 얹는다.)
+   */
+  beginLongPressDrag(
+    x: number,
+    y: number,
+    hits: { noteEndHit: number | null; noteHit: number | null; extraHit: number | null },
+  ): boolean {
+    const action = resolveLongPressAction(hits);
+    if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
+    if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);
+    if (action.kind === "moveExtra") return this.beginTouchMoveDragFromExtraNote(action.index, x, y);
+    return false;
+  }
+
+  /**
    * 동질성 규칙을 지키며 노트를 선택에 추가한다.
    * 트릴 노트는 같은 트릴존끼리만, 트릴/일반은 섞을 수 없다.
    * 막히면 토스트로 이유를 알리고 false를 반환한다(추가 안 됨).
@@ -359,6 +392,22 @@ export class SelectMode {
   // --- Pointer events ---
 
   /** Handle pointer down */
+  /** Select 모드는 휠 입력을 처리하지 않는다(항상 미처리 = null). */
+  onWheel(): null {
+    return null;
+  }
+
+  /** 통합 포인터 down 진입점. gesture의 shift/alt/toggle 수식자를 onPointerDown으로 운반한다. */
+  handlePointerDown(gesture: PointerGesture): void {
+    this.onPointerDown(gesture.x, gesture.y, gesture.shiftKey, gesture.altKey, gesture.toggleSelection);
+  }
+
+  /** 통합 포인터 up 진입점. 드래그를 커밋하고 이동/박스 프리뷰 정리를 신호한다. */
+  handlePointerUp(gesture: PointerGesture): EditResult {
+    this.onPointerUp(gesture.x, gesture.y);
+    return { clearDragPreview: true };
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
@@ -368,6 +417,12 @@ export class SelectMode {
       }
       return;
     }
+
+    // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
+    // 훅의 empty-select 후보 재생 경로는 매 move마다 onPointerDown을 재호출하는데,
+    // box뿐 아니라 resize/트릴존 핸들 이동도 그 좌표에서 시작될 수 있다. 종류 무관하게
+    // 진행 중 드래그면 재진입을 막아, 매 move마다 resize/move origin이 리셋되는 걸 방지한다.
+    if (this.isDragging) return;
 
     // Check for endpoint resize first
 
@@ -505,8 +560,34 @@ export class SelectMode {
     }
   }
 
-  /** Handle pointer move */
-  onPointerMove(x: number, y: number): void {
+  /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
+  onPointerMove(x: number, y: number): EditResult {
+    this.applyPointerMove(x, y);
+    return { preview: this.buildMovePreview() };
+  }
+
+  /** 이동/박스 드래그의 현재 프리뷰를 만든다(렌더러 PUSH용). */
+  private buildMovePreview(): EditPreview {
+    const preview: EditPreview = {};
+    if (this.isBoxSelecting) {
+      const rect = this.boxSelectPixelRect;
+      if (rect) preview.boxSelectRect = rect;
+    }
+    if (this.isMoveDragging) {
+      const origins = this.moveOrigins;
+      if (origins.size > 0) {
+        const data: MoveOriginDatum[] = [];
+        for (const [idx, pos] of origins) {
+          data.push({ note: this.chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
+        }
+        preview.moveOrigins = data;
+      }
+    }
+    return preview;
+  }
+
+  /** Handle pointer move (내부 적용 로직) */
+  private applyPointerMove(x: number, y: number): void {
     if (!this.isDragging) return;
 
     if (this.dragType === "resize") {
@@ -517,27 +598,41 @@ export class SelectMode {
           ? this.resizingOriginalBeat
           : currentBeat;
 
+        let tentativeChart: Chart | null = null;
         if (this.resizingEntityType === "note") {
           const note = this.chart.notes[this.resizingIndex];
           if (this.isRangeNote(note)) {
             const newNotes = [...this.chart.notes];
             newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
-            this.chart = { ...this.chart, notes: newNotes };
+            tentativeChart = { ...this.chart, notes: newNotes };
           }
         } else if (this.resizingEntityType === "event") {
           const newEvents = [...this.chart.events];
           const evtToResize = newEvents[this.resizingIndex];
           if ('endBeat' in evtToResize) {
             newEvents[this.resizingIndex] = { ...evtToResize, endBeat: newEndBeat };
-            this.chart = { ...this.chart, events: newEvents };
+            tentativeChart = { ...this.chart, events: newEvents };
           }
         } else if (this.resizingEntityType === "trillZone") {
           const newZones = [...this.chart.trillZones];
           newZones[this.resizingIndex] = { ...newZones[this.resizingIndex], endBeat: newEndBeat };
-          this.chart = { ...this.chart, trillZones: newZones };
+          tentativeChart = { ...this.chart, trillZones: newZones };
         }
 
-        this.callbacks.onChartUpdate(this.chart);
+        // 프리뷰도 커밋(onPointerUp)과 동일한 제약을 지킨다. 위반 상태(예: 트릴존을
+        // 트릴노트 밖으로 축소, 비트릴노트를 삼키도록 확장)면 적용하지 않아 직전 유효
+        // 프리뷰를 유지한다 → 프리뷰가 커밋 가능 상태를 거짓말하지 않는다.
+        if (tentativeChart !== null) {
+          const errors = validateChart({
+            notes: tentativeChart.notes,
+            trillZones: tentativeChart.trillZones,
+            events: tentativeChart.events,
+          });
+          if (errors.length === 0) {
+            this.chart = tentativeChart;
+            this.callbacks.onChartUpdate(this.chart);
+          }
+        }
       }
       return;
     }

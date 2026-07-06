@@ -1,11 +1,14 @@
 /**
- * 이어진 롱노트(connected long note) 연결 관계 계산.
+ * 이어진 롱노트(connected long note) 연결 관계 — connection의 단일 소유 모듈.
  *
  * `o-o-`처럼 같은 레인에서 앞 롱노트의 끝 시간과 뒤 롱노트의 시작 시간이 맞닿아 있으면
  * 두 롱노트는 "이어진" 것으로 본다. `o- o-`처럼 시간 간격이 벌어져 있으면 이어지지 않는다.
  *
- * 이 정의는 판정 쪽 `JudgmentEngine.hasImmediateFollowingLongNote`와 동일한 기준
- * (같은 레인 + 끝 시간 ≈ 시작 시간, threshold 이내)을 시각(불 들어옴) 전파에 재사용한 것이다.
+ * 연결의 정의(같은 레인 + 끝 시간 ≈ 시작 시간, threshold 이내)와 임계값을 이 모듈이 단독으로 소유하며
+ * 두 소비처가 각자 필요한 뷰를 여기서 얻는다 — 정의가 두 곳으로 갈라져 어긋나는 것을 막는다:
+ *  - 렌더러: `computeConnectedLongNotePredecessors`(뒤보기) → 앞 롱이 held면 뒤 연결 롱도 불 들어옴.
+ *  - 판정: `computeConnectionSources`(앞보기) → 끝점이 다음 롱으로 이어지는 노트(연결/종결 판정 대상).
+ * 두 뷰는 같은 계산에서 파생되므로 항상 일치한다.
  */
 
 import type { NoteEntity } from "../../shared";
@@ -64,4 +67,21 @@ export function computeConnectedLongNotePredecessors(
   }
 
   return predecessors;
+}
+
+/**
+ * 끝점이 다음 롱노트로 이어지는 노트(연결 판정 대상) 인덱스 집합 — 판정 엔진의 앞보기 뷰.
+ *
+ * predecessor map의 값 집합과 동일하다: 어떤 노트 cur의 연결 선행이 prev라면, prev는 "뒤에
+ * 이어지는 롱노트를 가진" 노트다. 같은 계산에서 파생하므로 렌더러의 뒤보기 뷰와 항상 일치한다.
+ * "롱노트 한 레인 겹침 불가" 불변 아래서 한 노트의 연결 선행은 최대 하나다.
+ */
+export function computeConnectionSources(
+  notes: readonly NoteEntity[],
+  startTimesMs: ReadonlyMap<number, number>,
+  endTimesMs: ReadonlyMap<number, number>,
+  thresholdMs: number = LONG_NOTE_CONNECTION_THRESHOLD_MS,
+): Set<number> {
+  const predecessors = computeConnectedLongNotePredecessors(notes, startTimesMs, endTimesMs, thresholdMs);
+  return new Set(predecessors.values());
 }

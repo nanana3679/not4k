@@ -20,6 +20,7 @@ import type {
   TrillZone,
   ChartEvent,
   RangeEvent,
+  TutorialInputEvent,
   TimeSignatureMarker,
   TimeSignatureEvent,
   StopEvent,
@@ -35,6 +36,7 @@ export interface ValidationError {
     | "trillZoneOverlap"
     | "eventOverlap"
     | "eventDuplicate"
+    | "tutorialInputOverlap"
     | "stopZone"
     | "timeSigNotNatural"
     | "timeSigNotAtMeasureStart";
@@ -325,7 +327,7 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 // 규칙 6: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
-/** 구간 이벤트만 필터링 (text, auto, stop) */
+/** 일반 구간 이벤트만 필터링 (tutorialInput/tutorialDiagram은 튜토리얼 전용 표시 규칙으로 별도 취급) */
 function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
   return events.filter((e): e is RangeEvent =>
     e.type === "text" || e.type === "auto" || e.type === "stop",
@@ -358,6 +360,33 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
         errors.push({
           rule: "eventOverlap",
           message: `Events overlap: ${a.type} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+        });
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * 튜토리얼 입력 이벤트는 같은 lane+keyCode의 열린 구간만 겹침을 금지한다.
+ * 다른 키나 다른 레인은 더블 입력, 롱 유지 중 탭 시연을 위해 겹침을 허용한다.
+ */
+export function validateNoTutorialInputOverlap(events: readonly ChartEvent[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const inputEvents = events.filter((e): e is TutorialInputEvent => e.type === "tutorialInput");
+
+  for (let i = 0; i < inputEvents.length; i++) {
+    for (let j = i + 1; j < inputEvents.length; j++) {
+      const a = inputEvents[i];
+      const b = inputEvents[j];
+      if (a.lane !== b.lane || a.keyCode !== b.keyCode) continue;
+
+      const overlaps = beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat);
+      if (overlaps) {
+        errors.push({
+          rule: "tutorialInputOverlap",
+          message: `Tutorial input overlaps on lane ${a.lane}, key ${a.keyCode} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
         });
       }
     }
@@ -561,6 +590,7 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     ...validateNoTrillZoneOverlap(input.trillZones),
     ...validateNoEventDuplicate(input.events),
     ...validateNoEventOverlap(input.events),
+    ...validateNoTutorialInputOverlap(input.events),
     ...validateStopZones(input.notes, input.events),
     ...validateTimeSigNatural(input.events),
     ...validateTimeSigAtMeasureStart(input.events),

@@ -5,6 +5,7 @@ const GeometricBackgroundTestPage = lazy(() => import('./GeometricBackgroundTest
 const PerspectiveSurfaceGridTestPage = lazy(() => import('./PerspectiveSurfaceGridTestPage'));
 const GearLightTestPage = lazy(() => import('./GearLightTestPage'));
 const GearMeasurePulseTestPage = lazy(() => import('./GearMeasurePulseTestPage'));
+const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagramTestPage'));
 
 /**
  * 개발 전용 Lab 테스트 페이지 라우트.
@@ -18,6 +19,7 @@ export default function LabRoutes() {
       <Route path="perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />
       <Route path="gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
+      <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />
     </Routes>
   );
 }
