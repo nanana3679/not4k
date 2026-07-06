@@ -1942,6 +1942,15 @@ describe("SelectMode — 트릴 쌍 동반 선택", () => {
     expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
   });
 
+  it("노트 클릭(onPointerDown 실경로)으로도 트릴 쌍이 함께 선택된다", () => {
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = new SelectMode(pairChart(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 마우스 클릭 선택 분기 (selectNote 미경유)
+
+    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+  });
+
   it("trillLong 바디를 selectNote해도 헤드가 함께 선택된다", () => {
     const mode = new SelectMode(pairChart(), makeCallbacks());
 

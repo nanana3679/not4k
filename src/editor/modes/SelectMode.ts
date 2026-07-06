@@ -551,6 +551,7 @@ export class SelectMode implements EditorMode {
         // Select this note only
         this.selectedIndices.clear();
         this.selectedIndices.add(hitIndex);
+        this.expandTrillPairSelection(); // 트릴 쌍은 클릭 선택에서도 한 단위
         this.callbacks.onSelectionChange(new Set(this.selectedIndices));
         this.selectedExtraIndices.clear();
         this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
