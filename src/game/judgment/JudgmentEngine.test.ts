@@ -1858,6 +1858,47 @@ describe("릴리즈 노트(길이 0 일반) keydown consume — 직후 포인트
     engine.onLanePress(lane, 1100, "KeyB"); // consume 종료 후 → 포인트 정타
     expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
+
+  it("keydown(-50)은 소비돼 무판정으로 포인트를 보호하고, 800부터 홀드한 경우도 새 keydown 없이 keyup(+30)만으로 Perfect", () => {
+    // 소비 윈도우 전 진입(held만)과 윈도우 내 keydown 소비 두 변형 모두 keyup이 판정 전담 (RFD 0006 §3.4)
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 소비 — 직후 포인트로 안 샘
+    expect(judgments).toHaveLength(0);
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1030, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false);
+  });
+
+  it("노트 시점 전 keyup(-30)도 끝점 ±Good 윈도우 내이므로 Perfect — 활성화 상태와 무관 (RFD 0015 §3, 슬라이스6 P5)", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.update(900);
+    engine.onLanePress(lane, 920, "KeyA"); // 소비
+    engine.onLaneRelease(lane, 970, "KeyA"); // 끝점(1000) 기준 -30 — 활성화(1000) 전
+    engine.update(1130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("노트 시점 직후 keyup(+10)이 활성화 update 프레임보다 먼저 도착해도 Perfect (async keyup vs rAF, 슬라이스6 P5)", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.update(940); // 마지막 프레임이 noteTime 전 — 이후 스톨
+    engine.onLanePress(lane, 950, "KeyA");
+    engine.onLaneRelease(lane, 1010, "KeyA"); // BODY_AWAITING_RELEASE 전환 전 도착
+    engine.update(1130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("A(950) 소비 후 B(990) 탭은 소비 종료된 릴리즈 노트를 통과해 포인트 early Good(-110), A keyup(+10)은 릴리즈 Perfect", () => {
+    const { engine, judgments } = releaseThenPointSetup();
+    engine.onLanePress(lane, 950, "KeyA"); // 소비 (1/1 충족)
+    engine.onLanePress(lane, 990, "KeyB"); // 종료된 릴리즈 노트 통과 → 포인트
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
+    engine.update(1000);
+    engine.onLaneRelease(lane, 1010, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
 });
 
 describe("더블 hold-only 롱노트 (길이 > 0) 판정 — 병렬 (RFD 0005)", () => {

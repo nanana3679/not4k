@@ -452,13 +452,20 @@ export class JudgmentEngine {
         }
         targetTime = noteEndTime;
       } else if (state === NoteState.UNPROCESSED) {
-        // 슬라이드 미리-떼기: 노트 시점 전 Good 윈도우 내 keyup → Perfect (RFD 0005 게이트 폐지)
-        if (!isHoldOnlyNote(note)) continue;
-        // 더블 hold-only 슬라이드는 노트 시점의 2키 동시 held만 인정 (미리-떼기 미지원)
+        // 더블은 UNPROCESSED 단계 keyup 매칭 없음 (미리-떼기 미지원 / 키별 경로 전담)
         if (note.type === NoteType.DOUBLE_LONG) continue;
         if (noteEndTime !== noteTime) continue;
-        if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
-          targetTime = noteTime;
+        if (isHoldOnlyNote(note)) {
+          // 슬라이드 미리-떼기: 노트 시점 전 Good 윈도우 내 keyup → Perfect (RFD 0005 게이트 폐지)
+          if (releaseTimeMs >= noteTime - this.windows.GOOD && releaseTimeMs < noteTime) {
+            targetTime = noteTime;
+          }
+        } else if (Math.abs(releaseTimeMs - noteEndTime) <= this.windows.GOOD) {
+          // 릴리즈 노트: 판정은 keyup 이벤트가 끝점 ±Good 내인지로 정의되며 활성화
+          // (BODY_AWAITING_RELEASE, update 프레임) 여부와 무관하다. AWAITING에만 묶으면
+          // early keyup(노트 시점 전)이 결정적으로 죽고, 노트 시점 직후 keyup도 활성화
+          // 프레임보다 먼저 도착하면 유실된다 (슬라이스6 P5, RFD 0015 §3 이진 릴리즈).
+          targetTime = noteEndTime;
         }
       }
 
@@ -482,12 +489,17 @@ export class JudgmentEngine {
     const noteEndTime = this.noteEndTimesMs.get(noteIndex);
     if (noteTime === undefined || noteEndTime === undefined) return;
 
-    // 슬라이드 미리-떼기 → Perfect (떼는 시점 표시)
     if (state === NoteState.UNPROCESSED) {
-      this.emitJudgment(noteIndex, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
-      this.noteStates.set(noteIndex, NoteState.COMPLETE);
-      this.consumedLongKeys.delete(noteIndex);
-      this.incrementCombo();
+      // 슬라이드 미리-떼기 → Perfect (떼는 시점 표시)
+      if (isHoldOnlyNote(note)) {
+        this.emitJudgment(noteIndex, JudgmentGrade.PERFECT, undefined, releaseTimeMs - noteTime);
+        this.noteStates.set(noteIndex, NoteState.COMPLETE);
+        this.consumedLongKeys.delete(noteIndex);
+        this.incrementCombo();
+        return;
+      }
+      // 릴리즈 노트: 활성화 전 keyup — termination 판정 (이진, 매칭이 윈도우를 이미 검증)
+      this.executeTerminationJudgment(noteIndex, releaseTimeMs, noteEndTime);
       return;
     }
 
