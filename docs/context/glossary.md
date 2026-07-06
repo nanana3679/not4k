@@ -507,6 +507,14 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
+### 뷰포트 슬라이스 (ViewportSlice)
+
+에디터 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)의 **단독 소유자**. 쓰기는 이 슬라이스의 액션으로만 하며, 클램프(줌 50~2000, 세로 스크롤 범위)와 제스처→값 변환 규칙(휠 ×1.1, 핀치 거리 비율, 스냅 프리셋 사이클)을 순수 함수로 함께 소유한다(구 `SnapZoomController` 승계). 줌·범위·뷰포트 높이가 바뀌면 scrollY를 함께 재클램프한다. 클램프 입력(타임라인 ms 범위, 뷰포트 높이)은 외부 사실로 슬라이스에 입주하며, 콘텐츠 높이는 저장하지 않고 파생 계산한다.
+
+렌더러 등 비-React 소비자는 **`ViewportSource`**(읽기 전용 스냅샷 `get()` + 변경 구독 `subscribe()`)로만 읽는다 — 이 통로로는 쓰기가 불가능하고, 테스트는 fake source를 쓴다(adapter 2개 = 실재 seam). 렌더러·컨트롤러·훅에 뷰포트 상태를 복제 저장하지 말 것: 이전에는 3곳 복제 + App useEffect 양방향 동기화가 이중 쓰기 race를 만들었다.
+
+**구현**: `src/editor/stores/viewportSlice.ts` (editorStore에 결합).
+
 ---
 
 ## 관련 문서
