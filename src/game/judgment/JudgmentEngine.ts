@@ -148,6 +148,12 @@ export class JudgmentEngine {
    * 길이>0은 BODY_ACTIVE 승격으로도 빠지지만, keydown과 다음 update 사이 프레임,
    * 그리고 BODY 상태가 없는 길이 0 슬라이드/릴리즈 노트를 위해 이 Map으로 추적한다.
    * 슬라이드가 keydown 없이 held로 진입한 경우는 충족 시 실제 held 키들을 등록한다.
+   *
+   * 수명 폐포 (슬라이스6 P6): 등록은 UNPROCESSED에서만(markLongConsumed), 판독도
+   * UNPROCESSED 게이트 뒤에서만(isHeadlessConsumable). 정리는 UNPROCESSED를 벗어나는
+   * 모든 전이에서 — 활성화(BODY_ACTIVE), 슬라이드 완료 4종, termination(릴리즈 노트),
+   * 슬라이드 미리-떼기, AWAITING 타임아웃. UNPROCESSED로 되돌아가는 경로는 없다
+   * (재시작 = 새 엔진 인스턴스).
    */
   private readonly consumedLongKeys: Map<number, Set<string>> = new Map();
   /**
@@ -1233,6 +1239,9 @@ export class JudgmentEngine {
           // 릴리즈 없이 Good 윈도우 초과 → Miss 타임아웃 (이진 릴리즈 — RFD 0015 §3, late-Bad 폴딩)
           this.emitJudgment(i, JudgmentGrade.MISS, undefined, songTimeMs - noteEndTime);
           this.noteStates.set(i, NoteState.COMPLETE);
+          // 소비된 채 keyup 기아로 죽은 릴리즈 노트의 consume 표시 정리 (수명 폐포 — 유일하게
+          // 남아 있던 미정리 전이. UNPROCESSED 게이트가 판독을 막아 행동 영향은 없는 위생 정리)
+          this.consumedLongKeys.delete(i);
           this.breakCombo();
           // 타임아웃으로 죽은 롱을 잡고 있던 키의 놓기 keyup은 도장 없이 살아있는 이벤트로 남고,
           // 직후 노트 윈도우에 들어가면 그 노트를 살린다 (의도된 관대 — RFD 0015 §7-3).
