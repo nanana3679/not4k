@@ -1711,6 +1711,50 @@ describe("헤드 있는 롱노트는 헤드만 consume해 더블/직후 포인�
   });
 });
 
+describe("헤드 판정 캐시 경계 — ±1ms tolerance·레인·트릴 헤드 (슬라이스6 P4)", () => {
+  const lane: Lane = 1;
+
+  it("시작+1ms 포인트는 헤드로 인정(tolerance 포함) — keydown(1000)은 헤드 판정 Perfect로 가고 롱이 삼키지 않음", () => {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeSingleNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1001]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("시작+2ms 포인트는 헤드가 아님(tolerance 밖) — keydown(1000)은 헤드 없는 롱이 consume해 무판정", () => {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeSingleNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1002]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    // 헤드로 오인했다면 롱이 후보에서 빠져 포인트(delta -2 Perfect)가 떴을 것
+    expect(judgments).toHaveLength(0);
+  });
+
+  it("다른 레인(L2) 동시각 포인트는 헤드가 아님 — L1 keydown(1000)은 롱이 consume해 L1 직후 포인트(1100)로 안 샘", () => {
+    const lane2: Lane = 2;
+    const notes = [
+      makeLongNote(lane, beat(0, 1), beat(4, 1)), // L1 롱 1000~2000
+      makeSingleNote(lane2, beat(0, 1)), // L2 포인트 1000 (헤드 아님)
+      makeSingleNote(lane, beat(1, 1)), // L1 직후 포인트 1100
+    ];
+    const { engine, judgments } = setup(
+      notes,
+      new Map([[0, 1000], [1, 1000], [2, 1100]]),
+      new Map([[0, 2000]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    // 헤드로 오인해 롱이 빠지면 keydown이 L1 직후 포인트(delta -100 Good)로 샜을 것
+    expect(judgments).toHaveLength(0);
+  });
+
+  it("같은 레인 동시각 트릴 포인트는 헤드로 인정 — keydown(1000)은 트릴 판정 Perfect로 가고 롱이 삼키지 않음 (trillLong 구조 정합)", () => {
+    // 롱을 idx0에 앞세움 — 캐시가 트릴을 헤드로 못 보면 tie-break(인덱스 순)로 롱이 먼저 삼킨다
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeTrillNote(lane, beat(0, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, 1000], [1, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+});
+
 describe("헤드 없는 더블 롱노트 2키 consume (RFD 0006)", () => {
   const lane: Lane = 1;
 
