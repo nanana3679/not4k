@@ -196,9 +196,13 @@ export class TimelineRenderer {
   }
 
   private unsubscribeViewport: (() => void) | null = null;
+  private viewportDrawHandle: number | null = null;
+  private pendingViewportDraw: "scroll" | "full" | null = null;
 
   /**
-   * 뷰포트 변경 반영 — 구 set zoom/set snap/set scrollY 본문과 동일한 갱신 경로.
+   * 뷰포트 변경 반영 — 캐시(_zoom/_snap/_scrollY)는 동기로 갱신해 후속 yToTime 등이
+   * 즉시 새 좌표계를 쓰게 하고, **그리기는 rAF로 코얼레싱**한다: 한 프레임에 몰린
+   * 휠 틱 N개 → 렌더 1회. (구 useEffect 경유 시절 React 배칭이 하던 코얼레싱을 명시적으로 수행.)
    * zoom·snap은 전체 재렌더, scrollY는 임계값(뷰포트 30%) 기반 부분/전체 렌더.
    */
   private onViewportChanged(): void {
@@ -208,12 +212,23 @@ export class TimelineRenderer {
     this._zoom = viewport.zoom;
     this._snap = viewport.snapDivision;
     this._scrollY = viewport.scrollY;
+    if (!zoomOrSnapChanged && !scrollChanged) return;
 
-    if (zoomOrSnapChanged) {
-      this.render();
-      return;
-    }
-    if (scrollChanged) {
+    // 'full'은 'scroll'을 포함 — 에스컬레이션만 하고 다운그레이드하지 않는다.
+    this.pendingViewportDraw =
+      zoomOrSnapChanged || this.pendingViewportDraw === "full" ? "full" : "scroll";
+    if (this.viewportDrawHandle !== null) return;
+
+    this.viewportDrawHandle = requestAnimationFrame(() => {
+      this.viewportDrawHandle = null;
+      const mode = this.pendingViewportDraw;
+      this.pendingViewportDraw = null;
+      if (!this.initialized || mode === null) return;
+
+      if (mode === "full") {
+        this.render(); // render()가 updateScroll까지 수행한다
+        return;
+      }
       this.updateScroll();
       const threshold = this.options.height * 0.3;
       if (Math.abs(this._scrollY - this._lastRenderScrollY) > threshold) {
@@ -222,7 +237,7 @@ export class TimelineRenderer {
         this.minimapRenderer.updateViewport();
         this.app?.render();
       }
-    }
+    });
   }
 
   /**
@@ -990,6 +1005,10 @@ export class TimelineRenderer {
     if (!this.initialized) return;
     this.unsubscribeViewport?.();
     this.unsubscribeViewport = null;
+    if (this.viewportDrawHandle !== null) {
+      cancelAnimationFrame(this.viewportDrawHandle);
+      this.viewportDrawHandle = null;
+    }
     this.minimapRenderer.removeEvents();
     this.initialized = false;
 
