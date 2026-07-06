@@ -136,4 +136,18 @@ describe("timeline projection geometry", () => {
     expect(beatFloatToSnapBeat({ beatFloat: 1.38, snapDivision: 16 })).toEqual({ n: 24, d: 16 });
     expect(beatFloatToRawBeat({ beatFloat: 1.2344, resolution: 960 })).toEqual({ n: 1185, d: 960 });
   });
+
+  // 구 SnapZoomController.snapBeat 테이블 이식 (컨트롤러 폐기 — 스냅 수학의 단일 소유자는 이 함수)
+  it("snap=4에서 1박 단위, 중간값(0.5)은 올림 방향 박으로 스냅", () => {
+    expect(beatFloatToSnapBeat({ beatFloat: 0.9, snapDivision: 4 })).toEqual({ n: 4, d: 4 });
+    expect(beatFloatToSnapBeat({ beatFloat: 0.5, snapDivision: 4 })).toEqual({ n: 4, d: 4 });
+  });
+
+  it("snap=8에서 반박(0.5박) 단위로 스냅", () => {
+    expect(beatFloatToSnapBeat({ beatFloat: 0.7, snapDivision: 8 })).toEqual({ n: 4, d: 8 });
+  });
+
+  it("snap=1(온음표)에서 4박 단위로 스냅", () => {
+    expect(beatFloatToSnapBeat({ beatFloat: 5, snapDivision: 1 })).toEqual({ n: 4, d: 1 });
+  });
 });

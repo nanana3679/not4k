@@ -5,7 +5,6 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
-import { SnapZoomController } from './timeline/SnapZoomController';
 import { getWaveformPeaks } from './timeline/waveform';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
@@ -223,7 +222,6 @@ function ChartEditorPage() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-  const snapZoomRef = useRef<SnapZoomController | null>(null);
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
@@ -269,7 +267,6 @@ function ChartEditorPage() {
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
-  const setZoom = useEditorStore((s) => s.setZoom);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
@@ -288,7 +285,7 @@ function ChartEditorPage() {
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // 좌표 변환 / 히트테스트 훅
-  const coords = useCoordinateHelpers(rendererRef, snapZoomRef);
+  const coords = useCoordinateHelpers(rendererRef);
   const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestExtraNoteRef } = coords;
 
   // isTimeInBounds 헬퍼
@@ -305,16 +302,17 @@ function ChartEditorPage() {
   useEffect(() => { isTimeInBoundsRef.current = isTimeInBounds; }, [isTimeInBounds]);
 
   const handlePinchZoom = useCallback((previousDistance: number, currentDistance: number, centerCanvasY: number) => {
-    const snapZoom = snapZoomRef.current;
-    if (!snapZoom) return;
-
     const renderer = rendererRef.current;
+    // 앵커 시간은 줌 변경 "전" 좌표계로 계산해야 핀치 중심이 고정된다.
     const anchorTimeMs = renderer?.yToTime(centerCanvasY) ?? null;
-    const handled = snapZoom.handlePinchZoom(previousDistance, currentDistance);
-    if (!handled) return;
+    const zoomBefore = useEditorStore.getState().zoom;
+    useEditorStore.getState().zoomByPinch(previousDistance, currentDistance);
+    const zoomAfter = useEditorStore.getState().zoom;
+    if (zoomAfter === zoomBefore) return;
 
     if (renderer && anchorTimeMs !== null) {
-      renderer.zoom = snapZoom.zoom;
+      // 슬라이스 3(렌더러 구독)까지의 임시 브릿지 — 앵커 보정이 새 zoom 기준 timeToY를 요구한다.
+      renderer.zoom = zoomAfter;
       const newContentY = renderer.timeToY(anchorTimeMs);
       const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
       setScrollY(Math.max(0, Math.min(maxScroll, newContentY - centerCanvasY)));
@@ -396,7 +394,7 @@ function ChartEditorPage() {
 
   // 키보드 단축키 훅
   useEditorKeyboard(
-    playbackRef, selectModeRef, snapZoomRef, bpmMarkers,
+    playbackRef, selectModeRef, bpmMarkers,
     editingMarker, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
@@ -457,11 +455,6 @@ function ChartEditorPage() {
       renderer.scrollY = initScroll;
     });
 
-    const snapZoom = new SnapZoomController(
-      { onZoomChange: setZoom, onSnapChange: setSnapDivision },
-      { zoom, snapDivision }
-    );
-    snapZoomRef.current = snapZoom;
 
     const playback = new PlaybackController({
       onTimeUpdate: setCurrentTimeMs,
@@ -493,8 +486,7 @@ function ChartEditorPage() {
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
       getSnapStep: () => {
-        const sd = snapZoomRef.current?.snapDivision ?? 4;
-        return { n: 4, d: sd };
+        return { n: 4, d: useEditorStore.getState().snapDivision };
       },
       getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
       xToLane,
@@ -531,7 +523,6 @@ function ChartEditorPage() {
     return () => {
       mounted = false;
       renderer.dispose();
-      snapZoom.dispose();
       playback.dispose();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -634,10 +625,9 @@ function ChartEditorPage() {
     if (rendererRef.current) rendererRef.current.zoom = zoom;
   }, [zoom]);
 
-  // snapDivision → renderer + snapZoom
+  // snapDivision → renderer
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.snap = snapDivision;
-    if (snapZoomRef.current) snapZoomRef.current.snapDivision = snapDivision;
   }, [snapDivision]);
 
   // scrollY → renderer
@@ -684,20 +674,22 @@ function ChartEditorPage() {
   const handleWheelNative = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
-    if (e.ctrlKey && snapZoomRef.current) {
+    if (e.ctrlKey) {
       const renderer = rendererRef.current;
       const rect = canvasRef.current?.getBoundingClientRect();
       if (renderer && rect) {
         const cursorCanvasY = e.clientY - rect.top;
+        // 커서 아래 시간은 줌 변경 "전" 좌표계로 계산해야 커서 위치가 고정된다.
         const cursorTimeMs = renderer.yToTime(cursorCanvasY);
-        snapZoomRef.current.handleWheel(e);
-        renderer.zoom = snapZoomRef.current.zoom;
+        useEditorStore.getState().zoomByWheel(e.deltaY);
+        // 슬라이스 3(렌더러 구독)까지의 임시 브릿지 — 커서 고정 보정이 새 zoom 기준 timeToY를 요구한다.
+        renderer.zoom = useEditorStore.getState().zoom;
         const newContentY = renderer.timeToY(cursorTimeMs);
         const newScrollY = newContentY - cursorCanvasY;
         const maxScroll = Math.max(0, renderer.totalTimelineHeight - canvasSize.height);
         setScrollY(Math.max(0, Math.min(maxScroll, newScrollY)));
       } else {
-        snapZoomRef.current.handleWheel(e);
+        useEditorStore.getState().zoomByWheel(e.deltaY);
       }
       return;
     }
