@@ -1440,6 +1440,29 @@ describe("hold-only 길이 0 (슬라이드형) 판정", () => {
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("윈도우 내내 안 눌리고 +130에 처음 누르면 관측 프레임이 늦어도(+135) Miss — 윈도우 밖에서 시작한 홀드는 충족 아님", () => {
+    // 슬라이드 전이는 입력 이벤트 경계(pre-mutation)에서도 평가된다. 늦은 keydown은 자신이
+    // 홀드 상태를 바꾸기 전에 타임아웃이 먼저 닫아, 프레임이 밀려도 Perfect를 주장할 수 없다 (슬라이스6 P1).
+    const { engine, judgments } = slideSetup();
+    engine.update(noteTime);
+    engine.update(noteTime + 115); // 윈도우 내 마지막 프레임 — 안 눌림
+    engine.onLanePress(lane, noteTime + 130, "KeyA"); // 윈도우(+120) 밖 첫 홀드
+    engine.update(noteTime + 135); // 타임아웃 프레임이 홀드보다 늦게 도착
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("-10에 눌러 +10에 뗐으면 노트 시점에 held — 사이에 관측 프레임이 없어도 Perfect (release가 전이를 관측)", () => {
+    // 뗌 직전 홀드 상태로 전이를 평가하므로, noteTime을 걸친 짧은 홀드가 프레임 스톨로 유실되지 않는다 (슬라이스6 P1).
+    const { engine, judgments } = slideSetup();
+    engine.update(900);
+    engine.onLanePress(lane, noteTime - 10, "KeyA");
+    engine.onLaneRelease(lane, noteTime + 10, "KeyA"); // noteTime 관측 프레임 없이 뗌
+    engine.update(noteTime + 125);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
   it("Good 윈도우 밖(-150ms)에 떼면 통과로 인정되지 않아 Miss", () => {
     const { engine, judgments } = slideSetup();
     engine.onLanePress(lane, noteTime - 200, "KeyA");
@@ -1507,6 +1530,37 @@ describe("헤드 없는 슬라이드 keydown consume — 직후 포인트 보호
     const pointJ = judgments.find((j) => j.noteIndex === 1);
     expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
     expect(pointJ?.deltaMs).toBe(-100);
+  });
+
+  it("+120 keydown은 소비 윈도우 경계 포함이라 슬라이드가 consume — 포인트(delta +20 Perfect)로 안 샘", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.update(slideTime);
+    engine.onLanePress(lane, slideTime + 120, "KeyA"); // 정확히 +120 — [−Good,+Good] 경계 포함
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트로 안 샘
+    engine.update(slideTime + 125);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("+121 keydown은 소비 윈도우 밖 — 포인트 Perfect(+21)로 가고 슬라이드는 Miss (이중 크레딧 없음)", () => {
+    const { engine, judgments } = slideThenPointSetup();
+    engine.update(slideTime);
+    engine.update(slideTime + 115);
+    engine.onLanePress(lane, slideTime + 121, "KeyA"); // 소비 윈도우 밖 → 포인트가 가져감
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(pointJ?.deltaMs).toBe(21);
+    engine.update(slideTime + 125); // 홀드 중이지만 홀드 시작이 윈도우 밖 → 슬라이드 Miss
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("-120 keydown은 소비 윈도우 경계 포함이라 슬라이드가 consume — Bad 경계(-160)의 포인트(1040)로 안 샘", () => {
+    const notes = [makeSlideNote(lane, beat(0, 1)), makeSingleNote(lane, beat(1, 1))];
+    const { engine, judgments } = setup(notes, new Map([[0, slideTime], [1, 1040]]), new Map([[0, slideTime]]));
+    engine.update(870);
+    engine.onLanePress(lane, 880, "KeyA"); // 정확히 -120
+    expect(judgments.some((j) => j.noteIndex === 1)).toBe(false); // 포인트로 안 샘
+    engine.update(slideTime);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 
   it("a를 미리 눌러 held인데 윈도우 진입 후 update 프레임 없이 b(1000ms)를 쳐도 b는 포인트 early Good(-100) — held 충족은 keydown 시점 즉석 평가", () => {

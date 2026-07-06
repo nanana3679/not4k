@@ -265,6 +265,13 @@ export class JudgmentEngine {
     const holdState = this.laneHoldStates.get(lane);
     if (!holdState) return;
 
+    // 슬라이드(길이 0 hold-only) 전이를 이 입력의 직전 홀드 상태로 먼저 평가한다.
+    // 홀드 상태는 press/release 이벤트로만 바뀌므로, 매 이벤트 경계에서 pre-mutation
+    // 상태로 평가하면 프레임 독립이 된다: 윈도우를 걸쳐 지속된 홀드는 여기서 Perfect로
+    // 관측되고, 윈도우 밖(+Good 초과)에서 시작하는 이 keydown은 타임아웃이 먼저 닫아
+    // Perfect를 주장할 수 없다 (슬라이스6 P1 — 늦은 홀드 상향/이중 크레딧 차단).
+    this.checkLengthZeroHoldOnly(timestampMs);
+
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
     holdState.isHeld = true;
@@ -343,6 +350,11 @@ export class JudgmentEngine {
   onLaneRelease(lane: Lane, timestampMs: number, keyCode: string): void {
     const holdState = this.laneHoldStates.get(lane);
     if (!holdState) return;
+
+    // 슬라이드(길이 0 hold-only) 전이를 뗌 직전 홀드 상태로 먼저 평가한다 — noteTime을
+    // 걸쳐 홀드했는데 관측 프레임 전에 떼면 "held였던 사실"이 유실되어 Miss로 새는
+    // 하향을 막는다 (슬라이스6 P1 release 거울상, 프레임 독립).
+    this.checkLengthZeroHoldOnly(timestampMs);
 
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
@@ -1289,12 +1301,17 @@ export class JudgmentEngine {
   }
 
   /**
-   * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 호출
+   * 길이 0 hold-only(슬라이드) 판정 — 매 프레임 + 입력 이벤트 경계(pre-mutation)에서 호출
    *
    * 노트 시점 ±Good 윈도우 동안 해당 레인이 held이면 Perfect(connection 판정과 같은 Perfect/Miss 이분법).
    * - 노트 시점 도달 + held → 노트 시점에 Perfect (누르고 있는데 Good 경계에서 뜨는 어색함 방지)
    * - 노트 시점 + Good 윈도우 초과까지 held 없음 → Miss
    * 노트 시점 전 윈도우 내 미리-떼기는 onLaneRelease의 keyup 소비 매칭(consumeReleaseTarget)이 담당한다.
+   *
+   * 프레임 독립: onLanePress/onLaneRelease가 홀드 상태를 바꾸기 전에 이 함수를 이벤트
+   * 타임스탬프로 호출한다. 홀드 상태는 이벤트로만 바뀌므로 "이벤트 직전 상태 = 직전
+   * 이벤트부터 지속된 홀드"가 성립해, held-Perfect(타임아웃 분기보다 먼저 평가)와
+   * 타임아웃-Miss가 프레임 사정과 무관하게 스펙 윈도우대로 갈린다 (슬라이스6 P1).
    */
   private checkLengthZeroHoldOnly(songTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
