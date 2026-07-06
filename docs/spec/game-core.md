@@ -91,7 +91,7 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 
 ### keyup 소비 (약칭 R2 — 가장 이른 매칭)
 
-keydown 소비(R1)와 대칭으로, keyup도 **같은 레인의 가장 이른 release-대상**(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 매칭되어 **소비(consume)**된 뒤 사라진다(RFD 0015 2규칙). 판정은 이진 — 윈도우 내 keyup = Perfect. 소비된 keyup은 직후 release-대상으로 번지지 않고, keyup 수가 release-대상 수보다 적으면 남은 대상은 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성). **연결은 release 판정이 없어** keyup 소비 대상이 아니고 끝점 held-check에 위임된다. hold-only 완료·타임아웃 사망 후의 "놓기" keyup은 소비되지 않은 살아있는 이벤트로, 직후 노트 윈도우에 들어가면 그 노트를 살린다(의도된 관대 — RFD 0015 §7-3, 구 공릴리즈 도장 폐지). keyup의 종결 대상 유일성은 **한 레인 롱노트 겹침 불가** 불변에 의존한다(`note-system.md`·`src/game/CONTEXT.md`). **유지 충족은 lane-held 그대로**라 홀드 교대(키 교대)는 보존된다. 자세한 규칙·근거는 [RFD 0015](../rfd/0015-binary-release-judgment.md)를 참조한다.
+keydown 소비(R1)과 대칭으로, keyup도 **같은 레인의 가장 이른 release-대상**(종결 대기 끝점·슬라이드 미리-떼기·릴리즈 노트) 하나에 매칭되어 **소비(consume)**된 뒤 사라진다(RFD 0015 2규칙). 판정은 이진 — 윈도우 내 keyup = Perfect. 소비된 keyup은 직후 release-대상으로 번지지 않고, keyup 수가 release-대상 수보다 적으면 남은 대상은 타임아웃 Miss가 된다(이벤트 회계). keydown↔keyup 짝·주인 키는 추적하지 않는다(익명성). **연결은 release 판정이 없어** keyup 소비 대상이 아니고 끝점 held-check에 위임된다. hold-only 완료·타임아웃 사망 후의 "놓기" keyup은 소비되지 않은 살아있는 이벤트로, 직후 노트 윈도우에 들어가면 그 노트를 살린다(의도된 관대 — RFD 0015 §7-3, 구 공릴리즈 도장 폐지). keyup의 종결 대상 유일성은 **한 레인 롱노트 겹침 불가** 불변에 의존한다(`note-system.md`·`src/game/CONTEXT.md`). **유지 충족은 lane-held 그대로**라 홀드 교대(키 교대)는 보존된다. 자세한 규칙·근거는 [RFD 0015](../rfd/0015-binary-release-judgment.md)를 참조한다.
 
 ### 빈 레인 입력
 

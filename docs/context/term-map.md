@@ -12,6 +12,7 @@
    - a. 기존 용어가 있으면 그것 (엄검중약, 앵커, 가변 분할)
    - b. 전용 표기 심볼이 있으면 정의에 표기 명시 + 구어 이름 유지 (릴리즈탭=`-o`)
    - c. 둘 다 없으면(보면에 안 보이는 손동작) 짧은 한국어 이름 (홀드 이어잡기)
+4. **발명 + 코드는 있으나 식별자가 개념을 못 담는 경우** → 한국어 이름 유지 + 정의에 구현 식별자 명시, C에 배치 (2026-07-06 다중키 바인딩에서 확립 — `keyBindings`가 "다중" 의미를 못 담음)
 
 ## A. 영어 코드 식별자로 전환 (발명 + 코드 실재)
 
@@ -23,7 +24,7 @@
 | 유지 전용 롱노트(hold-only) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
 | 연결 판정 | `connection` | `isConnection`/`Connection` |
 | 종결 판정 | `termination` | `executeTerminationJudgment`/`terminationGrade` |
-| 인게임 구간 | `gameplayRange` | `gameplayRange` |
+| 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
@@ -35,11 +36,11 @@
 
 ## B. 기존 개념 — established 이름 유지
 
-레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 홀드 중 탭, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `laneHoldStates`/`checkLongNoteBodyHold`. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류).
+레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 홀드 중 탭, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류).
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
-## C. 코드 없는 발명 — 한국어 이름 + 정의에 표기법
+## C. 코드 없는(또는 코드명이 개념을 못 담는) 발명 — 한국어 이름 + 정의에 표기법
 
 | 용어 | 캐논(구어 이름) | 정의에 명시할 표기 |
 |---|---|---|
