@@ -507,6 +507,16 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
+### 차트 변이 게이트 (Chart Mutation Gate)
+
+에디터의 모든 차트 쓰기가 수렴하는 store `setChart`에 내장된 **층1(모델 불변) 검증**. `validateChart` 위반 차트는 거부되고(차트·히스토리 무변) 토스트로 사유를 알린다. 정상 편집 경로는 모드의 사전검증(사용자 경고 UX 층)에서 이미 걸리므로, 게이트 도달은 무검증 경로(삭제·토글 등)의 버그 신호다 — `console.error`가 개발 중 탐지기 역할을 한다.
+
+**배치 제약의 두 층**: 층1 = 모델 불변(`validateChart` — 어기면 판정 엔진 전제가 깨짐, 게이트가 강제), 층2 = 편집 배치 가드(`isCreatePlacementBlocked` — 시각 겹침 tolerance 등 UX 정책, 모드 소관). 층2 규칙을 게이트에 넣으면 레인 내 분리(`-o`) 같은 합법 배치까지 막게 되므로 섞지 않는다.
+
+**유일한 예외 통로 `loadChart`**: 레거시 위반 차트도 열어 수리를 허용한다(경고만 표시). 재저장은 저장 게이트(useFileOperations의 validateChart)가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다". undo/redo는 게이트를 거치지 않지만 히스토리에는 게이트 통과분만 쌓이므로 우회가 아니다.
+
+**구현**: `src/editor/stores/editorStore.ts`.
+
 ---
 
 ## 관련 문서
