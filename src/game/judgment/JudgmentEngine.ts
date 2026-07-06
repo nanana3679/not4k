@@ -305,7 +305,7 @@ export class JudgmentEngine {
     }
 
     // 해당 레인에서 가장 빠른 미처리 노트 찾기
-    const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs);
+    const targetNoteIndex = this.findEarliestUnprocessedNote(lane, timestampMs, keyCode);
 
     if (targetNoteIndex === null) {
       // Bad 윈도우 내에 노트가 없으면 무시
@@ -604,7 +604,7 @@ export class JudgmentEngine {
   /**
    * 해당 레인에서 timestampMs의 Bad 윈도우 내에 있는 가장 빠른 미처리 노트 찾기
    */
-  private findEarliestUnprocessedNote(lane: Lane, timestampMs: number): number | null {
+  private findEarliestUnprocessedNote(lane: Lane, timestampMs: number, keyCode: string): number | null {
     let earliestIndex: number | null = null;
     let earliestTime = Infinity;
 
@@ -615,7 +615,7 @@ export class JudgmentEngine {
       // 바디 노트(RangeNote)는 원칙적으로 입력 대상이 아니나, 헤드 없는 싱글 롱노트가
       // consume 종료 전이고 시작 시각 ±Good 윈도우 내이면 keydown consume 후보가 된다.
       if ("endBeat" in note) {
-        if (!this.isHeadlessConsumable(i, timestampMs)) continue;
+        if (!this.isHeadlessConsumable(i, timestampMs, keyCode)) continue;
       }
 
       const state = this.noteStates.get(i);
@@ -653,15 +653,24 @@ export class JudgmentEngine {
    * 해당 인덱스의 노트가 "헤드 없는 consume 가능 싱글 롱노트"인지.
    *
    * 조건: (1) 헤드 없음 캐시 true (NoteType.LONG 한정)
-   *       (2) 아직 consume 종료 안 됨 (UNPROCESSED + consumedLongKeys 미등록)
+   *       (2) 아직 consume 종료 안 됨 — 필요 키 수를 "consume한 키 ∪ 지금 홀드 중인 키(방금
+   *           눌린 키 제외)"로 keydown 도착 시점에 즉석 평가한다(RFD 0006 §3.1 "held로 충족하는
+   *           것 포함"). update 프레임에서 표시된 것만 보면 프레임 스톨/시작경계(noteTime 전
+   *           [-Good,0)의 미리 홀드)에서 이미 충족된 노트가 keydown을 삼킨다. 무상태 평가라
+   *           홀드를 일찍 떼면 그 키는 즉시 카운트에서 빠진다(케이스 표 6행 보존).
    *       (3) 시작 시각 ±Good 윈도우 내 (너무 이른/늦은 입력 consume 방지)
    */
-  private isHeadlessConsumable(noteIndex: number, timestampMs: number): boolean {
+  private isHeadlessConsumable(noteIndex: number, timestampMs: number, keyCode: string): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
-    // 필요 키 수(싱글 1 / 더블 2)를 이미 채웠으면 consume 종료 → 후보 아님
-    const consumed = this.consumedLongKeys.get(noteIndex)?.size ?? 0;
-    if (consumed >= this.requiredConsumeCount(noteIndex)) return false;
+    const filled = new Set(this.consumedLongKeys.get(noteIndex));
+    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    if (holdState) {
+      for (const held of holdState.heldKeys) {
+        if (held !== keyCode) filled.add(held);
+      }
+    }
+    if (filled.size >= this.requiredConsumeCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
     // consume 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].

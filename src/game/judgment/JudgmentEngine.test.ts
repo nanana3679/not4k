@@ -1509,6 +1509,24 @@ describe("헤드 없는 슬라이드 keydown consume — 직후 포인트 보호
     expect(pointJ?.deltaMs).toBe(-100);
   });
 
+  it("a를 미리 눌러 held인데 윈도우 진입 후 update 프레임 없이 b(1000ms)를 쳐도 b는 포인트 early Good(-100) — held 충족은 keydown 시점 즉석 평가", () => {
+    // held 충족 소비 표시(checkLengthZeroHoldOnly)는 update 프레임에서만 일어난다. 프레임 스톨로
+    // 윈도우 진입(880)~keydown 사이에 프레임이 없으면 이미 충족된 슬라이드가 b를 삼킨다
+    // (async keydown vs rAF update 클래스, 슬라이스6 P2). 충족은 keydown 도착 시점의
+    // 실제 홀드 상태로 즉석 평가되어야 프레임 독립이다.
+    const { engine, judgments } = slideThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 윈도우 밖 미리 누름 — held만
+    engine.update(870); // 마지막 프레임이 윈도우 진입(880) 직전 — 이후 프레임 스톨
+    engine.onLanePress(lane, slideTime, "KeyB"); // 프레임 없이 도착 — a held로 슬라이드는 충족 상태
+    engine.update(slideTime + 5);
+    engine.update(1300); // 포인트 윈도우 종료
+    const slideJ = judgments.find((j) => j.noteIndex === 0);
+    expect(slideJ?.grade).toBe(JudgmentGrade.PERFECT);
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-100);
+  });
+
   it("a를 슬라이드 윈도우 안에서 미리(980ms) 떼면 슬라이드는 뗀 시점에 Perfect, b는 포인트 정타 Perfect", () => {
     const { engine, judgments } = slideThenPointSetup();
     engine.onLanePress(lane, 900, "KeyA"); // 슬라이드 consume
@@ -1541,6 +1559,21 @@ describe("헤드 없는 길이>0 롱노트 consume — 직후 포인트 보호�
     engine.update(1100 + 170); // 포인트 윈도우 종료 (롱노트는 계속 held)
     const pointJ = judgments.find((j) => j.noteIndex === 1);
     expect(pointJ?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("a를 미리 홀드해 시작이 충족될 롱노트는 noteTime 전(990ms) b 입력을 삼키지 않고 포인트 early Good(-110)로 보낸다", () => {
+    // 길이>0 헤드없는 롱은 활성화(update, noteTime) 전까지 소비 후보로 남는데, 이미 레인을
+    // 홀드 중이면 필요 키 수(1)가 held로 충족된 상태다(RFD 0006 §3.1 "held로 충족하는 것 포함").
+    // 충족 평가가 없으면 990ms 탭은 삼켜지고 1010ms 탭은 통과하는 시작경계 비일관이 생긴다 (슬라이스6 P2).
+    const { engine, judgments } = headlessLongThenPointSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 미리 홀드 — 활성화 시 이 홀드가 시작을 충족(시작조건 P4)
+    engine.update(900); // 프레임 정상 순회 — 레이스가 아니라 규칙 부재임을 보인다
+    engine.update(980);
+    engine.onLanePress(lane, 990, "KeyB"); // noteTime 전 -10, 롱 소비 윈도우 내 + 포인트 윈도우 내(-110)
+    engine.update(1000); // 활성화 — a(+b) held로 시작 충족
+    const pointJ = judgments.find((j) => j.noteIndex === 1);
+    expect(pointJ?.grade).toBe(JudgmentGrade.GOOD);
+    expect(pointJ?.deltaMs).toBe(-110);
   });
 
   it("홀드 중(1500ms) 다른 키로 친 입력은 롱노트에 consume되지 않고 같은 시점 포인트로 간다", () => {
