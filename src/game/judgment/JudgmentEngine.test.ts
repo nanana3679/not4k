@@ -2327,6 +2327,43 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("keyup 1개(1995)가 롱 끝점(2000)·릴리즈 노트(2050) 두 윈도우에 겹치면 이른 롱만 종결 Perfect(판정 1회), 릴리즈 노트는 기아 Miss", () => {
+    // keyup 희소 시 생존 배분 = 소비 순서(가장 이른 대상 우선). 소비된 keyup은 update 폴백
+    // (lastReleaseTimeMs)으로 재지급되지 않는다 — 물리 keyup 1개 = 크레딧 ≤1 (슬라이스3 P2).
+    const { engine, judgments } = setup(
+      [Lng(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(5, 1))],
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 롱(-5) ∩ 릴리즈 노트(-55)
+    engine.update(2000);
+    engine.update(2180); // 릴리즈 노트 타임아웃(2050+120) 초과
+    const longJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(longJs).toHaveLength(1); // 폴백 무발화 — 판정 정확히 1회
+    expect(longJs[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("늦은 keyup 1개(2085)도 겹친 두 윈도우 중 이른 롱 끝점(+85)이 소비 — 릴리즈 노트(+35)는 기아 Miss", () => {
+    const { engine, judgments } = setup(
+      [Lng(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(5, 1))],
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // 끝점 도달, 유지 중 → 릴리즈 대기
+    engine.onLaneRelease(lane, 2085, "KeyA");
+    engine.update(2180);
+    const longJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(longJs).toHaveLength(1);
+    expect(longJs[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
   it("끝점 절벽: -120ms 뗌 = Perfect (윈도우 경계 포함)", () => {
     const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
     engine.onLanePress(lane, 1000, "KeyA");
