@@ -2327,6 +2327,30 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("hold-only 끝점 지나 +130까지 잡고 있다 뗌 — 관측 프레임이 늦어도 Perfect (떼는 타이밍 면제, 뗌 직전 상태로 확정)", () => {
+    // hold-only의 즉시 Perfect가 update 프레임 전용이면, 윈도우 밖 keyup(+130)은 소멸하고
+    // termination 폴백이 Miss를 낸다 (슬라이스3 P5 — 입력 이벤트 경계 판정으로 프레임 독립).
+    const { engine, judgments } = setup([holdOnly(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 이후 스톨
+    engine.onLaneRelease(lane, 2130, "KeyA"); // 끝점 윈도우 밖 keyup — hold-only엔 무관해야 함
+    engine.update(2140);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("hold-only 끝점 직후 프레임(+5) 관측 후 +130 뗌 — 즉시 Perfect (프레임 독립 대조군)", () => {
+    const { engine, judgments } = setup([holdOnly(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2005); // 끝점 도달 + held → 즉시 Perfect
+    engine.onLaneRelease(lane, 2130, "KeyA");
+    engine.update(2140);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
   it("keyup 1개(1995)가 롱 끝점(2000)·릴리즈 노트(2050) 두 윈도우에 겹치면 이른 롱만 종결 Perfect(판정 1회), 릴리즈 노트는 기아 Miss", () => {
     // keyup 희소 시 생존 배분 = 소비 순서(가장 이른 대상 우선). 소비된 keyup은 update 폴백
     // (lastReleaseTimeMs)으로 재지급되지 않는다 — 물리 keyup 1개 = 크레딧 ≤1 (슬라이스3 P2).

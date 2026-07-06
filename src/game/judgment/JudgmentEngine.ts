@@ -277,9 +277,9 @@ export class JudgmentEngine {
     // 관측되고, 윈도우 밖(+Good 초과)에서 시작하는 이 keydown은 타임아웃이 먼저 닫아
     // Perfect를 주장할 수 없다 (슬라이스6 P1 — 늦은 홀드 상향/이중 크레딧 차단).
     this.checkLengthZeroHoldOnly(timestampMs);
-    // 끝점이 지난 connection도 이 입력의 직전 상태로 먼저 판정 — 유예 밖 뗌 후 늦은
-    // 재잡기(이 keydown)가 connection을 부활시키지 못한다 (슬라이스3 P4).
-    this.evalConnectionEndpoints(timestampMs);
+    // 끝점이 지난 connection·hold-only도 이 입력의 직전 상태로 먼저 판정 — 유예 밖 뗌 후
+    // 늦은 재잡기(이 keydown)가 connection을 부활시키지 못한다 (슬라이스3 P4·P5).
+    this.evalEndpointsOnInputBoundary(timestampMs);
 
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
@@ -364,9 +364,9 @@ export class JudgmentEngine {
     // 걸쳐 홀드했는데 관측 프레임 전에 떼면 "held였던 사실"이 유실되어 Miss로 새는
     // 하향을 막는다 (슬라이스6 P1 release 거울상, 프레임 독립).
     this.checkLengthZeroHoldOnly(timestampMs);
-    // 끝점을 걸쳐 홀드하다 떼는 경우, 뗌 직전 상태(held)로 connection을 먼저 판정 —
-    // 관측 프레임 전에 떼도 Perfect가 유실되지 않는다 (슬라이스3 P4).
-    this.evalConnectionEndpoints(timestampMs);
+    // 끝점을 걸쳐 홀드하다 떼는 경우, 뗌 직전 상태(held)로 connection·hold-only를 먼저
+    // 판정 — 관측 프레임 전에 떼도 Perfect가 유실되지 않는다 (슬라이스3 P4·P5).
+    this.evalEndpointsOnInputBoundary(timestampMs);
 
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
@@ -1332,18 +1332,33 @@ export class JudgmentEngine {
     // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
   }
 
-  /** 끝점이 지난 connection 롱을 입력 이벤트 경계에서 판정 (홀드 상태 변경 전 호출 — 프레임 독립) */
-  private evalConnectionEndpoints(evalTimeMs: number): void {
+  /**
+   * 끝점이 지난 BODY_ACTIVE 롱의 입력 이벤트 경계 판정 (홀드 상태 변경 전 호출 — 프레임 독립).
+   *
+   * connection(슬라이스3 P4)과 hold-only 즉시 Perfect(슬라이스3 P5)는 끝점 판정이 update
+   * 프레임에서만 관측되면 끝점~프레임 사이의 홀드 변화가 결과를 왜곡한다. 이벤트 직전
+   * 상태로 먼저 판정해 "이벤트 직전 상태 = 직전 이벤트부터 지속된 홀드" 불변을 쓴다.
+   */
+  private evalEndpointsOnInputBoundary(evalTimeMs: number): void {
     for (let i = 0; i < this.notes.length; i++) {
       if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
-      if (!this.connectionSources.has(i)) continue;
       const note = this.notes[i];
       if (note.type === NoteType.DOUBLE_LONG) continue; // 더블롱 끝점은 키별 경로 전담
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined || evalTimeMs < noteEndTime) continue;
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) continue;
-      this.judgeConnectionEndpoint(i, noteEndTime, holdState);
+      if (this.connectionSources.has(i)) {
+        this.judgeConnectionEndpoint(i, noteEndTime, holdState);
+      } else if (isHoldOnlyNote(note) && holdState.isHeld) {
+        // hold-only: 끝점 도달 시 유지 중이면 즉시 Perfect (떼는 타이밍 면제). update 프레임
+        // 전용 관측이면 끝점 지나 잡고 있다가 윈도우 밖에서 뗄 때 keyup은 소멸하고 termination
+        // 폴백이 Miss를 낸다 — 뗌 직전 상태(held)로 여기서 먼저 확정한다 (슬라이스3 P5).
+        // 미유지(직전 상태)면 판정하지 않는다 — 미리-떼기 keyup 소비/termination 폴백 전담.
+        this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
+        this.noteStates.set(i, NoteState.COMPLETE);
+        this.incrementCombo();
+      }
     }
   }
 
