@@ -277,6 +277,9 @@ export class JudgmentEngine {
     // 관측되고, 윈도우 밖(+Good 초과)에서 시작하는 이 keydown은 타임아웃이 먼저 닫아
     // Perfect를 주장할 수 없다 (슬라이스6 P1 — 늦은 홀드 상향/이중 크레딧 차단).
     this.checkLengthZeroHoldOnly(timestampMs);
+    // 끝점이 지난 connection·hold-only도 이 입력의 직전 상태로 먼저 판정 — 유예 밖 뗌 후
+    // 늦은 재잡기(이 keydown)가 connection을 부활시키지 못한다 (슬라이스3 P4·P5).
+    this.evalEndpointsOnInputBoundary(timestampMs);
 
     // 홀드 상태 업데이트
     holdState.heldKeys.add(keyCode);
@@ -361,6 +364,9 @@ export class JudgmentEngine {
     // 걸쳐 홀드했는데 관측 프레임 전에 떼면 "held였던 사실"이 유실되어 Miss로 새는
     // 하향을 막는다 (슬라이스6 P1 release 거울상, 프레임 독립).
     this.checkLengthZeroHoldOnly(timestampMs);
+    // 끝점을 걸쳐 홀드하다 떼는 경우, 뗌 직전 상태(held)로 connection·hold-only를 먼저
+    // 판정 — 관측 프레임 전에 떼도 Perfect가 유실되지 않는다 (슬라이스3 P4·P5).
+    this.evalEndpointsOnInputBoundary(timestampMs);
 
     // 특정 키만 제거
     holdState.heldKeys.delete(keyCode);
@@ -1052,7 +1058,8 @@ export class JudgmentEngine {
   /**
    * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
    * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
-   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
+   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss
+   * (유예는 끝점 기준 — 연결 더블롱은 입력 이벤트 경계에서도 호출된다, 슬라이스3 P4 참조).
    * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
    */
   private judgeDoubleLongEndpoint(
@@ -1087,10 +1094,12 @@ export class JudgmentEngine {
       const held = holdState.heldKeys.has(keyState.keyCode);
 
       if (isConnection) {
-        // 연결: 키별 held/grace → Perfect, 아님 → Miss
+        // 연결: 키별 held/grace → Perfect, 아님 → Miss.
+        // 유예는 끝점 기준(싱글 connection과 동일 — 슬라이스3 P4)이다. 프레임 시각으로 재면
+        // 관측이 밀릴수록 유예가 증발하고, 끝점 걸친 홀드의 뗌(음수 delta)도 유실된다.
         const grace =
           keyState.lastReleaseTimeMs !== null &&
-          songTimeMs - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
+          noteEndTime - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
         this.judgeDoubleLongKey(
           noteIndex,
           dl,
@@ -1264,24 +1273,9 @@ export class JudgmentEngine {
         continue;
       }
 
-      const isConnection = this.connectionSources.has(i);
-      const isHeldOrGrace =
-        holdState.isHeld ||
-        (holdState.lastReleaseTimeMs !== null &&
-          songTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
-
-      if (isConnection) {
-        // connection 판정: 홀드 중(또는 grace 이내) → Perfect, 아님 → Miss
-        const grade = isHeldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
-        this.emitJudgment(i, grade, undefined, 0);
-        this.noteStates.set(i, NoteState.COMPLETE);
-
-        if (this.isComboMaintaining(grade)) {
-          this.incrementCombo();
-        } else {
-          this.breakCombo();
-        }
-        // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
+      if (this.connectionSources.has(i)) {
+        // connection 판정: 홀드 중(또는 끝점 기준 grace 이내) → Perfect, 아님 → Miss
+        this.judgeConnectionEndpoint(i, noteEndTime, holdState);
       } else {
         // termination 판정
         if (holdState.isHeld) {
@@ -1306,6 +1300,75 @@ export class JudgmentEngine {
           this.noteStates.set(i, NoteState.COMPLETE);
           this.breakCombo();
         }
+      }
+    }
+  }
+
+  /**
+   * connection 판정 실행 — 끝점 기준 held-or-grace (프레임 독립, 슬라이스3 P4).
+   *
+   * 스펙 §76: 유예(12ms)는 "끝점 시점에 떼어진 지 얼마나 됐나"의 시간 정의다 — 프레임
+   * 시각으로 재면 관측이 밀릴수록 유예가 증발한다(끝점 기준으로 잰다). isHeld는 "끝점 이후
+   * 첫 평가 시점의 홀드"인데, 입력 이벤트 경계(pre-mutation)에서도 평가하므로 끝점~프레임
+   * 사이에 홀드를 바꾸는 이벤트가 있으면 그 이벤트의 직전 상태가 먼저 판정한다 — 끝점을
+   * 걸친 홀드는 뗌 이벤트가 Perfect로 관측하고, 유예 밖 뗌 후 늦은 재잡기는 재잡기 keydown이
+   * 직전 상태(미유지)로 Miss를 먼저 확정해 connection을 부활시키지 못한다.
+   */
+  private judgeConnectionEndpoint(
+    noteIndex: number,
+    noteEndTimeMs: number,
+    holdState: LaneHoldState,
+  ): void {
+    const heldOrGrace =
+      holdState.isHeld ||
+      (holdState.lastReleaseTimeMs !== null &&
+        noteEndTimeMs - holdState.lastReleaseTimeMs <= GRACE_PERIOD_MS);
+    const grade = heldOrGrace ? JudgmentGrade.PERFECT : JudgmentGrade.MISS;
+    this.emitJudgment(noteIndex, grade, undefined, 0);
+    this.noteStates.set(noteIndex, NoteState.COMPLETE);
+
+    if (this.isComboMaintaining(grade)) {
+      this.incrementCombo();
+    } else {
+      this.breakCombo();
+    }
+    // 연결은 "계속 잡는 것"이라 release 판정·keyup 소비가 없다 (keyup 소비 대상 아님 — RFD 0015).
+  }
+
+  /**
+   * 끝점이 지난 BODY_ACTIVE 롱의 입력 이벤트 경계 판정 (홀드 상태 변경 전 호출 — 프레임 독립).
+   *
+   * connection(슬라이스3 P4)과 hold-only 즉시 Perfect(슬라이스3 P5)는 끝점 판정이 update
+   * 프레임에서만 관측되면 끝점~프레임 사이의 홀드 변화가 결과를 왜곡한다. 이벤트 직전
+   * 상태로 먼저 판정해 "이벤트 직전 상태 = 직전 이벤트부터 지속된 홀드" 불변을 쓴다.
+   */
+  private evalEndpointsOnInputBoundary(evalTimeMs: number): void {
+    for (let i = 0; i < this.notes.length; i++) {
+      if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
+      const note = this.notes[i];
+      const noteEndTime = this.noteEndTimesMs.get(i);
+      if (noteEndTime === undefined || evalTimeMs < noteEndTime) continue;
+      const holdState = this.laneHoldStates.get(note.lane);
+      if (!holdState) continue;
+      if (note.type === NoteType.DOUBLE_LONG) {
+        // 연결 더블롱만 이벤트 경계 판정 — 유예 밖 뗌 후 같은 키 재잡기가 지연 프레임의
+        // held로 부활하는 것을 직전 상태 판정으로 차단한다. 일반/hold-only 더블롱 끝점은
+        // 키별 keyup 소비·update 경로가 전담(프레임 무관 요소는 해당 경로가 보장).
+        if (this.connectionSources.has(i)) {
+          this.judgeDoubleLongEndpoint(i, note as RangeNote, evalTimeMs, noteEndTime, holdState);
+        }
+        continue;
+      }
+      if (this.connectionSources.has(i)) {
+        this.judgeConnectionEndpoint(i, noteEndTime, holdState);
+      } else if (isHoldOnlyNote(note) && holdState.isHeld) {
+        // hold-only: 끝점 도달 시 유지 중이면 즉시 Perfect (떼는 타이밍 면제). update 프레임
+        // 전용 관측이면 끝점 지나 잡고 있다가 윈도우 밖에서 뗄 때 keyup은 소멸하고 termination
+        // 폴백이 Miss를 낸다 — 뗌 직전 상태(held)로 여기서 먼저 확정한다 (슬라이스3 P5).
+        // 미유지(직전 상태)면 판정하지 않는다 — 미리-떼기 keyup 소비/termination 폴백 전담.
+        this.emitJudgment(i, JudgmentGrade.PERFECT, undefined, 0);
+        this.noteStates.set(i, NoteState.COMPLETE);
+        this.incrementCombo();
       }
     }
   }

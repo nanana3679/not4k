@@ -2327,6 +2327,112 @@ describe("이진 릴리즈 §9 회귀 — 종결 Perfect/Miss 이원화, late-Ba
     expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
   });
 
+  it("정확히 +120 프레임에선 타임아웃이 안 나고('>' 배제), +120 keyup은 윈도우 포함('≤')으로 Perfect — late 경계 양면", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // AWAITING (held)
+    engine.update(2120); // 경계 프레임 — 타임아웃 미발화
+    expect(judgments).toHaveLength(0);
+    engine.onLaneRelease(lane, 2120, "KeyA"); // 경계 keyup — 포함
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("+121 프레임에 타임아웃 Miss, 그 뒤 keyup(+125)은 죽은 노트에 무매칭 소멸 — 판정 1회뿐", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000);
+    engine.update(2121); // 첫 초과 시점
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+    engine.onLaneRelease(lane, 2125, "KeyA");
+    expect(judgments).toHaveLength(1);
+  });
+
+  it("끝점 후 keyup(+50)이 AWAITING 전환 프레임보다 먼저 도착해도 termination Perfect (BODY_ACTIVE 수용 — 프레임 독립)", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 전환 없음(스톨)
+    engine.onLaneRelease(lane, 2050, "KeyA"); // BODY_ACTIVE 상태의 윈도우 내 keyup
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 전 프레임 후 2500까지 스톨하고 안 뗌 — 늦은 AWAITING 전환에도 타임아웃 Miss 정확히 1회", () => {
+    const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.update(2500); // held → AWAITING 전환이 여기서야 일어남
+    engine.update(2510); // 타임아웃
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("hold-only 끝점 지나 +130까지 잡고 있다 뗌 — 관측 프레임이 늦어도 Perfect (떼는 타이밍 면제, 뗌 직전 상태로 확정)", () => {
+    // hold-only의 즉시 Perfect가 update 프레임 전용이면, 윈도우 밖 keyup(+130)은 소멸하고
+    // termination 폴백이 Miss를 낸다 (슬라이스3 P5 — 입력 이벤트 경계 판정으로 프레임 독립).
+    const { engine, judgments } = setup([holdOnly(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 이후 스톨
+    engine.onLaneRelease(lane, 2130, "KeyA"); // 끝점 윈도우 밖 keyup — hold-only엔 무관해야 함
+    engine.update(2140);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("hold-only 끝점 직후 프레임(+5) 관측 후 +130 뗌 — 즉시 Perfect (프레임 독립 대조군)", () => {
+    const { engine, judgments } = setup([holdOnly(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2005); // 끝점 도달 + held → 즉시 Perfect
+    engine.onLaneRelease(lane, 2130, "KeyA");
+    engine.update(2140);
+    expect(judgments).toHaveLength(1);
+    expect(judgments[0].grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("keyup 1개(1995)가 롱 끝점(2000)·릴리즈 노트(2050) 두 윈도우에 겹치면 이른 롱만 종결 Perfect(판정 1회), 릴리즈 노트는 기아 Miss", () => {
+    // keyup 희소 시 생존 배분 = 소비 순서(가장 이른 대상 우선). 소비된 keyup은 update 폴백
+    // (lastReleaseTimeMs)으로 재지급되지 않는다 — 물리 keyup 1개 = 크레딧 ≤1 (슬라이스3 P2).
+    const { engine, judgments } = setup(
+      [Lng(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(5, 1))],
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 롱(-5) ∩ 릴리즈 노트(-55)
+    engine.update(2000);
+    engine.update(2180); // 릴리즈 노트 타임아웃(2050+120) 초과
+    const longJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(longJs).toHaveLength(1); // 폴백 무발화 — 판정 정확히 1회
+    expect(longJs[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("늦은 keyup 1개(2085)도 겹친 두 윈도우 중 이른 롱 끝점(+85)이 소비 — 릴리즈 노트(+35)는 기아 Miss", () => {
+    const { engine, judgments } = setup(
+      [Lng(beat(0, 1), beat(4, 1)), Lng(beat(5, 1), beat(5, 1))],
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(2000); // 끝점 도달, 유지 중 → 릴리즈 대기
+    engine.onLaneRelease(lane, 2085, "KeyA");
+    engine.update(2180);
+    const longJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(longJs).toHaveLength(1);
+    expect(longJs[0].grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
   it("끝점 절벽: -120ms 뗌 = Perfect (윈도우 경계 포함)", () => {
     const { engine, judgments } = setup([Lng(beat(0, 1), beat(4, 1))], new Map([[0, 1000]]), new Map([[0, 2000]]));
     engine.onLanePress(lane, 1000, "KeyA");
@@ -2628,6 +2734,154 @@ describe("분할 릴리즈 D=- : 헤드 더블 + 바디 doubleLong 합성 = 총 
     expect(body.length).toBe(2); // 바디 더블롱: 키별 종결 × 2
     expect(judgments.length).toBe(4); // 총 4판정 (스펙 §분할 릴리즈)
     expect([...head, ...body].every((j) => j.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+});
+
+describe("connection 끝점 held-or-grace — 프레임 독립 (슬라이스3 P4, 스펙 §76 유예는 끝점 기준)", () => {
+  const lane: Lane = 1;
+
+  /** 연결: L1[1000,2000] → L2[2000,3000] (같은 레인, 끝=시작) */
+  function connectionSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(4, 1)), makeLongNote(lane, beat(4, 1), beat(8, 1))];
+    return setup(notes, new Map([[0, 1000], [1, 2000]]), new Map([[0, 2000], [1, 3000]]));
+  }
+
+  it("끝점까지 홀드하고 +3에 뗌 — 관측 프레임이 +130에 와도 connection Perfect (뗌 직전 상태가 판정)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 마지막 프레임이 끝점 전 — 이후 스톨
+    engine.onLaneRelease(lane, 2003, "KeyA"); // connection은 keyup 소비 제외라 이 경로만이 구제
+    engine.update(2130);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -5ms에 뗌(유예 12ms 이내) — 프레임이 +130에 와도 Perfect (유예는 프레임 시각이 아닌 끝점 기준)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 기준 -5 ≤ 12
+    engine.update(2130); // 프레임 기준이면 135 > 12로 Miss였던 지점
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -5ms 뗌 + 프레임 +10 — Perfect (프레임이 제때 와도 동일 결과, 프레임 독립 대조군)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990);
+    engine.onLaneRelease(lane, 1995, "KeyA");
+    engine.update(2005);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
+
+  it("끝점 -100ms에 떼고(유예 밖) +50에 재잡기 — 프레임이 늦어도 connection Miss (재잡기 keydown이 직전 상태로 먼저 판정, 부활 금지)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA"); // -100 > 유예 12 → 연결 실패가 진실
+    engine.onLanePress(lane, 2050, "KeyB"); // 재잡기 — L2 시작 윈도우 내(구제는 L2만)
+    engine.update(2060); // 끝점 후 첫 프레임이 재잡기 뒤
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  it("끝점 -100ms 뗌 + 프레임 +10(재잡기 전) — Miss (프레임 독립 대조군)", () => {
+    const { engine, judgments } = connectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA");
+    engine.update(2010);
+    engine.onLanePress(lane, 2050, "KeyB");
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
+  });
+
+  /** 연결 더블롱: D[1000,2000] → 롱 L2[2000,3000] (= → - 키 수 전환) — 유예도 끝점 기준·이벤트 경계 판정 */
+  function doubleConnectionSetup() {
+    const notes = [
+      makeDoubleLongNote(lane, beat(0, 1), beat(4, 1)),
+      makeLongNote(lane, beat(4, 1), beat(8, 1)),
+    ];
+    return setup(notes, new Map([[0, 1000], [1, 2000]]), new Map([[0, 2000], [1, 3000]]));
+  }
+
+  it("연결 더블롱 한 키를 끝점 -5(유예 내)에 뗌 — 프레임이 +130에 와도 그 키 Perfect (키별 유예도 끝점 기준)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 기준 -5 ≤ 유예 12
+    engine.update(2130); // 프레임 기준이면 135 > 12로 Miss였던 지점
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(2); // A(유예)·B(held)
+  });
+
+  it("연결 더블롱 한 키를 끝점 지나 +3에 뗌 — 프레임이 +130에 와도 그 키 Perfect (끝점 걸친 홀드 유실 없음)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨
+    engine.onLaneRelease(lane, 2003, "KeyA");
+    engine.update(2130);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(2);
+  });
+
+  it("연결 더블롱 한 키를 끝점 -100(유예 밖)에 떼고 다른 키(KeyC)를 +50에 재잡기 — 그 키는 Miss (per-key 추적이 교차 부활 차단)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA"); // -100 > 유예 12 → 그 키 연결 실패
+    engine.onLanePress(lane, 2050, "KeyC");
+    engine.update(2060);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(1);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(1);
+  });
+
+  it("연결 더블롱 한 키를 끝점 -100(유예 밖)에 떼고 같은 키를 +50에 재잡기 — 프레임이 늦어도 그 키는 Miss (재잡기 keydown이 직전 상태로 먼저 판정)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1890); // 이후 스톨
+    engine.onLaneRelease(lane, 1900, "KeyA");
+    engine.onLanePress(lane, 2050, "KeyA"); // 같은 키 재잡기 — dl 추적 키와 일치, held 부활 위험 지점
+    engine.update(2060);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(1);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(1);
+  });
+
+  it("hold-only를 끝점 걸쳐 잡다 윈도우 내(+50) 뗌 — 스톨이어도 hold-only Perfect + 놓기 keyup은 겹친 릴리즈 노트(2050) Perfect (놓기의 관대, RFD 0015 §7-3)", () => {
+    // hold-only의 Perfect는 홀드로 획득(뗌 직전 상태 확정)되고 keyup은 자유로운 익명 이벤트로
+    // 남아 후속 release-대상에 소비된다 — 프레임 정상과 스톨의 결과가 일치한다 (리뷰 Minor-2 세만틱 잠금).
+    const notes = [
+      { type: NoteType.LONG, lane, beat: beat(0, 1), endBeat: beat(4, 1), holdOnly: true } as NoteEntity,
+      makeLongNote(lane, beat(5, 1), beat(5, 1)), // 릴리즈 노트 2050
+    ];
+    const { engine, judgments } = setup(
+      notes,
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨 — 즉시 Perfect 프레임 관측 없음
+    engine.onLaneRelease(lane, 2050, "KeyA"); // hold-only는 직전 상태(held)로 Perfect, keyup은 릴리즈 노트로
+    engine.update(2180);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
   });
 });
 
