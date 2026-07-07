@@ -544,3 +544,52 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
     expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
   });
 });
+
+describe("GameNoteRenderer 더블롱 부분 실패 양쪽 → 완전 실패 승격", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000, NOTE_HEIGHT=20. 노트 300~500ms, song=400 → body 렌더됨.
+  function setup() {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer, skinManager, 500, 1000, 0, 600,
+    );
+    return { renderer, skinManager };
+  }
+  function texKeys(skinManager: SkinManager): string[] {
+    return (skinManager.getTexture as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls.map((c) => c[0] as string);
+  }
+  const doubleLong = () =>
+    ({ type: "doubleLong", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+
+  it("한쪽만 부분 실패(left)면 bodyDoublePartialFailedLeft", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialFailedLeft");
+  });
+
+  it("양쪽 다 부분 실패(left 후 right)면 완전 실패 bodyDoubleFailed로 승격 — 반대쪽 partial로 안 덮임", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'right' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    const keys = texKeys(skinManager);
+    expect(keys).toContain("bodyDoubleFailed");
+    expect(keys).not.toContain("bodyDoublePartialFailedRight");
+    expect(keys).not.toContain("bodyDoublePartialFailedLeft");
+  });
+
+  it("같은 쪽 부분 실패가 두 번 와도 완전 실패로 승격하지 않음", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    const keys = texKeys(skinManager);
+    expect(keys).toContain("bodyDoublePartialFailedLeft");
+    expect(keys).not.toContain("bodyDoubleFailed");
+  });
+});

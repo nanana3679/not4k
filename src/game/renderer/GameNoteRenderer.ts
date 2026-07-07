@@ -333,7 +333,16 @@ export class GameNoteRenderer {
     if (effect.body === 'failed') {
       this.failedBodies.add(noteIndex);
     } else if (effect.body) {
-      this.partialFailedBodies.set(noteIndex, effect.body.partialFailed);
+      const newSide = effect.body.partialFailed;
+      const existing = this.partialFailedBodies.get(noteIndex);
+      if (existing !== undefined && existing !== newSide) {
+        // 반대쪽까지 실패 = 더블롱 두 키 모두 실패 → 완전 실패(bodyDoubleFailed)로 승격.
+        // 그대로 두면 두 번째 partialFailed가 첫 번째를 덮어써 "반대 한쪽만 실패"로 오표시된다.
+        this.failedBodies.add(noteIndex);
+        this.partialFailedBodies.delete(noteIndex);
+      } else {
+        this.partialFailedBodies.set(noteIndex, newSide);
+      }
     }
 
     switch (effect.visibility) {
