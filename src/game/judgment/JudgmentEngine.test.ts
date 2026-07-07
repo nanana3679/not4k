@@ -1863,9 +1863,9 @@ describe("헤드 없는 롱노트 held 충족 카운트 조회 headlessHeldFill 
     expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 0, required: 1 });
   });
 
-  it("윈도우 내 keydown으로 소비된 키도 세어 싱글은 filled 1 / required 1 (충족)", () => {
+  it("키를 홀드 중이면 싱글은 filled 1 / required 1 (충족)", () => {
     const { engine } = headlessSingleSetup();
-    engine.onLanePress(lane, 1000, "KeyA"); // 윈도우 내 → consume, UNPROCESSED 유지
+    engine.onLanePress(lane, 1000, "KeyA"); // held (consume도 되지만 카운트는 live 홀드 기준)
     expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 1, required: 1 });
   });
 
@@ -1889,6 +1889,27 @@ describe("헤드 없는 롱노트 held 충족 카운트 조회 headlessHeldFill 
     expect(engine.headlessHeldFill(0, 900)).toEqual({ filled: 2, required: 2 }); // 900=윈도우 내
     engine.onLaneRelease(lane, 905, "KeyA"); // 떼면 held에서 빠져 즉시 감소
     expect(engine.headlessHeldFill(0, 905)).toEqual({ filled: 1, required: 2 });
+  });
+
+  it("윈도우 내에서 소비된 2키를 모두 떼면 filled 0 — 소비 이력이 남아도 꺼진다 (유령 held 회귀)", () => {
+    const { engine } = headlessDoubleSetup();
+    engine.onLanePress(lane, 990, "KeyA"); // 윈도우 내 → consume + held
+    engine.onLanePress(lane, 990, "KeyB"); // 윈도우 내 → consume + held (2/2)
+    expect(engine.headlessHeldFill(0, 990)).toEqual({ filled: 2, required: 2 });
+    engine.onLaneRelease(lane, 1000, "KeyA");
+    engine.onLaneRelease(lane, 1000, "KeyB"); // 둘 다 뗌 → live 홀드 0
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 0, required: 2 });
+  });
+
+  it("혼합(pre-hold A + 소비 B)에서 한쪽씩 다 떼면 2→1→0 — 소비된 B가 유령으로 안 남음 (사용자 보고)", () => {
+    const { engine } = headlessDoubleSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // pre-hold(미소비)
+    engine.onLanePress(lane, 990, "KeyB"); // 윈도우 내 소비 + held → 2/2
+    expect(engine.headlessHeldFill(0, 990)).toEqual({ filled: 2, required: 2 });
+    engine.onLaneRelease(lane, 995, "KeyA"); // 한쪽 뗌 → 1/2
+    expect(engine.headlessHeldFill(0, 995)).toEqual({ filled: 1, required: 2 });
+    engine.onLaneRelease(lane, 1000, "KeyB"); // 나머지도 뗌 → 0 (예전엔 소비된 B가 남아 1로 유령)
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 0, required: 2 });
   });
 
   it("시작 ±Good 윈도우 밖에서는 홀드 중이어도 null — 판정 소비 윈도우와 공유", () => {

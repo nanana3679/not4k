@@ -729,12 +729,15 @@ export class JudgmentEngine {
   /**
    * 헤드 없는 롱노트의 held 충족 카운트 조회 (렌더러 시각 피드백용 — 이슈 #85).
    *
-   * 반환: 조회 대상이면 `{ filled, required }`, 아니면 `null`. 조회 대상 조건은 판정 술어
-   * `isHeadlessConsumable`과 같다 — 헤드없음 캐시 + UNPROCESSED + 시작 ±Good 윈도우 내.
-   * 윈도우를 공유해야 "시각은 held라는데 판정은 소비 안 함"(시각·판정 불일치)이 안 생긴다.
-   * `filled`는 판정과 같은 `headlessFilledKeyCount`에서 나온다. 상태 질의라 keydown 평가와
-   * 달리 어떤 키도 제외하지 않는다(현재 홀드 전체를 센다). 무상태라 홀드를 떼면 즉시 줄고,
-   * BODY_ACTIVE 승격·소비 종료·윈도우 이탈 시 null이 되어 렌더러는 기하 held 경로로 넘어간다.
+   * 반환: 조회 대상이면 `{ filled, required }`, 아니면 `null`. 조회 대상(eligibility) 조건은
+   * 판정 술어 `isHeadlessConsumable`과 같다 — 헤드없음 캐시 + UNPROCESSED + 시작 ±Good 윈도우
+   * 내. 윈도우를 공유해야 "시각은 held라는데 판정 윈도우 밖"인 불일치가 안 생긴다.
+   *
+   * 단 `filled`는 판정과 달리 **현재 홀드 중인 키 수만** 센다(소비 이력 union 안 함). 판정의
+   * `consumedLongKeys`는 한 번 소비되면 떼도 안 빠지는 영속 집합이라(비동시 2키 소비 보호 목적),
+   * 그걸 시각에 쓰면 "두 키 다 뗐는데 소비된 키가 남아 부분 held로 켜져 있음" 유령이 생긴다.
+   * 시각 피드백은 "지금 홀드하고 있나"라 live 홀드만 세는 게 옳다 — 그래야 다 떼면 즉시 꺼진다.
+   * BODY_ACTIVE 승격·윈도우 이탈 시 null이 되어 렌더러는 기하 held 경로로 넘어간다.
    * @param timeMs 조회 시점(렌더러는 시각 시간을 넘긴다 — 그려지는 것과 동기)
    */
   headlessHeldFill(noteIndex: number, timeMs: number): { filled: number; required: number } | null {
@@ -744,8 +747,9 @@ export class JudgmentEngine {
     if (startTime === undefined) return null;
     const deltaMs = timeMs - startTime;
     if (deltaMs < -this.windows.GOOD || deltaMs > this.windows.GOOD) return null;
+    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
     return {
-      filled: this.headlessFilledKeyCount(noteIndex, null),
+      filled: holdState ? holdState.heldKeys.size : 0,
       required: this.requiredConsumeCount(noteIndex),
     };
   }
