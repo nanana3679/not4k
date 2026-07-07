@@ -29,7 +29,11 @@ export type EditingMarker =
   | null;
 
 const HISTORY_LIMIT = 100;
-const HISTORY_COALESCE_MS = 600;
+// 히스토리 병합 창 — 한 동작이 store를 연달아 두 번 쓰는 동사(붙여넣기·선택 삭제·레인 변환은
+// extraNotes와 chart를 각각 커밋)를 undo 한 단위로 묶기 위한 장치다. 동기 이중 쓰기(간격 ~1ms)만
+// 병합되고 사람의 연속 편집(아무리 빨라도 수백 ms)은 각각 undo 단위가 되도록 짧게 유지할 것.
+// (구 600ms는 빠른 연속 배치까지 묶어버렸다. 근본 해법은 원자 커밋 리팩터 — 백로그)
+const HISTORY_COALESCE_MS = 50;
 
 // 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)는 ViewportSlice가 단독 소유한다.
 // 선택 상태(selection)는 SelectionSlice가 단독 소유한다.

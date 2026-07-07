@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { Chart, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
@@ -47,6 +47,45 @@ describe('editorStore history', () => {
 
     useEditorStore.getState().redo();
     expect(useEditorStore.getState().chart.notes).toHaveLength(1);
+  });
+
+  it('한 동작의 동기 이중 쓰기(setExtraNotes→setChart)는 undo 한 단위로 병합된다', () => {
+    vi.useFakeTimers();
+    try {
+      useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
+      vi.advanceTimersByTime(1000);
+      // 붙여넣기류 동사는 extraNotes와 chart를 같은 틱에 연달아 커밋한다
+      useEditorStore.getState().setExtraNotes([{ type: 'single', extraLane: 1, beat: beat(0) }]);
+      useEditorStore.getState().setChart(makeChart([
+        { type: 'single', lane: 1 as Lane, beat: beat(1) },
+        { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      ]));
+
+      useEditorStore.getState().undo(); // 한 번의 undo로 동작 전체가 되돌아간다
+      expect(useEditorStore.getState().chart.notes).toHaveLength(1);
+      expect(useEditorStore.getState().extraNotes).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('간격 100ms의 연속 배치는 병합되지 않고 각각 undo 단위가 된다', () => {
+    vi.useFakeTimers();
+    try {
+      useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
+      vi.advanceTimersByTime(100);
+      useEditorStore.getState().setChart(makeChart([
+        { type: 'single', lane: 1 as Lane, beat: beat(1) },
+        { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      ]));
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().chart.notes).toHaveLength(1); // 두 번째 배치만 되돌아감
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().chart.notes).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('clears history when a chart load resets the baseline', () => {
