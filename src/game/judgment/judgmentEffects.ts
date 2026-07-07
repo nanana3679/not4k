@@ -39,12 +39,18 @@ export interface JudgmentEffects {
   bomb: Lane | null;
   /** 노트 시각 표시 상태 전이. */
   noteDisplay: NoteDisplayEffect;
-  /** 디버그 판정 기록 — 헤드/포인트 노트만(바디 제외). 화면 좌표 계산은 적용자 몫. */
+  /**
+   * 디버그 판정 기록 — 모든 판정(헤드/포인트 + 롱 바디 끝점: connection/termination)을 기록한다.
+   * `isBody`로 구분해 적용자가 화면 좌표를 끝점(바디) vs 시작점(헤드)으로 나눠 계산하고,
+   * DebugLogger가 캘리브레이션 통계(오프셋 등)를 헤드만으로 낸다(바디 connection은 deltaMs=0이라
+   * 타이밍 신호를 오염시킨다). 화면 좌표 계산은 적용자 몫.
+   */
   debug: {
     grade: JudgmentGrade;
     deltaMs: number;
     doubleSubIndex?: number;
-  } | null;
+    isBody: boolean;
+  };
 }
 
 /**
@@ -64,13 +70,12 @@ export function decideJudgmentEffects(result: JudgmentResult, note: NoteEntity):
     judgmentText: { grade: result.grade, deltaMs: result.deltaMs },
     bomb: isMiss ? null : note.lane,
     noteDisplay: noteDisplayEffect(result, note),
-    debug: isBody
-      ? null
-      : {
-          grade: result.grade,
-          deltaMs: result.deltaMs,
-          doubleSubIndex: isDouble ? result.subIndex : undefined,
-        },
+    debug: {
+      grade: result.grade,
+      deltaMs: result.deltaMs,
+      doubleSubIndex: isDouble ? result.subIndex : undefined,
+      isBody,
+    },
   };
 }
 

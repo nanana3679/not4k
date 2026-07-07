@@ -22,6 +22,8 @@ export interface DebugNoteEntry {
   deltaMs: number;
   /** 판정 등급 */
   grade: JudgmentGrade;
+  /** 롱 바디 끝점 판정(connection/termination) 여부 — 헤드/포인트는 false */
+  isBody: boolean;
   /** 현재 스크롤 속도 (px/s) */
   scrollSpeed: number;
   /** 프레임당 예상 노트 이동 거리 (scrollSpeed / 60, 60fps 기준) */
@@ -31,13 +33,19 @@ export interface DebugNoteEntry {
 }
 
 export interface DebugSummary {
+  /** 헤드/포인트 판정 수 (캘리브레이션 통계의 모집단) */
   totalNotes: number;
+  /** 롱 바디 끝점(connection/termination) 판정 수 */
+  bodyNotes: number;
   avgYDifference: number;
   avgAbsYDifference: number;
   avgDeltaMs: number;
   avgAbsDeltaMs: number;
   speedConsistency: number | null;
+  /** 헤드/포인트 등급 분포 */
   gradeDistribution: Record<string, number>;
+  /** 바디 끝점 등급 분포 (connection/termination — 홀드 트릴·릴리즈 검증용) */
+  bodyGradeDistribution: Record<string, number>;
 }
 
 export class DebugLogger {
@@ -69,6 +77,7 @@ export class DebugLogger {
     grade: JudgmentGrade,
     deltaMs: number,
     subIndex?: number,
+    isBody: boolean = false,
   ): void {
     const expectedDeltaPxPerFrame = this.scrollSpeed / 60;
 
@@ -85,6 +94,7 @@ export class DebugLogger {
       yDifference: noteCenterY - this.judgmentLineY,
       deltaMs,
       grade,
+      isBody,
       scrollSpeed: this.scrollSpeed,
       expectedDeltaPxPerFrame,
       actualDeltaPx,
@@ -98,16 +108,28 @@ export class DebugLogger {
   }
 
   getSummary(): DebugSummary {
-    const total = this.entries.length;
-    if (total === 0) {
+    // 캘리브레이션 통계(Y·deltaMs·속도·오프셋)는 헤드/포인트만으로 낸다 — 바디 connection은
+    // deltaMs=0(held 이분)이라 타이밍 편향을 희석한다. 바디 등급은 별도 분포로만 노출한다.
+    const heads = this.entries.filter((e) => !e.isBody);
+    const bodies = this.entries.filter((e) => e.isBody);
+
+    const gradeDistribution: Record<string, number> = {};
+    for (const e of heads) gradeDistribution[e.grade] = (gradeDistribution[e.grade] ?? 0) + 1;
+    const bodyGradeDistribution: Record<string, number> = {};
+    for (const e of bodies) bodyGradeDistribution[e.grade] = (bodyGradeDistribution[e.grade] ?? 0) + 1;
+
+    const headCount = heads.length;
+    if (headCount === 0) {
       return {
         totalNotes: 0,
+        bodyNotes: bodies.length,
         avgYDifference: 0,
         avgAbsYDifference: 0,
         avgDeltaMs: 0,
         avgAbsDeltaMs: 0,
         speedConsistency: null,
-        gradeDistribution: {},
+        gradeDistribution,
+        bodyGradeDistribution,
       };
     }
 
@@ -115,16 +137,13 @@ export class DebugLogger {
     let sumAbsY = 0;
     let sumDelta = 0;
     let sumAbsDelta = 0;
-    const gradeDistribution: Record<string, number> = {};
-
     const actualDeltas: number[] = [];
 
-    for (const e of this.entries) {
+    for (const e of heads) {
       sumY += e.yDifference;
       sumAbsY += Math.abs(e.yDifference);
       sumDelta += e.deltaMs;
       sumAbsDelta += Math.abs(e.deltaMs);
-      gradeDistribution[e.grade] = (gradeDistribution[e.grade] ?? 0) + 1;
       if (e.actualDeltaPx !== null) {
         actualDeltas.push(e.actualDeltaPx);
       }
@@ -139,13 +158,15 @@ export class DebugLogger {
     }
 
     return {
-      totalNotes: total,
-      avgYDifference: sumY / total,
-      avgAbsYDifference: sumAbsY / total,
-      avgDeltaMs: sumDelta / total,
-      avgAbsDeltaMs: sumAbsDelta / total,
+      totalNotes: headCount,
+      bodyNotes: bodies.length,
+      avgYDifference: sumY / headCount,
+      avgAbsYDifference: sumAbsY / headCount,
+      avgDeltaMs: sumDelta / headCount,
+      avgAbsDeltaMs: sumAbsDelta / headCount,
       speedConsistency,
       gradeDistribution,
+      bodyGradeDistribution,
     };
   }
 
@@ -156,8 +177,9 @@ export class DebugLogger {
 
     for (const e of this.entries) {
       const sub = e.subIndex !== undefined ? `[${e.subIndex}]` : '';
+      const kind = e.isBody ? ' BODY' : '';
       lines.push(
-        `[Note #${e.noteIndex}${sub}] grade=${e.grade} deltaMs=${e.deltaMs.toFixed(1)} ` +
+        `[Note #${e.noteIndex}${sub}${kind}] grade=${e.grade} deltaMs=${e.deltaMs.toFixed(1)} ` +
         `yDiff=${e.yDifference.toFixed(1)}px ` +
         `noteCenterY=${e.noteCenterY.toFixed(1)} judgmentLineY=${e.judgmentLineY.toFixed(1)} ` +
         `expectedPx/f=${e.expectedDeltaPxPerFrame.toFixed(2)} ` +
@@ -168,15 +190,18 @@ export class DebugLogger {
     lines.push('');
     lines.push('=== Summary ===');
     const s = this.getSummary();
-    lines.push(`Total notes: ${s.totalNotes}`);
+    lines.push(`Head/point notes: ${s.totalNotes}`);
     lines.push(`Avg Y difference: ${s.avgYDifference.toFixed(2)}px`);
     lines.push(`Avg |Y difference|: ${s.avgAbsYDifference.toFixed(2)}px`);
     lines.push(`Avg deltaMs: ${s.avgDeltaMs.toFixed(2)}ms`);
     lines.push(`Avg |deltaMs|: ${s.avgAbsDeltaMs.toFixed(2)}ms`);
     lines.push(`Speed consistency (stddev): ${s.speedConsistency !== null ? s.speedConsistency.toFixed(2) + 'px' : 'N/A'}`);
-    lines.push(`Grade distribution: ${JSON.stringify(s.gradeDistribution)}`);
+    lines.push(`Grade distribution (head/point): ${JSON.stringify(s.gradeDistribution)}`);
+    // 바디 끝점(connection/termination) — 홀드 트릴 체인·릴리즈 검증용
+    lines.push(`Body/endpoint notes: ${s.bodyNotes}`);
+    lines.push(`Grade distribution (body/endpoint): ${JSON.stringify(s.bodyGradeDistribution)}`);
 
-    // 오프셋 추천
+    // 오프셋 추천 (헤드/포인트 타이밍 기준)
     if (s.totalNotes > 0) {
       const recommended = -Math.round(s.avgDeltaMs);
       lines.push('');

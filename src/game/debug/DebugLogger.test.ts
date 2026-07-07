@@ -184,12 +184,57 @@ describe('DebugLogger', () => {
     expect(text).toContain('=== Summary ===');
     expect(text).toContain('Note #0');
     expect(text).toContain('grade=perfect');
-    expect(text).toContain('Total notes: 1');
+    expect(text).toContain('Head/point notes: 1');
   });
 
-  it('빈 로그에서 exportAsText는 Total notes: 0 포함', () => {
+  it('빈 로그에서 exportAsText는 Head/point notes: 0 포함', () => {
     const logger = new DebugLogger(800, 500);
     const text = logger.exportAsText();
-    expect(text).toContain('Total notes: 0');
+    expect(text).toContain('Head/point notes: 0');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 바디(끝점) 판정 기록 — connection/termination (홀드 트릴 체인·릴리즈 검증)
+  // ---------------------------------------------------------------------------
+
+  it('isBody=true로 기록하면 엔트리에 저장되고 bodyNotes로 집계된다', () => {
+    const logger = new DebugLogger(800, 500);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0); // 헤드
+    logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0, undefined, true); // 바디 끝점
+    expect(logger.getLog()[0].isBody).toBe(false);
+    expect(logger.getLog()[1].isBody).toBe(true);
+    const s = logger.getSummary();
+    expect(s.totalNotes).toBe(1); // 헤드만
+    expect(s.bodyNotes).toBe(1);
+  });
+
+  it('캘리브레이션 통계(avgDeltaMs·오프셋)는 헤드만으로 낸다 — 바디 deltaMs=0이 편향을 희석하지 않음', () => {
+    const logger = new DebugLogger(800, 500);
+    logger.recordJudgment(0, 500, JudgmentGrade.GREAT, -40); // 헤드 -40ms FAST
+    logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0, undefined, true); // 바디 connection deltaMs=0
+    const s = logger.getSummary();
+    expect(s.avgDeltaMs).toBe(-40); // 바디 0이 섞였다면 -20이 됐을 것
+    const text = logger.exportAsText();
+    expect(text).toContain('-40'); // 오프셋 추천이 헤드 편향 기준
+  });
+
+  it('바디 등급은 bodyGradeDistribution으로 분리 집계되고 head 분포엔 안 섞인다', () => {
+    const logger = new DebugLogger(800, 500);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0); // 헤드 perfect
+    logger.recordJudgment(1, 500, JudgmentGrade.PERFECT, 0, undefined, true); // 바디 perfect
+    logger.recordJudgment(2, 500, JudgmentGrade.MISS, 0, undefined, true); // 바디 miss (connection 끊김)
+    const s = logger.getSummary();
+    expect(s.gradeDistribution).toEqual({ perfect: 1 });
+    expect(s.bodyGradeDistribution).toEqual({ perfect: 1, miss: 1 });
+  });
+
+  it('exportAsText는 바디 엔트리에 BODY 표기 + Body 요약 라인을 포함한다', () => {
+    const logger = new DebugLogger(800, 500);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 0); // 헤드
+    logger.recordJudgment(1, 500, JudgmentGrade.MISS, 0, undefined, true); // 바디
+    const text = logger.exportAsText();
+    expect(text).toContain('Note #1 BODY');
+    expect(text).toContain('Body/endpoint notes: 1');
+    expect(text).toContain('Grade distribution (body/endpoint):');
   });
 });
