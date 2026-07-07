@@ -141,14 +141,12 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
   },
 ];
 
-/** 메트로놈 클릭 시각(ms) — 리드인 포함 차트 전 구간의 매 박. 리듬 레퍼런스용. */
+/** 메트로놈 클릭 시각(ms) — 리드인 포함 차트 전 구간의 매 박. 리듬 레퍼런스용 (BPM 고정). */
 export function metronomeClickTimesMs(chart: Chart): number[] {
-  const markers = extractBpmMarkers(chart.events);
   const endMs = chartEndMs(chart);
   const beatMs = 60000 / BPM;
   const out: number[] = [];
   for (let ms = 0; ms <= endMs; ms += beatMs) out.push(ms);
-  void markers;
   return out;
 }
 

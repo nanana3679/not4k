@@ -90,8 +90,9 @@ export default function JudgmentPlaytestPage() {
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>판정 실플레이 (DEV) — RFD 0015 §11 · §7-3</h1>
       <p style={{ color: "#999", marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
         Supabase·음원 없이 특정 판정 패턴을 반복 재생한다. 버튼을 누르면 스크립트 차트 + 메트로놈 클릭트랙으로
-        PlayScreen이 뜬다. <b>Debug Mode는 여기서 자동 ON</b> — 곡이 끝나면 <code>debug-log-*.txt</code>가 자동
-        다운로드된다(헤드/포인트 노트의 타이밍만 기록). connection 끝점 판정은 로그에 안 남으므로 <b>화면 판정·콤보로</b> 본다.
+        PlayScreen이 뜬다. <b>Debug Mode는 여기서 자동 ON</b>(이후에도 유지 — 일반 플레이로 돌아가려면 Settings에서 수동으로 끌 것).
+        곡이 끝나면 <code>debug-log-*.txt</code>가 자동 다운로드된다: 헤드/포인트 타이밍뿐 아니라 <b>롱 바디 끝점(connection/termination)도
+        <code>[Note #N BODY]</code>·<code>Grade distribution (body/endpoint)</code>로 기록</b>된다. 홀드 트릴 connection이 이어졌는지는 그 body/endpoint 분포로 본다.
         되돌아오려면 브라우저 뒤로가기 또는 <code>/lab/judgment-playtest</code>.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780 }}>
