@@ -559,10 +559,10 @@ export function EditorToolbar({
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
-  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
+  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const selectedNotes = useEditorStore((s) => s.selectedNotes);
-  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const selectedNotes = useEditorStore((s) => s.selection.notes);
+  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const historyPastCount = useEditorStore((s) => s.historyPast.length);
   const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
   const undo = useEditorStore((s) => s.undo);
@@ -754,7 +754,7 @@ export function EditorToolbar({
               {extraLaneOptions.map((value) => renderCompactOption(value, String(value), extraLaneCount === value, () => {
                 setExtraLaneCount(value);
                 if (value < extraLaneCount) {
-                  setSelectedExtraNotes(new Set());
+                  clearExtraSelection();
                 }
                 closePicker();
               }))}
@@ -1225,7 +1225,7 @@ export function EditorToolbar({
                   const newCount = parseInt(e.target.value);
                   setExtraLaneCount(newCount);
                   if (newCount < extraLaneCount) {
-                    setSelectedExtraNotes(new Set());
+                    clearExtraSelection();
                   }
                 }}
               >

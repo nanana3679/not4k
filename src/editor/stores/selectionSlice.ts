@@ -1,0 +1,149 @@
+/**
+ * 선택 슬라이스 — 에디터 선택 상태의 단독 소유자.
+ *
+ * 소유권 헌장: 선택(notes·extraNotes·zones)의 쓰기는 이 슬라이스의 액션으로만 한다.
+ * SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 사본이 남으면 소유자가
+ * 다시 둘이 된다(이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생
+ * 캐시라, undo 후 stale 선택이 "보이지 않는 이동"을 일으킬 수 있었다).
+ *
+ * 게이트 의미론: 차트 변이 게이트(setChart)가 위반을 **거부**하는 것과 달리,
+ * 이 게이트는 **정규화**한다 — 섞인 입력이 와도 가장 가까운 합법 값으로 접는다.
+ * 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서
+ * "거부"는 복구 동작이 없기 때문이다(기존 updateBoxSelection의 조용한 정리 정책 승계).
+ *
+ * 합법 상태(불변):
+ * - notes는 동질적이다 — 일반 노트들, 또는 같은 trillZone의 트릴 노트들만.
+ * - zones가 비어있지 않으면 구간 단위 선택 — notes는 구간에 **포함**된 노트로
+ *   파생되고(겹침 아님, selectZoneUnit 의미론), extraNotes는 빈 집합이다.
+ * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
+ */
+import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone } from '../../shared';
+import { beatToFloat } from '../../shared';
+import { filterHomogeneousSelection } from '../modes/trillZoneSelection';
+
+/** 에디터 선택 상태. 세 집합의 관계 불변은 normalizeSelection이 보장한다. */
+export interface Selection {
+  notes: Set<number>;
+  extraNotes: Set<number>;
+  zones: Set<number>;
+}
+
+export function emptySelection(): Selection {
+  return { notes: new Set(), extraNotes: new Set(), zones: new Set() };
+}
+
+/** 구간에 완전히 포함된(시작·끝 모두 구간 안) 노트 인덱스 — 구간 단위 선택의 파생 규칙. */
+export function zoneContainedNoteIndices(
+  notes: readonly NoteEntity[],
+  zone: TrillZone,
+): Set<number> {
+  const result = new Set<number>();
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    const endBeat = 'endBeat' in n ? n.endBeat : n.beat;
+    if (
+      n.lane === zone.lane &&
+      beatToFloat(n.beat) >= beatToFloat(zone.beat) &&
+      beatToFloat(endBeat) <= beatToFloat(zone.endBeat)
+    ) {
+      result.add(i);
+    }
+  }
+  return result;
+}
+
+function setEquals(a: ReadonlySet<number>, b: ReadonlySet<number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
+/** 세 집합이 모두 같은 원소인지. 변이 액션이 "변경 시에만" 선택을 갱신할 때 쓴다. */
+export function selectionEquals(a: Selection, b: Selection): boolean {
+  return (
+    setEquals(a.notes, b.notes) &&
+    setEquals(a.extraNotes, b.extraNotes) &&
+    setEquals(a.zones, b.zones)
+  );
+}
+
+function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> {
+  const result = new Set<number>();
+  for (const i of indices) {
+    if (i >= 0 && i < length) result.add(i);
+  }
+  return result;
+}
+
+/**
+ * 정규화 게이트 — 임의의 선택 입력을 합법 선택으로 접는다.
+ * 모든 쓰기 액션이 이 함수를 지나므로, 새 쓰기 경로도 자동으로 불변을 얻는다.
+ */
+export function normalizeSelection(
+  input: Selection,
+  chart: Pick<Chart, 'notes' | 'trillZones'>,
+  extraNotes: readonly ExtraNoteEntity[],
+): Selection {
+  const zones = pruneBounds(input.zones, chart.trillZones.length);
+
+  // 구간 단위 선택: notes는 파생, extra는 비운다 (selectZoneUnit 의미론 승계)
+  if (zones.size > 0) {
+    const notes = new Set<number>();
+    for (const zoneIndex of zones) {
+      for (const noteIndex of zoneContainedNoteIndices(chart.notes, chart.trillZones[zoneIndex])) {
+        notes.add(noteIndex);
+      }
+    }
+    return { notes, extraNotes: new Set(), zones };
+  }
+
+  // 노트 단위 선택: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다)
+  const { kept } = filterHomogeneousSelection(
+    chart.trillZones,
+    chart.notes,
+    pruneBounds(input.notes, chart.notes.length),
+  );
+  return {
+    notes: kept,
+    extraNotes: pruneBounds(input.extraNotes, extraNotes.length),
+    zones,
+  };
+}
+
+export interface SelectionSlice {
+  selection: Selection;
+  /** 전체 선택 값을 쓴다. 정규화 게이트를 지나므로 어떤 입력도 합법 상태로 착지한다. */
+  setSelection: (input: Selection) => void;
+  clearSelection: () => void;
+  /** 보조 레인 선택만 비운다(노트·구간 선택 유지). 엑스트라 삭제·레인 수 축소 경로용. */
+  clearExtraSelection: () => void;
+}
+
+/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 배열들. */
+interface SelectionHost {
+  chart: Chart;
+  extraNotes: ExtraNoteEntity[];
+}
+
+type SliceSet = (
+  partial: Partial<SelectionSlice> | ((state: SelectionSlice) => Partial<SelectionSlice>),
+) => void;
+
+export function createSelectionSlice(
+  set: SliceSet,
+  get: () => SelectionSlice & SelectionHost,
+): SelectionSlice {
+  return {
+    selection: emptySelection(),
+
+    setSelection: (input) => {
+      const { chart, extraNotes } = get();
+      set({ selection: normalizeSelection(input, chart, extraNotes) });
+    },
+    clearSelection: () => set({ selection: emptySelection() }),
+    clearExtraSelection: () =>
+      set((state) => ({
+        selection: { ...state.selection, extraNotes: new Set<number>() },
+      })),
+  };
+}

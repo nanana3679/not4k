@@ -30,8 +30,6 @@ describe('editorStore history', () => {
       chart: makeChart(),
       extraNotes: [],
       extraLaneCount: 2,
-      selectedNotes: new Set(),
-      selectedExtraNotes: new Set(),
       historyPast: [],
       historyFuture: [],
       historyLastCaptureAt: 0,

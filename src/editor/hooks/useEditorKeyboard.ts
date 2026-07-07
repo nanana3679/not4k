@@ -111,7 +111,7 @@ export function useEditorKeyboard(
       // G: 정밀도 면제 토글 — 포인트 노트는 grace, 싱글 롱노트는 hold-only
       if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey) {
         const state = useEditorStore.getState();
-        const selected = state.selectedNotes;
+        const selected = state.selection.notes;
         const currentChart = state.chart;
         if (selected.size > 0 && currentChart) {
           e.preventDefault();

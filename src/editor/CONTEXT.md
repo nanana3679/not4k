@@ -45,6 +45,10 @@ _Avoid_: 전체 차트
 뷰포트 상태(zoom·스냅·scrollY·가로 팬)의 단독 소유자다. 쓰기는 `ViewportSlice` 액션만, 클램프·제스처 변환 규칙도 여기 산다. 렌더러는 `ViewportSource`(읽기 전용)로 구독만 한다. 풀 정의는 glossary "에디터 입력".
 _Avoid_: 뷰포트 슬라이스(한국어 조어), 렌더러·컨트롤러에 뷰포트 상태 복제 저장, 렌더러에 뷰포트 setter 추가
 
+**`SelectionSlice`**:
+에디터 선택 상태(notes·extraNotes·zones)의 단독 소유자다. 쓰기는 slice 액션만, 동질성 정규화 게이트가 모든 액션에 내장된다(차트 변이 게이트와 달리 거부가 아니라 정규화 — 선택은 휘발성 UI 상태). 풀 정의는 glossary "SelectionSlice".
+_Avoid_: 선택 슬라이스(한국어 조어), SelectMode·훅에 선택 사본 저장, 필드별 개별 setter
+
 **재생 커서**:
 에디터에서 현재 음원 재생 위치를 나타내는 선이다.
 _Avoid_: 판정선

@@ -8,6 +8,13 @@ import { beat, validateChart } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
+import {
+  createSelectionSlice,
+  emptySelection,
+  normalizeSelection,
+  selectionEquals,
+  type SelectionSlice,
+} from './selectionSlice';
 
 export type EditorModeName = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
@@ -25,7 +32,8 @@ const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
 // 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)는 ViewportSlice가 단독 소유한다.
-interface EditorState extends ViewportSlice {
+// 선택 상태(selection)는 SelectionSlice가 단독 소유한다.
+interface EditorState extends ViewportSlice, SelectionSlice {
   // Page navigation
   activePage: EditorPage;
   activeSongId: string | null;
@@ -43,13 +51,9 @@ interface EditorState extends ViewportSlice {
   isPlaying: boolean;
   currentTimeMs: number;
 
-  // Selection
-  selectedNotes: Set<number>;
-
   // Extra lanes (editor-only)
   extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
-  selectedExtraNotes: Set<number>;
 
   // Undo/redo history
   historyPast: HistorySnapshot[];
@@ -75,10 +79,8 @@ interface EditorState extends ViewportSlice {
   setGraceMode: (graceMode: boolean) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
-  setSelectedNotes: (indices: Set<number>) => void;
   setExtraNotes: (notes: ExtraNoteEntity[]) => void;
   setExtraLaneCount: (count: number) => void;
-  setSelectedExtraNotes: (indices: Set<number>) => void;
   undo: () => void;
   redo: () => void;
   resetHistory: () => void;
@@ -130,6 +132,8 @@ function captureHistory(state: EditorState): Partial<EditorState> {
 export const useEditorStore = create<EditorState>((set, get) => ({
   // 뷰포트 슬라이스 (상태 + 클램프 내장 액션)
   ...createViewportSlice(set, get),
+  // 선택 슬라이스 (상태 + 정규화 게이트 내장 액션)
+  ...createSelectionSlice(set, get),
 
   // Initial state
   activePage: 'songList',
@@ -141,10 +145,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   graceMode: false,
   isPlaying: false,
   currentTimeMs: 0,
-  selectedNotes: new Set(),
   extraNotes: [],
   extraLaneCount: 2,
-  selectedExtraNotes: new Set(),
   historyPast: [],
   historyFuture: [],
   historyLastCaptureAt: 0,
@@ -168,7 +170,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       showToast(`배치 제약 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
       return;
     }
-    set((state) => ({ ...captureHistory(state), chart }));
+    set((state) => {
+      // 선택 보정 — "선택 인덱스는 차트 범위 안"이라는 관계 불변은
+      // 차트 변이와 같은 트랜잭션에서 지킨다(순서 의존 제거)
+      const normalized = normalizeSelection(state.selection, chart, state.extraNotes);
+      return {
+        ...captureHistory(state),
+        chart,
+        selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
+      };
+    });
   },
   loadChart: (chart) => {
     const errors = validateChart({
@@ -180,17 +191,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       console.error('로드된 차트에 배치 제약 위반:', errors);
       showToast(`이 차트에 배치 제약 위반 ${errors.length}건이 있습니다 — 수리 후 저장할 수 있습니다`, 'warn');
     }
-    set({ chart });
+    // 다른 차트를 여는 것이므로 기존 선택은 무의미 — 전체 clear
+    set({ chart, selection: emptySelection() });
   },
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
-  setSelectedNotes: (selectedNotes) => set({ selectedNotes }),
-  setExtraNotes: (extraNotes) => set((state) => ({ ...captureHistory(state), extraNotes })),
+  setExtraNotes: (extraNotes) => set((state) => {
+    const normalized = normalizeSelection(state.selection, state.chart, extraNotes);
+    return {
+      ...captureHistory(state),
+      extraNotes,
+      selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
+    };
+  }),
   setExtraLaneCount: (extraLaneCount) => set((state) => ({ ...captureHistory(state), extraLaneCount })),
-  setSelectedExtraNotes: (selectedExtraNotes) => set({ selectedExtraNotes }),
   undo: () => set((state) => {
     const previous = state.historyPast.at(-1);
     if (!previous) return {};
@@ -199,8 +216,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       chart: previous.chart,
       extraNotes: previous.extraNotes,
       extraLaneCount: previous.extraLaneCount,
-      selectedNotes: new Set(),
-      selectedExtraNotes: new Set(),
+      // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
+      selection: emptySelection(),
       historyPast: state.historyPast.slice(0, -1),
       historyFuture: [current, ...state.historyFuture].slice(0, HISTORY_LIMIT),
       historyLastCaptureAt: 0,
@@ -214,8 +231,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       chart: next.chart,
       extraNotes: next.extraNotes,
       extraLaneCount: next.extraLaneCount,
-      selectedNotes: new Set(),
-      selectedExtraNotes: new Set(),
+      selection: emptySelection(),
       historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
       historyFuture: state.historyFuture.slice(1),
       historyLastCaptureAt: 0,

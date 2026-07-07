@@ -263,7 +263,7 @@ function ChartEditorPage() {
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
-  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const selectedNotes = useEditorStore((s) => s.selection.notes);
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
@@ -271,12 +271,10 @@ function ChartEditorPage() {
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
-  const setSelectedNotes = useEditorStore((s) => s.setSelectedNotes);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
-  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -476,7 +474,9 @@ function ChartEditorPage() {
 
     const selectMode = new SelectMode(chart, {
       onChartUpdate: setChart,
-      onSelectionChange: setSelectedNotes,
+      // 선택의 소유자는 SelectionSlice — SelectMode는 store에서 읽고 게이트로 쓴다
+      getSelection: () => useEditorStore.getState().selection,
+      setSelection: (sel) => useEditorStore.getState().setSelection(sel),
       yToBeat: (y) => yToBeatRef.current(y),
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
@@ -491,11 +491,9 @@ function ChartEditorPage() {
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      onTrillZoneSelectionChange: (indices) => { rendererRef.current?.setSelectedTrillZones(indices); },
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onViolationsChange: (indices) => { rendererRef.current?.setViolatingNotes(indices); },
@@ -509,7 +507,8 @@ function ChartEditorPage() {
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
+      onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
@@ -635,6 +634,12 @@ function ChartEditorPage() {
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.setSelectedNotes(selectedNotes);
   }, [selectedNotes]);
+
+  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  const selectedZones = useEditorStore((s) => s.selection.zones);
+  useEffect(() => {
+    rendererRef.current?.setSelectedTrillZones(selectedZones);
+  }, [selectedZones]);
 
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);

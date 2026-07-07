@@ -96,7 +96,7 @@ export function useCanvasEvents(
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
-  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
+  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const addToast = useEditorStore((s) => s.addToast);
 
@@ -570,7 +570,7 @@ export function useCanvasEvents(
         if (updatedExtra !== null) {
           rightDragDeletedRef.current = true;
           setExtraNotes(updatedExtra);
-          setSelectedExtraNotes(new Set());
+          clearExtraSelection();
         }
         return;
       }
@@ -649,7 +649,7 @@ export function useCanvasEvents(
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
     bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
-    setSelectedExtraNotes, toSample, updateTouchMovement,
+    clearExtraSelection, toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
@@ -726,7 +726,7 @@ export function useCanvasEvents(
         const sel = useEditorStore.getState();
         touchMultiSelectRef.current = nextTouchMultiSelectLatch(
           touchMultiSelectRef.current,
-          sel.selectedNotes.size + sel.selectedExtraNotes.size,
+          sel.selection.notes.size + sel.selection.extraNotes.size,
         );
       }
       rendererRef.current?.hideGhostNote();
@@ -785,7 +785,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selectedNotes.size + sel.selectedExtraNotes.size,
+        sel.selection.notes.size + sel.selection.extraNotes.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
@@ -849,7 +849,7 @@ export function useCanvasEvents(
       const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
       if (updatedExtra === null) return;
       setExtraNotes(updatedExtra);
-      setSelectedExtraNotes(new Set());
+      clearExtraSelection();
       return;
     }
 
@@ -880,7 +880,7 @@ export function useCanvasEvents(
         events: currentChart.events.filter((_, i) => i !== markerHit.index),
       });
     }
-  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, setExtraNotes, setSelectedExtraNotes, addToast]);
+  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, setExtraNotes, clearExtraSelection, addToast]);
 
   return {
     handlePointerDown,

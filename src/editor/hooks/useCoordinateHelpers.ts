@@ -50,7 +50,7 @@ export function useCoordinateHelpers(
 ): CoordinateHelpers {
   const chart = useEditorStore((s) => s.chart);
   const snapDivision = useEditorStore((s) => s.snapDivision);
-  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const selectedNotes = useEditorStore((s) => s.selection.notes);
 
   const bpmMarkers = useMemo(() => extractBpmMarkers(chart.events), [chart.events]);
 
