@@ -1,6 +1,6 @@
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
-import type { NoteEntity, Beat, Lane } from "../../shared";
+import type { Chart, ExtraNoteEntity, NoteEntity, Beat, Lane } from "../../shared";
 
 /** 이동 드래그 중 한 노트의 원본 위치(고스트로 그려짐). */
 export interface MoveOriginDatum {
@@ -29,6 +29,13 @@ export interface EditPreview {
   boxSelectRect?: BoxSelectRect;
   /** 이동 드래그 원본 위치들. 있으면 렌더러 setMoveOrigins. */
   moveOrigins?: MoveOriginDatum[];
+  /**
+   * 이동 드래그 중의 임시 차트(드래그 소유 상태 — store에는 기록되지 않는다).
+   * 있으면 렌더러 setChart로 직접 PUSH한다. 커밋(up)에서만 store에 1회 기록된다.
+   */
+  tentativeChart?: Chart;
+  /** 이동 드래그 중의 임시 엑스트라 노트. 있으면 렌더러 setExtraNotes로 직접 PUSH. */
+  tentativeExtraNotes?: ExtraNoteEntity[];
 }
 
 /**
@@ -41,6 +48,11 @@ export interface EditResult {
   clearDragPreview?: boolean;
   /** 고스트 노트를 숨긴다(예: create 취소). */
   hideGhost?: boolean;
+  /**
+   * 이동 드래그의 tentative 프리뷰가 롤백/취소로 폐기됐다 — 렌더러를
+   * store의 현재 chart/extraNotes로 되돌려야 한다는 신호.
+   */
+  resyncChart?: boolean;
 }
 
 /**
@@ -63,10 +75,11 @@ export interface PointerGesture {
  */
 export interface EditorMode {
   /**
-   * 포인터 down 한 건을 이 모드의 의미로 처리한다.
+   * 포인터 down 한 건을 이 모드의 의미로 처리하고, 렌더러가 반영할 결과를 반환한다.
    * 모드마다 다른 배치 제약·수식자 해석은 각 모드가 gesture로부터 스스로 처리한다.
+   * (Select 모드는 위반 tentative 세션 종결 시 resyncChart를 반환할 수 있다 — RFD 0016 §C.)
    */
-  handlePointerDown(gesture: PointerGesture): void;
+  handlePointerDown(gesture: PointerGesture): EditResult;
 
   /**
    * 포인터 up 한 건을 이 모드의 의미로 처리(드래그 커밋/취소)하고,

@@ -248,6 +248,13 @@ export function useCanvasEvents(
       rendererRef.current?.clearMoveOrigins();
       rendererRef.current?.clearBoxSelectRect();
     }
+    // 이동 tentative를 보고 있던 렌더러를 store 값으로 되돌린다(applyEditResult와 동일 처리 —
+    // 이 콜백은 선언 순서상 applyEditResult를 참조할 수 없어 여기서 직접 처리한다).
+    if (selectResult?.resyncChart && rendererRef.current) {
+      const store = useEditorStore.getState();
+      rendererRef.current.setChart(store.chart);
+      rendererRef.current.setExtraNotes(store.extraNotes);
+    }
     rendererRef.current?.hideGhostNote();
   }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
 
@@ -312,6 +319,42 @@ export function useCanvasEvents(
     }
     return null;
   }, [chart.events, xToExtraLane, yToBeat]);
+
+  // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
+  // down/move/up 모두가 공유하므로 첫 핸들러(handlePointerDown) 앞에 선언한다(TDZ 회피).
+  const applyEditResult = useCallback((result?: EditResult) => {
+    const renderer = rendererRef.current;
+    if (!renderer || !result) return;
+    const preview = result.preview;
+    if (preview?.boxSelectRect) {
+      renderer.setBoxSelectRect(preview.boxSelectRect);
+      renderer.render();
+    }
+    if (preview?.moveOrigins) {
+      renderer.setMoveOrigins(preview.moveOrigins);
+    }
+    // 이동 드래그 tentative — store를 거치지 않고 렌더러에 직접 PUSH한다
+    // (setChart/setExtraNotes가 내부에서 render한다).
+    if (preview?.tentativeChart) {
+      renderer.setChart(preview.tentativeChart);
+    }
+    if (preview?.tentativeExtraNotes) {
+      renderer.setExtraNotes(preview.tentativeExtraNotes);
+    }
+    if (result.clearDragPreview) {
+      renderer.clearMoveOrigins();
+      renderer.clearBoxSelectRect();
+    }
+    if (result.hideGhost) {
+      renderer.hideGhostNote();
+    }
+    // 롤백/취소 — tentative를 보고 있던 렌더러를 store의 현재 값으로 재동기화한다.
+    if (result.resyncChart) {
+      const store = useEditorStore.getState();
+      renderer.setChart(store.chart);
+      renderer.setExtraNotes(store.extraNotes);
+    }
+  }, [rendererRef]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === 'touch') {
@@ -413,38 +456,20 @@ export function useCanvasEvents(
     }
 
     // 마우스 down(및 레인지 타입 아닌 터치 create)은 모드 다형 디스패치로 통합한다.
-    activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
-      ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
+    // down이 위반 tentative 세션을 종결했으면 resyncChart로 렌더러를 store 값에 되돌린다.
+    applyEditResult(
+      activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
+        ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false }),
+    );
   }, [
     mode, entityType,
     toSample, handleEditCancel, armHoldTimer, hitTestTrillZoneRef,
-    startTouchEmptySelectCandidate,
+    startTouchEmptySelectCandidate, applyEditResult,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
-
-  // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
-  const applyEditResult = useCallback((result?: EditResult) => {
-    const renderer = rendererRef.current;
-    if (!renderer || !result) return;
-    const preview = result.preview;
-    if (preview?.boxSelectRect) {
-      renderer.setBoxSelectRect(preview.boxSelectRect);
-      renderer.render();
-    }
-    if (preview?.moveOrigins) {
-      renderer.setMoveOrigins(preview.moveOrigins);
-    }
-    if (result.clearDragPreview) {
-      renderer.clearMoveOrigins();
-      renderer.clearBoxSelectRect();
-    }
-    if (result.hideGhost) {
-      renderer.hideGhostNote();
-    }
-  }, [rendererRef]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     let navGestures: Gesture[] = [];
@@ -513,7 +538,12 @@ export function useCanvasEvents(
       }) &&
       selectModeRef.current
     ) {
+      const hadSession = selectModeRef.current.hasPendingViolationSession;
       selectModeRef.current.beginBoxSelect(tapCand.x, tapCand.y);
+      // 박스 승격이 위반 tentative 세션을 종결했으면 렌더러를 store 값으로 재동기화한다 (RFD 0016 §C).
+      if (hadSession && !selectModeRef.current.hasPendingViolationSession) {
+        applyEditResult({ resyncChart: true });
+      }
       touchEmptySelectCandidateRef.current = {
         pointerId: tapCand.pointerId,
         x: tapCand.x,
@@ -751,12 +781,18 @@ export function useCanvasEvents(
 
     if (touchEmptySelectCandidate) {
       if (mode === 'select' && selectModeRef.current) {
+        // 빈 곳 탭/박스 시작은 위반 tentative 세션을 종결한다 — down 전후로 세션 종결을 감지해
+        // 렌더러를 store 값으로 재동기화한다 (RFD 0016 §C).
+        const hadSession = selectModeRef.current.hasPendingViolationSession;
         // 박스 시작은 SelectMode.onPointerDown이 idempotent하게 처리한다(진행 중이면 no-op).
         selectModeRef.current.onPointerDown(touchEmptySelectCandidate.x, touchEmptySelectCandidate.y, false, false);
         selectModeRef.current.onPointerUp(
           touchEmptySelectCandidate.moved ? x : touchEmptySelectCandidate.x,
           touchEmptySelectCandidate.moved ? y : touchEmptySelectCandidate.y,
         );
+        if (hadSession && !selectModeRef.current.hasPendingViolationSession) {
+          applyEditResult({ resyncChart: true });
+        }
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
@@ -813,6 +849,7 @@ export function useCanvasEvents(
       selectModeRef.current &&
       shouldFireTapToggle({ moved: tapToggle.moved, longPressFired: holdFired })
     ) {
+      const hadSession = selectModeRef.current.hasPendingViolationSession;
       selectModeRef.current.onPointerDown(
         tapToggle.x,
         tapToggle.y,
@@ -820,6 +857,10 @@ export function useCanvasEvents(
         false,
         touchMultiSelectRef.current,
       );
+      // 탭 토글이 위반 tentative 세션을 종결했으면 렌더러를 store 값으로 재동기화한다 (RFD 0016 §C).
+      if (hadSession && !selectModeRef.current.hasPendingViolationSession) {
+        applyEditResult({ resyncChart: true });
+      }
       // 토글로 마지막 선택까지 해제됐으면 다중선택 래치를 끈다(누적 토글 모드 종료).
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(

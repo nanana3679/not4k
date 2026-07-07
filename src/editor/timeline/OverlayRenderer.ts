@@ -26,6 +26,8 @@ export interface OverlayHost {
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
+  /** 엑스트라 레인 위반 노트 인덱스(메인 violatingNoteIndices와 대칭, 같은 시각 언어) */
+  readonly violatingExtraNoteIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
@@ -388,66 +390,94 @@ export class OverlayRenderer {
   }
 
   /**
-   * 위반 노트 오버레이 렌더링 (빨간 해칭)
+   * 위반 오버레이 렌더링 (빨간 해칭) — 메인 노트와 엑스트라 노트를 같은 시각 언어로 그린다.
    */
   renderViolationOverlay(): void {
     destroyChildren(this.host.violationLayer);
-    if (!this.host.chart || this.host.violatingNoteIndices.size === 0) return;
+    if (!this.host.chart) return;
+    if (this.host.violatingNoteIndices.size === 0 && this.host.violatingExtraNoteIndices.size === 0) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const meta = this.host.chart.meta;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
+    // 메인 노트 위반 — 노트 레인 좌표
     for (const idx of this.host.violatingNoteIndices) {
       if (idx >= this.host.chart.notes.length) continue;
       const note = this.host.chart.notes[idx];
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-
-      const x = (note.lane - 1) * LANE_WIDTH;
-      const w = NOTE_HEIGHT * 5;
-      const h = NOTE_HEIGHT;
-      const rectX = x + (LANE_WIDTH - w) / 2;
-
-      let topY: number;
-      let height: number;
-
-      if ("endBeat" in note) {
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
-        const lo = Math.min(startMs, endMs);
-        const hi = Math.max(startMs, endMs);
-        if (hi < minTimeMs || lo > maxTimeMs) continue;
-        const startY = this.host.timeToY(startMs);
-        const endY = this.host.timeToY(endMs);
-        topY = Math.min(startY, endY) - h / 2;
-        height = Math.abs(endY - startY) + h;
-      } else {
-        if (startMs < minTimeMs || startMs > maxTimeMs) continue;
-        const y = this.host.timeToY(startMs);
-        topY = y - h / 2;
-        height = h;
-      }
-
-      const gfx = new Graphics();
-
-      gfx.rect(rectX, topY, w, height);
-      gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
-
-      const spacing = Math.max(4, Math.min(8, height * 0.6));
-      gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
-      for (let d = -height; d < w; d += spacing) {
-        const x1 = Math.max(0, d);
-        const y1 = Math.max(0, -d);
-        const x2 = Math.min(w, d + height);
-        const y2 = Math.min(height, w - d);
-        if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
-          gfx.moveTo(rectX + x1, topY + y1);
-          gfx.lineTo(rectX + x2, topY + y2);
-        }
-      }
-      gfx.stroke();
-
-      this.host.violationLayer.addChild(gfx);
+      const laneX = (note.lane - 1) * LANE_WIDTH;
+      this.drawViolationHatch(note, laneX, LANE_WIDTH, bpmMarkers, meta.offsetMs, minTimeMs, maxTimeMs);
     }
+
+    // 엑스트라 노트 위반 — 엑스트라 레인 좌표(메인 레인 오른쪽에 이어짐)
+    const extraNotes = this.host.extraNotes;
+    for (const idx of this.host.violatingExtraNoteIndices) {
+      if (idx >= extraNotes.length) continue;
+      const note = extraNotes[idx];
+      const laneX = TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
+      this.drawViolationHatch(note, laneX, EXTRA_LANE_WIDTH, bpmMarkers, meta.offsetMs, minTimeMs, maxTimeMs);
+    }
+  }
+
+  /**
+   * 위반 노트 하나의 해칭 사각형을 그린다 — 메인·엑스트라가 공유한다.
+   * @param note 위반 노트(beat/endBeat만 읽음 — 레인은 laneX로 이미 해소)
+   * @param laneX 노트 레인의 왼쪽 x 좌표
+   * @param laneWidth 레인 폭(메인=LANE_WIDTH, 엑스트라=EXTRA_LANE_WIDTH)
+   */
+  private drawViolationHatch(
+    note: { beat: Beat; endBeat?: Beat },
+    laneX: number,
+    laneWidth: number,
+    bpmMarkers: BpmMarker[],
+    offsetMs: number,
+    minTimeMs: number,
+    maxTimeMs: number,
+  ): void {
+    const startMs = beatToMs(note.beat, bpmMarkers, offsetMs);
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = laneX + (laneWidth - w) / 2;
+
+    let topY: number;
+    let height: number;
+
+    if ("endBeat" in note && note.endBeat) {
+      const endMs = beatToMs(note.endBeat, bpmMarkers, offsetMs);
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) return;
+      const startY = this.host.timeToY(startMs);
+      const endY = this.host.timeToY(endMs);
+      topY = Math.min(startY, endY) - h / 2;
+      height = Math.abs(endY - startY) + h;
+    } else {
+      if (startMs < minTimeMs || startMs > maxTimeMs) return;
+      const y = this.host.timeToY(startMs);
+      topY = y - h / 2;
+      height = h;
+    }
+
+    const gfx = new Graphics();
+
+    gfx.rect(rectX, topY, w, height);
+    gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
+
+    const spacing = Math.max(4, Math.min(8, height * 0.6));
+    gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
+    for (let d = -height; d < w; d += spacing) {
+      const x1 = Math.max(0, d);
+      const y1 = Math.max(0, -d);
+      const x2 = Math.min(w, d + height);
+      const y2 = Math.min(height, w - d);
+      if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
+        gfx.moveTo(rectX + x1, topY + y1);
+        gfx.lineTo(rectX + x2, topY + y2);
+      }
+    }
+    gfx.stroke();
+
+    this.host.violationLayer.addChild(gfx);
   }
 
 }

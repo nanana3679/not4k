@@ -18,6 +18,7 @@ import {
   trillZoneOverlapsBox,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
+import { computeMoveViolations, computeExtraMoveViolations } from "./violationCheck";
 import { zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
@@ -55,6 +56,8 @@ export interface SelectModeCallbacks {
   getExtraNotes?: () => ExtraNoteEntity[];
   getExtraLaneCount?: () => number;
   onViolationsChange?: (indices: Set<number>) => void;
+  /** 엑스트라 위반 표시 채널 — onViolationsChange(메인)와 대칭 (RFD 0016 층2). */
+  onExtraViolationsChange?: (indices: Set<number>) => void;
   onWarn?: (msg: string) => void;
 }
 
@@ -89,8 +92,17 @@ export class SelectMode implements EditorMode {
   > = new Map();
   // 트릴 노트 단위 이동 시, 이동을 가두는 trillZone(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
   private _trillMoveZone: TrillZone | null = null;
+  // 이동 드래그 중의 임시 엑스트라 노트(드래그 소유 상태 — store 미기록, 프리뷰로만 PUSH).
+  // '사본 금지' 원칙은 선택(SelectionSlice)에만 적용된다 — tentative는 드래그가 소유한다.
+  private tentativeExtraNotes: ExtraNoteEntity[] | null = null;
   // 구간 단위 이동 시작 시점의 트릴존 원본 좌표 (인덱스 → 원본)
   private originalZonePositions: Map<number, TrillZone> = new Map();
+
+  // 위반 tentative 세션 열림 플래그 (RFD 0016 §C). 위반 드롭에서 롤백하지 않고 tentative를
+  // 유지한 채 선택도 유지하는 상태. 열려 있으면 originalPositions 등은 세션 시작(마지막 커밋)
+  // 기준을 유지하고, this.chart/tentativeExtraNotes는 마지막 tentative를 유지한다.
+  // finalizePendingMove()가 이 세션을 롤백으로 종결한다(선택-종결 단일 진입점).
+  private _pendingViolationSession: boolean = false;
 
   // Resize state
   private resizingEntityType: "note" | "event" | "trillZone" | null = null;
@@ -134,6 +146,18 @@ export class SelectMode implements EditorMode {
   }
 
   setChart(chart: Chart): void {
+    // undo/redo나 외부 setChart로 차트가 바뀌면 열려 있던 위반 tentative 세션은 무효 —
+    // tentative를 폐기하고 세션을 닫는다 (RFD 0016 §C). origins/구간 원본도 함께 폐기해
+    // 이후 새 이동이 새 차트 기준으로 캡처하도록 한다. 렌더러 재동기화는 App의 chart effect가
+    // renderer.setChart(store.chart)로 수행하므로 여기서 resync 신호를 낼 필요는 없다.
+    if (this._pendingViolationSession) {
+      this._pendingViolationSession = false;
+      this.tentativeExtraNotes = null;
+      this.clearMoveOrigins();
+      this._trillMoveZone = null;
+      this.callbacks.onViolationsChange?.(new Set());
+      this.callbacks.onExtraViolationsChange?.(new Set());
+    }
     // 선택 보정(범위·동질·구간 파생)은 store 변이 액션이 같은 트랜잭션에서 수행한다
     this.chart = chart;
   }
@@ -396,14 +420,19 @@ export class SelectMode implements EditorMode {
   }
 
   /** 통합 포인터 down 진입점. gesture의 shift/alt/toggle 수식자를 onPointerDown으로 운반한다. */
-  handlePointerDown(gesture: PointerGesture): void {
+  handlePointerDown(gesture: PointerGesture): EditResult {
+    const hadSession = this._pendingViolationSession;
     this.onPointerDown(gesture.x, gesture.y, gesture.shiftKey, gesture.altKey, gesture.toggleSelection);
+    // 위반 세션이 이 down으로 종결(롤백)됐으면 렌더러를 store 값으로 재동기화한다 (RFD 0016 §C).
+    // 세션이 유지되면(이어지는 드래그 시작 등) resync하지 않아 tentative 프리뷰를 지킨다.
+    if (hadSession && !this._pendingViolationSession) return { resyncChart: true };
+    return {};
   }
 
   /** 통합 포인터 up 진입점. 드래그를 커밋하고 이동/박스 프리뷰 정리를 신호한다. */
   handlePointerUp(gesture: PointerGesture): EditResult {
-    this.onPointerUp(gesture.x, gesture.y);
-    return { clearDragPreview: true };
+    const result = this.onPointerUp(gesture.x, gesture.y);
+    return { ...result, clearDragPreview: true };
   }
 
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
@@ -421,6 +450,13 @@ export class SelectMode implements EditorMode {
     // box뿐 아니라 resize/트릴존 핸들 이동도 그 좌표에서 시작될 수 있다. 종류 무관하게
     // 진행 중 드래그면 재진입을 막아, 매 move마다 resize/move origin이 리셋되는 걸 방지한다.
     if (this.isDragging) return;
+
+    // 위반 tentative 세션이 열려 있으면: 이 down이 세션 이어가기(선택된 엔티티를 수식자 없이
+    // 다시 눌러 계속 드래그)가 아니면 세션을 종결(롤백)한다 (RFD 0016 §C). 이어가기면 유지해
+    // startMainMoveDrag/startExtraMoveDrag가 baseline을 보존한 채 새 드래그를 얹는다.
+    if (this._pendingViolationSession && !this.isSessionContinuationDown(x, y, shiftKey, altKey, toggleSelection)) {
+      this.finalizePendingMove();
+    }
 
     // Check for endpoint resize first
 
@@ -573,6 +609,9 @@ export class SelectMode implements EditorMode {
 
   /** 기존 선택을 비우고 박스 셀렉트 드래그를 시작한다. */
   private startBoxSelect(x: number, y: number): void {
+    // 새 박스 선택은 위반 tentative 세션을 종결(롤백)한다 (RFD 0016 §C).
+    // (onPointerDown 진입점에서 이미 종결됐으면 no-op.)
+    this.finalizePendingMove();
     this.clearSelection();
     this.isDragging = true;
     this.dragType = "boxSelect";
@@ -606,6 +645,16 @@ export class SelectMode implements EditorMode {
           data.push({ note: this.chart.notes[idx], beat: pos.beat, endBeat: pos.endBeat, lane: pos.lane });
         }
         preview.moveOrigins = data;
+      }
+      // tentative는 store에 쓰지 않고 프리뷰로만 PUSH한다 — 커밋(up)에서 1회 기록.
+      // 주의: 드래그 중 store 차트가 안 변하므로 coordinate helpers의 히트테스트는
+      // 드래그 전 위치 기준이 된다. 드래그 중 히트테스트를 쓰는 경로는 이 이동 자신뿐이고
+      // 이동은 down 시점 캡처(originalPositions) 기준이라 실해가 없다.
+      if (this.originalPositions.size > 0 || this.originalZonePositions.size > 0) {
+        preview.tentativeChart = this.chart;
+      }
+      if (this.tentativeExtraNotes) {
+        preview.tentativeExtraNotes = this.tentativeExtraNotes;
       }
     }
     return preview;
@@ -718,10 +767,11 @@ export class SelectMode implements EditorMode {
           }
         }
 
-        // Update chart with new positions (preview)
+        // tentative 적용 — store에는 쓰지 않는다(커밋은 pointerUp에서 1회).
+        // 배치 제약 위반이어도 이동은 자유 — 위반 노트는 violations 채널로만 표시(토스트 금지).
         this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
-        this.callbacks.onChartUpdate(this.chart);
-        if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
+        if (newExtraNotes) this.tentativeExtraNotes = newExtraNotes;
+        this.pushMoveViolations(moveTargets);
       }
     } else if (this.dragType === "moveExtra") {
       const currentBeat = this.callbacks.yToBeat(y);
@@ -774,11 +824,13 @@ export class SelectMode implements EditorMode {
           chartTouched = true;
         }
 
-        this.callbacks.onExtraNotesUpdate(newExtraNotes);
+        // tentative 적용 — store에는 쓰지 않는다(커밋은 pointerUp에서 1회).
+        this.tentativeExtraNotes = newExtraNotes;
         if (chartTouched) {
           this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
-          this.callbacks.onChartUpdate(this.chart);
         }
+        // 매 프레임 위반 표시 — 메인·엑스트라 양 채널(엑스트라 단독 이동도 겹침을 표시).
+        this.pushMoveViolations(new Set(this.originalPositions.keys()));
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
@@ -797,9 +849,14 @@ export class SelectMode implements EditorMode {
     }
   }
 
-  /** Handle pointer up */
-  onPointerUp(x: number, y: number): void {
-    if (!this.isDragging) return;
+  /**
+   * Handle pointer up — 이동 드래그는 여기서 store에 **처음으로** 쓴다(커밋 1회 =
+   * 드래그 전체가 undo 1단위). 위반으로 롤백/폐기되면 resyncChart 신호를 반환해
+   * 렌더러가 store의 chart/extraNotes로 되돌리게 한다.
+   */
+  onPointerUp(x: number, y: number): EditResult {
+    if (!this.isDragging) return {};
+    const result: EditResult = {};
 
     if (this.dragType === "resize") {
       // Validate and commit or rollback
@@ -820,16 +877,16 @@ export class SelectMode implements EditorMode {
       this.resizingOriginalEndBeat = null;
       this.resizingOriginalBeat = null;
     } else if (this.dragType === "move") {
-      // Validate and commit or rollback
-      this.confirmPlacement();
+      // 유효하면 커밋(store 첫 기록). 위반이면 롤백하지 않고 tentative 세션을 연다 —
+      // 렌더러 tentative를 그대로 두므로 resync하지 않는다 (RFD 0016 §C).
+      this.commitMoveOrRollback();
     } else if (this.dragType === "moveExtra") {
-      // 메인 동반(혼합)이 있으면 변이 게이트로 chart를 검증해 커밋/롤백.
-      // 엑스트라 단독이면 라이브 적용이 곧 커밋 — 원본 기록만 폐기(기존 동작).
+      // 메인 동반(혼합)이 있으면 변이 게이트 + 엑스트라 겹침으로 chart를 검증해 커밋/세션.
+      // 엑스트라 단독이면 층2 겹침만 검사해 커밋 또는 세션 (엑스트라도 위반이면 커밋 거부).
       if (this.originalPositions.size > 0 || this.originalZonePositions.size > 0) {
         this.commitMoveOrRollback();
       } else {
-        this.originalExtraPositions.clear();
-        this._trillMoveZone = null;
+        this.commitExtraOnlyMove();
       }
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
@@ -854,6 +911,7 @@ export class SelectMode implements EditorMode {
     this.dragStartBeat = null;
     this.dragStartLane = null;
     this.dragStartExtraLane = null;
+    return result;
   }
 
   /**
@@ -862,7 +920,15 @@ export class SelectMode implements EditorMode {
    * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
    */
   cancel(): EditResult {
-    if (!this.isDragging) return {};
+    // 드래그 중이 아니어도 위반 tentative 세션이 열려 있으면 종결(롤백)한다 (RFD 0016 §C).
+    if (!this.isDragging) {
+      if (this._pendingViolationSession) {
+        const finalized = this.finalizePendingMove();
+        return { ...finalized, clearDragPreview: true };
+      }
+      return {};
+    }
+    let resyncChart = false;
 
     if (this.dragType === "resize") {
       this.rollbackResize();
@@ -871,9 +937,14 @@ export class SelectMode implements EditorMode {
       this.resizingOriginalEndBeat = null;
       this.resizingOriginalBeat = null;
     } else if (this.dragType === "move" || this.dragType === "moveExtra") {
-      // 혼합 이동은 chart(노트·구간)와 extraNotes가 함께 라이브 적용되므로 둘 다 복원한다 (RFD 0016 §4.2)
+      // 이동 tentative(내부 chart·엑스트라)는 store에 기록된 적이 없으므로 폐기가 곧 원위치.
+      // 렌더러만 tentative를 보고 있으니 resyncChart로 store 값을 재푸시하게 한다.
       this.rollbackMove();
       this.rollbackMoveExtra();
+      this._pendingViolationSession = false;
+      this.callbacks.onViolationsChange?.(new Set());
+      this.callbacks.onExtraViolationsChange?.(new Set());
+      resyncChart = true;
     }
     // boxSelect는 차트를 변이하지 않으므로 아래 공통 정리로 충분하다.
 
@@ -885,41 +956,39 @@ export class SelectMode implements EditorMode {
     this.dragStartBeat = null;
     this.dragStartLane = null;
     this.dragStartExtraLane = null;
-    return { clearDragPreview: true };
+    return resyncChart ? { clearDragPreview: true, resyncChart: true } : { clearDragPreview: true };
   }
 
   /**
-   * 엑스트라 노트를 드래그 시작 시점 좌표로 되돌린다 — cancel과
-   * 혼합 이동의 변이 게이트 거부 롤백에서 chart 복원과 함께 호출된다 (RFD 0016 §4.2).
+   * 엑스트라 이동 tentative를 폐기한다 — cancel과 혼합 이동의 변이 게이트 거부
+   * 롤백에서 chart 복원과 함께 호출된다 (RFD 0016 §4.2).
+   * 드래그 중 store에는 쓰지 않으므로(store가 곧 원본) tentative 폐기가 곧 원위치다.
    */
   private rollbackMoveExtra(): void {
-    if (this.originalExtraPositions.size === 0) return;
-    const extraNotes = this.callbacks.getExtraNotes?.();
-    if (!extraNotes || !this.callbacks.onExtraNotesUpdate) {
-      this.originalExtraPositions.clear();
-      return;
-    }
-    const newExtraNotes = [...extraNotes];
-    for (const [idx, original] of this.originalExtraPositions) {
-      const note = newExtraNotes[idx];
-      if (!note) continue;
-      if ("endBeat" in note) {
-        newExtraNotes[idx] = {
-          ...note,
-          extraLane: original.extraLane,
-          beat: original.beat,
-          endBeat: original.endBeat!,
-        };
-      } else {
-        newExtraNotes[idx] = {
-          ...note,
-          extraLane: original.extraLane,
-          beat: original.beat,
-        };
-      }
-    }
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    this.tentativeExtraNotes = null;
     this.originalExtraPositions.clear();
+  }
+
+  /** 위반 tentative 세션이 열려 있는지 (선택-종결 지점에서 finalize 여부 판단용). */
+  get hasPendingViolationSession(): boolean {
+    return this._pendingViolationSession;
+  }
+
+  /**
+   * 위반 tentative 세션의 최종 확정점 = 롤백 (RFD 0016 §C).
+   * 세션이 열려 있으면 커밋 상태로 복원(내부 chart·엑스트라 tentative 폐기 → origins 기준으로 원위치)
+   * 하고, 위반 표시를 클리어하며, 렌더러 재동기화 신호(resyncChart)를 반환한다.
+   * 선택-종결 지점(빈 곳 탭·새 박스·교체 선택·cancel·모드 전환·setChart)이 이 하나만 호출한다 —
+   * 롤백 로직 중복을 막는 단일 진입점이다. 세션이 없으면 no-op({}).
+   */
+  finalizePendingMove(): EditResult {
+    if (!this._pendingViolationSession) return {};
+    this.rollbackMove();
+    this.rollbackMoveExtra();
+    this._pendingViolationSession = false;
+    this.callbacks.onViolationsChange?.(new Set());
+    this.callbacks.onExtraViolationsChange?.(new Set());
+    return { resyncChart: true };
   }
 
   // --- Box select helper ---
@@ -1015,6 +1084,12 @@ export class SelectMode implements EditorMode {
 
   /** Move selected notes by one snap unit */
   moveBySnap(direction: "up" | "down"): void {
+    // 키보드 이동은 즉시 커밋 동사라 위반 tentative 세션과 무관하다 — 세션이 열려 있으면
+    // 먼저 커밋 상태로 롤백(finalizePendingMove)한 뒤 커밋된 기준에서 이동한다 (RFD 0016 §C).
+    // (tentative 위에서 층2 게이트를 우회해 이동하는 것을 피하는 단순·안전 경로. 세션 중
+    //  키보드 이동은 사실상 "세션 폐기 후 이동"이다.) 렌더러 resync는 이후 커밋 시 App의
+    //  chart effect가 수행한다.
+    this.finalizePendingMove();
     const hasMainSel = this.sel.notes.size > 0 || this.sel.zones.size > 0;
     // 엑스트라 단독 선택일 때만 엑스트라 전용 경로 — 혼합이면 아래 메인 경로가
     // beat 오프셋을 공유해 엑스트라를 동반한다 (기존 'extraNotes 우선' 분기 제거, RFD 0016 §4.2)
@@ -1101,6 +1176,8 @@ export class SelectMode implements EditorMode {
 
   /** Move selected notes by one lane (event 레인을 건너뛰고 메인↔엑스트라 레인 간 이동 지원) */
   moveByLane(direction: "left" | "right"): void {
+    // 키보드 이동은 세션과 무관 — 세션이 열려 있으면 커밋 상태로 롤백 후 이동한다 (RFD 0016 §C).
+    this.finalizePendingMove();
     const hasMainSel = this.sel.notes.size > 0 || this.sel.zones.size > 0;
     const hasExtra = this.sel.extraNotes.size > 0;
 
@@ -1401,25 +1478,91 @@ export class SelectMode implements EditorMode {
 
   /**
    * 이동 결과를 변이 게이트(validateChart)로 검증해 커밋하거나, 위반이면
-   * chart(노트·구간)와 extraNotes를 함께 드래그 시작 시점으로 롤백한다 (RFD 0016 §4.2).
-   * (엑스트라는 이동 중 라이브 적용돼 있으므로 커밋 시 추가 emit이 필요 없다.)
+   * chart(노트·구간)와 extraNotes tentative를 함께 폐기한다 (RFD 0016 §4.2).
+   * 드래그 중 store에 쓰지 않으므로 커밋이 store 첫 기록이다 — chart→extraNotes
+   * 동기 이중 쓰기는 히스토리 병합으로 undo 1단위가 된다.
+   * @returns 커밋했으면 true, 롤백(store 무변)이면 false.
    */
-  private commitMoveOrRollback(): void {
+  private commitMoveOrRollback(): boolean {
     const errors = validateChart({
       notes: this.chart.notes,
       trillZones: this.chart.trillZones,
       events: this.chart.events,
     });
+    // 층2 시각 겹침도 커밋을 막는다 — 드래그 중 위반 "표시"와 같은 판정(표시=거부 일치)
+    const moveViolations = computeMoveViolations(
+      this.chart,
+      new Set(this.originalPositions.keys()),
+    );
+    // 혼합 이동의 엑스트라 동반분도 층2 겹침을 커밋 게이트에 반영한다(엑스트라 단독은 아래 별도 커밋).
+    const extraViolations = this.tentativeExtraNotes
+      ? computeExtraMoveViolations(this.tentativeExtraNotes, new Set(this.originalExtraPositions.keys()))
+      : new Set<number>();
 
-    if (errors.length === 0) {
-      // Valid: commit
+    if (errors.length === 0 && moveViolations.size === 0 && extraViolations.size === 0) {
+      // Valid: commit — chart와 엑스트라 tentative를 각 1회 기록. 세션도 종료.
       this.callbacks.onChartUpdate(this.chart);
+      if (this.tentativeExtraNotes) {
+        this.callbacks.onExtraNotesUpdate?.(this.tentativeExtraNotes);
+        this.tentativeExtraNotes = null;
+      }
       this.clearMoveOrigins();
       this._trillMoveZone = null;
+      this._pendingViolationSession = false;
+      this.callbacks.onViolationsChange?.(new Set());
+      this.callbacks.onExtraViolationsChange?.(new Set());
+      return true;
+    }
+    // Invalid: 롤백하지 않고 위반 tentative 세션을 연다 (RFD 0016 §C).
+    // this.chart/tentativeExtraNotes와 origins(세션 기준)를 유지해 사용자가 이어서 고칠 수 있게 한다.
+    // 위반 표시도 유지한다(pushMoveViolations가 이미 PUSH한 상태). 선택은 유지된다.
+    this._pendingViolationSession = true;
+    return false;
+  }
+
+  /**
+   * 엑스트라 단독 이동 드래그의 커밋 — 층2 겹침 위반이 없으면 store에 1회 기록한다.
+   * 엑스트라도 위반이면 커밋을 거부하고(RFD 0016 §B) tentative 세션을 열어 유지한다 (§C).
+   * (이동 없어 tentative가 없으면 세션도 열지 않고 그냥 종료.)
+   */
+  private commitExtraOnlyMove(): void {
+    if (!this.tentativeExtraNotes) {
+      this.originalExtraPositions.clear();
+      this._trillMoveZone = null;
+      return;
+    }
+    const extraViolations = computeExtraMoveViolations(
+      this.tentativeExtraNotes,
+      new Set(this.originalExtraPositions.keys()),
+    );
+    if (extraViolations.size > 0) {
+      // 위반 — 롤백하지 않고 세션을 연다. 위반 표시는 pushMoveViolations가 유지 중.
+      this._pendingViolationSession = true;
+      return;
+    }
+    this.callbacks.onExtraNotesUpdate?.(this.tentativeExtraNotes);
+    this.tentativeExtraNotes = null;
+    this.originalExtraPositions.clear();
+    this._trillMoveZone = null;
+    this._pendingViolationSession = false;
+    this.callbacks.onViolationsChange?.(new Set());
+    this.callbacks.onExtraViolationsChange?.(new Set());
+  }
+
+  /**
+   * 이동 드래그 프레임마다 tentative의 배치 제약 위반(이동 대상만)을 violations 채널로 PUSH한다 —
+   * 렌더러가 위반 노트를 하이라이트한다. 메인은 computeMoveViolations, 엑스트라 동반분은
+   * computeExtraMoveViolations로 각 채널에 PUSH한다(표시=커밋 거부 판정 일치, RFD 0016 §B).
+   * 드래그 중 토스트는 금지. 커밋/롤백/cancel/세션 종결에서 빈 집합으로 클리어된다.
+   */
+  private pushMoveViolations(movedIndices: ReadonlySet<number>): void {
+    this.callbacks.onViolationsChange?.(computeMoveViolations(this.chart, movedIndices));
+    if (this.tentativeExtraNotes) {
+      this.callbacks.onExtraViolationsChange?.(
+        computeExtraMoveViolations(this.tentativeExtraNotes, new Set(this.originalExtraPositions.keys())),
+      );
     } else {
-      // Invalid: rollback (chart와 엑스트라 둘 다)
-      this.rollbackMove();
-      this.rollbackMoveExtra();
+      this.callbacks.onExtraViolationsChange?.(new Set());
     }
   }
 
@@ -1520,6 +1663,9 @@ export class SelectMode implements EditorMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
+    // 위반 tentative 세션 중 삭제는 커밋 상태에서 지운다 — 먼저 롤백해 tentative를 폐기한다.
+    // (삭제가 tentative 좌표 위에서 벌어지지 않게 하는 안전 경로, RFD 0016 §C.)
+    this.finalizePendingMove();
     // Delete extra notes if selected (구간 유닛·일반 노트와 공존 가능, RFD 0016)
     if (this.sel.extraNotes.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
       const extraNotes = this.callbacks.getExtraNotes();
@@ -1550,6 +1696,22 @@ export class SelectMode implements EditorMode {
 
   // --- Private helpers ---
 
+  /**
+   * 이 down이 위반 tentative 세션의 "이어가기 드래그"인지 판정한다 (RFD 0016 §C).
+   * 수식자 없이 현재 선택에 이미 든 노트/엑스트라를 다시 누르면 beginMoveDrag가 이어지므로
+   * 세션을 유지한다. 그 외(빈 곳·다른 엔티티·수식자)는 선택 교체/해제 = 세션 종결이다.
+   */
+  private isSessionContinuationDown(
+    x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection: boolean,
+  ): boolean {
+    if (shiftKey || altKey || toggleSelection) return false;
+    const extraHit = this.callbacks.hitTestExtraNote?.(x, y) ?? null;
+    if (extraHit !== null) return this.sel.extraNotes.has(extraHit);
+    const noteHit = this.callbacks.hitTestNote(x, y);
+    if (noteHit !== null) return this.sel.notes.has(noteHit);
+    return false;
+  }
+
   private startMainMoveDrag(x: number, y: number): void {
     const lane = this.callbacks.xToLane(x);
     // 구간 유닛(빈 구간 포함)이 선택돼 있으면 노트가 없어도 이동 가능
@@ -1561,6 +1723,11 @@ export class SelectMode implements EditorMode {
     this.dragStartLane = lane;
     this.dragStartExtraLane = null;
 
+    // 위반 세션 중 이어지는 드래그는 origins(세션 시작=마지막 커밋 기준)와 tentative를 그대로
+    // 유지한다 — 최종 롤백이 항상 커밋된 상태로 돌아가도록 baseline을 보존한다 (RFD 0016 §C).
+    if (this._pendingViolationSession) return;
+
+    this.tentativeExtraNotes = null;
     // 직접 선택한 notes + 구간 파생 노트를 함께 캡처 — 혼합 선택도 한 오프셋으로 움직인다 (RFD 0016 §4.2)
     this.captureNoteOrigins(this.effectiveNoteIndices());
     // 엑스트라도 원본 캡처 — 혼합 선택이면 beat만 동반 이동한다 (RFD 0016 §4.2)
@@ -1793,6 +1960,10 @@ export class SelectMode implements EditorMode {
     this.dragStartLane = null;
     this.dragStartExtraLane = extraLane;
 
+    // 위반 세션 중 이어지는 드래그는 baseline(origins·tentative)을 보존한다 (RFD 0016 §C).
+    if (this._pendingViolationSession) return;
+
+    this.tentativeExtraNotes = null;
     this.captureExtraNoteOrigins();
     // 혼합 선택이면 메인 notes(+구간 파생)·zones도 beat 동반 이동 대상으로 캡처 (RFD 0016 §4.2)
     this.captureNoteOrigins(this.effectiveNoteIndices());
@@ -1881,8 +2052,13 @@ export class SelectMode implements EditorMode {
     this.callbacks.onChartUpdate(this.chart);
   }
 
+  /**
+   * 내부 chart(노트·구간)를 드래그/이동 시작 시점으로 되돌린다.
+   * 이동 tentative는 store에 기록되지 않으므로 여기서 store에 emit하지 않는다 —
+   * 렌더러 복원은 호출자가 resyncChart 신호로 처리한다.
+   */
   private rollbackMove(): void {
-    // 메인 쪽 원본이 없으면(엑스트라 단독 이동 등) 차트를 건드리지 않는다 — 불필요한 emit 방지
+    // 메인 쪽 원본이 없으면(엑스트라 단독 이동 등) 차트를 건드리지 않는다
     if (this.originalPositions.size === 0 && this.originalZonePositions.size === 0) {
       this._trillMoveZone = null;
       return;
@@ -1907,7 +2083,6 @@ export class SelectMode implements EditorMode {
     // 구간 단위 이동이었다면 트릴존도 원위치로 되돌린다.
     const restoredZones = this.restoredZones();
     this.chart = { ...this.chart, notes: newNotes, trillZones: restoredZones };
-    this.callbacks.onChartUpdate(this.chart);
     this.originalPositions.clear();
     this.originalZonePositions.clear();
     this._trillMoveZone = null;

@@ -148,6 +148,8 @@ export class TimelineRenderer {
 
   // Violation overlay state (for paste preview)
   private _violatingNoteIndices: Set<number> = new Set();
+  // 엑스트라 위반 표시 채널 (메인 _violatingNoteIndices와 대칭, 같은 위반 색/스타일 재사용)
+  private _violatingExtraNoteIndices: Set<number> = new Set();
 
   // Chart data
   private chart: Chart | null = null;
@@ -398,6 +400,7 @@ export class TimelineRenderer {
       get selectedTrillZones() { return self._selectedTrillZones; },
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
+      get violatingExtraNoteIndices() { return self._violatingExtraNoteIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
@@ -944,6 +947,16 @@ export class TimelineRenderer {
    */
   setViolatingNotes(indices: Set<number>): void {
     this._violatingNoteIndices = indices;
+    this.overlayRenderer.renderViolationOverlay();
+    this.app?.render();
+  }
+
+  /**
+   * Set extra-lane note indices that violate constraints (same red hatching overlay).
+   * 메인 setViolatingNotes와 대칭 — 같은 위반 시각 언어를 재사용한다.
+   */
+  setViolatingExtraNotes(indices: Set<number>): void {
+    this._violatingExtraNoteIndices = indices;
     this.overlayRenderer.renderViolationOverlay();
     this.app?.render();
   }

@@ -1722,11 +1722,12 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
     // beat3에서 시작해 아래로 크게(-5) 드래그 → 하단 zone.beat2까지만 (offset -1)
     mode.beginTouchMoveDragFromNote(0, 1, 3);
-    mode.onPointerMove(1, -2);
+    const result = mode.onPointerMove(1, -2);
 
-    const calls = cb.onChartUpdate.mock.calls;
-    const updated = calls[calls.length - 1][0] as Chart;
+    // 드래그 tentative는 store(onChartUpdate)가 아니라 프리뷰로만 온다
+    const updated = result.preview?.tentativeChart as Chart;
     expect(beatToFloat(updated.notes[0].beat)).toBe(2); // 구간 밖(beat-2)으로 안 나감
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -1820,10 +1821,11 @@ describe("SelectMode — 구간 단위 선택", () => {
 
     // 핸들(lane1, beat2)에서 시작 → (lane2, beat5)로 드래그: +1레인, +3박
     mode.onPointerDown(1, 2, false, false);
-    mode.onPointerMove(2, 5);
+    const result = mode.onPointerMove(2, 5);
 
-    const calls = cb.onChartUpdate.mock.calls;
-    const updated = calls[calls.length - 1][0] as Chart;
+    // 드래그 tentative는 store(onChartUpdate)가 아니라 프리뷰로만 온다
+    const updated = result.preview?.tentativeChart as Chart;
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
     // 구간 이동
     expect(updated.trillZones[0].lane).toBe(2);
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(5);
@@ -1986,7 +1988,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     expect(cb.onWarn).toHaveBeenCalled();
   });
 
-  it("혼합 드래그 결과가 중복 노트(위반)면 pointerUp에서 롤백된다(변이 게이트 재사용)", () => {
+  it("혼합 드래그 결과가 중복 노트(위반)면 pointerUp에서 커밋 거부·tentative 유지·세션 유지·store 무변 (RFD 0016 §C)", () => {
     const chart = makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },
@@ -2003,9 +2005,23 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     cb.setSelection({ notes: new Set([1]), extraNotes: new Set(), zones: new Set([0]) });
 
     mode.beginMoveDrag(3, 9);
-    mode.onPointerMove(3, 10); // 라이브 프리뷰는 적용됨
-    mode.onPointerUp(3, 10);   // 커밋 시 validateChart 위반 → 롤백
+    const moveResult = mode.onPointerMove(3, 10); // 위반 위치여도 tentative 프리뷰는 따라온다
+    expect(beatToFloat((moveResult.preview?.tentativeChart as Chart).notes[1].beat)).toBe(10);
+    const upResult = mode.onPointerUp(3, 10);     // 커밋 시 위반 → 거부, 세션 유지
 
+    // 위반 드롭 = 원위치로 안 튕김. store 무변, resync 안 함(tentative 프리뷰 유지).
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(upResult.resyncChart).toBeUndefined();
+    expect(mode.hasPendingViolationSession).toBe(true);
+
+    // 선택 해제(cancel)가 최종 확정점 — 롤백 신호(resyncChart) + 세션 종료
+    const cancelResult = mode.cancel();
+    expect(cancelResult.resyncChart).toBe(true);
+    expect(mode.hasPendingViolationSession).toBe(false);
+
+    // 롤백 후 내부 chart는 커밋(원본) 좌표 — 후속 무이동 드래그 커밋이 원본을 그대로 기록
+    mode.beginMoveDrag(3, 9);
+    mode.onPointerUp(3, 9);
     const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
     expect(beatToFloat(restored.notes[1].beat)).toBe(9);       // 일반 노트 원위치
     expect(beatToFloat(restored.notes[0].beat)).toBe(2);       // 파생 노트 원위치
@@ -2181,7 +2197,7 @@ describe("SelectMode — 트릴존 복붙", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
-  it("이동 드래그 중 cancel은 노트를 드래그 시작 레인(1)으로 되돌리고 clearDragPreview를 반환", () => {
+  it("이동 드래그 중 cancel은 노트를 드래그 시작 레인(1)으로 되돌리고 clearDragPreview·resyncChart를 반환", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
     });
@@ -2190,14 +2206,21 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
     mode.selectNote(0);
     mode.beginMoveDrag(1, 0);
-    mode.onPointerMove(2, 0); // 레인 1 → 2로 이동(라이브 적용)
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+    const moveResult = mode.onPointerMove(2, 0); // 레인 1 → 2로 이동(tentative 프리뷰)
+    expect((moveResult.preview?.tentativeChart as Chart).notes[0].lane).toBe(2);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // 드래그 중 store 미기록
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
+    expect(result.resyncChart).toBe(true); // 렌더러를 store 값으로 되돌리라는 신호
     expect(mode.isMoveDragging).toBe(false);
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1); // 원위치
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // store 무변 = 원위치(레인 1)
+
+    // 내부 chart도 원위치 — 후속 무이동 드래그 커밋이 원본 레인(1)을 기록
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerUp(1, 0);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1);
   });
 
   it("트릴존 리사이즈 중 cancel은 endBeat를 원본(6)으로 되돌린다", () => {
@@ -2226,13 +2249,17 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     const mode = makeMode(makeChart(), cb);
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
-    mode.onPointerMove(6, 0); // extraLane 1 → 2 (라이브 적용)
-    expect((cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[])[0].extraLane).toBe(2);
+    const moveResult = mode.onPointerMove(6, 0); // extraLane 1 → 2 (tentative 프리뷰)
+    expect((moveResult.preview?.tentativeExtraNotes as ExtraNoteEntity[])[0].extraLane).toBe(2);
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled(); // 드래그 중 store 미기록
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    expect((cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[])[0].extraLane).toBe(1);
+    expect(result.resyncChart).toBe(true);
+    // store는 무변 = 원본(extraLane 1)이 그대로다
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    expect(cb.getExtraNotes()[0].extraLane).toBe(1);
   });
 
   it("박스 선택 중 cancel은 차트 변이 없이 박스만 닫는다", () => {
@@ -2267,13 +2294,20 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 2, false, false); // 핸들 히트 → 구간 단위 드래그 시작
-    mode.onPointerMove(2, 5); // +1레인 +3박 (라이브 적용)
-    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const moveResult = mode.onPointerMove(2, 5); // +1레인 +3박 (tentative 프리뷰)
+    const moved = moveResult.preview?.tentativeChart as Chart;
     expect(moved.trillZones[0].lane).toBe(2);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // 드래그 중 store 미기록
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
+    expect(result.resyncChart).toBe(true);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // store 무변 = 원위치
+
+    // 내부 chart도 원위치 — 후속 무이동 드래그 커밋이 원본 좌표를 그대로 기록
+    mode.onPointerDown(1, 2, false, false);
+    mode.onPointerUp(1, 2);
     const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
     expect(restored.trillZones[0].lane).toBe(1);
     expect(beatToFloat(restored.trillZones[0].beat)).toBe(2);
@@ -2292,15 +2326,19 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     const mode = makeMode(makeChart(), cb);
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
-    mode.onPointerMove(6, 3); // +1레인 +3박 (라이브 적용)
-    const moved = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    const moveResult = mode.onPointerMove(6, 3); // +1레인 +3박 (tentative 프리뷰)
+    const moved = moveResult.preview?.tentativeExtraNotes as ExtraNoteEntity[];
     expect(moved[0].extraLane).toBe(2);
     expect(beatToFloat(moved[0].beat)).toBe(3);
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled(); // 드래그 중 store 미기록
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    const restored = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(result.resyncChart).toBe(true);
+    // store는 무변 = 원본이 그대로다
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    const restored = cb.getExtraNotes();
     expect(restored[0].extraLane).toBe(1);
     expect(beatToFloat(restored[0].beat)).toBe(0);
     expect("endBeat" in restored[0] ? beatToFloat(restored[0].endBeat) : -1).toBe(2);
@@ -2610,7 +2648,7 @@ describe("SelectMode — 혼합 이동(메인+엑스트라 동반, RFD 0016 §4.
     expect(beatToFloat(extraAfter[0].beat)).toBe(3);
   });
 
-  it("혼합 드래그 결과가 중복 노트(위반)면 메인 beat 1·엑스트라 beat 1 둘 다 원위치로 롤백된다", () => {
+  it("혼합 드래그 결과가 중복 노트(위반)면 커밋 거부·tentative/세션 유지, 이후 cancel로 메인·엑스트라 beat 1 복원 (RFD 0016 §C)", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 2 as Lane, beat: beat(1) },
@@ -2626,29 +2664,41 @@ describe("SelectMode — 혼합 이동(메인+엑스트라 동반, RFD 0016 §4.
     cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set() });
 
     mode.beginTouchMoveDragFromNote(0, 2, 1);
-    mode.onPointerMove(2, 2); // 노트0 → (lane2, beat2) = 노트1과 중복(라이브 적용)
-    mode.onPointerUp(2, 2);   // validateChart 위반 → 둘 다 롤백
+    const moveResult = mode.onPointerMove(2, 2); // 노트0 → (lane2, beat2) = 노트1과 중복(tentative는 자유)
+    expect(beatToFloat((moveResult.preview?.tentativeChart as Chart).notes[0].beat)).toBe(2);
+    expect(beatToFloat((moveResult.preview?.tentativeExtraNotes as ExtraNoteEntity[])[0].beat)).toBe(2);
+    const upResult = mode.onPointerUp(2, 2);      // 위반 → 커밋 거부, 세션 유지
 
-    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
-    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(1);
-    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
-    expect(beatToFloat(extraAfter[0].beat)).toBe(1);
+    // 위반 드롭 = 안 튕김. store 무변, resync 안 함(tentative 유지), 세션 열림
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    expect(beatToFloat(cb.getExtraNotes()[0].beat)).toBe(1);
+    expect(upResult.resyncChart).toBeUndefined();
+    expect(mode.hasPendingViolationSession).toBe(true);
+
+    // cancel(선택 해제 상당) = 최종 확정점 → 롤백 신호 + 세션 종료
+    const cancelResult = mode.cancel();
+    expect(cancelResult.resyncChart).toBe(true);
+    expect(mode.hasPendingViolationSession).toBe(false);
+    expect(beatToFloat(cb.getExtraNotes()[0].beat)).toBe(1);
   });
 
   it("혼합 드래그 중 cancel()은 메인(lane 2, beat 1)과 엑스트라(beat 1)를 모두 원위치로 복원한다", () => {
     const { cb, mode } = setupMixed();
 
     mode.beginTouchMoveDragFromNote(0, 2, 1);
-    mode.onPointerMove(3, 2); // +1레인 +1박(라이브 적용)
+    const moveResult = mode.onPointerMove(3, 2); // +1레인 +1박(tentative 프리뷰)
+    expect((moveResult.preview?.tentativeChart as Chart).notes[0].lane).toBe(3);
+    expect(beatToFloat((moveResult.preview?.tentativeExtraNotes as ExtraNoteEntity[])[0].beat)).toBe(2);
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
-    expect(chartAfter.notes[0].lane).toBe(2);
-    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(1);
-    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
-    expect(extraAfter[0].extraLane).toBe(1);
-    expect(beatToFloat(extraAfter[0].beat)).toBe(1);
+    expect(result.resyncChart).toBe(true);
+    // store는 드래그 중 무변 — 폐기가 곧 원위치(메인 lane2·beat1, 엑스트라 beat1)
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    expect(cb.getExtraNotes()[0].extraLane).toBe(1);
+    expect(beatToFloat(cb.getExtraNotes()[0].beat)).toBe(1);
   });
 
   it("혼합 moveBySnap(up): 메인 beat 1→2·엑스트라 beat 1→2 동반(lane·extraLane 불변)", () => {
@@ -2694,5 +2744,328 @@ describe("SelectMode — 혼합 이동(메인+엑스트라 동반, RFD 0016 §4.
     expect(cb.onChartUpdate).not.toHaveBeenCalled();
     expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
     expect(cb.onWarn).toHaveBeenCalledWith(expect.stringContaining("이동할 수 없습니다"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 이동 드래그의 store 분리 — 위반이어도 자유 이동 + 위반 표시, 커밋(up)에서만 검증·1회 기록
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 이동 드래그 store 분리(자유 이동·위반 표시·커밋 1회)", () => {
+  /** lane1 beat0 노트(이동 대상)와 lane1 beat2 노트(겹침 대상) */
+  function setupOverlap() {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 1 as Lane, beat: beat(2) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 0 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    return { cb, mode };
+  }
+
+  it("드래그로 다른 노트(beat2) 위에 겹쳐도 tentativeChart가 따라오고 onChartUpdate는 호출되지 않는다", () => {
+    const { cb, mode } = setupOverlap();
+
+    mode.onPointerDown(1, 0, false, false); // 노트0 선택 + 이동 드래그 시작
+    const result = mode.onPointerMove(1, 2); // 노트1(beat2) 위로 겹침
+
+    expect(beatToFloat((result.preview?.tentativeChart as Chart).notes[0].beat)).toBe(2);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onWarn).not.toHaveBeenCalled(); // 드래그 중 토스트 금지
+  });
+
+  it("겹친 상태의 move 프레임에서 onViolationsChange가 이동 노트 인덱스 {0}만 담아 호출된다", () => {
+    const { cb, mode } = setupOverlap();
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2);
+
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set([0]));
+  });
+
+  it("겹침이 해소된 move 프레임(beat1)에서는 onViolationsChange가 빈 집합으로 호출된다", () => {
+    const { cb, mode } = setupOverlap();
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2); // 겹침
+    mode.onPointerMove(1, 1); // 해소
+
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it("겹친 채 up: 커밋 거부 — store 무변·tentative 유지·위반 표시 유지·세션 유지 (RFD 0016 §C)", () => {
+    const { cb, mode } = setupOverlap();
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2);
+    const upResult = mode.onPointerUp(1, 2);
+
+    // 위반 드롭 = 안 튕김. store 무변, 위반 표시 유지(클리어 안 함), resync 안 함, 세션 열림
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onViolationsChange.mock.calls.at(-1)?.[0]).not.toEqual(new Set());
+    expect(upResult.resyncChart).toBeUndefined();
+    expect(mode.hasPendingViolationSession).toBe(true);
+  });
+
+  it("위반 드롭 후 재드래그로 유효 위치로 옮기면 커밋 1회·세션 종료·위반 표시 클리어 (RFD 0016 §C)", () => {
+    const { cb, mode } = setupOverlap();
+
+    // 위반 드롭 → 세션 열림
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2); // 노트0 → beat2 = 노트1과 중복
+    mode.onPointerUp(1, 2);
+    expect(mode.hasPendingViolationSession).toBe(true);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+
+    // 이어지는 재드래그: 세션 baseline(beat 0)에서 유효 위치(beat 1)로.
+    // (히트테스트는 store(=커밋) 좌표 기준이라 노트0을 (1,0)에서 다시 잡는다 = 선택된 노트 이어가기)
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 1);
+    const upResult = mode.onPointerUp(1, 1);
+
+    expect(cb.onChartUpdate).toHaveBeenCalledTimes(1); // 커밋 정확히 1회
+    expect(beatToFloat((cb.onChartUpdate.mock.calls[0][0] as Chart).notes[0].beat)).toBe(1);
+    expect(mode.hasPendingViolationSession).toBe(false); // 세션 종료
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set()); // 표시 클리어
+    expect(upResult.resyncChart).toBeUndefined(); // 커밋 성공 — 재동기화 불필요
+  });
+
+  it("유효 위치(beat1) up: onChartUpdate 정확히 1회(드래그 중 0회 + 커밋 1회) + violations 빈 집합 클리어", () => {
+    const { cb, mode } = setupOverlap();
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2); // 겹침 경유
+    mode.onPointerMove(1, 1); // 유효 위치
+    const upResult = mode.onPointerUp(1, 1);
+
+    expect(cb.onChartUpdate).toHaveBeenCalledTimes(1);
+    expect(beatToFloat((cb.onChartUpdate.mock.calls[0][0] as Chart).notes[0].beat)).toBe(1);
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set());
+    expect(upResult.resyncChart).toBeUndefined(); // 커밋 성공 — 재동기화 불필요
+  });
+
+  it("혼합(메인+엑스트라) 드래그 중 엑스트라 tentative는 store에 쓰이지 않고 preview.tentativeExtraNotes로만 온다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 2 as Lane, beat: beat(1) }] });
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set() });
+
+    mode.beginTouchMoveDragFromExtraNote(0, 5, 1);
+    const result = mode.onPointerMove(5, 2); // 엑스트라 앵커, +1박
+
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    expect(beatToFloat((result.preview?.tentativeExtraNotes as ExtraNoteEntity[])[0].beat)).toBe(2);
+    expect(beatToFloat((result.preview?.tentativeChart as Chart).notes[0].beat)).toBe(2); // 메인은 beat만 동반
+  });
+
+  it("엑스트라 단독 드래그 up: 이동이 있었으면 onExtraNotesUpdate 정확히 1회(드래그 중 0회 + 커밋 1회)", () => {
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(makeChart(), cb);
+
+    mode.selectExtraNote(0);
+    mode.beginMoveDrag(5, 1);
+    mode.onPointerMove(5, 3); // +2박
+    mode.onPointerUp(5, 3);
+
+    expect(cb.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
+    expect(beatToFloat((cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[])[0].beat)).toBe(3);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // 차트는 무관 — 기록 없음
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 이동 커밋의 층2 시각 겹침 거부 — 표시=거부 일치 (computeMoveViolations)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 이동 커밋 시각 겹침 거부 (create 층2 대칭)", () => {
+  function makeMoveCb() {
+    return makeCallbacks({
+      ...{},
+      yToBeat: (y: number): Beat => beat(y, 64),
+      yToBeatRaw: (y: number): Beat => beat(y, 64),
+    } as never) as ReturnType<typeof makeCallbacks> & {
+      onChartUpdate: ReturnType<typeof vi.fn>;
+      onViolationsChange: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it("점노트를 다른 점노트에 1/64(≤ tolerance 1/32) 근접까지 끌면 위반 표시 후 커밋이 거부된다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(2) }, // 128/64
+      ],
+    });
+    const cb = makeMoveCb();
+    const mode = makeMode(chart, cb as never);
+
+    mode.beginTouchMoveDragFromNote(0, 1, 0);
+    mode.onPointerMove(1, 127); // 노트 0 → 127/64 (노트 1과 1/64 차이)
+
+    const marked = cb.onViolationsChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect(marked).toEqual(new Set([0])); // 이동 중 위반 표시(이동 노트만)
+
+    mode.onPointerUp(1, 127);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // 커밋 거부 - store 무변
+    // 위반 드롭 = 표시 유지(클리어 안 함) + 세션 열림 (RFD 0016 §C)
+    expect(cb.onViolationsChange.mock.calls.at(-1)?.[0]).toEqual(new Set([0]));
+    expect(mode.hasPendingViolationSession).toBe(true);
+  });
+
+  it("점노트를 롱노트 head 캡 위(beat 정확 일치)로 끌면 허용되어 커밋된다(D= 패턴, create 대칭)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) },
+      ],
+    });
+    const cb = makeMoveCb();
+    const mode = makeMode(chart, cb as never);
+
+    mode.beginTouchMoveDragFromNote(0, 1, 0);
+    mode.onPointerMove(1, 128); // 노트 0 → beat 2 = 롱 head 캡
+    mode.onPointerUp(1, 128);
+
+    expect(cb.onChartUpdate).toHaveBeenCalledTimes(1); // 커밋 1회
+  });
+
+  it("함께 이동하는 두 점노트 사이의 1/64 간격은 위반이 아니다(상대 간격 불변 → 커밋)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(1, 64) },
+      ],
+    });
+    const cb = makeMoveCb();
+    const mode = makeMode(chart, cb as never);
+    cb.setSelection({ notes: new Set([0, 1]), extraNotes: new Set(), zones: new Set() });
+
+    mode.beginTouchMoveDragFromNote(0, 1, 0);
+    mode.onPointerMove(1, 64); // 둘 다 +1박
+    mode.onPointerUp(1, 64);
+
+    expect(cb.onChartUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 위반 tentative 세션 (RFD 0016 §C) — 선택 종결점·엑스트라 거부·setChart 폐기
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 위반 tentative 세션 선택-종결", () => {
+  function setupOverlapSession() {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 1 as Lane, beat: beat(2) },
+      ],
+    });
+    const cb = makeCallbacks({
+      // 노트0은 (1,0)에서, 그 외 좌표는 빈 곳(null)
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 0 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    // 위반 드롭으로 세션을 연다
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 2); // 노트0 → beat2 = 노트1과 중복
+    mode.onPointerUp(1, 2);
+    return { cb, mode };
+  }
+
+  it("위반 세션 중 빈 곳 클릭(선택 해제)이면 롤백·resyncChart·위반 표시 클리어·세션 종료", () => {
+    const { cb, mode } = setupOverlapSession();
+    expect(mode.hasPendingViolationSession).toBe(true);
+
+    // 빈 곳(1,5) 클릭 = hitTestNote null → 선택 교체(박스) = 세션 종결
+    const downResult = mode.handlePointerDown({ x: 1, y: 5, shiftKey: false, altKey: false, toggleSelection: false });
+
+    expect(downResult.resyncChart).toBe(true); // 렌더러를 store로 되돌리라는 신호
+    expect(mode.hasPendingViolationSession).toBe(false);
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set());
+    expect(cb.onChartUpdate).not.toHaveBeenCalled(); // 커밋된 적 없음 = 원위치
+  });
+
+  it("위반 세션 중 cancel()이면 롤백·resyncChart·위반 표시 클리어·세션 종료", () => {
+    const { cb, mode } = setupOverlapSession();
+    expect(mode.hasPendingViolationSession).toBe(true);
+
+    const result = mode.cancel();
+
+    expect(result.resyncChart).toBe(true);
+    expect(mode.hasPendingViolationSession).toBe(false);
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it("위반 세션 중 setChart(undo 상당)이면 tentative 폐기·세션 종료·위반 표시 클리어", () => {
+    const { cb, mode } = setupOverlapSession();
+    expect(mode.hasPendingViolationSession).toBe(true);
+
+    // 외부 차트 교체(undo/redo) — 세션 무효
+    mode.setChart(makeChart({ notes: [{ type: "single", lane: 2 as Lane, beat: beat(5) }] }));
+
+    expect(mode.hasPendingViolationSession).toBe(false);
+    expect(cb.onViolationsChange).toHaveBeenLastCalledWith(new Set());
+  });
+});
+
+describe("SelectMode — 엑스트라 위반 드롭(onExtraViolationsChange + 커밋 거부)", () => {
+  it("엑스트라 점노트를 다른 엑스트라와 같은 beat로 드롭하면 onExtraViolationsChange 표시 + 커밋 거부 + 세션 유지", () => {
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) }, // 이동 대상
+      { type: "single", extraLane: 1, beat: beat(2) }, // 충돌
+    ];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const onExtraViolationsChange = vi.fn();
+    (cb as unknown as { onExtraViolationsChange: typeof onExtraViolationsChange }).onExtraViolationsChange = onExtraViolationsChange;
+    const mode = makeMode(makeChart(), cb);
+
+    mode.selectExtraNote(0);
+    mode.beginMoveDrag(5, 0);         // 엑스트라 레인 1 앵커
+    mode.onPointerMove(5, 2);         // 노트0 → beat2 = 노트1과 중복
+    // 드래그 중 엑스트라 위반 표시
+    expect(onExtraViolationsChange.mock.calls.at(-1)?.[0]).toEqual(new Set([0]));
+
+    mode.onPointerUp(5, 2);           // 커밋 시도 → 엑스트라 위반 → 거부
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled(); // 커밋 거부(store 무변)
+    expect(mode.hasPendingViolationSession).toBe(true);   // 세션 유지
+  });
+
+  it("엑스트라 점노트를 빈 위치로 드롭하면 정상 커밋(위반 없음)", () => {
+    const extraNotes: ExtraNoteEntity[] = [
+      { type: "single", extraLane: 1, beat: beat(0) },
+      { type: "single", extraLane: 1, beat: beat(5) },
+    ];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(makeChart(), cb);
+
+    mode.selectExtraNote(0);
+    mode.beginMoveDrag(5, 0);
+    mode.onPointerMove(5, 2); // 노트0 → beat2 (빈 위치)
+    mode.onPointerUp(5, 2);
+
+    expect(cb.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
+    expect(beatToFloat((cb.onExtraNotesUpdate.mock.calls[0][0] as ExtraNoteEntity[])[0].beat)).toBe(2);
+    expect(mode.hasPendingViolationSession).toBe(false);
   });
 });

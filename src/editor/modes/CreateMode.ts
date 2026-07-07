@@ -210,9 +210,10 @@ export class CreateMode implements EditorMode {
    * 통합 포인터 down 진입점. 배치 제약을 스스로 검사하고 통과 시에만 배치한다.
    * (Create 모드는 gesture의 shift/alt/toggle 수식자를 쓰지 않는다.)
    */
-  handlePointerDown(gesture: PointerGesture): void {
-    if (this.isPlacementBlocked(gesture.x, gesture.y)) return;
+  handlePointerDown(gesture: PointerGesture): EditResult {
+    if (this.isPlacementBlocked(gesture.x, gesture.y)) return {};
     this.onPointerDown(gesture.x, gesture.y);
+    return {};
   }
 
   /**

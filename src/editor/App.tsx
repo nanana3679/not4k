@@ -497,6 +497,7 @@ function ChartEditorPage() {
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onViolationsChange: (indices) => { rendererRef.current?.setViolatingNotes(indices); },
+      onExtraViolationsChange: (indices) => { rendererRef.current?.setViolatingExtraNotes(indices); },
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
@@ -653,9 +654,16 @@ function ChartEditorPage() {
     if (createModeRef.current) createModeRef.current.graceMode = graceMode;
   }, [graceMode]);
 
-  // create 모드 이탈 시 ghost 숨기기
+  // create 모드 이탈 시 ghost 숨기기 + 위반 tentative 세션 종결(선택-종결 지점, RFD 0016 §C).
+  // 모드가 바뀌면 열려 있던 위반 세션을 커밋 상태로 롤백하고 렌더러를 재동기화한다.
   useEffect(() => {
     if (mode !== 'create') rendererRef.current?.hideGhostNote();
+    const result = selectModeRef.current?.finalizePendingMove();
+    if (result?.resyncChart && rendererRef.current) {
+      const store = useEditorStore.getState();
+      rendererRef.current.setChart(store.chart);
+      rendererRef.current.setExtraNotes(store.extraNotes);
+    }
   }, [mode]);
 
   // 재생 커서 + 자동 스크롤
