@@ -4,6 +4,7 @@ import {
   beginTouchNavigationSession,
   didTouchMoveBeyondTapSlop,
   isTouchNavigationGesture,
+  shouldPromoteTapToggleToBox,
   shouldRunTouchBoxSelectDrag,
   resolveTouchNavigationMode,
 } from "./touchGesture";
@@ -184,5 +185,37 @@ describe("editor touch gesture policy", () => {
     expect(pending?.mode).toBeNull();
     expect(pending?.session.previousCenter).toEqual({ clientX: 90, clientY: 106 });
     expect(pending?.session.previousDistance).toBe(100);
+  });
+});
+
+describe("shouldPromoteTapToggleToBox — 노트 위 드래그의 박스 승격 (RFD 0016)", () => {
+  const base = {
+    pointerType: "touch",
+    editorMode: "select",
+    candidatePointerId: 7,
+    pointerId: 7,
+    moved: true,
+    activeTouchCount: 1,
+    holdFired: false,
+  };
+
+  it("select 모드에서 tapToggle 후보가 slop을 넘고 롱프레스 미발화면 박스로 승격한다", () => {
+    expect(shouldPromoteTapToggleToBox(base)).toBe(true);
+  });
+
+  it("롱프레스가 이미 발화했으면 승격하지 않는다(이동 드래그 우선)", () => {
+    expect(shouldPromoteTapToggleToBox({ ...base, holdFired: true })).toBe(false);
+  });
+
+  it("slop을 넘지 않았으면(탭) 승격하지 않는다", () => {
+    expect(shouldPromoteTapToggleToBox({ ...base, moved: false })).toBe(false);
+  });
+
+  it("두 손가락(내비게이션)이면 승격하지 않는다", () => {
+    expect(shouldPromoteTapToggleToBox({ ...base, activeTouchCount: 2 })).toBe(false);
+  });
+
+  it("다른 pointerId의 move에는 승격하지 않는다", () => {
+    expect(shouldPromoteTapToggleToBox({ ...base, pointerId: 9 })).toBe(false);
   });
 });

@@ -550,7 +550,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 에디터 선택 상태(`selection: {notes, extraNotes, zones}`)의 **단독 소유자**. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`·`clearExtraSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계).
 
-합법 상태(불변): ① notes는 동질적이다 — 일반 노트들, 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② zones가 비어있지 않으면 구간 단위 선택 — notes는 구간에 **포함**된(겹침 아님) 노트로 파생되고 extraNotes는 빈 집합. ③ 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo·엑스트라 삭제 등)에서 stale 선택이 남을 수 있었다.
+합법 상태(불변, RFD 0016): ① notes는 동질적이다 — 일반 노트들, 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes·extraNotes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준). ④ 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo·엑스트라 삭제 등)에서 stale 선택이 남을 수 있었다.
 
 **구현**: `src/editor/stores/selectionSlice.ts` (editorStore에 결합). 차트 변이 시 보정(범위 pruning·재정규화)은 store 변이 액션(`setChart`/`setExtraNotes`/`undo`/`redo`/`loadChart`)이 같은 트랜잭션에서 수행한다 — 인덱스 shift 재매핑(노트 identity)은 미해결, 별도 RFD감.
 

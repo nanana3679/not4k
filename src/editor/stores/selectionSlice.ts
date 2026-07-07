@@ -11,15 +11,17 @@
  * 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서
  * "거부"는 복구 동작이 없기 때문이다(기존 updateBoxSelection의 조용한 정리 정책 승계).
  *
- * 합법 상태(불변):
+ * 합법 상태(불변, RFD 0016):
  * - notes는 동질적이다 — 일반 노트들, 또는 같은 trillZone의 트릴 노트들만.
- * - zones가 비어있지 않으면 구간 단위 선택 — notes는 구간에 **포함**된 노트로
- *   파생되고(겹침 아님, selectZoneUnit 의미론), extraNotes는 빈 집합이다.
+ * - zones는 선택의 독립 축이다 — 일반 notes·extraNotes와 **공존**하고,
+ *   내부 노트를 notes에 주입하지 않는다(동사가 실행 시점에 파생, §4.2).
+ * - notes가 트릴 노트 모드(개별 트릴 선택)이면 zones는 빈 집합이다 —
+ *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
 import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone } from '../../shared';
 import { beatToFloat } from '../../shared';
-import { filterHomogeneousSelection } from '../modes/trillZoneSelection';
+import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
 /** 에디터 선택 상태. 세 집합의 관계 불변은 normalizeSelection이 보장한다. */
 export interface Selection {
@@ -32,7 +34,10 @@ export function emptySelection(): Selection {
   return { notes: new Set(), extraNotes: new Set(), zones: new Set() };
 }
 
-/** 구간에 완전히 포함된(시작·끝 모두 구간 안) 노트 인덱스 — 구간 단위 선택의 파생 규칙. */
+/**
+ * 구간에 완전히 포함된(시작·끝 모두 구간 안) 노트 인덱스.
+ * 이동·삭제·복사 동사가 실행 시점에 구간 유닛의 내부 노트를 파생할 때 쓴다 (RFD 0016 §4.2).
+ */
 export function zoneContainedNoteIndices(
   notes: readonly NoteEntity[],
   zone: TrillZone,
@@ -86,27 +91,20 @@ export function normalizeSelection(
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 
-  // 구간 단위 선택: notes는 파생, extra는 비운다 (selectZoneUnit 의미론 승계)
-  if (zones.size > 0) {
-    const notes = new Set<number>();
-    for (const zoneIndex of zones) {
-      for (const noteIndex of zoneContainedNoteIndices(chart.notes, chart.trillZones[zoneIndex])) {
-        notes.add(noteIndex);
-      }
-    }
-    return { notes, extraNotes: new Set(), zones };
-  }
-
-  // 노트 단위 선택: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다)
+  // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다)
   const { kept } = filterHomogeneousSelection(
     chart.trillZones,
     chart.notes,
     pruneBounds(input.notes, chart.notes.length),
   );
+
+  // 개별 트릴 노트 모드는 구간 유닛과 배타 — zones를 비운다 (RFD 0016 §4.1).
+  // 일반/빈 모드면 zones는 일반 노트·extraNotes와 공존한다(내부 노트 주입 없음).
+  const kind = classifySelection(chart.trillZones, chart.notes, kept);
   return {
     notes: kept,
     extraNotes: pruneBounds(input.extraNotes, extraNotes.length),
-    zones,
+    zones: kind.kind === 'trill' ? new Set<number>() : zones,
   };
 }
 

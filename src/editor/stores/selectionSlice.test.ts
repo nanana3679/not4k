@@ -80,7 +80,7 @@ describe('normalizeSelection — 범위 보정', () => {
     expect(result.extraNotes).toEqual(new Set([0]));
   });
 
-  it('범위 밖 zone 인덱스(5)만 있으면 zones가 비고 노트 정규화 경로로 처리된다', () => {
+  it('범위 밖 zone 인덱스(5)는 zones에서 제거되고 notes {0,3}은 유지된다', () => {
     const result = normalizeSelection(
       sel({ notes: new Set([0, 3]), zones: new Set([5]) }),
       chart,
@@ -91,18 +91,45 @@ describe('normalizeSelection — 범위 보정', () => {
   });
 });
 
-describe('normalizeSelection — 구간 단위 선택(zones)', () => {
-  it('zones={0}이면 notes는 zoneA에 포함된 트릴 노트{1,4}로 파생되고 extraNotes는 비워진다', () => {
+describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
+  it('zones={0}이어도 notes에 내부 노트를 주입하지 않는다(notes 빈 집합 유지)', () => {
+    const result = normalizeSelection(sel({ zones: new Set([0]) }), chart, extraNotes);
+    expect(result.zones).toEqual(new Set([0]));
+    expect(result.notes).toEqual(new Set());
+  });
+
+  it('일반 notes {0,3}과 zones {0}은 공존한다', () => {
     const result = normalizeSelection(
-      sel({ notes: new Set([0, 3]), extraNotes: new Set([0]), zones: new Set([0]) }),
+      sel({ notes: new Set([0, 3]), zones: new Set([0]) }),
+      chart,
+      extraNotes,
+    );
+    expect(result.notes).toEqual(new Set([0, 3]));
+    expect(result.zones).toEqual(new Set([0]));
+  });
+
+  it('트릴 노트 {1}이 선택되면 zones {1}은 비워진다(개별 트릴 모드는 구간 유닛과 배타)', () => {
+    const result = normalizeSelection(
+      sel({ notes: new Set([1]), zones: new Set([1]) }),
+      chart,
+      extraNotes,
+    );
+    expect(result.notes).toEqual(new Set([1]));
+    expect(result.zones).toEqual(new Set());
+  });
+
+  it('zones {0}과 extraNotes {0}은 공존한다(extra를 비우지 않음)', () => {
+    const result = normalizeSelection(
+      sel({ extraNotes: new Set([0]), zones: new Set([0]) }),
       chart,
       extraNotes,
     );
     expect(result.zones).toEqual(new Set([0]));
-    expect(result.notes).toEqual(new Set([1, 4]));
-    expect(result.extraNotes).toEqual(new Set());
+    expect(result.extraNotes).toEqual(new Set([0]));
   });
+});
 
+describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4.2)', () => {
   it('구간과 부분만 겹치는 노트는 파생에 포함되지 않는다(포함 기준, 겹침 아님)', () => {
     // trillLong 1~3: zoneA(0~2)와 겹치지만 끝(3)이 구간 밖 → 제외
     const partialNotes: NoteEntity[] = [
@@ -167,10 +194,10 @@ describe('SelectionSlice 액션', () => {
     expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 3]));
   });
 
-  it('setSelection: zones={1}이면 zoneB 포함 트릴 {2}가 파생된다', () => {
+  it('setSelection: zones={1}은 유지되고 내부 트릴 노트는 notes에 주입되지 않는다', () => {
     useEditorStore.getState().setSelection(sel({ zones: new Set([1]) }));
     const { selection } = useEditorStore.getState();
-    expect(selection.notes).toEqual(new Set([2]));
+    expect(selection.notes).toEqual(new Set());
     expect(selection.zones).toEqual(new Set([1]));
   });
 

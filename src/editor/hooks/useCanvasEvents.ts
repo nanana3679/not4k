@@ -23,6 +23,7 @@ import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
   TOUCH_MOVE_CANCEL_PX,
   didTouchMoveBeyondTapSlop,
+  shouldPromoteTapToggleToBox,
   shouldRunTouchBoxSelectDrag,
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
@@ -105,7 +106,7 @@ export function useCanvasEvents(
     yToBeat, snapBeat,
     bpmMarkers,
     hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
-    hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef,
+    hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef, hitTestTrillZoneRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
   } = coords;
@@ -177,6 +178,7 @@ export function useCanvasEvents(
         noteHit: hitTestNoteRef.current(fx, fy),
         noteEndHit: hitTestNoteEndRef.current(fx, fy),
         extraHit: hitTestExtraNoteRef.current(fx, fy),
+        zoneHit: hitTestTrillZoneRef.current(fx, fy),
       };
       const firePlacementBlocked = mode === 'create'
         ? (createModeRef.current?.isPlacementBlocked(fx, fy) ?? false)
@@ -196,13 +198,14 @@ export function useCanvasEvents(
           noteEndHit: fireHits.noteEndHit,
           noteHit: fireHits.noteHit,
           extraHit: fireHits.extraHit,
+          zoneHit: fireHits.zoneHit,
         });
         rendererRef.current?.hideGhostNote();
       }
     }, LONG_PRESS_MS);
   }, [
     clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
   ]);
 
   const toSample = useCallback((
@@ -367,7 +370,12 @@ export function useCanvasEvents(
       armHoldTimer(
         x,
         y,
-        { noteHit: touchNoteHit, noteEndHit: touchNoteEndHit, extraHit: touchExtraHit },
+        {
+          noteHit: touchNoteHit,
+          noteEndHit: touchNoteEndHit,
+          extraHit: touchExtraHit,
+          zoneHit: hitTestTrillZoneRef.current(x, y),
+        },
         mode,
         entityType as EntityType,
       );
@@ -409,7 +417,7 @@ export function useCanvasEvents(
       ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
   }, [
     mode, entityType,
-    toSample, handleEditCancel, armHoldTimer,
+    toSample, handleEditCancel, armHoldTimer, hitTestTrillZoneRef,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
     hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
@@ -486,6 +494,35 @@ export function useCanvasEvents(
     ) {
       rendererRef.current?.hideGhostNote();
       return;
+    }
+
+    // 노트/엑스트라 위에서 시작한 tapToggle 후보도 slop을 넘으면 박스로 승격한다 (RFD 0016 §4.4).
+    // 승격은 후보를 empty-select 후보로 전환해 기존 박스 재생·up 경로를 그대로 태운다
+    // (beginBoxSelect가 드래그를 시작하므로 재생 onPointerDown은 idempotency 가드에 걸려 no-op).
+    const tapCand = touchTapToggleRef.current;
+    if (
+      tapCand &&
+      shouldPromoteTapToggleToBox({
+        pointerType: e.pointerType,
+        editorMode: mode,
+        candidatePointerId: tapCand.pointerId,
+        pointerId: e.pointerId,
+        moved: tapCand.moved,
+        activeTouchCount: recognizerRef.current.activeTouchCount,
+        holdFired: holdState?.fired ?? false,
+      }) &&
+      selectModeRef.current
+    ) {
+      selectModeRef.current.beginBoxSelect(tapCand.x, tapCand.y);
+      touchEmptySelectCandidateRef.current = {
+        pointerId: tapCand.pointerId,
+        x: tapCand.x,
+        y: tapCand.y,
+        moved: true,
+        startClientX: tapCand.startClientX,
+        startClientY: tapCand.startClientY,
+      };
+      touchTapToggleRef.current = null;
     }
 
     const emptySelectCandidate = touchEmptySelectCandidateRef.current;
@@ -722,12 +759,14 @@ export function useCanvasEvents(
         );
         rendererRef.current?.clearMoveOrigins();
         rendererRef.current?.clearBoxSelectRect();
-        // 빈 곳 탭/박스로 선택이 비면 다중선택 래치를 끈다(누적 토글 모드 종료).
         const sel = useEditorStore.getState();
-        touchMultiSelectRef.current = nextTouchMultiSelectLatch(
-          touchMultiSelectRef.current,
-          sel.selection.notes.size + sel.selection.extraNotes.size,
-        );
+        const selectionSize =
+          sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size;
+        // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 탭이 토글이 된다 (RFD 0016 §4.4).
+        // 탭(빈 곳 탭·핸들 탭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
+        touchMultiSelectRef.current = touchEmptySelectCandidate.moved
+          ? selectionSize > 0
+          : nextTouchMultiSelectLatch(touchMultiSelectRef.current, selectionSize);
       }
       rendererRef.current?.hideGhostNote();
       return;
@@ -785,7 +824,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.extraNotes.size,
+        sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
