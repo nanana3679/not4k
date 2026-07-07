@@ -593,3 +593,51 @@ describe("GameNoteRenderer 더블롱 부분 실패 양쪽 → 완전 실패 승�
     expect(keys).not.toContain("bodyDoubleFailed");
   });
 });
+
+describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(당김) — 이슈 #85", () => {
+  // judgmentLineY=500, scroll=1000, NOTE_HEIGHT=20. 롱 head=300ms·tail=500ms, song=250(접근 중, 판정선 위).
+  // 안 당기면 head(rawStartY)=470, 당기면 판정선(520)까지 → body 하단 y+height로 검증.
+  function setup(fill: { filled: number; required: number } | null, inject = true) {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer, skinManager, 500, 1000, 0, 600,
+    );
+    if (inject) renderer.setHeadlessHeldFillQuery(() => fill);
+    return { renderer, bodyLayer };
+  }
+  const longEntity = () =>
+    ({ type: "long", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+  const bottomOf = (bodyLayer: Container) => {
+    const s = childrenOf(bodyLayer).at(-1) as MockSprite & { height: number };
+    return s.y + s.height;
+  };
+
+  it("충족(1/1) 홀드 중이면 판정선 위 접근 중이어도 body 하단이 판정선(520)까지 당겨짐", () => {
+    const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(520);
+  });
+
+  it("홀드 안 하면(조회 null) 당기지 않아 body 하단이 접근 위치(470)에 머무름", () => {
+    const { renderer, bodyLayer } = setup(null);
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+
+  it("filled 0(윈도우 내 홀드 없음)이면 당기지 않음 — 접근 위치(470) 유지", () => {
+    const { renderer, bodyLayer } = setup({ filled: 0, required: 1 });
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+
+  it("길이 0 슬라이드는 충족 중이어도 당기지 않음(body 없음)", () => {
+    const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
+    // head=tail=300ms, song=250 → 당기면 안 됨. 당기면 하단이 520이 되지만 당기지 않으므로 470.
+    renderer.renderLongNote(longEntity(), 0, 300, 300, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+});
