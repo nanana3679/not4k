@@ -19,6 +19,12 @@ import {
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
 import { computeMoveViolations, computeExtraMoveViolations } from "./violationCheck";
+import {
+  captureMoveOrigins,
+  buildMovedNotesGeneric,
+  notesInBoundsByBeat,
+  type LaneAxis,
+} from "./moveKinematics";
 import { zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
@@ -90,6 +96,15 @@ export class SelectMode implements EditorMode {
     number,
     { beat: Beat; endBeat?: Beat; extraLane: number }
   > = new Map();
+  /** buildMovedNotesGeneric에 넘길 레인 축 — 메인은 lane(Lane), 엑스트라는 extraLane. */
+  private static readonly MAIN_AXIS: LaneAxis<NoteEntity> = {
+    laneOf: (n) => n.lane,
+    withLane: (n, l) => ({ ...n, lane: l as Lane }),
+  };
+  private static readonly EXTRA_AXIS: LaneAxis<ExtraNoteEntity> = {
+    laneOf: (n) => n.extraLane,
+    withLane: (n, l) => ({ ...n, extraLane: l }),
+  };
   // 트릴 노트 단위 이동 시, 이동을 가두는 trillZone(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
   private _trillMoveZone: TrillZone | null = null;
   // 이동 드래그 중의 임시 엑스트라 노트(드래그 소유 상태 — store 미기록, 프리뷰로만 PUSH).
@@ -1799,15 +1814,16 @@ export class SelectMode implements EditorMode {
 
   /** 주어진 노트들의 원본 좌표를 기록한다(이동용). 기본값은 직접 선택한 notes. */
   private captureNoteOrigins(indices: ReadonlySet<number> = this.sel.notes): void {
+    // 공통 코어(captureMoveOrigins)로 캡처한 뒤 lane을 Lane 타입 맵으로 옮긴다(엑스트라와 대칭).
     this.originalPositions.clear();
-    for (const idx of indices) {
-      const note = this.chart.notes[idx];
-      if (!note) continue;
-      if (this.isRangeNote(note)) {
-        this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
-      } else {
-        this.originalPositions.set(idx, { beat: note.beat, lane: note.lane });
-      }
+    const origins = captureMoveOrigins(this.chart.notes, indices, (n) => n.lane);
+    for (const [idx, o] of origins) {
+      this.originalPositions.set(
+        idx,
+        o.endBeat !== undefined
+          ? { beat: o.beat, endBeat: o.endBeat, lane: o.lane as Lane }
+          : { beat: o.beat, lane: o.lane as Lane },
+      );
     }
   }
 
@@ -1815,18 +1831,14 @@ export class SelectMode implements EditorMode {
   private captureExtraNoteOrigins(): void {
     this.originalExtraPositions.clear();
     const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
-    for (const idx of this.sel.extraNotes) {
-      const note = extraNotes[idx];
-      if (!note) continue;
-      if ("endBeat" in note) {
-        this.originalExtraPositions.set(idx, {
-          beat: note.beat,
-          endBeat: note.endBeat,
-          extraLane: note.extraLane,
-        });
-      } else {
-        this.originalExtraPositions.set(idx, { beat: note.beat, extraLane: note.extraLane });
-      }
+    const origins = captureMoveOrigins(extraNotes, this.sel.extraNotes, (n) => n.extraLane);
+    for (const [idx, o] of origins) {
+      this.originalExtraPositions.set(
+        idx,
+        o.endBeat !== undefined
+          ? { beat: o.beat, endBeat: o.endBeat, extraLane: o.lane }
+          : { beat: o.beat, extraLane: o.lane },
+      );
     }
   }
 
@@ -1839,23 +1851,15 @@ export class SelectMode implements EditorMode {
 
   /** 기록된 원본 좌표에 오프셋을 적용한 새 메인 노트 배열을 만든다. */
   private buildMovedNotes(laneOffset: number, beatOffset: Beat): NoteEntity[] {
-    const newNotes = [...this.chart.notes];
-    for (const [idx, original] of this.originalPositions) {
-      const newLane = (original.lane + laneOffset) as Lane;
-      const newBeat = beatAdd(original.beat, beatOffset);
-      if (this.isRangeNote(newNotes[idx])) {
-        const duration = beatSub(original.endBeat!, original.beat);
-        newNotes[idx] = {
-          ...newNotes[idx],
-          lane: newLane,
-          beat: newBeat,
-          endBeat: beatAdd(newBeat, duration),
-        } as RangeNote;
-      } else {
-        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
-      }
-    }
-    return newNotes;
+    // originalPositions는 {lane: Lane} — Lane은 number 서브타입이라 MoveOrigin에 그대로 대입된다.
+    return buildMovedNotesGeneric(
+      this.chart.notes,
+      this.originalPositions,
+      laneOffset,
+      beatOffset,
+      SelectMode.MAIN_AXIS,
+      (n) => this.isRangeNote(n),
+    );
   }
 
   /**
@@ -1865,25 +1869,20 @@ export class SelectMode implements EditorMode {
   private buildMovedExtraNotes(laneOffset: number, beatOffset: Beat): ExtraNoteEntity[] | null {
     const extraNotes = this.callbacks.getExtraNotes?.();
     if (!extraNotes) return null;
-    const newExtraNotes = [...extraNotes];
-    for (const [idx, original] of this.originalExtraPositions) {
-      const note = newExtraNotes[idx];
-      if (!note) continue;
-      const newExtraLane = original.extraLane + laneOffset;
-      const newBeat = beatAdd(original.beat, beatOffset);
-      if ("endBeat" in note) {
-        const duration = beatSub(original.endBeat!, original.beat);
-        newExtraNotes[idx] = {
-          ...note,
-          extraLane: newExtraLane,
-          beat: newBeat,
-          endBeat: beatAdd(newBeat, duration),
-        };
-      } else {
-        newExtraNotes[idx] = { ...note, extraLane: newExtraLane, beat: newBeat };
-      }
-    }
-    return newExtraNotes;
+    // 축 좌표 이름이 extraLane이라 MoveOrigin(lane) 형태로 옮겨 코어에 넘긴다.
+    const origins = new Map(
+      [...this.originalExtraPositions].map(
+        ([idx, o]) => [idx, { beat: o.beat, endBeat: o.endBeat, lane: o.extraLane }] as const,
+      ),
+    );
+    return buildMovedNotesGeneric(
+      extraNotes,
+      origins,
+      laneOffset,
+      beatOffset,
+      SelectMode.EXTRA_AXIS,
+      (n) => "endBeat" in n,
+    );
   }
 
   /**
@@ -1982,34 +1981,21 @@ export class SelectMode implements EditorMode {
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */
   private areNotesInBounds(notes: NoteEntity[], indices: Set<number>): boolean {
-    const maxFloat = this.callbacks.getMaxBeatFloat();
-
-    for (const idx of indices) {
-      const note = notes[idx];
-      const beatFloat = beatToFloat(note.beat);
-      if (beatFloat < 0 || beatFloat > maxFloat) return false;
-      if (this.isRangeNote(note)) {
-        const endFloat = beatToFloat(note.endBeat);
-        if (endFloat < 0 || endFloat > maxFloat) return false;
-      }
-    }
-    return true;
+    return notesInBoundsByBeat(
+      notes,
+      indices,
+      this.callbacks.getMaxBeatFloat(),
+      (n) => this.isRangeNote(n),
+    );
   }
 
   private areExtraNotesInBounds(notes: ExtraNoteEntity[], indices: Set<number>): boolean {
-    const maxFloat = this.callbacks.getMaxBeatFloat();
-
-    for (const idx of indices) {
-      const note = notes[idx];
-      if (!note) continue;
-      const beatFloat = beatToFloat(note.beat);
-      if (beatFloat < 0 || beatFloat > maxFloat) return false;
-      if ("endBeat" in note) {
-        const endFloat = beatToFloat(note.endBeat);
-        if (endFloat < 0 || endFloat > maxFloat) return false;
-      }
-    }
-    return true;
+    return notesInBoundsByBeat(
+      notes,
+      indices,
+      this.callbacks.getMaxBeatFloat(),
+      (n) => "endBeat" in n,
+    );
   }
 
   private startResize(
