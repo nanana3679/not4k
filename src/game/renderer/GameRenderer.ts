@@ -1424,6 +1424,13 @@ export class GameRenderer {
     this.noteRenderer.applyNoteDisplayEffect(noteIndex, effect);
   }
 
+  /** 헤드없는 롱노트 held 충족 조회 주입 — 플레이 화면이 JudgmentEngine을 연결한다 (이슈 #85). */
+  setHeadlessHeldFillQuery(
+    query: (index: number, timeMs: number) => { filled: number; required: number } | null,
+  ): void {
+    this.noteRenderer.setHeadlessHeldFillQuery(query);
+  }
+
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;

@@ -60,6 +60,14 @@ export class GameNoteRenderer {
   /** 노트 인덱스 → 시작 시간(ms) — 선행 노트의 held 여부 계산용 */
   private noteStartMsByIndex: Map<number, number> = new Map();
 
+  /**
+   * 헤드없는 롱노트의 held 충족 조회 (엔진 주입, 이슈 #85). null이면 미주입(튜토리얼 프리뷰 등)이라
+   * 기존 기하 held 경로로 폴백한다. 반환 null = 조회 대상 아님·소비 윈도우 밖.
+   */
+  private headlessHeldFillQuery:
+    | ((index: number, timeMs: number) => { filled: number; required: number } | null)
+    | null = null;
+
   constructor(
     longNoteBodyLayer: Container,
     longNoteEndLayer: Container,
@@ -246,13 +254,20 @@ export class GameNoteRenderer {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
-        const isHeld =
-          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-          this.hasConnectedHeldPredecessor(index, songTimeMs);
-        if (isHeld) {
-          bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
+        // 헤드없는 롱노트가 홀드로 consume 충족 중이면 엔진 술어를 그대로 조회해 body를 켠다
+        // (이슈 #85 — 시각·판정 단일 진실). null이면(조회 대상 아님·윈도우 밖·미주입) 기하 held로 폴백.
+        const fill = this.headlessHeldFillQuery?.(index, songTimeMs) ?? null;
+        if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
+          // 부분 충족(1/2): 레인 위치로 대기 쪽 결정 (레인 1·2=왼쪽 대기, 3·4=오른쪽 대기)
+          bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
         } else {
-          bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+          const isHeld = fill
+            ? fill.filled >= fill.required
+            : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+              this.hasConnectedHeldPredecessor(index, songTimeMs);
+          bodyTexKey = isHeld
+            ? (isDouble ? "bodyDoubleHeld" : "bodySingleHeld")
+            : (isDouble ? "bodyDouble" : "bodySingle");
         }
         endCapTexKey = isDouble ? "terminalDouble" : "terminalSingle";
       }
@@ -367,6 +382,16 @@ export class GameNoteRenderer {
   ): void {
     this.connectedPredecessor = new Map(connectedPredecessor);
     this.noteStartMsByIndex = new Map(noteStartMsByIndex);
+  }
+
+  /**
+   * 헤드없는 롱노트 held 충족 조회를 주입한다 (이슈 #85). 플레이 화면은 JudgmentEngine을
+   * 연결하고, 튜토리얼 프리뷰처럼 미주입이면 기존 기하 held 경로로 폴백한다.
+   */
+  setHeadlessHeldFillQuery(
+    query: (index: number, timeMs: number) => { filled: number; required: number } | null,
+  ): void {
+    this.headlessHeldFillQuery = query;
   }
 
   setJudgmentLineY(y: number): void {

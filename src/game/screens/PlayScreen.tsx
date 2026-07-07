@@ -256,6 +256,9 @@ export function PlayScreen() {
           connectionSources,
         );
 
+        // 헤드없는 롱노트 held 충족 시각 피드백 — 렌더러가 엔진 술어를 그대로 조회 (이슈 #85)
+        renderer.setHeadlessHeldFillQuery((index, timeMs) => judgmentEngine.headlessHeldFill(index, timeMs));
+
         // Create input system
         const keyBindings: KeyBinding[] = [];
         Object.entries(settings.keyBindings).forEach(([lane, keys]) => {

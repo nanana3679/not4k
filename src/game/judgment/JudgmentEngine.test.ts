@@ -1837,6 +1837,85 @@ describe("헤드 없는 더블 롱노트 2키 consume (RFD 0006)", () => {
   });
 });
 
+describe("헤드 없는 롱노트 held 충족 카운트 조회 headlessHeldFill (이슈 #85 시각 피드백)", () => {
+  const lane: Lane = 1;
+
+  /** 헤드 없는 싱글 롱노트(idx0, 1000~2000) 단독 */
+  function headlessSingleSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1))];
+    return setup(notes, new Map([[0, 1000]]), new Map([[0, 2000]]));
+  }
+
+  /** 헤드 없는 더블 롱노트(idx0, 1000~2000) 단독 */
+  function headlessDoubleSetup() {
+    const notes = [makeDoubleLongNote(lane, beat(0, 1), beat(8, 1))];
+    return setup(notes, new Map([[0, 1000]]), new Map([[0, 2000]]));
+  }
+
+  /** 헤드 있는 싱글 롱노트(idx0, 1000~2000) + 시작 시각 헤드 포인트(idx1, 1000) */
+  function headfulSingleSetup() {
+    const notes = [makeLongNote(lane, beat(0, 1), beat(8, 1)), makeSingleNote(lane, beat(0, 1))];
+    return setup(notes, new Map([[0, 1000], [1, 1000]]), new Map([[0, 2000]]));
+  }
+
+  it("홀드 없으면 싱글은 filled 0 / required 1 (윈도우 내 조회)", () => {
+    const { engine } = headlessSingleSetup();
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 0, required: 1 });
+  });
+
+  it("윈도우 내 keydown으로 소비된 키도 세어 싱글은 filled 1 / required 1 (충족)", () => {
+    const { engine } = headlessSingleSetup();
+    engine.onLanePress(lane, 1000, "KeyA"); // 윈도우 내 → consume, UNPROCESSED 유지
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 1, required: 1 });
+  });
+
+  it("더블을 1키만 홀드하면 filled 1 / required 2 (부분 충족)", () => {
+    const { engine } = headlessDoubleSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 1, required: 2 });
+  });
+
+  it("더블을 2키 홀드하면 filled 2 / required 2 (완전 충족)", () => {
+    const { engine } = headlessDoubleSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    expect(engine.headlessHeldFill(0, 1000)).toEqual({ filled: 2, required: 2 });
+  });
+
+  it("소비되지 않은 pre-hold 키를 떼면 즉시 카운트에서 빠진다 — 무상태 (더블 2→1)", () => {
+    const { engine } = headlessDoubleSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // 윈도우 밖(-200) → 소비 안 됨, held만
+    engine.onLanePress(lane, 800, "KeyB");
+    expect(engine.headlessHeldFill(0, 900)).toEqual({ filled: 2, required: 2 }); // 900=윈도우 내
+    engine.onLaneRelease(lane, 905, "KeyA"); // 떼면 held에서 빠져 즉시 감소
+    expect(engine.headlessHeldFill(0, 905)).toEqual({ filled: 1, required: 2 });
+  });
+
+  it("시작 ±Good 윈도우 밖에서는 홀드 중이어도 null — 판정 소비 윈도우와 공유", () => {
+    const { engine } = headlessSingleSetup();
+    engine.onLanePress(lane, 800, "KeyA"); // -200: 홀드는 됐지만 소비 윈도우 밖
+    expect(engine.headlessHeldFill(0, 850)).toBeNull(); // -150 조회 → 윈도우 밖
+    expect(engine.headlessHeldFill(0, 900)).toEqual({ filled: 1, required: 1 }); // -100 → 윈도우 안
+  });
+
+  it("BODY_ACTIVE로 승격되면(UNPROCESSED 이탈) null — 렌더러는 기하 held 경로로", () => {
+    const { engine } = headlessSingleSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000); // 길이>0 → BODY_ACTIVE
+    expect(engine.headlessHeldFill(0, 1000)).toBeNull();
+  });
+
+  it("헤드 있는 롱노트는 조회 대상이 아니어서 null", () => {
+    const { engine } = headfulSingleSetup();
+    expect(engine.headlessHeldFill(0, 1000)).toBeNull();
+  });
+
+  it("포인트 노트는 조회 대상이 아니어서 null", () => {
+    const { engine } = headfulSingleSetup();
+    expect(engine.headlessHeldFill(1, 1000)).toBeNull();
+  });
+});
+
 describe("릴리즈 노트(길이 0 일반) keydown consume — 직후 포인트 보호 (RFD 0006)", () => {
   const lane: Lane = 1;
 

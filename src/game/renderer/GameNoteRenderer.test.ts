@@ -471,3 +471,76 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(endLayer).length).toBe(1);
   });
 });
+
+describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (이슈 #85)", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // startMs=300, songTimeMs=250 → 노트가 판정선 위(rawStartY=470<520) = 기하 held 아님.
+  // 그래서 body에 불이 들어오면 그건 오직 headlessHeldFill 조회 때문이다.
+  function setupWithFill(
+    fill: { filled: number; required: number } | null,
+    inject = true,
+  ) {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer,
+      skinManager, 500, 1000, 0, 600,
+    );
+    if (inject) renderer.setHeadlessHeldFillQuery(() => fill);
+    return { renderer, skinManager };
+  }
+
+  /** getTexture로 요청된 텍스처 키 목록 (body 키가 여기 포함된다) */
+  function texKeys(skinManager: SkinManager): string[] {
+    return (skinManager.getTexture as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls.map((c) => c[0] as string);
+  }
+
+  const doubleLong = (lane: number) =>
+    ({ type: "doubleLong", beat: 0, lane, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+  const singleLong = (lane: number) =>
+    ({ type: "long", beat: 0, lane, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+
+  it("싱글 헤드없는 롱이 충족(1/1)이면 판정선 위여도 bodySingleHeld로 불이 들어온다", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 1 });
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingleHeld");
+    expect(texKeys(skinManager)).not.toContain("bodySingle");
+  });
+
+  it("더블 헤드없는 롱이 완전 충족(2/2)이면 bodyDoubleHeld", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 2, required: 2 });
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoubleHeld");
+  });
+
+  it("더블 부분 충족(1/2) 레인 1은 bodyDoublePartialHeldLeft (왼쪽 대기)", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 2 });
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialHeldLeft");
+    expect(texKeys(skinManager)).not.toContain("bodyDoubleHeld");
+  });
+
+  it("더블 부분 충족(1/2) 레인 3은 bodyDoublePartialHeldRight (오른쪽 대기)", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 2 });
+    renderer.renderLongNote(doubleLong(3), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialHeldRight");
+  });
+
+  it("조회가 null이면(윈도우 밖·대상 아님) 기하 held로 폴백 — 판정선 위 노트는 normal body", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDouble");
+    expect(texKeys(skinManager)).not.toContain("bodyDoubleHeld");
+  });
+
+  it("조회 미주입(튜토리얼 프리뷰)이면 기하 held로 폴백 — normal body", () => {
+    const { renderer, skinManager } = setupWithFill(null, false);
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingle");
+    expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
+  });
+});
