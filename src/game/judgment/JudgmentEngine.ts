@@ -1058,7 +1058,8 @@ export class JudgmentEngine {
   /**
    * 더블롱 끝점 키별 판정 (BODY_ACTIVE, songTime>=noteEndTime).
    * 일반: 각 키의 release 타이밍으로 종결(미릴리즈는 end+BAD에 Miss).
-   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss.
+   * hold-only: 유지/grace 키는 Perfect(떼는 판정 면제). 연결: 키별 held/grace → Perfect/Miss
+   * (유예는 끝점 기준 — 연결 더블롱은 입력 이벤트 경계에서도 호출된다, 슬라이스3 P4 참조).
    * 두 키 모두 판정되면 COMPLETE (judgeDoubleLongKey 내부에서).
    */
   private judgeDoubleLongEndpoint(
@@ -1093,10 +1094,12 @@ export class JudgmentEngine {
       const held = holdState.heldKeys.has(keyState.keyCode);
 
       if (isConnection) {
-        // 연결: 키별 held/grace → Perfect, 아님 → Miss
+        // 연결: 키별 held/grace → Perfect, 아님 → Miss.
+        // 유예는 끝점 기준(싱글 connection과 동일 — 슬라이스3 P4)이다. 프레임 시각으로 재면
+        // 관측이 밀릴수록 유예가 증발하고, 끝점 걸친 홀드의 뗌(음수 delta)도 유실된다.
         const grace =
           keyState.lastReleaseTimeMs !== null &&
-          songTimeMs - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
+          noteEndTime - keyState.lastReleaseTimeMs <= GRACE_PERIOD_MS;
         this.judgeDoubleLongKey(
           noteIndex,
           dl,
@@ -1343,11 +1346,19 @@ export class JudgmentEngine {
     for (let i = 0; i < this.notes.length; i++) {
       if (this.noteStates.get(i) !== NoteState.BODY_ACTIVE) continue;
       const note = this.notes[i];
-      if (note.type === NoteType.DOUBLE_LONG) continue; // 더블롱 끝점은 키별 경로 전담
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined || evalTimeMs < noteEndTime) continue;
       const holdState = this.laneHoldStates.get(note.lane);
       if (!holdState) continue;
+      if (note.type === NoteType.DOUBLE_LONG) {
+        // 연결 더블롱만 이벤트 경계 판정 — 유예 밖 뗌 후 같은 키 재잡기가 지연 프레임의
+        // held로 부활하는 것을 직전 상태 판정으로 차단한다. 일반/hold-only 더블롱 끝점은
+        // 키별 keyup 소비·update 경로가 전담(프레임 무관 요소는 해당 경로가 보장).
+        if (this.connectionSources.has(i)) {
+          this.judgeDoubleLongEndpoint(i, note as RangeNote, evalTimeMs, noteEndTime, holdState);
+        }
+        continue;
+      }
       if (this.connectionSources.has(i)) {
         this.judgeConnectionEndpoint(i, noteEndTime, holdState);
       } else if (isHoldOnlyNote(note) && holdState.isHeld) {

@@ -2797,6 +2797,92 @@ describe("connection 끝점 held-or-grace — 프레임 독립 (슬라이스3 P4
     engine.onLanePress(lane, 2050, "KeyB");
     expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.MISS);
   });
+
+  /** 연결 더블롱: D[1000,2000] → 롱 L2[2000,3000] (= → - 키 수 전환) — 유예도 끝점 기준·이벤트 경계 판정 */
+  function doubleConnectionSetup() {
+    const notes = [
+      makeDoubleLongNote(lane, beat(0, 1), beat(4, 1)),
+      makeLongNote(lane, beat(4, 1), beat(8, 1)),
+    ];
+    return setup(notes, new Map([[0, 1000], [1, 2000]]), new Map([[0, 2000], [1, 3000]]));
+  }
+
+  it("연결 더블롱 한 키를 끝점 -5(유예 내)에 뗌 — 프레임이 +130에 와도 그 키 Perfect (키별 유예도 끝점 기준)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨
+    engine.onLaneRelease(lane, 1995, "KeyA"); // 끝점 기준 -5 ≤ 유예 12
+    engine.update(2130); // 프레임 기준이면 135 > 12로 Miss였던 지점
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(2); // A(유예)·B(held)
+  });
+
+  it("연결 더블롱 한 키를 끝점 지나 +3에 뗌 — 프레임이 +130에 와도 그 키 Perfect (끝점 걸친 홀드 유실 없음)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨
+    engine.onLaneRelease(lane, 2003, "KeyA");
+    engine.update(2130);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(2);
+  });
+
+  it("연결 더블롱 한 키를 끝점 -100(유예 밖)에 떼고 다른 키(KeyC)를 +50에 재잡기 — 그 키는 Miss (per-key 추적이 교차 부활 차단)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1890);
+    engine.onLaneRelease(lane, 1900, "KeyA"); // -100 > 유예 12 → 그 키 연결 실패
+    engine.onLanePress(lane, 2050, "KeyC");
+    engine.update(2060);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(1);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(1);
+  });
+
+  it("연결 더블롱 한 키를 끝점 -100(유예 밖)에 떼고 같은 키를 +50에 재잡기 — 프레임이 늦어도 그 키는 Miss (재잡기 keydown이 직전 상태로 먼저 판정)", () => {
+    const { engine, judgments } = doubleConnectionSetup();
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.onLanePress(lane, 1000, "KeyB");
+    engine.update(1000);
+    engine.update(1890); // 이후 스톨
+    engine.onLaneRelease(lane, 1900, "KeyA");
+    engine.onLanePress(lane, 2050, "KeyA"); // 같은 키 재잡기 — dl 추적 키와 일치, held 부활 위험 지점
+    engine.update(2060);
+    const dJs = judgments.filter((j) => j.noteIndex === 0);
+    expect(dJs).toHaveLength(2);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.MISS)).toHaveLength(1);
+    expect(dJs.filter((j) => j.grade === JudgmentGrade.PERFECT)).toHaveLength(1);
+  });
+
+  it("hold-only를 끝점 걸쳐 잡다 윈도우 내(+50) 뗌 — 스톨이어도 hold-only Perfect + 놓기 keyup은 겹친 릴리즈 노트(2050) Perfect (놓기의 관대, RFD 0015 §7-3)", () => {
+    // hold-only의 Perfect는 홀드로 획득(뗌 직전 상태 확정)되고 keyup은 자유로운 익명 이벤트로
+    // 남아 후속 release-대상에 소비된다 — 프레임 정상과 스톨의 결과가 일치한다 (리뷰 Minor-2 세만틱 잠금).
+    const notes = [
+      { type: NoteType.LONG, lane, beat: beat(0, 1), endBeat: beat(4, 1), holdOnly: true } as NoteEntity,
+      makeLongNote(lane, beat(5, 1), beat(5, 1)), // 릴리즈 노트 2050
+    ];
+    const { engine, judgments } = setup(
+      notes,
+      new Map([[0, 1000], [1, 2050]]),
+      new Map([[0, 2000], [1, 2050]]),
+    );
+    engine.onLanePress(lane, 1000, "KeyA");
+    engine.update(1000);
+    engine.update(1990); // 이후 스톨 — 즉시 Perfect 프레임 관측 없음
+    engine.onLaneRelease(lane, 2050, "KeyA"); // hold-only는 직전 상태(held)로 Perfect, keyup은 릴리즈 노트로
+    engine.update(2180);
+    expect(judgments.find((j) => j.noteIndex === 0)?.grade).toBe(JudgmentGrade.PERFECT);
+    expect(judgments.find((j) => j.noteIndex === 1)?.grade).toBe(JudgmentGrade.PERFECT);
+  });
 });
 
 describe("연결 doubleLong 끝점 판정 (P2)", () => {
