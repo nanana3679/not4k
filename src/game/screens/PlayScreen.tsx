@@ -227,13 +227,16 @@ export function PlayScreen() {
               // 결정은 전부 순수 함수(판정 효과)가 소유 — 이 적용자는 effects만 해석한다.
               const effects = decideJudgmentEffects(result, chartData.notes[result.noteIndex]);
 
-              // 디버그 기록 — 화면 좌표 계산은 표시 시점의 관심사라 적용자 몫
+              // 디버그 기록 — 화면 좌표 계산은 표시 시점의 관심사라 적용자 몫.
+              // 바디(끝점) 판정은 끝점(endBeat) 위치로, 헤드/포인트는 시작점 위치로 Y를 잰다.
               if (debugLogger && effects.debug) {
-                const noteTimeMs = noteTimesMs.get(effects.noteIndex);
-                if (noteTimeMs !== undefined) {
+                const posTimeMs = effects.debug.isBody
+                  ? noteEndTimesMs.get(effects.noteIndex)
+                  : noteTimesMs.get(effects.noteIndex);
+                if (posTimeMs !== undefined) {
                   const songTimeMs = gameClock.judgmentTimeMs();
-                  const noteCenterY = judgmentLineY - ((noteTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                  debugLogger.recordJudgment(effects.noteIndex, noteCenterY, effects.debug.grade, effects.debug.deltaMs, effects.debug.doubleSubIndex);
+                  const noteCenterY = judgmentLineY - ((posTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
+                  debugLogger.recordJudgment(effects.noteIndex, noteCenterY, effects.debug.grade, effects.debug.deltaMs, effects.debug.doubleSubIndex, effects.debug.isBody);
                 }
               }
 

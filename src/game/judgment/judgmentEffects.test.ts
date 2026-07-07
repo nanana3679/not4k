@@ -78,15 +78,22 @@ describe("decideJudgmentEffects", () => {
       grade: JudgmentGrade.GREAT,
       deltaMs: 12,
       doubleSubIndex: undefined,
+      isBody: false,
     });
   });
 
-  it("비-miss 롱노트 바디 → 점수에서 deltaMs 생략, 표시(judgmentText)에는 유지, debug 없음", () => {
+  it("비-miss 롱노트 바디(끝점) → 점수에서 deltaMs 생략, 표시엔 유지, debug는 isBody=true로 기록", () => {
+    // 바디 끝점(connection/termination)도 디버그에 기록한다 — 홀드 트릴 체인·릴리즈 검증용.
     const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.PERFECT, deltaMs: 5 }), long);
     expect(fx.scoreRecord).toEqual({ grade: JudgmentGrade.PERFECT });
     expect(fx.judgmentText).toEqual({ grade: JudgmentGrade.PERFECT, deltaMs: 5 });
     expect(fx.bomb).toBe(1);
-    expect(fx.debug).toBeNull();
+    expect(fx.debug).toEqual({
+      grade: JudgmentGrade.PERFECT,
+      deltaMs: 5,
+      doubleSubIndex: undefined,
+      isBody: true,
+    });
   });
 
   it("miss 싱글 → bomb 없음 + 미스 표시 + 바디 실패 표시", () => {
