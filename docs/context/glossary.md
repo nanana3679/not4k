@@ -528,7 +528,6 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
-<<<<<<< HEAD
 ### 차트 변이 게이트 (Chart Mutation Gate)
 
 에디터의 모든 차트 쓰기가 수렴하는 store `setChart`에 내장된 **층1(모델 불변) 검증**. `validateChart` 위반 차트는 거부되고(차트·히스토리 무변) 토스트로 사유를 알린다. 정상 편집 경로는 모드의 사전검증(사용자 경고 UX 층)에서 이미 걸리므로, 게이트 도달은 무검증 경로(삭제·토글 등)의 버그 신호다 — `console.error`가 개발 중 탐지기 역할을 한다.
@@ -538,7 +537,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 **유일한 예외 통로 `loadChart`**: 레거시 위반 차트도 열어 수리를 허용한다(경고만 표시). 재저장은 저장 게이트(useFileOperations의 validateChart)가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다". undo/redo는 게이트를 거치지 않지만 히스토리에는 "당시 현재였던" 차트만 쌓인다 — 편집 경로로는 게이트 통과분만 들어가고, **loadChart로 열린 위반 차트는 수리 전까지 히스토리(undo)에 나타날 수 있다**(엑스트라 노트 편집 등이 스냅샷). 이 역시 저장 게이트가 전파를 막는다.
 
 **구현**: `src/editor/stores/editorStore.ts`.
-=======
+
 ### ViewportSlice
 
 에디터 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)의 **단독 소유자**. 쓰기는 `ViewportSlice`의 액션으로만 하며, 클램프(줌 50~2000, 세로 스크롤 범위)와 제스처→값 변환 규칙(휠 ×1.1, 핀치 거리 비율, 스냅 프리셋 사이클)을 순수 함수로 함께 소유한다(구 `SnapZoomController` 승계). 줌·범위·뷰포트 높이가 바뀌면 scrollY를 함께 재클램프한다. 클램프 입력(타임라인 ms 범위, 뷰포트 높이)은 외부 사실로 슬라이스에 입주하며, 콘텐츠 높이는 저장하지 않고 파생 계산한다.
@@ -546,7 +545,6 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 렌더러 등 비-React 소비자는 **`ViewportSource`**(읽기 전용 스냅샷 `get()` + 변경 구독 `subscribe()`)로만 읽는다 — 이 통로로는 쓰기가 불가능하고, 테스트는 fake source를 쓴다(adapter 2개 = 실재 seam). 렌더러·컨트롤러·훅에 뷰포트 상태를 복제 저장하지 말 것: 이전에는 3곳 복제 + App useEffect 양방향 동기화가 이중 쓰기 race를 만들었다.
 
 **구현**: `src/editor/stores/viewportSlice.ts` (editorStore에 결합).
->>>>>>> origin/main
 
 ---
 
