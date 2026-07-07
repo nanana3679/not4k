@@ -56,6 +56,9 @@ export interface SkinManifest {
     terminalDoublePartialFailedRight: string;
     noteDoublePartialFailedLeft: string;
     noteDoublePartialFailedRight: string;
+    /** 부분 충족 held 에셋 (더블 롱노트 1/2, waitingSide = 아직 안 잡힌 쪽) */
+    bodyDoublePartialHeldLeft: string;
+    bodyDoublePartialHeldRight: string;
     /** 트릴 에셋 */
     noteTrill: string;
     terminalTrill: string;

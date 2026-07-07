@@ -125,6 +125,16 @@ function SkinExports({ skinId, C }) {
         </SvgWrap>
       </>}
 
+      {/* 부분 충족(1/2 held) 바디 — waitingSide = 아직 안 잡힌 쪽 */}
+      {C.PartialHeldBody && <>
+        <SvgWrap id={`${skinId}--body-double-partial-held-left`} w={CW} h={BODY_H}>
+          <C.PartialHeldBody x={0} y={0} height={BODY_H} waitingSide="left" />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--body-double-partial-held-right`} w={CW} h={BODY_H}>
+          <C.PartialHeldBody x={0} y={0} height={BODY_H} waitingSide="right" />
+        </SvgWrap>
+      </>}
+
       {/* 부분 실패 터미널 */}
       {C.PartialFailedTerminalCap && <>
         <SvgWrap id={`${skinId}--terminal-double-partial-failed-left`} w={CW} h={CH}>

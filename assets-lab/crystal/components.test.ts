@@ -29,6 +29,10 @@ describe("crystal/components export 검증", () => {
     expect(typeof C.PartialFailedTerminalCap).toBe("function");
     expect(typeof C.PartialFailedNoteContainer).toBe("function");
   });
+
+  it("부분 충족 held 바디 컴포넌트가 함수로 export 되어야 한다", () => {
+    expect(typeof C.PartialHeldBody).toBe("function");
+  });
 });
 
 describe("FAIL 팔레트 검증", () => {

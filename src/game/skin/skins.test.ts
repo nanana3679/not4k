@@ -114,3 +114,18 @@ describe("롱노트 캡 에셋", () => {
     }
   });
 });
+
+describe("부분 충족 held 바디 에셋 (더블 롱노트 1/2)", () => {
+  it("crystal은 waitingSide별 left/right 2종 경로를 가짐", () => {
+    const crystal = getSkinManifest("crystal");
+    expect(crystal.assets.bodyDoublePartialHeldLeft).toBe("/skins/crystal/body-double-partial-held-left.png");
+    expect(crystal.assets.bodyDoublePartialHeldRight).toBe("/skins/crystal/body-double-partial-held-right.png");
+  });
+
+  it("모든 스킨이 부분 held 경로 키를 .png로 가짐 (부분 실패와 동일한 필수 키 취급)", () => {
+    for (const skin of SKIN_LIST) {
+      expect(skin.assets.bodyDoublePartialHeldLeft).toMatch(/body-double-partial-held-left\.png$/);
+      expect(skin.assets.bodyDoublePartialHeldRight).toMatch(/body-double-partial-held-right\.png$/);
+    }
+  });
+});

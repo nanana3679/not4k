@@ -35,6 +35,8 @@ function buildManifest(
       terminalDoublePartialFailedRight: `${base}/terminal-double-partial-failed-right.png`,
       noteDoublePartialFailedLeft: `${base}/note-double-partial-failed-left.png`,
       noteDoublePartialFailedRight: `${base}/note-double-partial-failed-right.png`,
+      bodyDoublePartialHeldLeft: `${base}/body-double-partial-held-left.png`,
+      bodyDoublePartialHeldRight: `${base}/body-double-partial-held-right.png`,
       terminalSingleFailed: `${base}/terminal-single-failed.png`,
       terminalDoubleFailed: `${base}/terminal-double-failed.png`,
       noteTrill: `${base}/note-trill.png`,
