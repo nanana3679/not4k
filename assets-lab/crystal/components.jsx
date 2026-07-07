@@ -575,6 +575,61 @@ export function PartialFailedTerminalCap({ x, y, coreSize = 7, coreGap = 18, fai
   );
 }
 
+// --- Crystal PartialHeldBody (더블 롱노트 부분 충족: 한 쪽만 held) ---
+// PartialFailedBody와 구조는 같으나 "죽은 쪽"의 의미가 다르다: 실패(무채/적갈)가 아니라
+// "아직 안 잡힌 = 입력 대기"이므로 released(평소 안 잡힌 롱) 모습으로 그린다.
+// waitingSide = 아직 안 잡힌(대기) 쪽. 이름이 가리키는 쪽이 비어있는 쪽 — partial-failed와 동일 규약.
+export function PartialHeldBody({ x, y, height, coreGap = 18, wireThickness = 5, lineThickness = 3, waitingSide = "left" }) {
+  const col = P.double.highlight;
+  const r = parseInt(col.slice(1, 3), 16);
+  const g = parseInt(col.slice(3, 5), 16);
+  const b = parseInt(col.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * 0.7);
+  const lg = Math.round(g + (255 - g) * 0.7);
+  const lb = Math.round(b + (255 - b) * 0.7);
+  const gradId = `phbody_${waitingSide}_${x}_${y}`;
+  const cx = x + CW / 2, half = coreGap / 2;
+  const positions = [cx - half, cx + half];
+  return (
+    <g>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
+          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          <stop offset="50%" stopColor={col} />
+          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
+        </linearGradient>
+      </defs>
+      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
+      {positions.map((px, pi) => {
+        const isWaiting = (pi === 0 && waitingSide === "left") || (pi === 1 && waitingSide === "right");
+        const isHeld = !isWaiting;
+        return (
+          <g key={pi}>
+            {isHeld && <><defs>
+              <linearGradient id={`phglow_${waitingSide}_${pi}_${x}_${y}`} x1="0" y1="0.5" x2="1" y2="0.5">
+                <stop offset="0%" stopColor={P.core.bright} stopOpacity="0" />
+                <stop offset="35%" stopColor={P.core.bright} stopOpacity=".25" />
+                <stop offset="50%" stopColor={P.core.highlight} stopOpacity=".4" />
+                <stop offset="65%" stopColor={P.core.bright} stopOpacity=".25" />
+                <stop offset="100%" stopColor={P.core.bright} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <rect x={px - 18} y={y} width={36} height={height} fill={`url(#phglow_${waitingSide}_${pi}_${x}_${y})`} /></>}
+            <Wire cx={px} y={y} height={height} thickness={wireThickness} held={isHeld} />
+            {isHeld ? (
+              <line x1={px} y1={y} x2={px} y2={y + height}
+                stroke={P.core.bright} strokeWidth={lineThickness} opacity=".95" />
+            ) : (
+              <line x1={px} y1={y} x2={px} y2={y + height}
+                stroke={P.core.mid} strokeWidth={lineThickness} opacity=".5" />
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 // --- Crystal TrillNoteContainer (다이아몬드 모양, 흰색) ---
 export function TrillNoteContainer({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;

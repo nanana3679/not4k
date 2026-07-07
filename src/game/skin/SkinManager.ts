@@ -73,6 +73,9 @@ export class SkinManager {
       ["terminalDoublePartialFailedRight", assets.terminalDoublePartialFailedRight],
       ["noteDoublePartialFailedLeft", assets.noteDoublePartialFailedLeft],
       ["noteDoublePartialFailedRight", assets.noteDoublePartialFailedRight],
+      // 부분 충족 held 에셋
+      ["bodyDoublePartialHeldLeft", assets.bodyDoublePartialHeldLeft],
+      ["bodyDoublePartialHeldRight", assets.bodyDoublePartialHeldRight],
       // 트릴 에셋
       ["noteTrill", assets.noteTrill],
       ["terminalTrill", assets.terminalTrill],

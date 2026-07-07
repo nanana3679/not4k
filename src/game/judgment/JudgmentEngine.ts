@@ -699,20 +699,59 @@ export class JudgmentEngine {
   private isHeadlessConsumable(noteIndex: number, timestampMs: number, keyCode: string): boolean {
     if (!this.headlessLongCache.get(noteIndex)) return false;
     if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return false;
-    const filled = new Set(this.consumedLongKeys.get(noteIndex));
-    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
-    if (holdState) {
-      for (const held of holdState.heldKeys) {
-        if (held !== keyCode) filled.add(held);
-      }
-    }
-    if (filled.size >= this.requiredConsumeCount(noteIndex)) return false;
+    // keydown 도착 시점 평가라 방금 눌린 키(keyCode)는 "이미 홀드로 충족"에서 제외한다.
+    if (this.headlessFilledKeyCount(noteIndex, keyCode) >= this.requiredConsumeCount(noteIndex)) return false;
     const startTime = this.noteTimesMs.get(noteIndex);
     if (startTime === undefined) return false;
     // consume 윈도우 = 시작점 허용 구간과 동일한 [-Good, +Good].
     // early Bad/late Bad까지 열면 직후 노트를 과보호하거나 홀드 직전 탭을 삼킨다.
     const deltaMs = timestampMs - startTime;
     return deltaMs >= -this.windows.GOOD && deltaMs <= this.windows.GOOD;
+  }
+
+  /**
+   * 헤드 없는 롱노트의 held 충족 키 집합 크기 = "consume한 키 ∪ 현재 레인 홀드 키".
+   * isHeadlessConsumable(판정)과 headlessHeldFill(시각 피드백)이 이 한 계산을 공유해
+   * 시각과 판정이 어긋나지 않는다(이슈 #85 단일 진실 조건).
+   * excludeKey를 주면 그 키는 제외한다 — keydown 평가 시 방금 눌린 키를 빼기 위함.
+   */
+  private headlessFilledKeyCount(noteIndex: number, excludeKey: string | null): number {
+    const filled = new Set(this.consumedLongKeys.get(noteIndex));
+    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    if (holdState) {
+      for (const held of holdState.heldKeys) {
+        if (held !== excludeKey) filled.add(held);
+      }
+    }
+    return filled.size;
+  }
+
+  /**
+   * 헤드 없는 롱노트의 held 충족 카운트 조회 (렌더러 시각 피드백용 — 이슈 #85).
+   *
+   * 반환: 조회 대상이면 `{ filled, required }`, 아니면 `null`. 조회 대상(eligibility) 조건은
+   * 판정 술어 `isHeadlessConsumable`과 같다 — 헤드없음 캐시 + UNPROCESSED + 시작 ±Good 윈도우
+   * 내. 윈도우를 공유해야 "시각은 held라는데 판정 윈도우 밖"인 불일치가 안 생긴다.
+   *
+   * 단 `filled`는 판정과 달리 **현재 홀드 중인 키 수만** 센다(소비 이력 union 안 함). 판정의
+   * `consumedLongKeys`는 한 번 소비되면 떼도 안 빠지는 영속 집합이라(비동시 2키 소비 보호 목적),
+   * 그걸 시각에 쓰면 "두 키 다 뗐는데 소비된 키가 남아 부분 held로 켜져 있음" 유령이 생긴다.
+   * 시각 피드백은 "지금 홀드하고 있나"라 live 홀드만 세는 게 옳다 — 그래야 다 떼면 즉시 꺼진다.
+   * BODY_ACTIVE 승격·윈도우 이탈 시 null이 되어 렌더러는 기하 held 경로로 넘어간다.
+   * @param timeMs 조회 시점(렌더러는 시각 시간을 넘긴다 — 그려지는 것과 동기)
+   */
+  headlessHeldFill(noteIndex: number, timeMs: number): { filled: number; required: number } | null {
+    if (!this.headlessLongCache.get(noteIndex)) return null;
+    if (this.noteStates.get(noteIndex) !== NoteState.UNPROCESSED) return null;
+    const startTime = this.noteTimesMs.get(noteIndex);
+    if (startTime === undefined) return null;
+    const deltaMs = timeMs - startTime;
+    if (deltaMs < -this.windows.GOOD || deltaMs > this.windows.GOOD) return null;
+    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    return {
+      filled: holdState ? holdState.heldKeys.size : 0,
+      required: this.requiredConsumeCount(noteIndex),
+    };
   }
 
   /** 헤드 없는 롱노트의 consume 필요 키 수 (싱글 LONG 1 / 더블 DOUBLE_LONG 2). */

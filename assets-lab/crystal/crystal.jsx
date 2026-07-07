@@ -1,6 +1,6 @@
 import { useState } from "react";
 import P from "./palette.js";
-import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap, PartialFailedNoteContainer, PartialFailedBody, PartialFailedTerminalCap } from "./components.jsx";
+import { NoteContainer, LongNote, TerminalCap, BombFrame, GearFrameExport, ButtonExport, FailedNoteContainer, FailedBody, FailedTerminalCap, PartialFailedNoteContainer, PartialFailedBody, PartialFailedTerminalCap, PartialHeldBody } from "./components.jsx";
 import { CW, CH, GF_W, GF_H, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_TOP, LANE_BOT, JUDGE_Y, noteX } from "../shared/constants.js";
 import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, BombPlayer } from "../shared/ui.jsx";
@@ -73,6 +73,11 @@ export default function App() {
           <Card label="Sgl Held" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="single" held /></Card>
           <Card label="Dbl Off" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held={false} dimLeft={dimL} dimRight={dimR} /></Card>
           <Card label="Dbl Held" svgW={130} svgH={175} {...uiP}><LongNote x={15} y={8} bodyH={107} type="double" held dimLeft={dimL} dimRight={dimR} /></Card>
+        </Row>
+        {/* 더블 롱노트 부분 충족(1/2 held) — waitingSide = 아직 안 잡힌 쪽 */}
+        <Row>
+          <Card label="PH.Body L" svgW={130} svgH={100} {...uiP}><PartialHeldBody x={15} y={5} height={90} waitingSide="left" /></Card>
+          <Card label="PH.Body R" svgW={130} svgH={100} {...uiP}><PartialHeldBody x={15} y={5} height={90} waitingSide="right" /></Card>
         </Row>
       </Section>
 

@@ -471,3 +471,173 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(endLayer).length).toBe(1);
   });
 });
+
+describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (이슈 #85)", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // startMs=300, songTimeMs=250 → 노트가 판정선 위(rawStartY=470<520) = 기하 held 아님.
+  // 그래서 body에 불이 들어오면 그건 오직 headlessHeldFill 조회 때문이다.
+  function setupWithFill(
+    fill: { filled: number; required: number } | null,
+    inject = true,
+  ) {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer,
+      skinManager, 500, 1000, 0, 600,
+    );
+    if (inject) renderer.setHeadlessHeldFillQuery(() => fill);
+    return { renderer, skinManager };
+  }
+
+  /** getTexture로 요청된 텍스처 키 목록 (body 키가 여기 포함된다) */
+  function texKeys(skinManager: SkinManager): string[] {
+    return (skinManager.getTexture as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls.map((c) => c[0] as string);
+  }
+
+  const doubleLong = (lane: number) =>
+    ({ type: "doubleLong", beat: 0, lane, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+  const singleLong = (lane: number) =>
+    ({ type: "long", beat: 0, lane, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+
+  it("싱글 헤드없는 롱이 충족(1/1)이면 판정선 위여도 bodySingleHeld로 불이 들어온다", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 1 });
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingleHeld");
+    expect(texKeys(skinManager)).not.toContain("bodySingle");
+  });
+
+  it("더블 헤드없는 롱이 완전 충족(2/2)이면 bodyDoubleHeld", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 2, required: 2 });
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoubleHeld");
+  });
+
+  it("더블 부분 충족(1/2) 레인 1은 bodyDoublePartialHeldLeft (왼쪽 대기)", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 2 });
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialHeldLeft");
+    expect(texKeys(skinManager)).not.toContain("bodyDoubleHeld");
+  });
+
+  it("더블 부분 충족(1/2) 레인 3은 bodyDoublePartialHeldRight (오른쪽 대기)", () => {
+    const { renderer, skinManager } = setupWithFill({ filled: 1, required: 2 });
+    renderer.renderLongNote(doubleLong(3), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialHeldRight");
+  });
+
+  it("조회가 null이면(윈도우 밖·대상 아님) 기하 held로 폴백 — 판정선 위 노트는 normal body", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDouble");
+    expect(texKeys(skinManager)).not.toContain("bodyDoubleHeld");
+  });
+
+  it("조회 미주입(튜토리얼 프리뷰)이면 기하 held로 폴백 — normal body", () => {
+    const { renderer, skinManager } = setupWithFill(null, false);
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingle");
+    expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
+  });
+});
+
+describe("GameNoteRenderer 더블롱 부분 실패 양쪽 → 완전 실패 승격", () => {
+  // setup: judgmentLineY=500, scrollSpeed=1000, NOTE_HEIGHT=20. 노트 300~500ms, song=400 → body 렌더됨.
+  function setup() {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer, skinManager, 500, 1000, 0, 600,
+    );
+    return { renderer, skinManager };
+  }
+  function texKeys(skinManager: SkinManager): string[] {
+    return (skinManager.getTexture as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls.map((c) => c[0] as string);
+  }
+  const doubleLong = () =>
+    ({ type: "doubleLong", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+
+  it("한쪽만 부분 실패(left)면 bodyDoublePartialFailedLeft", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialFailedLeft");
+  });
+
+  it("양쪽 다 부분 실패(left 후 right)면 완전 실패 bodyDoubleFailed로 승격 — 반대쪽 partial로 안 덮임", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'right' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    const keys = texKeys(skinManager);
+    expect(keys).toContain("bodyDoubleFailed");
+    expect(keys).not.toContain("bodyDoublePartialFailedRight");
+    expect(keys).not.toContain("bodyDoublePartialFailedLeft");
+  });
+
+  it("같은 쪽 부분 실패가 두 번 와도 완전 실패로 승격하지 않음", () => {
+    const { renderer, skinManager } = setup();
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.applyNoteDisplayEffect(0, { body: { partialFailed: 'left' }, visibility: 'unchanged' });
+    renderer.renderLongNote(doubleLong(), 0, 300, 500, 400);
+    const keys = texKeys(skinManager);
+    expect(keys).toContain("bodyDoublePartialFailedLeft");
+    expect(keys).not.toContain("bodyDoubleFailed");
+  });
+});
+
+describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(당김) — 이슈 #85", () => {
+  // judgmentLineY=500, scroll=1000, NOTE_HEIGHT=20. 롱 head=300ms·tail=500ms, song=250(접근 중, 판정선 위).
+  // 안 당기면 head(rawStartY)=470, 당기면 판정선(520)까지 → body 하단 y+height로 검증.
+  function setup(fill: { filled: number; required: number } | null, inject = true) {
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const headLayer = new Container();
+    const noteLayer = new Container();
+    const skinManager = createMockSkinManager();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, headLayer, noteLayer, skinManager, 500, 1000, 0, 600,
+    );
+    if (inject) renderer.setHeadlessHeldFillQuery(() => fill);
+    return { renderer, bodyLayer };
+  }
+  const longEntity = () =>
+    ({ type: "long", beat: 0, lane: 1, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+  const bottomOf = (bodyLayer: Container) => {
+    const s = childrenOf(bodyLayer).at(-1) as MockSprite & { height: number };
+    return s.y + s.height;
+  };
+
+  it("충족(1/1) 홀드 중이면 판정선 위 접근 중이어도 body 하단이 판정선(520)까지 당겨짐", () => {
+    const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(520);
+  });
+
+  it("홀드 안 하면(조회 null) 당기지 않아 body 하단이 접근 위치(470)에 머무름", () => {
+    const { renderer, bodyLayer } = setup(null);
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+
+  it("filled 0(윈도우 내 홀드 없음)이면 당기지 않음 — 접근 위치(470) 유지", () => {
+    const { renderer, bodyLayer } = setup({ filled: 0, required: 1 });
+    renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+
+  it("길이 0 슬라이드는 충족 중이어도 당기지 않음(body 없음)", () => {
+    const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
+    // head=tail=300ms, song=250 → 당기면 안 됨. 당기면 하단이 520이 되지만 당기지 않으므로 470.
+    renderer.renderLongNote(longEntity(), 0, 300, 300, 250);
+    expect(bottomOf(bodyLayer)).toBe(470);
+  });
+});

@@ -60,6 +60,14 @@ export class GameNoteRenderer {
   /** 노트 인덱스 → 시작 시간(ms) — 선행 노트의 held 여부 계산용 */
   private noteStartMsByIndex: Map<number, number> = new Map();
 
+  /**
+   * 헤드없는 롱노트의 held 충족 조회 (엔진 주입, 이슈 #85). null이면 미주입(튜토리얼 프리뷰 등)이라
+   * 기존 기하 held 경로로 폴백한다. 반환 null = 조회 대상 아님·소비 윈도우 밖.
+   */
+  private headlessHeldFillQuery:
+    | ((index: number, timeMs: number) => { filled: number; required: number } | null)
+    | null = null;
+
   constructor(
     longNoteBodyLayer: Container,
     longNoteEndLayer: Container,
@@ -164,8 +172,18 @@ export class GameNoteRenderer {
       return;
     }
 
-    // 바디 시작 Y를 판정선으로 클램프 (머리 박스 상단이 판정선에 고정되도록 +NOTE_HEIGHT)
-    const startY = Math.min(rawStartY, this.judgmentLineY + NOTE_HEIGHT);
+    // 헤드없는 롱노트의 홀드 충족 조회 (이슈 #85) — 텍스처 선택 + "빈 구간 채움"에 공용.
+    const headlessFill = this.headlessHeldFillQuery?.(index, songTimeMs) ?? null;
+    // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 body 하단을 판정선까지 당겨 빈 구간을
+    // 채운다 — "내 홀드가 이 롱을 맡고 있다"를 판정선 위 작은 텍스처 변화가 아니라 채워진 body로 보인다.
+    // 길이 0 슬라이드/릴리즈 노트는 body가 없어 당기지 않는다.
+    const pullToLine = headlessFill !== null && headlessFill.filled > 0 && endMs > startMs;
+
+    // 바디 시작 Y를 판정선으로 클램프 (머리 박스 상단이 판정선에 고정되도록 +NOTE_HEIGHT).
+    // 당김 중이면 노트가 아직 판정선에 안 닿았어도 하단을 판정선에 고정한다.
+    const startY = pullToLine
+      ? this.judgmentLineY + NOTE_HEIGHT
+      : Math.min(rawStartY, this.judgmentLineY + NOTE_HEIGHT);
 
     const laneX = this.getLaneX(entity.lane);
     let bodyHeight = startY - endY;
@@ -246,13 +264,20 @@ export class GameNoteRenderer {
         bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
         endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
-        const isHeld =
-          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-          this.hasConnectedHeldPredecessor(index, songTimeMs);
-        if (isHeld) {
-          bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
+        // 헤드없는 롱노트가 홀드로 consume 충족 중이면 엔진 술어를 그대로 조회해 body를 켠다
+        // (이슈 #85 — 시각·판정 단일 진실). null이면(조회 대상 아님·윈도우 밖·미주입) 기하 held로 폴백.
+        const fill = headlessFill;
+        if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
+          // 부분 충족(1/2): 레인 위치로 대기 쪽 결정 (레인 1·2=왼쪽 대기, 3·4=오른쪽 대기)
+          bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
         } else {
-          bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+          const isHeld = fill
+            ? fill.filled >= fill.required
+            : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+              this.hasConnectedHeldPredecessor(index, songTimeMs);
+          bodyTexKey = isHeld
+            ? (isDouble ? "bodyDoubleHeld" : "bodySingleHeld")
+            : (isDouble ? "bodyDouble" : "bodySingle");
         }
         endCapTexKey = isDouble ? "terminalDouble" : "terminalSingle";
       }
@@ -318,7 +343,16 @@ export class GameNoteRenderer {
     if (effect.body === 'failed') {
       this.failedBodies.add(noteIndex);
     } else if (effect.body) {
-      this.partialFailedBodies.set(noteIndex, effect.body.partialFailed);
+      const newSide = effect.body.partialFailed;
+      const existing = this.partialFailedBodies.get(noteIndex);
+      if (existing !== undefined && existing !== newSide) {
+        // 반대쪽까지 실패 = 더블롱 두 키 모두 실패 → 완전 실패(bodyDoubleFailed)로 승격.
+        // 그대로 두면 두 번째 partialFailed가 첫 번째를 덮어써 "반대 한쪽만 실패"로 오표시된다.
+        this.failedBodies.add(noteIndex);
+        this.partialFailedBodies.delete(noteIndex);
+      } else {
+        this.partialFailedBodies.set(noteIndex, newSide);
+      }
     }
 
     switch (effect.visibility) {
@@ -367,6 +401,16 @@ export class GameNoteRenderer {
   ): void {
     this.connectedPredecessor = new Map(connectedPredecessor);
     this.noteStartMsByIndex = new Map(noteStartMsByIndex);
+  }
+
+  /**
+   * 헤드없는 롱노트 held 충족 조회를 주입한다 (이슈 #85). 플레이 화면은 JudgmentEngine을
+   * 연결하고, 튜토리얼 프리뷰처럼 미주입이면 기존 기하 held 경로로 폴백한다.
+   */
+  setHeadlessHeldFillQuery(
+    query: (index: number, timeMs: number) => { filled: number; required: number } | null,
+  ): void {
+    this.headlessHeldFillQuery = query;
   }
 
   setJudgmentLineY(y: number): void {

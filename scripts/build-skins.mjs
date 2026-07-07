@@ -47,6 +47,9 @@ const ASSETS = [
   // 부분 실패 에셋 (더블 롱노트)
   "body-double-partial-failed-left",
   "body-double-partial-failed-right",
+  // 부분 충족 held 에셋 (더블 롱노트 1/2)
+  "body-double-partial-held-left",
+  "body-double-partial-held-right",
   "terminal-double-partial-failed-left",
   "terminal-double-partial-failed-right",
   // 트릴 에셋
