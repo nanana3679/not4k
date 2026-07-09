@@ -45,7 +45,7 @@
 ### 3-2. 게이트를 이동한다
 
 - `setChart`: **구조 검증만** 하드 거부(항상). 의미 위반은 허용해 반영한다. (구조 검증 함수는 신설 — §3-1.)
-- **저장 게이트 + 플레이/프리뷰 진입 게이트**: 의미 검증을 강제한다. 위반이 남아 있으면 저장·플레이를 막고, **어떤 제약이 왜 위반됐는지** 명시한다. (저장 게이트는 `useFileOperations`에 **이미 존재** — 재사용. 플레이/프리뷰 진입 게이트는 **신설**.)
+- **저장 게이트 + 플레이/프리뷰 진입 게이트**: 의미 검증을 강제한다. 위반이 남아 있으면 저장·플레이를 막고, **어떤 제약이 왜 위반됐는지** 명시한다. (저장 게이트는 `useFileOperations`에 **이미 존재** — 재사용. 플레이/프리뷰 진입 게이트는 **신설**.) 단 이 저장 게이트는 지금껏 "라이브가 항상 valid"라 **사실상 사문**이었다(`useFileOperations:172,307`). 상시 통과 경로가 되면 **위반별 메시징 품질(어떤 노트가 왜)**이 실사용에 걸리므로, "재사용"은 배선상 맞아도 실질 재사용은 §3-3 위반 시각화 확정에 달려 있다.
 - undo 히스토리: 의미 위반 상태도 포함한다(구조적으론 성립하므로 안전).
 
 ### 3-3. invalid를 읽는 쪽 처리
@@ -91,6 +91,7 @@
   - **의미(초안):** `validateNoDuplicates`(중복)·`validateNoLongOverlap`(롱 겹침)·`validateTrillExclusive`(트릴↔zone 배타)·`validateTrillLong`(트릴 롱 헤드)·`validateNoTrillZoneOverlap`(zone 겹침)·`validateNoEventDuplicate`·`validateNoEventOverlap`·`validateNoTutorialInputOverlap`·`validateStopZones`(stop 구간).
   - **애매(전수 검토 필요):** `validateTimeSigNatural`(박자표 자연수 아님)·`validateTimeSigAtMeasureStart`(마디 경계 아님) — "malformed 데이터(구조)"인지 "판정 전제 위반(의미)"인지 진짜 불분명.
   - **구조(데이터 성립 불가): 현재 11개 중 0건.** 역전(`endBeat<beat`)·레인 범위 이탈·존재하지 않는 레인 참조는 검사 자체가 없어 **신설 대상**(§3-1). 구조 버킷은 기존 규칙을 옮겨 채우는 게 아니라 새로 만든다.
+  - **위 두 선행 항목(소비자 전수 / 규칙 귀속)은 독립이 아니라 결합이다.** 한 규칙을 "의미(transient 허용)"로 안전하게 내리려면 그 위반을 **모든 소비자가 견뎌야** 한다 — 예: `validateNoTrillZoneOverlap`을 허용하려면 `MinimapRenderer`·zone 핸들 렌더가 겹친 zone을 견뎌야 한다. 따라서 **규칙×소비자 교차표**로 함께 판정한다(빈칸 = "이 규칙은 이 소비자 때문에 의미로 못 내림").
 - 위반 시각화의 언어(색·아이콘·목록 패널)와, 위반이 화면 밖일 때의 안내(미니맵 표시 등).
 - 저장뿐 아니라 **플레이/프리뷰 진입 게이트**의 정확한 경계(부분 구간 프리뷰는 invalid 구간만 피하면 허용할지).
 - undo/redo가 invalid 상태를 오가는 동안의 엣지케이스(자동 수리 유혹 금지 — 그대로 보존).
