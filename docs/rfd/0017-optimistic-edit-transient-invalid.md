@@ -35,7 +35,7 @@
 
 층1 검증을 성질에 따라 **두 함수**로 가른다 — 아예 허용 안 하는 것과, 편집 중 허용하고 커밋 때만 보는 것.
 
-- **구조 검증 (structural)** — 위반 시 차트가 **데이터로서 성립하지 않는다**(예: `endBeat < beat` 역전, 존재하지 않는 레인 참조, 범위 이탈). **편집 중에도 절대 불가** → `setChart`가 항상 하드 거부한다.
+- **구조 검증 (structural)** — 위반 시 차트가 **데이터로서 성립하지 않거나(파싱 불가: `endBeat < beat` 역전·존재하지 않는 레인 참조·범위 이탈), 소비자를 크래시시킨다(§3-4의 measure 무한루프처럼 transient로도 견딜 수 없는 것).** 즉 구조 버킷의 판정 기준은 **"데이터 malformed" ∨ "크래시 유발"** 2요소다(둘 중 하나면 구조). **편집 중에도 절대 불가** → `setChart`가 항상 하드 거부한다. (크래시 유발분은 소비자 하드닝으로 크래시를 제거하면 의미로 강등 가능 — 라벨이 아니라 소비자 내성이 경계다.)
 - **의미 검증 (semantic)** — 구조는 멀쩡하나 **게임 판정 전제를 깬다**(롱노트 겹침, 트릴 롱 헤드 필수, stop 구간 내 배치, 중복 등). **편집 중 잠깐 허용** → 저장·플레이 진입 게이트가 강제한다.
 
 **실측 주의 (2026-07-09):** 현재 `validateChart`의 규칙 11개는 **전부 의미 검증**이며, 위에 든 구조 검사(역전·레인 범위 등)는 **코드에 존재하지 않는다**(0건). 따라서 이 분리는 한 함수를 쪼개는 게 아니라, 기존 `validateChart`를 **의미 검증**으로 두고 **구조 검증 함수를 신설**하는 작업이다. 각 규칙의 정확한 구조/의미 귀속은 §7.
@@ -66,6 +66,28 @@
 - **`timeSigAtMeasureStart`는 의미다** — 비경계 박자표도 유효 Beat라 루프가 정상 전진(무한루프 아님), 결과는 마디선 오정렬(GLITCH)뿐. **timesig 2개를 한 묶음으로 다루지 말 것**(Natural=구조/크래시, AtMeasureStart=순수 의미로 비대칭).
 
 **결론:** setChart의 구조 버킷 = `timeSigNatural` 1건 + 신설할 역전·레인범위 검사. 의미 버킷 = 나머지 전부. 유일한 선행 하드닝은 **measure 루프 step≤0 가드 3곳**이며, 이것만 하면 낙관적 편집이 어떤 소비자도 크래시시키지 않는다.
+
+**라벨 주의:** `timeSigNatural`이 구조인 것은 §3-1 2요소 기준의 **"크래시 유발"** 쪽 때문이지 **"데이터 malformed"** 쪽이 아니다 — `0/4`는 데이터로는 성립한다(0은 유효한 수). 따라서 이 규칙의 구조 귀속은 **소비자 내성에 조건부**다: measure 루프 3곳에 step≤0 가드를 넣어 크래시를 제거하면 의미로 강등 가능하다. 신설할 역전·레인범위는 "malformed" 쪽이라 무조건 구조다. 즉 구조 버킷은 성질이 다른 두 종류가 섞여 있으니, CONTEXT/glossary 동기화(§6) 시 "구조 = malformed ∨ 크래시 유발"임을 함께 명시한다.
+
+#### 규칙×소비자 교차표 (감사 근거)
+
+아래 표가 위 결론의 판정 근거다(빈칸 없음 = 모든 규칙이 최소 한 소비자 열까지 안전 확인됨). 열 = 세 클러스터의 대표 소비자, 셀 = 그 규칙 위반 시 최악 등급.
+
+| 규칙 | 게임 런타임 (`JudgmentEngine`/`GameRenderer`) | 에디터 렌더 (`Grid`/`Minimap`/트릴핸들) | 직렬화·undo (`storage.ts`/history) | 귀속 |
+| --- | --- | --- | --- | --- |
+| `validateNoDuplicates` | SILENT (콤보 이중 계상, index 키라 크래시 없음) | GLITCH (겹쳐 그림) | 보존 (JSON 왕복) | 의미 |
+| `validateNoLongOverlap` | SILENT (이중 계상) | GLITCH | 보존 | 의미 |
+| `validateTrillExclusive` | SILENT | GLITCH | 보존 | 의미 |
+| `validateTrillLong` (헤드 필수) | 무해 (`hasHead` 분기, 역참조 없음) | GLITCH (헤드 없는 트릴) | 보존 | 의미 |
+| `validateNoTrillZoneOverlap` | 무해 | GLITCH (zone 겹쳐 그림) | 보존 | 의미 |
+| `validateNoEventDuplicate` | SILENT | GLITCH | 보존 | 의미 |
+| `validateNoEventOverlap` | SILENT | GLITCH | 보존 | 의미 |
+| `validateNoTutorialInputOverlap` | SILENT | GLITCH | 보존 | 의미 |
+| `validateStopZones` | SILENT (판정 전제) | GLITCH | 보존 | 의미 |
+| `validateTimeSigAtMeasureStart` | GLITCH (마디선 오정렬, 루프 정상 전진) | GLITCH | 보존 | 의미 |
+| `validateTimeSigNatural` | **CRASH** (measure 무한루프 `GameRenderer:1157`) | **CRASH** (`Grid:161`·`Minimap:195`) | 보존 | **구조** |
+
+읽는 법: **CRASH가 한 칸이라도 있으면 그 규칙은 구조**(transient로 못 견딤). 나머지는 최악이 GLITCH/SILENT라 의미. `timeSigNatural`만 CRASH 열을 가진다.
 
 ### Trade-off
 
@@ -101,7 +123,7 @@
   - **의미(초안):** `validateNoDuplicates`(중복)·`validateNoLongOverlap`(롱 겹침)·`validateTrillExclusive`(트릴↔zone 배타)·`validateTrillLong`(트릴 롱 헤드)·`validateNoTrillZoneOverlap`(zone 겹침)·`validateNoEventDuplicate`·`validateNoEventOverlap`·`validateNoTutorialInputOverlap`·`validateStopZones`(stop 구간).
   - **애매(전수 검토 필요):** `validateTimeSigNatural`(박자표 자연수 아님)·`validateTimeSigAtMeasureStart`(마디 경계 아님) — "malformed 데이터(구조)"인지 "판정 전제 위반(의미)"인지 진짜 불분명.
   - **구조: 감사 결과 `timeSigNatural` 1건(§3-4) + 신설 대상.** timeSigNatural(분자/분모 ≤0)은 measure 루프 3곳을 무한루프로 만들어 구조로 확정. 그 외 역전(`endBeat<beat`)·레인 범위 이탈·존재하지 않는 레인 참조는 검사 자체가 없어 **신설 대상**(§3-1).
-  - **위 두 선행 항목(소비자 전수 / 규칙 귀속)은 독립이 아니라 결합이다.** 한 규칙을 "의미(transient 허용)"로 안전하게 내리려면 그 위반을 **모든 소비자가 견뎌야** 한다 — 예: `validateNoTrillZoneOverlap`을 허용하려면 `MinimapRenderer`·zone 핸들 렌더가 겹친 zone을 견뎌야 한다. 따라서 **규칙×소비자 교차표**로 함께 판정한다(빈칸 = "이 규칙은 이 소비자 때문에 의미로 못 내림").
+  - **위 두 선행 항목(소비자 전수 / 규칙 귀속)은 독립이 아니라 결합이다.** 한 규칙을 "의미(transient 허용)"로 안전하게 내리려면 그 위반을 **모든 소비자가 견뎌야** 한다 — 예: `validateNoTrillZoneOverlap`을 허용하려면 `MinimapRenderer`·zone 핸들 렌더가 겹친 zone을 견뎌야 한다. 따라서 **규칙×소비자 교차표**로 함께 판정한다(빈칸 = "이 규칙은 이 소비자 때문에 의미로 못 내림"). **→ 이 교차표는 §3-4에 실려 있다**(감사 결과 CRASH 열을 가진 규칙은 `timeSigNatural` 하나뿐).
 - 위반 시각화의 언어(색·아이콘·목록 패널)와, 위반이 화면 밖일 때의 안내(미니맵 표시 등).
 - 저장뿐 아니라 **플레이/프리뷰 진입 게이트**의 정확한 경계(부분 구간 프리뷰는 invalid 구간만 피하면 허용할지).
 - undo/redo가 invalid 상태를 오가는 동안의 엣지케이스(자동 수리 유혹 금지 — 그대로 보존).
