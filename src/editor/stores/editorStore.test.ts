@@ -62,7 +62,7 @@ describe('editorStore history', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 차트 변이 게이트 — 모델 불변(배치 제약 층1)의 단독 강제 지점
+// 차트 변이 게이트 — 낙관적 편집(RFD 0017): 구조 위반만 하드 거부, 의미 위반은 커밋
 // ---------------------------------------------------------------------------
 
 describe('editorStore 차트 변이 게이트', () => {
@@ -75,13 +75,24 @@ describe('editorStore 차트 변이 게이트', () => {
     });
   });
 
-  it('배치 제약 위반(같은 레인·박 중복 노트) setChart는 거부되어 차트·히스토리가 유지된다', () => {
-    const invalid = makeChart([
+  it('의미 위반(같은 레인·박 중복 노트) setChart는 거부되지 않고 커밋되어 히스토리에 쌓인다', () => {
+    const semanticInvalid = makeChart([
       { type: 'single', lane: 1 as Lane, beat: beat(1) },
       { type: 'single', lane: 1 as Lane, beat: beat(1) },
     ]);
 
-    useEditorStore.getState().setChart(invalid);
+    useEditorStore.getState().setChart(semanticInvalid);
+
+    expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 낙관적으로 커밋됨
+    expect(useEditorStore.getState().historyPast).toHaveLength(1); // undo로 복귀 가능하게 히스토리에 남음
+  });
+
+  it('구조 위반(구간 역전 endBeat<beat) setChart는 거부되어 차트·히스토리가 유지된다', () => {
+    const structuralInvalid = makeChart([
+      { type: 'long', lane: 1 as Lane, beat: beat(4), endBeat: beat(2) },
+    ]);
+
+    useEditorStore.getState().setChart(structuralInvalid);
 
     expect(useEditorStore.getState().chart.notes).toHaveLength(0); // 이전 차트 유지
     expect(useEditorStore.getState().historyPast).toHaveLength(0); // undo 스택 오염 없음
