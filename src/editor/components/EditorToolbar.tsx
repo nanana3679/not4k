@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes } from '../../shared';
+import { serializeChart, serializeExtraNotes, validateChart } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -576,6 +576,16 @@ export function EditorToolbar({
     serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null || pendingGameplayRange != null;
 
+  // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
+  // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
+  const playTestViolationCount = validateChart({
+    notes: chart.notes,
+    trillZones: chart.trillZones,
+    events: chart.events,
+  }).length;
+  const playTestDisabled = playTestViolationCount > 0;
+  const playTestDisabledTitle = `배치 제약 위반 ${playTestViolationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+
   const compactIconStyle = {
     ...styles.compactButton,
     ...styles.compactIconButton,
@@ -1128,14 +1138,18 @@ export function EditorToolbar({
             </button>
             <label style={styles.compactMenuLabel}>Test Play</label>
             <button
-              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton }}
+              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton, ...(playTestDisabled ? styles.compactButtonDisabled : {}) }}
               onClick={() => onPlayTest(false)}
+              disabled={playTestDisabled}
+              title={playTestDisabled ? playTestDisabledTitle : undefined}
             >
               처음부터 시작
             </button>
             <button
-              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton }}
+              style={{ ...styles.compactMenuButton, ...styles.compactPlayButton, ...(playTestDisabled ? styles.compactButtonDisabled : {}) }}
               onClick={() => onPlayTest(true)}
+              disabled={playTestDisabled}
+              title={playTestDisabled ? playTestDisabledTitle : undefined}
             >
               커서부터 시작
             </button>

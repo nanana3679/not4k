@@ -73,6 +73,19 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
     return false;
   }
 
+  // 플레이/프리뷰 진입 게이트 (RFD 0017 §3-2) — 게임은 valid 차트를 전제하므로,
+  // 낙관적 편집으로 남은 위반(구조·의미)이 있으면 진입을 막는다. 버튼 비활성이
+  // 1차 UX이고 이 검사는 다른 진입 경로(단축키 등)를 막는 backstop이다.
+  const violations = validateChart({
+    notes: chart.notes,
+    trillZones: chart.trillZones,
+    events: chart.events,
+  });
+  if (violations.length > 0) {
+    addToast(`배치 제약 위반 ${violations.length}건이 남아 있어 플레이할 수 없습니다`, 'error');
+    return false;
+  }
+
   if (isPlaying) pause();
 
   game.setChartData(chart);
