@@ -57,6 +57,16 @@
 - **위반 시각화**: 현재 위반 요소(겹치는 노트 등)를 **표시**해 사용자가 무엇을 고쳐야 하는지 알린다. 기존 "토스트 후 거부"를 "허용 + 위반 표시"로 대체.
 - **되돌리기·수정 경로**: 낙관적 편집이 의미 위반을 만들면 사용자는 두 경로로 벗어난다 — (a) **수정**: 커밋 후에도 선택이 유지되므로(이동은 놓는 순간 커밋, 선택 해제 아님), 그대로 재드래그해 위반을 해소한다. (b) **되돌리기**: **undo로 편집 직전 상태로 복귀**한다(위반 상태도 커밋이므로 히스토리에 남고, 매 변이가 `captureHistory`를 찍는다). **성격 변화 주의**: 현행은 놓는 순간 검증해 위반이면 **자동 롤백**(place-then-fix 불가)이지만, 이 모델은 위반을 커밋하므로 되돌리기가 **사용자의 능동적 undo**로 바뀐다. 이에 맞춰 이동 프리뷰도 현행 "위반 위치 미표시(마지막 valid 유지)"에서 **위반 위치를 그대로 표시**로 바꿔야 한다(위 렌더러 항목과 짝).
 
+### 3-4. 구조/의미 분류 확정 (소비자 감사 2026-07-09)
+
+§7의 두 선행 항목(불변 신뢰 소비자 전수 / 규칙 귀속)을 세 클러스터(게임 런타임·에디터 렌더링·직렬화/undo) 전수 감사로 해소했다. 결과:
+
+- **크래시는 단 하나 — `timeSigNatural`.** 분자/분모 ≤ 0인 박자표(예: 입력 중 "0/4")는 마디 길이 0/음수를 만들어, `measureStartBeat`로 도는 **무제한 measure 루프 3곳을 무한루프**로 만든다(탭·게임 행). 실측 3곳 확인: `GridRenderer.ts:161`(그리드)·`MinimapRenderer.ts:195`(미니맵)·`GameRenderer.ts:1157`(런타임 measureTimesMs — 라이브 테스트플레이도 얼어붙음). → **`timeSigNatural`은 구조로 분류(setChart 항상 거부).** 세 루프에 step≤0 가드를 넣어 하드닝하면 이후 의미로 강등 가능.
+- **나머지 10개 규칙은 CRASH·DATA-LOSS 소비자가 없다 → 전부 의미(transient 허용), 하드닝 불요.** 최악이 GLITCH(겹쳐 그림·오정렬) 또는 SILENT(콤보 이중 계상·타이밍 미세 오차). 근거: JudgmentEngine 상태맵이 전부 **note index 키**라 중복·겹침이 크래시가 아니라 이중 계상에 그치고(`JudgmentEngine.ts:190-254`), 렌더러는 각 엔티티를 독립 렌더(헤드 없는 트릴은 `hasHead` 분기라 역참조 없음), `storage.ts`는 배열을 JSON 통째 왕복해 중복도 보존(DATA-LOSS 없음), `loadChart`는 이미 advisory.
+- **`timeSigAtMeasureStart`는 의미다** — 비경계 박자표도 유효 Beat라 루프가 정상 전진(무한루프 아님), 결과는 마디선 오정렬(GLITCH)뿐. **timesig 2개를 한 묶음으로 다루지 말 것**(Natural=구조/크래시, AtMeasureStart=순수 의미로 비대칭).
+
+**결론:** setChart의 구조 버킷 = `timeSigNatural` 1건 + 신설할 역전·레인범위 검사. 의미 버킷 = 나머지 전부. 유일한 선행 하드닝은 **measure 루프 step≤0 가드 3곳**이며, 이것만 하면 낙관적 편집이 어떤 소비자도 크래시시키지 않는다.
+
 ### Trade-off
 
 - **얻는 것**: 다중 선택 이동·붙여넣기 등 자연스러운 편집("일단 옮기고 나중에 고치기"). [[0016]]의 구간 조작이 실효를 갖는다.
@@ -86,11 +96,11 @@
 
 ## 7. 미해결 질문
 
-- **불변 신뢰 소비자 전수 열거 (선행 필수).** "라이브 차트는 항상 valid"는 load-bearing 불변이다. §3-3이 든 렌더러·프리뷰·undo는 **예시**일 뿐이며, 깨뜨리기 전에 "겹침 없음" 등을 가정하는 소비자를 전수 조사해야 한다 — 실측 후보: `MinimapRenderer`·`minimapTrillZone`·`AutoPlayer`·각종 selector·직렬화/export(`editApplication`·`supabase/storage`). 하나라도 invalid에서 크래시하면 이 모델이 무너진다.
-- **각 규칙의 구조/의미 잠정 귀속 (11개 전수, 빈칸=미검토 신호).** `validateChart`는 11개 하위 함수로 구성된다:
+- ~~**불변 신뢰 소비자 전수 열거**~~ **→ 감사 완료(§3-4, 2026-07-09): 크래시는 `timeSigNatural` 1건뿐.** "라이브 차트는 항상 valid"는 load-bearing 불변이다. §3-3이 든 렌더러·프리뷰·undo는 **예시**일 뿐이며, 깨뜨리기 전에 "겹침 없음" 등을 가정하는 소비자를 전수 조사해야 한다 — 실측 후보: `MinimapRenderer`·`minimapTrillZone`·`AutoPlayer`·각종 selector·직렬화/export(`editApplication`·`supabase/storage`). 하나라도 invalid에서 크래시하면 이 모델이 무너진다.
+- ~~**각 규칙의 구조/의미 잠정 귀속**~~ **→ 감사 완료(§3-4): `timeSigNatural`=구조(크래시), 나머지 10=의미.** (아래는 감사 전 잠정 초안, §3-4가 정본.) `validateChart`는 11개 하위 함수로 구성된다:
   - **의미(초안):** `validateNoDuplicates`(중복)·`validateNoLongOverlap`(롱 겹침)·`validateTrillExclusive`(트릴↔zone 배타)·`validateTrillLong`(트릴 롱 헤드)·`validateNoTrillZoneOverlap`(zone 겹침)·`validateNoEventDuplicate`·`validateNoEventOverlap`·`validateNoTutorialInputOverlap`·`validateStopZones`(stop 구간).
   - **애매(전수 검토 필요):** `validateTimeSigNatural`(박자표 자연수 아님)·`validateTimeSigAtMeasureStart`(마디 경계 아님) — "malformed 데이터(구조)"인지 "판정 전제 위반(의미)"인지 진짜 불분명.
-  - **구조(데이터 성립 불가): 현재 11개 중 0건.** 역전(`endBeat<beat`)·레인 범위 이탈·존재하지 않는 레인 참조는 검사 자체가 없어 **신설 대상**(§3-1). 구조 버킷은 기존 규칙을 옮겨 채우는 게 아니라 새로 만든다.
+  - **구조: 감사 결과 `timeSigNatural` 1건(§3-4) + 신설 대상.** timeSigNatural(분자/분모 ≤0)은 measure 루프 3곳을 무한루프로 만들어 구조로 확정. 그 외 역전(`endBeat<beat`)·레인 범위 이탈·존재하지 않는 레인 참조는 검사 자체가 없어 **신설 대상**(§3-1).
   - **위 두 선행 항목(소비자 전수 / 규칙 귀속)은 독립이 아니라 결합이다.** 한 규칙을 "의미(transient 허용)"로 안전하게 내리려면 그 위반을 **모든 소비자가 견뎌야** 한다 — 예: `validateNoTrillZoneOverlap`을 허용하려면 `MinimapRenderer`·zone 핸들 렌더가 겹친 zone을 견뎌야 한다. 따라서 **규칙×소비자 교차표**로 함께 판정한다(빈칸 = "이 규칙은 이 소비자 때문에 의미로 못 내림").
 - 위반 시각화의 언어(색·아이콘·목록 패널)와, 위반이 화면 밖일 때의 안내(미니맵 표시 등).
 - 저장뿐 아니라 **플레이/프리뷰 진입 게이트**의 정확한 경계(부분 구간 프리뷰는 invalid 구간만 피하면 허용할지).
