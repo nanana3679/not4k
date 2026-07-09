@@ -1,7 +1,6 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity, TrillZone } from "../../shared";
 import { beatToFloat } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
-import { computePasteViolations } from "./violationCheck";
 
 /** Clipboard data for copy/paste */
 export interface NoteClipboard {
@@ -19,7 +18,6 @@ export interface ClipboardCallbacks {
   getExtraNotes?: () => ExtraNoteEntity[];
   onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
   onExtraSelectionChange?: (indices: Set<number>) => void;
-  onViolationsChange?: (indices: Set<number>) => void;
   onWarn?: (msg: string) => void;
   onChartUpdate: (chart: Chart) => void;
   onSelectionChange: (selectedIndices: Set<number>) => void;
@@ -246,8 +244,6 @@ export class ClipboardManager {
     callbacks.onSelectionChange(new Set(newSelectedIndices));
     callbacks.onChartUpdate(newChart);
 
-    this._updatePasteViolations(newChart, callbacks);
-
     return {
       chart: newChart,
       selectedIndices: newSelectedIndices,
@@ -264,7 +260,7 @@ export class ClipboardManager {
    */
   cancelPaste(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate" | "onViolationsChange">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate">,
     clearSelection: () => void,
   ): Chart {
     if (!this._isPendingPaste) return chart;
@@ -273,7 +269,7 @@ export class ClipboardManager {
 
   private _cancelPasteInternal(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate" | "onViolationsChange">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate">,
     clearSelection?: () => void,
   ): Chart {
     let newChart = chart;
@@ -301,7 +297,6 @@ export class ClipboardManager {
     clearSelection?.();
 
     callbacks.onChartUpdate(newChart);
-    callbacks.onViolationsChange?.(new Set());
 
     return newChart;
   }
@@ -373,7 +368,6 @@ export class ClipboardManager {
     }
 
     callbacks.onChartUpdate(newChart);
-    this._updatePasteViolations(newChart, callbacks);
 
     return newChart;
   }
@@ -386,8 +380,7 @@ export class ClipboardManager {
   movePasteByLane(
     chart: Chart,
     direction: "left" | "right",
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onViolationsChange" | "getSnapStep" | "getMaxBeatFloat">,
-    updateViolationsFn: (chart: Chart) => void,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getSnapStep" | "getMaxBeatFloat">,
   ): Chart | null {
     if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return null;
 
@@ -417,7 +410,6 @@ export class ClipboardManager {
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones };
     callbacks.onChartUpdate(newChart);
-    updateViolationsFn(newChart);
 
     return newChart;
   }
@@ -427,7 +419,7 @@ export class ClipboardManager {
    */
   confirmPaste(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onViolationsChange" | "onWarn">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onWarn">,
     validateFn: (chart: Chart) => string[],
   ): boolean {
     if (!this._isPendingPaste) return false;
@@ -442,28 +434,11 @@ export class ClipboardManager {
       this.pastedExtraNoteIndices.clear();
       this.pastedZoneIndices.clear();
       callbacks.onChartUpdate(chart);
-      callbacks.onViolationsChange?.(new Set());
       return true;
     } else {
       callbacks.onWarn?.(`제약 위반 ${errors.length}건 — 배치할 수 없습니다`);
       return false;
     }
-  }
-
-  /**
-   * Compute and report pasted note violations.
-   * Called internally and exposed for SelectMode to call after movePasteByLane.
-   */
-  updatePasteViolations(chart: Chart, callbacks: Pick<ClipboardCallbacks, "onViolationsChange">): void {
-    this._updatePasteViolations(chart, callbacks);
-  }
-
-  private _updatePasteViolations(
-    chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onViolationsChange">,
-  ): void {
-    const violations = computePasteViolations(chart, this.pastedNoteIndices);
-    callbacks.onViolationsChange?.(violations);
   }
 
   private _isRangeNote(note: NoteEntity | ExtraNoteEntity): note is RangeNote {

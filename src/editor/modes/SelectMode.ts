@@ -52,7 +52,6 @@ export interface SelectModeCallbacks {
   onExtraSelectionChange?: (indices: Set<number>) => void;
   getExtraNotes?: () => ExtraNoteEntity[];
   getExtraLaneCount?: () => number;
-  onViolationsChange?: (indices: Set<number>) => void;
   onWarn?: (msg: string) => void;
 }
 
@@ -1403,7 +1402,6 @@ export class SelectMode implements EditorMode {
       this.chart,
       direction,
       this.callbacks,
-      (chart) => this.clipboardManager.updatePasteViolations(chart, this.callbacks),
     );
     if (newChart !== null) {
       this.chart = newChart;

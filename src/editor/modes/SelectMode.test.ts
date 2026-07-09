@@ -41,7 +41,6 @@ function makeCallbacks(
     getMaxBeatFloat: () => 100,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
     hitTestNote: () => null,
-    onViolationsChange: vi.fn(),
     onWarn: vi.fn(),
     onTrillZoneSelectionChange: vi.fn(),
     // Extra lane callbacks
@@ -825,12 +824,11 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
   }
 
   it("confirmPlacement — 제약 만족 시 배치 확정", () => {
-    const { cb, mode } = setupPaste();
+    const { mode } = setupPaste();
 
     mode.confirmPlacement();
 
     expect(mode.isPendingPaste).toBe(false);
-    expect(cb.onViolationsChange).toHaveBeenCalledWith(new Set());
   });
 
   it("cancelPaste — 붙여넣은 노트 제거, 원래 상태 복원", () => {
@@ -935,58 +933,6 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
 
     // onChartUpdate should NOT have been called again (move blocked)
     expect(cb.onChartUpdate.mock.calls.length).toBe(callCountBefore);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 위반 감지
-// ---------------------------------------------------------------------------
-
-describe("SelectMode — 붙여넣기 위반 감지", () => {
-  it("중복 위치에 붙여넣기 시 violationsChange에 위반 인덱스 전달", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(4) },
-      ],
-    });
-    const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
-
-    // beat(0) lane(1) 노트를 복사하고 beat(4)에 붙여넣기 → 기존 노트와 중복
-    // 먼저 복사할 노트 추가
-    mode.setChart(makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(0) },
-        { type: "single", lane: 1 as Lane, beat: beat(4) }, // 기존 노트
-      ],
-    }));
-    mode.selectNote(0);
-    mode.copy();
-    mode.paste(beat(4)); // beat(0) + offset(4) = beat(4) → 중복
-
-    // onViolationsChange should have been called with the pasted note index
-    expect(cb.onViolationsChange).toHaveBeenCalled();
-    const lastCall = cb.onViolationsChange.mock.calls[cb.onViolationsChange.mock.calls.length - 1];
-    const violations = lastCall[0] as Set<number>;
-    expect(violations.size).toBeGreaterThan(0);
-  });
-
-  it("빈 위치에 붙여넣기 시 위반 없음", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(0) },
-      ],
-    });
-    const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
-
-    mode.selectNote(0);
-    mode.copy();
-    mode.paste(beat(8)); // 충돌 없는 위치
-
-    const lastCall = cb.onViolationsChange.mock.calls[cb.onViolationsChange.mock.calls.length - 1];
-    const violations = lastCall[0] as Set<number>;
-    expect(violations.size).toBe(0);
   });
 });
 

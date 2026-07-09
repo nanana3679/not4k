@@ -499,7 +499,6 @@ function ChartEditorPage() {
       onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
-      onViolationsChange: (indices) => { rendererRef.current?.setViolatingNotes(indices); },
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
