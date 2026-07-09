@@ -192,10 +192,13 @@ export class MinimapRenderer {
     const meta = chart.meta;
     if (bpmMarkers.length > 0 && timeSignatures.length > 0) {
       const totalTimelineMs = this.host.getTotalTimelineMs();
+      let prevMStartMs = Number.NEGATIVE_INFINITY;
       for (let m = 0; ; m++) {
         const mStartBeat = measureStartBeat(m, timeSignatures);
         const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
         if (mStartMs > totalTimelineMs) break;
+        if (!(mStartMs > prevMStartMs)) break; // 마디 미전진(구조 위반: 분자 0 박자표) 방어 — continue보다 위
+        prevMStartMs = mStartMs;
 
         const containerY = this.host.timeToY(mStartMs);
         const my = toMinimapY(containerY);

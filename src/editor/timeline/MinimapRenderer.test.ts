@@ -61,4 +61,39 @@ describe("MinimapRenderer", () => {
 
     expect(minimapLayer.children.length).toBeLessThanOrEqual(400);
   });
+
+  it("0/4 박자표(마디 미전진)여도 render가 무한루프 없이 종료한다", () => {
+    const chart = makeChart(4);
+    const minimapLayer = new Container();
+    const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
+    // 분자 0 박자표: measureStartBeat가 전진하지 않아 가드가 없으면 measure-line 루프가 무한루프.
+    const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(0) }];
+    const renderer = new MinimapRenderer({
+      chart,
+      options: {
+        canvas: {
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        } as unknown as HTMLCanvasElement,
+        width: 800,
+        height: 600,
+      },
+      scrollY: 0,
+      totalTimelineHeight: 80_000,
+      waveformDurationMs: 640_000,
+      zoom: 200,
+      cachedBpmMarkers: bpmMarkers,
+      cachedTimeSignatures: timeSignatures,
+      getTotalTimelineMs: () => 640_000,
+      timeToY: (timeMs: number) => 80_000 - timeMs / 10,
+      minimapLayer,
+      minimapVisible: true,
+    });
+
+    // 무한루프면 이 호출이 반환되지 않아 테스트가 타임아웃으로 실패한다.
+    renderer.render();
+
+    // 마디선은 최대 1개(마디 0)만 그려지고 즉시 종료 — 유한함이 요점.
+    expect(minimapLayer.children.length).toBeLessThan(50);
+  });
 });

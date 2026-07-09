@@ -165,6 +165,7 @@ export class GridRenderer {
 
       const nextMStartBeat = measureStartBeat(m + 1, timeSignatures);
       const nextMStartMs = beatToMs(nextMStartBeat, bpmMarkers, meta.offsetMs);
+      if (!(nextMStartMs > mStartMs)) break; // 마디 미전진(구조 위반: 분자 0 박자표) 방어 — continue보다 위
       if (nextMStartMs < minTimeMs) continue;
 
       const y = this.host.timeToY(mStartMs);
