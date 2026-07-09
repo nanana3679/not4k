@@ -83,6 +83,20 @@ describe("validateNoDuplicates", () => {
     ];
     expect(validateNoDuplicates(notes)).toHaveLength(1);
   });
+
+  it("중복된 두 포인트 노트의 원본 인덱스가 refs에 kind 'note'로 담긴다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 2, beat: beat(0) }, // 무관 노트, 인덱스를 밀기 위함
+      { type: "single", lane: 1, beat: beat(0) },
+      { type: "double", lane: 1, beat: beat(0) },
+    ];
+    const errors = validateNoDuplicates(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "note", index: 1 },
+      { kind: "note", index: 2 },
+    ]);
+  });
 });
 
 // =========================================================================
@@ -131,6 +145,21 @@ describe("validateNoLongOverlap", () => {
       { type: "single", lane: 1, beat: beat(4) },
     ];
     expect(validateNoLongOverlap(notes)).toEqual([]);
+  });
+
+  it("겹치는 노트의 원본 인덱스가 refs에 담긴다 (다른 레인 그룹화 후에도 정확)", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 2, beat: beat(1) },                    // 인덱스 0, 다른 레인
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) },    // 인덱스 1
+      { type: "single", lane: 2, beat: beat(3) },                    // 인덱스 2, 다른 레인
+      { type: "single", lane: 1, beat: beat(2) },                    // 인덱스 3, 겹침 대상
+    ];
+    const errors = validateNoLongOverlap(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "note", index: 1 },
+      { kind: "note", index: 3 },
+    ]);
   });
 });
 
@@ -221,6 +250,17 @@ describe("validateTrillExclusive", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 2, beat: beat(2) }];
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateTrillExclusive(notes, zones)).toEqual([]);
+  });
+
+  it("존 밖 트릴 노트의 원본 인덱스가 refs에 kind 'note'로 담긴다", () => {
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(0) },  // 인덱스 0, 존 안 → OK
+      { type: "trill", lane: 1, beat: beat(5) },  // 인덱스 1, 존 밖 → 위반
+    ];
+    const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const errors = validateTrillExclusive(notes, zones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "note", index: 1 }]);
   });
 });
 
@@ -341,6 +381,20 @@ describe("validateNoTrillZoneOverlap", () => {
     const zones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
     expect(validateNoTrillZoneOverlap(zones)).toEqual([]);
   });
+
+  it("겹치는 두 존이면 refs에 두 존 인덱스가 kind 'trillZone'으로 담긴다", () => {
+    const zones: TrillZone[] = [
+      { lane: 2, beat: beat(0), endBeat: beat(4) },  // 인덱스 0, 무관 레인
+      { lane: 1, beat: beat(0), endBeat: beat(4) },  // 인덱스 1
+      { lane: 1, beat: beat(2), endBeat: beat(6) },  // 인덱스 2, 겹침 대상
+    ];
+    const errors = validateNoTrillZoneOverlap(zones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "trillZone", index: 1 },
+      { kind: "trillZone", index: 2 },
+    ]);
+  });
 });
 
 // =========================================================================
@@ -434,6 +488,22 @@ describe("validateNoEventOverlap", () => {
       { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap" },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
+  });
+
+  it("겹치는 두 이벤트의 원본 인덱스가 refs에 담긴다 — 앞에 다른 타입 이벤트가 끼어 인덱스가 밀려도 정확", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 },                       // 인덱스 0, 필터 대상 아님
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" }, // 인덱스 1, 필터 대상 아님
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },    // 인덱스 2
+      { type: "bpm", beat: beat(1), bpm: 140 },                       // 인덱스 3, 필터 대상 아님
+      { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },    // 인덱스 4, 겹침 대상
+    ];
+    const errors = validateNoEventOverlap(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "event", index: 2 },
+      { kind: "event", index: 4 },
+    ]);
   });
 });
 
@@ -582,6 +652,23 @@ describe("validateStopZones", () => {
       { type: "text", beat: beat(0), endBeat: beat(4), text: "hello" },
     ];
     expect(validateStopZones(notes, events)).toEqual([]);
+  });
+
+  it("stop 구간 내 노트의 원본 인덱스가 refs에 note+event로 담긴다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(10) },  // 인덱스 0, 구간 밖
+      { type: "single", lane: 1, beat: beat(2) },   // 인덱스 1, 구간 내 → 위반
+    ];
+    const events: ChartEvent[] = [
+      { type: "text", beat: beat(0), endBeat: beat(1), text: "x" }, // 인덱스 0, stop 아님
+      { type: "stop", beat: beat(0), endBeat: beat(4) },            // 인덱스 1
+    ];
+    const errors = validateStopZones(notes, events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "note", index: 1 },
+      { kind: "event", index: 1 },
+    ]);
   });
 });
 

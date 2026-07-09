@@ -42,6 +42,15 @@ export interface ValidationError {
     | "timeSigNotAtMeasureStart"
     | "rangeInverted";
   message: string;
+  refs?: ValidationRef[];
+}
+
+/** RFD 0017 위반 시각화 — 위반에 연루된 엔티티를 원본 배열 인덱스로 가리킨다 */
+export type ValidationRefKind = "note" | "trillZone" | "event";
+
+export interface ValidationRef {
+  kind: ValidationRefKind;
+  index: number; // 각각 chart.notes / chart.trillZones / chart.events 배열의 인덱스
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +64,10 @@ function isRangeNote(n: NoteEntity): n is RangeNote {
 function beatKey(lane: number, b: Beat): string {
   return `${lane}:${b.n}/${b.d}`;
 }
+
+const noteRef = (index: number): ValidationRef => ({ kind: "note", index });
+const zoneRef = (index: number): ValidationRef => ({ kind: "trillZone", index });
+const eventRef = (index: number): ValidationRef => ({ kind: "event", index });
 
 // ---------------------------------------------------------------------------
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -84,9 +97,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       // 시작점 슬롯
       const startKey = beatKey(note.lane, note.beat);
       if (rangeStartSeen.has(startKey)) {
+        const prevIdx = rangeStartSeen.get(startKey)!;
         errors.push({
           rule: "duplicate",
-          message: `Duplicate range start at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${rangeStartSeen.get(startKey)}, ${i})`,
+          message: `Duplicate range start at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${prevIdx}, ${i})`,
+          refs: [noteRef(prevIdx), noteRef(i)],
         });
       } else {
         rangeStartSeen.set(startKey, i);
@@ -96,9 +111,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       if (!beatEq(note.beat, note.endBeat)) {
         const endKey = beatKey(note.lane, note.endBeat);
         if (rangeEndSeen.has(endKey)) {
+          const prevIdx = rangeEndSeen.get(endKey)!;
           errors.push({
             rule: "duplicate",
-            message: `Duplicate range end at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} (notes ${rangeEndSeen.get(endKey)}, ${i})`,
+            message: `Duplicate range end at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} (notes ${prevIdx}, ${i})`,
+            refs: [noteRef(prevIdx), noteRef(i)],
           });
         } else {
           rangeEndSeen.set(endKey, i);
@@ -108,9 +125,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       // 포인트 노트 슬롯
       const key = beatKey(note.lane, note.beat);
       if (pointSeen.has(key)) {
+        const prevIdx = pointSeen.get(key)!;
         errors.push({
           rule: "duplicate",
-          message: `Duplicate point note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${pointSeen.get(key)}, ${i})`,
+          message: `Duplicate point note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${prevIdx}, ${i})`,
+          refs: [noteRef(prevIdx), noteRef(i)],
         });
       } else {
         pointSeen.set(key, i);
@@ -133,31 +152,34 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
 export function validateNoLongOverlap(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  // 레인별로 그룹화하여 비교 범위를 축소
-  const byLane = new Map<number, NoteEntity[]>();
-  for (const n of notes) {
+  // 레인별로 그룹화하여 비교 범위를 축소 (원본 인덱스도 함께 담는다)
+  const byLane = new Map<number, { note: NoteEntity; index: number }[]>();
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
     let arr = byLane.get(n.lane);
     if (!arr) { arr = []; byLane.set(n.lane, arr); }
-    arr.push(n);
+    arr.push({ note: n, index: i });
   }
 
   for (const laneNotes of byLane.values()) {
-    const rangeNotes = laneNotes.filter(isRangeNote);
+    const rangeNotes = laneNotes.filter((e) => isRangeNote(e.note));
     for (const rn of rangeNotes) {
+      const rnNote = rn.note as RangeNote;
       for (const other of laneNotes) {
         if (other === rn) continue;
 
-        const positions: Beat[] = isRangeNote(other)
-          ? beatEq(other.beat, other.endBeat)
-            ? [other.beat]
-            : [other.beat, other.endBeat]
-          : [other.beat];
+        const positions: Beat[] = isRangeNote(other.note)
+          ? beatEq(other.note.beat, (other.note as RangeNote).endBeat)
+            ? [other.note.beat]
+            : [other.note.beat, (other.note as RangeNote).endBeat]
+          : [other.note.beat];
 
         for (const b of positions) {
-          if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
+          if (beatGt(b, rnNote.beat) && beatLt(b, rnNote.endBeat)) {
             errors.push({
               rule: "longOverlap",
-              message: `Note at lane ${other.lane}, beat ${b.n}/${b.d} overlaps long note body (${rn.beat.n}/${rn.beat.d} ~ ${rn.endBeat.n}/${rn.endBeat.d})`,
+              message: `Note at lane ${other.note.lane}, beat ${b.n}/${b.d} overlaps long note body (${rnNote.beat.n}/${rnNote.beat.d} ~ ${rnNote.endBeat.n}/${rnNote.endBeat.d})`,
+              refs: [noteRef(rn.index), noteRef(other.index)],
             });
           }
         }
@@ -182,7 +204,8 @@ export function validateTrillExclusive(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const note of notes) {
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
     const isTrill = note.type === "trill" || note.type === "trillLong";
 
     // trillLong: both start and end must be in the SAME trill zone
@@ -210,6 +233,7 @@ export function validateTrillExclusive(
       errors.push({
         rule: "trillExclusive",
         message: `Trill note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is outside any trill zone`,
+        refs: [noteRef(i)],
       });
     }
 
@@ -217,6 +241,7 @@ export function validateTrillExclusive(
       errors.push({
         rule: "trillExclusive",
         message: `Non-trill note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside a trill zone`,
+        refs: [noteRef(i)],
       });
     }
   }
@@ -233,7 +258,8 @@ export function validateTrillExclusive(
 export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const note of notes) {
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
     if (note.type !== "trillLong") continue;
     const rn = note as RangeNote;
 
@@ -241,6 +267,7 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong cannot be hold-only (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+        refs: [noteRef(i)],
       });
     }
 
@@ -252,6 +279,7 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong must have a trill head (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+        refs: [noteRef(i)],
       });
     }
   }
@@ -286,6 +314,7 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
         errors.push({
           rule: "trillZoneOverlap",
           message: `Trill zones overlap on lane ${a.lane}: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          refs: [zoneRef(i), zoneRef(j)],
         });
       }
     }
@@ -312,9 +341,11 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 
     const key = `${evt.type}:${evt.beat.n}/${evt.beat.d}`;
     if (seen.has(key)) {
+      const prevIdx = seen.get(key)!;
       errors.push({
         rule: "eventDuplicate",
-        message: `Duplicate ${evt.type} event at beat ${evt.beat.n}/${evt.beat.d} (events ${seen.get(key)}, ${i})`,
+        message: `Duplicate ${evt.type} event at beat ${evt.beat.n}/${evt.beat.d} (events ${prevIdx}, ${i})`,
+        refs: [eventRef(prevIdx), eventRef(i)],
       });
     } else {
       seen.set(key, i);
@@ -328,13 +359,6 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 // 규칙 6: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
-/** 일반 구간 이벤트만 필터링 (tutorialInput/tutorialDiagram은 튜토리얼 전용 표시 규칙으로 별도 취급) */
-function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
-  return events.filter((e): e is RangeEvent =>
-    e.type === "text" || e.type === "auto" || e.type === "stop",
-  );
-}
-
 /**
  * 같은 타입의 구간 이벤트끼리 열린 구간이 겹치는지 검사한다.
  * 다른 타입 간(text + auto 등)은 독립적이므로 겹침을 허용한다.
@@ -342,7 +366,15 @@ function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
  */
 export function validateNoEventOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const rangeEvents = getRangeEvents(events);
+
+  // 원본 인덱스를 유지한 채 구간 이벤트만 추린다 (getRangeEvents는 인덱스를 잃으므로 별도 구성)
+  const rangeEvents: { event: RangeEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "text" || e.type === "auto" || e.type === "stop") {
+      rangeEvents.push({ event: e, index: i });
+    }
+  }
 
   for (let i = 0; i < rangeEvents.length; i++) {
     for (let j = i + 1; j < rangeEvents.length; j++) {
@@ -350,17 +382,18 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
       const b = rangeEvents[j];
 
       // 다른 타입은 겹침 허용
-      if (a.type !== b.type) continue;
+      if (a.event.type !== b.event.type) continue;
 
-      const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
-      const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
-      const aStartInB = beatGt(a.beat, b.beat) && beatLt(a.beat, b.endBeat);
-      const aEndInB = beatGt(a.endBeat, b.beat) && beatLt(a.endBeat, b.endBeat);
+      const bStartInA = beatGt(b.event.beat, a.event.beat) && beatLt(b.event.beat, a.event.endBeat);
+      const bEndInA = beatGt(b.event.endBeat, a.event.beat) && beatLt(b.event.endBeat, a.event.endBeat);
+      const aStartInB = beatGt(a.event.beat, b.event.beat) && beatLt(a.event.beat, b.event.endBeat);
+      const aEndInB = beatGt(a.event.endBeat, b.event.beat) && beatLt(a.event.endBeat, b.event.endBeat);
 
       if (bStartInA || bEndInA || aStartInB || aEndInB) {
         errors.push({
           rule: "eventOverlap",
-          message: `Events overlap: ${a.type} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          message: `Events overlap: ${a.event.type} (${a.event.beat.n}/${a.event.beat.d}~${a.event.endBeat.n}/${a.event.endBeat.d}) and (${b.event.beat.n}/${b.event.beat.d}~${b.event.endBeat.n}/${b.event.endBeat.d})`,
+          refs: [eventRef(a.index), eventRef(b.index)],
         });
       }
     }
@@ -375,19 +408,28 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
  */
 export function validateNoTutorialInputOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const inputEvents = events.filter((e): e is TutorialInputEvent => e.type === "tutorialInput");
+
+  // 원본 인덱스를 유지한 채 tutorialInput 이벤트만 추린다
+  const inputEvents: { event: TutorialInputEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "tutorialInput") {
+      inputEvents.push({ event: e, index: i });
+    }
+  }
 
   for (let i = 0; i < inputEvents.length; i++) {
     for (let j = i + 1; j < inputEvents.length; j++) {
       const a = inputEvents[i];
       const b = inputEvents[j];
-      if (a.lane !== b.lane || a.keyCode !== b.keyCode) continue;
+      if (a.event.lane !== b.event.lane || a.event.keyCode !== b.event.keyCode) continue;
 
-      const overlaps = beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat);
+      const overlaps = beatLt(a.event.beat, b.event.endBeat) && beatLt(b.event.beat, a.event.endBeat);
       if (overlaps) {
         errors.push({
           rule: "tutorialInputOverlap",
-          message: `Tutorial input overlaps on lane ${a.lane}, key ${a.keyCode} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          message: `Tutorial input overlaps on lane ${a.event.lane}, key ${a.event.keyCode} (${a.event.beat.n}/${a.event.beat.d}~${a.event.endBeat.n}/${a.event.endBeat.d}) and (${b.event.beat.n}/${b.event.beat.d}~${b.event.endBeat.n}/${b.event.endBeat.d})`,
+          refs: [eventRef(a.index), eventRef(b.index)],
         });
       }
     }
@@ -410,31 +452,43 @@ export function validateStopZones(
   events: readonly ChartEvent[],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const stopEvents = events.filter((e): e is StopEvent => e.type === "stop");
+
+  // 원본 인덱스를 유지한 채 stop 이벤트만 추린다
+  const stopEvents: { event: StopEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "stop") {
+      stopEvents.push({ event: e, index: i });
+    }
+  }
   if (stopEvents.length === 0) return errors;
 
   for (const stop of stopEvents) {
-    for (const note of notes) {
+    for (let noteIdx = 0; noteIdx < notes.length; noteIdx++) {
+      const note = notes[noteIdx];
       // 포인트 노트: beat가 stop 구간 내인지
       if (!isRangeNote(note)) {
-        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+        if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
       } else {
         // 롱노트: 시작점 or 끝점이 stop 구간 내인지
-        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+        if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Long note start (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Long note start (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
-        if (beatGte(note.endBeat, stop.beat) && beatLte(note.endBeat, stop.endBeat)) {
+        if (beatGte(note.endBeat, stop.event.beat) && beatLte(note.endBeat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Long note end (${note.type}) at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Long note end (${note.type}) at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
       }
@@ -460,13 +514,15 @@ export function isNaturalNumber(v: number): boolean {
 export function validateTimeSigNatural(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const evt of events) {
+  for (let i = 0; i < events.length; i++) {
+    const evt = events[i];
     if (evt.type !== "timeSignature") continue;
     const { n, d } = evt.beatPerMeasure;
     if (!isNaturalNumber(n) || !isNaturalNumber(d)) {
       errors.push({
         rule: "timeSigNotNatural",
         message: `Time signature numerator and denominator must be natural numbers, got ${n}/${d} at beat ${evt.beat.n}/${evt.beat.d}`,
+        refs: [eventRef(i)],
       });
     }
   }
@@ -525,19 +581,25 @@ export function isMeasureBoundary(
 export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  const tsEvents = events
-    .filter((e): e is TimeSignatureEvent => e.type === "timeSignature")
-    .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
+  // 원본 인덱스를 유지한 채 timeSignature 이벤트만 추려 정렬한다
+  const tsEventsRaw: { event: TimeSignatureEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "timeSignature") {
+      tsEventsRaw.push({ event: e, index: i });
+    }
+  }
+  const tsEvents = tsEventsRaw.sort((a, b) => beatToFloat(a.event.beat) - beatToFloat(b.event.beat));
 
   if (tsEvents.length === 0) return errors;
 
   // 첫 번째 timesig 이벤트는 beat 0이어야 한다 (이미 다른 곳에서 강제됨)
   // 두 번째부터 마디 경계 검사
   let accBeatFloat = 0;
-  let currentBPM = tsEvents[0].beatPerMeasure;
+  let currentBPM = tsEvents[0].event.beatPerMeasure;
 
   for (let i = 1; i < tsEvents.length; i++) {
-    const evt = tsEvents[i];
+    const evt = tsEvents[i].event;
     const evtBeatFloat = beatToFloat(evt.beat);
 
     // 이전 timesig 기준으로 마디 경계를 찾는다
@@ -557,6 +619,7 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
       errors.push({
         rule: "timeSigNotAtMeasureStart",
         message: `Time signature at beat ${evt.beat.n}/${evt.beat.d} is not at a measure boundary`,
+        refs: [eventRef(tsEvents[i].index)],
       });
     }
 
@@ -589,29 +652,35 @@ export function validateNoRangeInversion(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const n of notes) {
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
     if (isRangeNote(n) && beatLt(n.endBeat, n.beat)) {
       errors.push({
         rule: "rangeInverted",
         message: `구간 노트 끝(${beatToFloat(n.endBeat)})이 시작(${beatToFloat(n.beat)})보다 앞섭니다 (레인 ${n.lane})`,
+        refs: [noteRef(i)],
       });
     }
   }
 
-  for (const z of trillZones) {
+  for (let i = 0; i < trillZones.length; i++) {
+    const z = trillZones[i];
     if (beatLt(z.endBeat, z.beat)) {
       errors.push({
         rule: "rangeInverted",
         message: `트릴 존 끝(${beatToFloat(z.endBeat)})이 시작(${beatToFloat(z.beat)})보다 앞섭니다 (레인 ${z.lane})`,
+        refs: [zoneRef(i)],
       });
     }
   }
 
-  for (const e of events) {
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
     if ("endBeat" in e && beatLt(e.endBeat, e.beat)) {
       errors.push({
         rule: "rangeInverted",
         message: `${e.type} 이벤트 끝(${beatToFloat(e.endBeat)})이 시작(${beatToFloat(e.beat)})보다 앞섭니다`,
+        refs: [eventRef(i)],
       });
     }
   }
