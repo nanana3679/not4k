@@ -1,6 +1,6 @@
 # RFD 0017: 낙관적 편집 — 편집 중 transient invalid 허용, 저장에서 검증
 
-**Status:** Draft (2026-07-09)
+**Status:** Accepted (2026-07-09)
 
 **관련 문서:**
 
