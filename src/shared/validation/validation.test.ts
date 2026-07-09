@@ -10,6 +10,9 @@ import {
   validateNoTutorialInputOverlap,
   validateStopZones,
   validateChart,
+  validateChartStructural,
+  validateChartSemantic,
+  validateNoRangeInversion,
   isNaturalNumber,
   validateTimeSigNatural,
   validateTimeSigAtMeasureStart,
@@ -626,6 +629,109 @@ describe("validateChart", () => {
       ],
     });
     expect(result.some(e => e.rule === "timeSigNotNatural")).toBe(true);
+  });
+
+  it("구간 역전(endBeat<beat)도 rangeInverted로 보고한다(구조가 합집합에 포함)", () => {
+    const result = validateChart({
+      notes: [{ type: "long", lane: 1, beat: beat(4), endBeat: beat(2) }],
+      trillZones: [],
+      events: [],
+    });
+    expect(result.some(e => e.rule === "rangeInverted")).toBe(true);
+  });
+
+  it("동일 참조 입력은 memo로 같은 배열 인스턴스를 재사용", () => {
+    const input = { notes: [] as NoteEntity[], trillZones: [] as TrillZone[], events: [] as ChartEvent[] };
+    const first = validateChart(input);
+    const second = validateChart(input);
+    expect(second).toBe(first);
+  });
+});
+
+// =========================================================================
+// 구조 검증 (역전) + 구조/의미 분리 (RFD 0017 §3-1)
+// =========================================================================
+
+describe("validateNoRangeInversion", () => {
+  it("롱노트 endBeat<beat 역전이면 rangeInverted 반환", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(4), endBeat: beat(2) }];
+    const errors = validateNoRangeInversion(notes, [], []);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("rangeInverted");
+  });
+
+  it("endBeat==beat 길이 0 롱노트는 역전이 아니라 통과", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(4), endBeat: beat(4) }];
+    expect(validateNoRangeInversion(notes, [], [])).toEqual([]);
+  });
+
+  it("정상 롱노트(endBeat>beat)는 통과", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateNoRangeInversion(notes, [], [])).toEqual([]);
+  });
+
+  it("TrillZone endBeat<beat도 rangeInverted로 잡는다", () => {
+    const zones: TrillZone[] = [{ lane: 2, beat: beat(8), endBeat: beat(4) }];
+    const errors = validateNoRangeInversion([], zones, []);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("rangeInverted");
+  });
+
+  it("구간 이벤트(stop) endBeat<beat도 rangeInverted로 잡는다", () => {
+    const events: ChartEvent[] = [{ type: "stop", beat: beat(4), endBeat: beat(2) }];
+    const errors = validateNoRangeInversion([], [], events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("rangeInverted");
+  });
+
+  it("포인트 노트(endBeat 없음)는 검사 대상이 아니다", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(0) }];
+    expect(validateNoRangeInversion(notes, [], [])).toEqual([]);
+  });
+});
+
+describe("validateChartStructural / validateChartSemantic 분리", () => {
+  it("구조 검증은 역전+분자0박자표만 포함하고 의미 위반(중복)은 제외", () => {
+    const input = {
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) }, // 중복(의미)
+        { type: "long", lane: 2, beat: beat(4), endBeat: beat(2) }, // 역전(구조)
+      ] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(0) }, // 분자0(구조)
+      ] as ChartEvent[],
+    };
+    const structural = validateChartStructural(input);
+    expect(structural.some(e => e.rule === "rangeInverted")).toBe(true);
+    expect(structural.some(e => e.rule === "timeSigNotNatural")).toBe(true);
+    expect(structural.some(e => e.rule === "duplicate")).toBe(false);
+  });
+
+  it("의미 검증은 역전(구조)을 포함하지 않는다", () => {
+    const input = {
+      notes: [{ type: "long", lane: 2, beat: beat(4), endBeat: beat(2) }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(validateChartSemantic(input).some(e => e.rule === "rangeInverted")).toBe(false);
+  });
+
+  it("구조+의미를 합치면 validateChart와 같은 위반 집합(rule)을 낸다", () => {
+    const input = {
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) },
+      ] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    const combined = [...validateChartStructural(input), ...validateChartSemantic(input)]
+      .map(e => e.rule)
+      .sort();
+    const whole = validateChart(input).map(e => e.rule).sort();
+    expect(combined).toEqual(whole);
   });
 });
 

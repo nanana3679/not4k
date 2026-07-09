@@ -39,7 +39,8 @@ export interface ValidationError {
     | "tutorialInputOverlap"
     | "stopZone"
     | "timeSigNotNatural"
-    | "timeSigNotAtMeasureStart";
+    | "timeSigNotAtMeasureStart"
+    | "rangeInverted";
   message: string;
 }
 
@@ -571,6 +572,54 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
 }
 
 // ---------------------------------------------------------------------------
+// 구조 검증 (malformed 데이터 — 편집 중에도 절대 불가, RFD 0017 §3-1)
+// ---------------------------------------------------------------------------
+
+/**
+ * 구간 엔티티의 끝이 시작보다 앞서면(endBeat < beat) malformed로 본다.
+ *
+ * 대상: 구간 노트(RangeNote)·트릴 존(TrillZone)·구간 이벤트(text/auto/stop/
+ * tutorialInput/tutorialDiagram). 길이 0(endBeat == beat)은 허용(strict `<`).
+ * 낙관적 편집에서도 사용자가 transient로 지날 이유가 없는 값이라 구조로 분류한다.
+ */
+export function validateNoRangeInversion(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+  events: readonly ChartEvent[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const n of notes) {
+    if (isRangeNote(n) && beatLt(n.endBeat, n.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `구간 노트 끝(${beatToFloat(n.endBeat)})이 시작(${beatToFloat(n.beat)})보다 앞섭니다 (레인 ${n.lane})`,
+      });
+    }
+  }
+
+  for (const z of trillZones) {
+    if (beatLt(z.endBeat, z.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `트릴 존 끝(${beatToFloat(z.endBeat)})이 시작(${beatToFloat(z.beat)})보다 앞섭니다 (레인 ${z.lane})`,
+      });
+    }
+  }
+
+  for (const e of events) {
+    if ("endBeat" in e && beatLt(e.endBeat, e.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `${e.type} 이벤트 끝(${beatToFloat(e.endBeat)})이 시작(${beatToFloat(e.beat)})보다 앞섭니다`,
+      });
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
 
@@ -578,6 +627,36 @@ export interface ChartValidationInput {
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
   events: readonly ChartEvent[];
+}
+
+/**
+ * 구조 검증 — malformed 데이터(역전) + 크래시 유발(분자 0 박자표).
+ * setChart가 항상 하드 거부하는 버킷(RFD 0017 §3-2·§3-4).
+ */
+export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
+  return [
+    ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
+    ...validateTimeSigNatural(input.events),
+  ];
+}
+
+/**
+ * 의미 검증 — 게임 판정 전제 위반(겹침·중복·트릴 헤드·stop 구간·비경계 박자표 등).
+ * 낙관적 편집에서 편집 중 잠깐 허용하고 저장·플레이 진입 게이트가 강제하는 버킷.
+ */
+export function validateChartSemantic(input: ChartValidationInput): ValidationError[] {
+  return [
+    ...validateNoDuplicates(input.notes),
+    ...validateNoLongOverlap(input.notes),
+    ...validateTrillExclusive(input.notes, input.trillZones),
+    ...validateTrillLong(input.notes),
+    ...validateNoTrillZoneOverlap(input.trillZones),
+    ...validateNoEventDuplicate(input.events),
+    ...validateNoEventOverlap(input.events),
+    ...validateNoTutorialInputOverlap(input.events),
+    ...validateStopZones(input.notes, input.events),
+    ...validateTimeSigAtMeasureStart(input.events),
+  ];
 }
 
 // 검증 memo — 편집 프리뷰가 매 pointer-move마다 "모드 사전검증 + 차트 변이 게이트"로
@@ -604,17 +683,8 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
   if (cached) return cached;
 
   const errors = [
-    ...validateNoDuplicates(input.notes),
-    ...validateNoLongOverlap(input.notes),
-    ...validateTrillExclusive(input.notes, input.trillZones),
-    ...validateTrillLong(input.notes),
-    ...validateNoTrillZoneOverlap(input.trillZones),
-    ...validateNoEventDuplicate(input.events),
-    ...validateNoEventOverlap(input.events),
-    ...validateNoTutorialInputOverlap(input.events),
-    ...validateStopZones(input.notes, input.events),
-    ...validateTimeSigNatural(input.events),
-    ...validateTimeSigAtMeasureStart(input.events),
+    ...validateChartStructural(input),
+    ...validateChartSemantic(input),
   ];
   byEvents.set(input.events, errors);
   return errors;
