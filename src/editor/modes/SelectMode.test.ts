@@ -218,7 +218,7 @@ describe("SelectMode — computeHoveredTrillZone", () => {
 // 리사이즈 프리뷰 제약 — 커밋과 동일한 validateChart 게이트
 // ---------------------------------------------------------------------------
 
-describe("SelectMode — 리사이즈 프리뷰 제약", () => {
+describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
   // 구간[2,6] 레인1, 안에 트릴노트 beat4
   function setup() {
     const chart = makeChart({
@@ -242,16 +242,16 @@ describe("SelectMode — 리사이즈 프리뷰 제약", () => {
     expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
   });
 
-  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰 미적용(직전 유효값 유지)", () => {
+  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰가 위반 위치를 그대로 표시(낙관적 편집)", () => {
     const { mode, cb, priv } = setup();
     mode.onPointerDown(9, 6, false, false);
     mode.onPointerMove(9, 5); // 유효 → endBeat=5
     const callsAfterValid = cb.onChartUpdate.mock.calls.length;
 
-    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖 → 위반 → 미적용
+    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖(의미 위반) — 낙관적으로 그대로 표시
 
-    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5); // 5에서 안 줄어듦
-    expect(cb.onChartUpdate.mock.calls.length).toBe(callsAfterValid); // onChartUpdate 재호출 없음
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(3); // 위반 위치까지 축소 반영
+    expect(cb.onChartUpdate.mock.calls.length).toBeGreaterThan(callsAfterValid); // 프리뷰 재커밋됨
   });
 });
 
@@ -1166,6 +1166,23 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
 
     const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes[0].lane).toBe(4);
+  });
+
+  it("이동으로 같은 레인·박 중복(의미 위반)이 생겨도 롤백 없이 커밋된다 (낙관적 편집)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(0) },
+      ],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(1); // 레인 2 노트 선택
+
+    mode.moveByLane("left"); // 레인 2 → 1 → 레인1 beat0 노트와 중복(의미 위반)
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[1].lane).toBe(1); // 원위치(레인2)로 되돌리지 않고 중복 상태로 커밋
   });
 });
 
