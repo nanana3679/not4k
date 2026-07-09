@@ -12,6 +12,7 @@ import {
   validateChart,
   validateChartStructural,
   validateChartSemantic,
+  chartViolatingNoteIndices,
   validateNoRangeInversion,
   isNaturalNumber,
   validateTimeSigNatural,
@@ -1048,5 +1049,46 @@ describe("validateChart memo", () => {
 
     expect(second).not.toBe(first);
     expect(second).toEqual(first);
+  });
+});
+
+// =========================================================================
+// chartViolatingNoteIndices — 위반 시각화 단일 소스 (RFD 0017 §3-3)
+// =========================================================================
+
+describe("chartViolatingNoteIndices", () => {
+  it("겹침을 만드는 두 노트의 인덱스가 모두 위반 집합에 담긴다", () => {
+    const result = chartViolatingNoteIndices({
+      notes: [
+        { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) }, // 0
+        { type: "single", lane: 1, beat: beat(2) },                  // 1 — 바디 안 겹침
+      ],
+      trillZones: [],
+      events: [],
+    });
+    expect(result).toEqual(new Set([0, 1]));
+  });
+
+  it("위반이 없으면 빈 집합", () => {
+    expect(
+      chartViolatingNoteIndices({
+        notes: [{ type: "single", lane: 1, beat: beat(0) }],
+        trillZones: [],
+        events: [],
+      }),
+    ).toEqual(new Set());
+  });
+
+  it("존끼리만 겹치면(노트 아님) 노트 위반 집합은 비어 있다 — 노트 인덱스만 추린다", () => {
+    // 존 겹침은 게이트가 막지만 노트 하이라이트 대상은 아니다(6c에서 존 렌더 확장 예정).
+    const result = chartViolatingNoteIndices({
+      notes: [],
+      trillZones: [
+        { lane: 1, beat: beat(0), endBeat: beat(4) },
+        { lane: 1, beat: beat(2), endBeat: beat(6) },
+      ],
+      events: [],
+    });
+    expect(result).toEqual(new Set());
   });
 });

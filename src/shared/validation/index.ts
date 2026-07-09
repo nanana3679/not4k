@@ -758,3 +758,20 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
   byEvents.set(input.events, errors);
   return errors;
 }
+
+/**
+ * 위반에 연루된 노트 인덱스 집합을 validateChart refs에서 파생한다 (위반 시각화 단일 소스).
+ *
+ * 겹침·중복·트릴 등의 판정 로직을 별도로 재구현하지 않고 validateChart 결과의 refs만
+ * 걸러낸다 — 캔버스 빨간 해칭이 게이트가 막는 위반과 정확히 일치하도록(RFD 0017 §3-3).
+ */
+export function chartViolatingNoteIndices(input: ChartValidationInput): Set<number> {
+  const indices = new Set<number>();
+  for (const err of validateChart(input)) {
+    if (!err.refs) continue;
+    for (const ref of err.refs) {
+      if (ref.kind === "note") indices.add(ref.index);
+    }
+  }
+  return indices;
+}

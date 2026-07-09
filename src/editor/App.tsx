@@ -14,6 +14,7 @@ import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
+import { chartViolatingNoteIndices } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -600,6 +601,9 @@ function ChartEditorPage() {
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
+    // 낙관적 편집(RFD 0017 §3-3): 차트가 바뀔 때마다 위반 노트를 validateChart 단일 소스에서
+    // 재계산해 빨간 해칭을 갱신한다. 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영.
+    rendererRef.current?.setViolatingNotes(chartViolatingNoteIndices(chart));
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
