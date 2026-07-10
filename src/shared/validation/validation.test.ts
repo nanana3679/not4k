@@ -13,6 +13,7 @@ import {
   validateChartStructural,
   validateChartSemantic,
   chartViolatingNoteIndices,
+  chartViolationIndices,
   validateNoRangeInversion,
   isNaturalNumber,
   validateTimeSigNatural,
@@ -1079,16 +1080,29 @@ describe("chartViolatingNoteIndices", () => {
     ).toEqual(new Set());
   });
 
-  it("존끼리만 겹치면(노트 아님) 노트 위반 집합은 비어 있다 — 노트 인덱스만 추린다", () => {
-    // 존 겹침은 게이트가 막지만 노트 하이라이트 대상은 아니다(6c에서 존 렌더 확장 예정).
-    const result = chartViolatingNoteIndices({
-      notes: [],
-      trillZones: [
-        { lane: 1, beat: beat(0), endBeat: beat(4) },
-        { lane: 1, beat: beat(2), endBeat: beat(6) },
-      ],
-      events: [],
-    });
-    expect(result).toEqual(new Set());
+  it("존끼리만 겹치면 노트 집합은 비고 trillZones 집합에 두 존 인덱스가 담긴다", () => {
+    const trillZones: TrillZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(2), endBeat: beat(6) },
+    ];
+    const input = { notes: [], trillZones, events: [] };
+    expect(chartViolatingNoteIndices(input)).toEqual(new Set()); // 노트 아님
+    expect(chartViolationIndices(input).trillZones).toEqual(new Set([0, 1])); // 존은 하이라이트 대상(6c)
+  });
+});
+
+describe("chartViolationIndices", () => {
+  it("노트 겹침은 notes에, 존 겹침은 trillZones에 종류별로 분리된다", () => {
+    const notes: NoteEntity[] = [
+      { type: "long", lane: 2, beat: beat(0), endBeat: beat(4) }, // 0
+      { type: "single", lane: 2, beat: beat(2) },                  // 1 — 바디 겹침
+    ];
+    const trillZones: TrillZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) }, // 0
+      { lane: 1, beat: beat(2), endBeat: beat(6) }, // 1 — 존 겹침
+    ];
+    const result = chartViolationIndices({ notes, trillZones, events: [] });
+    expect(result.notes).toEqual(new Set([0, 1]));
+    expect(result.trillZones).toEqual(new Set([0, 1]));
   });
 });
