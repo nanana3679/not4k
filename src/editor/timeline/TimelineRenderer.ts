@@ -950,6 +950,14 @@ export class TimelineRenderer {
     this._violatingTrillZoneIndices = trillZoneIndices;
     this.overlayRenderer.renderViolationOverlay();
     this.app?.render();
+    // [RFD0017-DBG] 임시 진단 로그 (병합 전 제거) — 실제 draw된 해칭 개수
+    console.log('[RFD0017-DBG] setViolations', {
+      notes: noteIndices.size,
+      zones: trillZoneIndices.size,
+      layerChildren: this.violationLayer.children.length,
+      initialized: this.initialized,
+      hasChart: !!this.chart,
+    });
   }
 
   /**
