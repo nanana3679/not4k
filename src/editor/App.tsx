@@ -434,6 +434,10 @@ function ChartEditorPage() {
 
       rendererRef.current = renderer;
       renderer.setChart(chart);
+      // init()이 async라 [chart] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
+      // 생성 직후 여기서 위반을 한 번 세팅해, 로드된 차트에 위반이 있어도 첫 편집 전에 표시되게 한다.
+      const initViolations = chartViolationIndices(chart);
+      renderer.setViolations(initViolations.notes, initViolations.trillZones);
 
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
