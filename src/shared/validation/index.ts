@@ -25,7 +25,7 @@ import type {
   TimeSignatureEvent,
   StopEvent,
 } from "../types/chart";
-import { beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
 
 export interface ValidationError {
   rule:
@@ -62,7 +62,11 @@ function isRangeNote(n: NoteEntity): n is RangeNote {
 }
 
 function beatKey(lane: number, b: Beat): string {
-  return `${lane}:${b.n}/${b.d}`;
+  // 값(음악적 위치)으로 비교한다 — 표현이 달라도 같은 박이면 같은 키.
+  // 스냅은 분모=스냅분할값 형태(예: 박2를 스냅4로 8/4)를, 이동은 약분형(2/1)을 만든다.
+  // 약분하지 않으면 8/4와 2/1을 다른 위치로 오인해 중복/공존 검사가 실패한다.
+  const r = beat(b.n, b.d);
+  return `${lane}:${r.n}/${r.d}`;
 }
 
 const noteRef = (index: number): ValidationRef => ({ kind: "note", index });

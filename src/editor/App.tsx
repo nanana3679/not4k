@@ -606,17 +606,8 @@ function ChartEditorPage() {
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
     // 낙관적 편집(RFD 0017 §3-3): 차트가 바뀔 때마다 위반 노트·트릴존을 validateChart 단일
     // 소스에서 재계산해 빨간 해칭을 갱신한다. 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영.
-    const violations = chartViolationIndices(chart);
-    // [RFD0017-DBG] 임시 진단 로그 (병합 전 제거) — 위반 표시 경로 추적
-    console.log('[RFD0017-DBG] chartEffect', {
-      renderer: !!rendererRef.current,
-      notes: chart.notes.length,
-      zones: chart.trillZones.length,
-      events: chart.events.length,
-      violNotes: [...violations.notes],
-      violZones: [...violations.trillZones],
-    });
     if (rendererRef.current) {
+      const violations = chartViolationIndices(chart);
       rendererRef.current.setViolations(violations.notes, violations.trillZones);
     }
     // Update playback end boundary when chart changes (measure count may change)

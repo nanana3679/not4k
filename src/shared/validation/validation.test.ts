@@ -1106,3 +1106,41 @@ describe("chartViolationIndices", () => {
     expect(result.trillZones).toEqual(new Set([0, 1]));
   });
 });
+
+// =========================================================================
+// 값 기준 중복 검출 — 표현이 달라도 같은 박이면 중복 (스냅형 8/4 vs 약분형 2/1)
+// 스냅은 분모=스냅분할값(8/4)을, 이동(beatAdd)은 약분형(2/1)을 만든다.
+// =========================================================================
+
+describe("beatKey 값 비교 (표현 무관 중복)", () => {
+  it("같은 레인·같은 값·다른 표현(8/4 vs 2/1) 포인트 노트 2개는 중복으로 잡는다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 2, beat: { n: 8, d: 4 } }, // 스냅형 8/4 = 2.0
+      { type: "single", lane: 2, beat: beat(2) },        // 약분형 2/1 = 2.0
+    ];
+    const errors = validateNoDuplicates(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("duplicate");
+    expect(errors[0].refs).toEqual([{ kind: "note", index: 0 }, { kind: "note", index: 1 }]);
+  });
+
+  it("스냅형 노트 위로 이동해 겹치면 chartViolationIndices가 두 노트를 잡는다 (사용자 시나리오)", () => {
+    const result = chartViolationIndices({
+      notes: [
+        { type: "single", lane: 2, beat: { n: 8, d: 4 } }, // 생성(스냅) 8/4
+        { type: "single", lane: 2, beat: beat(2) },        // 이동(약분) 2/1
+      ],
+      trillZones: [],
+      events: [],
+    });
+    expect(result.notes).toEqual(new Set([0, 1]));
+  });
+
+  it("같은 값·다른 표현 롱노트 시작 2개는 중복(rangeStart)으로 잡는다", () => {
+    const notes: NoteEntity[] = [
+      { type: "long", lane: 1, beat: { n: 8, d: 4 }, endBeat: beat(6) }, // 시작 8/4 = 2
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(7) },        // 시작 2/1 = 2
+    ];
+    expect(validateNoDuplicates(notes)).toHaveLength(1);
+  });
+});

@@ -165,8 +165,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       trillZones: chart.trillZones,
       events: chart.events,
     });
-    // [RFD0017-DBG] 임시 진단 로그 (병합 전 제거) — 변이가 스토어에 커밋되는지
-    console.log('[RFD0017-DBG] setChart', { notes: chart.notes.length, structuralErrors: errors.length, committed: errors.length === 0 });
     if (errors.length > 0) {
       console.error('차트 변이 거부 (구조 위반):', errors);
       showToast(`구조 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
