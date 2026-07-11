@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { beat } from '../../shared';
 import type { Chart, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
+import { emptySelection } from './selectionSlice';
 
 function makeChart(notes: Chart['notes'] = []): Chart {
   return {
@@ -30,8 +31,7 @@ describe('editorStore history', () => {
       chart: makeChart(),
       extraNotes: [],
       extraLaneCount: 2,
-      selectedNotes: new Set(),
-      selectedExtraNotes: new Set(),
+      selection: emptySelection(),
       historyPast: [],
       historyFuture: [],
       historyLastCaptureAt: 0,

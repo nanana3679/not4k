@@ -264,7 +264,7 @@ function ChartEditorPage() {
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
-  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const selectedNotes = useEditorStore((s) => s.selection.notes);
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
@@ -272,12 +272,10 @@ function ChartEditorPage() {
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
-  const setSelectedNotes = useEditorStore((s) => s.setSelectedNotes);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
-  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -481,7 +479,12 @@ function ChartEditorPage() {
 
     const selectMode = new SelectMode(chart, {
       onChartUpdate: setChart,
-      onSelectionChange: setSelectedNotes,
+      // 브리지: SelectMode(선택 권위, 후속 슬라이스에서 이양 예정)가 미는 노트 선택을
+      // SelectionSlice 관문(setSelection)으로 흘린다 — 흩어진 선택 쓰기의 단일 수렴점.
+      onSelectionChange: (indices) => {
+        const st = useEditorStore.getState();
+        st.setSelection({ ...st.selection, notes: indices });
+      },
       yToBeat: (y) => yToBeatRef.current(y),
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
@@ -500,7 +503,10 @@ function ChartEditorPage() {
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      onExtraSelectionChange: (indices) => {
+        const st = useEditorStore.getState();
+        st.setSelection({ ...st.selection, extraNotes: indices });
+      },
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
@@ -513,7 +519,10 @@ function ChartEditorPage() {
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      onExtraSelectionChange: (indices) => {
+        const st = useEditorStore.getState();
+        st.setSelection({ ...st.selection, extraNotes: indices });
+      },
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });

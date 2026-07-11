@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { useEditorStore } from './editorStore';
 import {
   createSelectionSlice,
   emptySelection,
@@ -208,5 +209,127 @@ describe('createSelectionSlice 액션 (fake store)', () => {
     h.getState().clearExtraSelection();
     expect(h.getState().selection.notes).toEqual(new Set([0, 3]));
     expect(h.getState().selection.extraNotes).toEqual(new Set());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// editorStore 합성 후 — 변이 액션의 선택 보정 (PR #90 이식)
+// 차트·선택의 관계 불변은 변이와 같은 트랜잭션에서 지킨다
+// ---------------------------------------------------------------------------
+
+function resetSelectionStore() {
+  useEditorStore.setState({
+    selection: emptySelection(),
+    chart: { ...useEditorStore.getState().chart, notes, trillZones: [zoneA, zoneB] },
+    extraNotes,
+    historyPast: [],
+    historyFuture: [],
+    historyLastCaptureAt: 0,
+  });
+}
+
+/** 변이 게이트를 통과하는 유효한 전체 차트를 만든다. */
+function makeFullChart(chartNotes: NoteEntity[]): Chart {
+  return {
+    meta: {
+      title: 'Test',
+      artist: '',
+      difficultyLabel: 'NORMAL',
+      difficultyLevel: 1,
+      imageFile: '',
+      audioFile: '',
+      previewAudioFile: '',
+      offsetMs: 0,
+    },
+    notes: chartNotes,
+    trillZones: [],
+    events: [
+      { type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+    ],
+  };
+}
+
+const singles: NoteEntity[] = [
+  { type: 'single', lane: 1, beat: beat(0) },
+  { type: 'single', lane: 2, beat: beat(1) },
+  { type: 'single', lane: 3, beat: beat(2) },
+];
+
+describe('SelectionSlice 액션 (editorStore 경유)', () => {
+  beforeEach(resetSelectionStore);
+
+  it('setSelection: 일반+트릴 섞인 입력이 게이트를 지나 일반 그룹 {0,3}만 store에 남는다', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 3]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 3]));
+  });
+
+  it('setSelection: zones={1}은 유지되고 내부 트릴 노트는 notes에 주입되지 않는다', () => {
+    useEditorStore.getState().setSelection(sel({ zones: new Set([1]) }));
+    const { selection } = useEditorStore.getState();
+    expect(selection.notes).toEqual(new Set());
+    expect(selection.zones).toEqual(new Set([1]));
+  });
+
+  it('clearExtraSelection: notes {0,3}은 유지되고 extraNotes만 비워진다', () => {
+    useEditorStore.getState().setSelection(
+      sel({ notes: new Set([0, 3]), extraNotes: new Set([0, 1]) }),
+    );
+    useEditorStore.getState().clearExtraSelection();
+    const { selection } = useEditorStore.getState();
+    expect(selection.notes).toEqual(new Set([0, 3]));
+    expect(selection.extraNotes).toEqual(new Set());
+  });
+});
+
+describe('변이 액션의 선택 보정', () => {
+  beforeEach(resetSelectionStore);
+
+  it('setChart: 노트 3→2개로 줄면 범위 밖 선택 인덱스 2가 같은 트랜잭션에서 제거된다', () => {
+    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
+    useEditorStore.getState().setChart(makeFullChart(singles.slice(0, 2)));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 1]));
+  });
+
+  it('setChart: 선택이 여전히 유효하면 selection 참조가 유지된다(불필요한 통지 없음)', () => {
+    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    const before = useEditorStore.getState().selection;
+    useEditorStore.getState().setChart(makeFullChart(singles));
+    expect(useEditorStore.getState().selection).toBe(before);
+  });
+
+  it('undo: 편집을 undo하면 선택이 zones 포함 전체 clear된다', () => {
+    useEditorStore.setState({ chart: makeFullChart(singles.slice(0, 2)), extraNotes: [] });
+    useEditorStore.getState().setChart(makeFullChart(singles)); // 히스토리 캡처
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1]) }));
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('setExtraNotes: 엑스트라 2→1개로 줄면 범위 밖 엑스트라 선택 인덱스 1이 제거된다', () => {
+    useEditorStore.getState().setSelection(sel({ extraNotes: new Set([0, 1]) }));
+    useEditorStore.getState().setExtraNotes(extraNotes.slice(0, 1));
+    expect(useEditorStore.getState().selection.extraNotes).toEqual(new Set([0]));
+  });
+
+  it('loadChart: 다른 차트를 열면 선택이 전부 비워진다', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 3]) }));
+    useEditorStore.getState().loadChart(makeFullChart(singles));
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('의미 위반(중복) 차트 커밋도 선택 보정과 같은 트랜잭션 — 낙관 커밋(RFD 0017)과 공존', () => {
+    // #90(전체 거부)과 달리 현행 setChart는 구조만 거부한다 — 의미 위반 커밋에서도 보정이 걸리는지.
+    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
+    const dupChart = makeFullChart([
+      { type: 'single', lane: 1, beat: beat(0) },
+      { type: 'single', lane: 1, beat: beat(0) }, // 중복(의미) — 낙관 커밋됨
+    ]);
+    useEditorStore.getState().setChart(dupChart);
+    expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 커밋됨
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 1])); // 인덱스 2 보정
   });
 });
