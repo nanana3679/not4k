@@ -2712,3 +2712,104 @@ describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () =>
     expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 메인↔엑스트라 레인 드래그 변환 — 키보드 변환(moveByLane)의 드래그 판
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 메인↔엑스트라 드래그 변환", () => {
+  it("메인 노트(lane4, beat0)를 엑스트라 레인 2 위(beat2)에 놓으면 그 레인의 엑스트라 노트로 변환된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 4 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+
+    mode.onPointerDown(4, 0, false, false); // 노트 클릭 → 이동 시작
+    mode.onPointerMove(6, 2); // x=6 → xToLane null·extraLane 2, beat 프리뷰 +2
+    mode.onPointerUp(6, 2);   // 엑스트라 레인 2 위에서 드롭 → 변환
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes).toHaveLength(0); // 메인에서 제거
+    const extras = cb.getExtraNotes!();
+    expect(extras).toHaveLength(1);
+    expect(extras[0].extraLane).toBe(2); // 드롭한 레인
+    expect(beatToFloat(extras[0].beat)).toBe(2); // 드래그 beat 프리뷰 반영
+    expect(cb.getSelectionState().extraNotes).toEqual(new Set([0])); // 선택도 엑스트라로 전환
+  });
+
+  it("엑스트라 노트(extraLane1, beat0)를 메인 레인 3 위(beat1)에 놓으면 그 레인의 메인 노트로 변환된다", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes: [{ type: "single", extraLane: 1, beat: beat(0) }], extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    mode.selectExtraNote(0);
+
+    mode.beginMoveDrag(5, 0);  // x=5 → 엑스트라 축 앵커
+    mode.onPointerMove(3, 1);  // x=3 → 메인 레인 영역, beat 프리뷰 +1
+    mode.onPointerUp(3, 1);    // 메인 레인 3 위에서 드롭 → 변환
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(3); // 드롭한 레인
+    expect(beatToFloat(updated.notes[0].beat)).toBe(1); // beat 프리뷰 반영
+    expect(cb.getExtraNotes!()).toHaveLength(0); // 엑스트라에서 제거
+    expect(cb.getSelectionState().notes).toEqual(new Set([0])); // 선택도 메인으로 전환
+  });
+
+  it("존 유닛 선택은 엑스트라 영역에 놓아도 변환되지 않는다 (경계 프리뷰 상태로 커밋)", () => {
+    const chart = makeChart({
+      notes: [{ type: "trill", lane: 4 as Lane, beat: beat(1) }],
+      trillZones: [{ lane: 4 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+
+    mode.beginMoveDrag(4, 0);
+    mode.onPointerMove(6, 2); // 엑스트라 영역 — 레인 고정, beat만 +2
+    mode.onPointerUp(6, 2);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones).toHaveLength(1); // 존 유지(변환 없음)
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(4); // 레인은 경계에 고정
+    expect(beatToFloat(updated.notes[0].beat)).toBe(3); // beat는 따라옴 (1+2)
+    expect(cb.getExtraNotes!()).toHaveLength(0);
+  });
+
+  it("메인 이동 중 포인터가 엑스트라 영역이면 레인은 고정되고 beat 프리뷰만 따라온다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 3 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+
+    mode.onPointerDown(3, 0, false, false);
+    mode.onPointerMove(4, 1); // 메인 안: lane 3→4, beat +1
+    expect(priv.chart.notes[0].lane).toBe(4);
+    mode.onPointerMove(6, 3); // 엑스트라 영역: lane 4 고정(마지막 유효 오프셋), beat +3
+    expect(priv.chart.notes[0].lane).toBe(4);
+    expect(beatToFloat(priv.chart.notes[0].beat)).toBe(3);
+  });
+});

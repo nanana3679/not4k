@@ -106,6 +106,11 @@ export class SelectMode implements EditorMode {
   // 박스 프레임은 프리뷰(transient)로 커밋되고, 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다.
   private preDragSelection: Selection | null = null;
 
+  // 포인터가 반대 축(메인↔엑스트라) 영역에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
+  // 드롭 시 반대 축 변환(convertMainToExtra/convertExtraToMain)의 경계 프리뷰를 지탱한다.
+  private _lastMoveLaneOffset = 0;
+  private _lastExtraLaneOffset = 0;
+
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
@@ -692,18 +697,24 @@ export class SelectMode implements EditorMode {
     if (this.dragType === "move") {
       const currentBeat = this.callbacks.yToBeat(y);
       const currentLane = this.callbacks.xToLane(x);
+      // 포인터가 엑스트라 영역이면 레인 오프셋은 마지막 유효값에 고정하고 beat만 따라온다
+      // — 드롭 시 메인→엑스트라 변환을 위한 경계 프리뷰
+      const overExtraArea =
+        currentLane === null && (this.callbacks.xToExtraLane?.(x) ?? null) !== null;
 
       if (
         this.dragStartBeat &&
         this.dragStartLane &&
-        currentLane !== null
+        (currentLane !== null || overExtraArea)
       ) {
         // Calculate offset
         let beatOffset = beatSub(
           this.callbacks.snapBeat(currentBeat),
           this.callbacks.snapBeat(this.dragStartBeat),
         );
-        let laneOffset = currentLane - this.dragStartLane;
+        let laneOffset =
+          currentLane !== null ? currentLane - this.dragStartLane : this._lastMoveLaneOffset;
+        if (currentLane !== null) this._lastMoveLaneOffset = laneOffset;
 
         // 트릴 노트 단위 이동은 구간 안으로만: 레인 변경 금지 + 박자 오프셋 클램프
         if (this._trillMoveZone) {
@@ -753,11 +764,14 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "moveExtra") {
       const currentBeat = this.callbacks.yToBeat(y);
       const currentExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+      // 포인터가 메인 레인 영역이면 레인 오프셋은 마지막 유효값에 고정하고 beat만 따라온다
+      // — 드롭 시 엑스트라→메인 변환을 위한 경계 프리뷰
+      const overMainArea = currentExtraLane === null && this.callbacks.xToLane(x) !== null;
 
       if (
         this.dragStartBeat &&
         this.dragStartExtraLane !== null &&
-        currentExtraLane !== null &&
+        (currentExtraLane !== null || overMainArea) &&
         this.callbacks.getExtraNotes &&
         this.callbacks.onExtraNotesUpdate
       ) {
@@ -765,7 +779,11 @@ export class SelectMode implements EditorMode {
           this.callbacks.snapBeat(currentBeat),
           this.callbacks.snapBeat(this.dragStartBeat),
         );
-        const laneOffset = currentExtraLane - this.dragStartExtraLane;
+        const laneOffset =
+          currentExtraLane !== null
+            ? currentExtraLane - this.dragStartExtraLane
+            : this._lastExtraLaneOffset;
+        if (currentExtraLane !== null) this._lastExtraLaneOffset = laneOffset;
         const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
 
         // 개별 트릴 노트가 동반 선택돼 있으면 beat 오프셋을 구간 안으로 클램프(메인 앵커와 동일 규칙)
@@ -837,14 +855,44 @@ export class SelectMode implements EditorMode {
       this.resizingOriginalEndBeat = null;
       this.resizingOriginalBeat = null;
     } else if (this.dragType === "move") {
-      // Validate and commit or rollback
-      this.confirmPlacement();
+      // 메인 노트 단독 드래그를 엑스트라 레인 위에서 놓으면 그 레인의 엑스트라 노트로 변환
+      // — 키보드 변환(lane4→extra1)의 드래그 판, 드롭 레인 직접 지정 (beat는 경계 프리뷰로 반영됨).
+      // 존 유닛·혼합(엑스트라 동반)·개별 트릴 선택은 변환하지 않는다(키보드와 동일 규칙).
+      const dropExtraLane =
+        this.callbacks.xToLane(x) === null ? (this.callbacks.xToExtraLane?.(x) ?? null) : null;
+      if (
+        dropExtraLane !== null &&
+        this.sel.notes.size > 0 &&
+        this.sel.zones.size === 0 &&
+        this.sel.extraNotes.size === 0 &&
+        !this.trillZoneOfSelection()
+      ) {
+        this.clearMoveOrigins();
+        this._trillMoveZone = null;
+        this.convertMainToExtraImpl(dropExtraLane);
+      } else {
+        // Validate and commit or rollback
+        this.confirmPlacement();
+      }
     } else if (this.dragType === "moveExtra") {
-      // 메인 동반(혼합)이 있으면 chart를 낙관 커밋(RFD 0017).
-      // 엑스트라 단독이면 라이브 적용이 곧 커밋 — 원본 기록만 폐기(기존 동작).
-      if (this.originalPositions.size > 0 || this.originalZonePositions.size > 0) {
+      // 엑스트라 단독 드래그를 메인 레인 위에서 놓으면 그 레인의 메인 노트로 변환.
+      // 변환 결과가 기존 노트와 겹치면(연루 위반) convertExtraToMain이 차단해 no-op.
+      const dropMainLane =
+        (this.callbacks.xToExtraLane?.(x) ?? null) === null ? this.callbacks.xToLane(x) : null;
+      if (
+        dropMainLane !== null &&
+        this.sel.extraNotes.size > 0 &&
+        this.sel.notes.size === 0 &&
+        this.sel.zones.size === 0
+      ) {
+        this.originalExtraPositions.clear();
+        this._trillMoveZone = null;
+        this.convertExtraToMainImpl(dropMainLane);
+      } else if (this.originalPositions.size > 0 || this.originalZonePositions.size > 0) {
+        // 메인 동반(혼합)이 있으면 chart를 낙관 커밋(RFD 0017).
         this.commitMove();
       } else {
+        // 엑스트라 단독이면 라이브 적용이 곧 커밋 — 원본 기록만 폐기(기존 동작).
         this.originalExtraPositions.clear();
         this._trillMoveZone = null;
       }
@@ -1546,6 +1594,7 @@ export class SelectMode implements EditorMode {
     this.dragStartBeat = this.callbacks.yToBeat(y);
     this.dragStartLane = lane;
     this.dragStartExtraLane = null;
+    this._lastMoveLaneOffset = 0;
 
     // 직접 선택한 notes + 구간 파생 노트를 함께 캡처 — 혼합 선택도 한 오프셋으로 움직인다 (RFD 0016 §4.2)
     this.captureNoteOrigins(this.effectiveNoteIndices());
@@ -1771,6 +1820,7 @@ export class SelectMode implements EditorMode {
     this.dragStartBeat = this.callbacks.yToBeat(y);
     this.dragStartLane = null;
     this.dragStartExtraLane = extraLane;
+    this._lastExtraLaneOffset = 0;
 
     this.captureExtraNoteOrigins();
     // 혼합 선택이면 메인 notes(+구간 파생)·zones도 beat 동반 이동 대상으로 캡처 (RFD 0016 §4.2)
