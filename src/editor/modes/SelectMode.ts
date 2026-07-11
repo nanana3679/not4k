@@ -286,8 +286,10 @@ export class SelectMode implements EditorMode {
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.notes.length) return false;
 
-    // 이미 선택된 노트면 혼합 선택(엑스트라·구간 포함)을 유지한 채 전체를 이동한다 (RFD 0016 §4.2)
-    if (!this.sel.notes.has(index)) {
+    // 이미 선택된 노트면 혼합 선택(엑스트라·구간 포함)을 유지한 채 전체를 이동한다.
+    // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 — 잡아 끌면 단독 선택으로
+    // 교체하지 않고 유닛째 이동한다 (RFD 0016 §4.2 실행 시점 파생).
+    if (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index)) {
       this.selectNote(index);
     }
 
@@ -520,6 +522,9 @@ export class SelectMode implements EditorMode {
 
     if (hitIndex !== null) {
       const isAlreadySelected = this.sel.notes.has(hitIndex);
+      // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"다 — 잡아 끌면 유닛째 이동하고,
+      // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
+      const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
 
       // 수식자(토글/Shift/Alt) 경로는 zones를 보존한다 — 일반 노트와 구간 유닛은
       // 공존하고, 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다 (RFD 0016 §4.1).
@@ -541,7 +546,7 @@ export class SelectMode implements EditorMode {
         const notes = new Set(this.sel.notes);
         notes.delete(hitIndex);
         this.commitSelection({ notes });
-      } else if (isAlreadySelected && this.sel.notes.size > 0) {
+      } else if ((isAlreadySelected && this.sel.notes.size > 0) || isZoneDerived) {
         // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
         this.beginMoveDrag(x, y);
       } else {

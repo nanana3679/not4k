@@ -2658,3 +2658,53 @@ describe("SelectMode — 혼합 이동(메인+엑스트라 동반, RFD 0016 §4.
     expect(cb.onWarn).toHaveBeenCalledWith(expect.stringContaining("이동할 수 없습니다"));
   });
 });
+
+// ---------------------------------------------------------------------------
+// 구간 유닛의 파생 내부 노트 드래그 — 단독 선택 교체 없이 유닛째 이동 (RFD 0016 §4.2)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () => {
+  // zone lane1 [0,4], 내부 트릴 노트 beat1·beat2
+  function setupZoneUnit() {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(1) },
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 1 ? 0 : null), // (1,1) = 내부 노트 0
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    return { cb, mode };
+  }
+
+  it("존 유닛 선택 중 내부 노트를 잡아 끌면 단독 선택으로 교체되지 않고 유닛째 프리뷰 이동한다", () => {
+    const { cb, mode } = setupZoneUnit();
+
+    mode.onPointerDown(1, 1, false, false); // 파생 내부 노트 0 히트
+    mode.onPointerMove(1, 3); // +2박 프리뷰
+
+    const priv = mode as unknown as { chart: Chart };
+    expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 유닛 선택 유지
+    expect(cb.getSelectionState().notes).toEqual(new Set()); // 단독 선택으로 교체 안 됨
+    expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2); // 존 0→2
+    expect(priv.chart.notes.map((n) => beatToFloat(n.beat))).toEqual([3, 4]); // 파생 노트 동반 이동
+  });
+
+  it("터치 롱프레스도 동일 — 파생 내부 노트에서 이동을 시작해도 유닛 선택이 유지된다", () => {
+    const { cb, mode } = setupZoneUnit();
+
+    const ok = mode.beginTouchMoveDragFromNote(0, 1, 1);
+    mode.onPointerMove(1, 3);
+
+    expect(ok).toBe(true);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 단독 선택 전환 없음
+    const priv = mode as unknown as { chart: Chart };
+    expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2);
+  });
+});
