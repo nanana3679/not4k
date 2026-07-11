@@ -179,11 +179,6 @@ export function createSelectionSlice(
           removed,
         );
         if (involved.length > 0) {
-          // [ZONEDRAG-DBG] 임시 진단 (병합 전 제거) — 토스트는 1초 스로틀이라 콘솔에도 남긴다
-          console.warn(
-            `[ZONEDRAG-DBG] §3-5 게이트 거부: removed=${removed.map((r) => `${r.kind}:${r.index}`).join(",")}` +
-            ` 사유=${involved[0].message}`,
-          );
           gateToast(`위반이 남아 있어 선택을 해제할 수 없습니다: ${involved[0].message}`);
           return;
         }
