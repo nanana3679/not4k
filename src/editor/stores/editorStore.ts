@@ -174,8 +174,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     set((state) => {
       // 선택 보정 — "선택 인덱스는 차트 범위 안"이라는 관계 불변은
-      // 차트 변이와 같은 트랜잭션에서 지킨다(순서 의존 제거)
-      const normalized = normalizeSelection(state.selection, chart, state.extraNotes);
+      // 차트 변이와 같은 트랜잭션에서 지킨다(순서 의존 제거).
+      // 엔티티가 삭제된 커밋(노트·구간 개수 감소)은 인덱스가 밀려 기존 선택이 다른
+      // 엔티티를 가리키게 되므로 선택을 원자적으로 비운다 — 삭제·잘라내기·붙여넣기
+      // 취소가 §3-5 해제 게이트를 지나지 않는 "차트와 함께 바뀌는 전이"가 되는 지점.
+      const entityRemoved =
+        chart.notes.length < state.chart.notes.length ||
+        chart.trillZones.length < state.chart.trillZones.length;
+      const normalized = entityRemoved
+        ? emptySelection()
+        : normalizeSelection(state.selection, chart, state.extraNotes);
       return {
         ...captureHistory(state),
         chart,

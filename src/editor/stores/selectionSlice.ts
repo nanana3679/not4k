@@ -19,8 +19,9 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
-import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone } from '../../shared';
-import { beatToFloat } from '../../shared';
+import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone, ValidationRef } from '../../shared';
+import { beatToFloat, validateChart, violationsInvolving } from '../../shared';
+import { showToast } from '../../shared/toast';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
 /** 에디터 선택 상태. 세 집합의 관계 불변은 normalizeSelection이 보장한다. */
@@ -127,6 +128,17 @@ type SliceSet = (
   partial: Partial<SelectionSlice> | ((state: SelectionSlice) => Partial<SelectionSlice>),
 ) => void;
 
+// §3-5 게이트 토스트 억제 — 박스 드래그처럼 매 pointer-move마다 전이가 시도되는 경로에서
+// 같은 사유의 토스트가 연발되지 않게 한다(전이 거부 자체는 매번 수행).
+let lastGateToastAt = 0;
+
+function gateToast(message: string): void {
+  const now = Date.now();
+  if (now - lastGateToastAt < 1000) return;
+  lastGateToastAt = now;
+  showToast(message, 'warn');
+}
+
 export function createSelectionSlice(
   set: SliceSet,
   get: () => SelectionSlice & SelectionHost,
@@ -135,10 +147,44 @@ export function createSelectionSlice(
     selection: emptySelection(),
 
     setSelection: (input) => {
-      const { chart, extraNotes } = get();
-      set({ selection: normalizeSelection(input, chart, extraNotes) });
+      const { chart, extraNotes, selection } = get();
+      const normalized = normalizeSelection(input, chart, extraNotes);
+
+      // 선택 해제 게이트(RFD 0017 §3-5): 이 전이에서 빠지는(removed = 현재 − 다음)
+      // 노트·구간이 의미 위반에 관여한 채 남으면 전이를 거부한다 — 선택 유지 + 토스트.
+      // 위반 노트를 선택에서 놓는 순간 = 편집 묶음 마무리 신호이므로 그 이탈만 봉쇄한다
+      // (place-then-fix 유지: 재드래그로 해소하거나 undo로 되돌리면 통과).
+      // 차트를 함께 바꾸는 경로(undo/redo·삭제·붙여넣기 취소)는 원자 set()으로 선택을
+      // 쓰므로 여기를 지나지 않는다 — 탈출구는 특례가 아니라 발화 경계의 귀결이다.
+      const removed: ValidationRef[] = [];
+      for (const i of selection.notes) {
+        if (!normalized.notes.has(i)) removed.push({ kind: 'note', index: i });
+      }
+      for (const i of selection.zones) {
+        if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
+      }
+      // removed.extraNotes는 게이트 대상이 아니다 — 엑스트라 위반은 시각화 전용(게이트 불포함).
+      if (removed.length > 0) {
+        const involved = violationsInvolving(
+          validateChart({
+            notes: chart.notes,
+            trillZones: chart.trillZones,
+            events: chart.events,
+          }),
+          removed,
+        );
+        if (involved.length > 0) {
+          gateToast(`위반이 남아 있어 선택을 해제할 수 없습니다: ${involved[0].message}`);
+          return;
+        }
+      }
+
+      set({ selection: normalized });
     },
-    clearSelection: () => set({ selection: emptySelection() }),
+    clearSelection: () => {
+      // 전체 비우기도 하나의 해제 전이 — 같은 게이트를 지난다(§3-5 단일 규칙).
+      get().setSelection(emptySelection());
+    },
     clearExtraSelection: () =>
       set((state) => ({
         selection: { ...state.selection, extraNotes: new Set<number>() },

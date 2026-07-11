@@ -294,9 +294,11 @@ export class ClipboardManager {
     this.pastedExtraNoteIndices.clear();
     this.pastedZoneIndices.clear();
 
-    clearSelection?.();
-
+    // 순서 주의: 차트 복원(축소 커밋 → 선택 원자 clear, §3-5 면제 경로) → 선택 해제.
+    // 반대면 붙여넣은 위반 노트의 선택 해제가 §3-5 게이트에 막혀 취소가 불가능해진다.
     callbacks.onChartUpdate(newChart);
+
+    clearSelection?.();
 
     return newChart;
   }

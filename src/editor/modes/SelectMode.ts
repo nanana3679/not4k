@@ -1470,16 +1470,19 @@ export class SelectMode implements EditorMode {
       const notes = this.chart.notes.filter((_n, i) => !noteIndices.has(i));
       const trillZones = this.chart.trillZones.filter((_z, i) => !zones.has(i));
       this.chart = { ...this.chart, notes, trillZones };
-      this.clearSelection();
+      // 차트 축소 커밋이 선택을 원자적으로 비운다(setChart, §3-5 면제 경로).
+      // clearSelection을 차트 커밋 전에 부르면 위반 노트 삭제가 해제 게이트에 막힌다.
       this.callbacks.onChartUpdate(this.chart);
+      this.clearSelection();
       return;
     }
 
     if (this.sel.notes.size === 0) return;
 
     this.chart = deleteChartNotesAtIndices(this.chart, this.sel.notes);
-    this.clearSelection();
+    // 순서 주의: 차트 커밋 → 선택 해제. 반대면 §3-5 게이트가 위반 노트 삭제를 막는다.
     this.callbacks.onChartUpdate(this.chart);
+    this.clearSelection();
   }
 
   // --- Private helpers ---

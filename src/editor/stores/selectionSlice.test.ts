@@ -178,7 +178,8 @@ function makeSliceHarness() {
   };
   const get = () => state;
   const slice = createSelectionSlice(set, get);
-  state = { chart: chart as Chart, extraNotes, ...slice };
+  // §3-5 게이트가 validateChart를 읽으므로 events까지 채운다 (meta는 게이트가 안 읽어 생략)
+  state = { chart: { ...chart, events: [] } as unknown as Chart, extraNotes, ...slice };
   return { getState: () => state };
 }
 
@@ -285,11 +286,11 @@ describe('SelectionSlice 액션 (editorStore 경유)', () => {
 describe('변이 액션의 선택 보정', () => {
   beforeEach(resetSelectionStore);
 
-  it('setChart: 노트 3→2개로 줄면 범위 밖 선택 인덱스 2가 같은 트랜잭션에서 제거된다', () => {
+  it('setChart: 노트 3→2개 축소 커밋이면 선택이 같은 트랜잭션에서 전부 비워진다 (인덱스 밀림 방지, §3-5 면제 경로)', () => {
     useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
     useEditorStore.getState().setChart(makeFullChart(singles.slice(0, 2)));
-    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 1]));
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
   it('setChart: 선택이 여전히 유효하면 selection 참조가 유지된다(불필요한 통지 없음)', () => {
@@ -321,15 +322,108 @@ describe('변이 액션의 선택 보정', () => {
   });
 
   it('의미 위반(중복) 차트 커밋도 선택 보정과 같은 트랜잭션 — 낙관 커밋(RFD 0017)과 공존', () => {
-    // #90(전체 거부)과 달리 현행 setChart는 구조만 거부한다 — 의미 위반 커밋에서도 보정이 걸리는지.
+    // #90(전체 거부)과 달리 현행 setChart는 구조만 거부한다 — 의미 위반 커밋에서도 선택이 유지되는지.
     useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
     const dupChart = makeFullChart([
       { type: 'single', lane: 1, beat: beat(0) },
-      { type: 'single', lane: 1, beat: beat(0) }, // 중복(의미) — 낙관 커밋됨
+      { type: 'single', lane: 1, beat: beat(0) }, // 중복(의미) — 낙관 커밋됨 (개수 불변 = 이동 커밋 모사)
+      { type: 'single', lane: 2, beat: beat(2) },
     ]);
     useEditorStore.getState().setChart(dupChart);
-    expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 커밋됨
-    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 1])); // 인덱스 2 보정
+    expect(useEditorStore.getState().chart.notes).toHaveLength(3); // 커밋됨
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 1, 2])); // 선택 유지
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 선택 해제 게이트 (RFD 0017 §3-5) — removed = 현재 − 다음, 위반 관여 노트가 있으면 거부
+// ---------------------------------------------------------------------------
+
+describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
+  // 노트 0·1이 같은 레인·박 중복(의미 위반), 노트 2는 무관
+  const dupNotes: NoteEntity[] = [
+    { type: 'single', lane: 1, beat: beat(0) },
+    { type: 'single', lane: 1, beat: beat(0) },
+    { type: 'single', lane: 2, beat: beat(2) },
+  ];
+
+  function resetWithDupChart() {
+    useEditorStore.setState({
+      chart: makeFullChart(dupNotes),
+      extraNotes: [],
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+    });
+  }
+
+  beforeEach(resetWithDupChart);
+
+  it('위반(중복) 노트 {0}을 비우는 전이(clearSelection)는 거부되고 선택이 유지된다', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    useEditorStore.getState().clearSelection();
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('위반 노트 {0}을 다른 노트 {2}로 교체하는 전이도 거부된다 (교체 = removed 발생)', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('위반 노트를 유지한 채 확장하는 전이({0}→{0,2})는 removed=∅라 통과한다', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 2]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0, 2]));
+  });
+
+  it('위반과 무관한 노트 {2}의 해제는 통과한다', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }));
+    useEditorStore.getState().clearSelection();
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('위반을 해소(중복 노트 이동)한 뒤에는 해제가 통과한다 — place-then-fix의 상한', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    // 노트 0을 빈 박으로 이동 → 위반 해소 (커밋 게이트 통과)
+    const fixedNotes: NoteEntity[] = [
+      { type: 'single', lane: 1, beat: beat(4) },
+      { type: 'single', lane: 1, beat: beat(0) },
+      { type: 'single', lane: 2, beat: beat(2) },
+    ];
+    useEditorStore.getState().setChart(makeFullChart(fixedNotes));
+    useEditorStore.getState().clearSelection();
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('삭제(노트 개수 감소 커밋)는 게이트를 지나지 않고 선택이 원자적으로 비워진다 — 탈출구', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1]) })); // 위반 당사자 둘 다 선택
+    // 위반 노트 둘을 삭제한 차트 커밋 (SelectMode.deleteSelected가 밟는 경로)
+    useEditorStore.getState().setChart(makeFullChart(dupNotes.slice(2)));
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('undo(원자 set)는 removed가 있어도 게이트 없이 선택을 비운다 — 탈출구', () => {
+    useEditorStore.setState({ chart: makeFullChart([dupNotes[2]]), extraNotes: [] });
+    useEditorStore.getState().setChart(makeFullChart(dupNotes)); // 위반 차트 낙관 커밋(히스토리 캡처)
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('겹치는 트릴존 {0}을 선택에서 놓는 전이도 거부된다 (zones도 게이트 대상)', () => {
+    const zones: TrillZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(2), endBeat: beat(6) }, // 존 겹침(의미 위반)
+    ];
+    useEditorStore.setState({
+      chart: { ...makeFullChart([]), trillZones: zones },
+      selection: emptySelection(),
+    });
+    useEditorStore.getState().setSelection(sel({ zones: new Set([0]) }));
+    useEditorStore.getState().clearSelection();
+    expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
   });
 });
