@@ -14,7 +14,7 @@ import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
-import { chartViolationIndices } from '../shared';
+import { chartViolationIndices, extraNoteViolationIndices } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -440,6 +440,7 @@ function ChartEditorPage() {
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
       renderer.setExtraNotes(storedExtraNotes);
+      renderer.setViolatingExtraNotes(extraNoteViolationIndices(storedExtraNotes));
 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
@@ -627,9 +628,11 @@ function ChartEditorPage() {
     if (rendererRef.current) rendererRef.current.setExtraLaneCount(extraLaneCount);
   }, [extraLaneCount]);
 
-  // extraNotes → renderer
+  // extraNotes → renderer (+ extraLane 축 위반 재계산 — 시각화 전용, RFD 0017)
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setExtraNotes(extraNotes);
+    if (!rendererRef.current) return;
+    rendererRef.current.setExtraNotes(extraNotes);
+    rendererRef.current.setViolatingExtraNotes(extraNoteViolationIndices(extraNotes));
   }, [extraNotes]);
 
   // selectedExtraNotes → renderer
