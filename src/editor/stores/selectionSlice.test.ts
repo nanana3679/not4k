@@ -440,3 +440,39 @@ describe('zoneContainedNoteIndices — 트릴 타입만 파생 (RFD 0016 §4.2 +
     expect(zoneContainedNoteIndices(mixed, zone)).toEqual(new Set([0, 3]));
   });
 });
+
+describe('setSelection 반환값 · setSelectionTransient (§3-5 전이 = 확정된 선택 변경)', () => {
+  const gateNotes: NoteEntity[] = [
+    { type: 'single', lane: 1, beat: beat(0) },
+    { type: 'single', lane: 1, beat: beat(0) }, // 0·1 중복(의미 위반)
+    { type: 'single', lane: 2, beat: beat(2) },
+  ];
+
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeFullChart(gateNotes),
+      extraNotes: [],
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+    });
+  });
+
+  it('setSelection은 게이트 통과 시 true, 거부 시 false를 반환한다', () => {
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true); // ∅→{0}
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }))).toBe(false); // {0}→{2} 거부
+    expect(useEditorStore.getState().clearSelection()).toBe(false); // {0}→∅ 거부
+  });
+
+  it('setSelectionTransient는 위반 노트를 떨궈도 게이트 없이 커밋된다 (박스 프리뷰 전용)', () => {
+    useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
+    useEditorStore.getState().setSelectionTransient(sel({ notes: new Set([2]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([2])); // 거부 없이 반영
+  });
+
+  it('setSelectionTransient도 정규화는 적용한다 (범위 밖 인덱스 7 제거)', () => {
+    useEditorStore.getState().setSelectionTransient(sel({ notes: new Set([2, 7]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([2]));
+  });
+});

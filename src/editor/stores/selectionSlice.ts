@@ -116,9 +116,19 @@ export function normalizeSelection(
 
 export interface SelectionSlice {
   selection: Selection;
-  /** 전체 선택 값을 쓴다. 정규화 게이트를 지나므로 어떤 입력도 합법 상태로 착지한다. */
-  setSelection: (input: Selection) => void;
-  clearSelection: () => void;
+  /**
+   * 전체 선택 값을 쓴다. 정규화 게이트 + 선택 해제 게이트(§3-5)를 지난다.
+   * 게이트가 전이를 거부하면 false — 호출자는 후속 동작(이동 시작 등)을 이어가면 안 된다
+   * (stale 선택을 대상으로 조작하게 된다).
+   */
+  setSelection: (input: Selection) => boolean;
+  /**
+   * 드래그 프리뷰 전용 — 정규화만 하고 §3-5 게이트를 지나지 않는다.
+   * "전이 = 확정된 선택 변경"(§3-5): 박스 드래그의 사전 clear·프레임 재구성은
+   * 전이가 아니라 프리뷰다. 제스처 종료 시 반드시 setSelection(게이트)으로 확정할 것.
+   */
+  setSelectionTransient: (input: Selection) => void;
+  clearSelection: () => boolean;
   /** 보조 레인 선택만 비운다(노트·구간 선택 유지). 엑스트라 삭제·레인 수 축소 경로용. */
   clearExtraSelection: () => void;
 }
@@ -180,15 +190,20 @@ export function createSelectionSlice(
         );
         if (involved.length > 0) {
           gateToast(`위반이 남아 있어 선택을 해제할 수 없습니다: ${involved[0].message}`);
-          return;
+          return false;
         }
       }
 
       set({ selection: normalized });
+      return true;
+    },
+    setSelectionTransient: (input) => {
+      const { chart, extraNotes } = get();
+      set({ selection: normalizeSelection(input, chart, extraNotes) });
     },
     clearSelection: () => {
       // 전체 비우기도 하나의 해제 전이 — 같은 게이트를 지난다(§3-5 단일 규칙).
-      get().setSelection(emptySelection());
+      return get().setSelection(emptySelection());
     },
     clearExtraSelection: () =>
       set((state) => ({

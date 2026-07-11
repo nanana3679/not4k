@@ -483,6 +483,7 @@ function ChartEditorPage() {
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
+      setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
       yToBeat: (y) => yToBeatRef.current(y),
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,

@@ -18,15 +18,17 @@ import {
   trillZoneOverlapsBox,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
-import { zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
+import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
   /** 선택의 소유자(SelectionSlice)에서 현재 선택을 읽는다. 사본 저장 금지. */
   getSelection: () => Selection;
-  /** 선택 전체 값을 정규화 게이트를 지나 커밋한다. */
-  setSelection: (sel: Selection) => void;
+  /** 선택 전체 값을 정규화+해제 게이트(§3-5)를 지나 커밋한다. 게이트 거부 시 false. */
+  setSelection: (sel: Selection) => boolean;
+  /** 드래그 프리뷰 전용 — 정규화만, §3-5 게이트 미적용 (박스 프레임 등 미확정 상태). */
+  setSelectionTransient: (sel: Selection) => void;
   yToBeat: (y: number) => Beat;
   /** Raw y-to-beat without snap grid (for box select) */
   yToBeatRaw: (y: number) => Beat;
@@ -100,6 +102,10 @@ export class SelectMode implements EditorMode {
   // Clipboard & paste state
   private clipboardManager: ClipboardManager = new ClipboardManager();
 
+  // 박스 드래그 시작 전 선택 스냅샷 — §3-5 "전이 = 확정된 선택 변경".
+  // 박스 프레임은 프리뷰(transient)로 커밋되고, 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다.
+  private preDragSelection: Selection | null = null;
+
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
@@ -114,9 +120,17 @@ export class SelectMode implements EditorMode {
    * 선택의 일부를 병합해 한 번에 커밋한다. store 게이트가 정규화(범위 보정 +
    * 동질성 + 트릴 모드 시 zones 비움, RFD 0016)하므로,
    * 커밋 직후 this.sel은 정규화된 값을 돌려준다.
+   *
+   * §3-5 해제 게이트가 전이를 거부하면 false — 호출자는 이어지는 동작(이동·리사이즈
+   * 시작)을 진행하면 안 된다. stale(직전) 선택을 대상으로 조작하게 되기 때문이다.
    */
-  private commitSelection(partial: Partial<Selection>): void {
-    this.callbacks.setSelection({ ...this.sel, ...partial });
+  private commitSelection(partial: Partial<Selection>): boolean {
+    return this.callbacks.setSelection({ ...this.sel, ...partial });
+  }
+
+  /** 박스 드래그 프레임 전용 커밋 — 프리뷰라 §3-5 게이트를 지나지 않는다(정규화만). */
+  private commitSelectionTransient(partial: Partial<Selection>): void {
+    this.callbacks.setSelectionTransient({ ...this.sel, ...partial });
   }
 
   /**
@@ -176,9 +190,9 @@ export class SelectMode implements EditorMode {
    * 내부 트릴노트는 notes에 주입하지 않는다 — 이동·삭제·복사 동사가
    * 실행 시점에 zoneContainedNoteIndices로 파생한다 (RFD 0016 §4.2).
    */
-  selectZoneUnit(zoneIndex: number): void {
-    if (zoneIndex < 0 || zoneIndex >= this.chart.trillZones.length) return;
-    this.commitSelection({ notes: new Set(), extraNotes: new Set(), zones: new Set([zoneIndex]) });
+  selectZoneUnit(zoneIndex: number): boolean {
+    if (zoneIndex < 0 || zoneIndex >= this.chart.trillZones.length) return false;
+    return this.commitSelection({ notes: new Set(), extraNotes: new Set(), zones: new Set([zoneIndex]) });
   }
 
   /** Whether a move drag is currently in progress */
@@ -253,11 +267,12 @@ export class SelectMode implements EditorMode {
     this.commitSelection({ notes: new Set(), extraNotes: new Set(), zones: new Set() });
   }
 
-  /** Select a specific note */
-  selectNote(index: number): void {
+  /** Select a specific note. §3-5 게이트 거부 시 false. */
+  selectNote(index: number): boolean {
     if (index >= 0 && index < this.chart.notes.length) {
-      this.commitSelection({ notes: this.withTrillPairs(new Set([index])), zones: new Set() });
+      return this.commitSelection({ notes: this.withTrillPairs(new Set([index])), zones: new Set() });
     }
+    return false;
   }
 
   /**
@@ -275,11 +290,12 @@ export class SelectMode implements EditorMode {
   }
 
   /** Select a specific extra note */
-  selectExtraNote(index: number): void {
+  selectExtraNote(index: number): boolean {
     const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
     if (index >= 0 && index < extraNotes.length) {
-      this.commitSelection({ notes: new Set(), extraNotes: new Set([index]), zones: new Set() });
+      return this.commitSelection({ notes: new Set(), extraNotes: new Set([index]), zones: new Set() });
     }
+    return false;
   }
 
   /** Begin a touch long-press move from a main note without collapsing an existing multi-selection. */
@@ -290,7 +306,8 @@ export class SelectMode implements EditorMode {
     // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 — 잡아 끌면 단독 선택으로
     // 교체하지 않고 유닛째 이동한다 (RFD 0016 §4.2 실행 시점 파생).
     if (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index)) {
-      this.selectNote(index);
+      // §3-5 게이트가 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
+      if (!this.selectNote(index)) return false;
     }
 
     this.startMainMoveDrag(x, y);
@@ -304,7 +321,8 @@ export class SelectMode implements EditorMode {
 
     // 이미 선택된 엑스트라면 혼합 선택(메인 노트·구간 포함)을 유지한 채 전체를 이동한다 (RFD 0016 §4.2)
     if (!this.sel.extraNotes.has(index)) {
-      this.selectExtraNote(index);
+      // §3-5 게이트가 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
+      if (!this.selectExtraNote(index)) return false;
     }
 
     this.startExtraMoveDrag(x, y);
@@ -327,7 +345,10 @@ export class SelectMode implements EditorMode {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
-    this.commitSelection({ notes: new Set([index]), extraNotes: new Set(), zones: new Set() });
+    // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다
+    if (!this.commitSelection({ notes: new Set([index]), extraNotes: new Set(), zones: new Set() })) {
+      return false;
+    }
     this.startResize("note", index, note.beat, note.endBeat);
     return true;
   }
@@ -363,7 +384,8 @@ export class SelectMode implements EditorMode {
   beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.trillZones.length) return false;
     if (!this.sel.zones.has(index)) {
-      this.selectZoneUnit(index);
+      // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
+      if (!this.selectZoneUnit(index)) return false;
     }
     this.startMainMoveDrag(x, y);
     return this.isMoveDragging;
@@ -436,7 +458,10 @@ export class SelectMode implements EditorMode {
         const topmost = this.callbacks.hitTestNote(x, y);
         if (isSelected || topmost === endHit) {
           if (!isSelected) {
-            this.commitSelection({ notes: new Set([endHit]), extraNotes: new Set(), zones: new Set() });
+            // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지)
+            if (!this.commitSelection({ notes: new Set([endHit]), extraNotes: new Set(), zones: new Set() })) {
+              return;
+            }
           }
           const note = this.chart.notes[endHit] as RangeNote;
           this.startResize("note", endHit, note.beat, note.endBeat);
@@ -472,8 +497,8 @@ export class SelectMode implements EditorMode {
           this.commitSelection({ zones });
           return;
         }
-        this.selectZoneUnit(handleHit);
-        this.beginMoveDrag(x, y);
+        // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
+        if (this.selectZoneUnit(handleHit)) this.beginMoveDrag(x, y);
         return;
       }
     }
@@ -550,13 +575,15 @@ export class SelectMode implements EditorMode {
         // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
         this.beginMoveDrag(x, y);
       } else {
-        // 단순 클릭은 선택 전체 교체(zones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위
-        this.commitSelection({
+        // 단순 클릭은 선택 전체 교체(zones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위.
+        // §3-5 게이트가 교체를 거부하면 이동을 시작하지 않는다 — stale(직전 위반) 선택이
+        // 새 클릭 좌표를 앵커로 조용히 이동하는 은닉 오편집을 막는다.
+        const committed = this.commitSelection({
           notes: this.withTrillPairs(new Set([hitIndex])),
           extraNotes: new Set(),
           zones: new Set(),
         });
-        this.beginMoveDrag(x, y);
+        if (committed) this.beginMoveDrag(x, y);
       }
     } else {
       // Clicking empty space
@@ -577,7 +604,10 @@ export class SelectMode implements EditorMode {
 
   /** 기존 선택을 비우고 박스 셀렉트 드래그를 시작한다. */
   private startBoxSelect(x: number, y: number): void {
-    this.clearSelection();
+    // §3-5: 사전 clear·프레임 재구성은 프리뷰라 게이트를 지나지 않는다(전이 아님).
+    // 시작 전 선택을 캡처해 두고, 드래그 종료 시 (시작 전 → 최종) 전이로 한 번만 게이트한다.
+    this.preDragSelection = this.sel;
+    this.callbacks.setSelectionTransient(emptySelection());
     this.isDragging = true;
     this.dragType = "boxSelect";
     this.dragStartBeat = this.callbacks.yToBeatRaw(y);
@@ -831,6 +861,15 @@ export class SelectMode implements EditorMode {
       }
 
       this.updateBoxSelection();
+
+      // §3-5: 프리뷰로 쌓인 박스 결과를 (드래그 시작 전 → 최종) 전이 하나로 확정한다.
+      // 게이트가 거부하면 시작 전 선택이 복원된 채 유지된다 — 위반 노트를 박스로 떨굴 수 없다.
+      if (this.preDragSelection) {
+        const finalSel = this.sel;
+        this.callbacks.setSelectionTransient(this.preDragSelection);
+        this.callbacks.setSelection(finalSel);
+        this.preDragSelection = null;
+      }
     }
 
     this._boxEndBeat = null;
@@ -862,7 +901,11 @@ export class SelectMode implements EditorMode {
       this.rollbackMove();
       this.rollbackMoveExtra();
     }
-    // boxSelect는 차트를 변이하지 않으므로 아래 공통 정리로 충분하다.
+    // boxSelect는 차트를 변이하지 않지만 프리뷰(transient) 선택은 시작 전으로 복원한다(§3-5).
+    if (this.dragType === "boxSelect" && this.preDragSelection) {
+      this.callbacks.setSelectionTransient(this.preDragSelection);
+    }
+    this.preDragSelection = null;
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
@@ -995,7 +1038,8 @@ export class SelectMode implements EditorMode {
 
     // 일반 노트·구간 유닛·엑스트라는 공존 선택 가능 (RFD 0016 §4.1).
     // 범위 보정 등 정규화는 store 게이트(normalizeSelection)가 수행한다.
-    this.commitSelection({ notes, extraNotes, zones });
+    // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.
+    this.commitSelectionTransient({ notes, extraNotes, zones });
   }
 
   // --- Keyboard events ---

@@ -47,6 +47,10 @@ function makeCallbacks(
     getSelection: () => selection,
     setSelection: (s: Selection) => {
       selection = normalizeSelection(s, currentChart, currentExtraNotes);
+      return true; // 페이크는 §3-5 게이트 없음(항상 통과) — 게이트 결합 검증은 integration 테스트 담당
+    },
+    setSelectionTransient: (s: Selection) => {
+      selection = normalizeSelection(s, currentChart, currentExtraNotes);
     },
     /** 테스트 검증용 — 페이크가 소유한 선택 상태를 읽는다 */
     getSelectionState: () => selection,
