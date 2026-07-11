@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChart, beatToFloat } from "../../shared";
+import { validateChartStructural, beatToFloat } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -1289,12 +1289,15 @@ export class SelectMode implements EditorMode {
   /** Confirm placement (Enter key or empty click) */
   confirmPlacement(): void {
     if (this.clipboardManager.isPendingPaste) {
-      // Paste mode: validate, reject if violations exist (don't rollback)
+      // 낙관적 편집(RFD 0017 §2): 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부.
+      // 의미 위반(겹침 등)은 transient로 확정되어 해칭으로 표시되고, place-then-fix로
+      // 개별 수정하거나 undo로 되돌린다. (paste는 평행 배치라 구조 위반을 못 만들지만
+      // setChart 게이트와의 대칭을 위해 방어적으로 유지한다.)
       this.clipboardManager.confirmPaste(
         this.chart,
         this.callbacks,
         (chart) => {
-          const errors = validateChart({
+          const errors = validateChartStructural({
             notes: chart.notes,
             trillZones: chart.trillZones,
             events: chart.events,

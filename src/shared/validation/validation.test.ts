@@ -16,6 +16,7 @@ import {
   chartViolationIndices,
   validateNoRangeInversion,
   validateBeatWellFormed,
+  violationsInvolving,
   isNaturalNumber,
   validateTimeSigNatural,
   validateTimeSigAtMeasureStart,
@@ -1303,5 +1304,57 @@ describe("beatKey 값 비교 (표현 무관 중복)", () => {
     const errors = validateNoDuplicates(notes);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("duplicate");
+  });
+});
+
+// =========================================================================
+// 신규 엔티티 국소 판정 (RFD 0017) — 무관한 상주 위반이 편집을 전역 차단하지 않도록
+// =========================================================================
+
+describe("violationsInvolving (신규 엔티티 국소 판정)", () => {
+  it("타깃 노트(레인2, 위반 없음)와 무관한 기존 중복(레인1)은 걸러져 빈 배열", () => {
+    const errors = validateChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) }, // 상주 위반(0,1) — 타깃과 무관
+        { type: "single", lane: 2, beat: beat(4) }, // 타깃(2)
+      ] as NoteEntity[],
+      trillZones: [],
+      events: [],
+    });
+    expect(errors.length).toBeGreaterThan(0); // 상주 위반은 존재
+    expect(violationsInvolving(errors, [{ kind: "note", index: 2 }])).toEqual([]);
+  });
+
+  it("타깃 노트 자신이 중복 당사자면 그 위반은 남는다", () => {
+    const errors = validateChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) }, // 타깃(1) = 중복 당사자
+      ] as NoteEntity[],
+      trillZones: [],
+      events: [],
+    });
+    const involved = violationsInvolving(errors, [{ kind: "note", index: 1 }]);
+    expect(involved).toHaveLength(1);
+    expect(involved[0].rule).toBe("duplicate");
+  });
+
+  it("kind가 다르면 같은 인덱스라도 연루로 치지 않는다 (note 0 타깃 ≠ event 0 위반)", () => {
+    const errors = validateChart({
+      notes: [{ type: "single", lane: 1, beat: beat(4) }] as NoteEntity[],
+      trillZones: [],
+      events: [
+        { type: "bpm", beat: beat(0), bpm: 120 },
+        { type: "bpm", beat: beat(0), bpm: 180 }, // 이벤트 중복(0,1)
+      ] as ChartEvent[],
+    });
+    expect(violationsInvolving(errors, [{ kind: "note", index: 0 }])).toEqual([]);
+    expect(violationsInvolving(errors, [{ kind: "event", index: 0 }])).toHaveLength(1);
+  });
+
+  it("refs 없는 위반은 귀속 불명이므로 보수적으로 포함한다", () => {
+    const errors = [{ rule: "duplicate" as const, message: "refs 없음" }];
+    expect(violationsInvolving(errors, [{ kind: "note", index: 0 }])).toHaveLength(1);
   });
 });

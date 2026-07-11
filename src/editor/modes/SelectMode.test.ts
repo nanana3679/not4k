@@ -843,7 +843,7 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
     expect(lastChart.notes[0].beat.n / lastChart.notes[0].beat.d).toBe(0);
   });
 
-  it("confirmPlacement — 중복 위치에 붙여넣기 시 확정 거부", () => {
+  it("confirmPlacement — 중복 위치 붙여넣기(의미 위반)도 낙관 확정된다 (place-then-fix, RFD 0017 §2)", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
@@ -854,13 +854,13 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
 
     mode.selectNote(0);
     mode.copy();
-    mode.paste(beat(0)); // 같은 위치에 붙여넣기 = 중복
+    mode.paste(beat(0)); // 같은 위치에 붙여넣기 = 중복(의미 위반)
 
     mode.confirmPlacement();
 
-    // 여전히 pending 상태
-    expect(mode.isPendingPaste).toBe(true);
-    expect(cb.onWarn).toHaveBeenCalled();
+    // 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부, 의미 위반은 transient 커밋(해칭·게이트가 강제)
+    expect(mode.isPendingPaste).toBe(false);
+    expect(cb.onWarn).not.toHaveBeenCalled();
   });
 });
 

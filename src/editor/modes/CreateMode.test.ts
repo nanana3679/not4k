@@ -622,3 +622,64 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 낙관적 편집 국소 판정 (RFD 0017) — 무관한 상주 위반이 생성을 전역 차단하지 않는다
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — 생성 국소 판정 (violationsInvolving, RFD 0017)", () => {
+  it("무관한 기존 중복(레인1)이 상주해도 빈 곳(레인2) 단노트 생성은 차단되지 않는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) }, // 상주 위반 — 새 노트와 무관
+      ],
+    });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(2, 4);
+    mode.onPointerUp(2, 4);
+
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(3);
+  });
+
+  it("생성 위치가 기존 노트와 같으면(새 노트 연루 중복) 여전히 차단된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1, beat: beat(2) }],
+    });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 2);
+
+    expect(callbacks.onWarn).toHaveBeenCalled();
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("무관한 상주 위반이 있어도 롱노트(헤드+바디) 드래그 생성은 차단되지 않는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 1, beat: beat(0) },
+      ],
+    });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(3, 2);
+    mode.onPointerUp(3, 5);
+
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(4); // 기존 2 + 헤드 + 바디
+  });
+});

@@ -861,3 +861,22 @@ export function chartViolationIndices(input: ChartValidationInput): ChartViolati
 export function chartViolatingNoteIndices(input: ChartValidationInput): Set<number> {
   return chartViolationIndices(input).notes;
 }
+
+/**
+ * 주어진 엔티티 참조에 연루된 위반만 추린다 — 신규/변경 엔티티의 국소 판정용(RFD 0017).
+ *
+ * 낙관적 편집에서 라이브 차트에는 transient 의미 위반이 상주할 수 있다. 그래서
+ * "전체 차트 검증 후 에러가 하나라도 있으면 차단"은 무관한 기존 위반 하나가
+ * 모든 생성·변환을 전역 차단하는 회귀를 만든다 — 새 엔티티에 연루된 위반만
+ * 걸러 판정해야 place-then-fix 도중에도 편집이 계속된다.
+ * refs 없는 위반은 귀속을 알 수 없으므로 보수적으로 포함한다.
+ */
+export function violationsInvolving(
+  errors: readonly ValidationError[],
+  targets: readonly ValidationRef[],
+): ValidationError[] {
+  const targetKeys = new Set(targets.map((t) => `${t.kind}:${t.index}`));
+  return errors.filter(
+    (err) => !err.refs || err.refs.some((r) => targetKeys.has(`${r.kind}:${r.index}`)),
+  );
+}
