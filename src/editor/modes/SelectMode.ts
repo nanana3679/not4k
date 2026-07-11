@@ -110,6 +110,13 @@ export class SelectMode implements EditorMode {
     return this.callbacks.getSelection();
   }
 
+  // [ZONEDRAG-DBG] 임시 진단 (병합 전 제거)
+  private dbgSel(): string {
+    const s = this.sel;
+    return `notes=[${[...s.notes]}] zones=[${[...s.zones]}] extra=[${[...s.extraNotes]}]`;
+  }
+  private _dbgLastMove = "";
+
   /**
    * 선택의 일부를 병합해 한 번에 커밋한다. store 게이트가 정규화(범위 보정 +
    * 동질성 + 트릴 모드 시 zones 비움, RFD 0016)하므로,
@@ -472,7 +479,9 @@ export class SelectMode implements EditorMode {
           this.commitSelection({ zones });
           return;
         }
+        console.log(`[ZONEDRAG-DBG] down: 존 핸들 히트 zone=${handleHit}, 선택 전 ${this.dbgSel()}`);
         this.selectZoneUnit(handleHit);
+        console.log(`[ZONEDRAG-DBG] down: selectZoneUnit 후 ${this.dbgSel()} (zones가 비어 있으면 §3-5 게이트 거부)`);
         this.beginMoveDrag(x, y);
         return;
       }
@@ -525,6 +534,10 @@ export class SelectMode implements EditorMode {
       // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"다 — 잡아 끌면 유닛째 이동하고,
       // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
       const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
+      console.log(
+        `[ZONEDRAG-DBG] down: 노트 히트 idx=${hitIndex} type=${this.chart.notes[hitIndex]?.type}` +
+        ` isSelected=${isAlreadySelected} isZoneDerived=${isZoneDerived} ${this.dbgSel()}`,
+      );
 
       // 수식자(토글/Shift/Alt) 경로는 zones를 보존한다 — 일반 노트와 구간 유닛은
       // 공존하고, 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다 (RFD 0016 §4.1).
@@ -577,6 +590,7 @@ export class SelectMode implements EditorMode {
 
   /** 기존 선택을 비우고 박스 셀렉트 드래그를 시작한다. */
   private startBoxSelect(x: number, y: number): void {
+    console.log(`[ZONEDRAG-DBG] 박스 셀렉트 시작 (노트/핸들 히트 없음) x=${x} y=${y}, 선택 전 ${this.dbgSel()}`);
     this.clearSelection();
     this.isDragging = true;
     this.dragType = "boxSelect";
@@ -676,9 +690,17 @@ export class SelectMode implements EditorMode {
         let laneOffset = currentLane - this.dragStartLane;
 
         // 트릴 노트 단위 이동은 구간 안으로만: 레인 변경 금지 + 박자 오프셋 클램프
+        const dbgRawOffset = beatToFloat(beatOffset);
         if (this._trillMoveZone) {
           laneOffset = 0;
           beatOffset = clampTrillBeatOffset(this._trillMoveZone, this.movePositionList(), beatOffset);
+        }
+        {
+          const dbgMsg =
+            `[ZONEDRAG-DBG] move: rawΔ=${dbgRawOffset} clampedΔ=${beatToFloat(beatOffset)} laneΔ=${laneOffset}` +
+            ` trillClamp=${this._trillMoveZone ? "ON" : "off"} origins=${this.originalPositions.size}` +
+            ` zoneOrigins=${this.originalZonePositions.size}`;
+          if (dbgMsg !== this._dbgLastMove) { this._dbgLastMove = dbgMsg; console.log(dbgMsg); }
         }
 
         // 이동 대상 = 드래그 시작 시점에 캡처한 원본들(직접 선택 + 구간 파생 노트, RFD 0016 §4.2)
@@ -687,20 +709,29 @@ export class SelectMode implements EditorMode {
         // Check if lane offset is valid for ALL moving notes
         for (const original of this.originalPositions.values()) {
           const targetLane = original.lane + laneOffset;
-          if (targetLane < 1 || targetLane > 4) return; // Block entire move
+          if (targetLane < 1 || targetLane > 4) {
+            console.log(`[ZONEDRAG-DBG] move 차단: 노트 레인 범위(target=${targetLane})`);
+            return; // Block entire move
+          }
         }
 
         // Apply move to all moving notes (with snap)
         const newNotes = this.buildMovedNotes(laneOffset, beatOffset);
 
         // Block if any note goes out of timeline bounds
-        if (!this.areNotesInBounds(newNotes, moveTargets)) return;
+        if (!this.areNotesInBounds(newNotes, moveTargets)) {
+          console.log(`[ZONEDRAG-DBG] move 차단: 노트 타임라인 범위 밖`);
+          return;
+        }
 
         // 구간 유닛이 선택돼 있으면 트릴존도 같은 오프셋으로 함께 이동(겹침/범위 검증)
         let newZones = this.chart.trillZones;
         if (this.originalZonePositions.size > 0) {
           newZones = this.buildMovedZones(laneOffset, beatOffset);
-          if (!this.movedZonesInBounds(newZones)) return;
+          if (!this.movedZonesInBounds(newZones)) {
+            console.log(`[ZONEDRAG-DBG] move 차단: 존 범위 밖`);
+            return;
+          }
         }
 
         // 엑스트라는 beat만 동반 — 레인 오프셋은 앵커(메인) 축에만 적용 (RFD 0016 §4.2)
@@ -1505,6 +1536,10 @@ export class SelectMode implements EditorMode {
 
     // 직접 선택한 notes + 구간 파생 노트를 함께 캡처 — 혼합 선택도 한 오프셋으로 움직인다 (RFD 0016 §4.2)
     this.captureNoteOrigins(this.effectiveNoteIndices());
+    console.log(
+      `[ZONEDRAG-DBG] moveDrag 시작: lane=${lane} ${this.dbgSel()}` +
+      ` effective=[${[...this.effectiveNoteIndices()]}] noteOrigins=[${[...this.originalPositions.keys()]}]`,
+    );
     // 엑스트라도 원본 캡처 — 혼합 선택이면 beat만 동반 이동한다 (RFD 0016 §4.2)
     this.captureExtraNoteOrigins();
     // 구간 유닛이 있으면 이동할 트릴존 원본을 캡처(자유 이동), 노트 단위면 가둘 구간을 캡처(제약 이동).
