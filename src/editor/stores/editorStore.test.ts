@@ -98,6 +98,28 @@ describe('editorStore 차트 변이 게이트', () => {
     expect(useEditorStore.getState().historyPast).toHaveLength(0); // undo 스택 오염 없음
   });
 
+  it('구조(역전)+의미(중복) 동시 위반 setChart도 통째 거부 — 부분 반영 없이 차트·히스토리 무변', () => {
+    const mixedInvalid = makeChart([
+      { type: 'long', lane: 1 as Lane, beat: beat(4), endBeat: beat(2) }, // 역전(구조)
+      { type: 'single', lane: 2 as Lane, beat: beat(1) },
+      { type: 'single', lane: 2 as Lane, beat: beat(1) }, // 중복(의미)
+    ]);
+
+    useEditorStore.getState().setChart(mixedInvalid);
+
+    expect(useEditorStore.getState().chart.notes).toHaveLength(0); // 이전 차트 그대로
+    expect(useEditorStore.getState().historyPast).toHaveLength(0); // 히스토리 오염 없음
+  });
+
+  it('d=0 malformed Beat 차트도 setChart가 throw 없이 구조 위반으로 거부한다', () => {
+    const malformed = makeChart([
+      { type: 'single', lane: 1 as Lane, beat: { n: 5, d: 0 } },
+    ]);
+
+    expect(() => useEditorStore.getState().setChart(malformed)).not.toThrow();
+    expect(useEditorStore.getState().chart.notes).toHaveLength(0); // 거부됨
+  });
+
   it('유효한 setChart는 통과하고 히스토리에 쌓인다', () => {
     useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
 

@@ -40,7 +40,8 @@ export interface ValidationError {
     | "stopZone"
     | "timeSigNotNatural"
     | "timeSigNotAtMeasureStart"
-    | "rangeInverted";
+    | "rangeInverted"
+    | "beatMalformed";
   message: string;
   refs?: ValidationRef[];
 }
@@ -61,12 +62,21 @@ function isRangeNote(n: NoteEntity): n is RangeNote {
   return "endBeat" in n;
 }
 
-function beatKey(lane: number, b: Beat): string {
-  // 값(음악적 위치)으로 비교한다 — 표현이 달라도 같은 박이면 같은 키.
-  // 스냅은 분모=스냅분할값 형태(예: 박2를 스냅4로 8/4)를, 이동은 약분형(2/1)을 만든다.
-  // 약분하지 않으면 8/4와 2/1을 다른 위치로 오인해 중복/공존 검사가 실패한다.
+/**
+ * 값(음악적 위치) 기준 "n/d" 키 — 표현이 달라도 같은 박이면 같은 키.
+ * 스냅은 분모=스냅분할값 형태(예: 박2를 스냅4로 8/4)를, 이동은 약분형(2/1)을 만든다.
+ * 약분하지 않으면 8/4와 2/1을 다른 위치로 오인해 중복/공존 검사가 실패한다.
+ * malformed(d=0·비유한)는 약분 불가라 원본 표기로 fallback한다 — 여기서 throw하면
+ * validateChart 전체가 죽는다. malformed 자체는 구조 검증(beatMalformed)이 잡는다.
+ */
+function beatValueKey(b: Beat): string {
+  if (!Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0) return `${b.n}/${b.d}`;
   const r = beat(b.n, b.d);
-  return `${lane}:${r.n}/${r.d}`;
+  return `${r.n}/${r.d}`;
+}
+
+function beatKey(lane: number, b: Beat): string {
+  return `${lane}:${beatValueKey(b)}`;
 }
 
 const noteRef = (index: number): ValidationRef => ({ kind: "note", index });
@@ -343,7 +353,8 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
     const evt = events[i];
     if (evt.type !== "bpm" && evt.type !== "timeSignature") continue;
 
-    const key = `${evt.type}:${evt.beat.n}/${evt.beat.d}`;
+    // 값 기준 비교 — 노트 쪽 beatKey와 동일한 이유(8/4 vs 2/1 표현 차이 무시)
+    const key = `${evt.type}:${beatValueKey(evt.beat)}`;
     if (seen.has(key)) {
       const prevIdx = seen.get(key)!;
       errors.push({
@@ -692,6 +703,63 @@ export function validateNoRangeInversion(
   return errors;
 }
 
+/**
+ * Beat 자체가 성립하지 않는 값(분모 0·NaN·Infinity)이면 malformed로 본다.
+ *
+ * Beat 타입 계약(분모 항상 양수·유한 정수 쌍)이 깨진 데이터는 에디터가 만들 수 없고
+ * 외부/레거시 파일 로드로만 들어온다. `beat()` 생성자는 d=0에 throw하므로 이 값이
+ * 검증·약분 경로에 흘러들면 검증 함수 자체가 크래시한다 — "위반 목록 반환" 대신
+ * 예외가 전파되므로 구조 버킷에서 잡아 보고한다(RFD 0017 §3-1 malformed).
+ */
+export function validateBeatWellFormed(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+  events: readonly ChartEvent[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const isMalformed = (b: Beat): boolean =>
+    !Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0;
+
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    if (isMalformed(n.beat) || (isRangeNote(n) && isMalformed(n.endBeat))) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `노트의 beat가 malformed입니다 (레인 ${n.lane}, ${n.beat.n}/${n.beat.d})`,
+        refs: [noteRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < trillZones.length; i++) {
+    const z = trillZones[i];
+    if (isMalformed(z.beat) || isMalformed(z.endBeat)) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `트릴 존의 beat가 malformed입니다 (레인 ${z.lane}, ${z.beat.n}/${z.beat.d})`,
+        refs: [zoneRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (
+      isMalformed(e.beat) ||
+      ("endBeat" in e && isMalformed(e.endBeat)) ||
+      (e.type === "timeSignature" && isMalformed(e.beatPerMeasure))
+    ) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `${e.type} 이벤트의 beat가 malformed입니다 (${e.beat.n}/${e.beat.d})`,
+        refs: [eventRef(i)],
+      });
+    }
+  }
+
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
@@ -703,11 +771,12 @@ export interface ChartValidationInput {
 }
 
 /**
- * 구조 검증 — malformed 데이터(역전) + 크래시 유발(분자 0 박자표).
+ * 구조 검증 — malformed 데이터(역전·불성립 Beat) + 크래시 유발(분자 0 박자표).
  * setChart가 항상 하드 거부하는 버킷(RFD 0017 §3-2·§3-4).
  */
 export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
   return [
+    ...validateBeatWellFormed(input.notes, input.trillZones, input.events),
     ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
     ...validateTimeSigNatural(input.events),
   ];
