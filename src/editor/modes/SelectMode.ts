@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChart, beatToFloat } from "../../shared";
+import { validateChartStructural, beatToFloat } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -52,7 +52,6 @@ export interface SelectModeCallbacks {
   onExtraSelectionChange?: (indices: Set<number>) => void;
   getExtraNotes?: () => ExtraNoteEntity[];
   getExtraLaneCount?: () => number;
-  onViolationsChange?: (indices: Set<number>) => void;
   onWarn?: (msg: string) => void;
 }
 
@@ -634,19 +633,12 @@ export class SelectMode implements EditorMode {
           tentativeChart = { ...this.chart, trillZones: newZones };
         }
 
-        // 프리뷰도 커밋(onPointerUp)과 동일한 제약을 지킨다. 위반 상태(예: 트릴존을
-        // 트릴노트 밖으로 축소, 비트릴노트를 삼키도록 확장)면 적용하지 않아 직전 유효
-        // 프리뷰를 유지한다 → 프리뷰가 커밋 가능 상태를 거짓말하지 않는다.
+        // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다(직전 valid로
+        // 얼리지 않음). 리사이즈는 endBeat clamp(>= startBeat)라 구조 위반을 못 만들고,
+        // 의미 위반(트릴존 축소·확장 등)은 transient로 허용된다.
         if (tentativeChart !== null) {
-          const errors = validateChart({
-            notes: tentativeChart.notes,
-            trillZones: tentativeChart.trillZones,
-            events: tentativeChart.events,
-          });
-          if (errors.length === 0) {
-            this.chart = tentativeChart;
-            this.callbacks.onChartUpdate(this.chart);
-          }
+          this.chart = tentativeChart;
+          this.callbacks.onChartUpdate(this.chart);
         }
       }
       return;
@@ -804,19 +796,9 @@ export class SelectMode implements EditorMode {
     if (!this.isDragging) return;
 
     if (this.dragType === "resize") {
-      // Validate and commit or rollback
-      const errors = validateChart({
-        notes: this.chart.notes,
-        trillZones: this.chart.trillZones,
-        events: this.chart.events,
-      });
-      if (errors.length > 0) {
-        // Rollback: restore original endBeat
-        this.rollbackResize();
-      } else {
-        // Commit
-        this.callbacks.onChartUpdate(this.chart);
-      }
+      // 낙관적 편집(RFD 0017): 리사이즈는 endBeat clamp라 구조 위반을 못 만들어 그대로 커밋.
+      // 의미 위반(겹침 등)은 커밋 뒤 저장·플레이 게이트가 강제하고, 되돌리기는 undo.
+      this.callbacks.onChartUpdate(this.chart);
       this.resizingEntityType = null;
       this.resizingIndex = null;
       this.resizingOriginalEndBeat = null;
@@ -1086,21 +1068,10 @@ export class SelectMode implements EditorMode {
 
     this.chart = { ...this.chart, notes: newNotes };
 
-    // Validate
-    const errors = validateChart({
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    });
-
-    if (errors.length === 0) {
-      // Commit
-      this.callbacks.onChartUpdate(this.chart);
-      this.originalPositions.clear();
-    } else {
-      // Rollback
-      this.rollbackMove();
-    }
+    // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
+    // 의미 위반은 setChart가 허용하고 저장·플레이 게이트가 강제, 되돌리기는 undo.
+    this.callbacks.onChartUpdate(this.chart);
+    this.originalPositions.clear();
   }
 
   /** Move selected notes by one lane (event 레인을 건너뛰고 메인↔엑스트라 레인 간 이동 지원) */
@@ -1160,24 +1131,8 @@ export class SelectMode implements EditorMode {
 
     this.chart = { ...this.chart, notes: newNotes };
 
-    // Validate
-    const errors = validateChart({
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    });
-
-    if (errors.length === 0) {
-      this.callbacks.onChartUpdate(this.chart);
-    } else {
-      // Rollback
-      for (const idx of this.selectedIndices) {
-        const note = newNotes[idx];
-        newNotes[idx] = { ...note, lane: (note.lane - laneOffset) as Lane };
-      }
-      this.chart = { ...this.chart, notes: newNotes };
-      this.callbacks.onChartUpdate(this.chart);
-    }
+    // 낙관적 편집(RFD 0017): 레인 이동은 구조 위반을 못 만들어(lane은 1..4로 강제) 검증 없이 커밋.
+    this.callbacks.onChartUpdate(this.chart);
   }
 
   /** 엑스트라 노트의 스냅 이동 */
@@ -1325,32 +1280,24 @@ export class SelectMode implements EditorMode {
 
     this.chart = { ...this.chart, notes: newNotes };
 
-    // Validate
-    const errors = validateChart({
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    });
-
-    if (errors.length === 0) {
-      // Commit
-      this.callbacks.onChartUpdate(this.chart);
-      this.originalPositions.clear();
-    } else {
-      // Rollback
-      this.rollbackMove();
-    }
+    // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
+    // 의미 위반은 setChart가 허용하고 저장·플레이 게이트가 강제, 되돌리기는 undo.
+    this.callbacks.onChartUpdate(this.chart);
+    this.originalPositions.clear();
   }
 
   /** Confirm placement (Enter key or empty click) */
   confirmPlacement(): void {
     if (this.clipboardManager.isPendingPaste) {
-      // Paste mode: validate, reject if violations exist (don't rollback)
+      // 낙관적 편집(RFD 0017 §2): 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부.
+      // 의미 위반(겹침 등)은 transient로 확정되어 해칭으로 표시되고, place-then-fix로
+      // 개별 수정하거나 undo로 되돌린다. (paste는 평행 배치라 구조 위반을 못 만들지만
+      // setChart 게이트와의 대칭을 위해 방어적으로 유지한다.)
       this.clipboardManager.confirmPaste(
         this.chart,
         this.callbacks,
         (chart) => {
-          const errors = validateChart({
+          const errors = validateChartStructural({
             notes: chart.notes,
             trillZones: chart.trillZones,
             events: chart.events,
@@ -1363,23 +1310,12 @@ export class SelectMode implements EditorMode {
 
     if (this.originalPositions.size === 0) return;
 
-    // Move mode: validate, rollback if invalid
-    const errors = validateChart({
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    });
-
-    if (errors.length === 0) {
-      // Valid: commit
-      this.callbacks.onChartUpdate(this.chart);
-      this.originalPositions.clear();
-      this.originalZonePositions.clear();
-      this._trillMoveZone = null;
-    } else {
-      // Invalid: rollback
-      this.rollbackMove();
-    }
+    // 낙관적 편집(RFD 0017 §3-3): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
+    // 위반이 생겨도 place-then-fix — 선택은 유지되니 재드래그로 해소하거나 undo로 되돌린다.
+    this.callbacks.onChartUpdate(this.chart);
+    this.originalPositions.clear();
+    this.originalZonePositions.clear();
+    this._trillMoveZone = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -1469,7 +1405,6 @@ export class SelectMode implements EditorMode {
       this.chart,
       direction,
       this.callbacks,
-      (chart) => this.clipboardManager.updatePasteViolations(chart, this.callbacks),
     );
     if (newChart !== null) {
       this.chart = newChart;
@@ -1647,17 +1582,10 @@ export class SelectMode implements EditorMode {
     }
 
     const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
-    const errors = validateChart({
-      notes: candidate.notes,
-      trillZones: candidate.trillZones,
-      events: candidate.events,
-    });
-    if (errors.length === 0) {
-      this.chart = candidate;
-      this.callbacks.onChartUpdate(this.chart);
-    } else {
-      this.callbacks.onWarn?.("다른 트릴 구간과 겹쳐 이동할 수 없습니다");
-    }
+    // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
+    // 존 겹침 등 의미 위반은 transient로 허용되고 저장·플레이 게이트가 강제한다.
+    this.chart = candidate;
+    this.callbacks.onChartUpdate(this.chart);
     this.originalPositions.clear();
     this.originalZonePositions.clear();
   }

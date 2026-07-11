@@ -242,3 +242,34 @@ export function measureStartBeat(
 
   return accBeat;
 }
+
+/**
+ * limitMs 이내의 모든 마디 시작 ms를 순증 배열로 열거한다.
+ *
+ * 마디 0부터 measureStartBeat로 시작 ms를 열거하되, **마디가 전진하지 않으면**
+ * (다음 시작 ms ≤ 직전 시작 ms) 즉시 종료한다. 이 미전진은 분자/분모 ≤ 0인
+ * 박자표(구조 위반, 예: 0/4)가 만드는 상황으로, 방어하지 않으면 무제한 루프가
+ * 무한루프가 된다(RFD 0017 §3-4). valid 차트에서는 마디 시작이 항상 순증하므로
+ * 이 가드는 결과에 영향을 주지 않는다.
+ */
+export function enumerateMeasureStartsMs(
+  limitMs: number,
+  bpmMarkers: readonly BpmMarker[],
+  timeSignatures: readonly TimeSignatureMarker[],
+  offsetMs: number = 0,
+): number[] {
+  const result: number[] = [];
+  if (bpmMarkers.length === 0 || timeSignatures.length === 0) return result;
+
+  let prevMs = Number.NEGATIVE_INFINITY;
+  for (let m = 0; ; m++) {
+    const mStartMs = beatToMs(measureStartBeat(m, timeSignatures), bpmMarkers, offsetMs);
+    if (mStartMs > limitMs) break;
+    // 마디 미전진(구조 위반: 분자 0 박자표, 예 0/4 → measureStartBeat 불변) 방어.
+    // `!(mStartMs > prevMs)`는 등가·역전을 모두 종료로 처리한다(비수 NaN까지 안전).
+    if (!(mStartMs > prevMs)) break;
+    result.push(mStartMs);
+    prevMs = mStartMs;
+  }
+  return result;
+}

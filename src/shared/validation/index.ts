@@ -25,7 +25,7 @@ import type {
   TimeSignatureEvent,
   StopEvent,
 } from "../types/chart";
-import { beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
 
 export interface ValidationError {
   rule:
@@ -39,8 +39,19 @@ export interface ValidationError {
     | "tutorialInputOverlap"
     | "stopZone"
     | "timeSigNotNatural"
-    | "timeSigNotAtMeasureStart";
+    | "timeSigNotAtMeasureStart"
+    | "rangeInverted"
+    | "beatMalformed";
   message: string;
+  refs?: ValidationRef[];
+}
+
+/** RFD 0017 위반 시각화 — 위반에 연루된 엔티티를 원본 배열 인덱스로 가리킨다 */
+export type ValidationRefKind = "note" | "trillZone" | "event";
+
+export interface ValidationRef {
+  kind: ValidationRefKind;
+  index: number; // 각각 chart.notes / chart.trillZones / chart.events 배열의 인덱스
 }
 
 // ---------------------------------------------------------------------------
@@ -51,9 +62,26 @@ function isRangeNote(n: NoteEntity): n is RangeNote {
   return "endBeat" in n;
 }
 
-function beatKey(lane: number, b: Beat): string {
-  return `${lane}:${b.n}/${b.d}`;
+/**
+ * 값(음악적 위치) 기준 "n/d" 키 — 표현이 달라도 같은 박이면 같은 키.
+ * 스냅은 분모=스냅분할값 형태(예: 박2를 스냅4로 8/4)를, 이동은 약분형(2/1)을 만든다.
+ * 약분하지 않으면 8/4와 2/1을 다른 위치로 오인해 중복/공존 검사가 실패한다.
+ * malformed(d=0·비유한)는 약분 불가라 원본 표기로 fallback한다 — 여기서 throw하면
+ * validateChart 전체가 죽는다. malformed 자체는 구조 검증(beatMalformed)이 잡는다.
+ */
+function beatValueKey(b: Beat): string {
+  if (!Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0) return `${b.n}/${b.d}`;
+  const r = beat(b.n, b.d);
+  return `${r.n}/${r.d}`;
 }
+
+function beatKey(lane: number, b: Beat): string {
+  return `${lane}:${beatValueKey(b)}`;
+}
+
+const noteRef = (index: number): ValidationRef => ({ kind: "note", index });
+const zoneRef = (index: number): ValidationRef => ({ kind: "trillZone", index });
+const eventRef = (index: number): ValidationRef => ({ kind: "event", index });
 
 // ---------------------------------------------------------------------------
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -83,9 +111,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       // 시작점 슬롯
       const startKey = beatKey(note.lane, note.beat);
       if (rangeStartSeen.has(startKey)) {
+        const prevIdx = rangeStartSeen.get(startKey)!;
         errors.push({
           rule: "duplicate",
-          message: `Duplicate range start at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${rangeStartSeen.get(startKey)}, ${i})`,
+          message: `Duplicate range start at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${prevIdx}, ${i})`,
+          refs: [noteRef(prevIdx), noteRef(i)],
         });
       } else {
         rangeStartSeen.set(startKey, i);
@@ -95,9 +125,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       if (!beatEq(note.beat, note.endBeat)) {
         const endKey = beatKey(note.lane, note.endBeat);
         if (rangeEndSeen.has(endKey)) {
+          const prevIdx = rangeEndSeen.get(endKey)!;
           errors.push({
             rule: "duplicate",
-            message: `Duplicate range end at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} (notes ${rangeEndSeen.get(endKey)}, ${i})`,
+            message: `Duplicate range end at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} (notes ${prevIdx}, ${i})`,
+            refs: [noteRef(prevIdx), noteRef(i)],
           });
         } else {
           rangeEndSeen.set(endKey, i);
@@ -107,9 +139,11 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
       // 포인트 노트 슬롯
       const key = beatKey(note.lane, note.beat);
       if (pointSeen.has(key)) {
+        const prevIdx = pointSeen.get(key)!;
         errors.push({
           rule: "duplicate",
-          message: `Duplicate point note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${pointSeen.get(key)}, ${i})`,
+          message: `Duplicate point note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} (notes ${prevIdx}, ${i})`,
+          refs: [noteRef(prevIdx), noteRef(i)],
         });
       } else {
         pointSeen.set(key, i);
@@ -132,31 +166,34 @@ export function validateNoDuplicates(notes: readonly NoteEntity[]): ValidationEr
 export function validateNoLongOverlap(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  // 레인별로 그룹화하여 비교 범위를 축소
-  const byLane = new Map<number, NoteEntity[]>();
-  for (const n of notes) {
+  // 레인별로 그룹화하여 비교 범위를 축소 (원본 인덱스도 함께 담는다)
+  const byLane = new Map<number, { note: NoteEntity; index: number }[]>();
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
     let arr = byLane.get(n.lane);
     if (!arr) { arr = []; byLane.set(n.lane, arr); }
-    arr.push(n);
+    arr.push({ note: n, index: i });
   }
 
   for (const laneNotes of byLane.values()) {
-    const rangeNotes = laneNotes.filter(isRangeNote);
+    const rangeNotes = laneNotes.filter((e) => isRangeNote(e.note));
     for (const rn of rangeNotes) {
+      const rnNote = rn.note as RangeNote;
       for (const other of laneNotes) {
         if (other === rn) continue;
 
-        const positions: Beat[] = isRangeNote(other)
-          ? beatEq(other.beat, other.endBeat)
-            ? [other.beat]
-            : [other.beat, other.endBeat]
-          : [other.beat];
+        const positions: Beat[] = isRangeNote(other.note)
+          ? beatEq(other.note.beat, (other.note as RangeNote).endBeat)
+            ? [other.note.beat]
+            : [other.note.beat, (other.note as RangeNote).endBeat]
+          : [other.note.beat];
 
         for (const b of positions) {
-          if (beatGt(b, rn.beat) && beatLt(b, rn.endBeat)) {
+          if (beatGt(b, rnNote.beat) && beatLt(b, rnNote.endBeat)) {
             errors.push({
               rule: "longOverlap",
-              message: `Note at lane ${other.lane}, beat ${b.n}/${b.d} overlaps long note body (${rn.beat.n}/${rn.beat.d} ~ ${rn.endBeat.n}/${rn.endBeat.d})`,
+              message: `Note at lane ${other.note.lane}, beat ${b.n}/${b.d} overlaps long note body (${rnNote.beat.n}/${rnNote.beat.d} ~ ${rnNote.endBeat.n}/${rnNote.endBeat.d})`,
+              refs: [noteRef(rn.index), noteRef(other.index)],
             });
           }
         }
@@ -181,7 +218,8 @@ export function validateTrillExclusive(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const note of notes) {
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
     const isTrill = note.type === "trill" || note.type === "trillLong";
 
     // trillLong: both start and end must be in the SAME trill zone
@@ -209,6 +247,7 @@ export function validateTrillExclusive(
       errors.push({
         rule: "trillExclusive",
         message: `Trill note at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is outside any trill zone`,
+        refs: [noteRef(i)],
       });
     }
 
@@ -216,6 +255,7 @@ export function validateTrillExclusive(
       errors.push({
         rule: "trillExclusive",
         message: `Non-trill note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside a trill zone`,
+        refs: [noteRef(i)],
       });
     }
   }
@@ -232,7 +272,8 @@ export function validateTrillExclusive(
 export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const note of notes) {
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
     if (note.type !== "trillLong") continue;
     const rn = note as RangeNote;
 
@@ -240,6 +281,7 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong cannot be hold-only (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+        refs: [noteRef(i)],
       });
     }
 
@@ -251,6 +293,7 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong must have a trill head (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+        refs: [noteRef(i)],
       });
     }
   }
@@ -285,6 +328,7 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
         errors.push({
           rule: "trillZoneOverlap",
           message: `Trill zones overlap on lane ${a.lane}: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          refs: [zoneRef(i), zoneRef(j)],
         });
       }
     }
@@ -309,11 +353,14 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
     const evt = events[i];
     if (evt.type !== "bpm" && evt.type !== "timeSignature") continue;
 
-    const key = `${evt.type}:${evt.beat.n}/${evt.beat.d}`;
+    // 값 기준 비교 — 노트 쪽 beatKey와 동일한 이유(8/4 vs 2/1 표현 차이 무시)
+    const key = `${evt.type}:${beatValueKey(evt.beat)}`;
     if (seen.has(key)) {
+      const prevIdx = seen.get(key)!;
       errors.push({
         rule: "eventDuplicate",
-        message: `Duplicate ${evt.type} event at beat ${evt.beat.n}/${evt.beat.d} (events ${seen.get(key)}, ${i})`,
+        message: `Duplicate ${evt.type} event at beat ${evt.beat.n}/${evt.beat.d} (events ${prevIdx}, ${i})`,
+        refs: [eventRef(prevIdx), eventRef(i)],
       });
     } else {
       seen.set(key, i);
@@ -327,13 +374,6 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 // 규칙 6: 이벤트 마커 겹침 금지
 // ---------------------------------------------------------------------------
 
-/** 일반 구간 이벤트만 필터링 (tutorialInput/tutorialDiagram은 튜토리얼 전용 표시 규칙으로 별도 취급) */
-function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
-  return events.filter((e): e is RangeEvent =>
-    e.type === "text" || e.type === "auto" || e.type === "stop",
-  );
-}
-
 /**
  * 같은 타입의 구간 이벤트끼리 열린 구간이 겹치는지 검사한다.
  * 다른 타입 간(text + auto 등)은 독립적이므로 겹침을 허용한다.
@@ -341,7 +381,15 @@ function getRangeEvents(events: readonly ChartEvent[]): RangeEvent[] {
  */
 export function validateNoEventOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const rangeEvents = getRangeEvents(events);
+
+  // 원본 인덱스를 유지한 채 구간 이벤트만 추린다 (getRangeEvents는 인덱스를 잃으므로 별도 구성)
+  const rangeEvents: { event: RangeEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "text" || e.type === "auto" || e.type === "stop") {
+      rangeEvents.push({ event: e, index: i });
+    }
+  }
 
   for (let i = 0; i < rangeEvents.length; i++) {
     for (let j = i + 1; j < rangeEvents.length; j++) {
@@ -349,17 +397,18 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
       const b = rangeEvents[j];
 
       // 다른 타입은 겹침 허용
-      if (a.type !== b.type) continue;
+      if (a.event.type !== b.event.type) continue;
 
-      const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
-      const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
-      const aStartInB = beatGt(a.beat, b.beat) && beatLt(a.beat, b.endBeat);
-      const aEndInB = beatGt(a.endBeat, b.beat) && beatLt(a.endBeat, b.endBeat);
+      const bStartInA = beatGt(b.event.beat, a.event.beat) && beatLt(b.event.beat, a.event.endBeat);
+      const bEndInA = beatGt(b.event.endBeat, a.event.beat) && beatLt(b.event.endBeat, a.event.endBeat);
+      const aStartInB = beatGt(a.event.beat, b.event.beat) && beatLt(a.event.beat, b.event.endBeat);
+      const aEndInB = beatGt(a.event.endBeat, b.event.beat) && beatLt(a.event.endBeat, b.event.endBeat);
 
       if (bStartInA || bEndInA || aStartInB || aEndInB) {
         errors.push({
           rule: "eventOverlap",
-          message: `Events overlap: ${a.type} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          message: `Events overlap: ${a.event.type} (${a.event.beat.n}/${a.event.beat.d}~${a.event.endBeat.n}/${a.event.endBeat.d}) and (${b.event.beat.n}/${b.event.beat.d}~${b.event.endBeat.n}/${b.event.endBeat.d})`,
+          refs: [eventRef(a.index), eventRef(b.index)],
         });
       }
     }
@@ -374,19 +423,28 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
  */
 export function validateNoTutorialInputOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const inputEvents = events.filter((e): e is TutorialInputEvent => e.type === "tutorialInput");
+
+  // 원본 인덱스를 유지한 채 tutorialInput 이벤트만 추린다
+  const inputEvents: { event: TutorialInputEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "tutorialInput") {
+      inputEvents.push({ event: e, index: i });
+    }
+  }
 
   for (let i = 0; i < inputEvents.length; i++) {
     for (let j = i + 1; j < inputEvents.length; j++) {
       const a = inputEvents[i];
       const b = inputEvents[j];
-      if (a.lane !== b.lane || a.keyCode !== b.keyCode) continue;
+      if (a.event.lane !== b.event.lane || a.event.keyCode !== b.event.keyCode) continue;
 
-      const overlaps = beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat);
+      const overlaps = beatLt(a.event.beat, b.event.endBeat) && beatLt(b.event.beat, a.event.endBeat);
       if (overlaps) {
         errors.push({
           rule: "tutorialInputOverlap",
-          message: `Tutorial input overlaps on lane ${a.lane}, key ${a.keyCode} (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          message: `Tutorial input overlaps on lane ${a.event.lane}, key ${a.event.keyCode} (${a.event.beat.n}/${a.event.beat.d}~${a.event.endBeat.n}/${a.event.endBeat.d}) and (${b.event.beat.n}/${b.event.beat.d}~${b.event.endBeat.n}/${b.event.endBeat.d})`,
+          refs: [eventRef(a.index), eventRef(b.index)],
         });
       }
     }
@@ -409,31 +467,43 @@ export function validateStopZones(
   events: readonly ChartEvent[],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const stopEvents = events.filter((e): e is StopEvent => e.type === "stop");
+
+  // 원본 인덱스를 유지한 채 stop 이벤트만 추린다
+  const stopEvents: { event: StopEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "stop") {
+      stopEvents.push({ event: e, index: i });
+    }
+  }
   if (stopEvents.length === 0) return errors;
 
   for (const stop of stopEvents) {
-    for (const note of notes) {
+    for (let noteIdx = 0; noteIdx < notes.length; noteIdx++) {
+      const note = notes[noteIdx];
       // 포인트 노트: beat가 stop 구간 내인지
       if (!isRangeNote(note)) {
-        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+        if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
       } else {
         // 롱노트: 시작점 or 끝점이 stop 구간 내인지
-        if (beatGte(note.beat, stop.beat) && beatLte(note.beat, stop.endBeat)) {
+        if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Long note start (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Long note start (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
-        if (beatGte(note.endBeat, stop.beat) && beatLte(note.endBeat, stop.endBeat)) {
+        if (beatGte(note.endBeat, stop.event.beat) && beatLte(note.endBeat, stop.event.endBeat)) {
           errors.push({
             rule: "stopZone",
-            message: `Long note end (${note.type}) at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} is inside stop zone (${stop.beat.n}/${stop.beat.d}~${stop.endBeat.n}/${stop.endBeat.d})`,
+            message: `Long note end (${note.type}) at lane ${note.lane}, beat ${note.endBeat.n}/${note.endBeat.d} is inside stop zone (${stop.event.beat.n}/${stop.event.beat.d}~${stop.event.endBeat.n}/${stop.event.endBeat.d})`,
+            refs: [noteRef(noteIdx), eventRef(stop.index)],
           });
         }
       }
@@ -459,13 +529,15 @@ export function isNaturalNumber(v: number): boolean {
 export function validateTimeSigNatural(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  for (const evt of events) {
+  for (let i = 0; i < events.length; i++) {
+    const evt = events[i];
     if (evt.type !== "timeSignature") continue;
     const { n, d } = evt.beatPerMeasure;
     if (!isNaturalNumber(n) || !isNaturalNumber(d)) {
       errors.push({
         rule: "timeSigNotNatural",
         message: `Time signature numerator and denominator must be natural numbers, got ${n}/${d} at beat ${evt.beat.n}/${evt.beat.d}`,
+        refs: [eventRef(i)],
       });
     }
   }
@@ -524,19 +596,25 @@ export function isMeasureBoundary(
 export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  const tsEvents = events
-    .filter((e): e is TimeSignatureEvent => e.type === "timeSignature")
-    .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
+  // 원본 인덱스를 유지한 채 timeSignature 이벤트만 추려 정렬한다
+  const tsEventsRaw: { event: TimeSignatureEvent; index: number }[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "timeSignature") {
+      tsEventsRaw.push({ event: e, index: i });
+    }
+  }
+  const tsEvents = tsEventsRaw.sort((a, b) => beatToFloat(a.event.beat) - beatToFloat(b.event.beat));
 
   if (tsEvents.length === 0) return errors;
 
   // 첫 번째 timesig 이벤트는 beat 0이어야 한다 (이미 다른 곳에서 강제됨)
   // 두 번째부터 마디 경계 검사
   let accBeatFloat = 0;
-  let currentBPM = tsEvents[0].beatPerMeasure;
+  let currentBPM = tsEvents[0].event.beatPerMeasure;
 
   for (let i = 1; i < tsEvents.length; i++) {
-    const evt = tsEvents[i];
+    const evt = tsEvents[i].event;
     const evtBeatFloat = beatToFloat(evt.beat);
 
     // 이전 timesig 기준으로 마디 경계를 찾는다
@@ -556,6 +634,7 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
       errors.push({
         rule: "timeSigNotAtMeasureStart",
         message: `Time signature at beat ${evt.beat.n}/${evt.beat.d} is not at a measure boundary`,
+        refs: [eventRef(tsEvents[i].index)],
       });
     }
 
@@ -571,6 +650,117 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
 }
 
 // ---------------------------------------------------------------------------
+// 구조 검증 (malformed 데이터 — 편집 중에도 절대 불가, RFD 0017 §3-1)
+// ---------------------------------------------------------------------------
+
+/**
+ * 구간 엔티티의 끝이 시작보다 앞서면(endBeat < beat) malformed로 본다.
+ *
+ * 대상: 구간 노트(RangeNote)·트릴 존(TrillZone)·구간 이벤트(text/auto/stop/
+ * tutorialInput/tutorialDiagram). 길이 0(endBeat == beat)은 허용(strict `<`).
+ * 낙관적 편집에서도 사용자가 transient로 지날 이유가 없는 값이라 구조로 분류한다.
+ */
+export function validateNoRangeInversion(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+  events: readonly ChartEvent[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    if (isRangeNote(n) && beatLt(n.endBeat, n.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `구간 노트 끝(${beatToFloat(n.endBeat)})이 시작(${beatToFloat(n.beat)})보다 앞섭니다 (레인 ${n.lane})`,
+        refs: [noteRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < trillZones.length; i++) {
+    const z = trillZones[i];
+    if (beatLt(z.endBeat, z.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `트릴 존 끝(${beatToFloat(z.endBeat)})이 시작(${beatToFloat(z.beat)})보다 앞섭니다 (레인 ${z.lane})`,
+        refs: [zoneRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if ("endBeat" in e && beatLt(e.endBeat, e.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `${e.type} 이벤트 끝(${beatToFloat(e.endBeat)})이 시작(${beatToFloat(e.beat)})보다 앞섭니다`,
+        refs: [eventRef(i)],
+      });
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Beat 자체가 성립하지 않는 값(분모 0·NaN·Infinity)이면 malformed로 본다.
+ *
+ * Beat 타입 계약(분모 항상 양수·유한 정수 쌍)이 깨진 데이터는 에디터가 만들 수 없고
+ * 외부/레거시 파일 로드로만 들어온다. `beat()` 생성자는 d=0에 throw하므로 이 값이
+ * 검증·약분 경로에 흘러들면 검증 함수 자체가 크래시한다 — "위반 목록 반환" 대신
+ * 예외가 전파되므로 구조 버킷에서 잡아 보고한다(RFD 0017 §3-1 malformed).
+ */
+export function validateBeatWellFormed(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+  events: readonly ChartEvent[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const isMalformed = (b: Beat): boolean =>
+    !Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0;
+
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    if (isMalformed(n.beat) || (isRangeNote(n) && isMalformed(n.endBeat))) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `노트의 beat가 malformed입니다 (레인 ${n.lane}, ${n.beat.n}/${n.beat.d})`,
+        refs: [noteRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < trillZones.length; i++) {
+    const z = trillZones[i];
+    if (isMalformed(z.beat) || isMalformed(z.endBeat)) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `트릴 존의 beat가 malformed입니다 (레인 ${z.lane}, ${z.beat.n}/${z.beat.d})`,
+        refs: [zoneRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (
+      isMalformed(e.beat) ||
+      ("endBeat" in e && isMalformed(e.endBeat)) ||
+      (e.type === "timeSignature" && isMalformed(e.beatPerMeasure))
+    ) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `${e.type} 이벤트의 beat가 malformed입니다 (${e.beat.n}/${e.beat.d})`,
+        refs: [eventRef(i)],
+      });
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
 
@@ -578,6 +768,37 @@ export interface ChartValidationInput {
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
   events: readonly ChartEvent[];
+}
+
+/**
+ * 구조 검증 — malformed 데이터(역전·불성립 Beat) + 크래시 유발(분자 0 박자표).
+ * setChart가 항상 하드 거부하는 버킷(RFD 0017 §3-2·§3-4).
+ */
+export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
+  return [
+    ...validateBeatWellFormed(input.notes, input.trillZones, input.events),
+    ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
+    ...validateTimeSigNatural(input.events),
+  ];
+}
+
+/**
+ * 의미 검증 — 게임 판정 전제 위반(겹침·중복·트릴 헤드·stop 구간·비경계 박자표 등).
+ * 낙관적 편집에서 편집 중 잠깐 허용하고 저장·플레이 진입 게이트가 강제하는 버킷.
+ */
+export function validateChartSemantic(input: ChartValidationInput): ValidationError[] {
+  return [
+    ...validateNoDuplicates(input.notes),
+    ...validateNoLongOverlap(input.notes),
+    ...validateTrillExclusive(input.notes, input.trillZones),
+    ...validateTrillLong(input.notes),
+    ...validateNoTrillZoneOverlap(input.trillZones),
+    ...validateNoEventDuplicate(input.events),
+    ...validateNoEventOverlap(input.events),
+    ...validateNoTutorialInputOverlap(input.events),
+    ...validateStopZones(input.notes, input.events),
+    ...validateTimeSigAtMeasureStart(input.events),
+  ];
 }
 
 // 검증 memo — 편집 프리뷰가 매 pointer-move마다 "모드 사전검증 + 차트 변이 게이트"로
@@ -604,18 +825,58 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
   if (cached) return cached;
 
   const errors = [
-    ...validateNoDuplicates(input.notes),
-    ...validateNoLongOverlap(input.notes),
-    ...validateTrillExclusive(input.notes, input.trillZones),
-    ...validateTrillLong(input.notes),
-    ...validateNoTrillZoneOverlap(input.trillZones),
-    ...validateNoEventDuplicate(input.events),
-    ...validateNoEventOverlap(input.events),
-    ...validateNoTutorialInputOverlap(input.events),
-    ...validateStopZones(input.notes, input.events),
-    ...validateTimeSigNatural(input.events),
-    ...validateTimeSigAtMeasureStart(input.events),
+    ...validateChartStructural(input),
+    ...validateChartSemantic(input),
   ];
   byEvents.set(input.events, errors);
   return errors;
+}
+
+export interface ChartViolationIndices {
+  notes: Set<number>;
+  trillZones: Set<number>;
+  events: Set<number>;
+}
+
+/**
+ * 위반에 연루된 엔티티 인덱스를 종류별로 validateChart refs에서 파생한다 (위반 시각화 단일 소스).
+ *
+ * 겹침·중복·트릴 등의 판정 로직을 별도로 재구현하지 않고 validateChart 결과의 refs만
+ * 걸러낸다 — 캔버스 빨간 해칭이 게이트가 막는 위반과 정확히 일치하도록(RFD 0017 §3-3).
+ */
+export function chartViolationIndices(input: ChartValidationInput): ChartViolationIndices {
+  const result: ChartViolationIndices = { notes: new Set(), trillZones: new Set(), events: new Set() };
+  for (const err of validateChart(input)) {
+    if (!err.refs) continue;
+    for (const ref of err.refs) {
+      if (ref.kind === "note") result.notes.add(ref.index);
+      else if (ref.kind === "trillZone") result.trillZones.add(ref.index);
+      else if (ref.kind === "event") result.events.add(ref.index);
+    }
+  }
+  return result;
+}
+
+/** 위반에 연루된 노트 인덱스만 추린다(시각화 편의). */
+export function chartViolatingNoteIndices(input: ChartValidationInput): Set<number> {
+  return chartViolationIndices(input).notes;
+}
+
+/**
+ * 주어진 엔티티 참조에 연루된 위반만 추린다 — 신규/변경 엔티티의 국소 판정용(RFD 0017).
+ *
+ * 낙관적 편집에서 라이브 차트에는 transient 의미 위반이 상주할 수 있다. 그래서
+ * "전체 차트 검증 후 에러가 하나라도 있으면 차단"은 무관한 기존 위반 하나가
+ * 모든 생성·변환을 전역 차단하는 회귀를 만든다 — 새 엔티티에 연루된 위반만
+ * 걸러 판정해야 place-then-fix 도중에도 편집이 계속된다.
+ * refs 없는 위반은 귀속을 알 수 없으므로 보수적으로 포함한다.
+ */
+export function violationsInvolving(
+  errors: readonly ValidationError[],
+  targets: readonly ValidationRef[],
+): ValidationError[] {
+  const targetKeys = new Set(targets.map((t) => `${t.kind}:${t.index}`));
+  return errors.filter(
+    (err) => !err.refs || err.refs.some((r) => targetKeys.has(`${r.kind}:${r.index}`)),
+  );
 }

@@ -146,8 +146,9 @@ export class TimelineRenderer {
   private _cursorLine: Graphics | null = null;
   private _cursorHandle: Graphics | null = null;
 
-  // Violation overlay state (for paste preview)
+  // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3). 노트·트릴존 각각.
   private _violatingNoteIndices: Set<number> = new Set();
+  private _violatingTrillZoneIndices: Set<number> = new Set();
 
   // Chart data
   private chart: Chart | null = null;
@@ -398,6 +399,7 @@ export class TimelineRenderer {
       get selectedTrillZones() { return self._selectedTrillZones; },
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
+      get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
@@ -940,10 +942,12 @@ export class TimelineRenderer {
   }
 
   /**
-   * Set note indices that violate constraints (shown with red hatching overlay).
+   * 제약을 위반하는 노트·트릴존 인덱스를 설정한다(빨간 해칭 오버레이).
+   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3).
    */
-  setViolatingNotes(indices: Set<number>): void {
-    this._violatingNoteIndices = indices;
+  setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>): void {
+    this._violatingNoteIndices = noteIndices;
+    this._violatingTrillZoneIndices = trillZoneIndices;
     this.overlayRenderer.renderViolationOverlay();
     this.app?.render();
   }

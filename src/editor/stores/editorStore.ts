@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import type { Chart, ExtraNoteEntity } from '../../shared';
-import { beat, validateChart } from '../../shared';
+import { beat, validateChart, validateChartStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -155,17 +155,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActiveSongId: (activeSongId) => set({ activeSongId }),
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
   setChart: (chart) => {
-    // 차트 변이 게이트 — 모델 불변(배치 제약, 층1)은 이 한 곳에서 강제된다.
-    // 정상 편집 경로는 모드의 사전검증에서 이미 걸리므로, 여기 도달한 위반은
-    // 무검증 경로(삭제·토글 등)의 버그 신호다. 거부 시 차트·히스토리 무변.
-    const errors = validateChart({
+    // 차트 변이 게이트 — 낙관적 편집(RFD 0017). 여기서는 **구조 위반만** 하드 거부한다:
+    // malformed 데이터(구간 역전)·크래시 유발(분자 0 박자표)은 편집 중에도 절대 불가.
+    // 의미 위반(겹침·중복·트릴 헤드 등)은 transient로 **허용해 커밋**한다 — "일단 옮기고
+    // 나중에 고치기"를 위해. 의미 제약은 저장·플레이/프리뷰 진입 게이트가 강제한다.
+    // 거부 시 차트·히스토리 무변. 커밋 시 의미 위반 상태도 히스토리에 남아 undo로 복귀 가능.
+    const errors = validateChartStructural({
       notes: chart.notes,
       trillZones: chart.trillZones,
       events: chart.events,
     });
     if (errors.length > 0) {
-      console.error('차트 변이 거부 (배치 제약 위반):', errors);
-      showToast(`배치 제약 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
+      console.error('차트 변이 거부 (구조 위반):', errors);
+      showToast(`구조 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
       return;
     }
     set((state) => ({ ...captureHistory(state), chart }));

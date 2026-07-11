@@ -2,7 +2,9 @@
  * Create Mode — 차트 엔티티 생성 인터랙션 핸들러
  *
  * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다.
- * 드래그로 구간 엔티티를 생성하며, 모든 배치는 validateChart로 검증한다.
+ * 드래그로 구간 엔티티를 생성하며, 배치는 **새 엔티티에 연루된 위반만** 차단한다
+ * (violationsInvolving 국소 판정) — 낙관적 편집(RFD 0017)에서 차트에 상주하는
+ * 무관한 transient 위반이 생성을 전역 차단하지 않도록.
  */
 
 import type {
@@ -17,7 +19,7 @@ import type {
   ExtraPointNote,
   ExtraRangeNote,
 } from "../../shared";
-import { validateChart, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
+import { validateChart, violationsInvolving, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
@@ -439,7 +441,12 @@ export class CreateMode implements EditorMode {
       events: this.chart.events,
     };
 
-    const errors = validateChart(testChart);
+    // 낙관적 편집(RFD 0017): 라이브 차트에 transient 위반이 상주할 수 있으므로
+    // 전체 에러가 아니라 **새 노트에 연루된 위반만** 차단한다 — 무관한 기존 위반이
+    // 생성을 전역 차단하지 않도록. 기존 위반의 강제는 저장·플레이 게이트 몫.
+    const errors = violationsInvolving(validateChart(testChart), [
+      { kind: "note", index: this.chart.notes.length },
+    ]);
     if (errors.length > 0) {
       // Validation failed, don't add
       this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
@@ -502,7 +509,11 @@ export class CreateMode implements EditorMode {
       events: this.chart.events,
     };
 
-    const errors = validateChart(testChart);
+    // 낙관적 편집(RFD 0017): 새로 추가되는 헤드·바디에 연루된 위반만 차단 (국소 판정)
+    const errors = violationsInvolving(
+      validateChart(testChart),
+      newNotes.map((_, i) => ({ kind: "note" as const, index: this.chart.notes.length + i })),
+    );
     if (errors.length > 0) {
       this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
@@ -539,7 +550,10 @@ export class CreateMode implements EditorMode {
       events: this.chart.events,
     };
 
-    const errors = validateChart(testChart);
+    // 낙관적 편집(RFD 0017): 새 존에 연루된 위반만 차단 (국소 판정)
+    const errors = violationsInvolving(validateChart(testChart), [
+      { kind: "trillZone", index: this.chart.trillZones.length },
+    ]);
     if (errors.length > 0) {
       this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;
@@ -614,7 +628,10 @@ export class CreateMode implements EditorMode {
       events: [...this.chart.events, newEvent],
     };
 
-    const errors = validateChart(testChart);
+    // 낙관적 편집(RFD 0017): 새 이벤트에 연루된 위반만 차단 (국소 판정)
+    const errors = violationsInvolving(validateChart(testChart), [
+      { kind: "event", index: this.chart.events.length },
+    ]);
     if (errors.length > 0) {
       this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
       return;

@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChart } from "../../shared";
+import { validateChart, violationsInvolving } from "../../shared";
 
 export interface LaneConversionCallbacks {
   getExtraNotes?: () => ExtraNoteEntity[];
@@ -113,12 +113,16 @@ export function convertExtraToMain(
   const newNotes = [...chart.notes, ...convertedMainNotes];
   const newChart = { ...chart, notes: newNotes };
 
-  // Validate
-  const errors = validateChart({
-    notes: newChart.notes,
-    trillZones: newChart.trillZones,
-    events: newChart.events,
-  });
+  // 낙관적 편집(RFD 0017): 변환되어 들어오는 노트에 연루된 위반만 차단 (국소 판정)
+  // — 차트에 무관한 transient 위반이 상주해도 변환을 전역 차단하지 않는다.
+  const errors = violationsInvolving(
+    validateChart({
+      notes: newChart.notes,
+      trillZones: newChart.trillZones,
+      events: newChart.events,
+    }),
+    convertedMainNotes.map((_, i) => ({ kind: "note" as const, index: chart.notes.length + i })),
+  );
 
   if (errors.length > 0) {
     return null;

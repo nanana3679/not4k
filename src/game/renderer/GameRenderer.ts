@@ -7,7 +7,7 @@
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
 import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
-import { beatToMs, extractBpmMarkers, extractTimeSignatures, measureStartBeat } from "../../shared";
+import { beatToMs, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
@@ -1152,15 +1152,10 @@ export class GameRenderer {
       return { entity, index, timeMs, endTimeMs };
     });
 
-    this.measureTimesMs = [];
-    if (bpmMarkers.length > 0 && timeSignatures.length > 0 && durationMs > 0) {
-      for (let m = 0; ; m++) {
-        const mBeat = measureStartBeat(m, timeSignatures);
-        const mMs = beatToMs(mBeat, bpmMarkers, offsetMs);
-        if (mMs > durationMs) break;
-        this.measureTimesMs.push(mMs);
-      }
-    }
+    this.measureTimesMs =
+      durationMs > 0
+        ? enumerateMeasureStartsMs(durationMs, bpmMarkers, timeSignatures, offsetMs)
+        : [];
 
     // Extract text/auto events with time ranges
     this.textEvents = [];

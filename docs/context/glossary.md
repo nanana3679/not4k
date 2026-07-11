@@ -530,11 +530,13 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### 차트 변이 게이트 (Chart Mutation Gate)
 
-에디터의 모든 차트 쓰기가 수렴하는 store `setChart`에 내장된 **층1(모델 불변) 검증**. `validateChart` 위반 차트는 거부되고(차트·히스토리 무변) 토스트로 사유를 알린다. 정상 편집 경로는 모드의 사전검증(사용자 경고 UX 층)에서 이미 걸리므로, 게이트 도달은 무검증 경로(삭제·토글 등)의 버그 신호다 — `console.error`가 개발 중 탐지기 역할을 한다.
+에디터의 모든 차트 쓰기가 수렴하는 store `setChart`에 내장된 **구조 검증**. 낙관적 편집(RFD 0017)에서 setChart는 **구조 위반**(`validateChartStructural`: 구간 역전 `rangeInverted`·분자 0 박자표 `timeSigNotNatural` 등 malformed/크래시 유발)만 거부하고(차트·히스토리 무변) 토스트로 사유를 알린다. **의미 위반**(겹침·중복·트릴 헤드 등)은 편집 중 **transient로 허용해 커밋**한다 — "일단 옮기고 나중에 고치기". 따라서 **라이브 차트는 더 이상 항상 valid가 아니다**(렌더러·프리뷰·undo가 invalid를 견뎌야 한다).
 
-**배치 제약의 두 층**: 층1 = 모델 불변(`validateChart` — 어기면 판정 엔진 전제가 깨짐, 게이트가 강제), 층2 = 편집 배치 가드(`isCreatePlacementBlocked` — 시각 겹침 tolerance 등 UX 정책, 모드 소관). 층2 규칙을 게이트에 넣으면 레인 내 분리(`-o`) 같은 합법 배치까지 막게 되므로 섞지 않는다.
+**층1 안의 구조 vs 의미**: 구조 = malformed(그 자체로 성립 안 함) ∨ 크래시 유발(`timeSigNatural`은 measure 무한루프 방지를 위해 구조 — measure 루프 3곳 step≤0 가드로 하드닝됨) → setChart가 항상 거부. 의미 = 판정 전제 위반(겹침 등) → 커밋 허용, 커밋 게이트가 강제. **배치 제약의 두 층**(직교 축): 층1 = 모델 불변(`validateChart`), 층2 = 편집 배치 가드(`isCreatePlacementBlocked` — 시각 겹침 tolerance 등 UX 정책, 모드 소관). 층2 규칙을 게이트에 넣으면 레인 내 분리(`-o`) 같은 합법 배치까지 막게 되므로 섞지 않는다.
 
-**유일한 예외 통로 `loadChart`**: 레거시 위반 차트도 열어 수리를 허용한다(경고만 표시). 재저장은 저장 게이트(useFileOperations의 validateChart)가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다". undo/redo는 게이트를 거치지 않지만 히스토리에는 "당시 현재였던" 차트만 쌓인다 — 편집 경로로는 게이트 통과분만 들어가고, **loadChart로 열린 위반 차트는 수리 전까지 히스토리(undo)에 나타날 수 있다**(엑스트라 노트 편집 등이 스냅샷). 이 역시 저장 게이트가 전파를 막는다.
+**커밋 게이트(의미 강제 지점)**: 의미 위반은 (1) **저장 게이트**(`useFileOperations`의 `validateChart`)와 (2) **플레이/프리뷰 진입 게이트**(`performPlayTest` + 툴바 Test Play 버튼 비활성)가 강제한다 — 위반이 남아 있으면 저장·플레이를 막는다. 위반 노트·트릴존은 빨간 해칭으로 표시된다(App이 차트 변경 시 `chartViolationIndices`로 재계산 — 캔버스 빨강 == 게이트 판정, 단일 소스). 되돌리기는 능동 **undo**(위반 상태도 커밋이라 히스토리에 남음).
+
+**`loadChart`**: 레거시/외부 위반 차트를 구조·의미 모두 열어 수리를 허용한다(경고만). 재저장은 저장 게이트가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다".
 
 **구현**: `src/editor/stores/editorStore.ts`.
 

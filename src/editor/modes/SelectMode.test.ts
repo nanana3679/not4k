@@ -41,7 +41,6 @@ function makeCallbacks(
     getMaxBeatFloat: () => 100,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
     hitTestNote: () => null,
-    onViolationsChange: vi.fn(),
     onWarn: vi.fn(),
     onTrillZoneSelectionChange: vi.fn(),
     // Extra lane callbacks
@@ -218,7 +217,7 @@ describe("SelectMode — computeHoveredTrillZone", () => {
 // 리사이즈 프리뷰 제약 — 커밋과 동일한 validateChart 게이트
 // ---------------------------------------------------------------------------
 
-describe("SelectMode — 리사이즈 프리뷰 제약", () => {
+describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
   // 구간[2,6] 레인1, 안에 트릴노트 beat4
   function setup() {
     const chart = makeChart({
@@ -242,16 +241,16 @@ describe("SelectMode — 리사이즈 프리뷰 제약", () => {
     expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
   });
 
-  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰 미적용(직전 유효값 유지)", () => {
+  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰가 위반 위치를 그대로 표시(낙관적 편집)", () => {
     const { mode, cb, priv } = setup();
     mode.onPointerDown(9, 6, false, false);
     mode.onPointerMove(9, 5); // 유효 → endBeat=5
     const callsAfterValid = cb.onChartUpdate.mock.calls.length;
 
-    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖 → 위반 → 미적용
+    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖(의미 위반) — 낙관적으로 그대로 표시
 
-    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5); // 5에서 안 줄어듦
-    expect(cb.onChartUpdate.mock.calls.length).toBe(callsAfterValid); // onChartUpdate 재호출 없음
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(3); // 위반 위치까지 축소 반영
+    expect(cb.onChartUpdate.mock.calls.length).toBeGreaterThan(callsAfterValid); // 프리뷰 재커밋됨
   });
 });
 
@@ -825,12 +824,11 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
   }
 
   it("confirmPlacement — 제약 만족 시 배치 확정", () => {
-    const { cb, mode } = setupPaste();
+    const { mode } = setupPaste();
 
     mode.confirmPlacement();
 
     expect(mode.isPendingPaste).toBe(false);
-    expect(cb.onViolationsChange).toHaveBeenCalledWith(new Set());
   });
 
   it("cancelPaste — 붙여넣은 노트 제거, 원래 상태 복원", () => {
@@ -845,7 +843,7 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
     expect(lastChart.notes[0].beat.n / lastChart.notes[0].beat.d).toBe(0);
   });
 
-  it("confirmPlacement — 중복 위치에 붙여넣기 시 확정 거부", () => {
+  it("confirmPlacement — 중복 위치 붙여넣기(의미 위반)도 낙관 확정된다 (place-then-fix, RFD 0017 §2)", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
@@ -856,13 +854,13 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
 
     mode.selectNote(0);
     mode.copy();
-    mode.paste(beat(0)); // 같은 위치에 붙여넣기 = 중복
+    mode.paste(beat(0)); // 같은 위치에 붙여넣기 = 중복(의미 위반)
 
     mode.confirmPlacement();
 
-    // 여전히 pending 상태
-    expect(mode.isPendingPaste).toBe(true);
-    expect(cb.onWarn).toHaveBeenCalled();
+    // 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부, 의미 위반은 transient 커밋(해칭·게이트가 강제)
+    expect(mode.isPendingPaste).toBe(false);
+    expect(cb.onWarn).not.toHaveBeenCalled();
   });
 });
 
@@ -935,58 +933,6 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
 
     // onChartUpdate should NOT have been called again (move blocked)
     expect(cb.onChartUpdate.mock.calls.length).toBe(callCountBefore);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 위반 감지
-// ---------------------------------------------------------------------------
-
-describe("SelectMode — 붙여넣기 위반 감지", () => {
-  it("중복 위치에 붙여넣기 시 violationsChange에 위반 인덱스 전달", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(4) },
-      ],
-    });
-    const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
-
-    // beat(0) lane(1) 노트를 복사하고 beat(4)에 붙여넣기 → 기존 노트와 중복
-    // 먼저 복사할 노트 추가
-    mode.setChart(makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(0) },
-        { type: "single", lane: 1 as Lane, beat: beat(4) }, // 기존 노트
-      ],
-    }));
-    mode.selectNote(0);
-    mode.copy();
-    mode.paste(beat(4)); // beat(0) + offset(4) = beat(4) → 중복
-
-    // onViolationsChange should have been called with the pasted note index
-    expect(cb.onViolationsChange).toHaveBeenCalled();
-    const lastCall = cb.onViolationsChange.mock.calls[cb.onViolationsChange.mock.calls.length - 1];
-    const violations = lastCall[0] as Set<number>;
-    expect(violations.size).toBeGreaterThan(0);
-  });
-
-  it("빈 위치에 붙여넣기 시 위반 없음", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(0) },
-      ],
-    });
-    const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
-
-    mode.selectNote(0);
-    mode.copy();
-    mode.paste(beat(8)); // 충돌 없는 위치
-
-    const lastCall = cb.onViolationsChange.mock.calls[cb.onViolationsChange.mock.calls.length - 1];
-    const violations = lastCall[0] as Set<number>;
-    expect(violations.size).toBe(0);
   });
 });
 
@@ -1166,6 +1112,23 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
 
     const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes[0].lane).toBe(4);
+  });
+
+  it("이동으로 같은 레인·박 중복(의미 위반)이 생겨도 롤백 없이 커밋된다 (낙관적 편집)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(0) },
+      ],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = new SelectMode(chart, cb);
+    mode.selectNote(1); // 레인 2 노트 선택
+
+    mode.moveByLane("left"); // 레인 2 → 1 → 레인1 beat0 노트와 중복(의미 위반)
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes[1].lane).toBe(1); // 원위치(레인2)로 되돌리지 않고 중복 상태로 커밋
   });
 });
 

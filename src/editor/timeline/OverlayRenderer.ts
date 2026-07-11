@@ -26,6 +26,7 @@ export interface OverlayHost {
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
+  readonly violatingTrillZoneIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
@@ -392,62 +393,80 @@ export class OverlayRenderer {
    */
   renderViolationOverlay(): void {
     destroyChildren(this.host.violationLayer);
-    if (!this.host.chart || this.host.violatingNoteIndices.size === 0) return;
+    if (!this.host.chart) return;
+    if (this.host.violatingNoteIndices.size === 0 && this.host.violatingTrillZoneIndices.size === 0) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const meta = this.host.chart.meta;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
+    // 노트: 포인트는 startMs만, 구간(롱)은 endMs까지.
     for (const idx of this.host.violatingNoteIndices) {
       if (idx >= this.host.chart.notes.length) continue;
       const note = this.host.chart.notes[idx];
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-
-      const x = (note.lane - 1) * LANE_WIDTH;
-      const w = NOTE_HEIGHT * 5;
-      const h = NOTE_HEIGHT;
-      const rectX = x + (LANE_WIDTH - w) / 2;
-
-      let topY: number;
-      let height: number;
-
-      if ("endBeat" in note) {
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
-        const lo = Math.min(startMs, endMs);
-        const hi = Math.max(startMs, endMs);
-        if (hi < minTimeMs || lo > maxTimeMs) continue;
-        const startY = this.host.timeToY(startMs);
-        const endY = this.host.timeToY(endMs);
-        topY = Math.min(startY, endY) - h / 2;
-        height = Math.abs(endY - startY) + h;
-      } else {
-        if (startMs < minTimeMs || startMs > maxTimeMs) continue;
-        const y = this.host.timeToY(startMs);
-        topY = y - h / 2;
-        height = h;
-      }
-
-      const gfx = new Graphics();
-
-      gfx.rect(rectX, topY, w, height);
-      gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
-
-      const spacing = Math.max(4, Math.min(8, height * 0.6));
-      gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
-      for (let d = -height; d < w; d += spacing) {
-        const x1 = Math.max(0, d);
-        const y1 = Math.max(0, -d);
-        const x2 = Math.min(w, d + height);
-        const y2 = Math.min(height, w - d);
-        if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
-          gfx.moveTo(rectX + x1, topY + y1);
-          gfx.lineTo(rectX + x2, topY + y2);
-        }
-      }
-      gfx.stroke();
-
-      this.host.violationLayer.addChild(gfx);
+      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
+      this.drawViolationHatch(note.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
+
+    // 트릴존: 항상 구간(존↔존 겹침 등, RFD 0017 §3-3). 노트와 동일 레인 기하.
+    for (const idx of this.host.violatingTrillZoneIndices) {
+      if (idx >= this.host.chart.trillZones.length) continue;
+      const zone = this.host.chart.trillZones[idx];
+      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
+    }
+  }
+
+  /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */
+  private drawViolationHatch(
+    lane: number,
+    startMs: number,
+    endMs: number | null,
+    minTimeMs: number,
+    maxTimeMs: number,
+  ): void {
+    const w = NOTE_HEIGHT * 5;
+    const h = NOTE_HEIGHT;
+    const rectX = (lane - 1) * LANE_WIDTH + (LANE_WIDTH - w) / 2;
+
+    let topY: number;
+    let height: number;
+    if (endMs !== null) {
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) return;
+      const startY = this.host.timeToY(startMs);
+      const endY = this.host.timeToY(endMs);
+      topY = Math.min(startY, endY) - h / 2;
+      height = Math.abs(endY - startY) + h;
+    } else {
+      if (startMs < minTimeMs || startMs > maxTimeMs) return;
+      const y = this.host.timeToY(startMs);
+      topY = y - h / 2;
+      height = h;
+    }
+
+    const gfx = new Graphics();
+    gfx.rect(rectX, topY, w, height);
+    gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
+
+    const spacing = Math.max(4, Math.min(8, height * 0.6));
+    gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
+    for (let d = -height; d < w; d += spacing) {
+      const x1 = Math.max(0, d);
+      const y1 = Math.max(0, -d);
+      const x2 = Math.min(w, d + height);
+      const y2 = Math.min(height, w - d);
+      if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
+        gfx.moveTo(rectX + x1, topY + y1);
+        gfx.lineTo(rectX + x2, topY + y2);
+      }
+    }
+    gfx.stroke();
+
+    this.host.violationLayer.addChild(gfx);
   }
 
 }

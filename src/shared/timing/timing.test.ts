@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { beatToMs, msToBeat, bpmAt, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "./index";
+import { beatToMs, msToBeat, bpmAt, measureStartBeat, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "./index";
 import { beat, beatToFloat, BEAT_ZERO } from "../types/beat";
 import type { BpmMarker, TimeSignatureMarker, ChartEvent } from "../types/chart";
 
@@ -310,5 +310,39 @@ describe("extractTimeSignatures", () => {
     expect(result).toHaveLength(1);
     expect(result[0].measure).toBe(0);
     expect(beatToFloat(result[0].beatPerMeasure)).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enumerateMeasureStartsMs
+// ---------------------------------------------------------------------------
+
+describe("enumerateMeasureStartsMs", () => {
+  const TS_4_4: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
+
+  it("4/4·120BPM·limit 5000ms면 마디 시작 [0, 2000, 4000]을 순증 배열로 반환", () => {
+    // 1박=500ms, 1마디=4박=2000ms → 0,2000,4000 (다음 6000 > 5000이라 제외)
+    expect(enumerateMeasureStartsMs(5000, SINGLE_BPM, TS_4_4)).toEqual([0, 2000, 4000]);
+  });
+
+  it("limit와 정확히 같은 마디 시작(4000ms)은 포함(경계)", () => {
+    expect(enumerateMeasureStartsMs(4000, SINGLE_BPM, TS_4_4)).toEqual([0, 2000, 4000]);
+  });
+
+  it("offsetMs 1000이면 모든 마디 시작이 1000씩 밀림", () => {
+    expect(enumerateMeasureStartsMs(5000, SINGLE_BPM, TS_4_4, 1000)).toEqual([1000, 3000, 5000]);
+  });
+
+  it("0/4 박자표(분자 0)면 마디가 전진하지 않아 무한루프 없이 [0]만 반환", () => {
+    const ts0: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(0) }];
+    expect(enumerateMeasureStartsMs(100000, SINGLE_BPM, ts0)).toEqual([0]);
+  });
+
+  it("빈 bpmMarkers면 빈 배열", () => {
+    expect(enumerateMeasureStartsMs(5000, [], TS_4_4)).toEqual([]);
+  });
+
+  it("빈 timeSignatures면 빈 배열(measureStartBeat 예외 회피)", () => {
+    expect(enumerateMeasureStartsMs(5000, SINGLE_BPM, [])).toEqual([]);
   });
 });

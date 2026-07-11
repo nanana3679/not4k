@@ -14,6 +14,7 @@ import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
+import { chartViolationIndices } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -433,6 +434,10 @@ function ChartEditorPage() {
 
       rendererRef.current = renderer;
       renderer.setChart(chart);
+      // init()이 async라 [chart] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
+      // 생성 직후 여기서 위반을 한 번 세팅해, 로드된 차트에 위반이 있어도 첫 편집 전에 표시되게 한다.
+      const initViolations = chartViolationIndices(chart);
+      renderer.setViolations(initViolations.notes, initViolations.trillZones);
 
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
@@ -498,7 +503,6 @@ function ChartEditorPage() {
       onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
-      onViolationsChange: (indices) => { rendererRef.current?.setViolatingNotes(indices); },
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
@@ -600,6 +604,12 @@ function ChartEditorPage() {
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
+    // 낙관적 편집(RFD 0017 §3-3): 차트가 바뀔 때마다 위반 노트·트릴존을 validateChart 단일
+    // 소스에서 재계산해 빨간 해칭을 갱신한다. 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영.
+    if (rendererRef.current) {
+      const violations = chartViolationIndices(chart);
+      rendererRef.current.setViolations(violations.notes, violations.trillZones);
+    }
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { performPlayTest, resolveAudioUploadPath, resolvePreviewRegenRange, type PerformPlayTestParams } from './useFileOperations';
-import type { PlaybackRange } from '../../shared';
+import { beat } from '../../shared';
+import type { PlaybackRange, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
 
 function fakeAudioFile(name: string): File {
@@ -108,6 +109,24 @@ describe('performPlayTest', () => {
 
     expect(result).toBe(false);
     expect(addToast).toHaveBeenCalledWith('오디오가 로딩되지 않았습니다', 'error');
+    expect(game.setScreen).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('의미 위반(같은 레인·박 중복 노트)이 있으면 화면 전환·네비게이션 없이 false 반환', () => {
+    const invalidChart = {
+      ...baseChart,
+      notes: [
+        { type: 'single' as const, lane: 1 as Lane, beat: beat(1) },
+        { type: 'single' as const, lane: 1 as Lane, beat: beat(1) },
+      ],
+    };
+    const { params, game, addToast, navigate } = buildParams({ chart: invalidChart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(false);
+    expect(addToast).toHaveBeenCalled();
     expect(game.setScreen).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
