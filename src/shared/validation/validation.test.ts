@@ -15,6 +15,7 @@ import {
   chartViolatingNoteIndices,
   chartViolationIndices,
   validateNoRangeInversion,
+  validateBeatWellFormed,
   isNaturalNumber,
   validateTimeSigNatural,
   validateTimeSigAtMeasureStart,
@@ -289,6 +290,16 @@ describe("validateTrillLong", () => {
     expect(errors[0].rule).toBe("trillLongInvalid");
   });
 
+  it("위반 trillLong의 원본 인덱스가 refs에 kind 'note'로 담긴다 (헤드가 앞에 있어 인덱스 1)", () => {
+    const notes: NoteEntity[] = [
+      { type: "trill", lane: 1, beat: beat(0) }, // 인덱스 0 = 헤드(위반 아님)
+      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 인덱스 1 = 위반
+    ];
+    const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "note", index: 1 }]);
+  });
+
   it("헤드 없는 trillLong(length>0)이면 에러 — 교대 비교 대상 없음", () => {
     const notes: NoteEntity[] = [
       { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2) }, // 헤드 없음
@@ -445,6 +456,26 @@ describe("validateNoEventDuplicate", () => {
     ];
     expect(validateNoEventDuplicate(events)).toEqual([]);
   });
+
+  it("같은 박 2를 8/4와 2/1로 표현한 bpm 2개는 표현이 달라도 중복으로 잡는다 (refs=원본 인덱스)", () => {
+    // 노트 쪽 beatKey 약분 fix(f288657)와 같은 버그 클래스 — 이벤트 키도 값 기준이어야 한다.
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: { n: 8, d: 4 }, bpm: 120 }, // 스냅형 8/4 = 2.0
+      { type: "bpm", beat: beat(2), bpm: 180 },        // 약분형 2/1 = 2.0
+    ];
+    const errors = validateNoEventDuplicate(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("eventDuplicate");
+    expect(errors[0].refs).toEqual([{ kind: "event", index: 0 }, { kind: "event", index: 1 }]);
+  });
+
+  it("같은 박의 timeSignature 8/4·2/1 표현 조합도 중복으로 잡는다", () => {
+    const events: ChartEvent[] = [
+      { type: "timeSignature", beat: { n: 8, d: 4 }, beatPerMeasure: beat(4) },
+      { type: "timeSignature", beat: beat(2), beatPerMeasure: beat(3) },
+    ];
+    expect(validateNoEventDuplicate(events)).toHaveLength(1);
+  });
 });
 
 // =========================================================================
@@ -518,6 +549,17 @@ describe("validateNoTutorialInputOverlap", () => {
     const errors = validateNoTutorialInputOverlap(events);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("tutorialInputOverlap");
+  });
+
+  it("겹치는 두 tutorialInput의 원본 인덱스가 refs에 담긴다 — 앞에 다른 타입 이벤트가 끼어 인덱스가 밀려도 정확", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 }, // 인덱스 0 — tutorialInput 아님
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" }, // 인덱스 1
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyD" }, // 인덱스 2
+    ];
+    const errors = validateNoTutorialInputOverlap(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "event", index: 1 }, { kind: "event", index: 2 }]);
   });
 
   it("같은 lane+keyCode라도 끝과 시작이 같은 tutorialInput 구간은 허용", () => {
@@ -777,6 +819,92 @@ describe("validateNoRangeInversion", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(0) }];
     expect(validateNoRangeInversion(notes, [], [])).toEqual([]);
   });
+
+  it("역전 엔티티의 원본 인덱스가 refs에 kind별(note/trillZone/event)로 담긴다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(0) }, // 인덱스 0 — 위반 아님
+      { type: "long", lane: 1, beat: beat(4), endBeat: beat(2) }, // 인덱스 1 = 역전
+    ];
+    const zones: TrillZone[] = [{ lane: 2, beat: beat(8), endBeat: beat(4) }]; // 인덱스 0 = 역전
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 }, // 인덱스 0 — 구간 아님
+      { type: "stop", beat: beat(4), endBeat: beat(2) }, // 인덱스 1 = 역전
+    ];
+    const errors = validateNoRangeInversion(notes, zones, events);
+    expect(errors).toHaveLength(3);
+    expect(errors.map((e) => e.refs)).toEqual([
+      [{ kind: "note", index: 1 }],
+      [{ kind: "trillZone", index: 0 }],
+      [{ kind: "event", index: 1 }],
+    ]);
+  });
+});
+
+describe("validateBeatWellFormed (구조: malformed Beat)", () => {
+  it("d=0 노트가 있어도 validateChart가 throw하지 않고 beatMalformed를 보고한다", () => {
+    // beatKey가 beat() 생성자를 쓰게 되면서(f288657) d=0이 검증 경로에서 throw하던 회귀 방어.
+    // loadChart는 malformed 외부 파일도 열어 수리를 허용하므로 검증은 절대 던지면 안 된다.
+    const input = {
+      notes: [{ type: "single", lane: 1, beat: { n: 5, d: 0 } }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(() => validateChart(input)).not.toThrow();
+    expect(validateChart(input).some((e) => e.rule === "beatMalformed")).toBe(true);
+  });
+
+  it("d=0 노트끼리는 중복 검사(validateNoDuplicates)도 throw 없이 통과한다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: { n: 5, d: 0 } },
+      { type: "single", lane: 1, beat: beat(2) },
+    ];
+    expect(() => validateNoDuplicates(notes)).not.toThrow();
+  });
+
+  it("d=0 트릴존·이벤트·NaN 분자 노트가 각각 beatMalformed로 잡힌다 (refs=원본 인덱스)", () => {
+    const errors = validateBeatWellFormed(
+      [
+        { type: "single", lane: 1, beat: beat(0) }, // 인덱스 0 — 정상
+        { type: "single", lane: 2, beat: { n: NaN, d: 1 } }, // 인덱스 1 = NaN 분자
+      ] as NoteEntity[],
+      [{ lane: 1, beat: beat(0), endBeat: { n: 4, d: 0 } }] as TrillZone[], // 인덱스 0 = d=0 끝
+      [{ type: "bpm", beat: { n: 2, d: 0 }, bpm: 120 }] as ChartEvent[], // 인덱스 0 = d=0
+    );
+    expect(errors).toHaveLength(3);
+    expect(errors.every((e) => e.rule === "beatMalformed")).toBe(true);
+    expect(errors.map((e) => e.refs)).toEqual([
+      [{ kind: "note", index: 1 }],
+      [{ kind: "trillZone", index: 0 }],
+      [{ kind: "event", index: 0 }],
+    ]);
+  });
+
+  it("d=0 beatPerMeasure 박자표도 beatMalformed로 잡힌다", () => {
+    const errors = validateBeatWellFormed([], [], [
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: { n: 4, d: 0 } },
+    ] as ChartEvent[]);
+    expect(errors.some((e) => e.rule === "beatMalformed")).toBe(true);
+  });
+
+  it("beatMalformed는 구조 검증(validateChartStructural)에 포함되고 의미 검증에는 없다", () => {
+    const input = {
+      notes: [{ type: "single", lane: 1, beat: { n: 5, d: 0 } }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(validateChartStructural(input).some((e) => e.rule === "beatMalformed")).toBe(true);
+    expect(() => validateChartSemantic(input)).not.toThrow();
+    expect(validateChartSemantic(input).some((e) => e.rule === "beatMalformed")).toBe(false);
+  });
+
+  it("정상 차트(유한 정수 beat)는 beatMalformed 없음", () => {
+    const errors = validateBeatWellFormed(
+      [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) }] as NoteEntity[],
+      [{ lane: 2, beat: beat(0), endBeat: beat(2) }] as TrillZone[],
+      [{ type: "bpm", beat: beat(0), bpm: 120 }] as ChartEvent[],
+    );
+    expect(errors).toEqual([]);
+  });
 });
 
 describe("validateChartStructural / validateChartSemantic 분리", () => {
@@ -882,6 +1010,16 @@ describe("validateTimeSigNatural", () => {
     const errors = validateTimeSigNatural(events);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("timeSigNotNatural");
+  });
+
+  it("위반 박자표의 원본 인덱스가 refs에 kind 'event'로 담긴다 (bpm이 앞에 있어 인덱스 1)", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 }, // 인덱스 0 — timeSignature 아님
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(-4) }, // 인덱스 1 = 위반
+    ];
+    const errors = validateTimeSigNatural(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "event", index: 1 }]);
   });
 
   it("분자가 0이면 에러 — beat(0)은 n=0", () => {
@@ -991,6 +1129,18 @@ describe("validateTimeSigAtMeasureStart", () => {
     const errors = validateTimeSigAtMeasureStart(events);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("timeSigNotAtMeasureStart");
+  });
+
+  it("마디 중간 박자표의 원본 인덱스가 refs에 담긴다 — 앞에 bpm이 끼고 정렬을 거쳐도 정확", () => {
+    // 검증기는 timesig만 추려 beat 순 정렬하므로, 원본 events 인덱스가 보존되는지 확인한다.
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0), bpm: 120 }, // 인덱스 0 — timeSignature 아님
+      { type: "timeSignature", beat: beat(5), beatPerMeasure: beat(3) }, // 인덱스 1 = 마디 중간(위반)
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }, // 인덱스 2 — 정렬하면 첫 번째
+    ];
+    const errors = validateTimeSigAtMeasureStart(events);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "event", index: 1 }]);
   });
 
   it("단일 이벤트는 항상 유효 (첫 번째 이벤트는 검사 생략)", () => {
@@ -1142,5 +1292,16 @@ describe("beatKey 값 비교 (표현 무관 중복)", () => {
       { type: "long", lane: 1, beat: beat(2), endBeat: beat(7) },        // 시작 2/1 = 2
     ];
     expect(validateNoDuplicates(notes)).toHaveLength(1);
+  });
+
+  it("양쪽 다 비정수 기약분수로 남는 표현 조합(6/4 vs 3/2 = 1.5박)도 중복으로 잡는다", () => {
+    // 정수로 떨어지는 조합(8/4 vs 2/1)만이 아니라 일반 기약분수 케이스의 약분 경로 검증.
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 3, beat: { n: 6, d: 4 } }, // 스냅형 6/4 = 1.5
+      { type: "single", lane: 3, beat: beat(3, 2) },     // 기약형 3/2 = 1.5
+    ];
+    const errors = validateNoDuplicates(notes);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("duplicate");
   });
 });
