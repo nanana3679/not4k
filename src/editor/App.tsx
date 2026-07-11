@@ -479,12 +479,9 @@ function ChartEditorPage() {
 
     const selectMode = new SelectMode(chart, {
       onChartUpdate: setChart,
-      // 브리지: SelectMode(선택 권위, 후속 슬라이스에서 이양 예정)가 미는 노트 선택을
-      // SelectionSlice 관문(setSelection)으로 흘린다 — 흩어진 선택 쓰기의 단일 수렴점.
-      onSelectionChange: (indices) => {
-        const st = useEditorStore.getState();
-        st.setSelection({ ...st.selection, notes: indices });
-      },
+      // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
+      getSelection: () => useEditorStore.getState().selection,
+      setSelection: (sel) => useEditorStore.getState().setSelection(sel),
       yToBeat: (y) => yToBeatRef.current(y),
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
@@ -499,14 +496,9 @@ function ChartEditorPage() {
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      onTrillZoneSelectionChange: (indices) => { rendererRef.current?.setSelectedTrillZones(indices); },
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => {
-        const st = useEditorStore.getState();
-        st.setSelection({ ...st.selection, extraNotes: indices });
-      },
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
@@ -519,10 +511,8 @@ function ChartEditorPage() {
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => {
-        const st = useEditorStore.getState();
-        st.setSelection({ ...st.selection, extraNotes: indices });
-      },
+      // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
+      onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
@@ -654,6 +644,12 @@ function ChartEditorPage() {
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.setSelectedNotes(selectedNotes);
   }, [selectedNotes]);
+
+  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  const selectedZones = useEditorStore((s) => s.selection.zones);
+  useEffect(() => {
+    rendererRef.current?.setSelectedTrillZones(selectedZones);
+  }, [selectedZones]);
 
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);

@@ -12,16 +12,21 @@ import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneC
 import {
   classifySelection,
   selectionBlockReason,
-  filterHomogeneousSelection,
   clampTrillBeatOffset,
   translateTrillZone,
+  isTrillNote,
+  trillZoneOverlapsBox,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
+import { zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 export interface SelectModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
-  onSelectionChange: (selectedIndices: Set<number>) => void;
+  /** 선택의 소유자(SelectionSlice)에서 현재 선택을 읽는다. 사본 저장 금지. */
+  getSelection: () => Selection;
+  /** 선택 전체 값을 정규화 게이트를 지나 커밋한다. */
+  setSelection: (sel: Selection) => void;
   yToBeat: (y: number) => Beat;
   /** Raw y-to-beat without snap grid (for box select) */
   yToBeatRaw: (y: number) => Beat;
@@ -43,13 +48,10 @@ export interface SelectModeCallbacks {
   hitTestTrillZoneHandle?: (x: number, y: number) => number | null;
   /** Get trill zone index whose region contains (x,y), or null (hover 표시용) */
   hitTestTrillZone?: (x: number, y: number) => number | null;
-  /** 구간 단위로 선택된 트릴존 인덱스가 바뀔 때 호출 (강조 표시용) */
-  onTrillZoneSelectionChange?: (indices: Set<number>) => void;
   /** Extra lane helpers */
   xToExtraLane?: (x: number) => number | null;
   hitTestExtraNote?: (x: number, y: number) => number | null;
   onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  onExtraSelectionChange?: (indices: Set<number>) => void;
   getExtraNotes?: () => ExtraNoteEntity[];
   getExtraLaneCount?: () => number;
   onWarn?: (msg: string) => void;
@@ -58,8 +60,6 @@ export interface SelectModeCallbacks {
 export class SelectMode implements EditorMode {
   private chart: Chart;
   private callbacks: SelectModeCallbacks;
-  private selectedIndices: Set<number> = new Set();
-  private selectedExtraIndices: Set<number> = new Set();
 
   // Drag state
   private isDragging: boolean = false;
@@ -88,8 +88,6 @@ export class SelectMode implements EditorMode {
   > = new Map();
   // 트릴 노트 단위 이동 시, 이동을 가두는 trillZone(이동 시작 시점 캡처). 트릴 선택이 아니면 null.
   private _trillMoveZone: TrillZone | null = null;
-  // 구간 단위 선택: 선택된 트릴존 인덱스. 비어있지 않으면 "구간 단위" 선택 모드.
-  private selectedZoneIndices: Set<number> = new Set();
   // 구간 단위 이동 시작 시점의 트릴존 원본 좌표 (인덱스 → 원본)
   private originalZonePositions: Map<number, TrillZone> = new Map();
 
@@ -107,96 +105,80 @@ export class SelectMode implements EditorMode {
     this.callbacks = callbacks;
   }
 
+  /** 현재 선택 — 사본 금지, 선택의 소유자는 SelectionSlice다. 항상 이 getter로 읽는다. */
+  private get sel(): Selection {
+    return this.callbacks.getSelection();
+  }
+
+  /**
+   * 선택의 일부를 병합해 한 번에 커밋한다. store 게이트가 정규화(범위 보정 +
+   * 동질성 + 트릴 모드 시 zones 비움, RFD 0016)하므로,
+   * 커밋 직후 this.sel은 정규화된 값을 돌려준다.
+   */
+  private commitSelection(partial: Partial<Selection>): void {
+    this.callbacks.setSelection({ ...this.sel, ...partial });
+  }
+
+  /**
+   * ClipboardManager·LaneConversion은 아직 emit 콜백 시그니처(onSelectionChange 등)를
+   * 요구한다. 선택 쓰기는 호출 결과값으로 commitSelection 한 번으로 대신하므로
+   * 여기서는 no-op을 채운다(이행용 — 헬퍼 시그니처는 후속 슬라이스에서 정리).
+   */
+  private helperCallbacks() {
+    return {
+      ...this.callbacks,
+      onSelectionChange: () => {},
+      onExtraSelectionChange: () => {},
+    };
+  }
+
   setChart(chart: Chart): void {
+    // 선택 보정(범위·동질·구간 파생)은 store 변이 액션이 같은 트랜잭션에서 수행한다
     this.chart = chart;
-    // Clear selection if indices are out of bounds
-    const validIndices = new Set<number>();
-    for (const idx of this.selectedIndices) {
-      if (idx >= 0 && idx < chart.notes.length) {
-        validIndices.add(idx);
-      }
-    }
-    if (validIndices.size !== this.selectedIndices.size) {
-      this.selectedIndices = validIndices;
-      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-    }
-
-    // Validate extra selection bounds
-    if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes) {
-      const extraNotes = this.callbacks.getExtraNotes();
-      const validExtra = new Set<number>();
-      for (const idx of this.selectedExtraIndices) {
-        if (idx >= 0 && idx < extraNotes.length) {
-          validExtra.add(idx);
-        }
-      }
-      if (validExtra.size !== this.selectedExtraIndices.size) {
-        this.selectedExtraIndices = validExtra;
-        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-      }
-    }
-
-    // Validate zone-unit selection bounds
-    if (this.selectedZoneIndices.size > 0) {
-      const validZones = new Set<number>();
-      for (const idx of this.selectedZoneIndices) {
-        if (idx >= 0 && idx < chart.trillZones.length) validZones.add(idx);
-      }
-      if (validZones.size !== this.selectedZoneIndices.size) {
-        this.selectedZoneIndices = validZones;
-        this.emitZoneSelection();
-      }
-    }
   }
 
   get selection(): ReadonlySet<number> {
-    return this.selectedIndices;
+    return this.sel.notes;
   }
 
   /** 구간 단위로 선택된 트릴존 인덱스 */
   get selectedZones(): ReadonlySet<number> {
-    return this.selectedZoneIndices;
+    return this.sel.zones;
   }
 
-  /** 현재 선택이 구간 단위(트릴존 핸들로 선택)인지 */
-  private get isZoneUnitSelection(): boolean {
-    return this.selectedZoneIndices.size > 0;
-  }
-
-  private emitZoneSelection(): void {
-    this.callbacks.onTrillZoneSelectionChange?.(new Set(this.selectedZoneIndices));
-  }
-
-  /** 구간 단위 선택 상태를 해제한다(노트 단위 선택으로 전환 시). */
-  private clearZoneSelectionState(): void {
-    if (this.selectedZoneIndices.size > 0) {
-      this.selectedZoneIndices = new Set();
-      this.emitZoneSelection();
+  /** 선택된 구간 유닛의 내부 노트(포함 기준) — 동사 실행 시점에 파생한다 (RFD 0016 §4.2) */
+  private zoneDerivedNoteIndices(): Set<number> {
+    const result = new Set<number>();
+    for (const zoneIndex of this.sel.zones) {
+      const zone = this.chart.trillZones[zoneIndex];
+      if (!zone) continue;
+      for (const noteIndex of zoneContainedNoteIndices(this.chart.notes, zone)) {
+        result.add(noteIndex);
+      }
     }
+    return result;
   }
 
   /**
-   * 트릴존을 구간 단위로 선택한다. 구간 + 그 안의 모든 트릴노트가 한 덩어리로 선택된다.
-   * 기존 노트/엑스트라 선택은 해제된다.
+   * 동사(이동·삭제·복사)가 조작할 전체 노트 집합 = sel.notes ∪ 구간 파생 노트.
+   * 파생을 이 한 곳에 모아 동사별 구현 분산을 막는다 (RFD 0016 §6).
+   */
+  private effectiveNoteIndices(): Set<number> {
+    const result = new Set(this.sel.notes);
+    for (const noteIndex of this.zoneDerivedNoteIndices()) {
+      result.add(noteIndex);
+    }
+    return result;
+  }
+
+  /**
+   * 트릴존을 구간 유닛으로 선택한다. 기존 노트/엑스트라 선택은 해제된다.
+   * 내부 트릴노트는 notes에 주입하지 않는다 — 이동·삭제·복사 동사가
+   * 실행 시점에 zoneContainedNoteIndices로 파생한다 (RFD 0016 §4.2).
    */
   selectZoneUnit(zoneIndex: number): void {
     if (zoneIndex < 0 || zoneIndex >= this.chart.trillZones.length) return;
-    this.selectedZoneIndices = new Set([zoneIndex]);
-    // 구간에 포함된 트릴노트들을 노트 선택에 채운다(이동·삭제·복사 공용)
-    const zone = this.chart.trillZones[zoneIndex];
-    this.selectedIndices = new Set();
-    for (let i = 0; i < this.chart.notes.length; i++) {
-      const n = this.chart.notes[i];
-      if (n.lane === zone.lane
-        && beatToFloat(n.beat) >= beatToFloat(zone.beat)
-        && beatToFloat("endBeat" in n ? (n as RangeNote).endBeat : n.beat) <= beatToFloat(zone.endBeat)) {
-        this.selectedIndices.add(i);
-      }
-    }
-    this.selectedExtraIndices.clear();
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-    this.emitZoneSelection();
+    this.commitSelection({ notes: new Set(), extraNotes: new Set(), zones: new Set([zoneIndex]) });
   }
 
   /** Whether a move drag is currently in progress */
@@ -218,8 +200,8 @@ export class SelectMode implements EditorMode {
     if (this.dragType === "resize" && this.resizingEntityType === "trillZone") {
       return this.resizingIndex;
     }
-    if (this.isMoveDragging && this.selectedZoneIndices.size === 1) {
-      return [...this.selectedZoneIndices][0];
+    if (this.isMoveDragging && this.sel.zones.size === 1) {
+      return [...this.sel.zones][0];
     }
     return null;
   }
@@ -268,24 +250,13 @@ export class SelectMode implements EditorMode {
 
   /** Clear selection */
   clearSelection(): void {
-    this.selectedIndices.clear();
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-    this.selectedExtraIndices.clear();
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-    if (this.selectedZoneIndices.size > 0) {
-      this.selectedZoneIndices = new Set();
-      this.emitZoneSelection();
-    }
+    this.commitSelection({ notes: new Set(), extraNotes: new Set(), zones: new Set() });
   }
 
   /** Select a specific note */
   selectNote(index: number): void {
     if (index >= 0 && index < this.chart.notes.length) {
-      this.clearZoneSelectionState();
-      this.selectedIndices.clear();
-      this.selectedIndices.add(index);
-      this.expandTrillPairSelection();
-      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+      this.commitSelection({ notes: this.withTrillPairs(new Set([index])), zones: new Set() });
     }
   }
 
@@ -293,22 +264,21 @@ export class SelectMode implements EditorMode {
    * 트릴 쌍(trill 헤드 ↔ trillLong 바디)은 한 단위로 선택한다 — 한쪽만 이동하면
    * 배치 제약(트릴 롱 헤드 필수)에 걸려 롤백되므로, 삭제(쌍소멸)와 대칭으로
    * 선택도 쌍을 동반한다. 쌍은 정의상 동질(같은 존의 트릴 계열)이라 동질성 가드와 충돌하지 않는다.
+   * (선택의 소유자가 store라 in-place 확장 대신 확장된 새 집합을 반환한다.)
    */
-  private expandTrillPairSelection(): void {
-    for (const paired of expandTrillPairIndices(this.chart.notes, this.selectedIndices)) {
-      this.selectedIndices.add(paired);
+  private withTrillPairs(indices: ReadonlySet<number>): Set<number> {
+    const result = new Set(indices);
+    for (const paired of expandTrillPairIndices(this.chart.notes, result)) {
+      result.add(paired);
     }
+    return result;
   }
 
   /** Select a specific extra note */
   selectExtraNote(index: number): void {
     const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
     if (index >= 0 && index < extraNotes.length) {
-      this.selectedIndices.clear();
-      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-      this.selectedExtraIndices.clear();
-      this.selectedExtraIndices.add(index);
-      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+      this.commitSelection({ notes: new Set(), extraNotes: new Set([index]), zones: new Set() });
     }
   }
 
@@ -316,11 +286,9 @@ export class SelectMode implements EditorMode {
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.notes.length) return false;
 
-    if (!this.selectedIndices.has(index)) {
+    // 이미 선택된 노트면 혼합 선택(엑스트라·구간 포함)을 유지한 채 전체를 이동한다 (RFD 0016 §4.2)
+    if (!this.sel.notes.has(index)) {
       this.selectNote(index);
-    } else if (this.selectedExtraIndices.size > 0) {
-      this.selectedExtraIndices.clear();
-      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
     }
 
     this.startMainMoveDrag(x, y);
@@ -332,11 +300,9 @@ export class SelectMode implements EditorMode {
     const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
     if (index < 0 || index >= extraNotes.length) return false;
 
-    if (!this.selectedExtraIndices.has(index)) {
+    // 이미 선택된 엑스트라면 혼합 선택(메인 노트·구간 포함)을 유지한 채 전체를 이동한다 (RFD 0016 §4.2)
+    if (!this.sel.extraNotes.has(index)) {
       this.selectExtraNote(index);
-    } else if (this.selectedIndices.size > 0) {
-      this.selectedIndices.clear();
-      this.callbacks.onSelectionChange(new Set(this.selectedIndices));
     }
 
     this.startExtraMoveDrag(x, y);
@@ -345,11 +311,13 @@ export class SelectMode implements EditorMode {
 
   /** Begin dragging the current selection from the given pointer location. */
   beginMoveDrag(x: number, y: number): void {
-    if (this.selectedExtraIndices.size > 0) {
-      this.startExtraMoveDrag(x, y);
+    // 앵커는 포인터가 놓인 레인 축으로 정한다 — 혼합 선택에서 잡은 쪽이 레인
+    // 오프셋을 소유하고, 반대 축은 beat만 동반한다 (RFD 0016 §4.2).
+    if (this.callbacks.xToLane(x) !== null) {
+      this.startMainMoveDrag(x, y);
       return;
     }
-    this.startMainMoveDrag(x, y);
+    this.startExtraMoveDrag(x, y);
   }
 
   /** Begin resizing a main range note end, used by touch long-press handles. */
@@ -357,11 +325,7 @@ export class SelectMode implements EditorMode {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
-    this.selectedIndices.clear();
-    this.selectedIndices.add(index);
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-    this.selectedExtraIndices.clear();
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+    this.commitSelection({ notes: new Set([index]), extraNotes: new Set(), zones: new Set() });
     this.startResize("note", index, note.beat, note.endBeat);
     return true;
   }
@@ -374,32 +338,52 @@ export class SelectMode implements EditorMode {
   beginLongPressDrag(
     x: number,
     y: number,
-    hits: { noteEndHit: number | null; noteHit: number | null; extraHit: number | null },
+    hits: {
+      noteEndHit: number | null;
+      noteHit: number | null;
+      extraHit: number | null;
+      zoneHit?: number | null;
+    },
   ): boolean {
     const action = resolveLongPressAction(hits);
     if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
     if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);
     if (action.kind === "moveExtra") return this.beginTouchMoveDragFromExtraNote(action.index, x, y);
+    if (action.kind === "moveZone") return this.beginTouchMoveDragFromZone(action.index, x, y);
     return false;
   }
 
   /**
-   * 동질성 규칙을 지키며 노트를 선택에 추가한다.
-   * 트릴 노트는 같은 트릴존끼리만, 트릴/일반은 섞을 수 없다.
-   * 막히면 토스트로 이유를 알리고 false를 반환한다(추가 안 됨).
+   * trillZone 몸통 롱프레스로 구간 유닛 이동을 시작한다 (RFD 0016 §4.4).
+   * 노트 롱프레스와 대칭: 미선택 구간이면 단독 선택으로 전환, 선택돼 있으면
+   * 기존 혼합 선택(일반 노트·다른 구간 포함)을 유지한 채 전체를 이동한다.
    */
-  private tryAddNoteToSelection(index: number): boolean {
+  beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
+    if (index < 0 || index >= this.chart.trillZones.length) return false;
+    if (!this.sel.zones.has(index)) {
+      this.selectZoneUnit(index);
+    }
+    this.startMainMoveDrag(x, y);
+    return this.isMoveDragging;
+  }
+
+  /**
+   * 동질성 규칙을 지키며 노트를 추가한 새 선택 집합을 만든다.
+   * 트릴 노트는 같은 트릴존끼리만, 트릴/일반은 섞을 수 없다.
+   * 막히면 토스트로 이유를 알리고 null을 반환한다(추가 안 됨).
+   */
+  private tryAddNoteToSelection(index: number): Set<number> | null {
     const note = this.chart.notes[index];
-    if (!note) return false;
-    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    if (!note) return null;
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
     const reason = selectionBlockReason(kind, this.chart.trillZones, note);
     if (reason) {
       this.callbacks.onWarn?.(reason);
-      return false;
+      return null;
     }
-    this.selectedIndices.add(index);
-    this.expandTrillPairSelection();
-    return true;
+    const notes = new Set(this.sel.notes);
+    notes.add(index);
+    return this.withTrillPairs(notes);
   }
 
   // --- Pointer events ---
@@ -446,15 +430,11 @@ export class SelectMode implements EditorMode {
     if (this.callbacks.hitTestNoteEnd) {
       const endHit = this.callbacks.hitTestNoteEnd(x, y);
       if (endHit !== null && this.isRangeNote(this.chart.notes[endHit])) {
-        const isSelected = this.selectedIndices.has(endHit);
+        const isSelected = this.sel.notes.has(endHit);
         const topmost = this.callbacks.hitTestNote(x, y);
         if (isSelected || topmost === endHit) {
           if (!isSelected) {
-            this.clearZoneSelectionState();
-            this.selectedIndices = new Set([endHit]);
-            this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-            this.selectedExtraIndices.clear();
-            this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+            this.commitSelection({ notes: new Set([endHit]), extraNotes: new Set(), zones: new Set() });
           }
           const note = this.chart.notes[endHit] as RangeNote;
           this.startResize("note", endHit, note.beat, note.endBeat);
@@ -474,11 +454,22 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    // 3. Trill zone selection handle (시작=아래의 가로 중앙 박스) → 구간 단위 선택 + 핸들 드래그로 구간째 이동.
+    // 3. Trill zone selection handle (시작=아래의 가로 중앙 박스) → 구간 유닛 선택 + 핸들 드래그로 구간째 이동.
     //    이동(시작)과 리사이즈(끝)는 양 끝으로 분리된다. 길이 0 구간(시작==끝)은 이동 핸들 비활성(리사이즈만).
+    //    Shift/토글 수식자면 교체 대신 zones에서 해당 구간을 토글한다(다중 구간, RFD 0016).
     if (this.callbacks.hitTestTrillZoneHandle) {
       const handleHit = this.callbacks.hitTestTrillZoneHandle(x, y);
       if (handleHit !== null) {
+        if (shiftKey || toggleSelection) {
+          const zones = new Set(this.sel.zones);
+          if (zones.has(handleHit)) {
+            zones.delete(handleHit);
+          } else {
+            zones.add(handleHit);
+          }
+          this.commitSelection({ zones });
+          return;
+        }
         this.selectZoneUnit(handleHit);
         this.beginMoveDrag(x, y);
         return;
@@ -500,22 +491,27 @@ export class SelectMode implements EditorMode {
       const extraHit = this.callbacks.hitTestExtraNote(x, y);
       if (extraHit !== null) {
         if (toggleSelection) {
-          if (this.selectedExtraIndices.has(extraHit)) {
-            this.selectedExtraIndices.delete(extraHit);
+          const extraSel = new Set(this.sel.extraNotes);
+          if (extraSel.has(extraHit)) {
+            extraSel.delete(extraHit);
           } else {
-            this.selectedExtraIndices.add(extraHit);
+            extraSel.add(extraHit);
           }
+          this.commitSelection({ extraNotes: extraSel });
         } else if (shiftKey) {
-          this.selectedExtraIndices.add(extraHit);
+          const extraSel = new Set(this.sel.extraNotes);
+          extraSel.add(extraHit);
+          this.commitSelection({ extraNotes: extraSel });
         } else if (altKey) {
-          this.selectedExtraIndices.delete(extraHit);
+          const extraSel = new Set(this.sel.extraNotes);
+          extraSel.delete(extraHit);
+          this.commitSelection({ extraNotes: extraSel });
+        } else if (this.sel.extraNotes.has(extraHit)) {
+          // 이미 선택된 엑스트라 클릭은 혼합 선택(메인 노트·구간 포함)을 유지한 채 이동 시작 (RFD 0016 §4.2)
+          this.beginMoveDrag(x, y);
         } else {
-          this.selectedIndices.clear();
-          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-          this.selectedExtraIndices.clear();
-          this.selectedExtraIndices.add(extraHit);
+          this.commitSelection({ notes: new Set(), extraNotes: new Set([extraHit]), zones: new Set() });
         }
-        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
         return;
       }
     }
@@ -523,55 +519,69 @@ export class SelectMode implements EditorMode {
     const hitIndex = this.callbacks.hitTestNote(x, y);
 
     if (hitIndex !== null) {
-      // Clicking a note → 노트 단위 선택으로 전환(구간 단위 해제)
-      this.clearZoneSelectionState();
-      const isAlreadySelected = this.selectedIndices.has(hitIndex);
+      const isAlreadySelected = this.sel.notes.has(hitIndex);
 
+      // 수식자(토글/Shift/Alt) 경로는 zones를 보존한다 — 일반 노트와 구간 유닛은
+      // 공존하고, 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다 (RFD 0016 §4.1).
       if (toggleSelection) {
         if (isAlreadySelected) {
-          this.selectedIndices.delete(hitIndex);
-          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-        } else if (this.tryAddNoteToSelection(hitIndex)) {
-          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
+          const notes = new Set(this.sel.notes);
+          notes.delete(hitIndex);
+          this.commitSelection({ notes });
+        } else {
+          const added = this.tryAddNoteToSelection(hitIndex);
+          if (added) this.commitSelection({ notes: added });
         }
       } else if (shiftKey) {
         // Add to selection (동질성 규칙 적용)
-        if (this.tryAddNoteToSelection(hitIndex)) {
-          this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-        }
+        const added = this.tryAddNoteToSelection(hitIndex);
+        if (added) this.commitSelection({ notes: added });
       } else if (altKey) {
         // Remove from selection
-        this.selectedIndices.delete(hitIndex);
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-      } else if (isAlreadySelected && this.selectedIndices.size > 0) {
-        // Start move drag on selected note
+        const notes = new Set(this.sel.notes);
+        notes.delete(hitIndex);
+        this.commitSelection({ notes });
+      } else if (isAlreadySelected && this.sel.notes.size > 0) {
+        // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
         this.beginMoveDrag(x, y);
       } else {
-        // Select this note only
-        this.selectedIndices.clear();
-        this.selectedIndices.add(hitIndex);
-        this.expandTrillPairSelection(); // 트릴 쌍은 클릭 선택에서도 한 단위
-        this.callbacks.onSelectionChange(new Set(this.selectedIndices));
-        this.selectedExtraIndices.clear();
-        this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+        // 단순 클릭은 선택 전체 교체(zones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위
+        this.commitSelection({
+          notes: this.withTrillPairs(new Set([hitIndex])),
+          extraNotes: new Set(),
+          zones: new Set(),
+        });
         this.beginMoveDrag(x, y);
       }
     } else {
       // Clicking empty space
       if (!shiftKey && !altKey) {
-        // Clear selection and start box select
-        this.clearSelection();
-        this.isDragging = true;
-        this.dragType = "boxSelect";
-        this.dragStartBeat = this.callbacks.yToBeatRaw(y);
-        this.dragStartLane = this.callbacks.xToLane(x);
-        this.dragStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-        this._boxStartY = y;
-        this._boxStartLane = this.callbacks.xToLane(x);
-        this._boxStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-        this._boxEndY = y;
+        this.startBoxSelect(x, y);
       }
     }
+  }
+
+  /**
+   * 노트/엑스트라 위에서 시작한 터치 드래그의 박스 승격 진입점 (RFD 0016 §4.4).
+   * 빈 곳 박스와 동일하게 기존 선택을 비우고 시작한다. 진행 중 드래그가 있으면 무시.
+   */
+  beginBoxSelect(x: number, y: number): void {
+    if (this.isDragging) return;
+    this.startBoxSelect(x, y);
+  }
+
+  /** 기존 선택을 비우고 박스 셀렉트 드래그를 시작한다. */
+  private startBoxSelect(x: number, y: number): void {
+    this.clearSelection();
+    this.isDragging = true;
+    this.dragType = "boxSelect";
+    this.dragStartBeat = this.callbacks.yToBeatRaw(y);
+    this.dragStartLane = this.callbacks.xToLane(x);
+    this.dragStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+    this._boxStartY = y;
+    this._boxStartLane = this.callbacks.xToLane(x);
+    this._boxStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+    this._boxEndY = y;
   }
 
   /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
@@ -666,57 +676,44 @@ export class SelectMode implements EditorMode {
           beatOffset = clampTrillBeatOffset(this._trillMoveZone, this.movePositionList(), beatOffset);
         }
 
-        // Check if lane offset is valid for ALL selected notes
-        for (const idx of this.selectedIndices) {
-          const original = this.originalPositions.get(idx);
-          if (!original) continue;
+        // 이동 대상 = 드래그 시작 시점에 캡처한 원본들(직접 선택 + 구간 파생 노트, RFD 0016 §4.2)
+        const moveTargets = new Set(this.originalPositions.keys());
+
+        // Check if lane offset is valid for ALL moving notes
+        for (const original of this.originalPositions.values()) {
           const targetLane = original.lane + laneOffset;
           if (targetLane < 1 || targetLane > 4) return; // Block entire move
         }
 
-        // Apply move to all selected notes (with snap)
-        const newNotes = [...this.chart.notes];
-        for (const idx of this.selectedIndices) {
-          const original = this.originalPositions.get(idx);
-          if (!original) continue;
-
-          const newLane = (original.lane + laneOffset) as Lane;
-          const newBeat = beatAdd(original.beat, beatOffset);
-
-          if (this.isRangeNote(newNotes[idx])) {
-            const rangeNote = newNotes[idx] as RangeNote;
-            const duration = beatSub(
-              original.endBeat!,
-              original.beat
-            );
-            newNotes[idx] = {
-              ...rangeNote,
-              lane: newLane,
-              beat: newBeat,
-              endBeat: beatAdd(newBeat, duration),
-            };
-          } else {
-            newNotes[idx] = {
-              ...newNotes[idx],
-              lane: newLane,
-              beat: newBeat,
-            };
-          }
-        }
+        // Apply move to all moving notes (with snap)
+        const newNotes = this.buildMovedNotes(laneOffset, beatOffset);
 
         // Block if any note goes out of timeline bounds
-        if (!this.areNotesInBounds(newNotes, this.selectedIndices)) return;
+        if (!this.areNotesInBounds(newNotes, moveTargets)) return;
 
-        // 구간 단위 이동이면 트릴존도 같은 오프셋으로 함께 이동(겹침/범위 검증)
+        // 구간 유닛이 선택돼 있으면 트릴존도 같은 오프셋으로 함께 이동(겹침/범위 검증)
         let newZones = this.chart.trillZones;
-        if (this.isZoneUnitSelection) {
+        if (this.originalZonePositions.size > 0) {
           newZones = this.buildMovedZones(laneOffset, beatOffset);
           if (!this.movedZonesInBounds(newZones)) return;
+        }
+
+        // 엑스트라는 beat만 동반 — 레인 오프셋은 앵커(메인) 축에만 적용 (RFD 0016 §4.2)
+        let newExtraNotes: ExtraNoteEntity[] | null = null;
+        if (this.originalExtraPositions.size > 0) {
+          newExtraNotes = this.buildMovedExtraNotes(0, beatOffset);
+          if (
+            !newExtraNotes ||
+            !this.areExtraNotesInBounds(newExtraNotes, new Set(this.originalExtraPositions.keys()))
+          ) {
+            return; // Block entire move
+          }
         }
 
         // Update chart with new positions (preview)
         this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
         this.callbacks.onChartUpdate(this.chart);
+        if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
       }
     } else if (this.dragType === "moveExtra") {
       const currentBeat = this.callbacks.yToBeat(y);
@@ -729,50 +726,51 @@ export class SelectMode implements EditorMode {
         this.callbacks.getExtraNotes &&
         this.callbacks.onExtraNotesUpdate
       ) {
-        const beatOffset = beatSub(
+        let beatOffset = beatSub(
           this.callbacks.snapBeat(currentBeat),
           this.callbacks.snapBeat(this.dragStartBeat),
         );
         const laneOffset = currentExtraLane - this.dragStartExtraLane;
         const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
 
-        for (const idx of this.selectedExtraIndices) {
-          const original = this.originalExtraPositions.get(idx);
-          if (!original) continue;
+        // 개별 트릴 노트가 동반 선택돼 있으면 beat 오프셋을 구간 안으로 클램프(메인 앵커와 동일 규칙)
+        if (this._trillMoveZone) {
+          beatOffset = clampTrillBeatOffset(this._trillMoveZone, this.movePositionList(), beatOffset);
+        }
+
+        for (const original of this.originalExtraPositions.values()) {
           const targetLane = original.extraLane + laneOffset;
           if (targetLane < 1 || targetLane > extraLaneCount) return;
         }
 
-        const extraNotes = this.callbacks.getExtraNotes();
-        const newExtraNotes = [...extraNotes];
-        for (const idx of this.selectedExtraIndices) {
-          const original = this.originalExtraPositions.get(idx);
-          const note = newExtraNotes[idx];
-          if (!original || !note) continue;
-
-          const newExtraLane = original.extraLane + laneOffset;
-          const newBeat = beatAdd(original.beat, beatOffset);
-
-          if ("endBeat" in note) {
-            const duration = beatSub(original.endBeat!, original.beat);
-            newExtraNotes[idx] = {
-              ...note,
-              extraLane: newExtraLane,
-              beat: newBeat,
-              endBeat: beatAdd(newBeat, duration),
-            };
-          } else {
-            newExtraNotes[idx] = {
-              ...note,
-              extraLane: newExtraLane,
-              beat: newBeat,
-            };
-          }
+        const newExtraNotes = this.buildMovedExtraNotes(laneOffset, beatOffset);
+        if (
+          !newExtraNotes ||
+          !this.areExtraNotesInBounds(newExtraNotes, new Set(this.originalExtraPositions.keys()))
+        ) {
+          return;
         }
 
-        if (!this.areExtraNotesInBounds(newExtraNotes, this.selectedExtraIndices)) return;
+        // 메인 notes(+구간 파생)·zones는 beat만 동반 — 레인 오프셋은 앵커(엑스트라) 축에만 (RFD 0016 §4.2)
+        let chartTouched = false;
+        let newNotes = this.chart.notes;
+        if (this.originalPositions.size > 0) {
+          newNotes = this.buildMovedNotes(0, beatOffset);
+          if (!this.areNotesInBounds(newNotes, new Set(this.originalPositions.keys()))) return;
+          chartTouched = true;
+        }
+        let newZones = this.chart.trillZones;
+        if (this.originalZonePositions.size > 0) {
+          newZones = this.buildMovedZones(0, beatOffset);
+          if (!this.movedZonesInBounds(newZones)) return;
+          chartTouched = true;
+        }
 
         this.callbacks.onExtraNotesUpdate(newExtraNotes);
+        if (chartTouched) {
+          this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
+          this.callbacks.onChartUpdate(this.chart);
+        }
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
@@ -807,7 +805,14 @@ export class SelectMode implements EditorMode {
       // Validate and commit or rollback
       this.confirmPlacement();
     } else if (this.dragType === "moveExtra") {
-      this.originalExtraPositions.clear();
+      // 메인 동반(혼합)이 있으면 chart를 낙관 커밋(RFD 0017).
+      // 엑스트라 단독이면 라이브 적용이 곧 커밋 — 원본 기록만 폐기(기존 동작).
+      if (this.originalPositions.size > 0 || this.originalZonePositions.size > 0) {
+        this.commitMove();
+      } else {
+        this.originalExtraPositions.clear();
+        this._trillMoveZone = null;
+      }
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
@@ -847,9 +852,9 @@ export class SelectMode implements EditorMode {
       this.resizingIndex = null;
       this.resizingOriginalEndBeat = null;
       this.resizingOriginalBeat = null;
-    } else if (this.dragType === "move") {
+    } else if (this.dragType === "move" || this.dragType === "moveExtra") {
+      // 혼합 이동은 chart(노트·구간)와 extraNotes가 함께 라이브 적용되므로 둘 다 복원한다 (RFD 0016 §4.2)
       this.rollbackMove();
-    } else if (this.dragType === "moveExtra") {
       this.rollbackMoveExtra();
     }
     // boxSelect는 차트를 변이하지 않으므로 아래 공통 정리로 충분하다.
@@ -866,10 +871,11 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * moveExtra 드래그를 시작 시점 좌표로 되돌린다.
-   * (커밋 경로는 라이브 적용이라 롤백이 없다 — cancel 전용.)
+   * 엑스트라 노트를 드래그 시작 시점 좌표로 되돌린다 — cancel과
+   * 혼합 이동의 변이 게이트 거부 롤백에서 chart 복원과 함께 호출된다 (RFD 0016 §4.2).
    */
   private rollbackMoveExtra(): void {
+    if (this.originalExtraPositions.size === 0) return;
     const extraNotes = this.callbacks.getExtraNotes?.();
     if (!extraNotes || !this.callbacks.onExtraNotesUpdate) {
       this.originalExtraPositions.clear();
@@ -925,38 +931,42 @@ export class SelectMode implements EditorMode {
     const crossesIntoExtra = (startMainLane !== null && endExtraLane !== null) ||
                               (startExtraLane !== null && endMainLane !== null);
 
-    // Select main lane notes
-    this.selectedIndices.clear();
+    // Select main lane notes + trill zone units
+    const notes = new Set<number>();
+    const zones = new Set<number>();
     if (hasMainLane) {
       // When crossing into extra, include up to lane 4 on the main side
-      const effectiveStartMain = startMainLane ?? (crossesIntoExtra ? 1 as Lane : null);
+      // 시작이 엑스트라 쪽이면 메인 커버리지는 경계 레인(4)까지다 — 1로 두면
+      // 엑스트라→메인(오른쪽→왼쪽) 드래그가 [1..끝레인]으로 뒤집혀 반대쪽만 선택된다.
+      const effectiveStartMain = startMainLane ?? (crossesIntoExtra ? 4 as Lane : null);
       const effectiveEndMain = endMainLane ?? (crossesIntoExtra ? 4 as Lane : null);
 
       if (effectiveStartMain !== null && effectiveEndMain !== null) {
         const minLane = Math.min(effectiveStartMain, effectiveEndMain);
         const maxLane = Math.max(effectiveStartMain, effectiveEndMain);
 
+        // 일반 노트만 개별 픽업 — 트릴 노트는 구간 유닛으로 들어온다 (RFD 0016 §4.3)
         for (let i = 0; i < this.chart.notes.length; i++) {
           const note = this.chart.notes[i];
-          if (note.lane >= minLane && note.lane <= maxLane
+          if (!isTrillNote(note)
+              && note.lane >= minLane && note.lane <= maxLane
               && beatSub(note.beat, minBeat).n >= 0
               && beatSub(maxBeat, note.beat).n >= 0) {
-            this.selectedIndices.add(i);
+            notes.add(i);
+          }
+        }
+
+        // 박스와 레인·박 폐구간이 겹치는(포함 아님) trillZone은 유닛으로 선택 (RFD 0016 §4.3)
+        for (let i = 0; i < this.chart.trillZones.length; i++) {
+          if (trillZoneOverlapsBox(this.chart.trillZones[i], minLane, maxLane, minBeat, maxBeat)) {
+            zones.add(i);
           }
         }
       }
     }
-    // 동질성 규칙: 박스에 트릴/일반 또는 서로 다른 구간이 섞이면 한 그룹만 남긴다.
-    // (드래그 중 매 프레임 호출되므로 토스트는 띄우지 않고 조용히 한 그룹으로 정리)
-    this.selectedIndices = filterHomogeneousSelection(
-      this.chart.trillZones,
-      this.chart.notes,
-      this.selectedIndices,
-    ).kept;
-    this.callbacks.onSelectionChange(new Set(this.selectedIndices));
 
     // Select extra lane notes
-    this.selectedExtraIndices.clear();
+    const extraNotes = new Set<number>();
     if (hasExtraLane && this.callbacks.getExtraNotes) {
       // When crossing from main, extra range starts at lane 1
       const effectiveStartExtra = startExtraLane ?? (crossesIntoExtra ? 1 : null);
@@ -965,32 +975,35 @@ export class SelectMode implements EditorMode {
       if (effectiveStartExtra !== null && effectiveEndExtra !== null) {
         const minExtraLane = Math.min(effectiveStartExtra, effectiveEndExtra);
         const maxExtraLane = Math.max(effectiveStartExtra, effectiveEndExtra);
-        const extraNotes = this.callbacks.getExtraNotes();
+        const allExtra = this.callbacks.getExtraNotes();
 
-        for (let i = 0; i < extraNotes.length; i++) {
-          const note = extraNotes[i];
+        for (let i = 0; i < allExtra.length; i++) {
+          const note = allExtra[i];
           if (note.extraLane >= minExtraLane && note.extraLane <= maxExtraLane
               && beatSub(note.beat, minBeat).n >= 0
               && beatSub(maxBeat, note.beat).n >= 0) {
-            this.selectedExtraIndices.add(i);
+            extraNotes.add(i);
           }
         }
       }
     }
-    this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
+
+    // 일반 노트·구간 유닛·엑스트라는 공존 선택 가능 (RFD 0016 §4.1).
+    // 범위 보정 등 정규화는 store 게이트(normalizeSelection)가 수행한다.
+    this.commitSelection({ notes, extraNotes, zones });
   }
 
   // --- Keyboard events ---
 
   /** Move selected notes by one snap unit */
   moveBySnap(direction: "up" | "down"): void {
-    if (this.selectedExtraIndices.size > 0) {
-      this.moveExtraBySnapImpl(direction);
+    const hasMainSel = this.sel.notes.size > 0 || this.sel.zones.size > 0;
+    // 엑스트라 단독 선택일 때만 엑스트라 전용 경로 — 혼합이면 아래 메인 경로가
+    // beat 오프셋을 공유해 엑스트라를 동반한다 (기존 'extraNotes 우선' 분기 제거, RFD 0016 §4.2)
+    if (!hasMainSel) {
+      if (this.sel.extraNotes.size > 0) this.moveExtraBySnapImpl(direction);
       return;
     }
-
-    // 구간 단위(빈 구간 포함)는 노트가 없어도 이동 가능
-    if (this.selectedIndices.size === 0 && !this.isZoneUnitSelection) return;
 
     // Get snap unit from current snap setting (assume 1/snap beat)
     const snapStep = this.callbacks.getSnapStep();
@@ -998,10 +1011,11 @@ export class SelectMode implements EditorMode {
     // ArrowUp = increase time (add snap), ArrowDown = decrease time (subtract snap).
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
-    // 구간 단위 선택이면 구간+노트를 함께 자유 이동(상/하)
-    if (this.isZoneUnitSelection) {
-      this.captureNoteOrigins();
+    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트 + 엑스트라를 같은 오프셋으로 이동 (RFD 0016 §4.2)
+    if (this.sel.zones.size > 0) {
+      this.captureNoteOrigins(this.effectiveNoteIndices());
       this.captureZoneOrigins();
+      this.captureExtraNoteOrigins();
       this.applyZoneUnitMove(0, offset);
       return;
     }
@@ -1009,7 +1023,7 @@ export class SelectMode implements EditorMode {
     // 트릴 노트 단위 이동은 구간 안에서만: 한 스텝이 구간을 벗어나면 차단
     const snapTrillZone = this.trillZoneOfSelection();
     if (snapTrillZone) {
-      const positions = [...this.selectedIndices]
+      const positions = [...this.sel.notes]
         .map((i) => this.chart.notes[i])
         .filter((n): n is NoteEntity => Boolean(n))
         .map((n) => ({ beat: n.beat, endBeat: "endBeat" in n ? n.endBeat : undefined }));
@@ -1020,75 +1034,68 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    // Store original positions
-    this.originalPositions.clear();
-    for (const idx of this.selectedIndices) {
-      const note = this.chart.notes[idx];
-      if (this.isRangeNote(note)) {
-        this.originalPositions.set(idx, {
-          beat: note.beat,
-          endBeat: note.endBeat,
-          lane: note.lane,
-        });
-      } else {
-        this.originalPositions.set(idx, {
-          beat: note.beat,
-          lane: note.lane,
-        });
-      }
-    }
+    // Store original positions (혼합이면 엑스트라 동반분도 캡처)
+    this.captureNoteOrigins();
+    this.captureExtraNoteOrigins();
 
     // Apply move
-    const newNotes = [...this.chart.notes];
-    for (const idx of this.selectedIndices) {
-      const note = newNotes[idx];
-      const newBeat = beatAdd(note.beat, offset);
-
-      if (this.isRangeNote(note)) {
-        const rangeNote = note as RangeNote;
-        const duration = beatSub(rangeNote.endBeat, rangeNote.beat);
-        newNotes[idx] = {
-          ...rangeNote,
-          beat: newBeat,
-          endBeat: beatAdd(newBeat, duration),
-        };
-      } else {
-        newNotes[idx] = {
-          ...note,
-          beat: newBeat,
-        };
-      }
-    }
+    const newNotes = this.buildMovedNotes(0, offset);
 
     // Block if any note goes out of timeline bounds
-    if (!this.areNotesInBounds(newNotes, this.selectedIndices)) {
-      this.originalPositions.clear();
+    if (!this.areNotesInBounds(newNotes, this.sel.notes)) {
+      this.clearMoveOrigins();
       return;
+    }
+
+    // 엑스트라는 beat만 동반 — 한 요소라도 범위 밖이면 전체 no-op (기존 bounds 정책, RFD 0016 §4.2)
+    let newExtraNotes: ExtraNoteEntity[] | null = null;
+    if (this.originalExtraPositions.size > 0) {
+      newExtraNotes = this.buildMovedExtraNotes(0, offset);
+      if (
+        !newExtraNotes ||
+        !this.areExtraNotesInBounds(newExtraNotes, new Set(this.originalExtraPositions.keys()))
+      ) {
+        this.clearMoveOrigins();
+        return;
+      }
     }
 
     this.chart = { ...this.chart, notes: newNotes };
 
     // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
     // 의미 위반은 setChart가 허용하고 저장·플레이 게이트가 강제, 되돌리기는 undo.
+    // chart와 extraNotes를 함께 확정한다.
     this.callbacks.onChartUpdate(this.chart);
-    this.originalPositions.clear();
+    if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
+    this.clearMoveOrigins();
   }
 
   /** Move selected notes by one lane (event 레인을 건너뛰고 메인↔엑스트라 레인 간 이동 지원) */
   moveByLane(direction: "left" | "right"): void {
-    // 엑스트라 노트가 선택된 경우
-    if (this.selectedExtraIndices.size > 0) {
+    const hasMainSel = this.sel.notes.size > 0 || this.sel.zones.size > 0;
+    const hasExtra = this.sel.extraNotes.size > 0;
+
+    // 혼합 선택: 메인은 메인 레인 축, 엑스트라는 엑스트라 레인 축으로 각자 평행이동.
+    // 어느 쪽이든 막히면 전체 no-op + 토스트 (RFD 0016 §4.2)
+    if (hasMainSel && hasExtra) {
+      this.moveMixedByLane(direction);
+      return;
+    }
+
+    // 엑스트라 노트만 선택된 경우
+    if (hasExtra) {
       this.moveExtraByLaneImpl(direction);
       return;
     }
 
-    // 메인 노트가 선택된 경우 (구간 단위는 빈 구간도 가능)
-    if (this.selectedIndices.size === 0 && !this.isZoneUnitSelection) return;
+    // 메인 노트가 선택된 경우 (구간 유닛은 빈 구간도 가능)
+    if (!hasMainSel) return;
 
-    // 구간 단위 선택이면 구간+노트를 함께 자유 이동(좌/우 레인)
-    if (this.isZoneUnitSelection) {
+    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트를 전체 평행이동
+    // (혼합 레인 이동도 동일 — 막히면 applyZoneUnitMove가 no-op + 토스트, RFD 0016 §9)
+    if (this.sel.zones.size > 0) {
       const laneOffset = direction === "left" ? -1 : 1;
-      this.captureNoteOrigins();
+      this.captureNoteOrigins(this.effectiveNoteIndices());
       this.captureZoneOrigins();
       this.applyZoneUnitMove(laneOffset, { n: 0, d: 1 });
       return;
@@ -1105,7 +1112,7 @@ export class SelectMode implements EditorMode {
 
     // 메인 레인 4에서 오른쪽 이동 → 엑스트라 레인 1로 변환
     if (direction === "right") {
-      const allAtLane4 = [...this.selectedIndices].every(
+      const allAtLane4 = [...this.sel.notes].every(
         (idx) => this.chart.notes[idx].lane === 4,
       );
       if (allAtLane4) {
@@ -1116,7 +1123,8 @@ export class SelectMode implements EditorMode {
     }
 
     // Check if all notes can move within main lanes
-    for (const idx of this.selectedIndices) {
+    const selNotes = this.sel.notes;
+    for (const idx of selNotes) {
       const note = this.chart.notes[idx];
       const targetLane = note.lane + laneOffset;
       if (targetLane < 1 || targetLane > 4) return; // Block entire move
@@ -1124,7 +1132,7 @@ export class SelectMode implements EditorMode {
 
     // Apply lane move
     const newNotes = [...this.chart.notes];
-    for (const idx of this.selectedIndices) {
+    for (const idx of selNotes) {
       const note = newNotes[idx];
       newNotes[idx] = { ...note, lane: (note.lane + laneOffset) as Lane };
     }
@@ -1133,6 +1141,24 @@ export class SelectMode implements EditorMode {
 
     // 낙관적 편집(RFD 0017): 레인 이동은 구조 위반을 못 만들어(lane은 1..4로 강제) 검증 없이 커밋.
     this.callbacks.onChartUpdate(this.chart);
+  }
+
+  /**
+   * 혼합 선택(메인+엑스트라)의 레인 이동 — 메인 notes(+구간 파생)·zones는 메인 레인 축,
+   * 엑스트라는 엑스트라 레인 축으로 같은 방향 평행이동한다. 메인↔엑스트라 변환은 하지
+   * 않으며, 어느 쪽이든 레인 범위를 벗어나면 전체 no-op + 토스트 (RFD 0016 §4.2).
+   */
+  private moveMixedByLane(direction: "left" | "right"): void {
+    // 개별 트릴 노트 선택은 구간(한 레인)을 벗어날 수 없으므로 레인 이동 차단 — 기존 규칙 유지
+    if (this.sel.zones.size === 0 && this.trillZoneOfSelection()) {
+      this.callbacks.onWarn?.("트릴 노트는 구간을 벗어날 수 없어 레인 이동이 불가합니다");
+      return;
+    }
+    const laneOffset = direction === "left" ? -1 : 1;
+    this.captureNoteOrigins(this.effectiveNoteIndices());
+    this.captureZoneOrigins();
+    this.captureExtraNoteOrigins();
+    this.applyZoneUnitMove(laneOffset, { n: 0, d: 1 });
   }
 
   /** 엑스트라 노트의 스냅 이동 */
@@ -1145,7 +1171,7 @@ export class SelectMode implements EditorMode {
     const maxFloat = this.callbacks.getMaxBeatFloat();
     const newExtraNotes = [...extraNotes];
 
-    for (const idx of this.selectedExtraIndices) {
+    for (const idx of this.sel.extraNotes) {
       const note = newExtraNotes[idx];
       if (!note) continue;
 
@@ -1184,7 +1210,7 @@ export class SelectMode implements EditorMode {
 
     // 엑스트라 레인 1에서 왼쪽 이동 → 메인 레인 4로 변환
     if (direction === "left") {
-      const allAtExtraLane1 = [...this.selectedExtraIndices].every(
+      const allAtExtraLane1 = [...this.sel.extraNotes].every(
         (idx) => extraNotes[idx].extraLane === 1,
       );
       if (allAtExtraLane1) {
@@ -1194,7 +1220,7 @@ export class SelectMode implements EditorMode {
     }
 
     moveExtraByLane(
-      this.selectedExtraIndices,
+      this.sel.extraNotes,
       direction,
       extraLaneCount,
       this.callbacks,
@@ -1205,14 +1231,14 @@ export class SelectMode implements EditorMode {
   private convertMainToExtraImpl(targetExtraLane: number): void {
     const result = convertMainToExtra(
       this.chart,
-      this.selectedIndices,
+      this.sel.notes,
       targetExtraLane,
-      this.callbacks,
+      this.helperCallbacks(),
     );
     if (result) {
       this.chart = result.chart;
-      this.selectedIndices = result.selectedIndices;
-      this.selectedExtraIndices = result.selectedExtraIndices;
+      // 차트·엑스트라 갱신 후 커밋 — 게이트가 새 배열 기준으로 범위를 보정한다
+      this.commitSelection({ notes: result.selectedIndices, extraNotes: result.selectedExtraIndices });
     }
   }
 
@@ -1220,20 +1246,20 @@ export class SelectMode implements EditorMode {
   private convertExtraToMainImpl(targetLane: Lane): void {
     const result = convertExtraToMain(
       this.chart,
-      this.selectedExtraIndices,
+      this.sel.extraNotes,
       targetLane,
-      this.callbacks,
+      this.helperCallbacks(),
     );
     if (result) {
       this.chart = result.chart;
-      this.selectedIndices = result.selectedIndices;
-      this.selectedExtraIndices = result.selectedExtraIndices;
+      // 차트·엑스트라 갱신 후 커밋 — 게이트가 새 배열 기준으로 범위를 보정한다
+      this.commitSelection({ notes: result.selectedIndices, extraNotes: result.selectedExtraIndices });
     }
   }
 
   /** Resize selected long note end by one snap unit */
   resizeEndBySnap(direction: "up" | "down"): void {
-    if (this.selectedIndices.size === 0) return;
+    if (this.sel.notes.size === 0) return;
 
     // Get snap step
     const snapStep = this.callbacks.getSnapStep();
@@ -1242,7 +1268,7 @@ export class SelectMode implements EditorMode {
 
     // Store original positions
     this.originalPositions.clear();
-    for (const idx of this.selectedIndices) {
+    for (const idx of this.sel.notes) {
       const note = this.chart.notes[idx];
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, {
@@ -1256,7 +1282,7 @@ export class SelectMode implements EditorMode {
     // Apply resize (only to range notes, enforce start < end)
     const newNotes = [...this.chart.notes];
     let blocked = false;
-    for (const idx of this.selectedIndices) {
+    for (const idx of this.sel.notes) {
       const note = newNotes[idx];
       if (this.isRangeNote(note)) {
         const rangeNote = note as RangeNote;
@@ -1308,13 +1334,27 @@ export class SelectMode implements EditorMode {
       return;
     }
 
-    if (this.originalPositions.size === 0) return;
+    if (
+      this.originalPositions.size === 0 &&
+      this.originalZonePositions.size === 0 &&
+      this.originalExtraPositions.size === 0
+    ) {
+      return;
+    }
 
-    // 낙관적 편집(RFD 0017 §3-3): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
-    // 위반이 생겨도 place-then-fix — 선택은 유지되니 재드래그로 해소하거나 undo로 되돌린다.
+    // Move mode: 낙관 커밋 (RFD 0017)
+    this.commitMove();
+  }
+
+  /**
+   * 이동 결과를 낙관 커밋한다(RFD 0017 §3-3) — 이동은 평행이동이라 구조 위반을 못 만들고,
+   * 의미 위반은 transient로 허용되어 저장·플레이 게이트가 강제한다. 되돌리기는 undo.
+   * (엑스트라는 이동 중 라이브 적용돼 있으므로 커밋 시 추가 emit이 필요 없다.
+   *  rollbackMove/rollbackMoveExtra는 cancel(Esc) 전용으로 남는다.)
+   */
+  private commitMove(): void {
     this.callbacks.onChartUpdate(this.chart);
-    this.originalPositions.clear();
-    this.originalZonePositions.clear();
+    this.clearMoveOrigins();
     this._trillMoveZone = null;
   }
 
@@ -1325,22 +1365,23 @@ export class SelectMode implements EditorMode {
   /** Copy selected notes to clipboard */
   /**
    * 복사 대상 trillZone을 결정한다.
-   * - 구간 단위 선택: 선택된 구간들
+   * - 구간 유닛 선택(zones): 선택된 구간들 (일반 노트와 혼합 가능, RFD 0016)
    * - 노트 단위 트릴 선택: 그 노트들이 속한 구간(구간 단위로 승격)
    * - 그 외: 없음
    */
   private trillZonesToCopy(): Set<number> {
-    if (this.isZoneUnitSelection) return new Set(this.selectedZoneIndices);
-    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    if (this.sel.zones.size > 0) return new Set(this.sel.zones);
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
     if (kind.kind === "trill" && kind.zoneIndex >= 0) return new Set([kind.zoneIndex]);
     return new Set();
   }
 
   copy(): number {
+    // 구간 유닛의 내부 노트를 실행 시점에 파생해 함께 담는다 (RFD 0016 §4.2)
     return this.clipboardManager.copy(
       this.chart,
-      this.selectedIndices,
-      this.selectedExtraIndices,
+      this.effectiveNoteIndices(),
+      this.sel.extraNotes,
       this.callbacks,
       this.trillZonesToCopy(),
     );
@@ -1361,14 +1402,14 @@ export class SelectMode implements EditorMode {
     const result = this.clipboardManager.paste(
       this.chart,
       targetBeat,
-      this.callbacks,
+      this.helperCallbacks(),
       () => this.clearSelection(),
     );
     if (result === null) return 0;
 
     this.chart = result.chart;
-    this.selectedIndices = result.selectedIndices;
-    this.selectedExtraIndices = result.selectedExtraIndices;
+    // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다
+    this.commitSelection({ notes: result.selectedIndices, extraNotes: result.selectedExtraIndices });
     return result.count;
   }
 
@@ -1389,7 +1430,7 @@ export class SelectMode implements EditorMode {
     const newChart = this.clipboardManager.movePasteBySnap(
       this.chart,
       direction,
-      this.callbacks,
+      this.helperCallbacks(),
     );
     if (newChart !== null) {
       this.chart = newChart;
@@ -1413,28 +1454,30 @@ export class SelectMode implements EditorMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
-    // 구간 단위 선택: 구간 + 안의 노트를 함께 삭제 (빈 구간도 삭제)
-    if (this.isZoneUnitSelection) {
-      const notes = this.chart.notes.filter((_n, i) => !this.selectedIndices.has(i));
-      const trillZones = this.chart.trillZones.filter((_z, i) => !this.selectedZoneIndices.has(i));
+    // Delete extra notes if selected (구간 유닛·일반 노트와 공존 가능, RFD 0016)
+    if (this.sel.extraNotes.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
+      const extraNotes = this.callbacks.getExtraNotes();
+      const newExtraNotes = deleteExtraNotesAtIndices(extraNotes, this.sel.extraNotes);
+      this.callbacks.onExtraNotesUpdate(newExtraNotes);
+      this.commitSelection({ extraNotes: new Set() });
+    }
+
+    // 구간 유닛 선택: 구간 + 실행 시점 파생한 내부 노트 + 직접 선택한 일반 노트를
+    // 함께 삭제 (빈 구간도 삭제, RFD 0016 §4.2)
+    if (this.sel.zones.size > 0) {
+      const zones = this.sel.zones;
+      const noteIndices = this.effectiveNoteIndices();
+      const notes = this.chart.notes.filter((_n, i) => !noteIndices.has(i));
+      const trillZones = this.chart.trillZones.filter((_z, i) => !zones.has(i));
       this.chart = { ...this.chart, notes, trillZones };
       this.clearSelection();
       this.callbacks.onChartUpdate(this.chart);
       return;
     }
 
-    // Delete extra notes if selected
-    if (this.selectedExtraIndices.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraNotes = this.callbacks.getExtraNotes();
-      const newExtraNotes = deleteExtraNotesAtIndices(extraNotes, this.selectedExtraIndices);
-      this.callbacks.onExtraNotesUpdate(newExtraNotes);
-      this.selectedExtraIndices.clear();
-      this.callbacks.onExtraSelectionChange?.(new Set(this.selectedExtraIndices));
-    }
+    if (this.sel.notes.size === 0) return;
 
-    if (this.selectedIndices.size === 0) return;
-
-    this.chart = deleteChartNotesAtIndices(this.chart, this.selectedIndices);
+    this.chart = deleteChartNotesAtIndices(this.chart, this.sel.notes);
     this.clearSelection();
     this.callbacks.onChartUpdate(this.chart);
   }
@@ -1443,8 +1486,8 @@ export class SelectMode implements EditorMode {
 
   private startMainMoveDrag(x: number, y: number): void {
     const lane = this.callbacks.xToLane(x);
-    // 구간 단위(빈 구간 포함)는 노트가 없어도 이동 가능
-    if (lane === null || (this.selectedIndices.size === 0 && !this.isZoneUnitSelection)) return;
+    // 구간 유닛(빈 구간 포함)이 선택돼 있으면 노트가 없어도 이동 가능
+    if (lane === null || (this.sel.notes.size === 0 && this.sel.zones.size === 0)) return;
 
     this.isDragging = true;
     this.dragType = "move";
@@ -1452,25 +1495,12 @@ export class SelectMode implements EditorMode {
     this.dragStartLane = lane;
     this.dragStartExtraLane = null;
 
-    this.originalPositions.clear();
-    this.originalExtraPositions.clear();
-    for (const idx of this.selectedIndices) {
-      const note = this.chart.notes[idx];
-      if (this.isRangeNote(note)) {
-        this.originalPositions.set(idx, {
-          beat: note.beat,
-          endBeat: note.endBeat,
-          lane: note.lane,
-        });
-      } else {
-        this.originalPositions.set(idx, {
-          beat: note.beat,
-          lane: note.lane,
-        });
-      }
-    }
-    // 구간 단위면 이동할 트릴존 원본을 캡처(자유 이동), 노트 단위면 가둘 구간을 캡처(제약 이동).
-    if (this.isZoneUnitSelection) {
+    // 직접 선택한 notes + 구간 파생 노트를 함께 캡처 — 혼합 선택도 한 오프셋으로 움직인다 (RFD 0016 §4.2)
+    this.captureNoteOrigins(this.effectiveNoteIndices());
+    // 엑스트라도 원본 캡처 — 혼합 선택이면 beat만 동반 이동한다 (RFD 0016 §4.2)
+    this.captureExtraNoteOrigins();
+    // 구간 유닛이 있으면 이동할 트릴존 원본을 캡처(자유 이동), 노트 단위면 가둘 구간을 캡처(제약 이동).
+    if (this.sel.zones.size > 0) {
       this._trillMoveZone = null;
       this.captureZoneOrigins();
     } else {
@@ -1481,7 +1511,7 @@ export class SelectMode implements EditorMode {
 
   /** 현재 선택이 트릴 노트 단위(같은 구간)이면 그 trillZone을, 아니면 null을 반환한다. */
   private trillZoneOfSelection(): TrillZone | null {
-    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.selectedIndices);
+    const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
     if (kind.kind !== "trill" || kind.zoneIndex < 0) return null;
     return this.chart.trillZones[kind.zoneIndex] ?? null;
   }
@@ -1496,7 +1526,7 @@ export class SelectMode implements EditorMode {
   /** 이동 시작 시점, 선택된 트릴존들의 원본 좌표를 기록한다. */
   private captureZoneOrigins(): void {
     this.originalZonePositions.clear();
-    for (const idx of this.selectedZoneIndices) {
+    for (const idx of this.sel.zones) {
       const zone = this.chart.trillZones[idx];
       if (zone) this.originalZonePositions.set(idx, { ...zone });
     }
@@ -1534,11 +1564,12 @@ export class SelectMode implements EditorMode {
     return zones;
   }
 
-  /** 선택된 노트들의 원본 좌표를 기록한다(이동용). */
-  private captureNoteOrigins(): void {
+  /** 주어진 노트들의 원본 좌표를 기록한다(이동용). 기본값은 직접 선택한 notes. */
+  private captureNoteOrigins(indices: ReadonlySet<number> = this.sel.notes): void {
     this.originalPositions.clear();
-    for (const idx of this.selectedIndices) {
+    for (const idx of indices) {
       const note = this.chart.notes[idx];
+      if (!note) continue;
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
       } else {
@@ -1547,69 +1578,11 @@ export class SelectMode implements EditorMode {
     }
   }
 
-  /**
-   * 구간 단위 이동(키보드 등 단발 이동)을 적용한다.
-   * originalPositions/originalZonePositions가 미리 캡처되어 있어야 한다.
-   * 레인/범위/구간겹침 검증을 통과하면 커밋, 아니면 토스트 후 무변경.
-   */
-  private applyZoneUnitMove(laneOffset: number, beatOffset: Beat): void {
-    const newNotes = [...this.chart.notes];
-    for (const [idx, original] of this.originalPositions) {
-      const newLane = (original.lane + laneOffset) as Lane;
-      const newBeat = beatAdd(original.beat, beatOffset);
-      if (this.isRangeNote(newNotes[idx])) {
-        const duration = beatSub(original.endBeat!, original.beat);
-        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat, endBeat: beatAdd(newBeat, duration) } as RangeNote;
-      } else {
-        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
-      }
-    }
-    const newZones = this.buildMovedZones(laneOffset, beatOffset);
-
-    // 노트 레인(1~4)·범위, 구간 레인·범위 검증
-    let laneOk = true;
-    for (const idx of this.originalPositions.keys()) {
-      const l = newNotes[idx].lane;
-      if (l < 1 || l > 4) { laneOk = false; break; }
-    }
-    if (!laneOk
-      || !this.areNotesInBounds(newNotes, this.selectedIndices)
-      || !this.movedZonesInBounds(newZones)) {
-      this.callbacks.onWarn?.("더 이상 이동할 수 없습니다");
-      this.originalPositions.clear();
-      this.originalZonePositions.clear();
-      return;
-    }
-
-    const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
-    // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
-    // 존 겹침 등 의미 위반은 transient로 허용되고 저장·플레이 게이트가 강제한다.
-    this.chart = candidate;
-    this.callbacks.onChartUpdate(this.chart);
-    this.originalPositions.clear();
-    this.originalZonePositions.clear();
-  }
-
-  private startExtraMoveDrag(x: number, y: number): void {
-    const extraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-    if (
-      extraLane === null ||
-      this.selectedExtraIndices.size === 0 ||
-      !this.callbacks.getExtraNotes
-    ) {
-      return;
-    }
-
-    const extraNotes = this.callbacks.getExtraNotes();
-    this.isDragging = true;
-    this.dragType = "moveExtra";
-    this.dragStartBeat = this.callbacks.yToBeat(y);
-    this.dragStartLane = null;
-    this.dragStartExtraLane = extraLane;
-
-    this.originalPositions.clear();
+  /** 선택된 엑스트라 노트들의 원본 좌표를 기록한다(이동용). */
+  private captureExtraNoteOrigins(): void {
     this.originalExtraPositions.clear();
-    for (const idx of this.selectedExtraIndices) {
+    const extraNotes = this.callbacks.getExtraNotes?.() ?? [];
+    for (const idx of this.sel.extraNotes) {
       const note = extraNotes[idx];
       if (!note) continue;
       if ("endBeat" in note) {
@@ -1619,11 +1592,143 @@ export class SelectMode implements EditorMode {
           extraLane: note.extraLane,
         });
       } else {
-        this.originalExtraPositions.set(idx, {
-          beat: note.beat,
-          extraLane: note.extraLane,
-        });
+        this.originalExtraPositions.set(idx, { beat: note.beat, extraLane: note.extraLane });
       }
+    }
+  }
+
+  /** 이동 원본 기록(메인·구간·엑스트라)을 모두 폐기한다. */
+  private clearMoveOrigins(): void {
+    this.originalPositions.clear();
+    this.originalZonePositions.clear();
+    this.originalExtraPositions.clear();
+  }
+
+  /** 기록된 원본 좌표에 오프셋을 적용한 새 메인 노트 배열을 만든다. */
+  private buildMovedNotes(laneOffset: number, beatOffset: Beat): NoteEntity[] {
+    const newNotes = [...this.chart.notes];
+    for (const [idx, original] of this.originalPositions) {
+      const newLane = (original.lane + laneOffset) as Lane;
+      const newBeat = beatAdd(original.beat, beatOffset);
+      if (this.isRangeNote(newNotes[idx])) {
+        const duration = beatSub(original.endBeat!, original.beat);
+        newNotes[idx] = {
+          ...newNotes[idx],
+          lane: newLane,
+          beat: newBeat,
+          endBeat: beatAdd(newBeat, duration),
+        } as RangeNote;
+      } else {
+        newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
+      }
+    }
+    return newNotes;
+  }
+
+  /**
+   * 기록된 원본 좌표에 오프셋을 적용한 새 엑스트라 노트 배열을 만든다.
+   * laneOffset은 엑스트라 자신의 축(extraLane)에 적용된다 (RFD 0016 §4.2).
+   */
+  private buildMovedExtraNotes(laneOffset: number, beatOffset: Beat): ExtraNoteEntity[] | null {
+    const extraNotes = this.callbacks.getExtraNotes?.();
+    if (!extraNotes) return null;
+    const newExtraNotes = [...extraNotes];
+    for (const [idx, original] of this.originalExtraPositions) {
+      const note = newExtraNotes[idx];
+      if (!note) continue;
+      const newExtraLane = original.extraLane + laneOffset;
+      const newBeat = beatAdd(original.beat, beatOffset);
+      if ("endBeat" in note) {
+        const duration = beatSub(original.endBeat!, original.beat);
+        newExtraNotes[idx] = {
+          ...note,
+          extraLane: newExtraLane,
+          beat: newBeat,
+          endBeat: beatAdd(newBeat, duration),
+        };
+      } else {
+        newExtraNotes[idx] = { ...note, extraLane: newExtraLane, beat: newBeat };
+      }
+    }
+    return newExtraNotes;
+  }
+
+  /**
+   * 키보드 등 단발 평행이동을 적용한다 — 구간·파생 노트·일반 노트·엑스트라 동반분 전체.
+   * originalPositions/originalZonePositions/originalExtraPositions가 미리 캡처되어 있어야 한다.
+   * laneOffset은 메인 노트·구간에는 메인 레인 축, 엑스트라에는 extraLane 축으로 각자 적용된다.
+   * 레인/범위/구간겹침 검증을 통과하면 커밋, 아니면 토스트 후 무변경(no-op, RFD 0016 §4.2).
+   */
+  private applyZoneUnitMove(laneOffset: number, beatOffset: Beat): void {
+    const newNotes = this.buildMovedNotes(laneOffset, beatOffset);
+    const newZones = this.buildMovedZones(laneOffset, beatOffset);
+
+    // 노트 레인(1~4)·범위, 구간 레인·범위 검증 — 이동 대상은 캡처된 원본(파생 노트 포함)
+    const moveTargets = new Set(this.originalPositions.keys());
+    let laneOk = true;
+    for (const idx of moveTargets) {
+      const l = newNotes[idx].lane;
+      if (l < 1 || l > 4) { laneOk = false; break; }
+    }
+
+    // 엑스트라 동반분 — 레인은 엑스트라 자신의 축(1~extraLaneCount), beat는 공유 (RFD 0016 §4.2)
+    let extraOk = true;
+    let newExtraNotes: ExtraNoteEntity[] | null = null;
+    if (this.originalExtraPositions.size > 0) {
+      const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
+      for (const original of this.originalExtraPositions.values()) {
+        const targetLane = original.extraLane + laneOffset;
+        if (targetLane < 1 || targetLane > extraLaneCount) { extraOk = false; break; }
+      }
+      if (extraOk) {
+        newExtraNotes = this.buildMovedExtraNotes(laneOffset, beatOffset);
+        extraOk = newExtraNotes !== null
+          && this.areExtraNotesInBounds(newExtraNotes, new Set(this.originalExtraPositions.keys()));
+      }
+    }
+
+    if (!laneOk || !extraOk
+      || !this.areNotesInBounds(newNotes, moveTargets)
+      || !this.movedZonesInBounds(newZones)) {
+      this.callbacks.onWarn?.("더 이상 이동할 수 없습니다");
+      this.clearMoveOrigins();
+      return;
+    }
+
+    const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
+    // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
+    // 존 겹침 등 의미 위반은 transient로 허용되고 저장·플레이 게이트가 강제한다.
+    this.chart = candidate;
+    this.callbacks.onChartUpdate(this.chart);
+    if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
+    this.clearMoveOrigins();
+  }
+
+  private startExtraMoveDrag(x: number, y: number): void {
+    const extraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+    if (
+      extraLane === null ||
+      this.sel.extraNotes.size === 0 ||
+      !this.callbacks.getExtraNotes
+    ) {
+      return;
+    }
+
+    this.isDragging = true;
+    this.dragType = "moveExtra";
+    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.dragStartLane = null;
+    this.dragStartExtraLane = extraLane;
+
+    this.captureExtraNoteOrigins();
+    // 혼합 선택이면 메인 notes(+구간 파생)·zones도 beat 동반 이동 대상으로 캡처 (RFD 0016 §4.2)
+    this.captureNoteOrigins(this.effectiveNoteIndices());
+    if (this.sel.zones.size > 0) {
+      this._trillMoveZone = null;
+      this.captureZoneOrigins();
+    } else {
+      this._trillMoveZone = this.trillZoneOfSelection();
+      this.originalZonePositions.clear();
     }
   }
 
@@ -1704,6 +1809,11 @@ export class SelectMode implements EditorMode {
   }
 
   private rollbackMove(): void {
+    // 메인 쪽 원본이 없으면(엑스트라 단독 이동 등) 차트를 건드리지 않는다 — 불필요한 emit 방지
+    if (this.originalPositions.size === 0 && this.originalZonePositions.size === 0) {
+      this._trillMoveZone = null;
+      return;
+    }
     const newNotes = [...this.chart.notes];
     for (const [idx, original] of this.originalPositions) {
       if (this.isRangeNote(newNotes[idx])) {

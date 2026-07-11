@@ -137,6 +137,29 @@ export function shouldRunTouchBoxSelectDrag(input: {
   );
 }
 
+/**
+ * 노트/엑스트라 위에서 시작한 tapToggle 후보가 slop을 넘으면 박스로 승격할지 (RFD 0016 §4.4).
+ * 롱프레스가 이미 발화했으면 이동/리사이즈 드래그가 우선이라 승격하지 않는다.
+ */
+export function shouldPromoteTapToggleToBox(input: {
+  pointerType: string;
+  editorMode: string;
+  candidatePointerId: number | null;
+  pointerId: number;
+  moved: boolean;
+  activeTouchCount: number;
+  holdFired: boolean;
+}): boolean {
+  return (
+    !input.holdFired &&
+    input.pointerType === "touch" &&
+    input.editorMode === "select" &&
+    input.candidatePointerId === input.pointerId &&
+    input.moved &&
+    input.activeTouchCount === 1
+  );
+}
+
 export function didTouchMoveBeyondTapSlop(input: {
   startClientX: number;
   startClientY: number;

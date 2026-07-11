@@ -10,19 +10,24 @@ export type LongPressAction =
   | { kind: 'resizeNoteEnd'; index: number }
   | { kind: 'moveNote'; index: number }
   | { kind: 'moveExtra'; index: number }
+  | { kind: 'moveZone'; index: number }
   | { kind: 'none' };
 
 /**
- * 롱프레스 발화 시 액션을 고른다. 우선순위: 노트 끝(리사이즈) > 노트(이동) > 엑스트라(이동).
+ * 롱프레스 발화 시 액션을 고른다.
+ * 우선순위: 노트 끝(리사이즈) > 노트(이동) > 엑스트라(이동) > trillZone 몸통(구간 유닛 이동, RFD 0016 §4.4).
  * 인덱스가 0이어도(falsy) 유효 히트이므로 `!== null`로 판정한다.
  */
 export function resolveLongPressAction(hits: {
   noteEndHit: number | null;
   noteHit: number | null;
   extraHit: number | null;
+  zoneHit?: number | null;
 }): LongPressAction {
   if (hits.noteEndHit !== null) return { kind: 'resizeNoteEnd', index: hits.noteEndHit };
   if (hits.noteHit !== null) return { kind: 'moveNote', index: hits.noteHit };
   if (hits.extraHit !== null) return { kind: 'moveExtra', index: hits.extraHit };
+  const zoneHit = hits.zoneHit ?? null;
+  if (zoneHit !== null) return { kind: 'moveZone', index: zoneHit };
   return { kind: 'none' };
 }

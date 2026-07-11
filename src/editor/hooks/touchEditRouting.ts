@@ -96,13 +96,20 @@ export interface HoldHits {
   noteHit: number | null;
   noteEndHit: number | null;
   extraHit: number | null;
+  /** trillZone 몸통 히트 — 구간 유닛 롱프레스 이동용 (RFD 0016 §4.4). 생략 시 null 취급. */
+  zoneHit?: number | null;
 }
 
 /** 편집 모드 3종. 스토어 mode를 그대로 넘긴다. */
 export type EditorTouchMode = 'create' | 'select' | 'delete';
 
 function hasAnyHoldHit(hits: HoldHits): boolean {
-  return hits.noteHit !== null || hits.noteEndHit !== null || hits.extraHit !== null;
+  return (
+    hits.noteHit !== null ||
+    hits.noteEndHit !== null ||
+    hits.extraHit !== null ||
+    (hits.zoneHit ?? null) !== null
+  );
 }
 
 /**
