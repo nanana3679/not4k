@@ -36,8 +36,12 @@ export function emptySelection(): Selection {
 }
 
 /**
- * 구간에 완전히 포함된(시작·끝 모두 구간 안) 노트 인덱스.
+ * 구간에 완전히 포함된(시작·끝 모두 구간 안) **트릴 타입** 노트 인덱스.
  * 이동·삭제·복사 동사가 실행 시점에 구간 유닛의 내부 노트를 파생할 때 쓴다 (RFD 0016 §4.2).
+ *
+ * 트릴 타입(trill·trillLong)만 파생한다 — 낙관적 편집(RFD 0017)에서 일반 노트가
+ * 위반 상태로 존 범위 안에 transient 상주할 수 있는데, 그 노트는 유닛의 구성원이
+ * 아니므로 유닛 이동·삭제·복사에 끌려가면 안 된다.
  */
 export function zoneContainedNoteIndices(
   notes: readonly NoteEntity[],
@@ -46,6 +50,7 @@ export function zoneContainedNoteIndices(
   const result = new Set<number>();
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
+    if (n.type !== 'trill' && n.type !== 'trillLong') continue;
     const endBeat = 'endBeat' in n ? n.endBeat : n.beat;
     if (
       n.lane === zone.lane &&

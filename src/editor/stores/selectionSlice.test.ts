@@ -427,3 +427,16 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
     expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
   });
 });
+
+describe('zoneContainedNoteIndices — 트릴 타입만 파생 (RFD 0016 §4.2 + 낙관 편집 공존)', () => {
+  it('존 범위 안에 transient 위반으로 상주하는 일반 노트(single·long)는 파생에서 제외된다', () => {
+    const zone: TrillZone = { lane: 1, beat: beat(0), endBeat: beat(4) };
+    const mixed: NoteEntity[] = [
+      { type: 'trill', lane: 1, beat: beat(1) },                       // 0: 파생 대상
+      { type: 'single', lane: 1, beat: beat(2) },                      // 1: 위반 상주 일반 노트 — 제외
+      { type: 'long', lane: 1, beat: beat(0), endBeat: beat(3) },      // 2: 위반 상주 롱 — 제외
+      { type: 'trillLong', lane: 1, beat: beat(0), endBeat: beat(4) }, // 3: 파생 대상
+    ];
+    expect(zoneContainedNoteIndices(mixed, zone)).toEqual(new Set([0, 3]));
+  });
+});
