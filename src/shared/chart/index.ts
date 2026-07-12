@@ -18,6 +18,9 @@ import type {
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
+// 메인/보조 레인 경계 레이어 (RFD 0018)
+export * from "./laneAxis";
+
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
 // ---------------------------------------------------------------------------
