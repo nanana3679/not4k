@@ -2790,7 +2790,7 @@ describe("SelectMode — 메인↔엑스트라 드래그 변환", () => {
     expect(cb.getExtraNotes!()).toHaveLength(0);
   });
 
-  it("메인 이동 중 포인터가 엑스트라 영역이면 레인은 고정되고 beat 프리뷰만 따라온다", () => {
+  it("메인 이동 중 엑스트라 영역에 들어서는 즉시 변환되어 드래그가 이어진다 (순간이동 없음)", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
     });
@@ -2808,8 +2808,45 @@ describe("SelectMode — 메인↔엑스트라 드래그 변환", () => {
     mode.onPointerDown(3, 0, false, false);
     mode.onPointerMove(4, 1); // 메인 안: lane 3→4, beat +1
     expect(priv.chart.notes[0].lane).toBe(4);
-    mode.onPointerMove(6, 3); // 엑스트라 영역: lane 4 고정(마지막 유효 오프셋), beat +3
-    expect(priv.chart.notes[0].lane).toBe(4);
-    expect(beatToFloat(priv.chart.notes[0].beat)).toBe(3);
+
+    mode.onPointerMove(6, 2); // 엑스트라 영역 진입 → 이 프레임에서 즉시 변환(beat=+2 반영)
+    expect(priv.chart.notes).toHaveLength(0); // 메인에서 빠지고
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(2); // 포인터의 엑스트라 레인으로
+    expect(beatToFloat(cb.getExtraNotes!()[0].beat)).toBe(2);
+
+    mode.onPointerMove(5, 3); // 변환 후에도 드래그 계속 — 엑스트라 축 안에서 레인·beat 라이브
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(1);
+    expect(beatToFloat(cb.getExtraNotes!()[0].beat)).toBe(3);
+
+    mode.onPointerUp(5, 3);
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(1); // 드롭은 커밋일 뿐(이미 변환됨)
+  });
+
+  it("경계를 넘은 뒤 cancel하면 변환까지 되돌려 시작 시점으로 원상복구된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 3 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+
+    mode.onPointerDown(3, 0, false, false);
+    mode.onPointerMove(6, 2); // 경계 횡단 → 엑스트라로 변환됨
+    expect(priv.chart.notes).toHaveLength(0);
+
+    mode.cancel();
+
+    expect(priv.chart.notes).toHaveLength(1); // 메인으로 복원
+    expect(priv.chart.notes[0].lane).toBe(3);
+    expect(beatToFloat(priv.chart.notes[0].beat)).toBe(0);
+    expect(cb.getExtraNotes!()).toHaveLength(0); // 변환 흔적 없음
+    expect(cb.getSelectionState().notes).toEqual(new Set([0])); // 선택도 시작 시점으로
   });
 });

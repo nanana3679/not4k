@@ -107,9 +107,16 @@ export class SelectMode implements EditorMode {
   private preDragSelection: Selection | null = null;
 
   // 포인터가 반대 축(메인↔엑스트라) 영역에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
-  // 드롭 시 반대 축 변환(convertMainToExtra/convertExtraToMain)의 경계 프리뷰를 지탱한다.
+  // 변환 부적격 선택(존 유닛·혼합·트릴)의 경계 고정 프리뷰를 지탱한다.
   private _lastMoveLaneOffset = 0;
   private _lastExtraLaneOffset = 0;
+
+  // 축 횡단 드래그(메인↔엑스트라 즉시 변환) — 취소 시 변환까지 되돌리기 위한 시작 스냅샷.
+  // 횡단은 드래그 중 실제 변환(convert*)으로 수행되어 프리뷰가 축을 넘어 이어진다(순간이동 방지).
+  private preDragChart: Chart | null = null;
+  private preDragExtraNotes: ExtraNoteEntity[] | null = null;
+  private preDragMoveSelection: Selection | null = null;
+  private _crossedAxis = false;
 
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
@@ -136,6 +143,113 @@ export class SelectMode implements EditorMode {
   /** 박스 드래그 프레임 전용 커밋 — 프리뷰라 §3-5 게이트를 지나지 않는다(정규화만). */
   private commitSelectionTransient(partial: Partial<Selection>): void {
     this.callbacks.setSelectionTransient({ ...this.sel, ...partial });
+  }
+
+  /** 이동 드래그 시작 시 축 횡단 취소 복원용 스냅샷을 찍는다. */
+  private captureCrossAxisSnapshot(): void {
+    this.preDragChart = this.chart;
+    this.preDragExtraNotes = this.callbacks.getExtraNotes?.() ?? [];
+    this.preDragMoveSelection = this.sel;
+    this._crossedAxis = false;
+  }
+
+  /** 축 횡단 스냅샷을 폐기한다(드래그 종료·취소 공통). */
+  private clearCrossAxisSnapshot(): void {
+    this.preDragChart = null;
+    this.preDragExtraNotes = null;
+    this.preDragMoveSelection = null;
+    this._crossedAxis = false;
+  }
+
+  /**
+   * move 드래그가 엑스트라 영역에 들어서는 즉시 변환해 moveExtra 드래그로 전환한다
+   * (순간이동 방지 — 프리뷰가 축을 넘어 이어진다). 부적격 선택이면 false(경계 고정 프리뷰 유지).
+   */
+  private tryCrossToExtra(targetExtraLane: number, y: number): boolean {
+    if (
+      this.sel.notes.size === 0 ||
+      this.sel.zones.size > 0 ||
+      this.sel.extraNotes.size > 0 ||
+      this.trillZoneOfSelection() !== null ||
+      !this.callbacks.getExtraNotes ||
+      !this.callbacks.onExtraNotesUpdate
+    ) {
+      return false;
+    }
+
+    // 이 프레임까지의 세로 이동을 먼저 반영한 뒤 변환한다 — 변환 시점의 beat가 곧 프리뷰 위치
+    if (this.dragStartBeat) {
+      const beatOffset = beatSub(
+        this.callbacks.snapBeat(this.callbacks.yToBeat(y)),
+        this.callbacks.snapBeat(this.dragStartBeat),
+      );
+      const newNotes = this.buildMovedNotes(this._lastMoveLaneOffset, beatOffset);
+      if (!this.areNotesInBounds(newNotes, new Set(this.originalPositions.keys()))) return false;
+      this.chart = { ...this.chart, notes: newNotes };
+      this.callbacks.onChartUpdate(this.chart);
+    }
+
+    this.convertMainToExtraImpl(targetExtraLane);
+    if (this.sel.extraNotes.size === 0) return false; // 변환 무산(방어) — 경계 고정으로 폴백
+
+    // 드래그 상태를 엑스트라 축으로 리베이스 — 이후 프레임은 moveExtra 분기가 잇는다
+    this._crossedAxis = true;
+    this.dragType = "moveExtra";
+    this.dragStartLane = null;
+    this.dragStartExtraLane = targetExtraLane;
+    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.originalPositions.clear();
+    this.originalZonePositions.clear();
+    this._trillMoveZone = null;
+    this.captureExtraNoteOrigins();
+    this._lastExtraLaneOffset = 0;
+    return true;
+  }
+
+  /**
+   * moveExtra 드래그가 메인 레인 영역에 들어서는 즉시 변환해 move 드래그로 전환한다.
+   * 변환이 국소 판정(기존 노트와 겹침)에 막히면 false — 경계 고정 프리뷰 유지.
+   */
+  private tryCrossToMain(targetLane: Lane, y: number): boolean {
+    if (
+      this.sel.extraNotes.size === 0 ||
+      this.sel.notes.size > 0 ||
+      this.sel.zones.size > 0 ||
+      !this.callbacks.getExtraNotes ||
+      !this.callbacks.onExtraNotesUpdate
+    ) {
+      return false;
+    }
+
+    // 이 프레임까지의 세로 이동을 먼저 반영한 뒤 변환한다
+    if (this.dragStartBeat) {
+      const beatOffset = beatSub(
+        this.callbacks.snapBeat(this.callbacks.yToBeat(y)),
+        this.callbacks.snapBeat(this.dragStartBeat),
+      );
+      const newExtraNotes = this.buildMovedExtraNotes(this._lastExtraLaneOffset, beatOffset);
+      if (
+        !newExtraNotes ||
+        !this.areExtraNotesInBounds(newExtraNotes, new Set(this.originalExtraPositions.keys()))
+      ) {
+        return false;
+      }
+      this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    }
+
+    this.convertExtraToMainImpl(targetLane);
+    if (this.sel.notes.size === 0) return false; // 변환 차단(겹침 국소 판정) — 경계 고정 유지
+
+    this._crossedAxis = true;
+    this.dragType = "move";
+    this.dragStartExtraLane = null;
+    this.dragStartLane = targetLane;
+    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.originalExtraPositions.clear();
+    this._trillMoveZone = null;
+    this.captureNoteOrigins(this.effectiveNoteIndices());
+    this._lastMoveLaneOffset = 0;
+    return true;
   }
 
   /**
@@ -697,10 +811,12 @@ export class SelectMode implements EditorMode {
     if (this.dragType === "move") {
       const currentBeat = this.callbacks.yToBeat(y);
       const currentLane = this.callbacks.xToLane(x);
-      // 포인터가 엑스트라 영역이면 레인 오프셋은 마지막 유효값에 고정하고 beat만 따라온다
-      // — 드롭 시 메인→엑스트라 변환을 위한 경계 프리뷰
-      const overExtraArea =
-        currentLane === null && (this.callbacks.xToExtraLane?.(x) ?? null) !== null;
+      const pointerExtraLane =
+        currentLane === null ? (this.callbacks.xToExtraLane?.(x) ?? null) : null;
+      // 엑스트라 영역에 들어서면 즉시 변환해 드래그를 이어간다(순간이동 방지).
+      // 부적격 선택(존 유닛·혼합·트릴)은 레인을 경계에 고정하고 beat만 따라온다.
+      if (pointerExtraLane !== null && this.tryCrossToExtra(pointerExtraLane, y)) return;
+      const overExtraArea = pointerExtraLane !== null;
 
       if (
         this.dragStartBeat &&
@@ -764,9 +880,11 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "moveExtra") {
       const currentBeat = this.callbacks.yToBeat(y);
       const currentExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-      // 포인터가 메인 레인 영역이면 레인 오프셋은 마지막 유효값에 고정하고 beat만 따라온다
-      // — 드롭 시 엑스트라→메인 변환을 위한 경계 프리뷰
-      const overMainArea = currentExtraLane === null && this.callbacks.xToLane(x) !== null;
+      const pointerMainLane = currentExtraLane === null ? this.callbacks.xToLane(x) : null;
+      // 메인 레인 영역에 들어서면 즉시 변환해 드래그를 이어간다(순간이동 방지).
+      // 부적격(혼합)·변환 차단(겹침)은 레인을 경계에 고정하고 beat만 따라온다.
+      if (pointerMainLane !== null && this.tryCrossToMain(pointerMainLane, y)) return;
+      const overMainArea = pointerMainLane !== null;
 
       if (
         this.dragStartBeat &&
@@ -920,6 +1038,7 @@ export class SelectMode implements EditorMode {
       }
     }
 
+    this.clearCrossAxisSnapshot();
     this._boxEndBeat = null;
     this._boxEndLane = null;
     this._boxEndExtraLane = null;
@@ -945,15 +1064,28 @@ export class SelectMode implements EditorMode {
       this.resizingOriginalEndBeat = null;
       this.resizingOriginalBeat = null;
     } else if (this.dragType === "move" || this.dragType === "moveExtra") {
-      // 혼합 이동은 chart(노트·구간)와 extraNotes가 함께 라이브 적용되므로 둘 다 복원한다 (RFD 0016 §4.2)
-      this.rollbackMove();
-      this.rollbackMoveExtra();
+      if (this._crossedAxis && this.preDragChart && this.preDragExtraNotes && this.preDragMoveSelection) {
+        // 축 횡단(메인↔엑스트라 변환) 후 취소: 변환까지 포함해 드래그 시작 시점으로 통째 복원.
+        // 차트·엑스트라·선택을 함께 되돌리는 원자 복원이라 §3-5 게이트 대상이 아니다(transient).
+        this.chart = this.preDragChart;
+        this.callbacks.onChartUpdate(this.chart);
+        this.callbacks.onExtraNotesUpdate?.(this.preDragExtraNotes);
+        this.callbacks.setSelectionTransient(this.preDragMoveSelection);
+        this.originalPositions.clear();
+        this.originalZonePositions.clear();
+        this.originalExtraPositions.clear();
+      } else {
+        // 혼합 이동은 chart(노트·구간)와 extraNotes가 함께 라이브 적용되므로 둘 다 복원한다 (RFD 0016 §4.2)
+        this.rollbackMove();
+        this.rollbackMoveExtra();
+      }
     }
     // boxSelect는 차트를 변이하지 않지만 프리뷰(transient) 선택은 시작 전으로 복원한다(§3-5).
     if (this.dragType === "boxSelect" && this.preDragSelection) {
       this.callbacks.setSelectionTransient(this.preDragSelection);
     }
     this.preDragSelection = null;
+    this.clearCrossAxisSnapshot();
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
@@ -1595,6 +1727,7 @@ export class SelectMode implements EditorMode {
     this.dragStartLane = lane;
     this.dragStartExtraLane = null;
     this._lastMoveLaneOffset = 0;
+    this.captureCrossAxisSnapshot();
 
     // 직접 선택한 notes + 구간 파생 노트를 함께 캡처 — 혼합 선택도 한 오프셋으로 움직인다 (RFD 0016 §4.2)
     this.captureNoteOrigins(this.effectiveNoteIndices());
@@ -1821,6 +1954,7 @@ export class SelectMode implements EditorMode {
     this.dragStartLane = null;
     this.dragStartExtraLane = extraLane;
     this._lastExtraLaneOffset = 0;
+    this.captureCrossAxisSnapshot();
 
     this.captureExtraNoteOrigins();
     // 혼합 선택이면 메인 notes(+구간 파생)·zones도 beat 동반 이동 대상으로 캡처 (RFD 0016 §4.2)
