@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unifiedNotes, extraToNote } from "./unifiedNotes";
+import { unifiedNotes, extraToNote, splitViolationNoteIndices } from "./unifiedNotes";
 import { beat } from "../../shared";
 import type { NoteEntity, ExtraNoteEntity } from "../../shared";
 
@@ -71,5 +71,35 @@ describe("unifiedNotes", () => {
 
     expect(notes).toEqual([mainA]);
     expect(extras).toEqual([extraP]);
+  });
+});
+
+describe("splitViolationNoteIndices", () => {
+  it("mainCount=3일 때 {1, 3, 5} → main {1}, extra {0, 2} (통합 인덱스 → extraNotes 인덱스 번역)", () => {
+    expect(splitViolationNoteIndices(new Set([1, 3, 5]), 3)).toEqual({
+      main: new Set([1]),
+      extra: new Set([0, 2]),
+    });
+  });
+
+  it("전부 메인 범위(mainCount=4, {0, 3})면 extra는 빈 집합", () => {
+    expect(splitViolationNoteIndices(new Set([0, 3]), 4)).toEqual({
+      main: new Set([0, 3]),
+      extra: new Set(),
+    });
+  });
+
+  it("mainCount=0이면 전부 extra로 — 통합 인덱스가 그대로 extraNotes 인덱스", () => {
+    expect(splitViolationNoteIndices(new Set([0, 2]), 0)).toEqual({
+      main: new Set(),
+      extra: new Set([0, 2]),
+    });
+  });
+
+  it("빈 집합이면 양쪽 다 빈 집합", () => {
+    expect(splitViolationNoteIndices(new Set(), 3)).toEqual({
+      main: new Set(),
+      extra: new Set(),
+    });
   });
 });
