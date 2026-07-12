@@ -11,7 +11,8 @@ import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
-import { beatToMs } from '../../shared';
+import { beatToMs, auxNotesAsExtra, withAuxNotes, auxIndexToUnifiedIndex } from '../../shared';
+import type { ExtraNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores';
 import {
   deleteChartNoteAtLaneBeat,
@@ -96,7 +97,11 @@ export function useCanvasEvents(
   const entityType = useEditorStore((s) => s.entityType);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
+  // ③ 어댑터: 보조 편집을 chart.notes 재구성으로 번역 (RFD 0018) — 현재 메인 + 새 보조 병합.
+  const applyExtraNotes = useCallback((extra: ExtraNoteEntity[]) => {
+    const cur = useEditorStore.getState().chart;
+    useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
+  }, []);
   const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const addToast = useEditorStore((s) => s.addToast);
@@ -558,8 +563,13 @@ export function useCanvasEvents(
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
       : null;
     if (rendererRef.current) {
-      rendererRef.current.setHoveredNote(hoverNoteHit);
-      rendererRef.current.setHoveredExtraNote(hoverExtraHit);
+      // 렌더러 hover는 chart.notes 인덱스 공간 (RFD 0018 ③ — 보조 = mainCount + auxIdx)
+      const hoverUnified = hoverNoteHit !== null
+        ? hoverNoteHit
+        : hoverExtraHit !== null
+          ? auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, hoverExtraHit)
+          : null;
+      rendererRef.current.setHoveredNote(hoverUnified);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
@@ -602,11 +612,11 @@ export function useCanvasEvents(
 
       const extraLane = xToExtraLane(x);
       if (extraLane !== null) {
-        const currentExtra = useEditorStore.getState().extraNotes;
+        const currentExtra = auxNotesAsExtra(useEditorStore.getState().chart.notes);
         const updatedExtra = deleteExtraNoteAtLaneBeat(currentExtra, { extraLane, beatFloat });
         if (updatedExtra !== null) {
           rightDragDeletedRef.current = true;
-          setExtraNotes(updatedExtra);
+          applyExtraNotes(updatedExtra);
           clearExtraSelection();
         }
         return;
@@ -655,12 +665,13 @@ export function useCanvasEvents(
               // Show ghost marker for event entity types on extra lanes
               rendererRef.current.showGhostMarker(extraLane, timeMs);
             } else {
-              const existingExtra = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
+              const existingExtra = extraNoteExistsAtSnap(auxNotesAsExtra(useEditorStore.getState().chart.notes), extraLane, snappedBeatFloat);
               if (existingExtra === null) {
                 rendererRef.current.showGhostExtraNote(extraLane, timeMs);
               } else {
                 rendererRef.current.hideGhostNote();
-                rendererRef.current.setHoveredExtraNote(existingExtra);
+                // chart.notes 인덱스 공간: 보조 노트 i는 chart.notes[mainCount + i] (RFD 0018 ③)
+                rendererRef.current.setHoveredNote(auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, existingExtra));
               }
             }
           } else {
@@ -685,7 +696,7 @@ export function useCanvasEvents(
     }
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
-    bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
+    bpmMarkers, isTimeInBounds, setChart, applyExtraNotes,
     clearExtraSelection, toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
     hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
@@ -884,10 +895,10 @@ export function useCanvasEvents(
 
     const extraHitIdx = hitTestExtraNote(x, y);
     if (extraHitIdx !== null) {
-      const currentExtra = useEditorStore.getState().extraNotes;
+      const currentExtra = auxNotesAsExtra(useEditorStore.getState().chart.notes);
       const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
       if (updatedExtra === null) return;
-      setExtraNotes(updatedExtra);
+      applyExtraNotes(updatedExtra);
       clearExtraSelection();
       return;
     }
@@ -919,7 +930,7 @@ export function useCanvasEvents(
         events: currentChart.events.filter((_, i) => i !== markerHit.index),
       });
     }
-  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, setExtraNotes, clearExtraSelection, addToast]);
+  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, applyExtraNotes, clearExtraSelection, addToast]);
 
   return {
     handlePointerDown,

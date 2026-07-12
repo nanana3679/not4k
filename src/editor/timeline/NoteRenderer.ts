@@ -4,23 +4,20 @@
  */
 
 import { Container, Graphics, FillGradient } from "pixi.js";
-import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote } from "../../shared";
-import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker, ExtraNoteEntity } from "../../shared";
+import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane } from "../../shared";
+import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
-  TIMELINE_WIDTH,
-  EXTRA_LANE_WIDTH,
   COLORS,
   NOTE_Z_ORDER,
 } from "./constants";
+import { laneToX, laneWidth } from "./laneGeometry";
 
 /** NoteRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface NoteHost {
   readonly chart: Chart | null;
-  readonly extraNotes: ExtraNoteEntity[];
   readonly selectedNotes: Set<number>;
-  readonly selectedExtraNotes: Set<number>;
   readonly cachedBpmMarkers: BpmMarker[];
   readonly bodyGradientCache: Map<number, FillGradient>;
   getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number };
@@ -523,48 +520,25 @@ export class NoteRenderer {
 
       const isSelected = this.host.selectedNotes.has(index);
 
+      // 보조 레인(5+)은 보조 영역 x로 투영해 그린다 (RFD 0018 — 단일 배열, 시각만 분기).
+      // 표시 범위 밖 보조 레인의 숨김(§8-4)은 현행대로 캔버스 폭 클리핑이 담당한다.
+      if (!isMainLane(note.lane)) {
+        const x = laneToX(note.lane);
+        const w = laneWidth(note.lane);
+        if (this.isPointNote(note)) {
+          this.renderPointNoteAt(x, w, note.beat, note.type, isSelected, bpmMarkers, meta);
+        } else {
+          this.renderRangeNoteAt(x, w, note.beat, (note as RangeNote).endBeat, note.type, isSelected, bpmMarkers, meta);
+        }
+        continue;
+      }
+
       if (this.isPointNote(note)) {
         this.renderPointNote(note, isSelected);
       } else {
         this.renderRangeNote(note as RangeNote, isSelected);
       }
     }
-
-    this.renderExtraNotes();
-  }
-
-  /**
-   * 엑스트라 레인 노트 렌더링
-   */
-  renderExtraNotes(): void {
-    const chart = this.host.chart;
-    if (!chart || this.host.extraNotes.length === 0) return;
-
-    const bpmMarkers = this.host.cachedBpmMarkers;
-    const meta = chart.meta;
-    const extraStartX = TIMELINE_WIDTH;
-    const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
-
-    this.host.extraNotes.forEach((note, index) => {
-      const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      if ("endBeat" in note) {
-        const noteEndMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
-        const lo = Math.min(noteStartMs, noteEndMs);
-        const hi = Math.max(noteStartMs, noteEndMs);
-        if (hi < minTimeMs || lo > maxTimeMs) return;
-      } else {
-        if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) return;
-      }
-
-      const isSelected = this.host.selectedExtraNotes.has(index);
-      const x = extraStartX + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
-
-      if ("endBeat" in note) {
-        this.renderRangeNoteAt(x, EXTRA_LANE_WIDTH, note.beat, note.endBeat, note.type, isSelected, bpmMarkers, meta);
-      } else {
-        this.renderPointNoteAt(x, EXTRA_LANE_WIDTH, note.beat, note.type, isSelected, bpmMarkers, meta);
-      }
-    });
   }
 
   /**

@@ -5,7 +5,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import { beatToMs } from "../../shared";
-import type { Chart, Beat, NoteEntity, BpmMarker, ExtraNoteEntity, Lane } from "../../shared";
+import type { Chart, Beat, NoteEntity, BpmMarker, Lane } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -13,6 +13,7 @@ import {
   EXTRA_LANE_WIDTH,
   COLORS,
 } from "./constants";
+import { laneToX, laneWidth } from "./laneGeometry";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
 import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
@@ -20,15 +21,13 @@ import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
-  readonly extraNotes: ExtraNoteEntity[];
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
-  readonly violatingExtraNoteIndices: Set<number>;
-  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
+  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
@@ -299,7 +298,7 @@ export class OverlayRenderer {
   /**
    * 호버 오버레이 업데이트 (경량, 풀 리렌더 없음)
    */
-  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredExtraNoteIndex: number | null, hoveredTrillZoneIndex: number | null = null): void {
+  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredTrillZoneIndex: number | null = null): void {
     destroyChildren(this.host.hoverLayer);
     if (!this.host.chart) return;
 
@@ -311,7 +310,9 @@ export class OverlayRenderer {
 
     if (hoveredNoteIndex !== null && hoveredNoteIndex < this.host.chart.notes.length) {
       const note = this.host.chart.notes[hoveredNoteIndex];
-      const x = (note.lane - 1) * LANE_WIDTH;
+      // 메인·보조 공통 — lane 투영만 다르다 (RFD 0018)
+      const x = laneToX(note.lane);
+      const laneW = laneWidth(note.lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
@@ -322,41 +323,19 @@ export class OverlayRenderer {
         const endY = this.host.timeToY(endMs);
         const topY = Math.min(startY, endY);
         const bottomY = Math.max(startY, endY);
-        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
+        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, laneW, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
       } else {
         const gfx = new Graphics();
         if (note.type === "trill") {
-          const cx = x + LANE_WIDTH / 2;
+          const cx = x + laneW / 2;
           gfx.moveTo(cx, startY - h / 2);
           gfx.lineTo(cx + w / 2, startY);
           gfx.lineTo(cx, startY + h / 2);
           gfx.lineTo(cx - w / 2, startY);
           gfx.lineTo(cx, startY - h / 2);
         } else {
-          gfx.rect(x + (LANE_WIDTH - w) / 2, startY - h / 2, w, h);
+          gfx.rect(x + (laneW - w) / 2, startY - h / 2, w, h);
         }
-        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
-        this.host.hoverLayer.addChild(gfx);
-      }
-    }
-
-    if (hoveredExtraNoteIndex !== null && hoveredExtraNoteIndex < this.host.extraNotes.length) {
-      const note = this.host.extraNotes[hoveredExtraNoteIndex];
-      const x = TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
-      const w = NOTE_HEIGHT * 5;
-      const h = NOTE_HEIGHT;
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      const startY = this.host.timeToY(startMs);
-
-      if ("endBeat" in note) {
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
-        const endY = this.host.timeToY(endMs);
-        const topY = Math.min(startY, endY);
-        const bottomY = Math.max(startY, endY);
-        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, EXTRA_LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
-      } else {
-        const gfx = new Graphics();
-        gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, startY - h / 2, w, h);
         gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
         this.host.hoverLayer.addChild(gfx);
       }
@@ -397,8 +376,7 @@ export class OverlayRenderer {
     if (!this.host.chart) return;
     if (
       this.host.violatingNoteIndices.size === 0 &&
-      this.host.violatingTrillZoneIndices.size === 0 &&
-      this.host.violatingExtraNoteIndices.size === 0
+      this.host.violatingTrillZoneIndices.size === 0
     ) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
@@ -423,17 +401,6 @@ export class OverlayRenderer {
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
-    // 엑스트라 노트: extraLane 축 겹침/중복 — 시각화 전용(게이트 불포함), 노트와 동일 해칭.
-    for (const idx of this.host.violatingExtraNoteIndices) {
-      if (idx >= this.host.extraNotes.length) continue;
-      const note = this.host.extraNotes[idx];
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
-      const rectX =
-        TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH +
-        (EXTRA_LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
-      this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
-    }
   }
 
   /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */
@@ -444,7 +411,7 @@ export class OverlayRenderer {
     minTimeMs: number,
     maxTimeMs: number,
   ): void {
-    const rectX = (lane - 1) * LANE_WIDTH + (LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
+    const rectX = laneToX(lane) + (laneWidth(lane) - NOTE_HEIGHT * 5) / 2;
     this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
   }
 

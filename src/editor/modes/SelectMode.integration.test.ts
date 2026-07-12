@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SelectMode } from "./SelectMode";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
-import { beat, beatToFloat } from "../../shared";
+import { beat, beatToFloat, auxNotesAsExtra, withAuxNotes } from "../../shared";
 import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
@@ -52,7 +52,6 @@ function makeIntegration(
 ) {
   useEditorStore.setState({
     chart: fullChart(notes),
-    extraNotes: [],
     selection: emptySelection(),
     historyPast: [],
     historyFuture: [],
@@ -81,8 +80,12 @@ function makeIntegration(
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
     hitTestNote,
     onWarn: vi.fn(),
-    getExtraNotes: () => useEditorStore.getState().extraNotes,
-    onExtraNotesUpdate: (e: ExtraNoteEntity[]) => useEditorStore.getState().setExtraNotes(e),
+    // ③ 병합 어댑터 (RFD 0018): 보조는 chart.notes(lane 5+)에 살고, 콜백이 파생·병합한다.
+    getExtraNotes: () => auxNotesAsExtra(useEditorStore.getState().chart.notes),
+    onExtraNotesUpdate: (e: ExtraNoteEntity[]) => {
+      const cur = useEditorStore.getState().chart;
+      useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, e) });
+    },
   };
   mode = new SelectMode(useEditorStore.getState().chart, cb);
   return { mode, cb, setSelectionSpy, store: useEditorStore };

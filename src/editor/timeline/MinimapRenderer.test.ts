@@ -96,4 +96,46 @@ describe("MinimapRenderer", () => {
     // 마디선은 최대 1개(마디 0)만 그려지고 즉시 종료 — 유한함이 요점.
     expect(minimapLayer.children.length).toBeLessThan(50);
   });
+
+  it("보조 레인(lane 5~8) 노트만 있는 차트는 노트 0개 차트와 미니맵 자식 수가 같다 (보조는 미니맵 미표시)", () => {
+    const render = (chart: Chart): number => {
+      const minimapLayer = new Container();
+      const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
+      const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
+      new MinimapRenderer({
+        chart,
+        options: {
+          canvas: {
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+          } as unknown as HTMLCanvasElement,
+          width: 800,
+          height: 600,
+        },
+        scrollY: 0,
+        totalTimelineHeight: 80_000,
+        waveformDurationMs: 640_000,
+        zoom: 200,
+        cachedBpmMarkers: bpmMarkers,
+        cachedTimeSignatures: timeSignatures,
+        getTotalTimelineMs: () => 640_000,
+        timeToY: (timeMs: number) => 80_000 - timeMs / 10,
+        minimapLayer,
+        minimapVisible: true,
+      }).render();
+      return minimapLayer.children.length;
+    };
+
+    const emptyChart = { ...makeChart(0), notes: [] };
+    const auxOnlyChart = {
+      ...makeChart(0),
+      notes: Array.from({ length: 8 }, (_, i) => ({
+        type: "single" as const,
+        lane: (i % 4) + 5, // lane 5~8
+        beat: beat(i, 4),
+      })),
+    };
+
+    expect(render(auxOnlyChart)).toBe(render(emptyChart));
+  });
 });

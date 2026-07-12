@@ -17,14 +17,13 @@ import {
   validateNoRangeInversion,
   validateBeatWellFormed,
   violationsInvolving,
-  extraNoteViolationIndices,
   isNaturalNumber,
   validateTimeSigNatural,
   validateTimeSigAtMeasureStart,
   isMeasureBoundary,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, ChartEvent, TimeSignatureMarker, ExtraNoteEntity } from "../types/chart";
+import type { NoteEntity, TrillZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -1364,38 +1363,68 @@ describe("violationsInvolving (신규 엔티티 국소 판정)", () => {
 // 엑스트라 노트 위반 (extraLane 축, 시각화 전용 — RFD 0017)
 // =========================================================================
 
-describe("extraNoteViolationIndices (extraLane 축 겹침/중복)", () => {
-  it("같은 extraLane·같은 값·다른 표현(8/4 vs 2/1) 포인트 2개는 둘 다 위반 집합에 담긴다", () => {
-    const extras = [
-      { type: "single", extraLane: 1, beat: { n: 8, d: 4 } }, // 스냅형 8/4 = 2.0
-      { type: "single", extraLane: 1, beat: beat(2) },        // 약분형 2/1 = 2.0
-    ] as ExtraNoteEntity[];
-    expect(extraNoteViolationIndices(extras)).toEqual(new Set([0, 1]));
+describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)", () => {
+  it("lane 5 trill 노트는 trillZone 밖이어도 trillExclusive 위반 아님 (보조는 표시 전용)", () => {
+    const notes = [{ type: "trill", lane: 5, beat: beat(1) }] as NoteEntity[];
+    expect(validateTrillExclusive(notes, [])).toEqual([]);
   });
 
-  it("다른 extraLane이면 같은 박이라도 위반 아님", () => {
-    const extras = [
-      { type: "single", extraLane: 1, beat: beat(2) },
-      { type: "single", extraLane: 2, beat: beat(2) },
-    ] as ExtraNoteEntity[];
-    expect(extraNoteViolationIndices(extras)).toEqual(new Set());
+  it("메인 lane 2 trill 노트는 존 밖이면 여전히 trillExclusive 위반 (메인 규칙 불변)", () => {
+    const notes = [{ type: "trill", lane: 2, beat: beat(1) }] as NoteEntity[];
+    expect(validateTrillExclusive(notes, [])).toHaveLength(1);
   });
 
-  it("엑스트라 롱 바디(0~4) 안의 포인트(beat2)는 longOverlap으로 잡힌다", () => {
-    const extras = [
-      { type: "long", extraLane: 1, beat: beat(0), endBeat: beat(4) },
-      { type: "single", extraLane: 1, beat: beat(2) },
-    ] as ExtraNoteEntity[];
-    expect(extraNoteViolationIndices(extras)).toEqual(new Set([0, 1]));
+  it("lane 6 trillLong은 헤드 없어도·hold-only여도 trillLongInvalid 위반 아님", () => {
+    const notes = [
+      { type: "trillLong", lane: 6, beat: beat(0), endBeat: beat(2), holdOnly: true },
+    ] as NoteEntity[];
+    expect(validateTrillLong(notes)).toEqual([]);
   });
 
-  it("메인 레인 번호와 겹치는 extraLane이라도 메인 노트와는 독립 (엑스트라끼리만 검사)", () => {
-    // extraLane 1과 main lane 1은 다른 축 — 이 함수는 extraNotes만 받으므로 교차 검사 자체가 없다
-    const extras = [{ type: "single", extraLane: 1, beat: beat(0) }] as ExtraNoteEntity[];
-    expect(extraNoteViolationIndices(extras)).toEqual(new Set());
+  it("lane 5 노트는 stop 구간(0~4) 안이어도 stopZone 위반 아님 (게임 판정 전제 규칙)", () => {
+    const notes = [{ type: "single", lane: 5, beat: beat(2) }] as NoteEntity[];
+    const events = [{ type: "stop", beat: beat(0), endBeat: beat(4) }] as ChartEvent[];
+    expect(validateStopZones(notes, events)).toEqual([]);
   });
 
-  it("빈 배열이면 빈 집합", () => {
-    expect(extraNoteViolationIndices([])).toEqual(new Set());
+  it("메인 lane 1 노트는 같은 stop 구간 안이면 여전히 stopZone 위반", () => {
+    const notes = [{ type: "single", lane: 1, beat: beat(2) }] as NoteEntity[];
+    const events = [{ type: "stop", beat: beat(0), endBeat: beat(4) }] as ChartEvent[];
+    expect(validateStopZones(notes, events)).toHaveLength(1);
+  });
+
+  it("lane 5 같은 레인·같은 박 포인트 중복은 duplicate 위반 (전 레인 규칙)", () => {
+    const notes = [
+      { type: "single", lane: 5, beat: beat(2) },
+      { type: "single", lane: 5, beat: beat(2) },
+    ] as NoteEntity[];
+    expect(validateNoDuplicates(notes)).toHaveLength(1);
+  });
+
+  it("lane 7 롱 바디(0~4) 안의 lane 7 포인트(beat 2)는 longOverlap 위반 (전 레인 규칙)", () => {
+    const notes = [
+      { type: "long", lane: 7, beat: beat(0), endBeat: beat(4) },
+      { type: "single", lane: 7, beat: beat(2) },
+    ] as NoteEntity[];
+    expect(validateNoLongOverlap(notes)).toHaveLength(1);
+  });
+
+  it("lane 4와 lane 5는 다른 레인 — 같은 박이라도 중복 위반 아님 (메인↔보조 교차 없음)", () => {
+    const notes = [
+      { type: "single", lane: 4, beat: beat(2) },
+      { type: "single", lane: 5, beat: beat(2) },
+    ] as NoteEntity[];
+    expect(validateNoDuplicates(notes)).toEqual([]);
+  });
+
+  it("validateChart 통합: lane 5 trill(존 밖)+중복 차트에서 duplicate만 잡힌다", () => {
+    const notes = [
+      { type: "trill", lane: 5, beat: beat(0) },
+      { type: "single", lane: 5, beat: beat(2) },
+      { type: "single", lane: 5, beat: beat(2) },
+    ] as NoteEntity[];
+    const errors = validateChart({ notes, trillZones: [], events: [] });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("duplicate");
   });
 });

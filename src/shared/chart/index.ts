@@ -18,20 +18,26 @@ import type {
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
+// 메인/보조 레인 경계 레이어 (RFD 0018)
+export * from "./laneAxis";
+export * from "./auxAdapter";
+
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
 // ---------------------------------------------------------------------------
 
+// lane은 number — 차트 파일에 lane ≤ 4만 담기는 불변식은 저장 경계의
+// mainNotes() 필터가 강제한다(RFD 0018 §3-3). 타입으로는 표현하지 않는다.
 interface PointNoteJson {
   type: "single" | "double" | "trill";
-  lane: 1 | 2 | 3 | 4;
+  lane: number;
   beat: string;
   grace?: boolean;
 }
 
 interface RangeNoteJson {
   type: "long" | "doubleLong" | "trillLong";
-  lane: 1 | 2 | 3 | 4;
+  lane: number;
   beat: string;
   endBeat: string;
   holdOnly?: boolean;

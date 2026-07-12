@@ -29,7 +29,6 @@ describe('editorStore history', () => {
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeChart(),
-      extraNotes: [],
       extraLaneCount: 2,
       selection: emptySelection(),
       historyPast: [],
