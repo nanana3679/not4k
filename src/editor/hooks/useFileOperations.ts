@@ -23,6 +23,7 @@ import {
   supabase,
 } from '../../supabase';
 import { useEditorStore } from '../stores';
+import { unifiedNotes } from '../stores/unifiedNotes';
 import { useGameStore } from '../../game/stores';
 
 export interface FileOperationHandlers {
@@ -371,7 +372,9 @@ export function useFileOperations(
       audioBuffer: playbackRef.current?.audioBufferData ?? null,
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
-      chart,
+      // 통합 읽기뷰(RFD 0018 ② shim): 진입 게이트가 보조 레인 위반도 동일하게 보고(§3-6),
+      // 게임에는 performPlayTest 내부 mainNotes 필터가 메인 노트만 넘긴다. ③에서 chart로 환원.
+      chart: { ...chart, notes: unifiedNotes(chart.notes, extraNotes) },
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
       game: {
@@ -388,7 +391,7 @@ export function useFileOperations(
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
       navigate: () => navigateTo('/game'),
     });
-  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
+  }, [chart, extraNotes, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
