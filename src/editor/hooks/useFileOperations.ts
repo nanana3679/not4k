@@ -23,7 +23,6 @@ import {
   supabase,
 } from '../../supabase';
 import { useEditorStore } from '../stores';
-import { unifiedNotes } from '../stores/unifiedNotes';
 import { useGameStore } from '../../game/stores';
 
 export interface FileOperationHandlers {
@@ -169,7 +168,6 @@ export function useFileOperations(
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
@@ -189,7 +187,7 @@ export function useFileOperations(
 
     // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
     const errors = validateChart({
-      notes: unifiedNotes(chart.notes, extraNotes),
+      notes: chart.notes,
       trillZones: chart.trillZones,
       events: chart.events,
     });
@@ -217,7 +215,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -309,7 +306,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -319,7 +316,7 @@ export function useFileOperations(
 
     // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
     const errors = validateChart({
-      notes: unifiedNotes(chart.notes, extraNotes),
+      notes: chart.notes,
       trillZones: chart.trillZones,
       events: chart.events,
     });
@@ -348,7 +345,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -365,7 +361,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     const game = useGameStore.getState();
@@ -374,9 +370,9 @@ export function useFileOperations(
       audioBuffer: playbackRef.current?.audioBufferData ?? null,
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
-      // 통합 읽기뷰(RFD 0018 ② shim): 진입 게이트가 보조 레인 위반도 동일하게 보고(§3-6),
-      // 게임에는 performPlayTest 내부 mainNotes 필터가 메인 노트만 넘긴다. ③에서 chart로 환원.
-      chart: { ...chart, notes: unifiedNotes(chart.notes, extraNotes) },
+      // 진입 게이트는 chart.notes(보조 포함)를 검증하고(§3-6), 게임에는 performPlayTest
+      // 내부 mainNotes 필터가 메인 노트만 넘긴다 (RFD 0018 §3-3).
+      chart,
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
       game: {
@@ -393,7 +389,7 @@ export function useFileOperations(
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
       navigate: () => navigateTo('/game'),
     });
-  }, [chart, extraNotes, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
+  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {

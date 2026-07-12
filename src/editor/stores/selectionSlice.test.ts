@@ -10,7 +10,7 @@ import {
   type SelectionSlice,
 } from './selectionSlice';
 import { beat } from '../../shared';
-import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone } from '../../shared';
+import type { Chart, NoteEntity, TrillZone } from '../../shared';
 
 // ---------------------------------------------------------------------------
 // 픽스처: zoneA(lane1, 0~2), zoneB(lane2, 4~6)
@@ -32,15 +32,18 @@ const notes: NoteEntity[] = [
   { type: 'trillLong', lane: 1, beat: beat(0), endBeat: beat(2) },
 ];
 
+// 보조 노트는 chart.notes(정규형 [...main, ...aux])의 lane 5+로 산다 (RFD 0018 ③).
+// selection.extraNotes 인덱스는 이 aux 서브배열(여기선 인덱스 0·1)을 가리킨다.
+const auxNotesFixture: NoteEntity[] = [
+  { type: 'single', lane: 5, beat: beat(0) },
+  { type: 'single', lane: 6, beat: beat(1) },
+];
+const notesWithAux: NoteEntity[] = [...notes, ...auxNotesFixture];
+
 const chart: Pick<Chart, 'notes' | 'trillZones'> = {
-  notes,
+  notes: notesWithAux,
   trillZones: [zoneA, zoneB],
 };
-
-const extraNotes: ExtraNoteEntity[] = [
-  { type: 'single', extraLane: 1, beat: beat(0) },
-  { type: 'single', extraLane: 2, beat: beat(1) },
-];
 
 function sel(input: Partial<Selection>): Selection {
   return { ...emptySelection(), ...input };
@@ -52,34 +55,34 @@ function sel(input: Partial<Selection>): Selection {
 
 describe('normalizeSelection — 동질성 정규화', () => {
   it('일반 노트만 고르면 그대로 유지된다({0,3} → {0,3})', () => {
-    const result = normalizeSelection(sel({ notes: new Set([0, 3]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ notes: new Set([0, 3]) }), chart);
     expect(result.notes).toEqual(new Set([0, 3]));
   });
 
   it('일반(0)과 트릴(1)이 섞이면 최소 인덱스 종류인 일반만 남는다({0,1} → {0})', () => {
-    const result = normalizeSelection(sel({ notes: new Set([0, 1]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ notes: new Set([0, 1]) }), chart);
     expect(result.notes).toEqual(new Set([0]));
   });
 
   it('서로 다른 구간의 트릴(1: zoneA, 2: zoneB)이 섞이면 최소 인덱스 구간만 남는다({1,2} → {1})', () => {
-    const result = normalizeSelection(sel({ notes: new Set([1, 2]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ notes: new Set([1, 2]) }), chart);
     expect(result.notes).toEqual(new Set([1]));
   });
 
   it('같은 구간(zoneA)의 트릴 노트 {1,4}는 함께 유지된다', () => {
-    const result = normalizeSelection(sel({ notes: new Set([1, 4]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ notes: new Set([1, 4]) }), chart);
     expect(result.notes).toEqual(new Set([1, 4]));
   });
 });
 
 describe('normalizeSelection — 범위 보정', () => {
   it('notes 5개에서 범위 밖 인덱스 7과 음수 -1은 제거된다({0,7,-1} → {0})', () => {
-    const result = normalizeSelection(sel({ notes: new Set([0, 7, -1]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ notes: new Set([0, 7, -1]) }), chart);
     expect(result.notes).toEqual(new Set([0]));
   });
 
   it('extraNotes 2개에서 범위 밖 인덱스 5는 제거된다({0,5} → {0})', () => {
-    const result = normalizeSelection(sel({ extraNotes: new Set([0, 5]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ extraNotes: new Set([0, 5]) }), chart);
     expect(result.extraNotes).toEqual(new Set([0]));
   });
 
@@ -87,7 +90,6 @@ describe('normalizeSelection — 범위 보정', () => {
     const result = normalizeSelection(
       sel({ notes: new Set([0, 3]), zones: new Set([5]) }),
       chart,
-      extraNotes,
     );
     expect(result.zones).toEqual(new Set());
     expect(result.notes).toEqual(new Set([0, 3]));
@@ -96,7 +98,7 @@ describe('normalizeSelection — 범위 보정', () => {
 
 describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
   it('zones={0}이어도 notes에 내부 노트를 주입하지 않는다(notes 빈 집합 유지)', () => {
-    const result = normalizeSelection(sel({ zones: new Set([0]) }), chart, extraNotes);
+    const result = normalizeSelection(sel({ zones: new Set([0]) }), chart);
     expect(result.zones).toEqual(new Set([0]));
     expect(result.notes).toEqual(new Set());
   });
@@ -105,7 +107,6 @@ describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
     const result = normalizeSelection(
       sel({ notes: new Set([0, 3]), zones: new Set([0]) }),
       chart,
-      extraNotes,
     );
     expect(result.notes).toEqual(new Set([0, 3]));
     expect(result.zones).toEqual(new Set([0]));
@@ -115,7 +116,6 @@ describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
     const result = normalizeSelection(
       sel({ notes: new Set([1]), zones: new Set([1]) }),
       chart,
-      extraNotes,
     );
     expect(result.notes).toEqual(new Set([1]));
     expect(result.zones).toEqual(new Set());
@@ -125,7 +125,6 @@ describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
     const result = normalizeSelection(
       sel({ extraNotes: new Set([0]), zones: new Set([0]) }),
       chart,
-      extraNotes,
     );
     expect(result.zones).toEqual(new Set([0]));
     expect(result.extraNotes).toEqual(new Set([0]));
@@ -166,7 +165,7 @@ describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4
 // 합성 후에는 setChart 선택 보정·undo clear 등 store 경유 테스트가 추가된다.
 // ---------------------------------------------------------------------------
 
-type HarnessState = SelectionSlice & { chart: Chart; extraNotes: ExtraNoteEntity[] };
+type HarnessState = SelectionSlice & { chart: Chart };
 
 function makeSliceHarness() {
   let state: HarnessState;
@@ -179,7 +178,7 @@ function makeSliceHarness() {
   const get = () => state;
   const slice = createSelectionSlice(set, get);
   // §3-5 게이트가 validateChart를 읽으므로 events까지 채운다 (meta는 게이트가 안 읽어 생략)
-  state = { chart: { ...chart, events: [] } as unknown as Chart, extraNotes, ...slice };
+  state = { chart: { ...chart, events: [] } as unknown as Chart, ...slice };
   return { getState: () => state };
 }
 
@@ -221,8 +220,7 @@ describe('createSelectionSlice 액션 (fake store)', () => {
 function resetSelectionStore() {
   useEditorStore.setState({
     selection: emptySelection(),
-    chart: { ...useEditorStore.getState().chart, notes, trillZones: [zoneA, zoneB] },
-    extraNotes,
+    chart: { ...useEditorStore.getState().chart, notes: notesWithAux, trillZones: [zoneA, zoneB] },
     historyPast: [],
     historyFuture: [],
     historyLastCaptureAt: 0,
@@ -287,14 +285,14 @@ describe('변이 액션의 선택 보정', () => {
   beforeEach(resetSelectionStore);
 
   it('setChart: 노트 3→2개 축소 커밋이면 선택이 같은 트랜잭션에서 전부 비워진다 (인덱스 밀림 방지, §3-5 면제 경로)', () => {
-    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.setState({ chart: makeFullChart(singles) });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
     useEditorStore.getState().setChart(makeFullChart(singles.slice(0, 2)));
     expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
   it('setChart: 선택이 여전히 유효하면 selection 참조가 유지된다(불필요한 통지 없음)', () => {
-    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.setState({ chart: makeFullChart(singles) });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
     const before = useEditorStore.getState().selection;
     useEditorStore.getState().setChart(makeFullChart(singles));
@@ -302,17 +300,21 @@ describe('변이 액션의 선택 보정', () => {
   });
 
   it('undo: 편집을 undo하면 선택이 zones 포함 전체 clear된다', () => {
-    useEditorStore.setState({ chart: makeFullChart(singles.slice(0, 2)), extraNotes: [] });
+    useEditorStore.setState({ chart: makeFullChart(singles.slice(0, 2)) });
     useEditorStore.getState().setChart(makeFullChart(singles)); // 히스토리 캡처
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1]) }));
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
-  it('setExtraNotes: 엑스트라 2→1개로 줄면 범위 밖 엑스트라 선택 인덱스 1이 제거된다', () => {
+  it('보조 노트 삭제(chart.notes 개수 감소)는 setChart 경유라 선택이 전체 비워진다 — RFD 0018 ③ (B)(a) 수용', () => {
     useEditorStore.getState().setSelection(sel({ extraNotes: new Set([0, 1]) }));
-    useEditorStore.getState().setExtraNotes(extraNotes.slice(0, 1));
-    expect(useEditorStore.getState().selection.extraNotes).toEqual(new Set([0]));
+    // 보조 노트 1개를 지운 차트 커밋(7→6개) — 인덱스 밀림 방지로 선택 전체 clear(메인·보조·존)
+    useEditorStore.getState().setChart({
+      ...useEditorStore.getState().chart,
+      notes: [...notes, auxNotesFixture[0]],
+    });
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
   it('loadChart: 다른 차트를 열면 선택이 전부 비워진다', () => {
@@ -323,7 +325,7 @@ describe('변이 액션의 선택 보정', () => {
 
   it('의미 위반(중복) 차트 커밋도 선택 보정과 같은 트랜잭션 — 낙관 커밋(RFD 0017)과 공존', () => {
     // #90(전체 거부)과 달리 현행 setChart는 구조만 거부한다 — 의미 위반 커밋에서도 선택이 유지되는지.
-    useEditorStore.setState({ chart: makeFullChart(singles), extraNotes: [] });
+    useEditorStore.setState({ chart: makeFullChart(singles) });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
     const dupChart = makeFullChart([
       { type: 'single', lane: 1, beat: beat(0) },
@@ -351,7 +353,6 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
   function resetWithDupChart() {
     useEditorStore.setState({
       chart: makeFullChart(dupNotes),
-      extraNotes: [],
       selection: emptySelection(),
       historyPast: [],
       historyFuture: [],
@@ -406,7 +407,7 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
   });
 
   it('undo(원자 set)는 removed가 있어도 게이트 없이 선택을 비운다 — 탈출구', () => {
-    useEditorStore.setState({ chart: makeFullChart([dupNotes[2]]), extraNotes: [] });
+    useEditorStore.setState({ chart: makeFullChart([dupNotes[2]]) });
     useEditorStore.getState().setChart(makeFullChart(dupNotes)); // 위반 차트 낙관 커밋(히스토리 캡처)
     useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
     useEditorStore.getState().undo();
@@ -451,7 +452,6 @@ describe('setSelection 반환값 · setSelectionTransient (§3-5 전이 = 확정
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeFullChart(gateNotes),
-      extraNotes: [],
       selection: emptySelection(),
       historyPast: [],
       historyFuture: [],

@@ -6,10 +6,9 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, validateChart } from '../../shared';
+import { serializeChart, serializeExtraNotes, validateChart, mainNotes, auxNotesAsExtra } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
-import { unifiedNotes } from '../stores/unifiedNotes';
 import { useGameStore } from '../../game/stores';
 
 const styles = {
@@ -557,7 +556,6 @@ export function EditorToolbar({
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
@@ -572,16 +570,17 @@ export function EditorToolbar({
   const selectedCount = selectedNotes.size + selectedExtraNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
+  // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 메인/보조 분리 후 비교한다 (RFD 0018 ③).
   const isDirty = !!(savedChartSnapshot && (
-    serializeChart(chart) !== savedChartSnapshot ||
-    serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
+    serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot ||
+    serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
   // 보조 레인 위반도 동일하게 본다(RFD 0018 §3-6) — performPlayTest 게이트와 같은 입력.
   const playTestViolationCount = validateChart({
-    notes: unifiedNotes(chart.notes, extraNotes),
+    notes: chart.notes,
     trillZones: chart.trillZones,
     events: chart.events,
   }).length;

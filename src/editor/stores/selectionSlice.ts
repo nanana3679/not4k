@@ -19,8 +19,8 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
-import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone, ValidationRef } from '../../shared';
-import { beatToFloat, validateChart, violationsInvolving } from '../../shared';
+import type { Chart, NoteEntity, TrillZone, ValidationRef } from '../../shared';
+import { beatToFloat, validateChart, violationsInvolving, auxNotes } from '../../shared';
 import { showToast } from '../../shared/toast';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
@@ -93,9 +93,10 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
 export function normalizeSelection(
   input: Selection,
   chart: Pick<Chart, 'notes' | 'trillZones'>,
-  extraNotes: readonly ExtraNoteEntity[],
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
+  // 보조 선택은 chart.notes의 보조 노트(lane 5+) 서브배열을 가리킨다 — 그 개수로 범위 보정 (RFD 0018 ③)
+  const auxCount = auxNotes(chart.notes).length;
 
   // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다)
   const { kept } = filterHomogeneousSelection(
@@ -109,7 +110,7 @@ export function normalizeSelection(
   const kind = classifySelection(chart.trillZones, chart.notes, kept);
   return {
     notes: kept,
-    extraNotes: pruneBounds(input.extraNotes, extraNotes.length),
+    extraNotes: pruneBounds(input.extraNotes, auxCount),
     zones: kind.kind === 'trill' ? new Set<number>() : zones,
   };
 }
@@ -133,10 +134,9 @@ export interface SelectionSlice {
   clearExtraSelection: () => void;
 }
 
-/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 배열들. */
+/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함). */
 interface SelectionHost {
   chart: Chart;
-  extraNotes: ExtraNoteEntity[];
 }
 
 type SliceSet = (
@@ -162,8 +162,8 @@ export function createSelectionSlice(
     selection: emptySelection(),
 
     setSelection: (input) => {
-      const { chart, extraNotes, selection } = get();
-      const normalized = normalizeSelection(input, chart, extraNotes);
+      const { chart, selection } = get();
+      const normalized = normalizeSelection(input, chart);
 
       // 선택 해제 게이트(RFD 0017 §3-5): 이 전이에서 빠지는(removed = 현재 − 다음)
       // 노트·구간이 의미 위반에 관여한 채 남으면 전이를 거부한다 — 선택 유지 + 토스트.
@@ -198,8 +198,8 @@ export function createSelectionSlice(
       return true;
     },
     setSelectionTransient: (input) => {
-      const { chart, extraNotes } = get();
-      set({ selection: normalizeSelection(input, chart, extraNotes) });
+      const { chart } = get();
+      set({ selection: normalizeSelection(input, chart) });
     },
     clearSelection: () => {
       // 전체 비우기도 하나의 해제 전이 — 같은 게이트를 지난다(§3-5 단일 규칙).

@@ -15,8 +15,9 @@ import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
-import { unifiedNotes, hiddenViolationLanes } from './stores/unifiedNotes';
-import { toAuxIndex } from '../shared';
+import { hiddenViolationLanes } from './stores/unifiedNotes';
+import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
+import type { Chart, ExtraNoteEntity } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -139,21 +140,26 @@ export default function EditorApp() {
     Promise.all([chartFetch, extraFetch])
       .then(([chartText, extraText]) => {
         const chart = deserializeChart(chartText);
-        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
-        useEditorStore.getState().loadChart(chart);
+        // 보조 노트를 lane 5+로 chart.notes에 병합한 뒤 로드한다 (RFD 0018 ③ 로드 병합).
         // Parse extra lane data: separate file first, fallback to legacy embedded data
+        let merged = chart;
+        let mergedExtraLaneCount = 0;
         try {
           const extraJson = extraText
             ? JSON.parse(extraText)
             : JSON.parse(chartText); // legacy: extra was embedded in chart JSON
           const extra = parseExtraNotes(extraJson);
           if (extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
-            useEditorStore.getState().setExtraNotes(extra.extraNotes);
-            // 노트가 존재하는 최대 레인 이상으로 extraLaneCount 보장
-            const maxUsedLane = extra.extraNotes.reduce((max, n) => Math.max(max, n.extraLane), 0);
-            useEditorStore.getState().setExtraLaneCount(Math.max(extra.extraLaneCount, maxUsedLane));
+            // withAuxNotes가 [...main, ...aux] 정규형으로 병합해 aux 상대 순서를 보존한다
+            // — 재저장 바이트 동일성(§6-3a)이 이 순서 보존에 의존한다.
+            merged = { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
+            // 노트가 존재하는 최대 보조 레인 이상으로 extraLaneCount 보장(숨김 예방, §8-7 계승)
+            mergedExtraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(merged.notes)));
           }
         } catch { /* ignore parse errors for extra data */ }
+        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
+        useEditorStore.getState().loadChart(merged);
+        if (mergedExtraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
         setActiveSongId(songId);
         resetHistory();
 
@@ -274,10 +280,8 @@ function ChartEditorPage() {
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
-  const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -434,16 +438,15 @@ function ChartEditorPage() {
 
       rendererRef.current = renderer;
 
-      const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
+      const { extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
-      // 렌더러는 통합 읽기뷰를 소비한다 (RFD 0018 ②) — 보조 노트도 lane 5+로 한 배열에서 그린다.
-      renderer.setChart({ ...chart, notes: unifiedNotes(chart.notes, storedExtraNotes) });
+      // chart.notes가 곧 통합 배열이다 (RFD 0018 ③) — 보조 노트도 lane 5+로 한 배열에서 그린다.
+      renderer.setChart(chart);
 
-      // init()이 async라 [chart, extraNotes] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
+      // init()이 async라 [chart] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
       // 생성 직후 여기서 위반을 한 번 세팅해, 로드된 차트에 위반이 있어도 첫 편집 전에 표시되게 한다.
-      // 위반 인덱스는 통합 인덱스 공간 그대로 피드한다 — 렌더러 차트가 곧 통합 배열이다.
       const initViolations = chartViolationIndices({
-        notes: unifiedNotes(chart.notes, storedExtraNotes),
+        notes: chart.notes,
         trillZones: chart.trillZones,
         events: chart.events,
       });
@@ -469,8 +472,22 @@ function ChartEditorPage() {
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
+    // ③ 병합 어댑터 (RFD 0018): 편집 모드는 아직 ExtraNoteEntity 축을 쓴다(이원축은 ④ 흡수).
+    // 데이터는 chart.notes 한 배열(정규형 [...main, ...aux])에 살므로, 모드 콜백을 그 위 병합
+    // 어댑터로 배선한다 — 모드는 메인-only 차트를 보고, 보조는 별도 축으로 읽고 쓴다.
+    //  - applyMainChart(메인 차트): 새 메인 + 현재 보조 병합 (meta·events·zones는 c 것 유지)
+    //  - applyExtraNotes(보조): 현재 메인 + 새 보조 병합
+    // 두 병합은 순서 독립이라 조합 이동(메인+보조 동시 라이브 커밋)도 올바르게 합쳐진다.
+    const applyMainChart = (c: Chart) =>
+      setChart({ ...c, notes: withAuxNotes(c.notes, auxNotesAsExtra(useEditorStore.getState().chart.notes)) });
+    const applyExtraNotes = (extra: ExtraNoteEntity[]) => {
+      const cur = useEditorStore.getState().chart;
+      setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
+    };
+    const getAuxNotes = () => auxNotesAsExtra(useEditorStore.getState().chart.notes);
+
     const createMode = new CreateMode(chart, {
-      onChartUpdate: setChart,
+      onChartUpdate: applyMainChart,
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
@@ -479,14 +496,14 @@ function ChartEditorPage() {
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
+      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 
     const selectMode = new SelectMode(chart, {
-      onChartUpdate: setChart,
+      onChartUpdate: applyMainChart,
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
@@ -507,22 +524,22 @@ function ChartEditorPage() {
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
-      onChartUpdate: setChart,
+      onChartUpdate: applyMainChart,
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
       // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
       onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
@@ -554,8 +571,9 @@ function ChartEditorPage() {
     }
     setPendingAudioUrl(null);
     setAudioLoading(true);
-    setSavedChartSnapshot(serializeChart(chart));
-    setSavedExtraSnapshot(serializeExtraNotes(useEditorStore.getState().extraNotes, useEditorStore.getState().extraLaneCount));
+    // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
+    setSavedChartSnapshot(serializeChart({ ...chart, notes: mainNotes(chart.notes) }));
+    setSavedExtraSnapshot(serializeExtraNotes(auxNotesAsExtra(chart.notes), useEditorStore.getState().extraLaneCount));
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
@@ -606,22 +624,23 @@ function ChartEditorPage() {
     useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
-  // chart·extraNotes → renderer(통합 읽기뷰) + modes(메인 차트) — RFD 0018 ②.
-  // 해칭도 같은 통합 validateChart에서 파생해 통합 인덱스 그대로 피드한다(RFD 0017 §3-3).
-  // 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영. ③(store flip) 후 파생층 소멸.
+  // chart → renderer(통합 차트) + modes(메인-only 차트) — RFD 0018 ③.
+  // chart.notes가 곧 통합 배열(정규형 [...main, ...aux])이라 렌더러·해칭이 chart.notes를 직접 소비한다.
+  // 편집 모드는 메인 레인만 다루므로(이원축은 ④ 흡수) 메인-only 차트를 준다.
   useEffect(() => {
     if (rendererRef.current) {
-      rendererRef.current.setChart({ ...chart, notes: unifiedNotes(chart.notes, extraNotes) });
+      rendererRef.current.setChart(chart);
       const violations = chartViolationIndices({
-        notes: unifiedNotes(chart.notes, extraNotes),
+        notes: chart.notes,
         trillZones: chart.trillZones,
         events: chart.events,
       });
       rendererRef.current.setViolations(violations.notes, violations.trillZones);
     }
-    if (createModeRef.current) createModeRef.current.setChart(chart);
-    if (selectModeRef.current) selectModeRef.current.setChart(chart);
-    if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
+    const mainChart = { ...chart, notes: mainNotes(chart.notes) };
+    if (createModeRef.current) createModeRef.current.setChart(mainChart);
+    if (selectModeRef.current) selectModeRef.current.setChart(mainChart);
+    if (deleteModeRef.current) deleteModeRef.current.setChart(mainChart);
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
@@ -633,7 +652,7 @@ function ChartEditorPage() {
         totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
       });
     }
-  }, [chart, extraNotes]);
+  }, [chart]);
 
   // extraLaneCount → renderer
   useEffect(() => {
@@ -643,12 +662,14 @@ function ChartEditorPage() {
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
   // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.
 
-  // 선택 표시 → renderer: 메인·보조 선택을 통합 인덱스 공간(보조 = 메인 개수 + extraIdx)으로 피드.
+  // 선택 표시 → renderer: 메인·보조 선택을 chart.notes 인덱스 공간으로 피드.
+  // chart.notes는 정규형 [...main, ...aux]라 보조 노트 i는 chart.notes[mainCount + i]에 있다.
   // Selection의 두 축 자체는 ④에서 소멸한다 (RFD 0018).
   useEffect(() => {
     if (!rendererRef.current) return;
+    const mainCount = mainNotes(chart.notes).length;
     const union = new Set(selectedNotes);
-    for (const i of selectedExtraNotes) union.add(chart.notes.length + i);
+    for (const i of selectedExtraNotes) union.add(mainCount + i);
     rendererRef.current.setSelectedNotes(union);
   }, [selectedNotes, selectedExtraNotes, chart]);
 
@@ -897,7 +918,7 @@ function ChartEditorPage() {
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={!!(savedChartSnapshot && (serializeChart(chart) !== savedChartSnapshot || serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot))}
+          isDirty={!!(savedChartSnapshot && (serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot))}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing } = await supabase
               .from('charts')
@@ -963,7 +984,7 @@ function ChartEditorPage() {
               // 노트가 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
               const hidden = hiddenViolationLanes(
                 validationErrors,
-                unifiedNotes(chart.notes, extraNotes),
+                chart.notes,
                 extraLaneCount,
               );
               if (hidden.length === 0) return null;

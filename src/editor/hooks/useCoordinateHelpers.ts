@@ -13,7 +13,7 @@ import {
   timelineXToExtraLane,
   timelineXToLane,
 } from '../timeline/timelineProjection';
-import { msToBeat, beatToFloat, extractBpmMarkers } from '../../shared';
+import { msToBeat, beatToFloat, extractBpmMarkers, auxNotesAsExtra } from '../../shared';
 import type { Beat, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
 
@@ -177,7 +177,9 @@ export function useCoordinateHelpers(
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
     const b = yToBeatRaw(y);
-    return hitTestExtraNoteAt(useEditorStore.getState().extraNotes, extraLane, b.n / b.d);
+    // 보조 노트는 chart.notes(lane 5+)에 산다 — 파생 aux 배열로 히트테스트 (RFD 0018 ③).
+    // 반환 인덱스는 auxNotesAsExtra 순서 = selection.extraNotes·getExtraNotes와 동일 소스라 일관.
+    return hitTestExtraNoteAt(auxNotesAsExtra(useEditorStore.getState().chart.notes), extraLane, b.n / b.d);
   }, [xToExtraLane, yToBeatRaw]);
 
   // --- ref 버전 (stale closure 방지) ---
