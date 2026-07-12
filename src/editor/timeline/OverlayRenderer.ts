@@ -27,6 +27,7 @@ export interface OverlayHost {
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
+  readonly violatingExtraNoteIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
@@ -394,7 +395,11 @@ export class OverlayRenderer {
   renderViolationOverlay(): void {
     destroyChildren(this.host.violationLayer);
     if (!this.host.chart) return;
-    if (this.host.violatingNoteIndices.size === 0 && this.host.violatingTrillZoneIndices.size === 0) return;
+    if (
+      this.host.violatingNoteIndices.size === 0 &&
+      this.host.violatingTrillZoneIndices.size === 0 &&
+      this.host.violatingExtraNoteIndices.size === 0
+    ) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const meta = this.host.chart.meta;
@@ -417,6 +422,18 @@ export class OverlayRenderer {
       const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
+
+    // 엑스트라 노트: extraLane 축 겹침/중복 — 시각화 전용(게이트 불포함), 노트와 동일 해칭.
+    for (const idx of this.host.violatingExtraNoteIndices) {
+      if (idx >= this.host.extraNotes.length) continue;
+      const note = this.host.extraNotes[idx];
+      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
+      const rectX =
+        TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH +
+        (EXTRA_LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
+      this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
+    }
   }
 
   /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */
@@ -427,9 +444,20 @@ export class OverlayRenderer {
     minTimeMs: number,
     maxTimeMs: number,
   ): void {
+    const rectX = (lane - 1) * LANE_WIDTH + (LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
+    this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
+  }
+
+  /** rectX 기준 해칭 코어 — 메인 레인·엑스트라 레인이 x 계산만 달리해 공유한다. */
+  private drawViolationHatchAt(
+    rectX: number,
+    startMs: number,
+    endMs: number | null,
+    minTimeMs: number,
+    maxTimeMs: number,
+  ): void {
     const w = NOTE_HEIGHT * 5;
     const h = NOTE_HEIGHT;
-    const rectX = (lane - 1) * LANE_WIDTH + (LANE_WIDTH - w) / 2;
 
     let topY: number;
     let height: number;

@@ -149,6 +149,7 @@ export class TimelineRenderer {
   // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3). 노트·트릴존 각각.
   private _violatingNoteIndices: Set<number> = new Set();
   private _violatingTrillZoneIndices: Set<number> = new Set();
+  private _violatingExtraNoteIndices: Set<number> = new Set();
 
   // Chart data
   private chart: Chart | null = null;
@@ -400,6 +401,7 @@ export class TimelineRenderer {
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingExtraNoteIndices() { return self._violatingExtraNoteIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
@@ -948,6 +950,13 @@ export class TimelineRenderer {
   setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>): void {
     this._violatingNoteIndices = noteIndices;
     this._violatingTrillZoneIndices = trillZoneIndices;
+    this.overlayRenderer.renderViolationOverlay();
+    this.app?.render();
+  }
+
+  /** 엑스트라 노트 위반 인덱스 — extraLane 축 겹침/중복 해칭(시각화 전용, RFD 0017) */
+  setViolatingExtraNotes(indices: Set<number>): void {
+    this._violatingExtraNoteIndices = indices;
     this.overlayRenderer.renderViolationOverlay();
     this.app?.render();
   }

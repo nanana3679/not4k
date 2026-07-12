@@ -14,7 +14,7 @@ import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
-import { chartViolationIndices } from '../shared';
+import { chartViolationIndices, extraNoteViolationIndices } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -264,7 +264,7 @@ function ChartEditorPage() {
   const snapDivision = useEditorStore((s) => s.snapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
-  const selectedNotes = useEditorStore((s) => s.selectedNotes);
+  const selectedNotes = useEditorStore((s) => s.selection.notes);
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setChart = useEditorStore((s) => s.setChart);
@@ -272,12 +272,10 @@ function ChartEditorPage() {
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
-  const setSelectedNotes = useEditorStore((s) => s.setSelectedNotes);
   const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const selectedExtraNotes = useEditorStore((s) => s.selectedExtraNotes);
+  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
-  const setSelectedExtraNotes = useEditorStore((s) => s.setSelectedExtraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -442,6 +440,7 @@ function ChartEditorPage() {
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
       renderer.setExtraNotes(storedExtraNotes);
+      renderer.setViolatingExtraNotes(extraNoteViolationIndices(storedExtraNotes));
 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
@@ -481,7 +480,10 @@ function ChartEditorPage() {
 
     const selectMode = new SelectMode(chart, {
       onChartUpdate: setChart,
-      onSelectionChange: setSelectedNotes,
+      // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
+      getSelection: () => useEditorStore.getState().selection,
+      setSelection: (sel) => useEditorStore.getState().setSelection(sel),
+      setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
       yToBeat: (y) => yToBeatRef.current(y),
       yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
       snapBeat,
@@ -496,11 +498,9 @@ function ChartEditorPage() {
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      onTrillZoneSelectionChange: (indices) => { rendererRef.current?.setSelectedTrillZones(indices); },
       xToExtraLane: (x) => xToExtraLane(x),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
@@ -513,7 +513,8 @@ function ChartEditorPage() {
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      onExtraSelectionChange: (indices) => setSelectedExtraNotes(indices),
+      // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
+      onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
       getExtraNotes: () => useEditorStore.getState().extraNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
@@ -628,9 +629,11 @@ function ChartEditorPage() {
     if (rendererRef.current) rendererRef.current.setExtraLaneCount(extraLaneCount);
   }, [extraLaneCount]);
 
-  // extraNotes → renderer
+  // extraNotes → renderer (+ extraLane 축 위반 재계산 — 시각화 전용, RFD 0017)
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setExtraNotes(extraNotes);
+    if (!rendererRef.current) return;
+    rendererRef.current.setExtraNotes(extraNotes);
+    rendererRef.current.setViolatingExtraNotes(extraNoteViolationIndices(extraNotes));
   }, [extraNotes]);
 
   // selectedExtraNotes → renderer
@@ -645,6 +648,12 @@ function ChartEditorPage() {
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.setSelectedNotes(selectedNotes);
   }, [selectedNotes]);
+
+  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  const selectedZones = useEditorStore((s) => s.selection.zones);
+  useEffect(() => {
+    rendererRef.current?.setSelectedTrillZones(selectedZones);
+  }, [selectedZones]);
 
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);

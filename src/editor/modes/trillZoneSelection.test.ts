@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   trillZoneOverlapsNote,
+  trillZoneOverlapsBox,
   getSelectedTrillZoneIndices,
   translateTrillZone,
   trillZoneIndexOfNote,
@@ -245,5 +246,33 @@ describe("clampTrillBeatOffset", () => {
 
   it("구간이 가득 차면 이동 0", () => {
     expect(beatToFloat(clampTrillBeatOffset(zone, [{ beat: beat(2), endBeat: beat(6) }], beat(1)))).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// trillZoneOverlapsBox — 박스 선택 겹침 판정 (RFD 0016 §4.3)
+// ---------------------------------------------------------------------------
+
+describe("trillZoneOverlapsBox", () => {
+  const zone: TrillZone = { lane: 2, beat: beat(2), endBeat: beat(6) };
+
+  it("레인 범위(1~3) 안 + 박 구간이 겹치면(0~4 vs 존 2~6) true", () => {
+    expect(trillZoneOverlapsBox(zone, 1, 3, beat(0), beat(4))).toBe(true);
+  });
+
+  it("레인이 범위 밖(3~4, 존은 레인 2)이면 박이 겹쳐도 false", () => {
+    expect(trillZoneOverlapsBox(zone, 3, 4, beat(0), beat(8))).toBe(false);
+  });
+
+  it("박 구간이 존보다 완전히 앞(0~1 vs 존 2~6)이면 false", () => {
+    expect(trillZoneOverlapsBox(zone, 1, 4, beat(0), beat(1))).toBe(false);
+  });
+
+  it("경계 일치(박스 끝 2 == 존 시작 2)는 폐구간 의미론으로 true — trillZoneOverlapsNote와 동일", () => {
+    expect(trillZoneOverlapsBox(zone, 1, 4, beat(0), beat(2))).toBe(true);
+  });
+
+  it("박스가 존을 완전히 포함(0~8 ⊇ 2~6)해도 true (포함 아닌 겹침 기준)", () => {
+    expect(trillZoneOverlapsBox(zone, 1, 4, beat(0), beat(8))).toBe(true);
   });
 });

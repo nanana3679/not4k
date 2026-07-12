@@ -23,6 +23,24 @@ export function trillZoneOverlapsNote(zone: TrillZone, note: NoteEntity): boolea
 }
 
 /**
+ * 트릴존이 박스 선택 범위(레인 범위 + 박 폐구간)와 겹치는지 판정한다.
+ * 겹침 의미론은 trillZoneOverlapsNote와 동일한 폐구간 겹침(포함 아님) — RFD 0016 §4.3.
+ */
+export function trillZoneOverlapsBox(
+  zone: TrillZone,
+  minLane: number,
+  maxLane: number,
+  minBeat: Beat,
+  maxBeat: Beat,
+): boolean {
+  if (zone.lane < minLane || zone.lane > maxLane) return false;
+  return (
+    beatToFloat(zone.beat) <= beatToFloat(maxBeat) &&
+    beatToFloat(zone.endBeat) >= beatToFloat(minBeat)
+  );
+}
+
+/**
  * 선택된 노트들과 연동되는 트릴존 인덱스 집합을 구한다.
  * 같은 레인에서 구간이 겹치는 트릴존이 하나라도 있으면 선택에 포함한다.
  */

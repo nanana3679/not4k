@@ -36,3 +36,20 @@ describe("resolveLongPressAction — 롱프레스 발화 시 액션 라우팅", 
     });
   });
 });
+
+describe("resolveLongPressAction — trillZone 몸통 (RFD 0016 §4.4)", () => {
+  it("구간 몸통만 히트하면(zoneHit=0) moveZone", () => {
+    expect(resolveLongPressAction({ noteEndHit: null, noteHit: null, extraHit: null, zoneHit: 0 }))
+      .toEqual({ kind: "moveZone", index: 0 });
+  });
+
+  it("노트(2)와 구간(0)이 겹치면 노트 이동이 우선", () => {
+    expect(resolveLongPressAction({ noteEndHit: null, noteHit: 2, extraHit: null, zoneHit: 0 }))
+      .toEqual({ kind: "moveNote", index: 2 });
+  });
+
+  it("zoneHit 생략(구버전 호출)은 none으로 안전하게 처리된다", () => {
+    expect(resolveLongPressAction({ noteEndHit: null, noteHit: null, extraHit: null }))
+      .toEqual({ kind: "none" });
+  });
+});

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { SelectMode } from "./SelectMode";
+import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
+import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
+import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, TrillZone } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -31,9 +32,32 @@ function makeCallbacks(
     ? chartOrOverrides as Record<string, unknown>
     : {};
 
+  // 선택의 소유자(SelectionSlice)를 흉내 내는 페이크 — 실제 게이트(normalizeSelection)를
+  // 그대로 사용해 프로덕션과 의미론을 맞춘다. 게이트가 읽는 차트는 프로덕션 store처럼
+  // onChartUpdate로 추적하고, SelectMode 생성 시점의 초기 차트는 makeMode가 동기화한다.
+  let currentChart: Chart = (chartOrOverrides && 'meta' in chartOrOverrides)
+    ? chartOrOverrides as Chart
+    : makeChart();
+  let selection: Selection = emptySelection();
+
   return {
-    onChartUpdate: vi.fn(),
-    onSelectionChange: vi.fn(),
+    onChartUpdate: vi.fn((chart: Chart) => {
+      currentChart = chart;
+    }),
+    getSelection: () => selection,
+    setSelection: (s: Selection) => {
+      selection = normalizeSelection(s, currentChart, currentExtraNotes);
+      return true; // 페이크는 §3-5 게이트 없음(항상 통과) — 게이트 결합 검증은 integration 테스트 담당
+    },
+    setSelectionTransient: (s: Selection) => {
+      selection = normalizeSelection(s, currentChart, currentExtraNotes);
+    },
+    /** 테스트 검증용 — 페이크가 소유한 선택 상태를 읽는다 */
+    getSelectionState: () => selection,
+    /** 게이트가 읽을 차트를 동기화한다 (프로덕션에서 store.chart가 먼저 갱신되는 것에 대응) */
+    syncChart: (chart: Chart) => {
+      currentChart = chart;
+    },
     yToBeat: (_y: number): Beat => beat(0),
     yToBeatRaw: (_y: number): Beat => beat(0),
     snapBeat: (b: Beat): Beat => b,
@@ -42,7 +66,6 @@ function makeCallbacks(
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
     hitTestNote: () => null,
     onWarn: vi.fn(),
-    onTrillZoneSelectionChange: vi.fn(),
     // Extra lane callbacks
     xToExtraLane: (x: number): number | null => {
       // x 5..5+extraLaneCount-1 → extraLane 1..extraLaneCount
@@ -54,17 +77,35 @@ function makeCallbacks(
     onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => {
       currentExtraNotes = notes;
     }),
-    onExtraSelectionChange: vi.fn(),
     ...overrides,
   };
 }
 
-/** 테스트에서 private 선택 상태를 직접 조작하기 위한 헬퍼 */
-function selectionOf(mode: SelectMode) {
-  return mode as unknown as {
-    selectedIndices: Set<number>;
-    selectedExtraIndices: Set<number>;
-  };
+/** SelectMode 생성 + 페이크 게이트의 차트 동기화 (모든 테스트의 공통 진입점) */
+function makeMode(
+  chart: Chart,
+  cb: SelectModeCallbacks & { syncChart: (chart: Chart) => void },
+): SelectMode {
+  cb.syncChart(chart);
+  return new SelectMode(chart, cb);
+}
+
+/** 선택 조작용 페이크 핸들 (구 private 필드 직접 조작을 게이트 경유 커밋으로 대체) */
+type SelectionFake = {
+  getSelectionState: () => Selection;
+  setSelection: (s: Selection) => void;
+};
+
+/** 현재 선택에 노트 인덱스를 추가해 게이트를 지나 커밋한다 */
+function addNotesToSelection(cb: SelectionFake, ...indices: number[]): void {
+  const cur = cb.getSelectionState();
+  cb.setSelection({ ...cur, notes: new Set([...cur.notes, ...indices]) });
+}
+
+/** 현재 선택에 엑스트라 노트 인덱스를 추가해 게이트를 지나 커밋한다 */
+function addExtraNotesToSelection(cb: SelectionFake, ...indices: number[]): void {
+  const cur = cb.getSelectionState();
+  cb.setSelection({ ...cur, extraNotes: new Set([...cur.extraNotes, ...indices]) });
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +116,7 @@ describe("SelectMode — handlePointerDown 수식자 운반", () => {
   it("gesture의 x/y/shift/alt/toggle를 onPointerDown으로 그대로 전달", () => {
     const chart = makeChart();
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     const spy = vi.spyOn(mode, "onPointerDown");
     mode.handlePointerDown({ x: 5, y: 3, shiftKey: true, altKey: true, toggleSelection: true });
     expect(spy).toHaveBeenCalledWith(5, 3, true, true, true);
@@ -92,7 +133,7 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.beginMoveDrag(1, 0);
@@ -107,7 +148,7 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
   it("박스 셀렉트 중 onPointerMove는 preview.boxSelectRect를 반환", () => {
     const chart = makeChart();
     const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트 시작
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 0, false, false);
     const result = mode.onPointerMove(2, 5);
@@ -119,7 +160,7 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
   it("드래그 중이 아니면 preview는 비어 있다", () => {
     const chart = makeChart();
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     const result = mode.onPointerMove(2, 5);
 
@@ -132,7 +173,7 @@ describe("SelectMode — handlePointerUp", () => {
   it("onPointerUp을 호출하고 clearDragPreview 신호를 반환", () => {
     const chart = makeChart();
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     const spy = vi.spyOn(mode, "onPointerUp");
     const result = mode.handlePointerUp({ x: 2, y: 3, shiftKey: false, altKey: false, toggleSelection: false });
     expect(spy).toHaveBeenCalledWith(2, 3);
@@ -144,7 +185,7 @@ describe("SelectMode — 박스 셀렉트 idempotency", () => {
   it("박스 진행 중 onPointerDown 재호출은 무시된다(중복 시작·시작점 리셋 방지)", () => {
     const chart = makeChart();
     const cb = makeCallbacks(); // 빈 영역(hitTestNote=null) → 박스 셀렉트
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 0, false, false); // 박스 시작 at y=0
     mode.onPointerMove(2, 5);
@@ -173,7 +214,7 @@ describe("SelectMode — 드래그 재진입 가드", () => {
       snapBeat: (b: Beat): Beat => b,
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
@@ -194,7 +235,7 @@ describe("SelectMode — 드래그 재진입 가드", () => {
 describe("SelectMode — computeHoveredTrillZone", () => {
   it("드래그 아닐 때는 (x,y) 위 구간의 hitTestTrillZone 결과를 반환", () => {
     const cb = makeCallbacks({ hitTestTrillZone: (x: number): number | null => (x === 7 ? 2 : null) });
-    const mode = new SelectMode(makeChart(), cb);
+    const mode = makeMode(makeChart(), cb);
     expect(mode.computeHoveredTrillZone(7, 0)).toBe(2); // 구간 위 → hover
     expect(mode.computeHoveredTrillZone(1, 0)).toBe(null); // 빈 곳 → null
   });
@@ -207,14 +248,14 @@ describe("SelectMode — computeHoveredTrillZone", () => {
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
       hitTestTrillZone: (): number | null => 2, // 커서가 다른 구간(2) 위여도
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.onPointerDown(9, 6, false, false); // 구간0 리사이즈 시작 → 래치 0
     expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // hover=2 무시하고 래치 0 유지
   });
 });
 
 // ---------------------------------------------------------------------------
-// 리사이즈 프리뷰 제약 — 커밋과 동일한 validateChart 게이트
+// 리사이즈 프리뷰 — 낙관적 표시 (RFD 0017)
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
@@ -229,7 +270,7 @@ describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
       snapBeat: (b: Beat): Beat => b,
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     const priv = mode as unknown as { chart: Chart };
     return { mode, cb, priv };
   }
@@ -262,7 +303,7 @@ describe("SelectMode — 복사/잘라내기", () => {
   it("선택된 노트가 없으면 copy()는 0을 반환", () => {
     const chart = makeChart();
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     expect(mode.copy()).toBe(0);
   });
@@ -275,7 +316,7 @@ describe("SelectMode — 복사/잘라내기", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     expect(mode.copy()).toBe(1);
@@ -289,7 +330,7 @@ describe("SelectMode — 복사/잘라내기", () => {
     ];
     const chart = makeChart({ notes });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     const count = mode.cut();
@@ -319,12 +360,12 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       hitTestNote: (x: number) => (x === 1 ? 0 : x === 2 ? 1 : null),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.onPointerDown(2, 1, false, false, true);
 
-    const selected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const selected = cb.getSelectionState().notes;
     expect([...selected].sort()).toEqual([0, 1]);
   });
 
@@ -337,12 +378,12 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       hitTestNote: () => 0,
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.onPointerDown(1, 0, false, false, true);
 
-    const selected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const selected = cb.getSelectionState().notes;
     expect([...selected]).toEqual([]);
   });
 
@@ -356,13 +397,13 @@ describe("SelectMode — 모바일 터치 선택", () => {
       { type: "single", extraLane: 1, beat: beat(2) },
     ];
     const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 1 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.selectExtraNote(0);
 
-    const mainSelected = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
-    const extraSelected = cb.onExtraSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const mainSelected = cb.getSelectionState().notes;
+    const extraSelected = cb.getSelectionState().extraNotes;
     expect([...mainSelected]).toEqual([]);
     expect([...extraSelected]).toEqual([0]);
   });
@@ -377,7 +418,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       hitTestNote: (x: number) => (x === 1 ? 0 : x === 2 ? 1 : null),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.onPointerDown(2, 1, false, false, true);
@@ -396,7 +437,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.beginTouchMoveDragFromNote(1, 2, 1);
@@ -418,20 +459,20 @@ describe("SelectMode — 모바일 터치 선택", () => {
       },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectExtraNote(0);
     mode.onPointerDown(6, 1, false, false, true);
     mode.beginTouchMoveDragFromExtraNote(0, 5, 0);
 
-    const extraSelected = cb.onExtraSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const extraSelected = cb.getSelectionState().extraNotes;
     expect([...extraSelected].sort()).toEqual([0, 1]);
     expect(mode.isMoveDragging).toBe(true);
   });
 
   it("beginLongPressDrag: 노트 히트면 이동 드래그를 시작한다", () => {
     const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
-    const mode = new SelectMode(chart, makeCallbacks());
+    const mode = makeMode(chart, makeCallbacks());
     const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: 0, extraHit: null });
     expect(started).toBe(true);
     expect(mode.isMoveDragging).toBe(true);
@@ -442,7 +483,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const chart = makeChart({
       notes: [{ type: "long", lane: 1 as Lane, beat: beat(1), endBeat: beat(1) }],
     });
-    const mode = new SelectMode(chart, makeCallbacks());
+    const mode = makeMode(chart, makeCallbacks());
     const started = mode.beginLongPressDrag(1, 1, { noteEndHit: 0, noteHit: 0, extraHit: null });
     expect(started).toBe(true);
     expect(mode.isMoveDragging).toBe(false); // 리사이즈라 이동 드래그가 아니다
@@ -452,7 +493,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
   it("beginLongPressDrag: 노트 히트 없고 엑스트라 히트면 엑스트라 이동을 시작한다", () => {
     const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(0) }];
     const cb = makeCallbacks({}, { extraNotes, extraLaneCount: 2 });
-    const mode = new SelectMode(makeChart(), cb);
+    const mode = makeMode(makeChart(), cb);
     const started = mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
     expect(started).toBe(true);
     expect(mode.isMoveDragging).toBe(true);
@@ -460,7 +501,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
 
   it("beginLongPressDrag: 아무 히트도 없으면 드래그를 시작하지 않고 false를 반환한다", () => {
     const chart = makeChart({ notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }] });
-    const mode = new SelectMode(chart, makeCallbacks());
+    const mode = makeMode(chart, makeCallbacks());
     const started = mode.beginLongPressDrag(1, 0, { noteEndHit: null, noteHit: null, extraHit: null });
     expect(started).toBe(false);
     expect(mode.isMoveDragging).toBe(false);
@@ -476,7 +517,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
       hitTestNote: (x: number, y: number) => (x === 1 && y === 0 ? 0 : null),
       yToBeat: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 0, false, false);
     mode.onPointerMove(2, 1);
@@ -498,7 +539,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
       },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(5, 2, false, false);
     mode.moveBySnap("up");
@@ -521,7 +562,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       yToBeat: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.beginMoveDrag(1, 0);
@@ -545,11 +586,10 @@ describe("SelectMode — 모바일 터치 선택", () => {
       yToBeat: (y: number): Beat => beat(y, 16),
       snapBeat: (b: Beat): Beat => beat(Math.round((b.n / b.d) * 4), 4),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
-    selectionOf(mode).selectedIndices.add(1);
-    selectionOf(mode).selectedIndices.add(2);
+    addNotesToSelection(cb, 1, 2);
     mode.beginMoveDrag(1, 0);
     mode.onPointerMove(1, 4);
     mode.onPointerUp(1, 4);
@@ -573,7 +613,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
       },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectExtraNote(0);
     mode.beginMoveDrag(5, 2);
@@ -598,10 +638,10 @@ describe("SelectMode — 모바일 터치 선택", () => {
       },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectExtraNote(0);
-    selectionOf(mode).selectedExtraIndices.add(1);
+    addExtraNotesToSelection(cb, 1);
     mode.beginMoveDrag(5, 0);
     mode.onPointerMove(5, 4);
     mode.onPointerUp(5, 4);
@@ -622,7 +662,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       yToBeat: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.beginMoveDrag(1, 1);
@@ -646,7 +686,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     const cb = makeCallbacks({
       yToBeat: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     expect(mode.beginNoteEndResizeDrag(0)).toBe(true);
     mode.onPointerMove(1, 3);
@@ -674,7 +714,7 @@ describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
       hitTestNote: () => 0, // 끝 위치의 z-order 최상위 = 롱노트 0
       hitTestNoteEnd: () => 0,
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 6, false, false);
     mode.onPointerMove(1, 9);
@@ -682,7 +722,7 @@ describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
 
     const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
     expect(updated.notes[0]).toMatchObject({ beat: beat(2), endBeat: beat(9) });
-    expect([...selectionOf(mode).selectedIndices]).toEqual([0]);
+    expect([...mode.selection]).toEqual([0]);
   });
 
   it("끝점에 다른 노트가 위에 있으면(o-o- 겹침) 끝 캡 리사이즈가 가로채지 않는다", () => {
@@ -697,12 +737,12 @@ describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
       hitTestNote: () => 1, // 최상위는 단노트
       hitTestNoteEnd: () => 0, // 끝점은 롱노트 0
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 6, false, false);
 
     // 리사이즈로 가로채지 않고 단노트(idx1)가 선택돼야 한다.
-    expect([...selectionOf(mode).selectedIndices]).toEqual([1]);
+    expect([...mode.selection]).toEqual([1]);
   });
 });
 
@@ -714,7 +754,7 @@ describe("SelectMode — 붙여넣기", () => {
   it("클립보드가 비어있으면 paste()는 0 반환", () => {
     const chart = makeChart();
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     expect(mode.paste(beat(4))).toBe(0);
     expect(mode.isPendingPaste).toBe(false);
@@ -728,7 +768,7 @@ describe("SelectMode — 붙여넣기", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // 첫 번째 노트만 선택 후 복사
     mode.selectNote(0);
@@ -751,7 +791,7 @@ describe("SelectMode — 붙여넣기", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -778,12 +818,12 @@ describe("SelectMode — 붙여넣기", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // 두 노트 모두 선택
     mode.selectNote(0);
-    // Directly manipulate for test: copy with both selected
-    selectionOf(mode).selectedIndices.add(1);
+    // 두 번째 노트도 게이트를 지나 선택에 추가
+    addNotesToSelection(cb, 1);
     mode.copy();
 
     // beat(10)에 붙여넣기 — anchor = beat(2), offset = beat(8)
@@ -814,7 +854,7 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -850,7 +890,7 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -876,7 +916,7 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -902,7 +942,7 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -922,7 +962,7 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -949,7 +989,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
     });
     // maxBeatFloat = 16 (4마디)
     const cb = makeCallbacks({ getMaxBeatFloat: () => 16 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -969,7 +1009,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
       ],
     });
     const cb = makeCallbacks({ getMaxBeatFloat: () => 16 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -990,11 +1030,11 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
       ],
     });
     const cb = makeCallbacks();
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // beat(2)와 beat(0) 모두 선택 — anchor는 beat(0)
     mode.selectNote(0);
-    selectionOf(mode).selectedIndices.add(1);
+    addNotesToSelection(cb, 1);
     mode.copy();
 
     // beat(0)에 붙여넣기하면 anchor=beat(0)이므로 beat(0)과 beat(2)에 배치 → OK
@@ -1017,7 +1057,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
       ],
     });
     const cb = makeCallbacks({ getMaxBeatFloat: () => 16 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -1036,7 +1076,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
       ],
     });
     const cb = makeCallbacks({ getMaxBeatFloat: () => 16 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -1055,7 +1095,7 @@ describe("SelectMode — 차트 범위 밖 붙여넣기 방지", () => {
       ],
     });
     const cb = makeCallbacks({ getMaxBeatFloat: () => 16 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.copy();
@@ -1078,7 +1118,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
       notes: [{ type: "single", lane: 2 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks(chart);
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("left");
@@ -1092,7 +1132,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks(chart);
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("left");
@@ -1105,7 +1145,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
       notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks(chart);
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("right");
@@ -1122,7 +1162,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
       ],
     });
     const cb = makeCallbacks(chart);
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(1); // 레인 2 노트 선택
 
     mode.moveByLane("left"); // 레인 2 → 1 → 레인1 beat0 노트와 중복(의미 위반)
@@ -1142,7 +1182,7 @@ describe("SelectMode.moveByLane — 메인→엑스트라 변환", () => {
       notes: [{ type: "single", lane: 4 as Lane, beat: beat(2) }],
     });
     const cb = makeCallbacks(chart, { extraLaneCount: 2 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("right");
@@ -1166,7 +1206,7 @@ describe("SelectMode.moveByLane — 메인→엑스트라 변환", () => {
       ],
     });
     const cb = makeCallbacks(chart, { extraLaneCount: 1 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("right");
@@ -1182,7 +1222,7 @@ describe("SelectMode.moveByLane — 메인→엑스트라 변환", () => {
       notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks(chart, { extraLaneCount: 0 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("right");
@@ -1196,20 +1236,16 @@ describe("SelectMode.moveByLane — 메인→엑스트라 변환", () => {
       notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks(chart, { extraLaneCount: 2 });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
 
     mode.moveByLane("right");
 
     // 메인 선택 해제
-    const mainSel = cb.onSelectionChange.mock.calls;
-    const lastMainSel = mainSel[mainSel.length - 1][0] as Set<number>;
-    expect(lastMainSel.size).toBe(0);
+    expect(cb.getSelectionState().notes.size).toBe(0);
 
     // 엑스트라 선택 설정
-    const extraSel = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraSel[extraSel.length - 1][0] as Set<number>;
-    expect(lastExtraSel.size).toBe(1);
+    expect(cb.getSelectionState().extraNotes.size).toBe(1);
   });
 });
 
@@ -1226,7 +1262,7 @@ describe("SelectMode.moveByLane — 엑스트라 레인 내 이동", () => {
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
 
     // 엑스트라 노트를 선택하기 위해 hitTestExtraNote가 0을 반환하도록 설정
-    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
+    const mode = makeMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false); // 엑스트라 영역 클릭
 
     mode.moveByLane("right");
@@ -1242,7 +1278,7 @@ describe("SelectMode.moveByLane — 엑스트라 레인 내 이동", () => {
       { type: "single", extraLane: 3, beat: beat(0) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 3 });
-    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
+    const mode = makeMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("right");
@@ -1262,7 +1298,7 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "single", extraLane: 1, beat: beat(2) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 2 });
-    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
+    const mode = makeMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 2, false, false);
 
     mode.moveByLane("left");
@@ -1285,7 +1321,7 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "long", extraLane: 1, beat: beat(0), endBeat: beat(4) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
-    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
+    const mode = makeMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("left");
@@ -1302,20 +1338,16 @@ describe("SelectMode.moveByLane — 엑스트라→메인 변환", () => {
       { type: "single", extraLane: 1, beat: beat(0) },
     ];
     const cb = makeCallbacks(chart, { extraNotes, extraLaneCount: 1 });
-    const mode = new SelectMode(chart, { ...cb, hitTestExtraNote: () => 0 });
+    const mode = makeMode(chart, { ...cb, hitTestExtraNote: () => 0 });
     mode.onPointerDown(5, 0, false, false);
 
     mode.moveByLane("left");
 
     // 엑스트라 선택 해제
-    const extraSel = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraSel[extraSel.length - 1][0] as Set<number>;
-    expect(lastExtraSel.size).toBe(0);
+    expect(cb.getSelectionState().extraNotes.size).toBe(0);
 
     // 메인 선택 설정
-    const mainSel = cb.onSelectionChange.mock.calls;
-    const lastMainSel = mainSel[mainSel.length - 1][0] as Set<number>;
-    expect(lastMainSel.size).toBe(1);
+    expect(cb.getSelectionState().notes.size).toBe(1);
   });
 });
 
@@ -1336,7 +1368,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     const cb = makeCallbacks({
       yToBeatRaw: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // Start box select at lane 1, beat 0 (pointerDown on empty area)
     mode.onPointerDown(1, 0, false, false);
@@ -1348,9 +1380,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     mode.onPointerUp(10, 3);
 
     // Selection should still contain the notes selected during drag
-    const calls = cb.onSelectionChange.mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    const lastSelection = calls[calls.length - 1][0] as Set<number>;
+    const lastSelection = cb.getSelectionState().notes;
     expect(lastSelection.size).toBe(3);
   });
 
@@ -1364,7 +1394,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     const cb = makeCallbacks({
       yToBeatRaw: (y: number): Beat => beat(y),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // Start box select at lane 1, beat 0
     mode.onPointerDown(1, 0, false, false);
@@ -1382,8 +1412,7 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
     // Release inside lane area to finalize
     mode.onPointerUp(2, 2);
 
-    const calls = cb.onSelectionChange.mock.calls;
-    const lastSelection = calls[calls.length - 1][0] as Set<number>;
+    const lastSelection = cb.getSelectionState().notes;
     expect(lastSelection.size).toBe(2);
   });
 });
@@ -1404,7 +1433,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // 엑스트라 레인 1(x=5), beat 0에서 시작
     mode.onPointerDown(5, 0, false, false);
@@ -1412,8 +1441,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     mode.onPointerMove(6, 2);
     mode.onPointerUp(6, 2);
 
-    const extraCalls = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    const lastExtraSel = cb.getSelectionState().extraNotes;
     // extraNotes[0] (lane 1, beat 0)과 extraNotes[1] (lane 2, beat 1)이 선택됨
     expect(lastExtraSel.size).toBe(2);
     expect(lastExtraSel.has(0)).toBe(true);
@@ -1432,15 +1460,14 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // 엑스트라 레인 1(x=5)에서만 드래그
     mode.onPointerDown(5, 0, false, false);
     mode.onPointerMove(5, 1);
     mode.onPointerUp(5, 1);
 
-    const extraCalls = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    const lastExtraSel = cb.getSelectionState().extraNotes;
     expect(lastExtraSel.size).toBe(1);
     expect(lastExtraSel.has(0)).toBe(true); // extraLane 1만
     expect(lastExtraSel.has(1)).toBe(false); // extraLane 2는 제외
@@ -1461,7 +1488,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     // 메인 레인 3(x=3), beat 0에서 시작
     mode.onPointerDown(3, 0, false, false);
@@ -1470,15 +1497,13 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     mode.onPointerUp(5, 2);
 
     // 메인 노트: 레인 3, 4 (beat 1)이 선택, 레인 1은 범위 밖
-    const mainCalls = cb.onSelectionChange.mock.calls;
-    const lastMainSel = mainCalls[mainCalls.length - 1][0] as Set<number>;
+    const lastMainSel = cb.getSelectionState().notes;
     expect(lastMainSel.size).toBe(2);
     expect(lastMainSel.has(0)).toBe(true); // lane 3
     expect(lastMainSel.has(1)).toBe(true); // lane 4
 
     // 엑스트라 노트: extraLane 1 (beat 1)이 선택
-    const extraCalls = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    const lastExtraSel = cb.getSelectionState().extraNotes;
     expect(lastExtraSel.size).toBe(1);
     expect(lastExtraSel.has(0)).toBe(true);
   });
@@ -1492,14 +1517,13 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 2 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(5, 0, false, false);
     mode.onPointerMove(6, 2);
     mode.onPointerUp(6, 2);
 
-    const extraCalls = cb.onExtraSelectionChange.mock.calls;
-    const lastExtraSel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    const lastExtraSel = cb.getSelectionState().extraNotes;
     expect(lastExtraSel.size).toBe(0);
   });
 
@@ -1513,21 +1537,19 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
       { yToBeatRaw: (y: number): Beat => beat(y) },
       { extraNotes, extraLaneCount: 1 },
     );
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(5, 0, false, false);
 
     // 작은 범위 드래그 — beat 0~1만 포함
     mode.onPointerMove(5, 1);
-    let extraCalls = cb.onExtraSelectionChange.mock.calls;
-    let sel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    let sel = cb.getSelectionState().extraNotes;
     expect(sel.size).toBe(1);
     expect(sel.has(0)).toBe(true);
 
     // 범위 확대 — beat 0~3 포함
     mode.onPointerMove(5, 3);
-    extraCalls = cb.onExtraSelectionChange.mock.calls;
-    sel = extraCalls[extraCalls.length - 1][0] as Set<number>;
+    sel = cb.getSelectionState().extraNotes;
     expect(sel.size).toBe(2);
   });
 });
@@ -1557,18 +1579,18 @@ describe("SelectMode — 선택 동질성", () => {
 
   it("같은 구간 트릴노트는 Shift로 추가된다", () => {
     const cb = makeCallbacks(hitByIndex);
-    const mode = new SelectMode(makeChartH(), cb);
+    const mode = makeMode(makeChartH(), cb);
     mode.selectNote(0);
     mode.onPointerDown(1, 0, true, false); // shift-click 인덱스 1(같은 구간0)
 
-    const sel = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    const sel = cb.getSelectionState().notes;
     expect([...sel].sort()).toEqual([0, 1]);
     expect(cb.onWarn).not.toHaveBeenCalled();
   });
 
   it("다른 구간 트릴노트는 Shift 추가가 막히고 토스트", () => {
     const cb = makeCallbacks(hitByIndex);
-    const mode = new SelectMode(makeChartH(), cb);
+    const mode = makeMode(makeChartH(), cb);
     mode.selectNote(0);
     mode.onPointerDown(2, 0, true, false); // shift-click 인덱스 2(구간1)
 
@@ -1578,7 +1600,7 @@ describe("SelectMode — 선택 동질성", () => {
 
   it("트릴 선택에 일반노트 Shift 추가가 막히고 토스트", () => {
     const cb = makeCallbacks(hitByIndex);
-    const mode = new SelectMode(makeChartH(), cb);
+    const mode = makeMode(makeChartH(), cb);
     mode.selectNote(0);
     mode.onPointerDown(3, 0, true, false); // shift-click 인덱스 3(일반)
 
@@ -1588,7 +1610,7 @@ describe("SelectMode — 선택 동질성", () => {
 
   it("일반 선택에 트릴노트 Shift 추가가 막힌다", () => {
     const cb = makeCallbacks(hitByIndex);
-    const mode = new SelectMode(makeChartH(), cb);
+    const mode = makeMode(makeChartH(), cb);
     mode.selectNote(3);
     mode.onPointerDown(0, 0, true, false); // shift-click 인덱스 0(트릴)
 
@@ -1596,17 +1618,19 @@ describe("SelectMode — 선택 동질성", () => {
     expect(cb.onWarn).toHaveBeenCalled();
   });
 
-  it("박스 선택은 섞이면 한 그룹(최소 인덱스 기준)만 남긴다", () => {
+  it("박스는 트릴 노트를 개별로 집지 않고 겹치는 구간 유닛과 일반 노트를 함께 집는다 (RFD 0016 §4.3)", () => {
     const cb = makeCallbacks();
     cb.yToBeatRaw = (y: number): Beat => beat(y); // y를 박자로 매핑
-    const mode = new SelectMode(makeChartH(), cb);
+    const mode = makeMode(makeChartH(), cb);
     // 빈 영역(레인1, beat0)에서 박스 시작 → 레인3, beat10까지 드래그
     mode.onPointerDown(1, 0, false, false);
     mode.onPointerMove(3, 10);
 
-    const sel = cb.onSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
-    // 후보 0,1(구간0)+2(구간1)+3(일반) 중 최소 인덱스 0 기준 → 0,1만
-    expect([...sel].sort()).toEqual([0, 1]);
+    const sel = cb.getSelectionState();
+    // 트릴 노트 0,1,2는 개별 미픽업 — 일반 노트 3만 notes로
+    expect([...sel.notes]).toEqual([3]);
+    // 구간0(레인1)·구간1(레인2)은 박스와 겹쳐 유닛으로 픽업
+    expect([...sel.zones].sort()).toEqual([0, 1]);
   });
 });
 
@@ -1625,7 +1649,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
   it("moveByLane은 트릴 선택에서 차단되고 토스트", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartT(beat(3)), cb);
+    const mode = makeMode(makeChartT(beat(3)), cb);
     mode.selectNote(0);
     mode.moveByLane("right");
 
@@ -1635,7 +1659,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
   it("moveBySnap(up)이 구간 안이면 이동된다", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartT(beat(3)), cb);
+    const mode = makeMode(makeChartT(beat(3)), cb);
     mode.selectNote(0);
     mode.moveBySnap("up"); // +1박 → beat4, 구간[2,6] 안
 
@@ -1646,7 +1670,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
   it("moveBySnap(up)이 구간 상단을 벗어나면 차단되고 토스트", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartT(beat(6)), cb); // 이미 상단 경계
+    const mode = makeMode(makeChartT(beat(6)), cb); // 이미 상단 경계
     mode.selectNote(0);
     mode.moveBySnap("up"); // +1박 → beat7 > 6 → 차단
 
@@ -1658,7 +1682,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
     const cb = makeCallbacks();
     cb.yToBeat = (y: number): Beat => beat(y);
     cb.snapBeat = (b: Beat): Beat => b;
-    const mode = new SelectMode(makeChartT(beat(3)), cb);
+    const mode = makeMode(makeChartT(beat(3)), cb);
     mode.selectNote(0);
 
     // beat3에서 시작해 아래로 크게(-5) 드래그 → 하단 zone.beat2까지만 (offset -1)
@@ -1688,37 +1712,76 @@ describe("SelectMode — 구간 단위 선택", () => {
     });
   }
 
-  it("selectZoneUnit은 구간과 안의 트릴노트를 함께 선택하고 콜백을 호출", () => {
-    const cb = makeCallbacks({ onTrillZoneSelectionChange: vi.fn() });
-    const mode = new SelectMode(makeChartZ(), cb);
+  it("selectZoneUnit은 구간 유닛만 선택하고 내부 트릴노트를 notes에 주입하지 않는다 (RFD 0016)", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
 
     expect([...mode.selectedZones]).toEqual([0]);
-    expect([...mode.selection].sort()).toEqual([0, 1]); // 구간 안 트릴노트
-    const zoneSel = cb.onTrillZoneSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
+    expect([...mode.selection]).toEqual([]); // 내부 노트는 실행 시점 파생 — 주입 없음
+    const zoneSel = cb.getSelectionState().zones;
     expect([...zoneSel]).toEqual([0]);
   });
 
-  it("핸들 클릭으로 구간 단위 선택된다", () => {
+  it("핸들 클릭으로 구간 유닛만 선택된다(notes 주입 없음)", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneHandle: () => 0,
-      onTrillZoneSelectionChange: vi.fn(),
     });
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.onPointerDown(1, 0, false, false); // 핸들 히트 → 구간0 선택
 
     expect([...mode.selectedZones]).toEqual([0]);
-    expect([...mode.selection].sort()).toEqual([0, 1]);
+    expect([...mode.selection]).toEqual([]);
+  });
+
+  it("핸들 Shift 클릭은 기존 선택을 교체하지 않고 zones에 구간을 토글로 추가한다(다중 구간)", () => {
+    // 구간 2개: x=1 → 구간0, x=2 → 구간1 핸들
+    const chart = makeChart({
+      notes: [],
+      trillZones: [
+        { lane: 1 as Lane, beat: beat(2), endBeat: beat(4) },
+        { lane: 2 as Lane, beat: beat(6), endBeat: beat(8) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZoneHandle: (x: number): number | null => (x === 1 ? 0 : x === 2 ? 1 : null),
+    });
+    const mode = makeMode(chart, cb);
+
+    mode.selectZoneUnit(0);
+    mode.onPointerDown(2, 0, true, false); // Shift + 구간1 핸들 → 추가
+
+    expect([...cb.getSelectionState().zones].sort()).toEqual([0, 1]);
+
+    mode.onPointerDown(2, 0, true, false); // 같은 핸들 다시 → 토글 제거
+    expect([...cb.getSelectionState().zones]).toEqual([0]);
+  });
+
+  it("핸들 토글 탭은 일반 노트 선택을 유지한 채 zones만 바꾼다(공존)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(9) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZoneHandle: (x: number): number | null => (x === 1 ? 0 : null),
+    });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.onPointerDown(1, 0, false, false, true); // 토글 탭으로 구간0 추가
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([0]); // 일반 노트 유지
+    expect([...sel.zones]).toEqual([0]); // 구간 유닛 공존
   });
 
   it("구간 단위 드래그는 구간+노트를 같은 오프셋으로 자유 이동(레인+박자)", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneHandle: () => 0,
-      onTrillZoneSelectionChange: vi.fn(),
     });
     cb.yToBeat = (y: number): Beat => beat(y);
     cb.snapBeat = (b: Beat): Beat => b;
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
 
     // 핸들(lane1, beat2)에서 시작 → (lane2, beat5)로 드래그: +1레인, +3박
     mode.onPointerDown(1, 2, false, false);
@@ -1739,21 +1802,19 @@ describe("SelectMode — 구간 단위 선택", () => {
   it("노트를 클릭하면 구간 단위 선택이 해제된다", () => {
     const cb = makeCallbacks({
       hitTestNote: (x: number) => (x === 2 ? 2 : null),
-      onTrillZoneSelectionChange: vi.fn(),
     });
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     expect([...mode.selectedZones]).toEqual([0]);
 
     mode.onPointerDown(2, 0, false, false); // 일반 노트(인덱스2) 클릭
     expect([...mode.selectedZones]).toEqual([]); // 구간 선택 해제
-    const lastZoneSel = cb.onTrillZoneSelectionChange.mock.calls.at(-1)?.[0] as Set<number>;
-    expect([...lastZoneSel]).toEqual([]);
+    expect([...cb.getSelectionState().zones]).toEqual([]);
   });
 
   it("구간 단위에서 ↑(moveBySnap)은 구간+노트를 함께 +1박 이동", () => {
     const cb = makeCallbacks({ hitTestTrillZoneHandle: () => 0 });
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.moveBySnap("up"); // snapStep = 1박
 
@@ -1766,7 +1827,7 @@ describe("SelectMode — 구간 단위 선택", () => {
 
   it("구간 단위에서 →(moveByLane)은 구간+노트를 함께 레인 이동(1→2)", () => {
     const cb = makeCallbacks({ hitTestTrillZoneHandle: () => 0 });
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.moveByLane("right");
 
@@ -1774,6 +1835,205 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect(updated.trillZones[0].lane).toBe(2);
     expect(updated.notes[0].lane).toBe(2);
     expect(updated.notes[1].lane).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 혼합 선택 — 일반 노트 + 구간 유닛 공존과 실행 시점 파생 (RFD 0016)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", () => {
+  // 구간0[lane1, 2~4]에 트릴노트 2개(beat2, beat3), 일반노트(lane3, beat9), 선택 밖 노트(lane4, beat0)
+  function makeChartM(): Chart {
+    return makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0 내부 — 파생 대상)
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },  // 1 (구간0 내부 — 파생 대상)
+        { type: "single", lane: 3 as Lane, beat: beat(9) }, // 2 (직접 선택할 일반)
+        { type: "single", lane: 4 as Lane, beat: beat(0) }, // 3 (선택 밖)
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+  }
+
+  /** 일반 노트 2 + 구간0을 함께 선택한다(게이트 경유 — 공존 상태) */
+  function selectMixed(cb: SelectionFake): void {
+    cb.setSelection({ notes: new Set([2]), extraNotes: new Set(), zones: new Set([0]) });
+  }
+
+  it("박스가 구간[2,4]과 부분만 겹쳐도(beat 3~5) 구간 유닛으로 픽업한다(겹침 기준, 포함 아님)", () => {
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) });
+    const mode = makeMode(makeChartM(), cb);
+
+    mode.onPointerDown(1, 3, false, false); // 빈 영역(lane1, beat3)에서 박스 시작
+    mode.onPointerMove(1, 5);               // beat5까지 — 구간 끝(4)만 걸침
+
+    const sel = cb.getSelectionState();
+    expect([...sel.zones]).toEqual([0]);
+    expect([...sel.notes]).toEqual([]); // 내부 트릴 노트 개별 미픽업
+  });
+
+  it("박스가 다른 레인(3~4)만 덮으면 lane1 구간은 픽업하지 않는다", () => {
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) });
+    const mode = makeMode(makeChartM(), cb);
+
+    mode.onPointerDown(3, 0, false, false);
+    mode.onPointerMove(4, 10);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.zones]).toEqual([]);
+    expect([...sel.notes].sort()).toEqual([2, 3]); // 일반 노트만
+  });
+
+  it("혼합 moveBySnap(up)은 구간·내부 파생 노트·일반 노트를 같은 +1박 오프셋으로 이동", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartM(), cb);
+    selectMixed(cb);
+
+    mode.moveBySnap("up"); // snapStep = 1박
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
+    expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(5);
+    expect(beatToFloat(updated.notes[0].beat)).toBe(3);  // 파생 노트 동반
+    expect(beatToFloat(updated.notes[1].beat)).toBe(4);  // 파생 노트 동반
+    expect(beatToFloat(updated.notes[2].beat)).toBe(10); // 일반 노트 동일 오프셋
+    expect(beatToFloat(updated.notes[3].beat)).toBe(0);  // 선택 밖 노트는 불변
+  });
+
+  it("혼합 드래그 이동은 구간·파생 노트·일반 노트가 같은 +1박 오프셋으로 움직인다", () => {
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+    });
+    const mode = makeMode(makeChartM(), cb);
+    selectMixed(cb);
+
+    mode.beginMoveDrag(3, 9);   // 일반 노트 위치에서 드래그 시작
+    mode.onPointerMove(3, 10);  // 레인 유지, +1박
+    mode.onPointerUp(3, 10);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
+    expect(beatToFloat(updated.notes[0].beat)).toBe(3);
+    expect(beatToFloat(updated.notes[1].beat)).toBe(4);
+    expect(beatToFloat(updated.notes[2].beat)).toBe(10);
+  });
+
+  it("혼합 레인 이동이 막히면(구간이 lane1에서 왼쪽) no-op + 토스트", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartM(), cb);
+    selectMixed(cb);
+
+    mode.moveByLane("left"); // 구간 lane1 → 0은 범위 밖
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onWarn).toHaveBeenCalledWith(expect.stringContaining("이동할 수 없습니다"));
+  });
+
+  it("혼합 moveBySnap 결과가 중복 노트(의미 위반)여도 롤백 없이 커밋된다 (낙관적 편집, RFD 0017)", () => {
+    // 일반 노트(beat9)의 +1박 목적지(lane3, beat10)에 기존 노트가 있음 → 의미 위반(중복)
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+        { type: "single", lane: 3 as Lane, beat: beat(9) },
+        { type: "single", lane: 3 as Lane, beat: beat(10) }, // 충돌 대상
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks();
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([1]), extraNotes: new Set(), zones: new Set([0]) });
+
+    mode.moveBySnap("up");
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.notes[1].beat)).toBe(10); // 중복 위치로 커밋(해칭·게이트가 강제)
+    expect(cb.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("혼합 드래그 결과가 중복 노트(의미 위반)여도 pointerUp에서 위반 위치 그대로 커밋된다 (낙관적 편집)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+        { type: "single", lane: 3 as Lane, beat: beat(9) },
+        { type: "single", lane: 3 as Lane, beat: beat(10) }, // 충돌 대상
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+    });
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([1]), extraNotes: new Set(), zones: new Set([0]) });
+
+    mode.beginMoveDrag(3, 9);
+    mode.onPointerMove(3, 10); // 라이브 프리뷰 적용
+    mode.onPointerUp(3, 10);   // 의미 위반(중복)이어도 낙관 커밋 — 되돌리기는 undo
+
+    const committed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(committed.notes[1].beat)).toBe(10);      // 일반 노트: 위반 위치 유지
+    expect(beatToFloat(committed.notes[0].beat)).toBe(3);       // 파생 노트: +1박 이동 유지
+    expect(beatToFloat(committed.trillZones[0].beat)).toBe(3);  // 구간: +1박 이동 유지
+  });
+
+  it("혼합 삭제는 구간+내부 파생 노트+일반 노트를 함께 지우고 나머지는 남긴다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartM(), cb);
+    selectMixed(cb);
+
+    mode.deleteSelected();
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones.length).toBe(0);
+    expect(updated.notes.length).toBe(1);   // 선택 밖 노트만 생존
+    expect(updated.notes[0].lane).toBe(4);
+  });
+
+  it("혼합 복사 왕복: 일반1+파생2+구간1 = count 4, 붙여넣기에 구간·내부 노트·일반 노트가 모두 재생성", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartM(), cb);
+    selectMixed(cb);
+
+    expect(mode.copy()).toBe(4);
+
+    // anchor = beat2(구간·트릴 시작) → target beat12 = +10박
+    mode.paste(beat(12));
+
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(pasted.trillZones.length).toBe(2);
+    const newZone = pasted.trillZones[1];
+    expect(beatToFloat(newZone.beat)).toBe(12);
+    expect(beatToFloat(newZone.endBeat)).toBe(14);
+    // 원본 4개 + 붙여넣은 3개(트릴2 + 일반1)
+    expect(pasted.notes.length).toBe(7);
+    const newBeats = pasted.notes.slice(4).map((n) => beatToFloat(n.beat)).sort((a, b) => a - b);
+    expect(newBeats).toEqual([12, 13, 19]);
+  });
+
+  it("Shift로 일반 노트를 추가해도 zones가 유지된다(공존)", () => {
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 2 ? 2 : null) });
+    const mode = makeMode(makeChartM(), cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(2, 0, true, false); // Shift-click 일반 노트(인덱스2)
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([2]);
+    expect([...sel.zones]).toEqual([0]); // 구간 유닛 보존
+  });
+
+  it("트릴 노트를 토글로 추가하면 게이트가 zones를 자동으로 비운다(개별 트릴 모드 배타)", () => {
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 0 ? 0 : null) });
+    const mode = makeMode(makeChartM(), cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(0, 0, false, false, true); // 토글 탭으로 트릴 노트(인덱스0) 추가
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([0]);
+    expect([...sel.zones]).toEqual([]); // 트릴 모드 진입 → zones 비움
   });
 });
 
@@ -1795,7 +2055,7 @@ describe("SelectMode — 삭제 연동", () => {
 
   it("구간 단위 삭제는 구간과 안의 트릴노트를 함께 지운다", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.deleteSelected();
 
@@ -1807,7 +2067,7 @@ describe("SelectMode — 삭제 연동", () => {
 
   it("노트 단위 삭제는 노트만 지우고 구간은 남긴다", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectNote(0); // 트릴 포인트 노트(노트 단위)
     mode.deleteSelected();
 
@@ -1834,14 +2094,14 @@ describe("SelectMode — 트릴존 복붙", () => {
 
   it("구간 단위 복사는 노트+구간을 함께 담는다(count = 노트2 + 구간1)", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     expect(mode.copy()).toBe(3);
   });
 
   it("구간 단위 붙여넣기는 구간+노트를 같은 오프셋으로 생성", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.copy();
     // anchor=2, target=6 → +4박
@@ -1861,7 +2121,7 @@ describe("SelectMode — 트릴존 복붙", () => {
 
   it("노트 단위 트릴 복사는 구간 단위로 승격되어 구간도 함께 복사된다", () => {
     const cb = makeCallbacks();
-    const mode = new SelectMode(makeChartZ(), cb);
+    const mode = makeMode(makeChartZ(), cb);
     mode.selectNote(0); // 트릴 노트 1개(노트 단위)
     expect(mode.copy()).toBe(2); // 노트1 + 구간1(승격)
 
@@ -1876,7 +2136,7 @@ describe("SelectMode — 트릴존 복붙", () => {
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(2) }],
       trillZones: [],
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
     mode.selectNote(0);
     expect(mode.copy()).toBe(1); // 노트만
   });
@@ -1892,7 +2152,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
     });
     const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
     mode.beginMoveDrag(1, 0);
@@ -1914,7 +2174,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
       yToBeat: (y: number): Beat => beat(y),
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝 잡고 리사이즈 시작
     mode.onPointerMove(9, 10); // endBeat 6→10 (라이브 적용)
@@ -1929,7 +2189,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
   it("엑스트라 노트 이동 중 cancel은 extraLane을 원본(1)으로 되돌린다", () => {
     const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(0) }];
     const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 2 });
-    const mode = new SelectMode(makeChart(), cb);
+    const mode = makeMode(makeChart(), cb);
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
     mode.onPointerMove(6, 0); // extraLane 1 → 2 (라이브 적용)
@@ -1944,7 +2204,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
   it("박스 선택 중 cancel은 차트 변이 없이 박스만 닫는다", () => {
     const chart = makeChart();
     const cb = makeCallbacks(); // 빈 영역 → 박스 셀렉트
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 0, false, false);
     mode.onPointerMove(2, 5);
@@ -1960,7 +2220,6 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
   it("구간 단위(트릴존+노트) 이동 중 cancel은 구간과 안의 노트를 전부 원위치로 되돌린다", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneHandle: () => 0,
-      onTrillZoneSelectionChange: vi.fn(),
     });
     cb.yToBeat = (y: number): Beat => beat(y);
     cb.snapBeat = (b: Beat): Beat => b;
@@ -1971,7 +2230,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
       ],
       trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
     });
-    const mode = new SelectMode(chart, cb);
+    const mode = makeMode(chart, cb);
 
     mode.onPointerDown(1, 2, false, false); // 핸들 히트 → 구간 단위 드래그 시작
     mode.onPointerMove(2, 5); // +1레인 +3박 (라이브 적용)
@@ -1996,7 +2255,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     ];
     const cb = makeCallbacks(undefined, { extraNotes, extraLaneCount: 2 });
     cb.yToBeat = (y: number): Beat => beat(y);
-    const mode = new SelectMode(makeChart(), cb);
+    const mode = makeMode(makeChart(), cb);
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: null, extraHit: 0 });
     mode.onPointerMove(6, 3); // +1레인 +3박 (라이브 적용)
@@ -2014,7 +2273,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
   });
 
   it("드래그 중이 아니면 cancel은 아무것도 하지 않는다", () => {
-    const mode = new SelectMode(makeChart(), makeCallbacks());
+    const mode = makeMode(makeChart(), makeCallbacks());
 
     const result = mode.cancel();
 
@@ -2038,35 +2297,35 @@ describe("SelectMode — 트릴 쌍 동반 선택", () => {
     });
 
   it("trill 헤드를 selectNote하면 trillLong 바디도 함께 선택된다", () => {
-    const mode = new SelectMode(pairChart(), makeCallbacks());
+    const mode = makeMode(pairChart(), makeCallbacks());
 
     mode.selectNote(0);
 
-    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+    expect([...mode.selection].sort()).toEqual([0, 1]);
   });
 
   it("노트 클릭(onPointerDown 실경로)으로도 트릴 쌍이 함께 선택된다", () => {
     const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
-    const mode = new SelectMode(pairChart(), cb);
+    const mode = makeMode(pairChart(), cb);
 
     mode.onPointerDown(1, 0, false, false); // 마우스 클릭 선택 분기 (selectNote 미경유)
 
-    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+    expect([...mode.selection].sort()).toEqual([0, 1]);
   });
 
   it("trillLong 바디를 selectNote해도 헤드가 함께 선택된다", () => {
-    const mode = new SelectMode(pairChart(), makeCallbacks());
+    const mode = makeMode(pairChart(), makeCallbacks());
 
     mode.selectNote(1);
 
-    expect([...selectionOf(mode).selectedIndices].sort()).toEqual([0, 1]);
+    expect([...mode.selection].sort()).toEqual([0, 1]);
   });
 
   it("쌍 선택 후 +1박 이동(존 안)은 롤백 없이 헤드·바디가 함께 움직인다", () => {
     const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
     cb.yToBeat = (y: number): Beat => beat(y);
     cb.snapBeat = (b: Beat): Beat => b;
-    const mode = new SelectMode(pairChart(), cb);
+    const mode = makeMode(pairChart(), cb);
 
     mode.selectNote(0); // 쌍 동반 선택
     mode.beginMoveDrag(1, 0);
@@ -2077,5 +2336,517 @@ describe("SelectMode — 트릴 쌍 동반 선택", () => {
     expect(beatToFloat(updated.notes[0].beat)).toBe(1); // 헤드 이동
     expect(beatToFloat(updated.notes[1].beat)).toBe(1); // 바디 시작 이동
     expect(beatToFloat((updated.notes[1] as { endBeat: Beat }).endBeat)).toBe(3); // 길이 보존
+  });
+});
+
+// ---------------------------------------------------------------------------
+// beginBoxSelect — 노트 위 터치 드래그의 박스 승격 진입점 (RFD 0016 §4.4)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — beginBoxSelect (박스 승격)", () => {
+  it("기존 선택 {0}을 비우고 박스 드래그를 시작한다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = makeMode(chart, cb as never);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set(), zones: new Set() });
+
+    mode.beginBoxSelect(2, 10);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(cb.getSelectionState().notes).toEqual(new Set());
+  });
+
+  it("드래그 진행 중이면 재호출이 무시된다(시작점 유지)", () => {
+    const chart = makeChart();
+    const mode = makeMode(chart, makeCallbacks(chart) as never);
+
+    mode.beginBoxSelect(2, 10);
+    const startYBefore = mode.boxSelectPixelRect?.startY;
+    mode.beginBoxSelect(3, 99);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(mode.boxSelectPixelRect?.startY).toBe(startYBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RFD 0016 후속 fix — 엑스트라→메인(오른쪽→왼쪽) 크로싱 박스, 구간 롱프레스 이동
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 엑스트라→메인 크로싱 박스 (오른쪽→왼쪽 드래그)", () => {
+  it("엑스트라(x=5)에서 시작해 메인 레인 2까지 끌면 레인 2~4와 엑스트라가 선택된다(레인 1 제외)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1, beat: beat(1) },
+        { type: "single", lane: 2, beat: beat(1) },
+        { type: "single", lane: 3, beat: beat(1) },
+        { type: "single", lane: 4, beat: beat(1) },
+      ],
+    });
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      { yToBeatRaw: (y: number): Beat => beat(y) },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+
+    mode.onPointerDown(5, 0, false, false); // 엑스트라 레인 1, beat 0에서 시작
+    mode.onPointerMove(2, 2);               // 메인 레인 2, beat 2까지 왼쪽으로
+    mode.onPointerUp(2, 2);
+
+    const selected = cb.getSelectionState();
+    expect(selected.notes).toEqual(new Set([1, 2, 3])); // 레인 2·3·4
+    expect(selected.notes.has(0)).toBe(false);          // 레인 1은 박스 밖
+    expect(selected.extraNotes).toEqual(new Set([0]));
+  });
+});
+
+describe("SelectMode — 구간 유닛 롱프레스 이동 (RFD 0016 §4.4)", () => {
+  const zone: TrillZone = { lane: 1, beat: beat(0), endBeat: beat(2) };
+
+  it("미선택 구간(zoneHit=0) 롱프레스는 그 구간 단독 선택으로 전환하고 이동을 시작한다", () => {
+    const chart = makeChart({
+      trillZones: [zone],
+      notes: [{ type: "trill", lane: 1, beat: beat(1) }],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = makeMode(chart, cb as never);
+
+    const ok = mode.beginLongPressDrag(1, 0, {
+      noteEndHit: null, noteHit: null, extraHit: null, zoneHit: 0,
+    });
+
+    expect(ok).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+  });
+
+  it("선택된 구간 롱프레스는 기존 혼합 선택(일반 노트 {1} 포함)을 유지한 채 이동을 시작한다", () => {
+    const chart = makeChart({
+      trillZones: [zone],
+      notes: [
+        { type: "trill", lane: 1, beat: beat(1) },
+        { type: "single", lane: 3, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks(chart);
+    const mode = makeMode(chart, cb as never);
+    cb.setSelection({ notes: new Set([1]), extraNotes: new Set(), zones: new Set([0]) });
+
+    const ok = mode.beginLongPressDrag(1, 0, {
+      noteEndHit: null, noteHit: null, extraHit: null, zoneHit: 0,
+    });
+
+    expect(ok).toBe(true);
+    expect(cb.getSelectionState().notes).toEqual(new Set([1]));
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 혼합 이동(메인+엑스트라 동반) — beat 오프셋은 선택 전체가 공유하고,
+// 레인 오프셋은 앵커(잡은 쪽) 축에만 적용된다 (RFD 0016 §4.2)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 혼합 이동(메인+엑스트라 동반, RFD 0016 §4.2)", () => {
+  /** 메인 single(lane2, beat1) + 엑스트라 single(extraLane1, beat1), extraLaneCount=2, 혼합 선택 상태 */
+  function setupMixed(overrides?: { extraBeat?: number; extraLane?: number }) {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 2 as Lane, beat: beat(1) }],
+    });
+    const extraNotes: ExtraNoteEntity[] = [
+      {
+        type: "single",
+        extraLane: overrides?.extraLane ?? 1,
+        beat: beat(overrides?.extraBeat ?? 1),
+      },
+    ];
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set() });
+    return { cb, mode };
+  }
+
+  it("이미 선택된 메인 노트 롱프레스 이동 시작은 엑스트라 선택 {0}을 비우지 않는다(선택 붕괴 제거)", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.beginTouchMoveDragFromNote(0, 2, 1);
+
+    expect(cb.getSelectionState().notes).toEqual(new Set([0]));
+    expect(cb.getSelectionState().extraNotes).toEqual(new Set([0]));
+    expect(mode.isMoveDragging).toBe(true);
+  });
+
+  it("이미 선택된 엑스트라 노트 롱프레스 이동 시작은 메인 선택 {0}을 비우지 않는다(선택 붕괴 제거)", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.beginTouchMoveDragFromExtraNote(0, 5, 1);
+
+    expect(cb.getSelectionState().notes).toEqual(new Set([0]));
+    expect(cb.getSelectionState().extraNotes).toEqual(new Set([0]));
+    expect(mode.isMoveDragging).toBe(true);
+  });
+
+  it("이미 선택된 엑스트라 노트 클릭(onPointerDown)은 혼합 선택을 유지한 채 이동 드래그를 시작한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 2 as Lane, beat: beat(1) }] });
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        hitTestExtraNote: (x: number) => (x === 5 ? 0 : null),
+      },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set() });
+
+    mode.onPointerDown(5, 1, false, false);
+
+    expect(mode.isMoveDragging).toBe(true);
+    expect(cb.getSelectionState().notes).toEqual(new Set([0])); // 메인 선택 유지(붕괴 제거)
+  });
+
+  it("메인 앵커 드래그(+1레인 +1박): 메인은 lane 2→3·beat 1→2, 엑스트라는 beat 1→2만 동반(extraLane 1 불변)", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.beginTouchMoveDragFromNote(0, 2, 1);
+    mode.onPointerMove(3, 2); // +1레인 +1박
+    mode.onPointerUp(3, 2);
+
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(chartAfter.notes[0].lane).toBe(3);
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(2);
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(extraAfter[0].extraLane).toBe(1); // 앵커가 메인이므로 엑스트라 레인 불변
+    expect(beatToFloat(extraAfter[0].beat)).toBe(2); // beat만 동반
+  });
+
+  it("엑스트라 앵커 드래그(+1레인 +1박): 엑스트라는 extraLane 1→2·beat 1→2, 메인 노트·구간·파생 노트는 beat만 동반(lane 불변)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 2 as Lane, beat: beat(1) }, // 0 직접 선택한 일반
+        { type: "trill", lane: 1 as Lane, beat: beat(1) },  // 1 구간0 내부(파생)
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 2 구간0 내부(파생)
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(1), endBeat: beat(3) }],
+    });
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set([0]) });
+
+    mode.beginTouchMoveDragFromExtraNote(0, 5, 1);
+    mode.onPointerMove(6, 2); // 엑스트라 축 +1레인, +1박
+    mode.onPointerUp(6, 2);
+
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(extraAfter[0].extraLane).toBe(2);
+    expect(beatToFloat(extraAfter[0].beat)).toBe(2);
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(chartAfter.notes[0].lane).toBe(2);                   // 메인 레인 불변
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(2);      // beat 동반
+    expect(beatToFloat(chartAfter.notes[1].beat)).toBe(2);      // 구간 파생 노트 동반
+    expect(beatToFloat(chartAfter.notes[2].beat)).toBe(3);
+    expect(chartAfter.trillZones[0].lane).toBe(1);              // 구간 레인 불변
+    expect(beatToFloat(chartAfter.trillZones[0].beat)).toBe(2); // 구간 beat 동반
+    expect(beatToFloat(chartAfter.trillZones[0].endBeat)).toBe(4);
+  });
+
+  it("혼합 드래그 커밋: pointerUp에서 chart(onChartUpdate)와 extraNotes(onExtraNotesUpdate)가 둘 다 이동 결과(beat 1→3)로 갱신된다", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.beginTouchMoveDragFromNote(0, 2, 1);
+    mode.onPointerMove(2, 3); // 레인 유지 +2박
+    mode.onPointerUp(2, 3);
+
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(3);
+    expect(beatToFloat(extraAfter[0].beat)).toBe(3);
+  });
+
+  it("혼합 드래그 결과가 중복 노트(의미 위반)여도 메인·엑스트라 둘 다 이동 위치(beat 2)로 커밋된다 (낙관적 편집)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+        { type: "single", lane: 2 as Lane, beat: beat(2) }, // 충돌 대상
+      ],
+    });
+    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes, extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([0]), extraNotes: new Set([0]), zones: new Set() });
+
+    mode.beginTouchMoveDragFromNote(0, 2, 1);
+    mode.onPointerMove(2, 2); // 노트0 → (lane2, beat2) = 노트1과 중복(라이브 적용)
+    mode.onPointerUp(2, 2);   // 의미 위반이어도 낙관 커밋 — 되돌리기는 undo
+
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(2); // 중복 위치로 커밋
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(beatToFloat(extraAfter[0].beat)).toBe(2); // 엑스트라도 함께 커밋
+  });
+
+  it("혼합 드래그 중 cancel()은 메인(lane 2, beat 1)과 엑스트라(beat 1)를 모두 원위치로 복원한다", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.beginTouchMoveDragFromNote(0, 2, 1);
+    mode.onPointerMove(3, 2); // +1레인 +1박(라이브 적용)
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(chartAfter.notes[0].lane).toBe(2);
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(1);
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(extraAfter[0].extraLane).toBe(1);
+    expect(beatToFloat(extraAfter[0].beat)).toBe(1);
+  });
+
+  it("혼합 moveBySnap(up): 메인 beat 1→2·엑스트라 beat 1→2 동반(lane·extraLane 불변)", () => {
+    const { cb, mode } = setupMixed(); // snapStep = 1박
+
+    mode.moveBySnap("up");
+
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(2);
+    expect(chartAfter.notes[0].lane).toBe(2);
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(beatToFloat(extraAfter[0].beat)).toBe(2);
+    expect(extraAfter[0].extraLane).toBe(1);
+  });
+
+  it("혼합 moveBySnap(up): 엑스트라가 maxBeat(100)에 있으면 전체 no-op — 메인도 이동하지 않는다", () => {
+    const { cb, mode } = setupMixed({ extraBeat: 100 });
+
+    mode.moveBySnap("up"); // 엑스트라 101 > maxBeat 100 → 전체 차단
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+  });
+
+  it("혼합 moveByLane(right): 메인은 lane 2→3, 엑스트라는 extraLane 1→2로 각자 축 평행이동(beat 불변)", () => {
+    const { cb, mode } = setupMixed();
+
+    mode.moveByLane("right");
+
+    const chartAfter = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(chartAfter.notes[0].lane).toBe(3);
+    expect(beatToFloat(chartAfter.notes[0].beat)).toBe(1); // beat 불변
+    const extraAfter = cb.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    expect(extraAfter[0].extraLane).toBe(2);
+    expect(beatToFloat(extraAfter[0].beat)).toBe(1);
+  });
+
+  it("혼합 moveByLane(right): 엑스트라가 최대 레인(2)이면 전체 no-op + 토스트(메인 lane 2 유지)", () => {
+    const { cb, mode } = setupMixed({ extraLane: 2 });
+
+    mode.moveByLane("right"); // 엑스트라 3 > extraLaneCount 2 → 전체 차단
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onExtraNotesUpdate).not.toHaveBeenCalled();
+    expect(cb.onWarn).toHaveBeenCalledWith(expect.stringContaining("이동할 수 없습니다"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 구간 유닛의 파생 내부 노트 드래그 — 단독 선택 교체 없이 유닛째 이동 (RFD 0016 §4.2)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () => {
+  // zone lane1 [0,4], 내부 트릴 노트 beat1·beat2
+  function setupZoneUnit() {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(1) },
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 1 ? 0 : null), // (1,1) = 내부 노트 0
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    return { cb, mode };
+  }
+
+  it("존 유닛 선택 중 내부 노트를 잡아 끌면 단독 선택으로 교체되지 않고 유닛째 프리뷰 이동한다", () => {
+    const { cb, mode } = setupZoneUnit();
+
+    mode.onPointerDown(1, 1, false, false); // 파생 내부 노트 0 히트
+    mode.onPointerMove(1, 3); // +2박 프리뷰
+
+    const priv = mode as unknown as { chart: Chart };
+    expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 유닛 선택 유지
+    expect(cb.getSelectionState().notes).toEqual(new Set()); // 단독 선택으로 교체 안 됨
+    expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2); // 존 0→2
+    expect(priv.chart.notes.map((n) => beatToFloat(n.beat))).toEqual([3, 4]); // 파생 노트 동반 이동
+  });
+
+  it("터치 롱프레스도 동일 — 파생 내부 노트에서 이동을 시작해도 유닛 선택이 유지된다", () => {
+    const { cb, mode } = setupZoneUnit();
+
+    const ok = mode.beginTouchMoveDragFromNote(0, 1, 1);
+    mode.onPointerMove(1, 3);
+
+    expect(ok).toBe(true);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 단독 선택 전환 없음
+    const priv = mode as unknown as { chart: Chart };
+    expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 메인↔엑스트라 레인 드래그 변환 — 키보드 변환(moveByLane)의 드래그 판
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 메인↔엑스트라 드래그 변환", () => {
+  it("메인 노트(lane4, beat0)를 엑스트라 레인 2 위(beat2)에 놓으면 그 레인의 엑스트라 노트로 변환된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 4 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 4 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+
+    mode.onPointerDown(4, 0, false, false); // 노트 클릭 → 이동 시작
+    mode.onPointerMove(6, 2); // x=6 → xToLane null·extraLane 2, beat 프리뷰 +2
+    mode.onPointerUp(6, 2);   // 엑스트라 레인 2 위에서 드롭 → 변환
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes).toHaveLength(0); // 메인에서 제거
+    const extras = cb.getExtraNotes!();
+    expect(extras).toHaveLength(1);
+    expect(extras[0].extraLane).toBe(2); // 드롭한 레인
+    expect(beatToFloat(extras[0].beat)).toBe(2); // 드래그 beat 프리뷰 반영
+    expect(cb.getSelectionState().extraNotes).toEqual(new Set([0])); // 선택도 엑스트라로 전환
+  });
+
+  it("엑스트라 노트(extraLane1, beat0)를 메인 레인 3 위(beat1)에 놓으면 그 레인의 메인 노트로 변환된다", () => {
+    const chart = makeChart();
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraNotes: [{ type: "single", extraLane: 1, beat: beat(0) }], extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    mode.selectExtraNote(0);
+
+    mode.beginMoveDrag(5, 0);  // x=5 → 엑스트라 축 앵커
+    mode.onPointerMove(3, 1);  // x=3 → 메인 레인 영역, beat 프리뷰 +1
+    mode.onPointerUp(3, 1);    // 메인 레인 3 위에서 드롭 → 변환
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(3); // 드롭한 레인
+    expect(beatToFloat(updated.notes[0].beat)).toBe(1); // beat 프리뷰 반영
+    expect(cb.getExtraNotes!()).toHaveLength(0); // 엑스트라에서 제거
+    expect(cb.getSelectionState().notes).toEqual(new Set([0])); // 선택도 메인으로 전환
+  });
+
+  it("존 유닛 선택은 엑스트라 영역에 놓아도 변환되지 않는다 (경계 프리뷰 상태로 커밋)", () => {
+    const chart = makeChart({
+      notes: [{ type: "trill", lane: 4 as Lane, beat: beat(1) }],
+      trillZones: [{ lane: 4 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+    const cb = makeCallbacks(
+      { yToBeat: (y: number): Beat => beat(y), snapBeat: (b: Beat): Beat => b },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+
+    mode.beginMoveDrag(4, 0);
+    mode.onPointerMove(6, 2); // 엑스트라 영역 — 레인 고정, beat만 +2
+    mode.onPointerUp(6, 2);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones).toHaveLength(1); // 존 유지(변환 없음)
+    expect(updated.notes).toHaveLength(1);
+    expect(updated.notes[0].lane).toBe(4); // 레인은 경계에 고정
+    expect(beatToFloat(updated.notes[0].beat)).toBe(3); // beat는 따라옴 (1+2)
+    expect(cb.getExtraNotes!()).toHaveLength(0);
+  });
+
+  it("메인 이동 중 엑스트라 영역에 들어서는 즉시 변환되어 드래그가 이어진다 (순간이동 없음)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 3 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+
+    mode.onPointerDown(3, 0, false, false);
+    mode.onPointerMove(4, 1); // 메인 안: lane 3→4, beat +1
+    expect(priv.chart.notes[0].lane).toBe(4);
+
+    mode.onPointerMove(6, 2); // 엑스트라 영역 진입 → 이 프레임에서 즉시 변환(beat=+2 반영)
+    expect(priv.chart.notes).toHaveLength(0); // 메인에서 빠지고
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(2); // 포인터의 엑스트라 레인으로
+    expect(beatToFloat(cb.getExtraNotes!()[0].beat)).toBe(2);
+
+    mode.onPointerMove(5, 3); // 변환 후에도 드래그 계속 — 엑스트라 축 안에서 레인·beat 라이브
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(1);
+    expect(beatToFloat(cb.getExtraNotes!()[0].beat)).toBe(3);
+
+    mode.onPointerUp(5, 3);
+    expect(cb.getExtraNotes!()[0].extraLane).toBe(1); // 드롭은 커밋일 뿐(이미 변환됨)
+  });
+
+  it("경계를 넘은 뒤 cancel하면 변환까지 되돌려 시작 시점으로 원상복구된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 3 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks(
+      {
+        yToBeat: (y: number): Beat => beat(y),
+        snapBeat: (b: Beat): Beat => b,
+        hitTestNote: (x: number, y: number) => (x === 3 && y === 0 ? 0 : null),
+      },
+      { extraLaneCount: 2 },
+    );
+    const mode = makeMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+
+    mode.onPointerDown(3, 0, false, false);
+    mode.onPointerMove(6, 2); // 경계 횡단 → 엑스트라로 변환됨
+    expect(priv.chart.notes).toHaveLength(0);
+
+    mode.cancel();
+
+    expect(priv.chart.notes).toHaveLength(1); // 메인으로 복원
+    expect(priv.chart.notes[0].lane).toBe(3);
+    expect(beatToFloat(priv.chart.notes[0].beat)).toBe(0);
+    expect(cb.getExtraNotes!()).toHaveLength(0); // 변환 흔적 없음
+    expect(cb.getSelectionState().notes).toEqual(new Set([0])); // 선택도 시작 시점으로
   });
 });
