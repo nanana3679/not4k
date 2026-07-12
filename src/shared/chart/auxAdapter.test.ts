@@ -60,6 +60,18 @@ describe("withAuxNotes", () => {
   it("보조가 비면 메인만 남는다", () => {
     expect(withAuxNotes([mainA, aux5], [])).toEqual([mainA]);
   });
+
+  // 정규형 [...전체 메인, ...전체 보조] 불변 — selection·hover·§3-5 게이트의 mainCount+i 산술이
+  // 전부 이 불변에 의존한다(어떤 편집이 main/aux를 뒤섞으면 세 곳이 함께 깨짐). withAuxNotes가
+  // 모든 보조 편집이 통과하는 seam이므로 여기서 파티션을 못박는다 (codex 재리뷰 권장).
+  it("입력이 뒤섞여 있어도 결과는 정규형 [...전체 메인(원순서), ...전체 보조] 파티션", () => {
+    const messy = [aux7, mainA, aux5, mainB]; // 보조가 앞·중간에 낀 비정규 입력
+    const result = withAuxNotes(messy, [extraP, extraR]);
+    const firstAux = result.findIndex((n) => n.lane > 4);
+    expect(result.slice(0, firstAux).every((n) => n.lane <= 4)).toBe(true); // 앞은 전부 메인
+    expect(result.slice(firstAux).every((n) => n.lane > 4)).toBe(true); // 뒤는 전부 보조
+    expect(result.filter((n) => n.lane <= 4)).toEqual([mainA, mainB]); // 메인 원순서 보존
+  });
 });
 
 describe("auxIndexToUnifiedIndex", () => {
