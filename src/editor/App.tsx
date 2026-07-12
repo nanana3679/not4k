@@ -15,7 +15,8 @@ import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
-import { unifiedNotes, splitViolationNoteIndices } from './stores/unifiedNotes';
+import { unifiedNotes, splitViolationNoteIndices, hiddenViolationLanes } from './stores/unifiedNotes';
+import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -966,6 +967,23 @@ function ChartEditorPage() {
             <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#ccc' }}>
               차트에 {validationErrors.length}건의 제약 조건 위반이 발견되어 저장할 수 없습니다.
             </p>
+            {(() => {
+              // 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는
+              // 노트가 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
+              const hidden = hiddenViolationLanes(
+                validationErrors,
+                unifiedNotes(chart.notes, extraNotes),
+                extraLaneCount,
+              );
+              if (hidden.length === 0) return null;
+              const needed = toAuxIndex(Math.max(...hidden));
+              return (
+                <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
+                  숨은 보조 레인({hidden.map((l) => toAuxIndex(l)).join(', ')})의 위반이 포함되어
+                  있습니다 — 보조 레인 수를 {needed} 이상으로 늘리면 보입니다.
+                </p>
+              );
+            })()}
             <div style={{ overflow: 'auto', flex: 1, marginBottom: '16px' }}>
               {validationErrors.map((err, i) => (
                 <div key={i} style={{ padding: '6px 8px', marginBottom: '4px', backgroundColor: '#1a1a1a', borderRadius: '4px', fontSize: '12px', borderLeft: '3px solid #cc3333' }}>

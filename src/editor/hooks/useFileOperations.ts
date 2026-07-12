@@ -187,8 +187,9 @@ export function useFileOperations(
       return;
     }
 
+    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
     const errors = validateChart({
-      notes: chart.notes,
+      notes: unifiedNotes(chart.notes, extraNotes),
       trillZones: chart.trillZones,
       events: chart.events,
     });
@@ -316,8 +317,9 @@ export function useFileOperations(
       return;
     }
 
+    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
     const errors = validateChart({
-      notes: chart.notes,
+      notes: unifiedNotes(chart.notes, extraNotes),
       trillZones: chart.trillZones,
       events: chart.events,
     });

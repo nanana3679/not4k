@@ -11,8 +11,8 @@
  * - 보조 노트는 상대 순서를 보존하며 n..n+m-1에 append (unified[n+j] = extraNotes[j])
  */
 
-import type { NoteEntity, ExtraNoteEntity } from "../../shared";
-import { fromAuxIndex } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, ValidationError } from "../../shared";
+import { fromAuxIndex, isVisibleLane } from "../../shared";
 
 /** ExtraNoteEntity → NoteEntity: extraLane(1-기반) → lane(5+) 변환 */
 export function extraToNote(e: ExtraNoteEntity): NoteEntity {
@@ -58,4 +58,27 @@ export function splitViolationNoteIndices(
     else extra.add(idx - mainCount);
   }
   return { main, extra };
+}
+
+/**
+ * 위반에 연루된 노트 중 현재 표시 범위 밖 보조 레인의 lane 목록 (오름차순, 중복 제거).
+ *
+ * §8-4(축소 시 숨김)와 게이트 동일 취급(§3-6)이 결합하면 화면에 없는 노트의 위반이
+ * 저장·플레이를 막을 수 있다 — 차단 안내가 "숨은 보조 레인 위반"임과 필요한 레인 수를
+ * 명시하기 위한 재료를 제공한다 (RFD 0018 §8-7).
+ */
+export function hiddenViolationLanes(
+  errors: readonly ValidationError[],
+  unified: readonly NoteEntity[],
+  extraLaneCount: number,
+): number[] {
+  const lanes = new Set<number>();
+  for (const err of errors) {
+    for (const ref of err.refs ?? []) {
+      if (ref.kind !== "note") continue;
+      const note = unified[ref.index];
+      if (note && !isVisibleLane(note.lane, extraLaneCount)) lanes.add(note.lane);
+    }
+  }
+  return [...lanes].sort((a, b) => a - b);
 }
