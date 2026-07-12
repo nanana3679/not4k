@@ -27,6 +27,7 @@ import type {
   ExtraNoteEntity,
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { isMainLane } from "../chart/laneAxis";
 
 export interface ValidationError {
   rule:
@@ -221,6 +222,9 @@ export function validateTrillExclusive(
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
+    // 트릴 계열 규칙은 메인 레인 한정 (RFD 0018 §3-2) — 보조 레인(5+)은 표시 전용이라
+    // 존 배타가 적용되지 않고, trillZone 자체가 메인 레인에만 존재한다.
+    if (!isMainLane(note.lane)) continue;
     const isTrill = note.type === "trill" || note.type === "trillLong";
 
     // trillLong: both start and end must be in the SAME trill zone
@@ -276,6 +280,8 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
     if (note.type !== "trillLong") continue;
+    // 보조 레인(5+)의 trillLong은 표시 전용 — 헤드·hold-only 규칙 미적용 (RFD 0018 §3-2)
+    if (!isMainLane(note.lane)) continue;
     const rn = note as RangeNote;
 
     if (rn.holdOnly) {
@@ -482,6 +488,8 @@ export function validateStopZones(
   for (const stop of stopEvents) {
     for (let noteIdx = 0; noteIdx < notes.length; noteIdx++) {
       const note = notes[noteIdx];
+      // stop 구간 배치 금지는 게임 판정 전제 — 보조 레인(5+)은 미적용 (RFD 0018 §3-2)
+      if (!isMainLane(note.lane)) continue;
       // 포인트 노트: beat가 stop 구간 내인지
       if (!isRangeNote(note)) {
         if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
