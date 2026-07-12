@@ -59,10 +59,15 @@ export interface TimeSignatureMarker {
 // 노트 엔티티
 // ---------------------------------------------------------------------------
 
-/** 포인트 노트 — 위치만 가짐 (싱글 / 더블 / 트릴) */
+/**
+ * 포인트 노트 — 위치만 가짐 (싱글 / 더블 / 트릴)
+ *
+ * lane은 1-based 자연수. 메인 레인(1..4)만 게임 판정 대상이고,
+ * 보조 레인(5+)은 에디터 표시 전용이다. 경계 규칙은 laneAxis 모듈이 소유한다 (RFD 0018).
+ */
 export interface PointNote {
   type: "single" | "double" | "trill";
-  lane: Lane;
+  lane: number;
   beat: Beat;
   /** Grace 플래그 — Good 윈도우 내 입력 시 항상 Perfect */
   grace?: boolean;
@@ -76,7 +81,7 @@ export interface PointNote {
  */
 export interface RangeNote {
   type: "long" | "doubleLong" | "trillLong";
-  lane: Lane;
+  lane: number;
   beat: Beat;
   endBeat: Beat;
   /** hold-only — 끝점의 떼는 판정을 면제. 유지만 하면 Perfect (RFD 0005) */

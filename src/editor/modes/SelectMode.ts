@@ -82,7 +82,7 @@ export class SelectMode implements EditorMode {
   // Move state
   private originalPositions: Map<
     number,
-    { beat: Beat; endBeat?: Beat; lane: Lane }
+    { beat: Beat; endBeat?: Beat; lane: number }
   > = new Map();
   private originalExtraPositions: Map<
     number,
@@ -320,7 +320,7 @@ export class SelectMode implements EditorMode {
   }
 
   /** Original positions of notes being moved (available during move drag) */
-  get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: Lane }> {
+  get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: number }> {
     return this.originalPositions;
   }
 

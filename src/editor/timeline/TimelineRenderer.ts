@@ -116,7 +116,7 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
-  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
+  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null = null;
 
   // Extra lane state
@@ -565,7 +565,7 @@ export class TimelineRenderer {
    * Set move origin ghost data (shown during note drag move).
    * Pass original note entities with their original positions.
    */
-  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[]): void {
+  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[]): void {
     this._moveOrigins = origins;
   }
 

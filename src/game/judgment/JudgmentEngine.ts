@@ -265,6 +265,14 @@ export class JudgmentEngine {
   }
 
   /**
+   * 노트의 lane으로 홀드 상태 조회 — note.lane(number) → Lane 캐스트의 단일 지점.
+   * 엔진에 들어오는 노트는 게임 진입점에서 메인 레인(1..4)으로 필터된다 (RFD 0018 §3-3).
+   */
+  private noteHoldState(lane: number): LaneHoldState | undefined {
+    return this.laneHoldStates.get(lane as Lane);
+  }
+
+  /**
    * 레인 키 프레스 처리
    */
   onLanePress(lane: Lane, timestampMs: number, keyCode: string): void {
@@ -522,7 +530,7 @@ export class JudgmentEngine {
         // 짧은 더블롱: dl 추적이 없던 채 유지 키가 끝점 update 프레임보다 먼저 keyup으로 도착
         // (라이브 keyup은 rAF update와 비동기 — P3가 고친 update 폴백 경로의 거울상).
         // heldKeys엔 방금 뗀 keyCode가 이미 빠졌으므로 참여 키 맨 앞에 포함해 재구성한다.
-        const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+        const holdState = this.noteHoldState((note as RangeNote).lane);
         const participants = [keyCode, ...(holdState ? holdState.heldKeys : [])];
         dl = this.reconstructShortDoubleLongKeyStates(noteIndex, participants);
       }
@@ -611,7 +619,7 @@ export class JudgmentEngine {
 
           // doubleLong: 현재 눌린 키들로 2키 독립 추적 초기화
           if (note.type === NoteType.DOUBLE_LONG) {
-            const holdState = this.laneHoldStates.get(note.lane);
+            const holdState = this.noteHoldState(note.lane);
             if (holdState) {
               const heldKeysArr = Array.from(holdState.heldKeys);
               if (heldKeysArr.length >= 2) {
@@ -717,7 +725,7 @@ export class JudgmentEngine {
    */
   private headlessFilledKeyCount(noteIndex: number, excludeKey: string | null): number {
     const filled = new Set(this.consumedLongKeys.get(noteIndex));
-    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    const holdState = this.noteHoldState(this.notes[noteIndex].lane);
     if (holdState) {
       for (const held of holdState.heldKeys) {
         if (held !== excludeKey) filled.add(held);
@@ -747,7 +755,7 @@ export class JudgmentEngine {
     if (startTime === undefined) return null;
     const deltaMs = timeMs - startTime;
     if (deltaMs < -this.windows.GOOD || deltaMs > this.windows.GOOD) return null;
-    const holdState = this.laneHoldStates.get(this.notes[noteIndex].lane);
+    const holdState = this.noteHoldState(this.notes[noteIndex].lane);
     return {
       filled: holdState ? holdState.heldKeys.size : 0,
       required: this.requiredConsumeCount(noteIndex),
@@ -968,7 +976,7 @@ export class JudgmentEngine {
       const bodyState = this.longNoteBodyStates.get(i);
       if (!bodyState) continue;
 
-      const holdState = this.laneHoldStates.get(note.lane);
+      const holdState = this.noteHoldState(note.lane);
       if (!holdState) continue;
 
       // 1. 시작점 허용 구간 (+120ms) — update·입력 공유 헬퍼로 수락 (프레임 경계 독립)
@@ -1300,7 +1308,7 @@ export class JudgmentEngine {
       // --- BODY_ACTIVE: 끝점 도달 체크 ---
       if (songTimeMs < noteEndTime) continue;
 
-      const holdState = this.laneHoldStates.get(note.lane);
+      const holdState = this.noteHoldState(note.lane);
       if (!holdState) {
         this.noteStates.set(i, NoteState.COMPLETE);
         continue;
@@ -1387,7 +1395,7 @@ export class JudgmentEngine {
       const note = this.notes[i];
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined || evalTimeMs < noteEndTime) continue;
-      const holdState = this.laneHoldStates.get(note.lane);
+      const holdState = this.noteHoldState(note.lane);
       if (!holdState) continue;
       if (note.type === NoteType.DOUBLE_LONG) {
         // 연결 더블롱만 이벤트 경계 판정 — 유예 밖 뗌 후 같은 키 재잡기가 지연 프레임의
@@ -1446,7 +1454,7 @@ export class JudgmentEngine {
       const endTime = this.noteEndTimesMs.get(i);
       if (noteTime === undefined || endTime === undefined || endTime !== noteTime) continue;
 
-      const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+      const holdState = this.noteHoldState((note as RangeNote).lane);
 
       // 시작 윈도우(-Good) 진입 + 충족(싱글 1키 / 더블 2키 동시) → consume 표시(후보 제외 조기화).
       // 충족된 슬라이드의 실제 held 키들을 등록해, 직후 노트가 그 입력을 가로채거나

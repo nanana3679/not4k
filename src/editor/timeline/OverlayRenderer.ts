@@ -28,7 +28,7 @@ export interface OverlayHost {
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
   readonly violatingExtraNoteIndices: Set<number>;
-  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
+  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
