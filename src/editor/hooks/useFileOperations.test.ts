@@ -163,6 +163,42 @@ describe('performPlayTest', () => {
     expect(pause).not.toHaveBeenCalled();
   });
 
+  it('보조 레인(lane 5·7) 노트는 게임에 안 넘어감 — setChartData는 메인 레인(1..4) 노트만 받아 달성률 분모도 메인 기준', () => {
+    // RFD 0018 §3-3: 테스트플레이는 파일 직렬화를 안 거치는 라이브 경로라 여기서 필터가 필수
+    const chart = {
+      ...baseChart,
+      notes: [
+        { type: 'single' as const, lane: 1, beat: beat(1) },
+        { type: 'single' as const, lane: 5, beat: beat(1) },
+        { type: 'single' as const, lane: 7, beat: beat(2) },
+      ],
+    };
+    const { params, game } = buildParams({ chart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(true);
+    const passed = game.setChartData.mock.calls[0][0] as typeof chart;
+    expect(passed.notes).toEqual([{ type: 'single', lane: 1, beat: beat(1) }]);
+  });
+
+  it('보조 레인(lane 5)끼리 같은 박 겹침도 플레이 진입을 막는다 (RFD 0018 §3-6 게이트 동일 취급)', () => {
+    const chart = {
+      ...baseChart,
+      notes: [
+        { type: 'single' as const, lane: 5, beat: beat(1) },
+        { type: 'single' as const, lane: 5, beat: beat(1) },
+      ],
+    };
+    const { params, game, navigate } = buildParams({ chart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(false);
+    expect(game.setScreen).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('성공 시 play 화면 전환·복귀 URL 저장·메뉴 닫기·네비게이션 수행하고 true 반환', () => {
     const { params, game, closeMenu, navigate } = buildParams({
       returnUrl: '/editor?songId=abc&difficulty=expert',

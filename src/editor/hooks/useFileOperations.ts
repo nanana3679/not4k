@@ -14,6 +14,7 @@ import {
   validateChart,
   extractTimeSignatures,
   isMeasureBoundary,
+  mainNotes,
 } from '../../shared';
 import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
 import {
@@ -88,7 +89,10 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
 
   if (isPlaying) pause();
 
-  game.setChartData(chart);
+  // 게임 진입 필터 (RFD 0018 §3-3): 게임은 메인 레인(1..4)만 판정한다.
+  // 이 라이브 경로는 파일 직렬화(저장 분리)를 거치지 않으므로 여기서 보조 레인 노트를 벗긴다.
+  // 에디터 툴바와 DEV lab이 performPlayTest를 공유하므로 여기가 유일한 초크포인트다.
+  game.setChartData({ ...chart, notes: mainNotes(chart.notes) });
   game.setAudioBuffer(audioBuffer);
   game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
   game.setEditorReturnUrl(returnUrl);
