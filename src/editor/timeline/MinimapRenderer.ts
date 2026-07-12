@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, TextStyle } from "pixi.js";
-import { beatToMs, measureStartBeat } from "../../shared";
+import { beatToMs, measureStartBeat, isMainLane } from "../../shared";
 import {
   LANE_COUNT,
   COLORS,
@@ -241,6 +241,8 @@ export class MinimapRenderer {
     };
 
     for (const note of notes) {
+      // 보조 레인(5+)은 미니맵에 표시하지 않는다 (chart-editor 스펙 · RFD 0018 §6-6)
+      if (!isMainLane(note.lane)) continue;
       const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const containerY = this.host.timeToY(timeMs);
       const my = toMinimapY(containerY);
