@@ -6,7 +6,7 @@
  */
 
 import type { NoteEntity, ValidationError } from "../../shared";
-import { isVisibleLane } from "../../shared";
+import { isAuxLane, isVisibleLane } from "../../shared";
 
 /**
  * 위반에 연루된 노트 중 현재 표시 범위 밖 보조 레인의 lane 목록 (오름차순, 중복 제거).
@@ -25,7 +25,9 @@ export function hiddenViolationLanes(
     for (const ref of err.refs ?? []) {
       if (ref.kind !== "note") continue;
       const note = notes[ref.index];
-      if (note && !isVisibleLane(note.lane, extraLaneCount)) lanes.add(note.lane);
+      // 진짜 보조 레인(5+)이면서 숨겨진 것만 — malformed lane(0·음수·비정수)은 구조 위반이라
+      // "숨은 보조 레인"이 아니다. 가드 없으면 toAuxIndex(0)=-4 같은 음수 필요 레인 수가 나온다.
+      if (note && isAuxLane(note.lane) && !isVisibleLane(note.lane, extraLaneCount)) lanes.add(note.lane);
     }
   }
   return [...lanes].sort((a, b) => a - b);

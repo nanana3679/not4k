@@ -20,7 +20,7 @@
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
 import type { Chart, NoteEntity, TrillZone, ValidationRef } from '../../shared';
-import { beatToFloat, validateChart, violationsInvolving, auxNotes } from '../../shared';
+import { beatToFloat, validateChart, violationsInvolving, auxNotes, auxIndexToUnifiedIndex } from '../../shared';
 import { showToast } from '../../shared/toast';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
@@ -178,7 +178,14 @@ export function createSelectionSlice(
       for (const i of selection.zones) {
         if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
       }
-      // removed.extraNotes는 게이트 대상이 아니다 — 엑스트라 위반은 시각화 전용(게이트 불포함).
+      // 보조 선택 해제도 게이트 대상 (RFD 0018 §3-6 동일 취급): 보조 위반도 chart.notes에서
+      // 검증되므로, 위반 보조 노트를 놓는 전이를 메인과 대칭으로 봉쇄한다. 보조 서브배열 인덱스는
+      // chart.notes 통합 인덱스(mainCount + i)로 변환해 refs 공간을 맞춘다.
+      for (const i of selection.extraNotes) {
+        if (!normalized.extraNotes.has(i)) {
+          removed.push({ kind: 'note', index: auxIndexToUnifiedIndex(chart.notes, i) });
+        }
+      }
       if (removed.length > 0) {
         const involved = violationsInvolving(
           validateChart({

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { beat } from "../types";
 import type { NoteEntity, ExtraNoteEntity } from "../types";
-import { extraToNote, noteToExtra, auxNotesAsExtra, withAuxNotes } from "./auxAdapter";
+import { extraToNote, noteToExtra, auxNotesAsExtra, withAuxNotes, auxIndexToUnifiedIndex } from "./auxAdapter";
 
 const mainA: NoteEntity = { type: "single", lane: 1, beat: beat(0) };
 const mainB: NoteEntity = { type: "long", lane: 4, beat: beat(1), endBeat: beat(2) };
@@ -59,6 +59,18 @@ describe("withAuxNotes", () => {
 
   it("보조가 비면 메인만 남는다", () => {
     expect(withAuxNotes([mainA, aux5], [])).toEqual([mainA]);
+  });
+});
+
+describe("auxIndexToUnifiedIndex", () => {
+  it("메인 2개 앞에서 보조 인덱스 0→2, 1→3 (mainCount + auxIndex)", () => {
+    const notes = [mainA, mainB, aux5, aux7];
+    expect(auxIndexToUnifiedIndex(notes, 0)).toBe(2);
+    expect(auxIndexToUnifiedIndex(notes, 1)).toBe(3);
+  });
+
+  it("메인이 없으면 보조 인덱스가 그대로 통합 인덱스 (0→0)", () => {
+    expect(auxIndexToUnifiedIndex([aux5, aux7], 0)).toBe(0);
   });
 });
 

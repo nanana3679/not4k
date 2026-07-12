@@ -11,7 +11,7 @@ import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
-import { beatToMs, mainNotes, auxNotesAsExtra, withAuxNotes } from '../../shared';
+import { beatToMs, auxNotesAsExtra, withAuxNotes, auxIndexToUnifiedIndex } from '../../shared';
 import type { ExtraNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores';
 import {
@@ -563,11 +563,11 @@ export function useCanvasEvents(
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
       : null;
     if (rendererRef.current) {
-      // 렌더러 hover는 통합 인덱스 공간 (RFD 0018 ② — 보조 = 메인 개수 + extraIdx)
+      // 렌더러 hover는 chart.notes 인덱스 공간 (RFD 0018 ③ — 보조 = mainCount + auxIdx)
       const hoverUnified = hoverNoteHit !== null
         ? hoverNoteHit
         : hoverExtraHit !== null
-          ? useEditorStore.getState().chart.notes.length + hoverExtraHit
+          ? auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, hoverExtraHit)
           : null;
       rendererRef.current.setHoveredNote(hoverUnified);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
@@ -671,7 +671,7 @@ export function useCanvasEvents(
               } else {
                 rendererRef.current.hideGhostNote();
                 // chart.notes 인덱스 공간: 보조 노트 i는 chart.notes[mainCount + i] (RFD 0018 ③)
-                rendererRef.current.setHoveredNote(mainNotes(useEditorStore.getState().chart.notes).length + existingExtra);
+                rendererRef.current.setHoveredNote(auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, existingExtra));
               }
             }
           } else {

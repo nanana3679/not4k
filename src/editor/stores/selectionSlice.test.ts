@@ -427,6 +427,24 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
     useEditorStore.getState().clearSelection();
     expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
   });
+
+  it('위반(중복) 보조 노트 {0} 선택 해제도 §3-6 동일 취급으로 거부된다 — 선택 유지 + false 반환 (RFD 0018)', () => {
+    // 보조끼리 중복(전 레인 duplicate 규칙 위반)이 chart.notes(lane 5)에 상주.
+    const dupAux: NoteEntity[] = [
+      { type: 'single', lane: 5, beat: beat(0) },
+      { type: 'single', lane: 5, beat: beat(0) },
+    ];
+    useEditorStore.setState({
+      chart: makeFullChart(dupAux),
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+    });
+    expect(useEditorStore.getState().setSelection(sel({ extraNotes: new Set([0]) }))).toBe(true); // ∅→{extra 0}
+    expect(useEditorStore.getState().clearSelection()).toBe(false); // 위반 보조 놓기 = 거부
+    expect(useEditorStore.getState().selection.extraNotes).toEqual(new Set([0]));
+  });
 });
 
 describe('zoneContainedNoteIndices — 트릴 타입만 파생 (RFD 0016 §4.2 + 낙관 편집 공존)', () => {

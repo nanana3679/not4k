@@ -48,4 +48,13 @@ describe("hiddenViolationLanes (§8-7 숨은 보조 위반 안내)", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 7, beat: beat(0) }];
     expect(hiddenViolationLanes([{ rule: "duplicate", message: "no refs" }], notes, 0)).toEqual([]);
   });
+
+  it("malformed lane(0·-1·2.5) 위반 ref는 숨은 보조 레인이 아니라 제외된다 (음수 필요 레인 수 방지)", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 0, beat: beat(0) },
+      { type: "single", lane: -1, beat: beat(0) },
+      { type: "single", lane: 2.5, beat: beat(0) },
+    ];
+    expect(hiddenViolationLanes([err([0, 1, 2])], notes, 0)).toEqual([]);
+  });
 });

@@ -35,6 +35,15 @@ export function auxNotesAsExtra(notes: readonly NoteEntity[]): ExtraNoteEntity[]
 }
 
 /**
+ * 보조 서브배열 인덱스(0-기반) → chart.notes 통합 인덱스.
+ * chart.notes는 정규형 [...main, ...aux]라 보조 노트 i는 chart.notes[mainCount + i]에 있다.
+ * 선택·hover·위반 귀속의 "aux 인덱스 → 통합 인덱스" 산술을 한 곳에 모은다 (RFD 0018 ③).
+ */
+export function auxIndexToUnifiedIndex(notes: readonly NoteEntity[], auxIndex: number): number {
+  return mainNotes(notes).length + auxIndex;
+}
+
+/**
  * 보조 편집(onExtraNotesUpdate)을 chart.notes 재구성으로 번역한다:
  * 메인 노트는 그대로 두고 보조 노트를 넘어온 배열로 통째 교체한다.
  * 결과는 `[...mainNotes, ...extra]` 정규형이라 aux 상대 순서 = 넘어온 순서로 보존된다
