@@ -15,7 +15,7 @@ import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
-import { unifiedNotes, splitViolationNoteIndices, hiddenViolationLanes } from './stores/unifiedNotes';
+import { unifiedNotes, hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
@@ -433,23 +433,21 @@ function ChartEditorPage() {
       if (!mounted) return;
 
       rendererRef.current = renderer;
-      renderer.setChart(chart);
 
       const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setExtraLaneCount(storedExtraLaneCount);
-      renderer.setExtraNotes(storedExtraNotes);
+      // 렌더러는 통합 읽기뷰를 소비한다 (RFD 0018 ②) — 보조 노트도 lane 5+로 한 배열에서 그린다.
+      renderer.setChart({ ...chart, notes: unifiedNotes(chart.notes, storedExtraNotes) });
 
       // init()이 async라 [chart, extraNotes] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
       // 생성 직후 여기서 위반을 한 번 세팅해, 로드된 차트에 위반이 있어도 첫 편집 전에 표시되게 한다.
-      // 메인·보조 해칭을 통합 읽기뷰 단일 검증에서 파생한다 (RFD 0018 ②).
+      // 위반 인덱스는 통합 인덱스 공간 그대로 피드한다 — 렌더러 차트가 곧 통합 배열이다.
       const initViolations = chartViolationIndices({
         notes: unifiedNotes(chart.notes, storedExtraNotes),
         trillZones: chart.trillZones,
         events: chart.events,
       });
-      const initSplit = splitViolationNoteIndices(initViolations.notes, chart.notes.length);
-      renderer.setViolations(initSplit.main, initViolations.trillZones);
-      renderer.setViolatingExtraNotes(initSplit.extra);
+      renderer.setViolations(initViolations.notes, initViolations.trillZones);
 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
@@ -608,9 +606,19 @@ function ChartEditorPage() {
     useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
-  // chart → renderer + modes
+  // chart·extraNotes → renderer(통합 읽기뷰) + modes(메인 차트) — RFD 0018 ②.
+  // 해칭도 같은 통합 validateChart에서 파생해 통합 인덱스 그대로 피드한다(RFD 0017 §3-3).
+  // 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영. ③(store flip) 후 파생층 소멸.
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setChart(chart);
+    if (rendererRef.current) {
+      rendererRef.current.setChart({ ...chart, notes: unifiedNotes(chart.notes, extraNotes) });
+      const violations = chartViolationIndices({
+        notes: unifiedNotes(chart.notes, extraNotes),
+        trillZones: chart.trillZones,
+        events: chart.events,
+      });
+      rendererRef.current.setViolations(violations.notes, violations.trillZones);
+    }
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
@@ -625,41 +633,24 @@ function ChartEditorPage() {
         totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
       });
     }
-  }, [chart]);
+  }, [chart, extraNotes]);
 
   // extraLaneCount → renderer
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.setExtraLaneCount(extraLaneCount);
   }, [extraLaneCount]);
 
-  // 해칭 단일 소스 (RFD 0017 §3-3 + RFD 0018 ②): 차트나 보조 노트가 바뀔 때마다
-  // 통합 읽기뷰 한 번의 validateChart에서 메인·보조 위반을 함께 파생한다.
-  // 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영. ③(store flip) 후 번역층 소멸.
-  useEffect(() => {
-    if (!rendererRef.current) return;
-    rendererRef.current.setExtraNotes(extraNotes);
-    const violations = chartViolationIndices({
-      notes: unifiedNotes(chart.notes, extraNotes),
-      trillZones: chart.trillZones,
-      events: chart.events,
-    });
-    const split = splitViolationNoteIndices(violations.notes, chart.notes.length);
-    rendererRef.current.setViolations(split.main, violations.trillZones);
-    rendererRef.current.setViolatingExtraNotes(split.extra);
-  }, [chart, extraNotes]);
-
-  // selectedExtraNotes → renderer
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setSelectedExtraNotes(selectedExtraNotes);
-  }, [selectedExtraNotes]);
-
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
   // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.
 
-  // selectedNotes → renderer
+  // 선택 표시 → renderer: 메인·보조 선택을 통합 인덱스 공간(보조 = 메인 개수 + extraIdx)으로 피드.
+  // Selection의 두 축 자체는 ④에서 소멸한다 (RFD 0018).
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setSelectedNotes(selectedNotes);
-  }, [selectedNotes]);
+    if (!rendererRef.current) return;
+    const union = new Set(selectedNotes);
+    for (const i of selectedExtraNotes) union.add(chart.notes.length + i);
+    rendererRef.current.setSelectedNotes(union);
+  }, [selectedNotes, selectedExtraNotes, chart]);
 
   // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
   const selectedZones = useEditorStore((s) => s.selection.zones);

@@ -43,24 +43,6 @@ export function unifiedNotes(
 }
 
 /**
- * 통합 인덱스 공간의 위반 노트 집합을 메인/보조 표면으로 분리한다.
- * 인덱스 계약: idx < mainCount → chart.notes[idx], idx >= mainCount → extraNotes[idx - mainCount].
- * ③(store flip)에서 배열이 하나가 되면 이 번역과 함께 소멸한다.
- */
-export function splitViolationNoteIndices(
-  unified: ReadonlySet<number>,
-  mainCount: number,
-): { main: Set<number>; extra: Set<number> } {
-  const main = new Set<number>();
-  const extra = new Set<number>();
-  for (const idx of unified) {
-    if (idx < mainCount) main.add(idx);
-    else extra.add(idx - mainCount);
-  }
-  return { main, extra };
-}
-
-/**
  * 위반에 연루된 노트 중 현재 표시 범위 밖 보조 레인의 lane 목록 (오름차순, 중복 제거).
  *
  * §8-4(축소 시 숨김)와 게이트 동일 취급(§3-6)이 결합하면 화면에 없는 노트의 위반이

@@ -14,7 +14,6 @@ import type {
   NoteEntity,
   BpmMarker,
   TimeSignatureMarker,
-  ExtraNoteEntity,
 } from "../../shared";
 import { beatToMs, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import {
@@ -121,10 +120,7 @@ export class TimelineRenderer {
 
   // Extra lane state
   private _extraLaneCount: number = 0;
-  private _extraNotes: ExtraNoteEntity[] = [];
-  private _selectedExtraNotes: Set<number> = new Set();
   private _hoveredNoteIndex: number | null = null;
-  private _hoveredExtraNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
   // 롱노트 리사이즈 캡을 hover로 표시할 노트 인덱스(= select 모드에서 hover 중인 노트). 캡 표시 게이팅용.
   private _resizeHoverNoteIndex: number | null = null;
@@ -149,7 +145,6 @@ export class TimelineRenderer {
   // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3). 노트·트릴존 각각.
   private _violatingNoteIndices: Set<number> = new Set();
   private _violatingTrillZoneIndices: Set<number> = new Set();
-  private _violatingExtraNoteIndices: Set<number> = new Set();
 
   // Chart data
   private chart: Chart | null = null;
@@ -374,9 +369,7 @@ export class TimelineRenderer {
     // NoteRenderer host
     const noteHost: NoteHost = {
       get chart() { return self.chart; },
-      get extraNotes() { return self._extraNotes; },
       get selectedNotes() { return self._selectedNotes; },
-      get selectedExtraNotes() { return self._selectedExtraNotes; },
       get cachedBpmMarkers() { return self.cachedBpmMarkers; },
       get bodyGradientCache() { return self.bodyGradientCache; },
       getVisibleTimeRange() { return self.getVisibleTimeRange(); },
@@ -395,13 +388,11 @@ export class TimelineRenderer {
     // OverlayRenderer host
     const overlayHost: OverlayHost = {
       get chart() { return self.chart; },
-      get extraNotes() { return self._extraNotes; },
       get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
-      get violatingExtraNoteIndices() { return self._violatingExtraNoteIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
@@ -489,17 +480,6 @@ export class TimelineRenderer {
     return this._extraLaneCount;
   }
 
-  /** Set extra notes */
-  setExtraNotes(notes: ExtraNoteEntity[]): void {
-    this._extraNotes = notes;
-    this.render();
-  }
-
-  /** Set selected extra note indices */
-  setSelectedExtraNotes(indices: Set<number>): void {
-    this._selectedExtraNotes = indices;
-    this.render();
-  }
 
   /** Set hovered note index (or null to clear) — lightweight overlay update */
   setHoveredNote(index: number | null): void {
@@ -508,12 +488,6 @@ export class TimelineRenderer {
     this.updateHoverOverlay();
   }
 
-  /** Set hovered extra note index (or null to clear) — lightweight overlay update */
-  setHoveredExtraNote(index: number | null): void {
-    if (this._hoveredExtraNoteIndex === index) return;
-    this._hoveredExtraNoteIndex = index;
-    this.updateHoverOverlay();
-  }
 
   /** Set hovered trill zone index (or null to clear) — 핸들을 hover 시에만 표시 */
   setHoveredTrillZone(index: number | null): void {
@@ -940,7 +914,7 @@ export class TimelineRenderer {
    * Draw hover outline in the dedicated hover layer (lightweight, no full re-render).
    */
   private updateHoverOverlay(): void {
-    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredExtraNoteIndex, this._hoveredTrillZoneIndex);
+    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredTrillZoneIndex);
   }
 
   /**
@@ -954,12 +928,6 @@ export class TimelineRenderer {
     this.app?.render();
   }
 
-  /** 엑스트라 노트 위반 인덱스 — extraLane 축 겹침/중복 해칭(시각화 전용, RFD 0017) */
-  setViolatingExtraNotes(indices: Set<number>): void {
-    this._violatingExtraNoteIndices = indices;
-    this.overlayRenderer.renderViolationOverlay();
-    this.app?.render();
-  }
 
   /**
    * Resize the renderer to new dimensions.

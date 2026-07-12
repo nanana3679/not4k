@@ -558,8 +558,13 @@ export function useCanvasEvents(
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
       : null;
     if (rendererRef.current) {
-      rendererRef.current.setHoveredNote(hoverNoteHit);
-      rendererRef.current.setHoveredExtraNote(hoverExtraHit);
+      // 렌더러 hover는 통합 인덱스 공간 (RFD 0018 ② — 보조 = 메인 개수 + extraIdx)
+      const hoverUnified = hoverNoteHit !== null
+        ? hoverNoteHit
+        : hoverExtraHit !== null
+          ? useEditorStore.getState().chart.notes.length + hoverExtraHit
+          : null;
+      rendererRef.current.setHoveredNote(hoverUnified);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
@@ -660,7 +665,8 @@ export function useCanvasEvents(
                 rendererRef.current.showGhostExtraNote(extraLane, timeMs);
               } else {
                 rendererRef.current.hideGhostNote();
-                rendererRef.current.setHoveredExtraNote(existingExtra);
+                // 통합 인덱스 공간 (RFD 0018 ②)
+                rendererRef.current.setHoveredNote(useEditorStore.getState().chart.notes.length + existingExtra);
               }
             }
           } else {
