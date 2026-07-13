@@ -652,6 +652,10 @@ export function EditorToolbar({
     events: chart.events,
   }));
   const violationCount = violationItems.length;
+  // 위반이 전부 해소되면 배지·팝오버가 언마운트되므로 열림 상태도 리셋한다.
+  // (안 하면 이후 새 위반 발생 시 사용자가 열지 않았는데 팝오버가 열린 채 나타남)
+  // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
+  if (violationCount === 0 && showViolationList) setShowViolationList(false);
   const playTestDisabled = violationCount > 0;
   const playTestDisabledTitle = `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
