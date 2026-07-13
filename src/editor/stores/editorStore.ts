@@ -58,6 +58,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   historyFuture: HistorySnapshot[];
   historyLastCaptureAt: number;
 
+  // 막다른 상태 탈출(RFD 0017 §7) — 마지막으로 차트 전체가 valid였던 스냅샷.
+  // setChart·loadChart 커밋 직후 validateChart 전체 통과 시에만 갱신(위반이면 이전 값 유지).
+  // chart는 항상 불변 새 객체로 교체되므로 참조 저장으로 충분(clone 불필요).
+  // 로드가 invalid 차트도 수용하므로 "로드=valid"를 가정하지 않는다 — 씨앗도 검증 통과가 조건.
+  lastValidSnapshot: HistorySnapshot | null;
+
   // Marker editing
   editingMarker: EditingMarker;
 
@@ -80,6 +86,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setExtraLaneCount: (count: number) => void;
   undo: () => void;
   redo: () => void;
+  /**
+   * 막다른 상태 탈출(RFD 0017 §7) — lastValidSnapshot으로 O(1) 점프.
+   * 현재(위반) 상태를 병합창(600ms) 무시하고 historyPast에 강제 push하므로
+   * 이 복귀 자체를 undo(Ctrl+Z)로 취소할 수 있다. lastValidSnapshot이 null이면 no-op.
+   */
+  revertToLastValid: () => void;
   resetHistory: () => void;
   addToast: (message: string, type?: ToastType) => void;
   setEditingMarker: (marker: EditingMarker) => void;
@@ -145,6 +157,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyPast: [],
   historyFuture: [],
   historyLastCaptureAt: 0,
+  lastValidSnapshot: null,
   editingMarker: null,
 
   // Actions
@@ -167,6 +180,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       showToast(`구조 위반으로 변경이 취소되었습니다: ${errors[0].message}`, 'warn');
       return;
     }
+    // 막다른 탈출 씨앗(RFD 0017 §7): 커밋될 차트가 **전체 검증**(semantic 포함)까지
+    // 통과하면 lastValidSnapshot을 갱신한다. validateChart는 배열 참조 memo라 저렴.
+    const fullyValid = validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+    }).length === 0;
     set((state) => {
       // 선택 보정 — "선택 인덱스는 차트 범위 안"이라는 관계 불변은
       // 차트 변이와 같은 트랜잭션에서 지킨다(순서 의존 제거).
@@ -183,6 +203,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...captureHistory(state),
         chart,
         selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
+        // 전체 valid일 때만 갱신 — 위반 커밋이면 이전 valid 스냅샷 유지(탈출 목적지 보존)
+        ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } } : {}),
       };
     });
   },
@@ -196,15 +218,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       console.error('로드된 차트에 배치 제약 위반:', errors);
       showToast(`이 차트에 배치 제약 위반 ${errors.length}건이 있습니다 — 수리 후 저장할 수 있습니다`, 'warn');
     }
-    // 다른 차트를 여는 것이므로 기존 선택은 무의미 — 전체 clear
-    set({ chart, selection: emptySelection() });
+    // 다른 차트를 여는 것이므로 기존 선택은 무의미 — 전체 clear.
+    // 로드 차트가 전체 valid면 막다른 탈출 씨앗(lastValidSnapshot)으로 삼는다(RFD 0017 §7).
+    // invalid 로드는 씨앗이 아니다 — 이전 값(null 포함)을 그대로 유지.
+    set((state) => ({
+      chart,
+      selection: emptySelection(),
+      ...(errors.length === 0
+        ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
+        : {}),
+    }));
   },
   setMode: (mode) => set({ mode }),
   setEntityType: (entityType) => set({ entityType }),
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
-  setExtraLaneCount: (extraLaneCount) => set((state) => ({ ...captureHistory(state), extraLaneCount })),
+  setExtraLaneCount: (extraLaneCount) => set((state) => {
+    // 막다른 탈출 씨앗 재페어링(RFD 0017 §7): 씨앗은 "chart 커밋 순간의 extraLaneCount"를
+    // 캡처하지만, chart 커밋과 별개로 extraLaneCount만 바뀌는 복합 연산(loadChart→setExtraLaneCount,
+    // paste 확장/취소)에서 (chart, extraLaneCount) 페어가 어긋나면 revert 시 보조 노트가 숨는다.
+    // 현재 chart가 전체 valid면 같은 chart에 새 count로 씨앗을 다시 묶는다(validateChart는 참조 memo라 hit면 공짜).
+    const fullyValid = validateChart({
+      notes: state.chart.notes,
+      trillZones: state.chart.trillZones,
+      events: state.chart.events,
+    }).length === 0;
+    return {
+      ...captureHistory(state),
+      extraLaneCount,
+      ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount } } : {}),
+    };
+  }),
   undo: () => set((state) => {
     const previous = state.historyPast.at(-1);
     if (!previous) return {};
@@ -232,6 +277,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       historyLastCaptureAt: 0,
     };
   }),
+  // 막다른 상태 탈출(RFD 0017 §7) — undo와 동형의 스냅샷 1회 교체(O(1) 점프).
+  // 차이: 목적지가 past 꼭대기가 아니라 lastValidSnapshot이고, 현재(위반) 상태를
+  // 병합창(600ms) 무시하고 past에 **강제 push**한다 — 이 복귀 자체가 undo로 취소 가능해야
+  // 하는 안전망이므로 captureHistory(병합)를 쓰지 않는다.
+  revertToLastValid: () => set((state) => {
+    const target = state.lastValidSnapshot;
+    // 이미 그 스냅샷 위에 있으면(동일 참조) no-op — 무의미한 history entry 방지.
+    // UI로는 도달 불가(버튼은 위반 팝오버에만)나 프로그래매틱 이중 호출 방어.
+    if (!target || state.chart === target.chart) return {};
+    const current = createHistorySnapshot(state);
+    return {
+      chart: target.chart,
+      extraLaneCount: target.extraLaneCount,
+      // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
+      selection: emptySelection(),
+      historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+    };
+  }),
+  // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
+  // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
+  // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
   resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0 }),
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),

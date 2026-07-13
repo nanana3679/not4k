@@ -359,6 +359,27 @@ const styles = {
     color: '#aaa',
     wordBreak: 'break-word' as const,
   },
+  // 막다른 상태 탈출 버튼 (RFD 0017 §7) — 위반 팝오버 하단 맥락 버튼.
+  // 파괴적 점프(위반 편집 폐기)라 위험 계열 테두리, 확인 다이얼로그 대신 undo 안전망.
+  violationRevertButton: {
+    minHeight: '44px',
+    padding: '8px 10px',
+    backgroundColor: '#3a2626',
+    color: '#ff6666',
+    border: '1px solid #cc3333',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 700,
+    textAlign: 'center' as const,
+    touchAction: 'manipulation' as const,
+  },
+  violationRevertHint: {
+    fontSize: '10px',
+    lineHeight: 1.4,
+    color: '#888',
+    padding: '0 2px 2px',
+  },
 };
 
 // 리스트 항목의 심각도 색 — 캔버스 해칭·미니맵 틱(단일 빨강)은 건드리지 않고
@@ -631,6 +652,9 @@ export function EditorToolbar({
   const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  // 막다른 상태 탈출(RFD 0017 §7) — 씨앗(마지막 valid 스냅샷)이 있을 때만 버튼 노출
+  const hasLastValidSnapshot = useEditorStore((s) => s.lastValidSnapshot !== null);
+  const revertToLastValid = useEditorStore((s) => s.revertToLastValid);
   const addToast = useEditorStore((s) => s.addToast);
   // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
   const selectedCount = selectedNotes.size;
@@ -888,6 +912,25 @@ export function EditorToolbar({
                   <div style={styles.violationMessage}>{item.message}</div>
                 </div>
               ))}
+              {/* 막다른 상태 탈출(RFD 0017 §7) — 마지막 valid 스냅샷으로 O(1) 복귀.
+                  씨앗이 없으면(한 번도 valid를 통과 안 함) 버튼 자체를 렌더하지 않는다.
+                  확인 다이얼로그 없음 — 복귀 자체가 undo로 취소 가능한 안전망. */}
+              {hasLastValidSnapshot && (
+                <>
+                  <button
+                    style={styles.violationRevertButton}
+                    onClick={() => {
+                      revertToLastValid();
+                      setShowViolationList(false);
+                    }}
+                  >
+                    마지막 유효 상태로 되돌리기
+                  </button>
+                  <div style={styles.violationRevertHint}>
+                    이 되돌리기도 Undo(Ctrl+Z)로 취소할 수 있습니다
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
