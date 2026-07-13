@@ -11,6 +11,7 @@ import {
   validateStopZones,
   validateChart,
   validateChartStructural,
+  validateLaneWellFormed,
   validateChartSemantic,
   chartViolatingNoteIndices,
   chartViolationIndices,
@@ -905,6 +906,78 @@ describe("validateBeatWellFormed (구조: malformed Beat)", () => {
       [{ type: "bpm", beat: beat(0), bpm: 120 }] as ChartEvent[],
     );
     expect(errors).toEqual([]);
+  });
+});
+
+describe("validateLaneWellFormed — 레인 구조 검증 (RFD 0017 §3-1)", () => {
+  it("lane 0 노트는 laneMalformed 구조 위반 (하한 이탈)", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: 0, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("lane -1 노트는 laneMalformed", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: -1, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("비정수 lane(1.5) 노트는 laneMalformed", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: 1.5, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("보조 레인(lane 5) 노트는 구조 위반 아님 (lane>4 정상, RFD 0018)", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: 5, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it("보조 레인 상한 없음 — lane 100도 구조 위반 아님", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: 100, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it("trillZone lane 0도 laneMalformed", () => {
+    const errors = validateLaneWellFormed(
+      [],
+      [{ lane: 0, beat: beat(0), endBeat: beat(2) }] as unknown as TrillZone[],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("정상 레인(메인 1..4·보조 5+)은 laneMalformed 없음", () => {
+    const errors = validateLaneWellFormed(
+      [
+        { type: "single", lane: 1, beat: beat(0) },
+        { type: "single", lane: 4, beat: beat(1) },
+        { type: "single", lane: 5, beat: beat(2) },
+      ] as NoteEntity[],
+      [{ lane: 2, beat: beat(0), endBeat: beat(2) }] as TrillZone[],
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it("laneMalformed는 구조 검증에 포함되고 의미 검증에는 없다", () => {
+    const input = {
+      notes: [{ type: "single", lane: 0, beat: beat(0) }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(validateChartStructural(input).some((e) => e.rule === "laneMalformed")).toBe(true);
+    expect(validateChartSemantic(input).some((e) => e.rule === "laneMalformed")).toBe(false);
   });
 });
 
