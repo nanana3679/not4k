@@ -39,6 +39,8 @@ export class ClipboardManager {
   private _isPendingPaste = false;
   private prePasteNotes: NoteEntity[] | null = null;
   private prePasteZones: TrillZone[] | null = null;
+  // 붙여넣기 직전(D3 자동 확장 전)의 보조 레인 수 — 취소 시 확장을 되돌린다 (RFD 0018 §8-6).
+  private prePasteExtraLaneCount: number | null = null;
   private pastedNoteIndices: Set<number> = new Set();
   private pastedZoneIndices: Set<number> = new Set();
 
@@ -218,7 +220,12 @@ export class ClipboardManager {
       if (n) pastedNotes.push(n);
     }
     const needed = toAuxIndex(maxAuxLane(pastedNotes));
-    if (needed > callbacks.getExtraLaneCount()) callbacks.setExtraLaneCount(needed);
+    const cur = callbacks.getExtraLaneCount();
+    if (needed > cur) {
+      // 확장이 실제 일어났을 때만 이전 값을 기록 — 취소 시 이 값으로만 되돌린다(§8-6).
+      this.prePasteExtraLaneCount = cur;
+      callbacks.setExtraLaneCount(needed);
+    }
   }
 
   /**
@@ -227,7 +234,7 @@ export class ClipboardManager {
    */
   cancelPaste(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "setExtraLaneCount">,
     clearSelection: () => void,
   ): Chart {
     if (!this._isPendingPaste) return chart;
@@ -236,7 +243,7 @@ export class ClipboardManager {
 
   private _cancelPasteInternal(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "setExtraLaneCount">,
     clearSelection?: () => void,
   ): Chart {
     let newChart = chart;
@@ -254,10 +261,15 @@ export class ClipboardManager {
     this._isPendingPaste = false;
     this.pastedNoteIndices.clear();
     this.pastedZoneIndices.clear();
+    const restoreExtraLaneCount = this.prePasteExtraLaneCount;
+    this.prePasteExtraLaneCount = null;
 
     // 순서 주의: 차트 복원(축소 커밋 → 선택 원자 clear, §3-5 면제 경로) → 선택 해제.
     // 반대면 붙여넣은 위반 노트의 선택 해제가 §3-5 게이트에 막혀 취소가 불가능해진다.
     callbacks.onChartUpdate(newChart);
+
+    // 노트 복원 후 D3 자동 확장을 되돌린다 — 붙여넣기로 늘어난 보조 레인 수를 원상 복구 (§8-6).
+    if (restoreExtraLaneCount !== null) callbacks.setExtraLaneCount?.(restoreExtraLaneCount);
 
     clearSelection?.();
 
@@ -375,6 +387,8 @@ export class ClipboardManager {
       this._isPendingPaste = false;
       this.prePasteNotes = null;
       this.prePasteZones = null;
+      // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
+      this.prePasteExtraLaneCount = null;
       this.pastedNoteIndices.clear();
       this.pastedZoneIndices.clear();
       callbacks.onChartUpdate(chart);

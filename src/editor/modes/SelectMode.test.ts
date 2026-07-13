@@ -2406,5 +2406,34 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
 
     expect(setExtraLaneCount).not.toHaveBeenCalled();
   });
+
+  it("보조 lane 6 붙여넣기로 확장(1→2)된 뒤 취소하면 extraLaneCount가 1로 롤백된다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 6, beat: beat(1) }] });
+    const setExtraLaneCount = vi.fn();
+    const cb = makeCallbacks({ setExtraLaneCount }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5));
+    expect(setExtraLaneCount).toHaveBeenCalledWith(2); // 확장
+
+    mode.cancelPaste();
+    expect(setExtraLaneCount).toHaveBeenLastCalledWith(1); // 원상 복구
+  });
+
+  it("확장이 없었던 붙여넣기를 취소하면 extraLaneCount를 건드리지 않는다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 5, beat: beat(1) }] });
+    const setExtraLaneCount = vi.fn();
+    const cb = makeCallbacks({ setExtraLaneCount }, { extraLaneCount: 2 });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5)); // lane 5는 extraLaneCount 2 안이라 확장 없음
+    mode.cancelPaste();
+
+    expect(setExtraLaneCount).not.toHaveBeenCalled();
+  });
 });
 
