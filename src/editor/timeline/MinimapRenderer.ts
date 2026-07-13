@@ -13,6 +13,7 @@ import {
 } from "./constants";
 import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
+import { computeMinimapViolationRects } from "./minimapViolation";
 import type { Chart } from "../../shared";
 
 /** MinimapRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -29,6 +30,10 @@ export interface MinimapHost {
   timeToY(timeMs: number): number;
   readonly minimapLayer: Container;
   readonly minimapVisible: boolean;
+  // 위반 지시자(RFD 0017 §7) — 낙관적 편집 위반 엔티티 인덱스
+  readonly violatingNoteIndices: ReadonlySet<number>;
+  readonly violatingTrillZoneIndices: ReadonlySet<number>;
+  readonly violatingEventIndices: ReadonlySet<number>;
 }
 
 export class MinimapRenderer {
@@ -294,6 +299,32 @@ export class MinimapRenderer {
       if (batch.count === 0) continue;
       batch.gfx.fill(color);
       minimapLayer.addChild(batch.gfx);
+    }
+
+    // (4.5) Violation ticks — 미니맵 우측 경계 빨간 틱, 종류 무관 단일 채널 (RFD 0017 §7).
+    // 화면 밖 위반의 조기 경고가 목적이므로 뷰포트 클리핑 없이 전부 그린다.
+    const violationRects = computeMinimapViolationRects({
+      violatingNoteIndices: this.host.violatingNoteIndices,
+      violatingTrillZoneIndices: this.host.violatingTrillZoneIndices,
+      violatingEventIndices: this.host.violatingEventIndices,
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      events: chart.events,
+      bpmMarkers,
+      offsetMs: meta.offsetMs,
+      timeToY: (ms) => this.host.timeToY(ms),
+      toMinimapY,
+      trackX,
+      minimapWidth: MINIMAP_WIDTH,
+    });
+    if (violationRects.length > 0) {
+      // 자식 수 예산 준수: 틱 전부를 단일 Graphics로 batch.
+      const tickGfx = new Graphics();
+      for (const r of violationRects) {
+        tickGfx.rect(r.x, r.y, r.width, r.height);
+      }
+      tickGfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.MINIMAP_VIOLATION_TICK_ALPHA });
+      minimapLayer.addChild(tickGfx);
     }
 
     // (5) Viewport indicator (reusable)

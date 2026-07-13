@@ -338,6 +338,9 @@ export class TimelineRenderer {
       timeToY(timeMs: number) { return self.timeToY(timeMs); },
       get minimapLayer() { return self.minimapLayer; },
       get minimapVisible() { return self._minimapVisible; },
+      get violatingNoteIndices() { return self._violatingNoteIndices; },
+      get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingEventIndices() { return self._violatingEventIndices; },
     });
 
     // GridRenderer host
@@ -928,6 +931,8 @@ export class TimelineRenderer {
     this._violatingTrillZoneIndices = trillZoneIndices;
     this._violatingEventIndices = eventIndices;
     this.overlayRenderer.renderViolationOverlay();
+    // 미니맵 위반 틱(RFD 0017 §7)도 함께 갱신 — 전체 render() 경로 없이 setViolations만 와도 반영되도록.
+    this.minimapRenderer.render();
     this.app?.render();
   }
 
