@@ -2362,3 +2362,49 @@ describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () =>
   });
 });
 
+// ---------------------------------------------------------------------------
+// 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3)
+// 이동=클램프, 축소=숨김과 달리 붙여넣기만 확장한다(붙여넣은 노트가 숨지 않도록).
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3)", () => {
+  it("보조 lane 6 노트를 붙여넣으면 extraLaneCount가 1에서 2로 자동 확장된다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 6, beat: beat(1) }] });
+    const setExtraLaneCount = vi.fn();
+    const cb = makeCallbacks({ setExtraLaneCount }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5)); // anchor beat 1 → target 5
+
+    expect(setExtraLaneCount).toHaveBeenCalledWith(2);
+  });
+
+  it("붙여넣은 보조 노트가 현재 레인 수(2) 안이면 확장하지 않는다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 5, beat: beat(1) }] });
+    const setExtraLaneCount = vi.fn();
+    const cb = makeCallbacks({ setExtraLaneCount }, { extraLaneCount: 2 });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5));
+
+    expect(setExtraLaneCount).not.toHaveBeenCalled();
+  });
+
+  it("메인 노트만 붙여넣으면 확장하지 않는다(보조 레인 무관)", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 3 as Lane, beat: beat(1) }] });
+    const setExtraLaneCount = vi.fn();
+    const cb = makeCallbacks({ setExtraLaneCount }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5));
+
+    expect(setExtraLaneCount).not.toHaveBeenCalled();
+  });
+});
+

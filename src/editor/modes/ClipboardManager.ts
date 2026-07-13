@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat, TrillZone } from "../../shared";
-import { beatToFloat, isVisibleLane, isMainLane } from "../../shared";
+import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
 
 /**
@@ -21,6 +21,8 @@ export interface ClipboardCallbacks {
   getMaxBeatFloat: () => number;
   /** 현재 보조 레인 수 — 붙여넣기 이동의 레인 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
+  /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) — 미설정이면 확장 없이 클램프만 */
+  setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
   onChartUpdate: (chart: Chart) => void;
 }
@@ -101,6 +103,9 @@ export class ClipboardManager {
   /**
    * Paste clipboard at the given target beat.
    * Returns PasteResult with updated state, or null if clipboard is empty / out of bounds.
+   *
+   * RFD 0018 §8-6 (D3): 붙여넣은 보조 노트가 현재 보조 레인 수를 넘으면 setExtraLaneCount로
+   * 자동 확장한다(붙여넣은 노트가 숨지 않도록). 이동(클램프)·축소(숨김)와 달리 붙여넣기만 확장한다.
    */
   paste(
     chart: Chart,
@@ -190,6 +195,8 @@ export class ClipboardManager {
     this._isPendingPaste = true;
 
     callbacks.onChartUpdate(newChart);
+    // D3 자동 확장 — 붙여넣은 보조 노트가 현재 레인 수를 넘으면 늘린다 (RFD 0018 §8-6).
+    this.expandExtraLanesForPasted(newChart, callbacks);
 
     return {
       chart: newChart,
@@ -197,6 +204,21 @@ export class ClipboardManager {
       pastedNoteIndices: new Set(this.pastedNoteIndices),
       count: clipNotes.length + clipZones.length,
     };
+  }
+
+  /**
+   * 붙여넣은 노트가 점유한 최대 보조 레인이 현재 extraLaneCount를 넘으면 확장한다.
+   * setExtraLaneCount 미설정 시 no-op(확장 없이 숨김 — 옛 동작 계승).
+   */
+  private expandExtraLanesForPasted(chart: Chart, callbacks: ClipboardCallbacks): void {
+    if (!callbacks.setExtraLaneCount || !callbacks.getExtraLaneCount) return;
+    const pastedNotes: NoteEntity[] = [];
+    for (const idx of this.pastedNoteIndices) {
+      const n = chart.notes[idx];
+      if (n) pastedNotes.push(n);
+    }
+    const needed = toAuxIndex(maxAuxLane(pastedNotes));
+    if (needed > callbacks.getExtraLaneCount()) callbacks.setExtraLaneCount(needed);
   }
 
   /**

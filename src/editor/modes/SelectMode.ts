@@ -59,6 +59,8 @@ export interface SelectModeCallbacks {
   hitTestTrillZone?: (x: number, y: number) => number | null;
   /** 현재 보조 레인 수 — 레인 이동 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
+  /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
+  setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
 }
 
@@ -139,6 +141,7 @@ export class SelectMode implements EditorMode {
       getSnapStep: this.callbacks.getSnapStep,
       getMaxBeatFloat: this.callbacks.getMaxBeatFloat,
       getExtraLaneCount: this.callbacks.getExtraLaneCount,
+      setExtraLaneCount: this.callbacks.setExtraLaneCount,
       onWarn: this.callbacks.onWarn,
       onChartUpdate: this.callbacks.onChartUpdate,
     };

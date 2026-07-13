@@ -526,6 +526,8 @@ function ChartEditorPage() {
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
+      // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
+      setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
