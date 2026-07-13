@@ -61,6 +61,8 @@ export const COLORS = {
 
   VIOLATION_HATCH: 0xff4444,
   VIOLATION_HATCH_ALPHA: 0.4,
+  // 미니맵 위반 틱(RFD 0017 §7) — 미니맵은 작으므로 해칭(0.4)보다 진하게
+  MINIMAP_VIOLATION_TICK_ALPHA: 0.9,
 
   GRACE_GLOW: 0xffffff,
   GRACE_GLOW_ALPHA: 0.2,
