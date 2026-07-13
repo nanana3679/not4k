@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat } from "../../shared";
-import { validateChartStructural, beatToFloat, isVisibleLane } from "../../shared";
+import { validateChartStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -1154,7 +1154,7 @@ export class SelectMode implements EditorMode {
     for (const idx of this.originalZonePositions.keys()) {
       const zone = zones[idx];
       if (!zone) continue;
-      if (zone.lane < 1 || zone.lane > 4) return false;
+      if (!isMainLane(zone.lane)) return false; // 트릴존은 메인 레인 전용 (§3-2)
       if (beatToFloat(zone.beat) < 0 || beatToFloat(zone.endBeat) > maxFloat) return false;
     }
     return true;

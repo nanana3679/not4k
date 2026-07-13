@@ -151,17 +151,6 @@ export function noteExistsAtSnap(
   return hitTestNoteAt(notes, lane, snappedBeatFloat, SNAP_POSITION_TOLERANCE);
 }
 
-/**
- * Check if an extra note exists at the snapped beat position.
- */
-export function extraNoteExistsAtSnap(
-  extraNotes: readonly ExtraNoteEntity[],
-  extraLane: number,
-  snappedBeatFloat: number,
-): number | null {
-  return hitTestExtraNoteAt(extraNotes, extraLane, snappedBeatFloat, SNAP_POSITION_TOLERANCE);
-}
-
 // ---------------------------------------------------------------------------
 // Range note region detection
 // ---------------------------------------------------------------------------
