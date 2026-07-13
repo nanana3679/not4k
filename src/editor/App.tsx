@@ -485,7 +485,6 @@ function ChartEditorPage() {
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
-      onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 
