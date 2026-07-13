@@ -24,7 +24,8 @@ export function trillZoneOverlapsNote(zone: TrillZone, note: NoteEntity): boolea
 
 /**
  * 트릴존이 박스 선택 범위(레인 범위 + 박 폐구간)와 겹치는지 판정한다.
- * 겹침 의미론은 trillZoneOverlapsNote와 동일한 폐구간 겹침(포함 아님) — RFD 0016 §4.3.
+ * 겹침 의미론은 trillZoneOverlapsNote와 동일한 폐구간 겹침(포함 아님).
+ * **박스 픽업에서는 미사용** — RFD 0016 §6-2 감쌈 모델로 대체(`boxEnclosesZone`). overlap 의미론 참조용으로 유지.
  */
 export function trillZoneOverlapsBox(
   zone: TrillZone,
@@ -37,6 +38,22 @@ export function trillZoneOverlapsBox(
   return (
     beatToFloat(zone.beat) <= beatToFloat(maxBeat) &&
     beatToFloat(zone.endBeat) >= beatToFloat(minBeat)
+  );
+}
+
+/**
+ * 박스가 trillZone을 완전히 감싸는지 — lane 포함 + beat 폐구간 [zone.beat, zone.endBeat]를
+ * 박스 beat 범위가 포함할 때만 true (RFD 0016 §6-2 감쌈 모델).
+ */
+export function boxEnclosesZone(
+  zone: TrillZone,
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): boolean {
+  return (
+    box.minLane <= zone.lane &&
+    zone.lane <= box.maxLane &&
+    beatToFloat(box.minBeat) <= beatToFloat(zone.beat) &&
+    beatToFloat(zone.endBeat) <= beatToFloat(box.maxBeat)
   );
 }
 
@@ -172,6 +189,53 @@ export function filterHomogeneousSelection(
     }
   }
   return { kept, dropped };
+}
+
+/** 노트가 박스 범위(레인·박 폐구간) 안에 있는지 — 기존 박스 커밋과 동일한 판정. */
+function noteInBox(
+  note: NoteEntity,
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): boolean {
+  return (
+    note.lane >= box.minLane &&
+    note.lane <= box.maxLane &&
+    beatSub(note.beat, box.minBeat).n >= 0 &&
+    beatSub(box.maxBeat, note.beat).n >= 0
+  );
+}
+
+/**
+ * 박스가 담은 것만으로 선택을 계산한다 — 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2).
+ * - trillZone을 완전히 감싸면(boxEnclosesZone) 그 zone을 유닛(zones)으로 픽업한다.
+ * - 완전히 안 감싼(통과) zone은 그 zone의 트릴 노트 중 박스 안에 든 것만 개별 선택한다.
+ *   고아 트릴(어느 zone에도 안 속함)도 박스 안이면 개별 선택.
+ * - 일반(비트릴) 노트는 박스 안이면 선택.
+ * 동질성(트릴↔일반 배타 등)은 여기서 다루지 않는다 — SelectionSlice의
+ * normalizeSelection 게이트가 처리한다.
+ */
+export function selectionFromBox(
+  trillZones: readonly TrillZone[],
+  notes: readonly NoteEntity[],
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): { notes: Set<number>; zones: Set<number> } {
+  const selectedNotes = new Set<number>();
+  const selectedZones = new Set<number>();
+
+  for (let i = 0; i < trillZones.length; i++) {
+    if (boxEnclosesZone(trillZones[i], box)) selectedZones.add(i);
+  }
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
+    if (!noteInBox(note, box)) continue;
+    if (isTrillNote(note)) {
+      // 감싸진 zone의 트릴은 유닛으로 대표되므로 개별 제외, 통과 zone·고아 트릴은 개별 선택.
+      const zi = trillZoneIndexOfNote(trillZones, note);
+      if (zi === null || !selectedZones.has(zi)) selectedNotes.add(i);
+    } else {
+      selectedNotes.add(i);
+    }
+  }
+  return { notes: selectedNotes, zones: selectedZones };
 }
 
 /** 트릴존을 레인/박자 오프셋만큼 평행 이동한 새 트릴존을 반환한다. */

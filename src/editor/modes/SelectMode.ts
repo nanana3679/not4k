@@ -12,8 +12,7 @@ import {
   selectionBlockReason,
   clampTrillBeatOffset,
   translateTrillZone,
-  isTrillNote,
-  trillZoneOverlapsBox,
+  selectionFromBox,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
@@ -754,27 +753,15 @@ export class SelectMode implements EditorMode {
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
-    const notes = new Set<number>();
-    const zones = new Set<number>();
-    // 통합 인덱스 — 메인·보조 노트가 chart.notes 한 배열에 살고 lane으로만 갈린다 (RFD 0018 ④).
-    for (let i = 0; i < this.chart.notes.length; i++) {
-      const note = this.chart.notes[i];
-      if (!isTrillNote(note)
-          && note.lane >= minLane && note.lane <= maxLane
-          && beatSub(note.beat, minBeat).n >= 0
-          && beatSub(maxBeat, note.beat).n >= 0) {
-        notes.add(i);
-      }
-    }
+    // 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④).
+    // zone 완전 감쌈=유닛 픽업, 통과=박스 안 개별 트릴, 일반 노트=박스 안이면 선택.
+    // 동질성은 선택 커밋의 normalizeSelection 게이트가 처리한다.
+    const { notes, zones } = selectionFromBox(
+      this.chart.trillZones,
+      this.chart.notes,
+      { minLane, maxLane, minBeat, maxBeat },
+    );
 
-    // 박스와 레인·박 폐구간이 겹치는(포함 아님) trillZone은 유닛으로 선택 (RFD 0016 §4.3)
-    for (let i = 0; i < this.chart.trillZones.length; i++) {
-      if (trillZoneOverlapsBox(this.chart.trillZones[i], minLane, maxLane, minBeat, maxBeat)) {
-        zones.add(i);
-      }
-    }
-
-    // 일반 노트·구간 유닛은 공존 선택 가능 (RFD 0016 §4.1).
     // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.
     this.commitSelectionTransient({ notes, zones });
   }

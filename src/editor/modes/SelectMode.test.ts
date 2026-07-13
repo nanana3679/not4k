@@ -1488,7 +1488,7 @@ describe("SelectMode — 선택 동질성", () => {
     expect(cb.onWarn).toHaveBeenCalled();
   });
 
-  it("박스는 트릴 노트를 개별로 집지 않고 겹치는 구간 유닛과 일반 노트를 함께 집는다 (RFD 0016 §4.3)", () => {
+  it("박스는 트릴 노트를 개별로 집지 않고 완전히 감싸진 구간 유닛과 일반 노트를 함께 집는다 (RFD 0016 §6-2 감쌈 모델)", () => {
     const cb = makeCallbacks();
     cb.yToBeatRaw = (y: number): Beat => beat(y); // y를 박자로 매핑
     const mode = makeMode(makeChartH(), cb);
@@ -1499,8 +1499,132 @@ describe("SelectMode — 선택 동질성", () => {
     const sel = cb.getSelectionState();
     // 트릴 노트 0,1,2는 개별 미픽업 — 일반 노트 3만 notes로
     expect([...sel.notes]).toEqual([3]);
-    // 구간0(레인1)·구간1(레인2)은 박스와 겹쳐 유닛으로 픽업
+    // 구간0(레인1)·구간1(레인2)은 박스에 완전히 감싸여 유닛으로 픽업
     expect([...sel.zones].sort()).toEqual([0, 1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 박스 감쌈 모델 — 앵커 없는 순수 containment (RFD 0016 §6-2)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
+  // 인덱스 0,1: 구간0(레인1) 트릴, 2: 구간1(레인2) 트릴, 3: 일반(레인3)
+  function makeChartL(): Chart {
+    return makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },  // 1
+        { type: "trill", lane: 2 as Lane, beat: beat(7) },  // 2
+        { type: "single", lane: 3 as Lane, beat: beat(1) }, // 3
+      ],
+      trillZones: [
+        { lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }, // 구간0
+        { lane: 2 as Lane, beat: beat(6), endBeat: beat(8) }, // 구간1
+      ],
+    });
+  }
+
+  it("빈 곳에서 그린 박스가 트릴 노트를 담고 zone[2,4]을 다 안 감싸면(beat 0~3) 그 트릴 노트들이 개별 선택된다(마우스 개별 트릴 선택 회귀 가드)", () => {
+    const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
+    mode.onPointerMove(2, 3);               // 레인 1~2, beat 0~3 — 구간0 endBeat(4) 미감쌈
+
+    const sel = cb.getSelectionState();
+    // 구간0 트릴(0,1)이 개별 선택 — zone 유닛 미픽업
+    expect([...sel.notes].sort()).toEqual([0, 1]);
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("박스가 zone[2,4]을 완전히 감싸면(beat 0~5) 유닛으로 전환 — zone이 zones로 픽업되고 개별 트릴은 notes에서 빠진다", () => {
+    const cb = makeCallbacks();
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
+    mode.onPointerMove(1, 5);               // 레인 1, beat 0~5 — 구간0[2,4] 완전 감쌈
+
+    const sel = cb.getSelectionState();
+    expect(sel.zones).toEqual(new Set([0])); // zone 유닛 픽업
+    expect(sel.notes).toEqual(new Set());    // 개별 트릴은 빠짐
+  });
+
+  it("박스를 확장(감쌈, beat 0~5)→축소(통과, beat 0~3)하면 유닛↔개별 트릴이 가역이다", () => {
+    const cb = makeCallbacks();
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(1, 5);    // 구간0[2,4] 완전 감쌈 → 유닛
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+    expect(cb.getSelectionState().notes).toEqual(new Set());
+
+    mode.onPointerMove(1, 3);    // beat 0~3으로 축소 — 구간0 미감쌈 → 개별 트릴 복귀
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes].sort()).toEqual([0, 1]); // 개별 트릴 복귀
+    expect(sel.zones).toEqual(new Set());          // 유닛 해제
+  });
+
+  it("트릴 노트 위에서 승격(beginBoxSelect)한 박스도 빈 곳 박스와 동일하게 담긴 것 기준으로 계산된다(앵커 특수성 없음)", () => {
+    const cb = makeCallbacks({
+      // 시작 좌표(레인1, y=2)에 구간0 트릴 노트 0이 있지만 결과는 순수 기하
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);   // 트릴 노트 0 좌표에서 승격 시작
+    mode.onPointerMove(2, 3);    // 레인 1~2, beat 2~3 — 구간0 미감쌈 → 개별 트릴
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes].sort()).toEqual([0, 1]);
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("빈 곳에서 전체를 덮는 박스는 트릴 노트를 개별로 집지 않고 감싸진 zone 유닛과 일반 노트만 선택한다(완전 감쌈 픽업 회귀 가드)", () => {
+    const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
+    mode.onPointerMove(3, 10);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([3]);
+    expect([...sel.zones].sort()).toEqual([0, 1]);
+  });
+
+  it("통과 박스가 트릴(레인1, beat2)과 일반 노트(레인3, beat1)를 함께 담으면 동질성 게이트가 최저 인덱스 그룹(트릴)만 남긴다", () => {
+    const cb = makeCallbacks();
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 1, false, false); // 빈 곳(레인1, beat1)에서 박스 시작
+    mode.onPointerMove(3, 2);               // 레인 1~3, beat 1~2 — 트릴 0(beat2)과 일반 3(beat1)을 덮음, 구간0 미감쌈
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([0]);   // 최저 인덱스 0(트릴) 그룹만 — 일반 3은 게이트가 제외
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("완전 감싸진 zone1 유닛과 통과 zone0 트릴(최저 인덱스)이 혼재하면 동질성 게이트가 트릴 모드를 남기고 유닛을 떨군다(수용된 trade-off 고정)", () => {
+    // 박스 beat 3~8: 구간0[2,4]는 미감쌈(트릴 1 개별) + 구간1[6,8]은 완전 감쌈(유닛 후보).
+    // selectionFromBox는 {notes:{1}, zones:{1}}을 내지만, normalizeSelection이 최저 인덱스(트릴 1)로
+    // kind=trill 판정 → zones를 비워, 감싸진 구간1 유닛이 조용히 빠진다.
+    const cb = makeCallbacks();
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(2, 3, false, false); // 빈 곳(레인2, beat3)에서 박스 시작
+    mode.onPointerMove(1, 8);               // 레인 1~2, beat 3~8
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([1]);   // 통과 구간0 트릴 1만
+    expect(sel.zones).toEqual(new Set());  // 완전 감싸진 구간1 유닛은 게이트가 떨굼
   });
 });
 
@@ -1731,16 +1855,24 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     cb.setSelection({ notes: new Set([2]), zones: new Set([0]) });
   }
 
-  it("박스가 구간[2,4]과 부분만 겹쳐도(beat 3~5) 구간 유닛으로 픽업한다(겹침 기준, 포함 아님)", () => {
+  it("박스가 구간[2,4]과 부분만 겹치면(beat 3~5) 유닛 미픽업·박스 안 트릴(beat3)은 개별 선택, 완전히 감싸면(beat 1~5) 유닛 픽업한다(감쌈 기준)", () => {
     const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) });
     const mode = makeMode(makeChartM(), cb);
 
     mode.onPointerDown(1, 3, false, false); // 빈 영역(lane1, beat3)에서 박스 시작
-    mode.onPointerMove(1, 5);               // beat5까지 — 구간 끝(4)만 걸침
+    mode.onPointerMove(1, 5);               // beat 3~5 — 구간 끝(4)만 걸침 → 유닛 미픽업(통과)
 
-    const sel = cb.getSelectionState();
-    expect([...sel.zones]).toEqual([0]);
-    expect([...sel.notes]).toEqual([]); // 내부 트릴 노트 개별 미픽업
+    const partial = cb.getSelectionState();
+    expect([...partial.zones]).toEqual([]);
+    expect([...partial.notes]).toEqual([1]); // 박스 안 트릴(beat3)은 개별 선택
+
+    mode.onPointerUp(1, 5);
+    mode.onPointerDown(1, 1, false, false); // beat1에서 새 박스
+    mode.onPointerMove(1, 5);               // beat 1~5 — 구간[2,4] 완전 감쌈
+
+    const enclosed = cb.getSelectionState();
+    expect([...enclosed.zones]).toEqual([0]);
+    expect([...enclosed.notes]).toEqual([]); // 감싸진 구간의 내부 트릴은 개별 미픽업
   });
 
   it("박스가 다른 레인(3~4)만 덮으면 lane1 구간은 픽업하지 않는다", () => {

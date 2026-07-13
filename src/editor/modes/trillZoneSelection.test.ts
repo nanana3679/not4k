@@ -11,6 +11,8 @@ import {
   selectionBlockReason,
   filterHomogeneousSelection,
   clampTrillBeatOffset,
+  boxEnclosesZone,
+  selectionFromBox,
 } from "./trillZoneSelection";
 import { beat, beatToFloat } from "../../shared";
 import type { NoteEntity, TrillZone } from "../../shared";
@@ -274,5 +276,107 @@ describe("trillZoneOverlapsBox", () => {
 
   it("박스가 존을 완전히 포함(0~8 ⊇ 2~6)해도 true (포함 아닌 겹침 기준)", () => {
     expect(trillZoneOverlapsBox(zone, 1, 4, beat(0), beat(8))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// boxEnclosesZone — 박스가 트릴존을 완전히 감싸는지 (RFD 0016 §6-2 감쌈 모델)
+// ---------------------------------------------------------------------------
+
+describe("boxEnclosesZone", () => {
+  const zone: TrillZone = { lane: 2, beat: beat(2), endBeat: beat(6) };
+
+  it("박스가 zone beat·lane을 완전히 포함하면(레인1~3, 박0~8 ⊇ 존 레인2, 2~6) true", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
+  });
+
+  it("박스 maxBeat(4)가 zone.endBeat(6)보다 작으면(부분 겹침) false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(false);
+  });
+
+  it("박스 minBeat(3)가 zone.beat(2)보다 크면 false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(false);
+  });
+
+  it("zone.lane(2)이 박스 lane 범위(3~4) 밖이면 박이 다 감싸여도 false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 3, maxLane: 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
+  });
+
+  it("박스 경계와 zone 경계가 정확히 같으면(레인2~2, 박2~6 == 존) true — 폐구간", () => {
+    expect(boxEnclosesZone(zone, { minLane: 2, maxLane: 2, minBeat: beat(2), maxBeat: beat(6) })).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectionFromBox — 앵커 없는 순수 감쌈(containment) 박스 선택 계산 (RFD 0016 §6-2)
+// ---------------------------------------------------------------------------
+
+describe("selectionFromBox", () => {
+  const zones: TrillZone[] = [
+    { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
+    { lane: 2, beat: beat(2), endBeat: beat(4) }, // 구간1
+  ];
+  const notes: NoteEntity[] = [
+    { type: "trill", lane: 1, beat: beat(2) },   // 0: 구간0
+    { type: "trill", lane: 1, beat: beat(3) },   // 1: 구간0
+    { type: "trill", lane: 2, beat: beat(3) },   // 2: 구간1
+    { type: "single", lane: 3, beat: beat(3) },  // 3: 일반 (박스 안)
+    { type: "single", lane: 3, beat: beat(9) },  // 4: 일반 (박스 밖)
+  ];
+  // 두 zone(2~4)을 모두 완전히 감싸는 박스
+  const enclosingBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+  // maxBeat(3) < zone.endBeat(4) → 어떤 zone도 완전히 못 감싸는 통과(부분 겹침) 박스
+  const partialBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(3) };
+
+  it("빈 박스에서 zone을 완전히 안 감싸면(통과) 그 zone 트릴 노트 중 박스 안 것만 개별 선택하고 zone 유닛은 미픽업", () => {
+    const sel = selectionFromBox(zones, notes, partialBox);
+    // 구간0 트릴(0,1)·구간1 트릴(2) 모두 박스 안 → 개별 선택, 일반(3)도 박스 안
+    expect(sel.notes).toEqual(new Set([0, 1, 2, 3]));
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("zone을 완전히 감싸면 그 zone 유닛 픽업 + 개별 트릴은 notes에서 제외", () => {
+    const sel = selectionFromBox(zones, notes, enclosingBox);
+    expect(sel.zones).toEqual(new Set([0, 1]));
+    expect(sel.notes.has(0)).toBe(false);
+    expect(sel.notes.has(1)).toBe(false);
+    expect(sel.notes.has(2)).toBe(false);
+  });
+
+  it("일반 노트는 박스 안이면 선택 — 감쌈(0~5)·통과(0~3) 박스 모두 beat3 일반 노트 포함", () => {
+    expect(selectionFromBox(zones, notes, enclosingBox).notes.has(3)).toBe(true);
+    expect(selectionFromBox(zones, notes, partialBox).notes.has(3)).toBe(true);
+  });
+
+  it("감싸진 zone과 통과하는 zone이 섞이면: 감싼 건 유닛, 통과한 건 개별 트릴", () => {
+    // 구간0[2,4]은 완전 감쌈, 구간1[2,6]은 maxBeat5 < endBeat6 → 통과
+    const mixedZones: TrillZone[] = [
+      { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
+      { lane: 2, beat: beat(2), endBeat: beat(6) }, // 구간1
+    ];
+    const box = { minLane: 1, maxLane: 2, minBeat: beat(0), maxBeat: beat(5) };
+    const sel = selectionFromBox(mixedZones, notes, box);
+    expect(sel.zones).toEqual(new Set([0]));   // 감싼 구간0만 유닛
+    expect(sel.notes).toEqual(new Set([2]));   // 통과한 구간1의 박스 안 트릴(beat3)만 개별
+  });
+
+  it("박스 밖 노트/zone 제외 — beat9 일반 노트(4)와 레인 범위 밖 zone 미픽업", () => {
+    expect(selectionFromBox(zones, notes, enclosingBox).notes.has(4)).toBe(false); // beat9 > maxBeat5
+
+    // 레인 3만 덮는 박스: 두 zone(레인1·2) 모두 레인 밖 → zones ∅, 트릴도 박스 밖
+    const lane3Box = { minLane: 3, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+    const sel = selectionFromBox(zones, notes, lane3Box);
+    expect(sel.zones).toEqual(new Set());
+    expect(sel.notes).toEqual(new Set([3]));
+  });
+
+  it("어느 zone에도 안 속한 고아 트릴 노트도 박스 안이면 개별 선택된다", () => {
+    const orphanNotes: NoteEntity[] = [
+      { type: "trill", lane: 3, beat: beat(3) }, // 0: 고아 트릴 (zone 없음)
+    ];
+    const sel = selectionFromBox(zones, orphanNotes, enclosingBox);
+    expect(sel.notes).toEqual(new Set([0]));
+    // enclosingBox는 구간0·1을 감싸지만 노트 배열엔 고아 트릴뿐 — zones 픽업은 독립
+    expect(sel.zones).toEqual(new Set([0, 1]));
   });
 });
