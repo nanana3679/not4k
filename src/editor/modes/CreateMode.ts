@@ -15,11 +15,8 @@ import type {
   ChartEvent,
   Beat,
   Lane,
-  ExtraNoteEntity,
-  ExtraPointNote,
-  ExtraRangeNote,
 } from "../../shared";
-import { validateChart, violationsInvolving, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
+import { validateChart, violationsInvolving, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
@@ -83,10 +80,6 @@ export interface CreateModeCallbacks {
   hitTestExtraNote: (x: number, y: number) => number | null;
   /** Called to get extra lane number (1~N) from X, or null */
   xToExtraLane?: (x: number) => number | null;
-  /** Called when extra notes are modified */
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  /** Get current extra notes */
-  getExtraNotes?: () => ExtraNoteEntity[];
   /** Called to display a warning message to the user */
   onWarn?: (message: string) => void;
 }
@@ -648,24 +641,25 @@ export class CreateMode implements EditorMode {
   }
 
   // -------------------------------------------------------------------------
-  // Extra lane creation (no validateChart — editor-only)
+  // 보조 레인 생성 — chart.notes에 lane 5+ 노트로 append (RFD 0018 ④d, 통합 축).
+  // 보조 노트는 표시 전용이라 validateChart 배치 제약을 적용하지 않는다(기존 동작 계승).
   // -------------------------------------------------------------------------
 
   private createExtraPointNote(extraLane: number, beat: Beat): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-    const extraNotes = this.callbacks.getExtraNotes();
-    const newNote: ExtraPointNote = {
+    const newNote: PointNote = {
       type: this.selectedEntityType as "single" | "double",
-      extraLane,
+      lane: fromAuxIndex(extraLane),
       beat,
     };
-    this.callbacks.onExtraNotesUpdate([...extraNotes, newNote]);
+    const updatedChart: Chart = {
+      ...this.chart,
+      notes: [...this.chart.notes, newNote],
+    };
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
   }
 
   private createExtraRangeNote(extraLane: number, startBeat: Beat, endBeat: Beat): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-    const extraNotes = this.callbacks.getExtraNotes();
-
     const actualStartBeat = beatLt(startBeat, endBeat) ? startBeat : beatMin(startBeat, endBeat);
     const actualEndBeat = beatGt(endBeat, startBeat) ? endBeat : beatMax(startBeat, endBeat);
 
@@ -679,12 +673,18 @@ export class CreateMode implements EditorMode {
       bodyType = "long";
     }
 
-    const bodyNote: ExtraRangeNote = { type: bodyType, extraLane, beat: actualStartBeat, endBeat: actualEndBeat };
+    const lane = fromAuxIndex(extraLane);
+    const bodyNote: RangeNote = { type: bodyType, lane, beat: actualStartBeat, endBeat: actualEndBeat };
     const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
-    const newNotes: ExtraNoteEntity[] = isZeroLength
+    const newNotes: (PointNote | RangeNote)[] = isZeroLength
       ? [bodyNote]
-      : [{ type: headType, extraLane, beat: actualStartBeat } as ExtraPointNote, bodyNote];
-    this.callbacks.onExtraNotesUpdate([...extraNotes, ...newNotes]);
+      : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
+    const updatedChart: Chart = {
+      ...this.chart,
+      notes: [...this.chart.notes, ...newNotes],
+    };
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
   }
 
   private currentRangeNoteType(): RangeNoteEntityType {

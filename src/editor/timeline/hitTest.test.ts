@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt, noteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
 import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
 
@@ -286,24 +286,6 @@ describe("noteExistsAtSnap", () => {
 
   it("레인지 노트 범위 밖 snap 위치면 미스", () => {
     expect(noteExistsAtSnap(notes, 2, 2.5)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// extraNoteExistsAtSnap
-// ---------------------------------------------------------------------------
-
-describe("extraNoteExistsAtSnap", () => {
-  const extraNotes: ExtraNoteEntity[] = [
-    { type: "single", extraLane: 1, beat: beat(4) },
-  ];
-
-  it("snap 위치와 extra 노트가 일치하면 히트", () => {
-    expect(extraNoteExistsAtSnap(extraNotes, 1, 4.0)).toBe(0);
-  });
-
-  it("snap 위치와 extra 노트가 다르면 미스", () => {
-    expect(extraNoteExistsAtSnap(extraNotes, 1, 4.05)).toBeNull();
   });
 });
 

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
 import { beat } from "../../shared";
-import type { Chart, Beat, Lane, ExtraNoteEntity } from "../../shared";
+import { hitTestNoteAt } from "../timeline/hitTest";
+import type { Chart, Beat, Lane, NoteEntity } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -229,34 +230,31 @@ describe("CreateMode — 통합 입력 (single/double)", () => {
     expect(updated.notes[1].type).toBe("doubleLong");
   });
 
-  it("single 선택 후 Extra 레인 클릭만 하면 단노트, 드래그하면 헤드+롱", () => {
+  it("single 선택 후 Extra 레인(1) 클릭만 하면 lane5 단노트, 드래그하면 lane5 헤드+롱이 chart.notes에 append", () => {
     const chart = makeChart();
-    let extraNotes: ExtraNoteEntity[] = [];
     const callbacks = {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-      getExtraNotes: () => extraNotes,
-      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
     };
     const mode = new CreateMode(chart, callbacks);
     mode.entityType = "single";
 
-    // 클릭만 → 단노트
+    // 클릭만 → 단노트 (extraLane 1 → lane 5)
     mode.onPointerDown(10, 3);
     mode.onPointerUp(10, 3);
-    let notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    let notes = (callbacks.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes;
     expect(notes).toHaveLength(1);
-    expect(notes[0].type).toBe("single");
+    expect(notes[0]).toMatchObject({ type: "single", lane: 5 });
     expect("endBeat" in notes[0]).toBe(false);
 
     // 드래그 → 헤드+롱
     mode.onPointerDown(10, 1);
     mode.onPointerUp(10, 5);
-    notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    notes = (callbacks.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes;
     expect(notes).toHaveLength(3); // 기존 단노트1 + 헤드 + 롱
-    expect(notes[1].type).toBe("single");
-    expect(notes[2].type).toBe("long");
+    expect(notes[1]).toMatchObject({ type: "single", lane: 5 });
+    expect(notes[2]).toMatchObject({ type: "long", lane: 5 });
   });
 });
 
@@ -388,17 +386,14 @@ describe("CreateMode — 롱노트 생성 시 헤드 노트", () => {
 
 describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () => {
   function makeExtraCallbacks(chart: Chart) {
-    let extraNotes: ExtraNoteEntity[] = [];
     return {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-      getExtraNotes: () => extraNotes,
-      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
     };
   }
 
-  it("길이 0인 Extra 롱노트 생성 시 헤드 없이 바디만 생성", () => {
+  it("길이 0인 Extra 롱노트 생성 시 헤드 없이 lane5 바디만 chart.notes에 생성", () => {
     const chart = makeChart();
     const callbacks = makeExtraCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
@@ -407,14 +402,14 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     mode.onPointerDown(10, 3); // extraLane 1, beat(3)
     mode.onPointerUp(10, 3);
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(1);
-    expect(notes[0].type).toBe("long");
+    expect(notes[0]).toMatchObject({ type: "long", lane: 5 });
     expect("endBeat" in notes[0]).toBe(true);
   });
 
-  it("길이가 있는 Extra 롱노트 생성 시 헤드 + 바디 함께 생성", () => {
+  it("길이가 있는 Extra 롱노트 생성 시 lane5 헤드 + 바디 함께 생성", () => {
     const chart = makeChart();
     const callbacks = makeExtraCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
@@ -423,14 +418,14 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     mode.onPointerDown(10, 1); // extraLane 1, beat(1)
     mode.onPointerUp(10, 5);  // beat(5)
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(2);
-    expect(notes[0].type).toBe("single");
-    expect(notes[1].type).toBe("long");
+    expect(notes[0]).toMatchObject({ type: "single", lane: 5 });
+    expect(notes[1]).toMatchObject({ type: "long", lane: 5 });
   });
 
-  it("single 입력 상태의 명시적 롱노트 시작은 Extra 레인에도 길이 0 롱노트를 생성", () => {
+  it("single 입력 상태의 명시적 롱노트 시작은 Extra 레인에도 길이 0 lane5 롱노트를 생성", () => {
     const chart = makeChart();
     const callbacks = makeExtraCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
@@ -439,10 +434,10 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     expect(mode.beginRangeNoteAt(10, 3, "long")).toBe(true);
     mode.onPointerUp(10, 3);
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(1);
-    expect(notes[0].type).toBe("long");
+    expect(notes[0]).toMatchObject({ type: "long", lane: 5 });
     expect("endBeat" in notes[0]).toBe(true);
   });
 });
@@ -481,8 +476,6 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-      getExtraNotes: () => [],
-      onExtraNotesUpdate: vi.fn(),
     };
   }
 
@@ -620,6 +613,59 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     mode.onPointerDown(1, 2);
 
     expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 파티션 깨진 통합 차트 (RFD 0018 ④d) — 통합 이동·paste 후 정규형 [...main, ...aux]가
+// 깨져도 배치 제약·생성이 통합 인덱스를 오해석하지 않는다
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — 파티션 깨진 통합 차트 (RFD 0018 ④d)", () => {
+  // 파티션 깨진 차트: 메인 구역에 보조(lane5) 노트가 끼어 있다
+  const brokenNotes: NoteEntity[] = [
+    { type: "single", lane: 1, beat: beat(0) },
+    { type: "single", lane: 5, beat: beat(0) }, // 보조 — 통합 이동이 남긴 제자리 lane 변경
+    { type: "long", lane: 2, beat: beat(0), endBeat: beat(4) },
+  ];
+
+  /**
+   * App.tsx의 CreateMode 배선 미러 (RFD 0018 ④d) — 통합 차트(chart.notes 전체)를 들고,
+   * hitTestNote(메인 한정)도 chart.notes 통합 인덱스를 반환한다.
+   */
+  function wireCreateModeAsApp(chart: Chart) {
+    const callbacks = makeCallbacks(chart, {
+      hitTestNote: (x: number, y: number) =>
+        x >= 1 && x <= 4 ? hitTestNoteAt(chart.notes, x, y) : null,
+    });
+    return { mode: new CreateMode(chart, callbacks), callbacks };
+  }
+
+  it("보조 노트가 메인 구역에 낀 차트에서 롱노트(lane2) 바디 클릭은 히트 인덱스를 오해석하지 않고 차단된다", () => {
+    const chart = makeChart({ notes: brokenNotes });
+    const { mode } = wireCreateModeAsApp(chart);
+    // 통합 인덱스 2(long)가 메인-only 배열에 적용되면 undefined 참조로 폭발하거나 오판한다
+    expect(mode.isPlacementBlocked(2, 2)).toBe(true);
+  });
+
+  it("보조 노트가 메인 구역에 낀 차트에서 빈 자리(lane3@2) 단노트 생성은 성공하고 보조 노트 위치를 재정렬하지 않는다", () => {
+    const chart = makeChart({ notes: brokenNotes });
+    const { mode, callbacks } = wireCreateModeAsApp(chart);
+    mode.entityType = "single";
+
+    mode.onPointerDown(3, 2);
+    mode.onPointerUp(3, 2);
+
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    // 기존 3개(순서 보존) + 새 노트 append
+    expect(updated.notes.map((n) => `${n.type}:${n.lane}`)).toEqual([
+      "single:1",
+      "single:5",
+      "long:2",
+      "single:3",
+    ]);
   });
 });
 

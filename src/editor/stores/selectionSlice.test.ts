@@ -81,9 +81,9 @@ describe('normalizeSelection — 범위 보정', () => {
     expect(result.notes).toEqual(new Set([0]));
   });
 
-  it('extraNotes 2개에서 범위 밖 인덱스 5는 제거된다({0,5} → {0})', () => {
-    const result = normalizeSelection(sel({ extraNotes: new Set([0, 5]) }), chart);
-    expect(result.extraNotes).toEqual(new Set([0]));
+  it('통합 인덱스 범위 밖(9)은 제거되고 보조 노트 인덱스(5)는 유지된다({5,9} → {5}) (RFD 0018 ④)', () => {
+    const result = normalizeSelection(sel({ notes: new Set([5, 9]) }), chart);
+    expect(result.notes).toEqual(new Set([5]));
   });
 
   it('범위 밖 zone 인덱스(5)는 zones에서 제거되고 notes {0,3}은 유지된다', () => {
@@ -121,13 +121,13 @@ describe('normalizeSelection — 구간 유닛 공존 (RFD 0016)', () => {
     expect(result.zones).toEqual(new Set());
   });
 
-  it('zones {0}과 extraNotes {0}은 공존한다(extra를 비우지 않음)', () => {
+  it('zones {0}과 보조 노트(통합 인덱스 5)는 공존한다 (RFD 0018 ④)', () => {
     const result = normalizeSelection(
-      sel({ extraNotes: new Set([0]), zones: new Set([0]) }),
+      sel({ notes: new Set([5]), zones: new Set([0]) }),
       chart,
     );
     expect(result.zones).toEqual(new Set([0]));
-    expect(result.extraNotes).toEqual(new Set([0]));
+    expect(result.notes).toEqual(new Set([5]));
   });
 });
 
@@ -138,9 +138,9 @@ describe('selectionEquals', () => {
     expect(selectionEquals(a, b)).toBe(true);
   });
 
-  it('한 집합이라도 다르면 false (extraNotes {0} vs {1})', () => {
-    const a = sel({ extraNotes: new Set([0]) });
-    const b = sel({ extraNotes: new Set([1]) });
+  it('한 집합이라도 다르면 false (notes {0} vs {1})', () => {
+    const a = sel({ notes: new Set([0]) });
+    const b = sel({ notes: new Set([1]) });
     expect(selectionEquals(a, b)).toBe(false);
   });
 });
@@ -196,19 +196,11 @@ describe('createSelectionSlice 액션 (fake store)', () => {
     expect(h.getState().selection.zones).toEqual(new Set([1]));
   });
 
-  it('clearSelection: 세 집합이 모두 빈 선택이 된다', () => {
+  it('clearSelection: 두 집합이 모두 빈 선택이 된다', () => {
     const h = makeSliceHarness();
-    h.getState().setSelection(sel({ notes: new Set([0]), extraNotes: new Set([1]) }));
+    h.getState().setSelection(sel({ notes: new Set([0, 5]) }));
     h.getState().clearSelection();
     expect(h.getState().selection).toEqual(emptySelection());
-  });
-
-  it('clearExtraSelection: notes {0,3}은 유지되고 extraNotes만 비워진다', () => {
-    const h = makeSliceHarness();
-    h.getState().setSelection(sel({ notes: new Set([0, 3]), extraNotes: new Set([0, 1]) }));
-    h.getState().clearExtraSelection();
-    expect(h.getState().selection.notes).toEqual(new Set([0, 3]));
-    expect(h.getState().selection.extraNotes).toEqual(new Set());
   });
 });
 
@@ -270,15 +262,6 @@ describe('SelectionSlice 액션 (editorStore 경유)', () => {
     expect(selection.zones).toEqual(new Set([1]));
   });
 
-  it('clearExtraSelection: notes {0,3}은 유지되고 extraNotes만 비워진다', () => {
-    useEditorStore.getState().setSelection(
-      sel({ notes: new Set([0, 3]), extraNotes: new Set([0, 1]) }),
-    );
-    useEditorStore.getState().clearExtraSelection();
-    const { selection } = useEditorStore.getState();
-    expect(selection.notes).toEqual(new Set([0, 3]));
-    expect(selection.extraNotes).toEqual(new Set());
-  });
 });
 
 describe('변이 액션의 선택 보정', () => {
@@ -307,9 +290,9 @@ describe('변이 액션의 선택 보정', () => {
     expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
-  it('보조 노트 삭제(chart.notes 개수 감소)는 setChart 경유라 선택이 전체 비워진다 — RFD 0018 ③ (B)(a) 수용', () => {
-    useEditorStore.getState().setSelection(sel({ extraNotes: new Set([0, 1]) }));
-    // 보조 노트 1개를 지운 차트 커밋(7→6개) — 인덱스 밀림 방지로 선택 전체 clear(메인·보조·존)
+  it('보조 노트 삭제(chart.notes 개수 감소)는 setChart 경유라 선택이 전체 비워진다 (RFD 0018 ④)', () => {
+    // 보조 노트는 통합 인덱스(5·6). 1개를 지운 차트 커밋(7→6개) — 인덱스 밀림 방지로 선택 전체 clear
+    useEditorStore.getState().setSelection(sel({ notes: new Set([5, 6]) }));
     useEditorStore.getState().setChart({
       ...useEditorStore.getState().chart,
       notes: [...notes, auxNotesFixture[0]],
@@ -441,9 +424,10 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
       historyFuture: [],
       historyLastCaptureAt: 0,
     });
-    expect(useEditorStore.getState().setSelection(sel({ extraNotes: new Set([0]) }))).toBe(true); // ∅→{extra 0}
+    // 보조 노트도 통합 인덱스(0)로 선택된다 — 별도 extraNotes 축은 소멸 (RFD 0018 ④).
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true); // ∅→{0}
     expect(useEditorStore.getState().clearSelection()).toBe(false); // 위반 보조 놓기 = 거부
-    expect(useEditorStore.getState().selection.extraNotes).toEqual(new Set([0]));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
   });
 });
 

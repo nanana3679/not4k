@@ -116,7 +116,7 @@ export class TimelineRenderer {
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
-  private _boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null = null;
+  private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
   // Extra lane state
   private _extraLaneCount: number = 0;
@@ -549,7 +549,7 @@ export class TimelineRenderer {
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
-  setBoxSelectRect(rect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number }): void {
+  setBoxSelectRect(rect: { startY: number; startLane: number; endY: number; endLane: number }): void {
     this._boxSelectRect = rect;
   }
 

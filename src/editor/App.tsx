@@ -17,7 +17,6 @@ import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
-import type { Chart, ExtraNoteEntity } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -281,7 +280,6 @@ function ChartEditorPage() {
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -291,7 +289,7 @@ function ChartEditorPage() {
 
   // 좌표 변환 / 히트테스트 훅
   const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestExtraNoteRef } = coords;
+  const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestExtraNoteRef } = coords;
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -333,14 +331,15 @@ function ChartEditorPage() {
   }, []);
 
   const handleDeleteSelected = useCallback(() => {
-    const total = selectedNotes.size + selectedExtraNotes.size;
+    // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함된다 (RFD 0018 ④).
+    const total = selectedNotes.size;
     if (total === 0) {
       addToast('삭제할 노트를 선택하세요', 'warn');
       return;
     }
     selectModeRef.current?.deleteSelected();
     addToast(`${total}개 선택 항목 삭제됨`, 'info');
-  }, [addToast, selectedExtraNotes.size, selectedNotes.size]);
+  }, [addToast, selectedNotes.size]);
 
   // 캔버스 이벤트 훅
   const canvasEvents = useCanvasEvents(
@@ -472,22 +471,12 @@ function ChartEditorPage() {
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
-    // ③ 병합 어댑터 (RFD 0018): 편집 모드는 아직 ExtraNoteEntity 축을 쓴다(이원축은 ④ 흡수).
-    // 데이터는 chart.notes 한 배열(정규형 [...main, ...aux])에 살므로, 모드 콜백을 그 위 병합
-    // 어댑터로 배선한다 — 모드는 메인-only 차트를 보고, 보조는 별도 축으로 읽고 쓴다.
-    //  - applyMainChart(메인 차트): 새 메인 + 현재 보조 병합 (meta·events·zones는 c 것 유지)
-    //  - applyExtraNotes(보조): 현재 메인 + 새 보조 병합
-    // 두 병합은 순서 독립이라 조합 이동(메인+보조 동시 라이브 커밋)도 올바르게 합쳐진다.
-    const applyMainChart = (c: Chart) =>
-      setChart({ ...c, notes: withAuxNotes(c.notes, auxNotesAsExtra(useEditorStore.getState().chart.notes)) });
-    const applyExtraNotes = (extra: ExtraNoteEntity[]) => {
-      const cur = useEditorStore.getState().chart;
-      setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
-    };
-    const getAuxNotes = () => auxNotesAsExtra(useEditorStore.getState().chart.notes);
-
+    // RFD 0018 ④d: 편집 모드 3종이 전부 통합 차트(chart.notes 한 배열, 메인 lane 1..4 +
+    // 보조 lane 5+) 하나만 다룬다 — ③의 병합 어댑터(applyMainChart/applyExtraNotes)는 소멸.
+    // 히트테스트 인덱스와 모드가 든 차트의 인덱스 공간이 같아, 정규형 파티션이 깨진
+    // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
     const createMode = new CreateMode(chart, {
-      onChartUpdate: applyMainChart,
+      onChartUpdate: (c) => setChart(c),
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
@@ -496,14 +485,15 @@ function ChartEditorPage() {
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
-      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
-      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 
     const selectMode = new SelectMode(chart, {
-      onChartUpdate: applyMainChart,
+      // RFD 0018 ④: SelectMode는 통합 차트 하나만 다룬다 — onChartUpdate가 chart.notes를
+      // 그대로(메인·보조 통합) 쓴다. 이원 축(getExtraNotes/onExtraNotesUpdate/xToExtraLane/
+      // hitTestExtraNote)은 소멸했고, 히트테스트는 통합(hitTestUnifiedNote)이다.
+      onChartUpdate: (c) => setChart(c),
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
@@ -515,31 +505,26 @@ function ChartEditorPage() {
         return { n: 4, d: useEditorStore.getState().snapDivision };
       },
       getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
-      xToLane,
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      xToUnifiedLane: (x) => coords.xToUnifiedLane(x),
+      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
       hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
       hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
       hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      xToExtraLane: (x) => xToExtraLane(x),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
-      getExtraNotes: getAuxNotes,
+      // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
+      setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
-      onChartUpdate: applyMainChart,
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
+      onChartUpdate: (c) => setChart(c),
+      // 통합 히트테스트 — 메인·보조 모두 chart.notes 통합 인덱스로 삭제 (RFD 0018 ④d)
+      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
-      // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
-      onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
-      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
@@ -624,9 +609,7 @@ function ChartEditorPage() {
     useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
-  // chart → renderer(통합 차트) + modes(메인-only 차트) — RFD 0018 ③.
-  // chart.notes가 곧 통합 배열(정규형 [...main, ...aux])이라 렌더러·해칭이 chart.notes를 직접 소비한다.
-  // 편집 모드는 메인 레인만 다루므로(이원축은 ④ 흡수) 메인-only 차트를 준다.
+  // chart → renderer + modes — 전부 통합 차트(chart.notes 한 배열) 하나를 본다 (RFD 0018 ④d).
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.setChart(chart);
@@ -637,10 +620,9 @@ function ChartEditorPage() {
       });
       rendererRef.current.setViolations(violations.notes, violations.trillZones);
     }
-    const mainChart = { ...chart, notes: mainNotes(chart.notes) };
-    if (createModeRef.current) createModeRef.current.setChart(mainChart);
-    if (selectModeRef.current) selectModeRef.current.setChart(mainChart);
-    if (deleteModeRef.current) deleteModeRef.current.setChart(mainChart);
+    if (createModeRef.current) createModeRef.current.setChart(chart);
+    if (selectModeRef.current) selectModeRef.current.setChart(chart);
+    if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
@@ -662,18 +644,13 @@ function ChartEditorPage() {
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
   // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.
 
-  // 선택 표시 → renderer: 메인·보조 선택을 chart.notes 인덱스 공간으로 피드.
-  // chart.notes는 정규형 [...main, ...aux]라 보조 노트 i는 chart.notes[mainCount + i]에 있다.
-  // Selection의 두 축 자체는 ④에서 소멸한다 (RFD 0018).
+  // 선택 표시 → renderer: 선택은 통합 축(sel.notes) 하나 — chart.notes 인덱스 공간을 그대로 피드.
+  // 메인·보조 노트가 chart.notes 한 배열에 살고 선택도 통합 인덱스라 union 어댑터가 사라졌다 (RFD 0018 ④).
   useEffect(() => {
-    if (!rendererRef.current) return;
-    const mainCount = mainNotes(chart.notes).length;
-    const union = new Set(selectedNotes);
-    for (const i of selectedExtraNotes) union.add(mainCount + i);
-    rendererRef.current.setSelectedNotes(union);
-  }, [selectedNotes, selectedExtraNotes, chart]);
+    rendererRef.current?.setSelectedNotes(selectedNotes);
+  }, [selectedNotes]);
 
-  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  // selection.zones → renderer (notes는 위의 effect가 push)
   const selectedZones = useEditorStore((s) => s.selection.zones);
   useEffect(() => {
     rendererRef.current?.setSelectedTrillZones(selectedZones);

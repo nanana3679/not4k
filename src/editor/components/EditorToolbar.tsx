@@ -558,16 +558,15 @@ export function EditorToolbar({
   const setChart = useEditorStore((s) => s.setChart);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
-  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
-  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const historyPastCount = useEditorStore((s) => s.historyPast.length);
   const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const addToast = useEditorStore((s) => s.addToast);
-  const selectedCount = selectedNotes.size + selectedExtraNotes.size;
+  // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
+  const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
   // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 메인/보조 분리 후 비교한다 (RFD 0018 ③).
@@ -763,10 +762,8 @@ export function EditorToolbar({
           {compactPicker === 'extra' && (
             <div style={styles.compactPickerGrid}>
               {extraLaneOptions.map((value) => renderCompactOption(value, String(value), extraLaneCount === value, () => {
+                // 레인 수 축소는 숨김만(데이터·선택 보존, §8-4) — 되돌리면 다시 보인다.
                 setExtraLaneCount(value);
-                if (value < extraLaneCount) {
-                  clearExtraSelection();
-                }
                 closePicker();
               }))}
             </div>
@@ -1238,10 +1235,8 @@ export function EditorToolbar({
                 value={extraLaneCount}
                 onChange={(e) => {
                   const newCount = parseInt(e.target.value);
+                  // 레인 수 축소는 숨김만(데이터·선택 보존, §8-4).
                   setExtraLaneCount(newCount);
-                  if (newCount < extraLaneCount) {
-                    clearExtraSelection();
-                  }
                 }}
               >
                 {extraLaneOptions.map((n) => <option key={n} value={n}>{n}</option>)}

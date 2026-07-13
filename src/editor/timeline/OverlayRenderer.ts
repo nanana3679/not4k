@@ -28,7 +28,7 @@ export interface OverlayHost {
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
-  readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
+  readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
   readonly cachedBpmMarkers: BpmMarker[];
@@ -62,7 +62,8 @@ export class OverlayRenderer {
 
     for (const origin of this.host.moveOrigins) {
       const { note, beat: origBeat, endBeat: origEndBeat, lane } = origin;
-      const x = (lane - 1) * LANE_WIDTH;
+      // 보조 레인(5+)도 통합 이동으로 moveOrigins에 실린다 — laneToX로 메인/보조 별도 영역에 투영(§8-5).
+      const x = laneToX(lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
 
@@ -139,34 +140,17 @@ export class OverlayRenderer {
     destroyChildren(this.host.boxSelectLayer);
     if (!this.host.boxSelectRect || !this.host.chart) return;
 
-    const { startY, startLane, endY, endLane, startExtraLane, endExtraLane } = this.host.boxSelectRect;
+    const { startY, startLane, endY, endLane } = this.host.boxSelectRect;
 
     const y1 = startY + this.host.scrollY;
     const y2 = endY + this.host.scrollY;
     const topY = Math.min(y1, y2);
     const height = Math.max(y1, y2) - topY;
 
-    let x1 = Infinity;
-    let x2 = -Infinity;
-
-    if (startLane !== null || endLane !== null) {
-      const effectiveStart = startLane ?? endLane!;
-      const effectiveEnd = endLane ?? startLane!;
-      const minLane = Math.min(effectiveStart, effectiveEnd);
-      const maxLane = Math.max(effectiveStart, effectiveEnd);
-      x1 = Math.min(x1, (minLane - 1) * LANE_WIDTH);
-      x2 = Math.max(x2, maxLane * LANE_WIDTH);
-    }
-
-    if (startExtraLane !== undefined || endExtraLane !== undefined) {
-      const effectiveStart = startExtraLane ?? endExtraLane!;
-      const effectiveEnd = endExtraLane ?? startExtraLane!;
-      const minExtra = Math.min(effectiveStart, effectiveEnd);
-      const maxExtra = Math.max(effectiveStart, effectiveEnd);
-      const extraStartX = TIMELINE_WIDTH;
-      x1 = Math.min(x1, extraStartX + (minExtra - 1) * EXTRA_LANE_WIDTH);
-      x2 = Math.max(x2, extraStartX + maxExtra * EXTRA_LANE_WIDTH);
-    }
+    const minLane = Math.min(startLane, endLane);
+    const maxLane = Math.max(startLane, endLane);
+    const x1 = laneToX(minLane);
+    const x2 = laneToX(maxLane) + laneWidth(maxLane);
 
     if (x1 >= x2) return;
 

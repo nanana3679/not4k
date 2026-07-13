@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap } from "./hitTest";
 import type { NoteEntity, ExtraNoteEntity } from "../../shared/types";
 
 /** beat fraction helper */
@@ -78,12 +78,8 @@ describe("고스트 노트 호버 — 엑스트라 레인", () => {
 
   it("snap이 엑스트라 노트로 스냅되어도 커서가 멀면 hitTestExtraNoteAt은 미스", () => {
     const rawBeat = 1.7;
-    const snappedBeat = 2.0;
 
-    // 이전 방식: snap 기준 → 히트
-    expect(extraNoteExistsAtSnap(extraNotes, 1, snappedBeat)).toBe(0);
-
-    // 새 방식: raw 기준 → 미스
+    // raw 기준 → 미스 (snap으로 노트에 스냅돼도 커서가 멀면 히트 안 함)
     expect(hitTestExtraNoteAt(extraNotes, 1, rawBeat)).toBeNull();
   });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { beat } from "../types";
 import type { NoteEntity, ExtraNoteEntity } from "../types";
-import { extraToNote, noteToExtra, auxNotesAsExtra, withAuxNotes, auxIndexToUnifiedIndex } from "./auxAdapter";
+import { extraToNote, noteToExtra, auxNotesAsExtra, withAuxNotes } from "./auxAdapter";
 
 const mainA: NoteEntity = { type: "single", lane: 1, beat: beat(0) };
 const mainB: NoteEntity = { type: "long", lane: 4, beat: beat(1), endBeat: beat(2) };
@@ -61,9 +61,8 @@ describe("withAuxNotes", () => {
     expect(withAuxNotes([mainA, aux5], [])).toEqual([mainA]);
   });
 
-  // 정규형 [...전체 메인, ...전체 보조] 불변 — selection·hover·§3-5 게이트의 mainCount+i 산술이
-  // 전부 이 불변에 의존한다(어떤 편집이 main/aux를 뒤섞으면 세 곳이 함께 깨짐). withAuxNotes가
-  // 모든 보조 편집이 통과하는 seam이므로 여기서 파티션을 못박는다 (codex 재리뷰 권장).
+  // 정규형 [...전체 메인, ...전체 보조]는 ④d 이후 차트 불변이 아니라 withAuxNotes(로드 병합)의
+  // 출력 형태 속성이다 — 편집 소비자는 전부 통합 인덱스라 파티션에 의존하지 않는다 (RFD 0018 ④d).
   it("입력이 뒤섞여 있어도 결과는 정규형 [...전체 메인(원순서), ...전체 보조] 파티션", () => {
     const messy = [aux7, mainA, aux5, mainB]; // 보조가 앞·중간에 낀 비정규 입력
     const result = withAuxNotes(messy, [extraP, extraR]);
@@ -71,18 +70,6 @@ describe("withAuxNotes", () => {
     expect(result.slice(0, firstAux).every((n) => n.lane <= 4)).toBe(true); // 앞은 전부 메인
     expect(result.slice(firstAux).every((n) => n.lane > 4)).toBe(true); // 뒤는 전부 보조
     expect(result.filter((n) => n.lane <= 4)).toEqual([mainA, mainB]); // 메인 원순서 보존
-  });
-});
-
-describe("auxIndexToUnifiedIndex", () => {
-  it("메인 2개 앞에서 보조 인덱스 0→2, 1→3 (mainCount + auxIndex)", () => {
-    const notes = [mainA, mainB, aux5, aux7];
-    expect(auxIndexToUnifiedIndex(notes, 0)).toBe(2);
-    expect(auxIndexToUnifiedIndex(notes, 1)).toBe(3);
-  });
-
-  it("메인이 없으면 보조 인덱스가 그대로 통합 인덱스 (0→0)", () => {
-    expect(auxIndexToUnifiedIndex([aux5, aux7], 0)).toBe(0);
   });
 });
 

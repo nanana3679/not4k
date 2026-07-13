@@ -1,6 +1,6 @@
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
-import type { NoteEntity, Beat, Lane } from "../../shared";
+import type { NoteEntity, Beat } from "../../shared";
 
 /** 이동 드래그 중 한 노트의 원본 위치(고스트로 그려짐). */
 export interface MoveOriginDatum {
@@ -13,11 +13,9 @@ export interface MoveOriginDatum {
 /** 박스 셀렉트 사각형(픽셀/레인 좌표). */
 export interface BoxSelectRect {
   startY: number;
-  startLane: Lane | null;
+  startLane: number;
   endY: number;
-  endLane: Lane | null;
-  startExtraLane?: number;
-  endExtraLane?: number;
+  endLane: number;
 }
 
 /**

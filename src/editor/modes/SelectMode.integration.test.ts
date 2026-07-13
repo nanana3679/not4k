@@ -78,6 +78,7 @@ function makeIntegration(
     getSnapStep: (): Beat => beat(4, 4),
     getMaxBeatFloat: () => 100,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
+    xToUnifiedLane: (x: number): number | null => (x >= 1 && x <= 4 ? x : null),
     hitTestNote,
     onWarn: vi.fn(),
     // ③ 병합 어댑터 (RFD 0018): 보조는 chart.notes(lane 5+)에 살고, 콜백이 파생·병합한다.

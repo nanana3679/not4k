@@ -1,7 +1,7 @@
 /**
  * 선택 슬라이스 — 에디터 선택 상태의 단독 소유자.
  *
- * 소유권 헌장: 선택(notes·extraNotes·zones)의 쓰기는 이 슬라이스의 액션으로만 한다.
+ * 소유권 헌장: 선택(notes·zones)의 쓰기는 이 슬라이스의 액션으로만 한다.
  * SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 사본이 남으면 소유자가
  * 다시 둘이 된다(이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생
  * 캐시라, undo 후 stale 선택이 "보이지 않는 이동"을 일으킬 수 있었다).
@@ -13,26 +13,30 @@
  *
  * 합법 상태(불변, RFD 0016):
  * - notes는 동질적이다 — 일반 노트들, 또는 같은 trillZone의 트릴 노트들만.
- * - zones는 선택의 독립 축이다 — 일반 notes·extraNotes와 **공존**하고,
+ * - zones는 선택의 독립 축이다 — 일반 notes와 **공존**하고,
  *   내부 노트를 notes에 주입하지 않는다(동사가 실행 시점에 파생, §4.2).
  * - notes가 트릴 노트 모드(개별 트릴 선택)이면 zones는 빈 집합이다 —
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
 import type { Chart, NoteEntity, TrillZone, ValidationRef } from '../../shared';
-import { beatToFloat, validateChart, violationsInvolving, auxNotes, auxIndexToUnifiedIndex } from '../../shared';
+import { beatToFloat, validateChart, violationsInvolving } from '../../shared';
 import { showToast } from '../../shared/toast';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
-/** 에디터 선택 상태. 세 집합의 관계 불변은 normalizeSelection이 보장한다. */
+/**
+ * 에디터 선택 상태. 두 집합의 관계 불변은 normalizeSelection이 보장한다.
+ *
+ * RFD 0018 ④: 보조 레인 노트가 chart.notes(lane 5+)로 이주하며 선택 축도 통합됐다 —
+ * notes 하나가 메인·보조 노트를 통합 인덱스로 다룬다(별도 extraNotes 축 소멸).
+ */
 export interface Selection {
   notes: Set<number>;
-  extraNotes: Set<number>;
   zones: Set<number>;
 }
 
 export function emptySelection(): Selection {
-  return { notes: new Set(), extraNotes: new Set(), zones: new Set() };
+  return { notes: new Set(), zones: new Set() };
 }
 
 /**
@@ -73,7 +77,6 @@ function setEquals(a: ReadonlySet<number>, b: ReadonlySet<number>): boolean {
 export function selectionEquals(a: Selection, b: Selection): boolean {
   return (
     setEquals(a.notes, b.notes) &&
-    setEquals(a.extraNotes, b.extraNotes) &&
     setEquals(a.zones, b.zones)
   );
 }
@@ -95,10 +98,9 @@ export function normalizeSelection(
   chart: Pick<Chart, 'notes' | 'trillZones'>,
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
-  // 보조 선택은 chart.notes의 보조 노트(lane 5+) 서브배열을 가리킨다 — 그 개수로 범위 보정 (RFD 0018 ③)
-  const auxCount = auxNotes(chart.notes).length;
 
-  // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다)
+  // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다).
+  // notes는 통합 인덱스(메인·보조 노트 모두 chart.notes)라 chart.notes.length로 범위 보정한다 (RFD 0018 ④).
   const { kept } = filterHomogeneousSelection(
     chart.trillZones,
     chart.notes,
@@ -106,11 +108,10 @@ export function normalizeSelection(
   );
 
   // 개별 트릴 노트 모드는 구간 유닛과 배타 — zones를 비운다 (RFD 0016 §4.1).
-  // 일반/빈 모드면 zones는 일반 노트·extraNotes와 공존한다(내부 노트 주입 없음).
+  // 일반/빈 모드면 zones는 일반 노트와 공존한다(내부 노트 주입 없음).
   const kind = classifySelection(chart.trillZones, chart.notes, kept);
   return {
     notes: kept,
-    extraNotes: pruneBounds(input.extraNotes, auxCount),
     zones: kind.kind === 'trill' ? new Set<number>() : zones,
   };
 }
@@ -130,8 +131,6 @@ export interface SelectionSlice {
    */
   setSelectionTransient: (input: Selection) => void;
   clearSelection: () => boolean;
-  /** 보조 레인 선택만 비운다(노트·구간 선택 유지). 엑스트라 삭제·레인 수 축소 경로용. */
-  clearExtraSelection: () => void;
 }
 
 /** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함). */
@@ -178,14 +177,8 @@ export function createSelectionSlice(
       for (const i of selection.zones) {
         if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
       }
-      // 보조 선택 해제도 게이트 대상 (RFD 0018 §3-6 동일 취급): 보조 위반도 chart.notes에서
-      // 검증되므로, 위반 보조 노트를 놓는 전이를 메인과 대칭으로 봉쇄한다. 보조 서브배열 인덱스는
-      // chart.notes 통합 인덱스(mainCount + i)로 변환해 refs 공간을 맞춘다.
-      for (const i of selection.extraNotes) {
-        if (!normalized.extraNotes.has(i)) {
-          removed.push({ kind: 'note', index: auxIndexToUnifiedIndex(chart.notes, i) });
-        }
-      }
+      // notes는 통합 인덱스(메인·보조 모두 chart.notes)라 보조 위반 해제도 이 단일 루프가 흡수한다
+      // — 보조 위반도 chart.notes에서 검증되므로 메인과 대칭으로 봉쇄된다 (RFD 0018 §3-6 동일 취급).
       if (removed.length > 0) {
         const involved = violationsInvolving(
           validateChart({
@@ -212,9 +205,5 @@ export function createSelectionSlice(
       // 전체 비우기도 하나의 해제 전이 — 같은 게이트를 지난다(§3-5 단일 규칙).
       return get().setSelection(emptySelection());
     },
-    clearExtraSelection: () =>
-      set((state) => ({
-        selection: { ...state.selection, extraNotes: new Set<number>() },
-      })),
   };
 }

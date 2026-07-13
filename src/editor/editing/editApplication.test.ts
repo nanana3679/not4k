@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, ExtraNoteEntity, Lane, NoteEntity, TrillZone } from "../../shared";
+import type { Chart, Lane, NoteEntity, TrillZone } from "../../shared";
 import { beat } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteChartNoteAtLaneBeat,
   deleteChartNotesAtIndices,
   deleteEmptyTrillZoneAtIndex,
-  deleteExtraNoteAtLaneBeat,
-  deleteExtraNoteAtIndex,
-  deleteExtraNotesAtIndices,
 } from "./editApplication";
 
 function makeChart(input: {
@@ -102,19 +99,21 @@ describe("editor edit application", () => {
     expect(deletedRange?.trillZones).toEqual([]);
   });
 
-  it("deletes extra notes by index, selection, and lane/beat", () => {
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(1) },
-      { type: "long", extraLane: 2, beat: beat(2), endBeat: beat(4) },
-      { type: "single", extraLane: 3, beat: beat(8) },
-    ];
+  it("보조 노트(lane 5+)도 통합 lane/beat 드래그 삭제 한 경로로 지워진다 (RFD 0018 ④d)", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(1) },
+        { type: "long", lane: 5, beat: beat(2), endBeat: beat(4) },
+        { type: "single", lane: 6, beat: beat(8) },
+      ],
+    });
 
-    expect(deleteExtraNoteAtIndex(extraNotes, 0)).toEqual(extraNotes.slice(1));
-    expect(deleteExtraNotesAtIndices(extraNotes, new Set([0, 2]))).toEqual([extraNotes[1]]);
-    expect(deleteExtraNoteAtLaneBeat(extraNotes, { extraLane: 2, beatFloat: 3 })).toEqual([
-      extraNotes[0],
-      extraNotes[2],
-    ]);
+    // lane5 롱노트 바디(beat 3) 삭제
+    const deletedAuxRange = deleteChartNoteAtLaneBeat(chart, { lane: 5, beatFloat: 3 });
+    expect(deletedAuxRange?.notes.map((n) => n.lane)).toEqual([1, 6]);
+    // lane6 점노트 삭제
+    const deletedAuxPoint = deleteChartNoteAtLaneBeat(chart, { lane: 6, beatFloat: 8 });
+    expect(deletedAuxPoint?.notes.map((n) => n.lane)).toEqual([1, 5]);
   });
 
   it("blocks deleting non-empty trill zones", () => {

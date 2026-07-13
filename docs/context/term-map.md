@@ -31,6 +31,7 @@
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 인게임 페이드 | `fadeInTime`/`fadeOutTime` | 동일 |
+| 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 

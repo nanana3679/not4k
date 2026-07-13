@@ -10,15 +10,12 @@ import type { CreateMode, SelectMode, EntityType, EditResult } from '../modes';
 import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
-import { noteExistsAtSnap, extraNoteExistsAtSnap } from '../timeline/hitTest';
-import { beatToMs, auxNotesAsExtra, withAuxNotes, auxIndexToUnifiedIndex } from '../../shared';
-import type { ExtraNoteEntity } from '../../shared';
+import { noteExistsAtSnap } from '../timeline/hitTest';
+import { beatToMs, fromAuxIndex } from '../../shared';
 import { useEditorStore } from '../stores';
 import {
   deleteChartNoteAtLaneBeat,
   deleteEmptyTrillZoneAtIndex,
-  deleteExtraNoteAtIndex,
-  deleteExtraNoteAtLaneBeat,
 } from '../editing/editApplication';
 import type { CoordinateHelpers } from './useCoordinateHelpers';
 import {
@@ -97,12 +94,6 @@ export function useCanvasEvents(
   const entityType = useEditorStore((s) => s.entityType);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  // ③ 어댑터: 보조 편집을 chart.notes 재구성으로 번역 (RFD 0018) — 현재 메인 + 새 보조 병합.
-  const applyExtraNotes = useCallback((extra: ExtraNoteEntity[]) => {
-    const cur = useEditorStore.getState().chart;
-    useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
-  }, []);
-  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const addToast = useEditorStore((s) => s.addToast);
 
@@ -110,10 +101,10 @@ export function useCanvasEvents(
     xToLane, xToExtraLane,
     yToBeat, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
     hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef, hitTestTrillZoneRef,
     yToBeatRawRef,
-    hitTestNote, hitTestTrillZone, hitTestExtraNote,
+    hitTestUnifiedNote, hitTestTrillZone,
   } = coords;
 
   const rightDragDeletedRef = useRef(false);
@@ -180,7 +171,7 @@ export function useCanvasEvents(
       if (!fired) return;
       const { x: fx, y: fy } = fired;
       const fireHits: HoldHits = {
-        noteHit: hitTestNoteRef.current(fx, fy),
+        noteHit: hitTestUnifiedNoteRef.current(fx, fy),
         noteEndHit: hitTestNoteEndRef.current(fx, fy),
         extraHit: hitTestExtraNoteRef.current(fx, fy),
         zoneHit: hitTestTrillZoneRef.current(fx, fy),
@@ -202,7 +193,6 @@ export function useCanvasEvents(
         selectModeRef.current?.beginLongPressDrag(fx, fy, {
           noteEndHit: fireHits.noteEndHit,
           noteHit: fireHits.noteHit,
-          extraHit: fireHits.extraHit,
           zoneHit: fireHits.zoneHit,
         });
         rendererRef.current?.hideGhostNote();
@@ -210,7 +200,7 @@ export function useCanvasEvents(
     }, LONG_PRESS_MS);
   }, [
     clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
   ]);
 
   const toSample = useCallback((
@@ -359,7 +349,7 @@ export function useCanvasEvents(
       return;
     }
 
-    const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
+    const touchNoteHit = e.pointerType === 'touch' ? hitTestUnifiedNoteRef.current(x, y) : null;
     const touchNoteEndHit = e.pointerType === 'touch' ? hitTestNoteEndRef.current(x, y) : null;
     const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
 
@@ -425,7 +415,7 @@ export function useCanvasEvents(
     toSample, handleEditCancel, armHoldTimer, hitTestTrillZoneRef,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
+    hitTestNoteEndRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
@@ -555,21 +545,16 @@ export function useCanvasEvents(
       return;
     }
 
-    const hoverNoteHit = hitTestNoteRef.current(x, y);
-    const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
+    // hover 히트는 통합 히트테스트 하나 — 메인·보조 모두 chart.notes 통합 인덱스라
+    // 파티션 전제 산술(mainCount + auxIdx)이 필요 없다 (RFD 0018 ④d).
+    const hoverNoteHit = hitTestUnifiedNoteRef.current(x, y);
     // trillZone hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
     // 그 구간을 래치해 커서가 밖으로 나가도 계속 표시한다(래치 결정을 모드가 소유 = PUSH).
     const hoveredTrillZone = mode === 'select'
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
       : null;
     if (rendererRef.current) {
-      // 렌더러 hover는 chart.notes 인덱스 공간 (RFD 0018 ③ — 보조 = mainCount + auxIdx)
-      const hoverUnified = hoverNoteHit !== null
-        ? hoverNoteHit
-        : hoverExtraHit !== null
-          ? auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, hoverExtraHit)
-          : null;
-      rendererRef.current.setHoveredNote(hoverUnified);
+      rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
@@ -590,7 +575,7 @@ export function useCanvasEvents(
       }
       if (canvasEl.style.cursor !== cursor) canvasEl.style.cursor = cursor;
     }
-    const isHoveringEntity = hoverNoteHit !== null || hoverExtraHit !== null;
+    const isHoveringEntity = hoverNoteHit !== null;
 
     if (isDraggingCursorRef.current && rendererRef.current) {
       const timeMs = rendererRef.current.clampToMeasureRange(rendererRef.current.yToTime(y));
@@ -605,25 +590,14 @@ export function useCanvasEvents(
       return;
     }
 
-    // 우클릭 드래그 삭제
+    // 우클릭 드래그 삭제 — 메인·보조 모두 통합 lane으로 chart.notes에서 제자리 삭제 (RFD 0018 ④d)
     if (e.buttons & 2) {
       const rawBeatDel = yToBeatRawRef.current(y);
       const beatFloat = rawBeatDel.n / rawBeatDel.d;
 
-      const extraLane = xToExtraLane(x);
-      if (extraLane !== null) {
-        const currentExtra = auxNotesAsExtra(useEditorStore.getState().chart.notes);
-        const updatedExtra = deleteExtraNoteAtLaneBeat(currentExtra, { extraLane, beatFloat });
-        if (updatedExtra !== null) {
-          rightDragDeletedRef.current = true;
-          applyExtraNotes(updatedExtra);
-          clearExtraSelection();
-        }
-        return;
-      }
-
-      const lane = xToLane(x);
-      if (!lane) return;
+      const extraLaneHit = xToExtraLane(x);
+      const lane = xToLane(x) ?? (extraLaneHit !== null ? fromAuxIndex(extraLaneHit) : null);
+      if (lane === null) return;
 
       const current = useEditorStore.getState().chart;
       const updatedChart = deleteChartNoteAtLaneBeat(current, { lane, beatFloat });
@@ -665,13 +639,13 @@ export function useCanvasEvents(
               // Show ghost marker for event entity types on extra lanes
               rendererRef.current.showGhostMarker(extraLane, timeMs);
             } else {
-              const existingExtra = extraNoteExistsAtSnap(auxNotesAsExtra(useEditorStore.getState().chart.notes), extraLane, snappedBeatFloat);
-              if (existingExtra === null) {
+              // 보조 노트도 chart.notes(lane 5+)에 살아 통합 인덱스로 직접 히트한다 (RFD 0018 ④d)
+              const existingAux = noteExistsAtSnap(useEditorStore.getState().chart.notes, fromAuxIndex(extraLane), snappedBeatFloat);
+              if (existingAux === null) {
                 rendererRef.current.showGhostExtraNote(extraLane, timeMs);
               } else {
                 rendererRef.current.hideGhostNote();
-                // chart.notes 인덱스 공간: 보조 노트 i는 chart.notes[mainCount + i] (RFD 0018 ③)
-                rendererRef.current.setHoveredNote(auxIndexToUnifiedIndex(useEditorStore.getState().chart.notes, existingExtra));
+                rendererRef.current.setHoveredNote(existingAux);
               }
             }
           } else {
@@ -696,10 +670,10 @@ export function useCanvasEvents(
     }
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
-    bpmMarkers, isTimeInBounds, setChart, applyExtraNotes,
-    clearExtraSelection, toSample, updateTouchMovement,
+    bpmMarkers, isTimeInBounds, setChart,
+    toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
-    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
     onNavigationInteraction, applyEditResult,
   ]);
@@ -772,7 +746,7 @@ export function useCanvasEvents(
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
         const selectionSize =
-          sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size;
+          sel.selection.notes.size + sel.selection.zones.size;
         // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 탭이 토글이 된다 (RFD 0016 §4.4).
         // 탭(빈 곳 탭·핸들 탭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
@@ -835,7 +809,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size,
+        sel.selection.notes.size + sel.selection.zones.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
@@ -893,18 +867,9 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    const extraHitIdx = hitTestExtraNote(x, y);
-    if (extraHitIdx !== null) {
-      const currentExtra = auxNotesAsExtra(useEditorStore.getState().chart.notes);
-      const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
-      if (updatedExtra === null) return;
-      applyExtraNotes(updatedExtra);
-      clearExtraSelection();
-      return;
-    }
-
+    // 통합 히트테스트 — 메인·보조 노트를 chart.notes 통합 인덱스로 한 경로에서 삭제 (RFD 0018 ④d)
     const currentChart = useEditorStore.getState().chart;
-    const result = DeleteMode.deleteNoteAtPoint(currentChart, hitTestNote, x, y);
+    const result = DeleteMode.deleteNoteAtPoint(currentChart, hitTestUnifiedNote, x, y);
     if (result) {
       setChart(result);
       return;
@@ -930,7 +895,7 @@ export function useCanvasEvents(
         events: currentChart.events.filter((_, i) => i !== markerHit.index),
       });
     }
-  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, applyExtraNotes, clearExtraSelection, addToast]);
+  }, [canvasRef, hitTestUnifiedNote, hitTestTrillZone, hitTestMarker, rendererRef, setChart, addToast]);
 
   return {
     handlePointerDown,
