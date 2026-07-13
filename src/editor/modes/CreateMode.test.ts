@@ -24,7 +24,6 @@ function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
     yToBeatRaw: (y: number): Beat => beat(y),
     hitTestNote: (_x: number, _y: number): number | null => null,
     hitTestExtraNote: (_x: number, _y: number): number | null => null,
-    onWarn: vi.fn(),
     ...overrides,
   };
 }
@@ -656,7 +655,6 @@ describe("CreateMode — 파티션 깨진 통합 차트 (RFD 0018 ④d)", () => 
     mode.onPointerDown(3, 2);
     mode.onPointerUp(3, 2);
 
-    expect(callbacks.onWarn).not.toHaveBeenCalled();
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     // 기존 3개(순서 보존) + 새 노트 append
@@ -670,10 +668,11 @@ describe("CreateMode — 파티션 깨진 통합 차트 (RFD 0018 ④d)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// 낙관적 편집 국소 판정 (RFD 0017) — 무관한 상주 위반이 생성을 전역 차단하지 않는다
+// 낙관적 편집 (RFD 0017) — 생성은 의미 위반이어도 조용히 커밋된다 (완전 낙관).
+// 피드백은 해칭+미니맵 틱, 강제는 저장·플레이 게이트 몫.
 // ---------------------------------------------------------------------------
 
-describe("CreateMode — 생성 국소 판정 (violationsInvolving, RFD 0017)", () => {
+describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () => {
   it("무관한 기존 중복(레인1)이 상주해도 빈 곳(레인2) 단노트 생성은 차단되지 않는다", () => {
     const chart = makeChart({
       notes: [
@@ -688,13 +687,12 @@ describe("CreateMode — 생성 국소 판정 (violationsInvolving, RFD 0017)", 
     mode.onPointerDown(2, 4);
     mode.onPointerUp(2, 4);
 
-    expect(callbacks.onWarn).not.toHaveBeenCalled();
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes).toHaveLength(3);
   });
 
-  it("생성 위치가 기존 노트와 같으면(새 노트 연루 중복) 여전히 차단된다", () => {
+  it("기존 노트와 같은 lane·beat에 단노트를 생성하면 중복 위반이어도 낙관적으로 커밋된다", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 1, beat: beat(2) }],
     });
@@ -705,8 +703,10 @@ describe("CreateMode — 생성 국소 판정 (violationsInvolving, RFD 0017)", 
     mode.onPointerDown(1, 2);
     mode.onPointerUp(1, 2);
 
-    expect(callbacks.onWarn).toHaveBeenCalled();
-    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(2); // 기존 1 + 중복 신규 1
+    expect(updated.notes[1]).toMatchObject({ type: "single", lane: 1, beat: beat(2) });
   });
 
   it("무관한 상주 위반이 있어도 롱노트(헤드+바디) 드래그 생성은 차단되지 않는다", () => {
@@ -723,9 +723,62 @@ describe("CreateMode — 생성 국소 판정 (violationsInvolving, RFD 0017)", 
     mode.onPointerDown(3, 2);
     mode.onPointerUp(3, 5);
 
-    expect(callbacks.onWarn).not.toHaveBeenCalled();
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes).toHaveLength(4); // 기존 2 + 헤드 + 바디
+  });
+
+  it("기존 롱노트 바디(레인1, 0~4)와 겹치는 구간(2~6)에 롱노트를 드래그 생성하면 겹침 위반이어도 헤드+바디가 커밋된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) }],
+    });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "long";
+
+    mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 6);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.notes).toHaveLength(3); // 기존 바디 1 + 새 헤드 + 새 바디
+    expect(updated.notes[1]).toMatchObject({ type: "single", lane: 1, beat: beat(2) });
+    expect(updated.notes[2]).toMatchObject({ type: "long", lane: 1, beat: beat(2), endBeat: beat(6) });
+  });
+
+  it("기존 트릴존(레인1, 0~4)과 겹치는 구간(2~6)에 트릴존을 생성하면 겹침 위반이어도 커밋된다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1, beat: beat(0), endBeat: beat(4) }],
+    });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "trillZone";
+
+    mode.onPointerDown(1, 2);
+    mode.onPointerUp(1, 6);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.trillZones).toHaveLength(2); // 기존 1 + 겹침 신규 1
+    expect(updated.trillZones[1]).toMatchObject({ lane: 1, beat: beat(2), endBeat: beat(6) });
+  });
+
+  it("같은 beat에 bpm 이벤트를 두 번 생성하면 중복 위반이어도 두 번째도 커밋된다", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, {
+      xToLane: () => null,
+      xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
+    });
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "bpm";
+
+    mode.onPointerDown(10, 4); // 첫 번째 bpm@4 — 즉시 생성
+    mode.onPointerDown(10, 4); // 두 번째 bpm@4 — 중복 위반이지만 커밋
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(2);
+    const updated = callbacks.onChartUpdate.mock.calls[1][0] as Chart;
+    expect(updated.events).toHaveLength(2); // 기존 1 + 중복 신규 1
+    expect(updated.events[0]).toMatchObject({ type: "bpm", beat: beat(4) });
+    expect(updated.events[1]).toMatchObject({ type: "bpm", beat: beat(4) });
   });
 });
