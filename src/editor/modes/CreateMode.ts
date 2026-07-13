@@ -1,10 +1,10 @@
 /**
  * Create Mode — 차트 엔티티 생성 인터랙션 핸들러
  *
- * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다.
- * 드래그로 구간 엔티티를 생성하며, 배치는 **새 엔티티에 연루된 위반만** 차단한다
- * (violationsInvolving 국소 판정) — 낙관적 편집(RFD 0017)에서 차트에 상주하는
- * 무관한 transient 위반이 생성을 전역 차단하지 않도록.
+ * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다. 드래그로 구간
+ * 엔티티를 생성한다. 생성은 완전 낙관(RFD 0017) — 의미 위반(중복·겹침)을 만들어도
+ * 조용히 커밋하고, 피드백은 해칭+미니맵 틱이 담당한다. 구조 위반은 setChart
+ * 게이트가 거부한다. 좌표 배치 가드(isCreatePlacementBlocked)는 별도 축으로 유지.
  */
 
 import type {
@@ -407,7 +407,8 @@ export class CreateMode implements EditorMode {
   }
 
   // -------------------------------------------------------------------------
-  // Private creation methods
+  // Private creation methods — 완전 낙관(RFD 0017): 의미 위반이어도 그대로 커밋.
+  // 검증·차단 없음. 구조 게이트는 setChart, 위반 피드백은 해칭.
   // -------------------------------------------------------------------------
 
   private isInsideTrillZone(lane: Lane, beat: Beat): boolean {
