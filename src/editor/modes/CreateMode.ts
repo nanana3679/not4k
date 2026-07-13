@@ -16,7 +16,7 @@ import type {
   Beat,
   Lane,
 } from "../../shared";
-import { validateChart, violationsInvolving, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
+import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
@@ -427,25 +427,6 @@ export class CreateMode implements EditorMode {
       ...(this._graceMode ? { grace: true } : {}),
     };
 
-    // Validate before adding
-    const testChart = {
-      notes: [...this.chart.notes, newNote],
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 라이브 차트에 transient 위반이 상주할 수 있으므로
-    // 전체 에러가 아니라 **새 노트에 연루된 위반만** 차단한다 — 무관한 기존 위반이
-    // 생성을 전역 차단하지 않도록. 기존 위반의 강제는 저장·플레이 게이트 몫.
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "note", index: this.chart.notes.length },
-    ]);
-    if (errors.length > 0) {
-      // Validation failed, don't add
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
-
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,
@@ -495,23 +476,6 @@ export class CreateMode implements EditorMode {
       ? [bodyNote]
       : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
 
-    // Validate before adding
-    const testChart = {
-      notes: [...this.chart.notes, ...newNotes],
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 새로 추가되는 헤드·바디에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(
-      validateChart(testChart),
-      newNotes.map((_, i) => ({ kind: "note" as const, index: this.chart.notes.length + i })),
-    );
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
-
     const updatedChart: Chart = {
       ...this.chart,
       notes: [...this.chart.notes, ...newNotes],
@@ -535,22 +499,6 @@ export class CreateMode implements EditorMode {
       beat: actualStartBeat,
       endBeat: actualEndBeat,
     };
-
-    // Validate before adding
-    const testChart = {
-      notes: this.chart.notes,
-      trillZones: [...this.chart.trillZones, newZone],
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 새 존에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "trillZone", index: this.chart.trillZones.length },
-    ]);
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
 
     // Create new chart with immutable update
     const updatedChart: Chart = {
@@ -612,22 +560,6 @@ export class CreateMode implements EditorMode {
         break;
       default:
         throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
-    }
-
-    // Validate before adding
-    const testChart = {
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: [...this.chart.events, newEvent],
-    };
-
-    // 낙관적 편집(RFD 0017): 새 이벤트에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "event", index: this.chart.events.length },
-    ]);
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
     }
 
     // Create new chart with immutable update
