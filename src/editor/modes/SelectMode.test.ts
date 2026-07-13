@@ -1610,6 +1610,22 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
     expect([...sel.notes]).toEqual([0]);   // 최저 인덱스 0(트릴) 그룹만 — 일반 3은 게이트가 제외
     expect(sel.zones).toEqual(new Set());
   });
+
+  it("완전 감싸진 zone1 유닛과 통과 zone0 트릴(최저 인덱스)이 혼재하면 동질성 게이트가 트릴 모드를 남기고 유닛을 떨군다(수용된 trade-off 고정)", () => {
+    // 박스 beat 3~8: 구간0[2,4]는 미감쌈(트릴 1 개별) + 구간1[6,8]은 완전 감쌈(유닛 후보).
+    // selectionFromBox는 {notes:{1}, zones:{1}}을 내지만, normalizeSelection이 최저 인덱스(트릴 1)로
+    // kind=trill 판정 → zones를 비워, 감싸진 구간1 유닛이 조용히 빠진다.
+    const cb = makeCallbacks();
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(2, 3, false, false); // 빈 곳(레인2, beat3)에서 박스 시작
+    mode.onPointerMove(1, 8);               // 레인 1~2, beat 3~8
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([1]);   // 통과 구간0 트릴 1만
+    expect(sel.zones).toEqual(new Set());  // 완전 감싸진 구간1 유닛은 게이트가 떨굼
+  });
 });
 
 // ---------------------------------------------------------------------------
