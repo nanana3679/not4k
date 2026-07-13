@@ -25,7 +25,14 @@ export interface CoordinateHelpers {
   yToBeatRaw: (y: number) => Beat;
   snapBeat: (beat: Beat) => Beat;
   getMaxBeatFloat: () => number;
+  /** 메인 레인(1..4) 한정 히트테스트 — Create/Delete 모드가 소비(보조는 hitTestExtraNote 별도 축). */
   hitTestNote: (x: number, y: number) => number | null;
+  /**
+   * 통합 히트테스트 — xToUnifiedLane 기반이라 메인·보조 노트의 chart.notes 통합 인덱스를 반환.
+   * SelectMode(선택·이동)가 소비한다 (RFD 0018 ④). hitTestNote(메인 한정)와 병존하는 이유:
+   * Create/Delete는 아직 메인-only 차트 + 보조 축 어댑터를 쓰므로 통합 인덱스를 오해석하기 때문.
+   */
+  hitTestUnifiedNote: (x: number, y: number) => number | null;
   hitTestNoteEnd: (x: number, y: number) => number | null;
   hitTestEventEnd: (x: number, y: number) => number | null;
   hitTestTrillZoneEnd: (x: number, y: number) => number | null;
@@ -37,6 +44,7 @@ export interface CoordinateHelpers {
   yToBeatRawRef: RefObject<(y: number) => Beat>;
   getMaxBeatFloatRef: RefObject<() => number>;
   hitTestNoteRef: RefObject<(x: number, y: number) => number | null>;
+  hitTestUnifiedNoteRef: RefObject<(x: number, y: number) => number | null>;
   hitTestNoteEndRef: RefObject<(x: number, y: number) => number | null>;
   hitTestEventEndRef: RefObject<(x: number, y: number) => number | null>;
   hitTestTrillZoneEndRef: RefObject<(x: number, y: number) => number | null>;
@@ -119,6 +127,15 @@ export function useCoordinateHelpers(
     return hitTestNoteAt(chart.notes, lane, b.n / b.d, undefined, selectedNotes);
   }, [chart.notes, selectedNotes, xToLane, yToBeatRaw]);
 
+  // 통합 히트테스트 — 보조 레인(5+)까지 포함해 chart.notes 통합 인덱스를 반환 (RFD 0018 ④).
+  // hitTestNoteAt은 lane 비교만 하므로 통합 lane(5+)을 넘기면 보조 노트 인덱스를 찾는다.
+  const hitTestUnifiedNote = useCallback((x: number, y: number): number | null => {
+    const lane = xToUnifiedLane(x);
+    if (lane === null) return null;
+    const b = yToBeatRaw(y);
+    return hitTestNoteAt(chart.notes, lane, b.n / b.d, undefined, selectedNotes);
+  }, [chart.notes, selectedNotes, xToUnifiedLane, yToBeatRaw]);
+
   const hitTestNoteEnd = useCallback((x: number, y: number): number | null => {
     const lane = xToLane(x);
     if (lane === null) return null;
@@ -196,6 +213,7 @@ export function useCoordinateHelpers(
   const yToBeatRawRef = useRef(yToBeatRaw);
   const getMaxBeatFloatRef = useRef(getMaxBeatFloat);
   const hitTestNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
+  const hitTestUnifiedNoteRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestNoteEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestEventEndRef = useRef<(x: number, y: number) => number | null>(() => null);
   const hitTestTrillZoneEndRef = useRef<(x: number, y: number) => number | null>(() => null);
@@ -208,6 +226,7 @@ export function useCoordinateHelpers(
     yToBeatRawRef.current = yToBeatRaw;
     getMaxBeatFloatRef.current = getMaxBeatFloat;
     hitTestNoteRef.current = hitTestNote;
+    hitTestUnifiedNoteRef.current = hitTestUnifiedNote;
     hitTestNoteEndRef.current = hitTestNoteEnd;
     hitTestEventEndRef.current = hitTestEventEnd;
     hitTestTrillZoneEndRef.current = hitTestTrillZoneEnd;
@@ -225,6 +244,7 @@ export function useCoordinateHelpers(
     snapBeat,
     getMaxBeatFloat,
     hitTestNote,
+    hitTestUnifiedNote,
     hitTestNoteEnd,
     hitTestEventEnd,
     hitTestTrillZoneEnd,
@@ -235,6 +255,7 @@ export function useCoordinateHelpers(
     yToBeatRawRef,
     getMaxBeatFloatRef,
     hitTestNoteRef,
+    hitTestUnifiedNoteRef,
     hitTestNoteEndRef,
     hitTestEventEndRef,
     hitTestTrillZoneEndRef,

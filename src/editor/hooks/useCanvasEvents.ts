@@ -102,7 +102,6 @@ export function useCanvasEvents(
     const cur = useEditorStore.getState().chart;
     useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
   }, []);
-  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const addToast = useEditorStore((s) => s.addToast);
 
@@ -110,11 +109,15 @@ export function useCanvasEvents(
     xToLane, xToExtraLane,
     yToBeat, snapBeat,
     bpmMarkers,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
     hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef, hitTestTrillZoneRef,
     yToBeatRawRef,
     hitTestNote, hitTestTrillZone, hitTestExtraNote,
   } = coords;
+
+  // 선택 모드는 통합 히트테스트(보조 노트 포함), Create/Delete는 메인 한정 (RFD 0018 ④).
+  const noteHitRefForMode = (m: string) =>
+    m === 'select' ? hitTestUnifiedNoteRef : hitTestNoteRef;
 
   const rightDragDeletedRef = useRef(false);
   const recognizerRef = useRef(new GestureRecognizer());
@@ -180,7 +183,7 @@ export function useCanvasEvents(
       if (!fired) return;
       const { x: fx, y: fy } = fired;
       const fireHits: HoldHits = {
-        noteHit: hitTestNoteRef.current(fx, fy),
+        noteHit: noteHitRefForMode(mode).current(fx, fy),
         noteEndHit: hitTestNoteEndRef.current(fx, fy),
         extraHit: hitTestExtraNoteRef.current(fx, fy),
         zoneHit: hitTestTrillZoneRef.current(fx, fy),
@@ -202,7 +205,6 @@ export function useCanvasEvents(
         selectModeRef.current?.beginLongPressDrag(fx, fy, {
           noteEndHit: fireHits.noteEndHit,
           noteHit: fireHits.noteHit,
-          extraHit: fireHits.extraHit,
           zoneHit: fireHits.zoneHit,
         });
         rendererRef.current?.hideGhostNote();
@@ -210,7 +212,7 @@ export function useCanvasEvents(
     }, LONG_PRESS_MS);
   }, [
     clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef,
-    hitTestNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef, hitTestTrillZoneRef,
   ]);
 
   const toSample = useCallback((
@@ -359,7 +361,7 @@ export function useCanvasEvents(
       return;
     }
 
-    const touchNoteHit = e.pointerType === 'touch' ? hitTestNoteRef.current(x, y) : null;
+    const touchNoteHit = e.pointerType === 'touch' ? noteHitRefForMode(mode).current(x, y) : null;
     const touchNoteEndHit = e.pointerType === 'touch' ? hitTestNoteEndRef.current(x, y) : null;
     const touchExtraHit = e.pointerType === 'touch' ? hitTestExtraNoteRef.current(x, y) : null;
 
@@ -425,7 +427,7 @@ export function useCanvasEvents(
     toSample, handleEditCancel, armHoldTimer, hitTestTrillZoneRef,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteEndRef, hitTestNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
+    hitTestNoteEndRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
@@ -555,7 +557,7 @@ export function useCanvasEvents(
       return;
     }
 
-    const hoverNoteHit = hitTestNoteRef.current(x, y);
+    const hoverNoteHit = noteHitRefForMode(mode).current(x, y);
     const hoverExtraHit = hitTestExtraNoteRef.current(x, y);
     // trillZone hover는 select 모드에서만. 드래그(리사이즈/구간 이동) 중이면 SelectMode가
     // 그 구간을 래치해 커서가 밖으로 나가도 계속 표시한다(래치 결정을 모드가 소유 = PUSH).
@@ -617,7 +619,6 @@ export function useCanvasEvents(
         if (updatedExtra !== null) {
           rightDragDeletedRef.current = true;
           applyExtraNotes(updatedExtra);
-          clearExtraSelection();
         }
         return;
       }
@@ -697,9 +698,9 @@ export function useCanvasEvents(
   }, [
     mode, entityType, xToLane, xToExtraLane, yToBeat, snapBeat,
     bpmMarkers, isTimeInBounds, setChart, applyExtraNotes,
-    clearExtraSelection, toSample, updateTouchMovement,
+    toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
-    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteRef, hitTestUnifiedNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
     onNavigationInteraction, applyEditResult,
   ]);
@@ -772,7 +773,7 @@ export function useCanvasEvents(
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
         const selectionSize =
-          sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size;
+          sel.selection.notes.size + sel.selection.zones.size;
         // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 탭이 토글이 된다 (RFD 0016 §4.4).
         // 탭(빈 곳 탭·핸들 탭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
@@ -835,7 +836,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.extraNotes.size + sel.selection.zones.size,
+        sel.selection.notes.size + sel.selection.zones.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {
@@ -899,7 +900,6 @@ export function useCanvasEvents(
       const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
       if (updatedExtra === null) return;
       applyExtraNotes(updatedExtra);
-      clearExtraSelection();
       return;
     }
 
@@ -930,7 +930,7 @@ export function useCanvasEvents(
         events: currentChart.events.filter((_, i) => i !== markerHit.index),
       });
     }
-  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, applyExtraNotes, clearExtraSelection, addToast]);
+  }, [canvasRef, hitTestNote, hitTestTrillZone, hitTestMarker, hitTestExtraNote, rendererRef, setChart, applyExtraNotes, addToast]);
 
   return {
     handlePointerDown,

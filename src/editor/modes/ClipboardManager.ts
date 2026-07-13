@@ -1,11 +1,15 @@
-import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity, TrillZone } from "../../shared";
-import { beatToFloat } from "../../shared";
+import type { Chart, NoteEntity, RangeNote, Beat, TrillZone } from "../../shared";
+import { beatToFloat, isVisibleLane, isMainLane } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
 
-/** Clipboard data for copy/paste */
+/**
+ * Clipboard data for copy/paste.
+ *
+ * RFD 0018 ④: 보조 노트가 chart.notes(lane 5+)로 통합돼 노트 배열 하나가 메인·보조를
+ * 모두 담는다 — 별도 extraNotes 축 없이 lane 번호만으로 구분한다.
+ */
 export interface NoteClipboard {
   notes: NoteEntity[];
-  extraNotes: ExtraNoteEntity[];
   /** 함께 복사된 trillZone(트릴 선택 시 구간째 복사) */
   trillZones: TrillZone[];
   /** Earliest beat among copied notes/zones (relative offset anchor) */
@@ -15,35 +19,25 @@ export interface NoteClipboard {
 export interface ClipboardCallbacks {
   getSnapStep: () => Beat;
   getMaxBeatFloat: () => number;
-  getExtraNotes?: () => ExtraNoteEntity[];
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  onExtraSelectionChange?: (indices: Set<number>) => void;
+  /** 현재 보조 레인 수 — 붙여넣기 이동의 레인 클램프(isVisibleLane)에 쓴다 */
+  getExtraLaneCount?: () => number;
   onWarn?: (msg: string) => void;
   onChartUpdate: (chart: Chart) => void;
-  onSelectionChange: (selectedIndices: Set<number>) => void;
 }
 
 export interface PasteResult {
   chart: Chart;
   selectedIndices: Set<number>;
-  selectedExtraIndices: Set<number>;
   pastedNoteIndices: Set<number>;
-  pastedExtraNoteIndices: Set<number>;
   count: number;
-}
-
-export interface CancelPasteResult {
-  chart: Chart;
 }
 
 export class ClipboardManager {
   private clipboard: NoteClipboard | null = null;
   private _isPendingPaste = false;
   private prePasteNotes: NoteEntity[] | null = null;
-  private prePasteExtraNotes: ExtraNoteEntity[] | null = null;
   private prePasteZones: TrillZone[] | null = null;
   private pastedNoteIndices: Set<number> = new Set();
-  private pastedExtraNoteIndices: Set<number> = new Set();
   private pastedZoneIndices: Set<number> = new Set();
 
   /** Whether clipboard has data */
@@ -61,48 +55,29 @@ export class ClipboardManager {
     return this.pastedNoteIndices;
   }
 
-  /** Read-only access to pasted extra note indices */
-  get currentPastedExtraNoteIndices(): ReadonlySet<number> {
-    return this.pastedExtraNoteIndices;
-  }
-
   /**
-   * Copy selected notes to clipboard.
-   * Returns count of copied notes.
+   * Copy selected notes (메인·보조 통합 인덱스) to clipboard.
+   * Returns count of copied notes + zones.
    */
   copy(
     chart: Chart,
     selectedIndices: ReadonlySet<number>,
-    selectedExtraIndices: ReadonlySet<number>,
-    callbacks: Pick<ClipboardCallbacks, "getExtraNotes">,
     trillZoneIndices: ReadonlySet<number> = new Set(),
   ): number {
     if (this._isPendingPaste) return 0;
 
-    const noteCount = selectedIndices.size;
-    const extraNotes: ExtraNoteEntity[] = [];
-
-    if (noteCount === 0 && selectedExtraIndices.size === 0 && trillZoneIndices.size === 0) return 0;
+    if (selectedIndices.size === 0 && trillZoneIndices.size === 0) return 0;
 
     const copiedNotes: NoteEntity[] = [];
     let anchorBeat: Beat | null = null;
 
     for (const idx of selectedIndices) {
-      const note = { ...chart.notes[idx] };
+      const src = chart.notes[idx];
+      if (!src) continue;
+      const note = { ...src };
       copiedNotes.push(note);
       if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
         anchorBeat = note.beat;
-      }
-    }
-
-    if (selectedExtraIndices.size > 0 && callbacks.getExtraNotes) {
-      const allExtra = callbacks.getExtraNotes();
-      for (const idx of selectedExtraIndices) {
-        const note = { ...allExtra[idx] };
-        extraNotes.push(note);
-        if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
-          anchorBeat = note.beat;
-        }
       }
     }
 
@@ -119,8 +94,8 @@ export class ClipboardManager {
 
     if (anchorBeat === null) return 0;
 
-    this.clipboard = { notes: copiedNotes, extraNotes, trillZones, anchorBeat };
-    return noteCount + extraNotes.length + trillZones.length;
+    this.clipboard = { notes: copiedNotes, trillZones, anchorBeat };
+    return copiedNotes.length + trillZones.length;
   }
 
   /**
@@ -139,11 +114,10 @@ export class ClipboardManager {
       this._cancelPasteInternal(chart, callbacks);
     }
 
-    const { notes: clipNotes, extraNotes: clipExtra, trillZones: clipZones, anchorBeat } = this.clipboard;
-    if (clipNotes.length === 0 && clipExtra.length === 0 && clipZones.length === 0) return null;
+    const { notes: clipNotes, trillZones: clipZones, anchorBeat } = this.clipboard;
+    if (clipNotes.length === 0 && clipZones.length === 0) return null;
 
     this.prePasteNotes = [...chart.notes];
-    this.prePasteExtraNotes = callbacks.getExtraNotes?.() ?? null;
     this.prePasteZones = [...chart.trillZones];
 
     const beatOffset = beatSub(targetBeat, anchorBeat);
@@ -213,44 +187,15 @@ export class ClipboardManager {
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones };
 
-    this.pastedExtraNoteIndices.clear();
-    const newSelectedExtraIndices = new Set<number>();
-
-    if (clipExtra.length > 0 && callbacks.getExtraNotes && callbacks.onExtraNotesUpdate) {
-      const extraNotes = [...callbacks.getExtraNotes()];
-      for (const clipNote of clipExtra) {
-        const newBeat = beatAdd(clipNote.beat, beatOffset);
-        let pasted: ExtraNoteEntity;
-
-        if ("endBeat" in clipNote) {
-          const newEndBeat = beatAdd(clipNote.endBeat, beatOffset);
-          pasted = { ...clipNote, beat: newBeat, endBeat: newEndBeat };
-        } else {
-          pasted = { ...clipNote, beat: newBeat };
-        }
-
-        const idx = extraNotes.length;
-        extraNotes.push(pasted);
-        this.pastedExtraNoteIndices.add(idx);
-        newSelectedExtraIndices.add(idx);
-      }
-
-      callbacks.onExtraNotesUpdate(extraNotes);
-      callbacks.onExtraSelectionChange?.(new Set(newSelectedExtraIndices));
-    }
-
     this._isPendingPaste = true;
 
-    callbacks.onSelectionChange(new Set(newSelectedIndices));
     callbacks.onChartUpdate(newChart);
 
     return {
       chart: newChart,
       selectedIndices: newSelectedIndices,
-      selectedExtraIndices: newSelectedExtraIndices,
       pastedNoteIndices: new Set(this.pastedNoteIndices),
-      pastedExtraNoteIndices: new Set(this.pastedExtraNoteIndices),
-      count: clipNotes.length + clipExtra.length + clipZones.length,
+      count: clipNotes.length + clipZones.length,
     };
   }
 
@@ -260,7 +205,7 @@ export class ClipboardManager {
    */
   cancelPaste(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate">,
     clearSelection: () => void,
   ): Chart {
     if (!this._isPendingPaste) return chart;
@@ -269,7 +214,7 @@ export class ClipboardManager {
 
   private _cancelPasteInternal(
     chart: Chart,
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onExtraNotesUpdate">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate">,
     clearSelection?: () => void,
   ): Chart {
     let newChart = chart;
@@ -284,14 +229,8 @@ export class ClipboardManager {
       this.prePasteZones = null;
     }
 
-    if (this.prePasteExtraNotes && callbacks.onExtraNotesUpdate) {
-      callbacks.onExtraNotesUpdate(this.prePasteExtraNotes);
-      this.prePasteExtraNotes = null;
-    }
-
     this._isPendingPaste = false;
     this.pastedNoteIndices.clear();
-    this.pastedExtraNoteIndices.clear();
     this.pastedZoneIndices.clear();
 
     // 순서 주의: 차트 복원(축소 커밋 → 선택 원자 clear, §3-5 면제 경로) → 선택 해제.
@@ -349,26 +288,6 @@ export class ClipboardManager {
     }
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones };
-
-    if (
-      this.pastedExtraNoteIndices.size > 0 &&
-      callbacks.getExtraNotes &&
-      callbacks.onExtraNotesUpdate
-    ) {
-      const extraNotes = [...callbacks.getExtraNotes()];
-      for (const idx of this.pastedExtraNoteIndices) {
-        const note = extraNotes[idx];
-        const newBeat = beatAdd(note.beat, offset);
-        if ("endBeat" in note) {
-          const duration = beatSub(note.endBeat, note.beat);
-          extraNotes[idx] = { ...note, beat: newBeat, endBeat: beatAdd(newBeat, duration) };
-        } else {
-          extraNotes[idx] = { ...note, beat: newBeat };
-        }
-      }
-      callbacks.onExtraNotesUpdate(extraNotes);
-    }
-
     callbacks.onChartUpdate(newChart);
 
     return newChart;
@@ -378,36 +297,39 @@ export class ClipboardManager {
    * Move pasted notes by lane (during pending paste).
    * Does NOT auto-rollback on violations.
    * Returns updated chart, or null if blocked.
+   *
+   * RFD 0018 ④: 통합 레인 이동 — 메인4↔보조5는 한 칸 연속, 클램프는 isVisibleLane
+   * (1..4+extraLaneCount). trillZone은 게임 판정 대상이라 메인 레인(1..4)만.
    */
   movePasteByLane(
     chart: Chart,
     direction: "left" | "right",
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getSnapStep" | "getMaxBeatFloat">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
   ): Chart | null {
     if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return null;
 
     const laneOffset = direction === "left" ? -1 : 1;
+    const extraLaneCount = callbacks.getExtraLaneCount?.() ?? 0;
 
     for (const idx of this.pastedNoteIndices) {
       const note = chart.notes[idx];
-      const targetLane = note.lane + laneOffset;
-      if (targetLane < 1 || targetLane > 4) return null;
+      if (!isVisibleLane(note.lane + laneOffset, extraLaneCount)) return null;
     }
-    // 붙여넣은 trillZone도 레인 범위 검사
+    // 붙여넣은 trillZone은 메인 레인 범위(1..4)만
     for (const idx of this.pastedZoneIndices) {
       const targetLane = chart.trillZones[idx].lane + laneOffset;
-      if (targetLane < 1 || targetLane > 4) return null;
+      if (!isMainLane(targetLane)) return null;
     }
 
     const newNotes = [...chart.notes];
     for (const idx of this.pastedNoteIndices) {
       const note = newNotes[idx];
-      newNotes[idx] = { ...note, lane: (note.lane + laneOffset) as Lane };
+      newNotes[idx] = { ...note, lane: note.lane + laneOffset };
     }
     const newZones = [...chart.trillZones];
     for (const idx of this.pastedZoneIndices) {
       const zone = newZones[idx];
-      newZones[idx] = { ...zone, lane: (zone.lane + laneOffset) as Lane };
+      newZones[idx] = { ...zone, lane: (zone.lane + laneOffset) as TrillZone["lane"] };
     }
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones };
@@ -430,10 +352,8 @@ export class ClipboardManager {
     if (errors.length === 0) {
       this._isPendingPaste = false;
       this.prePasteNotes = null;
-      this.prePasteExtraNotes = null;
       this.prePasteZones = null;
       this.pastedNoteIndices.clear();
-      this.pastedExtraNoteIndices.clear();
       this.pastedZoneIndices.clear();
       callbacks.onChartUpdate(chart);
       return true;
@@ -443,7 +363,7 @@ export class ClipboardManager {
     }
   }
 
-  private _isRangeNote(note: NoteEntity | ExtraNoteEntity): note is RangeNote {
+  private _isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
   }
 
