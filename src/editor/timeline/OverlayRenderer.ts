@@ -13,7 +13,7 @@ import {
   EXTRA_LANE_WIDTH,
   COLORS,
 } from "./constants";
-import { laneToX, laneWidth } from "./laneGeometry";
+import { laneToX, laneWidth, eventLaneToX } from "./laneGeometry";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
 import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
@@ -27,6 +27,7 @@ export interface OverlayHost {
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
+  readonly violatingEventIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
@@ -360,7 +361,8 @@ export class OverlayRenderer {
     if (!this.host.chart) return;
     if (
       this.host.violatingNoteIndices.size === 0 &&
-      this.host.violatingTrillZoneIndices.size === 0
+      this.host.violatingTrillZoneIndices.size === 0 &&
+      this.host.violatingEventIndices.size === 0
     ) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
@@ -385,6 +387,15 @@ export class OverlayRenderer {
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
+    // 이벤트: editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지, 시점 이벤트는 포인트 (RFD 0017 §7).
+    for (const idx of this.host.violatingEventIndices) {
+      if (idx >= this.host.chart.events.length) continue;
+      const evt = this.host.chart.events[idx];
+      const rectX = eventLaneToX(evt.editorLane ?? 1);
+      const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
+      const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : null;
+      this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
+    }
   }
 
   /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */

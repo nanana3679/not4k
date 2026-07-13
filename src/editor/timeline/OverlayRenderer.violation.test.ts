@@ -24,6 +24,7 @@ function makeHost(
   chart: Chart,
   violatingNotes: Set<number>,
   violatingZones: Set<number>,
+  violatingEvents: Set<number> = new Set(),
 ): OverlayHost {
   return {
     chart,
@@ -32,6 +33,7 @@ function makeHost(
     resizeHoverNoteIndex: null,
     violatingNoteIndices: violatingNotes,
     violatingTrillZoneIndices: violatingZones,
+    violatingEventIndices: violatingEvents,
     moveOrigins: null,
     boxSelectRect: null,
     scrollY: 0,
