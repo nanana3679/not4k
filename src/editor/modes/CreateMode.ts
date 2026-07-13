@@ -80,8 +80,6 @@ export interface CreateModeCallbacks {
   hitTestExtraNote: (x: number, y: number) => number | null;
   /** Called to get extra lane number (1~N) from X, or null */
   xToExtraLane?: (x: number) => number | null;
-  /** Called to display a warning message to the user */
-  onWarn?: (message: string) => void;
 }
 
 export class CreateMode implements EditorMode {
