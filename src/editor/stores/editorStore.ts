@@ -31,7 +31,7 @@ const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
 // 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)는 ViewportSlice가 단독 소유한다.
-// 선택 상태(selection: notes·extraNotes·zones)는 SelectionSlice가 단독 소유한다(RFD 0016).
+// 선택 상태(selection: notes·zones)는 SelectionSlice가 단독 소유한다(RFD 0016).
 interface EditorState extends ViewportSlice, SelectionSlice {
   // Page navigation
   activePage: EditorPage;

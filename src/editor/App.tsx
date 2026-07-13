@@ -650,7 +650,7 @@ function ChartEditorPage() {
     rendererRef.current?.setSelectedNotes(selectedNotes);
   }, [selectedNotes]);
 
-  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  // selection.zones → renderer (notes는 위의 effect가 push)
   const selectedZones = useEditorStore((s) => s.selection.zones);
   useEffect(() => {
     rendererRef.current?.setSelectedTrillZones(selectedZones);
