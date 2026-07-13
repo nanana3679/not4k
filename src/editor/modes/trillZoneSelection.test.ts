@@ -12,6 +12,7 @@ import {
   filterHomogeneousSelection,
   clampTrillBeatOffset,
   boxAnchorKind,
+  boxEnclosesZone,
   selectionFromBox,
 } from "./trillZoneSelection";
 import { beat, beatToFloat } from "../../shared";
@@ -280,6 +281,34 @@ describe("trillZoneOverlapsBox", () => {
 });
 
 // ---------------------------------------------------------------------------
+// boxEnclosesZone — 박스가 트릴존을 완전히 감싸는지 (RFD 0016 §6-2 감쌈 모델)
+// ---------------------------------------------------------------------------
+
+describe("boxEnclosesZone", () => {
+  const zone: TrillZone = { lane: 2, beat: beat(2), endBeat: beat(6) };
+
+  it("박스가 zone beat·lane을 완전히 포함하면(레인1~3, 박0~8 ⊇ 존 레인2, 2~6) true", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
+  });
+
+  it("박스 maxBeat(4)가 zone.endBeat(6)보다 작으면(부분 겹침) false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(false);
+  });
+
+  it("박스 minBeat(3)가 zone.beat(2)보다 크면 false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(false);
+  });
+
+  it("zone.lane(2)이 박스 lane 범위(3~4) 밖이면 박이 다 감싸여도 false", () => {
+    expect(boxEnclosesZone(zone, { minLane: 3, maxLane: 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
+  });
+
+  it("박스 경계와 zone 경계가 정확히 같으면(레인2~2, 박2~6 == 존) true — 폐구간", () => {
+    expect(boxEnclosesZone(zone, { minLane: 2, maxLane: 2, minBeat: beat(2), maxBeat: beat(6) })).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // boxAnchorKind — 박스 시작 앵커의 첫 접촉 종류 잠금 (RFD 0016 §6-2)
 // ---------------------------------------------------------------------------
 
@@ -330,35 +359,54 @@ describe("selectionFromBox", () => {
     { type: "single", lane: 3, beat: beat(3) },  // 3: 일반 (박스 안)
     { type: "single", lane: 3, beat: beat(9) },  // 4: 일반 (박스 밖)
   ];
-  const box = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+  // 두 zone(2~4)을 모두 완전히 감싸는 박스
+  const enclosingBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+  // maxBeat(3) < zone.endBeat(4) → 어떤 zone도 완전히 못 감싸는 부분 겹침 박스
+  const partialBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(3) };
 
-  it("trill 모드는 박스 안 해당 zone 트릴 노트만 담고 zones는 비운다", () => {
-    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: 0 });
+  it("트릴 모드: 박스가 앵커 zone을 아직 완전히 안 감쌌으면(maxBeat3 < endBeat4) 그 zone 개별 트릴만 담고 zones는 비운다", () => {
+    const sel = selectionFromBox(zones, notes, partialBox, { kind: "trill", zoneIndex: 0 });
     expect(sel.notes).toEqual(new Set([0, 1]));
     expect(sel.zones).toEqual(new Set());
   });
 
-  it("trill 모드는 다른 zone 트릴(구간1)과 일반 노트를 제외한다", () => {
-    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: 0 });
+  it("트릴 모드(부분 감쌈)는 다른 zone 트릴(구간1)과 일반 노트를 제외한다", () => {
+    const sel = selectionFromBox(zones, notes, partialBox, { kind: "trill", zoneIndex: 0 });
     expect(sel.notes.has(2)).toBe(false); // 구간1 트릴
     expect(sel.notes.has(3)).toBe(false); // 일반
   });
 
-  it("normal 모드는 박스 안 비트릴 노트와 겹치는 zone 유닛을 담는다", () => {
-    const sel = selectionFromBox(zones, notes, box, { kind: "normal" });
+  it("트릴 앵커라도 박스가 그 zone을 완전히 감싸면 구간 모드로 전환 — 그 zone이 유닛(zones)이 되고 개별 트릴은 notes에서 빠진다", () => {
+    const sel = selectionFromBox(zones, notes, enclosingBox, { kind: "trill", zoneIndex: 0 });
+    expect(sel.zones.has(0)).toBe(true);  // 앵커 zone 유닛 픽업
+    expect(sel.notes.has(0)).toBe(false); // 개별 트릴 제외
+    expect(sel.notes.has(1)).toBe(false);
+    // 전환된 구간 모드라 다른 감싸진 zone·일반 노트도 들어온다
+    expect(sel.zones).toEqual(new Set([0, 1]));
+    expect(sel.notes).toEqual(new Set([3]));
+  });
+
+  it("구간 모드: 박스 안 비트릴 노트와 완전히 감싸진 zone 유닛을 담는다", () => {
+    const sel = selectionFromBox(zones, notes, enclosingBox, { kind: "normal" });
     expect(sel.notes).toEqual(new Set([3]));
     expect(sel.zones).toEqual(new Set([0, 1]));
   });
 
-  it("normal 모드는 개별 트릴 노트(0,1,2)를 제외한다", () => {
-    const sel = selectionFromBox(zones, notes, box, { kind: "normal" });
+  it("구간 모드: zone을 완전히 감싸야 유닛 픽업 — 부분 겹침(maxBeat3 < endBeat4)이면 zones가 빈다(겹침→감쌈 회귀 가드)", () => {
+    const sel = selectionFromBox(zones, notes, partialBox, { kind: "normal" });
+    expect(sel.zones).toEqual(new Set());
+    expect(sel.notes).toEqual(new Set([3])); // 비트릴 노트는 겹침 기준 그대로
+  });
+
+  it("구간 모드는 개별 트릴 노트(0,1,2)를 제외한다", () => {
+    const sel = selectionFromBox(zones, notes, enclosingBox, { kind: "normal" });
     expect(sel.notes.has(0)).toBe(false);
     expect(sel.notes.has(1)).toBe(false);
     expect(sel.notes.has(2)).toBe(false);
   });
 
-  it("박스 범위 밖 노트는 어느 모드든 제외 — normal 모드 beat9 일반 노트, trill 모드 maxBeat=2면 beat3 트릴 제외", () => {
-    const normalSel = selectionFromBox(zones, notes, box, { kind: "normal" });
+  it("박스 범위 밖 노트는 어느 모드든 제외 — 구간 모드 beat9 일반 노트, 트릴 모드 maxBeat=2면 beat3 트릴 제외", () => {
+    const normalSel = selectionFromBox(zones, notes, enclosingBox, { kind: "normal" });
     expect(normalSel.notes.has(4)).toBe(false); // beat9 > maxBeat5
 
     const narrowBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(2) };
@@ -366,8 +414,8 @@ describe("selectionFromBox", () => {
     expect(trillSel.notes).toEqual(new Set([0])); // beat3 트릴(1)은 범위 밖
   });
 
-  it("trill 모드 zoneIndex=-1(고아 트릴 앵커)이면 앵커 포함 어떤 트릴도 잡지 않고 빈 선택", () => {
-    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: -1 });
+  it("trill 모드 zoneIndex=-1(고아 트릴 앵커)이면 박스가 무엇을 감싸든 빈 선택", () => {
+    const sel = selectionFromBox(zones, notes, enclosingBox, { kind: "trill", zoneIndex: -1 });
     expect(sel.notes).toEqual(new Set());
     expect(sel.zones).toEqual(new Set());
   });

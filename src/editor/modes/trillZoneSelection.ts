@@ -41,6 +41,22 @@ export function trillZoneOverlapsBox(
 }
 
 /**
+ * 박스가 trillZone을 완전히 감싸는지 — lane 포함 + beat 폐구간 [zone.beat, zone.endBeat]를
+ * 박스 beat 범위가 포함할 때만 true (RFD 0016 §6-2 감쌈 모델).
+ */
+export function boxEnclosesZone(
+  zone: TrillZone,
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): boolean {
+  return (
+    box.minLane <= zone.lane &&
+    zone.lane <= box.maxLane &&
+    beatToFloat(box.minBeat) <= beatToFloat(zone.beat) &&
+    beatToFloat(zone.endBeat) <= beatToFloat(box.maxBeat)
+  );
+}
+
+/**
  * 선택된 노트들과 연동되는 트릴존 인덱스 집합을 구한다.
  * 같은 레인에서 구간이 겹치는 트릴존이 하나라도 있으면 선택에 포함한다.
  */
@@ -204,9 +220,10 @@ function noteInBox(
 }
 
 /**
- * 잠긴 kind에 따라 박스 범위 안 선택을 계산한다 (RFD 0016 §6-2).
- * - trill 모드: 그 zone에 속한 트릴 노트만 담고 zones는 비운다.
- * - normal 모드: 비트릴 노트 + 겹치는 trillZone 유닛(RFD 0016 §4.3).
+ * 잠긴 kind에 따라 박스 범위 안 선택을 계산한다 (RFD 0016 §6-2 감쌈 모델).
+ * - trill 모드: 앵커 zone을 아직 완전히 못 감쌌으면 그 zone 개별 트릴 노트만(zones ∅).
+ *   앵커 zone을 완전히 감싸는 순간 구간 모드로 전환된다.
+ * - 구간(normal) 모드: 비트릴 노트(겹침) + 완전히 감싸진 trillZone 유닛(boxEnclosesZone).
  * empty 잠금은 도달하지 않지만(박스는 항상 normal/trill로 잠김) 방어적으로 normal로 취급한다.
  */
 export function selectionFromBox(
@@ -222,17 +239,22 @@ export function selectionFromBox(
     // 고아 트릴 앵커(어느 zone에도 안 속함 = zoneIndex -1): 잡을 동질 그룹이 없으므로
     // 빈 선택으로 고정한다. 서로 무관한 고아 트릴들을 한 그룹으로 합치지 않으려는 의도.
     if (lockedKind.zoneIndex < 0) return { notes: selectedNotes, zones: selectedZones };
-    for (let i = 0; i < notes.length; i++) {
-      const note = notes[i];
-      if (
-        isTrillNote(note) &&
-        noteInBox(note, box) &&
-        trillZoneIndexOfNote(trillZones, note) === lockedKind.zoneIndex
-      ) {
-        selectedNotes.add(i);
+    const anchorZone = trillZones[lockedKind.zoneIndex];
+    if (anchorZone && !boxEnclosesZone(anchorZone, box)) {
+      // 트릴 모드: 앵커 zone의 개별 트릴 노트만(박스 안), zones는 비운다.
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        if (
+          isTrillNote(note) &&
+          noteInBox(note, box) &&
+          trillZoneIndexOfNote(trillZones, note) === lockedKind.zoneIndex
+        ) {
+          selectedNotes.add(i);
+        }
       }
+      return { notes: selectedNotes, zones: selectedZones };
     }
-    return { notes: selectedNotes, zones: selectedZones };
+    // 앵커 zone을 완전히 감쌈 → 구간 모드로 전환(폴스루).
   }
 
   for (let i = 0; i < notes.length; i++) {
@@ -240,9 +262,7 @@ export function selectionFromBox(
     if (!isTrillNote(note) && noteInBox(note, box)) selectedNotes.add(i);
   }
   for (let i = 0; i < trillZones.length; i++) {
-    if (trillZoneOverlapsBox(trillZones[i], box.minLane, box.maxLane, box.minBeat, box.maxBeat)) {
-      selectedZones.add(i);
-    }
+    if (boxEnclosesZone(trillZones[i], box)) selectedZones.add(i);
   }
   return { notes: selectedNotes, zones: selectedZones };
 }
