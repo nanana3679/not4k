@@ -2436,4 +2436,3 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
     expect(setExtraLaneCount).not.toHaveBeenCalled();
   });
 });
-
