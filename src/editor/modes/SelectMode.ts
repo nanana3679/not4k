@@ -765,8 +765,9 @@ export class SelectMode implements EditorMode {
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
-    // 첫 접촉 잠금 종류에 따라 박스 안 선택 계산 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④),
-    // trill 모드=그 zone 트릴만(zones=∅), normal 모드=비트릴 노트+겹치는 zone 유닛(§4.1·§4.3).
+    // 첫 접촉 잠금 종류에 따라 박스 안 선택 계산 (RFD 0016 §6-2 감쌈 모델) — 통합 인덱스(RFD 0018 ④),
+    // trill 모드=그 zone 트릴만(zones=∅)이나 zone 완전 감쌈 시 구간 모드로 전환,
+    // 구간 모드=비트릴 노트 + 완전히 감싸진 zone 유닛(§4.1·§6-2 감쌈).
     const { notes, zones } = selectionFromBox(
       this.chart.trillZones,
       this.chart.notes,

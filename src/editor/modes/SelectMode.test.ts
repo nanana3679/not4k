@@ -1559,6 +1559,24 @@ describe("SelectMode — 박스 첫 접촉 종류 잠금 (RFD 0016 §6-2)", () =
     expect(sel.notes).toEqual(new Set());
   });
 
+  it("감쌈 전환은 가역이다 — 완전 감쌈(beat 2~5)으로 유닛이 됐다가 다시 축소(beat 2~3)하면 개별 트릴로 복귀한다", () => {
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);   // 트릴 노트 0에서 시작 → trill 모드 잠금
+    mode.onPointerMove(1, 5);    // 구간0[2,4] 완전 감쌈 → 유닛 전환
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+
+    mode.onPointerMove(1, 3);    // beat 2~3으로 축소 — 구간0 미감쌈 → 트릴 모드 복귀
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes].sort()).toEqual([0, 1]); // 개별 트릴 복귀
+    expect(sel.zones).toEqual(new Set());          // 유닛 해제
+  });
+
   it("빈 곳에서 시작한 박스는 트릴 노트를 제외하고 비트릴 노트와 완전히 감싸진 zone 유닛만 선택한다(회귀 가드)", () => {
     const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
     cb.yToBeatRaw = (y: number): Beat => beat(y);

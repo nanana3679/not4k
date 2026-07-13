@@ -24,7 +24,8 @@ export function trillZoneOverlapsNote(zone: TrillZone, note: NoteEntity): boolea
 
 /**
  * 트릴존이 박스 선택 범위(레인 범위 + 박 폐구간)와 겹치는지 판정한다.
- * 겹침 의미론은 trillZoneOverlapsNote와 동일한 폐구간 겹침(포함 아님) — RFD 0016 §4.3.
+ * 겹침 의미론은 trillZoneOverlapsNote와 동일한 폐구간 겹침(포함 아님).
+ * **박스 픽업에서는 미사용** — RFD 0016 §6-2 감쌈 모델로 대체(`boxEnclosesZone`). overlap 의미론 참조용으로 유지.
  */
 export function trillZoneOverlapsBox(
   zone: TrillZone,
@@ -240,7 +241,9 @@ export function selectionFromBox(
     // 빈 선택으로 고정한다. 서로 무관한 고아 트릴들을 한 그룹으로 합치지 않으려는 의도.
     if (lockedKind.zoneIndex < 0) return { notes: selectedNotes, zones: selectedZones };
     const anchorZone = trillZones[lockedKind.zoneIndex];
-    if (anchorZone && !boxEnclosesZone(anchorZone, box)) {
+    // 앵커 zone이 사라진 경우(인덱스 범위 밖)도 고아(-1)와 동일하게 빈 선택으로 고정한다.
+    if (!anchorZone) return { notes: selectedNotes, zones: selectedZones };
+    if (!boxEnclosesZone(anchorZone, box)) {
       // 트릴 모드: 앵커 zone의 개별 트릴 노트만(박스 안), zones는 비운다.
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
