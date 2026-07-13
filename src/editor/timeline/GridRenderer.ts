@@ -15,6 +15,7 @@ import {
   COLORS,
 } from "./constants";
 import { destroyChildren } from "./utils";
+import { eventLaneToX } from "./laneGeometry";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
@@ -251,14 +252,12 @@ export class GridRenderer {
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { events, meta } = chart;
-    const eventRenderBaseX = TIMELINE_WIDTH; // start of extra lanes
     const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      const col = (evt.editorLane ?? 1) - 1; // 1-based → 0-based
-      const eventRenderX = eventRenderBaseX + col * EXTRA_LANE_WIDTH;
+      const eventRenderX = eventLaneToX(evt.editorLane ?? 1);
 
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
       const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : startMs;

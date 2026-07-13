@@ -19,3 +19,12 @@ export function laneToX(lane: number): number {
 export function laneWidth(lane: number): number {
   return isMainLane(lane) ? LANE_WIDTH : EXTRA_LANE_WIDTH;
 }
+
+/**
+ * 이벤트 editorLane(1-based) → 엑스트라 레인 칸 왼쪽 x.
+ * 이벤트 전용 좌표계 — editorLane 1이 곧 첫 엑스트라 칸(TIMELINE_WIDTH)이다.
+ * laneToX(메인 1..4·보조 5+)와는 별개 축이므로 editorLane을 laneToX에 넣으면 안 된다.
+ */
+export function eventLaneToX(editorLane: number): number {
+  return TIMELINE_WIDTH + (editorLane - 1) * EXTRA_LANE_WIDTH;
+}

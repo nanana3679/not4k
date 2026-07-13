@@ -449,7 +449,7 @@ function ChartEditorPage() {
         trillZones: chart.trillZones,
         events: chart.events,
       });
-      renderer.setViolations(initViolations.notes, initViolations.trillZones);
+      renderer.setViolations(initViolations.notes, initViolations.trillZones, initViolations.events);
 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
@@ -618,7 +618,7 @@ function ChartEditorPage() {
         trillZones: chart.trillZones,
         events: chart.events,
       });
-      rendererRef.current.setViolations(violations.notes, violations.trillZones);
+      rendererRef.current.setViolations(violations.notes, violations.trillZones, violations.events);
     }
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
