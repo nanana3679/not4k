@@ -1589,6 +1589,24 @@ describe("SelectMode — 박스 첫 접촉 종류 잠금 (RFD 0016 §6-2)", () =
     const sel = cb.getSelectionState();
     expect([...sel.notes]).toEqual([3]); // 일반 노트 픽업 → normal 모드
   });
+
+  it("트릴 박스를 cancel(editCancel)로 폐기한 뒤 빈 곳 새 박스는 normal 모드로 동작한다(잠금 해제)", () => {
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);
+    mode.onPointerMove(2, 10);
+    mode.cancel(); // 두 손가락 내비 등으로 박스 폐기 → 잠금 리셋
+
+    mode.onPointerDown(3, 0, false, false); // 빈 곳(레인3, beat0)에서 새 박스
+    mode.onPointerMove(3, 10);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([3]); // 일반 노트 픽업 → normal 모드
+  });
 });
 
 // ---------------------------------------------------------------------------

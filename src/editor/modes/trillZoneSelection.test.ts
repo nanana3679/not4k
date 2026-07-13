@@ -365,4 +365,10 @@ describe("selectionFromBox", () => {
     const trillSel = selectionFromBox(zones, notes, narrowBox, { kind: "trill", zoneIndex: 0 });
     expect(trillSel.notes).toEqual(new Set([0])); // beat3 트릴(1)은 범위 밖
   });
+
+  it("trill 모드 zoneIndex=-1(고아 트릴 앵커)이면 앵커 포함 어떤 트릴도 잡지 않고 빈 선택", () => {
+    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: -1 });
+    expect(sel.notes).toEqual(new Set());
+    expect(sel.zones).toEqual(new Set());
+  });
 });

@@ -207,6 +207,7 @@ function noteInBox(
  * 잠긴 kind에 따라 박스 범위 안 선택을 계산한다 (RFD 0016 §6-2).
  * - trill 모드: 그 zone에 속한 트릴 노트만 담고 zones는 비운다.
  * - normal 모드: 비트릴 노트 + 겹치는 trillZone 유닛(RFD 0016 §4.3).
+ * empty 잠금은 도달하지 않지만(박스는 항상 normal/trill로 잠김) 방어적으로 normal로 취급한다.
  */
 export function selectionFromBox(
   trillZones: readonly TrillZone[],
@@ -218,6 +219,9 @@ export function selectionFromBox(
   const selectedZones = new Set<number>();
 
   if (lockedKind.kind === "trill") {
+    // 고아 트릴 앵커(어느 zone에도 안 속함 = zoneIndex -1): 잡을 동질 그룹이 없으므로
+    // 빈 선택으로 고정한다. 서로 무관한 고아 트릴들을 한 그룹으로 합치지 않으려는 의도.
+    if (lockedKind.zoneIndex < 0) return { notes: selectedNotes, zones: selectedZones };
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (
