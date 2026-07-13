@@ -48,6 +48,9 @@ export interface ValidationError {
   refs?: ValidationRef[];
 }
 
+/** rule 유니온 별칭 — 라벨 카탈로그(violationLabels) 등 rule 전수 맵의 키 타입 */
+export type ValidationErrorRule = ValidationError["rule"];
+
 /** RFD 0017 위반 시각화 — 위반에 연루된 엔티티를 원본 배열 인덱스로 가리킨다 */
 export type ValidationRefKind = "note" | "trillZone" | "event";
 
@@ -928,3 +931,7 @@ export function violationsInvolving(
     (err) => !err.refs || err.refs.some((r) => targetKeys.has(`${r.kind}:${r.index}`)),
   );
 }
+
+// rule → 사람이 읽는 라벨 카탈로그 (RFD 0017 §7 위반 시각화 언어).
+// violationLabels는 이 파일에서 타입만 가져오므로 순환 없음(타입 import는 컴파일 시 소거).
+export * from "./violationLabels";
