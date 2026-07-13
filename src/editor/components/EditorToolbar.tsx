@@ -362,6 +362,7 @@ const styles = {
   // 막다른 상태 탈출 버튼 (RFD 0017 §7) — 위반 팝오버 하단 맥락 버튼.
   // 파괴적 점프(위반 편집 폐기)라 위험 계열 테두리, 확인 다이얼로그 대신 undo 안전망.
   violationRevertButton: {
+    minHeight: '44px',
     padding: '8px 10px',
     backgroundColor: '#3a2626',
     color: '#ff6666',

@@ -293,4 +293,33 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     expect(useEditorStore.getState().selection.zones.size).toBe(0);
     expect(useEditorStore.getState().historyFuture).toHaveLength(0);
   });
+
+  it('loadChart(valid) 후 setExtraLaneCount(4)로 확장하면 씨앗도 4로 재페어링되어 revert 시 extraLaneCount 4 유지', () => {
+    // chart 커밋과 별개로 extraLaneCount만 바뀌는 복합 연산에서 (chart, extraLaneCount) 페어가
+    // 어긋나면 revert 시 보조 노트가 숨는다(RFD 0017 §7). setExtraLaneCount 재페어링이 이를 막는다.
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().loadChart(valid); // 씨앗 {chart: valid, extraLaneCount: 2}
+    useEditorStore.getState().setExtraLaneCount(4); // valid이므로 씨앗 재페어링 → extraLaneCount 4
+    const invalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(invalid); // 위반 — 씨앗 미갱신, {chart: valid, extraLaneCount: 4} 유지
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().chart).toBe(valid);
+    expect(useEditorStore.getState().extraLaneCount).toBe(4); // 페어링 유지 — 보조 노트 숨김 방지
+  });
+
+  it('현재 chart가 이미 lastValidSnapshot과 동일 참조면 revertToLastValid는 no-op', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid); // chart === valid === 씨앗.chart
+    const pastBefore = useEditorStore.getState().historyPast.length;
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().chart).toBe(valid); // 무변
+    expect(useEditorStore.getState().historyPast).toHaveLength(pastBefore); // 무의미한 entry 안 쌓음
+  });
 });

@@ -234,7 +234,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
-  setExtraLaneCount: (extraLaneCount) => set((state) => ({ ...captureHistory(state), extraLaneCount })),
+  setExtraLaneCount: (extraLaneCount) => set((state) => {
+    // 막다른 탈출 씨앗 재페어링(RFD 0017 §7): 씨앗은 "chart 커밋 순간의 extraLaneCount"를
+    // 캡처하지만, chart 커밋과 별개로 extraLaneCount만 바뀌는 복합 연산(loadChart→setExtraLaneCount,
+    // paste 확장/취소)에서 (chart, extraLaneCount) 페어가 어긋나면 revert 시 보조 노트가 숨는다.
+    // 현재 chart가 전체 valid면 같은 chart에 새 count로 씨앗을 다시 묶는다(validateChart는 참조 memo라 hit면 공짜).
+    const fullyValid = validateChart({
+      notes: state.chart.notes,
+      trillZones: state.chart.trillZones,
+      events: state.chart.events,
+    }).length === 0;
+    return {
+      ...captureHistory(state),
+      extraLaneCount,
+      ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount } } : {}),
+    };
+  }),
   undo: () => set((state) => {
     const previous = state.historyPast.at(-1);
     if (!previous) return {};
@@ -268,7 +283,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // 하는 안전망이므로 captureHistory(병합)를 쓰지 않는다.
   revertToLastValid: () => set((state) => {
     const target = state.lastValidSnapshot;
-    if (!target) return {};
+    // 이미 그 스냅샷 위에 있으면(동일 참조) no-op — 무의미한 history entry 방지.
+    // UI로는 도달 불가(버튼은 위반 팝오버에만)나 프로그래매틱 이중 호출 방어.
+    if (!target || state.chart === target.chart) return {};
     const current = createHistorySnapshot(state);
     return {
       chart: target.chart,
@@ -280,6 +297,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       historyLastCaptureAt: 0,
     };
   }),
+  // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
+  // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
+  // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
   resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0 }),
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
