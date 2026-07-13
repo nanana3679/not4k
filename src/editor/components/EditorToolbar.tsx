@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, validateChart, mainNotes, auxNotesAsExtra } from '../../shared';
+import { serializeChart, serializeExtraNotes, validateChart, buildViolationList, mainNotes, auxNotesAsExtra } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -300,7 +300,73 @@ const styles = {
     textAlign: 'center' as const,
     touchAction: 'manipulation' as const,
   },
+  // 위반 카운터 배지 + 리스트 팝오버 (RFD 0017 §7 위반 시각화 언어)
+  violationBadgeButton: {
+    color: '#ff6666',
+    borderColor: '#cc3333',
+    fontWeight: 700,
+  },
+  violationPanel: {
+    position: 'fixed' as const,
+    top: '48px',
+    right: '8px',
+    minWidth: '260px',
+    maxWidth: 'min(420px, calc(100vw - 16px))',
+    maxHeight: '60vh',
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    backgroundColor: '#262626',
+    border: '1px solid #555',
+    borderRadius: '8px',
+    zIndex: 1000,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+    overflowY: 'auto' as const,
+  },
+  violationPanelTitle: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#ff6666',
+    padding: '2px 2px 0',
+  },
+  violationItem: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '3px',
+    padding: '6px 8px',
+    backgroundColor: '#343434',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+  },
+  violationItemHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#ededed',
+  },
+  violationDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  violationMessage: {
+    fontSize: '11px',
+    lineHeight: 1.4,
+    color: '#aaa',
+    wordBreak: 'break-word' as const,
+  },
 };
+
+// 리스트 항목의 심각도 색 — 캔버스 해칭·미니맵 틱(단일 빨강)은 건드리지 않고
+// 리스트 안에서만 구조(하드 거부)=빨강, 의미(transient)=앰버로 구분한다.
+const severityDotColors = {
+  structural: '#ff6666',
+  semantic: '#e8a33d',
+} as const;
 
 type ToolbarIconName = 'back' | 'play' | 'pause' | 'save' | 'more' | 'create' | 'select' | 'delete' | 'undo' | 'redo' | 'entity' | 'snap' | 'extra' | 'close';
 type CompactPicker = 'entity' | 'snap' | 'extra';
@@ -528,6 +594,7 @@ export function EditorToolbar({
   const updateSettings = useGameStore((s) => s.updateSettings);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [compactPicker, setCompactPicker] = useState<CompactPicker | null>(null);
+  const [showViolationList, setShowViolationList] = useState(false);
 
   // 데스크톱 Play 드롭다운: 툴바 overflow에 잘리지 않게 fixed + ref 좌표로 앵커
   const playMenuBtnRef = useRef<HTMLButtonElement>(null);
@@ -578,13 +645,15 @@ export function EditorToolbar({
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
   // 보조 레인 위반도 동일하게 본다(RFD 0018 §3-6) — performPlayTest 게이트와 같은 입력.
-  const playTestViolationCount = validateChart({
+  // 같은 결과를 위반 배지·리스트 팝오버(§7 위반 시각화 언어)도 공유한다.
+  const violationItems = buildViolationList(validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
     events: chart.events,
-  }).length;
-  const playTestDisabled = playTestViolationCount > 0;
-  const playTestDisabledTitle = `배치 제약 위반 ${playTestViolationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+  }));
+  const violationCount = violationItems.length;
+  const playTestDisabled = violationCount > 0;
+  const playTestDisabledTitle = `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
     ...styles.compactButton,
@@ -773,6 +842,55 @@ export function EditorToolbar({
     );
   };
 
+  // 위반 카운터 배지 + 클릭 시 리스트 팝오버 (RFD 0017 §7 위반 시각화 언어).
+  // 위반 0건이면 배지·팝오버 모두 없음. 항목은 표시 전용(점프 없음).
+  // 팝오버는 More 메뉴와 같은 fixed 앵커 — 툴바 overflow에 잘리지 않는다.
+  const renderViolationBadge = () => {
+    if (violationCount === 0) return null;
+    const badgeStyle = {
+      ...(compact ? styles.compactButton : styles.button),
+      ...styles.violationBadgeButton,
+      flexShrink: 0,
+    };
+    return (
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          style={badgeStyle}
+          onClick={() => setShowViolationList((v) => !v)}
+          title={`배치 제약 위반 ${violationCount}건 — 클릭해 목록 보기`}
+          aria-label={`배치 제약 위반 ${violationCount}건 목록 열기`}
+        >
+          ⚠ {violationCount}
+        </button>
+        {showViolationList && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+              onClick={() => setShowViolationList(false)}
+            />
+            <div style={styles.violationPanel}>
+              <div style={styles.violationPanelTitle}>배치 제약 위반 {violationCount}건</div>
+              {violationItems.map((item, i) => (
+                <div key={i} style={styles.violationItem}>
+                  <div style={styles.violationItemHead}>
+                    <span
+                      style={{
+                        ...styles.violationDot,
+                        backgroundColor: severityDotColors[item.severity],
+                      }}
+                    />
+                    {item.label}
+                  </div>
+                  <div style={styles.violationMessage}>{item.message}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (showOffsetToolbar) {
     return renderOffsetToolbar();
   }
@@ -860,6 +978,8 @@ export function EditorToolbar({
               <ToolbarIcon name="snap" />
             </button>
           </div>
+
+          {renderViolationBadge()}
 
           <div style={styles.compactGroup}>
             <button
@@ -1156,6 +1276,8 @@ export function EditorToolbar({
       )}
 
       <div style={{ flex: 1 }} />
+
+      {renderViolationBadge()}
 
       {/* Save Chart (아이콘 + 변경사항 칩) */}
       <button
