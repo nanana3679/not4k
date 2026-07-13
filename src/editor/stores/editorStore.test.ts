@@ -34,6 +34,7 @@ describe('editorStore history', () => {
       historyPast: [],
       historyFuture: [],
       historyLastCaptureAt: 0,
+      lastValidSnapshot: null,
     });
   });
 
@@ -71,6 +72,7 @@ describe('editorStore 차트 변이 게이트', () => {
       historyPast: [],
       historyFuture: [],
       historyLastCaptureAt: 0,
+      lastValidSnapshot: null,
     });
   });
 
@@ -135,5 +137,160 @@ describe('editorStore 차트 변이 게이트', () => {
     useEditorStore.getState().loadChart(invalid);
 
     expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 열림 (재저장은 저장 게이트가 차단)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lastValidSnapshot + revertToLastValid — 막다른 상태 탈출(RFD 0017 §7):
+// 마지막으로 차트 전체가 valid였던 상태로 O(1) 복귀, 복귀 자체도 undo 가능
+// ---------------------------------------------------------------------------
+
+describe('editorStore lastValidSnapshot·revertToLastValid', () => {
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(),
+      extraLaneCount: 2,
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+      lastValidSnapshot: null,
+    });
+  });
+
+  it('valid 차트를 setChart하면 lastValidSnapshot이 그 차트로 갱신된다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+
+    useEditorStore.getState().setChart(valid);
+
+    expect(useEditorStore.getState().lastValidSnapshot?.chart).toBe(valid); // 불변 참조 저장
+    expect(useEditorStore.getState().lastValidSnapshot?.extraLaneCount).toBe(2);
+  });
+
+  it('semantic 위반(같은 레인·박 중복 노트) setChart는 커밋되지만 lastValidSnapshot은 이전 valid 상태로 유지된다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid);
+
+    const semanticInvalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(semanticInvalid);
+
+    expect(useEditorStore.getState().chart).toBe(semanticInvalid); // 낙관 커밋
+    expect(useEditorStore.getState().lastValidSnapshot?.chart).toBe(valid); // 갱신 안 됨
+  });
+
+  it('한 번도 valid를 통과하지 않았으면 lastValidSnapshot은 null', () => {
+    const semanticInvalid = makeChart([
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+    ]);
+
+    useEditorStore.getState().setChart(semanticInvalid);
+
+    expect(useEditorStore.getState().lastValidSnapshot).toBeNull();
+  });
+
+  it('loadChart로 valid 차트를 로드하면 lastValidSnapshot이 세팅된다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+
+    useEditorStore.getState().loadChart(valid);
+
+    expect(useEditorStore.getState().lastValidSnapshot?.chart).toBe(valid);
+  });
+
+  it('loadChart로 invalid 차트를 로드하면 lastValidSnapshot은 null로 유지된다', () => {
+    const invalid = makeChart([
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+    ]);
+
+    useEditorStore.getState().loadChart(invalid);
+
+    expect(useEditorStore.getState().chart).toBe(invalid); // 수리용 예외 통로로 열림
+    expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // 씨앗 아님
+  });
+
+  it('revertToLastValid는 chart·extraLaneCount를 lastValidSnapshot으로 되돌린다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid);
+    const invalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(invalid);
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().chart).toBe(valid);
+    expect(useEditorStore.getState().extraLaneCount).toBe(2);
+  });
+
+  it('revertToLastValid 후 undo하면 되돌리기 직전(위반) 상태로 복원된다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid);
+    const invalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(invalid);
+
+    useEditorStore.getState().revertToLastValid();
+    expect(useEditorStore.getState().chart).toBe(valid);
+
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 위반 상태로 복원 — 안전망
+  });
+
+  it('revertToLastValid는 600ms 병합창과 무관하게 past에 스냅샷을 쌓는다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid);
+    const invalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(invalid); // 직전 캡처로부터 600ms 이내 → 병합돼 past에 push 안 됨
+    const pastBefore = useEditorStore.getState().historyPast.length;
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().historyPast).toHaveLength(pastBefore + 1); // 병합창 무시 강제 push
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().chart.notes).toHaveLength(2); // undo로 위반 상태 복원 가능
+  });
+
+  it('lastValidSnapshot이 null이면 revertToLastValid는 no-op', () => {
+    const invalid = makeChart([
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+      { type: 'single', lane: 1 as Lane, beat: beat(1) },
+    ]);
+    useEditorStore.getState().setChart(invalid);
+    const pastBefore = useEditorStore.getState().historyPast.length;
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().chart).toBe(invalid); // 차트 무변
+    expect(useEditorStore.getState().historyPast).toHaveLength(pastBefore); // 히스토리 무변
+  });
+
+  it('revertToLastValid는 selection을 비우고 historyFuture를 클리어한다', () => {
+    const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
+    useEditorStore.getState().setChart(valid);
+    const invalid = makeChart([
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+      { type: 'single', lane: 2 as Lane, beat: beat(2) },
+    ]);
+    useEditorStore.getState().setChart(invalid);
+    useEditorStore.setState({
+      selection: { notes: new Set([0]), zones: new Set() },
+      historyFuture: [{ chart: makeChart(), extraLaneCount: 2 }],
+    });
+
+    useEditorStore.getState().revertToLastValid();
+
+    expect(useEditorStore.getState().selection.notes.size).toBe(0);
+    expect(useEditorStore.getState().selection.zones.size).toBe(0);
+    expect(useEditorStore.getState().historyFuture).toHaveLength(0);
   });
 });
