@@ -39,6 +39,9 @@ function makeCallbacks(
     ? chartOrOverrides as Chart
     : makeChart();
   let selection: Selection = emptySelection();
+  const selectionChart = () => currentExtraNotes.length > 0
+    ? { ...currentChart, notes: withAuxNotes(currentChart.notes, currentExtraNotes) }
+    : currentChart;
 
   return {
     onChartUpdate: vi.fn((chart: Chart) => {
@@ -48,11 +51,11 @@ function makeCallbacks(
     setSelection: (s: Selection) => {
       // ③: normalizeSelection은 chart.notes에서 auxCount를 파생한다 — 페이크의 메인 차트와
       // 보조 배열을 통합 차트로 합쳐 넘겨 프로덕션과 동일 의미론을 유지한다 (RFD 0018).
-      selection = normalizeSelection(s, { ...currentChart, notes: withAuxNotes(currentChart.notes, currentExtraNotes) });
+      selection = normalizeSelection(s, selectionChart());
       return true; // 페이크는 §3-5 게이트 없음(항상 통과) — 게이트 결합 검증은 integration 테스트 담당
     },
     setSelectionTransient: (s: Selection) => {
-      selection = normalizeSelection(s, { ...currentChart, notes: withAuxNotes(currentChart.notes, currentExtraNotes) });
+      selection = normalizeSelection(s, selectionChart());
     },
     /** 테스트 검증용 — 페이크가 소유한 선택 상태를 읽는다 */
     getSelectionState: () => selection,
@@ -66,6 +69,8 @@ function makeCallbacks(
     getSnapStep: (): Beat => beat(4, 4),
     getMaxBeatFloat: () => 100,
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
+    xToUnifiedLane: (x: number): number | null =>
+      x >= 1 && x < 5 + extraLaneCount ? x : null,
     hitTestNote: () => null,
     onWarn: vi.fn(),
     // Extra lane callbacks
@@ -1424,16 +1429,15 @@ describe("SelectMode — 박스 선택 마디 밖 커서", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 박스 선택 엑스트라 레인", () => {
-  it("엑스트라 레인 영역에서 드래그하면 해당 범위의 엑스트라 노트가 선택된다", () => {
-    const chart = makeChart();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(0) },
-      { type: "single", extraLane: 2, beat: beat(1) },
-      { type: "single", extraLane: 1, beat: beat(3) }, // 범위 밖
-    ];
+  it("lane 5 beat 0에서 lane 6 beat 2까지 드래그하면 범위 안 보조 노트 2개가 선택된다", () => {
+    const chart = makeChart({ notes: [
+      { type: "single", lane: 5, beat: beat(0) },
+      { type: "single", lane: 6, beat: beat(1) },
+      { type: "single", lane: 5, beat: beat(3) },
+    ] });
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 2 },
+      { extraLaneCount: 2 },
     );
     const mode = makeMode(chart, cb);
 
@@ -1441,6 +1445,7 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     mode.onPointerDown(5, 0, false, false);
     // 엑스트라 레인 2(x=6), beat 2까지 드래그
     mode.onPointerMove(6, 2);
+    expect(mode.boxSelectPixelRect).toMatchObject({ startLane: 5, endLane: 6 });
     mode.onPointerUp(6, 2);
 
     const lastExtraSel = cb.getSelectionState().extraNotes;
@@ -1452,15 +1457,14 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     expect(lastExtraSel.has(2)).toBe(false);
   });
 
-  it("엑스트라 레인 단일 레인만 드래그하면 해당 레인 노트만 선택된다", () => {
-    const chart = makeChart();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(0) },
-      { type: "single", extraLane: 2, beat: beat(0) },
-    ];
+  it("lane 5 안에서만 드래그하면 lane 5 노트 1개만 선택된다", () => {
+    const chart = makeChart({ notes: [
+      { type: "single", lane: 5, beat: beat(0) },
+      { type: "single", lane: 6, beat: beat(0) },
+    ] });
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 2 },
+      { extraLaneCount: 2 },
     );
     const mode = makeMode(chart, cb);
 
@@ -1475,20 +1479,18 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     expect(lastExtraSel.has(1)).toBe(false); // extraLane 2는 제외
   });
 
-  it("메인 레인에서 엑스트라 레인까지 드래그하면 양쪽 노트 모두 선택된다", () => {
+  it("lane 3에서 lane 5까지 드래그하면 lane 3·4 메인 노트와 lane 5 보조 노트가 선택된다", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 3 as Lane, beat: beat(1) },
         { type: "single", lane: 4 as Lane, beat: beat(1) },
         { type: "single", lane: 1 as Lane, beat: beat(1) }, // 범위 밖 (레인 1-2는 미포함)
+        { type: "single", lane: 5, beat: beat(1) },
       ],
     });
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(1) },
-    ];
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 2 },
+      { extraLaneCount: 2 },
     );
     const mode = makeMode(chart, cb);
 
@@ -1510,14 +1512,13 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     expect(lastExtraSel.has(0)).toBe(true);
   });
 
-  it("엑스트라 노트가 없는 영역에서 드래그하면 엑스트라 선택은 비어있다", () => {
-    const chart = makeChart();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(5) }, // beat 범위 밖
-    ];
+  it("lane 5~6 beat 0~2에 노트가 없으면 보조 선택은 0개다", () => {
+    const chart = makeChart({ notes: [
+      { type: "single", lane: 5, beat: beat(5) },
+    ] });
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 2 },
+      { extraLaneCount: 2 },
     );
     const mode = makeMode(chart, cb);
 
@@ -1529,15 +1530,14 @@ describe("SelectMode — 박스 선택 엑스트라 레인", () => {
     expect(lastExtraSel.size).toBe(0);
   });
 
-  it("박스 선택 중 onPointerMove에서 엑스트라 노트가 실시간으로 선택된다", () => {
-    const chart = makeChart();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(0) },
-      { type: "single", extraLane: 1, beat: beat(2) },
-    ];
+  it("lane 5 박스를 beat 1에서 beat 3으로 넓히면 보조 선택이 1개에서 2개로 갱신된다", () => {
+    const chart = makeChart({ notes: [
+      { type: "single", lane: 5, beat: beat(0) },
+      { type: "single", lane: 5, beat: beat(2) },
+    ] });
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 1 },
+      { extraLaneCount: 1 },
     );
     const mode = makeMode(chart, cb);
 
@@ -2378,19 +2378,19 @@ describe("SelectMode — beginBoxSelect (박스 승격)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 엑스트라→메인 크로싱 박스 (오른쪽→왼쪽 드래그)", () => {
-  it("엑스트라(x=5)에서 시작해 메인 레인 2까지 끌면 레인 2~4와 엑스트라가 선택된다(레인 1 제외)", () => {
+  it("lane 5에서 lane 2까지 끌면 lane 2~4 메인 노트와 lane 5 보조 노트가 선택되고 lane 1은 제외된다", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1, beat: beat(1) },
         { type: "single", lane: 2, beat: beat(1) },
         { type: "single", lane: 3, beat: beat(1) },
         { type: "single", lane: 4, beat: beat(1) },
+        { type: "single", lane: 5, beat: beat(1) },
       ],
     });
-    const extraNotes: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(1) }];
     const cb = makeCallbacks(
       { yToBeatRaw: (y: number): Beat => beat(y) },
-      { extraNotes, extraLaneCount: 2 },
+      { extraLaneCount: 2 },
     );
     const mode = makeMode(chart, cb);
 

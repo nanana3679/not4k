@@ -516,6 +516,7 @@ function ChartEditorPage() {
       },
       getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
       xToLane,
+      xToUnifiedLane: (x) => coords.xToUnifiedLane(x),
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
       hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),

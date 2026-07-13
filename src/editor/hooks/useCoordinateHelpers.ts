@@ -13,13 +13,14 @@ import {
   timelineXToExtraLane,
   timelineXToLane,
 } from '../timeline/timelineProjection';
-import { msToBeat, beatToFloat, extractBpmMarkers, auxNotesAsExtra } from '../../shared';
+import { msToBeat, beatToFloat, extractBpmMarkers, auxNotesAsExtra, fromAuxIndex } from '../../shared';
 import type { Beat, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
 
 export interface CoordinateHelpers {
   xToLane: (x: number) => Lane | null;
   xToExtraLane: (x: number) => number | null;
+  xToUnifiedLane: (x: number) => number | null;
   yToBeat: (y: number) => Beat;
   yToBeatRaw: (y: number) => Beat;
   snapBeat: (beat: Beat) => Beat;
@@ -73,6 +74,13 @@ export function useCoordinateHelpers(
       extraLaneCount: currentExtraLaneCount,
     });
   }, []);
+
+  const xToUnifiedLane = useCallback((x: number): number | null => {
+    const mainLane = xToLane(x);
+    if (mainLane !== null) return mainLane;
+    const auxIndex = xToExtraLane(x);
+    return auxIndex === null ? null : fromAuxIndex(auxIndex);
+  }, [xToExtraLane, xToLane]);
 
   const yToBeat = useCallback((y: number): Beat => {
     if (!rendererRef.current) return { n: 0, d: 1 };
@@ -211,6 +219,7 @@ export function useCoordinateHelpers(
   return {
     xToLane,
     xToExtraLane,
+    xToUnifiedLane,
     yToBeat,
     yToBeatRaw,
     snapBeat,

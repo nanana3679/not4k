@@ -1,5 +1,5 @@
 import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChartStructural, beatToFloat } from "../../shared";
+import { validateChartStructural, beatToFloat, isMainLane } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -38,6 +38,8 @@ export interface SelectModeCallbacks {
   /** Get the maximum valid beat as float (end of last measure) */
   getMaxBeatFloat: () => number;
   xToLane: (x: number) => Lane | null;
+  /** 박스 선택용 x → 메인·보조 통합 lane(1..MAIN_LANE_COUNT+extraLaneCount) */
+  xToUnifiedLane: (x: number) => number | null;
   /** Get note index at given coordinates, or null */
   hitTestNote: (x: number, y: number) => number | null;
   /** Get selected RangeNote index whose end point is at (x,y), or null */
@@ -70,13 +72,11 @@ export class SelectMode implements EditorMode {
   private dragStartLane: Lane | null = null;
   private dragStartExtraLane: number | null = null;
   private _boxEndBeat: Beat | null = null;
-  private _boxEndLane: Lane | null = null;
-  private _boxEndExtraLane: number | null = null;
+  private _boxEndLane: number | null = null;
 
   // Box select pixel state (for rendering)
   private _boxStartY: number = 0;
-  private _boxStartLane: Lane | null = null;
-  private _boxStartExtraLane: number | null = null;
+  private _boxStartLane: number | null = null;
   private _boxEndY: number = 0;
 
   // Move state
@@ -366,18 +366,14 @@ export class SelectMode implements EditorMode {
   }
 
   /** Current box select rectangle in pixel Y coords (for rendering) */
-  get boxSelectPixelRect(): { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null {
+  get boxSelectPixelRect(): { startY: number; startLane: number; endY: number; endLane: number } | null {
     if (!this.isBoxSelecting) return null;
-    // Allow box select when either main lane or extra lane is set
-    if (!this._boxStartLane && this._boxStartExtraLane === null) return null;
-    if (!this._boxEndLane && this._boxEndExtraLane === null) return null;
+    if (this._boxStartLane === null || this._boxEndLane === null) return null;
     return {
       startY: this._boxStartY,
       startLane: this._boxStartLane,
       endY: this._boxEndY,
       endLane: this._boxEndLane,
-      startExtraLane: this._boxStartExtraLane ?? undefined,
-      endExtraLane: this._boxEndExtraLane ?? undefined,
     };
   }
 
@@ -731,10 +727,9 @@ export class SelectMode implements EditorMode {
     this.dragType = "boxSelect";
     this.dragStartBeat = this.callbacks.yToBeatRaw(y);
     this.dragStartLane = this.callbacks.xToLane(x);
-    this.dragStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
     this._boxStartY = y;
-    this._boxStartLane = this.callbacks.xToLane(x);
-    this._boxStartExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
+    this._boxStartLane = this.callbacks.xToUnifiedLane(x);
+    this._boxEndLane = this._boxStartLane;
     this._boxEndY = y;
   }
 
@@ -945,14 +940,10 @@ export class SelectMode implements EditorMode {
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
-      const lane = this.callbacks.xToLane(x);
+      const lane = this.callbacks.xToUnifiedLane(x);
       // Keep previous _boxEndLane when cursor is outside lane area
       if (lane !== null) {
         this._boxEndLane = lane;
-      }
-      const extraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-      if (extraLane !== null) {
-        this._boxEndExtraLane = extraLane;
       }
       this._boxEndY = y;
 
@@ -1017,15 +1008,10 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
-      const endLane = this.callbacks.xToLane(x);
+      const endLane = this.callbacks.xToUnifiedLane(x);
       if (endLane !== null) {
         this._boxEndLane = endLane;
       }
-      const endExtraLane = this.callbacks.xToExtraLane?.(x) ?? null;
-      if (endExtraLane !== null) {
-        this._boxEndExtraLane = endExtraLane;
-      }
-
       this.updateBoxSelection();
 
       // §3-5: 프리뷰로 쌓인 박스 결과를 (드래그 시작 전 → 최종) 전이 하나로 확정한다.
@@ -1041,7 +1027,6 @@ export class SelectMode implements EditorMode {
     this.clearCrossAxisSnapshot();
     this._boxEndBeat = null;
     this._boxEndLane = null;
-    this._boxEndExtraLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -1089,7 +1074,6 @@ export class SelectMode implements EditorMode {
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
-    this._boxEndExtraLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -1138,81 +1122,36 @@ export class SelectMode implements EditorMode {
   private updateBoxSelection(): void {
     if (!this.dragStartBeat || !this._boxEndBeat) return;
 
-    const startMainLane = this.dragStartLane;
-    const endMainLane = this._boxEndLane;
-    const startExtraLane = this.dragStartExtraLane;
-    const endExtraLane = this._boxEndExtraLane;
-
-    const hasMainLane = startMainLane !== null || endMainLane !== null;
-    const hasExtraLane = startExtraLane !== null || endExtraLane !== null;
-
-    // Need at least one lane dimension
-    if (!hasMainLane && !hasExtraLane) return;
+    const startLane = this._boxStartLane;
+    const endLane = this._boxEndLane;
+    if (startLane === null || endLane === null) return;
 
     const startFirst = beatLt(this.dragStartBeat, this._boxEndBeat);
     const minBeat = startFirst ? this.dragStartBeat : this._boxEndBeat;
     const maxBeat = startFirst ? this._boxEndBeat : this.dragStartBeat;
 
-    // Determine if box crosses from main to extra or vice versa
-    // If start is in main and end is in extra (or vice versa), main range extends to lane 4
-    // and extra range starts at lane 1
-    const crossesIntoExtra = (startMainLane !== null && endExtraLane !== null) ||
-                              (startExtraLane !== null && endMainLane !== null);
-
-    // Select main lane notes + trill zone units
+    const minLane = Math.min(startLane, endLane);
+    const maxLane = Math.max(startLane, endLane);
     const notes = new Set<number>();
+    const extraNotes = new Set<number>();
     const zones = new Set<number>();
-    if (hasMainLane) {
-      // When crossing into extra, include up to lane 4 on the main side
-      // 시작이 엑스트라 쪽이면 메인 커버리지는 경계 레인(4)까지다 — 1로 두면
-      // 엑스트라→메인(오른쪽→왼쪽) 드래그가 [1..끝레인]으로 뒤집혀 반대쪽만 선택된다.
-      const effectiveStartMain = startMainLane ?? (crossesIntoExtra ? 4 as Lane : null);
-      const effectiveEndMain = endMainLane ?? (crossesIntoExtra ? 4 as Lane : null);
-
-      if (effectiveStartMain !== null && effectiveEndMain !== null) {
-        const minLane = Math.min(effectiveStartMain, effectiveEndMain);
-        const maxLane = Math.max(effectiveStartMain, effectiveEndMain);
-
-        // 일반 노트만 개별 픽업 — 트릴 노트는 구간 유닛으로 들어온다 (RFD 0016 §4.3)
-        for (let i = 0; i < this.chart.notes.length; i++) {
-          const note = this.chart.notes[i];
-          if (!isTrillNote(note)
-              && note.lane >= minLane && note.lane <= maxLane
-              && beatSub(note.beat, minBeat).n >= 0
-              && beatSub(maxBeat, note.beat).n >= 0) {
-            notes.add(i);
-          }
-        }
-
-        // 박스와 레인·박 폐구간이 겹치는(포함 아님) trillZone은 유닛으로 선택 (RFD 0016 §4.3)
-        for (let i = 0; i < this.chart.trillZones.length; i++) {
-          if (trillZoneOverlapsBox(this.chart.trillZones[i], minLane, maxLane, minBeat, maxBeat)) {
-            zones.add(i);
-          }
-        }
+    let auxIndex = 0;
+    for (let i = 0; i < this.chart.notes.length; i++) {
+      const note = this.chart.notes[i];
+      const currentAuxIndex = isMainLane(note.lane) ? null : auxIndex++;
+      if (!isTrillNote(note)
+          && note.lane >= minLane && note.lane <= maxLane
+          && beatSub(note.beat, minBeat).n >= 0
+          && beatSub(maxBeat, note.beat).n >= 0) {
+        if (currentAuxIndex === null) notes.add(i);
+        else extraNotes.add(currentAuxIndex);
       }
     }
 
-    // Select extra lane notes
-    const extraNotes = new Set<number>();
-    if (hasExtraLane && this.callbacks.getExtraNotes) {
-      // When crossing from main, extra range starts at lane 1
-      const effectiveStartExtra = startExtraLane ?? (crossesIntoExtra ? 1 : null);
-      const effectiveEndExtra = endExtraLane ?? (crossesIntoExtra ? 1 : null);
-
-      if (effectiveStartExtra !== null && effectiveEndExtra !== null) {
-        const minExtraLane = Math.min(effectiveStartExtra, effectiveEndExtra);
-        const maxExtraLane = Math.max(effectiveStartExtra, effectiveEndExtra);
-        const allExtra = this.callbacks.getExtraNotes();
-
-        for (let i = 0; i < allExtra.length; i++) {
-          const note = allExtra[i];
-          if (note.extraLane >= minExtraLane && note.extraLane <= maxExtraLane
-              && beatSub(note.beat, minBeat).n >= 0
-              && beatSub(maxBeat, note.beat).n >= 0) {
-            extraNotes.add(i);
-          }
-        }
+    // 박스와 레인·박 폐구간이 겹치는(포함 아님) trillZone은 유닛으로 선택 (RFD 0016 §4.3)
+    for (let i = 0; i < this.chart.trillZones.length; i++) {
+      if (trillZoneOverlapsBox(this.chart.trillZones[i], minLane, maxLane, minBeat, maxBeat)) {
+        zones.add(i);
       }
     }
 
