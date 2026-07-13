@@ -42,7 +42,8 @@ export interface ValidationError {
     | "timeSigNotNatural"
     | "timeSigNotAtMeasureStart"
     | "rangeInverted"
-    | "beatMalformed";
+    | "beatMalformed"
+    | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
 }
@@ -768,6 +769,44 @@ export function validateBeatWellFormed(
   return errors;
 }
 
+/**
+ * 레인이 성립하지 않는 값(양의 정수가 아님 = 하한 이탈·비정수)이면 malformed로 본다.
+ *
+ * 유효 lane은 양의 정수다 — 메인(1..4)과 보조(5+)를 모두 포함하며 상한이 없다. 표시 상한은
+ * extraLaneCount·숨김·자동 확장 정책이 담당하므로(RFD 0018), 구조 검증은 lane>4를 거부하지
+ * 않고 데이터 자체가 성립하지 않는 하한 이탈·비정수만 잡는다 (RFD 0017 §3-1). 이벤트의
+ * editorLane은 별도 배치 공간(laneAxis 관할 밖)이라 이 검증 대상이 아니다.
+ */
+export function validateLaneWellFormed(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const isMalformed = (lane: number): boolean => !Number.isInteger(lane) || lane < 1;
+
+  for (let i = 0; i < notes.length; i++) {
+    if (isMalformed(notes[i].lane)) {
+      errors.push({
+        rule: "laneMalformed",
+        message: `노트의 레인이 malformed입니다 (lane ${notes[i].lane})`,
+        refs: [noteRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < trillZones.length; i++) {
+    if (isMalformed(trillZones[i].lane)) {
+      errors.push({
+        rule: "laneMalformed",
+        message: `트릴 존의 레인이 malformed입니다 (lane ${trillZones[i].lane})`,
+        refs: [zoneRef(i)],
+      });
+    }
+  }
+
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
@@ -785,6 +824,7 @@ export interface ChartValidationInput {
 export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
   return [
     ...validateBeatWellFormed(input.notes, input.trillZones, input.events),
+    ...validateLaneWellFormed(input.notes, input.trillZones),
     ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
     ...validateTimeSigNatural(input.events),
   ];
