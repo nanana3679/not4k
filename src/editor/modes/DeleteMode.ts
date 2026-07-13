@@ -1,22 +1,23 @@
-import type { Chart, ExtraNoteEntity } from "../../shared";
+import type { Chart } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
-  deleteExtraNoteAtIndex,
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
+  /** 통합 히트테스트 — 메인·보조 노트의 chart.notes 통합 인덱스를 반환 (RFD 0018 ④d) */
   hitTestNote: (x: number, y: number) => number | null;
   hitTestTrillZone?: (x: number, y: number) => number | null;
-  hitTestExtraNote?: (x: number, y: number) => number | null;
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  onExtraSelectionChange?: (indices: Set<number>) => void;
-  getExtraNotes?: () => ExtraNoteEntity[];
   onWarn?: (message: string) => void;
 }
 
+/**
+ * Delete 모드 — 통합 차트(chart.notes 전체, 메인 lane 1..4 + 보조 lane 5+) 하나만 다룬다.
+ * 히트테스트·삭제 인덱스가 모두 chart.notes 통합 인덱스 공간이라, 정규형 파티션이
+ * 깨진 차트(통합 이동·paste 이후)에서도 클릭한 노트가 정확히 삭제된다 (RFD 0018 ④d).
+ */
 export class DeleteMode implements EditorMode {
   private chart: Chart;
   private callbacks: DeleteModeCallbacks;
@@ -47,7 +48,7 @@ export class DeleteMode implements EditorMode {
 
   /** Click to delete */
   onPointerDown(x: number, y: number): void {
-    // Try deleting a note first
+    // Try deleting a note (메인·보조 통합 — 통합 인덱스로 chart.notes에서 제자리 삭제)
     const result = DeleteMode.deleteNoteAtPoint(
       this.chart,
       this.callbacks.hitTestNote,
@@ -59,19 +60,6 @@ export class DeleteMode implements EditorMode {
       this.chart = result;
       this.callbacks.onChartUpdate(result);
       return;
-    }
-
-    // Try deleting an extra note
-    if (this.callbacks.hitTestExtraNote && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraHit = this.callbacks.hitTestExtraNote(x, y);
-      if (extraHit !== null) {
-        const extraNotes = this.callbacks.getExtraNotes();
-        const updatedExtraNotes = deleteExtraNoteAtIndex(extraNotes, extraHit);
-        if (updatedExtraNotes === null) return;
-        this.callbacks.onExtraNotesUpdate(updatedExtraNotes);
-        this.callbacks.onExtraSelectionChange?.(new Set());
-        return;
-      }
     }
 
     // Try deleting a trill zone (only if empty)

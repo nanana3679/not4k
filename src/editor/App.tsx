@@ -17,7 +17,6 @@ import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
-import type { Chart, ExtraNoteEntity } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -472,22 +471,12 @@ function ChartEditorPage() {
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
-    // ③ 병합 어댑터 (RFD 0018): 편집 모드는 아직 ExtraNoteEntity 축을 쓴다(이원축은 ④ 흡수).
-    // 데이터는 chart.notes 한 배열(정규형 [...main, ...aux])에 살므로, 모드 콜백을 그 위 병합
-    // 어댑터로 배선한다 — 모드는 메인-only 차트를 보고, 보조는 별도 축으로 읽고 쓴다.
-    //  - applyMainChart(메인 차트): 새 메인 + 현재 보조 병합 (meta·events·zones는 c 것 유지)
-    //  - applyExtraNotes(보조): 현재 메인 + 새 보조 병합
-    // 두 병합은 순서 독립이라 조합 이동(메인+보조 동시 라이브 커밋)도 올바르게 합쳐진다.
-    const applyMainChart = (c: Chart) =>
-      setChart({ ...c, notes: withAuxNotes(c.notes, auxNotesAsExtra(useEditorStore.getState().chart.notes)) });
-    const applyExtraNotes = (extra: ExtraNoteEntity[]) => {
-      const cur = useEditorStore.getState().chart;
-      setChart({ ...cur, notes: withAuxNotes(cur.notes, extra) });
-    };
-    const getAuxNotes = () => auxNotesAsExtra(useEditorStore.getState().chart.notes);
-
+    // RFD 0018 ④d: 편집 모드 3종이 전부 통합 차트(chart.notes 한 배열, 메인 lane 1..4 +
+    // 보조 lane 5+) 하나만 다룬다 — ③의 병합 어댑터(applyMainChart/applyExtraNotes)는 소멸.
+    // 히트테스트 인덱스와 모드가 든 차트의 인덱스 공간이 같아, 정규형 파티션이 깨진
+    // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
     const createMode = new CreateMode(chart, {
-      onChartUpdate: applyMainChart,
+      onChartUpdate: (c) => setChart(c),
       yToBeat: (y) => yToBeatRef.current(y),
       snapBeat,
       xToLane,
@@ -496,8 +485,6 @@ function ChartEditorPage() {
       hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
       hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
       xToExtraLane: (x) => xToExtraLane(x),
-      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
-      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
@@ -533,13 +520,11 @@ function ChartEditorPage() {
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
-      onChartUpdate: applyMainChart,
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
+      // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
+      onChartUpdate: (c) => setChart(c),
+      // 통합 히트테스트 — 메인·보조 모두 chart.notes 통합 인덱스로 삭제 (RFD 0018 ④d)
+      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => applyExtraNotes(notes),
-      // 보조 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
-      getExtraNotes: getAuxNotes,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
@@ -624,9 +609,7 @@ function ChartEditorPage() {
     useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
-  // chart → renderer(통합 차트) + modes(메인-only 차트) — RFD 0018 ③.
-  // chart.notes가 곧 통합 배열(정규형 [...main, ...aux])이라 렌더러·해칭이 chart.notes를 직접 소비한다.
-  // 편집 모드는 메인 레인만 다루므로(이원축은 ④ 흡수) 메인-only 차트를 준다.
+  // chart → renderer + modes — 전부 통합 차트(chart.notes 한 배열) 하나를 본다 (RFD 0018 ④d).
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.setChart(chart);
@@ -637,12 +620,9 @@ function ChartEditorPage() {
       });
       rendererRef.current.setViolations(violations.notes, violations.trillZones);
     }
-    // SelectMode는 통합 차트(메인+보조)를 본다 (RFD 0018 ④). Create/Delete는 아직 메인-only
-    // 차트 + 보조 축 어댑터를 쓰므로(이원 축 계승) 메인-only 차트를 준다.
-    const mainChart = { ...chart, notes: mainNotes(chart.notes) };
-    if (createModeRef.current) createModeRef.current.setChart(mainChart);
+    if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
-    if (deleteModeRef.current) deleteModeRef.current.setChart(mainChart);
+    if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());

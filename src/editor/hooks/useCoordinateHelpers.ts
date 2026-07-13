@@ -25,12 +25,15 @@ export interface CoordinateHelpers {
   yToBeatRaw: (y: number) => Beat;
   snapBeat: (beat: Beat) => Beat;
   getMaxBeatFloat: () => number;
-  /** 메인 레인(1..4) 한정 히트테스트 — Create/Delete 모드가 소비(보조는 hitTestExtraNote 별도 축). */
+  /**
+   * 메인 레인(1..4) 한정 히트테스트 — 반환 인덱스는 chart.notes 통합 인덱스.
+   * CreateMode 배치 제약(메인 배치만 관할)과 커서 z-order 체크가 소비한다.
+   */
   hitTestNote: (x: number, y: number) => number | null;
   /**
    * 통합 히트테스트 — xToUnifiedLane 기반이라 메인·보조 노트의 chart.notes 통합 인덱스를 반환.
-   * SelectMode(선택·이동)가 소비한다 (RFD 0018 ④). hitTestNote(메인 한정)와 병존하는 이유:
-   * Create/Delete는 아직 메인-only 차트 + 보조 축 어댑터를 쓰므로 통합 인덱스를 오해석하기 때문.
+   * Select(선택·이동)·Delete·hover가 소비한다 (RFD 0018 ④d) — 인덱스 공간이 chart.notes
+   * 하나라 정규형 파티션이 깨진 차트에서도 오해석이 없다.
    */
   hitTestUnifiedNote: (x: number, y: number) => number | null;
   hitTestNoteEnd: (x: number, y: number) => number | null;
@@ -203,7 +206,8 @@ export function useCoordinateHelpers(
     if (extraLane === null) return null;
     const b = yToBeatRaw(y);
     // 보조 노트는 chart.notes(lane 5+)에 산다 — 파생 aux 배열로 히트테스트 (RFD 0018 ③).
-    // 반환 인덱스는 auxNotesAsExtra 순서 = selection.extraNotes·getExtraNotes와 동일 소스라 일관.
+    // 소비자는 널 체크(히트 유무)만 쓴다: CreateMode 배치 가드·터치 HoldHits. 인덱스를
+    // chart.notes에 적용해야 하는 경로는 전부 hitTestUnifiedNote를 쓴다 (RFD 0018 ④d).
     return hitTestExtraNoteAt(auxNotesAsExtra(useEditorStore.getState().chart.notes), extraLane, b.n / b.d);
   }, [xToExtraLane, yToBeatRaw]);
 
