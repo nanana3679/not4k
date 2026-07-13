@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
-import { beat } from "../../shared";
+import { beat, validateChart, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
 import type { Chart, Beat, Lane, NoteEntity } from "../../shared";
 
@@ -707,6 +707,9 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes).toHaveLength(2); // 기존 1 + 중복 신규 1
     expect(updated.notes[1]).toMatchObject({ type: "single", lane: 1, beat: beat(2) });
+    // 커밋된 상태가 실제로 의미 위반임을 고정 — 향후 규칙이 바뀌어 시나리오가 위반이 아니게 되면
+    // 이 테스트가 "낙관 커밋"의 의미를 잃지 않도록 (리뷰 LOW).
+    expect(violationsInvolving(validateChart(updated), [{ kind: "note", index: 1 }])).not.toHaveLength(0);
   });
 
   it("무관한 상주 위반이 있어도 롱노트(헤드+바디) 드래그 생성은 차단되지 않는다", () => {
@@ -736,14 +739,17 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     const mode = new CreateMode(chart, callbacks);
     mode.entityType = "long";
 
-    mode.onPointerDown(1, 2);
-    mode.onPointerUp(1, 6);
+    // 빈 beat 6에서 눌러 2로 드래그(정규화로 헤드@2·바디 2~6) — 실 UI에서 down 지점이
+    // 기존 바디 위면 좌표 가드에 막히므로, 빈 곳에서 시작하는 재현 가능한 방향으로 (리뷰 LOW).
+    mode.onPointerDown(1, 6);
+    mode.onPointerUp(1, 2);
 
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.notes).toHaveLength(3); // 기존 바디 1 + 새 헤드 + 새 바디
     expect(updated.notes[1]).toMatchObject({ type: "single", lane: 1, beat: beat(2) });
     expect(updated.notes[2]).toMatchObject({ type: "long", lane: 1, beat: beat(2), endBeat: beat(6) });
+    expect(violationsInvolving(validateChart(updated), [{ kind: "note", index: 2 }])).not.toHaveLength(0);
   });
 
   it("기존 트릴존(레인1, 0~4)과 겹치는 구간(2~6)에 트릴존을 생성하면 겹침 위반이어도 커밋된다", () => {
@@ -761,6 +767,7 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
     expect(updated.trillZones).toHaveLength(2); // 기존 1 + 겹침 신규 1
     expect(updated.trillZones[1]).toMatchObject({ lane: 1, beat: beat(2), endBeat: beat(6) });
+    expect(violationsInvolving(validateChart(updated), [{ kind: "trillZone", index: 1 }])).not.toHaveLength(0);
   });
 
   it("같은 beat에 bpm 이벤트를 두 번 생성하면 중복 위반이어도 두 번째도 커밋된다", () => {
@@ -780,5 +787,6 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     expect(updated.events).toHaveLength(2); // 기존 1 + 중복 신규 1
     expect(updated.events[0]).toMatchObject({ type: "bpm", beat: beat(4) });
     expect(updated.events[1]).toMatchObject({ type: "bpm", beat: beat(4) });
+    expect(violationsInvolving(validateChart(updated), [{ kind: "event", index: 1 }])).not.toHaveLength(0);
   });
 });

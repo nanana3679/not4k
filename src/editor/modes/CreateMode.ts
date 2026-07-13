@@ -409,6 +409,9 @@ export class CreateMode implements EditorMode {
   // -------------------------------------------------------------------------
   // Private creation methods — 완전 낙관(RFD 0017): 의미 위반이어도 그대로 커밋.
   // 검증·차단 없음. 구조 게이트는 setChart, 위반 피드백은 해칭.
+  // 생성 입력은 구조 위반을 만들 수 없다(구간은 beatMin/beatMax로 start≤end 정규화,
+  // beat/lane은 포인터·정수 산출, 박자표·bpm은 유효값 하드코딩) — 따라서 setChart 구조
+  // 거부가 발화하지 않아 "this.chart 선갱신 후 store 거부" desync는 도달 불가하다.
   // -------------------------------------------------------------------------
 
   private isInsideTrillZone(lane: Lane, beat: Beat): boolean {
