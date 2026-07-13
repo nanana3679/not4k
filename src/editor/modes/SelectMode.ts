@@ -12,9 +12,7 @@ import {
   selectionBlockReason,
   clampTrillBeatOffset,
   translateTrillZone,
-  boxAnchorKind,
   selectionFromBox,
-  type SelectionKind,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
@@ -82,8 +80,6 @@ export class SelectMode implements EditorMode {
   private _boxStartY: number = 0;
   private _boxStartLane: number | null = null;
   private _boxEndY: number = 0;
-  // 박스 첫 접촉 종류 잠금(RFD 0016 §6-2) — 시작 앵커로 정해 드래그 종료까지 고정. 박스 아닐 땐 empty.
-  private _boxLockedKind: SelectionKind = { kind: "empty" };
 
   // Move state
   private originalPositions: Map<
@@ -539,12 +535,6 @@ export class SelectMode implements EditorMode {
     this._boxStartLane = this.callbacks.xToUnifiedLane(x);
     this._boxEndLane = this._boxStartLane;
     this._boxEndY = y;
-    // 첫 접촉 잠금(RFD 0016 §6-2) — 시작 앵커의 엔티티로 종류를 정하고 드래그 내내 고정.
-    this._boxLockedKind = boxAnchorKind(
-      this.chart.trillZones,
-      this.chart.notes,
-      this.callbacks.hitTestNote(x, y),
-    );
   }
 
   /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
@@ -709,7 +699,6 @@ export class SelectMode implements EditorMode {
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
-    this._boxLockedKind = { kind: "empty" };
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -741,7 +730,6 @@ export class SelectMode implements EditorMode {
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
-    this._boxLockedKind = { kind: "empty" };
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -765,14 +753,13 @@ export class SelectMode implements EditorMode {
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
-    // 첫 접촉 잠금 종류에 따라 박스 안 선택 계산 (RFD 0016 §6-2 감쌈 모델) — 통합 인덱스(RFD 0018 ④),
-    // trill 모드=그 zone 트릴만(zones=∅)이나 zone 완전 감쌈 시 구간 모드로 전환,
-    // 구간 모드=비트릴 노트 + 완전히 감싸진 zone 유닛(§4.1·§6-2 감쌈).
+    // 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④).
+    // zone 완전 감쌈=유닛 픽업, 통과=박스 안 개별 트릴, 일반 노트=박스 안이면 선택.
+    // 동질성은 선택 커밋의 normalizeSelection 게이트가 처리한다.
     const { notes, zones } = selectionFromBox(
       this.chart.trillZones,
       this.chart.notes,
       { minLane, maxLane, minBeat, maxBeat },
-      this._boxLockedKind,
     );
 
     // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.

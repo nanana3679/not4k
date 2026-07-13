@@ -191,22 +191,6 @@ export function filterHomogeneousSelection(
   return { kept, dropped };
 }
 
-/**
- * 박스 시작 앵커의 엔티티로 잠글 SelectionKind를 정한다 (RFD 0016 §6-2 첫 접촉 잠금).
- * 앵커가 트릴 노트면 그 zone의 트릴 모드, 그 외(일반 노트/빈 곳=null)면 normal.
- * 박스는 항상 normal/trill 중 하나로 잠기므로 empty는 반환하지 않는다.
- */
-export function boxAnchorKind(
-  trillZones: readonly TrillZone[],
-  notes: readonly NoteEntity[],
-  anchorNoteIndex: number | null,
-): SelectionKind {
-  if (anchorNoteIndex === null) return { kind: "normal" };
-  const note = notes[anchorNoteIndex];
-  if (!note || !isTrillNote(note)) return { kind: "normal" };
-  return { kind: "trill", zoneIndex: trillZoneIndexOfNote(trillZones, note) ?? -1 };
-}
-
 /** 노트가 박스 범위(레인·박 폐구간) 안에 있는지 — 기존 박스 커밋과 동일한 판정. */
 function noteInBox(
   note: NoteEntity,
@@ -221,51 +205,35 @@ function noteInBox(
 }
 
 /**
- * 잠긴 kind에 따라 박스 범위 안 선택을 계산한다 (RFD 0016 §6-2 감쌈 모델).
- * - trill 모드: 앵커 zone을 아직 완전히 못 감쌌으면 그 zone 개별 트릴 노트만(zones ∅).
- *   앵커 zone을 완전히 감싸는 순간 구간 모드로 전환된다.
- * - 구간(normal) 모드: 비트릴 노트(겹침) + 완전히 감싸진 trillZone 유닛(boxEnclosesZone).
- * empty 잠금은 도달하지 않지만(박스는 항상 normal/trill로 잠김) 방어적으로 normal로 취급한다.
+ * 박스가 담은 것만으로 선택을 계산한다 — 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2).
+ * - trillZone을 완전히 감싸면(boxEnclosesZone) 그 zone을 유닛(zones)으로 픽업한다.
+ * - 완전히 안 감싼(통과) zone은 그 zone의 트릴 노트 중 박스 안에 든 것만 개별 선택한다.
+ *   고아 트릴(어느 zone에도 안 속함)도 박스 안이면 개별 선택.
+ * - 일반(비트릴) 노트는 박스 안이면 선택.
+ * 동질성(트릴↔일반 배타 등)은 여기서 다루지 않는다 — SelectionSlice의
+ * normalizeSelection 게이트가 처리한다.
  */
 export function selectionFromBox(
   trillZones: readonly TrillZone[],
   notes: readonly NoteEntity[],
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
-  lockedKind: SelectionKind,
 ): { notes: Set<number>; zones: Set<number> } {
   const selectedNotes = new Set<number>();
   const selectedZones = new Set<number>();
 
-  if (lockedKind.kind === "trill") {
-    // 고아 트릴 앵커(어느 zone에도 안 속함 = zoneIndex -1): 잡을 동질 그룹이 없으므로
-    // 빈 선택으로 고정한다. 서로 무관한 고아 트릴들을 한 그룹으로 합치지 않으려는 의도.
-    if (lockedKind.zoneIndex < 0) return { notes: selectedNotes, zones: selectedZones };
-    const anchorZone = trillZones[lockedKind.zoneIndex];
-    // 앵커 zone이 사라진 경우(인덱스 범위 밖)도 고아(-1)와 동일하게 빈 선택으로 고정한다.
-    if (!anchorZone) return { notes: selectedNotes, zones: selectedZones };
-    if (!boxEnclosesZone(anchorZone, box)) {
-      // 트릴 모드: 앵커 zone의 개별 트릴 노트만(박스 안), zones는 비운다.
-      for (let i = 0; i < notes.length; i++) {
-        const note = notes[i];
-        if (
-          isTrillNote(note) &&
-          noteInBox(note, box) &&
-          trillZoneIndexOfNote(trillZones, note) === lockedKind.zoneIndex
-        ) {
-          selectedNotes.add(i);
-        }
-      }
-      return { notes: selectedNotes, zones: selectedZones };
-    }
-    // 앵커 zone을 완전히 감쌈 → 구간 모드로 전환(폴스루).
-  }
-
-  for (let i = 0; i < notes.length; i++) {
-    const note = notes[i];
-    if (!isTrillNote(note) && noteInBox(note, box)) selectedNotes.add(i);
-  }
   for (let i = 0; i < trillZones.length; i++) {
     if (boxEnclosesZone(trillZones[i], box)) selectedZones.add(i);
+  }
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
+    if (!noteInBox(note, box)) continue;
+    if (isTrillNote(note)) {
+      // 감싸진 zone의 트릴은 유닛으로 대표되므로 개별 제외, 통과 zone·고아 트릴은 개별 선택.
+      const zi = trillZoneIndexOfNote(trillZones, note);
+      if (zi === null || !selectedZones.has(zi)) selectedNotes.add(i);
+    } else {
+      selectedNotes.add(i);
+    }
   }
   return { notes: selectedNotes, zones: selectedZones };
 }
