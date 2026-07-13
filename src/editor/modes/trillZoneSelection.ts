@@ -174,6 +174,75 @@ export function filterHomogeneousSelection(
   return { kept, dropped };
 }
 
+/**
+ * 박스 시작 앵커의 엔티티로 잠글 SelectionKind를 정한다 (RFD 0016 §6-2 첫 접촉 잠금).
+ * 앵커가 트릴 노트면 그 zone의 트릴 모드, 그 외(일반 노트/빈 곳=null)면 normal.
+ * 박스는 항상 normal/trill 중 하나로 잠기므로 empty는 반환하지 않는다.
+ */
+export function boxAnchorKind(
+  trillZones: readonly TrillZone[],
+  notes: readonly NoteEntity[],
+  anchorNoteIndex: number | null,
+): SelectionKind {
+  if (anchorNoteIndex === null) return { kind: "normal" };
+  const note = notes[anchorNoteIndex];
+  if (!note || !isTrillNote(note)) return { kind: "normal" };
+  return { kind: "trill", zoneIndex: trillZoneIndexOfNote(trillZones, note) ?? -1 };
+}
+
+/** 노트가 박스 범위(레인·박 폐구간) 안에 있는지 — 기존 박스 커밋과 동일한 판정. */
+function noteInBox(
+  note: NoteEntity,
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): boolean {
+  return (
+    note.lane >= box.minLane &&
+    note.lane <= box.maxLane &&
+    beatSub(note.beat, box.minBeat).n >= 0 &&
+    beatSub(box.maxBeat, note.beat).n >= 0
+  );
+}
+
+/**
+ * 잠긴 kind에 따라 박스 범위 안 선택을 계산한다 (RFD 0016 §6-2).
+ * - trill 모드: 그 zone에 속한 트릴 노트만 담고 zones는 비운다.
+ * - normal 모드: 비트릴 노트 + 겹치는 trillZone 유닛(RFD 0016 §4.3).
+ */
+export function selectionFromBox(
+  trillZones: readonly TrillZone[],
+  notes: readonly NoteEntity[],
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+  lockedKind: SelectionKind,
+): { notes: Set<number>; zones: Set<number> } {
+  const selectedNotes = new Set<number>();
+  const selectedZones = new Set<number>();
+
+  if (lockedKind.kind === "trill") {
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
+      if (
+        isTrillNote(note) &&
+        noteInBox(note, box) &&
+        trillZoneIndexOfNote(trillZones, note) === lockedKind.zoneIndex
+      ) {
+        selectedNotes.add(i);
+      }
+    }
+    return { notes: selectedNotes, zones: selectedZones };
+  }
+
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
+    if (!isTrillNote(note) && noteInBox(note, box)) selectedNotes.add(i);
+  }
+  for (let i = 0; i < trillZones.length; i++) {
+    if (trillZoneOverlapsBox(trillZones[i], box.minLane, box.maxLane, box.minBeat, box.maxBeat)) {
+      selectedZones.add(i);
+    }
+  }
+  return { notes: selectedNotes, zones: selectedZones };
+}
+
 /** 트릴존을 레인/박자 오프셋만큼 평행 이동한 새 트릴존을 반환한다. */
 export function translateTrillZone(
   zone: TrillZone,

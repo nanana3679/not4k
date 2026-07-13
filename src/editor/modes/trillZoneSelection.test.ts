@@ -11,6 +11,8 @@ import {
   selectionBlockReason,
   filterHomogeneousSelection,
   clampTrillBeatOffset,
+  boxAnchorKind,
+  selectionFromBox,
 } from "./trillZoneSelection";
 import { beat, beatToFloat } from "../../shared";
 import type { NoteEntity, TrillZone } from "../../shared";
@@ -274,5 +276,93 @@ describe("trillZoneOverlapsBox", () => {
 
   it("박스가 존을 완전히 포함(0~8 ⊇ 2~6)해도 true (포함 아닌 겹침 기준)", () => {
     expect(trillZoneOverlapsBox(zone, 1, 4, beat(0), beat(8))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// boxAnchorKind — 박스 시작 앵커의 첫 접촉 종류 잠금 (RFD 0016 §6-2)
+// ---------------------------------------------------------------------------
+
+describe("boxAnchorKind", () => {
+  const zones: TrillZone[] = [
+    { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
+  ];
+  const notes: NoteEntity[] = [
+    { type: "trill", lane: 1, beat: beat(3) },   // 0: 구간0 트릴
+    { type: "single", lane: 2, beat: beat(3) },  // 1: 일반
+    { type: "trill", lane: 3, beat: beat(10) },  // 2: 어느 구간에도 없는 트릴
+  ];
+
+  it("앵커가 트릴 노트면 그 노트의 zone trill 모드로 잠근다", () => {
+    expect(boxAnchorKind(zones, notes, 0)).toEqual({ kind: "trill", zoneIndex: 0 });
+  });
+
+  it("앵커가 일반 노트면 normal 모드", () => {
+    expect(boxAnchorKind(zones, notes, 1)).toEqual({ kind: "normal" });
+  });
+
+  it("앵커가 null(빈 곳)이면 normal 모드", () => {
+    expect(boxAnchorKind(zones, notes, null)).toEqual({ kind: "normal" });
+  });
+
+  it("앵커가 어느 zone에도 없는 트릴 노트면 zoneIndex=-1", () => {
+    expect(boxAnchorKind(zones, notes, 2)).toEqual({ kind: "trill", zoneIndex: -1 });
+  });
+
+  it("앵커 인덱스가 배열 밖(존재하지 않는 노트)이면 normal 모드", () => {
+    expect(boxAnchorKind(zones, notes, 99)).toEqual({ kind: "normal" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectionFromBox — 잠긴 종류에 따른 박스 선택 계산 (RFD 0016 §6-2)
+// ---------------------------------------------------------------------------
+
+describe("selectionFromBox", () => {
+  const zones: TrillZone[] = [
+    { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
+    { lane: 2, beat: beat(2), endBeat: beat(4) }, // 구간1
+  ];
+  const notes: NoteEntity[] = [
+    { type: "trill", lane: 1, beat: beat(2) },   // 0: 구간0
+    { type: "trill", lane: 1, beat: beat(3) },   // 1: 구간0
+    { type: "trill", lane: 2, beat: beat(3) },   // 2: 구간1
+    { type: "single", lane: 3, beat: beat(3) },  // 3: 일반 (박스 안)
+    { type: "single", lane: 3, beat: beat(9) },  // 4: 일반 (박스 밖)
+  ];
+  const box = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+
+  it("trill 모드는 박스 안 해당 zone 트릴 노트만 담고 zones는 비운다", () => {
+    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: 0 });
+    expect(sel.notes).toEqual(new Set([0, 1]));
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("trill 모드는 다른 zone 트릴(구간1)과 일반 노트를 제외한다", () => {
+    const sel = selectionFromBox(zones, notes, box, { kind: "trill", zoneIndex: 0 });
+    expect(sel.notes.has(2)).toBe(false); // 구간1 트릴
+    expect(sel.notes.has(3)).toBe(false); // 일반
+  });
+
+  it("normal 모드는 박스 안 비트릴 노트와 겹치는 zone 유닛을 담는다", () => {
+    const sel = selectionFromBox(zones, notes, box, { kind: "normal" });
+    expect(sel.notes).toEqual(new Set([3]));
+    expect(sel.zones).toEqual(new Set([0, 1]));
+  });
+
+  it("normal 모드는 개별 트릴 노트(0,1,2)를 제외한다", () => {
+    const sel = selectionFromBox(zones, notes, box, { kind: "normal" });
+    expect(sel.notes.has(0)).toBe(false);
+    expect(sel.notes.has(1)).toBe(false);
+    expect(sel.notes.has(2)).toBe(false);
+  });
+
+  it("박스 범위 밖 노트는 어느 모드든 제외 — normal 모드 beat9 일반 노트, trill 모드 maxBeat=2면 beat3 트릴 제외", () => {
+    const normalSel = selectionFromBox(zones, notes, box, { kind: "normal" });
+    expect(normalSel.notes.has(4)).toBe(false); // beat9 > maxBeat5
+
+    const narrowBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(2) };
+    const trillSel = selectionFromBox(zones, notes, narrowBox, { kind: "trill", zoneIndex: 0 });
+    expect(trillSel.notes).toEqual(new Set([0])); // beat3 트릴(1)은 범위 밖
   });
 });
