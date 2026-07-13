@@ -979,6 +979,34 @@ describe("validateLaneWellFormed — 레인 구조 검증 (RFD 0017 §3-1)", () 
     expect(validateChartStructural(input).some((e) => e.rule === "laneMalformed")).toBe(true);
     expect(validateChartSemantic(input).some((e) => e.rule === "laneMalformed")).toBe(false);
   });
+
+  it("lane NaN 노트는 laneMalformed (Number.isInteger가 NaN을 거른다)", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: NaN, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("lane Infinity 노트는 laneMalformed", () => {
+    const errors = validateLaneWellFormed(
+      [{ type: "single", lane: Infinity, beat: beat(0) }] as NoteEntity[],
+      [],
+    );
+    expect(errors.some((e) => e.rule === "laneMalformed")).toBe(true);
+  });
+
+  it("laneMalformed의 refs는 malformed 노트의 인덱스를 정확히 가리킨다 (정상 노트 뒤 lane 0)", () => {
+    const errors = validateLaneWellFormed(
+      [
+        { type: "single", lane: 1, beat: beat(0) }, // 정상 (index 0)
+        { type: "single", lane: 0, beat: beat(1) }, // malformed (index 1)
+      ] as NoteEntity[],
+      [],
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([{ kind: "note", index: 1 }]);
+  });
 });
 
 describe("validateChartStructural / validateChartSemantic 분리", () => {
