@@ -118,6 +118,9 @@ export class ClipboardManager {
     if (!this.clipboard) return null;
 
     if (this._isPendingPaste) {
+      // 대기 중 재붙여넣기 = 이전 paste를 확정 취급 → D3 확장을 유지한다(§8-6 "붙여넣기만 확장").
+      // 롤백 스냅샷만 폐기해, 취소 시 이전 확정 노트가 숨겨지는 것을 막는다.
+      this.prePasteExtraLaneCount = null;
       this._cancelPasteInternal(chart, callbacks);
     }
 

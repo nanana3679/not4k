@@ -2435,4 +2435,24 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
 
     expect(setExtraLaneCount).not.toHaveBeenCalled();
   });
+
+  it("대기 붙여넣기 중 재붙여넣기 후 취소해도 이전 확정 확장은 유지된다 (extraLaneCount 1로 롤백 안 함)", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 6, beat: beat(1) }] });
+    let laneCount = 1;
+    const setExtraLaneCount = vi.fn((n: number) => { laneCount = n; });
+    const cb = makeCallbacks(
+      { getExtraLaneCount: () => laneCount, setExtraLaneCount },
+      { extraLaneCount: 1 },
+    );
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.copy();
+    mode.paste(beat(5)); // 1차 붙여넣기 → 확장 1→2
+    expect(laneCount).toBe(2);
+    mode.paste(beat(9)); // 대기 중 재붙여넣기 = 이전 paste를 확정 취급(확장 유지)
+    mode.cancelPaste();
+
+    expect(laneCount).toBe(2); // 이전 확정 노트가 숨겨지지 않도록 1로 롤백하지 않는다
+  });
 });

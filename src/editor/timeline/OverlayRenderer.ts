@@ -62,7 +62,8 @@ export class OverlayRenderer {
 
     for (const origin of this.host.moveOrigins) {
       const { note, beat: origBeat, endBeat: origEndBeat, lane } = origin;
-      const x = (lane - 1) * LANE_WIDTH;
+      // 보조 레인(5+)도 통합 이동으로 moveOrigins에 실린다 — laneToX로 메인/보조 별도 영역에 투영(§8-5).
+      const x = laneToX(lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
 
