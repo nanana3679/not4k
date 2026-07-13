@@ -12,8 +12,9 @@ import {
   selectionBlockReason,
   clampTrillBeatOffset,
   translateTrillZone,
-  isTrillNote,
-  trillZoneOverlapsBox,
+  boxAnchorKind,
+  selectionFromBox,
+  type SelectionKind,
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
@@ -81,6 +82,8 @@ export class SelectMode implements EditorMode {
   private _boxStartY: number = 0;
   private _boxStartLane: number | null = null;
   private _boxEndY: number = 0;
+  // 박스 첫 접촉 종류 잠금(RFD 0016 §6-2) — 시작 앵커로 정해 드래그 종료까지 고정. 박스 아닐 땐 empty.
+  private _boxLockedKind: SelectionKind = { kind: "empty" };
 
   // Move state
   private originalPositions: Map<
@@ -536,6 +539,12 @@ export class SelectMode implements EditorMode {
     this._boxStartLane = this.callbacks.xToUnifiedLane(x);
     this._boxEndLane = this._boxStartLane;
     this._boxEndY = y;
+    // 첫 접촉 잠금(RFD 0016 §6-2) — 시작 앵커의 엔티티로 종류를 정하고 드래그 내내 고정.
+    this._boxLockedKind = boxAnchorKind(
+      this.chart.trillZones,
+      this.chart.notes,
+      this.callbacks.hitTestNote(x, y),
+    );
   }
 
   /** Handle pointer move — 적용 후 렌더러가 PUSH할 프리뷰(박스/이동 원본)를 반환한다. */
@@ -700,6 +709,7 @@ export class SelectMode implements EditorMode {
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
+    this._boxLockedKind = { kind: "empty" };
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -731,6 +741,7 @@ export class SelectMode implements EditorMode {
 
     this._boxEndBeat = null;
     this._boxEndLane = null;
+    this._boxLockedKind = { kind: "empty" };
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -754,27 +765,15 @@ export class SelectMode implements EditorMode {
 
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
-    const notes = new Set<number>();
-    const zones = new Set<number>();
-    // 통합 인덱스 — 메인·보조 노트가 chart.notes 한 배열에 살고 lane으로만 갈린다 (RFD 0018 ④).
-    for (let i = 0; i < this.chart.notes.length; i++) {
-      const note = this.chart.notes[i];
-      if (!isTrillNote(note)
-          && note.lane >= minLane && note.lane <= maxLane
-          && beatSub(note.beat, minBeat).n >= 0
-          && beatSub(maxBeat, note.beat).n >= 0) {
-        notes.add(i);
-      }
-    }
+    // 첫 접촉 잠금 종류에 따라 박스 안 선택 계산 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④),
+    // trill 모드=그 zone 트릴만(zones=∅), normal 모드=비트릴 노트+겹치는 zone 유닛(§4.1·§4.3).
+    const { notes, zones } = selectionFromBox(
+      this.chart.trillZones,
+      this.chart.notes,
+      { minLane, maxLane, minBeat, maxBeat },
+      this._boxLockedKind,
+    );
 
-    // 박스와 레인·박 폐구간이 겹치는(포함 아님) trillZone은 유닛으로 선택 (RFD 0016 §4.3)
-    for (let i = 0; i < this.chart.trillZones.length; i++) {
-      if (trillZoneOverlapsBox(this.chart.trillZones[i], minLane, maxLane, minBeat, maxBeat)) {
-        zones.add(i);
-      }
-    }
-
-    // 일반 노트·구간 유닛은 공존 선택 가능 (RFD 0016 §4.1).
     // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.
     this.commitSelectionTransient({ notes, zones });
   }

@@ -1505,6 +1505,93 @@ describe("SelectMode — 선택 동질성", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 박스 첫 접촉 종류 잠금 (RFD 0016 §6-2)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 박스 첫 접촉 종류 잠금 (RFD 0016 §6-2)", () => {
+  // 인덱스 0,1: 구간0(레인1) 트릴, 2: 구간1(레인2) 트릴, 3: 일반(레인3)
+  function makeChartL(): Chart {
+    return makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },  // 1
+        { type: "trill", lane: 2 as Lane, beat: beat(7) },  // 2
+        { type: "single", lane: 3 as Lane, beat: beat(1) }, // 3
+      ],
+      trillZones: [
+        { lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }, // 구간0
+        { lane: 2 as Lane, beat: beat(6), endBeat: beat(8) }, // 구간1
+      ],
+    });
+  }
+
+  it("트릴 노트 위에서 시작한 박스(승격)는 그 zone 트릴 노트만 선택하고 zones는 비운다", () => {
+    const cb = makeCallbacks({
+      // 앵커 좌표(레인1, y=2) → 구간0 트릴 노트 0
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);   // 트릴 노트 0 좌표에서 승격 시작
+    mode.onPointerMove(2, 10);   // 레인 1~2, beat 2~10으로 박스 확장
+
+    const sel = cb.getSelectionState();
+    // 구간0 트릴(0,1)만 — 구간1 트릴(2)은 다른 zone이라 제외
+    expect([...sel.notes].sort()).toEqual([0, 1]);
+    expect(sel.zones).toEqual(new Set());
+  });
+
+  it("빈 곳에서 시작한 박스는 트릴 노트를 제외하고 비트릴 노트와 겹치는 zone 유닛만 선택한다(현행 회귀 가드)", () => {
+    const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
+    mode.onPointerMove(3, 10);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([3]);
+    expect([...sel.zones].sort()).toEqual([0, 1]);
+  });
+
+  it("박스 종류는 드래그 중 재분류되지 않는다(첫 접촉 고정) — 트릴 시작 박스가 일반 노트를 덮어도 일반 노트는 제외", () => {
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);   // 트릴 노트 0에서 시작 → trill 모드 잠금
+    mode.onPointerMove(3, 10);   // 레인 1~3 — 일반 노트 3(레인3, beat1은 밖)·구간1까지 덮음
+
+    const sel = cb.getSelectionState();
+    expect(sel.notes.has(3)).toBe(false);       // 일반 노트 미픽업 (trill 모드 유지)
+    expect(sel.notes.has(2)).toBe(false);       // 다른 zone 트릴 미픽업
+    expect([...sel.notes].sort()).toEqual([0, 1]);
+    expect(sel.zones).toEqual(new Set());       // zone 유닛도 미픽업
+  });
+
+  it("트릴 박스 종료 후 빈 곳에서 새 박스를 시작하면 다시 normal 모드로 동작한다(잠금 해제)", () => {
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
+    });
+    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    const mode = makeMode(makeChartL(), cb);
+
+    mode.beginBoxSelect(1, 2);
+    mode.onPointerMove(2, 10);
+    mode.onPointerUp(2, 10); // 트릴 박스 종료
+
+    mode.onPointerDown(3, 0, false, false); // 빈 곳(레인3, beat0)에서 새 박스
+    mode.onPointerMove(3, 10);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([3]); // 일반 노트 픽업 → normal 모드
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 트릴 노트 이동 제약 (구간 안에서만, 레인 변경 불가)
 // ---------------------------------------------------------------------------
 
