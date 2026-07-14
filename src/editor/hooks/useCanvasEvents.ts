@@ -102,7 +102,7 @@ export function useCanvasEvents(
     yToBeat, snapBeat,
     bpmMarkers,
     hitTestNoteRef, hitTestUnifiedNoteRef, hitTestNoteEndRef, hitTestExtraNoteRef,
-    hitTestTrillZoneEndRef, hitTestTrillZoneHandleRef, hitTestTrillZoneRef,
+    hitTestTrillZoneEndRef, hitTestTrillZoneRef,
     yToBeatRawRef,
     hitTestUnifiedNote, hitTestTrillZone,
   } = coords;
@@ -381,11 +381,10 @@ export function useCanvasEvents(
         if (getLongPressRangeType(entityType as EntityType)) return;
         // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치).
       } else if (mode === 'select' && selectModeRef.current) {
-        // 트릴존 핸들/끝은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
+        // 트릴존 끝(리사이즈 캡)은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
         const schedule = resolveSelectTouchDownSchedule({
           noteHit: touchNoteHit,
           extraHit: touchExtraHit,
-          zoneHandleHit: hitTestTrillZoneHandleRef.current(x, y),
           zoneEndHit: hitTestTrillZoneEndRef.current(x, y),
         });
         if (schedule === 'tapToggle') {
@@ -415,7 +414,7 @@ export function useCanvasEvents(
     toSample, handleEditCancel, armHoldTimer, hitTestTrillZoneRef,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef, hitTestExtraNoteRef,
-    hitTestNoteEndRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestTrillZoneHandleRef, hitTestTrillZoneEndRef,
+    hitTestNoteEndRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestTrillZoneEndRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, onNavigationInteraction,
   ]);
@@ -560,14 +559,17 @@ export function useCanvasEvents(
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }
 
-    // 트릴 핸들 위 커서: 이동 필=move, 리사이즈 캡=ns-resize(↕). select 모드에서만.
+    // 트릴존 위 커서: 리사이즈 캡(끝)=ns-resize(↕), 선택된 존 몸통=move(선택 후 드래그=이동,
+    // RFD 0016 §6-6 — 제거된 이동 필 커서를 대체). select 모드에서만.
     const canvasEl = canvasRef.current;
     if (canvasEl) {
       let cursor = '';
       if (mode === 'select') {
-        if (hitTestTrillZoneHandleRef.current(x, y) !== null) cursor = 'move';
-        else if (hitTestTrillZoneEndRef.current(x, y) !== null) cursor = 'ns-resize';
-        else {
+        const zoneBody = hitTestTrillZoneRef.current(x, y);
+        if (hitTestTrillZoneEndRef.current(x, y) !== null) cursor = 'ns-resize';
+        else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
+          cursor = 'move';
+        } else {
           // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
           const noteEnd = hitTestNoteEndRef.current(x, y);
           if (noteEnd !== null && hitTestNoteRef.current(x, y) === noteEnd) cursor = 'ns-resize';

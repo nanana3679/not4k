@@ -326,14 +326,14 @@ export class OverlayRenderer {
       }
     }
 
-    // hover한 trillZone의 이동/리사이즈 핸들 (hover 시에만 표시)
+    // hover한 trillZone의 리사이즈 핸들(끝 캡)만 표시 — 이동 필은 제거됨,
+    // 구간 이동은 선택 후 몸통 드래그 (RFD 0016 §6-6)
     if (hoveredTrillZoneIndex !== null && hoveredTrillZoneIndex < this.host.chart.trillZones.length) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
       const x = (zone.lane - 1) * LANE_WIDTH;
-      const startY = this.host.timeToY(beatToMs(zone.beat, bpmMarkers, meta.offsetMs));
       const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
       const selected = this.host.selectedTrillZones.has(hoveredTrillZoneIndex);
-      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, startY, endY, selected);
+      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, endY, selected);
     }
 
     // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.

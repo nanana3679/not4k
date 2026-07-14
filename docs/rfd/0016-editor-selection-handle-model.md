@@ -1,6 +1,6 @@
 # RFD 0016: 에디터 선택·구간 핸들 모델 통일
 
-**Status:** Accepted (2026-07-09) · 선택 모델 구현 (2026-07-12, PR #95) · §6-2 박스 감쌈 선택 구현 (2026-07-14, PR #110) · §3-4 D1 이벤트 클립보드 구현 (2026-07-14) · **부분 구현 — 잔여: §6-6 이동 필 제거·§6-4 끝 히트박스** (D3는 RFD 0018에서 계승 완료)
+**Status:** Accepted (2026-07-09) · 선택 모델 구현 (2026-07-12, PR #95) · §6-2 박스 감쌈 선택 구현 (2026-07-14, PR #110) · §3-4 D1 이벤트 클립보드 구현 (2026-07-14) · §6-6 이동 필 제거 구현 (2026-07-14) · **부분 구현 — 잔여: §6-4 끝 히트박스** (D3는 RFD 0018에서 계승 완료)
 
 **구현 기록 (2026-07-12):** 선행 조건이던 낙관적 편집(RFD 0017, §5)이 main에 머지된 뒤 **선택 모델 부분이 구현되었다** — `SelectionSlice` 단일 소유(선택 쓰기 관문 + 정규화 게이트 + §3-5 해제 게이트), `trillZone` 1급 유닛 선택(§3-3: 비주입·이동/삭제/복사 시 내부 노트 **실행 시점 파생**, 핸들 탭·박스 겹침 픽업 `trillZoneOverlapsBox`), 연산별 동질성(§3-2: 유닛↔일반 노트↔Extra 공존, 개별 트릴만 배타), 존 몸통 롱프레스 유닛 이동, 노트 위 탭 후보의 slop 초과 시 박스 승격(§6-1 개정). **미구현 잔여(후속)**: 이동 필 제거(§6-6 — `drawMovePill` 잔존, 라이브 모드 인디케이터 미도입), `trillZone` 끝 투명 히트박스(§6-4), 클립보드 델타 D1(이벤트)·D3(엑스트라 자동 확장)(§3-4).
 
@@ -14,6 +14,10 @@
 
 > **폐기된 접근:** 초기에 "시작 앵커가 트릴 노트인가"로 종류를 잠그는 anchor 모델을 시도했으나, 빈 곳에서 시작하는 박스는 앵커가 트릴이 될 수 없어 마우스에서 개별 트릴 선택 경로를 못 열었다. 순수 감쌈으로 대체(앵커·`boxAnchorKind`·`_boxLockedKind` 제거).
 
+**구현 기록 (2026-07-14, §6-6):** **이동 필 제거 + 존 몸통 이동 통일.** `drawMovePill`·`TRILL_MOVE_PILL_*`·`hitTestTrillZoneHandle(At)`·핸들 커서/터치 우선권 배선을 전부 삭제하고, `trillZone` 몸통이 노트와 같은 상호작용 규칙을 따른다 — **클릭(탭)=유닛 선택, 선택된 몸통 드래그=구간 유닛 이동, 미선택 몸통 드래그=박스 선택**(shift/토글 클릭은 zones 토글로 구 핸들 동작 승계). 미선택 몸통 down은 박스로 시작하되 존을 `_pendingZoneSelect`로 기억해, up에서 움직임이 없었으면(탭) 빈 박스 확정 대신 그 존을 유닛 선택한다. 끝(위) 리사이즈 캡·`hitTestTrillZoneEnd`·드래그 중 핸들 래치는 유지되며, 몸통 분기보다 우선한다. hover 커서는 리사이즈 캡=`ns-resize`, **선택된 존 몸통=`move`**(제거된 필 커서 대체)로 §6-6의 discoverable 어포던스를 잇는다.
+
+> **라이브 모드 인디케이터(§3-1) 폐기:** §6-2가 first-contact/앵커 모델 대신 **앵커 없는 순수 감쌈**으로 구현되면서 "이미 사라진 이력(첫 접촉)"이라는 숨은 모드 자체가 소멸했다 — 인디케이터가 벗겨야 할 비가시성이 없으므로 **무효, 도입하지 않는다**.
+
 **구현 기록 (2026-07-14, §3-4 D1):** 클립보드에 이벤트가 포함된다 — `NoteClipboard`에 `events` 축 추가(`ClipboardManager`). copy 시 선택된 노트·`trillZone`의 beat-span `[min, max]`(`endBeat` 있는 것은 끝까지 반영)와 겹치는 `chart.events`를 수집하되 **timeSignature는 제외**(마디 경계 문제 회피 — 커밋 차단은 RFD 0017 게이트 소관): 시점 이벤트는 `beat ∈ [min,max]`, 구간 이벤트는 폐구간 겹침. anchor는 notes/zones의 최소 beat 유지. paste는 이벤트를 같은 beatOffset으로 평행이동해 주입하고(`editorLane` 유지 — D4의 lane 유지와 동형), 붙여넣기 대기 중 `↑`/`↓` 이동은 이벤트도 동반, `←`/`→` 레인 이동은 이벤트 불변. 취소는 `prePasteEvents` 스냅샷 복원, 확정은 낙관 커밋(위반이어도 place-then-fix, 해칭 표시).
 
 > **RFD 0018 전방 note:** 이 문서의 `extraNotes` 및 Extra 공존 축 서술은 당시 모델의 역사적 기록이다. RFD 0018 이후 `extraNotes` 축은 소멸했고, 메인·보조 노트는 모두 `chart.notes`의 통합 인덱스를 쓰는 `notes` 단일 선택 축에 속한다. §3-4의 D3 자동 확장 결정은 보조 레인 노트 붙여넣기 규칙으로 계승되었다.
@@ -21,7 +25,7 @@
 **관련 문서:**
 
 - [`src/editor/CONTEXT.md`](../../src/editor/CONTEXT.md) — Chart editor 컨텍스트(편집 모드·선택·트릴 핸들·배치 제약)
-- [`docs/context/glossary.md`](../context/glossary.md) — `trillZone` 선택·트릴 핸들(이동 필·리사이즈 캡) 용어
+- [`docs/context/glossary.md`](../context/glossary.md) — `trillZone` 선택·트릴 핸들(리사이즈 캡) 용어
 - 코드: [`src/editor/modes/SelectMode.ts`](../../src/editor/modes/SelectMode.ts)(포인터다운 디스패치·박스선택), [`src/editor/modes/trillZoneSelection.ts`](../../src/editor/modes/trillZoneSelection.ts)(동질성·파생 선택), [`src/editor/timeline/trillZoneHandles.ts`](../../src/editor/timeline/trillZoneHandles.ts)(핸들 도형), [`src/editor/timeline/OverlayRenderer.ts`](../../src/editor/timeline/OverlayRenderer.ts)(박스 시각화)
 
 ---
