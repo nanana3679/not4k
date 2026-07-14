@@ -49,6 +49,10 @@ _Avoid_: 뷰포트 슬라이스(한국어 조어), 렌더러·컨트롤러에 �
 에디터 선택 상태(notes·extraNotes·zones)의 단독 소유자다. 쓰기는 slice 액션만, 동질성 정규화 게이트와 **선택 해제 게이트**(§3-5)가 `setSelection` 관문에 산다(정규화는 거부가 아니라 접기 — 선택은 휘발성 UI 상태). 풀 정의는 glossary "SelectionSlice".
 _Avoid_: 선택 슬라이스(한국어 조어), SelectMode·훅에 선택 사본 저장, 필드별 개별 setter
 
+**`TimelineSpace`**:
+입력 좌표 공간(픽셀 → 도메인 변환·스냅·히트테스트)을 접은 deep module이다. store·renderer를 모르는 주입 source 기반 라이브 읽기 팩토리(`createTimelineSpace`)로, React 조립은 `useTimelineSpace`가 맡는다. 풀 정의는 glossary "TimelineSpace"(에디터 입력 섹션).
+_Avoid_: Projection(그리기 방향, 도메인→픽셀)과의 혼동, 클로저에 store 상태 스냅샷 저장
+
 **재생 커서**:
 에디터에서 현재 음원 재생 위치를 나타내는 선이다.
 _Avoid_: 판정선

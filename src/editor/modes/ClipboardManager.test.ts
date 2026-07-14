@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { beat, beatToFloat } from "../../shared";
 import type { Chart, ChartEvent, Lane, NoteEntity, TrillZone } from "../../shared";
 
@@ -18,8 +19,10 @@ function makeChart(overrides?: Partial<Chart>): Chart {
 
 function makeCallbacks(): ClipboardCallbacks {
   return {
-    getSnapStep: () => beat(1),
-    getMaxBeatFloat: () => 100,
+    space: makeFakeSpace({
+      getSnapStep: () => beat(1),
+      getMaxBeatFloat: () => 100,
+    }),
     onChartUpdate: vi.fn(),
     onWarn: vi.fn(),
   };

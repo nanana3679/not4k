@@ -1,6 +1,7 @@
 import type { Chart, ChartEvent, NoteEntity, RangeNote, Beat, TrillZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 
 /**
  * Clipboard data for copy/paste.
@@ -22,8 +23,8 @@ export interface NoteClipboard {
 }
 
 export interface ClipboardCallbacks {
-  getSnapStep: () => Beat;
-  getMaxBeatFloat: () => number;
+  /** 좌표 공간(스냅 스텝·타임라인 범위) — TimelineSpace deep module 주입 */
+  space: TimelineSpace;
   /** 현재 보조 레인 수 — 붙여넣기 이동의 레인 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) — 미설정이면 확장 없이 클램프만 */
@@ -176,7 +177,7 @@ export class ClipboardManager {
       }
     }
 
-    const maxFloat = callbacks.getMaxBeatFloat();
+    const maxFloat = callbacks.space.getMaxBeatFloat();
     for (const note of pastedEntries) {
       const bf = beatToFloat(note.beat);
       if (bf < 0 || bf > maxFloat) {
@@ -356,7 +357,7 @@ export class ClipboardManager {
   ): Chart | null {
     if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return null;
 
-    const snapStep = callbacks.getSnapStep();
+    const snapStep = callbacks.space.getSnapStep();
     const offset =
       direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
@@ -374,7 +375,7 @@ export class ClipboardManager {
       }
     }
 
-    if (!this._areNotesInBounds(newNotes, this.pastedNoteIndices, callbacks.getMaxBeatFloat())) {
+    if (!this._areNotesInBounds(newNotes, this.pastedNoteIndices, callbacks.space.getMaxBeatFloat())) {
       return null;
     }
 
@@ -395,7 +396,7 @@ export class ClipboardManager {
       newEvents[idx] = this._translateEvent(newEvents[idx], offset);
     }
     // 이벤트가 범위를 벗어나면 이동 거부(노트 :_areNotesInBounds와 대칭, 음수 beat 저장 방지)
-    const maxFloat = callbacks.getMaxBeatFloat();
+    const maxFloat = callbacks.space.getMaxBeatFloat();
     for (const idx of this.pastedEventIndices) {
       const evt = newEvents[idx];
       if (beatToFloat(evt.beat) < 0 || beatToFloat(evt.beat) > maxFloat) return null;

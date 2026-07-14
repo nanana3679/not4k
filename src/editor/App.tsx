@@ -26,7 +26,7 @@ import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
-import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
+import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
@@ -287,9 +287,8 @@ function ChartEditorPage() {
   const mode = useEditorStore((s) => s.mode);
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
-  // 좌표 변환 / 히트테스트 훅
-  const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestExtraNoteRef } = coords;
+  // TimelineSpace deep module — 좌표 변환 / 히트테스트
+  const { space, bpmMarkers } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -345,7 +344,7 @@ function ChartEditorPage() {
   const canvasEvents = useCanvasEvents(
     canvasRef, rendererRef, playbackRef,
     createModeRef, selectModeRef, deleteModeRef,
-    isDraggingCursorRef, coords, isTimeInBounds,
+    isDraggingCursorRef, space, isTimeInBounds,
     handlePinchZoom,
     handleHorizontalPan,
     handleVerticalPan,
@@ -477,14 +476,8 @@ function ChartEditorPage() {
     // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
     const createMode = new CreateMode(chart, {
       onChartUpdate: (c) => setChart(c),
-      yToBeat: (y) => yToBeatRef.current(y),
-      snapBeat,
-      xToLane,
+      space,
       isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      xToExtraLane: (x) => xToExtraLane(x),
     });
     createModeRef.current = createMode;
 
@@ -497,19 +490,7 @@ function ChartEditorPage() {
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
       setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
-      yToBeat: (y) => yToBeatRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      snapBeat,
-      getSnapStep: () => {
-        return { n: 4, d: useEditorStore.getState().snapDivision };
-      },
-      getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
-      xToUnifiedLane: (x) => coords.xToUnifiedLane(x),
-      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
-      hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
-      hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
-      hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
+      space,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
       setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
@@ -520,9 +501,7 @@ function ChartEditorPage() {
     const deleteMode = new DeleteMode(chart, {
       // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
       onChartUpdate: (c) => setChart(c),
-      // 통합 히트테스트 — 메인·보조 모두 chart.notes 통합 인덱스로 삭제 (RFD 0018 ④d)
-      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
+      space,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;

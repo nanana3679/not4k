@@ -576,6 +576,16 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 **구현**: `src/editor/stores/viewportSlice.ts` (editorStore에 결합).
 
+### `TimelineSpace`
+
+에디터의 **입력 좌표 공간**(픽셀 → 도메인 변환·스냅·히트테스트)을 한 인터페이스로 접은 deep module. 픽셀 좌표를 레인(`xToLane`·`xToUnifiedLane`)·박(`yToBeat`·`yToBeatRaw`·`snapBeat`)으로 변환하고, 노트·이벤트·`trillZone`의 히트테스트를 제공한다.
+
+store·renderer를 모르는 **주입 source 기반 팩토리**(`createTimelineSpace(source)`)다 — 필요한 외부 사실(차트, 스냅 분할, 선택, 보조 레인 수, y→시간 변환)은 전부 `TimelineSpaceSource`에서 **호출 시점에 라이브로 읽는다**(클로저 스냅샷 없음). 이 라이브 읽기가 구 `useCoordinateHelpers`의 ref 이중화(stale closure 방지용 ref 11개)를 불필요하게 만든다. React 조립(store·renderer ref 접기)은 `useTimelineSpace` 훅이 담당하고, 테스트는 fake source로 순수 조립한다.
+
+그리기 방향(도메인 → 픽셀)을 담당하는 **Projection**(`timelineProjection`)과 구분된다 — `TimelineSpace`는 입력 방향만 소관한다.
+
+**구현**: `src/editor/timeline/TimelineSpace.ts` (팩토리) + `src/editor/hooks/useTimelineSpace.ts` (React 어댑터).
+
 ---
 
 ## 관련 문서

@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DeleteMode } from "./DeleteMode";
 import { SelectMode } from "./SelectMode";
 import { ClipboardManager } from "./ClipboardManager";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat } from "../../shared";
@@ -56,7 +57,7 @@ function seedChart(notes: NoteEntity[]) {
 
 const xToLane = (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null);
 
-/** useCoordinateHelpers.hitTestUnifiedNote 미러 — 메인·보조 통합 인덱스 반환 */
+/** TimelineSpace.hitTestUnifiedNote 미러 — 메인·보조 통합 인덱스 반환 */
 const hitTestUnifiedNote = (x: number, y: number): number | null => {
   const lane = x >= 1 ? x : null;
   if (lane === null) return null;
@@ -66,11 +67,12 @@ const hitTestUnifiedNote = (x: number, y: number): number | null => {
 /**
  * App.tsx의 DeleteMode 배선 미러 (RFD 0018 ④d):
  * 통합 차트(chart.notes 전체) + 통합 히트테스트 — 어댑터·별도 보조 축 없음.
+ * 좌표/히트는 space(TimelineSpace) 경유 — hitTestTrillZone은 fake 기본값(null).
  */
 function wireDeleteModeAsApp(): DeleteMode {
   return new DeleteMode(useEditorStore.getState().chart, {
     onChartUpdate: (c: Chart) => useEditorStore.getState().setChart(c),
-    hitTestNote: hitTestUnifiedNote,
+    space: makeFakeSpace({ hitTestUnifiedNote }),
   });
 }
 
@@ -85,14 +87,17 @@ function wireSelectMode(): SelectMode {
     getSelection: () => useEditorStore.getState().selection,
     setSelection: (s: Selection) => useEditorStore.getState().setSelection(s),
     setSelectionTransient: (s: Selection) => useEditorStore.getState().setSelectionTransient(s),
-    yToBeat: (y: number): Beat => beat(y),
-    yToBeatRaw: (y: number): Beat => beat(y),
-    snapBeat: (b: Beat): Beat => b,
-    getSnapStep: (): Beat => beat(4, 4),
-    getMaxBeatFloat: () => 100,
-    xToLane,
-    xToUnifiedLane: (x: number): number | null => (x >= 1 ? x : null),
-    hitTestNote: hitTestUnifiedNote,
+    // SelectMode 구성에 필요한 좌표/히트만 space로 (구 hitTestNote=통합 → hitTestUnifiedNote).
+    space: makeFakeSpace({
+      yToBeat: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      getSnapStep: (): Beat => beat(4, 4),
+      getMaxBeatFloat: () => 100,
+      xToLane,
+      xToUnifiedLane: (x: number): number | null => (x >= 1 ? x : null),
+      hitTestUnifiedNote,
+    }),
     getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
     onWarn: vi.fn(),
   };
@@ -143,8 +148,10 @@ describe("파티션 깨진 통합 차트에서의 클릭 삭제 (RFD 0018 ④d)"
       useEditorStore.getState().chart,
       beat(4),
       {
-        getSnapStep: () => beat(4, 4),
-        getMaxBeatFloat: () => 100,
+        space: makeFakeSpace({
+          getSnapStep: () => beat(4, 4),
+          getMaxBeatFloat: () => 100,
+        }),
         onChartUpdate: (c) => useEditorStore.getState().setChart(c),
       },
       () => useEditorStore.getState().setSelection(emptySelection()),

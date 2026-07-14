@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
 import { beat, validateChart, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
-import type { Chart, Beat, Lane, NoteEntity } from "../../shared";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
+import type { Chart, NoteEntity } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -14,17 +16,16 @@ function makeChart(overrides?: Partial<Chart>): Chart {
   };
 }
 
-function makeCallbacks(_chart: Chart, overrides?: Record<string, unknown>) {
+function makeCallbacks(
+  _chart: Chart,
+  spaceOverrides: Partial<TimelineSpace> = {},
+  callbackOverrides: { isTimeInBounds?: (y: number) => boolean } = {},
+) {
   return {
     onChartUpdate: vi.fn((_c: Chart) => {}),
-    yToBeat: (y: number): Beat => beat(y),
-    snapBeat: (b: Beat): Beat => b,
-    xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
+    space: makeFakeSpace(spaceOverrides),
     isTimeInBounds: (_y: number): boolean => true,
-    yToBeatRaw: (y: number): Beat => beat(y),
-    hitTestNote: (_x: number, _y: number): number | null => null,
-    hitTestExtraNote: (_x: number, _y: number): number | null => null,
-    ...overrides,
+    ...callbackOverrides,
   };
 }
 
@@ -49,7 +50,7 @@ describe("CreateMode — handlePointerDown 배치 제약(가드 흡수)", () => 
 
   it("isPlacementBlocked: 시간 범위 밖이면 true", () => {
     const chart = makeChart();
-    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const callbacks = makeCallbacks(chart, {}, { isTimeInBounds: () => false });
     const mode = new CreateMode(chart, callbacks);
     expect(mode.isPlacementBlocked(1, 2)).toBe(true);
   });
@@ -76,7 +77,7 @@ describe("CreateMode — handlePointerDown 배치 제약(가드 흡수)", () => 
 describe("CreateMode — handlePointerUp", () => {
   it("범위 밖이면 드래그 취소 + hideGhost 신호", () => {
     const chart = makeChart();
-    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => false });
+    const callbacks = makeCallbacks(chart, {}, { isTimeInBounds: () => false });
     const mode = new CreateMode(chart, callbacks);
     const cancelSpy = vi.spyOn(mode, "cancelDrag");
     const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
@@ -86,7 +87,7 @@ describe("CreateMode — handlePointerUp", () => {
 
   it("범위 안이면 onPointerUp으로 배치 확정(hideGhost 없음)", () => {
     const chart = makeChart();
-    const callbacks = makeCallbacks(chart, { isTimeInBounds: () => true });
+    const callbacks = makeCallbacks(chart, {}, { isTimeInBounds: () => true });
     const mode = new CreateMode(chart, callbacks);
     const upSpy = vi.spyOn(mode, "onPointerUp");
     const result = mode.handlePointerUp({ x: 1, y: 2, shiftKey: false, altKey: false, toggleSelection: false });
@@ -231,11 +232,10 @@ describe("CreateMode — 통합 입력 (single/double)", () => {
 
   it("single 선택 후 Extra 레인(1) 클릭만 하면 lane5 단노트, 드래그하면 lane5 헤드+롱이 chart.notes에 append", () => {
     const chart = makeChart();
-    const callbacks = {
-      ...makeCallbacks(chart),
+    const callbacks = makeCallbacks(chart, {
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-    };
+    });
     const mode = new CreateMode(chart, callbacks);
     mode.entityType = "single";
 
@@ -385,11 +385,10 @@ describe("CreateMode — 롱노트 생성 시 헤드 노트", () => {
 
 describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () => {
   function makeExtraCallbacks(chart: Chart) {
-    return {
-      ...makeCallbacks(chart),
+    return makeCallbacks(chart, {
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-    };
+    });
   }
 
   it("길이 0인 Extra 롱노트 생성 시 헤드 없이 lane5 바디만 chart.notes에 생성", () => {
@@ -471,11 +470,10 @@ describe("isEventEntityType", () => {
 
 describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
   function makeEventCallbacks(chart: Chart) {
-    return {
-      ...makeCallbacks(chart),
+    return makeCallbacks(chart, {
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-    };
+    });
   }
 
   it("bpm 타입 선택 후 Extra 레인 클릭 시 BPM 이벤트 즉시 생성 (드래그 불필요)", () => {
