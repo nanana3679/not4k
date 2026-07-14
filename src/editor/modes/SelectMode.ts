@@ -436,10 +436,11 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    // 3. Trill zone endpoints (resize)
+    // 3. Trill zone endpoints (resize) — **그 구간이 이미 선택됐을 때만** 리사이즈로 잡는다.
+    // 미선택 구간의 끝에 놓인 노트 클릭을 리사이즈가 가로채지 않도록(끝 노트 선택 보장, RFD 0016 §6-6).
     if (this.callbacks.hitTestTrillZoneEnd) {
       const zoneHit = this.callbacks.hitTestTrillZoneEnd(x, y);
-      if (zoneHit !== null) {
+      if (zoneHit !== null && this.sel.zones.has(zoneHit)) {
         const zone = this.chart.trillZones[zoneHit];
         this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
         return;

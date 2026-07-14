@@ -566,8 +566,12 @@ export function useCanvasEvents(
       let cursor = '';
       if (mode === 'select') {
         const zoneBody = hitTestTrillZoneRef.current(x, y);
-        if (hitTestTrillZoneEndRef.current(x, y) !== null) cursor = 'ns-resize';
-        else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
+        const zoneEnd = hitTestTrillZoneEndRef.current(x, y);
+        // 끝 리사이즈 커서·move 커서 모두 그 구간이 **선택됐을 때만** — 미선택 구간의 끝 노트
+        // 클릭을 가로채지 않도록(RFD 0016 §6-6). 리사이즈 캡 렌더·down hit도 동일 게이트.
+        if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
+          cursor = 'ns-resize';
+        } else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
           cursor = 'move';
         } else {
           // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)

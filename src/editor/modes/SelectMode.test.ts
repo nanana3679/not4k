@@ -217,6 +217,7 @@ describe("SelectMode — 드래그 재진입 가드", () => {
     });
     const mode = makeMode(chart, cb);
     const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
     expect(mode.computeHoveredTrillZone(0, 0)).toBe(0); // 드래그 중이면 hover 히트 없어도 래치로 0
@@ -250,6 +251,7 @@ describe("SelectMode — computeHoveredTrillZone", () => {
       hitTestTrillZone: (): number | null => 2, // 커서가 다른 구간(2) 위여도
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
     mode.onPointerDown(9, 6, false, false); // 구간0 리사이즈 시작 → 래치 0
     expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // hover=2 무시하고 래치 0 유지
   });
@@ -272,6 +274,7 @@ describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
     const priv = mode as unknown as { chart: Chart };
     return { mode, cb, priv };
   }
@@ -1924,7 +1927,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     expect([...cb.getSelectionState().zones]).toEqual([]);
   });
 
-  it("존 끝 리사이즈는 몸통 분기보다 우선한다(회귀 — endBeat 4→6)", () => {
+  it("선택된 존의 끝 리사이즈는 몸통 분기보다 우선한다(회귀 — endBeat 4→6)", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneEnd: () => 0,
       hitTestTrillZone: () => 0, // 끝도 몸통 범위 안 — 끝 리사이즈가 이겨야 한다
@@ -1932,8 +1935,9 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     cb.yToBeat = (y: number): Beat => beat(y);
     cb.snapBeat = (b: Beat): Beat => b;
     const mode = makeMode(makeChartB(), cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
 
-    mode.onPointerDown(1, 4, false, false); // 존 끝 → 리사이즈 시작
+    mode.onPointerDown(1, 4, false, false); // 선택된 존 끝 → 리사이즈 시작
     expect(mode.isMoveDragging).toBe(false);
     expect(mode.isBoxSelecting).toBe(false);
     mode.onPointerMove(1, 6);
@@ -1942,6 +1946,22 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(6);
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(2); // 시작은 불변
+  });
+
+  it("미선택 존의 끝을 클릭하면 리사이즈가 아니라 그 위치의 끝 노트가 선택된다(§6-6 — 선택된 존만 리사이즈)", () => {
+    const cb = makeCallbacks({
+      hitTestTrillZoneEnd: () => 0, // 끝 히트지만 존 미선택
+      hitTestNote: () => 1,         // 끝 위치에 노트 1(트릴 beat3)
+    });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 4, false, false); // 미선택 존 끝 → 리사이즈 안 함
+    expect([...mode.selection]).toEqual([1]); // 리사이즈 대신 끝 노트가 선택됨
+    mode.onPointerUp(1, 4);
+
+    // 차트(구간 endBeat)는 불변 — 리사이즈가 일어나지 않았다
+    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart | undefined;
+    if (lastChart) expect(beatToFloat(lastChart.trillZones[0].endBeat)).toBe(4);
   });
 
   it("미선택 존 몸통 드래그를 cancel하면 탭 후보가 소멸해, 이후 빈 곳 탭이 그 존을 선택하지 않는다", () => {
@@ -2303,6 +2323,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝 잡고 리사이즈 시작
     mode.onPointerMove(9, 10); // endBeat 6→10 (라이브 적용)
