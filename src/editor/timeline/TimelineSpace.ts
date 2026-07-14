@@ -80,7 +80,8 @@ export interface TimelineSpace {
 export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace {
   // --- bpmMarkers — events-identity 캐시 ---
   // getChart()와 같은 라이브 스냅샷에서 파생해 offsetMs·events가 한 msToBeat 안에서
-  // 항상 일관되게 한다(어댑터 렌더 지연 ref 금지). 재계산은 events 참조가 바뀔 때만.
+  // 항상 일관되게 한다(어댑터 렌더 지연 ref 금지). 재계산은 events 배열 참조가 바뀔
+  // 때만(BPM 외 이벤트만 바뀌어도 재계산되지만 결과 동일 — 무해).
 
   let cachedEvents: readonly ChartEvent[] | null = null;
   let cachedMarkers: BpmMarker[] = [];
@@ -251,6 +252,6 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestTrillZoneEnd,
     hitTestTrillZone,
     hitTestExtraNote,
-    getBpmMarkers: () => bpmMarkers(),
+    getBpmMarkers: bpmMarkers,
   };
 }
