@@ -1,4 +1,4 @@
-import type { Chart, NoteEntity, RangeNote, Beat, TrillZone } from "../../shared";
+import type { Chart, ChartEvent, NoteEntity, RangeNote, Beat, TrillZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
 
@@ -12,6 +12,11 @@ export interface NoteClipboard {
   notes: NoteEntity[];
   /** 함께 복사된 trillZone(트릴 선택 시 구간째 복사) */
   trillZones: TrillZone[];
+  /**
+   * 선택 beat-span과 겹치는 이벤트 (RFD 0016 §3-4 D1).
+   * timeSignature는 제외 — 마디 경계 이동 문제를 애초에 회피한다.
+   */
+  events: ChartEvent[];
   /** Earliest beat among copied notes/zones (relative offset anchor) */
   anchorBeat: Beat;
 }
@@ -39,10 +44,12 @@ export class ClipboardManager {
   private _isPendingPaste = false;
   private prePasteNotes: NoteEntity[] | null = null;
   private prePasteZones: TrillZone[] | null = null;
+  private prePasteEvents: ChartEvent[] | null = null;
   // 붙여넣기 직전(D3 자동 확장 전)의 보조 레인 수 — 취소 시 확장을 되돌린다 (RFD 0018 §8-6).
   private prePasteExtraLaneCount: number | null = null;
   private pastedNoteIndices: Set<number> = new Set();
   private pastedZoneIndices: Set<number> = new Set();
+  private pastedEventIndices: Set<number> = new Set();
 
   /** Whether clipboard has data */
   get hasClipboard(): boolean {
@@ -74,6 +81,8 @@ export class ClipboardManager {
 
     const copiedNotes: NoteEntity[] = [];
     let anchorBeat: Beat | null = null;
+    // 선택 beat-span [min, max] — 이벤트 수집 범위(endBeat가 있으면 끝까지 반영)
+    let spanMax = -Infinity;
 
     for (const idx of selectedIndices) {
       const src = chart.notes[idx];
@@ -83,6 +92,10 @@ export class ClipboardManager {
       if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
         anchorBeat = note.beat;
       }
+      const endFloat = this._isRangeNote(note)
+        ? beatToFloat((note as RangeNote).endBeat)
+        : beatToFloat(note.beat);
+      if (endFloat > spanMax) spanMax = endFloat;
     }
 
     // trillZone도 함께 복사. 구간 시작도 anchor 후보(구간째 정렬 기준)
@@ -94,11 +107,28 @@ export class ClipboardManager {
       if (anchorBeat === null || beatToFloat(zone.beat) < beatToFloat(anchorBeat)) {
         anchorBeat = zone.beat;
       }
+      const endFloat = beatToFloat(zone.endBeat);
+      if (endFloat > spanMax) spanMax = endFloat;
     }
 
     if (anchorBeat === null) return 0;
 
-    this.clipboard = { notes: copiedNotes, trillZones, anchorBeat };
+    // 이벤트 수집 (RFD 0016 §3-4 D1) — span과 겹치는 이벤트를 담되 timeSignature는 제외
+    // (마디 경계 이동 문제 회피). 시점 이벤트는 beat ∈ [min,max], 구간 이벤트는
+    // [beat,endBeat]가 span과 겹침(폐구간). anchor는 notes/zones의 min 유지 — 수집
+    // 이벤트는 span 안이라 상대 offset ≥ 0이다.
+    const spanMin = beatToFloat(anchorBeat);
+    const events: ChartEvent[] = [];
+    for (const evt of chart.events) {
+      if (evt.type === "timeSignature") continue;
+      const startFloat = beatToFloat(evt.beat);
+      const endFloat = "endBeat" in evt ? beatToFloat(evt.endBeat) : startFloat;
+      if (startFloat <= spanMax && endFloat >= spanMin) {
+        events.push({ ...evt });
+      }
+    }
+
+    this.clipboard = { notes: copiedNotes, trillZones, events, anchorBeat };
     return copiedNotes.length + trillZones.length;
   }
 
@@ -124,11 +154,12 @@ export class ClipboardManager {
       this._cancelPasteInternal(chart, callbacks);
     }
 
-    const { notes: clipNotes, trillZones: clipZones, anchorBeat } = this.clipboard;
+    const { notes: clipNotes, trillZones: clipZones, events: clipEvents, anchorBeat } = this.clipboard;
     if (clipNotes.length === 0 && clipZones.length === 0) return null;
 
     this.prePasteNotes = [...chart.notes];
     this.prePasteZones = [...chart.trillZones];
+    this.prePasteEvents = [...chart.events];
 
     const beatOffset = beatSub(targetBeat, anchorBeat);
 
@@ -195,7 +226,17 @@ export class ClipboardManager {
       this.pastedZoneIndices.add(idx);
     }
 
-    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
+    // 이벤트도 함께 붙여넣기(같은 beatOffset 평행이동, editorLane 유지 — §3-4 D4).
+    // 위반이어도 낙관 주입(place-then-fix, RFD 0017) — 커밋 게이트가 검증한다.
+    const newEvents = [...chart.events];
+    this.pastedEventIndices.clear();
+    for (const clipEvent of clipEvents) {
+      const idx = newEvents.length;
+      newEvents.push(this._translateEvent(clipEvent, beatOffset));
+      this.pastedEventIndices.add(idx);
+    }
+
+    const newChart = { ...chart, notes: newNotes, trillZones: newZones, events: newEvents };
 
     this._isPendingPaste = true;
 
@@ -261,9 +302,15 @@ export class ClipboardManager {
       this.prePasteZones = null;
     }
 
+    if (this.prePasteEvents) {
+      newChart = { ...newChart, events: this.prePasteEvents };
+      this.prePasteEvents = null;
+    }
+
     this._isPendingPaste = false;
     this.pastedNoteIndices.clear();
     this.pastedZoneIndices.clear();
+    this.pastedEventIndices.clear();
     const restoreExtraLaneCount = this.prePasteExtraLaneCount;
     this.prePasteExtraLaneCount = null;
 
@@ -324,7 +371,13 @@ export class ClipboardManager {
       };
     }
 
-    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
+    // 붙여넣은 이벤트도 함께 이동(상/하) — 레인 이동과 달리 beat 축은 이벤트도 따라간다
+    const newEvents = [...chart.events];
+    for (const idx of this.pastedEventIndices) {
+      newEvents[idx] = this._translateEvent(newEvents[idx], offset);
+    }
+
+    const newChart = { ...chart, notes: newNotes, trillZones: newZones, events: newEvents };
     callbacks.onChartUpdate(newChart);
 
     return newChart;
@@ -390,10 +443,12 @@ export class ClipboardManager {
       this._isPendingPaste = false;
       this.prePasteNotes = null;
       this.prePasteZones = null;
+      this.prePasteEvents = null;
       // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
       this.prePasteExtraLaneCount = null;
       this.pastedNoteIndices.clear();
       this.pastedZoneIndices.clear();
+      this.pastedEventIndices.clear();
       callbacks.onChartUpdate(chart);
       return true;
     } else {
@@ -404,6 +459,14 @@ export class ClipboardManager {
 
   private _isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
+  }
+
+  /** 이벤트를 beat 축으로 평행이동한다(구간 이벤트는 endBeat 동반, editorLane 등 나머지 유지) */
+  private _translateEvent(evt: ChartEvent, offset: Beat): ChartEvent {
+    if ("endBeat" in evt) {
+      return { ...evt, beat: beatAdd(evt.beat, offset), endBeat: beatAdd(evt.endBeat, offset) };
+    }
+    return { ...evt, beat: beatAdd(evt.beat, offset) };
   }
 
   private _areNotesInBounds(
