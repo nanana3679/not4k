@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SelectMode } from "./SelectMode";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, auxNotesAsExtra, withAuxNotes } from "../../shared";
@@ -72,14 +73,18 @@ function makeIntegration(
     setSelection: setSelectionSpy,
     setSelectionTransient: (s: Selection) =>
       useEditorStore.getState().setSelectionTransient(s),
-    yToBeat: (y: number): Beat => beat(y),
-    yToBeatRaw: (y: number): Beat => beat(y),
-    snapBeat: (b: Beat): Beat => b,
-    getSnapStep: (): Beat => beat(4, 4),
-    getMaxBeatFloat: () => 100,
-    xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
-    xToUnifiedLane: (x: number): number | null => (x >= 1 && x <= 4 ? x : null),
-    hitTestNote,
+    // 좌표/히트만 space로 — 선택 게이트 콜백(setSelection 등)은 실제 store 결합 그대로.
+    // SelectMode 의미론: 구 hitTestNote 콜백은 통합 히트테스트 → hitTestUnifiedNote로 주입.
+    space: makeFakeSpace({
+      yToBeat: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      getSnapStep: (): Beat => beat(4, 4),
+      getMaxBeatFloat: () => 100,
+      xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
+      xToUnifiedLane: (x: number): number | null => (x >= 1 && x <= 4 ? x : null),
+      hitTestUnifiedNote: hitTestNote,
+    }),
     onWarn: vi.fn(),
     // ③ 병합 어댑터 (RFD 0018): 보조는 chart.notes(lane 5+)에 살고, 콜백이 파생·병합한다.
     getExtraNotes: () => auxNotesAsExtra(useEditorStore.getState().chart.notes),

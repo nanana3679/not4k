@@ -17,6 +17,7 @@ import {
 import type { TrillZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 
 /**
  * SelectMode 콜백 — RFD 0018 ④에서 이원 축(extraNotes)이 소멸했다.
@@ -34,28 +35,11 @@ export interface SelectModeCallbacks {
   setSelection: (sel: Selection) => boolean;
   /** 드래그 프리뷰 전용 — 정규화만, §3-5 게이트 미적용 (박스 프레임 등 미확정 상태). */
   setSelectionTransient: (sel: Selection) => void;
-  yToBeat: (y: number) => Beat;
-  /** Raw y-to-beat without snap grid (for box select) */
-  yToBeatRaw: (y: number) => Beat;
-  snapBeat: (beat: Beat) => Beat;
-  /** Get the snap grid step as a Beat (= beat(4, snapDivision)) */
-  getSnapStep: () => Beat;
-  /** Get the maximum valid beat as float (end of last measure) */
-  getMaxBeatFloat: () => number;
-  /** x → 메인·보조 통합 lane(1..4+extraLaneCount), 레인 밖이면 null. 선택·이동·박스의 유일한 레인 축. */
-  xToUnifiedLane: (x: number) => number | null;
-  /** 통합 히트테스트 — 좌표 위 노트의 chart.notes 통합 인덱스(메인·보조 모두), 없으면 null */
-  hitTestNote: (x: number, y: number) => number | null;
-  /** Get selected RangeNote index whose end point is at (x,y), or null */
-  hitTestNoteEnd?: (x: number, y: number) => number | null;
-  /** Get event index whose end point is at (x,y), or null */
-  hitTestEventEnd?: (x: number, y: number) => number | null;
-  /** Get trill zone index whose end point is at (x,y), or null */
-  hitTestTrillZoneEnd?: (x: number, y: number) => number | null;
-  /** Get trill zone index whose selection handle is at (x,y), or null */
-  hitTestTrillZoneHandle?: (x: number, y: number) => number | null;
-  /** Get trill zone index whose region contains (x,y), or null (hover 표시용) */
-  hitTestTrillZone?: (x: number, y: number) => number | null;
+  /**
+   * 좌표 공간(변환·스냅·히트테스트) — TimelineSpace deep module 주입.
+   * 선택·이동의 히트테스트는 통합(space.hitTestUnifiedNote)을 쓴다 (RFD 0018 ④d).
+   */
+  space: TimelineSpace;
   /** 현재 보조 레인 수 — 레인 이동 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
@@ -137,8 +121,7 @@ export class SelectMode implements EditorMode {
   /** 클립보드 매니저에 넘길 콜백 서브셋(통합 차트 기준). */
   private clipboardCallbacks(): ClipboardCallbacks {
     return {
-      getSnapStep: this.callbacks.getSnapStep,
-      getMaxBeatFloat: this.callbacks.getMaxBeatFloat,
+      space: this.callbacks.space,
       getExtraLaneCount: this.callbacks.getExtraLaneCount,
       setExtraLaneCount: this.callbacks.setExtraLaneCount,
       onWarn: this.callbacks.onWarn,
@@ -226,7 +209,7 @@ export class SelectMode implements EditorMode {
   computeHoveredTrillZone(x: number, y: number): number | null {
     const latched = this.draggingTrillZoneIndex;
     if (latched !== null) return latched;
-    return this.callbacks.hitTestTrillZone?.(x, y) ?? null;
+    return this.callbacks.space.hitTestTrillZone(x, y);
   }
 
   /** Whether a box select drag is currently in progress */
@@ -392,7 +375,7 @@ export class SelectMode implements EditorMode {
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
-      const hitIdx = this.callbacks.hitTestNote(x, y);
+      const hitIdx = this.callbacks.space.hitTestUnifiedNote(x, y);
       if (hitIdx === null) {
         this.confirmPlacement();
       }
@@ -403,11 +386,11 @@ export class SelectMode implements EditorMode {
     if (this.isDragging) return;
 
     // 1. RangeNote endpoints — 끝 캡을 잡으면 리사이즈.
-    if (this.callbacks.hitTestNoteEnd) {
-      const endHit = this.callbacks.hitTestNoteEnd(x, y);
+    {
+      const endHit = this.callbacks.space.hitTestNoteEnd(x, y);
       if (endHit !== null && this.isRangeNote(this.chart.notes[endHit])) {
         const isSelected = this.sel.notes.has(endHit);
-        const topmost = this.callbacks.hitTestNote(x, y);
+        const topmost = this.callbacks.space.hitTestUnifiedNote(x, y);
         if (isSelected || topmost === endHit) {
           if (!isSelected) {
             // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지)
@@ -423,8 +406,8 @@ export class SelectMode implements EditorMode {
     }
 
     // 2. Event endpoints
-    if (this.callbacks.hitTestEventEnd) {
-      const evtHit = this.callbacks.hitTestEventEnd(x, y);
+    {
+      const evtHit = this.callbacks.space.hitTestEventEnd(x, y);
       if (evtHit !== null) {
         const evt = this.chart.events[evtHit];
         if (!('endBeat' in evt)) return;
@@ -434,8 +417,8 @@ export class SelectMode implements EditorMode {
     }
 
     // 3. Trill zone selection handle (시작=아래의 가로 중앙 박스) → 구간 유닛 선택 + 핸들 드래그로 구간째 이동.
-    if (this.callbacks.hitTestTrillZoneHandle) {
-      const handleHit = this.callbacks.hitTestTrillZoneHandle(x, y);
+    {
+      const handleHit = this.callbacks.space.hitTestTrillZoneHandle(x, y);
       if (handleHit !== null) {
         if (shiftKey || toggleSelection) {
           const zones = new Set(this.sel.zones);
@@ -454,8 +437,8 @@ export class SelectMode implements EditorMode {
     }
 
     // 4. Trill zone endpoints (resize)
-    if (this.callbacks.hitTestTrillZoneEnd) {
-      const zoneHit = this.callbacks.hitTestTrillZoneEnd(x, y);
+    {
+      const zoneHit = this.callbacks.space.hitTestTrillZoneEnd(x, y);
       if (zoneHit !== null) {
         const zone = this.chart.trillZones[zoneHit];
         this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
@@ -463,7 +446,7 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    const hitIndex = this.callbacks.hitTestNote(x, y);
+    const hitIndex = this.callbacks.space.hitTestUnifiedNote(x, y);
 
     if (hitIndex !== null) {
       const isAlreadySelected = this.sel.notes.has(hitIndex);
@@ -529,10 +512,10 @@ export class SelectMode implements EditorMode {
     this.callbacks.setSelectionTransient(emptySelection());
     this.isDragging = true;
     this.dragType = "boxSelect";
-    this.dragStartBeat = this.callbacks.yToBeatRaw(y);
+    this.dragStartBeat = this.callbacks.space.yToBeatRaw(y);
     this.dragStartLane = null;
     this._boxStartY = y;
-    this._boxStartLane = this.callbacks.xToUnifiedLane(x);
+    this._boxStartLane = this.callbacks.space.xToUnifiedLane(x);
     this._boxEndLane = this._boxStartLane;
     this._boxEndY = y;
   }
@@ -569,7 +552,7 @@ export class SelectMode implements EditorMode {
 
     if (this.dragType === "resize") {
       if (this.resizingIndex !== null && this.resizingOriginalBeat !== null) {
-        const currentBeat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+        const currentBeat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
         // Clamp: endBeat >= startBeat
         const newEndBeat = beatLte(currentBeat, this.resizingOriginalBeat)
           ? this.resizingOriginalBeat
@@ -606,14 +589,14 @@ export class SelectMode implements EditorMode {
     }
 
     if (this.dragType === "move") {
-      const currentBeat = this.callbacks.yToBeat(y);
-      const currentLane = this.callbacks.xToUnifiedLane(x);
+      const currentBeat = this.callbacks.space.yToBeat(y);
+      const currentLane = this.callbacks.space.xToUnifiedLane(x);
 
       if (this.dragStartBeat && this.dragStartLane !== null) {
         // Calculate offset
         let beatOffset = beatSub(
-          this.callbacks.snapBeat(currentBeat),
-          this.callbacks.snapBeat(this.dragStartBeat),
+          this.callbacks.space.snapBeat(currentBeat),
+          this.callbacks.space.snapBeat(this.dragStartBeat),
         );
         // 포인터가 레인 밖이면 마지막 유효 레인 오프셋을 유지하고 beat만 따라온다.
         let laneOffset =
@@ -653,8 +636,8 @@ export class SelectMode implements EditorMode {
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
-      this._boxEndBeat = this.callbacks.yToBeatRaw(y);
-      const lane = this.callbacks.xToUnifiedLane(x);
+      this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
+      const lane = this.callbacks.space.xToUnifiedLane(x);
       // Keep previous _boxEndLane when cursor is outside lane area
       if (lane !== null) {
         this._boxEndLane = lane;
@@ -681,8 +664,8 @@ export class SelectMode implements EditorMode {
       this.confirmPlacement();
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
-      this._boxEndBeat = this.callbacks.yToBeatRaw(y);
-      const endLane = this.callbacks.xToUnifiedLane(x);
+      this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
+      const endLane = this.callbacks.space.xToUnifiedLane(x);
       if (endLane !== null) {
         this._boxEndLane = endLane;
       }
@@ -774,7 +757,7 @@ export class SelectMode implements EditorMode {
     if (!hasMainSel) return;
 
     // Get snap unit from current snap setting (assume 1/snap beat)
-    const snapStep = this.callbacks.getSnapStep();
+    const snapStep = this.callbacks.space.getSnapStep();
     // Timeline: bottom = time 0, up = later time.
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
@@ -870,7 +853,7 @@ export class SelectMode implements EditorMode {
     if (this.sel.notes.size === 0) return;
 
     // Get snap step
-    const snapStep = this.callbacks.getSnapStep();
+    const snapStep = this.callbacks.space.getSnapStep();
     // ArrowUp = extend end later (add snap), ArrowDown = shrink end earlier (subtract snap)
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
@@ -1080,13 +1063,13 @@ export class SelectMode implements EditorMode {
   // --- Private helpers ---
 
   private startMainMoveDrag(x: number, y: number): void {
-    const lane = this.callbacks.xToUnifiedLane(x);
+    const lane = this.callbacks.space.xToUnifiedLane(x);
     // 구간 유닛(빈 구간 포함)이 선택돼 있으면 노트가 없어도 이동 가능
     if (lane === null || (this.sel.notes.size === 0 && this.sel.zones.size === 0)) return;
 
     this.isDragging = true;
     this.dragType = "move";
-    this.dragStartBeat = this.callbacks.yToBeat(y);
+    this.dragStartBeat = this.callbacks.space.yToBeat(y);
     this.dragStartLane = lane;
     this._lastMoveLaneOffset = 0;
 
@@ -1137,7 +1120,7 @@ export class SelectMode implements EditorMode {
 
   /** 이동된 트릴존들이 레인(1~4)·타임라인 범위 안에 있는지 검사한다. */
   private movedZonesInBounds(zones: TrillZone[]): boolean {
-    const maxFloat = this.callbacks.getMaxBeatFloat();
+    const maxFloat = this.callbacks.space.getMaxBeatFloat();
     for (const idx of this.originalZonePositions.keys()) {
       const zone = zones[idx];
       if (!zone) continue;
@@ -1236,7 +1219,7 @@ export class SelectMode implements EditorMode {
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */
   private areNotesInBounds(notes: NoteEntity[], indices: Set<number>): boolean {
-    const maxFloat = this.callbacks.getMaxBeatFloat();
+    const maxFloat = this.callbacks.space.getMaxBeatFloat();
 
     for (const idx of indices) {
       const note = notes[idx];

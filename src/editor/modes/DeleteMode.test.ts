@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DeleteMode } from "./DeleteMode";
 import { SelectMode } from "./SelectMode";
 import { ClipboardManager } from "./ClipboardManager";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat } from "../../shared";
@@ -85,14 +86,17 @@ function wireSelectMode(): SelectMode {
     getSelection: () => useEditorStore.getState().selection,
     setSelection: (s: Selection) => useEditorStore.getState().setSelection(s),
     setSelectionTransient: (s: Selection) => useEditorStore.getState().setSelectionTransient(s),
-    yToBeat: (y: number): Beat => beat(y),
-    yToBeatRaw: (y: number): Beat => beat(y),
-    snapBeat: (b: Beat): Beat => b,
-    getSnapStep: (): Beat => beat(4, 4),
-    getMaxBeatFloat: () => 100,
-    xToLane,
-    xToUnifiedLane: (x: number): number | null => (x >= 1 ? x : null),
-    hitTestNote: hitTestUnifiedNote,
+    // SelectMode 구성에 필요한 좌표/히트만 space로 (구 hitTestNote=통합 → hitTestUnifiedNote).
+    space: makeFakeSpace({
+      yToBeat: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      getSnapStep: (): Beat => beat(4, 4),
+      getMaxBeatFloat: () => 100,
+      xToLane,
+      xToUnifiedLane: (x: number): number | null => (x >= 1 ? x : null),
+      hitTestUnifiedNote,
+    }),
     getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
     onWarn: vi.fn(),
   };
@@ -143,8 +147,10 @@ describe("파티션 깨진 통합 차트에서의 클릭 삭제 (RFD 0018 ④d)"
       useEditorStore.getState().chart,
       beat(4),
       {
-        getSnapStep: () => beat(4, 4),
-        getMaxBeatFloat: () => 100,
+        space: makeFakeSpace({
+          getSnapStep: () => beat(4, 4),
+          getMaxBeatFloat: () => 100,
+        }),
         onChartUpdate: (c) => useEditorStore.getState().setChart(c),
       },
       () => useEditorStore.getState().setSelection(emptySelection()),

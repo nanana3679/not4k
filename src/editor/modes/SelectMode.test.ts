@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
+import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, withAuxNotes } from "../../shared";
 import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, TrillZone } from "../../shared";
@@ -32,6 +34,26 @@ function makeCallbacks(
     ? chartOrOverrides as Record<string, unknown>
     : {};
 
+  // 좌표/히트 override는 space(TimelineSpace)로 라우팅한다 — 호출부는 기존 top-level
+  // 키를 그대로 쓴다. SelectMode 의미론: 콜백 시절 hitTestNote는 App에서 통합
+  // 히트테스트로 배선돼 있었으므로 space.hitTestUnifiedNote로 리네임해 넣는다.
+  const SPACE_KEYS = new Set([
+    "yToBeat", "yToBeatRaw", "snapBeat", "getSnapStep", "getMaxBeatFloat",
+    "xToLane", "xToExtraLane", "xToUnifiedLane",
+    "hitTestNote", "hitTestUnifiedNote", "hitTestNoteEnd", "hitTestEventEnd",
+    "hitTestTrillZoneEnd", "hitTestTrillZoneHandle", "hitTestTrillZone",
+    "hitTestExtraNote",
+  ]);
+  const spaceOverrides: Record<string, unknown> = {};
+  const restOverrides: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    if (SPACE_KEYS.has(key)) {
+      spaceOverrides[key === "hitTestNote" ? "hitTestUnifiedNote" : key] = value;
+    } else {
+      restOverrides[key] = value;
+    }
+  }
+
   // 선택의 소유자(SelectionSlice)를 흉내 내는 페이크 — 실제 게이트(normalizeSelection)를
   // 그대로 사용해 프로덕션과 의미론을 맞춘다. 게이트가 읽는 차트는 프로덕션 store처럼
   // onChartUpdate로 추적하고, SelectMode 생성 시점의 초기 차트는 makeMode가 동기화한다.
@@ -63,28 +85,33 @@ function makeCallbacks(
     syncChart: (chart: Chart) => {
       currentChart = chart;
     },
-    yToBeat: (_y: number): Beat => beat(0),
-    yToBeatRaw: (_y: number): Beat => beat(0),
-    snapBeat: (b: Beat): Beat => b,
-    getSnapStep: (): Beat => beat(4, 4),
-    getMaxBeatFloat: () => 100,
-    xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
-    xToUnifiedLane: (x: number): number | null =>
-      x >= 1 && x < 5 + extraLaneCount ? x : null,
-    hitTestNote: () => null,
+    // 이 파일의 기존 top-level 좌표/히트 stub 기본값을 space로 그대로 이전한다
+    // (makeFakeSpace 제네릭 기본과 다른 값 주의: yToBeat/yToBeatRaw=beat(0),
+    //  xToUnifiedLane=extraLaneCount 반영).
+    space: makeFakeSpace({
+      yToBeat: (_y: number): Beat => beat(0),
+      yToBeatRaw: (_y: number): Beat => beat(0),
+      snapBeat: (b: Beat): Beat => b,
+      getSnapStep: (): Beat => beat(4, 4),
+      getMaxBeatFloat: () => 100,
+      xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? x as Lane : null),
+      xToUnifiedLane: (x: number): number | null =>
+        x >= 1 && x < 5 + extraLaneCount ? x : null,
+      xToExtraLane: (x: number): number | null => {
+        // x 5..5+extraLaneCount-1 → extraLane 1..extraLaneCount
+        if (extraLaneCount > 0 && x >= 5 && x < 5 + extraLaneCount) return x - 4;
+        return null;
+      },
+      hitTestUnifiedNote: () => null, // 구 hitTestNote: () => null (통합 매핑)
+      ...(spaceOverrides as Partial<TimelineSpace>),
+    }),
     onWarn: vi.fn(),
-    // Extra lane callbacks
-    xToExtraLane: (x: number): number | null => {
-      // x 5..5+extraLaneCount-1 → extraLane 1..extraLaneCount
-      if (extraLaneCount > 0 && x >= 5 && x < 5 + extraLaneCount) return x - 4;
-      return null;
-    },
     getExtraNotes: () => currentExtraNotes,
     getExtraLaneCount: () => extraLaneCount,
     onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => {
       currentExtraNotes = notes;
     }),
-    ...overrides,
+    ...restOverrides,
   };
 }
 
@@ -1490,7 +1517,7 @@ describe("SelectMode — 선택 동질성", () => {
 
   it("박스는 트릴 노트를 개별로 집지 않고 완전히 감싸진 구간 유닛과 일반 노트를 함께 집는다 (RFD 0016 §6-2 감쌈 모델)", () => {
     const cb = makeCallbacks();
-    cb.yToBeatRaw = (y: number): Beat => beat(y); // y를 박자로 매핑
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y); // y를 박자로 매핑
     const mode = makeMode(makeChartH(), cb);
     // 빈 영역(레인1, beat0)에서 박스 시작 → 레인3, beat10까지 드래그
     mode.onPointerDown(1, 0, false, false);
@@ -1527,7 +1554,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
   it("빈 곳에서 그린 박스가 트릴 노트를 담고 zone[2,4]을 다 안 감싸면(beat 0~3) 그 트릴 노트들이 개별 선택된다(마우스 개별 트릴 선택 회귀 가드)", () => {
     const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
@@ -1541,7 +1568,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
   it("박스가 zone[2,4]을 완전히 감싸면(beat 0~5) 유닛으로 전환 — zone이 zones로 픽업되고 개별 트릴은 notes에서 빠진다", () => {
     const cb = makeCallbacks();
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
@@ -1554,7 +1581,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
   it("박스를 확장(감쌈, beat 0~5)→축소(통과, beat 0~3)하면 유닛↔개별 트릴이 가역이다", () => {
     const cb = makeCallbacks();
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(1, 0, false, false);
@@ -1574,7 +1601,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
       // 시작 좌표(레인1, y=2)에 구간0 트릴 노트 0이 있지만 결과는 순수 기하
       hitTestNote: (x: number, y: number) => (x === 1 && y === 2 ? 0 : null),
     });
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.beginBoxSelect(1, 2);   // 트릴 노트 0 좌표에서 승격 시작
@@ -1587,7 +1614,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
   it("빈 곳에서 전체를 덮는 박스는 트릴 노트를 개별로 집지 않고 감싸진 zone 유닛과 일반 노트만 선택한다(완전 감쌈 픽업 회귀 가드)", () => {
     const cb = makeCallbacks(); // hitTestNote → null (빈 곳)
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, beat0)에서 박스 시작
@@ -1600,7 +1627,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
   it("통과 박스가 트릴(레인1, beat2)과 일반 노트(레인3, beat1)를 함께 담으면 동질성 게이트가 최저 인덱스 그룹(트릴)만 남긴다", () => {
     const cb = makeCallbacks();
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(1, 1, false, false); // 빈 곳(레인1, beat1)에서 박스 시작
@@ -1616,7 +1643,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
     // selectionFromBox는 {notes:{1}, zones:{1}}을 내지만, normalizeSelection이 최저 인덱스(트릴 1)로
     // kind=trill 판정 → zones를 비워, 감싸진 구간1 유닛이 조용히 빠진다.
     const cb = makeCallbacks();
-    cb.yToBeatRaw = (y: number): Beat => beat(y);
+    cb.space.yToBeatRaw =(y: number): Beat => beat(y);
     const mode = makeMode(makeChartL(), cb);
 
     mode.onPointerDown(2, 3, false, false); // 빈 곳(레인2, beat3)에서 박스 시작
@@ -1674,8 +1701,8 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
   it("드래그 이동은 구간 하단 경계까지만 클램프된다", () => {
     const cb = makeCallbacks();
-    cb.yToBeat = (y: number): Beat => beat(y);
-    cb.snapBeat = (b: Beat): Beat => b;
+    cb.space.yToBeat =(y: number): Beat => beat(y);
+    cb.space.snapBeat =(b: Beat): Beat => b;
     const mode = makeMode(makeChartT(beat(3)), cb);
     mode.selectNote(0);
 
@@ -1773,8 +1800,8 @@ describe("SelectMode — 구간 단위 선택", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneHandle: () => 0,
     });
-    cb.yToBeat = (y: number): Beat => beat(y);
-    cb.snapBeat = (b: Beat): Beat => b;
+    cb.space.yToBeat =(y: number): Beat => beat(y);
+    cb.space.snapBeat =(b: Beat): Beat => b;
     const mode = makeMode(makeChartZ(), cb);
 
     // 핸들(lane1, beat2)에서 시작 → (lane2, beat5)로 드래그: +1레인, +3박
@@ -2223,8 +2250,8 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     const cb = makeCallbacks({
       hitTestTrillZoneHandle: () => 0,
     });
-    cb.yToBeat = (y: number): Beat => beat(y);
-    cb.snapBeat = (b: Beat): Beat => b;
+    cb.space.yToBeat =(y: number): Beat => beat(y);
+    cb.space.snapBeat =(b: Beat): Beat => b;
     const chart = makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },
@@ -2254,7 +2281,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
   it("보조 롱노트 이동 중 cancel은 lane(5)·beat(0)·endBeat(2)를 원위치로 되돌린다 (RFD 0018 ④)", () => {
     const chart = makeChart({ notes: [{ type: "long", lane: 5, beat: beat(0), endBeat: beat(2) }] });
     const cb = makeCallbacks(chart, { extraLaneCount: 2 });
-    cb.yToBeat = (y: number): Beat => beat(y);
+    cb.space.yToBeat =(y: number): Beat => beat(y);
     const mode = makeMode(chart, cb);
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: 0 });
@@ -2324,8 +2351,8 @@ describe("SelectMode — 트릴 쌍 동반 선택", () => {
 
   it("쌍 선택 후 +1박 이동(존 안)은 롤백 없이 헤드·바디가 함께 움직인다", () => {
     const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
-    cb.yToBeat = (y: number): Beat => beat(y);
-    cb.snapBeat = (b: Beat): Beat => b;
+    cb.space.yToBeat =(y: number): Beat => beat(y);
+    cb.space.snapBeat =(b: Beat): Beat => b;
     const mode = makeMode(pairChart(), cb);
 
     mode.selectNote(0); // 쌍 동반 선택

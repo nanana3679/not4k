@@ -290,8 +290,8 @@ function ChartEditorPage() {
 
   // 좌표 변환 / 히트테스트 훅
   const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, snapBeat, yToBeatRef, hitTestUnifiedNoteRef } = coords;
-  // TimelineSpace deep module — 구 훅과 병존 배선 (슬라이스 2: CreateMode만 space 소비)
+  const { bpmMarkers, hitTestUnifiedNoteRef } = coords;
+  // TimelineSpace deep module — 구 훅과 병존 배선 (슬라이스 3: Create·Select만 space 소비)
   const { space } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
@@ -494,20 +494,7 @@ function ChartEditorPage() {
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
       setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
-      yToBeat: (y) => yToBeatRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      snapBeat,
-      getSnapStep: () => {
-        return { n: 4, d: useEditorStore.getState().snapDivision };
-      },
-      getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
-      xToUnifiedLane: (x) => coords.xToUnifiedLane(x),
-      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
-      hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
-      hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
-      hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
-      hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
+      space,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
       setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
