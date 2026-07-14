@@ -509,7 +509,6 @@ function ChartEditorPage() {
       hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
       hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
       hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
-      hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
       hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
