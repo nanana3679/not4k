@@ -4,12 +4,11 @@ import {
   deleteEmptyTrillZoneAtIndex,
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
-  /** 통합 히트테스트 — 메인·보조 노트의 chart.notes 통합 인덱스를 반환 (RFD 0018 ④d) */
-  hitTestNote: (x: number, y: number) => number | null;
-  hitTestTrillZone?: (x: number, y: number) => number | null;
+  space: TimelineSpace;
   onWarn?: (message: string) => void;
 }
 
@@ -51,7 +50,7 @@ export class DeleteMode implements EditorMode {
     // Try deleting a note (메인·보조 통합 — 통합 인덱스로 chart.notes에서 제자리 삭제)
     const result = DeleteMode.deleteNoteAtPoint(
       this.chart,
-      this.callbacks.hitTestNote,
+      this.callbacks.space.hitTestUnifiedNote,
       x,
       y
     );
@@ -63,18 +62,16 @@ export class DeleteMode implements EditorMode {
     }
 
     // Try deleting a trill zone (only if empty)
-    if (this.callbacks.hitTestTrillZone) {
-      const zoneIdx = this.callbacks.hitTestTrillZone(x, y);
-      if (zoneIdx !== null) {
-        const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
-        if (result.blockedReason) {
-          this.callbacks.onWarn?.(result.blockedReason);
-        } else if (result.chart) {
-          this.chart = result.chart;
-          this.callbacks.onChartUpdate(result.chart);
-        } else {
-          return;
-        }
+    const zoneIdx = this.callbacks.space.hitTestTrillZone(x, y);
+    if (zoneIdx !== null) {
+      const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
+      if (result.blockedReason) {
+        this.callbacks.onWarn?.(result.blockedReason);
+      } else if (result.chart) {
+        this.chart = result.chart;
+        this.callbacks.onChartUpdate(result.chart);
+      } else {
+        return;
       }
     }
   }

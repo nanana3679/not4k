@@ -67,11 +67,12 @@ const hitTestUnifiedNote = (x: number, y: number): number | null => {
 /**
  * App.tsx의 DeleteMode 배선 미러 (RFD 0018 ④d):
  * 통합 차트(chart.notes 전체) + 통합 히트테스트 — 어댑터·별도 보조 축 없음.
+ * 좌표/히트는 space(TimelineSpace) 경유 — hitTestTrillZone은 fake 기본값(null).
  */
 function wireDeleteModeAsApp(): DeleteMode {
   return new DeleteMode(useEditorStore.getState().chart, {
     onChartUpdate: (c: Chart) => useEditorStore.getState().setChart(c),
-    hitTestNote: hitTestUnifiedNote,
+    space: makeFakeSpace({ hitTestUnifiedNote }),
   });
 }
 

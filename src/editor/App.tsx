@@ -290,7 +290,7 @@ function ChartEditorPage() {
 
   // 좌표 변환 / 히트테스트 훅
   const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, hitTestUnifiedNoteRef } = coords;
+  const { bpmMarkers } = coords;
   // TimelineSpace deep module — 구 훅과 병존 배선 (슬라이스 3: Create·Select만 space 소비)
   const { space } = useTimelineSpace(rendererRef);
 
@@ -505,9 +505,7 @@ function ChartEditorPage() {
     const deleteMode = new DeleteMode(chart, {
       // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
       onChartUpdate: (c) => setChart(c),
-      // 통합 히트테스트 — 메인·보조 모두 chart.notes 통합 인덱스로 삭제 (RFD 0018 ④d)
-      hitTestNote: (x, y) => hitTestUnifiedNoteRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
+      space,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
