@@ -27,6 +27,7 @@ import { SaveAsModal } from './components/SaveAsModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
+import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
@@ -289,7 +290,9 @@ function ChartEditorPage() {
 
   // 좌표 변환 / 히트테스트 훅
   const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestUnifiedNoteRef, hitTestExtraNoteRef } = coords;
+  const { bpmMarkers, snapBeat, yToBeatRef, hitTestUnifiedNoteRef } = coords;
+  // TimelineSpace deep module — 구 훅과 병존 배선 (슬라이스 2: CreateMode만 space 소비)
+  const { space } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -477,14 +480,8 @@ function ChartEditorPage() {
     // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
     const createMode = new CreateMode(chart, {
       onChartUpdate: (c) => setChart(c),
-      yToBeat: (y) => yToBeatRef.current(y),
-      snapBeat,
-      xToLane,
+      space,
       isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      xToExtraLane: (x) => xToExtraLane(x),
     });
     createModeRef.current = createMode;
 

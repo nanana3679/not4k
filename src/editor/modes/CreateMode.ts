@@ -18,6 +18,7 @@ import type {
 } from "../../shared";
 import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
 export type EntityType =
@@ -64,22 +65,10 @@ type RangeNoteEntityType = "long" | "doubleLong";
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
   onChartUpdate: (chart: Chart) => void;
-  /** Called to convert Y coordinate to Beat */
-  yToBeat: (y: number) => Beat;
-  /** Called to snap a beat to grid */
-  snapBeat: (beat: Beat) => Beat;
-  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null otherwise) */
-  xToLane: (x: number) => Lane | null;
+  /** 좌표 변환·스냅·히트테스트 — 입력 좌표 공간 deep module */
+  space: TimelineSpace;
   /** 배치 위치가 편집 가능한 시간 범위 안인지 (배치 제약용) */
   isTimeInBounds: (y: number) => boolean;
-  /** raw y→beat (스냅 전, 롱노트 head/end 캡 판정용) */
-  yToBeatRaw: (y: number) => Beat;
-  /** 좌표의 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
-  hitTestNote: (x: number, y: number) => number | null;
-  /** 좌표의 엑스트라 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
-  hitTestExtraNote: (x: number, y: number) => number | null;
-  /** Called to get extra lane number (1~N) from X, or null */
-  xToExtraLane?: (x: number) => number | null;
 }
 
 export class CreateMode implements EditorMode {
@@ -169,23 +158,21 @@ export class CreateMode implements EditorMode {
 
   /** Begin range-note creation with an explicit long-note type. */
   beginRangeNoteAt(x: number, y: number, type: RangeNoteEntityType): boolean {
-    const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
-    if (this.callbacks.xToExtraLane) {
-      const extraLane = this.callbacks.xToExtraLane(x);
-      if (extraLane !== null) {
-        this.cancelDrag();
-        this.isDragging = true;
-        this.dragStartBeat = beat;
-        this.dragStartLane = null;
-        this._dragExtraLane = extraLane;
-        this._dragType = "extraRangeNote";
-        this._dragEntityTypeOverride = type;
-        return true;
-      }
+    const extraLane = this.callbacks.space.xToExtraLane(x);
+    if (extraLane !== null) {
+      this.cancelDrag();
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = null;
+      this._dragExtraLane = extraLane;
+      this._dragType = "extraRangeNote";
+      this._dragEntityTypeOverride = type;
+      return true;
     }
 
-    const lane = this.callbacks.xToLane(x);
+    const lane = this.callbacks.space.xToLane(x);
     if (lane === null) return false;
 
     this.cancelDrag();
@@ -213,15 +200,15 @@ export class CreateMode implements EditorMode {
    * 훅의 터치 예약 게이트에서도 재사용한다.
    */
   isPlacementBlocked(x: number, y: number): boolean {
-    const hitIdx = this.callbacks.hitTestNote(x, y);
-    const rawBeat = this.callbacks.yToBeatRaw(y);
+    const hitIdx = this.callbacks.space.hitTestNote(x, y);
+    const rawBeat = this.callbacks.space.yToBeatRaw(y);
     return isCreatePlacementBlocked({
       inBounds: this.callbacks.isTimeInBounds(y),
       hitNote: hitIdx !== null ? this.chart.notes[hitIdx] : null,
-      lane: this.callbacks.xToLane(x),
+      lane: this.callbacks.space.xToLane(x),
       beatFloatRaw: rawBeat.n / rawBeat.d,
       notes: this.chart.notes,
-      extraHit: this.callbacks.hitTestExtraNote(x, y),
+      extraHit: this.callbacks.space.hitTestExtraNote(x, y),
     });
   }
 
@@ -236,58 +223,56 @@ export class CreateMode implements EditorMode {
   }
 
   onPointerDown(x: number, y: number): void {
-    const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     // --- Extra lane detection ---
-    if (this.callbacks.xToExtraLane) {
-      const extraLane = this.callbacks.xToExtraLane(x);
-      if (extraLane !== null) {
-        // Event entity types on extra lanes
-        if (isEventEntityType(this.selectedEntityType)) {
-          if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
-            // Point events (bpm, timeSignature): create immediately, no drag
-            this._createEventLane = extraLane;
-            this.createEvent(beat, beat);
-            this._createEventLane = null;
-            return;
-          }
-          if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
-            // Range events (text, auto, stop): start drag
-            this.isDragging = true;
-            this.dragStartBeat = beat;
-            this.dragStartLane = null;
-            this._dragExtraLane = extraLane;
-            this._dragType = "event";
-            return;
-          }
+    const extraLane = this.callbacks.space.xToExtraLane(x);
+    if (extraLane !== null) {
+      // Event entity types on extra lanes
+      if (isEventEntityType(this.selectedEntityType)) {
+        if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
+          // Point events (bpm, timeSignature): create immediately, no drag
+          this._createEventLane = extraLane;
+          this.createEvent(beat, beat);
+          this._createEventLane = null;
           return;
         }
-        if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
-          // 통합 입력: 클릭(길이 0)=단노트, 누른 채 드래그=롱노트. pointerUp에서 결정.
+        if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
+          // Range events (text, auto, stop): start drag
           this.isDragging = true;
           this.dragStartBeat = beat;
           this.dragStartLane = null;
           this._dragExtraLane = extraLane;
-          this._dragType = "extraRangeNote";
-          this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
-          this._dragPointFallback = this.selectedEntityType;
+          this._dragType = "event";
           return;
         }
-        if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
-          this.isDragging = true;
-          this.dragStartBeat = beat;
-          this.dragStartLane = null;
-          this._dragExtraLane = extraLane;
-          this._dragType = "extraRangeNote";
-          return;
-        }
-        // trillZone not supported in extra lanes
         return;
       }
+      if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
+        // 통합 입력: 클릭(길이 0)=단노트, 누른 채 드래그=롱노트. pointerUp에서 결정.
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "extraRangeNote";
+        this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
+        this._dragPointFallback = this.selectedEntityType;
+        return;
+      }
+      if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "extraRangeNote";
+        return;
+      }
+      // trillZone not supported in extra lanes
+      return;
     }
 
     // --- Note lane entities (based on selectedEntityType) ---
-    const lane = this.callbacks.xToLane(x);
+    const lane = this.callbacks.space.xToLane(x);
     if (lane === null) return; // Outside all lanes
 
     // Point/range 통합: single/double는 클릭(길이 0)=단노트, 누른 채 드래그=롱노트.
@@ -354,7 +339,7 @@ export class CreateMode implements EditorMode {
   onPointerUp(_x: number, y: number): void {
     if (!this.isDragging) return;
 
-    const endBeat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const endBeat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     if (this._dragType === "rangeNote") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
