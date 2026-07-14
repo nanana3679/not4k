@@ -7,7 +7,7 @@
  * (구 useCoordinateHelpers의 ref 이중화 대체).
  */
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import type { RefObject } from "react";
 import type { TimelineRenderer } from "../timeline/TimelineRenderer";
 import {
@@ -24,16 +24,13 @@ export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>
   bpmMarkers: BpmMarker[];
 } {
   const chart = useEditorStore((s) => s.chart);
+  // 반응형 렌더 소비자(App 등)용. space 내부의 events-identity 캐시와 용도가 다르다
+  // (반응형 렌더 입력 vs 라이브 좌표 질의) — 이중 계산은 의도된 것.
   const bpmMarkers = useMemo(() => extractBpmMarkers(chart.events), [chart.events]);
-
-  // source는 마운트당 1회 생성이라 memo 최신값을 ref로 노출한다(재계산 방지 + 라이브성).
-  const bpmMarkersRef = useRef(bpmMarkers);
-  bpmMarkersRef.current = bpmMarkers;
 
   const space = useMemo(() => {
     const source: TimelineSpaceSource = {
       getChart: () => useEditorStore.getState().chart,
-      getBpmMarkers: () => bpmMarkersRef.current,
       getSnapDivision: () => useEditorStore.getState().snapDivision,
       getSelectedNotes: () => useEditorStore.getState().selection.notes,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,

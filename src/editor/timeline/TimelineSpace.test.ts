@@ -46,7 +46,6 @@ function makeFakeSource(overrides?: Partial<FakeSourceState>) {
   };
   const source: TimelineSpaceSource = {
     getChart: () => state.chart,
-    getBpmMarkers: () => [{ beat: beat(0, 1), bpm: 120 }],
     getSnapDivision: () => state.snapDivision,
     getSelectedNotes: () => state.selectedNotes,
     getExtraLaneCount: () => state.extraLaneCount,
@@ -150,10 +149,49 @@ describe("TimelineSpace — 좌표 변환", () => {
     expect(space.getMaxBeatFloat()).toBe(8);
   });
 
-  it("getBpmMarkers는 source가 넘긴 마커 배열을 그대로 반환", () => {
-    const { source } = makeFakeSource();
+  it("getBpmMarkers는 chart.events의 bpm 이벤트를 추출·정렬해 반환 — 4박 180·0박 120 순서로 넣어도 [120@0, 180@4]", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(4, 1), bpm: 180, editorLane: 1 },
+      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+    ];
+    const { source } = makeFakeSource({ chart: makeChart({ events }) });
+    const space = createTimelineSpace(source);
+    expect(space.getBpmMarkers()).toEqual([
+      { beat: beat(0, 1), bpm: 120 },
+      { beat: beat(4, 1), bpm: 180 },
+    ]);
+  });
+});
+
+describe("TimelineSpace — bpmMarkers 라이브 일관성 (no-stale)", () => {
+  it("source.chart를 events가 다른 새 차트로 교체하면(bpm 120→180) space 재생성 없이 getBpmMarkers와 yToBeat가 새 BPM 반영", () => {
+    const { source, state } = makeFakeSource();
+    const space = createTimelineSpace(source);
+    // 120 BPM: 1박 = 500ms → y=1000은 2박
+    expect(space.getBpmMarkers()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
+    expect(space.yToBeat(1000)).toEqual({ n: 8, d: 4 });
+    state.chart = makeChart({
+      events: [{ type: "bpm", beat: beat(0, 1), bpm: 180, editorLane: 1 }],
+    });
+    // 180 BPM: 1박 = 333.33ms → 같은 y=1000이 3박
+    expect(space.getBpmMarkers()).toEqual([{ beat: beat(0, 1), bpm: 180 }]);
+    expect(space.yToBeat(1000)).toEqual({ n: 12, d: 4 });
+  });
+
+  it("동일 events 참조를 유지하면 extractBpmMarkers를 재호출하지 않는다(identity 캐시) — in-place 교체(120→240)는 옛 캐시값, 배열 참조 교체 시 재계산", () => {
+    const events: ChartEvent[] = [
+      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+    ];
+    const { source, state } = makeFakeSource({ chart: makeChart({ events }) });
     const space = createTimelineSpace(source);
     expect(space.getBpmMarkers()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
+    // 같은 배열 참조 안에서 이벤트만 바꿔치기 — identity가 같으므로 캐시가 유지된다
+    events[0] = { type: "bpm", beat: beat(0, 1), bpm: 240, editorLane: 1 };
+    expect(space.getBpmMarkers()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
+    // 배열 참조 자체를 교체하면 재계산된다
+    state.chart = { ...state.chart, events: [...events] };
+    expect(space.getBpmMarkers()).toEqual([{ beat: beat(0, 1), bpm: 240 }]);
   });
 });
 
