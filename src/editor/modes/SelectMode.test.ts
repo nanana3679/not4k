@@ -1884,17 +1884,29 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     expect([...cb.getSelectionState().zones]).toEqual([0]);
   });
 
+  it("존 몸통 down 후 2px 드리프트 up(같은 레인)도 탭으로 인정해 그 존을 선택한다(zero-slop 회귀)", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스 후보(_boxStartY=0)
+    mode.onPointerUp(1, 2);                  // y 2px 드리프트 — tap-slop(10px) 안이라 탭
+
+    expect([...mode.selectedZones]).toEqual([0]);
+    expect([...cb.getSelectionState().zones]).toEqual([0]);
+  });
+
   it("미선택 존 몸통에서 드래그하면 박스 선택이 된다(부분 겹침 beat3~5 → 박스 안 트릴만 개별 선택)", () => {
+    // 1px=0.1beat 스케일 — 드래그(20px)를 존 몸통 tap-slop(10px, §6-6) 넘게 해 박스로 확정한다.
     const cb = makeCallbacks({
       hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
-      yToBeatRaw: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y, 10),
     });
     const mode = makeMode(makeChartB(), cb);
 
-    mode.onPointerDown(1, 3, false, false); // 미선택 몸통(beat3)에서 시작
-    mode.onPointerMove(1, 5);
+    mode.onPointerDown(1, 30, false, false); // 미선택 몸통(beat3)에서 시작
+    mode.onPointerMove(1, 50);
     expect(mode.isBoxSelecting).toBe(true);
-    mode.onPointerUp(1, 5);                 // 박스 [3,5] — 존 유닛 선택 아님
+    mode.onPointerUp(1, 50);                 // 박스 [3,5], 20px 이동 → tap 아님
 
     const sel = cb.getSelectionState();
     expect([...sel.notes]).toEqual([1]);    // beat3 트릴만 개별 선택

@@ -7,6 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
+import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
   selectionBlockReason,
@@ -691,6 +692,7 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
+      this._boxEndY = y; // px 기반 탭 판정(§6-6)용 — 최종 up 위치 반영
       const endLane = this.callbacks.xToUnifiedLane(x);
       if (endLane !== null) {
         this._boxEndLane = endLane;
@@ -729,8 +731,9 @@ export class SelectMode implements EditorMode {
     if (this._pendingZoneSelect === null) return null;
     if (this._boxStartLane === null || this._boxEndLane === null) return null;
     if (this._boxStartLane !== this._boxEndLane) return null;
-    if (this.dragStartBeat === null || this._boxEndBeat === null) return null;
-    return beatToFloat(this.dragStartBeat) === beatToFloat(this._boxEndBeat)
+    // 마우스 down↔up 미세 드리프트(1~2px, 트랙패드에서 흔함)를 흡수한다 — 정확 beat 일치(zero-slop)면
+    // 탭이 쉽게 무산돼 존 선택 실패 + 기존 선택까지 통째로 해제된다. 터치와 같은 tap-slop(px)으로 판정.
+    return Math.abs(this._boxEndY - this._boxStartY) <= TOUCH_MOVE_CANCEL_PX
       ? this._pendingZoneSelect
       : null;
   }
