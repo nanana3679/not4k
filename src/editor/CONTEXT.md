@@ -50,7 +50,7 @@ _Avoid_: 뷰포트 슬라이스(한국어 조어), 렌더러·컨트롤러에 �
 _Avoid_: 선택 슬라이스(한국어 조어), SelectMode·훅에 선택 사본 저장, 필드별 개별 setter
 
 **`TimelineSpace`**:
-입력 좌표 공간(픽셀 → 도메인 변환·스냅·히트테스트)을 접은 deep module이다. store·renderer를 모르는 주입 source 기반 라이브 읽기 팩토리(`createTimelineSpace`)로, React 조립은 `useTimelineSpace`가 맡는다. 풀 정의는 glossary "에디터 입력".
+입력 좌표 공간(픽셀 → 도메인 변환·스냅·히트테스트)을 접은 deep module이다. store·renderer를 모르는 주입 source 기반 라이브 읽기 팩토리(`createTimelineSpace`)로, React 조립은 `useTimelineSpace`가 맡는다. 풀 정의는 glossary "TimelineSpace"(에디터 입력 섹션).
 _Avoid_: Projection(그리기 방향, 도메인→픽셀)과의 혼동, 클로저에 store 상태 스냅샷 저장
 
 **재생 커서**:
