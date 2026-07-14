@@ -14,13 +14,11 @@ import {
   LANE_COUNT,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
-  TRILL_MOVE_PILL_WIDTH,
 } from "./constants";
 import {
   hitTestNoteAt,
   hitTestExtraNoteAt,
   hitTestTrillZoneAt,
-  hitTestTrillZoneHandleAt,
 } from "./hitTest";
 import {
   beatFloatToRawBeat,
@@ -71,7 +69,6 @@ export interface TimelineSpace {
   hitTestEventEnd(x: number, y: number): number | null;
   hitTestTrillZoneEnd(x: number, y: number): number | null;
   hitTestTrillZone(x: number, y: number): number | null;
-  hitTestTrillZoneHandle(x: number, y: number): number | null;
   hitTestExtraNote(x: number, y: number): number | null;
   getBpmMarkers(): BpmMarker[];
 }
@@ -209,21 +206,6 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestTrillZoneAt(source.getChart().trillZones, lane, beat.n / beat.d);
   };
 
-  const hitTestTrillZoneHandle = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
-    if (lane === null) return null;
-    const beat = yToBeatRaw(y);
-    const xInLane = x - (lane - 1) * LANE_WIDTH;
-    return hitTestTrillZoneHandleAt(
-      source.getChart().trillZones,
-      lane,
-      beat.n / beat.d,
-      xInLane,
-      TRILL_MOVE_PILL_WIDTH,
-      LANE_WIDTH,
-    );
-  };
-
   const hitTestExtraNote = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
@@ -249,7 +231,6 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestEventEnd,
     hitTestTrillZoneEnd,
     hitTestTrillZone,
-    hitTestTrillZoneHandle,
     hitTestExtraNote,
     getBpmMarkers: () => source.getBpmMarkers(),
   };

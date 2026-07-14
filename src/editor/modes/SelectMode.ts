@@ -7,6 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
+import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
   selectionBlockReason,
@@ -16,8 +17,8 @@ import {
 } from "./trillZoneSelection";
 import type { TrillZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
-import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
+import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 /**
  * SelectMode 콜백 — RFD 0018 ④에서 이원 축(extraNotes)이 소멸했다.
@@ -35,10 +36,7 @@ export interface SelectModeCallbacks {
   setSelection: (sel: Selection) => boolean;
   /** 드래그 프리뷰 전용 — 정규화만, §3-5 게이트 미적용 (박스 프레임 등 미확정 상태). */
   setSelectionTransient: (sel: Selection) => void;
-  /**
-   * 좌표 공간(변환·스냅·히트테스트) — TimelineSpace deep module 주입.
-   * 선택·이동의 히트테스트는 통합(space.hitTestUnifiedNote)을 쓴다 (RFD 0018 ④d).
-   */
+  /** 좌표 공간(변환·스냅·히트테스트) — TimelineSpace deep module 주입 */
   space: TimelineSpace;
   /** 현재 보조 레인 수 — 레인 이동 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
@@ -87,6 +85,10 @@ export class SelectMode implements EditorMode {
   // 박스 드래그 시작 전 선택 스냅샷 — §3-5 "전이 = 확정된 선택 변경".
   // 박스 프레임은 프리뷰(transient)로 커밋되고, 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다.
   private preDragSelection: Selection | null = null;
+
+  // 미선택 존 몸통에서 시작한 박스의 탭 후보(§6-6) — up에서 움직임이 없었으면
+  // 빈 박스 확정 대신 이 존을 유닛 선택한다. 모든 종료 경로(up·cancel)에서 리셋.
+  private _pendingZoneSelect: number | null = null;
 
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
@@ -416,30 +418,11 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    // 3. Trill zone selection handle (시작=아래의 가로 중앙 박스) → 구간 유닛 선택 + 핸들 드래그로 구간째 이동.
-    {
-      const handleHit = this.callbacks.space.hitTestTrillZoneHandle(x, y);
-      if (handleHit !== null) {
-        if (shiftKey || toggleSelection) {
-          const zones = new Set(this.sel.zones);
-          if (zones.has(handleHit)) {
-            zones.delete(handleHit);
-          } else {
-            zones.add(handleHit);
-          }
-          this.commitSelection({ zones });
-          return;
-        }
-        // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
-        if (this.selectZoneUnit(handleHit)) this.beginMoveDrag(x, y);
-        return;
-      }
-    }
-
-    // 4. Trill zone endpoints (resize)
+    // 3. Trill zone endpoints (resize) — **그 구간이 이미 선택됐을 때만** 리사이즈로 잡는다.
+    // 미선택 구간의 끝에 놓인 노트 클릭을 리사이즈가 가로채지 않도록(끝 노트 선택 보장, RFD 0016 §6-6).
     {
       const zoneHit = this.callbacks.space.hitTestTrillZoneEnd(x, y);
-      if (zoneHit !== null) {
+      if (zoneHit !== null && this.sel.zones.has(zoneHit)) {
         const zone = this.chart.trillZones[zoneHit];
         this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
         return;
@@ -488,6 +471,33 @@ export class SelectMode implements EditorMode {
         if (committed) this.beginMoveDrag(x, y);
       }
     } else {
+      // 노트-히트 실패 → 존 몸통이면 "클릭=선택, 선택 후 드래그=이동" (RFD 0016 §6-6).
+      // 이동 필(핸들) 제거 후 존 몸통이 노트와 같은 상호작용 규칙을 따른다.
+      const zoneHit = this.callbacks.space.hitTestTrillZone(x, y);
+      if (zoneHit !== null) {
+        if (shiftKey || toggleSelection) {
+          // 구 이동 필의 shift/토글 동작 승계: zones 토글(기존 선택과 공존)
+          const zones = new Set(this.sel.zones);
+          if (zones.has(zoneHit)) {
+            zones.delete(zoneHit);
+          } else {
+            zones.add(zoneHit);
+          }
+          this.commitSelection({ zones });
+          return;
+        }
+        if (this.sel.zones.has(zoneHit)) {
+          // 이미 선택된 존 몸통 드래그 = 구간 유닛 이동 ("선택된 엔티티 위 드래그=이동" 통일)
+          this.beginMoveDrag(x, y);
+          return;
+        }
+        // 미선택 존 몸통: 탭=유닛 선택, 드래그=박스 — 박스로 시작하되 존을 기억해
+        // up의 탭 판정(움직임 없음)에서 빈 박스 확정 대신 유닛 선택으로 바꾼다.
+        this._pendingZoneSelect = zoneHit;
+        this.startBoxSelect(x, y);
+        return;
+      }
+
       // Clicking empty space
       if (!shiftKey && !altKey) {
         this.startBoxSelect(x, y);
@@ -665,27 +675,50 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
+      this._boxEndY = y; // px 기반 탭 판정(§6-6)용 — 최종 up 위치 반영
       const endLane = this.callbacks.space.xToUnifiedLane(x);
       if (endLane !== null) {
         this._boxEndLane = endLane;
       }
       this.updateBoxSelection();
 
+      // 미선택 존 몸통 탭(움직임 없음)이면 빈 박스 확정 대신 그 존을 유닛 선택한다 (§6-6).
+      const tappedZone = this.pendingZoneTapTarget();
+
       // §3-5: 프리뷰로 쌓인 박스 결과를 (드래그 시작 전 → 최종) 전이 하나로 확정한다.
       if (this.preDragSelection) {
-        const finalSel = this.sel;
+        const finalSel: Selection = tappedZone !== null
+          ? { ...this.sel, notes: new Set(), zones: new Set([tappedZone]) }
+          : this.sel;
         this.callbacks.setSelectionTransient(this.preDragSelection);
         this.callbacks.setSelection(finalSel);
         this.preDragSelection = null;
       }
     }
 
+    this._pendingZoneSelect = null;
     this._boxEndBeat = null;
     this._boxEndLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
+  }
+
+  /**
+   * 박스 종료 시 존 몸통 탭 판정(§6-6) — 미선택 존 몸통에서 시작했고(_pendingZoneSelect),
+   * 레인·beat 모두 움직임이 없었으면 그 존 인덱스를, 아니면 null을 반환한다.
+   * (드래그가 일어났으면 null — 그냥 박스 결과로 확정된다.)
+   */
+  private pendingZoneTapTarget(): number | null {
+    if (this._pendingZoneSelect === null) return null;
+    if (this._boxStartLane === null || this._boxEndLane === null) return null;
+    if (this._boxStartLane !== this._boxEndLane) return null;
+    // 마우스 down↔up 미세 드리프트(1~2px, 트랙패드에서 흔함)를 흡수한다 — 정확 beat 일치(zero-slop)면
+    // 탭이 쉽게 무산돼 존 선택 실패 + 기존 선택까지 통째로 해제된다. 터치와 같은 tap-slop(px)으로 판정.
+    return Math.abs(this._boxEndY - this._boxStartY) <= TOUCH_MOVE_CANCEL_PX
+      ? this._pendingZoneSelect
+      : null;
   }
 
   /**
@@ -710,6 +743,7 @@ export class SelectMode implements EditorMode {
       this.callbacks.setSelectionTransient(this.preDragSelection);
     }
     this.preDragSelection = null;
+    this._pendingZoneSelect = null;
 
     this._boxEndBeat = null;
     this._boxEndLane = null;

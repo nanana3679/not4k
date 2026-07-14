@@ -250,12 +250,4 @@ describe("TimelineSpace — 히트테스트", () => {
     expect(space.hitTestTrillZoneEnd(90, 1400)).toBeNull();
   });
 
-  it("hitTestTrillZoneHandle: 구간 시작(1박)의 레인 중앙(x=90)에서 히트, 중앙에서 12px 초과 이탈(x=105)은 미스", () => {
-    const trillZones: TrillZone[] = [{ lane: 2, beat: beat(1, 1), endBeat: beat(3, 1) }];
-    const { source } = makeFakeSource({ chart: makeChart({ trillZones }) });
-    const space = createTimelineSpace(source);
-    // lane 2 중앙 = 60 + 30 = 90, TRILL_MOVE_PILL_WIDTH=24 → 중앙 ±12
-    expect(space.hitTestTrillZoneHandle(90, 500)).toBe(0);
-    expect(space.hitTestTrillZoneHandle(105, 500)).toBeNull();
-  });
 });

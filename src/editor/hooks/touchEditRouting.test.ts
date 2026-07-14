@@ -91,16 +91,12 @@ describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", 
     expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: 0 })).toBe("emptySelectBox");
   });
 
-  it("트릴존 이동 핸들 히트가 있으면 노트가 겹쳐도 emptySelectBox(지연-드래그) 예약", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneHandleHit: 0 })).toBe("emptySelectBox");
+  it("트릴존 끝 히트 인덱스가 0이어도(falsy) 노트보다 우선한다", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: 0 })).toBe("emptySelectBox");
   });
 
-  it("트릴존 히트 인덱스가 0이어도(falsy) 노트보다 우선한다", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: 0, zoneHandleHit: null })).toBe("emptySelectBox");
-  });
-
-  it("트릴존 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneHandleHit: null, zoneEndHit: null })).toBe("tapToggle");
+  it("트릴존 끝 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
+    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: null })).toBe("tapToggle");
   });
 });
 

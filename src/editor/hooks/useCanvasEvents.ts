@@ -370,11 +370,10 @@ export function useCanvasEvents(
         if (getLongPressRangeType(entityType as EntityType)) return;
         // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치).
       } else if (mode === 'select' && selectModeRef.current) {
-        // 트릴존 핸들/끝은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
+        // 트릴존 끝(리사이즈 캡)은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
         const schedule = resolveSelectTouchDownSchedule({
           noteHit: touchNoteHit,
           extraHit: touchExtraHit,
-          zoneHandleHit: space.hitTestTrillZoneHandle(x, y),
           zoneEndHit: space.hitTestTrillZoneEnd(x, y),
         });
         if (schedule === 'tapToggle') {
@@ -548,14 +547,21 @@ export function useCanvasEvents(
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }
 
-    // 트릴 핸들 위 커서: 이동 필=move, 리사이즈 캡=ns-resize(↕). select 모드에서만.
+    // 트릴존 위 커서: 리사이즈 캡(끝)=ns-resize(↕), 선택된 존 몸통=move(선택 후 드래그=이동,
+    // RFD 0016 §6-6 — 제거된 이동 필 커서를 대체). select 모드에서만.
     const canvasEl = canvasRef.current;
     if (canvasEl) {
       let cursor = '';
       if (mode === 'select') {
-        if (space.hitTestTrillZoneHandle(x, y) !== null) cursor = 'move';
-        else if (space.hitTestTrillZoneEnd(x, y) !== null) cursor = 'ns-resize';
-        else {
+        const zoneBody = space.hitTestTrillZone(x, y);
+        const zoneEnd = space.hitTestTrillZoneEnd(x, y);
+        // 끝 리사이즈 커서·move 커서 모두 그 구간이 **선택됐을 때만** — 미선택 구간의 끝 노트
+        // 클릭을 가로채지 않도록(RFD 0016 §6-6). 리사이즈 캡 렌더·down hit도 동일 게이트.
+        if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
+          cursor = 'ns-resize';
+        } else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
+          cursor = 'move';
+        } else {
           // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
           const noteEnd = space.hitTestNoteEnd(x, y);
           if (noteEnd !== null && space.hitTestNote(x, y) === noteEnd) cursor = 'ns-resize';
@@ -605,8 +611,8 @@ export function useCanvasEvents(
       createModeRef.current.onPointerMove(x, y);
 
       if (rendererRef.current) {
-        const bpmMarkers = space.getBpmMarkers();
         const beat = space.yToBeat(y);
+        const bpmMarkers = space.getBpmMarkers();
         const snapped = space.snapBeat(beat);
         const timeMs = beatToMs(snapped, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
 
@@ -658,7 +664,8 @@ export function useCanvasEvents(
       applyEditResult(selectResult);
     }
   }, [
-    mode, entityType, space, isTimeInBounds, setChart,
+    mode, entityType, space,
+    isTimeInBounds, setChart,
     toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,

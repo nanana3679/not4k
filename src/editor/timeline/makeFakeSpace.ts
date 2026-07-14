@@ -27,7 +27,6 @@ export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineS
     hitTestEventEnd: () => null,
     hitTestTrillZoneEnd: () => null,
     hitTestTrillZone: () => null,
-    hitTestTrillZoneHandle: () => null,
     hitTestExtraNote: () => null,
     getBpmMarkers: () => [],
     ...overrides,

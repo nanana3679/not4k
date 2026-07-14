@@ -41,7 +41,7 @@ function makeCallbacks(
     "yToBeat", "yToBeatRaw", "snapBeat", "getSnapStep", "getMaxBeatFloat",
     "xToLane", "xToExtraLane", "xToUnifiedLane",
     "hitTestNote", "hitTestUnifiedNote", "hitTestNoteEnd", "hitTestEventEnd",
-    "hitTestTrillZoneEnd", "hitTestTrillZoneHandle", "hitTestTrillZone",
+    "hitTestTrillZoneEnd", "hitTestTrillZone",
     "hitTestExtraNote",
   ]);
   const spaceOverrides: Record<string, unknown> = {};
@@ -244,6 +244,7 @@ describe("SelectMode — 드래그 재진입 가드", () => {
     });
     const mode = makeMode(chart, cb);
     const priv = mode as unknown as { resizingOriginalEndBeat: Beat | null };
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝(endBeat=6) 잡고 리사이즈 시작
     expect(mode.computeHoveredTrillZone(0, 0)).toBe(0); // 드래그 중이면 hover 히트 없어도 래치로 0
@@ -277,6 +278,7 @@ describe("SelectMode — computeHoveredTrillZone", () => {
       hitTestTrillZone: (): number | null => 2, // 커서가 다른 구간(2) 위여도
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
     mode.onPointerDown(9, 6, false, false); // 구간0 리사이즈 시작 → 래치 0
     expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // hover=2 무시하고 래치 0 유지
   });
@@ -299,6 +301,7 @@ describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
     const priv = mode as unknown as { chart: Chart };
     return { mode, cb, priv };
   }
@@ -1717,7 +1720,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 구간 단위 선택 (핸들로 구간+노트 선택, 자유 이동)
+// 구간 단위 선택 (존 몸통 탭으로 구간+노트 선택, 자유 이동 — RFD 0016 §6-6)
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 구간 단위 선택", () => {
@@ -1744,19 +1747,20 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect([...zoneSel]).toEqual([0]);
   });
 
-  it("핸들 클릭으로 구간 유닛만 선택된다(notes 주입 없음)", () => {
+  it("존 몸통 탭(움직임 없이 뗌)으로 구간 유닛만 선택된다(notes 주입 없음)", () => {
     const cb = makeCallbacks({
-      hitTestTrillZoneHandle: () => 0,
+      hitTestTrillZone: () => 0,
     });
     const mode = makeMode(makeChartZ(), cb);
-    mode.onPointerDown(1, 0, false, false); // 핸들 히트 → 구간0 선택
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 탭 후보
+    mode.onPointerUp(1, 0);                 // 움직임 없이 뗌 → 구간0 유닛 선택
 
     expect([...mode.selectedZones]).toEqual([0]);
     expect([...mode.selection]).toEqual([]);
   });
 
-  it("핸들 Shift 클릭은 기존 선택을 교체하지 않고 zones에 구간을 토글로 추가한다(다중 구간)", () => {
-    // 구간 2개: x=1 → 구간0, x=2 → 구간1 핸들
+  it("존 몸통 Shift 클릭은 기존 선택을 교체하지 않고 zones에 구간을 토글로 추가한다(다중 구간)", () => {
+    // 구간 2개: x=1 → 구간0, x=2 → 구간1 몸통
     const chart = makeChart({
       notes: [],
       trillZones: [
@@ -1765,26 +1769,26 @@ describe("SelectMode — 구간 단위 선택", () => {
       ],
     });
     const cb = makeCallbacks({
-      hitTestTrillZoneHandle: (x: number): number | null => (x === 1 ? 0 : x === 2 ? 1 : null),
+      hitTestTrillZone: (x: number): number | null => (x === 1 ? 0 : x === 2 ? 1 : null),
     });
     const mode = makeMode(chart, cb);
 
     mode.selectZoneUnit(0);
-    mode.onPointerDown(2, 0, true, false); // Shift + 구간1 핸들 → 추가
+    mode.onPointerDown(2, 0, true, false); // Shift + 구간1 몸통 → 추가
 
     expect([...cb.getSelectionState().zones].sort()).toEqual([0, 1]);
 
-    mode.onPointerDown(2, 0, true, false); // 같은 핸들 다시 → 토글 제거
+    mode.onPointerDown(2, 0, true, false); // 같은 몸통 다시 → 토글 제거
     expect([...cb.getSelectionState().zones]).toEqual([0]);
   });
 
-  it("핸들 토글 탭은 일반 노트 선택을 유지한 채 zones만 바꾼다(공존)", () => {
+  it("존 몸통 토글 탭은 일반 노트 선택을 유지한 채 zones만 바꾼다(공존)", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 3 as Lane, beat: beat(9) }],
       trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
     });
     const cb = makeCallbacks({
-      hitTestTrillZoneHandle: (x: number): number | null => (x === 1 ? 0 : null),
+      hitTestTrillZone: (x: number): number | null => (x === 1 ? 0 : null),
     });
     const mode = makeMode(chart, cb);
 
@@ -1796,15 +1800,16 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect([...sel.zones]).toEqual([0]); // 구간 유닛 공존
   });
 
-  it("구간 단위 드래그는 구간+노트를 같은 오프셋으로 자유 이동(레인+박자)", () => {
+  it("선택된 구간의 몸통 드래그는 구간+노트를 같은 오프셋으로 자유 이동(레인+박자)", () => {
     const cb = makeCallbacks({
-      hitTestTrillZoneHandle: () => 0,
+      hitTestTrillZone: () => 0,
     });
     cb.space.yToBeat =(y: number): Beat => beat(y);
     cb.space.snapBeat =(b: Beat): Beat => b;
     const mode = makeMode(makeChartZ(), cb);
 
-    // 핸들(lane1, beat2)에서 시작 → (lane2, beat5)로 드래그: +1레인, +3박
+    // 구간0을 유닛 선택한 뒤 몸통(lane1, beat2)에서 (lane2, beat5)로 드래그: +1레인, +3박
+    mode.selectZoneUnit(0);
     mode.onPointerDown(1, 2, false, false);
     mode.onPointerMove(2, 5);
 
@@ -1834,7 +1839,7 @@ describe("SelectMode — 구간 단위 선택", () => {
   });
 
   it("구간 단위에서 ↑(moveBySnap)은 구간+노트를 함께 +1박 이동", () => {
-    const cb = makeCallbacks({ hitTestTrillZoneHandle: () => 0 });
+    const cb = makeCallbacks();
     const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.moveBySnap("up"); // snapStep = 1박
@@ -1847,7 +1852,7 @@ describe("SelectMode — 구간 단위 선택", () => {
   });
 
   it("구간 단위에서 →(moveByLane)은 구간+노트를 함께 레인 이동(1→2)", () => {
-    const cb = makeCallbacks({ hitTestTrillZoneHandle: () => 0 });
+    const cb = makeCallbacks();
     const mode = makeMode(makeChartZ(), cb);
     mode.selectZoneUnit(0);
     mode.moveByLane("right");
@@ -1856,6 +1861,149 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect(updated.trillZones[0].lane).toBe(2);
     expect(updated.notes[0].lane).toBe(2);
     expect(updated.notes[1].lane).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 존 몸통 상호작용 — 이동 필 제거 후 "클릭=선택, 선택 후 드래그=이동, 밖에서 박스=선택"
+// (RFD 0016 §6-6)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
+  // 구간0[lane1, 2~4]에 트릴노트 2개(beat2, beat3), 구간 밖 일반노트 1개
+  function makeChartB(): Chart {
+    return makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0)
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },  // 1 (구간0)
+        { type: "single", lane: 3 as Lane, beat: beat(9) }, // 2 (밖)
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+  }
+
+  it("선택된 존 몸통을 드래그하면 구간+노트가 이동한다(+1레인 +3박)", () => {
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+    });
+    const mode = makeMode(makeChartB(), cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(1, 3, false, false); // 선택된 존 몸통 → 이동 드래그
+    mode.onPointerMove(2, 6);               // +1레인 +3박
+
+    expect(mode.isMoveDragging).toBe(true);
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones[0].lane).toBe(2);
+    expect(beatToFloat(updated.trillZones[0].beat)).toBe(5);
+    expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(7);
+    expect(updated.notes[0].lane).toBe(2);
+    expect(beatToFloat(updated.notes[0].beat)).toBe(5);
+  });
+
+  it("미선택 존 몸통 탭(움직임 없이 뗌)은 그 존을 유닛 선택한다(notes 주입 없음)", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스로 시작(탭 후보)
+    expect(mode.isMoveDragging).toBe(false);
+    mode.onPointerUp(1, 0);                 // 움직임 없이 뗌 = 탭
+
+    expect([...mode.selectedZones]).toEqual([0]);
+    expect([...mode.selection]).toEqual([]);
+    expect([...cb.getSelectionState().zones]).toEqual([0]);
+  });
+
+  it("존 몸통 down 후 2px 드리프트 up(같은 레인)도 탭으로 인정해 그 존을 선택한다(zero-slop 회귀)", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스 후보(_boxStartY=0)
+    mode.onPointerUp(1, 2);                  // y 2px 드리프트 — tap-slop(10px) 안이라 탭
+
+    expect([...mode.selectedZones]).toEqual([0]);
+    expect([...cb.getSelectionState().zones]).toEqual([0]);
+  });
+
+  it("미선택 존 몸통에서 드래그하면 박스 선택이 된다(부분 겹침 beat3~5 → 박스 안 트릴만 개별 선택)", () => {
+    // 1px=0.1beat 스케일 — 드래그(20px)를 존 몸통 tap-slop(10px, §6-6) 넘게 해 박스로 확정한다.
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
+      yToBeatRaw: (y: number): Beat => beat(y, 10),
+    });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 30, false, false); // 미선택 몸통(beat3)에서 시작
+    mode.onPointerMove(1, 50);
+    expect(mode.isBoxSelecting).toBe(true);
+    mode.onPointerUp(1, 50);                 // 박스 [3,5], 20px 이동 → tap 아님
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([1]);    // beat3 트릴만 개별 선택
+    expect([...sel.zones]).toEqual([]);     // 유닛 미픽업(부분 겹침)
+  });
+
+  it("shift+존 몸통 클릭은 zones 선택을 토글한다(추가 후 재클릭 시 제거)", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 0, true, false); // shift+몸통 → zones 추가
+    expect([...cb.getSelectionState().zones]).toEqual([0]);
+
+    mode.onPointerDown(1, 0, true, false); // 같은 몸통 다시 → 토글 제거
+    expect([...cb.getSelectionState().zones]).toEqual([]);
+  });
+
+  it("선택된 존의 끝 리사이즈는 몸통 분기보다 우선한다(회귀 — endBeat 4→6)", () => {
+    const cb = makeCallbacks({
+      hitTestTrillZoneEnd: () => 0,
+      hitTestTrillZone: () => 0, // 끝도 몸통 범위 안 — 끝 리사이즈가 이겨야 한다
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+    });
+    const mode = makeMode(makeChartB(), cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
+
+    mode.onPointerDown(1, 4, false, false); // 선택된 존 끝 → 리사이즈 시작
+    expect(mode.isMoveDragging).toBe(false);
+    expect(mode.isBoxSelecting).toBe(false);
+    mode.onPointerMove(1, 6);
+    mode.onPointerUp(1, 6);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(6);
+    expect(beatToFloat(updated.trillZones[0].beat)).toBe(2); // 시작은 불변
+  });
+
+  it("미선택 존의 끝을 클릭하면 리사이즈가 아니라 그 위치의 끝 노트가 선택된다(§6-6 — 선택된 존만 리사이즈)", () => {
+    const cb = makeCallbacks({
+      hitTestTrillZoneEnd: () => 0, // 끝 히트지만 존 미선택
+      hitTestNote: () => 1,         // 끝 위치에 노트 1(트릴 beat3)
+    });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 4, false, false); // 미선택 존 끝 → 리사이즈 안 함
+    expect([...mode.selection]).toEqual([1]); // 리사이즈 대신 끝 노트가 선택됨
+    mode.onPointerUp(1, 4);
+
+    // 차트(구간 endBeat)는 불변 — 리사이즈가 일어나지 않았다
+    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart | undefined;
+    if (lastChart) expect(beatToFloat(lastChart.trillZones[0].endBeat)).toBe(4);
+  });
+
+  it("미선택 존 몸통 드래그를 cancel하면 탭 후보가 소멸해, 이후 빈 곳 탭이 그 존을 선택하지 않는다", () => {
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(makeChartB(), cb);
+
+    mode.onPointerDown(1, 0, false, false); // 몸통 탭 후보
+    mode.cancel();
+
+    mode.onPointerDown(3, 0, false, false); // 빈 곳(노트·존 없음) 박스
+    mode.onPointerUp(3, 0);                 // 탭 — stale 후보가 남았다면 존이 선택된다
+
+    expect([...cb.getSelectionState().zones]).toEqual([]);
   });
 });
 
@@ -2204,6 +2352,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
       hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
     });
     const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝 잡고 리사이즈 시작
     mode.onPointerMove(9, 10); // endBeat 6→10 (라이브 적용)
@@ -2248,7 +2397,7 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
   it("구간 단위(트릴존+노트) 이동 중 cancel은 구간과 안의 노트를 전부 원위치로 되돌린다", () => {
     const cb = makeCallbacks({
-      hitTestTrillZoneHandle: () => 0,
+      hitTestTrillZone: () => 0,
     });
     cb.space.yToBeat =(y: number): Beat => beat(y);
     cb.space.snapBeat =(b: Beat): Beat => b;
@@ -2261,7 +2410,8 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     });
     const mode = makeMode(chart, cb);
 
-    mode.onPointerDown(1, 2, false, false); // 핸들 히트 → 구간 단위 드래그 시작
+    mode.selectZoneUnit(0);
+    mode.onPointerDown(1, 2, false, false); // 선택된 존 몸통 → 구간 단위 드래그 시작
     mode.onPointerMove(2, 5); // +1레인 +3박 (라이브 적용)
     const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
     expect(moved.trillZones[0].lane).toBe(2);

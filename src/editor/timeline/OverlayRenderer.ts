@@ -326,14 +326,18 @@ export class OverlayRenderer {
       }
     }
 
-    // hover한 trillZone의 이동/리사이즈 핸들 (hover 시에만 표시)
-    if (hoveredTrillZoneIndex !== null && hoveredTrillZoneIndex < this.host.chart.trillZones.length) {
+    // trillZone 리사이즈 핸들(끝 캡)은 **선택된 구간**에만 표시한다 — 미선택 구간의 끝에
+    // 놓인 노트를 캡이 가리지 않도록(끝 노트 클릭 보장, RFD 0016 §6-6). 이동 필은 제거됐고,
+    // 구간 이동은 선택 후 몸통 드래그다.
+    if (
+      hoveredTrillZoneIndex !== null &&
+      hoveredTrillZoneIndex < this.host.chart.trillZones.length &&
+      this.host.selectedTrillZones.has(hoveredTrillZoneIndex)
+    ) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
       const x = (zone.lane - 1) * LANE_WIDTH;
-      const startY = this.host.timeToY(beatToMs(zone.beat, bpmMarkers, meta.offsetMs));
       const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
-      const selected = this.host.selectedTrillZones.has(hoveredTrillZoneIndex);
-      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, startY, endY, selected);
+      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, endY, true);
     }
 
     // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.
