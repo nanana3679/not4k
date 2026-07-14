@@ -115,8 +115,9 @@ export class ClipboardManager {
 
     // 이벤트 수집 (RFD 0016 §3-4 D1) — span과 겹치는 이벤트를 담되 timeSignature는 제외
     // (마디 경계 이동 문제 회피). 시점 이벤트는 beat ∈ [min,max], 구간 이벤트는
-    // [beat,endBeat]가 span과 겹침(폐구간). anchor는 notes/zones의 min 유지 — 수집
-    // 이벤트는 span 안이라 상대 offset ≥ 0이다.
+    // [beat,endBeat]가 span과 겹침(폐구간). anchor는 notes/zones의 min 유지 — 시점 이벤트는
+    // beat ≥ anchor라 offset ≥ 0이지만, span 시작에 걸친 구간 이벤트는 beat < anchor일 수
+    // 있다(상대 기하는 보존되나 붙여넣기 시 음수 가능 — paste에서 범위 검증으로 거부).
     const spanMin = beatToFloat(anchorBeat);
     const events: ChartEvent[] = [];
     for (const evt of chart.events) {
@@ -197,6 +198,23 @@ export class ClipboardManager {
       if (sf < 0 || ef > maxFloat) {
         callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
         return null;
+      }
+    }
+    // 이벤트 범위 검증 (RFD 0016 §3-4 D1) — span 시작에 걸친 구간 이벤트는 beat < anchor라
+    // 음수로 나갈 수 있다. 노트·존과 대칭으로 범위 밖이면 붙여넣기 전체를 거부한다
+    // (원자성 — 저장 파일에 음수 beat 이벤트가 남는 것을 막는다).
+    for (const clipEvent of clipEvents) {
+      const sf = beatToFloat(beatAdd(clipEvent.beat, beatOffset));
+      if (sf < 0 || sf > maxFloat) {
+        callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
+        return null;
+      }
+      if ("endBeat" in clipEvent) {
+        const ef = beatToFloat(beatAdd(clipEvent.endBeat, beatOffset));
+        if (ef < 0 || ef > maxFloat) {
+          callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
+          return null;
+        }
       }
     }
 
@@ -375,6 +393,16 @@ export class ClipboardManager {
     const newEvents = [...chart.events];
     for (const idx of this.pastedEventIndices) {
       newEvents[idx] = this._translateEvent(newEvents[idx], offset);
+    }
+    // 이벤트가 범위를 벗어나면 이동 거부(노트 :_areNotesInBounds와 대칭, 음수 beat 저장 방지)
+    const maxFloat = callbacks.getMaxBeatFloat();
+    for (const idx of this.pastedEventIndices) {
+      const evt = newEvents[idx];
+      if (beatToFloat(evt.beat) < 0 || beatToFloat(evt.beat) > maxFloat) return null;
+      if ("endBeat" in evt) {
+        const ef = beatToFloat(evt.endBeat);
+        if (ef < 0 || ef > maxFloat) return null;
+      }
     }
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones, events: newEvents };

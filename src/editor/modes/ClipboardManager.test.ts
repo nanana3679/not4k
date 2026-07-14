@@ -215,4 +215,20 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
     const result = cm.paste(chart, beat(10), makeCallbacks(), () => {});
     expect(result!.chart.events).toHaveLength(events.length); // 주입 0건
   });
+
+  it("span 시작에 걸친 구간 이벤트(stop[2,6])가 붙여넣기 시 음수 beat로 나가면 붙여넣기를 거부한다", () => {
+    // note@4만 선택 → span=[4,4], stop[2,6]은 폐구간 겹침(2<=4 && 6>=4)으로 수집(beat 2 < anchor 4).
+    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(4) }];
+    const events: ChartEvent[] = [{ type: "stop", beat: beat(2), endBeat: beat(6) }];
+    const chart = makeChart({ notes, events });
+    const cm = new ClipboardManager();
+    cm.copy(chart, new Set([0]));
+
+    // beat 1에 붙여넣기 → offset=-3: note→1(범위 내)이나 stop→[-1,3]으로 음수 → 전체 거부
+    const cb = makeCallbacks();
+    const result = cm.paste(chart, beat(1), cb, () => {});
+    expect(result).toBeNull();
+    expect(cb.onWarn).toHaveBeenCalled();
+    expect(chart.events).toHaveLength(1); // 원본 불변(주입 없음)
+  });
 });
