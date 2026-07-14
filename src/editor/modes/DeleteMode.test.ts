@@ -57,7 +57,7 @@ function seedChart(notes: NoteEntity[]) {
 
 const xToLane = (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null);
 
-/** useCoordinateHelpers.hitTestUnifiedNote 미러 — 메인·보조 통합 인덱스 반환 */
+/** TimelineSpace.hitTestUnifiedNote 미러 — 메인·보조 통합 인덱스 반환 */
 const hitTestUnifiedNote = (x: number, y: number): number | null => {
   const lane = x >= 1 ? x : null;
   if (lane === null) return null;

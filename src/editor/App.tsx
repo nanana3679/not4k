@@ -26,7 +26,6 @@ import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
-import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
@@ -288,11 +287,8 @@ function ChartEditorPage() {
   const mode = useEditorStore((s) => s.mode);
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
-  // 좌표 변환 / 히트테스트 훅
-  const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers } = coords;
-  // TimelineSpace deep module — 구 훅과 병존 배선 (슬라이스 3: Create·Select만 space 소비)
-  const { space } = useTimelineSpace(rendererRef);
+  // TimelineSpace deep module — 좌표 변환 / 히트테스트
+  const { space, bpmMarkers } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -348,7 +344,7 @@ function ChartEditorPage() {
   const canvasEvents = useCanvasEvents(
     canvasRef, rendererRef, playbackRef,
     createModeRef, selectModeRef, deleteModeRef,
-    isDraggingCursorRef, coords, isTimeInBounds,
+    isDraggingCursorRef, space, isTimeInBounds,
     handlePinchZoom,
     handleHorizontalPan,
     handleVerticalPan,
