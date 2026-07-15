@@ -259,6 +259,33 @@ const connectedLongNoteOverlapChart = makeChart(
   ],
 );
 
+const connectedTrillLongChart = makeChart(
+  '이어진 트릴 롱노트',
+  8,
+  [
+    // 갈아타기(2레인): 트릴 롱노트를 F로 시작해 연결점에서 D로 갈아탄다
+    { type: 'trill', lane: 2, beat: beat(2) },
+    { type: 'trillLong', lane: 2, beat: beat(2), endBeat: beat(3) },
+    { type: 'trill', lane: 2, beat: beat(3) },
+    { type: 'trillLong', lane: 2, beat: beat(3), endBeat: beat(4) },
+    // 겹쳐 누르기(3레인): J를 끝까지 잡은 채 연결점에서 K를 탭한다
+    { type: 'trill', lane: 3, beat: beat(5) },
+    { type: 'trillLong', lane: 3, beat: beat(5), endBeat: beat(6) },
+    { type: 'trill', lane: 3, beat: beat(6) },
+    { type: 'trillLong', lane: 3, beat: beat(6), endBeat: beat(7) },
+  ],
+  [
+    tutorialInput(2, 'KeyF', 'F', beat(2), beat(3), 3),
+    tutorialInput(2, 'KeyD', 'D', beat(3), beat(4), 4),
+    tutorialInput(3, 'KeyJ', 'J', beat(5), beat(7), 5),
+    tutorialInput(3, 'KeyK', 'K', beat(6), beat(13, 2), 6),
+  ],
+  [
+    { lane: 2, beat: beat(2), endBeat: beat(4) },
+    { lane: 3, beat: beat(5), endBeat: beat(7) },
+  ],
+);
+
 const headlessLongNoteChart = makeChart(
   '헤드 없는 롱노트',
   5,
@@ -557,6 +584,15 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     ],
     8,
     connectedLongNoteOverlapChart,
+  ),
+  createTutorialPreview(
+    'connected-trill-long',
+    '이어진 트릴 롱노트',
+    [
+      '이어진 트릴 롱노트도 갈아타기·겹쳐 누르기로 이어진 롱노트와 동일하게 처리할 수 있습니다',
+    ],
+    8,
+    connectedTrillLongChart,
   ),
   createTutorialPreview(
     'headless-long-note',
