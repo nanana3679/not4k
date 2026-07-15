@@ -454,9 +454,10 @@ export function TutorialPreviewPlayer({
           ref={canvasRef}
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          // 준비 전에는 canvas를 투명 처리한다. WebGL canvas는 자체 합성 레이어라 z-index만으로는
-          // 아래 스피너를 덮으므로, 로딩 동안 canvas를 투명하게 만들어 스피너가 비쳐 보이게 한다.
-          style={{ ...styles.canvas, opacity: rendererReady ? 1 : 0 }}
+          // 준비 전(로딩)이나 에러일 때 canvas를 투명 처리한다. WebGL canvas는 자체 합성 레이어라
+          // z-index만으로는 아래의 스피너/에러 메시지를 덮으므로, 준비 완료 & 에러 없음일 때만
+          // 불투명하게 해서 로딩 스피너와 에러 텍스트가 canvas에 가려지지 않게 한다.
+          style={{ ...styles.canvas, opacity: rendererReady && !error ? 1 : 0 }}
         />
         {!diagramDisplay && (
           <div
