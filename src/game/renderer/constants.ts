@@ -15,8 +15,10 @@ export const JUDGMENT_LINE_OFFSET = 160; // px from bottom
 
 export const COLORS = {
   BG: 0x0a0a14,
-  LANE_BG_EVEN: 0x111122,
-  LANE_BG_ODD: 0x0d0d1e,
+  // 레인 base를 살짝 올려 "휴지 구간 dim"이 보일 헤드룸을 만든다.
+  // 활성 레인 = 올라온 톤, 휴지 밴드 = 어두운 오버레이로 원래 near-black까지 끌어내림.
+  LANE_BG_EVEN: 0x26263f,
+  LANE_BG_ODD: 0x202038,
   LANE_SEPARATOR: 0x333355,
   JUDGMENT_LINE: 0xffffff,
   MEASURE_LINE: 0xffffff,
@@ -34,6 +36,10 @@ export const COLORS = {
 
   TRILL_ZONE_BG: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.15,
+
+  // 휴지 구간(레인 당분간 안 씀) — 어두운 오버레이로 레인을 가라앉힌다.
+  REST_ZONE_DIM: 0x000000,
+  REST_ZONE_ALPHA: 0.72,
 
   COMBO_TEXT: 0xffffff,
   JUDGMENT_PERFECT: 0xffdd00,
