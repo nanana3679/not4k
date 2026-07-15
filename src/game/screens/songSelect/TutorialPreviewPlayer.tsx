@@ -55,6 +55,9 @@ const PREVIEW_RENDER_HEIGHT = 360;
 const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
+// 로딩 스피너 최소 표시 시간. 렌더러가 순식간에 준비돼도 스피너가 깜빡하고 사라지지 않고
+// 최소 이 시간만큼은 보이도록 해, 로딩 피드백이 인지되게 한다.
+const MIN_SPINNER_MS = 350;
 const PREVIEW_LANE_KEY_HEIGHT = 42;
 const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
 const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
@@ -221,8 +224,10 @@ export function TutorialPreviewPlayer({
     setError(null);
     setRendererReady(false);
 
+    const loadStartMs = performance.now();
     let disposed = false;
     let animationFrameId: number | null = null;
+    let rendererReadyTimer: number | null = null;
     let renderer: GameRenderer | null = null;
     let previousKeyHash = '';
     let previousDiagramHash = '';
@@ -403,7 +408,15 @@ export function TutorialPreviewPlayer({
         previousNow = performance.now();
         loopStartNow = previousNow;
         notifyReady();
-        setRendererReady(true);
+        // 최소 표시 시간을 채워 스피너가 깜빡하고 사라지지 않게 한다. 이미 오래 걸렸으면 즉시.
+        const remainingSpinnerMs = MIN_SPINNER_MS - (performance.now() - loadStartMs);
+        if (remainingSpinnerMs > 0) {
+          rendererReadyTimer = window.setTimeout(() => {
+            if (!disposed) setRendererReady(true);
+          }, remainingSpinnerMs);
+        } else {
+          setRendererReady(true);
+        }
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
@@ -440,6 +453,9 @@ export function TutorialPreviewPlayer({
       dismissDiagramRef.current = null;
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
+      }
+      if (rendererReadyTimer !== null) {
+        window.clearTimeout(rendererReadyTimer);
       }
       disposeTutorialPreviewRenderer(renderer);
     };
