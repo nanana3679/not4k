@@ -63,8 +63,8 @@ describe('tutorialPreviewChart', () => {
     expect(validateChart(TUTORIAL_PREVIEW_CHART)).toEqual([]);
   });
 
-  it('튜토리얼 프리뷰 목록은 이어진 롱노트 두 처리법을 6번과 7번으로 분리해 15개의 고유 튜토리얼을 제공', () => {
-    expect(TUTORIAL_PREVIEWS).toHaveLength(15);
+  it('튜토리얼 프리뷰 목록은 이어진 롱노트 두 처리법을 6번과 7번으로 분리하고 8번에 이어진 트릴 롱노트를 두어 16개의 고유 튜토리얼을 제공', () => {
+    expect(TUTORIAL_PREVIEWS).toHaveLength(16);
     expect(TUTORIAL_PREVIEWS.map((preview) => preview.id)).toEqual([
       'hand-placement',
       'single-note',
@@ -74,6 +74,7 @@ describe('tutorialPreviewChart', () => {
       'release-tap',
       'connected-long-note-switch',
       'connected-long-note-overlap',
+      'connected-trill-long',
       'headless-long-note',
       'zero-length-long-note',
       'grace-note',
@@ -85,7 +86,8 @@ describe('tutorialPreviewChart', () => {
     expect(new Set(TUTORIAL_PREVIEWS.map((preview) => preview.id)).size).toBe(TUTORIAL_PREVIEWS.length);
     expect(TUTORIAL_PREVIEWS[6]?.title).toBe('이어진 롱노트 - 갈아타기');
     expect(TUTORIAL_PREVIEWS[7]?.title).toBe('이어진 롱노트 - 겹쳐 누르기');
-    expect(TUTORIAL_PREVIEWS[8]?.id).toBe('headless-long-note');
+    expect(TUTORIAL_PREVIEWS[8]?.title).toBe('이어진 트릴 롱노트');
+    expect(TUTORIAL_PREVIEWS[9]?.id).toBe('headless-long-note');
   });
 
   it('튜토리얼 프리뷰는 8박 고정 루프가 아니라 3·4·5·7·8·9박 루프를 섞어서 제공', () => {
@@ -126,7 +128,7 @@ describe('tutorialPreviewChart', () => {
     const joinedBody = TUTORIAL_PREVIEWS.flatMap((preview) => preview.bodyLines).join('\n');
 
     expect(TUTORIAL_PREVIEWS[0].title).toBe('손배치');
-    expect(TUTORIAL_PREVIEWS[14].title).toBe('수직 이동');
+    expect(TUTORIAL_PREVIEWS[15].title).toBe('수직 이동');
     expect(joinedBody).toContain('왼손은 Q W E C에 약지·중지·검지·엄지를 올려두세요');
     expect(joinedBody).toContain('같은 노트를 다양한 키로 처리해 보세요');
     expect(joinedBody).toContain('떼는 순간에 다른 키를 함께 누르세요');
@@ -373,6 +375,33 @@ describe('tutorialPreviewChart', () => {
     expect(getActiveTutorialDiagramTiming(750, diagramTimings)?.event.diagramId).toBe('connected-overlap');
     expect(getActiveTutorialDiagramTiming(1125, diagramTimings)).toBeNull();
     expect(firstInputStartMs - diagramTimings[0].endMs).toBe(2000);
+  });
+
+  it('8번 이어진 트릴 롱노트는 2레인 갈아타기와 3레인 겹쳐 누르기를 한 차트에서 함께 시연', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'connected-trill-long');
+    if (!preview) {
+      throw new Error('connected-trill-long 프리뷰가 없음');
+    }
+    const rangeNotes = preview.chart.notes.filter((note): note is RangeNote => isRangeNote(note));
+    const connectedLanes = getConnectedLongNoteLanes(rangeNotes);
+    const timings = getTutorialInputTimings(preview.chart);
+    const activeKeyCodesAtMs = (songTimeMs: number) =>
+      getActiveTutorialInputTimings(songTimeMs, timings).map(({ event }) => event.keyCode);
+
+    expect(preview.loopBeats).toBe(8);
+    // 두 레인 모두에서 트릴 롱노트가 연결된다
+    expect([...connectedLanes].sort()).toEqual([2, 3]);
+    // 모든 range 노트는 트릴 롱노트 (일반 롱노트 아님)
+    expect(rangeNotes.every((note) => note.type === 'trillLong')).toBe(true);
+    // 갈아타기(2레인): 연결점 beat 3(1500ms) 직후 F에서 D로 교대
+    expect(activeKeyCodesAtMs(1250)).toEqual(['KeyF']);
+    expect(activeKeyCodesAtMs(1750)).toEqual(['KeyD']);
+    // 겹쳐 누르기(3레인): J를 잡은 채 연결점 beat 6(3000ms)에서 K를 탭
+    expect(activeKeyCodesAtMs(2750)).toEqual(['KeyJ']);
+    expect(activeKeyCodesAtMs(3125)).toEqual(['KeyJ', 'KeyK']);
+    expect(activeKeyCodesAtMs(3375)).toEqual(['KeyJ']);
+    // 도식은 생략 — 떨어지는 실연으로만 시연
+    expect(getTutorialDiagramEvents(preview.chart)).toEqual([]);
   });
 
   it('헤드 없는 롱노트 튜토리얼은 롱노트 시작점에 포인트 노트가 없다', () => {

@@ -34,6 +34,28 @@ describe('tutorialPreviewJudgment', () => {
     ]);
   });
 
+  it('이어진 트릴 롱노트 튜토리얼은 갈아타기·겹쳐 누르기 두 방식 모두 전부 Perfect로 판정', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'connected-trill-long');
+    if (!preview) {
+      throw new Error('connected-trill-long 프리뷰가 없음');
+    }
+    const judgments: JudgmentResult[] = [];
+    const controller = createTutorialPreviewJudgmentController(
+      preview.chart,
+      getTutorialInputTimings(preview.chart),
+      {
+        onJudgment: (result) => judgments.push(result),
+        onComboUpdate: vi.fn(),
+      },
+    );
+
+    controller.advanceTo(preview.loopMs);
+
+    // 헤드 2 + 연결 + 종결 × 2체인 = 최소 8판정, 전부 Perfect (Miss·GOOD◇ 없음)
+    expect(judgments.length).toBeGreaterThanOrEqual(8);
+    expect(judgments.every((result) => result.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+
   it('릴리즈탭 튜토리얼은 기존 JudgmentEngine으로 롱노트 종결과 끝점 싱글을 모두 판정', () => {
     const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'release-tap');
     if (!preview) {
