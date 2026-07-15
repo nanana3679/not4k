@@ -221,13 +221,6 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-spinner');
   });
 
-  it('구동기 카드는 렌더러 준비 전(에러 아님)에 빈 화면 대신 중앙 로딩 스피너를 모든 스테이지에서 표시', () => {
-    // 도식 모달이 없는 일반 스테이지에서도 로딩 동안 카드에 스피너가 뜬다.
-    expect(tutorialPreviewPlayerSource).toContain('{!rendererReady && !error && (');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-preview-loading="true"');
-    expect(tutorialPreviewPlayerSource).toContain('canvasLoading:');
-  });
-
   it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');

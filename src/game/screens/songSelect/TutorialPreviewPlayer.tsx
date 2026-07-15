@@ -55,9 +55,6 @@ const PREVIEW_RENDER_HEIGHT = 360;
 const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
-// 로딩 스피너 최소 표시 시간. 렌더러가 순식간에 준비돼도 스피너가 깜빡하고 사라지지 않고
-// 최소 이 시간만큼은 보이도록 해, 로딩 피드백이 인지되게 한다.
-const MIN_SPINNER_MS = 600;
 const PREVIEW_LANE_KEY_HEIGHT = 42;
 const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
 const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
@@ -224,10 +221,8 @@ export function TutorialPreviewPlayer({
     setError(null);
     setRendererReady(false);
 
-    const loadStartMs = performance.now();
     let disposed = false;
     let animationFrameId: number | null = null;
-    let rendererReadyTimer: number | null = null;
     let renderer: GameRenderer | null = null;
     let previousKeyHash = '';
     let previousDiagramHash = '';
@@ -408,15 +403,7 @@ export function TutorialPreviewPlayer({
         previousNow = performance.now();
         loopStartNow = previousNow;
         notifyReady();
-        // 최소 표시 시간을 채워 스피너가 깜빡하고 사라지지 않게 한다. 이미 오래 걸렸으면 즉시.
-        const remainingSpinnerMs = MIN_SPINNER_MS - (performance.now() - loadStartMs);
-        if (remainingSpinnerMs > 0) {
-          rendererReadyTimer = window.setTimeout(() => {
-            if (!disposed) setRendererReady(true);
-          }, remainingSpinnerMs);
-        } else {
-          setRendererReady(true);
-        }
+        setRendererReady(true);
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
@@ -454,9 +441,6 @@ export function TutorialPreviewPlayer({
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
-      if (rendererReadyTimer !== null) {
-        window.clearTimeout(rendererReadyTimer);
-      }
       disposeTutorialPreviewRenderer(renderer);
     };
   }, [diagramTimings, keys, preview, timings]);
@@ -470,10 +454,8 @@ export function TutorialPreviewPlayer({
           ref={canvasRef}
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          // 준비 전(로딩)이나 에러일 때 canvas를 아예 그리지 않는다(visibility:hidden). WebGL canvas는
-          // 자체 합성 레이어라 opacity:0(투명이지만 레이어는 남음)만으로는 실제 브라우저에서 아래의
-          // 스피너/에러 메시지를 덮을 수 있다. 준비 완료 & 에러 없음일 때만 보이게 해 가림을 원천 차단한다.
-          style={{ ...styles.canvas, visibility: rendererReady && !error ? 'visible' : 'hidden' }}
+          // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
+          style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
         {!diagramDisplay && (
           <div
@@ -501,16 +483,6 @@ export function TutorialPreviewPlayer({
           </div>
         )}
         {error && <div style={styles.errorText}>{error}</div>}
-        {!rendererReady && !error && (
-          <div
-            data-tutorial-preview-loading="true"
-            style={styles.canvasLoading}
-            role="status"
-            aria-label="Loading preview"
-          >
-            <span className="not4k-tutorial-diagram-spinner" />
-          </div>
-        )}
       </div>
       <style>{tutorialPreviewPlayerCss}</style>
       <div
@@ -848,19 +820,6 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     fontSize: '12px',
     textAlign: 'center',
-  },
-  canvasLoading: {
-    // 구동기(렌더러)가 첫 프레임까지 준비되는 동안 빈 카드 대신 중앙에 스피너를 보여준다.
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(5, 6, 10, 0.85)',
-    pointerEvents: 'none',
-    // WebGL <canvas>는 자체 합성 레이어로 승격돼 z-index 없는 형제 위로 올라온다.
-    // 스피너가 canvas에 가려지지 않도록 명시적으로 위에 둔다.
-    zIndex: 2,
   },
   miniKeyboard: {
     width: 'min(100%, 460px)',
