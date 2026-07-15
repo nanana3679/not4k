@@ -748,6 +748,15 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
+.not4k-tutorial-index {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.not4k-tutorial-index::-webkit-scrollbar {
+  display: none;
+}
+
 .not4k-tutorial-placeholder-spinner {
   display: block;
   width: 44px;
