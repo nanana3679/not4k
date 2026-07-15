@@ -428,9 +428,12 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
               <div
                 className="not4k-tutorial-player-placeholder"
                 data-tutorial-player-placeholder="true"
-                aria-hidden="true"
+                role="status"
+                aria-label="Loading preview"
                 style={tutorialHelpStyles.playerPlaceholder}
-              />
+              >
+                <span className="not4k-tutorial-placeholder-spinner" />
+              </div>
               <TutorialPreviewTransitionStage
                 activePlayerSlot={activePlayerSlot}
                 previewSlotIndexes={previewSlotIndexes}
@@ -745,6 +748,23 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
+.not4k-tutorial-placeholder-spinner {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid rgba(157, 238, 244, 0.28);
+  border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
+  animation: not4k-tutorial-placeholder-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-placeholder-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .not4k-tutorial-carousel-track {
   display: flex;
   width: 100%;
@@ -815,6 +835,9 @@ const tutorialHelpCss = `
   .not4k-tutorial-text-transition {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
+  }
+  .not4k-tutorial-placeholder-spinner {
+    animation: none !important;
   }
 }
 
@@ -1045,6 +1068,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     backgroundColor: '#141616',
     backgroundImage: 'linear-gradient(90deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025))',
     pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playerStage: {
     position: 'relative',
