@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
@@ -145,6 +146,9 @@ export function TutorialPreviewPlayer({
   const [activeDiagramTiming, setActiveDiagramTiming] = useState<TutorialDiagramTiming | null>(null);
   const [diagramDisplay, setDiagramDisplay] = useState<TutorialDiagramDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 구동기(렌더러)가 첫 프레임까지 준비됐는지. 준비 전에는 도식 모달에서 OK 대신 스피너를 보여
+  // 로딩 중 상호작용(OK로 재개)을 막는다.
+  const [rendererReady, setRendererReady] = useState(false);
   const baseTimings = useMemo(() => getTutorialInputTimings(preview.chart), [preview]);
   const diagramTimings = useMemo(() => getTutorialDiagramTimings(preview.chart), [preview]);
   const timings = useMemo(
@@ -215,6 +219,7 @@ export function TutorialPreviewPlayer({
     setActiveDiagramTiming(null);
     setDiagramDisplay(null);
     setError(null);
+    setRendererReady(false);
 
     let disposed = false;
     let animationFrameId: number | null = null;
@@ -398,6 +403,7 @@ export function TutorialPreviewPlayer({
         previousNow = performance.now();
         loopStartNow = previousNow;
         notifyReady();
+        setRendererReady(true);
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
@@ -420,6 +426,8 @@ export function TutorialPreviewPlayer({
         if (!disposed) {
           setError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
           notifyReady();
+          // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.
+          setRendererReady(true);
         }
       }
     };
@@ -446,7 +454,8 @@ export function TutorialPreviewPlayer({
           ref={canvasRef}
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          style={styles.canvas}
+          // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
+          style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
         {!diagramDisplay && (
           <div
@@ -514,7 +523,7 @@ export function TutorialPreviewPlayer({
           })}
         </div>
       </div>
-      {diagramDisplay && (
+      {diagramDisplay && typeof document !== 'undefined' && createPortal(
         <div
           className="not4k-tutorial-diagram-overlay"
           data-tutorial-diagram-modal="true"
@@ -526,16 +535,28 @@ export function TutorialPreviewPlayer({
             style={styles.diagramPanel}
           >
             <TutorialPatternDiagram diagramId={diagramDisplay.diagramId} />
-            <button
-              type="button"
-              data-tutorial-diagram-ok="true"
-              style={styles.diagramOkButton}
-              onClick={handleDiagramOk}
-            >
-              OK
-            </button>
+            {rendererReady ? (
+              <button
+                type="button"
+                data-tutorial-diagram-ok="true"
+                style={styles.diagramOkButton}
+                onClick={handleDiagramOk}
+              >
+                OK
+              </button>
+            ) : (
+              <div
+                data-tutorial-diagram-loading="true"
+                style={styles.diagramLoading}
+                role="status"
+                aria-label="Loading preview"
+              >
+                <span className="not4k-tutorial-diagram-spinner" />
+              </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -567,6 +588,23 @@ const tutorialPreviewPlayerCss = `
 
 .not4k-tutorial-diagram-panel {
   will-change: transform, opacity, filter;
+}
+
+.not4k-tutorial-diagram-spinner {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid rgba(157, 238, 244, 0.28);
+  border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
+  animation: not4k-tutorial-diagram-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-diagram-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .not4k-tutorial-diagram-overlay[data-tutorial-diagram-phase="enter"] {
@@ -644,6 +682,9 @@ const tutorialPreviewPlayerCss = `
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+  .not4k-tutorial-diagram-spinner {
+    animation: none !important;
+  }
 }
 `;
 
@@ -671,9 +712,11 @@ const styles: Record<string, CSSProperties> = {
     height: '100%',
   },
   diagramOverlay: {
-    position: 'absolute',
+    // 뷰포트 전체를 덮는 확인 모달 — 프리뷰 카드가 짧은 모바일에서 화면 밖으로 밀려도
+    // 도식·OK가 항상 화면 중앙에 보이도록 position:fixed로 카드 경계를 벗어난다.
+    position: 'fixed',
     inset: 0,
-    padding: '16px',
+    padding: 'clamp(8px, 4%, 16px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -681,21 +724,28 @@ const styles: Record<string, CSSProperties> = {
     backdropFilter: 'blur(2px)',
     boxSizing: 'border-box',
     pointerEvents: 'auto',
-    zIndex: 6,
+    // 튜토리얼 팝업 오버레이(zIndex 2200)보다 위에 떠야 도식·OK가 가려지지 않는다.
+    zIndex: 2400,
+    overflow: 'hidden',
   },
   diagramPanel: {
     width: 'min(100%, 440px)',
+    // 카드 높이를 넘지 않게 가두고, 안에서 도식(flex:1)만 줄어들며 OK 버튼(flex:0)은 항상 보인다.
+    maxHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
-    padding: '14px',
+    gap: 'clamp(8px, 2.5%, 12px)',
+    padding: 'clamp(10px, 3%, 14px)',
     boxSizing: 'border-box',
     borderRadius: '8px',
     backgroundColor: 'rgba(9, 12, 14, 0.94)',
     boxShadow: '0 18px 48px rgba(0, 0, 0, 0.45)',
+    overflow: 'hidden',
   },
   diagramOkButton: {
+    // 도식이 아무리 줄어도 버튼은 줄지 않고 항상 노출된다.
+    flex: '0 0 auto',
     minWidth: '88px',
     minHeight: '34px',
     padding: '0 18px',
@@ -704,9 +754,17 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid #c2fbff',
     borderRadius: '5px',
     cursor: 'pointer',
-    fontSize: '13px',
+    fontSize: 'clamp(12px, 3.5vw, 14px)',
     fontWeight: 800,
     lineHeight: 1,
+  },
+  diagramLoading: {
+    // OK 버튼과 같은 높이를 차지해 로딩→OK 전환 시 레이아웃이 튀지 않게 한다.
+    flex: '0 0 auto',
+    minHeight: '34px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   laneKeyOverlay: {
     position: 'absolute',

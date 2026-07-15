@@ -285,29 +285,37 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'center',
     gap: '0',
     width: '100%',
-    minHeight: `${TUTORIAL_PATTERN_DIAGRAM_MIN_HEIGHT}px`,
-    padding: '18px 10px',
+    // 반응형: 부모(도식 패널) 높이를 채우되 넘치지 않고, 큰 화면에선 350px를 상한으로.
+    // 고정 min-height를 두면 짧은 모바일 카드에서 넘쳐 OK 버튼이 잘렸다.
+    flex: '1 1 auto',
+    minHeight: 0,
+    maxHeight: `min(100%, ${TUTORIAL_PATTERN_DIAGRAM_MIN_HEIGHT}px)`,
+    padding: 'clamp(10px, 4%, 18px) clamp(6px, 2.5%, 10px)',
     boxSizing: 'border-box',
     borderRadius: '6px',
     backgroundColor: 'rgba(2, 5, 8, 0.92)',
     boxShadow: '0 10px 24px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
     pointerEvents: 'none',
+    overflow: 'hidden',
   },
   equationRow: {
     display: 'grid',
-    gridTemplateColumns: `${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH}px auto ${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH}px auto ${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH}px`,
+    // 레인 3칸은 남는 폭을 균등 분배(minmax(0,1fr))하고 연산자(+·=)는 내용폭으로.
+    gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px',
+    gap: 'clamp(4px, 2%, 8px)',
     width: '100%',
+    maxWidth: '100%',
   },
   pattern: {
-    width: `${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH}px`,
+    width: '100%',
     minWidth: 0,
   },
   lane: {
-    width: `${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH}px`,
-    height: `${DIAGRAM_LANE_HEIGHT}px`,
+    // 폭은 그리드 셀을 채우고, 높이는 원래 5:1 레인 비율을 aspect-ratio로 유지.
+    width: '100%',
+    aspectRatio: `${TUTORIAL_PATTERN_DIAGRAM_LANE_WIDTH} / ${DIAGRAM_LANE_HEIGHT}`,
     borderRadius: '4px',
     display: 'block',
     overflow: 'hidden',
@@ -315,7 +323,7 @@ const styles: Record<string, CSSProperties> = {
   },
   term: {
     color: '#c8f8ff',
-    fontSize: '42px',
+    fontSize: 'clamp(20px, 7vw, 42px)',
     fontWeight: 900,
     lineHeight: 1,
     textShadow: '0 1px 8px rgba(77, 220, 236, 0.7)',

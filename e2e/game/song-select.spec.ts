@@ -81,7 +81,8 @@ test.describe('Song Select Screen', () => {
     await expect(activeSlot.locator('[data-tutorial-key]')).toHaveCount(8);
 
     await dialog.locator('[data-tutorial-index-item="connected-long-note-switch"]').click();
-    const diagramModal = dialog.locator('[data-tutorial-diagram-modal="true"]').first();
+    // 도식 확인 모달은 카드/슬롯이 아니라 문서 최상위(portal)로 그려진다 — page 기준으로 찾는다.
+    const diagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
     await expect(diagramModal).toBeVisible();
     await expect(diagramModal.locator('[data-tutorial-diagram-id="connected-switch"]')).toBeVisible();
     await expect(diagramModal.locator('[data-tutorial-diagram-ok="true"]')).toBeVisible();
@@ -94,18 +95,15 @@ test.describe('Song Select Screen', () => {
     await expect(dialog.locator(
       '[data-tutorial-carousel-track][data-tutorial-transition-phase="animating"]'
     )).toBeVisible();
-    const enteringOverlapSlot = dialog.locator(
-      '[data-tutorial-preview-slot="entering"][data-tutorial-preview-id="connected-long-note-overlap"]'
-    );
-    await expect(enteringOverlapSlot.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
     const activeOverlapSlot = dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
     );
-    const overlapDiagramModal = activeOverlapSlot.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(activeOverlapSlot).toBeVisible();
+    const overlapDiagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
     await expect(overlapDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
     const firstOverlapInstanceId = await activeOverlapSlot.getAttribute('data-tutorial-preview-instance');
     await page.getByRole('button', { name: 'Next tutorial' }).click();
-    await expect(dialog.locator('[data-tutorial-diagram-modal="true"]')).toBeHidden();
+    await expect(page.locator('[data-tutorial-diagram-modal="true"]')).toBeHidden();
     await expect(dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="headless-long-note"]'
     )).toBeVisible();
@@ -117,7 +115,7 @@ test.describe('Song Select Screen', () => {
       'data-tutorial-preview-instance',
       firstOverlapInstanceId ?? ''
     );
-    const restoredDiagramModal = restoredOverlapSlot.locator('[data-tutorial-diagram-modal="true"]').first();
+    const restoredDiagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
     await expect(restoredDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
     await restoredDiagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
     await expect(restoredDiagramModal).toBeHidden();

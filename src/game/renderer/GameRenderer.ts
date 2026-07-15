@@ -1193,6 +1193,10 @@ export class GameRenderer {
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
+    // 초기화가 끝나기 전(로딩 지연)이나 dispose 직후에 렌더가 들어오면 PIXI 내부 렌더러가
+    // null이라 this.app.render()가 alphaMode를 null에서 읽어 크래시한다. 준비 전에는 조용히 건너뛴다.
+    if (!this.initialized || !this.app.renderer) return;
+
     this.judgmentUI.updateFade(deltaMs);
     if (this.showPerspectiveSurface) {
       this.renderPerspectiveSurface(songTimeMs, deltaMs);

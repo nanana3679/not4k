@@ -428,9 +428,12 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
               <div
                 className="not4k-tutorial-player-placeholder"
                 data-tutorial-player-placeholder="true"
-                aria-hidden="true"
+                role="status"
+                aria-label="Loading preview"
                 style={tutorialHelpStyles.playerPlaceholder}
-              />
+              >
+                <span className="not4k-tutorial-placeholder-spinner" />
+              </div>
               <TutorialPreviewTransitionStage
                 activePlayerSlot={activePlayerSlot}
                 previewSlotIndexes={previewSlotIndexes}
@@ -597,8 +600,12 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
+  // 멈춤(pause)은 entering에서 미리 arming해 도식 시작점에 프레임을 고정한다.
   const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
-  const diagramModalVisible = slotState === 'active' || slotState === 'entering';
+  // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
+  // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
+  // 동시에 두 개가 뜨지 않게 한다.
+  const diagramModalVisible = slotState === 'active';
 
   return (
     <div
@@ -741,6 +748,32 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
+.not4k-tutorial-index {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.not4k-tutorial-index::-webkit-scrollbar {
+  display: none;
+}
+
+.not4k-tutorial-placeholder-spinner {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid rgba(157, 238, 244, 0.28);
+  border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
+  animation: not4k-tutorial-placeholder-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-placeholder-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .not4k-tutorial-carousel-track {
   display: flex;
   width: 100%;
@@ -811,6 +844,9 @@ const tutorialHelpCss = `
   .not4k-tutorial-text-transition {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
+  }
+  .not4k-tutorial-placeholder-spinner {
+    animation: none !important;
   }
 }
 
@@ -1041,6 +1077,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     backgroundColor: '#141616',
     backgroundImage: 'linear-gradient(90deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025))',
     pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playerStage: {
     position: 'relative',
