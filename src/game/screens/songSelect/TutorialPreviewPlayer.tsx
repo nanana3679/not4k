@@ -57,7 +57,7 @@ const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
 // 로딩 스피너 최소 표시 시간. 렌더러가 순식간에 준비돼도 스피너가 깜빡하고 사라지지 않고
 // 최소 이 시간만큼은 보이도록 해, 로딩 피드백이 인지되게 한다.
-const MIN_SPINNER_MS = 350;
+const MIN_SPINNER_MS = 600;
 const PREVIEW_LANE_KEY_HEIGHT = 42;
 const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
 const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
@@ -470,10 +470,10 @@ export function TutorialPreviewPlayer({
           ref={canvasRef}
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          // 준비 전(로딩)이나 에러일 때 canvas를 투명 처리한다. WebGL canvas는 자체 합성 레이어라
-          // z-index만으로는 아래의 스피너/에러 메시지를 덮으므로, 준비 완료 & 에러 없음일 때만
-          // 불투명하게 해서 로딩 스피너와 에러 텍스트가 canvas에 가려지지 않게 한다.
-          style={{ ...styles.canvas, opacity: rendererReady && !error ? 1 : 0 }}
+          // 준비 전(로딩)이나 에러일 때 canvas를 아예 그리지 않는다(visibility:hidden). WebGL canvas는
+          // 자체 합성 레이어라 opacity:0(투명이지만 레이어는 남음)만으로는 실제 브라우저에서 아래의
+          // 스피너/에러 메시지를 덮을 수 있다. 준비 완료 & 에러 없음일 때만 보이게 해 가림을 원천 차단한다.
+          style={{ ...styles.canvas, visibility: rendererReady && !error ? 'visible' : 'hidden' }}
         />
         {!diagramDisplay && (
           <div
@@ -620,11 +620,12 @@ const tutorialPreviewPlayerCss = `
 
 .not4k-tutorial-diagram-spinner {
   display: block;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 3px solid rgba(157, 238, 244, 0.25);
+  border: 5px solid rgba(157, 238, 244, 0.28);
   border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
   animation: not4k-tutorial-diagram-spin 0.8s linear infinite;
 }
 
@@ -855,6 +856,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(5, 6, 10, 0.85)',
     pointerEvents: 'none',
     // WebGL <canvas>는 자체 합성 레이어로 승격돼 z-index 없는 형제 위로 올라온다.
     // 스피너가 canvas에 가려지지 않도록 명시적으로 위에 둔다.
