@@ -210,6 +210,17 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
+  it('구동기 로딩 중에는 도식 모달에서 OK 대신 스피너를 보여 상호작용을 막고, 준비되면 OK로 전환', () => {
+    // 준비 상태 플래그: 이펙트 시작 시 false, 첫 프레임 성공 또는 에러 시 true.
+    expect(tutorialPreviewPlayerSource).toContain('const [rendererReady, setRendererReady] = useState(false)');
+    expect(tutorialPreviewPlayerSource).toContain('setRendererReady(false)');
+    expect(tutorialPreviewPlayerSource).toContain('setRendererReady(true)');
+    // 준비 전에는 OK를 렌더하지 않고 스피너만 보여 클릭(재개)을 막는다.
+    expect(tutorialPreviewPlayerSource).toContain('rendererReady ? (');
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-diagram-loading="true"');
+    expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-spinner');
+  });
+
   it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');

@@ -146,6 +146,9 @@ export function TutorialPreviewPlayer({
   const [activeDiagramTiming, setActiveDiagramTiming] = useState<TutorialDiagramTiming | null>(null);
   const [diagramDisplay, setDiagramDisplay] = useState<TutorialDiagramDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 구동기(렌더러)가 첫 프레임까지 준비됐는지. 준비 전에는 도식 모달에서 OK 대신 스피너를 보여
+  // 로딩 중 상호작용(OK로 재개)을 막는다.
+  const [rendererReady, setRendererReady] = useState(false);
   const baseTimings = useMemo(() => getTutorialInputTimings(preview.chart), [preview]);
   const diagramTimings = useMemo(() => getTutorialDiagramTimings(preview.chart), [preview]);
   const timings = useMemo(
@@ -216,6 +219,7 @@ export function TutorialPreviewPlayer({
     setActiveDiagramTiming(null);
     setDiagramDisplay(null);
     setError(null);
+    setRendererReady(false);
 
     let disposed = false;
     let animationFrameId: number | null = null;
@@ -399,6 +403,7 @@ export function TutorialPreviewPlayer({
         previousNow = performance.now();
         loopStartNow = previousNow;
         notifyReady();
+        setRendererReady(true);
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
@@ -421,6 +426,8 @@ export function TutorialPreviewPlayer({
         if (!disposed) {
           setError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
           notifyReady();
+          // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.
+          setRendererReady(true);
         }
       }
     };
@@ -527,14 +534,25 @@ export function TutorialPreviewPlayer({
             style={styles.diagramPanel}
           >
             <TutorialPatternDiagram diagramId={diagramDisplay.diagramId} />
-            <button
-              type="button"
-              data-tutorial-diagram-ok="true"
-              style={styles.diagramOkButton}
-              onClick={handleDiagramOk}
-            >
-              OK
-            </button>
+            {rendererReady ? (
+              <button
+                type="button"
+                data-tutorial-diagram-ok="true"
+                style={styles.diagramOkButton}
+                onClick={handleDiagramOk}
+              >
+                OK
+              </button>
+            ) : (
+              <div
+                data-tutorial-diagram-loading="true"
+                style={styles.diagramLoading}
+                role="status"
+                aria-label="Loading preview"
+              >
+                <span className="not4k-tutorial-diagram-spinner" />
+              </div>
+            )}
           </div>
         </div>,
         document.body,
@@ -569,6 +587,22 @@ const tutorialPreviewPlayerCss = `
 
 .not4k-tutorial-diagram-panel {
   will-change: transform, opacity, filter;
+}
+
+.not4k-tutorial-diagram-spinner {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(157, 238, 244, 0.25);
+  border-top-color: #9deef4;
+  animation: not4k-tutorial-diagram-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-diagram-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .not4k-tutorial-diagram-overlay[data-tutorial-diagram-phase="enter"] {
@@ -646,6 +680,9 @@ const tutorialPreviewPlayerCss = `
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+  .not4k-tutorial-diagram-spinner {
+    animation: none !important;
+  }
 }
 `;
 
@@ -718,6 +755,14 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'clamp(12px, 3.5vw, 14px)',
     fontWeight: 800,
     lineHeight: 1,
+  },
+  diagramLoading: {
+    // OK 버튼과 같은 높이를 차지해 로딩→OK 전환 시 레이아웃이 튀지 않게 한다.
+    flex: '0 0 auto',
+    minHeight: '34px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   laneKeyOverlay: {
     position: 'absolute',
