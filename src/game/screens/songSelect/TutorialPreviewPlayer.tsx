@@ -454,7 +454,9 @@ export function TutorialPreviewPlayer({
           ref={canvasRef}
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          style={styles.canvas}
+          // 준비 전에는 canvas를 투명 처리한다. WebGL canvas는 자체 합성 레이어라 z-index만으로는
+          // 아래 스피너를 덮으므로, 로딩 동안 canvas를 투명하게 만들어 스피너가 비쳐 보이게 한다.
+          style={{ ...styles.canvas, opacity: rendererReady ? 1 : 0 }}
         />
         {!diagramDisplay && (
           <div
@@ -482,6 +484,16 @@ export function TutorialPreviewPlayer({
           </div>
         )}
         {error && <div style={styles.errorText}>{error}</div>}
+        {!rendererReady && !error && (
+          <div
+            data-tutorial-preview-loading="true"
+            style={styles.canvasLoading}
+            role="status"
+            aria-label="Loading preview"
+          >
+            <span className="not4k-tutorial-diagram-spinner" />
+          </div>
+        )}
       </div>
       <style>{tutorialPreviewPlayerCss}</style>
       <div
@@ -818,6 +830,18 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     fontSize: '12px',
     textAlign: 'center',
+  },
+  canvasLoading: {
+    // 구동기(렌더러)가 첫 프레임까지 준비되는 동안 빈 카드 대신 중앙에 스피너를 보여준다.
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+    // WebGL <canvas>는 자체 합성 레이어로 승격돼 z-index 없는 형제 위로 올라온다.
+    // 스피너가 canvas에 가려지지 않도록 명시적으로 위에 둔다.
+    zIndex: 2,
   },
   miniKeyboard: {
     width: 'min(100%, 460px)',
