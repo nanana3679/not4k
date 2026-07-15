@@ -325,14 +325,16 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain("phase: 'animating'");
   });
 
-  it('전환 중 Next/Prev는 완료 예정 슬롯을 기준으로 다음 전환을 잡고 도식 표시는 active와 entering 슬롯으로 제한', () => {
+  it('전환 중 Next/Prev는 완료 예정 슬롯을 기준으로 다음 전환을 잡고, 멈춤은 entering까지 arming하되 도식 확인 모달은 active 슬롯에서만 표시', () => {
     expect(tutorialHelpModalSource).toContain('const sourcePlayerIndex = playerTransition?.toIndex ?? visiblePlayerIndex');
     expect(tutorialHelpModalSource).toContain('const sourcePlayerSlot = playerTransition?.toSlot ?? activePlayerSlot');
     expect(tutorialHelpModalSource).toContain('fromIndex: sourcePlayerIndex');
     expect(tutorialHelpModalSource).toContain('fromSlot: sourcePlayerSlot');
     expect(tutorialHelpModalSource).toContain('data-tutorial-preview-id={preview.id}');
+    // 멈춤(pause)은 entering에서 미리 arming(도식 시작점 고정), 하지만 뷰포트 portal 모달은
+    // 전환 중 두 개가 겹쳐 보이지 않도록 active 슬롯에서만 표시한다.
     expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
-    expect(tutorialHelpModalSource).toContain("const diagramModalVisible = slotState === 'active' || slotState === 'entering'");
+    expect(tutorialHelpModalSource).toContain("const diagramModalVisible = slotState === 'active'");
     expect(tutorialHelpModalSource).toContain('diagramModalVisible={diagramModalVisible}');
   });
 

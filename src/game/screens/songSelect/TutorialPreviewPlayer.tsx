@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
@@ -514,7 +515,7 @@ export function TutorialPreviewPlayer({
           })}
         </div>
       </div>
-      {diagramDisplay && (
+      {diagramDisplay && typeof document !== 'undefined' && createPortal(
         <div
           className="not4k-tutorial-diagram-overlay"
           data-tutorial-diagram-modal="true"
@@ -535,7 +536,8 @@ export function TutorialPreviewPlayer({
               OK
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -671,9 +673,11 @@ const styles: Record<string, CSSProperties> = {
     height: '100%',
   },
   diagramOverlay: {
-    position: 'absolute',
+    // 뷰포트 전체를 덮는 확인 모달 — 프리뷰 카드가 짧은 모바일에서 화면 밖으로 밀려도
+    // 도식·OK가 항상 화면 중앙에 보이도록 position:fixed로 카드 경계를 벗어난다.
+    position: 'fixed',
     inset: 0,
-    padding: '16px',
+    padding: 'clamp(8px, 4%, 16px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -681,21 +685,28 @@ const styles: Record<string, CSSProperties> = {
     backdropFilter: 'blur(2px)',
     boxSizing: 'border-box',
     pointerEvents: 'auto',
-    zIndex: 6,
+    // 튜토리얼 팝업 오버레이(zIndex 2200)보다 위에 떠야 도식·OK가 가려지지 않는다.
+    zIndex: 2400,
+    overflow: 'hidden',
   },
   diagramPanel: {
     width: 'min(100%, 440px)',
+    // 카드 높이를 넘지 않게 가두고, 안에서 도식(flex:1)만 줄어들며 OK 버튼(flex:0)은 항상 보인다.
+    maxHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
-    padding: '14px',
+    gap: 'clamp(8px, 2.5%, 12px)',
+    padding: 'clamp(10px, 3%, 14px)',
     boxSizing: 'border-box',
     borderRadius: '8px',
     backgroundColor: 'rgba(9, 12, 14, 0.94)',
     boxShadow: '0 18px 48px rgba(0, 0, 0, 0.45)',
+    overflow: 'hidden',
   },
   diagramOkButton: {
+    // 도식이 아무리 줄어도 버튼은 줄지 않고 항상 노출된다.
+    flex: '0 0 auto',
     minWidth: '88px',
     minHeight: '34px',
     padding: '0 18px',
@@ -704,7 +715,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid #c2fbff',
     borderRadius: '5px',
     cursor: 'pointer',
-    fontSize: '13px',
+    fontSize: 'clamp(12px, 3.5vw, 14px)',
     fontWeight: 800,
     lineHeight: 1,
   },

@@ -597,8 +597,12 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
+  // 멈춤(pause)은 entering에서 미리 arming해 도식 시작점에 프레임을 고정한다.
   const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
-  const diagramModalVisible = slotState === 'active' || slotState === 'entering';
+  // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
+  // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
+  // 동시에 두 개가 뜨지 않게 한다.
+  const diagramModalVisible = slotState === 'active';
 
   return (
     <div

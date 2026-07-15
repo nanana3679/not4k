@@ -183,7 +183,9 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('diagramModalVisible?: boolean');
     expect(tutorialPreviewPlayerSource).toContain('activeDiagramId && diagramModalVisible');
     expect(tutorialPreviewPlayerSource).toContain('[activeDiagramTiming, diagramModalVisible]');
-    expect(tutorialPreviewPlayerSource).toContain('{diagramDisplay && (');
+    // 확인 모달은 diagramDisplay가 참일 때만, 뷰포트 기준으로 문서 최상위에 portal 렌더된다.
+    expect(tutorialPreviewPlayerSource).toContain("{diagramDisplay && typeof document !== 'undefined' && createPortal(");
+    expect(tutorialPreviewPlayerSource).toContain('document.body,');
   });
 
   it('튜토리얼 도식이 0ms에서 시작하면 렌더러 init 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
