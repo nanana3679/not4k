@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { SettingsPanel } from './SettingsPanel';
 import { CalibrationView } from './CalibrationView';
+import { color, radius } from '../../../shared/theme';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -114,7 +115,7 @@ const modalStyles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '24px',
-    backgroundColor: 'rgba(0, 0, 0, 0.68)',
+    backgroundColor: 'rgba(6, 8, 10, 0.68)',
     backdropFilter: 'blur(2px)',
   },
   frame: {
@@ -123,8 +124,8 @@ const modalStyles: Record<string, CSSProperties> = {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    borderRadius: '8px',
-    border: '1px solid #333',
-    boxShadow: '0 22px 64px rgba(0, 0, 0, 0.48)',
+    borderRadius: radius.md,
+    border: `1px solid ${color.line}`,
+    boxShadow: '0 22px 64px rgba(0, 0, 0, 0.55)',
   },
 };

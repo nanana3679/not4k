@@ -232,7 +232,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       <div style={styles.mobileContainer}>
         <div style={styles.mobileHeader}>
           <div style={styles.mobileHeaderTop}>
-            <h1 style={styles.mobileTitle}>Songs</h1>
+            <h1 style={styles.mobileTitle}>
+              <span style={styles.mobileTitleAccent} aria-hidden="true" />
+              Songs
+            </h1>
             {!authLoading && user && (
               <span style={styles.mobileEmail}>{user.email}</span>
             )}
@@ -326,7 +329,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Song Select</h1>
+        <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Song Select
+        </h1>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {renderTutorialHelpButton(styles.tutorialHelpBtn)}
           {isAdmin && (

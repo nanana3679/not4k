@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../../stores';
+import { font, color, surface, edge, radius } from '../../../shared/theme';
 import {
   calculateCalibrationResult,
   CALIBRATION_INTERVAL_MS,
@@ -79,7 +80,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
       // Draw judgment line
       const judgmentY = h * 0.85;
-      ctx.strokeStyle = '#00ffff';
+      ctx.strokeStyle = color.neon;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, judgmentY);
@@ -87,8 +88,8 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       ctx.stroke();
 
       // Draw "TAP" text on judgment line
-      ctx.fillStyle = '#00ffff';
-      ctx.font = '14px system-ui';
+      ctx.fillStyle = color.neon;
+      ctx.font = `14px ${font.numeric}`;
       ctx.textAlign = 'center';
       ctx.fillText('TAP HERE', w / 2, judgmentY + 20);
 
@@ -123,7 +124,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
         // Fade out after passing judgment line
         const alpha = progress > 1.0 ? Math.max(0, 1 - (progress - 1.0) * 4) : 1;
         ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#ff6b6b';
+        ctx.fillStyle = color.gold;
         ctx.fillRect(w / 2 - noteWidth / 2, noteY - noteHeight / 2, noteWidth, noteHeight);
         ctx.globalAlpha = 1;
       }
@@ -408,24 +409,25 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
 const calibrationCss = `
 .cal-view {
-  --bg: #1a1a1a; --surface: #232323; --border: #2f2f2f;
-  --ink: #e6e6e6; --muted: #8c8c8c; --accent: #00e5e5; --accent-ink: #06181a;
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
-  background: var(--bg); color: var(--ink);
-  font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
+  background: ${surface.panel}; color: ${color.ink};
+  font-family: ${font.body}; font-size: 14px;
 }
 .cal-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  padding: 14px 20px; border-bottom: 1px solid ${color.line}; flex-shrink: 0;
 }
-.cal-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.cal-title {
+  margin: 0; font-family: ${font.display}; font-size: 16px; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase; color: ${color.inkStrong};
+}
 .cal-back {
-  padding: 6px 14px; font-size: 13px; color: var(--muted);
-  background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  padding: 6px 14px; font-family: ${font.display}; font-size: 13px; color: ${color.inkDim};
+  background: transparent; border: 1px solid ${color.line}; border-radius: ${radius.sm}; cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
-.cal-back:hover { color: var(--ink); border-color: #4a4a4a; background: #202020; }
-.cal-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-back:hover { color: ${color.ink}; border-color: ${color.inkFaint}; background: ${surface.button}; }
+.cal-back:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 1px; }
 
 .cal-content {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -437,52 +439,56 @@ const calibrationCss = `
 .cal-cards { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 460px; }
 .cal-card {
   display: flex; flex-direction: column; gap: 12px; padding: 22px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  background: ${surface.card}; border: 1px solid ${color.line}; border-radius: ${radius.md};
+  box-shadow: ${edge.metal};
 }
 .cal-card--result { align-items: center; text-align: center; max-width: 380px; width: 100%; }
-.cal-card-title { margin: 0; font-size: 14px; font-weight: 650; color: var(--accent); }
-.cal-card-desc { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
-.cal-card-desc strong { color: var(--ink); font-weight: 600; }
+.cal-card-title {
+  margin: 0; font-family: ${font.display}; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; color: ${color.neon};
+}
+.cal-card-desc { margin: 0; font-size: 13px; line-height: 1.55; color: ${color.inkDim}; }
+.cal-card-desc strong { color: ${color.ink}; font-weight: 600; }
 
 .cal-btn {
-  padding: 9px 18px; font-size: 13px; font-weight: 550; color: var(--ink);
-  background: #2a2a2a; border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease;
+  padding: 9px 18px; font-family: ${font.display}; font-size: 13px; font-weight: 600; color: #d7dde4;
+  background: ${surface.button}; border: 1px solid ${color.line}; border-radius: ${radius.sm};
+  box-shadow: ${edge.metal}; cursor: pointer; transition: border-color 160ms ease, color 160ms ease;
 }
-.cal-btn:hover { background: #333; border-color: #4a4a4a; }
-.cal-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-btn:hover { border-color: ${color.inkFaint}; color: ${color.inkStrong}; }
+.cal-btn:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 1px; }
 .cal-btn--accent {
-  color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 650;
-  align-self: flex-start;
+  color: ${color.neonInk}; background: ${surface.neonButton}; border-color: ${color.neon}; font-weight: 700;
+  box-shadow: ${edge.metal}, 0 0 14px -7px ${color.neonGlow}; align-self: flex-start;
 }
-.cal-btn--accent:hover { background: #16d1d1; border-color: #16d1d1; }
+.cal-btn--accent:hover { border-color: ${color.neon}; box-shadow: ${edge.neonFocus}; }
 .cal-card--result .cal-btn--accent { align-self: auto; }
-.cal-btn--ghost { background: transparent; color: var(--muted); }
-.cal-btn--ghost:hover { background: #202020; color: var(--ink); }
+.cal-btn--ghost { background: transparent; color: ${color.inkDim}; box-shadow: none; border-color: ${color.line}; }
+.cal-btn--ghost:hover { color: ${color.ink}; }
 
 .cal-canvas {
-  border: 1px solid var(--border); border-radius: 10px; background: #111;
+  border: 1px solid ${color.line}; border-radius: ${radius.md}; background: ${color.bg};
   max-width: 100%; height: auto;
 }
 .cal-audio { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 40px; }
-.cal-audio-icon { font-size: 68px; line-height: 1; color: var(--accent); }
-.cal-audio-text { margin: 0; font-size: 15px; color: var(--muted); }
+.cal-audio-icon { font-size: 68px; line-height: 1; color: ${color.neon}; }
+.cal-audio-text { margin: 0; font-size: 15px; color: ${color.inkDim}; }
 
 .cal-progress {
   width: 100%; max-width: 400px;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
-.cal-progress-text { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
-.cal-progress-bar { width: 100%; height: 8px; background: #2a2a2a; border-radius: 999px; overflow: hidden; }
-.cal-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 180ms ease; }
+.cal-progress-text { font-family: ${font.numeric}; font-size: 14px; font-variant-numeric: tabular-nums; color: ${color.ink}; }
+.cal-progress-bar { width: 100%; height: 8px; background: rgba(255, 255, 255, 0.06); border-radius: ${radius.pill}; overflow: hidden; }
+.cal-progress-fill { height: 100%; background: ${color.neon}; border-radius: ${radius.pill}; box-shadow: 0 0 10px -2px ${color.neonGlow}; transition: width 180ms ease; }
 
 .cal-result-value { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
-.cal-result-num { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
-.cal-result-unit { font-size: 16px; color: var(--muted); }
-.cal-result-label { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.cal-result-num { font-family: ${font.numeric}; font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; color: ${color.neon}; }
+.cal-result-unit { font-size: 16px; color: ${color.inkDim}; }
+.cal-result-label { margin: 2px 0 0; font-size: 13px; color: ${color.inkDim}; }
 .cal-result-meta {
   display: flex; gap: 18px; margin: 14px 0 4px;
-  font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted);
+  font-family: ${font.numeric}; font-size: 13px; font-variant-numeric: tabular-nums; color: ${color.inkDim};
 }
 .cal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
 

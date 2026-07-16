@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
 import { loadSongData } from '../../supabase';
 import { PageLoading } from '../../shared/components/LoadingSpinner';
+import { font, color, primitives } from '../../shared/theme';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
@@ -65,29 +66,23 @@ export function LoadingScreen() {
 
 const styles = {
   container: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    ...primitives.screen,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100vh',
-    backgroundColor: '#1a1a1a',
-    color: '#ffffff',
   },
   error: {
     fontSize: '24px',
-    color: '#ff4444',
+    fontFamily: font.body,
+    color: color.danger,
     marginBottom: '24px',
     textAlign: 'center' as const,
     maxWidth: '600px',
   },
   button: {
+    // 로드 실패 화면의 유일한 복구 액션 → 주액션(네온)
+    ...primitives.neonButton,
     fontSize: '18px',
+    minHeight: '44px',
     padding: '12px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
   },
 };

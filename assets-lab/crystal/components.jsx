@@ -643,25 +643,33 @@ export function TrillNoteContainer({ x, y }) {
 
 // --- Crystal TrillBodySegment ---
 export function TrillBodySegment({ x, y, height, held = false }) {
-  const baseCol = held ? "#ffffff" : "#aaaaaa";
-  const r = parseInt(baseCol.slice(1, 3), 16);
-  const g = parseInt(baseCol.slice(3, 5), 16);
-  const b = parseInt(baseCol.slice(5, 7), 16);
-  const lr = Math.round(r + (255 - r) * 0.7);
-  const lg = Math.round(g + (255 - g) * 0.7);
-  const lb = Math.round(b + (255 - b) * 0.7);
   const gradId = `trill_body_${held ? "h" : "r"}_${x}_${y}`;
   return (
     <g>
       <defs>
         <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
-          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
-          <stop offset="50%" stopColor={baseCol} />
-          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
+          {held ? (
+            // held: 에디터 룩(getBodyGradient(#aaaaaa)) — 가장자리 #e6e6e6 → 중앙 #aaaaaa. off보다 밝다.
+            <>
+              <stop offset="0%" stopColor="#e6e6e6" />
+              <stop offset="25%" stopColor="#c8c8c8" />
+              <stop offset="50%" stopColor="#aaaaaa" />
+              <stop offset="75%" stopColor="#c8c8c8" />
+              <stop offset="100%" stopColor="#e6e6e6" />
+            </>
+          ) : (
+            // off: 눌리기 전 어두운 회색(중앙 #575757). held(#aaaaaa)와 밝기로 대비.
+            <>
+              <stop offset="0%" stopColor="#cdcdcd" />
+              <stop offset="25%" stopColor="#929292" />
+              <stop offset="50%" stopColor="#575757" />
+              <stop offset="75%" stopColor="#929292" />
+              <stop offset="100%" stopColor="#cdcdcd" />
+            </>
+          )}
         </linearGradient>
       </defs>
       <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
-      {held && <rect x={x} y={y} width={CW} height={height} fill="white" opacity=".1" />}
     </g>
   );
 }
@@ -671,7 +679,7 @@ export function TrillTerminalCap({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;
   return (
     <g>
-      <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#6a6a6a" />
+      <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#888888" />
     </g>
   );
 }

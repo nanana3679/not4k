@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { TutorialDiagramId } from '../../../shared/types';
+import { font, color, radius } from '../../../shared/theme';
 import {
   COLORS as EDITOR_COLORS,
   LANE_WIDTH as EDITOR_LANE_WIDTH,
@@ -292,8 +293,9 @@ const styles: Record<string, CSSProperties> = {
     maxHeight: `min(100%, ${TUTORIAL_PATTERN_DIAGRAM_MIN_HEIGHT}px)`,
     padding: 'clamp(10px, 4%, 18px) clamp(6px, 2.5%, 10px)',
     boxSizing: 'border-box',
-    borderRadius: '6px',
-    backgroundColor: 'rgba(2, 5, 8, 0.92)',
+    borderRadius: radius.sm,
+    // color.bg(#0d0f12)의 반투명 — 뒤 프리뷰 캔버스가 살짝 비치도록 유지
+    backgroundColor: 'rgba(13, 15, 18, 0.92)',
     boxShadow: '0 10px 24px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
     pointerEvents: 'none',
     overflow: 'hidden',
@@ -322,10 +324,11 @@ const styles: Record<string, CSSProperties> = {
     filter: 'drop-shadow(0 8px 14px rgba(0, 0, 0, 0.28))',
   },
   term: {
-    color: '#c8f8ff',
+    color: color.neon,
+    fontFamily: font.display,
     fontSize: 'clamp(20px, 7vw, 42px)',
     fontWeight: 900,
     lineHeight: 1,
-    textShadow: '0 1px 8px rgba(77, 220, 236, 0.7)',
+    textShadow: `0 1px 8px ${color.neonGlow}`,
   },
 };

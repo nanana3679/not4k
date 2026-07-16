@@ -1,4 +1,5 @@
 import type { DbSong } from './types';
+import { color, primitives } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
 
 // ---------------------------------------------------------------------------
@@ -23,25 +24,30 @@ export function DeleteSongModal({ song, deleting, onConfirm, onClose }: DeleteSo
     <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : onClose}>
       <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Delete Song</h3>
-        <p style={{ fontSize: '14px', margin: '0 0 8px', color: '#e0e0e0' }}>
+        <p style={{ fontSize: '14px', margin: '0 0 8px', color: color.ink }}>
           <strong>{song.title}</strong> — {song.artist}
         </p>
         {blocked ? (
-          <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#fc6' }}>
+          <p style={{ fontSize: '13px', margin: '0 0 16px', color: color.gold }}>
             차트 {remainingCharts}개가 남아 있어 삭제할 수 없습니다.
             에디터에서 차트를 먼저 삭제하세요.
           </p>
         ) : (
-          <p style={{ fontSize: '13px', margin: '0 0 16px', color: '#f88' }}>
+          <p style={{ fontSize: '13px', margin: '0 0 16px', color: color.danger }}>
             음원·자켓을 포함해 곡이 영구 삭제됩니다. 되돌릴 수 없습니다.
           </p>
         )}
         <div style={modalStyles.buttons}>
           <button
             style={{
-              ...modalStyles.saveBtn,
-              backgroundColor: '#cc3333',
+              ...primitives.metalButton,
+              padding: '0 16px',
+              fontSize: '13px',
+              color: '#fff',
+              border: `1px solid ${color.danger}`,
+              background: 'linear-gradient(180deg, #7a2a24, #4a1713)',
               opacity: deleting || blocked ? 0.5 : 1,
+              cursor: deleting || blocked ? 'not-allowed' : 'pointer',
             }}
             disabled={deleting || blocked}
             onClick={() => onConfirm(song)}

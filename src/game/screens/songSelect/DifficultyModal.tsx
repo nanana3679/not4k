@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { font, color } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
 import { DIFFICULTIES } from './helpers';
 
@@ -32,13 +33,13 @@ export function DifficultyModal({ existingDifficulties, onSelect, onClose }: Dif
               {available.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           ) : (
-            <span style={{ color: '#888', fontSize: '13px' }}>All difficulties taken</span>
+            <span style={{ color: color.inkDim, fontSize: '13px' }}>All difficulties taken</span>
           )}
         </label>
 
         <label style={modalStyles.field}>
           <span>Level (1~15)</span>
-          <input style={modalStyles.input} type="number" min="1" max="15" value={level} onChange={(e) => setLevel(e.target.value)} />
+          <input style={{ ...modalStyles.input, fontFamily: font.numeric }} type="number" min="1" max="15" value={level} onChange={(e) => setLevel(e.target.value)} />
         </label>
 
         <div style={modalStyles.buttons}>

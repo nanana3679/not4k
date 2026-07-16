@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH, TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
@@ -699,8 +700,8 @@ const styles: Record<string, CSSProperties> = {
     // min(100%, ...)로 캡해 화면이 300px보다 좁아도 가로로 넘치지 않는다.
     minWidth: 'min(100%, 300px)',
     overflow: 'hidden',
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.14)',
+    borderRadius: radius.sm,
+    border: `1px solid ${color.line}`,
     backgroundColor: '#05060a',
   },
   canvas: {
@@ -735,22 +736,19 @@ const styles: Record<string, CSSProperties> = {
     gap: 'clamp(8px, 2.5%, 12px)',
     padding: 'clamp(10px, 3%, 14px)',
     boxSizing: 'border-box',
-    borderRadius: '8px',
-    backgroundColor: 'rgba(9, 12, 14, 0.94)',
+    borderRadius: radius.md,
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
     boxShadow: '0 18px 48px rgba(0, 0, 0, 0.45)',
     overflow: 'hidden',
   },
   diagramOkButton: {
     // 도식이 아무리 줄어도 버튼은 줄지 않고 항상 노출된다.
+    ...primitives.neonButton,
     flex: '0 0 auto',
     minWidth: '88px',
     minHeight: '34px',
     padding: '0 18px',
-    color: '#081114',
-    backgroundColor: '#9deef4',
-    border: '1px solid #c2fbff',
-    borderRadius: '5px',
-    cursor: 'pointer',
     fontSize: 'clamp(12px, 3.5vw, 14px)',
     fontWeight: 800,
     lineHeight: 1,
@@ -770,7 +768,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '16px',
-    color: '#ffb8b8',
+    color: color.danger,
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     fontSize: '12px',
     textAlign: 'center',
