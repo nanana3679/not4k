@@ -3096,7 +3096,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     expect([...cb.getSelectionState().restZones]).toEqual([]);
   });
 
-  it("미선택 restZone 몸통에서 드래그(20px)한 박스 [3,5]가 구간 [2,6]을 완전히 못 감싸면 restZone은 미픽업(감쌈 모델)", () => {
+  it("미선택 restZone 몸통에서 드래그(20px)한 박스 [3,5]가 구간 [2,6]과 일부만 겹쳐도 restZone 픽업(롱노트식 overlap)", () => {
     const cb = makeCallbacks({
       hitTestRestZone: restHitByLane,
       yToBeatRaw: (y: number): Beat => beat(y, 10),
@@ -3106,10 +3106,10 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerDown(2, 30, false, false); // 미선택 몸통(beat3)에서 시작
     mode.onPointerMove(2, 50);
     expect(mode.isBoxSelecting).toBe(true);
-    mode.onPointerUp(2, 50); // 20px 이동 → tap 아님, 박스 [3,5]×lane2 = 빈 선택
+    mode.onPointerUp(2, 50); // 20px 이동 → tap 아님, 박스 [3,5]×lane2가 구간[2,6]과 겹침
 
     const sel = cb.getSelectionState();
-    expect([...sel.restZones]).toEqual([]);
+    expect([...sel.restZones]).toEqual([0]); // 부분 겹침으로 픽업
     expect([...sel.notes]).toEqual([]);
   });
 

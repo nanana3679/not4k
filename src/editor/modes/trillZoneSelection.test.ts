@@ -383,18 +383,18 @@ describe("selectionFromBox", () => {
   // --- restZone 공존 축 (RFD 0019 — trillZone 존과 동형 감쌈 픽업) ---
 
   const restZones: RestZone[] = [
-    { lane: 3, beat: beat(1), endBeat: beat(4) },  // restZone0 — enclosingBox(0~5) 안
-    { lane: 3, beat: beat(1), endBeat: beat(7) },  // restZone1 — endBeat7 > maxBeat5 → 통과
+    { lane: 3, beat: beat(1), endBeat: beat(4) },  // restZone0 — enclosingBox(0~5) 안(완전 포함)
+    { lane: 3, beat: beat(1), endBeat: beat(7) },  // restZone1 — endBeat7 > maxBeat5(앞부분만 걸침 = 부분 겹침)
   ];
 
-  it("박스(레인1~3, 박0~5)가 restZone [1,4]을 완전히 감싸면 restZones {0}으로 유닛 픽업된다", () => {
+  it("박스(레인1~3, 박0~5)가 restZone0[1,4](완전 포함)·restZone1[1,7](부분 겹침)에 모두 겹쳐 restZones {0,1} 픽업(롱노트식 overlap)", () => {
     const sel = selectionFromBox(zones, notes, restZones, enclosingBox);
-    expect(sel.restZones).toEqual(new Set([0]));
+    expect(sel.restZones).toEqual(new Set([0, 1]));
   });
 
-  it("박스가 완전히 못 감싼(통과) restZone [1,7]은 미픽업된다 — 감쌈 모델", () => {
+  it("박스가 restZone1[1,7]의 앞부분만 걸쳐도(0~5) 부분 겹침으로 픽업된다 — trillZone 완전 감쌈과 다름", () => {
     const sel = selectionFromBox(zones, notes, restZones, enclosingBox);
-    expect(sel.restZones.has(1)).toBe(false);
+    expect(sel.restZones.has(1)).toBe(true);
   });
 
   it("박스가 일반 노트(lane3 beat3)와 restZone [1,4]을 함께 감싸면 notes와 restZones 둘 다 선택된다(공존)", () => {

@@ -1,29 +1,37 @@
 import { describe, it, expect } from "vitest";
-import { translateRestZone, clampRestBeatOffset, boxEnclosesRestZone } from "./restZoneSelection";
+import { translateRestZone, clampRestBeatOffset, restZoneOverlapsBox } from "./restZoneSelection";
 import { beat, beatToFloat } from "../../shared";
 import type { RestZone } from "../../shared";
 
 const zone: RestZone = { lane: 2, beat: beat(2), endBeat: beat(6) };
 
-describe("boxEnclosesRestZone — 박스가 restZone을 완전히 감싸는지 (RFD 0019, boxEnclosesZone 미러)", () => {
-  it("박스가 restZone beat·lane을 완전히 포함하면(레인1~3, 박0~8 ⊇ lane2, 2~6) true", () => {
-    expect(boxEnclosesRestZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
+describe("restZoneOverlapsBox — 박스가 restZone에 일부라도 겹치는지 (RFD 0019, 롱노트식 부분 겹침)", () => {
+  it("박스가 restZone을 완전히 포함하면(레인1~3, 박0~8 ⊇ lane2, 2~6) true", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
   });
 
-  it("박스 maxBeat(4)가 restZone.endBeat(6)보다 작으면(부분 겹침) false", () => {
-    expect(boxEnclosesRestZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(false);
+  it("박스가 시작쪽만 덮어도(박0~4, 구간 2~6의 앞부분) 부분 겹침으로 true", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(true);
   });
 
-  it("박스 minBeat(3)가 restZone.beat(2)보다 크면 false", () => {
-    expect(boxEnclosesRestZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(false);
+  it("박스가 끝쪽만 덮어도(박3~8, 구간 2~6의 뒷부분) 부분 겹침으로 true", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(true);
   });
 
-  it("restZone.lane(2)이 박스 lane 범위(3~4) 밖이면 박이 다 감싸여도 false", () => {
-    expect(boxEnclosesRestZone(zone, { minLane: 3, maxLane: 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
+  it("박스가 구간 중간만 덮어도(박3~5 ⊂ 2~6) true", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(5) })).toBe(true);
   });
 
-  it("박스 경계와 restZone 경계가 정확히 같으면(레인2~2, 박2~6 == 구간) true — 폐구간", () => {
-    expect(boxEnclosesRestZone(zone, { minLane: 2, maxLane: 2, minBeat: beat(2), maxBeat: beat(6) })).toBe(true);
+  it("박스가 구간보다 완전히 앞이면(박0~1 < 시작2) 안 겹쳐 false", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(1) })).toBe(false);
+  });
+
+  it("박스가 구간보다 완전히 뒤면(박7~10 > 끝6) 안 겹쳐 false", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 1, maxLane: 3, minBeat: beat(7), maxBeat: beat(10) })).toBe(false);
+  });
+
+  it("restZone.lane(2)이 박스 lane 범위(3~4) 밖이면 beat가 겹쳐도 false", () => {
+    expect(restZoneOverlapsBox(zone, { minLane: 3, maxLane: 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
   });
 });
 

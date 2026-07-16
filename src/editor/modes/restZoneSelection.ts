@@ -13,15 +13,17 @@ import { beatAdd, beatSub, beatToFloat, BEAT_ZERO } from "../../shared";
  * 박스가 restZone을 완전히 감싸는지 — lane 포함 + beat 폐구간 [zone.beat, zone.endBeat]를
  * 박스 beat 범위가 포함할 때만 true (boxEnclosesZone 미러, RFD 0016 §6-2 감쌈 모델).
  */
-export function boxEnclosesRestZone(
+export function restZoneOverlapsBox(
   zone: RestZone,
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
 ): boolean {
+  // 롱노트처럼 **일부만 겹쳐도** 픽업한다 — 구간 [beat, endBeat]가 박스 beat 범위와
+  // 교차하면 선택(trillZone의 완전 감쌈과 대비, 사용자 요청). 레인은 박스 레인 범위 안.
   return (
     box.minLane <= zone.lane &&
     zone.lane <= box.maxLane &&
-    beatToFloat(box.minBeat) <= beatToFloat(zone.beat) &&
-    beatToFloat(zone.endBeat) <= beatToFloat(box.maxBeat)
+    beatToFloat(box.minBeat) <= beatToFloat(zone.endBeat) &&
+    beatToFloat(zone.beat) <= beatToFloat(box.maxBeat)
   );
 }
 
