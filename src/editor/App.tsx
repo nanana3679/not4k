@@ -533,6 +533,8 @@ function ChartEditorPage() {
 
     return () => {
       mounted = false;
+      // feed를 끊어 언마운트 후 늦게 resolve된 audioArrived가 disposed 렌더러에 낭비 작업을 하지 않게 한다.
+      waveformFeedRef.current = null;
       renderer.dispose();
       playback.dispose();
     };
