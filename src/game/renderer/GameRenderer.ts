@@ -16,6 +16,8 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  TUTORIAL_KB_SIDE_PAD,
+  TUTORIAL_KB_VPAD,
   COLORS,
 } from "./constants";
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
@@ -48,6 +50,26 @@ import {
   getGaugeTextureFrame,
 } from "./gearGauge";
 
+/** 튜토리얼 프리뷰 키보드 strip 스펙 — 레이아웃/매핑 계산은 React가 하고 렌더러는 그리기만 한다.
+ *  (순환 import 방지를 위해 player 쪽 타입을 import하지 않고 자체 선언) */
+interface TutorialKeyboardSpec {
+  widthUnits: number;
+  heightUnits: number;
+  keys: { code: string; x: number; y: number; w: number; h: number; label: string; mapped: boolean }[];
+}
+
+interface TutorialKeyboardKeyEntry {
+  code: string;
+  cap: Graphics;
+  text: Text;
+  mapped: boolean;
+  pressed: boolean;
+  baseX: number;
+  baseY: number;
+  kw: number;
+  kh: number;
+}
+
 export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
@@ -59,6 +81,9 @@ export interface GameRendererOptions {
   showComboAndAccuracy?: boolean;
   showLaneKeyLabels?: boolean;
   judgmentLineOffset?: number;
+  /** 플레이 영역 아래에 덧붙는 키보드 strip 높이(px). 캔버스 총 높이 = height + keyboardAreaHeight */
+  keyboardAreaHeight?: number;
+  tutorialKeyboard?: TutorialKeyboardSpec;
 }
 
 interface NoteRenderData {
@@ -189,6 +214,13 @@ export class GameRenderer {
   private laneKeyLabelLayer: Container;
   private laneKeyLabels: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean }[] = [];
 
+  // 튜토리얼 프리뷰용 키보드 strip (플레이 영역 아래 y >= this.height 별도 영역)
+  private keyboardAreaHeight: number;
+  private tutorialKeyboardSpec: TutorialKeyboardSpec | null;
+  private tutorialKeyboardLayer: Container;
+  private tutorialKeyboardKeys: TutorialKeyboardKeyEntry[] = [];
+  private tutorialKeyboardKeyByCode: Map<string, TutorialKeyboardKeyEntry> = new Map();
+
   // Sub-renderers
   private judgmentUI!: JudgmentUI;
   private noteRenderer!: GameNoteRenderer;
@@ -206,6 +238,8 @@ export class GameRenderer {
     this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
     this.showLaneKeyLabels = options.showLaneKeyLabels ?? false;
+    this.keyboardAreaHeight = options.keyboardAreaHeight ?? 0;
+    this.tutorialKeyboardSpec = options.tutorialKeyboard ?? null;
 
     this.app = new Application();
 
@@ -225,6 +259,7 @@ export class GameRenderer {
     this.effectLayer = new Container();
     this.gearFrameLayer = new Container();
     this.laneKeyLabelLayer = new Container();
+    this.tutorialKeyboardLayer = new Container();
     this.uiLayer = new Container();
 
     // Create combo / accuracy text (owned by GameRenderer)
@@ -275,7 +310,7 @@ export class GameRenderer {
     await this.app.init({
       canvas: this.canvas,
       width: this.width,
-      height: this.height,
+      height: this.height + this.keyboardAreaHeight,
       resolution: this.resolution,
       autoStart: false,
       backgroundColor: this.skinManager.getTheme().bg,
@@ -296,6 +331,8 @@ export class GameRenderer {
     this.app.stage.addChild(this.judgmentLineGraphic);
     // 레인 키 라벨은 마스크 위에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
     this.app.stage.addChild(this.laneKeyLabelLayer);
+    // 키보드 strip은 y >= this.height 별도 영역이라 다른 레이어와 z순서 영향 없음.
+    this.app.stage.addChild(this.tutorialKeyboardLayer);
     this.app.stage.addChild(this.gearFrameLayer);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
@@ -326,6 +363,9 @@ export class GameRenderer {
     this.buildButtons();
     if (this.showLaneKeyLabels) {
       this.buildLaneKeyLabels();
+    }
+    if (this.tutorialKeyboardSpec) {
+      this.buildTutorialKeyboard();
     }
     if (this.showGearFrame) {
       this.buildGearFrame();
@@ -983,6 +1023,91 @@ export class GameRenderer {
     entry.text.y = y;
   }
 
+  /** 튜토리얼 키보드 strip 키캡+텍스트 생성 — tutorialKeyboard 스펙이 있을 때만 호출된다. */
+  private buildTutorialKeyboard(): void {
+    const spec = this.tutorialKeyboardSpec;
+    if (!spec) return;
+    const boardX = this.laneAreaX + TUTORIAL_KB_SIDE_PAD;
+    const boardY = this.height + TUTORIAL_KB_VPAD;
+    const boardW = LANE_AREA_WIDTH - TUTORIAL_KB_SIDE_PAD * 2;
+    const boardH = this.keyboardAreaHeight - TUTORIAL_KB_VPAD * 2;
+
+    // 배경 박스 (HTML miniKeyboard 톤)
+    const box = new Graphics();
+    box.roundRect(this.laneAreaX + 2, this.height + 2, LANE_AREA_WIDTH - 4, this.keyboardAreaHeight - 4, 7);
+    box.fill(0x191919);
+    box.stroke({ width: 1, color: 0x3f3f3f });
+    this.tutorialKeyboardLayer.addChild(box);
+
+    for (const kd of spec.keys) {
+      const kw = (kd.w / spec.widthUnits) * boardW;
+      const kh = (kd.h / spec.heightUnits) * boardH;
+      const kx = boardX + (kd.x / spec.widthUnits) * boardW;
+      const ky = boardY + (kd.y / spec.heightUnits) * boardH;
+
+      const cap = new Graphics();
+      cap.x = kx;
+      cap.y = ky;
+      const text = new Text({
+        text: kd.label,
+        style: new TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fontWeight: '800', fill: 0xe5ecef, align: 'center' }),
+      });
+      text.anchor.set(0.5);
+      text.x = kx + kw / 2;
+      text.y = ky + kh / 2;
+      text.resolution = 2;
+      this.tutorialKeyboardLayer.addChild(cap);
+      this.tutorialKeyboardLayer.addChild(text);
+
+      const entry: TutorialKeyboardKeyEntry = {
+        code: kd.code,
+        cap,
+        text,
+        mapped: kd.mapped,
+        pressed: false,
+        baseX: kx,
+        baseY: ky,
+        kw,
+        kh,
+      };
+      this.drawTutorialKey(entry, false);
+      this.tutorialKeyboardKeys.push(entry);
+      this.tutorialKeyboardKeyByCode.set(kd.code, entry);
+    }
+  }
+
+  /** 키보드 strip 키캡을 상태(unmapped/idle/pressed)에 맞는 색·위치로 다시 그린다. */
+  private drawTutorialKey(entry: TutorialKeyboardKeyEntry, pressed: boolean): void {
+    // dispose 경합 방어 — 파괴된 Graphics에 clear()를 부르면 크래시한다.
+    if (entry.cap.destroyed) return;
+    const gap = 2;
+    entry.cap.clear();
+    entry.cap.roundRect(gap, gap, entry.kw - gap * 2, entry.kh - gap * 2, 4);
+    if (!entry.mapped) {
+      entry.cap.fill(0x121415);
+      entry.cap.stroke({ width: 1, color: 0x24282a });
+      entry.cap.alpha = 0.68;
+      entry.text.alpha = 0.68;
+      entry.text.style.fill = 0x343a3d;
+    } else if (pressed) {
+      entry.cap.fill(0x355f66);
+      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.cap.alpha = 1;
+      entry.text.alpha = 1;
+      entry.text.style.fill = 0xffffff;
+    } else {
+      entry.cap.fill(0x303538);
+      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.cap.alpha = 1;
+      entry.text.alpha = 1;
+      entry.text.style.fill = 0xe5ecef;
+    }
+    // 눌리면 살짝 내려감 — cap 로컬 좌표가 (gap,gap)부터라 x는 그대로 두고 y만 dy 반영.
+    const dy = pressed && entry.mapped ? 3 : 0;
+    entry.cap.y = entry.baseY + dy;
+    entry.text.y = entry.baseY + entry.kh / 2 + dy;
+  }
+
   /** 레인 키 라벨 텍스트·표시 여부 갱신 — 라벨 계산은 React가 하고 렌더러는 그리기만 한다. */
   setLaneKeyLabels(labels: { lane: number; label: string }[], visible: boolean): void {
     this.laneKeyLabelLayer.visible = visible;
@@ -1517,6 +1642,11 @@ export class GameRenderer {
   setKeyState(keyCode: string, pressed: boolean): void {
     this.keyboardDisplay?.setKeyState(keyCode, pressed);
     if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
+    const kbEntry = this.tutorialKeyboardKeyByCode.get(keyCode);
+    if (kbEntry && kbEntry.mapped) {
+      kbEntry.pressed = pressed;
+      this.drawTutorialKey(kbEntry, pressed);
+    }
   }
 
   applyNoteDisplayEffect(noteIndex: number, effect: NoteDisplayEffect): void {
@@ -1539,6 +1669,8 @@ export class GameRenderer {
     this.buttonSprites = [];
     // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
     this.laneKeyLabels = [];
+    this.tutorialKeyboardKeys = [];
+    this.tutorialKeyboardKeyByCode = new Map();
     // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음
     for (const gauge of this.gearGauges) {
       if (!gauge.texture.destroyed) gauge.texture.destroy(false);

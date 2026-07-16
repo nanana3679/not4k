@@ -183,49 +183,6 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('키 배치는 옵션에서 언제든 바꿀 수 있습니다');
   });
 
-  it('튜토리얼 팝업은 tutorialInput 이벤트에서 나온 손배치 키 표시 8개를 렌더링', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-tutorial-key=')).toBe(16);
-    expect(html).toContain('data-tutorial-key="KeyQ"');
-    expect(html).toContain('data-tutorial-key="KeyW"');
-    expect(html).toContain('data-tutorial-key="KeyE"');
-    expect(html).toContain('data-tutorial-key="KeyC"');
-    expect(html).toContain('data-tutorial-key="KeyP"');
-    expect(html).toContain('data-tutorial-key="BracketLeft"');
-    expect(html).toContain('data-tutorial-key="BracketRight"');
-    expect(html).toContain('data-tutorial-key="Comma"');
-  });
-
-  it('기본 TKL 프리셋이면 튜토리얼 팝업 키보드 레이아웃에서 Numpad 키를 렌더링하지 않음', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(html).toContain('data-keyboard-preset="tkl"');
-    expect(html).not.toContain('data-keyboard-key="Numpad7"');
-  });
-
-  it('키 입력 표시는 초기 SSR 상태에서 모두 active=false', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-active="false"')).toBe(16);
-  });
-
-  it('키 입력 표시는 매핑된 손배치 키 8개만 활성 상태로 두고 나머지 키는 aria-disabled=true로 렌더링', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-mapped="true"')).toBe(16);
-    expect(countOccurrences(html, 'data-mapped="false"')).toBeGreaterThan(0);
-    expect(countOccurrences(html, 'aria-disabled="true"')).toBeGreaterThan(0);
-  });
-
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
