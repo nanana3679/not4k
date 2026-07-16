@@ -13,6 +13,7 @@ describe("판정 실플레이 시나리오", () => {
       "hold-trill-chain-125",
       "holdonly-then-slide",
       "timeout-then-slide",
+      "trill-long-visual",
     ]);
     for (const s of PLAYTEST_SCENARIOS) {
       const bpm = extractBpmMarkers(s.chart.events);
