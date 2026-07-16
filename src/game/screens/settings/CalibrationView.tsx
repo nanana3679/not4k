@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../../stores';
+import { font, color, surface, edge, radius, primitives } from '../../../shared/theme';
 import {
   calculateCalibrationResult,
   CALIBRATION_INTERVAL_MS,
@@ -79,7 +80,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
       // Draw judgment line
       const judgmentY = h * 0.85;
-      ctx.strokeStyle = '#00ffff';
+      ctx.strokeStyle = color.neon;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, judgmentY);
@@ -87,8 +88,8 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       ctx.stroke();
 
       // Draw "TAP" text on judgment line
-      ctx.fillStyle = '#00ffff';
-      ctx.font = '14px system-ui';
+      ctx.fillStyle = color.neon;
+      ctx.font = `14px ${font.display}`;
       ctx.textAlign = 'center';
       ctx.fillText('TAP HERE', w / 2, judgmentY + 20);
 
@@ -292,7 +293,10 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <h1 style={styles.title}>Calibration</h1>
+          <h1 style={styles.title}>
+            <span style={styles.titleAccent} aria-hidden="true" />
+            Calibration
+          </h1>
           <button style={styles.backBtn} onClick={handleBack}>Back</button>
         </div>
         <div style={styles.content}>
@@ -333,6 +337,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       <div style={styles.container}>
         <div style={styles.header}>
           <h1 style={styles.title}>
+            <span style={styles.titleAccent} aria-hidden="true" />
             {calibType === 'visual' ? 'Visual' : 'Audio'} Calibration
           </h1>
           <button style={styles.backBtn} onClick={handleBack}>Cancel</button>
@@ -377,7 +382,10 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Calibration Result</h1>
+        <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Calibration Result
+        </h1>
       </div>
       <div style={styles.content}>
         <div style={styles.resultCard}>
@@ -425,37 +433,26 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
+    // 모달 서브뷰(main 구조) + 메탈 다크 테마
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
     minHeight: 0,
     overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
+    background: surface.screen,
+    color: color.ink,
+    fontFamily: font.body,
   },
   header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    ...primitives.header,
     padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-    flexShrink: 0,
   },
   title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
+    ...primitives.title,
   },
+  titleAccent: primitives.titleAccent,
   backBtn: {
-    padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
+    ...primitives.ghostButton,
   },
   content: {
     flex: 1,
@@ -469,35 +466,32 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '24px',
   },
   card: {
-    backgroundColor: '#2a2a2a',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
+    boxShadow: edge.metal,
     padding: '32px',
-    borderRadius: '8px',
-    border: '1px solid #333',
     width: '100%',
     maxWidth: '480px',
     textAlign: 'center',
   },
   cardTitle: {
+    fontFamily: font.display,
     fontSize: '18px',
     fontWeight: 600,
     margin: '0 0 12px',
-    color: '#00ffff',
+    color: color.neon,
   },
   cardDesc: {
+    fontFamily: font.body,
     fontSize: '14px',
-    color: '#aaa',
+    color: color.inkDim,
     lineHeight: 1.6,
     margin: '0 0 20px',
   },
   startBtn: {
+    ...primitives.neonButton,
     padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
   },
   runningContent: {
     flex: 1,
@@ -510,9 +504,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '24px',
   },
   canvas: {
-    border: '1px solid #333',
-    borderRadius: '8px',
-    backgroundColor: '#111',
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
+    backgroundColor: color.bg,
     maxWidth: '100%',
     height: 'auto',
   },
@@ -525,11 +519,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   listenIcon: {
     fontSize: '72px',
-    color: '#00ffff',
+    color: color.neon,
   },
   listenText: {
+    fontFamily: font.body,
     fontSize: '16px',
-    color: '#aaa',
+    color: color.inkDim,
   },
   progress: {
     width: '100%',
@@ -540,27 +535,29 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
   },
   progressText: {
+    fontFamily: font.body,
     fontSize: '14px',
-    color: '#e0e0e0',
+    color: color.ink,
   },
   progressBar: {
     width: '100%',
     height: '8px',
-    backgroundColor: '#333',
-    borderRadius: '4px',
+    backgroundColor: color.line,
+    borderRadius: radius.sm,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#00ffff',
-    borderRadius: '4px',
+    backgroundColor: color.neon,
+    borderRadius: radius.sm,
     transition: 'width 0.2s',
   },
   resultCard: {
-    backgroundColor: '#2a2a2a',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
+    boxShadow: edge.metal,
     padding: '32px',
-    borderRadius: '8px',
-    border: '1px solid #333',
     width: '100%',
     maxWidth: '480px',
     textAlign: 'center',
@@ -573,20 +570,23 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '24px 0',
   },
   resultLabel: {
+    fontFamily: font.body,
     fontSize: '16px',
-    color: '#aaa',
+    color: color.inkDim,
   },
   resultNumber: {
+    fontFamily: font.numeric,
     fontSize: '36px',
     fontWeight: 700,
-    color: '#00ffff',
+    color: color.neon,
   },
   resultMeta: {
     display: 'flex',
     justifyContent: 'center',
     gap: '24px',
+    fontFamily: font.numeric,
     fontSize: '13px',
-    color: '#888',
+    color: color.inkDim,
     marginBottom: '24px',
   },
   resultActions: {
@@ -595,23 +595,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
   },
   applyBtn: {
+    ...primitives.neonButton,
     padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
   },
   retryBtn: {
+    ...primitives.metalButton,
     padding: '10px 24px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 500,
   },
 };

@@ -1,6 +1,7 @@
 import { useGameStore, PRESET_BINDINGS } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
 import { useState, useEffect, useRef } from 'react';
+import { font, color, surface, edge, radius, primitives } from '../../../shared/theme';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 
@@ -119,7 +120,10 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
     <div style={styles.panel}>
       <style>{settingsPanelCss}</style>
       <div style={styles.header}>
-        <h1 style={styles.title}>Settings</h1>
+        <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Settings
+        </h1>
         <button style={styles.backBtn} onClick={onClose}>
           Close
         </button>
@@ -404,36 +408,30 @@ const settingsPanelCss = `
 
 const styles: Record<string, React.CSSProperties> = {
   panel: {
+    // 모달 콘텐츠 패널(main 구조) + 메탈 다크 테마
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
     minHeight: 0,
     overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
+    background: surface.screen,
+    color: color.ink,
+    fontFamily: font.body,
   },
   header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    // primitives.header가 배경·경계·flexShrink를 이미 테마로 제공
+    ...primitives.header,
     padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-    flexShrink: 0,
   },
   title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
+    ...primitives.title,
+  },
+  titleAccent: {
+    ...primitives.titleAccent,
   },
   backBtn: {
+    ...primitives.ghostButton,
     padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
     fontSize: '13px',
   },
   content: {
@@ -453,21 +451,25 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '600px',
   },
   section: {
-    backgroundColor: '#2a2a2a',
+    background: surface.card,
     padding: '24px',
-    borderRadius: '8px',
-    border: '1px solid #333',
+    borderRadius: radius.md,
+    border: `1px solid ${color.line}`,
+    boxShadow: edge.metal,
   },
   sectionTitle: {
+    fontFamily: font.display,
     fontSize: '16px',
     fontWeight: 600,
+    letterSpacing: '0.04em',
+    color: color.ink,
     margin: '0 0 16px',
   },
   warning: {
-    backgroundColor: '#ff6b6b',
+    backgroundColor: color.danger,
     color: '#ffffff',
     padding: '12px',
-    borderRadius: '4px',
+    borderRadius: radius.sm,
     marginBottom: '16px',
     textAlign: 'center',
     fontSize: '14px',
@@ -494,17 +496,18 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    backgroundColor: '#1a1a1a',
-    border: '1px solid #00ffff',
-    borderRadius: '4px',
+    background: surface.button,
+    border: `1px solid ${color.neon}`,
+    borderRadius: radius.sm,
     padding: '6px 10px',
+    fontFamily: font.numeric,
     fontSize: '13px',
-    color: '#00ffff',
+    color: color.neon,
   },
   removeKeyButton: {
     backgroundColor: 'transparent',
     border: 'none',
-    color: '#ff6b6b',
+    color: color.danger,
     fontSize: '18px',
     cursor: 'pointer',
     padding: '0',
@@ -516,19 +519,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
   },
   addKeyButton: {
-    backgroundColor: '#3a3a3a',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    background: surface.button,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     padding: '6px 10px',
+    fontFamily: font.display,
     fontSize: '13px',
-    color: '#e0e0e0',
+    color: color.ink,
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   addKeyButtonListening: {
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: '1px solid #00ffff',
+    // 테마 네온 + main의 scoped 애니메이션(not4kSettingsPulse)
+    background: color.neon,
+    color: color.bg,
+    border: `1px solid ${color.neon}`,
+    boxShadow: edge.neonFocus,
     animation: 'not4kSettingsPulse 1s infinite',
   },
   presetButtons: {
@@ -537,15 +543,9 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '16px',
   },
   presetButton: {
+    ...primitives.metalButton,
     flex: 1,
-    padding: '8px 16px',
     fontSize: '13px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 500,
   },
   setting: {
     display: 'flex',
@@ -557,25 +557,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     fontWeight: 600,
     minWidth: '60px',
+    color: color.ink,
   },
   slider: {
     width: '100%',
+    accentColor: color.neon,
   },
   select: {
     padding: '8px',
     fontSize: '14px',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    background: surface.button,
+    color: color.ink,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
   },
   numberInput: {
     padding: '8px',
+    fontFamily: font.numeric,
     fontSize: '14px',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    background: surface.button,
+    color: color.ink,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     width: '150px',
   },
   checkbox: {
@@ -583,6 +586,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '18px',
     height: '18px',
     verticalAlign: 'middle',
+    accentColor: color.neon,
   },
   skinGrid: {
     display: 'grid',
@@ -595,14 +599,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '8px',
     padding: '12px',
-    backgroundColor: '#1a1a1a',
-    border: '2px solid #333',
-    borderRadius: '8px',
+    background: surface.card,
+    // border 단축 대신 롱핸드 — 선택 시 borderColor만 토글해도 React 경고가 없다
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: color.line,
+    borderRadius: radius.md,
+    boxShadow: edge.metal,
     cursor: 'pointer',
     transition: 'border-color 0.2s',
   },
   skinCardSelected: {
-    borderColor: '#00ffff',
+    borderColor: color.neon,
+    boxShadow: edge.neonFocus,
   },
   skinSwatch: {
     width: '48px',
@@ -610,18 +619,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
   },
   skinName: {
+    fontFamily: font.display,
     fontSize: '13px',
     fontWeight: 600,
+    color: color.ink,
   },
   calibrationBtn: {
+    ...primitives.neonButton,
     width: '100%',
-    padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
   },
 };
