@@ -34,6 +34,28 @@ describe('tutorialPreviewJudgment', () => {
     ]);
   });
 
+  it('휴지 구간 튜토리얼은 1·4레인 트릴을 Q/W·8/9로 교대해 8개 노트 모두 Perfect로 판정', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'rest-zone');
+    if (!preview) {
+      throw new Error('rest-zone 프리뷰가 없음');
+    }
+    const judgments: JudgmentResult[] = [];
+    const controller = createTutorialPreviewJudgmentController(
+      preview.chart,
+      getTutorialInputTimings(preview.chart),
+      {
+        onJudgment: (result) => judgments.push(result),
+        onComboUpdate: vi.fn(),
+      },
+    );
+
+    controller.advanceTo(preview.loopMs);
+
+    // 트릴 노트 8개(왼손 4 + 오른손 4), 키를 매번 교대하므로 GOOD◇ 강등 없이 전부 Perfect
+    expect(judgments).toHaveLength(8);
+    expect(judgments.every((result) => result.grade === JudgmentGrade.PERFECT)).toBe(true);
+  });
+
   it('이어진 트릴 롱노트 튜토리얼은 갈아타기·겹쳐 누르기 두 방식 모두 전부 Perfect로 판정', () => {
     const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'connected-trill-long');
     if (!preview) {

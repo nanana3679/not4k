@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Chart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
 
-type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings' | 'calibration';
+type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result';
 
 interface KeyBindings {
   lane1: string[];
@@ -46,6 +46,11 @@ interface PlayResult {
 
 interface GameState {
   screen: Screen;
+  /**
+   * 설정 모달 표시 여부. 곡 선택 화면 위에 오버레이로 뜨며, Calibration도 이 모달의
+   * 서브뷰라 별도 화면 전환이 없다. UI 상태이므로 영속화하지 않는다(새로고침 시 닫힘).
+   */
+  settingsOpen: boolean;
   settings: GameSettings;
   selectedSongId: string | null;
   selectedDifficulty: string | null;
@@ -56,6 +61,7 @@ interface GameState {
   audioBuffer: AudioBuffer | null;
 
   setScreen: (screen: Screen) => void;
+  setSettingsOpen: (open: boolean) => void;
   updateSettings: (partial: Partial<GameSettings>) => void;
   updateKeyBindings: (bindings: Partial<KeyBindings>) => void;
   selectSong: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
@@ -128,6 +134,7 @@ export const useGameStore = create<GameState>()(
   persist(
     (set) => ({
       screen: 'title',
+      settingsOpen: false,
       settings: DEFAULT_SETTINGS,
       selectedSongId: null,
       selectedDifficulty: null,
@@ -139,7 +146,11 @@ export const useGameStore = create<GameState>()(
       startTimeMs: 0,
       editorReturnUrl: null,
 
-      setScreen: (screen) => set({ screen }),
+      // 화면을 전환하면 설정 모달은 항상 닫는다. 모달은 곡 선택 위에만 뜨는 오버레이라
+      // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
+      setScreen: (screen) => set({ screen, settingsOpen: false }),
+
+      setSettingsOpen: (open) => set({ settingsOpen: open }),
 
       updateSettings: (partial) => set((state) => ({
         settings: { ...state.settings, ...partial },

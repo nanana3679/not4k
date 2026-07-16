@@ -13,6 +13,10 @@ export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 100px (matches lane wi
 
 export const JUDGMENT_LINE_OFFSET = 160; // px from bottom
 
+// 튜토리얼 프리뷰 키보드 strip (플레이 영역 아래 캔버스 확장부) 패딩
+export const TUTORIAL_KB_SIDE_PAD = 12;
+export const TUTORIAL_KB_VPAD = 10;
+
 export const COLORS = {
   BG: 0x0a0a14,
   // 레인 base를 살짝 올려 "휴지 구간 dim"이 보일 헤드룸을 만든다.

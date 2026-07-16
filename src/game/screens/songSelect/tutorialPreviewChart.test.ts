@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { NoteEntity, RangeNote, TimeSignatureEvent } from '../../../shared/types';
+import type { NoteEntity, RangeNote, RestZone, TimeSignatureEvent } from '../../../shared/types';
 import { beatToFloat } from '../../../shared/types';
+import { beat } from '../../../shared/types/beat';
 import { validateChart } from '../../../shared/validation';
 import {
   TUTORIAL_PREVIEW_CHART,
@@ -17,6 +18,7 @@ import {
   getTutorialInputEvents,
   getTutorialInputStateKey,
   getTutorialInputTimings,
+  makeChart,
 } from './tutorialPreviewChart';
 
 function isRangeNote(note: NoteEntity): note is RangeNote {
@@ -63,8 +65,8 @@ describe('tutorialPreviewChart', () => {
     expect(validateChart(TUTORIAL_PREVIEW_CHART)).toEqual([]);
   });
 
-  it('튜토리얼 프리뷰 목록은 이어진 롱노트 두 처리법을 6번과 7번으로 분리하고 8번에 이어진 트릴 롱노트를 두어 16개의 고유 튜토리얼을 제공', () => {
-    expect(TUTORIAL_PREVIEWS).toHaveLength(16);
+  it('튜토리얼 프리뷰 목록은 이어진 롱노트 두 처리법을 6번과 7번으로 분리하고 rest-zone 휴지 구간을 수평 이동 앞에 두어 17개의 고유 튜토리얼을 제공', () => {
+    expect(TUTORIAL_PREVIEWS).toHaveLength(17);
     expect(TUTORIAL_PREVIEWS.map((preview) => preview.id)).toEqual([
       'hand-placement',
       'single-note',
@@ -80,6 +82,7 @@ describe('tutorialPreviewChart', () => {
       'grace-note',
       'hold-only-long-note',
       'zero-length-hold-only-long-note',
+      'rest-zone',
       'horizontal-movement',
       'vertical-movement',
     ]);
@@ -128,7 +131,7 @@ describe('tutorialPreviewChart', () => {
     const joinedBody = TUTORIAL_PREVIEWS.flatMap((preview) => preview.bodyLines).join('\n');
 
     expect(TUTORIAL_PREVIEWS[0].title).toBe('손배치');
-    expect(TUTORIAL_PREVIEWS[15].title).toBe('수직 이동');
+    expect(TUTORIAL_PREVIEWS[16].title).toBe('수직 이동');
     expect(joinedBody).toContain('왼손은 Q W E C에 약지·중지·검지·엄지를 올려두세요');
     expect(joinedBody).toContain('같은 노트를 다양한 키로 처리해 보세요');
     expect(joinedBody).toContain('떼는 순간에 다른 키를 함께 누르세요');
@@ -309,6 +312,49 @@ describe('tutorialPreviewChart', () => {
       '15/2:3:Numpad1',
       '15/2:4:Numpad2',
     ]);
+  });
+
+  it('휴지 구간 튜토리얼은 2레인 1~5박·3레인 5~9박에 restZone을 두고 트릴 레인(1·4)과 겹치지 않는다', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'rest-zone');
+
+    if (!preview) {
+      throw new Error('rest-zone 프리뷰가 없음');
+    }
+
+    expect(preview.chart.restZones).toEqual([
+      { lane: 2, beat: { n: 1, d: 1 }, endBeat: { n: 5, d: 1 } },
+      { lane: 3, beat: { n: 5, d: 1 }, endBeat: { n: 9, d: 1 } },
+    ]);
+
+    // restZone이 노트·trillZone과 겹치지 않아 배치 위반(의미 위반)이 없다
+    expect(validateChart(preview.chart)).toEqual([]);
+
+    const trillNoteLanes = new Set(
+      preview.chart.notes.filter((note) => note.type === 'trill').map((note) => note.lane),
+    );
+    expect([...trillNoteLanes].sort()).toEqual([1, 4]);
+    expect(preview.chart.restZones?.some((zone) => trillNoteLanes.has(zone.lane))).toBe(false);
+  });
+
+  it('휴지 구간 renderChart는 restZone 2개를 3사이클로 8박씩 밀어 복제해 6개를 만든다', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'rest-zone');
+
+    expect(preview?.renderChart.restZones).toHaveLength(6);
+    // 두 번째 사이클의 첫 restZone은 원본(1~5박)에서 loopBeats(8박)만큼 밀린다
+    expect(preview?.renderChart.restZones?.[2]).toEqual({
+      lane: 2,
+      beat: { n: 9, d: 1 },
+      endBeat: { n: 13, d: 1 },
+    });
+  });
+
+  it('makeChart에 restZones를 주면 반환 차트 restZones에 복사되어 그대로 담기고, 생략하면 빈 배열', () => {
+    const restZones: RestZone[] = [{ lane: 2, beat: beat(1), endBeat: beat(3) }];
+    const chart = makeChart('restZones 단위', 4, [], [], [], [], restZones);
+
+    expect(chart.restZones).toEqual(restZones);
+    expect(chart.restZones).not.toBe(restZones);
+    expect(makeChart('restZones 생략', 4, [], []).restZones).toEqual([]);
   });
 
   it('릴리즈탭 튜토리얼은 같은 레인 같은 박에 롱노트 끝과 싱글 노트를 함께 둔다', () => {

@@ -8,8 +8,6 @@ import {
   LoadingScreen,
   PlayScreen,
   ResultScreen,
-  SettingsScreen,
-  CalibrationScreen,
 } from './screens';
 
 export default function GameApp() {
@@ -35,10 +33,6 @@ export default function GameApp() {
       return <PlayScreen />;
     case 'result':
       return <ResultScreen />;
-    case 'settings':
-      return <SettingsScreen />;
-    case 'calibration':
-      return <CalibrationScreen />;
     default:
       return <TitleScreen />;
   }

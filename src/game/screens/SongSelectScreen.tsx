@@ -24,6 +24,7 @@ import { DeleteSongModal } from './songSelect/DeleteSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
 import { TutorialHelpModal } from './songSelect/TutorialHelpModal';
+import { SettingsModal } from './settings/SettingsModal';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
 import {
@@ -43,6 +44,8 @@ interface SongSelectScreenProps {
 
 export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenProps) {
   const { selectSong, setScreen } = useGameStore();
+  const settingsOpen = useGameStore((state) => state.settingsOpen);
+  const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
   const playAllowed = canStartGameplay(gameExperience);
@@ -86,7 +89,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    showAddSong: showAddSong || showTutorialHelp,
+    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -213,6 +216,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           onClose={() => setDeleteSongTarget(null)}
         />
       )}
+
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
+      )}
     </>
   );
 
@@ -336,7 +343,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           <button style={styles.refreshBtn} onClick={() => fetchSongs()} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
-          <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
+          <button style={styles.settingsBtn} onClick={() => setSettingsOpen(true)}>
             Settings
           </button>
           {!authLoading && (

@@ -9,7 +9,7 @@
  */
 
 import { beat } from "../shared/types/beat";
-import type { Chart, NoteEntity } from "../shared/types/chart";
+import type { Chart, NoteEntity, TrillZone } from "../shared/types/chart";
 import type { ChartEvent } from "../shared/types/chart";
 import { extractBpmMarkers, beatToMs } from "../shared/timing";
 
@@ -23,7 +23,7 @@ function baseEvents(): ChartEvent[] {
   ];
 }
 
-function chartFrom(title: string, notes: NoteEntity[]): Chart {
+function chartFrom(title: string, notes: NoteEntity[], trillZones: TrillZone[] = []): Chart {
   return {
     meta: {
       title,
@@ -36,7 +36,7 @@ function chartFrom(title: string, notes: NoteEntity[]): Chart {
       offsetMs: 0,
     },
     notes,
-    trillZones: [],
+    trillZones,
     events: baseEvents(),
   };
 }
@@ -84,6 +84,24 @@ function timeoutThenSlide(): NoteEntity[] {
     { type: "long", lane: 1, beat: beat(4, 1), endBeat: beat(6, 1) },
     { type: "long", lane: 1, beat: beat(13, 2), endBeat: beat(13, 2), holdOnly: true },
   ];
+}
+
+/**
+ * S4 — 트릴 롱노트 시각 확인. trillZone 안에 헤드(trill 포인트) + trillLong 바디.
+ * 긴 홀드 1개(3박=1.5s)로 held 바디 색을 눈으로 확인하고, 이어 짧은 트릴 롱 체인으로 교대 전환을 본다.
+ */
+function trillLongVisual(): NoteEntity[] {
+  const notes: NoteEntity[] = [];
+  // 긴 트릴 롱(3박=1.5s) — 한 키를 잡고 held 색을 확인
+  notes.push({ type: "trill", lane: 2, beat: beat(4, 1) });
+  notes.push({ type: "trillLong", lane: 2, beat: beat(4, 1), endBeat: beat(7, 1) });
+  // 짧은 트릴 롱 체인(각 1박) — 교대로 잡으며 held 전환 확인
+  for (let i = 0; i < 3; i++) {
+    const s = 8 + i;
+    notes.push({ type: "trill", lane: 2, beat: beat(s, 1) });
+    notes.push({ type: "trillLong", lane: 2, beat: beat(s, 1), endBeat: beat(s + 1, 1) });
+  }
+  return notes;
 }
 
 export interface PlaytestScenario {
@@ -138,6 +156,16 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
     watchFor: "롱을 타임아웃 Miss로 죽인 뒤 놓는 keyup이 직후 슬라이드를 살리는가",
     howTo: "레인 1 롱[4~6박]을 끝점을 한참 지나(6.5박+) 물고 있다가 슬라이드 부근에 뗀다. 롱은 Miss, 슬라이드는 살아야 관대가 확인된다.",
     chart: chartFrom("S3 timeout then slide", timeoutThenSlide()),
+  },
+  {
+    id: "trill-long-visual",
+    label: "S4 트릴 롱노트 시각 확인 (held 색)",
+    ref: "시각 확인용",
+    watchFor: "trillLong 바디 held 색 — 안 누르면 흰-회색, 누르는 동안 흰 바디 + 중앙 연한 red 코어 + 가장자리 페이드. 끝캡은 옅은 회색.",
+    howTo: "레인 2를 잡는다. 긴 롱(1.5s)을 잡아 held 색을 확인한 뒤, 이어지는 짧은 롱들을 교대로 잡는다.",
+    chart: chartFrom("S4 trill-long visual", trillLongVisual(), [
+      { lane: 2, beat: beat(4, 1), endBeat: beat(11, 1) },
+    ]),
   },
 ];
 
