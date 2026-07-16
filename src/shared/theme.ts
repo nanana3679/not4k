@@ -15,15 +15,18 @@ export const font = {
 
 export const color = {
   bg: '#0d0f12',
+  inkStrong: '#f4f7fa', // 제목·강조 (near-white)
   ink: '#e8ecf0', // 본문 (대비 ≥ 4.5:1)
   inkDim: '#9aa2ac', // 보조 텍스트
-  inkFaint: '#6b727c', // 최약 텍스트
+  inkFaint: '#6b727c', // 최약 텍스트 — 장식/비정보 전용 (본문 대비 미달)
   line: '#2b303a', // 경계선
   neon: '#5ce1e6', // 청록 네온 — 상태(포커스/선택/주액션)에만
   neonInk: '#d8fbfd', // 네온 표면 위 텍스트
   neonGlow: 'rgba(92, 225, 230, 0.45)',
-  danger: '#e8564a',
-  gold: '#ffd24a',
+  danger: '#e8564a', // 오류·파괴적 액션
+  gold: '#ffd24a', // 랭크·재시도
+  fast: '#4a95e6', // 타이밍 빠름 (방향 정보, 오류 아님)
+  slow: '#f0854a', // 타이밍 느림 (방향 정보, 오류 아님)
 };
 
 // 금속 서피스 그라디언트 (사선 브러시드 메탈)
@@ -83,7 +86,7 @@ export const primitives = {
     fontWeight: 800,
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
-    color: '#f4f7fa',
+    color: color.inkStrong,
   },
   // 제목 앞 네온 틱 (아니메풍 액센트)
   titleAccent: {

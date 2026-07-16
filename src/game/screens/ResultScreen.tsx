@@ -22,9 +22,9 @@ export function ResultScreen() {
       <div style={styles.container}>
         <div style={styles.header}>
           <h1 style={styles.title}>
-          <span style={styles.titleAccent} aria-hidden="true" />
-          Result
-        </h1>
+            <span style={styles.titleAccent} aria-hidden="true" />
+            Result
+          </h1>
           <button style={styles.backBtn} onClick={handleBack}>
             {editorReturnUrl ? 'Back to Editor' : 'Back'}
           </button>
@@ -89,11 +89,11 @@ export function ResultScreen() {
           <h2 style={styles.subtitle}>Timing</h2>
           <div style={styles.judgmentGrid}>
             <div style={styles.judgmentRow}>
-              <span style={{ ...styles.judgmentLabel, color: '#4a95e6' }}>FAST:</span>
+              <span style={{ ...styles.judgmentLabel, color: color.fast }}>FAST:</span>
               <span style={styles.judgmentCount}>{lastResult.fastCount}</span>
             </div>
             <div style={styles.judgmentRow}>
-              <span style={{ ...styles.judgmentLabel, color: color.danger }}>SLOW:</span>
+              <span style={{ ...styles.judgmentLabel, color: color.slow }}>SLOW:</span>
               <span style={styles.judgmentCount}>{lastResult.slowCount}</span>
             </div>
           </div>

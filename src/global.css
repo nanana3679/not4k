@@ -51,6 +51,17 @@ input[type="number"] {
   }
 }
 
+/* 키 바인딩 "입력 대기" 등 대기 상태 표시용 */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /*
  * prefers-reduced-motion 존중 (PRODUCT.md).
  * 인라인 스타일의 CSS 전환/애니메이션(스피너 회전, 카드·태그 포커스 전환 등)을

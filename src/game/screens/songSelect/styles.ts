@@ -120,7 +120,7 @@ export const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: '0.005em',
     lineHeight: '1.3',
-    color: '#f1f4f7',
+    color: color.inkStrong,
   },
   detailArtist: {
     fontSize: '13px',
@@ -178,7 +178,8 @@ export const styles: Record<string, React.CSSProperties> = {
     borderRadius: radius.md,
     boxShadow: edge.metal,
     cursor: 'pointer',
-    transition: 'border-color 80ms, box-shadow 80ms, opacity 80ms ease, transform 80ms ease, background 80ms',
+    // background(그라디언트)는 보간 불가라 전환 목록에서 제외
+    transition: 'border-color 80ms, box-shadow 80ms, opacity 80ms ease, transform 80ms ease',
     transformOrigin: 'center',
   },
   songCardFocused: {
@@ -197,7 +198,7 @@ export const styles: Record<string, React.CSSProperties> = {
     fontFamily: font.display,
     fontSize: '15px',
     fontWeight: 700,
-    color: '#f1f4f7',
+    color: color.inkStrong,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -428,7 +429,7 @@ export const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.25,
     fontWeight: 700,
     letterSpacing: '0.005em',
-    color: '#f1f4f7',
+    color: color.inkStrong,
     overflowWrap: 'anywhere',
   },
   mobileSongArtist: {

@@ -79,7 +79,8 @@ const styles = {
     maxWidth: '600px',
   },
   button: {
-    ...primitives.ghostButton,
+    // 로드 실패 화면의 유일한 복구 액션 → 주액션(네온)
+    ...primitives.neonButton,
     fontSize: '18px',
     minHeight: '44px',
     padding: '12px 24px',

@@ -294,7 +294,8 @@ const styles: Record<string, CSSProperties> = {
     padding: 'clamp(10px, 4%, 18px) clamp(6px, 2.5%, 10px)',
     boxSizing: 'border-box',
     borderRadius: radius.sm,
-    backgroundColor: color.bg,
+    // color.bg(#0d0f12)의 반투명 — 뒤 프리뷰 캔버스가 살짝 비치도록 유지
+    backgroundColor: 'rgba(13, 15, 18, 0.92)',
     boxShadow: '0 10px 24px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
     pointerEvents: 'none',
     overflow: 'hidden',
