@@ -31,7 +31,7 @@ const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
 // 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)는 ViewportSlice가 단독 소유한다.
-// 선택 상태(selection: notes·zones)는 SelectionSlice가 단독 소유한다(RFD 0016).
+// 선택 상태(selection: notes·zones·restZones)는 SelectionSlice가 단독 소유한다(RFD 0016·0019).
 interface EditorState extends ViewportSlice, SelectionSlice {
   // Page navigation
   activePage: EditorPage;
@@ -197,7 +197,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // 취소가 §3-5 해제 게이트를 지나지 않는 "차트와 함께 바뀌는 전이"가 되는 지점.
       const entityRemoved =
         chart.notes.length < state.chart.notes.length ||
-        chart.trillZones.length < state.chart.trillZones.length;
+        chart.trillZones.length < state.chart.trillZones.length ||
+        (chart.restZones?.length ?? 0) < (state.chart.restZones?.length ?? 0);
       const normalized = entityRemoved
         ? emptySelection()
         : normalizeSelection(state.selection, chart);

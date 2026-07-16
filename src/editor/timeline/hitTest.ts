@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -101,6 +101,29 @@ export function hitTestTrillZoneAt(
 ): number | null {
   for (let i = 0; i < trillZones.length; i++) {
     const zone = trillZones[i];
+    if (zone.lane !== lane) continue;
+    const start = zone.beat.n / zone.beat.d;
+    const end = zone.endBeat.n / zone.endBeat.d;
+    if (beatFloat >= start - tolerance && beatFloat <= end + tolerance) return i;
+  }
+  return null;
+}
+
+/**
+ * Find a rest zone at the given lane and beat position (RFD 0019).
+ *
+ * Mirrors {@link hitTestTrillZoneAt}: zones are hit within [beat, endBeat]
+ * with a tolerance on both ends so a zero-length zone stays clickable for
+ * deletion. Returns the index of the first matching zone, or null.
+ */
+export function hitTestRestZoneAt(
+  restZones: readonly RestZone[],
+  lane: number,
+  beatFloat: number,
+  tolerance: number = POINT_NOTE_TOLERANCE,
+): number | null {
+  for (let i = 0; i < restZones.length; i++) {
+    const zone = restZones[i];
     if (zone.lane !== lane) continue;
     const start = zone.beat.n / zone.beat.d;
     const end = zone.endBeat.n / zone.endBeat.d;

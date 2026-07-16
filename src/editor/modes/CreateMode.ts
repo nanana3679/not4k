@@ -12,6 +12,7 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
+  RestZone,
   ChartEvent,
   Beat,
   Lane,
@@ -27,6 +28,7 @@ export type EntityType =
   | "long"
   | "doubleLong"
   | "trillZone"
+  | "restZone"
   | "bpm"
   | "timeSignature"
   | "text"
@@ -42,6 +44,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "long",
   "doubleLong",
   "trillZone",
+  "restZone",
 ] as const;
 
 /** Event entity types (created on extra lanes) */
@@ -59,7 +62,7 @@ const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
 const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
-type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
+type DragType = "rangeNote" | "trillZone" | "restZone" | "event" | "extraRangeNote" | null;
 type RangeNoteEntityType = "long" | "doubleLong";
 
 export interface CreateModeCallbacks {
@@ -267,7 +270,7 @@ export class CreateMode implements EditorMode {
         this._dragType = "extraRangeNote";
         return;
       }
-      // trillZone not supported in extra lanes
+      // trillZone/restZone not supported in extra lanes (가시 레인 1~4 전용)
       return;
     }
 
@@ -308,6 +311,15 @@ export class CreateMode implements EditorMode {
       this.dragStartBeat = beat;
       this.dragStartLane = lane;
       this._dragType = "trillZone";
+      return;
+    }
+
+    // Rest zone (range entity) — trillZone의 형제 (RFD 0019, 가시 레인 1~4 전용)
+    if (this.selectedEntityType === "restZone") {
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = lane;
+      this._dragType = "restZone";
       return;
     }
   }
@@ -353,6 +365,10 @@ export class CreateMode implements EditorMode {
     } else if (this._dragType === "trillZone") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
         this.createTrillZone(this.dragStartLane, this.dragStartBeat, endBeat);
+      }
+    } else if (this._dragType === "restZone") {
+      if (this.dragStartLane !== null && this.dragStartBeat !== null) {
+        this.createRestZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
     } else if (this._dragType === "event") {
       if (this.dragStartBeat !== null) {
@@ -491,6 +507,38 @@ export class CreateMode implements EditorMode {
     const updatedChart: Chart = {
       ...this.chart,
       trillZones: [...this.chart.trillZones, newZone],
+    };
+
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
+  }
+
+  // restZone 생성 — createTrillZone 미러 (RFD 0019). 노트/trillZone 위 배치도
+  // 사전 차단 없이 낙관 커밋한다(§4-2 — 의미 위반 피드백은 해칭, 게이트는 저장·플레이 진입).
+  private createRestZone(lane: Lane, startBeat: Beat, endBeat: Beat): void {
+    // Ensure startBeat <= endBeat
+    const actualStartBeat = beatLt(startBeat, endBeat)
+      ? startBeat
+      : beatMin(startBeat, endBeat);
+    const actualEndBeat = beatGt(endBeat, startBeat)
+      ? endBeat
+      : beatMax(startBeat, endBeat);
+
+    // restZone은 길이 0이 구조 금지(validation)라, 클릭(무드래그) 등 zero-length 제스처는
+    // 커밋하지 않는다 — trillZone(길이 0 허용)과 다른 divergence. 커밋 시 setChart가 구조
+    // 위반으로 하드 거부해 로컬 차트에 고스트가 남으므로 여기서 막는다 (RFD 0019, 리뷰 C1).
+    if (actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d) return;
+
+    const newRestZone: RestZone = {
+      lane,
+      beat: actualStartBeat,
+      endBeat: actualEndBeat,
+    };
+
+    // Create new chart with immutable update
+    const updatedChart: Chart = {
+      ...this.chart,
+      restZones: [...(this.chart.restZones ?? []), newRestZone],
     };
 
     this.chart = updatedChart;

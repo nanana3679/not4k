@@ -2,6 +2,7 @@ import type { Chart } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
+  deleteRestZoneAtIndex,
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
@@ -70,8 +71,17 @@ export class DeleteMode implements EditorMode {
       } else if (result.chart) {
         this.chart = result.chart;
         this.callbacks.onChartUpdate(result.chart);
-      } else {
-        return;
+      }
+      return;
+    }
+
+    // Try deleting a rest zone (RFD 0019 — trillZone 미러, empty 가드 없음)
+    const restIdx = this.callbacks.space.hitTestRestZone(x, y);
+    if (restIdx !== null) {
+      const result = deleteRestZoneAtIndex(this.chart, restIdx);
+      if (result) {
+        this.chart = result;
+        this.callbacks.onChartUpdate(result);
       }
     }
   }

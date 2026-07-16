@@ -137,3 +137,18 @@ export function deleteEmptyTrillZoneAtIndex(
     },
   };
 }
+
+/**
+ * restZone 삭제 (RFD 0019) — deleteEmptyTrillZoneAtIndex의 미러.
+ * restZone은 내부 노트 개념이 없으므로(시각 안내 + 배치 제약 전용) empty 가드 없이
+ * 해당 인덱스만 filter-out한 새 chart를 반환한다. 인덱스가 무효면 null.
+ */
+export function deleteRestZoneAtIndex(chart: Chart, index: number): Chart | null {
+  const restZones = chart.restZones ?? [];
+  if (!restZones[index]) return null;
+
+  return {
+    ...chart,
+    restZones: restZones.filter((_zone, zoneIndex) => zoneIndex !== index),
+  };
+}

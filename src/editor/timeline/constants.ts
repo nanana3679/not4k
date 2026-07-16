@@ -24,8 +24,10 @@ export const MINIMAP_WIDTH = MEASURE_LABEL_WIDTH;
 
 // Colors
 export const COLORS = {
-  LANE_BG_EVEN: 0x1a1a2e,
-  LANE_BG_ODD: 0x16213e,
+  // 인게임 레인 배경(game/renderer/constants.ts)과 동일하게 맞춘다 — 에디터에서 본
+  // restZone dim이 실제 플레이와 같은 명암으로 읽히게 하기 위함(RFD 0019).
+  LANE_BG_EVEN: 0x26263f,
+  LANE_BG_ODD: 0x202038,
   MEASURE_LINE: 0xffffff,
   BEAT_LINE: 0x666666,
   SNAP_LINE: 0x333333,
@@ -40,6 +42,12 @@ export const COLORS = {
 
   TRILL_ZONE: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.2,
+
+  // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 인게임 dim과 동일하게 어두운 오버레이로
+  // 레인을 가라앉힌다(game REST_ZONE_DIM 0x000000 / α0.72와 일치). 리프트된 레인 배경 위에서
+  // 대비로 "쉬는 레인"이 읽히며, 겹침 위반은 그 위 빨간 해칭이 표시한다.
+  REST_ZONE: 0x000000,
+  REST_ZONE_ALPHA: 0.6,
 
   SELECTED_OUTLINE: 0xff4444,
   HOVERED_OUTLINE: 0xffffff,

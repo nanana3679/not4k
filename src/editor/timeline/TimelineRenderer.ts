@@ -81,6 +81,7 @@ export class TimelineRenderer {
   private measureLines!: Container;
   private beatLines!: Container;
   private snapLines!: Container;
+  private restZoneLayer!: Container;
   private trillZoneLayer!: Container;
   private moveOriginLayer!: Container;
   private longNoteBodyLayer!: Container;
@@ -115,6 +116,7 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
+  private _selectedRestZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
@@ -122,6 +124,7 @@ export class TimelineRenderer {
   private _extraLaneCount: number = 0;
   private _hoveredNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
+  private _hoveredRestZoneIndex: number | null = null;
   // 롱노트 리사이즈 캡을 hover로 표시할 노트 인덱스(= select 모드에서 hover 중인 노트). 캡 표시 게이팅용.
   private _resizeHoverNoteIndex: number | null = null;
 
@@ -142,9 +145,10 @@ export class TimelineRenderer {
   private _cursorLine: Graphics | null = null;
   private _cursorHandle: Graphics | null = null;
 
-  // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3·§7). 노트·트릴존·이벤트 각각.
+  // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3·§7). 노트·트릴존·restZone·이벤트 각각.
   private _violatingNoteIndices: Set<number> = new Set();
   private _violatingTrillZoneIndices: Set<number> = new Set();
+  private _violatingRestZoneIndices: Set<number> = new Set();
   private _violatingEventIndices: Set<number> = new Set();
 
   // Chart data
@@ -258,6 +262,7 @@ export class TimelineRenderer {
     this.measureLines = new Container();
     this.beatLines = new Container();
     this.snapLines = new Container();
+    this.restZoneLayer = new Container();
     this.trillZoneLayer = new Container();
     this.moveOriginLayer = new Container();
     this.longNoteBodyLayer = new Container();
@@ -281,6 +286,8 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.measureLines);
     this.app.stage.addChild(this.beatLines);
     this.app.stage.addChild(this.snapLines);
+    // restZone 밴드는 "쉬는 레인" 배경 dim이므로 trillZone보다 뒤(아래), 노트보다 아래에 둔다 (RFD 0019).
+    this.app.stage.addChild(this.restZoneLayer);
     this.app.stage.addChild(this.trillZoneLayer);
     this.app.stage.addChild(this.moveOriginLayer);
     this.app.stage.addChild(this.longNoteBodyLayer);
@@ -340,6 +347,7 @@ export class TimelineRenderer {
       get minimapVisible() { return self._minimapVisible; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingRestZoneIndices() { return self._violatingRestZoneIndices; },
       get violatingEventIndices() { return self._violatingEventIndices; },
     });
 
@@ -350,6 +358,7 @@ export class TimelineRenderer {
       get snap() { return self._snap; },
       get extraLaneCount() { return self._extraLaneCount; },
       get selectedTrillZones() { return self._selectedTrillZones; },
+      get selectedRestZones() { return self._selectedRestZones; },
       get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
@@ -366,6 +375,7 @@ export class TimelineRenderer {
       get beatLines() { return self.beatLines; },
       get snapLines() { return self.snapLines; },
       get trillZoneLayer() { return self.trillZoneLayer; },
+      get restZoneLayer() { return self.restZoneLayer; },
       get measureLabels() { return self.measureLabels; },
     };
     this.gridRenderer = new GridRenderer(gridHost);
@@ -394,9 +404,11 @@ export class TimelineRenderer {
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
+      get selectedRestZones() { return self._selectedRestZones; },
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingRestZoneIndices() { return self._violatingRestZoneIndices; },
       get violatingEventIndices() { return self._violatingEventIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
@@ -467,6 +479,12 @@ export class TimelineRenderer {
     this.render();
   }
 
+  /** 유닛으로 선택된 restZone 인덱스 설정 (선택 outline·리사이즈 캡 게이팅, RFD 0019) */
+  setSelectedRestZones(indices: Set<number>): void {
+    this._selectedRestZones = indices;
+    this.render();
+  }
+
   /** Set extra lane count */
   setExtraLaneCount(count: number): void {
     this._extraLaneCount = count;
@@ -498,6 +516,13 @@ export class TimelineRenderer {
   setHoveredTrillZone(index: number | null): void {
     if (this._hoveredTrillZoneIndex === index) return;
     this._hoveredTrillZoneIndex = index;
+    this.updateHoverOverlay();
+  }
+
+  /** Set hovered rest zone index (or null to clear) — 캡을 hover 시에만 표시 (RFD 0019) */
+  setHoveredRestZone(index: number | null): void {
+    if (this._hoveredRestZoneIndex === index) return;
+    this._hoveredRestZoneIndex = index;
     this.updateHoverOverlay();
   }
 
@@ -613,6 +638,7 @@ export class TimelineRenderer {
       this.measureLines,
       this.beatLines,
       this.snapLines,
+      this.restZoneLayer,
       this.trillZoneLayer,
       this.moveOriginLayer,
       this.longNoteBodyLayer,
@@ -799,6 +825,7 @@ export class TimelineRenderer {
     this.gridRenderer.renderLaneBackgrounds();
     this.gridRenderer.renderWaveform();
     this.gridRenderer.renderGridLines();
+    this.gridRenderer.renderRestZones();
     this.gridRenderer.renderTrillZones();
     this.overlayRenderer.renderMoveOrigins();
     this.overlayRenderer.renderBoxSelectRect();
@@ -823,6 +850,7 @@ export class TimelineRenderer {
     destroyChildren(this.measureLines);
     destroyChildren(this.beatLines);
     destroyChildren(this.snapLines);
+    destroyChildren(this.restZoneLayer);
     destroyChildren(this.trillZoneLayer);
     destroyChildren(this.moveOriginLayer);
     // 노트 레이어는 NoteRenderer.beginRender()에서 removeChildren으로 관리
@@ -919,16 +947,21 @@ export class TimelineRenderer {
    * Draw hover outline in the dedicated hover layer (lightweight, no full re-render).
    */
   private updateHoverOverlay(): void {
-    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredTrillZoneIndex);
+    this.overlayRenderer.updateHoverOverlay(
+      this._hoveredNoteIndex,
+      this._hoveredTrillZoneIndex,
+      this._hoveredRestZoneIndex,
+    );
   }
 
   /**
-   * 제약을 위반하는 노트·트릴존·이벤트 인덱스를 설정한다(빨간 해칭 오버레이).
-   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3·§7).
+   * 제약을 위반하는 노트·트릴존·restZone·이벤트 인덱스를 설정한다(빨간 해칭 오버레이).
+   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3·§7, RFD 0019).
    */
-  setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>, eventIndices: Set<number>): void {
+  setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>, restZoneIndices: Set<number>, eventIndices: Set<number>): void {
     this._violatingNoteIndices = noteIndices;
     this._violatingTrillZoneIndices = trillZoneIndices;
+    this._violatingRestZoneIndices = restZoneIndices;
     this._violatingEventIndices = eventIndices;
     this.overlayRenderer.renderViolationOverlay();
     // 미니맵 위반 틱(RFD 0017 §7)만 경량 갱신 — 전체 render는 O(N) 노트 순회+자식 재생성이라

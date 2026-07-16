@@ -13,6 +13,7 @@ import {
 } from "./constants";
 import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
+import { computeMinimapRestZoneRects } from "./minimapRestZone";
 import { computeMinimapViolationRects, type MinimapViolationRect } from "./minimapViolation";
 import type { Chart } from "../../shared";
 
@@ -33,6 +34,7 @@ export interface MinimapHost {
   // 위반 지시자(RFD 0017 §7) — 낙관적 편집 위반 엔티티 인덱스
   readonly violatingNoteIndices: ReadonlySet<number>;
   readonly violatingTrillZoneIndices: ReadonlySet<number>;
+  readonly violatingRestZoneIndices: ReadonlySet<number>;
   readonly violatingEventIndices: ReadonlySet<number>;
 }
 
@@ -234,6 +236,19 @@ export class MinimapRenderer {
       minimapLayer.addChild(zoneGfx);
     }
 
+    // (3.6) Rest zones (RFD 0019) — trillZone 밴드와 동일 레이어/z-order 취급.
+    // 색·alpha는 타임라인 restZone 밴드 상수를 그대로 쓴다(trillZone 미니맵 렌더 관례).
+    const restRects = computeMinimapRestZoneRects(
+      chart.restZones ?? [], bpmMarkers, meta.offsetMs,
+      (ms) => this.host.timeToY(ms), toMinimapY, trackX, laneW,
+    );
+    for (const r of restRects) {
+      const zoneGfx = new Graphics();
+      zoneGfx.rect(r.x, r.y, r.width, r.height);
+      zoneGfx.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      minimapLayer.addChild(zoneGfx);
+    }
+
     // (4) Notes: 대량 차트에서 노트마다 DisplayObject를 만들지 않도록 시각 스타일별로 묶는다.
     const { notes } = chart;
     const pointBatches = new Map<number, { gfx: Graphics; count: number }>();
@@ -331,9 +346,11 @@ export class MinimapRenderer {
     return computeMinimapViolationRects({
       violatingNoteIndices: this.host.violatingNoteIndices,
       violatingTrillZoneIndices: this.host.violatingTrillZoneIndices,
+      violatingRestZoneIndices: this.host.violatingRestZoneIndices,
       violatingEventIndices: this.host.violatingEventIndices,
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones ?? [],
       events: chart.events,
       bpmMarkers: this.host.cachedBpmMarkers,
       offsetMs: chart.meta.offsetMs,

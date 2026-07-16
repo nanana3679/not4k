@@ -46,7 +46,7 @@ _Avoid_: 전체 차트
 _Avoid_: 뷰포트 슬라이스(한국어 조어), 렌더러·컨트롤러에 뷰포트 상태 복제 저장, 렌더러에 뷰포트 setter 추가
 
 **`SelectionSlice`**:
-에디터 선택 상태(notes·extraNotes·zones)의 단독 소유자다. 쓰기는 slice 액션만, 동질성 정규화 게이트와 **선택 해제 게이트**(§3-5)가 `setSelection` 관문에 산다(정규화는 거부가 아니라 접기 — 선택은 휘발성 UI 상태). 풀 정의는 glossary "SelectionSlice".
+에디터 선택 상태(notes·zones·restZones)의 단독 소유자다. 쓰기는 slice 액션만, 동질성 정규화 게이트(notes·zones)와 **선택 해제 게이트**(§3-5)가 `setSelection` 관문에 산다(정규화는 거부가 아니라 접기 — 선택은 휘발성 UI 상태). `restZones`는 note/zone과 **공존**하는 독립 축으로 동질성 machinery와 무관하며 범위 prune만 받는다(RFD 0019). 풀 정의는 glossary "SelectionSlice".
 _Avoid_: 선택 슬라이스(한국어 조어), SelectMode·훅에 선택 사본 저장, 필드별 개별 setter
 
 **`TimelineSpace`**:

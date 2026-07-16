@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { Container, Graphics } from "pixi.js";
 import { beat } from "../../shared";
-import type { Chart, ChartEvent, BpmMarker, TimeSignatureMarker } from "../../shared";
-import { NOTE_HEIGHT, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import type { Chart, ChartEvent, RestZone, BpmMarker, TimeSignatureMarker } from "../../shared";
+import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
 import { GridRenderer } from "./GridRenderer";
 import type { GridHost } from "./GridRenderer";
 
@@ -23,7 +23,7 @@ vi.mock("pixi.js", async (importOriginal) => {
   return { ...actual, Text: TextStub };
 });
 
-function makeChart(events: ChartEvent[]): Chart {
+function makeChart(events: ChartEvent[], restZones?: RestZone[]): Chart {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -31,6 +31,7 @@ function makeChart(events: ChartEvent[]): Chart {
     },
     notes: [],
     trillZones: [],
+    ...(restZones ? { restZones } : {}),
     events,
   };
 }
@@ -44,6 +45,7 @@ function makeHost(chart: Chart): GridHost {
     snap: 4,
     extraLaneCount: 3,
     selectedTrillZones: new Set(),
+    selectedRestZones: new Set(),
     currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,
@@ -60,6 +62,7 @@ function makeHost(chart: Chart): GridHost {
     beatLines: new Container(),
     snapLines: new Container(),
     trillZoneLayer: new Container(),
+    restZoneLayer: new Container(),
     measureLabels: new Container(),
   };
 }
@@ -118,5 +121,64 @@ describe("GridRenderer.renderMarkers 이벤트 기하", () => {
     const noteLayer = new Container();
     r.renderMarkers(noteLayer, null, () => undefined);
     expect(noteLayer.children.length).toBe(0);
+  });
+});
+
+function renderRestZones(restZones: RestZone[] | undefined): GridHost {
+  const host = makeHost(makeChart([], restZones));
+  new GridRenderer(host).renderRestZones();
+  return host;
+}
+
+describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
+  it("restZone(lane 2, beat 0→4)은 120 BPM에서 x=LANE_WIDTH·y 0→200 풀레인 밴드로 restZoneLayer에 그려진다", () => {
+    const host = renderRestZones([{ lane: 2, beat: beat(0), endBeat: beat(4) }]);
+    expect(host.restZoneLayer.children.length).toBe(1);
+    const b = (host.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(b.minX).toBe(LANE_WIDTH);
+    expect(b.width).toBe(LANE_WIDTH);
+    expect(b.minY).toBe(0);
+    expect(b.height).toBe(200);
+  });
+
+  it("beat와 endBeat가 같은 restZone(beat 2)은 y100 중심 NOTE_HEIGHT 높이 밴드로 그려진다(0높이 방어, trillZone 미러)", () => {
+    const host = renderRestZones([{ lane: 1, beat: beat(2), endBeat: beat(2) }]);
+    const b = (host.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(b.minY).toBe(100 - NOTE_HEIGHT / 2);
+    expect(b.height).toBe(NOTE_HEIGHT);
+  });
+
+  it("가시 범위(5000~6000ms) 밖 restZone(beat 0→4=0~2000ms)은 그리지 않는다(컬링)", () => {
+    const host = makeHost(makeChart([], [{ lane: 1, beat: beat(0), endBeat: beat(4) }]));
+    (host as { getVisibleTimeRange: GridHost["getVisibleTimeRange"] }).getVisibleTimeRange =
+      () => ({ minTimeMs: 5000, maxTimeMs: 6000 });
+    new GridRenderer(host).renderRestZones();
+    expect(host.restZoneLayer.children.length).toBe(0);
+  });
+
+  it("chart.restZones가 없으면(undefined) restZoneLayer에 아무것도 그리지 않는다(하위호환)", () => {
+    const host = renderRestZones(undefined);
+    expect(host.restZoneLayer.children.length).toBe(0);
+  });
+
+  it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색은 trillZone(0x00ff88)과 다른 인게임 dim(검정 오버레이)이다", () => {
+    const host = renderRestZones([{ lane: 3, beat: beat(0), endBeat: beat(2) }]);
+    expect(host.restZoneLayer.children.length).toBe(1);
+    expect(host.trillZoneLayer.children.length).toBe(0);
+    expect(COLORS.REST_ZONE).not.toBe(COLORS.TRILL_ZONE);
+    expect(COLORS.REST_ZONE).toBe(0x000000);
+  });
+
+  it("유닛 선택된 restZone(인덱스 0)은 SELECTED_OUTLINE 테두리가 더해져 바운즈가 레인 폭(LANE_WIDTH)보다 넓어지고, 미선택은 정확히 레인 폭이다 (RFD 0019 선택 표시)", () => {
+    const restZones: RestZone[] = [{ lane: 2, beat: beat(0), endBeat: beat(4) }];
+    const selectedHost = makeHost(makeChart([], restZones));
+    (selectedHost as { selectedRestZones: ReadonlySet<number> }).selectedRestZones = new Set([0]);
+    new GridRenderer(selectedHost).renderRestZones();
+    const selectedBounds = (selectedHost.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(selectedBounds.width).toBeGreaterThan(LANE_WIDTH); // 테두리(width 2)만큼 확장
+
+    const unselectedHost = renderRestZones(restZones);
+    const unselectedBounds = (unselectedHost.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(unselectedBounds.width).toBe(LANE_WIDTH); // 테두리 없음
   });
 });
