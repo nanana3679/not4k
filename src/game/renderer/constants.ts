@@ -39,7 +39,7 @@ export const COLORS = {
 
   // 휴지 구간(레인 당분간 안 씀) — 어두운 오버레이로 레인을 가라앉힌다.
   REST_ZONE_DIM: 0x000000,
-  REST_ZONE_ALPHA: 0.72,
+  REST_ZONE_ALPHA: 0.6,
 
   COMBO_TEXT: 0xffffff,
   JUDGMENT_PERFECT: 0xffdd00,

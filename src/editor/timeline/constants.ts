@@ -47,7 +47,7 @@ export const COLORS = {
   // 레인을 가라앉힌다(game REST_ZONE_DIM 0x000000 / α0.72와 일치). 리프트된 레인 배경 위에서
   // 대비로 "쉬는 레인"이 읽히며, 겹침 위반은 그 위 빨간 해칭이 표시한다.
   REST_ZONE: 0x000000,
-  REST_ZONE_ALPHA: 0.72,
+  REST_ZONE_ALPHA: 0.6,
 
   SELECTED_OUTLINE: 0xff4444,
   HOVERED_OUTLINE: 0xffffff,
