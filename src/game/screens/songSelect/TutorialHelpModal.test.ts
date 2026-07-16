@@ -193,11 +193,12 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('min-width: 0 !important');
   });
 
-  it('목록+렌더러+내용을 감싸는 contentLayout은 전체가 스크롤되고 playerColumn은 프리뷰를 자르지 않음', () => {
+  it('모바일 세로 배치에서 playerColumn은 flex:0 0 auto로 프리뷰를 찌부시키지 않고 contentLayout이 전체를 스크롤', () => {
     // contentLayout: 모달 높이를 넘기면 열을 찌부시키지 않고 한 덩어리로 세로 스크롤
     expect(tutorialHelpModalSource).toContain("flex: '1 1 auto'");
-    // playerColumn: 최소 높이 프리뷰를 열 안에서 자르지 않고 바깥 컨테이너가 스크롤
-    expect(tutorialHelpModalSource).toContain("overflow: 'visible'");
+    expect(tutorialHelpModalSource).toContain("overflowY: 'auto'");
+    // 모바일에서는 flex 배분으로 줄이지 말고 프리뷰(플레이+키보드) 자연 높이를 유지
+    expect(tutorialHelpModalSource).toContain('flex: 0 0 auto !important');
   });
 
   it('페이지 전환은 가운데 카드 안에서 두 프리뷰 슬롯을 캐러셀처럼 좌우 이동', () => {

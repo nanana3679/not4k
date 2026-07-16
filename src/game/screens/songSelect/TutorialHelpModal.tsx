@@ -868,6 +868,13 @@ const tutorialHelpCss = `
     min-height: 32px !important;
   }
 
+  .not4k-tutorial-player-column {
+    /* 세로 배치에서는 flex 배분으로 찌부시키지 말고 프리뷰(플레이+키보드) 자연 높이를 유지.
+       넘치는 만큼은 바깥 contentLayout이 스크롤한다. */
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+  }
+
   .not4k-tutorial-text-panel {
     width: auto !important;
     padding-left: 0 !important;
@@ -1060,8 +1067,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    // 프리뷰를 열 안에서 자르지 않는다 — 넘치면 바깥 contentLayout이 전체를 스크롤한다.
-    overflow: 'visible',
+    // 데스크톱(가로 배치): 열 안에서 자체 스크롤. 모바일(세로 배치)에서는 media query가
+    // flex:0 0 auto로 바꿔 프리뷰를 찌부시키지 않고 바깥 contentLayout이 전체를 스크롤한다.
+    overflowY: 'auto',
     alignItems: 'center',
   },
   carouselCard: {
