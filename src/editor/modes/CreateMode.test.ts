@@ -810,6 +810,18 @@ describe("CreateMode — restZone 배치 (RFD 0019)", () => {
     expect(updated.restZones![0]).toMatchObject({ lane: 2, beat: beat(0), endBeat: beat(4) });
   });
 
+  it("restZone을 클릭(무드래그, beat 4→4)하면 길이 0이라 커밋하지 않는다 (구조 위반·고스트 방지, 리뷰 C1)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(2, 4);
+    mode.onPointerUp(2, 4);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+  });
+
   it("역방향 드래그(beat 6→2)는 beat 2~6으로 정규화되어 커밋", () => {
     const chart = makeChart();
     const callbacks = makeCallbacks(chart);

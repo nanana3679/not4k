@@ -10,8 +10,9 @@ import type { Beat, RestZone } from "../../shared";
 import { beatAdd, beatSub, beatToFloat, BEAT_ZERO } from "../../shared";
 
 /**
- * 박스가 restZone을 완전히 감싸는지 — lane 포함 + beat 폐구간 [zone.beat, zone.endBeat]를
- * 박스 beat 범위가 포함할 때만 true (boxEnclosesZone 미러, RFD 0016 §6-2 감쌈 모델).
+ * 박스가 restZone에 **일부라도 겹치는지** — lane 포함 + 구간 [zone.beat, zone.endBeat]가
+ * 박스 beat 범위와 교차하면 true. trillZone의 완전 감쌈(boxEnclosesZone)과 달리 롱노트처럼
+ * 부분 겹침으로 픽업한다(사용자 요청, RFD 0019).
  */
 export function restZoneOverlapsBox(
   zone: RestZone,

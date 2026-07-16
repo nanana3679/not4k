@@ -728,6 +728,30 @@ describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
     expect([...mode.selection]).toEqual([0]);
   });
 
+  it("restZone 선택 중 롱노트 끝 캡을 잡으면 선택이 롱노트로 교체되고 restZones가 비워진다 (리뷰 C2)", () => {
+    const chart = makeChart({
+      notes: [{ type: "long", lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+      restZones: [{ lane: 3, beat: beat(0), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestNote: () => 0,
+      hitTestNoteEnd: () => 0,
+    });
+    const mode = makeMode(chart, cb);
+
+    expect(mode.selectRestZoneUnit(0)).toBe(true);
+    expect([...cb.getSelectionState().restZones]).toEqual([0]);
+
+    mode.onPointerDown(1, 6, false, false); // 미선택 롱노트 끝 캡 grab → 선택 교체
+    mode.onPointerMove(1, 9);
+    mode.onPointerUp(1, 9);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([0]);
+    expect([...sel.restZones]).toEqual([]); // 전축 교체 — restZone이 롱노트와 함께 안 딸려감
+  });
+
   it("끝점에 다른 노트가 위에 있으면(o-o- 겹침) 끝 캡 리사이즈가 가로채지 않는다", () => {
     const chart = makeChart({
       notes: [

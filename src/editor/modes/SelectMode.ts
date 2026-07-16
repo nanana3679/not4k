@@ -454,7 +454,7 @@ export class SelectMode implements EditorMode {
         if (isSelected || topmost === endHit) {
           if (!isSelected) {
             // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지)
-            if (!this.commitSelection({ notes: new Set([endHit]), zones: new Set() })) {
+            if (!this.commitSelection({ notes: new Set([endHit]), zones: new Set(), restZones: new Set() })) {
               return;
             }
           }
@@ -816,7 +816,8 @@ export class SelectMode implements EditorMode {
       // §3-5: 프리뷰로 쌓인 박스 결과를 (드래그 시작 전 → 최종) 전이 하나로 확정한다.
       if (this.preDragSelection) {
         const finalSel: Selection = tappedZone !== null
-          ? { ...this.sel, notes: new Set(), zones: new Set([tappedZone]) }
+          // 트릴존 탭 = 유닛 선택으로 전체 교체 — restZones도 비운다(단순 탭=전축 교체, 리뷰 C4)
+          ? { notes: new Set(), zones: new Set([tappedZone]), restZones: new Set() }
           : tappedRestZone !== null
             // restZone 탭 = 유닛 선택으로 교체 {notes:∅, zones:∅, restZones:{i}} (RFD 0019)
             ? { notes: new Set(), zones: new Set(), restZones: new Set([tappedRestZone]) }

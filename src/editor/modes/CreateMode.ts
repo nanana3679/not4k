@@ -524,6 +524,11 @@ export class CreateMode implements EditorMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
+    // restZone은 길이 0이 구조 금지(validation)라, 클릭(무드래그) 등 zero-length 제스처는
+    // 커밋하지 않는다 — trillZone(길이 0 허용)과 다른 divergence. 커밋 시 setChart가 구조
+    // 위반으로 하드 거부해 로컬 차트에 고스트가 남으므로 여기서 막는다 (RFD 0019, 리뷰 C1).
+    if (actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d) return;
+
     const newRestZone: RestZone = {
       lane,
       beat: actualStartBeat,
