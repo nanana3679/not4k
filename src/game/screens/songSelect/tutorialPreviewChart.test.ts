@@ -326,6 +326,9 @@ describe('tutorialPreviewChart', () => {
       { lane: 3, beat: { n: 5, d: 1 }, endBeat: { n: 9, d: 1 } },
     ]);
 
+    // restZone이 노트·trillZone과 겹치지 않아 배치 위반(의미 위반)이 없다
+    expect(validateChart(preview.chart)).toEqual([]);
+
     const trillNoteLanes = new Set(
       preview.chart.notes.filter((note) => note.type === 'trill').map((note) => note.lane),
     );
