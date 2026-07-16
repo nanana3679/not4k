@@ -120,7 +120,7 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
       <style>{settingsPanelCss}</style>
 
       <header className="stg-header">
-        <h1 className="stg-title">Settings</h1>
+        <h1 className="stg-title"><span className="stg-title-tick" aria-hidden="true" />Settings</h1>
         <button className="stg-close" onClick={onClose}>Close</button>
       </header>
 
@@ -456,8 +456,6 @@ function ToggleRow({
 const settingsPanelCss = `
 .stg-panel {
   --border-soft: rgba(255, 255, 255, 0.045);
-  --accent: ${color.neon}; --accent-ink: ${color.neonInk}; --danger: ${color.danger};
-  --ink: ${color.inkStrong}; --muted: ${color.inkDim};
   position: relative;
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
   background: ${surface.panel}; color: ${color.ink};
@@ -468,8 +466,14 @@ const settingsPanelCss = `
   padding: 14px 20px; border-bottom: 1px solid ${color.line}; flex-shrink: 0;
 }
 .stg-title {
-  margin: 0; font-family: ${font.display}; font-size: 16px; font-weight: 800;
+  margin: 0; display: flex; align-items: center; gap: 10px;
+  font-family: ${font.display}; font-size: 16px; font-weight: 800;
   letter-spacing: 0.04em; text-transform: uppercase; color: ${color.inkStrong};
+}
+.stg-title-tick {
+  width: 4px; height: 18px; border-radius: 2px; flex-shrink: 0;
+  background: linear-gradient(180deg, ${color.neon}, #2b8f93);
+  box-shadow: 0 0 10px -1px ${color.neonGlow};
 }
 .stg-close {
   padding: 6px 14px; font-family: ${font.display}; font-size: 13px; color: ${color.inkDim};
@@ -531,7 +535,7 @@ const settingsPanelCss = `
 .stg-badge {
   display: inline-block; margin-top: 3px; padding: 1px 6px; width: fit-content;
   font-family: ${font.display}; font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-  text-transform: uppercase; color: ${color.inkFaint}; background: rgba(255, 255, 255, 0.05);
+  text-transform: uppercase; color: ${color.inkDim}; background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 

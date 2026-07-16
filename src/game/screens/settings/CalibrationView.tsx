@@ -89,7 +89,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
       // Draw "TAP" text on judgment line
       ctx.fillStyle = color.neon;
-      ctx.font = `14px ${font.numeric}`;
+      ctx.font = `14px ${font.display}`;
       ctx.textAlign = 'center';
       ctx.fillText('TAP HERE', w / 2, judgmentY + 20);
 
@@ -298,7 +298,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       <div className="cal-view">
         <style>{calibrationCss}</style>
         <header className="cal-header">
-          <h1 className="cal-title">Calibration</h1>
+          <h1 className="cal-title"><span className="cal-title-tick" aria-hidden="true" />Calibration</h1>
           <button className="cal-back" onClick={handleBack}>Back</button>
         </header>
         <div className="cal-content">
@@ -336,7 +336,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       <div className="cal-view">
         <style>{calibrationCss}</style>
         <header className="cal-header">
-          <h1 className="cal-title">{calibType === 'visual' ? 'Visual' : 'Audio'} Calibration</h1>
+          <h1 className="cal-title"><span className="cal-title-tick" aria-hidden="true" />{calibType === 'visual' ? 'Visual' : 'Audio'} Calibration</h1>
           <button className="cal-back" onClick={handleBack}>Cancel</button>
         </header>
         <div className="cal-content cal-content--center">
@@ -370,7 +370,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
     <div className="cal-view">
       <style>{calibrationCss}</style>
       <header className="cal-header">
-        <h1 className="cal-title">Calibration Result</h1>
+        <h1 className="cal-title"><span className="cal-title-tick" aria-hidden="true" />Calibration Result</h1>
       </header>
       <div className="cal-content">
         <section className="cal-card cal-card--result">
@@ -418,8 +418,14 @@ const calibrationCss = `
   padding: 14px 20px; border-bottom: 1px solid ${color.line}; flex-shrink: 0;
 }
 .cal-title {
-  margin: 0; font-family: ${font.display}; font-size: 16px; font-weight: 800;
+  margin: 0; display: flex; align-items: center; gap: 10px;
+  font-family: ${font.display}; font-size: 16px; font-weight: 800;
   letter-spacing: 0.04em; text-transform: uppercase; color: ${color.inkStrong};
+}
+.cal-title-tick {
+  width: 4px; height: 18px; border-radius: 2px; flex-shrink: 0;
+  background: linear-gradient(180deg, ${color.neon}, #2b8f93);
+  box-shadow: 0 0 10px -1px ${color.neonGlow};
 }
 .cal-back {
   padding: 6px 14px; font-family: ${font.display}; font-size: 13px; color: ${color.inkDim};
