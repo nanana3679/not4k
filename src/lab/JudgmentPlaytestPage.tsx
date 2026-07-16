@@ -86,7 +86,7 @@ export default function JudgmentPlaytestPage() {
   };
 
   return (
-    <div style={{ padding: 32, color: "#e0e0e0", background: "#1a1a1a", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ padding: 32, color: "#e0e0e0", background: "#1a1a1a", height: "100vh", overflowY: "auto", fontFamily: "system-ui, sans-serif" }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>판정 실플레이 (DEV) — RFD 0015 §11 · §7-3</h1>
       <p style={{ color: "#999", marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
         Supabase·음원 없이 특정 판정 패턴을 반복 재생한다. 버튼을 누르면 스크립트 차트 + 메트로놈 클릭트랙으로
