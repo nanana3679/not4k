@@ -1,6 +1,6 @@
 # RFD 0019: 휴지 구간(`restZone`) — 저작 레인 안내
 
-**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 저작 UX·restZone 렌더·위반 해칭 미구현
+**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 렌더·해칭(슬라이스A)·배치(B)·삭제(C) 구현 (2026-07-16, commits 2fff275·2d4b9d7·e391ab4) · 선택·이동·리사이즈·복붙·미니맵 미구현
 
 **구현 기록 (2026-07-16, Phase 1):** 시각 효과만 눈으로 확정하기 위한 프로토타입. 활성 레인 base 톤을 올리고(`LANE_BG_EVEN/ODD` = 0x26263f/0x202038) 빈 구간을 어두운 밴드로 dim(`REST_ZONE_ALPHA` = 0.72). 밴드는 `trillZone` 렌더 패턴을 복제(스크롤·컬링·풀), 다음 점유 1박 전에 종료. 이 단계의 구간 데이터는 **`restZonePreview.ts`의 throwaway 자동 파생**(노트 공백 threshold 4박)이며 Phase 2에서 저작 데이터로 교체·삭제한다. threshold 4박·margin 1박·dim/리프트 값이 시각 검증으로 확정됐다.
 
@@ -95,4 +95,8 @@ dim이 보이려면 활성 레인이 완전 검정보다 밝아야 한다(near-b
      - **semantic**(저장·플레이 게이트): 같은 레인 `restZone` 자기 겹침 금지(`trillZone`의 `validateNoTrillZoneOverlap` 대응), `restZone`×노트/`trillZone` 겹침 금지(§4-2). `ChartViolationIndices`에 `restZones` 축 추가(해칭).
   2. **(완료, commit d85a8b7)** 게임 렌더 소스 교체 — 파생기(`restZonePreview.ts`) 삭제, `GameRenderer.setChart`가 저작 `restZones`를 받아 밴드로 dim.
   3. **(일부 완료, commit c1ba67e)** 배치 제약(의미 위반) 강제 — 에디터의 전 `validateChart` 게이트(저장·플레이 진입·`setChart`·`loadChart`·위반 배지·편집 프리뷰)가 `restZones`를 전달해 restZone 규칙이 실제 평가된다.
-  4. **(미구현)** 에디터 저작 UX + restZone 렌더 + 위반 해칭 — 배치 툴 + 선택/이동/리사이즈/복붙 + `restZone` 타임라인 밴드 렌더 + 위반 해칭(`chartViolationIndices`의 `restZones` Set을 `TimelineRenderer.setViolations`가 소비), `trillZone` 에디터 경로 복제. 현재 `chartViolationIndices`는 `restZones` 위반 인덱스를 내지만 `setViolations`는 아직 3축만 소비한다(해칭 렌더 잔여).
+  4. 에디터 저작 UX — `trillZone` 에디터 경로를 슬라이스로 복제한다:
+     - **(완료 A, 2fff275)** 타임라인 밴드 렌더(muted 회색) + 위반 해칭(`setViolations` 4축 확장, `restZones` Set 소비).
+     - **(완료 B, 2d4b9d7)** CreateMode 드래그 배치(낙관 커밋) + 툴바 엔티티('Rest').
+     - **(완료 C, e391ab4)** DeleteMode 삭제(hitTest + `deleteRestZoneAtIndex`). ← A·B·C = MVP 저작 루프.
+     - **(미구현)** 선택·이동(SelectMode 유닛), 리사이즈(끝점 핸들), 복붙(ClipboardManager), 미니맵. = 폴리시.
