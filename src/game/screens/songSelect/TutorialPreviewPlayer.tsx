@@ -55,10 +55,6 @@ const PREVIEW_RENDER_HEIGHT = 360;
 const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
-const PREVIEW_LANE_KEY_HEIGHT = 42;
-const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
-const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
-  (PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y;
 
 interface TutorialPreviewPlayerProps {
   preview?: TutorialPreviewDefinition;
@@ -135,6 +131,7 @@ export function TutorialPreviewPlayer({
   diagramModalVisible = true,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<GameRenderer | null>(null);
   const readyNotifiedRef = useRef(false);
   const onReadyRef = useRef(onReady);
   const resumeDiagramRef = useRef<(() => void) | null>(null);
@@ -161,10 +158,6 @@ export function TutorialPreviewPlayer({
     [keys, activeKeyIds, stickyLaneKeyIdsByLane],
   );
   const keyByCode = useMemo(() => new Map(keys.map((key) => [key.keyCode, key])), [keys]);
-  const activeLaneSet = useMemo(
-    () => new Set(activeKeyIds.map((id) => Number(id.split(':', 1)[0]))),
-    [activeKeyIds],
-  );
   const keyboardLayout = useMemo(
     () => getTutorialKeyboardLayout(settings.preset),
     [settings.preset],
@@ -357,6 +350,7 @@ export function TutorialPreviewPlayer({
           showGearFrame: false,
           showPerspectiveSurface: false,
           showComboAndAccuracy: false,
+          showLaneKeyLabels: true,
           judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET,
         });
         await renderer.init();
@@ -402,6 +396,7 @@ export function TutorialPreviewPlayer({
         renderer.renderFrame(preview.renderStartMs, 0);
         previousNow = performance.now();
         loopStartNow = previousNow;
+        rendererRef.current = renderer;
         notifyReady();
         setRendererReady(true);
 
@@ -438,12 +433,22 @@ export function TutorialPreviewPlayer({
       disposed = true;
       resumeDiagramRef.current = null;
       dismissDiagramRef.current = null;
+      rendererRef.current = null;
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
       disposeTutorialPreviewRenderer(renderer);
     };
   }, [diagramTimings, keys, preview, timings]);
+
+  // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
+  // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
+  useEffect(() => {
+    rendererRef.current?.setLaneKeyLabels(
+      laneKeyLabels.map(({ lane, label }) => ({ lane, label })),
+      !diagramDisplay,
+    );
+  }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   const activeKeySet = new Set(activeKeyIds);
 
@@ -457,31 +462,6 @@ export function TutorialPreviewPlayer({
           // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
           style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
-        {!diagramDisplay && (
-          <div
-            style={styles.laneKeyOverlay}
-            aria-label="Tutorial lane key labels"
-          >
-            {laneKeyLabels.map(({ lane, keyCode, label }) => {
-              const active = activeLaneSet.has(lane);
-              return (
-                <span
-                  key={lane}
-                  data-tutorial-lane-key={lane}
-                  data-tutorial-lane-keycode={keyCode}
-                  data-tutorial-lane-key-active={active ? 'true' : 'false'}
-                  style={{
-                    ...styles.laneKeyLabel,
-                    ...(label ? {} : styles.laneKeyLabelEmpty),
-                    ...(active ? styles.laneKeyLabelActive : {}),
-                  }}
-                >
-                  {label || '-'}
-                </span>
-              );
-            })}
-          </div>
-        )}
         {error && <div style={styles.errorText}>{error}</div>}
       </div>
       <style>{tutorialPreviewPlayerCss}</style>
@@ -765,49 +745,6 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  laneKeyOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`,
-    display: 'grid',
-    gridTemplateColumns: `repeat(${PREVIEW_LANES.length}, 1fr)`,
-    gap: '4px',
-    padding: `${PREVIEW_LANE_KEY_OVERLAY_PADDING_Y}px 8px`,
-    boxSizing: 'border-box',
-    pointerEvents: 'none',
-  },
-  laneKeyLabel: {
-    minWidth: 0,
-    minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '8px 10px',
-    color: '#e5ecef',
-    backgroundColor: '#303538',
-    border: '1px solid #6b7b80',
-    borderRadius: '4px',
-    boxShadow: '0 4px 0 #101010, 0 7px 12px rgba(0, 0, 0, 0.24)',
-    boxSizing: 'border-box',
-    fontSize: '14px',
-    fontWeight: 800,
-    lineHeight: 1,
-    textAlign: 'center',
-    transition: 'transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease, background-color 90ms ease',
-  },
-  laneKeyLabelEmpty: {
-    color: '#6f767a',
-    border: '1px solid rgba(255, 255, 255, 0.14)',
-    backgroundColor: 'rgba(8, 10, 12, 0.54)',
-  },
-  laneKeyLabelActive: {
-    transform: 'translateY(4px)',
-    color: '#ffffff',
-    backgroundColor: '#355f66',
-    border: '1px solid #76d6df',
-    boxShadow: '0 1px 0 #101010, 0 4px 12px rgba(118, 214, 223, 0.28)',
   },
   errorText: {
     position: 'absolute',

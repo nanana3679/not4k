@@ -38,21 +38,15 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('keyboardKeyUnmapped:');
   });
 
-  it('미니 키보드 키캡은 레인 번호를 빼고 판정선 아래 검은 영역 가운데에 레인당 하나의 큰 키를 표시', () => {
+  it('판정선 아래 레인 키 라벨은 HTML 오버레이 대신 GameRenderer가 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('keyLane');
     expect(tutorialPreviewPlayerSource).toContain('getLaneKeyLabels(keys, activeKeyIds, stickyLaneKeyIdsByLane)');
     expect(tutorialPreviewPlayerSource).toContain('sortLaneKeysForLabel');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-keycode');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_HEIGHT = 42');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =');
-    expect(tutorialPreviewPlayerSource).toContain('(PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y');
-    expect(tutorialPreviewPlayerSource).toContain('bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`');
     expect(tutorialPreviewPlayerSource).toContain('const fallbackKeys = getFallbackLaneKeys(laneKeys)');
-    expect(tutorialPreviewPlayerSource).toContain('minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`');
-    expect(tutorialPreviewPlayerSource).toContain("boxShadow: '0 4px 0 #101010");
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelEmpty');
+    expect(tutorialPreviewPlayerSource).toContain('showLaneKeyLabels: true');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current?.setLaneKeyLabels(');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current = renderer');
+    expect(tutorialPreviewPlayerSource).not.toContain('data-tutorial-lane-key');
   });
 
   it('판정선 아래 큰 키 라벨은 같은 레인의 여러 키 중 현재 눌린 키를 우선 표시하고 릴리즈 후에도 마지막 키를 유지', () => {
@@ -97,14 +91,16 @@ describe('TutorialPreviewPlayer', () => {
     });
   });
 
-  it('판정선 아래 큰 키는 해당 레인 입력이 활성화되면 눌리는 스타일로 전환', () => {
-    expect(tutorialPreviewPlayerSource).toContain('const activeLaneSet = useMemo');
-    expect(tutorialPreviewPlayerSource).toContain('activeLaneSet.has(lane)');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key-active={active ?');
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelActive');
-    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabelActive:');
-    expect(tutorialPreviewPlayerSource).toContain("transform: 'translateY(4px)'");
-    expect(tutorialPreviewPlayerSource).toContain("transition: 'transform 90ms ease");
+  it('판정선 아래 큰 키 눌림은 렌더 루프의 setKeyBeam이 렌더러 안에서 처리해 별도 HTML 활성 스타일이 없음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyBeam(lane, activeLaneSet.has(lane))');
+    expect(tutorialPreviewPlayerSource).not.toContain('const activeLaneSet = useMemo');
+    expect(tutorialPreviewPlayerSource).not.toContain('laneKeyLabelActive');
+  });
+
+  it('레인 키 라벨 텍스트와 표시 여부는 effect가 렌더러 setLaneKeyLabels로 push', () => {
+    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabels.map(({ lane, label }) => ({ lane, label }))');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
+    expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady]');
   });
 
   it('미니 키보드에서 눌린 키는 아래로 이동해도 아래 행 키에 가려지지 않도록 위 레이어로 올라감', () => {
@@ -151,7 +147,8 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('inset: 0');
     expect(tutorialPreviewPlayerSource).toContain("backgroundColor: 'rgba(0, 0, 0, 0.72)'");
     expect(tutorialPreviewPlayerSource).toContain("pointerEvents: 'auto'");
-    expect(tutorialPreviewPlayerSource).toContain('{!diagramDisplay && (');
+    // 키 라벨 숨김은 setLaneKeyLabels의 visible 인자(!diagramDisplay)로 렌더러 레이어를 끈다.
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
     expect(tutorialPreviewPlayerSource).not.toContain('canvasHiddenForDiagram');
   });
 

@@ -226,35 +226,6 @@ describe('TutorialHelpModal', () => {
     expect(countOccurrences(html, 'aria-disabled="true"')).toBeGreaterThan(0);
   });
 
-  it('키보드 키캡에는 L1 같은 레인 라벨을 넣지 않고 판정선 아래에는 레인당 하나의 큰 키만 표시', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(html).not.toContain('L1');
-    expect(html).not.toContain('L2');
-    expect(countOccurrences(html, 'data-tutorial-lane-key=')).toBe(8);
-    expect(countOccurrences(html, 'data-tutorial-lane-keycode=')).toBe(8);
-    expect(countOccurrences(html, 'data-tutorial-lane-key-active="false"')).toBe(8);
-    expect(html).toContain('data-tutorial-lane-key="1"');
-    expect(html).toContain('data-tutorial-lane-key="2"');
-    expect(html).toContain('data-tutorial-lane-key="3"');
-    expect(html).toContain('data-tutorial-lane-key="4"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyQ KeyW"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyE KeyC"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyP Comma"');
-    expect(html).toContain('data-tutorial-lane-keycode="BracketLeft BracketRight"');
-    expect(html).toContain('Q');
-    expect(html).toContain('W');
-    expect(html).toContain('E');
-    expect(html).toContain('C');
-    expect(html).not.toContain('P, L');
-    expect(html).toContain('[');
-    expect(html).toContain(']');
-    expect(html).toContain('min-height:42px');
-    expect(html).toContain('box-shadow:0 4px 0 #101010');
-  });
-
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),

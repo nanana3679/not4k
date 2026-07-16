@@ -57,6 +57,7 @@ export interface GameRendererOptions {
   showGearFrame?: boolean;
   showPerspectiveSurface?: boolean;
   showComboAndAccuracy?: boolean;
+  showLaneKeyLabels?: boolean;
   judgmentLineOffset?: number;
 }
 
@@ -181,7 +182,12 @@ export class GameRenderer {
   private showGearFrame: boolean;
   private showPerspectiveSurface: boolean;
   private showComboAndAccuracy: boolean;
+  private showLaneKeyLabels: boolean;
   private judgmentLineOffset: number;
+
+  // 튜토리얼 프리뷰용 레인 키 라벨 (판정선 아래 밴드에 키캡 + 텍스트)
+  private laneKeyLabelLayer: Container;
+  private laneKeyLabels: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean }[] = [];
 
   // Sub-renderers
   private judgmentUI!: JudgmentUI;
@@ -199,6 +205,7 @@ export class GameRenderer {
     this.showGearFrame = options.showGearFrame ?? true;
     this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
+    this.showLaneKeyLabels = options.showLaneKeyLabels ?? false;
 
     this.app = new Application();
 
@@ -217,6 +224,7 @@ export class GameRenderer {
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
     this.gearFrameLayer = new Container();
+    this.laneKeyLabelLayer = new Container();
     this.uiLayer = new Container();
 
     // Create combo / accuracy text (owned by GameRenderer)
@@ -288,6 +296,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.judgmentLineGraphic);
     this.app.stage.addChild(this.gearFrameLayer);
     this.app.stage.addChild(this.effectLayer);
+    this.app.stage.addChild(this.laneKeyLabelLayer);
     this.app.stage.addChild(this.uiLayer);
 
     this.uiLayer.addChild(this.comboText);
@@ -314,6 +323,9 @@ export class GameRenderer {
     this.drawMask();
     this.buildKeyBeams();
     this.buildButtons();
+    if (this.showLaneKeyLabels) {
+      this.buildLaneKeyLabels();
+    }
     if (this.showGearFrame) {
       this.buildGearFrame();
     }
@@ -895,6 +907,90 @@ export class GameRenderer {
         this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
       } catch { /* 텍스처 미로드 시 무시 */ }
     }
+    if (idx >= 0 && idx < this.laneKeyLabels.length) {
+      const entry = this.laneKeyLabels[idx];
+      entry.pressed = pressed;
+      this.drawLaneKeyCap(entry, pressed);
+    }
+  }
+
+  /** 레인 키 라벨 키캡+텍스트 생성 — 튜토리얼 프리뷰(showLaneKeyLabels)에서만 호출된다. */
+  private buildLaneKeyLabels(): void {
+    const cy = this._judgmentLineY + this.judgmentLineOffset / 2;
+
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const cx = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
+
+      const cap = new Graphics();
+      cap.x = cx;
+      cap.y = cy;
+
+      const text = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'sans-serif',
+          fontSize: 14,
+          fontWeight: '800',
+          fill: 0xe5ecef,
+          align: 'center',
+        }),
+      });
+      text.anchor.set(0.5);
+      text.x = cx;
+      text.y = cy;
+      text.resolution = 2;
+
+      this.laneKeyLabelLayer.addChild(cap);
+      this.laneKeyLabelLayer.addChild(text);
+
+      const entry = { cap, text, lane: i + 1, label: '', empty: true, pressed: false };
+      this.drawLaneKeyCap(entry, false);
+      this.laneKeyLabels.push(entry);
+    }
+  }
+
+  /** 키캡 라운드렉트를 상태(empty/idle/pressed)에 맞는 색·위치로 다시 그린다. */
+  private drawLaneKeyCap(
+    entry: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean },
+    pressed: boolean,
+  ): void {
+    const capH = 42;
+    const capW = LANE_WIDTH - 8;
+    const cy = this._judgmentLineY + this.judgmentLineOffset / 2;
+
+    entry.cap.clear();
+    entry.cap.roundRect(-capW / 2, -capH / 2, capW, capH, 4);
+    if (entry.empty) {
+      entry.cap.fill({ color: 0x0a0d0f, alpha: 0.54 });
+      entry.cap.stroke({ width: 1, color: 0xffffff, alpha: 0.14 });
+      entry.text.style.fill = 0x6f767a;
+    } else if (pressed) {
+      entry.cap.fill(0x355f66);
+      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.text.style.fill = 0xffffff;
+    } else {
+      entry.cap.fill(0x303538);
+      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.text.style.fill = 0xe5ecef;
+    }
+
+    const y = pressed && !entry.empty ? cy + 4 : cy;
+    entry.cap.y = y;
+    entry.text.y = y;
+  }
+
+  /** 레인 키 라벨 텍스트·표시 여부 갱신 — 라벨 계산은 React가 하고 렌더러는 그리기만 한다. */
+  setLaneKeyLabels(labels: { lane: number; label: string }[], visible: boolean): void {
+    this.laneKeyLabelLayer.visible = visible;
+    for (const { lane, label } of labels) {
+      const idx = lane - 1;
+      if (idx < 0 || idx >= this.laneKeyLabels.length) continue;
+      const entry = this.laneKeyLabels[idx];
+      entry.label = label;
+      entry.empty = label.trim() === '';
+      entry.text.text = label || '-';
+      this.drawLaneKeyCap(entry, entry.pressed);
+    }
   }
 
   private drawJudgmentLine(): void {
@@ -1437,6 +1533,8 @@ export class GameRenderer {
     this.app.destroy(true, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
+    // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
+    this.laneKeyLabels = [];
     // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음
     for (const gauge of this.gearGauges) {
       if (!gauge.texture.destroyed) gauge.texture.destroy(false);
