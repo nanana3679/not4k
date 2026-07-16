@@ -455,12 +455,13 @@ describe("isEventEntityType", () => {
     expect(isEventEntityType("tutorialDiagram")).toBe(true);
   });
 
-  it("single, double, long, doubleLong, trillZone은 이벤트 타입이 아님", () => {
+  it("single, double, long, doubleLong, trillZone, restZone은 이벤트 타입이 아님", () => {
     expect(isEventEntityType("single")).toBe(false);
     expect(isEventEntityType("double")).toBe(false);
     expect(isEventEntityType("long")).toBe(false);
     expect(isEventEntityType("doubleLong")).toBe(false);
     expect(isEventEntityType("trillZone")).toBe(false);
+    expect(isEventEntityType("restZone")).toBe(false);
   });
 });
 
@@ -786,5 +787,122 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     expect(updated.events[0]).toMatchObject({ type: "bpm", beat: beat(4) });
     expect(updated.events[1]).toMatchObject({ type: "bpm", beat: beat(4) });
     expect(violationsInvolving(validateChart(updated), [{ kind: "event", index: 1 }])).not.toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restZone 배치 (RFD 0019 — trillZone 생성 경로 미러)
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — restZone 배치 (RFD 0019)", () => {
+  it("restZone entity로 레인2에 beat 0→4 드래그하면 chart.restZones에 {lane:2, beat:0, endBeat:4} 추가", () => {
+    const chart = makeChart(); // restZones 필드 부재 → ?? []로 방어되는 경로
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(2, 0);
+    mode.onPointerUp(2, 4);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.restZones).toHaveLength(1);
+    expect(updated.restZones![0]).toMatchObject({ lane: 2, beat: beat(0), endBeat: beat(4) });
+  });
+
+  it("역방향 드래그(beat 6→2)는 beat 2~6으로 정규화되어 커밋", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(1, 6);
+    mode.onPointerUp(1, 2);
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.restZones![0]).toMatchObject({ lane: 1, beat: beat(2), endBeat: beat(6) });
+  });
+
+  it("기존 restZone(레인1)이 있으면 뒤에 append — 레인3 신규 생성 시 총 2개", () => {
+    const chart = makeChart({ restZones: [{ lane: 1, beat: beat(0), endBeat: beat(4) }] });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(3, 8);
+    mode.onPointerUp(3, 12);
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.restZones).toHaveLength(2);
+    expect(updated.restZones![0]).toMatchObject({ lane: 1, beat: beat(0), endBeat: beat(4) });
+    expect(updated.restZones![1]).toMatchObject({ lane: 3, beat: beat(8), endBeat: beat(12) });
+  });
+
+  it("restZone은 extra 레인에서는 생성되지 않는다(가시 레인 1~4 전용)", () => {
+    const chart = makeChart();
+    const callbacks = makeCallbacks(chart, {
+      xToLane: () => null,
+      xToExtraLane: () => 1,
+    });
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(10, 0);
+    mode.onPointerUp(10, 4);
+
+    expect(mode.dragging).toBe(false);
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("노트(레인2, beat 2)를 덮는 restZone(0→4)을 드래그해도 낙관 커밋된다(사전 차단 없음)", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 2, beat: beat(2) }] });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(2, 0);
+    mode.onPointerUp(2, 4);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.restZones).toHaveLength(1);
+    expect(updated.restZones![0]).toMatchObject({ lane: 2, beat: beat(0), endBeat: beat(4) });
+    // 커밋된 상태가 실제로 의미 위반(restZone×노트 배타)임을 고정 — 낙관 커밋의 의미 보존
+    expect(violationsInvolving(validateChart(updated), [{ kind: "restZone", index: 0 }])).not.toHaveLength(0);
+  });
+
+  it("trillZone(레인2, 1~3)을 덮는 restZone(0→4)도 낙관 커밋되고 배타 위반으로 표시된다", () => {
+    const chart = makeChart({ trillZones: [{ lane: 2, beat: beat(1), endBeat: beat(3) }] });
+    const callbacks = makeCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "restZone";
+
+    mode.onPointerDown(2, 0);
+    mode.onPointerUp(2, 4);
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as Chart;
+    expect(updated.restZones).toHaveLength(1);
+    expect(violationsInvolving(validateChart(updated), [{ kind: "restZone", index: 0 }])).not.toHaveLength(0);
+  });
+
+  it("C+휠 엔티티 사이클: trillZone 다음은 restZone, restZone 다음은 single로 순환", () => {
+    const chart = makeChart();
+    const mode = new CreateMode(chart, makeCallbacks(chart));
+    mode.entityType = "trillZone";
+
+    mode.nextEntityType();
+    expect(mode.entityType).toBe("restZone");
+
+    mode.nextEntityType();
+    expect(mode.entityType).toBe("single");
+  });
+
+  it("C+휠 역방향 사이클: single 이전은 restZone", () => {
+    const chart = makeChart();
+    const mode = new CreateMode(chart, makeCallbacks(chart));
+    mode.entityType = "single";
+
+    mode.prevEntityType();
+    expect(mode.entityType).toBe("restZone");
   });
 });
