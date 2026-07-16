@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
+import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
@@ -230,6 +231,8 @@ function ChartEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
+  // 렌더러 준비와 오디오 버퍼 도착의 순서 무관 join — 파형/경계를 정확히 한 번 적용한다.
+  const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
@@ -431,6 +434,24 @@ function ChartEditorPage() {
       onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
+    // 렌더러 준비·오디오 도착 두 비동기가 순서 무관하게 합류하면 파형과 경계를 적용한다.
+    // (재-import 시 새 버퍼로 재적용된다.)
+    const applyWaveform = (buffer: AudioBuffer) => {
+      const r = rendererRef.current;
+      if (!r) return; // feed 계약상 rendererReady 이후에만 호출됨 — 방어
+      const samplesPerPeak = Math.ceil(buffer.sampleRate / 50);
+      const peaks = getWaveformPeaks(buffer, samplesPerPeak);
+      const durationMs = buffer.duration * 1000;
+      r.setWaveformData(peaks, durationMs);
+      // 파형이 전체 타임라인 길이를 바꾸므로 재생 끝 경계·스크롤 클램프 범위도 음원 길이를 따라간다
+      playbackRef.current?.setEndTimeMs(r.getTotalTimelineMs());
+      useEditorStore.getState().setTimelineRangeMs({
+        minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
+        totalTimelineMs: r.getTotalTimelineMs(),
+      });
+    };
+    waveformFeedRef.current = createWaveformFeed(applyWaveform);
+
     renderer.init().then(() => {
       if (!mounted) return;
 
@@ -461,6 +482,9 @@ function ChartEditorPage() {
 
       const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
       setScrollY(initScroll);
+
+      // 렌더러 준비 완료를 파형 join에 알린다 — 오디오가 먼저 도착해 대기 중이면 이 시점에 적용된다.
+      waveformFeedRef.current?.rendererReady();
     });
 
 
@@ -541,19 +565,8 @@ function ChartEditorPage() {
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
       setLoadedAudioBuffer(audioBuffer ?? null);
-      if (audioBuffer && rendererRef.current) {
-        const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
-        const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
-        const durationMs = audioBuffer.duration * 1000;
-        rendererRef.current.setWaveformData(peaks, durationMs);
-        // Update playback end boundary after waveform changes total timeline
-        playback.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
-        // 스크롤 클램프 입력(타임라인 범위)도 음원 길이를 따라간다
-        useEditorStore.getState().setTimelineRangeMs({
-          minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
-          totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
-        });
-      }
+      // 렌더러가 아직 init 전이라도 join이 대기했다가 준비 시점에 적용한다(레이스 방지).
+      if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setLoadedAudioBuffer(null);
@@ -830,12 +843,7 @@ function ChartEditorPage() {
               playbackRef.current.loadAudioFile(file).then(() => {
                 const audioBuffer = playbackRef.current?.audioBufferData;
                 setLoadedAudioBuffer(audioBuffer ?? null);
-                if (audioBuffer && rendererRef.current) {
-                  const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
-                  const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
-                  const durationMs = audioBuffer.duration * 1000;
-                  rendererRef.current.setWaveformData(peaks, durationMs);
-                }
+                if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
               });
             }
           }}
