@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { SettingsPanel } from './SettingsPanel';
 import { CalibrationView } from './CalibrationView';
 
@@ -8,9 +8,11 @@ interface SettingsModalProps {
 
 type ModalView = 'settings' | 'calibration';
 
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 /**
- * 설정을 모달로 띄우는 래퍼. 프레임(오버레이·크기·닫기 상호작용)과 내부 뷰 전환만
- * 담당하고, 내용은 {@link SettingsPanel} / {@link CalibrationView}에 위임한다.
+ * 설정을 모달로 띄우는 래퍼. 프레임(오버레이·크기·닫기 상호작용·포커스 트랩)과 내부 뷰
+ * 전환만 담당하고, 내용은 {@link SettingsPanel} / {@link CalibrationView}에 위임한다.
  *
  * Calibration은 별도 화면(route)이 아니라 이 모달의 서브뷰다. 설정에서 Calibrate를
  * 누르면 보정 뷰로 전환하고, 보정 뷰의 Back은 다시 설정 뷰로 돌아온다(모달은 유지).
@@ -18,9 +20,57 @@ type ModalView = 'settings' | 'calibration';
  */
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [view, setView] = useState<ModalView>('settings');
+  const frameRef = useRef<HTMLElement>(null);
 
   // 보정 중에는 실수로 진행이 날아가지 않도록 백드롭 클릭 닫기를 막는다.
   const dismissOnBackdrop = view === 'settings';
+
+  // 열릴 때 포커스를 모달 안으로 가두고(Tab 트랩), 닫히면 이전 포커스로 복원한다.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const visibleFocusables = () => {
+      const frame = frameRef.current;
+      if (!frame) return [] as HTMLElement[];
+      return Array.from(frame.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const items = visibleFocusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      const frame = frameRef.current;
+      if (frame && !frame.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      previouslyFocused?.focus?.();
+    };
+  }, []);
+
+  // 뷰가 바뀌면(설정↔보정) 새 뷰의 첫 포커스 요소로 이동한다. 사라진 요소에 포커스가
+  // 남아 body로 떨어지는 것을 막는다.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const first = Array.from(frame.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .find((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    first?.focus();
+  }, [view]);
 
   return (
     <div
@@ -29,9 +79,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       data-settings-modal-overlay="true"
     >
       <section
+        ref={frameRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-label={view === 'calibration' ? 'Offset calibration' : 'Settings'}
         style={modalStyles.frame}
         onMouseDown={(event) => event.stopPropagation()}
       >

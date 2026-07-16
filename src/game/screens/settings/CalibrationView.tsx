@@ -166,7 +166,18 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
 
+  const stopRun = useCallback(() => {
+    runningRef.current = false;
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+  }, []);
+
   const startCalibration = useCallback((type: CalibrationType) => {
+    // 이전 실행(Retry 등)의 rAF·AudioContext를 먼저 정리해 누적을 막는다.
+    stopRun();
     setCalibType(type);
     setPhase('running');
     setTapCount(0);
@@ -174,9 +185,6 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
     diffsRef.current = [];
     beatIndexRef.current = 0;
     runningRef.current = true;
-
-    const audioCtx = new AudioContext();
-    audioCtxRef.current = audioCtx;
 
     // Start after a short delay to let user prepare
     const startDelay = 1500;
@@ -186,18 +194,12 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
     if (type === 'visual') {
       startVisualLoop();
     } else {
+      // AudioContext는 오디오 보정에서만 생성한다(시각 보정은 소리를 쓰지 않음).
+      const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
       startAudioLoop(audioCtx);
     }
-  }, [startVisualLoop, startAudioLoop]);
-
-  const stopRun = useCallback(() => {
-    runningRef.current = false;
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
-  }, []);
+  }, [stopRun, startVisualLoop, startAudioLoop]);
 
   const handleBack = useCallback(() => {
     stopRun();
@@ -247,9 +249,8 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       }
 
       if (currentTap >= totalTaps) {
-        // Done
-        runningRef.current = false;
-        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        // Done — rAF 취소 + AudioContext close(누적 방지)까지 한 번에 정리한다.
+        stopRun();
 
         try {
           const calcResult = calculateCalibrationResult(diffsRef.current);
@@ -263,7 +264,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, tapCount, totalTaps, handleBack]);
+  }, [phase, tapCount, totalTaps, handleBack, stopRun]);
 
   // ESC returns to the select step from select/result (running is handled by the tap listener).
   useEffect(() => {
@@ -290,37 +291,34 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   // --- Render ---
   if (phase === 'select') {
     return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>Calibration</h1>
-          <button style={styles.backBtn} onClick={handleBack}>Back</button>
-        </div>
-        <div style={styles.content}>
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>Visual Calibration</h2>
-            <p style={styles.cardDesc}>
-              노트가 판정선에 도달하는 것을 보고 아무 키나 누르세요.
-              <br />
-              소리 없이 시각 정보만 사용합니다.
-              <br />
-              결과는 Judgment Offset에 반영됩니다.
-            </p>
-            <button style={styles.startBtn} onClick={() => startCalibration('visual')}>
-              Start Visual Calibration
-            </button>
-          </div>
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>Audio Calibration</h2>
-            <p style={styles.cardDesc}>
-              비트 소리에 맞춰 아무 키나 누르세요.
-              <br />
-              화면에 노트가 표시되지 않습니다.
-              <br />
-              결과는 Audio Offset에 반영됩니다.
-            </p>
-            <button style={styles.startBtn} onClick={() => startCalibration('audio')}>
-              Start Audio Calibration
-            </button>
+      <div className="cal-view">
+        <style>{calibrationCss}</style>
+        <header className="cal-header">
+          <h1 className="cal-title">Calibration</h1>
+          <button className="cal-back" onClick={handleBack}>Back</button>
+        </header>
+        <div className="cal-content">
+          <div className="cal-cards">
+            <section className="cal-card">
+              <h2 className="cal-card-title">Visual</h2>
+              <p className="cal-card-desc">
+                Tap any key the moment the note reaches the judgment line — visual cue only, no sound.
+                Result applies to <strong>Judgment Offset</strong>.
+              </p>
+              <button className="cal-btn cal-btn--accent" onClick={() => startCalibration('visual')}>
+                Start Visual
+              </button>
+            </section>
+            <section className="cal-card">
+              <h2 className="cal-card-title">Audio</h2>
+              <p className="cal-card-desc">
+                Tap any key on the beat. No notes are shown.
+                Result applies to <strong>Audio Offset</strong>.
+              </p>
+              <button className="cal-btn cal-btn--accent" onClick={() => startCalibration('audio')}>
+                Start Audio
+              </button>
+            </section>
           </div>
         </div>
       </div>
@@ -329,42 +327,32 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
   if (phase === 'running') {
     const isWarmup = tapCount < CALIBRATION_WARMUP_TAPS;
+    const progress = Math.max(0, tapCount - CALIBRATION_WARMUP_TAPS) / effectiveTaps;
     return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>
-            {calibType === 'visual' ? 'Visual' : 'Audio'} Calibration
-          </h1>
-          <button style={styles.backBtn} onClick={handleBack}>Cancel</button>
-        </div>
-        <div style={styles.runningContent}>
+      <div className="cal-view">
+        <style>{calibrationCss}</style>
+        <header className="cal-header">
+          <h1 className="cal-title">{calibType === 'visual' ? 'Visual' : 'Audio'} Calibration</h1>
+          <button className="cal-back" onClick={handleBack}>Cancel</button>
+        </header>
+        <div className="cal-content cal-content--center">
           {calibType === 'visual' && (
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={500}
-              style={styles.canvas}
-            />
+            <canvas ref={canvasRef} width={400} height={500} className="cal-canvas" />
           )}
           {calibType === 'audio' && (
-            <div style={styles.audioVisual}>
-              <div style={styles.listenIcon}>&#9835;</div>
-              <p style={styles.listenText}>소리에 맞춰 아무 키나 누르세요</p>
+            <div className="cal-audio">
+              <div className="cal-audio-icon" aria-hidden="true">&#9835;</div>
+              <p className="cal-audio-text">Tap any key to the sound</p>
             </div>
           )}
-          <div style={styles.progress}>
-            <span style={styles.progressText}>
+          <div className="cal-progress">
+            <span className="cal-progress-text">
               {isWarmup
-                ? `준비 중... (${tapCount}/${CALIBRATION_WARMUP_TAPS})`
+                ? `Warming up… (${tapCount}/${CALIBRATION_WARMUP_TAPS})`
                 : `${tapCount - CALIBRATION_WARMUP_TAPS} / ${effectiveTaps}`}
             </span>
-            <div style={styles.progressBar}>
-              <div
-                style={{
-                  ...styles.progressFill,
-                  width: `${(Math.max(0, tapCount - CALIBRATION_WARMUP_TAPS) / effectiveTaps) * 100}%`,
-                }}
-              />
+            <div className="cal-progress-bar">
+              <div className="cal-progress-fill" style={{ width: `${progress * 100}%` }} />
             </div>
           </div>
         </div>
@@ -375,243 +363,127 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   // phase === 'result'
   const offsetLabel = calibType === 'visual' ? 'Judgment Offset' : 'Audio Offset';
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Calibration Result</h1>
-      </div>
-      <div style={styles.content}>
-        <div style={styles.resultCard}>
-          <h2 style={styles.cardTitle}>{calibType === 'visual' ? 'Visual' : 'Audio'} Calibration</h2>
+    <div className="cal-view">
+      <style>{calibrationCss}</style>
+      <header className="cal-header">
+        <h1 className="cal-title">Calibration Result</h1>
+      </header>
+      <div className="cal-content">
+        <section className="cal-card cal-card--result">
+          <h2 className="cal-card-title">{calibType === 'visual' ? 'Visual' : 'Audio'} Calibration</h2>
           {result && result.sampleCount > 0 ? (
             <>
-              <div style={styles.resultValue}>
-                <span style={styles.resultLabel}>{offsetLabel}:</span>
-                <span style={styles.resultNumber}>{result.offset} ms</span>
+              <div className="cal-result-value">
+                <span className="cal-result-num">{result.offset}</span>
+                <span className="cal-result-unit">ms</span>
               </div>
-              <div style={styles.resultMeta}>
-                <span>Standard Deviation: {result.stdDev} ms</span>
-                <span>Samples: {result.sampleCount}</span>
+              <p className="cal-result-label">{offsetLabel}</p>
+              <div className="cal-result-meta">
+                <span>σ {result.stdDev} ms</span>
+                <span>{result.sampleCount} samples</span>
               </div>
-              <div style={styles.resultActions}>
-                <button style={styles.applyBtn} onClick={applyResult}>
-                  Apply
-                </button>
-                <button style={styles.retryBtn} onClick={() => startCalibration(calibType)}>
-                  Retry
-                </button>
-                <button style={styles.backBtn} onClick={() => setPhase('select')}>
-                  Cancel
-                </button>
+              <div className="cal-actions">
+                <button className="cal-btn cal-btn--accent" onClick={applyResult}>Apply</button>
+                <button className="cal-btn" onClick={() => startCalibration(calibType)}>Retry</button>
+                <button className="cal-btn cal-btn--ghost" onClick={() => setPhase('select')}>Cancel</button>
               </div>
             </>
           ) : (
             <>
-              <p style={styles.cardDesc}>측정 데이터가 부족합니다. 다시 시도해주세요.</p>
-              <div style={styles.resultActions}>
-                <button style={styles.retryBtn} onClick={() => startCalibration(calibType)}>
-                  Retry
-                </button>
-                <button style={styles.backBtn} onClick={() => setPhase('select')}>
-                  Back
-                </button>
+              <p className="cal-card-desc">Not enough measurements. Please try again.</p>
+              <div className="cal-actions">
+                <button className="cal-btn cal-btn--accent" onClick={() => startCalibration(calibType)}>Retry</button>
+                <button className="cal-btn cal-btn--ghost" onClick={() => setPhase('select')}>Back</button>
               </div>
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-    minHeight: 0,
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-    flexShrink: 0,
-  },
-  title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
-  },
-  backBtn: {
-    padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  content: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    gap: '24px',
-  },
-  card: {
-    backgroundColor: '#2a2a2a',
-    padding: '32px',
-    borderRadius: '8px',
-    border: '1px solid #333',
-    width: '100%',
-    maxWidth: '480px',
-    textAlign: 'center',
-  },
-  cardTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    margin: '0 0 12px',
-    color: '#00ffff',
-  },
-  cardDesc: {
-    fontSize: '14px',
-    color: '#aaa',
-    lineHeight: 1.6,
-    margin: '0 0 20px',
-  },
-  startBtn: {
-    padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-  },
-  runningContent: {
-    flex: 1,
-    minHeight: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    gap: '24px',
-  },
-  canvas: {
-    border: '1px solid #333',
-    borderRadius: '8px',
-    backgroundColor: '#111',
-    maxWidth: '100%',
-    height: 'auto',
-  },
-  audioVisual: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '16px',
-    padding: '48px',
-  },
-  listenIcon: {
-    fontSize: '72px',
-    color: '#00ffff',
-  },
-  listenText: {
-    fontSize: '16px',
-    color: '#aaa',
-  },
-  progress: {
-    width: '100%',
-    maxWidth: '400px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    alignItems: 'center',
-  },
-  progressText: {
-    fontSize: '14px',
-    color: '#e0e0e0',
-  },
-  progressBar: {
-    width: '100%',
-    height: '8px',
-    backgroundColor: '#333',
-    borderRadius: '4px',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#00ffff',
-    borderRadius: '4px',
-    transition: 'width 0.2s',
-  },
-  resultCard: {
-    backgroundColor: '#2a2a2a',
-    padding: '32px',
-    borderRadius: '8px',
-    border: '1px solid #333',
-    width: '100%',
-    maxWidth: '480px',
-    textAlign: 'center',
-  },
-  resultValue: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'baseline',
-    gap: '12px',
-    margin: '24px 0',
-  },
-  resultLabel: {
-    fontSize: '16px',
-    color: '#aaa',
-  },
-  resultNumber: {
-    fontSize: '36px',
-    fontWeight: 700,
-    color: '#00ffff',
-  },
-  resultMeta: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '24px',
-    fontSize: '13px',
-    color: '#888',
-    marginBottom: '24px',
-  },
-  resultActions: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '12px',
-  },
-  applyBtn: {
-    padding: '10px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-  },
-  retryBtn: {
-    padding: '10px 24px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 500,
-  },
-};
+const calibrationCss = `
+.cal-view {
+  --bg: #1a1a1a; --surface: #232323; --border: #2f2f2f;
+  --ink: #e6e6e6; --muted: #8c8c8c; --accent: #00e5e5; --accent-ink: #06181a;
+  display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
+  background: var(--bg); color: var(--ink);
+  font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
+}
+.cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cal-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.cal-back {
+  padding: 6px 14px; font-size: 13px; color: var(--muted);
+  background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.cal-back:hover { color: var(--ink); border-color: #4a4a4a; background: #202020; }
+.cal-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.cal-content {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 24px;
+}
+.cal-content--center { justify-content: center; }
+
+.cal-cards { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 460px; }
+.cal-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 22px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+}
+.cal-card--result { align-items: center; text-align: center; max-width: 380px; width: 100%; }
+.cal-card-title { margin: 0; font-size: 14px; font-weight: 650; color: var(--accent); }
+.cal-card-desc { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+.cal-card-desc strong { color: var(--ink); font-weight: 600; }
+
+.cal-btn {
+  padding: 9px 18px; font-size: 13px; font-weight: 550; color: var(--ink);
+  background: #2a2a2a; border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.cal-btn:hover { background: #333; border-color: #4a4a4a; }
+.cal-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-btn--accent {
+  color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 650;
+  align-self: flex-start;
+}
+.cal-btn--accent:hover { background: #16d1d1; border-color: #16d1d1; }
+.cal-card--result .cal-btn--accent { align-self: auto; }
+.cal-btn--ghost { background: transparent; color: var(--muted); }
+.cal-btn--ghost:hover { background: #202020; color: var(--ink); }
+
+.cal-canvas {
+  border: 1px solid var(--border); border-radius: 10px; background: #111;
+  max-width: 100%; height: auto;
+}
+.cal-audio { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 40px; }
+.cal-audio-icon { font-size: 68px; line-height: 1; color: var(--accent); }
+.cal-audio-text { margin: 0; font-size: 15px; color: var(--muted); }
+
+.cal-progress {
+  width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.cal-progress-text { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cal-progress-bar { width: 100%; height: 8px; background: #2a2a2a; border-radius: 999px; overflow: hidden; }
+.cal-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 180ms ease; }
+
+.cal-result-value { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.cal-result-num { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.cal-result-unit { font-size: 16px; color: var(--muted); }
+.cal-result-label { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.cal-result-meta {
+  display: flex; gap: 18px; margin: 14px 0 4px;
+  font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.cal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-view *, .cal-progress-fill { transition-duration: 1ms !important; }
+}
+`;
