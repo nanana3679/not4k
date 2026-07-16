@@ -294,9 +294,10 @@ export class GameRenderer {
     this.app.stage.addChild(this.noteLayer);
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
+    // 레인 키 라벨은 마스크 위에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
+    this.app.stage.addChild(this.laneKeyLabelLayer);
     this.app.stage.addChild(this.gearFrameLayer);
     this.app.stage.addChild(this.effectLayer);
-    this.app.stage.addChild(this.laneKeyLabelLayer);
     this.app.stage.addChild(this.uiLayer);
 
     this.uiLayer.addChild(this.comboText);
@@ -954,6 +955,9 @@ export class GameRenderer {
     entry: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean },
     pressed: boolean,
   ): void {
+    // dispose 경합 방어 — app.destroy로 이미 파괴된 Graphics에 clear()를 부르면
+    // 내부 context가 null이라 크래시한다("Cannot read properties of null (reading 'clear')").
+    if (entry.cap.destroyed) return;
     const capH = 42;
     const capW = LANE_WIDTH - 8;
     const cy = this._judgmentLineY + this.judgmentLineOffset / 2;

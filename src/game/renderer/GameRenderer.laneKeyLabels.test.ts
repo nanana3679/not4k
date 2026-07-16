@@ -12,12 +12,19 @@ describe('GameRenderer 레인 키 라벨', () => {
     expect(gameRendererSource).toContain('this.buildLaneKeyLabels()');
   });
 
-  it('laneKeyLabelLayer는 maskGraphic보다 뒤(위)에 addChild 되어 마스크에 가려지지 않음', () => {
+  it('laneKeyLabelLayer는 마스크보다 위·effectLayer(bomb)보다 아래에 addChild 되어 마스크엔 안 가리고 bomb엔 가림', () => {
     const maskIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.maskGraphic)');
     const labelLayerIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.laneKeyLabelLayer)');
+    const effectIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.effectLayer)');
     expect(maskIndex).toBeGreaterThan(-1);
     expect(labelLayerIndex).toBeGreaterThan(-1);
+    expect(effectIndex).toBeGreaterThan(-1);
     expect(labelLayerIndex).toBeGreaterThan(maskIndex);
+    expect(labelLayerIndex).toBeLessThan(effectIndex);
+  });
+
+  it('drawLaneKeyCap은 dispose로 파괴된 키캡 Graphics에 clear()를 부르지 않도록 destroyed를 먼저 확인', () => {
+    expect(gameRendererSource).toContain('if (entry.cap.destroyed) return');
   });
 
   it('setLaneKeyLabels는 visible 인자로 laneKeyLabelLayer 표시 여부를 제어', () => {
