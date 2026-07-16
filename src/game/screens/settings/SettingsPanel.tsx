@@ -1,11 +1,21 @@
-import { useGameStore, PRESET_BINDINGS } from '../stores';
-import { AVAILABLE_SKINS } from '../skin';
+import { useGameStore, PRESET_BINDINGS } from '../../stores';
+import { AVAILABLE_SKINS } from '../../skin';
 import { useState, useEffect, useRef } from 'react';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 
-export function SettingsScreen() {
-  const { settings, updateSettings, setScreen } = useGameStore();
+interface SettingsPanelProps {
+  /**
+   * 설정을 닫는 동작. 풀스크린 래퍼는 라우팅 이동을, 모달 래퍼는 모달 닫기를 주입한다.
+   * 패널은 "어디로 가는지"를 모른 채 닫기 의사만 전달한다.
+   */
+  onClose: () => void;
+  /** 오프셋 보정 뷰로 전환하는 동작. 모달 래퍼가 내부 뷰 전환을 주입한다. */
+  onCalibrate: () => void;
+}
+
+export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
+  const { settings, updateSettings } = useGameStore();
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [warningMessage, setWarningMessage] = useState<string>('');
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,6 +47,12 @@ export function SettingsScreen() {
       event.preventDefault();
       const keyCode = event.code;
 
+      // ESC cancels rebinding instead of binding Escape.
+      if (keyCode === 'Escape') {
+        setListeningLane(null);
+        return;
+      }
+
       // Check if key is already bound to any lane
       const allKeys = Object.values(settings.keyBindings).flat();
       if (allKeys.includes(keyCode)) {
@@ -56,9 +72,21 @@ export function SettingsScreen() {
       setListeningLane(null);
     };
 
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [listeningLane, settings.keyBindings, updateSettings]);
+
+  // ESC closes the panel when not in the middle of rebinding a key.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (listeningLane) return; // listening effect handles ESC (cancel)
+      event.preventDefault();
+      onClose();
+    };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [listeningLane, settings.keyBindings, updateSettings]);
+  }, [listeningLane, onClose]);
 
   const handleRemoveKey = (lane: Lane, keyToRemove: string) => {
     const currentKeys = settings.keyBindings[lane];
@@ -85,11 +113,12 @@ export function SettingsScreen() {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.panel}>
+      <style>{settingsPanelCss}</style>
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
-        <button style={styles.backBtn} onClick={() => setScreen('songSelect')}>
-          Back
+        <button style={styles.backBtn} onClick={onClose}>
+          Close
         </button>
       </div>
 
@@ -113,6 +142,7 @@ export function SettingsScreen() {
                         <button
                           style={styles.removeKeyButton}
                           onClick={() => handleRemoveKey(lane, keyCode)}
+                          aria-label={`Remove key ${keyCode} from ${lane}`}
                           title="Remove key"
                         >
                           ×
@@ -120,6 +150,7 @@ export function SettingsScreen() {
                       </div>
                     ))}
                     <button
+                      className={listeningLane === lane ? 'not4k-settings-listening' : undefined}
                       style={{
                         ...styles.addKeyButton,
                         ...(listeningLane === lane ? styles.addKeyButtonListening : {}),
@@ -162,6 +193,7 @@ export function SettingsScreen() {
                 step="0.01"
                 value={settings.masterVolume ?? 1}
                 onChange={(e) => updateSettings({ masterVolume: Number(e.target.value) })}
+                aria-label="Master Volume"
                 style={styles.slider}
               />
             </div>
@@ -187,6 +219,7 @@ export function SettingsScreen() {
                 step="0.05"
                 value={settings.playSpeed}
                 onChange={(e) => updateSettings({ playSpeed: Number(e.target.value) })}
+                aria-label="Play Speed"
                 style={styles.slider}
               />
             </div>
@@ -200,6 +233,7 @@ export function SettingsScreen() {
                 step="50"
                 value={settings.scrollSpeed}
                 onChange={(e) => updateSettings({ scrollSpeed: Number(e.target.value) })}
+                aria-label="Scroll Speed"
                 style={styles.slider}
               />
             </div>
@@ -213,12 +247,13 @@ export function SettingsScreen() {
                 step="1"
                 value={settings.liftPercent}
                 onChange={(e) => updateSettings({ liftPercent: Number(e.target.value) })}
+                aria-label="Lift percent"
                 style={styles.slider}
               />
             </div>
 
             <div style={{ ...styles.setting, opacity: 0.4 }}>
-              <label style={styles.label}>Sudden (%): {settings.suddenPercent} (미구현)</label>
+              <label style={styles.label}>Sudden (%): {settings.suddenPercent} (Coming soon)</label>
               <input
                 type="range"
                 min="0"
@@ -226,6 +261,7 @@ export function SettingsScreen() {
                 step="1"
                 value={settings.suddenPercent}
                 disabled
+                aria-label="Sudden percent (coming soon)"
                 style={styles.slider}
               />
             </div>
@@ -276,7 +312,7 @@ export function SettingsScreen() {
             <div style={styles.setting}>
               <button
                 style={styles.calibrationBtn}
-                onClick={() => setScreen('calibration')}
+                onClick={onCalibrate}
               >
                 Calibrate Offsets
               </button>
@@ -351,11 +387,24 @@ export function SettingsScreen() {
   );
 }
 
+const settingsPanelCss = `
+@keyframes not4kSettingsPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .not4k-settings-listening {
+    animation: none !important;
+  }
+}
+`;
+
 const styles: Record<string, React.CSSProperties> = {
-  container: {
+  panel: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
+    minHeight: 0,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
     color: '#e0e0e0',
@@ -368,6 +417,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px 24px',
     backgroundColor: '#2a2a2a',
     borderBottom: '1px solid #333',
+    flexShrink: 0,
   },
   title: {
     margin: 0,
@@ -385,6 +435,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   content: {
     flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
@@ -475,7 +526,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#00ffff',
     color: '#1a1a1a',
     border: '1px solid #00ffff',
-    animation: 'pulse 1s infinite',
+    animation: 'not4kSettingsPulse 1s infinite',
   },
   presetButtons: {
     display: 'flex',

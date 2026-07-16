@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useGameStore } from '../stores';
+import { useGameStore } from '../../stores';
 import {
   calculateCalibrationResult,
   CALIBRATION_INTERVAL_MS,
   CALIBRATION_TOTAL_TAPS,
   CALIBRATION_WARMUP_TAPS,
   type CalibrationResult,
-} from '../calibration/calibrationLogic';
+} from '../../calibration/calibrationLogic';
 
 type CalibrationType = 'visual' | 'audio';
 type Phase = 'select' | 'running' | 'result';
+
+interface CalibrationViewProps {
+  /** 보정을 마치고 설정 뷰로 돌아가는 동작(모달을 닫지는 않는다). */
+  onExit: () => void;
+}
 
 /** 비프음을 생성하여 재생한다 (OscillatorNode 사용). */
 function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
@@ -28,8 +33,8 @@ function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
   osc.stop(now + durationMs / 1000 + 0.01);
 }
 
-export function CalibrationScreen() {
-  const { updateSettings, setScreen } = useGameStore();
+export function CalibrationView({ onExit }: CalibrationViewProps) {
+  const { updateSettings } = useGameStore();
   const [phase, setPhase] = useState<Phase>('select');
   const [calibType, setCalibType] = useState<CalibrationType>('visual');
   const [tapCount, setTapCount] = useState(0);
@@ -185,12 +190,36 @@ export function CalibrationScreen() {
     }
   }, [startVisualLoop, startAudioLoop]);
 
+  const stopRun = useCallback(() => {
+    runningRef.current = false;
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+  }, []);
+
+  const handleBack = useCallback(() => {
+    stopRun();
+    if (phase === 'select') {
+      onExit();
+    } else {
+      setPhase('select');
+    }
+  }, [phase, stopRun, onExit]);
+
   // --- Handle tap input ---
   useEffect(() => {
     if (phase !== 'running') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      // ESC cancels the running calibration instead of counting as a tap.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleBack();
+        return;
+      }
       e.preventDefault();
 
       const now = e.timeStamp; // high-resolution timestamp
@@ -234,7 +263,19 @@ export function CalibrationScreen() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, tapCount, totalTaps]);
+  }, [phase, tapCount, totalTaps, handleBack]);
+
+  // ESC returns to the select step from select/result (running is handled by the tap listener).
+  useEffect(() => {
+    if (phase === 'running') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      handleBack();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [phase, handleBack]);
 
   const applyResult = () => {
     if (!result) return;
@@ -244,20 +285,6 @@ export function CalibrationScreen() {
       updateSettings({ audioOffsetMs: result.offset });
     }
     setPhase('select');
-  };
-
-  const handleBack = () => {
-    runningRef.current = false;
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
-    if (phase === 'select') {
-      setScreen('settings');
-    } else {
-      setPhase('select');
-    }
   };
 
   // --- Render ---
@@ -400,7 +427,8 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
+    minHeight: 0,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
     color: '#e0e0e0',
@@ -413,6 +441,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px 24px',
     backgroundColor: '#2a2a2a',
     borderBottom: '1px solid #333',
+    flexShrink: 0,
   },
   title: {
     margin: 0,
@@ -430,6 +459,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   content: {
     flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
@@ -471,6 +501,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   runningContent: {
     flex: 1,
+    minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -482,6 +513,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #333',
     borderRadius: '8px',
     backgroundColor: '#111',
+    maxWidth: '100%',
+    height: 'auto',
   },
   audioVisual: {
     display: 'flex',
