@@ -143,7 +143,7 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
           ))}
         </nav>
 
-        <div className="stg-content" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
+        <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
           {section === 'controls' && (
             <ControlsSection
               keyBindings={settings.keyBindings}

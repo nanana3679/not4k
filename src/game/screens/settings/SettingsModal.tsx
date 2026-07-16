@@ -69,9 +69,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (!frame) return;
     // 설정 뷰에서는 현재 섹션 내비 항목에 포커스를 둔다. 첫 포커스가 헤더 Close 버튼이면
     // 열자마자 Enter로 즉시 닫히므로. 없으면(보정 뷰) 첫 포커스 가능 요소로.
+    const isFocusable = (el: HTMLElement | null): el is HTMLElement =>
+      !!el && !el.hasAttribute('disabled') && el.offsetParent !== null;
     const preferred = frame.querySelector<HTMLElement>('[aria-current="page"]');
-    const target = preferred ?? Array.from(frame.querySelectorAll<HTMLElement>(FOCUSABLE))
-      .find((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    const target = isFocusable(preferred)
+      ? preferred
+      : Array.from(frame.querySelectorAll<HTMLElement>(FOCUSABLE)).find(isFocusable);
     target?.focus();
   }, [view]);
 
