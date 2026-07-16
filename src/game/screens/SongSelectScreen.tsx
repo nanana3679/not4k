@@ -46,6 +46,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const { selectSong, setScreen } = useGameStore();
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
+  const calibrationActive = useGameStore((state) => state.calibrationActive);
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
   const playAllowed = canStartGameplay(gameExperience);
@@ -99,7 +100,8 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   });
 
   const { stopPreview, playPreviewAt } = usePreviewAudio(songs, focusedSongIndex, {
-    enabled: previewAllowed,
+    // 보정 중에는 프리뷰를 페이드아웃해 멈춘다(보정음과 겹치지 않게). 나가면 페이드인 재개.
+    enabled: previewAllowed && !calibrationActive,
     autoPlay: previewAutoPlay,
   });
   // ref를 최신 stopPreview로 동기화

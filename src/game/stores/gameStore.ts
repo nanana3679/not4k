@@ -51,6 +51,11 @@ interface GameState {
    * 서브뷰라 별도 화면 전환이 없다. UI 상태이므로 영속화하지 않는다(새로고침 시 닫힘).
    */
   settingsOpen: boolean;
+  /**
+   * 설정 모달의 Calibration 서브뷰 활성 여부. 보정 중에는 곡 선택 프리뷰 음원을
+   * 페이드아웃해 멈추고(보정음과 겹치지 않게), 보정을 나가면 페이드인으로 재개한다.
+   */
+  calibrationActive: boolean;
   settings: GameSettings;
   selectedSongId: string | null;
   selectedDifficulty: string | null;
@@ -62,6 +67,7 @@ interface GameState {
 
   setScreen: (screen: Screen) => void;
   setSettingsOpen: (open: boolean) => void;
+  setCalibrationActive: (active: boolean) => void;
   updateSettings: (partial: Partial<GameSettings>) => void;
   updateKeyBindings: (bindings: Partial<KeyBindings>) => void;
   selectSong: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
@@ -135,6 +141,7 @@ export const useGameStore = create<GameState>()(
     (set) => ({
       screen: 'title',
       settingsOpen: false,
+      calibrationActive: false,
       settings: DEFAULT_SETTINGS,
       selectedSongId: null,
       selectedDifficulty: null,
@@ -148,9 +155,10 @@ export const useGameStore = create<GameState>()(
 
       // 화면을 전환하면 설정 모달은 항상 닫는다. 모달은 곡 선택 위에만 뜨는 오버레이라
       // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
-      setScreen: (screen) => set({ screen, settingsOpen: false }),
+      setScreen: (screen) => set({ screen, settingsOpen: false, calibrationActive: false }),
 
-      setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setSettingsOpen: (open) => set(open ? { settingsOpen: true } : { settingsOpen: false, calibrationActive: false }),
+      setCalibrationActive: (active) => set({ calibrationActive: active }),
 
       updateSettings: (partial) => set((state) => ({
         settings: { ...state.settings, ...partial },

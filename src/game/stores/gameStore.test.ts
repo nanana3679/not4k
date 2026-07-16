@@ -98,3 +98,30 @@ describe('gameStore — gameplayRange', () => {
     });
   });
 });
+
+describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어)', () => {
+  it('setCalibrationActive(true)면 calibrationActive가 true가 된다', () => {
+    useGameStore.getState().setCalibrationActive(true);
+    expect(useGameStore.getState().calibrationActive).toBe(true);
+  });
+
+  it('보정 활성 중 설정 모달을 닫으면(setSettingsOpen(false)) calibrationActive도 false로 리셋', () => {
+    useGameStore.getState().setSettingsOpen(true);
+    useGameStore.getState().setCalibrationActive(true);
+    useGameStore.getState().setSettingsOpen(false);
+    expect(useGameStore.getState().calibrationActive).toBe(false);
+    expect(useGameStore.getState().settingsOpen).toBe(false);
+  });
+
+  it('보정 활성 중 화면 전환(setScreen) 시 calibrationActive false로 리셋', () => {
+    useGameStore.getState().setCalibrationActive(true);
+    useGameStore.getState().setScreen('title');
+    expect(useGameStore.getState().calibrationActive).toBe(false);
+  });
+
+  it('설정 모달을 여는 것(setSettingsOpen(true))은 진행 중인 calibrationActive를 건드리지 않는다', () => {
+    useGameStore.getState().setCalibrationActive(true);
+    useGameStore.getState().setSettingsOpen(true);
+    expect(useGameStore.getState().calibrationActive).toBe(true);
+  });
+});

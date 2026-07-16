@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { SettingsPanel } from './SettingsPanel';
 import { CalibrationView } from './CalibrationView';
 import { color, radius } from '../../../shared/theme';
+import { useGameStore } from '../../stores';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -22,6 +23,13 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [view, setView] = useState<ModalView>('settings');
   const frameRef = useRef<HTMLElement>(null);
+  const setCalibrationActive = useGameStore((s) => s.setCalibrationActive);
+
+  // 보정 뷰 진입/이탈을 전역에 알린다 → 곡 선택 프리뷰가 페이드아웃/인으로 멈췄다 재개.
+  useEffect(() => {
+    setCalibrationActive(view === 'calibration');
+    return () => setCalibrationActive(false);
+  }, [view, setCalibrationActive]);
 
   // 보정 중에는 실수로 진행이 날아가지 않도록 백드롭 클릭 닫기를 막는다.
   const dismissOnBackdrop = view === 'settings';
