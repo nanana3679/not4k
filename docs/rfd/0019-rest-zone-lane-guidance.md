@@ -1,6 +1,6 @@
 # RFD 0019: 휴지 구간(`restZone`) — 저작 레인 안내
 
-**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 저작 UX·restZone 렌더·위반 해칭 미구현
+**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 튜토리얼 rest-zone 프리뷰 추가 — restZone 첫 유저 노출 (2026-07-16, PR #130) · 에디터 저작 UX·restZone 렌더·위반 해칭 미구현
 
 **구현 기록 (2026-07-16, Phase 1):** 시각 효과만 눈으로 확정하기 위한 프로토타입. 활성 레인 base 톤을 올리고(`LANE_BG_EVEN/ODD` = 0x26263f/0x202038) 빈 구간을 어두운 밴드로 dim(`REST_ZONE_ALPHA` = 0.72). 밴드는 `trillZone` 렌더 패턴을 복제(스크롤·컬링·풀), 다음 점유 1박 전에 종료. 이 단계의 구간 데이터는 **`restZonePreview.ts`의 throwaway 자동 파생**(노트 공백 threshold 4박)이며 Phase 2에서 저작 데이터로 교체·삭제한다. threshold 4박·margin 1박·dim/리프트 값이 시각 검증으로 확정됐다.
 

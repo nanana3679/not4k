@@ -380,7 +380,7 @@ const restZoneChart = makeChart(
   ],
   [], // extraEvents 없음
   [
-    // restZone: 2레인은 1~4박 dim, 3레인은 5~8박 dim (트릴 레인과 안 겹침)
+    // restZone: 2레인 beat 1→5, 3레인 beat 5→9 dim (트릴 레인과 안 겹침)
     { lane: 2, beat: beat(1), endBeat: beat(5) },
     { lane: 3, beat: beat(5), endBeat: beat(9) },
   ],
