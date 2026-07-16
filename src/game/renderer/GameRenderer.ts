@@ -6,9 +6,7 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
-// [Phase 1 프리뷰 · THROWAWAY]
-import { deriveRestZonesForPreview, type RestZone } from "./restZonePreview";
+import type { NoteEntity, TrillZone, RestZone, BpmMarker, ChartEvent } from "../../shared";
 import { beatToMs, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -108,7 +106,7 @@ export class GameRenderer {
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
   private trillZones: readonly TrillZone[] = [];
-  // [Phase 1 프리뷰 · THROWAWAY] 임시 파생된 휴지 구간. Phase 2에서 chartData.restZones로 교체.
+  // 휴지 구간(RFD 0019) — 저작 데이터. 레인 구간을 dim해 손 파킹 창을 안내한다.
   private restZones: readonly RestZone[] = [];
   private bpmMarkers: readonly BpmMarker[] = [];
   private measureTimesMs: number[] = [];
@@ -1137,6 +1135,7 @@ export class GameRenderer {
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
+    restZones: readonly RestZone[],
     events: readonly ChartEvent[],
     offsetMs: number,
     durationMs: number = 0,
@@ -1147,8 +1146,7 @@ export class GameRenderer {
     this.bpmMarkers = bpmMarkers;
     this.offsetMs = offsetMs;
     this.trillZones = trillZones;
-    // [Phase 1 프리뷰 · THROWAWAY] 노트 공백에서 휴지 구간을 임시 파생. Phase 2에서 저작 데이터로 교체.
-    this.restZones = deriveRestZonesForPreview(notes, trillZones);
+    this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.surfaceScrollOffsetZ = 0;
     this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
@@ -1284,7 +1282,7 @@ export class GameRenderer {
     return g;
   }
 
-  // [Phase 1 프리뷰 · THROWAWAY] 휴지 구간을 어두운 밴드로 그려 레인을 가라앉힌다.
+  // 휴지 구간(RFD 0019)을 어두운 밴드로 그려 레인을 가라앉힌다.
   // 트릴존 렌더와 동일한 스크롤/컬링/풀 패턴, 색만 dim.
   private renderRestZones(songTimeMs: number): void {
     let poolIdx = 0;
