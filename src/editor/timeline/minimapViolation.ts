@@ -2,14 +2,14 @@
  * Pure helper for computing minimap violation indicator ticks (RFD 0017 §7).
  * Extracted for testability — no PixiJS dependency.
  *
- * 위반 노트·트릴존·이벤트를 종류 무관 단일 채널로 미니맵 우측 경계에 짧은
+ * 위반 노트·트릴존·restZone·이벤트를 종류 무관 단일 채널로 미니맵 우측 경계에 짧은
  * 빨간 틱으로 표시하기 위한 rect 목록을 계산한다. 보조 레인·이벤트 위반은
  * 미니맵에 x 좌표가 없으므로(미니맵은 메인 레인만 표시) y만 사용한다.
  * 위반 Set은 뷰포트 밖 인덱스도 포함하며, 화면 밖 위반의 조기 경고가 목적이므로
  * 뷰포트 클리핑 없이 전부 계산한다.
  */
 
-import type { NoteEntity, TrillZone, ChartEvent, BpmMarker, Beat } from "../../shared/types";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, BpmMarker, Beat } from "../../shared/types";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapViolationRect {
@@ -27,9 +27,11 @@ export const MINIMAP_VIOLATION_TICK_HEIGHT = 2;
 export interface MinimapViolationParams {
   violatingNoteIndices: ReadonlySet<number>;
   violatingTrillZoneIndices: ReadonlySet<number>;
+  violatingRestZoneIndices: ReadonlySet<number>;
   violatingEventIndices: ReadonlySet<number>;
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
+  restZones: readonly RestZone[];
   events: readonly ChartEvent[];
   bpmMarkers: readonly BpmMarker[];
   offsetMs: number;
@@ -52,8 +54,8 @@ export interface MinimapViolationParams {
  */
 export function computeMinimapViolationRects(params: MinimapViolationParams): MinimapViolationRect[] {
   const {
-    violatingNoteIndices, violatingTrillZoneIndices, violatingEventIndices,
-    notes, trillZones, events,
+    violatingNoteIndices, violatingTrillZoneIndices, violatingRestZoneIndices, violatingEventIndices,
+    notes, trillZones, restZones, events,
     bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, minimapWidth,
   } = params;
 
@@ -80,6 +82,10 @@ export function computeMinimapViolationRects(params: MinimapViolationParams): Mi
   }
   for (const i of violatingTrillZoneIndices) {
     const entity = trillZones[i];
+    if (entity) pushTick(entity.beat);
+  }
+  for (const i of violatingRestZoneIndices) {
+    const entity = restZones[i];
     if (entity) pushTick(entity.beat);
   }
   for (const i of violatingEventIndices) {

@@ -9,6 +9,7 @@ import type {
   BpmMarker,
   ChartEvent,
   NoteEntity,
+  RestZone,
   TrillZone,
 } from "../../shared/types";
 
@@ -34,13 +35,19 @@ function zone(lane: number, startBeat: number, endBeat: number): TrillZone {
   return { lane: lane as TrillZone["lane"], beat: beat(startBeat), endBeat: beat(endBeat) };
 }
 
+function restZone(lane: number, startBeat: number, endBeat: number): RestZone {
+  return { lane: lane as RestZone["lane"], beat: beat(startBeat), endBeat: beat(endBeat) };
+}
+
 function compute(partial: Partial<Parameters<typeof computeMinimapViolationRects>[0]>) {
   return computeMinimapViolationRects({
     violatingNoteIndices: new Set<number>(),
     violatingTrillZoneIndices: new Set<number>(),
+    violatingRestZoneIndices: new Set<number>(),
     violatingEventIndices: new Set<number>(),
     notes: [],
     trillZones: [],
+    restZones: [],
     events: [],
     bpmMarkers,
     offsetMs,
@@ -93,6 +100,26 @@ describe("computeMinimapViolationRects", () => {
     expect(rects[0].y).toBe(500 - MINIMAP_VIOLATION_TICK_HEIGHT / 2);
   });
 
+  it("위반 restZone(beat 2~6)은 시작 beat 위치에 틱 1개", () => {
+    const rects = compute({
+      restZones: [restZone(1, 2, 6)],
+      violatingRestZoneIndices: new Set([0]),
+    });
+    expect(rects).toHaveLength(1);
+    expect(rects[0].y).toBe(500 - MINIMAP_VIOLATION_TICK_HEIGHT / 2);
+    expect(rects[0].x).toBe(tickX);
+  });
+
+  it("같은 beat 2의 위반 트릴존과 restZone은 y가 중복되어 틱 1개로 합쳐짐", () => {
+    const rects = compute({
+      trillZones: [zone(1, 2, 4)],
+      restZones: [restZone(2, 2, 4)],
+      violatingTrillZoneIndices: new Set([0]),
+      violatingRestZoneIndices: new Set([0]),
+    });
+    expect(rects).toHaveLength(1);
+  });
+
   it("위반 구간 이벤트(stop beat 2~4)는 시작 beat 위치에 틱 1개", () => {
     const events: ChartEvent[] = [
       { type: "bpm", beat: beat(0), bpm: 120 },
@@ -140,6 +167,7 @@ describe("computeMinimapViolationRects", () => {
       notes: [note(1, 0)],
       violatingNoteIndices: new Set([5]),
       violatingTrillZoneIndices: new Set([0]),
+      violatingRestZoneIndices: new Set([2]),
       violatingEventIndices: new Set([3]),
     });
     expect(rects).toEqual([]);

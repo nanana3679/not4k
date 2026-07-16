@@ -40,6 +40,16 @@ describe("TimelineRenderer restZone 배선 (소스 수준)", () => {
     );
   });
 
+  it("MinimapRenderer host에 violatingRestZoneIndices getter가 배선된다 (미니맵 위반 틱)", () => {
+    const hostStart = timelineRendererSource.indexOf("new MinimapRenderer({");
+    expect(hostStart).toBeGreaterThanOrEqual(0);
+    const hostEnd = timelineRendererSource.indexOf("});", hostStart);
+    const hostBody = timelineRendererSource.slice(hostStart, hostEnd);
+    expect(hostBody).toContain(
+      "get violatingRestZoneIndices() { return self._violatingRestZoneIndices; }",
+    );
+  });
+
   it("GridRenderer host에 restZoneLayer getter가 노출된다", () => {
     expect(timelineRendererSource).toContain(
       "get restZoneLayer() { return self.restZoneLayer; }",

@@ -347,6 +347,7 @@ export class TimelineRenderer {
       get minimapVisible() { return self._minimapVisible; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingRestZoneIndices() { return self._violatingRestZoneIndices; },
       get violatingEventIndices() { return self._violatingEventIndices; },
     });
 
