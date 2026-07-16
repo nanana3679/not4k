@@ -3,7 +3,7 @@ import { supabase } from '../../supabase';
 import { useGameStore } from '../stores';
 import type { PlaybackRange } from '../../shared';
 import type { DbSong } from '../screens/songSelect/types';
-import { filterVisibleSongs, findRestoredFocus, resolveGameplayRange, sortChartsByDifficulty } from '../screens/songSelect/helpers';
+import { filterVisibleSongs, findRestoredFocus, resolveGameplayRange, shouldBlockSongNavKey, sortChartsByDifficulty } from '../screens/songSelect/helpers';
 
 const NAV_COOLDOWN = 100; // ms
 
@@ -28,7 +28,8 @@ export interface UseSongNavigationResult {
  */
 export function useSongNavigation(options: {
   isAdmin: boolean;
-  showAddSong: boolean;
+  /** 곡 선택 위에 차단성 오버레이(설정/추가/삭제 모달 등)가 떠 있는지. true면 키/휠 네비를 무시한다. */
+  blockingModalOpen: boolean;
   newChartTarget: DbSong | null;
   onPlay: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
   onEscape: () => void;
@@ -38,7 +39,7 @@ export function useSongNavigation(options: {
 }): UseSongNavigationResult {
   const {
     isAdmin,
-    showAddSong,
+    blockingModalOpen,
     newChartTarget,
     onPlay,
     onEscape,
@@ -154,8 +155,12 @@ export function useSongNavigation(options: {
   // 키보드 네비게이션
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showAddSong || newChartTarget) return;
-      if (songs.length === 0 && e.key !== 'Escape') return;
+      if (shouldBlockSongNavKey({
+        blockingModalOpen,
+        hasPendingChartTarget: newChartTarget !== null,
+        songsEmpty: songs.length === 0,
+        key: e.key,
+      })) return;
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
@@ -190,7 +195,7 @@ export function useSongNavigation(options: {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [songs, focusedSongIndex, focusedChartIndex, showAddSong, newChartTarget, onPlay, onEscape, getSortedCharts, navigateSong, allowPlay]);
+  }, [songs, focusedSongIndex, focusedChartIndex, blockingModalOpen, newChartTarget, onPlay, onEscape, getSortedCharts, navigateSong, allowPlay]);
 
   return {
     songs,

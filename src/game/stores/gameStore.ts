@@ -146,7 +146,9 @@ export const useGameStore = create<GameState>()(
       startTimeMs: 0,
       editorReturnUrl: null,
 
-      setScreen: (screen) => set({ screen }),
+      // 화면을 전환하면 설정 모달은 항상 닫는다. 모달은 곡 선택 위에만 뜨는 오버레이라
+      // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
+      setScreen: (screen) => set({ screen, settingsOpen: false }),
 
       setSettingsOpen: (open) => set({ settingsOpen: open }),
 

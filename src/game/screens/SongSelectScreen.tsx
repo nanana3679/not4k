@@ -89,7 +89,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    showAddSong: showAddSong || showTutorialHelp,
+    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
