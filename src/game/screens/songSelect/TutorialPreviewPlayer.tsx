@@ -501,6 +501,7 @@ export function TutorialPreviewPlayer({
       <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}
+          className="not4k-tutorial-preview-canvas"
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
           // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
@@ -567,6 +568,13 @@ function getTutorialDiagramTimingKey(timing: TutorialDiagramTiming | null): stri
 }
 
 const tutorialPreviewPlayerCss = `
+/* Pixi가 캔버스에 inline touch-action:none을 걸어 렌더러 위 드래그가 스크롤을 먹는다.
+   렌더러는 인터랙션이 없으니 세로 드래그가 바깥 컨테이너 스크롤로 통과되게 pan-y로 덮는다.
+   (스타일시트 !important가 Pixi의 non-important inline보다 우선한다) */
+.not4k-tutorial-preview-canvas {
+  touch-action: pan-y !important;
+}
+
 .not4k-tutorial-diagram-overlay {
   contain: layout paint;
   will-change: opacity;

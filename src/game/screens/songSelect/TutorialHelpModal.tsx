@@ -857,7 +857,9 @@ const tutorialHelpCss = `
 
   .not4k-tutorial-index {
     width: auto !important;
-    max-height: 156px !important;
+    /* 자체 스크롤(트랩)을 없애 목록·렌더러·설명이 한 제스처로 균일하게 스크롤되게 한다. */
+    max-height: none !important;
+    overflow: visible !important;
     padding-right: 0 !important;
     padding-bottom: 8px !important;
     border-right: 0 !important;

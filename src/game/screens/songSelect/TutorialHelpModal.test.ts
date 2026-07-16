@@ -199,6 +199,8 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain("overflowY: 'auto'");
     // 모바일에서는 flex 배분으로 줄이지 말고 프리뷰(플레이+키보드) 자연 높이를 유지
     expect(tutorialHelpModalSource).toContain('flex: 0 0 auto !important');
+    // 목록도 자체 스크롤(트랩)을 없애 한 제스처로 균일 스크롤되게 함
+    expect(tutorialHelpModalSource).toContain('max-height: none !important');
   });
 
   it('페이지 전환은 가운데 카드 안에서 두 프리뷰 슬롯을 캐러셀처럼 좌우 이동', () => {

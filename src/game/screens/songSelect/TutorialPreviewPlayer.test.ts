@@ -158,6 +158,11 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain("minWidth: 'min(100%, 300px)'");
   });
 
+  it('렌더러 캔버스는 touch-action pan-y로 덮어 Pixi inline touch-action:none이 세로 드래그 스크롤을 먹지 않게 함', () => {
+    expect(tutorialPreviewPlayerSource).toContain('.not4k-tutorial-preview-canvas {');
+    expect(tutorialPreviewPlayerSource).toContain('touch-action: pan-y !important');
+  });
+
   it('키보드 눌림 상태는 매 프레임 renderer.setKeyState로 전달되고 별도 HTML 활성 스타일이 없음', () => {
     expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyState(key.keyCode, activeIdSet.has(key.id))');
     expect(tutorialPreviewPlayerSource).not.toContain('keyboardKeyActive');
