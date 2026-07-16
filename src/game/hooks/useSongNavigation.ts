@@ -135,13 +135,16 @@ export function useSongNavigation(options: {
     const el = songListRef.current;
     if (!el) return;
     const handleWheel = (e: WheelEvent) => {
+      // 차단성 오버레이(설정/추가/삭제 모달 등)가 떠 있으면 그 아래 곡 목록의 휠 네비도 무시한다.
+      // 현재는 오버레이가 물리적으로 덮어 도달하지 않지만, 계약을 코드로 보증한다.
+      if (blockingModalOpen || newChartTarget) return;
       e.preventDefault();
       if (e.deltaY > 0) navigateSong(1);
       else if (e.deltaY < 0) navigateSong(-1);
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
-  }, [enableWheelNavigation, navigateSong]);
+  }, [enableWheelNavigation, navigateSong, blockingModalOpen, newChartTarget]);
 
   // 포커스된 카드 스크롤 중앙 정렬
   useEffect(() => {
