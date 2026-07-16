@@ -987,7 +987,11 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
   contentLayout: {
+    // 목록+렌더러+내용을 한 덩어리로 감싸 세로 스크롤 — 모바일에서 최소 높이 프리뷰가
+    // 모달 높이를 넘겨도 각 열을 눌러 찌부시키지 않고 전체가 스크롤된다.
+    flex: '1 1 auto',
     minHeight: 0,
+    overflowY: 'auto',
     display: 'flex',
     gap: '14px',
     alignItems: 'stretch',
@@ -1056,7 +1060,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    overflowY: 'auto',
+    // 프리뷰를 열 안에서 자르지 않는다 — 넘치면 바깥 contentLayout이 전체를 스크롤한다.
+    overflow: 'visible',
     alignItems: 'center',
   },
   carouselCard: {

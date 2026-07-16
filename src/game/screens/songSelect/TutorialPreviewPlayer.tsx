@@ -686,6 +686,9 @@ const styles: Record<string, CSSProperties> = {
   canvasFrame: {
     position: 'relative',
     width: 'min(100%, 420px)',
+    // 렌더러(플레이+키보드)가 항상 보이도록 최소 폭 확보 — aspect-lock이라 최소 폭이 최소 높이가 된다.
+    // min(100%, ...)로 캡해 화면이 300px보다 좁아도 가로로 넘치지 않는다.
+    minWidth: 'min(100%, 300px)',
     overflow: 'hidden',
     borderRadius: '6px',
     border: '1px solid rgba(255, 255, 255, 0.14)',

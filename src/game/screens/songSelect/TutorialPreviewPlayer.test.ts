@@ -154,6 +154,10 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady]');
   });
 
+  it('캔버스 프레임은 키보드까지 보이도록 최소 폭(→aspect로 최소 높이) 바닥을 가지되 화면이 좁으면 100%로 캡', () => {
+    expect(tutorialPreviewPlayerSource).toContain("minWidth: 'min(100%, 300px)'");
+  });
+
   it('키보드 눌림 상태는 매 프레임 renderer.setKeyState로 전달되고 별도 HTML 활성 스타일이 없음', () => {
     expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyState(key.keyCode, activeIdSet.has(key.id))');
     expect(tutorialPreviewPlayerSource).not.toContain('keyboardKeyActive');
