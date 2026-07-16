@@ -110,7 +110,7 @@ describe('TutorialHelpModal', () => {
 
     expect(html).toContain('aria-label="Previous tutorial"');
     expect(html).toContain('aria-label="Next tutorial"');
-    expect(html).toContain('1 / 16');
+    expect(html).toContain('1 / 17');
   });
 
   it('튜토리얼 팝업은 왼쪽 인덱스를 렌더링하고 이미 본 제목 옆에 체크 표시를 붙임', () => {

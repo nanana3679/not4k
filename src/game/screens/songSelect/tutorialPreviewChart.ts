@@ -88,18 +88,20 @@ function tutorialDiagram(
   };
 }
 
-function makeChart(
+export function makeChart(
   title: string,
   loopBeats: number,
   notes: readonly NoteEntity[],
   tutorialInputs: readonly TutorialInputEvent[],
   trillZones: readonly TrillZone[] = [],
   extraEvents: readonly ChartEvent[] = [],
+  restZones: readonly RestZone[] = [],
 ): Chart {
   return {
     meta: makeMeta(title),
     notes: [...notes],
     trillZones: [...trillZones],
+    restZones: [...restZones],
     events: [...makeTimingEvents(loopBeats), ...tutorialInputs, ...extraEvents],
   };
 }
@@ -341,6 +343,46 @@ const zeroLengthHoldOnlyLongNoteChart = makeChart(
   ],
   [
     tutorialInput(2, 'KeyF', 'F', beat(11, 4), beat(13, 4), 3),
+  ],
+);
+
+const restZoneChart = makeChart(
+  '휴지 구간',
+  8,
+  [
+    // 왼손: 1레인 트릴 (2박에 16비트 4개)
+    { type: 'trill', lane: 1, beat: beat(2) },
+    { type: 'trill', lane: 1, beat: beat(9, 4) },
+    { type: 'trill', lane: 1, beat: beat(5, 2) },
+    { type: 'trill', lane: 1, beat: beat(11, 4) },
+    // 오른손: 4레인 트릴 (6박에 16비트 4개)
+    { type: 'trill', lane: 4, beat: beat(6) },
+    { type: 'trill', lane: 4, beat: beat(25, 4) },
+    { type: 'trill', lane: 4, beat: beat(13, 2) },
+    { type: 'trill', lane: 4, beat: beat(27, 4) },
+  ],
+  [
+    // 왼손 트릴: Q/W 교대
+    tutorialInput(1, 'KeyQ', 'Q', beat(2), beat(9, 4), 3),
+    tutorialInput(1, 'KeyW', 'W', beat(9, 4), beat(5, 2), 4),
+    tutorialInput(1, 'KeyQ', 'Q', beat(5, 2), beat(11, 4), 5),
+    tutorialInput(1, 'KeyW', 'W', beat(11, 4), beat(3), 6),
+    // 오른손 트릴: 8/9 교대
+    tutorialInput(4, 'Numpad8', '8', beat(6), beat(25, 4), 7),
+    tutorialInput(4, 'Numpad9', '9', beat(25, 4), beat(13, 2), 8),
+    tutorialInput(4, 'Numpad8', '8', beat(13, 2), beat(27, 4), 9),
+    tutorialInput(4, 'Numpad9', '9', beat(27, 4), beat(7), 10),
+  ],
+  [
+    // 트릴존: 트릴 레인(1·4)만
+    { lane: 1, beat: beat(2), endBeat: beat(3) },
+    { lane: 4, beat: beat(6), endBeat: beat(7) },
+  ],
+  [], // extraEvents 없음
+  [
+    // restZone: 2레인은 1~4박 dim, 3레인은 5~8박 dim (트릴 레인과 안 겹침)
+    { lane: 2, beat: beat(1), endBeat: beat(5) },
+    { lane: 3, beat: beat(5), endBeat: beat(9) },
   ],
 );
 
@@ -644,6 +686,17 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     ['Good 윈도우 안에서 키를 누르고 있으면 됩니다'],
     5,
     zeroLengthHoldOnlyLongNoteChart,
+  ),
+  createTutorialPreview(
+    'rest-zone',
+    '휴지 구간',
+    [
+      '어둡게 표시된 레인은 그 구간 동안 노트가 나오지 않습니다',
+      '한 손이 트릴을 처리하는 동안 쉬는 레인을 미리 알려줍니다',
+      '휴지 구간을 이용해 다음 패턴을 위한 손 위치를 준비하세요',
+    ],
+    8,
+    restZoneChart,
   ),
   createTutorialPreview(
     'horizontal-movement',
