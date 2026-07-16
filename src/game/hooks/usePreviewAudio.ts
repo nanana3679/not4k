@@ -61,8 +61,9 @@ export function usePreviewAudio(
 
   // 현재 프리뷰를 페이드아웃한 뒤 정지한다(보정 진입 등). 재생 중이 아니면 즉시 정지.
   const fadeOutAndStop = useCallback((durationMs = 500) => {
+    if (fadingRef.current) return; // 이미 페이드 진행 중이면 그 페이드를 완주시킨다(즉시 컷 방지)
     const el = audioRef.current;
-    if (!el || fadingRef.current) {
+    if (!el) {
       stopPreview();
       return;
     }
@@ -133,6 +134,7 @@ export function usePreviewAudio(
     };
 
     const onTimeUpdate = () => {
+      if (fadingRef.current) return; // 페이드아웃 중엔 위치 기반 볼륨 제어 무시
       const BASE_VOL = 0.4 * masterVolumeRef.current;
       if (el.currentTime >= end) {
         el.currentTime = start;

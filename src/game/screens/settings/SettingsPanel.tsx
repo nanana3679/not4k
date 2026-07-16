@@ -328,8 +328,9 @@ function ControlsSection({
   return (
     <div className="stg-section">
       <Group title="Key Bindings">
-        {/* 키보드 오버뷰 — 바인딩된 키를 레인 색으로 점등(읽기 전용) */}
-        <div className="stg-kb-panel">
+        {/* 키보드 오버뷰 — 바인딩된 키를 레인 색으로 점등(읽기 전용 장식). 동일 정보가
+            아래 편집 그리드에 접근성 있게 있으므로 스크린리더에는 숨긴다. */}
+        <div className="stg-kb-panel" aria-hidden="true">
           <div className="stg-kb" style={{ aspectRatio: `${KB_W} / ${KB_H}` }}>
             {KB_KEYS.map((k) => {
               const laneIdx = laneByKey.get(k.code);
