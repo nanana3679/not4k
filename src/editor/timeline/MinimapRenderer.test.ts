@@ -67,6 +67,7 @@ function makeHost(
     minimapVisible: true,
     violatingNoteIndices: new Set<number>(),
     violatingTrillZoneIndices: new Set<number>(),
+    violatingRestZoneIndices: new Set<number>(),
     violatingEventIndices: new Set<number>(),
     ...overrides,
   };
@@ -116,6 +117,57 @@ describe("MinimapRenderer", () => {
     };
 
     expect(render(auxOnlyChart)).toBe(render(emptyChart));
+  });
+
+  it("restZone 2개(L3·L4 beat 8~10)가 있는 차트는 restZone 없는 차트보다 미니맵 자식이 2개(밴드 Graphics) 많다", () => {
+    const render = (chart: Chart): number => {
+      const minimapLayer = new Container();
+      new MinimapRenderer(makeHost(chart, minimapLayer)).render();
+      return minimapLayer.children.length;
+    };
+
+    const withoutRest = makeChart(4);
+    const withRest: Chart = {
+      ...makeChart(4),
+      restZones: [
+        { lane: 3 as Lane, beat: beat(8), endBeat: beat(10) },
+        { lane: 4 as Lane, beat: beat(8), endBeat: beat(10) },
+      ],
+    };
+
+    expect(render(withRest)).toBe(render(withoutRest) + 2);
+  });
+
+  it("restZones가 undefined인 차트(하위호환)도 render가 restZone 없는 차트와 동일하게 동작한다", () => {
+    const render = (chart: Chart): number => {
+      const minimapLayer = new Container();
+      new MinimapRenderer(makeHost(chart, minimapLayer)).render();
+      return minimapLayer.children.length;
+    };
+
+    const noField = makeChart(4); // restZones 필드 자체가 없음
+    const emptyField: Chart = { ...makeChart(4), restZones: [] };
+
+    expect(render(noField)).toBe(render(emptyField));
+  });
+
+  it("위반 restZone Set만 주입해도 위반 틱 Graphics가 자식으로 1개 추가된다", () => {
+    const chart: Chart = {
+      ...makeChart(4),
+      restZones: [{ lane: 2 as Lane, beat: beat(4), endBeat: beat(6) }],
+    };
+    const render = (overrides: Partial<MinimapHost>): number => {
+      const minimapLayer = new Container();
+      new MinimapRenderer(makeHost(chart, minimapLayer, overrides)).render();
+      return minimapLayer.children.length;
+    };
+
+    const withoutViolations = render({});
+    const withViolations = render({
+      violatingRestZoneIndices: new Set([0]),
+    });
+
+    expect(withViolations).toBe(withoutViolations + 1);
   });
 
   it("위반 노트·트릴존·이벤트 Set을 주입하면 위반 없는 렌더보다 자식이 정확히 1개(단일 batch Graphics) 많다", () => {

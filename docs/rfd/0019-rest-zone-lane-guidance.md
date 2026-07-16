@@ -1,6 +1,6 @@
 # RFD 0019: 휴지 구간(`restZone`) — 저작 레인 안내
 
-**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 튜토리얼 rest-zone 프리뷰 추가 — restZone 첫 유저 노출 (2026-07-16, PR #130) · 에디터 저작 UX·restZone 렌더·위반 해칭 미구현
+**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 렌더·해칭(슬라이스A)·배치(B)·삭제(C) 구현 (2026-07-16, commits 2fff275·2d4b9d7·e391ab4) · 선택·이동·리사이즈(슬라이스D — SelectMode 유닛, 독립 배타 선택 축) 구현 (2026-07-16) · 복붙(F, commit 6a4b44e)·미니맵(G, commit 179dee9) 구현 + 색 인게임 일치·dim α0.6 조정 (2026-07-16) · **선택 모델 배타→공존 전환 + 박스 감쌈 픽업 채택** (2026-07-16, §7-4 D·F 개정 — restZone이 `trillZone` 존처럼 note/zone과 공존, 함께 이동·삭제·복붙) · 튜토리얼 rest-zone 프리뷰 추가 — restZone 첫 유저 노출 (2026-07-16, PR #130)
 
 **구현 기록 (2026-07-16, Phase 1):** 시각 효과만 눈으로 확정하기 위한 프로토타입. 활성 레인 base 톤을 올리고(`LANE_BG_EVEN/ODD` = 0x26263f/0x202038) 빈 구간을 어두운 밴드로 dim(`REST_ZONE_ALPHA` = 0.72). 밴드는 `trillZone` 렌더 패턴을 복제(스크롤·컬링·풀), 다음 점유 1박 전에 종료. 이 단계의 구간 데이터는 **`restZonePreview.ts`의 throwaway 자동 파생**(노트 공백 threshold 4박)이며 Phase 2에서 저작 데이터로 교체·삭제한다. threshold 4박·margin 1박·dim/리프트 값이 시각 검증으로 확정됐다.
 
@@ -95,4 +95,12 @@ dim이 보이려면 활성 레인이 완전 검정보다 밝아야 한다(near-b
      - **semantic**(저장·플레이 게이트): 같은 레인 `restZone` 자기 겹침 금지(`trillZone`의 `validateNoTrillZoneOverlap` 대응), `restZone`×노트/`trillZone` 겹침 금지(§4-2). `ChartViolationIndices`에 `restZones` 축 추가(해칭).
   2. **(완료, commit d85a8b7)** 게임 렌더 소스 교체 — 파생기(`restZonePreview.ts`) 삭제, `GameRenderer.setChart`가 저작 `restZones`를 받아 밴드로 dim.
   3. **(일부 완료, commit c1ba67e)** 배치 제약(의미 위반) 강제 — 에디터의 전 `validateChart` 게이트(저장·플레이 진입·`setChart`·`loadChart`·위반 배지·편집 프리뷰)가 `restZones`를 전달해 restZone 규칙이 실제 평가된다.
-  4. **(미구현)** 에디터 저작 UX + restZone 렌더 + 위반 해칭 — 배치 툴 + 선택/이동/리사이즈/복붙 + `restZone` 타임라인 밴드 렌더 + 위반 해칭(`chartViolationIndices`의 `restZones` Set을 `TimelineRenderer.setViolations`가 소비), `trillZone` 에디터 경로 복제. 현재 `chartViolationIndices`는 `restZones` 위반 인덱스를 내지만 `setViolations`는 아직 3축만 소비한다(해칭 렌더 잔여).
+  4. 에디터 저작 UX — `trillZone` 에디터 경로를 슬라이스로 복제한다:
+     - **(완료 A, 2fff275)** 타임라인 밴드 렌더(muted 회색) + 위반 해칭(`setViolations` 4축 확장, `restZones` Set 소비).
+     - **(완료 B, 2d4b9d7)** CreateMode 드래그 배치(낙관 커밋) + 툴바 엔티티('Rest').
+     - **(완료 C, e391ab4)** DeleteMode 삭제(hitTest + `deleteRestZoneAtIndex`). ← A·B·C = MVP 저작 루프.
+     - **(완료 D, 공존으로 개정)** SelectMode 선택·이동·리사이즈·삭제 — `Selection`에 독립 축 `restZones` 추가. 초기 구현은 note/zone 선택과 배타였으나 **공존 축으로 전환**(2026-07-16): `trillZone` 존과 동형으로 note/zone 선택과 공존하고(shift 토글은 다른 축 보존, 단순 클릭은 선택 전체 교체), 혼합 선택은 드래그·moveBySnap·moveByLane에서 같은 오프셋으로 **함께 이동**하며(`translateRestZone`+`clampRestBeatOffset`이 전체 오프셋을 제한), Delete는 한 커밋으로 함께 삭제. 끝점 리사이즈(`hitTestRestZoneEnd`)는 **선택된 restZone만**(trillZone §6-6 미러, 길이 0 프레임 커밋 금지) 유지. restZone은 내부 노트가 없어 동질성 machinery는 여전히 무관(정규화 게이트는 범위 prune만).
+     - **(완료 F, 6a4b44e · 공존으로 개정)** 복붙 — `NoteClipboard.restZones` 축, copy/paste(`translateRestZone` 오프셋)·`prePasteRestZones` 취소. 공존 전환으로 노트+restZone **혼합 복사·붙여넣기**가 가능하고, paste 후 붙여넣은 노트·restZone 축이 함께 선택된다.
+     - **(완료 G, 179dee9)** 미니맵 — `computeMinimapRestZoneRects` 밴드 + restZone 위반 틱.
+     - **(채택 — 배타 시절 미채택을 뒤집음)** 박스 픽업 — 배타 축 시절엔 박스가 노트·restZone을 함께 감싸면 배타 규칙과 충돌해 미채택했으나, 공존 전환으로 충돌이 사라져 채택(2026-07-16). `selectionFromBox`의 `restZones` 축 — 판정은 **롱노트식 부분 겹침**(`restZoneOverlapsBox`): 박스 beat 범위가 restZone 구간 [beat,endBeat]와 **교차**하고 레인 범위 안이면 픽업(`trillZone`의 완전 감쌈과 달리 일부만 걸쳐도 선택 — 사용자 요청). 노트와 함께 걸치면 둘 다 선택.
+     - **(색)** 에디터 레인 배경을 인게임과 일치(0x26263f/0x202038), restZone을 인게임 dim(0x000000)으로 통일, dim α 0.72→0.6.

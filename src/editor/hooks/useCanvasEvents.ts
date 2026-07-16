@@ -540,9 +540,14 @@ export function useCanvasEvents(
     const hoveredTrillZone = mode === 'select'
       ? selectModeRef.current?.computeHoveredTrillZone(x, y) ?? null
       : null;
+    // restZone hover도 select 모드에서만 — 리사이즈 캡은 선택된 restZone에만 표시된다 (RFD 0019)
+    const hoveredRestZone = mode === 'select'
+      ? selectModeRef.current?.computeHoveredRestZone(x, y) ?? null
+      : null;
     if (rendererRef.current) {
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
+      rendererRef.current.setHoveredRestZone(hoveredRestZone);
       // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
       rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
     }
@@ -557,9 +562,16 @@ export function useCanvasEvents(
         const zoneEnd = space.hitTestTrillZoneEnd(x, y);
         // 끝 리사이즈 커서·move 커서 모두 그 구간이 **선택됐을 때만** — 미선택 구간의 끝 노트
         // 클릭을 가로채지 않도록(RFD 0016 §6-6). 리사이즈 캡 렌더·down hit도 동일 게이트.
+        // restZone도 같은 게이트(선택된 것만) — trillZone이 위 레이어라 트릴 히트가 우선한다 (RFD 0019).
+        const restBody = space.hitTestRestZone(x, y);
+        const restEnd = space.hitTestRestZoneEnd(x, y);
         if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
           cursor = 'ns-resize';
         } else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
+          cursor = 'move';
+        } else if (restEnd !== null && (selectModeRef.current?.selectedRestZones.has(restEnd) ?? false)) {
+          cursor = 'ns-resize';
+        } else if (restBody !== null && (selectModeRef.current?.selectedRestZones.has(restBody) ?? false)) {
           cursor = 'move';
         } else {
           // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
@@ -741,7 +753,7 @@ export function useCanvasEvents(
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
         const selectionSize =
-          sel.selection.notes.size + sel.selection.zones.size;
+          sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size;
         // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 탭이 토글이 된다 (RFD 0016 §4.4).
         // 탭(빈 곳 탭·핸들 탭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
@@ -804,7 +816,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.zones.size,
+        sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size,
       );
     }
     if (tapToggle?.pointerId === e.pointerId) {

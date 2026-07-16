@@ -567,8 +567,8 @@ interface EditorToolbarProps {
   onOpenCustomSnap: () => void;
 }
 
-const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
-const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone'];
+const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone', 'restZone'];
+const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone', 'restZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -579,6 +579,7 @@ const entityLabels: Record<EntityType, string> = {
   long: 'Long',
   doubleLong: 'D.Long',
   trillZone: 'Trill',
+  restZone: 'Rest',
   bpm: 'BPM',
   timeSignature: 'Time',
   text: 'Text',

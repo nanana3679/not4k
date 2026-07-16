@@ -566,9 +566,9 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### SelectionSlice
 
-에디터 선택 상태(`selection: {notes, zones}`)의 **단독 소유자**. 보조 노트도 `chart.notes`의 통합 인덱스로 `notes`에 선택된다. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조.
+에디터 선택 상태(`selection: {notes, zones, restZones}`)의 **단독 소유자**. 보조 노트도 `chart.notes`의 통합 인덱스로 `notes`에 선택된다. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조.
 
-합법 상태(불변, RFD 0016·0018): ① notes는 동질적이다 — 일반 노트들(메인·보조 포함), 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ 모든 인덱스는 `chart.notes` 또는 해당 구간 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
+합법 상태(불변, RFD 0016·0018): ① notes는 동질적이다 — 일반 노트들(메인·보조 포함), 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ 모든 인덱스는 `chart.notes` 또는 해당 구간 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). ⑤ `restZones`(RFD 0019)는 note/zone과 **공존**하는 독립 축이다 — 내부 노트가 없어 동질성 machinery와 무관하며 정규화는 범위 prune만 한다. 단순 클릭은 전축 교체(SelectMode 선택 구성이 보장), 박스는 **부분 겹침**(`restZoneOverlapsBox` — 롱노트식)으로 픽업하며, 혼합 선택은 note·zone과 함께 이동·삭제·복붙된다. SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
 
 **구현**: `src/editor/stores/selectionSlice.ts` (editorStore에 결합).
 
