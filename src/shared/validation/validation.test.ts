@@ -1563,6 +1563,17 @@ describe("validateNoRestZoneOverlap", () => {
     expect(errors[0].rule).toBe("restZoneOverlap");
   });
 
+  it("같은 레인 완전 동일 구간 restZone 두 개(0~4, 0~4)도 restZoneOverlap 에러", () => {
+    // 끝점 포함 4-조건 비교는 동일 구간을 놓쳤음 — 제자리 복붙 회귀 방지
+    const restZones: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+    ];
+    const errors = validateNoRestZoneOverlap(restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneOverlap");
+  });
+
   it("겹치는 두 restZone이면 refs에 두 인덱스가 kind 'restZone'으로 담긴다", () => {
     const restZones: RestZone[] = [
       { lane: 3, beat: beat(0), endBeat: beat(4) }, // 인덱스 0, 무관 레인

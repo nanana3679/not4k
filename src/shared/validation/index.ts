@@ -368,12 +368,9 @@ export function validateNoRestZoneOverlap(restZones: readonly RestZone[]): Valid
       const b = restZones[j];
       if (a.lane !== b.lane) continue;
 
-      const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
-      const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
-      const aStartInB = beatGt(a.beat, b.beat) && beatLt(a.beat, b.endBeat);
-      const aEndInB = beatGt(a.endBeat, b.beat) && beatLt(a.endBeat, b.endBeat);
-
-      if (bStartInA || bEndInA || aStartInB || aEndInB) {
+      // 열린 구간 교차: 인접(0~4,4~8)은 허용하되 완전 동일 구간(0~4,0~4)도 잡는다.
+      // (validateRestZoneExclusive와 같은 판정식 — 끝점 포함 4-조건은 동일 구간을 놓침)
+      if (beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat)) {
         errors.push({
           rule: "restZoneOverlap",
           message: `Rest zones overlap on lane ${a.lane}: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
@@ -399,7 +396,7 @@ export function validateNoRestZoneOverlap(restZones: readonly RestZone[]): Valid
  * - 끝-시작 인접(같은 박자)은 허용 — 다른 구간 규칙과 동일. 포인트 노트가
  *   restZone 경계 박에 정확히 놓인 경우도 인접으로 보고 허용한다.
  * - 롱노트 바디가 restZone을 관통하는 것도 잡는다(끝점만 검사하는 stopZone과 다름).
- * 보조 레인(5+) 노트는 표시 전용이라 검사하지 않는다(RFD 0018 §3-2).
+ * 보조 레인(5+) 노트는 레인 동일성 비교(note.lane === z.lane, z.lane∈1~4)에서 자연히 제외된다.
  */
 export function validateRestZoneExclusive(
   notes: readonly NoteEntity[],
@@ -414,7 +411,6 @@ export function validateRestZoneExclusive(
     for (let ni = 0; ni < notes.length; ni++) {
       const note = notes[ni];
       if (note.lane !== z.lane) continue;
-      if (!isMainLane(note.lane)) continue;
       const noteEnd = isRangeNote(note) ? note.endBeat : note.beat;
       if (beatLt(note.beat, z.endBeat) && beatLt(z.beat, noteEnd)) {
         errors.push({

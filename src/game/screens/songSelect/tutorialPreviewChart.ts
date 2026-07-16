@@ -469,6 +469,10 @@ function createRenderChart(chart: Chart, loopBeats: number): Chart {
     trillZones: RENDER_CYCLE_INDICES.flatMap((cycleIndex) =>
       chart.trillZones.map((zone) => offsetTrillZoneByLoopCycle(zone, cycleIndex, loopBeats)),
     ),
+    // restZone은 루프 사이클 오프셋 대상이 아직 없어 명시적으로 비운다 — `...chart` 스프레드로
+    // 원본 박의 restZone이 새어 밴드가 오정렬되는 것을 막는다(RFD 0019). 튜토리얼 차트에
+    // restZone을 쓰게 되면 offsetTrillZoneByLoopCycle과 동형의 오프셋을 flatMap할 것. (TODO)
+    restZones: [],
     events: renderTimingEvents,
   };
 }
