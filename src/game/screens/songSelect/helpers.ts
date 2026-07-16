@@ -107,6 +107,25 @@ export function getCircularDistance(a: number, b: number, total: number): number
   return Math.min(d, total - d);
 }
 
+/**
+ * 곡 선택 키보드 네비게이션(화살표/Enter/Escape)을 무시해야 하는지 판정한다.
+ *
+ * 곡 선택 위에 차단성 오버레이(설정 모달, 추가/삭제/난이도 모달 등)가 떠 있으면
+ * 그 아래 곡 네비가 살아있으면 안 된다. 특히 모달 안에서 누른 Enter가 게임을 시작하거나
+ * Escape가 타이틀로 이탈하는 회귀를 막는다. 곡이 없을 때는 Escape(뒤로가기)만 허용한다.
+ */
+export function shouldBlockSongNavKey(params: {
+  blockingModalOpen: boolean;
+  hasPendingChartTarget: boolean;
+  songsEmpty: boolean;
+  key: string;
+}): boolean {
+  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key } = params;
+  if (blockingModalOpen || hasPendingChartTarget) return true;
+  if (songsEmpty && key !== 'Escape') return true;
+  return false;
+}
+
 export interface SongCardFocusState {
   songIndex: number;
   chartIndex: number;

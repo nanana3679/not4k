@@ -45,6 +45,9 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
+      // capture phase에서 이 이벤트를 독점한다 — 리바인딩 중 눌린 키가 곡 선택 네비 등
+      // bubble 단계의 다른 window 리스너로 새지 않게 한다.
+      event.stopPropagation();
       const keyCode = event.code;
 
       // ESC cancels rebinding instead of binding Escape.
