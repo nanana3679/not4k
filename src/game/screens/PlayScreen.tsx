@@ -586,7 +586,7 @@ const styles = {
     fontWeight: 800,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
-    color: '#f4f7fa',
+    color: color.inkStrong,
     margin: 0,
   },
   pauseButtons: {
@@ -609,13 +609,13 @@ const styles = {
     color: color.gold,
     border: `1px solid ${color.gold}66`,
   },
-  // 종료 — 금속 + danger
+  // 종료 — 금속 + danger. 텍스트는 금속 그라디언트 위 대비(≥4.5:1) 확보용 밝은 danger.
   quitButton: {
     ...primitives.metalButton,
     minHeight: 'auto',
     fontSize: '18px',
     padding: '12px 24px',
-    color: color.danger,
+    color: '#ff8578',
     border: `1px solid ${color.danger}66`,
   },
 };
