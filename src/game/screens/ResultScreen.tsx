@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores';
+import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 
 export function ResultScreen() {
   const { lastResult, setScreen, editorReturnUrl, setEditorReturnUrl, setStartTimeMs } = useGameStore();
@@ -20,7 +21,10 @@ export function ResultScreen() {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <h1 style={styles.title}>Result</h1>
+          <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Result
+        </h1>
           <button style={styles.backBtn} onClick={handleBack}>
             {editorReturnUrl ? 'Back to Editor' : 'Back'}
           </button>
@@ -35,7 +39,10 @@ export function ResultScreen() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Result</h1>
+        <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Result
+        </h1>
         <button style={styles.backBtn} onClick={handleBack}>
           {editorReturnUrl ? 'Back to Editor' : 'Back'}
         </button>
@@ -82,11 +89,11 @@ export function ResultScreen() {
           <h2 style={styles.subtitle}>Timing</h2>
           <div style={styles.judgmentGrid}>
             <div style={styles.judgmentRow}>
-              <span style={{ ...styles.judgmentLabel, color: '#44aaff' }}>FAST:</span>
+              <span style={{ ...styles.judgmentLabel, color: '#4a95e6' }}>FAST:</span>
               <span style={styles.judgmentCount}>{lastResult.fastCount}</span>
             </div>
             <div style={styles.judgmentRow}>
-              <span style={{ ...styles.judgmentLabel, color: '#ff6644' }}>SLOW:</span>
+              <span style={{ ...styles.judgmentLabel, color: color.danger }}>SLOW:</span>
               <span style={styles.judgmentCount}>{lastResult.slowCount}</span>
             </div>
           </div>
@@ -97,37 +104,11 @@ export function ResultScreen() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    color: '#e0e0e0',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    backgroundColor: '#2a2a2a',
-    borderBottom: '1px solid #333',
-  },
-  title: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 600,
-  },
-  backBtn: {
-    padding: '6px 16px',
-    backgroundColor: 'transparent',
-    color: '#888',
-    border: '1px solid #444',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
+  container: primitives.screen,
+  header: primitives.header,
+  title: primitives.title,
+  titleAccent: primitives.titleAccent,
+  backBtn: primitives.ghostButton,
   content: {
     flex: 1,
     overflowY: 'auto',
@@ -140,18 +121,24 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '8px',
-    marginBottom: '24px',
+    gap: '4px',
+    marginBottom: '28px',
   },
   achievement: {
-    fontSize: '40px',
-    fontWeight: 'bold',
-    color: '#00ffff',
+    fontFamily: font.numeric,
+    fontSize: '56px',
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: '0.01em',
+    color: color.neon,
+    textShadow: `0 0 24px ${color.neonGlow}`,
   },
   rank: {
-    fontSize: '32px',
-    fontWeight: 'bold',
-    color: '#ffff00',
+    fontFamily: font.display,
+    fontSize: '34px',
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+    color: color.gold,
   },
   statsGrid: {
     display: 'flex',
@@ -164,11 +151,12 @@ const styles: Record<string, React.CSSProperties> = {
   statRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: '16px',
-    padding: '8px',
-    backgroundColor: '#2a2a2a',
-    border: '1px solid #333',
-    borderRadius: '6px',
+    fontSize: '15px',
+    padding: '10px 14px',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
+    boxShadow: edge.metal,
   },
   judgmentSection: {
     marginBottom: '24px',
@@ -176,11 +164,14 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
   },
   subtitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    marginBottom: '8px',
+    fontFamily: font.display,
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: color.inkDim,
     textAlign: 'center',
-    margin: '0 0 8px',
+    margin: '0 0 10px',
   },
   judgmentGrid: {
     display: 'flex',
@@ -191,20 +182,26 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '15px',
-    padding: '8px',
-    backgroundColor: '#2a2a2a',
-    border: '1px solid #333',
-    borderRadius: '6px',
+    padding: '10px 14px',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
+    boxShadow: edge.metal,
   },
   judgmentLabel: {
-    fontWeight: 'bold',
+    fontFamily: font.display,
+    fontWeight: 700,
+    letterSpacing: '0.02em',
   },
   judgmentCount: {
-    color: '#00ffff',
+    fontFamily: font.numeric,
+    fontSize: '17px',
+    fontWeight: 700,
+    color: color.neon,
   },
   error: {
-    fontSize: '18px',
-    color: '#ff4444',
+    fontSize: '16px',
+    color: color.danger,
     marginTop: '40px',
   },
 };

@@ -166,7 +166,7 @@ describe('TutorialHelpModal', () => {
     expect(html.indexOf('class="not4k-tutorial-player-column"')).toBeLessThan(
       html.indexOf('class="not4k-tutorial-text-panel"'),
     );
-    expect(html).toContain('border-left:1px solid #3f3f3f');
+    expect(html).toContain('border-left:1px solid #2b303a');
     expect(html).toContain('왼손은 Q W E C에 약지·중지·검지·엄지를 올려두세요');
   });
 

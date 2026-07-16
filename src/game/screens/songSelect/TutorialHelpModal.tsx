@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useGameStore } from '../../stores';
+import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
@@ -330,6 +331,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
         <header style={tutorialHelpStyles.header}>
           <div>
             <h2 id="tutorial-help-title" style={tutorialHelpStyles.title}>
+              <span style={{ ...primitives.titleAccent }} aria-hidden="true" />
               Tutorial
             </h2>
             <p style={tutorialHelpStyles.subtitle}>{currentTutorial.title}</p>
@@ -861,7 +863,7 @@ const tutorialHelpCss = `
     padding-right: 0 !important;
     padding-bottom: 8px !important;
     border-right: 0 !important;
-    border-bottom: 1px solid #3f3f3f !important;
+    border-bottom: 1px solid ${color.line} !important;
   }
 
   .not4k-tutorial-index-item {
@@ -873,7 +875,7 @@ const tutorialHelpCss = `
     padding-left: 0 !important;
     padding-top: 12px !important;
     border-left: 0 !important;
-    border-top: 1px solid #3f3f3f !important;
+    border-top: 1px solid ${color.line} !important;
   }
 }
 
@@ -904,12 +906,12 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: '18px',
     padding: '20px',
-    color: '#e8e8e8',
-    backgroundColor: '#262626',
-    border: '1px solid #555',
-    borderRadius: '8px',
+    color: color.ink,
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
     boxShadow: '0 22px 64px rgba(0, 0, 0, 0.48)',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: font.body,
   },
   header: {
     display: 'flex',
@@ -921,13 +923,18 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    fontFamily: font.display,
     fontSize: '18px',
     lineHeight: 1.2,
     fontWeight: 700,
+    letterSpacing: '0.04em',
   },
   subtitle: {
     margin: '6px 0 0',
-    color: '#9c9c9c',
+    color: color.inkDim,
     fontSize: '12px',
     lineHeight: 1.35,
   },
@@ -943,46 +950,39 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#e0e0e0',
-    backgroundColor: '#363636',
-    border: '1px solid #5a5a5a',
-    borderRadius: '6px',
+    color: color.ink,
+    background: surface.button,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
+    fontFamily: font.display,
     fontSize: '16px',
     fontWeight: 700,
     lineHeight: 1,
   },
   pageIndicator: {
     minWidth: '42px',
-    color: '#b7b7b7',
-    fontSize: '12px',
+    color: color.inkDim,
+    fontFamily: font.numeric,
+    fontSize: '13px',
     fontWeight: 700,
     textAlign: 'center',
     lineHeight: 1,
   },
   closeButton: {
+    ...primitives.ghostButton,
     minWidth: '72px',
     minHeight: '32px',
     padding: '0 14px',
     flexShrink: 0,
-    color: '#e0e0e0',
-    backgroundColor: '#363636',
-    border: '1px solid #5a5a5a',
-    borderRadius: '6px',
-    cursor: 'pointer',
     fontSize: '13px',
-    fontWeight: 600,
   },
   resetCacheButton: {
+    ...primitives.neonButton,
     minWidth: '104px',
     minHeight: '32px',
     padding: '0 12px',
     flexShrink: 0,
-    color: '#b9f4f8',
-    backgroundColor: '#24383b',
-    border: '1px solid #4d8e96',
-    borderRadius: '6px',
-    cursor: 'pointer',
     fontSize: '12px',
     fontWeight: 700,
   },
@@ -1001,7 +1001,7 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: '6px',
     overflowY: 'auto',
-    borderRight: '1px solid #3f3f3f',
+    borderRight: `1px solid ${color.line}`,
   },
   indexButton: {
     width: '100%',
@@ -1010,26 +1010,28 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: '7px',
     padding: '7px 8px',
-    color: '#cfcfcf',
-    backgroundColor: '#303030',
-    border: '1px solid #454545',
-    borderRadius: '6px',
+    color: color.ink,
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
     boxSizing: 'border-box',
+    fontFamily: font.body,
     fontSize: '12px',
     lineHeight: 1.2,
     textAlign: 'left',
   },
   indexButtonCurrent: {
     color: '#f2f7f7',
-    backgroundColor: '#3a4345',
-    border: '1px solid #6b8d92',
-    boxShadow: 'inset 3px 0 0 #7bdff2',
+    background: surface.cardFocused,
+    border: `1px solid ${color.neon}`,
+    boxShadow: `inset 3px 0 0 ${color.neon}`,
   },
   indexNumber: {
     width: '18px',
     flexShrink: 0,
-    color: '#8f989b',
+    color: color.inkDim,
+    fontFamily: font.numeric,
     fontSize: '11px',
     fontWeight: 800,
     lineHeight: 1,
@@ -1066,9 +1068,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     padding: '12px',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    backgroundColor: '#1f2324',
-    border: '1px solid #444d50',
-    borderRadius: '8px',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
   },
   playerPlaceholder: {
     position: 'absolute',
@@ -1104,7 +1106,7 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     paddingLeft: '14px',
     flexShrink: 0,
     overflowY: 'auto',
-    borderLeft: '1px solid #3f3f3f',
+    borderLeft: `1px solid ${color.line}`,
   },
   body: {
     display: 'flex',
@@ -1114,7 +1116,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
   },
   bodyLine: {
     margin: 0,
-    color: '#d4d4d4',
+    color: color.ink,
+    fontFamily: font.body,
     fontSize: '14px',
     lineHeight: 1.45,
     wordBreak: 'keep-all',

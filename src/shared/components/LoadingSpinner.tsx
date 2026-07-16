@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { font, color, surface } from '../theme';
 
 type LoadingSpinnerProps = {
   /** 표시할 메시지 (기본: 'Loading...') */
@@ -73,17 +74,17 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '12px',
+    gap: '14px',
     width: '100%',
     minHeight: '100dvh',
-    backgroundColor: '#1a1a1a',
+    background: surface.screen,
     zIndex: 3000,
-    color: '#ccc',
-    fontFamily: 'system-ui, sans-serif',
+    color: color.ink,
+    fontFamily: font.body,
     textAlign: 'center',
   },
   fullscreenTransparent: {
-    backgroundColor: 'transparent',
+    background: 'transparent',
   },
   overlay: {
     position: 'absolute',
@@ -92,10 +93,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '12px',
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    gap: '14px',
+    backgroundColor: 'rgba(6, 8, 10, 0.72)',
     zIndex: 1500,
-    color: '#ccc',
+    color: color.ink,
+    fontFamily: font.body,
     textAlign: 'center',
   },
   inline: {
@@ -103,30 +105,39 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '12px',
+    gap: '14px',
     width: '100%',
     minHeight: '144px',
     padding: '24px',
-    color: '#ccc',
+    color: color.ink,
+    fontFamily: font.body,
     textAlign: 'center',
   },
   spinner: {
-    width: '32px',
-    height: '32px',
+    width: '34px',
+    height: '34px',
     flexShrink: 0,
-    border: '3px solid #555',
-    borderTop: '3px solid #4488ff',
+    border: `3px solid ${color.line}`,
+    // 회전 링 상단에 네온 액센트 — 로딩 순간의 절제된 네온
+    borderTop: `3px solid ${color.neon}`,
     borderRadius: '50%',
+    boxShadow: `0 0 16px -6px ${color.neonGlow}`,
     animation: 'spin 0.8s linear infinite',
   },
   message: {
-    color: '#ccc',
-    fontSize: '14px',
+    fontFamily: font.display,
+    fontSize: '15px',
+    fontWeight: 600,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: color.ink,
     lineHeight: 1.4,
   },
   sub: {
-    color: '#888',
+    fontFamily: font.numeric,
+    color: color.inkDim,
     fontSize: '13px',
+    letterSpacing: '0.02em',
     lineHeight: 1.4,
   },
 };
