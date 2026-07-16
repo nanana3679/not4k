@@ -6,7 +6,7 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
+import type { NoteEntity, TrillZone, RestZone, BpmMarker, ChartEvent } from "../../shared";
 import { beatToMs, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -88,6 +88,7 @@ export class GameRenderer {
   private backgroundLayer: Container;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
+  private restZoneLayer: Container;
   private trillZoneLayer: Container;
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -105,6 +106,8 @@ export class GameRenderer {
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
   private trillZones: readonly TrillZone[] = [];
+  // 휴지 구간(RFD 0019) — 저작 데이터. 레인 구간을 dim해 손 파킹 창을 안내한다.
+  private restZones: readonly RestZone[] = [];
   private bpmMarkers: readonly BpmMarker[] = [];
   private measureTimesMs: number[] = [];
   private offsetMs: number = 0;
@@ -119,6 +122,7 @@ export class GameRenderer {
 
   // Object pools for dynamic graphics
   private measureLinePool: Graphics[] = [];
+  private restZonePool: Graphics[] = [];
   private trillZonePool: Graphics[] = [];
 
   // Lane flash
@@ -208,6 +212,7 @@ export class GameRenderer {
     this.backgroundLayer = new Container();
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
+    this.restZoneLayer = new Container();
     this.trillZoneLayer = new Container();
     this.longNoteBodyLayer = new Container();
     this.longNoteEndLayer = new Container();
@@ -277,6 +282,8 @@ export class GameRenderer {
     this.surfaceLayer.addChild(this.surfaceGraphic);
     this.app.stage.addChild(this.surfaceLayer);
     this.app.stage.addChild(this.backgroundLayer);
+    // 휴지 밴드는 레인 배경 바로 위(빔/노트 아래)에 깔아 레인을 가라앉힌다.
+    this.app.stage.addChild(this.restZoneLayer);
     this.app.stage.addChild(this.keyBeamLayer);
     this.app.stage.addChild(this.measureLineLayer);
     this.app.stage.addChild(this.trillZoneLayer);
@@ -1128,6 +1135,7 @@ export class GameRenderer {
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
+    restZones: readonly RestZone[],
     events: readonly ChartEvent[],
     offsetMs: number,
     durationMs: number = 0,
@@ -1138,6 +1146,7 @@ export class GameRenderer {
     this.bpmMarkers = bpmMarkers;
     this.offsetMs = offsetMs;
     this.trillZones = trillZones;
+    this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.surfaceScrollOffsetZ = 0;
     this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
@@ -1204,6 +1213,7 @@ export class GameRenderer {
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
+    for (const g of this.restZonePool) g.visible = false;
     for (const g of this.trillZonePool) g.visible = false;
     this.longNoteBodyLayer.removeChildren();
     this.longNoteEndLayer.removeChildren();
@@ -1214,6 +1224,7 @@ export class GameRenderer {
     const minTime = songTimeMs - 500;
     const maxTime = songTimeMs + visibleWindowMs;
 
+    this.renderRestZones(songTimeMs);
     this.renderMeasureLines(songTimeMs);
     this.renderTrillZones(songTimeMs);
 
@@ -1263,6 +1274,42 @@ export class GameRenderer {
     this.trillZonePool.push(g);
     this.trillZoneLayer.addChild(g);
     return g;
+  }
+
+  private getRestZoneFromPool(index: number): Graphics {
+    if (index < this.restZonePool.length) {
+      return this.restZonePool[index];
+    }
+    const g = new Graphics();
+    this.restZonePool.push(g);
+    this.restZoneLayer.addChild(g);
+    return g;
+  }
+
+  // 휴지 구간(RFD 0019)을 어두운 밴드로 그려 레인을 가라앉힌다.
+  // 트릴존 렌더와 동일한 스크롤/컬링/풀 패턴, 색만 dim.
+  private renderRestZones(songTimeMs: number): void {
+    let poolIdx = 0;
+    for (const zone of this.restZones) {
+      const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
+      const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
+
+      const startY = this.noteRenderer.calculateNoteY(startMs, songTimeMs);
+      const endY = this.noteRenderer.calculateNoteY(endMs, songTimeMs);
+
+      if (startY < -50 || endY > this.height + 50) continue;
+
+      const zoneGraphic = this.getRestZoneFromPool(poolIdx++);
+      zoneGraphic.clear();
+      const laneX = this.noteRenderer.getLaneX(zone.lane);
+
+      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다.
+      const topY = endY;
+      const height = Math.max(startY - endY, 1);
+      zoneGraphic.rect(laneX, topY, LANE_WIDTH, height);
+      zoneGraphic.fill({ color: COLORS.REST_ZONE_DIM, alpha: COLORS.REST_ZONE_ALPHA });
+      zoneGraphic.visible = true;
+    }
   }
 
   private renderMeasureLines(songTimeMs: number): void {

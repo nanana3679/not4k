@@ -446,6 +446,7 @@ function ChartEditorPage() {
       const initViolations = chartViolationIndices({
         notes: chart.notes,
         trillZones: chart.trillZones,
+        restZones: chart.restZones,
         events: chart.events,
       });
       renderer.setViolations(initViolations.notes, initViolations.trillZones, initViolations.events);
@@ -593,6 +594,7 @@ function ChartEditorPage() {
       const violations = chartViolationIndices({
         notes: chart.notes,
         trillZones: chart.trillZones,
+        restZones: chart.restZones,
         events: chart.events,
       });
       rendererRef.current.setViolations(violations.notes, violations.trillZones, violations.events);

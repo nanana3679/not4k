@@ -174,6 +174,7 @@ export function PlayScreen() {
         renderer.setChart(
           chartData.notes,
           chartData.trillZones,
+          chartData.restZones ?? [],
           chartData.events,
           chartData.meta.offsetMs,
           playableDurationMs,

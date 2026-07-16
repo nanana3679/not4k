@@ -5,6 +5,8 @@ import {
   validateTrillExclusive,
   validateTrillLong,
   validateNoTrillZoneOverlap,
+  validateNoRestZoneOverlap,
+  validateRestZoneExclusive,
   validateNoEventDuplicate,
   validateNoEventOverlap,
   validateNoTutorialInputOverlap,
@@ -24,7 +26,7 @@ import {
   isMeasureBoundary,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -1527,5 +1529,309 @@ describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)
     const errors = validateChart({ notes, trillZones: [], events: [] });
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("duplicate");
+  });
+});
+
+// =========================================================================
+// RFD 0019: restZone (휴지 구간) — trillZone 미러
+// =========================================================================
+
+describe("validateNoRestZoneOverlap", () => {
+  it("같은 레인 restZone 끝-시작 인접(0~4, 4~8)은 겹침 아님", () => {
+    const restZones: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(4), endBeat: beat(8) },
+    ];
+    expect(validateNoRestZoneOverlap(restZones)).toEqual([]);
+  });
+
+  it("다른 레인 restZone(1레인 0~4, 2레인 2~6)은 겹쳐도 위반 아님", () => {
+    const restZones: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 2, beat: beat(2), endBeat: beat(6) },
+    ];
+    expect(validateNoRestZoneOverlap(restZones)).toEqual([]);
+  });
+
+  it("같은 레인 restZone 열린 구간 겹침(0~4, 2~6)이면 restZoneOverlap 에러", () => {
+    const restZones: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(2), endBeat: beat(6) },
+    ];
+    const errors = validateNoRestZoneOverlap(restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneOverlap");
+  });
+
+  it("같은 레인 완전 동일 구간 restZone 두 개(0~4, 0~4)도 restZoneOverlap 에러", () => {
+    // 끝점 포함 4-조건 비교는 동일 구간을 놓쳤음 — 제자리 복붙 회귀 방지
+    const restZones: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+    ];
+    const errors = validateNoRestZoneOverlap(restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneOverlap");
+  });
+
+  it("겹치는 두 restZone이면 refs에 두 인덱스가 kind 'restZone'으로 담긴다", () => {
+    const restZones: RestZone[] = [
+      { lane: 3, beat: beat(0), endBeat: beat(4) }, // 인덱스 0, 무관 레인
+      { lane: 1, beat: beat(0), endBeat: beat(4) }, // 인덱스 1
+      { lane: 1, beat: beat(2), endBeat: beat(6) }, // 인덱스 2, 겹침 대상
+    ];
+    const errors = validateNoRestZoneOverlap(restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "restZone", index: 1 },
+      { kind: "restZone", index: 2 },
+    ]);
+  });
+});
+
+describe("validateRestZoneExclusive", () => {
+  it("restZone(레인 1, 0~4) 안에 같은 레인 노트(beat 2) 있으면 restZoneExclusive 위반", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(2) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const errors = validateRestZoneExclusive(notes, [], restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneExclusive");
+  });
+
+  it("다른 레인 restZone·노트는 위반 아님 (레인 2 노트 vs 레인 1 restZone)", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 2, beat: beat(2) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateRestZoneExclusive(notes, [], restZones)).toEqual([]);
+  });
+
+  it("포인트 노트가 restZone 경계 박(zone 4~8의 beat 4)에 있으면 위반 아님 (끝-시작 인접 허용)", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(4) },
+      { type: "single", lane: 1, beat: beat(8) },
+    ];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(4), endBeat: beat(8) }];
+    expect(validateRestZoneExclusive(notes, [], restZones)).toEqual([]);
+  });
+
+  it("롱노트(2~6)가 같은 레인 restZone(4~8)과 겹치면 위반", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(2), endBeat: beat(6) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(4), endBeat: beat(8) }];
+    const errors = validateRestZoneExclusive(notes, [], restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneExclusive");
+  });
+
+  it("롱노트(0~12) 바디가 restZone(4~8)을 관통하면 위반", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(12) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(4), endBeat: beat(8) }];
+    expect(validateRestZoneExclusive(notes, [], restZones)).toHaveLength(1);
+  });
+
+  it("롱노트 끝(0~4)과 restZone 시작(4~8)이 같은 박이면 인접 허용 — 위반 아님", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(4), endBeat: beat(8) }];
+    expect(validateRestZoneExclusive(notes, [], restZones)).toEqual([]);
+  });
+
+  it("restZone(0~4)과 같은 레인 trillZone(2~6)이 겹치면 위반", () => {
+    const trillZones: TrillZone[] = [{ lane: 1, beat: beat(2), endBeat: beat(6) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const errors = validateRestZoneExclusive([], trillZones, restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("restZoneExclusive");
+  });
+
+  it("restZone과 완전 동일 구간의 같은 레인 trillZone(0~4, 0~4)도 위반", () => {
+    const trillZones: TrillZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateRestZoneExclusive([], trillZones, restZones)).toHaveLength(1);
+  });
+
+  it("restZone과 trillZone이 다른 레인이면 겹쳐도 위반 아님", () => {
+    const trillZones: TrillZone[] = [{ lane: 2, beat: beat(0), endBeat: beat(4) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateRestZoneExclusive([], trillZones, restZones)).toEqual([]);
+  });
+
+  it("restZone과 trillZone 끝-시작 인접(0~4, 4~8)은 위반 아님", () => {
+    const trillZones: TrillZone[] = [{ lane: 1, beat: beat(4), endBeat: beat(8) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateRestZoneExclusive([], trillZones, restZones)).toEqual([]);
+  });
+
+  it("노트 위반 refs에 restZone과 note 인덱스가 kind별로 담긴다", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 2, beat: beat(2) }, // 인덱스 0, 무관 레인
+      { type: "single", lane: 1, beat: beat(2) }, // 인덱스 1, 위반
+    ];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const errors = validateRestZoneExclusive(notes, [], restZones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].refs).toEqual([
+      { kind: "restZone", index: 0 },
+      { kind: "note", index: 1 },
+    ]);
+  });
+
+  it("trillZone 위반 refs에 restZone과 trillZone 인덱스가 kind별로 담긴다", () => {
+    const trillZones: TrillZone[] = [{ lane: 1, beat: beat(2), endBeat: beat(6) }];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const errors = validateRestZoneExclusive([], trillZones, restZones);
+    expect(errors[0].refs).toEqual([
+      { kind: "restZone", index: 0 },
+      { kind: "trillZone", index: 0 },
+    ]);
+  });
+});
+
+describe("restZone 구조 검증 (structural 버킷, RFD 0019)", () => {
+  const structuralInput = (restZones: RestZone[]) => ({
+    notes: [] as NoteEntity[],
+    trillZones: [] as TrillZone[],
+    events: [] as ChartEvent[],
+    restZones,
+  });
+
+  it("restZone endBeat < beat(4→2, 역전)면 rangeInverted", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 1, beat: beat(4), endBeat: beat(2) }]),
+    );
+    expect(errors.map((e) => e.rule)).toEqual(["rangeInverted"]);
+  });
+
+  it("restZone 길이 0(beat 4, endBeat 4)이면 rangeInverted — trillZone과 달리 길이 0 금지", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 1, beat: beat(4), endBeat: beat(4) }]),
+    );
+    expect(errors.map((e) => e.rule)).toEqual(["rangeInverted"]);
+  });
+
+  it("restZone endBeat > beat(0~4)면 구조 위반 없음", () => {
+    expect(
+      validateChartStructural(structuralInput([{ lane: 1, beat: beat(0), endBeat: beat(4) }])),
+    ).toEqual([]);
+  });
+
+  it("restZone beat 분모 0이면 beatMalformed", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 1, beat: { n: 1, d: 0 }, endBeat: beat(4) }]),
+    );
+    expect(errors.some((e) => e.rule === "beatMalformed")).toBe(true);
+  });
+
+  it("restZone lane 0이면 laneMalformed", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 0, beat: beat(0), endBeat: beat(4) } as unknown as RestZone]),
+    );
+    expect(errors.map((e) => e.rule)).toEqual(["laneMalformed"]);
+  });
+
+  it("restZone lane 5면 laneMalformed — restZone은 가시 레인 1~4 전용 (RFD 0019 §4-1)", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 5, beat: beat(0), endBeat: beat(4) } as unknown as RestZone]),
+    );
+    expect(errors.map((e) => e.rule)).toEqual(["laneMalformed"]);
+  });
+
+  it("restZone lane 2.5(비정수)면 laneMalformed", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 2.5, beat: beat(0), endBeat: beat(4) } as unknown as RestZone]),
+    );
+    expect(errors.map((e) => e.rule)).toEqual(["laneMalformed"]);
+  });
+
+  it("restZone 구조 위반 refs의 kind는 'restZone'", () => {
+    const errors = validateChartStructural(
+      structuralInput([{ lane: 1, beat: beat(4), endBeat: beat(2) }]),
+    );
+    expect(errors[0].refs).toEqual([{ kind: "restZone", index: 0 }]);
+  });
+
+  it("restZones 없는 입력(기존 호출자)도 구조·의미 검증이 그대로 통과", () => {
+    const input = { notes: [] as NoteEntity[], trillZones: [] as TrillZone[], events: [] as ChartEvent[] };
+    expect(validateChartStructural(input)).toEqual([]);
+    expect(validateChartSemantic(input)).toEqual([]);
+  });
+});
+
+describe("validateChartSemantic × restZone 버킷 분류", () => {
+  it("겹치는 restZone은 semantic 버킷(restZoneOverlap)이고 structural 버킷에는 없음", () => {
+    const input = {
+      notes: [] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+      restZones: [
+        { lane: 1, beat: beat(0), endBeat: beat(4) },
+        { lane: 1, beat: beat(2), endBeat: beat(6) },
+      ] as RestZone[],
+    };
+    expect(validateChartSemantic(input).map((e) => e.rule)).toEqual(["restZoneOverlap"]);
+    expect(validateChartStructural(input)).toEqual([]);
+  });
+
+  it("restZone 안 같은 레인 노트는 semantic 버킷(restZoneExclusive)", () => {
+    const input = {
+      notes: [{ type: "single", lane: 1, beat: beat(2) }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+      restZones: [{ lane: 1, beat: beat(0), endBeat: beat(4) }] as RestZone[],
+    };
+    expect(validateChartSemantic(input).map((e) => e.rule)).toEqual(["restZoneExclusive"]);
+  });
+});
+
+describe("chartViolationIndices × restZone", () => {
+  it("restZone 위반이면 restZones Set에 해당 인덱스가 담긴다", () => {
+    const input = {
+      notes: [{ type: "single", lane: 1, beat: beat(2) }] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+      restZones: [
+        { lane: 2, beat: beat(0), endBeat: beat(4) }, // 인덱스 0, 무관
+        { lane: 1, beat: beat(0), endBeat: beat(4) }, // 인덱스 1, 노트와 배타 위반
+      ] as RestZone[],
+    };
+    const indices = chartViolationIndices(input);
+    expect(indices.restZones).toEqual(new Set([1]));
+    expect(indices.notes).toEqual(new Set([0]));
+  });
+
+  it("위반 없으면 restZones Set은 비어 있다", () => {
+    const input = {
+      notes: [] as NoteEntity[],
+      trillZones: [] as TrillZone[],
+      events: [] as ChartEvent[],
+      restZones: [{ lane: 1, beat: beat(0), endBeat: beat(4) }] as RestZone[],
+    };
+    expect(chartViolationIndices(input).restZones).toEqual(new Set());
+  });
+});
+
+describe("validateChart memo × restZones", () => {
+  it("notes·trillZones·events 참조가 같아도 restZones가 다르면 다른 결과 (stale memo 없음)", () => {
+    const notes: NoteEntity[] = [];
+    const trillZones: TrillZone[] = [];
+    const events: ChartEvent[] = [];
+    const overlapping: RestZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 1, beat: beat(2), endBeat: beat(6) },
+    ];
+    const clean: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+
+    const first = validateChart({ notes, trillZones, events, restZones: overlapping });
+    expect(first.map((e) => e.rule)).toEqual(["restZoneOverlap"]);
+
+    const second = validateChart({ notes, trillZones, events, restZones: clean });
+    expect(second).toEqual([]);
+  });
+
+  it("restZones까지 같은 참조면 memo가 같은 결과 객체를 재사용한다", () => {
+    const notes: NoteEntity[] = [];
+    const trillZones: TrillZone[] = [];
+    const events: ChartEvent[] = [];
+    const restZones: RestZone[] = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    const a = validateChart({ notes, trillZones, events, restZones });
+    const b = validateChart({ notes, trillZones, events, restZones });
+    expect(a).toBe(b);
   });
 });

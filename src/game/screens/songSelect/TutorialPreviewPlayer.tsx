@@ -372,6 +372,7 @@ export function TutorialPreviewPlayer({
         renderer.setChart(
           preview.renderChart.notes,
           preview.renderChart.trillZones,
+          preview.renderChart.restZones ?? [],
           preview.renderChart.events,
           preview.renderChart.meta.offsetMs,
           preview.renderDurationMs,

@@ -4,7 +4,7 @@ import type { Chart, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
 
-function makeChart(notes: Chart['notes'] = []): Chart {
+function makeChart(notes: Chart['notes'] = [], restZones?: Chart['restZones']): Chart {
   return {
     meta: {
       title: 'Test',
@@ -18,6 +18,7 @@ function makeChart(notes: Chart['notes'] = []): Chart {
     },
     notes,
     trillZones: [],
+    ...(restZones ? { restZones } : {}),
     events: [
       { type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 },
       { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
@@ -128,6 +129,30 @@ describe('editorStore 차트 변이 게이트', () => {
     expect(useEditorStore.getState().historyPast).toHaveLength(1);
   });
 
+  it('restZone 구간 역전(beat 4 → endBeat 2) setChart는 구조 위반으로 거부되어 차트·히스토리가 유지된다', () => {
+    const structuralInvalid = makeChart([], [
+      { lane: 1 as Lane, beat: beat(4), endBeat: beat(2) },
+    ]);
+
+    useEditorStore.getState().setChart(structuralInvalid);
+
+    expect(useEditorStore.getState().chart.restZones ?? []).toHaveLength(0); // 이전 차트 유지
+    expect(useEditorStore.getState().historyPast).toHaveLength(0); // undo 스택 오염 없음
+  });
+
+  it('restZone×노트 겹침(레인 1 구간 0~4 안 beat 2 노트)은 의미 위반이라 setChart가 낙관적으로 커밋한다', () => {
+    const semanticInvalid = makeChart(
+      [{ type: 'single', lane: 1 as Lane, beat: beat(2) }],
+      [{ lane: 1 as Lane, beat: beat(0, 1), endBeat: beat(4) }],
+    );
+
+    useEditorStore.getState().setChart(semanticInvalid);
+
+    expect(useEditorStore.getState().chart.restZones).toHaveLength(1); // 낙관적으로 커밋됨
+    expect(useEditorStore.getState().historyPast).toHaveLength(1); // undo로 복귀 가능
+    expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // 전체 valid 아님 — 씨앗 미갱신 (게이트가 restZones를 봄)
+  });
+
   it('loadChart는 위반 차트도 수용한다 — 열람·수리용 예외 통로', () => {
     const invalid = makeChart([
       { type: 'single', lane: 1 as Lane, beat: beat(1) },
@@ -210,6 +235,18 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
 
     expect(useEditorStore.getState().chart).toBe(invalid); // 수리용 예외 통로로 열림
     expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // 씨앗 아님
+  });
+
+  it('restZone×노트 겹침 차트를 loadChart하면 열리지만 lastValidSnapshot은 null로 유지된다', () => {
+    const invalid = makeChart(
+      [{ type: 'single', lane: 2 as Lane, beat: beat(2) }],
+      [{ lane: 2 as Lane, beat: beat(0, 1), endBeat: beat(4) }],
+    );
+
+    useEditorStore.getState().loadChart(invalid);
+
+    expect(useEditorStore.getState().chart).toBe(invalid); // 수리용 예외 통로로 열림
+    expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // restZone 위반도 씨앗 아님
   });
 
   it('revertToLastValid는 chart·extraLaneCount를 lastValidSnapshot으로 되돌린다', () => {

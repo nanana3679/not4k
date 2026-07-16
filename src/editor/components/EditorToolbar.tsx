@@ -673,6 +673,7 @@ export function EditorToolbar({
   const violationItems = buildViolationList(validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
+    restZones: chart.restZones,
     events: chart.events,
   }));
   const violationCount = violationItems.length;

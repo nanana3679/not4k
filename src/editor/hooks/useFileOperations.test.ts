@@ -131,6 +131,37 @@ describe('performPlayTest', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it('restZone×노트 겹침(레인 1 구간 0~4 안 beat 2 노트) 차트는 화면 전환·네비게이션 없이 false 반환', () => {
+    // RFD 0019 §4-2: restZone 의미 위반도 플레이/프리뷰 진입 게이트가 막는다
+    const invalidChart = {
+      ...baseChart,
+      notes: [{ type: 'single' as const, lane: 1 as Lane, beat: beat(2) }],
+      restZones: [{ lane: 1 as Lane, beat: beat(0, 1), endBeat: beat(4) }],
+    };
+    const { params, game, addToast, navigate } = buildParams({ chart: invalidChart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(false);
+    expect(addToast).toHaveBeenCalledWith('배치 제약 위반 1건이 남아 있어 플레이할 수 없습니다', 'error');
+    expect(game.setScreen).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('노트와 겹치지 않는 restZone(레인 1 구간 0~4, 노트는 레인 2)은 위반이 아니라 플레이 진입 허용', () => {
+    const validChart = {
+      ...baseChart,
+      notes: [{ type: 'single' as const, lane: 2 as Lane, beat: beat(2) }],
+      restZones: [{ lane: 1 as Lane, beat: beat(0, 1), endBeat: beat(4) }],
+    };
+    const { params, game } = buildParams({ chart: validChart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(true);
+    expect(game.setScreen).toHaveBeenCalledWith('play');
+  });
+
   it('fromCursor=false면 startTimeMs를 0으로 설정', () => {
     const { params, game } = buildParams({ fromCursor: false, currentTimeMs: 8000 });
 

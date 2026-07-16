@@ -947,6 +947,7 @@ export class SelectMode implements EditorMode {
           const errors = validateChartStructural({
             notes: chart.notes,
             trillZones: chart.trillZones,
+            restZones: chart.restZones,
             events: chart.events,
           });
           return errors.map((e) => String(e));
