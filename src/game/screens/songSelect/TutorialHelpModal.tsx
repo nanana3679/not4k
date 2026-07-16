@@ -748,12 +748,18 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
-.not4k-tutorial-index {
+.not4k-tutorial-index,
+.not4k-tutorial-content-layout,
+.not4k-tutorial-player-column,
+.not4k-tutorial-text-panel {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.not4k-tutorial-index::-webkit-scrollbar {
+.not4k-tutorial-index::-webkit-scrollbar,
+.not4k-tutorial-content-layout::-webkit-scrollbar,
+.not4k-tutorial-player-column::-webkit-scrollbar,
+.not4k-tutorial-text-panel::-webkit-scrollbar {
   display: none;
 }
 
@@ -857,9 +863,10 @@ const tutorialHelpCss = `
 
   .not4k-tutorial-index {
     width: auto !important;
-    /* 자체 스크롤(트랩)을 없애 목록·렌더러·설명이 한 제스처로 균일하게 스크롤되게 한다. */
-    max-height: none !important;
-    overflow: visible !important;
+    /* 목록은 높이를 제한하고 그 안에서만 스크롤(스크롤바는 숨김). 렌더러가 세로로 밀리지 않게 한다.
+       렌더러·설명 드래그는 바깥 contentLayout이 스크롤한다. */
+    max-height: 156px !important;
+    overflow-y: auto !important;
     padding-right: 0 !important;
     padding-bottom: 8px !important;
     border-right: 0 !important;
