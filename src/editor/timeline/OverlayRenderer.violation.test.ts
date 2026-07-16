@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
 import { beat } from "../../shared";
-import type { Chart, BpmMarker, NoteEntity, TrillZone, ChartEvent } from "../../shared";
-import { TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import type { Chart, BpmMarker, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 
@@ -13,6 +13,7 @@ function makeChart(
     { type: "bpm", beat: beat(0), bpm: 120 },
     { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
   ],
+  restZones?: RestZone[],
 ): Chart {
   return {
     meta: {
@@ -21,6 +22,7 @@ function makeChart(
     },
     notes,
     trillZones,
+    ...(restZones ? { restZones } : {}),
     events,
   };
 }
@@ -40,6 +42,7 @@ function makeHost(
   violatingNotes: Set<number>,
   violatingZones: Set<number>,
   violatingEvents: Set<number> = new Set(),
+  violatingRestZones: Set<number> = new Set(),
 ): OverlayHost {
   return {
     chart,
@@ -48,6 +51,7 @@ function makeHost(
     resizeHoverNoteIndex: null,
     violatingNoteIndices: violatingNotes,
     violatingTrillZoneIndices: violatingZones,
+    violatingRestZoneIndices: violatingRestZones,
     violatingEventIndices: violatingEvents,
     moveOrigins: null,
     boxSelectRect: null,
@@ -165,6 +169,48 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
       { type: "bpm", beat: beat(0), bpm: 120 },
     ]);
     const host = makeHost(chart, new Set(), new Set(), new Set([5]));
+    const r = new OverlayRenderer(host);
+    r.renderViolationOverlay();
+    expect(host.violationLayer.children.length).toBe(0);
+  });
+
+  it("위반 restZone(lane 3, beat 0→4)은 노트와 동일 레인 기하(x=2*LANE_WIDTH)로 0→2000ms 구간 해칭된다 (RFD 0019)", () => {
+    const chart = makeChart([], [], undefined, [
+      { lane: 3, beat: beat(0), endBeat: beat(4) },
+    ]);
+    const host = makeHost(chart, new Set(), new Set(), new Set(), new Set([0]));
+    const r = new OverlayRenderer(host);
+    const spy = spyHatchCore(r);
+    r.renderViolationOverlay();
+    // rectX = laneToX(3) + (LANE_WIDTH - NOTE_HEIGHT*5)/2 = 2*LANE_WIDTH + 0
+    expect(spy).toHaveBeenCalledExactlyOnceWith(
+      2 * LANE_WIDTH, 0, 2000, expect.any(Number), expect.any(Number),
+    );
+  });
+
+  it("restZone 위반만 있어도(노트·트릴존·이벤트 위반 0) 조기 반환 게이트를 통과해 해칭이 그려진다", () => {
+    const chart = makeChart([], [], undefined, [
+      { lane: 1, beat: beat(0), endBeat: beat(2) },
+    ]);
+    const host = makeHost(chart, new Set(), new Set(), new Set(), new Set([0]));
+    const r = new OverlayRenderer(host);
+    r.renderViolationOverlay();
+    expect(host.violationLayer.children.length).toBeGreaterThan(0);
+  });
+
+  it("restZones 길이를 벗어난 stale restZone 인덱스는 건너뛴다(그리기 0개)", () => {
+    const chart = makeChart([], [], undefined, [
+      { lane: 1, beat: beat(0), endBeat: beat(2) },
+    ]);
+    const host = makeHost(chart, new Set(), new Set(), new Set(), new Set([7]));
+    const r = new OverlayRenderer(host);
+    r.renderViolationOverlay();
+    expect(host.violationLayer.children.length).toBe(0);
+  });
+
+  it("chart.restZones가 없으면(undefined) restZone 위반 인덱스가 있어도 그리지 않는다(하위호환)", () => {
+    const chart = makeChart([], [], undefined, undefined);
+    const host = makeHost(chart, new Set(), new Set(), new Set(), new Set([0]));
     const r = new OverlayRenderer(host);
     r.renderViolationOverlay();
     expect(host.violationLayer.children.length).toBe(0);

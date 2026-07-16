@@ -81,6 +81,7 @@ export class TimelineRenderer {
   private measureLines!: Container;
   private beatLines!: Container;
   private snapLines!: Container;
+  private restZoneLayer!: Container;
   private trillZoneLayer!: Container;
   private moveOriginLayer!: Container;
   private longNoteBodyLayer!: Container;
@@ -142,9 +143,10 @@ export class TimelineRenderer {
   private _cursorLine: Graphics | null = null;
   private _cursorHandle: Graphics | null = null;
 
-  // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3·§7). 노트·트릴존·이벤트 각각.
+  // Violation overlay state — 낙관적 편집 위반 표시(RFD 0017 §3-3·§7). 노트·트릴존·restZone·이벤트 각각.
   private _violatingNoteIndices: Set<number> = new Set();
   private _violatingTrillZoneIndices: Set<number> = new Set();
+  private _violatingRestZoneIndices: Set<number> = new Set();
   private _violatingEventIndices: Set<number> = new Set();
 
   // Chart data
@@ -258,6 +260,7 @@ export class TimelineRenderer {
     this.measureLines = new Container();
     this.beatLines = new Container();
     this.snapLines = new Container();
+    this.restZoneLayer = new Container();
     this.trillZoneLayer = new Container();
     this.moveOriginLayer = new Container();
     this.longNoteBodyLayer = new Container();
@@ -281,6 +284,8 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.measureLines);
     this.app.stage.addChild(this.beatLines);
     this.app.stage.addChild(this.snapLines);
+    // restZone 밴드는 "쉬는 레인" 배경 dim이므로 trillZone보다 뒤(아래), 노트보다 아래에 둔다 (RFD 0019).
+    this.app.stage.addChild(this.restZoneLayer);
     this.app.stage.addChild(this.trillZoneLayer);
     this.app.stage.addChild(this.moveOriginLayer);
     this.app.stage.addChild(this.longNoteBodyLayer);
@@ -366,6 +371,7 @@ export class TimelineRenderer {
       get beatLines() { return self.beatLines; },
       get snapLines() { return self.snapLines; },
       get trillZoneLayer() { return self.trillZoneLayer; },
+      get restZoneLayer() { return self.restZoneLayer; },
       get measureLabels() { return self.measureLabels; },
     };
     this.gridRenderer = new GridRenderer(gridHost);
@@ -397,6 +403,7 @@ export class TimelineRenderer {
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
+      get violatingRestZoneIndices() { return self._violatingRestZoneIndices; },
       get violatingEventIndices() { return self._violatingEventIndices; },
       get moveOrigins() { return self._moveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
@@ -613,6 +620,7 @@ export class TimelineRenderer {
       this.measureLines,
       this.beatLines,
       this.snapLines,
+      this.restZoneLayer,
       this.trillZoneLayer,
       this.moveOriginLayer,
       this.longNoteBodyLayer,
@@ -799,6 +807,7 @@ export class TimelineRenderer {
     this.gridRenderer.renderLaneBackgrounds();
     this.gridRenderer.renderWaveform();
     this.gridRenderer.renderGridLines();
+    this.gridRenderer.renderRestZones();
     this.gridRenderer.renderTrillZones();
     this.overlayRenderer.renderMoveOrigins();
     this.overlayRenderer.renderBoxSelectRect();
@@ -823,6 +832,7 @@ export class TimelineRenderer {
     destroyChildren(this.measureLines);
     destroyChildren(this.beatLines);
     destroyChildren(this.snapLines);
+    destroyChildren(this.restZoneLayer);
     destroyChildren(this.trillZoneLayer);
     destroyChildren(this.moveOriginLayer);
     // 노트 레이어는 NoteRenderer.beginRender()에서 removeChildren으로 관리
@@ -923,12 +933,13 @@ export class TimelineRenderer {
   }
 
   /**
-   * 제약을 위반하는 노트·트릴존·이벤트 인덱스를 설정한다(빨간 해칭 오버레이).
-   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3·§7).
+   * 제약을 위반하는 노트·트릴존·restZone·이벤트 인덱스를 설정한다(빨간 해칭 오버레이).
+   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3·§7, RFD 0019).
    */
-  setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>, eventIndices: Set<number>): void {
+  setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>, restZoneIndices: Set<number>, eventIndices: Set<number>): void {
     this._violatingNoteIndices = noteIndices;
     this._violatingTrillZoneIndices = trillZoneIndices;
+    this._violatingRestZoneIndices = restZoneIndices;
     this._violatingEventIndices = eventIndices;
     this.overlayRenderer.renderViolationOverlay();
     // 미니맵 위반 틱(RFD 0017 §7)만 경량 갱신 — 전체 render는 O(N) 노트 순회+자식 재생성이라

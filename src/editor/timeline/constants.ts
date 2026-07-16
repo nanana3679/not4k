@@ -41,6 +41,12 @@ export const COLORS = {
   TRILL_ZONE: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.2,
 
+  // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 게임 렌더의 dim(REST_ZONE_DIM)과 개념은
+  // 같지만, 에디터에서는 어두운 배경 위에서 식별돼야 하므로 muted 회색 오버레이로 그린다.
+  // trillZone(초록)과 시각적으로 구분되는 무채색 계열.
+  REST_ZONE: 0x8890a0,
+  REST_ZONE_ALPHA: 0.25,
+
   SELECTED_OUTLINE: 0xff4444,
   HOVERED_OUTLINE: 0xffffff,
 

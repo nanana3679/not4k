@@ -27,6 +27,7 @@ export interface OverlayHost {
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
+  readonly violatingRestZoneIndices: Set<number>;
   readonly violatingEventIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
@@ -366,6 +367,7 @@ export class OverlayRenderer {
     if (
       this.host.violatingNoteIndices.size === 0 &&
       this.host.violatingTrillZoneIndices.size === 0 &&
+      this.host.violatingRestZoneIndices.size === 0 &&
       this.host.violatingEventIndices.size === 0
     ) return;
 
@@ -386,6 +388,16 @@ export class OverlayRenderer {
     for (const idx of this.host.violatingTrillZoneIndices) {
       if (idx >= this.host.chart.trillZones.length) continue;
       const zone = this.host.chart.trillZones[idx];
+      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
+    }
+
+    // restZone: 항상 구간(자기 겹침·노트/trillZone 겹침, RFD 0019 §4-2). 트릴존과 동일 레인 기하.
+    const restZones = this.host.chart.restZones ?? [];
+    for (const idx of this.host.violatingRestZoneIndices) {
+      if (idx >= restZones.length) continue;
+      const zone = restZones[idx];
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
       const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);

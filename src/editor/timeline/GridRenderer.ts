@@ -42,6 +42,7 @@ export interface GridHost {
   readonly beatLines: Container;
   readonly snapLines: Container;
   readonly trillZoneLayer: Container;
+  readonly restZoneLayer: Container;
   readonly measureLabels: Container;
 }
 
@@ -365,6 +366,44 @@ export class GridRenderer {
 
       // 이동/리사이즈 핸들은 hover 시에만 hoverLayer(OverlayRenderer)에 그린다.
       // 구간 배경(bg)만 항상 렌더링한다.
+    }
+  }
+
+  /**
+   * restZone 렌더링 (RFD 0019) — trillZone 밴드 미러.
+   * 선택/핸들 UX는 아직 없다(다음 슬라이스): muted 회색 밴드만 그린다.
+   */
+  renderRestZones(): void {
+    const chart = this.host.chart;
+    if (!chart) return;
+
+    const restZones = chart.restZones ?? [];
+    const { meta } = chart;
+    const bpmMarkers = this.host.cachedBpmMarkers;
+    const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
+
+    for (let i = 0; i < restZones.length; i++) {
+      const zone = restZones[i];
+      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) continue;
+      const startY = this.host.timeToY(startMs);
+      const endY = this.host.timeToY(endMs);
+
+      const x = (zone.lane - 1) * LANE_WIDTH;
+      const width = LANE_WIDTH;
+      const topY = Math.min(startY, endY);
+      const rawHeight = Math.abs(endY - startY);
+      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
+      const adjustedTopY = rawHeight > 0 ? topY : topY - NOTE_HEIGHT / 2;
+
+      const bg = new Graphics();
+      bg.rect(x, adjustedTopY, width, height);
+      bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      this.host.restZoneLayer.addChild(bg);
     }
   }
 }
