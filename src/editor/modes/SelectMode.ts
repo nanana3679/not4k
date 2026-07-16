@@ -1144,6 +1144,14 @@ export class SelectMode implements EditorMode {
     return new Set();
   }
 
+  /**
+   * 복사 대상 restZone = 선택된 restZones (trillZonesToCopy 미러, RFD 0019).
+   * restZone 선택은 note/zone과 배타라, 이게 비어 있지 않으면 클립보드는 restZone-only가 된다.
+   */
+  private restZonesToCopy(): Set<number> {
+    return new Set(this.sel.restZones);
+  }
+
   copy(): number {
     // 구간 유닛의 내부 노트를 실행 시점에 파생해 함께 담는다 (RFD 0016 §4.2).
     // effectiveNoteIndices는 메인·보조 통합 인덱스 — 보조 노트도 chart.notes에서 복사된다 (RFD 0018 ④).
@@ -1151,6 +1159,7 @@ export class SelectMode implements EditorMode {
       this.chart,
       this.effectiveNoteIndices(),
       this.trillZonesToCopy(),
+      this.restZonesToCopy(),
     );
   }
 
@@ -1175,8 +1184,17 @@ export class SelectMode implements EditorMode {
     if (result === null) return 0;
 
     this.chart = result.chart;
-    // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다
-    this.commitSelection({ notes: result.selectedIndices });
+    // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다.
+    // restZone을 붙여넣었으면 선택은 붙여넣은 restZones로 — 배타 구성 (RFD 0019).
+    if (result.pastedRestZoneIndices.size > 0) {
+      this.commitSelection({
+        notes: new Set(),
+        zones: new Set(),
+        restZones: new Set(result.pastedRestZoneIndices),
+      });
+    } else {
+      this.commitSelection({ notes: result.selectedIndices });
+    }
     return result.count;
   }
 

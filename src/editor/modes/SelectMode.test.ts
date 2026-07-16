@@ -2321,6 +2321,133 @@ describe("SelectMode — 트릴존 복붙", () => {
 });
 
 // ---------------------------------------------------------------------------
+// restZone 복붙 (RFD 0019 스텝4 슬라이스 F) — trillZone 클립보드 축 미러.
+// restZone 선택은 note/zone과 배타라 클립보드는 restZone-only이며,
+// paste는 새 restZone을 chart.restZones에 낙관 주입하고 그것을 배타 선택한다.
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
+  // restZone 2개: 0=lane2[2,6], 1=lane4[8,10]. 노트 1개(lane1, beat0) — restZone과 무관.
+  function makeChartRC(): Chart {
+    return makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+      restZones: [
+        { lane: 2 as Lane, beat: beat(2), endBeat: beat(6) },
+        { lane: 4 as Lane, beat: beat(8), endBeat: beat(10) },
+      ],
+    });
+  }
+
+  it("selectRestZoneUnit(0) 후 copy()는 1을 반환한다(restZone 구간만 — 배타 선택이라 노트 없음)", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    expect(mode.selectRestZoneUnit(0)).toBe(true);
+    expect(mode.copy()).toBe(1);
+  });
+
+  it("restZone lane2[2,6] 복사 → paste(beat 10)로 새 restZone [10,14]가 생성된다(레인 2 유지, 원본 불변)", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    expect(mode.paste(beat(10))).toBe(1);
+
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(pasted.restZones).toHaveLength(3);
+    expect(pasted.restZones![2].lane).toBe(2);
+    expect(beatToFloat(pasted.restZones![2].beat)).toBe(10);
+    expect(beatToFloat(pasted.restZones![2].endBeat)).toBe(14);
+    // 원본 restZone·노트 불변
+    expect(beatToFloat(pasted.restZones![0].beat)).toBe(2);
+    expect(pasted.notes).toHaveLength(1);
+  });
+
+  it("paste 후 선택은 붙여넣은 restZone {2}로 배타 구성된다(notes·zones ∅)", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    mode.paste(beat(10));
+
+    const sel = cb.getSelectionState();
+    expect([...sel.restZones]).toEqual([2]);
+    expect(sel.notes.size).toBe(0);
+    expect(sel.zones.size).toBe(0);
+  });
+
+  it("restZone 붙여넣기 대기 중 movePasteBySnap('up')으로 [10,14] → [11,15]로 이동한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    mode.paste(beat(10));
+    mode.movePasteBySnap("up");
+
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(moved.restZones![2].beat)).toBe(11);
+    expect(beatToFloat(moved.restZones![2].endBeat)).toBe(15);
+  });
+
+  it("restZone 붙여넣기 대기 중 movePasteByLane('right')로 lane 2→3으로 이동한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    mode.paste(beat(10));
+    mode.movePasteByLane("right");
+
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(moved.restZones![2].lane).toBe(3);
+    expect(moved.restZones![0].lane).toBe(2); // 원본 불변
+  });
+
+  it("cancelPaste는 붙여넣은 restZone을 제거해 원본 2개로 복원하고 선택을 해제한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    mode.paste(beat(10));
+    mode.cancelPaste();
+
+    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(restored.restZones).toHaveLength(2);
+    expect(cb.getSelectionState().restZones.size).toBe(0);
+    expect(mode.isPendingPaste).toBe(false);
+  });
+
+  it("노트(lane2, beat11)와 겹치는 위치에 붙여넣어도 낙관 커밋 — confirmPlacement가 구조 검증만으로 확정한다", () => {
+    const cb = makeCallbacks();
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 2 as Lane, beat: beat(11) }],
+      restZones: [{ lane: 2 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectRestZoneUnit(0);
+    mode.copy();
+    expect(mode.paste(beat(10))).toBe(1); // [10,14]가 노트@11과 겹침(의미 위반) — 낙관 주입
+    expect(mode.isPendingPaste).toBe(true);
+
+    mode.confirmPlacement(); // 구조 위반이 아니므로 확정된다(place-then-fix, RFD 0017)
+    expect(mode.isPendingPaste).toBe(false);
+    const confirmed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(confirmed.restZones).toHaveLength(2);
+    expect(beatToFloat(confirmed.restZones![1].beat)).toBe(10);
+  });
+
+  it("selectRestZoneUnit(0) 후 cut()은 restZone을 클립보드에 담고 차트에서 삭제한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartRC(), cb);
+    mode.selectRestZoneUnit(0);
+    expect(mode.cut()).toBe(1);
+
+    const afterCut = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(afterCut.restZones).toHaveLength(1);
+    expect(afterCut.restZones![0].lane).toBe(4); // lane4[8,10]만 남음
+    expect(mode.hasClipboard).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // cancel — editCancel(두 손가락 내비 가로채기)로 드래그가 커밋 없이 끊길 때
 // ---------------------------------------------------------------------------
 
