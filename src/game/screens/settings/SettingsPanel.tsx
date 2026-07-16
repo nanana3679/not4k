@@ -130,14 +130,20 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
               key={s.id}
               className="stg-nav-item"
               aria-current={section === s.id ? 'page' : undefined}
-              onClick={() => setSection(s.id)}
+              onClick={() => {
+                // 섹션을 떠나면 리바인딩 리스닝을 반드시 해제한다. 아니면 "Press any key…"
+                // 버튼은 언마운트돼도 window capture 리스너가 살아남아, 다른 섹션의 입력을
+                // 삼키고 눌린 키를 조용히 바인딩한다.
+                setListeningLane(null);
+                setSection(s.id);
+              }}
             >
               {s.label}
             </button>
           ))}
         </nav>
 
-        <div className="stg-content" role="tabpanel" aria-label={section}>
+        <div className="stg-content" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
           {section === 'controls' && (
             <ControlsSection
               keyBindings={settings.keyBindings}
@@ -288,7 +294,7 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
 
       <div className="stg-toast-slot" aria-live="polite">
         {toast && (
-          <div className={`stg-toast stg-toast--${toast.tone}`} role="status">
+          <div className={`stg-toast stg-toast--${toast.tone}`}>
             {toast.message}
           </div>
         )}
@@ -376,7 +382,7 @@ function SliderRow({
         min={min} max={max} step={step}
         value={value}
         disabled={disabled}
-        aria-label={label}
+        aria-label={badge ? `${label} (${badge})` : label}
         onChange={(e) => onChange(Number(e.target.value))}
       />
       <span className="stg-row-value">{display}</span>
@@ -448,7 +454,7 @@ function ToggleRow({
 
 const settingsPanelCss = `
 .stg-panel {
-  --bg: #1a1a1a; --surface: #232323; --nav: #161616; --border: #2f2f2f;
+  --bg: #1a1a1a; --surface: #232323; --nav: #161616; --border: #2f2f2f; --border-soft: #2a2a2a;
   --ink: #e6e6e6; --muted: #8c8c8c; --accent: #00e5e5; --accent-ink: #06181a; --danger: #ff6b6b;
   position: relative;
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
@@ -500,7 +506,7 @@ const settingsPanelCss = `
   display: flex; align-items: center; gap: 14px; min-height: 46px;
   padding: 10px 14px;
 }
-.stg-row + .stg-row { border-top: 1px solid #2a2a2a; }
+.stg-row + .stg-row { border-top: 1px solid var(--border-soft); }
 .stg-row.is-disabled { opacity: 0.45; }
 .stg-row--toggle { cursor: pointer; }
 .stg-row--keys { align-items: flex-start; }

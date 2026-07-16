@@ -222,6 +222,8 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
         handleBack();
         return;
       }
+      // Tab은 탭 입력으로 세지 않고 모달 포커스 이동에 양보한다(측정 노이즈 방지).
+      if (e.key === 'Tab') return;
       e.preventDefault();
 
       const now = e.timeStamp; // high-resolution timestamp
@@ -250,6 +252,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
       if (currentTap >= totalTaps) {
         // Done — rAF 취소 + AudioContext close(누적 방지)까지 한 번에 정리한다.
+        // (마지막 비프의 ~30ms 꼬리가 잘릴 수 있으나, 컨텍스트 누수보다 낫다.)
         stopRun();
 
         try {
