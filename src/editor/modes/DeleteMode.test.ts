@@ -16,12 +16,12 @@ import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat } from "../../shared";
-import { hitTestNoteAt } from "../timeline/hitTest";
-import type { Chart, NoteEntity, Beat, Lane } from "../../shared";
+import { hitTestNoteAt, hitTestRestZoneAt } from "../timeline/hitTest";
+import type { Chart, NoteEntity, RestZone, Beat, Lane } from "../../shared";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
 
-function fullChart(notes: NoteEntity[]): Chart {
+function fullChart(notes: NoteEntity[], restZones: RestZone[] = []): Chart {
   return {
     meta: {
       title: "Test",
@@ -35,6 +35,7 @@ function fullChart(notes: NoteEntity[]): Chart {
     },
     notes,
     trillZones: [],
+    restZones,
     events: [
       { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
       { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
@@ -42,9 +43,9 @@ function fullChart(notes: NoteEntity[]): Chart {
   };
 }
 
-function seedChart(notes: NoteEntity[]) {
+function seedChart(notes: NoteEntity[], restZones: RestZone[] = []) {
   useEditorStore.setState({
-    chart: fullChart(notes),
+    chart: fullChart(notes, restZones),
     selection: emptySelection(),
     historyPast: [],
     historyFuture: [],
@@ -69,10 +70,17 @@ const hitTestUnifiedNote = (x: number, y: number): number | null => {
  * 통합 차트(chart.notes 전체) + 통합 히트테스트 — 어댑터·별도 보조 축 없음.
  * 좌표/히트는 space(TimelineSpace) 경유 — hitTestTrillZone은 fake 기본값(null).
  */
+/** TimelineSpace.hitTestRestZone 미러 — x=레인(1..4), y=beatFloat로 restZone 인덱스 반환 */
+const hitTestRestZone = (x: number, y: number): number | null => {
+  const lane = xToLane(x);
+  if (lane === null) return null;
+  return hitTestRestZoneAt(useEditorStore.getState().chart.restZones ?? [], lane, y);
+};
+
 function wireDeleteModeAsApp(): DeleteMode {
   return new DeleteMode(useEditorStore.getState().chart, {
     onChartUpdate: (c: Chart) => useEditorStore.getState().setChart(c),
-    space: makeFakeSpace({ hitTestUnifiedNote }),
+    space: makeFakeSpace({ hitTestUnifiedNote, hitTestRestZone }),
   });
 }
 
@@ -187,5 +195,52 @@ describe("파티션 깨진 통합 차트에서의 클릭 삭제 (RFD 0018 ④d)"
 
     const after = useEditorStore.getState().chart.notes;
     expect(after.map(noteKey)).toEqual(["single:1@4/1", "single:6@8/1", "single:2@12/1"]);
+  });
+});
+
+describe("DeleteMode restZone 삭제 (RFD 0019 스텝4 슬라이스 C)", () => {
+  it("레인2 beat0→4 restZone 밴드 클릭(x=2, y=2) 시 chart.restZones에서 제거", () => {
+    seedChart([], [{ lane: 2, beat: beat(0), endBeat: beat(4) }]);
+
+    wireDeleteModeAsApp().onPointerDown(2, 2);
+
+    expect(useEditorStore.getState().chart.restZones).toEqual([]);
+  });
+
+  it("restZone 밖 클릭(레인1 y=2, 구간 아래 y=10)은 삭제 안 함", () => {
+    seedChart([], [{ lane: 2, beat: beat(0), endBeat: beat(4) }]);
+
+    wireDeleteModeAsApp().onPointerDown(1, 2); // 다른 레인
+    wireDeleteModeAsApp().onPointerDown(2, 10); // 구간 밖 beat
+
+    expect(useEditorStore.getState().chart.restZones).toHaveLength(1);
+  });
+
+  it("여러 restZone 중 클릭한 것(레인3 beat8→12)만 삭제하고 나머지는 보존", () => {
+    seedChart([], [
+      { lane: 2, beat: beat(0), endBeat: beat(4) },
+      { lane: 3, beat: beat(8), endBeat: beat(12) },
+      { lane: 3, beat: beat(16), endBeat: beat(20) },
+    ]);
+
+    wireDeleteModeAsApp().onPointerDown(3, 10);
+
+    expect(useEditorStore.getState().chart.restZones).toEqual([
+      { lane: 2, beat: beat(0), endBeat: beat(4) },
+      { lane: 3, beat: beat(16), endBeat: beat(20) },
+    ]);
+  });
+
+  it("restZone 위에 노트가 겹쳐 있으면(transient 위반 상태) 노트가 먼저 삭제되고 restZone은 유지", () => {
+    seedChart(
+      [{ type: "single", lane: 2, beat: beat(2) }],
+      [{ lane: 2, beat: beat(0), endBeat: beat(4) }],
+    );
+
+    wireDeleteModeAsApp().onPointerDown(2, 2);
+
+    const state = useEditorStore.getState().chart;
+    expect(state.notes).toEqual([]);
+    expect(state.restZones).toHaveLength(1);
   });
 });

@@ -19,6 +19,7 @@ import {
   hitTestNoteAt,
   hitTestExtraNoteAt,
   hitTestTrillZoneAt,
+  hitTestRestZoneAt,
 } from "./hitTest";
 import {
   beatFloatToRawBeat,
@@ -73,6 +74,8 @@ export interface TimelineSpace {
   hitTestEventEnd(x: number, y: number): number | null;
   hitTestTrillZoneEnd(x: number, y: number): number | null;
   hitTestTrillZone(x: number, y: number): number | null;
+  /** restZone 히트테스트 — chart.restZones 인덱스 반환 (RFD 0019, trillZone 미러). */
+  hitTestRestZone(x: number, y: number): number | null;
   hitTestExtraNote(x: number, y: number): number | null;
   getBpmMarkers(): BpmMarker[];
 }
@@ -226,6 +229,13 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestTrillZoneAt(source.getChart().trillZones, lane, beat.n / beat.d);
   };
 
+  const hitTestRestZone = (x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+    const beat = yToBeatRaw(y);
+    return hitTestRestZoneAt(source.getChart().restZones ?? [], lane, beat.n / beat.d);
+  };
+
   const hitTestExtraNote = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
@@ -251,6 +261,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestEventEnd,
     hitTestTrillZoneEnd,
     hitTestTrillZone,
+    hitTestRestZone,
     hitTestExtraNote,
     getBpmMarkers: bpmMarkers,
   };

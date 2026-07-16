@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, Lane, NoteEntity, TrillZone } from "../../shared";
+import type { Chart, Lane, NoteEntity, TrillZone, RestZone } from "../../shared";
 import { beat } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteChartNoteAtLaneBeat,
   deleteChartNotesAtIndices,
   deleteEmptyTrillZoneAtIndex,
+  deleteRestZoneAtIndex,
 } from "./editApplication";
 
 function makeChart(input: {
   notes?: NoteEntity[];
   trillZones?: TrillZone[];
+  restZones?: RestZone[];
 } = {}): Chart {
   return {
     meta: {
@@ -29,6 +31,7 @@ function makeChart(input: {
       { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
     ],
     trillZones: input.trillZones ?? [],
+    restZones: input.restZones ?? [],
   };
 }
 
@@ -126,6 +129,55 @@ describe("editor edit application", () => {
       chart: null,
       blockedReason: "Zone contains notes — remove them first",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteRestZoneAtIndex — trillZone 삭제 미러 (RFD 0019, 내부 노트 개념 없음)
+// ---------------------------------------------------------------------------
+
+describe("deleteRestZoneAtIndex", () => {
+  it("restZone 3개 중 인덱스 1만 filter-out — 나머지 restZones와 원본 chart는 불변", () => {
+    const chart = makeChart({
+      restZones: [
+        { lane: 1 as Lane, beat: beat(0), endBeat: beat(2) },
+        { lane: 2 as Lane, beat: beat(0), endBeat: beat(4) },
+        { lane: 3 as Lane, beat: beat(8), endBeat: beat(12) },
+      ],
+    });
+
+    const result = deleteRestZoneAtIndex(chart, 1);
+    expect(result?.restZones).toEqual([
+      { lane: 1, beat: beat(0), endBeat: beat(2) },
+      { lane: 3, beat: beat(8), endBeat: beat(12) },
+    ]);
+    // 원본 불변
+    expect(chart.restZones).toHaveLength(3);
+  });
+
+  it("restZone이 노트를 덮고 있어도 삭제된다 (trillZone과 달리 empty 가드 없음, 노트는 보존)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 2 as Lane, beat: beat(1) }],
+      restZones: [{ lane: 2 as Lane, beat: beat(0), endBeat: beat(4) }],
+    });
+
+    const result = deleteRestZoneAtIndex(chart, 0);
+    expect(result?.restZones).toEqual([]);
+    expect(result?.notes).toHaveLength(1);
+  });
+
+  it("범위 밖 인덱스(-1, 1)면 null", () => {
+    const chart = makeChart({
+      restZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+    expect(deleteRestZoneAtIndex(chart, -1)).toBeNull();
+    expect(deleteRestZoneAtIndex(chart, 1)).toBeNull();
+  });
+
+  it("restZones 필드가 없는(optional 부재) 차트에서 인덱스 0이면 null", () => {
+    const chart = makeChart();
+    delete chart.restZones;
+    expect(deleteRestZoneAtIndex(chart, 0)).toBeNull();
   });
 });
 
