@@ -1,4 +1,4 @@
-import type { Beat, Chart, ChartEvent, NoteEntity, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
+import type { Beat, Chart, ChartEvent, NoteEntity, RestZone, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
 import { beat, beatAdd } from '../../../shared/types/beat';
 import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
 
@@ -456,6 +456,14 @@ function offsetTrillZoneByLoopCycle(zone: TrillZone, cycleIndex: number, loopBea
   };
 }
 
+function offsetRestZoneByLoopCycle(zone: RestZone, cycleIndex: number, loopBeats: number): RestZone {
+  return {
+    ...zone,
+    beat: offsetBeatByLoopCycle(zone.beat, cycleIndex, loopBeats),
+    endBeat: offsetBeatByLoopCycle(zone.endBeat, cycleIndex, loopBeats),
+  };
+}
+
 function createRenderChart(chart: Chart, loopBeats: number): Chart {
   const renderTimingEvents: ChartEvent[] = chart.events.filter(
     (event) => event.type === 'bpm' || event.type === 'timeSignature',
@@ -469,10 +477,11 @@ function createRenderChart(chart: Chart, loopBeats: number): Chart {
     trillZones: RENDER_CYCLE_INDICES.flatMap((cycleIndex) =>
       chart.trillZones.map((zone) => offsetTrillZoneByLoopCycle(zone, cycleIndex, loopBeats)),
     ),
-    // restZone은 루프 사이클 오프셋 대상이 아직 없어 명시적으로 비운다 — `...chart` 스프레드로
-    // 원본 박의 restZone이 새어 밴드가 오정렬되는 것을 막는다(RFD 0019). 튜토리얼 차트에
-    // restZone을 쓰게 되면 offsetTrillZoneByLoopCycle과 동형의 오프셋을 flatMap할 것. (TODO)
-    restZones: [],
+    // restZone도 notes/trillZones와 동일하게 루프 사이클마다 복제·박 이동한다 — `...chart`
+    // 스프레드로 원본 박이 새어 밴드가 오정렬되는 것을 막는다(RFD 0019).
+    restZones: RENDER_CYCLE_INDICES.flatMap((cycleIndex) =>
+      (chart.restZones ?? []).map((zone) => offsetRestZoneByLoopCycle(zone, cycleIndex, loopBeats)),
+    ),
     events: renderTimingEvents,
   };
 }
