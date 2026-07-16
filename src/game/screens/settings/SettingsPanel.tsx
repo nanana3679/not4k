@@ -2,6 +2,7 @@ import { useGameStore, PRESET_BINDINGS } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
+import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced';
@@ -25,6 +26,14 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 ];
 
 const LANES: Lane[] = ['lane1', 'lane2', 'lane3', 'lane4'];
+
+// 설정 전용 레인 색 4종(게임플레이 레인 색과 무관, 키보드 오버뷰 하이라이트용)
+const LANE_COLORS = ['#3fd0e6', '#8b7bff', '#ffcc55', '#ff7ba6'];
+
+// 키보드 오버뷰: 풀 TKL + 넘패드 위치 데이터 재사용
+const KB_KEYS = [...KB_TKL_KEYS, ...KB_NUMPAD_KEYS];
+const KB_W = Math.max(...KB_KEYS.map((k) => k.x + (k.w ?? 1)));
+const KB_H = Math.max(...KB_KEYS.map((k) => k.y + (k.h ?? 1)));
 
 export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
   const { settings, updateSettings } = useGameStore();
@@ -314,36 +323,77 @@ function ControlsSection({
   onRemoveKey: (lane: Lane, key: string) => void;
   onResetPreset: (preset: 'tkl' | 'numpad') => void;
 }) {
+  const laneByKey = new Map<string, number>();
+  LANES.forEach((lane, i) => keyBindings[lane].forEach((code) => laneByKey.set(code, i)));
   return (
     <div className="stg-section">
       <Group title="Key Bindings">
-        {LANES.map((lane, i) => (
-          <div key={lane} className="stg-row stg-row--keys">
-            <span className="stg-row-label">Lane {i + 1}</span>
-            <div className="stg-chips">
-              {keyBindings[lane].map((keyCode) => (
-                <span key={keyCode} className="stg-chip">
-                  <span className="stg-chip-key">{keyCode}</span>
-                  <button
-                    className="stg-chip-x"
-                    onClick={() => onRemoveKey(lane, keyCode)}
-                    aria-label={`Remove ${keyCode} from lane ${i + 1}`}
-                    title="Remove key"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button
-                className={`stg-addkey${listeningLane === lane ? ' is-listening' : ''}`}
-                onClick={() => onStartListening(lane)}
-                disabled={listeningLane !== null && listeningLane !== lane}
-              >
-                {listeningLane === lane ? 'Press any key…' : '+ Add'}
-              </button>
-            </div>
+        {/* 키보드 오버뷰 — 바인딩된 키를 레인 색으로 점등(읽기 전용 장식). 동일 정보가
+            아래 편집 그리드에 접근성 있게 있으므로 스크린리더에는 숨긴다. */}
+        <div className="stg-kb-panel" aria-hidden="true">
+          <div className="stg-kb" style={{ aspectRatio: `${KB_W} / ${KB_H}` }}>
+            {KB_KEYS.map((k) => {
+              const laneIdx = laneByKey.get(k.code);
+              const bound = laneIdx !== undefined;
+              return (
+                <div
+                  key={k.code}
+                  className={`stg-kb-key${bound ? ' is-bound' : ''}`}
+                  style={{
+                    left: `${(k.x / KB_W) * 100}%`,
+                    top: `${(k.y / KB_H) * 100}%`,
+                    width: `calc(${((k.w ?? 1) / KB_W) * 100}% - 2px)`,
+                    height: `calc(${((k.h ?? 1) / KB_H) * 100}% - 2px)`,
+                    ...(bound
+                      ? { background: LANE_COLORS[laneIdx], borderColor: LANE_COLORS[laneIdx], color: '#0b0d10' }
+                      : {}),
+                  }}
+                  title={bound ? `${k.code} → Lane ${laneIdx + 1}` : k.code}
+                >
+                  {k.label}
+                </div>
+              );
+            })}
           </div>
-        ))}
+          <div className="stg-kb-legend">
+            {LANES.map((_, i) => (
+              <span key={i} className="stg-kb-legend-item">
+                <span className="stg-kb-legend-dot" style={{ background: LANE_COLORS[i] }} />
+                Lane {i + 1}
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* 게임플레이 4레인과 1:1 매핑되는 가로 4열 그리드 */}
+        <div className="stg-lanes">
+          {LANES.map((lane, i) => (
+            <div key={lane} className="stg-lane">
+              <div className="stg-lane-head">Lane {i + 1}</div>
+              <div className="stg-lane-keys">
+                {keyBindings[lane].map((keyCode) => (
+                  <span key={keyCode} className="stg-chip">
+                    <span className="stg-chip-key">{keyCode}</span>
+                    <button
+                      className="stg-chip-x"
+                      onClick={() => onRemoveKey(lane, keyCode)}
+                      aria-label={`Remove ${keyCode} from lane ${i + 1}`}
+                      title="Remove key"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  className={`stg-addkey${listeningLane === lane ? ' is-listening' : ''}`}
+                  onClick={() => onStartListening(lane)}
+                  disabled={listeningLane !== null && listeningLane !== lane}
+                >
+                  {listeningLane === lane ? 'Press any key…' : '+ Add'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </Group>
 
       <div className="stg-preset-row">
@@ -487,8 +537,9 @@ const settingsPanelCss = `
 .stg-nav {
   width: 168px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px;
   padding: 12px 10px; background: ${surface.screen}; border-right: 1px solid ${color.line};
-  overflow-y: auto;
+  overflow-y: auto; scrollbar-width: none;
 }
+.stg-nav::-webkit-scrollbar { display: none; }
 .stg-nav-item {
   text-align: left; padding: 8px 12px; font-family: ${font.display}; font-size: 13px; font-weight: 600;
   letter-spacing: 0.02em; color: ${color.inkDim}; background: transparent; border: 0;
@@ -501,7 +552,8 @@ const settingsPanelCss = `
   box-shadow: inset 2px 0 0 ${color.neon}, ${edge.metal};
 }
 
-.stg-content { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 22px; }
+.stg-content { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 22px; scrollbar-width: none; }
+.stg-content::-webkit-scrollbar { display: none; }
 .stg-section { display: flex; flex-direction: column; gap: 22px; }
 .stg-group { display: flex; flex-direction: column; gap: 4px; }
 .stg-group-title {
@@ -521,12 +573,10 @@ const settingsPanelCss = `
 .stg-row + .stg-row { border-top: 1px solid var(--border-soft); }
 .stg-row.is-disabled { opacity: 0.45; }
 .stg-row--toggle { cursor: pointer; }
-.stg-row--keys { align-items: flex-start; }
 .stg-row-label {
   display: flex; flex-direction: column; gap: 3px;
   flex: 0 0 128px; font-size: 13.5px; font-weight: 500; color: ${color.ink};
 }
-.stg-row--keys .stg-row-label { padding-top: 6px; }
 .stg-row-desc { font-size: 11.5px; font-weight: 400; color: ${color.inkDim}; }
 .stg-row-value {
   flex: 0 0 auto; min-width: 52px; text-align: right; font-family: ${font.numeric};
@@ -566,23 +616,67 @@ const settingsPanelCss = `
 .stg-check:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 2px; }
 .stg-row--toggle .stg-row-label { flex: 1; }
 
-.stg-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
-.stg-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 6px 4px 9px; font-family: ${font.numeric}; font-size: 13px; font-variant-numeric: tabular-nums;
-  color: ${color.neonInk}; background: ${surface.neonButton};
-  border: 1px solid ${color.neon}; border-radius: ${radius.sm};
+/* 4레인 그리드 — gap을 경계선 색으로 채워 1px 구분선 효과 (플레이필드처럼 좌→우 Lane 1~4) */
+.stg-lanes {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: ${color.line};
 }
+.stg-lane {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 12px 11px; background: ${surface.card};
+}
+.stg-lane-head {
+  font-family: ${font.display}; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: ${color.inkDim}; padding-bottom: 2px;
+}
+.stg-lane-keys { display: flex; flex-direction: column; gap: 7px; }
+/* 키보드 오버뷰 — %기반 절대배치 + aspect-ratio로 반응형 */
+.stg-kb-panel {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-bottom: 1px solid var(--border-soft);
+}
+.stg-kb {
+  position: relative; width: 100%;
+  background: ${color.bg}; border: 1px solid ${color.line}; border-radius: ${radius.sm};
+}
+.stg-kb-key {
+  position: absolute; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  font-family: ${font.numeric}; font-size: 8px; font-weight: 700; line-height: 1;
+  color: ${color.inkFaint}; background: ${surface.button};
+  border: 1px solid ${color.line}; border-radius: 3px; overflow: hidden;
+}
+.stg-kb-key.is-bound { font-weight: 800; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+.stg-kb-legend { display: flex; flex-wrap: wrap; gap: 14px; }
+.stg-kb-legend-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: ${font.display}; font-size: 11px; font-weight: 600; color: ${color.inkDim};
+}
+.stg-kb-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+/* 컬럼 폭을 꽉 채우는 금속 키캡 — 키 이름 좌 · × 우. 네온은 hover/리스닝 상태에만 */
+.stg-chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; min-height: 32px; padding: 4px 6px 4px 12px;
+  font-family: ${font.numeric}; font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+  color: ${color.ink}; background: ${surface.button};
+  border: 1px solid ${color.line}; border-radius: ${radius.sm};
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 3px rgba(0, 0, 0, 0.28);
+  transition: border-color 140ms ease;
+}
+.stg-chip-key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stg-chip:hover { border-color: ${color.inkFaint}; }
 .stg-chip-x {
-  display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
-  font-size: 15px; line-height: 1; color: ${color.inkDim};
+  display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
+  font-size: 15px; line-height: 1; color: ${color.inkFaint};
   background: transparent; border: 0; border-radius: 4px; cursor: pointer;
   transition: color 140ms ease, background 140ms ease;
 }
 .stg-chip-x:hover { color: ${color.danger}; background: rgba(232, 86, 74, 0.16); }
 .stg-chip-x:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 1px; }
 .stg-addkey {
-  padding: 4px 12px; font-family: ${font.display}; font-size: 12.5px; color: ${color.inkDim};
+  width: 100%; padding: 6px 12px; text-align: center;
+  font-family: ${font.display}; font-size: 12.5px; color: ${color.inkDim};
   background: transparent; border: 1px dashed ${color.line}; border-radius: ${radius.sm}; cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -644,6 +738,8 @@ const settingsPanelCss = `
   .stg-nav-item { white-space: nowrap; }
   .stg-row { flex-wrap: wrap; }
   .stg-row-label { flex-basis: 100%; }
+  /* 좁은 폭에서 4열 → 2×2 (Lane 1·2 / 3·4, 좌→우 순서 유지) */
+  .stg-lanes { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
