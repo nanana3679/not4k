@@ -1,7 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
-import { getLaneKeyLabels, uniqueTutorialKeys } from './TutorialPreviewPlayer';
+import {
+  buildTutorialKeyboardKeys,
+  getLaneKeyLabels,
+  uniqueTutorialKeys,
+  type TutorialKeyView,
+} from './TutorialPreviewPlayer';
 import { TUTORIAL_PREVIEWS, getTutorialInputTimings } from './tutorialPreviewChart';
+import {
+  getTutorialKeyboardLayout,
+  resolveTutorialInputTimingsForKeyboard,
+} from './tutorialKeyboardLayout';
+
+// gameStore 기본 TKL_BINDINGS와 같은 값 — 컴포넌트가 settings.keyBindings로 resolve하는 경로 재현
+const TKL_TEST_BINDINGS = {
+  lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
+  lane2: ['KeyE', 'KeyD', 'KeyC', 'KeyO'],
+  lane3: ['KeyP', 'KeyL', 'Comma', 'KeyR'],
+  lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
+};
+
+function buildHandPlacementKeyboardFixture() {
+  const layout = getTutorialKeyboardLayout('tkl');
+  const timings = resolveTutorialInputTimingsForKeyboard(
+    getTutorialInputTimings(TUTORIAL_PREVIEWS[0].chart),
+    TKL_TEST_BINDINGS,
+  );
+  const keys = uniqueTutorialKeys(timings);
+  const keyByCode = new Map<string, TutorialKeyView>(keys.map((key) => [key.keyCode, key]));
+  return { layout, keyByCode, views: buildTutorialKeyboardKeys(layout, keyByCode) };
+}
 
 describe('TutorialPreviewPlayer', () => {
   it('곡 선택 튜토리얼 미니 재생기는 GameRenderer 기어와 원근 배경을 끈다', () => {
@@ -20,39 +48,56 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = 360');
     expect(tutorialPreviewPlayerSource).toContain('width: PREVIEW_RENDER_WIDTH');
     expect(tutorialPreviewPlayerSource).toContain('height: PREVIEW_RENDER_HEIGHT');
-    expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT}`');
+    expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}`');
   });
 
-  it('키 입력 표시는 사용자가 선택한 프리셋 기반 미니 키보드 레이아웃으로 렌더링', () => {
+  it('키 입력 표시는 사용자가 선택한 프리셋 기반 키보드 스펙을 GameRenderer 생성 시 넘겨 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).toContain('useGameStore((state) => state.settings)');
     expect(tutorialPreviewPlayerSource).toContain('getTutorialKeyboardLayout(settings.preset)');
     expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, settings.keyBindings)');
-    expect(tutorialPreviewPlayerSource).toContain('data-keyboard-preset={settings.preset}');
-    expect(tutorialPreviewPlayerSource).toContain('data-keyboard-key');
+    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight,');
+    expect(tutorialPreviewPlayerSource).toContain('tutorialKeyboard: {');
+    expect(tutorialPreviewPlayerSource).toContain('buildTutorialKeyboardKeys(keyboardLayout, keyByCode)');
+    expect(tutorialPreviewPlayerSource).not.toContain('data-keyboard-key');
+    expect(tutorialPreviewPlayerSource).not.toContain('styles.keyboardKey');
   });
 
-  it('미니 키보드는 매핑된 키를 유지하고 매핑되지 않은 키는 비활성 스타일로 어둡게 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain("data-mapped={tutorialKey ? 'true' : 'false'}");
-    expect(tutorialPreviewPlayerSource).toContain('aria-disabled={tutorialKey ? undefined : true}');
-    expect(tutorialPreviewPlayerSource).toContain('styles.keyboardKeyUnmapped');
-    expect(tutorialPreviewPlayerSource).toContain('keyboardKeyUnmapped:');
+  it('buildTutorialKeyboardKeys는 hand-placement 프리뷰에서 매핑된 키 개수가 고유 튜토리얼 키 수와 일치', () => {
+    const { layout, keyByCode, views } = buildHandPlacementKeyboardFixture();
+
+    expect(views.length).toBe(layout.keys.length);
+    expect(keyByCode.size).toBeGreaterThan(0);
+    expect(views.filter((view) => view.mapped).length).toBe(keyByCode.size);
   });
 
-  it('미니 키보드 키캡은 레인 번호를 빼고 판정선 아래 검은 영역 가운데에 레인당 하나의 큰 키를 표시', () => {
+  it('buildTutorialKeyboardKeys는 매핑된 키 label을 튜토리얼 키 label로 표시', () => {
+    const { keyByCode, views } = buildHandPlacementKeyboardFixture();
+
+    for (const view of views.filter((item) => item.mapped)) {
+      expect(view.label).toBe(keyByCode.get(view.code)?.label);
+    }
+  });
+
+  it('buildTutorialKeyboardKeys는 매핑 안 된 키를 mapped=false와 기본 keyDef.label로 유지', () => {
+    const { layout, views } = buildHandPlacementKeyboardFixture();
+    const labelByCode = new Map(layout.keys.map((keyDef) => [keyDef.code, keyDef.label]));
+    const unmapped = views.filter((view) => !view.mapped);
+
+    expect(unmapped.length).toBeGreaterThan(0);
+    for (const view of unmapped) {
+      expect(view.label).toBe(labelByCode.get(view.code));
+    }
+  });
+
+  it('판정선 아래 레인 키 라벨은 HTML 오버레이 대신 GameRenderer가 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('keyLane');
     expect(tutorialPreviewPlayerSource).toContain('getLaneKeyLabels(keys, activeKeyIds, stickyLaneKeyIdsByLane)');
     expect(tutorialPreviewPlayerSource).toContain('sortLaneKeysForLabel');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-keycode');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_HEIGHT = 42');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =');
-    expect(tutorialPreviewPlayerSource).toContain('(PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y');
-    expect(tutorialPreviewPlayerSource).toContain('bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`');
     expect(tutorialPreviewPlayerSource).toContain('const fallbackKeys = getFallbackLaneKeys(laneKeys)');
-    expect(tutorialPreviewPlayerSource).toContain('minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`');
-    expect(tutorialPreviewPlayerSource).toContain("boxShadow: '0 4px 0 #101010");
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelEmpty');
+    expect(tutorialPreviewPlayerSource).toContain('showLaneKeyLabels: true');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current?.setLaneKeyLabels(');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current = renderer');
+    expect(tutorialPreviewPlayerSource).not.toContain('data-tutorial-lane-key');
   });
 
   it('판정선 아래 큰 키 라벨은 같은 레인의 여러 키 중 현재 눌린 키를 우선 표시하고 릴리즈 후에도 마지막 키를 유지', () => {
@@ -97,19 +142,31 @@ describe('TutorialPreviewPlayer', () => {
     });
   });
 
-  it('판정선 아래 큰 키는 해당 레인 입력이 활성화되면 눌리는 스타일로 전환', () => {
-    expect(tutorialPreviewPlayerSource).toContain('const activeLaneSet = useMemo');
-    expect(tutorialPreviewPlayerSource).toContain('activeLaneSet.has(lane)');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key-active={active ?');
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelActive');
-    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabelActive:');
-    expect(tutorialPreviewPlayerSource).toContain("transform: 'translateY(4px)'");
-    expect(tutorialPreviewPlayerSource).toContain("transition: 'transform 90ms ease");
+  it('판정선 아래 큰 키 눌림은 렌더 루프의 setKeyBeam이 렌더러 안에서 처리해 별도 HTML 활성 스타일이 없음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyBeam(lane, activeLaneSet.has(lane))');
+    expect(tutorialPreviewPlayerSource).not.toContain('const activeLaneSet = useMemo');
+    expect(tutorialPreviewPlayerSource).not.toContain('laneKeyLabelActive');
   });
 
-  it('미니 키보드에서 눌린 키는 아래로 이동해도 아래 행 키에 가려지지 않도록 위 레이어로 올라감', () => {
-    expect(tutorialPreviewPlayerSource).toContain('keyboardKeyActive:');
-    expect(tutorialPreviewPlayerSource).toContain('zIndex: 1');
+  it('레인 키 라벨 텍스트와 표시 여부는 effect가 렌더러 setLaneKeyLabels로 push', () => {
+    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabels.map(({ lane, label }) => ({ lane, label }))');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
+    expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady]');
+  });
+
+  it('캔버스 프레임은 키보드까지 보이도록 최소 폭(→aspect로 최소 높이) 바닥을 가지되 화면이 좁으면 100%로 캡', () => {
+    expect(tutorialPreviewPlayerSource).toContain("minWidth: 'min(100%, 300px)'");
+  });
+
+  it('렌더러 캔버스는 touch-action pan-y로 덮어 Pixi inline touch-action:none이 세로 드래그 스크롤을 먹지 않게 함', () => {
+    expect(tutorialPreviewPlayerSource).toContain('.not4k-tutorial-preview-canvas {');
+    expect(tutorialPreviewPlayerSource).toContain('touch-action: pan-y !important');
+  });
+
+  it('키보드 눌림 상태는 매 프레임 renderer.setKeyState로 전달되고 별도 HTML 활성 스타일이 없음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyState(key.keyCode, activeIdSet.has(key.id))');
+    expect(tutorialPreviewPlayerSource).not.toContain('keyboardKeyActive');
+    expect(tutorialPreviewPlayerSource).not.toContain('activeKeySet');
   });
 
   it('튜토리얼 키 이벤트는 기존 JudgmentEngine 컨트롤러가 만든 판정 효과(판정 텍스트·bomb)를 표시', () => {
@@ -151,7 +208,8 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('inset: 0');
     expect(tutorialPreviewPlayerSource).toContain("backgroundColor: 'rgba(0, 0, 0, 0.72)'");
     expect(tutorialPreviewPlayerSource).toContain("pointerEvents: 'auto'");
-    expect(tutorialPreviewPlayerSource).toContain('{!diagramDisplay && (');
+    // 키 라벨 숨김은 setLaneKeyLabels의 visible 인자(!diagramDisplay)로 렌더러 레이어를 끈다.
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
     expect(tutorialPreviewPlayerSource).not.toContain('canvasHiddenForDiagram');
   });
 

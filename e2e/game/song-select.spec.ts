@@ -77,8 +77,8 @@ test.describe('Song Select Screen', () => {
     await expect(dialog.locator('[data-tutorial-preview-canvas="true"]')).toHaveCount(2);
 
     const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
+    // 레인 키 라벨·키보드 배열은 이제 GameRenderer(PixiJS) 캔버스 안에 그려져 DOM 요소가 없다.
     await expect(activeSlot.locator('[data-tutorial-preview-canvas="true"]')).toBeVisible();
-    await expect(activeSlot.locator('[data-tutorial-key]')).toHaveCount(8);
 
     await dialog.locator('[data-tutorial-index-item="connected-long-note-switch"]').click();
     // 도식 확인 모달은 카드/슬롯이 아니라 문서 최상위(portal)로 그려진다 — page 기준으로 찾는다.

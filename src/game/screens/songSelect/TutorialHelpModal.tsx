@@ -748,12 +748,18 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
-.not4k-tutorial-index {
+.not4k-tutorial-index,
+.not4k-tutorial-content-layout,
+.not4k-tutorial-player-column,
+.not4k-tutorial-text-panel {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.not4k-tutorial-index::-webkit-scrollbar {
+.not4k-tutorial-index::-webkit-scrollbar,
+.not4k-tutorial-content-layout::-webkit-scrollbar,
+.not4k-tutorial-player-column::-webkit-scrollbar,
+.not4k-tutorial-text-panel::-webkit-scrollbar {
   display: none;
 }
 
@@ -857,7 +863,10 @@ const tutorialHelpCss = `
 
   .not4k-tutorial-index {
     width: auto !important;
+    /* 목록은 높이를 제한하고 그 안에서만 스크롤(스크롤바는 숨김). 렌더러가 세로로 밀리지 않게 한다.
+       렌더러·설명 드래그는 바깥 contentLayout이 스크롤한다. */
     max-height: 156px !important;
+    overflow-y: auto !important;
     padding-right: 0 !important;
     padding-bottom: 8px !important;
     border-right: 0 !important;
@@ -866,6 +875,13 @@ const tutorialHelpCss = `
 
   .not4k-tutorial-index-item {
     min-height: 32px !important;
+  }
+
+  .not4k-tutorial-player-column {
+    /* 세로 배치에서는 flex 배분으로 찌부시키지 말고 프리뷰(플레이+키보드) 자연 높이를 유지.
+       넘치는 만큼은 바깥 contentLayout이 스크롤한다. */
+    flex: 0 0 auto !important;
+    overflow: visible !important;
   }
 
   .not4k-tutorial-text-panel {
@@ -987,7 +1003,11 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
   contentLayout: {
+    // 목록+렌더러+내용을 한 덩어리로 감싸 세로 스크롤 — 모바일에서 최소 높이 프리뷰가
+    // 모달 높이를 넘겨도 각 열을 눌러 찌부시키지 않고 전체가 스크롤된다.
+    flex: '1 1 auto',
     minHeight: 0,
+    overflowY: 'auto',
     display: 'flex',
     gap: '14px',
     alignItems: 'stretch',
@@ -1056,6 +1076,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    // 데스크톱(가로 배치): 열 안에서 자체 스크롤. 모바일(세로 배치)에서는 media query가
+    // flex:0 0 auto로 바꿔 프리뷰를 찌부시키지 않고 바깥 contentLayout이 전체를 스크롤한다.
     overflowY: 'auto',
     alignItems: 'center',
   },

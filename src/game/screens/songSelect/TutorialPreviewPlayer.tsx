@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { GameRenderer } from '../../renderer';
-import { LANE_AREA_WIDTH } from '../../renderer/constants';
+import { LANE_AREA_WIDTH, TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
 import { useGameStore } from '../../stores';
 import {
@@ -19,6 +19,7 @@ import {
   getTutorialKeyboardLayout,
   resolveTutorialInputTimingsForKeyboard,
   sortLaneKeysForLabel,
+  type TutorialKeyboardLayout,
 } from './tutorialKeyboardLayout';
 import { createTutorialPreviewJudgmentController } from './tutorialPreviewJudgment';
 import { TutorialPatternDiagram } from './TutorialPatternDiagram';
@@ -55,10 +56,6 @@ const PREVIEW_RENDER_HEIGHT = 360;
 const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
-const PREVIEW_LANE_KEY_HEIGHT = 42;
-const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
-const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
-  (PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y;
 
 interface TutorialPreviewPlayerProps {
   preview?: TutorialPreviewDefinition;
@@ -128,6 +125,35 @@ export function getLaneKeyLabels(
   });
 }
 
+export interface TutorialKeyboardKeyView {
+  code: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+  mapped: boolean;
+}
+
+/** 키보드 strip 스펙 계산(순수함수) — 렌더러는 이 스펙을 생성 시 받아 그리기만 한다. */
+export function buildTutorialKeyboardKeys(
+  layout: TutorialKeyboardLayout,
+  keyByCode: Map<string, TutorialKeyView>,
+): TutorialKeyboardKeyView[] {
+  return layout.keys.map((kd) => {
+    const tk = keyByCode.get(kd.code);
+    return {
+      code: kd.code,
+      x: kd.x,
+      y: kd.y,
+      w: kd.w ?? 1,
+      h: kd.h ?? 1,
+      label: tk?.label ?? kd.label,
+      mapped: !!tk,
+    };
+  });
+}
+
 export function TutorialPreviewPlayer({
   preview = TUTORIAL_PREVIEWS[0],
   onReady,
@@ -135,6 +161,7 @@ export function TutorialPreviewPlayer({
   diagramModalVisible = true,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<GameRenderer | null>(null);
   const readyNotifiedRef = useRef(false);
   const onReadyRef = useRef(onReady);
   const resumeDiagramRef = useRef<(() => void) | null>(null);
@@ -161,13 +188,19 @@ export function TutorialPreviewPlayer({
     [keys, activeKeyIds, stickyLaneKeyIdsByLane],
   );
   const keyByCode = useMemo(() => new Map(keys.map((key) => [key.keyCode, key])), [keys]);
-  const activeLaneSet = useMemo(
-    () => new Set(activeKeyIds.map((id) => Number(id.split(':', 1)[0]))),
-    [activeKeyIds],
-  );
   const keyboardLayout = useMemo(
     () => getTutorialKeyboardLayout(settings.preset),
     [settings.preset],
+  );
+  // 캔버스 아래 키보드 strip 높이 — 보드 폭(레인 폭 - 좌우 패딩)에 레이아웃 비율을 적용.
+  const keyboardAreaHeight = useMemo(() => {
+    const boardW = LANE_AREA_WIDTH - TUTORIAL_KB_SIDE_PAD * 2;
+    const boardH = (boardW * keyboardLayout.heightUnits) / keyboardLayout.widthUnits;
+    return Math.round(boardH + TUTORIAL_KB_VPAD * 2);
+  }, [keyboardLayout]);
+  const tutorialKeyboardKeys = useMemo(
+    () => buildTutorialKeyboardKeys(keyboardLayout, keyByCode),
+    [keyboardLayout, keyByCode],
   );
   const handleDiagramOk = () => {
     resumeDiagramRef.current?.();
@@ -357,7 +390,14 @@ export function TutorialPreviewPlayer({
           showGearFrame: false,
           showPerspectiveSurface: false,
           showComboAndAccuracy: false,
+          showLaneKeyLabels: true,
           judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET,
+          keyboardAreaHeight,
+          tutorialKeyboard: {
+            widthUnits: keyboardLayout.widthUnits,
+            heightUnits: keyboardLayout.heightUnits,
+            keys: tutorialKeyboardKeys,
+          },
         });
         await renderer.init();
         if (disposed || !renderer) {
@@ -403,6 +443,7 @@ export function TutorialPreviewPlayer({
         renderer.renderFrame(preview.renderStartMs, 0);
         previousNow = performance.now();
         loopStartNow = previousNow;
+        rendererRef.current = renderer;
         notifyReady();
         setRendererReady(true);
 
@@ -439,91 +480,37 @@ export function TutorialPreviewPlayer({
       disposed = true;
       resumeDiagramRef.current = null;
       dismissDiagramRef.current = null;
+      rendererRef.current = null;
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
       disposeTutorialPreviewRenderer(renderer);
     };
-  }, [diagramTimings, keys, preview, timings]);
+  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, timings, tutorialKeyboardKeys]);
 
-  const activeKeySet = new Set(activeKeyIds);
+  // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
+  // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
+  useEffect(() => {
+    rendererRef.current?.setLaneKeyLabels(
+      laneKeyLabels.map(({ lane, label }) => ({ lane, label })),
+      !diagramDisplay,
+    );
+  }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
     <div style={styles.previewShell}>
-      <div style={styles.canvasFrame}>
+      <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}
+          className="not4k-tutorial-preview-canvas"
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
           // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
           style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
-        {!diagramDisplay && (
-          <div
-            style={styles.laneKeyOverlay}
-            aria-label="Tutorial lane key labels"
-          >
-            {laneKeyLabels.map(({ lane, keyCode, label }) => {
-              const active = activeLaneSet.has(lane);
-              return (
-                <span
-                  key={lane}
-                  data-tutorial-lane-key={lane}
-                  data-tutorial-lane-keycode={keyCode}
-                  data-tutorial-lane-key-active={active ? 'true' : 'false'}
-                  style={{
-                    ...styles.laneKeyLabel,
-                    ...(label ? {} : styles.laneKeyLabelEmpty),
-                    ...(active ? styles.laneKeyLabelActive : {}),
-                  }}
-                >
-                  {label || '-'}
-                </span>
-              );
-            })}
-          </div>
-        )}
         {error && <div style={styles.errorText}>{error}</div>}
       </div>
       <style>{tutorialPreviewPlayerCss}</style>
-      <div
-        style={styles.miniKeyboard}
-        aria-label="Tutorial keyboard input events"
-        data-keyboard-preset={settings.preset}
-      >
-        <div
-          style={{
-            ...styles.keyboardBoard,
-            aspectRatio: `${keyboardLayout.widthUnits} / ${keyboardLayout.heightUnits}`,
-          }}
-        >
-          {keyboardLayout.keys.map((keyDef) => {
-            const tutorialKey = keyByCode.get(keyDef.code);
-            const active = tutorialKey ? activeKeySet.has(tutorialKey.id) : false;
-            return (
-              <span
-                key={keyDef.code}
-                data-keyboard-key={keyDef.code}
-                data-tutorial-key={tutorialKey?.keyCode}
-                data-mapped={tutorialKey ? 'true' : 'false'}
-                data-active={tutorialKey ? (active ? 'true' : 'false') : undefined}
-                aria-disabled={tutorialKey ? undefined : true}
-                style={{
-                  ...styles.keyboardKey,
-                  left: `${(keyDef.x / keyboardLayout.widthUnits) * 100}%`,
-                  top: `${(keyDef.y / keyboardLayout.heightUnits) * 100}%`,
-                  width: `${((keyDef.w ?? 1) / keyboardLayout.widthUnits) * 100}%`,
-                  height: `${((keyDef.h ?? 1) / keyboardLayout.heightUnits) * 100}%`,
-                  ...(tutorialKey ? styles.keyboardKeyBound : styles.keyboardKeyUnmapped),
-                  ...(active ? styles.keyboardKeyActive : {}),
-                }}
-              >
-                <span>{tutorialKey?.label ?? keyDef.label}</span>
-              </span>
-            );
-          })}
-        </div>
-      </div>
       {diagramDisplay && typeof document !== 'undefined' && createPortal(
         <div
           className="not4k-tutorial-diagram-overlay"
@@ -582,6 +569,13 @@ function getTutorialDiagramTimingKey(timing: TutorialDiagramTiming | null): stri
 }
 
 const tutorialPreviewPlayerCss = `
+/* Pixi가 캔버스에 inline touch-action:none을 걸어 렌더러 위 드래그가 스크롤을 먹는다.
+   렌더러는 인터랙션이 없으니 세로 드래그가 바깥 컨테이너 스크롤로 통과되게 pan-y로 덮는다.
+   (스타일시트 !important가 Pixi의 non-important inline보다 우선한다) */
+.not4k-tutorial-preview-canvas {
+  touch-action: pan-y !important;
+}
+
 .not4k-tutorial-diagram-overlay {
   contain: layout paint;
   will-change: opacity;
@@ -701,7 +695,9 @@ const styles: Record<string, CSSProperties> = {
   canvasFrame: {
     position: 'relative',
     width: 'min(100%, 420px)',
-    aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT}`,
+    // 렌더러(플레이+키보드)가 항상 보이도록 최소 폭 확보 — aspect-lock이라 최소 폭이 최소 높이가 된다.
+    // min(100%, ...)로 캡해 화면이 300px보다 좁아도 가로로 넘치지 않는다.
+    minWidth: 'min(100%, 300px)',
     overflow: 'hidden',
     borderRadius: '6px',
     border: '1px solid rgba(255, 255, 255, 0.14)',
@@ -767,49 +763,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  laneKeyOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`,
-    display: 'grid',
-    gridTemplateColumns: `repeat(${PREVIEW_LANES.length}, 1fr)`,
-    gap: '4px',
-    padding: `${PREVIEW_LANE_KEY_OVERLAY_PADDING_Y}px 8px`,
-    boxSizing: 'border-box',
-    pointerEvents: 'none',
-  },
-  laneKeyLabel: {
-    minWidth: 0,
-    minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '8px 10px',
-    color: '#e5ecef',
-    backgroundColor: '#303538',
-    border: '1px solid #6b7b80',
-    borderRadius: '4px',
-    boxShadow: '0 4px 0 #101010, 0 7px 12px rgba(0, 0, 0, 0.24)',
-    boxSizing: 'border-box',
-    fontSize: '14px',
-    fontWeight: 800,
-    lineHeight: 1,
-    textAlign: 'center',
-    transition: 'transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease, background-color 90ms ease',
-  },
-  laneKeyLabelEmpty: {
-    color: '#6f767a',
-    border: '1px solid rgba(255, 255, 255, 0.14)',
-    backgroundColor: 'rgba(8, 10, 12, 0.54)',
-  },
-  laneKeyLabelActive: {
-    transform: 'translateY(4px)',
-    color: '#ffffff',
-    backgroundColor: '#355f66',
-    border: '1px solid #76d6df',
-    boxShadow: '0 1px 0 #101010, 0 4px 12px rgba(118, 214, 223, 0.28)',
-  },
   errorText: {
     position: 'absolute',
     inset: 0,
@@ -821,59 +774,5 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     fontSize: '12px',
     textAlign: 'center',
-  },
-  miniKeyboard: {
-    width: 'min(100%, 460px)',
-    padding: '8px',
-    borderRadius: '7px',
-    border: '1px solid #3f3f3f',
-    backgroundColor: '#191919',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 20px rgba(0, 0, 0, 0.22)',
-    boxSizing: 'border-box',
-  },
-  keyboardBoard: {
-    position: 'relative',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  keyboardKey: {
-    position: 'absolute',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1px',
-    padding: 0,
-    color: '#6f767a',
-    backgroundColor: '#252525',
-    border: '1px solid #414141',
-    borderRadius: '4px',
-    boxShadow: '0 3px 0 #101010, 0 5px 8px rgba(0, 0, 0, 0.2)',
-    boxSizing: 'border-box',
-    fontSize: 'clamp(7px, 1.9vw, 10px)',
-    fontWeight: 800,
-    lineHeight: 1,
-    overflow: 'hidden',
-    userSelect: 'none',
-    transition: 'transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease, background-color 90ms ease',
-  },
-  keyboardKeyBound: {
-    color: '#e5ecef',
-    backgroundColor: '#303538',
-    border: '1px solid #6b7b80',
-  },
-  keyboardKeyUnmapped: {
-    color: '#343a3d',
-    backgroundColor: '#121415',
-    border: '1px solid #24282a',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.025)',
-    opacity: 0.68,
-  },
-  keyboardKeyActive: {
-    zIndex: 1,
-    transform: 'translateY(3px)',
-    color: '#ffffff',
-    backgroundColor: '#355f66',
-    border: '1px solid #76d6df',
-    boxShadow: '0 1px 0 #101010, 0 3px 12px rgba(118, 214, 223, 0.28)',
   },
 };
