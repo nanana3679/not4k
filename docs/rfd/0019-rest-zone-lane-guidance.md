@@ -60,7 +60,7 @@ not4k의 정체성은 **가변 손배치**다 — 유저가 곡 흐름에 따라
 RestZone { lane, beat, endBeat }
 ```
 
-`ChartData`에 `restZones: RestZone[]` 축을 추가하고 JSON 직렬화에 round-trip시킨다. 전역 이벤트(`ChartEvent`)가 아니라 레인 귀속이라 `trillZone`과 같은 top-level 배열로 둔다. 여러 레인이 동시에 쉴 수 있다(오른손 파킹 = L3·L4에 각각 하나). `lane`은 가시 레인 전체(메인 1–4 + RFD 0018의 보조 레인)를 대상으로 하며 `note.lane`과 같은 레인 공간을 쓴다.
+`ChartData`에 `restZones: RestZone[]` 축을 추가하고 JSON 직렬화에 round-trip시킨다. 전역 이벤트(`ChartEvent`)가 아니라 레인 귀속이라 `trillZone`과 같은 top-level 배열로 둔다. 여러 레인이 동시에 쉴 수 있다(오른손 파킹 = L3·L4에 각각 하나). `lane`은 `trillZone`과 동일하게 **가시 레인 1–4**만 대상으로 한다(not4k는 항상 4개 레인, glossary "레인"). 보조 레인(RFD 0018 aux)은 별도 가시 레인이 아니라 dim 대상이 아니다.
 
 ### 4-2. 두 가지 기능 — 그리고 오직 이 둘
 

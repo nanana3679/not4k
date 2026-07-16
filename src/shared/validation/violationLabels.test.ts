@@ -7,9 +7,9 @@ import {
 import { validateChartStructural, validateChartSemantic } from "./index";
 import type { ValidationError, ValidationErrorRule } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, ChartEvent } from "../types/chart";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent } from "../types/chart";
 
-// ValidationError["rule"] 유니온 14종 전수 — 새 rule이 추가되면 이 배열과
+// ValidationError["rule"] 유니온 16종 전수 — 새 rule이 추가되면 이 배열과
 // RULE_SEVERITY·카탈로그가 함께 갱신돼야 한다 (Record 타입이 컴파일 타임에도 강제).
 const ALL_RULES: ValidationErrorRule[] = [
   "duplicate",
@@ -17,6 +17,8 @@ const ALL_RULES: ValidationErrorRule[] = [
   "trillExclusive",
   "trillLongInvalid",
   "trillZoneOverlap",
+  "restZoneOverlap",
+  "restZoneExclusive",
   "eventOverlap",
   "eventDuplicate",
   "tutorialInputOverlap",
@@ -38,7 +40,7 @@ const err = (rule: ValidationErrorRule, message: string): ValidationError => ({
 // =========================================================================
 
 describe("RULE_SEVERITY", () => {
-  it("14개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
+  it("16개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
     for (const rule of ALL_RULES) {
       expect(["structural", "semantic"]).toContain(RULE_SEVERITY[rule]);
     }
@@ -78,22 +80,29 @@ describe("RULE_SEVERITY", () => {
         { lane: 2, beat: beat(2), endBeat: beat(6) }, // trillZoneOverlap
       ] as TrillZone[],
       events: [] as ChartEvent[],
+      restZones: [
+        { lane: 3, beat: beat(0), endBeat: beat(4) },
+        { lane: 3, beat: beat(2), endBeat: beat(6) }, // restZoneOverlap
+        { lane: 2, beat: beat(0), endBeat: beat(4) }, // restZoneExclusive (trillZone과 겹침)
+      ] as RestZone[],
     });
     const rules = new Set(errors.map((e) => e.rule));
     expect(rules.has("duplicate")).toBe(true);
     expect(rules.has("trillZoneOverlap")).toBe(true);
+    expect(rules.has("restZoneOverlap")).toBe(true);
+    expect(rules.has("restZoneExclusive")).toBe(true);
     for (const rule of rules) {
       expect(RULE_SEVERITY[rule]).toBe("semantic");
     }
   });
 
-  it("structural은 정확히 4종, semantic은 정확히 10종", () => {
+  it("structural은 정확히 4종, semantic은 정확히 12종", () => {
     const structural = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "structural");
     const semantic = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "semantic");
     expect(structural.sort()).toEqual(
       ["beatMalformed", "laneMalformed", "rangeInverted", "timeSigNotNatural"].sort(),
     );
-    expect(semantic).toHaveLength(10);
+    expect(semantic).toHaveLength(12);
   });
 });
 
@@ -102,7 +111,7 @@ describe("RULE_SEVERITY", () => {
 // =========================================================================
 
 describe("violationLabel", () => {
-  it("14개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
+  it("16개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
     for (const rule of ALL_RULES) {
       const label = violationLabel(rule, "ko");
       expect(label, `rule=${rule}`).toBeTruthy();
@@ -113,6 +122,11 @@ describe("violationLabel", () => {
   it("duplicate → '중복 노트', beatMalformed → '박자 값 오류' (ko 라벨 구체값)", () => {
     expect(violationLabel("duplicate")).toBe("중복 노트");
     expect(violationLabel("beatMalformed")).toBe("박자 값 오류");
+  });
+
+  it("restZoneOverlap → '휴지 구간 겹침', restZoneExclusive → '휴지 구간 배타 위반' (RFD 0019)", () => {
+    expect(violationLabel("restZoneOverlap")).toBe("휴지 구간 겹침");
+    expect(violationLabel("restZoneExclusive")).toBe("휴지 구간 배타 위반");
   });
 
   it("미지원 locale 'en'을 넘기면 ko 라벨로 fallback한다", () => {

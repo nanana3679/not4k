@@ -31,6 +31,7 @@ export {
   type RangeNote,
   type NoteEntity,
   type TrillZone,
+  type RestZone,
   type BpmEvent,
   type TimeSignatureEvent,
   type TextEvent,

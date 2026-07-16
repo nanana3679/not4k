@@ -18,6 +18,7 @@ import type {
   NoteEntity,
   RangeNote,
   TrillZone,
+  RestZone,
   ChartEvent,
   RangeEvent,
   TutorialInputEvent,
@@ -35,6 +36,8 @@ export interface ValidationError {
     | "trillExclusive"
     | "trillLongInvalid"
     | "trillZoneOverlap"
+    | "restZoneOverlap"
+    | "restZoneExclusive"
     | "eventOverlap"
     | "eventDuplicate"
     | "tutorialInputOverlap"
@@ -52,11 +55,11 @@ export interface ValidationError {
 export type ValidationErrorRule = ValidationError["rule"];
 
 /** RFD 0017 위반 시각화 — 위반에 연루된 엔티티를 원본 배열 인덱스로 가리킨다 */
-export type ValidationRefKind = "note" | "trillZone" | "event";
+export type ValidationRefKind = "note" | "trillZone" | "restZone" | "event";
 
 export interface ValidationRef {
   kind: ValidationRefKind;
-  index: number; // 각각 chart.notes / chart.trillZones / chart.events 배열의 인덱스
+  index: number; // 각각 chart.notes / chart.trillZones / chart.restZones / chart.events 배열의 인덱스
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +89,7 @@ function beatKey(lane: number, b: Beat): string {
 
 const noteRef = (index: number): ValidationRef => ({ kind: "note", index });
 const zoneRef = (index: number): ValidationRef => ({ kind: "trillZone", index });
+const restZoneRef = (index: number): ValidationRef => ({ kind: "restZone", index });
 const eventRef = (index: number): ValidationRef => ({ kind: "event", index });
 
 // ---------------------------------------------------------------------------
@@ -339,6 +343,96 @@ export function validateNoTrillZoneOverlap(trillZones: readonly TrillZone[]): Va
           rule: "trillZoneOverlap",
           message: `Trill zones overlap on lane ${a.lane}: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
           refs: [zoneRef(i), zoneRef(j)],
+        });
+      }
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 4-1: restZone 겹침 금지 (RFD 0019)
+// ---------------------------------------------------------------------------
+
+/**
+ * 같은 레인의 restZone끼리 열린 구간이 겹치는지 검사한다.
+ * 끝-시작 인접(같은 박자)은 허용 — validateNoTrillZoneOverlap 미러.
+ */
+export function validateNoRestZoneOverlap(restZones: readonly RestZone[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (let i = 0; i < restZones.length; i++) {
+    for (let j = i + 1; j < restZones.length; j++) {
+      const a = restZones[i];
+      const b = restZones[j];
+      if (a.lane !== b.lane) continue;
+
+      const bStartInA = beatGt(b.beat, a.beat) && beatLt(b.beat, a.endBeat);
+      const bEndInA = beatGt(b.endBeat, a.beat) && beatLt(b.endBeat, a.endBeat);
+      const aStartInB = beatGt(a.beat, b.beat) && beatLt(a.beat, b.endBeat);
+      const aEndInB = beatGt(a.endBeat, b.beat) && beatLt(a.endBeat, b.endBeat);
+
+      if (bStartInA || bEndInA || aStartInB || aEndInB) {
+        errors.push({
+          rule: "restZoneOverlap",
+          message: `Rest zones overlap on lane ${a.lane}: (${a.beat.n}/${a.beat.d}~${a.endBeat.n}/${a.endBeat.d}) and (${b.beat.n}/${b.beat.d}~${b.endBeat.n}/${b.endBeat.d})`,
+          refs: [restZoneRef(i), restZoneRef(j)],
+        });
+      }
+    }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 4-2: restZone 배타 (RFD 0019 §4-2)
+// ---------------------------------------------------------------------------
+
+/**
+ * restZone이 덮은 같은 레인·구간에 노트 또는 trillZone이 존재하면 위반이다.
+ * restZone은 "이 레인은 이 구간 동안 안 쓴다"는 의도이므로 노트(입력 요구)와
+ * trillZone(트릴 등장 암시) 모두와 정면 모순 — 역방향 배치도 같은 위반(대칭).
+ *
+ * 겹침 판정은 열린 구간 교차(beatLt(aStart, bEnd) && beatLt(bStart, aEnd)):
+ * - 끝-시작 인접(같은 박자)은 허용 — 다른 구간 규칙과 동일. 포인트 노트가
+ *   restZone 경계 박에 정확히 놓인 경우도 인접으로 보고 허용한다.
+ * - 롱노트 바디가 restZone을 관통하는 것도 잡는다(끝점만 검사하는 stopZone과 다름).
+ * 보조 레인(5+) 노트는 표시 전용이라 검사하지 않는다(RFD 0018 §3-2).
+ */
+export function validateRestZoneExclusive(
+  notes: readonly NoteEntity[],
+  trillZones: readonly TrillZone[],
+  restZones: readonly RestZone[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (let zi = 0; zi < restZones.length; zi++) {
+    const z = restZones[zi];
+
+    for (let ni = 0; ni < notes.length; ni++) {
+      const note = notes[ni];
+      if (note.lane !== z.lane) continue;
+      if (!isMainLane(note.lane)) continue;
+      const noteEnd = isRangeNote(note) ? note.endBeat : note.beat;
+      if (beatLt(note.beat, z.endBeat) && beatLt(z.beat, noteEnd)) {
+        errors.push({
+          rule: "restZoneExclusive",
+          message: `Note (${note.type}) at lane ${note.lane}, beat ${note.beat.n}/${note.beat.d} overlaps rest zone (${z.beat.n}/${z.beat.d}~${z.endBeat.n}/${z.endBeat.d})`,
+          refs: [restZoneRef(zi), noteRef(ni)],
+        });
+      }
+    }
+
+    for (let ti = 0; ti < trillZones.length; ti++) {
+      const t = trillZones[ti];
+      if (t.lane !== z.lane) continue;
+      if (beatLt(t.beat, z.endBeat) && beatLt(z.beat, t.endBeat)) {
+        errors.push({
+          rule: "restZoneExclusive",
+          message: `Trill zone (${t.beat.n}/${t.beat.d}~${t.endBeat.n}/${t.endBeat.d}) on lane ${t.lane} overlaps rest zone (${z.beat.n}/${z.beat.d}~${z.endBeat.n}/${z.endBeat.d})`,
+          refs: [restZoneRef(zi), zoneRef(ti)],
         });
       }
     }
@@ -676,6 +770,7 @@ export function validateNoRangeInversion(
   notes: readonly NoteEntity[],
   trillZones: readonly TrillZone[],
   events: readonly ChartEvent[],
+  restZones: readonly RestZone[] = [],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
@@ -712,6 +807,19 @@ export function validateNoRangeInversion(
     }
   }
 
+  // restZone은 endBeat > beat를 요구한다 — 역전뿐 아니라 길이 0도 금지(RFD 0019 Phase 2).
+  // 길이 0 restZone은 "쉬는 구간"으로 성립하지 않아 transient로 지날 이유가 없는 값이다.
+  for (let i = 0; i < restZones.length; i++) {
+    const z = restZones[i];
+    if (beatLte(z.endBeat, z.beat)) {
+      errors.push({
+        rule: "rangeInverted",
+        message: `휴지 구간 끝(${beatToFloat(z.endBeat)})이 시작(${beatToFloat(z.beat)})보다 앞서거나 같습니다 — 길이 0 금지 (레인 ${z.lane})`,
+        refs: [restZoneRef(i)],
+      });
+    }
+  }
+
   return errors;
 }
 
@@ -727,6 +835,7 @@ export function validateBeatWellFormed(
   notes: readonly NoteEntity[],
   trillZones: readonly TrillZone[],
   events: readonly ChartEvent[],
+  restZones: readonly RestZone[] = [],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const isMalformed = (b: Beat): boolean =>
@@ -750,6 +859,17 @@ export function validateBeatWellFormed(
         rule: "beatMalformed",
         message: `트릴 존의 beat가 malformed입니다 (레인 ${z.lane}, ${z.beat.n}/${z.beat.d})`,
         refs: [zoneRef(i)],
+      });
+    }
+  }
+
+  for (let i = 0; i < restZones.length; i++) {
+    const z = restZones[i];
+    if (isMalformed(z.beat) || isMalformed(z.endBeat)) {
+      errors.push({
+        rule: "beatMalformed",
+        message: `휴지 구간의 beat가 malformed입니다 (레인 ${z.lane}, ${z.beat.n}/${z.beat.d})`,
+        refs: [restZoneRef(i)],
       });
     }
   }
@@ -783,6 +903,7 @@ export function validateBeatWellFormed(
 export function validateLaneWellFormed(
   notes: readonly NoteEntity[],
   trillZones: readonly TrillZone[],
+  restZones: readonly RestZone[] = [],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const isMalformed = (lane: number): boolean => !Number.isInteger(lane) || lane < 1;
@@ -807,6 +928,19 @@ export function validateLaneWellFormed(
     }
   }
 
+  // restZone은 가시 레인 1~4 전용(RFD 0019 §4-1) — 노트·트릴존과 달리 보조 레인
+  // 확장이 없으므로 상한(lane > 4)도 구조 수준에서 거부한다.
+  for (let i = 0; i < restZones.length; i++) {
+    const lane = restZones[i].lane;
+    if (!Number.isInteger(lane) || lane < 1 || lane > 4) {
+      errors.push({
+        rule: "laneMalformed",
+        message: `휴지 구간의 레인이 malformed입니다 (lane ${lane}) — 가시 레인 1~4만 허용`,
+        refs: [restZoneRef(i)],
+      });
+    }
+  }
+
   return errors;
 }
 
@@ -817,6 +951,11 @@ export function validateLaneWellFormed(
 export interface ChartValidationInput {
   notes: readonly NoteEntity[];
   trillZones: readonly TrillZone[];
+  /**
+   * 휴지 구간(RFD 0019). restZone 도입 이전의 기존 호출자(에디터·게임)가
+   * 무변경으로 동작하도록 optional — 부재는 빈 배열로 취급한다.
+   */
+  restZones?: readonly RestZone[];
   events: readonly ChartEvent[];
 }
 
@@ -825,10 +964,11 @@ export interface ChartValidationInput {
  * setChart가 항상 하드 거부하는 버킷(RFD 0017 §3-2·§3-4).
  */
 export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
+  const restZones = input.restZones ?? [];
   return [
-    ...validateBeatWellFormed(input.notes, input.trillZones, input.events),
-    ...validateLaneWellFormed(input.notes, input.trillZones),
-    ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
+    ...validateBeatWellFormed(input.notes, input.trillZones, input.events, restZones),
+    ...validateLaneWellFormed(input.notes, input.trillZones, restZones),
+    ...validateNoRangeInversion(input.notes, input.trillZones, input.events, restZones),
     ...validateTimeSigNatural(input.events),
   ];
 }
@@ -838,12 +978,15 @@ export function validateChartStructural(input: ChartValidationInput): Validation
  * 낙관적 편집에서 편집 중 잠깐 허용하고 저장·플레이 진입 게이트가 강제하는 버킷.
  */
 export function validateChartSemantic(input: ChartValidationInput): ValidationError[] {
+  const restZones = input.restZones ?? [];
   return [
     ...validateNoDuplicates(input.notes),
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
     ...validateTrillLong(input.notes),
     ...validateNoTrillZoneOverlap(input.trillZones),
+    ...validateNoRestZoneOverlap(restZones),
+    ...validateRestZoneExclusive(input.notes, input.trillZones, restZones),
     ...validateNoEventDuplicate(input.events),
     ...validateNoEventOverlap(input.events),
     ...validateNoTutorialInputOverlap(input.events),
@@ -853,15 +996,21 @@ export function validateChartSemantic(input: ChartValidationInput): ValidationEr
 }
 
 // 검증 memo — 편집 프리뷰가 매 pointer-move마다 "모드 사전검증 + 차트 변이 게이트"로
-// 같은 입력을 두 번 검증하므로, 세 배열의 참조가 모두 같으면 결과를 재사용한다.
+// 같은 입력을 두 번 검증하므로, 네 배열의 참조가 모두 같으면 결과를 재사용한다.
 // 차트 데이터는 불변으로 다뤄진다(모든 변이가 새 배열을 만든다)는 전제에 의존한다.
+// restZones 부재(기존 호출자)는 모듈 단일 빈 배열로 정규화해 항상 memo 키가 성립한다.
+const EMPTY_REST_ZONES: readonly RestZone[] = [];
 const validationMemo = new WeakMap<
   readonly NoteEntity[],
-  WeakMap<readonly TrillZone[], WeakMap<readonly ChartEvent[], ValidationError[]>>
+  WeakMap<
+    readonly TrillZone[],
+    WeakMap<readonly ChartEvent[], WeakMap<readonly RestZone[], ValidationError[]>>
+  >
 >();
 
 /** 차트의 모든 배치 제약 조건을 한 번에 검증한다 (동일 참조 입력은 memo 재사용) */
 export function validateChart(input: ChartValidationInput): ValidationError[] {
+  const restZones = input.restZones ?? EMPTY_REST_ZONES;
   let byZones = validationMemo.get(input.notes);
   if (!byZones) {
     byZones = new WeakMap();
@@ -872,20 +1021,26 @@ export function validateChart(input: ChartValidationInput): ValidationError[] {
     byEvents = new WeakMap();
     byZones.set(input.trillZones, byEvents);
   }
-  const cached = byEvents.get(input.events);
+  let byRestZones = byEvents.get(input.events);
+  if (!byRestZones) {
+    byRestZones = new WeakMap();
+    byEvents.set(input.events, byRestZones);
+  }
+  const cached = byRestZones.get(restZones);
   if (cached) return cached;
 
   const errors = [
     ...validateChartStructural(input),
     ...validateChartSemantic(input),
   ];
-  byEvents.set(input.events, errors);
+  byRestZones.set(restZones, errors);
   return errors;
 }
 
 export interface ChartViolationIndices {
   notes: Set<number>;
   trillZones: Set<number>;
+  restZones: Set<number>;
   events: Set<number>;
 }
 
@@ -896,12 +1051,18 @@ export interface ChartViolationIndices {
  * 걸러낸다 — 캔버스 빨간 해칭이 게이트가 막는 위반과 정확히 일치하도록(RFD 0017 §3-3).
  */
 export function chartViolationIndices(input: ChartValidationInput): ChartViolationIndices {
-  const result: ChartViolationIndices = { notes: new Set(), trillZones: new Set(), events: new Set() };
+  const result: ChartViolationIndices = {
+    notes: new Set(),
+    trillZones: new Set(),
+    restZones: new Set(),
+    events: new Set(),
+  };
   for (const err of validateChart(input)) {
     if (!err.refs) continue;
     for (const ref of err.refs) {
       if (ref.kind === "note") result.notes.add(ref.index);
       else if (ref.kind === "trillZone") result.trillZones.add(ref.index);
+      else if (ref.kind === "restZone") result.restZones.add(ref.index);
       else if (ref.kind === "event") result.events.add(ref.index);
     }
   }
