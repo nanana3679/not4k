@@ -50,3 +50,19 @@ input[type="number"] {
     transform: rotate(360deg);
   }
 }
+
+/*
+ * prefers-reduced-motion 존중 (PRODUCT.md).
+ * 인라인 스타일의 CSS 전환/애니메이션(스피너 회전, 카드·태그 포커스 전환 등)을
+ * 즉시 전환으로 대체한다. 게임플레이는 Pixi 캔버스 렌더라 영향받지 않는다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

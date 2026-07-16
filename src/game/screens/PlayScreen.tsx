@@ -10,6 +10,7 @@ import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
 import { decideJudgmentEffects } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
+import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
 import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import type { Lane } from '../../shared';
@@ -510,17 +511,15 @@ const styles = {
     display: 'block' as const,
   },
   errorContainer: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    ...primitives.screen,
     alignItems: 'center',
     justifyContent: 'center',
     height: '100vh',
-    backgroundColor: '#1a1a1a',
-    color: '#ffffff',
   },
   errorText: {
+    fontFamily: font.display,
     fontSize: '24px',
-    color: '#ff4444',
+    color: color.danger,
     marginBottom: '24px',
   },
   pauseOverlay: {
@@ -529,15 +528,19 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(6, 8, 10, 0.8)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   pauseModal: {
-    backgroundColor: '#2a2a2a',
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
+    boxShadow: `${edge.metal}, 0 24px 64px -24px rgba(0, 0, 0, 0.85)`,
+    color: color.ink,
+    fontFamily: font.body,
     padding: '48px',
-    borderRadius: '16px',
+    borderRadius: radius.md,
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -558,9 +561,11 @@ const styles = {
     pointerEvents: 'none' as const, // 오버레이는 클릭 통과, 모달만 입력 받음
   },
   pauseModalDev: {
-    backgroundColor: 'rgba(42, 42, 42, 0.9)',
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
+    boxShadow: edge.metal,
     padding: '12px 16px',
-    borderRadius: '10px',
+    borderRadius: radius.md,
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -570,47 +575,47 @@ const styles = {
     transformOrigin: 'top right',
   },
   pauseTitleDev: {
+    fontFamily: font.display,
     fontSize: '18px',
-    color: '#ffffff',
+    color: color.ink,
     margin: 0,
   },
   pauseTitle: {
+    fontFamily: font.display,
     fontSize: '48px',
-    color: '#ffffff',
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase' as const,
+    color: '#f4f7fa',
     margin: 0,
   },
   pauseButtons: {
     display: 'flex',
     gap: '16px',
   },
+  // 계속(주액션) — 유일한 네온 버튼
   button: {
+    ...primitives.neonButton,
+    minHeight: 'auto',
     fontSize: '18px',
     padding: '12px 24px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
   },
+  // 재시도 — 금속 + 골드
   retryButton: {
+    ...primitives.metalButton,
+    minHeight: 'auto',
     fontSize: '18px',
     padding: '12px 24px',
-    backgroundColor: '#ffaa00',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
+    color: color.gold,
+    border: `1px solid ${color.gold}66`,
   },
+  // 종료 — 금속 + danger
   quitButton: {
+    ...primitives.metalButton,
+    minHeight: 'auto',
     fontSize: '18px',
     padding: '12px 24px',
-    backgroundColor: '#ff4444',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
+    color: color.danger,
+    border: `1px solid ${color.danger}66`,
   },
 };
