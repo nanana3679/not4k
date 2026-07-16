@@ -184,6 +184,7 @@ export function createSelectionSlice(
           validateChart({
             notes: chart.notes,
             trillZones: chart.trillZones,
+            restZones: chart.restZones,
             events: chart.events,
           }),
           removed,

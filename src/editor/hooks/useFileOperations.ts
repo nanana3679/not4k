@@ -80,6 +80,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
   const violations = validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
+    restZones: chart.restZones,
     events: chart.events,
   });
   if (violations.length > 0) {
@@ -189,6 +190,7 @@ export function useFileOperations(
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {
@@ -318,6 +320,7 @@ export function useFileOperations(
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {

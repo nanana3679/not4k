@@ -173,6 +173,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const errors = validateChartStructural({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {
@@ -185,6 +186,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const fullyValid = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     }).length === 0;
     set((state) => {
@@ -212,6 +214,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {
@@ -242,6 +245,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const fullyValid = validateChart({
       notes: state.chart.notes,
       trillZones: state.chart.trillZones,
+      restZones: state.chart.restZones,
       events: state.chart.events,
     }).length === 0;
     return {
