@@ -1,6 +1,6 @@
 # RFD 0019: 휴지 구간(`restZone`) — 저작 레인 안내
 
-**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2(저작 데이터·에디터 배치) 미구현
+**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 저작 UX·타임라인 렌더 미구현
 
 **구현 기록 (2026-07-16, Phase 1):** 시각 효과만 눈으로 확정하기 위한 프로토타입. 활성 레인 base 톤을 올리고(`LANE_BG_EVEN/ODD` = 0x26263f/0x202038) 빈 구간을 어두운 밴드로 dim(`REST_ZONE_ALPHA` = 0.72). 밴드는 `trillZone` 렌더 패턴을 복제(스크롤·컬링·풀), 다음 점유 1박 전에 종료. 이 단계의 구간 데이터는 **`restZonePreview.ts`의 throwaway 자동 파생**(노트 공백 threshold 4박)이며 Phase 2에서 저작 데이터로 교체·삭제한다. threshold 4박·margin 1박·dim/리프트 값이 시각 검증으로 확정됐다.
 
@@ -89,9 +89,9 @@ dim이 보이려면 활성 레인이 완전 검정보다 밝아야 한다(near-b
 ## 7. 구현 단계
 
 - **Phase 1 (완료):** 시각 프로토타입 — 밴드 렌더 + base 리프트, throwaway 자동 파생으로 값 확정.
-- **Phase 2 (미구현):** 저작 본체 —
-  1. `ChartData.restZones` 타입 + JSON 직렬화 + 검증. 검증은 두 버킷으로 나뉜다:
-     - **structural**(`setChart` 하드 거부): `endBeat > beat`(구간 역전·길이 0 금지).
-     - **semantic**(저장·플레이 게이트): 같은 레인 `restZone` 자기 겹침 금지(`trillZone`의 `validateNoTrillZoneOverlap` 대응), `restZone`×노트/`trillZone` 겹침 금지(§4-2).
-  2. 게임 렌더 소스 교체(파생기 삭제 → `chartData.restZones`) + 에디터 타임라인 렌더 추가.
-  3. 에디터 저작 UX(배치 툴 + 선택/이동/리사이즈/복붙 + 배치 제약), `trillZone` 경로 복제.
+- **Phase 2:**
+  1. **(완료, commit 1d593d5)** `Chart.restZones` 타입 + JSON 직렬화(하위호환 부재→[]) + 검증 2버킷:
+     - **structural**(`setChart` 하드 거부): `endBeat > beat`(구간 역전·길이 0 금지), 레인 1–4, beat well-formed.
+     - **semantic**(저장·플레이 게이트): 같은 레인 `restZone` 자기 겹침 금지(`trillZone`의 `validateNoTrillZoneOverlap` 대응), `restZone`×노트/`trillZone` 겹침 금지(§4-2). `ChartViolationIndices`에 `restZones` 축 추가(해칭).
+  2. **(완료, commit d85a8b7)** 게임 렌더 소스 교체 — 파생기(`restZonePreview.ts`) 삭제, `GameRenderer.setChart`가 저작 `restZones`를 받아 밴드로 dim.
+  3. **(미구현)** 에디터 저작 UX + 타임라인 렌더 — 배치 툴 + 선택/이동/리사이즈/복붙 + 배치 제약 + `restZone` 밴드·위반 해칭 렌더, `trillZone` 경로 복제. (에디터 렌더는 저작과 함께 검증되므로 이 단계로 합침.)
