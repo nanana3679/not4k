@@ -160,10 +160,11 @@ describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
     expect(host.restZoneLayer.children.length).toBe(0);
   });
 
-  it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색 상수는 trillZone(0x00ff88)과 다른 회색 계열이다", () => {
+  it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색은 trillZone(0x00ff88)과 다른 인게임 dim(검정 오버레이)이다", () => {
     const host = renderRestZones([{ lane: 3, beat: beat(0), endBeat: beat(2) }]);
     expect(host.restZoneLayer.children.length).toBe(1);
     expect(host.trillZoneLayer.children.length).toBe(0);
     expect(COLORS.REST_ZONE).not.toBe(COLORS.TRILL_ZONE);
+    expect(COLORS.REST_ZONE).toBe(0x000000);
   });
 });
