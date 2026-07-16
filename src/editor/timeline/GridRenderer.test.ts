@@ -45,6 +45,7 @@ function makeHost(chart: Chart): GridHost {
     snap: 4,
     extraLaneCount: 3,
     selectedTrillZones: new Set(),
+    selectedRestZones: new Set(),
     currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,
@@ -166,5 +167,18 @@ describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
     expect(host.trillZoneLayer.children.length).toBe(0);
     expect(COLORS.REST_ZONE).not.toBe(COLORS.TRILL_ZONE);
     expect(COLORS.REST_ZONE).toBe(0x000000);
+  });
+
+  it("유닛 선택된 restZone(인덱스 0)은 SELECTED_OUTLINE 테두리가 더해져 바운즈가 레인 폭(LANE_WIDTH)보다 넓어지고, 미선택은 정확히 레인 폭이다 (RFD 0019 선택 표시)", () => {
+    const restZones: RestZone[] = [{ lane: 2, beat: beat(0), endBeat: beat(4) }];
+    const selectedHost = makeHost(makeChart([], restZones));
+    (selectedHost as { selectedRestZones: ReadonlySet<number> }).selectedRestZones = new Set([0]);
+    new GridRenderer(selectedHost).renderRestZones();
+    const selectedBounds = (selectedHost.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(selectedBounds.width).toBeGreaterThan(LANE_WIDTH); // 테두리(width 2)만큼 확장
+
+    const unselectedHost = renderRestZones(restZones);
+    const unselectedBounds = (unselectedHost.restZoneLayer.children[0] as Graphics).getLocalBounds();
+    expect(unselectedBounds.width).toBe(LANE_WIDTH); // 테두리 없음
   });
 });

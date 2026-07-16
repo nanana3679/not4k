@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createTimelineSpace, type TimelineSpaceSource } from "./TimelineSpace";
 import { beat } from "../../shared";
-import type { Chart, NoteEntity, TrillZone, ChartEvent } from "../../shared";
+import type { Chart, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // fake source — 가변 필드로 라이브 읽기(no-stale)를 검증한다 (mock 아님, 진짜 조립)
@@ -286,6 +286,21 @@ describe("TimelineSpace — 히트테스트", () => {
     const space = createTimelineSpace(source);
     expect(space.hitTestTrillZoneEnd(90, 1500)).toBe(0);
     expect(space.hitTestTrillZoneEnd(90, 1400)).toBeNull();
+  });
+
+  it("hitTestRestZoneEnd: lane 2 restZone endBeat=3을 y=1500에서 히트(tolerance 1/16), y=1400(0.2박 차이)·다른 lane(x=30)은 미스", () => {
+    const restZones: RestZone[] = [{ lane: 2, beat: beat(1, 1), endBeat: beat(3, 1) }];
+    const { source } = makeFakeSource({ chart: makeChart({ restZones }) });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestRestZoneEnd(90, 1500)).toBe(0);
+    expect(space.hitTestRestZoneEnd(90, 1400)).toBeNull();
+    expect(space.hitTestRestZoneEnd(30, 1500)).toBeNull();
+  });
+
+  it("hitTestRestZoneEnd: chart.restZones가 없으면(undefined) 항상 null(하위호환)", () => {
+    const { source } = makeFakeSource({ chart: makeChart() });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestRestZoneEnd(90, 1500)).toBeNull();
   });
 
 });

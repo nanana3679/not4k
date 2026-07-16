@@ -76,6 +76,8 @@ export interface TimelineSpace {
   hitTestTrillZone(x: number, y: number): number | null;
   /** restZone 히트테스트 — chart.restZones 인덱스 반환 (RFD 0019, trillZone 미러). */
   hitTestRestZone(x: number, y: number): number | null;
+  /** restZone 끝점(리사이즈 캡) 히트테스트 — hitTestTrillZoneEnd 미러 (RFD 0019). */
+  hitTestRestZoneEnd(x: number, y: number): number | null;
   hitTestExtraNote(x: number, y: number): number | null;
   getBpmMarkers(): BpmMarker[];
 }
@@ -236,6 +238,23 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestRestZoneAt(source.getChart().restZones ?? [], lane, beat.n / beat.d);
   };
 
+  // restZone 끝점(리사이즈 캡) — hitTestTrillZoneEnd와 같은 판정(레인 일치 + endBeat ±1/16).
+  const hitTestRestZoneEnd = (x: number, y: number): number | null => {
+    const lane = xToLane(x);
+    if (lane === null) return null;
+    const beat = yToBeatRaw(y);
+    const testBeatFloat = beat.n / beat.d;
+    const tolerance = 1 / 16;
+    const restZones = source.getChart().restZones ?? [];
+    for (let i = 0; i < restZones.length; i++) {
+      const zone = restZones[i];
+      if (zone.lane !== lane) continue;
+      const endBeatFloat = zone.endBeat.n / zone.endBeat.d;
+      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
+    }
+    return null;
+  };
+
   const hitTestExtraNote = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
@@ -262,6 +281,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestTrillZoneEnd,
     hitTestTrillZone,
     hitTestRestZone,
+    hitTestRestZoneEnd,
     hitTestExtraNote,
     getBpmMarkers: bpmMarkers,
   };

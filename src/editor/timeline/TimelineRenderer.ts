@@ -116,6 +116,7 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
+  private _selectedRestZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
@@ -123,6 +124,7 @@ export class TimelineRenderer {
   private _extraLaneCount: number = 0;
   private _hoveredNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
+  private _hoveredRestZoneIndex: number | null = null;
   // 롱노트 리사이즈 캡을 hover로 표시할 노트 인덱스(= select 모드에서 hover 중인 노트). 캡 표시 게이팅용.
   private _resizeHoverNoteIndex: number | null = null;
 
@@ -355,6 +357,7 @@ export class TimelineRenderer {
       get snap() { return self._snap; },
       get extraLaneCount() { return self._extraLaneCount; },
       get selectedTrillZones() { return self._selectedTrillZones; },
+      get selectedRestZones() { return self._selectedRestZones; },
       get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
@@ -400,6 +403,7 @@ export class TimelineRenderer {
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
+      get selectedRestZones() { return self._selectedRestZones; },
       get resizeHoverNoteIndex() { return self._resizeHoverNoteIndex; },
       get violatingNoteIndices() { return self._violatingNoteIndices; },
       get violatingTrillZoneIndices() { return self._violatingTrillZoneIndices; },
@@ -474,6 +478,12 @@ export class TimelineRenderer {
     this.render();
   }
 
+  /** 유닛으로 선택된 restZone 인덱스 설정 (선택 outline·리사이즈 캡 게이팅, RFD 0019) */
+  setSelectedRestZones(indices: Set<number>): void {
+    this._selectedRestZones = indices;
+    this.render();
+  }
+
   /** Set extra lane count */
   setExtraLaneCount(count: number): void {
     this._extraLaneCount = count;
@@ -505,6 +515,13 @@ export class TimelineRenderer {
   setHoveredTrillZone(index: number | null): void {
     if (this._hoveredTrillZoneIndex === index) return;
     this._hoveredTrillZoneIndex = index;
+    this.updateHoverOverlay();
+  }
+
+  /** Set hovered rest zone index (or null to clear) — 캡을 hover 시에만 표시 (RFD 0019) */
+  setHoveredRestZone(index: number | null): void {
+    if (this._hoveredRestZoneIndex === index) return;
+    this._hoveredRestZoneIndex = index;
     this.updateHoverOverlay();
   }
 
@@ -929,7 +946,11 @@ export class TimelineRenderer {
    * Draw hover outline in the dedicated hover layer (lightweight, no full re-render).
    */
   private updateHoverOverlay(): void {
-    this.overlayRenderer.updateHoverOverlay(this._hoveredNoteIndex, this._hoveredTrillZoneIndex);
+    this.overlayRenderer.updateHoverOverlay(
+      this._hoveredNoteIndex,
+      this._hoveredTrillZoneIndex,
+      this._hoveredRestZoneIndex,
+    );
   }
 
   /**

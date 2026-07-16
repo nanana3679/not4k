@@ -10,7 +10,7 @@ import {
   type SelectionSlice,
 } from './selectionSlice';
 import { beat } from '../../shared';
-import type { Chart, NoteEntity, TrillZone } from '../../shared';
+import type { Chart, NoteEntity, TrillZone, RestZone } from '../../shared';
 
 // ---------------------------------------------------------------------------
 // 픽스처: zoneA(lane1, 0~2), zoneB(lane2, 4~6)
@@ -143,6 +143,46 @@ describe('selectionEquals', () => {
     const b = sel({ notes: new Set([1]) });
     expect(selectionEquals(a, b)).toBe(false);
   });
+
+  it('restZones가 다르면 false ({0} vs ∅) — restZones도 동등성 축이다 (RFD 0019)', () => {
+    const a = sel({ restZones: new Set([0]) });
+    const b = sel({});
+    expect(selectionEquals(a, b)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restZones — 독립 선택 축 (RFD 0019): 게이트는 범위 prune만, 동질성·배타 규칙 없음
+// ---------------------------------------------------------------------------
+
+describe('normalizeSelection — restZones 독립 축 (RFD 0019)', () => {
+  const restZones: RestZone[] = [
+    { lane: 3, beat: beat(0), endBeat: beat(2) },
+    { lane: 4, beat: beat(4), endBeat: beat(6) },
+  ];
+  const chartWithRest: Pick<Chart, 'notes' | 'trillZones' | 'restZones'> = {
+    ...chart,
+    restZones,
+  };
+
+  it('restZones 2개에서 범위 밖 인덱스 5와 음수 -1은 제거된다({0,5,-1} → {0})', () => {
+    const result = normalizeSelection(sel({ restZones: new Set([0, 5, -1]) }), chartWithRest);
+    expect(result.restZones).toEqual(new Set([0]));
+  });
+
+  it('chart.restZones가 없으면(undefined) restZones 선택은 전부 제거된다', () => {
+    const result = normalizeSelection(sel({ restZones: new Set([0, 1]) }), chart);
+    expect(result.restZones).toEqual(new Set());
+  });
+
+  it('트릴 노트 모드({1})가 zones를 비워도 restZones {0}은 prune만 되고 유지된다 — 교차 동질성 규칙 없음', () => {
+    const result = normalizeSelection(
+      sel({ notes: new Set([1]), zones: new Set([1]), restZones: new Set([0]) }),
+      chartWithRest,
+    );
+    expect(result.zones).toEqual(new Set()); // 개별 트릴 모드는 구간 유닛과 배타 (기존 규칙)
+    expect(result.restZones).toEqual(new Set([0])); // restZones는 게이트가 건드리지 않는다
+  });
 });
 
 describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4.2)', () => {
@@ -220,7 +260,7 @@ function resetSelectionStore() {
 }
 
 /** 변이 게이트를 통과하는 유효한 전체 차트를 만든다. */
-function makeFullChart(chartNotes: NoteEntity[]): Chart {
+function makeFullChart(chartNotes: NoteEntity[], restZones?: RestZone[]): Chart {
   return {
     meta: {
       title: 'Test',
@@ -234,6 +274,7 @@ function makeFullChart(chartNotes: NoteEntity[]): Chart {
     },
     notes: chartNotes,
     trillZones: [],
+    ...(restZones ? { restZones } : {}),
     events: [
       { type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 },
       { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
@@ -476,5 +517,74 @@ describe('setSelection 반환값 · setSelectionTransient (§3-5 전이 = 확정
   it('setSelectionTransient도 정규화는 적용한다 (범위 밖 인덱스 7 제거)', () => {
     useEditorStore.getState().setSelectionTransient(sel({ notes: new Set([2, 7]) }));
     expect(useEditorStore.getState().selection.notes).toEqual(new Set([2]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restZones — 변이 액션 선택 보정 + §3-5 해제 게이트 (RFD 0019)
+// ---------------------------------------------------------------------------
+
+describe('restZones 선택 보정·해제 게이트 (RFD 0019)', () => {
+  const twoRest: RestZone[] = [
+    { lane: 3, beat: beat(0), endBeat: beat(2) },
+    { lane: 4, beat: beat(4), endBeat: beat(6) },
+  ];
+
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeFullChart([], twoRest),
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+    });
+  });
+
+  it('setChart: restZone 2→1개 축소 커밋이면 선택이 같은 트랜잭션에서 전부 비워진다 (인덱스 밀림 방지)', () => {
+    useEditorStore.getState().setSelection(sel({ restZones: new Set([1]) }));
+    useEditorStore.getState().setChart(makeFullChart([], twoRest.slice(0, 1)));
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('setChart: restZone 개수가 유지되면 restZones 선택 {0}이 살아남는다', () => {
+    useEditorStore.getState().setSelection(sel({ restZones: new Set([0]) }));
+    // 같은 개수의 restZones로 커밋(이동 커밋 모사)
+    const moved: RestZone[] = [
+      { lane: 3, beat: beat(1), endBeat: beat(3) },
+      { lane: 4, beat: beat(4), endBeat: beat(6) },
+    ];
+    useEditorStore.getState().setChart(makeFullChart([], moved));
+    expect(useEditorStore.getState().selection.restZones).toEqual(new Set([0]));
+  });
+
+  it('위반(노트 겹침) restZone {0}을 비우는 전이(clearSelection)는 §3-5 게이트에 거부되고 선택이 유지된다', () => {
+    // lane 3, beat 1 노트가 restZone 0(lane 3, 0~2) 안에 상주 — restZoneExclusive 의미 위반
+    useEditorStore.setState({
+      chart: makeFullChart([{ type: 'single', lane: 3, beat: beat(1) }], twoRest),
+    });
+    useEditorStore.getState().setSelection(sel({ restZones: new Set([0]) }));
+    expect(useEditorStore.getState().clearSelection()).toBe(false);
+    expect(useEditorStore.getState().selection.restZones).toEqual(new Set([0]));
+  });
+
+  it('위반과 무관한 restZone {1}의 해제는 통과한다', () => {
+    useEditorStore.setState({
+      chart: makeFullChart([{ type: 'single', lane: 3, beat: beat(1) }], twoRest),
+    });
+    useEditorStore.getState().setSelection(sel({ restZones: new Set([1]) }));
+    expect(useEditorStore.getState().clearSelection()).toBe(true);
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+  });
+
+  it('위반 restZone 삭제(개수 감소 커밋)는 게이트를 지나지 않고 선택이 원자적으로 비워진다 — 탈출구', () => {
+    useEditorStore.setState({
+      chart: makeFullChart([{ type: 'single', lane: 3, beat: beat(1) }], twoRest),
+    });
+    useEditorStore.getState().setSelection(sel({ restZones: new Set([0]) }));
+    // 위반 restZone을 삭제한 차트 커밋 (SelectMode.deleteSelected가 밟는 경로)
+    useEditorStore.getState().setChart(
+      makeFullChart([{ type: 'single', lane: 3, beat: beat(1) }], twoRest.slice(1)),
+    );
+    expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 });

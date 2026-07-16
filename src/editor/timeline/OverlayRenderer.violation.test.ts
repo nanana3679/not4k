@@ -48,6 +48,7 @@ function makeHost(
     chart,
     selectedNotes: new Set(),
     selectedTrillZones: new Set(),
+    selectedRestZones: new Set(),
     resizeHoverNoteIndex: null,
     violatingNoteIndices: violatingNotes,
     violatingTrillZoneIndices: violatingZones,

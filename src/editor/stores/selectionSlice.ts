@@ -29,14 +29,19 @@ import { classifySelection, filterHomogeneousSelection } from '../modes/trillZon
  *
  * RFD 0018 ④: 보조 레인 노트가 chart.notes(lane 5+)로 이주하며 선택 축도 통합됐다 —
  * notes 하나가 메인·보조 노트를 통합 인덱스로 다룬다(별도 extraNotes 축 소멸).
+ *
+ * RFD 0019: restZones는 독립 선택 축 — 내부 노트가 없어 동질성·classifySelection과
+ * 무관하다. note/zone 선택과의 배타는 SelectMode가 선택 **구성**으로 보장하고
+ * (restZone 클릭 = {notes:∅, zones:∅, restZones:{i}}), 이 게이트는 범위 prune만 한다.
  */
 export interface Selection {
   notes: Set<number>;
   zones: Set<number>;
+  restZones: Set<number>;
 }
 
 export function emptySelection(): Selection {
-  return { notes: new Set(), zones: new Set() };
+  return { notes: new Set(), zones: new Set(), restZones: new Set() };
 }
 
 /**
@@ -77,7 +82,8 @@ function setEquals(a: ReadonlySet<number>, b: ReadonlySet<number>): boolean {
 export function selectionEquals(a: Selection, b: Selection): boolean {
   return (
     setEquals(a.notes, b.notes) &&
-    setEquals(a.zones, b.zones)
+    setEquals(a.zones, b.zones) &&
+    setEquals(a.restZones, b.restZones)
   );
 }
 
@@ -95,9 +101,13 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
  */
 export function normalizeSelection(
   input: Selection,
-  chart: Pick<Chart, 'notes' | 'trillZones'>,
+  chart: Pick<Chart, 'notes' | 'trillZones' | 'restZones'>,
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
+
+  // restZones: 독립 축 — 범위 prune만 한다 (RFD 0019). 내부 노트가 없어 동질성 규칙과
+  // 무관하고, note/zone과의 배타는 SelectMode가 선택 구성으로 보장한다.
+  const restZones = pruneBounds(input.restZones, chart.restZones?.length ?? 0);
 
   // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다).
   // notes는 통합 인덱스(메인·보조 노트 모두 chart.notes)라 chart.notes.length로 범위 보정한다 (RFD 0018 ④).
@@ -113,6 +123,7 @@ export function normalizeSelection(
   return {
     notes: kept,
     zones: kind.kind === 'trill' ? new Set<number>() : zones,
+    restZones,
   };
 }
 
@@ -176,6 +187,9 @@ export function createSelectionSlice(
       }
       for (const i of selection.zones) {
         if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
+      }
+      for (const i of selection.restZones) {
+        if (!normalized.restZones.has(i)) removed.push({ kind: 'restZone', index: i });
       }
       // notes는 통합 인덱스(메인·보조 모두 chart.notes)라 보조 위반 해제도 이 단일 루프가 흡수한다
       // — 보조 위반도 chart.notes에서 검증되므로 메인과 대칭으로 봉쇄된다 (RFD 0018 §3-6 동일 취급).

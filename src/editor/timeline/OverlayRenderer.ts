@@ -12,17 +12,19 @@ import {
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
+  TRILL_HANDLE_SELECTED_BUMP,
 } from "./constants";
 import { laneToX, laneWidth, eventLaneToX } from "./laneGeometry";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
-import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
+import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./trillZoneHandles";
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
+  readonly selectedRestZones: Set<number>;
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
@@ -284,7 +286,11 @@ export class OverlayRenderer {
   /**
    * 호버 오버레이 업데이트 (경량, 풀 리렌더 없음)
    */
-  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredTrillZoneIndex: number | null = null): void {
+  updateHoverOverlay(
+    hoveredNoteIndex: number | null,
+    hoveredTrillZoneIndex: number | null = null,
+    hoveredRestZoneIndex: number | null = null,
+  ): void {
     destroyChildren(this.host.hoverLayer);
     if (!this.host.chart) return;
 
@@ -339,6 +345,20 @@ export class OverlayRenderer {
       const x = (zone.lane - 1) * LANE_WIDTH;
       const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
       drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, endY, true);
+    }
+
+    // restZone 리사이즈 캡도 **선택된 restZone**에만 표시한다 — trillZone 규칙 미러 (RFD 0019).
+    // 선택 전용이라 캡은 항상 선택 강조색(SELECTED_OUTLINE)+bump로 그린다.
+    const restZones = this.host.chart.restZones ?? [];
+    if (
+      hoveredRestZoneIndex !== null &&
+      hoveredRestZoneIndex < restZones.length &&
+      this.host.selectedRestZones.has(hoveredRestZoneIndex)
+    ) {
+      const zone = restZones[hoveredRestZoneIndex];
+      const x = (zone.lane - 1) * LANE_WIDTH;
+      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
+      drawResizeCap(this.host.hoverLayer, x, LANE_WIDTH, endY, COLORS.SELECTED_OUTLINE, TRILL_HANDLE_SELECTED_BUMP);
     }
 
     // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.

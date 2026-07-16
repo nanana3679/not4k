@@ -42,6 +42,7 @@ function makeCallbacks(
     "xToLane", "xToExtraLane", "xToUnifiedLane",
     "hitTestNote", "hitTestUnifiedNote", "hitTestNoteEnd", "hitTestEventEnd",
     "hitTestTrillZoneEnd", "hitTestTrillZone",
+    "hitTestRestZone", "hitTestRestZoneEnd",
     "hitTestExtraNote",
   ]);
   const spaceOverrides: Record<string, unknown> = {};
@@ -2027,7 +2028,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
 
   /** 일반 노트 2 + 구간0을 함께 선택한다(게이트 경유 — 공존 상태) */
   function selectMixed(cb: SelectionFake): void {
-    cb.setSelection({ notes: new Set([2]), zones: new Set([0]) });
+    cb.setSelection({ ...emptySelection(), notes: new Set([2]), zones: new Set([0]) });
   }
 
   it("박스가 구간[2,4]과 부분만 겹치면(beat 3~5) 유닛 미픽업·박스 안 트릴(beat3)은 개별 선택, 완전히 감싸면(beat 1~5) 유닛 픽업한다(감쌈 기준)", () => {
@@ -2120,7 +2121,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     });
     const cb = makeCallbacks();
     const mode = makeMode(chart, cb);
-    cb.setSelection({ notes: new Set([1]), zones: new Set([0]) });
+    cb.setSelection({ ...emptySelection(), notes: new Set([1]), zones: new Set([0]) });
 
     mode.moveBySnap("up");
 
@@ -2143,7 +2144,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
       snapBeat: (b: Beat): Beat => b,
     });
     const mode = makeMode(chart, cb);
-    cb.setSelection({ notes: new Set([1]), zones: new Set([0]) });
+    cb.setSelection({ ...emptySelection(), notes: new Set([1]), zones: new Set([0]) });
 
     mode.beginMoveDrag(3, 9);
     mode.onPointerMove(3, 10); // 라이브 프리뷰 적용
@@ -2528,7 +2529,7 @@ describe("SelectMode — beginBoxSelect (박스 승격)", () => {
     });
     const cb = makeCallbacks(chart);
     const mode = makeMode(chart, cb as never);
-    cb.setSelection({ notes: new Set([0]), zones: new Set() });
+    cb.setSelection({ ...emptySelection(), notes: new Set([0]) });
 
     mode.beginBoxSelect(2, 10);
 
@@ -2609,7 +2610,7 @@ describe("SelectMode — 구간 유닛 롱프레스 이동 (RFD 0016 §4.4)", ()
     });
     const cb = makeCallbacks(chart);
     const mode = makeMode(chart, cb as never);
-    cb.setSelection({ notes: new Set([1]), zones: new Set([0]) });
+    cb.setSelection({ ...emptySelection(), notes: new Set([1]), zones: new Set([0]) });
 
     const ok = mode.beginLongPressDrag(1, 0, {
       noteEndHit: null, noteHit: null, zoneHit: 0,
@@ -2763,5 +2764,259 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
     mode.cancelPaste();
 
     expect(laneCount).toBe(2); // 이전 확정 노트가 숨겨지지 않도록 1로 롤백하지 않는다
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restZone — 선택·이동·리사이즈·삭제 (RFD 0019 스텝4 슬라이스 D)
+// trillZone 경로 미러이되 내부 노트가 없는 **독립 배타 축**: restZone 선택은
+// note/zone 선택과 공존하지 않는다(배타는 SelectMode의 선택 구성이 보장).
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019)", () => {
+  // restZone 2개: 0=lane2[2,6], 1=lane4[8,10]. 노트 1개(lane1, beat0) — restZone과 무관.
+  function makeChartR(): Chart {
+    return makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+      restZones: [
+        { lane: 2 as Lane, beat: beat(2), endBeat: beat(6) },
+        { lane: 4 as Lane, beat: beat(8), endBeat: beat(10) },
+      ],
+    });
+  }
+
+  const restHitByLane = (x: number): number | null => (x === 2 ? 0 : x === 4 ? 1 : null);
+
+  it("restZone 몸통 탭(움직임 없이 뗌)은 {notes:∅, zones:∅, restZones:{0}}로 배타 선택된다", () => {
+    const cb = makeCallbacks({ hitTestRestZone: restHitByLane });
+    const mode = makeMode(makeChartR(), cb);
+
+    mode.onPointerDown(2, 0, false, false); // 미선택 restZone 몸통 → 탭 후보(박스 시작)
+    expect(mode.isMoveDragging).toBe(false);
+    mode.onPointerUp(2, 0);                 // 움직임 없이 뗌 = 탭
+
+    const sel = cb.getSelectionState();
+    expect([...sel.restZones]).toEqual([0]);
+    expect([...sel.notes]).toEqual([]);
+    expect([...sel.zones]).toEqual([]);
+  });
+
+  it("노트 {0}이 선택된 상태에서 restZone 탭 → 노트 선택이 해제되고 restZones {0}만 남는다(배타)", () => {
+    const cb = makeCallbacks({ hitTestRestZone: restHitByLane });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectNote(0);
+
+    mode.onPointerDown(2, 0, false, false);
+    mode.onPointerUp(2, 0);
+
+    const sel = cb.getSelectionState();
+    expect([...sel.restZones]).toEqual([0]);
+    expect([...sel.notes]).toEqual([]);
+  });
+
+  it("restZone {0}이 선택된 상태에서 노트 클릭 → restZones가 해제되고 notes {0}만 남는다(배타 역방향)", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: restHitByLane,
+      hitTestNote: (x: number) => (x === 1 ? 0 : null),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(1, 0, false, false); // 노트(lane1) 클릭
+
+    const sel = cb.getSelectionState();
+    expect([...sel.notes]).toEqual([0]);
+    expect([...sel.restZones]).toEqual([]);
+  });
+
+  it("선택된 restZone 몸통 드래그(+1레인 +2박)로 lane 2→3, 구간 2~6 → 4~8로 이동한다", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: restHitByLane,
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 2, false, false); // 선택된 몸통 → 유닛 이동 드래그
+    mode.onPointerMove(3, 4);               // +1레인 +2박
+    mode.onPointerUp(3, 4);
+
+    expect(cb.onChartUpdate).toHaveBeenCalled();
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.restZones?.[0].lane).toBe(3);
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(4);
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(8);
+    // 노트·다른 restZone은 불변
+    expect(beatToFloat(updated.notes[0].beat)).toBe(0);
+    expect(beatToFloat(updated.restZones![1].beat)).toBe(8);
+  });
+
+  it("드래그가 0박 아래로 내려가면 구간 시작=0에 클램프된다(2~6에서 -3박 요청 → 0~4)", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: restHitByLane,
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 3, false, false);
+    mode.onPointerMove(2, 0); // -3박 요청 — 허용 하한은 -2박(시작=0)
+    mode.onPointerUp(2, 0);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(0);
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(4);
+  });
+
+  it("moveBySnap('up')은 선택된 restZone만 +1박 이동한다(2~6 → 3~7, 노트 불변)", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.moveBySnap("up"); // snapStep = 1박
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(3);
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(7);
+    expect(beatToFloat(updated.notes[0].beat)).toBe(0);
+  });
+
+  it("moveByLane('right')는 lane 2 restZone을 lane 3으로 이동한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.moveByLane("right");
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.restZones?.[0].lane).toBe(3);
+  });
+
+  it("lane 4 restZone의 moveByLane('right')는 레인 밖(5)이라 차단되어 차트가 불변이고 경고가 나간다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(1); // lane 4
+
+    mode.moveByLane("right");
+
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(cb.onWarn).toHaveBeenCalled();
+  });
+
+  it("선택된 restZone 끝 드래그로 endBeat 6→8 리사이즈되고 시작(2)은 불변이다", () => {
+    const cb = makeCallbacks({
+      hitTestRestZoneEnd: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 6, false, false); // 선택된 restZone 끝 → 리사이즈 시작
+    expect(mode.isMoveDragging).toBe(false);
+    expect(mode.isBoxSelecting).toBe(false);
+    mode.onPointerMove(2, 8);
+    mode.onPointerUp(2, 8);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(8);
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
+  });
+
+  it("restZone 끝을 시작(2박) 아래로 드래그해도 길이 0을 커밋하지 않는다(구조 위반 방지) — endBeat 6 유지", () => {
+    const cb = makeCallbacks({
+      hitTestRestZoneEnd: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 6, false, false);
+    mode.onPointerMove(2, 1); // 시작(2) 아래 — 길이 0 프레임은 커밋 금지
+    mode.onPointerUp(2, 1);
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(6);
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
+  });
+
+  it("미선택 restZone의 끝 클릭은 리사이즈를 시작하지 않는다(선택된 restZone만 — trillZone §6-6 미러)", () => {
+    const cb = makeCallbacks({
+      hitTestRestZoneEnd: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb); // 아무것도 선택 안 함
+
+    mode.onPointerDown(2, 6, false, false); // 몸통도 아닌 끝 — 리사이즈 대신 박스로 흐른다
+    mode.onPointerMove(2, 8);
+    mode.onPointerUp(2, 8);
+
+    // 차트(구간 endBeat)는 불변 — 리사이즈가 일어나지 않았다
+    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart | undefined;
+    if (lastChart) expect(beatToFloat(lastChart.restZones![0].endBeat)).toBe(6);
+  });
+
+  it("deleteSelected는 선택된 restZone {0}만 삭제하고 노트·다른 restZone은 유지한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.deleteSelected();
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.restZones).toHaveLength(1);
+    expect(updated.restZones?.[0].lane).toBe(4); // lane4[8,10]만 남음
+    expect(updated.notes).toHaveLength(1);
+    expect([...cb.getSelectionState().restZones]).toEqual([]);
+  });
+
+  it("미선택 restZone 몸통에서 드래그(20px)하면 박스 선택이 되고 restZone은 픽업되지 않는다(몸통 클릭 선택만)", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: restHitByLane,
+      yToBeatRaw: (y: number): Beat => beat(y, 10),
+    });
+    const mode = makeMode(makeChartR(), cb);
+
+    mode.onPointerDown(2, 30, false, false); // 미선택 몸통(beat3)에서 시작
+    mode.onPointerMove(2, 50);
+    expect(mode.isBoxSelecting).toBe(true);
+    mode.onPointerUp(2, 50); // 20px 이동 → tap 아님, 박스 [3,5]×lane2 = 빈 선택
+
+    const sel = cb.getSelectionState();
+    expect([...sel.restZones]).toEqual([]);
+    expect([...sel.notes]).toEqual([]);
+  });
+
+  it("computeHoveredRestZone: 끝 리사이즈 드래그 중에는 커서가 구간 밖(x=99)이어도 그 restZone(0)을 래치한다", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: () => null, // hover 히트는 항상 미스 — 래치만이 인덱스를 줄 수 있다
+      hitTestRestZoneEnd: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    expect(mode.computeHoveredRestZone(99, 99)).toBeNull(); // 드래그 전엔 히트 없음
+    mode.onPointerDown(2, 6, false, false); // 리사이즈 시작
+    expect(mode.computeHoveredRestZone(99, 99)).toBe(0);    // 래치
+    mode.onPointerUp(2, 8);
+    expect(mode.computeHoveredRestZone(99, 99)).toBeNull(); // 종료 후 해제
+  });
+
+  it("이동 드래그 중 cancel(Esc)하면 restZone이 드래그 시작 위치(2~6, lane2)로 복원된다", () => {
+    const cb = makeCallbacks({
+      hitTestRestZone: restHitByLane,
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(makeChartR(), cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 2, false, false);
+    mode.onPointerMove(3, 4); // +1레인 +2박 프리뷰
+    mode.cancel();
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.restZones?.[0].lane).toBe(2);
+    expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
+    expect(beatToFloat(updated.restZones![0].endBeat)).toBe(6);
   });
 });

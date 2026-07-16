@@ -635,6 +635,12 @@ function ChartEditorPage() {
     rendererRef.current?.setSelectedTrillZones(selectedZones);
   }, [selectedZones]);
 
+  // selection.restZones → renderer (선택 outline·리사이즈 캡 게이팅, RFD 0019)
+  const selectedRestZones = useEditorStore((s) => s.selection.restZones);
+  useEffect(() => {
+    rendererRef.current?.setSelectedRestZones(selectedRestZones);
+  }, [selectedRestZones]);
+
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);
   useEffect(() => {

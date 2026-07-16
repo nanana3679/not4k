@@ -24,6 +24,7 @@ export interface GridHost {
   readonly snap: number;
   readonly extraLaneCount: number;
   readonly selectedTrillZones: ReadonlySet<number>;
+  readonly selectedRestZones: ReadonlySet<number>;
   readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
@@ -371,7 +372,7 @@ export class GridRenderer {
 
   /**
    * restZone 렌더링 (RFD 0019) — trillZone 밴드 미러.
-   * 선택/핸들 UX는 아직 없다(다음 슬라이스): muted 회색 밴드만 그린다.
+   * 유닛으로 선택된 restZone은 trillZone과 같은 선택 강조 테두리(SELECTED_OUTLINE)를 그린다.
    */
   renderRestZones(): void {
     const chart = this.host.chart;
@@ -403,6 +404,11 @@ export class GridRenderer {
       const bg = new Graphics();
       bg.rect(x, adjustedTopY, width, height);
       bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      // 유닛으로 선택된 restZone은 선택 강조 테두리를 그린다 (renderTrillZones 미러)
+      if (this.host.selectedRestZones.has(i)) {
+        bg.rect(x, adjustedTopY, width, height);
+        bg.stroke({ color: COLORS.SELECTED_OUTLINE, width: 2 });
+      }
       this.host.restZoneLayer.addChild(bg);
     }
   }

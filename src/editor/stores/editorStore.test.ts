@@ -320,7 +320,7 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     ]);
     useEditorStore.getState().setChart(invalid);
     useEditorStore.setState({
-      selection: { notes: new Set([0]), zones: new Set() },
+      selection: { notes: new Set([0]), zones: new Set(), restZones: new Set() },
       historyFuture: [{ chart: makeChart(), extraLaneCount: 2 }],
     });
 

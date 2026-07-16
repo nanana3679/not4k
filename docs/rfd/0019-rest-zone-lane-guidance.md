@@ -1,6 +1,6 @@
 # RFD 0019: 휴지 구간(`restZone`) — 저작 레인 안내
 
-**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 렌더·해칭(슬라이스A)·배치(B)·삭제(C) 구현 (2026-07-16, commits 2fff275·2d4b9d7·e391ab4) · 선택·이동·리사이즈·복붙·미니맵 미구현
+**Status:** Accepted (2026-07-16) · Phase 1 시각 프로토타입 구현 (2026-07-16, commit b9d74d8, throwaway 자동 파생) · Phase 2 데이터 모델·직렬화·검증 구현 (2026-07-16, commit 1d593d5) · Phase 2 게임 렌더 저작 소스 교체+파생기 삭제 (2026-07-16, commit d85a8b7) · 에디터 검증 게이트 restZones 배선 (2026-07-16, commit c1ba67e) · 에디터 렌더·해칭(슬라이스A)·배치(B)·삭제(C) 구현 (2026-07-16, commits 2fff275·2d4b9d7·e391ab4) · 선택·이동·리사이즈(슬라이스D — SelectMode 유닛, 독립 배타 선택 축) 구현 (2026-07-16) · 복붙·박스 픽업·미니맵 미구현
 
 **구현 기록 (2026-07-16, Phase 1):** 시각 효과만 눈으로 확정하기 위한 프로토타입. 활성 레인 base 톤을 올리고(`LANE_BG_EVEN/ODD` = 0x26263f/0x202038) 빈 구간을 어두운 밴드로 dim(`REST_ZONE_ALPHA` = 0.72). 밴드는 `trillZone` 렌더 패턴을 복제(스크롤·컬링·풀), 다음 점유 1박 전에 종료. 이 단계의 구간 데이터는 **`restZonePreview.ts`의 throwaway 자동 파생**(노트 공백 threshold 4박)이며 Phase 2에서 저작 데이터로 교체·삭제한다. threshold 4박·margin 1박·dim/리프트 값이 시각 검증으로 확정됐다.
 
@@ -99,4 +99,5 @@ dim이 보이려면 활성 레인이 완전 검정보다 밝아야 한다(near-b
      - **(완료 A, 2fff275)** 타임라인 밴드 렌더(muted 회색) + 위반 해칭(`setViolations` 4축 확장, `restZones` Set 소비).
      - **(완료 B, 2d4b9d7)** CreateMode 드래그 배치(낙관 커밋) + 툴바 엔티티('Rest').
      - **(완료 C, e391ab4)** DeleteMode 삭제(hitTest + `deleteRestZoneAtIndex`). ← A·B·C = MVP 저작 루프.
-     - **(미구현)** 선택·이동(SelectMode 유닛), 리사이즈(끝점 핸들), 복붙(ClipboardManager), 미니맵. = 폴리시.
+     - **(완료 D)** SelectMode 선택·이동·리사이즈·삭제 — `Selection`에 독립 축 `restZones` 추가(note/zone 선택과 **배타**, 배타는 SelectMode의 선택 구성이 보장하고 정규화 게이트는 범위 prune만). 몸통 클릭 선택(탭)·몸통 드래그 이동(`translateRestZone`+`clampRestBeatOffset`, 구간 자체만 [0,max] 클램프)·끝점 리사이즈(`hitTestRestZoneEnd`, **선택된 restZone만** — trillZone §6-6 미러, 길이 0 프레임 커밋 금지)·Delete 삭제·선택 outline·리사이즈 캡. restZone은 내부 노트가 없어 동질성 machinery 무관.
+     - **(미구현)** 박스 감쌈 픽업, 복붙(ClipboardManager), 미니맵. = 폴리시.
