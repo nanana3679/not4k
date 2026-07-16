@@ -2,11 +2,28 @@
  * restZone 선택·이동 헬퍼 (RFD 0019) — trillZoneSelection의 미러.
  *
  * restZone은 내부 노트가 없는 독립 선택 축이라 동질성(homogeneity)·파생 machinery가
- * 없다. 평행이동과 "구간 자체" 클램프만 있으면 된다.
+ * 없다. note/zone 선택과 **공존**하며(trillZone 존과 동일), 평행이동과
+ * "구간 자체" 클램프만 있으면 된다.
  */
 
 import type { Beat, RestZone } from "../../shared";
 import { beatAdd, beatSub, beatToFloat, BEAT_ZERO } from "../../shared";
+
+/**
+ * 박스가 restZone을 완전히 감싸는지 — lane 포함 + beat 폐구간 [zone.beat, zone.endBeat]를
+ * 박스 beat 범위가 포함할 때만 true (boxEnclosesZone 미러, RFD 0016 §6-2 감쌈 모델).
+ */
+export function boxEnclosesRestZone(
+  zone: RestZone,
+  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+): boolean {
+  return (
+    box.minLane <= zone.lane &&
+    zone.lane <= box.maxLane &&
+    beatToFloat(box.minBeat) <= beatToFloat(zone.beat) &&
+    beatToFloat(zone.endBeat) <= beatToFloat(box.maxBeat)
+  );
+}
 
 /**
  * restZone을 박자 오프셋만큼 평행 이동한 새 restZone을 반환한다 (translateTrillZone 미러).

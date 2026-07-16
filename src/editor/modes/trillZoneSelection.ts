@@ -6,8 +6,9 @@
  * 선택되면 그 트릴존도 선택된 것으로 취급한다.
  */
 
-import type { Beat, NoteEntity, TrillZone } from "../../shared";
+import type { Beat, NoteEntity, RestZone, TrillZone } from "../../shared";
 import { beatAdd, beatSub, beatToFloat } from "../../shared";
+import { boxEnclosesRestZone } from "./restZoneSelection";
 
 /** 노트가 트릴존과 같은 레인에서 구간이 겹치는지 판정한다. */
 export function trillZoneOverlapsNote(zone: TrillZone, note: NoteEntity): boolean {
@@ -207,22 +208,29 @@ function noteInBox(
 /**
  * 박스가 담은 것만으로 선택을 계산한다 — 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2).
  * - trillZone을 완전히 감싸면(boxEnclosesZone) 그 zone을 유닛(zones)으로 픽업한다.
+ * - restZone을 완전히 감싸면(boxEnclosesRestZone) 그 restZone을 유닛(restZones)으로
+ *   픽업한다 — note/zone과 공존하는 독립 축 (RFD 0019).
  * - 완전히 안 감싼(통과) zone은 그 zone의 트릴 노트 중 박스 안에 든 것만 개별 선택한다.
  *   고아 트릴(어느 zone에도 안 속함)도 박스 안이면 개별 선택.
  * - 일반(비트릴) 노트는 박스 안이면 선택.
  * 동질성(트릴↔일반 배타 등)은 여기서 다루지 않는다 — SelectionSlice의
- * normalizeSelection 게이트가 처리한다.
+ * normalizeSelection 게이트가 처리한다. restZone은 내부 노트가 없어 동질성과 무관.
  */
 export function selectionFromBox(
   trillZones: readonly TrillZone[],
   notes: readonly NoteEntity[],
+  restZones: readonly RestZone[],
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
-): { notes: Set<number>; zones: Set<number> } {
+): { notes: Set<number>; zones: Set<number>; restZones: Set<number> } {
   const selectedNotes = new Set<number>();
   const selectedZones = new Set<number>();
+  const selectedRestZones = new Set<number>();
 
   for (let i = 0; i < trillZones.length; i++) {
     if (boxEnclosesZone(trillZones[i], box)) selectedZones.add(i);
+  }
+  for (let i = 0; i < restZones.length; i++) {
+    if (boxEnclosesRestZone(restZones[i], box)) selectedRestZones.add(i);
   }
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
@@ -235,7 +243,7 @@ export function selectionFromBox(
       selectedNotes.add(i);
     }
   }
-  return { notes: selectedNotes, zones: selectedZones };
+  return { notes: selectedNotes, zones: selectedZones, restZones: selectedRestZones };
 }
 
 /** 트릴존을 레인/박자 오프셋만큼 평행 이동한 새 트릴존을 반환한다. */

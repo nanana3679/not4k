@@ -16,7 +16,7 @@ export interface NoteClipboard {
   trillZones: TrillZone[];
   /**
    * 복사된 restZone (RFD 0019 — trillZone 축 미러). restZone 선택은 note/zone과
-   * 배타라 restZone을 복사하면 사실상 restZone-only 클립보드가 된다(혼합 없음).
+   * 공존하는 축이라 노트·존과 혼합 클립보드가 될 수 있다.
    * 내부 노트가 없어 구간 자체만 담는다.
    */
   restZones: RestZone[];
@@ -44,7 +44,7 @@ export interface PasteResult {
   chart: Chart;
   selectedIndices: Set<number>;
   pastedNoteIndices: Set<number>;
-  /** 붙여넣은 restZone 인덱스 — 호출자가 이것으로 선택을 구성한다 (RFD 0019, 배타 축) */
+  /** 붙여넣은 restZone 인덱스 — 호출자가 이것으로 선택을 구성한다 (RFD 0019, 공존 축) */
   pastedRestZoneIndices: Set<number>;
   count: number;
 }
@@ -429,7 +429,7 @@ export class ClipboardManager {
     direction: "up" | "down",
     callbacks: ClipboardCallbacks,
   ): Chart | null {
-    // restZone-only 붙여넣기(배타 선택이라 노트 0개)도 이동 가능해야 한다 (RFD 0019)
+    // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
       (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0)
@@ -524,7 +524,7 @@ export class ClipboardManager {
     direction: "left" | "right",
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
   ): Chart | null {
-    // restZone-only 붙여넣기(배타 선택이라 노트 0개)도 이동 가능해야 한다 (RFD 0019)
+    // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
       (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0)

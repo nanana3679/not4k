@@ -92,7 +92,8 @@ export class SelectMode implements EditorMode {
   // 미선택 존 몸통에서 시작한 박스의 탭 후보(§6-6) — up에서 움직임이 없었으면
   // 빈 박스 확정 대신 이 존을 유닛 선택한다. 모든 종료 경로(up·cancel)에서 리셋.
   private _pendingZoneSelect: number | null = null;
-  // 미선택 restZone 몸통 탭 후보 — trillZone(§6-6) 미러 (RFD 0019). 배타 축이라 둘 중 하나만 산다.
+  // 미선택 restZone 몸통 탭 후보 — trillZone(§6-6) 미러 (RFD 0019). down은 한 몸통만
+  // 히트하므로 둘 중 하나만 산다.
   private _pendingRestZoneSelect: number | null = null;
 
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
@@ -150,7 +151,7 @@ export class SelectMode implements EditorMode {
     return this.sel.zones;
   }
 
-  /** 유닛으로 선택된 restZone 인덱스 (RFD 0019 — 독립 배타 축) */
+  /** 유닛으로 선택된 restZone 인덱스 (RFD 0019 — note/zone과 공존하는 독립 축) */
   get selectedRestZones(): ReadonlySet<number> {
     return this.sel.restZones;
   }
@@ -195,8 +196,9 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * restZone을 유닛으로 선택한다 (RFD 0019). restZone 선택은 note/zone 선택과 배타 —
-   * 게이트가 아니라 이 **선택 구성**({notes:∅, zones:∅, restZones:{i}})이 배타를 보장한다.
+   * restZone을 유닛으로 선택한다 (RFD 0019). restZone은 note/zone과 **공존**하는
+   * 독립 축이지만, 단순 클릭 선택은 다른 엔티티와 동일하게 **선택 전체 교체**다
+   * (selectZoneUnit 미러 — 공존은 박스·shift 등 다축 경로에서 성립한다).
    */
   selectRestZoneUnit(index: number): boolean {
     if (index < 0 || index >= (this.chart.restZones?.length ?? 0)) return false;
@@ -300,7 +302,7 @@ export class SelectMode implements EditorMode {
   /** Select a specific note. §3-5 게이트 거부 시 false. */
   selectNote(index: number): boolean {
     if (index >= 0 && index < this.chart.notes.length) {
-      // restZones도 비운다 — restZone 선택은 note/zone과 배타 (RFD 0019)
+      // 단순 클릭 선택 = 전체 교체 — zones·restZones도 함께 해제한다 (공존 축이지만 교체는 전축)
       return this.commitSelection({
         notes: this.withTrillPairs(new Set([index])),
         zones: new Set(),
@@ -505,9 +507,9 @@ export class SelectMode implements EditorMode {
       // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
       const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
 
-      // 수식자(토글/Shift/Alt) 경로는 zones를 보존한다 — 일반 노트와 구간 유닛은
-      // 공존하고, 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다 (RFD 0016 §4.1).
-      // 노트가 선택에 들어오는 경로는 restZones를 비운다 — restZone 선택과 배타 (RFD 0019).
+      // 수식자(토글/Shift/Alt) 경로는 zones·restZones를 보존한다 — 일반 노트와 구간
+      // 유닛(trillZone·restZone)은 공존하고(RFD 0016 §4.1 · RFD 0019),
+      // 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다.
       if (toggleSelection) {
         if (isAlreadySelected) {
           const notes = new Set(this.sel.notes);
@@ -515,12 +517,12 @@ export class SelectMode implements EditorMode {
           this.commitSelection({ notes });
         } else {
           const added = this.tryAddNoteToSelection(hitIndex);
-          if (added) this.commitSelection({ notes: added, restZones: new Set() });
+          if (added) this.commitSelection({ notes: added });
         }
       } else if (shiftKey) {
         // Add to selection (동질성 규칙 적용)
         const added = this.tryAddNoteToSelection(hitIndex);
-        if (added) this.commitSelection({ notes: added, restZones: new Set() });
+        if (added) this.commitSelection({ notes: added });
       } else if (altKey) {
         // Remove from selection
         const notes = new Set(this.sel.notes);
@@ -546,15 +548,14 @@ export class SelectMode implements EditorMode {
       const zoneHit = this.callbacks.space.hitTestTrillZone(x, y);
       if (zoneHit !== null) {
         if (shiftKey || toggleSelection) {
-          // 구 이동 필의 shift/토글 동작 승계: zones 토글(기존 노트 선택과 공존).
-          // restZones는 비운다 — restZone 선택과 배타 (RFD 0019).
+          // 구 이동 필의 shift/토글 동작 승계: zones 토글(기존 노트·restZone 선택과 공존).
           const zones = new Set(this.sel.zones);
           if (zones.has(zoneHit)) {
             zones.delete(zoneHit);
           } else {
             zones.add(zoneHit);
           }
-          this.commitSelection({ zones, restZones: new Set() });
+          this.commitSelection({ zones });
           return;
         }
         if (this.sel.zones.has(zoneHit)) {
@@ -570,18 +571,17 @@ export class SelectMode implements EditorMode {
       }
 
       // 노트·트릴존 히트 실패 → restZone 몸통 (RFD 0019 — trillZone §6-6 미러).
-      // restZone은 몸통 클릭 선택만(박스 감쌈 픽업 없음), note/zone 선택과 배타.
       const restHit = this.callbacks.space.hitTestRestZone(x, y);
       if (restHit !== null) {
         if (shiftKey || toggleSelection) {
-          // 배타 축 — notes·zones를 비운 채 restZones만 토글한다 (RFD 0019).
+          // 공존 축 — restZones만 토글하고 기존 notes·zones 선택은 보존한다 (trillZone 미러).
           const restZones = new Set(this.sel.restZones);
           if (restZones.has(restHit)) {
             restZones.delete(restHit);
           } else {
             restZones.add(restHit);
           }
-          this.commitSelection({ notes: new Set(), zones: new Set(), restZones });
+          this.commitSelection({ restZones });
           return;
         }
         if (this.sel.restZones.has(restHit)) {
@@ -589,7 +589,7 @@ export class SelectMode implements EditorMode {
           this.beginMoveDrag(x, y);
           return;
         }
-        // 미선택 restZone 몸통: 탭=유닛 선택(배타 구성), 드래그=박스(노트만 픽업).
+        // 미선택 restZone 몸통: 탭=유닛 선택(교체), 드래그=박스(노트·존·restZone 감쌈 픽업).
         this._pendingRestZoneSelect = restHit;
         this.startBoxSelect(x, y);
         return;
@@ -725,7 +725,7 @@ export class SelectMode implements EditorMode {
         }
 
         // restZone 유닛 이동(RFD 0019): 내부 노트가 없어 구간 자체만 타임라인 [0, max]에 클램프.
-        // 배타 선택이라 notes·zones 이동과 동시에 서지 않는다.
+        // 공존 축 — 혼합 선택이면 이 클램프가 노트·존을 포함한 전체 오프셋을 함께 제한한다.
         if (this.originalRestZonePositions.size > 0) {
           const maxBeat = this.maxTimelineBeat();
           for (const origin of this.originalRestZonePositions.values()) {
@@ -818,7 +818,7 @@ export class SelectMode implements EditorMode {
         const finalSel: Selection = tappedZone !== null
           ? { ...this.sel, notes: new Set(), zones: new Set([tappedZone]) }
           : tappedRestZone !== null
-            // restZone 탭 = 배타 구성 {notes:∅, zones:∅, restZones:{i}} (RFD 0019)
+            // restZone 탭 = 유닛 선택으로 교체 {notes:∅, zones:∅, restZones:{i}} (RFD 0019)
             ? { notes: new Set(), zones: new Set(), restZones: new Set([tappedRestZone]) }
             : this.sel;
         this.callbacks.setSelectionTransient(this.preDragSelection);
@@ -902,16 +902,17 @@ export class SelectMode implements EditorMode {
     const minLane = Math.min(startLane, endLane);
     const maxLane = Math.max(startLane, endLane);
     // 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④).
-    // zone 완전 감쌈=유닛 픽업, 통과=박스 안 개별 트릴, 일반 노트=박스 안이면 선택.
-    // 동질성은 선택 커밋의 normalizeSelection 게이트가 처리한다.
-    const { notes, zones } = selectionFromBox(
+    // zone·restZone 완전 감쌈=유닛 픽업(공존 축, RFD 0019), 통과=박스 안 개별 트릴,
+    // 일반 노트=박스 안이면 선택. 동질성은 선택 커밋의 normalizeSelection 게이트가 처리한다.
+    const { notes, zones, restZones } = selectionFromBox(
       this.chart.trillZones,
       this.chart.notes,
+      this.chart.restZones ?? [],
       { minLane, maxLane, minBeat, maxBeat },
     );
 
     // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.
-    this.commitSelectionTransient({ notes, zones });
+    this.commitSelectionTransient({ notes, zones, restZones });
   }
 
   // --- Keyboard events ---
@@ -927,17 +928,19 @@ export class SelectMode implements EditorMode {
     // Timeline: bottom = time 0, up = later time.
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
-    // restZone 유닛 선택은 배타 축 — restZone만 평행이동한다 (RFD 0019)
-    if (this.sel.restZones.size > 0) {
+    // restZone-only 선택(노트·존 없음): restZone만 평행이동한다 (RFD 0019)
+    if (this.sel.notes.size === 0 && this.sel.zones.size === 0) {
       this.captureRestZoneOrigins();
       this.applyRestZoneMove(0, offset);
       return;
     }
 
-    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트를 같은 오프셋으로 이동 (RFD 0016 §4.2)
+    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트 + 선택된 restZone을
+    // 같은 오프셋으로 이동 (RFD 0016 §4.2 · RFD 0019 공존)
     if (this.sel.zones.size > 0) {
       this.captureNoteOrigins(this.effectiveNoteIndices());
       this.captureZoneOrigins();
+      this.captureRestZoneOrigins();
       this.applyZoneUnitMove(0, offset);
       return;
     }
@@ -956,19 +959,28 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    // Store original positions
+    // Store original positions — 공존 축이라 선택된 restZone도 함께 캡처·이동 (RFD 0019)
     this.captureNoteOrigins();
+    this.captureRestZoneOrigins();
 
     // Apply move
     const newNotes = this.buildMovedNotes(0, offset);
+    const newRestZones = this.buildMovedRestZones(0, offset);
 
-    // Block if any note goes out of timeline bounds
-    if (!this.areNotesInBounds(newNotes, this.sel.notes)) {
+    // Block if any note/restZone goes out of timeline bounds
+    if (
+      !this.areNotesInBounds(newNotes, this.sel.notes) ||
+      !this.movedRestZonesInBounds(newRestZones)
+    ) {
       this.clearMoveOrigins();
       return;
     }
 
-    this.chart = { ...this.chart, notes: newNotes };
+    this.chart = {
+      ...this.chart,
+      notes: newNotes,
+      ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
+    };
 
     // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
     this.callbacks.onChartUpdate(this.chart);
@@ -984,19 +996,21 @@ export class SelectMode implements EditorMode {
       this.sel.notes.size > 0 || this.sel.zones.size > 0 || this.sel.restZones.size > 0;
     if (!hasMainSel) return;
 
-    // restZone 유닛 선택은 배타 축 — restZone만 레인 이동한다(1~4 클램프, RFD 0019)
-    if (this.sel.restZones.size > 0) {
+    // restZone-only 선택(노트·존 없음): restZone만 레인 이동한다(1~4 클램프, RFD 0019)
+    if (this.sel.notes.size === 0 && this.sel.zones.size === 0) {
       const laneOffset = direction === "left" ? -1 : 1;
       this.captureRestZoneOrigins();
       this.applyRestZoneMove(laneOffset, { n: 0, d: 1 });
       return;
     }
 
-    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트를 전체 평행이동
+    // 구간 유닛이 선택돼 있으면 구간 + 내부 파생 노트 + 일반 노트 + 선택된 restZone을
+    // 전체 평행이동 (RFD 0019 공존)
     if (this.sel.zones.size > 0) {
       const laneOffset = direction === "left" ? -1 : 1;
       this.captureNoteOrigins(this.effectiveNoteIndices());
       this.captureZoneOrigins();
+      this.captureRestZoneOrigins();
       this.applyZoneUnitMove(laneOffset, { n: 0, d: 1 });
       return;
     }
@@ -1017,6 +1031,14 @@ export class SelectMode implements EditorMode {
       if (!isVisibleLane(note.lane + laneOffset, extraLaneCount)) return; // Block entire move
     }
 
+    // 공존 축 — 선택된 restZone도 함께 레인 이동, 하나라도 레인(1~4) 밖이면 전체 차단 (RFD 0019)
+    this.captureRestZoneOrigins();
+    const newRestZones = this.buildMovedRestZones(laneOffset, { n: 0, d: 1 });
+    if (!this.movedRestZonesInBounds(newRestZones)) {
+      this.clearMoveOrigins();
+      return; // Block entire move
+    }
+
     // Apply lane move
     const newNotes = [...this.chart.notes];
     for (const idx of selNotes) {
@@ -1024,10 +1046,15 @@ export class SelectMode implements EditorMode {
       newNotes[idx] = { ...note, lane: note.lane + laneOffset };
     }
 
-    this.chart = { ...this.chart, notes: newNotes };
+    this.chart = {
+      ...this.chart,
+      notes: newNotes,
+      ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
+    };
 
     // 낙관적 편집(RFD 0017): 레인 이동은 구조 위반을 못 만들어 검증 없이 커밋.
     this.callbacks.onChartUpdate(this.chart);
+    this.clearMoveOrigins();
   }
 
   /** Resize selected long note end by one snap unit */
@@ -1146,7 +1173,7 @@ export class SelectMode implements EditorMode {
 
   /**
    * 복사 대상 restZone = 선택된 restZones (trillZonesToCopy 미러, RFD 0019).
-   * restZone 선택은 note/zone과 배타라, 이게 비어 있지 않으면 클립보드는 restZone-only가 된다.
+   * 공존 축이라 노트·존과 혼합 선택이면 클립보드에도 함께 담긴다.
    */
   private restZonesToCopy(): Set<number> {
     return new Set(this.sel.restZones);
@@ -1185,16 +1212,11 @@ export class SelectMode implements EditorMode {
 
     this.chart = result.chart;
     // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다.
-    // restZone을 붙여넣었으면 선택은 붙여넣은 restZones로 — 배타 구성 (RFD 0019).
-    if (result.pastedRestZoneIndices.size > 0) {
-      this.commitSelection({
-        notes: new Set(),
-        zones: new Set(),
-        restZones: new Set(result.pastedRestZoneIndices),
-      });
-    } else {
-      this.commitSelection({ notes: result.selectedIndices });
-    }
+    // 노트+restZone 혼합 붙여넣기는 두 공존 축을 함께 선택한다 (RFD 0019).
+    this.commitSelection({
+      notes: result.selectedIndices,
+      restZones: new Set(result.pastedRestZoneIndices),
+    });
     return result.count;
   }
 
@@ -1239,16 +1261,13 @@ export class SelectMode implements EditorMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
-    // restZone 유닛 선택: 배타 축이라 restZone만 삭제한다 (RFD 0019).
+    // restZone은 공존 축 — 선택된 restZone은 노트·존 삭제와 한 커밋으로 함께 지운다 (RFD 0019).
     // 순서 주의: 차트 커밋(setChart가 축소를 감지해 선택을 원자적으로 비움) → 해제.
-    if (this.sel.restZones.size > 0) {
-      const selected = this.sel.restZones;
-      const restZones = (this.chart.restZones ?? []).filter((_z, i) => !selected.has(i));
-      this.chart = { ...this.chart, restZones };
-      this.callbacks.onChartUpdate(this.chart);
-      this.clearSelection();
-      return;
-    }
+    const selectedRest = this.sel.restZones;
+    const withRestRemoved = (chart: Chart): Chart =>
+      selectedRest.size > 0
+        ? { ...chart, restZones: (chart.restZones ?? []).filter((_z, i) => !selectedRest.has(i)) }
+        : chart;
 
     // 구간 유닛 선택: 구간 + 실행 시점 파생한 내부 노트 + 직접 선택한 일반 노트를
     // 함께 삭제 (빈 구간도 삭제, RFD 0016 §4.2)
@@ -1257,17 +1276,24 @@ export class SelectMode implements EditorMode {
       const noteIndices = this.effectiveNoteIndices();
       const notes = this.chart.notes.filter((_n, i) => !noteIndices.has(i));
       const trillZones = this.chart.trillZones.filter((_z, i) => !zones.has(i));
-      this.chart = { ...this.chart, notes, trillZones };
+      this.chart = withRestRemoved({ ...this.chart, notes, trillZones });
       // 차트 축소 커밋이 선택을 원자적으로 비운다(setChart, §3-5 면제 경로).
       this.callbacks.onChartUpdate(this.chart);
       this.clearSelection();
       return;
     }
 
-    if (this.sel.notes.size === 0) return;
+    if (this.sel.notes.size === 0) {
+      // restZone-only 선택 삭제
+      if (selectedRest.size === 0) return;
+      this.chart = withRestRemoved(this.chart);
+      this.callbacks.onChartUpdate(this.chart);
+      this.clearSelection();
+      return;
+    }
 
     // sel.notes는 메인·보조 통합 인덱스 — deleteChartNotesAtIndices가 둘 다 삭제한다 (RFD 0018 ④).
-    this.chart = deleteChartNotesAtIndices(this.chart, this.sel.notes);
+    this.chart = withRestRemoved(deleteChartNotesAtIndices(this.chart, this.sel.notes));
     // 순서 주의: 차트 커밋 → 선택 해제. 반대면 §3-5 게이트가 위반 노트 삭제를 막는다.
     this.callbacks.onChartUpdate(this.chart);
     this.clearSelection();
@@ -1301,7 +1327,7 @@ export class SelectMode implements EditorMode {
       this._trillMoveZone = this.trillZoneOfSelection();
       this.originalZonePositions.clear();
     }
-    // restZone 유닛 이동 원본 캡처 — 배타 선택이라 notes·zones와 동시에 서지 않는다 (RFD 0019)
+    // restZone 유닛 이동 원본 캡처 — 공존 축이라 notes·zones와 함께 캡처돼 한 오프셋으로 움직인다 (RFD 0019)
     this.captureRestZoneOrigins();
   }
 
@@ -1466,6 +1492,8 @@ export class SelectMode implements EditorMode {
   private applyZoneUnitMove(laneOffset: number, beatOffset: Beat): void {
     const newNotes = this.buildMovedNotes(laneOffset, beatOffset);
     const newZones = this.buildMovedZones(laneOffset, beatOffset);
+    // 공존 축 — 선택된 restZone도 같은 오프셋으로 함께 이동한다 (RFD 0019)
+    const newRestZones = this.buildMovedRestZones(laneOffset, beatOffset);
 
     // 노트 통합 레인·범위, 구간 레인·범위 검증 — 이동 대상은 캡처된 원본(파생 노트 포함)
     const moveTargets = new Set(this.originalPositions.keys());
@@ -1477,13 +1505,19 @@ export class SelectMode implements EditorMode {
 
     if (!laneOk
       || !this.areNotesInBounds(newNotes, moveTargets)
-      || !this.movedZonesInBounds(newZones)) {
+      || !this.movedZonesInBounds(newZones)
+      || !this.movedRestZonesInBounds(newRestZones)) {
       this.callbacks.onWarn?.("더 이상 이동할 수 없습니다");
       this.clearMoveOrigins();
       return;
     }
 
-    const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
+    const candidate = {
+      ...this.chart,
+      notes: newNotes,
+      trillZones: newZones,
+      ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
+    };
     // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
     this.chart = candidate;
     this.callbacks.onChartUpdate(this.chart);

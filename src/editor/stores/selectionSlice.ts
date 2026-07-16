@@ -31,8 +31,8 @@ import { classifySelection, filterHomogeneousSelection } from '../modes/trillZon
  * notes 하나가 메인·보조 노트를 통합 인덱스로 다룬다(별도 extraNotes 축 소멸).
  *
  * RFD 0019: restZones는 독립 선택 축 — 내부 노트가 없어 동질성·classifySelection과
- * 무관하다. note/zone 선택과의 배타는 SelectMode가 선택 **구성**으로 보장하고
- * (restZone 클릭 = {notes:∅, zones:∅, restZones:{i}}), 이 게이트는 범위 prune만 한다.
+ * 무관하다. note/zone 선택과 **공존**한다(trillZone 존과 동형 — 박스 감쌈·shift 토글로
+ * 함께 선택·이동). 이 게이트는 restZones에 대해 범위 prune만 한다.
  */
 export interface Selection {
   notes: Set<number>;
@@ -106,7 +106,7 @@ export function normalizeSelection(
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 
   // restZones: 독립 축 — 범위 prune만 한다 (RFD 0019). 내부 노트가 없어 동질성 규칙과
-  // 무관하고, note/zone과의 배타는 SelectMode가 선택 구성으로 보장한다.
+  // 무관하고, note/zone 선택과 공존한다(배타 없음).
   const restZones = pruneBounds(input.restZones, chart.restZones?.length ?? 0);
 
   // notes: 범위 보정 + 동질성 정규화 (조용히 한 그룹만 남긴다).
