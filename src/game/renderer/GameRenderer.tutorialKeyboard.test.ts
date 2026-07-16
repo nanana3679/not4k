@@ -38,11 +38,15 @@ describe('GameRenderer 튜토리얼 키보드 strip', () => {
     expect(kbLayerIndex).toBeLessThan(uiLayerIndex);
   });
 
-  it('setKeyState는 tutorialKeyboardKeyByCode에서 키를 찾아 매핑된 키만 눌림을 다시 그림', () => {
+  it('setKeyState는 매핑된 키의 눌림이 실제로 바뀔 때만 다시 그려 매 프레임 재구성을 피함', () => {
     expect(gameRendererSource).toContain('this.tutorialKeyboardKeyByCode.get(keyCode)');
-    expect(gameRendererSource).toContain('if (kbEntry && kbEntry.mapped) {');
+    expect(gameRendererSource).toContain('if (kbEntry && kbEntry.mapped && kbEntry.pressed !== pressed) {');
     expect(gameRendererSource).toContain('kbEntry.pressed = pressed;');
     expect(gameRendererSource).toContain('this.drawTutorialKey(kbEntry, pressed);');
+  });
+
+  it('buildTutorialKeyboard는 keyboardAreaHeight가 0 이하이면 보드 높이 음수를 피하려 조기 반환', () => {
+    expect(gameRendererSource).toContain('if (!spec || this.keyboardAreaHeight <= 0) return');
   });
 
   it('drawTutorialKey는 dispose로 파괴된 키캡 Graphics에 clear()를 부르지 않도록 destroyed를 먼저 확인', () => {

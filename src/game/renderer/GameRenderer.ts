@@ -950,8 +950,11 @@ export class GameRenderer {
     }
     if (idx >= 0 && idx < this.laneKeyLabels.length) {
       const entry = this.laneKeyLabels[idx];
-      entry.pressed = pressed;
-      this.drawLaneKeyCap(entry, pressed);
+      // 눌림 상태가 실제로 바뀔 때만 다시 그린다 — 매 프레임 Graphics 재구성 방지.
+      if (entry.pressed !== pressed) {
+        entry.pressed = pressed;
+        this.drawLaneKeyCap(entry, pressed);
+      }
     }
   }
 
@@ -1026,7 +1029,8 @@ export class GameRenderer {
   /** 튜토리얼 키보드 strip 키캡+텍스트 생성 — tutorialKeyboard 스펙이 있을 때만 호출된다. */
   private buildTutorialKeyboard(): void {
     const spec = this.tutorialKeyboardSpec;
-    if (!spec) return;
+    // keyboardAreaHeight 없이 spec만 넘어오면 boardH가 음수가 된다 — 계약 명시.
+    if (!spec || this.keyboardAreaHeight <= 0) return;
     const boardX = this.laneAreaX + TUTORIAL_KB_SIDE_PAD;
     const boardY = this.height + TUTORIAL_KB_VPAD;
     const boardW = LANE_AREA_WIDTH - TUTORIAL_KB_SIDE_PAD * 2;
@@ -1643,7 +1647,8 @@ export class GameRenderer {
     this.keyboardDisplay?.setKeyState(keyCode, pressed);
     if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
     const kbEntry = this.tutorialKeyboardKeyByCode.get(keyCode);
-    if (kbEntry && kbEntry.mapped) {
+    // 눌림 상태가 실제로 바뀔 때만 다시 그린다 — 매 프레임 Graphics 재구성 방지.
+    if (kbEntry && kbEntry.mapped && kbEntry.pressed !== pressed) {
       kbEntry.pressed = pressed;
       this.drawTutorialKey(kbEntry, pressed);
     }

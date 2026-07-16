@@ -37,6 +37,10 @@ describe('GameRenderer 레인 키 라벨', () => {
     expect(gameRendererSource).toContain('this.drawLaneKeyCap(entry, pressed)');
   });
 
+  it('setKeyBeam은 눌림 상태가 실제로 바뀔 때만 다시 그려 매 프레임 재구성을 피함', () => {
+    expect(gameRendererSource).toContain('if (entry.pressed !== pressed)');
+  });
+
   it('dispose는 laneKeyLabels 배열을 비워 파괴된 Pixi 객체 참조를 남기지 않음', () => {
     expect(gameRendererSource).toContain('this.laneKeyLabels = []');
   });
