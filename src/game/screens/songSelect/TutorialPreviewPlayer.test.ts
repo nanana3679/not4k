@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
 import {
   buildTutorialKeyboardKeys,
+  createSafeRenderFrame,
   getLaneKeyLabels,
+  isTransientTeardownRenderError,
   uniqueTutorialKeys,
   type TutorialKeyView,
 } from './TutorialPreviewPlayer';
+import type { GameRenderer } from '../../renderer';
 import { TUTORIAL_PREVIEWS, getTutorialInputTimings } from './tutorialPreviewChart';
 import {
   getTutorialKeyboardLayout,
@@ -184,7 +187,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = (now - loopStartNow) % preview.loopMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
   });
 
   it('선택된 튜토리얼 preview prop으로 차트와 키 입력 이벤트를 렌더링', () => {
@@ -282,7 +285,7 @@ describe('TutorialPreviewPlayer', () => {
   it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(preview.renderStartMs, 0)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
     expect(tutorialPreviewPlayerSource).toContain('if (!readyNotifiedRef.current)');
   });
 
@@ -313,5 +316,124 @@ describe('TutorialPreviewPlayer', () => {
         '        }',
       ].join('\n'),
     );
+  });
+});
+
+describe('isTransientTeardownRenderError', () => {
+  it("Chrome의 \"Cannot read properties of null (reading 'clear')\"는 교차 teardown 레이스로 판정", () => {
+    const err = new TypeError("Cannot read properties of null (reading 'clear')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('구형 V8의 "Cannot read property \'x\' of null"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError("Cannot read property 'clear' of null");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Safari의 "null is not an object"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError("null is not an object (evaluating 'batch.clear')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Firefox의 "can\'t access property \\"x\\", batch is null"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError('can\'t access property "clear", batch is null');
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Firefox 구형 "batch is undefined"(문장 끝 null/undefined)도 교차 teardown 레이스로 판정', () => {
+    expect(isTransientTeardownRenderError(new TypeError('batch is null'))).toBe(true);
+    expect(isTransientTeardownRenderError(new TypeError('_texturePool[key] is undefined'))).toBe(true);
+  });
+
+  it("TexturePool의 \"Cannot read properties of undefined (reading 'push')\"도 교차 teardown 레이스로 판정", () => {
+    // 형제 Application의 destroy가 공유 TexturePool을 흩뜨려, 살아있는 렌더러의 returnTexture가 크래시한다.
+    const err = new TypeError("Cannot read properties of undefined (reading 'push')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('null/undefined 역참조가 아닌 일반 에러는 교차 teardown 레이스가 아님(재던져져야 함)', () => {
+    expect(isTransientTeardownRenderError(new Error('chart data is invalid'))).toBe(false);
+    expect(isTransientTeardownRenderError(new RangeError('offset out of bounds'))).toBe(false);
+    expect(isTransientTeardownRenderError(new Error('WebGL context lost'))).toBe(false);
+  });
+
+  it('TypeError가 아니면(문자열·일반 Error·TypeError 상속 아님) 같은 문구여도 삼키지 않음', () => {
+    // null/undefined 역참조는 항상 TypeError다. 우리가 던지는 일반 Error가 우연히 같은 문구를 담아도 재던진다.
+    expect(isTransientTeardownRenderError("Cannot read properties of null (reading 'x')")).toBe(false);
+    expect(isTransientTeardownRenderError(new Error("Cannot read properties of null (reading 'x')"))).toBe(false);
+    expect(isTransientTeardownRenderError(new RangeError('batch is null'))).toBe(false);
+    expect(isTransientTeardownRenderError(undefined)).toBe(false);
+  });
+});
+
+describe('createSafeRenderFrame', () => {
+  // 지정한 순서(true=성공, Error=throw)대로 renderFrame이 동작하는 가짜 렌더러.
+  function fakeRenderer(script: Array<true | Error>): { renderer: GameRenderer; calls: () => number } {
+    let i = 0;
+    const renderer = {
+      renderFrame: () => {
+        const step = script[Math.min(i, script.length - 1)];
+        i += 1;
+        if (step !== true) throw step;
+      },
+    } as unknown as GameRenderer;
+    return { renderer, calls: () => i };
+  }
+
+  const teardownErr = () => new TypeError("Cannot read properties of null (reading 'clear')");
+
+  it('일시적 teardown 크래시는 삼켜 프레임을 스킵하고 예외를 밖으로 던지지 않음', () => {
+    const safe = createSafeRenderFrame();
+    const { renderer } = fakeRenderer([teardownErr()]);
+    expect(() => safe(renderer, 0, 16)).not.toThrow();
+  });
+
+  it('teardown이 아닌 일반 에러는 삼키지 않고 즉시 재던짐', () => {
+    const safe = createSafeRenderFrame();
+    const { renderer } = fakeRenderer([new Error('chart data is invalid')]);
+    expect(() => safe(renderer, 0, 16)).toThrow('chart data is invalid');
+  });
+
+  it('연속 실패가 상한 이하면 계속 삼킴(성공하면 스트릭 리셋)', () => {
+    const safe = createSafeRenderFrame(3);
+    const { renderer } = fakeRenderer([
+      teardownErr(), teardownErr(), teardownErr(), // 3회 = 상한 이하, 삼킴
+      true, // 회복 → 스트릭 리셋
+      teardownErr(), teardownErr(), teardownErr(), // 다시 3회, 여전히 삼킴
+    ]);
+    for (let n = 0; n < 7; n++) {
+      expect(() => safe(renderer, 0, 16)).not.toThrow();
+    }
+  });
+
+  it('연속 실패가 상한을 넘으면 조용히 묻지 않고 재던지며 console.error로 표면화', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const safe = createSafeRenderFrame(3);
+    const { renderer } = fakeRenderer([teardownErr()]); // 매번 teardown 크래시
+    // 1~3회는 삼킴
+    for (let n = 0; n < 3; n++) expect(() => safe(renderer, 0, 16)).not.toThrow();
+    // 4회째(상한 초과)는 재던짐 + 경고
+    expect(() => safe(renderer, 0, 16)).toThrow();
+    expect(errorSpy).toHaveBeenCalledOnce();
+    errorSpy.mockRestore();
+  });
+});
+
+describe('safeRenderFrame 배선(소스)', () => {
+  it('renderer.renderFrame 직접 호출은 createSafeRenderFrame 헬퍼 안에서 딱 한 번만 등장', () => {
+    // 두 렌더 진입점(초기·루프)이 모두 safeRenderFrame 경유이고, 실제 renderFrame 호출은
+    // 헬퍼 내부 한 곳으로 모여야 한다 — 새 렌더 진입점이 가드 없이 추가되는 걸 막는다.
+    const count = tutorialPreviewPlayerSource.split('renderer.renderFrame(').length - 1;
+    expect(count).toBe(1);
+  });
+
+  it('effect는 프리뷰마다 createSafeRenderFrame 인스턴스를 만들어 두 렌더 진입점에 사용', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const safeRenderFrame = createSafeRenderFrame()');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
+  });
+
+  it('createSafeRenderFrame은 teardown 레이스만 삼키고 나머지는 재던짐', () => {
+    expect(tutorialPreviewPlayerSource).toContain('if (!isTransientTeardownRenderError(err)) throw err;');
   });
 });
