@@ -12,8 +12,7 @@ import { decideJudgmentEffects } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
-import { beatToMs, extractBpmMarkers, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
-import type { Lane } from '../../shared';
+import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 
 export function PlayScreen() {
@@ -88,56 +87,11 @@ export function PlayScreen() {
         : audioBuffer.duration * 1000;
 
       try {
-        // Convert chart notes to time maps
-        const bpmMarkers = extractBpmMarkers(chartData.events);
-        const noteTimesMs = new Map<number, number>();
-        const noteEndTimesMs = new Map<number, number>();
-
-        chartData.notes.forEach((note, index) => {
-          const timeMs = beatToMs(note.beat, bpmMarkers, chartData.meta.offsetMs);
-          noteTimesMs.set(index, timeMs);
-
-          if ('endBeat' in note) {
-            const endTimeMs = beatToMs(note.endBeat, bpmMarkers, chartData.meta.offsetMs);
-            noteEndTimesMs.set(index, endTimeMs);
-          }
-        });
-
-        // trillZone 시작 시간 목록 (레인별, 정렬됨)
-        const trillZoneStartTimesMs = new Map<Lane, number[]>();
-        for (const zone of chartData.trillZones) {
-          const startMs = beatToMs(zone.beat, bpmMarkers, chartData.meta.offsetMs);
-          if (!trillZoneStartTimesMs.has(zone.lane)) {
-            trillZoneStartTimesMs.set(zone.lane, []);
-          }
-          trillZoneStartTimesMs.get(zone.lane)!.push(startMs);
-        }
-        // 시간 순 정렬
-        for (const times of trillZoneStartTimesMs.values()) {
-          times.sort((a, b) => a - b);
-        }
-
-        // Calculate total judgment count based on note types
-        let totalJudgments = 0;
-        let skippedJudgments = 0;
-        for (let i = 0; i < chartData.notes.length; i++) {
-          const note = chartData.notes[i];
-          let count: number;
-          if ('endBeat' in note) {
-            count = note.type === 'doubleLong' ? 2 : 1; // 더블롱 바디: 키별 2회, 그 외 바디: 1회
-          } else if (note.type === 'double') {
-            count = 2; // 더블 헤드: 서브판정 2회
-          } else {
-            count = 1; // 싱글/트릴 헤드: 1회
-          }
-          totalJudgments += count;
-          if (startTimeMs > 0) {
-            const noteTime = noteTimesMs.get(i);
-            if (noteTime !== undefined && noteTime < startTimeMs) {
-              skippedJudgments += count;
-            }
-          }
-        }
+        // 차트의 시간 파생은 단일 ChartTiming 뷰가 소유한다 (노트 시작/끝 ms,
+        // trillZone 시작 ms, 판정 수). renderer/judgment에 넘기는 것과 같은 인스턴스.
+        const timing = createChartTiming(chartData);
+        const { noteTimesMs, noteEndTimesMs, trillZoneStartTimesMs } = timing;
+        const { totalJudgments, skippedJudgments } = timing.judgmentCounts(startTimeMs);
 
         // Calculate logical width from viewport aspect ratio (height fixed)
         const containerW = containerRef.current!.clientWidth;
@@ -177,7 +131,7 @@ export function PlayScreen() {
           chartData.trillZones,
           chartData.restZones ?? [],
           chartData.events,
-          chartData.meta.offsetMs,
+          timing,
           playableDurationMs,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
@@ -315,8 +269,8 @@ export function PlayScreen() {
         for (const evt of chartData.events) {
           if (evt.type === 'auto') {
             autoSectionsMs.push({
-              startMs: beatToMs(evt.beat, bpmMarkers, chartData.meta.offsetMs),
-              endMs: beatToMs(evt.endBeat, bpmMarkers, chartData.meta.offsetMs),
+              startMs: timing.beatToMs(evt.beat),
+              endMs: timing.beatToMs(evt.endBeat),
             });
           }
         }

@@ -6,8 +6,7 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
-import type { NoteEntity, TrillZone, RestZone, BpmMarker, ChartEvent } from "../../shared";
-import { beatToMs, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "../../shared";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
@@ -134,9 +133,8 @@ export class GameRenderer {
   private trillZones: readonly TrillZone[] = [];
   // 휴지 구간(RFD 0019) — 저작 데이터. 레인 구간을 dim해 손 파킹 창을 안내한다.
   private restZones: readonly RestZone[] = [];
-  private bpmMarkers: readonly BpmMarker[] = [];
+  private timing: ChartTiming | null = null;
   private measureTimesMs: number[] = [];
-  private offsetMs: number = 0;
   private textEvents: TextEventRenderData[] = [];
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
@@ -1366,14 +1364,10 @@ export class GameRenderer {
     trillZones: readonly TrillZone[],
     restZones: readonly RestZone[],
     events: readonly ChartEvent[],
-    offsetMs: number,
+    timing: ChartTiming,
     durationMs: number = 0,
   ): void {
-    const bpmMarkers = extractBpmMarkers(events);
-    const timeSignatures = extractTimeSignatures(events);
-
-    this.bpmMarkers = bpmMarkers;
-    this.offsetMs = offsetMs;
+    this.timing = timing;
     this.trillZones = trillZones;
     this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
@@ -1381,19 +1375,13 @@ export class GameRenderer {
     this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
 
     this.noteRenderData = notes.map((entity, index) => {
-      const timeMs = beatToMs(entity.beat, bpmMarkers, offsetMs);
-      const endTimeMs =
-        "endBeat" in entity
-          ? beatToMs(entity.endBeat, bpmMarkers, offsetMs)
-          : undefined;
+      const timeMs = timing.noteTimesMs.get(index)!;
+      const endTimeMs = timing.noteEndTimesMs.get(index);
 
       return { entity, index, timeMs, endTimeMs };
     });
 
-    this.measureTimesMs =
-      durationMs > 0
-        ? enumerateMeasureStartsMs(durationMs, bpmMarkers, timeSignatures, offsetMs)
-        : [];
+    this.measureTimesMs = durationMs > 0 ? timing.measureStartsMs(durationMs) : [];
 
     // Extract text/auto events with time ranges
     this.textEvents = [];
@@ -1402,13 +1390,13 @@ export class GameRenderer {
       if (evt.type === "text") {
         this.textEvents.push({
           text: evt.text,
-          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
-          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+          startMs: timing.beatToMs(evt.beat),
+          endMs: timing.beatToMs(evt.endBeat),
         });
       } else if (evt.type === "auto") {
         this.autoEvents.push({
-          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
-          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+          startMs: timing.beatToMs(evt.beat),
+          endMs: timing.beatToMs(evt.endBeat),
         });
       }
     }
@@ -1520,8 +1508,8 @@ export class GameRenderer {
   private renderRestZones(songTimeMs: number): void {
     let poolIdx = 0;
     for (const zone of this.restZones) {
-      const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
-      const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
+      const startMs = this.timing!.beatToMs(zone.beat);
+      const endMs = this.timing!.beatToMs(zone.endBeat);
 
       const startY = this.noteRenderer.calculateNoteY(startMs, songTimeMs);
       const endY = this.noteRenderer.calculateNoteY(endMs, songTimeMs);
@@ -1558,8 +1546,8 @@ export class GameRenderer {
   private renderTrillZones(songTimeMs: number): void {
     let poolIdx = 0;
     for (const zone of this.trillZones) {
-      const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
-      const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
+      const startMs = this.timing!.beatToMs(zone.beat);
+      const endMs = this.timing!.beatToMs(zone.endBeat);
 
       const startY = this.noteRenderer.calculateNoteY(startMs, songTimeMs);
       const endY = this.noteRenderer.calculateNoteY(endMs, songTimeMs);

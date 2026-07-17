@@ -1,5 +1,5 @@
 import type { Chart } from '../../../shared/types';
-import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
+import { createChartTiming, type ChartTiming } from '../../../shared/timing/chartTiming';
 import type { Lane } from '../../../shared/constants';
 import { JUDGMENT_WINDOWS, type JudgmentWindows } from '../../../shared/constants';
 import {
@@ -20,42 +20,6 @@ interface TutorialPreviewJudgmentAction {
 export interface TutorialPreviewJudgmentController {
   advanceTo(songTimeMs: number): void;
   reset(): void;
-}
-
-function createNoteTimeMaps(chart: Chart): {
-  noteTimesMs: Map<number, number>;
-  noteEndTimesMs: Map<number, number>;
-} {
-  const bpmMarkers = extractBpmMarkers(chart.events);
-  const noteTimesMs = new Map<number, number>();
-  const noteEndTimesMs = new Map<number, number>();
-
-  chart.notes.forEach((note, index) => {
-    noteTimesMs.set(index, beatToMs(note.beat, bpmMarkers, chart.meta.offsetMs));
-    if ('endBeat' in note) {
-      noteEndTimesMs.set(index, beatToMs(note.endBeat, bpmMarkers, chart.meta.offsetMs));
-    }
-  });
-
-  return { noteTimesMs, noteEndTimesMs };
-}
-
-function createTrillZoneStartTimesMs(chart: Chart): Map<Lane, number[]> {
-  const bpmMarkers = extractBpmMarkers(chart.events);
-  const trillZoneStartTimesMs = new Map<Lane, number[]>();
-
-  for (const zone of chart.trillZones) {
-    const startMs = beatToMs(zone.beat, bpmMarkers, chart.meta.offsetMs);
-    const laneStartTimes = trillZoneStartTimesMs.get(zone.lane) ?? [];
-    laneStartTimes.push(startMs);
-    trillZoneStartTimesMs.set(zone.lane, laneStartTimes);
-  }
-
-  for (const startTimes of trillZoneStartTimesMs.values()) {
-    startTimes.sort((a, b) => a - b);
-  }
-
-  return trillZoneStartTimesMs;
 }
 
 function compareTutorialPreviewJudgmentActions(
@@ -91,14 +55,14 @@ function createTutorialPreviewJudgmentActions(
 
 function getTutorialPreviewLoopDurationMs(
   chart: Chart,
+  timing: ChartTiming,
   actions: readonly TutorialPreviewJudgmentAction[],
 ): number {
-  const bpmMarkers = extractBpmMarkers(chart.events);
   const timeSignature = chart.events.find((event) => event.type === 'timeSignature');
 
   if (timeSignature) {
-    return beatToMs(timeSignature.beatPerMeasure, bpmMarkers, chart.meta.offsetMs) -
-      beatToMs({ n: 0, d: 1 }, bpmMarkers, chart.meta.offsetMs);
+    return timing.beatToMs(timeSignature.beatPerMeasure) -
+      timing.beatToMs({ n: 0, d: 1 });
   }
 
   return Math.max(0, ...actions.map((action) => action.timeMs));
@@ -110,10 +74,10 @@ export function createTutorialPreviewJudgmentController(
   callbacks: JudgmentCallbacks,
   windows: JudgmentWindows = JUDGMENT_WINDOWS,
 ): TutorialPreviewJudgmentController {
-  const { noteTimesMs, noteEndTimesMs } = createNoteTimeMaps(chart);
-  const trillZoneStartTimesMs = createTrillZoneStartTimesMs(chart);
+  const timing = createChartTiming(chart);
+  const { noteTimesMs, noteEndTimesMs, trillZoneStartTimesMs } = timing;
   const actions = createTutorialPreviewJudgmentActions(timings);
-  const loopDurationMs = getTutorialPreviewLoopDurationMs(chart, actions);
+  const loopDurationMs = getTutorialPreviewLoopDurationMs(chart, timing, actions);
   let engine = new JudgmentEngine(
     chart.notes,
     noteTimesMs,

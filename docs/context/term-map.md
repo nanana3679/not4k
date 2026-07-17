@@ -28,6 +28,7 @@
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
+| 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
