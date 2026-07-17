@@ -42,7 +42,8 @@ export interface PlaySessionEffects {
   setHeadlessHeldFillQuery(
     query: (noteIndex: number, timeMs: number) => { filled: number; required: number } | null,
   ): void;
-  renderFrame(songTimeMs: number, frameDeltaMs: number): void;
+  // 시각 시간(판정 시간 + 오디오 출력 지연)으로 그린다 — 판정에 쓰는 songTimeMs와 다르다.
+  renderFrame(visualTimeMs: number, frameDeltaMs: number): void;
 }
 
 /** 세션이 곡 종료를 감지하기 위해 읽는 오디오 상태(AudioEngine). */
