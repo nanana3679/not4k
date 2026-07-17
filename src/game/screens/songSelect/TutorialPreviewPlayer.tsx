@@ -4,7 +4,7 @@ import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH, TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
-import { createChartTiming } from '../../../shared/timing/chartTiming';
+import { createChartTiming } from '../../../shared';
 import { useGameStore } from '../../stores';
 import {
   TUTORIAL_PREVIEWS,
