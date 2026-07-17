@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, withAuxNotes } from "../../shared";
@@ -176,6 +177,18 @@ describe("SelectMode — resolveGrabAt 공개 seam", () => {
     const mode = makeMode(chart, cb);
 
     expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "note", index: 0 });
+  });
+
+  it("미선택 trillZone 끝+겹친 노트 터치 down은 스케줄까지 이어 tapToggle이다 (#143 핵심 fix — 존끝 게이트 터치 적용)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(6) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0, hitTestNote: () => 0 });
+    const mode = makeMode(chart, cb);
+
+    // 사다리(resolveGrabAt) → 터치 스케줄(scheduleFromGrabTarget) 계약을 한 문장으로 고정.
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(1, 0))).toBe("tapToggle");
   });
 });
 
