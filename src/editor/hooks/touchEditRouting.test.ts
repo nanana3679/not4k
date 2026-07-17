@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   nextTouchMultiSelectLatch,
   resolveHoldFireAction,
-  resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
   scheduleFromGrabTarget,
   shouldArmHoldTimer,
@@ -71,37 +70,9 @@ describe("shouldDeleteOnUp — delete 후보 up 삭제 여부", () => {
   });
 });
 
-describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", () => {
-  it("노트 히트가 있으면 tapToggle 예약", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 3, extraHit: null })).toBe("tapToggle");
-  });
-
-  it("엑스트라 히트가 있으면 tapToggle 예약", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: null, extraHit: 2 })).toBe("tapToggle");
-  });
-
-  it("노트 히트 인덱스가 0이어도(falsy) tapToggle 예약", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 0, extraHit: null })).toBe("tapToggle");
-  });
-
-  it("아무 히트도 없으면 emptySelectBox 예약", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: null, extraHit: null })).toBe("emptySelectBox");
-  });
-
-  it("트릴존 끝(리사이즈 캡) 히트가 있으면 노트가 겹쳐도 emptySelectBox(지연-드래그) 예약", () => {
-    // 경계 노트(noteHit=5)가 겹쳐도 트릴존 끝이 우선 → 리사이즈 드래그 경로로 진입
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: 0 })).toBe("emptySelectBox");
-  });
-
-  it("트릴존 끝 히트 인덱스가 0이어도(falsy) 노트보다 우선한다", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: 0 })).toBe("emptySelectBox");
-  });
-
-  it("트릴존 끝 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
-    expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: null })).toBe("tapToggle");
-  });
-});
-
+// resolveSelectTouchDownSchedule는 scheduleFromGrabTarget으로 대체되었다(#143).
+// 우선순위 사다리·존끝 선택게이트 의미론은 이제 resolveGrab.test.ts(사다리 1~8·게이트)가
+// 소유하고, GrabTarget→스케줄 2택 매핑만 아래 describe가 덮는다.
 describe("scheduleFromGrabTarget — GrabTarget을 터치 select down 스케줄로 접기", () => {
   it("GrabTarget이 note면 tapToggle 예약(순수 노트 탭)", () => {
     expect(scheduleFromGrabTarget({ kind: "note", index: 3 })).toBe("tapToggle");
