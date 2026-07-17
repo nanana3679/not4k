@@ -153,6 +153,33 @@ describe("SelectMode — handlePointerDown 수식자 운반", () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveGrabAt — 마우스 down과 터치 스케줄이 공유하는 grab 사다리 공개 seam (#143)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — resolveGrabAt 공개 seam", () => {
+  it("선택된 trillZone 끝 좌표에서 resolveGrabAt → trillZoneEndCap(선택 게이트 통과)", () => {
+    const chart = makeChart({ trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }] });
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0 });
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ ...cb.getSelectionState(), zones: new Set([0]) });
+
+    expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "trillZoneEndCap", index: 0 });
+  });
+
+  it("미선택 trillZone 끝에 겹친 노트 좌표에서 resolveGrabAt → note(게이트 불통과 시 사다리 하강)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(6) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    // 존 미선택 → 캡 게이트 불통과 → 겹친 노트로 하강
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0, hitTestNote: () => 0 });
+    const mode = makeMode(chart, cb);
+
+    expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "note", index: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // onPointerMove 프리뷰 PUSH (훅이 getter를 PULL하던 것 대체)
 // ---------------------------------------------------------------------------
 

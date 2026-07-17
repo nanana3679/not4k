@@ -7,7 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
-import { resolveGrab } from "./resolveGrab";
+import { resolveGrab, type GrabTarget } from "./resolveGrab";
 import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
@@ -433,6 +433,27 @@ export class SelectMode implements EditorMode {
     return { clearDragPreview: true };
   }
 
+  /**
+   * grab 우선순위 사다리(resolveGrab)를 현재 선택·차트 사실을 주입해 실행하는 공개 seam.
+   *
+   * 마우스 down(onPointerDown)과 터치 select down 스케줄(useCanvasEvents →
+   * scheduleFromGrabTarget)이 **글자 그대로 같은 호출**을 소비하므로 z-order·게이트 지식이
+   * 두 경로로 갈라질 코드 위치가 없다(#143). sel(선택 게이트 1·3·4용)과 isRangeNote(끝캡
+   * 게이트용)는 SelectMode가 소유한 사실이라 훅이 shadow하지 않도록 여기서 주입한다.
+   */
+  resolveGrabAt(x: number, y: number): GrabTarget {
+    return resolveGrab({
+      x,
+      y,
+      space: this.callbacks.space,
+      sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
+      isRangeNote: (i) => {
+        const n = this.chart.notes[i];
+        return n !== undefined && this.isRangeNote(n);
+      },
+    });
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
@@ -449,16 +470,7 @@ export class SelectMode implements EditorMode {
     // grab 우선순위 사다리는 resolveGrab이 단독 소유한다(#143). 마우스·터치가 같은 함수를
     // 소비하므로 z-order 변경은 그 한 곳이다. 여기 case 본문은 대상 확정 "후"의
     // 수식자(toggle/Shift/Alt)·§3-5 커밋·드래그 시작만 담는다 — 사다리와 독립.
-    const target = resolveGrab({
-      x,
-      y,
-      space: this.callbacks.space,
-      sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
-      isRangeNote: (i) => {
-        const n = this.chart.notes[i];
-        return n !== undefined && this.isRangeNote(n);
-      },
-    });
+    const target = this.resolveGrabAt(x, y);
 
     switch (target.kind) {
       case "noteEndCap": {
