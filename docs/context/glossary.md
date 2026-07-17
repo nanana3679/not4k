@@ -496,9 +496,19 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레�
 
 ---
 
+## `PlaySession`
+
+한 플레이 세션(한 곡 플레이)의 게임 루프 전체를 소유하는 deep module. `JudgmentEngine`·`ScoreManager`·`AutoPlayer`(+`autoSectionsMs`)·판정 8단계 적용자·오토플레이/입력 라우팅·틱 순서 계약을 단독으로 조율하고, 관측 가능한 seam만 주입받는다 — 시계(`GameClock`), 화면 효과(`GameRenderer`), 오디오 상태(`AudioEngine`), 선택적 `DebugLogger`. `PlayScreen`(React 컴포넌트)에는 InputSystem attach/detach·일시정지 게이팅·렌더러 구성만 남고, 게임 루프는 `createPlaySession(options)`가 반환하는 `tick(frameTimestampMs)`/`onLanePress`/`onLaneRelease`/`result()`로 구동된다.
+
+두 순서 계약이 핵심 불변이다: **적용자 순서**(판정 하나가 score 기록 → surface → 텍스트 → accuracy(기록 "후" 재조회) → bomb → noteDisplay 순으로 sink에 반영), **틱 순서**(press → `update`(release보다 먼저 — 길이 0 롱노트 끝점 누락 방지) → release → `renderFrame` → 곡 종료 체크). 튜토리얼 프리뷰는 스크립티드 재생이라 이 세션을 쓰지 않는다 — `PlaySession`은 실제 플레이 전용이다.
+
+**구현**: `src/game/session/PlaySession.ts` (`createPlaySession` 팩토리). 결정 근거는 [이슈 #141].
+
+---
+
 ## 게임 입력
 
-플레이 세션에서 판정 엔진에 레인 press/release 이벤트를 공급하는 계층. 실제 키보드(`InputSystem`)와 합성 입력(`AutoPlayer`)이 같은 seam에 서는 두 어댑터다.
+플레이 세션에서 판정 엔진에 레인 press/release 이벤트를 공급하는 계층. 실제 키보드(`InputSystem`)와 합성 입력(`AutoPlayer`)이 같은 seam에 서는 두 어댑터다. 실제 플레이에서 이 이벤트 공급과 매 틱 조율은 `PlaySession`이 소유한다.
 
 ### AutoPlayer
 

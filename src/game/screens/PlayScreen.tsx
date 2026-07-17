@@ -2,18 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores';
 import { AudioEngine } from '../audio';
-import { InputSystem, AutoPlayer, type KeyBinding, type AutoSectionMs } from '../input';
-import { JudgmentEngine, type JudgmentResult } from '../judgment';
-import { computeConnectionSources } from '../judgment/longNoteConnection';
-import { ScoreManager } from '../scoring';
+import { InputSystem, type KeyBinding } from '../input';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
-import { decideJudgmentEffects } from '../judgment/judgmentEffects';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
+import { createPlaySession, type PlaySession } from '../session';
 
 export function PlayScreen() {
   const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -28,15 +25,14 @@ export function PlayScreen() {
   // Game objects
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const inputSystemRef = useRef<InputSystem | null>(null);
-  const judgmentEngineRef = useRef<JudgmentEngine | null>(null);
-  const scoreManagerRef = useRef<ScoreManager | null>(null);
+  const sessionRef = useRef<PlaySession | null>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const debugLoggerRef = useRef<DebugLogger | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
   const handleSongEnd = () => {
-    const scoreManager = scoreManagerRef.current;
-    if (!scoreManager || !chartData) return;
+    const session = sessionRef.current;
+    if (!session || !chartData) return;
 
     // Output debug log if debug mode was active
     const debugLogger = debugLoggerRef.current;
@@ -51,19 +47,19 @@ export function PlayScreen() {
       URL.revokeObjectURL(url);
     }
 
-    const state = scoreManager.getState();
+    const result = session.result();
 
     setResult({
       songId: chartData.meta.title || 'unknown',
       difficulty: chartData.meta.difficultyLabel || 'NORMAL',
-      achievementRate: state.achievementRate,
-      rank: state.rank,
-      maxCombo: judgmentEngineRef.current!.maxCombo,
-      isFullCombo: state.isFullCombo,
-      judgmentCounts: state.judgmentCounts,
-      goodTrillCount: state.goodTrillCount,
-      fastCount: state.fastCount,
-      slowCount: state.slowCount,
+      achievementRate: result.achievementRate,
+      rank: result.rank,
+      maxCombo: result.maxCombo,
+      isFullCombo: result.isFullCombo,
+      judgmentCounts: result.judgmentCounts,
+      goodTrillCount: result.goodTrillCount,
+      fastCount: result.fastCount,
+      slowCount: result.slowCount,
     });
 
     setScreen('result');
@@ -90,8 +86,6 @@ export function PlayScreen() {
         // 차트의 시간 파생은 단일 ChartTiming 뷰가 소유한다 (노트 시작/끝 ms,
         // trillZone 시작 ms, 판정 수). renderer/judgment에 넘기는 것과 같은 인스턴스.
         const timing = createChartTiming(chartData);
-        const { noteTimesMs, noteEndTimesMs, trillZoneStartTimesMs } = timing;
-        const { totalJudgments, skippedJudgments } = timing.judgmentCounts(startTimeMs);
 
         // Calculate logical width from viewport aspect ratio (height fixed)
         const containerW = containerRef.current!.clientWidth;
@@ -125,15 +119,8 @@ export function PlayScreen() {
         });
         await renderer.init();
 
-        // Set up renderer with chart data
-        renderer.setChart(
-          chartData.notes,
-          chartData.trillZones,
-          chartData.restZones ?? [],
-          chartData.events,
-          timing,
-          playableDurationMs,
-        );
+        // Set up renderer with chart data — 렌더러가 차트에서 시간 뷰를 내부 파생한다 (#142).
+        renderer.setChart(chartData, playableDurationMs);
         renderer.scrollSpeed = settings.scrollSpeed;
         renderer.setAdjustModeCallback((active) => {
           if (active) {
@@ -167,56 +154,22 @@ export function PlayScreen() {
           : null;
         debugLoggerRef.current = debugLogger;
 
-        // Create score manager (subtract skipped notes for editor test play)
-        const scoreManager = new ScoreManager((totalJudgments - skippedJudgments) || 1);
-
-        // Create judgment engine
-        const windows = getJudgmentWindows(settings.judgmentMode);
-        // 롱노트 connection 관계는 맵 로드 시 1회 계산해 주입한다 (렌더러 held 전파와 같은 소유자).
-        const connectionSources = computeConnectionSources(chartData.notes, noteTimesMs, noteEndTimesMs);
-        const judgmentEngine = new JudgmentEngine(
-          chartData.notes,
-          noteTimesMs,
-          noteEndTimesMs,
-          {
-            onJudgment: (result: JudgmentResult) => {
-              // 결정은 전부 순수 함수(판정 효과)가 소유 — 이 적용자는 effects만 해석한다.
-              const effects = decideJudgmentEffects(result, chartData.notes[result.noteIndex]);
-
-              // 디버그 기록 — 화면 좌표 계산은 표시 시점의 관심사라 적용자 몫.
-              // 바디(끝점) 판정은 끝점(endBeat) 위치로, 헤드/포인트는 시작점 위치로 Y를 잰다.
-              if (debugLogger && effects.debug) {
-                const posTimeMs = effects.debug.isBody
-                  ? noteEndTimesMs.get(effects.noteIndex)
-                  : noteTimesMs.get(effects.noteIndex);
-                if (posTimeMs !== undefined) {
-                  const songTimeMs = gameClock.judgmentTimeMs();
-                  const noteCenterY = judgmentLineY - ((posTimeMs - songTimeMs) * settings.scrollSpeed) / 1000;
-                  debugLogger.recordJudgment(effects.noteIndex, noteCenterY, effects.debug.grade, effects.debug.deltaMs, effects.debug.doubleSubIndex, effects.debug.isBody);
-                }
-              }
-
-              scoreManager.recordJudgment(effects.scoreRecord.grade, effects.scoreRecord.deltaMs);
-              renderer.recordPerspectiveSurfaceJudgment(effects.judgmentText.grade);
-              renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs);
-              // accuracy는 기록 "후" 상태 재조회 — 적용 순서만 여기서 보장한다
-              renderer.updateAccuracy(scoreManager.getState().achievementRate);
-              if (effects.bomb !== null) {
-                renderer.showBombEffect(effects.bomb);
-              }
-              renderer.applyNoteDisplayEffect(effects.noteIndex, effects.noteDisplay);
-            },
-            onComboUpdate: (combo: number) => {
-              renderer.updateCombo(combo);
-            },
-          },
-          windows,
-          trillZoneStartTimesMs,
-          connectionSources,
-        );
-
-        // 헤드없는 롱노트 held 충족 시각 피드백 — 렌더러가 엔진 술어를 그대로 조회 (이슈 #85)
-        renderer.setHeadlessHeldFillQuery((index, timeMs) => judgmentEngine.headlessHeldFill(index, timeMs));
+        // 플레이 세션 — 판정/점수/오토플레이/입력 라우팅/틱 순서를 단일 deep module로 응집한다.
+        // (구성자 시점 효과: setHeadlessHeldFillQuery + startTimeMs>0 노트 processed 표시 —
+        //  둘 다 첫 프레임 전에 일어나므로 관측 동등. skipNotesBefore도 세션 내부로 이동.)
+        const session = createPlaySession({
+          notes: chartData.notes,
+          events: chartData.events,
+          timing,
+          windows: getJudgmentWindows(settings.judgmentMode),
+          startTimeMs,
+          clock: gameClock,
+          effects: renderer,
+          audio: audioEngine,
+          debug: debugLogger
+            ? { logger: debugLogger, judgmentLineY, scrollSpeed: settings.scrollSpeed }
+            : undefined,
+        });
 
         // Create input system
         const keyBindings: KeyBinding[] = [];
@@ -228,16 +181,8 @@ export function PlayScreen() {
         });
 
         const inputSystem = new InputSystem(keyBindings, {
-          onLanePress: (lane, timestampMs, keyCode) => {
-            judgmentEngine.onLanePress(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
-            renderer.setKeyBeam(lane, true);
-            renderer.setKeyState(keyCode, true);
-          },
-          onLaneRelease: (lane, timestampMs, keyCode) => {
-            judgmentEngine.onLaneRelease(lane, gameClock.toInputTimeMs(timestampMs), keyCode);
-            renderer.setKeyBeam(lane, false);
-            renderer.setKeyState(keyCode, false);
-          },
+          onLanePress: (lane, timestampMs, keyCode) => session.onLanePress(lane, timestampMs, keyCode),
+          onLaneRelease: (lane, timestampMs, keyCode) => session.onLaneRelease(lane, timestampMs, keyCode),
         });
 
         inputSystem.attach(window);
@@ -246,73 +191,17 @@ export function PlayScreen() {
         audioEngine.loadBuffer(audioBuffer);
         audioEngine.setPlaybackRange(playbackRange);
 
-        // Skip notes before startTimeMs (editor test play)
-        if (startTimeMs > 0) {
-          judgmentEngine.skipNotesBefore(startTimeMs);
-          for (let i = 0; i < chartData.notes.length; i++) {
-            const timeMs = noteTimesMs.get(i);
-            if (timeMs !== undefined && timeMs < startTimeMs) {
-              renderer.applyNoteDisplayEffect(i, { body: null, visibility: 'processed' });
-            }
-          }
-        }
-
         // Store refs
         audioEngineRef.current = audioEngine;
         inputSystemRef.current = inputSystem;
-        judgmentEngineRef.current = judgmentEngine;
-        scoreManagerRef.current = scoreManager;
+        sessionRef.current = session;
         rendererRef.current = renderer;
 
-        // Auto-play: AutoEvent ms 범위 파생 (렌더러 autoEvents와 같은 소스·같은 변환의 순수 파생값)
-        const autoSectionsMs: AutoSectionMs[] = [];
-        for (const evt of chartData.events) {
-          if (evt.type === 'auto') {
-            autoSectionsMs.push({
-              startMs: timing.beatToMs(evt.beat),
-              endMs: timing.beatToMs(evt.endBeat),
-            });
-          }
-        }
-        const autoPlayer = new AutoPlayer(chartData.notes, noteTimesMs, noteEndTimesMs, autoSectionsMs);
-
-        // Start game loop
-        let lastFrameTime: number | null = null;
+        // Start game loop — 세션이 틱 순서(press→update→release→renderFrame→종료 체크)를 소유한다.
+        // 일시정지 중엔 tick을 부르지 않아 세션의 frame-delta 부기(lastFrameTime)가 멈춘다.
         const gameLoop = (timestamp: number) => {
-          if (!isPausedRef.current && audioEngine && judgmentEngine && renderer) {
-            const songTimeMs = gameClock.judgmentTimeMs();
-            const visualTimeMs = gameClock.visualTimeMs();
-
-            // Record frame timing for debug logger
-            const frameDeltaMs = lastFrameTime !== null ? timestamp - lastFrameTime : 16;
-            if (debugLogger && lastFrameTime !== null) {
-              debugLogger.recordFrameTiming(frameDeltaMs);
-            }
-            lastFrameTime = timestamp;
-
-            // Auto-play: AutoEvent의 합성 press 주입 (구간 게이팅은 AutoPlayer 내부)
-            for (const p of autoPlayer.pressesAt(songTimeMs)) {
-              judgmentEngine.onLanePress(p.lane, p.timeMs, p.key);
-              renderer.setKeyBeam(p.lane, true);
-            }
-
-            // 판정 엔진 업데이트를 release보다 먼저 호출해서 바디 노트를 auto-활성화한다.
-            // (그러지 않으면 길이 0인 롱노트의 경우 press → release가 한 프레임에 일어나는데
-            //  release 시점에 바디 상태가 아직 UNPROCESSED라 tryEndpointJudgmentOnRelease가 놓침)
-            judgmentEngine.update(songTimeMs);
-
-            // Auto-play: 합성 release 주입 (포인트 노트 예약 release + 롱노트 endBeat release,
-            // AutoEvent이 끝나도 잡고 있던 홀드는 endBeat에서 놓는다 — 게이팅 비대칭은 AutoPlayer 내부)
-            for (const r of autoPlayer.releasesAt(songTimeMs)) {
-              judgmentEngine.onLaneRelease(r.lane, r.timeMs, r.key);
-              renderer.setKeyBeam(r.lane, false);
-            }
-
-            // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
-            renderer.renderFrame(visualTimeMs, frameDeltaMs);
-
-            // Check if song ended
-            if (audioEngine.currentTimeMs >= audioEngine.duration && audioEngine.duration > 0) {
+          if (!isPausedRef.current) {
+            if (session.tick(timestamp) === 'ended') {
               handleSongEnd();
               return;
             }

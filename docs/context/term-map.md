@@ -29,6 +29,7 @@
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
 | 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
+| 플레이 세션 (코드 구성물) | `PlaySession` | `PlaySession`/`createPlaySession` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |

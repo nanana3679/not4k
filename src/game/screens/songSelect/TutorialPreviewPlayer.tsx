@@ -4,7 +4,6 @@ import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import { LANE_AREA_WIDTH, TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
-import { createChartTiming } from '../../../shared';
 import { useGameStore } from '../../stores';
 import {
   TUTORIAL_PREVIEWS,
@@ -413,17 +412,9 @@ export function TutorialPreviewPlayer({
           return;
         }
 
-        // 렌더러는 renderChart의 시간 뷰를 쓴다. 판정 컨트롤러는 preview.chart로
+        // 렌더러는 renderChart에서 시간 뷰를 내부 파생한다 (#142). 판정 컨트롤러는 preview.chart로
         // 별개 인스턴스를 만든다 — 두 차트는 서로 다르므로 합치지 않는다.
-        const renderTiming = createChartTiming(preview.renderChart);
-        renderer.setChart(
-          preview.renderChart.notes,
-          preview.renderChart.trillZones,
-          preview.renderChart.restZones ?? [],
-          preview.renderChart.events,
-          renderTiming,
-          preview.renderDurationMs,
-        );
+        renderer.setChart(preview.renderChart, preview.renderDurationMs);
         renderer.scrollSpeed = 520;
         renderer.updateAccuracy(100);
         const judgmentController = createTutorialPreviewJudgmentController(

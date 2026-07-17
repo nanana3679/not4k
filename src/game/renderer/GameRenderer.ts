@@ -6,8 +6,8 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
-import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
-import { JudgmentGrade } from "../../shared";
+import type { NoteEntity, TrillZone, RestZone, ChartTiming, ChartTimingSource } from "../../shared";
+import { JudgmentGrade, createChartTiming } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
   LANE_COUNT,
@@ -1359,19 +1359,19 @@ export class GameRenderer {
     return Number.parseInt(normalized, 16);
   }
 
-  // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.
-  // noteRenderData가 timing.noteTimesMs.get(index)!로 인덱스 정합을 전제하므로, 어긋나면
-  // 조용히 undefined timeMs가 흐른다. 현재 콜러(PlayScreen·TutorialPreviewPlayer)는 모두
-  // 같은 차트로 createChartTiming한다. (후속 deepening: setChart가 ChartTimingSource를
-  // 받아 내부에서 파생 — #142 리뷰 MEDIUM / #141 PlaySession 소재)
+  // 차트 하나를 받아 시간 뷰(ChartTiming)를 **내부에서** 파생한다. 인덱스 정합(noteRenderData가
+  // timing.noteTimesMs.get(index)!를 전제)은 이제 이 메서드가 소유하므로 콜러가 timing을 별도로
+  // 만들어 넘기며 어긋날 여지가 없다 (#142 리뷰 MEDIUM).
   setChart(
-    notes: readonly NoteEntity[],
-    trillZones: readonly TrillZone[],
-    restZones: readonly RestZone[],
-    events: readonly ChartEvent[],
-    timing: ChartTiming,
+    chart: ChartTimingSource & { restZones?: readonly RestZone[] },
     durationMs: number = 0,
   ): void {
+    const timing = createChartTiming(chart);
+    const notes = chart.notes;
+    const trillZones = chart.trillZones;
+    const restZones = chart.restZones ?? [];
+    const events = chart.events;
+
     this.timing = timing;
     this.trillZones = trillZones;
     this.restZones = restZones;
