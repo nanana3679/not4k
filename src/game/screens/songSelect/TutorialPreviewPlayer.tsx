@@ -263,6 +263,8 @@ export function TutorialPreviewPlayer({
     let previousNow = performance.now();
     let loopStartNow = previousNow;
     let activeDiagramPause: TutorialDiagramPause | null = null;
+    // 이 프리뷰(렌더러) 전용 — 교차 teardown 레이스로 인한 일시적 렌더 크래시를 프레임 스킵으로 삼킨다.
+    const safeRenderFrame = createSafeRenderFrame();
 
     const notifyReady = () => {
       if (!readyNotifiedRef.current) {
@@ -441,7 +443,7 @@ export function TutorialPreviewPlayer({
         );
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
         judgmentController.advanceTo(0);
-        renderer.renderFrame(preview.renderStartMs, 0);
+        safeRenderFrame(renderer, preview.renderStartMs, 0);
         previousNow = performance.now();
         loopStartNow = previousNow;
         rendererRef.current = renderer;
@@ -460,7 +462,7 @@ export function TutorialPreviewPlayer({
 
           judgmentController.advanceTo(loopTimeMs);
           setRendererInputState(renderer, activeTimings);
-          renderer.renderFrame(renderTimeMs, deltaMs);
+          safeRenderFrame(renderer, renderTimeMs, deltaMs);
           animationFrameId = requestAnimationFrame(renderLoop);
         };
 
@@ -563,6 +565,69 @@ function disposeTutorialPreviewRenderer(renderer: GameRenderer | null): void {
   } catch (err) {
     console.warn('TutorialPreviewPlayer: renderer dispose failed', err);
   }
+}
+
+/**
+ * PIXI 다중 Application 교차 teardown 레이스로 인한 일시적 렌더 크래시인지 판별한다.
+ *
+ * 튜토리얼 캐러셀은 프리뷰별로 독립 PIXI Application(렌더러)을 동시에 띄우지만, PIXI의 일부
+ * 전역 싱글톤(예: `TexturePool`)은 Application 간에 공유된다. 한 프리뷰가 언마운트되며
+ * `app.destroy()`로 공유 자원을 흩뜨리는 순간, 살아있는 형제 렌더러의 `app.render()`가 방금
+ * 해제/초기화된 공유 상태를 참조해 크래시한다. 관측된 두 표면(모두 app.render() 내부):
+ *   - 배처: null 역참조 "Cannot read properties of null (reading 'clear')"
+ *   - TexturePool.returnTexture: undefined 역참조 "Cannot read properties of undefined (reading 'push')"
+ * 렌더러 자신의 상태는 정상이며(초기화됨·stage 미파괴), 오염은 일시적이라 다음 프레임에 회복된다.
+ *
+ * 이 판별은 "null/undefined 속성 읽기 TypeError"라는 레이스 지문에만 해당한다. 우리의 결정적
+ * scene-building 코드가 이런 에러를 낼 일은 없고, 설령 renderFrame에 실제 버그가 있어도 PlayScreen이
+ * renderFrame을 감싸지 않고 직접 호출하므로 게임플레이에서 그대로 드러난다.
+ * 브라우저별 null/undefined 역참조 TypeError 문구를 모두 커버한다.
+ */
+export function isTransientTeardownRenderError(err: unknown): boolean {
+  // null/undefined 역참조는 항상 TypeError다. TypeError로 한정해, 우리가 던지는 일반 Error가
+  // 우연히 같은 문구를 담더라도 삼키지 않게 한다(넓은 Firefox 패턴을 안전하게 만든다).
+  if (!(err instanceof TypeError)) return false;
+  const msg = err.message;
+  return (
+    msg.includes('Cannot read properties of null') || // Chrome/V8 (null)
+    msg.includes('Cannot read properties of undefined') || // Chrome/V8 (undefined)
+    msg.includes('Cannot read property') || // 구형 V8 (null·undefined 공통)
+    msg.includes('is not an object') || // Safari/WebKit (null·undefined 공통)
+    msg.includes("can't access property") || // Firefox: can't access property "x", y is null/undefined
+    / is (?:null|undefined)$/.test(msg) // Firefox 구형: "y is null" / "y is undefined"
+  );
+}
+
+// 일시적 teardown 레이스는 실측상 ≤5프레임 내 자가 회복한다. 이 상한을 크게 넘어 연속 실패하면
+// 레이스가 아니라 지속 버그이므로 조용히 무한정 삼키지 않고 표면화한다(~1s @60fps).
+const MAX_TRANSIENT_RENDER_FAILURES = 60;
+
+/**
+ * `renderer.renderFrame`을 감싸, 교차 teardown 레이스로 인한 일시적 크래시는 해당 프레임만 스킵하는
+ * 함수를 만든다. 연속 실패를 세어, 성공하면 리셋하고 상한(MAX_TRANSIENT_RENDER_FAILURES)을 넘으면
+ * 더는 삼키지 않고 재던져 표면화한다 — 지속 실패(실제 버그)가 조용히 영구 blank로 묻히는 걸 막는다.
+ * 렌더러(프리뷰)마다 하나씩 만들어 카운터를 독립적으로 유지한다.
+ */
+export function createSafeRenderFrame(
+  maxFailures: number = MAX_TRANSIENT_RENDER_FAILURES,
+): (renderer: GameRenderer, songTimeMs: number, deltaMs: number) => void {
+  let failStreak = 0;
+  return (renderer, songTimeMs, deltaMs) => {
+    try {
+      renderer.renderFrame(songTimeMs, deltaMs);
+      failStreak = 0;
+    } catch (err) {
+      if (!isTransientTeardownRenderError(err)) throw err;
+      failStreak += 1;
+      if (failStreak > maxFailures) {
+        // 일시적 레이스라면 진작 회복했어야 한다 — 지속 실패는 삼키지 않고 표면화한다.
+        console.error(
+          `TutorialPreviewPlayer: 렌더 오류가 ${failStreak}프레임 연속 발생 — 일시적 teardown 레이스가 아닙니다.`,
+        );
+        throw err;
+      }
+    }
+  };
 }
 
 function getTutorialDiagramTimingKey(timing: TutorialDiagramTiming | null): string {
