@@ -4,10 +4,12 @@ import {
   resolveHoldFireAction,
   resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
+  scheduleFromGrabTarget,
   shouldArmHoldTimer,
   shouldDeleteOnUp,
   shouldFireTapToggle,
 } from "./touchEditRouting";
+import type { GrabTarget } from "../modes/resolveGrab";
 
 const noHits = { noteHit: null, noteEndHit: null, extraHit: null };
 const noteHit = { noteHit: 3, noteEndHit: null, extraHit: null };
@@ -97,6 +99,35 @@ describe("resolveSelectTouchDownSchedule — select 터치 down 후보 예약", 
 
   it("트릴존 끝 히트가 없으면(undefined/null) 기존 노트 우선 규칙 유지", () => {
     expect(resolveSelectTouchDownSchedule({ noteHit: 5, extraHit: null, zoneEndHit: null })).toBe("tapToggle");
+  });
+});
+
+describe("scheduleFromGrabTarget — GrabTarget을 터치 select down 스케줄로 접기", () => {
+  it("GrabTarget이 note면 tapToggle 예약(순수 노트 탭)", () => {
+    expect(scheduleFromGrabTarget({ kind: "note", index: 3 })).toBe("tapToggle");
+  });
+
+  it("GrabTarget이 trillZoneEndCap이면 emptySelectBox 예약(지연-드래그 재생으로 리사이즈 진입)", () => {
+    expect(scheduleFromGrabTarget({ kind: "trillZoneEndCap", index: 0 })).toBe("emptySelectBox");
+  });
+
+  it("note 외 7종(캡 4종·몸통 2종·empty)은 전부 emptySelectBox 예약", () => {
+    const nonNote: GrabTarget[] = [
+      { kind: "noteEndCap", index: 1 },
+      { kind: "eventEndCap", index: 1 },
+      { kind: "trillZoneEndCap", index: 1 },
+      { kind: "restZoneEndCap", index: 1 },
+      { kind: "trillZoneBody", index: 1 },
+      { kind: "restZoneBody", index: 1 },
+      { kind: "empty" },
+    ];
+    for (const target of nonNote) {
+      expect(scheduleFromGrabTarget(target)).toBe("emptySelectBox");
+    }
+  });
+
+  it("note 인덱스가 0(falsy)이어도 tapToggle 예약(kind 판별이라 falsy 함정 없음)", () => {
+    expect(scheduleFromGrabTarget({ kind: "note", index: 0 })).toBe("tapToggle");
   });
 });
 

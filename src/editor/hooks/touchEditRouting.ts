@@ -6,6 +6,8 @@
  * 호출로 실행하기만 한다(얇은 글루). 그동안 테스트 불가였던 pointerup 디스패치 분기를 덮는다.
  */
 
+import type { GrabTarget } from "../modes/resolveGrab";
+
 /** create 모드 터치 후보가 뗄 때 확정되는 액션. */
 export type TouchCreateUpAction = 'commitDrag' | 'cancelDrag' | 'createPointTap' | 'none';
 
@@ -88,6 +90,18 @@ export function resolveSelectTouchDownSchedule(hits: {
     return 'emptySelectBox';
   }
   return hits.noteHit !== null || hits.extraHit !== null ? 'tapToggle' : 'emptySelectBox';
+}
+
+/**
+ * grab 사다리(resolveGrab)가 확정한 `GrabTarget`을 터치 select down 스케줄로 접는다.
+ *
+ * 우선순위 지식은 전혀 없다 — resolveGrab이 이미 8단계 사다리(캡·노트·몸통·빈곳)를
+ * 단독으로 결정했고, 여기선 "순수 노트면 탭 토글, 그 외 전부 지연-드래그"라는 2택만 남는다.
+ * emptySelectBox 후보는 첫 move/up에서 SelectMode.onPointerDown을 재생하므로(=같은 사다리
+ * 재실행) 캡 리사이즈·존 몸통·빈 곳 박스가 모두 마우스와 글자 그대로 같은 경로를 탄다(#143).
+ */
+export function scheduleFromGrabTarget(target: GrabTarget): SelectTouchDownSchedule {
+  return target.kind === 'note' ? 'tapToggle' : 'emptySelectBox';
 }
 
 /** 롱프레스 hold 후보를 무장·발화할 때 참조하는 down 시점 히트. */
