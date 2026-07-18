@@ -7,6 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
+import { resolveGrab, type GrabTarget } from "./resolveGrab";
 import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
@@ -432,6 +433,27 @@ export class SelectMode implements EditorMode {
     return { clearDragPreview: true };
   }
 
+  /**
+   * grab 우선순위 사다리(resolveGrab)를 현재 선택·차트 사실을 주입해 실행하는 공개 seam.
+   *
+   * 마우스 down(onPointerDown)과 터치 select down 스케줄(useCanvasEvents →
+   * scheduleFromGrabTarget)이 **글자 그대로 같은 호출**을 소비하므로 z-order·게이트 지식이
+   * 두 경로로 갈라질 코드 위치가 없다(#143). sel(선택 게이트 1·3·4용)과 isRangeNote(끝캡
+   * 게이트용)는 SelectMode가 소유한 사실이라 훅이 shadow하지 않도록 여기서 주입한다.
+   */
+  resolveGrabAt(x: number, y: number): GrabTarget {
+    return resolveGrab({
+      x,
+      y,
+      space: this.callbacks.space,
+      sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
+      isRangeNote: (i) => {
+        const n = this.chart.notes[i];
+        return n !== undefined && this.isRangeNote(n);
+      },
+    });
+  }
+
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
     // During pending paste: click empty space to confirm
     if (this.clipboardManager.isPendingPaste) {
@@ -445,108 +467,95 @@ export class SelectMode implements EditorMode {
     // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
     if (this.isDragging) return;
 
-    // 1. RangeNote endpoints — 끝 캡을 잡으면 리사이즈.
-    {
-      const endHit = this.callbacks.space.hitTestNoteEnd(x, y);
-      if (endHit !== null && this.isRangeNote(this.chart.notes[endHit])) {
-        const isSelected = this.sel.notes.has(endHit);
-        const topmost = this.callbacks.space.hitTestUnifiedNote(x, y);
-        if (isSelected || topmost === endHit) {
-          if (!isSelected) {
-            // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지)
-            if (!this.commitSelection({ notes: new Set([endHit]), zones: new Set(), restZones: new Set() })) {
-              return;
-            }
-          }
-          const note = this.chart.notes[endHit] as RangeNote;
-          this.startResize("note", endHit, note.beat, note.endBeat);
-          return;
-        }
-      }
-    }
+    // grab 우선순위 사다리는 resolveGrab이 단독 소유한다(#143). 마우스·터치가 같은 함수를
+    // 소비하므로 z-order 변경은 그 한 곳이다. 여기 case 본문은 대상 확정 "후"의
+    // 수식자(toggle/Shift/Alt)·§3-5 커밋·드래그 시작만 담는다 — 사다리와 독립.
+    const target = this.resolveGrabAt(x, y);
 
-    // 2. Event endpoints
-    {
-      const evtHit = this.callbacks.space.hitTestEventEnd(x, y);
-      if (evtHit !== null) {
+    switch (target.kind) {
+      case "noteEndCap": {
+        // 끝 캡을 잡으면 리사이즈. 미선택이었으면 먼저 단독 선택으로 교체하고,
+        // §3-5 게이트가 그 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지).
+        const endHit = target.index;
+        const isSelected = this.sel.notes.has(endHit);
+        if (!isSelected) {
+          if (!this.commitSelection({ notes: new Set([endHit]), zones: new Set(), restZones: new Set() })) {
+            return;
+          }
+        }
+        const note = this.chart.notes[endHit] as RangeNote;
+        this.startResize("note", endHit, note.beat, note.endBeat);
+        return;
+      }
+      case "eventEndCap": {
+        const evtHit = target.index;
         const evt = this.chart.events[evtHit];
-        if (!('endBeat' in evt)) return;
+        if (!('endBeat' in evt)) return; // 방어: hitTestEventEnd는 endBeat 있는 이벤트만 반환.
         this.startResize("event", evtHit, evt.beat, evt.endBeat);
         return;
       }
-    }
-
-    // 3. Trill zone endpoints (resize) — **그 구간이 이미 선택됐을 때만** 리사이즈로 잡는다.
-    // 미선택 구간의 끝에 놓인 노트 클릭을 리사이즈가 가로채지 않도록(끝 노트 선택 보장, RFD 0016 §6-6).
-    {
-      const zoneHit = this.callbacks.space.hitTestTrillZoneEnd(x, y);
-      if (zoneHit !== null && this.sel.zones.has(zoneHit)) {
+      case "trillZoneEndCap": {
+        const zoneHit = target.index;
         const zone = this.chart.trillZones[zoneHit];
         this.startResize("trillZone", zoneHit, zone.beat, zone.endBeat);
         return;
       }
-    }
-
-    // 4. Rest zone endpoints (resize) — trillZone 규칙 미러: **선택된 restZone만** (RFD 0019).
-    {
-      const restEndHit = this.callbacks.space.hitTestRestZoneEnd(x, y);
-      if (restEndHit !== null && this.sel.restZones.has(restEndHit)) {
+      case "restZoneEndCap": {
+        const restEndHit = target.index;
         const zone = (this.chart.restZones ?? [])[restEndHit];
         if (zone) {
           this.startResize("restZone", restEndHit, zone.beat, zone.endBeat);
-          return;
         }
+        return;
       }
-    }
+      case "note": {
+        const hitIndex = target.index;
+        const isAlreadySelected = this.sel.notes.has(hitIndex);
+        // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"다 — 잡아 끌면 유닛째 이동하고,
+        // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
+        const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
 
-    const hitIndex = this.callbacks.space.hitTestUnifiedNote(x, y);
-
-    if (hitIndex !== null) {
-      const isAlreadySelected = this.sel.notes.has(hitIndex);
-      // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"다 — 잡아 끌면 유닛째 이동하고,
-      // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
-      const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
-
-      // 수식자(토글/Shift/Alt) 경로는 zones·restZones를 보존한다 — 일반 노트와 구간
-      // 유닛(trillZone·restZone)은 공존하고(RFD 0016 §4.1 · RFD 0019),
-      // 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다.
-      if (toggleSelection) {
-        if (isAlreadySelected) {
+        // 수식자(토글/Shift/Alt) 경로는 zones·restZones를 보존한다 — 일반 노트와 구간
+        // 유닛(trillZone·restZone)은 공존하고(RFD 0016 §4.1 · RFD 0019),
+        // 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다.
+        if (toggleSelection) {
+          if (isAlreadySelected) {
+            const notes = new Set(this.sel.notes);
+            notes.delete(hitIndex);
+            this.commitSelection({ notes });
+          } else {
+            const added = this.tryAddNoteToSelection(hitIndex);
+            if (added) this.commitSelection({ notes: added });
+          }
+        } else if (shiftKey) {
+          // Add to selection (동질성 규칙 적용)
+          const added = this.tryAddNoteToSelection(hitIndex);
+          if (added) this.commitSelection({ notes: added });
+        } else if (altKey) {
+          // Remove from selection
           const notes = new Set(this.sel.notes);
           notes.delete(hitIndex);
           this.commitSelection({ notes });
+        } else if ((isAlreadySelected && this.sel.notes.size > 0) || isZoneDerived) {
+          // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
+          this.beginMoveDrag(x, y);
         } else {
-          const added = this.tryAddNoteToSelection(hitIndex);
-          if (added) this.commitSelection({ notes: added });
+          // 단순 클릭은 선택 전체 교체(zones·restZones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위.
+          // §3-5 게이트가 교체를 거부하면 이동을 시작하지 않는다 — stale(직전 위반) 선택이
+          // 새 클릭 좌표를 앵커로 조용히 이동하는 은닉 오편집을 막는다.
+          const committed = this.commitSelection({
+            notes: this.withTrillPairs(new Set([hitIndex])),
+            zones: new Set(),
+            restZones: new Set(),
+          });
+          if (committed) this.beginMoveDrag(x, y);
         }
-      } else if (shiftKey) {
-        // Add to selection (동질성 규칙 적용)
-        const added = this.tryAddNoteToSelection(hitIndex);
-        if (added) this.commitSelection({ notes: added });
-      } else if (altKey) {
-        // Remove from selection
-        const notes = new Set(this.sel.notes);
-        notes.delete(hitIndex);
-        this.commitSelection({ notes });
-      } else if ((isAlreadySelected && this.sel.notes.size > 0) || isZoneDerived) {
-        // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
-        this.beginMoveDrag(x, y);
-      } else {
-        // 단순 클릭은 선택 전체 교체(zones·restZones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위.
-        // §3-5 게이트가 교체를 거부하면 이동을 시작하지 않는다 — stale(직전 위반) 선택이
-        // 새 클릭 좌표를 앵커로 조용히 이동하는 은닉 오편집을 막는다.
-        const committed = this.commitSelection({
-          notes: this.withTrillPairs(new Set([hitIndex])),
-          zones: new Set(),
-          restZones: new Set(),
-        });
-        if (committed) this.beginMoveDrag(x, y);
+        return;
       }
-    } else {
-      // 노트-히트 실패 → 존 몸통이면 "클릭=선택, 선택 후 드래그=이동" (RFD 0016 §6-6).
-      // 이동 필(핸들) 제거 후 존 몸통이 노트와 같은 상호작용 규칙을 따른다.
-      const zoneHit = this.callbacks.space.hitTestTrillZone(x, y);
-      if (zoneHit !== null) {
+      case "trillZoneBody": {
+        // 노트-히트 실패 → 존 몸통이면 "클릭=선택, 선택 후 드래그=이동" (RFD 0016 §6-6).
+        // 이동 필(핸들) 제거 후 존 몸통이 노트와 같은 상호작용 규칙을 따른다.
+        const zoneHit = target.index;
         if (shiftKey || toggleSelection) {
           // 구 이동 필의 shift/토글 동작 승계: zones 토글(기존 노트·restZone 선택과 공존).
           const zones = new Set(this.sel.zones);
@@ -569,10 +578,9 @@ export class SelectMode implements EditorMode {
         this.startBoxSelect(x, y);
         return;
       }
-
-      // 노트·트릴존 히트 실패 → restZone 몸통 (RFD 0019 — trillZone §6-6 미러).
-      const restHit = this.callbacks.space.hitTestRestZone(x, y);
-      if (restHit !== null) {
+      case "restZoneBody": {
+        // 노트·트릴존 히트 실패 → restZone 몸통 (RFD 0019 — trillZone §6-6 미러).
+        const restHit = target.index;
         if (shiftKey || toggleSelection) {
           // 공존 축 — restZones만 토글하고 기존 notes·zones 선택은 보존한다 (trillZone 미러).
           const restZones = new Set(this.sel.restZones);
@@ -594,10 +602,16 @@ export class SelectMode implements EditorMode {
         this.startBoxSelect(x, y);
         return;
       }
-
-      // Clicking empty space
-      if (!shiftKey && !altKey) {
-        this.startBoxSelect(x, y);
+      case "empty": {
+        // Clicking empty space
+        if (!shiftKey && !altKey) {
+          this.startBoxSelect(x, y);
+        }
+        return;
+      }
+      default: {
+        const _exhaustive: never = target;
+        return _exhaustive;
       }
     }
   }

@@ -66,7 +66,7 @@ _Avoid_: 도구
 _Avoid_: Add 모드
 
 **Select 모드**:
-엔티티를 선택하고 이동하거나 크기를 조정하는 편집 모드이다.
+엔티티를 선택하고 이동하거나 크기를 조정하는 편집 모드이다. down이 무엇을 잡는지 정하는 grab 우선순위 사다리는 `resolveGrab`이 단독 소유하며, 마우스·터치가 `SelectMode.resolveGrabAt`라는 같은 seam을 소비한다(풀 정의는 glossary "resolveGrab", RFD 0016 §6-6).
 _Avoid_: Move 모드
 
 **Delete 모드**:

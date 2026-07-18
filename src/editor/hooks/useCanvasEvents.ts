@@ -28,8 +28,8 @@ import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRe
 import {
   nextTouchMultiSelectLatch,
   resolveHoldFireAction,
-  resolveSelectTouchDownSchedule,
   resolveTouchCreateUpAction,
+  scheduleFromGrabTarget,
   shouldArmHoldTimer,
   shouldDeleteOnUp,
   shouldFireTapToggle,
@@ -370,12 +370,10 @@ export function useCanvasEvents(
         if (getLongPressRangeType(entityType as EntityType)) return;
         // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치).
       } else if (mode === 'select' && selectModeRef.current) {
-        // 트릴존 끝(리사이즈 캡)은 경계에 겹친 노트보다 우선(마우스 onPointerDown 우선순위와 일치).
-        const schedule = resolveSelectTouchDownSchedule({
-          noteHit: touchNoteHit,
-          extraHit: touchExtraHit,
-          zoneEndHit: space.hitTestTrillZoneEnd(x, y),
-        });
+        // grab 우선순위 사다리는 SelectMode.resolveGrabAt(마우스 down과 공유)이 단독 소유한다(#143).
+        // 터치는 그 GrabTarget을 2택 스케줄로 접기만 한다 — 존끝 선택게이트(RFD 0016 §6-6)를
+        // 포함해 마우스와 글자 그대로 같은 사다리라, 우선순위가 두 경로로 갈라질 곳이 없다.
+        const schedule = scheduleFromGrabTarget(selectModeRef.current.resolveGrabAt(x, y));
         if (schedule === 'tapToggle') {
           touchTapToggleRef.current = {
             pointerId: e.pointerId,

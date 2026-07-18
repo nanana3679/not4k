@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, withAuxNotes } from "../../shared";
@@ -149,6 +150,45 @@ describe("SelectMode — handlePointerDown 수식자 운반", () => {
     const spy = vi.spyOn(mode, "onPointerDown");
     mode.handlePointerDown({ x: 5, y: 3, shiftKey: true, altKey: true, toggleSelection: true });
     expect(spy).toHaveBeenCalledWith(5, 3, true, true, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveGrabAt — 마우스 down과 터치 스케줄이 공유하는 grab 사다리 공개 seam (#143)
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — resolveGrabAt 공개 seam", () => {
+  it("선택된 trillZone 끝 좌표에서 resolveGrabAt → trillZoneEndCap(선택 게이트 통과)", () => {
+    const chart = makeChart({ trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }] });
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0 });
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ ...cb.getSelectionState(), zones: new Set([0]) });
+
+    expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "trillZoneEndCap", index: 0 });
+  });
+
+  it("미선택 trillZone 끝에 겹친 노트 좌표에서 resolveGrabAt → note(게이트 불통과 시 사다리 하강)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(6) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    // 존 미선택 → 캡 게이트 불통과 → 겹친 노트로 하강
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0, hitTestNote: () => 0 });
+    const mode = makeMode(chart, cb);
+
+    expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "note", index: 0 });
+  });
+
+  it("미선택 trillZone 끝+겹친 노트 터치 down은 스케줄까지 이어 tapToggle이다 (#143 핵심 fix — 존끝 게이트 터치 적용)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(6) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({ hitTestTrillZoneEnd: () => 0, hitTestNote: () => 0 });
+    const mode = makeMode(chart, cb);
+
+    // 사다리(resolveGrabAt) → 터치 스케줄(scheduleFromGrabTarget) 계약을 한 문장으로 고정.
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(1, 0))).toBe("tapToggle");
   });
 });
 
