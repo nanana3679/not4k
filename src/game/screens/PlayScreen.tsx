@@ -27,6 +27,7 @@ export function PlayScreen() {
   const inputSystemRef = useRef<InputSystem | null>(null);
   const sessionRef = useRef<PlaySession | null>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
+  const skinManagerRef = useRef<SkinManager | null>(null);
   const debugLoggerRef = useRef<DebugLogger | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -66,6 +67,9 @@ export function PlayScreen() {
   };
 
   useEffect(() => {
+    // init()은 async라 setup 도중 언마운트/retry가 끼어들 수 있다. 각 await 뒤에서 이 플래그를
+    // 확인해, cleanup이 아직 refs를 못 본 사이 완료된 init이 orphan 리소스를 남기지 않게 한다.
+    let disposed = false;
     const init = async () => {
       if (!canvasRef.current || !containerRef.current) return;
 
@@ -110,6 +114,11 @@ export function PlayScreen() {
         });
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);
+        // 로드 도중 언마운트/retry 시 — 방금 올린 스킨 텍스처를 즉시 unload해 orphan을 막는다.
+        if (disposed) {
+          skinManager.dispose();
+          return;
+        }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
           width: logicalW,
@@ -118,6 +127,13 @@ export function PlayScreen() {
           skinManager,
         });
         await renderer.init();
+        // init 도중 언마운트/retry 시 — renderer를 skinManager보다 먼저 정리해 텍스처 참조 중
+        // unload를 피한다. dispose()는 idempotent라 cleanup과 이중 호출돼도 안전하다.
+        if (disposed) {
+          renderer.dispose();
+          skinManager.dispose();
+          return;
+        }
 
         // Set up renderer with chart data — 렌더러가 차트에서 시간 뷰를 내부 파생한다 (#142).
         renderer.setChart(chartData, playableDurationMs);
@@ -196,6 +212,7 @@ export function PlayScreen() {
         inputSystemRef.current = inputSystem;
         sessionRef.current = session;
         rendererRef.current = renderer;
+        skinManagerRef.current = skinManager;
 
         // Start game loop — 세션이 틱 순서(press→update→release→renderFrame→종료 체크)를 소유한다.
         // 일시정지 중엔 tick을 부르지 않아 세션의 frame-delta 부기(lastFrameTime)가 멈춘다.
@@ -224,6 +241,7 @@ export function PlayScreen() {
 
     // Cleanup
     return () => {
+      disposed = true;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -233,8 +251,16 @@ export function PlayScreen() {
       if (inputSystemRef.current) {
         inputSystemRef.current.detach();
       }
+      // renderer를 skinManager보다 먼저 정리 — 텍스처 참조 중 unload를 피한다.
       if (rendererRef.current) {
         rendererRef.current.dispose();
+      }
+      // 스킨 텍스처의 소유자는 SkinManager다. renderer.dispose()는 texture:false라 텍스처를
+      // 파괴하지 않으므로, 여기서 SkinManager.dispose()로 Assets.unload 해야 retry/이탈 시
+      // 텍스처가 PIXI Assets 캐시에 남지 않는다.
+      if (skinManagerRef.current) {
+        skinManagerRef.current.dispose();
+        skinManagerRef.current = null;
       }
     };
   }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps -- settings는 init 내부에서 getState() 스냅샷으로 접근
