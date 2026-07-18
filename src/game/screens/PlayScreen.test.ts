@@ -46,3 +46,33 @@ describe('PlayScreen 리소스 정리 계약', () => {
     expect(playScreenSource).toContain('disposed = true;');
   });
 });
+
+describe('PlayScreen 첫 판정 hitch 프리웜', () => {
+  it('게임 시작 전 스킨 텍스처를 GPU로 프리웜(renderer.prewarm)해 첫 판정의 lazy 업로드 랙을 없앰', () => {
+    expect(playScreenSource).toContain('renderer.prewarm();');
+    // 프리웜이 게임 루프 시작(audioEngine.play)보다 앞서야 의미가 있다.
+    const prewarmIdx = playScreenSource.indexOf('renderer.prewarm();');
+    const playIdx = playScreenSource.indexOf('audioEngine.play(startTimeMs);');
+    expect(prewarmIdx).toBeGreaterThan(-1);
+    expect(playIdx).toBeGreaterThan(prewarmIdx);
+  });
+
+  it('판정 텍스트 폰트(Audiowide)를 게임 시작 전에 로드해 첫 판정 시 폰트 swap 리플로우를 없앰', () => {
+    expect(playScreenSource).toContain('document.fonts.load(\'36px "Audiowide"\')');
+  });
+
+  it('폰트 로드(await) 도중 언마운트/retry 시 renderer·skinManager를 정리하고 중단', () => {
+    // 폰트 await 뒤에도 disposed 가드가 있어야 orphan 리소스가 안 남는다.
+    const fontIdx = playScreenSource.indexOf('const fontLoadMs = performance.now() - fontT0;');
+    const prewarmIdx = playScreenSource.indexOf('renderer.prewarm();');
+    const guardIdx = playScreenSource.indexOf('if (disposed) {', fontIdx);
+    expect(fontIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeGreaterThan(fontIdx);
+    expect(guardIdx).toBeLessThan(prewarmIdx);
+  });
+
+  it('debugMode일 때 fontLoad·textureUpload 소요를 콘솔에 찍어 첫 판정 비용을 측정 가능하게 함', () => {
+    expect(playScreenSource).toContain('if (settings.debugMode) {');
+    expect(playScreenSource).toContain('[PlayScreen prewarm]');
+  });
+});

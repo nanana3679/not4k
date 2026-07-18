@@ -176,6 +176,21 @@ export class SkinManager {
     return this.bombTextures;
   }
 
+  /**
+   * 로드된 모든 텍스처 (GPU 프리웜용). 노트/바디/터미널/실패/held + bomb 프레임.
+   * cap 텍스처는 base source를 공유하므로 별도로 넣지 않는다 (base 업로드 시 함께 워밍됨).
+   * 첫 판정/첫 실패에서야 처음 그려지는 텍스처(bomb·failed 등)의 GPU 업로드를 게임 시작 전으로
+   * 앞당겨 첫 판정 프레임의 hitch를 없애는 데 쓴다.
+   */
+  getAllTextures(): Texture[] {
+    const all: Texture[] = [];
+    for (const { texture } of this.textures.values()) {
+      all.push(texture);
+    }
+    all.push(...this.bombTextures);
+    return all;
+  }
+
   /** 런타임 테마 (키빔, 글로우 등 동적 색상) */
   getTheme(): SkinTheme {
     if (!this.manifest) {

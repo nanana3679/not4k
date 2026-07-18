@@ -1589,6 +1589,28 @@ export class GameRenderer {
     this.judgmentUI.showJudgment(grade, deltaMs);
   }
 
+  /**
+   * 스킨 텍스처를 게임 시작 전에 GPU로 업로드해, 첫 사용 시점(첫 판정의 bomb, 첫 실패의 failed
+   * 텍스처 등)의 lazy 업로드 hitch를 없앤다. 오프스크린 RenderTexture에 1회 그려 결정적으로 업로드한다
+   * — renderer.prepare.upload()는 시스템 티커에 의존해 autoStart:false에서 프로미스 resolve가
+   * 불확실하므로, 이 코드베이스에 이미 쓰이는 오프스크린 렌더 패턴을 재사용한다.
+   * @returns 프리웜에 걸린 시간(ms) — 첫 판정 프레임에 몰렸을 GPU 업로드 비용의 측정치.
+   */
+  prewarm(): number {
+    if (!this.initialized) return 0;
+    const start = performance.now();
+    const warm = new Container();
+    for (const tex of this.skinManager.getAllTextures()) {
+      warm.addChild(new Sprite(tex));
+    }
+    const rt = RenderTexture.create({ width: 16, height: 16, resolution: this.resolution });
+    this.app.renderer.render({ container: warm, target: rt, clear: true });
+    rt.destroy(true);
+    // 임시 Sprite만 파괴 — 텍스처는 SkinManager 소유라 보존한다.
+    warm.destroy({ children: true, texture: false });
+    return performance.now() - start;
+  }
+
   /** 노트 판정 시 봄 이펙트 재생 */
   showBombEffect(lane: number): void {
     const textures = this.skinManager.getBombTextures();

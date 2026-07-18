@@ -135,6 +135,29 @@ export function PlayScreen() {
           return;
         }
 
+        // 첫 판정 hitch 완화 — 판정 텍스트 폰트(Audiowide)와 스킨 텍스처를 게임 시작 전에 준비한다.
+        // 이유: 판정 텍스트/ bomb / failed 텍스처는 첫 판정 전까지 한 번도 안 그려져, 그 순간 폰트 로드와
+        // GPU 텍스처 업로드가 처음 몰려 랙을 유발한다. 로딩 시점으로 앞당긴다.
+        const fontT0 = performance.now();
+        if (typeof document !== 'undefined' && document.fonts) {
+          // 폰트 파일 fetch가 목적 — 한 사이즈만 로드해도 같은 파일이라 전 사이즈가 준비된다.
+          // 실패는 치명적이지 않다(fallback로 진행).
+          try { await document.fonts.load('36px "Audiowide"'); } catch { /* fallback 허용 */ }
+        }
+        const fontLoadMs = performance.now() - fontT0;
+        // 폰트 로드(await) 도중 언마운트/retry 시 중단
+        if (disposed) {
+          renderer.dispose();
+          skinManager.dispose();
+          return;
+        }
+        const textureUploadMs = renderer.prewarm();
+        if (settings.debugMode) {
+          console.log(
+            `[PlayScreen prewarm] fontLoad=${fontLoadMs.toFixed(1)}ms textureUpload=${textureUploadMs.toFixed(1)}ms`,
+          );
+        }
+
         // Set up renderer with chart data — 렌더러가 차트에서 시간 뷰를 내부 파생한다 (#142).
         renderer.setChart(chartData, playableDurationMs);
         renderer.scrollSpeed = settings.scrollSpeed;
