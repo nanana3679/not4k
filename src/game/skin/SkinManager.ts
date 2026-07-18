@@ -177,7 +177,8 @@ export class SkinManager {
   }
 
   /**
-   * 로드된 모든 텍스처 (GPU 프리웜용). 노트/바디/터미널/실패/held + bomb 프레임.
+   * 로드된 모든 텍스처 (GPU 프리웜용). 노트/바디/터미널/실패/held·bomb 프레임까지 전부.
+   * bomb0..N도 loadSkin에서 this.textures 맵에 등록되므로 여기에 이미 포함된다(따로 안 더한다).
    * cap 텍스처는 base source를 공유하므로 별도로 넣지 않는다 (base 업로드 시 함께 워밍됨).
    * 첫 판정/첫 실패에서야 처음 그려지는 텍스처(bomb·failed 등)의 GPU 업로드를 게임 시작 전으로
    * 앞당겨 첫 판정 프레임의 hitch를 없애는 데 쓴다.
@@ -187,7 +188,6 @@ export class SkinManager {
     for (const { texture } of this.textures.values()) {
       all.push(texture);
     }
-    all.push(...this.bombTextures);
     return all;
   }
 
@@ -199,10 +199,18 @@ export class SkinManager {
     return this.manifest.theme;
   }
 
-  /** 텍스처 메모리 해제 */
-  dispose(): void {
+  /**
+   * 텍스처 메모리 해제. 맵/캐시는 동기로 비워 인스턴스를 즉시 "빈" 상태로 만들고, 실제 GPU 해제는
+   * Promise로 반환한다 — Assets.unload는 캐시 삭제·texture.destroy를 microtask로 미루므로,
+   * 같은 스킨을 곧바로 재load하는 호출자(PlayScreen retry)가 이 Promise를 await 하지 않으면
+   * 파괴 예정 텍스처를 재사용하는 경합이 생긴다.
+   */
+  dispose(): Promise<void> {
+    const unloads: Promise<void>[] = [];
     for (const [key, { path }] of this.textures) {
-      Assets.unload(path).catch((e) => console.warn('SkinManager: failed to unload', key, e));
+      unloads.push(
+        Assets.unload(path).catch((e) => console.warn('SkinManager: failed to unload', key, e)),
+      );
     }
     this.textures.clear();
     // 캡 텍스처는 base의 source를 공유하므로 unload 없이 캐시만 비운다
@@ -210,5 +218,6 @@ export class SkinManager {
     this.bombTextures = [];
     this.manifest = null;
     this.loaded = false;
+    return Promise.all(unloads).then(() => undefined);
   }
 }

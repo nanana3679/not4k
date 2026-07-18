@@ -28,6 +28,9 @@ export function PlayScreen() {
   const sessionRef = useRef<PlaySession | null>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const skinManagerRef = useRef<SkinManager | null>(null);
+  // 직전 세션의 스킨 텍스처 unload(Promise). retry 시 다음 init이 재load 전에 이것을 await 해
+  // Assets.unload↔재load 경합(파괴 예정 텍스처 재사용)을 막는다.
+  const pendingSkinUnloadRef = useRef<Promise<void> | null>(null);
   const debugLoggerRef = useRef<DebugLogger | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -102,21 +105,20 @@ export function PlayScreen() {
         canvasRef.current.style.width = `${containerW}px`;
         canvasRef.current.style.height = `${containerH}px`;
 
-        // Initialize game objects
-        const audioEngine = new AudioEngine();
-        audioEngine.masterVolume = settings.masterVolume ?? 1;
-        audioEngine.playbackRate = settings.playSpeed;
-        // 이 플레이 세션의 시간 권위. 판정/시각/입력 시간을 단일 출처에서 파생한다.
-        // offset은 세션 동안 불변이므로 여기서 캡처한다.
-        const gameClock = new GameClock(audioEngine, {
-          audioOffsetMs: settings.audioOffsetMs,
-          judgmentOffsetMs: settings.judgmentOffsetMs,
-        });
+        // 직전 세션(retry/이탈)의 스킨 텍스처 unload가 끝나길 기다린 뒤 재load한다. Assets.unload는
+        // 캐시 삭제·texture.destroy를 microtask로 미루므로, 기다리지 않고 같은 스킨을 재load하면
+        // 파괴 예정 텍스처를 재사용하는 경합이 생긴다.
+        if (pendingSkinUnloadRef.current) {
+          await pendingSkinUnloadRef.current;
+          pendingSkinUnloadRef.current = null;
+          if (disposed) return;
+        }
+
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);
-        // 로드 도중 언마운트/retry 시 — 방금 올린 스킨 텍스처를 즉시 unload해 orphan을 막는다.
+        // 로드 도중 언마운트/retry 시 — 방금 올린 스킨 텍스처를 unload(다음 init이 await)하고 중단.
         if (disposed) {
-          skinManager.dispose();
+          pendingSkinUnloadRef.current = skinManager.dispose();
           return;
         }
         const renderer = new GameRenderer({
@@ -131,7 +133,7 @@ export function PlayScreen() {
         // unload를 피한다. dispose()는 idempotent라 cleanup과 이중 호출돼도 안전하다.
         if (disposed) {
           renderer.dispose();
-          skinManager.dispose();
+          pendingSkinUnloadRef.current = skinManager.dispose();
           return;
         }
 
@@ -141,14 +143,20 @@ export function PlayScreen() {
         const fontT0 = performance.now();
         if (typeof document !== 'undefined' && document.fonts) {
           // 폰트 파일 fetch가 목적 — 한 사이즈만 로드해도 같은 파일이라 전 사이즈가 준비된다.
-          // 실패는 치명적이지 않다(fallback로 진행).
-          try { await document.fonts.load('36px "Audiowide"'); } catch { /* fallback 허용 */ }
+          // 프리웜은 best-effort — 느린/hang 네트워크가 게임 시작을 막지 않도록 1.5s 상한을 둔다.
+          // (실패·타임아웃 모두 fallback 폰트로 진행.)
+          try {
+            await Promise.race([
+              document.fonts.load('36px "Audiowide"'),
+              new Promise((resolve) => setTimeout(resolve, 1500)),
+            ]);
+          } catch { /* fallback 허용 */ }
         }
         const fontLoadMs = performance.now() - fontT0;
         // 폰트 로드(await) 도중 언마운트/retry 시 중단
         if (disposed) {
           renderer.dispose();
-          skinManager.dispose();
+          pendingSkinUnloadRef.current = skinManager.dispose();
           return;
         }
         const textureUploadMs = renderer.prewarm();
@@ -157,6 +165,19 @@ export function PlayScreen() {
             `[PlayScreen prewarm] fontLoad=${fontLoadMs.toFixed(1)}ms textureUpload=${textureUploadMs.toFixed(1)}ms`,
           );
         }
+
+        // 오디오 객체는 모든 중단 지점(await 가드)을 통과한 뒤에 만든다 — AudioEngine 생성자가
+        // AudioContext를 즉시 열기 때문에, 로딩 중 중단 시 refs에 담기지 못한 채 running AudioContext가
+        // 누수되는 것을 막는다(Chrome 탭당 AudioContext 개수 제한).
+        const audioEngine = new AudioEngine();
+        audioEngine.masterVolume = settings.masterVolume ?? 1;
+        audioEngine.playbackRate = settings.playSpeed;
+        // 이 플레이 세션의 시간 권위. 판정/시각/입력 시간을 단일 출처에서 파생한다.
+        // offset은 세션 동안 불변이므로 여기서 캡처한다.
+        const gameClock = new GameClock(audioEngine, {
+          audioOffsetMs: settings.audioOffsetMs,
+          judgmentOffsetMs: settings.judgmentOffsetMs,
+        });
 
         // Set up renderer with chart data — 렌더러가 차트에서 시간 뷰를 내부 파생한다 (#142).
         renderer.setChart(chartData, playableDurationMs);
@@ -280,9 +301,10 @@ export function PlayScreen() {
       }
       // 스킨 텍스처의 소유자는 SkinManager다. renderer.dispose()는 texture:false라 텍스처를
       // 파괴하지 않으므로, 여기서 SkinManager.dispose()로 Assets.unload 해야 retry/이탈 시
-      // 텍스처가 PIXI Assets 캐시에 남지 않는다.
+      // 텍스처가 PIXI Assets 캐시에 남지 않는다. unload Promise는 ref에 남겨, 다음 init(retry)이
+      // 재load 전에 await 하도록 한다(unload↔재load 경합 방지).
       if (skinManagerRef.current) {
-        skinManagerRef.current.dispose();
+        pendingSkinUnloadRef.current = skinManagerRef.current.dispose();
         skinManagerRef.current = null;
       }
     };
