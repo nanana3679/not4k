@@ -5,6 +5,7 @@ import {
   createChartAsset,
   deleteChartAsset,
   deleteSongAsset,
+  saveLegacyChartAsset,
   saveChartAsset,
   SongHasChartsError,
   type SongAssetPersistenceAdapter,
@@ -261,6 +262,32 @@ describe("saveChartAsset", () => {
     })).rejects.toThrow("차트 asset revision이 유효하지 않습니다");
 
     expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("saveLegacyChartAsset", () => {
+  it("reader-first 단계에서는 stable 메인·빈 보조 파일 뒤 asset_revision=null로 게시", async () => {
+    const fake = makeAdapter();
+
+    const result = await saveLegacyChartAsset(fake.adapter, {
+      songId: "song-reader-first",
+      difficulty: "HARD",
+      chart: makeChart({ difficultyLevel: 14 }),
+      extraLaneCount: 0,
+    });
+
+    expect(fake.uploads.map((upload) => ({
+      path: upload.path,
+      upsert: upload.upsert,
+    }))).toEqual([
+      { path: "songs/song-reader-first/hard.json", upsert: true },
+      { path: "songs/song-reader-first/hard.extra.json", upsert: true },
+    ]);
+    expect(fake.upserts).toEqual([expect.objectContaining({
+      revision: null,
+      allowCreate: false,
+    })]);
+    expect(result.revision).toBeNull();
   });
 });
 

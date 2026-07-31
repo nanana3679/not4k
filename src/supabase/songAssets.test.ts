@@ -19,6 +19,7 @@ vi.mock("./client", () => ({
 }));
 
 import {
+  createChartAsset,
   saveChartAsset,
   supabaseSongAssetAdapter,
 } from "./songAssets";
@@ -112,7 +113,28 @@ describe("supabase chart asset adapter", () => {
     expect(revisionEq).toHaveBeenCalledWith("asset_revision", "rev-old");
   });
 
-  it("reader-first 단계에서 revision writer가 disabled면 Storage 업로드 전에 저장 거부", async () => {
+  it("기존 legacy 차트 expectedRevision=null이 바뀌었으면 IS NULL CAS가 0행이라 저장 거부", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const select = vi.fn().mockReturnValue({ maybeSingle });
+    const revisionIs = vi.fn().mockReturnValue({ select });
+    const target = {
+      eq: vi.fn(),
+      is: revisionIs,
+      select,
+    };
+    const eqDifficulty = vi.fn().mockReturnValue(target);
+    const eqSong = vi.fn().mockReturnValue({ eq: eqDifficulty });
+    const update = vi.fn().mockReturnValue({ eq: eqSong });
+    supabaseMocks.from.mockReturnValue({ insert: vi.fn(), update });
+
+    await expect(supabaseSongAssetAdapter.publishChartRow({
+      ...chartRow(false),
+      expectedRevision: null,
+    })).rejects.toThrow("chart no longer exists");
+    expect(revisionIs).toHaveBeenCalledWith("asset_revision", null);
+  });
+
+  it("reader-first 단계에서 revision writer가 disabled면 기존 stable 경로로 저장", async () => {
     supabaseMocks.rpc.mockResolvedValue({
       data: {
         schema_ready: true,
@@ -120,14 +142,56 @@ describe("supabase chart asset adapter", () => {
       },
       error: null,
     });
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    supabaseMocks.storageFrom.mockReturnValue({ upload });
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: "chart-one" }, error: null });
+    const select = vi.fn().mockReturnValue({ maybeSingle });
+    const target = { select };
+    const eqDifficulty = vi.fn().mockReturnValue(target);
+    const eqSong = vi.fn().mockReturnValue({ eq: eqDifficulty });
+    const update = vi.fn().mockReturnValue({ eq: eqSong });
+    supabaseMocks.from.mockReturnValue({ update });
 
-    await expect(saveChartAsset({
+    const result = await saveChartAsset({
       songId: "song-one",
       difficulty: "hard",
       chart,
       extraLaneCount: 0,
-    })).rejects.toThrow("아직 활성화되지 않았습니다");
-    expect(supabaseMocks.storageFrom).not.toHaveBeenCalled();
-    expect(supabaseMocks.from).not.toHaveBeenCalled();
+    });
+
+    expect(result.revision).toBeNull();
+    expect(upload.mock.calls.map((call) => call[0])).toEqual([
+      "songs/song-one/hard.json",
+      "songs/song-one/hard.extra.json",
+    ]);
+  });
+
+  it("reader-first 단계에서 신규 차트 createChartAsset도 stable 경로에 insert-only 생성", async () => {
+    supabaseMocks.rpc.mockResolvedValue({
+      data: {
+        schema_ready: true,
+        revision_writes_enabled: false,
+      },
+      error: null,
+    });
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    supabaseMocks.storageFrom.mockReturnValue({ upload });
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: "chart-new" }, error: null });
+    const select = vi.fn().mockReturnValue({ maybeSingle });
+    const insert = vi.fn().mockReturnValue({ select });
+    supabaseMocks.from.mockReturnValue({ insert });
+
+    const result = await createChartAsset({
+      songId: "song-new",
+      difficulty: "normal",
+      chart,
+    });
+
+    expect(result.revision).toBeNull();
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      song_id: "song-new",
+      difficulty_label: "normal",
+      asset_revision: null,
+    }));
   });
 });

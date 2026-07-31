@@ -2,6 +2,7 @@ export {
   createChartAsset,
   deleteChartAsset,
   deleteSongAsset,
+  saveLegacyChartAsset,
   saveChartAsset,
   SongHasChartsError,
   type ChartAssetUpsert,

@@ -62,10 +62,51 @@ export interface CreateChartAssetInput extends ChartAssetTarget {
 export interface ChartAssetWriteResult {
   chartPath: string;
   extraPath: string;
-  revision: string;
+  revision: string | null;
   chartJson: string;
   extraJson: string;
   difficulty: string;
+}
+
+export async function saveLegacyChartAsset(
+  adapter: SongAssetPersistenceAdapter,
+  input: SaveChartAssetInput,
+): Promise<ChartAssetWriteResult> {
+  const payload = buildChartPayload(input);
+  const asset: ChartAssetWriteResult = {
+    ...payload,
+    chartPath: songChartPath(input.songId, payload.difficulty),
+    extraPath: songChartExtraPath(input.songId, payload.difficulty),
+    revision: null,
+  };
+  const writes = await Promise.allSettled([
+    adapter.uploadText({
+      path: asset.chartPath,
+      content: asset.chartJson,
+      contentType: "application/json",
+      upsert: true,
+    }),
+    adapter.uploadText({
+      path: asset.extraPath,
+      content: asset.extraJson,
+      contentType: "application/json",
+      upsert: true,
+    }),
+  ]);
+  const failedWrite = writes.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failedWrite) throw failedWrite.reason;
+
+  await adapter.publishChartRow(toChartUpsert(
+    input.songId,
+    asset.difficulty,
+    input.chart,
+    null,
+    input.allowCreate ?? false,
+    input,
+  ));
+  return asset;
 }
 
 export async function saveChartAsset(

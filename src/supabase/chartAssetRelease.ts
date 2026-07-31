@@ -39,3 +39,11 @@ export function assertChartAssetRevisionWritesEnabled(
     throw new ChartAssetRevisionWritesDisabledError();
   }
 }
+
+export function assertChartAssetReleaseSchemaReady(
+  readiness: ChartAssetRevisionReadiness,
+): void {
+  if (!readiness.schemaReady) {
+    throw new Error("Chart asset release migration is incomplete");
+  }
+}

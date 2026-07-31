@@ -29,29 +29,55 @@ export function assertChartRevisionProbeSucceeded(status, body) {
       "Vercel release gate: chart asset column/trigger/release-state migration is incomplete",
     );
   }
+  if (readiness.revision_writes_enabled !== false) {
+    throw new Error(
+      "Vercel release gate: PR #157 is reader-first only; revision writer must remain disabled",
+    );
+  }
   return readiness;
 }
 
-export async function verifyChartAssetRevisionSchema(env = process.env, fetcher = fetch) {
+function isRetryableStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+export async function verifyChartAssetRevisionSchema(
+  env = process.env,
+  fetcher = fetch,
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+) {
   if (env.VERCEL !== "1") return;
   const config = buildChartRevisionProbeConfig(env);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetcher(config.url, {
-      method: "POST",
-      headers: {
-        apikey: config.key,
-        Authorization: `Bearer ${config.key}`,
-        "Content-Type": "application/json",
-      },
-      body: "{}",
-      signal: controller.signal,
-    });
-    const body = await response.text();
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let response;
+    let body;
+    try {
+      response = await fetcher(config.url, {
+        method: "POST",
+        headers: {
+          apikey: config.key,
+          Authorization: `Bearer ${config.key}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+        signal: controller.signal,
+      });
+      body = await response.text();
+    } catch (error) {
+      if (attempt === maxAttempts) throw error;
+      await wait(250 * attempt);
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (isRetryableStatus(response.status) && attempt < maxAttempts) {
+      await wait(250 * attempt);
+      continue;
+    }
     return assertChartRevisionProbeSucceeded(response.status, body);
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

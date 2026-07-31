@@ -25,24 +25,30 @@ begin
   select revision_writes_enabled
     into writes_enabled
     from public.chart_asset_release_state
-   where singleton = true;
+   where singleton = true
+     for share;
 
-  if tg_op = 'INSERT' then
-    if new.asset_revision is not null and writes_enabled is not true then
-      raise exception 'chart revision writes are disabled'
+  if tg_op = 'UPDATE' then
+    if old.asset_revision is not null and new.asset_revision is null then
+      raise exception 'chart asset revision downgrade is forbidden'
         using errcode = 'P0001';
     end if;
-    return new;
   end if;
 
-  if new.asset_revision is distinct from old.asset_revision then
-    if new.asset_revision is not null and writes_enabled is not true then
-      raise exception 'chart revision writes are disabled'
+  if writes_enabled is true then
+    if new.asset_revision is null then
+      raise exception 'revision-aware chart writer required'
         using errcode = 'P0001';
     end if;
-  elsif old.asset_revision is not null then
-    raise exception 'revision-aware chart writer required'
-      using errcode = 'P0001';
+    if tg_op = 'UPDATE' then
+      if new.asset_revision is not distinct from old.asset_revision then
+        raise exception 'revision-aware chart writer required'
+          using errcode = 'P0001';
+      end if;
+    end if;
+  elsif new.asset_revision is not null then
+      raise exception 'chart revision writes are disabled'
+        using errcode = 'P0001';
   end if;
 
   return new;
@@ -56,6 +62,8 @@ create trigger charts_require_revision_advance
 before insert or update on public.charts
 for each row
 execute function public.enforce_chart_asset_release_gate();
+
+drop function if exists public.reject_legacy_chart_writer_after_revision();
 
 create or replace function public.chart_asset_revision_readiness()
 returns jsonb

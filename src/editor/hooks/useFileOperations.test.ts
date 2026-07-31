@@ -1,4 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../../supabase/client', () => ({
+  supabase: {
+    from: vi.fn(),
+    rpc: vi.fn(),
+    storage: { from: vi.fn() },
+  },
+}));
+
 import {
   performPlayTest,
   persistSaveAsChart,

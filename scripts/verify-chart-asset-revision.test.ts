@@ -42,6 +42,13 @@ describe("chart asset revision Vercel release gate", () => {
     )).toThrow("column/trigger/release-state migration is incomplete");
   });
 
+  it("PR #157 배포에서 revision_writes_enabled=true면 reader-first 위반으로 중단", () => {
+    expect(() => assertChartRevisionProbeSucceeded(
+      200,
+      '{"schema_ready":true,"revision_writes_enabled":true}',
+    )).toThrow("reader-first only");
+  });
+
   it("VERCEL=1에서 readiness RPC가 HTTP 400이면 실제 build 검증 함수가 실패", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       status: 400,
@@ -66,5 +73,26 @@ describe("chart asset revision Vercel release gate", () => {
         signal: expect.any(AbortSignal),
       },
     );
+  });
+
+  it("readiness RPC가 HTTP 503 뒤 200이면 bounded retry 후 배포 통과", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({
+        status: 503,
+        text: async () => "temporarily unavailable",
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        text: async () => '{"schema_ready":true,"revision_writes_enabled":false}',
+      });
+    const wait = vi.fn().mockResolvedValue(undefined);
+
+    await expect(verifyChartAssetRevisionSchema({
+      VERCEL: "1",
+      VITE_SUPABASE_URL: "https://example.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "test-key",
+    }, fetcher, wait)).resolves.toMatchObject({ schema_ready: true });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledWith(250);
   });
 });

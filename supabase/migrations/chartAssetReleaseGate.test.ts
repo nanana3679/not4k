@@ -18,8 +18,27 @@ describe("chart asset release gate migration", () => {
       "before insert or update on public.charts",
     );
     expect(migration).toContain(
-      "new.asset_revision is not null and writes_enabled is not true",
+      "elsif new.asset_revision is not null",
     );
+  });
+
+  it("writer fence가 열리면 null INSERT와 revision 미변경 legacy UPDATE를 모두 거부", () => {
+    expect(migration).toContain("if writes_enabled is true then");
+    expect(migration).toContain("if new.asset_revision is null");
+    expect(migration).toContain(
+      "new.asset_revision is not distinct from old.asset_revision",
+    );
+    expect(migration).toContain("revision-aware chart writer required");
+  });
+
+  it("nonnull revision을 null로 내리는 downgrade는 writer fence 상태와 무관하게 거부", () => {
+    expect(migration).toContain("old.asset_revision is not null");
+    expect(migration).toContain("new.asset_revision is null");
+    expect(migration).toContain("chart asset revision downgrade is forbidden");
+  });
+
+  it("trigger가 release state singleton을 FOR SHARE로 잠가 fence close와 publish를 직렬화", () => {
+    expect(migration).toContain("for share");
   });
 
   it("readiness RPC는 trigger 활성 상태와 연결된 함수 이름을 함께 검증", () => {
@@ -35,6 +54,12 @@ describe("chart asset release gate migration", () => {
     );
     expect(migration).toContain(
       "grant execute on function public.chart_asset_revision_readiness() to anon, authenticated",
+    );
+  });
+
+  it("이전 preview migration의 legacy trigger 함수가 남아도 후속 migration에서 제거", () => {
+    expect(migration).toContain(
+      "drop function if exists public.reject_legacy_chart_writer_after_revision()",
     );
   });
 });

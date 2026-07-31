@@ -4,6 +4,7 @@ import {
   createChartAsset as createChartAssetWithAdapter,
   deleteChartAsset as deleteChartAssetWithAdapter,
   deleteSongAsset as deleteSongAssetWithAdapter,
+  saveLegacyChartAsset as saveLegacyChartAssetWithAdapter,
   saveChartAsset as saveChartAssetWithAdapter,
 } from "../shared/songAssets";
 import type {
@@ -15,7 +16,7 @@ import type {
   SongAssetPersistenceAdapter,
 } from "../shared/songAssets";
 import {
-  assertChartAssetRevisionWritesEnabled,
+  assertChartAssetReleaseSchemaReady,
   parseChartAssetRevisionReadiness,
 } from "./chartAssetRelease";
 
@@ -109,10 +110,12 @@ export const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
   },
 };
 
-async function assertRevisionWriterReleased(): Promise<void> {
+async function getChartAssetReleaseReadiness() {
   const { data, error } = await supabase.rpc("chart_asset_revision_readiness");
   if (error) throw new Error(`Chart asset release gate failed: ${error.message}`);
-  assertChartAssetRevisionWritesEnabled(parseChartAssetRevisionReadiness(data));
+  const readiness = parseChartAssetRevisionReadiness(data);
+  assertChartAssetReleaseSchemaReady(readiness);
+  return readiness;
 }
 
 export async function getChartAssetRevision(input: ChartAssetTarget): Promise<string | null> {
@@ -127,13 +130,21 @@ export async function getChartAssetRevision(input: ChartAssetTarget): Promise<st
 }
 
 export async function saveChartAsset(input: SaveChartAssetInput): Promise<ChartAssetWriteResult> {
-  await assertRevisionWriterReleased();
-  return saveChartAssetWithAdapter(supabaseSongAssetAdapter, input);
+  const readiness = await getChartAssetReleaseReadiness();
+  return readiness.revisionWritesEnabled
+    ? saveChartAssetWithAdapter(supabaseSongAssetAdapter, input)
+    : saveLegacyChartAssetWithAdapter(supabaseSongAssetAdapter, input);
 }
 
 export async function createChartAsset(input: CreateChartAssetInput) {
-  await assertRevisionWriterReleased();
-  return createChartAssetWithAdapter(supabaseSongAssetAdapter, input);
+  const readiness = await getChartAssetReleaseReadiness();
+  return readiness.revisionWritesEnabled
+    ? createChartAssetWithAdapter(supabaseSongAssetAdapter, input)
+    : saveLegacyChartAssetWithAdapter(supabaseSongAssetAdapter, {
+        ...input,
+        extraLaneCount: 0,
+        allowCreate: true,
+      });
 }
 
 export function deleteChartAsset(input: ChartAssetTarget) {

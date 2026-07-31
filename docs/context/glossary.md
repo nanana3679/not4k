@@ -456,7 +456,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레�
 
 ### `chart_asset_release_state`
 
-revision-aware reader 배포와 revision writer 활성화를 분리하는 DB release fence. `revision_writes_enabled=false`이면 새 revision의 INSERT/UPDATE를 trigger가 거부하고 클라이언트도 Storage 업로드 전에 fail-closed한다. migration → reader 배포 → 구버전 탭 drain 뒤에만 `true`로 전환하며, rollback 시 앱보다 먼저 다시 닫는다.
+revision-aware reader 배포와 revision writer 활성화를 분리하는 DB release fence. `revision_writes_enabled=false`이면 새 revision의 INSERT/UPDATE를 trigger가 거부하고 클라이언트는 기존 stable 경로에 저장한다. PR #157은 reader-first 상태에서 멈추며, 모든 pre-revision reader를 서버에서 차단할 minimum-reader gate 또는 trusted stable projector가 준비된 후속 release에서만 `true`로 전환한다.
 
 ---
 
