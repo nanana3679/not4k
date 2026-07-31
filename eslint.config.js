@@ -8,7 +8,12 @@ export default tseslint.config(
   { ignores: ["dist"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+    files: [
+      "src/**/*.{ts,tsx}",
+      "scripts/**/*.ts",
+      "supabase/**/*.ts",
+      "*.config.ts",
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,

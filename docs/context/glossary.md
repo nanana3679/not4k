@@ -450,6 +450,14 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레�
 
 `gameplayRange`의 시작과 끝에 적용하는 페이드 인/페이드 아웃 시간. 초 단위로 저장하며, 페이드가 구간 길이보다 길어지지 않도록 각 값은 `gameplayRange` 길이의 절반 이하로 제한한다.
 
+### `asset_revision`
+
+특정 차트 에셋에서 현재 게시된 immutable 메인·보조 파일 쌍의 세대를 가리키는 `charts` 행의 DB pointer. 두 파일 업로드 뒤 메타데이터와 한 DB 쓰기로 교체되며, 값이 `null`인 migration 이전 행만 stable 경로를 읽는다. 상세 저장·배포 규칙은 `../spec/song-management.md`와 `../runbooks/chart-asset-revision-rollout.md`를 따른다.
+
+### `chart_asset_release_state`
+
+revision-aware reader 배포와 revision writer 활성화를 분리하는 DB release fence. `revision_writes_enabled=false`이면 새 revision의 INSERT/UPDATE를 trigger가 거부하고 클라이언트도 Storage 업로드 전에 fail-closed한다. migration → reader 배포 → 구버전 탭 drain 뒤에만 `true`로 전환하며, rollback 시 앱보다 먼저 다시 닫는다.
+
 ---
 
 ## 외부 참조 용어

@@ -1,8 +1,8 @@
 import type { Chart } from "../types";
 import { serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra } from "../chart";
 import {
-  songChartExtraPath,
   songChartExtraRevisionPath,
+  songChartExtraPath,
   songChartPath,
   songChartRevisionPath,
 } from "../storage";
@@ -26,6 +26,8 @@ export interface ChartAssetUpsert {
   offsetMs: number;
   revision: string | null;
   allowCreate: boolean;
+  /** Save As overwrite 확인 시점의 revision. 지정되면 DB update를 CAS로 제한한다. */
+  expectedRevision?: string | null;
 }
 
 export interface ChartAssetTarget {
@@ -47,8 +49,10 @@ export interface SaveChartAssetInput extends ChartAssetTarget {
   /** 보조 노트(lane 5+)를 포함한 통합 차트. 저장 시 메인/보조 파일로 분리한다 (RFD 0018 ③). */
   chart: Chart;
   extraLaneCount: number;
-  /** Save As처럼 대상 난이도가 없을 때 새 DB 행 생성을 허용한다. 일반 저장은 false. */
+  /** Save As처럼 대상 난이도가 없을 때 insert-only 생성을 수행한다. 일반 저장은 false. */
   allowCreate?: boolean;
+  /** Save As overwrite 확인 시점의 revision. null도 유효한 기대값이므로 property 존재 여부로 구분한다. */
+  expectedRevision?: string | null;
 }
 
 export interface CreateChartAssetInput extends ChartAssetTarget {
@@ -100,30 +104,6 @@ export async function saveChartAsset(
     throw failedStage.reason;
   }
 
-  // 전환 기간 호환 shadow: revision을 모르는 구버전 reader/롤백 앱도 최신 내용을 읽게 한다.
-  // canonical 게시점은 아래 DB revision이며 stable 파일은 호환용 복제본이다.
-  const compatibilityWrites = await Promise.allSettled([
-    adapter.uploadText({
-      path: songChartPath(input.songId, payload.difficulty),
-      content: asset.chartJson,
-      contentType: "application/json",
-      upsert: true,
-    }),
-    adapter.uploadText({
-      path: songChartExtraPath(input.songId, payload.difficulty),
-      content: asset.extraJson,
-      contentType: "application/json",
-      upsert: true,
-    }),
-  ]);
-  const failedCompatibilityWrite = compatibilityWrites.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (failedCompatibilityWrite) {
-    await removeStagedFiles(adapter, stagedPaths);
-    throw failedCompatibilityWrite.reason;
-  }
-
   // 두 파일이 모두 준비된 뒤 DB 행의 revision+메타데이터를 한 번에 바꾼다.
   // publish 응답 유실은 서버 커밋 여부가 불명확하므로 이후에는 staged 파일을 지우지 않는다.
   await adapter.publishChartRow(toChartUpsert(
@@ -132,6 +112,7 @@ export async function saveChartAsset(
     input.chart,
     revision,
     input.allowCreate ?? false,
+    input,
   ));
 
   return asset;
@@ -247,8 +228,9 @@ function toChartUpsert(
   chart: Chart,
   revision: string | null,
   allowCreate: boolean,
+  input: SaveChartAssetInput,
 ): ChartAssetUpsert {
-  return {
+  const row: ChartAssetUpsert = {
     songId,
     difficulty,
     difficultyLevel: chart.meta.difficultyLevel,
@@ -256,6 +238,10 @@ function toChartUpsert(
     revision,
     allowCreate,
   };
+  if (Object.prototype.hasOwnProperty.call(input, "expectedRevision")) {
+    row.expectedRevision = input.expectedRevision;
+  }
+  return row;
 }
 
 function normalizeDifficulty(difficulty: string): string {

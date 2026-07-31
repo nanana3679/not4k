@@ -14,8 +14,12 @@ import type {
   SaveChartAssetInput,
   SongAssetPersistenceAdapter,
 } from "../shared/songAssets";
+import {
+  assertChartAssetRevisionWritesEnabled,
+  parseChartAssetRevisionReadiness,
+} from "./chartAssetRelease";
 
-const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
+export const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
   createRevision: () => globalThis.crypto.randomUUID(),
   uploadText: async (asset) => {
     const { error } = await supabase.storage
@@ -46,14 +50,22 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
     const query = row.allowCreate
       ? supabase
           .from("charts")
-          .upsert(values, { onConflict: "song_id,difficulty_label" })
+          .insert(values)
           .select("id")
-      : supabase
-          .from("charts")
-          .update(values)
-          .eq("song_id", row.songId)
-          .eq("difficulty_label", row.difficulty)
-          .select("id");
+      : (() => {
+          const target = supabase
+            .from("charts")
+            .update(values)
+            .eq("song_id", row.songId)
+            .eq("difficulty_label", row.difficulty);
+          if (!Object.prototype.hasOwnProperty.call(row, "expectedRevision")) {
+            return target.select("id");
+          }
+          return (row.expectedRevision === null
+            ? target.is("asset_revision", null)
+            : target.eq("asset_revision", row.expectedRevision as string))
+            .select("id");
+        })();
     const { data, error } = await query.maybeSingle();
     if (error) throw new Error(`Chart DB save failed: ${error.message}`);
     if (!data) throw new Error("Chart DB save failed: chart no longer exists");
@@ -97,6 +109,12 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
   },
 };
 
+async function assertRevisionWriterReleased(): Promise<void> {
+  const { data, error } = await supabase.rpc("chart_asset_revision_readiness");
+  if (error) throw new Error(`Chart asset release gate failed: ${error.message}`);
+  assertChartAssetRevisionWritesEnabled(parseChartAssetRevisionReadiness(data));
+}
+
 export async function getChartAssetRevision(input: ChartAssetTarget): Promise<string | null> {
   const { data, error } = await supabase
     .from("charts")
@@ -108,11 +126,13 @@ export async function getChartAssetRevision(input: ChartAssetTarget): Promise<st
   return data.asset_revision as string | null;
 }
 
-export function saveChartAsset(input: SaveChartAssetInput): Promise<ChartAssetWriteResult> {
+export async function saveChartAsset(input: SaveChartAssetInput): Promise<ChartAssetWriteResult> {
+  await assertRevisionWriterReleased();
   return saveChartAssetWithAdapter(supabaseSongAssetAdapter, input);
 }
 
-export function createChartAsset(input: CreateChartAssetInput) {
+export async function createChartAsset(input: CreateChartAssetInput) {
+  await assertRevisionWriterReleased();
   return createChartAssetWithAdapter(supabaseSongAssetAdapter, input);
 }
 

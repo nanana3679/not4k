@@ -6,6 +6,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "assets-lab/**/*.test.ts",
       "scripts/**/*.test.ts",
+      "supabase/**/*.test.ts",
     ],
   },
 });

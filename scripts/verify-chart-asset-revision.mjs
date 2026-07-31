@@ -7,7 +7,7 @@ export function buildChartRevisionProbeConfig(env) {
     throw new Error("Vercel release gate: Supabase URL/key environment variables are required");
   }
   return {
-    url: `${url.replace(/\/$/, "")}/rest/v1/charts?select=asset_revision&limit=1`,
+    url: `${url.replace(/\/$/, "")}/rest/v1/rpc/chart_asset_revision_readiness`,
     key,
   };
 }
@@ -15,28 +15,50 @@ export function buildChartRevisionProbeConfig(env) {
 export function assertChartRevisionProbeSucceeded(status, body) {
   if (status < 200 || status >= 300) {
     throw new Error(
-      `Vercel release gate: charts.asset_revision is not queryable (HTTP ${status}: ${body.slice(0, 200)})`,
+      `Vercel release gate: chart asset readiness RPC failed (HTTP ${status}: ${body.slice(0, 200)})`,
     );
   }
+  let readiness;
+  try {
+    readiness = JSON.parse(body);
+  } catch {
+    throw new Error("Vercel release gate: chart asset readiness RPC returned invalid JSON");
+  }
+  if (readiness?.schema_ready !== true) {
+    throw new Error(
+      "Vercel release gate: chart asset column/trigger/release-state migration is incomplete",
+    );
+  }
+  return readiness;
 }
 
 export async function verifyChartAssetRevisionSchema(env = process.env, fetcher = fetch) {
   if (env.VERCEL !== "1") return;
   const config = buildChartRevisionProbeConfig(env);
-  const response = await fetcher(config.url, {
-    headers: {
-      apikey: config.key,
-      Authorization: `Bearer ${config.key}`,
-    },
-  });
-  const body = await response.text();
-  assertChartRevisionProbeSucceeded(response.status, body);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetcher(config.url, {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+      signal: controller.signal,
+    });
+    const body = await response.text();
+    return assertChartRevisionProbeSucceeded(response.status, body);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function main() {
   await verifyChartAssetRevisionSchema();
   if (process.env.VERCEL === "1") {
-    console.log("[release-gate] charts.asset_revision verified");
+    console.log("[release-gate] chart asset schema/trigger/release state verified");
   }
 }
 

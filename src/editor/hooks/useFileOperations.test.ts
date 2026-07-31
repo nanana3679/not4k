@@ -139,6 +139,32 @@ describe('persistSaveAsChart', () => {
     expect(result.difficulty).toBe('hyper');
     expect(result.chart.meta.difficultyLevel).toBe(17);
   });
+
+  it('기존 HYPER rev-old 덮어쓰기면 allowCreate=false·expectedRevision=rev-old 전달', async () => {
+    const persist = vi.fn().mockResolvedValue({
+      chartPath: 'songs/song1/hyper.rev-new.json',
+      extraPath: 'songs/song1/hyper.rev-new.extra.json',
+      revision: 'rev-new',
+      chartJson: '{}',
+      extraJson: '{}',
+      difficulty: 'hyper',
+    });
+
+    await persistSaveAsChart({
+      songId: 'song1',
+      targetDifficulty: 'HYPER',
+      targetLevel: 17,
+      chart: baseChart,
+      extraLaneCount: 3,
+      expectedRevision: 'rev-old',
+    }, persist);
+
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({
+      difficulty: 'hyper',
+      allowCreate: false,
+      expectedRevision: 'rev-old',
+    }));
+  });
 });
 
 describe('performPlayTest', () => {

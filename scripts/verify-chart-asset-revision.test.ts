@@ -21,35 +21,49 @@ describe("chart asset revision Vercel release gate", () => {
     })).toThrow("Supabase URL/key");
   });
 
-  it("charts.asset_revision 조회가 HTTP 200이면 release gate 통과", () => {
-    expect(() => assertChartRevisionProbeSucceeded(200, "[]")).not.toThrow();
+  it("column·trigger·release state가 준비되면 release gate 통과", () => {
+    expect(() => assertChartRevisionProbeSucceeded(
+      200,
+      '{"schema_ready":true,"revision_writes_enabled":false}',
+    )).not.toThrow();
   });
 
-  it("charts.asset_revision 조회가 HTTP 400이면 migration 미적용으로 배포 중단", () => {
+  it("readiness RPC가 HTTP 400이면 migration 미적용으로 배포 중단", () => {
     expect(() => assertChartRevisionProbeSucceeded(
       400,
-      '{"message":"column charts.asset_revision does not exist"}',
-    )).toThrow("charts.asset_revision is not queryable");
+      '{"message":"function chart_asset_revision_readiness does not exist"}',
+    )).toThrow("chart asset readiness RPC failed");
   });
 
-  it("VERCEL=1에서 probe가 HTTP 400이면 실제 build 검증 함수가 실패", async () => {
+  it("column은 있어도 trigger가 없어서 schema_ready=false면 배포 중단", () => {
+    expect(() => assertChartRevisionProbeSucceeded(
+      200,
+      '{"schema_ready":false,"revision_writes_enabled":false}',
+    )).toThrow("column/trigger/release-state migration is incomplete");
+  });
+
+  it("VERCEL=1에서 readiness RPC가 HTTP 400이면 실제 build 검증 함수가 실패", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       status: 400,
-      text: async () => '{"message":"column charts.asset_revision does not exist"}',
+      text: async () => '{"message":"function chart_asset_revision_readiness does not exist"}',
     });
 
     await expect(verifyChartAssetRevisionSchema({
       VERCEL: "1",
       VITE_SUPABASE_URL: "https://example.supabase.co",
       VITE_SUPABASE_PUBLISHABLE_KEY: "test-key",
-    }, fetcher)).rejects.toThrow("charts.asset_revision is not queryable");
+    }, fetcher)).rejects.toThrow("chart asset readiness RPC failed");
     expect(fetcher).toHaveBeenCalledWith(
-      "https://example.supabase.co/rest/v1/charts?select=asset_revision&limit=1",
+      "https://example.supabase.co/rest/v1/rpc/chart_asset_revision_readiness",
       {
+        method: "POST",
         headers: {
           apikey: "test-key",
           Authorization: "Bearer test-key",
+          "Content-Type": "application/json",
         },
+        body: "{}",
+        signal: expect.any(AbortSignal),
       },
     );
   });
