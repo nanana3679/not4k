@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { performPlayTest, resolveAudioUploadPath, resolvePreviewRegenRange, type PerformPlayTestParams } from './useFileOperations';
+import {
+  performPlayTest,
+  persistSaveAsChart,
+  resolveAudioUploadPath,
+  resolvePreviewRegenRange,
+  type PerformPlayTestParams,
+} from './useFileOperations';
 import { beat } from '../../shared';
 import type { PlaybackRange, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
@@ -98,6 +104,40 @@ describe('resolvePreviewRegenRange', () => {
       fadeInTime: 0,
       fadeOutTime: 0,
     });
+  });
+});
+
+describe('persistSaveAsChart', () => {
+  it('HYPER Lv.17 Save As면 persistChartAsset에 difficulty=hyper·allowCreate=true 전달', async () => {
+    const persist = vi.fn().mockResolvedValue({
+      chartPath: 'songs/song1/hyper.rev-1.json',
+      extraPath: 'songs/song1/hyper.rev-1.extra.json',
+      revision: 'rev-1',
+      chartJson: '{}',
+      extraJson: '{}',
+      difficulty: 'hyper',
+    });
+
+    const result = await persistSaveAsChart({
+      songId: 'song1',
+      targetDifficulty: 'HYPER',
+      targetLevel: 17,
+      chart: baseChart,
+      extraLaneCount: 3,
+    }, persist);
+
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({
+      songId: 'song1',
+      difficulty: 'hyper',
+      extraLaneCount: 3,
+      allowCreate: true,
+    }));
+    expect(persist.mock.calls[0][0].chart.meta).toMatchObject({
+      difficultyLabel: 'HYPER',
+      difficultyLevel: 17,
+    });
+    expect(result.difficulty).toBe('hyper');
+    expect(result.chart.meta.difficultyLevel).toBe(17);
   });
 });
 

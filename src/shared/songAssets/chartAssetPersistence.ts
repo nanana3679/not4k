@@ -100,6 +100,30 @@ export async function saveChartAsset(
     throw failedStage.reason;
   }
 
+  // 전환 기간 호환 shadow: revision을 모르는 구버전 reader/롤백 앱도 최신 내용을 읽게 한다.
+  // canonical 게시점은 아래 DB revision이며 stable 파일은 호환용 복제본이다.
+  const compatibilityWrites = await Promise.allSettled([
+    adapter.uploadText({
+      path: songChartPath(input.songId, payload.difficulty),
+      content: asset.chartJson,
+      contentType: "application/json",
+      upsert: true,
+    }),
+    adapter.uploadText({
+      path: songChartExtraPath(input.songId, payload.difficulty),
+      content: asset.extraJson,
+      contentType: "application/json",
+      upsert: true,
+    }),
+  ]);
+  const failedCompatibilityWrite = compatibilityWrites.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failedCompatibilityWrite) {
+    await removeStagedFiles(adapter, stagedPaths);
+    throw failedCompatibilityWrite.reason;
+  }
+
   // 두 파일이 모두 준비된 뒤 DB 행의 revision+메타데이터를 한 번에 바꾼다.
   // publish 응답 유실은 서버 커밋 여부가 불명확하므로 이후에는 staged 파일을 지우지 않는다.
   await adapter.publishChartRow(toChartUpsert(

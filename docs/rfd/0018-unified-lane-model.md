@@ -1,6 +1,6 @@
 # RFD 0018: 레인 단일 모델 — Extra 노트를 차트의 확장 레인으로 통합
 
-**Status:** Accepted (2026-07-12) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정) · **구현 완료 (2026-07-13, ①~⑤ 전량 main merged: PR #96 문서·#97 ③ store flip·#98 ④⑤ 이원축 제거+D3+docs)**
+**Status:** Accepted (2026-07-12) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정) · **구현 완료 (2026-07-13, ①~⑤ 전량 main merged: PR #96 문서·#97 ③ store flip·#98 ④⑤ 이원축 제거+D3+docs)** · 차트 파일 쌍 DB revision 원자 게시와 단계적 배포 gate 구현 (2026-07-31, PR #157)
 
 **관련 문서:**
 

@@ -24,10 +24,12 @@
 ## 차트 저장 규칙
 
 - 저장할 때 고유 revision을 만들고, 같은 revision의 메인·보조 파일을 `upsert` 없이 먼저 업로드한다. 보조 노트가 없어도 빈 보조 파일을 만든다.
+- 전환·롤백 호환을 위해 같은 내용의 stable 메인·보조 파일도 함께 갱신한다. canonical 게시점은 DB revision이며 stable 파일은 구버전 reader용 shadow이다.
 - 두 파일 업로드가 모두 성공한 뒤 `charts` 행의 revision과 난이도 레벨/offset을 한 번의 DB 쓰기로 교체한다. 따라서 파일 쌍과 메타데이터의 게시 승자는 항상 같다.
 - 파일 업로드 단계에서 실패한 revision은 게시 전에 정리한다. DB 게시 요청 뒤에는 응답 유실 시 실제 커밋 여부를 알 수 없으므로 파일을 지우지 않는다.
 - 게시된 이전 revision과 실패한 미참조 revision은 동시 저장·삭제의 staging 파일을 잘못 지우지 않도록 즉시 제거하지 않는다. 차트 삭제는 DB 행이 가리키던 활성 revision만 제거하고, 곡 삭제 시 디렉터리 전체를 정리한다.
 - 신규 차트도 처음부터 고유 revision의 메인·빈 보조 파일을 게시한다. `asset_revision=null`은 마이그레이션 이전 기존 행의 하위호환에만 사용한다.
+- migration 선적용, Vercel build gate, 구버전 writer 차단, 롤백 순서는 [차트 `asset_revision` 배포 runbook](../runbooks/chart-asset-revision-rollout.md)을 따른다.
 
 ## 삭제 규칙
 

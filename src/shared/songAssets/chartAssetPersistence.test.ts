@@ -97,7 +97,7 @@ describe("saveChartAsset", () => {
       extraLaneCount: 0,
     });
 
-    expect(fake.uploads).toHaveLength(2);
+    expect(fake.uploads).toHaveLength(4);
     expect(fake.uploads[0]).toMatchObject({
       path: "songs/song-one/hard.rev-123.json",
       contentType: "application/json",
@@ -112,6 +112,16 @@ describe("saveChartAsset", () => {
     expect(JSON.parse(fake.uploads[1].content)).toEqual({
       extraNotes: [],
       extraLaneCount: 0,
+    });
+    expect(fake.uploads[2]).toMatchObject({
+      path: "songs/song-one/hard.json",
+      content: fake.uploads[0].content,
+      upsert: true,
+    });
+    expect(fake.uploads[3]).toMatchObject({
+      path: "songs/song-one/hard.extra.json",
+      content: fake.uploads[1].content,
+      upsert: true,
     });
     expect(fake.removes).toEqual([]);
     expect(fake.upserts).toEqual([{
@@ -132,6 +142,8 @@ describe("saveChartAsset", () => {
     expect(fake.calls).toEqual([
       "upload:songs/song-one/hard.rev-123.json",
       "upload:songs/song-one/hard.rev-123.extra.json",
+      "upload:songs/song-one/hard.json",
+      "upload:songs/song-one/hard.extra.json",
       "publish:song-one:hard",
     ]);
   });
@@ -154,6 +166,8 @@ describe("saveChartAsset", () => {
     expect(fake.uploads.map((upload) => upload.path)).toEqual([
       "songs/song-two/expert.rev-123.json",
       "songs/song-two/expert.rev-123.extra.json",
+      "songs/song-two/expert.json",
+      "songs/song-two/expert.extra.json",
     ]);
     expect(JSON.parse(fake.uploads[1].content)).toEqual({
       extraNotes: [{ type: "single", extraLane: 2, beat: "1/4" }],
@@ -198,6 +212,78 @@ describe("saveChartAsset", () => {
     expect(fake.upserts).toEqual([]);
   });
 
+  it("구버전 호환 stable 보조 파일 업로드가 실패하면 DB revision을 게시하지 않고 staging 세대 정리", async () => {
+    const fake = makeAdapter({
+      failUploadPath: "songs/song-two/hard.extra.json",
+    });
+
+    await expect(saveChartAsset(fake.adapter, {
+      songId: "song-two",
+      difficulty: "HARD",
+      chart: makeChart(),
+      extraLaneCount: 2,
+    })).rejects.toThrow("upload failed");
+
+    expect(fake.removes).toEqual([[
+      "songs/song-two/hard.rev-123.json",
+      "songs/song-two/hard.rev-123.extra.json",
+    ]]);
+    expect(fake.upserts).toEqual([]);
+  });
+
+  it("new rev-a 저장 → 구버전 stable 저장 → new rev-b 롤포워드면 stable과 DB pointer가 rev-b로 재동기화", async () => {
+    const revisions = ["rev-a", "rev-b"];
+    const files = new Map<string, string>();
+    let activeRevision: string | null = null;
+    const adapter: SongAssetPersistenceAdapter = {
+      createRevision: () => {
+        const revision = revisions.shift();
+        if (!revision) throw new Error("revision exhausted");
+        return revision;
+      },
+      uploadText: async (asset) => {
+        files.set(asset.path, asset.content);
+      },
+      remove: async (paths) => {
+        paths.forEach((path) => files.delete(path));
+      },
+      publishChartRow: async (row) => {
+        activeRevision = row.revision;
+      },
+      deleteChartRow: async () => ({ revision: activeRevision }),
+      listSongFiles: async () => [...files.keys()],
+      deleteSongRow: async () => {},
+    };
+
+    await saveChartAsset(adapter, {
+      songId: "song-rollforward",
+      difficulty: "HARD",
+      chart: makeChart({ difficultyLevel: 13 }),
+      extraLaneCount: 0,
+    });
+    expect(activeRevision).toBe("rev-a");
+
+    // 구버전 writer는 revision pointer를 전진시키지 못하고 stable 경로만 먼저 덮어쓸 수 있다.
+    files.set("songs/song-rollforward/hard.json", '{"legacy":true}');
+    files.set("songs/song-rollforward/hard.extra.json", '{"legacyExtra":true}');
+    expect(activeRevision).toBe("rev-a");
+
+    await saveChartAsset(adapter, {
+      songId: "song-rollforward",
+      difficulty: "HARD",
+      chart: makeChart({ difficultyLevel: 15 }),
+      extraLaneCount: 0,
+    });
+
+    expect(activeRevision).toBe("rev-b");
+    expect(files.get("songs/song-rollforward/hard.json"))
+      .toBe(files.get("songs/song-rollforward/hard.rev-b.json"));
+    expect(files.get("songs/song-rollforward/hard.extra.json"))
+      .toBe(files.get("songs/song-rollforward/hard.rev-b.extra.json"));
+    expect(JSON.parse(files.get("songs/song-rollforward/hard.json") ?? "{}").meta.difficultyLevel)
+      .toBe(15);
+  });
+
   it('revision="REV-123"이 asset 규칙에 맞지 않으면 파일 업로드 전에 에러', async () => {
     const fake = makeAdapter({ revision: "REV-123" });
 
@@ -225,6 +311,8 @@ describe("createChartAsset", () => {
     expect(fake.uploads.map((upload) => upload.path)).toEqual([
       "songs/song-three/normal.rev-123.json",
       "songs/song-three/normal.rev-123.extra.json",
+      "songs/song-three/normal.json",
+      "songs/song-three/normal.extra.json",
     ]);
     expect(JSON.parse(fake.uploads[1].content)).toEqual({
       extraNotes: [],
