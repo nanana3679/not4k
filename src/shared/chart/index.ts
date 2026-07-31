@@ -15,6 +15,8 @@ import type {
   RestZone,
   ChartEvent,
   ExtraNoteEntity,
+  ExtraPointNote,
+  ExtraRangeNote,
   TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
@@ -55,18 +57,13 @@ interface LegacyRangeNoteJson {
 
 type NoteEntityJson = PointNoteJson | RangeNoteJson;
 
-interface ExtraPointNoteJson {
-  type: "single" | "double" | "trill";
+type ExtraPointNoteJson = Omit<PointNoteJson, "lane"> & {
   extraLane: number;
-  beat: string;
-}
+};
 
-interface ExtraRangeNoteJson {
-  type: "long" | "doubleLong" | "trillLong";
+type ExtraRangeNoteJson = Omit<RangeNoteJson, "lane"> & {
   extraLane: number;
-  beat: string;
-  endBeat: string;
-}
+};
 
 type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
 
@@ -485,26 +482,42 @@ export function deserializeChart(str: string): Chart {
 
 function serializeExtraNote(n: ExtraNoteEntity): ExtraNoteEntityJson {
   if ("endBeat" in n) {
-    return {
+    const json: ExtraRangeNoteJson = {
       type: n.type,
       extraLane: n.extraLane,
       beat: beatToString(n.beat),
       endBeat: beatToString(n.endBeat),
     };
+    if (n.holdOnly) json.holdOnly = true;
+    return json;
   }
-  return { type: n.type, extraLane: n.extraLane, beat: beatToString(n.beat) };
+  const json: ExtraPointNoteJson = {
+    type: n.type,
+    extraLane: n.extraLane,
+    beat: beatToString(n.beat),
+  };
+  if (n.grace) json.grace = true;
+  return json;
 }
 
 function parseExtraNote(n: ExtraNoteEntityJson): ExtraNoteEntity {
   if ("endBeat" in n) {
-    return {
+    const note: ExtraRangeNote = {
       type: n.type,
       extraLane: n.extraLane,
       beat: beatFromString(n.beat),
       endBeat: beatFromString(n.endBeat),
     };
+    if (n.holdOnly) note.holdOnly = true;
+    return note;
   }
-  return { type: n.type, extraLane: n.extraLane, beat: beatFromString(n.beat) };
+  const note: ExtraPointNote = {
+    type: n.type,
+    extraLane: n.extraLane,
+    beat: beatFromString(n.beat),
+  };
+  if (n.grace) note.grace = true;
+  return note;
 }
 
 const EXTRA_POINT_TYPES = ["single", "double", "trill"] as const;
@@ -536,10 +549,14 @@ function isExtraNoteJson(value: unknown): value is ExtraNoteEntityJson {
   }
 
   if (EXTRA_POINT_TYPES.includes(value.type as typeof EXTRA_POINT_TYPES[number])) {
-    return !Object.hasOwn(value, "endBeat");
+    return !Object.hasOwn(value, "endBeat")
+      && !Object.hasOwn(value, "holdOnly")
+      && (value.grace === undefined || typeof value.grace === "boolean");
   }
   if (EXTRA_RANGE_TYPES.includes(value.type as typeof EXTRA_RANGE_TYPES[number])) {
-    return isSerializedBeat(value.endBeat);
+    return isSerializedBeat(value.endBeat)
+      && !Object.hasOwn(value, "grace")
+      && (value.holdOnly === undefined || typeof value.holdOnly === "boolean");
   }
   return false;
 }

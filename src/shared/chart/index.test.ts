@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildSaveAsMeta, deserializeChart, parseExtraNotes, serializeChart } from './index';
+import {
+  buildSaveAsMeta,
+  deserializeChart,
+  parseExtraNotes,
+  serializeChart,
+  serializeExtraNotes,
+} from './index';
 import type { ChartMeta, RangeNote } from '../types/chart';
+import { beat } from '../types/beat';
 
 const baseMeta: ChartMeta = {
   title: 'Test Song',
@@ -122,6 +129,73 @@ describe('parseExtraNotes 런타임 스키마 검증', () => {
 
     expect(result.extraNotes[0].extraLane).toBe(10);
     expect(result.extraLaneCount).toBe(10);
+  });
+
+  it('grace="true"인 보조 포인트 노트는 boolean이 아니므로 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '1', grace: 'true' }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('holdOnly=1인 보조 구간 노트는 boolean이 아니므로 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'long', extraLane: 1, beat: '1', endBeat: '2', holdOnly: 1 }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('보조 포인트 노트에 구간 전용 holdOnly=true가 있으면 조용히 버리지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '1', holdOnly: true }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('보조 구간 노트에 포인트 전용 grace=true가 있으면 조용히 버리지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'long', extraLane: 1, beat: '1', endBeat: '2', grace: true }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+});
+
+describe('보조 노트 판정 속성 저장→불러오기 왕복 보존', () => {
+  it('extraLane=2 grace 포인트 노트는 왕복 후 grace=true 유지', () => {
+    const source = [{
+      type: 'single' as const,
+      extraLane: 2,
+      beat: beat(1, 2),
+      grace: true,
+    }];
+
+    const result = parseExtraNotes(JSON.parse(serializeExtraNotes(source, 2)));
+
+    expect(result.extraNotes).toEqual(source);
+  });
+
+  it('extraLane=3 holdOnly 롱노트는 왕복 후 holdOnly=true 유지', () => {
+    const source = [{
+      type: 'long' as const,
+      extraLane: 3,
+      beat: beat(1),
+      endBeat: beat(2),
+      holdOnly: true,
+    }];
+
+    const result = parseExtraNotes(JSON.parse(serializeExtraNotes(source, 3)));
+
+    expect(result.extraNotes).toEqual(source);
+  });
+
+  it('grace·holdOnly가 없는 보조 노트는 직렬화 JSON에 해당 필드를 만들지 않음', () => {
+    const json = JSON.parse(serializeExtraNotes([
+      { type: 'single', extraLane: 1, beat: beat(0) },
+      { type: 'long', extraLane: 1, beat: beat(1), endBeat: beat(2) },
+    ], 1));
+
+    expect(json.extraNotes[0]).not.toHaveProperty('grace');
+    expect(json.extraNotes[1]).not.toHaveProperty('holdOnly');
   });
 });
 
