@@ -1,11 +1,10 @@
 import {
   songChartExtraPath,
   songChartExtraRevisionPath,
-  songChartManifestPath,
   songChartPath,
   songChartRevisionPath,
 } from "../storage";
-import { parseChartAssetManifest } from "./chartAssetManifest";
+import { assertValidChartAssetRevision } from "./chartAssetRevision";
 import type { ChartAssetTarget } from "./chartAssetPersistence";
 
 export interface PublishedChartAssetPaths {
@@ -16,48 +15,36 @@ export interface PublishedChartAssetPaths {
 
 export async function resolvePublishedChartAssetPaths(
   target: ChartAssetTarget,
-  getPublicUrl: (path: string) => string,
-  fetcher: typeof fetch = fetch,
+  getPublishedRevision: (target: ChartAssetTarget) => Promise<string | null>,
 ): Promise<PublishedChartAssetPaths> {
-  const manifestPath = songChartManifestPath(target.songId, target.difficulty);
-  let response: Response;
+  let revision: string | null;
   try {
-    response = await fetcher(getPublicUrl(manifestPath), { cache: "no-store" });
+    revision = await getPublishedRevision(target);
   } catch {
-    throw new Error("차트 manifest 가져오기 실패: 네트워크 오류");
+    throw new Error("차트 asset revision 가져오기 실패");
   }
-
-  if (response.status === 404) {
+  if (revision === null) {
     return {
       chartPath: songChartPath(target.songId, target.difficulty),
       extraPath: songChartExtraPath(target.songId, target.difficulty),
       revision: null,
     };
   }
-  if (!response.ok) {
-    throw new Error(`차트 manifest 가져오기 실패: HTTP ${response.status}`);
-  }
-
-  let text: string;
-  try {
-    text = await response.text();
-  } catch {
-    throw new Error("차트 manifest 가져오기 실패: 응답 읽기 오류");
-  }
-  const manifest = parseChartAssetManifest(text);
+  assertValidChartAssetRevision(revision);
   return {
-    chartPath: songChartRevisionPath(target.songId, target.difficulty, manifest.revision),
-    extraPath: songChartExtraRevisionPath(target.songId, target.difficulty, manifest.revision),
-    revision: manifest.revision,
+    chartPath: songChartRevisionPath(target.songId, target.difficulty, revision),
+    extraPath: songChartExtraRevisionPath(target.songId, target.difficulty, revision),
+    revision,
   };
 }
 
 export async function fetchPublishedMainChartText(
   target: ChartAssetTarget,
+  getPublishedRevision: (target: ChartAssetTarget) => Promise<string | null>,
   getPublicUrl: (path: string) => string,
   fetcher: typeof fetch = fetch,
 ): Promise<string> {
-  const paths = await resolvePublishedChartAssetPaths(target, getPublicUrl, fetcher);
+  const paths = await resolvePublishedChartAssetPaths(target, getPublishedRevision);
   let response: Response;
   try {
     response = await fetcher(getPublicUrl(paths.chartPath), { cache: "no-store" });

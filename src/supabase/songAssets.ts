@@ -26,33 +26,49 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
     if (error) throw new Error(`Storage upload failed: ${error.message}`);
   },
   remove: async (paths) => {
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .remove(paths);
-    if (error) throw new Error(`Storage remove failed: ${error.message}`);
+    const batchSize = 1000;
+    for (let offset = 0; offset < paths.length; offset += batchSize) {
+      const { error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove(paths.slice(offset, offset + batchSize));
+      if (error) throw new Error(`Storage remove failed: ${error.message}`);
+    }
   },
-  upsertChartRow: async (row) => {
+  publishChartRow: async (row) => {
     // DB 행 스키마(snake_case)는 이 adapter가 소유한다 — shared 계약은 도메인 언어만 운반.
-    const { error } = await supabase
-      .from("charts")
-      .upsert(
-        {
-          song_id: row.songId,
-          difficulty_label: row.difficulty,
-          difficulty_level: row.difficultyLevel,
-          offset_ms: row.offsetMs,
-        },
-        { onConflict: "song_id,difficulty_label" },
-      );
+    const values = {
+      song_id: row.songId,
+      difficulty_label: row.difficulty,
+      difficulty_level: row.difficultyLevel,
+      offset_ms: row.offsetMs,
+      asset_revision: row.revision,
+    };
+    const query = row.allowCreate
+      ? supabase
+          .from("charts")
+          .upsert(values, { onConflict: "song_id,difficulty_label" })
+          .select("id")
+      : supabase
+          .from("charts")
+          .update(values)
+          .eq("song_id", row.songId)
+          .eq("difficulty_label", row.difficulty)
+          .select("id");
+    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(`Chart DB save failed: ${error.message}`);
+    if (!data) throw new Error("Chart DB save failed: chart no longer exists");
   },
   deleteChartRow: async (target) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("charts")
       .delete()
       .eq("song_id", target.songId)
-      .eq("difficulty_label", target.difficulty);
+      .eq("difficulty_label", target.difficulty)
+      .select("asset_revision")
+      .maybeSingle();
     if (error) throw new Error(`Chart DB delete failed: ${error.message}`);
+    if (!data) throw new Error("Chart DB delete failed: chart no longer exists");
+    return { revision: data.asset_revision as string | null };
   },
   listSongFiles: async (songId) => {
     const paths: string[] = [];

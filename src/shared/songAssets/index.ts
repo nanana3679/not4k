@@ -14,11 +14,7 @@ export {
   type SongAssetPersistenceAdapter,
   type TextAssetUpload,
 } from "./chartAssetPersistence";
-export {
-  parseChartAssetManifest,
-  serializeChartAssetManifest,
-  type ChartAssetManifest,
-} from "./chartAssetManifest";
+export { assertValidChartAssetRevision } from "./chartAssetRevision";
 export {
   fetchPublishedMainChartText,
   resolvePublishedChartAssetPaths,

@@ -349,6 +349,7 @@ export function useFileOperations(
         difficulty,
         chart: chartToSave,
         extraLaneCount,
+        allowCreate: true,
       });
 
       setChart(chartToSave);

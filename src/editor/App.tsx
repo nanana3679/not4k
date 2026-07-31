@@ -44,6 +44,20 @@ function getPublicUrl(path: string): string {
   return data.publicUrl;
 }
 
+async function getPublishedRevision(input: {
+  songId: string;
+  difficulty: string;
+}): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('charts')
+    .select('asset_revision')
+    .eq('song_id', input.songId)
+    .eq('difficulty_label', input.difficulty.toLowerCase())
+    .single();
+  if (error) throw new Error(`Chart revision fetch failed: ${error.message}`);
+  return data.asset_revision as string | null;
+}
+
 function useCompactEditorLayout(): boolean {
   const [compact, setCompact] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(COMPACT_EDITOR_QUERY).matches
@@ -129,8 +143,12 @@ export default function EditorApp() {
       return;
     }
 
-    // manifest가 가리키는 같은 revision의 메인·보조 차트를 함께 로드한다.
-    loadPublishedEditorChartAssets({ songId, difficulty }, getPublicUrl)
+    // DB 행이 가리키는 같은 revision의 메인·보조 차트를 함께 로드한다.
+    loadPublishedEditorChartAssets(
+      { songId, difficulty },
+      getPublishedRevision,
+      getPublicUrl,
+    )
       .then((loaded) => {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(loaded.chart);

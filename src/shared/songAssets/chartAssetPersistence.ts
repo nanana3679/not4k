@@ -3,11 +3,10 @@ import { serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra } from 
 import {
   songChartExtraPath,
   songChartExtraRevisionPath,
-  songChartManifestPath,
   songChartPath,
   songChartRevisionPath,
 } from "../storage";
-import { serializeChartAssetManifest } from "./chartAssetManifest";
+import { assertValidChartAssetRevision } from "./chartAssetRevision";
 
 export interface TextAssetUpload {
   path: string;
@@ -25,6 +24,8 @@ export interface ChartAssetUpsert {
   difficulty: string;
   difficultyLevel: number;
   offsetMs: number;
+  revision: string | null;
+  allowCreate: boolean;
 }
 
 export interface ChartAssetTarget {
@@ -36,8 +37,8 @@ export interface SongAssetPersistenceAdapter {
   createRevision: () => string;
   uploadText: (asset: TextAssetUpload) => Promise<void>;
   remove: (paths: string[]) => Promise<void>;
-  upsertChartRow: (row: ChartAssetUpsert) => Promise<void>;
-  deleteChartRow: (target: ChartAssetTarget) => Promise<void>;
+  publishChartRow: (row: ChartAssetUpsert) => Promise<void>;
+  deleteChartRow: (target: ChartAssetTarget) => Promise<{ revision: string | null }>;
   listSongFiles: (songId: string) => Promise<string[]>;
   deleteSongRow: (songId: string) => Promise<void>;
 }
@@ -46,6 +47,8 @@ export interface SaveChartAssetInput extends ChartAssetTarget {
   /** 보조 노트(lane 5+)를 포함한 통합 차트. 저장 시 메인/보조 파일로 분리한다 (RFD 0018 ③). */
   chart: Chart;
   extraLaneCount: number;
+  /** Save As처럼 대상 난이도가 없을 때 새 DB 행 생성을 허용한다. 일반 저장은 false. */
+  allowCreate?: boolean;
 }
 
 export interface CreateChartAssetInput extends ChartAssetTarget {
@@ -55,7 +58,6 @@ export interface CreateChartAssetInput extends ChartAssetTarget {
 export interface ChartAssetWriteResult {
   chartPath: string;
   extraPath: string;
-  manifestPath: string;
   revision: string;
   chartJson: string;
   extraJson: string;
@@ -75,12 +77,11 @@ export async function saveChartAsset(
 ): Promise<ChartAssetWriteResult> {
   const payload = buildChartPayload(input);
   const revision = adapter.createRevision();
-  const manifestJson = serializeChartAssetManifest(revision);
+  assertValidChartAssetRevision(revision);
   const asset: ChartAssetWriteResult = {
     ...payload,
     chartPath: songChartRevisionPath(input.songId, payload.difficulty, revision),
     extraPath: songChartExtraRevisionPath(input.songId, payload.difficulty, revision),
-    manifestPath: songChartManifestPath(input.songId, payload.difficulty),
     revision,
   };
   const stagedPaths = [asset.chartPath, asset.extraPath];
@@ -106,19 +107,15 @@ export async function saveChartAsset(
     throw failedStage.reason;
   }
 
-  try {
-    await adapter.uploadText({
-      path: asset.manifestPath,
-      content: manifestJson,
-      contentType: "application/json",
-      upsert: true,
-    });
-  } catch (error) {
-    await removeStagedFiles(adapter, stagedPaths);
-    throw error;
-  }
-
-  await adapter.upsertChartRow(toChartUpsert(input.songId, asset.difficulty, input.chart));
+  // 두 파일이 모두 준비된 뒤 DB 행의 revision+메타데이터를 한 번에 바꾼다.
+  // publish 응답 유실은 서버 커밋 여부가 불명확하므로 이후에는 staged 파일을 지우지 않는다.
+  await adapter.publishChartRow(toChartUpsert(
+    input.songId,
+    asset.difficulty,
+    input.chart,
+    revision,
+    input.allowCreate ?? false,
+  ));
 
   return asset;
 }
@@ -143,7 +140,13 @@ export async function createChartAsset(
     contentType: "application/json",
     upsert: true,
   });
-  await adapter.upsertChartRow(toChartUpsert(input.songId, asset.difficulty, input.chart));
+  await adapter.publishChartRow(toChartUpsert(
+    input.songId,
+    asset.difficulty,
+    input.chart,
+    null,
+    true,
+  ));
 
   return {
     chartPath: asset.chartPath,
@@ -202,14 +205,17 @@ export async function deleteChartAsset(
   const chartPath = songChartPath(input.songId, difficulty);
   const extraPath = songChartExtraPath(input.songId, difficulty);
 
-  await adapter.deleteChartRow({ songId: input.songId, difficulty });
-  const songFiles = await adapter.listSongFiles(input.songId);
-  const chartStem = chartPath.slice(0, -".json".length);
-  const paths = songFiles.filter((path) => (
-    path === chartPath
-    || path === extraPath
-    || (path.startsWith(`${chartStem}.`) && path.endsWith(".json"))
-  ));
+  // DB pointer를 먼저 원자적으로 지워 동시 save의 update와 직렬화한다.
+  // 삭제된 행이 가리키던 활성 세대만 제거한다. 미참조 세대를 함께 list/remove하면
+  // 동시 save의 staging 세대를 지워 broken pointer를 만들 수 있다.
+  const deleted = await adapter.deleteChartRow({ songId: input.songId, difficulty });
+  const paths = [chartPath, extraPath];
+  if (deleted.revision !== null) {
+    paths.push(
+      songChartRevisionPath(input.songId, difficulty, deleted.revision),
+      songChartExtraRevisionPath(input.songId, difficulty, deleted.revision),
+    );
+  }
   if (paths.length > 0) {
     await adapter.remove(paths);
   }
@@ -238,17 +244,25 @@ async function removeStagedFiles(
   try {
     await adapter.remove(paths);
   } catch {
-    // staging 경로는 manifest가 가리키지 않는 고유 revision이다.
+    // staging 경로는 DB가 아직 가리키지 않는 고유 revision이다.
     // 정리 실패는 원래 저장 오류를 가리지 않으며 활성 차트 일관성에도 영향을 주지 않는다.
   }
 }
 
-function toChartUpsert(songId: string, difficulty: string, chart: Chart): ChartAssetUpsert {
+function toChartUpsert(
+  songId: string,
+  difficulty: string,
+  chart: Chart,
+  revision: string | null,
+  allowCreate: boolean,
+): ChartAssetUpsert {
   return {
     songId,
     difficulty,
     difficultyLevel: chart.meta.difficultyLevel,
     offsetMs: chart.meta.offsetMs,
+    revision,
+    allowCreate,
   };
 }
 

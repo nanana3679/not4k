@@ -40,6 +40,8 @@ function makeAdapter(input: {
   songFiles?: string[];
   revision?: string;
   failUploadPath?: string;
+  failPublish?: boolean;
+  deletedRevision?: string | null;
 } = {}) {
   const calls: string[] = [];
   const uploads: { path: string; content: string; contentType: string; upsert: boolean }[] = [];
@@ -61,13 +63,15 @@ function makeAdapter(input: {
       calls.push(`remove:${paths.join(",")}`);
       removes.push(paths);
     },
-    upsertChartRow: async (row) => {
-      calls.push(`upsert:${row.songId}:${row.difficulty}`);
+    publishChartRow: async (row) => {
+      calls.push(`publish:${row.songId}:${row.difficulty}`);
+      if (input.failPublish) throw new Error("publish failed");
       upserts.push(row);
     },
     deleteChartRow: async (target) => {
       calls.push(`delete:${target.songId}:${target.difficulty}`);
       deletes.push(target);
+      return { revision: input.deletedRevision ?? null };
     },
     listSongFiles: async (songId) => {
       calls.push(`list:${songId}`);
@@ -83,7 +87,7 @@ function makeAdapter(input: {
 }
 
 describe("saveChartAsset", () => {
-  it("보조 노트가 없어도 같은 revision의 메인·빈 보조 파일을 올린 뒤 manifest를 커밋하고 DB 행 upsert", async () => {
+  it("보조 노트가 없어도 같은 revision의 메인·빈 보조 파일을 올린 뒤 DB revision과 메타데이터를 원자 게시", async () => {
     const fake = makeAdapter();
 
     const result = await saveChartAsset(fake.adapter, {
@@ -93,7 +97,7 @@ describe("saveChartAsset", () => {
       extraLaneCount: 0,
     });
 
-    expect(fake.uploads).toHaveLength(3);
+    expect(fake.uploads).toHaveLength(2);
     expect(fake.uploads[0]).toMatchObject({
       path: "songs/song-one/hard.rev-123.json",
       contentType: "application/json",
@@ -109,26 +113,18 @@ describe("saveChartAsset", () => {
       extraNotes: [],
       extraLaneCount: 0,
     });
-    expect(fake.uploads[2]).toMatchObject({
-      path: "songs/song-one/hard.manifest.json",
-      contentType: "application/json",
-      upsert: true,
-    });
-    expect(JSON.parse(fake.uploads[2].content)).toEqual({
-      version: 1,
-      revision: "rev-123",
-    });
     expect(fake.removes).toEqual([]);
     expect(fake.upserts).toEqual([{
       songId: "song-one",
       difficulty: "hard",
       difficultyLevel: 13,
       offsetMs: -12,
+      revision: "rev-123",
+      allowCreate: false,
     }]);
     expect(result).toMatchObject({
       chartPath: "songs/song-one/hard.rev-123.json",
       extraPath: "songs/song-one/hard.rev-123.extra.json",
-      manifestPath: "songs/song-one/hard.manifest.json",
       revision: "rev-123",
       difficulty: "hard",
     });
@@ -136,8 +132,7 @@ describe("saveChartAsset", () => {
     expect(fake.calls).toEqual([
       "upload:songs/song-one/hard.rev-123.json",
       "upload:songs/song-one/hard.rev-123.extra.json",
-      "upload:songs/song-one/hard.manifest.json",
-      "upsert:song-one:hard",
+      "publish:song-one:hard",
     ]);
   });
 
@@ -159,7 +154,6 @@ describe("saveChartAsset", () => {
     expect(fake.uploads.map((upload) => upload.path)).toEqual([
       "songs/song-two/expert.rev-123.json",
       "songs/song-two/expert.rev-123.extra.json",
-      "songs/song-two/expert.manifest.json",
     ]);
     expect(JSON.parse(fake.uploads[1].content)).toEqual({
       extraNotes: [{ type: "single", extraLane: 2, beat: "1/4" }],
@@ -167,7 +161,7 @@ describe("saveChartAsset", () => {
     });
   });
 
-  it("보조 세대 파일 업로드가 실패하면 manifest·DB를 갱신하지 않고 staging 세대만 정리", async () => {
+  it("보조 세대 파일 업로드가 실패하면 DB를 갱신하지 않고 staging 세대만 정리", async () => {
     const fake = makeAdapter({
       failUploadPath: "songs/song-two/hard.rev-123.extra.json",
     });
@@ -190,26 +184,21 @@ describe("saveChartAsset", () => {
     expect(fake.upserts).toEqual([]);
   });
 
-  it("manifest 커밋이 실패하면 DB를 갱신하지 않고 staging 세대만 정리", async () => {
-    const fake = makeAdapter({
-      failUploadPath: "songs/song-two/hard.manifest.json",
-    });
+  it("DB publish 응답이 실패하면 커밋 여부가 불명확하므로 staging 세대를 삭제하지 않음", async () => {
+    const fake = makeAdapter({ failPublish: true });
 
     await expect(saveChartAsset(fake.adapter, {
       songId: "song-two",
       difficulty: "HARD",
       chart: makeChart(),
       extraLaneCount: 2,
-    })).rejects.toThrow("upload failed");
+    })).rejects.toThrow("publish failed");
 
-    expect(fake.removes).toEqual([[
-      "songs/song-two/hard.rev-123.json",
-      "songs/song-two/hard.rev-123.extra.json",
-    ]]);
+    expect(fake.removes).toEqual([]);
     expect(fake.upserts).toEqual([]);
   });
 
-  it('revision="REV-123"이 manifest 규칙에 맞지 않으면 파일 업로드 전에 에러', async () => {
+  it('revision="REV-123"이 asset 규칙에 맞지 않으면 파일 업로드 전에 에러', async () => {
     const fake = makeAdapter({ revision: "REV-123" });
 
     await expect(saveChartAsset(fake.adapter, {
@@ -217,7 +206,7 @@ describe("saveChartAsset", () => {
       difficulty: "HARD",
       chart: makeChart(),
       extraLaneCount: 0,
-    })).rejects.toThrow("차트 manifest 생성 실패");
+    })).rejects.toThrow("차트 asset revision이 유효하지 않습니다");
 
     expect(fake.calls).toEqual([]);
   });
@@ -240,6 +229,8 @@ describe("createChartAsset", () => {
       difficulty: "normal",
       difficultyLevel: 5,
       offsetMs: 34,
+      revision: null,
+      allowCreate: true,
     }]);
   });
 });
@@ -302,17 +293,9 @@ describe("deleteSongAsset", () => {
 });
 
 describe("deleteChartAsset", () => {
-  it("차트 행을 먼저 지운 뒤 해당 난이도의 legacy·manifest·모든 세대 파일만 제거", async () => {
+  it("차트 행이 가리킨 rev-a와 legacy 파일만 제거하고 동시 save staging·이전 세대는 건드리지 않음", async () => {
     const fake = makeAdapter({
-      songFiles: [
-        "songs/song-four/hard.json",
-        "songs/song-four/hard.extra.json",
-        "songs/song-four/hard.manifest.json",
-        "songs/song-four/hard.rev-a.json",
-        "songs/song-four/hard.rev-a.extra.json",
-        "songs/song-four/easy.rev-b.json",
-        "songs/song-four/audio.ogg",
-      ],
+      deletedRevision: "rev-a",
     });
 
     await deleteChartAsset(fake.adapter, {
@@ -324,14 +307,12 @@ describe("deleteChartAsset", () => {
     expect(fake.removes).toEqual([[
       "songs/song-four/hard.json",
       "songs/song-four/hard.extra.json",
-      "songs/song-four/hard.manifest.json",
       "songs/song-four/hard.rev-a.json",
       "songs/song-four/hard.rev-a.extra.json",
     ]]);
     expect(fake.calls).toEqual([
       "delete:song-four:hard",
-      "list:song-four",
-      "remove:songs/song-four/hard.json,songs/song-four/hard.extra.json,songs/song-four/hard.manifest.json,songs/song-four/hard.rev-a.json,songs/song-four/hard.rev-a.extra.json",
+      "remove:songs/song-four/hard.json,songs/song-four/hard.extra.json,songs/song-four/hard.rev-a.json,songs/song-four/hard.rev-a.extra.json",
     ]);
   });
 });

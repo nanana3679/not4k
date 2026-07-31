@@ -25,6 +25,20 @@ function getPublicUrl(path: string): string {
   return data.publicUrl;
 }
 
+async function getPublishedRevision(input: {
+  songId: string;
+  difficulty: string;
+}): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('charts')
+    .select('asset_revision')
+    .eq('song_id', input.songId)
+    .eq('difficulty_label', input.difficulty.toLowerCase())
+    .single();
+  if (error) throw new Error(`Failed to fetch chart revision: ${error.message}`);
+  return data.asset_revision as string | null;
+}
+
 /**
  * 차트 JSON을 로드하고 파싱한다.
  */
@@ -34,6 +48,7 @@ export async function fetchChart(
 ): Promise<Chart> {
   const text = await fetchPublishedMainChartText(
     { songId, difficulty },
+    getPublishedRevision,
     getPublicUrl,
   );
   return deserializeChart(text);

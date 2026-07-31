@@ -1,14 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   songChartExtraRevisionPath,
-  songChartManifestPath,
   songChartRevisionPath,
   withCacheBust,
 } from './index';
 
 describe('차트 세대 경로', () => {
-  it('song-one HARD rev-123이면 manifest·메인·보조 세대 경로를 소문자로 생성', () => {
-    expect(songChartManifestPath('song-one', 'HARD')).toBe('songs/song-one/hard.manifest.json');
+  it('song-one HARD rev-123이면 메인·보조 세대 경로를 소문자로 생성', () => {
     expect(songChartRevisionPath('song-one', 'HARD', 'rev-123')).toBe(
       'songs/song-one/hard.rev-123.json',
     );
