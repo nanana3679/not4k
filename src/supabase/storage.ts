@@ -14,6 +14,7 @@ import {
 } from "../shared";
 import { deserializeChart } from "../shared";
 import type { Chart } from "../shared";
+import { getChartAssetRevision } from "./songAssets";
 
 /**
  * Storage에서 파일의 퍼블릭 URL을 반환한다.
@@ -25,20 +26,6 @@ function getPublicUrl(path: string): string {
   return data.publicUrl;
 }
 
-async function getPublishedRevision(input: {
-  songId: string;
-  difficulty: string;
-}): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('charts')
-    .select('asset_revision')
-    .eq('song_id', input.songId)
-    .eq('difficulty_label', input.difficulty.toLowerCase())
-    .single();
-  if (error) throw new Error(`Failed to fetch chart revision: ${error.message}`);
-  return data.asset_revision as string | null;
-}
-
 /**
  * 차트 JSON을 로드하고 파싱한다.
  */
@@ -48,7 +35,7 @@ export async function fetchChart(
 ): Promise<Chart> {
   const text = await fetchPublishedMainChartText(
     { songId, difficulty },
-    getPublishedRevision,
+    getChartAssetRevision,
     getPublicUrl,
   );
   return deserializeChart(text);

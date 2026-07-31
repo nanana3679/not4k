@@ -18,7 +18,7 @@ import { serializeExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, auxNotesAsExtra } from '../shared';
-import { supabase } from '../supabase';
+import { getChartAssetRevision, supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
@@ -42,20 +42,6 @@ const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
-}
-
-async function getPublishedRevision(input: {
-  songId: string;
-  difficulty: string;
-}): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('charts')
-    .select('asset_revision')
-    .eq('song_id', input.songId)
-    .eq('difficulty_label', input.difficulty.toLowerCase())
-    .single();
-  if (error) throw new Error(`Chart revision fetch failed: ${error.message}`);
-  return data.asset_revision as string | null;
 }
 
 function useCompactEditorLayout(): boolean {
@@ -146,7 +132,7 @@ export default function EditorApp() {
     // DB 행이 가리키는 같은 revision의 메인·보조 차트를 함께 로드한다.
     loadPublishedEditorChartAssets(
       { songId, difficulty },
-      getPublishedRevision,
+      getChartAssetRevision,
       getPublicUrl,
     )
       .then((loaded) => {

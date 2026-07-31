@@ -97,6 +97,17 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
   },
 };
 
+export async function getChartAssetRevision(input: ChartAssetTarget): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("charts")
+    .select("asset_revision")
+    .eq("song_id", input.songId)
+    .eq("difficulty_label", input.difficulty.toLowerCase())
+    .single();
+  if (error) throw new Error(`Chart revision fetch failed: ${error.message}`);
+  return data.asset_revision as string | null;
+}
+
 export function saveChartAsset(input: SaveChartAssetInput): Promise<ChartAssetWriteResult> {
   return saveChartAssetWithAdapter(supabaseSongAssetAdapter, input);
 }

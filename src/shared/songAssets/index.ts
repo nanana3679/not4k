@@ -7,7 +7,6 @@ export {
   type ChartAssetUpsert,
   type ChartAssetTarget,
   type ChartAssetWriteResult,
-  type CreatedChartAssetResult,
   type CreateChartAssetInput,
   type DeleteSongAssetInput,
   type SaveChartAssetInput,

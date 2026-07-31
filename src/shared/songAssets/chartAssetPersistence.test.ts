@@ -213,7 +213,7 @@ describe("saveChartAsset", () => {
 });
 
 describe("createChartAsset", () => {
-  it("creates an empty chart asset without touching extra JSON", async () => {
+  it("신규 차트도 고유 revision의 메인·빈 보조 파일을 게시해 동시 생성 간 stable 경합 방지", async () => {
     const fake = makeAdapter();
 
     await createChartAsset(fake.adapter, {
@@ -222,14 +222,21 @@ describe("createChartAsset", () => {
       chart: makeChart({ difficultyLevel: 5 }),
     });
 
-    expect(fake.uploads.map((upload) => upload.path)).toEqual(["songs/song-three/normal.json"]);
+    expect(fake.uploads.map((upload) => upload.path)).toEqual([
+      "songs/song-three/normal.rev-123.json",
+      "songs/song-three/normal.rev-123.extra.json",
+    ]);
+    expect(JSON.parse(fake.uploads[1].content)).toEqual({
+      extraNotes: [],
+      extraLaneCount: 0,
+    });
     expect(fake.removes).toEqual([]);
     expect(fake.upserts).toEqual([{
       songId: "song-three",
       difficulty: "normal",
       difficultyLevel: 5,
       offsetMs: 34,
-      revision: null,
+      revision: "rev-123",
       allowCreate: true,
     }]);
   });

@@ -64,13 +64,6 @@ export interface ChartAssetWriteResult {
   difficulty: string;
 }
 
-export interface CreatedChartAssetResult {
-  chartPath: string;
-  extraPath: string;
-  chartJson: string;
-  difficulty: string;
-}
-
 export async function saveChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: SaveChartAssetInput,
@@ -123,37 +116,12 @@ export async function saveChartAsset(
 export async function createChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: CreateChartAssetInput,
-): Promise<CreatedChartAssetResult> {
-  const payload = buildChartPayload({
+): Promise<ChartAssetWriteResult> {
+  return saveChartAsset(adapter, {
     ...input,
     extraLaneCount: 0,
+    allowCreate: true,
   });
-  const asset = {
-    ...payload,
-    chartPath: songChartPath(input.songId, payload.difficulty),
-    extraPath: songChartExtraPath(input.songId, payload.difficulty),
-  };
-
-  await adapter.uploadText({
-    path: asset.chartPath,
-    content: asset.chartJson,
-    contentType: "application/json",
-    upsert: true,
-  });
-  await adapter.publishChartRow(toChartUpsert(
-    input.songId,
-    asset.difficulty,
-    input.chart,
-    null,
-    true,
-  ));
-
-  return {
-    chartPath: asset.chartPath,
-    extraPath: asset.extraPath,
-    chartJson: asset.chartJson,
-    difficulty: asset.difficulty,
-  };
 }
 
 export interface DeleteSongAssetInput {

@@ -178,6 +178,25 @@ describe("loadPublishedEditorChartAssets", () => {
       ),
     )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 404");
   });
+
+  it("DB revision=null이고 stable 보조 파일이 404이면 메인에 내장된 legacy 보조 노트를 병합", async () => {
+    const result = await loadPublishedEditorChartAssets(
+      { songId: "song-one", difficulty: "HARD" },
+      async () => null,
+      (path) => `https://cdn.example/${path}`,
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? new Response("", { status: 404 })
+          : new Response(chartText({
+              extraNotes: [{ type: "single", extraLane: 2, beat: "1" }],
+              extraLaneCount: 2,
+            }))
+      ),
+    );
+
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 6]);
+    expect(result.extraLaneCount).toBe(2);
+  });
 });
 
 describe("parseEditorChartAssets", () => {
