@@ -57,20 +57,13 @@ interface LegacyRangeNoteJson {
 
 type NoteEntityJson = PointNoteJson | RangeNoteJson;
 
-interface ExtraPointNoteJson {
-  type: "single" | "double" | "trill";
+type ExtraPointNoteJson = Omit<PointNoteJson, "lane"> & {
   extraLane: number;
-  beat: string;
-  grace?: boolean;
-}
+};
 
-interface ExtraRangeNoteJson {
-  type: "long" | "doubleLong" | "trillLong";
+type ExtraRangeNoteJson = Omit<RangeNoteJson, "lane"> & {
   extraLane: number;
-  beat: string;
-  endBeat: string;
-  holdOnly?: boolean;
-}
+};
 
 type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
 
@@ -557,10 +550,12 @@ function isExtraNoteJson(value: unknown): value is ExtraNoteEntityJson {
 
   if (EXTRA_POINT_TYPES.includes(value.type as typeof EXTRA_POINT_TYPES[number])) {
     return !Object.hasOwn(value, "endBeat")
+      && !Object.hasOwn(value, "holdOnly")
       && (value.grace === undefined || typeof value.grace === "boolean");
   }
   if (EXTRA_RANGE_TYPES.includes(value.type as typeof EXTRA_RANGE_TYPES[number])) {
     return isSerializedBeat(value.endBeat)
+      && !Object.hasOwn(value, "grace")
       && (value.holdOnly === undefined || typeof value.holdOnly === "boolean");
   }
   return false;

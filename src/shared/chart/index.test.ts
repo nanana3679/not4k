@@ -144,6 +144,20 @@ describe('parseExtraNotes 런타임 스키마 검증', () => {
       extraLaneCount: 1,
     })).toThrow('invalid extraNotes');
   });
+
+  it('보조 포인트 노트에 구간 전용 holdOnly=true가 있으면 조용히 버리지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '1', holdOnly: true }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('보조 구간 노트에 포인트 전용 grace=true가 있으면 조용히 버리지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'long', extraLane: 1, beat: '1', endBeat: '2', grace: true }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
 });
 
 describe('보조 노트 판정 속성 저장→불러오기 왕복 보존', () => {
