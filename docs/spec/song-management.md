@@ -11,13 +11,22 @@
 |------|------|
 | `songs` 테이블 | 곡 메타데이터 (제목, 아티스트, 재생 구간 등) |
 | `charts` 테이블 | 차트 메타데이터 (난이도 라벨/레벨, offset) |
-| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON(`{difficulty}.json`, `{difficulty}.extra.json`) |
+| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON 세대(`{difficulty}.{revision}.json`, `{difficulty}.{revision}.extra.json`)와 현재 세대를 가리키는 `{difficulty}.manifest.json` |
 
 ## 차트 로드 규칙
 
+- `{difficulty}.manifest.json`이 있으면 그 파일이 가리키는 같은 revision의 메인·보조 차트를 로드한다.
+- manifest의 404 응답만 이전 저장 형식으로 취급해 `{difficulty}.json`과 `{difficulty}.extra.json`을 로드한다. 그 밖의 HTTP 오류, 네트워크 오류, 파싱 오류는 로드를 중단한다.
 - 메인 차트 파일은 필수이다.
 - 보조 차트 파일의 404 응답만 파일 부재로 취급하고, 이때는 메인 차트에 내장된 이전 포맷의 제작 보조 정보를 읽는다.
 - 보조 차트 파일의 그 밖의 HTTP 오류, 네트워크 오류, 파싱 오류가 발생하면 편집기 진입을 중단한다. 메인 차트만 불완전하게 연 뒤 저장하여 제작 보조 정보를 덮어쓰는 흐름은 허용하지 않는다.
+
+## 차트 저장 규칙
+
+- 저장할 때 고유 revision을 만들고, 같은 revision의 메인·보조 파일을 `upsert` 없이 먼저 업로드한다. 보조 노트가 없어도 빈 보조 파일을 만든다.
+- 두 파일 업로드가 모두 성공한 뒤 manifest를 마지막으로 교체한다. 따라서 로더에는 이전의 완전한 파일 쌍이나 새 완전한 파일 쌍만 게시된다.
+- manifest 게시 전 실패한 revision은 활성 차트가 아니며 최선 노력으로 정리한다. 게시된 이전 revision은 동시 저장과의 경합을 피하기 위해 즉시 지우지 않고, 해당 난이도 차트를 삭제할 때 함께 정리한다.
+- 신규 차트는 이전 형식의 stable 경로로 생성하고, 첫 저장 때 revision/manifest 형식으로 전환한다.
 
 ## 삭제 규칙
 
@@ -31,6 +40,7 @@
 - 곡 삭제 순서는 **DB 행 먼저, Storage 파일 나중**이다. 클라이언트가 아는 차트 수가
   낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
   구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
+- 차트 삭제는 해당 난이도의 이전 형식 파일, manifest, 모든 revision 파일을 함께 제거한다.
 
 ## 백업 (다중화)
 

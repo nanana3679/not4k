@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { withCacheBust } from './index';
+import {
+  songChartExtraRevisionPath,
+  songChartManifestPath,
+  songChartRevisionPath,
+  withCacheBust,
+} from './index';
+
+describe('차트 세대 경로', () => {
+  it('song-one HARD rev-123이면 manifest·메인·보조 세대 경로를 소문자로 생성', () => {
+    expect(songChartManifestPath('song-one', 'HARD')).toBe('songs/song-one/hard.manifest.json');
+    expect(songChartRevisionPath('song-one', 'HARD', 'rev-123')).toBe(
+      'songs/song-one/hard.rev-123.json',
+    );
+    expect(songChartExtraRevisionPath('song-one', 'HARD', 'rev-123')).toBe(
+      'songs/song-one/hard.rev-123.extra.json',
+    );
+  });
+
+  it('revision="../escape"이면 경로 탈출을 허용하지 않고 에러', () => {
+    expect(() => songChartRevisionPath('song-one', 'HARD', '../escape'))
+      .toThrow('유효하지 않은 revision');
+  });
+});
 
 describe('withCacheBust', () => {
   const base = 'https://cdn.example.com/assets/songs/s1/preview.wav';

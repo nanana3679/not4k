@@ -1,6 +1,13 @@
 import type { Chart } from "../types";
-import { serializeChart, serializeExtraNotes, mainNotes, auxNotes, auxNotesAsExtra } from "../chart";
-import { songChartExtraPath, songChartPath } from "../storage";
+import { serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra } from "../chart";
+import {
+  songChartExtraPath,
+  songChartExtraRevisionPath,
+  songChartManifestPath,
+  songChartPath,
+  songChartRevisionPath,
+} from "../storage";
+import { serializeChartAssetManifest } from "./chartAssetManifest";
 
 export interface TextAssetUpload {
   path: string;
@@ -26,6 +33,7 @@ export interface ChartAssetTarget {
 }
 
 export interface SongAssetPersistenceAdapter {
+  createRevision: () => string;
   uploadText: (asset: TextAssetUpload) => Promise<void>;
   remove: (paths: string[]) => Promise<void>;
   upsertChartRow: (row: ChartAssetUpsert) => Promise<void>;
@@ -47,8 +55,17 @@ export interface CreateChartAssetInput extends ChartAssetTarget {
 export interface ChartAssetWriteResult {
   chartPath: string;
   extraPath: string;
+  manifestPath: string;
+  revision: string;
   chartJson: string;
   extraJson: string;
+  difficulty: string;
+}
+
+export interface CreatedChartAssetResult {
+  chartPath: string;
+  extraPath: string;
+  chartJson: string;
   difficulty: string;
 }
 
@@ -56,25 +73,51 @@ export async function saveChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: SaveChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
-  const asset = buildChartAsset(input);
-  const hasExtra = input.extraLaneCount > 0 || auxNotes(input.chart.notes).length > 0;
+  const payload = buildChartPayload(input);
+  const revision = adapter.createRevision();
+  const manifestJson = serializeChartAssetManifest(revision);
+  const asset: ChartAssetWriteResult = {
+    ...payload,
+    chartPath: songChartRevisionPath(input.songId, payload.difficulty, revision),
+    extraPath: songChartExtraRevisionPath(input.songId, payload.difficulty, revision),
+    manifestPath: songChartManifestPath(input.songId, payload.difficulty),
+    revision,
+  };
+  const stagedPaths = [asset.chartPath, asset.extraPath];
+  const stagedWrites = await Promise.allSettled([
+    adapter.uploadText({
+      path: asset.chartPath,
+      content: asset.chartJson,
+      contentType: "application/json",
+      upsert: false,
+    }),
+    adapter.uploadText({
+      path: asset.extraPath,
+      content: asset.extraJson,
+      contentType: "application/json",
+      upsert: false,
+    }),
+  ]);
+  const failedStage = stagedWrites.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failedStage) {
+    await removeStagedFiles(adapter, stagedPaths);
+    throw failedStage.reason;
+  }
 
-  const chartUpload = adapter.uploadText({
-    path: asset.chartPath,
-    content: asset.chartJson,
-    contentType: "application/json",
-    upsert: true,
-  });
-  const extraWrite = hasExtra
-    ? adapter.uploadText({
-        path: asset.extraPath,
-        content: asset.extraJson,
-        contentType: "application/json",
-        upsert: true,
-      })
-    : adapter.remove([asset.extraPath]);
+  try {
+    await adapter.uploadText({
+      path: asset.manifestPath,
+      content: manifestJson,
+      contentType: "application/json",
+      upsert: true,
+    });
+  } catch (error) {
+    await removeStagedFiles(adapter, stagedPaths);
+    throw error;
+  }
 
-  await Promise.all([chartUpload, extraWrite]);
   await adapter.upsertChartRow(toChartUpsert(input.songId, asset.difficulty, input.chart));
 
   return asset;
@@ -83,11 +126,16 @@ export async function saveChartAsset(
 export async function createChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: CreateChartAssetInput,
-): Promise<Omit<ChartAssetWriteResult, "extraJson">> {
-  const asset = buildChartAsset({
+): Promise<CreatedChartAssetResult> {
+  const payload = buildChartPayload({
     ...input,
     extraLaneCount: 0,
   });
+  const asset = {
+    ...payload,
+    chartPath: songChartPath(input.songId, payload.difficulty),
+    extraPath: songChartExtraPath(input.songId, payload.difficulty),
+  };
 
   await adapter.uploadText({
     path: asset.chartPath,
@@ -155,22 +203,44 @@ export async function deleteChartAsset(
   const extraPath = songChartExtraPath(input.songId, difficulty);
 
   await adapter.deleteChartRow({ songId: input.songId, difficulty });
-  await adapter.remove([chartPath, extraPath]);
+  const songFiles = await adapter.listSongFiles(input.songId);
+  const chartStem = chartPath.slice(0, -".json".length);
+  const paths = songFiles.filter((path) => (
+    path === chartPath
+    || path === extraPath
+    || (path.startsWith(`${chartStem}.`) && path.endsWith(".json"))
+  ));
+  if (paths.length > 0) {
+    await adapter.remove(paths);
+  }
 
   return { chartPath, extraPath, difficulty };
 }
 
-function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
+function buildChartPayload(input: SaveChartAssetInput): Pick<
+  ChartAssetWriteResult,
+  "chartJson" | "extraJson" | "difficulty"
+> {
   const difficulty = normalizeDifficulty(input.difficulty);
   return {
-    chartPath: songChartPath(input.songId, difficulty),
-    extraPath: songChartExtraPath(input.songId, difficulty),
     // 저장 분리 (RFD 0018 §3-4): 메인 파일엔 메인 노트만, 보조 파일엔 lane 5+를 extraLane으로 환원.
     // auxNotesAsExtra가 chart.notes 순서(=[...main, ...aux])를 보존하므로 재저장이 원본과 바이트 동일.
     chartJson: serializeChart({ ...input.chart, notes: mainNotes(input.chart.notes) }),
     extraJson: serializeExtraNotes(auxNotesAsExtra(input.chart.notes), input.extraLaneCount),
     difficulty,
   };
+}
+
+async function removeStagedFiles(
+  adapter: SongAssetPersistenceAdapter,
+  paths: string[],
+): Promise<void> {
+  try {
+    await adapter.remove(paths);
+  } catch {
+    // staging 경로는 manifest가 가리키지 않는 고유 revision이다.
+    // 정리 실패는 원래 저장 오류를 가리지 않으며 활성 차트 일관성에도 영향을 주지 않는다.
+  }
 }
 
 function toChartUpsert(songId: string, difficulty: string, chart: Chart): ChartAssetUpsert {

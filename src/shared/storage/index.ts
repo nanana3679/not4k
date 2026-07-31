@@ -6,7 +6,9 @@
  * storage/
  * ├── songs/{song_id}/audio.ogg
  * ├── songs/{song_id}/jacket.jpg
- * ├── songs/{song_id}/{difficulty}.json
+ * ├── songs/{song_id}/{difficulty}.{revision}.json
+ * ├── songs/{song_id}/{difficulty}.{revision}.extra.json
+ * ├── songs/{song_id}/{difficulty}.manifest.json
  * └── tutorials/{phase}.ogg / {phase}.json
  */
 
@@ -44,6 +46,26 @@ export function songChartPath(songId: string, difficulty: string): string {
 
 export function songChartExtraPath(songId: string, difficulty: string): string {
   return `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}.extra.json`;
+}
+
+export function songChartManifestPath(songId: string, difficulty: string): string {
+  return `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}.manifest.json`;
+}
+
+export function songChartRevisionPath(
+  songId: string,
+  difficulty: string,
+  revision: string,
+): string {
+  return `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}.${sanitize(revision, 'revision')}.json`;
+}
+
+export function songChartExtraRevisionPath(
+  songId: string,
+  difficulty: string,
+  revision: string,
+): string {
+  return `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}.${sanitize(revision, 'revision')}.extra.json`;
 }
 
 export function songPreviewPath(songId: string, ext = 'wav'): string {

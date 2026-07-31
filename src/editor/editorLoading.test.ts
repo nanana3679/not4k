@@ -3,6 +3,7 @@ import {
   fetchOptionalExtraChartText,
   getEditorAudioLoadingSurface,
   loadEditorChartAssets,
+  loadPublishedEditorChartAssets,
   parseEditorChartAssets,
 } from "./editorLoading";
 
@@ -134,6 +135,38 @@ describe("loadEditorChartAssets", () => {
 
     expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 6]);
     expect(result.extraLaneCount).toBe(2);
+  });
+});
+
+describe("loadPublishedEditorChartAssets", () => {
+  it("manifest revision=rev-123이면 같은 revision의 메인·보조 파일을 병합", async () => {
+    const requested: string[] = [];
+    const result = await loadPublishedEditorChartAssets(
+      { songId: "song-one", difficulty: "HARD" },
+      (path) => `https://cdn.example/${path}`,
+      async (input) => {
+        const url = String(input);
+        requested.push(url);
+        if (url.endsWith("hard.manifest.json")) {
+          return new Response(JSON.stringify({ version: 1, revision: "rev-123" }));
+        }
+        if (url.endsWith("hard.rev-123.extra.json")) {
+          return new Response(JSON.stringify({
+            extraNotes: [{ type: "single", extraLane: 1, beat: "1" }],
+            extraLaneCount: 1,
+          }));
+        }
+        return new Response(chartText());
+      },
+    );
+
+    expect(requested[0]).toBe("https://cdn.example/songs/song-one/hard.manifest.json");
+    expect(new Set(requested.slice(1))).toEqual(new Set([
+      "https://cdn.example/songs/song-one/hard.rev-123.json",
+      "https://cdn.example/songs/song-one/hard.rev-123.extra.json",
+    ]));
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 5]);
+    expect(result.extraLaneCount).toBe(1);
   });
 });
 

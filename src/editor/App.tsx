@@ -13,7 +13,7 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET } from '../shared';
 import { serializeExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
@@ -33,7 +33,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import {
   getEditorAudioLoadingSurface,
-  loadEditorChartAssets,
+  loadPublishedEditorChartAssets,
 } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
@@ -129,10 +129,8 @@ export default function EditorApp() {
       return;
     }
 
-    // Fetch chart + extra data in parallel
-    const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
-    const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
-    loadEditorChartAssets(chartUrl, extraUrl)
+    // manifest가 가리키는 같은 revision의 메인·보조 차트를 함께 로드한다.
+    loadPublishedEditorChartAssets({ songId, difficulty }, getPublicUrl)
       .then((loaded) => {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(loaded.chart);

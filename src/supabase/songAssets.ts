@@ -16,6 +16,7 @@ import type {
 } from "../shared/songAssets";
 
 const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
+  createRevision: () => globalThis.crypto.randomUUID(),
   uploadText: async (asset) => {
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -54,11 +55,22 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
     if (error) throw new Error(`Chart DB delete failed: ${error.message}`);
   },
   listSongFiles: async (songId) => {
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .list(`songs/${songId}`);
-    if (error) throw new Error(`Storage list failed: ${error.message}`);
-    return (data ?? []).map((f) => `songs/${songId}/${f.name}`);
+    const paths: string[] = [];
+    const pageSize = 100;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .list(`songs/${songId}`, {
+          limit: pageSize,
+          offset,
+          sortBy: { column: "name", order: "asc" },
+        });
+      if (error) throw new Error(`Storage list failed: ${error.message}`);
+      const page = data ?? [];
+      paths.push(...page.map((file) => `songs/${songId}/${file.name}`));
+      if (page.length < pageSize) break;
+    }
+    return paths;
   },
   deleteSongRow: async (songId) => {
     const { error } = await supabase

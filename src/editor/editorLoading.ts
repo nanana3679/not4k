@@ -7,6 +7,10 @@ import {
   toAuxIndex,
 } from "../shared/chart/laneAxis";
 import type { Chart } from "../shared/types/chart";
+import {
+  resolvePublishedChartAssetPaths,
+  type ChartAssetTarget,
+} from "../shared/songAssets";
 
 export type EditorAudioLoadingSurface = "transparentPage" | "overlay" | null;
 
@@ -49,6 +53,19 @@ export async function loadEditorChartAssets(
   const extraFetch = fetchOptionalExtraChartText(extraUrl, fetcher);
   const [chartText, extraText] = await Promise.all([chartFetch, extraFetch]);
   return parseEditorChartAssets(chartText, extraText);
+}
+
+export async function loadPublishedEditorChartAssets(
+  target: ChartAssetTarget,
+  getPublicUrl: (path: string) => string,
+  fetcher: typeof fetch = fetch,
+): Promise<ReturnType<typeof parseEditorChartAssets>> {
+  const paths = await resolvePublishedChartAssetPaths(target, getPublicUrl, fetcher);
+  return loadEditorChartAssets(
+    getPublicUrl(paths.chartPath),
+    getPublicUrl(paths.extraPath),
+    fetcher,
+  );
 }
 
 export function parseEditorChartAssets(
