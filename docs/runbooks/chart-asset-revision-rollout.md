@@ -35,6 +35,11 @@ PR #157은 DB migration과 revision-aware reader 배포까지만 수행한다. r
 5. stable 메인·빈 보조 파일 저장과 Save As 신규/overwrite를 smoke test한다. 최종 readiness는
    `schema_ready=true`, `revision_writes_enabled=false`여야 하며 **PR #157에서는 여기서 멈춘다.**
 
+reader-first 기간의 stable writer는 기존 시스템과 동일하게 Storage 파일과 DB를 한 트랜잭션으로
+묶지 못한다. 같은 곡·난이도에 대한 동시 Save/Save As를 운영상 허용하지 않고 editor 한 명으로
+직렬화한다. Save As의 insert-only/CAS가 파일 쌍까지 보호하는 시점은 #159의 immutable writer
+활성화 이후다.
+
 ## revision writer 활성화 — 후속 release
 
 현재는 `revision_writes_enabled=true` 전환을 금지한다. 단순 editor 탭 공지만으로는 배포 전에 열린

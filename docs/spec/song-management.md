@@ -30,7 +30,7 @@
 - 파일 업로드 단계에서 실패한 revision은 게시 전에 정리한다. DB 게시 요청 뒤에는 응답 유실 시 실제 커밋 여부를 알 수 없으므로 파일을 지우지 않는다.
 - 게시된 이전 revision과 실패한 미참조 revision은 동시 저장·삭제의 staging 파일을 잘못 지우지 않도록 즉시 제거하지 않는다. 차트 삭제는 DB 행이 가리키던 활성 revision만 제거하고, 곡 삭제 시 디렉터리 전체를 정리한다.
 - reader-first 단계의 신규 차트는 stable 메인·빈 보조 파일과 `asset_revision=null`로 만들고, writer 활성화 후 첫 저장에서 immutable revision으로 전환한다.
-- Save As 신규 생성은 insert-only로 경합 시 기존 차트를 덮어쓰지 않는다. 확인된 덮어쓰기는 확인 당시 `asset_revision`을 조건으로 CAS update하며, 그 사이 대상이 바뀌면 실패한다.
+- Save As 신규 생성은 DB에서 insert-only이고, 확인된 덮어쓰기는 확인 당시 `asset_revision`을 조건으로 CAS update한다. 다만 reader-first stable writer에서는 파일 업로드가 DB보다 먼저라 동시 Save As를 운영상 직렬화한다. 파일 쌍까지 경합 안전해지는 시점은 #159의 immutable writer 활성화 이후다.
 - migration 선적용, reader-first 배포, writer 활성화의 후속 조건, rollback 하한선은 [차트 `asset_revision` 배포 runbook](../runbooks/chart-asset-revision-rollout.md)을 따른다.
 
 ## 삭제 규칙
