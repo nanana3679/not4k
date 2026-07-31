@@ -110,6 +110,8 @@ export interface ExtraPointNote {
   type: "single" | "double" | "trill";
   extraLane: number; // 1~10
   beat: Beat;
+  /** Grace 플래그 — 메인 포인트 노트와 동일한 판정 속성 */
+  grace?: boolean;
 }
 
 /** Extra 구간 노트 */
@@ -118,6 +120,8 @@ export interface ExtraRangeNote {
   extraLane: number; // 1~10
   beat: Beat;
   endBeat: Beat;
+  /** hold-only — 메인 구간 노트와 동일한 떼는 판정 면제 속성 */
+  holdOnly?: boolean;
 }
 
 /** Extra 노트 엔티티 유니온 */
