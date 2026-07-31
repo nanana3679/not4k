@@ -1,23 +1,21 @@
-import type { Chart, NoteEntity, RangeNote, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChart, violationsInvolving } from "../../shared";
+import type { Chart, NoteEntity, Lane } from "../../shared";
+import { fromAuxIndex, toAuxIndex, validateChart, violationsInvolving } from "../../shared";
+import {
+  auxSelectionIndexToNoteIndex,
+  noteIndexToAuxSelectionIndex,
+} from "../auxNoteProjection";
 
 export interface LaneConversionCallbacks {
-  getExtraNotes?: () => ExtraNoteEntity[];
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  getExtraNotes?: () => NoteEntity[];
+  onExtraNotesUpdate?: (extraNotes: NoteEntity[]) => void;
   onExtraSelectionChange?: (indices: Set<number>) => void;
   onChartUpdate: (chart: Chart) => void;
   onSelectionChange: (selectedIndices: Set<number>) => void;
 }
 
-/** 메인 노트인지 판별 */
-function isRangeNote(note: NoteEntity | ExtraNoteEntity): note is RangeNote {
-  return "endBeat" in note;
-}
-
 /**
- * 선택된 메인 노트를 엑스트라 노트로 변환한다.
+ * 선택된 메인 노트의 lane을 보조 레인으로 이동한다.
  * 성공 시 새로운 selectedIndices, selectedExtraIndices를 반환하고 콜백을 호출한다.
- * 콜백 미설정 시 null을 반환한다.
  */
 export function convertMainToExtra(
   chart: Chart,
@@ -25,48 +23,27 @@ export function convertMainToExtra(
   targetExtraLane: number,
   callbacks: LaneConversionCallbacks,
 ): { chart: Chart; selectedIndices: Set<number>; selectedExtraIndices: Set<number> } | null {
-  if (!callbacks.getExtraNotes || !callbacks.onExtraNotesUpdate) return null;
-
-  const extraNotes = callbacks.getExtraNotes();
   const selectedSorted = [...selectedIndices].sort((a, b) => a - b);
+  const targetLane = fromAuxIndex(targetExtraLane);
+  if (targetLane === null) return null;
 
-  // 선택된 메인 노트를 엑스트라 노트로 변환
-  const convertedExtraNotes: ExtraNoteEntity[] = [];
+  const newNotes = [...chart.notes];
   for (const idx of selectedSorted) {
-    const note = chart.notes[idx];
-    if (isRangeNote(note)) {
-      convertedExtraNotes.push({
-        type: note.type,
-        extraLane: targetExtraLane,
-        beat: note.beat,
-        endBeat: note.endBeat,
-      } as ExtraNoteEntity);
-    } else {
-      convertedExtraNotes.push({
-        type: note.type,
-        extraLane: targetExtraLane,
-        beat: note.beat,
-      } as ExtraNoteEntity);
-    }
+    const note = newNotes[idx];
+    if (!note) return null;
+    newNotes[idx] = { ...note, lane: targetLane };
   }
 
-  // 메인 노트에서 선택된 노트 제거
-  const newNotes = chart.notes.filter((_note, idx) => !selectedIndices.has(idx));
   const newChart = { ...chart, notes: newNotes };
   callbacks.onChartUpdate(newChart);
 
-  // 엑스트라 노트에 추가
-  const newExtraNotes = [...extraNotes, ...convertedExtraNotes];
-  callbacks.onExtraNotesUpdate(newExtraNotes);
-
-  // 선택 상태 전환: 메인 선택 해제, 엑스트라 선택 설정
   const newSelectedIndices = new Set<number>();
   callbacks.onSelectionChange(newSelectedIndices);
 
   const newSelectedExtraIndices = new Set<number>();
-  const baseIdx = extraNotes.length;
-  for (let i = 0; i < convertedExtraNotes.length; i++) {
-    newSelectedExtraIndices.add(baseIdx + i);
+  for (const noteIndex of selectedSorted) {
+    const auxIndex = noteIndexToAuxSelectionIndex(newNotes, noteIndex);
+    if (auxIndex !== null) newSelectedExtraIndices.add(auxIndex);
   }
   callbacks.onExtraSelectionChange?.(new Set(newSelectedExtraIndices));
 
@@ -74,7 +51,7 @@ export function convertMainToExtra(
 }
 
 /**
- * 선택된 엑스트라 노트를 메인 노트로 변환한다.
+ * 선택된 보조 노트의 lane을 메인 레인으로 이동한다.
  * 성공 시 새로운 selectedIndices, selectedExtraIndices를 반환하고 콜백을 호출한다.
  * 검증 실패 시 null을 반환한다.
  */
@@ -84,33 +61,17 @@ export function convertExtraToMain(
   targetLane: Lane,
   callbacks: LaneConversionCallbacks,
 ): { chart: Chart; selectedIndices: Set<number>; selectedExtraIndices: Set<number> } | null {
-  if (!callbacks.getExtraNotes || !callbacks.onExtraNotesUpdate) return null;
-
-  const extraNotes = callbacks.getExtraNotes();
   const selectedSorted = [...selectedExtraIndices].sort((a, b) => a - b);
-
-  // 선택된 엑스트라 노트를 메인 노트로 변환
-  const convertedMainNotes: NoteEntity[] = [];
-  for (const idx of selectedSorted) {
-    const note = extraNotes[idx];
-    if ("endBeat" in note) {
-      convertedMainNotes.push({
-        type: note.type,
-        lane: targetLane,
-        beat: note.beat,
-        endBeat: note.endBeat,
-      } as NoteEntity);
-    } else {
-      convertedMainNotes.push({
-        type: note.type,
-        lane: targetLane,
-        beat: note.beat,
-      } as NoteEntity);
-    }
+  const selectedNoteIndices = new Set<number>();
+  for (const auxIndex of selectedSorted) {
+    const noteIndex = auxSelectionIndexToNoteIndex(chart.notes, auxIndex);
+    if (noteIndex === null) return null;
+    selectedNoteIndices.add(noteIndex);
   }
 
-  // 메인 노트에 추가
-  const newNotes = [...chart.notes, ...convertedMainNotes];
+  const newNotes = chart.notes.map((note, index) => (
+    selectedNoteIndices.has(index) ? { ...note, lane: targetLane } : note
+  ));
   const newChart = { ...chart, notes: newNotes };
 
   // 낙관적 편집(RFD 0017): 변환되어 들어오는 노트에 연루된 위반만 차단 (국소 판정)
@@ -121,7 +82,7 @@ export function convertExtraToMain(
       trillZones: newChart.trillZones,
       events: newChart.events,
     }),
-    convertedMainNotes.map((_, i) => ({ kind: "note" as const, index: chart.notes.length + i })),
+    [...selectedNoteIndices].map((index) => ({ kind: "note" as const, index })),
   );
 
   if (errors.length > 0) {
@@ -130,19 +91,11 @@ export function convertExtraToMain(
 
   callbacks.onChartUpdate(newChart);
 
-  // 엑스트라 노트에서 선택된 노트 제거
-  const newExtraNotes = extraNotes.filter((_note, idx) => !selectedExtraIndices.has(idx));
-  callbacks.onExtraNotesUpdate(newExtraNotes);
-
   // 선택 상태 전환: 엑스트라 선택 해제, 메인 선택 설정
   const newSelectedExtraIndices = new Set<number>();
   callbacks.onExtraSelectionChange?.(newSelectedExtraIndices);
 
-  const newSelectedIndices = new Set<number>();
-  const baseIdx = newChart.notes.length - convertedMainNotes.length;
-  for (let i = 0; i < convertedMainNotes.length; i++) {
-    newSelectedIndices.add(baseIdx + i);
-  }
+  const newSelectedIndices = selectedNoteIndices;
   callbacks.onSelectionChange(newSelectedIndices);
 
   return { chart: newChart, selectedIndices: newSelectedIndices, selectedExtraIndices: newSelectedExtraIndices };
@@ -158,7 +111,7 @@ export function moveExtraByLane(
   direction: "left" | "right",
   extraLaneCount: number,
   callbacks: Pick<LaneConversionCallbacks, "getExtraNotes" | "onExtraNotesUpdate">,
-): ExtraNoteEntity[] | null {
+): NoteEntity[] | null {
   if (!callbacks.getExtraNotes || !callbacks.onExtraNotesUpdate) return null;
 
   const extraNotes = callbacks.getExtraNotes();
@@ -167,7 +120,9 @@ export function moveExtraByLane(
   // Check if all extra notes can move within extra lanes
   for (const idx of selectedExtraIndices) {
     const note = extraNotes[idx];
-    const targetLane = note.extraLane + laneOffset;
+    const currentAuxLane = toAuxIndex(note.lane);
+    if (currentAuxLane === null) return null;
+    const targetLane = currentAuxLane + laneOffset;
     if (targetLane < 1 || targetLane > extraLaneCount) return null;
   }
 
@@ -175,7 +130,7 @@ export function moveExtraByLane(
   const newExtraNotes = [...extraNotes];
   for (const idx of selectedExtraIndices) {
     const note = newExtraNotes[idx];
-    newExtraNotes[idx] = { ...note, extraLane: note.extraLane + laneOffset };
+    newExtraNotes[idx] = { ...note, lane: note.lane + laneOffset };
   }
 
   callbacks.onExtraNotesUpdate(newExtraNotes);

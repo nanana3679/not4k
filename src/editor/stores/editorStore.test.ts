@@ -29,7 +29,6 @@ describe('editorStore history', () => {
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeChart(),
-      extraNotes: [],
       extraLaneCount: 2,
       selection: emptySelection(),
       historyPast: [],
@@ -49,6 +48,29 @@ describe('editorStore history', () => {
 
     useEditorStore.getState().redo();
     expect(useEditorStore.getState().chart.notes).toHaveLength(1);
+  });
+
+  it('lane=5 보조 노트 변경을 undo·redo하면 chart.notes에서 함께 복원', () => {
+    const edited = makeChart([{ type: 'single', lane: 5, beat: beat(1) }]);
+
+    useEditorStore.getState().setChart(edited);
+    expect(useEditorStore.getState().chart.notes.map((note) => note.lane)).toEqual([5]);
+
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().chart.notes).toEqual([]);
+
+    useEditorStore.getState().redo();
+    expect(useEditorStore.getState().chart.notes.map((note) => note.lane)).toEqual([5]);
+  });
+
+  it('기존 setExtraNotes 어댑터로 extraLane=2를 쓰면 chart.notes의 lane=6으로 저장', () => {
+    useEditorStore.getState().setExtraNotes([
+      { type: 'single', lane: 6, beat: beat(1) },
+    ]);
+
+    expect(useEditorStore.getState().chart.notes).toEqual([
+      { type: 'single', lane: 6, beat: beat(1) },
+    ]);
   });
 
   it('clears history when a chart load resets the baseline', () => {

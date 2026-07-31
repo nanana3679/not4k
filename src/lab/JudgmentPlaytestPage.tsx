@@ -68,6 +68,7 @@ export default function JudgmentPlaytestPage() {
       isPlaying: false,
       pause: () => {},
       chart: scenario.chart,
+      extraLaneCount: 0,
       currentTimeMs: 0,
       returnUrl: "/lab/judgment-playtest",
       game: {

@@ -6,7 +6,8 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
+import type { NoteEntity, RangeNote, TrillZone } from "../../shared";
+import { toAuxIndex } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -65,14 +66,14 @@ export function hitTestNoteAt(
  * Returns the index of the first matching extra note, or null.
  */
 export function hitTestExtraNoteAt(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
   extraLane: number,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
 ): number | null {
   for (let i = 0; i < extraNotes.length; i++) {
     const note = extraNotes[i];
-    if (note.extraLane !== extraLane) continue;
+    if (toAuxIndex(note.lane) !== extraLane) continue;
 
     const nb = note.beat.n / note.beat.d;
     if ("endBeat" in note) {
@@ -155,7 +156,7 @@ export function noteExistsAtSnap(
  * Check if an extra note exists at the snapped beat position.
  */
 export function extraNoteExistsAtSnap(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
   extraLane: number,
   snappedBeatFloat: number,
 ): number | null {

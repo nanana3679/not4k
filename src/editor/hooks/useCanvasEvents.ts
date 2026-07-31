@@ -27,6 +27,7 @@ import {
   shouldRunTouchBoxSelectDrag,
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
+import { projectAuxNotes } from '../auxNoteProjection';
 import {
   nextTouchMultiSelectLatch,
   resolveHoldFireAction,
@@ -602,7 +603,7 @@ export function useCanvasEvents(
 
       const extraLane = xToExtraLane(x);
       if (extraLane !== null) {
-        const currentExtra = useEditorStore.getState().extraNotes;
+        const currentExtra = projectAuxNotes(useEditorStore.getState().chart.notes);
         const updatedExtra = deleteExtraNoteAtLaneBeat(currentExtra, { extraLane, beatFloat });
         if (updatedExtra !== null) {
           rightDragDeletedRef.current = true;
@@ -655,7 +656,11 @@ export function useCanvasEvents(
               // Show ghost marker for event entity types on extra lanes
               rendererRef.current.showGhostMarker(extraLane, timeMs);
             } else {
-              const existingExtra = extraNoteExistsAtSnap(useEditorStore.getState().extraNotes, extraLane, snappedBeatFloat);
+              const existingExtra = extraNoteExistsAtSnap(
+                projectAuxNotes(useEditorStore.getState().chart.notes),
+                extraLane,
+                snappedBeatFloat,
+              );
               if (existingExtra === null) {
                 rendererRef.current.showGhostExtraNote(extraLane, timeMs);
               } else {
@@ -688,7 +693,8 @@ export function useCanvasEvents(
     bpmMarkers, isTimeInBounds, setChart, setExtraNotes,
     clearExtraSelection, toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef, hitTestExtraNoteRef,
-    hitTestNoteRef, isDraggingCursorRef, playbackRef, rendererRef,
+    hitTestNoteRef, hitTestNoteEndRef, hitTestTrillZoneEndRef,
+    hitTestTrillZoneHandleRef, isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, yToBeatRawRef, deleteAtPoint,
     onNavigationInteraction, applyEditResult,
   ]);
@@ -884,7 +890,7 @@ export function useCanvasEvents(
 
     const extraHitIdx = hitTestExtraNote(x, y);
     if (extraHitIdx !== null) {
-      const currentExtra = useEditorStore.getState().extraNotes;
+      const currentExtra = projectAuxNotes(useEditorStore.getState().chart.notes);
       const updatedExtra = deleteExtraNoteAtIndex(currentExtra, extraHitIdx);
       if (updatedExtra === null) return;
       setExtraNotes(updatedExtra);

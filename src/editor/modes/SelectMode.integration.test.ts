@@ -10,7 +10,8 @@ import { SelectMode } from "./SelectMode";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
+import type { Chart, Beat, Lane, NoteEntity } from "../../shared";
+import { projectAuxNotes } from "../auxNoteProjection";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
 
@@ -52,7 +53,6 @@ function makeIntegration(
 ) {
   useEditorStore.setState({
     chart: fullChart(notes),
-    extraNotes: [],
     selection: emptySelection(),
     historyPast: [],
     historyFuture: [],
@@ -63,7 +63,6 @@ function makeIntegration(
   // 게이트에 거부된 채 진행됐다는 뜻(예: 삭제가 차트 커밋 전에 해제를 시도)
   const setSelectionSpy = vi.fn((s: Selection) => useEditorStore.getState().setSelection(s));
 
-  let mode: SelectMode;
   const cb = {
     onChartUpdate: (c: Chart) => {
       useEditorStore.getState().setChart(c);
@@ -81,10 +80,10 @@ function makeIntegration(
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
     hitTestNote,
     onWarn: vi.fn(),
-    getExtraNotes: () => useEditorStore.getState().extraNotes,
-    onExtraNotesUpdate: (e: ExtraNoteEntity[]) => useEditorStore.getState().setExtraNotes(e),
+    getExtraNotes: () => projectAuxNotes(useEditorStore.getState().chart.notes),
+    onExtraNotesUpdate: (e: NoteEntity[]) => useEditorStore.getState().setExtraNotes(e),
   };
-  mode = new SelectMode(useEditorStore.getState().chart, cb);
+  const mode = new SelectMode(useEditorStore.getState().chart, cb);
   return { mode, cb, setSelectionSpy, store: useEditorStore };
 }
 

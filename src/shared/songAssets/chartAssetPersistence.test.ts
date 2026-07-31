@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, ExtraNoteEntity } from "../types";
+import type { Chart } from "../types";
 import { beat } from "../types";
 import {
   createChartAsset,
@@ -81,7 +81,6 @@ describe("saveChartAsset", () => {
       songId: "song-one",
       difficulty: "Hard",
       chart: makeChart({ difficultyLevel: 13, offsetMs: -12 }),
-      extraNotes: [],
       extraLaneCount: 0,
     });
 
@@ -109,15 +108,13 @@ describe("saveChartAsset", () => {
 
   it("uploads extra JSON when extra lanes or notes exist", async () => {
     const fake = makeAdapter();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 2, beat: beat(1, 4) },
-    ];
+    const chart = makeChart({ difficultyLabel: "EXPERT" });
+    chart.notes = [{ type: "single", lane: 6, beat: beat(1, 4) }];
 
     await saveChartAsset(fake.adapter, {
       songId: "song-two",
       difficulty: "EXPERT",
-      chart: makeChart({ difficultyLabel: "EXPERT" }),
-      extraNotes,
+      chart,
       extraLaneCount: 3,
     });
 

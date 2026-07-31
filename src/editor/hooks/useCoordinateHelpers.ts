@@ -16,6 +16,7 @@ import {
 import { msToBeat, beatToFloat, extractBpmMarkers } from '../../shared';
 import type { Beat, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
+import { projectAuxNotes } from '../auxNoteProjection';
 
 export interface CoordinateHelpers {
   xToLane: (x: number) => Lane | null;
@@ -177,7 +178,11 @@ export function useCoordinateHelpers(
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
     const b = yToBeatRaw(y);
-    return hitTestExtraNoteAt(useEditorStore.getState().extraNotes, extraLane, b.n / b.d);
+    return hitTestExtraNoteAt(
+      projectAuxNotes(useEditorStore.getState().chart.notes),
+      extraLane,
+      b.n / b.d,
+    );
   }, [xToExtraLane, yToBeatRaw]);
 
   // --- ref 버전 (stale closure 방지) ---

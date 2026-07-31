@@ -3,11 +3,12 @@
  */
 
 import { create } from 'zustand';
-import type { Chart, ExtraNoteEntity } from '../../shared';
+import type { Chart, NoteEntity } from '../../shared';
 import { beat, validateChart, validateChartStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
+import { replaceAuxNotes, projectAuxNotes } from '../auxNoteProjection';
 import {
   createSelectionSlice,
   emptySelection,
@@ -20,7 +21,6 @@ export type EditorModeName = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
 type HistorySnapshot = {
   chart: Chart;
-  extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
 };
 
@@ -52,7 +52,6 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   currentTimeMs: number;
 
   // Extra lanes (editor-only)
-  extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
 
   // Undo/redo history
@@ -79,7 +78,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setGraceMode: (graceMode: boolean) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
-  setExtraNotes: (notes: ExtraNoteEntity[]) => void;
+  setExtraNotes: (notes: NoteEntity[]) => void;
   setExtraLaneCount: (count: number) => void;
   undo: () => void;
   redo: () => void;
@@ -106,10 +105,9 @@ const createDefaultChart = (): Chart => ({
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraNotes' | 'extraLaneCount'>): HistorySnapshot {
+function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCount'>): HistorySnapshot {
   return {
     chart: cloneJson(state.chart),
-    extraNotes: cloneJson(state.extraNotes),
     extraLaneCount: state.extraLaneCount,
   };
 }
@@ -145,7 +143,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   graceMode: false,
   isPlaying: false,
   currentTimeMs: 0,
-  extraNotes: [],
   extraLaneCount: 2,
   historyPast: [],
   historyFuture: [],
@@ -183,7 +180,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         chart.trillZones.length < state.chart.trillZones.length;
       const normalized = entityRemoved
         ? emptySelection()
-        : normalizeSelection(state.selection, chart, state.extraNotes);
+        : normalizeSelection(state.selection, chart, projectAuxNotes(chart.notes));
       return {
         ...captureHistory(state),
         chart,
@@ -210,11 +207,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setExtraNotes: (extraNotes) => set((state) => {
-    // 엑스트라 배열이 줄면 범위 밖 선택을 같은 트랜잭션에서 보정한다
-    const normalized = normalizeSelection(state.selection, state.chart, extraNotes);
+    const previousAuxCount = projectAuxNotes(state.chart.notes).length;
+    const chart = {
+      ...state.chart,
+      notes: replaceAuxNotes(state.chart.notes, extraNotes),
+    };
+    // 엔티티 삭제는 뒤쪽 전역 index를 이동시키므로 setChart와 같은 정책으로 전체 선택을 비운다.
+    const normalized = extraNotes.length < previousAuxCount
+      ? emptySelection()
+      : normalizeSelection(state.selection, chart, extraNotes);
     return {
       ...captureHistory(state),
-      extraNotes,
+      chart,
       selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
     };
   }),
@@ -225,7 +229,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const current = createHistorySnapshot(state);
     return {
       chart: previous.chart,
-      extraNotes: previous.extraNotes,
       extraLaneCount: previous.extraLaneCount,
       // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
       selection: emptySelection(),
@@ -240,7 +243,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const current = createHistorySnapshot(state);
     return {
       chart: next.chart,
-      extraNotes: next.extraNotes,
       extraLaneCount: next.extraLaneCount,
       selection: emptySelection(),
       historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),

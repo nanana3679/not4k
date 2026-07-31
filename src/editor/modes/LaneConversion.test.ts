@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { convertExtraToMain } from "./LaneConversion";
 import { beat } from "../../shared";
-import type { Chart, ExtraNoteEntity, Lane } from "../../shared";
+import type { Chart, NoteEntity, Lane } from "../../shared";
 
 function makeChart(notes: Chart["notes"] = []): Chart {
   return {
@@ -12,7 +12,7 @@ function makeChart(notes: Chart["notes"] = []): Chart {
   };
 }
 
-function makeCallbacks(extraNotes: ExtraNoteEntity[]) {
+function makeCallbacks(extraNotes: NoteEntity[]) {
   return {
     getExtraNotes: () => extraNotes,
     onExtraNotesUpdate: vi.fn(),
@@ -31,20 +31,25 @@ describe("convertExtraToMain — 변환 국소 판정 (violationsInvolving, RFD 
     const chart = makeChart([
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 1 as Lane, beat: beat(0) }, // 상주 위반 — 변환 노트와 무관
+      { type: "single", lane: 5, beat: beat(4) },
     ]);
-    const extras: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(4) }];
+    const extras: NoteEntity[] = [chart.notes[2]];
     const cb = makeCallbacks(extras);
 
     const result = convertExtraToMain(chart, new Set([0]), 2 as Lane, cb);
 
     expect(result).not.toBeNull();
     expect(result!.chart.notes).toHaveLength(3);
+    expect(result!.chart.notes[2].lane).toBe(2);
     expect(cb.onChartUpdate).toHaveBeenCalled();
   });
 
   it("변환된 노트가 기존 노트와 같은 위치(연루 중복)면 null 반환으로 차단된다", () => {
-    const chart = makeChart([{ type: "single", lane: 2 as Lane, beat: beat(4) }]);
-    const extras: ExtraNoteEntity[] = [{ type: "single", extraLane: 1, beat: beat(4) }];
+    const chart = makeChart([
+      { type: "single", lane: 2 as Lane, beat: beat(4) },
+      { type: "single", lane: 5, beat: beat(4) },
+    ]);
+    const extras: NoteEntity[] = [chart.notes[1]];
     const cb = makeCallbacks(extras);
 
     const result = convertExtraToMain(chart, new Set([0]), 2 as Lane, cb);

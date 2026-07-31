@@ -8,15 +8,30 @@
 import type {
   Chart,
   ChartMeta,
+  MainNoteEntity,
   NoteEntity,
   PointNote,
   RangeNote,
   TrillZone,
   ChartEvent,
-  ExtraNoteEntity,
   TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
+import { auxNotes, fromAuxIndex, mainNotes, toAuxIndex } from "./laneAxis";
+
+export {
+  MAIN_LANE_COUNT,
+  auxNotes,
+  fromAuxIndex,
+  isAuxLane,
+  isMainLane,
+  isValidNoteLane,
+  isVisibleLane,
+  mainNotes,
+  maxAuxLane,
+  toAuxIndex,
+  toPlayableChart,
+} from "./laneAxis";
 
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
@@ -47,20 +62,22 @@ interface LegacyRangeNoteJson {
 
 type NoteEntityJson = PointNoteJson | RangeNoteJson;
 
-interface ExtraPointNoteJson {
+interface AuxPointNoteJson {
   type: "single" | "double" | "trill";
   extraLane: number;
   beat: string;
+  grace?: boolean;
 }
 
-interface ExtraRangeNoteJson {
+interface AuxRangeNoteJson {
   type: "long" | "doubleLong" | "trillLong";
   extraLane: number;
   beat: string;
   endBeat: string;
+  holdOnly?: boolean;
 }
 
-type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
+type AuxNoteEntityJson = AuxPointNoteJson | AuxRangeNoteJson;
 
 interface TrillZoneJson {
   lane: 1 | 2 | 3 | 4;
@@ -166,7 +183,7 @@ export interface ChartJsonV3 {
 // 직렬화: Chart → ChartJson → string
 // ---------------------------------------------------------------------------
 
-function serializeNote(n: NoteEntity): NoteEntityJson {
+function serializeNote(n: MainNoteEntity): NoteEntityJson {
   if ("endBeat" in n) {
     const json: RangeNoteJson = {
       type: n.type,
@@ -228,7 +245,7 @@ export function chartToJson(chart: Chart): ChartJsonV3 {
   return {
     version: 3,
     meta: chart.meta,
-    notes: chart.notes.map(serializeNote),
+    notes: mainNotes(chart.notes).map(serializeNote),
     trillZones: chart.trillZones.map(serializeTrillZone),
     events: chart.events.map(serializeEvent),
   };
@@ -442,51 +459,72 @@ export function deserializeChart(str: string): Chart {
 // Extra 노트 직렬화 (에디터 전용)
 // ---------------------------------------------------------------------------
 
-function serializeExtraNote(n: ExtraNoteEntity): ExtraNoteEntityJson {
+function serializeExtraNote(n: NoteEntity): AuxNoteEntityJson {
+  const extraLane = toAuxIndex(n.lane);
+  if (extraLane === null) {
+    throw new Error(`보조 레인 노트가 아닙니다: lane=${n.lane}`);
+  }
   if ("endBeat" in n) {
-    return {
+    const json: AuxRangeNoteJson = {
       type: n.type,
-      extraLane: n.extraLane,
+      extraLane,
       beat: beatToString(n.beat),
       endBeat: beatToString(n.endBeat),
     };
+    if (n.holdOnly) json.holdOnly = true;
+    return json;
   }
-  return { type: n.type, extraLane: n.extraLane, beat: beatToString(n.beat) };
+  const json: AuxPointNoteJson = {
+    type: n.type,
+    extraLane,
+    beat: beatToString(n.beat),
+  };
+  if (n.grace) json.grace = true;
+  return json;
 }
 
-function parseExtraNote(n: ExtraNoteEntityJson): ExtraNoteEntity {
+function parseExtraNote(n: AuxNoteEntityJson): NoteEntity {
+  const lane = fromAuxIndex(n.extraLane) ?? n.extraLane;
   if ("endBeat" in n) {
-    return {
+    const note: RangeNote = {
       type: n.type,
-      extraLane: n.extraLane,
+      lane,
       beat: beatFromString(n.beat),
       endBeat: beatFromString(n.endBeat),
     };
+    if (n.holdOnly) note.holdOnly = true;
+    return note;
   }
-  return { type: n.type, extraLane: n.extraLane, beat: beatFromString(n.beat) };
+  const note: PointNote = {
+    type: n.type,
+    lane,
+    beat: beatFromString(n.beat),
+  };
+  if (n.grace) note.grace = true;
+  return note;
 }
 
 /** Extra 노트 데이터 → JSON 문자열 (별도 .extra.json 파일용) */
 export function serializeExtraNotes(
-  extraNotes: ExtraNoteEntity[],
+  notes: readonly NoteEntity[],
   extraLaneCount: number,
 ): string {
   return JSON.stringify({
-    extraNotes: extraNotes.map(serializeExtraNote),
+    extraNotes: auxNotes(notes).map(serializeExtraNote),
     extraLaneCount,
   }, null, 2);
 }
 
 /** extra JSON에서 데이터 추출 */
 export function parseExtraNotes(json: {
-  extraNotes?: ExtraNoteEntityJson[];
+  extraNotes?: AuxNoteEntityJson[];
   extraLaneCount?: number;
 }): {
-  extraNotes: ExtraNoteEntity[];
+  notes: NoteEntity[];
   extraLaneCount: number;
 } {
   return {
-    extraNotes: (json.extraNotes ?? []).map(parseExtraNote),
+    notes: (json.extraNotes ?? []).map(parseExtraNote),
     extraLaneCount: json.extraLaneCount ?? 0,
   };
 }

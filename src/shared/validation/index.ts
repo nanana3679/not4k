@@ -24,9 +24,9 @@ import type {
   TimeSignatureMarker,
   TimeSignatureEvent,
   StopEvent,
-  ExtraNoteEntity,
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { isMainLane, isValidNoteLane } from "../chart/laneAxis";
 
 export interface ValidationError {
   rule:
@@ -42,7 +42,8 @@ export interface ValidationError {
     | "timeSigNotNatural"
     | "timeSigNotAtMeasureStart"
     | "rangeInverted"
-    | "beatMalformed";
+    | "beatMalformed"
+    | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
 }
@@ -221,6 +222,7 @@ export function validateTrillExclusive(
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
+    if (!isMainLane(note.lane)) continue;
     const isTrill = note.type === "trill" || note.type === "trillLong";
 
     // trillLong: both start and end must be in the SAME trill zone
@@ -275,6 +277,7 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
+    if (!isMainLane(note.lane)) continue;
     if (note.type !== "trillLong") continue;
     const rn = note as RangeNote;
 
@@ -482,6 +485,7 @@ export function validateStopZones(
   for (const stop of stopEvents) {
     for (let noteIdx = 0; noteIdx < notes.length; noteIdx++) {
       const note = notes[noteIdx];
+      if (!isMainLane(note.lane)) continue;
       // 포인트 노트: beat가 stop 구간 내인지
       if (!isRangeNote(note)) {
         if (beatGte(note.beat, stop.event.beat) && beatLte(note.beat, stop.event.endBeat)) {
@@ -761,6 +765,22 @@ export function validateBeatWellFormed(
   return errors;
 }
 
+/** 노트 레인은 상한 없는 양의 정수여야 한다. */
+export function validateNoteLanes(
+  notes: readonly NoteEntity[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  for (let i = 0; i < notes.length; i++) {
+    if (isValidNoteLane(notes[i].lane)) continue;
+    errors.push({
+      rule: "laneMalformed",
+      message: `노트 레인이 malformed입니다 (lane ${notes[i].lane})`,
+      refs: [noteRef(i)],
+    });
+  }
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // 전체 검증
 // ---------------------------------------------------------------------------
@@ -777,6 +797,7 @@ export interface ChartValidationInput {
  */
 export function validateChartStructural(input: ChartValidationInput): ValidationError[] {
   return [
+    ...validateNoteLanes(input.notes),
     ...validateBeatWellFormed(input.notes, input.trillZones, input.events),
     ...validateNoRangeInversion(input.notes, input.trillZones, input.events),
     ...validateTimeSigNatural(input.events),
@@ -880,24 +901,4 @@ export function violationsInvolving(
   return errors.filter(
     (err) => !err.refs || err.refs.some((r) => targetKeys.has(`${r.kind}:${r.index}`)),
   );
-}
-
-/**
- * 엑스트라 노트 간 겹침/중복에 연루된 인덱스 집합 — 위반 시각화 전용(RFD 0017).
- *
- * 메인 레인과 같은 규칙(슬롯 중복 + 롱 바디 겹침, 값 기준 beat 비교)을 extraLane 축에
- * 적용한다. 판정을 재구현하지 않고 기존 검증기에 lane=extraLane 매핑으로 재사용해
- * "해칭이 가리키는 것 = 검증기가 판정한 것" 단일 소스를 유지한다.
- * 엑스트라 노트는 게임 차트 밖(에디터 전용)이므로 저장·플레이 게이트에는 불포함.
- */
-export function extraNoteViolationIndices(extraNotes: readonly ExtraNoteEntity[]): Set<number> {
-  // extraLane은 Lane(1..4) 범위를 넘을 수 있으나 검증기는 lane을 같음 비교로만 쓴다.
-  const pseudo = extraNotes.map((e) => ({ ...e, lane: e.extraLane })) as unknown as NoteEntity[];
-  const result = new Set<number>();
-  for (const err of [...validateNoDuplicates(pseudo), ...validateNoLongOverlap(pseudo)]) {
-    for (const ref of err.refs ?? []) {
-      if (ref.kind === "note") result.add(ref.index);
-    }
-  }
-  return result;
 }

@@ -4,7 +4,8 @@
  * 플레이어 입력을 노트와 매칭하여 판정을 생성하고, 콤보를 추적한다.
  */
 
-import type { NoteEntity, RangeNote } from "../../shared/types";
+import type { MainNoteEntity, NoteEntity, RangeNote } from "../../shared/types";
+import { isMainLane } from "../../shared/chart/laneAxis";
 import { isGraceNote, isHoldOnlyNote } from "../../shared/types";
 import {
   JudgmentGrade,
@@ -43,6 +44,17 @@ export interface JudgmentCallbacks {
   /** 콤보가 갱신되었을 때 호출 */
   onComboUpdate: (combo: number, maxCombo: number) => void;
 }
+
+function assertMainNotes(
+  notes: readonly NoteEntity[],
+): asserts notes is readonly MainNoteEntity[] {
+  const invalid = notes.find((note) => !isMainLane(note.lane));
+  if (invalid) {
+    throw new Error(`게임 판정 엔진에는 메인 레인 노트만 전달할 수 있습니다: lane=${invalid.lane}`);
+  }
+}
+
+type MainRangeNote = RangeNote & MainNoteEntity;
 
 /**
  * 노트 처리 상태
@@ -112,7 +124,7 @@ interface LaneHoldState {
  * 판정 엔진
  */
 export class JudgmentEngine {
-  private readonly notes: readonly NoteEntity[];
+  private readonly notes: readonly MainNoteEntity[];
   private readonly noteTimesMs: ReadonlyMap<number, number>;
   private readonly noteEndTimesMs: ReadonlyMap<number, number>;
   private readonly callbacks: JudgmentCallbacks;
@@ -176,6 +188,7 @@ export class JudgmentEngine {
     trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]> = new Map(),
     connectionSources?: ReadonlySet<number>,
   ) {
+    assertMainNotes(notes);
     this.notes = notes;
     this.noteTimesMs = noteTimesMs;
     this.noteEndTimesMs = noteEndTimesMs;
@@ -294,7 +307,7 @@ export class JudgmentEngine {
 
     // 더블 롱노트의 키별 재입력 시 릴리즈 기록 클리어
     for (const [noteIndex, dlState] of this.doubleLongKeyStates) {
-      const note = this.notes[noteIndex] as RangeNote;
+      const note = this.notes[noteIndex] as MainRangeNote;
       if (note.lane !== lane) continue;
       const state = this.noteStates.get(noteIndex);
       if (state !== NoteState.BODY_ACTIVE) continue;
@@ -389,7 +402,7 @@ export class JudgmentEngine {
    */
   private updateDoubleLongKeyRelease(lane: Lane, keyCode: string, timestampMs: number): void {
     for (const [noteIndex, dlState] of this.doubleLongKeyStates) {
-      const note = this.notes[noteIndex] as RangeNote;
+      const note = this.notes[noteIndex] as MainRangeNote;
       if (note.lane !== lane) continue;
 
       const state = this.noteStates.get(noteIndex);
@@ -522,7 +535,7 @@ export class JudgmentEngine {
         // 짧은 더블롱: dl 추적이 없던 채 유지 키가 끝점 update 프레임보다 먼저 keyup으로 도착
         // (라이브 keyup은 rAF update와 비동기 — P3가 고친 update 폴백 경로의 거울상).
         // heldKeys엔 방금 뗀 keyCode가 이미 빠졌으므로 참여 키 맨 앞에 포함해 재구성한다.
-        const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+        const holdState = this.laneHoldStates.get(note.lane);
         const participants = [keyCode, ...(holdState ? holdState.heldKeys : [])];
         dl = this.reconstructShortDoubleLongKeyStates(noteIndex, participants);
       }
@@ -930,7 +943,7 @@ export class JudgmentEngine {
     if (atTimeMs > bodyState.bodyStartTimeMs + this.windows.GOOD) return; // 시작 윈도우 밖
     if (!holdState.isHeld) return;
 
-    const note = this.notes[noteIndex] as RangeNote;
+    const note = this.notes[noteIndex] as MainRangeNote;
 
     if (!bodyState.hasBeenPressed) {
       bodyState.hasBeenPressed = true;
@@ -961,7 +974,7 @@ export class JudgmentEngine {
       const state = this.noteStates.get(i);
       if (state !== NoteState.BODY_ACTIVE) continue;
 
-      const note = this.notes[i] as RangeNote;
+      const note = this.notes[i] as MainRangeNote;
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
 
@@ -1268,7 +1281,7 @@ export class JudgmentEngine {
         continue;
       }
 
-      const note = this.notes[i] as RangeNote;
+      const note = this.notes[i] as MainRangeNote;
       const noteEndTime = this.noteEndTimesMs.get(i);
       if (noteEndTime === undefined) continue;
 
@@ -1394,7 +1407,7 @@ export class JudgmentEngine {
         // held로 부활하는 것을 직전 상태 판정으로 차단한다. 일반/hold-only 더블롱 끝점은
         // 키별 keyup 소비·update 경로가 전담(프레임 무관 요소는 해당 경로가 보장).
         if (this.connectionSources.has(i)) {
-          this.judgeDoubleLongEndpoint(i, note as RangeNote, evalTimeMs, noteEndTime, holdState);
+          this.judgeDoubleLongEndpoint(i, note as MainRangeNote, evalTimeMs, noteEndTime, holdState);
         }
         continue;
       }
@@ -1417,7 +1430,7 @@ export class JudgmentEngine {
    * 싱글은 1키라도 눌려 있으면 충족, 더블(DOUBLE_LONG)은 2키가 동시에 눌려 있어야 충족.
    * (길이 0은 바디가 없어 키별 독립 추적을 하지 않으므로 더블은 "둘 다 필요"로 본다.)
    */
-  private isHoldOnlySlideHeld(note: NoteEntity, holdState: LaneHoldState | undefined): boolean {
+  private isHoldOnlySlideHeld(note: MainNoteEntity, holdState: LaneHoldState | undefined): boolean {
     if (!holdState?.isHeld) return false;
     if (note.type === NoteType.DOUBLE_LONG) return holdState.heldKeys.size >= 2;
     return true;
@@ -1446,7 +1459,7 @@ export class JudgmentEngine {
       const endTime = this.noteEndTimesMs.get(i);
       if (noteTime === undefined || endTime === undefined || endTime !== noteTime) continue;
 
-      const holdState = this.laneHoldStates.get((note as RangeNote).lane);
+      const holdState = this.laneHoldStates.get(note.lane);
 
       // 시작 윈도우(-Good) 진입 + 충족(싱글 1키 / 더블 2키 동시) → consume 표시(후보 제외 조기화).
       // 충족된 슬라이드의 실제 held 키들을 등록해, 직후 노트가 그 입력을 가로채거나

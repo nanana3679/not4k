@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildSaveAsMeta, deserializeChart, serializeChart } from './index';
-import type { ChartMeta, RangeNote } from '../types/chart';
+import {
+  buildSaveAsMeta,
+  deserializeChart,
+  parseExtraNotes,
+  serializeChart,
+  serializeExtraNotes,
+} from './index';
+import { beat } from '../types/beat';
+import type { ChartMeta, NoteEntity, RangeNote } from '../types/chart';
 
 const baseMeta: ChartMeta = {
   title: 'Test Song',
@@ -98,5 +105,50 @@ describe('holdOnly 저장→불러오기 왕복 보존', () => {
     const loaded = deserializeChart(chartJson([{ type: 'long', lane: 1, beat: '0', endBeat: '4' }]));
     const roundTripped = deserializeChart(serializeChart(loaded));
     expect((roundTripped.notes[0] as RangeNote).holdOnly).toBeUndefined();
+  });
+});
+
+describe('통합 보조 레인 JSON 왕복', () => {
+  it('lane=5·7 노트를 저장하면 extraLane=1·3으로 변환하고 메인 노트는 제외', () => {
+    const notes: NoteEntity[] = [
+      { type: 'single', lane: 1, beat: beat(0) },
+      { type: 'single', lane: 5, beat: beat(1) },
+      { type: 'long', lane: 7, beat: beat(2), endBeat: beat(3) },
+    ];
+
+    expect(JSON.parse(serializeExtraNotes(notes, 3))).toEqual({
+      extraNotes: [
+        { type: 'single', extraLane: 1, beat: '1' },
+        { type: 'long', extraLane: 3, beat: '2', endBeat: '3' },
+      ],
+      extraLaneCount: 3,
+    });
+  });
+
+  it('extraLane=2 grace와 holdOnly 노트를 불러오면 lane=6 속성을 보존', () => {
+    const parsed = parseExtraNotes({
+      extraNotes: [
+        { type: 'single', extraLane: 2, beat: '1', grace: true },
+        { type: 'long', extraLane: 2, beat: '2', endBeat: '3', holdOnly: true },
+      ],
+      extraLaneCount: 2,
+    });
+
+    expect(parsed.notes).toEqual([
+      { type: 'single', lane: 6, beat: beat(1), grace: true },
+      { type: 'long', lane: 6, beat: beat(2), endBeat: beat(3), holdOnly: true },
+    ]);
+  });
+
+  it('선택 필드가 없는 기존 extra JSON은 다시 저장해도 grace·holdOnly를 추가하지 않음', () => {
+    const parsed = parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '1' }],
+      extraLaneCount: 1,
+    });
+
+    expect(JSON.parse(serializeExtraNotes(parsed.notes, parsed.extraLaneCount))).toEqual({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '1' }],
+      extraLaneCount: 1,
+    });
   });
 });

@@ -19,10 +19,11 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
-import type { Chart, ExtraNoteEntity, NoteEntity, TrillZone, ValidationRef } from '../../shared';
+import type { Chart, NoteEntity, TrillZone, ValidationRef } from '../../shared';
 import { beatToFloat, validateChart, violationsInvolving } from '../../shared';
 import { showToast } from '../../shared/toast';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
+import { auxSelectionIndexToNoteIndex, projectAuxNotes } from '../auxNoteProjection';
 
 /** 에디터 선택 상태. 세 집합의 관계 불변은 normalizeSelection이 보장한다. */
 export interface Selection {
@@ -93,7 +94,7 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
 export function normalizeSelection(
   input: Selection,
   chart: Pick<Chart, 'notes' | 'trillZones'>,
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 
@@ -136,7 +137,6 @@ export interface SelectionSlice {
 /** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 배열들. */
 interface SelectionHost {
   chart: Chart;
-  extraNotes: ExtraNoteEntity[];
 }
 
 type SliceSet = (
@@ -162,7 +162,8 @@ export function createSelectionSlice(
     selection: emptySelection(),
 
     setSelection: (input) => {
-      const { chart, extraNotes, selection } = get();
+      const { chart, selection } = get();
+      const extraNotes = projectAuxNotes(chart.notes);
       const normalized = normalizeSelection(input, chart, extraNotes);
 
       // 선택 해제 게이트(RFD 0017 §3-5): 이 전이에서 빠지는(removed = 현재 − 다음)
@@ -178,7 +179,11 @@ export function createSelectionSlice(
       for (const i of selection.zones) {
         if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
       }
-      // removed.extraNotes는 게이트 대상이 아니다 — 엑스트라 위반은 시각화 전용(게이트 불포함).
+      for (const i of selection.extraNotes) {
+        if (normalized.extraNotes.has(i)) continue;
+        const noteIndex = auxSelectionIndexToNoteIndex(chart.notes, i);
+        if (noteIndex !== null) removed.push({ kind: 'note', index: noteIndex });
+      }
       if (removed.length > 0) {
         const involved = violationsInvolving(
           validateChart({
@@ -198,7 +203,8 @@ export function createSelectionSlice(
       return true;
     },
     setSelectionTransient: (input) => {
-      const { chart, extraNotes } = get();
+      const { chart } = get();
+      const extraNotes = projectAuxNotes(chart.notes);
       set({ selection: normalizeSelection(input, chart, extraNotes) });
     },
     clearSelection: () => {

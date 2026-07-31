@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Chart, PlaybackRange } from '../../shared';
+import type { PlayableChart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
 
 type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'settings' | 'calibration';
@@ -52,7 +52,7 @@ interface GameState {
   selectedAudioUrl: string | null;
   selectedPlaybackRange: PlaybackRange | null;
   lastResult: PlayResult | null;
-  chartData: Chart | null;
+  chartData: PlayableChart | null;
   audioBuffer: AudioBuffer | null;
 
   setScreen: (screen: Screen) => void;
@@ -61,7 +61,7 @@ interface GameState {
   selectSong: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
   setResult: (result: PlayResult) => void;
   completeFirstLaunch: () => void;
-  setChartData: (chart: Chart | null) => void;
+  setChartData: (chart: PlayableChart | null) => void;
   setAudioBuffer: (buffer: AudioBuffer | null) => void;
 
   // Editor test play

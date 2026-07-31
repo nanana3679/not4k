@@ -4,8 +4,8 @@
  */
 
 import { Container, Graphics, FillGradient } from "pixi.js";
-import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote } from "../../shared";
-import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker, ExtraNoteEntity } from "../../shared";
+import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane, toAuxIndex } from "../../shared";
+import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -18,7 +18,7 @@ import {
 /** NoteRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface NoteHost {
   readonly chart: Chart | null;
-  readonly extraNotes: ExtraNoteEntity[];
+  readonly extraNotes: NoteEntity[];
   readonly selectedNotes: Set<number>;
   readonly selectedExtraNotes: Set<number>;
   readonly cachedBpmMarkers: BpmMarker[];
@@ -511,6 +511,7 @@ export class NoteRenderer {
 
     for (const index of sortedIndices) {
       const note = notes[index];
+      if (!isMainLane(note.lane)) continue;
       const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       if (this.isPointNote(note)) {
         if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) continue;
@@ -557,7 +558,9 @@ export class NoteRenderer {
       }
 
       const isSelected = this.host.selectedExtraNotes.has(index);
-      const x = extraStartX + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
+      const extraLane = toAuxIndex(note.lane);
+      if (extraLane === null) return;
+      const x = extraStartX + (extraLane - 1) * EXTRA_LANE_WIDTH;
 
       if ("endBeat" in note) {
         this.renderRangeNoteAt(x, EXTRA_LANE_WIDTH, note.beat, note.endBeat, note.type, isSelected, bpmMarkers, meta);

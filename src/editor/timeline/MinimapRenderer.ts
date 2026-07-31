@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, TextStyle } from "pixi.js";
-import { beatToMs, measureStartBeat } from "../../shared";
+import { beatToMs, isMainLane, measureStartBeat } from "../../shared";
 import {
   LANE_COUNT,
   COLORS,
@@ -241,6 +241,7 @@ export class MinimapRenderer {
     };
 
     for (const note of notes) {
+      if (!isMainLane(note.lane)) continue;
       const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const containerY = this.host.timeToY(timeMs);
       const my = toMinimapY(containerY);

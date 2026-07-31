@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
+import type { NoteEntity, RangeNote, TrillZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -140,9 +140,9 @@ describe("hitTestNoteAt selectedNotes 우선순위", () => {
 // ---------------------------------------------------------------------------
 
 describe("hitTestExtraNoteAt", () => {
-  const extraNotes: ExtraNoteEntity[] = [
-    { type: "single", extraLane: 1, beat: beat(2) },
-    { type: "long", extraLane: 2, beat: beat(1), endBeat: beat(3) },
+  const extraNotes: NoteEntity[] = [
+    { type: "single", lane: 5, beat: beat(2) },
+    { type: "long", lane: 6, beat: beat(1), endBeat: beat(3) },
   ];
 
   it("포인트 extra 노트 히트", () => {
@@ -294,8 +294,8 @@ describe("noteExistsAtSnap", () => {
 // ---------------------------------------------------------------------------
 
 describe("extraNoteExistsAtSnap", () => {
-  const extraNotes: ExtraNoteEntity[] = [
-    { type: "single", extraLane: 1, beat: beat(4) },
+  const extraNotes: NoteEntity[] = [
+    { type: "single", lane: 5, beat: beat(4) },
   ];
 
   it("snap 위치와 extra 노트가 일치하면 히트", () => {

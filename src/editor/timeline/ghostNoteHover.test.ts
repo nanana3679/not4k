@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap, extraNoteExistsAtSnap } from "./hitTest";
-import type { NoteEntity, ExtraNoteEntity } from "../../shared/types";
+import type { NoteEntity } from "../../shared/types";
 
 /** beat fraction helper */
 const beat = (n: number, d: number = 1) => ({ n, d });
@@ -68,8 +68,8 @@ describe("고스트 노트 호버 — 메인 레인", () => {
 // ---------------------------------------------------------------------------
 
 describe("고스트 노트 호버 — 엑스트라 레인", () => {
-  const extraNotes: ExtraNoteEntity[] = [
-    { type: "single", extraLane: 1, beat: beat(2) },  // beat 2.0
+  const extraNotes: NoteEntity[] = [
+    { type: "single", lane: 5, beat: beat(2) },  // beat 2.0
   ];
 
   it("커서가 엑스트라 노트 위에 직접 있으면 hitTestExtraNoteAt으로 히트", () => {

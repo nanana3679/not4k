@@ -1,11 +1,10 @@
-import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity } from "../../shared";
-import { validateChartStructural, beatToFloat } from "../../shared";
+import type { Chart, NoteEntity, RangeNote, Beat, Lane } from "../../shared";
+import { fromAuxIndex, toAuxIndex, validateChartStructural, beatToFloat } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
-  deleteChartNotesAtIndices,
-  deleteExtraNotesAtIndices,
   expandTrillPairIndices,
 } from "../editing/editApplication";
+import { auxSelectionIndexToNoteIndex, replaceAuxNotes } from "../auxNoteProjection";
 import { ClipboardManager } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
 import { convertMainToExtra, convertExtraToMain, moveExtraByLane } from "./LaneConversion";
@@ -53,9 +52,10 @@ export interface SelectModeCallbacks {
   /** Extra lane helpers */
   xToExtraLane?: (x: number) => number | null;
   hitTestExtraNote?: (x: number, y: number) => number | null;
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  getExtraNotes?: () => ExtraNoteEntity[];
+  onExtraNotesUpdate?: (extraNotes: NoteEntity[]) => void;
+  getExtraNotes?: () => NoteEntity[];
   getExtraLaneCount?: () => number;
+  setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
 }
 
@@ -82,7 +82,7 @@ export class SelectMode implements EditorMode {
   // Move state
   private originalPositions: Map<
     number,
-    { beat: Beat; endBeat?: Beat; lane: Lane }
+    { beat: Beat; endBeat?: Beat; lane: number }
   > = new Map();
   private originalExtraPositions: Map<
     number,
@@ -114,7 +114,7 @@ export class SelectMode implements EditorMode {
   // 축 횡단 드래그(메인↔엑스트라 즉시 변환) — 취소 시 변환까지 되돌리기 위한 시작 스냅샷.
   // 횡단은 드래그 중 실제 변환(convert*)으로 수행되어 프리뷰가 축을 넘어 이어진다(순간이동 방지).
   private preDragChart: Chart | null = null;
-  private preDragExtraNotes: ExtraNoteEntity[] | null = null;
+  private preDragExtraNotes: NoteEntity[] | null = null;
   private preDragMoveSelection: Selection | null = null;
   private _crossedAxis = false;
 
@@ -234,7 +234,11 @@ export class SelectMode implements EditorMode {
       ) {
         return false;
       }
-      this.callbacks.onExtraNotesUpdate(newExtraNotes);
+      this.chart = {
+        ...this.chart,
+        notes: replaceAuxNotes(this.chart.notes, newExtraNotes),
+      };
+      this.callbacks.onChartUpdate(this.chart);
     }
 
     this.convertExtraToMainImpl(targetLane);
@@ -320,7 +324,7 @@ export class SelectMode implements EditorMode {
   }
 
   /** Original positions of notes being moved (available during move drag) */
-  get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: Lane }> {
+  get moveOrigins(): ReadonlyMap<number, { beat: Beat; endBeat?: Beat; lane: number }> {
     return this.originalPositions;
   }
 
@@ -861,7 +865,7 @@ export class SelectMode implements EditorMode {
         }
 
         // 엑스트라는 beat만 동반 — 레인 오프셋은 앵커(메인) 축에만 적용 (RFD 0016 §4.2)
-        let newExtraNotes: ExtraNoteEntity[] | null = null;
+        let newExtraNotes: NoteEntity[] | null = null;
         if (this.originalExtraPositions.size > 0) {
           newExtraNotes = this.buildMovedExtraNotes(0, beatOffset);
           if (
@@ -873,9 +877,12 @@ export class SelectMode implements EditorMode {
         }
 
         // Update chart with new positions (preview)
-        this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
+        this.chart = {
+          ...this.chart,
+          notes: newExtraNotes ? replaceAuxNotes(newNotes, newExtraNotes) : newNotes,
+          trillZones: newZones,
+        };
         this.callbacks.onChartUpdate(this.chart);
-        if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
       }
     } else if (this.dragType === "moveExtra") {
       const currentBeat = this.callbacks.yToBeat(y);
@@ -937,11 +944,19 @@ export class SelectMode implements EditorMode {
           chartTouched = true;
         }
 
-        this.callbacks.onExtraNotesUpdate(newExtraNotes);
         if (chartTouched) {
-          this.chart = { ...this.chart, notes: newNotes, trillZones: newZones };
-          this.callbacks.onChartUpdate(this.chart);
+          this.chart = {
+            ...this.chart,
+            notes: replaceAuxNotes(newNotes, newExtraNotes),
+            trillZones: newZones,
+          };
+        } else {
+          this.chart = {
+            ...this.chart,
+            notes: replaceAuxNotes(this.chart.notes, newExtraNotes),
+          };
         }
+        this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.yToBeatRaw(y);
@@ -1066,10 +1081,9 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "move" || this.dragType === "moveExtra") {
       if (this._crossedAxis && this.preDragChart && this.preDragExtraNotes && this.preDragMoveSelection) {
         // 축 횡단(메인↔엑스트라 변환) 후 취소: 변환까지 포함해 드래그 시작 시점으로 통째 복원.
-        // 차트·엑스트라·선택을 함께 되돌리는 원자 복원이라 §3-5 게이트 대상이 아니다(transient).
+        // 통합 차트·선택을 함께 되돌리는 원자 복원이라 §3-5 게이트 대상이 아니다(transient).
         this.chart = this.preDragChart;
         this.callbacks.onChartUpdate(this.chart);
-        this.callbacks.onExtraNotesUpdate?.(this.preDragExtraNotes);
         this.callbacks.setSelectionTransient(this.preDragMoveSelection);
         this.originalPositions.clear();
         this.originalZonePositions.clear();
@@ -1116,19 +1130,23 @@ export class SelectMode implements EditorMode {
       if ("endBeat" in note) {
         newExtraNotes[idx] = {
           ...note,
-          extraLane: original.extraLane,
+          lane: fromAuxIndex(original.extraLane)!,
           beat: original.beat,
           endBeat: original.endBeat!,
         };
       } else {
         newExtraNotes[idx] = {
           ...note,
-          extraLane: original.extraLane,
+          lane: fromAuxIndex(original.extraLane)!,
           beat: original.beat,
         };
       }
     }
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    this.chart = {
+      ...this.chart,
+      notes: replaceAuxNotes(this.chart.notes, newExtraNotes),
+    };
+    this.callbacks.onChartUpdate(this.chart);
     this.originalExtraPositions.clear();
   }
 
@@ -1207,7 +1225,8 @@ export class SelectMode implements EditorMode {
 
         for (let i = 0; i < allExtra.length; i++) {
           const note = allExtra[i];
-          if (note.extraLane >= minExtraLane && note.extraLane <= maxExtraLane
+          const noteExtraLane = toAuxIndex(note.lane);
+          if (noteExtraLane !== null && noteExtraLane >= minExtraLane && noteExtraLane <= maxExtraLane
               && beatSub(note.beat, minBeat).n >= 0
               && beatSub(maxBeat, note.beat).n >= 0) {
             extraNotes.add(i);
@@ -1277,7 +1296,7 @@ export class SelectMode implements EditorMode {
     }
 
     // 엑스트라는 beat만 동반 — 한 요소라도 범위 밖이면 전체 no-op (기존 bounds 정책, RFD 0016 §4.2)
-    let newExtraNotes: ExtraNoteEntity[] | null = null;
+    let newExtraNotes: NoteEntity[] | null = null;
     if (this.originalExtraPositions.size > 0) {
       newExtraNotes = this.buildMovedExtraNotes(0, offset);
       if (
@@ -1289,13 +1308,15 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    this.chart = { ...this.chart, notes: newNotes };
+    this.chart = {
+      ...this.chart,
+      notes: newExtraNotes ? replaceAuxNotes(newNotes, newExtraNotes) : newNotes,
+    };
 
     // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
     // 의미 위반은 setChart가 허용하고 저장·플레이 게이트가 강제, 되돌리기는 undo.
     // chart와 extraNotes를 함께 확정한다.
     this.callbacks.onChartUpdate(this.chart);
-    if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
     this.clearMoveOrigins();
   }
 
@@ -1427,7 +1448,11 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    this.callbacks.onExtraNotesUpdate(newExtraNotes);
+    this.chart = {
+      ...this.chart,
+      notes: replaceAuxNotes(this.chart.notes, newExtraNotes),
+    };
+    this.callbacks.onChartUpdate(this.chart);
   }
 
   /** 엑스트라 노트의 레인 이동 */
@@ -1440,7 +1465,7 @@ export class SelectMode implements EditorMode {
     // 엑스트라 레인 1에서 왼쪽 이동 → 메인 레인 4로 변환
     if (direction === "left") {
       const allAtExtraLane1 = [...this.sel.extraNotes].every(
-        (idx) => extraNotes[idx].extraLane === 1,
+        (idx) => toAuxIndex(extraNotes[idx].lane) === 1,
       );
       if (allAtExtraLane1) {
         this.convertExtraToMainImpl(4 as Lane);
@@ -1448,12 +1473,22 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    moveExtraByLane(
+    const newExtraNotes = moveExtraByLane(
       this.sel.extraNotes,
       direction,
       extraLaneCount,
-      this.callbacks,
+      {
+        getExtraNotes: this.callbacks.getExtraNotes,
+        onExtraNotesUpdate: () => {},
+      },
     );
+    if (newExtraNotes) {
+      this.chart = {
+        ...this.chart,
+        notes: replaceAuxNotes(this.chart.notes, newExtraNotes),
+      };
+      this.callbacks.onChartUpdate(this.chart);
+    }
   }
 
   /** 메인 노트 → 엑스트라 노트로 변환 */
@@ -1683,32 +1718,17 @@ export class SelectMode implements EditorMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
-    // Delete extra notes if selected (구간 유닛·일반 노트와 공존 가능, RFD 0016)
-    if (this.sel.extraNotes.size > 0 && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraNotes = this.callbacks.getExtraNotes();
-      const newExtraNotes = deleteExtraNotesAtIndices(extraNotes, this.sel.extraNotes);
-      this.callbacks.onExtraNotesUpdate(newExtraNotes);
-      this.commitSelection({ extraNotes: new Set() });
+    const noteIndices = this.effectiveNoteIndices();
+    for (const auxIndex of this.sel.extraNotes) {
+      const noteIndex = auxSelectionIndexToNoteIndex(this.chart.notes, auxIndex);
+      if (noteIndex !== null) noteIndices.add(noteIndex);
     }
-
-    // 구간 유닛 선택: 구간 + 실행 시점 파생한 내부 노트 + 직접 선택한 일반 노트를
-    // 함께 삭제 (빈 구간도 삭제, RFD 0016 §4.2)
-    if (this.sel.zones.size > 0) {
-      const zones = this.sel.zones;
-      const noteIndices = this.effectiveNoteIndices();
-      const notes = this.chart.notes.filter((_n, i) => !noteIndices.has(i));
-      const trillZones = this.chart.trillZones.filter((_z, i) => !zones.has(i));
-      this.chart = { ...this.chart, notes, trillZones };
-      // 차트 축소 커밋이 선택을 원자적으로 비운다(setChart, §3-5 면제 경로).
-      // clearSelection을 차트 커밋 전에 부르면 위반 노트 삭제가 해제 게이트에 막힌다.
-      this.callbacks.onChartUpdate(this.chart);
-      this.clearSelection();
-      return;
-    }
-
-    if (this.sel.notes.size === 0) return;
-
-    this.chart = deleteChartNotesAtIndices(this.chart, this.sel.notes);
+    if (noteIndices.size === 0 && this.sel.zones.size === 0) return;
+    this.chart = {
+      ...this.chart,
+      notes: this.chart.notes.filter((_note, index) => !noteIndices.has(index)),
+      trillZones: this.chart.trillZones.filter((_zone, index) => !this.sel.zones.has(index)),
+    };
     // 순서 주의: 차트 커밋 → 선택 해제. 반대면 §3-5 게이트가 위반 노트 삭제를 막는다.
     this.callbacks.onChartUpdate(this.chart);
     this.clearSelection();
@@ -1823,10 +1843,10 @@ export class SelectMode implements EditorMode {
         this.originalExtraPositions.set(idx, {
           beat: note.beat,
           endBeat: note.endBeat,
-          extraLane: note.extraLane,
+          extraLane: toAuxIndex(note.lane)!,
         });
       } else {
-        this.originalExtraPositions.set(idx, { beat: note.beat, extraLane: note.extraLane });
+        this.originalExtraPositions.set(idx, { beat: note.beat, extraLane: toAuxIndex(note.lane)! });
       }
     }
   }
@@ -1863,7 +1883,7 @@ export class SelectMode implements EditorMode {
    * 기록된 원본 좌표에 오프셋을 적용한 새 엑스트라 노트 배열을 만든다.
    * laneOffset은 엑스트라 자신의 축(extraLane)에 적용된다 (RFD 0016 §4.2).
    */
-  private buildMovedExtraNotes(laneOffset: number, beatOffset: Beat): ExtraNoteEntity[] | null {
+  private buildMovedExtraNotes(laneOffset: number, beatOffset: Beat): NoteEntity[] | null {
     const extraNotes = this.callbacks.getExtraNotes?.();
     if (!extraNotes) return null;
     const newExtraNotes = [...extraNotes];
@@ -1876,12 +1896,12 @@ export class SelectMode implements EditorMode {
         const duration = beatSub(original.endBeat!, original.beat);
         newExtraNotes[idx] = {
           ...note,
-          extraLane: newExtraLane,
+          lane: fromAuxIndex(newExtraLane)!,
           beat: newBeat,
           endBeat: beatAdd(newBeat, duration),
         };
       } else {
-        newExtraNotes[idx] = { ...note, extraLane: newExtraLane, beat: newBeat };
+        newExtraNotes[idx] = { ...note, lane: fromAuxIndex(newExtraLane)!, beat: newBeat };
       }
     }
     return newExtraNotes;
@@ -1907,7 +1927,7 @@ export class SelectMode implements EditorMode {
 
     // 엑스트라 동반분 — 레인은 엑스트라 자신의 축(1~extraLaneCount), beat는 공유 (RFD 0016 §4.2)
     let extraOk = true;
-    let newExtraNotes: ExtraNoteEntity[] | null = null;
+    let newExtraNotes: NoteEntity[] | null = null;
     if (this.originalExtraPositions.size > 0) {
       const extraLaneCount = this.callbacks.getExtraLaneCount?.() ?? 0;
       for (const original of this.originalExtraPositions.values()) {
@@ -1932,9 +1952,11 @@ export class SelectMode implements EditorMode {
     const candidate = { ...this.chart, notes: newNotes, trillZones: newZones };
     // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
     // 존 겹침 등 의미 위반은 transient로 허용되고 저장·플레이 게이트가 강제한다.
-    this.chart = candidate;
+    this.chart = {
+      ...candidate,
+      notes: newExtraNotes ? replaceAuxNotes(candidate.notes, newExtraNotes) : candidate.notes,
+    };
     this.callbacks.onChartUpdate(this.chart);
-    if (newExtraNotes) this.callbacks.onExtraNotesUpdate?.(newExtraNotes);
     this.clearMoveOrigins();
   }
 
@@ -1988,7 +2010,7 @@ export class SelectMode implements EditorMode {
     return true;
   }
 
-  private areExtraNotesInBounds(notes: ExtraNoteEntity[], indices: Set<number>): boolean {
+  private areExtraNotesInBounds(notes: NoteEntity[], indices: Set<number>): boolean {
     const maxFloat = this.callbacks.getMaxBeatFloat();
 
     for (const idx of indices) {

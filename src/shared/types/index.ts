@@ -30,6 +30,7 @@ export {
   type PointNote,
   type RangeNote,
   type NoteEntity,
+  type MainNoteEntity,
   type TrillZone,
   type BpmEvent,
   type TimeSignatureEvent,
@@ -43,9 +44,7 @@ export {
   type RangeEvent,
   type EventMarker,
   type Chart,
-  type ExtraPointNote,
-  type ExtraRangeNote,
-  type ExtraNoteEntity,
+  type PlayableChart,
   isGraceNote,
   isHoldOnlyNote,
 } from "./chart";

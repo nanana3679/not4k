@@ -62,7 +62,8 @@ export interface TimeSignatureMarker {
 /** 포인트 노트 — 위치만 가짐 (싱글 / 더블 / 트릴) */
 export interface PointNote {
   type: "single" | "double" | "trill";
-  lane: Lane;
+  /** 노트 레인 번호. 1~4는 게임 레인, 5 이상은 에디터 보조 레인이다. */
+  lane: number;
   beat: Beat;
   /** Grace 플래그 — Good 윈도우 내 입력 시 항상 Perfect */
   grace?: boolean;
@@ -76,7 +77,8 @@ export interface PointNote {
  */
 export interface RangeNote {
   type: "long" | "doubleLong" | "trillLong";
-  lane: Lane;
+  /** 노트 레인 번호. 1~4는 게임 레인, 5 이상은 에디터 보조 레인이다. */
+  lane: number;
   beat: Beat;
   endBeat: Beat;
   /** hold-only — 끝점의 떼는 판정을 면제. 유지만 하면 Perfect (RFD 0005) */
@@ -85,6 +87,9 @@ export interface RangeNote {
 
 /** 노트 엔티티 유니온 */
 export type NoteEntity = PointNote | RangeNote;
+
+/** 게임 진입 경계를 통과해 메인 레인으로 좁혀진 노트 */
+export type MainNoteEntity = NoteEntity & { lane: Lane };
 
 /** Grace 노트 여부 확인 — PointNote이면서 grace 플래그가 true */
 export function isGraceNote(note: NoteEntity): boolean {
@@ -95,28 +100,6 @@ export function isGraceNote(note: NoteEntity): boolean {
 export function isHoldOnlyNote(note: NoteEntity): boolean {
   return "endBeat" in note && (note as RangeNote).holdOnly === true;
 }
-
-// ---------------------------------------------------------------------------
-// Extra 노트 (에디터 전용 — 게임에 등장하지 않는 보조 레인)
-// ---------------------------------------------------------------------------
-
-/** Extra 포인트 노트 */
-export interface ExtraPointNote {
-  type: "single" | "double" | "trill";
-  extraLane: number; // 1~10
-  beat: Beat;
-}
-
-/** Extra 구간 노트 */
-export interface ExtraRangeNote {
-  type: "long" | "doubleLong" | "trillLong";
-  extraLane: number; // 1~10
-  beat: Beat;
-  endBeat: Beat;
-}
-
-/** Extra 노트 엔티티 유니온 */
-export type ExtraNoteEntity = ExtraPointNote | ExtraRangeNote;
 
 // ---------------------------------------------------------------------------
 // trillZone
@@ -227,3 +210,8 @@ export interface Chart {
   trillZones: TrillZone[];
   events: ChartEvent[];
 }
+
+/** 게임이 소비할 수 있도록 메인 레인 노트만 포함하는 차트 */
+export type PlayableChart = Omit<Chart, "notes"> & {
+  notes: MainNoteEntity[];
+};

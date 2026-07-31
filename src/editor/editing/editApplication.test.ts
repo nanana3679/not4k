@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, ExtraNoteEntity, Lane, NoteEntity, TrillZone } from "../../shared";
+import type { Chart, NoteEntity, Lane, TrillZone } from "../../shared";
 import { beat } from "../../shared";
 import {
   deleteChartNoteAtIndex,
@@ -103,10 +103,10 @@ describe("editor edit application", () => {
   });
 
   it("deletes extra notes by index, selection, and lane/beat", () => {
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 1, beat: beat(1) },
-      { type: "long", extraLane: 2, beat: beat(2), endBeat: beat(4) },
-      { type: "single", extraLane: 3, beat: beat(8) },
+    const extraNotes: NoteEntity[] = [
+      { type: "single", lane: 5, beat: beat(1) },
+      { type: "long", lane: 6, beat: beat(2), endBeat: beat(4) },
+      { type: "single", lane: 7, beat: beat(8) },
     ];
 
     expect(deleteExtraNoteAtIndex(extraNotes, 0)).toEqual(extraNotes.slice(1));

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
 import { beat } from "../../shared";
-import type { Chart, Beat, Lane, ExtraNoteEntity } from "../../shared";
+import type { Chart, Beat, Lane } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
   return {
@@ -231,32 +231,49 @@ describe("CreateMode — 통합 입력 (single/double)", () => {
 
   it("single 선택 후 Extra 레인 클릭만 하면 단노트, 드래그하면 헤드+롱", () => {
     const chart = makeChart();
-    let extraNotes: ExtraNoteEntity[] = [];
     const callbacks = {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-      getExtraNotes: () => extraNotes,
-      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
     };
     const mode = new CreateMode(chart, callbacks);
     mode.entityType = "single";
 
     // 클릭만 → 단노트
-    mode.onPointerDown(10, 3);
-    mode.onPointerUp(10, 3);
-    let notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    mode.onPointerDown(10, 8);
+    mode.onPointerUp(10, 8);
+    let notes = (callbacks.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes;
     expect(notes).toHaveLength(1);
     expect(notes[0].type).toBe("single");
+    expect(notes[0].lane).toBe(5);
     expect("endBeat" in notes[0]).toBe(false);
 
     // 드래그 → 헤드+롱
     mode.onPointerDown(10, 1);
     mode.onPointerUp(10, 5);
-    notes = callbacks.onExtraNotesUpdate.mock.calls.at(-1)?.[0] as ExtraNoteEntity[];
+    notes = (callbacks.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes;
     expect(notes).toHaveLength(3); // 기존 단노트1 + 헤드 + 롱
     expect(notes[1].type).toBe("single");
     expect(notes[2].type).toBe("long");
+  });
+
+  it("lane=5 beat=2 보조 노트가 이미 있으면 같은 위치의 보조 단노트 생성은 차단된다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 5, beat: beat(2) }],
+    });
+    const callbacks = {
+      ...makeCallbacks(chart),
+      xToLane: () => null,
+      xToExtraLane: () => 1,
+    };
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "single";
+
+    mode.onPointerDown(10, 2);
+    mode.onPointerUp(10, 2);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).toHaveBeenCalledWith(expect.stringContaining("Duplicate point note at lane 5"));
   });
 });
 
@@ -388,13 +405,10 @@ describe("CreateMode — 롱노트 생성 시 헤드 노트", () => {
 
 describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () => {
   function makeExtraCallbacks(chart: Chart) {
-    let extraNotes: ExtraNoteEntity[] = [];
     return {
       ...makeCallbacks(chart),
       xToLane: () => null,
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-      getExtraNotes: () => extraNotes,
-      onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => { extraNotes = notes; }),
     };
   }
 
@@ -407,8 +421,8 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     mode.onPointerDown(10, 3); // extraLane 1, beat(3)
     mode.onPointerUp(10, 3);
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(1);
     expect(notes[0].type).toBe("long");
     expect("endBeat" in notes[0]).toBe(true);
@@ -423,8 +437,8 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     mode.onPointerDown(10, 1); // extraLane 1, beat(1)
     mode.onPointerUp(10, 5);  // beat(5)
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(2);
     expect(notes[0].type).toBe("single");
     expect(notes[1].type).toBe("long");
@@ -439,8 +453,8 @@ describe("CreateMode — Extra 레인 롱노트 생성 시 헤드 노트", () =>
     expect(mode.beginRangeNoteAt(10, 3, "long")).toBe(true);
     mode.onPointerUp(10, 3);
 
-    expect(callbacks.onExtraNotesUpdate).toHaveBeenCalledTimes(1);
-    const notes = callbacks.onExtraNotesUpdate.mock.calls[0][0];
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    const notes = (callbacks.onChartUpdate.mock.calls[0][0] as Chart).notes;
     expect(notes).toHaveLength(1);
     expect(notes[0].type).toBe("long");
     expect("endBeat" in notes[0]).toBe(true);

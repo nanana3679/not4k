@@ -1,11 +1,15 @@
-import type { Chart, NoteEntity, RangeNote, Beat, Lane, ExtraNoteEntity, TrillZone } from "../../shared";
-import { beatToFloat } from "../../shared";
+import type { Chart, NoteEntity, RangeNote, Beat, Lane, TrillZone } from "../../shared";
+import { beatToFloat, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
+import {
+  auxSelectionIndexToNoteIndex,
+  replaceAuxNotes,
+} from "../auxNoteProjection";
 
 /** Clipboard data for copy/paste */
 export interface NoteClipboard {
   notes: NoteEntity[];
-  extraNotes: ExtraNoteEntity[];
+  extraNotes: NoteEntity[];
   /** 함께 복사된 trillZone(트릴 선택 시 구간째 복사) */
   trillZones: TrillZone[];
   /** Earliest beat among copied notes/zones (relative offset anchor) */
@@ -15,9 +19,11 @@ export interface NoteClipboard {
 export interface ClipboardCallbacks {
   getSnapStep: () => Beat;
   getMaxBeatFloat: () => number;
-  getExtraNotes?: () => ExtraNoteEntity[];
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  getExtraNotes?: () => NoteEntity[];
+  onExtraNotesUpdate?: (extraNotes: NoteEntity[]) => void;
   onExtraSelectionChange?: (indices: Set<number>) => void;
+  getExtraLaneCount?: () => number;
+  setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
   onChartUpdate: (chart: Chart) => void;
   onSelectionChange: (selectedIndices: Set<number>) => void;
@@ -40,7 +46,6 @@ export class ClipboardManager {
   private clipboard: NoteClipboard | null = null;
   private _isPendingPaste = false;
   private prePasteNotes: NoteEntity[] | null = null;
-  private prePasteExtraNotes: ExtraNoteEntity[] | null = null;
   private prePasteZones: TrillZone[] | null = null;
   private pastedNoteIndices: Set<number> = new Set();
   private pastedExtraNoteIndices: Set<number> = new Set();
@@ -80,7 +85,7 @@ export class ClipboardManager {
     if (this._isPendingPaste) return 0;
 
     const noteCount = selectedIndices.size;
-    const extraNotes: ExtraNoteEntity[] = [];
+    const extraNotes: NoteEntity[] = [];
 
     if (noteCount === 0 && selectedExtraIndices.size === 0 && trillZoneIndices.size === 0) return 0;
 
@@ -143,7 +148,6 @@ export class ClipboardManager {
     if (clipNotes.length === 0 && clipExtra.length === 0 && clipZones.length === 0) return null;
 
     this.prePasteNotes = [...chart.notes];
-    this.prePasteExtraNotes = callbacks.getExtraNotes?.() ?? null;
     this.prePasteZones = [...chart.trillZones];
 
     const beatOffset = beatSub(targetBeat, anchorBeat);
@@ -160,8 +164,19 @@ export class ClipboardManager {
       }
     }
 
+    const pastedExtraEntries: NoteEntity[] = clipExtra.map((clipNote) => {
+      const newBeat = beatAdd(clipNote.beat, beatOffset);
+      return "endBeat" in clipNote
+        ? {
+            ...clipNote,
+            beat: newBeat,
+            endBeat: beatAdd(clipNote.endBeat, beatOffset),
+          }
+        : { ...clipNote, beat: newBeat };
+    });
+
     const maxFloat = callbacks.getMaxBeatFloat();
-    for (const note of pastedEntries) {
+    for (const note of [...pastedEntries, ...pastedExtraEntries]) {
       const bf = beatToFloat(note.beat);
       if (bf < 0 || bf > maxFloat) {
         callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
@@ -211,31 +226,28 @@ export class ClipboardManager {
       this.pastedZoneIndices.add(idx);
     }
 
-    const newChart = { ...chart, notes: newNotes, trillZones: newZones };
+    let newChart = { ...chart, notes: newNotes, trillZones: newZones };
 
     this.pastedExtraNoteIndices.clear();
     const newSelectedExtraIndices = new Set<number>();
 
-    if (clipExtra.length > 0 && callbacks.getExtraNotes && callbacks.onExtraNotesUpdate) {
+    if (pastedExtraEntries.length > 0 && callbacks.getExtraNotes) {
       const extraNotes = [...callbacks.getExtraNotes()];
-      for (const clipNote of clipExtra) {
-        const newBeat = beatAdd(clipNote.beat, beatOffset);
-        let pasted: ExtraNoteEntity;
-
-        if ("endBeat" in clipNote) {
-          const newEndBeat = beatAdd(clipNote.endBeat, beatOffset);
-          pasted = { ...clipNote, beat: newBeat, endBeat: newEndBeat };
-        } else {
-          pasted = { ...clipNote, beat: newBeat };
-        }
-
+      for (const pasted of pastedExtraEntries) {
         const idx = extraNotes.length;
         extraNotes.push(pasted);
         this.pastedExtraNoteIndices.add(idx);
         newSelectedExtraIndices.add(idx);
       }
 
-      callbacks.onExtraNotesUpdate(extraNotes);
+      newChart = { ...newChart, notes: replaceAuxNotes(newChart.notes, extraNotes) };
+      const requiredLaneCount = clipExtra.reduce(
+        (maximum, note) => Math.max(maximum, toAuxIndex(note.lane) ?? 0),
+        0,
+      );
+      if (requiredLaneCount > (callbacks.getExtraLaneCount?.() ?? 0)) {
+        callbacks.setExtraLaneCount?.(requiredLaneCount);
+      }
       callbacks.onExtraSelectionChange?.(new Set(newSelectedExtraIndices));
     }
 
@@ -284,11 +296,6 @@ export class ClipboardManager {
       this.prePasteZones = null;
     }
 
-    if (this.prePasteExtraNotes && callbacks.onExtraNotesUpdate) {
-      callbacks.onExtraNotesUpdate(this.prePasteExtraNotes);
-      this.prePasteExtraNotes = null;
-    }
-
     this._isPendingPaste = false;
     this.pastedNoteIndices.clear();
     this.pastedExtraNoteIndices.clear();
@@ -313,14 +320,21 @@ export class ClipboardManager {
     direction: "up" | "down",
     callbacks: ClipboardCallbacks,
   ): Chart | null {
-    if (!this._isPendingPaste || this.pastedNoteIndices.size === 0) return null;
+    if (!this._isPendingPaste) return null;
+
+    const movingNoteIndices = new Set(this.pastedNoteIndices);
+    for (const auxIndex of this.pastedExtraNoteIndices) {
+      const noteIndex = auxSelectionIndexToNoteIndex(chart.notes, auxIndex);
+      if (noteIndex !== null) movingNoteIndices.add(noteIndex);
+    }
+    if (movingNoteIndices.size === 0 && this.pastedZoneIndices.size === 0) return null;
 
     const snapStep = callbacks.getSnapStep();
     const offset =
       direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
     const newNotes = [...chart.notes];
-    for (const idx of this.pastedNoteIndices) {
+    for (const idx of movingNoteIndices) {
       const note = newNotes[idx];
       const newBeat = beatAdd(note.beat, offset);
 
@@ -333,7 +347,7 @@ export class ClipboardManager {
       }
     }
 
-    if (!this._areNotesInBounds(newNotes, this.pastedNoteIndices, callbacks.getMaxBeatFloat())) {
+    if (!this._areNotesInBounds(newNotes, movingNoteIndices, callbacks.getMaxBeatFloat())) {
       return null;
     }
 
@@ -349,25 +363,6 @@ export class ClipboardManager {
     }
 
     const newChart = { ...chart, notes: newNotes, trillZones: newZones };
-
-    if (
-      this.pastedExtraNoteIndices.size > 0 &&
-      callbacks.getExtraNotes &&
-      callbacks.onExtraNotesUpdate
-    ) {
-      const extraNotes = [...callbacks.getExtraNotes()];
-      for (const idx of this.pastedExtraNoteIndices) {
-        const note = extraNotes[idx];
-        const newBeat = beatAdd(note.beat, offset);
-        if ("endBeat" in note) {
-          const duration = beatSub(note.endBeat, note.beat);
-          extraNotes[idx] = { ...note, beat: newBeat, endBeat: beatAdd(newBeat, duration) };
-        } else {
-          extraNotes[idx] = { ...note, beat: newBeat };
-        }
-      }
-      callbacks.onExtraNotesUpdate(extraNotes);
-    }
 
     callbacks.onChartUpdate(newChart);
 
@@ -430,7 +425,6 @@ export class ClipboardManager {
     if (errors.length === 0) {
       this._isPendingPaste = false;
       this.prePasteNotes = null;
-      this.prePasteExtraNotes = null;
       this.prePasteZones = null;
       this.pastedNoteIndices.clear();
       this.pastedExtraNoteIndices.clear();
@@ -443,7 +437,7 @@ export class ClipboardManager {
     }
   }
 
-  private _isRangeNote(note: NoteEntity | ExtraNoteEntity): note is RangeNote {
+  private _isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
   }
 

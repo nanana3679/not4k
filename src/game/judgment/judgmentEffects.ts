@@ -18,7 +18,7 @@
 import { JudgmentGrade, NoteType } from "../../shared/constants";
 import type { Lane } from "../../shared/constants";
 import type { JudgmentResult } from "./JudgmentEngine";
-import type { NoteEntity } from "../../shared";
+import { isMainLane, type NoteEntity } from "../../shared";
 
 export interface NoteDisplayEffect {
   /** 롱노트 바디 표시: 실패(full) / 부분실패(방향) / 변화 없음 */
@@ -68,7 +68,7 @@ export function decideJudgmentEffects(result: JudgmentResult, note: NoteEntity):
       ? { grade: result.grade } // 바디는 타이밍 점수 없음 — deltaMs 생략이 결정이다
       : { grade: result.grade, deltaMs: result.deltaMs },
     judgmentText: { grade: result.grade, deltaMs: result.deltaMs },
-    bomb: isMiss ? null : note.lane,
+    bomb: isMiss || !isMainLane(note.lane) ? null : note.lane,
     noteDisplay: noteDisplayEffect(result, note),
     debug: {
       grade: result.grade,

@@ -1,5 +1,5 @@
-import type { Chart, ExtraNoteEntity } from "../types";
-import { serializeChart, serializeExtraNotes } from "../chart";
+import type { Chart } from "../types";
+import { auxNotes, serializeChart, serializeExtraNotes } from "../chart";
 import { songChartExtraPath, songChartPath } from "../storage";
 
 export interface TextAssetUpload {
@@ -36,7 +36,6 @@ export interface SongAssetPersistenceAdapter {
 
 export interface SaveChartAssetInput extends ChartAssetTarget {
   chart: Chart;
-  extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
 }
 
@@ -57,7 +56,7 @@ export async function saveChartAsset(
   input: SaveChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
   const asset = buildChartAsset(input);
-  const hasExtra = input.extraLaneCount > 0 || input.extraNotes.length > 0;
+  const hasExtra = input.extraLaneCount > 0 || auxNotes(input.chart.notes).length > 0;
 
   const chartUpload = adapter.uploadText({
     path: asset.chartPath,
@@ -86,7 +85,6 @@ export async function createChartAsset(
 ): Promise<Omit<ChartAssetWriteResult, "extraJson">> {
   const asset = buildChartAsset({
     ...input,
-    extraNotes: [],
     extraLaneCount: 0,
   });
 
@@ -167,7 +165,7 @@ function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
     chartPath: songChartPath(input.songId, difficulty),
     extraPath: songChartExtraPath(input.songId, difficulty),
     chartJson: serializeChart(input.chart),
-    extraJson: serializeExtraNotes(input.extraNotes, input.extraLaneCount),
+    extraJson: serializeExtraNotes(input.chart.notes, input.extraLaneCount),
     difficulty,
   };
 }

@@ -418,6 +418,18 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상), 판정 프레�
 
 차트에 배치되는 이벤트의 통합 타입. `type` 필드로 구분되는 디스크리미네이티드 유니온이다. 시점 이벤트(BPM, 박자표)와 구간 이벤트(메시지, auto, stop)로 나뉜다.
 
+### 보조 레인 노트
+
+`chart.notes`에 저장되지만 게임 판정에는 전달되지 않는 제작 보조 노트. 메인 레인은 `lane` 1~4, 보조 레인은 `lane` 5 이상이며, 둘 다 같은 `NoteEntity`와 전역 note index를 사용한다. 보조 레인 수(`extraLaneCount`)는 에디터 표시 설정이다. 표시 범위를 줄여도 범위 밖 노트는 삭제하지 않고 숨기며, 붙여넣기·로드는 필요한 보조 레인 수를 자동으로 늘린다. 저장 시에는 배포용 차트 JSON과 제작 보조 JSON으로 다시 분리하고, 로드 시 `chart.notes`로 병합한다. 근거: [RFD 0018](../rfd/0018-unified-lane-model.md).
+
+_Avoid_: Extra 노트, 별도 `ExtraNoteEntity`, `extraLane`을 도메인 좌표로 사용
+
+### `laneAxis`
+
+메인/보조 레인 경계를 단독 소유하는 공유 경계 모듈. `MAIN_LANE_COUNT`, `isMainLane`, `mainNotes`, `auxNotes`, `toAuxIndex`, `fromAuxIndex`, `isVisibleLane`, `toPlayableChart`를 제공한다. 게임 진입·직렬화·렌더 좌표처럼 경계를 실제로 소비하는 코드만 이 모듈을 사용한다. 권위 데이터·검증 ref·히스토리는 레인 종류를 구분하지 않으며, RFD 0018 phase 1에서는 기존 선택·렌더 API를 위한 보조 부분배열 투영이 남아 있다.
+
+**구현**: `src/shared/chart/laneAxis.ts`.
+
 ### `AutoEvent` (구 표기: Auto 구간)
 
 `auto` 타입의 구간 이벤트. 이 구간 동안 사용자 입력이 차단되고, 노트가 자동으로 Perfect 타이밍에 판정된다. 스코어에 반영된다. 튜토리얼에서 시범 연주를 보여주는 용도로 사용한다.
@@ -544,7 +556,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### 선택 해제 게이트 (Deselect Gate)
 
-**구현**: `src/editor/stores/selectionSlice.ts`의 `setSelection`(정규화 게이트와 같은 자리 — `clearSelection`도 이 관문을 지난다, 거부 시 false 반환). `removed.extraNotes`는 게이트 대상이 아니다(엑스트라 위반은 시각화 전용). 삭제·붙여넣기 취소는 차트 축소 커밋(`setChart`)이 선택을 원자적으로 비워 게이트를 지나지 않는다. **전이 = 확정된 선택 변경**: 박스 드래그의 프레임 재구성은 프리뷰(`setSelectionTransient`)라 전이가 아니며, 드래그 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다. select→move 체인은 커밋이 거부되면 이동을 시작하지 않는다.
+**구현**: `src/editor/stores/selectionSlice.ts`의 `setSelection`(정규화 게이트와 같은 자리 — `clearSelection`도 이 관문을 지난다, 거부 시 false 반환). 보조 레인 노트도 전역 `chart.notes` index로 위반을 판정해 같은 게이트를 지난다(RFD 0018). 삭제·붙여넣기 취소는 차트 축소 커밋(`setChart`)이 선택을 원자적으로 비워 게이트를 지나지 않는다. **전이 = 확정된 선택 변경**: 박스 드래그의 프레임 재구성은 프리뷰(`setSelectionTransient`)라 전이가 아니며, 드래그 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다. select→move 체인은 커밋이 거부되면 이동을 시작하지 않는다.
 
 "해제"를 제스처가 아니라 **선택 집합의 상태 전이**로 정의하는 게이트. 선택이 `현재`→`다음`으로 바뀔 때 **빠지는 노트**(`removed = 현재 − 다음`)에 **의미 위반에 관여하는 노트가 있으면 그 전이를 거부**하고 토스트로 사유를 알린다. 낙관적 편집(RFD 0017)에서 위반 시각화(해칭)는 뷰포트 안에서만 보이므로, 위반 노트가 화면 밖으로 벗어나 인지되지 못한 채 방치되는 것을 막는다 — **위반 노트를 선택에서 놓는 순간 = 편집 묶음 마무리** 신호로 규정하고 그 순간의 이탈만 봉쇄한다(하드 거부 아님, place-then-fix 유지). 제스처 열거(Esc·빈 곳 클릭·교체) 대신 전이 diff로 정의하는 이유: 교체(`{A}→{B}`)·부분 해제(`{A,C}→{C}`)·전체 비우기가 전부 `removed`로 한 규칙에 걸리고, 선택 확장(`removed=∅`)은 자연히 통과하기 때문이다.
 
@@ -552,9 +564,9 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### SelectionSlice
 
-에디터 선택 상태(`selection: {notes, extraNotes, zones}`)의 **단독 소유자**. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`·`clearExtraSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조.
+에디터 선택 상태의 **단독 소유자**. RFD 0018 phase 1의 필드는 `notes`(메인 전역 index), `extraNotes`(보조 부분배열 index 호환 투영), `zones`이다. 보조 선택은 위반 판정 시 `chart.notes` 전역 index로 역투영한다. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조. 단일 전역 선택 index는 RFD 0018 후속 phase의 완료 조건이다.
 
-합법 상태(불변, RFD 0016): ① notes는 동질적이다 — 일반 노트들, 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes·extraNotes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
+합법 상태(불변, RFD 0016·0018): ① notes는 동질적이다 — 일반 메인 노트들, 또는 같은 `trillZone`의 메인 트릴 노트들만(`filterHomogeneousSelection`); 보조 일반 노트는 `extraNotes` 투영 축에 공존할 수 있다. ② `trillZone` 유닛(zones)은 일반 노트 선택과 **공존**한다. 단 개별 메인 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ `notes`는 `chart.notes`, `extraNotes`는 보조 투영 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
 
 **구현**: `src/editor/stores/selectionSlice.ts` (editorStore에 결합).
 

@@ -14,8 +14,9 @@ import {
   validateChart,
   extractTimeSignatures,
   isMeasureBoundary,
+  toPlayableChart,
 } from '../../shared';
-import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
+import type { Chart, Lane, PlayableChart, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -23,6 +24,7 @@ import {
 } from '../../supabase';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
+import { hiddenAuxViolationMessage } from '../validationFeedback';
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
@@ -35,7 +37,7 @@ export interface FileOperationHandlers {
 
 /** 테스트 플레이가 게임 스토어에 적용하는 액션 (테스트에서 주입 가능하도록 분리) */
 export interface PlayTestGameActions {
-  setChartData: (chart: Chart | null) => void;
+  setChartData: (chart: PlayableChart | null) => void;
   setAudioBuffer: (buffer: AudioBuffer | null) => void;
   setStartTimeMs: (ms: number) => void;
   setEditorReturnUrl: (url: string | null) => void;
@@ -49,6 +51,7 @@ export interface PerformPlayTestParams {
   isPlaying: boolean;
   pause: () => void;
   chart: Chart;
+  extraLaneCount: number;
   currentTimeMs: number;
   returnUrl: string;
   game: PlayTestGameActions;
@@ -64,7 +67,7 @@ export interface PerformPlayTestParams {
  */
 export function performPlayTest(params: PerformPlayTestParams): boolean {
   const {
-    fromCursor, audioBuffer, isPlaying, pause, chart, currentTimeMs,
+    fromCursor, audioBuffer, isPlaying, pause, chart, extraLaneCount, currentTimeMs,
     returnUrl, game, addToast, closeMenu, navigate,
   } = params;
 
@@ -82,13 +85,17 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
     events: chart.events,
   });
   if (violations.length > 0) {
-    addToast(`배치 제약 위반 ${violations.length}건이 남아 있어 플레이할 수 없습니다`, 'error');
+    addToast(
+      hiddenAuxViolationMessage(violations, chart.notes, extraLaneCount)
+        ?? `배치 제약 위반 ${violations.length}건이 남아 있어 플레이할 수 없습니다`,
+      'error',
+    );
     return false;
   }
 
   if (isPlaying) pause();
 
-  game.setChartData(chart);
+  game.setChartData(toPlayableChart(chart));
   game.setAudioBuffer(audioBuffer);
   game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
   game.setEditorReturnUrl(returnUrl);
@@ -164,7 +171,6 @@ export function useFileOperations(
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
@@ -189,6 +195,8 @@ export function useFileOperations(
     });
     if (errors.length > 0) {
       setValidationErrors(errors);
+      const hiddenMessage = hiddenAuxViolationMessage(errors, chart.notes, extraLaneCount);
+      if (hiddenMessage) addToast(hiddenMessage, 'error');
       return;
     }
 
@@ -211,7 +219,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -303,7 +310,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -318,6 +325,8 @@ export function useFileOperations(
     });
     if (errors.length > 0) {
       setValidationErrors(errors);
+      const hiddenMessage = hiddenAuxViolationMessage(errors, chart.notes, extraLaneCount);
+      if (hiddenMessage) addToast(hiddenMessage, 'error');
       setShowSaveAsModal(false);
       return;
     }
@@ -341,7 +350,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -358,7 +366,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     const game = useGameStore.getState();
@@ -368,6 +376,7 @@ export function useFileOperations(
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
       chart,
+      extraLaneCount,
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
       game: {
@@ -384,7 +393,7 @@ export function useFileOperations(
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
       navigate: () => navigateTo('/game'),
     });
-  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
+  }, [chart, extraLaneCount, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {

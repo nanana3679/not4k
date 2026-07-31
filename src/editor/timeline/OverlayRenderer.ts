@@ -4,8 +4,8 @@
  */
 
 import { Container, Graphics } from "pixi.js";
-import { beatToMs } from "../../shared";
-import type { Chart, Beat, NoteEntity, BpmMarker, ExtraNoteEntity, Lane } from "../../shared";
+import { beatToMs, isMainLane, toAuxIndex } from "../../shared";
+import type { Chart, Beat, NoteEntity, BpmMarker, Lane } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -20,7 +20,7 @@ import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
-  readonly extraNotes: ExtraNoteEntity[];
+  readonly extraNotes: NoteEntity[];
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
@@ -28,7 +28,7 @@ export interface OverlayHost {
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
   readonly violatingExtraNoteIndices: Set<number>;
-  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
+  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
@@ -342,7 +342,9 @@ export class OverlayRenderer {
 
     if (hoveredExtraNoteIndex !== null && hoveredExtraNoteIndex < this.host.extraNotes.length) {
       const note = this.host.extraNotes[hoveredExtraNoteIndex];
-      const x = TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
+      const extraLane = toAuxIndex(note.lane);
+      if (extraLane === null) return;
+      const x = TIMELINE_WIDTH + (extraLane - 1) * EXTRA_LANE_WIDTH;
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
@@ -379,6 +381,7 @@ export class OverlayRenderer {
     const drawNoteCap = (index: number, selected: boolean): void => {
       if (index < 0 || index >= notes.length || drawnCaps.has(index)) return;
       const note = notes[index];
+      if (!isMainLane(note.lane)) return;
       if (!("endBeat" in note)) return;
       const x = (note.lane - 1) * LANE_WIDTH;
       const endY = this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs));
@@ -423,14 +426,14 @@ export class OverlayRenderer {
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
-    // 엑스트라 노트: extraLane 축 겹침/중복 — 시각화 전용(게이트 불포함), 노트와 동일 해칭.
+    // 보조 노트: 통합 validateChart·게이트의 위반을 보조 렌더 index로 투영해 동일 해칭.
     for (const idx of this.host.violatingExtraNoteIndices) {
       if (idx >= this.host.extraNotes.length) continue;
       const note = this.host.extraNotes[idx];
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
       const rectX =
-        TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH +
+        TIMELINE_WIDTH + ((toAuxIndex(note.lane) ?? 1) - 1) * EXTRA_LANE_WIDTH +
         (EXTRA_LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
       this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
     }

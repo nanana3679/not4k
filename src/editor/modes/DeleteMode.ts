@@ -1,4 +1,4 @@
-import type { Chart, ExtraNoteEntity } from "../../shared";
+import type { Chart, NoteEntity } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
@@ -11,9 +11,9 @@ export interface DeleteModeCallbacks {
   hitTestNote: (x: number, y: number) => number | null;
   hitTestTrillZone?: (x: number, y: number) => number | null;
   hitTestExtraNote?: (x: number, y: number) => number | null;
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
+  onExtraNotesUpdate?: (extraNotes: NoteEntity[]) => void;
   onExtraSelectionChange?: (indices: Set<number>) => void;
-  getExtraNotes?: () => ExtraNoteEntity[];
+  getExtraNotes?: () => NoteEntity[];
   onWarn?: (message: string) => void;
 }
 

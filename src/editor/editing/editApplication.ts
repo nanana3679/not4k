@@ -1,5 +1,5 @@
-import type { Chart, ExtraNoteEntity, Lane, NoteEntity, RangeNote } from "../../shared";
-import { beatEq } from "../../shared";
+import type { Chart, Lane, NoteEntity, RangeNote } from "../../shared";
+import { beatEq, toAuxIndex } from "../../shared";
 
 const DEFAULT_POINT_TOLERANCE = 1 / 16;
 
@@ -110,34 +110,34 @@ export function deleteChartNoteAtLaneBeat(
 }
 
 export function deleteExtraNoteAtIndex(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
   index: number,
-): ExtraNoteEntity[] | null {
+): NoteEntity[] | null {
   if (index < 0 || index >= extraNotes.length) return null;
   return deleteExtraNotesAtIndices(extraNotes, new Set([index]));
 }
 
 export function deleteExtraNotesAtIndices(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
   indices: ReadonlySet<number>,
-): ExtraNoteEntity[] {
+): NoteEntity[] {
   if (indices.size === 0) return [...extraNotes];
   return extraNotes.filter((_note, index) => !indices.has(index));
 }
 
 export function deleteExtraNoteAtLaneBeat(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly NoteEntity[],
   input: {
     extraLane: number;
     beatFloat: number;
     pointTolerance?: number;
   },
-): ExtraNoteEntity[] | null {
+): NoteEntity[] | null {
   const tolerance = input.pointTolerance ?? DEFAULT_POINT_TOLERANCE;
 
   for (let i = 0; i < extraNotes.length; i++) {
     const note = extraNotes[i];
-    if (note.extraLane !== input.extraLane) continue;
+    if (toAuxIndex(note.lane) !== input.extraLane) continue;
 
     const startBeat = beatFloatOf(note.beat);
     if ("endBeat" in note) {

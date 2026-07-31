@@ -10,6 +10,7 @@ import { serializeChart, serializeExtraNotes, validateChart } from '../../shared
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
+import { hiddenAuxViolationMessage } from '../validationFeedback';
 
 const styles = {
   toolbar: {
@@ -556,7 +557,6 @@ export function EditorToolbar({
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
@@ -573,18 +573,23 @@ export function EditorToolbar({
 
   const isDirty = !!(savedChartSnapshot && (
     serializeChart(chart) !== savedChartSnapshot ||
-    serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
+    serializeExtraNotes(chart.notes, extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
-  const playTestViolationCount = validateChart({
+  const playTestViolations = validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
     events: chart.events,
-  }).length;
+  });
+  const playTestViolationCount = playTestViolations.length;
   const playTestDisabled = playTestViolationCount > 0;
-  const playTestDisabledTitle = `배치 제약 위반 ${playTestViolationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+  const playTestDisabledTitle = hiddenAuxViolationMessage(
+    playTestViolations,
+    chart.notes,
+    extraLaneCount,
+  ) ?? `배치 제약 위반 ${playTestViolationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
     ...styles.compactButton,

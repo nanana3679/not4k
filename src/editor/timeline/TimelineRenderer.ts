@@ -14,7 +14,6 @@ import type {
   NoteEntity,
   BpmMarker,
   TimeSignatureMarker,
-  ExtraNoteEntity,
 } from "../../shared";
 import { beatToMs, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import {
@@ -116,12 +115,12 @@ export class TimelineRenderer {
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
-  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null = null;
+  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null = null;
 
   // Extra lane state
   private _extraLaneCount: number = 0;
-  private _extraNotes: ExtraNoteEntity[] = [];
+  private _extraNotes: NoteEntity[] = [];
   private _selectedExtraNotes: Set<number> = new Set();
   private _hoveredNoteIndex: number | null = null;
   private _hoveredExtraNoteIndex: number | null = null;
@@ -490,7 +489,7 @@ export class TimelineRenderer {
   }
 
   /** Set extra notes */
-  setExtraNotes(notes: ExtraNoteEntity[]): void {
+  setExtraNotes(notes: NoteEntity[]): void {
     this._extraNotes = notes;
     this.render();
   }
@@ -565,7 +564,7 @@ export class TimelineRenderer {
    * Set move origin ghost data (shown during note drag move).
    * Pass original note entities with their original positions.
    */
-  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[]): void {
+  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[]): void {
     this._moveOrigins = origins;
   }
 
@@ -954,7 +953,7 @@ export class TimelineRenderer {
     this.app?.render();
   }
 
-  /** 엑스트라 노트 위반 인덱스 — extraLane 축 겹침/중복 해칭(시각화 전용, RFD 0017) */
+  /** 보조 노트 위반의 렌더 투영 인덱스 — 통합 validateChart·게이트 결과를 해칭으로 표시 */
   setViolatingExtraNotes(indices: Set<number>): void {
     this._violatingExtraNoteIndices = indices;
     this.overlayRenderer.renderViolationOverlay();

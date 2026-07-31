@@ -7,7 +7,7 @@ export interface MoveOriginDatum {
   note: NoteEntity;
   beat: Beat;
   endBeat?: Beat;
-  lane: Lane;
+  lane: number;
 }
 
 /** 박스 셀렉트 사각형(픽셀/레인 좌표). */

@@ -60,6 +60,22 @@ function setup(
   return { engine, judgments, callbacks };
 }
 
+describe("JudgmentEngine — 메인 레인 입력 경계", () => {
+  it("lane=5 보조 노트가 전달되면 판정 엔진 생성 시 명시적으로 거부된다", () => {
+    const callbacks: JudgmentCallbacks = {
+      onJudgment: vi.fn(),
+      onComboUpdate: vi.fn(),
+    };
+
+    expect(() => new JudgmentEngine(
+      [{ type: NoteType.SINGLE, lane: 5, beat: beat(0) }],
+      new Map([[0, 0]]),
+      new Map(),
+      callbacks,
+    )).toThrow("메인 레인 노트만 전달할 수 있습니다: lane=5");
+  });
+});
+
 describe("롱노트 시작점 허용 — 프레임 경계 독립성 (RFD 0013와 별개, 시작조건 슬라이스 P1)", () => {
   it("시작 윈도우(+120) 내 +115ms에 눌렀고 관측 update가 +130ms에 떨어져도 정상 시작해 끝까지 Perfect", () => {
     // 시작 윈도우는 시간으로 정의된다([noteTime, noteTime+GOOD]). 수락을 프레임에서만 하면 윈도우 내

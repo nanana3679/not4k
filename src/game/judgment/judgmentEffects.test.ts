@@ -6,6 +6,7 @@ import { beat } from "../../shared/types/beat";
 import type { NoteEntity } from "../../shared/types/chart";
 
 const single: NoteEntity = { type: NoteType.SINGLE, lane: 1, beat: beat(0, 1) } as NoteEntity;
+const auxSingle: NoteEntity = { type: NoteType.SINGLE, lane: 5, beat: beat(0, 1) };
 const long: NoteEntity = { type: NoteType.LONG, lane: 1, beat: beat(0, 1), endBeat: beat(4, 1) } as NoteEntity;
 const double: NoteEntity = { type: NoteType.DOUBLE, lane: 1, beat: beat(0, 1) } as NoteEntity;
 
@@ -100,6 +101,14 @@ describe("decideJudgmentEffects", () => {
     const fx = decideJudgmentEffects(result({ grade: JudgmentGrade.MISS }), single);
     expect(fx.bomb).toBeNull();
     expect(fx.noteDisplay).toEqual({ body: "failed", visibility: "missed" });
+  });
+
+  it("lane=5 보조 노트가 방어적으로 유입되어도 비-miss bomb는 생성되지 않는다", () => {
+    const fx = decideJudgmentEffects(
+      result({ grade: JudgmentGrade.PERFECT }),
+      auxSingle,
+    );
+    expect(fx.bomb).toBeNull();
   });
 
   it("더블 롱노트 부분 실패(right) → bomb 없음 + 부분실패 표시 + 가시성 변화 없음 + 점수는 miss(deltaMs 생략)", () => {

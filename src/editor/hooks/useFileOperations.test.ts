@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { performPlayTest, resolveAudioUploadPath, resolvePreviewRegenRange, type PerformPlayTestParams } from './useFileOperations';
-import { beat } from '../../shared';
-import type { PlaybackRange, Lane } from '../../shared';
+import { beat, toPlayableChart } from '../../shared';
+import type { NoteEntity, PlaybackRange, Lane } from '../../shared';
 import { useEditorStore } from '../stores';
 
 function fakeAudioFile(name: string): File {
@@ -30,6 +30,7 @@ function buildParams(overrides: Partial<PerformPlayTestParams> = {}) {
     isPlaying: false,
     pause,
     chart: baseChart,
+    extraLaneCount: 2,
     currentTimeMs: 12345,
     returnUrl: '/editor?songId=abc&difficulty=expert',
     game,
@@ -171,11 +172,69 @@ describe('performPlayTest', () => {
     const result = performPlayTest(params);
 
     expect(result).toBe(true);
-    expect(game.setChartData).toHaveBeenCalledWith(baseChart);
+    expect(game.setChartData).toHaveBeenCalledWith(toPlayableChart(baseChart));
     expect(game.setAudioBuffer).toHaveBeenCalledWith(fakeAudioBuffer);
     expect(game.setEditorReturnUrl).toHaveBeenCalledWith('/editor?songId=abc&difficulty=expert');
     expect(game.setScreen).toHaveBeenCalledWith('play');
     expect(closeMenu).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('lane=5 노트가 유효하면 테스트 플레이 데이터에서는 제외', () => {
+    const chart = {
+      ...baseChart,
+      notes: [
+        ...baseChart.notes,
+        { type: 'single' as const, lane: 5, beat: beat(12) },
+      ],
+    };
+    const { params, game } = buildParams({ chart });
+
+    expect(performPlayTest(params)).toBe(true);
+    expect(game.setChartData).toHaveBeenCalledWith({
+      ...chart,
+      notes: chart.notes.filter((note) => note.lane <= 4),
+    });
+  });
+
+  it('lane=5 중복 노트가 있으면 필터링 전에 테스트 플레이 차단', () => {
+    const duplicatedAuxNote = { type: 'single' as const, lane: 5, beat: beat(12) };
+    const chart = {
+      ...baseChart,
+      notes: [...baseChart.notes, duplicatedAuxNote, { ...duplicatedAuxNote }],
+    };
+    const { params, game } = buildParams({ chart });
+
+    expect(performPlayTest(params)).toBe(false);
+    expect(game.setChartData).not.toHaveBeenCalled();
+  });
+
+  it('extraLaneCount=2에서 lane=8 중복 위반이면 숨겨진 보조 레인 4를 늘리라고 안내', () => {
+    const duplicatedAuxNote = { type: 'single' as const, lane: 8, beat: beat(12) };
+    const chart = {
+      ...baseChart,
+      notes: [...baseChart.notes, duplicatedAuxNote, { ...duplicatedAuxNote }],
+    };
+    const { params, addToast } = buildParams({ chart, extraLaneCount: 2 });
+
+    expect(performPlayTest(params)).toBe(false);
+    expect(addToast).toHaveBeenCalledWith(
+      '숨겨진 보조 레인 4에 수정할 노트가 있습니다. 보조 레인 수를 4 이상으로 늘려 주세요.',
+      'error',
+    );
+  });
+
+  it('lane=5 trill에 trillZone이 없어도 테스트 플레이 가능하고 게임 데이터에서는 제외', () => {
+    const chart = {
+      ...baseChart,
+      notes: [
+        ...baseChart.notes,
+        { type: 'trill' as const, lane: 5, beat: beat(12) },
+      ],
+    };
+    const { params, game } = buildParams({ chart });
+
+    expect(performPlayTest(params)).toBe(true);
+    expect(game.setChartData.mock.calls[0][0].notes.every((note: NoteEntity) => note.lane <= 4)).toBe(true);
   });
 });

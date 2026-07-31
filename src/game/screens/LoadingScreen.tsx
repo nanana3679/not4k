@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
 import { loadSongData } from '../../supabase';
 import { PageLoading } from '../../shared/components/LoadingSpinner';
+import { toPlayableChart } from '../../shared';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
@@ -22,7 +23,7 @@ export function LoadingScreen() {
         const { chart, audioBuffer } = await loadSongData(selectedSongId, selectedDifficulty, audioCtx, selectedAudioUrl ?? undefined);
 
         if (isMounted) {
-          setChartData(chart);
+          setChartData(toPlayableChart(chart));
           setAudioBuffer(audioBuffer);
           setScreen('play');
         }

@@ -1,6 +1,8 @@
 # RFD 0018: 레인 단일 모델 — Extra 노트를 차트의 확장 레인으로 통합
 
-**Status:** Accepted (2026-07-12) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정)
+**Status:** Partially implemented (phase 1, 2026-07-31) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정)
+
+**구현 기록 (phase 1, 2026-07-31):** `NoteEntity.lane`을 양의 정수 축으로 확장하고 `laneAxis` 경계 모듈을 추가했다. 보조 노트의 권위 데이터는 `chart.notes`에 병합되며 검증·히스토리·선택 해제 게이트를 공유한다. 저장/로드 경계는 기존 2파일 포맷을 유지하고, 게임 로딩·테스트 플레이는 `toPlayableChart()`로 메인 노트만 받는다. 미니맵은 보조 노트를 제외하고, 붙여넣기는 필요한 `extraLaneCount`를 자동 확장하며, 숨은 보조 위반은 저장·플레이 차단 메시지에서 필요한 표시 레인 수를 안내한다. 렌더러·포인터 좌표와 `Selection`의 `extraNotes` 보조 index 축은 호환 투영으로 남아 있다. §3-5가 목표로 한 단일 선택 index·단일 이동 축 제거는 후속 phase의 완료 조건이다.
 
 **관련 문서:**
 
