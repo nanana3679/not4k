@@ -32,9 +32,8 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import {
-  fetchOptionalExtraChartText,
   getEditorAudioLoadingSurface,
-  parseEditorChartAssets,
+  loadEditorChartAssets,
 } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
@@ -133,15 +132,8 @@ export default function EditorApp() {
     // Fetch chart + extra data in parallel
     const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
     const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
-    const chartFetch = fetch(chartUrl, { cache: 'no-store' }).then((res) => {
-      if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
-      return res.text();
-    });
-    const extraFetch = fetchOptionalExtraChartText(extraUrl);
-
-    Promise.all([chartFetch, extraFetch])
-      .then(([chartText, extraText]) => {
-        const loaded = parseEditorChartAssets(chartText, extraText);
+    loadEditorChartAssets(chartUrl, extraUrl)
+      .then((loaded) => {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(loaded.chart);
         if (loaded.extraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(loaded.extraLaneCount);

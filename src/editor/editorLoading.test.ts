@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fetchOptionalExtraChartText,
   getEditorAudioLoadingSurface,
+  loadEditorChartAssets,
   parseEditorChartAssets,
 } from "./editorLoading";
 
@@ -77,6 +78,63 @@ describe("fetchOptionalExtraChartText", () => {
       },
     )).rejects.toThrow("보조 차트 가져오기 실패: 네트워크 오류");
   });
+
+  it("200 응답 본문 읽기가 실패하면 응답 읽기 오류로 거부", async () => {
+    const response = new Response("", { status: 200 });
+    response.text = async () => {
+      throw new Error("stream failed");
+    };
+
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => response,
+    )).rejects.toThrow("보조 차트 가져오기 실패: 응답 읽기 오류");
+  });
+});
+
+describe("loadEditorChartAssets", () => {
+  it("메인 파일이 500이면 Chart fetch failed: 500으로 거부", async () => {
+    await expect(loadEditorChartAssets(
+      "https://example.com/chart.json",
+      "https://example.com/chart.extra.json",
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? new Response("", { status: 404 })
+          : new Response("", { status: 500 })
+      ),
+    )).rejects.toThrow("Chart fetch failed: 500");
+  });
+
+  it("메인 파일은 200이어도 보조 파일이 500이면 병합 결과를 반환하지 않고 에러", async () => {
+    await expect(loadEditorChartAssets(
+      "https://example.com/chart.json",
+      "https://example.com/chart.extra.json",
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? new Response("", { status: 500 })
+          : new Response(chartText(), { status: 200 })
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 500");
+  });
+
+  it("메인과 보조 파일이 200이면 보조 노트를 병합해 반환", async () => {
+    const result = await loadEditorChartAssets(
+      "https://example.com/chart.json",
+      "https://example.com/chart.extra.json",
+      async (input) => new Response(
+        String(input).endsWith(".extra.json")
+          ? JSON.stringify({
+              extraNotes: [{ type: "single", extraLane: 2, beat: "1" }],
+              extraLaneCount: 2,
+            })
+          : chartText(),
+        { status: 200 },
+      ),
+    );
+
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 6]);
+    expect(result.extraLaneCount).toBe(2);
+  });
 });
 
 describe("parseEditorChartAssets", () => {
@@ -116,5 +174,122 @@ describe("parseEditorChartAssets", () => {
   it("200 응답의 보조 파일이 빈 문자열이면 legacy 데이터로 대체하지 않고 에러", () => {
     expect(() => parseEditorChartAssets(chartText(), ""))
       .toThrow("보조 차트 파싱 실패: 유효한 JSON이 아닙니다");
+  });
+
+  it.each(["null", "[]", '"text"'])(
+    "보조 파일 최상위가 객체가 아닌 %s이면 에러",
+    (extraText) => {
+      expect(() => parseEditorChartAssets(chartText(), extraText))
+        .toThrow("보조 차트 파싱 실패: 최상위 값이 객체가 아닙니다");
+    },
+  );
+
+  it("별도 보조 파일에 extraNotes 필드가 없으면 빈 데이터로 대체하지 않고 에러", () => {
+    expect(() => parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraLaneCount: 2, extraNote: [] }),
+    )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  });
+
+  it("별도 보조 파일에 extraLaneCount 필드가 없으면 빈 데이터로 대체하지 않고 에러", () => {
+    expect(() => parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraNotes: [] }),
+    )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  });
+
+  it("legacy 차트에 보조 필드가 모두 없으면 빈 보조 데이터로 로드", () => {
+    const result = parseEditorChartAssets(chartText(), null);
+
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1]);
+    expect(result.extraLaneCount).toBe(0);
+  });
+
+  it("extraNotes가 배열이 아니면 데이터 형식 오류로 변환", () => {
+    expect(() => parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraNotes: {}, extraLaneCount: 1 }),
+    )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  });
+
+  it("보조 노트 0개이고 extraLaneCount=4이면 빈 보조 레인 4개 유지", () => {
+    const result = parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraNotes: [], extraLaneCount: 4 }),
+    );
+
+    expect(result.extraLaneCount).toBe(4);
+  });
+
+  it("extraLaneCount=0이어도 extraLane=3 노트가 있으면 3으로 자동 확장", () => {
+    const result = parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({
+        extraNotes: [{ type: "single", extraLane: 3, beat: "1" }],
+        extraLaneCount: 0,
+      }),
+    );
+
+    expect(result.extraLaneCount).toBe(3);
+  });
+
+  it.each([
+    ["알 수 없는 type", { type: "unknown", extraLane: 1, beat: "1" }],
+    ["숫자 beat", { type: "single", extraLane: 1, beat: 1 }],
+    ["뒤에 문자가 붙은 beat", { type: "single", extraLane: 1, beat: "12junk" }],
+    ["single에 endBeat 존재", { type: "single", extraLane: 1, beat: "1", endBeat: "2" }],
+    ["long에 endBeat 누락", { type: "long", extraLane: 1, beat: "1" }],
+    ["long의 endBeat가 유효하지 않음", { type: "long", extraLane: 1, beat: "1", endBeat: "2junk" }],
+  ])("%s 보조 노트이면 데이터 형식 오류", (_label, note) => {
+    expect(() => parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraNotes: [note], extraLaneCount: 1 }),
+    )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  });
+
+  it.each([
+    {
+      label: "extraLane=0",
+      extra: {
+        extraNotes: [{ type: "single", extraLane: 0, beat: "1" }],
+        extraLaneCount: 1,
+      },
+    },
+    {
+      label: "extraLane=11",
+      extra: {
+        extraNotes: [{ type: "single", extraLane: 11, beat: "1" }],
+        extraLaneCount: 10,
+      },
+    },
+    {
+      label: "extraLaneCount=1000000000",
+      extra: {
+        extraNotes: [],
+        extraLaneCount: 1_000_000_000,
+      },
+    },
+  ])("$label이면 허용 범위 밖 보조 레인 데이터로 에러", ({ extra }) => {
+    expect(() => parseEditorChartAssets(chartText(), JSON.stringify(extra)))
+      .toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  });
+
+  it.each([-1, 1.5, "1"])(
+    "extraLaneCount=%s이면 정수가 아닌 허용 범위 밖 데이터로 에러",
+    (extraLaneCount) => {
+      expect(() => parseEditorChartAssets(
+        chartText(),
+        JSON.stringify({ extraNotes: [], extraLaneCount }),
+      )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+    },
+  );
+
+  it("extraLaneCount=10이면 최대 허용 경계로 로드", () => {
+    const result = parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({ extraNotes: [], extraLaneCount: 10 }),
+    );
+
+    expect(result.extraLaneCount).toBe(10);
   });
 });

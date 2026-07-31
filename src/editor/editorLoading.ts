@@ -1,15 +1,18 @@
 import { getOperationLoadingSurface } from "../shared/feedback/operationFeedback";
 import type { OperationLoadingSurface } from "../shared/feedback/operationFeedback";
+import { deserializeChart, parseExtraNotes } from "../shared/chart/index";
+import { withAuxNotes } from "../shared/chart/auxAdapter";
 import {
-  deserializeChart,
   maxAuxLane,
-  parseExtraNotes,
   toAuxIndex,
-  withAuxNotes,
-} from "../shared";
-import type { Chart } from "../shared";
+} from "../shared/chart/laneAxis";
+import type { Chart } from "../shared/types/chart";
 
 export type EditorAudioLoadingSurface = "transparentPage" | "overlay" | null;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 export async function fetchOptionalExtraChartText(
   url: string,
@@ -34,6 +37,20 @@ export async function fetchOptionalExtraChartText(
   }
 }
 
+export async function loadEditorChartAssets(
+  chartUrl: string,
+  extraUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ReturnType<typeof parseEditorChartAssets>> {
+  const chartFetch = fetcher(chartUrl, { cache: "no-store" }).then((response) => {
+    if (!response.ok) throw new Error(`Chart fetch failed: ${response.status}`);
+    return response.text();
+  });
+  const extraFetch = fetchOptionalExtraChartText(extraUrl, fetcher);
+  const [chartText, extraText] = await Promise.all([chartFetch, extraFetch]);
+  return parseEditorChartAssets(chartText, extraText);
+}
+
 export function parseEditorChartAssets(
   chartText: string,
   extraText: string | null,
@@ -51,13 +68,13 @@ export function parseEditorChartAssets(
     throw new Error("보조 차트 파싱 실패: 유효한 JSON이 아닙니다");
   }
 
-  if (!extraJson || typeof extraJson !== "object" || Array.isArray(extraJson)) {
+  if (!isRecord(extraJson)) {
     throw new Error("보조 차트 파싱 실패: 최상위 값이 객체가 아닙니다");
   }
 
   let extra: ReturnType<typeof parseExtraNotes>;
   try {
-    extra = parseExtraNotes(extraJson);
+    extra = parseExtraNotes(extraJson, { requireFileFields: extraText !== null });
   } catch {
     throw new Error("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
   }
