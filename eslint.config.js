@@ -8,9 +8,17 @@ export default tseslint.config(
   { ignores: ["dist"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ["src/**/*.{ts,tsx}"],
+    files: [
+      "src/**/*.{ts,tsx}",
+      "scripts/**/*.ts",
+      "supabase/**/*.ts",
+      "*.config.ts",
+    ],
     languageOptions: {
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
     },
     plugins: {
       "react-hooks": reactHooks,
@@ -26,6 +34,12 @@ export default tseslint.config(
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+    },
+  },
+  {
+    files: ["scripts/**/*.{js,mjs}"],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 );

@@ -3,6 +3,7 @@ import {
   fetchOptionalExtraChartText,
   getEditorAudioLoadingSurface,
   loadEditorChartAssets,
+  loadPublishedEditorChartAssets,
   parseEditorChartAssets,
 } from "./editorLoading";
 
@@ -129,6 +130,67 @@ describe("loadEditorChartAssets", () => {
             })
           : chartText(),
         { status: 200 },
+      ),
+    );
+
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 6]);
+    expect(result.extraLaneCount).toBe(2);
+  });
+});
+
+describe("loadPublishedEditorChartAssets", () => {
+  it("DB revision=rev-123이면 같은 revision의 메인·보조 파일을 병합", async () => {
+    const requested: string[] = [];
+    const result = await loadPublishedEditorChartAssets(
+      { songId: "song-one", difficulty: "HARD" },
+      async () => "rev-123",
+      (path) => `https://cdn.example/${path}`,
+      async (input) => {
+        const url = String(input);
+        requested.push(url);
+        if (url.endsWith("hard.rev-123.extra.json")) {
+          return new Response(JSON.stringify({
+            extraNotes: [{ type: "single", extraLane: 1, beat: "1" }],
+            extraLaneCount: 1,
+          }));
+        }
+        return new Response(chartText());
+      },
+    );
+
+    expect(new Set(requested)).toEqual(new Set([
+      "https://cdn.example/songs/song-one/hard.rev-123.json",
+      "https://cdn.example/songs/song-one/hard.rev-123.extra.json",
+    ]));
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 5]);
+    expect(result.extraLaneCount).toBe(1);
+  });
+
+  it("DB revision=rev-123인데 보조 파일이 404이면 메인만 열지 않고 에러", async () => {
+    await expect(loadPublishedEditorChartAssets(
+      { songId: "song-one", difficulty: "HARD" },
+      async () => "rev-123",
+      (path) => `https://cdn.example/${path}`,
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? new Response("", { status: 404 })
+          : new Response(chartText())
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 404");
+  });
+
+  it("DB revision=null이고 stable 보조 파일이 404이면 메인에 내장된 legacy 보조 노트를 병합", async () => {
+    const result = await loadPublishedEditorChartAssets(
+      { songId: "song-one", difficulty: "HARD" },
+      async () => null,
+      (path) => `https://cdn.example/${path}`,
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? new Response("", { status: 404 })
+          : new Response(chartText({
+              extraNotes: [{ type: "single", extraLane: 2, beat: "1" }],
+              extraLaneCount: 2,
+            }))
       ),
     );
 

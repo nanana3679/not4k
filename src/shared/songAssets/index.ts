@@ -2,6 +2,7 @@ export {
   createChartAsset,
   deleteChartAsset,
   deleteSongAsset,
+  saveLegacyChartAsset,
   saveChartAsset,
   SongHasChartsError,
   type ChartAssetUpsert,
@@ -13,3 +14,9 @@ export {
   type SongAssetPersistenceAdapter,
   type TextAssetUpload,
 } from "./chartAssetPersistence";
+export { assertValidChartAssetRevision } from "./chartAssetRevision";
+export {
+  fetchPublishedMainChartText,
+  resolvePublishedChartAssetPaths,
+  type PublishedChartAssetPaths,
+} from "./chartAssetLoader";

@@ -8,12 +8,13 @@
 import { supabase } from "./client";
 import {
   STORAGE_BUCKET,
+  fetchPublishedMainChartText,
   songAudioPath,
   songJacketPath,
-  songChartPath,
 } from "../shared";
 import { deserializeChart } from "../shared";
 import type { Chart } from "../shared";
+import { getChartAssetRevision } from "./songAssets";
 
 /**
  * Storage에서 파일의 퍼블릭 URL을 반환한다.
@@ -32,12 +33,11 @@ export async function fetchChart(
   songId: string,
   difficulty: string,
 ): Promise<Chart> {
-  const url = getPublicUrl(songChartPath(songId, difficulty));
-  const response = await fetch(url, { cache: 'no-cache' });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch chart: ${response.status}`);
-  }
-  const text = await response.text();
+  const text = await fetchPublishedMainChartText(
+    { songId, difficulty },
+    getChartAssetRevision,
+    getPublicUrl,
+  );
   return deserializeChart(text);
 }
 

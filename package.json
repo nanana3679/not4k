@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node scripts/verify-chart-asset-revision.mjs && tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",

@@ -7,6 +7,10 @@ import {
   toAuxIndex,
 } from "../shared/chart/laneAxis";
 import type { Chart } from "../shared/types/chart";
+import {
+  resolvePublishedChartAssetPaths,
+  type ChartAssetTarget,
+} from "../shared/songAssets";
 
 export type EditorAudioLoadingSurface = "transparentPage" | "overlay" | null;
 
@@ -17,6 +21,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function fetchOptionalExtraChartText(
   url: string,
   fetcher: typeof fetch = fetch,
+  required = false,
 ): Promise<string | null> {
   let response: Response;
   try {
@@ -25,7 +30,7 @@ export async function fetchOptionalExtraChartText(
     throw new Error("보조 차트 가져오기 실패: 네트워크 오류");
   }
 
-  if (response.status === 404) return null;
+  if (response.status === 404 && !required) return null;
   if (!response.ok) {
     throw new Error(`보조 차트 가져오기 실패: HTTP ${response.status}`);
   }
@@ -41,14 +46,30 @@ export async function loadEditorChartAssets(
   chartUrl: string,
   extraUrl: string,
   fetcher: typeof fetch = fetch,
+  extraRequired = false,
 ): Promise<ReturnType<typeof parseEditorChartAssets>> {
   const chartFetch = fetcher(chartUrl, { cache: "no-store" }).then((response) => {
     if (!response.ok) throw new Error(`Chart fetch failed: ${response.status}`);
     return response.text();
   });
-  const extraFetch = fetchOptionalExtraChartText(extraUrl, fetcher);
+  const extraFetch = fetchOptionalExtraChartText(extraUrl, fetcher, extraRequired);
   const [chartText, extraText] = await Promise.all([chartFetch, extraFetch]);
   return parseEditorChartAssets(chartText, extraText);
+}
+
+export async function loadPublishedEditorChartAssets(
+  target: ChartAssetTarget,
+  getPublishedRevision: (target: ChartAssetTarget) => Promise<string | null>,
+  getPublicUrl: (path: string) => string,
+  fetcher: typeof fetch = fetch,
+): Promise<ReturnType<typeof parseEditorChartAssets>> {
+  const paths = await resolvePublishedChartAssetPaths(target, getPublishedRevision);
+  return loadEditorChartAssets(
+    getPublicUrl(paths.chartPath),
+    getPublicUrl(paths.extraPath),
+    fetcher,
+    paths.revision !== null,
+  );
 }
 
 export function parseEditorChartAssets(

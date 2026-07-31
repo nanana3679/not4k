@@ -29,6 +29,12 @@ _Avoid_: 차트 에셋
 특정 곡의 특정 난이도에 해당하는 차트 산출물이다.
 _Avoid_: 곡 에셋
 
+**`asset_revision`**:
+현재 게시된 immutable 메인·보조 차트 파일 쌍을 가리키는 DB pointer이다. 풀 정의는 glossary의 `asset_revision` 항목을 따른다.
+
+**`chart_asset_release_state`**:
+revision-aware reader 배포와 revision writer 활성화를 분리하는 DB release fence이다. 풀 정의는 glossary의 `chart_asset_release_state` 항목을 따른다.
+
 **공개 곡**:
 차트 에셋이 하나 이상 있어 일반 유저의 곡 선택에 노출되는 곡이다. 곡 자체에 공개/비공개 플래그가 따로 있는 것이 아니라, 차트 에셋 보유 여부로 결정된다.
 _Avoid_: 비공개 곡

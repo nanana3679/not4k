@@ -16,7 +16,15 @@ import {
   isMeasureBoundary,
   mainNotes,
 } from '../../shared';
-import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
+import type {
+  Chart,
+  ChartAssetWriteResult,
+  Lane,
+  PlaybackRange,
+  SaveChartAssetInput,
+  TutorialDiagramId,
+  ValidationError,
+} from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -27,11 +35,54 @@ import { useGameStore } from '../../game/stores';
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
-  handleSaveAs: (targetDifficulty: string, targetLevel: number) => Promise<void>;
+  handleSaveAs: (
+    targetDifficulty: string,
+    targetLevel: number,
+    overwrite?: { expectedRevision: string | null },
+  ) => Promise<void>;
   handlePlayTest: (fromCursor: boolean) => void;
   handleDeleteChart: () => Promise<void>;
   handleMarkerSave: (values: Record<string, string>) => void;
   handleMarkerDelete: () => void;
+}
+
+export interface PersistSaveAsParams {
+  songId: string;
+  targetDifficulty: string;
+  targetLevel: number;
+  chart: Chart;
+  extraLaneCount: number;
+  /** 생략하면 insert-only 신규 생성, 지정하면 확인 당시 revision을 조건으로 overwrite한다. */
+  expectedRevision?: string | null;
+}
+
+type PersistChartAsset = (input: SaveChartAssetInput) => Promise<ChartAssetWriteResult>;
+
+export async function persistSaveAsChart(
+  params: PersistSaveAsParams,
+  persist: PersistChartAsset = persistChartAsset,
+): Promise<{ difficulty: string; chart: Chart; savedAsset: ChartAssetWriteResult }> {
+  const difficulty = params.targetDifficulty.toLowerCase();
+  const chart = {
+    ...params.chart,
+    meta: {
+      ...params.chart.meta,
+      difficultyLabel: params.targetDifficulty,
+      difficultyLevel: params.targetLevel,
+    },
+  };
+  const saveInput: SaveChartAssetInput = {
+    songId: params.songId,
+    difficulty,
+    chart,
+    extraLaneCount: params.extraLaneCount,
+    allowCreate: !Object.prototype.hasOwnProperty.call(params, "expectedRevision"),
+  };
+  if (Object.prototype.hasOwnProperty.call(params, "expectedRevision")) {
+    saveInput.expectedRevision = params.expectedRevision;
+  }
+  const savedAsset = await persist(saveInput);
+  return { difficulty, chart, savedAsset };
 }
 
 /** 테스트 플레이가 게임 스토어에 적용하는 액션 (테스트에서 주입 가능하도록 분리) */
@@ -149,7 +200,9 @@ export function useFileOperations(
   setDeleting: (v: boolean) => void,
   setValidationErrors: (errors: ValidationError[]) => void,
   setShowSaveAsModal: (v: boolean) => void,
-  setSaveAsOverwriteTarget: (v: { difficulty: string; level: number } | null) => void,
+  setSaveAsOverwriteTarget: (
+    v: { difficulty: string; level: number; expectedRevision: string | null } | null,
+  ) => void,
   setShowDeleteConfirm: (v: boolean) => void,
   setShowPlayTestMenu: (v: boolean) => void,
   setSavedChartSnapshot: (v: string) => void,
@@ -310,7 +363,11 @@ export function useFileOperations(
     }
   }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
-  const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
+  const handleSaveAs = useCallback(async (
+    targetDifficulty: string,
+    targetLevel: number,
+    overwrite?: { expectedRevision: string | null },
+  ) => {
     if (!activeSongId) {
       addToast('No song selected — cannot save', 'error');
       return;
@@ -333,23 +390,21 @@ export function useFileOperations(
     setShowSaveAsModal(false);
     setSaveAsOverwriteTarget(null);
     try {
-      const difficulty = targetDifficulty.toLowerCase();
-
-      const chartToSave = {
-        ...chart,
-        meta: {
-          ...chart.meta,
-          difficultyLabel: targetDifficulty,
-          difficultyLevel: targetLevel,
-        },
-      };
-
-      const savedAsset = await persistChartAsset({
+      const saveAsParams: PersistSaveAsParams = {
         songId: activeSongId,
+        targetDifficulty,
+        targetLevel,
+        chart,
+        extraLaneCount,
+      };
+      if (overwrite) {
+        saveAsParams.expectedRevision = overwrite.expectedRevision;
+      }
+      const {
         difficulty,
         chart: chartToSave,
-        extraLaneCount,
-      });
+        savedAsset,
+      } = await persistSaveAsChart(saveAsParams);
 
       setChart(chartToSave);
       setSavedChartSnapshot(savedAsset.chartJson);

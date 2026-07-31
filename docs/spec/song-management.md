@@ -10,14 +10,28 @@
 | 위치 | 내용 |
 |------|------|
 | `songs` 테이블 | 곡 메타데이터 (제목, 아티스트, 재생 구간 등) |
-| `charts` 테이블 | 차트 메타데이터 (난이도 라벨/레벨, offset) |
-| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON(`{difficulty}.json`, `{difficulty}.extra.json`) |
+| `charts` 테이블 | 차트 메타데이터 (난이도 라벨/레벨, offset)와 현재 파일 쌍을 가리키는 `asset_revision` |
+| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON 세대(`{difficulty}.{revision}.json`, `{difficulty}.{revision}.extra.json`) |
 
 ## 차트 로드 규칙
 
+- `charts.asset_revision`이 있으면 그 값과 같은 revision의 메인·보조 차트를 로드한다.
+- `asset_revision`이 `null`인 기존 차트만 `{difficulty}.json`과 `{difficulty}.extra.json`을 로드한다. revision 조회 실패나 유효하지 않은 값은 로드를 중단한다.
 - 메인 차트 파일은 필수이다.
-- 보조 차트 파일의 404 응답만 파일 부재로 취급하고, 이때는 메인 차트에 내장된 이전 포맷의 제작 보조 정보를 읽는다.
+- 기존 차트(`asset_revision=null`)에서만 보조 차트 파일의 404를 파일 부재로 취급하고 메인 차트에 내장된 이전 포맷의 제작 보조 정보를 읽는다. revision이 게시된 차트에서는 보조 파일도 필수이다.
 - 보조 차트 파일의 그 밖의 HTTP 오류, 네트워크 오류, 파싱 오류가 발생하면 편집기 진입을 중단한다. 메인 차트만 불완전하게 연 뒤 저장하여 제작 보조 정보를 덮어쓰는 흐름은 허용하지 않는다.
+
+## 차트 저장 규칙
+
+- PR #157 reader-first 단계에서는 `revision_writes_enabled=false`를 유지하고 stable 메인·보조 파일에 저장한다. 보조 노트가 없어도 빈 보조 파일을 만든다.
+- 후속 release에서 writer fence를 열면 저장할 때 고유 revision을 만들고, 같은 revision의 메인·보조 파일을 `upsert` 없이 먼저 업로드한다.
+- revision writer는 stable 경로를 갱신하지 않는다. stable 경로는 `asset_revision=null`인 migration 이전 행에만 canonical이며, revision 게시 뒤에는 DB가 가리키는 immutable 경로만 canonical이다.
+- 두 파일 업로드가 모두 성공한 뒤 `charts` 행의 revision과 난이도 레벨/offset을 한 번의 DB 쓰기로 교체한다. 따라서 파일 쌍과 메타데이터의 게시 승자는 항상 같다.
+- 파일 업로드 단계에서 실패한 revision은 게시 전에 정리한다. DB 게시 요청 뒤에는 응답 유실 시 실제 커밋 여부를 알 수 없으므로 파일을 지우지 않는다.
+- 게시된 이전 revision과 실패한 미참조 revision은 동시 저장·삭제의 staging 파일을 잘못 지우지 않도록 즉시 제거하지 않는다. 차트 삭제는 DB 행이 가리키던 활성 revision만 제거하고, 곡 삭제 시 디렉터리 전체를 정리한다.
+- reader-first 단계의 신규 차트는 stable 메인·빈 보조 파일과 `asset_revision=null`로 만들고, writer 활성화 후 첫 저장에서 immutable revision으로 전환한다.
+- Save As 신규 생성은 DB에서 insert-only이고, 확인된 덮어쓰기는 확인 당시 `asset_revision`을 조건으로 CAS update한다. 다만 reader-first stable writer에서는 파일 업로드가 DB보다 먼저라 동시 Save As를 운영상 직렬화한다. 파일 쌍까지 경합 안전해지는 시점은 #159의 immutable writer 활성화 이후다.
+- migration 선적용, reader-first 배포, writer 활성화의 후속 조건, rollback 하한선은 [차트 `asset_revision` 배포 runbook](../runbooks/chart-asset-revision-rollout.md)을 따른다.
 
 ## 삭제 규칙
 
@@ -31,6 +45,7 @@
 - 곡 삭제 순서는 **DB 행 먼저, Storage 파일 나중**이다. 클라이언트가 아는 차트 수가
   낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
   구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
+- 차트 삭제는 DB 행을 먼저 지운 뒤 그 행이 가리키던 활성 revision과 이전 형식 파일만 제거한다. 동시 저장과의 경합 때문에 미참조 revision은 이 단계에서 일괄 삭제하지 않는다.
 
 ## 백업 (다중화)
 

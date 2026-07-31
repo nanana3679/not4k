@@ -13,12 +13,12 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET } from '../shared';
 import { serializeExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, auxNotesAsExtra } from '../shared';
-import { supabase } from '../supabase';
+import { getChartAssetRevision, supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
@@ -33,7 +33,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import {
   getEditorAudioLoadingSurface,
-  loadEditorChartAssets,
+  loadPublishedEditorChartAssets,
 } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
@@ -129,10 +129,12 @@ export default function EditorApp() {
       return;
     }
 
-    // Fetch chart + extra data in parallel
-    const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
-    const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
-    loadEditorChartAssets(chartUrl, extraUrl)
+    // DB 행이 가리키는 같은 revision의 메인·보조 차트를 함께 로드한다.
+    loadPublishedEditorChartAssets(
+      { songId, difficulty },
+      getChartAssetRevision,
+      getPublicUrl,
+    )
       .then((loaded) => {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(loaded.chart);
@@ -230,7 +232,11 @@ function ChartEditorPage() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
-  const [saveAsOverwriteTarget, setSaveAsOverwriteTarget] = useState<{ difficulty: string; level: number } | null>(null);
+  const [saveAsOverwriteTarget, setSaveAsOverwriteTarget] = useState<{
+    difficulty: string;
+    level: number;
+    expectedRevision: string | null;
+  } | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -869,14 +875,22 @@ function ChartEditorPage() {
           level={chart.meta.difficultyLevel}
           isDirty={!!(savedChartSnapshot && (serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot))}
           onSave={async (targetDifficulty, targetLevel) => {
-            const { data: existing } = await supabase
+            const { data: existing, error } = await supabase
               .from('charts')
-              .select('song_id')
+              .select('song_id,asset_revision')
               .eq('song_id', activeSongId!)
               .eq('difficulty_label', targetDifficulty.toLowerCase())
               .maybeSingle();
+            if (error) {
+              addToast('대상 난이도 확인에 실패했습니다. 다시 시도해주세요.', 'error');
+              return;
+            }
             if (existing) {
-              setSaveAsOverwriteTarget({ difficulty: targetDifficulty, level: targetLevel });
+              setSaveAsOverwriteTarget({
+                difficulty: targetDifficulty,
+                level: targetLevel,
+                expectedRevision: existing.asset_revision as string | null,
+              });
               setShowSaveAsModal(false);
             } else {
               fileOps.handleSaveAs(targetDifficulty, targetLevel);
@@ -896,7 +910,16 @@ function ChartEditorPage() {
               <span style={{ color: '#ff9966', fontSize: '13px' }}>덮어쓰시겠습니까? 이 작업은 되돌릴 수 없습니다.</span>
             </p>
             <div style={modalStyles.buttons}>
-              <button style={modalStyles.deleteBtn} onClick={() => fileOps.handleSaveAs(saveAsOverwriteTarget.difficulty, saveAsOverwriteTarget.level)}>Overwrite</button>
+              <button
+                style={modalStyles.deleteBtn}
+                onClick={() => fileOps.handleSaveAs(
+                  saveAsOverwriteTarget.difficulty,
+                  saveAsOverwriteTarget.level,
+                  { expectedRevision: saveAsOverwriteTarget.expectedRevision },
+                )}
+              >
+                Overwrite
+              </button>
               <button style={modalStyles.cancelBtn} onClick={() => setSaveAsOverwriteTarget(null)}>Cancel</button>
             </div>
           </div>
