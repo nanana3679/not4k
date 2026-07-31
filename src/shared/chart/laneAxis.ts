@@ -13,6 +13,8 @@
 
 /** 게임이 판정하는 메인 레인 수 — 경계 상수의 유일한 서식지 */
 export const MAIN_LANE_COUNT = 4;
+/** 보조 파일 포맷이 허용하는 최대 보조 레인 수 */
+export const MAX_EXTRA_LANE_COUNT = 10;
 
 /** 메인 레인(1..4) 여부 — 게임 판정 대상. 비정수·범위 밖은 false */
 export function isMainLane(lane: number): boolean {
