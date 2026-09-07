@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, validateChart } from '../../shared';
+import { serializeChart, serializeExtraNotes, validateChart, buildViolationList, mainNotes, auxNotesAsExtra } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -300,7 +300,94 @@ const styles = {
     textAlign: 'center' as const,
     touchAction: 'manipulation' as const,
   },
+  // 위반 카운터 배지 + 리스트 팝오버 (RFD 0017 §7 위반 시각화 언어)
+  violationBadgeButton: {
+    color: '#ff6666',
+    borderColor: '#cc3333',
+    fontWeight: 700,
+  },
+  violationPanel: {
+    position: 'fixed' as const,
+    top: '48px',
+    right: '8px',
+    minWidth: '260px',
+    maxWidth: 'min(420px, calc(100vw - 16px))',
+    maxHeight: '60vh',
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    backgroundColor: '#262626',
+    border: '1px solid #555',
+    borderRadius: '8px',
+    zIndex: 1000,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+    overflowY: 'auto' as const,
+  },
+  violationPanelTitle: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#ff6666',
+    padding: '2px 2px 0',
+  },
+  violationItem: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '3px',
+    padding: '6px 8px',
+    backgroundColor: '#343434',
+    border: '1px solid #505050',
+    borderRadius: '6px',
+  },
+  violationItemHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#ededed',
+  },
+  violationDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  violationMessage: {
+    fontSize: '11px',
+    lineHeight: 1.4,
+    color: '#aaa',
+    wordBreak: 'break-word' as const,
+  },
+  // 막다른 상태 탈출 버튼 (RFD 0017 §7) — 위반 팝오버 하단 맥락 버튼.
+  // 파괴적 점프(위반 편집 폐기)라 위험 계열 테두리, 확인 다이얼로그 대신 undo 안전망.
+  violationRevertButton: {
+    minHeight: '44px',
+    padding: '8px 10px',
+    backgroundColor: '#3a2626',
+    color: '#ff6666',
+    border: '1px solid #cc3333',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 700,
+    textAlign: 'center' as const,
+    touchAction: 'manipulation' as const,
+  },
+  violationRevertHint: {
+    fontSize: '10px',
+    lineHeight: 1.4,
+    color: '#888',
+    padding: '0 2px 2px',
+  },
 };
+
+// 리스트 항목의 심각도 색 — 캔버스 해칭·미니맵 틱(단일 빨강)은 건드리지 않고
+// 리스트 안에서만 구조(하드 거부)=빨강, 의미(transient)=앰버로 구분한다.
+const severityDotColors = {
+  structural: '#ff6666',
+  semantic: '#e8a33d',
+} as const;
 
 type ToolbarIconName = 'back' | 'play' | 'pause' | 'save' | 'more' | 'create' | 'select' | 'delete' | 'undo' | 'redo' | 'entity' | 'snap' | 'extra' | 'close';
 type CompactPicker = 'entity' | 'snap' | 'extra';
@@ -480,8 +567,8 @@ interface EditorToolbarProps {
   onOpenCustomSnap: () => void;
 }
 
-const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone'];
-const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone'];
+const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone', 'restZone'];
+const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone', 'restZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -492,6 +579,7 @@ const entityLabels: Record<EntityType, string> = {
   long: 'Long',
   doubleLong: 'D.Long',
   trillZone: 'Trill',
+  restZone: 'Rest',
   bpm: 'BPM',
   timeSignature: 'Time',
   text: 'Text',
@@ -528,6 +616,7 @@ export function EditorToolbar({
   const updateSettings = useGameStore((s) => s.updateSettings);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [compactPicker, setCompactPicker] = useState<CompactPicker | null>(null);
+  const [showViolationList, setShowViolationList] = useState(false);
 
   // 데스크톱 Play 드롭다운: 툴바 overflow에 잘리지 않게 fixed + ref 좌표로 앵커
   const playMenuBtnRef = useRef<HTMLButtonElement>(null);
@@ -556,35 +645,45 @@ export function EditorToolbar({
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
-  const clearExtraSelection = useEditorStore((s) => s.clearExtraSelection);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
-  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
   const historyPastCount = useEditorStore((s) => s.historyPast.length);
   const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  // 막다른 상태 탈출(RFD 0017 §7) — 씨앗(마지막 valid 스냅샷)이 있을 때만 버튼 노출
+  const hasLastValidSnapshot = useEditorStore((s) => s.lastValidSnapshot !== null);
+  const revertToLastValid = useEditorStore((s) => s.revertToLastValid);
   const addToast = useEditorStore((s) => s.addToast);
-  const selectedCount = selectedNotes.size + selectedExtraNotes.size;
+  // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
+  const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
+  // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 메인/보조 분리 후 비교한다 (RFD 0018 ③).
   const isDirty = !!(savedChartSnapshot && (
-    serializeChart(chart) !== savedChartSnapshot ||
-    serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot
+    serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot ||
+    serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot
   )) || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
-  const playTestViolationCount = validateChart({
+  // 보조 레인 위반도 동일하게 본다(RFD 0018 §3-6) — performPlayTest 게이트와 같은 입력.
+  // 같은 결과를 위반 배지·리스트 팝오버(§7 위반 시각화 언어)도 공유한다.
+  const violationItems = buildViolationList(validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
+    restZones: chart.restZones,
     events: chart.events,
-  }).length;
-  const playTestDisabled = playTestViolationCount > 0;
-  const playTestDisabledTitle = `배치 제약 위반 ${playTestViolationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+  }));
+  const violationCount = violationItems.length;
+  // 위반이 전부 해소되면 배지·팝오버가 언마운트되므로 열림 상태도 리셋한다.
+  // (안 하면 이후 새 위반 발생 시 사용자가 열지 않았는데 팝오버가 열린 채 나타남)
+  // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
+  if (violationCount === 0 && showViolationList) setShowViolationList(false);
+  const playTestDisabled = violationCount > 0;
+  const playTestDisabledTitle = `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
     ...styles.compactButton,
@@ -762,15 +861,81 @@ export function EditorToolbar({
           {compactPicker === 'extra' && (
             <div style={styles.compactPickerGrid}>
               {extraLaneOptions.map((value) => renderCompactOption(value, String(value), extraLaneCount === value, () => {
+                // 레인 수 축소는 숨김만(데이터·선택 보존, §8-4) — 되돌리면 다시 보인다.
                 setExtraLaneCount(value);
-                if (value < extraLaneCount) {
-                  clearExtraSelection();
-                }
                 closePicker();
               }))}
             </div>
           )}
         </div>
+      </div>
+    );
+  };
+
+  // 위반 카운터 배지 + 클릭 시 리스트 팝오버 (RFD 0017 §7 위반 시각화 언어).
+  // 위반 0건이면 배지·팝오버 모두 없음. 항목은 표시 전용(점프 없음).
+  // 팝오버는 More 메뉴와 같은 fixed 앵커 — 툴바 overflow에 잘리지 않는다.
+  const renderViolationBadge = () => {
+    if (violationCount === 0) return null;
+    const badgeStyle = {
+      ...(compact ? styles.compactButton : styles.button),
+      ...styles.violationBadgeButton,
+      flexShrink: 0,
+    };
+    return (
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          style={badgeStyle}
+          onClick={() => setShowViolationList((v) => !v)}
+          title={`배치 제약 위반 ${violationCount}건 — 클릭해 목록 보기`}
+          aria-label={`배치 제약 위반 ${violationCount}건 목록 열기`}
+        >
+          ⚠ {violationCount}
+        </button>
+        {showViolationList && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+              onClick={() => setShowViolationList(false)}
+            />
+            <div style={styles.violationPanel}>
+              <div style={styles.violationPanelTitle}>배치 제약 위반 {violationCount}건</div>
+              {violationItems.map((item, i) => (
+                <div key={i} style={styles.violationItem}>
+                  <div style={styles.violationItemHead}>
+                    <span
+                      style={{
+                        ...styles.violationDot,
+                        backgroundColor: severityDotColors[item.severity],
+                      }}
+                    />
+                    {item.label}
+                  </div>
+                  <div style={styles.violationMessage}>{item.message}</div>
+                </div>
+              ))}
+              {/* 막다른 상태 탈출(RFD 0017 §7) — 마지막 valid 스냅샷으로 O(1) 복귀.
+                  씨앗이 없으면(한 번도 valid를 통과 안 함) 버튼 자체를 렌더하지 않는다.
+                  확인 다이얼로그 없음 — 복귀 자체가 undo로 취소 가능한 안전망. */}
+              {hasLastValidSnapshot && (
+                <>
+                  <button
+                    style={styles.violationRevertButton}
+                    onClick={() => {
+                      revertToLastValid();
+                      setShowViolationList(false);
+                    }}
+                  >
+                    마지막 유효 상태로 되돌리기
+                  </button>
+                  <div style={styles.violationRevertHint}>
+                    이 되돌리기도 Undo(Ctrl+Z)로 취소할 수 있습니다
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -862,6 +1027,8 @@ export function EditorToolbar({
               <ToolbarIcon name="snap" />
             </button>
           </div>
+
+          {renderViolationBadge()}
 
           <div style={styles.compactGroup}>
             <button
@@ -1159,6 +1326,8 @@ export function EditorToolbar({
 
       <div style={{ flex: 1 }} />
 
+      {renderViolationBadge()}
+
       {/* Save Chart (아이콘 + 변경사항 칩) */}
       <button
         style={{
@@ -1237,10 +1406,8 @@ export function EditorToolbar({
                 value={extraLaneCount}
                 onChange={(e) => {
                   const newCount = parseInt(e.target.value);
+                  // 레인 수 축소는 숨김만(데이터·선택 보존, §8-4).
                   setExtraLaneCount(newCount);
-                  if (newCount < extraLaneCount) {
-                    clearExtraSelection();
-                  }
                 }}
               >
                 {extraLaneOptions.map((n) => <option key={n} value={n}>{n}</option>)}

@@ -70,6 +70,15 @@ describe('deserializeChart 입력 검증', () => {
   it('trillZones 필드가 배열이 아니면 에러', () => {
     expect(() => deserializeChart('{"meta":{},"notes":[],"trillZones":"bad"}')).toThrow('trillZones 필드가 배열이 아닙니다');
   });
+
+  it('restZones 필드가 없으면 에러 없이 restZones=[]로 파싱 (하위호환, RFD 0019)', () => {
+    const chart = deserializeChart('{"meta":{},"notes":[],"trillZones":[],"events":[]}');
+    expect(chart.restZones).toEqual([]);
+  });
+
+  it('restZones 필드가 존재하는데 배열이 아니면 에러', () => {
+    expect(() => deserializeChart('{"meta":{},"notes":[],"trillZones":[],"restZones":"bad"}')).toThrow('restZones 필드가 배열이 아닙니다');
+  });
 });
 
 describe('holdOnly 저장→불러오기 왕복 보존', () => {

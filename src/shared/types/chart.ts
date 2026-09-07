@@ -59,10 +59,15 @@ export interface TimeSignatureMarker {
 // 노트 엔티티
 // ---------------------------------------------------------------------------
 
-/** 포인트 노트 — 위치만 가짐 (싱글 / 더블 / 트릴) */
+/**
+ * 포인트 노트 — 위치만 가짐 (싱글 / 더블 / 트릴)
+ *
+ * lane은 1-based 자연수. 메인 레인(1..4)만 게임 판정 대상이고,
+ * 보조 레인(5+)은 에디터 표시 전용이다. 경계 규칙은 laneAxis 모듈이 소유한다 (RFD 0018).
+ */
 export interface PointNote {
   type: "single" | "double" | "trill";
-  lane: Lane;
+  lane: number;
   beat: Beat;
   /** Grace 플래그 — Good 윈도우 내 입력 시 항상 Perfect */
   grace?: boolean;
@@ -76,7 +81,7 @@ export interface PointNote {
  */
 export interface RangeNote {
   type: "long" | "doubleLong" | "trillLong";
-  lane: Lane;
+  lane: number;
   beat: Beat;
   endBeat: Beat;
   /** hold-only — 끝점의 떼는 판정을 면제. 유지만 하면 Perfect (RFD 0005) */
@@ -127,6 +132,22 @@ export type ExtraNoteEntity = ExtraPointNote | ExtraRangeNote;
  * 자체는 입력을 요구하지 않는다.
  */
 export interface TrillZone {
+  lane: Lane;
+  beat: Beat;
+  endBeat: Beat;
+}
+
+// ---------------------------------------------------------------------------
+// restZone
+// ---------------------------------------------------------------------------
+
+/**
+ * restZone — 휴지 구간 (RFD 0019). 제작자가 "이 레인은 이 구간 동안 안 쓴다"는
+ * 의도를 표시하는 레인별 저작 구간으로, trillZone의 형제다.
+ * 판정에 일절 개입하지 않는다(시각 안내 + 배치 제약 전용).
+ * lane은 가시 레인 1~4만 대상이다 (§4-1).
+ */
+export interface RestZone {
   lane: Lane;
   beat: Beat;
   endBeat: Beat;
@@ -225,5 +246,11 @@ export interface Chart {
   meta: ChartMeta;
   notes: NoteEntity[];
   trillZones: TrillZone[];
+  /**
+   * 휴지 구간 (RFD 0019). 이 필드 도입 전의 Chart 생성 경로(게임·에디터의
+   * 기존 리터럴)와의 호환을 위해 optional — shared 내부는 `?? []`로 방어하고,
+   * 직렬화 경계(chartFromJson)는 항상 배열로 정규화한다.
+   */
+  restZones?: RestZone[];
   events: ChartEvent[];
 }

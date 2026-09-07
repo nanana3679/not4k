@@ -19,7 +19,7 @@ const q1 = () => createHarness([
   body(1100, 2000),
 ]);
 
-describe("RFD0019 release 사례 NJ-R01~R15", () => {
+describe("RFD0020 release 사례 NJ-R01~R15", () => {
   it("NJ-R01: 정상 Q1은 head 2개와 release 3개를 모두 Perfect", () => {
     const h = q1();
     h.at(0, { key: "A", type: "down" }, { key: "B", type: "down" });

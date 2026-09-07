@@ -14,6 +14,7 @@ import {
   validateChart,
   extractTimeSignatures,
   isMeasureBoundary,
+  mainNotes,
 } from '../../shared';
 import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
 import {
@@ -79,6 +80,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
   const violations = validateChart({
     notes: chart.notes,
     trillZones: chart.trillZones,
+    restZones: chart.restZones,
     events: chart.events,
   });
   if (violations.length > 0) {
@@ -88,7 +90,10 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
 
   if (isPlaying) pause();
 
-  game.setChartData(chart);
+  // 게임 진입 필터 (RFD 0018 §3-3): 게임은 메인 레인(1..4)만 판정한다.
+  // 이 라이브 경로는 파일 직렬화(저장 분리)를 거치지 않으므로 여기서 보조 레인 노트를 벗긴다.
+  // 에디터 툴바와 DEV lab이 performPlayTest를 공유하므로 여기가 유일한 초크포인트다.
+  game.setChartData({ ...chart, notes: mainNotes(chart.notes) });
   game.setAudioBuffer(audioBuffer);
   game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
   game.setEditorReturnUrl(returnUrl);
@@ -164,7 +169,6 @@ export function useFileOperations(
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
@@ -182,9 +186,11 @@ export function useFileOperations(
       return;
     }
 
+    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {
@@ -211,7 +217,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -303,7 +308,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraNotes, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -311,9 +316,11 @@ export function useFileOperations(
       return;
     }
 
+    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
+      restZones: chart.restZones,
       events: chart.events,
     });
     if (errors.length > 0) {
@@ -341,7 +348,6 @@ export function useFileOperations(
         songId: activeSongId,
         difficulty,
         chart: chartToSave,
-        extraNotes,
         extraLaneCount,
       });
 
@@ -358,7 +364,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, extraNotes, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     const game = useGameStore.getState();
@@ -367,6 +373,8 @@ export function useFileOperations(
       audioBuffer: playbackRef.current?.audioBufferData ?? null,
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
+      // 진입 게이트는 chart.notes(보조 포함)를 검증하고(§3-6), 게임에는 performPlayTest
+      // 내부 mainNotes 필터가 메인 노트만 넘긴다 (RFD 0018 §3-3).
       chart,
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,

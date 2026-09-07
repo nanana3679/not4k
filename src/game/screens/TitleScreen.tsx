@@ -1,5 +1,6 @@
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
+import { font, color, primitives } from '../../shared/theme';
 
 export function TitleScreen() {
   const { settings, setScreen } = useGameStore();
@@ -37,13 +38,9 @@ export function TitleScreen() {
 
 const styles = {
   container: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    ...primitives.screen,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100vh',
-    backgroundColor: '#1a1a1a',
-    color: '#ffffff',
     position: 'relative' as const,
   },
   authArea: {
@@ -56,31 +53,29 @@ const styles = {
   },
   email: {
     fontSize: '13px',
-    color: '#999',
+    fontFamily: font.body,
+    color: color.inkDim,
   },
   authBtn: {
+    ...primitives.ghostButton,
+    minHeight: '32px',
     padding: '6px 16px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #555',
-    borderRadius: '4px',
-    cursor: 'pointer',
     fontSize: '13px',
   },
   title: {
+    fontFamily: font.display,
     fontSize: '72px',
-    fontWeight: 'bold',
+    fontWeight: 800,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase' as const,
     marginBottom: '48px',
-    color: '#00ffff',
+    color: color.ink,
+    textShadow: `0 0 24px ${color.neonGlow}`,
   },
   button: {
+    ...primitives.neonButton,
     fontSize: '24px',
+    minHeight: '56px',
     padding: '16px 48px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
   },
 };

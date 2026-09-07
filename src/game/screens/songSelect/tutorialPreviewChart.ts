@@ -1,4 +1,4 @@
-import type { Beat, Chart, ChartEvent, NoteEntity, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
+import type { Beat, Chart, ChartEvent, NoteEntity, RestZone, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
 import { beat, beatAdd } from '../../../shared/types/beat';
 import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
 
@@ -88,18 +88,20 @@ function tutorialDiagram(
   };
 }
 
-function makeChart(
+export function makeChart(
   title: string,
   loopBeats: number,
   notes: readonly NoteEntity[],
   tutorialInputs: readonly TutorialInputEvent[],
   trillZones: readonly TrillZone[] = [],
   extraEvents: readonly ChartEvent[] = [],
+  restZones: readonly RestZone[] = [],
 ): Chart {
   return {
     meta: makeMeta(title),
     notes: [...notes],
     trillZones: [...trillZones],
+    restZones: [...restZones],
     events: [...makeTimingEvents(loopBeats), ...tutorialInputs, ...extraEvents],
   };
 }
@@ -259,6 +261,33 @@ const connectedLongNoteOverlapChart = makeChart(
   ],
 );
 
+const connectedTrillLongChart = makeChart(
+  '이어진 트릴 롱노트',
+  8,
+  [
+    // 갈아타기(2레인): 트릴 롱노트를 F로 시작해 연결점에서 D로 갈아탄다
+    { type: 'trill', lane: 2, beat: beat(2) },
+    { type: 'trillLong', lane: 2, beat: beat(2), endBeat: beat(3) },
+    { type: 'trill', lane: 2, beat: beat(3) },
+    { type: 'trillLong', lane: 2, beat: beat(3), endBeat: beat(4) },
+    // 겹쳐 누르기(3레인): J를 끝까지 잡은 채 연결점에서 K를 탭한다
+    { type: 'trill', lane: 3, beat: beat(5) },
+    { type: 'trillLong', lane: 3, beat: beat(5), endBeat: beat(6) },
+    { type: 'trill', lane: 3, beat: beat(6) },
+    { type: 'trillLong', lane: 3, beat: beat(6), endBeat: beat(7) },
+  ],
+  [
+    tutorialInput(2, 'KeyF', 'F', beat(2), beat(3), 3),
+    tutorialInput(2, 'KeyD', 'D', beat(3), beat(4), 4),
+    tutorialInput(3, 'KeyJ', 'J', beat(5), beat(7), 5),
+    tutorialInput(3, 'KeyK', 'K', beat(6), beat(13, 2), 6),
+  ],
+  [
+    { lane: 2, beat: beat(2), endBeat: beat(4) },
+    { lane: 3, beat: beat(5), endBeat: beat(7) },
+  ],
+);
+
 const headlessLongNoteChart = makeChart(
   '헤드 없는 롱노트',
   5,
@@ -314,6 +343,46 @@ const zeroLengthHoldOnlyLongNoteChart = makeChart(
   ],
   [
     tutorialInput(2, 'KeyF', 'F', beat(11, 4), beat(13, 4), 3),
+  ],
+);
+
+const restZoneChart = makeChart(
+  '휴지 구간',
+  8,
+  [
+    // 왼손: 1레인 트릴 (2박에 16비트 4개)
+    { type: 'trill', lane: 1, beat: beat(2) },
+    { type: 'trill', lane: 1, beat: beat(9, 4) },
+    { type: 'trill', lane: 1, beat: beat(5, 2) },
+    { type: 'trill', lane: 1, beat: beat(11, 4) },
+    // 오른손: 4레인 트릴 (6박에 16비트 4개)
+    { type: 'trill', lane: 4, beat: beat(6) },
+    { type: 'trill', lane: 4, beat: beat(25, 4) },
+    { type: 'trill', lane: 4, beat: beat(13, 2) },
+    { type: 'trill', lane: 4, beat: beat(27, 4) },
+  ],
+  [
+    // 왼손 트릴: Q/W 교대
+    tutorialInput(1, 'KeyQ', 'Q', beat(2), beat(9, 4), 3),
+    tutorialInput(1, 'KeyW', 'W', beat(9, 4), beat(5, 2), 4),
+    tutorialInput(1, 'KeyQ', 'Q', beat(5, 2), beat(11, 4), 5),
+    tutorialInput(1, 'KeyW', 'W', beat(11, 4), beat(3), 6),
+    // 오른손 트릴: 8/9 교대
+    tutorialInput(4, 'Numpad8', '8', beat(6), beat(25, 4), 7),
+    tutorialInput(4, 'Numpad9', '9', beat(25, 4), beat(13, 2), 8),
+    tutorialInput(4, 'Numpad8', '8', beat(13, 2), beat(27, 4), 9),
+    tutorialInput(4, 'Numpad9', '9', beat(27, 4), beat(7), 10),
+  ],
+  [
+    // 트릴존: 트릴 레인(1·4)만
+    { lane: 1, beat: beat(2), endBeat: beat(3) },
+    { lane: 4, beat: beat(6), endBeat: beat(7) },
+  ],
+  [], // extraEvents 없음
+  [
+    // restZone: 2레인 beat 1→5, 3레인 beat 5→9 dim (트릴 레인과 안 겹침)
+    { lane: 2, beat: beat(1), endBeat: beat(5) },
+    { lane: 3, beat: beat(5), endBeat: beat(9) },
   ],
 );
 
@@ -429,6 +498,14 @@ function offsetTrillZoneByLoopCycle(zone: TrillZone, cycleIndex: number, loopBea
   };
 }
 
+function offsetRestZoneByLoopCycle(zone: RestZone, cycleIndex: number, loopBeats: number): RestZone {
+  return {
+    ...zone,
+    beat: offsetBeatByLoopCycle(zone.beat, cycleIndex, loopBeats),
+    endBeat: offsetBeatByLoopCycle(zone.endBeat, cycleIndex, loopBeats),
+  };
+}
+
 function createRenderChart(chart: Chart, loopBeats: number): Chart {
   const renderTimingEvents: ChartEvent[] = chart.events.filter(
     (event) => event.type === 'bpm' || event.type === 'timeSignature',
@@ -441,6 +518,11 @@ function createRenderChart(chart: Chart, loopBeats: number): Chart {
     ),
     trillZones: RENDER_CYCLE_INDICES.flatMap((cycleIndex) =>
       chart.trillZones.map((zone) => offsetTrillZoneByLoopCycle(zone, cycleIndex, loopBeats)),
+    ),
+    // restZone도 notes/trillZones와 동일하게 루프 사이클마다 복제·박 이동한다 — `...chart`
+    // 스프레드로 원본 박이 새어 밴드가 오정렬되는 것을 막는다(RFD 0019).
+    restZones: RENDER_CYCLE_INDICES.flatMap((cycleIndex) =>
+      (chart.restZones ?? []).map((zone) => offsetRestZoneByLoopCycle(zone, cycleIndex, loopBeats)),
     ),
     events: renderTimingEvents,
   };
@@ -560,6 +642,15 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     connectedLongNoteOverlapChart,
   ),
   createTutorialPreview(
+    'connected-trill-long',
+    '이어진 트릴 롱노트',
+    [
+      '이어진 트릴 롱노트도 갈아타기·겹쳐 누르기로 이어진 롱노트와 동일하게 처리할 수 있습니다',
+    ],
+    8,
+    connectedTrillLongChart,
+  ),
+  createTutorialPreview(
     'headless-long-note',
     '헤드 없는 롱노트',
     [
@@ -596,6 +687,17 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     ['Good 윈도우 안에서 키를 누르고 있으면 됩니다'],
     5,
     zeroLengthHoldOnlyLongNoteChart,
+  ),
+  createTutorialPreview(
+    'rest-zone',
+    '휴지 구간',
+    [
+      '어둡게 표시된 레인은 그 구간 동안 노트가 나오지 않습니다',
+      '한 손이 트릴을 처리하는 동안 쉬는 레인을 미리 알려줍니다',
+      '휴지 구간을 이용해 다음 패턴을 위한 손 위치를 준비하세요',
+    ],
+    8,
+    restZoneChart,
   ),
   createTutorialPreview(
     'horizontal-movement',

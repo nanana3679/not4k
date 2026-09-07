@@ -8,6 +8,7 @@ import { NoteJudgmentSession } from "../game/judgment/NoteJudgmentSession";
 describe("판정 실플레이 시나리오", () => {
   const byId = (id: string) => PLAYTEST_SCENARIOS.find((s) => s.id === id)!;
 
+
   it("수동 사례 ID는 중복되지 않고 모든 차트의 BPM은 120이다", () => {
     const ids = PLAYTEST_SCENARIOS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -16,13 +17,15 @@ describe("판정 실플레이 시나리오", () => {
       "decrease-chain", "holdonly-decrease-chain", "failure-recovery", "partial-double-head",
       "same-key-short-connection", "independent-holdonly-start", "late-holdonly-start",
     ]));
+
+
     for (const s of PLAYTEST_SCENARIOS) {
       const bpm = extractBpmMarkers(s.chart.events);
       expect(bpm[0].bpm).toBe(120);
     }
   });
 
-  it("새 RFD0019 시나리오는 group·pattern·caseIds와 구조·의미 validation을 모두 갖춘다", async () => {
+  it("새 RFD0020 시나리오는 group·pattern·caseIds와 구조·의미 validation을 모두 갖춘다", async () => {
     const { validateChart } = await import("../shared/validation");
     for (const scenario of PLAYTEST_SCENARIOS) {
       expect(scenario.group).toMatch(/connection|release|holdOnly|failure/);

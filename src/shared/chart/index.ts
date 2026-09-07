@@ -12,26 +12,33 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
+  RestZone,
   ChartEvent,
   ExtraNoteEntity,
   TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 
+// 메인/보조 레인 경계 레이어 (RFD 0018)
+export * from "./laneAxis";
+export * from "./auxAdapter";
+
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
 // ---------------------------------------------------------------------------
 
+// lane은 number — 차트 파일에 lane ≤ 4만 담기는 불변식은 저장 경계의
+// mainNotes() 필터가 강제한다(RFD 0018 §3-3). 타입으로는 표현하지 않는다.
 interface PointNoteJson {
   type: "single" | "double" | "trill";
-  lane: 1 | 2 | 3 | 4;
+  lane: number;
   beat: string;
   grace?: boolean;
 }
 
 interface RangeNoteJson {
   type: "long" | "doubleLong" | "trillLong";
-  lane: 1 | 2 | 3 | 4;
+  lane: number;
   beat: string;
   endBeat: string;
   holdOnly?: boolean;
@@ -63,6 +70,12 @@ interface ExtraRangeNoteJson {
 type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
 
 interface TrillZoneJson {
+  lane: 1 | 2 | 3 | 4;
+  beat: string;
+  endBeat: string;
+}
+
+interface RestZoneJson {
   lane: 1 | 2 | 3 | 4;
   beat: string;
   endBeat: string;
@@ -150,6 +163,8 @@ export interface ChartJson {
   meta: ChartMeta;
   notes: NoteEntityJson[];
   trillZones: TrillZoneJson[];
+  /** restZone 도입(RFD 0019) 이전 차트에는 없음 — 부재 시 []로 파싱한다 */
+  restZones?: RestZoneJson[];
   events: (ChartEventJson | LegacyEventMarkerJson)[];
 }
 
@@ -159,6 +174,7 @@ export interface ChartJsonV3 {
   meta: ChartMeta;
   notes: NoteEntityJson[];
   trillZones: TrillZoneJson[];
+  restZones: RestZoneJson[];
   events: ChartEventJson[];
 }
 
@@ -183,6 +199,14 @@ function serializeNote(n: NoteEntity): NoteEntityJson {
 }
 
 function serializeTrillZone(z: TrillZone): TrillZoneJson {
+  return {
+    lane: z.lane,
+    beat: beatToString(z.beat),
+    endBeat: beatToString(z.endBeat),
+  };
+}
+
+function serializeRestZone(z: RestZone): RestZoneJson {
   return {
     lane: z.lane,
     beat: beatToString(z.beat),
@@ -230,6 +254,7 @@ export function chartToJson(chart: Chart): ChartJsonV3 {
     meta: chart.meta,
     notes: chart.notes.map(serializeNote),
     trillZones: chart.trillZones.map(serializeTrillZone),
+    restZones: (chart.restZones ?? []).map(serializeRestZone),
     events: chart.events.map(serializeEvent),
   };
 }
@@ -279,6 +304,14 @@ function parseNote(n: NoteEntityJson): NoteEntity {
 }
 
 function parseTrillZone(z: TrillZoneJson): TrillZone {
+  return {
+    lane: z.lane,
+    beat: beatFromString(z.beat),
+    endBeat: beatFromString(z.endBeat),
+  };
+}
+
+function parseRestZone(z: RestZoneJson): RestZone {
   return {
     lane: z.lane,
     beat: beatFromString(z.beat),
@@ -354,6 +387,7 @@ export function chartFromJson(json: ChartJson): Chart {
       meta: json.meta,
       notes: json.notes.map(parseNote),
       trillZones: json.trillZones.map(parseTrillZone),
+      restZones: (json.restZones ?? []).map(parseRestZone),
       events: (json.events ?? []).map((e) => parseEvent(e as ChartEventJson)),
     };
   }
@@ -372,6 +406,7 @@ export function chartFromJson(json: ChartJson): Chart {
       meta: json.meta,
       notes: json.notes.map(parseNote),
       trillZones: json.trillZones.map(parseTrillZone),
+      restZones: (json.restZones ?? []).map(parseRestZone),
       events,
     };
   }
@@ -411,6 +446,7 @@ export function chartFromJson(json: ChartJson): Chart {
     meta: json.meta,
     notes: migratedNotes,
     trillZones: json.trillZones.map(parseTrillZone),
+    restZones: (json.restZones ?? []).map(parseRestZone),
     events,
   };
 }
@@ -434,6 +470,10 @@ export function deserializeChart(str: string): Chart {
   }
   if (!Array.isArray(json.trillZones)) {
     throw new Error("차트 파싱 실패: trillZones 필드가 배열이 아닙니다");
+  }
+  // restZones는 도입(RFD 0019) 이전 차트에 없으므로 부재를 허용한다 — 존재할 때만 배열을 요구
+  if (json.restZones !== undefined && !Array.isArray(json.restZones)) {
+    throw new Error("차트 파싱 실패: restZones 필드가 배열이 아닙니다");
   }
   return chartFromJson(json);
 }

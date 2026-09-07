@@ -14,7 +14,7 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 - 같은 키·시각의 입력에서 서로 다른 키의 동시 up을 내부 배정한 순서만으로 후속 성공·Miss가 달라지면 안 된다. 세부 요구와 영향은 glossary의 동시 입력 결과 일관성을 따른다.
 - 트릴 교대 추적에는 head를 소비한 키만 등록하며 바디 유지·승계·release 키는 추가하지 않는다. 구간 귀속과 동시 입력의 세부는 glossary의 트릴 노트를 따른다.
 
-풀 정의는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델), 채택 근거는 [RFD 0019](../../docs/rfd/0019-note-judgment-units-and-inheritance.md), 입력별 기대 결과는 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다. 현재 엔진과 상세 구현 명세의 이행 상태는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+풀 정의는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델), 채택 근거는 [RFD 0020](../../docs/rfd/0020-note-judgment-units-and-inheritance.md), 입력별 기대 결과는 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다. 현재 엔진과 상세 구현 명세의 이행 상태는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
 ## Language
 

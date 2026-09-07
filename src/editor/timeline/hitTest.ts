@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -110,31 +110,24 @@ export function hitTestTrillZoneAt(
 }
 
 /**
- * trillZone의 "선택(이동) 핸들" 히트 테스트.
+ * Find a rest zone at the given lane and beat position (RFD 0019).
  *
- * 핸들은 구간의 시작(beat, 화면상 아래쪽)의 **레인 가로 중앙**에 둔 `handleWidth`px 박스다.
- * 끝(endBeat, 위쪽)은 리사이즈(hitTestTrillZoneEnd)가 차지하므로 두 동작을 양 끝으로 분리한다.
- * xInLane이 레인 중앙 ±handleWidth/2 이내이면서 beatFloat가 시작 beat ±tolerance인 경우에만
- * 핸들로 인정한다. 길이 0인 구간(시작==끝)은 이동 핸들을 비활성화한다(리사이즈로만 확장).
+ * Mirrors {@link hitTestTrillZoneAt}: zones are hit within [beat, endBeat]
+ * with a tolerance on both ends so a zero-length zone stays clickable for
+ * deletion. Returns the index of the first matching zone, or null.
  */
-export function hitTestTrillZoneHandleAt(
-  trillZones: readonly TrillZone[],
+export function hitTestRestZoneAt(
+  restZones: readonly RestZone[],
   lane: number,
   beatFloat: number,
-  xInLane: number,
-  handleWidth: number,
-  laneWidth: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
 ): number | null {
-  if (Math.abs(xInLane - laneWidth / 2) > handleWidth / 2) return null;
-  for (let i = 0; i < trillZones.length; i++) {
-    const zone = trillZones[i];
+  for (let i = 0; i < restZones.length; i++) {
+    const zone = restZones[i];
     if (zone.lane !== lane) continue;
     const start = zone.beat.n / zone.beat.d;
     const end = zone.endBeat.n / zone.endBeat.d;
-    // 길이 0 구간(시작==끝)은 이동 핸들 비활성 — 리사이즈로 늘려 실제 구간으로 만든다.
-    if (start === end) continue;
-    if (Math.abs(beatFloat - start) <= tolerance) return i;
+    if (beatFloat >= start - tolerance && beatFloat <= end + tolerance) return i;
   }
   return null;
 }
@@ -149,17 +142,6 @@ export function noteExistsAtSnap(
   snappedBeatFloat: number,
 ): number | null {
   return hitTestNoteAt(notes, lane, snappedBeatFloat, SNAP_POSITION_TOLERANCE);
-}
-
-/**
- * Check if an extra note exists at the snapped beat position.
- */
-export function extraNoteExistsAtSnap(
-  extraNotes: readonly ExtraNoteEntity[],
-  extraLane: number,
-  snappedBeatFloat: number,
-): number | null {
-  return hitTestExtraNoteAt(extraNotes, extraLane, snappedBeatFloat, SNAP_POSITION_TOLERANCE);
 }
 
 // ---------------------------------------------------------------------------

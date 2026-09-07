@@ -1,7 +1,38 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
-import { getLaneKeyLabels, uniqueTutorialKeys } from './TutorialPreviewPlayer';
+import {
+  buildTutorialKeyboardKeys,
+  createSafeRenderFrame,
+  getLaneKeyLabels,
+  isTransientTeardownRenderError,
+  uniqueTutorialKeys,
+  type TutorialKeyView,
+} from './TutorialPreviewPlayer';
+import type { GameRenderer } from '../../renderer';
 import { TUTORIAL_PREVIEWS, getTutorialInputTimings } from './tutorialPreviewChart';
+import {
+  getTutorialKeyboardLayout,
+  resolveTutorialInputTimingsForKeyboard,
+} from './tutorialKeyboardLayout';
+
+// gameStore 기본 TKL_BINDINGS와 같은 값 — 컴포넌트가 settings.keyBindings로 resolve하는 경로 재현
+const TKL_TEST_BINDINGS = {
+  lane1: ['KeyQ', 'KeyW', 'KeyS', 'KeyX'],
+  lane2: ['KeyE', 'KeyD', 'KeyC', 'KeyO'],
+  lane3: ['KeyP', 'KeyL', 'Comma', 'KeyR'],
+  lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
+};
+
+function buildHandPlacementKeyboardFixture() {
+  const layout = getTutorialKeyboardLayout('tkl');
+  const timings = resolveTutorialInputTimingsForKeyboard(
+    getTutorialInputTimings(TUTORIAL_PREVIEWS[0].chart),
+    TKL_TEST_BINDINGS,
+  );
+  const keys = uniqueTutorialKeys(timings);
+  const keyByCode = new Map<string, TutorialKeyView>(keys.map((key) => [key.keyCode, key]));
+  return { layout, keyByCode, views: buildTutorialKeyboardKeys(layout, keyByCode) };
+}
 
 describe('TutorialPreviewPlayer', () => {
   it('곡 선택 튜토리얼 미니 재생기는 GameRenderer 기어와 원근 배경을 끈다', () => {
@@ -20,40 +51,57 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = 360');
     expect(tutorialPreviewPlayerSource).toContain('width: PREVIEW_RENDER_WIDTH');
     expect(tutorialPreviewPlayerSource).toContain('height: PREVIEW_RENDER_HEIGHT');
-    expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT}`');
+    expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}`');
   });
 
-  it('키 입력 표시는 사용자가 선택한 프리셋 기반 미니 키보드 레이아웃으로 렌더링', () => {
+  it('키 입력 표시는 사용자가 선택한 프리셋 기반 키보드 스펙을 GameRenderer 생성 시 넘겨 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).toContain('useGameStore((state) => state.settings)');
     expect(tutorialPreviewPlayerSource).toContain('getTutorialKeyboardLayout(settings.preset)');
     expect(tutorialPreviewPlayerSource).toContain('resolveTutorialKeyboardBindings(baseTimings, settings.keyBindings, settings.preset)');
     expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, bindingResolution.bindings)');
-    expect(tutorialPreviewPlayerSource).toContain('data-keyboard-preset={settings.preset}');
-    expect(tutorialPreviewPlayerSource).toContain('data-keyboard-key');
+    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight,');
+    expect(tutorialPreviewPlayerSource).toContain('tutorialKeyboard: {');
+    expect(tutorialPreviewPlayerSource).toContain('buildTutorialKeyboardKeys(keyboardLayout, keyByCode)');
+    expect(tutorialPreviewPlayerSource).not.toContain('data-keyboard-key');
+    expect(tutorialPreviewPlayerSource).not.toContain('styles.keyboardKey');
   });
 
-  it('미니 키보드는 매핑된 키를 유지하고 매핑되지 않은 키는 비활성 스타일로 어둡게 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain("data-mapped={tutorialKey ? 'true' : 'false'}");
-    expect(tutorialPreviewPlayerSource).toContain('aria-disabled={tutorialKey ? undefined : true}');
-    expect(tutorialPreviewPlayerSource).toContain('styles.keyboardKeyUnmapped');
-    expect(tutorialPreviewPlayerSource).toContain('keyboardKeyUnmapped:');
+  it('buildTutorialKeyboardKeys는 hand-placement 프리뷰에서 매핑된 키 개수가 고유 튜토리얼 키 수와 일치', () => {
+    const { layout, keyByCode, views } = buildHandPlacementKeyboardFixture();
+
+    expect(views.length).toBe(layout.keys.length);
+    expect(keyByCode.size).toBeGreaterThan(0);
+    expect(views.filter((view) => view.mapped).length).toBe(keyByCode.size);
   });
 
-  it('미니 키보드 키캡은 레인 번호를 빼고 판정선 아래 검은 영역 가운데에 레인당 하나의 큰 키를 표시', () => {
+  it('buildTutorialKeyboardKeys는 매핑된 키 label을 튜토리얼 키 label로 표시', () => {
+    const { keyByCode, views } = buildHandPlacementKeyboardFixture();
+
+    for (const view of views.filter((item) => item.mapped)) {
+      expect(view.label).toBe(keyByCode.get(view.code)?.label);
+    }
+  });
+
+  it('buildTutorialKeyboardKeys는 매핑 안 된 키를 mapped=false와 기본 keyDef.label로 유지', () => {
+    const { layout, views } = buildHandPlacementKeyboardFixture();
+    const labelByCode = new Map(layout.keys.map((keyDef) => [keyDef.code, keyDef.label]));
+    const unmapped = views.filter((view) => !view.mapped);
+
+    expect(unmapped.length).toBeGreaterThan(0);
+    for (const view of unmapped) {
+      expect(view.label).toBe(labelByCode.get(view.code));
+    }
+  });
+
+  it('판정선 아래 레인 키 라벨은 HTML 오버레이 대신 GameRenderer가 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('keyLane');
     expect(tutorialPreviewPlayerSource).toContain('getLaneKeyLabels(keys, activeKeyIds, stickyLaneKeyIdsByLane)');
     expect(tutorialPreviewPlayerSource).toContain('sortLaneKeysForLabel');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-keycode');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_HEIGHT = 42');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =');
-    expect(tutorialPreviewPlayerSource).toContain('(PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y');
-    expect(tutorialPreviewPlayerSource).toContain('bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`');
     expect(tutorialPreviewPlayerSource).toContain('const fallbackKeys = getFallbackLaneKeys(laneKeys)');
-    expect(tutorialPreviewPlayerSource).toContain('minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`');
-    expect(tutorialPreviewPlayerSource).toContain("boxShadow: '0 4px 0 #101010");
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelEmpty');
+    expect(tutorialPreviewPlayerSource).toContain('showLaneKeyLabels: true');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current?.setLaneKeyLabels(');
+    expect(tutorialPreviewPlayerSource).toContain('rendererRef.current = renderer');
+    expect(tutorialPreviewPlayerSource).not.toContain('data-tutorial-lane-key');
   });
 
   it('판정선 아래 큰 키 라벨은 같은 레인의 여러 키 중 현재 눌린 키를 우선 표시하고 릴리즈 후에도 마지막 키를 유지', () => {
@@ -98,19 +146,31 @@ describe('TutorialPreviewPlayer', () => {
     });
   });
 
-  it('판정선 아래 큰 키는 해당 레인 입력이 활성화되면 눌리는 스타일로 전환', () => {
-    expect(tutorialPreviewPlayerSource).toContain('const activeLaneSet = useMemo');
-    expect(tutorialPreviewPlayerSource).toContain('activeLaneSet.has(lane)');
-    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-lane-key-active={active ?');
-    expect(tutorialPreviewPlayerSource).toContain('styles.laneKeyLabelActive');
-    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabelActive:');
-    expect(tutorialPreviewPlayerSource).toContain("transform: 'translateY(4px)'");
-    expect(tutorialPreviewPlayerSource).toContain("transition: 'transform 90ms ease");
+  it('판정선 아래 큰 키 눌림은 렌더 루프의 setKeyBeam이 렌더러 안에서 처리해 별도 HTML 활성 스타일이 없음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyBeam(lane, activeLaneSet.has(lane))');
+    expect(tutorialPreviewPlayerSource).not.toContain('const activeLaneSet = useMemo');
+    expect(tutorialPreviewPlayerSource).not.toContain('laneKeyLabelActive');
   });
 
-  it('미니 키보드에서 눌린 키는 아래로 이동해도 아래 행 키에 가려지지 않도록 위 레이어로 올라감', () => {
-    expect(tutorialPreviewPlayerSource).toContain('keyboardKeyActive:');
-    expect(tutorialPreviewPlayerSource).toContain('zIndex: 1');
+  it('레인 키 라벨 텍스트와 표시 여부는 effect가 렌더러 setLaneKeyLabels로 push', () => {
+    expect(tutorialPreviewPlayerSource).toContain('laneKeyLabels.map(({ lane, label }) => ({ lane, label }))');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
+    expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady]');
+  });
+
+  it('캔버스 프레임은 키보드까지 보이도록 최소 폭(→aspect로 최소 높이) 바닥을 가지되 화면이 좁으면 100%로 캡', () => {
+    expect(tutorialPreviewPlayerSource).toContain("minWidth: 'min(100%, 300px)'");
+  });
+
+  it('렌더러 캔버스는 touch-action pan-y로 덮어 Pixi inline touch-action:none이 세로 드래그 스크롤을 먹지 않게 함', () => {
+    expect(tutorialPreviewPlayerSource).toContain('.not4k-tutorial-preview-canvas {');
+    expect(tutorialPreviewPlayerSource).toContain('touch-action: pan-y !important');
+  });
+
+  it('키보드 눌림 상태는 매 프레임 renderer.setKeyState로 전달되고 별도 HTML 활성 스타일이 없음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('currentRenderer.setKeyState(key.keyCode, activeIdSet.has(key.id))');
+    expect(tutorialPreviewPlayerSource).not.toContain('keyboardKeyActive');
+    expect(tutorialPreviewPlayerSource).not.toContain('activeKeySet');
   });
 
   it('4-slot 보충 매핑이 적용된 시연에는 실제 임시 키 배정을 안내한다', () => {
@@ -136,7 +196,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = (now - loopStartNow) % preview.loopMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
   });
 
   it('선택된 튜토리얼 preview prop으로 차트와 키 입력 이벤트를 렌더링', () => {
@@ -160,7 +220,8 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('inset: 0');
     expect(tutorialPreviewPlayerSource).toContain("backgroundColor: 'rgba(0, 0, 0, 0.72)'");
     expect(tutorialPreviewPlayerSource).toContain("pointerEvents: 'auto'");
-    expect(tutorialPreviewPlayerSource).toContain('{!diagramDisplay && (');
+    // 키 라벨 숨김은 setLaneKeyLabels의 visible 인자(!diagramDisplay)로 렌더러 레이어를 끈다.
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
     expect(tutorialPreviewPlayerSource).not.toContain('canvasHiddenForDiagram');
   });
 
@@ -192,7 +253,9 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('diagramModalVisible?: boolean');
     expect(tutorialPreviewPlayerSource).toContain('activeDiagramId && diagramModalVisible');
     expect(tutorialPreviewPlayerSource).toContain('[activeDiagramTiming, diagramModalVisible]');
-    expect(tutorialPreviewPlayerSource).toContain('{diagramDisplay && (');
+    // 확인 모달은 diagramDisplay가 참일 때만, 뷰포트 기준으로 문서 최상위에 portal 렌더된다.
+    expect(tutorialPreviewPlayerSource).toContain("{diagramDisplay && typeof document !== 'undefined' && createPortal(");
+    expect(tutorialPreviewPlayerSource).toContain('document.body,');
   });
 
   it('튜토리얼 도식이 0ms에서 시작하면 렌더러 init 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
@@ -217,10 +280,21 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
+  it('구동기 로딩 중에는 도식 모달에서 OK 대신 스피너를 보여 상호작용을 막고, 준비되면 OK로 전환', () => {
+    // 준비 상태 플래그: 이펙트 시작 시 false, 첫 프레임 성공 또는 에러 시 true.
+    expect(tutorialPreviewPlayerSource).toContain('const [rendererReady, setRendererReady] = useState(false)');
+    expect(tutorialPreviewPlayerSource).toContain('setRendererReady(false)');
+    expect(tutorialPreviewPlayerSource).toContain('setRendererReady(true)');
+    // 준비 전에는 OK를 렌더하지 않고 스피너만 보여 클릭(재개)을 막는다.
+    expect(tutorialPreviewPlayerSource).toContain('rendererReady ? (');
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-diagram-loading="true"');
+    expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-spinner');
+  });
+
   it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(preview.renderStartMs, 0)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
     expect(tutorialPreviewPlayerSource).toContain('if (!readyNotifiedRef.current)');
   });
 
@@ -253,4 +327,123 @@ describe('TutorialPreviewPlayer', () => {
   });
 
 
+});
+
+describe('isTransientTeardownRenderError', () => {
+  it("Chrome의 \"Cannot read properties of null (reading 'clear')\"는 교차 teardown 레이스로 판정", () => {
+    const err = new TypeError("Cannot read properties of null (reading 'clear')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('구형 V8의 "Cannot read property \'x\' of null"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError("Cannot read property 'clear' of null");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Safari의 "null is not an object"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError("null is not an object (evaluating 'batch.clear')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Firefox의 "can\'t access property \\"x\\", batch is null"도 교차 teardown 레이스로 판정', () => {
+    const err = new TypeError('can\'t access property "clear", batch is null');
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('Firefox 구형 "batch is undefined"(문장 끝 null/undefined)도 교차 teardown 레이스로 판정', () => {
+    expect(isTransientTeardownRenderError(new TypeError('batch is null'))).toBe(true);
+    expect(isTransientTeardownRenderError(new TypeError('_texturePool[key] is undefined'))).toBe(true);
+  });
+
+  it("TexturePool의 \"Cannot read properties of undefined (reading 'push')\"도 교차 teardown 레이스로 판정", () => {
+    // 형제 Application의 destroy가 공유 TexturePool을 흩뜨려, 살아있는 렌더러의 returnTexture가 크래시한다.
+    const err = new TypeError("Cannot read properties of undefined (reading 'push')");
+    expect(isTransientTeardownRenderError(err)).toBe(true);
+  });
+
+  it('null/undefined 역참조가 아닌 일반 에러는 교차 teardown 레이스가 아님(재던져져야 함)', () => {
+    expect(isTransientTeardownRenderError(new Error('chart data is invalid'))).toBe(false);
+    expect(isTransientTeardownRenderError(new RangeError('offset out of bounds'))).toBe(false);
+    expect(isTransientTeardownRenderError(new Error('WebGL context lost'))).toBe(false);
+  });
+
+  it('TypeError가 아니면(문자열·일반 Error·TypeError 상속 아님) 같은 문구여도 삼키지 않음', () => {
+    // null/undefined 역참조는 항상 TypeError다. 우리가 던지는 일반 Error가 우연히 같은 문구를 담아도 재던진다.
+    expect(isTransientTeardownRenderError("Cannot read properties of null (reading 'x')")).toBe(false);
+    expect(isTransientTeardownRenderError(new Error("Cannot read properties of null (reading 'x')"))).toBe(false);
+    expect(isTransientTeardownRenderError(new RangeError('batch is null'))).toBe(false);
+    expect(isTransientTeardownRenderError(undefined)).toBe(false);
+  });
+});
+
+describe('createSafeRenderFrame', () => {
+  // 지정한 순서(true=성공, Error=throw)대로 renderFrame이 동작하는 가짜 렌더러.
+  function fakeRenderer(script: Array<true | Error>): { renderer: GameRenderer; calls: () => number } {
+    let i = 0;
+    const renderer = {
+      renderFrame: () => {
+        const step = script[Math.min(i, script.length - 1)];
+        i += 1;
+        if (step !== true) throw step;
+      },
+    } as unknown as GameRenderer;
+    return { renderer, calls: () => i };
+  }
+
+  const teardownErr = () => new TypeError("Cannot read properties of null (reading 'clear')");
+
+  it('일시적 teardown 크래시는 삼켜 프레임을 스킵하고 예외를 밖으로 던지지 않음', () => {
+    const safe = createSafeRenderFrame();
+    const { renderer } = fakeRenderer([teardownErr()]);
+    expect(() => safe(renderer, 0, 16)).not.toThrow();
+  });
+
+  it('teardown이 아닌 일반 에러는 삼키지 않고 즉시 재던짐', () => {
+    const safe = createSafeRenderFrame();
+    const { renderer } = fakeRenderer([new Error('chart data is invalid')]);
+    expect(() => safe(renderer, 0, 16)).toThrow('chart data is invalid');
+  });
+
+  it('연속 실패가 상한 이하면 계속 삼킴(성공하면 스트릭 리셋)', () => {
+    const safe = createSafeRenderFrame(3);
+    const { renderer } = fakeRenderer([
+      teardownErr(), teardownErr(), teardownErr(), // 3회 = 상한 이하, 삼킴
+      true, // 회복 → 스트릭 리셋
+      teardownErr(), teardownErr(), teardownErr(), // 다시 3회, 여전히 삼킴
+    ]);
+    for (let n = 0; n < 7; n++) {
+      expect(() => safe(renderer, 0, 16)).not.toThrow();
+    }
+  });
+
+  it('연속 실패가 상한을 넘으면 조용히 묻지 않고 재던지며 console.error로 표면화', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const safe = createSafeRenderFrame(3);
+    const { renderer } = fakeRenderer([teardownErr()]); // 매번 teardown 크래시
+    // 1~3회는 삼킴
+    for (let n = 0; n < 3; n++) expect(() => safe(renderer, 0, 16)).not.toThrow();
+    // 4회째(상한 초과)는 재던짐 + 경고
+    expect(() => safe(renderer, 0, 16)).toThrow();
+    expect(errorSpy).toHaveBeenCalledOnce();
+    errorSpy.mockRestore();
+  });
+});
+
+describe('safeRenderFrame 배선(소스)', () => {
+  it('renderer.renderFrame 직접 호출은 createSafeRenderFrame 헬퍼 안에서 딱 한 번만 등장', () => {
+    // 두 렌더 진입점(초기·루프)이 모두 safeRenderFrame 경유이고, 실제 renderFrame 호출은
+    // 헬퍼 내부 한 곳으로 모여야 한다 — 새 렌더 진입점이 가드 없이 추가되는 걸 막는다.
+    const count = tutorialPreviewPlayerSource.split('renderer.renderFrame(').length - 1;
+    expect(count).toBe(1);
+  });
+
+  it('effect는 프리뷰마다 createSafeRenderFrame 인스턴스를 만들어 두 렌더 진입점에 사용', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const safeRenderFrame = createSafeRenderFrame()');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
+    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
+  });
+
+  it('createSafeRenderFrame은 teardown 레이스만 삼키고 나머지는 재던짐', () => {
+    expect(tutorialPreviewPlayerSource).toContain('if (!isTransientTeardownRenderError(err)) throw err;');
+  });
 });

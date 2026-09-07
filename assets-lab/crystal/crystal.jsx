@@ -5,6 +5,85 @@ import { CW, CH, GF_W, GF_H, LANE_GAP, LANE_W, GEAR_PAD, FIELD_W, LANE_H, LANE_T
 import { BOMB_FRAMES } from "../shared/bomb.js";
 import { SharedDefs, Section, Card, Row, BombPlayer } from "../shared/ui.jsx";
 
+// 트릴 롱노트 바디 색 튜너 (개발용) — OFF(안 누름)·HELD(누름) 그라데이션을 슬라이더로 조절.
+// 여기서 잡은 값을 crystal/prism/classic의 TrillBodySegment에 반영하고 build:skins로 굽는다.
+function trillStops(p) {
+  const r = parseInt(p.core.slice(1, 3), 16);
+  const g = parseInt(p.core.slice(3, 5), 16);
+  const b = parseInt(p.core.slice(5, 7), 16);
+  const light = (t) =>
+    `rgb(${Math.round(r + (255 - r) * t)},${Math.round(g + (255 - g) * t)},${Math.round(b + (255 - b) * t)})`;
+  const sHalf = Math.max(p.coreHalfW + 2, p.shoulderHalfW);
+  const cLo = Math.max(0, 50 - p.coreHalfW), cHi = Math.min(100, 50 + p.coreHalfW);
+  const sLo = Math.max(0, 50 - sHalf), sHi = Math.min(100, 50 + sHalf);
+  return [
+    [0, light(p.edgeT), p.edgeAlpha],
+    [sLo, light(p.shoulderT), 1],
+    [cLo, p.core, 1],
+    [50, p.core, 1],
+    [cHi, p.core, 1],
+    [sHi, light(p.shoulderT), 1],
+    [100, light(p.edgeT), p.edgeAlpha],
+  ];
+}
+function trillReadout(name, p) {
+  const sHalf = Math.max(p.coreHalfW + 2, p.shoulderHalfW);
+  return `${name}: core=${p.core} coreHalfW=${p.coreHalfW} shoulderHalfW=${sHalf} shoulderT=${p.shoulderT} edgeT=${p.edgeT} edgeAlpha=${p.edgeAlpha} overlay=${p.overlay} bodyAlpha=${p.bodyAlpha}`;
+}
+function TrillTuner() {
+  // 기본값 = 현재 TrillBodySegment에 반영된 값. off=어두운 회색(#575757), held=에디터 회색(#aaaaaa).
+  const BASE = { coreHalfW: 0, shoulderHalfW: 25, shoulderT: 0.35, edgeT: 0.7, edgeAlpha: 1, overlay: 0, bodyAlpha: 1 };
+  const [off, setOff] = useState({ ...BASE, core: "#575757" });
+  const [held, setHeld] = useState({ ...BASE, core: "#aaaaaa" });
+  const [mode, setMode] = useState("held"); // 편집 대상 상태
+  const cur = mode === "held" ? held : off;
+  const setCur = mode === "held" ? setHeld : setOff;
+  const upd = (k, v) => setCur({ ...cur, [k]: v });
+  const W = 100, H = 130, offBG = "#14151f";
+  const slider = { display: "flex", alignItems: "center", gap: 8 };
+  const tabBtn = (active) => ({ padding: "5px 14px", fontSize: 11, cursor: "pointer", border: "1px solid " + (active ? "#ff6b6b" : "#2a2f42"), background: active ? "#2a1420" : "transparent", color: active ? "#ffd0d0" : "#8892a8", borderRadius: 4 });
+  const preview = (p, label, editing) => (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ marginBottom: 4, color: editing ? "#ff9d9d" : "#8892a8" }}>{label}{editing ? " ✎" : ""}</div>
+      <svg width={W * 1.3} height={H * 1.3} viewBox={`0 0 ${W} ${H}`} style={{ background: offBG, outline: editing ? "1px solid #ff6b6b" : "none" }}>
+        <defs>
+          <linearGradient id={`tt_${label}`} x1="0" y1="0.5" x2="1" y2="0.5">
+            {trillStops(p).map(([o, c, op], i) => (
+              <stop key={i} offset={`${o}%`} stopColor={c} stopOpacity={op} />
+            ))}
+          </linearGradient>
+        </defs>
+        <rect x={0} y={12} width={W} height={H - 24} fill={`url(#tt_${label})`} opacity={p.bodyAlpha} />
+        {p.overlay > 0 && <rect x={0} y={12} width={W} height={H - 24} fill="white" opacity={p.overlay} />}
+      </svg>
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", gap: 28, alignItems: "flex-start", padding: 16, background: "#0a0b12", color: "#cdd3e0", fontFamily: "monospace", fontSize: 12, borderRadius: 6 }}>
+      <div style={{ display: "flex", gap: 14 }}>
+        {preview(off, "OFF", mode === "off")}
+        {preview(held, "HELD", mode === "held")}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9, minWidth: 320 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button style={tabBtn(mode === "off")} onClick={() => setMode("off")}>OFF 편집</button>
+          <button style={tabBtn(mode === "held")} onClick={() => setMode("held")}>HELD 편집</button>
+        </div>
+        <label style={slider}>core <input type="color" value={cur.core} onChange={(e) => upd("core", e.target.value)} /> {cur.core}</label>
+        <label style={slider}>core 반폭 {cur.coreHalfW}% <input type="range" min={0} max={40} value={cur.coreHalfW} onChange={(e) => upd("coreHalfW", +e.target.value)} /></label>
+        <label style={slider}>어깨 폭 {Math.max(cur.coreHalfW + 2, cur.shoulderHalfW)}% <input type="range" min={4} max={48} value={cur.shoulderHalfW} onChange={(e) => upd("shoulderHalfW", +e.target.value)} /></label>
+        <label style={slider}>어깨 밝기 {cur.shoulderT.toFixed(2)} <input type="range" min={0} max={1} step={0.05} value={cur.shoulderT} onChange={(e) => upd("shoulderT", +e.target.value)} /></label>
+        <label style={slider}>가장자리 밝기 {cur.edgeT.toFixed(2)} <input type="range" min={0} max={1} step={0.05} value={cur.edgeT} onChange={(e) => upd("edgeT", +e.target.value)} /></label>
+        <label style={slider}>가장자리 투명도 {cur.edgeAlpha.toFixed(2)} <input type="range" min={0} max={1} step={0.05} value={cur.edgeAlpha} onChange={(e) => upd("edgeAlpha", +e.target.value)} /></label>
+        <label style={slider}>흰 오버레이 {cur.overlay.toFixed(2)} <input type="range" min={0} max={0.3} step={0.02} value={cur.overlay} onChange={(e) => upd("overlay", +e.target.value)} /></label>
+        <label style={slider}>전체 투명도 {cur.bodyAlpha.toFixed(2)} <input type="range" min={0.3} max={1} step={0.05} value={cur.bodyAlpha} onChange={(e) => upd("bodyAlpha", +e.target.value)} /></label>
+        <pre style={{ background: "#000", padding: 8, whiteSpace: "pre-wrap", userSelect: "all" }}>{trillReadout("OFF", off) + "\n" + trillReadout("HELD", held)}</pre>
+        <div style={{ color: "#8892a8" }}>← OFF/HELD 둘 다 잡으면 이 박스 두 줄을 알려주세요</div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [holdState, setHoldState] = useState(false);
   const [dimMode, setDimMode] = useState("none");
@@ -79,6 +158,8 @@ export default function App() {
           <Card label="PH.Body L" svgW={130} svgH={100} {...uiP}><PartialHeldBody x={15} y={5} height={90} waitingSide="left" /></Card>
           <Card label="PH.Body R" svgW={130} svgH={100} {...uiP}><PartialHeldBody x={15} y={5} height={90} waitingSide="right" /></Card>
         </Row>
+        {/* 트릴 롱노트 바디 색 튜너 (개발용) */}
+        <TrillTuner />
       </Section>
 
       {/* === GEAR (GearFrameExport) === */}

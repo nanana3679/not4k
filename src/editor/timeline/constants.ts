@@ -6,11 +6,9 @@ export const LANE_COUNT = 4;
 
 export const LANE_WIDTH = 60; // px per lane
 export const NOTE_HEIGHT = 12; // px
-// 트릴존 핸들 — 테두리·글리프 없는 단색 도형 2개를 모양(실루엣)으로 구분(hover 시에만).
+// 트릴존 핸들 — 리사이즈 캡(끝=위)만 존재. 이동은 선택 후 몸통 드래그 (RFD 0016 §6-6).
 export const TRILL_RESIZE_CAP_HEIGHT = 5;  // px — 리사이즈 캡(끝=위, 풀폭 가로 바) 높이
 export const TRILL_RESIZE_CAP_INSET = 4;   // px — 캡 좌우 인셋(인접 레인 구분선과 분리)
-export const TRILL_MOVE_PILL_WIDTH = 24;   // px — 이동 필(시작=아래, 라운드 캡슐) 폭. 이동 핸들 가로 히트폭도 겸함
-export const TRILL_MOVE_PILL_HEIGHT = 8;   // px — 이동 필 높이
 export const TRILL_HANDLE_SELECTED_BUMP = 1; // px — 구간 단위 선택 시 도형 높이 증가(색+형태 이중 채널)
 export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 
@@ -26,8 +24,10 @@ export const MINIMAP_WIDTH = MEASURE_LABEL_WIDTH;
 
 // Colors
 export const COLORS = {
-  LANE_BG_EVEN: 0x1a1a2e,
-  LANE_BG_ODD: 0x16213e,
+  // 인게임 레인 배경(game/renderer/constants.ts)과 동일하게 맞춘다 — 에디터에서 본
+  // restZone dim이 실제 플레이와 같은 명암으로 읽히게 하기 위함(RFD 0019).
+  LANE_BG_EVEN: 0x26263f,
+  LANE_BG_ODD: 0x202038,
   MEASURE_LINE: 0xffffff,
   BEAT_LINE: 0x666666,
   SNAP_LINE: 0x333333,
@@ -42,6 +42,12 @@ export const COLORS = {
 
   TRILL_ZONE: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.2,
+
+  // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 인게임 dim과 동일하게 어두운 오버레이로
+  // 레인을 가라앉힌다(game REST_ZONE_DIM 0x000000 / α0.72와 일치). 리프트된 레인 배경 위에서
+  // 대비로 "쉬는 레인"이 읽히며, 겹침 위반은 그 위 빨간 해칭이 표시한다.
+  REST_ZONE: 0x000000,
+  REST_ZONE_ALPHA: 0.6,
 
   SELECTED_OUTLINE: 0xff4444,
   HOVERED_OUTLINE: 0xffffff,
@@ -61,6 +67,8 @@ export const COLORS = {
 
   VIOLATION_HATCH: 0xff4444,
   VIOLATION_HATCH_ALPHA: 0.4,
+  // 미니맵 위반 틱(RFD 0017 §7) — 미니맵은 작으므로 해칭(0.4)보다 진하게
+  MINIMAP_VIOLATION_TICK_ALPHA: 0.9,
 
   GRACE_GLOW: 0xffffff,
   GRACE_GLOW_ALPHA: 0.2,

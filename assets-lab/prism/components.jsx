@@ -382,7 +382,7 @@ export function TrillNoteContainer({ x, y }) {
 
 // --- PRISM TrillBodySegment ---
 export function TrillBodySegment({ x, y, height, held = false }) {
-  const baseCol = held ? "#ffffff" : "#aaaaaa";
+  const baseCol = held ? "#aaaaaa" : "#575757";
   const bx = x + 8, bw = CW - 16;
   const uid = `trill_bbg_${held ? "h" : "r"}_${x}_${y}`;
   return (
@@ -412,8 +412,8 @@ export function TrillTerminalCap({ x, y }) {
       <defs>
         <linearGradient id={uid} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#333333" />
-          <stop offset="25%" stopColor="#aaaaaa" />
-          <stop offset="75%" stopColor="#aaaaaa" />
+          <stop offset="25%" stopColor="#888888" />
+          <stop offset="75%" stopColor="#888888" />
           <stop offset="100%" stopColor="#333333" />
         </linearGradient>
       </defs>

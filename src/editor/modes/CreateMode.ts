@@ -1,10 +1,10 @@
 /**
  * Create Mode — 차트 엔티티 생성 인터랙션 핸들러
  *
- * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다.
- * 드래그로 구간 엔티티를 생성하며, 배치는 **새 엔티티에 연루된 위반만** 차단한다
- * (violationsInvolving 국소 판정) — 낙관적 편집(RFD 0017)에서 차트에 상주하는
- * 무관한 transient 위반이 생성을 전역 차단하지 않도록.
+ * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다. 드래그로 구간
+ * 엔티티를 생성한다. 생성은 완전 낙관(RFD 0017) — 의미 위반(중복·겹침)을 만들어도
+ * 조용히 커밋하고, 피드백은 해칭+미니맵 틱이 담당한다. 구조 위반은 setChart
+ * 게이트가 거부한다. 좌표 배치 가드(isCreatePlacementBlocked)는 별도 축으로 유지.
  */
 
 import type {
@@ -12,15 +12,14 @@ import type {
   PointNote,
   RangeNote,
   TrillZone,
+  RestZone,
   ChartEvent,
   Beat,
   Lane,
-  ExtraNoteEntity,
-  ExtraPointNote,
-  ExtraRangeNote,
 } from "../../shared";
-import { validateChart, violationsInvolving, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax } from "../../shared";
+import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 
 export type EntityType =
@@ -29,6 +28,7 @@ export type EntityType =
   | "long"
   | "doubleLong"
   | "trillZone"
+  | "restZone"
   | "bpm"
   | "timeSignature"
   | "text"
@@ -44,6 +44,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "long",
   "doubleLong",
   "trillZone",
+  "restZone",
 ] as const;
 
 /** Event entity types (created on extra lanes) */
@@ -61,34 +62,16 @@ const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
 const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
-type DragType = "rangeNote" | "trillZone" | "event" | "extraRangeNote" | null;
+type DragType = "rangeNote" | "trillZone" | "restZone" | "event" | "extraRangeNote" | null;
 type RangeNoteEntityType = "long" | "doubleLong";
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
   onChartUpdate: (chart: Chart) => void;
-  /** Called to convert Y coordinate to Beat */
-  yToBeat: (y: number) => Beat;
-  /** Called to snap a beat to grid */
-  snapBeat: (beat: Beat) => Beat;
-  /** Called to get which lane a X coordinate falls in (1-4 for note lanes, null otherwise) */
-  xToLane: (x: number) => Lane | null;
+  /** 좌표 변환·스냅·히트테스트 — 입력 좌표 공간 deep module */
+  space: TimelineSpace;
   /** 배치 위치가 편집 가능한 시간 범위 안인지 (배치 제약용) */
   isTimeInBounds: (y: number) => boolean;
-  /** raw y→beat (스냅 전, 롱노트 head/end 캡 판정용) */
-  yToBeatRaw: (y: number) => Beat;
-  /** 좌표의 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
-  hitTestNote: (x: number, y: number) => number | null;
-  /** 좌표의 엑스트라 노트 인덱스, 없으면 null (배치 제약: 겹침 방지) */
-  hitTestExtraNote: (x: number, y: number) => number | null;
-  /** Called to get extra lane number (1~N) from X, or null */
-  xToExtraLane?: (x: number) => number | null;
-  /** Called when extra notes are modified */
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  /** Get current extra notes */
-  getExtraNotes?: () => ExtraNoteEntity[];
-  /** Called to display a warning message to the user */
-  onWarn?: (message: string) => void;
 }
 
 export class CreateMode implements EditorMode {
@@ -178,23 +161,21 @@ export class CreateMode implements EditorMode {
 
   /** Begin range-note creation with an explicit long-note type. */
   beginRangeNoteAt(x: number, y: number, type: RangeNoteEntityType): boolean {
-    const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
-    if (this.callbacks.xToExtraLane) {
-      const extraLane = this.callbacks.xToExtraLane(x);
-      if (extraLane !== null) {
-        this.cancelDrag();
-        this.isDragging = true;
-        this.dragStartBeat = beat;
-        this.dragStartLane = null;
-        this._dragExtraLane = extraLane;
-        this._dragType = "extraRangeNote";
-        this._dragEntityTypeOverride = type;
-        return true;
-      }
+    const extraLane = this.callbacks.space.xToExtraLane(x);
+    if (extraLane !== null) {
+      this.cancelDrag();
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = null;
+      this._dragExtraLane = extraLane;
+      this._dragType = "extraRangeNote";
+      this._dragEntityTypeOverride = type;
+      return true;
     }
 
-    const lane = this.callbacks.xToLane(x);
+    const lane = this.callbacks.space.xToLane(x);
     if (lane === null) return false;
 
     this.cancelDrag();
@@ -222,15 +203,15 @@ export class CreateMode implements EditorMode {
    * 훅의 터치 예약 게이트에서도 재사용한다.
    */
   isPlacementBlocked(x: number, y: number): boolean {
-    const hitIdx = this.callbacks.hitTestNote(x, y);
-    const rawBeat = this.callbacks.yToBeatRaw(y);
+    const hitIdx = this.callbacks.space.hitTestNote(x, y);
+    const rawBeat = this.callbacks.space.yToBeatRaw(y);
     return isCreatePlacementBlocked({
       inBounds: this.callbacks.isTimeInBounds(y),
       hitNote: hitIdx !== null ? this.chart.notes[hitIdx] : null,
-      lane: this.callbacks.xToLane(x),
+      lane: this.callbacks.space.xToLane(x),
       beatFloatRaw: rawBeat.n / rawBeat.d,
       notes: this.chart.notes,
-      extraHit: this.callbacks.hitTestExtraNote(x, y),
+      extraHit: this.callbacks.space.hitTestExtraNote(x, y),
     });
   }
 
@@ -245,58 +226,56 @@ export class CreateMode implements EditorMode {
   }
 
   onPointerDown(x: number, y: number): void {
-    const beat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     // --- Extra lane detection ---
-    if (this.callbacks.xToExtraLane) {
-      const extraLane = this.callbacks.xToExtraLane(x);
-      if (extraLane !== null) {
-        // Event entity types on extra lanes
-        if (isEventEntityType(this.selectedEntityType)) {
-          if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
-            // Point events (bpm, timeSignature): create immediately, no drag
-            this._createEventLane = extraLane;
-            this.createEvent(beat, beat);
-            this._createEventLane = null;
-            return;
-          }
-          if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
-            // Range events (text, auto, stop): start drag
-            this.isDragging = true;
-            this.dragStartBeat = beat;
-            this.dragStartLane = null;
-            this._dragExtraLane = extraLane;
-            this._dragType = "event";
-            return;
-          }
+    const extraLane = this.callbacks.space.xToExtraLane(x);
+    if (extraLane !== null) {
+      // Event entity types on extra lanes
+      if (isEventEntityType(this.selectedEntityType)) {
+        if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
+          // Point events (bpm, timeSignature): create immediately, no drag
+          this._createEventLane = extraLane;
+          this.createEvent(beat, beat);
+          this._createEventLane = null;
           return;
         }
-        if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
-          // 통합 입력: 클릭(길이 0)=단노트, 누른 채 드래그=롱노트. pointerUp에서 결정.
+        if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
+          // Range events (text, auto, stop): start drag
           this.isDragging = true;
           this.dragStartBeat = beat;
           this.dragStartLane = null;
           this._dragExtraLane = extraLane;
-          this._dragType = "extraRangeNote";
-          this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
-          this._dragPointFallback = this.selectedEntityType;
+          this._dragType = "event";
           return;
         }
-        if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
-          this.isDragging = true;
-          this.dragStartBeat = beat;
-          this.dragStartLane = null;
-          this._dragExtraLane = extraLane;
-          this._dragType = "extraRangeNote";
-          return;
-        }
-        // trillZone not supported in extra lanes
         return;
       }
+      if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
+        // 통합 입력: 클릭(길이 0)=단노트, 누른 채 드래그=롱노트. pointerUp에서 결정.
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "extraRangeNote";
+        this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
+        this._dragPointFallback = this.selectedEntityType;
+        return;
+      }
+      if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "extraRangeNote";
+        return;
+      }
+      // trillZone/restZone not supported in extra lanes (가시 레인 1~4 전용)
+      return;
     }
 
     // --- Note lane entities (based on selectedEntityType) ---
-    const lane = this.callbacks.xToLane(x);
+    const lane = this.callbacks.space.xToLane(x);
     if (lane === null) return; // Outside all lanes
 
     // Point/range 통합: single/double는 클릭(길이 0)=단노트, 누른 채 드래그=롱노트.
@@ -334,6 +313,15 @@ export class CreateMode implements EditorMode {
       this._dragType = "trillZone";
       return;
     }
+
+    // Rest zone (range entity) — trillZone의 형제 (RFD 0019, 가시 레인 1~4 전용)
+    if (this.selectedEntityType === "restZone") {
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = lane;
+      this._dragType = "restZone";
+      return;
+    }
   }
 
   /** Handle mouse move (for drag) */
@@ -363,7 +351,7 @@ export class CreateMode implements EditorMode {
   onPointerUp(_x: number, y: number): void {
     if (!this.isDragging) return;
 
-    const endBeat = this.callbacks.snapBeat(this.callbacks.yToBeat(y));
+    const endBeat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     if (this._dragType === "rangeNote") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
@@ -377,6 +365,10 @@ export class CreateMode implements EditorMode {
     } else if (this._dragType === "trillZone") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
         this.createTrillZone(this.dragStartLane, this.dragStartBeat, endBeat);
+      }
+    } else if (this._dragType === "restZone") {
+      if (this.dragStartLane !== null && this.dragStartBeat !== null) {
+        this.createRestZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
     } else if (this._dragType === "event") {
       if (this.dragStartBeat !== null) {
@@ -416,7 +408,11 @@ export class CreateMode implements EditorMode {
   }
 
   // -------------------------------------------------------------------------
-  // Private creation methods
+  // Private creation methods — 완전 낙관(RFD 0017): 의미 위반이어도 그대로 커밋.
+  // 검증·차단 없음. 구조 게이트는 setChart, 위반 피드백은 해칭.
+  // 생성 입력은 구조 위반을 만들 수 없다(구간은 beatMin/beatMax로 start≤end 정규화,
+  // beat/lane은 포인터·정수 산출, 박자표·bpm은 유효값 하드코딩) — 따라서 setChart 구조
+  // 거부가 발화하지 않아 "this.chart 선갱신 후 store 거부" desync는 도달 불가하다.
   // -------------------------------------------------------------------------
 
   private isInsideTrillZone(lane: Lane, beat: Beat): boolean {
@@ -433,25 +429,6 @@ export class CreateMode implements EditorMode {
       beat,
       ...(this._graceMode ? { grace: true } : {}),
     };
-
-    // Validate before adding
-    const testChart = {
-      notes: [...this.chart.notes, newNote],
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 라이브 차트에 transient 위반이 상주할 수 있으므로
-    // 전체 에러가 아니라 **새 노트에 연루된 위반만** 차단한다 — 무관한 기존 위반이
-    // 생성을 전역 차단하지 않도록. 기존 위반의 강제는 저장·플레이 게이트 몫.
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "note", index: this.chart.notes.length },
-    ]);
-    if (errors.length > 0) {
-      // Validation failed, don't add
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
 
     // Create new chart with immutable update
     const updatedChart: Chart = {
@@ -502,23 +479,6 @@ export class CreateMode implements EditorMode {
       ? [bodyNote]
       : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
 
-    // Validate before adding
-    const testChart = {
-      notes: [...this.chart.notes, ...newNotes],
-      trillZones: this.chart.trillZones,
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 새로 추가되는 헤드·바디에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(
-      validateChart(testChart),
-      newNotes.map((_, i) => ({ kind: "note" as const, index: this.chart.notes.length + i })),
-    );
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
-
     const updatedChart: Chart = {
       ...this.chart,
       notes: [...this.chart.notes, ...newNotes],
@@ -543,26 +503,42 @@ export class CreateMode implements EditorMode {
       endBeat: actualEndBeat,
     };
 
-    // Validate before adding
-    const testChart = {
-      notes: this.chart.notes,
-      trillZones: [...this.chart.trillZones, newZone],
-      events: this.chart.events,
-    };
-
-    // 낙관적 편집(RFD 0017): 새 존에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "trillZone", index: this.chart.trillZones.length },
-    ]);
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
-
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,
       trillZones: [...this.chart.trillZones, newZone],
+    };
+
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
+  }
+
+  // restZone 생성 — createTrillZone 미러 (RFD 0019). 노트/trillZone 위 배치도
+  // 사전 차단 없이 낙관 커밋한다(§4-2 — 의미 위반 피드백은 해칭, 게이트는 저장·플레이 진입).
+  private createRestZone(lane: Lane, startBeat: Beat, endBeat: Beat): void {
+    // Ensure startBeat <= endBeat
+    const actualStartBeat = beatLt(startBeat, endBeat)
+      ? startBeat
+      : beatMin(startBeat, endBeat);
+    const actualEndBeat = beatGt(endBeat, startBeat)
+      ? endBeat
+      : beatMax(startBeat, endBeat);
+
+    // restZone은 길이 0이 구조 금지(validation)라, 클릭(무드래그) 등 zero-length 제스처는
+    // 커밋하지 않는다 — trillZone(길이 0 허용)과 다른 divergence. 커밋 시 setChart가 구조
+    // 위반으로 하드 거부해 로컬 차트에 고스트가 남으므로 여기서 막는다 (RFD 0019, 리뷰 C1).
+    if (actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d) return;
+
+    const newRestZone: RestZone = {
+      lane,
+      beat: actualStartBeat,
+      endBeat: actualEndBeat,
+    };
+
+    // Create new chart with immutable update
+    const updatedChart: Chart = {
+      ...this.chart,
+      restZones: [...(this.chart.restZones ?? []), newRestZone],
     };
 
     this.chart = updatedChart;
@@ -621,22 +597,6 @@ export class CreateMode implements EditorMode {
         throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
     }
 
-    // Validate before adding
-    const testChart = {
-      notes: this.chart.notes,
-      trillZones: this.chart.trillZones,
-      events: [...this.chart.events, newEvent],
-    };
-
-    // 낙관적 편집(RFD 0017): 새 이벤트에 연루된 위반만 차단 (국소 판정)
-    const errors = violationsInvolving(validateChart(testChart), [
-      { kind: "event", index: this.chart.events.length },
-    ]);
-    if (errors.length > 0) {
-      this.callbacks.onWarn?.(errors.map((e) => e.message).join(", "));
-      return;
-    }
-
     // Create new chart with immutable update
     const updatedChart: Chart = {
       ...this.chart,
@@ -648,24 +608,25 @@ export class CreateMode implements EditorMode {
   }
 
   // -------------------------------------------------------------------------
-  // Extra lane creation (no validateChart — editor-only)
+  // 보조 레인 생성 — chart.notes에 lane 5+ 노트로 append (RFD 0018 ④d, 통합 축).
+  // 보조 노트는 표시 전용이라 validateChart 배치 제약을 적용하지 않는다(기존 동작 계승).
   // -------------------------------------------------------------------------
 
   private createExtraPointNote(extraLane: number, beat: Beat): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-    const extraNotes = this.callbacks.getExtraNotes();
-    const newNote: ExtraPointNote = {
+    const newNote: PointNote = {
       type: this.selectedEntityType as "single" | "double",
-      extraLane,
+      lane: fromAuxIndex(extraLane),
       beat,
     };
-    this.callbacks.onExtraNotesUpdate([...extraNotes, newNote]);
+    const updatedChart: Chart = {
+      ...this.chart,
+      notes: [...this.chart.notes, newNote],
+    };
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
   }
 
   private createExtraRangeNote(extraLane: number, startBeat: Beat, endBeat: Beat): void {
-    if (!this.callbacks.getExtraNotes || !this.callbacks.onExtraNotesUpdate) return;
-    const extraNotes = this.callbacks.getExtraNotes();
-
     const actualStartBeat = beatLt(startBeat, endBeat) ? startBeat : beatMin(startBeat, endBeat);
     const actualEndBeat = beatGt(endBeat, startBeat) ? endBeat : beatMax(startBeat, endBeat);
 
@@ -679,12 +640,18 @@ export class CreateMode implements EditorMode {
       bodyType = "long";
     }
 
-    const bodyNote: ExtraRangeNote = { type: bodyType, extraLane, beat: actualStartBeat, endBeat: actualEndBeat };
+    const lane = fromAuxIndex(extraLane);
+    const bodyNote: RangeNote = { type: bodyType, lane, beat: actualStartBeat, endBeat: actualEndBeat };
     const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
-    const newNotes: ExtraNoteEntity[] = isZeroLength
+    const newNotes: (PointNote | RangeNote)[] = isZeroLength
       ? [bodyNote]
-      : [{ type: headType, extraLane, beat: actualStartBeat } as ExtraPointNote, bodyNote];
-    this.callbacks.onExtraNotesUpdate([...extraNotes, ...newNotes]);
+      : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
+    const updatedChart: Chart = {
+      ...this.chart,
+      notes: [...this.chart.notes, ...newNotes],
+    };
+    this.chart = updatedChart;
+    this.callbacks.onChartUpdate(updatedChart);
   }
 
   private currentRangeNoteType(): RangeNoteEntityType {

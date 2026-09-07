@@ -1,4 +1,4 @@
-import type { Chart, ExtraNoteEntity, Lane, NoteEntity, RangeNote } from "../../shared";
+import type { Chart, Lane, NoteEntity, RangeNote } from "../../shared";
 import { beatEq } from "../../shared";
 
 const DEFAULT_POINT_TOLERANCE = 1 / 16;
@@ -84,7 +84,8 @@ export function deleteChartNotesAtIndices(chart: Chart, indices: ReadonlySet<num
 export function deleteChartNoteAtLaneBeat(
   chart: Chart,
   input: {
-    lane: Lane;
+    /** 통합 lane — 메인 1..4, 보조 5+ 모두 이 한 경로로 삭제한다 (RFD 0018 ④d) */
+    lane: number;
     beatFloat: number;
     pointTolerance?: number;
   },
@@ -103,50 +104,6 @@ export function deleteChartNoteAtLaneBeat(
       }
     } else if (Math.abs(input.beatFloat - startBeat) < tolerance) {
       return deleteChartNoteAtIndex(chart, i);
-    }
-  }
-
-  return null;
-}
-
-export function deleteExtraNoteAtIndex(
-  extraNotes: readonly ExtraNoteEntity[],
-  index: number,
-): ExtraNoteEntity[] | null {
-  if (index < 0 || index >= extraNotes.length) return null;
-  return deleteExtraNotesAtIndices(extraNotes, new Set([index]));
-}
-
-export function deleteExtraNotesAtIndices(
-  extraNotes: readonly ExtraNoteEntity[],
-  indices: ReadonlySet<number>,
-): ExtraNoteEntity[] {
-  if (indices.size === 0) return [...extraNotes];
-  return extraNotes.filter((_note, index) => !indices.has(index));
-}
-
-export function deleteExtraNoteAtLaneBeat(
-  extraNotes: readonly ExtraNoteEntity[],
-  input: {
-    extraLane: number;
-    beatFloat: number;
-    pointTolerance?: number;
-  },
-): ExtraNoteEntity[] | null {
-  const tolerance = input.pointTolerance ?? DEFAULT_POINT_TOLERANCE;
-
-  for (let i = 0; i < extraNotes.length; i++) {
-    const note = extraNotes[i];
-    if (note.extraLane !== input.extraLane) continue;
-
-    const startBeat = beatFloatOf(note.beat);
-    if ("endBeat" in note) {
-      const endBeat = beatFloatOf(note.endBeat);
-      if (input.beatFloat >= startBeat && input.beatFloat <= endBeat) {
-        return deleteExtraNoteAtIndex(extraNotes, i);
-      }
-    } else if (Math.abs(input.beatFloat - startBeat) < tolerance) {
-      return deleteExtraNoteAtIndex(extraNotes, i);
     }
   }
 
@@ -178,5 +135,20 @@ export function deleteEmptyTrillZoneAtIndex(
       ...chart,
       trillZones: chart.trillZones.filter((_zone, zoneIndex) => zoneIndex !== index),
     },
+  };
+}
+
+/**
+ * restZone 삭제 (RFD 0019) — deleteEmptyTrillZoneAtIndex의 미러.
+ * restZone은 내부 노트 개념이 없으므로(시각 안내 + 배치 제약 전용) empty 가드 없이
+ * 해당 인덱스만 filter-out한 새 chart를 반환한다. 인덱스가 무효면 null.
+ */
+export function deleteRestZoneAtIndex(chart: Chart, index: number): Chart | null {
+  const restZones = chart.restZones ?? [];
+  if (!restZones[index]) return null;
+
+  return {
+    ...chart,
+    restZones: restZones.filter((_zone, zoneIndex) => zoneIndex !== index),
   };
 }

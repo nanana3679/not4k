@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, ExtraNoteEntity } from "../types";
+import type { Chart, NoteEntity } from "../types";
 import { beat } from "../types";
 import {
   createChartAsset,
@@ -14,6 +14,7 @@ function makeChart(input: {
   difficultyLabel?: string;
   difficultyLevel?: number;
   offsetMs?: number;
+  notes?: NoteEntity[];
 } = {}): Chart {
   return {
     meta: {
@@ -26,7 +27,7 @@ function makeChart(input: {
       previewAudioFile: "",
       offsetMs: input.offsetMs ?? 34,
     },
-    notes: [],
+    notes: input.notes ?? [],
     trillZones: [],
     events: [
       { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
@@ -81,7 +82,6 @@ describe("saveChartAsset", () => {
       songId: "song-one",
       difficulty: "Hard",
       chart: makeChart({ difficultyLevel: 13, offsetMs: -12 }),
-      extraNotes: [],
       extraLaneCount: 0,
     });
 
@@ -109,15 +109,15 @@ describe("saveChartAsset", () => {
 
   it("uploads extra JSON when extra lanes or notes exist", async () => {
     const fake = makeAdapter();
-    const extraNotes: ExtraNoteEntity[] = [
-      { type: "single", extraLane: 2, beat: beat(1, 4) },
-    ];
-
+    // 보조 노트는 chart.notes(lane 5+)에 산다 (RFD 0018 ③). extraLane 2 → lane 6.
+    // buildChartAsset이 저장 시 메인/보조로 분리해 보조 파일에 extraLane으로 환원한다.
     await saveChartAsset(fake.adapter, {
       songId: "song-two",
       difficulty: "EXPERT",
-      chart: makeChart({ difficultyLabel: "EXPERT" }),
-      extraNotes,
+      chart: makeChart({
+        difficultyLabel: "EXPERT",
+        notes: [{ type: "single", lane: 6, beat: beat(1, 4) }],
+      }),
       extraLaneCount: 3,
     });
 

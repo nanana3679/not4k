@@ -1,6 +1,6 @@
 # 롱노트 판정 모델의 설계 배경
 
-이 문서는 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md)의 현재 채택 모델을 이해하기 위한 보충 설명이다. 규범은 RFD와 [판정 사례](../spec/note-judgment-cases.md)에 있다. 구현은 현재 검증 중이다.
+이 문서는 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 현재 채택 모델을 이해하기 위한 보충 설명이다. 규범은 RFD와 [판정 사례](../spec/note-judgment-cases.md)에 있다. 구현은 현재 검증 중이다.
 
 ## unit을 사용하는 이유
 

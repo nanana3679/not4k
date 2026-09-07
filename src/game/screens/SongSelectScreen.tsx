@@ -24,6 +24,7 @@ import { DeleteSongModal } from './songSelect/DeleteSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
 import { TutorialHelpModal } from './songSelect/TutorialHelpModal';
+import { SettingsModal } from './settings/SettingsModal';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
 import {
@@ -43,6 +44,9 @@ interface SongSelectScreenProps {
 
 export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenProps) {
   const { selectSong, setScreen } = useGameStore();
+  const settingsOpen = useGameStore((state) => state.settingsOpen);
+  const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
+  const calibrationActive = useGameStore((state) => state.calibrationActive);
   const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
   const playAllowed = canStartGameplay(gameExperience);
@@ -86,7 +90,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    showAddSong: showAddSong || showTutorialHelp,
+    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -96,7 +100,8 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   });
 
   const { stopPreview, playPreviewAt } = usePreviewAudio(songs, focusedSongIndex, {
-    enabled: previewAllowed,
+    // 보정 중에는 프리뷰를 페이드아웃해 멈춘다(보정음과 겹치지 않게). 나가면 페이드인 재개.
+    enabled: previewAllowed && !calibrationActive,
     autoPlay: previewAutoPlay,
   });
   // ref를 최신 stopPreview로 동기화
@@ -213,6 +218,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           onClose={() => setDeleteSongTarget(null)}
         />
       )}
+
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
+      )}
     </>
   );
 
@@ -225,7 +234,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       <div style={styles.mobileContainer}>
         <div style={styles.mobileHeader}>
           <div style={styles.mobileHeaderTop}>
-            <h1 style={styles.mobileTitle}>Songs</h1>
+            <h1 style={styles.mobileTitle}>
+              <span style={styles.mobileTitleAccent} aria-hidden="true" />
+              Songs
+            </h1>
             {!authLoading && user && (
               <span style={styles.mobileEmail}>{user.email}</span>
             )}
@@ -319,7 +331,10 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Song Select</h1>
+        <h1 style={styles.title}>
+          <span style={styles.titleAccent} aria-hidden="true" />
+          Song Select
+        </h1>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {renderTutorialHelpButton(styles.tutorialHelpBtn)}
           {isAdmin && (
@@ -330,7 +345,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
           <button style={styles.refreshBtn} onClick={() => fetchSongs()} disabled={loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
-          <button style={styles.settingsBtn} onClick={() => setScreen('settings')}>
+          <button style={styles.settingsBtn} onClick={() => setSettingsOpen(true)}>
             Settings
           </button>
           {!authLoading && (

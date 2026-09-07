@@ -60,7 +60,9 @@ export function decideConfirmedJudgmentEffects(
     display: {
       judgment: showJudgment ? { grade: event.grade, ...(showTiming ? { deltaMs: event.deltaMs } : {}) } : null,
       altitude: isDependentZero ? null : { grade: event.grade },
-      bombLane: isDependentZero || isMiss ? null : note.lane,
+      // Chart notes expose a numeric lane; gameplay effects only target main lanes.
+      // Keep the same boundary cast used by the legacy judgment effects adapter.
+      bombLane: isDependentZero || isMiss ? null : (note.lane as Lane),
     },
     body: isMaintenanceMiss ? "failed" : "unchanged",
   };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestTrillZoneHandleAt, noteExistsAtSnap, extraNoteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -216,45 +216,43 @@ describe("hitTestTrillZoneAt", () => {
 });
 
 // ---------------------------------------------------------------------------
-// hitTestTrillZoneHandleAt — 구간 단위 선택(이동) 핸들(구간 시작점=아래, 가로 중앙 박스)
+// hitTestRestZoneAt — trillZone 미러 (RFD 0019)
 // ---------------------------------------------------------------------------
 
-describe("hitTestTrillZoneHandleAt", () => {
-  const zones: TrillZone[] = [
-    { lane: 1 as const, beat: beat(2), endBeat: beat(4) }, // 0: 시작 beat2
-    { lane: 2 as const, beat: beat(6), endBeat: beat(8) }, // 1: 시작 beat6
+describe("hitTestRestZoneAt", () => {
+  const zones: RestZone[] = [
+    { lane: 2 as const, beat: beat(0), endBeat: beat(4) },   // index 0: 범위 0~4
+    { lane: 3 as const, beat: beat(3), endBeat: beat(3) },   // index 1: 길이 0 (beat=3)
   ];
-  const W = 10;  // handleWidth(px)
-  const LW = 60; // laneWidth(px) — 가로 중앙 = 30, 박스 범위 [25,35]
 
-  it("구간 시작(아래)의 가로 중앙 박스에서 핸들 히트", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 30, W, LW)).toBe(0); // 정중앙
-    expect(hitTestTrillZoneHandleAt(zones, 2, 6, 26, W, LW)).toBe(1); // 중앙 ±5 이내
+  it("레인2 범위 구간(0~4)의 시작/중간/끝에서 히트", () => {
+    expect(hitTestRestZoneAt(zones, 2, 0)).toBe(0);
+    expect(hitTestRestZoneAt(zones, 2, 2)).toBe(0);
+    expect(hitTestRestZoneAt(zones, 2, 4)).toBe(0);
   });
 
-  it("중앙에서 handleWidth/2 밖이면 미스(가장자리/코너)", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 0, W, LW)).toBeNull();  // 좌측 가장자리
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 60, W, LW)).toBeNull(); // 우측 가장자리
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2, 24, W, LW)).toBeNull(); // |24-30|=6 > 5
+  it("범위 구간 밖(tolerance 1/16 초과)이면 미스", () => {
+    // 4 + 0.08 > 4 + 1/16 → tolerance 밖
+    expect(hitTestRestZoneAt(zones, 2, 4.08)).toBeNull();
   });
 
-  it("시작점 tolerance(1/16) 이내 + 중앙이면 히트", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 2.05, 30, W, LW)).toBe(0);
-    expect(hitTestTrillZoneHandleAt(zones, 1, 1.95, 32, W, LW)).toBe(0);
+  it("같은 beat라도 다른 레인(레인1)에서는 미스", () => {
+    expect(hitTestRestZoneAt(zones, 1, 2)).toBeNull();
   });
 
-  it("구간 끝/중간은 핸들이 아니다(시작점만) — 끝은 리사이즈 영역", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 1, 4, 30, W, LW)).toBeNull();
-    expect(hitTestTrillZoneHandleAt(zones, 1, 3, 30, W, LW)).toBeNull();
+  it("길이 0 구간(레인3 beat=3)을 tolerance(1/16) 이내에서 히트", () => {
+    expect(hitTestRestZoneAt(zones, 3, 3)).toBe(1);
+    expect(hitTestRestZoneAt(zones, 3, 3.05)).toBe(1);
+    expect(hitTestRestZoneAt(zones, 3, 3.08)).toBeNull();
   });
 
-  it("다른 레인은 미스", () => {
-    expect(hitTestTrillZoneHandleAt(zones, 2, 2, 30, W, LW)).toBeNull();
+  it("빈 restZone 배열이면 미스", () => {
+    expect(hitTestRestZoneAt([], 2, 2)).toBeNull();
   });
 
-  it("길이 0 구간(시작==끝)은 이동 핸들 미스 — 리사이즈로만 확장", () => {
-    const zeroLen: TrillZone[] = [{ lane: 1 as const, beat: beat(2), endBeat: beat(2) }];
-    expect(hitTestTrillZoneHandleAt(zeroLen, 1, 2, 30, W, LW)).toBeNull();
+  it("커스텀 tolerance(0.01) 적용 시 히트 범위가 좁아짐", () => {
+    expect(hitTestRestZoneAt(zones, 3, 3.005, 0.01)).toBe(1);
+    expect(hitTestRestZoneAt(zones, 3, 3.05, 0.01)).toBeNull();
   });
 });
 
@@ -286,24 +284,6 @@ describe("noteExistsAtSnap", () => {
 
   it("레인지 노트 범위 밖 snap 위치면 미스", () => {
     expect(noteExistsAtSnap(notes, 2, 2.5)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// extraNoteExistsAtSnap
-// ---------------------------------------------------------------------------
-
-describe("extraNoteExistsAtSnap", () => {
-  const extraNotes: ExtraNoteEntity[] = [
-    { type: "single", extraLane: 1, beat: beat(4) },
-  ];
-
-  it("snap 위치와 extra 노트가 일치하면 히트", () => {
-    expect(extraNoteExistsAtSnap(extraNotes, 1, 4.0)).toBe(0);
-  });
-
-  it("snap 위치와 extra 노트가 다르면 미스", () => {
-    expect(extraNoteExistsAtSnap(extraNotes, 1, 4.05)).toBeNull();
   });
 });
 

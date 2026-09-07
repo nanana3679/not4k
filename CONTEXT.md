@@ -107,7 +107,7 @@ Good 윈도우 안에서 입력하면 타이밍 정밀도와 무관하게 Perfec
 _Avoid_: 보너스 노트
 
 **`holdOnly`**:
-롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 등록 키 유지로, 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0019](docs/rfd/0019-note-judgment-units-and-inheritance.md)를 따른다.
+롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 등록 키 유지로, 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0020](docs/rfd/0020-note-judgment-units-and-inheritance.md)를 따른다.
 _Avoid_: Grace 노트
 
 ### 피스

@@ -70,14 +70,16 @@ test.describe('TutorialPreviewPlayer 실제 loop tail 판정', () => {
     });
     await dialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]').click();
     const active = dialog.locator('[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]');
-    const diagram = active.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(active).toBeVisible();
+    // Diagram confirmation is portaled to the viewport by the shared tutorial player.
+    const diagram = page.locator('[data-tutorial-diagram-modal="true"]:visible').first();
     await expect(diagram.locator('[data-tutorial-diagram-ok="true"]')).toBeVisible();
     await diagram.locator('[data-tutorial-diagram-ok="true"]').click();
     await expect(diagram).toBeHidden();
 
     const deadline = Date.now() + trace.loopMs * 3 + 2000;
     while (Date.now() < deadline) {
-      const ok = dialog.locator('[data-tutorial-diagram-modal="true"]:visible [data-tutorial-diagram-ok="true"]');
+      const ok = page.locator('[data-tutorial-diagram-modal="true"]:visible [data-tutorial-diagram-ok="true"]');
       if (await ok.count()) await ok.last().click();
       const observedSessions = await page.evaluate(loopMs => new Set(((globalThis as typeof globalThis & { __tutorialTraceBatches?: Array<{ sessionId: number; at: number }> }).__tutorialTraceBatches ?? []).filter(batch => batch.at === loopMs).map(batch => batch.sessionId)).size, trace.loopMs);
       if (observedSessions >= 2) break;

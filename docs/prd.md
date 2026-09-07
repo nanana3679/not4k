@@ -83,7 +83,7 @@ osu!mania, DJMAX 등 4키+ 리듬게임 경험자 중 고난이도에서 **신�
 | G-01 | **노트 낙하 플레이** | 4레인 노트 낙하, 키 입력으로 판정. BPM 독립 절대 스크롤 속도 | `docs/spec/game-core.md` | 구현 |
 | G-02 | **6종 노트 타입** | 포인트 3종(single, double, trill) + 구간 3종(long, doubleLong, trillLong). 트릴 계열은 다이아몬드 형상 | `docs/spec/note-system.md` | 구현 |
 | G-03 | **홀드 교대** | 연결 경계에서 등록 키로 유지 승계. 같은 timestamp 입력 후 유지 부족 판정, 확정된 unit 실패는 복구하지 않음 | [판정 사례](spec/note-judgment-cases.md) | 채택, 새 모델 이행 전 |
-| G-04 | **판정 시스템** | Normal: Perfect(±41ms) / Great(±82ms) / Good(±120ms) / Miss. 실제 release도 타이밍 등급 적용, `holdOnly`는 상태 판정 | [RFD 0019](rfd/0019-note-judgment-units-and-inheritance.md) | 채택, 새 모델 이행 전 |
+| G-04 | **판정 시스템** | Normal: Perfect(±41ms) / Great(±82ms) / Good(±120ms) / Miss. 실제 release도 타이밍 등급 적용, `holdOnly`는 상태 판정 | [RFD 0020](rfd/0020-note-judgment-units-and-inheritance.md) | 채택, 새 모델 이행 전 |
 | G-05 | **스코어링** | 달성률(100% 기준), 랭크(SSS~F 10단계), 콤보, 풀콤보. 점수 항목의 고정 가중치와 무점수 Miss 구분 | `docs/spec/scoring.md` | 기존 구현 있음, 새 모델 이행 전 |
 | G-06 | **`goodTrill` 집계** | 트릴 교대 실패 시 Good 고정 + 별도 집계, 결과 화면 표시 | `docs/spec/scoring.md` | 구현 |
 | G-07 | **입력-노트 매칭** | 창과 자격을 충족한 가장 이른 미처리 대상이 소비. 승계로 준비된 unit은 불필요한 시작 down을 소비하지 않음 | [판정 사례](spec/note-judgment-cases.md) | 채택, 새 모델 이행 전 |
@@ -264,7 +264,7 @@ Lv.1~15, 5단계 등급.
 
 ## 7. 스코어링
 
-아래는 [RFD 0019](rfd/0019-note-judgment-units-and-inheritance.md)의 채택 규칙이다. 구현 이행 상태는 [§12](#12-미정-사항)를 따른다.
+아래는 [RFD 0020](rfd/0020-note-judgment-units-and-inheritance.md)의 채택 규칙이다. 구현 이행 상태는 [§12](#12-미정-사항)를 따른다.
 
 | 항목 | 규격 |
 |------|------|
@@ -391,7 +391,7 @@ Lv.1~15, 5단계 등급.
 | **스코어링** | 실력 지표 (볼포스류 집계 시스템) | 플레이 데이터 축적 후 도입 검토 |
 | **`flightRule`** | 실패 시 결과 화면 처리, 기본값·선택 방식, `altitude` 수치 밸런싱 | 미정 (`docs/rfd/0001` §9, `0002` §8 미해결 질문) |
 | **난이도** | 차트 제작 가이드라인 (등급 경계의 정량 기준) | 미정 — 개발자가 직접 다수의 차트를 제작하며 일관된 규칙을 도출한 뒤 확정. 가이드라인 확정 후 차트 외주 제작 검토 |
-| **판정명** | Perfect/Great/Good/Miss의 표기는 컨셉에 따라 변경 가능. Bad 단계는 사용하지 않음 | 규칙 채택, 명칭은 잠정 ([RFD 0019](rfd/0019-note-judgment-units-and-inheritance.md)) |
+| **판정명** | Perfect/Great/Good/Miss의 표기는 컨셉에 따라 변경 가능. Bad 단계는 사용하지 않음 | 규칙 채택, 명칭은 잠정 ([RFD 0020](rfd/0020-note-judgment-units-and-inheritance.md)) |
 | **비주얼** | 롱노트 유지 실패·더블 부분 입력 등 상태 변화 이펙트 세부 | 롱노트 바디 실패 색상(0x555555) 확정, 가로 그라데이션(가장자리 70% 밝게) 확정. 이펙트 미정 |
 | **비주얼** | `trillZone`/트릴 노트/더블 노트/릴리즈탭/홀드 중 탭/홀드 트릴의 시각 표현 | 디자인 단계에서 결정 |
 | **비주얼** | 인게임 마디선 표현 방식 (레인 내 수평선 유지 vs 기어 프레임 마디 펄스로 대체 vs 하이브리드) | 현재 1px·25% 수평선은 가시성 부족. 동행 하이라이트 안을 `/lab/gear-measure-pulse`에서 튜닝 중 (`assets-lab/spec.md` 마디 펄스 랩) |
@@ -399,7 +399,7 @@ Lv.1~15, 5단계 등급.
 | **차트 이벤트** | Auto 구간 기능 존폐 — 튜토리얼이 팝업+키 안내 방식으로 전환되어(PR #71) 신규 사용처 없음. auto 이벤트가 든 기존 차트는 삭제 예정 | 미정 — 기존 차트 삭제 후 전면 제거 여부 결정. 제거는 shared 이벤트 타입·에디터 배치·glossary에 걸친 제품 결정이라 RFD 필요. 오토플레이 로직은 `AutoPlayer` module로 격리되어(PR #72) 제거 비용 낮음 |
 | **피스** | `chart-design.md`의 피스 개념과 PP 번호의 완전 대응 | 차트 제작 단계에서 완성 |
 | **접근성** | 색각 이상 유저 대응 정책 | 기본 대응 계획 수립 예정: 색맹모드(색 대신 패턴/아이콘), WCAG 대비 검사 |
-| **판정 모델 통합** | RFD 0019의 unit·연결·release·점수·현재 콤보를 하나의 상태 전이로 구현하고 관련 명세·화면에 이행 | 새 core·Session 구현 및 실제 플레이·AutoPlayer·튜토리얼 연결 완료. 38개 채택 사례와 추가 회귀, 전체 1,876개 단위 테스트, 타입 검사·production build 통과. 새 판정 game E2E 4개와 Lab E2E 3개를 검증했고, 사람이 직접 검사할 [Lab 15개 사례](spec/judgment-playtest.md)를 제공한다. 권한 변경 후 브라우저 실행 제약은 해소했다. 기존 game/editor E2E의 오래된 전제 보수와 물리 키보드 체감 검증은 남아 있어 [구현 계획](plans/note-judgment-implementation.md)의 전체 완료로 선언하지 않는다. 상세 결과는 아래 검증 기록 참조. |
+| **판정 모델 통합** | RFD 0020의 unit·연결·release·점수·현재 콤보를 하나의 상태 전이로 구현하고 관련 명세·화면에 이행 | 새 core·Session 구현 및 실제 플레이·AutoPlayer·튜토리얼 연결 완료. 38개 채택 사례와 추가 회귀, 전체 1,876개 단위 테스트, 타입 검사·production build 통과. 새 판정 game E2E 4개와 Lab E2E 3개를 검증했고, 사람이 직접 검사할 [Lab 15개 사례](spec/judgment-playtest.md)를 제공한다. 권한 변경 후 브라우저 실행 제약은 해소했다. 기존 game/editor E2E의 오래된 전제 보수와 물리 키보드 체감 검증은 남아 있어 [구현 계획](plans/note-judgment-implementation.md)의 전체 완료로 선언하지 않는다. 상세 결과는 아래 검증 기록 참조. |
 | **연결 up과 이른 마지막 release** | 동일 키 재타격과 서로 다른 키 교대에 같은 보정 적용. 연결 몫만큼 발생 순서로 배정하며 동일 키 후보를 우선하지 않음 | 구현 및 NJ-R04/R06~R14 검증 완료. 통합 브라우저 검증은 판정 모델 통합 항목에서 추적 |
 | **동시 keyup의 release 배정** | 동일한 키·시각 입력은 내부 동률 배정이 달라도 후속 판정 결과가 같아야 함 | 누름별 권한 갱신 구현 및 NJ-R14의 up 순서·키 치환·저장 배열 순서 검증 완료 |
 | **보류 판정의 콤보 순서** | 현재 콤보는 판정 확정 순서로 반영. 타이밍 등급·raw 오차는 실제 입력 시각 기준 | NJ-S03과 논리 기한·관측 입력의 확정 묶음 회귀 통과. 같은 묶음의 Miss 우선을 구현 |
@@ -486,7 +486,7 @@ Lv.1~15, 5단계 등급.
 
 ### 2026-09-07 수동 판정 Lab 확장 검증 기록
 
-- `/lab/judgment-playtest`를 RFD 0019 기준의 15개 카드로 이행했다. 기존 500/250/125ms 교대와 길이 0 사례의 ID는 유지하되 폐기된 12ms 유예·연결 Perfect·길이 0의 새 down 요구 설명을 제거했다.
+- `/lab/judgment-playtest`를 RFD 0020 기준의 15개 카드로 이행했다. 기존 500/250/125ms 교대와 길이 0 사례의 ID는 유지하되 폐기된 12ms 유예·연결 Perfect·길이 0의 새 down 요구 설명을 제거했다.
 - 연결 유지/교대, 한 몫 교대, 일반 감소/감소 `holdOnly`, 중간 실패 후 복구, 부분 헤드 실패, 같은 키 재타격, 독립·초단 `holdOnly`에 치는 법·기대 결과·관련 사례 ID를 제공한다. 현재 키 바인딩·설정 표시, 분류 필터, Lab 복귀 후 결과 요약·재실행, 좁은 화면의 스크롤을 지원한다.
 - Lab의 `decrease-chain` 입력 생략 대조에서 중복 점수 정산 예외를 발견해 수정했다. 실패한 연결 몫이 감소 release 항목을 먼저 소비하던 원인이며, 일반 release 항목의 실패 정산은 실제 종료 몫에만 적용한다. `holdOnly`의 unit별 정산은 유지한다. 넓은 시간 간격의 끝까지 진행 대조를 판정 사례 명세와 Session 회귀에 추가했다.
 - 전체 `npx vitest run`: 118개 파일, **1,876개 통과**. Lab 시나리오 25개 검사를 포함한다. 마지막 검증 조건 보강 뒤 Lab·Session 대상 검사 36개도 통과했다.
@@ -505,3 +505,12 @@ Lv.1~15, 5단계 등급.
 - 변경 스코프의 ESLint 오류 0. `TutorialPreviewPlayer`의 기존 Fast Refresh 경고 2개는 남아 있다. `git diff --check` 통과.
 - 새 Vite 서버에서 관련 Playwright **7개 통과**: Advanced 탭 5개, 기존 Basic 팝업 1개, 두 번 반복의 마지막 release 정산 1개. 27개 항목 이동·캐시, 빠른 탭 전환과 닫기/재개, 390px 모바일 경로, 키 배치 보충 안내와 설정 불변, 실제 재생 중 입력 표시 및 브라우저 오류 없음까지 확인했다. 실행 명령은 `npx playwright test e2e/game/advanced-tutorial.spec.ts e2e/game/tutorial-note-judgment.spec.ts e2e/game/song-select.spec.ts --grep 'Tutorial level tabs|실제 loop tail|중앙 튜토리얼' --project=game --workers=1`이다.
 - 1365×960과 390×844에서 시연·본문·스크롤을 캡처해 확인했다. 전체 game/editor E2E의 기존 미정비 범위는 위 검증 기록과 같다.
+
+
+#### 2026-09-08 PR 브랜치 통합 검증 기록
+
+- `origin/main`의 `39f7736`을 통합하여 unified lane·`ChartTiming`·캔버스 키보드·뷰포트 도식 팝업과 새 판정 세션을 함께 검증했다. 번호가 겹친 판정 결정 문서는 `RFD 0020`으로 정리했다. `RFD 0019`는 기존 `restZone` 결정이다.
+- 튜토리얼은 `Basic` 17개와 `Advanced` 12개를 제공한다. 기존 Basic의 이어진 트릴·휴지 구간도 실제 `NoteJudgmentSession`으로 각각 Perfect 6개·8개를 확인했다. Lab은 판정 사례 15개와 기존 트릴 바디 색상 확인 사례 1개를 제공한다.
+- 전체 Vitest: **140개 파일, 2,397개 테스트 통과**. TypeScript와 프로덕션 빌드 통과. 통합 관련 ESLint 오류 0개이며 기존 Fast Refresh export 경고 5개가 남아 있다.
+- 관련 브라우저 E2E **13개 통과**: 실제 수동 입력·AutoEvent·재시작 3개, Lab 3개, 튜토리얼 반복 끝 정산 1개, 빠른 렌더러 전환 1개, Advanced 탭·29개 viewed·키보드·390px 화면 5개. 짧은 시연 입력은 제어된 animation frame 진행으로 실제 Pixi 키캡의 누름·복귀를 확인했다. 도식은 뷰포트의 확인 버튼을 통해 진행했다.
+- 배포 빌드의 Lab 제외 정책은 유지한다. 브랜치 Preview에는 실제 게임과 `Advanced` 도움말이 포함되며, Lab은 개발 서버에서 실행한다. 합성 입력 검증을 사람의 물리 키보드 체감 검증으로 간주하지 않는다.

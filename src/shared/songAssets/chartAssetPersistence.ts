@@ -1,5 +1,5 @@
-import type { Chart, ExtraNoteEntity } from "../types";
-import { serializeChart, serializeExtraNotes } from "../chart";
+import type { Chart } from "../types";
+import { serializeChart, serializeExtraNotes, mainNotes, auxNotes, auxNotesAsExtra } from "../chart";
 import { songChartExtraPath, songChartPath } from "../storage";
 
 export interface TextAssetUpload {
@@ -35,8 +35,8 @@ export interface SongAssetPersistenceAdapter {
 }
 
 export interface SaveChartAssetInput extends ChartAssetTarget {
+  /** 보조 노트(lane 5+)를 포함한 통합 차트. 저장 시 메인/보조 파일로 분리한다 (RFD 0018 ③). */
   chart: Chart;
-  extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
 }
 
@@ -57,7 +57,7 @@ export async function saveChartAsset(
   input: SaveChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
   const asset = buildChartAsset(input);
-  const hasExtra = input.extraLaneCount > 0 || input.extraNotes.length > 0;
+  const hasExtra = input.extraLaneCount > 0 || auxNotes(input.chart.notes).length > 0;
 
   const chartUpload = adapter.uploadText({
     path: asset.chartPath,
@@ -86,7 +86,6 @@ export async function createChartAsset(
 ): Promise<Omit<ChartAssetWriteResult, "extraJson">> {
   const asset = buildChartAsset({
     ...input,
-    extraNotes: [],
     extraLaneCount: 0,
   });
 
@@ -166,8 +165,10 @@ function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
   return {
     chartPath: songChartPath(input.songId, difficulty),
     extraPath: songChartExtraPath(input.songId, difficulty),
-    chartJson: serializeChart(input.chart),
-    extraJson: serializeExtraNotes(input.extraNotes, input.extraLaneCount),
+    // 저장 분리 (RFD 0018 §3-4): 메인 파일엔 메인 노트만, 보조 파일엔 lane 5+를 extraLane으로 환원.
+    // auxNotesAsExtra가 chart.notes 순서(=[...main, ...aux])를 보존하므로 재저장이 원본과 바이트 동일.
+    chartJson: serializeChart({ ...input.chart, notes: mainNotes(input.chart.notes) }),
+    extraJson: serializeExtraNotes(auxNotesAsExtra(input.chart.notes), input.extraLaneCount),
     difficulty,
   };
 }

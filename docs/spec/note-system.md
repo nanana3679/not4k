@@ -1,6 +1,6 @@
 # not4k — 노트 시스템
 
-> 판정 규칙은 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md)와 [판정 사례 명세](note-judgment-cases.md)를 우선한다. 현재 채택 모델의 구현·통합 검증은 진행 중이다. 이행 상태는 [PRD §12](../prd.md#12-미정-사항)를 따른다.
+> 판정 규칙은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)와 [판정 사례 명세](note-judgment-cases.md)를 우선한다. 현재 채택 모델의 구현·통합 검증은 진행 중이다. 이행 상태는 [PRD §12](../prd.md#12-미정-사항)를 따른다.
 
 ## 현재 채택 판정 모델
 

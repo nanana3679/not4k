@@ -19,6 +19,9 @@ export function usePreviewAudio(
   const { enabled = true, autoPlay = true } = options;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  // 페이드아웃 진행 중에는 위치 기반(timeupdate) 볼륨 제어를 무시한다.
+  const fadingRef = useRef(false);
+  const fadeTimerRef = useRef<number | null>(null);
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
   const masterVolumeRef = useRef(masterVolume);
 
@@ -35,6 +38,12 @@ export function usePreviewAudio(
   }, [masterVolume]);
 
   const stopPreview = useCallback(() => {
+    if (fadeTimerRef.current !== null) {
+      clearInterval(fadeTimerRef.current);
+      fadeTimerRef.current = null;
+    }
+    fadingRef.current = false;
+
     if (cleanupRef.current) {
       cleanupRef.current();
       cleanupRef.current = null;
@@ -49,6 +58,24 @@ export function usePreviewAudio(
       audioRef.current = null;
     }
   }, []);
+
+  // 현재 프리뷰를 페이드아웃한 뒤 정지한다(보정 진입 등). 재생 중이 아니면 즉시 정지.
+  const fadeOutAndStop = useCallback((durationMs = 500) => {
+    if (fadingRef.current) return; // 이미 페이드 진행 중이면 그 페이드를 완주시킨다(즉시 컷 방지)
+    const el = audioRef.current;
+    if (!el) {
+      stopPreview();
+      return;
+    }
+    fadingRef.current = true;
+    const startVol = el.volume;
+    const startAt = performance.now();
+    fadeTimerRef.current = window.setInterval(() => {
+      const p = Math.min(1, (performance.now() - startAt) / durationMs);
+      el.volume = startVol * (1 - p);
+      if (p >= 1) stopPreview(); // 타이머 정리 + fadingRef 리셋 + 오디오 해제
+    }, 16);
+  }, [stopPreview]);
 
   const playPreview = useCallback((song: DbSong | null | undefined) => {
     const FADE = 0.5; // seconds
@@ -65,6 +92,7 @@ export function usePreviewAudio(
       el.loop = true;
 
       const onTimeUpdate = () => {
+        if (fadingRef.current) return; // 페이드아웃 중엔 위치 기반 볼륨 제어 무시
         const BASE_VOL = 0.4 * masterVolumeRef.current;
         const dur = el.duration;
         if (!isFinite(dur)) return;
@@ -106,6 +134,7 @@ export function usePreviewAudio(
     };
 
     const onTimeUpdate = () => {
+      if (fadingRef.current) return; // 페이드아웃 중엔 위치 기반 볼륨 제어 무시
       const BASE_VOL = 0.4 * masterVolumeRef.current;
       if (el.currentTime >= end) {
         el.currentTime = start;
@@ -135,12 +164,13 @@ export function usePreviewAudio(
 
   useEffect(() => {
     if (!enabled) {
-      stopPreview();
+      // 보정 진입 등으로 비활성화되면 페이드아웃 후 정지 (재활성 시 fade-in 재생)
+      fadeOutAndStop();
       return;
     }
     if (!autoPlay) return;
     playPreview(songs[focusedSongIndex]);
-  }, [songs, focusedSongIndex, enabled, autoPlay, playPreview, stopPreview]);
+  }, [songs, focusedSongIndex, enabled, autoPlay, playPreview, fadeOutAndStop]);
 
   useEffect(() => stopPreview, [stopPreview]);
 

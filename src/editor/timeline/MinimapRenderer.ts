@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, TextStyle } from "pixi.js";
-import { beatToMs, measureStartBeat } from "../../shared";
+import { beatToMs, measureStartBeat, isMainLane } from "../../shared";
 import {
   LANE_COUNT,
   COLORS,
@@ -13,6 +13,8 @@ import {
 } from "./constants";
 import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
+import { computeMinimapRestZoneRects } from "./minimapRestZone";
+import { computeMinimapViolationRects, type MinimapViolationRect } from "./minimapViolation";
 import type { Chart } from "../../shared";
 
 /** MinimapRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -29,6 +31,11 @@ export interface MinimapHost {
   timeToY(timeMs: number): number;
   readonly minimapLayer: Container;
   readonly minimapVisible: boolean;
+  // 위반 지시자(RFD 0017 §7) — 낙관적 편집 위반 엔티티 인덱스
+  readonly violatingNoteIndices: ReadonlySet<number>;
+  readonly violatingTrillZoneIndices: ReadonlySet<number>;
+  readonly violatingRestZoneIndices: ReadonlySet<number>;
+  readonly violatingEventIndices: ReadonlySet<number>;
 }
 
 export class MinimapRenderer {
@@ -39,6 +46,10 @@ export class MinimapRenderer {
 
   // Reusable viewport indicator Graphics (avoids 60fps destroy/create on scroll)
   private _viewport: Graphics | null = null;
+
+  // Reusable violation tick Graphics (RFD 0017 §7). 전체 render 없이 위반만 경량 갱신
+  // (낙관적 편집 드래그 중 setViolations가 매 pointer-move 호출되므로 O(N) 전체 render 회피).
+  private _violationTicks: Graphics | null = null;
 
   // Reusable TextStyle cache
   private _timeLabelStyle: TextStyle | null = null;
@@ -152,6 +163,7 @@ export class MinimapRenderer {
     }
     minimapLayer.removeChildren();
     this._viewport = null; // destroyed above, will be recreated
+    this._violationTicks = null; // destroyed above, will be recreated by renderViolationTicks()
 
     if (!this.host.minimapVisible) return;
 
@@ -224,6 +236,19 @@ export class MinimapRenderer {
       minimapLayer.addChild(zoneGfx);
     }
 
+    // (3.6) Rest zones (RFD 0019) — trillZone 밴드와 동일 레이어/z-order 취급.
+    // 색·alpha는 타임라인 restZone 밴드 상수를 그대로 쓴다(trillZone 미니맵 렌더 관례).
+    const restRects = computeMinimapRestZoneRects(
+      chart.restZones ?? [], bpmMarkers, meta.offsetMs,
+      (ms) => this.host.timeToY(ms), toMinimapY, trackX, laneW,
+    );
+    for (const r of restRects) {
+      const zoneGfx = new Graphics();
+      zoneGfx.rect(r.x, r.y, r.width, r.height);
+      zoneGfx.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      minimapLayer.addChild(zoneGfx);
+    }
+
     // (4) Notes: 대량 차트에서 노트마다 DisplayObject를 만들지 않도록 시각 스타일별로 묶는다.
     const { notes } = chart;
     const pointBatches = new Map<number, { gfx: Graphics; count: number }>();
@@ -241,6 +266,8 @@ export class MinimapRenderer {
     };
 
     for (const note of notes) {
+      // 보조 레인(5+)은 미니맵에 표시하지 않는다 (chart-editor 스펙 · RFD 0018 §6-6)
+      if (!isMainLane(note.lane)) continue;
       const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
       const containerY = this.host.timeToY(timeMs);
       const my = toMinimapY(containerY);
@@ -294,8 +321,84 @@ export class MinimapRenderer {
       minimapLayer.addChild(batch.gfx);
     }
 
+    // (4.5) Violation ticks — 미니맵 우측 경계 빨간 틱, 종류 무관 단일 채널 (RFD 0017 §7).
+    // 전용 Graphics(_violationTicks)로 분리 — setViolations 경로에서 전체 render 없이 갱신.
+    this.renderViolationTicks();
+
     // (5) Viewport indicator (reusable)
     this.updateViewport();
+  }
+
+  /**
+   * 위반 노트·트릴존·이벤트를 미니맵 우측 경계 좌표로 변환하는 재료를 host에서 재계산한다
+   * (render()의 (4.5) 공식과 동일). 뷰포트 클리핑 없이 타임라인 전체를 대상으로 계산해
+   * 화면 밖 위반도 조기에 경고한다.
+   */
+  private computeViolationRects(): MinimapViolationRect[] {
+    const chart = this.host.chart;
+    if (!chart) return [];
+    const canvasH = this.host.options.height;
+    const totalH = this.host.totalTimelineHeight;
+    if (totalH <= 0) return [];
+
+    const trackX = this.host.options.width - MINIMAP_WIDTH;
+    const scale = canvasH / totalH;
+    return computeMinimapViolationRects({
+      violatingNoteIndices: this.host.violatingNoteIndices,
+      violatingTrillZoneIndices: this.host.violatingTrillZoneIndices,
+      violatingRestZoneIndices: this.host.violatingRestZoneIndices,
+      violatingEventIndices: this.host.violatingEventIndices,
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      restZones: chart.restZones ?? [],
+      events: chart.events,
+      bpmMarkers: this.host.cachedBpmMarkers,
+      offsetMs: chart.meta.offsetMs,
+      timeToY: (ms) => this.host.timeToY(ms),
+      toMinimapY: (containerY) => containerY * scale,
+      trackX,
+      minimapWidth: MINIMAP_WIDTH,
+    });
+  }
+
+  /**
+   * 위반 틱만 경량 갱신한다(전체 render 없이). setViolations에서 매 변경마다 호출되므로
+   * 노트 등 다른 자식을 재생성하지 않고 전용 _violationTicks Graphics만 clear·재그린다
+   * (뷰포트 인디케이터의 updateViewport 패턴과 동일, RFD 0017 §7 fable 리뷰 MEDIUM).
+   *
+   * z-order 불변: 뷰포트 인디케이터가 항상 틱 위에 오도록, 그린 뒤 _viewport를 최상위로 재정렬한다
+   * (render 경로·setViolations 경로 모두 "뷰포트가 틱 위" 유지).
+   */
+  renderViolationTicks(): void {
+    if (!this.host.minimapVisible) return;
+
+    const rects = this.computeViolationRects();
+    if (rects.length === 0) {
+      // 위반 없음: 기존 틱이 있으면 비우고, 없으면 자식을 추가하지 않는다(자식 수 예산 유지).
+      this._violationTicks?.clear();
+      return;
+    }
+
+    if (!this._violationTicks) {
+      this._violationTicks = new Graphics();
+    }
+    const g = this._violationTicks;
+    // render()의 removeChildren로 떼어졌거나 최초 생성 시 붙인다.
+    if (g.parent !== this.host.minimapLayer) {
+      this.host.minimapLayer.addChild(g);
+    }
+
+    // 자식 수 예산 준수: 틱 전부를 단일 Graphics로 batch.
+    g.clear();
+    for (const r of rects) {
+      g.rect(r.x, r.y, r.width, r.height);
+    }
+    g.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.MINIMAP_VIOLATION_TICK_ALPHA });
+
+    // 뷰포트를 항상 틱 위로 재정렬(addChild가 기존 자식을 최상위로 이동).
+    if (this._viewport && this._viewport.parent === this.host.minimapLayer) {
+      this.host.minimapLayer.addChild(this._viewport);
+    }
   }
 
   /**
@@ -335,5 +438,6 @@ export class MinimapRenderer {
     this._endTimeLabelStyle?.destroy();
     this._endTimeLabelStyle = null;
     this._viewport = null;
+    this._violationTicks = null;
   }
 }

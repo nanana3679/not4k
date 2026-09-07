@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import type { SkinManager } from '../../skin';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
 import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
+import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
+import { createChartTiming } from '../../../shared';
 import { useGameStore } from '../../stores';
 import {
   TUTORIAL_PREVIEWS,
@@ -23,6 +27,7 @@ import {
   resolveTutorialKeyboardBindings,
   resolveTutorialInputTimingsForKeyboard,
   sortLaneKeysForLabel,
+  type TutorialKeyboardLayout,
 } from './tutorialKeyboardLayout';
 import { TutorialPatternDiagram } from './TutorialPatternDiagram';
 
@@ -58,10 +63,6 @@ const PREVIEW_RENDER_HEIGHT = 360;
 const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
-const PREVIEW_LANE_KEY_HEIGHT = 42;
-const PREVIEW_LANE_KEY_OVERLAY_PADDING_Y = 4;
-const PREVIEW_LANE_KEY_OVERLAY_BOTTOM =
-  (PREVIEW_JUDGMENT_LINE_OFFSET - PREVIEW_LANE_KEY_HEIGHT) / 2 - PREVIEW_LANE_KEY_OVERLAY_PADDING_Y;
 
 interface TutorialPreviewPlayerProps {
   preview?: TutorialPreviewDefinition;
@@ -131,6 +132,35 @@ export function getLaneKeyLabels(
   });
 }
 
+export interface TutorialKeyboardKeyView {
+  code: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+  mapped: boolean;
+}
+
+/** 키보드 strip 스펙 계산(순수함수) — 렌더러는 이 스펙을 생성 시 받아 그리기만 한다. */
+export function buildTutorialKeyboardKeys(
+  layout: TutorialKeyboardLayout,
+  keyByCode: Map<string, TutorialKeyView>,
+): TutorialKeyboardKeyView[] {
+  return layout.keys.map((kd) => {
+    const tk = keyByCode.get(kd.code);
+    return {
+      code: kd.code,
+      x: kd.x,
+      y: kd.y,
+      w: kd.w ?? 1,
+      h: kd.h ?? 1,
+      label: tk?.label ?? kd.label,
+      mapped: !!tk,
+    };
+  });
+}
+
 export function TutorialPreviewPlayer({
   preview = TUTORIAL_PREVIEWS[0],
   onReady,
@@ -138,6 +168,7 @@ export function TutorialPreviewPlayer({
   diagramModalVisible = true,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<GameRenderer | null>(null);
   const readyNotifiedRef = useRef(false);
   const onReadyRef = useRef(onReady);
   const resumeDiagramRef = useRef<(() => void) | null>(null);
@@ -149,6 +180,9 @@ export function TutorialPreviewPlayer({
   const [activeDiagramTiming, setActiveDiagramTiming] = useState<TutorialDiagramTiming | null>(null);
   const [diagramDisplay, setDiagramDisplay] = useState<TutorialDiagramDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 구동기(렌더러)가 첫 프레임까지 준비됐는지. 준비 전에는 도식 모달에서 OK 대신 스피너를 보여
+  // 로딩 중 상호작용(OK로 재개)을 막는다.
+  const [rendererReady, setRendererReady] = useState(false);
   const baseTimings = useMemo(() => getTutorialInputTimings(preview.chart), [preview]);
   const diagramTimings = useMemo(() => getTutorialDiagramTimings(preview.chart), [preview]);
   const bindingResolution = useMemo(
@@ -174,13 +208,19 @@ export function TutorialPreviewPlayer({
     [keys, activeKeyIds, stickyLaneKeyIdsByLane],
   );
   const keyByCode = useMemo(() => new Map(keys.map((key) => [key.keyCode, key])), [keys]);
-  const activeLaneSet = useMemo(
-    () => new Set(activeKeyIds.map((id) => Number(id.split(':', 1)[0]))),
-    [activeKeyIds],
-  );
   const keyboardLayout = useMemo(
     () => getTutorialKeyboardLayout(settings.preset),
     [settings.preset],
+  );
+  // 캔버스 아래 키보드 strip 높이 — 보드 폭(레인 폭 - 좌우 패딩)에 레이아웃 비율을 적용.
+  const keyboardAreaHeight = useMemo(() => {
+    const boardW = LANE_AREA_WIDTH - TUTORIAL_KB_SIDE_PAD * 2;
+    const boardH = (boardW * keyboardLayout.heightUnits) / keyboardLayout.widthUnits;
+    return Math.round(boardH + TUTORIAL_KB_VPAD * 2);
+  }, [keyboardLayout]);
+  const tutorialKeyboardKeys = useMemo(
+    () => buildTutorialKeyboardKeys(keyboardLayout, keyByCode),
+    [keyboardLayout, keyByCode],
   );
   const handleDiagramOk = () => {
     resumeDiagramRef.current?.();
@@ -232,6 +272,7 @@ export function TutorialPreviewPlayer({
     setActiveDiagramTiming(null);
     setDiagramDisplay(null);
     setError(null);
+    setRendererReady(false);
 
     let disposed = false;
     let animationFrameId: number | null = null;
@@ -250,6 +291,8 @@ export function TutorialPreviewPlayer({
     let loopStartNow = previousNow;
     let activeDiagramPause: TutorialDiagramPause | null = null;
     let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
+    // 이 프리뷰(렌더러) 전용 — 교차 teardown 레이스로 인한 일시적 렌더 크래시를 프레임 스킵으로 삼킨다.
+    const safeRenderFrame = createSafeRenderFrame();
 
     const notifyReady = () => {
       if (!readyNotifiedRef.current) {
@@ -380,7 +423,14 @@ export function TutorialPreviewPlayer({
           showGearFrame: false,
           showPerspectiveSurface: false,
           showComboAndAccuracy: false,
+          showLaneKeyLabels: true,
           judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET,
+          keyboardAreaHeight,
+          tutorialKeyboard: {
+            widthUnits: keyboardLayout.widthUnits,
+            heightUnits: keyboardLayout.heightUnits,
+            keys: tutorialKeyboardKeys,
+          },
         });
         await renderer.init();
         if (disposed || !renderer) {
@@ -391,11 +441,15 @@ export function TutorialPreviewPlayer({
           return;
         }
 
+        // 렌더러는 renderChart의 시간 뷰를 쓴다. 판정 컨트롤러는 preview.chart로
+        // 별개 인스턴스를 만든다 — 두 차트는 서로 다르므로 합치지 않는다.
+        const renderTiming = createChartTiming(preview.renderChart);
         renderer.setChart(
           preview.renderChart.notes,
           preview.renderChart.trillZones,
+          preview.renderChart.restZones ?? [],
           preview.renderChart.events,
-          preview.renderChart.meta.offsetMs,
+          renderTiming,
           preview.renderDurationMs,
         );
         renderer.scrollSpeed = 520;
@@ -439,10 +493,12 @@ export function TutorialPreviewPlayer({
         adapterRef.current = sessionAdapter;
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
         controller.advanceTo(0);
-        renderer.renderFrame(preview.renderStartMs, 0);
+        safeRenderFrame(renderer, preview.renderStartMs, 0);
         previousNow = performance.now();
         loopStartNow = previousNow;
+        rendererRef.current = renderer;
         notifyReady();
+        setRendererReady(true);
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
@@ -465,15 +521,16 @@ export function TutorialPreviewPlayer({
             renderer.setChart(
               preview.renderChart.notes,
               preview.renderChart.trillZones,
+              preview.renderChart.restZones ?? [],
               preview.renderChart.events,
-              preview.renderChart.meta.offsetMs,
+              createChartTiming(preview.renderChart),
               preview.renderDurationMs,
             );
           }
           controller.advanceTo(loopTimeMs);
           previousLoopTime = loopTimeMs;
           setRendererInputState(renderer, activeTimings);
-          renderer.renderFrame(renderTimeMs, deltaMs);
+          safeRenderFrame(renderer, renderTimeMs, deltaMs);
           animationFrameId = requestAnimationFrame(renderLoop);
         };
 
@@ -483,6 +540,8 @@ export function TutorialPreviewPlayer({
         if (!disposed) {
           setError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
           notifyReady();
+          // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.
+          setRendererReady(true);
         }
       } finally {
         isStarting = false;
@@ -496,6 +555,7 @@ export function TutorialPreviewPlayer({
       disposed = true;
       resumeDiagramRef.current = null;
       dismissDiagramRef.current = null;
+      rendererRef.current = null;
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -503,44 +563,28 @@ export function TutorialPreviewPlayer({
       // before releasing textures or destroying the application.
       if (!isStarting) disposeResources();
     };
-  }, [diagramTimings, keys, preview, timings]);
+  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, timings, tutorialKeyboardKeys]);
 
-  const activeKeySet = new Set(activeKeyIds);
+  // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
+  // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
+  useEffect(() => {
+    rendererRef.current?.setLaneKeyLabels(
+      laneKeyLabels.map(({ lane, label }) => ({ lane, label })),
+      !diagramDisplay,
+    );
+  }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
     <div style={styles.previewShell}>
-      <div style={styles.canvasFrame}>
+      <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}
+          className="not4k-tutorial-preview-canvas"
           data-tutorial-preview-canvas="true"
           aria-label="Tutorial chart preview"
-          style={styles.canvas}
+          // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
+          style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
-        {!diagramDisplay && (
-          <div
-            style={styles.laneKeyOverlay}
-            aria-label="Tutorial lane key labels"
-          >
-            {laneKeyLabels.map(({ lane, keyCode, label }) => {
-              const active = activeLaneSet.has(lane);
-              return (
-                <span
-                  key={lane}
-                  data-tutorial-lane-key={lane}
-                  data-tutorial-lane-keycode={keyCode}
-                  data-tutorial-lane-key-active={active ? 'true' : 'false'}
-                  style={{
-                    ...styles.laneKeyLabel,
-                    ...(label ? {} : styles.laneKeyLabelEmpty),
-                    ...(active ? styles.laneKeyLabelActive : {}),
-                  }}
-                >
-                  {label || '-'}
-                </span>
-              );
-            })}
-          </div>
-        )}
         {error && (
           <div role="alert" data-tutorial-preview-error="true" style={styles.errorText}>
             {error}
@@ -551,45 +595,7 @@ export function TutorialPreviewPlayer({
         <p data-tutorial-binding-notice="true" style={styles.bindingNotice}>{bindingNotice}</p>
       )}
       <style>{tutorialPreviewPlayerCss}</style>
-      <div
-        style={styles.miniKeyboard}
-        aria-label="Tutorial keyboard input events"
-        data-keyboard-preset={settings.preset}
-      >
-        <div
-          style={{
-            ...styles.keyboardBoard,
-            aspectRatio: `${keyboardLayout.widthUnits} / ${keyboardLayout.heightUnits}`,
-          }}
-        >
-          {keyboardLayout.keys.map((keyDef) => {
-            const tutorialKey = keyByCode.get(keyDef.code);
-            const active = tutorialKey ? activeKeySet.has(tutorialKey.id) : false;
-            return (
-              <span
-                key={keyDef.code}
-                data-keyboard-key={keyDef.code}
-                data-tutorial-key={tutorialKey?.keyCode}
-                data-mapped={tutorialKey ? 'true' : 'false'}
-                data-active={tutorialKey ? (active ? 'true' : 'false') : undefined}
-                aria-disabled={tutorialKey ? undefined : true}
-                style={{
-                  ...styles.keyboardKey,
-                  left: `${(keyDef.x / keyboardLayout.widthUnits) * 100}%`,
-                  top: `${(keyDef.y / keyboardLayout.heightUnits) * 100}%`,
-                  width: `${((keyDef.w ?? 1) / keyboardLayout.widthUnits) * 100}%`,
-                  height: `${((keyDef.h ?? 1) / keyboardLayout.heightUnits) * 100}%`,
-                  ...(tutorialKey ? styles.keyboardKeyBound : styles.keyboardKeyUnmapped),
-                  ...(active ? styles.keyboardKeyActive : {}),
-                }}
-              >
-                <span>{tutorialKey?.label ?? keyDef.label}</span>
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      {diagramDisplay && (
+      {diagramDisplay && typeof document !== 'undefined' && createPortal(
         <div
           className="not4k-tutorial-diagram-overlay"
           data-tutorial-diagram-modal="true"
@@ -601,16 +607,28 @@ export function TutorialPreviewPlayer({
             style={styles.diagramPanel}
           >
             <TutorialPatternDiagram diagramId={diagramDisplay.diagramId} />
-            <button
-              type="button"
-              data-tutorial-diagram-ok="true"
-              style={styles.diagramOkButton}
-              onClick={handleDiagramOk}
-            >
-              OK
-            </button>
+            {rendererReady ? (
+              <button
+                type="button"
+                data-tutorial-diagram-ok="true"
+                style={styles.diagramOkButton}
+                onClick={handleDiagramOk}
+              >
+                OK
+              </button>
+            ) : (
+              <div
+                data-tutorial-diagram-loading="true"
+                style={styles.diagramLoading}
+                role="status"
+                aria-label="Loading preview"
+              >
+                <span className="not4k-tutorial-diagram-spinner" />
+              </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -630,11 +648,81 @@ function disposeTutorialPreviewRenderer(renderer: GameRenderer | null): void {
   }
 }
 
+/**
+ * PIXI 다중 Application 교차 teardown 레이스로 인한 일시적 렌더 크래시인지 판별한다.
+ *
+ * 튜토리얼 캐러셀은 프리뷰별로 독립 PIXI Application(렌더러)을 동시에 띄우지만, PIXI의 일부
+ * 전역 싱글톤(예: `TexturePool`)은 Application 간에 공유된다. 한 프리뷰가 언마운트되며
+ * `app.destroy()`로 공유 자원을 흩뜨리는 순간, 살아있는 형제 렌더러의 `app.render()`가 방금
+ * 해제/초기화된 공유 상태를 참조해 크래시한다. 관측된 두 표면(모두 app.render() 내부):
+ *   - 배처: null 역참조 "Cannot read properties of null (reading 'clear')"
+ *   - TexturePool.returnTexture: undefined 역참조 "Cannot read properties of undefined (reading 'push')"
+ * 렌더러 자신의 상태는 정상이며(초기화됨·stage 미파괴), 오염은 일시적이라 다음 프레임에 회복된다.
+ *
+ * 이 판별은 "null/undefined 속성 읽기 TypeError"라는 레이스 지문에만 해당한다. 우리의 결정적
+ * scene-building 코드가 이런 에러를 낼 일은 없고, 설령 renderFrame에 실제 버그가 있어도 PlayScreen이
+ * renderFrame을 감싸지 않고 직접 호출하므로 게임플레이에서 그대로 드러난다.
+ * 브라우저별 null/undefined 역참조 TypeError 문구를 모두 커버한다.
+ */
+export function isTransientTeardownRenderError(err: unknown): boolean {
+  // null/undefined 역참조는 항상 TypeError다. TypeError로 한정해, 우리가 던지는 일반 Error가
+  // 우연히 같은 문구를 담더라도 삼키지 않게 한다(넓은 Firefox 패턴을 안전하게 만든다).
+  if (!(err instanceof TypeError)) return false;
+  const msg = err.message;
+  return (
+    msg.includes('Cannot read properties of null') || // Chrome/V8 (null)
+    msg.includes('Cannot read properties of undefined') || // Chrome/V8 (undefined)
+    msg.includes('Cannot read property') || // 구형 V8 (null·undefined 공통)
+    msg.includes('is not an object') || // Safari/WebKit (null·undefined 공통)
+    msg.includes("can't access property") || // Firefox: can't access property "x", y is null/undefined
+    / is (?:null|undefined)$/.test(msg) // Firefox 구형: "y is null" / "y is undefined"
+  );
+}
+
+// 일시적 teardown 레이스는 실측상 ≤5프레임 내 자가 회복한다. 이 상한을 크게 넘어 연속 실패하면
+// 레이스가 아니라 지속 버그이므로 조용히 무한정 삼키지 않고 표면화한다(~1s @60fps).
+const MAX_TRANSIENT_RENDER_FAILURES = 60;
+
+/**
+ * `renderer.renderFrame`을 감싸, 교차 teardown 레이스로 인한 일시적 크래시는 해당 프레임만 스킵하는
+ * 함수를 만든다. 연속 실패를 세어, 성공하면 리셋하고 상한(MAX_TRANSIENT_RENDER_FAILURES)을 넘으면
+ * 더는 삼키지 않고 재던져 표면화한다 — 지속 실패(실제 버그)가 조용히 영구 blank로 묻히는 걸 막는다.
+ * 렌더러(프리뷰)마다 하나씩 만들어 카운터를 독립적으로 유지한다.
+ */
+export function createSafeRenderFrame(
+  maxFailures: number = MAX_TRANSIENT_RENDER_FAILURES,
+): (renderer: GameRenderer, songTimeMs: number, deltaMs: number) => void {
+  let failStreak = 0;
+  return (renderer, songTimeMs, deltaMs) => {
+    try {
+      renderer.renderFrame(songTimeMs, deltaMs);
+      failStreak = 0;
+    } catch (err) {
+      if (!isTransientTeardownRenderError(err)) throw err;
+      failStreak += 1;
+      if (failStreak > maxFailures) {
+        // 일시적 레이스라면 진작 회복했어야 한다 — 지속 실패는 삼키지 않고 표면화한다.
+        console.error(
+          `TutorialPreviewPlayer: 렌더 오류가 ${failStreak}프레임 연속 발생 — 일시적 teardown 레이스가 아닙니다.`,
+        );
+        throw err;
+      }
+    }
+  };
+}
+
 function getTutorialDiagramTimingKey(timing: TutorialDiagramTiming | null): string {
   return timing ? `${timing.event.diagramId}:${timing.startMs}:${timing.endMs}` : '';
 }
 
 const tutorialPreviewPlayerCss = `
+/* Pixi가 캔버스에 inline touch-action:none을 걸어 렌더러 위 드래그가 스크롤을 먹는다.
+   렌더러는 인터랙션이 없으니 세로 드래그가 바깥 컨테이너 스크롤로 통과되게 pan-y로 덮는다.
+   (스타일시트 !important가 Pixi의 non-important inline보다 우선한다) */
+.not4k-tutorial-preview-canvas {
+  touch-action: pan-y !important;
+}
+
 .not4k-tutorial-diagram-overlay {
   contain: layout paint;
   will-change: opacity;
@@ -642,6 +730,23 @@ const tutorialPreviewPlayerCss = `
 
 .not4k-tutorial-diagram-panel {
   will-change: transform, opacity, filter;
+}
+
+.not4k-tutorial-diagram-spinner {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid rgba(157, 238, 244, 0.28);
+  border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
+  animation: not4k-tutorial-diagram-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-diagram-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .not4k-tutorial-diagram-overlay[data-tutorial-diagram-phase="enter"] {
@@ -719,6 +824,9 @@ const tutorialPreviewPlayerCss = `
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+  .not4k-tutorial-diagram-spinner {
+    animation: none !important;
+  }
 }
 `;
 
@@ -734,10 +842,12 @@ const styles: Record<string, CSSProperties> = {
   canvasFrame: {
     position: 'relative',
     width: 'min(100%, 420px)',
-    aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT}`,
+    // 렌더러(플레이+키보드)가 항상 보이도록 최소 폭 확보 — aspect-lock이라 최소 폭이 최소 높이가 된다.
+    // min(100%, ...)로 캡해 화면이 300px보다 좁아도 가로로 넘치지 않는다.
+    minWidth: 'min(100%, 300px)',
     overflow: 'hidden',
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.14)',
+    borderRadius: radius.sm,
+    border: `1px solid ${color.line}`,
     backgroundColor: '#05060a',
   },
   canvas: {
@@ -746,9 +856,11 @@ const styles: Record<string, CSSProperties> = {
     height: '100%',
   },
   diagramOverlay: {
-    position: 'absolute',
+    // 뷰포트 전체를 덮는 확인 모달 — 프리뷰 카드가 짧은 모바일에서 화면 밖으로 밀려도
+    // 도식·OK가 항상 화면 중앙에 보이도록 position:fixed로 카드 경계를 벗어난다.
+    position: 'fixed',
     inset: 0,
-    padding: '16px',
+    padding: 'clamp(8px, 4%, 16px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -756,75 +868,44 @@ const styles: Record<string, CSSProperties> = {
     backdropFilter: 'blur(2px)',
     boxSizing: 'border-box',
     pointerEvents: 'auto',
-    zIndex: 6,
+    // 튜토리얼 팝업 오버레이(zIndex 2200)보다 위에 떠야 도식·OK가 가려지지 않는다.
+    zIndex: 2400,
+    overflow: 'hidden',
   },
   diagramPanel: {
     width: 'min(100%, 440px)',
+    // 카드 높이를 넘지 않게 가두고, 안에서 도식(flex:1)만 줄어들며 OK 버튼(flex:0)은 항상 보인다.
+    maxHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
-    padding: '14px',
+    gap: 'clamp(8px, 2.5%, 12px)',
+    padding: 'clamp(10px, 3%, 14px)',
     boxSizing: 'border-box',
-    borderRadius: '8px',
-    backgroundColor: 'rgba(9, 12, 14, 0.94)',
+    borderRadius: radius.md,
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
     boxShadow: '0 18px 48px rgba(0, 0, 0, 0.45)',
+    overflow: 'hidden',
   },
   diagramOkButton: {
+    // 도식이 아무리 줄어도 버튼은 줄지 않고 항상 노출된다.
+    ...primitives.neonButton,
+    flex: '0 0 auto',
     minWidth: '88px',
     minHeight: '34px',
     padding: '0 18px',
-    color: '#081114',
-    backgroundColor: '#9deef4',
-    border: '1px solid #c2fbff',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    fontSize: '13px',
+    fontSize: 'clamp(12px, 3.5vw, 14px)',
     fontWeight: 800,
     lineHeight: 1,
   },
-  laneKeyOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: `${PREVIEW_LANE_KEY_OVERLAY_BOTTOM}px`,
-    display: 'grid',
-    gridTemplateColumns: `repeat(${PREVIEW_LANES.length}, 1fr)`,
-    gap: '4px',
-    padding: `${PREVIEW_LANE_KEY_OVERLAY_PADDING_Y}px 8px`,
-    boxSizing: 'border-box',
-    pointerEvents: 'none',
-  },
-  laneKeyLabel: {
-    minWidth: 0,
-    minHeight: `${PREVIEW_LANE_KEY_HEIGHT}px`,
-    display: 'inline-flex',
+  diagramLoading: {
+    // OK 버튼과 같은 높이를 차지해 로딩→OK 전환 시 레이아웃이 튀지 않게 한다.
+    flex: '0 0 auto',
+    minHeight: '34px',
+    display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '8px 10px',
-    color: '#e5ecef',
-    backgroundColor: '#303538',
-    border: '1px solid #6b7b80',
-    borderRadius: '4px',
-    boxShadow: '0 4px 0 #101010, 0 7px 12px rgba(0, 0, 0, 0.24)',
-    boxSizing: 'border-box',
-    fontSize: '14px',
-    fontWeight: 800,
-    lineHeight: 1,
-    textAlign: 'center',
-    transition: 'transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease, background-color 90ms ease',
-  },
-  laneKeyLabelEmpty: {
-    color: '#6f767a',
-    border: '1px solid rgba(255, 255, 255, 0.14)',
-    backgroundColor: 'rgba(8, 10, 12, 0.54)',
-  },
-  laneKeyLabelActive: {
-    transform: 'translateY(4px)',
-    color: '#ffffff',
-    backgroundColor: '#355f66',
-    border: '1px solid #76d6df',
-    boxShadow: '0 1px 0 #101010, 0 4px 12px rgba(118, 214, 223, 0.28)',
   },
   errorText: {
     position: 'absolute',
@@ -833,70 +914,9 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '16px',
-    color: '#ffb8b8',
+    color: color.danger,
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
     fontSize: '12px',
     textAlign: 'center',
-  },
-  miniKeyboard: {
-    width: 'min(100%, 460px)',
-    padding: '8px',
-    borderRadius: '7px',
-    border: '1px solid #3f3f3f',
-    backgroundColor: '#191919',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 20px rgba(0, 0, 0, 0.22)',
-    boxSizing: 'border-box',
-  },
-  bindingNotice: {
-    margin: '-4px 0 0',
-    color: '#a8c8cc',
-    fontSize: '11px',
-    lineHeight: 1.4,
-    textAlign: 'center',
-  },
-  keyboardBoard: {
-    position: 'relative',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  keyboardKey: {
-    position: 'absolute',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1px',
-    padding: 0,
-    color: '#6f767a',
-    backgroundColor: '#252525',
-    border: '1px solid #414141',
-    borderRadius: '4px',
-    boxShadow: '0 3px 0 #101010, 0 5px 8px rgba(0, 0, 0, 0.2)',
-    boxSizing: 'border-box',
-    fontSize: 'clamp(7px, 1.9vw, 10px)',
-    fontWeight: 800,
-    lineHeight: 1,
-    overflow: 'hidden',
-    userSelect: 'none',
-    transition: 'transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease, background-color 90ms ease',
-  },
-  keyboardKeyBound: {
-    color: '#e5ecef',
-    backgroundColor: '#303538',
-    border: '1px solid #6b7b80',
-  },
-  keyboardKeyUnmapped: {
-    color: '#343a3d',
-    backgroundColor: '#121415',
-    border: '1px solid #24282a',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.025)',
-    opacity: 0.68,
-  },
-  keyboardKeyActive: {
-    zIndex: 1,
-    transform: 'translateY(3px)',
-    color: '#ffffff',
-    backgroundColor: '#355f66',
-    border: '1px solid #76d6df',
-    boxShadow: '0 1px 0 #101010, 0 3px 12px rgba(118, 214, 223, 0.28)',
   },
 };

@@ -4,6 +4,7 @@
 export * from "./types";
 export * from "./constants";
 export * from "./timing";
+export * from "./timing/chartTiming";
 export * from "./validation";
 export * from "./chart";
 export * from "./storage";

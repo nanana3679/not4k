@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
+import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
@@ -14,7 +15,9 @@ import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
-import { chartViolationIndices, extraNoteViolationIndices } from '../shared';
+import { chartViolationIndices } from '../shared';
+import { hiddenViolationLanes } from './stores/unifiedNotes';
+import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
 import { supabase } from '../supabase';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -24,7 +27,7 @@ import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
-import { useCoordinateHelpers } from './hooks/useCoordinateHelpers';
+import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
@@ -137,21 +140,26 @@ export default function EditorApp() {
     Promise.all([chartFetch, extraFetch])
       .then(([chartText, extraText]) => {
         const chart = deserializeChart(chartText);
-        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
-        useEditorStore.getState().loadChart(chart);
+        // 보조 노트를 lane 5+로 chart.notes에 병합한 뒤 로드한다 (RFD 0018 ③ 로드 병합).
         // Parse extra lane data: separate file first, fallback to legacy embedded data
+        let merged = chart;
+        let mergedExtraLaneCount = 0;
         try {
           const extraJson = extraText
             ? JSON.parse(extraText)
             : JSON.parse(chartText); // legacy: extra was embedded in chart JSON
           const extra = parseExtraNotes(extraJson);
           if (extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
-            useEditorStore.getState().setExtraNotes(extra.extraNotes);
-            // 노트가 존재하는 최대 레인 이상으로 extraLaneCount 보장
-            const maxUsedLane = extra.extraNotes.reduce((max, n) => Math.max(max, n.extraLane), 0);
-            useEditorStore.getState().setExtraLaneCount(Math.max(extra.extraLaneCount, maxUsedLane));
+            // withAuxNotes가 [...main, ...aux] 정규형으로 병합해 aux 상대 순서를 보존한다
+            // — 재저장 바이트 동일성(§6-3a)이 이 순서 보존에 의존한다.
+            merged = { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
+            // 노트가 존재하는 최대 보조 레인 이상으로 extraLaneCount 보장(숨김 예방, §8-7 계승)
+            mergedExtraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(merged.notes)));
           }
         } catch { /* ignore parse errors for extra data */ }
+        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
+        useEditorStore.getState().loadChart(merged);
+        if (mergedExtraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
         setActiveSongId(songId);
         resetHistory();
 
@@ -223,6 +231,8 @@ function ChartEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<TimelineRenderer | null>(null);
+  // 렌더러 준비와 오디오 버퍼 도착의 순서 무관 join — 파형/경계를 정확히 한 번 적용한다.
+  const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
   const createModeRef = useRef<CreateMode | null>(null);
@@ -272,10 +282,7 @@ function ChartEditorPage() {
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
-  const extraNotes = useEditorStore((s) => s.extraNotes);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const selectedExtraNotes = useEditorStore((s) => s.selection.extraNotes);
-  const setExtraNotes = useEditorStore((s) => s.setExtraNotes);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -283,9 +290,8 @@ function ChartEditorPage() {
   const mode = useEditorStore((s) => s.mode);
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
-  // 좌표 변환 / 히트테스트 훅
-  const coords = useCoordinateHelpers(rendererRef);
-  const { bpmMarkers, xToLane, xToExtraLane, snapBeat, yToBeatRef, hitTestNoteRef, hitTestExtraNoteRef } = coords;
+  // TimelineSpace deep module — 좌표 변환 / 히트테스트
+  const { space, bpmMarkers } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -327,20 +333,21 @@ function ChartEditorPage() {
   }, []);
 
   const handleDeleteSelected = useCallback(() => {
-    const total = selectedNotes.size + selectedExtraNotes.size;
+    // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함된다 (RFD 0018 ④).
+    const total = selectedNotes.size;
     if (total === 0) {
       addToast('삭제할 노트를 선택하세요', 'warn');
       return;
     }
     selectModeRef.current?.deleteSelected();
     addToast(`${total}개 선택 항목 삭제됨`, 'info');
-  }, [addToast, selectedExtraNotes.size, selectedNotes.size]);
+  }, [addToast, selectedNotes.size]);
 
   // 캔버스 이벤트 훅
   const canvasEvents = useCanvasEvents(
     canvasRef, rendererRef, playbackRef,
     createModeRef, selectModeRef, deleteModeRef,
-    isDraggingCursorRef, coords, isTimeInBounds,
+    isDraggingCursorRef, space, isTimeInBounds,
     handlePinchZoom,
     handleHorizontalPan,
     handleVerticalPan,
@@ -427,20 +434,43 @@ function ChartEditorPage() {
       onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
+    // 렌더러 준비·오디오 도착 두 비동기가 순서 무관하게 합류하면 파형과 경계를 적용한다.
+    // (재-import 시 새 버퍼로 재적용된다.)
+    const applyWaveform = (buffer: AudioBuffer) => {
+      const r = rendererRef.current;
+      if (!r) return; // feed 계약상 rendererReady 이후에만 호출됨 — 방어
+      const samplesPerPeak = Math.ceil(buffer.sampleRate / 50);
+      const peaks = getWaveformPeaks(buffer, samplesPerPeak);
+      const durationMs = buffer.duration * 1000;
+      r.setWaveformData(peaks, durationMs);
+      // 파형이 전체 타임라인 길이를 바꾸므로 재생 끝 경계·스크롤 클램프 범위도 음원 길이를 따라간다
+      playbackRef.current?.setEndTimeMs(r.getTotalTimelineMs());
+      useEditorStore.getState().setTimelineRangeMs({
+        minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
+        totalTimelineMs: r.getTotalTimelineMs(),
+      });
+    };
+    waveformFeedRef.current = createWaveformFeed(applyWaveform);
+
     renderer.init().then(() => {
       if (!mounted) return;
 
       rendererRef.current = renderer;
+
+      const { extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
+      renderer.setExtraLaneCount(storedExtraLaneCount);
+      // chart.notes가 곧 통합 배열이다 (RFD 0018 ③) — 보조 노트도 lane 5+로 한 배열에서 그린다.
       renderer.setChart(chart);
+
       // init()이 async라 [chart] 반응형 effect가 렌더러 생성 전에 이미 지나갔을 수 있다.
       // 생성 직후 여기서 위반을 한 번 세팅해, 로드된 차트에 위반이 있어도 첫 편집 전에 표시되게 한다.
-      const initViolations = chartViolationIndices(chart);
-      renderer.setViolations(initViolations.notes, initViolations.trillZones);
-
-      const { extraNotes: storedExtraNotes, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
-      renderer.setExtraLaneCount(storedExtraLaneCount);
-      renderer.setExtraNotes(storedExtraNotes);
-      renderer.setViolatingExtraNotes(extraNoteViolationIndices(storedExtraNotes));
+      const initViolations = chartViolationIndices({
+        notes: chart.notes,
+        trillZones: chart.trillZones,
+        restZones: chart.restZones,
+        events: chart.events,
+      });
+      renderer.setViolations(initViolations.notes, initViolations.trillZones, initViolations.restZones, initViolations.events);
 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
@@ -452,6 +482,9 @@ function ChartEditorPage() {
 
       const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
       setScrollY(initScroll);
+
+      // 렌더러 준비 완료를 파형 join에 알린다 — 오디오가 먼저 도착해 대기 중이면 이 시점에 적용된다.
+      waveformFeedRef.current?.rendererReady();
     });
 
 
@@ -462,66 +495,46 @@ function ChartEditorPage() {
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
+    // RFD 0018 ④d: 편집 모드 3종이 전부 통합 차트(chart.notes 한 배열, 메인 lane 1..4 +
+    // 보조 lane 5+) 하나만 다룬다 — ③의 병합 어댑터(applyMainChart/applyExtraNotes)는 소멸.
+    // 히트테스트 인덱스와 모드가 든 차트의 인덱스 공간이 같아, 정규형 파티션이 깨진
+    // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
     const createMode = new CreateMode(chart, {
-      onChartUpdate: setChart,
-      yToBeat: (y) => yToBeatRef.current(y),
-      snapBeat,
-      xToLane,
+      onChartUpdate: (c) => setChart(c),
+      space,
       isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      xToExtraLane: (x) => xToExtraLane(x),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
-      onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 
     const selectMode = new SelectMode(chart, {
-      onChartUpdate: setChart,
+      // RFD 0018 ④: SelectMode는 통합 차트 하나만 다룬다 — onChartUpdate가 chart.notes를
+      // 그대로(메인·보조 통합) 쓴다. 이원 축(getExtraNotes/onExtraNotesUpdate/xToExtraLane/
+      // hitTestExtraNote)은 소멸했고, 히트테스트는 통합(hitTestUnifiedNote)이다.
+      onChartUpdate: (c) => setChart(c),
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (sel) => useEditorStore.getState().setSelection(sel),
       setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
-      yToBeat: (y) => yToBeatRef.current(y),
-      yToBeatRaw: (y) => coords.yToBeatRawRef.current(y),
-      snapBeat,
-      getSnapStep: () => {
-        return { n: 4, d: useEditorStore.getState().snapDivision };
-      },
-      getMaxBeatFloat: () => coords.getMaxBeatFloatRef.current(),
-      xToLane,
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
-      hitTestNoteEnd: (x, y) => coords.hitTestNoteEndRef.current(x, y),
-      hitTestEventEnd: (x, y) => coords.hitTestEventEndRef.current(x, y),
-      hitTestTrillZoneEnd: (x, y) => coords.hitTestTrillZoneEndRef.current(x, y),
-      hitTestTrillZoneHandle: (x, y) => coords.hitTestTrillZoneHandleRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      xToExtraLane: (x) => xToExtraLane(x),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
+      space,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
+      setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
-      onChartUpdate: setChart,
-      hitTestNote: (x, y) => hitTestNoteRef.current(x, y),
-      hitTestTrillZone: (x, y) => coords.hitTestTrillZoneRef.current(x, y),
-      hitTestExtraNote: (x, y) => hitTestExtraNoteRef.current(x, y),
-      onExtraNotesUpdate: (notes) => setExtraNotes(notes),
-      // DeleteMode는 clear(빈 집합)만 emit한다 — 의도 액션으로 배선
-      onExtraSelectionChange: () => useEditorStore.getState().clearExtraSelection(),
-      getExtraNotes: () => useEditorStore.getState().extraNotes,
+      // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
+      onChartUpdate: (c) => setChart(c),
+      space,
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     deleteModeRef.current = deleteMode;
 
     return () => {
       mounted = false;
+      // feed를 끊어 언마운트 후 늦게 resolve된 audioArrived가 disposed 렌더러에 낭비 작업을 하지 않게 한다.
+      waveformFeedRef.current = null;
       renderer.dispose();
       playback.dispose();
     };
@@ -547,25 +560,15 @@ function ChartEditorPage() {
     }
     setPendingAudioUrl(null);
     setAudioLoading(true);
-    setSavedChartSnapshot(serializeChart(chart));
-    setSavedExtraSnapshot(serializeExtraNotes(useEditorStore.getState().extraNotes, useEditorStore.getState().extraLaneCount));
+    // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
+    setSavedChartSnapshot(serializeChart({ ...chart, notes: mainNotes(chart.notes) }));
+    setSavedExtraSnapshot(serializeExtraNotes(auxNotesAsExtra(chart.notes), useEditorStore.getState().extraLaneCount));
 
     playback.loadAudioUrl(url).then(() => {
       const audioBuffer = playback.audioBufferData;
       setLoadedAudioBuffer(audioBuffer ?? null);
-      if (audioBuffer && rendererRef.current) {
-        const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
-        const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
-        const durationMs = audioBuffer.duration * 1000;
-        rendererRef.current.setWaveformData(peaks, durationMs);
-        // Update playback end boundary after waveform changes total timeline
-        playback.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
-        // 스크롤 클램프 입력(타임라인 범위)도 음원 길이를 따라간다
-        useEditorStore.getState().setTimelineRangeMs({
-          minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
-          totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
-        });
-      }
+      // 렌더러가 아직 init 전이라도 join이 대기했다가 준비 시점에 적용한다(레이스 방지).
+      if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setLoadedAudioBuffer(null);
@@ -599,18 +602,21 @@ function ChartEditorPage() {
     useEditorStore.getState().setViewportHeightPx(canvasSize.height);
   }, [canvasSize]);
 
-  // chart → renderer + modes
+  // chart → renderer + modes — 전부 통합 차트(chart.notes 한 배열) 하나를 본다 (RFD 0018 ④d).
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setChart(chart);
+    if (rendererRef.current) {
+      rendererRef.current.setChart(chart);
+      const violations = chartViolationIndices({
+        notes: chart.notes,
+        trillZones: chart.trillZones,
+        restZones: chart.restZones,
+        events: chart.events,
+      });
+      rendererRef.current.setViolations(violations.notes, violations.trillZones, violations.restZones, violations.events);
+    }
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
-    // 낙관적 편집(RFD 0017 §3-3): 차트가 바뀔 때마다 위반 노트·트릴존을 validateChart 단일
-    // 소스에서 재계산해 빨간 해칭을 갱신한다. 이동·삭제·붙여넣기·undo 등 모든 편집을 한 곳에서 반영.
-    if (rendererRef.current) {
-      const violations = chartViolationIndices(chart);
-      rendererRef.current.setViolations(violations.notes, violations.trillZones);
-    }
     // Update playback end boundary when chart changes (measure count may change)
     if (rendererRef.current && playbackRef.current) {
       playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
@@ -629,31 +635,26 @@ function ChartEditorPage() {
     if (rendererRef.current) rendererRef.current.setExtraLaneCount(extraLaneCount);
   }, [extraLaneCount]);
 
-  // extraNotes → renderer (+ extraLane 축 위반 재계산 — 시각화 전용, RFD 0017)
-  useEffect(() => {
-    if (!rendererRef.current) return;
-    rendererRef.current.setExtraNotes(extraNotes);
-    rendererRef.current.setViolatingExtraNotes(extraNoteViolationIndices(extraNotes));
-  }, [extraNotes]);
-
-  // selectedExtraNotes → renderer
-  useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setSelectedExtraNotes(selectedExtraNotes);
-  }, [selectedExtraNotes]);
-
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
   // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.
 
-  // selectedNotes → renderer
+  // 선택 표시 → renderer: 선택은 통합 축(sel.notes) 하나 — chart.notes 인덱스 공간을 그대로 피드.
+  // 메인·보조 노트가 chart.notes 한 배열에 살고 선택도 통합 인덱스라 union 어댑터가 사라졌다 (RFD 0018 ④).
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setSelectedNotes(selectedNotes);
+    rendererRef.current?.setSelectedNotes(selectedNotes);
   }, [selectedNotes]);
 
-  // selection.zones → renderer (notes·extraNotes는 위의 두 effect가 push)
+  // selection.zones → renderer (notes는 위의 effect가 push)
   const selectedZones = useEditorStore((s) => s.selection.zones);
   useEffect(() => {
     rendererRef.current?.setSelectedTrillZones(selectedZones);
   }, [selectedZones]);
+
+  // selection.restZones → renderer (선택 outline·리사이즈 캡 게이팅, RFD 0019)
+  const selectedRestZones = useEditorStore((s) => s.selection.restZones);
+  useEffect(() => {
+    rendererRef.current?.setSelectedRestZones(selectedRestZones);
+  }, [selectedRestZones]);
 
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);
@@ -844,12 +845,7 @@ function ChartEditorPage() {
               playbackRef.current.loadAudioFile(file).then(() => {
                 const audioBuffer = playbackRef.current?.audioBufferData;
                 setLoadedAudioBuffer(audioBuffer ?? null);
-                if (audioBuffer && rendererRef.current) {
-                  const samplesPerPeak = Math.ceil(audioBuffer.sampleRate / 50);
-                  const peaks = getWaveformPeaks(audioBuffer, samplesPerPeak);
-                  const durationMs = audioBuffer.duration * 1000;
-                  rendererRef.current.setWaveformData(peaks, durationMs);
-                }
+                if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
               });
             }
           }}
@@ -894,7 +890,7 @@ function ChartEditorPage() {
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={!!(savedChartSnapshot && (serializeChart(chart) !== savedChartSnapshot || serializeExtraNotes(extraNotes, extraLaneCount) !== savedExtraSnapshot))}
+          isDirty={!!(savedChartSnapshot && (serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot))}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing } = await supabase
               .from('charts')
@@ -955,6 +951,23 @@ function ChartEditorPage() {
             <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#ccc' }}>
               차트에 {validationErrors.length}건의 제약 조건 위반이 발견되어 저장할 수 없습니다.
             </p>
+            {(() => {
+              // 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는
+              // 노트가 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
+              const hidden = hiddenViolationLanes(
+                validationErrors,
+                chart.notes,
+                extraLaneCount,
+              );
+              if (hidden.length === 0) return null;
+              const needed = toAuxIndex(Math.max(...hidden));
+              return (
+                <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
+                  숨은 보조 레인({hidden.map((l) => toAuxIndex(l)).join(', ')})의 위반이 포함되어
+                  있습니다 — 보조 레인 수를 {needed} 이상으로 늘리면 보입니다.
+                </p>
+              );
+            })()}
             <div style={{ overflow: 'auto', flex: 1, marginBottom: '16px' }}>
               {validationErrors.map((err, i) => (
                 <div key={i} style={{ padding: '6px 8px', marginBottom: '4px', backgroundColor: '#1a1a1a', borderRadius: '4px', fontSize: '12px', borderLeft: '3px solid #cc3333' }}>

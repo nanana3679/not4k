@@ -30,6 +30,9 @@ const SAMPLE_CHART: Chart = {
   trillZones: [
     { lane: 3, beat: beat(0), endBeat: beat(8) },
   ],
+  restZones: [
+    { lane: 4, beat: beat(1, 2), endBeat: beat(8) },
+  ],
   events: [
     { type: "bpm" as const, beat: beat(0), bpm: 120 },
     { type: "timeSignature" as const, beat: beat(0), beatPerMeasure: beat(4) },
@@ -100,6 +103,7 @@ describe("serializeChart / deserializeChart", () => {
       },
       notes: [],
       trillZones: [],
+      restZones: [],
       events: [],
     };
     const restored = deserializeChart(serializeChart(emptyChart));
@@ -446,5 +450,75 @@ describe("editorLane 직렬화/역직렬화", () => {
     };
     const chart = chartFromJson(legacyJson as unknown as ChartJson);
     expect(chart.events[0]).not.toHaveProperty("editorLane");
+  });
+});
+
+describe("restZone 직렬화/역직렬화 (RFD 0019)", () => {
+  it("restZone beat/endBeat가 문자열로 직렬화된다 (beat(1,2) → '1/2')", () => {
+    const json = chartToJson(SAMPLE_CHART);
+    expect(json.restZones).toEqual([
+      { lane: 4, beat: "1/2", endBeat: "8" },
+    ]);
+  });
+
+  it("restZones 필드가 없는 차트도 chartToJson은 restZones: []를 항상 출력한다", () => {
+    const chartWithout: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [],
+    };
+    const json = chartToJson(chartWithout);
+    expect(json.restZones).toEqual([]);
+  });
+
+  it("restZone round-trip: 직렬화 후 역직렬화하면 lane·beat·endBeat 동일", () => {
+    const chart: Chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      restZones: [
+        { lane: 1, beat: beat(0), endBeat: beat(4) },
+        { lane: 3, beat: beat(7, 2), endBeat: beat(23, 4) },
+      ],
+      events: [],
+    };
+    const restored = deserializeChart(serializeChart(chart));
+    expect(restored.restZones).toEqual(chart.restZones);
+  });
+
+  it("restZones 필드 없는 기존 v3 차트 JSON은 restZones=[]로 파싱 (하위호환)", () => {
+    const json = {
+      version: 3,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(json as unknown as ChartJson);
+    expect(chart.restZones).toEqual([]);
+  });
+
+  it("restZones 필드 없는 v2 차트 JSON은 restZones=[]로 파싱", () => {
+    const json = {
+      version: 2,
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [{ beat: "0", endBeat: "0", bpm: 120 }],
+    };
+    const chart = chartFromJson(json as unknown as ChartJson);
+    expect(chart.restZones).toEqual([]);
+  });
+
+  it("restZones 필드 없는 v1 레거시 차트 JSON(version 없음)은 restZones=[]로 파싱", () => {
+    const json = {
+      meta: SAMPLE_CHART.meta,
+      notes: [{ type: "singleLong", lane: 1, beat: "0", endBeat: "4" }],
+      trillZones: [],
+      events: [],
+    };
+    const chart = chartFromJson(json as unknown as ChartJson);
+    expect(chart.restZones).toEqual([]);
   });
 });

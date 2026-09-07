@@ -1,4 +1,5 @@
 import { useGameStore, PRESET_BINDINGS } from '../stores';
+import { primitives } from '../../shared/theme';
 
 export function PresetSetupScreen() {
   const { updateSettings, completeFirstLaunch, setScreen } = useGameStore();
@@ -14,7 +15,10 @@ export function PresetSetupScreen() {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Choose Your Keyboard Layout</h1>
+      <h1 style={styles.title}>
+        <span style={styles.titleAccent} aria-hidden="true" />
+        Choose Your Keyboard Layout
+      </h1>
       <div style={styles.buttonContainer}>
         <button style={styles.button} onClick={() => handlePreset('numpad')}>
           Numpad
@@ -29,30 +33,27 @@ export function PresetSetupScreen() {
 
 const styles = {
   container: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    ...primitives.screen,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100vh',
-    backgroundColor: '#1a1a1a',
-    color: '#ffffff',
   },
   title: {
+    ...primitives.title,
     fontSize: '32px',
     marginBottom: '48px',
+  },
+  titleAccent: {
+    ...primitives.titleAccent,
+    height: '30px',
   },
   buttonContainer: {
     display: 'flex',
     gap: '32px',
   },
   button: {
+    ...primitives.neonButton,
     fontSize: '24px',
+    minHeight: '72px',
     padding: '24px 48px',
-    backgroundColor: '#00ffff',
-    color: '#1a1a1a',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
   },
 };

@@ -61,11 +61,11 @@ export function resolveGameplayRange(song: DbSong): PlaybackRange | null {
 
 export function getDifficultyColor(difficulty: string): React.CSSProperties {
   switch (difficulty.toLowerCase()) {
-    case 'easy': return { backgroundColor: '#2d6a4f', borderColor: '#40916c' };
-    case 'normal': return { backgroundColor: '#1d4e89', borderColor: '#2a6db5' };
-    case 'hard': return { backgroundColor: '#7b2d26', borderColor: '#a33b32' };
-    case 'expert': return { backgroundColor: '#5c2d82', borderColor: '#7b3fa8' };
-    default: return { backgroundColor: '#3a3a3a', borderColor: '#555' };
+    case 'easy': return { background: 'linear-gradient(180deg, #1e7a54, #145a3c)', borderColor: '#37c98a' };
+    case 'normal': return { background: 'linear-gradient(180deg, #1e5aa0, #133f74)', borderColor: '#4a95e6' };
+    case 'hard': return { background: 'linear-gradient(180deg, #9a3830, #6d2019)', borderColor: '#e8564a' };
+    case 'expert': return { background: 'linear-gradient(180deg, #6d38a0, #43206e)', borderColor: '#b06fe6' };
+    default: return { background: 'linear-gradient(180deg, #3a3f47, #262a30)', borderColor: '#5a616b' };
   }
 }
 
@@ -105,6 +105,25 @@ export function getCircularDistance(a: number, b: number, total: number): number
   if (total === 0) return 0;
   const d = Math.abs(a - b);
   return Math.min(d, total - d);
+}
+
+/**
+ * 곡 선택 키보드 네비게이션(화살표/Enter/Escape)을 무시해야 하는지 판정한다.
+ *
+ * 곡 선택 위에 차단성 오버레이(설정 모달, 추가/삭제/난이도 모달 등)가 떠 있으면
+ * 그 아래 곡 네비가 살아있으면 안 된다. 특히 모달 안에서 누른 Enter가 게임을 시작하거나
+ * Escape가 타이틀로 이탈하는 회귀를 막는다. 곡이 없을 때는 Escape(뒤로가기)만 허용한다.
+ */
+export function shouldBlockSongNavKey(params: {
+  blockingModalOpen: boolean;
+  hasPendingChartTarget: boolean;
+  songsEmpty: boolean;
+  key: string;
+}): boolean {
+  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key } = params;
+  if (blockingModalOpen || hasPendingChartTarget) return true;
+  if (songsEmpty && key !== 'Escape') return true;
+  return false;
 }
 
 export interface SongCardFocusState {

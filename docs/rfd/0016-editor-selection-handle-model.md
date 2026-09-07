@@ -1,13 +1,33 @@
 # RFD 0016: 에디터 선택·구간 핸들 모델 통일
 
-**Status:** Accepted (2026-07-09) · 선택 모델 구현 (2026-07-12, `feat/rfd0016-selection-integration`)
+**Status:** Accepted (2026-07-09) · 선택 모델 구현 (2026-07-12, PR #95) · §6-2 박스 감쌈 선택 구현 (2026-07-14, PR #110) · §3-4 D1 이벤트 클립보드 구현 (2026-07-14, PR #113) · §6-6 이동 필 제거 구현 (2026-07-14, PR #114) · §6-4 무효 종결(순수 감쌈으로 명분 소멸) · **구현 완료** (D3는 RFD 0018에서 계승 완료) · §6-6 grab 사다리(`resolveGrab`) 단독 소유 추출 + 터치 down 스케줄 통일(존끝 선택게이트 터치 적용) (2026-07-18, #143)
 
-**구현 기록 (2026-07-12):** 선행 조건이던 낙관적 편집(RFD 0017, §5)이 main에 머지된 뒤 **선택 모델 부분이 구현되었다** — `SelectionSlice` 단일 소유(선택 쓰기 관문 + 정규화 게이트 + §3-5 해제 게이트), `trillZone` 1급 유닛 선택(§3-3: 비주입·이동/삭제/복사 시 내부 노트 **실행 시점 파생**, 핸들 탭·박스 겹침 픽업 `trillZoneOverlapsBox`), 연산별 동질성(§3-2: 유닛↔일반 노트↔Extra 공존, 개별 트릴만 배타), 존 몸통 롱프레스 유닛 이동, 노트 위 탭 후보의 slop 초과 시 박스 승격(§6-1 개정). **미구현 잔여(후속)**: 이동 필 제거(§6-6 — `drawMovePill` 잔존, 라이브 모드 인디케이터 미도입), 박스 성장 중 첫 접촉 종류 잠금(§6-2), `trillZone` 끝 투명 히트박스(§6-4), 클립보드 델타 D1(이벤트)·D3(엑스트라 자동 확장)(§3-4).
+**구현 기록 (2026-07-12):** 선행 조건이던 낙관적 편집(RFD 0017, §5)이 main에 머지된 뒤 **선택 모델 부분이 구현되었다** — `SelectionSlice` 단일 소유(선택 쓰기 관문 + 정규화 게이트 + §3-5 해제 게이트), `trillZone` 1급 유닛 선택(§3-3: 비주입·이동/삭제/복사 시 내부 노트 **실행 시점 파생**, 핸들 탭·박스 겹침 픽업 `trillZoneOverlapsBox`), 연산별 동질성(§3-2: 유닛↔일반 노트↔Extra 공존, 개별 트릴만 배타), 존 몸통 롱프레스 유닛 이동, 노트 위 탭 후보의 slop 초과 시 박스 승격(§6-1 개정). **미구현 잔여(후속)**: 이동 필 제거(§6-6 — `drawMovePill` 잔존, 라이브 모드 인디케이터 미도입), `trillZone` 끝 투명 히트박스(§6-4), 클립보드 델타 D1(이벤트)·D3(엑스트라 자동 확장)(§3-4).
+
+**구현 기록 (2026-07-14):** §6-2 박스 선택 = **앵커 없는 순수 감쌈(containment) 모델**. 첫 접촉/앵커 잠금 없이, 박스(항상 빈 곳에서 시작)가 매 프레임 순수 기하로 선택을 계산한다:
+
+- `trillZone`을 **완전히 감싸면**(박스 beat 범위가 zone `[beat, endBeat]`를 포함 + lane 범위 안, `boxEnclosesZone`) → 그 zone **유닛**.
+- `trillZone`을 **완전히 안 감싸면(통과)** → 그 zone의 트릴 노트 중 **박스 안에 든 것만 개별 선택**.
+- 일반 노트는 박스 안이면 선택.
+
+동질성(개별 트릴은 같은 zone끼리만·트릴↔일반/유닛 배타, §3-2)은 `SelectionSlice`의 `normalizeSelection` 게이트가 처리한다. 이로써 **마우스·터치 모두 빈 곳에서 트릴 노트 주위로 박스를 그려 개별 트릴을 선택**할 수 있다(트릴 노트 위 드래그는 그 노트 이동으로 유지). `trillZone` 유닛 픽업은 **겹침(overlap)이 아니라 완전 감쌈(containment)**. **lane clamp는 유지**한다(§6-5 — 선택은 레인 기반, 감쌈 판정은 clamp와 무관). 계산은 순수함수 `selectionFromBox`(trillZoneSelection.ts).
+
+> **폐기된 접근:** 초기에 "시작 앵커가 트릴 노트인가"로 종류를 잠그는 anchor 모델을 시도했으나, 빈 곳에서 시작하는 박스는 앵커가 트릴이 될 수 없어 마우스에서 개별 트릴 선택 경로를 못 열었다. 순수 감쌈으로 대체(앵커·`boxAnchorKind`·`_boxLockedKind` 제거).
+
+**구현 기록 (2026-07-14, §6-6):** **이동 필 제거 + 존 몸통 이동 통일.** `drawMovePill`·`TRILL_MOVE_PILL_*`·`hitTestTrillZoneHandle(At)`·핸들 커서/터치 우선권 배선을 전부 삭제하고, `trillZone` 몸통이 노트와 같은 상호작용 규칙을 따른다 — **클릭(탭)=유닛 선택, 선택된 몸통 드래그=구간 유닛 이동, 미선택 몸통 드래그=박스 선택**(shift/토글 클릭은 zones 토글로 구 핸들 동작 승계). 미선택 몸통 down은 박스로 시작하되 존을 `_pendingZoneSelect`로 기억해, up에서 움직임이 없었으면(탭) 빈 박스 확정 대신 그 존을 유닛 선택한다. 끝(위) 리사이즈 캡·`hitTestTrillZoneEnd`·드래그 중 핸들 래치는 유지되며, 몸통 분기보다 우선한다. hover 커서는 리사이즈 캡=`ns-resize`, **선택된 존 몸통=`move`**(제거된 필 커서 대체)로 §6-6의 discoverable 어포던스를 잇는다. **끝 리사이즈 캡은 그 구간이 선택됐을 때만 표시·hit·커서 활성**한다(down `hitTestTrillZoneEnd` 게이트·hover 캡 렌더·`ns-resize` 커서 3지점 동일) — 미선택 구간의 끝에 놓인 노트를 캡이 가리거나 클릭을 가로채지 않게 하려는 것으로, 리사이즈하려면 먼저 몸통 탭·박스로 구간을 선택한다(preview 피드백 반영).
+
+> **라이브 모드 인디케이터(§3-1) 폐기:** §6-2가 first-contact/앵커 모델 대신 **앵커 없는 순수 감쌈**으로 구현되면서 "이미 사라진 이력(첫 접촉)"이라는 숨은 모드 자체가 소멸했다 — 인디케이터가 벗겨야 할 비가시성이 없으므로 **무효, 도입하지 않는다**.
+
+> **§6-4 `trillZone` 끝 10px 투명 히트박스 — 무효 종결(미구현):** 원 명분은 "끝에 놓인 트릴 노트가 **박스 first-contact로 오선택**되는 것을 막고 그 구간 zone을 첫 접촉으로 우선시킨다"였다. §6-2가 앵커 없는 순수 감쌈으로 구현되면서 박스는 "첫 접촉"이 아니라 **담은 것만** 본다 — 끝 트릴 노트의 시각적 돌출이 종류를 잠그는 사건 자체가 발생하지 않아 이 오선택은 **구조적으로 소멸**했다. 남는 유효 관심사는 "끝 리사이즈 캡이 끝 트릴 노트와 겹칠 때의 조준난"뿐인데, 이는 이미 down 우선순위(`hitTestTrillZoneEnd`가 노트 히트보다 앞, ±1/16박 tolerance)로 부분 완화돼 있고 박스 선택 모델과 무관한 순수 리사이즈 UX다. 따라서 §6-4는 **구현하지 않고 종결**하며, 끝 리사이즈 조준 개선이 필요하면 별도 폴리시로 다룬다.
+
+**구현 기록 (2026-07-14, §3-4 D1):** 클립보드에 이벤트가 포함된다 — `NoteClipboard`에 `events` 축 추가(`ClipboardManager`). copy 시 선택된 노트·`trillZone`의 beat-span `[min, max]`(`endBeat` 있는 것은 끝까지 반영)와 겹치는 `chart.events`를 수집하되 **timeSignature는 제외**(마디 경계 문제 회피 — 커밋 차단은 RFD 0017 게이트 소관): 시점 이벤트는 `beat ∈ [min,max]`, 구간 이벤트는 폐구간 겹침. anchor는 notes/zones의 최소 beat 유지. paste는 이벤트를 같은 beatOffset으로 평행이동해 주입하고(`editorLane` 유지 — D4의 lane 유지와 동형), 붙여넣기 대기 중 `↑`/`↓` 이동은 이벤트도 동반, `←`/`→` 레인 이동은 이벤트 불변. 취소는 `prePasteEvents` 스냅샷 복원, 확정은 낙관 커밋(위반이어도 place-then-fix, 해칭 표시).
+
+> **RFD 0018 전방 note:** 이 문서의 `extraNotes` 및 Extra 공존 축 서술은 당시 모델의 역사적 기록이다. RFD 0018 이후 `extraNotes` 축은 소멸했고, 메인·보조 노트는 모두 `chart.notes`의 통합 인덱스를 쓰는 `notes` 단일 선택 축에 속한다. §3-4의 D3 자동 확장 결정은 보조 레인 노트 붙여넣기 규칙으로 계승되었다.
 
 **관련 문서:**
 
 - [`src/editor/CONTEXT.md`](../../src/editor/CONTEXT.md) — Chart editor 컨텍스트(편집 모드·선택·트릴 핸들·배치 제약)
-- [`docs/context/glossary.md`](../context/glossary.md) — `trillZone` 선택·트릴 핸들(이동 필·리사이즈 캡) 용어
+- [`docs/context/glossary.md`](../context/glossary.md) — `trillZone` 선택·트릴 핸들(리사이즈 캡) 용어
 - 코드: [`src/editor/modes/SelectMode.ts`](../../src/editor/modes/SelectMode.ts)(포인터다운 디스패치·박스선택), [`src/editor/modes/trillZoneSelection.ts`](../../src/editor/modes/trillZoneSelection.ts)(동질성·파생 선택), [`src/editor/timeline/trillZoneHandles.ts`](../../src/editor/timeline/trillZoneHandles.ts)(핸들 도형), [`src/editor/timeline/OverlayRenderer.ts`](../../src/editor/timeline/OverlayRenderer.ts)(박스 시각화)
 
 ---
@@ -97,7 +117,7 @@
 
 채택 시 다뤄야 할 검증된 제약과 변경 우선순위:
 
-1. **박스 시작 규칙 + 미선택 노트 press+drag 판정** — 박스는 빈 공간에서만 시작한다(`onPointerDown` 7번, `hitTestNote === null`). 트릴 노트가 촘촘한 zone 안에서는 노트-히트(6번)에 걸려 박스가 시작되지 않는다 → 밀집 구간 내 박스 시작을 허용하도록 변경 필요. 이때 **미선택 노트 위 press+drag가 박스인지 이동인지**를 명시해야 한다 — §3-1 "선택된 엔티티 위 드래그=이동"과 충돌하기 때문. **shipped baseline(실측):** 현행 터치 라우팅 `resolveSelectTouchDownSchedule`는 **노트 히트=tapToggle · 존 핸들/끝=지연 박스 · 빈 곳=박스**로 이미 확정돼 있다 — 즉 "노트 위=박스"가 아니라 **"노트 위=탭 토글/이동"**이다. 그런데 여기서 요구하는 "밀집 zone 내 박스 시작"은 이와 **정면 충돌**한다(노트 위에서 박스를 시작해야 하므로). 재개방이 아니라 이 shipped 규칙을 baseline으로 두고 **개정**하는 문제이며(§6-6 정신), 미조정 시 가장 흔한 "단일 노트 이동"이 "탭-선택 후 재드래그" **2스텝으로 회귀**할 위험.
+1. **박스 시작 규칙 + 미선택 노트 press+drag 판정** — 박스는 빈 공간에서만 시작한다(`onPointerDown` 7번, `hitTestNote === null`). 트릴 노트가 촘촘한 zone 안에서는 노트-히트(6번)에 걸려 박스가 시작되지 않는다 → 밀집 구간 내 박스 시작을 허용하도록 변경 필요. 이때 **미선택 노트 위 press+drag가 박스인지 이동인지**를 명시해야 한다 — §3-1 "선택된 엔티티 위 드래그=이동"과 충돌하기 때문. **shipped baseline(실측, #143 갱신):** grab 우선순위는 순수 `resolveGrab` 사다리가 단독 소유하고(마우스·터치 공용, glossary "resolveGrab"), 터치 스케줄(`scheduleFromGrabTarget`)은 그 `GrabTarget`을 **`note`=tapToggle · 그 외 전부(끝 캡·존 몸통·빈 곳)=지연 박스**로 접는다 — 즉 "노트 위=박스"가 아니라 **"노트 위=탭 토글/이동"**이다. (존 끝 캡은 그 구간이 **선택됐을 때만** 캡으로 잡히고, 미선택이면 겹친 노트/몸통으로 하강한다 — §6-6 게이트를 마우스·터치가 공유.) 그런데 여기서 요구하는 "밀집 zone 내 박스 시작"은 이와 **정면 충돌**한다(노트 위에서 박스를 시작해야 하므로). 재개방이 아니라 이 shipped 규칙을 baseline으로 두고 **개정**하는 문제이며(§6-6 정신), 미조정 시 가장 흔한 "단일 노트 이동"이 "탭-선택 후 재드래그" **2스텝으로 회귀**할 위험.
 2. **첫 접촉 분류** — 박스 성장 중 처음 교차하는 엔티티로 `SelectionKind`를 확정·잠금(`classifySelection`을 박스 성장에 확장). 커밋(`updateBoxSelection`)이 이 종류를 반영(트릴노트=내용 / 그 외=구간·일반).
 3. **`trillZone` 1급 승격 + 유닛 전파** — 파생 선택(§1)에서 박스 직접 선택 대상으로. `canAddNoteToSelection`이 구간 모드에서 `trillZone` 유닛을 받도록 확장하고(개별 트릴 노트는 계속 배제 — 규칙 2·3·4 유지), `trillZone`의 이동·복사·삭제가 안의 트릴 노트로 **전파**되도록 한다.
 4. **`trillZone` 끝 10px 투명 히트박스** — 끝에 놓인 트릴 노트의 시각적 돌출로 인한 오선택을 막고, 그 구간에서 zone을 첫 접촉으로 우선시킨다.

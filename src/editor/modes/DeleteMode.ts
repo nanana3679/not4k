@@ -1,22 +1,23 @@
-import type { Chart, ExtraNoteEntity } from "../../shared";
+import type { Chart } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
-  deleteExtraNoteAtIndex,
+  deleteRestZoneAtIndex,
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
+import type { TimelineSpace } from "../timeline/TimelineSpace";
 
 export interface DeleteModeCallbacks {
   onChartUpdate: (chart: Chart) => void;
-  hitTestNote: (x: number, y: number) => number | null;
-  hitTestTrillZone?: (x: number, y: number) => number | null;
-  hitTestExtraNote?: (x: number, y: number) => number | null;
-  onExtraNotesUpdate?: (extraNotes: ExtraNoteEntity[]) => void;
-  onExtraSelectionChange?: (indices: Set<number>) => void;
-  getExtraNotes?: () => ExtraNoteEntity[];
+  space: TimelineSpace;
   onWarn?: (message: string) => void;
 }
 
+/**
+ * Delete 모드 — 통합 차트(chart.notes 전체, 메인 lane 1..4 + 보조 lane 5+) 하나만 다룬다.
+ * 히트테스트·삭제 인덱스가 모두 chart.notes 통합 인덱스 공간이라, 정규형 파티션이
+ * 깨진 차트(통합 이동·paste 이후)에서도 클릭한 노트가 정확히 삭제된다 (RFD 0018 ④d).
+ */
 export class DeleteMode implements EditorMode {
   private chart: Chart;
   private callbacks: DeleteModeCallbacks;
@@ -47,10 +48,10 @@ export class DeleteMode implements EditorMode {
 
   /** Click to delete */
   onPointerDown(x: number, y: number): void {
-    // Try deleting a note first
+    // Try deleting a note (메인·보조 통합 — 통합 인덱스로 chart.notes에서 제자리 삭제)
     const result = DeleteMode.deleteNoteAtPoint(
       this.chart,
-      this.callbacks.hitTestNote,
+      this.callbacks.space.hitTestUnifiedNote,
       x,
       y
     );
@@ -61,32 +62,26 @@ export class DeleteMode implements EditorMode {
       return;
     }
 
-    // Try deleting an extra note
-    if (this.callbacks.hitTestExtraNote && this.callbacks.getExtraNotes && this.callbacks.onExtraNotesUpdate) {
-      const extraHit = this.callbacks.hitTestExtraNote(x, y);
-      if (extraHit !== null) {
-        const extraNotes = this.callbacks.getExtraNotes();
-        const updatedExtraNotes = deleteExtraNoteAtIndex(extraNotes, extraHit);
-        if (updatedExtraNotes === null) return;
-        this.callbacks.onExtraNotesUpdate(updatedExtraNotes);
-        this.callbacks.onExtraSelectionChange?.(new Set());
-        return;
+    // Try deleting a trill zone (only if empty)
+    const zoneIdx = this.callbacks.space.hitTestTrillZone(x, y);
+    if (zoneIdx !== null) {
+      const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
+      if (result.blockedReason) {
+        this.callbacks.onWarn?.(result.blockedReason);
+      } else if (result.chart) {
+        this.chart = result.chart;
+        this.callbacks.onChartUpdate(result.chart);
       }
+      return;
     }
 
-    // Try deleting a trill zone (only if empty)
-    if (this.callbacks.hitTestTrillZone) {
-      const zoneIdx = this.callbacks.hitTestTrillZone(x, y);
-      if (zoneIdx !== null) {
-        const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
-        if (result.blockedReason) {
-          this.callbacks.onWarn?.(result.blockedReason);
-        } else if (result.chart) {
-          this.chart = result.chart;
-          this.callbacks.onChartUpdate(result.chart);
-        } else {
-          return;
-        }
+    // Try deleting a rest zone (RFD 0019 — trillZone 미러, empty 가드 없음)
+    const restIdx = this.callbacks.space.hitTestRestZone(x, y);
+    if (restIdx !== null) {
+      const result = deleteRestZoneAtIndex(this.chart, restIdx);
+      if (result) {
+        this.chart = result;
+        this.callbacks.onChartUpdate(result);
       }
     }
   }

@@ -5,31 +5,34 @@
 
 import { Container, Graphics } from "pixi.js";
 import { beatToMs } from "../../shared";
-import type { Chart, Beat, NoteEntity, BpmMarker, ExtraNoteEntity, Lane } from "../../shared";
+import type { Chart, Beat, NoteEntity, BpmMarker, Lane } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
+  TRILL_HANDLE_SELECTED_BUMP,
 } from "./constants";
+import { laneToX, laneWidth, eventLaneToX } from "./laneGeometry";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
-import { drawTrillZoneHandles, drawNoteResizeHandle } from "./trillZoneHandles";
+import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./trillZoneHandles";
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: Chart | null;
-  readonly extraNotes: ExtraNoteEntity[];
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
+  readonly selectedRestZones: Set<number>;
   /** select 모드에서 hover 중인 노트 인덱스(롱노트 리사이즈 캡 표시용), 없으면 null */
   readonly resizeHoverNoteIndex: number | null;
   readonly violatingNoteIndices: Set<number>;
   readonly violatingTrillZoneIndices: Set<number>;
-  readonly violatingExtraNoteIndices: Set<number>;
-  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: Lane }[] | null;
-  readonly boxSelectRect: { startY: number; startLane: Lane | null; endY: number; endLane: Lane | null; startExtraLane?: number; endExtraLane?: number } | null;
+  readonly violatingRestZoneIndices: Set<number>;
+  readonly violatingEventIndices: Set<number>;
+  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
+  readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
   readonly cachedBpmMarkers: BpmMarker[];
@@ -63,7 +66,8 @@ export class OverlayRenderer {
 
     for (const origin of this.host.moveOrigins) {
       const { note, beat: origBeat, endBeat: origEndBeat, lane } = origin;
-      const x = (lane - 1) * LANE_WIDTH;
+      // 보조 레인(5+)도 통합 이동으로 moveOrigins에 실린다 — laneToX로 메인/보조 별도 영역에 투영(§8-5).
+      const x = laneToX(lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
 
@@ -140,34 +144,17 @@ export class OverlayRenderer {
     destroyChildren(this.host.boxSelectLayer);
     if (!this.host.boxSelectRect || !this.host.chart) return;
 
-    const { startY, startLane, endY, endLane, startExtraLane, endExtraLane } = this.host.boxSelectRect;
+    const { startY, startLane, endY, endLane } = this.host.boxSelectRect;
 
     const y1 = startY + this.host.scrollY;
     const y2 = endY + this.host.scrollY;
     const topY = Math.min(y1, y2);
     const height = Math.max(y1, y2) - topY;
 
-    let x1 = Infinity;
-    let x2 = -Infinity;
-
-    if (startLane !== null || endLane !== null) {
-      const effectiveStart = startLane ?? endLane!;
-      const effectiveEnd = endLane ?? startLane!;
-      const minLane = Math.min(effectiveStart, effectiveEnd);
-      const maxLane = Math.max(effectiveStart, effectiveEnd);
-      x1 = Math.min(x1, (minLane - 1) * LANE_WIDTH);
-      x2 = Math.max(x2, maxLane * LANE_WIDTH);
-    }
-
-    if (startExtraLane !== undefined || endExtraLane !== undefined) {
-      const effectiveStart = startExtraLane ?? endExtraLane!;
-      const effectiveEnd = endExtraLane ?? startExtraLane!;
-      const minExtra = Math.min(effectiveStart, effectiveEnd);
-      const maxExtra = Math.max(effectiveStart, effectiveEnd);
-      const extraStartX = TIMELINE_WIDTH;
-      x1 = Math.min(x1, extraStartX + (minExtra - 1) * EXTRA_LANE_WIDTH);
-      x2 = Math.max(x2, extraStartX + maxExtra * EXTRA_LANE_WIDTH);
-    }
+    const minLane = Math.min(startLane, endLane);
+    const maxLane = Math.max(startLane, endLane);
+    const x1 = laneToX(minLane);
+    const x2 = laneToX(maxLane) + laneWidth(maxLane);
 
     if (x1 >= x2) return;
 
@@ -299,7 +286,11 @@ export class OverlayRenderer {
   /**
    * 호버 오버레이 업데이트 (경량, 풀 리렌더 없음)
    */
-  updateHoverOverlay(hoveredNoteIndex: number | null, hoveredExtraNoteIndex: number | null, hoveredTrillZoneIndex: number | null = null): void {
+  updateHoverOverlay(
+    hoveredNoteIndex: number | null,
+    hoveredTrillZoneIndex: number | null = null,
+    hoveredRestZoneIndex: number | null = null,
+  ): void {
     destroyChildren(this.host.hoverLayer);
     if (!this.host.chart) return;
 
@@ -311,7 +302,9 @@ export class OverlayRenderer {
 
     if (hoveredNoteIndex !== null && hoveredNoteIndex < this.host.chart.notes.length) {
       const note = this.host.chart.notes[hoveredNoteIndex];
-      const x = (note.lane - 1) * LANE_WIDTH;
+      // 메인·보조 공통 — lane 투영만 다르다 (RFD 0018)
+      const x = laneToX(note.lane);
+      const laneW = laneWidth(note.lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
       const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
@@ -322,54 +315,50 @@ export class OverlayRenderer {
         const endY = this.host.timeToY(endMs);
         const topY = Math.min(startY, endY);
         const bottomY = Math.max(startY, endY);
-        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
+        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, laneW, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
       } else {
         const gfx = new Graphics();
         if (note.type === "trill") {
-          const cx = x + LANE_WIDTH / 2;
+          const cx = x + laneW / 2;
           gfx.moveTo(cx, startY - h / 2);
           gfx.lineTo(cx + w / 2, startY);
           gfx.lineTo(cx, startY + h / 2);
           gfx.lineTo(cx - w / 2, startY);
           gfx.lineTo(cx, startY - h / 2);
         } else {
-          gfx.rect(x + (LANE_WIDTH - w) / 2, startY - h / 2, w, h);
+          gfx.rect(x + (laneW - w) / 2, startY - h / 2, w, h);
         }
         gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
         this.host.hoverLayer.addChild(gfx);
       }
     }
 
-    if (hoveredExtraNoteIndex !== null && hoveredExtraNoteIndex < this.host.extraNotes.length) {
-      const note = this.host.extraNotes[hoveredExtraNoteIndex];
-      const x = TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH;
-      const w = NOTE_HEIGHT * 5;
-      const h = NOTE_HEIGHT;
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      const startY = this.host.timeToY(startMs);
-
-      if ("endBeat" in note) {
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
-        const endY = this.host.timeToY(endMs);
-        const topY = Math.min(startY, endY);
-        const bottomY = Math.max(startY, endY);
-        this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, EXTRA_LANE_WIDTH, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
-      } else {
-        const gfx = new Graphics();
-        gfx.rect(x + (EXTRA_LANE_WIDTH - w) / 2, startY - h / 2, w, h);
-        gfx.stroke({ width: 1.5, color: COLORS.HOVERED_OUTLINE, alignment: 0 });
-        this.host.hoverLayer.addChild(gfx);
-      }
-    }
-
-    // hover한 trillZone의 이동/리사이즈 핸들 (hover 시에만 표시)
-    if (hoveredTrillZoneIndex !== null && hoveredTrillZoneIndex < this.host.chart.trillZones.length) {
+    // trillZone 리사이즈 핸들(끝 캡)은 **선택된 구간**에만 표시한다 — 미선택 구간의 끝에
+    // 놓인 노트를 캡이 가리지 않도록(끝 노트 클릭 보장, RFD 0016 §6-6). 이동 필은 제거됐고,
+    // 구간 이동은 선택 후 몸통 드래그다.
+    if (
+      hoveredTrillZoneIndex !== null &&
+      hoveredTrillZoneIndex < this.host.chart.trillZones.length &&
+      this.host.selectedTrillZones.has(hoveredTrillZoneIndex)
+    ) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
       const x = (zone.lane - 1) * LANE_WIDTH;
-      const startY = this.host.timeToY(beatToMs(zone.beat, bpmMarkers, meta.offsetMs));
       const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
-      const selected = this.host.selectedTrillZones.has(hoveredTrillZoneIndex);
-      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, startY, endY, selected);
+      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, endY, true);
+    }
+
+    // restZone 리사이즈 캡도 **선택된 restZone**에만 표시한다 — trillZone 규칙 미러 (RFD 0019).
+    // 선택 전용이라 캡은 항상 선택 강조색(SELECTED_OUTLINE)+bump로 그린다.
+    const restZones = this.host.chart.restZones ?? [];
+    if (
+      hoveredRestZoneIndex !== null &&
+      hoveredRestZoneIndex < restZones.length &&
+      this.host.selectedRestZones.has(hoveredRestZoneIndex)
+    ) {
+      const zone = restZones[hoveredRestZoneIndex];
+      const x = (zone.lane - 1) * LANE_WIDTH;
+      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
+      drawResizeCap(this.host.hoverLayer, x, LANE_WIDTH, endY, COLORS.SELECTED_OUTLINE, TRILL_HANDLE_SELECTED_BUMP);
     }
 
     // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.
@@ -398,7 +387,8 @@ export class OverlayRenderer {
     if (
       this.host.violatingNoteIndices.size === 0 &&
       this.host.violatingTrillZoneIndices.size === 0 &&
-      this.host.violatingExtraNoteIndices.size === 0
+      this.host.violatingRestZoneIndices.size === 0 &&
+      this.host.violatingEventIndices.size === 0
     ) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
@@ -423,15 +413,23 @@ export class OverlayRenderer {
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
-    // 엑스트라 노트: extraLane 축 겹침/중복 — 시각화 전용(게이트 불포함), 노트와 동일 해칭.
-    for (const idx of this.host.violatingExtraNoteIndices) {
-      if (idx >= this.host.extraNotes.length) continue;
-      const note = this.host.extraNotes[idx];
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
-      const rectX =
-        TIMELINE_WIDTH + (note.extraLane - 1) * EXTRA_LANE_WIDTH +
-        (EXTRA_LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
+    // restZone: 항상 구간(자기 겹침·노트/trillZone 겹침, RFD 0019 §4-2). 트릴존과 동일 레인 기하.
+    const restZones = this.host.chart.restZones ?? [];
+    for (const idx of this.host.violatingRestZoneIndices) {
+      if (idx >= restZones.length) continue;
+      const zone = restZones[idx];
+      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
+    }
+
+    // 이벤트: editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지, 시점 이벤트는 포인트 (RFD 0017 §7).
+    for (const idx of this.host.violatingEventIndices) {
+      if (idx >= this.host.chart.events.length) continue;
+      const evt = this.host.chart.events[idx];
+      const rectX = eventLaneToX(evt.editorLane ?? 1);
+      const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
+      const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : null;
       this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
     }
   }
@@ -444,7 +442,7 @@ export class OverlayRenderer {
     minTimeMs: number,
     maxTimeMs: number,
   ): void {
-    const rectX = (lane - 1) * LANE_WIDTH + (LANE_WIDTH - NOTE_HEIGHT * 5) / 2;
+    const rectX = laneToX(lane) + (laneWidth(lane) - NOTE_HEIGHT * 5) / 2;
     this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
   }
 

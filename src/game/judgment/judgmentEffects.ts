@@ -68,7 +68,8 @@ export function decideJudgmentEffects(result: JudgmentResult, note: NoteEntity):
       ? { grade: result.grade } // 바디는 타이밍 점수 없음 — deltaMs 생략이 결정이다
       : { grade: result.grade, deltaMs: result.deltaMs },
     judgmentText: { grade: result.grade, deltaMs: result.deltaMs },
-    bomb: isMiss ? null : note.lane,
+    // note.lane(number) → Lane: 게임에 들어오는 노트는 진입점에서 메인 레인(1..4)으로 필터됨 (RFD 0018 §3-3)
+    bomb: isMiss ? null : (note.lane as Lane),
     noteDisplay: noteDisplayEffect(result, note),
     debug: {
       grade: result.grade,

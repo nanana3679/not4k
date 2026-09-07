@@ -8,6 +8,7 @@ import {
   getSelectedChartForSong,
   resolveGameplayRange,
   resolveSongCardFocus,
+  shouldBlockSongNavKey,
   sortChartsByDifficulty,
 } from './helpers';
 import type { DbChart, DbSong } from './types';
@@ -290,5 +291,37 @@ describe('resolveGameplayRange', () => {
       fadeInTime: 0,
       fadeOutTime: 0,
     });
+  });
+});
+
+describe('shouldBlockSongNavKey', () => {
+  const base = { blockingModalOpen: false, hasPendingChartTarget: false, songsEmpty: false };
+
+  it('차단 모달 없고 곡 있으면 ArrowDown 통과(차단 안 함)', () => {
+    expect(shouldBlockSongNavKey({ ...base, key: 'ArrowDown' })).toBe(false);
+  });
+
+  it('설정 모달 등 차단 오버레이 열리면 Enter 차단', () => {
+    expect(shouldBlockSongNavKey({ ...base, blockingModalOpen: true, key: 'Enter' })).toBe(true);
+  });
+
+  it('차단 오버레이 열리면 Escape도 차단(모달이 Escape를 소유)', () => {
+    expect(shouldBlockSongNavKey({ ...base, blockingModalOpen: true, key: 'Escape' })).toBe(true);
+  });
+
+  it('난이도 생성 모달(newChartTarget) 떠 있으면 ArrowUp 차단', () => {
+    expect(shouldBlockSongNavKey({ ...base, hasPendingChartTarget: true, key: 'ArrowUp' })).toBe(true);
+  });
+
+  it('곡이 0개면 Enter 차단', () => {
+    expect(shouldBlockSongNavKey({ ...base, songsEmpty: true, key: 'Enter' })).toBe(true);
+  });
+
+  it('곡이 0개여도 Escape는 통과(뒤로가기 허용)', () => {
+    expect(shouldBlockSongNavKey({ ...base, songsEmpty: true, key: 'Escape' })).toBe(false);
+  });
+
+  it('곡 0개 + 차단 오버레이면 Escape도 차단(오버레이 우선)', () => {
+    expect(shouldBlockSongNavKey({ ...base, songsEmpty: true, blockingModalOpen: true, key: 'Escape' })).toBe(true);
   });
 });

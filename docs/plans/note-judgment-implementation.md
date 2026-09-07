@@ -1,6 +1,6 @@
 # 노트 판정 모델 구현·테스트·검증 계획
 
-2026-09-07. 기준은 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md), [glossary](../context/glossary.md#롱노트-판정-모델), [38개 판정 사례](../spec/note-judgment-cases.md)이다. 이 문서는 실행 순서와 통과 기준을 정의한다. 작업 상태와 새로 발견한 제품 미결정 사항은 [PRD §12](../prd.md#12-미정-사항)에서만 관리한다.
+2026-09-07. 기준은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md), [glossary](../context/glossary.md#롱노트-판정-모델), [38개 판정 사례](../spec/note-judgment-cases.md)이다. 이 문서는 실행 순서와 통과 기준을 정의한다. 작업 상태와 새로 발견한 제품 미결정 사항은 [PRD §12](../prd.md#12-미정-사항)에서만 관리한다.
 
 ## 1. 범위와 시작 조건
 

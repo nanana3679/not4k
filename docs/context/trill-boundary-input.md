@@ -6,4 +6,4 @@
 
 판정 등급은 일반 Point 규칙을 따른다. zone 경계라는 이유로 타이밍 등급을 변경하지 않으며, 경계 보호는 교대 상태 기록 범위만 제한한다. 교대 실패는 `goodTrill` 상한 규칙을 따르고, 이전 zone 상태를 재사용해 추가 패널티를 만들지 않는다. Bad 판정은 생성하지 않는다.
 
-이 문서는 현재 채택 모델의 용어와 경계를 설명한다. 구현 검증은 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md), [판정 사례](../spec/note-judgment-cases.md), 그리고 runtime 테스트가 담당한다.
+이 문서는 현재 채택 모델의 용어와 경계를 설명한다. 구현 검증은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md), [판정 사례](../spec/note-judgment-cases.md), 그리고 runtime 테스트가 담당한다.

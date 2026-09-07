@@ -6,8 +6,7 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
-import type { NoteEntity, TrillZone, BpmMarker, ChartEvent } from "../../shared";
-import { beatToMs, enumerateMeasureStartsMs, extractBpmMarkers, extractTimeSignatures } from "../../shared";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
@@ -16,6 +15,8 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  TUTORIAL_KB_SIDE_PAD,
+  TUTORIAL_KB_VPAD,
   COLORS,
 } from "./constants";
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
@@ -48,6 +49,26 @@ import {
   getGaugeTextureFrame,
 } from "./gearGauge";
 
+/** 튜토리얼 프리뷰 키보드 strip 스펙 — 레이아웃/매핑 계산은 React가 하고 렌더러는 그리기만 한다.
+ *  (순환 import 방지를 위해 player 쪽 타입을 import하지 않고 자체 선언) */
+interface TutorialKeyboardSpec {
+  widthUnits: number;
+  heightUnits: number;
+  keys: { code: string; x: number; y: number; w: number; h: number; label: string; mapped: boolean }[];
+}
+
+interface TutorialKeyboardKeyEntry {
+  code: string;
+  cap: Graphics;
+  text: Text;
+  mapped: boolean;
+  pressed: boolean;
+  baseX: number;
+  baseY: number;
+  kw: number;
+  kh: number;
+}
+
 export interface GameRendererOptions {
   canvas: HTMLCanvasElement;
   width: number;
@@ -57,7 +78,11 @@ export interface GameRendererOptions {
   showGearFrame?: boolean;
   showPerspectiveSurface?: boolean;
   showComboAndAccuracy?: boolean;
+  showLaneKeyLabels?: boolean;
   judgmentLineOffset?: number;
+  /** 플레이 영역 아래에 덧붙는 키보드 strip 높이(px). 캔버스 총 높이 = height + keyboardAreaHeight */
+  keyboardAreaHeight?: number;
+  tutorialKeyboard?: TutorialKeyboardSpec;
 }
 
 interface NoteRenderData {
@@ -88,6 +113,7 @@ export class GameRenderer {
   private backgroundLayer: Container;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
+  private restZoneLayer: Container;
   private trillZoneLayer: Container;
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -105,9 +131,10 @@ export class GameRenderer {
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
   private trillZones: readonly TrillZone[] = [];
-  private bpmMarkers: readonly BpmMarker[] = [];
+  // 휴지 구간(RFD 0019) — 저작 데이터. 레인 구간을 dim해 손 파킹 창을 안내한다.
+  private restZones: readonly RestZone[] = [];
+  private timing: ChartTiming | null = null;
   private measureTimesMs: number[] = [];
-  private offsetMs: number = 0;
   private textEvents: TextEventRenderData[] = [];
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
@@ -119,6 +146,7 @@ export class GameRenderer {
 
   // Object pools for dynamic graphics
   private measureLinePool: Graphics[] = [];
+  private restZonePool: Graphics[] = [];
   private trillZonePool: Graphics[] = [];
 
   // Lane flash
@@ -181,7 +209,19 @@ export class GameRenderer {
   private showGearFrame: boolean;
   private showPerspectiveSurface: boolean;
   private showComboAndAccuracy: boolean;
+  private showLaneKeyLabels: boolean;
   private judgmentLineOffset: number;
+
+  // 튜토리얼 프리뷰용 레인 키 라벨 (판정선 아래 밴드에 키캡 + 텍스트)
+  private laneKeyLabelLayer: Container;
+  private laneKeyLabels: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean }[] = [];
+
+  // 튜토리얼 프리뷰용 키보드 strip (플레이 영역 아래 y >= this.height 별도 영역)
+  private keyboardAreaHeight: number;
+  private tutorialKeyboardSpec: TutorialKeyboardSpec | null;
+  private tutorialKeyboardLayer: Container;
+  private tutorialKeyboardKeys: TutorialKeyboardKeyEntry[] = [];
+  private tutorialKeyboardKeyByCode: Map<string, TutorialKeyboardKeyEntry> = new Map();
 
   // Sub-renderers
   private judgmentUI!: JudgmentUI;
@@ -199,6 +239,9 @@ export class GameRenderer {
     this.showGearFrame = options.showGearFrame ?? true;
     this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
+    this.showLaneKeyLabels = options.showLaneKeyLabels ?? false;
+    this.keyboardAreaHeight = options.keyboardAreaHeight ?? 0;
+    this.tutorialKeyboardSpec = options.tutorialKeyboard ?? null;
 
     this.app = new Application();
 
@@ -208,6 +251,7 @@ export class GameRenderer {
     this.backgroundLayer = new Container();
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
+    this.restZoneLayer = new Container();
     this.trillZoneLayer = new Container();
     this.longNoteBodyLayer = new Container();
     this.longNoteEndLayer = new Container();
@@ -217,6 +261,8 @@ export class GameRenderer {
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
     this.gearFrameLayer = new Container();
+    this.laneKeyLabelLayer = new Container();
+    this.tutorialKeyboardLayer = new Container();
     this.uiLayer = new Container();
 
     // Create combo / accuracy text (owned by GameRenderer)
@@ -267,7 +313,7 @@ export class GameRenderer {
     await this.app.init({
       canvas: this.canvas,
       width: this.width,
-      height: this.height,
+      height: this.height + this.keyboardAreaHeight,
       resolution: this.resolution,
       autoStart: false,
       backgroundColor: this.skinManager.getTheme().bg,
@@ -277,6 +323,8 @@ export class GameRenderer {
     this.surfaceLayer.addChild(this.surfaceGraphic);
     this.app.stage.addChild(this.surfaceLayer);
     this.app.stage.addChild(this.backgroundLayer);
+    // 휴지 밴드는 레인 배경 바로 위(빔/노트 아래)에 깔아 레인을 가라앉힌다.
+    this.app.stage.addChild(this.restZoneLayer);
     this.app.stage.addChild(this.keyBeamLayer);
     this.app.stage.addChild(this.measureLineLayer);
     this.app.stage.addChild(this.trillZoneLayer);
@@ -286,6 +334,10 @@ export class GameRenderer {
     this.app.stage.addChild(this.noteLayer);
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
+    // 레인 키 라벨은 마스크 위에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
+    this.app.stage.addChild(this.laneKeyLabelLayer);
+    // 키보드 strip은 y >= this.height 별도 영역이라 다른 레이어와 z순서 영향 없음.
+    this.app.stage.addChild(this.tutorialKeyboardLayer);
     this.app.stage.addChild(this.gearFrameLayer);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
@@ -314,6 +366,12 @@ export class GameRenderer {
     this.drawMask();
     this.buildKeyBeams();
     this.buildButtons();
+    if (this.showLaneKeyLabels) {
+      this.buildLaneKeyLabels();
+    }
+    if (this.tutorialKeyboardSpec) {
+      this.buildTutorialKeyboard();
+    }
     if (this.showGearFrame) {
       this.buildGearFrame();
     }
@@ -895,6 +953,182 @@ export class GameRenderer {
         this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
       } catch { /* 텍스처 미로드 시 무시 */ }
     }
+    if (idx >= 0 && idx < this.laneKeyLabels.length) {
+      const entry = this.laneKeyLabels[idx];
+      // 눌림 상태가 실제로 바뀔 때만 다시 그린다 — 매 프레임 Graphics 재구성 방지.
+      if (entry.pressed !== pressed) {
+        entry.pressed = pressed;
+        this.drawLaneKeyCap(entry, pressed);
+      }
+    }
+  }
+
+  /** 레인 키 라벨 키캡+텍스트 생성 — 튜토리얼 프리뷰(showLaneKeyLabels)에서만 호출된다. */
+  private buildLaneKeyLabels(): void {
+    const cy = this._judgmentLineY + this.judgmentLineOffset / 2;
+
+    for (let i = 0; i < LANE_COUNT; i++) {
+      const cx = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
+
+      const cap = new Graphics();
+      cap.x = cx;
+      cap.y = cy;
+
+      const text = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'sans-serif',
+          fontSize: 14,
+          fontWeight: '800',
+          fill: 0xe5ecef,
+          align: 'center',
+        }),
+      });
+      text.anchor.set(0.5);
+      text.x = cx;
+      text.y = cy;
+      text.resolution = 2;
+
+      this.laneKeyLabelLayer.addChild(cap);
+      this.laneKeyLabelLayer.addChild(text);
+
+      const entry = { cap, text, lane: i + 1, label: '', empty: true, pressed: false };
+      this.drawLaneKeyCap(entry, false);
+      this.laneKeyLabels.push(entry);
+    }
+  }
+
+  /** 키캡 라운드렉트를 상태(empty/idle/pressed)에 맞는 색·위치로 다시 그린다. */
+  private drawLaneKeyCap(
+    entry: { cap: Graphics; text: Text; lane: number; label: string; empty: boolean; pressed: boolean },
+    pressed: boolean,
+  ): void {
+    // dispose 경합 방어 — app.destroy로 이미 파괴된 Graphics에 clear()를 부르면
+    // 내부 context가 null이라 크래시한다("Cannot read properties of null (reading 'clear')").
+    if (entry.cap.destroyed) return;
+    const capH = 42;
+    const capW = LANE_WIDTH - 8;
+    const cy = this._judgmentLineY + this.judgmentLineOffset / 2;
+
+    entry.cap.clear();
+    entry.cap.roundRect(-capW / 2, -capH / 2, capW, capH, 4);
+    if (entry.empty) {
+      entry.cap.fill({ color: 0x0a0d0f, alpha: 0.54 });
+      entry.cap.stroke({ width: 1, color: 0xffffff, alpha: 0.14 });
+      entry.text.style.fill = 0x6f767a;
+    } else if (pressed) {
+      entry.cap.fill(0x355f66);
+      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.text.style.fill = 0xffffff;
+    } else {
+      entry.cap.fill(0x303538);
+      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.text.style.fill = 0xe5ecef;
+    }
+
+    const y = pressed && !entry.empty ? cy + 4 : cy;
+    entry.cap.y = y;
+    entry.text.y = y;
+  }
+
+  /** 튜토리얼 키보드 strip 키캡+텍스트 생성 — tutorialKeyboard 스펙이 있을 때만 호출된다. */
+  private buildTutorialKeyboard(): void {
+    const spec = this.tutorialKeyboardSpec;
+    // keyboardAreaHeight 없이 spec만 넘어오면 boardH가 음수가 된다 — 계약 명시.
+    if (!spec || this.keyboardAreaHeight <= 0) return;
+    const boardX = this.laneAreaX + TUTORIAL_KB_SIDE_PAD;
+    const boardY = this.height + TUTORIAL_KB_VPAD;
+    const boardW = LANE_AREA_WIDTH - TUTORIAL_KB_SIDE_PAD * 2;
+    const boardH = this.keyboardAreaHeight - TUTORIAL_KB_VPAD * 2;
+
+    // 배경 박스 (HTML miniKeyboard 톤)
+    const box = new Graphics();
+    box.roundRect(this.laneAreaX + 2, this.height + 2, LANE_AREA_WIDTH - 4, this.keyboardAreaHeight - 4, 7);
+    box.fill(0x191919);
+    box.stroke({ width: 1, color: 0x3f3f3f });
+    this.tutorialKeyboardLayer.addChild(box);
+
+    for (const kd of spec.keys) {
+      const kw = (kd.w / spec.widthUnits) * boardW;
+      const kh = (kd.h / spec.heightUnits) * boardH;
+      const kx = boardX + (kd.x / spec.widthUnits) * boardW;
+      const ky = boardY + (kd.y / spec.heightUnits) * boardH;
+
+      const cap = new Graphics();
+      cap.x = kx;
+      cap.y = ky;
+      const text = new Text({
+        text: kd.label,
+        style: new TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fontWeight: '800', fill: 0xe5ecef, align: 'center' }),
+      });
+      text.anchor.set(0.5);
+      text.x = kx + kw / 2;
+      text.y = ky + kh / 2;
+      text.resolution = 2;
+      this.tutorialKeyboardLayer.addChild(cap);
+      this.tutorialKeyboardLayer.addChild(text);
+
+      const entry: TutorialKeyboardKeyEntry = {
+        code: kd.code,
+        cap,
+        text,
+        mapped: kd.mapped,
+        pressed: false,
+        baseX: kx,
+        baseY: ky,
+        kw,
+        kh,
+      };
+      this.drawTutorialKey(entry, false);
+      this.tutorialKeyboardKeys.push(entry);
+      this.tutorialKeyboardKeyByCode.set(kd.code, entry);
+    }
+  }
+
+  /** 키보드 strip 키캡을 상태(unmapped/idle/pressed)에 맞는 색·위치로 다시 그린다. */
+  private drawTutorialKey(entry: TutorialKeyboardKeyEntry, pressed: boolean): void {
+    // dispose 경합 방어 — 파괴된 Graphics에 clear()를 부르면 크래시한다.
+    if (entry.cap.destroyed) return;
+    const gap = 2;
+    entry.cap.clear();
+    entry.cap.roundRect(gap, gap, entry.kw - gap * 2, entry.kh - gap * 2, 4);
+    if (!entry.mapped) {
+      entry.cap.fill(0x121415);
+      entry.cap.stroke({ width: 1, color: 0x24282a });
+      entry.cap.alpha = 0.68;
+      entry.text.alpha = 0.68;
+      entry.text.style.fill = 0x343a3d;
+    } else if (pressed) {
+      entry.cap.fill(0x355f66);
+      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.cap.alpha = 1;
+      entry.text.alpha = 1;
+      entry.text.style.fill = 0xffffff;
+    } else {
+      entry.cap.fill(0x303538);
+      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.cap.alpha = 1;
+      entry.text.alpha = 1;
+      entry.text.style.fill = 0xe5ecef;
+    }
+    // 눌리면 살짝 내려감 — cap 로컬 좌표가 (gap,gap)부터라 x는 그대로 두고 y만 dy 반영.
+    const dy = pressed && entry.mapped ? 3 : 0;
+    entry.cap.y = entry.baseY + dy;
+    entry.text.y = entry.baseY + entry.kh / 2 + dy;
+  }
+
+  /** 레인 키 라벨 텍스트·표시 여부 갱신 — 라벨 계산은 React가 하고 렌더러는 그리기만 한다. */
+  setLaneKeyLabels(labels: { lane: number; label: string }[], visible: boolean): void {
+    this.laneKeyLabelLayer.visible = visible;
+    for (const { lane, label } of labels) {
+      const idx = lane - 1;
+      if (idx < 0 || idx >= this.laneKeyLabels.length) continue;
+      const entry = this.laneKeyLabels[idx];
+      entry.label = label;
+      entry.empty = label.trim() === '';
+      entry.text.text = label || '-';
+      this.drawLaneKeyCap(entry, entry.pressed);
+    }
   }
 
   private drawJudgmentLine(): void {
@@ -1125,37 +1359,34 @@ export class GameRenderer {
     return Number.parseInt(normalized, 16);
   }
 
+  // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.
+  // noteRenderData가 timing.noteTimesMs.get(index)!로 인덱스 정합을 전제하므로, 어긋나면
+  // 조용히 undefined timeMs가 흐른다. 현재 콜러(PlayScreen·TutorialPreviewPlayer)는 모두
+  // 같은 차트로 createChartTiming한다. (후속 deepening: setChart가 ChartTimingSource를
+  // 받아 내부에서 파생 — #142 리뷰 MEDIUM / #141 PlaySession 소재)
   setChart(
     notes: readonly NoteEntity[],
     trillZones: readonly TrillZone[],
+    restZones: readonly RestZone[],
     events: readonly ChartEvent[],
-    offsetMs: number,
+    timing: ChartTiming,
     durationMs: number = 0,
   ): void {
-    const bpmMarkers = extractBpmMarkers(events);
-    const timeSignatures = extractTimeSignatures(events);
-
-    this.bpmMarkers = bpmMarkers;
-    this.offsetMs = offsetMs;
+    this.timing = timing;
     this.trillZones = trillZones;
+    this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.surfaceScrollOffsetZ = 0;
     this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
 
     this.noteRenderData = notes.map((entity, index) => {
-      const timeMs = beatToMs(entity.beat, bpmMarkers, offsetMs);
-      const endTimeMs =
-        "endBeat" in entity
-          ? beatToMs(entity.endBeat, bpmMarkers, offsetMs)
-          : undefined;
+      const timeMs = timing.noteTimesMs.get(index)!;
+      const endTimeMs = timing.noteEndTimesMs.get(index);
 
       return { entity, index, timeMs, endTimeMs };
     });
 
-    this.measureTimesMs =
-      durationMs > 0
-        ? enumerateMeasureStartsMs(durationMs, bpmMarkers, timeSignatures, offsetMs)
-        : [];
+    this.measureTimesMs = durationMs > 0 ? timing.measureStartsMs(durationMs) : [];
 
     // Extract text/auto events with time ranges
     this.textEvents = [];
@@ -1164,13 +1395,13 @@ export class GameRenderer {
       if (evt.type === "text") {
         this.textEvents.push({
           text: evt.text,
-          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
-          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+          startMs: timing.beatToMs(evt.beat),
+          endMs: timing.beatToMs(evt.endBeat),
         });
       } else if (evt.type === "auto") {
         this.autoEvents.push({
-          startMs: beatToMs(evt.beat, bpmMarkers, offsetMs),
-          endMs: beatToMs(evt.endBeat, bpmMarkers, offsetMs),
+          startMs: timing.beatToMs(evt.beat),
+          endMs: timing.beatToMs(evt.endBeat),
         });
       }
     }
@@ -1193,10 +1424,9 @@ export class GameRenderer {
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
-    // A requestAnimationFrame callback can already be queued when the owning
-    // screen unmounts. Pixi display objects are destroyed by dispose(), so a
-    // late frame must be ignored before touching any Graphics.clear() calls.
-    if (!this.initialized) return;
+    // 초기화가 끝나기 전(로딩 지연)이나 dispose 직후에 렌더가 들어오면 PIXI 내부 렌더러가
+    // null이라 this.app.render()가 alphaMode를 null에서 읽어 크래시한다. 준비 전에는 조용히 건너뛴다.
+    if (!this.initialized || !this.app.renderer) return;
 
     this.judgmentUI.updateFade(deltaMs);
     if (this.showPerspectiveSurface) {
@@ -1205,6 +1435,7 @@ export class GameRenderer {
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
+    for (const g of this.restZonePool) g.visible = false;
     for (const g of this.trillZonePool) g.visible = false;
     this.longNoteBodyLayer.removeChildren();
     this.longNoteEndLayer.removeChildren();
@@ -1215,6 +1446,7 @@ export class GameRenderer {
     const minTime = songTimeMs - 500;
     const maxTime = songTimeMs + visibleWindowMs;
 
+    this.renderRestZones(songTimeMs);
     this.renderMeasureLines(songTimeMs);
     this.renderTrillZones(songTimeMs);
 
@@ -1266,6 +1498,42 @@ export class GameRenderer {
     return g;
   }
 
+  private getRestZoneFromPool(index: number): Graphics {
+    if (index < this.restZonePool.length) {
+      return this.restZonePool[index];
+    }
+    const g = new Graphics();
+    this.restZonePool.push(g);
+    this.restZoneLayer.addChild(g);
+    return g;
+  }
+
+  // 휴지 구간(RFD 0019)을 어두운 밴드로 그려 레인을 가라앉힌다.
+  // 트릴존 렌더와 동일한 스크롤/컬링/풀 패턴, 색만 dim.
+  private renderRestZones(songTimeMs: number): void {
+    let poolIdx = 0;
+    for (const zone of this.restZones) {
+      const startMs = this.timing!.beatToMs(zone.beat);
+      const endMs = this.timing!.beatToMs(zone.endBeat);
+
+      const startY = this.noteRenderer.calculateNoteY(startMs, songTimeMs);
+      const endY = this.noteRenderer.calculateNoteY(endMs, songTimeMs);
+
+      if (startY < -50 || endY > this.height + 50) continue;
+
+      const zoneGraphic = this.getRestZoneFromPool(poolIdx++);
+      zoneGraphic.clear();
+      const laneX = this.noteRenderer.getLaneX(zone.lane);
+
+      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다.
+      const topY = endY;
+      const height = Math.max(startY - endY, 1);
+      zoneGraphic.rect(laneX, topY, LANE_WIDTH, height);
+      zoneGraphic.fill({ color: COLORS.REST_ZONE_DIM, alpha: COLORS.REST_ZONE_ALPHA });
+      zoneGraphic.visible = true;
+    }
+  }
+
   private renderMeasureLines(songTimeMs: number): void {
     let poolIdx = 0;
     for (const mMs of this.measureTimesMs) {
@@ -1283,8 +1551,8 @@ export class GameRenderer {
   private renderTrillZones(songTimeMs: number): void {
     let poolIdx = 0;
     for (const zone of this.trillZones) {
-      const startMs = beatToMs(zone.beat, this.bpmMarkers, this.offsetMs);
-      const endMs = beatToMs(zone.endBeat, this.bpmMarkers, this.offsetMs);
+      const startMs = this.timing!.beatToMs(zone.beat);
+      const endMs = this.timing!.beatToMs(zone.endBeat);
 
       const startY = this.noteRenderer.calculateNoteY(startMs, songTimeMs);
       const endY = this.noteRenderer.calculateNoteY(endMs, songTimeMs);
@@ -1418,6 +1686,12 @@ export class GameRenderer {
   setKeyState(keyCode: string, pressed: boolean): void {
     this.keyboardDisplay?.setKeyState(keyCode, pressed);
     if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
+    const kbEntry = this.tutorialKeyboardKeyByCode.get(keyCode);
+    // 눌림 상태가 실제로 바뀔 때만 다시 그린다 — 매 프레임 Graphics 재구성 방지.
+    if (kbEntry && kbEntry.mapped && kbEntry.pressed !== pressed) {
+      kbEntry.pressed = pressed;
+      this.drawTutorialKey(kbEntry, pressed);
+    }
   }
 
   applyNoteDisplayEffect(noteIndex: number, effect: NoteDisplayEffect): void {
@@ -1445,6 +1719,10 @@ export class GameRenderer {
     this.app.destroy({ removeView: true, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
+    // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
+    this.laneKeyLabels = [];
+    this.tutorialKeyboardKeys = [];
+    this.tutorialKeyboardKeyByCode = new Map();
     // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음
     for (const gauge of this.gearGauges) {
       if (!gauge.texture.destroyed) gauge.texture.destroy(false);

@@ -19,6 +19,7 @@
 | 현 한국어 표제어 | → 캐논 | 코드 식별자 |
 |---|---|---|
 | 트릴 구간 | `trillZone` | `trillZone`/`TrillZone`/`trillZones` |
+| 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
 | 흡수·소비 | `consume` | `consumedLongKeys`/`markLongConsumed`/`requiredConsumeCount`/`consumeReleaseTarget`/`executeReleaseJudgment` |
 | 유지 전용 롱노트(hold-only) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
@@ -27,10 +28,12 @@
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
+| 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 인게임 페이드 | `fadeInTime`/`fadeOutTime` | 동일 |
+| 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 
@@ -76,6 +79,6 @@
 ## 미구현·주의
 
 - **비행 규칙 / 고도**: 미구현이나 영어 명칭이 design-first로 확정돼 **선행 적용 완료** — `flightRule`(우산), `Liftoff`/`Survival`(하위), `altitude`. 고도는 **게임플레이 값 = 렌더러 시각 고도가 동일 값**(판정 잘하면 시각 고도 상승)이라 `altitude`로 통일(별개 식별자·충돌 아님). → §2.2 no-code 규칙의 design-first 예외.
-- **가장 이른 매칭**: **keydown 소비 / keyup 소비**의 동작 서술로 한국어를 유지한다. 현재 키 자격·시작 준비·입력 소비의 의미는 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md)를 따른다. `earliest`는 지역 변수명일 뿐 개념 캐논이 아니다 (2026-07-06 A에서 제외). RFD 0015의 R1/R2는 역사적 약칭이며 익명·이진 release 정의를 현재 규칙으로 복원하지 않는다.
+- **가장 이른 매칭**: **keydown 소비 / keyup 소비**의 동작 서술로 한국어를 유지한다. 현재 키 자격·시작 준비·입력 소비의 의미는 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)를 따른다. `earliest`는 지역 변수명일 뿐 개념 캐논이 아니다 (2026-07-06 A에서 제외). RFD 0015의 R1/R2는 역사적 약칭이며 익명·이진 release 정의를 현재 규칙으로 복원하지 않는다.
 - **A1 재전환**: 2026-06-30 "텍스트 이벤트→메시지 이벤트" 정정은 이 정책으로 `TextEvent`(영어)로 다시 간다.
 - **표기법 스펙(B 작업)**: `piece-notation.md`의 `-o` 정의 등은 AI 작성본이라 별도 정정 패스 필요(용어 정책과 분리). 현재 이름(릴리즈탭/홀드중탭)은 소통 문제없어 유지.

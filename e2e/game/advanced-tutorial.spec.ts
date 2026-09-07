@@ -19,11 +19,13 @@ const BASIC_IDS = [
   'release-tap',
   'connected-long-note-switch',
   'connected-long-note-overlap',
+  'connected-trill-long',
   'headless-long-note',
   'zero-length-long-note',
   'grace-note',
   'hold-only-long-note',
   'zero-length-hold-only-long-note',
+  'rest-zone',
   'horizontal-movement',
   'vertical-movement',
 ] as const;
@@ -119,11 +121,31 @@ test.describe('Tutorial level tabs', () => {
     await page.addInitScript((key) => localStorage.removeItem(key), VIEWED_KEY);
   });
 
-  test('Basic 15개와 Advanced 12개가 실제 preview·본문과 함께 탭별로 순환한다', async ({ page }) => {
+  test('Basic 17개와 Advanced 12개가 실제 preview·본문과 함께 탭별로 순환한다', async ({ page }) => {
+    await page.clock.install();
     const dialog = await openTutorial(page);
     await expect(tab(dialog, 'Basic')).toHaveAttribute('aria-selected', 'true');
     await expect(indexItems(dialog)).toHaveCount(BASIC_IDS.length);
     await expectActive(dialog, BASIC_IDS[0]);
+
+    // Observe the real Pixi keycap updates; the production player has no test hook.
+    await page.evaluate(async () => {
+      const rendererPath = '/src/game/renderer/GameRenderer.ts';
+      const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
+      type KeyEntry = { mapped: boolean; pressed: boolean; baseY: number; cap: { y: number; destroyed: boolean } };
+      const transitions: Array<{ key: string; pressed: boolean; offset: number }> = [];
+      const original = GameRenderer.prototype.setKeyState;
+      GameRenderer.prototype.setKeyState = function(key, pressed) {
+        const entries = (this as unknown as { tutorialKeyboardKeyByCode: Map<string, KeyEntry> }).tutorialKeyboardKeyByCode;
+        const previous = entries.get(key)?.pressed;
+        original.call(this, key, pressed);
+        const entry = entries.get(key);
+        if (entry?.mapped && !entry.cap.destroyed && previous !== entry.pressed && ['KeyS', 'KeyX'].includes(key)) {
+          transitions.push({ key, pressed: entry.pressed, offset: entry.cap.y - entry.baseY });
+        }
+      };
+      (globalThis as typeof globalThis & { __tutorialKeyTransitions: typeof transitions }).__tutorialKeyTransitions = transitions;
+    });
 
     await selectTab(dialog, 'Advanced');
     await expect(tab(dialog, 'Advanced')).toHaveAttribute('aria-selected', 'true');
@@ -131,7 +153,19 @@ test.describe('Tutorial level tabs', () => {
     await expectActive(dialog, ADVANCED_IDS[0]);
     const active = dialog.locator('[data-tutorial-preview-slot="active"]');
     await expect(active.locator('[data-tutorial-binding-notice]')).toContainText('Q W S X');
-    await expect(active.locator('[data-tutorial-key="KeyQ"]')).toHaveAttribute('data-active', 'true', { timeout: 8000 });
+    const previewCanvas = active.locator('[data-tutorial-preview-canvas="true"]');
+    await expect(previewCanvas).toBeVisible();
+    await expect.poll(() => previewCanvas.evaluate(canvas => canvas.width > 0 && canvas.height > 0)).toBe(true);
+    // Step animation frames through the short middle taps even on slow software WebGL.
+    await page.clock.runFor(3200);
+    await expect.poll(() => page.evaluate(() => {
+      const transitions = (globalThis as typeof globalThis & {
+        __tutorialKeyTransitions: Array<{ key: string; pressed: boolean; offset: number }>;
+      }).__tutorialKeyTransitions;
+      return ['KeyS', 'KeyX'].every(key =>
+        transitions.some(item => item.key === key && item.pressed && item.offset === 3) &&
+        transitions.some(item => item.key === key && !item.pressed && item.offset === 0));
+    }), { timeout: 10_000 }).toBe(true);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings')!).state.settings.keyBindings.lane1)).toEqual(['KeyQ', 'KeyW']);
     await choose(dialog, ADVANCED_IDS[3]);
 
@@ -179,7 +213,10 @@ test.describe('Tutorial level tabs', () => {
     await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
   });
 
-  test('Advanced 항목을 모두 보면 27개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
+  test('Advanced 항목을 모두 보면 29개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
+    await page.addLocatorHandler(page.locator('[data-tutorial-diagram-ok="true"]:visible').first(), async button => {
+      await button.click();
+    });
     const dialog = await openTutorial(page);
     for (const id of BASIC_IDS) await choose(dialog, id);
     await selectTab(dialog, 'Advanced');

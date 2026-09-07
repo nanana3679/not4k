@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { body, counts, createHarness, down, judgments, point, up } from "./noteJudgmentTestHarness";
 
-describe("RFD 0019 시작과 유지", () => {
+describe("RFD 0020 시작과 유지", () => {
   it("NJ-A01: 900/920 앞 바디를 처리해도 독립 holdOnly 1000/1060은 별도 down으로 시작", () => {
     const h = createHarness([body(900, 920), body(1000, 1060, "long", true)]);
     h.at(900, down("A"));
@@ -87,7 +87,7 @@ describe("RFD 0019 시작과 유지", () => {
   });
 });
 
-describe("RFD 0019 실패 경로와 길이 0", () => {
+describe("RFD 0020 실패 경로와 길이 0", () => {
   it("NJ-F01: 가운데 바디가 1090에 실패하면 늦은 B head가 2000 double을 시작하지 못하고 C/D로 복구", () => {
     const h = createHarness([point(1000, "double"), body(1000, 1060, "doubleLong"), body(1060, 2000), body(2000, 3000, "doubleLong")]);
     h.at(1000, down("A"));
@@ -154,7 +154,7 @@ describe("RFD 0019 실패 경로와 길이 0", () => {
   });
 });
 
-describe("RFD 0019 실제 입력에서 점수와 현재 콤보까지", () => {
+describe("RFD 0020 실제 입력에서 점수와 현재 콤보까지", () => {
   it("NJ-S01: 연결 바디를 500에 놓치고 두 head와 마지막 release를 Perfect 처리하면 9/9이며 Full Combo 아님", () => {
     const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 2000)]);
     h.at(0, down("A"));

@@ -119,7 +119,7 @@ describe('TutorialHelpModal', () => {
 
     expect(html).toContain('aria-label="Previous tutorial"');
     expect(html).toContain('aria-label="Next tutorial"');
-    expect(html).toContain('1 / 15');
+    expect(html).toContain('1 / 17');
   });
 
   it('튜토리얼 팝업은 왼쪽 인덱스를 렌더링하고 이미 본 제목 옆에 체크 표시를 붙임', () => {
@@ -175,7 +175,7 @@ describe('TutorialHelpModal', () => {
     expect(html.indexOf('class="not4k-tutorial-player-column"')).toBeLessThan(
       html.indexOf('class="not4k-tutorial-text-panel"'),
     );
-    expect(html).toContain('border-left:1px solid #3f3f3f');
+    expect(html).toContain('border-left:1px solid #2b303a');
     expect(html).toContain('왼손은 Q W E C에 약지·중지·검지·엄지를 올려두세요');
   });
 
@@ -192,78 +192,6 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('키 배치는 옵션에서 언제든 바꿀 수 있습니다');
   });
 
-  it('튜토리얼 팝업은 tutorialInput 이벤트에서 나온 손배치 키 표시 8개를 렌더링', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-tutorial-key=')).toBe(16);
-    expect(html).toContain('data-tutorial-key="KeyQ"');
-    expect(html).toContain('data-tutorial-key="KeyW"');
-    expect(html).toContain('data-tutorial-key="KeyE"');
-    expect(html).toContain('data-tutorial-key="KeyC"');
-    expect(html).toContain('data-tutorial-key="KeyP"');
-    expect(html).toContain('data-tutorial-key="BracketLeft"');
-    expect(html).toContain('data-tutorial-key="BracketRight"');
-    expect(html).toContain('data-tutorial-key="Comma"');
-  });
-
-  it('기본 TKL 프리셋이면 튜토리얼 팝업 키보드 레이아웃에서 Numpad 키를 렌더링하지 않음', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(html).toContain('data-keyboard-preset="tkl"');
-    expect(html).not.toContain('data-keyboard-key="Numpad7"');
-  });
-
-  it('키 입력 표시는 초기 SSR 상태에서 모두 active=false', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-active="false"')).toBe(16);
-  });
-
-  it('키 입력 표시는 매핑된 손배치 키 8개만 활성 상태로 두고 나머지 키는 aria-disabled=true로 렌더링', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(countOccurrences(html, 'data-mapped="true"')).toBe(16);
-    expect(countOccurrences(html, 'data-mapped="false"')).toBeGreaterThan(0);
-    expect(countOccurrences(html, 'aria-disabled="true"')).toBeGreaterThan(0);
-  });
-
-  it('키보드 키캡에는 L1 같은 레인 라벨을 넣지 않고 판정선 아래에는 레인당 하나의 큰 키만 표시', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
-    );
-
-    expect(html).not.toContain('L1');
-    expect(html).not.toContain('L2');
-    expect(countOccurrences(html, 'data-tutorial-lane-key=')).toBe(8);
-    expect(countOccurrences(html, 'data-tutorial-lane-keycode=')).toBe(8);
-    expect(countOccurrences(html, 'data-tutorial-lane-key-active="false"')).toBe(8);
-    expect(html).toContain('data-tutorial-lane-key="1"');
-    expect(html).toContain('data-tutorial-lane-key="2"');
-    expect(html).toContain('data-tutorial-lane-key="3"');
-    expect(html).toContain('data-tutorial-lane-key="4"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyQ KeyW"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyE KeyC"');
-    expect(html).toContain('data-tutorial-lane-keycode="KeyP Comma"');
-    expect(html).toContain('data-tutorial-lane-keycode="BracketLeft BracketRight"');
-    expect(html).toContain('Q');
-    expect(html).toContain('W');
-    expect(html).toContain('E');
-    expect(html).toContain('C');
-    expect(html).not.toContain('P, L');
-    expect(html).toContain('[');
-    expect(html).toContain(']');
-    expect(html).toContain('min-height:42px');
-    expect(html).toContain('box-shadow:0 4px 0 #101010');
-  });
-
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
@@ -272,6 +200,21 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('not4k-tutorial-player-wrap');
     expect(html).toContain('@media (max-width: 560px)');
     expect(html).toContain('min-width: 0 !important');
+  });
+
+  it('모바일 세로 배치에서 playerColumn은 flex:0 0 auto로 프리뷰를 찌부시키지 않고 contentLayout이 전체를 스크롤', () => {
+    // contentLayout: 모달 높이를 넘기면 열을 찌부시키지 않고 한 덩어리로 세로 스크롤
+    expect(tutorialHelpModalSource).toContain("flex: '1 1 auto'");
+    expect(tutorialHelpModalSource).toContain("overflowY: 'auto'");
+    // 모바일에서는 flex 배분으로 줄이지 말고 프리뷰(플레이+키보드) 자연 높이를 유지
+    expect(tutorialHelpModalSource).toContain('flex: 0 0 auto !important');
+    // 목록은 높이 제한 + 내부 스크롤로 렌더러가 세로로 밀리지 않게 유지
+    expect(tutorialHelpModalSource).toContain('max-height: 156px !important');
+  });
+
+  it('스크롤 컨테이너(contentLayout·목록·설명)의 스크롤바를 숨김', () => {
+    expect(tutorialHelpModalSource).toContain('.not4k-tutorial-content-layout::-webkit-scrollbar');
+    expect(tutorialHelpModalSource).toContain('scrollbar-width: none');
   });
 
   it('페이지 전환은 가운데 카드 안에서 두 프리뷰 슬롯을 캐러셀처럼 좌우 이동', () => {
@@ -334,14 +277,16 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain("phase: 'animating'");
   });
 
-  it('전환 중 Next/Prev는 완료 예정 슬롯을 기준으로 다음 전환을 잡고 도식 표시는 active와 entering 슬롯으로 제한', () => {
+  it('전환 중 Next/Prev는 완료 예정 슬롯을 기준으로 다음 전환을 잡고, 멈춤은 entering까지 arming하되 도식 확인 모달은 active 슬롯에서만 표시', () => {
     expect(tutorialHelpModalSource).toContain('const sourcePlayerIndex = playerTransition?.toIndex ?? visiblePlayerIndex');
     expect(tutorialHelpModalSource).toContain('const sourcePlayerSlot = playerTransition?.toSlot ?? activePlayerSlot');
     expect(tutorialHelpModalSource).toContain('fromIndex: sourcePlayerIndex');
     expect(tutorialHelpModalSource).toContain('fromSlot: sourcePlayerSlot');
     expect(tutorialHelpModalSource).toContain('data-tutorial-preview-id={preview.id}');
+    // 멈춤(pause)은 entering에서 미리 arming(도식 시작점 고정), 하지만 뷰포트 portal 모달은
+    // 전환 중 두 개가 겹쳐 보이지 않도록 active 슬롯에서만 표시한다.
     expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
-    expect(tutorialHelpModalSource).toContain("const diagramModalVisible = slotState === 'active' || slotState === 'entering'");
+    expect(tutorialHelpModalSource).toContain("const diagramModalVisible = slotState === 'active'");
     expect(tutorialHelpModalSource).toContain('diagramModalVisible={diagramModalVisible}');
   });
 

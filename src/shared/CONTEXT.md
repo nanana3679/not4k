@@ -53,6 +53,10 @@ _Avoid_: 포인트 노트
 트릴 노트가 등장할 수 있는 차트 영역으로, 시작 박과 끝 박을 가지며 자체 입력은 요구하지 않는다. 차트의 1급 구조로 저장된다. 풀 정의는 glossary의 `trillZone` 항목을 따른다.
 _Avoid_: 트릴존, 트릴 노트
 
+**`restZone`**:
+그 레인이 해당 구간 동안 안 쓰임을 나타내는 레인별 저작 구간(`{ lane, beat, endBeat }`)으로, `trillZone`처럼 차트의 1급 구조로 저장된다. 시각 dim + 에디터 배치 제약만 하고 판정에는 개입하지 않는다. 풀 정의는 glossary의 `restZone` 항목과 [RFD 0019](../../docs/rfd/0019-rest-zone-lane-guidance.md)를 따른다.
+_Avoid_: 휴지존, 비활성 레인
+
 **차트 에셋**:
 저장되거나 배포되는 차트 본문과 제작 보조 정보를 묶은 산출물이다.
 _Avoid_: 곡 에셋
@@ -60,6 +64,10 @@ _Avoid_: 곡 에셋
 **제작 보조 정보**:
 게임 플레이에는 쓰이지 않지만 차트 편집을 이어가기 위해 저장되는 정보이다.
 _Avoid_: 플레이 데이터
+
+**`ChartTiming`**:
+차트 하나에서 파생되는 시간 뷰. 노트 시작/끝 ms, `trillZone` 시작 ms, 마디 시작 ms, 판정 수 집계를 소유하며 beat→ms 파생은 항상 이 뷰를 통해 읽는다. 풀 정의는 glossary의 `ChartTiming` 항목을 따른다.
+_Avoid_: 노트 타임맵, 시간 맵
 
 ## Relationships
 
@@ -76,6 +84,7 @@ _Avoid_: 플레이 데이터
 - 양수 길이 바디 끝과 별도 길이 0 롱노트를 같은 시각에 배치하지 않는다. 같은 unit 수로 이어지는 경계에는 head 또는 `holdOnly`가 필요하다. 풀 정의는 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트), 배치 대조는 [사례 NJ-C01~C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다. validator의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 - **차트 에셋**은 게임에서 소비되고 에디터에서 생성된다.
 - **제작 보조 정보**는 에디터를 위한 정보이며 플레이 세션에는 등장하지 않는다.
+- Gameplay는 **`ChartTiming`**을 통해 차트의 시간 파생을 읽는다.
 
 ## Example dialogue
 

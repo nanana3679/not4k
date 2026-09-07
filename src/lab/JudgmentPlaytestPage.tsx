@@ -1,5 +1,5 @@
 /**
- * 판정 실플레이 lab 페이지 (DEV 전용) — RFD 0019 채택 사례의 수동 검증.
+ * 판정 실플레이 lab 페이지 (DEV 전용) — RFD 0020 채택 사례의 수동 검증.
  *
  * Supabase·오디오 파일 없이, 스크립트 차트 + 합성 메트로놈 클릭트랙을 게임 스토어에 주입하고
  * 에디터 테스트플레이와 동일한 경로(performPlayTest)로 PlayScreen을 띄운다.
@@ -107,10 +107,11 @@ export default function JudgmentPlaytestPage() {
   };
 
   return (
+
     <main className="judgment-playtest-page">
       <div className="judgment-playtest-content">
         <header>
-          <p className="judgment-playtest-eyebrow">DEV LAB · RFD 0019</p>
+          <p className="judgment-playtest-eyebrow">DEV LAB · RFD 0020</p>
           <h1>판정 실플레이</h1>
           <p>사례를 고르고 직접 눌러 확인해 보세요. 실제 플레이 화면에서 메트로놈과 함께 재생합니다.</p>
         </header>
@@ -121,6 +122,7 @@ export default function JudgmentPlaytestPage() {
             {settings.keyBindings.lane1.map((key, index) => (
               <span key={key}>{String.fromCharCode(65 + index)} = <kbd>{getTutorialKeyboardLabel(key)}</kbd></span>
             ))}
+
           </div>
           <p>A/B/C/D는 서로 다른 키의 별칭입니다. 위에 표시된 실제 키를 사용하세요.</p>
           <p>120 BPM · 1박 = 500ms · 첫 노트 2000ms. 시각은 차트 기준이며, 예시 결과는 Normal · 1배속 기준입니다.</p>

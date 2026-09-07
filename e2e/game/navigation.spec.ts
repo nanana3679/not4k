@@ -71,7 +71,7 @@ test.describe('Game Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   });
 
-  test('settings and back navigation', async ({ page }) => {
+  test('settings modal opens over song select and closes back to it', async ({ page }) => {
     await page.goto('/game');
     await page.evaluate(
       (s) => localStorage.setItem('not4k-settings', s),
@@ -82,12 +82,35 @@ test.describe('Game Navigation', () => {
     await page.getByRole('button', { name: 'Start' }).click();
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
 
-    // Go to Settings
+    // 설정은 곡 선택 위에 모달로 뜬다 (화면 전환이 아님 → Song Select가 뒤에 남아 있다)
     await page.getByRole('button', { name: 'Settings' }).click();
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
 
-    // Go back
-    await page.getByRole('button', { name: 'Back' }).click();
+    // Close 버튼으로 닫으면 모달만 사라지고 곡 선택으로 돌아온다
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+  });
+
+  test('escape closes the settings modal instead of exiting to title', async ({ page }) => {
+    await page.goto('/game');
+    await page.evaluate(
+      (s) => localStorage.setItem('not4k-settings', s),
+      NON_FIRST_LAUNCH_SETTINGS
+    );
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Settings' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    await expect(dialog).toBeVisible();
+
+    // 모달 열린 상태의 Escape는 모달만 닫아야 한다. 뒤의 곡 선택 keydown으로 새어
+    // 타이틀로 이탈하면 회귀(HIGH-1).
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
 # 노트 판정 사례 명세
 
-[RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
+[RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다.
 
@@ -309,7 +309,7 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 | B down 1050 | 중간 single head Great(+50), 새 누름에 release 권한 부여. 먼저 발생한 A up을 연결에 배정하고 B up 1040은 끝 1100의 첫 실제 release Great(-60)로 확정 |
 | B up 1100 | 새 head로 얻은 권한으로 둘째 실제 release Perfect. B의 이전 누름이 같은 끝을 처리했다는 이유로 차단하지 않음 |
 
-전체 점수 항목은 Perfect 3개, Great 2개이며 Miss는 없다. B의 두 up은 유효한 새 head를 사이에 둔 별개의 누름이다. B up을 먼저 보정하거나 A up을 terminal로 재배정하지 않는다. [RFD 0019 §2.8](../rfd/0019-note-judgment-units-and-inheritance.md#28-유효한-새-입력에-따른-release-권한-갱신--후속-채택)의 사용자 채택에 따라 종전의 마지막 실패 기대값을 정정했다.
+전체 점수 항목은 Perfect 3개, Great 2개이며 Miss는 없다. B의 두 up은 유효한 새 head를 사이에 둔 별개의 누름이다. B up을 먼저 보정하거나 A up을 terminal로 재배정하지 않는다. [RFD 0020 §2.8](../rfd/0020-note-judgment-units-and-inheritance.md#28-유효한-새-입력에-따른-release-권한-갱신--후속-채택)의 사용자 채택에 따라 종전의 마지막 실패 기대값을 정정했다.
 
 <a id="nj-r14"></a>
 ### NJ-R14 — 동시 A/B 1040ms up의 내부 배정과 관계없이 새 B head 뒤 마지막 release Perfect

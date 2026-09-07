@@ -15,6 +15,7 @@ import {
   COLORS,
 } from "./constants";
 import { destroyChildren } from "./utils";
+import { eventLaneToX } from "./laneGeometry";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
@@ -23,6 +24,7 @@ export interface GridHost {
   readonly snap: number;
   readonly extraLaneCount: number;
   readonly selectedTrillZones: ReadonlySet<number>;
+  readonly selectedRestZones: ReadonlySet<number>;
   readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
@@ -41,6 +43,7 @@ export interface GridHost {
   readonly beatLines: Container;
   readonly snapLines: Container;
   readonly trillZoneLayer: Container;
+  readonly restZoneLayer: Container;
   readonly measureLabels: Container;
 }
 
@@ -251,14 +254,12 @@ export class GridRenderer {
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { events, meta } = chart;
-    const eventRenderBaseX = TIMELINE_WIDTH; // start of extra lanes
     const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      const col = (evt.editorLane ?? 1) - 1; // 1-based → 0-based
-      const eventRenderX = eventRenderBaseX + col * EXTRA_LANE_WIDTH;
+      const eventRenderX = eventLaneToX(evt.editorLane ?? 1);
 
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
       const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : startMs;
@@ -366,6 +367,49 @@ export class GridRenderer {
 
       // 이동/리사이즈 핸들은 hover 시에만 hoverLayer(OverlayRenderer)에 그린다.
       // 구간 배경(bg)만 항상 렌더링한다.
+    }
+  }
+
+  /**
+   * restZone 렌더링 (RFD 0019) — trillZone 밴드 미러.
+   * 유닛으로 선택된 restZone은 trillZone과 같은 선택 강조 테두리(SELECTED_OUTLINE)를 그린다.
+   */
+  renderRestZones(): void {
+    const chart = this.host.chart;
+    if (!chart) return;
+
+    const restZones = chart.restZones ?? [];
+    const { meta } = chart;
+    const bpmMarkers = this.host.cachedBpmMarkers;
+    const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
+
+    for (let i = 0; i < restZones.length; i++) {
+      const zone = restZones[i];
+      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+
+      const lo = Math.min(startMs, endMs);
+      const hi = Math.max(startMs, endMs);
+      if (hi < minTimeMs || lo > maxTimeMs) continue;
+      const startY = this.host.timeToY(startMs);
+      const endY = this.host.timeToY(endMs);
+
+      const x = (zone.lane - 1) * LANE_WIDTH;
+      const width = LANE_WIDTH;
+      const topY = Math.min(startY, endY);
+      const rawHeight = Math.abs(endY - startY);
+      const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
+      const adjustedTopY = rawHeight > 0 ? topY : topY - NOTE_HEIGHT / 2;
+
+      const bg = new Graphics();
+      bg.rect(x, adjustedTopY, width, height);
+      bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      // 유닛으로 선택된 restZone은 선택 강조 테두리를 그린다 (renderTrillZones 미러)
+      if (this.host.selectedRestZones.has(i)) {
+        bg.rect(x, adjustedTopY, width, height);
+        bg.stroke({ color: COLORS.SELECTED_OUTLINE, width: 2 });
+      }
+      this.host.restZoneLayer.addChild(bg);
     }
   }
 }

@@ -11,6 +11,7 @@ import {
 import type { ToastType } from '../../../shared/toast';
 import { PreviewRangeSelector } from '../../../editor/components/PreviewRangeSelector';
 import type { PreviewRangeState } from '../../../editor/components/PreviewRangeSelector';
+import { font, color, surface, radius } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
 import { generateSongId } from './helpers';
 
@@ -20,7 +21,9 @@ const filePickerStyles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '6px',
     marginBottom: '12px',
+    fontFamily: font.display,
     fontSize: '13px',
+    color: color.inkDim,
   },
   control: {
     display: 'flex',
@@ -28,9 +31,9 @@ const filePickerStyles: Record<string, React.CSSProperties> = {
     gap: '8px',
     minHeight: '44px',
     padding: '6px',
-    backgroundColor: '#1a1a1a',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    background: surface.button,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
   },
   chooseButton: {
     display: 'inline-flex',
@@ -38,11 +41,12 @@ const filePickerStyles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     minHeight: '32px',
     padding: '0 12px',
-    backgroundColor: '#3a3a3a',
-    color: '#e0e0e0',
-    border: '1px solid #666',
-    borderRadius: '4px',
+    background: surface.button,
+    color: color.ink,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
+    fontFamily: font.display,
     fontSize: '13px',
     fontWeight: 600,
     whiteSpace: 'nowrap',
@@ -50,22 +54,24 @@ const filePickerStyles: Record<string, React.CSSProperties> = {
   fileName: {
     minWidth: 0,
     flex: 1,
-    color: '#aaa',
+    color: color.inkDim,
+    fontFamily: font.body,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   fileNameSelected: {
-    color: '#e0e0e0',
+    color: color.ink,
   },
   clearButton: {
     minHeight: '32px',
     padding: '0 10px',
     backgroundColor: 'transparent',
-    color: '#aaa',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    color: color.inkDim,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
+    fontFamily: font.display,
     fontSize: '12px',
   },
   hiddenInput: {
@@ -307,13 +313,13 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
         />
 
         {decodingAudio && (
-          <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: color.inkDim, marginBottom: '12px' }}>
             오디오 디코딩 중...
           </div>
         )}
 
         {audioBuffer && !decodingAudio && (
-          <div style={{ fontSize: '13px', color: '#aaa', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: color.inkDim, marginBottom: '12px' }}>
             Length: {Math.floor(audioBuffer.duration / 60)}:{String(Math.floor(audioBuffer.duration % 60)).padStart(2, '0')}
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useGameStore } from '../../stores';
+import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
@@ -338,6 +339,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
         <header style={tutorialHelpStyles.header}>
           <div>
             <h2 id="tutorial-help-title" style={tutorialHelpStyles.title}>
+              <span style={{ ...primitives.titleAccent }} aria-hidden="true" />
               Tutorial
             </h2>
             <p style={tutorialHelpStyles.subtitle}>{currentTutorial.title}</p>
@@ -473,9 +475,12 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
               <div
                 className="not4k-tutorial-player-placeholder"
                 data-tutorial-player-placeholder="true"
-                aria-hidden="true"
+                role="status"
+                aria-label="Loading preview"
                 style={tutorialHelpStyles.playerPlaceholder}
-              />
+              >
+                <span className="not4k-tutorial-placeholder-spinner" />
+              </div>
               <TutorialPreviewTransitionStage
                 activePlayerSlot={activePlayerSlot}
                 previewSlotIndexes={previewSlotIndexes}
@@ -642,8 +647,12 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
+  // 멈춤(pause)은 entering에서 미리 arming해 도식 시작점에 프레임을 고정한다.
   const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
-  const diagramModalVisible = slotState === 'active' || slotState === 'entering';
+  // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
+  // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
+  // 동시에 두 개가 뜨지 않게 한다.
+  const diagramModalVisible = slotState === 'active';
 
   return (
     <div
@@ -786,6 +795,38 @@ const tutorialHelpCss = `
   opacity: 1;
 }
 
+.not4k-tutorial-index,
+.not4k-tutorial-content-layout,
+.not4k-tutorial-player-column,
+.not4k-tutorial-text-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.not4k-tutorial-index::-webkit-scrollbar,
+.not4k-tutorial-content-layout::-webkit-scrollbar,
+.not4k-tutorial-player-column::-webkit-scrollbar,
+.not4k-tutorial-text-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.not4k-tutorial-placeholder-spinner {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid rgba(157, 238, 244, 0.28);
+  border-top-color: #9deef4;
+  box-shadow: 0 0 12px rgba(77, 220, 236, 0.55);
+  animation: not4k-tutorial-placeholder-spin 0.8s linear infinite;
+}
+
+@keyframes not4k-tutorial-placeholder-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .not4k-tutorial-carousel-track {
   display: flex;
   width: 100%;
@@ -857,6 +898,9 @@ const tutorialHelpCss = `
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+  .not4k-tutorial-placeholder-spinner {
+    animation: none !important;
+  }
 }
 
 @media (max-width: 900px) {
@@ -871,15 +915,25 @@ const tutorialHelpCss = `
 
   .not4k-tutorial-index {
     width: auto !important;
+    /* 목록은 높이를 제한하고 그 안에서만 스크롤(스크롤바는 숨김). 렌더러가 세로로 밀리지 않게 한다.
+       렌더러·설명 드래그는 바깥 contentLayout이 스크롤한다. */
     max-height: 156px !important;
+    overflow-y: auto !important;
     padding-right: 0 !important;
     padding-bottom: 8px !important;
     border-right: 0 !important;
-    border-bottom: 1px solid #3f3f3f !important;
+    border-bottom: 1px solid ${color.line} !important;
   }
 
   .not4k-tutorial-index-item {
     min-height: 32px !important;
+  }
+
+  .not4k-tutorial-player-column {
+    /* 세로 배치에서는 flex 배분으로 찌부시키지 말고 프리뷰(플레이+키보드) 자연 높이를 유지.
+       넘치는 만큼은 바깥 contentLayout이 스크롤한다. */
+    flex: 0 0 auto !important;
+    overflow: visible !important;
   }
 
   .not4k-tutorial-text-panel {
@@ -887,7 +941,7 @@ const tutorialHelpCss = `
     padding-left: 0 !important;
     padding-top: 12px !important;
     border-left: 0 !important;
-    border-top: 1px solid #3f3f3f !important;
+    border-top: 1px solid ${color.line} !important;
   }
 }
 
@@ -918,12 +972,12 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: '18px',
     padding: '20px',
-    color: '#e8e8e8',
-    backgroundColor: '#262626',
-    border: '1px solid #555',
-    borderRadius: '8px',
+    color: color.ink,
+    background: surface.panel,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
     boxShadow: '0 22px 64px rgba(0, 0, 0, 0.48)',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: font.body,
   },
   header: {
     display: 'flex',
@@ -958,13 +1012,18 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    fontFamily: font.display,
     fontSize: '18px',
     lineHeight: 1.2,
     fontWeight: 700,
+    letterSpacing: '0.04em',
   },
   subtitle: {
     margin: '6px 0 0',
-    color: '#9c9c9c',
+    color: color.inkDim,
     fontSize: '12px',
     lineHeight: 1.35,
   },
@@ -982,50 +1041,46 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#e0e0e0',
-    backgroundColor: '#363636',
-    border: '1px solid #5a5a5a',
-    borderRadius: '6px',
+    color: color.ink,
+    background: surface.button,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
+    fontFamily: font.display,
     fontSize: '16px',
     fontWeight: 700,
     lineHeight: 1,
   },
   pageIndicator: {
     minWidth: '42px',
-    color: '#b7b7b7',
-    fontSize: '12px',
+    color: color.inkDim,
+    fontFamily: font.numeric,
+    fontSize: '13px',
     fontWeight: 700,
     textAlign: 'center',
     lineHeight: 1,
   },
   closeButton: {
+    ...primitives.ghostButton,
     minWidth: '72px',
     minHeight: '32px',
     padding: '0 14px',
     flexShrink: 0,
-    color: '#e0e0e0',
-    backgroundColor: '#363636',
-    border: '1px solid #5a5a5a',
-    borderRadius: '6px',
-    cursor: 'pointer',
     fontSize: '13px',
-    fontWeight: 600,
   },
   resetCacheButton: {
+    ...primitives.neonButton,
     minWidth: '104px',
     minHeight: '32px',
     padding: '0 12px',
     flexShrink: 0,
-    color: '#b9f4f8',
-    backgroundColor: '#24383b',
-    border: '1px solid #4d8e96',
-    borderRadius: '6px',
-    cursor: 'pointer',
     fontSize: '12px',
     fontWeight: 700,
   },
   contentLayout: {
+    // 목록+렌더러+내용을 한 덩어리로 감싸 세로 스크롤 — 모바일에서 최소 높이 프리뷰가
+    // 모달 높이를 넘겨도 각 열을 눌러 찌부시키지 않고 전체가 스크롤된다.
+    flex: '1 1 auto',
     minHeight: 0,
     overflowY: 'auto',
     display: 'flex',
@@ -1041,7 +1096,7 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     gap: '6px',
     overflowY: 'auto',
-    borderRight: '1px solid #3f3f3f',
+    borderRight: `1px solid ${color.line}`,
   },
   indexButton: {
     width: '100%',
@@ -1050,26 +1105,28 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: '7px',
     padding: '7px 8px',
-    color: '#cfcfcf',
-    backgroundColor: '#303030',
-    border: '1px solid #454545',
-    borderRadius: '6px',
+    color: color.ink,
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.sm,
     cursor: 'pointer',
     boxSizing: 'border-box',
+    fontFamily: font.body,
     fontSize: '12px',
     lineHeight: 1.2,
     textAlign: 'left',
   },
   indexButtonCurrent: {
     color: '#f2f7f7',
-    backgroundColor: '#3a4345',
-    border: '1px solid #6b8d92',
-    boxShadow: 'inset 3px 0 0 #7bdff2',
+    background: surface.cardFocused,
+    border: `1px solid ${color.neon}`,
+    boxShadow: `inset 3px 0 0 ${color.neon}`,
   },
   indexNumber: {
     width: '18px',
     flexShrink: 0,
-    color: '#8f989b',
+    color: color.inkDim,
+    fontFamily: font.numeric,
     fontSize: '11px',
     fontWeight: 800,
     lineHeight: 1,
@@ -1096,6 +1153,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    // 데스크톱(가로 배치): 열 안에서 자체 스크롤. 모바일(세로 배치)에서는 media query가
+    // flex:0 0 auto로 바꿔 프리뷰를 찌부시키지 않고 바깥 contentLayout이 전체를 스크롤한다.
     overflowY: 'auto',
     alignItems: 'center',
   },
@@ -1106,9 +1165,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     padding: '12px',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    backgroundColor: '#1f2324',
-    border: '1px solid #444d50',
-    borderRadius: '8px',
+    background: surface.card,
+    border: `1px solid ${color.line}`,
+    borderRadius: radius.md,
   },
   playerPlaceholder: {
     position: 'absolute',
@@ -1117,6 +1176,9 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     backgroundColor: '#141616',
     backgroundImage: 'linear-gradient(90deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025))',
     pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playerStage: {
     position: 'relative',
@@ -1141,7 +1203,7 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     paddingLeft: '14px',
     flexShrink: 0,
     overflowY: 'auto',
-    borderLeft: '1px solid #3f3f3f',
+    borderLeft: `1px solid ${color.line}`,
   },
   body: {
     display: 'flex',
@@ -1151,7 +1213,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
   },
   bodyLine: {
     margin: 0,
-    color: '#d4d4d4',
+    color: color.ink,
+    fontFamily: font.body,
     fontSize: '14px',
     lineHeight: 1.45,
     wordBreak: 'keep-all',

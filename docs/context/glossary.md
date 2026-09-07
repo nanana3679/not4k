@@ -134,11 +134,15 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 `trillZone` 안에서 직전 입력과 다른 키를 눌러야 하는 노트. 2개 이상의 키 바인딩이 필요하다. 트릴 노트는 롱노트일 수 있다 (트릴 롱노트). 표기: `t`, 트릴 롱노트 바디: `t-`
 
-교대 세트에는 head를 소비한 키만 등록한다. 바디 유지·승계나 release만 처리한 키는 등록하지 않는다. head 확정으로 세트를 갱신하고 head Miss로 이전 세트를 비우며, 추적 구간은 해당 노트의 차트상 `trillZone`을 따른다. 같은 timestamp의 복수 적격 입력은 최고 등급 입력 선택과 교대 한 번 인정 규칙을 적용하고 나머지 적격 head는 `goodTrill`로 처리한다. `goodTrill`은 head에만 적용하며 바디는 독립 판정한다. 기존 채택 규칙의 이행 범위는 [RFD 0019 §2.11](../rfd/0019-note-judgment-units-and-inheritance.md#211-함께-적용할-point트릴의-기존-채택-규칙)을 따른다.
+교대 세트에는 head를 소비한 키만 등록한다. 바디 유지·승계나 release만 처리한 키는 등록하지 않는다. head 확정으로 세트를 갱신하고 head Miss로 이전 세트를 비우며, 추적 구간은 해당 노트의 차트상 `trillZone`을 따른다. 같은 timestamp의 복수 적격 입력은 최고 등급 입력 선택과 교대 한 번 인정 규칙을 적용하고 나머지 적격 head는 `goodTrill`로 처리한다. `goodTrill`은 head에만 적용하며 바디는 독립 판정한다. 기존 채택 규칙의 이행 범위는 [RFD 0020 §2.11](../rfd/0020-note-judgment-units-and-inheritance.md#211-함께-적용할-point트릴의-기존-채택-규칙)을 따른다.
 
 ### `trillZone` (구 표기: 트릴 구간)
 
 트릴 노트가 등장할 수 있는 시각적 영역. `trillZone` 자체는 입력을 요구하지 않으며, 예고·시각적 구분·긴장도 유지의 역할을 한다. 구간 내 빈 틱에서의 입력은 구간 밖의 빈 틱과 동일하게 동작한다 — `trillZone`이 있든 없든 결과가 같다. 표기: `{` (시작) / `}` (종료) / `~` (구간 내 빈 틱)
+
+### `restZone` (구 표기: 휴지 구간)
+
+차트 제작자가 배치하는 **레인별 저작 구간** `{ lane, beat, endBeat }`으로, 그 레인이 해당 구간 동안 안 쓰임을 나타낸다. `trillZone`의 형제(레인+박 범위 저작 구간)다. 목적은 가변 손배치에서 제작자가 의도한 **손 파킹 창**을 표면화해, 유저가 "이 레인은 당분간 안 쓰니 손을 옮겨도 되겠다"로 읽게 하는 것이다. 기능은 **오직 둘**이다: (1) 게임·에디터에서 그 레인 구간을 어둡게 dim하는 **시각 효과**, (2) 그 레인·구간에 노트나 `trillZone`이 오면 **의미 위반**으로 다루는 **배치 제약**(`trillZone`은 트릴 노트 등장의 암시라 "레인 안 씀"과 모순 → `restZone` 안에 존재 불가). 배치 제약은 RFD 0017 낙관적 편집을 따라 편집 중 transient 허용 + 저장·플레이 게이트에서 차단한다(structural 하드 거부 아님). **런타임 입력·판정·기록·랭킹·실패 조건에는 일절 개입하지 않는다.** 배경·대안·결정은 [RFD 0019](../rfd/0019-rest-zone-lane-guidance.md)를 따른다.
 
 ### 더블 노트 (Double Note)
 
@@ -154,7 +158,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### `holdOnly` (구 표기: 유지 전용 롱노트)
 
-롱노트 끝점의 **떼는 판정 면제 속성**. 양수 길이는 자기 바디가 정당하게 활성화되고 등록된 키로 유지되어야 하며, 끝에서 실제 release 대신 Perfect/Miss 상태 판정을 한다. 현재 결정은 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md), 구체적 입력은 [판정 사례 명세](../spec/note-judgment-cases.md#nj-h01)를 따른다.
+롱노트 끝점의 **떼는 판정 면제 속성**. 양수 길이는 자기 바디가 정당하게 활성화되고 등록된 키로 유지되어야 하며, 끝에서 실제 release 대신 Perfect/Miss 상태 판정을 한다. 현재 결정은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md), 구체적 입력은 [판정 사례 명세](../spec/note-judgment-cases.md#nj-h01)를 따른다.
 
 - **양수 길이의 시작**: 자기 head·시작 입력 또는 정당한 승계가 필요하다. 기존 raw held나 다른 독립 노트가 소비한 down으로 자동 시작하지 않는다. head 없는 자기 시작은 down을 소비하되 시작 점수는 없다.
 - **유지·완료**: 등록된 유지 키로 E까지 유지하면 Perfect. 유효한 이른 완료는 E−Good부터 가능하며, S+Good까지의 늦은 첫 활성화도 허용한다. 이미 활성화했다가 실패한 바디는 복구하지 않는다. FAST/SLOW는 집계하지 않는다.
@@ -220,6 +224,10 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 ### 차트 (Chart)
 
 한 곡에 대한 노트 배치 데이터 전체. 곡 하나에 난이도별로 복수의 차트가 존재할 수 있다. "이 곡의 Lv.8 차트"처럼 쓴다. "채보"는 리듬게임 커뮤니티에서 통용되는 동의어이다.
+
+### `ChartTiming`
+
+차트 하나에서 파생되는 시간 뷰. 노트 시작/끝 ms, `trillZone` 시작 ms, 마디 시작 ms, 판정 수 집계를 소유하는 deep module로, beat→ms 파생은 콜사이트에 인라인하지 않고 항상 이 뷰를 통해 읽는다. (_Avoid_: 노트 타임맵, 시간 맵)
 
 ### 피스 설계 개념
 
@@ -314,7 +322,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 
 ### 롱노트 판정 모델
 
-바디의 활성화·유지·끝 처리와 별개 head 판정으로 구성한다. 현재 채택안은 [RFD 0019](../rfd/0019-note-judgment-units-and-inheritance.md), 특수 사례의 기대 결과는 [판정 사례 명세](../spec/note-judgment-cases.md)를 따른다. 구현 이행 상태는 [PRD](../prd.md#12-미정-사항)에서 확인한다.
+바디의 활성화·유지·끝 처리와 별개 head 판정으로 구성한다. 현재 채택안은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md), 특수 사례의 기대 결과는 [판정 사례 명세](../spec/note-judgment-cases.md)를 따른다. 구현 이행 상태는 [PRD](../prd.md#12-미정-사항)에서 확인한다.
 
 - **unit**: 바디에서 활성화·유지·실패를 추적하는 한 몫이다. single은 1개, double은 2개이다. 고정 물리 owner나 별도 겹친 바디를 뜻하지 않는다.
 - **등록된 유지 키**: 실제 head·시작 입력·정당한 승계로 해당 바디를 유지할 자격을 얻은 held 키이다. 레인의 임의 raw held와 구분한다.
@@ -323,9 +331,9 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 - **활성화**: 양수 길이는 자기 head·시작 입력 또는 정당한 승계로 시작한다. head 없는 시작은 down을 소비하되 시작 점수는 없다. 기한은 S+Good이며 길이가 짧거나 E를 지났어도 유효한 첫 활성화를 허용한다.
 - **head와 unit**: double head + double 바디는 unit별로 시작한다. single head + double 바디는 한 unit이 head를 담당하고 나머지는 별도 시작 또는 승계를 받는다. double head + single 바디는 첫 성공 head로 활성화하며 두 성공 키 모두 등록한다. 건강하게 승계된 바디는 자신의 head Miss와 독립적이다.
 - **유지 실패**: 같은 timestamp의 입력을 모두 반영한 뒤 유효 유지 키가 부족하면 해당 활성 unit이 실패한다. 실제 입력의 인과관계를 보존한다. 실패한 같은 바디는 되살리지 않고 끝점에서 중복 실패시키지 않는다.
-- **동시 입력의 결과 일관성**: 같은 차트의 같은 키·시각 입력은 서로 다른 키의 동시 up을 내부에서 배정한 순서가 달라도 후속 판정 결과가 같아야 한다. 유지 부족 확인뿐 아니라 이후 release 자격과 성공·Miss에도 적용한다. 유효한 새 입력의 권한 갱신은 [RFD 0019 §2.8](../rfd/0019-note-judgment-units-and-inheritance.md#28-유효한-새-입력에-따른-release-권한-갱신--후속-채택), 전체 검산 상태는 [PRD §12](../prd.md#12-미정-사항)를 따른다.
-- **보류 판정과 콤보**: 현재 콤보는 판정 확정 순서로 반영한다. 보류 중인 up은 콤보에 넣지 않고, 확정된 뒤에도 원래 입력 시각으로 소급하지 않는다. 등급과 raw FAST/SLOW는 실제 입력 시각으로 계산한다. 동일 timestamp·phase의 판정 묶음에서는 Miss가 콤보 결과에 우선하며, 입력·기한에 따른 확정 순서를 프레임이나 레인 순회 순서로 바꾸지 않는다. [RFD 0019 §2.9](../rfd/0019-note-judgment-units-and-inheritance.md#29-보류-판정의-콤보는-확정-순서로-반영--후속-채택)를 따른다.
-- **콤보 통계 범위**: 최대 콤보수 통계는 제공하지 않는다. 최대값 갱신 방식은 판정 모델의 제품 요구사항에 포함하지 않는다. 현재 콤보와 Full Combo의 채택 규칙은 그대로 적용한다. [RFD 0019 §2.10](../rfd/0019-note-judgment-units-and-inheritance.md#210-최대-콤보-통계-미제공--후속-채택)을 따른다.
+- **동시 입력의 결과 일관성**: 같은 차트의 같은 키·시각 입력은 서로 다른 키의 동시 up을 내부에서 배정한 순서가 달라도 후속 판정 결과가 같아야 한다. 유지 부족 확인뿐 아니라 이후 release 자격과 성공·Miss에도 적용한다. 유효한 새 입력의 권한 갱신은 [RFD 0020 §2.8](../rfd/0020-note-judgment-units-and-inheritance.md#28-유효한-새-입력에-따른-release-권한-갱신--후속-채택), 전체 검산 상태는 [PRD §12](../prd.md#12-미정-사항)를 따른다.
+- **보류 판정과 콤보**: 현재 콤보는 판정 확정 순서로 반영한다. 보류 중인 up은 콤보에 넣지 않고, 확정된 뒤에도 원래 입력 시각으로 소급하지 않는다. 등급과 raw FAST/SLOW는 실제 입력 시각으로 계산한다. 동일 timestamp·phase의 판정 묶음에서는 Miss가 콤보 결과에 우선하며, 입력·기한에 따른 확정 순서를 프레임이나 레인 순회 순서로 바꾸지 않는다. [RFD 0020 §2.9](../rfd/0020-note-judgment-units-and-inheritance.md#29-보류-판정의-콤보는-확정-순서로-반영--후속-채택)를 따른다.
+- **콤보 통계 범위**: 최대 콤보수 통계는 제공하지 않는다. 최대값 갱신 방식은 판정 모델의 제품 요구사항에 포함하지 않는다. 현재 콤보와 Full Combo의 채택 규칙은 그대로 적용한다. [RFD 0020 §2.10](../rfd/0020-note-judgment-units-and-inheritance.md#210-최대-콤보-통계-미제공--후속-채택)을 따른다.
 - **새 바디와 승계**: head·`holdOnly`·unit 수 변화로 구분되는 다음 바디에는 자기 시작 기회가 있다. 실패한 바디를 건너뛰는 승계는 없다. 부분 실패로 건강한 다른 unit까지 종료하지 않는다.
 
 ### 분할 릴리즈 (Split Release)
@@ -370,7 +378,7 @@ head 없는 실제 미처리 시작은 창 안의 down을 소비한다. 정당�
 
 - **keydown 소비**: 가장 이른 적격 Point 또는 실제로 필요한 시작 하나가 소비한다. double 시작과 double head에는 서로 다른 두 물리 키가 필요하다.
 - **keyup 소비**: 가장 이른 적격 실제 release 하나가 소비한다. 같은 연결 구간의 뒤 시작에 등록된 키도 앞의 준비된 release를 처리할 수 있다.
-- **연결 keyup 보정**: 유효한 head·시작 입력으로 다음 바디를 이어가는 데 쓰인 up은 뒤 실제 release에 소비하지 않는다. 서로 다른 키 교대와 동일 키 재타격에 같은 보정을 적용하며, 보정한 up은 실제 release 사용 이력에 넣지 않는다. 연결과 뒤 release에 모두 해당할 수 있으면 용도가 결정될 때까지 잠정 후보로 두며, 뒤 끝의 이른 등급을 먼저 확정하지 않는다. 마지막 E 이후에도 유효한 연결 입력이 남을 수 있다. 동일 키라는 이유의 추가 연결 Miss는 없다. [RFD 0019 §2.6](../rfd/0019-note-judgment-units-and-inheritance.md#26-교대-keyup과-뒤-release-창이-겹치는-경우--후속-채택)을 따른다.
+- **연결 keyup 보정**: 유효한 head·시작 입력으로 다음 바디를 이어가는 데 쓰인 up은 뒤 실제 release에 소비하지 않는다. 서로 다른 키 교대와 동일 키 재타격에 같은 보정을 적용하며, 보정한 up은 실제 release 사용 이력에 넣지 않는다. 연결과 뒤 release에 모두 해당할 수 있으면 용도가 결정될 때까지 잠정 후보로 두며, 뒤 끝의 이른 등급을 먼저 확정하지 않는다. 마지막 E 이후에도 유효한 연결 입력이 남을 수 있다. 동일 키라는 이유의 추가 연결 Miss는 없다. [RFD 0020 §2.6](../rfd/0020-note-judgment-units-and-inheritance.md#26-교대-keyup과-뒤-release-창이-겹치는-경우--후속-채택)을 따른다.
 - **부분 교대**: double의 한 unit만 교대하면 그 몫의 up에만 보정을 적용한다. 하나의 새 head로 두 교대를 성립시키지 않는다. 다른 unit이 기존 키로 정상 승계됐다면 그 unit의 유효한 up은 실제 release로 판정하며, 별도 head의 Miss만으로 그 바디를 실패시키지 않는다.
 - **연결 보정 후보 순서**: 해당 경계에서 허용하는 몫만큼 적격 보류 up을 발생 순서로 배정한다. 새 head와 같은 키의 up도 후보가 되지만 이를 우선하여 앞 후보를 건너뛰지 않는다. 중간 head 하나에 연결용 up 하나를 배정한 `=o=`의 다음 적격 up은 실제 terminal release로 처리한다. 이후 같은 키의 새 head가 성공하면 새 누름의 권한으로 남은 release를 처리할 수 있으며, 이를 위해 앞 두 up의 배정을 바꾸지 않는다.
 - **교대 실패**: 교대 실패로 다음 unit이 시작·승계되지 못하면, 보류한 up으로 그 unit의 release를 성공 처리하지 않는다. 종속 끝점은 0점과 원래 가중치를 반영하고 끝에서 추가 Miss 패널티를 주지 않는다. head만 Miss이고 기존 키로 바디가 정상 승계된 경우에는 실제 release가 남는다.
@@ -521,6 +529,16 @@ press는 `AutoEvent` 안에서만 생성하고, 구간에서 시작한 누름의
 
 차트 편집기의 포인터 입력을 제스처로 인식하고 편집 의도로 라우팅하는 계층. raw 입력(입력층)과 도메인 판정(히트 테스트·스냅, 도메인층)을 2층으로 분리한다.
 
+### Extra 노트
+
+별도 엔티티가 아니라 `chart.notes`에서 `lane >= 5`인 노트. 메인 레인(`lane` 1..4) 노트와 같은 모델·인덱스 공간을 쓰되 게임 판정에서는 제외되고 에디터의 보조 영역에만 표시된다. 선택·이동·삭제·복사·검증은 메인 노트와 같은 경로를 사용한다. 상세 결정은 [RFD 0018](../rfd/0018-unified-lane-model.md)을 따른다.
+
+### `laneAxis`
+
+메인/보조 레인 경계 지식을 단독 소유하는 얇은 모듈. `MAIN_LANE_COUNT`와 `isMainLane`/`isAuxLane`이 경계를 정의하고, `mainNotes`/`auxNotes`가 게임 진입·직렬화 경계의 노트를 나누며, `toAuxIndex`/`fromAuxIndex`가 보조 파일 포맷 및 좌표의 1-기반 인덱스를 왕복한다. `isVisibleLane`은 `extraLaneCount`에 따른 표시 범위를, `maxAuxLane`은 로드 병합·자동 확장에 필요한 최대 보조 레인을 계산한다.
+
+**불변식**: `lane > MAIN_LANE_COUNT`를 아는 코드는 `laneAxis`와 직접 소비자(게임 필터·직렬화 분리/병합·규칙 조건·좌표 투영·숨김 경계)뿐이다. 이동·선택·삭제·복사·히스토리·공통 검증은 메인/보조 노트를 구분하지 않는다. 이벤트의 `editorLane`은 별도 배치 공간이므로 `laneAxis` 관할이 아니다. 구현은 `src/shared/chart/laneAxis.ts`, 결정 근거는 [RFD 0018 §3-1](../rfd/0018-unified-lane-model.md#3-1-모델-확정)을 따른다.
+
 ### GestureRecognizer
 
 raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `tick(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
@@ -545,6 +563,12 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
+### `resolveGrab` (grab 우선순위 사다리)
+
+Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 8단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
+
+**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 탭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
+
 ### 차트 변이 게이트 (Chart Mutation Gate)
 
 에디터의 모든 차트 쓰기가 수렴하는 store `setChart`에 내장된 **구조 검증**. 낙관적 편집(RFD 0017)에서 setChart는 **구조 위반**(`validateChartStructural`: 구간 역전 `rangeInverted`·분자 0 박자표 `timeSigNotNatural` 등 malformed/크래시 유발)만 거부하고(차트·히스토리 무변) 토스트로 사유를 알린다. **의미 위반**(겹침·중복·트릴 헤드 등)은 편집 중 **transient로 허용해 커밋**한다 — "일단 옮기고 나중에 고치기". 따라서 **라이브 차트는 더 이상 항상 valid가 아니다**(렌더러·프리뷰·undo가 invalid를 견뎌야 한다).
@@ -561,7 +585,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### 선택 해제 게이트 (Deselect Gate)
 
-**구현**: `src/editor/stores/selectionSlice.ts`의 `setSelection`(정규화 게이트와 같은 자리 — `clearSelection`도 이 관문을 지난다, 거부 시 false 반환). `removed.extraNotes`는 게이트 대상이 아니다(엑스트라 위반은 시각화 전용). 삭제·붙여넣기 취소는 차트 축소 커밋(`setChart`)이 선택을 원자적으로 비워 게이트를 지나지 않는다. **전이 = 확정된 선택 변경**: 박스 드래그의 프레임 재구성은 프리뷰(`setSelectionTransient`)라 전이가 아니며, 드래그 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다. select→move 체인은 커밋이 거부되면 이동을 시작하지 않는다.
+**구현**: `src/editor/stores/selectionSlice.ts`의 `setSelection`(정규화 게이트와 같은 자리 — `clearSelection`도 이 관문을 지난다, 거부 시 false 반환). `notes` 단일 축이 메인·보조 노트를 통합 인덱스로 다루므로, 보조 레인 위반 노트를 선택에서 떨구는 전이도 같은 게이트가 봉쇄한다. 삭제·붙여넣기 취소는 차트 축소 커밋(`setChart`)이 선택을 원자적으로 비워 게이트를 지나지 않는다. **전이 = 확정된 선택 변경**: 박스 드래그의 프레임 재구성은 프리뷰(`setSelectionTransient`)라 전이가 아니며, 드래그 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다. select→move 체인은 커밋이 거부되면 이동을 시작하지 않는다.
 
 "해제"를 제스처가 아니라 **선택 집합의 상태 전이**로 정의하는 게이트. 선택이 `현재`→`다음`으로 바뀔 때 **빠지는 노트**(`removed = 현재 − 다음`)에 **의미 위반에 관여하는 노트가 있으면 그 전이를 거부**하고 토스트로 사유를 알린다. 낙관적 편집(RFD 0017)에서 위반 시각화(해칭)는 뷰포트 안에서만 보이므로, 위반 노트가 화면 밖으로 벗어나 인지되지 못한 채 방치되는 것을 막는다 — **위반 노트를 선택에서 놓는 순간 = 편집 묶음 마무리** 신호로 규정하고 그 순간의 이탈만 봉쇄한다(하드 거부 아님, place-then-fix 유지). 제스처 열거(Esc·빈 곳 클릭·교체) 대신 전이 diff로 정의하는 이유: 교체(`{A}→{B}`)·부분 해제(`{A,C}→{C}`)·전체 비우기가 전부 `removed`로 한 규칙에 걸리고, 선택 확장(`removed=∅`)은 자연히 통과하기 때문이다.
 
@@ -569,9 +593,9 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### SelectionSlice
 
-에디터 선택 상태(`selection: {notes, extraNotes, zones}`)의 **단독 소유자**. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`·`clearExtraSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조.
+에디터 선택 상태(`selection: {notes, zones, restZones}`)의 **단독 소유자**. 보조 노트도 `chart.notes`의 통합 인덱스로 `notes`에 선택된다. 쓰기는 슬라이스 액션(`setSelection`·`clearSelection`)으로만 하며, 모든 액션이 **정규화 게이트**(`normalizeSelection`)를 지난다 — 차트 변이 게이트가 위반을 **거부**하는 것과 달리 이 게이트는 섞인 입력을 가장 가까운 합법 값으로 **접는다**. 선택은 휘발성 UI 상태이고, 박스 드래그 중 매 프레임 호출되는 경로에서 거부는 복구 동작이 없기 때문이다(구 `updateBoxSelection`의 조용한 정리 정책 승계). **선택 해제 게이트**(§3-5)도 같은 관문(`setSelection`)에 산다 — 그쪽 표제어 참조.
 
-합법 상태(불변, RFD 0016): ① notes는 동질적이다 — 일반 노트들, 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes·extraNotes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
+합법 상태(불변, RFD 0016·0018): ① notes는 동질적이다 — 일반 노트들(메인·보조 포함), 또는 같은 `trillZone`의 트릴 노트들만(`filterHomogeneousSelection`). ② `trillZone` 유닛(zones)은 일반 notes와 **공존**한다. 단 개별 트릴 노트 선택(트릴 노트 모드)은 배타 — 그때 zones는 빈 집합. ③ zones는 notes에 내부 노트를 주입하지 않는다 — 이동·삭제·복사 동사가 **실행 시점에 파생**한다(포함 기준, `zoneContainedNoteIndices`). ④ 모든 인덱스는 `chart.notes` 또는 해당 구간 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션 소관 — 개수 불변이면 재정규화, 축소면 전체 clear). ⑤ `restZones`(RFD 0019)는 note/zone과 **공존**하는 독립 축이다 — 내부 노트가 없어 동질성 machinery와 무관하며 정규화는 범위 prune만 한다. 단순 클릭은 전축 교체(SelectMode 선택 구성이 보장), 박스는 **부분 겹침**(`restZoneOverlapsBox` — 롱노트식)으로 픽업하며, 혼합 선택은 note·zone과 함께 이동·삭제·복붙된다. SelectMode·훅·컴포넌트에 선택 사본을 저장하지 말 것 — 이전에는 SelectMode private 필드가 진짜 권위였고 store는 파생 캐시라, store만 지우는 경로(undo/redo 등)에서 stale 선택이 남을 수 있었다.
 
 **구현**: `src/editor/stores/selectionSlice.ts` (editorStore에 결합).
 
@@ -582,6 +606,16 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 렌더러 등 비-React 소비자는 **`ViewportSource`**(읽기 전용 스냅샷 `get()` + 변경 구독 `subscribe()`)로만 읽는다 — 이 통로로는 쓰기가 불가능하고, 테스트는 fake source를 쓴다(adapter 2개 = 실재 seam). 렌더러·컨트롤러·훅에 뷰포트 상태를 복제 저장하지 말 것: 이전에는 3곳 복제 + App useEffect 양방향 동기화가 이중 쓰기 race를 만들었다.
 
 **구현**: `src/editor/stores/viewportSlice.ts` (editorStore에 결합).
+
+### `TimelineSpace`
+
+에디터의 **입력 좌표 공간**(픽셀 → 도메인 변환·스냅·히트테스트)을 한 인터페이스로 접은 deep module. 픽셀 좌표를 레인(`xToLane`·`xToUnifiedLane`)·박(`yToBeat`·`yToBeatRaw`·`snapBeat`)으로 변환하고, 노트·이벤트·`trillZone`의 히트테스트를 제공한다.
+
+store·renderer를 모르는 **주입 source 기반 팩토리**(`createTimelineSpace(source)`)다 — 필요한 외부 사실(차트, 스냅 분할, 선택, 보조 레인 수, y→시간 변환)은 전부 `TimelineSpaceSource`에서 **호출 시점에 라이브로 읽는다**(클로저 스냅샷 없음). 이 라이브 읽기가 구 `useCoordinateHelpers`의 ref 이중화(stale closure 방지용 ref 11개)를 불필요하게 만든다. React 조립(store·renderer ref 접기)은 `useTimelineSpace` 훅이 담당하고, 테스트는 fake source로 순수 조립한다.
+
+그리기 방향(도메인 → 픽셀)을 담당하는 **Projection**(`timelineProjection`)과 구분된다 — `TimelineSpace`는 입력 방향만 소관한다.
+
+**구현**: `src/editor/timeline/TimelineSpace.ts` (팩토리) + `src/editor/hooks/useTimelineSpace.ts` (React 어댑터).
 
 ---
 

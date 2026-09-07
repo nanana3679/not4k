@@ -29,7 +29,7 @@ function replay(notes: readonly NoteEntity[], batches: readonly Batch[], step?: 
   };
 }
 
-describe("RFD 0019 입력 순서와 시간 진행 불변식", () => {
+describe("RFD 0020 입력 순서와 시간 진행 불변식", () => {
   it("A를 0~2000ms 유지하고 중간 head만 놓치면 1000ms update 유무와 관계없이 head Miss 하나와 마지막 release Perfect", () => {
     const run = (dense: boolean) => {
       const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 2000)]);

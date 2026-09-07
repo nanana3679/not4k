@@ -74,3 +74,46 @@ describe('tutorialPreviewSession', () => {
     expect(controller.session.events).toHaveLength(0);
   });
 });
+
+describe('tutorialPreviewSession의 Basic 신규 시연', () => {
+  it('connected-trill-long 입력을 새 NoteJudgmentSession으로 재생하면 정산 결과를 안정적으로 만든다', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'connected-trill-long');
+    expect(preview).toBeDefined();
+    const controller = createTutorialPreviewSessionController(preview!.chart, getTutorialInputTimings(preview!.chart));
+    controller.advanceTo(preview!.loopMs);
+    expect(controller.session.score.getState()).toMatchObject({
+      totalNotes: 6,
+      processedNotes: 6,
+      earnedScore: 18,
+      achievementRate: 100,
+      isFullCombo: true,
+      judgmentCounts: { perfect: 6, miss: 0 },
+    });
+    expect(controller.session.events.map((event) => [event.kind, event.noteIndex, event.inputAt])).toEqual([
+      ['head', 0, 1000],
+      ['head', 2, 1500],
+      ['release', 3, 2000],
+      ['head', 4, 2500],
+      ['head', 6, 3000],
+      ['release', 7, 3500],
+    ]);
+  });
+
+  it('rest-zone 입력을 새 NoteJudgmentSession으로 재생하면 모든 트릴 입력을 정산한다', () => {
+    const preview = TUTORIAL_PREVIEWS.find((item) => item.id === 'rest-zone');
+    expect(preview).toBeDefined();
+    const controller = createTutorialPreviewSessionController(preview!.chart, getTutorialInputTimings(preview!.chart));
+    controller.advanceTo(preview!.loopMs);
+    expect(controller.session.score.getState()).toMatchObject({
+      totalNotes: 8,
+      processedNotes: 8,
+      earnedScore: 24,
+      achievementRate: 100,
+      isFullCombo: true,
+      judgmentCounts: { perfect: 8, miss: 0, goodTrill: 0 },
+    });
+    expect(controller.session.events.map((event) => event.inputAt)).toEqual([
+      1000, 1125, 1250, 1375, 3000, 3125, 3250, 3375,
+    ]);
+  });
+});
