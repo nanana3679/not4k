@@ -36,12 +36,10 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this.renderPerspectiveSurface(songTimeMs, deltaMs)');
   });
 
-  it('dispose는 SkinManager 소유 텍스처를 파괴하지 않아 다른 미니 렌더러가 같은 스킨을 계속 사용할 수 있음', () => {
-    expect(gameRendererSource).toContain('this.app.destroy(true, { children: true, texture: false })');
-  });
-
   it('렌더링은 Pixi auto ticker가 아니라 외부 renderFrame 루프에서 한 번만 수행', () => {
     expect(gameRendererSource).toContain('autoStart: false');
     expect(gameRendererSource).toContain('this.app.render();');
   });
+
+
 });

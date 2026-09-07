@@ -57,7 +57,8 @@ describe('TutorialPreviewPlayer', () => {
   it('키 입력 표시는 사용자가 선택한 프리셋 기반 키보드 스펙을 GameRenderer 생성 시 넘겨 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).toContain('useGameStore((state) => state.settings)');
     expect(tutorialPreviewPlayerSource).toContain('getTutorialKeyboardLayout(settings.preset)');
-    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, settings.keyBindings)');
+    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialKeyboardBindings(baseTimings, settings.keyBindings, settings.preset)');
+    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, bindingResolution.bindings)');
     expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight,');
     expect(tutorialPreviewPlayerSource).toContain('tutorialKeyboard: {');
     expect(tutorialPreviewPlayerSource).toContain('buildTutorialKeyboardKeys(keyboardLayout, keyByCode)');
@@ -172,11 +173,19 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('activeKeySet');
   });
 
-  it('튜토리얼 키 이벤트는 기존 JudgmentEngine 컨트롤러가 만든 판정 효과(판정 텍스트·bomb)를 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain('createTutorialPreviewJudgmentController');
-    expect(tutorialPreviewPlayerSource).toContain('decideJudgmentEffects(result, note)');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs)');
-    expect(tutorialPreviewPlayerSource).toContain('if (effects.bomb !== null)');
+  it('4-slot 보충 매핑이 적용된 시연에는 실제 임시 키 배정을 안내한다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-binding-notice="true"');
+    expect(tutorialPreviewPlayerSource).toContain('옵션에서 레인별 키를 추가할 수 있습니다.');
+  });
+
+  it('튜토리얼 키 이벤트는 SessionRendererAdapter를 통해 판정 텍스트·bomb·노트 표시를 전달', () => {
+    expect(tutorialPreviewPlayerSource).toContain('createTutorialPreviewSessionController');
+    expect(tutorialPreviewPlayerSource).toContain('new SessionRendererAdapter');
+    expect(tutorialPreviewPlayerSource).toContain('showJudgment:');
+    expect(tutorialPreviewPlayerSource).toContain('showBombEffect:');
+    expect(tutorialPreviewPlayerSource).toContain('applyNoteDisplayEffect:');
+    expect(tutorialPreviewPlayerSource).not.toContain('createTutorialPreviewJudgmentController');
+    expect(tutorialPreviewPlayerSource).not.toContain('decideJudgmentEffects');
     expect(tutorialPreviewPlayerSource).not.toContain('currentRenderer.showJudgment(JudgmentGrade.PERFECT, 0)');
   });
 
@@ -307,16 +316,17 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain(
       [
         '        if (disposed || !renderer) {',
-        '          // init()이 끝나기 전에 언마운트되면 cleanup의 dispose()가 아직 initialized=false라',
-        '          // no-op으로 지나간다. 여기서 이미 초기화된 renderer(WebGL 컨텍스트)를 직접 정리하지 않으면',
-        '          // PIXI Application이 orphan으로 남아 누수된다. dispose()는 idempotent라 이중 호출도 안전하다.',
+        '          // 초기화 도중 닫힌 슬롯은 WebGL 준비가 끝난 뒤 리소스를 정리한다.',
         '          disposeTutorialPreviewRenderer(renderer);',
-        '          skinManager.dispose();',
+        '          nextSkinManager.dispose();',
+        '          if (skinManager === nextSkinManager) skinManager = null;',
         '          return;',
         '        }',
       ].join('\n'),
     );
   });
+
+
 });
 
 describe('isTransientTeardownRenderError', () => {

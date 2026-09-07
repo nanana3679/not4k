@@ -23,6 +23,23 @@ import {
   COLORS,
 } from "./constants";
 
+/** Core 타입에 의존하지 않는 unit별 body 표시 조회 계약. */
+export interface JudgmentBodyUnitView {
+  readonly unitIndex: number;
+  readonly active: boolean;
+  readonly failed: boolean;
+  readonly complete: boolean;
+  readonly registeredKeys: readonly string[];
+}
+
+export interface JudgmentBodyStateView {
+  readonly units: readonly JudgmentBodyUnitView[];
+  readonly successorIndex?: number;
+}
+
+export type JudgmentBodyStateQuery =
+  (noteIndex: number, timeMs: number) => JudgmentBodyStateView | null;
+
 export class GameNoteRenderer {
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -67,6 +84,7 @@ export class GameNoteRenderer {
   private headlessHeldFillQuery:
     | ((index: number, timeMs: number) => { filled: number; required: number } | null)
     | null = null;
+  private judgmentBodyStateQuery: JudgmentBodyStateQuery | null = null;
 
   constructor(
     longNoteBodyLayer: Container,
@@ -172,6 +190,17 @@ export class GameNoteRenderer {
       return;
     }
 
+    const bodyState = this.judgmentBodyStateQuery?.(index, songTimeMs) ?? null;
+    const queryUnits = bodyState?.units ?? [];
+    const queryFailedCount = queryUnits.filter((unit) => unit.failed).length;
+    const queryCompleted = queryUnits.length > 0 && queryUnits.every((unit) => unit.complete);
+    // terminal 성공은 즉시 숨긴다. 연결 body의 성공은 자기 E까지 geometry를 유지한다.
+    // 실패 unit은 끝 시각 이후에도 실패색으로 남아 core body state를 표시한다.
+    if (bodyState && queryCompleted && bodyState.successorIndex === undefined) {
+      this.completedNotes.add(index);
+      return;
+    }
+
     // 헤드없는 롱노트의 홀드 충족 조회 (이슈 #85) — 텍스처 선택 + "빈 구간 채움"에 공용.
     const headlessFill = this.headlessHeldFillQuery?.(index, songTimeMs) ?? null;
     // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 body 하단을 판정선까지 당겨 빈 구간을
@@ -198,9 +227,10 @@ export class GameNoteRenderer {
 
     if (adjustedEndY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 
-    const isFailed = this.failedBodies.has(index);
+    const isFailed = bodyState ? queryUnits.length > 0 && queryFailedCount === queryUnits.length : this.failedBodies.has(index);
     const isMissed = this.missedNotes.has(index);
-    const isPartial = this.doublePartialNotes.has(index);
+    const queryPartialFailed = bodyState ? queryFailedCount > 0 && queryFailedCount < queryUnits.length : false;
+    const isPartial = bodyState ? queryPartialFailed : this.doublePartialNotes.has(index);
     const partialSide = this.partialFailedBodies.get(index);
     const isPartialFailed = partialSide !== undefined;
 
@@ -213,9 +243,14 @@ export class GameNoteRenderer {
         bodyTexKey = "bodyTrillFailed";
         endCapTexKey = "terminalTrillFailed";
       } else {
-        const isHeld =
-          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-          this.hasConnectedHeldPredecessor(index, songTimeMs);
+        const queryActive = bodyState?.units.filter((unit) =>
+          unit.active && !unit.complete && !unit.failed && unit.registeredKeys.length > 0,
+        ).length ?? 0;
+        const queryRequired = bodyState?.units.length ?? 0;
+        const isHeld = bodyState
+          ? queryActive >= queryRequired && queryRequired > 0
+          : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+            this.hasConnectedHeldPredecessor(index, songTimeMs);
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
         endCapTexKey = "terminalTrill";
       }
@@ -237,6 +272,12 @@ export class GameNoteRenderer {
       }
 
       if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        if (isHoldOnlyNote(entity) && !isFailed && !isMissed) {
+          const glow = this.getOrCreateGraceGlow(index);
+          glow.x = laneX - COLORS.GRACE_GLOW_PAD;
+          glow.y = adjustedEndY - COLORS.GRACE_GLOW_PAD;
+          this.longNoteEndLayer.addChild(glow);
+        }
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
         endCapSprite.x = laneX;
         endCapSprite.y = adjustedEndY;
@@ -260,21 +301,31 @@ export class GameNoteRenderer {
       if (isFailed || isMissed) {
         bodyTexKey = isDouble ? "bodyDoubleFailed" : "bodySingleFailed";
         endCapTexKey = isDouble ? "terminalDoubleFailed" : "terminalSingleFailed";
-      } else if (isDouble && isPartialFailed) {
-        bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
-        endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
+      } else if (isDouble && (isPartialFailed || queryPartialFailed)) {
+        const failedUnit = queryUnits.find((unit) => unit.failed);
+        const failedSide = failedUnit ? (failedUnit.unitIndex === 0 ? 'left' : 'right') : partialSide;
+        bodyTexKey = failedSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
+        endCapTexKey = failedSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
         // 헤드없는 롱노트가 홀드로 consume 충족 중이면 엔진 술어를 그대로 조회해 body를 켠다
         // (이슈 #85 — 시각·판정 단일 진실). null이면(조회 대상 아님·윈도우 밖·미주입) 기하 held로 폴백.
         const fill = headlessFill;
-        if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
+        const queryActive = bodyState?.units.filter((unit) => unit.active && !unit.complete && !unit.failed && unit.registeredKeys.length > 0).length ?? 0;
+        const queryRequired = bodyState?.units.length ?? 0;
+        if (bodyState && isDouble && queryActive > 0 && queryActive < queryRequired) {
+          bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
+        } else if (bodyState && queryActive > 0 && queryActive === queryRequired) {
+          bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
+        } else if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
           // 부분 충족(1/2): 레인 위치로 대기 쪽 결정 (레인 1·2=왼쪽 대기, 3·4=오른쪽 대기)
           bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
         } else {
-          const isHeld = fill
-            ? fill.filled >= fill.required
-            : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-              this.hasConnectedHeldPredecessor(index, songTimeMs);
+          const isHeld = bodyState
+            ? queryActive >= queryRequired && queryRequired > 0
+            : fill
+              ? fill.filled >= fill.required
+              : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+                this.hasConnectedHeldPredecessor(index, songTimeMs);
           bodyTexKey = isHeld
             ? (isDouble ? "bodyDoubleHeld" : "bodySingleHeld")
             : (isDouble ? "bodyDouble" : "bodySingle");
@@ -411,6 +462,11 @@ export class GameNoteRenderer {
     query: (index: number, timeMs: number) => { filled: number; required: number } | null,
   ): void {
     this.headlessHeldFillQuery = query;
+  }
+
+  /** 새 core의 unit별 body 상태를 주입한다. 미주입 시 기존 표시 경로를 유지한다. */
+  setJudgmentBodyStateQuery(query: JudgmentBodyStateQuery | null): void {
+    this.judgmentBodyStateQuery = query;
   }
 
   setJudgmentLineY(y: number): void {

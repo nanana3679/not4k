@@ -18,6 +18,15 @@ function countOccurrences(source: string, pattern: string): number {
 }
 
 describe('TutorialHelpModal', () => {
+  it('팝업을 열면 Basic 탭과 연결된 패널을 선택하고 Advanced 탭은 비선택으로 표시한다', () => {
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+    expect(html).toContain('role="tablist" aria-label="Tutorial level"');
+    expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="true"');
+    expect(html).toContain('id="tutorial-tab-advanced" type="button" role="tab" aria-selected="false"');
+    expect(html).toContain('role="tabpanel" aria-labelledby="tutorial-tab-basic"');
+    expect(html).not.toContain('data-tutorial-index-item="advanced-double-hold"');
+  });
+
   it('튜토리얼 캐시 무효화 버튼은 개발환경이거나 admin이면 표시', () => {
     expect(canShowTutorialCacheInvalidationButton({ isAdmin: false, isDev: false })).toBe(false);
     expect(canShowTutorialCacheInvalidationButton({ isAdmin: true, isDev: false })).toBe(true);

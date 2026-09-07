@@ -1,5 +1,5 @@
 /**
- * JudgmentEngine — 4키 리듬 게임 판정 엔진
+ * @deprecated RFD 0020 이전 호환 테스트용 엔진. 실제 플레이·프리뷰는 NoteJudgmentSession을 사용한다.
  *
  * 플레이어 입력을 노트와 매칭하여 판정을 생성하고, 콤보를 추적한다.
  */

@@ -21,7 +21,7 @@ import {
 } from "./constants";
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
-import { GameNoteRenderer } from "./GameNoteRenderer";
+import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
@@ -1705,11 +1705,18 @@ export class GameRenderer {
     this.noteRenderer.setHeadlessHeldFillQuery(query);
   }
 
+  /** 새 core의 unit별 body 상태를 전달한다. 실제 live 연결은 통합 gate 이후에 수행한다. */
+  setJudgmentBodyStateQuery(query: JudgmentBodyStateQuery | null): void {
+    this.noteRenderer.setJudgmentBodyStateQuery(query);
+  }
+
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
     this.noteRenderer.dispose();
-    this.app.destroy(true, { children: true, texture: false });
+    // Boolean true also clears Pixi's global pools in v8. Other tutorial
+    // slots still own pooled text textures and bounds, so release only this app.
+    this.app.destroy({ removeView: true, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
     // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.

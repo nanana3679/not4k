@@ -264,10 +264,10 @@ AudioContext.currentTime (오디오 하드웨어 스레드)
 ```
 [매 프레임 (requestAnimationFrame)]
 
-1. songTime = audioCtx.currentTime - songStartTime
-2. 노트 렌더링: songTime 기준으로 각 노트의 화면 위치 계산
-3. Miss 판정: songTime이 노트 시점 + Bad 윈도우(160ms)를 지나면 Miss
-4. 키 입력 처리: 입력 시점의 songTime과 가장 이른 노트의 시점 비교 → 판정
+1. GameClock에서 판정 시간·시각 시간·입력 시간을 구분해 읽음
+2. 수집된 키보드·합성 입력을 원래 timestamp별로 Session에 전달
+3. 입력 오프셋을 고려한 진행 시각까지 Good 기한과 바디 상태를 처리
+4. 확정 묶음의 점수·효과를 적용하고 시각 시간으로 렌더링
 ```
 
 ### 오디오 레이턴시 보정
