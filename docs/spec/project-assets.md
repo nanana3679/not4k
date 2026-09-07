@@ -85,7 +85,7 @@
 | 에셋 | 설명 | 비고 |
 |------|------|------|
 | 결과 화면 배경 | 플레이 종료 후 배경 | |
-| 판정 집계 표 | Perfect/Great/Good/Bad/Miss/`goodTrill` 행별 표시 | `goodTrill` 별도 행 필수 (`scoring.md`) |
+| 판정 집계 표 | Perfect/Great/Good/Miss/`goodTrill` 행별 표시 | `goodTrill` 별도 행 필수 (`scoring.md`); Bad 행은 결과 화면에 표시하지 않음 |
 | 랭크 뱃지 | 최종 성적 등급 (S/A/B/C 등) | 체계 미정 — 확정 후 제작 |
 | 풀콤보 뱃지 | 풀콤보 달성 표시 | |
 

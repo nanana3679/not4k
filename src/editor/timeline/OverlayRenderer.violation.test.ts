@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Container } from "pixi.js";
-import { beat } from "../../shared";
+import { beat, chartViolationIndices } from "../../shared";
 import type { Chart, BpmMarker, NoteEntity, TrillZone, ExtraNoteEntity } from "../../shared";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
@@ -95,5 +95,18 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     const r = new OverlayRenderer(host);
     r.renderViolationOverlay();
     expect(host.violationLayer.children.length).toBe(0);
+  });
+
+  it("NJ-C01 semantic violation을 실제 chartViolationIndices에서 받아 노트 해칭으로 표시한다", () => {
+    const chart = makeChart([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) },
+    ]);
+    const indices = chartViolationIndices(chart);
+    const host = makeHost(chart, indices.notes, indices.trillZones);
+    const r = new OverlayRenderer(host);
+    r.renderViolationOverlay();
+    expect(indices.notes.size).toBeGreaterThan(0);
+    expect(host.violationLayer.children.length).toBeGreaterThan(0);
   });
 });

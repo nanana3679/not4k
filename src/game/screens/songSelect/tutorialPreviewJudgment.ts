@@ -1,3 +1,4 @@
+/** @deprecated 이전 판정 엔진 회귀용. 실제 프리뷰는 tutorialPreviewSession을 사용한다. */
 import type { Chart } from '../../../shared/types';
 import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
 import type { Lane } from '../../../shared/constants';

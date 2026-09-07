@@ -4,6 +4,7 @@ import { useGameStore } from '../stores';
 export function ResultScreen() {
   const { lastResult, setScreen, editorReturnUrl, setEditorReturnUrl, setStartTimeMs } = useGameStore();
   const navigate = useNavigate();
+  const backLabel = editorReturnUrl?.startsWith('/lab/') ? 'Back to Lab' : editorReturnUrl ? 'Back to Editor' : 'Back';
 
   const handleBack = () => {
     if (editorReturnUrl) {
@@ -22,7 +23,7 @@ export function ResultScreen() {
         <div style={styles.header}>
           <h1 style={styles.title}>Result</h1>
           <button style={styles.backBtn} onClick={handleBack}>
-            {editorReturnUrl ? 'Back to Editor' : 'Back'}
+            {backLabel}
           </button>
         </div>
         <div style={styles.content}>
@@ -37,7 +38,7 @@ export function ResultScreen() {
       <div style={styles.header}>
         <h1 style={styles.title}>Result</h1>
         <button style={styles.backBtn} onClick={handleBack}>
-          {editorReturnUrl ? 'Back to Editor' : 'Back'}
+          {backLabel}
         </button>
       </div>
 
@@ -51,10 +52,6 @@ export function ResultScreen() {
 
         <div style={styles.statsGrid}>
           <div style={styles.statRow}>
-            <span>Max Combo:</span>
-            <span>{lastResult.maxCombo}</span>
-          </div>
-          <div style={styles.statRow}>
             <span>Full Combo:</span>
             <span>{lastResult.isFullCombo ? 'YES' : 'NO'}</span>
           </div>
@@ -64,7 +61,7 @@ export function ResultScreen() {
           <h2 style={styles.subtitle}>Judgments</h2>
           <div style={styles.judgmentGrid}>
             {Object.entries(lastResult.judgmentCounts)
-              .filter(([grade]) => grade !== 'goodTrill')
+              .filter(([grade]) => grade !== 'goodTrill' && grade !== 'bad')
               .map(([grade, count]) => (
               <div key={grade} style={styles.judgmentRow}>
                 <span style={styles.judgmentLabel}>{grade.toUpperCase()}:</span>

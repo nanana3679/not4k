@@ -99,7 +99,7 @@ _Avoid_: 연타 노트
 _Avoid_: 자동 입력 구간
 
 **더블 노트**:
-같은 레인에 바인딩된 서로 다른 두 키를 동시에 누르는 노트이다.
+같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. 두 held가 반드시 겹쳐야 하는 것은 아니다.
 _Avoid_: 더블클릭
 
 **Grace 노트**:
@@ -107,7 +107,7 @@ Good 윈도우 안에서 입력하면 타이밍 정밀도와 무관하게 Perfec
 _Avoid_: 보너스 노트
 
 **`holdOnly`**:
-롱 노트 끝점의 떼는 판정을 면제하여, 그 구간(길이 0이면 그 한 점) 동안 눌려 있기만 하면 Perfect를 주는 롱 노트 속성이다. 결정 배경은 `docs/rfd/0009-hold-only-long-note.md`를 따른다.
+롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 등록 키 유지로, 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0019](docs/rfd/0019-note-judgment-units-and-inheritance.md)를 따른다.
 _Avoid_: Grace 노트
 
 ### 피스
@@ -167,7 +167,7 @@ _Avoid_: 달성률, 랭크
 _Avoid_: 이륙, 활주, Takeoff, Ascent
 
 **Survival**:
-고도 100에서 시작해 **Perfect로만 고도를 회복**하고 0 도달 시 실패하는 비행 규칙이다. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 고도를 감소시킨다. 종전 Breakthrough를 계승하며 숙련 유저 대상 정확도 압박을 전담한다. UI와 코드에서는 영어 `Survival`/`survival`을 사용한다. beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `docs/rfd/0002-breakthrough-perfect-only-recovery.md`와 `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
+고도 100에서 시작해 **Perfect로만 고도를 회복**하고 0 도달 시 실패하는 비행 규칙이다. Great/Good은 회복하지 않고, Miss는 고도를 감소시킨다. 종전 Breakthrough를 계승하며 숙련 유저 대상 정확도 압박을 전담한다. UI와 코드에서는 영어 `Survival`/`survival`을 사용한다. beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `docs/rfd/0002-breakthrough-perfect-only-recovery.md`와 `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
 _Avoid_: 돌파, 생존, HARD, Breakthrough, Time Hell Gauge, EX-HARD
 
 **난이도 등급**:
@@ -193,11 +193,11 @@ _Avoid_: 인지 부하
 _Avoid_: 판정선
 
 **유지 판정**:
-롱 노트 바디 구간 동안 해당 레인의 홀드 상태가 지속되는지 확인하는 판정이다.
+활성화한 롱 노트 unit 수를 등록된 유지 키로 충족하는지 확인하는 판정이다. 고정 물리 owner는 두지 않는다.
 _Avoid_: 헤드 판정
 
 **끝점 판정**:
-롱 노트 끝점에서 `termination` 또는 `connection` 여부를 확인하는 판정이다.
+롱 노트 끝에서 실제 release, `holdOnly` 상태 완료 또는 다음 바디로의 승계를 처리하는 판정이다.
 _Avoid_: 유지 판정
 
 **`termination`**:
@@ -205,11 +205,11 @@ _Avoid_: 유지 판정
 _Avoid_: `connection`
 
 **`connection`**:
-롱 노트 끝점에 같은 레인의 다른 롱 노트 시작점이 있을 때 발생하는 끝점 판정이다.
+같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없고, 유효한 연결에 사용한 up은 키의 동일 여부와 관계없이 뒤 release에 쓰지 않는다. 감소분은 실제 release 또는 `holdOnly`로 처리한다. 세부는 [glossary](docs/context/glossary.md#consume-구-표기-흡수소비)를 따른다.
 _Avoid_: `termination`
 
 **유예 시간**:
-롱 노트 바디 진행 중 짧은 릴리즈 공백을 홀드 유지로 인정하는 허용 시간이다.
+연결 경계의 유효 판정 창에서 교대를 허용하는 시간 여유이다. 이미 확정된 바디 실패를 되돌리지 않으며, 세부는 [glossary](docs/context/glossary.md#유예-시간-grace-period)를 따른다.
 _Avoid_: Grace 노트
 
 **Good◇**:

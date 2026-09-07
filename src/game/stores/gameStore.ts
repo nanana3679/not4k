@@ -36,7 +36,8 @@ interface PlayResult {
   difficulty: string;
   achievementRate: number;
   rank: string;
-  maxCombo: number;
+  /** @deprecated PlayScreen compatibility; result UI does not expose combo statistics. */
+  maxCombo?: number;
   isFullCombo: boolean;
   judgmentCounts: Record<string, number>;
   goodTrillCount: number;

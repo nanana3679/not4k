@@ -470,6 +470,39 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(bodyLayer).length).toBe(0);
     expect(childrenOf(endLayer).length).toBe(1);
   });
+
+  it("trillLong도 bodyState query의 registered active unit만 held texture로 표시한다", () => {
+    const skinManager = createMockSkinManager();
+    const bodyLayer = new Container();
+    const endLayer = new Container();
+    const renderer = new GameNoteRenderer(
+      bodyLayer, endLayer, new Container(), new Container(), skinManager, 500, 1000, 0, 600,
+    );
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+    }));
+    renderer.renderLongNote(trillLongEntity(), 0, 300, 500, 250);
+    expect((skinManager.getTexture as unknown as { mock: { calls: unknown[][] } }).mock.calls)
+      .toContainEqual(["bodyTrillHeld"]);
+  });
+
+  it("trillLong connected unit이 complete여도 successor가 있으면 자기 E까지 body를 유지한다", () => {
+    renderer.setJudgmentBodyStateQuery(() => ({
+      successorIndex: 1,
+      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+    }));
+    renderer.renderLongNote(trillLongEntity(), 0, 300, 500, 400);
+    expect(childrenOf(bodyLayer).length).toBe(1);
+  });
+
+  it("양수 holdOnly trillLong은 실패하지 않은 끝점에 면제 glow와 terminal cap을 함께 표시한다", () => {
+    const holdOnly = () =>
+      ({ type: "trillLong", beat: 0, lane: 1, endBeat: 4, holdOnly: true }) as unknown as NoteEntity & {
+        endBeat: unknown;
+      };
+    renderer.renderLongNote(holdOnly(), 0, 100, 300, 0);
+    expect(childrenOf(endLayer).length).toBe(2);
+  });
 });
 
 describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (이슈 #85)", () => {
@@ -490,7 +523,7 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
       skinManager, 500, 1000, 0, 600,
     );
     if (inject) renderer.setHeadlessHeldFillQuery(() => fill);
-    return { renderer, skinManager };
+    return { renderer, skinManager, bodyLayer };
   }
 
   /** getTexture로 요청된 텍스처 키 목록 (body 키가 여기 포함된다) */
@@ -539,6 +572,61 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
 
   it("조회 미주입(튜토리얼 프리뷰)이면 기하 held로 폴백 — normal body", () => {
     const { renderer, skinManager } = setupWithFill(null, false);
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingle");
+    expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
+  });
+
+  it("query가 연결 body를 complete로 알려도 successor가 있으면 실제 E까지 geometry를 유지한다", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    renderer.setJudgmentBodyStateQuery(() => ({
+      successorIndex: 1,
+      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+    }));
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 400);
+    expect(texKeys(skinManager)).toContain("bodySingle");
+  });
+
+  it("terminal body가 E까지 complete면 숨기고 E 전에는 렌더한다", () => {
+    const { renderer, skinManager, bodyLayer } = setupWithFill(null);
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+    }));
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 400);
+    expect(texKeys(skinManager)).not.toContain("bodySingle");
+    renderer.clearPools();
+    childrenOf(bodyLayer).length = 0;
+    (skinManager.getTexture as unknown as { mockClear: () => void }).mockClear();
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 500);
+    // complete marker가 다시 기록되며 terminal geometry는 추가되지 않는다.
+    expect(childrenOf(bodyLayer).length).toBe(0);
+  });
+
+  it("double unit 하나만 실패하면 query가 partial failed texture를 고르고 건강한 unit을 전체 failed로 만들지 않는다", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [
+        { unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] },
+        { unitIndex: 1, active: true, failed: false, complete: false, registeredKeys: ["B"] },
+      ],
+    }));
+    renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodyDoublePartialFailedLeft");
+    expect(texKeys(skinManager)).not.toContain("bodyDoubleFailed");
+  });
+
+  it("query에서 registered active unit만 held 색을 사용하고 raw geometry held는 승격하지 않는다", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+    }));
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    expect(texKeys(skinManager)).toContain("bodySingleHeld");
+    renderer.clearPools();
+    (skinManager.getTexture as unknown as { mockClear: () => void }).mockClear();
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [] }],
+    }));
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
     expect(texKeys(skinManager)).toContain("bodySingle");
     expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
