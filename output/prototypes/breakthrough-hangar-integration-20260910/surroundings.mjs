@@ -2,6 +2,7 @@
 import * as THREE from './vendor/three.module.js';
 import {createBuilder,chamfer} from './blueprint-kit.mjs';
 import {buildModel} from './render-model.mjs';
+import {applyArchitecturalMaterials} from './architectural-materials.mjs';
 import {createExtensionBlueprint as extendA} from './extensions/a-wedge.mjs';
 import {createExtensionBlueprint as extendB} from './extensions/b-maintenance.mjs';
 import {createExtensionBlueprint as extendC} from './extensions/c-service-tower.mjs';
@@ -67,12 +68,13 @@ function createFarField(){
 export function createSurroundings(textures){
  const extensions=new Map();
  for(const [id,create] of [['A',extendA],['B',extendB],['C',extendC],['D',extendD],['E',extensionBlueprint],['F',extendF],['G',extendG],['H',extendH]]){
-  const model=buildModel(create(),textures,id==='A'?'wedge':'standard');
+  const family=id==='A'?'wedge':'standard';
+  const model=applyArchitecturalMaterials(buildModel(create(),textures,family),textures,family);
   model.group.name=`${id}-lower-connections`;model.group.visible=false;
   model.bounds=new THREE.Box3().setFromObject(model.group);
   extensions.set(id,model);
  }
- const station=buildModel(stationBlueprint(),textures),far=createFarField();station.group.name='E-station';
+ const station=applyArchitecturalMaterials(buildModel(stationBlueprint(),textures),textures),far=createFarField();station.group.name='E-station';
  for(const model of [...extensions.values(),station])model.group.traverse(o=>{if(o.isLineSegments){o.material.depthWrite=false;o.renderOrder=0;}});
  const group=new THREE.Group();group.name='surrounding-space';group.add(far.group,station.group,...[...extensions.values()].map(m=>m.group));
  let selectedId='E';

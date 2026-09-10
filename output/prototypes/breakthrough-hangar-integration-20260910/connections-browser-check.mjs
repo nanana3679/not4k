@@ -73,6 +73,9 @@ try{
   check(`${name} 연결부 실행 파일 HTTP200과 작업 파일 일치`,r.status===200&&Buffer.from(await r.arrayBuffer()).equals(await readFile(new URL(path,root))));
   check(`${name} 연결부 테스트 파일은 비공개404`,(await fetch(url+`extensions/${name}.test.ts`)).status===404);
  }
+ const materialSource=await fetch(url+'architectural-materials.mjs');
+ check('공통 외장 재질 실행 파일 HTTP200과 소스 일치',materialSource.status===200&&Buffer.from(await materialSource.arrayBuffer()).equals(await readFile(new URL('architectural-materials.mjs',root))));
+ check('공통 외장 재질 테스트는 비공개404',(await fetch(url+'architectural-materials.test.ts')).status===404);
  check('페이지·콘솔·CSP 오류0개',errors.length===0);
  await writeFile(new URL('connections-browser-check.json',root),JSON.stringify({checkedAt:new Date().toISOString(),checks,errors,models,probes,wraps},null,2));
  console.log(JSON.stringify({passed:checks.length,errors,models}));
