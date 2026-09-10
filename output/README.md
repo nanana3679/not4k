@@ -35,6 +35,8 @@ npm start
 
 `npm start`는 Tailscale IPv4에만 바인딩하며 임의 경로의 24시간 링크를 출력한다. 실제 실행 파일과 여섯 PNG만 제공한다. 브라우저 검사를 실행하려면 Playwright Chromium이 설치되어 있어야 한다(`pnpm exec playwright install chromium`, 저장소 루트에서 실행).
 
+같은 화면에서 `시설 사이로 통과`를 선택하면 비행 공간부터 설계한 물류 시설 하나를 통과한다. 직접 열 때는 출력된 링크에 `?study=passage&altitude=0&paused=1&backdrop=architecture`를 붙인다. `먼 곳부터 재생`으로 전체 접근을 보고, 접근·입구·시설 내부·출구 너머 버튼과 고도로 공간 차이를 비교한다.
+
 브라우저 검사는 시연 폴더의 `*-browser-check.mjs`와 `browser-check.mjs`를 실행한다. 서버를 띄운 상태에서 [전체 검사 명령](prototypes/breakthrough-hangar-integration-20260910/NOTES.md#실행과-검수)을 따른다. 결과는 같은 폴더에 생성되며 Git에 추가되지 않는다.
 
 ## 로컬 백업

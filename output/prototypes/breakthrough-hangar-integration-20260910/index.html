@@ -1,12 +1,14 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>돌파 · 빛과 건축 모델 8종</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body>
-<main><header><span>BREAKTHROUGH / FLIGHT STUDY</span><h1>같은 흐름 안의 빛과 건물</h1><p>먼 건축이 그려진 배경 위에서 A~H 모델과 광원을 비교합니다. 배경과 고도를 바꾸며 공간의 깊이를 살펴보세요.</p></header>
+<main><header><span>BREAKTHROUGH / FLIGHT STUDY</span><h1 id="study-title">같은 흐름 안의 빛과 건물</h1><p id="study-intro">먼 건축이 그려진 배경 위에서 A~H 모델과 광원을 비교합니다. 배경과 고도를 바꾸며 공간의 깊이를 살펴보세요.</p></header>
 <section class="viewer" aria-label="돌파 통합 시연"><canvas id="scene"></canvas><canvas id="overlay"></canvas><div class="hud"><span id="flight-label"></span><span id="mode-label"></span></div><div id="loading" role="status">표면 그림을 불러오는 중…</div></section>
 <section class="controls" aria-label="비행 조절">
+<div class="row"><button id="passage-study">시설 사이로 통과</button></div>
 <div id="model-picker" class="model-picker" role="group" aria-label="건축 모델 선택"></div>
 <p class="model-caption"><strong id="model-name"></strong><span id="model-description"></span></p>
 <div class="grid backdrop-controls"><label>배경<select id="backdrop"><option value="none">검은 배경</option><option value="architecture">먼 건축 배경</option></select></label><label>배경 밝기 <output id="backdropBrightness-value"></output><input id="backdropBrightness" type="range" min="0" max="100" step="1"></label></div>
 <div class="grid backdrop-controls"><label>배경 움직임<select id="backdropMotion"><option value="recursive">연속 확대</option><option value="static">고정 그림</option></select></label><label>배경 확대 속도 <output id="backdropRate-value"></output><input id="backdropRate" type="range" min="0" max="300" step="5"></label></div>
 <fieldset id="context-controls"><legend>공간 연결 비교</legend><div class="row"><label class="toggle"><input id="extensions" type="checkbox"> 구조 연장</label><label class="toggle"><input id="surroundings" type="checkbox"> E · 입체 주변 건축</label></div><p>구조 연장은 모든 건물에 적용돼요. 끄면 원래 길이와 비교할 수 있어요.</p></fieldset>
+<div id="passage-stops" class="row" hidden><button data-stop="approach">접근</button><button data-stop="entry">입구</button><button data-stop="inside">시설 내부</button><button data-stop="exit">출구 너머</button></div>
 <div class="row primary"><button id="play" disabled>일시정지</button><button id="far">먼 곳부터 재생</button><button id="middle">중거리에서 보기</button><button id="near">근거리에서 보기</button><label class="toggle"><input id="building" type="checkbox" checked> 건물 표시</label><label class="toggle"><input id="lanes" type="checkbox"> 레인 참고선</label></div>
 <div class="grid">
 <label>고도 <output id="altitude-value"></output><input id="altitude" type="range" min="0" max="100" step=".1"></label>
@@ -27,4 +29,4 @@
 <label>가까운 광원 길이 <output id="nearStretch-value"></output><input id="nearStretch" type="range" min="1" max="8" step=".1"></label>
 </div><div class="row"><label class="toggle"><input id="guides" type="checkbox"> 절단면 가이드</label><label class="toggle"><input id="art" type="checkbox" checked> 건물 표면 그림</label></div></details>
 <p class="hint">진행 슬라이더는 정지 비교용이에요. 중앙 레인은 배치 참고이며 실제 플레이는 아닙니다.</p>
-</section><footer><span id="expiry"></span><span>A~H 비교 시연 · 한 번에 1개</span></footer></main><script type="module" src="scene.mjs"></script></body></html>
+</section><footer><span id="expiry"></span><span id="study-footer">A~H 비교 시연 · 한 번에 1개</span></footer></main><script type="module" src="scene.mjs"></script></body></html>
