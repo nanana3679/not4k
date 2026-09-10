@@ -253,26 +253,29 @@ not4k의 다중키 바인딩이 만들어내는 고유한 차트 어휘. `chart-
 
 한 곡에 배정되는 차트의 이름. 리듬게임에서는 일반적으로 한 곡에 여러 난이도의 차트가 존재하며, 각 차트에 난이도명이 붙는다 (예: IIDX의 NORMAL/HYPER/ANOTHER, DJMAX의 NM/HD/MX).
 
-not4k의 난이도명은 현재 **EASY / NORMAL / HARD**의 3단계를 **임시 채택** 중이다. 세계관 옷과 함께 확정되며, 이때 계층 언어(Beginner/Expert 등) 재검토도 함께 이루어진다(`stance.md` §2 원칙 5 단서, §4 유보 테이블 참조). 판정명(Perfect/Great/Good/Bad/Miss) 역시 잠정적이며 같은 시점에 재검토된다.
+not4k의 난이도명은 **`Liftoff → Infiltration → Breakthrough`** 순서다. 한 곡 안의 차트를 구분하며 각 단계의 비행 시나리오·연출에 대응한다. 명칭과 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)에서 채택했으며 구현은 보류 상태다. 기존 임시 라벨의 데이터 이행은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 판정명의 잠정 상태는 이 결정과 별개다.
 
 난이도명은 차트 레벨(Lv.)과는 별개의 개념이다. 난이도명은 같은 곡 내에서 차트를 구분하는 라벨이고, 차트 레벨은 차트의 절대적 난이도 수치이다.
 
 ### `flightRule` (Flight Rule)
 
-Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이도명, 차트 레벨(Lv.), 난이도 등급과는 별개의 축이다. 결정 배경은 `../rfd/0001-flight-rules-and-observer-boundary.md`를 따르며, 2종(Liftoff/Survival) 재편은 `../rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
+Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙. 차트 난이도명 `Liftoff / Infiltration / Breakthrough`에 대응하는 시나리오와 연결된다. `Lv.`·난이도 등급·달성률·랭크를 대체하지 않는다. 현재 명칭과 연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 
-현재 `flightRule` 용어는 **Liftoff / Survival** 2종이다. UI와 코드는 영어 명칭(`liftoff`, `survival`)을 사용한다. Liftoff는 종전 Takeoff/Ascent의 관대 역할을 통합한 규칙으로, 종료 기준 모델은 `../research/beatmania.md`의 Normal/Groove Gauge 참조를 따른다. Survival은 종전 Breakthrough를 계승한 규칙으로, beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며 Perfect-only 회복은 `../rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
+세 단계의 이름·순서·연출 배치는 확정했다. 구현은 보류 중이며, 세부 판정 규칙은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
-`flightRule`은 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하는 장치로 포지셔닝한다. Liftoff는 숙련 유저 기준 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며 `flightRule`의 기본값으로 둔다. 숙련 유저 대상 정확도 압박은 Survival이 전담한다. 포지셔닝 배경은 `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`를 따른다.
+`flightRule`은 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공한다. `Liftoff`의 관대한 역할은 유지한다. 각 단계의 회복·감소·실패 규칙과 실제 선택 UI는 이름·연출 배치만으로 확정하지 않는다.
 
 | `flightRule` | 정의 |
 | --------- | ---- |
-| **Liftoff** | `altitude` 0에서 시작해 곡 종료 시 기준 `altitude` 이상이면 클리어되는 관대한 `flightRule`. 곡 중 게임 오버가 없다. `flightRule`의 기본값이다. |
-| **Survival** | `altitude` 100에서 시작해 Perfect로만 `altitude`를 회복하고 0 도달 시 실패하는 `flightRule`. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 `altitude`를 감소시킨다. |
+| **`Liftoff`** | 첫 번째 난이도명·이륙 시나리오. 시선 각도를 유지하며 고도가 변한다. 기존 `altitude` 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 관대한 역할을 유지한다. |
+| **`Infiltration`** | 두 번째 난이도명·침투 시나리오. 낮아질수록 시선이 지면을 향해 꺾이고, 지평선이 위로 사라지며 지면이 평면에 가까워진다. |
+| **`Breakthrough`** | 세 번째·최상위 난이도명·돌파 시나리오. 낮은 고도에서 전방을 보며 계속 비행한다. 가까운 지면과 빠른 광원 속에서 안정된 자세를 유지하는 숙련 비행이다. |
+
+`Survival`과 `Stealth`는 현재 단계 이름이 아니다. 종전 `Survival`의 Perfect-only 회복·0 도달 실패 규칙은 새 단계에 자동 승계하지 않으며, 과거 `Breakthrough`와 현재 같은 이름의 시나리오를 동일한 세부 규칙으로 취급하지 않는다. 과거 규칙의 근거는 RFD 0002·0005에 보존한다.
 
 ### `altitude` (Altitude)
 
-`flightRule`의 현재 상태를 표현하는 플레이 중 지표. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다. `altitude`는 생존 상태를 표현하며, 달성률이나 랭크와는 다른 개념이다.
+`flightRule`의 상태와 고도 연출을 연결하는 플레이 중 지표. 시각 고도와 위험의 관계는 시나리오에 따라 다르며, `Breakthrough`의 낮은 시각 고도는 정상적인 숙련 비행이다. 모든 단계에 "낮을수록 실패 위험"을 일괄 적용하지 않는다. 구체적인 상태·시각 고도 대응은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 달성률이나 랭크와는 다른 개념이다.
 
 ### 난이도 등급 (Difficulty Class)
 
@@ -287,7 +290,7 @@ Play에서 **`altitude`** 기반 클리어/실패를 결정하는 규칙. 난이
 | 최상급 | Lv.14~15  | 16키 완전 활용             |
 
 > **용어 규칙**: 차트 단위의 난이도는 **Lv.**, 피스 단위의 난이도는 **PLv.**, 구간 분류는 **난이도 등급**으로 통일한다.
-> **`flightRule`**은 Play의 클리어/실패 조건이며, 위 난이도 축들과 바꿔 쓰지 않는다.
+> **`flightRule`**은 차트 난이도명에 대응하는 비행 규칙이다. 난이도명의 라벨 역할과 규칙의 동작은 구분하며, `Lv.`·`PLv.`·난이도 등급을 대체하지 않는다.
 
 ### 난이도 축 (Difficulty Axis)
 

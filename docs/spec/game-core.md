@@ -196,15 +196,19 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 **도입 이유**: 첫째, 비행이라는 가벼운 내러티브를 게임 규칙과 연결하기 위해서다. `altitude`에 따라 배경 연출(수평선, 격자, 시야각)이 변하는 비행 콘셉트는, `altitude`가 장식이 아니라 실제 클리어/실패와 연결될 때 의미를 가진다. 둘째, 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하기 위해서다(RFD 0003).
 
-**`flightRule` 종류**: Liftoff / Survival 2종(RFD 0005). 각 규칙의 정의는 `../context/glossary.md`의 `flightRule` 항목을 따른다.
+**난이도명·시나리오**: `Liftoff → Infiltration → Breakthrough` 순서로 한 곡 안의 차트를 구분하며, 각 단계의 비행 시나리오와 연결한다([RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)). 이름·순서·연출 배치는 확정했고 구현은 보류한다. 풀 정의는 [glossary](../context/glossary.md#flightrule-flight-rule)를 따른다.
 
-**관대한 밸런싱**: Liftoff는 숙련 유저 기준으로 사실상 실패하지 않는 수준으로 관대하게 밸런싱하며 `flightRule`의 기본값으로 둔다(RFD 0003, RFD 0005). 따라서 숙련 유저의 플레이 경험은 기존 "무조건 완주"와 사실상 동일하며, 가변 손배치 학습이 중도 실패로 끊기지 않는다는 기존 철학은 유지된다. 숙련 유저 대상 정확도 압박은 Survival이 전담한다.
+**단계별 연출**: `Liftoff`는 시선 각도를 유지하며 고도가 변한다. `Infiltration`은 낮아질수록 시선이 지면을 향해 회전하고 지평선이 위로 사라진다. `Breakthrough`는 낮은 고도에서 전방을 보며 계속 비행한다. `Breakthrough`의 낮은 시각 고도는 정상적인 숙련 비행이며, 실패 직전 상태로 일괄 해석하지 않는다. 중앙 레인·판정선·노트 속도는 배경 연출의 영향을 받지 않는다.
+
+**시각적 구별**: 난이도별 색상 배합과 광원 밀도에 차이를 둔다. `Breakthrough`는 지평선 없이 화면 맨 위까지 광원이 움직이며 지나가도록 구성한다. 돌파의 주홍 후보는 사용자가 수용했으며, 다른 후보 배합과 광원 분포 제안은 [아트 디렉션 기록](../design/art-direction-notes.md#난이도별-색상과-광원-분포)을 따른다. 구체적인 색상값과 밀도는 확정하지 않았고 실제 화면에는 미적용이다.
+
+**관대한 밸런싱**: `Liftoff`의 고도 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 기존 관대한 역할을 유지한다. 종전 `Survival`의 Perfect-only 회복·0 도달 실패 규칙을 새 단계에 자동으로 배정하지 않는다.
 
 **실패 조건 없는 완주/학습**: 실패 조건 없이 차트를 끝까지 확인하거나 구간을 반복 학습하려는 유저는 Observer 계열을 사용한다(`observer-mode.md`).
 
-**미정 사항**: 실패 시 결과 화면 전환 방식, `flightRule`의 기본값과 선택 방식, 기록·랭킹의 `flightRule`별 분리, `altitude` 수치 밸런싱은 미정이다(RFD 0001 §9, RFD 0002 §8).
+**후속 설계**: 세부 판정 규칙·상태와 시각 고도의 대응·기존 차트의 이행·속도와 각도 조정은 [PRD §12](../prd.md#12-미정-사항)에서 단일 추적한다. 이번 결정은 실제 충돌이나 레이더 탐지 판정을 도입하지 않는다.
 
-**결정 배경**: `../rfd/0001-flight-rules-and-observer-boundary.md`, `../rfd/0002-breakthrough-perfect-only-recovery.md`, `../rfd/0003-flight-rules-positioning-newcomer-motivation.md`, `../rfd/0005-flight-rules-two-tier-liftoff-survival.md`
+**결정 배경**: 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md), 하향 시점의 표현은 [RFD 0021](../rfd/0021-low-altitude-downward-view.md), 초기 도입 목적과 과거 규칙은 RFD 0001~0003·0005를 참조한다.
 
 ---
 
@@ -311,7 +315,7 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 #### Song Item 구조
 
-하나의 song item에는 **여러 chart가 존재**하며, **난이도명**(Easy/Normal/Hard/Expert)으로 구분된다.
+하나의 song item에는 **여러 chart가 존재**하며 난이도명으로 구분된다. 채택된 이름과 순서는 `Liftoff → Infiltration → Breakthrough`다. 기존 라벨·데이터·표시 UI의 이행은 아직 구현하지 않았으며 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 - **차트 선택**: 클릭 또는 **좌우 화살표**로 해당 곡 내에서 차트(난이도)를 선택한다.
 - **Play**: **엔터** 키 또는 선택된 차트의 **Play 버튼**을 클릭하면 로딩 → 플레이 화면으로 이동한다.
@@ -374,7 +378,7 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 **결과 화면을 표시하지 않는 이유**: 중도 포기는 "이 차트를 더 이상 진행할 의사가 없다"는 의미이다. 완주하지 않은 플레이의 달성률과 랭크는 유저에게 유의미한 정보가 아니며, 불완전한 결과를 보여주는 것은 부정적 경험을 강화할 뿐이다.
 
-**중도 포기와 `flightRule` 실패의 구분**: 중도 포기는 유저의 자발적 선택이고, `flightRule` 실패(`altitude` 0 도달)는 규칙에 의한 게임 오버다. `flightRule` 실패 시의 화면 전환과 기록 처리 방식은 미정이다(RFD 0001 §9).
+**중도 포기와 `flightRule` 실패의 구분**: 중도 포기는 유저의 자발적 선택이고, `flightRule` 실패는 해당 규칙에 의한 게임 오버다. 단계별 실패 조건과 실패 시 화면 전환·기록 처리는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 낮은 시각 고도 자체를 모든 단계의 실패 조건으로 두지 않는다.
 
 ### 설정 접근
 

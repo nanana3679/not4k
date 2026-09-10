@@ -1,0 +1,14 @@
+# Preview state, captures and reports are local artifacts.
+**/preview-state.json
+**/*.log
+**/*browser-check.json
+**/debug/
+**/*.png
+
+# Six source images needed to run the selected flight prototype.
+!imagegen/wedge-surface-textures-20260910/armor.png
+!imagegen/wedge-surface-textures-20260910/window.png
+!imagegen/wedge-surface-textures-20260910/door.png
+!imagegen/hangar-surface-textures-20260910/hull.png
+!imagegen/hangar-surface-textures-20260910/soffit.png
+!imagegen/distant-architecture-backdrop-20260910/distant-architecture.png
