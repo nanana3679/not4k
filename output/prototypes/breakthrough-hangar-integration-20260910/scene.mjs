@@ -25,7 +25,7 @@ function controls(){
  const values={backdropRate:state.backdropRate,backdropBrightness:state.backdropBrightness,altitude:state.altitude*100,speed:state.speed,size:state.size*40,progress:progressAt(motion.travel,scenePyramid(state))*10000,buildingSize:state.buildingSize,trail:state.trail*1000,outline:state.outline*100,secondary:state.secondary*100,density:state.density,height:state.height,apexGain:state.apexGain,nearStretch:state.nearStretch};
  for(const [id,v] of Object.entries(values)){$(id).value=v;$(id+'-value').value=id==='progress'?`${Math.round(v/100)}%`:id==='trail'?`${Math.round(v)} ms`:['height','apexGain','nearStretch'].includes(id)?`${Math.round(v*10)/10}${id==='height'?'':'배'}`:`${Math.round(v)}%`;}
  for(const k of ['building','lanes','auto','guides','art','surroundings','extensions'])$(k).checked=state[k];
- $('context-controls').disabled=state.module!=='E';
+ $('surroundings').disabled=state.module!=='E';
  $('backdropMotion').value=state.backdropMotion;$('backdropMotion').disabled=state.backdrop==='none';$('backdropRate').disabled=state.backdrop==='none'||state.backdropMotion==='static';
  $('backdrop').value=state.backdrop;$('backdropBrightness').disabled=state.backdrop==='none';
  $('variant').value=state.variant;$('clearance').value=state.clearance?'1':'0';$('play').textContent=state.running?'일시정지':'재생';$('play').setAttribute('aria-pressed',String(state.running));
@@ -99,7 +99,12 @@ window.flightStudy={snapshot(){return{...state,ready,paintedBackdrop:backdrop?.s
   const targetGroup=kind==='extension'?surroundings.extension.group:kind==='station'?surroundings.station.group:building.group;
   const copy=targetGroup.clone(true);copy.visible=true;testScene.add(copy);testScene.updateMatrixWorld(true);
   const ray=new THREE.Raycaster();let sample;
-  for(let y=.05;y<.98&&!sample;y+=.04)for(let x=.02;x<.48&&!sample;x+=.04){const px=Math.floor(x*view.width),py=Math.floor(y*view.height);ray.setFromCamera(new THREE.Vector2((px+.5)/view.width*2-1,1-(py+.5)/view.height*2),camera);const hits=ray.intersectObject(copy,true).filter(h=>h.object.isMesh);if(hits.length)sample={x:px,y:py,hit:hits[0]};}
+  const hitAt=(x,y)=>{ray.setFromCamera(new THREE.Vector2((x+.5)/view.width*2-1,1-(y+.5)/view.height*2),camera);return ray.intersectObject(copy,true).find(h=>h.object.isMesh);};
+  // Sample inside a solid face: edge lines can cover a pixel without writing depth.
+  for(let y=.05;y<.98&&!sample;y+=.025)for(let x=.01;x<.49&&!sample;x+=.008){
+   const px=Math.floor(x*view.width),py=Math.floor(y*view.height),hit=hitAt(px,py);
+   if(hit&&[[-2,-2],[2,-2],[-2,2],[2,2]].every(([dx,dy])=>hitAt(px+dx,py+dy)?.object===hit.object))sample={x:px,y:py,hit};
+  }
   if(!sample)return {error:'No building surface in view'};
   const target=new THREE.WebGLRenderTarget(view.width,view.height),batch=new LightBatch();batch.mesh.renderOrder=3;testScene.add(batch.mesh);
   const read=()=>{renderer.setRenderTarget(target);renderer.render(testScene,camera);const pixel=new Uint8Array(4);renderer.readRenderTargetPixels(target,sample.x,view.height-1-sample.y,1,1,pixel);return [...pixel];};

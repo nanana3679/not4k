@@ -1,7 +1,14 @@
-// PROTOTYPE: E is a projecting part of a larger station, with an open distant city.
+// PROTOTYPE: persistent structural continuations for A-H; E also has a distant city.
 import * as THREE from './vendor/three.module.js';
 import {createBuilder,chamfer} from './blueprint-kit.mjs';
 import {buildModel} from './render-model.mjs';
+import {createExtensionBlueprint as extendA} from './extensions/a-wedge.mjs';
+import {createExtensionBlueprint as extendB} from './extensions/b-maintenance.mjs';
+import {createExtensionBlueprint as extendC} from './extensions/c-service-tower.mjs';
+import {createExtensionBlueprint as extendD} from './extensions/d-twin-gallery.mjs';
+import {createExtensionBlueprint as extendF} from './extensions/f-open-dock.mjs';
+import {createExtensionBlueprint as extendG} from './extensions/g-transfer-spine.mjs';
+import {createExtensionBlueprint as extendH} from './extensions/h-logistics-hub.mjs';
 export const FAR_START=1800,FAR_PERIOD=2200;
 export const FAR_ANCHORS=Object.freeze([
  [-280,-185,130,270,160], [350,240,170,200,110], [250,-230,170,330,150],
@@ -77,16 +84,26 @@ function createFarField(){
  return{group,update,layout,solids,lamps};
 }
 export function createSurroundings(textures){
- const extension=buildModel(extensionBlueprint(),textures),station=buildModel(stationBlueprint(),textures),far=createFarField();
- extension.group.name='E-lower-connections';station.group.name='E-station';
- for(const model of [extension,station])model.group.traverse(o=>{if(o.isLineSegments){o.material.depthWrite=false;o.renderOrder=0;}});
- const group=new THREE.Group();group.name='surrounding-space';group.add(far.group,station.group,extension.group);
+ const extensions=new Map();
+ for(const [id,create] of [['A',extendA],['B',extendB],['C',extendC],['D',extendD],['E',extensionBlueprint],['F',extendF],['G',extendG],['H',extendH]]){
+  const model=buildModel(create(),textures,id==='A'?'wedge':'standard');
+  model.group.name=`${id}-lower-connections`;model.group.visible=false;
+  model.bounds=new THREE.Box3().setFromObject(model.group);
+  extensions.set(id,model);
+ }
+ const station=buildModel(stationBlueprint(),textures),far=createFarField();station.group.name='E-station';
+ for(const model of [...extensions.values(),station])model.group.traverse(o=>{if(o.isLineSegments){o.material.depthWrite=false;o.renderOrder=0;}});
+ const group=new THREE.Group();group.name='surrounding-space';group.add(far.group,station.group,...[...extensions.values()].map(m=>m.group));
+ let selectedId='E';
  function update(state,pyramid,travel,building){
-  const enabled=state.module==='E';far.group.visible=station.group.visible=enabled&&state.surroundings;extension.group.visible=enabled&&state.extensions&&state.building;
-  for(const model of [station,extension]){model.group.position.copy(building.group.position);model.group.scale.copy(building.group.scale);}
+  selectedId=extensions.has(state.module)?state.module:'E';
+  const extension=extensions.get(selectedId),enabled=selectedId==='E';
+  far.group.visible=station.group.visible=enabled&&state.surroundings;
+  for(const model of extensions.values())model.group.visible=model===extension&&state.extensions&&state.building;
+  for(const model of [station,extension]){model.group.position.copy(building.group.position);model.group.quaternion.copy(building.group.quaternion);model.group.scale.copy(building.group.scale);}
   if(far.group.visible)far.update(pyramid,travel);
  }
- function setArt(enabled){extension.setArt(enabled);station.setArt(enabled);}
- function snapshot(){return{farVisible:far.group.visible,stationVisible:station.group.visible,extensionVisible:extension.group.visible,groupId:group.uuid,farId:far.group.uuid,extensionId:extension.group.uuid,stationId:station.group.uuid,instanceCount:far.solids.count+far.lamps.count,farSample:Array.from(far.solids.instanceMatrix.array.slice(12,15))};}
- return{group,update,setArt,snapshot,extension,station,far};
+ function setArt(enabled){for(const model of extensions.values())model.setArt(enabled);station.setArt(enabled);}
+ function snapshot(){const extension=extensions.get(selectedId);return{farVisible:far.group.visible,stationVisible:station.group.visible,extensionVisible:extension.group.visible,extensionModule:selectedId,extensionBounds:{min:extension.bounds.min.toArray(),max:extension.bounds.max.toArray()},extensionPosition:extension.group.position.toArray(),extensionScale:extension.group.scale.toArray(),visibleExtensions:[...extensions].filter(([,m])=>m.group.visible).map(([id])=>id),extensionIds:Object.fromEntries([...extensions].map(([id,m])=>[id,m.group.uuid])),groupId:group.uuid,farId:far.group.uuid,extensionId:extension.group.uuid,stationId:station.group.uuid,instanceCount:far.solids.count+far.lamps.count,farSample:Array.from(far.solids.instanceMatrix.array.slice(12,15))};}
+ return{group,update,setArt,snapshot,get extension(){return extensions.get(selectedId);},extensions,station,far};
 }
