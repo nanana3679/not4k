@@ -269,7 +269,7 @@ Bad는 콤보를 파괴한다. 판정선 근처까지 도달했지만 부정확�
 - **달성률·랭크**: 연주 정확도의 측정. `flightRule`과 무관하게 산출된다.
 - **`altitude`·클리어/실패**: `flightRule`의 상태. 달성률이나 랭크를 대체하지 않는다.
 
-`flightRule`의 클리어/실패는 랭크 산출에 영향을 주지 않는다. Survival에서 판정 등급이 `altitude`에 미치는 영향(Perfect만 회복)은 `../rfd/0002-breakthrough-perfect-only-recovery.md`를 따르며, 점수 가중치(Perfect=3, Great=2, ...)와는 별개의 규칙이다. `flightRule` 실패 시 달성률·랭크의 기록 여부는 미정이다(RFD 0001 §9).
+`flightRule`의 클리어/실패는 랭크 산출에 영향을 주지 않는다. [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)의 `Liftoff / Infiltration / Breakthrough` 이름·연출 배치는 점수 가중치를 변경하지 않는다. 종전 `Survival`의 Perfect-only 회복 규칙은 새 단계에 자동 승계하지 않으며, 세부 고도 규칙과 실패 시 기록 정책은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 ---
 

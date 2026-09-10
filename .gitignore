@@ -55,3 +55,6 @@ test-results/
 
 # Supabase 로컬 백업 (scripts/backup-supabase.mjs 산출물)
 backups/
+
+# A dependency directory may be linked while working in an isolated worktree.
+/node_modules
