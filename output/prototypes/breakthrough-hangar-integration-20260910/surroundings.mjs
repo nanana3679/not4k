@@ -6,6 +6,8 @@ import {createExtensionBlueprint as extendA} from './extensions/a-wedge.mjs';
 import {createExtensionBlueprint as extendB} from './extensions/b-maintenance.mjs';
 import {createExtensionBlueprint as extendC} from './extensions/c-service-tower.mjs';
 import {createExtensionBlueprint as extendD} from './extensions/d-twin-gallery.mjs';
+import {createExtensionBlueprint as extensionBlueprint} from './extensions/e-hangar.mjs';
+export {extensionBlueprint};
 import {createExtensionBlueprint as extendF} from './extensions/f-open-dock.mjs';
 import {createExtensionBlueprint as extendG} from './extensions/g-transfer-spine.mjs';
 import {createExtensionBlueprint as extendH} from './extensions/h-logistics-hub.mjs';
@@ -30,27 +32,6 @@ export function farPose(cluster,pyramid,travel){
  const cameraHeight=pyramid.cameraHeight??12,slope=(pyramid.apexHeight-cameraHeight)/(pyramid.depth+8);
  const base=pyramid.clearance?pyramid.baseCenter-pyramid.height/2:pyramid.baseCenter-29.205;
  return {x:cluster.x,y:base+cluster.y+slope*z,z};
-}
-export function extensionBlueprint(){
- const b=createBuilder();
- // Repeat the shaft surface below the existing -4 end, with collars over the join.
- for(const [name,x0,x1] of [['left',0,6.7],['right',25.3,32]]){
-  for(let i=0;i<5;i++){
-   const top=-4-i*24,bottom=top-24;
-   b.prism(`${name}-shaft-${i}`,chamfer(x0,bottom,x1,top,.7),16,-16,'hull');
-   b.box(`${name}-collar-${i}`,[(x0+x1)/2,top+.1,0],[x1-x0+.8,1.8,32.8],'side');
-   b.box(`${name}-seam-${i}`,[(x0+x1)/2,top-11.5,16.035],[x1-x0-.8,.22,.08],'dark');
-  }
-  b.box(`${name}-socket`,[(x0+x1)/2,-124,0],[x1-x0+4,5,38],'mount');
- }
- b.prism('receiving-deck',chamfer(-10,-147,44,-121,2.5),22,-54,'under');
- b.box('receiving-lip',[17,-120,-4],[58,2.4,57],'side');
- // The lower deck is held by a rear stem, not another disconnected floating end.
- b.prism('lower-station-stem',chamfer(-1,-360,29,-139,2),-13,-49,'hull');
- for(const y of [-168,-216,-264,-312])b.box(`stem-collar-${y}`,[14,y,-31],[33,2.2,40],'under');
- b.beam('left-deck-brace',[-7,-124,8],[2,-159,-18],2,2,'under');
- b.beam('right-deck-brace',[41,-124,8],[27,-159,-18],2,2,'under');
- return b.model;
 }
 export function stationBlueprint(){
  const b=createBuilder();

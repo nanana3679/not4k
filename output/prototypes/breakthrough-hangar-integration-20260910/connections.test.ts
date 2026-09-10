@@ -56,8 +56,8 @@ it('8종의 연결부는 크기180%에서도 출발깊이1600에서 안개1400 �
   }
 });
 
-it('A·B·C·D·F·G·H의 추가 몸통은 아래로640 이상 이어지고 원래 모델 높이는 바뀌지 않는다', () => {
-  const heights = {A: 11.6, B: 10.26, C: 20.9, D: 8.66, F: 38.51, G: 24.56, H: 48.94};
+it('A~H 8종의 사용층과 연결 축은 아래로640 이상 이어지고 원래 모델 높이는 바뀌지 않는다', () => {
+  const heights = {A: 11.6, B: 10.26, C: 20.9, D: 8.66, E: 58.41, F: 38.51, G: 24.56, H: 48.94};
   for (const [id, height] of Object.entries(heights)) {
     expect(space.extensions.get(id).bounds.min.y, id).toBeLessThanOrEqual(-640 + 1e-8);
     expect(models.get(id).dimensions[1], id).toBeCloseTo(height, 2);

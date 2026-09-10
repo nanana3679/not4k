@@ -68,7 +68,7 @@ try{
   check(`너비${width}px에서 구조 연장 조절이 활성화되고 가로 넘침 없음`,!await page.locator('#extensions').isDisabled()&&await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await capture(`connections-viewport-${width}.png`);
  }
- for(const name of ['a-wedge','b-maintenance','c-service-tower','d-twin-gallery','f-open-dock','g-transfer-spine','h-logistics-hub']){
+ for(const name of ['a-wedge','b-maintenance','c-service-tower','d-twin-gallery','e-hangar','f-open-dock','g-transfer-spine','h-logistics-hub']){
   const path=`extensions/${name}.mjs`,r=await fetch(url+path);
   check(`${name} 연결부 실행 파일 HTTP200과 작업 파일 일치`,r.status===200&&Buffer.from(await r.arrayBuffer()).equals(await readFile(new URL(path,root))));
   check(`${name} 연결부 테스트 파일은 비공개404`,(await fetch(url+`extensions/${name}.test.ts`)).status===404);
