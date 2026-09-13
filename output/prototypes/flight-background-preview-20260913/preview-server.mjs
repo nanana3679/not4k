@@ -127,11 +127,22 @@ export const breakthroughSearch = new URLSearchParams({
   progress: '0.909323727999996',
 }).toString();
 
-export const previewViews = Object.freeze({
-  liftoff: '/flight/liftoff/?variant=liftoff&altitude=.68&scale=1&secondary=.15&speed=3&lanes=0',
-  infiltration: '/flight/infiltration/?variant=infiltration&altitude=.23&scale=1&secondary=.15&speed=6&lanes=0',
-  breakthrough: `/flight/breakthrough/?${breakthroughSearch}`,
-});
+function normalizedBasePath(basePath = '') {
+  const value = String(basePath).trim();
+  if (!value || value === '/') return '';
+  return `/${value.replace(/^\/+|\/+$/g, '')}`;
+}
+
+export function previewViewsAt(basePath = '') {
+  const base = normalizedBasePath(basePath);
+  return Object.freeze({
+    liftoff: `${base}/flight/liftoff/?variant=liftoff&altitude=.68&scale=1&secondary=.15&speed=3&lanes=0`,
+    infiltration: `${base}/flight/infiltration/?variant=infiltration&altitude=.23&scale=1&secondary=.15&speed=6&lanes=0`,
+    breakthrough: `${base}/flight/breakthrough/?${breakthroughSearch}`,
+  });
+}
+
+export const previewViews = previewViewsAt();
 
 function contentType(name) {
   if (name.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -179,7 +190,6 @@ export function resolvePreviewRoute(pathname) {
   return null;
 }
 
-const page = Buffer.from(publicPreviewPage(previewViews));
 const responseHeaders = {
   'cache-control': 'no-store',
   'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
@@ -192,7 +202,14 @@ function send(response, requestMethod, status, body, type) {
   response.end(requestMethod === 'HEAD' ? undefined : body);
 }
 
-async function serve(request, response) {
+function routePathname(pathname, basePath) {
+  const base = normalizedBasePath(basePath);
+  if (!base) return pathname;
+  if (pathname === base || pathname === `${base}/`) return '/';
+  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : null;
+}
+
+async function serve(request, response, { basePath = '' } = {}) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.writeHead(405, { ...responseHeaders, allow: 'GET, HEAD' });
     response.end();
@@ -206,12 +223,18 @@ async function serve(request, response) {
     send(response, request.method, 400, Buffer.from('Bad request'), 'text/plain; charset=utf-8');
     return;
   }
-  if (url.pathname === '/') {
+  const pathname = routePathname(url.pathname, basePath);
+  if (pathname === null) {
+    send(response, request.method, 404, Buffer.from('Not found'), 'text/plain; charset=utf-8');
+    return;
+  }
+  if (pathname === '/') {
+    const page = Buffer.from(publicPreviewPage(previewViewsAt(basePath)));
     send(response, request.method, 200, page, 'text/html; charset=utf-8');
     return;
   }
 
-  const route = resolvePreviewRoute(url.pathname);
+  const route = resolvePreviewRoute(pathname);
   if (!route) {
     send(response, request.method, 404, Buffer.from('Not found'), 'text/plain; charset=utf-8');
     return;
@@ -228,17 +251,19 @@ async function serve(request, response) {
   }
 }
 
-export function createPreviewServer() {
-  return createServer((request, response) => {
-    void serve(request, response).catch(() => {
-      if (response.writableEnded) return;
-      if (response.headersSent) {
-        response.destroy();
-        return;
-      }
-      send(response, request.method, 500, Buffer.from('Internal server error'), 'text/plain; charset=utf-8');
-    });
+export function handlePreviewRequest(request, response, options = {}) {
+  void serve(request, response, options).catch(() => {
+    if (response.writableEnded) return;
+    if (response.headersSent) {
+      response.destroy();
+      return;
+    }
+    send(response, request.method, 500, Buffer.from('Internal server error'), 'text/plain; charset=utf-8');
   });
+}
+
+export function createPreviewServer(options = {}) {
+  return createServer((request, response) => handlePreviewRequest(request, response, options));
 }
 
 export function startPreviewServer({ host = process.env.PREVIEW_HOST || '127.0.0.1', port = Number(process.env.PREVIEW_PORT || 0) } = {}) {

@@ -80,7 +80,7 @@ export function frameStyle(view) {
 
 export function publicPreviewPage(views) {
   const buttons = Object.entries(sceneLabels)
-    .map(([view, label], index) => `<button type="button" data-view="${view}" aria-selected="${index === 0}">${label}</button>`)
+    .map(([view, label], index) => `<button id="flight-tab-${view}" type="button" role="tab" data-view="${view}" aria-controls="preview-frame" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}">${label}</button>`)
     .join('');
 
   return `<!doctype html>
@@ -97,7 +97,7 @@ export function publicPreviewPage(views) {
       body { display: grid; grid-template-rows: 54px minmax(0, 1fr); background: #05070b; }
       header { display: grid; place-items: center; padding: 6px 12px; border-bottom: 1px solid #202a38; background: #080d15; }
       nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; width: min(560px, 100%); }
-      button { min-width: 0; min-height: 42px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: #8491a3; font: 650 12px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; cursor: pointer; }
+      button { min-width: 0; min-height: 44px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; color: #8491a3; font: 650 12px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; cursor: pointer; }
       button:hover { color: #cbd6e4; background: #111925; }
       button[aria-selected="true"] { color: #f1f6fc; background: #182230; }
       button:focus-visible { outline: 2px solid #aab8c9; outline-offset: -2px; }
@@ -106,16 +106,16 @@ export function publicPreviewPage(views) {
       @media (max-width: 560px) {
         body { grid-template-rows: 50px minmax(0, 1fr); }
         header { padding: 4px 6px; }
-        button { min-height: 42px; padding: 0 5px; font-size: 10px; letter-spacing: .04em; }
+        button { min-height: 44px; padding: 0 5px; font-size: 10px; letter-spacing: .04em; }
       }
     </style>
   </head>
   <body>
     <header>
-      <nav aria-label="Flight scenes">${buttons}</nav>
+      <nav aria-label="Flight scenes" role="tablist">${buttons}</nav>
     </header>
     <main class="stage">
-      <iframe id="preview-frame" title="Flight preview" allow="fullscreen"></iframe>
+      <iframe id="preview-frame" role="tabpanel" title="Flight preview" allow="fullscreen"></iframe>
     </main>
     <script>
       const sources = ${JSON.stringify(views)};
@@ -137,7 +137,12 @@ export function publicPreviewPage(views) {
       function select(view) {
         if (view === current) return;
         rememberCurrentView();
-        for (const button of buttons) button.setAttribute('aria-selected', String(button.dataset.view === view));
+        for (const button of buttons) {
+          const selected = button.dataset.view === view;
+          button.setAttribute('aria-selected', String(selected));
+          button.tabIndex = selected ? 0 : -1;
+          if (selected) frame.setAttribute('aria-labelledby', button.id);
+        }
         frame.dataset.view = view;
         frame.title = labels[view] + ' preview';
         frame.src = sources[view];
@@ -148,6 +153,16 @@ export function publicPreviewPage(views) {
         history.replaceState(null, '', url);
       }
       for (const button of buttons) button.addEventListener('click', () => select(button.dataset.view));
+      for (const button of buttons) button.addEventListener('keydown', event => {
+        const index = buttons.indexOf(button);
+        const next = event.key === 'ArrowRight' ? (index + 1) % buttons.length
+          : event.key === 'ArrowLeft' ? (index - 1 + buttons.length) % buttons.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : -1;
+        if (next < 0) return;
+        event.preventDefault();
+        buttons[next].focus();
+        select(buttons[next].dataset.view);
+      });
       select(initial);
     </script>
   </body>

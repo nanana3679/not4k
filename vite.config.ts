@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { handlePreviewRequest } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
 import {
   PERSPECTIVE_SURFACE_GRID_PRESET_OUTPUT_PATH,
   PERSPECTIVE_SURFACE_GRID_PRESET_SAVE_ENDPOINT,
@@ -11,7 +12,7 @@ import {
 } from "./src/lab/perspectiveSurfaceGridPreset";
 
 export default defineConfig({
-  plugins: [react(), perspectiveSurfaceGridPresetPlugin(), excludeLabFromBuildPlugin()],
+  plugins: [react(), flightBackgroundPreviewLabPlugin(), perspectiveSurfaceGridPresetPlugin(), excludeLabFromBuildPlugin()],
   server: {
     port: 3000,
   },
@@ -19,6 +20,27 @@ export default defineConfig({
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 const perspectiveSurfaceGridPresetPath = resolve(workspaceRoot, PERSPECTIVE_SURFACE_GRID_PRESET_OUTPUT_PATH);
+const flightBackgroundPreviewLabPath = "/__lab/flight-background-preview";
+
+function flightBackgroundPreviewLabPlugin() {
+  return {
+    name: "not4k-flight-background-preview-lab",
+    apply: "serve" as const,
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const target = request.url ?? "";
+        const insidePreview = target === flightBackgroundPreviewLabPath
+          || target.startsWith(`${flightBackgroundPreviewLabPath}/`)
+          || target.startsWith(`${flightBackgroundPreviewLabPath}?`);
+        if (!insidePreview) {
+          next();
+          return;
+        }
+        handlePreviewRequest(request, response, { basePath: flightBackgroundPreviewLabPath });
+      });
+    },
+  };
+}
 
 /**
  * 프로덕션 빌드에서 public/lab 에셋(dist/lab)을 제거한다.

@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { createConnection, type AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { breakthroughSearch, createPreviewServer, previewViews, resolvePreviewRoute } from './preview-server.mjs';
+import { breakthroughSearch, createPreviewServer, previewViews, previewViewsAt, resolvePreviewRoute } from './preview-server.mjs';
 
 const servers: ReturnType<typeof createPreviewServer>[] = [];
 
@@ -9,8 +9,8 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => server.close(() => resolve()))));
 });
 
-async function runningPreview() {
-  const server = createPreviewServer();
+async function runningPreview(options = {}) {
+  const server = createPreviewServer(options);
   servers.push(server);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -117,5 +117,18 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(malformed).toMatch(/^HTTP\/1\.1 400 Bad Request/m);
     expect(healthy.status).toBe(200);
     expect(await healthy.text()).toContain('LIFTOFF');
+  });
+
+  it('/__lab/flight-background-preview에 마운트하면 셸과 세 장면 URL을 같은 경로 아래에서 제공한다', async () => {
+    const basePath = '/__lab/flight-background-preview';
+    const url = await runningPreview({ basePath });
+    const root = await fetch(`${url}${basePath}/`);
+    const liftoff = await fetch(`${url}${previewViewsAt(basePath).liftoff}`);
+    const outside = await fetch(url);
+
+    expect(root.status).toBe(200);
+    expect(await root.text()).toContain(`${basePath}/flight/breakthrough/`);
+    expect(liftoff.status).toBe(200);
+    expect(outside.status).toBe(404);
   });
 });

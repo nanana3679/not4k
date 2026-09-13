@@ -51,6 +51,13 @@ try {
     const response = await page.goto(publicUrl);
     assert.equal(response.status(), 200);
     assert.deepEqual(await page.locator('button[data-view]').allTextContents(), ['LIFTOFF', 'INFILTRATION', 'BREAKTHROUGH']);
+    assert.equal(await page.locator('[role="tab"]').count(), 3);
+    assert.equal(await page.locator('#preview-frame').getAttribute('role'), 'tabpanel');
+    assert.equal(await page.locator('#preview-frame').getAttribute('aria-labelledby'), 'flight-tab-liftoff');
+    for (const tab of await page.locator('button[data-view]').all()) {
+      const bounds = await tab.boundingBox();
+      assert.ok(bounds && bounds.height >= 44, `${viewport.width}px 장면 탭 높이: ${JSON.stringify(bounds)}`);
+    }
     assert.equal(await page.locator('h1').count(), 0);
     checks.push(`${viewport.width}px 공개 셸은 영어 장면 탭만 표시한다`);
 
@@ -153,7 +160,13 @@ try {
   await frame.locator('#altitude').focus();
   await frame.locator('#altitude').press('ArrowRight');
   assert.equal(Number(await frame.locator('#altitude').inputValue()), keyboardAltitude + 1);
-  checks.push('키보드 Enter로 장면을 열고 ArrowRight로 altitude를 1% 올릴 수 있다');
+  await page.locator('button[data-view="infiltration"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await waitForView(page, 'breakthrough');
+  await page.keyboard.press('ArrowLeft');
+  frame = await waitForView(page, 'infiltration');
+  assert.equal(Number(await frame.locator('#altitude').inputValue()), keyboardAltitude + 1);
+  checks.push('키보드 Enter로 장면을 열고 화살표로 탭과 altitude를 조작할 수 있다');
 
   await page.locator('nav').evaluate(nav => {
     nav.querySelector('[data-view="breakthrough"]').click();

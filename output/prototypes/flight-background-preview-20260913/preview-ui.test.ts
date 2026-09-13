@@ -31,6 +31,10 @@ describe('공개 비행 미리보기 최소 UI', () => {
     const html = publicPreviewPage(views);
     expect(html.match(/<button /g)).toHaveLength(3);
     expect(html.match(/<iframe /g)).toHaveLength(1);
+    expect(html).toContain('role="tablist"');
+    expect(html.match(/role="tab"/g)).toHaveLength(3);
+    expect(html).toContain('role="tabpanel"');
+    expect(html).toContain("event.key === 'ArrowRight'");
     expect(html).not.toContain('<h1');
   });
 

@@ -92,3 +92,7 @@
 ### Domain docs
 
 멀티 컨텍스트 저장소로 취급한다. 먼저 루트 `CONTEXT-MAP.md`를 읽고, 작업 영역에 맞는 `CONTEXT.md`를 추가로 읽는다. 자세한 내용은 `docs/agents/domain.md`를 참고한다.
+
+### Lab previews
+
+에셋·렌더링·인터랙션을 사용자에게 확인받기 위한 개발용 미리보기는 `/lab/<고유-id>`를 기본 경로로 사용하고 `/lab` 카탈로그에 등록한다. 기존 미리보기와 새 미리보기의 등록·라우팅·검증 규칙은 `docs/agents/lab-previews.md`를 따른다.
