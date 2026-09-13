@@ -12,3 +12,8 @@
 !imagegen/hangar-surface-textures-20260910/hull.png
 !imagegen/hangar-surface-textures-20260910/soffit.png
 !imagegen/distant-architecture-backdrop-20260910/distant-architecture.png
+
+# Three source images needed to run the public three-scene flight preview.
+!prototypes/flight-background-preview-20260913/approach/ground.png
+!prototypes/flight-background-preview-20260913/approach/sky.png
+!prototypes/flight-background-preview-20260913/approach/sky-infiltration.png

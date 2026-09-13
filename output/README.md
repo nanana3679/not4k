@@ -1,10 +1,11 @@
 # 비행 연출 시연과 미술 탐색 기록
 
-현재 실행·개발 대상은 [돌파 광원 + A~H 건축 시연](prototypes/breakthrough-hangar-integration-20260910/NOTES.md)이다. 게임 본편과 독립되어 있으며, 이 브랜치는 `main`의 `39f7736`에서 비행 작업만 분리했다. 판정 모델·Advanced 튜토리얼의 별도 커밋은 포함하지 않는다.
+현재 검수 대상은 [세 난이도 공개 배경 미리보기](prototypes/flight-background-preview-20260913/NOTES.md)다. `LIFTOFF`·`INFILTRATION`·`BREAKTHROUGH`를 한 페이지에서 전환하며 장면별 고도만 조절한다. 돌파 실행 원본은 [돌파 광원 + A~H 건축 시연](prototypes/breakthrough-hangar-integration-20260910/NOTES.md)을 재사용한다. 두 시연 모두 게임 본편과 독립되어 있다.
 
 ## 저장 범위
 
-- 현재 시연의 HTML·CSS·모듈·단위 테스트·브라우저 검사 코드, 원본 보존용 SHA-256 명세, Three.js와 라이선스를 저장한다.
+- 현재 시연의 HTML·CSS·모듈·단위 테스트·브라우저 검사 코드, 이륙·침투의 하늘·지표면 PNG와 SHA-256 기록을 저장한다.
+- 돌파 시연의 실행 코드, 원본 보존용 SHA-256 명세, Three.js와 라이선스를 저장하며 공개 비교에서 같은 파일을 직접 재사용한다.
 - 실행에 필요한 장갑판·창문·문·외벽·밑면·먼 건축 배경 PNG 여섯 장과 생성 프롬프트·출처 명세를 저장한다.
 - 이전 이미지 탐색과 개별 시연은 README·NOTES의 설명 기록을 보존한다. 이전 PNG·실행 코드·검사 결과는 로컬 원본과 백업에 보관하며 이 브랜치에는 포함하지 않는다.
 - 접속 토큰을 담은 `preview-state.json`, 서버 로그, 재생성 가능한 검사 PNG·JSON은 Git에서 제외한다.
@@ -14,6 +15,17 @@
 ## 새 체크아웃에서 실행
 
 저장소 루트에서 `pnpm install --frozen-lockfile`로 개발 의존성을 설치한다. 시연은 저장한 Three.js 파일을 사용하며 별도 CDN이 필요 없다.
+
+```sh
+cd output/prototypes/flight-background-preview-20260913
+npm test
+npm start
+PREVIEW_URL=http://127.0.0.1:<출력된 포트>/ npm run check:browser
+```
+
+인터넷 임시 공개가 필요하면 출력된 로컬 주소에 `cloudflared tunnel --url`을 연결한다. 상세 명령과 고정 기본값은 [공개 미리보기 기록](prototypes/flight-background-preview-20260913/NOTES.md)을 따른다.
+
+돌파 단독 시연은 기존 명령으로 계속 실행할 수 있다.
 
 ```sh
 cd output/prototypes/breakthrough-hangar-integration-20260910
