@@ -14,4 +14,3 @@ describe("FlightBackgroundPreviewLabPage", () => {
     expect(markup).toContain('href="/lab"');
   });
 });
-

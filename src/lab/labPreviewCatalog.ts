@@ -61,4 +61,3 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/judgment-playtest",
   },
 ]);
-
