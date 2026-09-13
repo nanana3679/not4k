@@ -19,6 +19,8 @@ describe('공개 비행 미리보기 최소 UI', () => {
     expect(frameStyle('infiltration')).toContain('#altitude');
     expect(frameStyle('breakthrough')).toContain('#altitude');
     expect(frameStyle('breakthrough')).not.toContain(':has(#backdropRate)');
+    expect(frameStyle('liftoff')).not.toContain('!important');
+    expect(frameStyle('breakthrough')).not.toContain('!important');
   });
 
   it('BREAKTHROUGH 공개 기본값은 배경 밝기 10%로 고정한다', () => {

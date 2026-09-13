@@ -15,44 +15,46 @@ export const breakthroughDefaults = Object.freeze({
 });
 
 const sliderRail = `
-  accent-color:#aab8c9!important;
-  appearance:auto!important;
-  background:transparent!important;
-  border:0!important;
-  cursor:pointer!important;
-  height:44px!important;
-  margin:0!important;
-  min-height:44px!important;
-  width:100%!important;
+  accent-color:#aab8c9;
+  appearance:auto;
+  background:transparent;
+  border:0;
+  cursor:pointer;
+  height:44px;
+  margin:0;
+  min-height:44px;
+  width:100%;
 `;
 
 export const approachStyle = `<style id="public-preview-controls">
-  html,body{height:100%!important;overflow:hidden!important;background:#030711!important}
-  body{padding:0!important}
-  body>main{display:grid!important;grid-template-rows:minmax(0,1fr) auto!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-  header,.scenario-bar,.caption,.stage-tools,.stamp,.loading,.object-dock,footer{display:none!important}
-  body .stage{border:0!important;border-radius:0!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:auto!important}
-  #controls{display:block!important;background:#080d15!important;border-top:1px solid #1c2634!important;columns:auto!important;column-gap:0!important;padding:6px 18px 8px!important}
-  #controls>*{display:none!important}
-  #controls>.adjust{display:block!important;border:0!important;padding:0!important}
-  #controls>.adjust>div{display:none!important}
-  #controls>.adjust>div:has(#altitude){display:block!important;width:100%!important}
-  #controls .control-title{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-  #controls .range-caption,#controls .alt-controls{display:none!important}
+  html,body{height:100%;overflow:hidden;background:#030711}
+  html body{padding:0}
+  html body>main{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;max-width:none;margin:0;padding:0}
+  html body[data-flight-view="approach"]>main{max-width:none;padding:0}
+  html body header,html body .scenario-bar,html body .caption,html body .stage-tools,html body .stamp,html body .loading,html body .object-dock,html body footer{display:none}
+  html body .stage{border:0;border-radius:0;height:auto;min-height:0;max-height:none;aspect-ratio:auto}
+  html body #controls{display:block;background:#080d15;border-top:1px solid #1c2634;columns:auto;column-gap:0;padding:6px 18px 8px}
+  html body:not(.scene-only) #controls{columns:auto;column-gap:0}
+  html body #controls>*{display:none}
+  html body #controls>.adjust{display:block;border:0;padding:0}
+  html body #controls>.adjust>div{display:none}
+  html body #controls>.adjust>div:has(#altitude){display:block;width:100%}
+  html body #controls .control-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  html body #controls .range-caption,html body #controls .alt-controls{display:none}
   #altitude{${sliderRail}}
 </style>`;
 
 export const breakthroughStyle = `<style id="public-preview-controls">
-  html,body{height:100%!important;overflow:hidden!important;background:#030711!important}
-  body>main{display:grid!important;grid-template-rows:minmax(0,1fr) auto!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-  body>main>header,.hud,#loading,footer{display:none!important}
-  .viewer{border:0!important;border-radius:0!important;height:auto!important;min-height:0!important;aspect-ratio:auto!important}
-  .controls{display:grid!important;gap:2px!important;background:#080d15!important;border-top:1px solid #1c2634!important;padding:6px 18px 8px!important}
-  .controls>*{display:none!important}
-  .controls>.grid:has(#altitude){display:block!important;margin:0!important;order:1!important}
-  .controls>.grid:has(#altitude)>label{display:none!important}
-  .controls>.grid:has(#altitude)>label:has(#altitude){display:block!important;font-size:0!important;color:transparent!important}
-  #altitude-value{display:none!important}
+  html,body{height:100%;overflow:hidden;background:#030711}
+  html body>main{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;max-width:none;margin:0;padding:0}
+  html body>main>header,html body .hud,html body #loading,html body footer{display:none}
+  html body .viewer{border:0;border-radius:0;height:auto;min-height:0;aspect-ratio:auto}
+  html body .controls{display:grid;gap:2px;background:#080d15;border-top:1px solid #1c2634;padding:6px 18px 8px}
+  html body .controls>*{display:none}
+  html body .controls>.grid:has(#altitude){display:block;margin:0;order:1}
+  html body .controls>.grid:has(#altitude)>label{display:none}
+  html body .controls>.grid:has(#altitude)>label:has(#altitude){display:block;font-size:0;color:transparent}
+  html body #altitude-value{display:none}
   #altitude{${sliderRail}}
 </style>`;
 

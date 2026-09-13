@@ -215,7 +215,7 @@ async function serve(request, response) {
   try {
     let body = route.body ?? await readFile(route.filePath);
     if (route.injectedStyle && route.name === 'index.html') {
-      body = Buffer.from(body.toString('utf8').replace('</head>', `${route.injectedStyle}</head>`));
+      body = Buffer.from(body.toString('utf8').replace('</body>', `${route.injectedStyle}</body>`));
     }
     send(response, request.method, 200, body, contentType(route.name));
   } catch {

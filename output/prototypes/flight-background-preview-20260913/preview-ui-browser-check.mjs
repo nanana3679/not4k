@@ -64,7 +64,7 @@ try {
       assert.equal(state.overflow, false);
       for (const sliderId of expectedSliders) {
         const bounds = await frame.locator(`#${sliderId}`).boundingBox();
-        assert.ok(bounds && bounds.height >= 44 && bounds.width >= viewport.width - 40);
+        assert.ok(bounds && bounds.height >= 44 && bounds.width >= viewport.width - 40, `${viewport.width}px ${view} ${sliderId} 크기: ${JSON.stringify(bounds)}`);
         widths.push(bounds.width);
       }
       checks.push(`${viewport.width}px ${view}는 ${expectedSliders.join('·')} 슬라이더만 표시한다`);
