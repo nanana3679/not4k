@@ -1,3 +1,5 @@
+import { withLabPublicBase } from './labPublicPath';
+
 export interface GearLightSample {
   id: string;
   label: string;
@@ -14,35 +16,35 @@ export interface GearLightSample {
 const makeSample = (id: string, label: string, basePath: string, hasGauge = false): GearLightSample => ({
   id,
   label,
-  sourceSrc: `${basePath}/gear-source.png`,
-  baseSrc: `${basePath}/gear-base.png`,
-  glowSrc: `${basePath}/gear-glow.png`,
-  ...(hasGauge ? { gaugeSrc: `${basePath}/gear-gauge.png` } : {}),
-  metadataSrc: `${basePath}/gear-metadata.json`,
+  sourceSrc: withLabPublicBase(`${basePath}/gear-source.png`),
+  baseSrc: withLabPublicBase(`${basePath}/gear-base.png`),
+  glowSrc: withLabPublicBase(`${basePath}/gear-glow.png`),
+  ...(hasGauge ? { gaugeSrc: withLabPublicBase(`${basePath}/gear-gauge.png`) } : {}),
+  metadataSrc: withLabPublicBase(`${basePath}/gear-metadata.json`),
 });
 
 const makeRuntimeGaugeSample = (id: string, label: string, basePath: string): GearLightSample => ({
   id,
   label,
-  sourceSrc: `${basePath}/gear-source.png`,
-  baseSrc: `${basePath}/gear-back.png`,
-  glowSrc: `${basePath}/gear-front.png`,
-  metadataSrc: `${basePath}/skin-runtime-config.json`,
-  runtimeBackSrc: `${basePath}/gear-back.png`,
-  runtimeFrontSrc: `${basePath}/gear-front.png`,
-  runtimeConfigSrc: `${basePath}/skin-runtime-config.json`,
+  sourceSrc: withLabPublicBase(`${basePath}/gear-source.png`),
+  baseSrc: withLabPublicBase(`${basePath}/gear-back.png`),
+  glowSrc: withLabPublicBase(`${basePath}/gear-front.png`),
+  metadataSrc: withLabPublicBase(`${basePath}/skin-runtime-config.json`),
+  runtimeBackSrc: withLabPublicBase(`${basePath}/gear-back.png`),
+  runtimeFrontSrc: withLabPublicBase(`${basePath}/gear-front.png`),
+  runtimeConfigSrc: withLabPublicBase(`${basePath}/skin-runtime-config.json`),
 });
 
 const makeOriginalRuntimeSample = (): GearLightSample => ({
   id: 'original',
   label: 'Original Runtime',
-  sourceSrc: '/lab/gear-light/gear-source.png',
-  baseSrc: '/lab/gear-light/gear-base.png',
-  glowSrc: '/lab/gear-light/gear-glow.png',
-  metadataSrc: '/lab/gear-light/gear-metadata.json',
-  runtimeBackSrc: '/lab/gear-light/gear-back.png',
-  runtimeFrontSrc: '/lab/gear-light/gear-front.png',
-  runtimeConfigSrc: '/lab/gear-light/skin-runtime-config.json',
+  sourceSrc: withLabPublicBase('/lab/gear-light/gear-source.png'),
+  baseSrc: withLabPublicBase('/lab/gear-light/gear-base.png'),
+  glowSrc: withLabPublicBase('/lab/gear-light/gear-glow.png'),
+  metadataSrc: withLabPublicBase('/lab/gear-light/gear-metadata.json'),
+  runtimeBackSrc: withLabPublicBase('/lab/gear-light/gear-back.png'),
+  runtimeFrontSrc: withLabPublicBase('/lab/gear-light/gear-front.png'),
+  runtimeConfigSrc: withLabPublicBase('/lab/gear-light/skin-runtime-config.json'),
 });
 
 export const GEAR_LIGHT_SAMPLES: GearLightSample[] = [

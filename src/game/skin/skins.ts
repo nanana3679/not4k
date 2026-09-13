@@ -1,11 +1,12 @@
 import type { SkinManifest } from "./types";
+import { withPublicBase } from "../../shared/publicPath";
 
 function buildManifest(
   id: string,
   theme: SkinManifest["theme"],
   withCaps = false,
 ): SkinManifest {
-  const base = `/skins/${id}`;
+  const base = withPublicBase(`/skins/${id}`);
   const caps = withCaps
     ? {
         endCapSingle: `${base}/end-cap-single.png`,
@@ -50,9 +51,9 @@ function buildManifest(
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
       // 기어 프레임/게이지는 스킨 공통 공유 에셋 (scripts/split-gear-gauge.mjs 산출물)
-      gearFrame: "/gear/gear-frame.png",
-      gearGaugeLeft: "/gear/gear-gauge-left.png",
-      gearGaugeRight: "/gear/gear-gauge-right.png",
+      gearFrame: withPublicBase("/gear/gear-frame.png"),
+      gearGaugeLeft: withPublicBase("/gear/gear-gauge-left.png"),
+      gearGaugeRight: withPublicBase("/gear/gear-gauge-right.png"),
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

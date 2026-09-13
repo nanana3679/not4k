@@ -79,6 +79,23 @@
 - **RFD의 구현이 진행·완료되면 문서 상단 `**Status:**` 라인에 마일스톤을 시간순으로 누적 기록할 것**(예: `· §6-2 박스 감쌈 선택 구현 (2026-07-14, PR #110)`). Status는 "완료/미완료" 플래그가 아니라 **구현 진척을 남기는 로그**다. 부분 구현이면 잔여 항목을 Status나 상단 "구현 기록" 문단에 명시할 것. 항목별 세부 이력은 "구현 기록" 문단에 두고 Status는 한 줄 요약만 둔다
 - 미정/미결정 사항의 추적은 `docs/prd.md`의 "미정 사항" 섹션에서 단일하게 관리할 것. 다른 문서에 미정 추적 표를 중복으로 만들지 말고 PRD를 링크할 것
 
+## Deploy Configuration (configured by /setup-deploy)
+
+- Platform: GitHub Pages (Lab 전용, 기존 앱 배포와 분리)
+- Production URL: https://nanana3679.github.io/not4k/lab/
+- Deploy workflow: `.github/workflows/deploy-lab-pages.yml`
+- Deploy status command: `gh run list --workflow deploy-lab-pages.yml --limit 1`
+- Merge method: squash
+- Project type: static Lab preview site
+- Post-deploy health check: `https://nanana3679.github.io/not4k/lab/`
+
+### Custom deploy hooks
+
+- Pre-merge: `pnpm run build:lab`
+- Deploy trigger: `main`의 Lab 관련 경로 변경 또는 수동 `workflow_dispatch`
+- Deploy status: `gh run watch $(gh run list --workflow deploy-lab-pages.yml --limit 1 --json databaseId --jq '.[0].databaseId')`
+- Health check: `curl -fsS https://nanana3679.github.io/not4k/lab/`
+
 ## Agent skills
 
 ### Issue tracker
@@ -92,3 +109,9 @@
 ### Domain docs
 
 멀티 컨텍스트 저장소로 취급한다. 먼저 루트 `CONTEXT-MAP.md`를 읽고, 작업 영역에 맞는 `CONTEXT.md`를 추가로 읽는다. 자세한 내용은 `docs/agents/domain.md`를 참고한다.
+
+### Lab previews
+
+에셋·렌더링·인터랙션을 사용자에게 확인받기 위한 개발용 미리보기는 `/lab/<고유-id>`를 기본 경로로 사용하고 `/lab` 카탈로그에 등록한다. 기존 미리보기와 새 미리보기의 등록·라우팅·검증 규칙은 `docs/agents/lab-previews.md`를 따른다.
+
+이미지 생성 결과를 독립 HTML 비교 페이지로 만든 경우 개별 이미지를 다시 등록하지 않는다. 완성된 HTML 번들을 `lab/image-galleries/<고유-id>/`에 두고 `src/lab/labImageGalleryCatalog.ts`에 컬렉션 하나만 등록해 `/lab/images/<고유-id>/`로 공개한다.

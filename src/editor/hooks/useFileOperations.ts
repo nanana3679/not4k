@@ -14,9 +14,8 @@ import {
   validateChart,
   extractTimeSignatures,
   isMeasureBoundary,
-  mainNotes,
 } from '../../shared';
-import type { Chart, Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
+import type { Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
@@ -24,6 +23,9 @@ import {
 } from '../../supabase';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
+import { performPlayTest } from '../playtest/performPlayTest';
+export { performPlayTest } from '../playtest/performPlayTest';
+export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
@@ -32,76 +34,6 @@ export interface FileOperationHandlers {
   handleDeleteChart: () => Promise<void>;
   handleMarkerSave: (values: Record<string, string>) => void;
   handleMarkerDelete: () => void;
-}
-
-/** 테스트 플레이가 게임 스토어에 적용하는 액션 (테스트에서 주입 가능하도록 분리) */
-export interface PlayTestGameActions {
-  setChartData: (chart: Chart | null) => void;
-  setAudioBuffer: (buffer: AudioBuffer | null) => void;
-  setStartTimeMs: (ms: number) => void;
-  setEditorReturnUrl: (url: string | null) => void;
-  setScreen: (screen: 'play') => void;
-}
-
-export interface PerformPlayTestParams {
-  /** true면 현재 커서 위치부터, false면 처음(0)부터 시작 */
-  fromCursor: boolean;
-  audioBuffer: AudioBuffer | null;
-  isPlaying: boolean;
-  pause: () => void;
-  chart: Chart;
-  currentTimeMs: number;
-  returnUrl: string;
-  game: PlayTestGameActions;
-  addToast: (message: string, type: 'error') => void;
-  closeMenu: () => void;
-  navigate: () => void;
-}
-
-/**
- * 테스트 플레이 전환 로직 (순수: 의존성 주입).
- * 오디오가 로딩되지 않았으면 에러 토스트만 띄우고 화면 전환 없이 false를 반환한다.
- * 성공 시 게임 스토어를 채우고 play 화면으로 전환한 뒤 true를 반환한다.
- */
-export function performPlayTest(params: PerformPlayTestParams): boolean {
-  const {
-    fromCursor, audioBuffer, isPlaying, pause, chart, currentTimeMs,
-    returnUrl, game, addToast, closeMenu, navigate,
-  } = params;
-
-  if (!audioBuffer) {
-    addToast('오디오가 로딩되지 않았습니다', 'error');
-    return false;
-  }
-
-  // 플레이/프리뷰 진입 게이트 (RFD 0017 §3-2) — 게임은 valid 차트를 전제하므로,
-  // 낙관적 편집으로 남은 위반(구조·의미)이 있으면 진입을 막는다. 버튼 비활성이
-  // 1차 UX이고 이 검사는 다른 진입 경로(단축키 등)를 막는 backstop이다.
-  const violations = validateChart({
-    notes: chart.notes,
-    trillZones: chart.trillZones,
-    restZones: chart.restZones,
-    events: chart.events,
-  });
-  if (violations.length > 0) {
-    addToast(`배치 제약 위반 ${violations.length}건이 남아 있어 플레이할 수 없습니다`, 'error');
-    return false;
-  }
-
-  if (isPlaying) pause();
-
-  // 게임 진입 필터 (RFD 0018 §3-3): 게임은 메인 레인(1..4)만 판정한다.
-  // 이 라이브 경로는 파일 직렬화(저장 분리)를 거치지 않으므로 여기서 보조 레인 노트를 벗긴다.
-  // 에디터 툴바와 DEV lab이 performPlayTest를 공유하므로 여기가 유일한 초크포인트다.
-  game.setChartData({ ...chart, notes: mainNotes(chart.notes) });
-  game.setAudioBuffer(audioBuffer);
-  game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
-  game.setEditorReturnUrl(returnUrl);
-  game.setScreen('play');
-
-  closeMenu();
-  navigate();
-  return true;
 }
 
 /**
