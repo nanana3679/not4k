@@ -64,4 +64,27 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(await head.text()).toBe('');
     expect(missing.status).toBe(404);
   });
+
+  it('POST 요청은 Allow: GET, HEAD와 보안 헤더를 포함한 HTTP 405로 거부한다', async () => {
+    const url = await runningPreview();
+    const response = await fetch(url, { method: 'POST' });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get('allow')).toBe('GET, HEAD');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+  });
+
+  it('실행 모듈·PNG·share.json은 각각 올바른 MIME과 공개 상태를 반환한다', async () => {
+    const url = await runningPreview();
+    const module = await fetch(`${url}/flight/liftoff/flight.mjs`);
+    const image = await fetch(`${url}/flight/infiltration/sky-infiltration.png`);
+    const share = await fetch(`${url}/flight/breakthrough/share.json`);
+
+    expect(module.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+    expect(image.headers.get('content-type')).toBe('image/png');
+    expect(share.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(await share.json()).toEqual({ public: true });
+  });
 });

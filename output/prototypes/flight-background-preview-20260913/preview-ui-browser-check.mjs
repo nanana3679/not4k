@@ -10,6 +10,36 @@ const views = [
   ['breakthrough', ['altitude']],
 ];
 
+async function waitForView(page, view) {
+  await page.waitForFunction(selected => document.querySelector('#preview-frame')?.contentWindow?.location.pathname.includes(`/flight/${selected}/`), view);
+  const frame = page.frameLocator('#preview-frame');
+  if (view === 'breakthrough') await frame.locator('body[data-ready="true"]').waitFor();
+  else await frame.locator('#scene').evaluate(element => new Promise(resolve => {
+    if (element.dataset.ready === 'true') return resolve();
+    const observer = new MutationObserver(() => {
+      if (element.dataset.ready === 'true') { observer.disconnect(); resolve(); }
+    });
+    observer.observe(element, { attributes: true });
+  }));
+  return frame;
+}
+
+async function setApproachAltitude(frame, value) {
+  await frame.locator('#altitude').evaluate((element, nextValue) => {
+    element.value = String(nextValue);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+  await frame.locator('#scene').evaluate((element, target) => new Promise((resolve, reject) => {
+    const deadline = performance.now() + 5000;
+    const check = () => {
+      if (Math.abs(Number(element.dataset.altitude) - target) < .02) return resolve();
+      if (performance.now() > deadline) return reject(new Error(`고도 ${target} 렌더 대기 시간 초과: ${element.dataset.altitude}`));
+      requestAnimationFrame(check);
+    };
+    check();
+  }), value / 100);
+}
+
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const checks = [];
 try {
@@ -27,16 +57,7 @@ try {
     const widths = [];
     for (const [view, expectedSliders] of views) {
       if (view !== 'liftoff') await page.locator(`[data-view="${view}"]`).click();
-      await page.waitForFunction(selected => document.querySelector('#preview-frame')?.contentWindow?.location.pathname.includes(`/flight/${selected}/`), view);
-      const frame = page.frameLocator('#preview-frame');
-      if (view === 'breakthrough') await frame.locator('body[data-ready="true"]').waitFor();
-      else await frame.locator('#scene').evaluate(element => new Promise(resolve => {
-        if (element.dataset.ready === 'true') return resolve();
-        const observer = new MutationObserver(() => {
-          if (element.dataset.ready === 'true') { observer.disconnect(); resolve(); }
-        });
-        observer.observe(element, { attributes: true });
-      }));
+      const frame = await waitForView(page, view);
 
       const state = await frame.locator('body').evaluate(body => {
         const shown = element => {
@@ -85,6 +106,65 @@ try {
     checks.push(`${viewport.width}px 세 장면 슬라이더의 크기가 같고 오류·넘침이 없다`);
     await page.close();
   }
+
+  const page = await browser.newPage({ viewport: { width: 960, height: 720 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+
+  await page.goto(`${publicUrl}?view=liftoff`);
+  let frame = await waitForView(page, 'liftoff');
+  await setApproachAltitude(frame, 81);
+  assert.equal(await frame.locator('#altitude').inputValue(), '81');
+  assert.equal(await frame.locator('body').evaluate(() => Number(new URL(location.href).searchParams.get('altitude'))), .81);
+  checks.push('LIFTOFF altitude 81%는 렌더 상태와 장면 URL에 반영된다');
+
+  await page.locator('[data-view="infiltration"]').click();
+  frame = await waitForView(page, 'infiltration');
+  const initialPitch = Number(await frame.locator('#scene').getAttribute('data-pitch'));
+  await setApproachAltitude(frame, 70);
+  const changedPitch = Number(await frame.locator('#scene').getAttribute('data-pitch'));
+  assert.ok(changedPitch < initialPitch);
+  assert.equal(await frame.locator('body').evaluate(() => Number(new URL(location.href).searchParams.get('altitude'))), .7);
+  checks.push('INFILTRATION altitude 70%는 시선 각도와 장면 URL을 함께 바꾼다');
+
+  await page.locator('[data-view="liftoff"]').click();
+  frame = await waitForView(page, 'liftoff');
+  assert.equal(await frame.locator('#altitude').inputValue(), '81');
+  await page.locator('[data-view="infiltration"]').click();
+  frame = await waitForView(page, 'infiltration');
+  assert.equal(await frame.locator('#altitude').inputValue(), '70');
+  checks.push('장면을 왕복해도 LIFTOFF 81%와 INFILTRATION 70% 고도가 각각 유지된다');
+
+  await page.goto(`${publicUrl}?view=breakthrough`);
+  await waitForView(page, 'breakthrough');
+  await page.reload();
+  await waitForView(page, 'breakthrough');
+  assert.equal(await page.locator('button[data-view="breakthrough"]').getAttribute('aria-selected'), 'true');
+  await page.goto(`${publicUrl}?view=unknown`);
+  await waitForView(page, 'liftoff');
+  assert.equal(new URL(page.url()).searchParams.get('view'), 'liftoff');
+  checks.push('BREAKTHROUGH 딥링크는 새로고침 후 복원되고 잘못된 view는 LIFTOFF로 교정된다');
+
+  await page.locator('button[data-view="infiltration"]').focus();
+  await page.keyboard.press('Enter');
+  frame = await waitForView(page, 'infiltration');
+  const keyboardAltitude = Number(await frame.locator('#altitude').inputValue());
+  await frame.locator('#altitude').focus();
+  await frame.locator('#altitude').press('ArrowRight');
+  assert.equal(Number(await frame.locator('#altitude').inputValue()), keyboardAltitude + 1);
+  checks.push('키보드 Enter로 장면을 열고 ArrowRight로 altitude를 1% 올릴 수 있다');
+
+  await page.locator('nav').evaluate(nav => {
+    nav.querySelector('[data-view="breakthrough"]').click();
+    nav.querySelector('[data-view="infiltration"]').click();
+    nav.querySelector('[data-view="liftoff"]').click();
+  });
+  await waitForView(page, 'liftoff');
+  assert.equal(await page.locator('button[data-view="liftoff"]').getAttribute('aria-selected'), 'true');
+  assert.deepEqual(errors, []);
+  checks.push('빠른 연속 장면 전환은 마지막 LIFTOFF를 선택하고 실행 오류를 남기지 않는다');
+  await page.close();
 } finally {
   await browser.close();
 }
