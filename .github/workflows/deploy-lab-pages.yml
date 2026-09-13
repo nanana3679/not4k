@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      # 첫 공개 검증 뒤 제거한다. 장기 배포는 main만 사용한다.
-      - feat/flight-background-preview
     paths:
       - ".github/workflows/deploy-lab-pages.yml"
       - "lab/**"
