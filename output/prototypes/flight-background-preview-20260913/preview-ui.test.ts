@@ -33,4 +33,11 @@ describe('공개 비행 미리보기 최소 UI', () => {
     expect(html.match(/<iframe /g)).toHaveLength(1);
     expect(html).not.toContain('<h1');
   });
+
+  it('자산 오류가 생기면 두 렌더러 모두 영어 새로고침 안내를 표시한다', () => {
+    expect(frameStyle('liftoff')).toContain('body[data-error] .loading{display:grid');
+    expect(frameStyle('breakthrough')).toContain('body[data-error] #loading{display:grid');
+    expect(frameStyle('liftoff')).toContain('Unable to load preview. Refresh the page.');
+    expect(frameStyle('breakthrough')).toContain('Unable to load preview. Refresh the page.');
+  });
 });

@@ -42,12 +42,15 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(breakthrough.has('paused')).toBe(false);
   });
 
-  it('BREAKTHROUGH 기본 URL은 배경 확대 300%·밝기 10%·건물과 레인 숨김을 고정한다', () => {
+  it('BREAKTHROUGH 기본 URL은 속도 1000%·배경 확대 300%·밝기 10%와 공개 구성을 정확히 고정한다', () => {
     const params = new URLSearchParams(breakthroughSearch);
-    expect(params.get('backdropRate')).toBe('300');
-    expect(params.get('backdropBrightness')).toBe('10');
-    expect(params.get('building')).toBe('0');
-    expect(params.get('lanes')).toBe('0');
+    expect(Object.fromEntries(params)).toEqual({
+      backdropMotion: 'recursive', backdropRate: '300', backdropPhase: '0.5780524999999819', backdrop: 'architecture', backdropBrightness: '10',
+      surroundings: '0', extensions: '0', module: 'F', variant: 'lines', altitude: '0', speed: '1000', clearance: '1', width: '88', depth: '200',
+      planes: '8', density: '100', size: '0.25', nearStretch: '4', height: '144', apexLow: '1', apexHigh: '0', apexLinked: '1', apexGain: '5',
+      outline: '0.25', secondary: '0.15', trail: '0.12', seed: '42', lanes: '0', guides: '0', building: '0', buildingSize: '100', auto: '0', art: '1',
+      progress: '0.909323727999996',
+    });
   });
 
   it('허용한 실행 파일은 해석하고 테스트 파일과 상위 경로 접근은 거부한다', () => {

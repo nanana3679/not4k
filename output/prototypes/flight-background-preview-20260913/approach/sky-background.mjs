@@ -4,4 +4,3 @@ const assets = {
 };
 
 export const skyAsset = scenario => assets[scenario] ?? assets.liftoff;
-export const skyAssetPaths = [...new Set(Object.values(assets))];

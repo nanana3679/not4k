@@ -431,4 +431,4 @@ try {
   gpuLights.setGround(ground);
   skies = new Map([[activeSkyPath, loadedSky]]);
   resize(); $('#loading').hidden = true; requestAnimationFrame(render);
-} catch { $('#loading').textContent = '배경을 불러오지 못했습니다. 페이지를 새로고침해 주세요.'; }
+} catch { document.body.dataset.error = 'assets'; $('#loading').textContent = '배경을 불러오지 못했습니다. 페이지를 새로고침해 주세요.'; }

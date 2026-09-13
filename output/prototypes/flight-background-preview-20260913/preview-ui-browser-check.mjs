@@ -193,6 +193,27 @@ try {
   assert.deepEqual(requestedSkies, ['/flight/liftoff/sky.png', '/flight/infiltration/sky-infiltration.png']);
   checks.push('LIFTOFF와 INFILTRATION은 각 장면에 필요한 하늘 이미지만 한 장씩 요청한다');
   await reducedContext.close();
+
+  for (const [view, assetPattern, loadingSelector] of [
+    ['liftoff', '**/flight/liftoff/ground.png', '.loading'],
+    ['breakthrough', '**/flight/breakthrough/assets/armor.png', '#loading'],
+  ]) {
+    const failureContext = await browser.newContext({ viewport: { width: 960, height: 720 } });
+    const failurePage = await failureContext.newPage();
+    await failurePage.route(assetPattern, route => route.abort());
+    await failurePage.goto(`${publicUrl}?view=${view}`);
+    await failurePage.waitForFunction(selected => document.querySelector('#preview-frame')?.contentWindow?.location.pathname.includes(`/flight/${selected}/`), view);
+    const failureFrame = failurePage.frameLocator('#preview-frame');
+    await failureFrame.locator('body[data-error="assets"]').waitFor();
+    const errorOverlay = await failureFrame.locator(loadingSelector).evaluate(element => ({
+      display: getComputedStyle(element).display,
+      message: getComputedStyle(element, '::after').content,
+    }));
+    assert.equal(errorOverlay.display, 'grid');
+    assert.match(errorOverlay.message, /Unable to load preview/);
+    checks.push(`${view.toUpperCase()} 필수 자산 실패는 영어 새로고침 안내를 표시한다`);
+    await failureContext.close();
+  }
 } finally {
   await browser.close();
 }
