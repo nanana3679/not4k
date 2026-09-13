@@ -90,6 +90,21 @@ const breakthroughAssets = new Map([
   ['assets/distant-architecture.png', resolve(imageRoot, 'distant-architecture-backdrop-20260910/distant-architecture.png')],
 ]);
 
+function staticPreviewRoutePaths(basePath = '') {
+  const base = normalizedBasePath(basePath);
+  const paths = [`${base}/index.html`];
+
+  for (const scene of ['liftoff', 'infiltration']) {
+    for (const name of approachFiles) paths.push(`${base}/flight/${scene}/${name}`);
+  }
+  for (const name of sharedApproachFiles) paths.push(`${base}/flight/${name}`);
+  for (const name of breakthroughFiles) paths.push(`${base}/flight/breakthrough/${name}`);
+  for (const name of breakthroughAssets.keys()) paths.push(`${base}/flight/breakthrough/${name}`);
+  paths.push(`${base}/flight/breakthrough/share.json`);
+
+  return paths;
+}
+
 export const breakthroughSearch = new URLSearchParams({
   backdropMotion: 'recursive',
   backdropRate: '300',
@@ -143,6 +158,32 @@ export function previewViewsAt(basePath = '') {
 }
 
 export const previewViews = previewViewsAt();
+
+async function previewRouteBody(route) {
+  let body = route.body ?? await readFile(route.filePath);
+  if (route.injectedStyle && route.name === 'index.html') {
+    body = Buffer.from(body.toString('utf8').replace('</body>', `${route.injectedStyle}</body>`));
+  }
+  return body;
+}
+
+export async function staticPreviewEntriesAt(basePath = '') {
+  const base = normalizedBasePath(basePath);
+  const entries = [];
+
+  for (const pathname of staticPreviewRoutePaths(basePath)) {
+    if (pathname === `${base}/index.html`) {
+      entries.push({ pathname, body: Buffer.from(publicPreviewPage(previewViewsAt(basePath))) });
+      continue;
+    }
+
+    const route = resolvePreviewRoute(pathname.slice(base.length));
+    if (!route) throw new Error(`Static preview route is not allowlisted: ${pathname}`);
+    entries.push({ pathname, body: await previewRouteBody(route) });
+  }
+
+  return entries;
+}
 
 function contentType(name) {
   if (name.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -241,10 +282,7 @@ async function serve(request, response, { basePath = '' } = {}) {
   }
 
   try {
-    let body = route.body ?? await readFile(route.filePath);
-    if (route.injectedStyle && route.name === 'index.html') {
-      body = Buffer.from(body.toString('utf8').replace('</body>', `${route.injectedStyle}</body>`));
-    }
+    const body = await previewRouteBody(route);
     send(response, request.method, 200, body, contentType(route.name));
   } catch {
     send(response, request.method, 404, Buffer.from('Not found'), 'text/plain; charset=utf-8');

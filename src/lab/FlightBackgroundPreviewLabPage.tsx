@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
+import { withLabPublicBase } from "./labPublicPath";
 import "./FlightBackgroundPreviewLabPage.css";
 
-export const flightBackgroundPreviewFramePath = "/__lab/flight-background-preview/";
+export const flightBackgroundPreviewFramePath = withLabPublicBase("/__lab/flight-background-preview/");
 
 export default function FlightBackgroundPreviewLabPage() {
   return (

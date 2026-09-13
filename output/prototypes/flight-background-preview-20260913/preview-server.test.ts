@@ -1,7 +1,14 @@
 import { once } from 'node:events';
 import { createConnection, type AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { breakthroughSearch, createPreviewServer, previewViews, previewViewsAt, resolvePreviewRoute } from './preview-server.mjs';
+import {
+  breakthroughSearch,
+  createPreviewServer,
+  previewViews,
+  previewViewsAt,
+  resolvePreviewRoute,
+  staticPreviewEntriesAt,
+} from './preview-server.mjs';
 
 const servers: ReturnType<typeof createPreviewServer>[] = [];
 
@@ -130,5 +137,17 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(await root.text()).toContain(`${basePath}/flight/breakthrough/`);
     expect(liftoff.status).toBe(200);
     expect(outside.status).toBe(404);
+  });
+
+  it('Pages base=/not4k에서 정적 export는 셸과 세 장면의 허용된 파일만 생성한다', async () => {
+    const entries = await staticPreviewEntriesAt('/not4k/__lab/flight-background-preview');
+    const paths = entries.map(({ pathname }) => pathname);
+    const shell = entries.find(({ pathname }) => pathname.endsWith('/index.html'));
+
+    expect(paths).toContain('/not4k/__lab/flight-background-preview/flight/liftoff/index.html');
+    expect(paths).toContain('/not4k/__lab/flight-background-preview/flight/infiltration/sky-infiltration.png');
+    expect(paths).toContain('/not4k/__lab/flight-background-preview/flight/breakthrough/vendor/three.module.js');
+    expect(paths).not.toContain('/not4k/__lab/flight-background-preview/preview-server.mjs');
+    expect(shell?.body.toString('utf8')).toContain('/not4k/__lab/flight-background-preview/flight/liftoff/');
   });
 });

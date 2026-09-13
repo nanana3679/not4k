@@ -23,7 +23,7 @@ npm start
 PREVIEW_URL=http://127.0.0.1:<출력된 포트>/ npm run check:browser
 ```
 
-인터넷 임시 공개가 필요하면 출력된 로컬 주소에 `cloudflared tunnel --url`을 연결한다. 상세 명령과 고정 기본값은 [공개 미리보기 기록](prototypes/flight-background-preview-20260913/NOTES.md)을 따른다.
+인터넷 임시 공개가 필요하면 출력된 로컬 주소에 `cloudflared tunnel --url`을 연결한다. 지속적으로 공유할 Lab 기준 주소는 `https://nanana3679.github.io/not4k/lab/`이며, 저장소 루트의 `pnpm run build:lab`과 GitHub Pages 워크플로가 정적 공개본을 만든다. 상세 명령과 고정 기본값은 [공개 미리보기 기록](prototypes/flight-background-preview-20260913/NOTES.md)을 따른다.
 
 돌파 단독 시연은 기존 명령으로 계속 실행할 수 있다.
 

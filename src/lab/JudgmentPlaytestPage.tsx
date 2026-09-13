@@ -7,7 +7,7 @@
 
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../game/stores";
-import { performPlayTest } from "../editor/hooks/useFileOperations";
+import { performPlayTest } from "../editor/playtest/performPlayTest";
 import {
   PLAYTEST_SCENARIOS,
   metronomeClickTimesMs,
