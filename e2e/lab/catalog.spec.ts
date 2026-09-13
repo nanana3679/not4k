@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Lab preview catalog", () => {
-  test("/lab에서 7개 미리보기를 분류별로 찾고 Flight Background Preview를 연다", async ({ page }) => {
+  test("/lab에서 7개 미리보기와 이미지 갤러리 2개를 찾고 Flight Background Preview를 연다", async ({ page }) => {
     await page.goto("/lab");
 
     await expect(page.getByRole("heading", { name: "Preview Archive" })).toBeVisible();
-    await expect(page.locator(".lab-index-group li")).toHaveCount(7);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(9);
     await page.getByRole("link", { name: /Open preview/ }).click();
 
     await expect(page).toHaveURL(/\/lab\/flight-background-preview$/);
@@ -22,7 +22,7 @@ test.describe("Lab preview catalog", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/lab");
 
-    await expect(page.locator(".lab-index-group li")).toHaveCount(7);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(9);
     const overflow = await page.locator(".lab-index").evaluate((catalog) => catalog.scrollWidth > catalog.clientWidth + 1);
     expect(overflow).toBe(false);
     const scrollTop = await page.locator(".lab-index").evaluate((catalog) => {
@@ -43,5 +43,22 @@ test.describe("Lab preview catalog", () => {
     const overflow = await page.locator(".lab-index").evaluate((catalog) => catalog.scrollWidth > catalog.clientWidth + 1);
     expect(overflow).toBe(false);
     await expect(page.getByRole("link", { name: /Judgment Playtest/ })).toBeVisible();
+  });
+
+  test("IMAGE GALLERIES의 Module Size × Distance를 열면 정적 비교 이미지 9장이 로드된다", async ({ context, page }) => {
+    await page.goto("/lab");
+
+    const galleryPagePromise = context.waitForEvent("page");
+    await page.getByRole("link", { name: /Module Size × Distance/ }).click();
+    const galleryPage = await galleryPagePromise;
+    await galleryPage.waitForLoadState("domcontentloaded");
+
+    await expect(galleryPage).toHaveURL(/\/lab\/images\/module-size-distance-20260910\/$/);
+    await expect(galleryPage).toHaveTitle("크기 × 거리 9개 시안");
+    await expect(galleryPage.locator("img")).toHaveCount(9);
+    for (const image of await galleryPage.locator("img").all()) await image.scrollIntoViewIfNeeded();
+    await expect.poll(
+      () => galleryPage.locator("img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)),
+    ).toBe(true);
   });
 });

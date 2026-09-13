@@ -182,6 +182,14 @@
   letter-spacing: -0.02em;
 }
 
+.lab-index-entry-title time {
+  display: block;
+  margin-top: 7px;
+  color: #687789;
+  font: 600 10px/1 "Oxanium", sans-serif;
+  letter-spacing: 0.08em;
+}
+
 .lab-index-entry-description {
   color: #8f9dad;
   font-size: 13px;

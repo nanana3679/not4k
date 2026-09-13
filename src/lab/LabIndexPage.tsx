@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
+import { labImageGalleryCatalog } from "./labImageGalleryCatalog";
 import { labPreviewCatalog } from "./labPreviewCatalog";
+import { withLabPublicBase } from "./labPublicPath";
 import "./LabIndexPage.css";
 
 /**
@@ -12,6 +14,7 @@ import "./LabIndexPage.css";
 export default function LabIndexPage() {
   const featured = labPreviewCatalog.find((preview) => preview.featured);
   const categories = [...new Set(labPreviewCatalog.map((preview) => preview.category))];
+  const groupCount = categories.length + (labImageGalleryCatalog.length > 0 ? 1 : 0);
 
   return (
     <main className="lab-index" data-lab-page="preview-catalog">
@@ -23,7 +26,8 @@ export default function LabIndexPage() {
         </div>
         <dl aria-label="Lab catalog summary">
           <div><dt>PREVIEWS</dt><dd>{String(labPreviewCatalog.length).padStart(2, "0")}</dd></div>
-          <div><dt>GROUPS</dt><dd>{String(categories.length).padStart(2, "0")}</dd></div>
+          <div><dt>GALLERIES</dt><dd>{String(labImageGalleryCatalog.length).padStart(2, "0")}</dd></div>
+          <div><dt>GROUPS</dt><dd>{String(groupCount).padStart(2, "0")}</dd></div>
         </dl>
       </header>
 
@@ -41,7 +45,7 @@ export default function LabIndexPage() {
       <section className="lab-index-directory" aria-labelledby="preview-directory-title">
         <header>
           <h2 id="preview-directory-title">All previews</h2>
-          <p>개발 서버에서만 제공되며 프로덕션 빌드에는 포함되지 않습니다.</p>
+          <p>Lab 전용 정적 사이트에서도 같은 주소로 다시 열 수 있습니다.</p>
         </header>
         {categories.map((category) => (
           <section className="lab-index-group" aria-labelledby={`lab-category-${category}`} key={category}>
@@ -59,8 +63,24 @@ export default function LabIndexPage() {
             </ol>
           </section>
         ))}
+        <section className="lab-index-group" aria-labelledby="lab-image-galleries">
+          <h3 id="lab-image-galleries">IMAGE GALLERIES</h3>
+          <ol>
+            {labImageGalleryCatalog.map((gallery) => (
+              <li key={gallery.id}>
+                <a href={withLabPublicBase(`${gallery.path}/`)} target="_blank" rel="noreferrer">
+                  <span className="lab-index-entry-title">
+                    {gallery.title}
+                    <time dateTime={gallery.createdAt}>{gallery.createdAt}</time>
+                  </span>
+                  <span className="lab-index-entry-description">{gallery.description}</span>
+                  <span className="lab-index-entry-action" aria-hidden="true">VIEW ↗</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
       </section>
     </main>
   );
 }
-

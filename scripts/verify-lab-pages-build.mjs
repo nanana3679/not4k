@@ -13,6 +13,8 @@ const requiredPaths = [
   "lab/gear-measure-pulse/index.html",
   "lab/tutorial-pattern-diagram/index.html",
   "lab/judgment-playtest/index.html",
+  "lab/images/module-size-distance-20260910/index.html",
+  "lab/images/size-distance-altitude-eight-20260910/index.html",
   "__lab/flight-background-preview/index.html",
   "__lab/flight-background-preview/flight/liftoff/index.html",
   "__lab/flight-background-preview/flight/infiltration/index.html",
@@ -31,6 +33,20 @@ if (!flightDocument.includes('/not4k/__lab/flight-background-preview/flight/lift
   throw new Error("Flight preview is missing the GitHub Pages scene base");
 }
 
+const galleryRoot = resolve(outputRoot, "lab/images");
+const galleryDirectories = (await readdir(galleryRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory());
+for (const galleryEntry of galleryDirectories) {
+  const galleryDirectory = resolve(galleryRoot, galleryEntry.name);
+  const galleryDocument = await readFile(resolve(galleryDirectory, "index.html"), "utf8");
+  const localAssetPaths = [...galleryDocument.matchAll(/\b(?:src|data-src|href)=["']([^"']+)["']/g)]
+    .map((match) => match[1])
+    .filter((pathname) => !/^(?:[a-z]+:|\/\/|\/|#)/i.test(pathname))
+    .map((pathname) => pathname.split(/[?#]/, 1)[0]);
+
+  if (localAssetPaths.length === 0) throw new Error(`Image gallery has no relative assets: ${galleryEntry.name}`);
+  await Promise.all(localAssetPaths.map((pathname) => access(resolve(galleryDirectory, pathname))));
+}
+
 const javascriptFiles = (await readdir(resolve(outputRoot, "assets"))).filter((name) => name.endsWith(".js"));
 const javascriptSource = (
   await Promise.all(javascriptFiles.map((name) => readFile(resolve(outputRoot, "assets", name), "utf8")))
@@ -46,4 +62,6 @@ try {
   if (error instanceof Error && error.message === "The Node preview server must not be published") throw error;
 }
 
-console.log(`Lab Pages artifact verified: ${requiredPaths.length} required paths`);
+console.log(
+  `Lab Pages artifact verified: ${requiredPaths.length} required paths and ${galleryDirectories.length} image galleries`,
+);

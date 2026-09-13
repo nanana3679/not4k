@@ -113,3 +113,5 @@
 ### Lab previews
 
 에셋·렌더링·인터랙션을 사용자에게 확인받기 위한 개발용 미리보기는 `/lab/<고유-id>`를 기본 경로로 사용하고 `/lab` 카탈로그에 등록한다. 기존 미리보기와 새 미리보기의 등록·라우팅·검증 규칙은 `docs/agents/lab-previews.md`를 따른다.
+
+이미지 생성 결과를 독립 HTML 비교 페이지로 만든 경우 개별 이미지를 다시 등록하지 않는다. 완성된 HTML 번들을 `lab/image-galleries/<고유-id>/`에 두고 `src/lab/labImageGalleryCatalog.ts`에 컬렉션 하나만 등록해 `/lab/images/<고유-id>/`로 공개한다.

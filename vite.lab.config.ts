@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { staticPreviewEntriesAt } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
+import { exportLabImageGalleries } from "./scripts/exportLabImageGalleries";
+import { labImageGalleryCatalog } from "./src/lab/labImageGalleryCatalog";
 import { labPreviewCatalog } from "./src/lab/labPreviewCatalog";
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
@@ -50,6 +52,12 @@ function staticLabPagesPlugin(): Plugin {
 
       await writeFile(resolve(outputRoot, "404.html"), labDocument);
       await writeFile(resolve(outputRoot, ".nojekyll"), "");
+
+      await exportLabImageGalleries({
+        workspaceRoot,
+        outputRoot,
+        galleryIds: labImageGalleryCatalog.map((gallery) => gallery.id),
+      });
 
       const previewBase = `${pagesBase.slice(0, -1)}/__lab/flight-background-preview`;
       for (const entry of await staticPreviewEntriesAt(previewBase)) {
