@@ -207,10 +207,14 @@ try {
     await failureFrame.locator('body[data-error="assets"]').waitFor();
     const errorOverlay = await failureFrame.locator(loadingSelector).evaluate(element => ({
       display: getComputedStyle(element).display,
-      message: getComputedStyle(element, '::after').content,
+      message: element.textContent,
+      role: element.getAttribute('role'),
+      live: element.getAttribute('aria-live'),
     }));
     assert.equal(errorOverlay.display, 'grid');
-    assert.match(errorOverlay.message, /Unable to load preview/);
+    assert.equal(errorOverlay.message, 'Unable to load preview. Refresh the page.');
+    assert.equal(errorOverlay.role, 'status');
+    assert.equal(errorOverlay.live, 'assertive');
     checks.push(`${view.toUpperCase()} 필수 자산 실패는 영어 새로고침 안내를 표시한다`);
     await failureContext.close();
   }

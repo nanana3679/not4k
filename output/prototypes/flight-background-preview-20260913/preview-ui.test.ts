@@ -39,5 +39,8 @@ describe('공개 비행 미리보기 최소 UI', () => {
     expect(frameStyle('breakthrough')).toContain('body[data-error] #loading{display:grid');
     expect(frameStyle('liftoff')).toContain('Unable to load preview. Refresh the page.');
     expect(frameStyle('breakthrough')).toContain('Unable to load preview. Refresh the page.');
+    expect(frameStyle('liftoff')).toContain("loading.setAttribute('role', 'status')");
+    expect(frameStyle('breakthrough')).toContain("loading.setAttribute('aria-live', 'assertive')");
+    expect(frameStyle('liftoff')).not.toContain('::after');
   });
 });

@@ -14,6 +14,20 @@ export const breakthroughDefaults = Object.freeze({
   backdropBrightness: 10,
 });
 
+const publicErrorScript = `<script id="public-preview-errors">
+  (() => {
+    const loading = document.querySelector('#loading');
+    if (!loading) return;
+    loading.setAttribute('role', 'status');
+    loading.setAttribute('aria-live', 'assertive');
+    const sync = () => {
+      if (document.body.dataset.error) loading.textContent = 'Unable to load preview. Refresh the page.';
+    };
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-error'] });
+    sync();
+  })();
+</script>`;
+
 const sliderRail = `
   accent-color:#aab8c9;
   appearance:auto;
@@ -41,10 +55,9 @@ export const approachStyle = `<style id="public-preview-controls">
   html body #controls>.adjust>div:has(#altitude){display:block;width:100%}
   html body #controls .control-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   html body #controls .range-caption,html body #controls .alt-controls{display:none}
-  html body[data-error] .loading{display:grid;z-index:10;color:transparent}
-  html body[data-error] .loading::after{content:"Unable to load preview. Refresh the page.";color:#dbe5f2;font:500 13px/1.5 ui-sans-serif,system-ui,sans-serif}
+  html body[data-error] .loading{display:grid;z-index:10;color:#dbe5f2;font:500 13px/1.5 ui-sans-serif,system-ui,sans-serif}
   #altitude{${sliderRail}}
-</style>`;
+</style>${publicErrorScript}`;
 
 export const breakthroughStyle = `<style id="public-preview-controls">
   html,body{height:100%;overflow:hidden;background:#030711}
@@ -57,10 +70,9 @@ export const breakthroughStyle = `<style id="public-preview-controls">
   html body .controls>.grid:has(#altitude)>label{display:none}
   html body .controls>.grid:has(#altitude)>label:has(#altitude){display:block;font-size:0;color:transparent}
   html body #altitude-value{display:none}
-  html body[data-error] #loading{display:grid;z-index:10;color:transparent}
-  html body[data-error] #loading::after{content:"Unable to load preview. Refresh the page.";color:#dbe5f2;font:500 13px/1.5 ui-sans-serif,system-ui,sans-serif}
+  html body[data-error] #loading{display:grid;z-index:10;color:#dbe5f2;font:500 13px/1.5 ui-sans-serif,system-ui,sans-serif}
   #altitude{${sliderRail}}
-</style>`;
+</style>${publicErrorScript}`;
 
 export function frameStyle(view) {
   return view === 'breakthrough' ? breakthroughStyle : approachStyle;
