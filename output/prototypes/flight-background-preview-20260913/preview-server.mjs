@@ -124,13 +124,12 @@ export const breakthroughSearch = new URLSearchParams({
   buildingSize: '100',
   auto: '0',
   art: '1',
-  paused: '0',
   progress: '0.909323727999996',
 }).toString();
 
 export const previewViews = Object.freeze({
-  liftoff: '/flight/liftoff/?variant=liftoff&altitude=.68&scale=1&secondary=.15&speed=3&lanes=0&paused=0',
-  infiltration: '/flight/infiltration/?variant=infiltration&altitude=.23&scale=1&secondary=.15&speed=6&lanes=0&paused=0',
+  liftoff: '/flight/liftoff/?variant=liftoff&altitude=.68&scale=1&secondary=.15&speed=3&lanes=0',
+  infiltration: '/flight/infiltration/?variant=infiltration&altitude=.23&scale=1&secondary=.15&speed=6&lanes=0',
   breakthrough: `/flight/breakthrough/?${breakthroughSearch}`,
 });
 
@@ -200,7 +199,13 @@ async function serve(request, response) {
     return;
   }
 
-  const url = new URL(request.url, 'http://preview.local');
+  let url;
+  try {
+    url = new URL(request.url, 'http://preview.local');
+  } catch {
+    send(response, request.method, 400, Buffer.from('Bad request'), 'text/plain; charset=utf-8');
+    return;
+  }
   if (url.pathname === '/') {
     send(response, request.method, 200, page, 'text/html; charset=utf-8');
     return;
@@ -224,7 +229,16 @@ async function serve(request, response) {
 }
 
 export function createPreviewServer() {
-  return createServer((request, response) => void serve(request, response));
+  return createServer((request, response) => {
+    void serve(request, response).catch(() => {
+      if (response.writableEnded) return;
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
+      send(response, request.method, 500, Buffer.from('Internal server error'), 'text/plain; charset=utf-8');
+    });
+  });
 }
 
 export function startPreviewServer({ host = process.env.PREVIEW_HOST || '127.0.0.1', port = Number(process.env.PREVIEW_PORT || 0) } = {}) {

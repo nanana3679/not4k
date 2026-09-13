@@ -13,7 +13,7 @@ import { advanceSurfaceTrails, surfaceTrailOpacity, surfaceTrailBatches } from '
 import { objectKind } from './objects.mjs';
 import { convergenceStrength, coneDimension } from './convergence.mjs';
 import { proceduralTrailBatchStyle, proceduralTrailGlowAlpha, proceduralTrailSegments, proceduralTrailStrength } from './procedural-trails.mjs';
-import { skyAsset, skyAssetPaths } from './sky-background.mjs';
+import { skyAsset } from './sky-background.mjs';
 import { adaptiveQualityState, advanceAdaptiveQuality, renderPixelRatio, renderQualityProfile } from './render-quality.mjs';
 import { createGpuLightLayer, hexRgb } from './gpu-light-batch.mjs';
 const $ = selector => document.querySelector(selector);
@@ -425,9 +425,10 @@ writePaletteUrl();
 saveView();
 syncControls();
 try {
-  const [loadedGround, ...loadedSkies] = await Promise.all([load('./ground.png'), ...skyAssetPaths.map(load)]);
+  const activeSkyPath = skyAsset(key);
+  const [loadedGround, loadedSky] = await Promise.all([load('./ground.png'), load(activeSkyPath)]);
   ground = loadedGround;
   gpuLights.setGround(ground);
-  skies = new Map(skyAssetPaths.map((path, index) => [path, loadedSkies[index]]));
+  skies = new Map([[activeSkyPath, loadedSky]]);
   resize(); $('#loading').hidden = true; requestAnimationFrame(render);
 } catch { $('#loading').textContent = '배경을 불러오지 못했습니다. 페이지를 새로고침해 주세요.'; }

@@ -162,9 +162,37 @@ try {
   });
   await waitForView(page, 'liftoff');
   assert.equal(await page.locator('button[data-view="liftoff"]').getAttribute('aria-selected'), 'true');
+  for (const view of ['breakthrough', 'infiltration', 'liftoff']) {
+    await page.locator(`button[data-view="${view}"]`).click();
+    frame = await waitForView(page, view);
+    assert.equal(await frame.locator('body').evaluate(() => location.pathname), `/flight/${view}/`);
+    assert.equal(await page.locator(`button[data-view="${view}"]`).getAttribute('aria-selected'), 'true');
+    if (view === 'infiltration') assert.equal(Number(await frame.locator('#altitude').inputValue()), keyboardAltitude + 1);
+  }
   assert.deepEqual(errors, []);
-  checks.push('빠른 연속 장면 전환은 마지막 LIFTOFF를 선택하고 실행 오류를 남기지 않는다');
+  checks.push('빠른 연속 전환 뒤에도 세 탭은 올바른 장면과 INFILTRATION 고도를 복원한다');
   await page.close();
+
+  const reducedContext = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 960, height: 720 } });
+  const reducedPage = await reducedContext.newPage();
+  const requestedSkies = [];
+  reducedPage.on('request', request => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.endsWith('/sky.png') || pathname.endsWith('/sky-infiltration.png')) requestedSkies.push(pathname);
+  });
+  await reducedPage.goto(`${publicUrl}?view=liftoff`);
+  frame = await waitForView(reducedPage, 'liftoff');
+  assert.equal(await frame.locator('#scene').getAttribute('data-running'), 'false');
+  await reducedPage.locator('button[data-view="infiltration"]').click();
+  frame = await waitForView(reducedPage, 'infiltration');
+  assert.equal(await frame.locator('#scene').getAttribute('data-running'), 'false');
+  await reducedPage.locator('button[data-view="breakthrough"]').click();
+  frame = await waitForView(reducedPage, 'breakthrough');
+  assert.equal(await frame.locator('body').evaluate(() => window.flightStudy.snapshot().running), false);
+  checks.push('움직임 줄이기 환경에서는 LIFTOFF·INFILTRATION·BREAKTHROUGH가 모두 정지한다');
+  assert.deepEqual(requestedSkies, ['/flight/liftoff/sky.png', '/flight/infiltration/sky-infiltration.png']);
+  checks.push('LIFTOFF와 INFILTRATION은 각 장면에 필요한 하늘 이미지만 한 장씩 요청한다');
+  await reducedContext.close();
 } finally {
   await browser.close();
 }

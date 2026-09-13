@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import type { AddressInfo } from 'node:net';
+import { createConnection, type AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { breakthroughSearch, createPreviewServer, previewViews, resolvePreviewRoute } from './preview-server.mjs';
 
@@ -17,11 +17,29 @@ async function runningPreview() {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
+async function rawRequest(url: string, target: string) {
+  const { hostname, port } = new URL(url);
+  return new Promise<string>((resolve, reject) => {
+    const socket = createConnection({ host: hostname, port: Number(port) });
+    let response = '';
+    socket.setEncoding('utf8');
+    socket.on('connect', () => socket.write(`GET ${target} HTTP/1.1\r\nHost: ${hostname}\r\nConnection: close\r\n\r\n`));
+    socket.on('data', chunk => { response += chunk; });
+    socket.on('end', () => resolve(response));
+    socket.on('error', reject);
+  });
+}
+
 describe('비행 배경 공개 미리보기 서버', () => {
   it('기본 URL은 LIFTOFF 300%·INFILTRATION 600%·BREAKTHROUGH 1000% 속도를 사용한다', () => {
-    expect(previewViews.liftoff).toContain('speed=3');
-    expect(previewViews.infiltration).toContain('speed=6');
-    expect(new URLSearchParams(breakthroughSearch).get('speed')).toBe('1000');
+    const liftoff = new URL(previewViews.liftoff, 'http://preview.local').searchParams;
+    const infiltration = new URL(previewViews.infiltration, 'http://preview.local').searchParams;
+    const breakthrough = new URLSearchParams(breakthroughSearch);
+
+    expect(Object.fromEntries(liftoff)).toEqual({ variant: 'liftoff', altitude: '.68', scale: '1', secondary: '.15', speed: '3', lanes: '0' });
+    expect(Object.fromEntries(infiltration)).toEqual({ variant: 'infiltration', altitude: '.23', scale: '1', secondary: '.15', speed: '6', lanes: '0' });
+    expect(breakthrough.get('speed')).toBe('1000');
+    expect(breakthrough.has('paused')).toBe(false);
   });
 
   it('BREAKTHROUGH 기본 URL은 배경 확대 300%·밝기 10%·건물과 레인 숨김을 고정한다', () => {
@@ -86,5 +104,15 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(image.headers.get('content-type')).toBe('image/png');
     expect(share.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(await share.json()).toEqual({ public: true });
+  });
+
+  it('잘못된 absolute-form 요청은 HTTP 400으로 거부하고 다음 정상 요청도 계속 제공한다', async () => {
+    const url = await runningPreview();
+    const malformed = await rawRequest(url, 'http://[');
+    const healthy = await fetch(url);
+
+    expect(malformed).toMatch(/^HTTP\/1\.1 400 Bad Request/m);
+    expect(healthy.status).toBe(200);
+    expect(await healthy.text()).toContain('LIFTOFF');
   });
 });

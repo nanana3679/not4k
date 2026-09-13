@@ -11,7 +11,7 @@ describe('난이도별 하늘 배경 선택', () => {
     expect(skyAsset('unknown')).toBe('./sky.png');
   });
 
-  it('미리 불러올 하늘 에셋 목록에는 기존 하늘과 침투 전용 하늘이 한 번씩 들어간다', () => {
+  it('등록한 하늘 에셋 목록에는 기존 하늘과 침투 전용 하늘이 한 번씩 들어간다', () => {
     expect(skyAssetPaths).toEqual(['./sky.png', './sky-infiltration.png']);
   });
 });

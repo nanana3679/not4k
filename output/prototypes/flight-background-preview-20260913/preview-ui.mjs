@@ -114,7 +114,8 @@ export function publicPreviewPage(views) {
         if (!current || !frame.hasAttribute('src')) return;
         try {
           const url = new URL(frame.contentWindow.location.href);
-          if (url.origin === location.origin && url.pathname.startsWith('/flight/')) sources[current] = url.pathname + url.search;
+          const expectedPath = new URL(sources[current], location.href).pathname;
+          if (url.origin === location.origin && url.pathname === expectedPath) sources[current] = url.pathname + url.search;
         } catch {}
       }
       function select(view) {
