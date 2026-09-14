@@ -18,6 +18,7 @@ import type {
   TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
+import { MAX_EXTRA_LANE_COUNT } from "./laneAxis";
 
 // 메인/보조 레인 경계 레이어 (RFD 0018)
 export * from "./laneAxis";
@@ -506,6 +507,75 @@ function parseExtraNote(n: ExtraNoteEntityJson): ExtraNoteEntity {
   return { type: n.type, extraLane: n.extraLane, beat: beatFromString(n.beat) };
 }
 
+const EXTRA_POINT_TYPES = ["single", "double", "trill"] as const;
+const EXTRA_RANGE_TYPES = ["long", "doubleLong", "trillLong"] as const;
+const SERIALIZED_BEAT_PATTERN = /^(-?\d+)(?:\/([1-9]\d*))?$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSerializedBeat(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = SERIALIZED_BEAT_PATTERN.exec(value);
+  if (!match) return false;
+  const numerator = Number(match[1]);
+  const denominator = match[2] === undefined ? 1 : Number(match[2]);
+  return Number.isSafeInteger(numerator) && Number.isSafeInteger(denominator);
+}
+
+function isExtraNoteJson(value: unknown): value is ExtraNoteEntityJson {
+  if (!isRecord(value)) return false;
+  if (
+    !Number.isInteger(value.extraLane)
+    || (value.extraLane as number) < 1
+    || (value.extraLane as number) > MAX_EXTRA_LANE_COUNT
+    || !isSerializedBeat(value.beat)
+  ) {
+    return false;
+  }
+
+  if (EXTRA_POINT_TYPES.includes(value.type as typeof EXTRA_POINT_TYPES[number])) {
+    return !Object.hasOwn(value, "endBeat");
+  }
+  if (EXTRA_RANGE_TYPES.includes(value.type as typeof EXTRA_RANGE_TYPES[number])) {
+    return isSerializedBeat(value.endBeat);
+  }
+  return false;
+}
+
+function assertExtraNotesJson(
+  value: unknown,
+  requireFileFields: boolean,
+): asserts value is {
+  extraNotes?: ExtraNoteEntityJson[];
+  extraLaneCount?: number;
+} {
+  if (!isRecord(value)) throw new Error("Extra chart: top-level value must be an object");
+  if (
+    requireFileFields
+    && (!Object.hasOwn(value, "extraNotes") || !Object.hasOwn(value, "extraLaneCount"))
+  ) {
+    throw new Error("Extra chart: missing required fields");
+  }
+  if (
+    value.extraNotes !== undefined
+    && (!Array.isArray(value.extraNotes) || !value.extraNotes.every(isExtraNoteJson))
+  ) {
+    throw new Error("Extra chart: invalid extraNotes");
+  }
+  if (
+    value.extraLaneCount !== undefined
+    && (
+      !Number.isInteger(value.extraLaneCount)
+      || (value.extraLaneCount as number) < 0
+      || (value.extraLaneCount as number) > MAX_EXTRA_LANE_COUNT
+    )
+  ) {
+    throw new Error("Extra chart: invalid extraLaneCount");
+  }
+}
+
 /** Extra 노트 데이터 → JSON 문자열 (별도 .extra.json 파일용) */
 export function serializeExtraNotes(
   extraNotes: ExtraNoteEntity[],
@@ -518,13 +588,14 @@ export function serializeExtraNotes(
 }
 
 /** extra JSON에서 데이터 추출 */
-export function parseExtraNotes(json: {
-  extraNotes?: ExtraNoteEntityJson[];
-  extraLaneCount?: number;
-}): {
+export function parseExtraNotes(
+  json: unknown,
+  options: { requireFileFields?: boolean } = {},
+): {
   extraNotes: ExtraNoteEntity[];
   extraLaneCount: number;
 } {
+  assertExtraNotesJson(json, options.requireFileFields ?? false);
   return {
     extraNotes: (json.extraNotes ?? []).map(parseExtraNote),
     extraLaneCount: json.extraLaneCount ?? 0,
