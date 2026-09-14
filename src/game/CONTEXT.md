@@ -94,8 +94,12 @@ _Avoid_: 오디오 오프셋
 한 플레이 세션의 시간 권위이다. "지금 몇 ms인가"를 의미에 따라 세 타임라인으로 답한다 — **판정 시간**(게임 로직이 쓰는 순수 클럭), **시각 시간**(판정 시간 + 오디오 출력 지연), **입력 시간**(판정 시간 − 핸들러 지연 + **입력 오프셋**). offset 합성을 단독으로 소유하며, 게임 상태(노트·점수·일시정지)는 갖지 않는다(의존은 game → `GameClock` 단방향). 일시정지·재생배속·**`gameplayRange`** 클램프는 오디오 클럭에서 상속한다. 설계 배경은 `../../docs/spec/audio-visual-sync.md`를 따른다.
 _Avoid_: songTime을 호출자가 직접 계산
 
+**`PlaySession`**:
+한 곡 플레이의 게임 루프 전체를 소유하는 deep module이다. `JudgmentEngine`·`ScoreManager`·`AutoPlayer`·판정 8단계 적용자·틱 순서 계약을 단독으로 조율하고, seam(`GameClock`·`GameRenderer`·`AudioEngine`·선택적 `DebugLogger`)만 주입받는다. `PlayScreen`은 `createPlaySession(...)`의 `tick`/`onLanePress`/`onLaneRelease`/`result()`로 루프를 구동하고, InputSystem attach·일시정지 게이팅·렌더러 구성만 남긴다. 두 순서 계약(적용자 순서·틱 순서 press→update→release→renderFrame→종료 체크)이 핵심 불변이다. 풀 정의는 glossary "`PlaySession`".
+_Avoid_: PlayScreen useEffect에 판정/점수/틱 인라인
+
 **`AutoPlayer`**:
-**`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
+**`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 실제 플레이에서 호출자는 `PlaySession`이며 매 틱 `presses 먹임 → engine.update → releases 먹임` 순서를 지킨다. 풀 정의는 glossary "게임 입력".
 _Avoid_: 오토 판정(판정은 여전히 판정 엔진이 한다)
 
 **`JudgmentEffects` (판정 효과)**:
