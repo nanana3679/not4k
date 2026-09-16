@@ -83,6 +83,7 @@ const SURFACE_RANGE_CONTROLS: SurfaceRangeControlConfig[] = [
 ];
 
 export default function PerspectiveSurfaceGridTestPage() {
+  const canSavePreset = import.meta.env.DEV;
   const [activeTab, setActiveTab] = useState<ControlTab>("layout");
   const [layoutTool, setLayoutTool] = useState<LayoutTool>("select");
   const [altitude, setAltitude] = useState(DEFAULT_PERSPECTIVE_SURFACE_GRID_ALTITUDE);
@@ -106,7 +107,9 @@ export default function PerspectiveSurfaceGridTestPage() {
   const [spanGridSize, setSpanGridSize] = useState(() => resolveSpanGridSize(DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS));
   const [objectDensity, setObjectDensity] = useState(0.15);
   const [presetSaveStatus, setPresetSaveStatus] = useState<PresetSaveStatus>("idle");
-  const [presetSaveMessage, setPresetSaveMessage] = useState(PERSPECTIVE_SURFACE_GRID_PRESET_OUTPUT_PATH);
+  const [presetSaveMessage, setPresetSaveMessage] = useState(
+    canSavePreset ? PERSPECTIVE_SURFACE_GRID_PRESET_OUTPUT_PATH : "Static preview · saving is available locally only",
+  );
   const gridInput = useMemo(
     () => resolvePerspectiveSurfaceGridParamsFromAltitude(altitude, surfaceRanges, DEFAULT_PERSPECTIVE_SURFACE_GRID_PARAMS),
     [altitude, surfaceRanges],
@@ -399,6 +402,8 @@ export default function PerspectiveSurfaceGridTestPage() {
   };
 
   const saveCurrentPreset = async () => {
+    if (!canSavePreset) return;
+
     setPresetSaveStatus("saving");
     setPresetSaveMessage("Saving preset...");
 
@@ -800,7 +805,7 @@ export default function PerspectiveSurfaceGridTestPage() {
             <button
               id="perspective-save-preset"
               type="button"
-              disabled={presetSaveStatus === "saving"}
+              disabled={presetSaveStatus === "saving" || !canSavePreset}
               onClick={saveCurrentPreset}
             >
               Save Preset

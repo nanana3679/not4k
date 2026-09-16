@@ -112,16 +112,16 @@ _Avoid_: 리프트
 _Avoid_: 달성률
 
 **`flightRule`**:
-Play에서 `altitude` 기반 클리어/실패를 결정하는 규칙이다. 현재 `flightRule`은 Liftoff, Survival 2종이며, UI와 코드는 영어 명칭을 사용한다. 기본 경계는 `../../docs/rfd/0001-flight-rules-and-observer-boundary.md`를 따르고, 2종 재편은 `../../docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다. Survival의 Perfect-only 회복 결정은 `../../docs/rfd/0002-breakthrough-perfect-only-recovery.md`를 따른다.
-_Avoid_: 난이도명
+Play의 고도 상태와 클리어/실패를 다루며, 차트 난이도명 `Liftoff → Infiltration → Breakthrough`에 대응하는 시나리오와 연결된다. 풀 정의는 [glossary](../../docs/context/glossary.md#flightrule-flight-rule), 현재 배치는 [RFD 0022](../../docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
+_Avoid_: 차트 레벨
 
 **`altitude`**:
-`flightRule`의 현재 상태를 표현하는 플레이 중 지표이다. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다.
+`flightRule`의 상태와 고도 연출을 연결하는 지표다. `Breakthrough`의 저고도는 정상 비행이므로 낮은 시각 고도를 모든 단계의 실패 위험으로 해석하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#altitude-altitude)를 따른다.
 _Avoid_: 달성률
 
 ## Relationships
 
-- **플레이 세션**은 하나의 **차트**와 하나의 **`flightRule`**을 대상으로 진행된다.
+- **플레이 세션**은 하나의 **차트**와 그 난이도명에 대응하는 비행 시나리오를 대상으로 진행된다.
 - **Observer 계열**은 실패 조건 없이 차트를 관찰하고 학습하는 흐름이며, 기록 대상 Play와 구분된다.
 - **곡 선택**은 **플레이 세션** 전에 곡과 차트를 결정한다.
 - **플레이 화면**은 입력을 **입력-노트 매칭**으로 연결하고 판정을 만든다.
@@ -147,6 +147,6 @@ _Avoid_: 달성률
 
 - **랭크**는 결과 등급이고 **난이도 등급**은 차트 레벨 구간이다.
 - **오디오 오프셋**과 **입력 오프셋**은 합치지 않는다.
-- **`flightRule`**은 **난이도명**, **Lv.**, **난이도 등급**과 바꿔 쓰지 않는다.
-- **Survival**은 beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, Perfect로만 `altitude`를 회복한다.
+- **`flightRule`**은 **난이도명**에 대응하는 시나리오와 연결된다. **Lv.**·**난이도 등급**과는 다르다.
+- **`Infiltration`**에는 하향 시선 회전, **`Breakthrough`**에는 전방을 보는 지속 저공비행을 배치한다. 이름만으로 종전 규칙의 회복·실패 조건을 승계하지 않는다.
 - **`altitude`**는 **달성률**이나 **랭크**와 다르다.

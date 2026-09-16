@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>크기·거리·고도 — 서로 다른 디자인 8개</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#070b11;color:#dbe4ef;font-family:Arial,"Noto Sans CJK KR",sans-serif}
+main{display:grid;grid-template-columns:repeat(2,900px);grid-template-rows:repeat(4,560px);width:1800px;height:2240px}
+figure{margin:0;width:900px;height:560px;border:2px solid #152133;overflow:hidden}
+figcaption{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;font-size:23px;white-space:nowrap}
+b{color:#e1a05b}.design{margin-left:auto;color:#a9b9c9;font-size:21px}img{display:block;width:896px;height:504px;object-fit:contain}
+@media(max-width:900px){main{grid-template-columns:1fr;grid-template-rows:none;width:100%;height:auto}figure{width:100%;height:auto}figcaption{height:auto;min-height:66px;flex-wrap:wrap;padding:10px 16px;font-size:16px;white-space:normal}.design{width:100%;margin-left:32px;font-size:14px}img{width:100%;height:auto;aspect-ratio:1672/941}}
+</style>
+<main><figure><figcaption><b>A</b>소형 · 가까움 · 낮음<span class="design">쐐기형 관제실</span></figcaption><img src="01-small-near-low.png" alt="A · 소형 · 가까움 · 낮음 — 쐐기형 관제실" decoding="async" fetchpriority="high"></figure>
+<figure><figcaption><b>B</b>소형 · 가까움 · 높음<span class="design">ㄱ자 정비 데크</span></figcaption><img data-src="02-small-near-high.png" alt="B · 소형 · 가까움 · 높음 — ㄱ자 정비 데크" decoding="async"></figure>
+<figure><figcaption><b>C</b>소형 · 멀음 · 낮음<span class="design">수직 설비탑</span></figcaption><img data-src="03-small-far-low.png" alt="C · 소형 · 멀음 · 낮음 — 수직 설비탑" decoding="async"></figure>
+<figure><figcaption><b>D</b>소형 · 멀음 · 높음<span class="design">이중 통로 모듈</span></figcaption><img data-src="04-small-far-high.png" alt="D · 소형 · 멀음 · 높음 — 이중 통로 모듈" decoding="async"></figure>
+<figure><figcaption><b>E</b>대형 · 가까움 · 낮음<span class="design">분리형 대형 격납고</span></figcaption><img data-src="05-large-near-low.png" alt="E · 대형 · 가까움 · 낮음 — 분리형 대형 격납고" decoding="async"></figure>
+<figure><figcaption><b>F</b>대형 · 가까움 · 높음<span class="design">열린 도크</span></figcaption><img data-src="06-large-near-high.png" alt="F · 대형 · 가까움 · 높음 — 열린 도크" decoding="async"></figure>
+<figure><figcaption><b>G</b>대형 · 멀음 · 낮음<span class="design">장거리 연결 시설</span></figcaption><img data-src="07-large-far-low.png" alt="G · 대형 · 멀음 · 낮음 — 장거리 연결 시설" decoding="async"></figure>
+<figure><figcaption><b>H</b>대형 · 멀음 · 높음<span class="design">분기형 물류 기지</span></figcaption><img data-src="08-large-far-high.png" alt="H · 대형 · 멀음 · 높음 — 분기형 물류 기지" decoding="async"></figure></main>
+<script>
+const deferredImages=[...document.querySelectorAll('img[data-src]')];
+const loadImage=(image)=>{image.src=image.dataset.src;image.removeAttribute('data-src')};
+if('IntersectionObserver'in window){const observer=new IntersectionObserver((entries)=>{for(const entry of entries){if(!entry.isIntersecting)continue;loadImage(entry.target);observer.unobserve(entry.target)}});deferredImages.forEach((image)=>observer.observe(image))}else{deferredImages.forEach(loadImage)}
+</script></html>

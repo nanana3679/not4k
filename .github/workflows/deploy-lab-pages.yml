@@ -1,0 +1,65 @@
+name: deploy-lab-pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-lab-pages.yml"
+      - "lab/**"
+      - "output/prototypes/**"
+      - "public/lab/**"
+      - "scripts/verify-lab-pages-build.mjs"
+      - "src/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "tsconfig*.json"
+      - "vite.lab.config.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: pnpm 활성화
+        run: corepack enable
+
+      - name: 의존성 설치
+        run: pnpm install --frozen-lockfile
+
+      - name: Lab 정적 사이트 빌드
+        run: pnpm run build:lab
+
+      - name: Pages 설정
+        uses: actions/configure-pages@v5
+
+      - name: Pages 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-lab
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: GitHub Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4

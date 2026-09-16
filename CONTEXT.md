@@ -151,24 +151,28 @@ _Avoid_: PLv.
 _Avoid_: Lv.
 
 **난이도명**:
-한 곡 안에서 차트를 구분하는 EASY, NORMAL, HARD 같은 라벨이다.
+한 곡 안에서 차트를 구분하는 `Liftoff → Infiltration → Breakthrough` 순서의 라벨이며, 각 단계의 비행 시나리오·연출에 대응한다. 풀 정의는 [glossary](docs/context/glossary.md#난이도명-difficulty-name), 채택 근거는 [RFD 0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 _Avoid_: 차트 레벨
 
 **비행 규칙**:
-Play에서 **고도** 기반 클리어/실패를 결정하는 규칙이다. **난이도명**, **Lv.**, **난이도 등급**과 별개의 축이다. 리듬게임에 익숙하지 않은 유저에게 동기를 제공하는 장치로 포지셔닝하며, Liftoff는 숙련 유저 기준 관대하게 밸런싱하고 기본값으로 둔다. 현재 비행 규칙은 **Liftoff / Survival** 2종이며, 결정 배경은 `docs/rfd/0001-flight-rules-and-observer-boundary.md`, `docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md`, `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
-_Avoid_: 난이도명, 차트 레벨
+Play에서 고도 상태와 클리어/실패를 다루며, 차트 난이도명에 대응하는 시나리오와 연결되는 `flightRule`이다. 풀 정의와 세 단계의 관계는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: 차트 레벨, 달성률
 
 **고도**:
-**비행 규칙**의 현재 상태를 표현하는 플레이 중 지표이다. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다.
+`flightRule`의 상태와 고도 연출을 연결하는 `altitude` 지표다. 시각 고도와 위험의 관계는 시나리오에 따라 다르며, `Breakthrough`의 저고도는 정상 비행이다. 풀 정의는 [glossary](docs/context/glossary.md#altitude-altitude)를 따른다.
 _Avoid_: 달성률, 랭크
 
-**Liftoff**:
-고도 0에서 시작해 곡 종료 시 기준 고도 이상이면 클리어되는 관대한 비행 규칙이다. 곡 중 게임 오버가 없으며 비행 규칙의 기본값이다. 종전 Takeoff/Ascent의 관대 역할을 통합한다. UI와 코드에서는 영어 `Liftoff`/`liftoff`를 사용한다.
-_Avoid_: 이륙, 활주, Takeoff, Ascent
+**`Liftoff`**:
+첫 번째 난이도명·이륙 시나리오다. 시선 각도를 유지하며 고도가 변하고, 기존의 관대한 종료 기준 모델을 유지한다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Takeoff, Ascent
 
-**Survival**:
-고도 100에서 시작해 **Perfect로만 고도를 회복**하고 0 도달 시 실패하는 비행 규칙이다. Great/Good은 회복하지 않고, Miss는 고도를 감소시킨다. 종전 Breakthrough를 계승하며 숙련 유저 대상 정확도 압박을 전담한다. UI와 코드에서는 영어 `Survival`/`survival`을 사용한다. beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `docs/rfd/0002-breakthrough-perfect-only-recovery.md`와 `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
-_Avoid_: 돌파, 생존, HARD, Breakthrough, Time Hell Gauge, EX-HARD
+**`Infiltration`**:
+두 번째 난이도명·침투 시나리오다. 낮아질수록 시선이 지면을 향해 꺾이고 지평선이 위로 사라진다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Survival
+
+**`Breakthrough`**:
+최상위 난이도명·돌파 시나리오다. 낮은 고도에서 전방을 보며 안정된 자세로 계속 비행한다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Survival, Stealth
 
 **난이도 등급**:
 Lv. 구간을 입문, 초급, 중급, 상급, 최상급으로 묶은 분류이다.
@@ -242,7 +246,7 @@ _Avoid_: BPM 변경
 - **다중키 바인딩**은 **트릴 노트**, **더블 노트**, **홀드 중 탭**, **릴리즈탭**, **홀드 교대**를 가능하게 한다.
 - **가변 손배치**는 **레인 분할**이 차트 흐름에 따라 달라지는 플레이 방식이다.
 - **차트**는 하나의 **Lv.**와 하나의 **난이도명**을 가진다.
-- **비행 규칙**은 Play의 클리어/실패 조건이며, **Lv.**와 **난이도명**을 대체하지 않는다.
+- **비행 규칙**은 **난이도명**에 대응하는 시나리오와 연결되며, **Lv.**를 대체하지 않는다.
 - **고도**는 **비행 규칙**의 상태 지표이며, **달성률**이나 **랭크**와 바꿔 쓰지 않는다.
 - **노트 타입**은 Lv.1부터 등장할 수 있고, 난이도 상승은 주로 **피스**의 빈도와 복합도로 표현된다.
 - **피스**는 하나 이상의 **노트 타입**이 배치상 상호작용하여 만들어진다.
@@ -272,7 +276,7 @@ _Avoid_: BPM 변경
 - "패턴 조각"은 구 용어이므로 **피스**로 통일한다.
 - "바디"는 **롱 노트** 전체가 아니라 시작점과 끝점 사이의 유지 구간만 가리킨다.
 - `trillZone`은 입력 요구 자체가 아니며, 실제 키 교대 요구는 **트릴 노트**가 만든다.
-- **Lv.**, **PLv.**, **난이도명**, **난이도 등급**, **비행 규칙**은 서로 바꿔 쓰지 않는다.
+- **Lv.**, **PLv.**, **난이도 등급**은 **난이도명**과 다르다. **난이도명**과 **비행 규칙**은 세 단계로 연결되지만 라벨과 규칙의 역할은 구분한다.
 - **고도**는 비행 규칙의 상태 지표이고 **달성률**이나 **랭크**가 아니다.
 - "Grace"는 **Grace 노트**와 **유예 시간**에서 서로 다른 뜻으로 쓰이므로 문맥 없이 단독으로 쓰지 않는다.
 - **`holdOnly`**는 떼는 판정 면제이며, **Grace 노트**(타이밍 면제)·**유예 시간**과 다른 개념이다. "grace"로 부르지 않는다.
