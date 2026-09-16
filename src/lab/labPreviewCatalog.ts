@@ -19,6 +19,13 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     featured: true,
   },
   {
+    id: "facility-passage",
+    title: "Facility Passage Preview",
+    description: "고도에 따라 적재층 사이와 연결 교량 아래를 통과하며 접근·입구·내부·출구를 비교합니다.",
+    category: "Flight",
+    path: "/lab/facility-passage",
+  },
+  {
     id: "geometric-background",
     title: "Geometric Background",
     description: "고도에 따른 원근 지표면과 광원 흐름을 조절합니다.",

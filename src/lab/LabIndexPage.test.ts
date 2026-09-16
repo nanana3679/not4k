@@ -5,14 +5,15 @@ import { describe, expect, it } from "vitest";
 import LabIndexPage from "./LabIndexPage";
 
 describe("LabIndexPage", () => {
-  it("/lab 색인은 7개 미리보기와 대표 Flight Background Preview 실행 링크를 표시한다", () => {
+  it("/lab 색인은 8개 미리보기와 대표 Flight Background Preview 실행 링크를 표시한다", () => {
     const markup = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(LabIndexPage)));
 
     expect(markup).toContain('data-lab-page="preview-catalog"');
     expect(markup).toContain("Preview Archive");
-    expect(markup.match(/data-discover="true"/g)).toHaveLength(8);
+    expect(markup.match(/data-discover="true"/g)).toHaveLength(9);
     expect(markup).toContain('href="/lab/flight-background-preview"');
     expect(markup).toContain("Liftoff, Infiltration, Breakthrough");
+    expect(markup).toContain('href="/lab/facility-passage"');
   });
 
   it("이미지 비교 보드 2개는 IMAGE GALLERIES 그룹에서 새 탭의 정적 페이지로 열린다", () => {

@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { labPreviewCatalog } from "./labPreviewCatalog";
 
 describe("Lab 미리보기 카탈로그", () => {
-  it("7개 미리보기는 중복 없는 id와 /lab 경로를 가진다", () => {
-    expect(labPreviewCatalog).toHaveLength(7);
+  it("시설 통과를 포함한 8개 미리보기는 중복 없는 id와 /lab 경로를 가진다", () => {
+    expect(labPreviewCatalog).toHaveLength(8);
     expect(labPreviewCatalog.map((preview) => preview.id)).toEqual([
       "flight-background-preview",
+      "facility-passage",
       "geometric-background",
       "perspective-surface-grid",
       "gear-light",
@@ -13,8 +14,8 @@ describe("Lab 미리보기 카탈로그", () => {
       "tutorial-pattern-diagram",
       "judgment-playtest",
     ]);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(7);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(7);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(8);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(8);
     expect(labPreviewCatalog.every((preview) => preview.path.startsWith("/lab/"))).toBe(true);
   });
 

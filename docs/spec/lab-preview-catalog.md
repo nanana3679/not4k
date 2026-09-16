@@ -29,6 +29,10 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 정식 공개 진입점은 `https://nanana3679.github.io/not4k/lab/flight-background-preview/`다. Cloudflare Quick Tunnel은 브랜치가 `main`에 반영되기 전 임시 확인용으로만 사용한다.
 
+## Facility Passage Preview
+
+`/lab/facility-passage`는 시설 통과 시연을 고도 0%·정지 상태로 연다. 접근·입구·시설 내부·출구에서 멈추거나 고도를 바꾸고, 같은 화면에서 A~H 건축 비교로 전환할 수 있다. 기존 시연 모듈을 iframe으로 사용하고 Lab 복귀 링크를 제공한다. 고도·진행·모델 선택을 바깥 Lab URL에 동기화하므로 전체 페이지를 새로고침해도 복원한다. 조절 중에는 iframe을 다시 만들지 않는다. 공개 배경 비교의 간소화 스타일을 적용하지 않은 `study.html`을 같은 정적 파일 제공 경로로 내보내므로, 개발 서버와 Pages 모두 전체 조절 화면을 표시한다.
+
 ## GitHub Pages 정적 배포
 
 - `vite.lab.config.ts`가 `/not4k/` base를 사용하는 별도 산출물 `dist-lab`을 만든다.
@@ -40,12 +44,12 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 ## 검증
 
-- `labPreviewCatalog.test.ts`: 7개 인터랙티브 항목의 고유 `id`·경로와 대표 비행 미리보기 등록을 확인한다.
+- `labPreviewCatalog.test.ts`: 8개 인터랙티브 항목의 고유 `id`·경로와 대표 비행 미리보기 등록을 확인한다.
 - `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 2개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
 - `labImageGalleryDevRequest.test.ts`: 등록된 로컬 alias만 재작성하고 literal·URL 인코딩 traversal을 거부하는지 확인한다.
 - `exportLabImageGalleries.test.ts`: 등록한 HTML·중첩 자산만 복사하고 미등록 컬렉션은 제외하는지 확인한다.
 - `LabIndexPage.test.ts`: 인터랙티브 카탈로그와 `IMAGE GALLERIES` 링크를 확인한다.
-- `FlightBackgroundPreviewLabPage.test.ts`: 개발 서버 iframe 경로와 Lab 복귀 링크를 확인한다.
-- `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다.
+- `FlightBackgroundPreviewLabPage.test.ts`·`FacilityPassagePreviewLabPage.test.ts`: 각 iframe 경로·시설 초기값과 Lab 복귀 링크를 확인한다.
+- `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다. 시설 통과는 390px·1280px에서 진입·내부 정지·고도 조절·목록 복귀를 검증한다.
 - 공개 미리보기 자체는 해당 시연 폴더의 Vitest와 Playwright 검사를 계속 사용한다.
-- `pnpm run build:lab`: Pages base, 7개 인터랙티브 직링크, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인한다.
+- `pnpm run build:lab`: Pages base, 8개 인터랙티브 직링크, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인한다.

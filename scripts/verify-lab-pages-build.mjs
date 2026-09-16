@@ -7,6 +7,7 @@ const requiredPaths = [
   "404.html",
   "lab/index.html",
   "lab/flight-background-preview/index.html",
+  "lab/facility-passage/index.html",
   "lab/geometric-background/index.html",
   "lab/perspective-surface-grid/index.html",
   "lab/gear-light/index.html",
@@ -19,6 +20,9 @@ const requiredPaths = [
   "__lab/flight-background-preview/flight/liftoff/index.html",
   "__lab/flight-background-preview/flight/infiltration/index.html",
   "__lab/flight-background-preview/flight/breakthrough/index.html",
+  "__lab/flight-background-preview/flight/breakthrough/study.html",
+  "__lab/flight-background-preview/flight/breakthrough/passage.mjs",
+  "__lab/flight-background-preview/flight/breakthrough/render-quality.mjs",
   "skins/crystal/note-single.png",
   "gear/gear-frame.png",
 ];

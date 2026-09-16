@@ -9,6 +9,7 @@ const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagr
 const JudgmentPlaytestPage = lazy(() => import('./JudgmentPlaytestPage'));
 const LabIndexPage = lazy(() => import('./LabIndexPage'));
 const FlightBackgroundPreviewLabPage = lazy(() => import('./FlightBackgroundPreviewLabPage'));
+const FacilityPassagePreviewLabPage = lazy(() => import('./FacilityPassagePreviewLabPage'));
 
 /**
  * 개발 전용 Lab 테스트 페이지 라우트.
@@ -20,6 +21,7 @@ export default function LabRoutes() {
     <Routes>
       <Route index element={<LabIndexPage />} />
       <Route path="flight-background-preview" element={<FlightBackgroundPreviewLabPage />} />
+      <Route path="facility-passage" element={<FacilityPassagePreviewLabPage />} />
       <Route path="geometric-background" element={<GeometricBackgroundTestPage />} />
       <Route path="perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />

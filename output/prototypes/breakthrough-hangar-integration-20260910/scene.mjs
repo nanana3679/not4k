@@ -6,11 +6,13 @@ import {applyArchitecturalMaterials} from './architectural-materials.mjs';
 import {createPassageBlueprint,passagePose,passageProgressAt,passageTravelAt,passageProgressForDepth,PASSAGE_STOPS} from './passage.mjs';
 import {viewAt,advanceMotion,laneAt,planeOffsets,sectionVertices,project} from './legacy/geometry.mjs';
 import {TEXTURES,BUILDING_FOG,progressForDepth,readSettings,writeSettings,scenePyramid,matchCamera,progressAt,travelAt,buildingPose,lightLayout,collectFaces} from './integration.mjs';
-import {advanceTrails,trailAlpha} from './world-trails.mjs';
+import {advanceTrails,mobileTrailQuality,trailAlpha} from './world-trails.mjs';
 import {LightBatch} from './light-batch.mjs';
 import {createSurroundings} from './surroundings.mjs';
 import {createPaintedBackdrop,advanceBackdropPhase} from './painted-backdrop.mjs';
+import {renderPixelRatio} from './render-quality.mjs';
 const $=id=>document.getElementById(id),state=readSettings(location.search,matchMedia('(prefers-reduced-motion: reduce)').matches);
+let trailQuality;
 let motion={time:0,travel:travelForProgress(state.progress),noteTime:0},lights=lightLayout(state),trails=[],previous=[],faces=[],view,pyramid,pose,ready=false,lost=false,last=0,lastUI=0,autoTime=0,dirty=true;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(),textures={},overlay=$('overlay'),pen=overlay.getContext('2d');
 scene.background=new THREE.Color('#080e1b');scene.fog=new THREE.Fog('#080e1b',BUILDING_FOG.near,BUILDING_FOG.far);
@@ -22,7 +24,7 @@ function progressNow(){return state.study==='passage'?passageProgressAt(motion.t
 function travelForProgress(progress){return state.study==='passage'?passageTravelAt(progress):travelAt(progress,scenePyramid(state));}
 function stopAtDepth(depth){motion.travel=travelForProgress(passageMode()?passageProgressForDepth(depth):progressForDepth(depth));}
 const drawingSize=new THREE.Vector2();
-try{renderer=new THREE.WebGLRenderer({canvas:$('scene'),antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;}
+try{renderer=new THREE.WebGLRenderer({canvas:$('scene'),antialias:true});renderer.setPixelRatio(renderPixelRatio(devicePixelRatio,innerWidth));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;}
 catch{$('loading').textContent='그래픽 화면을 열지 못했어요. WebGL을 지원하는 브라우저에서 다시 열어 주세요.';document.body.dataset.error='webgl';}
 $('scene').addEventListener('webglcontextlost',e=>{e.preventDefault();lost=true;$('loading').hidden=false;$('loading').textContent='그래픽 연결이 끊겼어요. 새로고침해 주세요.';});
 for(const {metadata:m} of modules){const button=document.createElement('button');button.dataset.module=m.id;button.disabled=true;const id=document.createElement('strong'),name=document.createElement('span');id.textContent=m.id;name.textContent=m.name;button.append(id,name);button.addEventListener('click',()=>{if(passageMode()){state.study='modules';stopAtDepth(160);clearTrails();}change({module:m.id},{reset:false});});$('model-picker').append(button);}
@@ -44,7 +46,7 @@ function controls(){
  document.querySelectorAll('[data-module]').forEach(b=>b.setAttribute('aria-pressed',String(!passageMode()&&b.dataset.module===state.module)));
  $('flight-label').textContent=`${passageMode()?passagePose(motion.travel).stage:'돌파 · '+m.id} · 고도 ${Math.round(state.altitude*100)}% · ${state.running?'재생':'정지'}`;$('mode-label').textContent=state.building?`광원 + ${m.id} ${m.name}`:'광원만 보기';
 }
-function save(){history.replaceState(null,'',location.pathname+'?'+writeSettings(state,progressNow()));}
+function save(){history.replaceState(null,'',location.pathname+'?'+writeSettings(state,progressNow()));window.dispatchEvent(new Event('flight-settings-change'));}
 function change(update,{reset=true}={}){Object.assign(state,update);if(reset){clearTrails();lights=lightLayout(state);}if('art' in update){for(const r of records.values())r.setArt(state.art);surroundings?.setArt(state.art);passage?.setArt(state.art);}if('study' in update||'module' in update||'building' in update)selectModel();dirty=true;controls();save();}
 $('play').addEventListener('click',()=>{last=0;change({running:!state.running},{reset:false});});
 $('far').addEventListener('click',()=>{if(passageMode())stopAtDepth(1000);else motion.travel=0;change({running:true});});
@@ -63,7 +65,7 @@ $('auto').addEventListener('change',()=>{autoTime=Math.acos(1-2*state.altitude)*
 $('variant').addEventListener('change',()=>change({variant:$('variant').value}));$('clearance').addEventListener('change',()=>change({clearance:$('clearance').value==='1'}));
 for(const b of document.querySelectorAll('[data-alt]'))b.addEventListener('click',()=>change({altitude:Number(b.dataset.alt),auto:false}));
 window.addEventListener('popstate',()=>{Object.assign(state,readSettings(location.search));motion.travel=travelForProgress(state.progress);change(state);});
-function resize(){if(!renderer)return;const w=$('scene').clientWidth,h=$('scene').clientHeight;renderer.setSize(w,h,false);overlay.width=Math.round(w);overlay.height=Math.round(h);clearTrails();dirty=true;}
+function resize(){if(!renderer)return;const w=$('scene').clientWidth,h=$('scene').clientHeight;trailQuality=matchMedia('(max-width: 560px)').matches?mobileTrailQuality:undefined;renderer.setPixelRatio(renderPixelRatio(devicePixelRatio,innerWidth));renderer.setSize(w,h,false);overlay.width=Math.round(w);overlay.height=Math.round(h);clearTrails();dirty=true;}
 new ResizeObserver(resize).observe($('scene'));
 function drawOverlay(){
  const w=overlay.width,h=overlay.height;pen.clearRect(0,0,w,h);
@@ -80,7 +82,7 @@ function render(dt=0){
  building.group.scale.setScalar(scale);if(passageMode())building.group.position.set(0,0,-pose.center[2]);else building.group.position.set(pose.center[0]-center.x*scale,pose.center[1]-center.y*scale,-pose.center[2]-center.z*scale);building.group.visible=state.building&&pose.visible;
  surroundings.update(passageMode()?{...state,building:false,surroundings:false}:state,pyramid,motion.travel,building);
  backdrop.update(state,view,renderer.getDrawingBufferSize(drawingSize));
- faces=collectFaces(lights,motion.travel,state,pyramid,view);trails=advanceTrails(trails,previous,faces,motion.time,state.trail,dt);previous=faces;
+ faces=collectFaces(lights,motion.travel,state,pyramid,view);trails=advanceTrails(trails,previous,faces,motion.time,state.trail,dt,trailQuality);previous=faces;
  core.begin();halo.begin();after.begin();
  for(const f of trails)after.face(f,view,trailAlpha(f,motion.time,state.trail));
  for(const f of faces){core.face(f,view);halo.face(f,view,f.alpha*.07,3);halo.face(f,view,f.alpha*.025,8);}
@@ -101,10 +103,10 @@ async function load(){if(!renderer)return;try{const loader=new THREE.TextureLoad
  backdrop=createPaintedBackdrop(paintedTexture);backdrop.connectFog(scene);scene.add(backdrop.mesh);
  document.querySelectorAll('[data-module]').forEach(b=>b.disabled=false);
  autoTime=Math.acos(1-2*state.altitude)*6/Math.PI;ready=true;selectModel();resize();render();$('loading').hidden=true;$('play').disabled=false;document.body.dataset.ready='true';
- const response=await fetch('share.json');if(response.ok){const s=await response.json();$('expiry').textContent=`링크 만료 · ${new Date(s.expiresAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} KST`;}
+ const response=await fetch('share.json');if(response.ok){const s=await response.json(),expiresAt=Date.parse(s.expiresAt);$('expiry').hidden=!Number.isFinite(expiresAt);if(Number.isFinite(expiresAt))$('expiry').textContent=`링크 만료 · ${new Date(expiresAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} KST`;}
  }catch(e){$('loading').textContent=`불러오지 못했어요. 새로고침해 주세요. (${e.message})`;document.body.dataset.error='assets';}}
 // Read-only test inspection; no game state or private files exposed.
-window.flightStudy={snapshot(){return{...state,ready,paintedBackdrop:backdrop?.snapshot(),space:surroundings?.snapshot(),fog:{near:scene.fog.near,far:scene.fog.far},motion:{...motion},progress:progressNow(),passageVisible:passage?.group.visible,passageId:passage?.group.uuid,pyramid,pose,view,objectId:building?.group.uuid,visibleModels:[...records.values()].filter(r=>r.group.visible).map(r=>r.metadata.id),modelDimensions:building?.dimensions,modelCount:records.size,geometryIds:building?.group.children.map(m=>m.geometry.uuid),textures:Object.values(textures).map(t=>t.uuid),lightIds:lights.map(l=>l.id),colors:faces.map(f=>[f.id,f.rgb]),faceCount:faces.length,trailCount:trails.length,vertices:{core:core.count,trail:after.count},calls:renderer?.info.render.calls,triangles:renderer?.info.render.triangles,geometries:renderer?.info.memory.geometries,cameraQuaternion:camera.quaternion.toArray(),depthTest:[core,halo,after].every(b=>b.material.depthTest&&!b.material.depthWrite)};},
+window.flightStudy={snapshot(){return{...state,ready,paintedBackdrop:backdrop?.snapshot(),space:surroundings?.snapshot(),fog:{near:scene.fog.near,far:scene.fog.far},motion:{...motion},progress:progressNow(),passageVisible:passage?.group.visible,passageId:passage?.group.uuid,pyramid,pose,view,objectId:building?.group.uuid,visibleModels:[...records.values()].filter(r=>r.group.visible).map(r=>r.metadata.id),modelDimensions:building?.dimensions,modelCount:records.size,geometryIds:building?.group.children.map(m=>m.geometry.uuid),textures:Object.values(textures).map(t=>t.uuid),lightIds:lights.map(l=>l.id),colors:faces.map(f=>[f.id,f.rgb]),faceCount:faces.length,trailCount:trails.length,renderPixelRatio:renderer?.getPixelRatio(),trailSampleLimit:trailQuality?.maxSamples??null,vertices:{core:core.count,trail:after.count},calls:renderer?.info.render.calls,triangles:renderer?.info.render.triangles,geometries:renderer?.info.memory.geometries,cameraQuaternion:camera.quaternion.toArray(),depthTest:[core,halo,after].every(b=>b.material.depthTest&&!b.material.depthWrite)};},
  probeDepth(kind='building'){
   // Test the selected actual solids, the real shared projection, and the same light material.
   const testScene=new THREE.Scene();testScene.background=scene.background;testScene.fog=scene.fog;

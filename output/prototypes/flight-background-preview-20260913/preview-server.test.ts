@@ -1,5 +1,6 @@
 import { once } from 'node:events';
 import { createConnection, type AddressInfo } from 'node:net';
+import { readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   breakthroughSearch,
@@ -149,5 +150,32 @@ describe('비행 배경 공개 미리보기 서버', () => {
     expect(paths).toContain('/not4k/__lab/flight-background-preview/flight/breakthrough/vendor/three.module.js');
     expect(paths).not.toContain('/not4k/__lab/flight-background-preview/preview-server.mjs');
     expect(shell?.body.toString('utf8')).toContain('/not4k/__lab/flight-background-preview/flight/liftoff/');
+  });
+
+  it('시설 study.html은 전체 조절 화면을 제공하고 passage·render-quality 모듈도 HTTP 200으로 제공한다', async () => {
+    const url = await runningPreview();
+    const study = await fetch(`${url}/flight/breakthrough/study.html`);
+    expect(study.status).toBe(200);
+    expect(await study.text()).toBe(await readFile(new URL('../breakthrough-hangar-integration-20260910/index.html', import.meta.url), 'utf8'));
+    for (const name of ['passage.mjs', 'render-quality.mjs']) {
+      const response = await fetch(`${url}/flight/breakthrough/${name}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+      expect(await response.text()).toBe(await readFile(new URL(`../breakthrough-hangar-integration-20260910/${name}`, import.meta.url), 'utf8'));
+    }
+  });
+
+  it('Pages의 돌파 모듈을 export하면 시설·렌더 품질을 포함한 모든 상대 import 대상도 함께 존재한다', async () => {
+    const base = '/not4k/__lab/flight-background-preview/flight/breakthrough/';
+    const entries = await staticPreviewEntriesAt('/not4k/__lab/flight-background-preview');
+    const paths = new Set(entries.map(entry => entry.pathname));
+    for (const name of ['study.html', 'passage.mjs', 'render-quality.mjs']) expect(paths.has(base + name), name).toBe(true);
+    for (const entry of entries.filter(entry => entry.pathname.startsWith(base) && /\.(mjs|js)$/.test(entry.pathname))) {
+      const imports = entry.body.toString('utf8').matchAll(/\b(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"](\.[^'"]+)['"]/g);
+      for (const match of imports) {
+        const dependency = new URL(match[1], `http://preview.local${entry.pathname}`).pathname;
+        expect(paths.has(dependency), `${entry.pathname} → ${dependency}`).toBe(true);
+      }
+    }
   });
 });
