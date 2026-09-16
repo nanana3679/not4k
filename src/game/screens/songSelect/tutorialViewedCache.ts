@@ -1,8 +1,8 @@
-import { TUTORIAL_PREVIEWS } from './tutorialPreviewChart';
+import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 
 export const TUTORIAL_VIEWED_STORAGE_KEY = 'not4k-tutorial-viewed-ids';
 
-const TUTORIAL_PREVIEW_IDS = TUTORIAL_PREVIEWS.map((tutorial) => tutorial.id);
+const TUTORIAL_PREVIEW_IDS = ALL_TUTORIAL_PREVIEWS.map((tutorial) => tutorial.id);
 const TUTORIAL_PREVIEW_ID_SET = new Set(TUTORIAL_PREVIEW_IDS);
 
 type TutorialViewedReadStorage = Pick<Storage, 'getItem'>;
@@ -12,7 +12,7 @@ type TutorialViewedClearStorage = Pick<Storage, 'removeItem'>;
 export function readTutorialViewedIdsFromStorage(
   storage: TutorialViewedReadStorage | null | undefined,
 ): ReadonlySet<string> {
-  const viewedIds = new Set<string>([TUTORIAL_PREVIEWS[0].id]);
+  const viewedIds = new Set<string>([ALL_TUTORIAL_PREVIEWS[0].id]);
   if (!storage) return viewedIds;
 
   try {

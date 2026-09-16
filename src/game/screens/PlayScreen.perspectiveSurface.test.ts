@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
-import playScreenSource from "./PlayScreen.tsx?raw";
+import { beat, type NoteEntity } from "../../shared";
+import { compileJudgmentChart } from "../judgment/compiledJudgmentChart";
+import { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
+import { SessionRendererAdapter, type SessionRendererPort } from "../judgment/SessionRendererAdapter";
 
 describe("PlayScreen perspective surface altitude", () => {
-  it("판정 콜백은 판정 효과의 grade를 renderer의 perspective surface altitude로 전달함", () => {
-    const altitudeJudgmentIndex = playScreenSource.indexOf("renderer.recordPerspectiveSurfaceJudgment(effects.judgmentText.grade);");
-    const scoreJudgmentIndex = playScreenSource.indexOf("scoreManager.recordJudgment(effects.scoreRecord.grade");
-
-    expect(altitudeJudgmentIndex).toBeGreaterThanOrEqual(0);
-    expect(altitudeJudgmentIndex).toBeGreaterThan(scoreJudgmentIndex);
+  it("Session 확정 효과는 실제 renderer port에 Perfect altitude를 전달함", () => {
+    const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(0) }];
+    const chart = compileJudgmentChart(notes, new Map([[0, 1000]]), new Map());
+    let altitude = 0;
+    const port: SessionRendererPort = {
+      showJudgment: () => undefined,
+      recordPerspectiveSurfaceJudgment: () => { altitude++; },
+      showBombEffect: () => undefined,
+      updateCombo: () => undefined,
+      updateAccuracy: () => undefined,
+      applyNoteDisplayEffect: () => undefined,
+      setJudgmentBodyStateQuery: () => undefined,
+    };
+    const session = new NoteJudgmentSession(chart, { onBatchConfirmed: view => adapter.apply(view) });
+    const adapter = new SessionRendererAdapter({ notes, connections: [], bodyStates: () => session.bodyStates, scoreAccuracy: () => session.score.getState().achievementRate, port });
+    session.processBatch(1000, [{ key: "A", lane: 1, type: "down" }]);
+    expect(altitude).toBe(1);
   });
 });

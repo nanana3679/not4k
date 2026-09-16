@@ -46,6 +46,7 @@ export interface ValidationError {
     | "timeSigNotAtMeasureStart"
     | "rangeInverted"
     | "beatMalformed"
+    | "noteConstraint"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
@@ -213,6 +214,83 @@ export function validateNoLongOverlap(notes: readonly NoteEntity[]): ValidationE
   return errors;
 }
 
+/** RFD 0020의 롱노트 경계 제약(NJ-C01~C03). */
+export function validateNoteJudgmentConstraints(notes: readonly NoteEntity[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const ranges = notes
+    .map((note, index) => ({ note, index }))
+    .filter((entry): entry is { note: RangeNote; index: number } => isRangeNote(entry.note));
+
+  // 양수 바디 끝과 별도 길이 0 롱노트는 같은 레인·시각에 공존하지 않는다.
+  for (const positive of ranges) {
+    if (beatEq(positive.note.beat, positive.note.endBeat)) continue;
+    for (const zero of ranges) {
+      if (!beatEq(zero.note.beat, zero.note.endBeat) || positive.note.lane !== zero.note.lane) continue;
+      if (beatEq(positive.note.endBeat, zero.note.beat)) {
+        errors.push({
+          rule: "noteConstraint",
+          message: `Positive long-note end cannot share a timestamp with a separate length-0 long note (lane ${positive.note.lane})`,
+          refs: [noteRef(positive.index), noteRef(zero.index)],
+        });
+      }
+    }
+  }
+
+  // holdOnly와 Point의 동시 배치는 release 면제를 별도 point로 인코딩하므로 금지한다.
+  for (const range of ranges) {
+    if (!range.note.holdOnly) continue;
+    for (let i = 0; i < notes.length; i++) {
+      const point = notes[i];
+      if (isRangeNote(point) || point.lane !== range.note.lane) continue;
+      if (beatEq(point.beat, range.note.endBeat)) {
+        errors.push({
+          rule: "noteConstraint",
+          message: `holdOnly end cannot share a timestamp with a Point (lane ${range.note.lane})`,
+          refs: [noteRef(range.index), noteRef(i)],
+        });
+      }
+    }
+  }
+
+  // 길이 0 롱노트와 같은 시작 시각의 Point는 head로 해석되지 않는다.
+  for (const range of ranges) {
+    if (!beatEq(range.note.beat, range.note.endBeat)) continue;
+    for (let i = 0; i < notes.length; i++) {
+      const point = notes[i];
+      if (isRangeNote(point) || point.lane !== range.note.lane) continue;
+      if (beatEq(point.beat, range.note.beat)) {
+        errors.push({
+          rule: "noteConstraint",
+          message: `Length-0 long note cannot have a head Point (lane ${range.note.lane})`,
+          refs: [noteRef(range.index), noteRef(i)],
+        });
+      }
+    }
+  }
+
+  // 정확히 맞닿은 같은-unit 경계는 head 또는 앞 노트의 holdOnly가 필요하다.
+  for (const a of ranges) {
+    if (beatEq(a.note.beat, a.note.endBeat)) continue;
+    const aUnits = a.note.type === "doubleLong" ? 2 : 1;
+    for (const b of ranges) {
+      if (a.index === b.index || a.note.lane !== b.note.lane || !beatEq(a.note.endBeat, b.note.beat)) continue;
+      if (beatEq(b.note.beat, b.note.endBeat)) continue;
+      const bUnits = b.note.type === "doubleLong" ? 2 : 1;
+      if (aUnits !== bUnits || a.note.holdOnly) continue;
+      const hasHead = notes.some((note) => !isRangeNote(note) && note.lane === b.note.lane && beatEq(note.beat, b.note.beat));
+      if (!hasHead) {
+        errors.push({
+          rule: "noteConstraint",
+          message: `Same-unit connected boundary requires a head or holdOnly (lane ${a.note.lane}, beat ${a.note.endBeat.n}/${a.note.endBeat.d})`,
+          refs: [noteRef(a.index), noteRef(b.index)],
+        });
+      }
+    }
+  }
+
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // 규칙 3: trillZone 전용
 // ---------------------------------------------------------------------------
@@ -291,7 +369,10 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
     if (!isMainLane(note.lane)) continue;
     const rn = note as RangeNote;
 
-    if (rn.holdOnly) {
+    const isZeroLength = beatEq(rn.beat, rn.endBeat);
+
+    // 양수 trillLong의 holdOnly는 허용한다. 길이 0 조합만 금지한다.
+    if (rn.holdOnly && isZeroLength) {
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong cannot be hold-only (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
@@ -299,11 +380,17 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
       });
     }
 
-    // 헤드 필수: 같은 레인·같은 시작 박에 trill 포인트 노트가 있어야 한다 (길이 무관)
+    // 모든 trillLong은 head가 필요하지만, 길이 0 trillLong은 head 유무와 관계없이 금지한다.
     const hasHead = notes.some(
       (n) => n.type === "trill" && n.lane === note.lane && beatEq(n.beat, note.beat),
     );
-    if (!hasHead) {
+    if (isZeroLength) {
+      errors.push({
+        rule: "trillLongInvalid",
+        message: `length-0 trillLong is not allowed (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
+        refs: [noteRef(i)],
+      });
+    } else if (!hasHead) {
       errors.push({
         rule: "trillLongInvalid",
         message: `trillLong must have a trill head (lane ${note.lane}, beat ${note.beat.n}/${note.beat.d})`,
@@ -980,6 +1067,7 @@ export function validateChartSemantic(input: ChartValidationInput): ValidationEr
     ...validateNoLongOverlap(input.notes),
     ...validateTrillExclusive(input.notes, input.trillZones),
     ...validateTrillLong(input.notes),
+    ...validateNoteJudgmentConstraints(input.notes),
     ...validateNoTrillZoneOverlap(input.trillZones),
     ...validateNoRestZoneOverlap(restZones),
     ...validateRestZoneExclusive(input.notes, input.trillZones, restZones),

@@ -1,2 +1,2 @@
 export { ScoreManager } from "./ScoreManager";
-export type { ScoreState } from "./ScoreManager";
+export type { ScoreItem, ScoreItemKind, ScoreState } from "./ScoreManager";

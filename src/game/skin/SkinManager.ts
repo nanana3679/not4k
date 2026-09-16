@@ -2,6 +2,50 @@ import { Assets, Texture, Rectangle } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
 import { getSkinManifest } from "./skins";
 
+// Pixi Assets caches textures globally by path. Multiple renderers (notably
+// the two tutorial carousel slots) can therefore share one loaded texture.
+const skinAssetReferences = new Map<string, number>();
+const skinAssetOperations = new Map<string, Promise<void>>();
+
+interface SkinAssetOwnership {
+  readonly paths: Set<string>;
+  released: boolean;
+}
+
+function retainSkinAsset(path: string): void {
+  skinAssetReferences.set(path, (skinAssetReferences.get(path) ?? 0) + 1);
+}
+
+function releaseSkinAsset(path: string): void {
+  const nextCount = (skinAssetReferences.get(path) ?? 0) - 1;
+  if (nextCount > 0) {
+    skinAssetReferences.set(path, nextCount);
+    return;
+  }
+
+  skinAssetReferences.delete(path);
+  const previous = skinAssetOperations.get(path) ?? Promise.resolve();
+  const operation = previous.catch(() => undefined).then(async () => {
+    // A new owner may have appeared while the previous unload was queued.
+    if ((skinAssetReferences.get(path) ?? 0) > 0) return;
+    await Assets.unload(path);
+  });
+  skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
+}
+
+function loadSkinAsset<T>(path: string): Promise<T> {
+  const previous = skinAssetOperations.get(path) ?? Promise.resolve();
+  const operation = previous.catch(() => undefined).then(() => Assets.load<T>(path));
+  skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
+  return operation;
+}
+
+function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
+  if (ownership.released) return;
+  ownership.released = true;
+  for (const path of ownership.paths) releaseSkinAsset(path);
+}
+
 /**
  * 롱노트 캡 텍스처 키 매핑: terminal texKey → 전용 endCap texKey.
  * 전용 캡 에셋이 로드된 스킨이면 이 키의 텍스처를 사용하고, 없으면 crop fallback한다.
@@ -31,6 +75,9 @@ export class SkinManager {
   /** terminal 텍스처에서 잘라낸 캡 텍스처 캐시 (texKey → 윗부분 절반) */
   private capTextures = new Map<string, Texture>();
   private loaded = false;
+  private disposed = false;
+  private loadGeneration = 0;
+  private assetOwnership: SkinAssetOwnership | null = null;
 
   /** 현재 로드된 스킨 ID */
   get skinId(): string | null {
@@ -44,6 +91,8 @@ export class SkinManager {
 
     // 기존 텍스처 해제
     this.dispose();
+    this.disposed = false;
+    const generation = ++this.loadGeneration;
 
     const manifest = getSkinManifest(skinId);
     this.manifest = manifest;
@@ -109,13 +158,32 @@ export class SkinManager {
       entries.push([`buttonPressed${i}`, assets.buttonPressed[i]]);
     }
 
+    const assetOwnership: SkinAssetOwnership = {
+      paths: new Set(entries.map(([, path]) => path)),
+      released: false,
+    };
+    this.assetOwnership = assetOwnership;
+    for (const path of assetOwnership.paths) {
+      retainSkinAsset(path);
+    }
+
     // 모든 텍스처를 병렬 로드
     const loadPromises = entries.map(async ([key, path]) => {
-      const texture = await Assets.load<Texture>(path);
-      this.textures.set(key, { texture, path });
+      const texture = await loadSkinAsset<Texture>(path);
+      if (!this.disposed && generation === this.loadGeneration) {
+        this.textures.set(key, { texture, path });
+      }
     });
 
-    await Promise.all(loadPromises);
+    try {
+      await Promise.all(loadPromises);
+    } catch (error) {
+      releaseSkinAssetOwnership(assetOwnership);
+      if (this.assetOwnership === assetOwnership) this.assetOwnership = null;
+      throw error;
+    }
+
+    if (this.disposed || generation !== this.loadGeneration) return;
 
     // 봄 텍스처 배열 구성
     this.bombTextures = [];
@@ -186,8 +254,11 @@ export class SkinManager {
 
   /** 텍스처 메모리 해제 */
   dispose(): void {
-    for (const [key, { path }] of this.textures) {
-      Assets.unload(path).catch((e) => console.warn('SkinManager: failed to unload', key, e));
+    this.disposed = true;
+    this.loadGeneration += 1;
+    if (this.assetOwnership) {
+      releaseSkinAssetOwnership(this.assetOwnership);
+      this.assetOwnership = null;
     }
     this.textures.clear();
     // 캡 텍스처는 base의 source를 공유하므로 unload 없이 캐시만 비운다
@@ -196,4 +267,5 @@ export class SkinManager {
     this.manifest = null;
     this.loaded = false;
   }
+
 }
