@@ -139,6 +139,13 @@ export class SkinManager {
       ["gearGaugeRight", assets.gearGaugeRight],
     ];
 
+    if (assets.terminalSingleIdle) entries.push(["terminalSingleIdle", assets.terminalSingleIdle]);
+    if (assets.terminalDoubleIdle) entries.push(["terminalDoubleIdle", assets.terminalDoubleIdle]);
+    if (assets.terminalTrillIdle) entries.push(["terminalTrillIdle", assets.terminalTrillIdle]);
+    if (assets.pointGraceOverlay) entries.push(["pointGraceOverlay", assets.pointGraceOverlay]);
+    if (assets.terminalGraceOverlay) entries.push(["terminalGraceOverlay", assets.terminalGraceOverlay]);
+    if (assets.pointShadow) entries.push(["pointShadow", assets.pointShadow]);
+
     // 롱노트 전용 캡 에셋 (있는 스킨만 — 없으면 getHalfCapTexture가 terminal crop으로 fallback)
     if (assets.endCapSingle) entries.push(["endCapSingle", assets.endCapSingle]);
     if (assets.endCapDouble) entries.push(["endCapDouble", assets.endCapDouble]);
@@ -206,12 +213,17 @@ export class SkinManager {
     return entry.texture;
   }
 
+  /** 현재 스킨에서 선택 에셋 키가 로드되어 있는지 확인 */
+  hasTexture(key: string): boolean {
+    return this.textures.has(key);
+  }
+
   /**
    * 롱노트 캡 텍스처. 전용 캡 에셋(endCap*)이 로드된 스킨은 그것을 사용하고,
    * 없는 스킨은 terminal 텍스처의 윗부분 절반(=캡 모양)을 런타임 crop해 fallback한다.
    * 시작 캡(상하반전)·끝 캡 양쪽에서 같은 텍스처를 공유한다.
    *
-   * TODO(assets-lab): crystal 외 스킨(prism/classic)은 아직 crop fallback을 쓴다.
+   * TODO(assets-lab): prism/simple은 아직 crop fallback을 쓴다.
    * 추후 해당 스킨에도 전용 캡 에셋(assets-lab의 EndCap)을 추가하면 crop 경로를 제거할 수 있다.
    */
   getHalfCapTexture(key: string): Texture {

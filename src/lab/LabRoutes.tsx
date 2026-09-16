@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { lazy } from 'react';
+import LabIndexPage from './LabIndexPage';
 
 const GeometricBackgroundTestPage = lazy(() => import('./GeometricBackgroundTestPage'));
 const PerspectiveSurfaceGridTestPage = lazy(() => import('./PerspectiveSurfaceGridTestPage'));
@@ -7,6 +8,7 @@ const GearLightTestPage = lazy(() => import('./GearLightTestPage'));
 const GearMeasurePulseTestPage = lazy(() => import('./GearMeasurePulseTestPage'));
 const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagramTestPage'));
 const JudgmentPlaytestPage = lazy(() => import('./JudgmentPlaytestPage'));
+const NoteAssetShowcasePage = lazy(() => import('./NoteAssetShowcasePage'));
 
 /**
  * 개발 전용 Lab 테스트 페이지 라우트.
@@ -16,12 +18,14 @@ const JudgmentPlaytestPage = lazy(() => import('./JudgmentPlaytestPage'));
 export default function LabRoutes() {
   return (
     <Routes>
+      <Route index element={<LabIndexPage />} />
       <Route path="geometric-background" element={<GeometricBackgroundTestPage />} />
       <Route path="perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />
       <Route path="gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
       <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />
       <Route path="judgment-playtest" element={<JudgmentPlaytestPage />} />
+      <Route path="note-assets" element={<NoteAssetShowcasePage />} />
     </Routes>
   );
 }

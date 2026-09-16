@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200" fill="none" data-artwork="trill-quartz-06" data-role="point" >
+  <title>Trill · 6번 흰 석영 포인트</title>
+  <desc>Editable vector artwork. Shared width 1000; point and terminal have a vertically symmetric 5:1 diamond silhouette. No embedded raster image.</desc>
+  <defs>
+    <clipPath id="quartz-point-diamond" clipPathUnits="userSpaceOnUse"><path d="M0 100 500 0 1000 100 500 200Z"/></clipPath>
+    <linearGradient id="quartz-point-center-left" x1="475" y1="5" x2="330" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset=".42" stop-color="#fafbfe"/><stop offset="1" stop-color="#e7eaf1"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-center-right" x1="500" y1="0" x2="740" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset=".56" stop-color="#e8eaf0"/><stop offset="1" stop-color="#d8dce5"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-cut-left" x1="170" y1="120" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b9bdc7"/><stop offset=".6" stop-color="#c8ccd5"/><stop offset="1" stop-color="#f6f7fb"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-cut-right" x1="840" y1="122" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#afb4bf"/><stop offset=".57" stop-color="#c3c8d2"/><stop offset="1" stop-color="#f4f6fa"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-lower-left" x1="90" y1="100" x2="500" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset=".7" stop-color="#e9ecf3"/><stop offset="1" stop-color="#fbfcff"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-lower-right" x1="920" y1="100" x2="500" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/><stop offset=".64" stop-color="#e1e5ef"/><stop offset="1" stop-color="#fafbff"/>
+    </linearGradient>
+    <linearGradient id="quartz-point-upper-reflection" x1="0" y1="0" x2="0" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity=".9"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".12"/><stop offset="1" stop-color="#ffffff" stop-opacity=".25"/>
+    </linearGradient>
+  </defs>
+  <g id="quartz-point-silhouette" clip-path="url(#quartz-point-diamond)">
+    <g id="quartz-point-base" data-layer="base">
+      <path id="quartz-point-solid-white" fill="#f5f7fc" d="M0 100 500 0 1000 100 500 200Z"/>
+    </g>
+    <g id="quartz-point-facets" data-layer="facets">
+      <path id="quartz-point-upper-left" fill="#ffffff" d="M0 100 500 0 160 104Z"/>
+      <path id="quartz-point-upper-right" fill="#fbfcff" d="M500 0 1000 100 845 104Z"/>
+      <path id="quartz-point-cut-left-face" fill="url(#quartz-point-cut-left)" d="M160 104 500 0 282 120Z"/>
+      <path id="quartz-point-cut-right-face" fill="url(#quartz-point-cut-right)" d="M500 0 845 104 714 120Z"/>
+      <path id="quartz-point-center-left-face" fill="url(#quartz-point-center-left)" d="M500 0 282 120 500 200Z"/>
+      <path id="quartz-point-center-right-face" fill="url(#quartz-point-center-right)" d="M500 0 714 120 500 200Z"/>
+      <path id="quartz-point-lower-left-face" fill="url(#quartz-point-lower-left)" d="M0 100 160 104 282 120 500 200Z"/>
+      <path id="quartz-point-lower-right-face" fill="url(#quartz-point-lower-right)" d="M1000 100 845 104 714 120 500 200Z"/>
+    </g>
+    <g id="quartz-point-reflections" data-layer="reflections">
+      <path id="quartz-point-edge-reflection" d="M0 100 500 0 1000 100 500 200Z" fill="none" stroke="url(#quartz-point-upper-reflection)" stroke-width="5"/>
+      <path id="quartz-point-center-reflection" d="M500 0V200" fill="none" stroke="#ffffff" stroke-opacity=".78" stroke-width="3"/>
+      <path id="quartz-point-cut-reflection" d="M0 100 282 120 500 200 714 120 1000 100" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="1.8"/>
+    </g>
+  </g>
+</svg>

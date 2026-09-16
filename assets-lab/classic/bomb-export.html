@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>body { margin:0; background:transparent; } #bomb { display:block; }</style></head><body>
+<div id="bomb" class="asset-lab-keybomb" data-style="silver"></div>
+<script type="module">
+  import '/src/lab/noteAssetKeybomb.css';
+  import { getEffectLayers } from '/src/lab/keybombEffect.ts';
+  const bomb = document.getElementById('bomb');
+  for (const { className, style = {} } of getEffectLayers('silver')) {
+    const element = document.createElement('i');
+    element.className = `fx ${className}`;
+    for (const [key, value] of Object.entries(style)) element.style.setProperty(key, String(value));
+    bomb.append(element);
+  }
+  window.bombReady = true;
+</script></body></html>

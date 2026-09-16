@@ -331,6 +331,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.longNoteBodyLayer);
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
+    // 노트 배열의 순서와 무관하게 포인트·그림자·Grace는 바디와 시작/끝 터미널 위에 그린다.
     this.app.stage.addChild(this.noteLayer);
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
@@ -1420,7 +1421,10 @@ export class GameRenderer {
       startMsByIndex,
       endMsByIndex,
     );
-    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex);
+    const trillLongIndices = new Set(this.noteRenderData
+      .filter(data => data.entity.type === 'trillLong')
+      .map(data => data.index));
+    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex, trillLongIndices);
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
@@ -1600,7 +1604,8 @@ export class GameRenderer {
     anim.y = this._judgmentLineY;
     anim.width = 120;
     anim.height = 120;
-    anim.animationSpeed = 1;
+    const durationMs = this.skinManager.getTheme().bombDurationMs;
+    anim.animationSpeed = durationMs ? textures.length * 1000 / (60 * durationMs) : 1;
     anim.loop = false;
     anim.onComplete = () => { anim.destroy(); };
     anim.play();

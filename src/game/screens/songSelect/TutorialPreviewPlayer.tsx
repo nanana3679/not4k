@@ -64,11 +64,24 @@ const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
 
+export interface TutorialBombPosition { x: number; y: number }
+
+/** Canvas 내 정규화 좌표. 키보드 높이가 바뀌어도 같은 레인의 판정선에 표시한다. */
+export function getTutorialBombPosition(lane: number, keyboardAreaHeight: number): TutorialBombPosition {
+  return {
+    x: (lane - .5) / PREVIEW_LANES.length,
+    y: (PREVIEW_RENDER_HEIGHT - PREVIEW_JUDGMENT_LINE_OFFSET) / (PREVIEW_RENDER_HEIGHT + keyboardAreaHeight),
+  };
+}
+
 interface TutorialPreviewPlayerProps {
   preview?: TutorialPreviewDefinition;
   onReady?: () => void;
   diagramModalEnabled?: boolean;
   diagramModalVisible?: boolean;
+  skinId?: string;
+  showRendererBomb?: boolean;
+  onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
 }
 
 export function uniqueTutorialKeys(timings: readonly TutorialInputTiming[]): TutorialKeyView[] {
@@ -166,6 +179,9 @@ export function TutorialPreviewPlayer({
   onReady,
   diagramModalEnabled = true,
   diagramModalVisible = true,
+  skinId = 'crystal',
+  showRendererBomb = true,
+  onBombEffect,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -174,6 +190,8 @@ export function TutorialPreviewPlayer({
   const resumeDiagramRef = useRef<(() => void) | null>(null);
   const dismissDiagramRef = useRef<(() => void) | null>(null);
   const diagramModalEnabledRef = useRef(diagramModalEnabled);
+  const showRendererBombRef = useRef(showRendererBomb);
+  const onBombEffectRef = useRef(onBombEffect);
   const settings = useGameStore((state) => state.settings);
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
@@ -229,6 +247,11 @@ export function TutorialPreviewPlayer({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
+
+  useEffect(() => {
+    showRendererBombRef.current = showRendererBomb;
+    onBombEffectRef.current = onBombEffect;
+  }, [onBombEffect, showRendererBomb]);
 
   useEffect(() => {
     diagramModalEnabledRef.current = diagramModalEnabled;
@@ -407,7 +430,7 @@ export function TutorialPreviewPlayer({
 
         const nextSkinManager = new SkinManager();
         skinManager = nextSkinManager;
-        await nextSkinManager.loadSkin('crystal');
+        await nextSkinManager.loadSkin(skinId);
         if (disposed) {
           nextSkinManager.dispose();
           if (skinManager === nextSkinManager) skinManager = null;
@@ -458,7 +481,10 @@ export function TutorialPreviewPlayer({
         const previewPort: SessionRendererPort = {
           showJudgment: (grade, deltaMs) => renderer?.showJudgment(grade, deltaMs),
           recordPerspectiveSurfaceJudgment: grade => renderer?.recordPerspectiveSurfaceJudgment(grade),
-          showBombEffect: lane => renderer?.showBombEffect(lane),
+          showBombEffect: lane => {
+            onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));
+            if (showRendererBombRef.current) renderer?.showBombEffect(lane);
+          },
           updateCombo: () => {},
           updateAccuracy: () => {},
           setJudgmentBodyStateQuery: query => {
@@ -563,7 +589,7 @@ export function TutorialPreviewPlayer({
       // before releasing textures or destroying the application.
       if (!isStarting) disposeResources();
     };
-  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, skinId, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -575,7 +601,7 @@ export function TutorialPreviewPlayer({
   }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
-    <div style={styles.previewShell}>
+    <div style={styles.previewShell} data-tutorial-skin-id={skinId}>
       <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}

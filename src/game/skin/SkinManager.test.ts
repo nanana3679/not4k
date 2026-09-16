@@ -81,4 +81,28 @@ describe('SkinManager', () => {
     manager.dispose();
     await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalled());
   });
+
+  it('note-asset-lab을 로드하면 누르기 전 terminal 3종을 선택 텍스처로 제공', async () => {
+    const manager = new SkinManager();
+
+    await manager.loadSkin('note-asset-lab');
+
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/note-assets/skin/terminal-single-idle.png');
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/note-assets/skin/terminal-double-idle.png');
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/note-assets/skin/terminal-trill-idle.png');
+    expect(manager.hasTexture('terminalSingleIdle')).toBe(true);
+    expect(manager.hasTexture('terminalDoubleIdle')).toBe(true);
+    expect(manager.hasTexture('terminalTrillIdle')).toBe(true);
+    manager.dispose();
+  });
+
+  it('Classic을 로드하면 16프레임 봄과 포인트 그림자·Grace2종을 게임용 공통 폴더에서 제공', async () => {
+    const manager = new SkinManager();
+    await manager.loadSkin('classic');
+    expect(manager.getBombTextures()).toHaveLength(16);
+    for(const key of ['pointShadow','pointGraceOverlay','terminalGraceOverlay']) expect(manager.hasTexture(key)).toBe(true);
+    expect(assetsLoad).toHaveBeenCalledWith('/skins/classic/point-shadow.png');
+    expect(assetsLoad).toHaveBeenCalledWith('/skins/classic/bomb-15.png');
+    manager.dispose();
+  });
 });

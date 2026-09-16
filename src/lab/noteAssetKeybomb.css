@@ -1,0 +1,170 @@
+/* Transparent 120 × 120 CSS effect. All motion is authored here.
+   JavaScript only creates elements and controls these CSS animations. */
+.asset-lab-keybomb {
+  position: relative; display: block; width: 120px; height: 120px; flex: none;
+  pointer-events: none; contain: layout style; isolation: isolate;
+  --cold: #b8d7ff; --warm: #e7c7a0; --white: #f4f8ff;
+  --lifetime: 280ms;
+}
+.asset-lab-keybomb *, .asset-lab-keybomb *::before, .asset-lab-keybomb *::after { box-sizing: border-box; }
+.asset-lab-bomb-frame {
+  position: absolute; inset: 0; width: 120px; height: 120px; opacity: 0;
+  animation-name: asset-bomb-frame; animation-timing-function: steps(1, end);
+}
+@keyframes asset-bomb-frame { from { opacity: 1; } to { opacity: 0; } }
+.asset-lab-keybomb .fx {
+  position: absolute; left: 50%; top: 50%; opacity: 0;
+  animation-duration: var(--lifetime); animation-timing-function: linear;
+  animation-fill-mode: both; animation-play-state: running;
+}
+.asset-lab-keybomb .halo {
+  width: 104px; height: 104px; margin: -52px;
+  background: radial-gradient(circle, #fff 0%, #edf5ffcc 8%, #b8d7ff66 21%, #8cbaff22 39%, #8cbaff00 66%);
+  animation-name: kb-halo;
+}
+.asset-lab-keybomb .core {
+  width: 27px; height: 27px; margin: -13.5px;
+  background: radial-gradient(circle, #fff 8%, #fff9ef 42%, #d4e8ff 65%, #a1c8ff00 73%);
+  animation-name: kb-core;
+}
+.asset-lab-keybomb .star {
+  width: 104px; height: 104px; margin: -52px;
+  background: radial-gradient(circle, #fff 0 12%, #f2f7ff 22%, #c5dcff 55%, #a8caff00 74%);
+  clip-path: polygon(50% 0, 52% 39%, 58% 42%, 61% 48%, 100% 50%, 61% 52%, 58% 58%, 52% 61%, 50% 100%, 48% 61%, 42% 58%, 39% 52%, 0 50%, 39% 48%, 42% 42%, 48% 39%);
+  animation-name: kb-star;
+}
+.asset-lab-keybomb .diagonal-star { --star-rotation: 45deg; width: 81px; height: 81px; margin: -40.5px; animation-name: kb-star; }
+.asset-lab-keybomb .ring {
+  width: 82px; height: 82px; margin: -41px; border-radius: 50%;
+  border: 1px solid #e5efff;
+  box-shadow: 0 0 3px #a2caff7a, inset 0 0 3px #a2caff7a;
+  animation-name: kb-ring;
+}
+.asset-lab-keybomb .ring-inner { width: 64px; height: 64px; margin: -32px; border-color: #aec9e988; animation-name: kb-inner-ring; }
+.asset-lab-keybomb .ring-segments {
+  width: 88px; height: 88px; margin: -44px; border-radius: 50%;
+  background: conic-gradient(from 24deg, #fff6e7 0deg, #e5efff 30deg, #a4c9fb 69deg, transparent 70deg 90deg, #fff6e7 90deg, #e5efff 120deg, #a4c9fb 159deg, transparent 160deg 180deg, #fff6e7 180deg, #e5efff 210deg, #a4c9fb 249deg, transparent 250deg 270deg, #fff6e7 270deg, #e5efff 300deg, #a4c9fb 339deg, transparent 340deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 64%, #000 65% 69%, transparent 70%);
+  mask-image: radial-gradient(circle, transparent 64%, #000 65% 69%, transparent 70%);
+  animation-name: kb-ring;
+}
+.asset-lab-keybomb .diamond-ring {
+  width: 59px; height: 59px; margin: -29.5px; border: 1px solid #e8f2ff;
+  --ring-rotation: 45deg; animation-name: kb-ring;
+  box-shadow: 0 0 3px #a5ceff55, inset 0 0 3px #a5ceff33;
+}
+.asset-lab-keybomb .diamond-inner { width: 39px; height: 39px; margin: -19.5px; border-color: #c6ddff99; animation-name: kb-inner-ring; }
+.asset-lab-keybomb .ray {
+  width: var(--ray-width, 2px); height: var(--ray-length, 22px);
+  margin-left: calc(var(--ray-width, 2px) / -2); margin-top: calc(var(--ray-length, 22px) / -2);
+  background: linear-gradient(to top, transparent, #d1e2ff88 32%, #fff 70%, #ffffff00);
+  clip-path: polygon(50% 0, 100% 62%, 55% 100%, 0 61%);
+  animation-name: kb-ray;
+}
+.asset-lab-keybomb .shard {
+  width: var(--shard-width, 5px); height: var(--shard-length, 15px);
+  margin-left: calc(var(--shard-width, 5px) / -2); margin-top: calc(var(--shard-length, 15px) / -2);
+  background: linear-gradient(115deg, #fff8ec 0 20%, #dfeaff 21% 49%, #88a8d1 50% 55%, #f2f7ff 56% 66%, #afccee 67% 100%);
+  clip-path: polygon(45% 0, 100% 35%, 75% 71%, 49% 100%, 0 42%);
+  animation-name: kb-shard;
+}
+.asset-lab-keybomb .shard.warm { background: linear-gradient(115deg, #fff8e8 0 24%, #e8cda9 25% 48%, #9e927e 49% 54%, #fff5e3 55% 76%, #c7beb0 77%); }
+.asset-lab-keybomb .plate {
+  width: 10px; height: 23px; margin: -11.5px -5px;
+  background: linear-gradient(115deg, #fff7e7 0 16%, #dae5f5 17% 40%, #71839d 41% 49%, #f3f7fe 50% 60%, #b2c6df 61% 84%, #6f88ab 85%);
+  clip-path: polygon(34% 0, 100% 28%, 91% 64%, 29% 100%, 43% 54%, 0 28%);
+  animation-name: kb-shard;
+}
+.asset-lab-keybomb .dust {
+  width: 2px; height: 2px; margin: -1px;
+  background: #e4edfd; animation-name: kb-dust;
+}
+.asset-lab-keybomb .dust.warm { background: var(--warm); }
+.asset-lab-keybomb[data-style="diagonal"] .star { --star-rotation: 45deg; }
+.asset-lab-keybomb[data-style="diagonal"] .core { border-radius: 0; background: #fff7e9; width: 17px; height: 17px; margin: -8.5px; --core-rotation: 45deg; }
+.asset-lab-keybomb[data-style="armor"] .core { width: 23px; height: 23px; margin: -11.5px; background: #fff9ed; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+.asset-lab-keybomb[data-style="armor"] .ring { border-style: dashed; border-width: 1px; }
+.asset-lab-keybomb[data-style="shockwave"] .ring { border-width: 3px; animation-name: kb-shockwave; }
+.asset-lab-keybomb[data-style="shockwave"] .ring-inner { border-width: 1px; width: 70px; height: 70px; margin: -35px; animation-name: kb-inner-ring; }
+.asset-lab-keybomb[data-style="shockwave"] .halo { animation-name: kb-soft-halo; }
+.asset-lab-keybomb[data-style="segmented"] .core { --core-rotation: 45deg; width: 19px; height: 19px; margin: -9.5px; background: #fff; }
+.asset-lab-keybomb[data-style="compact"] .star { width: 86px; height: 86px; margin: -43px; }
+.asset-lab-keybomb[data-style="compact"] .diagonal-star { width: 61px; height: 61px; margin: -30.5px; }
+.asset-lab-keybomb[data-style="compact"] .core { width: 24px; height: 24px; margin: -12px; }
+.asset-lab-keybomb[data-style="compact"] .halo { width: 80px; height: 80px; margin: -40px; }
+@keyframes kb-core {
+  0% { opacity: 0; transform: rotate(var(--core-rotation, 0deg)) scale(.2); }
+  6% { opacity: 1; transform: rotate(var(--core-rotation, 0deg)) scale(1.15); }
+  16% { opacity: 1; transform: rotate(var(--core-rotation, 0deg)) scale(.82); }
+  42% { opacity: .62; transform: rotate(var(--core-rotation, 0deg)) scale(.3); }
+  66%, 100% { opacity: 0; transform: rotate(var(--core-rotation, 0deg)) scale(.08); }
+}
+@keyframes kb-halo {
+  0% { opacity: 0; transform: scale(.18); }
+  8% { opacity: .85; transform: scale(.68); }
+  25% { opacity: .6; transform: scale(.9); }
+  66% { opacity: .1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+@keyframes kb-soft-halo {
+  0% { opacity: 0; transform: scale(.15); }
+  8% { opacity: 1; transform: scale(.8); }
+  28% { opacity: .6; transform: scale(1.05); }
+  70% { opacity: .04; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+@keyframes kb-star {
+  0% { opacity: 0; transform: rotate(var(--star-rotation, 0deg)) scale(.12); }
+  7% { opacity: 1; transform: rotate(var(--star-rotation, 0deg)) scale(.95); }
+  18% { opacity: .95; transform: rotate(var(--star-rotation, 0deg)) scale(1); }
+  48% { opacity: .15; transform: rotate(var(--star-rotation, 0deg)) scale(.54); }
+  70%, 100% { opacity: 0; transform: rotate(var(--star-rotation, 0deg)) scale(.3); }
+}
+@keyframes kb-ring {
+  0% { opacity: 0; transform: rotate(var(--ring-rotation, 0deg)) scale(.15); }
+  9% { opacity: .95; transform: rotate(var(--ring-rotation, 0deg)) scale(.43); }
+  27% { opacity: .9; transform: rotate(var(--ring-rotation, 0deg)) scale(.73); }
+  58% { opacity: .4; transform: rotate(var(--ring-rotation, 0deg)) scale(.94); }
+  100% { opacity: 0; transform: rotate(var(--ring-rotation, 0deg)) scale(1.06); }
+}
+@keyframes kb-inner-ring {
+  0%, 6% { opacity: 0; transform: rotate(var(--ring-rotation, 0deg)) scale(.18); }
+  18% { opacity: .9; transform: rotate(var(--ring-rotation, 0deg)) scale(.5); }
+  40% { opacity: .55; transform: rotate(var(--ring-rotation, 0deg)) scale(.85); }
+  85%, 100% { opacity: 0; transform: rotate(var(--ring-rotation, 0deg)) scale(1.08); }
+}
+@keyframes kb-shockwave {
+  0% { opacity: 0; transform: scale(.13); }
+  8% { opacity: .95; transform: scale(.34); }
+  20% { opacity: .8; transform: scale(.58); }
+  50% { opacity: .23; transform: scale(.91); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+@keyframes kb-shard {
+  0%, 4% { opacity: 0; transform: rotate(var(--angle)) translateY(-8px) scale(.25); }
+  16% { opacity: 1; transform: rotate(var(--angle)) translateY(-23px) scale(.94); }
+  35% { opacity: .84; transform: rotate(var(--angle)) translateY(-33px) scale(1); }
+  67% { opacity: .3; transform: rotate(var(--angle)) translateY(calc(var(--travel, 49px) * -.92)) scale(.68); }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateY(calc(var(--travel, 49px) * -1)) scale(.25); }
+}
+@keyframes kb-ray {
+  0% { opacity: 0; transform: rotate(var(--angle)) translateY(-8px) scaleY(.2); }
+  9% { opacity: .8; transform: rotate(var(--angle)) translateY(-26px) scaleY(.95); }
+  32% { opacity: .64; transform: rotate(var(--angle)) translateY(-34px) scaleY(1); }
+  70% { opacity: .08; transform: rotate(var(--angle)) translateY(-43px) scaleY(.45); }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateY(-46px) scaleY(.1); }
+}
+@keyframes kb-dust {
+  0%, 12% { opacity: 0; transform: rotate(var(--angle)) translateY(-20px); }
+  28% { opacity: .75; transform: rotate(var(--angle)) translateY(-33px); }
+  66% { opacity: .25; transform: rotate(var(--angle)) translateY(-48px); }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateY(-54px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asset-lab-bomb-frame { animation: none; }
+  .asset-lab-bomb-frame:nth-child(4) { opacity: 1; }
+  .asset-lab-keybomb .fx { animation: none !important; opacity: 0; }
+  .asset-lab-keybomb .halo { opacity: .46; transform: scale(.78); }
+  .asset-lab-keybomb .core { opacity: .86; transform: rotate(var(--core-rotation, 0deg)) scale(.82); }
+  .asset-lab-keybomb .star { opacity: .42; transform: rotate(var(--star-rotation, 0deg)) scale(.68); }
+}
