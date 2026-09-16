@@ -15,11 +15,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const OUTPUT = resolve(ROOT, "public/skins");
 
-const SKIN_IDS = [
+const SUPPORTED_SKIN_IDS = [
   "crystal",
   "prism",
-  "classic",
+  "simple",
 ];
+const requestedSkin = process.argv.find(arg => arg.startsWith('--skin='))?.slice(7);
+if (requestedSkin && !SUPPORTED_SKIN_IDS.includes(requestedSkin)) {
+  throw new Error(`Unknown SVG skin: ${requestedSkin}`);
+}
+const SKIN_IDS = requestedSkin ? [requestedSkin] : SUPPORTED_SKIN_IDS;
 
 const SCALES = [1, 2];
 

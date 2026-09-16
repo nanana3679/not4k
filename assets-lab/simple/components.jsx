@@ -1,5 +1,5 @@
 /**
- * Classic skin — 원본 Graphics 렌더링을 SVG로 재현
+ * Simple skin — 원본 Graphics 렌더링을 SVG로 재현
  * 단색 직사각형 노트, 그래디언트 바디, 심플 원형 버튼
  */
 import P from "./palette.js";
@@ -18,7 +18,7 @@ export function NoteContainer({ x, y, type = "single" }) {
 export function BodySegment({ x, y, height, type = "single", held = false }) {
   const baseCol = type === "double" ? P.double.body : P.single.body;
   const col = held ? (type === "double" ? P.double.bright : P.single.bright) : baseCol;
-  const gradId = `classic_body_${type}_${held ? "h" : "r"}_${x}_${y}`;
+  const gradId = `simple_body_${type}_${held ? "h" : "r"}_${x}_${y}`;
 
   // 원본과 동일한 좌우 밝은 그래디언트
   const r = parseInt(col.slice(1, 3), 16);
@@ -48,6 +48,33 @@ export function TerminalCap({ x, y, type = "single" }) {
   return (
     <rect x={x} y={y} width={CW} height={CH} fill={col} opacity={0.7} rx={2} />
   );
+}
+
+/* 실패·부분 충족도 같은 단색 면을 사용한다. */
+export function FailedNoteContainer({ x, y }) {
+  return <rect x={x} y={y} width={CW} height={CH} fill="#555555" rx={2} />;
+}
+export function FailedBody({ x, y, height }) {
+  return <rect x={x} y={y} width={CW} height={height} fill="#555555" />;
+}
+export function FailedTerminalCap({ x, y }) {
+  return <rect x={x} y={y} width={CW} height={CH} fill="#555555" opacity={.7} rx={2} />;
+}
+export function PartialFailedBody({ x, y, height, failedSide }) {
+  return <g><BodySegment x={x} y={y} height={height} type="double" held />
+    <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={height} fill="#555555" /></g>;
+}
+export function PartialHeldBody({ x, y, height, waitingSide }) {
+  return <g><BodySegment x={x} y={y} height={height} type="double" held />
+    <rect x={x + (waitingSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={height} fill={P.double.body} /></g>;
+}
+export function PartialFailedTerminalCap({ x, y, failedSide }) {
+  return <g><TerminalCap x={x} y={y} type="double" />
+    <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={CH} fill="#555555" /></g>;
+}
+export function PartialFailedNoteContainer({ x, y, failedSide }) {
+  return <g><NoteContainer x={x} y={y} type="double" />
+    <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={CH} fill="#555555" /></g>;
 }
 
 /* ── 롱노트 조립 ── */
@@ -110,7 +137,7 @@ export function TrillNoteContainer({ x, y }) {
 }
 
 export function TrillBodySegment({ x, y, height, held = false }) {
-  const gradId = `classic_trill_body_${held ? "h" : "r"}_${x}_${y}`;
+  const gradId = `simple_trill_body_${held ? "h" : "r"}_${x}_${y}`;
   return (
     <g>
       <defs>
@@ -162,7 +189,7 @@ export function FailedTrillBody({ x, y, height }) {
   const lr = Math.round(r + (255 - r) * 0.7);
   const lg = Math.round(g + (255 - g) * 0.7);
   const lb = Math.round(b + (255 - b) * 0.7);
-  const gradId = `classic_trill_fbody_${x}_${y}`;
+  const gradId = `simple_trill_fbody_${x}_${y}`;
   return (
     <g>
       <defs>

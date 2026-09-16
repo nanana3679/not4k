@@ -431,6 +431,8 @@ Miss가 있으면 Full Combo가 아니지만, 무점수 연결 Miss만 있다면
 
 `NoteJudgmentSession`이 점수 효과를 적용하고 확정 묶음을 전달한다. `SessionRendererAdapter`는 현재 콤보·달성률, head의 전체/부분 처리 표시와 디버그 기록을 렌더러에 전달한다. 바디는 unit별 상태 조회로 표시하며, 연결 구간이 일찍 완료돼도 차트상 경계까지 남긴다. 튜토리얼은 같은 판정·효과 경로를 사용하고 필요한 표시만 적용한다.
 
+싱글·더블 바디의 켜짐 표시는 아직 시작하지 않은 후속 연결 구간의 바디·터미널에도 이어진다. Trill 구간은 연결 켜짐 표시를 보내거나 이어받지 않고, 자기 구간의 실제 유지 상태만 표시한다. 표시 수는 경로에서 가장 작은 건강한 unit 수를 넘지 않는다. 이미 시작한 구간의 해제·실패·완료와 Trill 구간을 건너뛰지 않으며, 이 표시는 후속 판정 unit의 활성화나 점수 정산을 앞당기지 않는다. 포인트 노트는 겹치는 바디와 시작·끝 터미널보다 항상 위에 표시한다.
+
 **노트 표시 효과(`NoteDisplayEffect`)**는 렌더러에 전달하는 `{body, visibility}` 형태의 표시 명령이다. 새 세션에서는 head 표시 명령과 바디 상태 조회를 구분하며, 실패한 double의 건강한 unit을 함께 실패 표시하지 않는다.
 
 **구현**: `src/game/judgment/confirmedJudgmentEffects.ts`, `NoteJudgmentSession.ts`, `SessionRendererAdapter.ts`.

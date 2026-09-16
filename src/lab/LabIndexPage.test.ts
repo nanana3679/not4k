@@ -5,14 +5,28 @@ import { describe, expect, it } from "vitest";
 import LabIndexPage from "./LabIndexPage";
 
 describe("LabIndexPage", () => {
-  it("/lab 색인은 7개 미리보기와 대표 Flight Background Preview 실행 링크를 표시한다", () => {
+  it("/lab 색인은 노트 에셋 시연실을 포함한 8개 미리보기와 대표 비행 실행 링크를 표시한다", () => {
     const markup = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(LabIndexPage)));
 
     expect(markup).toContain('data-lab-page="preview-catalog"');
     expect(markup).toContain("Preview Archive");
-    expect(markup.match(/data-discover="true"/g)).toHaveLength(8);
+    expect(markup.match(/data-discover="true"/g)).toHaveLength(9);
+    expect(markup).toContain("<dt>PREVIEWS</dt><dd>08</dd>");
+    expect(markup).toContain('href="/lab/note-assets"');
+    expect(markup).toContain("노트 에셋 시연실");
     expect(markup).toContain('href="/lab/flight-background-preview"');
     expect(markup).toContain("Liftoff, Infiltration, Breakthrough");
+  });
+
+  it("/not4k/ 아래의 Lab 목록에서 에셋 시연실 링크는 /not4k/lab/note-assets를 가리킨다", () => {
+    const markup = renderToStaticMarkup(createElement(
+      MemoryRouter,
+      { basename: "/not4k", initialEntries: ["/not4k/lab"] },
+      createElement(LabIndexPage),
+    ));
+
+    expect(markup).toContain('href="/not4k/lab/note-assets"');
+    expect(markup).not.toContain('href="/lab/note-assets"');
   });
 
   it("이미지 비교 보드 2개는 IMAGE GALLERIES 그룹에서 새 탭의 정적 페이지로 열린다", () => {

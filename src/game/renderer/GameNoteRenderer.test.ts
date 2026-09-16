@@ -44,18 +44,35 @@ vi.mock("pixi.js", () => {
     alpha = 1;
     constructor() {}
   }
+  class TilingSprite extends NineSliceSprite {
+    texture: unknown;
+    tileScale = { set: vi.fn() };
+    constructor(options: {texture: unknown}) { super(); this.texture = options.texture; }
+  }
   class FillGradient {
     constructor() {}
     destroy() {}
   }
-  return { Container, Graphics, Sprite, NineSliceSprite, FillGradient };
+  class MeshGeometry {
+    constructor(readonly options: unknown) {}
+    destroy() {}
+  }
+  class Mesh extends Sprite {
+    geometry: MeshGeometry;
+    constructor(options: { texture: unknown; geometry: MeshGeometry }) {
+      super(options.texture);
+      this.geometry = options.geometry;
+    }
+  }
+  return { Container, Graphics, Sprite, NineSliceSprite, TilingSprite, FillGradient, Mesh, MeshGeometry };
 });
 
-import { Container } from "pixi.js";
+import { Container, TilingSprite } from "pixi.js";
 import { GameNoteRenderer } from "./GameNoteRenderer";
 import { NOTE_HEIGHT } from "./constants";
 import type { SkinManager } from "../skin";
 import type { NoteEntity } from "../../shared";
+import { getSkinManifest } from '../skin/skins';
 
 /** 모킹된 Sprite/NineSliceSprite가 노출하는 속성 */
 interface MockSprite {
@@ -66,6 +83,7 @@ interface MockSprite {
   width: number;
   height: number;
   scale: { x: number; y: number };
+  texture?: unknown;
 }
 
 /** 모킹된 Container의 children 배열에 접근 */
@@ -73,11 +91,16 @@ function childrenOf(layer: Container): MockSprite[] {
   return (layer as unknown as { children: MockSprite[] }).children;
 }
 
-function createMockSkinManager(): SkinManager {
+function createMockSkinManager(
+  longNoteTerminalMode: "split-cap" | "full-height" = "split-cap",
+  longNoteTerminalFrameOverhangPx = 0,
+  availableTextureKeys: readonly string[] = [],
+): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
     getHalfCapTexture: vi.fn(() => ({})),
-    hasTexture: vi.fn(() => false),
+    getTheme: vi.fn(() => ({ longNoteTerminalMode, longNoteTerminalFrameOverhangPx })),
+    hasTexture: vi.fn((key: string) => availableTextureKeys.includes(key)),
   } as unknown as SkinManager;
 }
 
@@ -102,6 +125,118 @@ function createRenderer() {
 
   return { renderer, bodyLayer, endLayer, headLayer, noteLayer };
 }
+
+describe('Classic 시안 렌더링 규격', () => {
+  function createClassicRenderer() {
+    const bodyLayer = new Container(), endLayer = new Container(), headLayer = new Container(), noteLayer = new Container();
+    const manifest = getSkinManifest('classic');
+    const skin = {
+      getTheme: () => manifest.theme,
+      hasTexture: (key: string) => key in manifest.assets,
+      getTexture: (key: string) => ({key, width:200, height:40}),
+    } as unknown as SkinManager;
+    return { bodyLayer, endLayer, headLayer, noteLayer,
+      renderer: new GameNoteRenderer(bodyLayer,endLayer,headLayer,noteLayer,skin,500,1000,0,600) };
+  }
+
+  it('2번 레인 포인트는 x97·106×20이고 바디 위 그림자는 x100·100×3.2', () => {
+    const {renderer,noteLayer} = createClassicRenderer();
+    renderer.renderPointNote({type:'single',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
+    const [shadow,point] = childrenOf(noteLayer);
+    expect(point).toMatchObject({x:97,y:400,width:106,height:20});
+    expect(shadow).toMatchObject({x:100,y:419.6,width:100,height:3.2});
+  });
+
+  it('200×40 바디 텍스처를 긴 롱노트에 표시하면 100×20 주기로 반복하고 터미널도100×20', () => {
+    const {renderer,bodyLayer,endLayer} = createClassicRenderer();
+    renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
+    const body = childrenOf(bodyLayer)[0] as unknown as TilingSprite;
+    expect(body).toBeInstanceOf(TilingSprite);
+    expect(body.tileScale.set).toHaveBeenCalledWith(.5);
+    expect(body).toMatchObject({x:100,width:100,height:220});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:100,width:100,height:20});
+  });
+
+  it('Classic 트릴은 포인트·바디·끝 터미널 모두 x100·너비100이며 20px 바디를 반복하고 시작 캡은 없음', () => {
+    const {renderer,bodyLayer,endLayer,headLayer,noteLayer} = createClassicRenderer();
+    renderer.renderPointNote({type:'trill',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
+    renderer.renderLongNote({type:'trillLong',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},1,100,300,0);
+    const point = childrenOf(noteLayer).at(-1)!;
+    const body = childrenOf(bodyLayer)[0] as unknown as TilingSprite;
+    const terminal = childrenOf(endLayer)[0];
+    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    expect(body).toBeInstanceOf(TilingSprite);
+    expect(body.tileScale.set).toHaveBeenCalledWith(.5);
+    expect(body).toMatchObject({x:100,y:210,width:100,height:200});
+    expect(terminal).toMatchObject({x:100,y:200,width:100,height:20});
+    expect(body.y).toBe(terminal.y + terminal.height / 2);
+    expect(body.y + body.height).toBe(point.y + point.height / 2);
+    expect(childrenOf(headLayer)).toHaveLength(0);
+  });
+
+  it.each([1, 4] as const)('%s번 레인 Classic 더블을 0→1→2키 유지하면 바디와 양쪽 터미널이 대기→중앙광→전체광으로 함께 바뀐다', lane => {
+    const {renderer, bodyLayer, headLayer, endLayer} = createClassicRenderer();
+    const note = {type:'doubleLong', lane, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
+    let held = 0;
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units: [0, 1].map(unitIndex => ({
+        unitIndex, active:unitIndex < held, failed:false, complete:false,
+        registeredKeys:unitIndex < held ? [`Key${unitIndex}`] : [],
+      })),
+    }));
+    const side = lane <= 2 ? 'Left' : 'Right';
+    for (const [count, bodyKey, terminalKey] of [
+      [0, 'bodyDouble', 'terminalDoubleIdle'],
+      [1, `bodyDoublePartialHeld${side}`, `terminalDoublePartialFailed${side}`],
+      [2, 'bodyDoubleHeld', 'terminalDouble'],
+    ] as const) {
+      held = count;
+      for (const layer of [bodyLayer, headLayer, endLayer]) childrenOf(layer).length = 0;
+      renderer.renderLongNote(note, 0, 100, 300, 100);
+      expect(childrenOf(bodyLayer)[0].texture).toMatchObject({key:bodyKey});
+      for (const layer of [headLayer, endLayer]) {
+        expect(childrenOf(layer)).toHaveLength(1);
+        expect(childrenOf(layer)[0].texture).toMatchObject({key:terminalKey});
+      }
+    }
+  });
+
+  it.each(['싱글의 연결 유지', 'headless fill'] as const)('%s로 후속 Classic 더블을 1/2만 충족하면 시작·끝 터미널에도 중앙광만 켠다', source => {
+    const {renderer, bodyLayer, headLayer, endLayer} = createClassicRenderer();
+    const note = {type:'doubleLong', lane:4, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
+    if (source === '싱글의 연결 유지') {
+      renderer.setLongNoteConnections(new Map([[1, 0]]), new Map([[0, -100], [1, 100]]));
+      renderer.setJudgmentBodyStateQuery(index => index === 0 ? {
+        units:[{unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']}],
+        successorIndex:1,
+      } : {
+        units:[0, 1].map(unitIndex => ({unitIndex, active:false, failed:false, complete:false, registeredKeys:[]})),
+      });
+    } else {
+      renderer.setHeadlessHeldFillQuery(() => ({filled:1, required:2}));
+    }
+    renderer.renderLongNote(note, 1, 100, 300, 0);
+    expect(childrenOf(bodyLayer)[0].texture).toMatchObject({key:'bodyDoublePartialHeldRight'});
+    for (const layer of [headLayer, endLayer]) {
+      expect(childrenOf(layer)).toHaveLength(1);
+      expect(childrenOf(layer)[0].texture).toMatchObject({key:'terminalDoublePartialFailedRight'});
+    }
+  });
+
+  it('길이0 holdOnly는 시작 터미널 하나와 사방12px Grace를 표시하고 실패 후 외곽광을 숨김', () => {
+    const {renderer,headLayer,endLayer} = createClassicRenderer();
+    const note = {type:'long',lane:2,beat:0,endBeat:0,holdOnly:true} as unknown as NoteEntity & {endBeat:unknown};
+    renderer.renderLongNote(note,0,100,100,0);
+    expect(childrenOf(endLayer)).toHaveLength(0);
+    const [grace,terminal] = childrenOf(headLayer);
+    expect(grace).toMatchObject({x:88,y:388,width:124,height:44});
+    expect(terminal).toMatchObject({x:100,y:420,width:100,height:20});
+    childrenOf(headLayer).length = 0;
+    renderer.applyNoteDisplayEffect(0,{body:'failed',visibility:'missed'});
+    renderer.renderLongNote(note,0,100,100,0);
+    expect(childrenOf(headLayer)).toHaveLength(1);
+  });
+});
 
 describe("GameNoteRenderer 노트 상태 관리", () => {
   let renderer: GameNoteRenderer;
@@ -423,6 +558,219 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     // body 전체(NOTE_HEIGHT) 중 두 캡 사이에 심지 5px가 남아야 한다
     expect(NOTE_HEIGHT - endCapSprite.height - startCap.height).toBe(5);
   });
+
+  it("full-height terminal 스킨은 양 끝을 20px로 그리고 terminal 전체 텍스처를 사용", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 0);
+
+    expect(childrenOf(end)[0].height).toBe(NOTE_HEIGHT);
+    expect(childrenOf(head)[0].height).toBe(NOTE_HEIGHT);
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalSingle");
+    expect(skinManager.getHalfCapTexture).not.toHaveBeenCalledWith("terminalSingle");
+  });
+
+  it("full-height terminal 프레임 overhang=2이면 100px 바디 좌우로 2px씩 넓은 104px로 표시", () => {
+    const skinManager = createMockSkinManager("full-height", 2);
+    const body = new Container();
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      body, end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 0);
+
+    expect(childrenOf(body)[0].x).toBe(0);
+    expect(childrenOf(body)[0].width).toBe(100);
+    expect(childrenOf(end)[0].x).toBe(-2);
+    expect(childrenOf(end)[0].width).toBe(104);
+    expect(childrenOf(head)[0].x).toBe(-2);
+    expect(childrenOf(head)[0].width).toBe(104);
+  });
+
+  it("full-height 싱글 롱노트는 누르기 전 bodySingle과 terminalSingleIdle을 함께 사용", () => {
+    const skinManager = createMockSkinManager("full-height", 2, ["terminalSingleIdle"]);
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] }],
+    }));
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 0);
+
+    expect(skinManager.getTexture).toHaveBeenCalledWith("bodySingle");
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalSingleIdle");
+    expect(skinManager.getTexture).not.toHaveBeenCalledWith("terminalSingle");
+  });
+
+  it("full-height 싱글 롱노트는 홀드가 활성화되면 bodySingleHeld와 terminalSingle을 함께 사용", () => {
+    const skinManager = createMockSkinManager("full-height", 2, ["terminalSingleIdle"]);
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["KeyF"] }],
+    }));
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 100);
+
+    expect(skinManager.getTexture).toHaveBeenCalledWith("bodySingleHeld");
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalSingle");
+    expect(skinManager.getTexture).not.toHaveBeenCalledWith("terminalSingleIdle");
+  });
+
+  it("full-height 싱글 롱노트는 바디 실패 시 bodySingleFailed와 terminalSingleFailed를 함께 사용", () => {
+    const skinManager = createMockSkinManager("full-height", 2, ["terminalSingleIdle"]);
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] }],
+    }));
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 150);
+
+    expect(skinManager.getTexture).toHaveBeenCalledWith("bodySingleFailed");
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalSingleFailed");
+    expect(skinManager.getTexture).not.toHaveBeenCalledWith("terminalSingle");
+  });
+
+  it("full-height 더블 롱노트는 대기에 terminalDoubleIdle, 전체 실패에 terminalDoubleFailed를 사용", () => {
+    const idleSkinManager = createMockSkinManager("full-height", 2, ["terminalDoubleIdle"]);
+    const idleRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      idleSkinManager, 500, 1000, 0, 600,
+    );
+    idleRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [
+        { unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] },
+        { unitIndex: 1, active: false, failed: false, complete: false, registeredKeys: [] },
+      ],
+    }));
+    const doubleLong = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
+
+    idleRenderer.renderLongNote(doubleLong, 0, 100, 300, 0);
+    expect(idleSkinManager.getTexture).toHaveBeenCalledWith("terminalDoubleIdle");
+
+    const failedSkinManager = createMockSkinManager("full-height", 2, ["terminalDoubleIdle"]);
+    const failedRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      failedSkinManager, 500, 1000, 0, 600,
+    );
+    failedRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [
+        { unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] },
+        { unitIndex: 1, active: true, failed: true, complete: false, registeredKeys: [] },
+      ],
+    }));
+
+    failedRenderer.renderLongNote(doubleLong, 0, 100, 300, 150);
+    expect(failedSkinManager.getTexture).toHaveBeenCalledWith("terminalDoubleFailed");
+  });
+
+  it.each(['crystal', 'prism', 'simple'])('%s의 더블을 1/2만 유지해도 반쪽 terminal은 기존 terminalDouble 텍스처를 사용한다', skinId => {
+    const skinManager = createMockSkinManager();
+    vi.mocked(skinManager.getTheme).mockReturnValue(getSkinManifest(skinId).theme);
+    const renderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units:[
+        {unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']},
+        {unitIndex:1, active:false, failed:false, complete:false, registeredKeys:[]},
+      ],
+    }));
+    const note = {type:'doubleLong', lane:1, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
+    renderer.renderLongNote(note, 0, 100, 300, 100);
+    expect(skinManager.getTexture).toHaveBeenCalledWith('bodyDoublePartialHeldLeft');
+    expect(skinManager.getHalfCapTexture).toHaveBeenCalledWith('terminalDouble');
+    expect(skinManager.getHalfCapTexture).not.toHaveBeenCalledWith('terminalDoublePartialFailedLeft');
+  });
+
+  it("full-height terminal 스킨의 길이 0 롱노트는 20px 시작 terminal 하나만 표시", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 100, 0);
+
+    expect(childrenOf(end)).toHaveLength(0);
+    expect(childrenOf(head)).toHaveLength(1);
+    expect(childrenOf(head)[0].height).toBe(NOTE_HEIGHT);
+  });
+
+  it("full-height terminal은 판정선에 닿을 때 일부가 가려지지 않고 20px 전체가 판정선 위에 고정", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 95);
+
+    expect(childrenOf(head)[0].y).toBe(500);
+    expect(childrenOf(head)[0].height).toBe(NOTE_HEIGHT);
+    expect(childrenOf(end)[0].y + childrenOf(end)[0].height).toBeLessThanOrEqual(500);
+  });
+
+  it("full-height 짧은 롱노트가 시작된 직후에는 시작 terminal이 남지 않아 끝 terminal 하나만 표시", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    // 100~110ms 롱노트의 105ms 프레임: 두 terminal을 모두 판정선 위에 고정하면
+    // 같은 20px 영역에 겹쳐져 하나가 두껍거나 두 배로 보인다.
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 110, 105);
+
+    expect(childrenOf(head)).toHaveLength(0);
+    expect(childrenOf(end)).toHaveLength(1);
+  });
+
+  it("full-height 짧은 롱노트가 시작되기 전 두 terminal 영역이 겹치면 시작 terminal 하나만 표시", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 110, 95);
+
+    expect(childrenOf(head)).toHaveLength(1);
+    expect(childrenOf(end)).toHaveLength(0);
+  });
+
+  it("full-height terminal은 끝 시각을 지난 프레임에 남지 않음", () => {
+    const skinManager = createMockSkinManager("full-height");
+    const end = new Container();
+    const head = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 301);
+
+    expect(childrenOf(head)).toHaveLength(0);
+    expect(childrenOf(end)).toHaveLength(0);
+  });
 });
 
 describe("GameNoteRenderer 트릴 롱노트", () => {
@@ -455,6 +803,43 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     renderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
     expect(childrenOf(bodyLayer).length).toBe(1);
     expect(childrenOf(endLayer).length).toBe(1);
+  });
+
+  it("full-height trillLong terminal은 2배 PNG를 104×20으로 표시하고 끝 시각 뒤에는 숨김", () => {
+    const skinManager = createMockSkinManager("full-height", 2, ["terminalTrillIdle"]);
+    const end = new Container();
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), end, new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+
+    fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
+    expect(childrenOf(end)[0].x).toBe(-2);
+    expect(childrenOf(end)[0].width).toBe(104);
+    expect(childrenOf(end)[0].height).toBe(20);
+
+    childrenOf(end).length = 0;
+    fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 301);
+    expect(childrenOf(end)).toHaveLength(0);
+  });
+
+  it("full-height trillLong은 누르기 전 terminalTrillIdle, 바디 실패 후 terminalTrillFailed를 사용", () => {
+    const skinManager = createMockSkinManager("full-height", 2, ["terminalTrillIdle"]);
+    const fullHeightRenderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    let failed = false;
+    fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
+      units: [{ unitIndex: 0, active: false, failed, complete: false, registeredKeys: [] }],
+    }));
+
+    fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalTrillIdle");
+
+    failed = true;
+    fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 150);
+    expect(skinManager.getTexture).toHaveBeenCalledWith("terminalTrillFailed");
   });
 
   it("바디는 처음·끝 각각 10px 줄어든다 — 끝점 y=200,길이220 → y=210,높이200", () => {
@@ -630,6 +1015,30 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
     expect(texKeys(skinManager)).toContain("bodySingle");
     expect(texKeys(skinManager)).not.toContain("bodySingleHeld");
+  });
+
+  it("싱글 롱 바디는 하강 중 bodySingle, 누르는 중 bodySingleHeld, 중간 해제 실패 후 bodySingleFailed 순서로 전환", () => {
+    const { renderer, skinManager } = setupWithFill(null);
+    let state = {
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [] as string[] }],
+    };
+    renderer.setJudgmentBodyStateQuery(() => state);
+
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
+    state = {
+      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+    };
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 320);
+    state = {
+      units: [{ unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] }],
+    };
+    renderer.renderLongNote(singleLong(1), 0, 300, 500, 380);
+
+    expect(texKeys(skinManager)).toEqual(expect.arrayContaining([
+      "bodySingle",
+      "bodySingleHeld",
+      "bodySingleFailed",
+    ]));
   });
 });
 

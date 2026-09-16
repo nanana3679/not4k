@@ -5,8 +5,11 @@ function buildManifest(
   id: string,
   theme: SkinManifest["theme"],
   withCaps = false,
+  baseOverride?: string,
+  withIdleTerminals = false,
+  additionalAssets: Partial<SkinManifest["assets"]> = {},
 ): SkinManifest {
-  const base = withPublicBase(`/skins/${id}`);
+  const base = withPublicBase(baseOverride ?? `/skins/${id}`);
   const caps = withCaps
     ? {
         endCapSingle: `${base}/end-cap-single.png`,
@@ -15,10 +18,18 @@ function buildManifest(
         endCapDoubleFailed: `${base}/end-cap-double-failed.png`,
       }
     : {};
+  const idleTerminals = withIdleTerminals
+    ? {
+        terminalSingleIdle: `${base}/terminal-single-idle.png`,
+        terminalDoubleIdle: `${base}/terminal-double-idle.png`,
+        terminalTrillIdle: `${base}/terminal-trill-idle.png`,
+      }
+    : {};
   return {
     theme,
     assets: {
       ...caps,
+      ...idleTerminals,
       noteSingle: `${base}/note-single.png`,
       noteDouble: `${base}/note-double.png`,
       terminalSingle: `${base}/terminal-single.png`,
@@ -60,6 +71,7 @@ function buildManifest(
       buttonPressed: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-pressed-${i + 1}.png`
       ),
+      ...additionalAssets,
     },
   };
 }
@@ -87,9 +99,9 @@ export const SKIN_LIST: SkinManifest[] = [
     bg: 0x06040e,
     text: 0xd0c8e8,
   }),
-  buildManifest("classic", {
-    id: "classic",
-    name: "Classic",
+  buildManifest("simple", {
+    id: "simple",
+    name: "Simple",
     available: false,
     accent: 0x4488ff,
     beamColor: 0xffffff,
@@ -97,6 +109,41 @@ export const SKIN_LIST: SkinManifest[] = [
     heldGlow: 0x4488ff,
     bg: 0x0a0a14,
     text: 0xe0e0e0,
+  }),
+  buildManifest("note-asset-lab", {
+    id: "note-asset-lab",
+    name: "Note Asset Lab",
+    available: false,
+    accent: 0x83d8ff,
+    beamColor: 0xffffff,
+    heldLine: 0x8edcff,
+    heldGlow: 0x88cbff,
+    bg: 0x05080d,
+    text: 0xd8e8f4,
+    longNoteTerminalMode: "full-height",
+    longNoteTerminalFrameOverhangPx: 2,
+  }, false, "/lab/note-assets/skin", true),
+  buildManifest("classic", {
+    id: "classic",
+    name: "Classic",
+    available: true,
+    accent: 0x83d8ff,
+    beamColor: 0xffffff,
+    heldLine: 0x8edcff,
+    heldGlow: 0x88cbff,
+    bg: 0x05080d,
+    text: 0xd8e8f4,
+    longNoteTerminalMode: "full-height",
+    longNoteTerminalFrameOverhangPx: 0,
+    pointNoteOverhangPx: 3,
+    longNoteBodyMode: "repeat",
+    graceOverlayPaddingPx: 12,
+    pointShadow: { offsetY: 19.6, height: 3.2 },
+    bombDurationMs: 280,
+  }, false, undefined, true, {
+    pointGraceOverlay: withPublicBase("/skins/classic/point-grace-overlay.png"),
+    terminalGraceOverlay: withPublicBase("/skins/classic/terminal-grace-overlay.png"),
+    pointShadow: withPublicBase("/skins/classic/point-shadow.png"),
   }),
 ];
 

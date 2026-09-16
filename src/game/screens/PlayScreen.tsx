@@ -122,6 +122,7 @@ export function PlayScreen() {
           height: GAME_HEIGHT,
           resolution,
           skinManager,
+          bombScale: settings.bombScale,
         });
         await renderer.init();
 

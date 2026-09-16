@@ -18,6 +18,20 @@ export interface SkinTheme {
   bg: number;
   /** 텍스트 색상 */
   text: number;
+  /** 롱노트 양 끝에 terminal 전체 높이를 쓸지 여부. 생략하면 기존 반쪽 cap 방식 */
+  longNoteTerminalMode?: "split-cap" | "full-height";
+  /** full-height terminal의 외곽 프레임이 바디 좌우로 더 나오는 논리 픽셀 수 */
+  longNoteTerminalFrameOverhangPx?: number;
+  /** 포인트의 바디 접합 폭100px 바깥으로 나오는 좌우 너비 */
+  pointNoteOverhangPx?: number;
+  /** 반복 바디는 텍스처 비율을 유지해 세로로 타일링한다. */
+  longNoteBodyMode?: "stretch" | "repeat";
+  /** Grace overlay 텍스처의 본체 바깥 투명 여백 */
+  graceOverlayPaddingPx?: number;
+  /** 포인트 아래 바디에 겹치는 접촉 그림자 */
+  pointShadow?: { offsetY: number; height: number };
+  /** 봄의 전체 재생 시간. 생략하면 60fps로 프레임 수만큼 재생 */
+  bombDurationMs?: number;
 }
 
 /**
@@ -28,8 +42,14 @@ export interface SkinManifest {
   assets: {
     noteSingle: string;
     noteDouble: string;
+    pointGraceOverlay?: string;
+    terminalGraceOverlay?: string;
+    pointShadow?: string;
     terminalSingle: string;
     terminalDouble: string;
+    /** 누르기 전 중앙광이 꺼진 terminal. 없는 스킨은 일반 terminal로 fallback */
+    terminalSingleIdle?: string;
+    terminalDoubleIdle?: string;
     bodySingle: string;
     bodyDouble: string;
     bodySingleHeld: string;
@@ -62,6 +82,8 @@ export interface SkinManifest {
     /** 트릴 에셋 */
     noteTrill: string;
     terminalTrill: string;
+    /** 누르기 전 중앙광이 꺼진 trillLong terminal. 없는 스킨은 terminalTrill로 fallback */
+    terminalTrillIdle?: string;
     bodyTrill: string;
     bodyTrillHeld: string;
     noteTrillFailed: string;

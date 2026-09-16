@@ -1,3 +1,4 @@
+import { getTutorialBombPosition } from "./TutorialPreviewPlayer";
 import { describe, expect, it, vi } from 'vitest';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
 import {
@@ -445,5 +446,17 @@ describe('safeRenderFrame 배선(소스)', () => {
 
   it('createSafeRenderFrame은 teardown 레이스만 삼키고 나머지는 재던짐', () => {
     expect(tutorialPreviewPlayerSource).toContain('if (!isTransientTeardownRenderError(err)) throw err;');
+  });
+});
+
+
+describe('튜토리얼 봄 위치', () => {
+  it('키보드높이152에서2번레인 봄은 전체512 중 판정선280과 가로37.5%에 표시', () => {
+    expect(getTutorialBombPosition(2,152)).toEqual({x:.375,y:280/512});
+  });
+  it('키보드높이가80으로 줄어도4번레인 봄의 판정선은280px로 유지', () => {
+    const position = getTutorialBombPosition(4,80);
+    expect(position.x).toBe(.875);
+    expect(position.y*440).toBe(280);
   });
 });
