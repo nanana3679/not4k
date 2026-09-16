@@ -1,3 +1,5 @@
+import { withLabPublicBase } from "./labPublicPath";
+
 export type NoteAssetKind = "single" | "double" | "trill";
 export const NOTE_ASSET_KIND_LABELS: Record<NoteAssetKind, string> = { single: "싱글", double: "더블", trill: "트릴" };
 export type NoteBodyState = "idle" | "on" | "partial-off" | "off";
@@ -12,7 +14,7 @@ export interface KeybombVariant {
   frames?: string[];
 }
 
-export const NOTE_ASSET_BASE = "/lab/note-assets";
+export const NOTE_ASSET_BASE = withLabPublicBase("/lab/note-assets");
 
 export const KEYBOMB_VARIANTS: KeybombVariant[] = [
   { id: "silver", title: "실버 링", duration: 280 },

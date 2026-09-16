@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BODY_ASSETS,
   KEYBOMB_VARIANTS,
@@ -29,5 +29,24 @@ describe("noteAssetShowcase", () => {
   it("공통 키봄 6개는 200ms에서 300ms 안에 종료", () => {
     expect(KEYBOMB_VARIANTS).toHaveLength(6);
     expect(KEYBOMB_VARIANTS.every(({ duration }) => duration >= 200 && duration <= 300)).toBe(true);
+  });
+});
+
+describe("공개 배포의 기존 에셋 비교 자료", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("/not4k/ 배포에서도 기존 포인트2개·바디7개·터미널8개는 public/lab 폴더를 유지한다", async () => {
+    vi.stubEnv("BASE_URL", "/not4k/");
+    vi.resetModules();
+    const deployed = await import("./noteAssetShowcase");
+
+    expect(deployed.getPointNoteAsset("single")).toBe("/not4k/lab/note-assets/note-single.png");
+    expect(deployed.getPointNoteAsset("double")).toBe("/not4k/lab/note-assets/note-double.png");
+    expect([...deployed.BODY_ASSETS, ...deployed.TERMINAL_ASSETS].map(asset => asset.src)).toEqual(
+      [...BODY_ASSETS, ...TERMINAL_ASSETS].map(asset => `/not4k${asset.src}`),
+    );
   });
 });

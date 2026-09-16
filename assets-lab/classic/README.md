@@ -4,6 +4,8 @@
 
 인게임에서 `Settings → Skin → Classic`을 선택해 사용한다. 선택은 로컬 설정에 저장된다. `pnpm build:classic`은 Lab SVG를 `public/lab/note-assets/classic/`에, 공통 런타임 PNG58개를 `public/skins/classic/`에 생성한다. 실제 플레이와 Lab이 같은 PNG를 읽고, 프로덕션 빌드에도 포함한다. 런타임 PNG를 저장소에 보관하므로 일반 빌드 때 다시 생성할 필요는 없다.
 
+원본·작업 자료, Lab SVG, 런타임 PNG는 현재 폴더 분리를 유지한다. 개발 서버와 공개 Lab은 같은 산출물을 읽으며, `withPublicBase`(`withLabPublicBase`)가 배포 위치에 맞춰 URL 접두사만 붙인다. 예를 들어 같은 `public/skins/classic/note-single.png`를 루트 배포에서는 `/skins/classic/note-single.png`, `/not4k/` 배포에서는 `/not4k/skins/classic/note-single.png`로 요청한다.
+
 Penpot에서 확정한 싱글 바디·시작 터미널을 공통 빌드 입력에 적용했다. [확정본](./revisions/penpot-approved/README.md)의 모양·채색·그리는 순서를 유지하고 상태를 나누는 그룹 정보만 추가했다. 끝 터미널은 시작 전체의 상하반전이다. SVG는1000×200, PNG는200×40이며 투명 여백 없이 바디를 터미널 아래까지 이어 그린다.
 
 `CLASSIC_SOURCE_NAMES`의 포인트·바디 원본4개와 `sources/terminal-start-{single,double}.svg`를 읽고 저장소 루트에서 `pnpm build:classic`을 실행한다. 두 시작 터미널 모두 독립 원본이며 이전 생성기로 다시 만들지 않는다. 더블은 싱글의 Penpot 수정본과 같은 금속 마감·반사광·V 형태를 사용하고 금색으로 채색했다. 플레이어 코드는 수정할 필요가 없다. 생성 결과는 `/lab/note-assets?design=classic`에서 시연한다.

@@ -1,0 +1,102 @@
+{
+  "legacy/geometry.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/geometry.mjs",
+    "sha256": "2f705d42ef4ab19ddb0ab25e1f1e025c6887da3c86b6760acd55fec345640b7e"
+  },
+  "legacy/architecture.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/architecture.mjs",
+    "sha256": "6bc6dc00c24f826791d802633b960de52e71827d15df7194e7569f5c68e97328"
+  },
+  "legacy/original-motion.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/original-motion.mjs",
+    "sha256": "5f74d7c0868b50145226e85a97481e7ba3bf518c27b7c4b423571f2de4076d05"
+  },
+  "legacy/palette.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/palette.mjs",
+    "sha256": "a39a8b97e970dba33b82d2321c8eacb521d47a35f187ae1718df2475e183b3ff"
+  },
+  "legacy/surface-art.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/surface-art.mjs",
+    "sha256": "44e3dc709b7505cfa5971810fa2b8ea5f7be3701a3994029b261b51fe4ee5343"
+  },
+  "legacy/wall-contours.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/wall-contours.mjs",
+    "sha256": "bf06d4dbc383623cca211398d5ef5404f8b1dc621d2301dc50acb527532d89a2"
+  },
+  "legacy/clearance.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/clearance.mjs",
+    "sha256": "27dcf83a453dbf8a71ca792fd89ef84e2adb447f00e1a86f39c5d6d2d617626d"
+  },
+  "legacy/afterglow.mjs": {
+    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/afterglow.mjs",
+    "sha256": "2f016d27c0bfde9c53e33e1874ab021757a4728e4b9b6e392090204de51cd69b"
+  },
+  "render-model.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/render-model.mjs",
+    "sha256": "e794cdc3739e47959e0e8ec59306ac55406201f04a82fa4db5e6c7f4216c5f21"
+  },
+  "surface-geometry.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/surface-geometry.mjs",
+    "sha256": "e5f12237fb1a071fe33bebfc13be7d75258ee80999620838d3ed6bdb5d886eb6"
+  },
+  "originals/hangar.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/originals/hangar.mjs",
+    "sha256": "d67e58bfefe6a31834f2c066e1989a45666942adf309b96151cf5790fd33482f"
+  },
+  "vendor/three.module.js": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/vendor/three.module.js",
+    "sha256": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea"
+  },
+  "vendor/three.core.js": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/vendor/three.core.js",
+    "sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6"
+  },
+  "vendor/LICENSE": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/vendor/LICENSE",
+    "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+  },
+  "catalog.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/catalog.mjs",
+    "sha256": "70d187dc748aa2463c3c72a1e78b6d3e3ba4a0e185c7b51af72e36f26d6b8752"
+  },
+  "blueprint-kit.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/blueprint-kit.mjs",
+    "sha256": "1d70151ac0d4945fab127fcd6d57236f0991280c75a8f234876232a0c6237e29"
+  },
+  "originals/wedge.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/originals/wedge.mjs",
+    "sha256": "d847f35691a65d0bf7871e66234315e4377b77c01d5cd4bdcbad74512f90ee6a"
+  },
+  "modules/d-twin-gallery.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/d-twin-gallery.mjs",
+    "sha256": "4ac97b2327897508f253b07c053cec2b38afb70a5a0ec5cf2f4bf85a85d3c236"
+  },
+  "modules/f-open-dock.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/f-open-dock.mjs",
+    "sha256": "5dd6082fac6cf4287f0cd1ee940db9b97004dff9b28c0915633a2c71db0f878a"
+  },
+  "modules/c-service-tower.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/c-service-tower.mjs",
+    "sha256": "c15a868f766d9067609a97e8822e39404a1cb548eef00f53e0b1a6f681d1a774"
+  },
+  "modules/e-hangar.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/e-hangar.mjs",
+    "sha256": "dbbac35f19470019025920ae9dd48e28413e0695ecaebacab8536d633173ac46"
+  },
+  "modules/b-maintenance.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/b-maintenance.mjs",
+    "sha256": "ed16e1b36588724952b11e9d3139969ee9f2da5fe0b46ac677fbe0babf159235"
+  },
+  "modules/h-logistics-hub.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/h-logistics-hub.mjs",
+    "sha256": "6d8c4144dcfc018da603326766f63ab8bad3ced77c0401a0d2860224a4899e5e"
+  },
+  "modules/g-transfer-spine.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/g-transfer-spine.mjs",
+    "sha256": "e2b70bcf0448353f1ede92a2e8b1940dd8aa5987e53218bb19da919de2ea4e19"
+  },
+  "modules/a-wedge.mjs": {
+    "source": "/home/nanana3679/not4k/output/prototypes/module-fleet-20260910/modules/a-wedge.mjs",
+    "sha256": "0bc3f7928383e28b5645b2ca871cc04ef1eec53740dd1150f69ebdfdb09f3d28"
+  }
+}

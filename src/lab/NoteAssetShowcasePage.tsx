@@ -6,6 +6,7 @@ FIRST VIEWPORT: 실제 튜토리얼 재생기가 화면 중심을 차지하고 �
 FORM: 기존 not4k Lab과 튜토리얼 재생기를 잇는 로컬 확장이므로 별도 플레이필드를 만들지 않는다.
 */
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { NoteAssetPreviewPlayer } from "./NoteAssetPreviewPlayer";
 import { KeybombEffect } from "./KeybombEffect";
 import { getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
@@ -142,7 +143,7 @@ export default function NoteAssetShowcasePage() {
     <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id}>
       <header className="asset-lab-header">
         <div>
-          <p className="asset-lab-kicker"><a className="asset-lab-back-link" href="/lab">← Lab 목록</a></p>
+          <p className="asset-lab-kicker"><Link className="asset-lab-back-link" to="/lab">← Lab 목록</Link></p>
           <h1>노트 에셋 시연실</h1>
           <p>튜토리얼의 실제 재생기와 렌더러에서 확정 노트 에셋을 반복 재생합니다.</p>
         </div>

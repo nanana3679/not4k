@@ -1,5 +1,6 @@
 import { getSkinManifest } from '../game/skin/skins';
 import type { SkinManifest } from '../game/skin/types';
+import { withLabPublicBase } from './labPublicPath';
 import { KEYBOMB_VARIANTS, NOTE_ASSET_KIND_LABELS, type KeybombVariant, type NoteAssetKind, type NoteBodyState, type NoteTerminalState } from './noteAssetShowcase';
 
 export interface NoteAssetDesign {
@@ -20,7 +21,9 @@ export function createNoteAssetDesign(skin: SkinManifest, options: {
   bombs?: KeybombVariant[];
 }): NoteAssetDesign {
   const {assets, theme} = skin;
-  const source = (name: string, fallback: string) => options.sourceBase ? `${options.sourceBase}/${name}.svg` : fallback;
+  const source = (name: string, fallback: string) => options.sourceBase
+    ? withLabPublicBase(`${options.sourceBase}/${name}.svg`)
+    : fallback;
   const assetKinds = {single:'Single', double:'Double', trill:'Trill'} as const;
   return {
     id: theme.id, name: theme.name, skinId: theme.id, description: options.description,

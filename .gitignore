@@ -6,6 +6,7 @@
 
 node_modules/
 dist/
+dist-lab/
 # 빌드된 스킨 PNG는 산출물이라 기본 무시.
 # crystal·classic과 Lab 비교용 simple은 에셋 빌드 미실행 환경에서도 사용할 수 있게 보관한다.
 # prism은 아직 failed 에셋이 불완전하다. Classic SVG 시연 자료는 public/lab/note-assets/classic에 둔다.
@@ -57,3 +58,6 @@ test-results/
 
 # Supabase 로컬 백업 (scripts/backup-supabase.mjs 산출물)
 backups/
+
+# A dependency directory may be linked while working in an isolated worktree.
+/node_modules

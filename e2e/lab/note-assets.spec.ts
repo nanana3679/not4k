@@ -5,15 +5,15 @@ test.describe("Note Assets Lab", () => {
     test(`${width}px Lab 목록에서 노트 에셋 시연실을 열면 Classic 재생기가 준비되고 목록으로 돌아올 수 있다`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/lab');
-      await expect(page.getByRole('heading', { name: 'Lab', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Preview Archive', exact: true })).toBeVisible();
       const entry = page.getByRole('link', { name: /^노트 에셋 시연실/ });
       await expect(entry).toBeVisible();
       expect((await entry.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-      expect(await page.locator('[data-lab-page="index"]').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+      expect(await page.locator('[data-lab-page="preview-catalog"]').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
       await page.screenshot({ path: testInfo.outputPath('lab-index.png') });
 
       await entry.click();
-      await expect(page).toHaveURL(/\/lab\/note-assets\?design=classic$/);
+      await expect(page).toHaveURL(/\/lab\/note-assets$/);
       await expect(page.getByText('PLAYER READY')).toBeVisible();
       await expect(page.locator('[data-tutorial-skin-id="classic"]')).toBeVisible();
       await page.getByRole('link', { name: '← Lab 목록' }).click();

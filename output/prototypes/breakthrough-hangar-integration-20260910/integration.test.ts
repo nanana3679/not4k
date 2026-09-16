@@ -1,0 +1,32 @@
+import {describe,it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import * as THREE from './vendor/three.module.js';
+import {progressForDepth,BUILDING_START,BUILDING_FOG,readSettings,writeSettings,scenePyramid,matchCamera,buildingPose,travelAt,progressAt,lightLayout,collectFaces} from './integration.mjs';
+import {viewAt,project,advanceMotion,worldFaces,planeOffsets} from './legacy/geometry.mjs';
+import {hangarBlueprint} from './originals/hangar.mjs';
+import {buildModel} from './render-model.mjs';
+
+describe('기존 절단면과 E의 공통 공간',()=>{
+ it('기본값은 직선·광원10%·속도1000%·잔상120ms이며 최신 근접 시점을 사용한다',()=>{const s=readSettings();expect([s.variant,s.size,s.speed,s.trail,s.clearance,s.building]).toEqual(['lines',.25,1000,.12,true,true]);expect(s.floor||s.ceiling).toBe(false);});
+ for(const [w,h] of [[320,180],[844,475],[1440,810]])for(const altitude of [0,.5,1])for(const clearance of [0,1])it(`${w}×${h}·고도${altitude*100}%·근접${clearance}에서 Three.js 투영과 기존 project()가 0.000001px 이내다`,()=>{
+  const s=readSettings(`altitude=${altitude}&clearance=${clearance}`),p=scenePyramid(s),v=viewAt(w,h,altitude,p),c=new THREE.PerspectiveCamera();matchCamera(c,v);
+  for(const point of [[0,p.apexHeight,p.depth],[-10,12,10],[30,-20,100],[-42,80,0]]){const old=project(point,v),n=new THREE.Vector3(point[0],point[1],-point[2]).project(c);expect(Math.abs((n.x+1)*w/2-old.x)).toBeLessThan(1e-6);expect(Math.abs((1-n.y)*h/2-old.y)).toBeLessThan(1e-6);}
+ });
+ it('고도 0→100%에서 A는 이전 시점의 192→-168로 이동하고 가까운 단면 높이144를 유지한다',()=>{const low=scenePyramid(readSettings('clearance=0&altitude=0')),high=scenePyramid(readSettings('clearance=0&altitude=1'));expect([low.apexHeight,high.apexHeight,low.height,high.height]).toEqual([192,-168,144,144]);});
+ it('속도1000%에서 50ms 전진량은 기존28의10배인14이며 노트시간은50ms다',()=>{const a=advanceMotion({time:0,travel:0,noteTime:0},.05,1000,true),b=advanceMotion({time:0,travel:0,noteTime:0},.05,100,true);expect(a.travel).toBeCloseTo(14);expect(a.noteTime).toBe(b.noteTime);expect(a.noteTime).toBe(.05);});
+ it('정지하면 시간·광원 이동·노트 시간이 모두 그대로다',()=>{const a={time:1,travel:100,noteTime:1};expect(advanceMotion(a,2,1000,false)).toEqual(a);});
+ it('고도0·50·100%에서 원거리1600→근거리44의 건물 중심은 기존 외곽면의 화면상 A 경로를 따른다',()=>{for(const clearance of [0,1])for(const altitude of [0,.5,1]){const s=readSettings(`clearance=${clearance}&altitude=${altitude}`),p=scenePyramid(s),v=viewAt(1440,810,altitude,p),d=planeOffsets(p,s.planes)[0],nearY=s.clearance?p.baseCenter-p.height/2+29.205:p.baseCenter,anchor=project([d,nearY,0],v),a=v.focus;for(const z of [1600,1100,600,200,44]){const o=buildingPose(s,p,travelAt(progressForDepth(z),p)),screen=project(o.center,v);expect(Math.abs((screen.x-a.x)*(anchor.y-a.y)-(screen.y-a.y)*(anchor.x-a.x))).toBeLessThan(1e-6);expect(screen.x).toBeLessThan(a.x);expect(o.scale).toBe(1);}}});
+ it('출발1600은 최대180% 건물의 모든 면이 안개 끝1400보다 멀어 반복 순간에 보이지 않는다',()=>{expect(BUILDING_START-41*1.8/2+8).toBeGreaterThan(BUILDING_FOG.far);});
+ it('먼 접근1100→44에서 위치·속도가 끊기지 않고 모든 구간에서 깊이10당9.56 전진한다',()=>{const s=readSettings(),p=scenePyramid(s);for(const z of [1100,601,201,200,199,44]){const t=travelAt(progressForDepth(z),p),a=buildingPose(s,p,t),b=buildingPose(s,p,t+10);expect(a.center[2]-b.center[2]).toBeCloseTo(9.56);expect(a.center[0]).toBeCloseTo(b.center[0]);}});
+ it('진행 20→26%에서 건물과 광원은 같은 .956 전진 비율을 사용한다',()=>{const s=readSettings(),p=scenePyramid(s),t=travelAt(.2,p),a=buildingPose(s,p,t),b=buildingPose(s,p,t+10);expect(a.center[2]-b.center[2]).toBeCloseTo(9.56);expect(progressAt(travelAt(.26,p),p)).toBeCloseTo(.26);});
+ it('근거리와 통과에서도 건물180% 배율·입체·UV를 그대로 재사용한다',()=>{const s=readSettings('buildingSize=180'),p=scenePyramid(s),b=buildModel(hangarBlueprint(),{}),ids=b.group.children.map(m=>m.geometry.uuid),before=new THREE.Box3().setFromObject(b.group).getSize(new THREE.Vector3());for(const progress of [.2,.26,.4,.499,.999])expect(buildingPose(s,p,travelAt(progress,p)).scale).toBe(1.8);expect(b.group.children.map(m=>m.geometry.uuid)).toEqual(ids);expect(new THREE.Box3().setFromObject(b.group).getSize(new THREE.Vector3())).toEqual(before);});
+ it('진행99.9%에서 크기180% 건물의 가장 먼 모서리까지 카메라 뒤에 있어 반복 순간에 잘리지 않는다',()=>{const s=readSettings('buildingSize=180'),p=scenePyramid(s),o=buildingPose(s,p,travelAt(.999,p));expect(o.center[2]+41*1.8/2).toBeLessThan(-8);expect(o.visible).toBe(false);});
+ for(const variant of ['lines','triangles','mixed'])it(`${variant}는 기존 worldFaces의 점·색·윤곽선·cycle ID를 변경하지 않는다`,()=>{const s=readSettings(`variant=${variant}`),p=scenePyramid(s),lights=lightLayout(s),v=viewAt(1440,810,s.altitude,p),faces=collectFaces(lights,35,s,p,v);expect(lights).toHaveLength(336);expect(faces.length).toBeGreaterThan(50);for(const f of faces){const light=lights.find(l=>f.id.startsWith(l.id+'/')),source=worldFaces(light,35,s,p).find(x=>x.id===f.id);expect(f.points).toEqual(source.points);expect(f.rgb).toEqual(source.rgb);expect(f.outline).toBe(source.outline);}});
+ it('고도와 건물 표시를 바꿔도 광원336개의 seed·위상·배색 추첨은 그대로다',()=>{expect(lightLayout(readSettings('altitude=0&building=0'))).toEqual(lightLayout(readSettings('altitude=1&building=1')));});
+ it('광원 크기0%는 광원 면을 없애고 건물 표시와 크기는 유지한다',()=>{const s=readSettings('size=0'),p=scenePyramid(s);expect(collectFaces(lightLayout(s),0,s,p,viewAt(800,450,.5,p))).toEqual([]);expect(buildingPose(s,p,10).scale).toBe(1);expect(s.building).toBe(true);});
+ it('고도·삼각형·이전시점·180%건물·정지·진행26%를 URL로 복원한다',()=>{const s=readSettings('altitude=.8&variant=triangles&clearance=0&buildingSize=180&paused=1');const r=readSettings(writeSettings(s,.26));for(const k of ['altitude','variant','clearance','buildingSize','running'])expect(r[k]).toBe(s[k]);expect(r.progress).toBe(.26);});
+ it('움직임 줄이기에서는 정지 시작하지만 paused=0 명시 시 재생한다',()=>{expect(readSettings('',true).running).toBe(false);expect(readSettings('paused=0',true).running).toBe(true);});
+ it('NaN·음수·상한 초과 URL은 유효한 크기와 속도 범위로 복원한다',()=>{const s=readSettings('size=-1&speed=9999&buildingSize=NaN&progress=4');expect([s.size,s.speed,s.buildingSize,s.progress]).toEqual([0,1000,100,1]);});
+ it('원본 광원8파일과 E 도안·표면 렌더러는 기록한 SHA-256과 일치한다',()=>{const manifest=JSON.parse(readFileSync(new URL('source-manifest.json',import.meta.url),'utf8'));for(const [path,record] of Object.entries(manifest))expect(createHash('sha256').update(readFileSync(new URL(path,import.meta.url))).digest('hex')).toBe(record.sha256);});
+});

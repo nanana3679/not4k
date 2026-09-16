@@ -1,10 +1,10 @@
 # 노트 에셋 Lab
 
-2026-09-14. 확정된 포인트 노트, 롱노트 바디, 터미널, 키봄을 개발 빌드의 **실제 튜토리얼 재생기**에서 시연하는 작업 공간이다.
+2026-09-14. 확정된 포인트 노트, 롱노트 바디, 터미널, 키봄을 Lab의 **실제 튜토리얼 재생기**에서 시연하는 작업 공간이다.
 
-구현 경로는 `/lab/note-assets`이며 `import.meta.env.DEV` 라우트 아래에서만 로드한다. SVG 시연 자료는 `public/lab/note-assets/`에 두며 프로덕션 빌드에서는 기존 `excludeLabFromBuildPlugin`이 `dist/lab` 전체를 제거한다. Classic 런타임 PNG는 `public/skins/classic/`에서 Lab과 실제 플레이가 함께 읽으며 프로덕션 빌드에도 포함한다. 게임의 `Settings → Skin → Classic`에서 선택하고 저장할 수 있다. 기본 스킨은 Crystal이다.
+구현 경로는 `/lab/note-assets`이며 공통 Lab 카탈로그의 `Rendering` 분류에서 연다. 앱에서는 `import.meta.env.DEV` 라우트 아래에서 로드하고, 별도 공개 Lab 빌드에서도 제공한다. SVG 시연 자료는 `public/lab/note-assets/`에 두며 메인 앱 프로덕션 빌드에서는 기존 `excludeLabFromBuildPlugin`이 `dist/lab` 전체를 제거한다. Classic 런타임 PNG는 `public/skins/classic/`에서 Lab과 실제 플레이가 함께 읽으며 프로덕션 빌드에도 포함한다. Lab SVG와 런타임 PNG의 URL은 배포 base에 맞춰 계산한다. 게임의 `Settings → Skin → Classic`에서 선택하고 저장할 수 있다. 기본 스킨은 Crystal이다.
 
-개발 서버의 `/lab` 목록에서 **노트 에셋 시연실**을 누르면 Classic 시안으로 들어간다. 시연실 상단의 **← Lab 목록**으로 돌아올 수 있다. 목록은 다른 Lab 테스트 페이지도 함께 안내하며, 휴대폰에서도 사용할 수 있다.
+공통 `/lab` 목록에서 **노트 에셋 시연실**을 누르면 Classic 시안으로 들어간다. 시연실 상단의 **← Lab 목록**으로 돌아올 수 있다. 목록은 다른 Lab 테스트 페이지도 함께 안내하며, 휴대폰에서도 사용할 수 있다.
 
 ## 튜토리얼 재생기
 

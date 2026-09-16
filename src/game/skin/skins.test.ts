@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
@@ -29,6 +29,30 @@ describe("SKIN_LIST", () => {
       expect(skin.assets.gearFrame).toBe("/gear/gear-frame.png");
       expect(skin.assets.gearGaugeLeft).toBe("/gear/gear-gauge-left.png");
       expect(skin.assets.gearGaugeRight).toBe("/gear/gear-gauge-right.png");
+    }
+  });
+});
+
+describe("공개 배포의 스킨 에셋 주소", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("/not4k/ 배포에서 5개 스킨의 모든 PNG는 기존 저장 위치에 접두사를 한 번만 붙인다", async () => {
+    vi.stubEnv("BASE_URL", "/not4k/");
+    vi.resetModules();
+    const { getSkinManifest: getPublicSkinManifest } = await import("./skins");
+
+    for (const original of SKIN_LIST) {
+      const deployed = getPublicSkinManifest(original.theme.id);
+      expect(deployed.theme).toEqual(original.theme);
+      for (const [key, paths] of Object.entries(original.assets)) {
+        expect(deployed.assets).toHaveProperty(
+          key,
+          Array.isArray(paths) ? paths.map(path => `/not4k${path}`) : `/not4k${paths}`,
+        );
+      }
     }
   });
 });

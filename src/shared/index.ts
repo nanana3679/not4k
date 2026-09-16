@@ -14,4 +14,3 @@ export {
   normalizePlaybackRange,
   type PlaybackRange,
 } from "./audio/playbackRange";
-export { useAuth } from "./hooks/useAuth";
