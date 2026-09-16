@@ -75,6 +75,8 @@ export interface GameRendererOptions {
   height: number;
   resolution?: number;
   skinManager: SkinManager;
+  /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
+  bombScale?: number;
   showGearFrame?: boolean;
   showPerspectiveSurface?: boolean;
   showComboAndAccuracy?: boolean;
@@ -127,6 +129,7 @@ export class GameRenderer {
   // Rendering state
   private _scrollSpeed: number = 800; // pixels per second
   private _judgmentLineY: number;
+  private readonly bombScale: number;
 
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
@@ -236,6 +239,8 @@ export class GameRenderer {
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
     this._judgmentLineY = options.height - this.judgmentLineOffset;
     this.skinManager = options.skinManager;
+    const bombScale = options.bombScale ?? 1;
+    this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
     this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -1595,6 +1600,7 @@ export class GameRenderer {
 
   /** 노트 판정 시 봄 이펙트 재생 */
   showBombEffect(lane: number): void {
+    if (this.bombScale === 0) return;
     const textures = this.skinManager.getBombTextures();
     if (textures.length === 0) return;
 
@@ -1602,8 +1608,8 @@ export class GameRenderer {
     anim.anchor.set(0.5, 0.5);
     anim.x = this.noteRenderer.getLaneX(lane) + LANE_WIDTH / 2;
     anim.y = this._judgmentLineY;
-    anim.width = 120;
-    anim.height = 120;
+    anim.width = 120 * this.bombScale;
+    anim.height = 120 * this.bombScale;
     const durationMs = this.skinManager.getTheme().bombDurationMs;
     anim.animationSpeed = durationMs ? textures.length * 1000 / (60 * durationMs) : 1;
     anim.loop = false;

@@ -24,6 +24,7 @@ interface GameSettings {
   showFastSlow: boolean;
   showTimingDiff: boolean;
   skinId: string;
+  bombScale: number;
   renderHeight: number;
   playSpeed: number;
   judgmentMode: JudgmentMode;
@@ -110,6 +111,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showFastSlow: true,
   showTimingDiff: false,
   skinId: 'crystal',
+  bombScale: 1,
   renderHeight: 1080,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,

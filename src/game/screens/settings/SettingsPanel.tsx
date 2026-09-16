@@ -284,6 +284,15 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
                   );
                 })}
               </div>
+              <Group title="Effects">
+                <SliderRow
+                  label="Key Bomb Size"
+                  value={settings.bombScale ?? 1}
+                  display={`${(settings.bombScale ?? 1).toFixed(1)}×${settings.bombScale === 0 ? ' (Off)' : ''}`}
+                  min={0} max={3} step={0.1}
+                  onChange={(v) => updateSettings({ bombScale: v })}
+                />
+              </Group>
             </div>
           )}
 
