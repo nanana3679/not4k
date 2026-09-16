@@ -4,6 +4,7 @@ import {
   validateNoLongOverlap,
   validateTrillExclusive,
   validateTrillLong,
+  validateNoteJudgmentConstraints,
   validateNoTrillZoneOverlap,
   validateNoRestZoneOverlap,
   validateRestZoneExclusive,
@@ -212,11 +213,11 @@ describe("롱노트 겹침 불가 불변 (validateChart, RFD 0008)", () => {
     ]).length).toBeGreaterThan(0);
   });
 
-  it("연결(끝점=시작점 맞닿음, L1 0~2 / L2 2~4)은 허용 — 겹침 아님", () => {
+  it("NJ-C02: 같은 unit 수 연결 경계에 head·holdOnly가 없으면 금지", () => {
     expect(chartOf([
       { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
       { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) },
-    ])).toEqual([]);
+    ])).toEqual(expect.arrayContaining([expect.objectContaining({ rule: "noteConstraint" })]));
   });
 
   it("다른 레인의 롱노트 바디 겹침은 허용", () => {
@@ -284,24 +285,22 @@ describe("validateTrillLong", () => {
     expect(validateTrillLong(notes)).toEqual([]);
   });
 
-  it("hold-only trillLong이면 에러 (교대 보상↔처벌 모순)", () => {
+  it("NJ-C03: 양수 holdOnly trillLong은 허용", () => {
     const notes: NoteEntity[] = [
       { type: "trill", lane: 1, beat: beat(0) },
       { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true },
     ];
     const errors = validateTrillLong(notes);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0].rule).toBe("trillLongInvalid");
+    expect(errors).toEqual([]);
   });
 
-  it("위반 trillLong의 원본 인덱스가 refs에 kind 'note'로 담긴다 (헤드가 앞에 있어 인덱스 1)", () => {
+  it("NJ-C03: 양수 holdOnly trillLong은 헤드가 있으면 유효하다", () => {
     const notes: NoteEntity[] = [
       { type: "trill", lane: 1, beat: beat(0) }, // 인덱스 0 = 헤드(위반 아님)
       { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 인덱스 1 = 위반
     ];
     const errors = validateTrillLong(notes);
-    expect(errors).toHaveLength(1);
-    expect(errors[0].refs).toEqual([{ kind: "note", index: 1 }]);
+    expect(errors).toHaveLength(0);
   });
 
   it("헤드 없는 trillLong(length>0)이면 에러 — 교대 비교 대상 없음", () => {
@@ -313,11 +312,19 @@ describe("validateTrillLong", () => {
     expect(errors[0].rule).toBe("trillLongInvalid");
   });
 
-  it("헤드 없는 length-0 trillLong(트릴 슬라이드)도 에러 (length 무관 금지)", () => {
+  it("NJ-C03: 헤드 없는 length-0 trillLong도 금지", () => {
     const notes: NoteEntity[] = [
       { type: "trillLong", lane: 1, beat: beat(2), endBeat: beat(2) }, // length 0, 헤드 없음
     ];
     const errors = validateTrillLong(notes);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("NJ-C03: head가 붙은 length-0 trillLong도 headed zero로 금지", () => {
+    const errors = validateTrillLong([
+      { type: "trill", lane: 1, beat: beat(2) },
+      { type: "trillLong", lane: 1, beat: beat(2), endBeat: beat(2) },
+    ]);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("trillLongInvalid");
   });
@@ -330,10 +337,10 @@ describe("validateTrillLong", () => {
     expect(validateTrillLong(notes)).toEqual([]);
   });
 
-  it("hold-only이면서 헤드도 없으면 두 규칙 위반이 각각 보고된다 (두 검사 독립)", () => {
+  it("NJ-C03: length-0 holdOnly·무헤드 trillLong은 두 제약 위반으로 보고된다", () => {
     // 두 검사가 else-if로 묶이거나 하나가 다른 하나를 가리면 이 케이스가 1건만 보고된다.
     const notes: NoteEntity[] = [
-      { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }, // 헤드 없음 + hold-only
+      { type: "trillLong", lane: 1, beat: beat(2), endBeat: beat(2), holdOnly: true }, // 길이 0 + hold-only
     ];
     const errors = validateTrillLong(notes);
     expect(errors).toHaveLength(2);
@@ -360,6 +367,42 @@ describe("validateTrillLong", () => {
     const errors = validateTrillLong(notes);
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("trillLongInvalid");
+  });
+});
+
+describe("validateNoteJudgmentConstraints", () => {
+  it("NJ-C01: 양수 바디 끝과 별도 길이 0 롱노트가 같은 시각이면 금지한다", () => {
+    expect(validateNoteJudgmentConstraints([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) },
+    ]).some((error) => error.rule === "noteConstraint")).toBe(true);
+  });
+
+  it("NJ-C01: 양수 바디 끝의 Point는 허용하지만 holdOnly와 Point 동시 배치는 금지한다", () => {
+    const ordinary = validateNoteJudgmentConstraints([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "single", lane: 1, beat: beat(2) },
+    ]);
+    const holdOnly = validateNoteJudgmentConstraints([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true },
+      { type: "single", lane: 1, beat: beat(2) },
+    ]);
+    expect(ordinary.some((error) => error.rule === "noteConstraint")).toBe(false);
+    expect(holdOnly.some((error) => error.rule === "noteConstraint")).toBe(true);
+  });
+
+  it("NJ-C02: 같은 unit 수 경계는 head 또는 앞 holdOnly가 있으면 허용하고 unit 변화는 허용한다", () => {
+    const withHead = validateNoteJudgmentConstraints([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "single", lane: 1, beat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) },
+    ]);
+    const unitChange = validateNoteJudgmentConstraints([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "doubleLong", lane: 1, beat: beat(2), endBeat: beat(4) },
+    ]);
+    expect(withHead.some((error) => error.rule === "noteConstraint")).toBe(false);
+    expect(unitChange.some((error) => error.rule === "noteConstraint")).toBe(false);
   });
 });
 

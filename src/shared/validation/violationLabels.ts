@@ -31,6 +31,7 @@ export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
   eventOverlap: "semantic",
   eventDuplicate: "semantic",
   tutorialInputOverlap: "semantic",
+  noteConstraint: "semantic",
   stopZone: "semantic",
   timeSigNotAtMeasureStart: "semantic",
 };
@@ -53,6 +54,7 @@ const catalogs: Record<string, Record<ValidationErrorRule, string>> = {
     eventOverlap: "이벤트 겹침",
     eventDuplicate: "이벤트 중복",
     tutorialInputOverlap: "튜토리얼 입력 겹침",
+    noteConstraint: "노트 판정 제약 위반",
     stopZone: "정지 구간 위반",
   },
 };

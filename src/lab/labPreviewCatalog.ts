@@ -26,6 +26,13 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/facility-passage",
   },
   {
+    id: "note-assets",
+    title: "노트 에셋 시연실",
+    description: "Classic · Simple 노트, 롱노트, 터미널과 키봄을 실제 재생기로 비교합니다.",
+    category: "Rendering",
+    path: "/lab/note-assets",
+  },
+  {
     id: "geometric-background",
     title: "Geometric Background",
     description: "고도에 따른 원근 지표면과 광원 흐름을 조절합니다.",

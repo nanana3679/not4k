@@ -81,6 +81,21 @@ describe('gameStore — masterVolume', () => {
   });
 });
 
+describe('gameStore — bombScale', () => {
+  it('키봄 크기를 저장하지 않은 기존 설정을 복원하면 기본값 1배를 유지한다', () => {
+    const current = useGameStore.getInitialState();
+    expect(current.settings.bombScale).toBe(1);
+    const restored = mergePersistedSettings({ settings: { skinId: 'classic' } }, current);
+    expect(restored.settings.bombScale).toBe(1);
+    expect(restored.settings.skinId).toBe('classic');
+  });
+
+  it.each([0, 1.7, 3])('저장된 키봄 크기 %s배를 복원하면 1배로 초기화하지 않는다', bombScale => {
+    const restored = mergePersistedSettings({ settings: { bombScale } }, useGameStore.getInitialState());
+    expect(restored.settings.bombScale).toBe(bombScale);
+  });
+});
+
 describe('gameStore — gameplayRange', () => {
   it('selectSong에 30~90초 gameplayRange를 넘기면 selectedPlaybackRange로 저장', () => {
     useGameStore.getState().selectSong('song-1', 'HARD', 'songs/song-1/audio.ogg', {

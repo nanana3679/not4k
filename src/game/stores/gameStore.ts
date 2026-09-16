@@ -24,6 +24,7 @@ interface GameSettings {
   showFastSlow: boolean;
   showTimingDiff: boolean;
   skinId: string;
+  bombScale: number;
   renderHeight: number;
   playSpeed: number;
   judgmentMode: JudgmentMode;
@@ -36,7 +37,8 @@ interface PlayResult {
   difficulty: string;
   achievementRate: number;
   rank: string;
-  maxCombo: number;
+  /** @deprecated PlayScreen compatibility; result UI does not expose combo statistics. */
+  maxCombo?: number;
   isFullCombo: boolean;
   judgmentCounts: Record<string, number>;
   goodTrillCount: number;
@@ -109,6 +111,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showFastSlow: true,
   showTimingDiff: false,
   skinId: 'crystal',
+  bombScale: 1,
   renderHeight: 1080,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,

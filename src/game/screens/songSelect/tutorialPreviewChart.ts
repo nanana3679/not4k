@@ -295,7 +295,7 @@ const headlessLongNoteChart = makeChart(
     { type: 'long', lane: 2, beat: beat(2), endBeat: beat(5) },
   ],
   [
-    tutorialInput(2, 'KeyF', 'F', beat(3, 2), beat(5), 3),
+    tutorialInput(2, 'KeyF', 'F', beat(9, 5), beat(5), 3),
   ],
 );
 
@@ -306,7 +306,7 @@ const zeroLengthLongNoteChart = makeChart(
     { type: 'long', lane: 2, beat: beat(2), endBeat: beat(2) },
   ],
   [
-    tutorialInput(2, 'KeyF', 'F', beat(3, 2), beat(2), 3),
+    tutorialInput(2, 'KeyF', 'F', beat(9, 5), beat(2), 3),
   ],
 );
 
@@ -533,7 +533,7 @@ function getLoopDurationMs(chart: Chart, loopBeats: number): number {
   return beatToMs(beat(loopBeats), bpmMarkers, chart.meta.offsetMs) - beatToMs(beat(0), bpmMarkers, chart.meta.offsetMs);
 }
 
-function createTutorialPreview(
+export function createTutorialPreview(
   id: string,
   title: string,
   bodyLines: readonly string[],
@@ -581,7 +581,8 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     'double-note',
     '더블 노트',
     [
-      '더블 노트는 같은 레인의 두 키를 동시에 누릅니다',
+      '더블 노트는 같은 레인의 서로 다른 두 키로 처리합니다',
+      '정확히 동시에 누르지 않아도 각 입력이 Good 윈도우 안이면 됩니다',
     ],
     4,
     doubleNoteChart,
@@ -654,7 +655,7 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
     '헤드 없는 롱노트',
     [
       '롱노트가 일반 노트 없이 시작될 수 있습니다',
-      '시작 타이밍에 맞춰 누를 필요는 없지만, 롱노트 안에서는 키를 유지해야 합니다',
+      '시작 근처에서 누른 뒤 유지하세요. 시작을 누르는 타이밍은 점수에 반영되지 않습니다',
     ],
     5,
     headlessLongNoteChart,
@@ -662,7 +663,7 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
   createTutorialPreview(
     'zero-length-long-note',
     '길이가 0인 롱노트',
-    ['길이가 0인 롱노트는 누르기·유지 판정 없이 떼기 판정만 있습니다'],
+    ['노트 근처에서 눌렀다가 맞춰 떼세요. 떼는 타이밍만 점수에 반영됩니다'],
     3,
     zeroLengthLongNoteChart,
   ),

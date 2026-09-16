@@ -75,6 +75,7 @@ function createMockSkinManager(): SkinManager {
   return {
     getTexture: vi.fn(() => ({})),
     getHalfCapTexture: vi.fn(() => ({})),
+    getTheme: vi.fn(() => ({ longNoteTerminalMode: "split-cap" })),
     hasTexture: vi.fn(() => false),
   } as unknown as SkinManager;
 }

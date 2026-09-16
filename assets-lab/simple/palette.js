@@ -1,4 +1,4 @@
-/** Classic skin — 원본 Graphics 렌더링 색상 */
+/** Simple skin — 원본 Graphics 렌더링 색상 */
 const P = {
   bg: "#0a0a14",
   bgCard: "#111122",

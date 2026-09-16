@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trill · 석영 SVG</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #090b10; color: #e9ecf3; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { width: min(1040px, 100%); margin: auto; padding: 30px 24px 64px; }
+    h1 { margin: 0 0 8px; font-size: 25px; letter-spacing: -.035em; }
+    h2 { margin: 0 0 18px; font-size: 18px; }
+    p { margin: 0; color: #a8b1c3; line-height: 1.7; font-size: 14px; }
+    a { color: #c4d8f4; text-underline-offset: 4px; }
+    a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #b7d5ff; outline-offset: 5px; }
+    header { margin-bottom: 32px; }
+    section { margin-top: 38px; }
+    .intro { max-width: 720px; }
+    .preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+    .plate { background: #0c0e14; padding: 24px; min-width: 0; }
+    .part { margin: 0 0 27px; }
+    .part:last-child { margin: 0; }
+    .part img { display: block; width: 100%; height: auto; margin: 12px 0; }
+    .part figcaption { display: flex; gap: 12px; justify-content: space-between; align-items: baseline; font-size: 13px; color: #a8b1c3; }
+    .part strong { color: #e9ecf3; font-weight: 600; }
+    .assembly-stage { min-height: 408px; display: flex; justify-content: center; align-items: flex-start; padding-top: 10px; }
+    .quartz-assembly { position: relative; flex: none; }
+    .quartz-assembly .body { position: absolute; inset-inline: 0; background-image: url('./sources/body-trill.svg'); background-size: 100% auto; background-repeat: repeat-y; }
+    .quartz-assembly img { position: absolute; inset-inline-start: 0; display: block; width: 100%; height: auto; }
+    .quartz-assembly .terminal { top: 0; }
+    .controls { display: grid; gap: 14px; margin-top: 18px; }
+    .state-buttons { display: flex; gap: 8px; margin: 0 0 20px; }
+    .state-buttons button { min-height: 44px; flex: 1; border: 1px solid #354052; background: #141b26; color: #b9c5d7; border-radius: 5px; cursor: pointer; }
+    .state-buttons button[aria-pressed="true"] { background: #d7dfeb; color: #101722; border-color: #edf1f9; }
+    .state-buttons button:focus-visible { outline: 2px solid #b7d5ff; outline-offset: 3px; }
+    .state-comparison { display: grid; grid-template-columns: repeat(3,minmax(100px,1fr)); gap: 14px; overflow-x: auto; margin-top: 24px; }
+    .state-card { margin: 0; min-width: 0; }
+    .state-card h3 { margin: 0 0 18px; font-size: 15px; }
+    .state-card > img { display: block; width: 100%; height: auto; margin: 12px 0; }
+    .state-card .quartz-assembly { margin: 22px auto 0; }
+    .state-card .state-downloads { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+    .control { display: grid; gap: 6px; font-size: 13px; color: #b5bece; }
+    .control label { display: flex; justify-content: space-between; }
+    input[type="range"] { width: 100%; min-height: 26px; accent-color: #cfdaed; margin: 0; }
+    output { color: #e9ecf3; font-variant-numeric: tabular-nums; }
+    .sizes { display: flex; align-items: flex-start; gap: 34px; overflow-x: auto; padding: 22px 2px 10px; }
+    .size-case { margin: 0; flex: none; }
+    .size-case figcaption { margin-bottom: 16px; color: #b4bfd1; font-size: 13px; }
+    details { border-top: 1px solid #252b37; margin-top: 36px; padding-top: 18px; }
+    summary { cursor: pointer; color: #c4d8f4; padding: 8px 0; }
+    .references { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 18px; }
+    .references figure { margin: 0; min-width: 0; }
+    .references img { width: 100%; height: auto; display: block; margin-top: 10px; }
+    .references figcaption { color: #a8b1c3; font-size: 13px; }
+    .files { display: flex; flex-wrap: wrap; gap: 12px 22px; margin-top: 14px; font-size: 14px; }
+    .note { margin-top: 16px; }
+    @media (max-width: 640px) {
+      main { padding: 24px 18px 48px; }
+      .preview { grid-template-columns: 1fr; gap: 24px; }
+      .plate { padding: 22px; }
+      .part img { width: min(100%, 300px); margin-inline: auto; }
+      .assembly-stage { min-height: 330px; }
+      .references { grid-template-columns: 1fr; }
+      .sizes { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Trill · 석영 SVG</h1>
+    <p class="intro">흰 석영 포인트와 대기·켜짐·실패 바디. 끝 터미널은 각 상태의 색면과 빛을 마름모로 잘라 연결했습니다. 세 파츠 모두 같은 너비이며, 포인트와 터미널은 상하대칭입니다.</p>
+  </header>
+  <div class="preview">
+    <section class="plate" aria-labelledby="parts-title">
+      <h2 id="parts-title">개별 에셋</h2>
+      <figure class="part"><figcaption><strong>포인트</strong><a class="asset-download" href="./sources/point-trill.svg" download>SVG 다운로드</a></figcaption><img src="./sources/point-trill.svg" alt="밝은 흰색 절삭면의 마름모 포인트" width="1000" height="200"></figure>
+      <figure class="part" id="body-part"><figcaption><strong>바디 · 반복 단위</strong><a class="asset-download" href="./sources/body-trill.svg" download>SVG 다운로드</a></figcaption><img src="./sources/body-trill.svg" alt="회색 석영 바디의 열린 수직 반복 단위" width="1000" height="200"></figure>
+      <figure class="part" id="terminal-part"><figcaption><strong>끝 터미널</strong><a class="asset-download" href="./sources/terminal-end-trill.svg" download>SVG 다운로드</a></figcaption><img src="./sources/terminal-end-trill.svg" alt="바디와 같은 두 회색 면의 마름모 끝 터미널" width="1000" height="200"></figure>
+    </section>
+    <section class="plate" aria-labelledby="assembly-title">
+      <h2 id="assembly-title">조립해서 보기</h2>
+      <div class="state-buttons" role="group" aria-label="석영 상태 선택">
+        <button type="button" data-state="idle" aria-pressed="false">대기</button>
+        <button type="button" data-state="on" aria-pressed="true">켜짐</button>
+        <button type="button" data-state="failed" aria-pressed="false">실패</button>
+      </div>
+      <div class="assembly-stage"><div id="adjustable-assembly" class="quartz-assembly" role="img" aria-label="회색 끝 터미널, 바디, 흰 포인트가 연결된 석영 노트"><div class="body"></div><img class="terminal" src="./sources/terminal-end-trill.svg" alt=""><img class="point" src="./sources/point-trill.svg" alt=""></div></div>
+      <div class="controls">
+        <div class="control"><label for="note-width">너비 <output id="width-value" for="note-width">200px</output></label><input id="note-width" type="range" min="60" max="260" step="1" value="200"></div>
+        <div class="control"><label for="body-length">바디 길이 <output id="length-value" for="body-length">220px</output></label><input id="body-length" type="range" min="0" max="320" step="1" value="220"></div>
+      </div>
+    </section>
+  </div>
+  <section aria-labelledby="states-title">
+    <h2 id="states-title">세 상태 비교</h2>
+    <p>위는 바디·끝 터미널 단품, 아래는 너비 100px 조립입니다.</p>
+    <div class="state-comparison" id="state-comparison"></div>
+  </section>
+  <section aria-labelledby="actual-title">
+    <h2 id="actual-title">실제 크기와 짧은 길이</h2>
+    <p>너비 100px에서 포인트와 터미널은 100×20px입니다. 바디는 반복한 뒤 남는 부분을 잘라 채웁니다.</p>
+    <div class="sizes" id="actual-sizes"></div>
+  </section>
+  <details>
+    <summary>선택한 이미지 원본과 비교</summary>
+    <div class="references">
+      <figure><figcaption>6번 · 포인트와 바디 기준</figcaption><img src="./references/trill-quartz-approved.png" alt="선택한 6번 이미지젠 시안" loading="lazy"></figure>
+      <figure><figcaption>터미널 · 바디 재질의 마름모</figcaption><img src="./references/trill-terminal-approved.png" alt="끝 터미널의 재질을 바디와 같게 바꾼 시안" loading="lazy"></figure>
+      <figure><figcaption>켜짐 · 이미지젠 시안</figcaption><img src="./references/trill-body-on-approved.png" alt="선택한 켜짐 상태 시안" loading="lazy"></figure>
+      <figure><figcaption>실패 · 이미지젠 시안</figcaption><img src="./references/trill-body-failed-approved.png" alt="선택한 실패 상태 시안" loading="lazy"></figure>
+    </div>
+  </details>
+  <section aria-labelledby="download-title">
+    <h2 id="download-title">파일</h2>
+    <p>각 SVG는 1000×200이며, 색면·반사·내부 빛 레이어를 편집할 수 있습니다.</p>
+    <div class="files">
+      <a href="./downloads/trill-quartz-svg.zip" download>SVG 7개 묶음</a>
+      <a id="assembly-download" href="./downloads/assembled-on.svg" download>선택한 상태의 조립 SVG</a>
+      <a href="/lab/note-assets?design=classic">Lab 플레이어</a>
+    </div>
+  </section>
+</main>
+<script type="module">
+  import { trillAssemblyLayout, TRILL_QUARTZ_STATES } from './trill-quartz.mjs';
+  const applyState = (element, state) => {
+    const assets = TRILL_QUARTZ_STATES[state];
+    element.dataset.state = state;
+    element.querySelector('.body').style.backgroundImage = `url('./sources/${assets.body}.svg')`;
+    element.querySelector('.terminal').src = `./sources/${assets.terminal}.svg`;
+  };
+  const layout = (element, width, length) => {
+    const p = trillAssemblyLayout(width, length);
+    element.style.width = `${p.width}px`;
+    element.style.height = `${p.height}px`;
+    const body = element.querySelector('.body');
+    body.style.top = `${p.bodyTop}px`;
+    body.style.height = `${p.bodyHeight}px`;
+    element.querySelector('.point').style.top = `${p.pointTop}px`;
+    element.dataset.width = width;
+    element.dataset.length = length;
+  };
+  const adjustable = document.querySelector('#adjustable-assembly');
+  const widthInput = document.querySelector('#note-width');
+  const lengthInput = document.querySelector('#body-length');
+  const update = () => {
+    layout(adjustable, Number(widthInput.value), Number(lengthInput.value));
+    document.querySelector('#width-value').value = `${widthInput.value}px`;
+    document.querySelector('#length-value').value = `${lengthInput.value}px`;
+  };
+  widthInput.addEventListener('input', update);
+  lengthInput.addEventListener('input', update);
+  update();
+  const sizes = document.querySelector('#actual-sizes');
+  for (const length of [0, 13, 83, 167]) {
+    const figure = document.createElement('figure');
+    figure.className = 'size-case';
+    const label = document.createElement('figcaption');
+    label.textContent = `길이 ${length}px`;
+    const assembly = adjustable.cloneNode(true);
+    assembly.removeAttribute('id');
+    assembly.setAttribute('aria-label', `너비100, 바디 길이${length} 석영 조립`);
+    layout(assembly, 100, length);
+    figure.append(label, assembly);
+    sizes.append(figure);
+  }
+  const comparison = document.querySelector('#state-comparison');
+  for (const [state, assets] of Object.entries(TRILL_QUARTZ_STATES)) {
+    const card = document.createElement('article');
+    card.className = 'state-card';
+    card.dataset.state = state;
+    card.innerHTML = `<h3>${assets.label}</h3><img src="./sources/${assets.body}.svg" alt="${assets.label} 바디"><img src="./sources/${assets.terminal}.svg" alt="${assets.label} 끝 터미널"><div class="state-downloads"><a class="state-download" href="./sources/${assets.body}.svg" download>바디 SVG</a><a class="state-download" href="./sources/${assets.terminal}.svg" download>터미널 SVG</a></div>`;
+    const assembly = adjustable.cloneNode(true);
+    assembly.removeAttribute('id');
+    assembly.setAttribute('aria-label', `너비 100px ${assets.label} 상태 조립`);
+    layout(assembly,100,100);
+    applyState(assembly,state);
+    card.append(assembly);
+    comparison.append(card);
+  }
+  const selectState = state => {
+    const assets = TRILL_QUARTZ_STATES[state];
+    for (const assembly of document.querySelectorAll('#adjustable-assembly, .sizes .quartz-assembly')) applyState(assembly,state);
+    for (const button of document.querySelectorAll('.state-buttons button')) button.setAttribute('aria-pressed',String(button.dataset.state === state));
+    for (const [part,name,label] of [['body',assets.body,'바디'],['terminal',assets.terminal,'끝 터미널']]) {
+      const figure = document.querySelector(`#${part}-part`);
+      const src = `./sources/${name}.svg`;
+      figure.querySelector('a').href = src;
+      figure.querySelector('img').src = src;
+      figure.querySelector('img').alt = `${assets.label} ${label}`;
+      figure.querySelector('strong').textContent = `${label} · ${assets.label}`;
+    }
+    document.querySelector('#assembly-download').href = `./downloads/assembled-${state}.svg`;
+  };
+  for (const button of document.querySelectorAll('.state-buttons button')) button.addEventListener('click',()=>selectState(button.dataset.state));
+  selectState('on');
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ const requiredPaths = [
   "lab/index.html",
   "lab/flight-background-preview/index.html",
   "lab/facility-passage/index.html",
+  "lab/note-assets/index.html",
   "lab/geometric-background/index.html",
   "lab/perspective-surface-grid/index.html",
   "lab/gear-light/index.html",

@@ -3,12 +3,12 @@ import { GF_W, GF_H } from "./shared/constants.js";
 
 import { GearFrameExport as CrystalGear } from "./crystal/components.jsx";
 import { GearFrameExport as PrismGear } from "./prism/components.jsx";
-import { GearFrameExport as ClassicGear } from "./classic/components.jsx";
+import { GearFrameExport as SimpleGear } from "./simple/components.jsx";
 
 const gears = [
   { id: "crystal", name: "Crystal", Component: CrystalGear },
   { id: "prism", name: "Prism", Component: PrismGear },
-  { id: "classic", name: "Classic", Component: ClassicGear },
+  { id: "simple", name: "Simple", Component: SimpleGear },
 ];
 
 const SCALE = 0.5;
