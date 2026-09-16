@@ -51,9 +51,22 @@ try{
  await page.locator('#auto').check();await page.locator('#play').click();const a=(await snap()).altitude;await page.waitForTimeout(200);check('고도 반복 재생 시 고도 변화',(await snap()).altitude!==a);await page.locator('#play').click();const ap=(await snap()).altitude;await page.waitForTimeout(100);check('고도 반복도 정지하면 유지',(await snap()).altitude===ap);await page.locator('#auto').uncheck();
  await slider('speed',1000);await slider('progress',NEAR_SLIDER);
  for(const [width,height] of [[320,780],[390,844],[844,390],[1440,1100]]){await page.setViewportSize({width,height});await settle();const layout=await page.evaluate(()=>{const a=document.querySelector('.viewer').getBoundingClientRect(),b=document.querySelector('.controls').getBoundingClientRect();return{ratio:a.width/a.height,below:b.top>=a.bottom-1,overflow:document.documentElement.scrollWidth>innerWidth,buttons:[...document.querySelectorAll('button')].filter(e=>e.offsetParent!==null).every(e=>e.getBoundingClientRect().height>=44)};});check(`${width}px에서16:9·하단 조절·44px 버튼·가로 넘침 없음`,Math.abs(layout.ratio-16/9)<.02&&layout.below&&!layout.overflow&&layout.buttons);await page.screenshot({path:new URL(`viewport-${width}.png`,root).pathname,fullPage:true});}
- for(const name of ['index.html','style.css','scene.mjs','integration.mjs','world-trails.mjs','light-batch.mjs','legacy/geometry.mjs','originals/hangar.mjs']){const r=await fetch(url+name);check(`${name} 제공 코드와 파일 일치`,r.status===200&&Buffer.from(await r.arrayBuffer()).equals(await readFile(new URL(name,root))));}
+ for(const name of ['index.html','style.css','scene.mjs','integration.mjs','world-trails.mjs','render-quality.mjs','light-batch.mjs','legacy/geometry.mjs','originals/hangar.mjs']){const r=await fetch(url+name);check(`${name} 제공 코드와 파일 일치`,r.status===200&&Buffer.from(await r.arrayBuffer()).equals(await readFile(new URL(name,root))));}
  for(const path of ['preview-state.json','source-manifest.json','integration.test.ts','browser-check.json','../AGENTS.md'])check(`${path} 비공개 경로404`,(await fetch(url+path)).status===404);
  const reduced=await browser.newPage({reducedMotion:'reduce'});await reduced.goto(url);await reduced.waitForSelector('body[data-ready=true]');check('움직임 줄이기 환경에서는 정지 시작',!(await reduced.evaluate(()=>window.flightStudy.snapshot())).running);await reduced.close();
+ const resized=await browser.newPage({viewport:{width:844,height:700},deviceScaleFactor:3});
+ resized.on('pageerror',e=>errors.push(e.message));
+ try{
+  await resized.goto(url+'?paused=1&size=.25&speed=1000');await resized.waitForSelector('body[data-ready=true]');
+  for(const [width,ratio,limit] of [[844,1.5,null],[390,1,900],[844,1.5,null]]){
+   await resized.setViewportSize({width,height:700});
+   await resized.waitForFunction(({ratio,limit})=>{const s=window.flightStudy.snapshot();return s.renderPixelRatio===ratio&&s.trailSampleLimit===limit;},{ratio,limit});
+   check(`DPR3에서${width}px로 전환하면 렌더 DPR${ratio}·잔상 예산${limit??'기존값'}을 함께 적용`,true);
+  }
+  await resized.setViewportSize({width:390,height:700});await resized.locator('#play').click();
+  await resized.waitForFunction(()=>{const s=window.flightStudy.snapshot();return s.trailSampleLimit===900&&s.trailCount>0&&s.trailCount<=900;});
+  check('데스크톱에서390px로 전환 후 재생해도 실제 잔상은900개 이하',true);
+ }finally{await resized.close();}
  check('페이지·콘솔·CSP 오류0개',errors.length===0);
  const metrics=await snap();await writeFile(new URL('browser-check.json',root),JSON.stringify({checkedAt:new Date().toISOString(),url,checks,errors,probes,metrics:{calls:metrics.calls,triangles:metrics.triangles,geometries:metrics.geometries},limitations:'Isolated E + legacy light study. Headless SwiftShader verifies behavior/pixels, not real-device performance or artistic acceptance.'},null,2));console.log(JSON.stringify({passed:checks.length,errors,probes}));
 }finally{await browser.close();}

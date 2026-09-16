@@ -37,10 +37,13 @@ const sharedApproachFiles = new Set(['control-panel.mjs', 'scenario-navigation.m
 
 const breakthroughFiles = new Set([
   'index.html',
+  'study.html',
   'style.css',
   'scene.mjs',
   'integration.mjs',
   'world-trails.mjs',
+  'passage.mjs',
+  'render-quality.mjs',
   'light-batch.mjs',
   'render-model.mjs',
   'architectural-materials.mjs',
@@ -222,7 +225,7 @@ export function resolvePreviewRoute(pathname) {
     if (assetPath) return { filePath: assetPath, name, injectedStyle: '' };
     if (!breakthroughFiles.has(name)) return null;
     return {
-      filePath: resolve(breakthroughRoot, name),
+      filePath: resolve(breakthroughRoot, name === 'study.html' ? 'index.html' : name),
       name,
       injectedStyle: name === 'index.html' ? breakthroughStyle : '',
     };

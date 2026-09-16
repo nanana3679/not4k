@@ -10,6 +10,7 @@ const JudgmentPlaytestPage = lazy(() => import('./JudgmentPlaytestPage'));
 const NoteAssetShowcasePage = lazy(() => import('./NoteAssetShowcasePage'));
 const LabIndexPage = lazy(() => import('./LabIndexPage'));
 const FlightBackgroundPreviewLabPage = lazy(() => import('./FlightBackgroundPreviewLabPage'));
+const FacilityPassagePreviewLabPage = lazy(() => import('./FacilityPassagePreviewLabPage'));
 
 /**
  * 개발 서버와 별도 공개 Lab이 공유하는 시연 라우트.
@@ -21,6 +22,7 @@ export default function LabRoutes() {
     <Routes>
       <Route index element={<LabIndexPage />} />
       <Route path="flight-background-preview" element={<FlightBackgroundPreviewLabPage />} />
+      <Route path="facility-passage" element={<FacilityPassagePreviewLabPage />} />
       <Route path="geometric-background" element={<GeometricBackgroundTestPage />} />
       <Route path="perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />

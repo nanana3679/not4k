@@ -19,6 +19,13 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     featured: true,
   },
   {
+    id: "facility-passage",
+    title: "Facility Passage Preview",
+    description: "고도에 따라 적재층 사이와 연결 교량 아래를 통과하며 접근·입구·내부·출구를 비교합니다.",
+    category: "Flight",
+    path: "/lab/facility-passage",
+  },
+  {
     id: "note-assets",
     title: "노트 에셋 시연실",
     description: "Classic · Simple 노트, 롱노트, 터미널과 키봄을 실제 재생기로 비교합니다.",
