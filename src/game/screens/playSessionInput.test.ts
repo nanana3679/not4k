@@ -31,6 +31,26 @@ function play(notes: readonly NoteEntity[], offset = 0, auto = false) {
 }
 
 describe("실제 GameClock·입력 큐·Session 통합", () => {
+  it("자동 구간 없이 입력 offset -100ms이면 다른 레인의 1150ms 끝점이 raw1050ms의 유효한 수동 입력을 Miss로 앞당기지 않는다", () => {
+    const p = play([body(500, 1150, "long", false, 2), point(1000)], -100);
+    p.frame(900);
+    p.frame(1150);
+    p.input(1150, 1150);
+    p.frame(1150);
+    expect(p.session.events.filter(event => event.noteIndex === 1)).toMatchObject([
+      { kind: "head", grade: "great", deltaMs: 50, inputAt: 1050 },
+    ]);
+  });
+
+  it("o-o-에서 A2000 down·B2500 down/2520 up·A3000 up을 실제 시계 순서로 전달하면 Perfect 3·Miss 0", () => {
+    const p = play([point(2000), body(2000, 2500), point(2500), body(2500, 3000)]);
+    for (const [at, key, type] of [[2000, "A", "down"], [2500, "B", "down"], [2520, "B", "up"], [3000, "A", "up"]] as const) {
+      p.input(at, at, key, type);
+      p.frame(at);
+    }
+    expect(p.session.finalize()).toMatchObject({ judgmentCounts: { perfect: 3, miss: 0 }, achievementRate: 100, isFullCombo: true });
+  });
+
   it.each([-100, 100])("입력 offset %ims에서도 1000ms Point의 raw 1120ms 입력은 Good 경계까지 허용", offset => {
     const p = play([point(1000)], offset);
     const physicalTime = 1120 - offset;

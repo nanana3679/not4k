@@ -23,8 +23,8 @@ export interface AutoSectionMs {
  * 새 세션에서는 compiled chart를 주입하고 eventsThrough(t)의 원래 timestamp를
  * InputTimeline에 전달한다. pressesAt/releasesAt은 이전 엔진 호환 테스트용 API다.
  *
- * 게이팅 비대칭: press는 AutoEvent 안에서만 만들지만, release는 구간과 무관하게 방출한다 —
- * 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 하기 때문.
+ * press는 AutoEvent 안에서만 만들고, 실제로 자동으로 누른 키만 release한다.
+ * 구간 안에서 시작한 홀드는 구간이 끝나도 endBeat에서 놓아야 한다.
  */
 export class AutoPlayer {
   private readonly notes: readonly NoteEntity[];
@@ -55,6 +55,7 @@ export class AutoPlayer {
   private readonly compiled?: CompiledJudgmentChart;
   private readonly compiledEvents: AutoInput[] = [];
   private compiledEventCursor = 0;
+  private readonly compiledHeldKeys = new Set<string>();
 
   constructor(
     notes: readonly NoteEntity[],
@@ -264,7 +265,12 @@ export class AutoPlayer {
     const out: AutoInput[] = [];
     while (this.compiledEventCursor < this.compiledEvents.length && this.compiledEvents[this.compiledEventCursor].timeMs <= songTimeMs) {
       const event = this.compiledEvents[this.compiledEventCursor++];
-      if (event.type === "press" && !this.isAutoAt(event.timeMs)) continue;
+      if (event.type === "press") {
+        if (!this.isAutoAt(event.timeMs)) continue;
+        this.compiledHeldKeys.add(event.key);
+      } else if (!this.compiledHeldKeys.delete(event.key)) {
+        continue;
+      }
       out.push(event);
     }
     return out;
