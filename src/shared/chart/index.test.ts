@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSaveAsMeta, deserializeChart, serializeChart } from './index';
+import { buildSaveAsMeta, deserializeChart, parseExtraNotes, serializeChart } from './index';
 import type { ChartMeta, RangeNote } from '../types/chart';
 
 const baseMeta: ChartMeta = {
@@ -78,6 +78,50 @@ describe('deserializeChart 입력 검증', () => {
 
   it('restZones 필드가 존재하는데 배열이 아니면 에러', () => {
     expect(() => deserializeChart('{"meta":{},"notes":[],"trillZones":[],"restZones":"bad"}')).toThrow('restZones 필드가 배열이 아닙니다');
+  });
+});
+
+describe('parseExtraNotes 런타임 스키마 검증', () => {
+  it.each([null, [], 'text'])('최상위 값이 객체가 아닌 %s이면 에러', (value) => {
+    expect(() => parseExtraNotes(value)).toThrow('top-level value must be an object');
+  });
+
+  it('별도 파일 모드에서 extraNotes 필드가 없으면 에러', () => {
+    expect(() => parseExtraNotes(
+      { extraLaneCount: 2 },
+      { requireFileFields: true },
+    )).toThrow('missing required fields');
+  });
+
+  it('extraLane=0 보조 노트는 메인 레인으로 변환될 수 있어 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 0, beat: '1' }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('beat="12junk" 보조 노트는 12박으로 묵시 변환하지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '12junk' }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('안전한 정수 범위를 넘는 beat는 반올림해 저장하지 않고 에러', () => {
+    expect(() => parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 1, beat: '9007199254740993' }],
+      extraLaneCount: 1,
+    })).toThrow('invalid extraNotes');
+  });
+
+  it('extraLane=10·extraLaneCount=10은 최대 허용 경계로 파싱', () => {
+    const result = parseExtraNotes({
+      extraNotes: [{ type: 'single', extraLane: 10, beat: '1/2' }],
+      extraLaneCount: 10,
+    });
+
+    expect(result.extraNotes[0].extraLane).toBe(10);
+    expect(result.extraLaneCount).toBe(10);
   });
 });
 

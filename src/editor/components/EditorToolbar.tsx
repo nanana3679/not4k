@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, validateChart, buildViolationList, mainNotes, auxNotesAsExtra } from '../../shared';
+import { MAX_EXTRA_LANE_COUNT, serializeChart, serializeExtraNotes, validateChart, buildViolationList, mainNotes, auxNotesAsExtra } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -571,7 +571,11 @@ const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong',
 const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone', 'restZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
-const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const MIN_EXTRA_LANE_COUNT = 2;
+const extraLaneOptions = Array.from(
+  { length: MAX_EXTRA_LANE_COUNT - MIN_EXTRA_LANE_COUNT + 1 },
+  (_, index) => MIN_EXTRA_LANE_COUNT + index,
+);
 
 const entityLabels: Record<EntityType, string> = {
   single: 'Single',
