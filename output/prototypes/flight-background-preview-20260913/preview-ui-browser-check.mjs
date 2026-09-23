@@ -99,13 +99,41 @@ try {
       if (view === 'breakthrough') {
         assert.equal(await frame.locator('body').evaluate(() => window.flightStudy.snapshot().backdropBrightness), 10);
         checks.push(`${viewport.width}px breakthrough 배경 밝기는 10%로 고정된다`);
-        await frame.locator('#altitude').evaluate(element => {
-          element.value = '50';
-          element.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        await frame.locator('body').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        assert.equal(await frame.locator('body').evaluate(() => window.flightStudy.snapshot().altitude), .5);
-        checks.push(`${viewport.width}px breakthrough altitude 슬라이더는 고도를 50%로 변경한다`);
+        // 정지 중에도 고도 조절이 직선의 실제 투영에 바로 반영되어야 한다.
+        await frame.locator('#play').evaluate(element => element.click());
+        for (const altitude of [0, 50, 100]) {
+          await frame.locator('#altitude').evaluate((element, value) => {
+            element.value = String(value);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+          }, altitude);
+          await frame.locator('body').evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const direction = await frame.locator('body').evaluate(async () => {
+            const { collectFaces, lightLayout, linePyramidFor } = await import('./integration.mjs');
+            const { project } = await import('./legacy/geometry.mjs');
+            const state = window.flightStudy.snapshot();
+            const faces = collectFaces(lightLayout(state), state.motion.travel, state, state.pyramid, state.view);
+            const lines = linePyramidFor(state, state.pyramid, state.view);
+            const focus = project([0, lines.apexHeight, lines.depth], state.view);
+            const directions = faces.map(face => {
+              const center = project(face.frame.point, state.view);
+              const tip = project(face.frame.point.map((v, i) => v + face.frame.forward[i]), state.view);
+              return { x: center.x, dy: tip.y - center.y };
+            });
+            return {
+              altitude: state.altitude, count: faces.length, renderedCount: state.faceCount,
+              vertices: state.vertices.core, focusY: focus.y / state.view.height,
+              left: directions.some(d => d.x < focus.x), right: directions.some(d => d.x > focus.x),
+              downward: directions.every(d => d.dy > 0), upward: directions.every(d => d.dy < 0),
+            };
+          });
+          assert.equal(direction.altitude, altitude / 100);
+          assert.equal(direction.count, direction.renderedCount);
+          assert.ok(direction.count > 20 && direction.vertices > 0 && direction.left && direction.right);
+          assert.ok(Math.abs(direction.focusY - (.85 - .7 * altitude / 100)) < 1e-6);
+          if (altitude === 0) assert.ok(direction.downward);
+          if (altitude === 100) assert.ok(direction.upward);
+          checks.push(`${viewport.width}px breakthrough 고도${altitude}%는 중앙 ${Math.round(direction.focusY * 100)}%를 향하는 직선을 그린다`);
+        }
       }
     }
     assert.ok(Math.max(...widths) - Math.min(...widths) < 1);
