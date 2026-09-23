@@ -13,7 +13,7 @@ function port() {
   let bodyQuery: JudgmentBodyStateQuery | null = null;
   const value: SessionRendererPort = {
     showJudgment: grade => calls.push(`judgment:${grade}`),
-    recordPerspectiveSurfaceJudgment: grade => calls.push(`altitude:${grade}`),
+    recordFlightJudgment: grade => calls.push(`altitude:${grade}`),
     showBombEffect: lane => calls.push(`bomb:${lane}`),
     updateCombo: combo => calls.push(`combo:${combo}`),
     updateAccuracy: rate => { accuracy.push(rate); calls.push("accuracy"); },

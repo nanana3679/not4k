@@ -49,7 +49,7 @@ test.describe('실제 PlayScreen 판정 통합', () => {
     await page.mouse.click(20, 20);
     await injectAutoChart(page);
 
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     // 실제 플레이 화면에도 사용자 gesture를 전달한다.
     await page.mouse.click(20, 20);
     await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
@@ -70,7 +70,7 @@ test.describe('실제 PlayScreen 판정 통합', () => {
     await page.goto('/game');
     await page.mouse.click(20, 20);
     await injectAutoChart(page);
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     await page.mouse.click(20, 20);
     await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
     await expect(page.getByText('100.00%')).toHaveCount(1);
@@ -79,7 +79,7 @@ test.describe('실제 PlayScreen 판정 통합', () => {
     expect(first?.judgmentCounts.miss).toBe(0);
 
     await injectAutoChart(page);
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     await page.mouse.click(20, 20);
     await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
     await expect(page.getByText('100.00%')).toHaveCount(1);

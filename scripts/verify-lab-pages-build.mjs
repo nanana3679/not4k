@@ -9,8 +9,6 @@ const requiredPaths = [
   "lab/flight-background-preview/index.html",
   "lab/facility-passage/index.html",
   "lab/note-assets/index.html",
-  "lab/geometric-background/index.html",
-  "lab/perspective-surface-grid/index.html",
   "lab/gear-light/index.html",
   "lab/gear-measure-pulse/index.html",
   "lab/tutorial-pattern-diagram/index.html",
@@ -29,6 +27,13 @@ const requiredPaths = [
 ];
 
 await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pathname))));
+
+for (const retiredPath of ['lab/geometric-background', 'lab/perspective-surface-grid']) {
+  await access(resolve(outputRoot, retiredPath)).then(
+    () => { throw new Error(`Retired background must not be published: ${retiredPath}`); },
+    error => { if (error.code !== 'ENOENT') throw error; },
+  );
+}
 
 const labDocument = await readFile(resolve(outputRoot, "lab/index.html"), "utf8");
 const flightDocument = await readFile(resolve(outputRoot, "__lab/flight-background-preview/index.html"), "utf8");

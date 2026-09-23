@@ -39,7 +39,7 @@ test.describe("Note Assets Lab", () => {
       document.body.prepend(canvas);
       const renderer = new GameRenderer({
         canvas, width: 400, height: 500, judgmentLineOffset: 80, skinManager: skin,
-        showGearFrame: false, showPerspectiveSurface: false, showComboAndAccuracy: false,
+        showGearFrame: false, showFlightBackground: false, showComboAndAccuracy: false,
       });
       await renderer.init();
       renderer.scrollSpeed = 400;

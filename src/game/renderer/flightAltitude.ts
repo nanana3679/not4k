@@ -8,37 +8,37 @@ const RECOVERY_DECAY_PER_SECOND = 1.8;
 const MIN_ALTITUDE_OFFSET = -0.85;
 const MAX_ALTITUDE_OFFSET = 0.5;
 
-export interface PlaceholderPerspectiveSurfaceAltitudeInput {
+export interface PlaceholderFlightAltitudeInput {
   songTimeMs: number;
   chartDurationMs: number;
 }
 
-export interface PerspectiveSurfaceAltitudeState {
+export interface FlightAltitudeState {
   offset: number;
   recoveryVelocityPerSecond: number;
 }
 
-// Placeholder until altitude reacts to judgments: misses drop, hits recover slowly.
-export function derivePlaceholderPerspectiveSurfaceAltitude({
+// 비행 규칙 확정 전의 임시 모델: 곡 진행으로 하강하고 판정에 따라 하강·회복한다.
+export function derivePlaceholderFlightAltitude({
   songTimeMs,
   chartDurationMs,
-}: PlaceholderPerspectiveSurfaceAltitudeInput): number {
+}: PlaceholderFlightAltitudeInput): number {
   if (!Number.isFinite(chartDurationMs) || chartDurationMs <= 0) return 1;
 
   return clamp01(1 - songTimeMs / chartDurationMs);
 }
 
-export function createPerspectiveSurfaceAltitudeState(): PerspectiveSurfaceAltitudeState {
+export function createFlightAltitudeState(): FlightAltitudeState {
   return {
     offset: 0,
     recoveryVelocityPerSecond: 0,
   };
 }
 
-export function applyPerspectiveSurfaceJudgment(
-  state: PerspectiveSurfaceAltitudeState,
+export function applyFlightJudgment(
+  state: FlightAltitudeState,
   grade: JudgmentGrade,
-): PerspectiveSurfaceAltitudeState {
+): FlightAltitudeState {
   if (grade === JudgmentGrade.MISS) {
     return {
       offset: clampAltitudeOffset(state.offset - MISS_ALTITUDE_DROP),
@@ -62,10 +62,10 @@ export function applyPerspectiveSurfaceJudgment(
   };
 }
 
-export function stepPerspectiveSurfaceAltitude(
-  state: PerspectiveSurfaceAltitudeState,
+export function stepFlightAltitude(
+  state: FlightAltitudeState,
   deltaMs: number,
-): PerspectiveSurfaceAltitudeState {
+): FlightAltitudeState {
   const deltaSeconds = clamp(deltaMs / 1000, 0, 0.25);
   if (deltaSeconds <= 0) return state;
 
@@ -80,15 +80,15 @@ export function stepPerspectiveSurfaceAltitude(
   };
 }
 
-export function resolvePerspectiveSurfaceAltitude({
+export function resolveFlightAltitude({
   state,
   songTimeMs,
   chartDurationMs,
-}: PlaceholderPerspectiveSurfaceAltitudeInput & {
-  state: PerspectiveSurfaceAltitudeState;
+}: PlaceholderFlightAltitudeInput & {
+  state: FlightAltitudeState;
 }): number {
   return clamp01(
-    derivePlaceholderPerspectiveSurfaceAltitude({ songTimeMs, chartDurationMs }) + state.offset,
+    derivePlaceholderFlightAltitude({ songTimeMs, chartDurationMs }) + state.offset,
   );
 }
 

@@ -7,9 +7,9 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this.showGearFrame = options.showGearFrame ?? true');
   });
 
-  it('showPerspectiveSurface 옵션은 기본값 true로 기존 플레이 화면 배경을 유지', () => {
-    expect(gameRendererSource).toContain('showPerspectiveSurface?: boolean');
-    expect(gameRendererSource).toContain('this.showPerspectiveSurface = options.showPerspectiveSurface ?? true');
+  it('showFlightBackground 옵션은 기본값 true로 기존 플레이 화면 배경을 유지', () => {
+    expect(gameRendererSource).toContain('showFlightBackground?: boolean');
+    expect(gameRendererSource).toContain('this.showFlightBackground = options.showFlightBackground ?? true');
   });
 
   it('showComboAndAccuracy 옵션은 기본값 true로 기존 플레이 화면 HUD를 유지', () => {
@@ -31,9 +31,9 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this.buildGearFrame()');
   });
 
-  it('showPerspectiveSurface=false이면 renderFrame에서 원근 배경 렌더를 건너뜀', () => {
-    expect(gameRendererSource).toContain('if (this.showPerspectiveSurface)');
-    expect(gameRendererSource).toContain('this.renderPerspectiveSurface(songTimeMs, deltaMs)');
+  it('showFlightBackground=false이면 renderFrame에서 비행 배경 렌더를 건너뜀', () => {
+    expect(gameRendererSource).toContain('if (this.showFlightBackground)');
+    expect(gameRendererSource).toContain('this.renderFlightBackground(songTimeMs, deltaMs)');
   });
 
   it('렌더링은 Pixi auto ticker가 아니라 외부 renderFrame 루프에서 한 번만 수행', () => {

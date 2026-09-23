@@ -17,7 +17,7 @@ export interface SessionBodyState {
 /** The smallest renderer-facing surface used by the session adapter. */
 export interface SessionRendererPort {
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void;
-  recordPerspectiveSurfaceJudgment(grade: JudgmentGrade): void;
+  recordFlightJudgment(grade: JudgmentGrade): void;
   showBombEffect(lane: Lane): void;
   updateCombo(combo: number): void;
   updateAccuracy(rate: number): void;
@@ -80,7 +80,7 @@ export class SessionRendererAdapter {
     const note = notes[event.noteIndex];
     if (!note) return;
     if (effect.display.judgment) port.showJudgment(effect.display.judgment.grade, effect.display.judgment.deltaMs);
-    if (effect.display.altitude) port.recordPerspectiveSurfaceJudgment(effect.display.altitude.grade);
+    if (effect.display.altitude) port.recordFlightJudgment(effect.display.altitude.grade);
     if (effect.display.bombLane !== null) port.showBombEffect(effect.display.bombLane);
     if (effect.scoreAction.type === "dependentZero") return;
     port.recordDebug?.(event, note);

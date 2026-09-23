@@ -1,8 +1,9 @@
+import { breakthroughSearch } from './flight-presets.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { approachStyle, breakthroughDefaults, breakthroughStyle, publicPreviewPage } from './preview-ui.mjs';
+import { approachStyle, breakthroughStyle, publicPreviewPage } from './preview-ui.mjs';
 
 const previewRoot = dirname(fileURLToPath(import.meta.url));
 const breakthroughRoot = resolve(previewRoot, '../breakthrough-hangar-integration-20260910');
@@ -108,42 +109,7 @@ function staticPreviewRoutePaths(basePath = '') {
   return paths;
 }
 
-export const breakthroughSearch = new URLSearchParams({
-  backdropMotion: 'recursive',
-  backdropRate: '300',
-  backdropPhase: '0.5780524999999819',
-  backdrop: 'architecture',
-  backdropBrightness: String(breakthroughDefaults.backdropBrightness),
-  surroundings: '0',
-  extensions: '0',
-  module: 'F',
-  variant: 'lines',
-  altitude: '0',
-  speed: '1000',
-  clearance: '1',
-  width: '88',
-  depth: '200',
-  planes: '8',
-  density: '100',
-  size: '0.25',
-  nearStretch: '4',
-  height: '144',
-  apexLow: '1',
-  apexHigh: '0',
-  apexLinked: '1',
-  apexGain: '5',
-  outline: '0.25',
-  secondary: '0.15',
-  trail: '0.12',
-  seed: '42',
-  lanes: '0',
-  guides: '0',
-  building: '0',
-  buildingSize: '100',
-  auto: '0',
-  art: '1',
-  progress: '0.909323727999996',
-}).toString();
+export { breakthroughSearch } from './flight-presets.mjs';
 
 function normalizedBasePath(basePath = '') {
   const value = String(basePath).trim();

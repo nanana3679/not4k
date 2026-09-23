@@ -54,7 +54,7 @@ test('합성 키 입력과 raw timestamp 주입으로 실제 InputSystem 경로�
   await page.goto('/game');
   await page.mouse.click(20, 20);
   await injectManualChart(page);
-  await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+  await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
   await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__e2eInputAttached)), { timeout: 5000 }).toBe(true);
 
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__e2eRawAt = 1000; });
