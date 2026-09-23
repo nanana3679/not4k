@@ -24,6 +24,22 @@ async function installInputProbe(page: Page) {
       };
       clockProto.__labPatched = true;
     }
+    // 입력 시각과 곡 진행을 함께 제어한다. 실제 오디오만 계속 흐르면 느린
+    // 브라우저에서 마지막 keyup을 보내기 전에 곡이 끝나 결과가 확정된다.
+    const audioPath = '/src/game/audio/AudioEngine.ts';
+    const { AudioEngine }: typeof import('../../src/game/audio/AudioEngine') = await import(audioPath);
+    Object.defineProperty(AudioEngine.prototype, 'currentTimeMs', {
+      configurable: true,
+      get() { return Number(win.__labRawAt ?? 0); },
+    });
+  });
+}
+
+async function finishPlayback(page: Page) {
+  await page.evaluate(async () => {
+    const storePath = '/src/game/stores/gameStore.ts';
+    const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
+    (window as unknown as Record<string, unknown>).__labRawAt = useGameStore.getState().audioBuffer!.duration * 1000;
   });
 }
 
@@ -93,6 +109,7 @@ test.describe('Lab 판정 실플레이', () => {
     expect(initialState.lastResult).toBeNull();
 
     await playConnectedSingleSwap(page);
+    await finishPlayback(page);
 
     await expect.poll(async () => page.evaluate(async () => {
       const storePath = '/src/game/stores/gameStore.ts';
@@ -119,6 +136,7 @@ test.describe('Lab 판정 실플레이', () => {
     await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__labInputAttached)), { timeout: 5000 }).toBe(true);
     await playConnectedSingleSwap(page);
+    await finishPlayback(page);
     await expect.poll(async () => page.evaluate(async () => {
       const storePath = '/src/game/stores/gameStore.ts';
       const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
@@ -165,6 +183,7 @@ test.describe('Lab 판정 실플레이', () => {
     await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 2000; });
     await page.keyboard.down('q');
     await page.keyboard.down('w');
+    await finishPlayback(page);
     await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 9000 });
     const result = await readResult(page);
     expect(result?.judgmentCounts.perfect).toBe(2);
