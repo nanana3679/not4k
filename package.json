@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "build:skins": "node scripts/build-skins.mjs",
+    "build:classic": "node scripts/build-classic-skin.mjs",
     "split:gear": "node scripts/split-gear-gauge.mjs",
     "backup": "node scripts/backup-supabase.mjs"
   },
@@ -48,5 +49,5 @@
     "vite": "^6.4.1",
     "vitest": "^4.0.18"
   },
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

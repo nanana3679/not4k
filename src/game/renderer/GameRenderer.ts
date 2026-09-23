@@ -21,7 +21,7 @@ import {
 } from "./constants";
 import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
 import { JudgmentUI } from "./JudgmentUI";
-import { GameNoteRenderer } from "./GameNoteRenderer";
+import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
@@ -75,6 +75,8 @@ export interface GameRendererOptions {
   height: number;
   resolution?: number;
   skinManager: SkinManager;
+  /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
+  bombScale?: number;
   showGearFrame?: boolean;
   showPerspectiveSurface?: boolean;
   showComboAndAccuracy?: boolean;
@@ -127,6 +129,7 @@ export class GameRenderer {
   // Rendering state
   private _scrollSpeed: number = 800; // pixels per second
   private _judgmentLineY: number;
+  private readonly bombScale: number;
 
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
@@ -236,6 +239,8 @@ export class GameRenderer {
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
     this._judgmentLineY = options.height - this.judgmentLineOffset;
     this.skinManager = options.skinManager;
+    const bombScale = options.bombScale ?? 1;
+    this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
     this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -331,6 +336,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.longNoteBodyLayer);
     this.app.stage.addChild(this.longNoteEndLayer);
     this.app.stage.addChild(this.longNoteHeadLayer);
+    // 노트 배열의 순서와 무관하게 포인트·그림자·Grace는 바디와 시작/끝 터미널 위에 그린다.
     this.app.stage.addChild(this.noteLayer);
     this.app.stage.addChild(this.maskGraphic);
     this.app.stage.addChild(this.judgmentLineGraphic);
@@ -1420,7 +1426,10 @@ export class GameRenderer {
       startMsByIndex,
       endMsByIndex,
     );
-    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex);
+    const trillLongIndices = new Set(this.noteRenderData
+      .filter(data => data.entity.type === 'trillLong')
+      .map(data => data.index));
+    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex, trillLongIndices);
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
@@ -1591,6 +1600,7 @@ export class GameRenderer {
 
   /** 노트 판정 시 봄 이펙트 재생 */
   showBombEffect(lane: number): void {
+    if (this.bombScale === 0) return;
     const textures = this.skinManager.getBombTextures();
     if (textures.length === 0) return;
 
@@ -1598,9 +1608,10 @@ export class GameRenderer {
     anim.anchor.set(0.5, 0.5);
     anim.x = this.noteRenderer.getLaneX(lane) + LANE_WIDTH / 2;
     anim.y = this._judgmentLineY;
-    anim.width = 120;
-    anim.height = 120;
-    anim.animationSpeed = 1;
+    anim.width = 120 * this.bombScale;
+    anim.height = 120 * this.bombScale;
+    const durationMs = this.skinManager.getTheme().bombDurationMs;
+    anim.animationSpeed = durationMs ? textures.length * 1000 / (60 * durationMs) : 1;
     anim.loop = false;
     anim.onComplete = () => { anim.destroy(); };
     anim.play();
@@ -1705,11 +1716,18 @@ export class GameRenderer {
     this.noteRenderer.setHeadlessHeldFillQuery(query);
   }
 
+  /** 새 core의 unit별 body 상태를 전달한다. 실제 live 연결은 통합 gate 이후에 수행한다. */
+  setJudgmentBodyStateQuery(query: JudgmentBodyStateQuery | null): void {
+    this.noteRenderer.setJudgmentBodyStateQuery(query);
+  }
+
   dispose(): void {
     if (!this.initialized) return;
     this.initialized = false;
     this.noteRenderer.dispose();
-    this.app.destroy(true, { children: true, texture: false });
+    // Boolean true also clears Pixi's global pools in v8. Other tutorial
+    // slots still own pooled text textures and bounds, so release only this app.
+    this.app.destroy({ removeView: true, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
     // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classic 터미널 SVG</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #080c12; color: #dce5ef; font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 1060px; padding: 36px 24px 60px; margin: auto; }
+  h1 { margin: 0; font-size: 28px; font-weight: 650; }
+  h2 { margin: 32px 0 16px; font-size: 18px; font-weight: 600; }
+  p { color: #a1afbf; margin: 8px 0 20px; }
+  a { color: #a5d7ff; text-underline-offset: 4px; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+  figure { margin: 0; min-width: 0; }
+  figcaption { margin-top: 14px; color: #a1afbf; text-align: center; }
+  .selected { margin: 28px 0; }
+  .selected img { display: block; width: 100%; height: auto; }
+  .reference img { display: block; width: 100%; height: auto; }
+  .assembly { width: 100%; overflow: hidden; line-height: 0; background-size: 100% auto; background-repeat: repeat-y; }
+  .assembly img { width: 100%; height: auto; display: block; }
+  .body { aspect-ratio: 1.7; }
+  .single { background-image: url('/lab/note-assets/classic/body-single-on.svg'); }
+  .double { background-image: url('/lab/note-assets/classic/body-double-on.svg'); }
+  .downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+  .downloads a { display: block; padding: 14px 0; border-bottom: 1px solid #25313e; }
+  .downloads img { width: 100%; height: auto; display: block; margin-bottom: 12px; }
+  .actual { display: flex; flex-wrap: wrap; gap: 24px 52px; align-items: flex-start; }
+  .actual .assembly { width: 100px; }
+  .actual .body { height: 65px; aspect-ratio: auto; }
+  .actual figcaption { font-size: 13px; }
+  details { margin-top: 36px; color: #a1afbf; }
+  summary { cursor: pointer; min-height: 44px; padding: 10px 0; }
+  details img { display: block; width: 100%; height: auto; }
+  footer { margin-top: 32px; }
+  @media (max-width: 520px) {
+    main { padding: 24px 18px 40px; }
+    h1 { font-size: 24px; }
+    .pair, .downloads { gap: 20px; }
+    .actual { gap: 24px 36px; }
+  }
+</style>
+<main>
+  <h1>Classic 터미널</h1>
+  <p>Penpot에서 확정한 싱글과 같은 마감·반사광을 더블에도 적용했습니다. 시작·끝 터미널은 바디와 간격 없이 이어집니다.</p>
+  <h2>4번 원본</h2>
+  <figure class="reference"><img src="./references/terminal-approved.png" alt="색과 반사광의 기준이 된 4번 원본"></figure>
+  <h2>확정한 싱글 시작·끝 터미널</h2>
+  <div class="pair selected">
+    <figure>
+      <img src="/lab/note-assets/classic/terminal-start-single.svg" alt="확정한 싱글 시작 터미널: 위 연결, 아래 닫힘">
+      <figcaption>시작 · 위 연결, 아래 닫힘</figcaption>
+    </figure>
+    <figure>
+      <img src="/lab/note-assets/classic/terminal-end-single.svg" alt="확정한 싱글 끝 터미널: 위 닫힘, 아래 연결">
+      <figcaption>끝 · 위 닫힘, 아래 연결</figcaption>
+    </figure>
+  </div>
+  <h2>같은 디자인을 적용한 더블 시작·끝 터미널</h2>
+  <div class="pair selected">
+    <figure>
+      <img src="/lab/note-assets/classic/terminal-start-double.svg" alt="수정한 더블 시작 터미널: 위 연결, 아래 닫힘">
+      <figcaption>시작 · 위 연결, 아래 닫힘</figcaption>
+    </figure>
+    <figure>
+      <img src="/lab/note-assets/classic/terminal-end-double.svg" alt="수정한 더블 끝 터미널: 위 닫힘, 아래 연결">
+      <figcaption>끝 · 위 닫힘, 아래 연결</figcaption>
+    </figure>
+  </div>
+  <h2>바디와 조립</h2>
+  <p>위에는 끝 터미널, 아래에는 시작 터미널입니다.</p>
+  <div class="pair" data-assembly-preview>
+    <figure>
+      <div class="assembly single" data-kind="single">
+        <img src="/lab/note-assets/classic/terminal-end-single.svg" alt="싱글 끝 터미널">
+        <div class="body"></div>
+        <img src="/lab/note-assets/classic/terminal-start-single.svg" alt="싱글 시작 터미널">
+      </div>
+      <figcaption>싱글</figcaption>
+    </figure>
+    <figure>
+      <div class="assembly double" data-kind="double">
+        <img src="/lab/note-assets/classic/terminal-end-double.svg" alt="더블 끝 터미널">
+        <div class="body"></div>
+        <img src="/lab/note-assets/classic/terminal-start-double.svg" alt="더블 시작 터미널">
+      </div>
+      <figcaption>더블</figcaption>
+    </figure>
+  </div>
+  <h2>SVG 다운로드</h2>
+  <p>각 파일은 1000 × 200입니다. 기본 채색·반사광·발광을 따로 편집할 수 있습니다.</p>
+  <div class="downloads">
+    <a href="/lab/note-assets/classic/terminal-start-single.svg" download><img src="/lab/note-assets/classic/terminal-start-single.svg" alt="">싱글 시작 SVG</a>
+    <a href="/lab/note-assets/classic/terminal-start-double.svg" download><img src="/lab/note-assets/classic/terminal-start-double.svg" alt="">더블 시작 SVG</a>
+    <a href="/lab/note-assets/classic/terminal-end-single.svg" download><img src="/lab/note-assets/classic/terminal-end-single.svg" alt="">싱글 끝 SVG</a>
+    <a href="/lab/note-assets/classic/terminal-end-double.svg" download><img src="/lab/note-assets/classic/terminal-end-double.svg" alt="">더블 끝 SVG</a>
+  </div>
+  <h2>100px 너비에서 보기</h2>
+  <div class="actual">
+    <figure><div class="assembly single"><img src="/lab/note-assets/classic/terminal-end-single.svg" alt=""><div class="body"></div><img src="/lab/note-assets/classic/terminal-start-single.svg" alt=""></div><figcaption>싱글 · 바디 65px</figcaption></figure>
+    <figure><div class="assembly double"><img src="/lab/note-assets/classic/terminal-end-double.svg" alt=""><div class="body"></div><img src="/lab/note-assets/classic/terminal-start-double.svg" alt=""></div><figcaption>더블 · 바디 65px</figcaption></figure>
+    <figure><div class="assembly" data-zero-length><img src="/lab/note-assets/classic/terminal-start-single.svg" alt="길이 0 싱글"></div><figcaption>싱글 · 길이 0</figcaption></figure>
+    <figure><div class="assembly" data-zero-length><img src="/lab/note-assets/classic/terminal-start-double.svg" alt="길이 0 더블"></div><figcaption>더블 · 길이 0</figcaption></figure>
+  </div>
+  <details><summary>색 수정 전 SVG 보기</summary><img src="./revisions/concept-04-before-color/terminal-start-single.svg" alt="기존 바디 팔레트를 그대로 사용했던 색 수정 전 SVG"></details>
+  <footer><a href="/lab/note-assets?design=classic">Lab 플레이어에서 보기 →</a></footer>
+</main>
+</html>

@@ -2,8 +2,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom';
 import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
-import { LANE_AREA_WIDTH, TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
-import { decideJudgmentEffects } from '../../judgment/judgmentEffects';
+import type { SkinManager } from '../../skin';
+import { LANE_AREA_WIDTH } from '../../renderer/constants';
+import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
+import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
+import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
+import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { createChartTiming } from '../../../shared';
 import { useGameStore } from '../../stores';
 import {
@@ -19,11 +23,12 @@ import {
 } from './tutorialPreviewChart';
 import {
   getTutorialKeyboardLayout,
+  getTutorialKeyboardLabel,
+  resolveTutorialKeyboardBindings,
   resolveTutorialInputTimingsForKeyboard,
   sortLaneKeysForLabel,
   type TutorialKeyboardLayout,
 } from './tutorialKeyboardLayout';
-import { createTutorialPreviewJudgmentController } from './tutorialPreviewJudgment';
 import { TutorialPatternDiagram } from './TutorialPatternDiagram';
 
 export interface TutorialKeyView {
@@ -59,11 +64,24 @@ const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
 
+export interface TutorialBombPosition { x: number; y: number }
+
+/** Canvas 내 정규화 좌표. 키보드 높이가 바뀌어도 같은 레인의 판정선에 표시한다. */
+export function getTutorialBombPosition(lane: number, keyboardAreaHeight: number): TutorialBombPosition {
+  return {
+    x: (lane - .5) / PREVIEW_LANES.length,
+    y: (PREVIEW_RENDER_HEIGHT - PREVIEW_JUDGMENT_LINE_OFFSET) / (PREVIEW_RENDER_HEIGHT + keyboardAreaHeight),
+  };
+}
+
 interface TutorialPreviewPlayerProps {
   preview?: TutorialPreviewDefinition;
   onReady?: () => void;
   diagramModalEnabled?: boolean;
   diagramModalVisible?: boolean;
+  skinId?: string;
+  showRendererBomb?: boolean;
+  onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
 }
 
 export function uniqueTutorialKeys(timings: readonly TutorialInputTiming[]): TutorialKeyView[] {
@@ -161,6 +179,9 @@ export function TutorialPreviewPlayer({
   onReady,
   diagramModalEnabled = true,
   diagramModalVisible = true,
+  skinId = 'crystal',
+  showRendererBomb = true,
+  onBombEffect,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -169,6 +190,8 @@ export function TutorialPreviewPlayer({
   const resumeDiagramRef = useRef<(() => void) | null>(null);
   const dismissDiagramRef = useRef<(() => void) | null>(null);
   const diagramModalEnabledRef = useRef(diagramModalEnabled);
+  const showRendererBombRef = useRef(showRendererBomb);
+  const onBombEffectRef = useRef(onBombEffect);
   const settings = useGameStore((state) => state.settings);
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
@@ -180,10 +203,23 @@ export function TutorialPreviewPlayer({
   const [rendererReady, setRendererReady] = useState(false);
   const baseTimings = useMemo(() => getTutorialInputTimings(preview.chart), [preview]);
   const diagramTimings = useMemo(() => getTutorialDiagramTimings(preview.chart), [preview]);
-  const timings = useMemo(
-    () => resolveTutorialInputTimingsForKeyboard(baseTimings, settings.keyBindings),
-    [baseTimings, settings.keyBindings],
+  const bindingResolution = useMemo(
+    () => resolveTutorialKeyboardBindings(baseTimings, settings.keyBindings, settings.preset),
+    [baseTimings, settings.keyBindings, settings.preset],
   );
+  const timings = useMemo(
+    () => resolveTutorialInputTimingsForKeyboard(baseTimings, bindingResolution.bindings),
+    [baseTimings, bindingResolution.bindings],
+  );
+  const bindingNotice = useMemo(() => {
+    if (bindingResolution.supplementedLanes.length === 0) return null;
+    const lanes = bindingResolution.supplementedLanes.map(lane => {
+      const property = `lane${lane}` as keyof typeof bindingResolution.bindings;
+      const labels = bindingResolution.bindings[property].map(getTutorialKeyboardLabel).join(' ');
+      return `${lane}번 레인에 ${labels}`;
+    }).join(', ');
+    return `이 시연은 ${lanes}를 배정한 예입니다. 옵션에서 레인별 키를 추가할 수 있습니다.`;
+  }, [bindingResolution]);
   const keys = useMemo(() => uniqueTutorialKeys(timings), [timings]);
   const laneKeyLabels = useMemo(
     () => getLaneKeyLabels(keys, activeKeyIds, stickyLaneKeyIdsByLane),
@@ -211,6 +247,11 @@ export function TutorialPreviewPlayer({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
+
+  useEffect(() => {
+    showRendererBombRef.current = showRendererBomb;
+    onBombEffectRef.current = onBombEffect;
+  }, [onBombEffect, showRendererBomb]);
 
   useEffect(() => {
     diagramModalEnabledRef.current = diagramModalEnabled;
@@ -259,11 +300,20 @@ export function TutorialPreviewPlayer({
     let disposed = false;
     let animationFrameId: number | null = null;
     let renderer: GameRenderer | null = null;
+    let skinManager: SkinManager | null = null;
+    let isStarting = true;
+    const disposeResources = () => {
+      disposeTutorialPreviewRenderer(renderer);
+      skinManager?.dispose();
+      skinManager = null;
+    };
     let previousKeyHash = '';
     let previousDiagramHash = '';
     let previousNow = performance.now();
+    let previousLoopTime = 0;
     let loopStartNow = previousNow;
     let activeDiagramPause: TutorialDiagramPause | null = null;
+    let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
     // 이 프리뷰(렌더러) 전용 — 교차 teardown 레이스로 인한 일시적 렌더 크래시를 프레임 스킵으로 삼킨다.
     const safeRenderFrame = createSafeRenderFrame();
 
@@ -378,10 +428,12 @@ export function TutorialPreviewPlayer({
         ]);
         if (disposed) return;
 
-        const skinManager = new SkinManager();
-        await skinManager.loadSkin('crystal');
+        const nextSkinManager = new SkinManager();
+        skinManager = nextSkinManager;
+        await nextSkinManager.loadSkin(skinId);
         if (disposed) {
-          skinManager.dispose();
+          nextSkinManager.dispose();
+          if (skinManager === nextSkinManager) skinManager = null;
           return;
         }
 
@@ -390,7 +442,7 @@ export function TutorialPreviewPlayer({
           width: PREVIEW_RENDER_WIDTH,
           height: PREVIEW_RENDER_HEIGHT,
           resolution: Math.min(window.devicePixelRatio || 1, 2),
-          skinManager,
+          skinManager: nextSkinManager,
           showGearFrame: false,
           showPerspectiveSurface: false,
           showComboAndAccuracy: false,
@@ -405,11 +457,10 @@ export function TutorialPreviewPlayer({
         });
         await renderer.init();
         if (disposed || !renderer) {
-          // init()이 끝나기 전에 언마운트되면 cleanup의 dispose()가 아직 initialized=false라
-          // no-op으로 지나간다. 여기서 이미 초기화된 renderer(WebGL 컨텍스트)를 직접 정리하지 않으면
-          // PIXI Application이 orphan으로 남아 누수된다. dispose()는 idempotent라 이중 호출도 안전하다.
+          // 초기화 도중 닫힌 슬롯은 WebGL 준비가 끝난 뒤 리소스를 정리한다.
           disposeTutorialPreviewRenderer(renderer);
-          skinManager.dispose();
+          nextSkinManager.dispose();
+          if (skinManager === nextSkinManager) skinManager = null;
           return;
         }
 
@@ -426,27 +477,48 @@ export function TutorialPreviewPlayer({
         );
         renderer.scrollSpeed = 520;
         renderer.updateAccuracy(100);
-        const judgmentController = createTutorialPreviewJudgmentController(
-          preview.chart,
-          timings,
-          {
-            onJudgment: (result) => {
-              if (!renderer) return;
-              const note = preview.chart.notes[result.noteIndex];
-              if (!note) return;
-
-              // 판정 효과의 부분 적용 — 루프 재생 프리뷰라 점수·노트 표시 상태·디버그는 쓰지 않는다.
-              const effects = decideJudgmentEffects(result, note);
-              renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs);
-              if (effects.bomb !== null) {
-                renderer.showBombEffect(effects.bomb);
-              }
-            },
-            onComboUpdate: () => {},
+        const sourceNoteCount = preview.chart.notes.length;
+        const previewPort: SessionRendererPort = {
+          showJudgment: (grade, deltaMs) => renderer?.showJudgment(grade, deltaMs),
+          recordPerspectiveSurfaceJudgment: grade => renderer?.recordPerspectiveSurfaceJudgment(grade),
+          showBombEffect: lane => {
+            onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));
+            if (showRendererBombRef.current) renderer?.showBombEffect(lane);
           },
-        );
+          updateCombo: () => {},
+          updateAccuracy: () => {},
+          setJudgmentBodyStateQuery: query => {
+            if (renderer) {
+              renderer.setJudgmentBodyStateQuery(query
+                ? (renderNoteIndex, at) => mapTutorialRenderBodyQuery(
+                  query,
+                  sourceNoteCount,
+                  preview.loopMs,
+                  activeRenderCycle,
+                  renderNoteIndex,
+                  at,
+                )
+                : null);
+            }
+          },
+          applyNoteDisplayEffect: (noteIndex, effect) => {
+            renderer?.applyNoteDisplayEffect(activeRenderCycle * sourceNoteCount + noteIndex, effect);
+          },
+        };
+        const adapterRef: { current?: SessionRendererAdapter } = {};
+        const controller = createTutorialPreviewSessionController(preview.chart, timings, {
+          onBatchConfirmed: view => adapterRef.current?.apply(view),
+        });
+        const sessionAdapter = new SessionRendererAdapter({
+          notes: preview.chart.notes,
+          connections: controller.session.connections,
+          bodyStates: () => controller.session.bodyStates,
+          scoreAccuracy: () => controller.session.score.getState().achievementRate,
+          port: previewPort,
+        });
+        adapterRef.current = sessionAdapter;
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
-        judgmentController.advanceTo(0);
+        controller.advanceTo(0);
         safeRenderFrame(renderer, preview.renderStartMs, 0);
         previousNow = performance.now();
         loopStartNow = previousNow;
@@ -461,10 +533,28 @@ export function TutorialPreviewPlayer({
           previousNow = now;
           let loopTimeMs = (now - loopStartNow) % preview.loopMs;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
+          activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);
           const renderTimeMs = preview.renderStartMs + loopTimeMs;
           const activeTimings = getActiveTutorialInputTimings(loopTimeMs, timings);
 
-          judgmentController.advanceTo(loopTimeMs);
+          if (loopTimeMs < previousLoopTime) {
+            // Flush the tail action at the exact loop boundary before creating
+            // the next session; otherwise an up at loopMs is lost to reset.
+            controller.advanceTo(preview.loopMs);
+            sessionAdapter.reset();
+            // setChart clears GameNoteRenderer's per-note display caches as well
+            // as rebuilding the repeated render-cycle index mapping.
+            renderer.setChart(
+              preview.renderChart.notes,
+              preview.renderChart.trillZones,
+              preview.renderChart.restZones ?? [],
+              preview.renderChart.events,
+              createChartTiming(preview.renderChart),
+              preview.renderDurationMs,
+            );
+          }
+          controller.advanceTo(loopTimeMs);
+          previousLoopTime = loopTimeMs;
           setRendererInputState(renderer, activeTimings);
           safeRenderFrame(renderer, renderTimeMs, deltaMs);
           animationFrameId = requestAnimationFrame(renderLoop);
@@ -472,12 +562,16 @@ export function TutorialPreviewPlayer({
 
         animationFrameId = requestAnimationFrame(renderLoop);
       } catch (err) {
+        disposeResources();
         if (!disposed) {
           setError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
           notifyReady();
           // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.
           setRendererReady(true);
         }
+      } finally {
+        isStarting = false;
+        if (disposed) disposeResources();
       }
     };
 
@@ -491,9 +585,11 @@ export function TutorialPreviewPlayer({
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
-      disposeTutorialPreviewRenderer(renderer);
+      // init() still reads the skin while building its scene. Let it settle
+      // before releasing textures or destroying the application.
+      if (!isStarting) disposeResources();
     };
-  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, skinId, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -505,7 +601,7 @@ export function TutorialPreviewPlayer({
   }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
-    <div style={styles.previewShell}>
+    <div style={styles.previewShell} data-tutorial-skin-id={skinId}>
       <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}
@@ -515,8 +611,15 @@ export function TutorialPreviewPlayer({
           // 에러일 때 canvas를 숨겨 에러 메시지가 WebGL canvas 합성 레이어에 가려지지 않게 한다.
           style={{ ...styles.canvas, visibility: error ? 'hidden' : 'visible' }}
         />
-        {error && <div style={styles.errorText}>{error}</div>}
+        {error && (
+          <div role="alert" data-tutorial-preview-error="true" style={styles.errorText}>
+            {error}
+          </div>
+        )}
       </div>
+      {bindingNotice && (
+        <p data-tutorial-binding-notice="true" style={styles.bindingNotice}>{bindingNotice}</p>
+      )}
       <style>{tutorialPreviewPlayerCss}</style>
       {diagramDisplay && typeof document !== 'undefined' && createPortal(
         <div

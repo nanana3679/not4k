@@ -3,3 +3,5 @@
 .model-picker{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}.model-picker button{display:flex;align-items:center;text-align:left;gap:10px;padding:10px 12px;min-height:48px}.model-picker strong{font-size:16px;min-width:14px}.model-picker span{font-size:12px;line-height:1.35}.model-caption{margin:0 0 18px}.model-caption strong{display:block;color:#dce6f2;font-size:14px}.model-caption span{display:block;margin-top:4px;font-size:12px}@media(max-width:620px){.model-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.model-picker button{padding:8px 10px}}
 
 #context-controls{border:1px solid #2a3b50;border-radius:5px;margin:0 0 18px;padding:6px 14px 12px}#context-controls legend{font-size:12px;color:#c3a384;padding:0 6px}#context-controls .row{margin:0;gap:20px}#context-controls p{margin:0;font-size:11px}#context-controls:disabled{opacity:.45}
+
+[hidden]{display:none!important}

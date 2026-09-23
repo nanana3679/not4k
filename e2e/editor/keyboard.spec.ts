@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 
-const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures');
+const FIXTURES_DIR = fileURLToPath(new URL('../fixtures', import.meta.url));
 
 test.describe('Editor Keyboard Shortcuts', () => {
   test.beforeEach(async ({ page }) => {

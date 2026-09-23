@@ -5,10 +5,10 @@ import { BOMB_FRAMES } from "./shared/bomb.js";
 // 각 스킨의 컴포넌트와 팔레트를 정적으로 import
 import * as crystal from "./crystal/components.jsx";
 import * as prism from "./prism/components.jsx";
-import * as classic from "./classic/components.jsx";
+import * as simple from "./simple/components.jsx";
 
 const skins = {
-  crystal, prism, classic,
+  crystal, prism, simple,
 };
 
 const BODY_H = 60; // NineSlice용 바디 높이

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
-import { beat } from "../../shared";
+import { beat, chartViolationIndices } from "../../shared";
 import type { Chart, BpmMarker, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 import { OverlayRenderer } from "./OverlayRenderer";
@@ -112,6 +112,18 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     expect(host.violationLayer.children.length).toBe(0);
   });
 
+  it("NJ-C01 semantic violation을 실제 chartViolationIndices에서 받아 노트 해칭으로 표시한다", () => {
+    const chart = makeChart([
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) },
+    ]);
+    const indices = chartViolationIndices(chart);
+    const host = makeHost(chart, indices.notes, indices.trillZones);
+    const r = new OverlayRenderer(host);
+    r.renderViolationOverlay();
+    expect(indices.notes.size).toBeGreaterThan(0);
+    expect(host.violationLayer.children.length).toBeGreaterThan(0);
+  });
   it("BpmEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
     const chart = makeChart([], [], [
       { type: "bpm", beat: beat(2), bpm: 120 },

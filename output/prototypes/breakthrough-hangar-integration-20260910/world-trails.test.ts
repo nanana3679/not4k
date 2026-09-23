@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {advanceTrails,trailAlpha} from './world-trails.mjs';
+import {advanceTrails,limitTrailSamples,mobileTrailQuality,trailAlpha} from './world-trails.mjs';
 const face=(id='p1/0/fill/1',x=0,z=10)=>({id,points:[[x,0,z],[x+1,0,z],[x,1,z]],screen:[{x,y:0},{x:x+1,y:0},{x,y:1}],outline:false,alpha:1,rgb:[255,100,0],lineWidth:1});
 it('8px 이동한 16ms 동안 세계 좌표와 깊이를 보간한 잔상2개를 남긴다',()=>{const t=advanceTrails([],[face()],[face(undefined,8,8)],.016,.12,.016);expect(t).toHaveLength(2);expect(t[0].points[0]).toEqual([2,0,9.5]);expect(t[1].points[0]).toEqual([6,0,8.5]);});
 it('재출현으로 cycle ID가0→1이면 먼 위치까지 이어 붙이지 않고 이전 면만 남긴다',()=>{const t=advanceTrails([],[face()],[face('p1/1/fill/1',100,200)],.016,.12,.016);expect(t).toHaveLength(1);expect(t[0].points).toEqual(face().points);});
@@ -10,3 +10,6 @@ it('일시정지 dt=0과 고정 시간에서는 기존 잔상의 개수·위치�
 it('속도0으로 화면 이동이0px이면 잔상 표본을 추가하지 않는다',()=>{expect(advanceTrails([],[face()],[face()],.016,.12,.016)).toEqual([]);});
 it('잔상 길이0ms는 남아 있던 모든 잔상을 즉시 비운다',()=>{expect(advanceTrails([{...face(),time:0}],[],[],.01,0,.01)).toEqual([]);});
 it('100px 빠른 이동도 한 광원당12개의 보간 표본으로 제한한다',()=>{expect(advanceTrails([],[face()],[face(undefined,100)],.05,.12,.05)).toHaveLength(12);});
+it('모바일 품질에서 100px 빠른 이동은 한 광원당6개의 보간 표본으로 제한한다',()=>{expect(advanceTrails([],[face()],[face(undefined,100)],.05,.12,.05,mobileTrailQuality)).toHaveLength(6);});
+it('잔상5개를 최대3개로 제한하면 처음·중간·마지막 시간 범위를 유지한다',()=>{const samples=Array.from({length:5},(_,time)=>({...face(String(time)),time}));expect(limitTrailSamples(samples,3).map(s=>s.time)).toEqual([0,2,4]);});
+it('모바일 잔상 예산900개를 넘으면 시간 범위를 유지한900개만 남긴다',()=>{const samples=Array.from({length:1200},(_,time)=>({...face(String(time)),time}));const limited=limitTrailSamples(samples,mobileTrailQuality.maxSamples);expect(limited).toHaveLength(900);expect(limited[0].time).toBe(0);expect(limited.at(-1).time).toBe(1199);});

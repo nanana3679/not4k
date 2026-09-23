@@ -1,5 +1,9 @@
 # 리듬게임 노트 스킨 시스템 — 프로젝트 스펙
 
+현재 노트 에셋 Lab의 시안 교체와 Classic 런타임 규격은 [노트 에셋 Lab 명세](../docs/spec/note-asset-lab.md)를 따른다. 기존 단색 Classic은 `simple/`의 Simple로 이름을 바꾸었고, `classic/`은 승인된 유광 포인트·어두운 금속 바디·터미널·공통 봄의 SVG 소스와 상태 생성기를 관리한다.
+
+아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다.
+
 ## 게임 개요
 
 4레인 낙하형 리듬게임. 노트가 위에서 아래로 내려오며 판정선에 도달하면 플레이어가 입력.

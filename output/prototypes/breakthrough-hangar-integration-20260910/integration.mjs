@@ -1,6 +1,7 @@
 // Isolated comparison: preserved original geometry, altitude-linked lines, shared projection.
 import {settingsFrom,makeLights,worldFaces,project,planeOffsets,clamp} from './legacy/geometry.mjs';
 import {clearanceScene} from './legacy/clearance.mjs';
+import {passagePyramid,passageProgressForDepth,PASSAGE_STOPS} from './passage.mjs';
 export const TEXTURES=['armor','window','door','hull','soffit'];
 export const MODEL_IDS=['A','B','C','D','E','F','G','H'];
 // Architectural depth is independent of the finite light pyramid: a rigid 58-unit
@@ -10,13 +11,13 @@ export const BUILDING_FOG=Object.freeze({near:650,far:1400});
 export function readSettings(search='',reduced=false){
  const p=new URLSearchParams(search),s=settingsFrom(search);
  const n=(k,f,lo,hi)=>p.has(k)&&p.get(k).trim()!==''&&Number.isFinite(Number(p.get(k)))?clamp(Number(p.get(k)),lo,hi):f;
- return {...s,backdrop:p.get('backdrop')==='architecture'?'architecture':'none',backdropBrightness:n('backdropBrightness',50,0,100),backdropMotion:p.get('backdropMotion')==='static'?'static':'recursive',backdropRate:n('backdropRate',100,0,300),backdropPhase:n('backdropPhase',0,0,1)%1,surroundings:p.get('surroundings')==='1',extensions:p.get('extensions')==='1',module:MODEL_IDS.includes(p.get('module'))?p.get('module'):'E',floor:false,ceiling:false,building:p.get('building')!=='0',buildingSize:n('buildingSize',100,50,180),progress:n('progress',.25,0,1),auto:p.get('auto')==='1',art:p.get('art')!=='0',lanes:p.get('lanes')==='1',running:p.has('paused')?p.get('paused')!=='1':!reduced};
+ return {...s,study:p.get('study')==='passage'?'passage':'modules',backdrop:p.get('backdrop')==='architecture'?'architecture':'none',backdropBrightness:n('backdropBrightness',50,0,100),backdropMotion:p.get('backdropMotion')==='static'?'static':'recursive',backdropRate:n('backdropRate',100,0,300),backdropPhase:n('backdropPhase',0,0,1)%1,surroundings:p.get('surroundings')==='1',extensions:p.get('extensions')==='1',module:MODEL_IDS.includes(p.get('module'))?p.get('module'):'E',floor:false,ceiling:false,building:p.get('building')!=='0',buildingSize:n('buildingSize',100,50,180),progress:n('progress',p.get('study')==='passage'?passageProgressForDepth(PASSAGE_STOPS.approach):.25,0,1),auto:p.get('auto')==='1',art:p.get('art')!=='0',lanes:p.get('lanes')==='1',running:p.has('paused')?p.get('paused')!=='1':!reduced};
 }
 export function writeSettings(s,progress){
- const keys=['backdropMotion','backdropRate','backdropPhase','backdrop','backdropBrightness','surroundings','extensions','module','variant','altitude','speed','clearance','width','depth','planes','density','size','nearStretch','height','apexLow','apexHigh','apexLinked','apexGain','outline','secondary','trail','seed','lanes','guides','building','buildingSize','auto','art'];
+ const keys=['study','backdropMotion','backdropRate','backdropPhase','backdrop','backdropBrightness','surroundings','extensions','module','variant','altitude','speed','clearance','width','depth','planes','density','size','nearStretch','height','apexLow','apexHigh','apexLinked','apexGain','outline','secondary','trail','seed','lanes','guides','building','buildingSize','auto','art'];
  const p=new URLSearchParams(keys.map(k=>[k,typeof s[k]==='boolean'?String(Number(s[k])):String(s[k])]));p.set('paused',s.running?'0':'1');p.set('progress',String(progress));return p.toString();
 }
-export const scenePyramid=s=>clearanceScene(s,s.altitude);
+export const scenePyramid=s=>s.study==='passage'?passagePyramid(clearanceScene({...s,clearance:true},s.altitude),s.altitude):clearanceScene(s,s.altitude);
 export function matchCamera(camera,view){
  camera.fov=2*Math.atan(view.height/(2*view.focal))*180/Math.PI;camera.aspect=view.width/view.height;
  camera.near=2;camera.far=2000;camera.position.set(0,view.cameraHeight,view.back);camera.quaternion.identity();
