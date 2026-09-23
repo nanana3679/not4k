@@ -336,7 +336,7 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
       notes, connections: h.compiled.connections, bodyStates: () => h.core.bodyStates,
       scoreAccuracy: () => h.score.getState().achievementRate,
       port: {
-        showJudgment: vi.fn(), recordPerspectiveSurfaceJudgment: vi.fn(), showBombEffect: vi.fn(),
+        showJudgment: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn(),
         updateCombo: vi.fn(), updateAccuracy: vi.fn(), applyNoteDisplayEffect: vi.fn(),
         setJudgmentBodyStateQuery: query => renderer.setJudgmentBodyStateQuery(query),
       },

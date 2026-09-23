@@ -123,9 +123,9 @@ test.describe('Game Settings', () => {
     }
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
     await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes))).toBe(true);
-    await page.locator('canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});
+    await page.getByTestId('gameplay-canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});
   });
 
   test('Skin: 키봄 크기는 기본 1배이며 0.1배 단위로 0~3배를 선택하고 1.7배를 재방문까지 저장한다', async ({ page }, testInfo) => {

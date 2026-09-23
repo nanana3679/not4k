@@ -151,7 +151,7 @@ _Avoid_: PLv.
 _Avoid_: Lv.
 
 **난이도명**:
-한 곡 안에서 차트를 구분하는 `Liftoff → Infiltration → Breakthrough` 순서의 라벨이며, 각 단계의 비행 시나리오·연출에 대응한다. 풀 정의는 [glossary](docs/context/glossary.md#난이도명-difficulty-name), 채택 근거는 [RFD 0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
+한 곡 안에서 차트를 구분하는 `Liftoff → Infiltration → Breakthrough` 순서의 라벨이며, 각 단계의 비행 시나리오·연출에 대응한다. 기존 `EASY / NORMAL / HARD`도 화면에서는 이 이름으로 표시한다. 풀 정의는 [glossary](docs/context/glossary.md#난이도명-difficulty-name), 채택 근거는 [RFD 0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 _Avoid_: 차트 레벨
 
 **비행 규칙**:

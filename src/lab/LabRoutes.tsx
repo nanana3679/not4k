@@ -1,8 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { lazy } from 'react';
 
-const GeometricBackgroundTestPage = lazy(() => import('./GeometricBackgroundTestPage'));
-const PerspectiveSurfaceGridTestPage = lazy(() => import('./PerspectiveSurfaceGridTestPage'));
 const GearLightTestPage = lazy(() => import('./GearLightTestPage'));
 const GearMeasurePulseTestPage = lazy(() => import('./GearMeasurePulseTestPage'));
 const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagramTestPage'));
@@ -23,8 +21,6 @@ export default function LabRoutes() {
       <Route index element={<LabIndexPage />} />
       <Route path="flight-background-preview" element={<FlightBackgroundPreviewLabPage />} />
       <Route path="facility-passage" element={<FacilityPassagePreviewLabPage />} />
-      <Route path="geometric-background" element={<GeometricBackgroundTestPage />} />
-      <Route path="perspective-surface-grid" element={<PerspectiveSurfaceGridTestPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />
       <Route path="gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
       <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />

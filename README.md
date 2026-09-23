@@ -132,7 +132,8 @@
 | [0004](docs/rfd/0004-io-timing-consistency.md) | **IO 타이밍 일관성 개선**. 입력·오디오 지터 제거 작업 계획 |
 | [0005](docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md) | **비행 규칙 2종 재편**. Liftoff(관대, 기본값) / Survival(숙련자 정확도)로 통합 |
 | [0021](docs/rfd/0021-low-altitude-downward-view.md) | **낮은 고도의 하향 시점**. 고도가 낮아질수록 지면을 내려다보는 연출; 현재 Infiltration에 배치 |
-| [0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md) | **현재 난이도명과 연출 배치**. Liftoff → Infiltration → Breakthrough, 각도 유지 / 하향 회전 / 지속 저공비행. 구현 보류 |
+| [0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md) | **현재 난이도명과 연출 배치**. Liftoff → Infiltration → Breakthrough, 각도 유지 / 하향 회전 / 지속 저공비행. 이름 표시·배경 연결은 RFD 0026으로 구현 |
+| [0026](docs/rfd/0026-game-flight-backgrounds.md) | **비행 배경 인게임 적용**. 기존 차트 저장 식별자를 유지한 난이도명 표시와 세 배경 연결, 이전 격자 배경·Lab·저장 API 제거 |
 
 ## 제품 요구사항
 

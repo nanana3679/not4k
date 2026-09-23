@@ -80,7 +80,7 @@ test.describe('Lab 판정 실플레이', () => {
     await expect(card).toBeVisible();
     await card.getByRole('button', { name: /플레이/ }).click();
     await expect(page).toHaveURL(/\/game$/);
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__labInputAttached)), { timeout: 5000 }).toBe(true);
     const initialState = await page.evaluate(async () => {
       const storePath = '/src/game/stores/gameStore.ts';
@@ -116,7 +116,7 @@ test.describe('Lab 판정 실플레이', () => {
     });
     await page.getByRole('button', { name: '같은 사례 다시 플레이' }).click();
     await expect(page).toHaveURL(/\/game$/);
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
     await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__labInputAttached)), { timeout: 5000 }).toBe(true);
     await playConnectedSingleSwap(page);
     await expect.poll(async () => page.evaluate(async () => {

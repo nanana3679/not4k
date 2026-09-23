@@ -33,20 +33,6 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/note-assets",
   },
   {
-    id: "geometric-background",
-    title: "Geometric Background",
-    description: "고도에 따른 원근 지표면과 광원 흐름을 조절합니다.",
-    category: "Rendering",
-    path: "/lab/geometric-background",
-  },
-  {
-    id: "perspective-surface-grid",
-    title: "Perspective Surface Grid",
-    description: "Pixi 기반 지표면 투영과 오브젝트 배치 프리셋을 편집합니다.",
-    category: "Rendering",
-    path: "/lab/perspective-surface-grid",
-  },
-  {
     id: "gear-light",
     title: "Gear Light",
     description: "기어 기둥의 광원, 마스크, 게이지 합성을 비교합니다.",

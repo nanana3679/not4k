@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { modalStyles } from './modalStyles';
-
-const DIFFICULTY_OPTIONS = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
+import { CHART_DIFFICULTIES, formatDifficultyLabel } from '../../shared/chartDifficulty';
 
 export interface SaveAsModalProps {
   currentDifficulty: string;
@@ -13,8 +12,8 @@ export interface SaveAsModalProps {
 }
 
 export function SaveAsModal({ currentDifficulty, title, level, isDirty, onSave, onClose }: SaveAsModalProps) {
-  const currentUpper = currentDifficulty.toUpperCase();
-  const defaultTarget = DIFFICULTY_OPTIONS.find((d) => d !== currentUpper) ?? 'EASY';
+  const currentUpper = formatDifficultyLabel(currentDifficulty);
+  const defaultTarget = CHART_DIFFICULTIES.find((d) => d !== currentUpper) ?? 'LIFTOFF';
   const [targetDifficulty, setTargetDifficulty] = useState<string>(defaultTarget);
   const [targetLevel, setTargetLevel] = useState(level);
 
@@ -40,7 +39,7 @@ export function SaveAsModal({ currentDifficulty, title, level, isDirty, onSave, 
             value={targetDifficulty}
             onChange={(e) => setTargetDifficulty(e.target.value)}
           >
-            {DIFFICULTY_OPTIONS.map((d) => (
+            {CHART_DIFFICULTIES.map((d) => (
               <option key={d} value={d} disabled={d === currentUpper}>
                 {d}{d === currentUpper ? ' (current)' : ''}
               </option>

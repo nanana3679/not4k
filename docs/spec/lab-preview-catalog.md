@@ -37,18 +37,21 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 `Rendering` 분류의 `/lab/note-assets`에서 Classic·Simple 노트, 롱노트, 터미널과 키봄을 실제 튜토리얼 재생기로 비교한다. 기본 시안은 Classic이며 시안 선택과 에셋 랙은 기존 시연실을 그대로 사용한다. 시연실의 `← Lab 목록` 링크는 공통 카탈로그로 돌아온다. 자세한 동작은 [노트 에셋 Lab](note-asset-lab.md)을 따른다.
 
+## 이전 배경 제거
+
+새 비행 배경 적용 후 `Geometric Background`와 `Perspective Surface Grid` 시연, 카탈로그 항목, 라우트를 제거했다. 이전 인게임 프리셋과 이를 다시 생성하던 개발 서버 저장 API도 제공하지 않는다. 현재 배경은 `Flight Background Preview`에서 확인한다.
+
 ## GitHub Pages 정적 배포
 
 - `vite.lab.config.ts`가 `/not4k/` base를 사용하는 별도 산출물 `dist-lab`을 만든다.
 - 각 카탈로그 항목에 `index.html`을 생성해 `/lab/<id>/` 직링크를 지원한다.
 - 이미지 갤러리 등록부에 있는 폴더만 `/lab/images/<id>/`로 복사한다. 미등록 폴더와 생성 원본의 프롬프트·중간 산출물은 배포하지 않는다.
 - Flight Background Preview는 서버 allowlist와 스타일 주입 결과를 정적 파일로 export한다.
-- 개발 서버에서만 가능한 Perspective Surface Grid 프리셋 파일 저장은 공개 페이지에서 비활성화한다.
 - `.github/workflows/deploy-lab-pages.yml`이 `main`의 Lab 관련 변경에만 반응해 Pages를 갱신한다.
 
 ## 검증
 
-- `labPreviewCatalog.test.ts`: 9개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실 등록을 확인한다.
+- `labPreviewCatalog.test.ts`: 7개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실 등록을 확인한다.
 - `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 2개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
 - `labImageGalleryDevRequest.test.ts`: 등록된 로컬 alias만 재작성하고 literal·URL 인코딩 traversal을 거부하는지 확인한다.
 - `exportLabImageGalleries.test.ts`: 등록한 HTML·중첩 자산만 복사하고 미등록 컬렉션은 제외하는지 확인한다.
@@ -57,4 +60,4 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 - `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다. 시설 통과는 390px·1280px에서 진입·내부 정지·고도 조절·목록 복귀를 검증한다.
 - `e2e/lab/note-assets.spec.ts`: 공통 카탈로그에서 노트 에셋 시연실을 열면 Classic 재생기가 준비되고 목록으로 돌아올 수 있는지 390px·1280px에서 확인한다.
 - 공개 미리보기 자체는 해당 시연 폴더의 Vitest와 Playwright 검사를 계속 사용한다.
-- `pnpm run build:lab`: Pages base, 9개 인터랙티브 직링크, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인한다.
+- `pnpm run build:lab`: Pages base, 7개 인터랙티브 직링크, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인한다.

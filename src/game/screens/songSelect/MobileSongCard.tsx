@@ -1,3 +1,4 @@
+import { formatDifficultyLabel } from '../../../shared/chartDifficulty';
 import { STORAGE_BUCKET, songJacketPath } from '../../../shared';
 import { supabase } from '../../../supabase';
 import {
@@ -93,7 +94,7 @@ export function MobileSongCard({
                 onSelectChart(songIndex, chartIndex, { songId: song.id, chartId: chart.id });
               }}
             >
-              {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+              {formatDifficultyLabel(chart.difficulty_label)} Lv.{chart.difficulty_level}
             </button>
           );
         })}
@@ -107,7 +108,7 @@ export function MobileSongCard({
             onEdit(song.id, selectedChart.difficulty_label);
           }}
         >
-          Edit {selectedChart.difficulty_label.toUpperCase()} Lv.{selectedChart.difficulty_level}
+          Edit {formatDifficultyLabel(selectedChart.difficulty_label)} Lv.{selectedChart.difficulty_level}
         </button>
       )}
 

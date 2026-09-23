@@ -38,7 +38,7 @@ function buildHandPlacementKeyboardFixture() {
 describe('TutorialPreviewPlayer', () => {
   it('곡 선택 튜토리얼 미니 재생기는 GameRenderer 기어와 원근 배경을 끈다', () => {
     expect(tutorialPreviewPlayerSource).toContain('showGearFrame: false');
-    expect(tutorialPreviewPlayerSource).toContain('showPerspectiveSurface: false');
+    expect(tutorialPreviewPlayerSource).toContain('showFlightBackground: false');
   });
 
   it('곡 선택 튜토리얼 미니 재생기는 정확도·콤보 HUD를 숨기고 판정선을 아래로 내림', () => {

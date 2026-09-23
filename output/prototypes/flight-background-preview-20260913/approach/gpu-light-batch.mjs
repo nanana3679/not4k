@@ -199,7 +199,7 @@ export function createGpuLightLayer(canvas) {
   } catch {
     canvas.hidden = true;
     canvas.dataset.renderer = 'canvas-2d';
-    return { available:false, resize(){}, setGround(){}, clear(){}, draw(){ return { vertexCount:0, triangleCount:0, lightCount:0, trailCount:0, drawCalls:0 }; } };
+    return { available:false, dispose(){}, resize(){}, setGround(){}, clear(){}, draw(){ return { vertexCount:0, triangleCount:0, lightCount:0, trailCount:0, drawCalls:0 }; } };
   }
   const position = gl.getAttribLocation(gpuProgram, 'position'), tint = gl.getAttribLocation(gpuProgram, 'tint');
   const resolution = gl.getUniformLocation(gpuProgram, 'resolution'), allocated = [0, 0];
@@ -207,7 +207,8 @@ export function createGpuLightLayer(canvas) {
   const terrainUniforms=Object.fromEntries(['groundTexture','resolution','textureSize','pixelRatio','focal','principalY','horizon','cameraHeight','sinPitch','cosPitch','travel','runwayAlpha','backdrop'].map(name=>[name,gl.getUniformLocation(terrainProgram,name)]));
   let bufferIndex = 0, width = 1, height = 1, pixelRatio = 1, lost = false, groundTexture, groundSize=[1,1];
   canvas.dataset.renderer = 'webgl-batch';
-  canvas.addEventListener('webglcontextlost', event => { event.preventDefault(); lost = true; canvas.hidden = true; });
+  const onContextLost = event => { event.preventDefault(); lost = true; canvas.hidden = true; };
+  canvas.addEventListener('webglcontextlost', onContextLost);
   function resize(nextWidth, nextHeight, dpr = 1) {
     width = Math.max(1, nextWidth); height = Math.max(1, nextHeight);
     pixelRatio = Math.max(.5,dpr);
@@ -253,5 +254,16 @@ export function createGpuLightLayer(canvas) {
     const drawCalls=groundCalls+1;Object.assign(canvas.dataset,{vertices:String(metrics.vertexCount),triangles:String(metrics.triangleCount),drawCalls:String(drawCalls)});
     return { ...metrics, drawCalls };
   }
-  return { get available(){return !lost;}, resize, setGround, clear, draw };
+  function dispose() {
+    if (disposed) return;
+    disposed = true; lost = true;
+    canvas.removeEventListener('webglcontextlost', onContextLost);
+    for (const buffer of buffers) gl.deleteBuffer(buffer);
+    gl.deleteBuffer(terrainBuffer);
+    gl.deleteProgram(gpuProgram); gl.deleteProgram(terrainProgram);
+    if (groundTexture) gl.deleteTexture(groundTexture);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+  }
+  let disposed = false;
+  return { get available(){return !lost;}, resize, setGround, clear, draw, dispose };
 }

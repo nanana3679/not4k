@@ -112,7 +112,7 @@ _Avoid_: 리프트
 _Avoid_: 달성률
 
 **`flightRule`**:
-Play의 고도 상태와 클리어/실패를 다루며, 차트 난이도명 `Liftoff → Infiltration → Breakthrough`에 대응하는 시나리오와 연결된다. 풀 정의는 [glossary](../../docs/context/glossary.md#flightrule-flight-rule), 현재 배치는 [RFD 0022](../../docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
+Play의 고도 상태와 클리어/실패를 다루며, 차트 난이도명 `Liftoff → Infiltration → Breakthrough`에 대응하는 시나리오와 연결된다. 이름 표시와 배경은 적용했으며 세부 비행 규칙은 미구현이다. 풀 정의는 [glossary](../../docs/context/glossary.md#flightrule-flight-rule), 현재 배치는 [RFD 0022](../../docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 _Avoid_: 차트 레벨
 
 **`altitude`**:

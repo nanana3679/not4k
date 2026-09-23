@@ -5,13 +5,13 @@ import { describe, expect, it } from "vitest";
 import LabIndexPage from "./LabIndexPage";
 
 describe("LabIndexPage", () => {
-  it("/lab 색인은 시설 통과와 노트 에셋 시연실을 포함한 9개 미리보기와 대표 비행 실행 링크를 표시한다", () => {
+  it("/lab 색인은 시설 통과와 노트 에셋 시연실을 포함한 7개 미리보기와 대표 비행 실행 링크를 표시한다", () => {
     const markup = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(LabIndexPage)));
 
     expect(markup).toContain('data-lab-page="preview-catalog"');
     expect(markup).toContain("Preview Archive");
-    expect(markup.match(/data-discover="true"/g)).toHaveLength(10);
-    expect(markup).toContain("<dt>PREVIEWS</dt><dd>09</dd>");
+    expect(markup.match(/data-discover="true"/g)).toHaveLength(8);
+    expect(markup).toContain("<dt>PREVIEWS</dt><dd>07</dd>");
     expect(markup).toContain('href="/lab/note-assets"');
     expect(markup).toContain("노트 에셋 시연실");
     expect(markup).toContain('href="/lab/flight-background-preview"');

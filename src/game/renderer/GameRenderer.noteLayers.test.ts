@@ -53,7 +53,7 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
       } as unknown as SkinManager;
       const renderer = new GameRenderer({
         canvas: {} as HTMLCanvasElement, width: 400, height: 600, skinManager,
-        showGearFrame: false, showPerspectiveSurface: false,
+        showGearFrame: false, showFlightBackground: false,
       });
       const scene = renderer as unknown as {
         app: Application; noteLayer: Container; longNoteBodyLayer: Container; longNoteEndLayer: Container;

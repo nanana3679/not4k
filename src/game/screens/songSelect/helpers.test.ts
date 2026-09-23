@@ -31,8 +31,8 @@ describe('getDifficultyOrder', () => {
 });
 
 describe('DIFFICULTIES', () => {
-  it('4개 난이도가 순서대로 정의됨', () => {
-    expect([...DIFFICULTIES]).toEqual(['EASY', 'NORMAL', 'HARD', 'EXPERT']);
+  it('세 난이도명은 LIFTOFF → INFILTRATION → BREAKTHROUGH 순서로 정의됨', () => {
+    expect([...DIFFICULTIES]).toEqual(['LIFTOFF', 'INFILTRATION', 'BREAKTHROUGH']);
   });
 });
 

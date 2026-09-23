@@ -69,6 +69,7 @@ export function PlayScreen() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     const init = async () => {
       if (!canvasRef.current || !containerRef.current) return;
 
@@ -116,6 +117,7 @@ export function PlayScreen() {
         });
         const skinManager = new SkinManager();
         await skinManager.loadSkin(settings.skinId);
+        if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
           width: logicalW,
@@ -123,8 +125,13 @@ export function PlayScreen() {
           resolution,
           skinManager,
           bombScale: settings.bombScale,
+          difficultyLabel: chartData.meta.difficultyLabel,
         });
+        rendererRef.current = renderer;
+        audioEngineRef.current = audioEngine;
         await renderer.init();
+        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다.
+        if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
 
         // Set up renderer with chart data
         renderer.setChart(
@@ -172,7 +179,7 @@ export function PlayScreen() {
         const windows = getJudgmentWindows(settings.judgmentMode);
         const rendererPort: SessionRendererPort = {
           showJudgment: (grade, deltaMs) => renderer.showJudgment(grade, deltaMs),
-          recordPerspectiveSurfaceJudgment: grade => renderer.recordPerspectiveSurfaceJudgment(grade),
+          recordFlightJudgment: grade => renderer.recordFlightJudgment(grade),
           showBombEffect: lane => renderer.showBombEffect(lane),
           updateCombo: combo => renderer.updateCombo(combo),
           updateAccuracy: rate => renderer.updateAccuracy(rate),
@@ -274,6 +281,8 @@ export function PlayScreen() {
               handleSongEnd();
               return;
             }
+          } else {
+            lastFrameTime = null;
           }
 
           animationFrameRef.current = requestAnimationFrame(gameLoop);
@@ -285,7 +294,7 @@ export function PlayScreen() {
         animationFrameRef.current = requestAnimationFrame(gameLoop);
 
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to initialize game');
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to initialize game');
       }
     };
 
@@ -293,6 +302,7 @@ export function PlayScreen() {
 
     // Cleanup
     return () => {
+      cancelled = true;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -385,7 +395,7 @@ export function PlayScreen() {
 
   return (
     <div ref={containerRef} style={styles.container}>
-      <canvas key={retryKey} ref={canvasRef} style={styles.canvas} />
+      <canvas key={retryKey} data-testid="gameplay-canvas" ref={canvasRef} style={styles.canvas} />
 
       {isPaused && (
         <div style={import.meta.env.DEV ? styles.pauseOverlayDev : styles.pauseOverlay}>

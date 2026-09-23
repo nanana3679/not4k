@@ -25,24 +25,14 @@ import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRendere
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
-  applyPerspectiveSurfaceJudgment,
-  createPerspectiveSurfaceAltitudeState,
-  resolvePerspectiveSurfaceAltitude,
-  stepPerspectiveSurfaceAltitude,
-  type PerspectiveSurfaceAltitudeState,
-} from "./perspectiveSurfaceAltitude";
-import {
-  buildPerspectiveSurfaceGrid,
-  getPerspectiveGridObjectConnectionSegment,
-  getPerspectiveGridObjectTrail,
-  projectPerspectiveGridObjectSurfaceShape,
-  resolvePerspectiveSurfaceGridParamsFromAltitude,
-  type PerspectiveSurfaceGridLine,
-  type PerspectiveSurfaceGridObjectAppearance,
-  type PerspectiveSurfaceGridParams,
-  type ProjectedGroundPoint,
-} from "../../lab/perspectiveSurfaceGrid";
-import { DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET } from "./perspectiveSurfaceGridPreset";
+  applyFlightJudgment,
+  createFlightAltitudeState,
+  resolveFlightAltitude,
+  stepFlightAltitude,
+  type FlightAltitudeState,
+} from "./flightAltitude";
+import { FlightBackground } from "./flight/FlightBackground";
+import { resolveFlightScenario } from "../../shared/chartDifficulty";
 import {
   GEAR_GAUGE_METADATA,
   getGaugeSpritePlacement,
@@ -78,7 +68,8 @@ export interface GameRendererOptions {
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
   showGearFrame?: boolean;
-  showPerspectiveSurface?: boolean;
+  showFlightBackground?: boolean;
+  difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
   showLaneKeyLabels?: boolean;
   judgmentLineOffset?: number;
@@ -110,8 +101,8 @@ export class GameRenderer {
   private initialized: boolean = false;
 
   // Layers (bottom to top)
-  private surfaceLayer: Container;
-  private surfaceGraphic: Graphics;
+  private flightBackground: FlightBackground | null = null;
+  private readonly difficultyLabel: string;
   private backgroundLayer: Container;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
@@ -141,8 +132,7 @@ export class GameRenderer {
   private textEvents: TextEventRenderData[] = [];
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
-  private surfaceScrollOffsetZ: number = 0;
-  private perspectiveSurfaceAltitudeState: PerspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
+  private flightAltitudeState: FlightAltitudeState = createFlightAltitudeState();
 
   // Skin
   private skinManager: SkinManager;
@@ -210,7 +200,7 @@ export class GameRenderer {
   private resolution: number;
   private laneAreaX: number;
   private showGearFrame: boolean;
-  private showPerspectiveSurface: boolean;
+  private showFlightBackground: boolean;
   private showComboAndAccuracy: boolean;
   private showLaneKeyLabels: boolean;
   private judgmentLineOffset: number;
@@ -242,7 +232,8 @@ export class GameRenderer {
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
-    this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
+    this.showFlightBackground = options.showFlightBackground ?? true;
+    this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
     this.showLaneKeyLabels = options.showLaneKeyLabels ?? false;
     this.keyboardAreaHeight = options.keyboardAreaHeight ?? 0;
@@ -251,8 +242,6 @@ export class GameRenderer {
     this.app = new Application();
 
     // Pre-create layers
-    this.surfaceLayer = new Container();
-    this.surfaceGraphic = new Graphics();
     this.backgroundLayer = new Container();
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
@@ -322,11 +311,10 @@ export class GameRenderer {
       resolution: this.resolution,
       autoStart: false,
       backgroundColor: this.skinManager.getTheme().bg,
+      backgroundAlpha: this.showFlightBackground ? 0 : 1,
     });
 
     // Build scene graph
-    this.surfaceLayer.addChild(this.surfaceGraphic);
-    this.app.stage.addChild(this.surfaceLayer);
     this.app.stage.addChild(this.backgroundLayer);
     // 휴지 밴드는 레인 배경 바로 위(빔/노트 아래)에 깔아 레인을 가라앉힌다.
     this.app.stage.addChild(this.restZoneLayer);
@@ -382,6 +370,15 @@ export class GameRenderer {
       this.buildGearFrame();
     }
     this.initialized = true;
+    if (this.showFlightBackground) {
+      this.flightBackground = new FlightBackground({
+        canvas: this.canvas, width: this.width, height: this.height,
+        resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
+      });
+      try { await this.flightBackground.init(); }
+      // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
+      catch (error) { this.dispose(false); throw error; }
+    }
   }
 
   private drawBackground(): void {
@@ -1157,212 +1154,19 @@ export class GameRenderer {
     this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
-  private renderPerspectiveSurface(songTimeMs: number, deltaMs: number): void {
-    this.perspectiveSurfaceAltitudeState = stepPerspectiveSurfaceAltitude(
-      this.perspectiveSurfaceAltitudeState,
+  private renderFlightBackground(songTimeMs: number, deltaMs: number): void {
+    this.flightAltitudeState = stepFlightAltitude(
+      this.flightAltitudeState,
       deltaMs,
     );
-    const altitude = resolvePerspectiveSurfaceAltitude({
-      state: this.perspectiveSurfaceAltitudeState,
+    const altitude = resolveFlightAltitude({
+      state: this.flightAltitudeState,
       songTimeMs,
       chartDurationMs: this.chartDurationMs,
     });
     this.updateGearGauge(altitude);
 
-    const baseParams = resolvePerspectiveSurfaceGridParamsFromAltitude(
-      altitude,
-      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfaceRanges,
-      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.params,
-    );
-    const deltaSeconds = Math.max(0, Math.min(0.05, deltaMs / 1000));
-    this.surfaceScrollOffsetZ += baseParams.scrollSpeed * deltaSeconds;
-
-    const params: PerspectiveSurfaceGridParams = {
-      ...baseParams,
-      scrollOffsetZ: this.surfaceScrollOffsetZ,
-    };
-    const grid = buildPerspectiveSurfaceGrid(params);
-    const surface = this.surfaceGraphic;
-
-    surface.clear();
-    surface.rect(0, 0, this.width, this.height);
-    surface.fill(0x05080d);
-    this.drawPerspectiveSurfaceSky(surface, params);
-    this.drawPerspectiveSurfaceForwardLight(surface, params);
-
-    if (DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfacePattern === "triangles") {
-      grid.triangles.forEach((triangle, index) => {
-        const color = index % 9 === 0 ? 0xffd27c : 0x52d4e6;
-        this.strokePerspectiveSurfaceLine(surface, triangle.points, color, 0.16, 1);
-      });
-    } else {
-      grid.rows.forEach((row, index) => {
-        const alpha = this.getPerspectiveSurfaceRowAlpha(row, params);
-        const color = index % 5 === 0 ? 0xffd27c : 0x5ee9ee;
-        this.strokePerspectiveSurfaceLine(surface, row.points, color, alpha, 1);
-      });
-
-      grid.columns.forEach((column, index) => {
-        const color = index % 7 === 0 ? 0xffd27c : 0x52d4e6;
-        this.strokePerspectiveSurfaceLine(surface, column.points, color, 0.28, 1);
-      });
-    }
-
-    this.drawPerspectiveSurfaceObjects(surface, params);
-  }
-
-  private drawPerspectiveSurfaceSky(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    const horizonY = this.toSurfaceY(params.horizonYPercent);
-    const skyHeight = Math.max(0, Math.min(this.height, horizonY));
-    if (skyHeight <= 0) return;
-
-    surface.rect(0, 0, this.width, skyHeight);
-    surface.fill({ color: 0x111a21, alpha: 0.58 });
-  }
-
-  private drawPerspectiveSurfaceForwardLight(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    if (params.forwardLightOpacity <= 0) return;
-
-    const lightTopY = this.toSurfaceY(params.forwardLightHeightPercent);
-    const clampedTopY = Math.max(0, Math.min(this.height, lightTopY));
-    const alpha = Math.min(0.24, params.forwardLightOpacity * 0.24);
-    if (alpha <= 0 || clampedTopY >= this.height) return;
-
-    surface.rect(0, clampedTopY, this.width, this.height - clampedTopY);
-    surface.fill({ color: 0xc6fff7, alpha });
-  }
-
-  private drawPerspectiveSurfaceObjects(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    const {
-      objectConnections = [],
-      objectPlacements,
-      objectLightTrail,
-    } = DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET;
-
-    objectConnections.forEach((connection) => {
-      const segment = getPerspectiveGridObjectConnectionSegment(connection, objectPlacements, params);
-      if (segment === null) return;
-
-      this.strokePerspectiveSurfaceLine(
-        surface,
-        [segment.from, segment.to],
-        GameRenderer.parseHexColor(segment.color),
-        0.42,
-        1.2,
-      );
-    });
-
-    objectPlacements.forEach((placement) => {
-      const trail = getPerspectiveGridObjectTrail(placement, params, objectLightTrail.timeSeconds);
-      const trailPoints = trail.points.slice(0, -1);
-      trailPoints.forEach((point, index) => {
-        const progress = (index + 1) / Math.max(1, trailPoints.length);
-        this.fillPerspectiveSurfaceObjectShape(
-          surface,
-          point,
-          placement.appearance,
-          params,
-          objectLightTrail.opacity * 0.5 * progress ** 1.45,
-        );
-      });
-
-      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, {
-        ...placement.appearance,
-        diameter: placement.appearance.diameter * 1.75,
-      }, params, 0.16);
-      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, placement.appearance, params, 0.92);
-    });
-  }
-
-  private fillPerspectiveSurfaceObjectShape(
-    surface: Graphics,
-    center: ProjectedGroundPoint,
-    appearance: PerspectiveSurfaceGridObjectAppearance,
-    params: PerspectiveSurfaceGridParams,
-    alpha: number,
-  ): void {
-    if (alpha <= 0) return;
-
-    const shape = projectPerspectiveGridObjectSurfaceShape(center, appearance, params);
-    const first = shape.vertices[0];
-    if (!first) return;
-    const color = GameRenderer.parseHexColor(appearance.color);
-    const renderMode = appearance.renderMode ?? "filled";
-    const outlineWidth = GameRenderer.getPerspectiveSurfaceObjectOutlineWidth(appearance);
-
-    if (appearance.shape === "point") {
-      surface.circle(
-        this.toSurfaceX(shape.center.screenXPercent),
-        this.toSurfaceY(shape.center.screenYPercent),
-        Math.max(1, appearance.diameter * shape.center.scale * 1.4),
-      );
-      if (renderMode === "outline") {
-        surface.stroke({ width: outlineWidth, color, alpha });
-      } else {
-        surface.fill({ color, alpha });
-      }
-      return;
-    }
-
-    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
-    for (const vertex of shape.vertices.slice(1)) {
-      surface.lineTo(this.toSurfaceX(vertex.screenXPercent), this.toSurfaceY(vertex.screenYPercent));
-    }
-    surface.closePath();
-    if (renderMode === "outline") {
-      surface.stroke({ width: outlineWidth, color, alpha, alignment: 0.5 });
-    } else {
-      surface.fill({ color, alpha });
-    }
-  }
-
-  private static getPerspectiveSurfaceObjectOutlineWidth(appearance: PerspectiveSurfaceGridObjectAppearance): number {
-    const outlineWidth = appearance.outlineWidth ?? 0.18;
-    if (!Number.isFinite(outlineWidth)) return 1.2;
-
-    return Math.max(0.25, Math.min(6, outlineWidth * 6.667));
-  }
-
-  private strokePerspectiveSurfaceLine(
-    surface: Graphics,
-    points: ProjectedGroundPoint[],
-    color: number,
-    alpha: number,
-    width: number,
-  ): void {
-    const first = points[0];
-    if (!first || alpha <= 0) return;
-
-    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
-    for (const point of points.slice(1)) {
-      surface.lineTo(this.toSurfaceX(point.screenXPercent), this.toSurfaceY(point.screenYPercent));
-    }
-    surface.stroke({ width, color, alpha, alignment: 0.5 });
-  }
-
-  private getPerspectiveSurfaceRowAlpha(
-    row: PerspectiveSurfaceGridLine,
-    params: PerspectiveSurfaceGridParams,
-  ): number {
-    if (row.z === undefined) return 0.18;
-
-    const depth = (row.z - params.zNear) / Math.max(1, params.zFar - params.zNear);
-    return Math.max(0.05, Math.min(0.38, 0.08 + (1 - depth) ** 1.2 * 0.3));
-  }
-
-  private toSurfaceX(percent: number): number {
-    return (percent / 100) * this.width;
-  }
-
-  private toSurfaceY(percent: number): number {
-    return (percent / 100) * this.height;
-  }
-
-  private static parseHexColor(value: string): number {
-    const normalized = value.trim().replace(/^#/, "");
-    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return 0xebfffb;
-
-    return Number.parseInt(normalized, 16);
+    this.flightBackground?.render(altitude, deltaMs);
   }
 
   // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.
@@ -1382,8 +1186,8 @@ export class GameRenderer {
     this.trillZones = trillZones;
     this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
-    this.surfaceScrollOffsetZ = 0;
-    this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
+    this.flightBackground?.reset();
+    this.flightAltitudeState = createFlightAltitudeState();
 
     this.noteRenderData = notes.map((entity, index) => {
       const timeMs = timing.noteTimesMs.get(index)!;
@@ -1438,8 +1242,8 @@ export class GameRenderer {
     if (!this.initialized || !this.app.renderer) return;
 
     this.judgmentUI.updateFade(deltaMs);
-    if (this.showPerspectiveSurface) {
-      this.renderPerspectiveSurface(songTimeMs, deltaMs);
+    if (this.showFlightBackground) {
+      this.renderFlightBackground(songTimeMs, deltaMs);
     }
 
     // Hide all pooled graphics
@@ -1480,9 +1284,9 @@ export class GameRenderer {
     this.app.render();
   }
 
-  recordPerspectiveSurfaceJudgment(grade: JudgmentGrade): void {
-    this.perspectiveSurfaceAltitudeState = applyPerspectiveSurfaceJudgment(
-      this.perspectiveSurfaceAltitudeState,
+  recordFlightJudgment(grade: JudgmentGrade): void {
+    this.flightAltitudeState = applyFlightJudgment(
+      this.flightAltitudeState,
       grade,
     );
   }
@@ -1721,13 +1525,15 @@ export class GameRenderer {
     this.noteRenderer.setJudgmentBodyStateQuery(query);
   }
 
-  dispose(): void {
+  dispose(removeView = true): void {
     if (!this.initialized) return;
     this.initialized = false;
+    this.flightBackground?.dispose();
+    this.flightBackground = null;
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.
-    this.app.destroy({ removeView: true, releaseGlobalResources: false }, { children: true, texture: false });
+    this.app.destroy({ removeView, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
     this.buttonSprites = [];
     // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.

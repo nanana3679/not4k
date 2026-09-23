@@ -444,7 +444,7 @@ export function TutorialPreviewPlayer({
           resolution: Math.min(window.devicePixelRatio || 1, 2),
           skinManager: nextSkinManager,
           showGearFrame: false,
-          showPerspectiveSurface: false,
+          showFlightBackground: false,
           showComboAndAccuracy: false,
           showLaneKeyLabels: true,
           judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET,
@@ -480,7 +480,7 @@ export function TutorialPreviewPlayer({
         const sourceNoteCount = preview.chart.notes.length;
         const previewPort: SessionRendererPort = {
           showJudgment: (grade, deltaMs) => renderer?.showJudgment(grade, deltaMs),
-          recordPerspectiveSurfaceJudgment: grade => renderer?.recordPerspectiveSurfaceJudgment(grade),
+          recordFlightJudgment: grade => renderer?.recordFlightJudgment(grade),
           showBombEffect: lane => {
             onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));
             if (showRendererBombRef.current) renderer?.showBombEffect(lane);

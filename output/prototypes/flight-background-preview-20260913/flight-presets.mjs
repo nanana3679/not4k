@@ -1,0 +1,41 @@
+import { breakthroughDefaults } from './preview-ui.mjs';
+
+// 공개 시연과 실제 게임이 같은 승인된 시각 설정을 사용한다.
+export const breakthroughSearch = new URLSearchParams({
+  backdropMotion: 'recursive',
+  backdropRate: '300',
+  backdropPhase: '0.5780524999999819',
+  backdrop: 'architecture',
+  backdropBrightness: String(breakthroughDefaults.backdropBrightness),
+  surroundings: '0',
+  extensions: '0',
+  module: 'F',
+  variant: 'lines',
+  altitude: '0',
+  speed: '1000',
+  clearance: '1',
+  width: '88',
+  depth: '200',
+  planes: '8',
+  density: '100',
+  size: '0.25',
+  nearStretch: '4',
+  height: '144',
+  apexLow: '1',
+  apexHigh: '0',
+  apexLinked: '1',
+  apexGain: '5',
+  outline: '0.25',
+  secondary: '0.15',
+  trail: '0.12',
+  seed: '42',
+  lanes: '0',
+  guides: '0',
+  building: '0',
+  buildingSize: '100',
+  auto: '0',
+  art: '1',
+  progress: '0.909323727999996',
+}).toString();
+
+export const approachSpeed = Object.freeze({ liftoff: 3, infiltration: 6 });
