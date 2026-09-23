@@ -19,6 +19,7 @@ import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
 import { supabase } from '../supabase';
+import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
@@ -892,14 +893,19 @@ function ChartEditorPage() {
           level={chart.meta.difficultyLevel}
           isDirty={!!(savedChartSnapshot && (serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot))}
           onSave={async (targetDifficulty, targetLevel) => {
-            const { data: existing } = await supabase
+            const { data: existing, error } = await supabase
               .from('charts')
-              .select('song_id')
-              .eq('song_id', activeSongId!)
-              .eq('difficulty_label', targetDifficulty.toLowerCase())
-              .maybeSingle();
-            if (existing) {
-              setSaveAsOverwriteTarget({ difficulty: targetDifficulty, level: targetLevel });
+              .select('difficulty_label')
+              .eq('song_id', activeSongId!);
+            if (error) {
+              addToast('기존 차트를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.', 'error');
+              return;
+            }
+            const storedDifficulty = findExistingChartDifficulty(
+              (existing ?? []).map(row => row.difficulty_label), targetDifficulty,
+            );
+            if (storedDifficulty) {
+              setSaveAsOverwriteTarget({ difficulty: storedDifficulty, level: targetLevel });
               setShowSaveAsModal(false);
             } else {
               fileOps.handleSaveAs(targetDifficulty, targetLevel);
@@ -915,7 +921,7 @@ function ChartEditorPage() {
           <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={modalStyles.title}>Overwrite Existing Chart</h3>
             <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
-              <strong>{saveAsOverwriteTarget.difficulty.toUpperCase()}</strong> 난이도에 이미 차트가 존재합니다.<br />
+              <strong>{formatDifficultyLabel(saveAsOverwriteTarget.difficulty)}</strong> 난이도에 이미 차트가 존재합니다.<br />
               <span style={{ color: '#ff9966', fontSize: '13px' }}>덮어쓰시겠습니까? 이 작업은 되돌릴 수 없습니다.</span>
             </p>
             <div style={modalStyles.buttons}>

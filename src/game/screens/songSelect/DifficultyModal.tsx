@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { font, color } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
-import { DIFFICULTIES } from './helpers';
+import { availableChartDifficulties } from '../../../shared/chartDifficulty';
 
 export interface DifficultyModalProps {
   existingDifficulties: string[];
@@ -11,10 +11,7 @@ export interface DifficultyModalProps {
 
 export function DifficultyModal({ existingDifficulties, onSelect, onClose }: DifficultyModalProps) {
   const available = useMemo(
-    () => {
-      const existing = existingDifficulties.map((d) => d.toUpperCase());
-      return DIFFICULTIES.filter((d) => !existing.includes(d));
-    },
+    () => availableChartDifficulties(existingDifficulties),
     [existingDifficulties],
   );
 

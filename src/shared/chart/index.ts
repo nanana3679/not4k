@@ -18,6 +18,7 @@ import type {
   TutorialDiagramId,
 } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
+import { formatDifficultyLabel } from '../chartDifficulty';
 
 // 메인/보조 레인 경계 레이어 (RFD 0018)
 export * from "./laneAxis";
@@ -273,7 +274,7 @@ export function buildSaveAsMeta(
   targetDifficulty: string,
   targetLevel: number,
 ): ChartMeta | null {
-  if (meta.difficultyLabel.toUpperCase() === targetDifficulty.toUpperCase()) {
+  if (formatDifficultyLabel(meta.difficultyLabel) === formatDifficultyLabel(targetDifficulty)) {
     return null;
   }
   return {

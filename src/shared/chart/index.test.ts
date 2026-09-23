@@ -14,6 +14,10 @@ const baseMeta: ChartMeta = {
 };
 
 describe('buildSaveAsMeta', () => {
+  it('HARD에서 같은 난이도의 새 이름 BREAKTHROUGH로 저장하면 null을 반환한다', () => {
+    expect(buildSaveAsMeta(baseMeta, 'BREAKTHROUGH', 10)).toBeNull();
+  });
+
   it('HARD → EASY 변환 시 difficultyLabel="EASY", difficultyLevel=3', () => {
     const result = buildSaveAsMeta(baseMeta, 'EASY', 3);
     expect(result).not.toBeNull();
