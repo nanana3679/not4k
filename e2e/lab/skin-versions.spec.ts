@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CLASSIC_SKIN_VERSIONS } from '../../src/lab/classicSkinVersions';
 
-test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v010→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -10,7 +10,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→�
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009']) {
+  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -25,7 +25,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→�
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v008');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v009');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -267,4 +267,40 @@ test('v008·v009는 렌더러와 같은 배치로 합성했을 때 포인트 경
     expect(Object.keys(results[version])).toHaveLength(8);
     for (const [combo, ratio] of Object.entries(results[version])) expect(ratio, `${version} ${combo}`).toBeGreaterThanOrEqual(3);
   }
+});
+
+test('v010 트릴 끝 터미널은 레인 위에서 대기·켜짐 명도 0.45~0.58의 어두운 마름모이고 실패는 0.1 이상 더 어두우며 트릴 머리 포인트보다 0.35 이상 어둡다', async ({ page }) => {
+  await page.goto('/lab/note-assets?design=classic&version=v010');
+  await expect(page.getByText('PLAYER READY')).toBeVisible();
+  const lightness = await page.evaluate(async () => {
+    const linear = (value: number) => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    // 레인 배경(#1a1c30) 위에 합성한 뒤, 원본에서 불투명한 마름모 픽셀만 평균한 OKLab 명도 근사(휘도 세제곱근).
+    const measure = async (src: string) => {
+      const image = new Image(); image.src = src; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(image, 0, 0);
+      const alpha = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      context.globalCompositeOperation = 'destination-over'; context.fillStyle = '#1a1c30'; context.fillRect(0, 0, canvas.width, canvas.height);
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let sum = 0, count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (alpha[i + 3] === 0) continue;
+        sum += 0.2126 * linear(data[i]) + 0.7152 * linear(data[i + 1]) + 0.0722 * linear(data[i + 2]); count++;
+      }
+      return Math.cbrt(sum / count);
+    };
+    const result: Record<string, number> = {};
+    for (const version of ['v009', 'v010']) for (const name of ['terminal-trill-idle', 'terminal-trill', 'terminal-trill-failed', 'note-trill']) {
+      result[`${version}/${name}`] = await measure(`/lab/skin-versions/classic/${version}/skin/${name}.png`);
+    }
+    return result;
+  });
+  for (const name of ['terminal-trill-idle', 'terminal-trill']) {
+    expect(lightness[`v009/${name}`], `v009 ${name}는 밝은 석영`).toBeGreaterThan(0.65);
+    expect(lightness[`v010/${name}`], `v010 ${name}`).toBeGreaterThanOrEqual(0.45);
+    expect(lightness[`v010/${name}`], `v010 ${name}`).toBeLessThanOrEqual(0.58);
+    expect(lightness['v010/note-trill'] - lightness[`v010/${name}`], `트릴 머리와 ${name}의 명도 차`).toBeGreaterThanOrEqual(0.35);
+  }
+  expect(lightness['v010/terminal-trill-idle'] - lightness['v010/terminal-trill-failed'], '대기와 실패의 명도 차').toBeGreaterThanOrEqual(0.1);
 });

@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v009의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v010의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -134,6 +134,22 @@ describe('Classic 버전 Lab 공개', () => {
       }
       expect((await readFile(resolve(root, `public/skins/classic/body-${kind}.png`))).equals(await archived('v002', `public/skins/classic/body-${kind}.png`)), `현재 body-${kind}.png`).toBe(true);
     }
+  });
+
+  it('v010은 v009에서 트릴 끝 터미널 대기·켜짐·실패만 Simple처럼 어두운 마름모로 바꾸고 트릴 포인트·바디와 나머지 에셋은 v009와 같다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    const changed = new Set(['terminal-trill.png', 'terminal-trill-idle.png', 'terminal-trill-failed.png']);
+    for (const path of ['note-trill.png', 'note-trill-failed.png', 'body-trill.png', 'body-trill-held.png', 'body-trill-failed.png', 'note-single.png', 'body-double.png', 'terminal-single.png', 'point-contact-shadow.png', ...changed]) {
+      expect((await archived('v010', `public/skins/classic/${path}`)).equals(await archived('v009', `public/skins/classic/${path}`)), path).toBe(!changed.has(path));
+    }
+    const idle = (await archived('v010', 'assets-lab/classic/sources/terminal-end-trill.svg')).toString();
+    const on = (await archived('v010', 'assets-lab/classic/sources/terminal-end-trill-on.svg')).toString();
+    const failed = (await archived('v010', 'assets-lab/classic/sources/terminal-end-trill-failed.svg')).toString();
+    for (const source of [idle, on, failed]) expect(source).toContain('data-tone="dark-diamond"');
+    for (const source of [idle, on]) expect(source).toContain('fill="#6a6a6e"');
+    expect(failed).toContain('fill="#3b3b3b"');
+    expect((await archived('v010', 'public/skins/classic/terminal-trill.png')).equals(await archived('v010', 'public/skins/classic/terminal-trill-idle.png'))).toBe(true);
+    expect((await readFile(resolve(root, 'public/skins/classic/terminal-trill-idle.png'))).equals(await archived('v002', 'public/skins/classic/terminal-trill-idle.png')), '현재 적용본 트릴 터미널').toBe(true);
   });
 
   it('v001만 정적 내보내면 PNG 바이트를 보존하고 v002·생성 코드는 포함하지 않는다', async () => {

@@ -66,6 +66,14 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('/lab/skin-versions/classic/v009/svg/body-single-idle.svg');
   });
 
+  it('version=v010 직접 링크는 어두운 마름모 트릴 터미널 선택지와 v010 트릴 터미널 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v010');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v010"');
+    expect(markup).toContain('value="v010" selected=""');
+    expect(markup).toContain('어두운 마름모 트릴 터미널');
+    expect(markup).toContain('/lab/skin-versions/classic/v010/svg/terminal-trill-idle.svg');
+  });
+
   it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
     const markup = renderPage('/', '?design=simple&version=v001');
     expect(markup).toContain('data-tutorial-skin-id="simple"');

@@ -39,7 +39,7 @@ describe('시안 교체', () => {
     expect(design.bombs[0].frames).toBe(skin.assets.bomb);
   });
 
-  it.each(['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009'])('Classic %s를 고르면 재생기·포인트·바디·터미널·기어·봄 모두 같은 보관본을 사용한다', version => {
+  it.each(['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010'])('Classic %s를 고르면 재생기·포인트·바디·터미널·기어·봄 모두 같은 보관본을 사용한다', version => {
     const design = getNoteAssetDesign('classic', version);
     const prefix = `/lab/skin-versions/classic/${version}/`;
     expect(design.id).toBe('classic');
