@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200" fill="none" data-artwork="trill-quartz-06" data-role="terminal-end" >
+  <title>Trill · 바디 재질의 마름모 끝 터미널</title>
+  <desc>Editable vector artwork. Shared width 1000; point and terminal have a vertically symmetric 5:1 diamond silhouette. No embedded raster image.</desc>
+  <defs>
+    <linearGradient id="quartz-terminal-left-reflection" x1="0" y1="0" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".48"/>
+      <stop offset=".24" stop-color="#ffffff" stop-opacity=".19"/>
+      <stop offset=".58" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".8" stop-color="#ffffff" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".24"/>
+    </linearGradient>
+    <linearGradient id="quartz-terminal-right-reflection" x1="500" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".14"/>
+      <stop offset=".22" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".42" stop-color="#ffffff" stop-opacity=".035"/>
+      <stop offset=".68" stop-color="#ffffff" stop-opacity=".17"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".49"/>
+    </linearGradient>
+    <clipPath id="quartz-terminal-diamond" clipPathUnits="userSpaceOnUse"><path d="M0 100 500 0 1000 100 500 200Z"/></clipPath>
+  </defs>
+  <g id="quartz-terminal-silhouette" clip-path="url(#quartz-terminal-diamond)">
+  <g id="quartz-terminal-base" data-layer="base">
+    <path id="quartz-terminal-material-foundation" fill="#9b9ea3" d="M0 0H1000V200H0Z"/>
+    <path id="quartz-terminal-right-face" fill="#878b8f" d="M500 0H1000V200H500Z"/>
+  </g>
+  <g id="quartz-terminal-reflections" data-layer="reflections">
+    <path id="quartz-terminal-left-reflected-light" fill="url(#quartz-terminal-left-reflection)" d="M0 0H500V200H0Z"/>
+    <path id="quartz-terminal-right-reflected-light" fill="url(#quartz-terminal-right-reflection)" d="M500 0H1000V200H500Z"/>
+    <path id="quartz-terminal-center-edge" d="M500 0V200" fill="none" stroke="#edf0f5" stroke-opacity=".7" stroke-width="2"/>
+    <path id="quartz-terminal-outer-silhouette" d="M.6 0V200M999.4 0V200" fill="none" stroke="#edf0f5" stroke-opacity=".55" stroke-width="1.2"/>
+  </g>
+  </g>
+</svg>

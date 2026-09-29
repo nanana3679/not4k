@@ -50,6 +50,14 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('/lab/skin-versions/classic/v007/svg/body-double-idle.svg');
   });
 
+  it('version=v008 직접 링크는 접촉 그림자 선택지와 v008 재생기·포인트 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v008');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v008"');
+    expect(markup).toContain('value="v008" selected=""');
+    expect(markup).toContain('위아래 접촉 그림자');
+    expect(markup).toContain('/lab/skin-versions/classic/v008/svg/note-single.svg');
+  });
+
   it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
     const markup = renderPage('/', '?design=simple&version=v001');
     expect(markup).toContain('data-tutorial-skin-id="simple"');

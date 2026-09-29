@@ -113,6 +113,18 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
+  it('매니페스트에 pointContactShadow 경로가 있으면 접촉 그림자 텍스처를 함께 로드하고 없으면 제공하지 않는다', async () => {
+    const base = getSkinManifest('classic');
+    const withContact = { ...base, assets: { ...base.assets, pointContactShadow: '/lab/skin-versions/classic/v008/skin/point-contact-shadow.png' } };
+    const manager = new SkinManager();
+    await manager.loadSkin(withContact);
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v008/skin/point-contact-shadow.png');
+    expect(manager.hasTexture('pointContactShadow')).toBe(true);
+    await manager.loadSkin(base);
+    expect(manager.hasTexture('pointContactShadow')).toBe(false);
+    manager.dispose();
+  });
+
   it('Classic을 로드하면 16프레임 봄과 포인트 그림자·Grace2종을 게임용 공통 폴더에서 제공', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');

@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v007의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v008의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -94,6 +94,27 @@ describe('Classic 버전 Lab 공개', () => {
       expect((await archived('v007', `assets-lab/classic/sources/body-${kind}-bright.svg`)).toString()).toContain(`data-contrast-band="body-mid" data-linear-scale="${scale}"`);
       expect((await readFile(resolve(root, `public/skins/classic/body-${kind}.png`))).equals(await archived('v002', `public/skins/classic/body-${kind}.png`)), `현재 body-${kind}.png`).toBe(true);
     }
+  });
+
+  it('v008은 v007 흰빛 포인트와 v006 S05/D05 바디·터미널을 그대로 쓰고 위아래 5px 접촉 그림자 텍스처·설정만 더하며 현재 적용본에는 그림자를 추가하지 않는다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    const same = async (path: string, from: string) => expect((await archived('v008', path)).equals(await archived(from, path)), `${path} = ${from}`).toBe(true);
+    for (const kind of ['single', 'double']) {
+      await same(`public/skins/classic/note-${kind}.png`, 'v007');
+      for (const path of [`body-${kind}.png`, `body-${kind}-held.png`, `body-${kind}-failed.png`, `terminal-${kind}.png`, `terminal-${kind}-idle.png`]) {
+        await same(`public/skins/classic/${path}`, 'v006');
+      }
+    }
+    for (const path of ['public/skins/classic/note-trill.png', 'public/skins/classic/point-shadow.png', 'public/skins/classic/bomb-00.png', 'assets-lab/classic/bright-body.mjs']) {
+      await same(path, 'v007');
+    }
+    const shadow = await archived('v008', 'public/skins/classic/point-contact-shadow.png');
+    expect([shadow.readUInt32BE(16), shadow.readUInt32BE(20)]).toEqual([200, 20]);
+    expect((await archived('v008', 'assets-lab/classic/states.mjs')).toString()).toContain('pointContactShadow: \'point-contact-shadow\'');
+    const config = (await archived('v008', 'src/game/skin/skins.ts')).toString();
+    expect(config).toContain('pointContactShadow: { above: 5, below: 5 }');
+    expect(config).toContain('pointContactShadow: withPublicBase("/skins/classic/point-contact-shadow.png")');
+    await expect(access(resolve(root, 'public/skins/classic/point-contact-shadow.png'))).rejects.toThrow();
   });
 
   it('v001만 정적 내보내면 PNG 바이트를 보존하고 v002·생성 코드는 포함하지 않는다', async () => {

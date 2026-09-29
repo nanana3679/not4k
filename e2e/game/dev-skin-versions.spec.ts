@@ -54,13 +54,13 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+test('dev Settings → Skin에서 v008을 고르면 Supabase 곡으로 연주하며 포인트 위아래 접촉 그림자를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
   const settingsBefore = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   await openSkinSettings(page);
-  await page.getByLabel('개발용 스킨').selectOption('v007');
+  await page.getByLabel('개발용 스킨').selectOption('v008');
   await page.screenshot({ path: testInfo.outputPath('settings-dev-skin.png') });
   await closeSettings(page);
 
@@ -71,10 +71,11 @@ test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       const result = render.apply(this, args);
+      type Drawn = { texture: { height: number }; x: number; y: number; width: number; scale: { y: number } };
       const self = this as unknown as {
-        skinManager: { skinId: string; getTexture: (key: string) => unknown };
+        skinManager: { skinId: string; getTexture: (key: string) => unknown; hasTexture: (key: string) => boolean };
         laneAreaX: number;
-        noteLayer: { children: Array<{ texture: unknown; x: number; width: number }> };
+        noteLayer: { children: Drawn[] };
         longNoteBodyLayer: { children: Array<{ x: number; width: number }> };
       };
       const state = window as unknown as Record<string, unknown>;
@@ -83,7 +84,19 @@ test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하
         ['noteSingle', 'noteDouble'].some(key => sprite.texture === self.skinManager.getTexture(key)));
       if (points.length === 2 && self.longNoteBodyLayer.children.length === 2) {
         const bounds = ({ x, width }: { x: number; width: number }) => ({ x: x - self.laneAreaX, width });
-        state.__devNoteBounds = { points: points.map(bounds), bodies: self.longNoteBodyLayer.children.map(bounds) };
+        const contact = self.skinManager.hasTexture('pointContactShadow')
+          ? self.noteLayer.children.filter(sprite => sprite.texture === self.skinManager.getTexture('pointContactShadow'))
+          : [];
+        state.__devNoteBounds = {
+          points: points.map(bounds),
+          bodies: self.longNoteBodyLayer.children.map(bounds),
+          // 부호 있는 높이: 음수면 포인트 윗변에서 위로 뒤집어 그린 그림자다.
+          contact: contact.map(sprite => ({
+            ...bounds(sprite),
+            fromPointTop: sprite.y - points.find(point => Math.abs(point.x - sprite.x) < 5)!.y,
+            height: sprite.scale.y * sprite.texture.height,
+          })),
+        };
       }
       return result;
     };
@@ -94,11 +107,14 @@ test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   expect((await chartResponse).status()).toBe(200);
   expect((await audioResponse).status()).toBe(200);
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v007');
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v008');
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds)).toBeTruthy();
   const bounds = await page.evaluate(() => (window as unknown as {
-    __devNoteBounds: { points: Array<{ x: number; width: number }>; bodies: Array<{ x: number; width: number }> };
+    __devNoteBounds: {
+      points: Array<{ x: number; width: number }>; bodies: Array<{ x: number; width: number }>;
+      contact: Array<{ x: number; width: number; fromPointTop: number; height: number }>;
+    };
   }).__devNoteBounds);
   expect(bounds.points).toEqual([{ x: 0, width: 100 }, { x: 100, width: 100 }]);
   bounds.bodies.forEach((body, lane) => {
@@ -107,6 +123,14 @@ test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하
     expect(body.x).toBeGreaterThan(bounds.points[lane].x);
     expect(body.x + body.width).toBeLessThan(bounds.points[lane].x + bounds.points[lane].width);
   });
+  // 레인마다 포인트 윗변에서 위로 5px, 아랫변에서 아래로 5px의 바디 폭 그림자가 있다.
+  expect(bounds.contact).toHaveLength(4);
+  for (const lane of [0, 1]) {
+    const shadows = bounds.contact.filter(shadow => Math.abs(shadow.x - (lane * 100 + 2.83)) < 0.01);
+    expect(shadows.map(({ fromPointTop, height }) => [Math.round(fromPointTop * 100) / 100, Math.round(height * 100) / 100]))
+      .toEqual([[0, -5], [20, 5]]);
+    shadows.forEach(shadow => expect(shadow.width).toBeCloseTo(94.34, 2));
+  }
 
   expect(await page.evaluate(async () => {
     const url = performance.getEntriesByType('resource').map(entry => entry.name)
@@ -124,7 +148,7 @@ test('dev Settings → Skin에서 v007을 고르면 Supabase 곡으로 연주하
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
   await openSkinSettings(page);
-  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v007');
+  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v008');
   await page.getByLabel('개발용 스킨').selectOption('v001');
   await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();

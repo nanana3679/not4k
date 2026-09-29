@@ -68,6 +68,7 @@ export class GameNoteRenderer {
   private graceGlowPool: Map<number, Graphics> = new Map();
   private graceOverlayPool: Map<number, Sprite> = new Map();
   private pointShadowPool: Map<number, Sprite> = new Map();
+  private pointContactShadowPool: Map<number, [Sprite, Sprite]> = new Map();
   private trillPointShadowPool: Map<number, Mesh> = new Map();
   private trillPointShadowGeometry: MeshGeometry | null = null;
 
@@ -151,8 +152,11 @@ export class GameNoteRenderer {
       this.addGraceGlow(index, this.noteLayer, pointX, y, pointWidth, 'point');
     }
 
-    const shadowGeometry = this.skinManager.getTheme().pointShadow;
-    if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
+    const theme = this.skinManager.getTheme();
+    const shadowGeometry = theme.pointShadow;
+    if (entity.type !== 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadow')) {
+      this.addPointContactShadow(index, laneX, y, theme.pointContactShadow);
+    } else if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
       if (entity.type === 'trill') {
         // 직사각형 그림자는 마름모 하단과 떨어져 가로 절단선처럼 보인다.
         // 같은 그림자 텍스처를 아래 두 변에 맞춰 흰 바디 위에서도 윤곽을 유지한다.
@@ -745,6 +749,30 @@ export class GameNoteRenderer {
     return sprite;
   }
 
+  /**
+   * 싱글·더블 포인트 위아래 바디에 접촉 그림자를 깐다. 바디 전체를 어둡게 하지 않고
+   * 포인트 경계에서만 명도 대비를 만들어 밝은 바디 위에서도 포인트를 분리한다.
+   */
+  private addPointContactShadow(index: number, laneX: number, y: number, reach: { above: number; below: number }): void {
+    let pair = this.pointContactShadowPool.get(index);
+    if (!pair) {
+      const texture = this.skinManager.getTexture('pointContactShadow');
+      pair = [new Sprite(texture), new Sprite(texture)];
+      this.pointContactShadowPool.set(index, pair);
+    }
+    const [above, below] = pair;
+    const bodyWidth = this.getBodyWidth();
+    const x = laneX + (LANE_WIDTH - bodyWidth) / 2;
+    // 텍스처는 윗행이 가장 짙다. 위 그림자는 세로로 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
+    above.x = x;
+    above.y = y;
+    above.scale.set(bodyWidth / above.texture.width, -reach.above / above.texture.height);
+    below.x = x;
+    below.y = y + NOTE_HEIGHT;
+    below.scale.set(bodyWidth / below.texture.width, reach.below / below.texture.height);
+    this.noteLayer.addChild(above, below);
+  }
+
   private addGraceGlow(index: number, layer: Container, x: number, y: number, width: number, kind: 'point' | 'terminal'): void {
     const key = kind === 'point' ? 'pointGraceOverlay' : 'terminalGraceOverlay';
     if (this.skinManager.hasTexture(key)) {
@@ -802,6 +830,7 @@ export class GameNoteRenderer {
     this.graceGlowPool.clear();
     this.graceOverlayPool.clear();
     this.pointShadowPool.clear();
+    this.pointContactShadowPool.clear();
     this.trillPointShadowPool.clear();
     this.trillPointShadowGeometry?.destroy();
     this.trillPointShadowGeometry = null;
