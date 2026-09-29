@@ -38,8 +38,8 @@ describe('dev Settings의 스킨 버전', () => {
     expect(resolveDevSkinSelection('crystal')).toBe('crystal');
   });
 
-  it('선택기는 게임 설정·현재 Classic·v001~v004의 6개 선택지를 제공한다', () => {
-    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v004', 'v003', 'v002', 'v001']);
+  it('선택기는 게임 설정·현재 Classic·v001~v005의 7개 선택지를 제공한다', () => {
+    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v005', 'v004', 'v003', 'v002', 'v001']);
     const html = renderToStaticMarkup(createElement(DevSkinVersionSelect));
     expect(html).toContain('개발용 스킨');
     expect(html).toContain('value="settings" selected=""');

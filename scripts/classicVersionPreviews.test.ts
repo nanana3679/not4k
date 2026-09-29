@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001·v002·v003·v004의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v005의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -47,6 +47,15 @@ describe('Classic 버전 Lab 공개', () => {
       expect(await archived('v004', `assets-lab/classic/sources/point-${kind}.svg`)).toEqual(pointSource);
       expect(await archived('v004', `public/skins/classic/body-${kind}.png`)).toEqual(await archived('v003', `public/skins/classic/body-${kind}.png`));
       expect(await archived('v004', `public/skins/classic/note-${kind}.png`)).not.toEqual(await archived('v003', `public/skins/classic/note-${kind}.png`));
+    }
+  });
+
+  it('v005는 v004의 S05/D05 바디를 그대로 보관하고 싱글·더블 포인트 외곽만 바꾼다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    for (const kind of ['single', 'double']) {
+      expect(await archived('v005', `public/skins/classic/body-${kind}.png`)).toEqual(await archived('v004', `public/skins/classic/body-${kind}.png`));
+      expect(await archived('v005', `public/skins/classic/terminal-${kind}-idle.png`)).toEqual(await archived('v004', `public/skins/classic/terminal-${kind}-idle.png`));
+      expect(await archived('v005', `public/skins/classic/note-${kind}.png`)).not.toEqual(await archived('v004', `public/skins/classic/note-${kind}.png`));
     }
   });
 

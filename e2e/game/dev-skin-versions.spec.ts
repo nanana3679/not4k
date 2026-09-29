@@ -54,13 +54,13 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('dev Settings → Skin에서 v004를 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+test('dev Settings → Skin에서 v005를 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
   const settingsBefore = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   await openSkinSettings(page);
-  await page.getByLabel('개발용 스킨').selectOption('v004');
+  await page.getByLabel('개발용 스킨').selectOption('v005');
   await page.screenshot({ path: testInfo.outputPath('settings-dev-skin.png') });
   await closeSettings(page);
 
@@ -71,8 +71,20 @@ test('dev Settings → Skin에서 v004를 고르면 Supabase 곡으로 연주하
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       const result = render.apply(this, args);
-      const self = this as unknown as { skinManager: { skinId: string } };
-      (window as unknown as Record<string, unknown>).__devPlaySkin = self.skinManager.skinId;
+      const self = this as unknown as {
+        skinManager: { skinId: string; getTexture: (key: string) => unknown };
+        laneAreaX: number;
+        noteLayer: { children: Array<{ texture: unknown; x: number; width: number }> };
+        longNoteBodyLayer: { children: Array<{ x: number; width: number }> };
+      };
+      const state = window as unknown as Record<string, unknown>;
+      state.__devPlaySkin = self.skinManager.skinId;
+      const points = self.noteLayer.children.filter(sprite =>
+        ['noteSingle', 'noteDouble'].some(key => sprite.texture === self.skinManager.getTexture(key)));
+      if (points.length === 2 && self.longNoteBodyLayer.children.length === 2) {
+        const bounds = ({ x, width }: { x: number; width: number }) => ({ x: x - self.laneAreaX, width });
+        state.__devNoteBounds = { points: points.map(bounds), bodies: self.longNoteBodyLayer.children.map(bounds) };
+      }
       return result;
     };
   });
@@ -82,8 +94,20 @@ test('dev Settings → Skin에서 v004를 고르면 Supabase 곡으로 연주하
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   expect((await chartResponse).status()).toBe(200);
   expect((await audioResponse).status()).toBe(200);
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v004');
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v005');
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds)).toBeTruthy();
+  const bounds = await page.evaluate(() => (window as unknown as {
+    __devNoteBounds: { points: Array<{ x: number; width: number }>; bodies: Array<{ x: number; width: number }> };
+  }).__devNoteBounds);
+  expect(bounds.points).toEqual([{ x: 0, width: 100 }, { x: 100, width: 100 }]);
+  bounds.bodies.forEach((body, lane) => {
+    expect(body.x).toBeCloseTo(lane * 100 + 2.83, 2);
+    expect(body.width).toBeCloseTo(94.34, 2);
+    expect(body.x).toBeGreaterThan(bounds.points[lane].x);
+    expect(body.x + body.width).toBeLessThan(bounds.points[lane].x + bounds.points[lane].width);
+  });
+
   expect(await page.evaluate(async () => {
     const url = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(name => new URL(name).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
@@ -100,7 +124,7 @@ test('dev Settings → Skin에서 v004를 고르면 Supabase 곡으로 연주하
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
   await openSkinSettings(page);
-  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v004');
+  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v005');
   await page.getByLabel('개발용 스킨').selectOption('v001');
   await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();

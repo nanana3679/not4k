@@ -142,10 +142,9 @@ export class GameNoteRenderer {
     const isPartial = this.doublePartialNotes.has(index);
     const isMissed = this.missedNotes.has(index);
     const isGrace = isGraceNote(entity);
-    // Trill diamonds share the body's width; the mechanical point overhang is separate.
-    const pointOverhang = entity.type === "trill" ? 0 : Math.max(0, this.skinManager.getTheme().pointNoteOverhangPx ?? 0);
-    const pointX = laneX - pointOverhang;
-    const pointWidth = NOTE_WIDTH + pointOverhang * 2;
+    // 포인트 전체 외곽이 레인의 기준이다. 돌출부가 있는 스킨은 바디를 안쪽으로 줄인다.
+    const pointX = laneX;
+    const pointWidth = NOTE_WIDTH;
 
     // Grace glow effect (miss 시에는 표시하지 않음)
     if (isGrace && !isMissed) {
@@ -189,9 +188,10 @@ export class GameNoteRenderer {
           shadow = new Sprite(this.skinManager.getTexture('pointShadow'));
           this.pointShadowPool.set(index, shadow);
         }
-        shadow.x = laneX;
+        const bodyWidth = this.getBodyWidth();
+        shadow.x = laneX + (LANE_WIDTH - bodyWidth) / 2;
         shadow.y = y + shadowGeometry.offsetY;
-        shadow.width = LANE_WIDTH;
+        shadow.width = bodyWidth;
         shadow.height = shadowGeometry.height;
         this.noteLayer.addChild(shadow);
       }
@@ -301,11 +301,13 @@ export class GameNoteRenderer {
     const isPartialFailed = partialSide !== undefined;
     const theme = this.skinManager.getTheme();
     const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
+    const bodyWidth = entity.type === "trillLong" ? LANE_WIDTH : this.getBodyWidth();
+    const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
     const terminalFrameOverhang = fullHeightTerminal
-      ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0)
+      ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0) * bodyWidth / LANE_WIDTH
       : 0;
-    const terminalX = laneX - terminalFrameOverhang;
-    const terminalWidth = LANE_WIDTH + terminalFrameOverhang * 2;
+    const terminalX = bodyX - terminalFrameOverhang;
+    const terminalWidth = bodyWidth + terminalFrameOverhang * 2;
 
     if (entity.type === "trillLong") {
       // Trill long: Sprite-based
@@ -331,10 +333,10 @@ export class GameNoteRenderer {
       const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
       const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
       if (insetBodyHeight > 0) {
-        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-        bodySprite.x = laneX;
+        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+        bodySprite.x = bodyX;
         bodySprite.y = insetBodyY;
-        bodySprite.width = LANE_WIDTH;
+        bodySprite.width = bodyWidth;
         bodySprite.height = insetBodyHeight;
         bodySprite.tint = 0xffffff;
         bodySprite.alpha = 1;
@@ -424,10 +426,10 @@ export class GameNoteRenderer {
         }
       }
 
-      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-      bodySprite.x = laneX;
+      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+      bodySprite.x = bodyX;
       bodySprite.y = adjustedEndY;
-      bodySprite.width = LANE_WIDTH;
+      bodySprite.width = bodyWidth;
       bodySprite.height = bodyHeight;
       bodySprite.tint = 0xffffff;
       bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
@@ -673,6 +675,11 @@ export class GameNoteRenderer {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
   }
 
+  private getBodyWidth(): number {
+    const overhang = Math.max(0, this.skinManager.getTheme().pointNoteOverhangPx ?? 0);
+    return LANE_WIDTH * NOTE_WIDTH / (NOTE_WIDTH + overhang * 2);
+  }
+
   // ── 오브젝트 풀 ───────────────────────────────────────────
 
   private getOrCreateNoteSprite(index: number, texKey: string): Sprite {
@@ -689,7 +696,7 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite | TilingSprite {
+  private getOrCreateBodySprite(index: number, texKey: string, width: number): NineSliceSprite | TilingSprite {
     let pool = this.bodySpritePool.get(index);
     if (!pool) {
       pool = new Map();
@@ -699,8 +706,8 @@ export class GameNoteRenderer {
     if (!sprite) {
       const texture = this.skinManager.getTexture(texKey);
       if (this.skinManager.getTheme().longNoteBodyMode === 'repeat') {
-        const tile = new TilingSprite({ texture, width: LANE_WIDTH, height: NOTE_HEIGHT });
-        tile.tileScale.set(LANE_WIDTH / texture.width);
+        const tile = new TilingSprite({ texture, width, height: NOTE_HEIGHT });
+        tile.tileScale.set(width / texture.width);
         sprite = tile;
       } else {
         sprite = new NineSliceSprite({ texture, leftWidth: 4, rightWidth: 4, topHeight: 4, bottomHeight: 4 });
