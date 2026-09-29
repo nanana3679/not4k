@@ -41,6 +41,15 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('/lab/skin-versions/classic/v006/svg/note-double.svg');
   });
 
+  it('version=v007 직접 링크는 포인트·바디 대비 3:1 선택지와 v007 포인트·바디 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v007');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v007"');
+    expect(markup).toContain('value="v007" selected=""');
+    expect(markup).toContain('포인트·바디 대비 3:1');
+    expect(markup).toContain('/lab/skin-versions/classic/v007/svg/note-single.svg');
+    expect(markup).toContain('/lab/skin-versions/classic/v007/svg/body-double-idle.svg');
+  });
+
   it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
     const markup = renderPage('/', '?design=simple&version=v001');
     expect(markup).toContain('data-tutorial-skin-id="simple"');

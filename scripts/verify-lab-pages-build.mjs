@@ -34,6 +34,8 @@ const requiredPaths = [
   "lab/skin-versions/classic/v004/svg/body-double-idle.svg",
   "lab/skin-versions/classic/v006/skin/note-single.png",
   "lab/skin-versions/classic/v006/svg/note-double.svg",
+  "lab/skin-versions/classic/v007/skin/body-double-held.png",
+  "lab/skin-versions/classic/v007/svg/note-single.svg",
 ];
 
 await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pathname))));

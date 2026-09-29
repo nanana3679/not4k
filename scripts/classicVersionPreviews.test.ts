@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v006의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v007의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -73,6 +73,26 @@ describe('Classic 버전 Lab 공개', () => {
       expect(after).toContain('<rect x="118" y="34" width="824" height="151" fill="url(#readability-face)"/>');
       expect(after).toContain('<rect x="95" y="34" width="23" height="151" fill="url(#p-rail)"/>');
       expect(await readFile(resolve(root, `public/skins/classic/note-${kind}.png`))).toEqual(await archived('v002', `public/skins/classic/note-${kind}.png`));
+    }
+  });
+
+  it('v007은 v006의 포인트·바디 원본에서 포인트 면만 흰빛으로 올리고 바디는 선형광 싱글 ×0.6·더블 ×0.36으로 낮추며 트릴·봄·버튼·기어·설정은 v006과 같다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    for (const path of ['note-trill.png', 'body-trill.png', 'terminal-trill.png', 'bomb-00.png', 'button-idle-1.png']) {
+      expect((await archived('v007', `public/skins/classic/${path}`)).equals(await archived('v006', `public/skins/classic/${path}`)), path).toBe(true);
+    }
+    for (const path of ['public/gear/gear-frame.png', 'src/game/skin/skins.ts', 'assets-lab/classic/states.mjs', 'assets-lab/classic/bright-body.mjs']) {
+      expect((await archived('v007', path)).equals(await archived('v006', path)), path).toBe(true);
+    }
+    for (const [kind, scale] of [['single', '0.6'], ['double', '0.36']]) {
+      for (const path of [`note-${kind}.png`, `body-${kind}.png`, `body-${kind}-held.png`, `terminal-${kind}-idle.png`]) {
+        expect((await archived('v007', `public/skins/classic/${path}`)).equals(await archived('v006', `public/skins/classic/${path}`)), path).toBe(false);
+      }
+      const point = (await archived('v007', `assets-lab/classic/sources/point-${kind}.svg`)).toString();
+      expect(point).toContain('data-side-panels="bright" data-contrast-band="point-bright"');
+      expect(point).toContain('<rect x="118" y="34" width="824" height="151" fill="url(#readability-face)"/>');
+      expect((await archived('v007', `assets-lab/classic/sources/body-${kind}-bright.svg`)).toString()).toContain(`data-contrast-band="body-mid" data-linear-scale="${scale}"`);
+      expect((await readFile(resolve(root, `public/skins/classic/body-${kind}.png`))).equals(await archived('v002', `public/skins/classic/body-${kind}.png`)), `현재 body-${kind}.png`).toBe(true);
     }
   });
 

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('현재→v001→v002→v003→v004→v005→v006→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v003→v004→v005→v006→v007→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -9,7 +9,7 @@ test('현재→v001→v002→v003→v004→v005→v006→현재 전환에서 차
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006']) {
+  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -24,7 +24,7 @@ test('현재→v001→v002→v003→v004→v005→v006→현재 전환에서 차
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v005');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v006');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -157,4 +157,53 @@ test('v006 포인트는 v005 양끝 안쪽의 검은 세로띠를 같은 행의 
     expect(result.changedOutsideBand, `${result.kind} 중앙 면·흰 레일·바깥 금속 면 보존`).toBe(0);
     expect(result.hue, `${result.kind} 고유색 유지`).toBe(true);
   }
+});
+
+test('v007은 싱글·더블 포인트와 싱글·더블의 대기·켜짐 바디 8개 조합에서 면 명도 대비 3:1 이상이고 v006은 미달한다', async ({ page }) => {
+  await page.goto('/lab/note-assets?design=classic&version=v007');
+  await expect(page.getByText('PLAYER READY')).toBeVisible();
+  const results = await page.evaluate(async () => {
+    const pixels = async (src: string) => {
+      const image = new Image(); image.src = src; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, canvas.width, canvas.height);
+    };
+    const linear = (value: number) => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    // 영역 평균 상대 휘도(WCAG Y). 포인트는 212×40의 중앙 면, 바디는 좌우 10%를 뺀 전체 타일.
+    const meanLuminance = (image: ImageData, x0: number, y0: number, x1: number, y1: number) => {
+      let sum = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const i = (y * image.width + x) * 4;
+        sum += 0.2126 * linear(image.data[i]) + 0.7152 * linear(image.data[i + 1]) + 0.0722 * linear(image.data[i + 2]);
+      }
+      return sum / ((x1 - x0) * (y1 - y0));
+    };
+    const faceHue = (image: ImageData) => {
+      let r = 0, b = 0;
+      for (let y = 10; y < 32; y++) for (let x = 50; x < 162; x++) { const i = (y * image.width + x) * 4; r += image.data[i]; b += image.data[i + 2]; }
+      return r > b ? 'gold' : 'blue';
+    };
+    const measure = async (version: string) => {
+      const base = `/lab/skin-versions/classic/${version}/skin`;
+      const ratios: Record<string, number> = {};
+      const hues: Record<string, string> = {};
+      for (const point of ['single', 'double']) {
+        const note = await pixels(`${base}/note-${point}.png`);
+        hues[point] = faceHue(note);
+        const face = meanLuminance(note, 50, 10, 162, 32);
+        for (const body of ['single', 'double']) for (const state of ['', '-held']) {
+          const tile = await pixels(`${base}/body-${body}${state}.png`);
+          const luminance = meanLuminance(tile, Math.floor(tile.width * 0.1), 0, Math.floor(tile.width * 0.9), tile.height);
+          ratios[`${point}→${body}${state || '-idle'}`] = (Math.max(face, luminance) + 0.05) / (Math.min(face, luminance) + 0.05);
+        }
+      }
+      return { ratios, hues };
+    };
+    return { v006: await measure('v006'), v007: await measure('v007') };
+  });
+  expect(Object.keys(results.v007.ratios)).toHaveLength(8);
+  expect(Math.min(...Object.values(results.v006.ratios)), 'v006 최저 대비').toBeLessThan(3);
+  for (const [combo, ratio] of Object.entries(results.v007.ratios)) expect(ratio, `v007 ${combo}`).toBeGreaterThanOrEqual(3);
+  expect(results.v007.hues).toEqual({ single: 'blue', double: 'gold' });
 });
