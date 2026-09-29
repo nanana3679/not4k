@@ -9,7 +9,7 @@ import { DEV_SKIN_OPTIONS, resolveDevSkinSelection, useDevSkinSelection } from '
 
 beforeEach(() => useDevSkinSelection.getState().select('settings'));
 
-describe('dev 곡 선택의 스킨 버전', () => {
+describe('dev Settings의 스킨 버전', () => {
   it('선택 전에는 저장된 crystal을 쓰고 설정이 classic으로 바뀌면 classic을 쓴다', () => {
     expect(resolveDevSkinSelection('crystal')).toBe('crystal');
     expect(resolveDevSkinSelection('classic')).toBe('classic');
@@ -45,6 +45,8 @@ describe('dev 곡 선택의 스킨 버전', () => {
     expect(html).toContain('value="settings" selected=""');
     expect(html).toContain('Classic v004');
     expect(html).toContain('옅은 원본 포인트');
-    expect(html).toContain('새로고침하면 게임 설정으로 돌아갑니다');
+    expect(html).toContain('개발용 스킨이 위의 기본 스킨보다 우선 적용됩니다');
+    expect(html).toContain('새로고침하면 기본 스킨으로 돌아갑니다');
   });
+
 });

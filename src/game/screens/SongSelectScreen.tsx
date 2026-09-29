@@ -1,5 +1,5 @@
 import { formatDifficultyLabel } from '../../shared/chartDifficulty';
-import { lazy, Suspense, useState, useCallback, useRef, type CSSProperties } from 'react';
+import { useState, useCallback, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { createChartAsset, deleteSongAsset, supabase } from '../../supabase';
@@ -34,10 +34,6 @@ import {
   canStartGameplay,
 } from '../hooks/useGameExperience';
 import { showToast, type ToastType } from '../../shared/toast';
-
-const DevSkinVersionSelect = import.meta.env.DEV
-  ? lazy(() => import('../../lab/DevSkinVersionSelect'))
-  : null;
 
 // ---------------------------------------------------------------------------
 // SongSelectScreen (unified)
@@ -372,7 +368,6 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       <div style={styles.splitContainer}>
         {/* Left panel — song detail */}
         <div style={styles.leftPanel}>
-          {DevSkinVersionSelect && <Suspense fallback={null}><DevSkinVersionSelect /></Suspense>}
           {focusedSong ? (
             <>
               {/* Jacket image */}

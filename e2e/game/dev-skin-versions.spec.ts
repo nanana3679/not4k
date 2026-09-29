@@ -38,17 +38,31 @@ async function openSongs(page: Page) {
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
-  await expect(page.getByLabel('개발용 스킨')).toBeVisible();
+  await expect(page.getByLabel('개발용 스킨')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 }
 
-test('dev에서 v004를 고르면 Supabase 차트·음원·재생 구간으로 연주하고 재시도·곡 선택 복귀·v001 비교를 지원한다', async ({ page }, testInfo) => {
+async function openSkinSettings(page: Page) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
+  await expect(dialog.getByLabel('개발용 스킨')).toBeVisible();
+  return dialog;
+}
+
+async function closeSettings(page: Page) {
+  await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+}
+
+test('dev Settings → Skin에서 v004를 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
   const settingsBefore = await page.evaluate(() => localStorage.getItem('not4k-settings'));
+  await openSkinSettings(page);
   await page.getByLabel('개발용 스킨').selectOption('v004');
-  await page.screenshot({ path: testInfo.outputPath('song-select-dev-skin.png') });
+  await page.screenshot({ path: testInfo.outputPath('settings-dev-skin.png') });
+  await closeSettings(page);
 
   await page.evaluate(async () => {
     const url = performance.getEntriesByType('resource').map(entry => entry.name)
@@ -85,29 +99,46 @@ test('dev에서 v004를 고르면 Supabase 차트·음원·재생 구간으로 �
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
+  await openSkinSettings(page);
   await expect(page.getByLabel('개발용 스킨')).toHaveValue('v004');
   await page.getByLabel('개발용 스킨').selectOption('v001');
+  await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v001');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
+  await openSkinSettings(page);
   await page.getByLabel('개발용 스킨').selectOption('settings');
+  await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('crystal');
   expect(await page.evaluate(() => localStorage.getItem('not4k-settings'))).toBe(settingsBefore);
   expect(errors).toEqual([]);
 });
 
-test('스킨 선택기의 방향키·Enter는 곡을 재생하지 않고 새로고침하면 저장된 게임 설정으로 복귀한다', async ({ page }) => {
+test('Settings 탭 전환·재열기에서 v004를 유지하고 선택기에서 Esc로 닫으며 새로고침하면 게임 설정으로 복귀한다', async ({ page }) => {
   await openSongs(page);
+  const dialog = await openSkinSettings(page);
   const select = page.getByLabel('개발용 스킨');
   await select.focus();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   await expect(page.getByTestId('gameplay-canvas')).toHaveCount(0);
+  await expect(dialog).toBeVisible();
   await select.selectOption('v004');
+  await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+  await expect(select).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
+  await expect(select).toHaveValue('v004');
+  await select.focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+  await openSkinSettings(page);
+  await expect(select).toHaveValue('v004');
   await page.reload();
   await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await openSkinSettings(page);
   await expect(select).toHaveValue('settings');
 });
