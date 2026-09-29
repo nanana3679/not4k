@@ -38,8 +38,8 @@ describe('dev Settings의 스킨 버전', () => {
     expect(resolveDevSkinSelection('crystal')).toBe('crystal');
   });
 
-  it('선택기는 게임 설정·현재 Classic·v001~v008의 10개 선택지를 최신 버전부터 제공한다', () => {
-    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v008', 'v007', 'v006', 'v005', 'v004', 'v003', 'v002', 'v001']);
+  it('선택기는 게임 설정·현재 Classic·v001~v009의 11개 선택지를 최신 버전부터 제공한다', () => {
+    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v009', 'v008', 'v007', 'v006', 'v005', 'v004', 'v003', 'v002', 'v001']);
     const html = renderToStaticMarkup(createElement(DevSkinVersionSelect));
     expect(html).toContain('개발용 스킨');
     expect(html).toContain('value="settings" selected=""');
@@ -48,6 +48,7 @@ describe('dev Settings의 스킨 버전', () => {
     expect(html).toContain('Classic v006 · 옅은 포인트 · 내부 검은 세로띠 제거 · S05/D05 바디');
     expect(html).toContain('Classic v007 · 흰빛 포인트 · 명도 하향 S05/D05 바디 · 포인트·바디 대비 3:1');
     expect(html).toContain('Classic v008 · 흰빛 포인트 · S05/D05 바디 · 위아래 접촉 그림자 · 경계 대비 3:1');
+    expect(html).toContain('Classic v009 · 흰빛 포인트 · 트렌치 바디 · 위아래 접촉 그림자');
     expect(html).toContain('개발용 스킨이 위의 기본 스킨보다 우선 적용됩니다');
     expect(html).toContain('새로고침하면 기본 스킨으로 돌아갑니다');
   });

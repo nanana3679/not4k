@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v008의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v009의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -115,6 +115,25 @@ describe('Classic 버전 Lab 공개', () => {
     expect(config).toContain('pointContactShadow: { above: 5, below: 5 }');
     expect(config).toContain('pointContactShadow: withPublicBase("/skins/classic/point-contact-shadow.png")');
     await expect(access(resolve(root, 'public/skins/classic/point-contact-shadow.png'))).rejects.toThrow();
+  });
+
+  it('v009는 v008의 흰빛 포인트·접촉 그림자·트릴을 그대로 쓰고 바디 원본만 트렌치 imagegen 타일로 바꾸며 현재 적용본 바디는 v002로 유지한다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    const same = async (path: string) => expect((await archived('v009', path)).equals(await archived('v008', path)), `${path} = v008`).toBe(true);
+    for (const path of ['note-single.png', 'note-double.png', 'note-trill.png', 'body-trill.png', 'point-contact-shadow.png', 'point-shadow.png', 'bomb-00.png']) {
+      await same(`public/skins/classic/${path}`);
+    }
+    for (const path of ['assets-lab/classic/states.mjs', 'assets-lab/classic/bright-body.mjs', 'src/game/skin/skins.ts']) await same(path);
+    for (const kind of ['single', 'double']) {
+      const tile = await readFile(resolve(root, `assets-lab/classic/revisions/body-trench-20260930/tiles/trench-${kind}-1000x200.png`));
+      const source = (await archived('v009', `assets-lab/classic/sources/body-${kind}-bright.svg`)).toString();
+      expect(source).toContain('data-artwork="bright-body-20260929" data-design="trench-imagegen-20260930"');
+      expect(source).toContain(`data:image/png;base64,${tile.toString('base64')}`);
+      for (const path of [`body-${kind}.png`, `body-${kind}-held.png`, `terminal-${kind}-idle.png`]) {
+        expect((await archived('v009', `public/skins/classic/${path}`)).equals(await archived('v008', `public/skins/classic/${path}`)), path).toBe(false);
+      }
+      expect((await readFile(resolve(root, `public/skins/classic/body-${kind}.png`))).equals(await archived('v002', `public/skins/classic/body-${kind}.png`)), `현재 body-${kind}.png`).toBe(true);
+    }
   });
 
   it('v001만 정적 내보내면 PNG 바이트를 보존하고 v002·생성 코드는 포함하지 않는다', async () => {

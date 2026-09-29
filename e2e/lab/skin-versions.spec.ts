@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CLASSIC_SKIN_VERSIONS } from '../../src/lab/classicSkinVersions';
 
-test('현재→v001→v002→v003→v004→v005→v006→v007→v008→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -10,7 +10,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→현재 �
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008']) {
+  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -25,7 +25,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→현재 �
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v007');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v008');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -209,14 +209,15 @@ test('v007은 싱글·더블 포인트와 싱글·더블의 대기·켜짐 바�
   expect(results.v007.hues).toEqual({ single: 'blue', double: 'gold' });
 });
 
-test('v008은 렌더러와 같은 배치로 합성했을 때 포인트 경계에 맞닿은 바디 2px 띠와의 대비가 8개 조합 모두 3:1 이상이고 v006은 미달한다', async ({ page }) => {
+test('v008·v009는 렌더러와 같은 배치로 합성했을 때 포인트 경계에 맞닿은 바디 2px 띠와의 대비가 대기·켜짐 8개 조합 모두 3:1 이상이고 v006은 미달한다', async ({ page }) => {
   await page.goto('/lab/note-assets?design=classic&version=v008');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
-  const themes = Object.fromEntries(['v006', 'v008'].map(id => {
+  const themes = Object.fromEntries(['v006', 'v008', 'v009'].map(id => {
     const theme = CLASSIC_SKIN_VERSIONS.find(version => version.id === id)!.manifest.theme;
     return [id, { pointShadow: theme.pointShadow ?? null, contact: theme.pointContactShadow ?? null }];
   }));
   expect(themes.v008.contact).toEqual({ above: 5, below: 5 });
+  expect(themes.v009.contact).toEqual({ above: 5, below: 5 });
   const results = await page.evaluate(async themes => {
     const load = async (src: string) => { const image = new Image(); image.src = src; await image.decode(); return image; };
     const linear = (value: number) => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
@@ -258,9 +259,12 @@ test('v008은 렌더러와 같은 배치로 합성했을 때 포인트 경계에
       }
       return ratios;
     };
-    return { v006: await measure('v006'), v008: await measure('v008') };
+    return { v006: await measure('v006'), v008: await measure('v008'), v009: await measure('v009') };
   }, themes);
   expect(Object.keys(results.v008)).toHaveLength(8);
   expect(Math.min(...Object.values(results.v006)), 'v006 최저 경계 대비').toBeLessThan(3);
-  for (const [combo, ratio] of Object.entries(results.v008)) expect(ratio, `v008 ${combo}`).toBeGreaterThanOrEqual(3);
+  for (const version of ['v008', 'v009'] as const) {
+    expect(Object.keys(results[version])).toHaveLength(8);
+    for (const [combo, ratio] of Object.entries(results[version])) expect(ratio, `${version} ${combo}`).toBeGreaterThanOrEqual(3);
+  }
 });

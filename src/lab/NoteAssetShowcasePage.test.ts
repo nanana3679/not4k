@@ -58,6 +58,14 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('/lab/skin-versions/classic/v008/svg/note-single.svg');
   });
 
+  it('version=v009 직접 링크는 트렌치 바디 선택지와 v009 바디 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v009');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v009"');
+    expect(markup).toContain('value="v009" selected=""');
+    expect(markup).toContain('트렌치 바디');
+    expect(markup).toContain('/lab/skin-versions/classic/v009/svg/body-single-idle.svg');
+  });
+
   it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
     const markup = renderPage('/', '?design=simple&version=v001');
     expect(markup).toContain('data-tutorial-skin-id="simple"');
