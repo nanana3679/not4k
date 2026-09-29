@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v005의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v006의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -56,6 +56,23 @@ describe('Classic 버전 Lab 공개', () => {
       expect(await archived('v005', `public/skins/classic/body-${kind}.png`)).toEqual(await archived('v004', `public/skins/classic/body-${kind}.png`));
       expect(await archived('v005', `public/skins/classic/terminal-${kind}-idle.png`)).toEqual(await archived('v004', `public/skins/classic/terminal-${kind}-idle.png`));
       expect(await archived('v005', `public/skins/classic/note-${kind}.png`)).not.toEqual(await archived('v004', `public/skins/classic/note-${kind}.png`));
+    }
+  });
+
+  it('v006은 v005의 S05/D05 바디·터미널을 그대로 보관하고 포인트 양끝 안쪽의 어두운 패널만 중앙 면으로 덮으며 기본 적용본은 v002로 유지한다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    for (const kind of ['single', 'double']) {
+      for (const path of [`body-${kind}.png`, `body-${kind}-held.png`, `terminal-${kind}.png`, `terminal-${kind}-idle.png`]) {
+        expect(await archived('v006', `public/skins/classic/${path}`), path).toEqual(await archived('v005', `public/skins/classic/${path}`));
+      }
+      expect(await archived('v006', `public/skins/classic/note-${kind}.png`)).not.toEqual(await archived('v005', `public/skins/classic/note-${kind}.png`));
+      const before = (await archived('v005', `assets-lab/classic/sources/point-${kind}.svg`)).toString();
+      const after = (await archived('v006', `assets-lab/classic/sources/point-${kind}.svg`)).toString();
+      expect(before).toContain('<rect x="221" y="34" width="618" height="151" fill="url(#readability-face)"/>');
+      expect(after).toContain('<g data-readability="face" data-side-panels="bright" clip-path="url(#p-clip)">');
+      expect(after).toContain('<rect x="118" y="34" width="824" height="151" fill="url(#readability-face)"/>');
+      expect(after).toContain('<rect x="95" y="34" width="23" height="151" fill="url(#p-rail)"/>');
+      expect(await readFile(resolve(root, `public/skins/classic/note-${kind}.png`))).toEqual(await archived('v002', `public/skins/classic/note-${kind}.png`));
     }
   });
 

@@ -54,13 +54,13 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('dev Settings → Skin에서 v005를 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+test('dev Settings → Skin에서 v006을 고르면 Supabase 곡으로 연주하고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
   const settingsBefore = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   await openSkinSettings(page);
-  await page.getByLabel('개발용 스킨').selectOption('v005');
+  await page.getByLabel('개발용 스킨').selectOption('v006');
   await page.screenshot({ path: testInfo.outputPath('settings-dev-skin.png') });
   await closeSettings(page);
 
@@ -94,7 +94,7 @@ test('dev Settings → Skin에서 v005를 고르면 Supabase 곡으로 연주하
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   expect((await chartResponse).status()).toBe(200);
   expect((await audioResponse).status()).toBe(200);
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v005');
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v006');
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds)).toBeTruthy();
   const bounds = await page.evaluate(() => (window as unknown as {
@@ -124,7 +124,7 @@ test('dev Settings → Skin에서 v005를 고르면 Supabase 곡으로 연주하
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
   await openSkinSettings(page);
-  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v005');
+  await expect(page.getByLabel('개발용 스킨')).toHaveValue('v006');
   await page.getByLabel('개발용 스킨').selectOption('v001');
   await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();

@@ -3,6 +3,102 @@ import type { SkinManifest } from '../game/skin/types';
 // Frozen from each archive's skins.ts; do not derive old themes from the live Classic.
 export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manifest: SkinManifest }[] = [
   {
+    "id": "v006",
+    "label": "옅은 포인트 · 내부 검은 세로띠 제거 · S05/D05 바디",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "pointNoteOverhangPx": 3,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png"
+      }
+    }
+  },
+  {
     "id": "v005",
     "label": "옅은 포인트 · 좌우 외곽선 제거 · S05/D05 짙은 바디",
     "manifest": {

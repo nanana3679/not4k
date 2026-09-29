@@ -7,8 +7,9 @@
 | [v003](v003/manifest.json) | 고채도 포인트·S05/D05 짙은 바디·바디와 같은 터미널 | 2026-09-29 Lab 비교용 |
 | [v004](v004/manifest.json) | 옅은 원본 포인트·S05/D05 짙은 바디·공용 터미널 | 2026-09-29 사용자 정정 반영 |
 | [v005](v005/manifest.json) | 옅은 포인트 좌우 외곽선 제거·S05/D05 짙은 바디 | 2026-09-30 가독성 수정 |
+| [v006](v006/manifest.json) | 옅은 포인트 양끝 안쪽 검은 세로띠 제거·S05/D05 짙은 바디 | 2026-09-30 사용자 지적 반영 |
 
-현재 적용본은 **v002**다. v003은 밝기 비교 페이지의 5단계 싱글(S05)·더블(D05) 바디를 적용한 Lab 비교용이다. v004는 사용자 정정에 따라 같은 짙은 바디에 옅은 원본 포인트를 조합한다. v005는 v004의 포인트 좌우 검은 외곽선을 금속 면으로 채워 바디의 선을 끊는다. 포인트 내부 무늬와 바디는 유지한다. 다섯 버전 모두 싱글·더블·트릴, 대기·홀드·부분충족·실패, 봄과 버튼을 포함한다. 공유 기어 이미지도 함께 보관한다. 비교 시안은 기존 `../revisions/`에 유지한다.
+현재 적용본은 **v002**다. v003은 밝기 비교 페이지의 5단계 싱글(S05)·더블(D05) 바디를 적용한 Lab 비교용이다. v004는 사용자 정정에 따라 같은 짙은 바디에 옅은 원본 포인트를 조합한다. v005는 v004의 포인트 좌우 검은 외곽선을 금속 면으로 채워 바디의 선을 끊는다. 포인트 내부 무늬와 바디는 유지한다. v006은 v005에서 흰 세로 레일 안쪽의 어두운 패널(원본 SVG x118~221과 대칭 구간)을 중앙의 밝은 면으로 덮어 포인트 양끝 안쪽의 검은 세로띠를 없앤다. 중앙 면의 색·밝기, 흰 레일, 바깥 금속 면, S05/D05 바디·터미널은 v005와 같다. 여섯 버전 모두 싱글·더블·트릴, 대기·홀드·부분충족·실패, 봄과 버튼을 포함한다. 공유 기어 이미지도 함께 보관한다. 비교 시안은 기존 `../revisions/`에 유지한다.
 
 ## 보관 범위
 
@@ -24,7 +25,7 @@
 
 ## Lab에서 비교
 
-`/lab/note-assets?design=classic`의 ‘버전’ 선택기에서 현재 적용본·v005·v004·v003·v002·v001을 고른다. 직접 링크는 `/lab/note-assets?design=classic&version=v001`이며 S05/D05와 옅은 포인트는 `/lab/note-assets?design=classic&version=v004`으로 연다. 외곽선 제거 버전은 `version=v005`로 연다. 실제 플레이에서는 **Settings → Skin → 개발용 스킨 → Classic v005**를 선택한다. 선택한 차트를 유지한 채 해당 버전의 재생기와 에셋 랙을 함께 교체하며, 실제 게임의 스킨 설정이나 현재 에셋 파일에는 영향을 주지 않는다.
+`/lab/note-assets?design=classic`의 ‘버전’ 선택기에서 현재 적용본·v006·v005·v004·v003·v002·v001을 고른다. 직접 링크는 `/lab/note-assets?design=classic&version=v001`이며 S05/D05와 옅은 포인트는 `/lab/note-assets?design=classic&version=v004`으로 연다. 외곽선 제거 버전은 `version=v005`, 내부 검은 세로띠 제거 버전은 `version=v006`으로 연다. 실제 플레이에서는 **Settings → Skin → 개발용 스킨 → Classic v006**을 선택한다. 선택한 차트를 유지한 채 해당 버전의 재생기와 에셋 랙을 함께 교체하며, 실제 게임의 스킨 설정이나 현재 에셋 파일에는 영향을 주지 않는다.
 
 포인트 전체가100px 레인의 기준이며, 돌출부가 있는 Classic 바디·터미널은 약94.34px로 중앙 정렬한다. 이 렌더링 보정은 기존 보관본에도 공통 적용하며 원본 에셋은 바꾸지 않는다.
 
@@ -36,8 +37,8 @@
 
 ```sh
 pnpm build:classic
-node scripts/classic-versions.mjs save v006 "변경한 디자인 설명"
-node scripts/classic-versions.mjs verify v006
+node scripts/classic-versions.mjs save v007 "변경한 디자인 설명"
+node scripts/classic-versions.mjs verify v007
 ```
 
 기존 번호로 저장하면 오류로 종료한다. 보관본의 파일을 수정하지 않고 새 버전을 만든다. 저장·검증 명령은 현재 스킨을 교체하지 않는다.
@@ -45,7 +46,7 @@ node scripts/classic-versions.mjs verify v006
 과거 커밋의 버전도 현재 작업 파일을 건드리지 않고 저장할 수 있다.
 
 ```sh
-node scripts/classic-versions.mjs save v007 "과거 디자인 설명" <Git-commit>
+node scripts/classic-versions.mjs save v008 "과거 디자인 설명" <Git-commit>
 ```
 
 ## 이전 버전 복원
