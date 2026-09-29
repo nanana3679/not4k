@@ -11,7 +11,7 @@
 - `NoteAssetPreviewPlayer`에 시안 묶음을 주입하고 내부에서 `TutorialPreviewPlayer`와 `GameRenderer`를 그대로 사용한다.
 - `Classic`은 현재 선택한 고채도 포인트·아주 밝은 바디·공용 터미널, 흰 석영 트릴, 공통 실버 봄이다. 기존 단색 `Classic` 스킨의 ID와 이름은 `simple` / `Simple`로 변경했다.
 - `/lab/note-assets?design=classic` 또는 `?design=simple`로 직접 열 수 있다. 미지정·잘못된 ID는 Classic을 선택한다. 시안을 바꾸면 선택 중인 차트를 유지한 채 재생을 처음부터 시작하고, 노트·바디·터미널·봄·에셋 랙을 함께 교체한다.
-- Classic의 ‘버전’ 선택기에서 현재 적용본·`v003`·`v002`·`v001`을 고른다. `v003`은 고유색 밝기 비교의 S05(싱글 파랑)·D05(더블 금색) 짙은 바디와 기존 고채도 포인트를 조합한다. 현재 게임 적용본은 아주 밝은 바디인 `v002`를 유지한다. 보관 버전은 당시의 테마 설정, 노트·바디·터미널·기어·버튼·16프레임 봄을 사용한다. 현재 적용본은 기존 CSS 키봄 6종 비교를 제공한다. 버전 선택은 Lab에만 적용하며 게임 스킨 설정이나 현재 에셋 파일을 변경하지 않는다.
+- Classic의 ‘버전’ 선택기에서 현재 적용본·`v004`·`v003`·`v002`·`v001`을 고른다. `v003`은 고유색 밝기 비교의 S05(싱글 파랑)·D05(더블 금색) 짙은 바디와 기존 고채도 포인트를 조합한다. `v004`는 사용자 정정에 따라 같은 S05·D05 바디와 비교 페이지의 옅은 원본 포인트를 조합한다. 현재 게임 적용본은 아주 밝은 바디인 `v002`를 유지한다. 보관 버전은 당시의 테마 설정, 노트·바디·터미널·기어·버튼·16프레임 봄을 사용한다. 현재 적용본은 기존 CSS 키봄 6종 비교를 제공한다. 버전 선택은 Lab에만 적용하며 게임 스킨 설정이나 현재 에셋 파일을 변경하지 않는다.
 - `/lab/note-assets?design=classic&version=v001`처럼 선택 버전을 URL에 기록한다. 직접 링크·새로고침·뒤로가기로 같은 버전을 열 수 있다. 버전 전환 시 선택한 차트는 유지하고 재생을 처음부터 시작한다. 알 수 없는 버전은 현재 적용본으로 표시하며, Simple로 전환하면 버전 인자를 제거한다.
 - `src/lab/noteAssetDesigns.ts`가 시안 목록을 관리한다. 새 시안은 스킨 매니페스트를 등록하고 `createNoteAssetDesign` 설정만 추가한다. 플레이어와 차트, 에셋 랙은 시안별 분기를 추가하지 않는다.
 - 포인트 노트는 싱글·더블·트릴·Grace, 롱노트는 기본·트릴 롱·독립·길이 0·Grace·길이 0 Grace와 판정 놓침·중간 해제 차트를 선택한다. 트릴 롱은 기존 튜토리얼의 `connected-trill-long` 차트를 사용한다.
@@ -50,10 +50,10 @@ Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상�
 - Classic 선택 원본과 출처는 `assets-lab/classic/revisions/body-six-20260929/selected/`에 보존한다. `sources/point-{single,double}.svg`는 기존 고채도 원본이며, `sources/body-{single,double}-bright.svg`는 선택한 200×40 PNG를 내장한 1000×200 SVG다. `CLASSIC_SOURCE_NAMES`는 이 4개와 석영 트릴 원본을 읽는다. 이전 Penpot 바디·독립 터미널은 제작 이력으로 보존한다.
 - `bright-body.mjs`는 선택 타일에 대기·홀드·부분충족·실패 표시를 적용한다. `states.mjs`는 각 상태의 바디와 시작·끝 터미널을 동일하게 출력한다. 모든 색면과 상태 효과는 세로로 일정해 상하 반복된다.
 - `pnpm build:classic`: SVG 시연 자료는 `public/lab/note-assets/classic/`, 런타임 PNG와16프레임 실버 봄·버튼은 `public/skins/classic/`에 생성한다. 같은 시안의 디자인을 수정할 때는 소스를 바꾼 뒤 이 명령만 실행하면 Lab과 인게임에 함께 반영된다. 런타임 PNG는 저장소에 보관하므로 일반 `pnpm build`에 별도 에셋 생성 단계는 필요하지 않다.
-- `src/lab/classicSkinVersions.ts`는 보관 버전의 스킨 매니페스트를 고정해 등록한다. `scripts/classicVersionPreviews.ts`는 보관본 해시를 검증한 뒤 PNG·Lab SVG·기어 이미지만 `/lab/skin-versions/classic/<version>/`에 제공한다. 개발 서버와 공개 Lab이 같은 주소 구조를 사용하며 원본·생성 코드는 내보내지 않는다. 일반 게임 빌드에는 이전 버전 이미지를 포함하지 않는다.
+- `src/lab/classicSkinVersions.ts`는 보관 버전의 스킨 매니페스트를 고정해 등록한다. `scripts/classicVersionPreviews.ts`는 보관본 해시를 검증한 뒤 PNG·Lab SVG·기어 이미지만 `/lab/skin-versions/classic/<version>/`에 제공한다. 개발 서버와 공개 Lab이 같은 주소 구조를 사용하며 원본·생성 코드는 내보내지 않는다. 일반 게임 빌드에는 이전 버전 이미지를 포함하지 않는다. 저장·검증·복원 명령은 [Classic 버전 보관 가이드](../../assets-lab/classic/versions/README.md)를 따른다.
 - `CLASSIC_SOURCE_NAMES`에 석영 `point-trill`, `body-trill`, `terminal-end-trill`과 바디·끝 터미널의 `-on`·`-failed` 원본까지7개를 포함한다. 이 원본을 재구성하려면 먼저 `node scripts/build-trill-quartz.mjs`를 실행한다. Classic 빌드는 저장된 SVG 원본을 읽어 트릴8개 런타임 상태 키에 연결하며, 싱글 대체 텍스처를 사용하지 않는다.
 - `/assets-lab/classic/terminal-preview.html`은 현재 선택 타일의 싱글·더블 시작/끝 조립, 100px 실제 크기, 길이 0과 PNG가 내장된 독립 SVG 4개 다운로드를 제공한다. 이전 벡터 터미널 제작 이력은 `assets-lab/classic/README.md`를 따른다.
 - `node scripts/build-skins.mjs --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
 - 포인트의 사선 반사는 포함하지 않는다. 현재 승인된 부드러운 유광과 윗면 모서리 반사를 유지한다.
 
-검증은 `assets-lab/classic/{states,terminals}.test.ts`, `src/game/skin/`, `src/game/renderer/GameNoteRenderer.test.ts`, `src/lab/noteAssetDesigns.test.ts`, `src/lab/NoteAssetShowcasePage.test.ts`, `e2e/lab/{note-assets,classic-terminal-svg}.spec.ts`가 담당한다. 브라우저에서 선택 원본과 대기 바디·고채도 포인트의 픽셀 일치, 7개 상태의 바디·시작·끝 타일 일치, 상하 반복과 불투명도를 확인한다.
+검증은 `assets-lab/classic/{states,terminals}.test.ts`, `src/game/skin/`, `src/game/renderer/GameNoteRenderer.test.ts`, `src/lab/noteAssetDesigns.test.ts`, `src/lab/NoteAssetShowcasePage.test.ts`, `scripts/{classic-versions,classicVersionPreviews}.test.ts`, `e2e/lab/{note-assets,classic-terminal-svg,skin-versions}.spec.ts`가 담당한다. 브라우저에서 선택 원본과 대기 바디·고채도 포인트의 픽셀 일치, 7개 상태의 바디·시작·끝 타일 일치, 상하 반복과 불투명도를 확인한다. 버전 전환은 차트 유지, 직접 링크·새로고침·뒤로가기, 게임 스킨 설정 보존과 잘못된 버전의 기본값 복귀를 검증한다.
