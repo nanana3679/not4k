@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v010의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v011의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -150,6 +150,23 @@ describe('Classic 버전 Lab 공개', () => {
     expect(failed).toContain('fill="#3b3b3b"');
     expect((await archived('v010', 'public/skins/classic/terminal-trill.png')).equals(await archived('v010', 'public/skins/classic/terminal-trill-idle.png'))).toBe(true);
     expect((await readFile(resolve(root, 'public/skins/classic/terminal-trill-idle.png'))).equals(await archived('v002', 'public/skins/classic/terminal-trill-idle.png')), '현재 적용본 트릴 터미널').toBe(true);
+  });
+
+  it('v011은 v010에서 트릴 끝 터미널만 Simple 터미널 윗부분 하나로 바꿔 대기·켜짐·실패가 같고 나머지 에셋은 v010과 같다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    const terminals = ['terminal-trill.png', 'terminal-trill-idle.png', 'terminal-trill-failed.png'];
+    for (const path of ['note-trill.png', 'note-trill-failed.png', 'body-trill.png', 'body-trill-held.png', 'body-trill-failed.png', 'note-single.png', 'body-double.png', 'point-contact-shadow.png', ...terminals]) {
+      expect((await archived('v011', `public/skins/classic/${path}`)).equals(await archived('v010', `public/skins/classic/${path}`)), path).toBe(!terminals.includes(path));
+    }
+    const [on, idle, failed] = await Promise.all(terminals.map(path => archived('v011', `public/skins/classic/${path}`)));
+    expect(idle.equals(on) && idle.equals(failed)).toBe(true);
+    const strip = (source: string) => source.replace(/data-state="[a-z]+"/, '');
+    const sources = await Promise.all(['terminal-end-trill', 'terminal-end-trill-on', 'terminal-end-trill-failed'].map(async name => (await archived('v011', `assets-lab/classic/sources/${name}.svg`)).toString()));
+    for (const source of sources) {
+      expect(source).toContain('data-source="public/skins/simple/terminal-trill.png#top-half"');
+      expect(source).toContain('<image x="0" y="0" width="1000" height="100" preserveAspectRatio="none"');
+      expect(strip(source)).toBe(strip(sources[0]));
+    }
   });
 
   it('v001만 정적 내보내면 PNG 바이트를 보존하고 v002·생성 코드는 포함하지 않는다', async () => {

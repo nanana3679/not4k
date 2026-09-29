@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CLASSIC_SKIN_VERSIONS } from '../../src/lab/classicSkinVersions';
 
-test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v010→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v010→v011→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -10,7 +10,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v0
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010']) {
+  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010', 'v011']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -25,7 +25,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v0
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v009');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v010');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -303,4 +303,40 @@ test('v010 트릴 끝 터미널은 레인 위에서 대기·켜짐 명도 0.45~0
     expect(lightness['v010/note-trill'] - lightness[`v010/${name}`], `트릴 머리와 ${name}의 명도 차`).toBeGreaterThanOrEqual(0.35);
   }
   expect(lightness['v010/terminal-trill-idle'] - lightness['v010/terminal-trill-failed'], '대기와 실패의 명도 차').toBeGreaterThanOrEqual(0.1);
+});
+
+test('v011 트릴 끝 터미널은 대기·켜짐·실패 모두 위쪽 절반이 Simple 트릴 터미널과 같은 회색·투명도이고 아래쪽 절반은 투명하다', async ({ page }) => {
+  await page.goto('/lab/note-assets?design=classic&version=v011');
+  await expect(page.getByText('PLAYER READY')).toBeVisible();
+  const result = await page.evaluate(async () => {
+    const pixels = async (src: string) => {
+      const image = new Image(); image.src = src; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, canvas.width, canvas.height);
+    };
+    // 모서리 반올림을 뺀 안쪽 영역의 평균 RGBA.
+    const mean = (image: ImageData, y0: number, y1: number, inset: number) => {
+      const sum = [0, 0, 0, 0]; let count = 0;
+      for (let y = y0; y < y1; y++) for (let x = inset; x < image.width - inset; x++) {
+        const i = (y * image.width + x) * 4; for (let c = 0; c < 4; c++) sum[c] += image.data[i + c]; count++;
+      }
+      return sum.map(value => Math.round(value / count));
+    };
+    const simple = await pixels('/skins/simple/terminal-trill.png');
+    const reference = mean(simple, 2, simple.height / 2, 2);
+    const terminals: Record<string, { top: number[]; bottomMaxAlpha: number }> = {};
+    for (const name of ['terminal-trill-idle', 'terminal-trill', 'terminal-trill-failed']) {
+      const image = await pixels(`/lab/skin-versions/classic/v011/skin/${name}.png`);
+      let bottomMaxAlpha = 0;
+      for (let y = image.height / 2 + 1; y < image.height; y++) for (let x = 0; x < image.width; x++) bottomMaxAlpha = Math.max(bottomMaxAlpha, image.data[(y * image.width + x) * 4 + 3]);
+      terminals[name] = { top: mean(image, 4, image.height / 2 - 2, 4), bottomMaxAlpha };
+    }
+    return { reference, terminals };
+  });
+  expect(result.reference).toEqual([135, 135, 135, 179]);
+  for (const [name, { top, bottomMaxAlpha }] of Object.entries(result.terminals)) {
+    top.forEach((value, channel) => expect(Math.abs(value - result.reference[channel]), `${name} 채널 ${channel}`).toBeLessThanOrEqual(2));
+    expect(bottomMaxAlpha, `${name} 아래쪽 절반`).toBe(0);
+  }
 });
