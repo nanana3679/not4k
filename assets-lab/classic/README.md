@@ -6,7 +6,7 @@
 
 ## 빌드 입력과 상태
 
-이전 Classic은 `v001`, 현재 선택은 `v002`, S05/D05 짙은 바디 비교용은 `v003`으로 [버전 보관 폴더](./versions/README.md)에 저장한다. 각 버전은 전체 런타임 PNG·Lab SVG·원본·생성 코드·설정과 파일 해시를 포함한다. 이후 확정본은 `node scripts/classic-versions.mjs save v004 "설명"`처럼 새 번호로 보관한다.
+이전 Classic은 `v001`, 현재 선택은 `v002`, S05/D05 짙은 바디는 고채도 포인트 조합 `v003`과 옅은 원본 포인트 조합 `v004`로 [버전 보관 폴더](./versions/README.md)에 저장한다. 각 버전은 전체 런타임 PNG·Lab SVG·원본·생성 코드·설정과 파일 해시를 포함한다. 이후 확정본은 `node scripts/classic-versions.mjs save v005 "설명"`처럼 새 번호로 보관한다.
 
 - `sources/point-{single,double}.svg`: 중앙 분할을 제거한 기존 고채도 포인트 원본. 1060×200 SVG를 212×40 PNG로 내보내 화면 106×20으로 표시한다. 가운데 100px에 바디를 연결한다.
 - `sources/body-{single,double}-bright.svg`: 선택한 200×40 PNG를 내장한 1000×200 SVG. 대기 상태는 원본 픽셀을 그대로 사용한다. 원본 1000×200 PNG도 선택 에셋 폴더에 보존한다.

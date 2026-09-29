@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001·v002·v003의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001·v002·v003·v004의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -37,6 +37,16 @@ describe('Classic 버전 Lab 공개', () => {
       expect(body).not.toEqual(await archived('v002', `public/skins/classic/body-${kind}.png`));
       expect(await archived('v003', `public/skins/classic/note-${kind}.png`)).toEqual(await archived('v002', `public/skins/classic/note-${kind}.png`));
       expect(await readFile(resolve(root, `public/skins/classic/body-${kind}.png`))).toEqual(await archived('v002', `public/skins/classic/body-${kind}.png`));
+    }
+  });
+
+  it('v004는 S05/D05 바디를 유지하고 포인트를 비교 페이지의 옅은 원본 SVG로 교체한다', async () => {
+    for (const kind of ['single', 'double']) {
+      const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+      const pointSource = await readFile(resolve(root, `assets-lab/classic/revisions/body-six-20260929/references/note-${kind}-readability-a.svg`));
+      expect(await archived('v004', `assets-lab/classic/sources/point-${kind}.svg`)).toEqual(pointSource);
+      expect(await archived('v004', `public/skins/classic/body-${kind}.png`)).toEqual(await archived('v003', `public/skins/classic/body-${kind}.png`));
+      expect(await archived('v004', `public/skins/classic/note-${kind}.png`)).not.toEqual(await archived('v003', `public/skins/classic/note-${kind}.png`));
     }
   });
 

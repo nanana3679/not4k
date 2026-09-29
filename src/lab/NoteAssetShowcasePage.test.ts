@@ -23,13 +23,13 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('id="classic-skin-version"');
   });
 
-  it('version=v003 직접 링크는 S05/D05 짙은 바디 선택지와 해당 재생기·바디 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v003');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v003"');
-    expect(markup).toContain('value="v003" selected=""');
-    expect(markup).toContain('S05/D05 짙은 바디');
-    expect(markup).toContain('/lab/skin-versions/classic/v003/svg/body-single-idle.svg');
-    expect(markup).toContain('/lab/skin-versions/classic/v003/svg/body-double-idle.svg');
+  it('version=v004 직접 링크는 옅은 포인트와 S05/D05 짙은 바디 선택지와 해당 재생기·바디 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v004');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v004"');
+    expect(markup).toContain('value="v004" selected=""');
+    expect(markup).toContain('옅은 원본 포인트 · S05/D05 짙은 바디');
+    expect(markup).toContain('/lab/skin-versions/classic/v004/svg/body-single-idle.svg');
+    expect(markup).toContain('/lab/skin-versions/classic/v004/svg/body-double-idle.svg');
   });
 
   it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
