@@ -7,6 +7,7 @@ import { staticPreviewEntriesAt } from "./output/prototypes/flight-background-pr
 import { exportLabImageGalleries } from "./scripts/exportLabImageGalleries";
 import { labImageGalleryCatalog } from "./src/lab/labImageGalleryCatalog";
 import { labPreviewCatalog } from "./src/lab/labPreviewCatalog";
+import { exportClassicVersionPreviews } from "./scripts/classicVersionPreviews";
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 const outputRoot = resolve(workspaceRoot, "dist-lab");
@@ -52,6 +53,7 @@ function staticLabPagesPlugin(): Plugin {
 
       await writeFile(resolve(outputRoot, "404.html"), labDocument);
       await writeFile(resolve(outputRoot, ".nojekyll"), "");
+      await exportClassicVersionPreviews(workspaceRoot, outputRoot);
 
       await exportLabImageGalleries({
         workspaceRoot,

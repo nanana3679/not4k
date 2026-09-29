@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200" role="img" aria-label="Classic 포인트 노트에서 파생한 반복형 싱글 롱노트 바디">
+  <title>싱글 롱노트 바디 · Sapphire Rail 시안</title>
+  <defs>
+    <linearGradient id="shell" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0">
+      <stop stop-color="#8fc6ea"/><stop offset=".035" stop-color="#213f66"/><stop offset=".12" stop-color="#061a37"/><stop offset=".32" stop-color="#1e4c83"/><stop offset=".5" stop-color="#387ab3"/><stop offset=".68" stop-color="#1e4c83"/><stop offset=".88" stop-color="#061a37"/><stop offset=".965" stop-color="#213f66"/><stop offset="1" stop-color="#8fc6ea"/>
+    </linearGradient>
+    <linearGradient id="outer-metal" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="43" y2="0">
+      <stop stop-color="#d6f2ff"/><stop offset=".1" stop-color="#80b7de"/><stop offset=".34" stop-color="#27517d"/><stop offset=".67" stop-color="#618eb9"/><stop offset=".91" stop-color="#e3f8ff"/><stop offset="1" stop-color="#85b9dd"/>
+    </linearGradient>
+    <linearGradient id="ice-ridge" gradientUnits="userSpaceOnUse" x1="42" y1="0" x2="88" y2="0">
+      <stop stop-color="#113d70"/><stop offset=".12" stop-color="#52a7da"/><stop offset=".3" stop-color="#d9fbff"/><stop offset=".45" stop-color="#7bd9f4"/><stop offset=".62" stop-color="#0b4c8d"/><stop offset="1" stop-color="#071d39"/>
+    </linearGradient>
+    <linearGradient id="recess" gradientUnits="userSpaceOnUse" x1="88" y1="0" x2="187" y2="0">
+      <stop stop-color="#05162f"/><stop offset=".34" stop-color="#0a2449"/><stop offset=".72" stop-color="#0e315b"/><stop offset="1" stop-color="#143b68"/>
+    </linearGradient>
+    <linearGradient id="side-facet" gradientUnits="userSpaceOnUse" x1="192" y1="0" x2="358" y2="0">
+      <stop stop-color="#326293"/><stop offset=".2" stop-color="#507fad"/><stop offset=".51" stop-color="#366397"/><stop offset=".73" stop-color="#83c4ec"/><stop offset=".93" stop-color="#5f9ccc"/><stop offset="1" stop-color="#142d54"/>
+    </linearGradient>
+    <linearGradient id="center-prism" gradientUnits="userSpaceOnUse" x1="275" y1="0" x2="725" y2="0">
+      <stop stop-color="#17355d"/><stop offset=".025" stop-color="#81d9f6"/><stop offset=".06" stop-color="#236bad"/><stop offset=".18" stop-color="#419bda"/><stop offset=".34" stop-color="#63c7ee"/><stop offset=".48" stop-color="#91e0f6"/><stop offset=".5" stop-color="#b4ecfa"/><stop offset=".52" stop-color="#91e0f6"/><stop offset=".66" stop-color="#63c7ee"/><stop offset=".82" stop-color="#419bda"/><stop offset=".94" stop-color="#236bad"/><stop offset=".975" stop-color="#81d9f6"/><stop offset="1" stop-color="#17355d"/>
+    </linearGradient>
+    <linearGradient id="rail-glow" gradientUnits="userSpaceOnUse" x1="46" y1="0" x2="88" y2="0">
+      <stop stop-color="#20a0e5" stop-opacity="0"/><stop offset=".35" stop-color="#41c5ee" stop-opacity=".15"/><stop offset=".56" stop-color="#b7f9ff" stop-opacity=".62"/><stop offset=".73" stop-color="#5ce5ff" stop-opacity=".2"/><stop offset="1" stop-color="#20a0e5" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="facet-glint" gradientUnits="userSpaceOnUse" x1="236" y1="0" x2="267" y2="0">
+      <stop stop-color="#d6f6ff" stop-opacity="0"/><stop offset=".48" stop-color="#d6f6ff" stop-opacity=".37"/><stop offset="1" stop-color="#d6f6ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="200" fill="url(#shell)"/>
+  <rect width="43" height="200" fill="url(#outer-metal)"/>
+  <rect x="42" width="46" height="200" fill="url(#ice-ridge)"/>
+  <rect x="88" width="99" height="200" fill="url(#recess)"/>
+  <rect x="187" width="5" height="200" fill="#06172e"/>
+  <rect x="808" width="5" height="200" fill="#06172e"/>
+  <rect x="192" width="166" height="200" fill="url(#side-facet)"/>
+  <rect x="267" width="8" height="200" fill="#0c294e"/>
+  <rect x="725" width="8" height="200" fill="#0c294e"/>
+  <rect x="275" width="450" height="200" fill="url(#center-prism)"/>
+  <rect x="46" width="42" height="200" fill="url(#rail-glow)"/>
+  <rect x="236" width="31" height="200" fill="url(#facet-glint)"/>
+  <g transform="translate(1000 0) scale(-1 1)">
+    <rect width="43" height="200" fill="url(#outer-metal)"/>
+    <rect x="42" width="46" height="200" fill="url(#ice-ridge)"/>
+    <rect x="88" width="99" height="200" fill="url(#recess)"/>
+    <rect x="192" width="166" height="200" fill="url(#side-facet)"/>
+    <rect x="46" width="42" height="200" fill="url(#rail-glow)"/>
+    <rect x="236" width="31" height="200" fill="url(#facet-glint)"/>
+  </g>
+  <path d="M2 0V200M41 0V200M65 0V200M190 0V200M274 0V200M500 0V200M726 0V200M810 0V200M935 0V200M959 0V200M998 0V200" fill="none" stroke="#c7edff" stroke-opacity=".38" stroke-width="1.5"/>
+</svg>

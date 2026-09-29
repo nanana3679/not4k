@@ -27,7 +27,7 @@ export function NoteAssetPreviewPlayer({design, preview, bomb, onReady}: {
     return () => { for(const timer of pending.values()) window.clearTimeout(timer); };
   },[]);
   return <>
-    <TutorialPreviewPlayer preview={preview} skinId={design.skinId} showRendererBomb={!!bomb.frames}
+    <TutorialPreviewPlayer preview={preview} skinId={design.skinId} skinManifest={design.skinManifest} showRendererBomb={!!bomb.frames}
       onBombEffect={handleBomb} diagramModalEnabled={false} onReady={onReady} />
     {Object.entries(liveBombs).map(([lane,effect]) => (
       <span key={`${lane}:${effect.run}`} className="asset-lab-live-bomb" data-live-bomb-lane={lane}

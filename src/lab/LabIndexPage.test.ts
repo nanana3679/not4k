@@ -30,7 +30,7 @@ describe("LabIndexPage", () => {
     expect(markup).not.toContain('href="/lab/note-assets"');
   });
 
-  it("이미지 비교 보드 2개는 IMAGE GALLERIES 그룹에서 새 탭의 정적 페이지로 열린다", () => {
+  it("롱노트 바디 시안을 포함한 이미지 비교 보드 4개는 IMAGE GALLERIES 그룹에서 새 탭으로 열린다", () => {
     const markup = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(LabIndexPage)));
 
     expect(markup).toContain("IMAGE GALLERIES");
@@ -39,6 +39,7 @@ describe("LabIndexPage", () => {
     expect(markup).toContain("<dt>GROUPS</dt><dd>05</dd>");
     expect(markup).toContain('href="/lab/images/module-size-distance-20260910/"');
     expect(markup).toContain('href="/lab/images/size-distance-altitude-eight-20260910/"');
-    expect(markup.match(/target="_blank"/g)).toHaveLength(2);
+    expect(markup).toContain('href="/lab/images/long-note-body-six-20260929/"');
+    expect(markup.match(/target="_blank"/g)).toHaveLength(4);
   });
 });

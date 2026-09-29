@@ -16,11 +16,28 @@ vi.mock('pixi.js', () => ({
 }));
 
 import { SkinManager } from './SkinManager';
+import { getSkinManifest } from './skins';
 
 describe('SkinManager', () => {
   beforeEach(() => {
     assetsLoad.mockClear();
     assetsUnload.mockClear();
+  });
+
+  it('같은 Classic ID의 v001→v002 매니페스트를 주입하면 이전 텍스처를 새 버전으로 교체한다', async () => {
+    const base = getSkinManifest('classic');
+    const previous = { ...base, assets: { ...base.assets, noteSingle: '/lab/skin-versions/classic/v001/skin/note-single.png' } };
+    const current = { ...base, assets: { ...base.assets, noteSingle: '/lab/skin-versions/classic/v002/skin/note-single.png' } };
+    const manager = new SkinManager();
+    await manager.loadSkin(previous);
+    expect(manager.getTexture('noteSingle')).toMatchObject({path: previous.assets.noteSingle});
+    await manager.loadSkin(current);
+    expect(manager.getTexture('noteSingle')).toMatchObject({path: current.assets.noteSingle});
+    expect(getSkinManifest('classic').assets.noteSingle).toBe('/skins/classic/note-single.png');
+    assetsLoad.mockClear();
+    await manager.loadSkin(current);
+    expect(assetsLoad).not.toHaveBeenCalled();
+    manager.dispose();
   });
 
   it('두 매니저가 crystal을 공유하면 먼저 dispose한 슬롯은 전역 texture를 unload하지 않음', async () => {

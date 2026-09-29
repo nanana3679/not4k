@@ -4,16 +4,39 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import NoteAssetShowcasePage from "./NoteAssetShowcasePage";
 
-function renderPage(baseUrl = "/") {
+function renderPage(baseUrl = "/", query = "") {
   const basename = baseUrl.replace(/\/$/, "") || "/";
   return renderToStaticMarkup(createElement(
     MemoryRouter,
-    { basename, initialEntries: [`${baseUrl}lab/note-assets`] },
+    { basename, initialEntries: [`${baseUrl}lab/note-assets${query}`] },
     createElement(NoteAssetShowcasePage),
   ));
 }
 
 describe("NoteAssetShowcasePage", () => {
+  it('version=v001 직접 링크는 이전 Classic과 v001 선택 표시·원본 랙을 함께 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v001');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v001"');
+    expect(markup).toContain('data-skin-version="v001"');
+    expect(markup).toContain('value="v001" selected=""');
+    expect(markup).toContain('/lab/skin-versions/classic/v001/svg/note-single.svg');
+    expect(markup).toContain('id="classic-skin-version"');
+  });
+
+  it('version=v003 직접 링크는 S05/D05 짙은 바디 선택지와 해당 재생기·바디 랙을 연다', () => {
+    const markup = renderPage('/', '?design=classic&version=v003');
+    expect(markup).toContain('data-tutorial-skin-id="classic-v003"');
+    expect(markup).toContain('value="v003" selected=""');
+    expect(markup).toContain('S05/D05 짙은 바디');
+    expect(markup).toContain('/lab/skin-versions/classic/v003/svg/body-single-idle.svg');
+    expect(markup).toContain('/lab/skin-versions/classic/v003/svg/body-double-idle.svg');
+  });
+
+  it('Simple 직접 링크는 Classic 버전 선택기를 표시하지 않는다', () => {
+    const markup = renderPage('/', '?design=simple&version=v001');
+    expect(markup).toContain('data-tutorial-skin-id="simple"');
+    expect(markup).not.toContain('id="classic-skin-version"');
+  });
   it.each([
     ["/", "/lab"],
     ["/not4k/", "/not4k/lab"],

@@ -1,30 +1,28 @@
 # Classic
 
-승인된 유광 포인트·어두운 금속 바디·직사각형 터미널을 편집 가능한 SVG로 보존한다. 기존 단색 Classic은 `../simple/`로 이름을 옮겼다.
+현재 선택은 **아주 밝은 바디(1단계) + 기존 고채도 포인트**다. 싱글 파랑·더블 금색을 유지하고, 바디와 시작·끝 터미널에 같은 100:20 반복 타일을 사용한다. 선택 원본·출처는 [선택 에셋](./revisions/body-six-20260929/selected/README.md), 비교 기록은 `/lab/images/long-note-body-six-20260929/`에 있다.
 
-인게임에서 `Settings → Skin → Classic`을 선택해 사용한다. 선택은 로컬 설정에 저장된다. `pnpm build:classic`은 Lab SVG를 `public/lab/note-assets/classic/`에, 공통 런타임 PNG58개를 `public/skins/classic/`에 생성한다. 실제 플레이와 Lab이 같은 PNG를 읽고, 프로덕션 빌드에도 포함한다. 런타임 PNG를 저장소에 보관하므로 일반 빌드 때 다시 생성할 필요는 없다.
+인게임에서 `Settings → Skin → Classic`을 선택한다. `pnpm build:classic`은 Lab SVG를 `public/lab/note-assets/classic/`에, 런타임 PNG 58개를 `public/skins/classic/`에 생성한다. 실제 플레이와 Lab이 같은 PNG를 읽으며 프로덕션 빌드에도 포함한다. 런타임 PNG를 저장소에 보관하므로 일반 빌드 때 다시 생성할 필요는 없다.
 
-원본·작업 자료, Lab SVG, 런타임 PNG는 현재 폴더 분리를 유지한다. 개발 서버와 공개 Lab은 같은 산출물을 읽으며, `withPublicBase`(`withLabPublicBase`)가 배포 위치에 맞춰 URL 접두사만 붙인다. 예를 들어 같은 `public/skins/classic/note-single.png`를 루트 배포에서는 `/skins/classic/note-single.png`, `/not4k/` 배포에서는 `/not4k/skins/classic/note-single.png`로 요청한다.
+## 빌드 입력과 상태
 
-Penpot에서 확정한 싱글 바디·시작 터미널을 공통 빌드 입력에 적용했다. [확정본](./revisions/penpot-approved/README.md)의 모양·채색·그리는 순서를 유지하고 상태를 나누는 그룹 정보만 추가했다. 끝 터미널은 시작 전체의 상하반전이다. SVG는1000×200, PNG는200×40이며 투명 여백 없이 바디를 터미널 아래까지 이어 그린다.
+이전 Classic은 `v001`, 현재 선택은 `v002`, S05/D05 짙은 바디 비교용은 `v003`으로 [버전 보관 폴더](./versions/README.md)에 저장한다. 각 버전은 전체 런타임 PNG·Lab SVG·원본·생성 코드·설정과 파일 해시를 포함한다. 이후 확정본은 `node scripts/classic-versions.mjs save v004 "설명"`처럼 새 번호로 보관한다.
 
-`CLASSIC_SOURCE_NAMES`의 포인트·바디 원본4개와 `sources/terminal-start-{single,double}.svg`를 읽고 저장소 루트에서 `pnpm build:classic`을 실행한다. 두 시작 터미널 모두 독립 원본이며 이전 생성기로 다시 만들지 않는다. 더블은 싱글의 Penpot 수정본과 같은 금속 마감·반사광·V 형태를 사용하고 금색으로 채색했다. 플레이어 코드는 수정할 필요가 없다. 생성 결과는 `/lab/note-assets?design=classic`에서 시연한다.
+- `sources/point-{single,double}.svg`: 중앙 분할을 제거한 기존 고채도 포인트 원본. 1060×200 SVG를 212×40 PNG로 내보내 화면 106×20으로 표시한다. 가운데 100px에 바디를 연결한다.
+- `sources/body-{single,double}-bright.svg`: 선택한 200×40 PNG를 내장한 1000×200 SVG. 대기 상태는 원본 픽셀을 그대로 사용한다. 원본 1000×200 PNG도 선택 에셋 폴더에 보존한다.
+- `bright-body.mjs`: 대기는 선택 타일 그대로, 홀드는 폭 56단위 중앙 흰빛과 주변 빛, 더블 부분충족은 중앙 흰빛만 표시한다. 실패는 같은 재질을 무채색·45% 밝기로 표시한다. 각 상태는 세로로 일정해 반복 경계가 없다. PNG 내보내기는 SVG 그라데이션 디더링의 1/255 행 차이까지 없애도록 중앙 한 행을 세로로 반복한다.
+- `states.mjs`: 같은 상태의 바디·시작·끝 터미널을 동일한 SVG로 출력한다. 런타임에서 시작 텍스처를 상하반전해도 동일한 타일이다. PNG는 200×40, 화면은 100×20이다.
+- `CLASSIC_SOURCE_NAMES`는 현재 포인트·밝은 바디 4개와 석영 트릴 7개를 읽는다. 이전 Penpot 바디·독립 터미널은 제작 이력으로 `sources/`와 `revisions/`에 보존하며 현재 빌드 입력에서 제외한다. 빌드는 원본 파일을 덮어쓰지 않는다.
+- 트릴은 기존 석영 원본과 상태를 사용한다. 봄 16프레임과 버튼 8개도 기존 산출 방식을 유지한다.
+- Grace는 검정 1px→흰색 1px 외곽과 10px 알파 80%→0% 발광을 별도 overlay로 표시한다.
 
-- 포인트: 원본1060×200, 런타임212×40, 화면106×20. 윗면은100px 바디와 접합한다.
-- 바디: 원본1000×200, 런타임200×40, 화면100×20 주기로 반복한다.
-- 터미널: SVG1000×200, 런타임200×40, 화면100×20. 바디와 같은 너비·열린 단면으로 연결한다. 흰빛은 바디와 같은5.6px이다.
-- `terminal-start-single.svg`, `terminal-start-double.svg`는 아래가 닫힌 시작 파츠다. `terminal-end-single.svg`, `terminal-end-double.svg`는 시작의 정확한 상하반전이다. 기존 `terminal-single.svg`, `terminal-double.svg` 이름은 끝 파츠를 가리킨다. 이6개 파일은 빌드 때 `sources/`에도 편집 가능한 독립 SVG로 출력한다.
-- 기준은 [바디 주변 연결 시안 4번](./references/terminal-approved.png)을 Penpot 댓글로 수정한 싱글이다. 중앙 V의 끝은 y=113/165, 사이 간격은18단위이며 더블도 같다. 더블의 넓은 중앙광(180단위)은 꺾임 시작점을22단위 올려 모든 사선을45도로 유지한다. 흰빛56단위와 양옆 노란빛은 더블 바디의 원래 그라데이션을 사용한다. 바깥으로 돌출되지 않는다.
-- 양 맨 끝 회색·하늘색 띠는 바디와 같은 가로 위치·색으로 y=0~194까지 연속된다. 더블에는 같은 구조의 노란색을 사용한다. 닫힌 쪽은 y=194~200의 얇은 마감과 한 줄의 빛으로 끝난다.
-- 싱글은 Penpot 확정본의 금속 그라데이션·푸른 경계 반사·V를 따라 좁아지는 번짐을 사용한다. 대기에서는 중앙광과 그 주변 번짐을 끄며, 실패에서는 발광을 없애고 금속을 무채색으로 바꾼다. 더블도 같은 금속 면과 경계 반사·번짐 구조를 금색으로 적용한다. 현재 더블 바디와 맞닿는 단면과 외곽 띠를 보존하고, y=70까지 재질을 점진적으로 연결한다. 중앙 연결 영역도 V 형태로 잘라 틈새가 메워지지 않게 한다. 대기는 흰빛만 끄고, 부분충족은 노란빛과 번짐만 끄며, 실패는 무채색으로 바꾼다.
-- 기준 이미지 사본은 `references/terminal-approved.png`, 직전 SVG·생성기·기준 이미지는 `revisions/pre-concept-04/`, 이전1040px 터미널은 `revisions/pre-seamless-terminal/`에 보존한다.
-- 색 수정 전 45° SVG와 생성기는 `revisions/concept-04-before-color/`에 보존한다. 미리보기에서 4번 원본과 현재 SVG를 나란히 확인할 수 있다.
-- Penpot 통합 전 싱글은 `revisions/pre-penpot/`, 상태 그룹을 추가하기 전의 확정 원본은 `revisions/penpot-approved/`에 보존한다. 브라우저 테스트에서 켜짐 상태와 확정 원본의 모든 픽셀이 동일한지 비교한다.
-- 더블 수정 전 시작·끝 SVG는 `revisions/pre-penpot-double/`에 보존한다. 새 더블 역시 원본과 시작 출력, 원본 전체를 뒤집은 결과와 끝 출력을 픽셀 비교한다.
-- 시작/끝 조립·실제 크기·길이0·SVG 다운로드: `/assets-lab/classic/terminal-preview.html`.
-- `states.mjs`는 고유색을 유지하는 대기, 중앙광만 남기는 더블 부분충족, 발광과 고유색을 지운 실패 에셋을 만든다.
-- Grace는 검정1px→흰색1px 외곽과10px 알파80%→0% 발광이다. 본체를 줄이지 않는 별도 overlay로 제공한다.
-- 봄은 기존 CSS 실버 링을 고정 시간으로 샘플링한120×120 PNG16프레임,280ms이다. 싱글·더블이 공유한다. CSS6종은 Lab에서 계속 비교할 수 있다.
+`/lab/note-assets?design=classic`에서 실제 재생기와 전체 상태 랙을 확인한다. `/assets-lab/classic/terminal-preview.html`은 바디·시작·끝 공용 타일의 조립, 실제 크기, 길이 0과 SVG 다운로드를 제공한다.
+
+원본·작업 자료, Lab SVG, 런타임 PNG의 폴더 분리를 유지한다. `withPublicBase`와 `withLabPublicBase`는 배포 위치에 맞춰 URL 접두사만 붙인다. 기존 단색 Classic은 `../simple/`에 보존한다.
+
+## 이전 터미널 제작 기록
+
+Penpot 확정본과 이전 V 형태는 `revisions/penpot-approved/`, `revisions/pre-penpot/`, `revisions/pre-penpot-double/`에 남아 있다. 색 수정 전 SVG는 `revisions/concept-04-before-color/`, 이전 생성기와 기준 이미지는 `revisions/pre-concept-04/`, 이전 1040px 터미널은 `revisions/pre-seamless-terminal/`에 보존한다.
 
 제작 기준과 시안 등록 방법은 [노트 에셋 Lab 명세](../../docs/spec/note-asset-lab.md)를 따른다.
 

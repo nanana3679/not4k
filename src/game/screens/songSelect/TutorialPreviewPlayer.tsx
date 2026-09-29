@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import type { SkinManager } from '../../skin';
+import type { SkinManifest } from '../../skin/types';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
 import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
@@ -80,6 +81,7 @@ interface TutorialPreviewPlayerProps {
   diagramModalEnabled?: boolean;
   diagramModalVisible?: boolean;
   skinId?: string;
+  skinManifest?: SkinManifest;
   showRendererBomb?: boolean;
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
 }
@@ -180,6 +182,7 @@ export function TutorialPreviewPlayer({
   diagramModalEnabled = true,
   diagramModalVisible = true,
   skinId = 'crystal',
+  skinManifest,
   showRendererBomb = true,
   onBombEffect,
 }: TutorialPreviewPlayerProps) {
@@ -430,7 +433,7 @@ export function TutorialPreviewPlayer({
 
         const nextSkinManager = new SkinManager();
         skinManager = nextSkinManager;
-        await nextSkinManager.loadSkin(skinId);
+        await nextSkinManager.loadSkin(skinManifest ?? skinId);
         if (disposed) {
           nextSkinManager.dispose();
           if (skinManager === nextSkinManager) skinManager = null;
@@ -589,7 +592,7 @@ export function TutorialPreviewPlayer({
       // before releasing textures or destroying the application.
       if (!isStarting) disposeResources();
     };
-  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, skinId, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, keyboardAreaHeight, keyboardLayout, keys, preview, skinId, skinManifest, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -601,7 +604,7 @@ export function TutorialPreviewPlayer({
   }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
-    <div style={styles.previewShell} data-tutorial-skin-id={skinId}>
+    <div style={styles.previewShell} data-tutorial-skin-id={skinManifest?.theme.id ?? skinId}>
       <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           ref={canvasRef}

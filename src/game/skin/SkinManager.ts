@@ -85,16 +85,16 @@ export class SkinManager {
   }
 
   /** 스킨의 모든 에셋을 로드 */
-  async loadSkin(skinId: string): Promise<void> {
-    // 같은 스킨이면 스킵
-    if (this.loaded && this.manifest?.theme.id === skinId) return;
+  async loadSkin(skin: string | SkinManifest): Promise<void> {
+    const manifest = typeof skin === 'string' ? getSkinManifest(skin) : skin;
+    // A preview may supply a different version with the same theme ID.
+    if (this.loaded && this.manifest === manifest) return;
 
     // 기존 텍스처 해제
     this.dispose();
     this.disposed = false;
     const generation = ++this.loadGeneration;
 
-    const manifest = getSkinManifest(skinId);
     this.manifest = manifest;
 
     const { assets } = manifest;

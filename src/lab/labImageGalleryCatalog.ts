@@ -28,4 +28,16 @@ export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntr
     description: "서로 다른 시설 디자인 8개를 크기·거리·고도 조합으로 비교합니다.",
     createdAt: "2026-09-10",
   }),
+  registerImageGallery({
+    id: "point-derived-body-20260929",
+    title: "Classic 싱글 롱노트 바디 시안",
+    description: "포인트 노트의 색과 재질로 만든 100:20 반복 바디를 확인합니다.",
+    createdAt: "2026-09-29",
+  }),
+  registerImageGallery({
+    id: "long-note-body-six-20260929",
+    title: "롱노트 선택안 · 밝은 바디 + 고채도 포인트",
+    description: "선택한 아주 밝은 바디와 고채도 포인트를 싱글 파랑·더블 금색으로 확인합니다.",
+    createdAt: "2026-09-29",
+  }),
 ]);

@@ -1,0 +1,53 @@
+{
+  "name": "not4k",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.29.3",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:lab": "tsc && vite build --config vite.lab.config.ts && node scripts/verify-lab-pages-build.mjs",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "build:skins": "node scripts/build-skins.mjs",
+    "build:classic": "node scripts/build-classic-skin.mjs",
+    "split:gear": "node scripts/split-gear-gauge.mjs",
+    "backup": "node scripts/backup-supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "pixi.js": "^8.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.6.0",
+    "sonner": "^2.0.7",
+    "zustand": "^5.0.11"
+  },
+  "pnpm": {
+    "overrides": {
+      "rollup": ">=4.59.0",
+      "minimatch": ">=10.2.3",
+      "flatted": ">=3.4.0",
+      "ajv": ">=6.14.0"
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^10.0.3",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.0",
+    "globals": "^17.3.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^6.4.1",
+    "vitest": "^4.0.18"
+  },
+  "version": "0.3.0"
+}

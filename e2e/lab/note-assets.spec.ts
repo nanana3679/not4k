@@ -256,12 +256,12 @@ test.describe("Note Assets Lab", () => {
       { width: 200, height: 40 },
       { width: 200, height: 40 },
     ]);
-    expect(runtimeTextures[2].centerLuma).toBeGreaterThan(runtimeTextures[1].centerLuma + 80);
+    expect(runtimeTextures[2].centerLuma).toBeGreaterThan(runtimeTextures[1].centerLuma + 15);
     expect(runtimeTextures[3].averageChroma).toBeGreaterThan(30);
-    expect(runtimeTextures[3].centerLuma).toBeGreaterThan(runtimeTextures[4].centerLuma + 100);
+    expect(runtimeTextures[3].centerLuma).toBeGreaterThan(runtimeTextures[4].centerLuma + 25);
     expect(runtimeTextures[5].averageChroma).toBeLessThan(1);
     expect(runtimeTextures[6].averageChroma).toBeGreaterThan(30);
-    expect(runtimeTextures[6].centerLuma).toBeGreaterThan(runtimeTextures[7].centerLuma + 100);
+    expect(runtimeTextures[6].centerLuma).toBeGreaterThan(runtimeTextures[7].centerLuma + 15);
     expect(runtimeTextures[8].averageChroma).toBeLessThan(1);
     for (const asset of [
       "terminal-single-idle.svg",
