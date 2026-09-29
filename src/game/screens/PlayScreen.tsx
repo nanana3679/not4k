@@ -14,9 +14,24 @@ import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 import { drainPlaySessionInputs, stepPlaySession } from './playSessionInput';
+import type { Chart } from '../../shared';
+import type { SkinManifest } from '../skin/types';
+import type { PlayResult } from '../stores/gameStore';
 
-export function PlayScreen() {
-  const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+export interface PlayScreenPreview {
+  chart: Chart;
+  audio: AudioBuffer;
+  skin: SkinManifest;
+  onFinish: (result: PlayResult) => void;
+  onQuit: () => void;
+}
+
+export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
+  const { setScreen, setResult, chartData: storedChart, audioBuffer: storedAudio, selectedPlaybackRange: storedRange, startTimeMs: storedStart, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
+  const chartData = preview ? preview.chart : storedChart;
+  const audioBuffer = preview ? preview.audio : storedAudio;
+  const selectedPlaybackRange = preview ? null : storedRange;
+  const startTimeMs = preview ? 0 : storedStart;
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,7 +68,7 @@ export function PlayScreen() {
       URL.revokeObjectURL(url);
     }
 
-    setResult({
+    const result: PlayResult = {
       songId: chartData.meta.title || 'unknown',
       difficulty: chartData.meta.difficultyLabel || 'NORMAL',
       achievementRate: state.achievementRate,
@@ -63,13 +78,20 @@ export function PlayScreen() {
       goodTrillCount: state.goodTrillCount,
       fastCount: state.fastCount,
       slowCount: state.slowCount,
-    });
+    };
 
+    if (preview) {
+      preview.onFinish(result);
+      return;
+    }
+
+    setResult(result);
     setScreen('result');
   };
 
   useEffect(() => {
     let cancelled = false;
+    let activeSkin: SkinManager | null = null;
     const init = async () => {
       if (!canvasRef.current || !containerRef.current) return;
 
@@ -116,7 +138,7 @@ export function PlayScreen() {
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
         const skinManager = new SkinManager();
-        await skinManager.loadSkin(settings.skinId);
+        await skinManager.loadSkin(preview?.skin ?? settings.skinId);
         if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
@@ -132,6 +154,7 @@ export function PlayScreen() {
         await renderer.init();
         // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다.
         if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
+        activeSkin = skinManager;
 
         // Set up renderer with chart data
         renderer.setChart(
@@ -315,6 +338,7 @@ export function PlayScreen() {
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
+      activeSkin?.dispose();
     };
   }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps -- settings는 init 내부에서 getState() 스냅샷으로 접근
 
@@ -365,7 +389,9 @@ export function PlayScreen() {
       URL.revokeObjectURL(url);
     }
 
-    if (editorReturnUrl) {
+    if (preview) {
+      preview.onQuit();
+    } else if (editorReturnUrl) {
       const url = editorReturnUrl;
       setStartTimeMs(0);
       setEditorReturnUrl(null);
@@ -387,7 +413,7 @@ export function PlayScreen() {
       <div style={styles.errorContainer}>
         <div style={styles.errorText}>{error}</div>
         <button style={styles.button} onClick={handleQuit}>
-          Back to Song Select
+          {preview ? 'Lab으로 돌아가기' : 'Back to Song Select'}
         </button>
       </div>
     );

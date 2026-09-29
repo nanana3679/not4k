@@ -32,7 +32,7 @@ interface GameSettings {
   masterVolume: number;
 }
 
-interface PlayResult {
+export interface PlayResult {
   songId: string;
   difficulty: string;
   achievementRate: number;

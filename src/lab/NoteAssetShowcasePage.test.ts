@@ -14,6 +14,15 @@ function renderPage(baseUrl = "/", query = "") {
 }
 
 describe("NoteAssetShowcasePage", () => {
+  it('v004 실제 연주 패널은 차트 JSON·음원 선택과 비활성 연주 버튼·키 안내를 제공한다', () => {
+    const markup = renderPage('/', '?design=classic&version=v004');
+    expect(markup).toContain('실제 차트로 연주');
+    expect(markup).toContain('차트 JSON');
+    expect(markup).toContain('accept="audio/*,.ogg,.wav,.mp3,.flac"');
+    expect(markup).toContain('disabled="">선택한 스킨으로 연주');
+    expect(markup).toContain('Classic v004');
+    expect(markup).toContain('게임의 키 설정과 스크롤 속도를 사용합니다');
+  });
   it('version=v001 직접 링크는 이전 Classic과 v001 선택 표시·원본 랙을 함께 연다', () => {
     const markup = renderPage('/', '?design=classic&version=v001');
     expect(markup).toContain('data-tutorial-skin-id="classic-v001"');
