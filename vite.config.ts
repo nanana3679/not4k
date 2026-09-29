@@ -10,6 +10,8 @@ import { classicVersionPreviewsPlugin } from "./scripts/classicVersionPreviews";
 
 
 export default defineConfig({
+  // Worktrees may share node_modules; optimized React modules must stay local.
+  cacheDir: ".vite/dev",
   plugins: [
     react(),
     classicVersionPreviewsPlugin(dirname(fileURLToPath(import.meta.url))),

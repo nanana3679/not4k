@@ -11,6 +11,7 @@
 - 카탈로그 홈: `/lab`
 - 메인 프로덕션 빌드: Lab 코드와 `public/lab` 자산을 포함하지 않는다.
 - 공개 정적 빌드: `pnpm run build:lab`으로 Lab만 `dist-lab`에 생성한다.
+- `node_modules`를 워크트리 사이에 공유해도 Vite 캐시는 각 워크트리의 `.vite/dev`·`.vite/lab`에 분리한다. 공유 의존성 폴더에 캐시를 쓰면 다른 서버의 최적화 결과가 섞여 React 중복 로딩으로 빈 화면이 발생할 수 있다.
 
 ## 새 미리보기 추가
 
