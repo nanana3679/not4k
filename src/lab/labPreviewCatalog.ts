@@ -28,7 +28,7 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
   {
     id: "note-assets",
     title: "노트 에셋 시연실",
-    description: "Classic 버전과 Simple을 시연하고, 차트·음원을 불러와 직접 연주하며 비교합니다.",
+    description: "Classic 버전과 Simple의 노트·롱노트·터미널·키봄을 실제 재생기로 비교합니다.",
     category: "Rendering",
     path: "/lab/note-assets",
   },

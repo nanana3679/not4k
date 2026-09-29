@@ -29,27 +29,10 @@
 
 .asset-lab-header,
 .asset-lab-workbench,
-.asset-lab-chart-play,
 .asset-lab-rack {
   width: min(1280px, calc(100% - 40px));
   margin-inline: auto;
 }
-
-.asset-lab-chart-play { box-sizing: border-box; margin-bottom: 24px; padding: 16px 20px; border: 1px solid #40536a; border-radius: 5px; background: #111a27; }
-.asset-lab-chart-play summary { cursor: pointer; min-height: 44px; align-content: center; font-size: 18px; font-weight: 600; }
-.asset-lab-chart-play summary:focus-visible, .asset-lab-chart-play input:focus-visible { outline: 2px solid #9ad9ff; outline-offset: 3px; }
-.asset-lab-chart-play p { margin: 12px 0; font-size: 16px; line-height: 1.6; }
-.asset-lab-chart-files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
-.asset-lab-chart-files label { display: grid; gap: 8px; min-width: 0; }
-.asset-lab-chart-files input { min-width: 0; width: 100%; min-height: 44px; color: #c5d1df; font: inherit; }
-.asset-lab-chart-files input::file-selector-button, .asset-lab-chart-actions button { min-height: 44px; border: 1px solid #58728d; border-radius: 4px; background: #1d3143; color: #eef4fb; padding: 8px 14px; font: inherit; cursor: pointer; }
-.asset-lab-chart-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.asset-lab-chart-actions button:disabled { opacity: .45; cursor: default; }
-.asset-lab-chart-actions button:not(:disabled):hover { background: #29465e; }
-.asset-lab-chart-actions span, .asset-lab-chart-help { color: #b3c1d0; }
-.asset-lab-chart-play [role="alert"] { color: #ffb8b8; }
-.asset-lab-chart-result { color: #a9e4ff; }
-@media (max-width: 640px) { .asset-lab-chart-files { grid-template-columns: 1fr; } }
 
 .asset-lab-header {
   display: flex;

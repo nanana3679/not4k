@@ -19,11 +19,6 @@ import {
 import { beat } from "../shared/types/beat";
 import { NOTE_ASSET_KIND_LABELS, type KeybombVariantId } from "./noteAssetShowcase";
 import "./NoteAssetShowcasePage.css";
-import { PlayScreen } from '../game/screens/PlayScreen';
-import { getSkinManifest } from '../game/skin/skins';
-import type { SkinManifest } from '../game/skin/types';
-import type { PlayResult } from '../game/stores/gameStore';
-import { NoteAssetChartPlayPanel, type NoteAssetChartFiles } from './NoteAssetChartPlayPanel';
 
 interface PreviewOption {
   id: string;
@@ -103,8 +98,6 @@ function getPreview(previewId: string): TutorialPreviewDefinition {
 export default function NoteAssetShowcasePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const design = getNoteAssetDesign(searchParams.get('design'), searchParams.get('version'));
-  const [chartSession, setChartSession] = useState<(NoteAssetChartFiles & { skin: SkinManifest }) | null>(null);
-  const [chartResult, setChartResult] = useState<PlayResult | null>(null);
   const [selectedPreviewId, setSelectedPreviewId] = useState(DEFAULT_PREVIEW_ID);
   const [previewInstance, setPreviewInstance] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
@@ -150,41 +143,26 @@ export default function NoteAssetShowcasePage() {
   }, [design]);
 
   useEffect(() => {
-    if (chartSession) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const timer = window.setInterval(() => {
       if (!document.hidden && !reducedMotion.matches) setRackBombRun((current) => current + 1);
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [chartSession]);
-
-  const returnFromChart = () => { setChartSession(null); setPlayerReady(false); };
+  }, []);
 
   return (
-    <>
-    {chartSession && <PlayScreen preview={{
-      chart: chartSession.chart, audio: chartSession.audio, skin: chartSession.skin,
-      onQuit: returnFromChart,
-      onFinish: result => { setChartResult(result); returnFromChart(); },
-    }} />}
-    <main className="note-asset-lab" style={chartSession ? { display: 'none' } : undefined} data-lab-page="note-assets" data-asset-design={design.id} data-skin-version={design.versionId ?? 'current'}>
+    <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id} data-skin-version={design.versionId ?? 'current'}>
       <header className="asset-lab-header">
         <div>
           <p className="asset-lab-kicker"><Link className="asset-lab-back-link" to="/lab">← Lab 목록</Link></p>
           <h1>노트 에셋 시연실</h1>
-          <p>노트 에셋을 반복 시연하거나, 차트와 음원을 불러와 선택한 스킨으로 직접 연주합니다.</p>
+          <p>튜토리얼의 실제 재생기와 렌더러에서 확정 노트 에셋을 반복 재생합니다.</p>
         </div>
         <div className="asset-lab-status" aria-label="재생기 상태">
           <span>{playerReady ? "PLAYER READY" : "LOADING PLAYER"}</span>
           <strong>{design.name}{design.versionId ? ` · ${design.versionId}` : ''}</strong>
         </div>
       </header>
-
-      <NoteAssetChartPlayPanel skinLabel={`${design.name}${design.versionId ? ` ${design.versionId}` : ''} · ${design.description}`} result={chartResult} onPlay={files => {
-        setChartResult(null);
-        setPlayerReady(false);
-        setChartSession({ ...files, skin: design.skinManifest ?? getSkinManifest(design.skinId) });
-      }} />
 
       <section className="asset-lab-workbench" aria-labelledby="asset-player-title">
         <div className="asset-lab-player-panel">
@@ -194,13 +172,13 @@ export default function NoteAssetShowcasePage() {
           </div>
           <div className="asset-lab-player-stage">
             <div className="asset-lab-player-canvas" data-active-preview={preview.id}>
-              {!chartSession && <NoteAssetPreviewPlayer
+              <NoteAssetPreviewPlayer
                 key={`${design.skinId}:${preview.id}:${previewInstance}`}
                 design={design}
                 preview={preview}
                 bomb={selectedBomb}
                 onReady={() => setPlayerReady(true)}
-              />}
+              />
             </div>
           </div>
         </div>
@@ -332,6 +310,5 @@ export default function NoteAssetShowcasePage() {
         </div>
       </section>
     </main>
-    </>
   );
 }

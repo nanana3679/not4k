@@ -14,24 +14,9 @@ import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 import { drainPlaySessionInputs, stepPlaySession } from './playSessionInput';
-import type { Chart } from '../../shared';
-import type { SkinManifest } from '../skin/types';
-import type { PlayResult } from '../stores/gameStore';
 
-export interface PlayScreenPreview {
-  chart: Chart;
-  audio: AudioBuffer;
-  skin: SkinManifest;
-  onFinish: (result: PlayResult) => void;
-  onQuit: () => void;
-}
-
-export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
-  const { setScreen, setResult, chartData: storedChart, audioBuffer: storedAudio, selectedPlaybackRange: storedRange, startTimeMs: storedStart, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
-  const chartData = preview ? preview.chart : storedChart;
-  const audioBuffer = preview ? preview.audio : storedAudio;
-  const selectedPlaybackRange = preview ? null : storedRange;
-  const startTimeMs = preview ? 0 : storedStart;
+export function PlayScreen() {
+  const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -68,7 +53,7 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
       URL.revokeObjectURL(url);
     }
 
-    const result: PlayResult = {
+    setResult({
       songId: chartData.meta.title || 'unknown',
       difficulty: chartData.meta.difficultyLabel || 'NORMAL',
       achievementRate: state.achievementRate,
@@ -78,14 +63,8 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
       goodTrillCount: state.goodTrillCount,
       fastCount: state.fastCount,
       slowCount: state.slowCount,
-    };
+    });
 
-    if (preview) {
-      preview.onFinish(result);
-      return;
-    }
-
-    setResult(result);
     setScreen('result');
   };
 
@@ -109,6 +88,11 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
         : audioBuffer.duration * 1000;
 
       try {
+        const skin = import.meta.env.DEV
+          ? (await import('../../lab/devSkinSelection')).resolveDevSkinSelection(settings.skinId)
+          : settings.skinId;
+        if (cancelled) return;
+
         // 차트의 시간 파생은 단일 ChartTiming 뷰가 소유한다 (노트 시작/끝 ms,
         // trillZone 시작 ms, 판정 수). renderer/judgment에 넘기는 것과 같은 인스턴스.
         const timing = createChartTiming(chartData);
@@ -138,7 +122,7 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
         const skinManager = new SkinManager();
-        await skinManager.loadSkin(preview?.skin ?? settings.skinId);
+        await skinManager.loadSkin(skin);
         if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
@@ -331,12 +315,15 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
       }
       if (audioEngineRef.current) {
         audioEngineRef.current.dispose();
+        audioEngineRef.current = null;
       }
       if (inputSystemRef.current) {
         inputSystemRef.current.detach();
+        inputSystemRef.current = null;
       }
       if (rendererRef.current) {
         rendererRef.current.dispose();
+        rendererRef.current = null;
       }
       activeSkin?.dispose();
     };
@@ -389,9 +376,7 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
       URL.revokeObjectURL(url);
     }
 
-    if (preview) {
-      preview.onQuit();
-    } else if (editorReturnUrl) {
+    if (editorReturnUrl) {
       const url = editorReturnUrl;
       setStartTimeMs(0);
       setEditorReturnUrl(null);
@@ -413,7 +398,7 @@ export function PlayScreen({ preview }: { preview?: PlayScreenPreview } = {}) {
       <div style={styles.errorContainer}>
         <div style={styles.errorText}>{error}</div>
         <button style={styles.button} onClick={handleQuit}>
-          {preview ? 'Lab으로 돌아가기' : 'Back to Song Select'}
+          Back to Song Select
         </button>
       </div>
     );

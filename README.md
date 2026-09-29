@@ -119,7 +119,7 @@
 | [song-preview.md](docs/spec/song-preview.md) | **곡 프리뷰/`gameplayRange` 설정**. 프리뷰 오디오 저장, 실제 플레이 구간과 페이드 설정 |
 | [debug-mode.md](docs/spec/debug-mode.md) | **디버그 모드**. 노트 판정 로깅 시스템 |
 | [project-assets.md](docs/spec/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 단계별 수급 계획 |
-| [note-asset-lab.md](docs/spec/note-asset-lab.md) | **노트 에셋 Lab**. Classic 에셋·보관 버전을 시연하고, 차트 JSON·음원으로 직접 연주하며 비교 |
+| [note-asset-lab.md](docs/spec/note-asset-lab.md) | **노트 에셋 Lab**. 실제 튜토리얼 재생기로 Classic 에셋과 보관 버전을 비교하고, S05·D05 짙은 바디를 시연 |
 
 ## rfd — 결정 기록
 

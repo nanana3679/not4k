@@ -1,6 +1,6 @@
 # 노트 에셋 Lab
 
-2026-09-14. 확정된 포인트 노트, 롱노트 바디, 터미널, 키봄을 Lab의 **실제 튜토리얼 재생기**에서 시연하고, 차트·음원 파일로 직접 연주하는 작업 공간이다.
+2026-09-14. 확정된 포인트 노트, 롱노트 바디, 터미널, 키봄을 Lab의 **실제 튜토리얼 재생기**에서 시연하는 작업 공간이다.
 
 구현 경로는 `/lab/note-assets`이며 공통 Lab 카탈로그의 `Rendering` 분류에서 연다. 앱에서는 `import.meta.env.DEV` 라우트 아래에서 로드하고, 별도 공개 Lab 빌드에서도 제공한다. SVG 시연 자료는 `public/lab/note-assets/`에 두며 메인 앱 프로덕션 빌드에서는 기존 `excludeLabFromBuildPlugin`이 `dist/lab` 전체를 제거한다. Classic 런타임 PNG는 `public/skins/classic/`에서 Lab과 실제 플레이가 함께 읽으며 프로덕션 빌드에도 포함한다. Lab SVG와 런타임 PNG의 URL은 배포 base에 맞춰 계산한다. 게임의 `Settings → Skin → Classic`에서 선택하고 저장할 수 있다. 기본 스킨은 Crystal이다.
 
@@ -18,14 +18,9 @@
 - 차트를 바꾸거나 `처음부터 재생`을 누르면 플레이어 인스턴스를 새로 시작한다.
 - 키보드 표시, 판정선, 노트 이동, 입력 표시, 롱노트 상태 변화는 튜토리얼 재생기의 기존 동작을 따른다.
 
-## 실제 차트로 연주
+## Supabase 곡으로 연주
 
-- 상단의 **실제 차트로 연주**를 펼쳐 에디터에서 저장한 차트 JSON과 해당 음원을 선택한다. 두 파일을 모두 읽으면 **선택한 스킨으로 연주**가 활성화된다. 파일은 브라우저에서만 읽으며 서버로 업로드하지 않는다. 새로고침하면 다시 선택해야 한다.
-- 공통 차트 파서와 배치 제약 검증을 거친 뒤 메인 레인 1~4만 연주한다. 잘못된 JSON, 배치 제약 위반, 연주할 노트 없음, 유효하지 않은 BPM·시간 또는 디코딩할 수 없는 음원은 오류를 표시하고 시작을 막는다.
-- `PlayScreen`에 차트·음원·현재 시안의 `SkinManifest`를 전달한다. 보관 버전도 해당 버전의 노트·바디·터미널·기어·봄으로 표시하며, 튜토리얼 재생기는 직접 연주하는 동안 중단한다. 실제 연주에는 스킨의 Pixi 봄을 사용한다.
-- 게임에 저장된 키 설정, 스크롤 속도, 판정·오디오 오프셋, 배속 등의 설정과 기존 입력·판정 경로를 사용한다. 키 배치는 시작 버튼 아래에서 확인한다. 차트에 지정된 AutoEvent 구간은 기존 게임 규칙대로 자동 연주한다.
-- `Esc`로 일시정지하고 `Resume`으로 계속, `Retry`로 처음부터 다시 연주, `Quit`으로 같은 Lab으로 돌아온다. 음원이 끝나면 Lab에 달성률과 Miss 수를 표시한다. 선택한 파일은 유지되므로 버전을 바꾼 뒤 곧바로 같은 차트를 연주할 수 있다.
-- 이 연주는 Lab 안에서 끝난다. 게임 스킨 설정, 선택한 곡·차트·음원, 플레이 화면·결과 상태를 변경하거나 기록을 저장하지 않는다.
+개발 서버의 `/game`에서 곡 선택 화면을 열고 **개발용 스킨**을 고른 뒤, Supabase에 등록된 곡·난이도의 **Play**를 누른다. 보관 버전은 Lab과 동일한 매니페스트를 사용한다. 버전 유지·게임 설정 복귀·배포 제외 규칙은 [게임 코어의 개발 환경 스킨 비교](game-core.md#개발-환경의-스킨-버전-비교)를 따른다.
 
 ## Classic 스킨 매핑
 
@@ -65,4 +60,4 @@ Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상�
 - `node scripts/build-skins.mjs --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
 - 포인트의 사선 반사는 포함하지 않는다. 현재 승인된 부드러운 유광과 윗면 모서리 반사를 유지한다.
 
-검증은 `assets-lab/classic/{states,terminals}.test.ts`, `src/game/skin/`, `src/game/renderer/GameNoteRenderer.test.ts`, `src/lab/{noteAssetDesigns,noteAssetChartPlay,NoteAssetShowcasePage}.test.ts`, `scripts/{classic-versions,classicVersionPreviews}.test.ts`, `e2e/lab/{note-assets,classic-terminal-svg,skin-versions,skin-chart-play}.spec.ts`가 담당한다. 브라우저에서 선택 원본과 대기 바디·고채도 포인트의 픽셀 일치, 7개 상태의 바디·시작·끝 타일 일치, 상하 반복과 불투명도를 확인한다. 버전 전환은 차트 유지, 직접 링크·새로고침·뒤로가기, 게임 스킨 설정 보존과 잘못된 버전의 기본값 복귀를 검증한다. 직접 연주는 파일 검증·복구, 키 입력과 판정, 종료 결과, 재시도·Lab 복귀, 파일 유지와 게임 상태 보존을 검증한다.
+검증은 `assets-lab/classic/{states,terminals}.test.ts`, `src/game/skin/`, `src/game/renderer/GameNoteRenderer.test.ts`, `src/lab/noteAssetDesigns.test.ts`, `src/lab/NoteAssetShowcasePage.test.ts`, `scripts/{classic-versions,classicVersionPreviews}.test.ts`, `e2e/lab/{note-assets,classic-terminal-svg,skin-versions}.spec.ts`가 담당한다. 브라우저에서 선택 원본과 대기 바디·고채도 포인트의 픽셀 일치, 7개 상태의 바디·시작·끝 타일 일치, 상하 반복과 불투명도를 확인한다. 버전 전환은 차트 유지, 직접 링크·새로고침·뒤로가기, 게임 스킨 설정 보존과 잘못된 버전의 기본값 복귀를 검증한다.
