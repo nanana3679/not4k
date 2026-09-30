@@ -6,7 +6,6 @@ import {
   createSafeRenderFrame,
   getLaneKeyLabels,
   isTransientTeardownRenderError,
-  resumeTutorialLoopStart,
   uniqueTutorialKeys,
   type TutorialKeyView,
 } from './TutorialPreviewPlayer';
@@ -37,22 +36,6 @@ function buildHandPlacementKeyboardFixture() {
 }
 
 describe('TutorialPreviewPlayer', () => {
-  it('10,000ms에 일시정지하고 13,000ms에 재개하면 루프 시작점이 3,000ms 뒤로 밀려 멈춘 루프 시간에서 이어진다', () => {
-    const loopStartNow = 4_000;
-    const resumed = resumeTutorialLoopStart(loopStartNow, 10_000, 13_000);
-    expect(resumed).toBe(7_000);
-    expect(13_000 - resumed).toBe(10_000 - loopStartNow);
-  });
-
-  it('paused 동안 렌더 루프는 판정 진행·렌더 전에 멈추고 재개 시 멈춘 시간만큼 루프 시작점을 민다', () => {
-    const source = tutorialPreviewPlayerSource;
-    expect(source).toContain('paused = false,');
-    const pausedCheck = source.indexOf('if (pausedRef.current) {');
-    expect(pausedCheck).toBeGreaterThan(-1);
-    expect(pausedCheck).toBeLessThan(source.indexOf('controller.advanceTo(loopTimeMs);'));
-    expect(source).toContain('loopStartNow = resumeTutorialLoopStart(loopStartNow, pausedAtNow, now);');
-  });
-
   it('곡 선택 튜토리얼 미니 재생기는 GameRenderer 기어와 원근 배경을 끈다', () => {
     expect(tutorialPreviewPlayerSource).toContain('showGearFrame: false');
     expect(tutorialPreviewPlayerSource).toContain('showFlightBackground: false');

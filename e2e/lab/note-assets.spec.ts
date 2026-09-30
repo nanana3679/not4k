@@ -2,41 +2,6 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Note Assets Lab", () => {
   for (const width of [1280, 390]) {
-    test(`${width}px 일시정지하면 재생기 화면이 멈추고 재생하면 이어지며 처음부터 재생은 일시정지를 해제한다`, async ({ page }, testInfo) => {
-      await page.setViewportSize({ width, height: 844 });
-      await page.goto('/lab/note-assets?design=classic');
-      await expect(page.getByText('PLAYER READY')).toBeVisible();
-      const canvas = page.locator('.asset-lab-player-canvas canvas').first();
-      const pause = page.locator('[data-player-pause="true"]');
-      await expect(pause).toHaveText('일시정지');
-      expect((await pause.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-      await page.waitForTimeout(600);
-      await pause.click();
-      await expect(pause).toHaveAttribute('aria-pressed', 'true');
-      await expect(pause).toHaveText('재생');
-      await expect(page.locator('.asset-lab-player-canvas')).toHaveAttribute('data-paused', 'true');
-      await page.waitForTimeout(500);
-      const frozen = await canvas.screenshot();
-      await page.waitForTimeout(800);
-      expect((await canvas.screenshot()).equals(frozen), '일시정지 중 화면 유지').toBe(true);
-      await page.screenshot({ path: testInfo.outputPath('paused.png') });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-
-      await pause.click();
-      await expect(pause).toHaveText('일시정지');
-      await expect(page.locator('.asset-lab-player-canvas')).toHaveAttribute('data-paused', 'false');
-      await page.waitForTimeout(800);
-      expect((await canvas.screenshot()).equals(frozen), '재생하면 화면이 다시 움직임').toBe(false);
-
-      await pause.click();
-      await expect(pause).toHaveAttribute('aria-pressed', 'true');
-      await page.getByRole('button', { name: '처음부터 재생', exact: true }).click();
-      await expect(pause).toHaveAttribute('aria-pressed', 'false');
-      await expect(page.getByText('PLAYER READY')).toBeVisible();
-    });
-  }
-
-  for (const width of [1280, 390]) {
     test(`${width}px Lab 목록에서 노트 에셋 시연실을 열면 Classic 재생기가 준비되고 목록으로 돌아올 수 있다`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/lab');

@@ -84,8 +84,6 @@ interface TutorialPreviewPlayerProps {
   skinManifest?: SkinManifest;
   showRendererBomb?: boolean;
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
-  /** true면 판정 진행과 렌더를 멈추고 마지막 장면을 유지한다. false로 돌아오면 멈춘 지점부터 이어서 재생한다. */
-  paused?: boolean;
 }
 
 export function uniqueTutorialKeys(timings: readonly TutorialInputTiming[]): TutorialKeyView[] {
@@ -187,7 +185,6 @@ export function TutorialPreviewPlayer({
   skinManifest,
   showRendererBomb = true,
   onBombEffect,
-  paused = false,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -198,7 +195,6 @@ export function TutorialPreviewPlayer({
   const diagramModalEnabledRef = useRef(diagramModalEnabled);
   const showRendererBombRef = useRef(showRendererBomb);
   const onBombEffectRef = useRef(onBombEffect);
-  const pausedRef = useRef(paused);
   const settings = useGameStore((state) => state.settings);
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
@@ -254,10 +250,6 @@ export function TutorialPreviewPlayer({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
 
   useEffect(() => {
     showRendererBombRef.current = showRendererBomb;
@@ -323,7 +315,6 @@ export function TutorialPreviewPlayer({
     let previousNow = performance.now();
     let previousLoopTime = 0;
     let loopStartNow = previousNow;
-    let pausedAtNow: number | null = null;
     let activeDiagramPause: TutorialDiagramPause | null = null;
     let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
     // 이 프리뷰(렌더러) 전용 — 교차 teardown 레이스로 인한 일시적 렌더 크래시를 프레임 스킵으로 삼킨다.
@@ -540,18 +531,6 @@ export function TutorialPreviewPlayer({
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
-          if (pausedRef.current) {
-            // 일시정지 중에는 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
-            pausedAtNow ??= now;
-            previousNow = now;
-            animationFrameId = requestAnimationFrame(renderLoop);
-            return;
-          }
-          if (pausedAtNow !== null) {
-            loopStartNow = resumeTutorialLoopStart(loopStartNow, pausedAtNow, now);
-            pausedAtNow = null;
-            previousNow = now;
-          }
 
           const deltaMs = Math.min(48, now - previousNow);
           previousNow = now;
@@ -682,11 +661,6 @@ export function TutorialPreviewPlayer({
       )}
     </div>
   );
-}
-
-/** 일시정지한 시간만큼 루프 시작점을 미뤄, 재개 시 멈춘 루프 시간에서 이어지게 한다. */
-export function resumeTutorialLoopStart(loopStartNow: number, pausedAtNow: number, resumeNow: number): number {
-  return loopStartNow + (resumeNow - pausedAtNow);
 }
 
 function callTutorialPreviewReady(onReady?: () => void): void {
