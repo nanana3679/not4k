@@ -46,7 +46,12 @@ async function openSkinSettings(page: Page) {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
   await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
-  await expect(dialog.getByLabel('개발용 스킨')).toBeVisible();
+  const select = dialog.getByLabel('개발용 스킨');
+  await expect(select).toBeVisible();
+  // 다른 설정 선택기와 같은 불투명 배경이어야 펼친 목록의 흰 글자가 보인다.
+  await expect(select).toHaveClass(/stg-select/);
+  await expect(select).toHaveCSS('background-color', 'rgb(13, 15, 18)');
+  await expect(dialog.getByRole('heading', { name: 'Developer' })).toBeVisible();
   return dialog;
 }
 
