@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001~v011의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001~v012의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
@@ -166,6 +166,24 @@ describe('Classic 버전 Lab 공개', () => {
       expect(source).toContain('data-source="public/skins/simple/terminal-trill.png#top-half"');
       expect(source).toContain('<image x="0" y="0" width="1000" height="100" preserveAspectRatio="none"');
       expect(strip(source)).toBe(strip(sources[0]));
+    }
+  });
+
+  it('v012 트릴 끝 터미널은 에디터가 트릴 롱 끝에 그리는 색과 같은 납작한 회색 마름모 하나를 대기·켜짐·실패에 공통으로 쓰고 나머지는 v011과 같다', async () => {
+    const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
+    const editor = (await readFile(resolve(root, 'src/editor/timeline/NoteRenderer.ts'))).toString();
+    const editorFill = /if \(note\.type === "trillLong"\) \{\s*const cx[\s\S]*?end\.fill\(0x([0-9a-f]{6})\)/.exec(editor)?.[1];
+    expect(editorFill).toBe('888888');
+    const terminals = ['terminal-trill.png', 'terminal-trill-idle.png', 'terminal-trill-failed.png'];
+    for (const path of ['note-trill.png', 'body-trill.png', 'body-trill-held.png', 'note-single.png', 'body-double.png', 'point-contact-shadow.png', ...terminals]) {
+      expect((await archived('v012', `public/skins/classic/${path}`)).equals(await archived('v011', `public/skins/classic/${path}`)), path).toBe(!terminals.includes(path));
+    }
+    const [on, idle, failed] = await Promise.all(terminals.map(path => archived('v012', `public/skins/classic/${path}`)));
+    expect(idle.equals(on) && idle.equals(failed)).toBe(true);
+    for (const name of ['terminal-end-trill', 'terminal-end-trill-on', 'terminal-end-trill-failed']) {
+      const source = (await archived('v012', `assets-lab/classic/sources/${name}.svg`)).toString();
+      expect(source).toContain(`<path d="M0 100 500 0 1000 100 500 200Z" fill="#${editorFill}"/>`);
+      expect(source).not.toContain('<linearGradient');
     }
   });
 

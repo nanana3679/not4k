@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CLASSIC_SKIN_VERSIONS } from '../../src/lab/classicSkinVersions';
 
-test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v010→v011→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v010→v011→v012→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -10,7 +10,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v0
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010', 'v011']) {
+  for (const version of ['v001', 'v002', 'v003', 'v004', 'v005', 'v006', 'v007', 'v008', 'v009', 'v010', 'v011', 'v012']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -25,7 +25,7 @@ test('현재→v001→v002→v003→v004→v005→v006→v007→v008→v009→v0
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v010');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v011');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -339,4 +339,34 @@ test('v011 트릴 끝 터미널은 대기·켜짐·실패 모두 위쪽 절반�
     top.forEach((value, channel) => expect(Math.abs(value - result.reference[channel]), `${name} 채널 ${channel}`).toBeLessThanOrEqual(2));
     expect(bottomMaxAlpha, `${name} 아래쪽 절반`).toBe(0);
   }
+});
+
+test('v012 트릴 끝 터미널은 대기·켜짐·실패 모두 가운데가 불투명 #888888이고 네 모서리가 투명한 납작한 마름모다', async ({ page }) => {
+  await page.goto('/lab/note-assets?design=classic&version=v012');
+  await expect(page.getByText('PLAYER READY')).toBeVisible();
+  const shapes = await page.evaluate(async () => {
+    const result: Record<string, { center: number[]; top: number[]; corners: number[]; edgeAlpha: number }> = {};
+    for (const name of ['terminal-trill-idle', 'terminal-trill', 'terminal-trill-failed']) {
+      const image = new Image(); image.src = `/lab/skin-versions/classic/v012/skin/${name}.png`; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+      const at = (x: number, y: number) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 4)];
+      result[name] = {
+        center: at(width / 2, height / 2),
+        top: at(width / 2, 2),
+        corners: [at(2, 2), at(width - 3, 2), at(2, height - 3), at(width - 3, height - 3)].map(pixel => pixel[3]),
+        edgeAlpha: at(width / 4, height / 4)[3],
+      };
+    }
+    return result;
+  });
+  for (const [name, shape] of Object.entries(shapes)) {
+    expect(shape.center, `${name} 가운데`).toEqual([136, 136, 136, 255]);
+    expect(shape.top, `${name} 위 꼭짓점 근처`).toEqual([136, 136, 136, 255]);
+    expect(shape.corners, `${name} 모서리`).toEqual([0, 0, 0, 0]);
+    expect(shape.edgeAlpha, `${name} 사선 경계`).toBeGreaterThan(0);
+  }
+  expect(shapes['terminal-trill']).toEqual(shapes['terminal-trill-idle']);
+  expect(shapes['terminal-trill-failed']).toEqual(shapes['terminal-trill-idle']);
 });
