@@ -105,6 +105,12 @@
 
 이슈나 GitHub Issues 기반 PRD를 조회·생성·수정할 때는 저장소 루트에서 `gh` CLI를 사용하고 `docs/agents/issue-tracker.md`를 따른다.
 
+### Pull requests
+
+- PR 본문에 변경 파일을 필수·권장·생략 가능으로 나눈 `리뷰 중요도` 절을 둔다. 필수 파일은 파일마다 바뀐 내용과 위험, 읽는 순서를 적는다
+- 에이전트는 머지 전에 필수 파일 목록을 대화로 제시하고 사람이 읽었는지 확인받는다. 머지 지시만으로는 읽음 확인으로 보지 않으며, 자동 리뷰 승인도 이를 대신하지 않는다
+- 등급 기준과 확인 절차는 `docs/agents/pull-requests.md`를 따른다
+
 ### Triage labels
 
 이슈 triage 작업에서는 `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`를 사용한다. 매핑과 의미는 `docs/agents/triage-labels.md`를 따른다.
