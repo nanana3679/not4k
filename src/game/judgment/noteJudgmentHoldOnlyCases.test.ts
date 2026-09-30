@@ -68,6 +68,26 @@ describe("NJ-H01~H07: holdOnly와 승계", () => {
     expectNoExtraMiss(h);
   });
 
+  it.each([1000, 1040])("NJ-H03 변형: double head 1000을 A %ims·B 1110ms로 나눠 쳐 두 키를 유지하면 A up 2000ms가 뒤 single [1060,2000]의 release Perfect이고 B up 2200ms는 추가 판정 없음", (aAt) => {
+    const h = createHarness([point(1000, "double"), body(1000, 1060, "doubleLong", true), body(1060, 2000)]);
+    h.at(aAt, down("A")); h.at(1110, down("B")); h.at(2000, up("A")); h.at(2200, up("B")); h.at(2300);
+    expect(h.events.filter((event) => event.kind === "holdOnly")).toHaveLength(2);
+    expect(h.events.filter((event) => event.kind === "release")).toEqual([
+      expect.objectContaining({ noteIndex: 2, grade: "perfect", deltaMs: 0, key: "A" }),
+    ]);
+    expectNoExtraMiss(h);
+  });
+
+  it.each([1000, 1040])("NJ-H03 변형: head 없는 doubleLong holdOnly [1000,1060]을 A %ims·B 1100ms로 나눠 시작해 유지하면 A up 2000ms가 뒤 single [1060,2000]의 release Perfect", (aAt) => {
+    const h = createHarness([body(1000, 1060, "doubleLong", true), body(1060, 2000)]);
+    h.at(aAt, down("A")); h.at(1100, down("B")); h.at(2000, up("A")); h.at(2200, up("B")); h.at(2300);
+    expect(h.events.filter((event) => event.kind === "holdOnly")).toHaveLength(2);
+    expect(h.events.filter((event) => event.kind === "release")).toEqual([
+      expect.objectContaining({ noteIndex: 1, grade: "perfect", deltaMs: 0, key: "A" }),
+    ]);
+    expectNoExtraMiss(h);
+  });
+
   it("NJ-H04: 면제 뒤 head 없는 double [1060,2000]은 A release 후 B unit이 2121에 Miss가 된다", () => {
     const h = createHarness([point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060), body(1060, 2000, "doubleLong")]);
     h.at(0, down("A"), down("B")); h.at(1000); h.at(1060); h.at(2000, up("A")); h.at(2121); h.at(2200, up("B"));
@@ -249,6 +269,27 @@ describe("NJ-H08: 늦게 시작한 holdOnly의 승계", () => {
       [2, 1620], [3, 2120], [4, 2620],
     ]);
     expect(h.core.bodyStates.every((state) => !state.active && state.failed)).toBe(true);
+  });
+
+  it("NJ-H08 대조: head 1000을 A 1050ms에 늦게 쳐 일반 [1000,1060]을 시작하고 B 1060ms로 doubleLong [1060,2000] 증가분을 채우면 A/B up 2000ms가 release Perfect 2개", () => {
+    const h = createHarness([point(1000), body(1000, 1060), body(1060, 2000, "doubleLong")]);
+    h.at(1050, down("A")); h.at(1060, down("B")); h.at(2000, up("A"), up("B")); h.at(2300);
+    expectEvent(h, "head", 0, "great", 50);
+    expect(h.events.filter((event) => event.kind === "release")).toEqual([
+      expect.objectContaining({ noteIndex: 2, grade: "perfect", deltaMs: 0 }),
+      expect.objectContaining({ noteIndex: 2, grade: "perfect", deltaMs: 0 }),
+    ]);
+    expectNoExtraMiss(h);
+  });
+
+  it("NJ-H08 대조: o-o-의 head 0을 A 30ms에 늦게 쳐 2000ms까지 유지하면 head 1000만 Miss이고 A가 승계한 [1000,2000]의 release는 Perfect", () => {
+    const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 2000)]);
+    h.at(30, down("A")); h.at(2000, up("A")); h.at(2300);
+    expect(h.events.filter((event) => event.grade === "miss")).toEqual([
+      expect.objectContaining({ kind: "head", noteIndex: 2, confirmedAt: 1120 }),
+    ]);
+    expectEvent(h, "release", 3, "perfect", 0);
+    expect(h.events.filter((event) => event.kind === "dependentZero")).toEqual([]);
   });
 
   it("NJ-H08 대조: 1030ms 늦은 head의 holdOnly [1000,2000] 뒤 10ms 틈이 있는 [2010,3000]은 held A로 시작하지 못해 2130ms에 Miss", () => {

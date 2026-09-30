@@ -230,9 +230,9 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
     return {
       id: denominator === 1 ? "hold-trill-chain" : `hold-trill-chain-${intervalMs}`,
       label: `홀드 트릴 체인 · ${intervalMs}ms 간격`, ref: "RFD 0020",
-      group: "connection", pattern: "o-".repeat(count), caseIds: ["NJ-F02", "NJ-R06"],
+      group: "connection", pattern: "o-".repeat(count), caseIds: ["NJ-F02", "NJ-R06", "NJ-R16"],
       howTo: `2000ms 첫 헤드를 A로 누른 뒤 ${intervalMs}ms마다 A/B를 교대한다. 각 헤드에서 앞 키를 떼며 다음 키를 누르고, 마지막은 ${endMs}ms에 뗀다.`,
-      watchFor: `정박이면 헤드 ${count}개와 마지막 release 1개로 Perfect ${count + 1} · Miss 0. 연결 성공을 Perfect 개수에 더하지 않는다. 이른 교대에도 아직 지나지 않은 바디가 끊겨 보이지 않는지 확인한다.`,
+      watchFor: `정박이면 헤드 ${count}개와 마지막 release 1개로 Perfect ${count + 1} · Miss 0. 연결 성공을 Perfect 개수에 더하지 않는다. 헤드를 조금 지나 앞 키를 뗀 뒤 다음 키를 눌러도 그 헤드의 Good 창 안이면 유효한 교대라 Miss가 없다. 첫 헤드를 창 안에서 늦게 눌러도 같으며 헤드 등급만 입력 오차를 따른다. 이른 교대에도 아직 지나지 않은 바디가 끊겨 보이지 않는지 확인한다.`,
       chart: chartFrom(`홀드 트릴 ${intervalMs}ms`, holdTrillChain(denominator, count)),
     };
   }),

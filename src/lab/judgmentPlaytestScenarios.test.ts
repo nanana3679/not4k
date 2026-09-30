@@ -213,6 +213,22 @@ describe("판정 실플레이 시나리오", () => {
     }
   });
 
+  it.each([2000, 2020])("hold-trill-chain은 첫 head를 %ims에 누르고 각 경계 +15ms에 앞 키를 뗀 뒤 +20ms에 다음 키를 눌러 5020ms에 떼도 Perfect 7·Miss 0이다", (firstAt) => {
+    const session = sessionFor("hold-trill-chain");
+    const keys = ["A", "B"];
+    session.processBatch(firstAt, [{ key: "A", lane: 1, type: "down" }]);
+    for (let index = 1; index < 6; index++) {
+      const boundary = 2000 + 500 * index;
+      session.processBatch(boundary + 15, [{ key: keys[(index - 1) % 2], lane: 1, type: "up" }]);
+      session.processBatch(boundary + 20, [{ key: keys[index % 2], lane: 1, type: "down" }]);
+    }
+    session.processBatch(5020, [{ key: keys[1], lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(session.events.filter(event => event.grade === "miss")).toEqual([]);
+    expect(state.judgmentCounts.perfect).toBe(7); expect(state.judgmentCounts.miss).toBe(0);
+    expect(state.achievementRate).toBe(100); expect(state.isFullCombo).toBe(true);
+  });
+
   it("NJ-R06 o-o-은 2500ms 교대 뒤 3000ms 마지막 release로 100%와 FC를 유지한다", () => {
     const scenario = byId("connected-single-swap");
     const markers = extractBpmMarkers(scenario.chart.events);

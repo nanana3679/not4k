@@ -102,9 +102,9 @@ describe("RFD 0020 입력 순서와 시간 진행 불변식", () => {
     expect(replay(chart().reverse(), inputs)).toEqual(replay(chart(), inputs));
   });
 
-  it("첫 head를 0ms 대신 창 안의 30ms에 눌러도 Q1·R04·R10·R12·H01~H04·o-*-*- 차트의 첫 head 외 판정은 정박과 같음", () => {
+  it("첫 head를 0ms 대신 창 안의 30ms에 눌러도 Q1·R04·R10·R12·경계 전 두 up의 d=d=와 =o=·H01~H05·H03 키 분리·o-*-*- 차트의 첫 head 외 판정은 정박과 같음", () => {
     const q1 = () => [point(0, "double"), body(0, 1000, "doubleLong"), body(1000, 1060), body(1060, 1100, "doubleLong"), body(1100, 2000)];
-    const swap = (head: "single" | "double") => [point(0, "double"), body(0, 1000, "doubleLong"), point(1000, head), body(1000, 1100, "doubleLong")];
+    const swap = (head: "single" | "double", end = 1100) => [point(0, "double"), body(0, 1000, "doubleLong"), point(1000, head), body(1000, end, "doubleLong")];
     const decrease = () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 2000)];
     const cases: readonly (readonly [string, () => NoteEntity[], readonly Batch[]])[] = [
       ["R01", q1, [[0, down("A"), down("B")], [1000, up("A")], [1060, down("C")], [1100, up("C")], [2000, up("B")]]],
@@ -113,7 +113,12 @@ describe("RFD 0020 입력 순서와 시간 진행 불변식", () => {
         [[0, down("A"), down("B")], [1020, up("A")], [1030, down("A")], [1035, up("B")], [1040, up("A")]]],
       ["R10", () => swap("double"), [[0, down("A"), down("B")], [995, up("A")], [1000, down("C")], [1030, up("B")], [1100, up("C")]]],
       ["R12", () => swap("single"), [[0, down("A"), down("B")], [1010, up("A")], [1040, up("B")], [1050, down("C")], [1100, up("C")]]],
+      ["d=d= 경계 전 교대", () => swap("double", 2000),
+        [[0, down("A"), down("B")], [990, up("A")], [995, up("B")], [1000, down("C")], [1005, down("D")], [2000, up("C"), up("D")]]],
+      ["=o= 경계 전 두 up", () => swap("single", 2000), [[0, down("A"), down("B")], [990, up("A")], [995, up("B")], [1000, down("C")]]],
       ["H01·H03", decrease, [[0, down("A"), down("B")], [2000, up("A")], [2500, up("B")]]],
+      ["H03 키 분리", () => [point(0, "double"), body(0, 60, "doubleLong", true), body(60, 1000)],
+        [[0, down("A")], [110, down("B")], [1000, up("A")], [1200, up("B")]]],
       ["H02", () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060), body(1060, 1100, "doubleLong", true), body(1100, 2000)],
         [[0, down("A"), down("B")], [2000, up("A")], [2500, up("B")]]],
       ["H04", () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060), body(1060, 2000, "doubleLong")],

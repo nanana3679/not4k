@@ -515,8 +515,11 @@ export class NoteJudgmentCore {
       // A pending up can provisionally wake a continuation while its source
       // head is still unresolved.  Keep that unit alive until the connection
       // ledger closes; it is not the same as a physically held token, but it
-      // must not become an early maintenance miss either.
-      const pendingToken = u.tokens.some(token => this.pendingUps.includes(token) && (token.upAt ?? token.at) < u.start);
+      // must not become an early maintenance miss either.  An up just after
+      // the boundary stays pending in that boundary's ledger in the same way
+      // until the connection head's Good window closes (RFD 0020 §2.12).
+      const pendingToken = u.tokens.some(token => this.pendingUps.includes(token) && ((token.upAt ?? token.at) < u.start ||
+        (token.correctionId !== undefined && (this.correctionLedgers.get(`${u.lane}:${u.start}`)?.pending.some(record => record.id === token.correctionId) ?? false))));
       if (u.active && !u.failed && !u.complete && !u.forwarded && at < u.end && !this.isHeld(u) && !pendingBoundaryUp && !pendingToken) {
         u.failed = true;
         this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: at - u.start, inputAt: null, confirmedAt: at, consumed: false, bodyState: "failed" });
@@ -616,9 +619,10 @@ export class NoteJudgmentCore {
     const pending = this.pendingUps.filter(up => (up.upAt ?? up.at) <= at && Math.abs((up.upAt ?? up.at) - headStart) <= this.windows.GOOD)
       .sort((a, b) => a.at - b.at)[0];
     const pendingSuccessor = predecessor && this.units.find(u => u.lane === predecessor.lane && u.start === headStart && !u.failed && !u.complete);
+    // A late but legitimate predecessor start does not narrow this correction
+    // (NJ-H08): the same up is corrected as after an on-time start.
     if (predecessor && pending && pendingSuccessor &&
-      Math.abs((pending.upAt ?? pending.at) - headStart) <= this.windows.GOOD &&
-      (!predecessor.late || Math.abs((pending.upAt ?? pending.at) - pendingSuccessor.end) <= this.windows.GOOD)) {
+      Math.abs((pending.upAt ?? pending.at) - headStart) <= this.windows.GOOD) {
       pending.connectionConsumed = true;
       const successor = pendingSuccessor;
       if (successor && !successor.active) this.tryInherit(successor, headStart);
@@ -697,6 +701,17 @@ export class NoteJudgmentCore {
       const source = (this.unitsByEnd.get(`${target.lane}:${target.start}`) ?? []).find(unit => unit.active && !unit.failed &&
         (!this.connections || this.connections.has(`${unit.noteIndex}:${target.noteIndex}`)));
       if (!source) continue;
+      // A holdOnly source unit may start only after its successor already
+      // inherited (key-split double head). Once every source unit has started
+      // or failed, the live successor gets the same exempt share as if both
+      // had started on time (NJ-H03). This only raises the share; the H04
+      // no-double-use rule for non-holdOnly sources stays in tryInherit.
+      if (source.holdOnly && own.some(unit => unit.inherited && unit.active && !unit.failed && !unit.complete) &&
+        !(this.unitsByNote.get(source.noteIndex) ?? []).some(unit => !unit.active && !unit.failed)) {
+        const surplus = this.continuingCapacity(source, target) - own.length;
+        if (surplus > (this.carriedCapacity.get(target.noteIndex) ?? 0)) this.carriedCapacity.set(target.noteIndex, surplus);
+        if (surplus > (this.waivedSurplus.get(target.noteIndex) ?? 0)) this.waivedSurplus.set(target.noteIndex, surplus);
+      }
       const fulfilled = own.filter(unit => unit.active && !unit.failed).length;
       const desired = Math.min(this.continuingCapacity(source, target), fulfilled);
       while (this.transferredCapacity(source.noteIndex) < desired) {

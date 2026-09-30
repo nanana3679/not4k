@@ -19,7 +19,7 @@ const q1 = () => createHarness([
   body(1100, 2000),
 ]);
 
-describe("RFD0020 release 사례 NJ-R01~R15", () => {
+describe("RFD0020 release 사례 NJ-R01~R16", () => {
   it("NJ-R01: 정상 Q1은 head 2개와 release 3개를 모두 Perfect", () => {
     const h = q1();
     h.at(0, { key: "A", type: "down" }, { key: "B", type: "down" });
@@ -214,5 +214,92 @@ describe("RFD0020 release 사례 NJ-R01~R15", () => {
     expect(releases(h).find(e => e.inputAt === null)).toMatchObject({ grade: "miss", consumed: false });
     expect(h.events.filter(e => e.kind === "maintenanceMiss")).toHaveLength(0);
     expect(counts(h.events)).toEqual({ perfect: 3, great: 0, good: 0, goodTrill: 0, miss: 1 });
+  });
+
+  /** NJ-R16: single head 0 + [0,1000] → single head 1000 + [1000,2000]. A down 0으로 시작해 경계까지 유지한다. */
+  const r16 = () => {
+    const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 2000)]);
+    h.at(0, { key: "A", type: "down" });
+    return h;
+  };
+  const maintenance = (h: ReturnType<typeof createHarness>) => h.events.filter(e => e.kind === "maintenanceMiss");
+
+  it("NJ-R16: 경계 1000을 지난 1015ms에 A를 떼고 1020ms에 B로 연결 head를 치면 유지 Miss 없이 Perfect 3", () => {
+    const h = r16();
+    h.at(1015, { key: "A", type: "up" }); h.at(1020, { key: "B", type: "down" }); h.at(2000, { key: "B", type: "up" });
+    expect(heads(h).map(e => ({ grade: e.grade, deltaMs: e.deltaMs, key: e.key }))).toEqual([
+      { grade: "perfect", deltaMs: 0, key: "A" }, { grade: "perfect", deltaMs: 20, key: "B" },
+    ]);
+    expect(releases(h)).toEqual([expect.objectContaining({ key: "B", grade: "perfect", deltaMs: 0, inputAt: 2000 })]);
+    expect(maintenance(h)).toHaveLength(0);
+    finishSuccessful(h, 2200);
+  });
+
+  it("NJ-R16: 1015ms에 A를 떼고 1100ms에 B로 연결 head를 늦게 치면 head Good(+100)이고 유지 Miss 없이 2000ms release Perfect", () => {
+    const h = r16();
+    h.at(1015, { key: "A", type: "up" }); h.at(1100, { key: "B", type: "down" }); h.at(2000, { key: "B", type: "up" });
+    expect(grades(h)).toEqual(["perfect", "good", "perfect"]);
+    expect(heads(h)[1]).toMatchObject({ key: "B", deltaMs: 100 });
+    expect(releases(h)).toEqual([expect.objectContaining({ key: "B", grade: "perfect", deltaMs: 0 })]);
+    expect(maintenance(h)).toHaveLength(0);
+    finishSuccessful(h, 2200);
+  });
+
+  it("NJ-R16: 1015ms에 A를 뗀 뒤 연결 head 입력이 없으면 1119ms까지 Miss를 확정하지 않고 1120ms에 head Miss와 유지 Miss 두 개", () => {
+    const h = r16();
+    h.at(1015, { key: "A", type: "up" });
+    h.at(1119);
+    expect(h.events.filter(e => e.grade === "miss")).toHaveLength(0);
+    h.at(1121); h.at(2200);
+    expect(h.events.filter(e => e.grade === "miss").map(e => [e.kind, e.noteIndex, e.confirmedAt])).toEqual([
+      ["head", 2, 1120], ["maintenanceMiss", 3, 1120], ["dependentZero", 3, 1120],
+    ]);
+    expect(releases(h)).toHaveLength(0);
+    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 2 });
+  });
+
+  it("NJ-R16: 1015ms에 A를 떼고 B down이 head 창 밖인 1130ms면 1120ms에 head Miss와 유지 Miss로 확정되고 B는 바디를 되살리지 않음", () => {
+    const h = r16();
+    h.at(1015, { key: "A", type: "up" }); h.at(1130, { key: "B", type: "down" }); h.at(2000, { key: "B", type: "up" }); h.at(2200);
+    expect(h.events.filter(e => e.grade === "miss").map(e => [e.kind, e.noteIndex, e.confirmedAt])).toEqual([
+      ["head", 2, 1120], ["maintenanceMiss", 3, 1120], ["dependentZero", 3, 1120],
+    ]);
+    expect(releases(h)).toHaveLength(0);
+    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 2 });
+  });
+
+  it.each([
+    ["경계 전 A up 995 → B down 1000", [[995, "A", "up"], [1000, "B", "down"]]],
+    ["B down 1000 → 경계 뒤 A up 1015", [[1000, "B", "down"], [1015, "A", "up"]]],
+  ] as const)("NJ-R16 대조: %s 뒤 B up 2000이면 기존대로 Perfect 3·Miss 0", (_label, steps) => {
+    const h = r16();
+    for (const [at, key, type] of steps) h.at(at, { key, type });
+    h.at(2000, { key: "B", type: "up" });
+    expect(grades(h)).toEqual(["perfect", "perfect", "perfect"]);
+    expect(releases(h)).toEqual([expect.objectContaining({ key: "B", deltaMs: 0 })]);
+    finishSuccessful(h, 2200);
+  });
+
+  it("NJ-R16 대조: head 1000을 1100ms에 늦게 쳐 60ms 바디 [1000,1060] 뒤 1155ms에 A를 떼고 1160ms에 B로 head 1060을 치면 유지 Miss 없이 2000ms release Perfect", () => {
+    const h = createHarness([point(1000), body(1000, 1060), point(1060), body(1060, 2000)]);
+    h.at(1100, { key: "A", type: "down" }); h.at(1155, { key: "A", type: "up" }); h.at(1160, { key: "B", type: "down" }); h.at(2000, { key: "B", type: "up" });
+    expect(grades(h)).toEqual(["good", "good", "perfect"]);
+    expect(heads(h).map(e => e.deltaMs)).toEqual([100, 100]);
+    expect(releases(h)).toEqual([expect.objectContaining({ key: "B", grade: "perfect", deltaMs: 0 })]);
+    expect(maintenance(h)).toHaveLength(0);
+    finishSuccessful(h, 2200);
+  });
+
+  it("NJ-R16 대조: trillLong 체인 1000·1500·2000을 1030ms에 늦게 시작해 각 경계 +25ms에 떼고 +30ms에 다른 키로 교대하면 Perfect 4·Miss 0", () => {
+    const h = createHarness([
+      point(1000, "trill"), body(1000, 1500, "trillLong"), point(1500, "trill"), body(1500, 2000, "trillLong"),
+      point(2000, "trill"), body(2000, 2500, "trillLong"),
+    ], {}, [{ lane: 1, beat: { n: 1000, d: 1 }, endBeat: { n: 2500, d: 1 } }]);
+    h.at(1030, { key: "A", type: "down" }); h.at(1525, { key: "A", type: "up" }); h.at(1530, { key: "B", type: "down" });
+    h.at(2025, { key: "B", type: "up" }); h.at(2030, { key: "A", type: "down" }); h.at(2530, { key: "A", type: "up" });
+    expect(heads(h).map(e => [e.grade, e.key])).toEqual([["perfect", "A"], ["perfect", "B"], ["perfect", "A"]]);
+    expect(releases(h)).toEqual([expect.objectContaining({ key: "A", grade: "perfect", deltaMs: 30 })]);
+    expect(maintenance(h)).toHaveLength(0);
+    finishSuccessful(h, 2700);
   });
 });
