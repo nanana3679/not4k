@@ -130,6 +130,22 @@
   gap: 5px;
 }
 
+.asset-lab-player-toolbar > .asset-lab-player-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.asset-lab-player-actions button {
+  white-space: nowrap;
+}
+
+.asset-lab-player-toolbar button[aria-pressed="true"] {
+  border-color: rgba(160, 215, 249, 0.6);
+  color: #ffffff;
+  background: #1d3a52;
+}
+
 .asset-lab-player-toolbar strong {
   color: #e9f1f8;
   font-size: 15px;
