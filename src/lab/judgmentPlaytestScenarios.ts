@@ -75,6 +75,23 @@ function decreaseChain(holdOnly = false): NoteEntity[] {
 }
 
 /**
+ * `o-*-*-*-` 유지형 틱 — 1박(500ms) 구간 네 개. 앞 세 구간 끝은 holdOnly(`*`), 마지막은 일반 release.
+ * gapBeatDenominator를 주면 두 번째 구간부터 시작을 1/gapBeatDenominator박 늦춰 연결을 끊는다.
+ */
+function holdTickChain(gapBeatDenominator?: number): NoteEntity[] {
+  const d = gapBeatDenominator ?? 1;
+  const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(4, 1) }];
+  for (let i = 0; i < 4; i++) {
+    const start = (4 + i) * d + (gapBeatDenominator && i > 0 ? 1 : 0);
+    notes.push({
+      type: "long", lane: 1, beat: beat(start, d), endBeat: beat(5 + i, 1),
+      ...(i < 3 ? { holdOnly: true } : {}),
+    });
+  }
+  return notes;
+}
+
+/**
  * S4 — 트릴 롱노트 시각 확인. trillZone 안에 헤드(trill 포인트) + trillLong 바디.
  * 긴 홀드 1개(3박=1.5s)로 held 바디 색을 눈으로 확인하고, 이어 짧은 트릴 롱 체인으로 교대 전환을 본다.
  */
@@ -184,6 +201,20 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
     howTo: "2000ms에 A를 누르고 양수 holdOnly의 끝 3000ms를 지나 계속 유지한다. 3250ms 길이 0 holdOnly에서 A를 뗀다. 새로 누를 필요는 없다.",
     watchFor: "Perfect 2 · Miss 0. 길이 0 holdOnly는 3130ms(S−Good)부터 기존 held로 이미 통과할 수 있다. 나중의 up이 별도 점수 판정을 만드는 것은 아니다.",
     chart: chartFrom("holdOnly 뒤 길이 0", [body(0, 1000, false, true), body(1250, 1250, false, true)]),
+  },
+  {
+    id: "hold-tick-chain", label: "o-*-*-*- · 유지형 틱", ref: "RFD 0009 · RFD 0020",
+    group: "holdOnly", pattern: "o-*-*-*-", caseIds: ["NJ-C02", "NJ-H07"],
+    howTo: "2000ms A 누름 → 2500 · 3000 · 3500ms의 `*`를 새 입력 없이 그대로 통과 → 4000ms A 뗌.\n대조: 재시도하여 4000ms에 떼지 않고 계속 잡는다.",
+    watchFor: "구간이 정확히 맞닿아 있으므로 A 하나를 유지하는 것으로 뒤 구간을 이어받는다. head 1 · holdOnly 3 · 마지막 release 1로 Perfect 5 · Miss 0. 대조처럼 4000ms에 떼지 않으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss(Perfect 4 · Miss 1).",
+    chart: chartFrom("o-*-*-*- 유지형 틱", holdTickChain()),
+  },
+  {
+    id: "hold-tick-chain-gap", label: "틈 대조 · 구간 사이 1/16박으로 끊긴 유지형 틱", ref: "RFD 0020",
+    group: "holdOnly", pattern: "o-* -* -* -  (틈 1/16박)", caseIds: ["NJ-A02"],
+    howTo: "유지형 틱 카드와 같은 입력: 2000ms A 누름 → 계속 유지 → 4000ms A 뗌.",
+    watchFor: "두 번째 구간부터 시작이 1/16박(31.25ms) 늦어 앞 구간과 연결되지 않는다. 각 구간은 독립 시작이라 미리 잡은 A로는 활성화되지 않는다. head와 첫 holdOnly만 Perfect이고 뒤 세 구간은 Miss라 Perfect 2 · Miss 3 · 40%. 화면에서 틈이 거의 보이지 않아도 결과가 유지형 틱 카드와 달라진다.",
+    chart: chartFrom("o-*-*-*- 틈", holdTickChain(16)),
   },
   {
     id: "timeout-then-slide", label: "앞 release Miss · 길이 0은 독립 판정", ref: "RFD 0020",
