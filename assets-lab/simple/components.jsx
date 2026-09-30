@@ -168,9 +168,11 @@ export function TrillBodySegment({ x, y, height, held = false }) {
   );
 }
 
+/* 트릴 끝 터미널: 에디터와 같은 납작한 회색 마름모. 스킨이 전용 캡으로 선언해 반쪽으로 자르지 않는다. */
 export function TrillTerminalCap({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <rect x={x} y={y} width={CW} height={CH} fill="#888888" opacity={0.7} rx={2} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#888888" opacity={0.7} />
   );
 }
 
@@ -205,8 +207,9 @@ export function FailedTrillBody({ x, y, height }) {
 }
 
 export function FailedTrillTerminalCap({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <rect x={x} y={y} width={CW} height={CH} fill="#555555" opacity={0.7} rx={2} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" opacity={0.7} />
   );
 }
 

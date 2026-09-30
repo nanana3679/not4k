@@ -125,6 +125,33 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
+  it('트릴 전용 캡 endCapTrill·endCapTrillFailed가 있으면 트릴 대기·켜짐·실패의 반쪽 캡 요청에 자르지 않은 전용 텍스처를 준다', async () => {
+    const base = getSkinManifest('crystal');
+    const manager = new SkinManager();
+    await manager.loadSkin({ ...base, assets: { ...base.assets, endCapTrill: '/test/cap-trill.png', endCapTrillFailed: '/test/cap-trill-failed.png' } });
+    const path = (key: string) => (manager.getHalfCapTexture(key) as unknown as { path?: string }).path;
+    expect(path('terminalTrill')).toBe('/test/cap-trill.png');
+    expect(path('terminalTrillIdle')).toBe('/test/cap-trill.png');
+    expect(path('terminalTrillFailed')).toBe('/test/cap-trill-failed.png');
+    manager.dispose();
+  });
+
+  it('트릴 전용 캡이 없는 스킨은 terminalTrill 반쪽 캡을 터미널 텍스처 윗부분 절반으로 잘라 만든다', async () => {
+    const manager = new SkinManager();
+    await manager.loadSkin(getSkinManifest('crystal'));
+    const cap = manager.getHalfCapTexture('terminalTrill') as unknown as { path?: string };
+    expect(cap.path).toBeUndefined();
+    expect(cap).not.toBe(manager.getTexture('terminalTrill'));
+    manager.dispose();
+  });
+
+  it('Simple은 마름모 트릴 터미널 이미지 자체를 트릴 전용 캡으로 선언해 반쪽으로 자르지 않는다', () => {
+    const { assets } = getSkinManifest('simple');
+    expect(assets.endCapTrill).toBe(assets.terminalTrill);
+    expect(assets.endCapTrillFailed).toBe(assets.terminalTrillFailed);
+    expect(assets.endCapTrill).toBe('/skins/simple/terminal-trill.png');
+  });
+
   it('Classic을 로드하면 16프레임 봄과 포인트 그림자·Grace2종을 게임용 공통 폴더에서 제공', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');

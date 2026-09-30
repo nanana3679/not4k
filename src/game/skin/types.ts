@@ -73,6 +73,9 @@ export interface SkinManifest {
     endCapDouble?: string;
     endCapSingleFailed?: string;
     endCapDoubleFailed?: string;
+    /** 트릴 롱노트 끝 캡. 반쪽으로 자르지 않고 원본 전체(예: 100×20 마름모)를 끝점에 그린다. */
+    endCapTrill?: string;
+    endCapTrillFailed?: string;
     /** 부분 실패 에셋 (더블 롱노트) */
     bodyDoublePartialFailedLeft: string;
     bodyDoublePartialFailedRight: string;

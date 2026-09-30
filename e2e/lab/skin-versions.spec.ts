@@ -305,7 +305,7 @@ test('v010 트릴 끝 터미널은 레인 위에서 대기·켜짐 명도 0.45~0
   expect(lightness['v010/terminal-trill-idle'] - lightness['v010/terminal-trill-failed'], '대기와 실패의 명도 차').toBeGreaterThanOrEqual(0.1);
 });
 
-test('v011 트릴 끝 터미널은 대기·켜짐·실패 모두 위쪽 절반이 Simple 트릴 터미널과 같은 회색·투명도이고 아래쪽 절반은 투명하다', async ({ page }) => {
+test('v011 트릴 끝 터미널은 대기·켜짐·실패 모두 위쪽 절반이 옮겨 올 당시 Simple 사각형 터미널과 같은 #878787·불투명도 70%이고 아래쪽 절반은 투명하다', async ({ page }) => {
   await page.goto('/lab/note-assets?design=classic&version=v011');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   const result = await page.evaluate(async () => {
@@ -323,8 +323,8 @@ test('v011 트릴 끝 터미널은 대기·켜짐·실패 모두 위쪽 절반�
       }
       return sum.map(value => Math.round(value / count));
     };
-    const simple = await pixels('/skins/simple/terminal-trill.png');
-    const reference = mean(simple, 2, simple.height / 2, 2);
+    // v011은 보관본이므로, 이후 Simple 원본이 바뀌어도 옮겨 올 당시의 사각형 색을 기준으로 삼는다.
+    const reference = [135, 135, 135, 179];
     const terminals: Record<string, { top: number[]; bottomMaxAlpha: number }> = {};
     for (const name of ['terminal-trill-idle', 'terminal-trill', 'terminal-trill-failed']) {
       const image = await pixels(`/lab/skin-versions/classic/v011/skin/${name}.png`);

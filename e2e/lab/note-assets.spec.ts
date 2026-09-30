@@ -2,6 +2,41 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Note Assets Lab", () => {
   for (const width of [1280, 390]) {
+    test(`${width}px 일시정지하면 재생기 화면이 멈추고 재생하면 이어지며 처음부터 재생은 일시정지를 해제한다`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/lab/note-assets?design=classic');
+      await expect(page.getByText('PLAYER READY')).toBeVisible();
+      const canvas = page.locator('.asset-lab-player-canvas canvas').first();
+      const pause = page.locator('[data-player-pause="true"]');
+      await expect(pause).toHaveText('일시정지');
+      expect((await pause.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await page.waitForTimeout(600);
+      await pause.click();
+      await expect(pause).toHaveAttribute('aria-pressed', 'true');
+      await expect(pause).toHaveText('재생');
+      await expect(page.locator('.asset-lab-player-canvas')).toHaveAttribute('data-paused', 'true');
+      await page.waitForTimeout(500);
+      const frozen = await canvas.screenshot();
+      await page.waitForTimeout(800);
+      expect((await canvas.screenshot()).equals(frozen), '일시정지 중 화면 유지').toBe(true);
+      await page.screenshot({ path: testInfo.outputPath('paused.png') });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+
+      await pause.click();
+      await expect(pause).toHaveText('일시정지');
+      await expect(page.locator('.asset-lab-player-canvas')).toHaveAttribute('data-paused', 'false');
+      await page.waitForTimeout(800);
+      expect((await canvas.screenshot()).equals(frozen), '재생하면 화면이 다시 움직임').toBe(false);
+
+      await pause.click();
+      await expect(pause).toHaveAttribute('aria-pressed', 'true');
+      await page.getByRole('button', { name: '처음부터 재생', exact: true }).click();
+      await expect(pause).toHaveAttribute('aria-pressed', 'false');
+      await expect(page.getByText('PLAYER READY')).toBeVisible();
+    });
+  }
+
+  for (const width of [1280, 390]) {
     test(`${width}px Lab 목록에서 노트 에셋 시연실을 열면 Classic 재생기가 준비되고 목록으로 돌아올 수 있다`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/lab');
@@ -21,6 +56,41 @@ test.describe("Note Assets Lab", () => {
       await expect(entry).toBeVisible();
     });
   }
+
+  test('Simple 트릴 롱 끝은 반쪽으로 자르지 않은 회색 마름모 캡 전체(100×20)로 그려진다', async ({ page }) => {
+    await page.goto('/lab/note-assets?design=simple');
+    await expect(page.getByText('PLAYER READY')).toBeVisible();
+    const shape = await page.evaluate(async () => {
+      const image = new Image(); image.src = '/skins/simple/terminal-trill.png'; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+      const at = (x: number, y: number) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 4)];
+      return { size: [width, height], center: at(width / 2, height / 2), corners: [at(1, 1), at(width - 2, 1), at(1, height - 2), at(width - 2, height - 2)].map(pixel => pixel[3]) };
+    });
+    expect(shape).toEqual({ size: [100, 20], center: [135, 135, 135, 179], corners: [0, 0, 0, 0] });
+    await page.evaluate(async () => {
+      const url = performance.getEntriesByType('resource').map(entry => entry.name)
+        .find(name => new URL(name).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
+      const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(url);
+      const render = GameRenderer.prototype.renderFrame;
+      GameRenderer.prototype.renderFrame = function (...args) {
+        const result = render.apply(this, args);
+        const self = this as unknown as {
+          skinManager: { getHalfCapTexture: (key: string) => unknown };
+          longNoteEndLayer: { children: Array<{ texture: { frame: { height: number } }; height: number }> };
+        };
+        const cap = self.skinManager.getHalfCapTexture('terminalTrill');
+        const drawn = self.longNoteEndLayer.children.filter(sprite => sprite.texture === cap);
+        if (drawn.length > 0) (window as unknown as Record<string, unknown>).__trillCaps = drawn.map(sprite => ({ frameHeight: sprite.texture.frame.height, height: sprite.height }));
+        return result;
+      };
+    });
+    await page.getByRole('button', { name: '트릴 롱', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__trillCaps)).toBeTruthy();
+    const caps = await page.evaluate(() => (window as unknown as { __trillCaps: Array<{ frameHeight: number; height: number }> }).__trillCaps);
+    for (const cap of caps) expect(cap).toEqual({ frameHeight: 20, height: 20 });
+  });
 
   test('Classic 트릴 3연결은 실제 홀드한 구간만 켜지고 포인트 하단의 부드러운 그림자가 바디와 구분된다', async ({ page }, testInfo) => {
     await page.goto('/assets-lab/classic/trill-quartz-preview.html');

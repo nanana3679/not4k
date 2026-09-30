@@ -101,12 +101,16 @@ export default function NoteAssetShowcasePage() {
   const [selectedPreviewId, setSelectedPreviewId] = useState(DEFAULT_PREVIEW_ID);
   const [previewInstance, setPreviewInstance] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
+  // 일시정지는 멈춘 재생 인스턴스에만 적용한다. 차트·시안·버전을 바꾸거나 처음부터 재생하면 키가 달라져 자동으로 재생 상태가 된다.
+  const [pausedPlayerKey, setPausedPlayerKey] = useState<string | null>(null);
   const [selectedBombId, setSelectedBombId] = useState<KeybombVariantId>(design.bombs[0].id);
   const [rackBombRun, setRackBombRun] = useState(0);
   const [cardBombRuns, setCardBombRuns] = useState<Record<KeybombVariantId, number>>({
     silver: 0, diagonal: 0, armor: 0, shockwave: 0, segmented: 0, compact: 0, skin: 0,
   });
   const preview = useMemo(() => getPreview(selectedPreviewId), [selectedPreviewId]);
+  const playerKey = `${design.skinId}:${preview.id}:${previewInstance}`;
+  const paused = pausedPlayerKey === playerKey;
   const selectedBomb = useMemo(
     () => design.bombs.find((variant) => variant.id === selectedBombId) ?? design.bombs[0],
     [selectedBombId, design],
@@ -168,16 +172,20 @@ export default function NoteAssetShowcasePage() {
         <div className="asset-lab-player-panel">
           <div className="asset-lab-player-toolbar">
             <div><span>ACTUAL TUTORIAL RENDERER</span><strong id="asset-player-title">{preview.title}</strong></div>
-            <button type="button" onClick={() => selectPreview(selectedPreviewId)}>처음부터 재생</button>
+            <div className="asset-lab-player-actions">
+              <button type="button" aria-pressed={paused} data-player-pause="true" onClick={() => setPausedPlayerKey(paused ? null : playerKey)}>{paused ? "재생" : "일시정지"}</button>
+              <button type="button" onClick={() => selectPreview(selectedPreviewId)}>처음부터 재생</button>
+            </div>
           </div>
           <div className="asset-lab-player-stage">
-            <div className="asset-lab-player-canvas" data-active-preview={preview.id}>
+            <div className="asset-lab-player-canvas" data-active-preview={preview.id} data-paused={paused}>
               <NoteAssetPreviewPlayer
-                key={`${design.skinId}:${preview.id}:${previewInstance}`}
+                key={playerKey}
                 design={design}
                 preview={preview}
                 bomb={selectedBomb}
                 onReady={() => setPlayerReady(true)}
+                paused={paused}
               />
             </div>
           </div>
