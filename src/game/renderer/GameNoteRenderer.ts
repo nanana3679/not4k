@@ -78,6 +78,7 @@ export class GameNoteRenderer {
   private graceOverlayPool: Map<number, Sprite> = new Map();
   private pointShadowPool: Map<number, Sprite> = new Map();
   private pointContactShadowPool: Map<number, [Sprite, Sprite]> = new Map();
+  private trillContactShadowPool: Map<number, Sprite> = new Map();
   private trillPointShadowPool: Map<number, Mesh> = new Map();
   private trillPointShadowGeometry: MeshGeometry | null = null;
 
@@ -165,6 +166,8 @@ export class GameNoteRenderer {
     const shadowGeometry = theme.pointShadow;
     if (entity.type !== 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadow')) {
       this.addPointContactShadow(index, laneX, y, theme.pointContactShadow, noteKindOf(entity.type));
+    } else if (entity.type === 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadowTrill')) {
+      this.addTrillContactShadow(index, pointX, y, pointWidth, theme.pointContactShadow);
     } else if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
       if (entity.type === 'trill') {
         // 직사각형 그림자는 마름모 하단과 떨어져 가로 절단선처럼 보인다.
@@ -558,6 +561,7 @@ export class GameNoteRenderer {
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
     this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -783,6 +787,20 @@ export class GameNoteRenderer {
     this.noteLayer.addChild(above, below);
   }
 
+  /** 트릴 포인트 모양을 따라 번지는 그림자. 텍스처는 포인트 폭 × (위 + 포인트 높이 + 아래) 영역을 그린다. */
+  private addTrillContactShadow(index: number, x: number, y: number, width: number, reach: { above: number; below: number }): void {
+    let shadow = this.trillContactShadowPool.get(index);
+    if (!shadow) {
+      shadow = new Sprite(this.skinManager.getTexture('pointContactShadowTrill'));
+      this.trillContactShadowPool.set(index, shadow);
+    }
+    shadow.x = x;
+    shadow.y = y - reach.above;
+    shadow.width = width;
+    shadow.height = reach.above + NOTE_HEIGHT + reach.below;
+    this.noteLayer.addChild(shadow);
+  }
+
   private addGraceGlow(index: number, layer: Container, x: number, y: number, width: number, kind: 'point' | 'terminal'): void {
     const key = kind === 'point' ? 'pointGraceOverlay' : 'terminalGraceOverlay';
     if (this.skinManager.hasTexture(key)) {
@@ -841,6 +859,7 @@ export class GameNoteRenderer {
     this.graceOverlayPool.clear();
     this.pointShadowPool.clear();
     this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
     this.trillPointShadowPool.clear();
     this.trillPointShadowGeometry?.destroy();
     this.trillPointShadowGeometry = null;

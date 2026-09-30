@@ -146,6 +146,7 @@ export class SkinManager {
     if (assets.terminalGraceOverlay) entries.push(["terminalGraceOverlay", assets.terminalGraceOverlay]);
     if (assets.pointShadow) entries.push(["pointShadow", assets.pointShadow]);
     if (assets.pointContactShadow) entries.push(["pointContactShadow", assets.pointContactShadow]);
+    if (assets.pointContactShadowTrill) entries.push(["pointContactShadowTrill", assets.pointContactShadowTrill]);
 
     // 롱노트 전용 캡 에셋 (있는 스킨만 — 없으면 getHalfCapTexture가 terminal crop으로 fallback)
     if (assets.endCapSingle) entries.push(["endCapSingle", assets.endCapSingle]);

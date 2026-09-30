@@ -114,15 +114,23 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
-  it('매니페스트에 pointContactShadow 경로가 있으면 접촉 그림자 텍스처를 함께 로드하고 없으면 제공하지 않는다', async () => {
-    const base = getSkinManifest('classic');
-    const withContact = { ...base, assets: { ...base.assets, pointContactShadow: '/lab/skin-versions/classic/v012/skin/point-contact-shadow.png' } };
+  it('매니페스트에 pointContactShadow·pointContactShadowTrill 경로가 있으면 두 접촉 그림자 텍스처를 함께 로드하고 없으면 제공하지 않는다', async () => {
+    const classic = getSkinManifest('classic');
+    const { pointContactShadow: _single, pointContactShadowTrill: _trill, ...baseAssets } = classic.assets;
+    const base = { ...classic, assets: baseAssets };
+    const withContact = { ...base, assets: { ...base.assets,
+      pointContactShadow: '/lab/skin-versions/classic/v013/skin/point-contact-shadow.png',
+      pointContactShadowTrill: '/lab/skin-versions/classic/v013/skin/point-contact-shadow-trill.png',
+    } };
     const manager = new SkinManager();
     await manager.loadSkin(withContact);
-    expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v012/skin/point-contact-shadow.png');
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v013/skin/point-contact-shadow.png');
+    expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v013/skin/point-contact-shadow-trill.png');
     expect(manager.hasTexture('pointContactShadow')).toBe(true);
+    expect(manager.hasTexture('pointContactShadowTrill')).toBe(true);
     await manager.loadSkin(base);
     expect(manager.hasTexture('pointContactShadow')).toBe(false);
+    expect(manager.hasTexture('pointContactShadowTrill')).toBe(false);
     manager.dispose();
   });
 

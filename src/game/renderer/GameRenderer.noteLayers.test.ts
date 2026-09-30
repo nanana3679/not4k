@@ -98,7 +98,7 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
   );
 });
 
-describe('GameNoteRenderer 싱글·더블 포인트 접촉 그림자', () => {
+describe('GameNoteRenderer 포인트 접촉 그림자', () => {
   const BODY_WIDTH = 100 * 100 / 106;
   function setup(theme: Record<string, unknown>, available: (key: string) => boolean = () => true) {
     const textures = new Map<string, Texture>();
@@ -156,11 +156,42 @@ describe('GameNoteRenderer 싱글·더블 포인트 접촉 그림자', () => {
     renderer.dispose();
   });
 
-  it('pointContactShadow가 있어도 트릴 포인트는 기존 마름모 하단 그림자 Mesh를 쓴다', () => {
-    const { renderer, noteLayer } = setup(contactTheme);
+  it('pointContactShadow {above 5, below 5}와 pointContactShadowTrill 텍스처가 있으면 트릴 포인트 위 5px부터 아래 5px까지 포인트 폭 100×30 그림자 하나를 포인트 아래 층에 그리고 기존 마름모 하단 그림자 Mesh는 쓰지 않는다', () => {
+    const { renderer, noteLayer, texture } = setup(contactTheme);
+    renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);
+    expect(noteLayer.children).toHaveLength(2);
+    const [shadow, pointSprite] = noteLayer.children as Sprite[];
+    expect(shadow).not.toBeInstanceOf(Mesh);
+    expect(shadow.texture).toBe(texture('pointContactShadowTrill'));
+    const bounds = shadow.getBounds();
+    expect(bounds.minX).toBeCloseTo(pointSprite.x);
+    expect(bounds.maxX).toBeCloseTo(pointSprite.x + 100);
+    expect(bounds.minY).toBeCloseTo(pointSprite.y - 5);
+    expect(bounds.maxY).toBeCloseTo(pointSprite.y + 25);
+
+    noteLayer.removeChildren();
+    renderer.renderPointNote(point(100, 'trill'), 0, 100, 10);
+    expect(noteLayer.children[0]).toBe(shadow);
+    expect(shadow.getBounds().minY).toBeCloseTo((noteLayer.children[1] as Sprite).y - 5);
+    renderer.dispose();
+  });
+
+  it('pointContactShadowTrill 텍스처가 없으면 pointContactShadow가 있어도 트릴 포인트는 기존 마름모 하단 그림자 Mesh를 쓴다', () => {
+    const { renderer, noteLayer } = setup(contactTheme, key => key !== 'pointContactShadowTrill');
     renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);
     expect(noteLayer.children).toHaveLength(2);
     expect(noteLayer.children[0]).toBeInstanceOf(Mesh);
+    renderer.dispose();
+  });
+
+  it('clearPools 후 같은 인덱스 트릴 포인트를 다시 그리면 트릴 접촉 그림자 스프라이트를 새로 만든다', () => {
+    const { renderer, noteLayer } = setup(contactTheme);
+    renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);
+    const [shadow] = noteLayer.children;
+    noteLayer.removeChildren();
+    renderer.clearPools();
+    renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);
+    expect(noteLayer.children[0]).not.toBe(shadow);
     renderer.dispose();
   });
 

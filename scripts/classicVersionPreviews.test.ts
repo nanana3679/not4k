@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { classicVersionPreviewEntries, exportClassicVersionPreviews } from './classicVersionPreviews';
 import { CLASSIC_NOTE_ASSET_VERSIONS } from '../src/lab/noteAssetDesigns';
 import { COLORS as EDITOR_COLORS } from '../src/editor/timeline/constants';
+import { getSkinManifest } from '../src/game/skin/skins';
+import { CLASSIC_SKIN_VERSIONS } from '../src/lab/classicSkinVersions';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const temporaryDirectories: string[] = [];
@@ -27,7 +29,7 @@ describe('Classic 버전 Lab 공개', () => {
     expect(entries.some(entry => entry.pathname.includes('/sources/') || entry.pathname.includes('manifest'))).toBe(false);
   });
 
-  it('v012는 흰빛 포인트·트렌치 바디·위아래 5px 접촉 그림자·에디터와 같은 회색 마름모 트릴 끝 터미널을 보관하고 현재 적용본은 v002로 유지한다', async () => {
+  it('v012는 흰빛 포인트·트렌치 바디·위아래 5px 접촉 그림자·에디터와 같은 회색 마름모 트릴 끝 터미널을 보관한다', async () => {
     const archived = (id: string, path: string) => readFile(resolve(root, 'assets-lab/classic/versions', id, 'files', path));
     const text = async (path: string) => (await archived('v012', path)).toString();
     for (const kind of ['single', 'double']) {
@@ -36,9 +38,6 @@ describe('Classic 버전 Lab 공개', () => {
       const body = await text(`assets-lab/classic/sources/body-${kind}-bright.svg`);
       expect(body).toContain('data-artwork="bright-body-20260929" data-design="trench-imagegen-20260930"');
       expect(body).toContain(`data:image/png;base64,${tile.toString('base64')}`);
-      for (const path of [`note-${kind}.png`, `body-${kind}.png`]) {
-        expect((await readFile(resolve(root, `public/skins/classic/${path}`))).equals(await archived('v002', `public/skins/classic/${path}`)), `현재 ${path}는 v002`).toBe(true);
-      }
     }
     const config = await text('src/game/skin/skins.ts');
     expect(config).toContain('pointContactShadow: { above: 5, below: 5 }');
@@ -46,7 +45,6 @@ describe('Classic 버전 Lab 공개', () => {
     expect(await text('assets-lab/classic/states.mjs')).toContain("pointContactShadow: 'point-contact-shadow'");
     const shadow = await archived('v012', 'public/skins/classic/point-contact-shadow.png');
     expect([shadow.readUInt32BE(16), shadow.readUInt32BE(20)]).toEqual([200, 20]);
-    await expect(access(resolve(root, 'public/skins/classic/point-contact-shadow.png'))).rejects.toThrow();
 
     const editorFill = EDITOR_COLORS.TRILL_LONG_END.toString(16).padStart(6, '0');
     expect(editorFill).toBe('888888');
@@ -57,6 +55,24 @@ describe('Classic 버전 Lab 공개', () => {
     }
     const [on, idle, failed] = await Promise.all(['terminal-trill.png', 'terminal-trill-idle.png', 'terminal-trill-failed.png'].map(path => archived('v012', `public/skins/classic/${path}`)));
     expect(idle.equals(on) && idle.equals(failed)).toBe(true);
+  });
+
+  it('현재 적용본은 v013이다: 게임 PNG 60개가 v013 보관본과 같고 현재 스킨 설정과 등록 매니페스트가 트릴 마름모 접촉 그림자까지 같게 선언한다', async () => {
+    const versionRoot = resolve(root, 'assets-lab/classic/versions/v013');
+    const manifest = JSON.parse(await readFile(resolve(versionRoot, 'manifest.json'), 'utf8')) as { files: { path: string }[] };
+    const pngs = manifest.files.filter(file => file.path.startsWith('public/skins/classic/'));
+    expect(pngs).toHaveLength(60);
+    for (const { path } of pngs) {
+      expect((await readFile(resolve(root, path))).equals(await readFile(resolve(versionRoot, 'files', path))), `현재 ${path}는 v013`).toBe(true);
+    }
+    const current = getSkinManifest('classic');
+    const registered = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v013')!.manifest;
+    expect(registered.theme).toEqual(current.theme);
+    expect(registered.assets).toEqual(current.assets);
+    expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });
+    expect(current.assets.pointContactShadowTrill).toBe('/skins/classic/point-contact-shadow-trill.png');
+    const trill = await readFile(resolve(root, 'public/skins/classic/point-contact-shadow-trill.png'));
+    expect([trill.readUInt32BE(16), trill.readUInt32BE(20)]).toEqual([200, 60]);
   });
 
   it('v001만 정적 내보내면 PNG 바이트를 보존하고 v002·생성 코드는 포함하지 않는다', async () => {

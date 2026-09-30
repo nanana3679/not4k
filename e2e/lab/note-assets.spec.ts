@@ -57,7 +57,7 @@ test.describe("Note Assets Lab", () => {
     for (const cap of caps) expect(cap).toEqual({ frameHeight: 20, height: 20 });
   });
 
-  test('Classic 트릴 3연결은 실제 홀드한 구간만 켜지고 포인트 하단의 부드러운 그림자가 바디와 구분된다', async ({ page }, testInfo) => {
+  test('Classic 트릴 3연결은 실제 홀드한 구간만 켜지고 포인트 마름모 위아래 테두리를 따라 옅어지는 접촉 그림자가 바디와 구분된다', async ({ page }, testInfo) => {
     await page.goto('/assets-lab/classic/trill-quartz-preview.html');
     const result = await page.evaluate(async () => {
       const rendererPath = '/src/game/renderer/GameRenderer.ts';
@@ -111,7 +111,7 @@ test.describe("Note Assets Lab", () => {
       const terminals = texturesMatch(renderer.longNoteEndLayer, ['terminalTrill', 'terminalTrillIdle', 'terminalTrillIdle']);
       const screen = () => renderer.app.renderer.extract.canvas({ target: renderer.app.stage, frame: renderer.app.renderer.screen });
       const withShadow = screen();
-      const shadows = renderer.noteLayer.children.filter((sprite: { texture: unknown }) => sprite.texture === skin.getTexture('pointShadow'));
+      const shadows = renderer.noteLayer.children.filter((sprite: { texture: unknown }) => sprite.texture === skin.getTexture('pointContactShadowTrill'));
       shadows.forEach((shadow: { visible: boolean }) => { shadow.visible = false; });
       const withoutShadow = screen();
       shadows.forEach((shadow: { visible: boolean }) => { shadow.visible = true; });
@@ -120,9 +120,13 @@ test.describe("Note Assets Lab", () => {
         const after = withShadow.getContext('2d').getImageData(x, y, 1, 1).data;
         return (before[0] + before[1] + before[2] - after[0] - after[1] - after[2]) / 3;
       };
-      // 연결점의 두 번째 포인트(y=380)는 양쪽 아래 사선 바로 밑까지 그림자가 이어져야 한다.
+      // 연결점의 두 번째 포인트(y=380~400, 중심 150·390)는 네 사선 바로 바깥이 가장 짙고 5px 안에서 옅어진다.
+      // x=125·175에서 아래 사선은 y=395, 위 사선은 y=385다.
       const lowerEdgeShadow = [shadeAt(125, 396), shadeAt(175, 396)];
-      const softShadowTail = [shadeAt(125, 399), shadeAt(175, 399)];
+      const upperEdgeShadow = [shadeAt(125, 384), shadeAt(175, 384)];
+      // 아래 사선에서 3px 떨어진 곳은 옅지만 아직 그림자가 남는다.
+      const softShadowTail = [shadeAt(125, 398), shadeAt(175, 398)];
+      // 사선에서 약10px 떨어진 곳은 5px 퍼짐 밖이다.
       const oldRectangularShadow = shadeAt(105, 401);
       const samplePoint = () => {
         const image = screen();
@@ -164,7 +168,7 @@ test.describe("Note Assets Lab", () => {
       const secondTerminals = texturesMatch(renderer.longNoteEndLayer, ['terminalTrillIdle', 'terminalTrill', 'terminalTrillIdle']);
       activeSegment = 0;
       renderer.renderFrame(650);
-      return { idle, held, terminals, failed, secondHeld, secondTerminals, withTerminal, withoutTerminal, pointOnly, bodyOnly, terminalOnly, lowerEdgeShadow, softShadowTail, oldRectangularShadow, changedPointPixels };
+      return { idle, held, terminals, failed, secondHeld, secondTerminals, withTerminal, withoutTerminal, pointOnly, bodyOnly, terminalOnly, lowerEdgeShadow, upperEdgeShadow, softShadowTail, oldRectangularShadow, changedPointPixels, shadowCount: shadows.length };
     });
     expect(result.idle).toEqual([true, true, true]);
     expect(result.held).toEqual([true, true, true]);
@@ -176,7 +180,9 @@ test.describe("Note Assets Lab", () => {
     expect(result.withTerminal).not.toEqual(result.terminalOnly);
     expect(result.withoutTerminal).toEqual(result.pointOnly);
     expect(result.withoutTerminal).not.toEqual(result.bodyOnly);
-    for (const shade of result.lowerEdgeShadow) expect(shade).toBeGreaterThan(25);
+    // 첫 트릴 포인트(인덱스 3)는 처리된 것으로 숨겨 남은 두 포인트만 그림자를 깐다.
+    expect(result.shadowCount).toBe(2);
+    for (const shade of [...result.lowerEdgeShadow, ...result.upperEdgeShadow]) expect(shade).toBeGreaterThan(25);
     result.softShadowTail.forEach((shade, index) => {
       expect(shade).toBeGreaterThan(8);
       expect(shade).toBeLessThan(result.lowerEdgeShadow[index]);
@@ -324,7 +330,7 @@ test.describe("Note Assets Lab", () => {
     await expect(page.getByText("PLAYER READY")).toBeVisible();
   });
 
-  test('트릴과 트릴 롱을 선택하면 석영200×40 텍스처로 재생하며 랙과 승인 SVG의 색·형태가 같음', async ({page}) => {
+  test('트릴과 트릴 롱을 선택하면 석영 포인트·바디와 에디터 회색 마름모 끝 터미널 200×40 텍스처, 마름모 테두리 접촉 그림자로 재생하며 원본 SVG와 색·형태가 같음', async ({page}) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     const requests = new Set<string>();
@@ -337,7 +343,7 @@ test.describe("Note Assets Lab", () => {
     await expect(page.getByText('PLAYER READY')).toBeVisible();
     expect([...requests].sort()).toEqual([
       'body-trill-failed.png','body-trill-held.png','body-trill.png','note-trill-failed.png',
-      'note-trill.png','terminal-trill-failed.png','terminal-trill-idle.png','terminal-trill.png',
+      'note-trill.png','point-contact-shadow-trill.png','terminal-trill-failed.png','terminal-trill-idle.png','terminal-trill.png',
     ]);
     await expect(page.locator('[data-point-rack-item="trill"] img')).toHaveAttribute('src','/lab/note-assets/classic/note-trill.svg');
     await expect(page.locator('[data-body-rack-item="trill"]')).toHaveCount(3);
@@ -351,7 +357,7 @@ test.describe("Note Assets Lab", () => {
       };
       return Promise.all([
         ['note-trill','point-trill'],['body-trill','body-trill'],['body-trill-held','body-trill-on'],['body-trill-failed','body-trill-failed'],
-        ['terminal-trill','terminal-end-trill-on'],['terminal-trill-idle','terminal-end-trill'],['terminal-trill-failed','terminal-end-trill-failed'],
+        ['terminal-trill','terminal-end-trill-editor'],['terminal-trill-idle','terminal-end-trill-editor'],['terminal-trill-failed','terminal-end-trill-editor'],
       ].map(async ([runtime,source]) => {
         const png = await draw(`/skins/classic/${runtime}.png`);
         const svg = await draw(`/assets-lab/classic/sources/${source}.svg`);

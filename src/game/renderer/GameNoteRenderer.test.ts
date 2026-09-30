@@ -9,8 +9,8 @@ vi.mock("../../supabase/client", () => ({
 vi.mock("pixi.js", () => {
   class Container {
     children: unknown[] = [];
-    addChild(child: unknown) {
-      this.children.push(child);
+    addChild(...children: unknown[]) {
+      this.children.push(...children);
     }
   }
   class Graphics {
@@ -31,7 +31,7 @@ vi.mock("pixi.js", () => {
     width = 0;
     height = 0;
     texture: unknown = null;
-    scale = { x: 1, y: 1 };
+    scale = { x: 1, y: 1, set(x: number, y: number) { this.x = x; this.y = y; } };
     static from() { return new Sprite(); }
     constructor(tex?: unknown) { this.texture = tex ?? null; }
   }
@@ -149,7 +149,8 @@ describe('Classic 시안 렌더링 규격', () => {
     const { renderer, noteLayer } = createClassicRenderer();
     renderer.renderPointNote({ type: 'single', lane: 1, beat: 0 } as unknown as NoteEntity, 0, 100, 0);
     renderer.renderPointNote({ type: 'double', lane: 2, beat: 0 } as unknown as NoteEntity, 1, 100, 0);
-    const [, first, , second] = childrenOf(noteLayer);
+    // 각 포인트 앞에는 위·아래 접촉 그림자가 먼저 쌓인다.
+    const [, , first, , , second] = childrenOf(noteLayer);
     expect(first.x).toBe(0);
     expect(first.width).toBe(100);
     expect(second.x).toBe(100);
@@ -157,12 +158,28 @@ describe('Classic 시안 렌더링 규격', () => {
     expect(first.x + first.width).toBeLessThanOrEqual(second.x);
   });
 
-  it('2번 레인 포인트는 x100·100×20이고 그림자는 약94.34px 바디 폭에 맞춘다', () => {
+  it('2번 레인 싱글 포인트는 x100·100×20이고 위아래 접촉 그림자는 약94.34px 바디 폭·5px 높이로 포인트 위아래 변에 맞닿는다', () => {
     const {renderer,noteLayer} = createClassicRenderer();
     renderer.renderPointNote({type:'single',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
+    const [above,below,point] = childrenOf(noteLayer);
+    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    for (const shadow of [above, below]) {
+      expect(shadow.x).toBeCloseTo(bodyX);
+      expect(shadow.scale.x * 200).toBeCloseTo(bodyWidth);
+    }
+    // 위 그림자는 세로로 뒤집혀 포인트 윗변(y400)에서 위로 5px, 아래 그림자는 아랫변(y420)에서 아래로 5px 퍼진다.
+    expect(above.y).toBe(400);
+    expect(above.scale.y * 40).toBeCloseTo(-5);
+    expect(below.y).toBe(420);
+    expect(below.scale.y * 40).toBeCloseTo(5);
+  });
+
+  it('2번 레인 트릴 포인트는 x100·100×20이고 마름모 테두리 그림자는 포인트 위 5px부터 아래 5px까지 x100·100×30으로 깔린다', () => {
+    const {renderer,noteLayer} = createClassicRenderer();
+    renderer.renderPointNote({type:'trill',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
     const [shadow,point] = childrenOf(noteLayer);
     expect(point).toMatchObject({x:100,y:400,width:100,height:20});
-    expect(shadow).toMatchObject({x:bodyX,y:419.6,width:bodyWidth,height:3.2});
+    expect(shadow).toMatchObject({x:100,y:395,width:100,height:30});
   });
 
   it('200×40 바디는 약94.34×18.87 주기로 반복하고 터미널도 같은 폭으로 포인트 안에 들어간다', () => {

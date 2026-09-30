@@ -38,8 +38,8 @@ describe('dev Settings의 스킨 버전', () => {
     expect(resolveDevSkinSelection('crystal')).toBe('crystal');
   });
 
-  it('선택기는 게임 설정·현재 Classic·v012·v002·v001의 5개 선택지를 최신 버전부터 제공한다', () => {
-    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v012', 'v002', 'v001']);
+  it('선택기는 게임 설정·현재 Classic·v013·v012·v002·v001의 6개 선택지를 최신 버전부터 제공한다', () => {
+    expect(DEV_SKIN_OPTIONS.map(option => option.id)).toEqual(['settings', 'classic', 'v013', 'v012', 'v002', 'v001']);
     let row: DevSkinSelectRow | undefined;
     renderToStaticMarkup(createElement(DevSkinVersionSelect, { renderRow: r => { row = r; return null; } }));
     expect(row?.label).toBe('개발용 스킨');
@@ -47,6 +47,7 @@ describe('dev Settings의 스킨 버전', () => {
     expect(row?.value).toBe('settings');
     expect(row?.options.map(option => option.label)).toContain('Classic v002 · 고채도 포인트 · 아주 밝은 바디 · 공용 터미널');
     expect(row?.options.map(option => option.label)).toContain('Classic v012 · 흰빛 포인트 · 트렌치 바디 · 접촉 그림자 · 에디터 회색 마름모 트릴 끝 터미널');
+    expect(row?.options.map(option => option.label)).toContain('Classic v013 · 흰빛 포인트 · 트렌치 바디 · 접촉 그림자(트릴 마름모 테두리 포함) · 에디터 회색 마름모 트릴 끝 터미널');
   });
 
   it('선택기 행의 onChange에 v002를 넘기면 개발용 선택이 v002로 바뀐다', () => {

@@ -15,7 +15,7 @@ test('터미널 페이지에서 밝은 바디 타일을 포함한 1000×200 시�
   await expect(page.locator('[data-zero-length] img')).toHaveCount(2);
 });
 
-test('싱글·더블 7개 상태에서 200×40 바디와 양 끝 타일이 같고 대기·고채도 포인트는 선택 원본과 픽셀이 같다', async ({ page }, testInfo) => {
+test('싱글·더블 7개 상태에서 200×40 바디와 양 끝 타일이 같고 대기 바디·흰빛 포인트는 현재 원본 SVG를 같은 크기로 그린 결과와 픽셀이 같다', async ({ page }, testInfo) => {
   await page.goto('/assets-lab/classic/terminal-preview.html');
   const checks = await page.evaluate(async () => {
     const raster = async (src: string, width = 200) => {
@@ -31,10 +31,13 @@ test('싱글·더블 7개 상태에서 200×40 바디와 양 끝 타일이 같�
     };
     const results = [];
     for (const kind of ['single', 'double']) {
-      const selected = `/assets-lab/classic/revisions/body-six-20260929/selected`;
+      const sources = `/assets-lab/classic/sources`;
       const point = await raster(`/skins/classic/note-${kind}.png`, 212);
-      const expectedPoint = await raster(`${selected}/point-${kind}.png`, 212);
-      const expectedBody = await raster(`${selected}/body-${kind}-200x40.png`);
+      const expectedPoint = await raster(`${sources}/point-${kind}.svg`, 212);
+      // 빌드는 트렌치 바디 SVG를 200×40으로 그린 뒤 가운데 행을 세로로 반복한다.
+      const expectedBody = await raster(`${sources}/body-${kind}-bright.svg`);
+      const center = expectedBody.pixels.slice(20 * 800, 21 * 800);
+      for (let y = 0; y < 40; y++) expectedBody.pixels.set(center, y * 800);
       const states = [];
       for (const state of ['idle', 'on', 'failed', ...(kind === 'double' ? ['partial-off'] : [])]) {
         const bodySuffix = { idle: '', on: '-held', failed: '-failed', 'partial-off': '-partial-held-left' }[state];
@@ -59,7 +62,8 @@ test('싱글·더블 7개 상태에서 200×40 바디와 양 끝 타일이 같�
     return results;
   });
   for (const check of checks) {
-    expect(check).toMatchObject({pointWidth: 212, pointHeight: 40, pointDiff: 0});
+    expect(check).toMatchObject({pointWidth: 212, pointHeight: 40});
+    expect(check.pointDiff, `${check.kind} 포인트`).toBeLessThanOrEqual(1);
     for (const state of check.states) {
       expect(state, `${check.kind} ${state.state}`).toMatchObject({width: 200, height: 40, minAlpha: 255, repeatDiff: 0, terminalDiff: 0});
       // Runtime rows are normalized; Chromium SVG gradient dithering can differ by 1/255.
@@ -67,7 +71,7 @@ test('싱글·더블 7개 상태에서 200×40 바디와 양 끝 타일이 같�
       expect(state.endDiff).toBeLessThanOrEqual(1);
     }
     const [idle, held, failed, partial] = check.states;
-    expect(idle.selectedDiff).toBe(0);
+    expect(idle.selectedDiff).toBeLessThanOrEqual(1);
     expect(Math.min(...held.core)).toBeGreaterThan(245);
     expect(Math.max(...failed.core) - Math.min(...failed.core)).toBe(0);
     expect(failed.core[0]).toBeLessThan(Math.min(...idle.core));
