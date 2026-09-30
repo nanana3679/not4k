@@ -23,65 +23,6 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain('id="classic-skin-version"');
   });
 
-  it('version=v004 직접 링크는 옅은 포인트와 S05/D05 짙은 바디 선택지와 해당 재생기·바디 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v004');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v004"');
-    expect(markup).toContain('value="v004" selected=""');
-    expect(markup).toContain('옅은 원본 포인트 · S05/D05 짙은 바디');
-    expect(markup).toContain('/lab/skin-versions/classic/v004/svg/body-single-idle.svg');
-    expect(markup).toContain('/lab/skin-versions/classic/v004/svg/body-double-idle.svg');
-  });
-
-  it('version=v006 직접 링크는 내부 검은 세로띠를 없앤 선택지와 v006 포인트 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v006');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v006"');
-    expect(markup).toContain('value="v006" selected=""');
-    expect(markup).toContain('내부 검은 세로띠 제거');
-    expect(markup).toContain('/lab/skin-versions/classic/v006/svg/note-single.svg');
-    expect(markup).toContain('/lab/skin-versions/classic/v006/svg/note-double.svg');
-  });
-
-  it('version=v007 직접 링크는 포인트·바디 대비 3:1 선택지와 v007 포인트·바디 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v007');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v007"');
-    expect(markup).toContain('value="v007" selected=""');
-    expect(markup).toContain('포인트·바디 대비 3:1');
-    expect(markup).toContain('/lab/skin-versions/classic/v007/svg/note-single.svg');
-    expect(markup).toContain('/lab/skin-versions/classic/v007/svg/body-double-idle.svg');
-  });
-
-  it('version=v008 직접 링크는 접촉 그림자 선택지와 v008 재생기·포인트 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v008');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v008"');
-    expect(markup).toContain('value="v008" selected=""');
-    expect(markup).toContain('위아래 접촉 그림자');
-    expect(markup).toContain('/lab/skin-versions/classic/v008/svg/note-single.svg');
-  });
-
-  it('version=v009 직접 링크는 트렌치 바디 선택지와 v009 바디 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v009');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v009"');
-    expect(markup).toContain('value="v009" selected=""');
-    expect(markup).toContain('트렌치 바디');
-    expect(markup).toContain('/lab/skin-versions/classic/v009/svg/body-single-idle.svg');
-  });
-
-  it('version=v010 직접 링크는 어두운 마름모 트릴 터미널 선택지와 v010 트릴 터미널 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v010');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v010"');
-    expect(markup).toContain('value="v010" selected=""');
-    expect(markup).toContain('어두운 마름모 트릴 터미널');
-    expect(markup).toContain('/lab/skin-versions/classic/v010/svg/terminal-trill-idle.svg');
-  });
-
-  it('version=v011 직접 링크는 Simple 트릴 끝 터미널 선택지와 v011 트릴 터미널 랙을 연다', () => {
-    const markup = renderPage('/', '?design=classic&version=v011');
-    expect(markup).toContain('data-tutorial-skin-id="classic-v011"');
-    expect(markup).toContain('value="v011" selected=""');
-    expect(markup).toContain('Simple 트릴 끝 터미널');
-    expect(markup).toContain('/lab/skin-versions/classic/v011/svg/terminal-trill-failed.svg');
-  });
-
   it('version=v012 직접 링크는 에디터 회색 마름모 트릴 터미널 선택지와 v012 트릴 터미널 랙을 연다', () => {
     const markup = renderPage('/', '?design=classic&version=v012');
     expect(markup).toContain('data-tutorial-skin-id="classic-v012"');

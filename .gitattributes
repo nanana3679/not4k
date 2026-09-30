@@ -1,0 +1,6 @@
+# 리뷰 화면에서 접히도록 생성·보관 자료를 표시한다. 내용 추적과 병합에는 영향이 없다.
+assets-lab/classic/versions/** linguist-generated=true
+assets-lab/classic/revisions/** linguist-generated=true
+lab/image-galleries/** linguist-generated=true
+public/lab/note-assets/** linguist-generated=true
+public/skins/** linguist-generated=true

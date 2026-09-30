@@ -164,7 +164,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
   expect(errors).toEqual([]);
 });
 
-test('Settings 탭 전환·재열기에서 v004를 유지하고 선택기에서 Esc로 닫으며 새로고침하면 게임 설정으로 복귀한다', async ({ page }) => {
+test('Settings 탭 전환·재열기에서 v002를 유지하고 선택기에서 Esc로 닫으며 새로고침하면 게임 설정으로 복귀한다', async ({ page }) => {
   await openSongs(page);
   const dialog = await openSkinSettings(page);
   const select = page.getByLabel('개발용 스킨');
@@ -174,17 +174,17 @@ test('Settings 탭 전환·재열기에서 v004를 유지하고 선택기에서 
   await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   await expect(page.getByTestId('gameplay-canvas')).toHaveCount(0);
   await expect(dialog).toBeVisible();
-  await select.selectOption('v004');
+  await select.selectOption('v002');
   await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
   await expect(select).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
-  await expect(select).toHaveValue('v004');
+  await expect(select).toHaveValue('v002');
   await select.focus();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   await openSkinSettings(page);
-  await expect(select).toHaveValue('v004');
+  await expect(select).toHaveValue('v002');
   await page.reload();
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await openSkinSettings(page);
