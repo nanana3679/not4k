@@ -1,6 +1,6 @@
 # 석영 Trill SVG 미리보기
 
-선택한 [6번 시안](../../assets-lab/classic/references/trill-quartz-approved.png)의 포인트·바디를 편집 가능한 SVG로 재구성한다. 끝 터미널은 바디와 같은 재질을 마름모로 자른다. 독립 미리보기와 [Lab의 Classic 튜토리얼 재생기](note-asset-lab.md)에 적용한다. 현재 Classic(v013)은 포인트·바디만 이 원본을 쓰고, 끝 터미널은 에디터와 같은 회색 마름모(`terminal-end-trill-editor.svg`)로 바꿨다. 석영 끝 터미널 원본은 이 미리보기에서만 쓴다. 게임의 기본 스킨과 판정은 변경하지 않는다.
+선택한 [6번 시안](../../assets-lab/classic/references/trill-quartz-approved.png)의 포인트·바디를 편집 가능한 SVG로 재구성한다. 끝 터미널은 바디와 같은 재질을 마름모로 자른다. 독립 미리보기와 [Lab의 Classic 튜토리얼 재생기](note-asset-lab.md)에 적용한다. 현재 Classic(v014)은 포인트·대기·실패 바디만 이 원본을 쓰고, 켜짐 바디는 반투명 사각 기둥 내부 조명 타일(`body-trill-on-frosted.svg`), 끝 터미널은 에디터와 같은 회색 마름모(`terminal-end-trill-editor.svg`)로 바꿨다. 석영 켜짐 바디·끝 터미널 원본은 이 미리보기에서만 쓴다. 게임의 기본 스킨과 판정은 변경하지 않는다.
 
 ## 에셋
 
@@ -40,7 +40,7 @@
 
 저장소 루트에서 `node scripts/build-trill-quartz.mjs`를 실행한다. 생성기는 위7개 원본 SVG와 `assets-lab/classic/downloads/`의 상태별 조립 SVG·ZIP만 출력한다. ZIP 생성에는 Python 3 표준 라이브러리를 사용한다.
 
-`pnpm build:classic`을 실행하면 포인트·바디 원본을200×40 PNG로 변환해 `/lab/note-assets?design=classic`에 반영한다. 재생 차트의 `트릴`·`트릴 롱`으로 실제 낙하 모습을 확인한다. 대기는 기존 회색, 유지 중에는 내부광이 켜진 상태, 실패하면 어두운 상태를 바디에 사용한다.
+`pnpm build:classic`을 실행하면 포인트·바디 원본을200×40 PNG로 변환해 `/lab/note-assets?design=classic`에 반영한다. 재생 차트의 `트릴`·`트릴 롱`으로 실제 낙하 모습을 확인한다. 대기는 기존 회색, 실패하면 어두운 상태를 바디에 사용한다. Classic의 유지 중 바디는 반투명 기둥 타일로 바꿨다.
 
 재생기의 트릴 포인트는 마름모 하단 두 변을 따라 최대 알파36%의 그림자가6.4px 동안 부드럽게 사라지도록 표시한다. 싱글·더블의 가로 그림자를 그대로 적용하면 바디와 하단 윤곽이 섞여 잘려 보이므로, 동일한 그림자 텍스처를100px 너비의 하단 경로에 맞춘다. 원본 SVG·PNG와 포인트의100×20 크기는 유지한다. 트릴 바디·터미널은 앞 구간의 켜짐을 이어받지 않고 실제로 유지 중인 자기 구간만 켠다. `note-assets.spec.ts`는 구간별 켜짐, 하단 양쪽 그림자의 감쇠, 바디·터미널 위의 포인트 픽셀 보존을 실제 그래픽 렌더링으로 검증한다.
 

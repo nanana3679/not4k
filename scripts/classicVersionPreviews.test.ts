@@ -57,16 +57,21 @@ describe('Classic 버전 Lab 공개', () => {
     expect(idle.equals(on) && idle.equals(failed)).toBe(true);
   });
 
-  it('현재 적용본은 v013이다: 게임 PNG 60개가 v013 보관본과 같고 현재 스킨 설정과 등록 매니페스트가 트릴 마름모 접촉 그림자까지 같게 선언한다', async () => {
-    const versionRoot = resolve(root, 'assets-lab/classic/versions/v013');
+  it('현재 적용본은 v014다: 게임 PNG 60개가 v014 보관본과 같고 현재 스킨 설정과 등록 매니페스트가 트릴 마름모 접촉 그림자까지 같게 선언하며 v013과는 트릴 켜짐 바디만 다르다', async () => {
+    const versionRoot = resolve(root, 'assets-lab/classic/versions/v014');
     const manifest = JSON.parse(await readFile(resolve(versionRoot, 'manifest.json'), 'utf8')) as { files: { path: string }[] };
     const pngs = manifest.files.filter(file => file.path.startsWith('public/skins/classic/'));
     expect(pngs).toHaveLength(60);
     for (const { path } of pngs) {
-      expect((await readFile(resolve(root, path))).equals(await readFile(resolve(versionRoot, 'files', path))), `현재 ${path}는 v013`).toBe(true);
+      expect((await readFile(resolve(root, path))).equals(await readFile(resolve(versionRoot, 'files', path))), `현재 ${path}는 v014`).toBe(true);
     }
+    const changedFromV013: string[] = [];
+    for (const { path } of pngs) {
+      if (!(await readFile(resolve(root, path))).equals(await readFile(resolve(root, 'assets-lab/classic/versions/v013/files', path)))) changedFromV013.push(path);
+    }
+    expect(changedFromV013).toEqual(['public/skins/classic/body-trill-held.png']);
     const current = getSkinManifest('classic');
-    const registered = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v013')!.manifest;
+    const registered = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!.manifest;
     expect(registered.theme).toEqual(current.theme);
     expect(registered.assets).toEqual(current.assets);
     expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });

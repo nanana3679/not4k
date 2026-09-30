@@ -82,13 +82,21 @@ describe('Classic 선택 에셋 상태', () => {
     expect(() => brightBodyState(sources['body-single-bright'], 'unknown')).toThrow('Unknown bright body state');
   });
 
-  it('트릴 포인트·바디 5개 런타임 상태는 기존 석영 원본을 유지한다', () => {
+  it('트릴 포인트·대기 바디·실패 바디 런타임 상태는 기존 석영 원본을 유지한다', () => {
     expect(assets[RUNTIME_ASSET_MAP.noteTrill]).toBe(sources['point-trill']);
     expect(assets[RUNTIME_ASSET_MAP.bodyTrill]).toBe(sources['body-trill']);
-    expect(assets[RUNTIME_ASSET_MAP.bodyTrillHeld]).toBe(sources['body-trill-on']);
     expect(assets[RUNTIME_ASSET_MAP.bodyTrillFailed]).toBe(sources['body-trill-failed']);
     expect(assets[RUNTIME_ASSET_MAP.noteTrillFailed]).toContain('data-artwork="trill-quartz-06"');
     expect(Object.keys(assets).some(name => name.startsWith('terminal-start-trill'))).toBe(false);
+  });
+
+  it('트릴 켜짐 바디는 반투명 사각 기둥 내부 조명(frosted-fill) 1000×200 타일을 색 변경 없이 내장한 원본을 쓴다', () => {
+    const held = assets[RUNTIME_ASSET_MAP.bodyTrillHeld];
+    expect(held).toBe(sources['body-trill-on-frosted']);
+    expect(held).toContain('data-design="trill-on-frosted-fill-20261001"');
+    expect(held).toContain('viewBox="0 0 1000 200"');
+    const png = Buffer.from(held.match(/data:image\/png;base64,([^"]+)/)![1], 'base64');
+    expect(png.equals(readFileSync(new URL('./revisions/trill-body-on-imagegen-20261001/tiles/frosted-fill-1000x200.png', import.meta.url)))).toBe(true);
   });
 
   it('트릴 끝 터미널 대기·켜짐·실패는 에디터 트릴 롱 끝과 같은 색(COLORS.TRILL_LONG_END)의 납작한 마름모 원본 하나를 함께 쓴다', () => {
@@ -101,8 +109,8 @@ describe('Classic 선택 에셋 상태', () => {
     }
   });
 
-  it('석영 미리보기 생성기가 쓰는 석영 끝 터미널 원본 3개는 Classic 빌드 입력에서 빠져 덮어써도 Classic 트릴 끝 터미널이 바뀌지 않는다', () => {
-    for (const name of ['terminal-end-trill', 'terminal-end-trill-on', 'terminal-end-trill-failed']) {
+  it('석영 미리보기 생성기가 쓰는 석영 켜짐 바디·끝 터미널 원본 4개는 Classic 빌드 입력에서 빠져 덮어써도 Classic 트릴 켜짐 바디·끝 터미널이 바뀌지 않는다', () => {
+    for (const name of ['body-trill-on', 'terminal-end-trill', 'terminal-end-trill-on', 'terminal-end-trill-failed']) {
       expect(CLASSIC_SOURCE_NAMES).not.toContain(name);
       expect(readFileSync(new URL(`./sources/${name}.svg`, import.meta.url), 'utf8')).toContain('data-artwork="trill-quartz-06"');
     }

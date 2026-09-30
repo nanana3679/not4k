@@ -330,7 +330,7 @@ test.describe("Note Assets Lab", () => {
     await expect(page.getByText("PLAYER READY")).toBeVisible();
   });
 
-  test('트릴과 트릴 롱을 선택하면 석영 포인트·바디와 에디터 회색 마름모 끝 터미널 200×40 텍스처, 마름모 테두리 접촉 그림자로 재생하며 원본 SVG와 색·형태가 같음', async ({page}) => {
+  test('트릴과 트릴 롱을 선택하면 석영 포인트·대기·실패 바디, 반투명 기둥 켜짐 바디, 에디터 회색 마름모 끝 터미널 200×40 텍스처와 마름모 테두리 접촉 그림자로 재생하며 원본 SVG와 색·형태가 같음', async ({page}) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     const requests = new Set<string>();
@@ -356,7 +356,7 @@ test.describe("Note Assets Lab", () => {
         return {width:image.naturalWidth,height:image.naturalHeight,pixels:ctx.getImageData(0,0,200,40).data};
       };
       return Promise.all([
-        ['note-trill','point-trill'],['body-trill','body-trill'],['body-trill-held','body-trill-on'],['body-trill-failed','body-trill-failed'],
+        ['note-trill','point-trill'],['body-trill','body-trill'],['body-trill-held','body-trill-on-frosted'],['body-trill-failed','body-trill-failed'],
         ['terminal-trill','terminal-end-trill-editor'],['terminal-trill-idle','terminal-end-trill-editor'],['terminal-trill-failed','terminal-end-trill-editor'],
       ].map(async ([runtime,source]) => {
         const png = await draw(`/skins/classic/${runtime}.png`);

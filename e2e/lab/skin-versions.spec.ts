@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CLASSIC_SKIN_VERSIONS } from '../../src/lab/classicSkinVersions';
 
-test('현재→v001→v002→v012→v013→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
+test('현재→v001→v002→v012→v013→v014→현재 전환에서 차트를 유지하고 재생기·에셋 랙·URL을 같은 버전으로 바꾼다', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { skinId: 'classic' } }, version: 0 })));
@@ -10,7 +10,7 @@ test('현재→v001→v002→v012→v013→현재 전환에서 차트를 유지�
   const settings = await page.evaluate(() => localStorage.getItem('not4k-settings'));
   expect(settings).toContain('classic');
   await page.getByRole('button', { name: '독립 롱', exact: true }).click();
-  for (const version of ['v001', 'v002', 'v012', 'v013']) {
+  for (const version of ['v001', 'v002', 'v012', 'v013', 'v014']) {
     const texture = page.waitForResponse(response => response.url().endsWith(`/lab/skin-versions/classic/${version}/skin/body-single.png`));
     await page.getByLabel('버전', { exact: true }).selectOption(version);
     expect((await texture).status()).toBe(200);
@@ -25,7 +25,7 @@ test('현재→v001→v002→v012→v013→현재 전환에서 차트를 유지�
   }
   await page.locator('.asset-lab-workbench').screenshot({ path: testInfo.outputPath('classic-version-selector.png') });
   await page.goBack();
-  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v012');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('v013');
   await expect(page.getByText('PLAYER READY')).toBeVisible();
   await page.getByLabel('버전', { exact: true }).selectOption('current');
   await expect(page).not.toHaveURL(/version=/);
@@ -51,7 +51,7 @@ test('390px v012 직접 링크와 새로고침은 v012를 유지하고 Simple �
   await expect(page.getByText('PLAYER READY')).toBeVisible();
 });
 
-test('연결 트릴에서 v013 트릴 포인트는 마름모 테두리 그림자로 경계 2px 대비 하위 5%가 대기·홀드 모두 3:1 이상이고 그림자가 없는 v012는 2:1 미만이다', async ({ page }, testInfo) => {
+test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그림자로 경계 2px 대비 하위 5%가 대기·홀드 모두 3:1 이상이고 그림자가 없는 v012는 2:1 미만이다', async ({ page }, testInfo) => {
   await page.goto('/lab');
   const result = await page.evaluate(async () => {
     const rendererPath = '/src/game/renderer/GameRenderer.ts', skinPath = '/src/game/skin/SkinManager.ts';
@@ -71,6 +71,7 @@ test('연결 트릴에서 v013 트릴 포인트는 마름모 테두리 그림자
     const linear = (value: number) => { const v = value / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
     const lum = (d: Uint8ClampedArray, i: number) => 0.2126 * linear(d[i]) + 0.7152 * linear(d[i + 1]) + 0.0722 * linear(d[i + 2]);
     const skins: Record<string, unknown> = {
+      v014: CLASSIC_NOTE_ASSET_VERSIONS.find((v: { id: string }) => v.id === 'v014').design.skinManifest,
       v013: CLASSIC_NOTE_ASSET_VERSIONS.find((v: { id: string }) => v.id === 'v013').design.skinManifest,
       v012: CLASSIC_NOTE_ASSET_VERSIONS.find((v: { id: string }) => v.id === 'v012').design.skinManifest,
     };
@@ -123,8 +124,10 @@ test('연결 트릴에서 v013 트릴 포인트는 마름모 테두리 그림자
   });
   await testInfo.attach('trill-contrast.json', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
   for (const phase of ['idle', 'held']) {
-    expect(result[`v013-${phase}-samples`], phase).toBeGreaterThan(300);
-    expect(result[`v013-${phase}`], `v013 ${phase}`).toBeGreaterThanOrEqual(3);
+    for (const version of ['v013', 'v014']) {
+      expect(result[`${version}-${phase}-samples`], `${version} ${phase}`).toBeGreaterThan(300);
+      expect(result[`${version}-${phase}`], `${version} ${phase}`).toBeGreaterThanOrEqual(3);
+    }
     expect(result[`v012-${phase}`], `v012 ${phase}`).toBeLessThan(2);
   }
 });
