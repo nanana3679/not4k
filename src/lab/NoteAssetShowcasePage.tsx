@@ -141,10 +141,13 @@ export default function NoteAssetShowcasePage() {
     });
   };
 
-  useEffect(() => {
+  // 시안·버전이 바뀌면 렌더 중에 키봄 선택과 준비 상태를 초기화한다(effect 없이 한 번의 렌더로 반영).
+  const [shownDesign, setShownDesign] = useState(design);
+  if (shownDesign !== design) {
+    setShownDesign(design);
     setSelectedBombId(design.bombs[0].id);
     setPlayerReady(false);
-  }, [design]);
+  }
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
