@@ -84,6 +84,7 @@ function createRenderer() {
     getTexture,
     getHalfCapTexture: vi.fn(() => ({})),
     getTheme: vi.fn(() => ({ longNoteTerminalMode: "split-cap" })),
+    getBodyWidthScale: vi.fn(() => 1),
     hasTexture: vi.fn(() => false),
   } as unknown as SkinManager;
 

@@ -22,8 +22,6 @@ export interface SkinTheme {
   longNoteTerminalMode?: "split-cap" | "full-height";
   /** full-height terminal의 외곽 프레임이 바디 좌우로 더 나오는 논리 픽셀 수 */
   longNoteTerminalFrameOverhangPx?: number;
-  /** 원본의 바디 접합 폭100px 바깥으로 나오는 포인트 좌우 너비. 포인트 전체를 레인에 맞추고 바디를 비례 축소한다. */
-  pointNoteOverhangPx?: number;
   /** 반복 바디는 텍스처 비율을 유지해 세로로 타일링한다. */
   longNoteBodyMode?: "stretch" | "repeat";
   /** Grace overlay 텍스처의 본체 바깥 투명 여백 */

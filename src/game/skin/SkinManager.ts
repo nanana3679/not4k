@@ -220,6 +220,19 @@ export class SkinManager {
   }
 
   /**
+   * 포인트 이미지 폭 대비 바디 이미지 폭(최대 1). 포인트 이미지 전체가 레인 폭이므로,
+   * 바디 이미지가 포인트보다 좁은 스킨은 이 비율로 바디·끝 터미널·그림자를 줄여 가운데에 둔다.
+   * 두 이미지는 같은 배율로 내보냈다고 본다. 텍스처가 없으면 1이다.
+   */
+  getBodyWidthScale(kind: "single" | "double" | "trill"): number {
+    const suffix = kind === "single" ? "Single" : kind === "double" ? "Double" : "Trill";
+    const point = this.textures.get(`note${suffix}`)?.texture;
+    const body = this.textures.get(`body${suffix}`)?.texture;
+    if (!point || !body || point.width <= 0) return 1;
+    return Math.min(1, body.width / point.width);
+  }
+
+  /**
    * 롱노트 캡 텍스처. 전용 캡 에셋(endCap*)이 로드된 스킨은 그것을 사용하고,
    * 없는 스킨은 terminal 텍스처의 윗부분 절반(=캡 모양)을 런타임 crop해 fallback한다.
    * 시작 캡(상하반전)·끝 캡 양쪽에서 같은 텍스처를 공유한다.

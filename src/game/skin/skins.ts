@@ -135,7 +135,6 @@ export const SKIN_LIST: SkinManifest[] = [
     text: 0xd8e8f4,
     longNoteTerminalMode: "full-height",
     longNoteTerminalFrameOverhangPx: 0,
-    pointNoteOverhangPx: 3,
     longNoteBodyMode: "repeat",
     graceOverlayPaddingPx: 12,
     pointShadow: { offsetY: 19.6, height: 3.2 },

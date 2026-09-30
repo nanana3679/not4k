@@ -100,6 +100,7 @@ function createMockSkinManager(
     getTexture: vi.fn(() => ({})),
     getHalfCapTexture: vi.fn(() => ({})),
     getTheme: vi.fn(() => ({ longNoteTerminalMode, longNoteTerminalFrameOverhangPx })),
+    getBodyWidthScale: vi.fn(() => 1),
     hasTexture: vi.fn((key: string) => availableTextureKeys.includes(key)),
   } as unknown as SkinManager;
 }
@@ -129,13 +130,16 @@ function createRenderer() {
 describe('Classic 시안 렌더링 규격', () => {
   const bodyWidth = 100 * 100 / 106;
   const bodyX = 100 + (100 - bodyWidth) / 2;
-  function createClassicRenderer() {
+  // Classic 에셋: 싱글·더블 포인트 212px·바디 200px, 트릴 포인트·바디 200px.
+  const classicScale = (kind: string) => kind === 'trill' ? 1 : 200 / 212;
+  function createClassicRenderer(bodyWidthScale: (kind: string) => number = classicScale) {
     const bodyLayer = new Container(), endLayer = new Container(), headLayer = new Container(), noteLayer = new Container();
     const manifest = getSkinManifest('classic');
     const skin = {
       getTheme: () => manifest.theme,
       hasTexture: (key: string) => key in manifest.assets,
       getTexture: (key: string) => ({key, width:200, height:40}),
+      getBodyWidthScale: bodyWidthScale,
     } as unknown as SkinManager;
     return { bodyLayer, endLayer, headLayer, noteLayer,
       renderer: new GameNoteRenderer(bodyLayer,endLayer,headLayer,noteLayer,skin,500,1000,0,600) };
@@ -169,6 +173,20 @@ describe('Classic 시안 렌더링 규격', () => {
     expect(body.tileScale.set).toHaveBeenCalledWith(bodyWidth / 200);
     expect(body).toMatchObject({x:bodyX,width:bodyWidth,height:220});
     expect(childrenOf(endLayer)[0]).toMatchObject({x:bodyX,width:bodyWidth,height:20});
+  });
+
+  it('포인트와 바디 이미지 폭이 같은 스킨(비율 1)은 싱글 롱노트 바디와 끝 터미널을 레인 폭 x100·너비100 그대로 그린다', () => {
+    const {renderer,bodyLayer,endLayer} = createClassicRenderer(() => 1);
+    renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:100,width:100});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:100,width:100});
+  });
+
+  it('트릴도 바디 이미지가 포인트보다 좁으면(비율 0.9) 노트 종류 예외 없이 트릴 롱 바디와 끝 터미널을 x105·너비90으로 줄인다', () => {
+    const {renderer,bodyLayer,endLayer} = createClassicRenderer(kind => kind === 'trill' ? 0.9 : 1);
+    renderer.renderLongNote({type:'trillLong',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:105,width:90});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:105,width:90});
   });
 
   it('Classic 트릴은 포인트·바디·끝 터미널 모두 x100·너비100이며 20px 바디를 반복하고 시작 캡은 없음', () => {

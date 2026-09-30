@@ -44,6 +44,15 @@ export interface JudgmentBodyStateView {
 export type JudgmentBodyStateQuery =
   (noteIndex: number, timeMs: number) => JudgmentBodyStateView | null;
 
+type NoteKind = "single" | "double" | "trill";
+
+/** 포인트·롱노트 종류를 같은 에셋 묶음(싱글·더블·트릴)으로 모은다. */
+function noteKindOf(type: NoteEntity["type"]): NoteKind {
+  if (type === "double" || type === "doubleLong") return "double";
+  if (type === "trill" || type === "trillLong") return "trill";
+  return "single";
+}
+
 export class GameNoteRenderer {
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -143,7 +152,7 @@ export class GameNoteRenderer {
     const isPartial = this.doublePartialNotes.has(index);
     const isMissed = this.missedNotes.has(index);
     const isGrace = isGraceNote(entity);
-    // 포인트 전체 외곽이 레인의 기준이다. 돌출부가 있는 스킨은 바디를 안쪽으로 줄인다.
+    // 포인트 전체 외곽이 레인의 기준이다. 바디 이미지가 포인트보다 좁은 스킨은 바디를 안쪽으로 줄인다.
     const pointX = laneX;
     const pointWidth = NOTE_WIDTH;
 
@@ -155,7 +164,7 @@ export class GameNoteRenderer {
     const theme = this.skinManager.getTheme();
     const shadowGeometry = theme.pointShadow;
     if (entity.type !== 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadow')) {
-      this.addPointContactShadow(index, laneX, y, theme.pointContactShadow);
+      this.addPointContactShadow(index, laneX, y, theme.pointContactShadow, noteKindOf(entity.type));
     } else if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
       if (entity.type === 'trill') {
         // 직사각형 그림자는 마름모 하단과 떨어져 가로 절단선처럼 보인다.
@@ -192,7 +201,7 @@ export class GameNoteRenderer {
           shadow = new Sprite(this.skinManager.getTexture('pointShadow'));
           this.pointShadowPool.set(index, shadow);
         }
-        const bodyWidth = this.getBodyWidth();
+        const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
         shadow.x = laneX + (LANE_WIDTH - bodyWidth) / 2;
         shadow.y = y + shadowGeometry.offsetY;
         shadow.width = bodyWidth;
@@ -305,7 +314,7 @@ export class GameNoteRenderer {
     const isPartialFailed = partialSide !== undefined;
     const theme = this.skinManager.getTheme();
     const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
-    const bodyWidth = entity.type === "trillLong" ? LANE_WIDTH : this.getBodyWidth();
+    const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
     const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
     const terminalFrameOverhang = fullHeightTerminal
       ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0) * bodyWidth / LANE_WIDTH
@@ -680,9 +689,9 @@ export class GameNoteRenderer {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
   }
 
-  private getBodyWidth(): number {
-    const overhang = Math.max(0, this.skinManager.getTheme().pointNoteOverhangPx ?? 0);
-    return LANE_WIDTH * NOTE_WIDTH / (NOTE_WIDTH + overhang * 2);
+  /** 노트 종류가 아니라 에셋 폭으로 정한다: 바디 이미지가 포인트 이미지보다 좁은 만큼만 줄인다. */
+  private getBodyWidth(kind: NoteKind): number {
+    return LANE_WIDTH * this.skinManager.getBodyWidthScale(kind);
   }
 
   // ── 오브젝트 풀 ───────────────────────────────────────────
@@ -754,7 +763,7 @@ export class GameNoteRenderer {
    * 싱글·더블 포인트 위아래 바디에 접촉 그림자를 깐다. 바디 전체를 어둡게 하지 않고
    * 포인트 경계에서만 명도 대비를 만들어 밝은 바디 위에서도 포인트를 분리한다.
    */
-  private addPointContactShadow(index: number, laneX: number, y: number, reach: { above: number; below: number }): void {
+  private addPointContactShadow(index: number, laneX: number, y: number, reach: { above: number; below: number }, kind: NoteKind): void {
     let pair = this.pointContactShadowPool.get(index);
     if (!pair) {
       const texture = this.skinManager.getTexture('pointContactShadow');
@@ -762,7 +771,7 @@ export class GameNoteRenderer {
       this.pointContactShadowPool.set(index, pair);
     }
     const [above, below] = pair;
-    const bodyWidth = this.getBodyWidth();
+    const bodyWidth = this.getBodyWidth(kind);
     const x = laneX + (LANE_WIDTH - bodyWidth) / 2;
     // 텍스처는 윗행이 가장 짙다. 위 그림자는 세로로 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
     above.x = x;

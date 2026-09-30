@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { assetsLoad, assetsUnload } = vi.hoisted(() => ({
-  assetsLoad: vi.fn(async (path: string) => ({
-    path,
-    frame: { x: 0, y: 0, width: 16, height: 16 },
-    source: {},
-  })),
+  assetsLoad: vi.fn(async (path: string) => {
+    // 파일명 끝의 -WxH로 텍스처 크기를 흉내 낸다. 없으면 16×16.
+    const size = /-(\d+)x(\d+)\.png$/.exec(path);
+    const [width, height] = size ? [Number(size[1]), Number(size[2])] : [16, 16];
+    return { path, width, height, frame: { x: 0, y: 0, width, height }, source: {} };
+  }),
   assetsUnload: vi.fn(async (_path: string) => undefined),
 }));
 
@@ -122,6 +123,29 @@ describe('SkinManager', () => {
     expect(manager.hasTexture('pointContactShadow')).toBe(true);
     await manager.loadSkin(base);
     expect(manager.hasTexture('pointContactShadow')).toBe(false);
+    manager.dispose();
+  });
+
+  it('싱글·더블 포인트 212px·바디 200px이면 바디 폭 비율은 200/212이고 트릴 포인트·바디가 모두 200px이면 1이다', async () => {
+    const base = getSkinManifest('classic');
+    const manager = new SkinManager();
+    await manager.loadSkin({ ...base, assets: { ...base.assets,
+      noteSingle: '/t/note-single-212x40.png', bodySingle: '/t/body-single-200x40.png',
+      noteDouble: '/t/note-double-212x40.png', bodyDouble: '/t/body-double-200x40.png',
+      noteTrill: '/t/note-trill-200x40.png', bodyTrill: '/t/body-trill-200x40.png',
+    } });
+    expect(manager.getBodyWidthScale('single')).toBeCloseTo(200 / 212);
+    expect(manager.getBodyWidthScale('double')).toBeCloseTo(200 / 212);
+    expect(manager.getBodyWidthScale('trill')).toBe(1);
+    manager.dispose();
+  });
+
+  it('바디 이미지가 포인트보다 넓거나 텍스처를 아직 불러오지 않았으면 바디 폭 비율은 1이다', async () => {
+    const manager = new SkinManager();
+    expect(manager.getBodyWidthScale('single')).toBe(1);
+    const base = getSkinManifest('crystal');
+    await manager.loadSkin({ ...base, assets: { ...base.assets, noteSingle: '/t/note-single-100x20.png', bodySingle: '/t/body-single-120x60.png' } });
+    expect(manager.getBodyWidthScale('single')).toBe(1);
     manager.dispose();
   });
 

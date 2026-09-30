@@ -11,6 +11,7 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
     const noteLayer = new Container();
     const skinManager = {
       getTheme: () => ({ pointShadow: { offsetY: 19.6, height: 3.2 } }),
+      getBodyWidthScale: () => 1,
       hasTexture: () => true,
       getTexture: () => Texture.WHITE,
     } as unknown as SkinManager;
@@ -45,6 +46,7 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
       const textures = new Map<string, Texture>();
       const skinManager = {
         getTheme: () => ({ bg: 0, longNoteTerminalMode: 'full-height' }),
+        getBodyWidthScale: () => 1,
         hasTexture: () => false,
         getTexture: (key: string) => {
           if (!textures.has(key)) textures.set(key, new Texture({ source: Texture.WHITE.source }));
@@ -102,7 +104,8 @@ describe('GameNoteRenderer 싱글·더블 포인트 접촉 그림자', () => {
     const textures = new Map<string, Texture>();
     const noteLayer = new Container();
     const skinManager = {
-      getTheme: () => ({ pointNoteOverhangPx: 3, ...theme }),
+      getTheme: () => theme,
+      getBodyWidthScale: () => 200 / 212,
       hasTexture: available,
       getTexture: (key: string) => {
         if (!textures.has(key)) textures.set(key, new Texture({ source: Texture.WHITE.source }));

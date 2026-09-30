@@ -18,7 +18,6 @@ export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manife
         "text": 14215412,
         "longNoteTerminalMode": "full-height",
         "longNoteTerminalFrameOverhangPx": 0,
-        "pointNoteOverhangPx": 3,
         "longNoteBodyMode": "repeat",
         "graceOverlayPaddingPx": 12,
         "pointShadow": {
@@ -119,7 +118,6 @@ export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manife
         "text": 14215412,
         "longNoteTerminalMode": "full-height",
         "longNoteTerminalFrameOverhangPx": 0,
-        "pointNoteOverhangPx": 3,
         "longNoteBodyMode": "repeat",
         "graceOverlayPaddingPx": 12,
         "pointShadow": {
@@ -215,7 +213,6 @@ export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manife
         "text": 14215412,
         "longNoteTerminalMode": "full-height",
         "longNoteTerminalFrameOverhangPx": 0,
-        "pointNoteOverhangPx": 3,
         "longNoteBodyMode": "repeat",
         "graceOverlayPaddingPx": 12,
         "pointShadow": {
