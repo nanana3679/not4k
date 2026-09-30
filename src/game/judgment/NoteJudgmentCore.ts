@@ -358,7 +358,7 @@ export class NoteJudgmentCore {
           u.complete = true;
           this.emit({ kind: "holdOnly", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "perfect", deltaMs: 0, inputAt: at, confirmedAt: at, consumed: false, bodyState: "complete" });
         }
-        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) this.tryInherit(successor, u.end, true);
+        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) this.tryInherit(successor, u.end);
       }
     }
     this.held.delete(key);
@@ -579,7 +579,7 @@ export class NoteJudgmentCore {
     if (unitIndex > 0) {
       for (const source of this.units.filter(unit => unit.noteIndex !== noteIndex && unit.lane === this.notes[noteIndex].lane && unit.active && unit.startedAt !== null && unit.end <= at && unit.tokens.includes(token))) {
         for (const successor of this.units.filter(unit => unit.lane === source.lane && unit.start === source.end && !unit.active && !unit.failed && !unit.complete)) {
-          this.tryInherit(successor, at, true);
+          this.tryInherit(successor, at);
           if (!successor.active) {
             const continuation = source.tokens.find(candidate => candidate.valid && !candidate.released && this.held.has(candidate.key));
             if (continuation) {
@@ -597,7 +597,7 @@ export class NoteJudgmentCore {
     // claim, while the first late head alone must not pre-start the target.
     for (const source of this.units.filter(x => x.unitIndex > 0 && x.holdOnly && x.complete && x.startedAt === at)) {
       for (const successor of this.units.filter(x => x.lane === source.lane && x.start === source.end && !x.active && !x.failed && !x.complete)) {
-        this.tryInherit(successor, at, true);
+        this.tryInherit(successor, at);
         if (!successor.active) {
           const continuation = source.tokens.find(candidate => candidate.valid && !candidate.released && this.held.has(candidate.key));
           if (continuation) {
@@ -659,9 +659,11 @@ export class NoteJudgmentCore {
     token.correctionId = correctionId;
     return this.correctionLedger(boundary.end, boundary.lane).up(correctionId, key, at);
   }
-  private tryInherit(u: UnitState, at: number, allowLate = false): void {
+  private tryInherit(u: UnitState, at: number): void {
     if (at < u.start) return;
-    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed && (allowLate || !p.late) && p.registered.size > 0 &&
+    // A late first start inside S+Good is still a legitimate source. Only a
+    // failed predecessor stops inheritance; the late flag never does (NJ-H08).
+    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed && p.registered.size > 0 &&
       (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
     if (!predecessor) return;
     const budget = this.continuingCapacity(predecessor, u);
@@ -712,8 +714,10 @@ export class NoteJudgmentCore {
     const head = this.points.find(point => point.lane === source.lane && point.at === source.start);
     const extraHeads = Math.max(0, (head?.keys.size ?? 0) - sourceUnits.length);
     // Late partial H decreases first cover their ending share, unless this
-    // up can legitimately finish the successor (H05 versus H06).
-    const lateHoldEnding = source.holdOnly && prepared.every(unit => unit.late) && Math.abs(this.now - target.end) > this.windows.GOOD;
+    // up can legitimately finish the successor (H05 versus H06). Partial means
+    // a source unit still awaits its first start; once every unit has started
+    // or failed, late starts keep the on-time exemption (H03, NJ-H08).
+    const lateHoldEnding = source.holdOnly && sourceUnits.some(unit => !unit.active && !unit.failed) && prepared.every(unit => unit.late) && Math.abs(this.now - target.end) > this.windows.GOOD;
     const ending = !source.holdOnly || lateHoldEnding ? Math.max(0, sourceUnits.length - targetCount) : 0;
     return Math.max(0, prepared.length + extraHeads + (this.carriedCapacity.get(source.noteIndex) ?? 0) - ending);
   }

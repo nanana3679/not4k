@@ -2,7 +2,7 @@
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
-38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다.
+사례는 39개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로 추가했다.
 
 ## 사용 방법
 
@@ -437,6 +437,31 @@ NJ-H05와 같지만 뒤 single은 `[1060,1120]`이다.
 | 늦은 쪽 | A up 1070 | 앞은 1060에서 이미 Perfect, 뒤 실제 release Great(-50) |
 
 두 실행 모두 down 1개와 up 1개로 완료한다. 이른 쪽의 실제 up 소비 대상은 1120 하나이며, 뒤 S=1060 전에도 정당한 승계 준비를 쓸 수 있다.
+
+<a id="nj-h08"></a>
+### NJ-H08 — o-*-*-*-의 head를 1030ms에 늦게 눌러도 A 유지로 뒤 세 구간을 승계
+
+차트: single head 1000 + single `holdOnly [1000,1500]` → `holdOnly [1500,2000]` → `holdOnly [2000,2500]` → 일반 single `[2500,3000]`. 모든 구간이 정확히 맞닿는다.
+
+| 입력·진행 | 기대 결과 |
+|---|---|
+| A down 1001 / 1030 / 1100 (독립 실행) | head Perfect(+1) / Perfect(+30) / Good(+100). 첫 `holdOnly` 활성화 |
+| A held로 1500·2000·2500 통과 | `holdOnly` Perfect 3개. 늦게 시작한 앞 바디의 등록 held로 뒤 구간을 차례로 승계 |
+| A up 3000 | 마지막 release Perfect. Miss 없음 |
+
+위 표는 실플레이에서 확인한 결함 사례다. 아래 독립 실행은 **규칙에서 도출한 대조**다.
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| head 없는 늦은 시작 | `holdOnly [1000,2000]` → 일반 `[2000,3000]`. A down 1050, up 3000 | `holdOnly` Perfect, 뒤 release Perfect |
+| 늦은 double head | double head 1000 + double `holdOnly [1000,2000]` → single `[2000,3000]`. A/B down 1040, A up 3000, B up 3200 | head 2개, `holdOnly` 2개, 마지막 release Perfect. B up은 추가 판정 없음([NJ-H03](#nj-h03)과 같음) |
+| 늦은 double의 한 unit 실패 | 위 double 차트. A/B down 1040, A up 1500, B up 3000 | 한 unit 유지 Miss, 남은 `holdOnly` Perfect, B가 뒤 single을 승계해 release Perfect |
+| 늦은 double의 둘째 head Miss | 위 double 차트. A down 1040, up 3000 | 둘째 head Miss, `holdOnly` 1개 Perfect, A가 뒤 single을 승계해 release Perfect |
+| E 이후 첫 활성화 | `holdOnly [1000,1060]` → 일반 `[1060,2000]`. A down 1100, up 2000 | `holdOnly` Perfect([NJ-A06](#nj-a06)), A가 뒤 바디를 승계해 release Perfect |
+| S+Good 이후 시작 | 첫 표의 차트. A down 1121 | head Miss. held A로 뒤 구간을 시작·부활하지 않아 모두 Miss |
+| 맞닿지 않은 뒤 구간 | head 1000 + `holdOnly [1000,2000]`, 10ms 틈 뒤 `[2010,3000]`. A down 1030 | `holdOnly` Perfect. 뒤 바디는 독립 시작이 필요해 2130에 Miss([NJ-A02](#nj-a02)) |
+
+S+Good까지 허용한 늦은 첫 활성화는 정당한 시작이다. 시작이 S보다 늦었다는 이유만으로 맞닿은 뒤 바디의 승계를 막지 않는다. 늦은 double의 감소 `holdOnly`도 모든 unit의 시작·실패가 정해지면 정박과 같은 면제 몫을 가진다. 둘째 head를 아직 기다리는 동안의 배정은 [NJ-H05](#nj-h05)를 따른다. S+Good 이후의 시작, 실패한 바디의 부활, 맞닿지 않은 구간의 held 시작은 여전히 허용하지 않는다.
 
 ## 실패·복구와 timestamp
 

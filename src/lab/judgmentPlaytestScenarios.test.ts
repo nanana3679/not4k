@@ -147,6 +147,17 @@ describe("판정 실플레이 시나리오", () => {
     expect(state.judgmentCounts.perfect).toBe(5); expect(state.judgmentCounts.miss).toBe(0); expect(state.isFullCombo).toBe(true);
   });
 
+  it("hold-tick-chain은 head를 2030ms에 30ms 늦게 눌러 4000ms up까지 유지해도 뒤 구간을 승계해 Perfect 5·Miss 0이다", () => {
+    const session = sessionFor("hold-tick-chain");
+    session.processBatch(2030, [{ key: "A", lane: 1, type: "down" }]);
+    session.processBatch(4000, [{ key: "A", lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(session.events.map(event => `${event.kind}:${event.grade}`)).toEqual([
+      "head:perfect", "holdOnly:perfect", "holdOnly:perfect", "holdOnly:perfect", "release:perfect",
+    ]);
+    expect(state.judgmentCounts.perfect).toBe(5); expect(state.judgmentCounts.miss).toBe(0); expect(state.isFullCombo).toBe(true);
+  });
+
   it("hold-tick-chain에서 4000ms에 떼지 않고 계속 잡으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss다", () => {
     const state = play("hold-tick-chain", [[2000, [{ key: "A", lane: 1, type: "down" }]]]);
     expect(state.judgmentCounts.perfect).toBe(4); expect(state.judgmentCounts.miss).toBe(1); expect(state.isFullCombo).toBe(false);

@@ -204,9 +204,9 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
   },
   {
     id: "hold-tick-chain", label: "o-*-*-*- · 유지형 틱", ref: "RFD 0009 · RFD 0020",
-    group: "holdOnly", pattern: "o-*-*-*-", caseIds: ["NJ-C02", "NJ-H07"],
-    howTo: "2000ms A 누름 → 2500 · 3000 · 3500ms의 `*`를 새 입력 없이 그대로 통과 → 4000ms A 뗌.\n대조: 재시도하여 4000ms에 떼지 않고 계속 잡는다.",
-    watchFor: "구간이 정확히 맞닿아 있으므로 A 하나를 유지하는 것으로 뒤 구간을 이어받는다. head 1 · holdOnly 3 · 마지막 release 1로 Perfect 5 · Miss 0. 대조처럼 4000ms에 떼지 않으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss(Perfect 4 · Miss 1).",
+    group: "holdOnly", pattern: "o-*-*-*-", caseIds: ["NJ-C02", "NJ-H07", "NJ-H08"],
+    howTo: "2000ms A 누름 → 2500 · 3000 · 3500ms의 `*`를 새 입력 없이 그대로 통과 → 4000ms A 뗌.\n늦은 head: 재시도하여 2030ms쯤 살짝 늦게 누르고 같은 방법으로 유지한다.\n대조: 재시도하여 4000ms에 떼지 않고 계속 잡는다.",
+    watchFor: "구간이 정확히 맞닿아 있으므로 A 하나를 유지하는 것으로 뒤 구간을 이어받는다. head 1 · holdOnly 3 · 마지막 release 1로 Perfect 5 · Miss 0. head를 2030ms처럼 창 안에서 살짝 늦게 눌러도 늦게 시작한 구간이 A로 뒤 구간을 이어받아 같은 Perfect 5 · Miss 0이다(head가 Perfect 창을 넘으면 head 등급만 바뀜). 대조처럼 4000ms에 떼지 않으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss(Perfect 4 · Miss 1).",
     chart: chartFrom("o-*-*-*- 유지형 틱", holdTickChain()),
   },
   {

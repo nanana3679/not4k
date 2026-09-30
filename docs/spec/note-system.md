@@ -387,7 +387,7 @@ not4k는 타이밍 정밀도보다 손배치 인식이 핵심 난이도인 게�
 
 ## `holdOnly` 롱노트
 
-`holdOnly`는 끝의 release를 유지 상태 Perfect/Miss로 면제한다. 양수 길이는 정당한 시작·승계와 등록 키 유지가 필요하다. E까지 유지하거나 E−Good부터 유효하게 이른 완료를 하면 Perfect이며, S+Good까지의 늦은 첫 활성화도 허용한다. 상태 완료는 up을 소비하지 않고 FAST/SLOW를 만들지 않는다.
+`holdOnly`는 끝의 release를 유지 상태 Perfect/Miss로 면제한다. 양수 길이는 정당한 시작·승계와 등록 키 유지가 필요하다. E까지 유지하거나 E−Good부터 유효하게 이른 완료를 하면 Perfect이며, S+Good까지의 늦은 첫 활성화도 허용한다. 늦게 시작한 바디도 등록 held로 맞닿은 뒤 바디를 승계한다([NJ-H08](note-judgment-cases.md#nj-h08)). 상태 완료는 up을 소비하지 않고 FAST/SLOW를 만들지 않는다.
 
 감소하는 double의 `holdOnly`는 두 unit을 각각 판정한다. 두 키를 계속 잡아도 되고, 면제 몫은 뒤 single release의 여분 계산에서 제외한다. 면제 몫을 뒤 double 증가에 사용하면 새 double의 실제 release 두 개가 다시 필요하다. 점수 상태 완료와 종료·승계 배정은 별도이며 고정 owner를 만들지 않는다([NJ-H01~H07](note-judgment-cases.md#nj-h01)).
 
