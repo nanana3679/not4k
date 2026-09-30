@@ -311,7 +311,7 @@ export class NoteRenderer {
       end.lineTo(cx, endY + h / 2);
       end.lineTo(cx - w / 2, endY);
       end.lineTo(cx, endY - h / 2);
-      end.fill(0x888888);
+      end.fill(COLORS.TRILL_LONG_END);
     } else {
       const endX = x + (LANE_WIDTH - w) / 2;
       const endNoteY = endY - h / 2;
@@ -456,7 +456,7 @@ export class NoteRenderer {
       end.lineTo(cx, endY + h / 2);
       end.lineTo(cx - w / 2, endY);
       end.lineTo(cx, endY - h / 2);
-      end.fill(0x888888);
+      end.fill(COLORS.TRILL_LONG_END);
     } else {
       end.rect(bodyX, endY - h / 2, w, h);
       end.fill({ fill: bodyGradient, alpha: 0.5 });

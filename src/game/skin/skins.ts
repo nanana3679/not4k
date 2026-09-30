@@ -109,10 +109,6 @@ export const SKIN_LIST: SkinManifest[] = [
     heldGlow: 0x4488ff,
     bg: 0x0a0a14,
     text: 0xe0e0e0,
-  }, false, undefined, false, {
-    // 에디터처럼 트릴 끝을 온전한 마름모로 보이게 터미널 이미지 전체를 전용 캡으로 쓴다.
-    endCapTrill: withPublicBase("/skins/simple/terminal-trill.png"),
-    endCapTrillFailed: withPublicBase("/skins/simple/terminal-trill-failed.png"),
   }),
   buildManifest("note-asset-lab", {
     id: "note-asset-lab",

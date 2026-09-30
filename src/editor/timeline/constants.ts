@@ -39,6 +39,8 @@ export const COLORS = {
   SINGLE_LONG: 0x88bbff,
   DOUBLE_LONG: 0xffee88,
   TRILL_LONG: 0xaaaaaa,
+  /** 트릴 롱 끝 마름모. Classic 트릴 끝 터미널도 같은 색을 쓴다. */
+  TRILL_LONG_END: 0x888888,
 
   TRILL_ZONE: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.2,

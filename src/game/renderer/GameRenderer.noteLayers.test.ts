@@ -141,6 +141,18 @@ describe('GameNoteRenderer 싱글·더블 포인트 접촉 그림자', () => {
     renderer.dispose();
   });
 
+  it('clearPools 후 같은 인덱스 포인트를 다시 그리면 접촉 그림자 스프라이트를 새로 만든다', () => {
+    const { renderer, noteLayer } = setup(contactTheme);
+    renderer.renderPointNote(point(100, 'single'), 0, 100, 0);
+    const [above, below] = noteLayer.children;
+    noteLayer.removeChildren();
+    renderer.clearPools();
+    renderer.renderPointNote(point(100, 'single'), 0, 100, 0);
+    expect(noteLayer.children[0]).not.toBe(above);
+    expect(noteLayer.children[1]).not.toBe(below);
+    renderer.dispose();
+  });
+
   it('pointContactShadow가 있어도 트릴 포인트는 기존 마름모 하단 그림자 Mesh를 쓴다', () => {
     const { renderer, noteLayer } = setup(contactTheme);
     renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);

@@ -58,10 +58,6 @@ const CAP_TEXTURE_KEY: Record<string, string> = {
   terminalDoubleFailed: "endCapDoubleFailed",
   terminalDoublePartialFailedLeft: "endCapDouble",
   terminalDoublePartialFailedRight: "endCapDouble",
-  // 트릴 전용 캡은 자르지 않은 끝 도형 전체(예: Simple 마름모)를 쓴다.
-  terminalTrill: "endCapTrill",
-  terminalTrillIdle: "endCapTrill",
-  terminalTrillFailed: "endCapTrillFailed",
 };
 
 /**
@@ -156,8 +152,6 @@ export class SkinManager {
     if (assets.endCapDouble) entries.push(["endCapDouble", assets.endCapDouble]);
     if (assets.endCapSingleFailed) entries.push(["endCapSingleFailed", assets.endCapSingleFailed]);
     if (assets.endCapDoubleFailed) entries.push(["endCapDoubleFailed", assets.endCapDoubleFailed]);
-    if (assets.endCapTrill) entries.push(["endCapTrill", assets.endCapTrill]);
-    if (assets.endCapTrillFailed) entries.push(["endCapTrillFailed", assets.endCapTrillFailed]);
 
     // 봄 프레임
     for (let i = 0; i < assets.bomb.length; i++) {

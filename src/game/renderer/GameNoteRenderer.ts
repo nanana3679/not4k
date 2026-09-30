@@ -548,6 +548,7 @@ export class GameNoteRenderer {
     this.bodySpritePool.clear();
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
+    this.pointContactShadowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();

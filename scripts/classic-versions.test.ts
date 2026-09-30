@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -71,6 +71,14 @@ describe('Classic 버전 보관', () => {
     await rm(join(root, 'scripts/build-classic-skin.mjs'));
     await expect(saveClassicVersion({ root, id: 'v001', label: '이전' })).rejects.toThrow();
     await expect(access(archive(root, 'v001'))).rejects.toThrow();
+  });
+
+  it('public/skins/classic 폴더 자체가 심볼릭 링크면 작업본 보관을 거부하고 미완성 v002를 남기지 않는다', async () => {
+    const root = await fixture();
+    await rename(join(root, 'public/skins/classic'), join(root, 'outside-classic'));
+    await symlink(join(root, 'outside-classic'), join(root, 'public/skins/classic'), 'dir');
+    await expect(saveClassicVersion({ root, id: 'v002', label: '링크' })).rejects.toThrow('심볼릭 링크');
+    await expect(access(archive(root, 'v002'))).rejects.toThrow();
   });
 
   it('../outside 버전 ID는 보관 폴더 밖에 쓰지 않고 거부한다', async () => {

@@ -59,7 +59,7 @@ Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상�
 - `CLASSIC_SOURCE_NAMES`에 석영 `point-trill`, `body-trill`, `terminal-end-trill`과 바디·끝 터미널의 `-on`·`-failed` 원본까지7개를 포함한다. 이 원본을 재구성하려면 먼저 `node scripts/build-trill-quartz.mjs`를 실행한다. Classic 빌드는 저장된 SVG 원본을 읽어 트릴8개 런타임 상태 키에 연결하며, 싱글 대체 텍스처를 사용하지 않는다.
 - `/assets-lab/classic/terminal-preview.html`은 현재 선택 타일의 싱글·더블 시작/끝 조립, 100px 실제 크기, 길이 0과 PNG가 내장된 독립 SVG 4개 다운로드를 제공한다. 이전 벡터 터미널 제작 이력은 `assets-lab/classic/README.md`를 따른다.
 - `node scripts/build-skins.mjs --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
-- Simple 트릴 끝 터미널은 에디터와 같은 납작한 회색 마름모(`#888888`, 실패 `#555555`, 불투명도 70%)다. Simple은 반쪽 캡 방식이지만 매니페스트가 이 이미지를 `endCapTrill`·`endCapTrillFailed` 전용 캡으로 선언해, 트릴 롱 끝에는 반쪽으로 자르지 않은 100×20 마름모 전체를 그린다. 전용 캡이 없는 스킨은 기존처럼 터미널 윗부분 절반을 쓴다.
+- Simple 트릴 끝 터미널은 에디터와 같은 납작한 회색 마름모(`#888888`, 실패 `#555555`, 불투명도 70%)다. 싱글·더블 롱노트는 반쪽 캡 스킨에서 터미널 윗부분 절반만 그리지만, 트릴 롱 끝은 스킨 방식과 관계없이 터미널 이미지 전체(100×20)를 그리므로 마름모 전체가 보인다.
 - 포인트의 사선 반사는 포함하지 않는다. 현재 승인된 부드러운 유광과 윗면 모서리 반사를 유지한다.
 - 스킨이 테마 `pointContactShadow { above, below }`와 에셋 `pointContactShadow`를 함께 선언하면, `GameNoteRenderer`는 싱글·더블 포인트 위아래 바디에 바디 폭 접촉 그림자를 그린다. 텍스처는 윗행이 가장 짙은 세로 그라디언트이며 아래는 그대로, 위는 세로로 뒤집어 포인트 경계에 짙은 행이 닿게 한다. 그림자는 바디 위, 포인트 아래 층에 놓인다. 이 경우 싱글·더블의 기존 `pointShadow`는 그리지 않고, 트릴과 이를 선언하지 않은 스킨은 기존 하단 그림자를 그대로 쓴다.
 

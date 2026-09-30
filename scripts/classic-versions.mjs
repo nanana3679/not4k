@@ -42,6 +42,7 @@ async function git(root, args, binary = false) {
 }
 
 async function walk(root, path) {
+  if ((await lstat(resolve(root, path))).isSymbolicLink()) throw new Error(`심볼릭 링크는 보관하지 않습니다: ${path}`);
   const entries = await readdir(resolve(root, path), { withFileTypes: true });
   const files = [];
   for (const entry of entries) {

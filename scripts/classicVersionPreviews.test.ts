@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { classicVersionPreviewEntries, exportClassicVersionPreviews } from './classicVersionPreviews';
 import { CLASSIC_NOTE_ASSET_VERSIONS } from '../src/lab/noteAssetDesigns';
+import { COLORS as EDITOR_COLORS } from '../src/editor/timeline/constants';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const temporaryDirectories: string[] = [];
@@ -47,8 +48,7 @@ describe('Classic 버전 Lab 공개', () => {
     expect([shadow.readUInt32BE(16), shadow.readUInt32BE(20)]).toEqual([200, 20]);
     await expect(access(resolve(root, 'public/skins/classic/point-contact-shadow.png'))).rejects.toThrow();
 
-    const editor = (await readFile(resolve(root, 'src/editor/timeline/NoteRenderer.ts'))).toString();
-    const editorFill = /if \(note\.type === "trillLong"\) \{\s*const cx[\s\S]*?end\.fill\(0x([0-9a-f]{6})\)/.exec(editor)?.[1];
+    const editorFill = EDITOR_COLORS.TRILL_LONG_END.toString(16).padStart(6, '0');
     expect(editorFill).toBe('888888');
     for (const name of ['terminal-end-trill', 'terminal-end-trill-on', 'terminal-end-trill-failed']) {
       const source = await text(`assets-lab/classic/sources/${name}.svg`);

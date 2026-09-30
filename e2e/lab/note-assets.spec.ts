@@ -57,7 +57,7 @@ test.describe("Note Assets Lab", () => {
     });
   }
 
-  test('Simple 트릴 롱 끝은 반쪽으로 자르지 않은 회색 마름모 캡 전체(100×20)로 그려진다', async ({ page }) => {
+  test('Simple 트릴 롱 끝은 에디터와 같은 회색 마름모 터미널 이미지 전체(100×20)로 그려진다', async ({ page }) => {
     await page.goto('/lab/note-assets?design=simple');
     await expect(page.getByText('PLAYER READY')).toBeVisible();
     const shape = await page.evaluate(async () => {
@@ -77,10 +77,10 @@ test.describe("Note Assets Lab", () => {
       GameRenderer.prototype.renderFrame = function (...args) {
         const result = render.apply(this, args);
         const self = this as unknown as {
-          skinManager: { getHalfCapTexture: (key: string) => unknown };
+          skinManager: { getTexture: (key: string) => unknown };
           longNoteEndLayer: { children: Array<{ texture: { frame: { height: number } }; height: number }> };
         };
-        const cap = self.skinManager.getHalfCapTexture('terminalTrill');
+        const cap = self.skinManager.getTexture('terminalTrill');
         const drawn = self.longNoteEndLayer.children.filter(sprite => sprite.texture === cap);
         if (drawn.length > 0) (window as unknown as Record<string, unknown>).__trillCaps = drawn.map(sprite => ({ frameHeight: sprite.texture.frame.height, height: sprite.height }));
         return result;
