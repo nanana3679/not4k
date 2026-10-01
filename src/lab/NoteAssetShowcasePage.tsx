@@ -10,6 +10,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { NoteAssetPreviewPlayer } from "./NoteAssetPreviewPlayer";
 import { KeybombEffect } from "./KeybombEffect";
 import { CLASSIC_NOTE_ASSET_VERSIONS, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
+import { nextShowcaseSearch, type NoteAssetShowcaseSelection } from "./noteAssetShowcaseSearch";
 import {
   createTutorialPreview,
   makeChart,
@@ -122,23 +123,10 @@ export default function NoteAssetShowcasePage() {
     setPreviewInstance((current) => current + 1);
   };
 
-  const selectDesign = (id: string) => {
-    setSearchParams(current => {
-      const next = new URLSearchParams(current);
-      next.set('design', id);
-      next.delete('version');
-      return next;
-    });
-  };
-
-  const selectVersion = (id: string) => {
-    setSearchParams(current => {
-      const next = new URLSearchParams(current);
-      next.set('design', 'classic');
-      if (id === 'current') next.delete('version');
-      else next.set('version', id);
-      return next;
-    });
+  const selectShowcase = (change: NoteAssetShowcaseSelection) => {
+    // 라우터 전환이 반영되기 전 연속 클릭에서도 방금 쌓은 기록을 덮어쓰지 않도록 실제 주소를 기준으로 판단한다.
+    const { params, replace } = nextShowcaseSearch(new URLSearchParams(window.location.search), change);
+    setSearchParams(params, { replace });
   };
 
   // 시안·버전이 바뀌면 렌더 중에 키봄 선택과 준비 상태를 초기화한다(effect 없이 한 번의 렌더로 반영).
@@ -199,14 +187,14 @@ export default function NoteAssetShowcasePage() {
             <div className="asset-lab-control-heading"><h2>시안</h2></div>
             <div className="asset-lab-preview-options" role="group" aria-label="시안 선택">
               {NOTE_ASSET_DESIGNS.map(option => (
-                <button key={option.id} type="button" aria-pressed={design.id === option.id} onClick={() => selectDesign(option.id)}>
+                <button key={option.id} type="button" aria-pressed={design.id === option.id} onClick={() => selectShowcase({ design: option.id })}>
                   {option.name}
                 </button>
               ))}
             </div>
             {design.id === 'classic' && <div className="asset-lab-version-control">
               <label htmlFor="classic-skin-version">버전</label>
-              <select id="classic-skin-version" value={design.versionId ?? 'current'} onChange={event => selectVersion(event.target.value)}>
+              <select id="classic-skin-version" value={design.versionId ?? 'current'} onChange={event => selectShowcase({ version: event.target.value })}>
                 <option value="current">현재 적용본</option>
                 {CLASSIC_NOTE_ASSET_VERSIONS.map(version => <option key={version.id} value={version.id}>
                   {version.id} · {version.label}
