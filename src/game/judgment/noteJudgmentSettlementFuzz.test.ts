@@ -21,7 +21,7 @@ const KEYS = ["A", "B", "C", "D"] as const;
  * holdOnly 대신 release 판정을 내보내 세션이 미등록 score item 예외를 던진다
  * (예: 일반 seed 2578 — headless doubleLong [1000,1200] → holdOnly [1200,1260], B up 1160·A up 1170).
  * 래칫 목록은 일반 생성기 seed 1~SEEDS(3000) 범위 기준이다. 범위를 12000까지 넓히면 #180 seed
- * 5087·7212·8081이 더 나온다. 교대 집중 생성기 seed 1~SWAP_SEEDS(3000)에서는 #180 예외가 없다.
+ * 5087·7212가 더 나온다. 교대 집중 생성기 seed 1~SWAP_SEEDS(3000)에서는 #180 예외가 없다.
  * 고치면 이 목록에서 빼야 테스트가 통과한다.
  */
 const KNOWN_TERMINAL_HOLD_ONLY_THROWS = [2578];

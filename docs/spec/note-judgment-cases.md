@@ -348,23 +348,20 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 | ① | A up 995 → B down 1000 → B up 2000 | Perfect 3·Miss 0. 경계 전 교대([NJ-R06](#nj-r06)과 같음) | 기존 동작 대조 |
 | ② | A up 1015 → B down 1020 → B up 2000 | A up을 교대 후보로 보류. B head Perfect(+20)로 교대가 성립해 유지 Miss 없음. 마지막 release Perfect. Perfect 3·Miss 0 | 사용자 확인 |
 | ③ | A up 1015 → B down 1100 → B up 2000 | B head Good(+100)로 교대 성립. Perfect 2·Good 1·Miss 0 | 사용자 확인 |
-| ④ | A up 1015 → 입력 없음 | 1119까지 Miss를 확정하지 않음. head 기한 1120에 head Miss와 뒤 바디 유지 Miss를 확정. 끝 2000은 0점으로 정리하며 추가 Miss 없음. Perfect 1·Miss 2 | 규칙에서 도출한 대조 |
-| ⑤ | A up 1015 → B down 1130 → B up 2000 | B down은 head 창 밖이라 교대가 아님. ④와 같고, B로 바디를 되살리지 않음 | 규칙에서 도출한 대조 |
+| ④ | A up 1015 → 입력 없음 | 1119까지 Miss를 확정하지 않음. head 기한 1120에 head Miss 하나와 끝 2000의 종속 0점으로 정리. 유지 Miss 없음. A up 995(경계 전)·1100과 같은 결과. Perfect 1·Miss 1 | 사용자 확인 |
+| ⑤ | A up 1015 → B down 1130 → B up 2000 | B down은 head 창 밖이라 교대가 아님. ④와 같고, B로 바디를 되살리지 않음 | 사용자 확인 |
 | ⑥ | B down 1000 → A up 1015 → B up 2000 | head가 먼저 성공한 교대. Perfect 3·Miss 0 | 기존 동작 대조 |
 
-경계 뒤의 up도 연결 head의 Good 창 안이면 경계 전 up과 같은 교대 후보로 보류한다. 교대 up은 뒤 실제 release에 쓰지 않는다. 이 사례의 뒤 바디는 1000에 이미 이어받았으므로, 교대가 성립하지 않으면 [NJ-R08](#nj-r08)의 종속 0점이 아니라 그 바디의 유지 Miss이다. 확정 시각만 up 시각 1015에서 head 기한 1120으로 늦어진다. 뒤 바디가 head 기한 전에 끝나면 head 기한이 아니라 그 바디의 끝 기한(E+Good)에 확정한다. 끝 release가 있는 바디는 release Miss, 뒤 증가 구간으로 이어지는 바디처럼 끝 release가 없는 바디는 유지 Miss이다. 연결 head 창 밖의 up과 head 없는 `holdOnly` 경계는 이 보류를 받지 않는다. 결정 배경은 [RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)를 따른다.
+경계 뒤의 up도 연결 head의 Good 창 안이면 경계 전 up과 같은 교대 후보로 보류한다. 교대 up은 뒤 실제 release에 쓰지 않는다. 교대가 성립하지 않으면 뒤 바디를 1000에 이미 이어받았더라도, 뒤 바디 길이와 관계없이 경계 전에 뗀 [NJ-R08](#nj-r08)과 똑같이 head Miss 하나와 종속 0점으로 정리한다. 사용자는 head와 바디를 함께 Miss로 세던 종전 기대값(④ Miss 2)에 “한개만 발생”해야 한다고 지적했고, 이 일반화에 동의했다(2026-10-01). 다른 등록 키로 유지 중인 바디는 head Miss와 독립적으로 이어진다. 연결 head 창이 지난 뒤의 up은 보류하지 않으므로 그 시점의 유지 실패이다. 연결 head 창 밖의 up과 head 없는 `holdOnly` 경계는 이 보류를 받지 않는다. 결정 배경은 [RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)를 따른다.
 
-아래는 짧은 뒤 바디와 2→1 감소 경계의 **규칙에서 도출한 대조**다. 감소 경계에서 교대 up은 이어지는 몫 하나만 넘기고, 앞 double의 감소 release는 남은 키의 실제 up 또는 끝 기한 Miss로 한 번 정산한다(§2.2·§2.6). 뒤 바디가 연결 head보다 먼저 완료돼도 같다. 경계 전 교대(A up 995 → C down 1000)와 같은 결과를 기대한다(경계 전 쪽의 현재 차이는 #181).
+아래 짧은 뒤 바디도 같은 일반화를 따른다(사용자 확인). 각 실행은 A up 995(경계 전)·1100과 판정·점수 항목·확정 시각이 같다.
 
 | 독립 실행 | 차트·입력 | 기대 결과 |
 |---|---|---|
-| 짧은 뒤 바디 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. 뒤 바디가 head 기한 전인 1100에 끝났으므로 유지 Miss 대신 끝 기한 1220에 release Miss. `[1000,1030]`이면 1150 release Miss. Perfect 1·Miss 2 |
-| 짧은 뒤 바디 뒤 증가 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]` → double `[1100,2000]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. `[1000,1100]`은 끝 release가 없는 이어지는 바디라 끝 기한 1220에 유지 Miss. 시작하지 못한 double의 두 unit도 시작 기한 1220에 유지 Miss와 종속 0점 |
-| 2→1 감소 + head | double head 0 + double `[0,1000]` → single head 1000 + single `[1000,2000]`. A/B down 0 → A up 1015 → C down 1020 → B up 1030 → C up 2000 | A up은 교대 up. B up 1030이 앞 double의 감소 release Perfect(+30), C up 2000이 마지막 release Perfect. Miss 0·달성률 100% |
-| 같은 차트, B up 1100 | 위와 같되 B up 1100 | 앞 double release Good(+100), 마지막 release Perfect. Miss 0 |
-| 같은 차트, B 유지 | 위와 같되 B를 2000까지 유지하고 C와 함께 뗌 | 앞 double release 1120 Miss, 마지막 release Perfect. Full Combo 아님 |
-| 2→1 감소 + 짧은 `holdOnly` 뒤 바디 | double head 0 + double `[0,1000]` → single head 1000 + `holdOnly [1000,1060]`. A/B down 0 → A up 1015 → C down 1080 → B up 1100 → C up 1150 | A up 1015가 E−Good 뒤라 `holdOnly`가 1015에 Perfect로 먼저 완료된다. 그래도 앞 double의 감소 release는 남는다. C head Great(+80), B up 1100이 앞 double release Good(+100). 5개 항목 모두 정산·Full Combo·80%. C head가 1030이어도 B up 1100은 Good(+100). B를 1300까지 유지하면 1120 release Miss, Full Combo 아님 |
-| 2→1 감소 뒤 증가 | double head 0 + double `[0,1000]` → single head 1000 + single `[1000,1200]` → single head 1200 + double `[1200,2000]`. A/B down 0 → A up 1015 → C down 1020 → B up 1100 → D down 1200 → C/D up 2000 | B up 1100이 앞 double release Good(+100). head 4개 Perfect, 마지막 double release Perfect 2개. Miss 0 |
+| 짧은 뒤 바디 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]`. A down 0, up 1015, 입력 없음 | 1120에 head Miss와 끝 1100의 종속 0점. 뒤 바디가 head 기한 전에 끝나도 유지 Miss·release Miss 없음. `[1000,1030]`도 같음. Perfect 1·Miss 1 |
+| 짧은 뒤 바디 뒤 증가 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]` → double `[1100,2000]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. 끝 release가 없는 `[1000,1100]`은 점수 항목 없이 닫힘. 시작하지 못한 double의 두 unit만 시작 기한 1220에 유지 Miss와 종속 0점. Perfect 1·Miss 3 |
+
+head가 있는 2→1 감소 경계의 감소 release는 [RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)에 따라 없애며, 그 경계의 입력별 기대 결과는 구현(#181)과 함께 정한다.
 
 첫 head를 늦게 시작해도 결과는 같다. 아래는 **규칙에서 도출한 대조**다.
 
@@ -491,7 +488,13 @@ NJ-H05와 같지만 뒤 single은 `[1060,1120]`이다.
 | A held로 1500·2000·2500 통과 | `holdOnly` Perfect 3개. 늦게 시작한 앞 바디의 등록 held로 뒤 구간을 차례로 승계 |
 | A up 3000 | 마지막 release Perfect. Miss 없음 |
 
-위 표는 실플레이에서 확인한 결함 사례다. 아래 독립 실행은 **규칙에서 도출한 대조**다.
+위 표는 실플레이에서 확인한 결함 사례다. 다음 독립 실행도 사용자가 확인했다(2026-10-01).
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| E 이후 첫 활성화 | `holdOnly [1000,1060]` → 일반 `[1060,2000]`. A down 1100, up 2000 | `holdOnly` Perfect([NJ-A06](#nj-a06)), A가 뒤 바디를 승계해 release Perfect |
+
+아래 독립 실행은 **규칙에서 도출한 대조**다.
 
 | 독립 실행 | 차트·입력 | 기대 결과 |
 |---|---|---|
@@ -499,7 +502,6 @@ NJ-H05와 같지만 뒤 single은 `[1060,1120]`이다.
 | 늦은 double head | double head 1000 + double `holdOnly [1000,2000]` → single `[2000,3000]`. A/B down 1040, A up 3000, B up 3200 | head 2개, `holdOnly` 2개, 마지막 release Perfect. B up은 추가 판정 없음([NJ-H03](#nj-h03)과 같음) |
 | 늦은 double의 한 unit 실패 | 위 double 차트. A/B down 1040, A up 1500, B up 3000 | 한 unit 유지 Miss, 남은 `holdOnly` Perfect, B가 뒤 single을 승계해 release Perfect |
 | 늦은 double의 둘째 head Miss | 위 double 차트. A down 1040, up 3000 | 둘째 head Miss, `holdOnly` 1개 Perfect, A가 뒤 single을 승계해 release Perfect |
-| E 이후 첫 활성화 | `holdOnly [1000,1060]` → 일반 `[1060,2000]`. A down 1100, up 2000 | `holdOnly` Perfect([NJ-A06](#nj-a06)), A가 뒤 바디를 승계해 release Perfect |
 | S+Good 이후 시작 | 첫 표의 차트. A down 1121 | head Miss. held A로 뒤 구간을 시작·부활하지 않아 모두 Miss |
 | 맞닿지 않은 뒤 구간 | head 1000 + `holdOnly [1000,2000]`, 10ms 틈 뒤 `[2010,3000]`. A down 1030 | `holdOnly` Perfect. 뒤 바디는 독립 시작이 필요해 2130에 Miss([NJ-A02](#nj-a02)) |
 | 일반 바디의 늦은 시작 뒤 증가 | head 1000 + 일반 `[1000,1060]` → head 없는 double `[1060,2000]`. A down 1050, B down 1060, A/B up 2000 | head Great(+50). A가 이어받고 B가 증가분을 시작해 release Perfect 2개 |

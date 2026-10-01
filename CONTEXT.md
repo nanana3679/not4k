@@ -209,7 +209,7 @@ _Avoid_: 유지 판정
 _Avoid_: `connection`
 
 **`connection`**:
-같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없고, 유효한 연결에 사용한 up은 키의 동일 여부와 관계없이 뒤 release에 쓰지 않는다. 감소분은 실제 release 또는 `holdOnly`로 처리한다. 세부는 [glossary](docs/context/glossary.md#consume-구-표기-흡수소비)를 따른다.
+같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없고, 유효한 연결에 사용한 up은 키의 동일 여부와 관계없이 뒤 release에 쓰지 않는다. 감소분은 실제 release 또는 `holdOnly`로 처리하며, 감소 경계에 head가 있으면 그 head가 경계의 판정이다. 세부는 [glossary](docs/context/glossary.md#consume-구-표기-흡수소비)를 따른다.
 _Avoid_: `termination`
 
 **유예 시간**:

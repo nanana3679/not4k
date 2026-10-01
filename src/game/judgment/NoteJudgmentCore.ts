@@ -504,6 +504,19 @@ export class NoteJudgmentCore {
         u.failed = true;
       }
       for (const u of this.units.filter(u => u.end === point.at && u.lane === point.lane && u.active && !u.complete && !u.failed)) u.failed = true;
+      // An up just after the boundary stays pending in this boundary's ledger
+      // until this deadline (RFD 0020 §2.12). When the head misses, a
+      // successor kept alive only by that up settles exactly as if the up had
+      // come before the boundary: dependentZero, no maintenance or release
+      // Miss. A successor still held by another registered key keeps going.
+      const ledger = this.correctionLedgers.get(`${point.lane}:${point.at}`);
+      for (const u of this.units.filter(u => u.start === point.at && u.lane === point.lane && u.active && !u.complete && !u.failed &&
+        u.tokens.some(token => this.pendingUps.includes(token) && (ledger?.all.some(record => record.id === token.correctionId) ?? false)) &&
+        !this.isHeld(u))) {
+        const itemId = this.takeUnitScoreItem(u);
+        if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: point.at + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        u.failed = true;
+      }
     }
     this.connectPreparedBodies(at);
     for (const u of this.units) {

@@ -248,27 +248,29 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     finishSuccessful(h, 2200);
   });
 
-  it("NJ-R16: 1015ms에 A를 뗀 뒤 연결 head 입력이 없으면 1119ms까지 Miss를 확정하지 않고 1120ms에 head Miss와 유지 Miss 두 개", () => {
+  it("NJ-R16: 1015ms에 A를 뗀 뒤 연결 head 입력이 없으면 1119ms까지 Miss를 확정하지 않고 1120ms에 head Miss 하나와 끝 2000의 종속 0점으로 정리해 유지 Miss는 없음", () => {
     const h = r16();
     h.at(1015, { key: "A", type: "up" });
     h.at(1119);
     expect(h.events.filter(e => e.grade === "miss")).toHaveLength(0);
     h.at(1121); h.at(2200);
     expect(h.events.filter(e => e.grade === "miss").map(e => [e.kind, e.noteIndex, e.confirmedAt])).toEqual([
-      ["head", 2, 1120], ["maintenanceMiss", 3, 1120], ["dependentZero", 3, 1120],
+      ["head", 2, 1120], ["dependentZero", 3, 1120],
     ]);
+    expect(maintenance(h)).toHaveLength(0);
     expect(releases(h)).toHaveLength(0);
-    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 2 });
+    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 1 });
   });
 
-  it("NJ-R16: 1015ms에 A를 떼고 B down이 head 창 밖인 1130ms면 1120ms에 head Miss와 유지 Miss로 확정되고 B는 바디를 되살리지 않음", () => {
+  it("NJ-R16: 1015ms에 A를 떼고 B down이 head 창 밖인 1130ms면 1120ms에 head Miss 하나와 종속 0점으로 정리되고 B는 바디를 되살리지 않음", () => {
     const h = r16();
     h.at(1015, { key: "A", type: "up" }); h.at(1130, { key: "B", type: "down" }); h.at(2000, { key: "B", type: "up" }); h.at(2200);
     expect(h.events.filter(e => e.grade === "miss").map(e => [e.kind, e.noteIndex, e.confirmedAt])).toEqual([
-      ["head", 2, 1120], ["maintenanceMiss", 3, 1120], ["dependentZero", 3, 1120],
+      ["head", 2, 1120], ["dependentZero", 3, 1120],
     ]);
+    expect(maintenance(h)).toHaveLength(0);
     expect(releases(h)).toHaveLength(0);
-    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 2 });
+    expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 1 });
   });
 
   it.each([
@@ -306,26 +308,46 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     finishSuccessful(h, 2700);
   });
 
-  it.each([
-    [1100, 1220],
-    [1030, 1150],
-  ])("NJ-R16: 뒤 바디 [1000,%i]가 head 기한 1120ms 전에 끝나면 1015ms에 A를 뗀 뒤 head 입력이 없을 때 1120ms head Miss와 끝 기한 %ims release Miss로 확정하고 유지 Miss는 없음", (end, releaseDeadline) => {
+  it.each([1100, 1030])("NJ-R16: 뒤 바디 [1000,%i]가 head 기한 1120ms 전에 끝나도 1015ms에 A를 뗀 뒤 head 입력이 없으면 1120ms head Miss와 그 끝의 종속 0점으로 정리하고 유지 Miss·release Miss는 없음", (end) => {
     const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, end)]);
     h.at(0, { key: "A", type: "down" }); h.at(1015, { key: "A", type: "up" }); h.at(1400);
     expect(h.events.filter(e => e.grade === "miss").map(e => [e.kind, e.noteIndex, e.confirmedAt])).toEqual([
-      ["head", 2, 1120], ["release", 3, releaseDeadline],
+      ["head", 2, 1120], ["dependentZero", 3, 1120],
     ]);
     expect(maintenance(h)).toHaveLength(0);
+    expect(releases(h)).toHaveLength(0);
     expect(h.score.getState().processedNotes).toBe(h.compiled.scoreItems.length);
   });
 
-  it("NJ-R16: 뒤 바디 [1000,1100] 뒤에 double [1100,2000]이 이어지면 1015ms에 A를 뗀 뒤 head 입력이 없을 때 1120ms head Miss와 끝 기한 1220ms의 [1000,1100] 유지 Miss로 확정하고 release Miss는 없음", () => {
+  it("NJ-R16: 뒤 바디 [1000,1100] 뒤에 double [1100,2000]이 이어지면 1015ms에 A를 뗀 뒤 head 입력이 없을 때 1120ms head Miss와 시작하지 못한 double 두 unit의 1220ms 유지 Miss만 남고 [1000,1100]의 유지 Miss·release Miss는 없음", () => {
     const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 1100), body(1100, 2000, "doubleLong")]);
     h.at(0, { key: "A", type: "down" }); h.at(1015, { key: "A", type: "up" }); h.at(1400);
     expect(heads(h).filter(e => e.grade === "miss").map(e => [e.noteIndex, e.confirmedAt])).toEqual([[2, 1120]]);
     expect(releases(h)).toHaveLength(0);
-    expect(maintenance(h).map(e => [e.noteIndex, e.unitIndex, e.confirmedAt])).toEqual([[3, 0, 1220], [4, 0, 1220], [4, 1, 1220]]);
+    expect(maintenance(h).map(e => [e.noteIndex, e.unitIndex, e.confirmedAt])).toEqual([[4, 0, 1220], [4, 1, 1220]]);
     expect(h.score.getState().processedNotes).toBe(h.compiled.scoreItems.length);
+  });
+
+  /** RFD 0020 §2.12: 경계 뒤 교대가 실패하면 뒤 바디 길이와 관계없이 경계 전에 뗀 실패(NJ-R08)와 같게 처리한다. */
+  it.each([
+    ["[1000,2000]", 1, () => [point(0), body(0, 1000), point(1000), body(1000, 2000)]],
+    ["짧은 [1000,1100]", 1, () => [point(0), body(0, 1000), point(1000), body(1000, 1100)]],
+    ["[1000,1100] 뒤 doubleLong [1100,2000]", 3, () => [point(0), body(0, 1000), point(1000), body(1000, 1100), body(1100, 2000, "doubleLong")]],
+  ] as const)("NJ-R16 대조: head 0 + [0,1000] → head 1000 + %s에서 A를 경계 전 995ms·경계 뒤 1015ms·1100ms에 떼고 연결 head가 없으면 세 실행의 판정·점수 항목·확정 시각이 같고 Miss %i개", (_label, misses, chart) => {
+    const play = (upAt: number) => {
+      const h = createHarness(chart());
+      h.at(0, { key: "A", type: "down" }); h.at(upAt, { key: "A", type: "up" }); h.at(2400);
+      const { judgmentCounts, achievementRate, processedNotes } = h.score.getState();
+      return {
+        events: h.events.map(e => [e.kind, e.noteIndex, e.unitIndex, e.itemId, e.grade, e.deltaMs, e.confirmedAt]),
+        score: { judgmentCounts, achievementRate, processedNotes, total: h.compiled.scoreItems.length },
+      };
+    };
+    const before = play(995);
+    expect(before.score.judgmentCounts.miss).toBe(misses);
+    expect(before.score.processedNotes).toBe(before.score.total);
+    expect(play(1015)).toEqual(before);
+    expect(play(1100)).toEqual(before);
   });
 
   /** NJ-R16 2→1 감소: double head 0 + doubleLong [0,1000] → single head 1000 + single. A/B down 0으로 시작해 C로 연결 head를 친다. */
@@ -342,59 +364,57 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     return { s, state, scored };
   }
 
-  it("NJ-R16 2→1 감소: single [1000,1200] 뒤 doubleLong [1200,2000]이 이어질 때 1015ms에 A를 떼고 1020ms에 C로 head를 치면 B up 1100ms가 앞 double release Good(+100)이고 경계 전 교대(A 995ms → C 1000ms)와 같은 결과로 세션이 끝남", () => {
+  /**
+   * head가 있는 2→1 감소 경계의 감소 release 항목은 RFD 0020 §2.13에 따라 #181에서 없앤다. 그때까지 아래는
+   * 판정 규칙과 무관한 정산 안전성만 확인한다: 예외 없이 끝나고, 모든 점수 항목을 정확히 한 번씩 정산하며,
+   * Full Combo면 빠진 항목이 없다.
+   */
+  function expectSettledOnce(run: () => ReturnType<typeof decreaseSession>) {
+    let result: ReturnType<typeof decreaseSession> | undefined;
+    expect(() => { result = run(); }).not.toThrow();
+    const { state } = result!;
+    expect({ settled: state.processedNotes, fullComboWithUnsettled: state.isFullCombo && state.processedNotes !== state.totalNotes })
+      .toEqual({ settled: state.totalNotes, fullComboWithUnsettled: false });
+    return result!;
+  }
+
+  it("NJ-R16 2→1 감소: single [1000,1200] 뒤 doubleLong [1200,2000]이 이어질 때 1015ms에 A를 떼고 1020ms에 C로 head를 친 뒤 B up 1100ms면 세션이 예외 없이 모든 점수 항목을 한 번씩 정산하고 경계 전 교대(A 995ms → C 1000ms)와 점수 항목·달성률이 같음", () => {
     const chart = () => [point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 1200), point(1200), body(1200, 2000, "doubleLong")];
     const rest = [[1100, { key: "B", type: "up" }], [1200, { key: "D", type: "down" }], [2000, { key: "C", type: "up" }, { key: "D", type: "up" }]] as const;
-    let after: ReturnType<typeof decreaseSession> | undefined;
-    expect(() => { after = decreaseSession(chart(), [[1015, { key: "A", type: "up" }], [1020, { key: "C", type: "down" }], ...rest]); }).not.toThrow();
-    const before = decreaseSession(chart(), [[995, { key: "A", type: "up" }], [1000, { key: "C", type: "down" }], ...rest]);
-    expect(after!.s.events.filter(e => e.kind === "release" && e.noteIndex === 1)).toEqual([
-      expect.objectContaining({ key: "B", grade: "good", deltaMs: 100 }),
-    ]);
-    expect(after!.scored).toEqual(before.scored);
-    expect(after!.state).toMatchObject({ processedNotes: 7, totalNotes: 7, isFullCombo: true, achievementRate: before.state.achievementRate });
+    const after = expectSettledOnce(() => decreaseSession(chart(), [[1015, { key: "A", type: "up" }], [1020, { key: "C", type: "down" }], ...rest]));
+    const before = expectSettledOnce(() => decreaseSession(chart(), [[995, { key: "A", type: "up" }], [1000, { key: "C", type: "down" }], ...rest]));
+    expect(after.scored).toEqual(before.scored);
+    expect(after.state.achievementRate).toBe(before.state.achievementRate);
   });
 
   it.each([
-    ["B up 1030ms이면 앞 double release Perfect(+30)·Full Combo", [[1030, { key: "B", type: "up" }], [2000, { key: "C", type: "up" }]], { grade: "perfect", deltaMs: 30, confirmedAt: 1030 }, true],
-    ["B up 1100ms이면 앞 double release Good(+100)·Full Combo", [[1100, { key: "B", type: "up" }], [2000, { key: "C", type: "up" }]], { grade: "good", deltaMs: 100, confirmedAt: 1100 }, true],
-    ["B를 2000ms까지 유지하면 앞 double release 1120ms Miss·Full Combo 해제", [[2000, { key: "B", type: "up" }, { key: "C", type: "up" }]], { grade: "miss", deltaMs: 120, confirmedAt: 1120 }, false],
-  ] as const)("NJ-R16 2→1 감소: single [1000,2000]에서 1015ms에 A를 떼고 1020ms에 C로 head를 친 뒤 %s이고 C up 2000ms가 마지막 release Perfect", (_label, steps, front, fullCombo) => {
-    const { s, state } = decreaseSession([point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 2000)], [
+    ["B up 1030ms", [[1030, { key: "B", type: "up" }], [2000, { key: "C", type: "up" }]]],
+    ["B up 1100ms", [[1100, { key: "B", type: "up" }], [2000, { key: "C", type: "up" }]]],
+    ["B를 2000ms까지 유지해 C와 함께 뗌", [[2000, { key: "B", type: "up" }, { key: "C", type: "up" }]]],
+  ] as const)("NJ-R16 2→1 감소: single [1000,2000]에서 1015ms에 A를 떼고 1020ms에 C로 head를 친 뒤 %s이면 세션이 예외 없이 모든 점수 항목을 한 번씩 정산하고 거짓 Full Combo가 없음", (_label, steps) => {
+    expectSettledOnce(() => decreaseSession([point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 2000)], [
       [1015, { key: "A", type: "up" }], [1020, { key: "C", type: "down" }], ...steps,
-    ]);
-    expect(s.events.filter(e => e.kind === "release")).toEqual([
-      expect.objectContaining({ noteIndex: 1, ...front }),
-      expect.objectContaining({ noteIndex: 3, grade: "perfect", deltaMs: 0, inputAt: 2000 }),
-    ]);
-    expect(s.events.filter(e => e.kind === "maintenanceMiss")).toHaveLength(0);
-    expect(state).toMatchObject({ processedNotes: 5, totalNotes: 5, isFullCombo: fullCombo });
+    ]));
   });
 
   it.each([
-    ["C head 1080ms 뒤 B up 1100ms이면 앞 double release Good(+100)·Full Combo·80%", [[1080, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]], { grade: "good", deltaMs: 100, confirmedAt: 1100 }, { isFullCombo: true, achievementRate: 80 }],
-    ["C head 1080ms 뒤 B를 1300ms까지 유지하면 앞 double release 1120ms Miss·Full Combo 해제", [[1080, { key: "C", type: "down" }], [1150, { key: "C", type: "up" }], [1300, { key: "B", type: "up" }]], { grade: "miss", deltaMs: 120, confirmedAt: 1120 }, { isFullCombo: false }],
-    ["C head 1030ms(뒤 바디 끝 1060ms 전) 뒤 B up 1100ms이면 앞 double release Good(+100)·Full Combo", [[1030, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]], { grade: "good", deltaMs: 100, confirmedAt: 1100 }, { isFullCombo: true }],
-  ] as const)("NJ-R16 2→1 감소: 짧은 holdOnly 뒤 바디 [1000,1060]이 1015ms A up으로 연결 head보다 먼저 완료돼도 %s이고 5개 항목을 모두 정산", (_label, steps, front, result) => {
-    const { s, state } = decreaseSession([point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 1060, "long", true)], [
+    ["C head 1080ms 뒤 B up 1100ms", [[1080, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]]],
+    ["C head 1080ms 뒤 B를 1300ms까지 유지", [[1080, { key: "C", type: "down" }], [1150, { key: "C", type: "up" }], [1300, { key: "B", type: "up" }]]],
+    ["C head 1030ms(뒤 바디 끝 1060ms 전) 뒤 B up 1100ms", [[1030, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]]],
+  ] as const)("NJ-R16 2→1 감소: 짧은 holdOnly 뒤 바디 [1000,1060]이 1015ms A up으로 연결 head보다 먼저 완료되고 %s이면 세션이 예외 없이 모든 점수 항목을 한 번씩 정산하고 거짓 Full Combo가 없음", (_label, steps) => {
+    expectSettledOnce(() => decreaseSession([point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 1060, "long", true)], [
       [1015, { key: "A", type: "up" }], ...steps,
-    ]);
-    expect(s.events.filter(e => e.kind === "holdOnly")).toEqual([expect.objectContaining({ noteIndex: 3, grade: "perfect", confirmedAt: 1015 })]);
-    expect(s.events.filter(e => e.kind === "release")).toEqual([expect.objectContaining({ noteIndex: 1, ...front })]);
-    expect(s.events.filter(e => e.kind === "maintenanceMiss")).toHaveLength(0);
-    expect(state).toMatchObject({ processedNotes: 5, totalNotes: 5, ...result });
+    ]));
   });
 
-  it("NJ-R16 2→1 감소: 970ms에 C로 연결 head 1060을 먼저 친 뒤 A up 1005ms가 연결 up으로 보류되고 C up 1085ms가 앞 doubleLong [1000,1060]의 release 1개를 정산하면 1180ms 연결 head 기한에 A up을 두 번째 release로 내보내지 않아 세션 예외 없이 7개 항목을 한 번씩 정산", () => {
-    let result: ReturnType<typeof decreaseSession> | undefined;
-    expect(() => {
-      result = decreaseSession([point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060, "doubleLong"), point(1060), body(1060, 1160)], [
-        [970, { key: "C", type: "down" }], [1005, { key: "A", type: "up" }], [1085, { key: "C", type: "up" }], [1155, { key: "B", type: "up" }],
-      ]);
-    }).not.toThrow();
-    expect(result!.s.events.filter(e => e.kind === "release" && e.noteIndex === 2)).toEqual([
-      expect.objectContaining({ itemId: "n2:release:0", key: "C", grade: "perfect", deltaMs: 25, confirmedAt: 1085 }),
-    ]);
-    expect(result!.state).toMatchObject({ processedNotes: 7, totalNotes: 7 });
+  it("NJ-R16 2→1 감소: 970ms에 C로 연결 head 1060을 먼저 친 뒤 A up 1005ms가 연결 up으로 보류되고 C up 1085ms·B up 1155ms가 이어지면 1180ms 연결 head 기한에 보류 up을 남은 항목 없는 release로 내보내지 않아 세션 예외 없이 모든 점수 항목을 한 번씩 정산", () => {
+    expectSettledOnce(() => decreaseSession([point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060, "doubleLong"), point(1060), body(1060, 1160)], [
+      [970, { key: "C", type: "down" }], [1005, { key: "A", type: "up" }], [1085, { key: "C", type: "up" }], [1155, { key: "B", type: "up" }],
+    ]));
   });
+
+  // RFD 0020 §2.13(사용자 결정 2026-10-01): head가 있는 2→1 감소 경계는 head가 그 경계의 판정이며 감소 release 항목이 없다. 구현은 #181.
+  it.todo("NJ-R16 2→1 감소 #181: double head 0 + doubleLong [0,1000] → single head 1000 + single [1000,2000]에서 A up 1015·B up 1030으로 둘 다 떼고 C로 head 1020을 친 뒤 C up 2000이면 감소 release 항목 없이 점수 항목 4개(head 3·release 1)가 모두 Perfect이고 Miss 0");
+  it.todo("NJ-R16 2→1 감소 #181: 같은 차트에서 경계 전 A up 995·C down 1000·B up 1030·C up 2000이면 1030ms 유지 Miss 없이 감소 release 항목 없는 점수 항목 4개 모두 Perfect, Miss 0");
+  it.todo("NJ-R16 2→1 감소 #181: 같은 차트에서 A를 2000ms까지 쥔 채 B만 C로 옮기면(B up 1015 → C down 1020 → A·C up 2000) 두 키를 쥐어도 감소 release 항목 없이 Miss 0이고 마지막 release Perfect");
 });
