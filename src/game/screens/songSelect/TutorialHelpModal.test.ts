@@ -240,7 +240,7 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('carouselCard:');
     expect(tutorialHelpModalSource).toContain('playerPlaceholder:');
     expect(tutorialHelpModalSource).toContain('playerTrack:');
-    expect(tutorialHelpModalSource).toContain("type TutorialPreviewSlotState = 'active' | 'standby' | 'exiting' | 'entering'");
+    expect(tutorialHelpModalSource).toContain("import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots'");
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewSlotRenderOrder(activePlayerSlot, transition)');
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewTrackTransform(transition, transitionProgress)');
     expect(tutorialHelpModalSource).toContain('getEaseOutQuintProgress(elapsedRatio)');
@@ -252,6 +252,8 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('data-tutorial-transition-direction={transition?.direction ??');
     expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
     expect(tutorialHelpModalSource).toContain('diagramModalEnabled={diagramModalEnabled}');
+    // 들어오는·대기 슬롯은 첫 프레임에서 멈춰 두고 active가 된 뒤 재생한다(tutorialPreviewSlots.test.ts).
+    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState)}');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-standby');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-exiting');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-entering');

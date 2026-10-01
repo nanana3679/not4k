@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
+import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
   TUTORIAL_PREVIEWS,
@@ -27,7 +28,6 @@ const TUTORIAL_MODAL_CLOSE_MS = 120;
 type TutorialPageTransitionDirection = 'forward' | 'backward';
 type TutorialPageTransitionPhase = 'preparing' | 'animating';
 type TutorialPreviewSlotId = 0 | 1;
-type TutorialPreviewSlotState = 'active' | 'standby' | 'exiting' | 'entering';
 
 interface TutorialPlayerTransition {
   fromIndex: number;
@@ -671,6 +671,7 @@ function TutorialPreviewSlot({
           preview={preview}
           diagramModalEnabled={diagramModalEnabled}
           diagramModalVisible={diagramModalVisible}
+          paused={!isTutorialPreviewSlotPlaying(slotState)}
           onReady={onReady}
         />
       </div>
