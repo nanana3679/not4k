@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getSkinManifest } from '../game/skin/skins';
+import { buildManifest, getSkinManifest } from '../game/skin/skins';
 import { createNoteAssetDesign, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from './noteAssetDesigns';
 
 describe('시안 교체', () => {
@@ -104,5 +104,15 @@ describe('/not4k/ 배포의 시안 주소', () => {
       expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
       expect(path).not.toContain('/not4k/not4k/');
     }
+  });
+});
+
+describe('켜짐 효과 없는 스킨의 시연실 랙 (RFD 0028)', () => {
+  it('heldEffect: false 스킨은 바디 랙에서 켜짐·중앙광을 빼고 대기·실패만 보여 준다', () => {
+    const theme = getSkinManifest('classic').theme;
+    const design = createNoteAssetDesign(buildManifest('no-effect', {...theme, id:'no-effect', heldEffect:false}), {description:'효과 없음'});
+    expect(design.bodies.map(body => `${body.kind}:${body.state}`)).toEqual([
+      'single:idle', 'single:off', 'double:idle', 'double:off', 'trill:idle', 'trill:off',
+    ]);
   });
 });

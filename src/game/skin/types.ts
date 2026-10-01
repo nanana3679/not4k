@@ -32,6 +32,11 @@ export interface SkinTheme {
   pointContactShadow?: { above: number; below: number };
   /** 봄의 전체 재생 시간. 생략하면 60fps로 프레임 수만큼 재생 */
   bombDurationMs?: number;
+  /**
+   * 롱노트 켜짐(홀드) 효과를 표시할지(RFD 0028). 생략하면 true.
+   * false면 켜짐 에셋 없이 유지 중에도 대기 바디·터미널을 그린다. 부분 실패·실패는 그대로 표시한다.
+   */
+  heldEffect?: boolean;
 }
 
 /**
@@ -56,8 +61,9 @@ export interface SkinManifest {
     terminalDoubleIdle?: string;
     bodySingle: string;
     bodyDouble: string;
-    bodySingleHeld: string;
-    bodyDoubleHeld: string;
+    /** 켜짐 에셋. `theme.heldEffect`가 false가 아니면 필수이며 SkinManager가 로딩 전에 확인한다. */
+    bodySingleHeld?: string;
+    bodyDoubleHeld?: string;
     /** 실패 에셋 */
     noteDoubleFailed: string;
     bodySingleFailed: string;
@@ -80,16 +86,17 @@ export interface SkinManifest {
     terminalDoublePartialFailedRight: string;
     noteDoublePartialFailedLeft: string;
     noteDoublePartialFailedRight: string;
-    /** 부분 충족 held 에셋 (더블 롱노트 1/2, waitingSide = 아직 안 잡힌 쪽) */
-    bodyDoublePartialHeldLeft: string;
-    bodyDoublePartialHeldRight: string;
+    /** 부분 충족 held 에셋 (더블 롱노트 1/2, waitingSide = 아직 안 잡힌 쪽). `heldEffect: false`면 없어도 된다. */
+    bodyDoublePartialHeldLeft?: string;
+    bodyDoublePartialHeldRight?: string;
     /** 트릴 에셋 */
     noteTrill: string;
     terminalTrill: string;
     /** 누르기 전 중앙광이 꺼진 trillLong terminal. 없는 스킨은 terminalTrill로 fallback */
     terminalTrillIdle?: string;
     bodyTrill: string;
-    bodyTrillHeld: string;
+    /** 켜짐 에셋. `heldEffect: false`면 없어도 된다. */
+    bodyTrillHeld?: string;
     noteTrillFailed: string;
     bodyTrillFailed: string;
     terminalTrillFailed: string;

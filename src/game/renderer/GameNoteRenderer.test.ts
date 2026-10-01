@@ -1187,3 +1187,78 @@ describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(�
     expect(bottomOf(bodyLayer)).toBe(470);
   });
 });
+
+describe("GameNoteRenderer heldEffect: false 스킨 (RFD 0028)", () => {
+  function createNoEffectRenderer() {
+    const skinManager = {
+      getTexture: vi.fn((key: string) => ({ key })),
+      getHalfCapTexture: vi.fn((key: string) => ({ key })),
+      getTheme: vi.fn(() => ({ longNoteTerminalMode: "full-height", longNoteTerminalFrameOverhangPx: 0, longNoteBodyMode: "repeat", heldEffect: false })),
+      getBodyWidthScale: vi.fn(() => 1),
+      hasTexture: vi.fn(() => false),
+    } as unknown as SkinManager;
+    const bodyLayer = new Container(), endLayer = new Container(), headLayer = new Container();
+    const renderer = new GameNoteRenderer(bodyLayer, endLayer, headLayer, new Container(), skinManager, 500, 1000, 0, 600);
+    const requested = () => (skinManager.getTexture as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(c => c[0] as string);
+    return { renderer, bodyLayer, endLayer, headLayer, requested };
+  }
+  const long = (type: "long" | "doubleLong" | "trillLong", lane = 1) =>
+    ({ type, lane, beat: 0, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
+  const units = (count: number, held: number, failed: number[] = []) => ({
+    units: Array.from({ length: count }, (_, unitIndex) => ({
+      unitIndex, active: unitIndex < held, failed: failed.includes(unitIndex), complete: false,
+      registeredKeys: unitIndex < held ? [`Key${unitIndex}`] : [],
+    })),
+  });
+
+  it("싱글 롱노트를 1키로 유지 중이어도 대기 바디 bodySingle과 대기 터미널 terminalSingle을 그리고 켜짐 텍스처는 요청하지 않는다", () => {
+    const { renderer, bodyLayer, endLayer, headLayer, requested } = createNoEffectRenderer();
+    renderer.setJudgmentBodyStateQuery(() => units(1, 1));
+    renderer.renderLongNote(long("long"), 0, 100, 300, 100);
+    expect(childrenOf(bodyLayer)[0].texture).toMatchObject({ key: "bodySingle" });
+    for (const layer of [headLayer, endLayer]) expect(childrenOf(layer)[0].texture).toMatchObject({ key: "terminalSingle" });
+    expect(requested()).not.toContain("bodySingleHeld");
+  });
+
+  it.each([0, 1, 2])("더블 롱노트를 %s키로 유지 중이어도 바디는 대기 bodyDouble, 터미널은 terminalDouble로 같다", held => {
+    const { renderer, bodyLayer, endLayer, headLayer, requested } = createNoEffectRenderer();
+    renderer.setJudgmentBodyStateQuery(() => units(2, held));
+    renderer.renderLongNote(long("doubleLong", 4), 0, 100, 300, 100);
+    expect(childrenOf(bodyLayer)[0].texture).toMatchObject({ key: "bodyDouble" });
+    for (const layer of [headLayer, endLayer]) expect(childrenOf(layer)[0].texture).toMatchObject({ key: "terminalDouble" });
+    expect(requested().some(key => key.includes("Held"))).toBe(false);
+  });
+
+  it.each([[0, "Left"], [1, "Right"]] as const)("더블 롱노트의 unit %s이 실패하면 효과 없는 스킨도 부분 실패 바디·터미널(%s)을 그린다", (failedUnit, side) => {
+    const { renderer, bodyLayer, endLayer } = createNoEffectRenderer();
+    renderer.setJudgmentBodyStateQuery(() => units(2, 2, [failedUnit]));
+    renderer.renderLongNote(long("doubleLong", 1), 0, 100, 300, 100);
+    expect(childrenOf(bodyLayer)[0].texture).toMatchObject({ key: `bodyDoublePartialFailed${side}` });
+    expect(childrenOf(endLayer)[0].texture).toMatchObject({ key: `terminalDoublePartialFailed${side}` });
+  });
+
+  it("트릴 롱노트를 유지 중이어도 대기 바디 bodyTrill을 그리고 bodyTrillHeld는 요청하지 않는다", () => {
+    const { renderer, requested } = createNoEffectRenderer();
+    renderer.setJudgmentBodyStateQuery(() => units(1, 1));
+    renderer.renderLongNote(long("trillLong", 2), 0, 300, 500, 250);
+    expect(requested()).toContain("bodyTrill");
+    expect(requested()).not.toContain("bodyTrillHeld");
+  });
+
+  it.each([[1, 1], [1, 2], [2, 2]] as const)("헤드 없는 롱노트를 %s/%s 미리 잡아도 켜짐·부분 유지 텍스처 없이 대기 바디를 그린다", (filled, required) => {
+    const { renderer, requested } = createNoEffectRenderer();
+    renderer.setHeadlessHeldFillQuery(() => ({ filled, required }));
+    renderer.renderLongNote(long(required === 2 ? "doubleLong" : "long"), 0, 300, 500, 250);
+    expect(requested()).toContain(required === 2 ? "bodyDouble" : "bodySingle");
+    expect(requested().some(key => key.includes("Held"))).toBe(false);
+  });
+
+  it("판정 조회가 없는 재생기에서 머리가 판정선을 지나거나 앞 롱노트가 이어져 있어도 켜짐을 전파하지 않는다", () => {
+    const { renderer, requested } = createNoEffectRenderer();
+    renderer.setLongNoteConnections(new Map([[1, 0]]), new Map([[0, -100], [1, 100]]));
+    renderer.renderLongNote(long("long"), 0, -100, 100, 50);
+    renderer.renderLongNote(long("long"), 1, 100, 300, 50);
+    expect(requested()).toContain("bodySingle");
+    expect(requested()).not.toContain("bodySingleHeld");
+  });
+});
