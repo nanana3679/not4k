@@ -482,9 +482,12 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     ]);
   });
 
-  it("NJ-A07 대조: 짧은 doubleLong holdOnly [1500,1560]에서 A up 1455 뒤 B를 1500ms에 눌러 증가 unit을 시작하면 Perfect 2와 Full Combo (종전과 같음)", () => {
+  it("NJ-A07 대조: 짧은 doubleLong holdOnly [1500,1560]에서 A up 1455 뒤 B를 1500ms에 눌러 증가 unit을 시작하면 B의 unit은 1560ms에 Perfect, A로 이어진 unit은 1620ms에 A up으로 Perfect, Full Combo", () => {
     const r = playSession(increase(1560)(), [[1000, down("A")], [1455, up("A")], [1500, down("B")]]);
-    expect(r.events.filter((event) => event.kind === "holdOnly").map((event) => [event.unitIndex, event.grade])).toEqual([[0, "perfect"], [1, "perfect"]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 1, 1, "perfect", 0, null, 1560],
+      ["holdOnly", 1, 0, "perfect", 0, 1455, 1620],
+    ]);
     expect(r.state.isFullCombo).toBe(true);
     expect(r.unsettled).toEqual([]);
   });
@@ -494,7 +497,7 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
   const decreaseStart: Step = [1000, down("A"), down("B")];
 
   it.each([
-    ["A up 1170 → D down 1180, D는 1400ms까지 유지", [[1160, up("B")], [1170, up("A")], [1180, down("D")], [1400, up("D")]], "perfect", -40],
+    ["B up 1160 → A up 1170 → D down 1180, D는 1400ms까지 유지", [[1160, up("B")], [1170, up("A")], [1180, down("D")], [1400, up("D")]], "perfect", -40],
     ["A up 1100 → B up 1160 → D down 1180", [[1100, up("A")], [1160, up("B")], [1180, down("D")]], "good", -100],
   ] as const)("NJ-A07 U3: 감소 뒤 holdOnly [1200,1260]에서 %s면 뗀 A의 준비가 풀리고 시작 창 안의 D가 뒤 바디를 이어가 1260ms Perfect, Miss 0", (_label, rest, firstGrade, firstDelta) => {
     const r = playSession(decrease(true)(), [decreaseStart, ...rest as unknown as Step[]]);
@@ -517,7 +520,7 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
   });
 
   it.each([
-    ["A up 1170 → D down 1180, D up 1310", [[1160, up("B")], [1170, up("A")], [1180, down("D")], [1310, up("D")]], "perfect", -40, "B"],
+    ["B up 1160 → A up 1170 → D down 1180, D up 1310", [[1160, up("B")], [1170, up("A")], [1180, down("D")], [1310, up("D")]], "perfect", -40, "B"],
     ["A up 1100 → B up 1160 → D down 1180, D up 1310", [[1100, up("A")], [1160, up("B")], [1180, down("D")], [1310, up("D")]], "good", -100, "A"],
   ] as const)("NJ-A07 U3: 감소 뒤 일반 [1200,1260]에서 %s면 D가 뒤 바디를 이어가고 D up이 뒤 release Great(+50)이며 뗀 A up은 뒤 release에 쓰지 않음", (_label, rest, firstGrade, firstDelta, firstKey) => {
     const r = playSession(decrease(false)(), [decreaseStart, ...rest as unknown as Step[]]);
@@ -682,6 +685,165 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     const late = playSession(chart(), withFirstAt(steps as unknown as Step[], 1030));
     expect(late.error).toBeUndefined();
     expect(outcome(late.events)).toEqual(outcome(onTime.events));
+  });
+
+  // PR #188 리뷰 2차 HIGH-1: 마지막 쥔 키의 up으로 S까지 미룬 승계도, 그 up이 끝 head의 교대 up으로 쓰이면 head가 먼저 이어받게 한다.
+  const headedTail = () => [body(1000, 1500, "long", true), body(1500, 1560), point(1560), body(1560, 1760)];
+
+  it.each([
+    [1000, 1490, -70],
+    [1000, 1500, -60],
+    [1030, 1490, -70],
+    [1000, 1510, -50],
+  ] as const)("NJ-A07 U2·Point 우선: holdOnly [1000,1500] → [1500,1560] → head 1560 + [1560,1760]에서 A를 %ims에 눌러 1450ms(뒤 E−Good 1440 이후)에 떼고 D가 head를 %ims에 치면 A up이 head 1560의 교대 up으로 [1500,1560]을 이어 head Great(%ims)와 D up 1760 release Perfect로 Full Combo", (aAt, dAt, delta) => {
+    const r = playSession(headedTail(), [[aAt, down("A")], [1450, up("A")], [dAt, down("D")], [1760, up("D")]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 0, 0, "perfect", 0, 1450, 1450],
+      ["head", 2, 0, "great", delta, dAt, dAt],
+      ["release", 3, 0, "perfect", 0, 1760, 1760],
+    ]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  // HIGH-2: double 뒤 바디는 unit마다 자기 몫을 이은 키 하나로 판정한다. 뗀 키 하나가 두 몫을 함께 충족하지 않고, 형제 몫의 키를 쥐고 있어도 뗀 몫은 풀린다.
+  const doubleChain = (tailHoldOnly: boolean) => () => [body(1000, 1500, "doubleLong", true), body(1500, 1560, "doubleLong", tailHoldOnly)];
+
+  it.each([1000, 1030])("NJ-A07 U2 몫별: doubleLong holdOnly [1000,1500] → doubleLong holdOnly [1500,1560]에서 A·B를 %ims에 누르고 A up 1430(뒤 E−Good 1440 전)·B up 1450이면 B의 몫만 1620ms Perfect이고 A의 몫은 1620ms 시작 실패로 Miss 1", (startAt) => {
+    const r = playSession(doubleChain(true)(), [[startAt, down("A"), down("B")], [1430, up("A")], [1450, up("B")]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 0, 0, "perfect", 0, 1430, 1430], ["holdOnly", 0, 1, "perfect", 0, 1430, 1430],
+      ["holdOnly", 1, 0, "perfect", 0, 1450, 1620], ...startFail(1, 1, 1620),
+    ]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 U2 몫별 대조: 같은 차트에서 B를 뒤 S 이후 1520ms까지 쥐어도 A의 몫 하나만 Miss라 B up 1450보다 결과가 좋아지지 않음(Miss 1)", () => {
+    const r = playSession(doubleChain(true)(), [[1000, down("A"), down("B")], [1430, up("A")], [1520, up("B")]]);
+    expect(r.events.filter((event) => event.kind === "holdOnly" && event.noteIndex === 1).map((event) => [event.unitIndex, event.grade])).toEqual([[0, "perfect"]]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 U2 몫별: doubleLong holdOnly [1000,1500] → 일반 doubleLong [1500,1560]에서 A up 1430·B up 1450이면 B up이 B의 몫 release Good(−110)로 1620ms에 확정되고 A의 몫은 1620ms 시작 실패로 Miss 1", () => {
+    const r = playSession(doubleChain(false)(), [[1000, down("A"), down("B")], [1430, up("A")], [1450, up("B")]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 0, 0, "perfect", 0, 1430, 1430], ["holdOnly", 0, 1, "perfect", 0, 1430, 1430],
+      ["release", 1, 0, "good", -110, 1450, 1620], ...startFail(1, 1, 1620),
+    ]);
+    expect(releaseKeys(r.events)).toEqual(["B"]);
+  });
+
+  it("NJ-A07 U3 몫별: doubleLong holdOnly [1000,1500] → doubleLong holdOnly [1500,1560]에서 A up 1430·B up 1450 뒤 C를 1550ms에 누르면 C가 A의 몫을 이어 1560ms Perfect, B의 몫은 1620ms Perfect로 Full Combo", () => {
+    const r = playSession(doubleChain(true)(), [[1000, down("A"), down("B")], [1430, up("A")], [1450, up("B")], [1550, down("C")]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 0, 0, "perfect", 0, 1430, 1430], ["holdOnly", 0, 1, "perfect", 0, 1430, 1430],
+      ["holdOnly", 1, 0, "perfect", 0, null, 1560], ["holdOnly", 1, 1, "perfect", 0, 1450, 1620],
+    ]);
+    expect(r.state.isFullCombo).toBe(true);
+  });
+
+  // double head 1000 + [1000,1060] → doubleLong [1060,1120](NJ-A04 모양). A·B down 1000, A만 1020에 뗀다(뒤 S 전, 뒤 E−Good 1000 이후). B는 자기 몫을 쥐고 있다.
+  const heldSibling = () => [point(1000, "double"), body(1000, 1060), body(1060, 1120, "doubleLong")];
+  const heldSiblingStart: Step = [1000, down("A"), down("B")];
+  const releases = (events: readonly NoteJudgmentEvent[]) => events.filter((event) => event.kind === "release")
+    .map((event) => [event.grade, event.deltaMs, event.key, event.confirmedAt]);
+
+  it.each([
+    ["C down 1040(뒤 S 전)", 1040],
+    ["C down 1080(뒤 S 이후, 시작 창 안)", 1080],
+  ] as const)("NJ-A07 U3 몫별: double head 1000 + [1000,1060] → doubleLong [1060,1120]에서 B를 쥔 채 A만 1020ms에 떼고 %s → C up 1110 → B up 1120이면 C가 A의 몫을 이어 C up이 release Perfect(−10), B up이 release Perfect(0)로 Full Combo", (_label, cAt) => {
+    const r = playSession(heldSibling(), [heldSiblingStart, [1020, up("A")], [cAt, down("C")], [1110, up("C")], [1120, up("B")]]);
+    expect(releases(r.events)).toEqual([["perfect", -10, "C", 1110], ["perfect", 0, "B", 1120]]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 U3 몫별: 같은 차트에서 A up 1020 → C down 1080 뒤 C를 계속 쥐면 B up 1120이 B의 몫 release Perfect이고 C가 이어간 A의 몫은 1240ms release Miss로 Miss 1", () => {
+    const r = playSession(heldSibling(), [heldSiblingStart, [1020, up("A")], [1080, down("C")], [1120, up("B")]]);
+    expect(releases(r.events)).toEqual([["perfect", 0, "B", 1120], ["miss", 120, undefined, 1240]]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+  });
+
+  it.each([
+    [1120, [["perfect", 0, "B", 1120], ["good", -100, "A", 1180]], 0],
+    [1200, [["good", -100, "A", 1180], ["great", 80, "B", 1200]], 0],
+    [1300, [["good", -100, "A", 1180], ["miss", 120, undefined, 1240]], 1],
+  ] as const)("NJ-A07 U2 몫별: 같은 차트에서 A up 1020 뒤 새 키 없이 B를 %ims에 떼면 A의 몫은 B와 관계없이 시작 창이 닫히는 1180ms에 A up의 release Good(−100)로 확정되고 B의 몫은 B up으로 판정", (bAt, expected, misses) => {
+    const r = playSession(heldSibling(), [heldSiblingStart, [1020, up("A")], [bAt, up("B")]]);
+    expect(releases(r.events)).toEqual(expected);
+    expect(r.state.judgmentCounts.miss).toBe(misses);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  // HIGH-2(c): 새 키가 뗀 몫을 이어도 다른 몫을 쥔 키의 등록은 지우지 않는다. 퍼즈 short seed 8126에서 줄인 차트다.
+  const keptRegistration = () => [body(1000, 1200), point(1200), body(1200, 1300), body(1300, 1360, "doubleLong")];
+
+  it.each([
+    ["같은 키 C를 다시(사용자 결정: 다시 누른 같은 키도 새 입력)", "C"],
+    ["다른 키 D를", "D"],
+  ] as const)("NJ-A07 U3 몫별: [1000,1200] → head 1200 + [1200,1300] → doubleLong [1300,1360]에서 A를 1360ms까지 쥐고 C가 head를 1180ms에 친 뒤 C up 1290 → %s 1340ms에 눌러 쥐면 쥔 A의 등록이 남아 A up 1360이 release Perfect(0)이고 C의 몫은 C up 1290으로 1420ms에 release Great(−70), Full Combo", (_label, key) => {
+    const r = playSession(keptRegistration(), [[1000, down("A")], [1180, down("C")], [1290, up("C")], [1340, down(key)], [1360, up("A")]]);
+    expect(r.events.filter((event) => event.kind === "head").map((event) => [event.grade, event.deltaMs, event.key])).toEqual([["perfect", -20, "C"]]);
+    expect(releases(r.events)).toEqual([["perfect", 0, "A", 1360], ["great", -70, "C", 1420]]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 U3 몫별: 퍼즈 short seed 8126 차트(head 1000 + doubleLong [1000,1020] → head 1020 + doubleLong [1020,1220] → double head 1220 + [1220,1320] → doubleLong [1320,1380])에서 C up 1310 → C down 1360 뒤 쥔 A의 up 1420이 release Perfect(+40)로 남음", () => {
+    const r = playSession([point(1000), body(1000, 1020, "doubleLong"), point(1020), body(1020, 1220, "doubleLong"), point(1220, "double"), body(1220, 1320), body(1320, 1380, "doubleLong")],
+      [[1000, down("A")], [1005, down("B")], [1175, up("B")], [1180, down("C")], [1310, up("C")], [1360, down("C")], [1420, up("A")]]);
+    expect(releases(r.events)).toEqual([["perfect", 40, "A", 1420], ["great", -70, "C", 1440]]);
+    // Miss 2는 놓친 head 1020과 double head 1220의 둘째 키다. 놓친 head 1220 앞 감소 release 항목(n3:release:0)의 미정산은 #182 범위로 종전과 같다.
+    expect(r.state.judgmentCounts.miss).toBe(2);
+  });
+
+  // MEDIUM-1, 사용자 결정(2026-10-01): 뗀 키를 다시 누른 것도 U3의 새 입력이다("응 다시 같은 키 눌러도 새로운 입력").
+  it.each([
+    ["A down 1500(뒤 S, 같은 키)", "A", 1500],
+    ["A down 1510(뒤 S 이후, 같은 키)", "A", 1510],
+    ["B down 1510(다른 키)", "B", 1510],
+  ] as const)("NJ-A07 U3 같은 키: [1000,1500] → doubleLong holdOnly [1500,1560]에서 A up 1455 뒤 %s면 새 입력이 아무도 준비하지 않은 증가 unit을 이어 1560ms Perfect, A로 이어진 unit은 1620ms에 A up으로 Perfect, Full Combo", (_label, key, at) => {
+    const r = playSession(increase(1560)(), [[1000, down("A")], [1455, up("A")], [at, down(key)]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 1, 1, "perfect", 0, null, 1560],
+      ["holdOnly", 1, 0, "perfect", 0, 1455, 1620],
+    ]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 U3 같은 키: head 1000 + doubleLong [1000,2000] → double head 2000 + [2000,3000] → double head 3000 + [3000,3060] → doubleLong [3060,3120]에서 3080ms의 A down(같은 키 재누름)·C down 수집 순서를 바꿔도 판정·등급·확정 시각이 같음", () => {
+    const chart = () => [point(1000), body(1000, 2000, "doubleLong"), point(2000, "double"), body(2000, 3000), point(3000, "double"), body(3000, 3060), body(3060, 3120, "doubleLong")];
+    const before: Step[] = [[1000, down("A")], [2045, down("C")], [2095, up("C")], [3015, down("B")], [3060, up("A")], [3070, up("B")]];
+    const ac = playSession(chart(), [...before, [3080, down("A"), down("C")]]);
+    const ca = playSession(chart(), [...before, [3080, down("C"), down("A")]]);
+    expect(outcome(ca.events)).toEqual(outcome(ac.events));
+    expect(ac.events.filter((event) => event.noteIndex === 6).map((event) => [event.kind, event.unitIndex, event.grade, event.confirmedAt]))
+      .toEqual([["release", 0, "great", 3070], ["release", 1, "miss", 3240]]);
+  });
+
+  // MEDIUM-2: 뗀 몫의 판정은 확정 순서를 거꾸로 돌리지 않는다(RFD 0020 §2.9).
+  it("NJ-A07 §2.9: double head 1000 + [1000,1500] → doubleLong [1500,1560]에서 B up 1490 → C down 1545 → A up 1650이면 C가 B의 몫을 이어 1680ms release Miss이고 A up 1650이 release Good(+90)이며 확정 시각이 줄지 않는 순서로 전달됨", () => {
+    const r = playSession([point(1000, "double"), body(1000, 1500), body(1500, 1560, "doubleLong")],
+      [[1000, down("A"), down("B")], [1490, up("B")], [1545, down("C")], [1650, up("A")]]);
+    expect(releases(r.events)).toEqual([["good", 90, "A", 1650], ["miss", 120, undefined, 1680]]);
+    const confirmed = r.events.map((event) => event.confirmedAt);
+    expect(confirmed).toEqual([...confirmed].sort((a, b) => a - b));
+  });
+
+  // LOW-2: 아래 두 테스트는 뗀 몫의 보류와 쥔 키의 준비 유지를 각각 고정한다.
+  it("NJ-A07 U4: holdOnly [1000,1500] → holdOnly [1500,1560]에서 A up 1455 뒤 어디에도 쓰이지 않은 C(1100ms down)의 up 1550은 뒤 holdOnly를 완료하지 않고, 뒤는 시작 창이 닫히는 1620ms에 A up 1455로 Perfect", () => {
+    const r = playSession(chain(1560)(), [[1000, down("A")], [1100, down("C")], [1455, up("A")], [1550, up("C")]]);
+    expect(outcome(r.events)).toEqual([["holdOnly", 0, 0, "perfect", 0, 1455, 1455], ["holdOnly", 1, 0, "perfect", 0, 1455, 1620]]);
+  });
+
+  it("NJ-A07 대조: double head 1000 + holdOnly [1000,1060] → [1060,1120]에서 B를 끝까지 쥔 채 A만 1030ms에 떼면 B가 아직 준비하므로 A up이 곧바로 뒤 release Good(−90)이고 1030ms에 확정 (NJ-H03·H07)", () => {
+    const r = playSession([point(1000, "double"), body(1000, 1060, "long", true), body(1060, 1120)], [[1000, down("A"), down("B")], [1030, up("A")]]);
+    expect(releases(r.events)).toEqual([["good", -90, "A", 1030]]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
   });
 
   // 확정 규칙이 하나로 정하지 않는 경우(PRD §12). 현재 엔진 동작을 바꾸지 않고 남긴다.

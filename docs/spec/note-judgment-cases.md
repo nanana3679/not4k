@@ -116,7 +116,7 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 <a id="nj-a07"></a>
 ### NJ-A07 — 이어지는 바디는 E−Good까지만 쥐면 되고, 뗀 키의 시작 준비는 풀려 시작 창 안의 새 키가 이어감
 
-결정 배경은 [RFD 0020 §2.14](../rfd/0020-note-judgment-units-and-inheritance.md#214-이어지는-바디의-유지-기준과-시작-준비-해제--후속-채택)를 따른다. 아래 세 표는 사용자 확인 사례다(2026-10-01).
+결정 배경은 [RFD 0020 §2.14](../rfd/0020-note-judgment-units-and-inheritance.md#214-이어지는-바디의-유지-기준과-시작-준비-해제--후속-채택)를 따른다. 아래 네 표는 사용자 확인 사례다(2026-10-01).
 
 **이어지는 바디와 짧은 뒤 바디.** 차트: head 없는 single `[1000,1500]` → head 없는 double `holdOnly [1500,1560]`(1→2 증가). A down 1000 뒤 A만 뗀다. 앞 E−Good 1380, 뒤 E−Good 1440, 뒤 시작 창 1380~1620.
 
@@ -144,6 +144,12 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 | A up 1455, 뒤가 `[1500,2000]` | 앞 Perfect, 뒤는 새 키가 없어 1620에 시작 실패 |
 | A up 1455 → D down 1470 또는 1550 | D가 뒤 바디를 이어가 D 유지로 E(1560)에 Perfect |
 
+**같은 키 재누름.** 차트: head 없는 `[1000,1500]` → head 없는 double `holdOnly [1500,1560]`. A down 1000 → A up 1455. 사용자 원문: “응 다시 같은 키 눌러도 새로운 입력”.
+
+| 입력 | 기대 결과 |
+|---|---|
+| A down 1500 또는 1510(뗀 A를 다시 누름) | B down 1510(다른 키)과 같다. 새 입력이 아무도 준비하지 않은 증가 unit을 이어 E(1560)에 Perfect, A로 이어진 unit은 1620에 A up으로 Perfect. Full Combo |
+
 아래는 **규칙에서 도출한 대조**다.
 
 | 차트·입력 | 기대 결과 |
@@ -157,6 +163,9 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 | `[1000,1500]` → double `holdOnly [1500,1560]` → `[1560,1570]`. A up 1455 | A로 이어진 unit은 1620에 Perfect, 증가 unit은 1620에 시작 실패, 끝 `[1560,1570]`은 같은 A up이 release Good(−115)이며 1680에 확정. 모든 점수 항목을 한 번씩 정산 |
 | `holdOnly [1000,1500]` → `holdOnly [1500,1540]` → `[1540,1560]`. A up 1450 | 1450 Perfect, 1620 Perfect, 끝 release Good(−110)을 1660에 확정. Full Combo |
 | `[1000,1500]` → double `holdOnly [1500,1540]` → double `holdOnly [1540,1560]`. A up 1450 | A로 이어진 두 unit은 1620·1660에 Perfect, 아무도 누르지 않은 두 unit은 각 시작 창 끝에 시작 실패. Miss 2 |
+| double `holdOnly [1000,1500]` → double `holdOnly [1500,1560]`. A·B down 1000 → A up 1430(뒤 E−Good 1440 전) → B up 1450 | 몫별 판정: B의 몫은 1620에 Perfect, A의 몫은 1620에 시작 실패. Miss 1. B를 1520까지 쥐어도 Miss 1. 뒤가 일반 double `[1500,1560]`이면 B up이 B 몫의 release Good(−110, 1620 확정)이고 Miss 1. C down 1550을 더하면 C가 A의 몫을 이어 Full Combo |
+| double head 1000 + `[1000,1060]` → double `[1060,1120]`. A·B down 1000 → B를 쥔 채 A up 1020 | 형제 몫의 B를 쥐고 있어도 A의 몫은 풀린다. C down 1040 또는 1080 → C up 1110 → B up 1120이면 C up이 release Perfect(−10), B up이 Perfect(0). C를 계속 쥐면 C가 이은 몫만 1240에 release Miss. 새 키가 없으면 A의 몫은 B를 언제 떼든 1180에 A up의 release Good(−100)으로 확정하고, B up 1300이면 B의 몫만 1240에 release Miss |
+| `holdOnly [1000,1500]` → `[1500,1560]` → head 1560 + `[1560,1760]`. A up 1450 → D down 1490(head Great −70) → D up 1760 | 뒤 바디 끝 head의 교대 up(§2.6)으로 A up이 `[1500,1560]`을 잇는다. Full Combo. D down 1500·1510, 첫 시작 1030도 같다 |
 
 모든 표에서 첫 시작을 S+Good 안에서 늦게 눌러도(예: 1030) 판정·등급·확정 시각이 같다(RFD 0020 §2.7). 경계에 head가 있으면 이 사례를 적용하지 않고 [NJ-R16](#nj-r16)을 따른다. 결과가 하나로 정해지지 않은 인접 사례는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
