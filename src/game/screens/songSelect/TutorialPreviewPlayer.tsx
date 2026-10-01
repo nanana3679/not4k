@@ -422,6 +422,8 @@ export function TutorialPreviewPlayer({
       const resumeNow = performance.now();
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
       previousNow = resumeNow;
+      // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
+      if (pausedAtNow !== null) pausedAtNow = resumeNow;
       activeDiagramPause = null;
       setActiveDiagramTimingIfChanged(null);
     };
@@ -549,7 +551,8 @@ export function TutorialPreviewPlayer({
 
           const deltaMs = Math.min(48, now - previousNow);
           previousNow = now;
-          let loopTimeMs = (now - loopStartNow) % preview.loopMs;
+          // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
+          let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
           activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);
           const renderTimeMs = preview.renderStartMs + loopTimeMs;
