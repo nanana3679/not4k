@@ -193,7 +193,11 @@ describe('SkinManager', () => {
     expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v013/skin/point-contact-shadow-trill.png');
     expect(manager.hasTexture('pointContactShadow')).toBe(true);
     expect(manager.hasTexture('pointContactShadowTrill')).toBe(true);
+    // 테마에 pointContactShadow가 남아 있어 이미지 누락 경고가 나온다(#174).
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await manager.loadSkin(base);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('스킨 "classic"에 theme.pointContactShadow는 있지만'));
+    warn.mockRestore();
     expect(manager.hasTexture('pointContactShadow')).toBe(false);
     expect(manager.hasTexture('pointContactShadowTrill')).toBe(false);
     manager.dispose();

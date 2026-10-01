@@ -45,6 +45,15 @@ describe('findSkinManifestWarnings: 접촉 그림자 설정·이미지 불일치
     ]);
   });
 
+  it('theme.pointContactShadow와 assets.pointContactShadowTrill만 있고 assets.pointContactShadow가 없으면 트릴만 접촉 그림자를 쓰므로 싱글·더블 경고 1개를 반환한다', () => {
+    const manifest = classicWith({ id: 'trill-only-contact' }, ['pointContactShadow']);
+
+    expect(findSkinManifestWarnings(manifest)).toEqual([
+      '스킨 "trill-only-contact"에 theme.pointContactShadow는 있지만 assets.pointContactShadow가 없습니다. '
+      + '싱글·더블 포인트에 접촉 그림자를 그리지 않고, pointShadow가 있으면 그것으로 대신합니다.',
+    ]);
+  });
+
   it('theme·assets.pointContactShadow가 있고 pointContactShadowTrill만 없으면 트릴이 의도대로 기존 그림자를 쓰므로 경고하지 않는다', () => {
     const manifest = classicWith({ id: 'no-trill-contact' }, ['pointContactShadowTrill']);
 
