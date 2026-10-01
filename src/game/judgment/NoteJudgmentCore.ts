@@ -411,12 +411,16 @@ export class NoteJudgmentCore {
     if (correction?.status === "absorbed") {
       // The head at the deferred successor's end already succeeded, so this up
       // is its swap now: the successor inherits the up first and is continued
-      // through it, as when the up waits for that head (activateForHead).
+      // through it, as when the up waits for that head (activateForHead). Only
+      // a successor ending at the boundary whose ledger absorbed the up is
+      // continued; when an earlier boundary absorbed it, the others still
+      // choose their share at S (§2.14).
+      const continued = deferred.filter(unit => unit.end === correction.end && unit.lane === correction.lane);
       this.pendingUps.push(token);
-      for (const successor of deferred) this.tryInherit(successor, successor.start);
-      this.pendingUps.splice(this.pendingUps.indexOf(token), 1);
+      for (const successor of continued) this.tryInherit(successor, successor.start);
+      const index = this.pendingUps.indexOf(token); if (index >= 0) this.pendingUps.splice(index, 1);
       token.connectionConsumed = true;
-      const source = deferred.find(unit => unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(token));
+      const source = continued.find(unit => unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(token));
       if (source) { source.complete = true; source.forwarded = true; }
       return;
     }
@@ -901,6 +905,7 @@ export class NoteJudgmentCore {
     this.correctionLedgers.set(ledgerKey, ledger);
     return ledger;
   }
+  /** Registers an up in the ledger of the earliest head boundary it can swap at, and tells which boundary that is. */
   private registerConnectionUp(token: PressToken, key: string, at: number, deferred: readonly UnitState[] = []) {
     const boundary = [...this.units.filter(unit => unit.active && !unit.failed && unit.tokens.some(candidate => candidate === token)), ...deferred]
       .filter(unit => !unit.holdOnly && Math.abs(unit.end - at) <= this.windows.GOOD)
@@ -909,7 +914,8 @@ export class NoteJudgmentCore {
       !this.units.some(unit => unit.start === boundary.end && unit.lane === boundary.lane)) return undefined;
     const correctionId = `up-${this.correctionSerial++}`;
     token.correctionId = correctionId;
-    return this.correctionLedger(boundary.end, boundary.lane).up(correctionId, key, at);
+    const { status } = this.correctionLedger(boundary.end, boundary.lane).up(correctionId, key, at);
+    return { status, end: boundary.end, lane: boundary.lane };
   }
   private tryInherit(u: UnitState, at: number): void {
     if (at < u.start) return;
@@ -951,10 +957,13 @@ export class NoteJudgmentCore {
    * press, preferring a key still held (§2.14). A released key never carries
    * two sibling shares: a share no other press carries is left to a new key
    * in its start window or fails at S+Good. A held key keeps its former,
-   * pool-wide preparation.
+   * pool-wide preparation. One up settles one release: an up another note's
+   * released share takes as its own release carries no share here, while a
+   * holdOnly state completion does not spend it (§2.3).
    */
-  private pickShare(u: UnitState, pool: readonly PressToken[]): PressToken | undefined {
+  private pickShare(u: UnitState, candidates: readonly PressToken[]): PressToken | undefined {
     const siblingShares = new Set((this.unitsByNote.get(u.noteIndex) ?? []).filter(unit => unit !== u).map(unit => unit.share));
+    const pool = candidates.filter(t => !this.units.some(v => v.noteIndex !== u.noteIndex && v.share === t && !v.holdOnly && this.judgesReleasedShare(v)));
     return pool.find(t => t.upAt === undefined && !siblingShares.has(t)) ??
       pool.find(t => !siblingShares.has(t)) ?? pool.find(t => t.upAt === undefined);
   }

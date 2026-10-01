@@ -717,6 +717,19 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     expect(r.unsettled).toEqual([]);
   });
 
+  // 결정 ④에서 도출(PR #188 리뷰 4차 LOW-1): A up이 가운데 바디를 충족하지 못해도 그 끝 head를 친 down은 head에 준다. D를 가운데 바디에 주는 해석과 Miss 수는 같고 Miss가 생기는 노트만 다르다.
+  it("NJ-A07 ④ 도출: holdOnly [1000,1500] → [1500,1560] → head 1560 + [1560,1760]에서 A up 1430(가운데 E−Good 1440 전) 뒤 D down 1490이면 D는 head Great(−70)이고 가운데 바디는 1620ms 시작 실패로 Miss 1, D up 1760은 끝 release Perfect", () => {
+    const r = playSession(headedTail(), [[1000, down("A")], [1430, up("A")], [1490, down("D")], [1760, up("D")]]);
+    expect(outcome(r.events)).toEqual([
+      ["holdOnly", 0, 0, "perfect", 0, 1430, 1430],
+      ["head", 2, 0, "great", -70, 1490, 1490],
+      ["maintenanceMiss", 1, 0, "miss", 120, null, 1620],
+      ["release", 3, 0, "perfect", 0, 1760, 1760],
+    ]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+    expect(r.unsettled).toEqual([]);
+  });
+
   // PR #188 리뷰 3차 HIGH-2: 위와 순서만 바꿔 head를 먼저 치고 A를 나중에 떼도(레가토 교대: 누르고 떼기) 같은 결과다.
   // head가 이미 성공했으면 A up은 곧바로 그 head의 교대 up으로 쓰이므로, S까지 미룬 [1500,1560]의 승계가 먼저 그 up을 이어받는다.
   it.each([
@@ -733,6 +746,23 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
       ["release", 3, 0, "perfect", 0, end + 200, end + 200],
     ]);
     expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  // PR #188 리뷰 4차 HIGH-1: 위 역순 처리는 S까지 미룬 뒤 바디의 끝 head가 그 up을 교대 up으로 쓸 때만 적용한다. A up이 이미 성공한
+  // 더 이른 head 경계(1120)의 교대 up으로 쓰이면, 그 경계와 무관한 [1200,1240]은 그 up을 이어받지 않고 S에 종전대로 몫을 고른다.
+  it.each([1200, 1199])("NJ-A07 지연 승계 경계 구분: head 1000 + [1000,1120] → double head 1120 + holdOnly [1120,1200] → doubleLong holdOnly [1200,1240]에서 A down 1000·B head 1175·B up과 C head 1195 뒤 A를 %ims에 떼면 A up은 head 1120의 교대 up이라 뒤 바디를 잇지 않고, B로 이어진 unit은 1320ms Perfect·남은 unit은 1320ms 시작 실패로 Miss 1이며 모든 점수 항목을 한 번씩 정산", (aUp) => {
+    const r = playSession([point(1000), body(1000, 1120), point(1120, "double"), body(1120, 1200, "long", true), body(1200, 1240, "doubleLong", true)],
+      [[1000, down("A")], [1175, down("B")], [1195, up("B"), down("C")], [aUp, up("A")], [1280, up("C")]]);
+    expect(outcome(r.events)).toEqual([
+      ["head", 0, 0, "perfect", 0, 1000, 1000],
+      ["head", 2, 0, "great", 55, 1175, 1175],
+      ["holdOnly", 3, 0, "perfect", 0, 1195, 1195],
+      ["head", 2, 1, "great", 75, 1195, 1195],
+      ["holdOnly", 4, 0, "perfect", 0, 1195, 1320],
+      ...startFail(4, 1, 1320),
+    ]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
     expect(r.unsettled).toEqual([]);
   });
 
@@ -1129,6 +1159,37 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     expect(r.unsettled).toEqual([]);
   });
 
+  // PR #188 리뷰 4차 MEDIUM-1: 한 up은 release 하나에만 쓰이므로(§2.14 몫별 판정), 다른 노트의 뗀 몫이 자기 release로 판정할 up은
+  // 끝 바디의 몫으로 고르지 않는다. 끝 바디를 충족할 수 있는 up이 없으면 결정 ③대로 E 이후에도 S+Good까지 새 down으로 시작한다.
+  const spentShare = () => [point(1000, "double"), body(1000, 1500), body(1500, 1560, "doubleLong"), body(1560, 1600)];
+  const spentShareStart: Step[] = [[1000, down("A"), down("B")], [1450, up("B")], [1485, up("A")]];
+
+  const spentShareDecrease = ["release", 2, 0, "great", -75, 1485, 1620];
+  it.each([
+    // 같은 1620ms에서는 C up 입력이 시작 창 기한(1620)의 감소 release보다 먼저 확정된다.
+    [1610, 1620, [["release", 3, 0, "perfect", 20, 1620, 1620], spentShareDecrease]],
+    [1630, 1640, [spentShareDecrease, ["release", 3, 0, "perfect", 40, 1640, 1640]]],
+  ] as const)("NJ-A07 ③ 한 up 한 release: double head 1000 + [1000,1500] → doubleLong [1500,1560] → [1560,1600]에서 A·B down 1000 뒤 B up 1450(끝 E−Good 1480 전)·A up 1485면 A up은 감소 release Great(−75)로만 쓰여 끝 바디를 충족하는 up이 없으므로, 끝 E 1600 이후 %ims에 누른 C가 끝 바디를 시작해 C up %ims이 release Perfect이고 Full Combo", (cAt, cUp, expected) => {
+    const r = playSession(spentShare(), [...spentShareStart, [cAt, down("C")], [cUp, up("C")]]);
+    expect(outcome(r.events.filter((event) => event.noteIndex >= 2))).toEqual(expected);
+    expect(releaseKeys(r.events).sort()).toEqual(["A", "C"]);
+    expect(r.state.isFullCombo).toBe(true);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 ③ 한 up 한 release 대조: 같은 차트에서 B up 1450·A up 1485 뒤 새 키가 없으면 A up은 감소 release Great(−75)이고 끝 [1560,1600]은 1680ms 시작 실패로 Miss 1", () => {
+    const r = playSession(spentShare(), spentShareStart);
+    expect(outcome(r.events.filter((event) => event.noteIndex >= 2))).toEqual([["release", 2, 0, "great", -75, 1485, 1620], ...startFail(3, 0, 1680)]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("NJ-A07 ③ 한 up 한 release 대조: 같은 차트에서 B up 1450·A up 1485 뒤 끝 E 전 1590ms에 누른 C는 끝 바디를 시작해 C up 1600이 release Perfect(0)이고 Full Combo (종전과 같음)", () => {
+    const r = playSession(spentShare(), [...spentShareStart, [1590, down("C")], [1600, up("C")]]);
+    expect(outcome(r.events.filter((event) => event.noteIndex >= 2))).toEqual([["release", 3, 0, "perfect", 0, 1600, 1600], ["release", 2, 0, "great", -75, 1485, 1620]]);
+    expect(r.state.isFullCombo).toBe(true);
+  });
+
   it("NJ-A07 관측 지연(obsGeneral 4718): [1000,1100] → doubleLong holdOnly [1100,1600]에서 A up(raw 1095, 뒤 E−Good 1480 전)을 뒤 S 이후 1102ms에 늦게 관측해도 raw 그대로 처리한 것과 같이 뒤 두 unit이 1220ms 시작 실패", () => {
     const notes = [body(1000, 1100), body(1100, 1600, "doubleLong", true)];
     const observed = playObservedSession(notes, [[1000, 1000, down("A")], [1095, 1102, up("A")]]);
@@ -1154,6 +1215,28 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     const raw = playSession(notes, [[1000, down("A")], [1020, up("A")], [1160, down("C")], [1170, up("C")]]);
     expect(observed.filter((event) => event.noteIndex === 1).map((event) => [event.kind, event.grade, event.deltaMs, event.key])).toEqual([["release", "perfect", 20, "C"]]);
     expect(outcome(raw.events.filter((event) => event.noteIndex === 1))).toEqual(outcome(observed.filter((event) => event.noteIndex === 1)));
+  });
+
+  // PR #188 리뷰 4차 LOW-2: 뗀 키의 up이 뒤 바디의 E−Good과 같은 시각이면 그 몫을 충족하므로(경계 포함) 결정 ②의 E 기한을 적용한다.
+  it("NJ-A07 ② 인수 기한 경계: holdOnly [1000,1200] → [1200,1300]에서 A up(raw 1180 = 뒤 E−Good)을 뒤 S 이후 1205ms에 늦게 관측하면 A up이 뒤 바디를 충족하므로 E 1300 이후 1310ms의 C down은 뒤 바디를 이어받지 않고 뒤는 A up의 release Good(−120)을 1320ms에 확정하며 raw 처리와 같음", () => {
+    const notes = [body(1000, 1200, "long", true), body(1200, 1300)];
+    const observed = playObservedSession(notes, [[1000, 1000, down("A")], [1180, 1205, up("A")], [1310, 1310, down("C")], [1330, 1330, up("C")]]);
+    const raw = playSession(notes, [[1000, down("A")], [1180, up("A")], [1310, down("C")], [1330, up("C")]]);
+    expect(outcome(observed.filter((event) => event.noteIndex === 1))).toEqual([["release", 1, 0, "good", -120, 1180, 1320]]);
+    expect(observed.filter((event) => event.kind === "release").map((event) => event.key)).toEqual(["A"]);
+    expect(outcome(raw.events.filter((event) => event.noteIndex === 1))).toEqual(outcome(observed.filter((event) => event.noteIndex === 1)));
+  });
+
+  // PR #188 리뷰 4차 MEDIUM-3: 뒤 S 이후에 관측한 up의 raw 시각이 S 전이면, 그 up을 처리하기 전에 그 키로 고른 몫을 S 시점처럼 다시 고른다(§2.14).
+  // 그러지 않으면 아직 쥔 것으로 고른 A가 뗀 몫이 되어 이 up을 release로 받지 못하고 E+Good에 release Miss가 된다.
+  it("NJ-A07 관측 지연 몫 재선택: double head 1000 + doubleLong holdOnly [1000,1200] → [1200,1260]에서 A·B down 1000 뒤 A up(raw 1195, 뒤 S 전)을 뒤 S 이후 1215ms에 늦게 관측하면 A up이 뒤 release Great(−65)로 1215ms에 확정되고 Miss 없음", () => {
+    const observed = playObservedSession([point(1000, "double"), body(1000, 1200, "doubleLong", true), body(1200, 1260)],
+      [[1000, 1000, down("A"), down("B")], [1195, 1215, up("A")]]);
+    expect(outcome(observed)).toEqual([
+      ["head", 0, 0, "perfect", 0, 1000, 1000], ["head", 0, 1, "perfect", 0, 1000, 1000],
+      ["holdOnly", 1, 0, "perfect", 0, null, 1200], ["holdOnly", 1, 1, "perfect", 0, null, 1200],
+      ["release", 2, 0, "great", -65, 1195, 1215],
+    ]);
   });
 
   // PR #188 리뷰 3차 HIGH-3, 사용자 결정 "b"(2026-10-01): 아래는 확정 규칙의 기대 결과다. 형제 키를 쥔 채 뗀 몫을 S 이후에 새 키나
