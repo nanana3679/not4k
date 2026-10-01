@@ -418,18 +418,44 @@ test.describe("Note Assets Lab", () => {
     await page.goto("/lab/note-assets");
 
     await page.getByRole("button", { name: /대각 섬광/ }).first().click();
+    // 키봄은 판정마다 약 0.3초만 붙었다 사라진다(0.5초 간격). 간격 폴링은 빈틈과 위상이 맞으면 계속 놓치므로
+    // 첫 키봄이 붙는 순간을 페이지 안에서 잡아 그 시점의 속성과 위치를 잰다.
+    const firstBomb = page.evaluate(() => new Promise<{
+      style: string | null;
+      lane: string | null;
+      centerDx: number | null;
+      centerDy: number | null;
+    } | null>((resolve) => {
+      const timeoutId = window.setTimeout(() => { observer.disconnect(); resolve(null); }, 5000);
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          for (const node of Array.from(mutation.addedNodes)) {
+            if (!(node instanceof HTMLElement) || !node.classList.contains("asset-lab-live-bomb")) continue;
+            observer.disconnect();
+            window.clearTimeout(timeoutId);
+            const canvas = document.querySelector('[data-tutorial-preview-canvas="true"]')!.getBoundingClientRect();
+            const effectElement = node.querySelector(".asset-lab-keybomb");
+            const effect = effectElement?.getBoundingClientRect();
+            resolve({
+              style: effectElement?.getAttribute("data-style") ?? null,
+              lane: node.getAttribute("data-live-bomb-lane"),
+              centerDx: effect ? effect.x + effect.width / 2 - (canvas.x + canvas.width * .375) : null,
+              centerDy: effect ? effect.y + effect.height / 2 - (canvas.y + canvas.width * 280 / 400) : null,
+            });
+            return;
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }));
     await page.getByRole("button", { name: "싱글", exact: true }).click();
-    const liveBomb = page.locator(".asset-lab-live-bomb");
-    await expect(liveBomb).toBeAttached({ timeout: 5000 });
-    await expect(liveBomb.locator(".asset-lab-keybomb")).toHaveAttribute("data-style", "diagonal");
-    await expect(liveBomb).toHaveAttribute("data-live-bomb-lane", "2");
-    await expect.poll(() => page.evaluate(() => {
-      const canvas = document.querySelector('[data-tutorial-preview-canvas="true"]')!.getBoundingClientRect();
-      const effect = document.querySelector('.asset-lab-live-bomb .asset-lab-keybomb')?.getBoundingClientRect();
-      if (!effect) return false;
-      return Math.abs(effect.x + effect.width / 2 - (canvas.x + canvas.width * .375)) < 2
-        && Math.abs(effect.y + effect.height / 2 - (canvas.y + canvas.width * 280 / 400)) < 2;
-    })).toBe(true);
+
+    const bomb = await firstBomb;
+    expect(bomb, "5초 안에 키봄이 붙지 않음").not.toBeNull();
+    expect(bomb?.style).toBe("diagonal");
+    expect(bomb?.lane).toBe("2");
+    expect(Math.abs(bomb?.centerDx ?? Infinity)).toBeLessThan(2);
+    expect(Math.abs(bomb?.centerDy ?? Infinity)).toBeLessThan(2);
   });
 
   test("390px 화면에서 튜토리얼 재생기와 44px 조절 버튼이 문서 너비 안에 표시", async ({ page }) => {

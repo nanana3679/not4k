@@ -14,7 +14,7 @@ export function resumeTutorialLoopStart(loopStartNow: number, pausedAtNow: numbe
 }
 
 /**
- * 한 프레임만큼 시계를 진행한다. 멈춘 동안은 처음 멈춘 시각만 기록하고 frozen을 돌려준다(판정 진행·렌더를 하지 않는다).
+ * 한 프레임만큼 시계를 진행한다. 멈춘 동안은 마지막으로 그린 프레임 시각을 멈춘 시각으로 기록하고 frozen을 돌려준다(판정 진행·렌더를 하지 않는다).
  * 재개한 첫 프레임에는 멈춘 시간만큼 loopStartNow를 미루고 previousNow를 지금으로 맞춰 deltaMs가 튀지 않게 한다.
  */
 export function stepTutorialLoopClock(
@@ -23,7 +23,8 @@ export function stepTutorialLoopClock(
   paused: boolean,
 ): { next: TutorialLoopClock; frozen: boolean } {
   if (paused) {
-    return { next: { ...clock, pausedAtNow: clock.pausedAtNow ?? now, previousNow: now }, frozen: true };
+    // 멈춘 장면은 마지막으로 그린 프레임(previousNow)이므로, 그 시각을 멈춘 시각으로 삼아 재개 시 그 장면에서 정확히 잇는다.
+    return { next: { ...clock, pausedAtNow: clock.pausedAtNow ?? clock.previousNow, previousNow: now }, frozen: true };
   }
   if (clock.pausedAtNow === null) return { next: clock, frozen: false };
   return {
