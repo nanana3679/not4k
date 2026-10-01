@@ -51,6 +51,40 @@ test('390px v012 직접 링크와 새로고침은 v012를 유지하고 Simple �
   await expect(page.getByText('PLAYER READY')).toBeVisible();
 });
 
+test('현재 적용본→v012 전환 뒤 v012를 두 번 더 골라도 뒤로가기 한 번에 현재 적용본으로 돌아간다', async ({ page }) => {
+  await page.goto('/lab/note-assets?design=classic');
+  const version = page.getByLabel('버전', { exact: true });
+  await version.selectOption('v012');
+  await expect(page).toHaveURL(/version=v012/);
+  await expect(page.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic-v012');
+  await version.selectOption('v012');
+  await version.selectOption('v012');
+  await expect(page).toHaveURL(/version=v012/);
+  await page.goBack();
+  await expect(page).not.toHaveURL(/version=/);
+  await expect(version).toHaveValue('current');
+  await expect(page.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic');
+});
+
+test('첫 방문에서 이미 선택된 Classic을 누르면 주소만 design=classic이 되고, Simple 전환 뒤 Simple을 두 번 더 눌러도 뒤로가기 한 번에 Classic·한 번 더에 /lab으로 돌아간다', async ({ page }) => {
+  await page.goto('/lab');
+  await page.goto('/lab/note-assets');
+  await page.getByRole('button', { name: 'Classic', exact: true }).click();
+  await expect(page).toHaveURL(/\/lab\/note-assets\?design=classic$/);
+  const simple = page.getByRole('button', { name: 'Simple', exact: true });
+  await simple.click();
+  await expect(page.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'simple');
+  await simple.click();
+  await simple.click();
+  await expect(page).toHaveURL(/design=simple/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab\/note-assets\?design=classic$/);
+  await expect(page.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic');
+  await expect(page.getByLabel('버전', { exact: true })).toHaveValue('current');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lab$/);
+});
+
 test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그림자로 경계 2px 대비 하위 5%가 대기·홀드 모두 3:1 이상이고 그림자가 없는 v012는 2:1 미만이다', async ({ page }, testInfo) => {
   await page.goto('/lab');
   const result = await page.evaluate(async () => {
