@@ -319,6 +319,15 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     expect(h.score.getState().processedNotes).toBe(h.compiled.scoreItems.length);
   });
 
+  it("NJ-R16: 뒤 바디 [1000,1100] 뒤에 double [1100,2000]이 이어지면 1015ms에 A를 뗀 뒤 head 입력이 없을 때 1120ms head Miss와 끝 기한 1220ms의 [1000,1100] 유지 Miss로 확정하고 release Miss는 없음", () => {
+    const h = createHarness([point(0), body(0, 1000), point(1000), body(1000, 1100), body(1100, 2000, "doubleLong")]);
+    h.at(0, { key: "A", type: "down" }); h.at(1015, { key: "A", type: "up" }); h.at(1400);
+    expect(heads(h).filter(e => e.grade === "miss").map(e => [e.noteIndex, e.confirmedAt])).toEqual([[2, 1120]]);
+    expect(releases(h)).toHaveLength(0);
+    expect(maintenance(h).map(e => [e.noteIndex, e.unitIndex, e.confirmedAt])).toEqual([[3, 0, 1220], [4, 0, 1220], [4, 1, 1220]]);
+    expect(h.score.getState().processedNotes).toBe(h.compiled.scoreItems.length);
+  });
+
   /** NJ-R16 2→1 감소: double head 0 + doubleLong [0,1000] → single head 1000 + single. A/B down 0으로 시작해 C로 연결 head를 친다. */
   function decreaseSession(notes: readonly NoteEntity[], steps: readonly (readonly [number, ...CaseInput[]])[]) {
     const starts = new Map(notes.map((note, index) => [index, note.beat.n / note.beat.d] as [number, number]));
@@ -360,5 +369,32 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     ]);
     expect(s.events.filter(e => e.kind === "maintenanceMiss")).toHaveLength(0);
     expect(state).toMatchObject({ processedNotes: 5, totalNotes: 5, isFullCombo: fullCombo });
+  });
+
+  it.each([
+    ["C head 1080ms 뒤 B up 1100ms이면 앞 double release Good(+100)·Full Combo·80%", [[1080, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]], { grade: "good", deltaMs: 100, confirmedAt: 1100 }, { isFullCombo: true, achievementRate: 80 }],
+    ["C head 1080ms 뒤 B를 1300ms까지 유지하면 앞 double release 1120ms Miss·Full Combo 해제", [[1080, { key: "C", type: "down" }], [1150, { key: "C", type: "up" }], [1300, { key: "B", type: "up" }]], { grade: "miss", deltaMs: 120, confirmedAt: 1120 }, { isFullCombo: false }],
+    ["C head 1030ms(뒤 바디 끝 1060ms 전) 뒤 B up 1100ms이면 앞 double release Good(+100)·Full Combo", [[1030, { key: "C", type: "down" }], [1100, { key: "B", type: "up" }], [1150, { key: "C", type: "up" }]], { grade: "good", deltaMs: 100, confirmedAt: 1100 }, { isFullCombo: true }],
+  ] as const)("NJ-R16 2→1 감소: 짧은 holdOnly 뒤 바디 [1000,1060]이 1015ms A up으로 연결 head보다 먼저 완료돼도 %s이고 5개 항목을 모두 정산", (_label, steps, front, result) => {
+    const { s, state } = decreaseSession([point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 1060, "long", true)], [
+      [1015, { key: "A", type: "up" }], ...steps,
+    ]);
+    expect(s.events.filter(e => e.kind === "holdOnly")).toEqual([expect.objectContaining({ noteIndex: 3, grade: "perfect", confirmedAt: 1015 })]);
+    expect(s.events.filter(e => e.kind === "release")).toEqual([expect.objectContaining({ noteIndex: 1, ...front })]);
+    expect(s.events.filter(e => e.kind === "maintenanceMiss")).toHaveLength(0);
+    expect(state).toMatchObject({ processedNotes: 5, totalNotes: 5, ...result });
+  });
+
+  it("NJ-R16 2→1 감소: 970ms에 C로 연결 head 1060을 먼저 친 뒤 A up 1005ms가 연결 up으로 보류되고 C up 1085ms가 앞 doubleLong [1000,1060]의 release 1개를 정산하면 1180ms 연결 head 기한에 A up을 두 번째 release로 내보내지 않아 세션 예외 없이 7개 항목을 한 번씩 정산", () => {
+    let result: ReturnType<typeof decreaseSession> | undefined;
+    expect(() => {
+      result = decreaseSession([point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060, "doubleLong"), point(1060), body(1060, 1160)], [
+        [970, { key: "C", type: "down" }], [1005, { key: "A", type: "up" }], [1085, { key: "C", type: "up" }], [1155, { key: "B", type: "up" }],
+      ]);
+    }).not.toThrow();
+    expect(result!.s.events.filter(e => e.kind === "release" && e.noteIndex === 2)).toEqual([
+      expect.objectContaining({ itemId: "n2:release:0", key: "C", grade: "perfect", deltaMs: 25, confirmedAt: 1085 }),
+    ]);
+    expect(result!.state).toMatchObject({ processedNotes: 7, totalNotes: 7 });
   });
 });

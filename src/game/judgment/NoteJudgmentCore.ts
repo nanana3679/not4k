@@ -571,13 +571,15 @@ export class NoteJudgmentCore {
       const pendingIndex = this.pendingUps.indexOf(pendingToken);
       if (pendingIndex >= 0) this.pendingUps.splice(pendingIndex, 1);
       const source = this.units.find(unit => unit.lane === this.notes[noteIndex].lane && unit.end === headStart && unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(pendingToken));
-      // The swap hands over one continuing share. When the successor already
-      // started by inheritance before this head and has not completed, that
-      // share was forwarded through a non-terminal unit, so a terminal source
+      // The swap hands over one continuing share. When the source note already
+      // forwarded that share through another unit (the successor inherited
+      // before this head, even if it has since completed: a short holdOnly
+      // body or one already forwarded into an increase), a terminal source
       // here owns the 2→1 decrease release and stays open for its real up or
-      // E+Good Miss. A successor that already completed keeps the old close.
-      const successorStarted = this.units.some(unit => unit.lane === this.notes[noteIndex].lane && unit.start === headStart && unit.active && !unit.complete);
-      if (source && !(source.terminal && successorStarted)) { source.complete = true; source.forwarded = true; }
+      // E+Good Miss.
+      const siblingForwarded = source !== undefined &&
+        (this.unitsByNote.get(source.noteIndex) ?? []).some(unit => unit !== source && unit.forwarded);
+      if (source && !(source.terminal && siblingForwarded)) { source.complete = true; source.forwarded = true; }
     }
     const own = this.units.filter(x => x.noteIndex === noteIndex && x.unitIndex === unitIndex && !x.active && !x.failed && !x.complete)[0];
     if (own) this.startUnit(own, key, token, at, false);
