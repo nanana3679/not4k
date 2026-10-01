@@ -349,7 +349,7 @@ double에서 두 release를 서로 다른 시점에 수행하는 것. `D=-`에�
 
 ### 감소 release
 
-연결 경계에서 필요한 unit 수가 줄어드는 몫에 대한 실제 release이다. head 없는 일반 2→1(`D=-`)은 한 번의 실제 keyup을 요구한다. 2→1 경계에 head가 있으면 그 head가 경계의 판정이며 감소 release는 없다. A·B를 모두 떼고 새 키로 head를 치는 입력과 한 키만 새 키로 옮기고 다른 키를 계속 쥐는 입력 모두 정당하다([RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)). 2→1에 `holdOnly`가 붙으면 실제 감소를 면제하고 앞 double의 두 unit을 각각 상태 판정한다.
+연결 경계에서 필요한 unit 수가 줄어드는 몫에 대한 실제 release이다. head 없는 일반 2→1(`D=-`)은 한 번의 실제 keyup을 요구한다. 2→1 경계에 head가 있으면 그 head가 경계의 판정이며 감소 release는 없다(구현은 #181 대기. 그 전까지 엔진은 이 경계의 감소 release를 남은 키의 실제 up 또는 끝 기한의 Miss로 정확히 한 번 정산한다). A·B를 모두 떼고 새 키로 head를 치는 입력과 한 키만 새 키로 옮기고 다른 키를 계속 쥐는 입력 모두 정당하다([RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)). 2→1에 `holdOnly`가 붙으면 실제 감소를 면제하고 앞 double의 두 unit을 각각 상태 판정한다.
 
 ### `connection` 판정
 
