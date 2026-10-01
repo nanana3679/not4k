@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NoteEntity } from "../../shared/types";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
+import type { NoteJudgmentEvent } from "./NoteJudgmentCore";
 import { NoteJudgmentSession } from "./NoteJudgmentSession";
 import { body, counts, createHarness, judgments, point } from "./noteJudgmentTestHarness";
 
@@ -307,4 +308,114 @@ describe("NJ-H08: 늦게 시작한 holdOnly의 승계", () => {
     ]);
     expect(h.events.filter((event) => event.kind === "release")).toEqual([]);
   });
+});
+
+describe("#180: E+Good까지 미확정인 holdOnly unit의 정산", () => {
+  type Step = readonly [number, ...Input[]];
+
+  /** 실제 NoteJudgmentSession으로 끝까지 재생해 정산 예외를 잡고, 한 번도 정산하지 않은 점수 항목을 함께 돌려준다. */
+  function playSession(notes: readonly NoteEntity[], steps: readonly Step[]) {
+    const starts = new Map(notes.map((note, index) => [index, note.beat.n / note.beat.d] as [number, number]));
+    const ends = new Map<number, number>();
+    notes.forEach((note, index) => { if ("endBeat" in note) ends.set(index, note.endBeat.n / note.endBeat.d); });
+    const compiled = compileJudgmentChart(notes, starts, ends);
+    const session = new NoteJudgmentSession(compiled);
+    let error: string | undefined;
+    try {
+      for (const [at, ...inputs] of steps) session.processBatch(at, inputs.map((input) => ({ ...input, lane: input.lane ?? 1 })));
+      session.finalize();
+    } catch (caught) {
+      error = (caught as Error).message;
+    }
+    const settled = new Set(session.events.filter((event) => event.kind !== "maintenanceMiss").map((event) => event.itemId));
+    return {
+      error,
+      events: session.events,
+      state: session.score.getState(),
+      unsettled: compiled.scoreItems.map((item) => item.itemId).filter((itemId) => !settled.has(itemId)),
+    };
+  }
+  const missTimeline = (events: readonly NoteJudgmentEvent[]) => events.filter((event) => event.grade === "miss")
+    .map((event) => [event.kind, event.noteIndex, event.confirmedAt]);
+  const timeline = (events: readonly NoteJudgmentEvent[]) => events
+    .map((event) => [event.kind, event.noteIndex, event.unitIndex, event.itemId, event.grade, event.deltaMs, event.confirmedAt]);
+
+  /** 이슈 #180 본문 차트: head 1000 + [1000,1100] → head 1100 + holdOnly [1100,1160]. A down 1000으로 시작한다. */
+  const issueChart = () => [point(1000), body(1000, 1100), point(1100), body(1100, 1160, "long", true)];
+
+  it("#180 회귀: head 1000 + [1000,1100] → head 1100 + holdOnly [1100,1160]에서 A를 경계 1100ms에 떼고 입력이 없으면 세션 예외 없이 1220ms에 head Miss 하나와 holdOnly 끝의 종속 0점으로 정리", () => {
+    const r = playSession(issueChart(), [[1000, down("A")], [1100, up("A")]]);
+    expect(r.error).toBeUndefined();
+    expect(missTimeline(r.events)).toEqual([["head", 2, 1220], ["dependentZero", 3, 1220]]);
+    expect(r.events.filter((event) => event.kind === "release" || event.kind === "maintenanceMiss")).toEqual([]);
+    expect(r.unsettled).toEqual([]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+  });
+
+  it("#180 회귀 대조: 같은 차트에서 A를 경계 전 1095ms에 떼면 1100ms에 뗀 실행과 판정·점수 항목·확정 시각이 같음 (NJ-R08)", () => {
+    const at1095 = playSession(issueChart(), [[1000, down("A")], [1095, up("A")]]);
+    const at1100 = playSession(issueChart(), [[1000, down("A")], [1100, up("A")]]);
+    expect(at1095.error).toBeUndefined();
+    expect(timeline(at1095.events)).toEqual(timeline(at1100.events));
+  });
+
+  it("#180 회귀 대조: 같은 차트에서 A를 holdOnly 끝 1160ms 뒤 1200ms까지 쥐면 1160ms holdOnly Perfect와 1220ms head Miss이고 종속 0점은 없음", () => {
+    const r = playSession(issueChart(), [[1000, down("A")], [1200, up("A")]]);
+    expect(r.error).toBeUndefined();
+    expect(r.events.filter((event) => event.kind === "holdOnly").map((event) => [event.noteIndex, event.grade, event.confirmedAt])).toEqual([[3, "perfect", 1160]]);
+    expect(missTimeline(r.events)).toEqual([["head", 2, 1220]]);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("#180 회귀 대조: 같은 차트에서 A를 경계 뒤 1105ms에 떼면 세션 예외 없이 점수 항목 3개를 한 번씩 정산하고 Miss는 head 하나", () => {
+    const r = playSession(issueChart(), [[1000, down("A")], [1105, up("A")]]);
+    expect(r.error).toBeUndefined();
+    expect(r.unsettled).toEqual([]);
+    expect(r.state.judgmentCounts.miss).toBe(1);
+  });
+
+  // PRD §12에서 추적하는 RFD 0020 §2.12의 남은 차이(R1). #180과 별개인 이른 완료 경로다.
+  it.todo("R1: 같은 차트에서 경계 뒤 A up 1105ms(holdOnly E−Good 1040 이후)도 §2.12에 따라 1095ms와 같은 head Miss·종속 0점이어야 하나 현재 이른 완료로 holdOnly Perfect(1105ms)");
+
+  it.each([
+    ["head 없는 [1000,1500]", 1455, () => [body(1000, 1500), body(1500, 1560, "doubleLong", true)]],
+    ["head 1000 + [1000,1500]", 1470, () => [point(1000), body(1000, 1500), body(1500, 1560, "doubleLong", true)]],
+  ] as const)("#180: %s → head 없는 doubleLong holdOnly [1500,1560] 증가에서 A down 1000 뒤 경계 전 %ims에 떼고 입력이 없으면 세션 예외 없이 holdOnly에 release 판정이 없고, 시작 입력 없는 증가 unit은 1620ms 유지 Miss와 종속 0점이며, 모든 점수 항목을 한 번씩 정산", (_label, upAt, chart) => {
+    const notes = chart();
+    const holdOnlyIndex = notes.length - 1;
+    const r = playSession(notes, [[1000, down("A")], [upAt, up("A")]]);
+    expect(r.error).toBeUndefined();
+    expect(r.events.filter((event) => event.kind === "release")).toEqual([]);
+    expect(r.events.filter((event) => event.noteIndex === holdOnlyIndex && event.unitIndex === 1).map((event) => [event.kind, event.confirmedAt]))
+      .toEqual([["maintenanceMiss", 1620], ["dependentZero", 1620]]);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it("#180: head 없는 doubleLong [1000,1200] → holdOnly [1200,1260] 2→1 감소에서 A/B down 1000 → B up 1160 → A up 1170 → D down 1180이면 세션 예외 없이 B up이 감소 release Perfect(-40)이고 holdOnly에는 release 판정 없이 모든 점수 항목을 한 번씩 정산", () => {
+    const r = playSession([body(1000, 1200, "doubleLong"), body(1200, 1260, "long", true)], [
+      [1000, down("A"), down("B")], [1160, up("B")], [1170, up("A")], [1180, down("D")],
+    ]);
+    expect(r.error).toBeUndefined();
+    expect(r.events.filter((event) => event.kind === "release").map((event) => [event.noteIndex, event.grade, event.deltaMs, event.key]))
+      .toEqual([[0, "perfect", -40, "B"]]);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  it.each([
+    ["끝 holdOnly [1500,1560]", 2, () => [body(1000, 1500, "long", true), body(1500, 1560, "long", true)]],
+    ["holdOnly [1500,1560] → holdOnly [1560,2060]", 3, () => [body(1000, 1500, "long", true), body(1500, 1560, "long", true), body(1560, 2060, "long", true)]],
+  ] as const)("#180: head 없는 holdOnly [1000,1500] → %s 체인에서 A down 1000 뒤 1455ms에 떼면 앞 holdOnly는 이른 완료 Perfect(1455ms)이고 세션 예외·release 판정 없이 holdOnly 점수 항목 %i개를 모두 한 번씩 정산", (_label, items, chart) => {
+    const r = playSession(chart(), [[1000, down("A")], [1455, up("A")]]);
+    expect(r.error).toBeUndefined();
+    expect(r.events.filter((event) => event.kind === "holdOnly" && event.noteIndex === 0).map((event) => [event.grade, event.confirmedAt])).toEqual([["perfect", 1455]]);
+    expect(r.events.filter((event) => event.kind === "release")).toEqual([]);
+    expect(r.state.totalNotes).toBe(items);
+    expect(r.unsettled).toEqual([]);
+  });
+
+  // 아래는 확정 규칙만으로 결과가 하나로 정해지지 않아 사용자 결정이 필요하다(PRD §12). 현재 엔진은 경계 전 보류 up으로만
+  // 이어진 holdOnly unit을 E+Good에 상태 Miss(유지 Miss와 종속 0점)로 정산한다.
+  it.todo("#180 미정: head 없는 [1000,1500] → doubleLong holdOnly [1500,1560]에서 경계 전 A up 1455ms(뒤 holdOnly E−Good 1440 이후)로만 이어진 unit0이 S+Good 1620ms 시작 실패인지, NJ-H07처럼 이른 완료 Perfect인지, A up 1430ms처럼 앞 바디 유지 Miss가 더해지는지 (현재 1680ms 상태 Miss)");
+  it.todo("#180 미정: head 없는 doubleLong [1000,1200] → holdOnly [1200,1260]에서 B up 1160 → A up 1170 → D down 1180이면 D down이 holdOnly의 자기 시작인지(1260ms Perfect), A up으로만 이어진 holdOnly가 1320ms 시작 실패인지, 이른 완료 Perfect인지 (현재 1380ms 상태 Miss, D down 미소비)");
+  it.todo("#180 미정: head 없는 holdOnly [1000,1500] → holdOnly [1500,1560]에서 A up 1455ms의 앞 holdOnly 이른 완료가 뒤 holdOnly까지 완료하는지 (현재 뒤 holdOnly는 1680ms 상태 Miss)");
 });

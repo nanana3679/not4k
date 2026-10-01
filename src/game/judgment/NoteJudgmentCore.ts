@@ -550,8 +550,16 @@ export class NoteJudgmentCore {
       const blockedByMissedHead = this.points.some(p => p.missed && p.lane === u.lane && p.at === u.end);
       if (u.active && !u.failed && !u.complete && !u.forwarded && (at > u.end + this.windows.GOOD || (inclusiveDeadline && at >= u.end + this.windows.GOOD))) {
         u.failed = true;
-        if (u.terminal && !blockedByMissedHead) this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
-        else this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        // A holdOnly end is a Perfect/Miss state judgment and owns no release
+        // item (#180). A pending up can keep such a unit alive to this
+        // deadline; it fails as a state Miss and settles its own holdOnly
+        // item as dependent 0 exactly once, terminal or not.
+        if (u.terminal && !u.holdOnly && !blockedByMissedHead) this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        else {
+          this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+          const itemId = u.holdOnly ? this.takeUnitScoreItem(u) : undefined;
+          if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        }
       }
     }
   }

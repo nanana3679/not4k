@@ -16,16 +16,10 @@ const SWAP_SEEDS = 3000;
 const START = 1000;
 const LATE_FIRST_HEAD = 30;
 const KEYS = ["A", "B", "C", "D"] as const;
-/**
- * main에도 있는 별개 결함 #180: 뒤 바디가 없는 끝 holdOnly 바디가 E+Good까지 미확정으로 남으면
- * holdOnly 대신 release 판정을 내보내 세션이 미등록 score item 예외를 던진다
- * (예: 일반 seed 2578 — headless doubleLong [1000,1200] → holdOnly [1200,1260], B up 1160·A up 1170).
- * 래칫 목록은 일반 생성기 seed 1~SEEDS(3000) 범위 기준이다. 범위를 12000까지 넓히면 #180 seed
- * 5087·7212가 더 나온다. 교대 집중 생성기 seed 1~SWAP_SEEDS(3000)에서는 #180 예외가 없다.
- * 고치면 이 목록에서 빼야 테스트가 통과한다.
- */
-const KNOWN_TERMINAL_HOLD_ONLY_THROWS = [2578];
-const KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS: number[] = [];
+// #180(뒤 바디가 없는 끝 holdOnly unit이 E+Good까지 미확정이면 holdOnly 대신 release 판정을 내보내 세션이 미등록
+// score item 예외를 던지던 결함)은 고쳤다. 래칫으로 남겼던 일반 seed 2578(seed 1~3000)과 12000 범위의 5087·7212가
+// 이제 예외 없이 정산되며, 두 생성기 모두 seed 1~12000에서 정산 예외가 없다. 그 holdOnly unit을 언제 어떤 결과로
+// 정할지는 PRD §12에서 추적한다. 새 정산 예외를 이슈로 남겨야 할 때만 seed 래칫을 다시 둔다.
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -203,9 +197,9 @@ const fullComboWithUnsettledItems = (all: readonly FuzzRun[]) => all.filter(run 
   run.onTime.state.isFullCombo && run.onTime.state.processedNotes !== run.onTime.state.totalNotes).map(run => run.seed);
 
 describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력", () => {
-  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외는 기존 끝 holdOnly 결함(#180) seed ${KNOWN_TERMINAL_HOLD_ONLY_THROWS.join("·")}뿐`, () => {
+  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외 없음`, () => {
     expect(runs().length).toBeGreaterThan(SEEDS / 2);
-    expect(throwingSeeds(runs())).toEqual(KNOWN_TERMINAL_HOLD_ONLY_THROWS);
+    expect(throwingSeeds(runs())).toEqual([]);
   });
 
   it(`seed 1~${SEEDS}에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -223,11 +217,9 @@ describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력
 });
 
 describe("판정 정산 퍼즈: 2→1 감소 경계의 연결 head 교대", () => {
-  const throwsLabel = KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS.length > 0
-    ? `기존 끝 holdOnly 결함(#180) seed ${KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS.join("·")}뿐` : "없음";
-  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외는 ${throwsLabel}`, () => {
+  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외 없음`, () => {
     expect(swapRuns().length).toBeGreaterThan(SWAP_SEEDS / 2);
-    expect(throwingSeeds(swapRuns())).toEqual(KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS);
+    expect(throwingSeeds(swapRuns())).toEqual([]);
   });
 
   it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {

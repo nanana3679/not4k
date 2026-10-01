@@ -408,7 +408,7 @@ Lv.1~15, 5단계 등급.
 | **결과 통계 이행** | 최대 콤보수 통계 미제공 | 결과 화면·PlayScreen 결과 생성에서 최대 콤보 통계 제거. 기존 저장 결과의 선택적 필드만 호환 유지 |
 | **입력 매칭** | 등록 키·unit별 시작·가장 이른 유효 대상 소비·실패 경로 승계를 새 모델로 이행. 기존 RFD 0006 구현 완료 상태와 구분 | 새 core와 실제 플레이·AutoPlayer·튜토리얼에 이행. 시작·Point·Grace·트릴·실패 경로 회귀 통과 |
 | **release 권한과 면제** | 누름별 실제 release 권한과 유효한 새 입력의 갱신, double head·시작의 서로 다른 두 키, 일반 여분 키와 `holdOnly` 면제 몫 구분. 익명 keyup·이진 release 설명을 대체 | 누름별 권한·보류 up·감소 예약·holdOnly 면제 구현, 채택 사례 및 추가 키/시각 불변식 검증 통과. 미정: 키를 나눠 시작한 double `holdOnly` 감소에서 둘째 unit이 바로 이어지는 뒤 바디가 끝난 뒤 활성화할 때의 면제 몫(예: double head 1000 + `holdOnly [1000,1060]` → `[1060,1100]` → double `[1100,2000]`, B 1110이면 현재 double unit1이 1220에 Miss). 테스트 todo로 고정 |
-| **`holdOnly` 확장** | 양수 길이의 body 활성화 요구, 감소 경계의 unit별 Perfect와 held 승계, 길이 0과의 구분. 양수 `trillLong + holdOnly` 허용·길이 0 금지, 끝점 중복 배치 제약 | 판정·validator·편집 배치·튜토리얼에 이행. NJ-H01~H07·C01~C03 및 zero-H 회귀 통과 |
+| **`holdOnly` 확장** | 양수 길이의 body 활성화 요구, 감소 경계의 unit별 Perfect와 held 승계, 길이 0과의 구분. 양수 `trillLong + holdOnly` 허용·길이 0 금지, 끝점 중복 배치 제약 | 판정·validator·편집 배치·튜토리얼에 이행. NJ-H01~H07·C01~C03 및 zero-H 회귀 통과. #180 수정: E+Good까지 미확정인 양수 길이 `holdOnly` unit은 release 대신 유지 Miss와 종속 0점으로 한 번 정산(세션 예외 해소). 미정: 경계 전 up이 뒤 `holdOnly` 끝의 E−Good 이후라 그 보류 up으로만 이어진 `holdOnly` unit의 결과 — S+Good 시작 실패인지, NJ-H07처럼 이른 완료 Perfect인지, 앞 바디 유지 Miss가 더해지는지(예: head 없는 `[1000,1500]` → double `holdOnly [1500,1560]`에서 A up 1455면 현재 unit0이 1680에 Miss, A up 1430이면 앞 바디까지 Miss 3). double `[1000,1200]` → `holdOnly [1200,1260]`에서 B up 1160 → A up 1170 → D down 1180이면 D down이 자기 시작인지도 미정(현재 1380에 Miss, D down 미소비). 같은 입력의 일반 뒤 바디 `[1200,1260]`도 현재 1380 release Miss라 NJ-H07의 S 전 승계 준비와 함께 정해야 함. 테스트 todo로 고정 |
 
 ### 구현 단계에서 결정
 
