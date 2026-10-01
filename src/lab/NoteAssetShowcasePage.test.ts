@@ -45,6 +45,13 @@ describe("NoteAssetShowcasePage", () => {
     expect(markup).toContain(`class="asset-lab-back-link" href="${labHref}"`);
   });
 
+  it("노트 에셋 Lab은 처음부터 재생 옆에 눌리지 않은 일시정지 버튼을 두고 재생 중 상태로 시작한다", () => {
+    const markup = renderPage();
+    expect(markup).toContain('aria-pressed="false" data-player-pause="true">일시정지</button>');
+    expect(markup).toContain('data-paused="false"');
+    expect(markup.indexOf('일시정지')).toBeLessThan(markup.indexOf('처음부터 재생'));
+  });
+
   it("노트 에셋 Lab은 Classic 시안을 쓰는 실제 튜토리얼 재생기와 차트·키봄 조절기를 렌더링", () => {
     const markup = renderPage();
 
