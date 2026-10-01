@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Classic 싱글 롱노트 바디 시안</title>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:#070e1b;color:#e2efff;font-family:system-ui,"Noto Sans KR",sans-serif}
+    body{padding:clamp(20px,5vw,56px)}
+    main{max-width:880px;margin:auto}
+    h1{font-size:clamp(24px,4vw,34px);margin:0 0 10px}
+    p{line-height:1.65;color:#a9bfd9;margin:0 0 25px}
+    .samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:18px;align-items:start}
+    figure{margin:0;border:1px solid #2b4565;border-radius:14px;background:#0c192d;overflow:hidden}
+    figcaption{padding:14px 18px;border-bottom:1px solid #2b4565;color:#cbe2f9;font-size:14px}
+    .stage{padding:28px 12px;display:grid;place-items:center;overflow:hidden;background:repeating-linear-gradient(0deg,#0a1425 0,#0a1425 39px,#12213a 40px)}
+    .assembly{width:min(424px,100%)}
+    .assembly img{display:block;height:auto}
+    .assembly .point{width:100%}
+    .assembly .tile{width:94.3396%;margin-left:2.8302%}
+    .single{width:min(400px,100%);height:auto;display:block;image-rendering:auto}
+    .download{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+    a{color:#9ddcff;text-underline-offset:3px}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Classic 싱글 롱노트 바디</h1>
+    <p>포인트 노트의 푸른 금속·유리 재질을 기준으로 만든 새 시안입니다. 타일 하나는 100:20 비율이며 세로로 반복됩니다.</p>
+    <div class="samples">
+      <figure>
+        <figcaption>포인트 노트 아래로 6칸 반복</figcaption>
+        <div class="stage"><div class="assembly">
+          <img class="point" src="note-single.png" alt="Classic 싱글 포인트 노트">
+          <img class="tile" src="body-single.png" alt="롱노트 바디 첫 번째 타일">
+          <img class="tile" src="body-single.png" alt="" aria-hidden="true">
+          <img class="tile" src="body-single.png" alt="" aria-hidden="true">
+          <img class="tile" src="body-single.png" alt="" aria-hidden="true">
+          <img class="tile" src="body-single.png" alt="" aria-hidden="true">
+          <img class="tile" src="body-single.png" alt="" aria-hidden="true">
+        </div></div>
+      </figure>
+      <figure>
+        <figcaption>타일 한 장 · PNG 원본 200×40</figcaption>
+        <div class="stage"><img class="single" src="body-single.png" alt="Sapphire Rail 싱글 롱노트 바디"></div>
+      </figure>
+    </div>
+    <nav class="download" aria-label="에셋 다운로드">
+      <a href="body-single.png" download="body-single-point-derived.png">PNG 다운로드</a>
+      <a href="body-single.svg" download="body-single-point-derived.svg">SVG 다운로드</a>
+    </nav>
+  </main>
+</body>
+</html>

@@ -38,6 +38,27 @@ describe('시안 교체', () => {
     expect(design.points.single).toBe(skin.assets.noteSingle);
     expect(design.bombs[0].frames).toBe(skin.assets.bomb);
   });
+
+  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·기어·봄 모두 같은 보관본을 사용한다', version => {
+    const design = getNoteAssetDesign('classic', version);
+    const prefix = `/lab/skin-versions/classic/${version}/`;
+    expect(design.id).toBe('classic');
+    expect(design.versionId).toBe(version);
+    expect(design.skinId).toBe(`classic-${version}`);
+    expect(design.skinManifest?.theme.available).toBe(false);
+    for (const path of Object.values(design.skinManifest!.assets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
+    for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
+      expect(path).toMatch(new RegExp(`^${prefix}svg/`));
+    }
+    expect(design.bombs[0].frames).toEqual(design.skinManifest!.assets.bomb);
+    expect(design.bombs[0].frames).toHaveLength(16);
+    expect(getSkinManifest('classic').assets.noteSingle).toBe('/skins/classic/note-single.png');
+  });
+
+  it('알 수 없는 v999는 현재 Classic으로 돌아가고 Simple에서는 버전 인자를 무시한다', () => {
+    expect(getNoteAssetDesign('classic', 'v999')).toBe(getNoteAssetDesign('classic'));
+    expect(getNoteAssetDesign('simple', 'v001')).toBe(getNoteAssetDesign('simple'));
+  });
 });
 
 describe('/not4k/ 배포의 시안 주소', () => {
@@ -73,6 +94,15 @@ describe('/not4k/ 배포의 시안 주소', () => {
     expect(design.bombs[0].frames).toHaveLength(16);
     for (const src of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src), ...design.bombs[0].frames!]) {
       expect(src).toMatch(/^\/not4k\/skins\/simple\/[^/]+\.png$/);
+    }
+  });
+
+  it('/not4k/ 배포에서 v001의 SVG·PNG·기어·봄에 접두사를 한 번만 붙인다', async () => {
+    const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
+    const design = getPublicDesign('classic', 'v001');
+    for (const path of [...Object.values(design.skinManifest!.assets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
+      expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
+      expect(path).not.toContain('/not4k/not4k/');
     }
   });
 });

@@ -85,16 +85,16 @@ export class SkinManager {
   }
 
   /** 스킨의 모든 에셋을 로드 */
-  async loadSkin(skinId: string): Promise<void> {
-    // 같은 스킨이면 스킵
-    if (this.loaded && this.manifest?.theme.id === skinId) return;
+  async loadSkin(skin: string | SkinManifest): Promise<void> {
+    const manifest = typeof skin === 'string' ? getSkinManifest(skin) : skin;
+    // A preview may supply a different version with the same theme ID.
+    if (this.loaded && this.manifest === manifest) return;
 
     // 기존 텍스처 해제
     this.dispose();
     this.disposed = false;
     const generation = ++this.loadGeneration;
 
-    const manifest = getSkinManifest(skinId);
     this.manifest = manifest;
 
     const { assets } = manifest;
@@ -145,6 +145,8 @@ export class SkinManager {
     if (assets.pointGraceOverlay) entries.push(["pointGraceOverlay", assets.pointGraceOverlay]);
     if (assets.terminalGraceOverlay) entries.push(["terminalGraceOverlay", assets.terminalGraceOverlay]);
     if (assets.pointShadow) entries.push(["pointShadow", assets.pointShadow]);
+    if (assets.pointContactShadow) entries.push(["pointContactShadow", assets.pointContactShadow]);
+    if (assets.pointContactShadowTrill) entries.push(["pointContactShadowTrill", assets.pointContactShadowTrill]);
 
     // 롱노트 전용 캡 에셋 (있는 스킨만 — 없으면 getHalfCapTexture가 terminal crop으로 fallback)
     if (assets.endCapSingle) entries.push(["endCapSingle", assets.endCapSingle]);
@@ -216,6 +218,19 @@ export class SkinManager {
   /** 현재 스킨에서 선택 에셋 키가 로드되어 있는지 확인 */
   hasTexture(key: string): boolean {
     return this.textures.has(key);
+  }
+
+  /**
+   * 포인트 이미지 폭 대비 바디 이미지 폭(최대 1). 포인트 이미지 전체가 레인 폭이므로,
+   * 바디 이미지가 포인트보다 좁은 스킨은 이 비율로 바디·끝 터미널·그림자를 줄여 가운데에 둔다.
+   * 두 이미지는 같은 배율로 내보냈다고 본다. 텍스처가 없으면 1이다.
+   */
+  getBodyWidthScale(kind: "single" | "double" | "trill"): number {
+    const suffix = kind === "single" ? "Single" : kind === "double" ? "Double" : "Trill";
+    const point = this.textures.get(`note${suffix}`)?.texture;
+    const body = this.textures.get(`body${suffix}`)?.texture;
+    if (!point || !body || point.width <= 0) return 1;
+    return Math.min(1, body.width / point.width);
   }
 
   /**

@@ -24,6 +24,17 @@ const requiredPaths = [
   "__lab/flight-background-preview/flight/breakthrough/render-quality.mjs",
   "skins/crystal/note-single.png",
   "gear/gear-frame.png",
+  "lab/skin-versions/classic/v001/skin/note-single.png",
+  "lab/skin-versions/classic/v002/skin/note-single.png",
+  "lab/skin-versions/classic/v001/svg/body-double-idle.svg",
+  "lab/skin-versions/classic/v002/svg/body-double-idle.svg",
+  "lab/skin-versions/classic/v012/skin/terminal-trill.png",
+  "lab/skin-versions/classic/v012/skin/point-contact-shadow.png",
+  "lab/skin-versions/classic/v012/svg/terminal-trill-failed.svg",
+  "lab/skin-versions/classic/v013/skin/point-contact-shadow-trill.png",
+  "lab/skin-versions/classic/v013/svg/point-contact-shadow-trill.svg",
+  "lab/skin-versions/classic/v014/skin/body-trill-held.png",
+  "lab/skin-versions/classic/v014/svg/body-trill-on.svg",
 ];
 
 await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pathname))));

@@ -1,0 +1,992 @@
+{
+  "mode": "existing SVG center-gradient edit; no image generation",
+  "sourceOfColors": "actual approved body spectrum pixels",
+  "geometry": {
+    "width": 1060,
+    "height": 200,
+    "attachmentX": 30,
+    "attachmentWidth": 1000
+  },
+  "measurement": "Average sRGB relative luminance of x=30–70%, y=40–70% of each rendered face; ratio=(Lmax+.05)/(Lmin+.05). Central-face comparison only, not a gameplay visibility score.",
+  "points": [
+    {
+      "id": "point-spectrum-single-01",
+      "kind": "single",
+      "step": 1,
+      "title": "아주 밝게",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-01",
+      "sampledBodyRgb": [
+        176,
+        224,
+        253
+      ],
+      "gradient": [
+        "#bbe4fd",
+        "#b0e0fd",
+        "#97c1da",
+        "#b3e1fd"
+      ],
+      "bodyLuminance": 0.6989373415352905,
+      "pointLuminance": 0.6135877253698531
+    },
+    {
+      "id": "point-spectrum-single-02",
+      "kind": "single",
+      "step": 2,
+      "title": "밝게",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-02",
+      "sampledBodyRgb": [
+        143,
+        213,
+        252
+      ],
+      "gradient": [
+        "#9fdbfc",
+        "#8fd5fc",
+        "#7bb7d9",
+        "#93d7fc"
+      ],
+      "bodyLuminance": 0.6035240057820427,
+      "pointLuminance": 0.5321442655580525
+    },
+    {
+      "id": "point-spectrum-single-03",
+      "kind": "single",
+      "step": 3,
+      "title": "중간",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-03",
+      "sampledBodyRgb": [
+        90,
+        187,
+        253
+      ],
+      "gradient": [
+        "#71c5fd",
+        "#5abbfd",
+        "#4da1da",
+        "#61befd"
+      ],
+      "bodyLuminance": 0.4487129959042093,
+      "pointLuminance": 0.39521800136036667
+    },
+    {
+      "id": "point-spectrum-single-04",
+      "kind": "single",
+      "step": 4,
+      "title": "선명하게",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-04",
+      "sampledBodyRgb": [
+        44,
+        172,
+        253
+      ],
+      "gradient": [
+        "#4ab8fd",
+        "#2cacfd",
+        "#2694da",
+        "#34affd"
+      ],
+      "bodyLuminance": 0.37270759117293983,
+      "pointLuminance": 0.3276458798268168
+    },
+    {
+      "id": "point-spectrum-single-05",
+      "kind": "single",
+      "step": 5,
+      "title": "짙게",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-05",
+      "sampledBodyRgb": [
+        8,
+        126,
+        220
+      ],
+      "gradient": [
+        "#2b90e1",
+        "#087edc",
+        "#076cbd",
+        "#1283dd"
+      ],
+      "bodyLuminance": 0.20250393771496702,
+      "pointLuminance": 0.17773149096765742
+    },
+    {
+      "id": "point-spectrum-single-06",
+      "kind": "single",
+      "step": 6,
+      "title": "아주 짙게",
+      "template": "references/note-single-saturated.svg",
+      "body": "spectrum-single-06",
+      "sampledBodyRgb": [
+        0,
+        79,
+        154
+      ],
+      "gradient": [
+        "#2468a8",
+        "#004f9a",
+        "#004484",
+        "#0a569e"
+      ],
+      "bodyLuminance": 0.07990398333850743,
+      "pointLuminance": 0.0704486916972504
+    },
+    {
+      "id": "point-spectrum-double-01",
+      "kind": "double",
+      "step": 1,
+      "title": "아주 밝게",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-01",
+      "sampledBodyRgb": [
+        252,
+        239,
+        182
+      ],
+      "gradient": [
+        "#fcf1c0",
+        "#fcefb6",
+        "#d9ce9d",
+        "#fcf0b9"
+      ],
+      "bodyLuminance": 0.8590768111669559,
+      "pointLuminance": 0.7559919992203744
+    },
+    {
+      "id": "point-spectrum-double-02",
+      "kind": "double",
+      "step": 2,
+      "title": "밝게",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-02",
+      "sampledBodyRgb": [
+        252,
+        233,
+        147
+      ],
+      "gradient": [
+        "#fceca2",
+        "#fce993",
+        "#d9c87e",
+        "#fcea97"
+      ],
+      "bodyLuminance": 0.8082349210166665,
+      "pointLuminance": 0.7126621967328243
+    },
+    {
+      "id": "point-spectrum-double-03",
+      "kind": "double",
+      "step": 3,
+      "title": "중간",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-03",
+      "sampledBodyRgb": [
+        251,
+        224,
+        98
+      ],
+      "gradient": [
+        "#fce478",
+        "#fbe062",
+        "#d8c154",
+        "#fbe168"
+      ],
+      "bodyLuminance": 0.7453043424180283,
+      "pointLuminance": 0.6579403649113542
+    },
+    {
+      "id": "point-spectrum-double-04",
+      "kind": "double",
+      "step": 4,
+      "title": "선명하게",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-04",
+      "sampledBodyRgb": [
+        250,
+        212,
+        49
+      ],
+      "gradient": [
+        "#fbda4e",
+        "#fad431",
+        "#d7b62a",
+        "#fad639"
+      ],
+      "bodyLuminance": 0.6757115023533281,
+      "pointLuminance": 0.5945336039744629
+    },
+    {
+      "id": "point-spectrum-double-05",
+      "kind": "double",
+      "step": 5,
+      "title": "짙게",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-05",
+      "sampledBodyRgb": [
+        214,
+        169,
+        12
+      ],
+      "gradient": [
+        "#dcb52e",
+        "#d6a90c",
+        "#b8910a",
+        "#d8ac16"
+      ],
+      "bodyLuminance": 0.42782350195933,
+      "pointLuminance": 0.37606521647435687
+    },
+    {
+      "id": "point-spectrum-double-06",
+      "kind": "double",
+      "step": 6,
+      "title": "아주 짙게",
+      "template": "references/note-double-saturated.svg",
+      "body": "spectrum-double-06",
+      "sampledBodyRgb": [
+        171,
+        131,
+        10
+      ],
+      "gradient": [
+        "#b7942c",
+        "#ab830a",
+        "#937109",
+        "#ae8814"
+      ],
+      "bodyLuminance": 0.24870710734170243,
+      "pointLuminance": 0.22055898511322533
+    }
+  ],
+  "combinations": [
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 1,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-01",
+      "ratio": 1.1286184371747798,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 2,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-02",
+      "ratio": 1.2865150201511435,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 3,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-03",
+      "ratio": 1.6821811769670305,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 4,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-04",
+      "ratio": 1.9831736066569636,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 5,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-05",
+      "ratio": 3.2886858921134237,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 1,
+      "pointStep": 6,
+      "body": "spectrum-single-01",
+      "point": "point-spectrum-single-06",
+      "ratio": 6.217895196551871,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 1,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-01",
+      "ratio": 1.0153991582539765,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 2,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-02",
+      "ratio": 1.122615208028485,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 3,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-03",
+      "ratio": 1.4678741735176828,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 4,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-04",
+      "ratio": 1.7305206827140278,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 5,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-05",
+      "ratio": 2.8697129369554633,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 2,
+      "pointStep": 6,
+      "body": "spectrum-single-02",
+      "point": "point-spectrum-single-06",
+      "ratio": 5.425745988380555,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 1,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-01",
+      "ratio": 1.3306004271388834,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 2,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-02",
+      "ratio": 1.1672931532545592,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 3,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-03",
+      "ratio": 1.120154608260197,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 4,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-04",
+      "ratio": 1.3205837069714945,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 5,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-05",
+      "ratio": 2.189916703153877,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 3,
+      "pointStep": 6,
+      "body": "spectrum-single-03",
+      "point": "point-spectrum-single-06",
+      "ratio": 4.140460048812584,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 1,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-01",
+      "ratio": 1.5698505047626727,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 2,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-02",
+      "ratio": 1.3771795863488132,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 3,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-03",
+      "ratio": 1.053252912077979,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 4,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-04",
+      "ratio": 1.1193226611310778,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 5,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-05",
+      "ratio": 1.8561666169962108,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 4,
+      "pointStep": 6,
+      "body": "spectrum-single-04",
+      "point": "point-spectrum-single-06",
+      "ratio": 3.5094411173466433,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 1,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-01",
+      "ratio": 2.6280292156034735,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 2,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-02",
+      "ratio": 2.305485889947554,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 3,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-03",
+      "ratio": 1.763212112212445,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 4,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-04",
+      "ratio": 1.4956039230291656,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 5,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-05",
+      "ratio": 1.1087791883417115,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 5,
+      "pointStep": 6,
+      "body": "spectrum-single-05",
+      "point": "point-spectrum-single-06",
+      "ratio": 2.09636098289585,
+      "brighter": "body"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 1,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-01",
+      "ratio": 5.108293897660225,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 2,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-02",
+      "ratio": 4.481342685551717,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 3,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-03",
+      "ratio": 3.4272852141893533,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 4,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-04",
+      "ratio": 2.9071154719154113,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 5,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-05",
+      "ratio": 1.7530755032678893,
+      "brighter": "point"
+    },
+    {
+      "kind": "single",
+      "bodyStep": 6,
+      "pointStep": 6,
+      "body": "spectrum-single-06",
+      "point": "point-spectrum-single-06",
+      "ratio": 1.0785005757059034,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 1,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-01",
+      "ratio": 1.1278980585989613,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 2,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-02",
+      "ratio": 1.1919783294115778,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 3,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-03",
+      "ratio": 1.2841149568873464,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 4,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-04",
+      "ratio": 1.4104412951647662,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 5,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-05",
+      "ratio": 2.1336564826611926,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 1,
+      "pointStep": 6,
+      "body": "spectrum-double-01",
+      "point": "point-spectrum-double-06",
+      "ratio": 3.359994903834073,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 1,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-01",
+      "ratio": 1.0648181642582382,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 2,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-02",
+      "ratio": 1.1253146211956842,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 3,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-03",
+      "ratio": 1.2122983284391922,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 4,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-04",
+      "ratio": 1.3315596203587092,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 5,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-05",
+      "ratio": 2.0143275907816807,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 2,
+      "pointStep": 6,
+      "body": "spectrum-double-02",
+      "point": "point-spectrum-double-06",
+      "ratio": 3.172080648726216,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 1,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-01",
+      "ratio": 1.0134384489462882,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 2,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-02",
+      "ratio": 1.0428002670448857,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 3,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-03",
+      "ratio": 1.1234058429732474,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 4,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-04",
+      "ratio": 1.233922230763222,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 5,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-05",
+      "ratio": 1.8666258395817545,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 3,
+      "pointStep": 6,
+      "body": "spectrum-double-03",
+      "point": "point-spectrum-double-06",
+      "ratio": 2.9394859759885783,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 1,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-01",
+      "ratio": 1.1106231561808153,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 2,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-02",
+      "ratio": 1.050916506434958,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 3,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-03",
+      "ratio": 1.0251025910130145,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 4,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-04",
+      "ratio": 1.1259482793112547,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 5,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-05",
+      "ratio": 1.7032873707891754,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 4,
+      "pointStep": 6,
+      "body": "spectrum-double-04",
+      "point": "point-spectrum-double-06",
+      "ratio": 2.682267240356581,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 1,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-01",
+      "ratio": 1.686798568750552,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 2,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-02",
+      "ratio": 1.5961169628649585,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 3,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-03",
+      "ratio": 1.481593856326495,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 4,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-04",
+      "ratio": 1.348894730651659,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 5,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-05",
+      "ratio": 1.121479725365209,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 5,
+      "pointStep": 6,
+      "body": "spectrum-double-05",
+      "point": "point-spectrum-double-06",
+      "ratio": 1.7660603722303556,
+      "brighter": "body"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 1,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-01",
+      "ratio": 2.6982685694799007,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 2,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-02",
+      "ratio": 2.5532107472099286,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 3,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-03",
+      "ratio": 2.3700151335920987,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 4,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-04",
+      "ratio": 2.157744453121286,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 5,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-05",
+      "ratio": 1.426364508919986,
+      "brighter": "point"
+    },
+    {
+      "kind": "double",
+      "bodyStep": 6,
+      "pointStep": 6,
+      "body": "spectrum-double-06",
+      "point": "point-spectrum-double-06",
+      "ratio": 1.1040369153391725,
+      "brighter": "body"
+    }
+  ],
+  "recommended": [
+    {
+      "bodyStep": 6,
+      "pointStep": 1,
+      "minimumRatio": 2.6982685694799007,
+      "pair": [
+        {
+          "kind": "single",
+          "bodyStep": 6,
+          "pointStep": 1,
+          "body": "spectrum-single-06",
+          "point": "point-spectrum-single-01",
+          "ratio": 5.108293897660225,
+          "brighter": "point"
+        },
+        {
+          "kind": "double",
+          "bodyStep": 6,
+          "pointStep": 1,
+          "body": "spectrum-double-06",
+          "point": "point-spectrum-double-01",
+          "ratio": 2.6982685694799007,
+          "brighter": "point"
+        }
+      ]
+    },
+    {
+      "bodyStep": 6,
+      "pointStep": 2,
+      "minimumRatio": 2.5532107472099286,
+      "pair": [
+        {
+          "kind": "single",
+          "bodyStep": 6,
+          "pointStep": 2,
+          "body": "spectrum-single-06",
+          "point": "point-spectrum-single-02",
+          "ratio": 4.481342685551717,
+          "brighter": "point"
+        },
+        {
+          "kind": "double",
+          "bodyStep": 6,
+          "pointStep": 2,
+          "body": "spectrum-double-06",
+          "point": "point-spectrum-double-02",
+          "ratio": 2.5532107472099286,
+          "brighter": "point"
+        }
+      ]
+    },
+    {
+      "bodyStep": 5,
+      "pointStep": 1,
+      "minimumRatio": 1.686798568750552,
+      "pair": [
+        {
+          "kind": "single",
+          "bodyStep": 5,
+          "pointStep": 1,
+          "body": "spectrum-single-05",
+          "point": "point-spectrum-single-01",
+          "ratio": 2.6280292156034735,
+          "brighter": "point"
+        },
+        {
+          "kind": "double",
+          "bodyStep": 5,
+          "pointStep": 1,
+          "body": "spectrum-double-05",
+          "point": "point-spectrum-double-01",
+          "ratio": 1.686798568750552,
+          "brighter": "point"
+        }
+      ]
+    }
+  ]
+}

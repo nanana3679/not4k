@@ -9,8 +9,8 @@ vi.mock("../../supabase/client", () => ({
 vi.mock("pixi.js", () => {
   class Container {
     children: unknown[] = [];
-    addChild(child: unknown) {
-      this.children.push(child);
+    addChild(...children: unknown[]) {
+      this.children.push(...children);
     }
   }
   class Graphics {
@@ -31,7 +31,7 @@ vi.mock("pixi.js", () => {
     width = 0;
     height = 0;
     texture: unknown = null;
-    scale = { x: 1, y: 1 };
+    scale = { x: 1, y: 1, set(x: number, y: number) { this.x = x; this.y = y; } };
     static from() { return new Sprite(); }
     constructor(tex?: unknown) { this.texture = tex ?? null; }
   }
@@ -100,6 +100,7 @@ function createMockSkinManager(
     getTexture: vi.fn(() => ({})),
     getHalfCapTexture: vi.fn(() => ({})),
     getTheme: vi.fn(() => ({ longNoteTerminalMode, longNoteTerminalFrameOverhangPx })),
+    getBodyWidthScale: vi.fn(() => 1),
     hasTexture: vi.fn((key: string) => availableTextureKeys.includes(key)),
   } as unknown as SkinManager;
 }
@@ -127,34 +128,82 @@ function createRenderer() {
 }
 
 describe('Classic 시안 렌더링 규격', () => {
-  function createClassicRenderer() {
+  const bodyWidth = 100 * 100 / 106;
+  const bodyX = 100 + (100 - bodyWidth) / 2;
+  // Classic 에셋: 싱글·더블 포인트 212px·바디 200px, 트릴 포인트·바디 200px.
+  const classicScale = (kind: string) => kind === 'trill' ? 1 : 200 / 212;
+  function createClassicRenderer(bodyWidthScale: (kind: string) => number = classicScale) {
     const bodyLayer = new Container(), endLayer = new Container(), headLayer = new Container(), noteLayer = new Container();
     const manifest = getSkinManifest('classic');
     const skin = {
       getTheme: () => manifest.theme,
       hasTexture: (key: string) => key in manifest.assets,
       getTexture: (key: string) => ({key, width:200, height:40}),
+      getBodyWidthScale: bodyWidthScale,
     } as unknown as SkinManager;
     return { bodyLayer, endLayer, headLayer, noteLayer,
       renderer: new GameNoteRenderer(bodyLayer,endLayer,headLayer,noteLayer,skin,500,1000,0,600) };
   }
 
-  it('2번 레인 포인트는 x97·106×20이고 바디 위 그림자는 x100·100×3.2', () => {
-    const {renderer,noteLayer} = createClassicRenderer();
-    renderer.renderPointNote({type:'single',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
-    const [shadow,point] = childrenOf(noteLayer);
-    expect(point).toMatchObject({x:97,y:400,width:106,height:20});
-    expect(shadow).toMatchObject({x:100,y:419.6,width:100,height:3.2});
+  it('인접한 1·2번 레인의 Classic 포인트는 각각 100px 레인 안에 들어가 서로 겹치지 않는다', () => {
+    const { renderer, noteLayer } = createClassicRenderer();
+    renderer.renderPointNote({ type: 'single', lane: 1, beat: 0 } as unknown as NoteEntity, 0, 100, 0);
+    renderer.renderPointNote({ type: 'double', lane: 2, beat: 0 } as unknown as NoteEntity, 1, 100, 0);
+    // 각 포인트 앞에는 위·아래 접촉 그림자가 먼저 쌓인다.
+    const [, , first, , , second] = childrenOf(noteLayer);
+    expect(first.x).toBe(0);
+    expect(first.width).toBe(100);
+    expect(second.x).toBe(100);
+    expect(second.width).toBe(100);
+    expect(first.x + first.width).toBeLessThanOrEqual(second.x);
   });
 
-  it('200×40 바디 텍스처를 긴 롱노트에 표시하면 100×20 주기로 반복하고 터미널도100×20', () => {
+  it('2번 레인 싱글 포인트는 x100·100×20이고 위아래 접촉 그림자는 약94.34px 바디 폭·5px 높이로 포인트 위아래 변에 맞닿는다', () => {
+    const {renderer,noteLayer} = createClassicRenderer();
+    renderer.renderPointNote({type:'single',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
+    const [above,below,point] = childrenOf(noteLayer);
+    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    for (const shadow of [above, below]) {
+      expect(shadow.x).toBeCloseTo(bodyX);
+      expect(shadow.scale.x * 200).toBeCloseTo(bodyWidth);
+    }
+    // 위 그림자는 세로로 뒤집혀 포인트 윗변(y400)에서 위로 5px, 아래 그림자는 아랫변(y420)에서 아래로 5px 퍼진다.
+    expect(above.y).toBe(400);
+    expect(above.scale.y * 40).toBeCloseTo(-5);
+    expect(below.y).toBe(420);
+    expect(below.scale.y * 40).toBeCloseTo(5);
+  });
+
+  it('2번 레인 트릴 포인트는 x100·100×20이고 마름모 테두리 그림자는 포인트 위 5px부터 아래 5px까지 x100·100×30으로 깔린다', () => {
+    const {renderer,noteLayer} = createClassicRenderer();
+    renderer.renderPointNote({type:'trill',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
+    const [shadow,point] = childrenOf(noteLayer);
+    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    expect(shadow).toMatchObject({x:100,y:395,width:100,height:30});
+  });
+
+  it('200×40 바디는 약94.34×18.87 주기로 반복하고 터미널도 같은 폭으로 포인트 안에 들어간다', () => {
     const {renderer,bodyLayer,endLayer} = createClassicRenderer();
     renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
     const body = childrenOf(bodyLayer)[0] as unknown as TilingSprite;
     expect(body).toBeInstanceOf(TilingSprite);
-    expect(body.tileScale.set).toHaveBeenCalledWith(.5);
-    expect(body).toMatchObject({x:100,width:100,height:220});
-    expect(childrenOf(endLayer)[0]).toMatchObject({x:100,width:100,height:20});
+    expect(body.tileScale.set).toHaveBeenCalledWith(bodyWidth / 200);
+    expect(body).toMatchObject({x:bodyX,width:bodyWidth,height:220});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:bodyX,width:bodyWidth,height:20});
+  });
+
+  it('포인트와 바디 이미지 폭이 같은 스킨(비율 1)은 싱글 롱노트 바디와 끝 터미널을 레인 폭 x100·너비100 그대로 그린다', () => {
+    const {renderer,bodyLayer,endLayer} = createClassicRenderer(() => 1);
+    renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:100,width:100});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:100,width:100});
+  });
+
+  it('트릴도 바디 이미지가 포인트보다 좁으면(비율 0.9) 노트 종류 예외 없이 트릴 롱 바디와 끝 터미널을 x105·너비90으로 줄인다', () => {
+    const {renderer,bodyLayer,endLayer} = createClassicRenderer(kind => kind === 'trill' ? 0.9 : 1);
+    renderer.renderLongNote({type:'trillLong',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:105,width:90});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:105,width:90});
   });
 
   it('Classic 트릴은 포인트·바디·끝 터미널 모두 x100·너비100이며 20px 바디를 반복하고 시작 캡은 없음', () => {
@@ -229,8 +278,8 @@ describe('Classic 시안 렌더링 규격', () => {
     renderer.renderLongNote(note,0,100,100,0);
     expect(childrenOf(endLayer)).toHaveLength(0);
     const [grace,terminal] = childrenOf(headLayer);
-    expect(grace).toMatchObject({x:88,y:388,width:124,height:44});
-    expect(terminal).toMatchObject({x:100,y:420,width:100,height:20});
+    expect(grace).toMatchObject({x:bodyX-12,y:388,width:bodyWidth+24,height:44});
+    expect(terminal).toMatchObject({x:bodyX,y:420,width:bodyWidth,height:20});
     childrenOf(headLayer).length = 0;
     renderer.applyNoteDisplayEffect(0,{body:'failed',visibility:'missed'});
     renderer.renderLongNote(note,0,100,100,0);

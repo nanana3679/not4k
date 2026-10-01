@@ -44,6 +44,15 @@ export interface JudgmentBodyStateView {
 export type JudgmentBodyStateQuery =
   (noteIndex: number, timeMs: number) => JudgmentBodyStateView | null;
 
+type NoteKind = "single" | "double" | "trill";
+
+/** 포인트·롱노트 종류를 같은 에셋 묶음(싱글·더블·트릴)으로 모은다. */
+function noteKindOf(type: NoteEntity["type"]): NoteKind {
+  if (type === "double" || type === "doubleLong") return "double";
+  if (type === "trill" || type === "trillLong") return "trill";
+  return "single";
+}
+
 export class GameNoteRenderer {
   private longNoteBodyLayer: Container;
   private longNoteEndLayer: Container;
@@ -68,6 +77,8 @@ export class GameNoteRenderer {
   private graceGlowPool: Map<number, Graphics> = new Map();
   private graceOverlayPool: Map<number, Sprite> = new Map();
   private pointShadowPool: Map<number, Sprite> = new Map();
+  private pointContactShadowPool: Map<number, [Sprite, Sprite]> = new Map();
+  private trillContactShadowPool: Map<number, Sprite> = new Map();
   private trillPointShadowPool: Map<number, Mesh> = new Map();
   private trillPointShadowGeometry: MeshGeometry | null = null;
 
@@ -142,18 +153,22 @@ export class GameNoteRenderer {
     const isPartial = this.doublePartialNotes.has(index);
     const isMissed = this.missedNotes.has(index);
     const isGrace = isGraceNote(entity);
-    // Trill diamonds share the body's width; the mechanical point overhang is separate.
-    const pointOverhang = entity.type === "trill" ? 0 : Math.max(0, this.skinManager.getTheme().pointNoteOverhangPx ?? 0);
-    const pointX = laneX - pointOverhang;
-    const pointWidth = NOTE_WIDTH + pointOverhang * 2;
+    // 포인트 전체 외곽이 레인의 기준이다. 바디 이미지가 포인트보다 좁은 스킨은 바디를 안쪽으로 줄인다.
+    const pointX = laneX;
+    const pointWidth = NOTE_WIDTH;
 
     // Grace glow effect (miss 시에는 표시하지 않음)
     if (isGrace && !isMissed) {
       this.addGraceGlow(index, this.noteLayer, pointX, y, pointWidth, 'point');
     }
 
-    const shadowGeometry = this.skinManager.getTheme().pointShadow;
-    if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
+    const theme = this.skinManager.getTheme();
+    const shadowGeometry = theme.pointShadow;
+    if (entity.type !== 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadow')) {
+      this.addPointContactShadow(index, laneX, y, theme.pointContactShadow, noteKindOf(entity.type));
+    } else if (entity.type === 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadowTrill')) {
+      this.addTrillContactShadow(index, pointX, y, pointWidth, theme.pointContactShadow);
+    } else if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
       if (entity.type === 'trill') {
         // 직사각형 그림자는 마름모 하단과 떨어져 가로 절단선처럼 보인다.
         // 같은 그림자 텍스처를 아래 두 변에 맞춰 흰 바디 위에서도 윤곽을 유지한다.
@@ -189,9 +204,10 @@ export class GameNoteRenderer {
           shadow = new Sprite(this.skinManager.getTexture('pointShadow'));
           this.pointShadowPool.set(index, shadow);
         }
-        shadow.x = laneX;
+        const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
+        shadow.x = laneX + (LANE_WIDTH - bodyWidth) / 2;
         shadow.y = y + shadowGeometry.offsetY;
-        shadow.width = LANE_WIDTH;
+        shadow.width = bodyWidth;
         shadow.height = shadowGeometry.height;
         this.noteLayer.addChild(shadow);
       }
@@ -301,11 +317,13 @@ export class GameNoteRenderer {
     const isPartialFailed = partialSide !== undefined;
     const theme = this.skinManager.getTheme();
     const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
+    const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
+    const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
     const terminalFrameOverhang = fullHeightTerminal
-      ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0)
+      ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0) * bodyWidth / LANE_WIDTH
       : 0;
-    const terminalX = laneX - terminalFrameOverhang;
-    const terminalWidth = LANE_WIDTH + terminalFrameOverhang * 2;
+    const terminalX = bodyX - terminalFrameOverhang;
+    const terminalWidth = bodyWidth + terminalFrameOverhang * 2;
 
     if (entity.type === "trillLong") {
       // Trill long: Sprite-based
@@ -331,10 +349,10 @@ export class GameNoteRenderer {
       const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
       const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
       if (insetBodyHeight > 0) {
-        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-        bodySprite.x = laneX;
+        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+        bodySprite.x = bodyX;
         bodySprite.y = insetBodyY;
-        bodySprite.width = LANE_WIDTH;
+        bodySprite.width = bodyWidth;
         bodySprite.height = insetBodyHeight;
         bodySprite.tint = 0xffffff;
         bodySprite.alpha = 1;
@@ -424,10 +442,10 @@ export class GameNoteRenderer {
         }
       }
 
-      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-      bodySprite.x = laneX;
+      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+      bodySprite.x = bodyX;
       bodySprite.y = adjustedEndY;
-      bodySprite.width = LANE_WIDTH;
+      bodySprite.width = bodyWidth;
       bodySprite.height = bodyHeight;
       bodySprite.tint = 0xffffff;
       bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
@@ -542,6 +560,8 @@ export class GameNoteRenderer {
     this.bodySpritePool.clear();
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
+    this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -673,6 +693,11 @@ export class GameNoteRenderer {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
   }
 
+  /** 노트 종류가 아니라 에셋 폭으로 정한다: 바디 이미지가 포인트 이미지보다 좁은 만큼만 줄인다. */
+  private getBodyWidth(kind: NoteKind): number {
+    return LANE_WIDTH * this.skinManager.getBodyWidthScale(kind);
+  }
+
   // ── 오브젝트 풀 ───────────────────────────────────────────
 
   private getOrCreateNoteSprite(index: number, texKey: string): Sprite {
@@ -689,7 +714,7 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite | TilingSprite {
+  private getOrCreateBodySprite(index: number, texKey: string, width: number): NineSliceSprite | TilingSprite {
     let pool = this.bodySpritePool.get(index);
     if (!pool) {
       pool = new Map();
@@ -699,8 +724,8 @@ export class GameNoteRenderer {
     if (!sprite) {
       const texture = this.skinManager.getTexture(texKey);
       if (this.skinManager.getTheme().longNoteBodyMode === 'repeat') {
-        const tile = new TilingSprite({ texture, width: LANE_WIDTH, height: NOTE_HEIGHT });
-        tile.tileScale.set(LANE_WIDTH / texture.width);
+        const tile = new TilingSprite({ texture, width, height: NOTE_HEIGHT });
+        tile.tileScale.set(width / texture.width);
         sprite = tile;
       } else {
         sprite = new NineSliceSprite({ texture, leftWidth: 4, rightWidth: 4, topHeight: 4, bottomHeight: 4 });
@@ -736,6 +761,44 @@ export class GameNoteRenderer {
       pool.set(texKey, sprite);
     }
     return sprite;
+  }
+
+  /**
+   * 싱글·더블 포인트 위아래 바디에 접촉 그림자를 깐다. 바디 전체를 어둡게 하지 않고
+   * 포인트 경계에서만 명도 대비를 만들어 밝은 바디 위에서도 포인트를 분리한다.
+   */
+  private addPointContactShadow(index: number, laneX: number, y: number, reach: { above: number; below: number }, kind: NoteKind): void {
+    let pair = this.pointContactShadowPool.get(index);
+    if (!pair) {
+      const texture = this.skinManager.getTexture('pointContactShadow');
+      pair = [new Sprite(texture), new Sprite(texture)];
+      this.pointContactShadowPool.set(index, pair);
+    }
+    const [above, below] = pair;
+    const bodyWidth = this.getBodyWidth(kind);
+    const x = laneX + (LANE_WIDTH - bodyWidth) / 2;
+    // 텍스처는 윗행이 가장 짙다. 위 그림자는 세로로 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
+    above.x = x;
+    above.y = y;
+    above.scale.set(bodyWidth / above.texture.width, -reach.above / above.texture.height);
+    below.x = x;
+    below.y = y + NOTE_HEIGHT;
+    below.scale.set(bodyWidth / below.texture.width, reach.below / below.texture.height);
+    this.noteLayer.addChild(above, below);
+  }
+
+  /** 트릴 포인트 모양을 따라 번지는 그림자. 텍스처는 포인트 폭 × (위 + 포인트 높이 + 아래) 영역을 그린다. */
+  private addTrillContactShadow(index: number, x: number, y: number, width: number, reach: { above: number; below: number }): void {
+    let shadow = this.trillContactShadowPool.get(index);
+    if (!shadow) {
+      shadow = new Sprite(this.skinManager.getTexture('pointContactShadowTrill'));
+      this.trillContactShadowPool.set(index, shadow);
+    }
+    shadow.x = x;
+    shadow.y = y - reach.above;
+    shadow.width = width;
+    shadow.height = reach.above + NOTE_HEIGHT + reach.below;
+    this.noteLayer.addChild(shadow);
   }
 
   private addGraceGlow(index: number, layer: Container, x: number, y: number, width: number, kind: 'point' | 'terminal'): void {
@@ -795,6 +858,8 @@ export class GameNoteRenderer {
     this.graceGlowPool.clear();
     this.graceOverlayPool.clear();
     this.pointShadowPool.clear();
+    this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
     this.trillPointShadowPool.clear();
     this.trillPointShadowGeometry?.destroy();
     this.trillPointShadowGeometry = null;

@@ -1,8 +1,12 @@
 import { useGameStore, PRESET_BINDINGS } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
+
+const DevSkinVersionSelect = import.meta.env.DEV
+  ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
+  : null;
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
 type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced';
@@ -284,6 +288,11 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
                   );
                 })}
               </div>
+              {DevSkinVersionSelect && (
+                <Suspense fallback={null}>
+                  <DevSkinVersionSelect renderRow={(row) => <Group title="Developer"><SelectRow {...row} /></Group>} />
+                </Suspense>
+              )}
               <Group title="Effects">
                 <SliderRow
                   label="Key Bomb Size"
@@ -451,15 +460,18 @@ function SliderRow({
 }
 
 function SelectRow({
-  label, value, options, onChange,
+  label, desc, value, options, onChange,
 }: {
-  label: string; value: string;
+  label: string; desc?: string; value: string;
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
 }) {
   return (
     <div className="stg-row">
-      <span className="stg-row-label">{label}</span>
+      <span className="stg-row-label">
+        {label}
+        {desc && <span className="stg-row-desc">{desc}</span>}
+      </span>
       <select className="stg-select" value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

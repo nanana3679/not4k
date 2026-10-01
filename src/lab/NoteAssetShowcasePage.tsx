@@ -6,10 +6,10 @@ FIRST VIEWPORT: 실제 튜토리얼 재생기가 화면 중심을 차지하고 �
 FORM: 기존 not4k Lab과 튜토리얼 재생기를 잇는 로컬 확장이므로 별도 플레이필드를 만들지 않는다.
 */
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { NoteAssetPreviewPlayer } from "./NoteAssetPreviewPlayer";
 import { KeybombEffect } from "./KeybombEffect";
-import { getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
+import { CLASSIC_NOTE_ASSET_VERSIONS, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
 import {
   createTutorialPreview,
   makeChart,
@@ -96,10 +96,8 @@ function getPreview(previewId: string): TutorialPreviewDefinition {
 }
 
 export default function NoteAssetShowcasePage() {
-  const [selectedDesignId, setSelectedDesignId] = useState(() => getNoteAssetDesign(
-    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('design'),
-  ).id);
-  const design = getNoteAssetDesign(selectedDesignId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const design = getNoteAssetDesign(searchParams.get('design'), searchParams.get('version'));
   const [selectedPreviewId, setSelectedPreviewId] = useState(DEFAULT_PREVIEW_ID);
   const [previewInstance, setPreviewInstance] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
@@ -109,6 +107,7 @@ export default function NoteAssetShowcasePage() {
     silver: 0, diagonal: 0, armor: 0, shockwave: 0, segmented: 0, compact: 0, skin: 0,
   });
   const preview = useMemo(() => getPreview(selectedPreviewId), [selectedPreviewId]);
+  const playerKey = `${design.skinId}:${preview.id}:${previewInstance}`;
   const selectedBomb = useMemo(
     () => design.bombs.find((variant) => variant.id === selectedBombId) ?? design.bombs[0],
     [selectedBombId, design],
@@ -121,15 +120,31 @@ export default function NoteAssetShowcasePage() {
   };
 
   const selectDesign = (id: string) => {
-    const next = getNoteAssetDesign(id);
-    setSelectedDesignId(next.id);
-    setSelectedBombId(next.bombs[0].id);
-    setPlayerReady(false);
-    setPreviewInstance(current => current + 1);
-    const url = new URL(window.location.href);
-    url.searchParams.set('design', next.id);
-    window.history.replaceState(null, '', url);
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.set('design', id);
+      next.delete('version');
+      return next;
+    });
   };
+
+  const selectVersion = (id: string) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.set('design', 'classic');
+      if (id === 'current') next.delete('version');
+      else next.set('version', id);
+      return next;
+    });
+  };
+
+  // 시안·버전이 바뀌면 렌더 중에 키봄 선택과 준비 상태를 초기화한다(effect 없이 한 번의 렌더로 반영).
+  const [shownDesign, setShownDesign] = useState(design);
+  if (shownDesign !== design) {
+    setShownDesign(design);
+    setSelectedBombId(design.bombs[0].id);
+    setPlayerReady(false);
+  }
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -140,7 +155,7 @@ export default function NoteAssetShowcasePage() {
   }, []);
 
   return (
-    <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id}>
+    <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id} data-skin-version={design.versionId ?? 'current'}>
       <header className="asset-lab-header">
         <div>
           <p className="asset-lab-kicker"><Link className="asset-lab-back-link" to="/lab">← Lab 목록</Link></p>
@@ -149,7 +164,7 @@ export default function NoteAssetShowcasePage() {
         </div>
         <div className="asset-lab-status" aria-label="재생기 상태">
           <span>{playerReady ? "PLAYER READY" : "LOADING PLAYER"}</span>
-          <strong>{design.name}</strong>
+          <strong>{design.name}{design.versionId ? ` · ${design.versionId}` : ''}</strong>
         </div>
       </header>
 
@@ -162,7 +177,7 @@ export default function NoteAssetShowcasePage() {
           <div className="asset-lab-player-stage">
             <div className="asset-lab-player-canvas" data-active-preview={preview.id}>
               <NoteAssetPreviewPlayer
-                key={`${design.id}:${preview.id}:${previewInstance}`}
+                key={playerKey}
                 design={design}
                 preview={preview}
                 bomb={selectedBomb}
@@ -182,6 +197,15 @@ export default function NoteAssetShowcasePage() {
                 </button>
               ))}
             </div>
+            {design.id === 'classic' && <div className="asset-lab-version-control">
+              <label htmlFor="classic-skin-version">버전</label>
+              <select id="classic-skin-version" value={design.versionId ?? 'current'} onChange={event => selectVersion(event.target.value)}>
+                <option value="current">현재 적용본</option>
+                {CLASSIC_NOTE_ASSET_VERSIONS.map(version => <option key={version.id} value={version.id}>
+                  {version.id} · {version.label}
+                </option>)}
+              </select>
+            </div>}
             <p className="asset-lab-inspector-note">{design.description}</p>
           </section>
           <section>

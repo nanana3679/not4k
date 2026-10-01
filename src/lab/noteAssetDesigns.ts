@@ -1,12 +1,15 @@
 import { getSkinManifest } from '../game/skin/skins';
 import type { SkinManifest } from '../game/skin/types';
 import { withLabPublicBase } from './labPublicPath';
+import { CLASSIC_SKIN_VERSIONS } from './classicSkinVersions';
 import { KEYBOMB_VARIANTS, NOTE_ASSET_KIND_LABELS, type KeybombVariant, type NoteAssetKind, type NoteBodyState, type NoteTerminalState } from './noteAssetShowcase';
 
 export interface NoteAssetDesign {
   id: string;
   name: string;
   skinId: string;
+  skinManifest?: SkinManifest;
+  versionId?: string;
   description: string;
   points: Record<NoteAssetKind, string>;
   bodies: Array<{kind: NoteAssetKind; state: NoteBodyState; label: string; src: string}>;
@@ -56,13 +59,35 @@ export function createNoteAssetDesign(skin: SkinManifest, options: {
 
 export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
   createNoteAssetDesign(getSkinManifest('classic'), {
-    description:'유광 포인트 · 어두운 금속 바디 · 흰 석영 트릴 · 실버 봄',
+    description:'고채도 포인트 · 아주 밝은 바디 · 흰 석영 트릴 · 실버 봄',
     sourceBase:'/lab/note-assets/classic',
     bombs:KEYBOMB_VARIANTS,
   }),
   createNoteAssetDesign(getSkinManifest('simple'), {description:'기존 Classic · 단색 노트와 기본 봄'}),
 ];
 
-export function getNoteAssetDesign(id: string | null): NoteAssetDesign {
-  return NOTE_ASSET_DESIGNS.find(design => design.id === id) ?? NOTE_ASSET_DESIGNS[0];
+export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {
+  const base = `/lab/skin-versions/classic/${version.id}`;
+  const assetPath = (path: string) => {
+    if (path.startsWith('/skins/classic/')) return withLabPublicBase(`${base}/skin/${path.slice('/skins/classic/'.length)}`);
+    if (path.startsWith('/gear/')) return withLabPublicBase(`${base}${path}`);
+    throw new Error(`Unknown archived Classic asset: ${path}`);
+  };
+  const skin: SkinManifest = {
+    theme: { ...version.manifest.theme, id: `classic-${version.id}`, name: `Classic ${version.id}`, available: false },
+    assets: Object.fromEntries(Object.entries(version.manifest.assets).map(([key, paths]) =>
+      [key, Array.isArray(paths) ? paths.map(assetPath) : assetPath(paths)],
+    )) as SkinManifest['assets'],
+  };
+  const design: NoteAssetDesign = {
+    ...createNoteAssetDesign(skin, { description: version.label, sourceBase: `${base}/svg` }),
+    id: 'classic', name: 'Classic', versionId: version.id, skinManifest: skin,
+  };
+  return { id: version.id, label: version.label, design };
+});
+
+export function getNoteAssetDesign(id: string | null, versionId: string | null = null): NoteAssetDesign {
+  const design = NOTE_ASSET_DESIGNS.find(design => design.id === id) ?? NOTE_ASSET_DESIGNS[0];
+  if (design.id !== 'classic') return design;
+  return CLASSIC_NOTE_ASSET_VERSIONS.find(version => version.id === versionId)?.design ?? design;
 }

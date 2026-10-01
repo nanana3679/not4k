@@ -6,11 +6,15 @@ import react from "@vitejs/plugin-react";
 import { handlePreviewRequest } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
 import { mapLabImageGalleryDevRequest } from "./src/lab/labImageGalleryDevRequest";
 import { labImageGalleryCatalog } from "./src/lab/labImageGalleryCatalog";
+import { classicVersionPreviewsPlugin } from "./scripts/classicVersionPreviews";
 
 
 export default defineConfig({
+  // Worktrees may share node_modules; optimized React modules must stay local.
+  cacheDir: ".vite/dev",
   plugins: [
     react(),
+    classicVersionPreviewsPlugin(dirname(fileURLToPath(import.meta.url))),
     labImageGalleryPlugin(),
     flightBackgroundPreviewLabPlugin(),
     excludeLabFromBuildPlugin(),
