@@ -135,7 +135,9 @@ describe("SkinTheme", () => {
         ...(assets.terminalDoubleIdle ? [assets.terminalDoubleIdle] : []),
         ...(assets.terminalTrillIdle ? [assets.terminalTrillIdle] : []),
         assets.bodySingle, assets.bodyDouble,
-        assets.bodySingleHeld, assets.bodyDoubleHeld,
+        // 켜짐 에셋은 heldEffect: false 스킨(Simple)에 없다.
+        ...(assets.bodySingleHeld ? [assets.bodySingleHeld] : []),
+        ...(assets.bodyDoubleHeld ? [assets.bodyDoubleHeld] : []),
         assets.gearFrame, assets.gearGaugeLeft, assets.gearGaugeRight,
         ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
       ];
@@ -173,8 +175,13 @@ describe("부분 충족 held 바디 에셋 (더블 롱노트 1/2)", () => {
     expect(crystal.assets.bodyDoublePartialHeldRight).toBe("/skins/crystal/body-double-partial-held-right.png");
   });
 
-  it("모든 스킨이 부분 held 경로 키를 .png로 가짐 (부분 실패와 동일한 필수 키 취급)", () => {
+  it("켜짐 효과가 있는 모든 스킨은 부분 held 경로를 .png로 가지고, 효과 없는 스킨은 갖지 않는다", () => {
     for (const skin of SKIN_LIST) {
+      if (skin.theme.heldEffect === false) {
+        expect(skin.assets.bodyDoublePartialHeldLeft, skin.theme.id).toBeUndefined();
+        expect(skin.assets.bodyDoublePartialHeldRight, skin.theme.id).toBeUndefined();
+        continue;
+      }
       expect(skin.assets.bodyDoublePartialHeldLeft).toMatch(/body-double-partial-held-left\.png$/);
       expect(skin.assets.bodyDoublePartialHeldRight).toMatch(/body-double-partial-held-right\.png$/);
     }
@@ -198,10 +205,19 @@ describe("heldEffect 선언 (RFD 0028)", () => {
     expect(manifest.assets.bodyTrillHeld).toBe("/skins/with-effect/body-trill-held.png");
   });
 
-  it("현재 스킨 Classic·Crystal·Simple은 heldEffect를 false로 선언하지 않아 켜짐 효과를 유지한다", () => {
-    for (const id of ["classic", "crystal", "simple"]) {
+  it("Classic·Crystal은 켜짐 효과를 유지하고 켜짐 에셋 경로가 있다", () => {
+    for (const id of ["classic", "crystal"]) {
       expect(getSkinManifest(id).theme.heldEffect, id).not.toBe(false);
       expect(getSkinManifest(id).assets.bodySingleHeld, id).toBeDefined();
     }
+  });
+
+  it("Simple은 heldEffect: false라 켜짐 에셋 경로가 없고 부분 실패 경로는 남는다", () => {
+    const simple = getSkinManifest("simple");
+    expect(simple.theme.heldEffect).toBe(false);
+    for (const key of ["bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld"] as const) {
+      expect(simple.assets[key], key).toBeUndefined();
+    }
+    expect(simple.assets.bodyDoublePartialFailedLeft).toBe("/skins/simple/body-double-partial-failed-left.png");
   });
 });

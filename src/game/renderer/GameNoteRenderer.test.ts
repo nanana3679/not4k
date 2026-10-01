@@ -727,7 +727,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(failedSkinManager.getTexture).toHaveBeenCalledWith("terminalDoubleFailed");
   });
 
-  it.each(['crystal', 'prism', 'simple'])('%s의 더블을 1/2만 유지해도 반쪽 terminal은 기존 terminalDouble 텍스처를 사용한다', skinId => {
+  it.each(['crystal', 'prism'])('%s의 더블을 1/2만 유지해도 반쪽 terminal은 기존 terminalDouble 텍스처를 사용한다', skinId => {
     const skinManager = createMockSkinManager();
     vi.mocked(skinManager.getTheme).mockReturnValue(getSkinManifest(skinId).theme);
     const renderer = new GameNoteRenderer(
@@ -745,6 +745,26 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(skinManager.getTexture).toHaveBeenCalledWith('bodyDoublePartialHeldLeft');
     expect(skinManager.getHalfCapTexture).toHaveBeenCalledWith('terminalDouble');
     expect(skinManager.getHalfCapTexture).not.toHaveBeenCalledWith('terminalDoublePartialFailedLeft');
+  });
+
+  it('켜짐 효과가 없는 simple의 더블을 1/2만 유지하면 부분 유지 바디 없이 대기 bodyDouble과 terminalDouble을 그린다', () => {
+    const skinManager = createMockSkinManager();
+    vi.mocked(skinManager.getTheme).mockReturnValue(getSkinManifest('simple').theme);
+    const renderer = new GameNoteRenderer(
+      new Container(), new Container(), new Container(), new Container(),
+      skinManager, 500, 1000, 0, 600,
+    );
+    renderer.setJudgmentBodyStateQuery(() => ({
+      units:[
+        {unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']},
+        {unitIndex:1, active:false, failed:false, complete:false, registeredKeys:[]},
+      ],
+    }));
+    const note = {type:'doubleLong', lane:1, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
+    renderer.renderLongNote(note, 0, 100, 300, 100);
+    expect(skinManager.getTexture).toHaveBeenCalledWith('bodyDouble');
+    expect(skinManager.getTexture).not.toHaveBeenCalledWith('bodyDoublePartialHeldLeft');
+    expect(skinManager.getHalfCapTexture).toHaveBeenCalledWith('terminalDouble');
   });
 
   it("full-height terminal 스킨의 길이 0 롱노트는 20px 시작 terminal 하나만 표시", () => {

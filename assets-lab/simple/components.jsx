@@ -6,6 +6,10 @@ import P from "./palette.js";
 import { CW, CH } from "../shared/constants.js";
 import { BOMB_FRAMES, SHARD_DIRS, BURST_ANGS } from "../shared/bomb.js";
 
+// 롱노트 켜짐(홀드) 효과가 없는 스킨이다(RFD 0028). export.jsx가 켜짐 요소를 그리지 않아 켜짐 PNG를 만들지 않는다.
+// src/game/skin/skins.ts의 Simple 테마 heldEffect: false와 맞춰야 한다.
+export const HELD_EFFECT = false;
+
 /* ── 노트 헤드 ── */
 export function NoteContainer({ x, y, type = "single" }) {
   const col = type === "double" ? P.double.bright : P.single.bright;
