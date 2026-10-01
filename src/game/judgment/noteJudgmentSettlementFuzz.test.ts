@@ -18,8 +18,8 @@ const LATE_FIRST_HEAD = 30;
 const KEYS = ["A", "B", "C", "D"] as const;
 // #180(뒤 바디가 없는 끝 holdOnly unit이 E+Good까지 미확정이면 holdOnly 대신 release 판정을 내보내 세션이 미등록
 // score item 예외를 던지던 결함)은 고쳤다. 래칫으로 남겼던 일반 seed 2578(seed 1~3000)과 12000 범위의 5087·7212가
-// 이제 예외 없이 정산되며, 두 생성기 모두 seed 1~12000에서 정산 예외가 없다. 그 holdOnly unit을 언제 어떤 결과로
-// 정할지는 PRD §12에서 추적한다. 새 정산 예외를 이슈로 남겨야 할 때만 seed 래칫을 다시 둔다.
+// 이제 예외 없이 정산되며, 두 생성기 모두 seed 1~12000에서 정산 예외가 없다. 그 holdOnly unit의 결과는
+// RFD 0020 §2.14(NJ-A07)로 정했다. 새 정산 예외를 이슈로 남겨야 할 때만 seed 래칫을 다시 둔다.
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;

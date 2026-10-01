@@ -318,14 +318,20 @@ export class NoteJudgmentCore {
     // A down is consumed by the earliest eligible point, then by a start unit.
     const pointCandidate = this.pointState.peek((lane ?? 1) as 1 | 2 | 3 | 4, key, at);
     const point = pointCandidate && this.points.find(p => p.noteIndex === pointCandidate.noteIndex);
-    const startCandidate = this.units
-      .filter(u => !u.active && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end) && !this.units.some(other => other.noteIndex === u.noteIndex && other.registered.has(key)) && (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD && this.canStart(u))
-      .sort((a, b) => a.start - b.start)[0];
+    // A unit kept only by keys released before its start can be taken over by a
+    // new down (RFD 0020 §2.14); keys registered on it no longer block that
+    // down. At one start time a share nobody prepared takes the down first. Whether
+    // a released share outranks an eligible Point is undecided (PRD §12), so
+    // while a Point is eligible it is left out and the Point keeps priority.
+    const startCandidates = this.units
+      .filter(u => (!u.active || this.releasedPreparation(u)) && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end) && !this.units.some(other => other.noteIndex === u.noteIndex && other.registered.has(key) && !(other === u && u.active)) && (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD && (u.active || this.canStart(u)))
+      .sort((a, b) => a.start - b.start || Number(this.preparedShare(a)) - Number(this.preparedShare(b)));
+    const startCandidate = pointCandidate ? startCandidates.find(u => !this.takesReleasedShare(u)) : startCandidates[0];
     const preparedSuccessor = startCandidate && pointCandidate && this.units.some(predecessor =>
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
     if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && !preparedSuccessor)) {
-      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false); return;
+      this.startByDown(startCandidate, key, token, at); return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
@@ -335,7 +341,7 @@ export class NoteJudgmentCore {
       return;
     }
     const candidate = startCandidate;
-    if (candidate) { token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false); }
+    if (candidate) this.startByDown(candidate, key, token, at);
   }
 
   release(key: string, at: number = this.now, lane?: number): void {
@@ -352,17 +358,29 @@ export class NoteJudgmentCore {
     }
     // The up itself is not consumed by holdOnly, but observing it at/after E
     // still lets the maintained unit settle before the physical key leaves.
-    for (const u of this.units.filter(u => u.active && !u.failed && u.holdOnly && u.end - this.windows.GOOD <= at && (lane === undefined || u.lane === lane))) {
+    // A unit kept only by released keys waits for a new key or S+Good. When
+    // this up releases the unit's own last held key before the successor's
+    // start, the preparation is void: the successor inherits the pending up
+    // at S only provisionally (RFD 0020 §2.14). While another held key still
+    // prepares it, this up may finish it now as before (NJ-H03·H07).
+    const deferred: UnitState[] = [];
+    for (const u of this.units.filter(u => u.active && !u.failed && u.holdOnly && u.end - this.windows.GOOD <= at && (lane === undefined || u.lane === lane) && !this.releasedPreparation(u))) {
       if (this.isHeld(u) || at >= u.end - this.windows.GOOD) {
         if (!u.complete) {
           u.complete = true;
           this.emit({ kind: "holdOnly", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "perfect", deltaMs: 0, inputAt: at, confirmedAt: at, consumed: false, bodyState: "complete" });
         }
-        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) this.tryInherit(successor, u.end);
+        const voidsPreparation = u.tokens.includes(token) && this.heldPreparations(u) <= 1;
+        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) {
+          if (at > successor.start || !voidsPreparation) this.tryInherit(successor, u.end);
+          else deferred.push(successor);
+        }
       }
     }
     this.held.delete(key);
-    const correction = this.registerConnectionUp(token, key, at);
+    // A deferred successor still owns this up as a §2.6 candidate of the head
+    // at its end, exactly as an immediate inheritance would have registered it.
+    const correction = this.registerConnectionUp(token, key, at, deferred);
     if (correction?.status === "absorbed") {
       token.connectionConsumed = true;
       return;
@@ -528,6 +546,7 @@ export class NoteJudgmentCore {
         const itemId = this.takeUnitScoreItem(u);
         if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: u.start + this.windows.GOOD, consumed: false, bodyState: "failed" });
       }
+      if (this.releasedPreparation(u) && (at > u.start + this.windows.GOOD || (inclusiveDeadline && at >= u.start + this.windows.GOOD))) this.settleReleasedPreparation(u);
       const pendingBoundaryUp = this.pendingUps.some(up => Math.abs((up.upAt ?? up.at) - u.end) <= this.windows.GOOD);
       // A pending up can provisionally wake a continuation while its source
       // head is still unresolved.  Keep that unit alive until the connection
@@ -548,12 +567,18 @@ export class NoteJudgmentCore {
         this.emit({ kind: "holdOnly", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "perfect", deltaMs: 0, inputAt: null, confirmedAt: u.end, consumed: false, bodyState: "complete" });
       }
       const blockedByMissedHead = this.points.some(p => p.missed && p.lane === u.lane && p.at === u.end);
-      if (u.active && !u.failed && !u.complete && !u.forwarded && (at > u.end + this.windows.GOOD || (inclusiveDeadline && at >= u.end + this.windows.GOOD))) {
+      // A continuing body owns no release item and only had to be held to its
+      // E−Good. Reaching E+Good alive means its key stayed to E−Good, so it
+      // completes without a Miss; a failure to continue counts once on the
+      // successor (RFD 0020 §2.14). A head boundary keeps §2.12.
+      const continuing = !u.terminal && !u.holdOnly && !this.points.some(p => p.lane === u.lane && p.at === u.end);
+      if (u.active && !u.failed && !u.complete && (!u.forwarded || u.holdOnly) && (at > u.end + this.windows.GOOD || (inclusiveDeadline && at >= u.end + this.windows.GOOD))) {
+        if (continuing) { u.complete = true; continue; }
         u.failed = true;
         // A holdOnly end is a Perfect/Miss state judgment and owns no release
-        // item (#180). A pending up can keep such a unit alive to this
-        // deadline; it fails as a state Miss and settles its own holdOnly
-        // item as dependent 0 exactly once, terminal or not.
+        // item (#180). A unit still unresolved here, forwarded or not, fails
+        // once as a state Miss and settles the note's next holdOnly item as
+        // dependent 0.
         if (u.terminal && !u.holdOnly && !blockedByMissedHead) this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
         else {
           this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
@@ -576,11 +601,90 @@ export class NoteJudgmentCore {
   }
 
   private canStart(u: UnitState): boolean {
-    // A prepared connection unit is activated by inheritance, never by another down.
-    const predecessor = this.units.find(other => other !== u && other.lane === u.lane && other.end === u.start && other.active && !other.failed && !other.complete);
+    // A prepared connection unit is activated by inheritance, never by another
+    // down, while a held key prepares it. A released key no longer reserves a
+    // headless start (RFD 0020 §2.14).
+    const predecessor = this.preparingPredecessor(u);
     if (!predecessor) return true;
     const predecessorCount = this.unitsByNote.get(predecessor.noteIndex)?.length ?? 0;
-    return u.unitIndex >= predecessorCount;
+    return u.unitIndex >= predecessorCount || !this.hasHead(u) && u.unitIndex >= this.heldPreparations(predecessor) && u.unitIndex < this.continuingCapacity(predecessor, u);
+  }
+  private preparingPredecessor(u: UnitState): UnitState | undefined {
+    return this.units.find(other => other !== u && other.lane === u.lane && other.end === u.start && other.active && !other.failed && !other.complete);
+  }
+  private hasHead(u: UnitState): boolean {
+    return this.points.some(point => point.lane === u.lane && point.at === u.start);
+  }
+  /** Keys of the predecessor note still held: only these keep preparing its successor (§2.14). */
+  private heldPreparations(predecessor: UnitState): number {
+    const tokens = new Set((this.unitsByNote.get(predecessor.noteIndex) ?? []).flatMap(unit => unit.tokens));
+    return [...tokens].filter(token => token.valid && !token.released && !token.connectionConsumed && this.held.get(token.key) === token).length;
+  }
+  /**
+   * A headless unit inherited from predecessor keys that were all released at
+   * or before its start (RFD 0020 §2.14). Their preparation is void: a new
+   * down in the start window takes the unit over; otherwise S+Good decides it
+   * from the released hold. A held key of a sibling share (lane-held) does
+   * not prepare it. Head boundaries keep their §2.6/§2.12 provisional
+   * connection.
+   */
+  private releasedPreparation(u: UnitState): boolean {
+    if (!u.active || u.failed || u.complete || !u.inherited || this.hasHead(u)) return false;
+    const predecessors = this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? [];
+    const fromPredecessor = u.tokens.filter(token => predecessors.some(predecessor => predecessor.tokens.includes(token)));
+    return fromPredecessor.some(token => this.releasedBefore(token, u)) && fromPredecessor.every(token => token.upAt !== undefined);
+  }
+  private releasedBefore(token: PressToken, u: UnitState): boolean {
+    return token.upAt !== undefined && token.upAt <= u.start;
+  }
+  /** A share a live predecessor would continue. A new down prefers a share nobody prepared. */
+  private preparedShare(u: UnitState): boolean {
+    if (u.active) return true;
+    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
+      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
+    return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
+  }
+  /** A start allowed only because the keys preparing this continuing share were released (§2.14). */
+  private takesReleasedShare(u: UnitState): boolean {
+    if (u.active) return true;
+    const predecessor = this.preparingPredecessor(u);
+    return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
+  }
+  /** A new down starts u. Over a released preparation the new key takes that share over (§2.14). */
+  private startByDown(u: UnitState, key: string, token: PressToken, at: number): void {
+    token.used = true; token.valid = true;
+    const takeover = u.active;
+    const predecessor = takeover || !this.takesReleasedShare(u) ? undefined : this.preparingPredecessor(u);
+    if (takeover) { u.tokens.length = 0; u.registered.clear(); }
+    this.startUnit(u, key, token, at, false);
+    // Once no held key prepares the predecessor, its released share continues
+    // through the new key, as an inheritance would forward it.
+    if (predecessor && this.heldPreparations(predecessor) === 0) this.forwardOne(predecessor);
+  }
+  /**
+   * No new key took u over by S+Good: the released key's hold decides it
+   * (§2.14). Inheritance already required that up within Good of E, i.e. held
+   * to E−Good. holdOnly is Perfect and a terminal body takes the up as its
+   * real release graded by the up time. A continuing body has no judgment
+   * here and is left to its own end boundary, as is a body whose end has a
+   * head: there the up stays a §2.6 connection candidate of that head.
+   */
+  private settleReleasedPreparation(u: UnitState): void {
+    const releaseOwner = !u.holdOnly && u.terminal && (this.itemQueues.get(`${u.noteIndex}:release`)?.length ?? 0) > 0 &&
+      !this.points.some(point => point.lane === u.lane && point.at === u.end);
+    if (!u.holdOnly && !releaseOwner) return;
+    const token = u.tokens.find(candidate => this.releasedBefore(candidate, u) && !candidate.released && !candidate.connectionConsumed && Math.abs((candidate.upAt ?? candidate.at) - u.end) <= this.windows.GOOD);
+    if (!token) return;
+    const upAt = token.upAt ?? token.at;
+    const confirmedAt = u.start + this.windows.GOOD;
+    u.complete = true;
+    if (u.holdOnly) {
+      this.emit({ kind: "holdOnly", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "perfect", deltaMs: 0, inputAt: upAt, confirmedAt, consumed: false, bodyState: "complete", phase: "deadline" });
+      return;
+    }
+    token.released = true; u.endResolved = true;
+    const index = this.pendingUps.indexOf(token); if (index >= 0) this.pendingUps.splice(index, 1);
+    this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: gradeFor(upAt - u.end, this.windows), deltaMs: upAt - u.end, inputAt: upAt, confirmedAt, key: token.key, consumed: true, bodyState: "complete", phase: "deadline" });
   }
   private activateForHead(noteIndex: number, key: string, token: PressToken, at: number, unitIndex: number): void {
     const headStart = timeAt(this.times, noteIndex) ?? at;
@@ -686,9 +790,9 @@ export class NoteJudgmentCore {
     this.correctionLedgers.set(ledgerKey, ledger);
     return ledger;
   }
-  private registerConnectionUp(token: PressToken, key: string, at: number) {
-    const boundary = this.units
-      .filter(unit => unit.active && !unit.failed && !unit.holdOnly && unit.tokens.some(candidate => candidate === token) && Math.abs(unit.end - at) <= this.windows.GOOD)
+  private registerConnectionUp(token: PressToken, key: string, at: number, deferred: readonly UnitState[] = []) {
+    const boundary = [...this.units.filter(unit => unit.active && !unit.failed && unit.tokens.some(candidate => candidate === token)), ...deferred]
+      .filter(unit => !unit.holdOnly && Math.abs(unit.end - at) <= this.windows.GOOD)
       .sort((a, b) => a.end - b.end)[0];
     if (!boundary || !this.points.some(point => point.at === boundary.end && point.lane === boundary.lane) ||
       !this.units.some(unit => unit.start === boundary.end && unit.lane === boundary.lane)) return undefined;
@@ -839,7 +943,11 @@ export class NoteJudgmentCore {
     }
   }
 
-  /** Only terminal release units own scored release items; carried units do not. */
+  /**
+   * Only terminal release units own scored release items; carried units do
+   * not. Items come from the note's FIFO queue, so a double unit may take the
+   * note's next item rather than the one with its own ordinal.
+   */
   private takeUnitScoreItem(unit: UnitState): string | undefined {
     if (!unit.terminal && !unit.holdOnly) return undefined;
     const queue = this.itemQueues.get(`${unit.noteIndex}:${unit.holdOnly ? "holdOnly" : "release"}`);

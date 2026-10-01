@@ -2,7 +2,7 @@
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
-사례는 40개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로 추가했다.
+사례는 41개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로, [NJ-A07](#nj-a07)은 #180 수정 검토에서 사용자가 정한 이어지는 바디의 유지 기준과 시작 준비 해제로 추가했다.
 
 ## 사용 방법
 
@@ -112,6 +112,53 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 | A up 1130 | 별도의 release나 추가 Miss 없음 |
 
 이미 활성화한 뒤 실패한 바디를 복구하는 경우는 아니다.
+
+<a id="nj-a07"></a>
+### NJ-A07 — 이어지는 바디는 E−Good까지만 쥐면 되고, 뗀 키의 시작 준비는 풀려 시작 창 안의 새 키가 이어감
+
+결정 배경은 [RFD 0020 §2.14](../rfd/0020-note-judgment-units-and-inheritance.md#214-이어지는-바디의-유지-기준과-시작-준비-해제--후속-채택)를 따른다. 아래 세 표는 사용자 확인 사례다(2026-10-01).
+
+**이어지는 바디와 짧은 뒤 바디.** 차트: head 없는 single `[1000,1500]` → head 없는 double `holdOnly [1500,1560]`(1→2 증가). A down 1000 뒤 A만 뗀다. 앞 E−Good 1380, 뒤 E−Good 1440, 뒤 시작 창 1380~1620.
+
+| A up | 기대 결과 |
+|---|---|
+| 1455 또는 1500 | 앞 바디는 E−Good 이후에 뗐으므로 Miss 없음. A를 뒤 E−Good 1440 이후까지 유지했으므로 A로 이어진 unit은 1620에 Perfect. 아무도 누르지 않은 증가 unit만 1620에 시작 실패. Miss 1 |
+| 1430 | 앞 바디 Miss 없음. A로는 뒤를 충족하지 못해(1430 < 1440) 뒤 두 unit이 1620에 시작 실패. Miss 2 |
+| 1520 | A를 쥔 채 S에 이어받은 unit은 1520에 이른 완료 Perfect, 증가 unit은 1620에 시작 실패. Miss 1 |
+
+뒤 바디가 긴 `holdOnly [1500,2000]`(E−Good 1880)이면 A up 1430·1455·1500은 모두 뒤를 충족하지 못해 뒤 두 unit이 1620에 시작 실패하고(Miss 2), 앞 바디에는 Miss가 없다. A up 1520이면 이어받은 unit이 1520에 유지 실패한다.
+
+**뗀 키의 준비 해제.** 차트: head 없는 double `[1000,1200]` → head 없는 single `[1200,1260]`(2→1 감소). A·B down 1000. 뒤 E−Good 1140, 뒤 시작 창 1080~1320.
+
+| 입력 | 뒤가 `holdOnly [1200,1260]` | 뒤가 일반 `[1200,1260]` |
+|---|---|---|
+| B up 1160(감소 release Perfect −40) → A up 1170 → D down 1180 | D가 뒤 바디를 이어가 D 유지로 1260에 Perfect | D가 이어간다. D의 up이 뒤 release(D up 1310이면 Great +50, 계속 쥐면 1380에 release Miss). A up은 뒤 판정에 쓰지 않음 |
+| A up 1100 → B up 1160 → D down 1180 | 같음. 가장 이른 적격 up인 A up 1100이 감소 release Good(−100) | 같음 |
+| B up 1160 → A up 1170, 새 키 없음 | A를 1140 이후까지 유지했으므로 시작 창이 닫히는 1320에 Perfect | A up이 뒤 release Good(−90)이며 1320에 확정 |
+
+**`holdOnly` → `holdOnly` 체인.** 차트: head 없는 `holdOnly [1000,1500]` → `holdOnly [1500,1560]`. A down 1000.
+
+| 입력 | 기대 결과 |
+|---|---|
+| A up 1455 | 앞은 1455에 이른 완료 Perfect, 뒤는 1455 ≥ 1440이므로 1620에 Perfect |
+| A up 1455, 뒤가 `[1500,2000]` | 앞 Perfect, 뒤는 새 키가 없어 1620에 시작 실패 |
+| A up 1455 → D down 1470 또는 1550 | D가 뒤 바디를 이어가 D 유지로 E(1560)에 Perfect |
+
+아래는 **규칙에서 도출한 대조**다.
+
+| 차트·입력 | 기대 결과 |
+|---|---|
+| 감소 차트에서 B up 1100(감소 release Good −100) → A up 1120(뒤 E−Good 1140 전), 새 키 없음 | 앞 바디 Miss 없이 뒤 바디만 1320에 시작 실패(뒤가 `holdOnly`든 일반이든). D down 1180을 더하면 D가 이어가 `holdOnly`는 1260에 Perfect |
+| 감소 차트에서 B up 1160 → A up 1170 → D down 1250(뒤 S 이후, 시작 창 안) | D가 이어간다. `holdOnly`는 1260에 Perfect, 일반은 D up 1310이 release Great(+50) |
+| 위와 같고 D down 1300(뒤 E 이후, S+Good 전) | `holdOnly`는 1300에 Perfect([NJ-A06](#nj-a06)과 같은 늦은 첫 활성화). 일반은 D up 1310이 release Great(+50) |
+| 감소 차트에서 A를 경계까지 쥐고 B up 1160 → D down 1180 | 쥔 키의 준비는 그대로라 D down은 시작에 쓰지 않고 A가 이어감([NJ-A04](#nj-a04)). `holdOnly`는 1260에 Perfect |
+| head 없는 double `holdOnly [1000,1060]` → `[1060,1120]`. A·B down 1000, B를 쥔 채 A up 1030 | B가 아직 준비하므로 A의 준비가 풀리지 않는다. A up이 곧바로 뒤 release Good(−90)이며 1030에 확정([NJ-H03](#nj-h03)·[NJ-H07](#nj-h07)) |
+| [NJ-H07](#nj-h07) 차트, A up 1050 → D down 1070 → D up 1100 | D가 뒤 바디를 이어가 D up이 release Perfect(−20). A up은 뒤 release에 쓰지 않음 |
+| `[1000,1500]` → double `holdOnly [1500,1560]` → `[1560,1570]`. A up 1455 | A로 이어진 unit은 1620에 Perfect, 증가 unit은 1620에 시작 실패, 끝 `[1560,1570]`은 같은 A up이 release Good(−115)이며 1680에 확정. 모든 점수 항목을 한 번씩 정산 |
+| `holdOnly [1000,1500]` → `holdOnly [1500,1540]` → `[1540,1560]`. A up 1450 | 1450 Perfect, 1620 Perfect, 끝 release Good(−110)을 1660에 확정. Full Combo |
+| `[1000,1500]` → double `holdOnly [1500,1540]` → double `holdOnly [1540,1560]`. A up 1450 | A로 이어진 두 unit은 1620·1660에 Perfect, 아무도 누르지 않은 두 unit은 각 시작 창 끝에 시작 실패. Miss 2 |
+
+모든 표에서 첫 시작을 S+Good 안에서 늦게 눌러도(예: 1030) 판정·등급·확정 시각이 같다(RFD 0020 §2.7). 경계에 head가 있으면 이 사례를 적용하지 않고 [NJ-R16](#nj-r16)을 따른다. 결과가 하나로 정해지지 않은 인접 사례는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 ## 일반 감소와 release
 
@@ -475,13 +522,13 @@ NJ-H05와 같지만 뒤 single은 `[1060,1120]`이다.
 | 이른 쪽 | A up 1050 | 앞 `holdOnly` Perfect 상태 완료 + **뒤 끝 1120**의 실제 release Great(-70) |
 | 늦은 쪽 | A up 1070 | 앞은 1060에서 이미 Perfect, 뒤 실제 release Great(-50) |
 
-두 실행 모두 down 1개와 up 1개로 완료한다. 이른 쪽의 실제 up 소비 대상은 1120 하나이며, 뒤 S=1060 전에도 정당한 승계 준비를 쓸 수 있다.
+두 실행 모두 down 1개와 up 1개로 완료한다. 이른 쪽의 실제 up 소비 대상은 1120 하나이며, 뒤 S=1060 전에도 정당한 승계 준비를 쓸 수 있다. 이른 쪽은 뒤 시작 창 안에 새 키가 오지 않을 때의 결과이며, 뒤 release는 시작 창이 닫히는 1180에 확정한다([NJ-A07](#nj-a07)).
 
-아래는 **규칙에서 도출한 대조**다. 경계 전 up이 뒤 `holdOnly` 끝의 E−Good 이후여도 `holdOnly` 끝은 release로 판정하지 않으며, 그 점수 항목을 정확히 한 번 정산한다. 그 up으로만 이어진 `holdOnly` unit의 결과(시작 실패·이른 완료와 확정 시각)는 정하지 않았으며 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+아래는 **규칙에서 도출한 대조**다. 경계 전 up이 뒤 `holdOnly` 끝의 E−Good 이후여도 `holdOnly` 끝은 release로 판정하지 않으며, 그 점수 항목을 정확히 한 번 정산한다. 그 up으로만 이어진 `holdOnly` unit은 [NJ-A07](#nj-a07)을 따른다.
 
 | 차트·입력 | 기대 결과 |
 |---|---|
-| head 없는 `[1000,1500]` → head 없는 double `holdOnly [1500,1560]`. A down 1000, up 1455, 이후 입력 없음 | release 판정 없음. 시작 입력이 없는 증가 unit은 1620에 유지 Miss와 종속 0점. `holdOnly` 점수 항목 2개를 한 번씩 정산 |
+| head 없는 `[1000,1500]` → head 없는 double `holdOnly [1500,1560]`. A down 1000, up 1455, 이후 입력 없음 | release 판정 없음. A up이 뒤 E−Good 1440 이후라 A로 이어진 unit은 1620에 Perfect. 시작 입력이 없는 증가 unit은 1620에 시작 실패(Miss 1회)와 끝점 0점. `holdOnly` 점수 항목 2개를 한 번씩 정산 |
 
 <a id="nj-h08"></a>
 ### NJ-H08 — o-*-*-*-의 head를 1030ms에 늦게 눌러도 A 유지로 뒤 세 구간을 승계
