@@ -7,6 +7,7 @@ import type { SkinManifest } from '../../skin/types';
 import { LANE_AREA_WIDTH } from '../../renderer/constants';
 import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
+import { stepTutorialLoopClock } from './tutorialLoopClock';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { createChartTiming } from '../../../shared';
@@ -540,17 +541,12 @@ export function TutorialPreviewPlayer({
 
         const renderLoop = (now: number) => {
           if (disposed || !renderer) return;
-          if (pausedRef.current) {
+          const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
+          ({ loopStartNow, pausedAtNow, previousNow } = clock.next);
+          if (clock.frozen) {
             // 일시정지 중에는 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
-            pausedAtNow ??= now;
-            previousNow = now;
             animationFrameId = requestAnimationFrame(renderLoop);
             return;
-          }
-          if (pausedAtNow !== null) {
-            loopStartNow = resumeTutorialLoopStart(loopStartNow, pausedAtNow, now);
-            pausedAtNow = null;
-            previousNow = now;
           }
 
           const deltaMs = Math.min(48, now - previousNow);
@@ -682,11 +678,6 @@ export function TutorialPreviewPlayer({
       )}
     </div>
   );
-}
-
-/** 일시정지한 시간만큼 루프 시작점을 미뤄, 재개 시 멈춘 루프 시간에서 이어지게 한다. */
-export function resumeTutorialLoopStart(loopStartNow: number, pausedAtNow: number, resumeNow: number): number {
-  return loopStartNow + (resumeNow - pausedAtNow);
 }
 
 function callTutorialPreviewReady(onReady?: () => void): void {
