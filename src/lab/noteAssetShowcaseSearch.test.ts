@@ -59,4 +59,27 @@ describe('시연실 시안·버전 선택의 주소 갱신 (#176)', () => {
     expect(params.toString()).toBe('design=classic');
     expect(replace).toBe(true);
   });
+
+  it('기본 시안 Classic으로 표시되는 잘못된 design=foo에서 Classic을 고르면 design=classic으로 정규화하고 replace=true', () => {
+    const { params, replace } = nextShowcaseSearch(search('design=foo'), { design: 'classic' });
+    expect(params.toString()).toBe('design=classic');
+    expect(replace).toBe(true);
+  });
+
+  it('version이 무시되는 design=simple&version=v012에서 Simple을 고르면 version을 지운 design=simple이 되고 replace=true', () => {
+    const { params, replace } = nextShowcaseSearch(search('design=simple&version=v012'), { design: 'simple' });
+    expect(params.toString()).toBe('design=simple');
+    expect(replace).toBe(true);
+  });
+
+  it('Classic v012로 표시되는 design=foo&version=v012에서 Classic을 고르면 현재 적용본으로 바뀌어 replace=false', () => {
+    const { params, replace } = nextShowcaseSearch(search('design=foo&version=v012'), { design: 'classic' });
+    expect(params.toString()).toBe('design=classic');
+    expect(replace).toBe(false);
+  });
+
+  it('관계없는 foo=bar 인자는 design=classic에서 Simple로 바꿔도 그대로 남는다', () => {
+    const { params } = nextShowcaseSearch(search('foo=bar&design=classic'), { design: 'simple' });
+    expect(params.toString()).toBe('foo=bar&design=simple');
+  });
 });

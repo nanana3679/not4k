@@ -57,6 +57,7 @@ test('현재 적용본→v012 전환 뒤 v012를 두 번 더 골라도 뒤로가
   await version.selectOption('v012');
   await expect(page).toHaveURL(/version=v012/);
   await expect(page.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic-v012');
+  // 브라우저 기본 select는 같은 항목을 다시 골라도 change를 보내지 않지만, Playwright selectOption은 항상 보내므로 재선택 경로를 직접 검증할 수 있다.
   await version.selectOption('v012');
   await version.selectOption('v012');
   await expect(page).toHaveURL(/version=v012/);

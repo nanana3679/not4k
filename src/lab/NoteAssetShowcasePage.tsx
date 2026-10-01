@@ -124,7 +124,8 @@ export default function NoteAssetShowcasePage() {
   };
 
   const selectShowcase = (change: NoteAssetShowcaseSelection) => {
-    const { params, replace } = nextShowcaseSearch(searchParams, change);
+    // 라우터 전환이 반영되기 전 연속 클릭에서도 방금 쌓은 기록을 덮어쓰지 않도록 실제 주소를 기준으로 판단한다.
+    const { params, replace } = nextShowcaseSearch(new URLSearchParams(window.location.search), change);
     setSearchParams(params, { replace });
   };
 
