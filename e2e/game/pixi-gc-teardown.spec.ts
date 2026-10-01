@@ -16,6 +16,7 @@ const PIXI_BUNDLE = fileURLToPath(new URL('../../node_modules/pixi.js/dist/pixi.
 type TextureKind = 'fillGradient' | 'imageSource';
 
 interface TeardownResult {
+  rendererName: string;
   unloadedByGc: boolean;
   error: string | null;
 }
@@ -24,9 +25,8 @@ async function runGcThenDestroyAfterApp(page: Page, kind: TextureKind): Promise<
   await page.setContent('<!doctype html><html><body></body></html>');
   await page.addScriptTag({ path: PIXI_BUNDLE });
   return page.evaluate(async (textureKind) => {
-    // pixi.min.js는 타입 없이 window.PIXI 전역으로 붙는다.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const PIXI = (window as any).PIXI;
+    // pixi.min.js는 window.PIXI 전역으로 붙는다. 타입만 가져온다(런타임 import 없음).
+    const PIXI = (window as unknown as { PIXI: typeof import('pixi.js') }).PIXI;
     const app = new PIXI.Application();
     // gcMaxUnusedTime 0: 다음 GC 패스에서 GC 대상 텍스처를 모두 내린다(실제 기본값은 60초 미사용).
     await app.init({ width: 64, height: 64, preference: 'webgl', gcMaxUnusedTime: 0 });
@@ -54,17 +54,20 @@ async function runGcThenDestroyAfterApp(page: Page, kind: TextureKind): Promise<
     const { texture, destroyTexture } = createTexture();
 
     app.render();
-    let unloadedByGc = false;
-    texture.source.on('unload', () => { unloadedByGc = true; });
+    let unloadCount = 0;
+    texture.source.on('unload', () => { unloadCount++; });
     app.renderer.gc.run();
+    // destroy()도 unload를 emit하므로 GC 직후에 고정해야 GC가 실제로 텍스처를 내렸는지 알 수 있다.
+    const unloadedByGc = unloadCount > 0;
+    const rendererName = app.renderer.name;
 
     // 앱의 dispose 순서: 렌더러를 먼저 파괴하고 텍스처를 나중에 파괴한다.
     app.destroy(true, { children: true, texture: false });
     try {
       destroyTexture();
-      return { unloadedByGc, error: null };
+      return { rendererName, unloadedByGc, error: null };
     } catch (e) {
-      return { unloadedByGc, error: e instanceof Error ? e.message : String(e) };
+      return { rendererName, unloadedByGc, error: e instanceof Error ? e.message : String(e) };
     }
   }, kind);
 }
@@ -75,6 +78,7 @@ test('GC가 내린 FillGradient 텍스처를 app.destroy 뒤에 destroy()해도 
 
   const result = await runGcThenDestroyAfterApp(page, 'fillGradient');
 
+  expect(result.rendererName).toBe('webgl');
   expect(result.unloadedByGc).toBe(true);
   expect(result.error).toBeNull();
   expect(pageErrors).toEqual([]);
@@ -86,6 +90,7 @@ test('GC가 내린 ImageSource 스킨 텍스처를 app.destroy 뒤에 destroy(tr
 
   const result = await runGcThenDestroyAfterApp(page, 'imageSource');
 
+  expect(result.rendererName).toBe('webgl');
   expect(result.unloadedByGc).toBe(true);
   expect(result.error).toBeNull();
   expect(pageErrors).toEqual([]);
