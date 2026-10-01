@@ -57,7 +57,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('getTutorialKeyboardLayout(settings.preset)');
     expect(tutorialPreviewPlayerSource).toContain('resolveTutorialKeyboardBindings(baseTimings, settings.keyBindings, settings.preset)');
     expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, bindingResolution.bindings)');
-    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight,');
+    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight: rendererOptions.keyboardAreaHeight,');
     expect(tutorialPreviewPlayerSource).toContain('tutorialKeyboard: {');
     expect(tutorialPreviewPlayerSource).toContain('buildTutorialKeyboardKeys(keyboardLayout, keyByCode)');
     expect(tutorialPreviewPlayerSource).not.toContain('data-keyboard-key');
@@ -256,16 +256,16 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('document.body,');
   });
 
-  it('튜토리얼 도식이 0ms에서 시작하면 렌더러 init 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain(
-      [
-        'resolveDiagramPauseTime(0);',
-        '    if (activeDiagramPause) {',
-        '      notifyReady();',
-        '    }',
-        '',
-        '    const start = async () => {',
-      ].join('\n'),
+  it('튜토리얼 도식이 0ms에서 시작하면 렌더러 준비를 기다리기 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
+    const earlyDiagramNotify = [
+      'resolveDiagramPauseTime(0);',
+      '    if (activeDiagramPause) {',
+      '      notifyReady();',
+      '    }',
+    ].join('\n');
+    expect(tutorialPreviewPlayerSource).toContain(earlyDiagramNotify);
+    expect(tutorialPreviewPlayerSource.indexOf(earlyDiagramNotify)).toBeLessThan(
+      tutorialPreviewPlayerSource.indexOf('handleRendererState(rendererStateRef.current);'),
     );
   });
 
@@ -289,7 +289,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-spinner');
   });
 
-  it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
+  it('레슨을 넘기면 같은 렌더러에 새 차트의 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');
     expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(preview.renderStartMs, 0)');
@@ -322,6 +322,63 @@ describe('TutorialPreviewPlayer', () => {
         '        }',
       ].join('\n'),
     );
+  });
+
+
+  it('렌더러는 스킨·키보드 프리셋 키(rendererKey)가 바뀔 때만 새로 만들고, 그때만 캔버스도 새로 붙여 잃은 WebGL 컨텍스트를 재사용하지 않음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const rendererKey = `${skinManifest?.theme.id ?? skinId}:${settings.preset}`');
+    expect(tutorialPreviewPlayerSource).toContain('key={rendererKey}');
+    expect(tutorialPreviewPlayerSource).toContain('  }, [rendererKey]);');
+    expect(tutorialPreviewPlayerSource.split('new GameRenderer(').length - 1).toBe(1);
+  });
+
+  it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 준비 알림 순서로 재사용', () => {
+    const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
+    expect(tutorialPreviewPlayerSource).toContain(contentDeps);
+    const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer) => {');
+    expect(attachStart).toBeGreaterThan(-1);
+    const order = [
+      'renderer.resetTransientState();',
+      'renderer.setChart(',
+      'renderer.updateTutorialKeyboardKeys(tutorialKeyboardKeys);',
+      'renderer.setLaneKeyLabels(getLaneKeyLabels(keys, [], {})',
+      'renderer.renderFrame(preview.renderStartMs, 0);',
+      'notifyReady();',
+      'setRendererReady(true);',
+    ].map((snippet) => tutorialPreviewPlayerSource.indexOf(snippet, attachStart));
+    expect(order.every((index) => index > attachStart)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
+    const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
+    expect(contentStart).toBeGreaterThan(-1);
+    expect(contentEnd).toBeGreaterThan(contentStart);
+    const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
+    expect(contentEffect).toContain('cancelAnimationFrame(animationFrameId)');
+    expect(contentEffect).not.toContain('disposeTutorialPreviewRenderer');
+    expect(contentEffect).not.toContain('.dispose()');
+  });
+
+  it('렌더러 준비·실패·재생성은 차트 effect가 구독해 처리하고, 실패하면 이후 레슨도 준비 완료로 알려 캐러셀이 멈추지 않음', () => {
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'ready', renderer });");
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'failed' });");
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'loading' });");
+    expect(tutorialPreviewPlayerSource).toContain('rendererStateListenerRef.current = handleRendererState;');
+    expect(tutorialPreviewPlayerSource).toContain(
+      [
+        "    if (state.status === 'failed') {",
+        '        // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.',
+        '        notifyReady();',
+        '        setRendererReady(true);',
+      ].join('\n'),
+    );
+    expect(tutorialPreviewPlayerSource).toContain('const error = rendererError ?? contentError;');
+  });
+
+  it('재생기는 같은 튜토리얼 재방문을 구분하는 previewInstanceId prop을 받음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('previewInstanceId?: number;');
   });
 
 

@@ -4,6 +4,8 @@ import { test, expect, type Page } from '@playwright/test';
 // 자리 잡은(active) 뒤에 처음부터 재생한다. 예전에는 보이지 않는 동안 미리 재생을 시작해, 자리 잡은 순간
 // 이미 차트가 약 0.5초 진행돼 있었다. 재생기에는 테스트 훅이 없으므로 실제 GameRenderer.renderFrame을
 // 감싸 캔버스별 첫 렌더 시각과 마지막 렌더 시각을 기록한다(실제 WebGL이 필요해 vitest로는 확인 불가).
+// 두 슬롯은 렌더러와 캔버스를 유지한 채 차트만 바꾸므로, 재생기가 새 차트를 걸며 부르는 resetTransientState에서
+// 캔버스 기록을 지워 차트마다 첫 렌더 시각을 다시 잰다.
 
 const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   state: {
@@ -42,9 +44,19 @@ async function recordRenderedChartTimes(page: Page): Promise<void> {
     const rendererPath = '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
     type TrackedCanvas = HTMLCanvasElement & { __firstRenderMs?: number; __lastRenderMs?: number };
+    const canvasOf = (renderer: unknown) => (renderer as { app?: { canvas?: TrackedCanvas } }).app?.canvas;
+    const originalReset = GameRenderer.prototype.resetTransientState;
+    GameRenderer.prototype.resetTransientState = function () {
+      const canvas = canvasOf(this);
+      if (canvas) {
+        delete canvas.__firstRenderMs;
+        delete canvas.__lastRenderMs;
+      }
+      return originalReset.call(this);
+    };
     const original = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (songTimeMs, deltaMs) {
-      const canvas = (this as unknown as { app?: { canvas?: TrackedCanvas } }).app?.canvas;
+      const canvas = canvasOf(this);
       if (canvas) {
         canvas.__firstRenderMs ??= songTimeMs;
         canvas.__lastRenderMs = songTimeMs;
