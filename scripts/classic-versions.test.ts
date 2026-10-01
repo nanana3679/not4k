@@ -81,7 +81,7 @@ describe('Classic 버전 보관', () => {
     const root = await fixture();
     await rename(join(root, 'public/skins/classic'), join(root, 'outside-classic'));
     await symlink(join(root, 'outside-classic'), join(root, 'public/skins/classic'), 'dir');
-    await expect(saveClassicVersion({ root, id: 'v002', label: '링크' })).rejects.toThrow('심볼릭 링크');
+    await expect(saveClassicVersion({ root, id: 'v002', label: '링크' })).rejects.toThrow('심볼릭 링크는 보관하지 않습니다: public/skins/classic');
     await expect(access(archive(root, 'v002'))).rejects.toThrow();
   });
 
@@ -90,13 +90,33 @@ describe('Classic 버전 보관', () => {
     await expect(saveClassicVersion({ root, id: '../outside', label: '잘못된 ID' })).rejects.toThrow('버전 ID');
     await expect(access(join(root, 'assets-lab/classic/outside'))).rejects.toThrow();
   });
+
+  it('v001 manifest에서 README.md의 sha256을 "abc"로 바꾸면 verify가 "보관 해시가 올바르지 않습니다: v001 assets-lab/classic/README.md" 오류로 멈춘다', async () => {
+    const root = await fixture();
+    await saveClassicVersion({ root, id: 'v001', label: '이전' });
+    const manifestPath = join(archive(root, 'v001'), 'manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    manifest.files.find((file: { path: string }) => file.path === 'assets-lab/classic/README.md').sha256 = 'abc';
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await expect(verifyClassicVersion({ root, id: 'v001' })).rejects.toThrow('보관 해시가 올바르지 않습니다: v001 assets-lab/classic/README.md');
+  });
+
+  it('v001 manifest.json이 JSON이 아니면 verify가 "버전 정보가 올바르지 않습니다: v001" 오류로 멈춘다', async () => {
+    const root = await fixture();
+    await saveClassicVersion({ root, id: 'v001', label: '이전' });
+    await writeFile(join(archive(root, 'v001'), 'manifest.json'), '{ broken');
+    await expect(verifyClassicVersion({ root, id: 'v001' })).rejects.toThrow('버전 정보가 올바르지 않습니다: v001');
+  });
 });
 
-// 실제 게임 PNG 폴더와 실제 보관본 manifest.json만 복사한다. 보관 파일(files/)은 비교에 쓰지 않는다.
+// 게임 PNG는 작업본이 아니라 변하지 않는 v014 보관 PNG를 복사해, 새 버전을 적용해도 이 픽스처를 쓰는 테스트는 깨지지 않는다.
+// 보관본은 실제 manifest.json만 복사한다. 보관 파일(files/)은 비교에 쓰지 않는다.
+const v014RuntimeDirectory = join(archive(repositoryRoot, 'v014'), 'files/public/skins/classic');
+
 async function currentFixture(ids: string[]) {
   const root = await mkdtemp(join(tmpdir(), 'not4k-classic-current-'));
   temporaryRoots.push(root);
-  await cp(join(repositoryRoot, 'public/skins/classic'), join(root, 'public/skins/classic'), { recursive: true });
+  await cp(v014RuntimeDirectory, join(root, 'public/skins/classic'), { recursive: true });
   for (const id of ids) {
     await mkdir(archive(root, id), { recursive: true });
     await cp(join(archive(repositoryRoot, id), 'manifest.json'), join(archive(root, id), 'manifest.json'));
@@ -127,7 +147,7 @@ async function runCli(root: string, ...args: string[]) {
   const script = join(root, 'scripts/classic-versions.mjs');
   await mkdir(dirname(script), { recursive: true });
   await cp(join(repositoryRoot, 'scripts/classic-versions.mjs'), script);
-  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+  return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', timeout: 30_000 });
 }
 
 describe('Classic 현재 적용본 판별 (current)', () => {
@@ -201,6 +221,61 @@ describe('Classic 현재 적용본 판별 (current)', () => {
     expect(result.compared).toEqual({ id: 'v001', pngDiffs: [], otherDiffs: ['assets-lab/classic/gone.mjs', 'package.json'] });
   });
 
+  it('v001 보관 뒤 작업본에 sources/brand-new.svg가 추가되면 보관본에 없는 그 경로를 그 밖의 차이로 보고하고 같은 old.svg는 뺀다', async () => {
+    const root = await fakeRoot({
+      [runtimePath]: 'current',
+      'assets-lab/classic/sources/old.svg': 'old',
+      'assets-lab/classic/sources/brand-new.svg': 'new',
+    });
+    await fakeVersion(root, 'v001', { [runtimePath]: 'current', 'assets-lab/classic/sources/old.svg': 'old' });
+    const result = await findCurrentClassicVersion({ root });
+    expect(result.matches).toEqual(['v001']);
+    expect(result.compared.otherDiffs).toEqual(['assets-lab/classic/sources/brand-new.svg']);
+  });
+
+  it('v001 보관 뒤 Lab SVG note-new.svg와 생성기 extra.mjs가 작업본에 추가되면 두 경로를 그 밖의 차이로 보고한다', async () => {
+    const root = await fakeRoot({
+      [runtimePath]: 'current',
+      'public/lab/note-assets/classic/note-new.svg': 'new',
+      'assets-lab/classic/extra.mjs': 'generator',
+    });
+    await fakeVersion(root, 'v001', { [runtimePath]: 'current' });
+    const result = await findCurrentClassicVersion({ root });
+    expect(result.compared.otherDiffs).toEqual(['assets-lab/classic/extra.mjs', 'public/lab/note-assets/classic/note-new.svg']);
+  });
+
+  it('v001·v0001처럼 번호 값이 같은 두 버전이 모두 일치하면 문자열 역순으로 v001·v0001을 반환하고 v001을 비교 대상으로 고른다', async () => {
+    const root = await fakeRoot({ [runtimePath]: 'current' });
+    await fakeVersion(root, 'v0001', { [runtimePath]: 'current' });
+    await fakeVersion(root, 'v001', { [runtimePath]: 'current' });
+    const result = await findCurrentClassicVersion({ root });
+    expect(result.matches).toEqual(['v001', 'v0001']);
+    expect(result.compared.id).toBe('v001');
+  });
+
+  it('게임 PNG 폴더 안에 link.png 심볼릭 링크가 있으면 "게임 PNG 폴더에 심볼릭 링크가 있어 비교할 수 없습니다: public/skins/classic/link.png" 오류로 멈춘다', async () => {
+    const root = await fakeRoot({ [runtimePath]: 'current' });
+    await fakeVersion(root, 'v014', { [runtimePath]: 'current' });
+    await symlink(join(root, runtimePath), join(root, 'public/skins/classic/link.png'));
+    const error = await findCurrentClassicVersion({ root }).catch((caught: Error) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('게임 PNG 폴더에 심볼릭 링크가 있어 비교할 수 없습니다: public/skins/classic/link.png');
+  });
+
+  it('Lab SVG 폴더 안에 link.svg 심볼릭 링크가 있으면 "심볼릭 링크가 있어 비교할 수 없습니다: public/lab/note-assets/classic/link.svg" 오류로 멈춘다', async () => {
+    const root = await fakeRoot({ [runtimePath]: 'current', 'public/lab/note-assets/classic/note-single.svg': 'svg' });
+    await fakeVersion(root, 'v014', { [runtimePath]: 'current' });
+    await symlink(join(root, 'public/lab/note-assets/classic/note-single.svg'), join(root, 'public/lab/note-assets/classic/link.svg'));
+    const error = await findCurrentClassicVersion({ root }).catch((caught: Error) => caught);
+    expect((error as Error).message).toBe('심볼릭 링크가 있어 비교할 수 없습니다: public/lab/note-assets/classic/link.svg');
+  });
+
+  it('public/skins/classic 폴더가 없으면 "게임 PNG 폴더가 없습니다: public/skins/classic" 오류로 멈춘다', async () => {
+    const root = await fakeRoot({ 'package.json': 'current' });
+    await fakeVersion(root, 'v014', { [runtimePath]: 'current' });
+    await expect(findCurrentClassicVersion({ root })).rejects.toThrow('게임 PNG 폴더가 없습니다: public/skins/classic');
+  });
+
   it('v015의 manifest.json이 JSON이 아니면 "버전 정보가 올바르지 않습니다: v015" 오류로 멈춘다', async () => {
     const root = await fakeRoot({ [runtimePath]: 'current' });
     await fakeVersion(root, 'v014', { [runtimePath]: 'current' });
@@ -211,6 +286,11 @@ describe('Classic 현재 적용본 판별 (current)', () => {
 
   it('보관 버전 폴더가 하나도 없으면 "보관된 Classic 버전이 없습니다." 오류로 멈춘다', async () => {
     const root = await fakeRoot({ [runtimePath]: 'current', 'assets-lab/classic/versions/README.md': '# 보관' });
+    await expect(findCurrentClassicVersion({ root })).rejects.toThrow('보관된 Classic 버전이 없습니다.');
+  });
+
+  it('assets-lab/classic/versions 폴더 자체가 없으면 "보관된 Classic 버전이 없습니다." 오류로 멈춘다', async () => {
+    const root = await fakeRoot({ [runtimePath]: 'current' });
     await expect(findCurrentClassicVersion({ root })).rejects.toThrow('보관된 Classic 버전이 없습니다.');
   });
 

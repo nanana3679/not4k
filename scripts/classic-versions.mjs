@@ -42,17 +42,29 @@ async function git(root, args, binary = false) {
   return (await exec('git', args, { cwd: root, encoding: binary ? 'buffer' : 'utf8', maxBuffer: 32 * 1024 * 1024 })).stdout;
 }
 
+// symlinkPath lets callers other than save replace the message with their own wording.
+const symlinkError = path => Object.assign(new Error(`심볼릭 링크는 보관하지 않습니다: ${path}`), { symlinkPath: path });
+
 async function walk(root, path) {
-  if ((await lstat(resolve(root, path))).isSymbolicLink()) throw new Error(`심볼릭 링크는 보관하지 않습니다: ${path}`);
+  if ((await lstat(resolve(root, path))).isSymbolicLink()) throw symlinkError(path);
   const entries = await readdir(resolve(root, path), { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
-    if (entry.isSymbolicLink()) throw new Error(`심볼릭 링크는 보관하지 않습니다: ${path}/${entry.name}`);
+    if (entry.isSymbolicLink()) throw symlinkError(`${path}/${entry.name}`);
     const child = `${path}/${entry.name}`;
     if (entry.isDirectory()) files.push(...await walk(root, child));
     else if (entry.isFile()) files.push(child);
   }
   return files;
+}
+
+// The worktree files a save archives: fixed files, top-level generators and every file in the archived directories.
+async function workingSelection(root, list = walk) {
+  const generators = (await readdir(resolve(root, 'assets-lab/classic')))
+    .filter(name => name.endsWith('.mjs')).map(name => `assets-lab/classic/${name}`);
+  const paths = [...fixedFiles, ...generators];
+  for (const directory of directories) paths.push(...await list(root, directory));
+  return paths;
 }
 
 export async function saveClassicVersion({ root, id, label, ref }) {
@@ -63,10 +75,7 @@ export async function saveClassicVersion({ root, id, label, ref }) {
   if (ref) {
     paths = (await git(root, ['ls-tree', '-r', '--name-only', commit])).trim().split('\n').filter(selected);
   } else {
-    const generators = (await readdir(resolve(root, 'assets-lab/classic')))
-      .filter(name => name.endsWith('.mjs')).map(name => `assets-lab/classic/${name}`);
-    paths = [...fixedFiles, ...generators];
-    for (const directory of directories) paths.push(...await walk(root, directory));
+    paths = await workingSelection(root);
   }
   paths = [...new Set(paths)].sort();
   for (const path of [...fixedFiles, ...directories.map(directory => `${directory}/`)]) {
@@ -148,19 +157,45 @@ async function workingHash(root, path) {
   }
 }
 
+// current compares instead of archiving: a missing reference directory counts as empty,
+// but the game PNG folder must exist and no compared directory may contain a symlink.
+async function listForComparison(root, directory) {
+  const isRuntime = directory === runtimeDirectory;
+  const exists = await lstat(resolve(root, directory)).then(() => true, error => {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  });
+  if (!exists) {
+    if (isRuntime) throw new Error(`게임 PNG 폴더가 없습니다: ${runtimeDirectory}`);
+    return [];
+  }
+  try {
+    return await walk(root, directory);
+  } catch (error) {
+    if (!error.symlinkPath) throw error;
+    throw new Error(`${isRuntime ? '게임 PNG 폴더에 ' : ''}심볼릭 링크가 있어 비교할 수 없습니다: ${error.symlinkPath}`);
+  }
+}
+
 // Archived hashes are trusted here; checking the archive itself is verifyClassicVersion's job.
 export async function findCurrentClassicVersion({ root }) {
+  const entries = await readdir(resolve(root, archiveRoot), { withFileTypes: true }).catch(error => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
   const ids = [];
-  for (const entry of await readdir(resolve(root, archiveRoot), { withFileTypes: true })) {
+  for (const entry of entries) {
     if (!entry.isDirectory() || !/^v\d{3,}$/.test(entry.name)) continue;
     // A directory without manifest.json is an incomplete save and is not a version.
     if ((await lstat(resolve(root, archiveRoot, entry.name, 'manifest.json')).catch(() => null))?.isFile()) ids.push(entry.name);
   }
   if (!ids.length) throw new Error('보관된 Classic 버전이 없습니다.');
-  ids.sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)));
+  // Equal numbers (v001, v0001) fall back to reverse string order so the result never depends on readdir order.
+  ids.sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)) || b.localeCompare(a));
   const isPng = path => path.startsWith(`${runtimeDirectory}/`);
+  const selection = await workingSelection(root, listForComparison);
   const current = new Map();
-  for (const path of await walk(root, runtimeDirectory)) current.set(path, await workingHash(root, path));
+  for (const path of selection.filter(isPng)) current.set(path, await workingHash(root, path));
   const versions = [];
   for (const id of ids) {
     const { manifest } = await readManifest(root, id);
@@ -172,9 +207,11 @@ export async function findCurrentClassicVersion({ root }) {
   const matches = versions.filter(version => !version.pngDiffs.length).map(version => version.id);
   // Newest first, so a strict comparison keeps the newest version on ties.
   const closest = versions.reduce((best, version) => version.pngDiffs.length < best.pngDiffs.length ? version : best);
+  // The union also reports files added after archiving; a file in neither place (hash null on both sides) is no difference.
+  const archivedOther = new Map(closest.manifest.files.filter(file => !isPng(file.path)).map(file => [file.path, file.sha256]));
   const otherDiffs = [];
-  for (const file of closest.manifest.files) {
-    if (!isPng(file.path) && await workingHash(root, file.path) !== file.sha256) otherDiffs.push(file.path);
+  for (const path of new Set([...archivedOther.keys(), ...selection.filter(path => !isPng(path))])) {
+    if ((archivedOther.get(path) ?? null) !== await workingHash(root, path)) otherDiffs.push(path);
   }
   return { pngFiles: current.size, matches, compared: { id: closest.id, pngDiffs: closest.pngDiffs, otherDiffs: otherDiffs.sort() } };
 }
