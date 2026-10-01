@@ -352,7 +352,17 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 | ⑤ | A up 1015 → B down 1130 → B up 2000 | B down은 head 창 밖이라 교대가 아님. ④와 같고, B로 바디를 되살리지 않음 | 규칙에서 도출한 대조 |
 | ⑥ | B down 1000 → A up 1015 → B up 2000 | head가 먼저 성공한 교대. Perfect 3·Miss 0 | 기존 동작 대조 |
 
-경계 뒤의 up도 연결 head의 Good 창 안이면 경계 전 up과 같은 교대 후보로 보류한다. 교대 up은 뒤 실제 release에 쓰지 않는다. 이 사례의 뒤 바디는 1000에 이미 이어받았으므로, 교대가 성립하지 않으면 [NJ-R08](#nj-r08)의 종속 0점이 아니라 그 바디의 유지 Miss이다. 확정 시각만 up 시각 1015에서 head 기한 1120으로 늦어진다. 연결 head 창 밖의 up과 head 없는 `holdOnly` 경계는 이 보류를 받지 않는다. 결정 배경은 [RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)를 따른다.
+경계 뒤의 up도 연결 head의 Good 창 안이면 경계 전 up과 같은 교대 후보로 보류한다. 교대 up은 뒤 실제 release에 쓰지 않는다. 이 사례의 뒤 바디는 1000에 이미 이어받았으므로, 교대가 성립하지 않으면 [NJ-R08](#nj-r08)의 종속 0점이 아니라 그 바디의 유지 Miss이다. 확정 시각만 up 시각 1015에서 head 기한 1120으로 늦어진다. 뒤 바디가 head 기한 전에 끝나면 유지 Miss 대신 그 바디 끝 기한의 release Miss로 확정한다. 연결 head 창 밖의 up과 head 없는 `holdOnly` 경계는 이 보류를 받지 않는다. 결정 배경은 [RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)를 따른다.
+
+아래는 짧은 뒤 바디와 2→1 감소 경계의 **규칙에서 도출한 대조**다. 감소 경계에서 교대 up은 이어지는 몫 하나만 넘기고, 앞 double의 감소 release는 남은 키의 실제 up 또는 끝 기한 Miss로 한 번 정산한다(§2.2·§2.6). 경계 전 교대(A up 995 → C down 1000)와 같은 결과를 기대한다.
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| 짧은 뒤 바디 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. 뒤 바디가 head 기한 전인 1100에 끝났으므로 유지 Miss 대신 끝 기한 1220에 release Miss. `[1000,1030]`이면 1150 release Miss. Perfect 1·Miss 2 |
+| 2→1 감소 + head | double head 0 + double `[0,1000]` → single head 1000 + single `[1000,2000]`. A/B down 0 → A up 1015 → C down 1020 → B up 1030 → C up 2000 | A up은 교대 up. B up 1030이 앞 double의 감소 release Perfect(+30), C up 2000이 마지막 release Perfect. Miss 0·달성률 100% |
+| 같은 차트, B up 1100 | 위와 같되 B up 1100 | 앞 double release Good(+100), 마지막 release Perfect. Miss 0 |
+| 같은 차트, B 유지 | 위와 같되 B를 2000까지 유지하고 C와 함께 뗌 | 앞 double release 1120 Miss, 마지막 release Perfect. Full Combo 아님 |
+| 2→1 감소 뒤 증가 | double head 0 + double `[0,1000]` → single head 1000 + single `[1000,1200]` → single head 1200 + double `[1200,2000]`. A/B down 0 → A up 1015 → C down 1020 → B up 1100 → D down 1200 → C/D up 2000 | B up 1100이 앞 double release Good(+100). head 4개 Perfect, 마지막 double release Perfect 2개. Miss 0 |
 
 첫 head를 늦게 시작해도 결과는 같다. 아래는 **규칙에서 도출한 대조**다.
 
@@ -405,7 +415,7 @@ NJ-H01의 차트와 A/B 등록 상태를 사용한다.
 
 **release를 면제받은 한 몫은 뒤 release를 막는 여분 키 계산에서 제외한다.** A up을 일반 `2→1` 여분 규칙으로 버리지 않는다. 어느 물리 키가 면제 몫인지 미리 고정하지 않는다.
 
-아래는 두 키를 나눠 시작한 **규칙에서 도출한 대조**다. 짧은 감소 구간에서는 둘째 키가 뒤 바디의 S 이후에 시작할 수 있다. 모든 unit의 시작·실패가 정해지면 첫 키를 정박에 쳤는지와 관계없이 같은 면제 몫을 가진다.
+아래는 두 키를 나눠 시작한 **규칙에서 도출한 대조**다. 짧은 감소 구간에서는 둘째 키가 바로 이어지는 뒤 바디의 S 이후에 시작할 수 있다. 그 뒤 바디가 진행 중이면 모든 unit의 시작·실패가 정해진 뒤 첫 키를 정박에 쳤는지와 관계없이 같은 면제 몫을 가진다. 둘째 키가 그 뒤 바디가 끝난 뒤에 시작하는 경우는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 | 차트 | 입력 (A 1000과 A 1040을 각각 독립 실행) | 기대 결과 |
 |---|---|---|

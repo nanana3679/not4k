@@ -455,7 +455,11 @@ export class NoteJudgmentCore {
       for (const pending of [...this.pendingUps]) {
         if (!pending.correctionId || !ledger.available.some(record => record.id === pending.correctionId)) continue;
         const upAt = pending.upAt ?? pending.at;
+        // A release event needs a release score item left on that note. A
+        // continuing body (e.g. a single before an increase) owns none, so an
+        // up near its end must not become a release there.
         const candidate = this.units.filter(unit => unit.active && !unit.failed && !unit.complete && !unit.holdOnly &&
+          (this.itemQueues.get(`${unit.noteIndex}:release`)?.length ?? 0) > 0 &&
           Math.abs(upAt - unit.end) <= this.windows.GOOD && unit.tokens.some(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed)).sort((a, b) => a.end - b.end)[0];
         const authority = candidate?.tokens.find(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed);
         if (!candidate || !authority) continue;
@@ -567,7 +571,13 @@ export class NoteJudgmentCore {
       const pendingIndex = this.pendingUps.indexOf(pendingToken);
       if (pendingIndex >= 0) this.pendingUps.splice(pendingIndex, 1);
       const source = this.units.find(unit => unit.lane === this.notes[noteIndex].lane && unit.end === headStart && unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(pendingToken));
-      if (source) { source.complete = true; source.forwarded = true; }
+      // The swap hands over one continuing share. When the successor already
+      // started by inheritance before this head and has not completed, that
+      // share was forwarded through a non-terminal unit, so a terminal source
+      // here owns the 2→1 decrease release and stays open for its real up or
+      // E+Good Miss. A successor that already completed keeps the old close.
+      const successorStarted = this.units.some(unit => unit.lane === this.notes[noteIndex].lane && unit.start === headStart && unit.active && !unit.complete);
+      if (source && !(source.terminal && successorStarted)) { source.complete = true; source.forwarded = true; }
     }
     const own = this.units.filter(x => x.noteIndex === noteIndex && x.unitIndex === unitIndex && !x.active && !x.failed && !x.complete)[0];
     if (own) this.startUnit(own, key, token, at, false);

@@ -392,7 +392,7 @@ not4k는 타이밍 정밀도보다 손배치 인식이 핵심 난이도인 게�
 
 `holdOnly`는 끝의 release를 유지 상태 Perfect/Miss로 면제한다. 양수 길이는 정당한 시작·승계와 등록 키 유지가 필요하다. E까지 유지하거나 E−Good부터 유효하게 이른 완료를 하면 Perfect이다. S+Good까지의 늦은 첫 활성화도 허용하고, 늦게 시작한 뒤의 승계는 일반 바디와 같다([NJ-H08](note-judgment-cases.md#nj-h08)). 상태 완료는 up을 소비하지 않고 FAST/SLOW를 만들지 않는다.
 
-감소하는 double의 `holdOnly`는 두 unit을 각각 판정한다. 두 키를 계속 잡아도 되고, 면제 몫은 뒤 single release의 여분 계산에서 제외한다. 두 unit을 나눠 시작해 둘째가 뒤 바디 시작 이후에 활성화해도 같은 면제 몫을 가진다. 면제 몫을 뒤 double 증가에 사용하면 새 double의 실제 release 두 개가 다시 필요하다. 점수 상태 완료와 종료·승계 배정은 별도이며 고정 owner를 만들지 않는다([NJ-H01~H07](note-judgment-cases.md#nj-h01)).
+감소하는 double의 `holdOnly`는 두 unit을 각각 판정한다. 두 키를 계속 잡아도 되고, 면제 몫은 뒤 single release의 여분 계산에서 제외한다. 두 unit을 나눠 시작해 둘째가 바로 이어지는 뒤 바디의 시작 이후에 활성화해도, 그 바디가 진행 중이면 같은 면제 몫을 가진다(그 바디가 끝난 뒤의 활성화는 [PRD §12](../prd.md#12-미정-사항)에서 추적). 면제 몫을 뒤 double 증가에 사용하면 새 double의 실제 release 두 개가 다시 필요하다. 점수 상태 완료와 종료·승계 배정은 별도이며 고정 owner를 만들지 않는다([NJ-H01~H07](note-judgment-cases.md#nj-h01)).
 
 길이 0 `holdOnly`는 S−Good부터 기존 held를 확인한다. 계속 유지하면 S에 표시하고 유효한 이른 up이면 그 시점에 처리한다. down/up을 소비하거나 독립된 일반 release 권한을 새로 주지 않는다. double은 서로 다른 두 키를 요구하되 두 held가 겹칠 필요는 없다.
 
