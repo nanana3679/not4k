@@ -40,7 +40,10 @@ export function createNoteAssetDesign(skin: SkinManifest, options: {
         ...(kind === 'double' ? [{state:'partial-off' as const, label:'중앙광', src:assets.bodyDoublePartialHeldLeft}] : []),
         {state:'off' as const, label:'실패', src: assets[`body${key}Failed`]},
       ];
-      return states.map(state => ({kind, state:state.state, label:`${label} · ${state.label}`, src:source(`body-${kind}-${state.state}`,state.src)}));
+      // 켜짐 효과가 없는 스킨(heldEffect: false)은 켜짐·중앙광 에셋이 없어 랙에서 뺀다.
+      return states
+        .filter((state): state is typeof state & {src: string} => state.src !== undefined)
+        .map(state => ({kind, state:state.state, label:`${label} · ${state.label}`, src:source(`body-${kind}-${state.state}`,state.src)}));
     }),
     terminals: (['single','double','trill'] as const).flatMap(kind => {
       const label = NOTE_ASSET_KIND_LABELS[kind];

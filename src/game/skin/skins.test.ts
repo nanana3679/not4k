@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest } from "./skins";
+import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest, buildManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
   it("Classic과 미공개 Crystal·Prism·Simple·Note Asset Lab 5개 스킨을 등록", () => {
@@ -177,6 +177,31 @@ describe("부분 충족 held 바디 에셋 (더블 롱노트 1/2)", () => {
     for (const skin of SKIN_LIST) {
       expect(skin.assets.bodyDoublePartialHeldLeft).toMatch(/body-double-partial-held-left\.png$/);
       expect(skin.assets.bodyDoublePartialHeldRight).toMatch(/body-double-partial-held-right\.png$/);
+    }
+  });
+});
+
+describe("heldEffect 선언 (RFD 0028)", () => {
+  const theme = getSkinManifest("classic").theme;
+
+  it("heldEffect: false 테마로 만든 매니페스트에는 켜짐 에셋 5종 경로가 없고 부분 실패 에셋 경로는 남는다", () => {
+    const manifest = buildManifest("no-effect", { ...theme, id: "no-effect", heldEffect: false });
+    for (const key of ["bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld"] as const) {
+      expect(manifest.assets[key], key).toBeUndefined();
+    }
+    expect(manifest.assets.bodyDoublePartialFailedLeft).toBe("/skins/no-effect/body-double-partial-failed-left.png");
+  });
+
+  it("heldEffect를 생략하면 지금처럼 켜짐 에셋 경로를 만든다", () => {
+    const manifest = buildManifest("with-effect", { ...theme, id: "with-effect" });
+    expect(manifest.assets.bodySingleHeld).toBe("/skins/with-effect/body-single-held.png");
+    expect(manifest.assets.bodyTrillHeld).toBe("/skins/with-effect/body-trill-held.png");
+  });
+
+  it("현재 스킨 Classic·Crystal·Simple은 heldEffect를 false로 선언하지 않아 켜짐 효과를 유지한다", () => {
+    for (const id of ["classic", "crystal", "simple"]) {
+      expect(getSkinManifest(id).theme.heldEffect, id).not.toBe(false);
+      expect(getSkinManifest(id).assets.bodySingleHeld, id).toBeDefined();
     }
   });
 });

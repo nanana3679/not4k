@@ -51,6 +51,11 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
  * 전용 캡 에셋이 로드된 스킨이면 이 키의 텍스처를 사용하고, 없으면 crop fallback한다.
  * partial-failed 캡은 윗부분 색이 double과 같아 endCapDouble을 재사용한다.
  */
+/** 켜짐(홀드) 에셋. `theme.heldEffect`가 false가 아니면 모두 필요하다(RFD 0028). */
+const HELD_ASSET_KEYS = [
+  "bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld",
+] as const;
+
 const CAP_TEXTURE_KEY: Record<string, string> = {
   terminalSingle: "endCapSingle",
   terminalDouble: "endCapDouble",
@@ -90,6 +95,18 @@ export class SkinManager {
     // A preview may supply a different version with the same theme ID.
     if (this.loaded && this.manifest === manifest) return;
 
+    // 켜짐 효과가 있는 스킨은 켜짐 에셋이 모두 있어야 한다. 기존 텍스처를 해제하기 전에 확인한다.
+    const heldEffect = manifest.theme.heldEffect !== false;
+    if (heldEffect) {
+      const missing = HELD_ASSET_KEYS.filter((key) => !manifest.assets[key]);
+      if (missing.length > 0) {
+        throw new Error(
+          `켜짐 효과가 있는 스킨 "${manifest.theme.id}"에 켜짐 에셋이 없습니다: ${missing.join(", ")}. `
+          + "효과 없는 스킨이면 theme.heldEffect를 false로 선언합니다.",
+        );
+      }
+    }
+
     // 기존 텍스처 해제
     this.dispose();
     this.disposed = false;
@@ -99,8 +116,8 @@ export class SkinManager {
 
     const { assets } = manifest;
 
-    // 개별 에셋 로드
-    const entries: [string, string][] = [
+    // 개별 에셋 로드. 켜짐 에셋은 heldEffect가 false인 스킨에서 빠지므로 경로가 있는 항목만 남긴다.
+    const entries: [string, string][] = ([
       ["noteSingle", assets.noteSingle],
       ["noteDouble", assets.noteDouble],
       ["terminalSingle", assets.terminalSingle],
@@ -137,7 +154,9 @@ export class SkinManager {
       ["gearFrame", assets.gearFrame],
       ["gearGaugeLeft", assets.gearGaugeLeft],
       ["gearGaugeRight", assets.gearGaugeRight],
-    ];
+    ] as [string, string | undefined][])
+      .filter((entry): entry is [string, string] =>
+        entry[1] !== undefined && (heldEffect || !(HELD_ASSET_KEYS as readonly string[]).includes(entry[0])));
 
     if (assets.terminalSingleIdle) entries.push(["terminalSingleIdle", assets.terminalSingleIdle]);
     if (assets.terminalDoubleIdle) entries.push(["terminalDoubleIdle", assets.terminalDoubleIdle]);

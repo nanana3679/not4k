@@ -316,6 +316,8 @@ export class GameNoteRenderer {
     const partialSide = this.partialFailedBodies.get(index);
     const isPartialFailed = partialSide !== undefined;
     const theme = this.skinManager.getTheme();
+    // 켜짐 효과가 없는 스킨(RFD 0028)은 유지 중에도 대기 바디·터미널을 그린다. 실패·부분 실패는 그대로 표시한다.
+    const heldEffect = theme.heldEffect !== false;
     const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
     const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
     const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
@@ -334,9 +336,9 @@ export class GameNoteRenderer {
         bodyTexKey = "bodyTrillFailed";
         endCapTexKey = "terminalTrillFailed";
       } else {
-        const isHeld = bodyState
+        const isHeld = heldEffect && (bodyState
           ? heldUnitCount >= requiredUnitCount && requiredUnitCount > 0
-          : rawStartY >= this.judgmentLineY + NOTE_HEIGHT;
+          : rawStartY >= this.judgmentLineY + NOTE_HEIGHT);
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
         endCapTexKey = !isHeld && this.skinManager.hasTexture("terminalTrillIdle")
           ? "terminalTrillIdle"
@@ -405,7 +407,10 @@ export class GameNoteRenderer {
         // (이슈 #85 — 시각·판정 단일 진실). null이면(조회 대상 아님·윈도우 밖·미주입) 기하 held로 폴백.
         const fill = headlessFill;
         let terminalActivated: boolean;
-        if (bodyState && isDouble && heldUnitCount > 0 && heldUnitCount < requiredUnitCount) {
+        if (!heldEffect) {
+          bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+          terminalActivated = false;
+        } else if (bodyState && isDouble && heldUnitCount > 0 && heldUnitCount < requiredUnitCount) {
           bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
           terminalActivated = true;
         } else if (bodyState && heldUnitCount > 0 && heldUnitCount === requiredUnitCount) {

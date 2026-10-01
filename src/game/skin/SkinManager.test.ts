@@ -25,6 +25,30 @@ describe('SkinManager', () => {
     assetsUnload.mockClear();
   });
 
+  const HELD_ASSET_KEYS = ['bodySingleHeld', 'bodyDoubleHeld', 'bodyDoublePartialHeldLeft', 'bodyDoublePartialHeldRight', 'bodyTrillHeld'] as const;
+  const withoutHeldAssets = (assets: Record<string, unknown>) =>
+    Object.fromEntries(Object.entries(assets).filter(([key]) => !(HELD_ASSET_KEYS as readonly string[]).includes(key)));
+
+  it('heldEffect: false 스킨은 켜짐 에셋 5종 없이 로드되고 켜짐 텍스처를 제공하지 않는다', async () => {
+    const base = getSkinManifest('classic');
+    const manifest = { theme: { ...base.theme, id: 'no-effect', heldEffect: false }, assets: withoutHeldAssets(base.assets) } as unknown as typeof base;
+    const manager = new SkinManager();
+    await manager.loadSkin(manifest);
+    for (const key of HELD_ASSET_KEYS) expect(manager.hasTexture(key), key).toBe(false);
+    expect(manager.hasTexture('bodyDoublePartialFailedLeft')).toBe(true);
+    expect(assetsLoad.mock.calls.some(([path]) => String(path).includes('-held'))).toBe(false);
+    manager.dispose();
+  });
+
+  it('heldEffect를 생략한 스킨에 bodySingleHeld가 없으면 빠진 에셋 이름을 담은 오류로 로딩이 실패한다', async () => {
+    const base = getSkinManifest('classic');
+    const { bodySingleHeld: _held, ...assets } = base.assets;
+    const manager = new SkinManager();
+    await expect(manager.loadSkin({ ...base, theme: { ...base.theme, id: 'missing-held' }, assets } as unknown as typeof base))
+      .rejects.toThrow(/bodySingleHeld/);
+    manager.dispose();
+  });
+
   it('같은 Classic ID의 v001→v002 매니페스트를 주입하면 이전 텍스처를 새 버전으로 교체한다', async () => {
     const base = getSkinManifest('classic');
     const previous = { ...base, assets: { ...base.assets, noteSingle: '/lab/skin-versions/classic/v001/skin/note-single.png' } };

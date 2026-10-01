@@ -1,7 +1,7 @@
 import type { SkinManifest } from "./types";
 import { withPublicBase } from "../../shared/publicPath";
 
-function buildManifest(
+export function buildManifest(
   id: string,
   theme: SkinManifest["theme"],
   withCaps = false,
@@ -25,19 +25,28 @@ function buildManifest(
         terminalTrillIdle: `${base}/terminal-trill-idle.png`,
       }
     : {};
+  // 켜짐 효과가 없는 스킨(RFD 0028)은 켜짐 에셋 경로를 만들지 않는다.
+  const heldAssets = theme.heldEffect === false
+    ? {}
+    : {
+        bodySingleHeld: `${base}/body-single-held.png`,
+        bodyDoubleHeld: `${base}/body-double-held.png`,
+        bodyDoublePartialHeldLeft: `${base}/body-double-partial-held-left.png`,
+        bodyDoublePartialHeldRight: `${base}/body-double-partial-held-right.png`,
+        bodyTrillHeld: `${base}/body-trill-held.png`,
+      };
   return {
     theme,
     assets: {
       ...caps,
       ...idleTerminals,
+      ...heldAssets,
       noteSingle: `${base}/note-single.png`,
       noteDouble: `${base}/note-double.png`,
       terminalSingle: `${base}/terminal-single.png`,
       terminalDouble: `${base}/terminal-double.png`,
       bodySingle: `${base}/body-single.png`,
       bodyDouble: `${base}/body-double.png`,
-      bodySingleHeld: `${base}/body-single-held.png`,
-      bodyDoubleHeld: `${base}/body-double-held.png`,
       noteDoubleFailed: `${base}/note-double-failed.png`,
       bodySingleFailed: `${base}/body-single-failed.png`,
       bodyDoubleFailed: `${base}/body-double-failed.png`,
@@ -47,14 +56,11 @@ function buildManifest(
       terminalDoublePartialFailedRight: `${base}/terminal-double-partial-failed-right.png`,
       noteDoublePartialFailedLeft: `${base}/note-double-partial-failed-left.png`,
       noteDoublePartialFailedRight: `${base}/note-double-partial-failed-right.png`,
-      bodyDoublePartialHeldLeft: `${base}/body-double-partial-held-left.png`,
-      bodyDoublePartialHeldRight: `${base}/body-double-partial-held-right.png`,
       terminalSingleFailed: `${base}/terminal-single-failed.png`,
       terminalDoubleFailed: `${base}/terminal-double-failed.png`,
       noteTrill: `${base}/note-trill.png`,
       terminalTrill: `${base}/terminal-trill.png`,
       bodyTrill: `${base}/body-trill.png`,
-      bodyTrillHeld: `${base}/body-trill-held.png`,
       noteTrillFailed: `${base}/note-trill-failed.png`,
       bodyTrillFailed: `${base}/body-trill-failed.png`,
       terminalTrillFailed: `${base}/terminal-trill-failed.png`,
