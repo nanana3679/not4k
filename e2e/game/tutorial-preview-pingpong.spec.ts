@@ -29,8 +29,9 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
 
 type MarkedCanvas = HTMLCanvasElement & { __pingpongMark?: string };
 
-async function countRendererInits(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+/** GameRenderer.init 호출 수를 센다. failOnCall을 주면 그 번째 init만 실패시켜 렌더러 생성 실패를 재현한다. */
+async function countRendererInits(page: Page, failOnCall?: number): Promise<void> {
+  await page.evaluate(async (failOn) => {
     const rendererPath = '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
     const counter = globalThis as typeof globalThis & { __rendererInits: number };
@@ -38,16 +39,17 @@ async function countRendererInits(page: Page): Promise<void> {
     const original = GameRenderer.prototype.init;
     GameRenderer.prototype.init = function () {
       counter.__rendererInits++;
+      if (counter.__rendererInits === failOn) return Promise.reject(new Error('e2e: renderer init failed'));
       return original.call(this);
     };
-  });
+  }, failOnCall ?? null);
 }
 
-async function openTutorial(page: Page): Promise<Locator> {
+async function openTutorial(page: Page, options: { failRendererInitOnCall?: number } = {}): Promise<Locator> {
   await page.goto('/game');
   await page.evaluate((settings) => localStorage.setItem('not4k-settings', settings), NON_FIRST_LAUNCH_SETTINGS);
   await page.reload();
-  await countRendererInits(page);
+  await countRendererInits(page, options.failRendererInitOnCall);
   await page.getByRole('button', { name: 'Start' }).click();
   await page.getByRole('button', { name: 'Open tutorial help' }).click();
   const dialog = page.getByRole('dialog', { name: 'Tutorial' });
@@ -88,14 +90,14 @@ async function rendererInits(page: Page): Promise<number> {
 test.describe('튜토리얼 캐러셀 슬롯 재사용(핑퐁)', () => {
   test.setTimeout(120_000);
 
-  test('다음·다음·다음·이전으로 4번 넘겨도 두 슬롯은 같은 캔버스 2개를 번갈아 쓰고 렌더러 init은 처음 2번뿐이며 재방문은 새 인스턴스로 처음부터 재생', async ({ page }) => {
+  test('다음·다음·다음·이전으로 4번 넘겨도 두 슬롯은 같은 캔버스 2개를 번갈아 쓰고 렌더러 init은 처음 2번뿐이며 재방문은 새 인스턴스 id로 차트를 다시 건다', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(`${err.name}: ${err.message}`));
     const dialog = await openTutorial(page);
     await markCanvases(dialog);
     const initial = await readCanvases(dialog);
     expect(initial.marks).toEqual(['A', 'B']);
-    expect(await rendererInits(page)).toBe(2);
+    await expect.poll(() => rendererInits(page)).toBe(2);
 
     const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
     const visited: Array<{ id: string | null; instance: string | null }> = [];
@@ -140,6 +142,32 @@ test.describe('튜토리얼 캐러셀 슬롯 재사용(핑퐁)', () => {
     const canvases = await readCanvases(dialog);
     expect(canvases.marks).toEqual(['A', 'B']);
     expect(canvases.allConnected).toBe(true);
+    expect(await rendererInits(page)).toBe(2);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('두 슬롯 중 하나의 렌더러 init이 실패해도 레슨을 2번 넘기는 동안 전환은 매번 끝나고 실패한 슬롯이 보일 때만 에러 문구를 번갈아 표시', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => pageErrors.push(`${err.name}: ${err.message}`));
+    // 두 번째로 init하는 슬롯의 렌더러가 실패한다. 실패한 슬롯도 준비 완료로 알려 캐러셀이 멈추지 않아야 한다.
+    const dialog = await openTutorial(page, { failRendererInitOnCall: 2 });
+    await expect.poll(() => rendererInits(page)).toBe(2);
+    const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
+    const activeError = activeSlot.locator('[data-tutorial-preview-error="true"]');
+
+    const errorShown: boolean[] = [await activeError.isVisible()];
+    for (let i = 0; i < 2; i++) {
+      const beforeId = await activeSlot.getAttribute('data-tutorial-preview-id');
+      await dialog.getByRole('button', { name: 'Next tutorial' }).click();
+      await expect(activeSlot).not.toHaveAttribute('data-tutorial-preview-id', beforeId ?? '', { timeout: 15_000 });
+      await waitForSettled(dialog, (await activeSlot.getAttribute('data-tutorial-preview-id')) ?? '');
+      errorShown.push(await activeError.isVisible());
+    }
+
+    // 슬롯이 번갈아 active가 되므로 에러 표시도 번갈아 나온다(실패한 렌더러는 팝업을 닫을 때까지 재시도하지 않는다).
+    expect(errorShown.filter(Boolean).length, `에러 표시 순서: ${errorShown.join(',')}`).toBeGreaterThan(0);
+    expect(errorShown[0]).not.toBe(errorShown[1]);
+    expect(errorShown[1]).not.toBe(errorShown[2]);
     expect(await rendererInits(page)).toBe(2);
     expect(pageErrors).toEqual([]);
   });

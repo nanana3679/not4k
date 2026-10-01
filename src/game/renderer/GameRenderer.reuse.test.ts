@@ -118,6 +118,24 @@ describe('GameRenderer 튜토리얼 프리뷰 재사용', () => {
     expect(keyA.cap.clear).toHaveBeenCalled();
   });
 
+  it('updateTutorialKeyboardKeys는 라벨·매핑이 같고 눌리지 않은 키캡 W는 다시 그리지 않고, 매핑이 바뀐 키캡 E만 다시 그린다', () => {
+    const keyW = createKeyboardKeyEntry('KeyW', { label: 'W', mapped: true, pressed: false });
+    const keyE = createKeyboardKeyEntry('KeyE', { label: 'E', mapped: false, pressed: false });
+    const renderer = createReusableRenderer({
+      tutorialKeyboardKeys: [keyW, keyE],
+      tutorialKeyboardKeyByCode: new Map([['KeyW', keyW], ['KeyE', keyE]]),
+    });
+
+    renderer.updateTutorialKeyboardKeys([
+      { code: 'KeyW', label: 'W', mapped: true },
+      { code: 'KeyE', label: 'E', mapped: true },
+    ]);
+
+    expect(keyW.cap.clear).not.toHaveBeenCalled();
+    expect(keyE.cap.clear).toHaveBeenCalled();
+    expect(keyE.mapped).toBe(true);
+  });
+
   it('updateTutorialKeyboardKeys로 라벨이 바뀐 키는 키캡 텍스트도 새 라벨로 그린다', () => {
     const key = createKeyboardKeyEntry('Numpad7', { label: '7', mapped: false, pressed: false });
     const renderer = createReusableRenderer({

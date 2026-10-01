@@ -93,6 +93,10 @@ interface TutorialPreviewPlayerProps {
   diagramModalEnabled?: boolean;
   diagramModalVisible?: boolean;
   skinId?: string;
+  /**
+   * 직접 넘기는 스킨 manifest. 렌더러는 `theme.id`로 스킨을 구분하므로, 에셋이 다른 manifest는 다른 `theme.id`를 가져야
+   * 렌더러를 새로 만든다(같은 id면 기존 렌더러의 텍스처를 계속 쓴다).
+   */
   skinManifest?: SkinManifest;
   showRendererBomb?: boolean;
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
@@ -623,6 +627,7 @@ export function TutorialPreviewPlayer({
         loopStartNow = previousNow;
         pausedAtNow = null;
         previousLoopTime = 0;
+        activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
         attachedRenderer = renderer;
         rendererRef.current = renderer;
         notifyReady();

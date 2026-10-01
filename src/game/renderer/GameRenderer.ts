@@ -1128,6 +1128,8 @@ export class GameRenderer {
     for (const { code, label, mapped } of keys) {
       const entry = this.tutorialKeyboardKeyByCode.get(code);
       if (!entry) continue;
+      // 바뀐 게 없는 키캡은 Graphics를 다시 만들지 않는다.
+      if (entry.text.text === label && entry.mapped === mapped && !entry.pressed) continue;
       entry.mapped = mapped;
       entry.pressed = false;
       entry.text.text = label;

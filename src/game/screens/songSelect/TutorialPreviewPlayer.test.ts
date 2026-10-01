@@ -332,7 +332,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource.split('new GameRenderer(').length - 1).toBe(1);
   });
 
-  it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 준비 알림 순서로 재사용', () => {
+  it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
     const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer) => {');
@@ -343,6 +343,7 @@ describe('TutorialPreviewPlayer', () => {
       'renderer.updateTutorialKeyboardKeys(tutorialKeyboardKeys);',
       'renderer.setLaneKeyLabels(getLaneKeyLabels(keys, [], {})',
       'renderer.renderFrame(preview.renderStartMs, 0);',
+      'activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);',
       'notifyReady();',
       'setRendererReady(true);',
     ].map((snippet) => tutorialPreviewPlayerSource.indexOf(snippet, attachStart));
@@ -366,14 +367,15 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'failed' });");
     expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'loading' });");
     expect(tutorialPreviewPlayerSource).toContain('rendererStateListenerRef.current = handleRendererState;');
-    expect(tutorialPreviewPlayerSource).toContain(
-      [
-        "    if (state.status === 'failed') {",
-        '        // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.',
-        '        notifyReady();',
-        '        setRendererReady(true);',
-      ].join('\n'),
-    );
+    // 실제 동작은 e2e/game/tutorial-preview-pingpong.spec.ts의 렌더러 실패 시나리오가 확인한다.
+    const failedBranch = tutorialPreviewPlayerSource.indexOf("if (state.status === 'failed') {");
+    expect(failedBranch).toBeGreaterThan(-1);
+    const notifyIndex = tutorialPreviewPlayerSource.indexOf('notifyReady();', failedBranch);
+    const readyIndex = tutorialPreviewPlayerSource.indexOf('setRendererReady(true);', failedBranch);
+    const branchEnd = tutorialPreviewPlayerSource.indexOf('} else {', failedBranch);
+    expect(notifyIndex).toBeGreaterThan(failedBranch);
+    expect(readyIndex).toBeGreaterThan(notifyIndex);
+    expect(branchEnd).toBeGreaterThan(readyIndex);
     expect(tutorialPreviewPlayerSource).toContain('const error = rendererError ?? contentError;');
   });
 
