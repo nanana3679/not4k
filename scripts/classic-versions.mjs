@@ -7,9 +7,10 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const archiveRoot = 'assets-lab/classic/versions';
+const runtimeDirectory = 'public/skins/classic';
 const directories = [
   'assets-lab/classic/sources',
-  'public/skins/classic',
+  runtimeDirectory,
   'public/lab/note-assets/classic',
 ];
 const fixedFiles = [
@@ -91,7 +92,7 @@ export async function saveClassicVersion({ root, id, label, ref }) {
       savedAt: new Date().toISOString(),
       source: { kind: ref ? 'git' : 'worktree', baseCommit: commit },
       buildCommand: 'pnpm build:classic',
-      runtimeDirectory: 'public/skins/classic',
+      runtimeDirectory,
       files,
     };
     // The manifest is written last: its presence marks a complete archive.
@@ -104,19 +105,30 @@ export async function saveClassicVersion({ root, id, label, ref }) {
   }
 }
 
-export async function verifyClassicVersion({ root, id }) {
+async function readManifest(root, id) {
   const directory = versionPath(root, id);
-  const manifest = JSON.parse(await readFile(resolve(directory, 'manifest.json'), 'utf8'));
-  if (manifest.id !== id || manifest.skin !== 'classic' || manifest.schemaVersion !== 1 || !manifest.files?.length) {
+  const text = await readFile(resolve(directory, 'manifest.json'), 'utf8');
+  let manifest = null;
+  try { manifest = JSON.parse(text); } catch { /* reported below as invalid version info */ }
+  if (manifest?.id !== id || manifest.skin !== 'classic' || manifest.schemaVersion !== 1
+    || !Array.isArray(manifest.files) || !manifest.files.length) {
     throw new Error(`버전 정보가 올바르지 않습니다: ${id}`);
   }
   const seen = new Set();
   for (const file of manifest.files) {
-    if (typeof file.path !== 'string' || file.path.startsWith('/') || file.path.includes('\\')
+    if (typeof file?.path !== 'string' || file.path.startsWith('/') || file.path.includes('\\')
       || file.path.split('/').some(part => part === '.' || part === '..' || !part) || seen.has(file.path)) {
-      throw new Error(`보관 경로가 올바르지 않습니다: ${file.path}`);
+      throw new Error(`보관 경로가 올바르지 않습니다: ${file?.path}`);
     }
+    if (!/^[0-9a-f]{64}$/.test(file.sha256)) throw new Error(`보관 해시가 올바르지 않습니다: ${id} ${file.path}`);
     seen.add(file.path);
+  }
+  return { directory, manifest };
+}
+
+export async function verifyClassicVersion({ root, id }) {
+  const { directory, manifest } = await readManifest(root, id);
+  for (const file of manifest.files) {
     const path = resolve(directory, 'files', file.path);
     if (!(await lstat(path)).isFile()) throw new Error(`일반 파일이 아닙니다: ${file.path}`);
     const bytes = await readFile(path);
@@ -127,19 +139,71 @@ export async function verifyClassicVersion({ root, id }) {
   return manifest;
 }
 
+async function workingHash(root, path) {
+  try {
+    return hash(await readFile(resolve(root, path)));
+  } catch (error) {
+    if (['ENOENT', 'EISDIR', 'ENOTDIR'].includes(error.code)) return null;
+    throw error;
+  }
+}
+
+// Archived hashes are trusted here; checking the archive itself is verifyClassicVersion's job.
+export async function findCurrentClassicVersion({ root }) {
+  const ids = [];
+  for (const entry of await readdir(resolve(root, archiveRoot), { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^v\d{3,}$/.test(entry.name)) continue;
+    // A directory without manifest.json is an incomplete save and is not a version.
+    if ((await lstat(resolve(root, archiveRoot, entry.name, 'manifest.json')).catch(() => null))?.isFile()) ids.push(entry.name);
+  }
+  if (!ids.length) throw new Error('보관된 Classic 버전이 없습니다.');
+  ids.sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)));
+  const isPng = path => path.startsWith(`${runtimeDirectory}/`);
+  const current = new Map();
+  for (const path of await walk(root, runtimeDirectory)) current.set(path, await workingHash(root, path));
+  const versions = [];
+  for (const id of ids) {
+    const { manifest } = await readManifest(root, id);
+    const archived = new Map(manifest.files.filter(file => isPng(file.path)).map(file => [file.path, file.sha256]));
+    const pngDiffs = [...new Set([...archived.keys(), ...current.keys()])]
+      .filter(path => archived.get(path) !== current.get(path)).sort();
+    versions.push({ id, manifest, pngDiffs });
+  }
+  const matches = versions.filter(version => !version.pngDiffs.length).map(version => version.id);
+  // Newest first, so a strict comparison keeps the newest version on ties.
+  const closest = versions.reduce((best, version) => version.pngDiffs.length < best.pngDiffs.length ? version : best);
+  const otherDiffs = [];
+  for (const file of closest.manifest.files) {
+    if (!isPng(file.path) && await workingHash(root, file.path) !== file.sha256) otherDiffs.push(file.path);
+  }
+  return { pngFiles: current.size, matches, compared: { id: closest.id, pngDiffs: closest.pngDiffs, otherDiffs: otherDiffs.sort() } };
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const [command, id, label, ref, ...extra] = process.argv.slice(2);
   try {
-    if (extra.length || (command === 'verify' && label)) throw new Error('불필요한 인자가 있습니다.');
+    if (extra.length || (command === 'verify' && label) || (command === 'current' && id !== undefined)) {
+      throw new Error('불필요한 인자가 있습니다.');
+    }
     if (command === 'save') {
       const saved = await saveClassicVersion({ root, id, label, ref });
       console.log(`${id}: ${saved.files.length}개 파일 보관 · ${saved.label}`);
     } else if (command === 'verify') {
       const saved = await verifyClassicVersion({ root, id });
       console.log(`${id}: ${saved.files.length}개 파일 SHA-256 검증 통과`);
+    } else if (command === 'current') {
+      const { pngFiles, matches, compared } = await findCurrentClassicVersion({ root });
+      const list = paths => paths.map(path => `\n  ${path}`).join('');
+      console.log(matches.length
+        ? `게임 PNG(${runtimeDirectory}): ${matches.join('·')} 보관본과 일치 (${pngFiles}개 파일)`
+        : `게임 PNG(${runtimeDirectory}): 일치하는 보관 버전 없음. 가장 가까운 ${compared.id} 보관본과 다른 파일 ${compared.pngDiffs.length}개:${list(compared.pngDiffs)}`);
+      console.log(compared.otherDiffs.length
+        ? `원본·설정 등 그 밖의 보관 파일: ${compared.id} 보관본과 다른 파일 ${compared.otherDiffs.length}개 (참고용)${list(compared.otherDiffs)}`
+        : `원본·설정 등 그 밖의 보관 파일: ${compared.id} 보관본과 모두 같음`);
+      if (!matches.length) process.exitCode = 1;
     } else {
-      throw new Error('사용법: node scripts/classic-versions.mjs save v003 "설명" [Git ref] | verify v001');
+      throw new Error('사용법: node scripts/classic-versions.mjs save v003 "설명" [Git ref] | verify v001 | current');
     }
   } catch (error) {
     console.error(error.message);
