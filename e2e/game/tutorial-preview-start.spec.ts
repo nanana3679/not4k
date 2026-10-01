@@ -83,7 +83,7 @@ async function goToNextAndSample(page: Page, previousId: string | null): Promise
   }, previousId);
 }
 
-test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레임에 멈췄다가 자리 잡은 순간 150ms 미만 진행 상태로 처음부터 재생', async ({ page }) => {
+test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레임에 멈췄다가 자리 잡은 순간 150ms 미만 진행 상태로 처음부터 재생하고 500ms 뒤에는 100ms 넘게 진행', async ({ page }) => {
   test.setTimeout(120000);
   const pageErrors: string[] = [];
   page.on('pageerror', (err) => pageErrors.push(`${err.name}: ${err.message}`));
@@ -108,7 +108,15 @@ test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레
     expect(samples.settled, `${i + 1}번째 넘김에서 자리 잡은 슬롯을 관측하지 못함`).toBeDefined();
     expect(samples.settled?.elapsedMs, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).not.toBeNull();
     expect(samples.settled?.elapsedMs ?? Infinity, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).toBeLessThan(150);
+    // 자리 잡은 뒤에는 실제로 재생이 이어져야 한다(멈춘 채 남지 않음).
     await page.waitForTimeout(500);
+    const laterElapsedMs = await activeSlot.locator('canvas').evaluate((canvas) => {
+      const tracked = canvas as HTMLCanvasElement & { __firstRenderMs?: number; __lastRenderMs?: number };
+      return tracked.__lastRenderMs !== undefined && tracked.__firstRenderMs !== undefined
+        ? tracked.__lastRenderMs - tracked.__firstRenderMs
+        : null;
+    });
+    expect(laterElapsedMs ?? 0, `${samples.settled?.id}: 자리 잡고 500ms 뒤 차트 진행`).toBeGreaterThan((samples.settled?.elapsedMs ?? 0) + 100);
   }
 
   expect(pageErrors).toEqual([]);

@@ -191,7 +191,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderChart');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderStartMs');
-    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = (now - loopStartNow) % preview.loopMs');
+    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
     expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');

@@ -240,7 +240,7 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('carouselCard:');
     expect(tutorialHelpModalSource).toContain('playerPlaceholder:');
     expect(tutorialHelpModalSource).toContain('playerTrack:');
-    expect(tutorialHelpModalSource).toContain("import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots'");
+    expect(tutorialHelpModalSource).toContain("from './tutorialPreviewSlots'");
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewSlotRenderOrder(activePlayerSlot, transition)');
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewTrackTransform(transition, transitionProgress)');
     expect(tutorialHelpModalSource).toContain('getEaseOutQuintProgress(elapsedRatio)');
