@@ -102,6 +102,40 @@ describe("RFD 0020 입력 순서와 시간 진행 불변식", () => {
     expect(replay(chart().reverse(), inputs)).toEqual(replay(chart(), inputs));
   });
 
+  it("첫 head를 0ms 대신 창 안의 30ms에 눌러도 Q1·R04·R10·R12·경계 전 두 up의 d=d=와 =o=·H01~H05·H03 키 분리·o-*-*- 차트의 첫 head 외 판정은 정박과 같음", () => {
+    const q1 = () => [point(0, "double"), body(0, 1000, "doubleLong"), body(1000, 1060), body(1060, 1100, "doubleLong"), body(1100, 2000)];
+    const swap = (head: "single" | "double", end = 1100) => [point(0, "double"), body(0, 1000, "doubleLong"), point(1000, head), body(1000, end, "doubleLong")];
+    const decrease = () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 2000)];
+    const cases: readonly (readonly [string, () => NoteEntity[], readonly Batch[]])[] = [
+      ["R01", q1, [[0, down("A"), down("B")], [1000, up("A")], [1060, down("C")], [1100, up("C")], [2000, up("B")]]],
+      ["R03", q1, [[0, down("A"), down("B")], [1060], [1121], [1181]]],
+      ["R04", () => [point(0, "double"), body(0, 1000, "doubleLong"), point(1000), body(1000, 1060, "doubleLong")],
+        [[0, down("A"), down("B")], [1020, up("A")], [1030, down("A")], [1035, up("B")], [1040, up("A")]]],
+      ["R10", () => swap("double"), [[0, down("A"), down("B")], [995, up("A")], [1000, down("C")], [1030, up("B")], [1100, up("C")]]],
+      ["R12", () => swap("single"), [[0, down("A"), down("B")], [1010, up("A")], [1040, up("B")], [1050, down("C")], [1100, up("C")]]],
+      ["d=d= 경계 전 교대", () => swap("double", 2000),
+        [[0, down("A"), down("B")], [990, up("A")], [995, up("B")], [1000, down("C")], [1005, down("D")], [2000, up("C"), up("D")]]],
+      ["=o= 경계 전 두 up", () => swap("single", 2000), [[0, down("A"), down("B")], [990, up("A")], [995, up("B")], [1000, down("C")]]],
+      ["H01·H03", decrease, [[0, down("A"), down("B")], [2000, up("A")], [2500, up("B")]]],
+      ["H03 키 분리", () => [point(0, "double"), body(0, 60, "doubleLong", true), body(60, 1000)],
+        [[0, down("A")], [110, down("B")], [1000, up("A")], [1200, up("B")]]],
+      ["H02", () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060), body(1060, 1100, "doubleLong", true), body(1100, 2000)],
+        [[0, down("A"), down("B")], [2000, up("A")], [2500, up("B")]]],
+      ["H04", () => [point(0, "double"), body(0, 1000, "doubleLong", true), body(1000, 1060), body(1060, 2000, "doubleLong")],
+        [[0, down("A"), down("B")], [2000, up("A")], [2200, up("B")]]],
+      ["H05 둘째 head Miss", () => [point(0, "double"), body(0, 60, "doubleLong", true), body(60, 1000)], [[0, down("A")], [1000, up("A")]]],
+      ["o-*-*-", () => [point(0), body(0, 500, "long", true), body(500, 1000, "long", true), body(1000, 1500)], [[0, down("A")], [1500, up("A")]]],
+    ];
+    const afterFirstHead = (notes: readonly NoteEntity[], batches: readonly Batch[], firstAt: number) => {
+      const h = createHarness(notes);
+      batches.forEach(([time, ...events], index) => h.at(index === 0 ? firstAt : time, ...events));
+      h.at(3000);
+      return h.events.filter(event => !(event.kind === "head" && event.inputAt === firstAt))
+        .map(event => [event.kind, event.noteIndex, event.unitIndex, event.grade, event.deltaMs, event.confirmedAt]);
+    };
+    for (const [name, notes, batches] of cases) expect(afterFirstHead(notes(), batches, 30), name).toEqual(afterFirstHead(notes(), batches, 0));
+  });
+
   it("R10 보류 up과 L2 Miss가 있어도 8ms update 간격이 확정 순서를 바꾸지 않음", () => {
     const notes = [point(0, "double"), body(0, 1000, "doubleLong"), point(1000, "double"), body(1000, 1100, "doubleLong"), point(930, "single", 2)];
     const batches: readonly Batch[] = [[0, down("A"), down("B")], [995, up("A")], [1000, down("C")], [1030, up("B")], [1100, up("C")]];

@@ -358,7 +358,7 @@ export class NoteJudgmentCore {
           u.complete = true;
           this.emit({ kind: "holdOnly", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "perfect", deltaMs: 0, inputAt: at, confirmedAt: at, consumed: false, bodyState: "complete" });
         }
-        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) this.tryInherit(successor, u.end, true);
+        for (const successor of this.units.filter(v => v.start === u.end && v.lane === u.lane && !v.active && !v.failed && !v.complete && Math.abs(at - v.end) <= this.windows.GOOD)) this.tryInherit(successor, u.end);
       }
     }
     this.held.delete(key);
@@ -455,7 +455,11 @@ export class NoteJudgmentCore {
       for (const pending of [...this.pendingUps]) {
         if (!pending.correctionId || !ledger.available.some(record => record.id === pending.correctionId)) continue;
         const upAt = pending.upAt ?? pending.at;
+        // A release event needs a release score item left on that note. A
+        // continuing body (e.g. a single before an increase) owns none, so an
+        // up near its end must not become a release there.
         const candidate = this.units.filter(unit => unit.active && !unit.failed && !unit.complete && !unit.holdOnly &&
+          (this.itemQueues.get(`${unit.noteIndex}:release`)?.length ?? 0) > 0 &&
           Math.abs(upAt - unit.end) <= this.windows.GOOD && unit.tokens.some(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed)).sort((a, b) => a.end - b.end)[0];
         const authority = candidate?.tokens.find(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed);
         if (!candidate || !authority) continue;
@@ -500,6 +504,19 @@ export class NoteJudgmentCore {
         u.failed = true;
       }
       for (const u of this.units.filter(u => u.end === point.at && u.lane === point.lane && u.active && !u.complete && !u.failed)) u.failed = true;
+      // An up just after the boundary stays pending in this boundary's ledger
+      // until this deadline (RFD 0020 §2.12). When the head misses, a
+      // successor kept alive only by that up settles exactly as if the up had
+      // come before the boundary: dependentZero, no maintenance or release
+      // Miss. A successor still held by another registered key keeps going.
+      const ledger = this.correctionLedgers.get(`${point.lane}:${point.at}`);
+      for (const u of this.units.filter(u => u.start === point.at && u.lane === point.lane && u.active && !u.complete && !u.failed &&
+        u.tokens.some(token => this.pendingUps.includes(token) && (ledger?.all.some(record => record.id === token.correctionId) ?? false)) &&
+        !this.isHeld(u))) {
+        const itemId = this.takeUnitScoreItem(u);
+        if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: point.at + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        u.failed = true;
+      }
     }
     this.connectPreparedBodies(at);
     for (const u of this.units) {
@@ -515,8 +532,11 @@ export class NoteJudgmentCore {
       // A pending up can provisionally wake a continuation while its source
       // head is still unresolved.  Keep that unit alive until the connection
       // ledger closes; it is not the same as a physically held token, but it
-      // must not become an early maintenance miss either.
-      const pendingToken = u.tokens.some(token => this.pendingUps.includes(token) && (token.upAt ?? token.at) < u.start);
+      // must not become an early maintenance miss either.  An up just after
+      // the boundary stays pending in that boundary's ledger in the same way
+      // until the connection head's Good window closes (RFD 0020 §2.12).
+      const pendingToken = u.tokens.some(token => this.pendingUps.includes(token) && ((token.upAt ?? token.at) < u.start ||
+        (token.correctionId !== undefined && (this.correctionLedgers.get(`${u.lane}:${u.start}`)?.pending.some(record => record.id === token.correctionId) ?? false))));
       if (u.active && !u.failed && !u.complete && !u.forwarded && at < u.end && !this.isHeld(u) && !pendingBoundaryUp && !pendingToken) {
         u.failed = true;
         this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: at - u.start, inputAt: null, confirmedAt: at, consumed: false, bodyState: "failed" });
@@ -564,7 +584,15 @@ export class NoteJudgmentCore {
       const pendingIndex = this.pendingUps.indexOf(pendingToken);
       if (pendingIndex >= 0) this.pendingUps.splice(pendingIndex, 1);
       const source = this.units.find(unit => unit.lane === this.notes[noteIndex].lane && unit.end === headStart && unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(pendingToken));
-      if (source) { source.complete = true; source.forwarded = true; }
+      // The swap hands over one continuing share. When the source note already
+      // forwarded that share through another unit (the successor inherited
+      // before this head, even if it has since completed: a short holdOnly
+      // body or one already forwarded into an increase), a terminal source
+      // here owns the 2→1 decrease release and stays open for its real up or
+      // E+Good Miss.
+      const siblingForwarded = source !== undefined &&
+        (this.unitsByNote.get(source.noteIndex) ?? []).some(unit => unit !== source && unit.forwarded);
+      if (source && !(source.terminal && siblingForwarded)) { source.complete = true; source.forwarded = true; }
     }
     const own = this.units.filter(x => x.noteIndex === noteIndex && x.unitIndex === unitIndex && !x.active && !x.failed && !x.complete)[0];
     if (own) this.startUnit(own, key, token, at, false);
@@ -579,7 +607,7 @@ export class NoteJudgmentCore {
     if (unitIndex > 0) {
       for (const source of this.units.filter(unit => unit.noteIndex !== noteIndex && unit.lane === this.notes[noteIndex].lane && unit.active && unit.startedAt !== null && unit.end <= at && unit.tokens.includes(token))) {
         for (const successor of this.units.filter(unit => unit.lane === source.lane && unit.start === source.end && !unit.active && !unit.failed && !unit.complete)) {
-          this.tryInherit(successor, at, true);
+          this.tryInherit(successor, at);
           if (!successor.active) {
             const continuation = source.tokens.find(candidate => candidate.valid && !candidate.released && this.held.has(candidate.key));
             if (continuation) {
@@ -597,7 +625,7 @@ export class NoteJudgmentCore {
     // claim, while the first late head alone must not pre-start the target.
     for (const source of this.units.filter(x => x.unitIndex > 0 && x.holdOnly && x.complete && x.startedAt === at)) {
       for (const successor of this.units.filter(x => x.lane === source.lane && x.start === source.end && !x.active && !x.failed && !x.complete)) {
-        this.tryInherit(successor, at, true);
+        this.tryInherit(successor, at);
         if (!successor.active) {
           const continuation = source.tokens.find(candidate => candidate.valid && !candidate.released && this.held.has(candidate.key));
           if (continuation) {
@@ -616,9 +644,10 @@ export class NoteJudgmentCore {
     const pending = this.pendingUps.filter(up => (up.upAt ?? up.at) <= at && Math.abs((up.upAt ?? up.at) - headStart) <= this.windows.GOOD)
       .sort((a, b) => a.at - b.at)[0];
     const pendingSuccessor = predecessor && this.units.find(u => u.lane === predecessor.lane && u.start === headStart && !u.failed && !u.complete);
+    // A late but legitimate predecessor start does not narrow this correction
+    // (NJ-H08): the same up is corrected as after an on-time start.
     if (predecessor && pending && pendingSuccessor &&
-      Math.abs((pending.upAt ?? pending.at) - headStart) <= this.windows.GOOD &&
-      (!predecessor.late || Math.abs((pending.upAt ?? pending.at) - pendingSuccessor.end) <= this.windows.GOOD)) {
+      Math.abs((pending.upAt ?? pending.at) - headStart) <= this.windows.GOOD) {
       pending.connectionConsumed = true;
       const successor = pendingSuccessor;
       if (successor && !successor.active) this.tryInherit(successor, headStart);
@@ -659,9 +688,11 @@ export class NoteJudgmentCore {
     token.correctionId = correctionId;
     return this.correctionLedger(boundary.end, boundary.lane).up(correctionId, key, at);
   }
-  private tryInherit(u: UnitState, at: number, allowLate = false): void {
+  private tryInherit(u: UnitState, at: number): void {
     if (at < u.start) return;
-    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed && (allowLate || !p.late) && p.registered.size > 0 &&
+    // A late first start inside S+Good is still a legitimate source. Only a
+    // failed predecessor stops inheritance; the late flag never does (NJ-H08).
+    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed && p.registered.size > 0 &&
       (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
     if (!predecessor) return;
     const budget = this.continuingCapacity(predecessor, u);
@@ -695,6 +726,17 @@ export class NoteJudgmentCore {
       const source = (this.unitsByEnd.get(`${target.lane}:${target.start}`) ?? []).find(unit => unit.active && !unit.failed &&
         (!this.connections || this.connections.has(`${unit.noteIndex}:${target.noteIndex}`)));
       if (!source) continue;
+      // A holdOnly source unit may start only after its successor already
+      // inherited (key-split double head). Once every source unit has started
+      // or failed, the live successor gets the same exempt share as if both
+      // had started on time (NJ-H03). This only raises the share; the H04
+      // no-double-use rule for non-holdOnly sources stays in tryInherit.
+      if (source.holdOnly && own.some(unit => unit.inherited && unit.active && !unit.failed && !unit.complete) &&
+        !(this.unitsByNote.get(source.noteIndex) ?? []).some(unit => !unit.active && !unit.failed)) {
+        const surplus = this.continuingCapacity(source, target) - own.length;
+        if (surplus > (this.carriedCapacity.get(target.noteIndex) ?? 0)) this.carriedCapacity.set(target.noteIndex, surplus);
+        if (surplus > (this.waivedSurplus.get(target.noteIndex) ?? 0)) this.waivedSurplus.set(target.noteIndex, surplus);
+      }
       const fulfilled = own.filter(unit => unit.active && !unit.failed).length;
       const desired = Math.min(this.continuingCapacity(source, target), fulfilled);
       while (this.transferredCapacity(source.noteIndex) < desired) {
@@ -712,8 +754,10 @@ export class NoteJudgmentCore {
     const head = this.points.find(point => point.lane === source.lane && point.at === source.start);
     const extraHeads = Math.max(0, (head?.keys.size ?? 0) - sourceUnits.length);
     // Late partial H decreases first cover their ending share, unless this
-    // up can legitimately finish the successor (H05 versus H06).
-    const lateHoldEnding = source.holdOnly && prepared.every(unit => unit.late) && Math.abs(this.now - target.end) > this.windows.GOOD;
+    // up can legitimately finish the successor (H05 versus H06). Partial means
+    // a source unit still awaits its first start; once every unit has started
+    // or failed, late starts keep the on-time exemption (H03, NJ-H08).
+    const lateHoldEnding = source.holdOnly && sourceUnits.some(unit => !unit.active && !unit.failed) && prepared.every(unit => unit.late) && Math.abs(this.now - target.end) > this.windows.GOOD;
     const ending = !source.holdOnly || lateHoldEnding ? Math.max(0, sourceUnits.length - targetCount) : 0;
     return Math.max(0, prepared.length + extraHeads + (this.carriedCapacity.get(source.noteIndex) ?? 0) - ending);
   }

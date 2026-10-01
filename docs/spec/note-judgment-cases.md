@@ -2,7 +2,7 @@
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
-38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다.
+사례는 40개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로 추가했다.
 
 ## 사용 방법
 
@@ -338,6 +338,38 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 
 전체 점수 항목은 Perfect 3개·Miss 1개이다. 실제 두 up이 있었다는 사실만으로 같은 키의 임의 재누름을 double의 두 release로 인정하지 않는다.
 
+<a id="nj-r16"></a>
+### NJ-R16 — 경계 1000을 지나 1015ms에 뗀 up도 연결 head의 Good 창 안에서 교대하면 유지 Miss 없음
+
+차트: single head 0 + single `[0,1000]` → single head 1000 + single `[1000,2000]`. `holdOnly`와 `trillZone` 없음. 모든 독립 실행은 A down 0으로 첫 head를 Perfect 처리하고 경계까지 A를 유지한다. 뒤 바디는 1000에 A로 이어받는다.
+
+| # | 입력 | 기대 결과 | 출처 |
+|---|---|---|---|
+| ① | A up 995 → B down 1000 → B up 2000 | Perfect 3·Miss 0. 경계 전 교대([NJ-R06](#nj-r06)과 같음) | 기존 동작 대조 |
+| ② | A up 1015 → B down 1020 → B up 2000 | A up을 교대 후보로 보류. B head Perfect(+20)로 교대가 성립해 유지 Miss 없음. 마지막 release Perfect. Perfect 3·Miss 0 | 사용자 확인 |
+| ③ | A up 1015 → B down 1100 → B up 2000 | B head Good(+100)로 교대 성립. Perfect 2·Good 1·Miss 0 | 사용자 확인 |
+| ④ | A up 1015 → 입력 없음 | 1119까지 Miss를 확정하지 않음. head 기한 1120에 head Miss 하나와 끝 2000의 종속 0점으로 정리. 유지 Miss 없음. A up 995(경계 전)·1100과 같은 결과. Perfect 1·Miss 1 | 사용자 확인 |
+| ⑤ | A up 1015 → B down 1130 → B up 2000 | B down은 head 창 밖이라 교대가 아님. ④와 같고, B로 바디를 되살리지 않음 | 사용자 확인 |
+| ⑥ | B down 1000 → A up 1015 → B up 2000 | head가 먼저 성공한 교대. Perfect 3·Miss 0 | 기존 동작 대조 |
+
+경계 뒤의 up도 연결 head의 Good 창 안이면 경계 전 up과 같은 교대 후보로 보류한다. 교대 up은 뒤 실제 release에 쓰지 않는다. 교대가 성립하지 않으면 뒤 바디를 1000에 이미 이어받았더라도, 뒤 바디 길이와 관계없이 경계 전에 뗀 [NJ-R08](#nj-r08)과 똑같이 head Miss 하나와 종속 0점으로 정리한다. 사용자는 head와 바디를 함께 Miss로 세던 종전 기대값(④ Miss 2)에 “한개만 발생”해야 한다고 지적했고, 이 일반화에 동의했다(2026-10-01). 다른 등록 키로 유지 중인 바디는 head Miss와 독립적으로 이어진다. 연결 head 창이 지난 뒤의 up은 보류하지 않으므로 그 시점의 유지 실패이다. 연결 head 창 밖의 up과 head 없는 `holdOnly` 경계는 이 보류를 받지 않는다. 결정 배경은 [RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)를 따른다.
+
+아래 짧은 뒤 바디도 같은 일반화를 따른다(사용자 확인). 각 실행은 A up 995(경계 전)·1100과 판정·점수 항목·확정 시각이 같다.
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| 짧은 뒤 바디 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]`. A down 0, up 1015, 입력 없음 | 1120에 head Miss와 끝 1100의 종속 0점. 뒤 바디가 head 기한 전에 끝나도 유지 Miss·release Miss 없음. `[1000,1030]`도 같음. Perfect 1·Miss 1 |
+| 짧은 뒤 바디 뒤 증가 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]` → double `[1100,2000]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. 끝 release가 없는 `[1000,1100]`은 점수 항목 없이 닫힘. 시작하지 못한 double의 두 unit만 시작 기한 1220에 유지 Miss와 종속 0점. Perfect 1·Miss 3 |
+
+head가 있는 2→1 감소 경계의 감소 release는 [RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)에 따라 없애며, 그 경계의 입력별 기대 결과는 구현(#181)과 함께 정한다.
+
+첫 head를 늦게 시작해도 결과는 같다. 아래는 **규칙에서 도출한 대조**다.
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| 늦은 시작의 60ms 구간 | head 1000 + `[1000,1060]` → head 1060 + `[1060,2000]`. A down 1100, up 1155 → B down 1160, up 2000 | head Good(+100) 2개, release Perfect, 유지 Miss 없음 |
+| 늦은 시작의 `trillLong` 체인 | `trillZone [1000,2500]`, trill head 1000·1500·2000과 각 `trillLong`. A down 1030 → A up 1525 → B down 1530 → B up 2025 → A down 2030 → A up 2530 | head Perfect 3개, release Perfect(+30), Miss 0 |
+
 ## holdOnly와 승계
 
 <a id="nj-h01"></a>
@@ -381,6 +413,13 @@ NJ-H01의 차트와 A/B 등록 상태를 사용한다.
 | B를 2500까지 held 후 up | 해당 노트들은 이미 완료. 추가 release·Miss 없음 |
 
 **release를 면제받은 한 몫은 뒤 release를 막는 여분 키 계산에서 제외한다.** A up을 일반 `2→1` 여분 규칙으로 버리지 않는다. 어느 물리 키가 면제 몫인지 미리 고정하지 않는다.
+
+아래는 두 키를 나눠 시작한 **규칙에서 도출한 대조**다. 짧은 감소 구간에서는 둘째 키가 바로 이어지는 뒤 바디의 S 이후에 시작할 수 있다. 그 뒤 바디가 진행 중이면 모든 unit의 시작·실패가 정해진 뒤 첫 키를 정박에 쳤는지와 관계없이 같은 면제 몫을 가진다. 둘째 키가 그 뒤 바디가 끝난 뒤에 시작하는 경우는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+
+| 차트 | 입력 (A 1000과 A 1040을 각각 독립 실행) | 기대 결과 |
+|---|---|---|
+| double head 1000 + double `holdOnly [1000,1060]` → single `[1060,2000]` | A down → B down 1110 → A up 2000 → B up 2200 | head 2개, `holdOnly` Perfect 2개, A up 2000이 마지막 release Perfect. B up은 추가 판정 없음 |
+| head 없는 double `holdOnly [1000,1060]` → single `[1060,2000]` | A down → B down 1100 → A up 2000 → B up 2200 | `holdOnly` Perfect 2개, A up 2000이 release Perfect. B up은 추가 판정 없음 |
 
 <a id="nj-h04"></a>
 ### NJ-H04 — 면제받은 키가 다음 double을 활성화하면 그 새 double의 release 두 개는 필요
@@ -437,6 +476,38 @@ NJ-H05와 같지만 뒤 single은 `[1060,1120]`이다.
 | 늦은 쪽 | A up 1070 | 앞은 1060에서 이미 Perfect, 뒤 실제 release Great(-50) |
 
 두 실행 모두 down 1개와 up 1개로 완료한다. 이른 쪽의 실제 up 소비 대상은 1120 하나이며, 뒤 S=1060 전에도 정당한 승계 준비를 쓸 수 있다.
+
+<a id="nj-h08"></a>
+### NJ-H08 — o-*-*-*-의 head를 1030ms에 늦게 눌러도 A 유지로 뒤 세 구간을 승계
+
+차트: single head 1000 + single `holdOnly [1000,1500]` → `holdOnly [1500,2000]` → `holdOnly [2000,2500]` → 일반 single `[2500,3000]`. 모든 구간이 정확히 맞닿는다.
+
+| 입력·진행 | 기대 결과 |
+|---|---|
+| A down 1001 / 1030 / 1100 (독립 실행) | head Perfect(+1) / Perfect(+30) / Good(+100). 첫 `holdOnly` 활성화 |
+| A held로 1500·2000·2500 통과 | `holdOnly` Perfect 3개. 늦게 시작한 앞 바디의 등록 held로 뒤 구간을 차례로 승계 |
+| A up 3000 | 마지막 release Perfect. Miss 없음 |
+
+위 표는 실플레이에서 확인한 결함 사례다. 다음 독립 실행도 사용자가 확인했다(2026-10-01).
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| E 이후 첫 활성화 | `holdOnly [1000,1060]` → 일반 `[1060,2000]`. A down 1100, up 2000 | `holdOnly` Perfect([NJ-A06](#nj-a06)), A가 뒤 바디를 승계해 release Perfect |
+
+아래 독립 실행은 **규칙에서 도출한 대조**다.
+
+| 독립 실행 | 차트·입력 | 기대 결과 |
+|---|---|---|
+| head 없는 늦은 시작 | `holdOnly [1000,2000]` → 일반 `[2000,3000]`. A down 1050, up 3000 | `holdOnly` Perfect, 뒤 release Perfect |
+| 늦은 double head | double head 1000 + double `holdOnly [1000,2000]` → single `[2000,3000]`. A/B down 1040, A up 3000, B up 3200 | head 2개, `holdOnly` 2개, 마지막 release Perfect. B up은 추가 판정 없음([NJ-H03](#nj-h03)과 같음) |
+| 늦은 double의 한 unit 실패 | 위 double 차트. A/B down 1040, A up 1500, B up 3000 | 한 unit 유지 Miss, 남은 `holdOnly` Perfect, B가 뒤 single을 승계해 release Perfect |
+| 늦은 double의 둘째 head Miss | 위 double 차트. A down 1040, up 3000 | 둘째 head Miss, `holdOnly` 1개 Perfect, A가 뒤 single을 승계해 release Perfect |
+| S+Good 이후 시작 | 첫 표의 차트. A down 1121 | head Miss. held A로 뒤 구간을 시작·부활하지 않아 모두 Miss |
+| 맞닿지 않은 뒤 구간 | head 1000 + `holdOnly [1000,2000]`, 10ms 틈 뒤 `[2010,3000]`. A down 1030 | `holdOnly` Perfect. 뒤 바디는 독립 시작이 필요해 2130에 Miss([NJ-A02](#nj-a02)) |
+| 일반 바디의 늦은 시작 뒤 증가 | head 1000 + 일반 `[1000,1060]` → head 없는 double `[1060,2000]`. A down 1050, B down 1060, A/B up 2000 | head Great(+50). A가 이어받고 B가 증가분을 시작해 release Perfect 2개 |
+| 일반 연결의 늦은 시작 뒤 중간 head Miss | head 0 + `[0,1000]` → head 1000 + `[1000,2000]`. A down 30, up 2000 | head 1000만 Miss. A가 이어받은 뒤 바디의 release Perfect([RFD 0020 §2.4](../rfd/0020-note-judgment-units-and-inheritance.md#24-점수와-실패)) |
+
+S+Good까지 허용한 늦은 첫 활성화는 정당한 시작이다. `holdOnly`뿐 아니라 일반 바디에서도, 시작이 S보다 늦었다는 이유만으로 맞닿은 뒤 바디의 승계를 막지 않는다. 늦은 double의 감소 `holdOnly`도 모든 unit의 시작·실패가 정해지면 정박과 같은 면제 몫을 가진다. 둘째 head를 아직 기다리는 동안의 배정은 [NJ-H05](#nj-h05)를 따른다. S+Good 이후의 시작, 실패한 바디의 부활, 맞닿지 않은 구간의 held 시작은 여전히 허용하지 않는다.
 
 ## 실패·복구와 timestamp
 

@@ -57,6 +57,7 @@
 - 양수 바디는 자기 head·시작 down 또는 정당한 승계로 활성화한다. 임의의 raw held나 다른 독립 Point를 친 down은 시작을 대신하지 않는다.
 - head 없는 미처리 시작은 down 하나를 소비하되 시작 점수는 없다. 이미 정당하게 준비한 unit은 새 시작 down을 가져가지 않는다.
 - 첫 활성화는 길이와 관계없이 S+Good까지 허용한다. 초단 바디는 E 이후의 첫 활성화도 가능하다.
+- S+Good 안에서 늦게 시작한 바디도 정당하게 활성화한 바디이다. 등록 held로 맞닿은 뒤 바디를 승계하며, 같은 입력의 정박 시작과 결과가 같다([NJ-H08](note-judgment-cases.md#nj-h08)).
 - 유지 키의 등록과 실제 release 권한을 분리한다. 물리 키를 unit의 고정 owner로 지정하지 않는다.
 - 활성화한 unit의 유지 실패는 되돌리지 않는다. 같은 timestamp의 실제 입력 인과관계를 반영한 다음 부족을 확인한다.
 
@@ -67,6 +68,8 @@
 `o-o-`는 A를 계속 유지하면서 중간 head를 B로 탭하거나, 경계에서 A를 떼고 B로 이어가는 두 방식으로 처리할 수 있다. `d=d=`도 두 키 유지와 별도 head 입력, 두 몫의 교대를 모두 지원한다.
 
 교대에 쓰일 수 있는 up과 뒤 실제 release 창이 겹치면 용도가 확정될 때까지 보류한다. 유효한 교대 몫만큼 적격 up을 발생 순서로 배정하며, 동일 키라는 이유로 후순위 up을 먼저 보정하지 않는다. 교대용 up은 뒤 release에 소비하지 않는다. 구체적인 시각·등급은 [NJ-R04~R14](note-judgment-cases.md#nj-r04)를 따른다.
+
+경계를 조금 지나 앞 키를 뗀 up도 연결 head의 Good 창 안이면 교대 후보로 보류한다. 창 안에 유효한 head가 오면 유지 Miss 없이 교대로 인정한다. 오지 않으면 뒤 바디 길이와 관계없이 경계 전에 뗀 교대 실패와 같게 head 기한에 head Miss와 종속 0점으로 정리하고, 이어받은 바디에 유지 Miss를 더하지 않는다([NJ-R16](note-judgment-cases.md#nj-r16)).
 
 ### 시각적 요구사항
 
@@ -387,9 +390,9 @@ not4k는 타이밍 정밀도보다 손배치 인식이 핵심 난이도인 게�
 
 ## `holdOnly` 롱노트
 
-`holdOnly`는 끝의 release를 유지 상태 Perfect/Miss로 면제한다. 양수 길이는 정당한 시작·승계와 등록 키 유지가 필요하다. E까지 유지하거나 E−Good부터 유효하게 이른 완료를 하면 Perfect이며, S+Good까지의 늦은 첫 활성화도 허용한다. 상태 완료는 up을 소비하지 않고 FAST/SLOW를 만들지 않는다.
+`holdOnly`는 끝의 release를 유지 상태 Perfect/Miss로 면제한다. 양수 길이는 정당한 시작·승계와 등록 키 유지가 필요하다. E까지 유지하거나 E−Good부터 유효하게 이른 완료를 하면 Perfect이다. S+Good까지의 늦은 첫 활성화도 허용하고, 늦게 시작한 뒤의 승계는 일반 바디와 같다([NJ-H08](note-judgment-cases.md#nj-h08)). 상태 완료는 up을 소비하지 않고 FAST/SLOW를 만들지 않는다.
 
-감소하는 double의 `holdOnly`는 두 unit을 각각 판정한다. 두 키를 계속 잡아도 되고, 면제 몫은 뒤 single release의 여분 계산에서 제외한다. 면제 몫을 뒤 double 증가에 사용하면 새 double의 실제 release 두 개가 다시 필요하다. 점수 상태 완료와 종료·승계 배정은 별도이며 고정 owner를 만들지 않는다([NJ-H01~H07](note-judgment-cases.md#nj-h01)).
+감소하는 double의 `holdOnly`는 두 unit을 각각 판정한다. 두 키를 계속 잡아도 되고, 면제 몫은 뒤 single release의 여분 계산에서 제외한다. 두 unit을 나눠 시작해 둘째가 바로 이어지는 뒤 바디의 시작 이후에 활성화해도, 그 바디가 진행 중이면 같은 면제 몫을 가진다(그 바디가 끝난 뒤의 활성화는 [PRD §12](../prd.md#12-미정-사항)에서 추적). 면제 몫을 뒤 double 증가에 사용하면 새 double의 실제 release 두 개가 다시 필요하다. 점수 상태 완료와 종료·승계 배정은 별도이며 고정 owner를 만들지 않는다([NJ-H01~H07](note-judgment-cases.md#nj-h01)).
 
 길이 0 `holdOnly`는 S−Good부터 기존 held를 확인한다. 계속 유지하면 S에 표시하고 유효한 이른 up이면 그 시점에 처리한다. down/up을 소비하거나 독립된 일반 release 권한을 새로 주지 않는다. double은 서로 다른 두 키를 요구하되 두 held가 겹칠 필요는 없다.
 

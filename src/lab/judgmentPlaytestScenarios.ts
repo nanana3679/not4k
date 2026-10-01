@@ -75,6 +75,23 @@ function decreaseChain(holdOnly = false): NoteEntity[] {
 }
 
 /**
+ * `o-*-*-*-` 유지형 틱 — 1박(500ms) 구간 네 개. 앞 세 구간 끝은 holdOnly(`*`), 마지막은 일반 release.
+ * gapBeatDenominator를 주면 두 번째 구간부터 시작을 1/gapBeatDenominator박 늦춰 연결을 끊는다.
+ */
+function holdTickChain(gapBeatDenominator?: number): NoteEntity[] {
+  const d = gapBeatDenominator ?? 1;
+  const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(4, 1) }];
+  for (let i = 0; i < 4; i++) {
+    const start = (4 + i) * d + (gapBeatDenominator && i > 0 ? 1 : 0);
+    notes.push({
+      type: "long", lane: 1, beat: beat(start, d), endBeat: beat(5 + i, 1),
+      ...(i < 3 ? { holdOnly: true } : {}),
+    });
+  }
+  return notes;
+}
+
+/**
  * S4 — 트릴 롱노트 시각 확인. trillZone 안에 헤드(trill 포인트) + trillLong 바디.
  * 긴 홀드 1개(3박=1.5s)로 held 바디 색을 눈으로 확인하고, 이어 짧은 트릴 롱 체인으로 교대 전환을 본다.
  */
@@ -186,6 +203,20 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
     chart: chartFrom("holdOnly 뒤 길이 0", [body(0, 1000, false, true), body(1250, 1250, false, true)]),
   },
   {
+    id: "hold-tick-chain", label: "o-*-*-*- · 유지형 틱", ref: "RFD 0009 · RFD 0020",
+    group: "holdOnly", pattern: "o-*-*-*-", caseIds: ["NJ-C02", "NJ-H07", "NJ-H08"],
+    howTo: "2000ms A 누름 → 2500 · 3000 · 3500ms의 `*`를 새 입력 없이 그대로 통과 → 4000ms A 뗌.\n늦은 head: 재시도하여 2030ms쯤 살짝 늦게 누르고 같은 방법으로 유지한다.\n대조: 재시도하여 4000ms에 떼지 않고 계속 잡는다.",
+    watchFor: "구간이 정확히 맞닿아 있으므로 A 하나를 유지하는 것으로 뒤 구간을 이어받는다. head 1 · holdOnly 3 · 마지막 release 1로 Perfect 5 · Miss 0. head를 2030ms처럼 창 안에서 살짝 늦게 눌러도 늦게 시작한 구간이 A로 뒤 구간을 이어받아 같은 Perfect 5 · Miss 0이다(head가 Perfect 창을 넘으면 head 등급만 바뀜). 대조처럼 4000ms에 떼지 않으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss(Perfect 4 · Miss 1).",
+    chart: chartFrom("o-*-*-*- 유지형 틱", holdTickChain()),
+  },
+  {
+    id: "hold-tick-chain-gap", label: "틈 대조 · 구간 사이 1/16박으로 끊긴 유지형 틱", ref: "RFD 0020",
+    group: "holdOnly", pattern: "o-* -* -* -  (틈 1/16박)", caseIds: ["NJ-A02"],
+    howTo: "유지형 틱 카드와 같은 입력: 2000ms A 누름 → 계속 유지 → 4000ms A 뗌.",
+    watchFor: "두 번째 구간부터 시작이 1/16박(31.25ms) 늦어 앞 구간과 연결되지 않는다. 각 구간은 독립 시작이라 미리 잡은 A로는 활성화되지 않는다. head와 첫 holdOnly만 Perfect이고 뒤 세 구간은 Miss라 Perfect 2 · Miss 3 · 40%. 화면에서 틈이 거의 보이지 않아도 결과가 유지형 틱 카드와 달라진다.",
+    chart: chartFrom("o-*-*-*- 틈", holdTickChain(16)),
+  },
+  {
     id: "timeout-then-slide", label: "앞 release Miss · 길이 0은 독립 판정", ref: "RFD 0020",
     group: "failure", pattern: "---  H(0)", caseIds: ["NJ-Z01"],
     howTo: "2000ms A로 일반 바디를 시작하고, 3000ms release를 생략한 채 3250ms까지 유지한 뒤 뗀다.",
@@ -199,9 +230,9 @@ export const PLAYTEST_SCENARIOS: PlaytestScenario[] = [
     return {
       id: denominator === 1 ? "hold-trill-chain" : `hold-trill-chain-${intervalMs}`,
       label: `홀드 트릴 체인 · ${intervalMs}ms 간격`, ref: "RFD 0020",
-      group: "connection", pattern: "o-".repeat(count), caseIds: ["NJ-F02", "NJ-R06"],
+      group: "connection", pattern: "o-".repeat(count), caseIds: ["NJ-F02", "NJ-R06", "NJ-R16"],
       howTo: `2000ms 첫 헤드를 A로 누른 뒤 ${intervalMs}ms마다 A/B를 교대한다. 각 헤드에서 앞 키를 떼며 다음 키를 누르고, 마지막은 ${endMs}ms에 뗀다.`,
-      watchFor: `정박이면 헤드 ${count}개와 마지막 release 1개로 Perfect ${count + 1} · Miss 0. 연결 성공을 Perfect 개수에 더하지 않는다. 이른 교대에도 아직 지나지 않은 바디가 끊겨 보이지 않는지 확인한다.`,
+      watchFor: `정박이면 헤드 ${count}개와 마지막 release 1개로 Perfect ${count + 1} · Miss 0. 연결 성공을 Perfect 개수에 더하지 않는다. 헤드를 조금 지나 앞 키를 뗀 뒤 다음 키를 눌러도 그 헤드의 Good 창 안이면 유효한 교대라 Miss가 없다. 첫 헤드를 창 안에서 늦게 눌러도 같으며 헤드 등급만 입력 오차를 따른다. 이른 교대에도 아직 지나지 않은 바디가 끊겨 보이지 않는지 확인한다.`,
       chart: chartFrom(`홀드 트릴 ${intervalMs}ms`, holdTrillChain(denominator, count)),
     };
   }),

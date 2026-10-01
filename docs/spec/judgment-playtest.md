@@ -1,6 +1,6 @@
 # 판정 실플레이 Lab
 
-개발 서버와 별도 공개 Lab의 `/lab/judgment-playtest`에서 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 모델을 사람이 직접 플레이한다. 차트와 안내는 `src/lab/judgmentPlaytestScenarios.ts`에 있으며, 규칙은 [glossary](../context/glossary.md#롱노트-판정-모델)와 [판정 사례 명세](note-judgment-cases.md)를 따른다. 수동 입력에 맞춰 간격을 늘린 대조도 포함한다. 판정 사례 15개와 기존 트릴 바디 색상 확인 사례 1개를 제공한다.
+개발 서버와 별도 공개 Lab의 `/lab/judgment-playtest`에서 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 모델을 사람이 직접 플레이한다. 차트와 안내는 `src/lab/judgmentPlaytestScenarios.ts`에 있으며, 규칙은 [glossary](../context/glossary.md#롱노트-판정-모델)와 [판정 사례 명세](note-judgment-cases.md)를 따른다. 수동 입력에 맞춰 간격을 늘린 대조도 포함한다. 판정 사례 17개와 기존 트릴 바디 색상 확인 사례 1개를 제공한다.
 
 ## 사용 방법
 
@@ -29,10 +29,12 @@
 | `independent-holdonly-start` | 500ms부터 held / 2000ms 새 down | 기존 held만 있으면 Miss 1, 새 시작은 Perfect 1 |
 | `late-holdonly-start` | 60ms 바디의 끝 이후 첫 입력 / 시작 기한 초과 | 2100ms down은 Perfect 1, 2120ms 초과는 Miss 1 |
 | `holdonly-then-slide` | 양수 완료 뒤 길이 0까지 같은 키 유지 | 새 down 없이 Perfect 2 |
+| `hold-tick-chain` | `o-*-*-*-` 유지형 틱을 A 하나로 유지 / head를 2030ms쯤 살짝 늦게 누름 / 끝에서 떼지 않음 | Perfect 5·Miss 0. 창 안의 늦은 head도 같은 결과. 떼지 않으면 마지막 release만 Miss |
+| `hold-tick-chain-gap` | 같은 패턴의 구간 사이 1/16박 틈, 같은 입력 | Perfect 2·Miss 3·40%. 틈 뒤 구간은 독립 시작이라 기존 held로 활성화하지 않음 |
 | `timeout-then-slide` | 앞 release를 놓친 뒤 길이 0까지 held | Perfect 1·Miss 1·50% |
-| `hold-trill-chain` | 500ms 간격 헤드 6개 교대 | Perfect 7·Miss 0 |
-| `hold-trill-chain-250` | 250ms 간격 헤드 8개 교대 | Perfect 9·Miss 0 |
-| `hold-trill-chain-125` | 125ms 간격 헤드 8개 교대 | Perfect 9·Miss 0 |
+| `hold-trill-chain` | 500ms 간격 헤드 6개 교대 / 각 헤드 +15ms에 앞 키를 떼고 +20ms에 다음 키를 누르는 교대 / 첫 헤드를 2020ms에 누름 | 모두 Perfect 7·Miss 0. 헤드의 Good 창 안에서 누르면 경계 뒤 교대도 유효하며 헤드 등급만 입력 오차를 따름([NJ-R16](note-judgment-cases.md#nj-r16)) |
+| `hold-trill-chain-250` | 250ms 간격 헤드 8개 교대. 경계 뒤 교대·늦은 첫 헤드도 같음 | Perfect 9·Miss 0 |
+| `hold-trill-chain-125` | 125ms 간격 헤드 8개 교대. 경계 뒤 교대·늦은 첫 헤드도 같음 | Perfect 9·Miss 0 |
 | `trill-long-visual` | 레인 2의 긴 트릴 바디 유지와 짧은 바디 교대 | held 바디와 끝캡의 색상을 시각 확인 |
 
 유지 실패·부분 실패 때 바디 표시, 이른 연결 교대 후 아직 지나지 않은 바디의 연속성, 보류 판정의 콤보·표시 일치도 함께 확인한다. 사람의 입력 오차를 고정된 자동 통과·실패 기준으로 분류하지 않는다.

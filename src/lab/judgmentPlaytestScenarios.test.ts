@@ -136,6 +136,48 @@ describe("판정 실플레이 시나리오", () => {
     expect(state.achievementRate).toBe(100);
   });
 
+  it("hold-tick-chain은 2000ms A down 후 4000ms up까지 유지하면 head 1·holdOnly 3·release 1로 Perfect 5·Miss 0이다", () => {
+    const session = sessionFor("hold-tick-chain");
+    session.processBatch(2000, [{ key: "A", lane: 1, type: "down" }]);
+    session.processBatch(4000, [{ key: "A", lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(session.events.map(event => `${event.kind}:${event.grade}`)).toEqual([
+      "head:perfect", "holdOnly:perfect", "holdOnly:perfect", "holdOnly:perfect", "release:perfect",
+    ]);
+    expect(state.judgmentCounts.perfect).toBe(5); expect(state.judgmentCounts.miss).toBe(0); expect(state.isFullCombo).toBe(true);
+  });
+
+  it("hold-tick-chain은 head를 2030ms에 30ms 늦게 눌러 4000ms up까지 유지해도 뒤 구간을 승계해 Perfect 5·Miss 0이다", () => {
+    const session = sessionFor("hold-tick-chain");
+    session.processBatch(2030, [{ key: "A", lane: 1, type: "down" }]);
+    session.processBatch(4000, [{ key: "A", lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(session.events.map(event => `${event.kind}:${event.grade}`)).toEqual([
+      "head:perfect", "holdOnly:perfect", "holdOnly:perfect", "holdOnly:perfect", "release:perfect",
+    ]);
+    expect(state.judgmentCounts.perfect).toBe(5); expect(state.judgmentCounts.miss).toBe(0); expect(state.isFullCombo).toBe(true);
+  });
+
+  it("hold-tick-chain에서 4000ms에 떼지 않고 계속 잡으면 holdOnly 3개는 Perfect이고 마지막 release만 Miss다", () => {
+    const state = play("hold-tick-chain", [[2000, [{ key: "A", lane: 1, type: "down" }]]]);
+    expect(state.judgmentCounts.perfect).toBe(4); expect(state.judgmentCounts.miss).toBe(1); expect(state.isFullCombo).toBe(false);
+  });
+
+  it("hold-tick-chain은 앞 세 구간이 holdOnly로 정확히 맞닿고 마지막 구간만 일반 release다", () => {
+    const bodies = byId("hold-tick-chain").chart.notes.filter((note) => "endBeat" in note) as Array<{ beat: import("../shared/types/beat").Beat; endBeat: import("../shared/types/beat").Beat; holdOnly?: boolean }>;
+    expect(bodies.map((note) => note.holdOnly === true)).toEqual([true, true, true, false]);
+    for (let i = 0; i < bodies.length - 1; i++) expect(bodies[i].endBeat).toEqual(bodies[i + 1].beat);
+  });
+
+  it("hold-tick-chain-gap은 구간 사이 1/16박 틈 때문에 2000ms부터 계속 잡아도 뒤 세 구간을 시작하지 못해 Perfect 2·Miss 3·40%다", () => {
+    const session = sessionFor("hold-tick-chain-gap");
+    session.processBatch(2000, [{ key: "A", lane: 1, type: "down" }]);
+    session.processBatch(4000, [{ key: "A", lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(state.judgmentCounts.perfect).toBe(2); expect(state.judgmentCounts.miss).toBe(3);
+    expect(state.achievementRate).toBe(40); expect(state.isFullCombo).toBe(false);
+  });
+
   it("S3 일반 롱은 3250ms 늦은 up으로 Miss가 되고 zero-H는 Perfect로 남는다", () => {
     const session = sessionFor("timeout-then-slide");
     session.processBatch(2000, [{ key: "A", lane: 1, type: "down" }]);
@@ -169,6 +211,22 @@ describe("판정 실플레이 시나리오", () => {
       expect(state.isFullCombo, id).toBe(true);
       expect(state.processedNotes, id).toBe(state.totalNotes);
     }
+  });
+
+  it.each([2000, 2020])("hold-trill-chain은 첫 head를 %ims에 누르고 각 경계 +15ms에 앞 키를 뗀 뒤 +20ms에 다음 키를 눌러 5020ms에 떼도 Perfect 7·Miss 0이다", (firstAt) => {
+    const session = sessionFor("hold-trill-chain");
+    const keys = ["A", "B"];
+    session.processBatch(firstAt, [{ key: "A", lane: 1, type: "down" }]);
+    for (let index = 1; index < 6; index++) {
+      const boundary = 2000 + 500 * index;
+      session.processBatch(boundary + 15, [{ key: keys[(index - 1) % 2], lane: 1, type: "up" }]);
+      session.processBatch(boundary + 20, [{ key: keys[index % 2], lane: 1, type: "down" }]);
+    }
+    session.processBatch(5020, [{ key: keys[1], lane: 1, type: "up" }]);
+    const state = session.finalize();
+    expect(session.events.filter(event => event.grade === "miss")).toEqual([]);
+    expect(state.judgmentCounts.perfect).toBe(7); expect(state.judgmentCounts.miss).toBe(0);
+    expect(state.achievementRate).toBe(100); expect(state.isFullCombo).toBe(true);
   });
 
   it("NJ-R06 o-o-은 2500ms 교대 뒤 3000ms 마지막 release로 100%와 FC를 유지한다", () => {

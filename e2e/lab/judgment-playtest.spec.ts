@@ -148,7 +148,7 @@ test.describe('Lab 판정 실플레이', () => {
     await page.getByRole('button', { name: 'holdOnly', exact: true }).click();
     await expect(page.locator('.judgment-playtest-scenarios article')).not.toHaveCount(0);
     const ids = await page.locator('.judgment-playtest-scenarios article').evaluateAll(cards => cards.map(card => card.getAttribute('data-scenario-id')));
-    expect(ids).toEqual(['holdonly-decrease-chain', 'independent-holdonly-start', 'late-holdonly-start', 'holdonly-then-slide']);
+    expect(ids).toEqual(['holdonly-decrease-chain', 'independent-holdonly-start', 'late-holdonly-start', 'holdonly-then-slide', 'hold-tick-chain', 'hold-tick-chain-gap']);
     await page.locator('.judgment-playtest-scenarios article').last().scrollIntoViewIfNeeded();
     await expect(page.locator('.judgment-playtest-scenarios article').last().getByRole('button', { name: /플레이/ })).toBeInViewport();
     expect(await page.locator('.judgment-playtest-page').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
