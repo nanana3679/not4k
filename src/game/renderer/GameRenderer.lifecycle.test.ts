@@ -25,6 +25,8 @@ describe('GameRenderer 리소스 수명', () => {
     const borrowedTexture = TexturePool.getOptimalTexture(32, 16, 1, false);
     const pixiRenderer = {
       runners: { destroy: { items: [], emit: vi.fn(), destroy: vi.fn() } },
+      // pixi.js 8.17+ AbstractRenderer.destroy()가 마지막에 removeAllListeners()를 부른다.
+      removeAllListeners: vi.fn(),
     };
     const destroyApplication = vi.fn((...args: Parameters<Application['destroy']>) => {
       // Use Pixi's real destruction policy, without requiring a GPU in Vitest.
