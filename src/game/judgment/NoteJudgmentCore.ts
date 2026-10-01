@@ -330,15 +330,21 @@ export class NoteJudgmentCore {
     // included. At one start time a share nobody prepared takes the down
     // first (user decision ①, 2026-10-01). A released share is taken over
     // front to back, even inside a later Point's window, until min(E, S+Good);
-    // a later down goes on to later notes (user decision ②, 2026-10-01). The
-    // head at that share's own end is not skipped: it continues the share
-    // through the released up (§2.6), so it keeps the down.
+    // a later down goes on to later notes (user decision ②, 2026-10-01). That
+    // E deadline holds only when the released up can satisfy the share (at or
+    // after its E−Good); a share it cannot satisfy is open until S+Good like
+    // any unstarted body (user decision ③, 2026-10-01). The head at a share's
+    // own end is not skipped: it continues the share through the released up
+    // (§2.6), so it keeps the down (user decision ④, 2026-10-01).
+    const startable = (u: UnitState) => (!u.active || this.releasedPreparation(u)) && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end);
+    const keyFree = (u: UnitState) => !this.units.some(other => other.noteIndex === u.noteIndex && !(other === u && u.active) && this.registersKey(other, key));
+    const inStartWindow = (u: UnitState) => (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD;
+    const pastTakeoverDeadline = (u: UnitState) => at > u.end && this.releasedPreparation(u) && u.share!.upAt! >= u.end - this.windows.GOOD;
     const startCandidates = this.units
-      .filter(u => (!u.active || this.releasedPreparation(u)) && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end) && !this.units.some(other => other.noteIndex === u.noteIndex && !(other === u && u.active) && this.registersKey(other, key)) && (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD && (u.active || this.canStart(u)) &&
-        !(at > u.end && this.releasedShare(u)))
+      .filter(u => startable(u) && keyFree(u) && inStartWindow(u) && (u.active || this.canStart(u)) && !pastTakeoverDeadline(u))
       .sort((a, b) => a.start - b.start || Number(this.preparedShare(a)) - Number(this.preparedShare(b)));
     const takesOverBeforePoint = (u: UnitState) => this.releasedShare(u) && !(point && point.lane === u.lane && point.at === u.end);
-    const startCandidate = pointCandidate ? startCandidates.find(u => !this.takesReleasedShare(u) || takesOverBeforePoint(u)) : startCandidates[0];
+    const startCandidate = pointCandidate ? startCandidates.find(u => !this.startsContinuingShare(u) || takesOverBeforePoint(u)) : startCandidates[0];
     const preparedSuccessor = startCandidate && pointCandidate && this.units.some(predecessor =>
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
@@ -403,7 +409,15 @@ export class NoteJudgmentCore {
     // at its end, exactly as an immediate inheritance would have registered it.
     const correction = this.registerConnectionUp(token, key, at, deferred);
     if (correction?.status === "absorbed") {
+      // The head at the deferred successor's end already succeeded, so this up
+      // is its swap now: the successor inherits the up first and is continued
+      // through it, as when the up waits for that head (activateForHead).
+      this.pendingUps.push(token);
+      for (const successor of deferred) this.tryInherit(successor, successor.start);
+      this.pendingUps.splice(this.pendingUps.indexOf(token), 1);
       token.connectionConsumed = true;
+      const source = deferred.find(unit => unit.active && !unit.failed && !unit.forwarded && unit.tokens.includes(token));
+      if (source) { source.complete = true; source.forwarded = true; }
       return;
     }
     if (correction?.status === "pending") {
@@ -508,6 +522,7 @@ export class NoteJudgmentCore {
         const authority = candidate?.tokens.find(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed);
         if (!candidate || !authority) continue;
         authority.released = true; candidate.endResolved = true; candidate.complete = true;
+        // Defensive (no known outcome depends on it): like every path that spends an up, reselect the shares it carried (§2.14).
         this.reselectShares(authority);
         const index = this.pendingUps.indexOf(pending); if (index >= 0) this.pendingUps.splice(index, 1);
         this.emit({ kind: "release", noteIndex: candidate.noteIndex, unitIndex: candidate.unitIndex, grade: gradeFor(upAt - candidate.end, this.windows), deltaMs: upAt - candidate.end, inputAt: upAt, confirmedAt: ledgerDeadline, key: pending.key, consumed: true, bodyState: "complete", phase: "deadline" });
@@ -676,7 +691,7 @@ export class NoteJudgmentCore {
     return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
   }
   /** A start on a continuing share of a live predecessor. Unless the share was released, a Point keeps the down (NJ-A04). */
-  private takesReleasedShare(u: UnitState): boolean {
+  private startsContinuingShare(u: UnitState): boolean {
     if (u.active) return true;
     const predecessor = this.preparingPredecessor(u);
     return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
@@ -685,7 +700,8 @@ export class NoteJudgmentCore {
    * A headless share a predecessor would continue whose preparing keys were
    * all released (§2.14): an inherited released preparation, or a not yet
    * inherited share beyond the predecessor's keys still held. A new down
-   * takes it over up to min(E, S+Good), before a later Point (decision ②).
+   * takes it over before a later Point (decision ②): up to min(E, S+Good)
+   * while the released up can satisfy it, else up to S+Good (decision ③).
    * A share a held key prepares is not one (NJ-A04).
    */
   private releasedShare(u: UnitState): boolean {
@@ -703,7 +719,7 @@ export class NoteJudgmentCore {
   private startByDown(u: UnitState, key: string, token: PressToken, at: number): void {
     token.used = true; token.valid = true;
     const takeover = u.active;
-    const predecessor = takeover || !this.takesReleasedShare(u) ? undefined : this.preparingPredecessor(u);
+    const predecessor = takeover || !this.startsContinuingShare(u) ? undefined : this.preparingPredecessor(u);
     if (takeover) {
       const kept = u.tokens.filter(press => !this.releasedBefore(press, u));
       u.tokens.length = 0; u.tokens.push(...kept);
@@ -729,6 +745,7 @@ export class NoteJudgmentCore {
     const token = u.share;
     if (!token) return;
     const upAt = token.upAt ?? token.at;
+    // Defensive: every known input settles exactly at S+Good; a later settlement must not confirm in the past (§2.9).
     const confirmedAt = Math.max(u.start + this.windows.GOOD, this.now);
     if (upAt < u.end - this.windows.GOOD || token.released || token.connectionConsumed) {
       u.failed = true;
@@ -743,6 +760,8 @@ export class NoteJudgmentCore {
       return;
     }
     token.released = true; u.endResolved = true;
+    // A later note that chose this up as its share chooses again (§2.14).
+    this.reselectShares(token);
     const index = this.pendingUps.indexOf(token); if (index >= 0) this.pendingUps.splice(index, 1);
     this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: gradeFor(upAt - u.end, this.windows), deltaMs: upAt - u.end, inputAt: upAt, confirmedAt, key: token.key, consumed: true, bodyState: "complete", phase: "deadline" });
   }
