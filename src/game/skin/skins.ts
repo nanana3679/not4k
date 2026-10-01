@@ -80,7 +80,8 @@ export const SKIN_LIST: SkinManifest[] = [
   buildManifest("crystal", {
     id: "crystal",
     name: "Crystal",
-    available: true,
+    // 완성도가 낮아 개발 중으로 돌려 인게임 선택지에서 숨긴다. 매니페스트와 에셋은 유지한다.
+    available: false,
     accent: 0xff3060,
     beamColor: 0xffffff,
     heldLine: 0xff3060,

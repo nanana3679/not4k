@@ -43,16 +43,17 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
-  test('Skin에서 Classic을 선택하면 재방문 후에도 유지되고 실제 플레이에서 공통 노트·터미널·봄 PNG를 로드한다', async ({ page }, testInfo) => {
+  test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 공통 노트·터미널·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => requested.push(new URL(request.url()).pathname));
     const dialog = await openSettings(page);
     await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Classic', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(dialog.getByRole('button', { name: 'Crystal', exact: true })).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Classic', exact: true }).click();
     await expect(dialog.getByRole('button', { name: 'Classic', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(dialog.getByRole('button', { name: 'Crystal', exact: true })).toHaveAttribute('aria-pressed', 'false');
     await page.reload();
     await page.getByRole('button', { name: 'Start', exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -143,14 +144,12 @@ test.describe('Game Settings', () => {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
     await expect(slider).toHaveValue('1.7');
-    for (const skin of ['Classic', 'Crystal']) {
-      await dialog.getByRole('button', { name: skin, exact: true }).click();
-      await expect(slider).toHaveValue('1.7');
-    }
+    await dialog.getByRole('button', { name: 'Classic', exact: true }).click();
+    await expect(slider).toHaveValue('1.7');
     await dialog.screenshot({ path: testInfo.outputPath('keybomb-size-settings.png') });
   });
 
-  for (const skin of ['Crystal', 'Classic']) {
+  for (const skin of ['Classic']) {
     for (const scale of [0, 3]) {
       test(`Skin: ${skin} 키봄 ${scale}배를 저장하면 실제 플레이에서 ${scale === 0 ? '키봄을 숨겨도 Perfect 판정' : '360×360으로 표시하고 Perfect 판정'}을 유지한다`, async ({ page }) => {
         const errors: string[] = [];
