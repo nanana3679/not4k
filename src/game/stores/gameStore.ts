@@ -110,7 +110,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   isFirstLaunch: true,
   showFastSlow: true,
   showTimingDiff: false,
-  skinId: 'crystal',
+  skinId: 'classic',
   bombScale: 1,
   renderHeight: 1080,
   playSpeed: 1.0,

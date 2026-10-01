@@ -184,7 +184,7 @@ export function TutorialPreviewPlayer({
   onReady,
   diagramModalEnabled = true,
   diagramModalVisible = true,
-  skinId = 'crystal',
+  skinId = 'classic',
   skinManifest,
   showRendererBomb = true,
   onBombEffect,

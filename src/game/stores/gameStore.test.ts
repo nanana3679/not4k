@@ -81,6 +81,19 @@ describe('gameStore — masterVolume', () => {
   });
 });
 
+describe('gameStore — skinId', () => {
+  it('처음 실행하면 기본 스킨은 classic이다', () => {
+    expect(useGameStore.getInitialState().settings.skinId).toBe('classic');
+  });
+
+  it('스킨을 저장하지 않은 설정을 복원하면 기본값 classic을 유지한다', () => {
+    const restored = mergePersistedSettings({ settings: { scrollSpeed: 900 } }, useGameStore.getInitialState()) as unknown as {
+      settings: { skinId: string };
+    };
+    expect(restored.settings.skinId).toBe('classic');
+  });
+});
+
 describe('gameStore — bombScale', () => {
   it('키봄 크기를 저장하지 않은 기존 설정을 복원하면 기본값 1배를 유지한다', () => {
     const current = useGameStore.getInitialState();

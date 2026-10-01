@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
-  it("Crystal·Classic과 미공개 Prism·Simple·Note Asset Lab 5개 스킨을 등록", () => {
+  it("Classic과 미공개 Crystal·Prism·Simple·Note Asset Lab 5개 스킨을 등록", () => {
     expect(SKIN_LIST).toHaveLength(5);
   });
 
@@ -58,9 +58,14 @@ describe("공개 배포의 스킨 에셋 주소", () => {
 });
 
 describe("AVAILABLE_SKINS", () => {
-  it("available=true인 crystal과 classic을 인게임 스킨 선택지로 제공", () => {
+  it("available=true인 classic만 인게임 스킨 선택지로 제공", () => {
     const ids = AVAILABLE_SKINS.map((s) => s.theme.id);
-    expect(ids).toEqual(["crystal", "classic"]);
+    expect(ids).toEqual(["classic"]);
+  });
+
+  it("완성도가 낮아 개발 중으로 돌린 crystal은 available=false라 선택지에서 빠지지만 매니페스트는 남아 있다", () => {
+    expect(getSkinManifest("crystal").theme.available).toBe(false);
+    expect(AVAILABLE_SKINS.some((s) => s.theme.id === "crystal")).toBe(false);
   });
 
   it("prism, simple, note-asset-lab은 available=false라 선택지에서 제외됨", () => {
