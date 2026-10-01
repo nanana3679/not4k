@@ -335,6 +335,20 @@ describe('프리뷰 렌더 오류 표면화', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('createSafeRenderFrame');
     expect(tutorialPreviewPlayerSource).not.toContain('isTransientTeardownRenderError');
   });
+
+  it('rAF 렌더 루프 본문에는 try/catch가 없어 루프 중 렌더 오류가 uncaught로 드러남', () => {
+    const loopStart = tutorialPreviewPlayerSource.indexOf('const renderLoop = ');
+    const loopEnd = tutorialPreviewPlayerSource.indexOf(
+      '        };\n\n        animationFrameId = requestAnimationFrame(renderLoop);',
+      loopStart,
+    );
+    expect(loopStart).toBeGreaterThan(-1);
+    expect(loopEnd).toBeGreaterThan(loopStart);
+    const renderLoopBody = tutorialPreviewPlayerSource.slice(loopStart, loopEnd);
+    expect(renderLoopBody).toContain('renderer.renderFrame(renderTimeMs, deltaMs);');
+    expect(renderLoopBody).not.toMatch(/\btry\s*\{/);
+    expect(renderLoopBody).not.toMatch(/\bcatch\b/);
+  });
 });
 
 

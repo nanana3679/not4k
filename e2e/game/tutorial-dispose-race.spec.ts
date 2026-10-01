@@ -6,8 +6,9 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 // 배처에서 null을 만나 "Cannot read properties of null (reading 'clear')"로 크래시했다.
 // 프리뷰를 빠르게 마운트/언마운트해 그 레이스를 유발하고, uncaught pageerror가 0인지 검증한다.
 // (실제 WebGL이 필요해 vitest로는 재현 불가 — swiftshader e2e에서만 잡힌다.)
-// 레이스는 dispose의 releaseGlobalResources: false와 pixi.js 8.21로 막혔고, 프레임 스킵 안전망
-// (createSafeRenderFrame)은 제거했다. 이제 렌더 크래시는 삼켜지지 않고 그대로 pageerror로 잡힌다.
+// 레이스는 dispose의 releaseGlobalResources: false(894fa88)로 근본 차단됐고, pixi.js 8.21의
+// TexturePool·배처 변경으로도 독립적으로 막힌다. 그래서 프레임 스킵 안전망(createSafeRenderFrame)은
+// 제거했다. 이제 렌더 크래시는 삼켜지지 않고 그대로 pageerror로 잡힌다.
 // 실측(2026-10-01, repeat-each 10): 8.16 + releaseGlobalResources true 5/10 실패, 나머지 조합 0건.
 
 const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
