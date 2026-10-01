@@ -1120,6 +1120,21 @@ export class GameRenderer {
     entry.text.y = entry.baseY + entry.kh / 2 + dy;
   }
 
+  /**
+   * 튜토리얼 키보드 strip의 라벨·매핑만 바꾼다 — 키캡 배치(프리셋 레이아웃)는 init 때 만든 것을 그대로 쓴다.
+   * 같은 렌더러로 다른 튜토리얼 차트를 그릴 때 차트마다 달라지는 키 표시만 교체하고, 눌림은 해제한다.
+   */
+  updateTutorialKeyboardKeys(keys: readonly { code: string; label: string; mapped: boolean }[]): void {
+    for (const { code, label, mapped } of keys) {
+      const entry = this.tutorialKeyboardKeyByCode.get(code);
+      if (!entry) continue;
+      entry.mapped = mapped;
+      entry.pressed = false;
+      entry.text.text = label;
+      this.drawTutorialKey(entry, false);
+    }
+  }
+
   /** 레인 키 라벨 텍스트·표시 여부 갱신 — 라벨 계산은 React가 하고 렌더러는 그리기만 한다. */
   setLaneKeyLabels(labels: { lane: number; label: string }[], visible: boolean): void {
     this.laneKeyLabelLayer.visible = visible;
@@ -1420,6 +1435,26 @@ export class GameRenderer {
     anim.onComplete = () => { anim.destroy(); };
     anim.play();
     this.effectLayer.addChild(anim);
+  }
+
+  /**
+   * 같은 렌더러로 다른 차트를 이어 그릴 때(튜토리얼 프리뷰 슬롯 재사용) 이전 차트가 남긴 일시 표시를 지운다.
+   * 재생 중인 봄, 판정 텍스트, 키빔·레인 키캡·키보드 눌림, 이벤트 문구, 이전 판정 세션의 body 조회가 대상이다.
+   * 노트 풀과 노트 표시 상태는 setChart가 비운다.
+   */
+  resetTransientState(): void {
+    if (!this.initialized) return;
+    // 봄은 Ticker.shared로 재생하다 끝나면 스스로 파괴된다. 끝나기 전에 떼어 내 새 차트 위에 남지 않게 한다.
+    for (const bomb of this.effectLayer.removeChildren()) bomb.destroy();
+    this.judgmentUI.reset();
+    for (let lane = 1; lane <= LANE_COUNT; lane++) this.setKeyBeam(lane, false);
+    for (const entry of this.tutorialKeyboardKeys) {
+      if (!entry.pressed) continue;
+      entry.pressed = false;
+      this.drawTutorialKey(entry, false);
+    }
+    this.eventMessageText.text = "";
+    this.noteRenderer.setJudgmentBodyStateQuery(null);
   }
 
   setShowFastSlow(enabled: boolean): void {

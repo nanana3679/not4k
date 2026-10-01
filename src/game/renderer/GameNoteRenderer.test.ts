@@ -16,6 +16,8 @@ vi.mock("pixi.js", () => {
   class Graphics {
     x = 0;
     y = 0;
+    destroyed = false;
+    destroy() { this.destroyed = true; }
     clear() { return this; }
     rect() { return this; }
     fill() { return this; }
@@ -1280,5 +1282,70 @@ describe("GameNoteRenderer heldEffect: false 스킨 (RFD 0028)", () => {
     renderer.renderLongNote(long("long"), 1, 100, 300, 50);
     expect(requested()).toContain("bodySingle");
     expect(requested()).not.toContain("bodySingleHeld");
+  });
+});
+
+describe("GameNoteRenderer 차트 교체 시 풀 초기화", () => {
+  function createSkinRenderer(theme: Record<string, unknown>, textureKeys: readonly string[]) {
+    const bodyLayer = new Container(), endLayer = new Container(), headLayer = new Container(), noteLayer = new Container();
+    const skin = {
+      getTheme: () => theme,
+      hasTexture: (key: string) => textureKeys.includes(key),
+      getTexture: (key: string) => ({ key, width: 200, height: 40 }),
+      getHalfCapTexture: (key: string) => ({ key, width: 200, height: 20 }),
+      getBodyWidthScale: () => 1,
+    } as unknown as SkinManager;
+    const renderer = new GameNoteRenderer(bodyLayer, endLayer, headLayer, noteLayer, skin, 500, 1000, 0, 600);
+    return { renderer, endLayer, noteLayer };
+  }
+
+  it("Grace 포인트였던 0번 노트가 clearPools 뒤 holdOnly 롱노트가 되면 끝점 Grace를 pointGraceOverlay가 아닌 terminalGraceOverlay로 다시 만든다", () => {
+    const { renderer, endLayer, noteLayer } = createSkinRenderer({}, ["pointGraceOverlay", "terminalGraceOverlay"]);
+    renderer.renderPointNote({ type: "single", lane: 2, beat: 0, grace: true } as unknown as NoteEntity, 0, 100, 0);
+    expect(childrenOf(noteLayer)[0].texture).toMatchObject({ key: "pointGraceOverlay" });
+
+    renderer.clearPools();
+    renderer.renderLongNote(
+      { type: "long", lane: 2, beat: 0, endBeat: 4, holdOnly: true } as unknown as NoteEntity & { endBeat: unknown },
+      0, 100, 300, 0,
+    );
+
+    expect(childrenOf(endLayer)[0].texture).toMatchObject({ key: "terminalGraceOverlay" });
+  });
+
+  it("오버레이 에셋이 없는 스킨의 Grace 글로우 Graphics는 clearPools에서 파괴되고 같은 인덱스에 새로 만든다", () => {
+    const { renderer, noteLayer } = createSkinRenderer({}, []);
+    const grace = { type: "single", lane: 1, beat: 0, grace: true } as unknown as NoteEntity;
+    renderer.renderPointNote(grace, 0, 100, 0);
+    const firstGlow = childrenOf(noteLayer)[0] as unknown as { destroyed: boolean };
+
+    renderer.clearPools();
+    childrenOf(noteLayer).length = 0;
+    renderer.renderPointNote(grace, 0, 100, 0);
+
+    expect(firstGlow.destroyed).toBe(true);
+    expect(childrenOf(noteLayer)[0]).not.toBe(firstGlow);
+  });
+
+  it("싱글 포인트 그림자와 트릴 포인트 그림자는 같은 차트에선 재사용하고 clearPools 뒤에는 새로 만든다", () => {
+    const { renderer, noteLayer } = createSkinRenderer({ pointShadow: { offsetY: 19.6, height: 3.2 } }, ["pointShadow"]);
+    const single = { type: "single", lane: 1, beat: 0 } as unknown as NoteEntity;
+    const trill = { type: "trill", lane: 2, beat: 0 } as unknown as NoteEntity;
+    const renderShadows = () => {
+      childrenOf(noteLayer).length = 0;
+      renderer.renderPointNote(single, 0, 100, 0);
+      renderer.renderPointNote(trill, 1, 100, 0);
+      const [singleShadow, , trillShadow] = childrenOf(noteLayer);
+      return [singleShadow, trillShadow];
+    };
+    const first = renderShadows();
+
+    expect(renderShadows()).toEqual(first);
+    const [singleShadow, trillShadow] = first;
+    renderer.clearPools();
+    const [nextSingleShadow, nextTrillShadow] = renderShadows();
+
+    expect(nextSingleShadow).not.toBe(singleShadow);
+    expect(nextTrillShadow).not.toBe(trillShadow);
   });
 });
