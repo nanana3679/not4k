@@ -1,6 +1,7 @@
 import { Assets, Texture, Rectangle } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
 import { getSkinManifest } from "./skins";
+import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
 
 // Pixi Assets caches textures globally by path. Multiple renderers (notably
 // the two tutorial carousel slots) can therefore share one loaded texture.
@@ -51,11 +52,6 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
  * 전용 캡 에셋이 로드된 스킨이면 이 키의 텍스처를 사용하고, 없으면 crop fallback한다.
  * partial-failed 캡은 윗부분 색이 double과 같아 endCapDouble을 재사용한다.
  */
-/** 켜짐(홀드) 에셋. `theme.heldEffect`가 false가 아니면 모두 필요하다(RFD 0028). */
-const HELD_ASSET_KEYS = [
-  "bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld",
-] as const;
-
 const CAP_TEXTURE_KEY: Record<string, string> = {
   terminalSingle: "endCapSingle",
   terminalDouble: "endCapDouble",
@@ -105,6 +101,11 @@ export class SkinManager {
           + "효과 없는 스킨이면 theme.heldEffect를 false로 선언합니다.",
         );
       }
+    }
+
+    // 로딩은 되지만 화면에 반영되지 않는 설정·에셋 불일치를 개발 환경에서만 알린다(#174). 배포 빌드에서는 분기째 제거된다.
+    if (import.meta.env.DEV) {
+      for (const warning of findSkinManifestWarnings(manifest)) console.warn(warning);
     }
 
     // 기존 텍스처 해제

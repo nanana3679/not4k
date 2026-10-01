@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { assetsLoad, assetsUnload } = vi.hoisted(() => ({
   assetsLoad: vi.fn(async (path: string) => {
@@ -47,6 +47,47 @@ describe('SkinManager', () => {
     await expect(manager.loadSkin({ ...base, theme: { ...base.theme, id: 'missing-held' }, assets } as unknown as typeof base))
       .rejects.toThrow(/bodySingleHeld/);
     manager.dispose();
+  });
+
+  describe('스킨 설정·이미지 불일치 경고', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    });
+
+    const contactWithoutImage = () => {
+      const base = getSkinManifest('classic');
+      const { pointContactShadow: _single, ...assets } = base.assets;
+      return { theme: { ...base.theme, id: 'contact-no-image' }, assets } as typeof base;
+    };
+
+    it('개발 환경에서 theme.pointContactShadow만 있고 이미지가 없는 스킨 "contact-no-image"를 로드하면 스킨 id를 담은 경고를 console.warn으로 1번 출력한다', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const manager = new SkinManager();
+      await manager.loadSkin(contactWithoutImage());
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('"contact-no-image"');
+      expect(warn.mock.calls[0][0]).toContain('assets.pointContactShadow');
+      manager.dispose();
+    });
+
+    it('개발 환경에서 불일치가 없는 Classic을 로드하면 console.warn을 호출하지 않는다', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const manager = new SkinManager();
+      await manager.loadSkin('classic');
+      expect(warn).not.toHaveBeenCalled();
+      manager.dispose();
+    });
+
+    it('배포 빌드(import.meta.env.DEV=false)에서는 불일치 스킨 "contact-no-image"를 로드해도 console.warn을 호출하지 않는다', async () => {
+      vi.stubEnv('DEV', false);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const manager = new SkinManager();
+      await manager.loadSkin(contactWithoutImage());
+      expect(warn).not.toHaveBeenCalled();
+      expect(manager.hasTexture('noteSingle')).toBe(true);
+      manager.dispose();
+    });
   });
 
   it('같은 Classic ID의 v001→v002 매니페스트를 주입하면 이전 텍스처를 새 버전으로 교체한다', async () => {
@@ -152,7 +193,11 @@ describe('SkinManager', () => {
     expect(assetsLoad).toHaveBeenCalledWith('/lab/skin-versions/classic/v013/skin/point-contact-shadow-trill.png');
     expect(manager.hasTexture('pointContactShadow')).toBe(true);
     expect(manager.hasTexture('pointContactShadowTrill')).toBe(true);
+    // 테마에 pointContactShadow가 남아 있어 이미지 누락 경고가 나온다(#174).
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await manager.loadSkin(base);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('스킨 "classic"에 theme.pointContactShadow는 있지만'));
+    warn.mockRestore();
     expect(manager.hasTexture('pointContactShadow')).toBe(false);
     expect(manager.hasTexture('pointContactShadowTrill')).toBe(false);
     manager.dispose();
