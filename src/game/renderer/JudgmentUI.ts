@@ -124,6 +124,15 @@ export class JudgmentUI {
     }
   }
 
+  /** 같은 렌더러로 다른 차트를 이어 그릴 때 이전 판정 표시와 페이드 타이머를 지운다. */
+  reset(): void {
+    this.judgmentTimer = 0;
+    for (const text of [this.judgmentText, this.fastSlowText, this.timingDiffText]) {
+      text.text = "";
+      text.alpha = 0;
+    }
+  }
+
   setShowFastSlow(value: boolean): void {
     this.showFastSlow = value;
   }

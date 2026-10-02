@@ -560,13 +560,23 @@ export class GameNoteRenderer {
 
   // ── 풀/상태 초기화 ────────────────────────────────────────
 
+  /**
+   * 차트를 바꿀 때(setChart) 노트 인덱스에 묶인 풀과 표시 상태를 비운다.
+   * 같은 인덱스가 다른 차트에서는 다른 노트라, Grace 오버레이처럼 노트 종류별 텍스처를 쓰는 스프라이트를 남기면
+   * 엉뚱한 텍스처를 재사용한다. Grace 글로우 Graphics는 자기 GraphicsContext를 소유하므로 파괴해 GPU 자원을 돌려준다.
+   */
   clearPools(): void {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
+    for (const glow of this.graceGlowPool.values()) glow.destroy();
+    this.graceGlowPool.clear();
+    this.graceOverlayPool.clear();
+    this.pointShadowPool.clear();
     this.pointContactShadowPool.clear();
     this.trillContactShadowPool.clear();
+    this.trillPointShadowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
