@@ -2,10 +2,19 @@ import { describe, expect, it } from "vitest";
 import { parseJudgmentCaseCliArgs } from "./judgmentCaseCli";
 
 describe("parseJudgmentCaseCliArgs", () => {
-  it("사례 파일 하나와 --out이면 엔진 없이(현재 워크트리) 그 사례를 렌더", () => {
+  it("사례 파일 하나와 --out이면 엔진 없이(현재 워크트리) 기본 스킨 classic으로 그 사례를 렌더", () => {
     expect(parseJudgmentCaseCliArgs(["case.txt", "--out", "out.png"])).toEqual({
-      cases: ["case.txt"], out: "out.png", engines: [], help: false,
+      cases: ["case.txt"], out: "out.png", engines: [], skin: "classic", help: false,
     });
+  });
+
+  it("--skin simple·--skin=crystal로 노트 스킨을 고름", () => {
+    expect(parseJudgmentCaseCliArgs(["a.txt", "--out", "x.png", "--skin", "simple"]).skin).toBe("simple");
+    expect(parseJudgmentCaseCliArgs(["a.txt", "--out", "x.png", "--skin=crystal"]).skin).toBe("crystal");
+  });
+
+  it("classic·crystal·simple이 아닌 --skin prism은 고를 수 있는 스킨을 담은 에러", () => {
+    expect(() => parseJudgmentCaseCliArgs(["a.txt", "--out", "x.png", "--skin", "prism"])).toThrow(/--skin.*classic.*crystal.*simple.*prism/s);
   });
 
   it("--engine을 두 번 쓰면 적은 순서대로 엔진 두 개", () => {

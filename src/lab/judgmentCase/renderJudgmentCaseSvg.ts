@@ -1,7 +1,7 @@
 /**
  * 판정 사례 → SVG 문자열 (순수 함수).
  *
- * 시간은 게임처럼 아래에서 위로 흐른다. 왼쪽부터 ms 축, 노트 레인(에디터 NoteRenderer 그리기 규칙),
+ * 시간은 게임처럼 아래에서 위로 흐른다. 왼쪽부터 ms 축, 노트 레인(게임 스킨 에셋으로 그린 판정 전 모양),
  * 노트 이름표(N1… · 종류 · 구간), 키별 입력 막대, 확정 시각에 놓인 판정 라벨 열이 있고
  * 아래에 점수·미정산 항목·검증 오류·엔진 표시가 붙는다. 판정 라벨은 노트 이름으로 시작한다.
  * 시작·유지 실패는 엔진 유닛 상태(bodyStates)로 가리고, 사례 데이터·엔진 이벤트·유닛 상태로 확인되는 이유만
@@ -12,13 +12,12 @@
  * 최소 MIN_GAP_PX를 보장해 20ms 바디나 10ms 차이 입력도 읽히게 한다. 축 눈금은 실제 ms를 표시한다.
  */
 
-import { COLORS, LANE_WIDTH, NOTE_HEIGHT, NOTE_Z_ORDER } from "../../editor/timeline/constants";
-import { editorBodyGradientStops, lightenEditorColor, toHexColor } from "../../editor/timeline/editorNoteColors";
+import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT } from "../../game/renderer/constants";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
-import type { NoteEntity, PointNote, RangeNote } from "../../shared/types";
-import { beatEq } from "../../shared/types/beat";
+import type { NoteEntity, RangeNote } from "../../shared/types";
 import { violationLabel, type ValidationErrorRule } from "../../shared/validation";
 import type { JudgmentCase, JudgmentCaseAction, JudgmentCaseInput, JudgmentCaseNote } from "./chartCase";
+import type { JudgmentCaseNoteKind, JudgmentCaseSkin, JudgmentCaseSkinSprite } from "./judgmentCaseSkin";
 import type { JudgmentCaseRun, JudgmentCaseRunEvent, JudgmentCaseScoreItem } from "./runJudgmentCase";
 
 export interface JudgmentCasePanel {
@@ -31,6 +30,8 @@ export interface JudgmentCasePanel {
 }
 
 export interface RenderJudgmentCaseOptions {
+  /** 노트를 그릴 게임 스킨(판정 전 대기 에셋). judgmentCaseSkin.createJudgmentCaseSkin으로 만든다 */
+  skin: JudgmentCaseSkin;
   /**
    * 선형 구간의 px/ms. 주면 빈 구간을 줄이지 않는다(최소 간격만 보장).
    * 생략하면 긴 빈 구간을 줄이고 플롯 높이가 TARGET_PLOT_PX 안에 들도록 배율을 고른다.
@@ -67,9 +68,10 @@ const PANEL_PAD_X = 20;
 const PANEL_GUTTER = 28;
 const AXIS_W = 62;
 const LANE_W = 80;
-const LANE_SCALE = LANE_W / LANE_WIDTH;
-const NOTE_W = LANE_W;
-const NOTE_H = Math.round(NOTE_HEIGHT * LANE_SCALE);
+/** 게임 레인(100px) → 이미지 레인 배율. 노트·그림자·overlay의 게임 px 치수에 곱한다 */
+const LANE_SCALE = LANE_W / GAME_LANE_WIDTH;
+/** 포인트·터미널 높이(게임 20px → 16px) */
+const NOTE_H = GAME_NOTE_HEIGHT * LANE_SCALE;
 const COLUMN_GAP = 14;
 const KEY_BAR_W = 12;
 const KEY_LABEL_FONT = 13;
@@ -736,119 +738,184 @@ function drawLines(lines: readonly TextLine[], x: number, top: number, width: nu
 }
 
 // ---------------------------------------------------------------------------
-// 노트 그리기 (에디터 NoteRenderer 규칙)
+// 노트 그리기 (게임 스킨 에셋 · GameNoteRenderer의 판정 전 모양)
 // ---------------------------------------------------------------------------
 
-const POINT_COLOR: Record<PointNote["type"], number> = {
-  single: COLORS.SINGLE_NOTE,
-  double: COLORS.DOUBLE_NOTE,
-  trill: COLORS.TRILL_NOTE,
+/** 이름표·판정 라벨의 노트 이름 색 — 스킨 노트 색 계열(싱글 파랑·더블 금색·트릴 흰색)을 어두운 배경에서 읽히게 밝힌 값 */
+const NOTE_NAME_COLOR: Record<NoteEntity["type"], string> = {
+  single: "#73a6ff",
+  double: "#ffd940",
+  trill: "#ffffff",
+  long: "#a6ccff",
+  doubleLong: "#fff2a6",
+  trillLong: "#bfbfbf",
 };
 
-const BODY_COLOR: Record<RangeNote["type"], number> = {
-  long: COLORS.SINGLE_LONG,
-  doubleLong: COLORS.DOUBLE_LONG,
-  trillLong: COLORS.TRILL_LONG,
-};
-
-/** 이름표·판정 라벨의 노트 이름 색 — 에디터 노트 색을 어두운 배경에서 읽히게 조금 밝힌다 */
 function noteTextColor(note: NoteEntity): string {
-  return toHexColor(lightenEditorColor(isRange(note) ? BODY_COLOR[note.type] : POINT_COLOR[note.type], 0.25));
+  return NOTE_NAME_COLOR[note.type];
 }
 
-function gradientDefs(): string {
-  const stops = (color: number, id: string) => {
-    const { light, base } = editorBodyGradientStops(color);
-    return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${light}"/><stop offset="0.5" stop-color="${base}"/><stop offset="1" stop-color="${light}"/></linearGradient>`;
-  };
-  return [
-    stops(COLORS.SINGLE_LONG, "jc-long"),
-    stops(COLORS.DOUBLE_LONG, "jc-doubleLong"),
-    stops(COLORS.TRILL_LONG, "jc-trillLong"),
-  ].join("");
+function hexColor(color: number): string {
+  return `#${color.toString(16).padStart(6, "0")}`;
 }
 
-function diamond(cx: number, cy: number, w: number, h: number): string {
-  return `${cx},${cy - h / 2} ${cx + w / 2},${cy} ${cx},${cy + h / 2} ${cx - w / 2},${cy}`;
+/** 좌표를 소수 둘째 자리로 줄여 SVG를 짧게 한다 */
+function px(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-function graceGlow(x: number, cy: number, w: number, h: number): string {
-  const pad = COLORS.GRACE_GLOW_PAD * LANE_SCALE;
+function noteKindOf(type: NoteEntity["type"]): JudgmentCaseNoteKind {
+  if (type === "double" || type === "doubleLong") return "double";
+  if (type === "trill" || type === "trillLong") return "trill";
+  return "single";
+}
+
+/** 스킨 이미지 정의 — 노트는 <use href="#jc-skin-키">로 참조한다 */
+function skinDefs(skin: JudgmentCaseSkin): string {
+  return Object.entries(skin.images)
+    .map(([key, image]) => `<image id="jc-skin-${key}" href="${escapeXml(image!.href)}" width="${image!.width}" height="${image!.height}" preserveAspectRatio="none"/>`)
+    .join("");
+}
+
+interface Box { x: number; y: number; width: number; height: number }
+
+/** 스킨 이미지(또는 그 일부)를 상자에 늘려 그린다. flipY면 상자 안에서 상하반전(게임의 scale.y < 0) */
+function skinImage(sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, flipY = false): string {
+  const image = `<svg ${attrs} data-skin-asset="${sprite.key}" x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(box.height)}" viewBox="${sprite.x} ${sprite.y} ${sprite.width} ${sprite.height}" preserveAspectRatio="none"><use href="#jc-skin-${sprite.key}"/></svg>`;
+  return flipY ? `<g transform="matrix(1 0 0 -1 0 ${px(2 * box.y + box.height)})">${image}</g>` : image;
+}
+
+/** NineSliceSprite 위아래 테두리(게임 px) — stretch 바디의 위아래 4px는 늘이지 않는다 */
+const BODY_SLICE_PX = 4;
+
+/**
+ * 롱노트 바디. repeat 스킨(Classic)은 게임 TilingSprite처럼 바디 폭에 맞춘 텍스처 비율 그대로 위(끝 쪽)에서부터 반복하고
+ * 바디 길이에서 자른다. stretch 스킨은 위아래 4px 테두리를 두고 가운데를 늘인다.
+ */
+function drawBody(skin: JudgmentCaseSkin, sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, tileId: string): string {
+  if (box.height <= 0) return "";
+  const open = `<g ${attrs} data-skin-asset="${sprite.key}">`;
+  if (skin.bodyMode === "repeat") {
+    const period = (sprite.height * box.width) / sprite.width;
+    const tile = `<svg width="${px(box.width)}" height="${px(period)}" viewBox="${sprite.x} ${sprite.y} ${sprite.width} ${sprite.height}" preserveAspectRatio="none"><use href="#jc-skin-${sprite.key}"/></svg>`;
+    return `${open}<pattern id="${tileId}" patternUnits="userSpaceOnUse" x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(period)}">${tile}</pattern>`
+      + `<rect x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(box.height)}" fill="url(#${tileId})"/></g>`;
+  }
+  const border = BODY_SLICE_PX * LANE_SCALE;
+  if (box.height < border * 2 || sprite.height <= BODY_SLICE_PX * 2) return `${open}${skinImage(sprite, box, "")}</g>`;
+  const slice = (y: number, height: number): JudgmentCaseSkinSprite => ({ ...sprite, y: sprite.y + y, height });
+  return open + [
+    skinImage(slice(0, BODY_SLICE_PX), { ...box, height: border }, ""),
+    skinImage(slice(BODY_SLICE_PX, sprite.height - BODY_SLICE_PX * 2), { ...box, y: box.y + border, height: box.height - border * 2 }, ""),
+    skinImage(slice(sprite.height - BODY_SLICE_PX, BODY_SLICE_PX), { ...box, y: box.y + box.height - border, height: border }, ""),
+  ].join("") + "</g>";
+}
+
+/**
+ * Grace·holdOnly 표시. overlay 에셋이 있으면 사방 graceOverlayPaddingPx 여백을 두고 그 이미지를,
+ * 없으면 게임 GameNoteRenderer의 대체 글로우(흰 둥근 사각형 4겹 + 바깥 2px 흰 윤곽)를 그린다.
+ */
+function graceOverlay(skin: JudgmentCaseSkin, kind: "point" | "terminal", x: number, y: number, width: number, attrs: string): string {
+  const sprite = kind === "point" ? skin.pointGraceOverlay : skin.terminalGraceOverlay;
+  if (sprite) {
+    const pad = skin.graceOverlayPaddingPx * LANE_SCALE;
+    return skinImage(sprite, { x: x - pad, y: y - pad, width: width + pad * 2, height: NOTE_H + pad * 2 }, attrs);
+  }
   const steps = 4;
   const out: string[] = [];
   for (let i = 0; i < steps; i++) {
-    const stepPad = (pad * (i + 1)) / steps;
-    out.push(`<rect x="${x - stepPad}" y="${cy - h / 2 - stepPad}" width="${w + stepPad * 2}" height="${h + stepPad * 2}" rx="${3 + stepPad * 0.3}" fill="#ffffff" fill-opacity="${COLORS.GRACE_GLOW_ALPHA / steps}"/>`);
+    const stepPad = (COLORS.GRACE_GLOW_PAD * (i + 1)) / steps;
+    const pad = stepPad * LANE_SCALE;
+    out.push(`<rect x="${px(x - pad)}" y="${px(y - pad)}" width="${px(LANE_W + pad * 2)}" height="${px(NOTE_H + pad * 2)}" rx="${px((4 + stepPad * 0.3) * LANE_SCALE)}" fill="${hexColor(COLORS.GRACE_GLOW)}" fill-opacity="${COLORS.GRACE_GLOW_ALPHA / steps}"/>`);
   }
-  return out.join("");
+  const outline = COLORS.GRACE_OUTLINE_WIDTH * LANE_SCALE;
+  out.push(`<rect x="${px(x - outline / 2)}" y="${px(y - outline / 2)}" width="${px(LANE_W + outline)}" height="${px(NOTE_H + outline)}" fill="none" stroke="${hexColor(COLORS.GRACE_OUTLINE)}" stroke-width="${px(outline)}"/>`);
+  return `<g ${attrs} data-grace-glow="true">${out.join("")}</g>`;
 }
 
 interface NoteLayers { bodies: string[]; ends: string[]; heads: string[]; points: string[] }
 
-function hasMatchingHead(notes: readonly NoteEntity[], range: RangeNote): boolean {
-  return notes.some((note) => !isRange(note) && note.lane === range.lane && beatEq(note.beat, range.beat));
-}
-
 /**
- * 노트 그림. 판정 결과와 무관하게 에디터에 보이는 모양 그대로 그린다(실패는 판정 라벨로만 보인다).
- * points(포인트 노트)는 노트 경계선 위에 그리도록 따로 돌려준다.
+ * 노트 그림. 게임 GameNoteRenderer가 판정 전(대기) 노트를 그리는 에셋·배치를 따르고 판정 결과는 반영하지 않는다
+ * (실패는 판정 라벨로만 보인다). 레이어는 게임과 같이 바디 < 끝 터미널 < 시작 터미널 < 포인트 순이고,
+ * points(포인트 레이어)는 노트 경계선 위에 그리도록 따로 돌려준다.
+ *
+ * 게임은 포인트·터미널 박스 윗변을 시각에 맞추지만, 축 눈금과 함께 읽도록 박스 가운데를 시각 선에 맞춘다.
+ * 정지 그림이므로 시작·끝 터미널을 모두 그린다(길이 0 롱노트는 full-height 스킨에서 시작 터미널 하나).
  */
-function drawNotes(prepared: PreparedPanel, laneX: (lane: number) => number, yOf: (t: number) => number): { below: string; points: string } {
+function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: number, laneX: (lane: number) => number, yOf: (t: number) => number): { below: string; points: string } {
   const { judgmentCase } = prepared.panel;
-  const notes = judgmentCase.chart.notes;
   const layers: NoteLayers = { bodies: [], ends: [], heads: [], points: [] };
   const h = NOTE_H;
-  const order = judgmentCase.notes.slice().sort((a, b) => (NOTE_Z_ORDER[a.note.type] ?? 0) - (NOTE_Z_ORDER[b.note.type] ?? 0));
+  const fullHeight = skin.terminalMode === "full-height";
 
-  for (const entry of order) {
+  for (const entry of judgmentCase.notes) {
     const { note } = entry;
     if (!prepared.lanes.includes(note.lane)) continue;
-    const x = laneX(note.lane) + (LANE_W - NOTE_W) / 2;
-    const cx = laneX(note.lane) + LANE_W / 2;
-    const attrs = `data-note-index="${entry.index}" data-note-type="${note.type}"`;
+    const kind = noteKindOf(note.type);
+    const lx = laneX(note.lane);
+    const bodyWidth = LANE_W * skin.bodyWidthScale[kind];
+    const bodyX = lx + (LANE_W - bodyWidth) / 2;
+    const part = (name: string) => `data-note-index="${entry.index}" data-note-type="${note.type}" data-note-part="${name}"`;
+
     if (!isRange(note)) {
-      const y = yOf(entry.startMs);
-      const fill = toHexColor(POINT_COLOR[note.type]);
-      const grace = note.grace === true;
-      if (grace) layers.points.push(graceGlow(x, y, NOTE_W, h));
-      const stroke = grace ? ` stroke="${toHexColor(COLORS.GRACE_OUTLINE)}" stroke-width="${COLORS.GRACE_OUTLINE_WIDTH}"` : "";
-      layers.points.push(note.type === "trill"
-        ? `<polygon ${attrs} points="${diamond(cx, y, NOTE_W, h)}" fill="${fill}"${stroke}/>`
-        : `<rect ${attrs} x="${x}" y="${y - h / 2}" width="${NOTE_W}" height="${h}" fill="${fill}"${stroke}/>`);
+      const top = yOf(entry.startMs) - h / 2;
+      if (note.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
+      const reach = skin.pointContactShadow;
+      if (kind !== "trill" && reach && skin.contactShadow) {
+        // 텍스처 윗행이 가장 짙다. 위 그림자는 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
+        layers.points.push(
+          skinImage(skin.contactShadow, { x: bodyX, y: top - reach.above * LANE_SCALE, width: bodyWidth, height: reach.above * LANE_SCALE }, part("shadow"), true),
+          skinImage(skin.contactShadow, { x: bodyX, y: top + h, width: bodyWidth, height: reach.below * LANE_SCALE }, part("shadow")),
+        );
+      } else if (kind === "trill" && reach && skin.contactShadowTrill) {
+        layers.points.push(skinImage(skin.contactShadowTrill, { x: lx, y: top - reach.above * LANE_SCALE, width: LANE_W, height: (reach.above + GAME_NOTE_HEIGHT + reach.below) * LANE_SCALE }, part("shadow")));
+      }
+      layers.points.push(skinImage(skin.point[kind], { x: lx, y: top, width: LANE_W, height: h }, part("point")));
       continue;
     }
 
     const startY = yOf(entry.startMs);
     const endY = yOf(entry.endMs ?? entry.startMs);
-    const topY = Math.min(startY, endY);
-    const bottomY = Math.max(startY, endY);
-    const hasHead = hasMatchingHead(notes, note);
-    const bodyTopY = topY + h / 2;
-    const bodyBottomY = hasHead ? bottomY - h / 2 : bottomY;
-    const bodyHeight = bodyBottomY - bodyTopY;
-    const gradient = `url(#jc-${note.type})`;
+    const holdOnly = note.holdOnly === true;
+    const overhang = fullHeight ? (skin.terminalFrameOverhangPx * LANE_SCALE * bodyWidth) / LANE_W : 0;
+    const terminalX = bodyX - overhang;
+    const terminalWidth = bodyWidth + overhang * 2;
+    const tileId = `jc-tile-${panelIndex}-${entry.index}`;
 
-    if (bodyHeight > 0) {
-      const bodyRect = note.type === "trillLong"
-        ? { y: bodyTopY - h / 2, height: bodyHeight + h / 2 + (hasHead ? h / 2 : 0) }
-        : { y: bodyTopY, height: bodyHeight };
-      layers.bodies.push(`<rect ${attrs} data-note-part="body" x="${x}" y="${bodyRect.y}" width="${NOTE_W}" height="${bodyRect.height}" fill="${gradient}"/>`);
-    }
-
-    const holdOnlyGlow = note.holdOnly === true && (note.type === "long" || note.type === "doubleLong");
-    if (holdOnlyGlow) layers.ends.push(graceGlow(x, endY, NOTE_W, h));
     if (note.type === "trillLong") {
-      layers.ends.push(`<polygon ${attrs} data-note-part="end" points="${diamond(cx, endY, NOTE_W, h)}" fill="${toHexColor(COLORS.TRILL_LONG_END)}"/>`);
-    } else {
-      const stroke = holdOnlyGlow ? ` stroke="${toHexColor(COLORS.GRACE_OUTLINE)}" stroke-width="${COLORS.GRACE_OUTLINE_WIDTH}"` : "";
-      layers.ends.push(`<rect ${attrs} data-note-part="end" x="${x}" y="${endY - h / 2}" width="${NOTE_W}" height="${h}" fill="${gradient}" fill-opacity="0.5"${stroke}/>`);
+      // 바디는 두 마름모 가운데(시작·끝 시각) 사이. 시작 마름모는 같은 시각의 trill 포인트가 그린다.
+      layers.bodies.push(drawBody(skin, skin.body.trill, { x: bodyX, y: endY, width: bodyWidth, height: startY - endY }, part("body"), tileId));
+      const terminal = fullHeight
+        ? { x: terminalX, y: endY - h / 2, width: terminalWidth, height: h }
+        : { x: lx, y: endY - h / 2, width: LANE_W, height: h };
+      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, endY - h / 2, terminalWidth, part("overlay")));
+      layers.ends.push(skinImage(skin.terminal.trill, terminal, part("end")));
+      continue;
     }
 
-    if (!hasHead) {
-      layers.heads.push(note.type === "trillLong"
-        ? `<polygon ${attrs} data-note-part="start" points="${diamond(cx, startY, NOTE_W, h)}" fill="${gradient}"/>`
-        : `<rect ${attrs} data-note-part="start" x="${x}" y="${startY - h / 2}" width="${NOTE_W}" height="${h}" fill="${gradient}"/>`);
+    // long·doubleLong: 바디는 끝 터미널 윗변부터 시작 터미널 아랫변까지 채운다(터미널 아래까지 채워 접합부가 비지 않음).
+    const top = endY - h / 2;
+    const bottom = startY + h / 2;
+    layers.bodies.push(drawBody(skin, skin.body[kind], { x: bodyX, y: top, width: bodyWidth, height: bottom - top }, part("body"), tileId));
+    const zeroLength = entry.endMs === entry.startMs;
+    const capKind = kind === "double" ? "double" : "single";
+    if (fullHeight) {
+      if (!zeroLength) {
+        if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
+        layers.ends.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("end")));
+      } else if (holdOnly) {
+        layers.heads.push(graceOverlay(skin, "terminal", terminalX, startY - h / 2, terminalWidth, part("overlay")));
+      }
+      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: startY - h / 2, width: terminalWidth, height: h }, part("start"), true));
+      continue;
     }
+    // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 5px를 남긴다).
+    const cap = skin.cap?.[capKind] ?? skin.terminal[kind];
+    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - 5 * LANE_SCALE) / 2));
+    if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
+    layers.ends.push(skinImage(cap, { x: terminalX, y: top, width: terminalWidth, height: capHeight }, part("end")));
+    layers.heads.push(skinImage(cap, { x: terminalX, y: bottom - capHeight, width: terminalWidth, height: capHeight }, part("start"), true));
   }
   return { below: [...layers.bodies, ...layers.ends, ...layers.heads].join(""), points: layers.points.join("") };
 }
@@ -925,7 +992,7 @@ function toneColor(segment: LabelSegment, prepared: Pick<PreparedPanel, "keyColo
   }
 }
 
-function drawPanel(prepared: PreparedPanel, index: number, axis: CaseTimeAxis, layout: SheetLayout, header: TextLine[], footer: TextLine[]): string {
+function drawPanel(prepared: PreparedPanel, index: number, skin: JudgmentCaseSkin, axis: CaseTimeAxis, layout: SheetLayout, header: TextLine[], footer: TextLine[]): string {
   const { judgmentCase } = prepared.panel;
   const yOf = (t: number) => layout.baseY - axis.offsetOf(t);
   const yOfOffset = (offset: number) => layout.baseY - offset;
@@ -957,7 +1024,7 @@ function drawPanel(prepared: PreparedPanel, index: number, axis: CaseTimeAxis, l
 
   // 배경: 레인·키 열
   prepared.lanes.forEach((lane, i) => {
-    out.push(`<rect x="${laneX(lane)}" y="${plotTop}" width="${LANE_W}" height="${plotBottom - plotTop}" fill="${toHexColor(i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD)}"/>`);
+    out.push(`<rect x="${laneX(lane)}" y="${plotTop}" width="${LANE_W}" height="${plotBottom - plotTop}" fill="${hexColor(i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD)}"/>`);
   });
   prepared.keyColumns.forEach((column, i) => {
     out.push(`<rect x="${keyX[i]}" y="${plotTop}" width="${column.width - 4}" height="${plotBottom - plotTop}" fill="rgba(255,255,255,0.03)"/>`);
@@ -966,7 +1033,7 @@ function drawPanel(prepared: PreparedPanel, index: number, axis: CaseTimeAxis, l
     if (!prepared.lanes.includes(zone.lane)) continue;
     const top = yOf(Math.max(zone.startMs, zone.endMs));
     const bottom = yOf(Math.min(zone.startMs, zone.endMs));
-    out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${top}" width="${LANE_W}" height="${bottom - top}" fill="${toHexColor(COLORS.TRILL_ZONE)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
+    out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${top}" width="${LANE_W}" height="${bottom - top}" fill="${hexColor(COLORS.TRILL_ZONE_BG)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
   }
 
   // ms 축: 노트 시작·끝과 입력 시각에 눈금
@@ -995,7 +1062,7 @@ function drawPanel(prepared: PreparedPanel, index: number, axis: CaseTimeAxis, l
     out.push(`<line data-input-guide-ms="${formatMs(t)}" x1="${axisX}" y1="${y}" x2="${guideRight}" y2="${y}" stroke="${GUIDE}" stroke-width="1" stroke-dasharray="4 3"/>`);
   }
 
-  const notes = drawNotes(prepared, laneX, yOf);
+  const notes = drawNotes(prepared, skin, index, laneX, yOf);
   out.push(notes.below, drawNoteBoundaries(prepared, laneX, yOf), notes.points);
   out.push(drawNoteLabels(prepared, laneX1, yOf, yOfOffset));
 
@@ -1040,7 +1107,7 @@ function drawPanel(prepared: PreparedPanel, index: number, axis: CaseTimeAxis, l
 // 진입점
 // ---------------------------------------------------------------------------
 
-export function renderJudgmentCaseSvg(panels: readonly JudgmentCasePanel[], options: RenderJudgmentCaseOptions = {}): RenderedJudgmentCase {
+export function renderJudgmentCaseSvg(panels: readonly JudgmentCasePanel[], options: RenderJudgmentCaseOptions): RenderedJudgmentCase {
   if (panels.length === 0) throw new Error("renderJudgmentCaseSvg: 패널이 없습니다");
   // 같은 사례(엔진 비교)는 한 시간 축을 공유하고, 다른 사례는 각자 축을 쓴다.
   const cases = [...new Set(panels.map((panel) => panel.judgmentCase))];
@@ -1078,14 +1145,14 @@ export function renderJudgmentCaseSvg(panels: readonly JudgmentCasePanel[], opti
       groups.push(`<line x1="${x - PANEL_GUTTER / 2}" y1="12" x2="${x - PANEL_GUTTER / 2}" y2="${height - 12}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`);
     }
     const { judgmentCase } = panel.panel;
-    groups.push(`<g transform="translate(${x},0)">${drawPanel(panel, index, axes.get(judgmentCase)!, layoutFor(judgmentCase), headers[index], footers[index])}</g>`);
+    groups.push(`<g transform="translate(${x},0)">${drawPanel(panel, index, options.skin, axes.get(judgmentCase)!, layoutFor(judgmentCase), headers[index], footers[index])}</g>`);
     x += panel.width + PANEL_GUTTER;
   });
   const width = Math.ceil(x - PANEL_GUTTER);
 
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT_FAMILY}" data-judgment-case-sheet="${panels.length}">`,
-    `<defs>${gradientDefs()}</defs>`,
+    `<defs>${skinDefs(options.skin)}</defs>`,
     `<rect width="${width}" height="${height}" fill="${BACKGROUND}"/>`,
     ...groups,
     "</svg>",

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { compileJudgmentChart } from "../../game/judgment/compiledJudgmentChart";
 import { NoteJudgmentSession } from "../../game/judgment/NoteJudgmentSession";
+import { getSkinManifest } from "../../game/skin/skins";
 import { validateChart } from "../../shared/validation";
 import { judgmentCaseFromSource } from "./chartCase";
+import { createJudgmentCaseSkin, judgmentCaseSkinAssetPaths, type JudgmentCaseSkin } from "./judgmentCaseSkin";
 import {
   createAutoCaseTimeAxis,
   createCaseTimeAxis,
@@ -16,6 +18,7 @@ import {
   resolveLabelPositions,
   wrapText,
   type JudgmentCasePanel,
+  type RenderJudgmentCaseOptions,
 } from "./renderJudgmentCaseSvg";
 import { runJudgmentCase, type JudgmentCaseRun, type JudgmentCaseRunEvent, type JudgmentCaseUnitState, type JudgmentEngine } from "./runJudgmentCase";
 
@@ -41,6 +44,41 @@ const HOLD_ONLY_UP_WITH_OTHER_LANE = "노트: holdOnly 1000-1500 | L2: head 1430
 const EARLY_SUCCESSOR = "노트: head 1000 | long 1000-1100 | head 1100 | long 1100-1200 | head 1200\n입력: A 990-1210 | D 980-1060 | D 1170-1290";
 /** 리뷰 재현(main 엔진): 1328ms에 엔진 예외로 finalize 전에 멈춤 */
 const ENGINE_THROWS = "노트: head 1000 | holdOnly 1000-1200\n입력: A 940-1020 | A 1180-1440 | D 890-930 | D 1150-1330";
+
+/** public/skins PNG의 실제 크기(원본 픽셀) */
+function assetSize(assetPath: string): { width: number; height: number } {
+  if (assetPath.includes("grace-overlay")) return { width: 248, height: 88 };
+  if (assetPath.includes("contact-shadow-trill")) return { width: 200, height: 60 };
+  if (assetPath.includes("contact-shadow")) return { width: 200, height: 20 };
+  if (assetPath.includes("end-cap")) return { width: 100, height: 10 };
+  if (assetPath.startsWith("/skins/classic/note-single") || assetPath.startsWith("/skins/classic/note-double")) return { width: 212, height: 40 };
+  if (assetPath.startsWith("/skins/classic/")) return { width: 200, height: 40 };
+  return assetPath.includes("/body-") ? { width: 100, height: 60 } : { width: 100, height: 20 };
+}
+
+/** 실제 PNG 크기로 만든 스킨(이미지 내용은 짧은 가짜 주소) */
+function skinFor(id: string): JudgmentCaseSkin {
+  const manifest = getSkinManifest(id);
+  const images = Object.fromEntries(Object.entries(judgmentCaseSkinAssetPaths(manifest))
+    .map(([key, assetPath]) => [key, { href: `data:image/png;base64,${key}`, ...assetSize(assetPath!) }]));
+  return createJudgmentCaseSkin(manifest, images);
+}
+
+const CLASSIC = skinFor("classic");
+
+function render(panels: JudgmentCasePanel[], options: Partial<RenderJudgmentCaseOptions> = {}) {
+  return renderJudgmentCaseSvg(panels, { skin: CLASSIC, ...options });
+}
+
+/** 노트 부품(data-note-part)이 쓰는 스킨 에셋 키 목록 */
+function skinAssetsOf(svg: string, noteIndex: number, part: string): string[] {
+  return [...svg.matchAll(new RegExp(`data-note-index="${noteIndex}" data-note-type="[^"]+" data-note-part="${part}" data-skin-asset="([^"]+)"`, "g"))].map((match) => match[1]);
+}
+
+/** SVG 안에서 노트 부품이 처음 나오는 위치(그리기 순서 비교용, 없으면 -1) */
+function partOrder(svg: string, noteIndex: number, part: string): number {
+  return svg.search(new RegExp(`data-note-index="${noteIndex}" data-note-type="[^"]+" data-note-part="${part}"`));
+}
 
 function panelFor(text: string, overrides: Partial<JudgmentCaseRun> = {}, engineLabel = "main @abc1234"): JudgmentCasePanel {
   const judgmentCase = judgmentCaseFromSource(text);
@@ -401,34 +439,82 @@ describe("describeJudgmentEvent — 표기 규칙", () => {
 
 describe("renderJudgmentCaseSvg", () => {
   it("제목·메모·판정 라벨과 키 열 라벨 A↓1000·A↑1430·D↓1490을 담음", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const { svg } = render([panelFor(D4)]);
     expect(svg).toContain("결정 ④ — A를 1430에 뗌");
     expect(svg).toContain("가설 메모");
     for (const text of ["A↓1000", "A↑1430", "D↓1490", "D↑1760", "시작 실패"]) expect(svg).toContain(text);
   });
 
   it("입력 시각마다 점선 가이드를 긋고 노트·입력 시각마다 축 눈금을 둠", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const { svg } = render([panelFor(D4)]);
     for (const ms of ["1000", "1430", "1490", "1760"]) expect(svg).toMatch(new RegExp(`data-input-guide-ms="${ms}"[^>]*stroke-dasharray`));
     for (const ms of ["1000", "1430", "1490", "1500", "1560", "1760"]) expect(svg).toContain(`data-tick-ms="${ms}"`);
   });
 
-  it("에디터 색을 씀: single head #4488ff, long 바디 그래디언트 #dbebff·#88bbff, holdOnly 끝 흰 윤곽", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
-    expect(svg).toMatch(/data-note-type="single"[^>]*fill="#4488ff"/);
-    expect(svg).toContain('stop-color="#dbebff"');
-    expect(svg).toContain('stop-color="#88bbff"');
-    expect(svg).toMatch(/data-note-index="0" data-note-type="long" data-note-part="end"[^>]*stroke="#ffffff"/);
+  it("Classic 스킨으로 그림: head N3은 noteSingle, 바디 N2·N4는 bodySingle, 싱글 터미널은 중앙광이 꺼진 terminalSingleIdle", () => {
+    const { svg } = render([panelFor(D4)]);
+    expect(skinAssetsOf(svg, 2, "point")).toEqual(["noteSingle"]);
+    for (const index of [1, 3]) expect(skinAssetsOf(svg, index, "body")).toEqual(["bodySingle"]);
+    for (const index of [0, 1, 3]) {
+      expect(skinAssetsOf(svg, index, "end")).toEqual(["terminalSingleIdle"]);
+      expect(skinAssetsOf(svg, index, "start")).toEqual(["terminalSingleIdle"]);
+    }
   });
 
-  it("head가 있는 long은 시작 캡을 그리지 않고, head 없는 holdOnly [1000,1500]은 시작 캡을 그림", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
-    expect(svg).toContain('data-note-index="0" data-note-type="long" data-note-part="start"');
-    expect(svg).not.toContain('data-note-index="3" data-note-type="long" data-note-part="start"');
+  it("에셋 이미지는 defs에 한 번만 넣고 노트는 #jc-skin-키로 참조: 패널 둘이어도 noteSingle 정의는 하나", () => {
+    const { svg } = render([panelFor(D4), panelFor(D4, {}, "pr")]);
+    expect(svg.match(/<image id="jc-skin-noteSingle"/g)).toHaveLength(1);
+    expect(svg).toContain('href="data:image/png;base64,noteSingle"');
+    expect(svg).toContain('<use href="#jc-skin-noteSingle"/>');
+  });
+
+  it("head가 있는 long N4도 시작 터미널을 그리고 head N3 포인트가 그 위에 옴(게임 레이어: 바디 < 끝 < 시작 < 포인트)", () => {
+    const { svg } = render([panelFor(D4)]);
+    expect(partOrder(svg, 3, "body")).toBeLessThan(partOrder(svg, 0, "end"));
+    expect(partOrder(svg, 0, "end")).toBeLessThan(partOrder(svg, 1, "start"));
+    expect(partOrder(svg, 3, "start")).toBeLessThan(partOrder(svg, 2, "point"));
+  });
+
+  it("holdOnly N1 끝 터미널에 terminalGraceOverlay를 끝 터미널보다 먼저(아래에) 그리고, holdOnly 아닌 N2·N4에는 그리지 않음", () => {
+    const { svg } = render([panelFor(D4)]);
+    expect(skinAssetsOf(svg, 0, "overlay")).toEqual(["terminalGraceOverlay"]);
+    expect(partOrder(svg, 0, "overlay")).toBeLessThan(partOrder(svg, 0, "end"));
+    for (const index of [1, 3]) expect(skinAssetsOf(svg, index, "overlay")).toEqual([]);
+  });
+
+  it("터미널·포인트는 시각 선에 가운데를 맞춤: head 1560 포인트(높이 16px)의 y + 8 = 1560 축 눈금 y", () => {
+    const { svg } = render([panelFor(D4)]);
+    const tickY = Number(svg.match(/data-tick-ms="1560" x="[\d.]+" y="([\d.]+)"/)![1]);
+    const pointY = Number(svg.match(/data-note-index="2" data-note-type="single" data-note-part="point" data-skin-asset="noteSingle" x="[\d.]+" y="([\d.]+)" width="80" height="16"/)![1]);
+    expect(pointY + 8).toBeCloseTo(tickY, 1);
+  });
+
+  it("Classic 바디는 늘이지 않고 반복: 레인 80px에서 바디 폭 80 × 200/212 ≈ 75.47px, 세로 주기 40 × 75.47/200 ≈ 15.09px 패턴", () => {
+    const { svg } = render([panelFor(D4)]);
+    const pattern = svg.match(/<pattern id="jc-tile-0-1" patternUnits="userSpaceOnUse" x="[\d.]+" y="[\d.]+" width="([\d.]+)" height="([\d.]+)">/);
+    expect(Number(pattern![1])).toBeCloseTo(75.47, 2);
+    expect(Number(pattern![2])).toBeCloseTo(15.09, 2);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="body" data-skin-asset="bodySingle"[^>]*>(<pattern[^>]*>)?.*?fill="url\(#jc-tile-0-1\)"/);
+  });
+
+  it("판정과 상관없이 대기 모양만: 결정 ④·H08 대조의 실패한 바디도 대기 에셋이고, 스킨 참조에 켜짐(Held)·실패(Failed)·부분 상태 에셋이 없음", () => {
+    for (const text of [D4, H08_LATE]) {
+      const { svg } = render([panelFor(text)]);
+      const refs = [...svg.matchAll(/data-skin-asset="([^"]+)"|href="#jc-skin-([^"]+)"|<image id="jc-skin-([^"]+)"/g)].map((match) => match[1] ?? match[2] ?? match[3]);
+      expect(refs.length).toBeGreaterThan(0);
+      expect(refs.join(" ")).not.toMatch(/Held|Failed|Partial/);
+    }
+    const d4 = render([panelFor(D4)]).svg;
+    expect(d4).toMatch(/data-judgment-kind="maintenanceMiss"[^>]*>.*N2.*시작 실패.*1620/);
+    expect(skinAssetsOf(d4, 1, "body")).toEqual(["bodySingle"]);
+    expect(d4).not.toContain("빗금");
+    const { svg } = render([panelFor(H08_LATE)]);
+    for (const index of [1, 2, 3, 4]) expect(skinAssetsOf(svg, index, "body")).toEqual(["bodySingle"]);
+    expect(svg).not.toMatch(/data-failed-|jc-failed/);
   });
 
   it("레인 옆에 노트마다 이름표 N1~N4를 달고 바디는 구간 괄호, head는 눈금으로 잇는다", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const { svg } = render([panelFor(D4)]);
     for (const text of ["N1", "N2", "N3", "N4"]) expect(svg).toContain(`data-note-label="${text}"`);
     expect(svg).toContain("1500–1560</tspan>");
     for (const name of ["N1", "N2", "N4"]) expect(svg).toMatch(new RegExp(`data-note-span="${name}"[^>]*d="M[^"]*V`));
@@ -436,46 +522,31 @@ describe("renderJudgmentCaseSvg", () => {
   });
 
   it("레인이 둘이면 시간이 겹치는 L1 바디 1000–1500과 L2 바디 1200–1800의 구간 괄호를 다른 x에 그림", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1000 | long 1000-1500 | L2: head 1200 | L2: long 1200-1800\n입력: A 1000-1500 | L2:J 1200-1800")]);
+    const { svg } = render([panelFor("노트: head 1000 | long 1000-1500 | L2: head 1200 | L2: long 1200-1800\n입력: A 1000-1500 | L2:J 1200-1800")]);
     const spanX = (name: string) => Number(svg.match(new RegExp(`data-note-span="${name}" d="M[\\d.]+ [\\d.]+ H([\\d.]+) V`))![1]);
     expect(spanX("N2")).not.toBe(spanX("N4"));
   });
 
   it("노트 이름표끼리 겹치지 않음: 이름표 y 간격이 모두 16px 이상", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1000 | long 1000-1010 | head 1010 | long 1010-1020 | head 1020 | long 1020-1500\n입력: A 1000-1500")]);
+    const { svg } = render([panelFor("노트: head 1000 | long 1000-1010 | head 1010 | long 1010-1020 | head 1020 | long 1020-1500\n입력: A 1000-1500")]);
     const ys = [...svg.matchAll(/<text x="[\d.]+" y="([-\d.]+)"[^>]*data-note-label=/g)].map((match) => Number(match[1])).sort((a, b) => a - b);
     expect(ys).toHaveLength(6);
     for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(16);
   });
 
   it("노트 시작·끝 시각마다 레인을 가로지르는 경계선: 결정 ④는 1000·1500·1560·1760", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const { svg } = render([panelFor(D4)]);
     const boundaries = [...svg.matchAll(/data-note-boundary-ms="([\d.]+)"/g)].map((match) => match[1]);
     expect(boundaries).toEqual(["1000", "1500", "1560", "1760"]);
   });
 
   it("시작 실패 판정 아래 줄에 이유를 그림: data-judgment-reason에 A↑1430 < 끝−Good 1440", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const { svg } = render([panelFor(D4)]);
     expect(svg).toMatch(/data-judgment-reason="true"[^>]*>.*A↑1430.*끝−Good 1440.*N3/);
   });
 
-  it("결정 ④에서 시작 실패한 N2 바디 [1500,1560]도 에디터 모양 그대로: long 그래디언트 바디·반투명 끝 캡, 실패 덧칠·빗금 없음(바닥글 범례에도 없음)", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
-    expect(svg).toMatch(/data-judgment-kind="maintenanceMiss"[^>]*>.*N2.*시작 실패.*1620/);
-    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="body"[^>]*fill="url\(#jc-long\)"/);
-    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end"[^>]*fill="url\(#jc-long\)" fill-opacity="0.5"/);
-    expect(svg).not.toMatch(/data-failed-|jc-failed/);
-    expect(svg).not.toContain("빗금");
-  });
-
-  it("H08 대조(head 1121ms Miss)에서 실패한 바디 4개도 덧칠 없이 각자 long 그래디언트로 그림", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(H08_LATE)]);
-    for (const index of [1, 2, 3, 4]) expect(svg).toMatch(new RegExp(`data-note-index="${index}" data-note-type="long" data-note-part="body"[^>]*fill="url\\(#jc-long\\)"`));
-    expect(svg).not.toMatch(/data-failed-|jc-failed/);
-  });
-
   it("바닥글에 등급별 개수·달성률·Full Combo·엔진 표시", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(R16)]);
+    const { svg } = render([panelFor(R16)]);
     expect(svg).toContain("Perfect 3");
     expect(svg).toContain("달성률 100.00%");
     expect(svg).toContain(">Full Combo<");
@@ -484,7 +555,7 @@ describe("renderJudgmentCaseSvg", () => {
 
   it("미정산 score item은 강조 상자와 항목 id로 표시", () => {
     const panel = panelFor(R16, { unsettledItems: [{ id: "n3:release:0", kind: "release", noteIndex: 3, unitIndex: 0, timeMs: 2000 }] });
-    const { svg } = renderJudgmentCaseSvg([panel]);
+    const { svg } = render([panel]);
     expect(svg).toContain("미정산 score item 1개");
     expect(svg).toContain('data-unsettled-item="n3:release:0"');
     expect(svg).toContain("N4 release @2000 (n3:release:0)");
@@ -494,48 +565,84 @@ describe("renderJudgmentCaseSvg", () => {
     const panel = panelFor(ENGINE_THROWS);
     expect(panel.run.finalized).toBe(false);
     expect(panel.run.isFullCombo).toBe(true);
-    const { svg } = renderJudgmentCaseSvg([panel]);
+    const { svg } = render([panel]);
     expect(svg).toContain("판정 불가(finalize 전)");
     expect(svg).not.toContain(">Full Combo<");
   });
 
   it("finalize 전 run(가짜 엔진 결과)이면 Full Combo 아님도 쓰지 않고 판정 불가(finalize 전)", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor(R16, { finalized: false, isFullCombo: false })]);
+    const { svg } = render([panelFor(R16, { finalized: false, isFullCombo: false })]);
     expect(svg).toContain("판정 불가(finalize 전)");
     expect(svg).not.toContain("Full Combo 아님");
   });
 
   it("범례에 프레임에서 확정되는 시각은 0ms 시작 16ms 격자 기준임을 적음", () => {
-    expect(renderJudgmentCaseSvg([panelFor(R16)]).svg).toContain("0ms 시작 16ms 격자");
+    expect(render([panelFor(R16)]).svg).toContain("0ms 시작 16ms 격자");
   });
 
   it("엔진 예외는 시각과 메시지를 바닥글에 표시", () => {
     const panel = panelFor(R16, { error: { message: "중복 또는 미등록 score item: n1:release:0", atMs: 1392 } });
-    expect(renderJudgmentCaseSvg([panel]).svg).toContain("엔진 예외 @1392ms: 중복 또는 미등록 score item: n1:release:0");
+    expect(render([panel]).svg).toContain("엔진 예외 @1392ms: 중복 또는 미등록 score item: n1:release:0");
   });
 
   it("검증 오류는 한국어 라벨과 rule을 바닥글에 표시하고 렌더는 계속", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor("노트: long 1000-2000 | head 1500\n입력: A 1000-2000")]);
+    const { svg } = render([panelFor("노트: long 1000-2000 | head 1500\n입력: A 1000-2000")]);
     expect(svg).toContain("검증 오류");
     expect(svg).toContain("롱노트 겹침 (longOverlap)");
     expect(svg).toContain('data-validation-rule="longOverlap"');
   });
 
   it("떼지 않은 입력 B 1700-는 B↓1700 (계속)으로 표시", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1700 | long 1700-2000\n입력: B 1700-")]);
+    const { svg } = render([panelFor("노트: head 1700 | long 1700-2000\n입력: B 1700-")]);
     expect(svg).toContain("B↓1700 (계속)");
     expect(svg).toContain('data-input-up="held"');
   });
 
-  it("trill 노트는 흰 마름모, trillZone은 #00ff88 띠", () => {
-    const { svg } = renderJudgmentCaseSvg([panelFor("노트: trill 1000 | trill 1100\n입력: A 1000-1050 | B 1100-1150")]);
-    expect(svg).toMatch(/<polygon data-note-index="0" data-note-type="trill"[^>]*fill="#ffffff"/);
+  it("double head는 noteDouble과 위(뒤집음)·아래 pointContactShadow 두 장, trill 포인트는 noteTrill과 마름모를 따르는 pointContactShadowTrill 한 장", () => {
+    const { svg } = render([panelFor("노트: dhead 1000 | trill 1200\n입력: A 1000-1050 | B 1000-1050 | A 1200-1250")]);
+    expect(skinAssetsOf(svg, 0, "point")).toEqual(["noteDouble"]);
+    expect(skinAssetsOf(svg, 0, "shadow")).toEqual(["pointContactShadow", "pointContactShadow"]);
+    expect(svg).toMatch(/<g transform="matrix\(1 0 0 -1 0 [\d.]+\)"><svg data-note-index="0" data-note-type="double" data-note-part="shadow"/);
+    expect(partOrder(svg, 0, "shadow")).toBeLessThan(partOrder(svg, 0, "point"));
+    expect(skinAssetsOf(svg, 1, "point")).toEqual(["noteTrill"]);
+    expect(skinAssetsOf(svg, 1, "shadow")).toEqual(["pointContactShadowTrill"]);
+  });
+
+  it("trillLong은 bodyTrill 바디와 terminalTrillIdle 끝 터미널만 그리고 시작 터미널은 없음(시작은 trill 포인트), trillZone은 #00ff88 띠", () => {
+    const { svg } = render([panelFor("노트: trill 1000 | tlong 1000-1300 | trill 1300\n입력: A 1000-1300 | B 1300-1350")]);
+    expect(skinAssetsOf(svg, 1, "body")).toEqual(["bodyTrill"]);
+    expect(skinAssetsOf(svg, 1, "end")).toEqual(["terminalTrillIdle"]);
+    expect(skinAssetsOf(svg, 1, "start")).toEqual([]);
     expect(svg).toMatch(/data-trill-zone="1"[^>]*fill="#00ff88"/);
   });
 
+  it("grace head는 포인트보다 먼저 pointGraceOverlay를 그리고, 길이 0 holdOnly 1500-1500은 시작 터미널 하나와 그 overlay(끝 터미널 없음)", () => {
+    const { svg } = render([panelFor("노트: grace head 1000 | head 1500 | holdOnly 1500-1500\n입력: A 1000-1050 | A 1500-1600")]);
+    expect(skinAssetsOf(svg, 0, "overlay")).toEqual(["pointGraceOverlay"]);
+    expect(partOrder(svg, 0, "overlay")).toBeLessThan(partOrder(svg, 0, "point"));
+    expect(skinAssetsOf(svg, 2, "start")).toEqual(["terminalSingleIdle"]);
+    expect(skinAssetsOf(svg, 2, "end")).toEqual([]);
+    expect(skinAssetsOf(svg, 2, "overlay")).toEqual(["terminalGraceOverlay"]);
+  });
+
+  it("Simple(반쪽 캡)은 바디를 늘이고 끝·시작에 terminalSingle 윗부분 절반(viewBox 0 0 100 10) 캡, Grace는 overlay 에셋 없이 흰 글로우", () => {
+    const { svg } = render([panelFor("노트: grace head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: skinFor("simple") });
+    expect(skinAssetsOf(svg, 1, "body")).toEqual(["bodySingle"]);
+    expect(svg).not.toContain("<pattern");
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 10"/);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="start" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 10"/);
+    expect(svg).toContain('data-note-index="0" data-note-type="single" data-note-part="overlay" data-grace-glow="true"');
+  });
+
+  it("Crystal(반쪽 캡)은 전용 캡 endCapSingle 전체를 끝·시작 캡으로 씀", () => {
+    const { svg } = render([panelFor("노트: head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: skinFor("crystal") });
+    expect(skinAssetsOf(svg, 1, "end")).toEqual(["endCapSingle"]);
+    expect(skinAssetsOf(svg, 1, "start")).toEqual(["endCapSingle"]);
+  });
+
   it("비교 모드: 패널 2개를 나란히 그리고 각 머리글에 엔진 이름을 붙임", () => {
-    const single = renderJudgmentCaseSvg([panelFor(D4)]);
-    const compare = renderJudgmentCaseSvg([panelFor(D4, {}, "main @abc1234"), panelFor(D4, {}, "pr-188 @def5678")]);
+    const single = render([panelFor(D4)]);
+    const compare = render([panelFor(D4, {}, "main @abc1234"), panelFor(D4, {}, "pr-188 @def5678")]);
     expect(compare.svg).toContain('data-panel="0"');
     expect(compare.svg).toContain('data-panel="1"');
     expect(compare.svg).toContain("엔진: main @abc1234</tspan>");
@@ -547,7 +654,7 @@ describe("renderJudgmentCaseSvg", () => {
   it("같은 사례를 두 엔진으로 비교하면 같은 시각의 축 눈금이 두 패널에서 같은 y", () => {
     const judgmentCase = judgmentCaseFromSource(D4);
     const run = runJudgmentCase(judgmentCase, engine);
-    const { svg } = renderJudgmentCaseSvg([
+    const { svg } = render([
       { judgmentCase, run, engineLabel: "a" },
       { judgmentCase, run: { ...run, events: run.events.slice(0, 1) }, engineLabel: "b" },
     ]);
@@ -557,7 +664,7 @@ describe("renderJudgmentCaseSvg", () => {
   });
 
   it("서로 다른 사례(1000~1350과 3000~4000)는 각자 축을 써서 빈 구간 물결이 생기지 않음", () => {
-    const { svg } = renderJudgmentCaseSvg([
+    const { svg } = render([
       panelFor("노트: head 1000 | long 1000-1350\n입력: A 1000-1350"),
       panelFor("노트: head 3000 | long 3000-4000\n입력: A 3000-4000"),
     ]);
@@ -565,15 +672,15 @@ describe("renderJudgmentCaseSvg", () => {
   });
 
   it("제목의 <·&는 XML 이스케이프", () => {
-    expect(renderJudgmentCaseSvg([panelFor("제목: a<b & c\n노트: head 1000")]).svg).toContain("a&lt;b &amp; c");
+    expect(render([panelFor("제목: a<b & c\n노트: head 1000")]).svg).toContain("a&lt;b &amp; c");
   });
 
   it("긴 빈 구간을 줄인 자동 축에는 물결 표시, --scale(pxPerMs)을 주면 줄이지 않음", () => {
-    expect(renderJudgmentCaseSvg([panelFor(R16)]).svg).toContain('data-axis-break="0-1000"');
-    expect(renderJudgmentCaseSvg([panelFor(R16)], { pxPerMs: 0.5 }).svg).not.toContain("data-axis-break");
+    expect(render([panelFor(R16)]).svg).toContain('data-axis-break="0-1000"');
+    expect(render([panelFor(R16)], { pxPerMs: 0.5 }).svg).not.toContain("data-axis-break");
   });
 
   it("패널이 없으면 에러", () => {
-    expect(() => renderJudgmentCaseSvg([])).toThrow();
+    expect(() => render([])).toThrow();
   });
 });

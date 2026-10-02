@@ -6,7 +6,6 @@ import {
   LANE_WIDTH as EDITOR_LANE_WIDTH,
   NOTE_HEIGHT as EDITOR_NOTE_HEIGHT,
 } from '../../../editor/timeline/constants';
-import { editorBodyGradientStops, toHexColor } from '../../../editor/timeline/editorNoteColors';
 
 export const TUTORIAL_PATTERN_DIAGRAM_MIN_HEIGHT = 350;
 const EDITOR_DIAGRAM_SCALE = 1.6;
@@ -105,7 +104,7 @@ function DiagramPattern({
 }
 
 function PatternLane({ gradientId, children }: { gradientId: string; children: ReactNode }) {
-  const gradientStops = editorBodyGradientStops(EDITOR_COLORS.SINGLE_LONG);
+  const gradientStops = getEditorBodyGradientStops(EDITOR_COLORS.SINGLE_LONG);
 
   return (
     <svg
@@ -256,6 +255,27 @@ function EditorPointNote({
 
 function slotToY(slot: number): number {
   return EDITOR_DIAGRAM_LANE_PAD_Y + ((4 - slot) / 4) * EDITOR_DIAGRAM_TRACK_HEIGHT;
+}
+
+function getEditorBodyGradientStops(color: number): { light: string; base: string } {
+  return {
+    light: toHexColor(lightenEditorColor(color, 0.7)),
+    base: toHexColor(color),
+  };
+}
+
+function lightenEditorColor(color: number, amount: number): number {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const lr = Math.round(r + (255 - r) * amount);
+  const lg = Math.round(g + (255 - g) * amount);
+  const lb = Math.round(b + (255 - b) * amount);
+  return (lr << 16) | (lg << 8) | lb;
+}
+
+function toHexColor(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`;
 }
 
 const styles: Record<string, CSSProperties> = {

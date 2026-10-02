@@ -3,6 +3,7 @@
 //
 // 파서·러너·렌더러는 이 워크트리의 src/lab/judgmentCase를, 판정 엔진은 --engine 저장소의
 // compileJudgmentChart·NoteJudgmentSession·validateChart를 Vite ssrLoadModule로 불러온다(저장소마다 서버 하나).
+// 노트는 이 워크트리의 게임 스킨 매니페스트(--skin)가 가리키는 public/skins PNG를 data URI로 넣어 그린다.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -73,6 +74,19 @@ async function loadEngine(root) {
   return { root, api, label: engineLabel(root) };
 }
 
+/** --skin 매니페스트에서 판정 전(대기) 에셋 경로를 골라 public/ 아래 PNG를 data URI로 읽는다 */
+async function loadSkin(local, skinId) {
+  const { getSkinManifest } = await local.ssrLoadModule('/src/game/skin/skins.ts');
+  const { judgmentCaseSkinAssetPaths, createJudgmentCaseSkin, readPngSize } = await local.ssrLoadModule('/src/lab/judgmentCase/judgmentCaseSkin.ts');
+  const manifest = getSkinManifest(skinId);
+  const images = {};
+  for (const [key, assetPath] of Object.entries(judgmentCaseSkinAssetPaths(manifest))) {
+    const bytes = await readFile(path.join(localRoot, 'public', assetPath.replace(/^\/+/, '')));
+    images[key] = { href: `data:image/png;base64,${bytes.toString('base64')}`, ...readPngSize(bytes) };
+  }
+  return createJudgmentCaseSkin(manifest, images);
+}
+
 async function readStdin() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
@@ -126,6 +140,7 @@ async function main() {
   const { judgmentCaseFromSource } = await local.ssrLoadModule('/src/lab/judgmentCase/chartCase.ts');
   const { runJudgmentCase } = await local.ssrLoadModule('/src/lab/judgmentCase/runJudgmentCase.ts');
   const { renderJudgmentCaseSvg } = await local.ssrLoadModule('/src/lab/judgmentCase/renderJudgmentCaseSvg.ts');
+  const skin = await loadSkin(local, options.skin);
 
   const engineRoots = options.engines.length > 0 ? options.engines.map(resolveArg) : [localRoot];
   const engines = [];
@@ -148,10 +163,10 @@ async function main() {
     engineLabel: engine.label,
     enginePath: engine.root,
   })));
-  const { svg, width, height } = renderJudgmentCaseSvg(panels, options.scale === undefined ? {} : { pxPerMs: options.scale });
+  const { svg, width, height } = renderJudgmentCaseSvg(panels, { skin, ...(options.scale === undefined ? {} : { pxPerMs: options.scale }) });
   const out = resolveArg(options.out);
   const { pngWidth, pngHeight } = await screenshot(svg, width, height, out);
-  console.log(`${out} 저장 (${pngWidth}×${pngHeight}px, 패널 ${panels.length}개)`);
+  console.log(`${out} 저장 (${pngWidth}×${pngHeight}px, 패널 ${panels.length}개, 스킨 ${skin.name})`);
   for (const panel of panels) console.log(summary(panel));
 }
 
