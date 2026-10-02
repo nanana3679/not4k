@@ -8,7 +8,7 @@
 | [v013](v013/manifest.json) | v012 + 트릴 포인트 마름모 테두리 접촉 그림자 | 2026-10-01 후보 |
 | [v014](v014/manifest.json) | v013 + 반투명 사각 기둥 트릴 켜짐 바디 | 2026-10-01 현재 적용본 |
 
-현재 적용본은 **v014**다. 포인트가 바디 위에 오는 머리·중간 head·바디 끝 Point의 가독성과 바디 디자인을 다듬었다. v013은 트릴 켜짐 바디가 이전 석영(가운데 흰빛)인 버전, v012는 트릴 접촉 그림자가 없어 트릴 롱 위 트릴 포인트가 잘 보이지 않던 후보다.
+현재 적용본은 **v014**다([`current`](#현재-적용본-확인)로 확인한다). 포인트가 바디 위에 오는 머리·중간 head·바디 끝 Point의 가독성과 바디 디자인을 다듬었다. v013은 트릴 켜짐 바디가 이전 석영(가운데 흰빛)인 버전, v012는 트릴 접촉 그림자가 없어 트릴 롱 위 트릴 포인트가 잘 보이지 않던 후보다.
 
 - **포인트**: 싱글 푸른 흰색·더블 크림색 흰색(OKLCH 명도 약 0.92)의 중앙 면. 흰 레일 안쪽의 검은 세로띠와 바깥 외곽선은 없다.
 - **바디**: imagegen으로 생성한 세로 트렌치(평평한 바깥 면·가운데 홈·홈 안의 가는 빛줄). 원본과 추출 과정은 [`../revisions/body-trench-20260930/`](../revisions/body-trench-20260930/README.md)에 있다. 가로선 위주 무늬는 포인트와 겹쳐 보여 쓰지 않는다.
@@ -60,6 +60,38 @@ git checkout f366566 -- assets-lab/classic/versions/v008
 
 새 보관 버전을 Lab에 공개하려면 `src/lab/classicSkinVersions.ts`에 해당 보관본의 스킨 매니페스트·ID·설명을 추가한다. 이전 버전의 테마를 현재 설정에서 가져오지 않는다. 개발 서버와 Lab 빌드는 등록된 버전만 검증하고 공개한다.
 
+## 현재 적용본 확인
+
+지금 게임이 쓰는 `public/skins/classic/`의 PNG가 어느 보관 버전과 같은지 SHA-256으로 확인한다.
+
+```sh
+node scripts/classic-versions.mjs current
+```
+
+```text
+게임 PNG(public/skins/classic): v014 보관본과 일치 (60개 파일)
+원본·설정 등 그 밖의 보관 파일: v014 보관본과 다른 파일 4개 (참고용)
+  package.json
+  pnpm-lock.yaml
+  src/game/skin/skins.ts
+  src/game/skin/types.ts
+```
+
+현재 적용본은 게임 PNG 일치로만 정한다. 경로와 해시가 모두 같아야 일치이며, 보관본에 없는 PNG가 더 있거나 보관된 PNG가 빠져도 차이로 센다. 여러 버전이 일치하면 최신 번호부터 모두 보여 준다. 일치하면 종료 코드 0이다. 일치하는 버전이 없으면 다른 PNG가 가장 적은 버전(같으면 최신 번호)과 그 PNG 경로를 보여 주고 종료 코드 1로 끝나, 스크립트나 CI에서 감지할 수 있다.
+
+```text
+게임 PNG(public/skins/classic): 일치하는 보관 버전 없음. 가장 가까운 v014 보관본과 다른 파일 1개:
+  public/skins/classic/body-trill-held.png
+```
+
+두 번째 줄의 원본·Lab SVG·생성 코드·스킨 설정·의존성 파일 차이는 참고용이다. 버전을 보관한 뒤에도 코드는 계속 바뀌므로 일치 판정에 쓰지 않는다. 이 목록은 `save`가 작업본에서 고르는 범위(고정 파일, `assets-lab/classic/*.mjs` 생성기, `sources/`·Lab SVG 폴더 전체)와 보관본을 합쳐 비교하므로, 보관 뒤 새로 추가된 원본 SVG·Lab SVG·생성기도 다른 파일로 나온다. 보관본에만 있고 작업본에서 빠진 파일도 다른 파일로 센다. `current`는 `manifest.json`의 해시를 그대로 믿으며, 보관 파일 자체가 바뀌지 않았는지는 `verify`로 확인한다. `manifest.json`이 없는 버전 폴더는 저장이 끝나지 않은 것으로 보고 건너뛰고, 읽을 수 없는 `manifest.json`이 있으면 오류로 멈춘다.
+
+다음 경우에는 비교하지 않고 오류와 종료 코드 1로 멈춘다.
+
+- 보관 폴더(`assets-lab/classic/versions/`)가 없거나 그 안에 완성된 버전이 없다: `보관된 Classic 버전이 없습니다.`
+- 게임 PNG 폴더가 없다: `게임 PNG 폴더가 없습니다: public/skins/classic`
+- 게임 PNG 폴더 안(또는 폴더 자체)에 심볼릭 링크가 있다: `게임 PNG 폴더에 심볼릭 링크가 있어 비교할 수 없습니다: <경로>`. 원본·Lab SVG 폴더의 심볼릭 링크도 같은 이유로 멈춘다(`심볼릭 링크가 있어 비교할 수 없습니다: <경로>`). 원본·Lab SVG 폴더가 아예 없으면 빈 폴더로 보고, 보관본의 해당 파일을 다른 파일로 센다.
+
 ## 다음 버전 저장
 
 현재 에셋을 생성·확인한 다음 새 번호로 저장한다.
@@ -68,9 +100,15 @@ git checkout f366566 -- assets-lab/classic/versions/v008
 pnpm build:classic
 node scripts/classic-versions.mjs save v015 "변경한 디자인 설명"
 node scripts/classic-versions.mjs verify v015
+node scripts/classic-versions.mjs current
 ```
 
-기존 번호로 저장하면 오류로 종료한다. 보관본의 파일을 수정하지 않고 새 버전을 만든다. 저장·검증 명령은 현재 스킨을 교체하지 않는다.
+기존 번호로 저장하면 오류로 종료한다. 보관본의 파일을 수정하지 않고 새 버전을 만든다. 저장·검증·확인 명령은 현재 스킨을 교체하지 않는다. 새 버전을 현재 적용본으로 확정하면 `current`가 그 번호를 첫 일치로 보고하는지 확인하고, 현재 적용본을 고정한 두 테스트의 기대 번호도 새 번호로 바꾼다.
+
+- `scripts/classic-versions.test.ts`의 ‘현재 저장소의 게임 PNG 60개는 v014 보관본과 모두 같아 v014가 첫 일치 버전이다’: 실제 저장소로 `current` 결과를 확인한다. PNG 개수가 바뀌면 개수도 함께 고친다.
+- `scripts/classicVersionPreviews.test.ts`의 ‘현재 적용본은 v014다: …’: 게임 PNG가 보관본과 바이트 단위로 같은지, 직전 버전과 어떤 PNG가 다른지, 등록 매니페스트가 현재 스킨 설정과 같은지 확인한다.
+
+나머지 `current` 테스트는 작업본이 아니라 v014 보관 PNG를 복사해 쓰므로 새 버전을 적용해도 바꿀 필요가 없다.
 
 과거 커밋의 버전도 현재 작업 파일을 건드리지 않고 저장할 수 있다.
 
