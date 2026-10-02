@@ -11,7 +11,7 @@ const R16 = "노트: head 0 | long 0-1000 | head 1000 | long 1000-2000\n입력: 
 const H08 = "노트: head 1000 | holdOnly 1000-1500 | holdOnly 1500-2000 | holdOnly 2000-2500 | long 2500-3000";
 
 /** 실제 compile 결과는 쓰고 세션만 바꿔 호출을 기록하는 엔진. */
-function recordingEngine(behavior: { throwAt?: number; emitNothing?: boolean } = {}) {
+function recordingEngine(behavior: { throwAt?: number } = {}) {
   const calls: string[] = [];
   class RecordingSession {
     readonly events = [];
@@ -74,6 +74,18 @@ describe("runJudgmentCase — 실제 엔진 재현", () => {
     ]);
   });
 
+  it("A↓500이 시작 창 밖인 long 1000-2000은 재생 뒤 유닛 상태가 failed이고 한 번도 active가 아님(S+Good 1120의 A↑와 무관)", () => {
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: long 1000-2000\n입력: A 500-1120"), engine);
+    expect(run.unitStates).toEqual([{ noteIndex: 0, unitIndex: 0, active: false, failed: true, complete: false, registeredKeys: [] }]);
+  });
+
+  it("head 1000 | long 1000-2000을 A 1000-1500으로 치면 1000 batch 직전 바디는 등록 키 없음, 1500 batch 직전에는 active·등록 키 [A]", () => {
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-1500"), engine);
+    expect(run.unitStatesBeforeBatch?.map((batch) => batch.atMs)).toEqual([1000, 1500]);
+    expect(run.unitStatesBeforeBatch?.[0].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] }]);
+    expect(run.unitStatesBeforeBatch?.[1].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }]);
+  });
+
   it("validateChart 오류(같은 레인 long 1000-2000과 head 1500 겹침)를 rule·message로 담고 그래도 엔진을 돌림", () => {
     const run = runJudgmentCase(judgmentCaseFromSource("노트: long 1000-2000 | head 1500\n입력: A 1000-2000"), engine);
     expect(run.validationErrors.map((error) => error.rule)).toContain("longOverlap");
@@ -125,8 +137,21 @@ describe("runJudgmentCase — 세션 구동 순서", () => {
     expect(run.validationErrors).toEqual([]);
   });
 
+  it("세션에 bodyStates가 없는 엔진이면 unitStates·unitStatesBeforeBatch는 null", () => {
+    const { engine: fake } = recordingEngine();
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), fake);
+    expect(run.unitStates).toBeNull();
+    expect(run.unitStatesBeforeBatch).toBeNull();
+  });
+
+  it("프레임 간격은 기본 16ms, frameMs 5를 주면 run.frameMs 5", () => {
+    const judgmentCase = judgmentCaseFromSource("노트: head 1000\n입력: A 1000-1100");
+    expect(runJudgmentCase(judgmentCase, engine).frameMs).toBe(16);
+    expect(runJudgmentCase(judgmentCase, engine, { frameMs: 5 }).frameMs).toBe(5);
+  });
+
   it("세션이 아무 이벤트도 내지 않으면 head·release score item 2개가 모두 미정산", () => {
-    const { engine: fake } = recordingEngine({ emitNothing: true });
+    const { engine: fake } = recordingEngine();
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), fake);
     expect(run.unsettledItems.map((item) => item.id)).toEqual(["n0:head", "n1:release:0"]);
   });

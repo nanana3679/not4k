@@ -47,6 +47,10 @@ describe("parseJudgmentCase — 머리글", () => {
     expect(parseJudgmentCase("# 주석\n\n노트: head 1000").chart.notes).toHaveLength(1);
   });
 
+  it("메모 안의 #1 가설 줄과 가운데 빈 줄은 메모에 그대로 남김", () => {
+    expect(parseJudgmentCase("노트: head 1000\n메모: 첫 줄\n#1 가설\n\n셋째 줄\n입력: A 1000-1100").memo).toBe("첫 줄\n#1 가설\n\n셋째 줄");
+  });
+
   it("제목·메모가 없으면 빈 문자열", () => {
     const parsed = parseJudgmentCase("노트: head 1000");
     expect(parsed.title).toBe("");
@@ -116,6 +120,11 @@ describe("parseJudgmentCase — 노트 토큰", () => {
     expect(parseJudgmentCase("노트: L2: head 1000 | L2:long 1000-1200").chart.notes.map((note) => note.lane)).toEqual([2, 2]);
   });
 
+  it("레인 5 노트 L5: head 1000과 L0: head 1000은 레인 범위(1~4) 밖이라 1행 에러", () => {
+    expect(() => parseJudgmentCase("노트: L5: head 1000")).toThrow(/1행.*레인은 1~4/);
+    expect(() => parseJudgmentCase("노트: L0: head 1000")).toThrow(/1행.*레인은 1~4/);
+  });
+
   it("종류 이름은 대소문자를 가리지 않아 HOLDONLY·Head도 읽음", () => {
     expect(parseJudgmentCase("노트: Head 1000 | HOLDONLY 1000-1200").chart.notes.map((note) => note.type)).toEqual(["single", "long"]);
   });
@@ -178,6 +187,15 @@ describe("parseJudgmentCase — 노트 이름", () => {
   it("자동 이름 형식 [N2]·[n2]는 예약어라 에러", () => {
     expect(() => parseJudgmentCase("노트: head 1000 [N2]")).toThrow(/\[N2\].*자동 이름/);
     expect(() => parseJudgmentCase("노트: head 1000 [n2]")).toThrow(/\[n2\].*자동 이름/);
+  });
+
+  it("유닛을 붙인 자동 이름 형식 [N2u1]·[n3U2]도 예약어라 에러", () => {
+    expect(() => parseJudgmentCase("노트: dlong 1000-1500 [N2u1]")).toThrow(/\[N2u1\].*자동 이름/);
+    expect(() => parseJudgmentCase("노트: dlong 1000-1500 [n3U2]")).toThrow(/\[n3U2\].*자동 이름/);
+  });
+
+  it("N2 뒤에 다른 글자가 붙은 [N2가운데]는 이름으로 쓸 수 있음", () => {
+    expect(parseJudgmentCase("노트: head 1000 [N2가운데]").noteNames).toEqual(["N2가운데"]);
   });
 
   it("이름이 토큰 끝이 아닌 head [가운데] 1000은 에러", () => {

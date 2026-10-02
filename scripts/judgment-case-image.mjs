@@ -13,6 +13,9 @@ import { createServer } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const localRoot = path.resolve(__dirname, '..');
+// pnpm은 스크립트를 패키지 루트에서 돌리고 명령을 친 디렉터리를 INIT_CWD로 넘긴다. 상대 경로는 그 디렉터리 기준이다.
+const invokedFrom = process.env.INIT_CWD ?? process.cwd();
+const resolveArg = (target) => path.resolve(invokedFrom, target);
 const BACKGROUND = '#11121b';
 /** PNG 폭이 대략 이 값이 되도록 deviceScaleFactor를 1~2 사이에서 고른다(휴대폰에서 읽히는 글자 크기). */
 const TARGET_PNG_WIDTH = 1200;
@@ -96,7 +99,7 @@ function summary(panel) {
   const counts = `Perfect ${run.counts.perfect} · Great ${run.counts.great} · Good ${run.counts.good}${run.counts.goodTrill ? ` · Good◇ ${run.counts.goodTrill}` : ''} · Miss ${run.counts.miss}`;
   const extras = [
     `달성률 ${run.achievementRate.toFixed(2)}%`,
-    run.isFullCombo ? 'Full Combo' : 'Full Combo 아님',
+    !run.finalized ? '판정 불가(finalize 전)' : run.isFullCombo ? 'Full Combo' : 'Full Combo 아님',
     `미정산 ${run.unsettledItems.length}`,
     ...(run.validationErrors.length ? [`검증 오류 ${run.validationErrors.length}`] : []),
     ...(run.error ? [`엔진 예외: ${run.error.message}`] : []),
@@ -124,14 +127,19 @@ async function main() {
   const { runJudgmentCase } = await local.ssrLoadModule('/src/lab/judgmentCase/runJudgmentCase.ts');
   const { renderJudgmentCaseSvg } = await local.ssrLoadModule('/src/lab/judgmentCase/renderJudgmentCaseSvg.ts');
 
-  const engineRoots = options.engines.length > 0 ? options.engines.map((root) => path.resolve(root)) : [localRoot];
+  const engineRoots = options.engines.length > 0 ? options.engines.map(resolveArg) : [localRoot];
   const engines = [];
   for (const root of engineRoots) engines.push(await loadEngine(root));
 
   const cases = [];
   for (const source of options.cases) {
-    const text = source === '-' ? await readStdin() : await readFile(source, 'utf8');
-    cases.push(judgmentCaseFromSource(text, { fallbackTitle: source === '-' ? '' : path.basename(source) }));
+    const text = source === '-' ? await readStdin() : await readFile(resolveArg(source), 'utf8');
+    try {
+      cases.push(judgmentCaseFromSource(text, { fallbackTitle: source === '-' ? '' : path.basename(source) }));
+    } catch (error) {
+      // 사례가 여럿이면 어느 사례의 문법 오류인지 알 수 있게 출처를 앞에 붙인다.
+      throw new Error(`${source === '-' ? '표준 입력' : source}: ${error instanceof Error ? error.message : error}`);
+    }
   }
 
   const panels = cases.flatMap((judgmentCase) => engines.map((engine) => ({
@@ -141,7 +149,7 @@ async function main() {
     enginePath: engine.root,
   })));
   const { svg, width, height } = renderJudgmentCaseSvg(panels, options.scale === undefined ? {} : { pxPerMs: options.scale });
-  const out = path.resolve(options.out);
+  const out = resolveArg(options.out);
   const { pngWidth, pngHeight } = await screenshot(svg, width, height, out);
   console.log(`${out} 저장 (${pngWidth}×${pngHeight}px, 패널 ${panels.length}개)`);
   for (const panel of panels) console.log(summary(panel));

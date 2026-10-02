@@ -74,8 +74,8 @@ const TIME_SPEC = new RegExp(`^(${NUMBER})(?:-(${NUMBER})?)?$`);
 const LANE_PREFIX = /^L(\d+)\s*:\s*/i;
 /** 노트 토큰 끝의 `[이름]` */
 const NAME_SUFFIX = /\s*\[([^[\]]*)\]$/;
-/** 자동 이름(N1, N2, …)과 헷갈리지 않도록 직접 붙일 수 없는 이름 */
-const RESERVED_NAME = /^N\d+$/i;
+/** 자동 이름(N1, N2, …, double 유닛 N2u1)과 헷갈리지 않도록 직접 붙일 수 없는 이름 */
+const RESERVED_NAME = /^N\d+(?:u\d+)?$/i;
 
 interface Token { text: string; line: number }
 interface TimeSpec { start: string; end?: string; open: boolean; range: boolean }
@@ -103,12 +103,12 @@ function joinTimeRanges(text: string): string {
   return text.replace(/\s*-\s*/g, "-");
 }
 
-/** `text`(토큰에서 이름을 뗀 나머지)의 레인 접두사를 읽는다. 오류 문구에는 원래 토큰을 쓴다. */
+/** `text`(토큰에서 이름을 뗀 나머지)의 레인 접두사(1~4)를 읽는다. 오류 문구에는 원래 토큰을 쓴다. */
 function takeLane(token: Token, text: string = joinTimeRanges(token.text)): { lane: number; rest: string } {
   const match = text.match(LANE_PREFIX);
   if (!match) return { lane: 1, rest: text };
   const lane = Number(match[1]);
-  if (lane < 1) throw new JudgmentCaseSyntaxError(token.line, `"${token.text}": 레인은 1 이상이어야 합니다`);
+  if (lane < 1 || lane > 4) throw new JudgmentCaseSyntaxError(token.line, `"${token.text}": 레인은 1~4입니다`);
   return { lane, rest: text.slice(match[0].length) };
 }
 
@@ -197,7 +197,6 @@ function parseInputToken(token: Token): ParsedInput {
   const [key, timeWord] = words;
   const time = parseTime(token, timeWord);
   if (!time.range) throw new JudgmentCaseSyntaxError(token.line, `입력 "${token.text}": 누름과 뗌을 "-"로 잇습니다 (예: ${key} ${time.start}-1500, 떼지 않으면 ${key} ${time.start}-)`);
-  if (lane > 4) throw new JudgmentCaseSyntaxError(token.line, `입력 "${token.text}": tutorialInput 레인은 1~4입니다`);
   const start = msToBeat(time.start);
   return {
     event: { type: "tutorialInput", lane: lane as Lane, keyCode: key, keyLabel: key, beat: start, endBeat: time.end === undefined ? start : msToBeat(time.end) },
@@ -270,7 +269,8 @@ export function parseJudgmentCase(text: string): ParsedJudgmentCase {
       }
       return;
     }
-    if (section === "memo" && !trimmed.startsWith("#")) {
+    // 메모 안에서는 #으로 시작하는 줄과 빈 줄도 메모의 일부다(앞뒤 빈 줄만 뺀다).
+    if (section === "memo") {
       memoLines.push(raw.trimEnd());
       return;
     }

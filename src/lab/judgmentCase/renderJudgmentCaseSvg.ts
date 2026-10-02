@@ -3,8 +3,9 @@
  *
  * 시간은 게임처럼 아래에서 위로 흐른다. 왼쪽부터 ms 축, 노트 레인(에디터 NoteRenderer 그리기 규칙),
  * 노트 이름표(N1… · 종류 · 구간), 키별 입력 막대, 확정 시각에 놓인 판정 라벨 열이 있고
- * 아래에 점수·미정산 항목·검증 오류·엔진 표시가 붙는다. 판정 라벨은 노트 이름으로 시작하고,
- * 시작·유지 실패에는 사례 데이터와 엔진 이벤트로 확인되는 이유만 둘째 줄에 단다.
+ * 아래에 점수·미정산 항목·검증 오류·엔진 표시가 붙는다. 판정 라벨은 노트 이름으로 시작한다.
+ * 시작·유지 실패는 엔진 유닛 상태(bodyStates)로 가리고, 사례 데이터·엔진 이벤트·유닛 상태로 확인되는 이유만
+ * 둘째 줄에 단다. 확인할 수 없으면 중립 표기(`실패`)를 쓰고 이유를 뺀다.
  * 여러 패널(사례 × 엔진)을 넘기면 같은 시간 축으로 나란히 그린다.
  *
  * 시간 축은 구간별 선형이다: 기본은 pxPerMs 비율이지만 인접한 주요 시각(노트·입력·확정 시각) 사이는
@@ -344,13 +345,18 @@ function actionSegment(judgmentCase: JudgmentCase, action: JudgmentCaseAction): 
   return { text: `${input.label}${action.type === "down" ? "↓" : "↑"}${formatMs(action.atMs)}`, tone: "key", key: input.key };
 }
 
+/** 판정 라벨이 참고하는 재생 결과. 빠진 항목은 모르는 것으로 보고 그 정보가 필요한 표기를 뺀다. */
+export type JudgmentLabelRun = Partial<Pick<JudgmentCaseRun, "events" | "scoreItems" | "unitStates" | "unitStatesBeforeBatch">>;
+
+/** 같은 시각(·같은 레인) 입력 중 이벤트 key와 방향(prefer)에 맞는 것. 없으면 `@시각` */
 function inputRefs(
   judgmentCase: JudgmentCase,
   at: number,
+  lane: number | undefined,
   key: string | undefined,
   prefer: "down" | "up" | undefined,
 ): LabelSegment[] {
-  const sameTime = judgmentCase.actions.filter((action) => action.atMs === at);
+  const sameTime = judgmentCase.actions.filter((action) => action.atMs === at && (lane === undefined || action.lane === lane));
   let picked: JudgmentCaseAction[] = key === undefined ? sameTime : sameTime.filter((action) => action.key === key);
   if (prefer && picked.some((action) => action.type === prefer)) picked = picked.filter((action) => action.type === prefer);
   if (picked.length === 0) return [{ text: `@${formatMs(at)}`, tone: "plain" }];
@@ -365,28 +371,34 @@ function laneActionsAt(judgmentCase: JudgmentCase, lane: number, at: number): Ju
   return judgmentCase.actions.filter((action) => action.lane === lane && action.atMs === at);
 }
 
-/** 바디 시작 기한(S + Good)에 같은 레인 입력 없이 확정된 maintenanceMiss = 시작하지 못한 유닛 */
-function isStartFailure(event: JudgmentCaseRunEvent, judgmentCase: JudgmentCase, goodWindowMs: number): boolean {
-  const entry = judgmentCase.notes[event.noteIndex];
-  return event.kind === "maintenanceMiss" && entry !== undefined && entry.endMs !== undefined &&
-    event.confirmedAt === entry.startMs + goodWindowMs && laneActionsAt(judgmentCase, entry.note.lane, event.confirmedAt).length === 0;
+type FailureKind = "start" | "maintenance" | "unknown";
+
+const FAILURE_TEXT: Record<FailureKind, string> = { start: "시작 실패", maintenance: "유지 실패", unknown: "실패" };
+
+/**
+ * maintenanceMiss의 유닛이 한 번이라도 시작했는지를 재생 뒤 엔진 유닛 상태로 가린다.
+ * 엔진에서 active는 true로만 바뀌므로 failed이면서 active가 아니면 시작하지 못한 유닛이다.
+ * 유닛 상태가 없으면(bodyStates가 없는 엔진) 가리지 않는다.
+ */
+function failureKind(event: JudgmentCaseRunEvent, run: JudgmentLabelRun): FailureKind {
+  const state = run.unitStates?.find((candidate) => candidate.noteIndex === event.noteIndex && candidate.unitIndex === (event.unitIndex ?? 0));
+  if (!state?.failed) return "unknown";
+  return state.active ? "maintenance" : "start";
 }
 
 /** 엔진 이벤트 하나를 `N3 head Great −70 ← D↓1490` 같은 라벨 조각으로 바꾼다. 실패 이유는 describeFailureReason. */
 export function describeJudgmentEvent(
   event: JudgmentCaseRunEvent,
   judgmentCase: JudgmentCase,
-  scoreItems: readonly JudgmentCaseScoreItem[] = [],
-  goodWindowMs: number = JUDGMENT_WINDOWS.GOOD,
+  run: JudgmentLabelRun = {},
 ): LabelSegment[] {
   const at = formatMs(event.confirmedAt);
   const name: LabelSegment[] = [noteName(judgmentCase, event.noteIndex, event.unitIndex), { text: " ", tone: "plain" }];
   if (event.kind === "maintenanceMiss") {
-    const what = isStartFailure(event, judgmentCase, goodWindowMs) ? "시작 실패" : "유지 실패";
-    return [...name, { text: what, tone: "grade", grade: "miss" }, { text: ` ${at}`, tone: "plain" }];
+    return [...name, { text: FAILURE_TEXT[failureKind(event, run)], tone: "grade", grade: "miss" }, { text: ` ${at}`, tone: "plain" }];
   }
   if (event.kind === "dependentZero") {
-    const item = scoreItems.find((candidate) => candidate.id === event.itemId);
+    const item = run.scoreItems?.find((candidate) => candidate.id === event.itemId);
     return [...name, { text: `${item?.kind ?? "item"} 0점 처리`, tone: "grade", grade: "dependentZero" }, { text: ` ${at}`, tone: "plain" }];
   }
 
@@ -402,24 +414,28 @@ export function describeJudgmentEvent(
     return segments;
   }
   if (event.kind !== "holdOnly") segments.push({ text: ` ${formatDelta(event.deltaMs)}`, tone: "plain" });
-  const prefer = event.kind === "head" ? "down" : event.kind === "release" ? "up" : undefined;
-  segments.push({ text: " ← ", tone: "muted" }, ...inputRefs(judgmentCase, event.inputAt, event.key ?? undefined, prefer));
+  // 입력 시각이 있는 holdOnly는 엔진 release()에서 확정되므로(key 없음) 같은 레인의 뗌을 먼저 찾는다.
+  const prefer = event.kind === "head" ? "down" : event.kind === "release" || event.kind === "holdOnly" ? "up" : undefined;
+  const lane = judgmentCase.notes[event.noteIndex]?.note.lane;
+  segments.push({ text: " ← ", tone: "muted" }, ...inputRefs(judgmentCase, event.inputAt, lane, event.key ?? undefined, prefer));
   if (event.confirmedAt !== event.inputAt) segments.push({ text: ` · 확정 ${at}`, tone: "muted" });
   return segments;
 }
 
 /**
- * 시작·유지 실패(maintenanceMiss)의 이유를 사례 데이터와 엔진 이벤트에서 확인되는 사실로만 만든다.
- * 확인할 수 없는 조각은 추측하지 않고 뺀다(전부 빠지면 빈 배열).
+ * 시작·유지 실패(maintenanceMiss)의 이유를 사례 데이터·엔진 이벤트·엔진 유닛 상태에서 확인되는 사실로만 만든다.
+ * 확인할 수 없는 조각은 추측하지 않고 뺀다(전부 빠지면 빈 배열). 시작·유지를 가릴 수 없으면 이유를 달지 않는다.
  *
- * - 시작 실패: 맞닿은 앞 바디를 쥐고 있던 키가 모두 이 바디의 끝−Good 전에 떼졌으면 `A↑1430 < 끝−Good 1440`,
- *   시작 창(S±Good)의 같은 레인 누름은 그 누름을 쓴 head 판정과 함께 `D↓1490 → N3 head`, 누름이 없으면 `새 입력 없음`.
- * - 바디 중간 유지 실패: 확정 시각의 같은 레인 뗌 `A↑1234`, 끝−Good 전이면 `(끝−Good 1380 전)`.
+ * - 시작 실패: 맞닿은 앞 바디에 엔진이 등록한 유지 키의 누름이 모두 이 바디의 끝−Good 전에 떼졌으면
+ *   `A↑1430 < 끝−Good 1440`, 시작 창(S±Good)의 같은 레인 누름은 그 누름을 쓴 head 판정과 함께 `D↓1490 → N3 head`,
+ *   누름이 없으면 `새 입력 없음`.
+ * - 바디 중간 유지 실패: 확정 시각 batch 직전 이 노트(double이면 두 유닛)에 등록된 키의 같은 레인 뗌 `A↑1234`, 끝−Good 전이면
+ *   `(끝−Good 1380 전)`. 확정이 바디 밖(시작 전·끝 이후)이거나 그런 뗌이 없으면 이유를 달지 않는다.
  */
 export function describeFailureReason(
   event: JudgmentCaseRunEvent,
   judgmentCase: JudgmentCase,
-  events: readonly JudgmentCaseRunEvent[],
+  run: JudgmentLabelRun,
   goodWindowMs: number = JUDGMENT_WINDOWS.GOOD,
 ): LabelSegment[] {
   if (event.kind !== "maintenanceMiss") return [];
@@ -428,14 +444,16 @@ export function describeFailureReason(
   const lane = entry.note.lane;
   const earlyEnd = entry.endMs - goodWindowMs;
   const earlyEndText = formatMs(earlyEnd);
+  const kind = failureKind(event, run);
 
-  if (isStartFailure(event, judgmentCase, goodWindowMs)) {
+  if (kind === "start") {
     const clauses: LabelSegment[][] = [];
     const before = judgmentCase.notes.find((candidate) => candidate.index !== entry.index && candidate.note.lane === lane && candidate.endMs === entry.startMs);
-    if (before) {
-      // 앞 바디 시작(늦은 시작 포함 S + Good)까지 누르고 있던 키 = 앞 바디를 이어받아 쥐었을 수 있는 키
-      const holders = judgmentCase.inputs.filter((input) => input.lane === lane &&
-        input.downMs <= Math.min(before.endMs!, before.startMs + goodWindowMs) && (input.upMs === null || input.upMs >= before.startMs));
+    // 앞 바디를 실제로 쥔 키 = 엔진이 앞 바디 유닛에 등록한 유지 키(앞 바디가 시작하지 않았으면 없음)
+    const beforeKeys = new Set((run.unitStates ?? []).filter((state) => state.noteIndex === before?.index && state.active).flatMap((state) => state.registeredKeys));
+    if (before && beforeKeys.size > 0) {
+      const holders = judgmentCase.inputs.filter((input) => input.lane === lane && beforeKeys.has(input.key) &&
+        input.downMs < before.endMs! && (input.upMs === null || input.upMs >= before.startMs));
       if (holders.length > 0 && holders.every((input) => input.upMs !== null && input.upMs < earlyEnd)) {
         const ups = holders.slice().sort((a, b) => a.upMs! - b.upMs!).map((input): LabelSegment[] => [
           { text: `${input.label}↑${formatMs(input.upMs!)}`, tone: "key", key: input.key },
@@ -448,7 +466,7 @@ export function describeFailureReason(
     if (downs.length === 0) {
       clauses.push([{ text: "새 입력 없음", tone: "muted" }]);
     } else {
-      const users = downs.map((down) => events.find((candidate) => candidate.kind === "head" && candidate.inputAt === down.atMs && candidate.key === down.key));
+      const users = downs.map((down) => run.events?.find((candidate) => candidate.kind === "head" && candidate.inputAt === down.atMs && candidate.key === down.key));
       if (users.every((user) => user !== undefined)) {
         clauses.push(joinSegments(downs.map((down, index) => [
           actionSegment(judgmentCase, down),
@@ -461,8 +479,12 @@ export function describeFailureReason(
     return joinSegments(clauses, " · ");
   }
 
-  if (event.confirmedAt >= entry.endMs) return [];
-  const ups = laneActionsAt(judgmentCase, lane, event.confirmedAt).filter((action) => action.type === "up");
+  if (kind !== "maintenance" || event.confirmedAt < entry.startMs || event.confirmedAt >= entry.endMs) return [];
+  // 확정 시각 batch 직전 이 노트에 등록된 키만 이 바디를 쥐고 있었다고 말할 수 있다. double은 엔진이 쥔 키 수로
+  // 뒤 유닛부터 실패시키므로(뗀 키가 등록된 유닛과 다를 수 있다) 같은 노트의 유닛 전체 등록 키를 본다.
+  const beforeBatch = run.unitStatesBeforeBatch?.find((batch) => batch.atMs === event.confirmedAt);
+  const keys = (beforeBatch?.unitStates ?? []).filter((state) => state.noteIndex === event.noteIndex).flatMap((state) => state.registeredKeys);
+  const ups = laneActionsAt(judgmentCase, lane, event.confirmedAt).filter((action) => action.type === "up" && keys.includes(action.key));
   if (ups.length === 0) return [];
   return [
     ...joinSegments(ups.map((up) => [actionSegment(judgmentCase, up)]), "·"),
@@ -588,11 +610,11 @@ function preparePanel(panel: JudgmentCasePanel, axis: CaseTimeAxis): PreparedPan
     .sort((a, b) => a.event.confirmedAt - b.event.confirmedAt || a.order - b.order)
     .map(({ event }) => event);
   const anchors = events.map((event) => axis.offsetOf(event.confirmedAt));
-  const reasons = events.map((event) => describeFailureReason(event, judgmentCase, run.events));
+  const reasons = events.map((event) => describeFailureReason(event, judgmentCase, run));
   const offsets = resolveLabelPositions(anchors, LABEL_H, reasons.map((reason) => (reason.length > 0 ? 2 : 1)));
   const judgeLabels = events.map((event, index): JudgeLabel => ({
     event,
-    segments: describeJudgmentEvent(event, judgmentCase, run.scoreItems),
+    segments: describeJudgmentEvent(event, judgmentCase, run),
     reason: reasons[index],
     anchorOffset: anchors[index],
     offset: offsets[index],
@@ -664,7 +686,10 @@ function footerLines(prepared: PreparedPanel, innerWidth: number): TextLine[] {
     segments: [
       { text: `달성률 ${run.achievementRate.toFixed(2)}%`, fill: TEXT, weight: 700 },
       { text: "  ·  ", fill: MUTED },
-      { text: run.isFullCombo ? "Full Combo" : "Full Combo 아님", fill: run.isFullCombo ? "#7bed9f" : "#ff8a8a", weight: 700 },
+      // finalize 전에 멈춘 run의 개수·Full Combo는 중간값이라 판정하지 않는다.
+      run.finalized
+        ? { text: run.isFullCombo ? "Full Combo" : "Full Combo 아님", fill: run.isFullCombo ? "#7bed9f" : "#ff8a8a", weight: 700 }
+        : { text: "판정 불가(finalize 전)", fill: MUTED },
       { text: "  ·  ", fill: MUTED },
       { text: `정산 ${run.processedNotes}/${run.totalNotes} 항목${run.finalized ? "" : " (finalize 전)"}`, fill: MUTED },
     ],
@@ -689,7 +714,7 @@ function footerLines(prepared: PreparedPanel, innerWidth: number): TextLine[] {
       lines.push(...plainLines(`· ${label} (${error.rule}): ${error.message}`, innerWidth, 12, "#ffc069", 17, undefined, `data-validation-rule="${escapeXml(error.rule)}"`));
     }
   }
-  lines.push(...plainLines("N1… = 노트 이름(적은 순서, head와 바디를 따로 셈) · 레인 옆 괄호 = 노트 하나의 구간 · 레인 가로선 = 노트 시작·끝 · 점선 = 입력 시각 · 판정 라벨 = 확정 시각(둘째 줄 = 실패 이유) · 축 물결 = 줄인 빈 구간", innerWidth, 11, MUTED, 17));
+  lines.push(...plainLines(`N1… = 노트 이름(적은 순서, head와 바디를 따로 셈) · 레인 옆 괄호 = 노트 하나의 구간 · 레인 가로선 = 노트 시작·끝 · 점선 = 입력 시각 · 판정 라벨 = 확정 시각(둘째 줄 = 실패 이유) · 프레임에서 확정되는 이벤트 시각은 0ms 시작 ${formatMs(run.frameMs)}ms 격자 기준 · 축 물결 = 줄인 빈 구간`, innerWidth, 11, MUTED, 17));
   lines.push(...plainLines(`엔진: ${engineLabel}${enginePath ? ` — ${enginePath}` : ""}`, innerWidth, 12, MUTED, 18, undefined, 'data-engine-footer="true"'));
   return lines;
 }
