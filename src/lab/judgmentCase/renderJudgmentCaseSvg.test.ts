@@ -1,0 +1,447 @@
+import { describe, expect, it } from "vitest";
+import { compileJudgmentChart } from "../../game/judgment/compiledJudgmentChart";
+import { NoteJudgmentSession } from "../../game/judgment/NoteJudgmentSession";
+import { validateChart } from "../../shared/validation";
+import { judgmentCaseFromSource } from "./chartCase";
+import {
+  createAutoCaseTimeAxis,
+  createCaseTimeAxis,
+  describeFailureReason,
+  describeJudgmentEvent,
+  describeNote,
+  estimateTextWidth,
+  labelText,
+  MIN_GAP_PX,
+  renderJudgmentCaseSvg,
+  resolveLabelPositions,
+  wrapText,
+  type JudgmentCasePanel,
+} from "./renderJudgmentCaseSvg";
+import { runJudgmentCase, type JudgmentCaseRun, type JudgmentCaseRunEvent, type JudgmentEngine } from "./runJudgmentCase";
+
+const engine: JudgmentEngine = { compileJudgmentChart, NoteJudgmentSession, validateChart };
+
+const D4 = [
+  "제목: 결정 ④ — A를 1430에 뗌",
+  "노트: holdOnly 1000-1500 | long 1500-1560 | head 1560 | long 1560-1760",
+  "입력: A 1000-1430 | D 1490-1760",
+  "메모: 가설 메모",
+].join("\n");
+const R16 = "제목: R16\n노트: head 0 | long 0-1000 | head 1000 | long 1000-2000\n입력: A 0-1015 | B 1020-2000";
+const H08_LATE = "제목: H08 대조\n노트: head 1000 | holdOnly 1000-1500 | holdOnly 1500-2000 | holdOnly 2000-2500 | long 2500-3000\n입력: A 1121-3000";
+
+function panelFor(text: string, overrides: Partial<JudgmentCaseRun> = {}, engineLabel = "main @abc1234"): JudgmentCasePanel {
+  const judgmentCase = judgmentCaseFromSource(text);
+  return { judgmentCase, run: { ...runJudgmentCase(judgmentCase, engine), ...overrides }, engineLabel, enginePath: "/repo/main" };
+}
+
+/** 판정 라벨 본문과 실패 이유를 `본문 — 이유`로 이은 문자열(이유가 없으면 본문만) */
+function fullLabel(event: JudgmentCaseRunEvent, panel: JudgmentCasePanel, events: readonly JudgmentCaseRunEvent[] = panel.run.events): string {
+  const main = labelText(describeJudgmentEvent(event, panel.judgmentCase, panel.run.scoreItems));
+  const reason = labelText(describeFailureReason(event, panel.judgmentCase, events));
+  return reason === "" ? main : `${main} — ${reason}`;
+}
+
+function labelsOf(text: string): string[] {
+  const panel = panelFor(text);
+  return panel.run.events.map((event) => fullLabel(event, panel));
+}
+
+function noteLabelsOf(text: string, options: { showLane?: boolean } = {}): string[] {
+  return judgmentCaseFromSource(text).notes.map((entry) => labelText(describeNote(entry, options)));
+}
+
+function event(overrides: Partial<JudgmentCaseRunEvent>): JudgmentCaseRunEvent {
+  return { kind: "head", noteIndex: 0, grade: "perfect", deltaMs: 0, inputAt: null, confirmedAt: 0, ...overrides };
+}
+
+describe("createCaseTimeAxis", () => {
+  it("pxPerMs 0.5에서 1000ms 떨어진 두 시각은 500px 차이", () => {
+    const axis = createCaseTimeAxis([0, 1000], 0.5);
+    expect(axis.offsetOf(1000) - axis.offsetOf(0)).toBe(500);
+  });
+
+  it("10ms 떨어진 1490·1500은 최소 간격 22px로 벌림", () => {
+    const axis = createCaseTimeAxis([1490, 1500], 0.5);
+    expect(axis.offsetOf(1500) - axis.offsetOf(1490)).toBe(MIN_GAP_PX);
+  });
+
+  it("주요 시각 0·1000 사이 250ms는 그 구간 높이의 25% 위치", () => {
+    const axis = createCaseTimeAxis([0, 1000], 0.4);
+    expect(axis.offsetOf(250)).toBe(100);
+  });
+
+  it("첫 주요 시각보다 이른 시각은 pxPerMs로 연장해 음수 위치", () => {
+    expect(createCaseTimeAxis([1000, 2000], 0.5).offsetOf(900)).toBe(-50);
+  });
+
+  it("maxGapPx 220이면 1000ms 빈 구간(1.2px/ms → 1200px)을 220px로 줄이고 compressed에 기록", () => {
+    const axis = createCaseTimeAxis([0, 1000, 1015], 1.2, { maxGapPx: 220 });
+    expect(axis.offsetOf(1000)).toBe(220);
+    expect(axis.compressed).toEqual([{ startMs: 0, endMs: 1000 }]);
+  });
+
+  it("자동 축은 짧은 사례(1000~1760)를 1.2px/ms로 그려 60ms 바디가 72px", () => {
+    const axis = createAutoCaseTimeAxis([1000, 1430, 1500, 1560, 1760]);
+    expect(axis.offsetOf(1560) - axis.offsetOf(1500)).toBeCloseTo(72);
+  });
+
+  it("자동 축은 250ms 간격 주요 시각 20개(4750ms)를 높이 720px 안으로 맞춤", () => {
+    const height = createAutoCaseTimeAxis(Array.from({ length: 20 }, (_, i) => i * 250)).height;
+    expect(height).toBeLessThanOrEqual(720);
+    expect(height).toBeGreaterThan(700);
+  });
+
+  it("주요 시각 40개면 최소 간격만으로 720px를 넘어 39 × 22 = 858px", () => {
+    expect(createAutoCaseTimeAxis(Array.from({ length: 40 }, (_, i) => i * 250)).height).toBeCloseTo(858);
+  });
+});
+
+describe("resolveLabelPositions", () => {
+  it("간격 18보다 멀리 떨어진 [0, 100]은 그대로", () => {
+    expect(resolveLabelPositions([0, 100], 18)).toEqual([0, 100]);
+  });
+
+  it("같은 위치 [50, 50, 50]은 평균 50을 중심으로 18 간격 [32, 50, 68]로 쌓음", () => {
+    expect(resolveLabelPositions([50, 50, 50], 18)).toEqual([32, 50, 68]);
+  });
+
+  it("결과는 입력 순서를 따르고 위치 순서는 보존: [100, 0, 5] → 0과 5가 벌어지고 100은 그대로", () => {
+    const [a, b, c] = resolveLabelPositions([100, 0, 5], 18);
+    expect(a).toBe(100);
+    expect(c - b).toBe(18);
+    expect(b).toBeLessThan(c);
+  });
+
+  it("같은 위치 [0, 0]에서 위 라벨이 두 줄(크기 [1, 2])이면 둘째 줄이 아래로 처지므로 간격 2 × 10 = 20", () => {
+    const [lower, upper] = resolveLabelPositions([0, 0], 10, [1, 2]);
+    expect(upper - lower).toBe(20);
+    expect((upper + lower) / 2).toBe(0);
+  });
+
+  it("아래 라벨만 두 줄(크기 [2, 1])이면 그 둘째 줄은 더 아래로 처지므로 간격은 1칸 10", () => {
+    const [lower, upper] = resolveLabelPositions([0, 0], 10, [2, 1]);
+    expect(upper - lower).toBe(10);
+  });
+
+  it("두 줄 라벨 위로 15 떨어진 라벨(간격 10, 크기 [1, 2])은 2칸 20이 필요해 벌어짐", () => {
+    const [lower, upper] = resolveLabelPositions([0, 15], 10, [1, 2]);
+    expect(upper - lower).toBe(20);
+  });
+});
+
+describe("텍스트 측정·줄바꿈", () => {
+  it("숫자 4자 1490은 14px에서 실측 31px보다 약간 넓은 33px 안팎", () => {
+    expect(estimateTextWidth("1490", 14)).toBeGreaterThan(31);
+    expect(estimateTextWidth("1490", 14)).toBeLessThan(35);
+  });
+
+  it("한글은 영문 소문자보다 넓게 어림", () => {
+    expect(estimateTextWidth("가", 14)).toBeGreaterThan(estimateTextWidth("a", 14));
+  });
+
+  it("폭 100px을 넘는 문장은 공백에서 여러 줄로 나누고 각 줄은 100px 이하", () => {
+    const lines = wrapText("가나다 라마바 사아자 차카타 파하", 100, 14);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(estimateTextWidth(line, 14)).toBeLessThanOrEqual(100);
+  });
+
+  it("줄바꿈 문자는 그대로 줄을 나눔", () => {
+    expect(wrapText("첫 줄\n둘째 줄", 500, 14)).toEqual(["첫 줄", "둘째 줄"]);
+  });
+});
+
+describe("describeNote — 레인 옆 노트 이름표", () => {
+  it("결정 ④의 노트 넷은 N1 holdOnly 1000–1500, N2 바디 1500–1560, N3 head 1560, N4 바디 1560–1760", () => {
+    expect(noteLabelsOf(D4)).toEqual([
+      "N1 holdOnly 1000–1500",
+      "N2 바디 1500–1560",
+      "N3 head 1560",
+      "N4 바디 1560–1760",
+    ]);
+  });
+
+  it("double·trill·grace 종류어: double head, double 바디, trill, trill 바디, grace head, double holdOnly(holdOnly 바디는 바디를 생략)", () => {
+    expect(noteLabelsOf("노트: dhead 0 | dlong 0-100 | trill 200 | tlong 200-300 | grace head 400 | dholdOnly 400-500")).toEqual([
+      "N1 double head 0",
+      "N2 double 바디 0–100",
+      "N3 trill 200",
+      "N4 trill 바디 200–300",
+      "N5 grace head 400",
+      "N6 double holdOnly 400–500",
+    ]);
+  });
+
+  it("[가운데]를 붙인 노트는 자동 이름 뒤에 붙여 N2 가운데 바디 1500–1560", () => {
+    expect(noteLabelsOf("노트: holdOnly 1000-1500 | long 1500-1560 [가운데]")[1]).toBe("N2 가운데 바디 1500–1560");
+  });
+
+  it("레인이 여럿이면 레인을 넣어 N1 L2 head 1000", () => {
+    expect(noteLabelsOf("노트: L2: head 1000", { showLane: true })).toEqual(["N1 L2 head 1000"]);
+  });
+});
+
+describe("describeJudgmentEvent — 실제 엔진 이벤트", () => {
+  it("NJ-R16은 N1 head Perfect ±0 ← A↓0, N3 head Perfect +20 ← B↓1020, N4 release Perfect ±0 ← B↑2000", () => {
+    expect(labelsOf(R16)).toEqual([
+      "N1 head Perfect ±0 ← A↓0",
+      "N3 head Perfect +20 ← B↓1020",
+      "N4 release Perfect ±0 ← B↑2000",
+    ]);
+  });
+
+  it("결정 ④는 N1 holdOnly Perfect ← A↑1430, N3 head Great −70 ← D↓1490, N4 release Perfect ±0 ← D↑1760", () => {
+    const labels = labelsOf(D4);
+    expect(labels).toContain("N1 holdOnly Perfect ← A↑1430");
+    expect(labels).toContain("N3 head Great −70 ← D↓1490");
+    expect(labels).toContain("N4 release Perfect ±0 ← D↑1760");
+  });
+
+  it("결정 ④의 N2 시작 실패 이유: A↑1430이 N2 끝−Good 1440보다 이르고, 시작 창의 D↓1490은 N3 head가 씀", () => {
+    expect(labelsOf(D4)).toContain("N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head");
+  });
+
+  it("N2에 [가운데]를 붙이면 판정 라벨도 가운데 시작 실패 1620으로 시작", () => {
+    const labels = labelsOf(D4.replace("long 1500-1560", "long 1500-1560 [가운데]"));
+    expect(labels).toContain("가운데 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head");
+  });
+
+  it("R16에서 B를 누르지 않으면 N3 head Miss 1120 (입력 없음)과 N4 release 0점 처리 1120", () => {
+    const labels = labelsOf("노트: head 0 | long 0-1000 | head 1000 | long 1000-2000\n입력: A 0-1015");
+    expect(labels).toContain("N3 head Miss 1120 (입력 없음)");
+    expect(labels).toContain("N4 release 0점 처리 1120");
+  });
+
+  it("바디 중간에 뗀 A 1000-1500은 N2 유지 실패 1500 — A↑1500 (끝−Good 1880 전)", () => {
+    expect(labelsOf("노트: head 1000 | long 1000-2000\n입력: A 1000-1500")).toContain("N2 유지 실패 1500 — A↑1500 (끝−Good 1880 전)");
+  });
+
+  it("head 없는 바디 long 1000-2000에 입력이 없으면 N1 시작 실패 1120 — 새 입력 없음", () => {
+    expect(labelsOf("노트: long 1000-2000")).toContain("N1 시작 실패 1120 — 새 입력 없음");
+  });
+});
+
+describe("describeFailureReason — 확실하지 않으면 생략", () => {
+  const panel = panelFor(D4);
+  const startFailure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1620 });
+
+  it("앞 바디를 쥔 키 A가 끝−Good 1440 뒤(1450)에 떼졌으면 키 조각을 빼고 시작 창 입력만 남김", () => {
+    const later = panelFor(D4.replace("A 1000-1430", "A 1000-1450"));
+    expect(labelText(describeFailureReason(startFailure, later.judgmentCase, later.run.events))).toBe("D↓1490 → N3 head");
+  });
+
+  it("시작 창의 D↓1490을 쓴 판정 이벤트가 없으면 입력 조각을 빼고 A↑1430 < 끝−Good 1440만", () => {
+    const withoutHead = panel.run.events.filter((candidate) => candidate.kind !== "head");
+    expect(labelText(describeFailureReason(startFailure, panel.judgmentCase, withoutHead))).toBe("A↑1430 < 끝−Good 1440");
+  });
+
+  it("maintenanceMiss가 아닌 판정(head Great)에는 이유가 없음", () => {
+    const head = panel.run.events.find((candidate) => candidate.kind === "head")!;
+    expect(describeFailureReason(head, panel.judgmentCase, panel.run.events)).toEqual([]);
+  });
+
+  it("끝 + Good(1680)에 확정된 유지 실패는 바디 밖이라 이유를 붙이지 않음", () => {
+    const endFailure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1680 });
+    expect(describeFailureReason(endFailure, panel.judgmentCase, panel.run.events)).toEqual([]);
+  });
+});
+
+describe("describeJudgmentEvent — 표기 규칙", () => {
+  const judgmentCase = judgmentCaseFromSource("노트: head 1000 | dlong 1000-2000 | dhead 1000\n입력: A 1000-1500 | B 1000-2000");
+
+  it("입력 시각과 확정 시각이 다르면 · 확정 시각을 덧붙이고, doubleLong 유닛 1은 이름 뒤 u1: N2u1", () => {
+    const label = describeJudgmentEvent(event({ kind: "release", noteIndex: 1, unitIndex: 0, deltaMs: -500, inputAt: 1500, confirmedAt: 1620, key: "A" }), judgmentCase);
+    expect(labelText(label)).toBe("N2u1 release Perfect −500 ← A↑1500 · 확정 1620");
+  });
+
+  it("double head 유닛 2의 판정은 N3u2 head", () => {
+    const label = describeJudgmentEvent(event({ noteIndex: 2, unitIndex: 1, inputAt: 1000, confirmedAt: 1000, key: "B" }), judgmentCase);
+    expect(labelText(label)).toBe("N3u2 head Perfect ±0 ← B↓1000");
+  });
+
+  it("입력 없이 확정된 holdOnly Perfect는 (유지 완료)", () => {
+    const label = describeJudgmentEvent(event({ kind: "holdOnly", noteIndex: 1, confirmedAt: 2000 }), judgmentCase);
+    expect(labelText(label)).toBe("N2 holdOnly Perfect 2000 (유지 완료)");
+  });
+
+  it("key가 없는 이벤트는 같은 시각 입력을 모두 보여줌: 1000ms의 A↓·B↓", () => {
+    const label = describeJudgmentEvent(event({ kind: "holdOnly", noteIndex: 1, inputAt: 1000, confirmedAt: 1000 }), judgmentCase);
+    expect(labelText(label)).toBe("N2 holdOnly Perfect ← A↓1000·B↓1000");
+  });
+
+  it("입력 시각에 맞는 입력이 없으면 @시각으로 표시", () => {
+    const label = describeJudgmentEvent(event({ inputAt: 1234, confirmedAt: 1234, deltaMs: 234 }), judgmentCase);
+    expect(labelText(label)).toBe("N1 head Perfect +234 ← @1234");
+  });
+
+  it("입력 시각에 확정된 doubleLong 유닛 1의 maintenanceMiss는 N2u1 유지 실패 1500, 이유는 A↑1500 (끝−Good 1880 전)", () => {
+    const failure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", confirmedAt: 1500 });
+    expect(labelText(describeJudgmentEvent(failure, judgmentCase))).toBe("N2u1 유지 실패 1500");
+    expect(labelText(describeFailureReason(failure, judgmentCase, []))).toBe("A↑1500 (끝−Good 1880 전)");
+  });
+
+  it("goodTrill 등급은 Good◇로 표시", () => {
+    const label = describeJudgmentEvent(event({ grade: "goodTrill", inputAt: 1000, confirmedAt: 1000, key: "A" }), judgmentCase);
+    expect(labelText(label)).toBe("N1 head Good◇ ±0 ← A↓1000");
+  });
+});
+
+describe("renderJudgmentCaseSvg", () => {
+  it("제목·메모·판정 라벨과 키 열 라벨 A↓1000·A↑1430·D↓1490을 담음", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    expect(svg).toContain("결정 ④ — A를 1430에 뗌");
+    expect(svg).toContain("가설 메모");
+    for (const text of ["A↓1000", "A↑1430", "D↓1490", "D↑1760", "시작 실패"]) expect(svg).toContain(text);
+  });
+
+  it("입력 시각마다 점선 가이드를 긋고 노트·입력 시각마다 축 눈금을 둠", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    for (const ms of ["1000", "1430", "1490", "1760"]) expect(svg).toMatch(new RegExp(`data-input-guide-ms="${ms}"[^>]*stroke-dasharray`));
+    for (const ms of ["1000", "1430", "1490", "1500", "1560", "1760"]) expect(svg).toContain(`data-tick-ms="${ms}"`);
+  });
+
+  it("에디터 색을 씀: single head #4488ff, long 바디 그래디언트 #dbebff·#88bbff, holdOnly 끝 흰 윤곽", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    expect(svg).toMatch(/data-note-type="single"[^>]*fill="#4488ff"/);
+    expect(svg).toContain('stop-color="#dbebff"');
+    expect(svg).toContain('stop-color="#88bbff"');
+    expect(svg).toMatch(/data-note-index="0" data-note-type="long" data-note-part="end"[^>]*stroke="#ffffff"/);
+  });
+
+  it("head가 있는 long은 시작 캡을 그리지 않고, head 없는 holdOnly [1000,1500]은 시작 캡을 그림", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    expect(svg).toContain('data-note-index="0" data-note-type="long" data-note-part="start"');
+    expect(svg).not.toContain('data-note-index="3" data-note-type="long" data-note-part="start"');
+  });
+
+  it("레인 옆에 노트마다 이름표 N1~N4를 달고 바디는 구간 괄호, head는 눈금으로 잇는다", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    for (const text of ["N1", "N2", "N3", "N4"]) expect(svg).toContain(`data-note-label="${text}"`);
+    expect(svg).toContain("1500–1560</tspan>");
+    for (const name of ["N1", "N2", "N4"]) expect(svg).toMatch(new RegExp(`data-note-span="${name}"[^>]*d="M[^"]*V`));
+    expect(svg).toContain('data-note-tick="N3"');
+  });
+
+  it("레인이 둘이면 시간이 겹치는 L1 바디 1000–1500과 L2 바디 1200–1800의 구간 괄호를 다른 x에 그림", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1000 | long 1000-1500 | L2: head 1200 | L2: long 1200-1800\n입력: A 1000-1500 | L2:J 1200-1800")]);
+    const spanX = (name: string) => Number(svg.match(new RegExp(`data-note-span="${name}" d="M[\\d.]+ [\\d.]+ H([\\d.]+) V`))![1]);
+    expect(spanX("N2")).not.toBe(spanX("N4"));
+  });
+
+  it("노트 이름표끼리 겹치지 않음: 이름표 y 간격이 모두 16px 이상", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1000 | long 1000-1010 | head 1010 | long 1010-1020 | head 1020 | long 1020-1500\n입력: A 1000-1500")]);
+    const ys = [...svg.matchAll(/<text x="[\d.]+" y="([-\d.]+)"[^>]*data-note-label=/g)].map((match) => Number(match[1])).sort((a, b) => a - b);
+    expect(ys).toHaveLength(6);
+    for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(16);
+  });
+
+  it("노트 시작·끝 시각마다 레인을 가로지르는 경계선: 결정 ④는 1000·1500·1560·1760", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    const boundaries = [...svg.matchAll(/data-note-boundary-ms="([\d.]+)"/g)].map((match) => match[1]);
+    expect(boundaries).toEqual(["1000", "1500", "1560", "1760"]);
+  });
+
+  it("시작 실패 판정 아래 줄에 이유를 그림: data-judgment-reason에 A↑1430 < 끝−Good 1440", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    expect(svg).toMatch(/data-judgment-reason="true"[^>]*>.*A↑1430.*끝−Good 1440.*N3/);
+  });
+
+  it("결정 ④에서 시작 실패한 N2 바디 [1500,1560]도 에디터 모양 그대로: long 그래디언트 바디·반투명 끝 캡, 실패 덧칠·빗금 없음(바닥글 범례에도 없음)", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(D4)]);
+    expect(svg).toMatch(/data-judgment-kind="maintenanceMiss"[^>]*>.*N2.*시작 실패.*1620/);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="body"[^>]*fill="url\(#jc-long\)"/);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end"[^>]*fill="url\(#jc-long\)" fill-opacity="0.5"/);
+    expect(svg).not.toMatch(/data-failed-|jc-failed/);
+    expect(svg).not.toContain("빗금");
+  });
+
+  it("H08 대조(head 1121ms Miss)에서 실패한 바디 4개도 덧칠 없이 각자 long 그래디언트로 그림", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(H08_LATE)]);
+    for (const index of [1, 2, 3, 4]) expect(svg).toMatch(new RegExp(`data-note-index="${index}" data-note-type="long" data-note-part="body"[^>]*fill="url\\(#jc-long\\)"`));
+    expect(svg).not.toMatch(/data-failed-|jc-failed/);
+  });
+
+  it("바닥글에 등급별 개수·달성률·Full Combo·엔진 표시", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor(R16)]);
+    expect(svg).toContain("Perfect 3");
+    expect(svg).toContain("달성률 100.00%");
+    expect(svg).toContain(">Full Combo<");
+    expect(svg).toContain("엔진: main @abc1234 — /repo/main");
+  });
+
+  it("미정산 score item은 강조 상자와 항목 id로 표시", () => {
+    const panel = panelFor(R16, { unsettledItems: [{ id: "n3:release:0", kind: "release", noteIndex: 3, unitIndex: 0, timeMs: 2000 }] });
+    const { svg } = renderJudgmentCaseSvg([panel]);
+    expect(svg).toContain("미정산 score item 1개");
+    expect(svg).toContain('data-unsettled-item="n3:release:0"');
+    expect(svg).toContain("N4 release @2000 (n3:release:0)");
+  });
+
+  it("엔진 예외는 시각과 메시지를 바닥글에 표시", () => {
+    const panel = panelFor(R16, { error: { message: "중복 또는 미등록 score item: n1:release:0", atMs: 1392 } });
+    expect(renderJudgmentCaseSvg([panel]).svg).toContain("엔진 예외 @1392ms: 중복 또는 미등록 score item: n1:release:0");
+  });
+
+  it("검증 오류는 한국어 라벨과 rule을 바닥글에 표시하고 렌더는 계속", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor("노트: long 1000-2000 | head 1500\n입력: A 1000-2000")]);
+    expect(svg).toContain("검증 오류");
+    expect(svg).toContain("롱노트 겹침 (longOverlap)");
+    expect(svg).toContain('data-validation-rule="longOverlap"');
+  });
+
+  it("떼지 않은 입력 B 1700-는 B↓1700 (계속)으로 표시", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor("노트: head 1700 | long 1700-2000\n입력: B 1700-")]);
+    expect(svg).toContain("B↓1700 (계속)");
+    expect(svg).toContain('data-input-up="held"');
+  });
+
+  it("trill 노트는 흰 마름모, trillZone은 #00ff88 띠", () => {
+    const { svg } = renderJudgmentCaseSvg([panelFor("노트: trill 1000 | trill 1100\n입력: A 1000-1050 | B 1100-1150")]);
+    expect(svg).toMatch(/<polygon data-note-index="0" data-note-type="trill"[^>]*fill="#ffffff"/);
+    expect(svg).toMatch(/data-trill-zone="1"[^>]*fill="#00ff88"/);
+  });
+
+  it("비교 모드: 패널 2개를 나란히 그리고 각 머리글에 엔진 이름을 붙임", () => {
+    const single = renderJudgmentCaseSvg([panelFor(D4)]);
+    const compare = renderJudgmentCaseSvg([panelFor(D4, {}, "main @abc1234"), panelFor(D4, {}, "pr-188 @def5678")]);
+    expect(compare.svg).toContain('data-panel="0"');
+    expect(compare.svg).toContain('data-panel="1"');
+    expect(compare.svg).toContain("엔진: main @abc1234</tspan>");
+    expect(compare.svg).toContain("엔진: pr-188 @def5678</tspan>");
+    expect(compare.width).toBeGreaterThan(single.width * 2);
+    expect(single.svg).not.toContain('data-engine-header="true"');
+  });
+
+  it("같은 사례를 두 엔진으로 비교하면 같은 시각의 축 눈금이 두 패널에서 같은 y", () => {
+    const judgmentCase = judgmentCaseFromSource(D4);
+    const run = runJudgmentCase(judgmentCase, engine);
+    const { svg } = renderJudgmentCaseSvg([
+      { judgmentCase, run, engineLabel: "a" },
+      { judgmentCase, run: { ...run, events: run.events.slice(0, 1) }, engineLabel: "b" },
+    ]);
+    const ys = [...svg.matchAll(/data-tick-ms="1490" x="[\d.]+" y="([\d.]+)"/g)].map((match) => match[1]);
+    expect(ys).toHaveLength(2);
+    expect(ys[0]).toBe(ys[1]);
+  });
+
+  it("서로 다른 사례(1000~1350과 3000~4000)는 각자 축을 써서 빈 구간 물결이 생기지 않음", () => {
+    const { svg } = renderJudgmentCaseSvg([
+      panelFor("노트: head 1000 | long 1000-1350\n입력: A 1000-1350"),
+      panelFor("노트: head 3000 | long 3000-4000\n입력: A 3000-4000"),
+    ]);
+    expect(svg).not.toContain('data-axis-break="1350-3000"');
+  });
+
+  it("제목의 <·&는 XML 이스케이프", () => {
+    expect(renderJudgmentCaseSvg([panelFor("제목: a<b & c\n노트: head 1000")]).svg).toContain("a&lt;b &amp; c");
+  });
+
+  it("긴 빈 구간을 줄인 자동 축에는 물결 표시, --scale(pxPerMs)을 주면 줄이지 않음", () => {
+    expect(renderJudgmentCaseSvg([panelFor(R16)]).svg).toContain('data-axis-break="0-1000"');
+    expect(renderJudgmentCaseSvg([panelFor(R16)], { pxPerMs: 0.5 }).svg).not.toContain("data-axis-break");
+  });
+
+  it("패널이 없으면 에러", () => {
+    expect(() => renderJudgmentCaseSvg([])).toThrow();
+  });
+});
