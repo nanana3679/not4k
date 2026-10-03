@@ -86,7 +86,7 @@ async function main() {
     logLevel: "silent",
   });
   await server.listen();
-  const url = `http://localhost:4173/?export`;
+  const url = `http://localhost:4173/`;
   console.log(`  Vite server at ${url}`);
 
   // 2. Playwright 브라우저 시작

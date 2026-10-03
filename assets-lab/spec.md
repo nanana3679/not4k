@@ -2,7 +2,7 @@
 
 현재 노트 에셋 Lab의 시안 교체와 Classic 런타임 규격은 [노트 에셋 Lab 명세](../docs/spec/note-asset-lab.md)를 따른다. 기존 단색 Classic은 `simple/`의 Simple로 이름을 바꾸었고, `classic/`은 승인된 유광 포인트·어두운 금속 바디·터미널·공통 봄의 SVG 소스와 상태 생성기를 관리한다.
 
-아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다.
+아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다. Crystal·Prism 탭 뷰어(`crystal.jsx`, `prism.jsx`)와 뷰어 전용 레이아웃 컴포넌트·롱노트 조립 컴포넌트는 2026-10-03에 지웠다. `assets-lab` 개발 서버는 이제 `pnpm build:skins`가 캡처하는 `export.jsx` 화면만 그리므로, 아래의 탭 뷰어·`BombPlayer` 설명은 당시 설계 기록이다.
 
 ## 게임 개요
 

@@ -81,17 +81,6 @@ export function PartialFailedNoteContainer({ x, y, failedSide }) {
     <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={CH} fill="#555555" /></g>;
 }
 
-/* ── 롱노트 조립 ── */
-export function LongNote({ x, y, bodyH = 80, type = "single", held = false }) {
-  return (
-    <g>
-      <BodySegment x={x} y={y} height={bodyH} type={type} held={held} />
-      <TerminalCap x={x} y={y} type={type} />
-      <NoteContainer x={x} y={y + bodyH - CH} type={type} />
-    </g>
-  );
-}
-
 /* ── 봄 프레임 ── */
 export function BombFrame({ cx, cy, frame, id }) {
   const f = BOMB_FRAMES[frame] || BOMB_FRAMES[0];
