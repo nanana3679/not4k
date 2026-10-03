@@ -2,6 +2,12 @@
 
 이 프로젝트의 주요 변경 사항을 기록합니다.
 
+## [0.4.7.1] - 2026-10-03
+
+### Changed
+
+- 개발 스크립트(`scripts/`)를 TypeScript로 바꿨습니다. 이제 `node scripts/<이름>.ts`로 실행하며(`pnpm build:classic` 등 기존 명령은 그대로), `pnpm build`·`pnpm build:lab`·`pnpm typecheck`가 앱과 함께 개발 스크립트·Vite·Vitest·Playwright 설정·E2E 테스트의 타입도 검사해 오류가 있으면 빌드를 멈춥니다.
+
 ## [0.4.7.0] - 2026-10-02
 
 ### Changed

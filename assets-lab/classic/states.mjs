@@ -2,7 +2,7 @@ import { terminalGraceSvg } from './contrast.mjs';
 import { brightBodyState } from './bright-body.mjs';
 
 // 트릴 켜짐 바디는 반투명 사각 기둥 내부 조명 타일(body-trill-on-frosted), 끝 터미널은 에디터와 같은 회색 마름모 하나를 상태 공통으로 쓴다.
-// 석영 켜짐 바디·끝 터미널 원본(body-trill-on.svg, terminal-end-trill*.svg)은 석영 미리보기 생성기(scripts/build-trill-quartz.mjs)가
+// 석영 켜짐 바디·끝 터미널 원본(body-trill-on.svg, terminal-end-trill*.svg)은 석영 미리보기 생성기(scripts/build-trill-quartz.ts)가
 // 다시 쓰는 파일이라 Classic 빌드 입력에서 뺀다.
 export const CLASSIC_SOURCE_NAMES = ['point-single','point-double','body-single-bright','body-double-bright',
   'point-trill','body-trill','body-trill-on-frosted','body-trill-failed','terminal-end-trill-editor'];

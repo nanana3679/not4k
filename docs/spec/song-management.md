@@ -33,7 +33,7 @@
 - **수동**: `pnpm backup` → `backups/<UTC타임스탬프>/`에 `songs`·`charts` 테이블 덤프와
   Storage `songs/`, `tutorials/` 전체 파일을 저장한다. `--charts-only`를 붙이면
   DB 덤프 + 차트 JSON만 (수백 KB). `backups/`는 gitignore 대상이다.
-  구현: `scripts/backup-supabase.mjs`
+  구현: `scripts/backup-supabase.ts`
 - **자동** (`.github/workflows/backup.yml`): 매일 03:00 KST에 charts-only,
   매주 일요일 04:00 KST에 풀 백업을 실행해 Actions 아티팩트로 90일 보관한다.
   필요 시크릿: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`

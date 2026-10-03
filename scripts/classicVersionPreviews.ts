@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 import { CLASSIC_SKIN_VERSIONS } from '../src/lab/classicSkinVersions';
-import { verifyClassicVersion } from './classic-versions.mjs';
+import { verifyClassicVersion } from './classic-versions.ts';
 
 export interface ClassicVersionPreviewEntry { pathname: string; file: string }
 

@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
@@ -35,7 +36,7 @@ try {
       // 2× textures retain the original point/body/terminal ratios.
       canvas.width = Math.round(image.naturalWidth / 5);
       canvas.height = Math.max(1, Math.round(image.naturalHeight / 5));
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d')!;
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       if (svg.includes('data-artwork="bright-body-20260929"')) {
         // SVG gradient dithering varies by 1/255 along Y. Repeat one rendered
@@ -48,9 +49,9 @@ try {
     const filename = key.replace(/[A-Z]/g, char => '-' + char.toLowerCase());
     await writeFile(`${runtimeOutput}/${filename}.png`, Buffer.from(png, 'base64'));
   }
-  const address = server.httpServer.address();
+  const address = server.httpServer!.address() as AddressInfo;
   await page.goto(`http://127.0.0.1:${address.port}/assets-lab/classic/bomb-export.html`);
-  await page.waitForFunction(() => window.bombReady);
+  await page.waitForFunction(() => (window as unknown as { bombReady?: boolean }).bombReady);
   // Sample the approved CSS silver ring at deterministic times, including a clear final frame.
   for(let frame=0;frame<16;frame++) {
     await page.locator('#bomb').evaluate((element,time) => {

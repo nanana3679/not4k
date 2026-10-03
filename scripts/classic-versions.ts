@@ -16,7 +16,7 @@ const directories = [
 const fixedFiles = [
   'assets-lab/classic/README.md',
   'assets-lab/classic/bomb-export.html',
-  'scripts/build-classic-skin.mjs',
+  'scripts/build-classic-skin.ts',
   'src/game/skin/skins.ts',
   'src/game/skin/types.ts',
   'src/shared/publicPath.ts',
@@ -28,24 +28,44 @@ const fixedFiles = [
   'package.json',
   'pnpm-lock.yaml',
 ];
-const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const selected = path => fixedFiles.includes(path)
+// Commits before #178 named the build script build-classic-skin.mjs; a Git-ref save of such a commit archives it under that name.
+const legacyFixedFiles: Record<string, string> = { 'scripts/build-classic-skin.ts': 'scripts/build-classic-skin.mjs' };
+const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
+const selected = (path: string) => fixedFiles.includes(path) || Object.values(legacyFixedFiles).includes(path)
   || directories.some(directory => path.startsWith(`${directory}/`))
   || /^assets-lab\/classic\/[^/]+\.mjs$/.test(path);
 
-function versionPath(root, id) {
+interface ManifestFile { path: string; bytes: number; sha256: string }
+
+interface ClassicVersionManifest {
+  schemaVersion: 1;
+  skin: 'classic';
+  id: string;
+  label: string;
+  savedAt: string;
+  source: { kind: 'git' | 'worktree'; baseCommit: string };
+  buildCommand: string;
+  runtimeDirectory: string;
+  files: ManifestFile[];
+}
+
+function versionPath(root: string, id: string) {
   if (!/^v\d{3,}$/.test(id)) throw new Error('버전 ID는 v001처럼 지정하세요.');
   return resolve(root, archiveRoot, id);
 }
 
-async function git(root, args, binary = false) {
+function git(root: string, args: string[]): Promise<string>;
+function git(root: string, args: string[], binary: true): Promise<Buffer>;
+async function git(root: string, args: string[], binary = false): Promise<string | Buffer> {
   return (await exec('git', args, { cwd: root, encoding: binary ? 'buffer' : 'utf8', maxBuffer: 32 * 1024 * 1024 })).stdout;
 }
 
 // symlinkPath lets callers other than save replace the message with their own wording.
-const symlinkError = path => Object.assign(new Error(`심볼릭 링크는 보관하지 않습니다: ${path}`), { symlinkPath: path });
+const symlinkError = (path: string) => Object.assign(new Error(`심볼릭 링크는 보관하지 않습니다: ${path}`), { symlinkPath: path });
 
-async function walk(root, path) {
+type SymlinkError = ReturnType<typeof symlinkError>;
+
+async function walk(root: string, path: string): Promise<string[]> {
   if ((await lstat(resolve(root, path))).isSymbolicLink()) throw symlinkError(path);
   const entries = await readdir(resolve(root, path), { withFileTypes: true });
   const files = [];
@@ -59,7 +79,7 @@ async function walk(root, path) {
 }
 
 // The worktree files a save archives: fixed files, top-level generators and every file in the archived directories.
-async function workingSelection(root, list = walk) {
+async function workingSelection(root: string, list: (root: string, directory: string) => Promise<string[]> = walk) {
   const generators = (await readdir(resolve(root, 'assets-lab/classic')))
     .filter(name => name.endsWith('.mjs')).map(name => `assets-lab/classic/${name}`);
   const paths = [...fixedFiles, ...generators];
@@ -67,11 +87,11 @@ async function workingSelection(root, list = walk) {
   return paths;
 }
 
-export async function saveClassicVersion({ root, id, label, ref }) {
+export async function saveClassicVersion({ root, id, label, ref }: { root: string; id: string; label: string; ref?: string }) {
   const destination = versionPath(root, id);
   if (!label?.trim()) throw new Error('버전 설명이 필요합니다.');
   const commit = (await git(root, ['rev-parse', '--verify', '--end-of-options', `${ref ?? 'HEAD'}^{commit}`])).trim();
-  let paths;
+  let paths: string[];
   if (ref) {
     paths = (await git(root, ['ls-tree', '-r', '--name-only', commit])).trim().split('\n').filter(selected);
   } else {
@@ -79,7 +99,7 @@ export async function saveClassicVersion({ root, id, label, ref }) {
   }
   paths = [...new Set(paths)].sort();
   for (const path of [...fixedFiles, ...directories.map(directory => `${directory}/`)]) {
-    if (!paths.some(candidate => path.endsWith('/') ? candidate.startsWith(path) : candidate === path)) {
+    if (!paths.some(candidate => path.endsWith('/') ? candidate.startsWith(path) : candidate === path || candidate === legacyFixedFiles[path])) {
       throw new Error(`필수 보관 자료가 없습니다: ${path}`);
     }
   }
@@ -114,10 +134,10 @@ export async function saveClassicVersion({ root, id, label, ref }) {
   }
 }
 
-async function readManifest(root, id) {
+async function readManifest(root: string, id: string) {
   const directory = versionPath(root, id);
   const text = await readFile(resolve(directory, 'manifest.json'), 'utf8');
-  let manifest = null;
+  let manifest: ClassicVersionManifest | null = null;
   try { manifest = JSON.parse(text); } catch { /* reported below as invalid version info */ }
   if (manifest?.id !== id || manifest.skin !== 'classic' || manifest.schemaVersion !== 1
     || !Array.isArray(manifest.files) || !manifest.files.length) {
@@ -135,7 +155,7 @@ async function readManifest(root, id) {
   return { directory, manifest };
 }
 
-export async function verifyClassicVersion({ root, id }) {
+export async function verifyClassicVersion({ root, id }: { root: string; id: string }) {
   const { directory, manifest } = await readManifest(root, id);
   for (const file of manifest.files) {
     const path = resolve(directory, 'files', file.path);
@@ -148,18 +168,18 @@ export async function verifyClassicVersion({ root, id }) {
   return manifest;
 }
 
-async function workingHash(root, path) {
+async function workingHash(root: string, path: string) {
   try {
     return hash(await readFile(resolve(root, path)));
   } catch (error) {
-    if (['ENOENT', 'EISDIR', 'ENOTDIR'].includes(error.code)) return null;
+    if (['ENOENT', 'EISDIR', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code!)) return null;
     throw error;
   }
 }
 
 // current compares instead of archiving: a missing reference directory counts as empty,
 // but the game PNG folder must exist and no compared directory may contain a symlink.
-async function listForComparison(root, directory) {
+async function listForComparison(root: string, directory: string) {
   const isRuntime = directory === runtimeDirectory;
   const exists = await lstat(resolve(root, directory)).then(() => true, error => {
     if (error.code === 'ENOENT') return false;
@@ -172,13 +192,13 @@ async function listForComparison(root, directory) {
   try {
     return await walk(root, directory);
   } catch (error) {
-    if (!error.symlinkPath) throw error;
-    throw new Error(`${isRuntime ? '게임 PNG 폴더에 ' : ''}심볼릭 링크가 있어 비교할 수 없습니다: ${error.symlinkPath}`);
+    if (!(error as SymlinkError).symlinkPath) throw error;
+    throw new Error(`${isRuntime ? '게임 PNG 폴더에 ' : ''}심볼릭 링크가 있어 비교할 수 없습니다: ${(error as SymlinkError).symlinkPath}`);
   }
 }
 
 // Archived hashes are trusted here; checking the archive itself is verifyClassicVersion's job.
-export async function findCurrentClassicVersion({ root }) {
+export async function findCurrentClassicVersion({ root }: { root: string }) {
   const entries = await readdir(resolve(root, archiveRoot), { withFileTypes: true }).catch(error => {
     if (error.code === 'ENOENT') return [];
     throw error;
@@ -192,7 +212,7 @@ export async function findCurrentClassicVersion({ root }) {
   if (!ids.length) throw new Error('보관된 Classic 버전이 없습니다.');
   // Equal numbers (v001, v0001) fall back to reverse string order so the result never depends on readdir order.
   ids.sort((a, b) => Number(b.slice(1)) - Number(a.slice(1)) || b.localeCompare(a));
-  const isPng = path => path.startsWith(`${runtimeDirectory}/`);
+  const isPng = (path: string) => path.startsWith(`${runtimeDirectory}/`);
   const selection = await workingSelection(root, listForComparison);
   const current = new Map();
   for (const path of selection.filter(isPng)) current.set(path, await workingHash(root, path));
@@ -231,7 +251,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       console.log(`${id}: ${saved.files.length}개 파일 SHA-256 검증 통과`);
     } else if (command === 'current') {
       const { pngFiles, matches, compared } = await findCurrentClassicVersion({ root });
-      const list = paths => paths.map(path => `\n  ${path}`).join('');
+      const list = (paths: string[]) => paths.map(path => `\n  ${path}`).join('');
       console.log(matches.length
         ? `게임 PNG(${runtimeDirectory}): ${matches.join('·')} 보관본과 일치 (${pngFiles}개 파일)`
         : `게임 PNG(${runtimeDirectory}): 일치하는 보관 버전 없음. 가장 가까운 ${compared.id} 보관본과 다른 파일 ${compared.pngDiffs.length}개:${list(compared.pngDiffs)}`);
@@ -240,10 +260,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         : `원본·설정 등 그 밖의 보관 파일: ${compared.id} 보관본과 모두 같음`);
       if (!matches.length) process.exitCode = 1;
     } else {
-      throw new Error('사용법: node scripts/classic-versions.mjs save v003 "설명" [Git ref] | verify v001 | current');
+      throw new Error('사용법: node scripts/classic-versions.ts save v003 "설명" [Git ref] | verify v001 | current');
     }
   } catch (error) {
-    console.error(error.message);
+    console.error((error as Error).message);
     process.exitCode = 1;
   }
 }

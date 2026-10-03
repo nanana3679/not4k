@@ -93,7 +93,7 @@ test.describe("Lab preview catalog", () => {
     await expect(galleryPage.locator("img")).toHaveCount(9);
     for (const image of await galleryPage.locator("img").all()) await image.scrollIntoViewIfNeeded();
     await expect.poll(
-      () => galleryPage.locator("img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)),
+      () => galleryPage.locator("img").evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0)),
     ).toBe(true);
   });
 });

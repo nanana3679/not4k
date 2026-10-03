@@ -67,7 +67,7 @@ export function buildManifest(
       bomb: Array.from({ length: 16 }, (_, i) =>
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
-      // 기어 프레임/게이지는 스킨 공통 공유 에셋 (scripts/split-gear-gauge.mjs 산출물)
+      // 기어 프레임/게이지는 스킨 공통 공유 에셋 (scripts/split-gear-gauge.ts 산출물)
       gearFrame: withPublicBase("/gear/gear-frame.png"),
       gearGaugeLeft: withPublicBase("/gear/gear-gauge-left.png"),
       gearGaugeRight: withPublicBase("/gear/gear-gauge-right.png"),
