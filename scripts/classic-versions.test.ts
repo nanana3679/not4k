@@ -68,6 +68,16 @@ describe('Classic 버전 보관', () => {
     expect((await verifyClassicVersion({ root, id: 'v001' })).id).toBe('v001');
   });
 
+  it('빌드 스크립트가 .ts·.mjs 어느 이름으로도 없는 커밋을 Git ref로 보관하면 "필수 보관 자료가 없습니다: scripts/build-classic-skin.ts"로 멈추고 v001을 남기지 않는다', async () => {
+    const root = await fixture();
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=Asset test', '-c', 'user.email=assets@example.invalid', ...args], { cwd: root });
+    git('rm', '-q', 'scripts/build-classic-skin.ts');
+    git('commit', '-qm', 'no build script');
+    await expect(saveClassicVersion({ root, id: 'v001', label: '빌드 스크립트 없음', ref: 'HEAD' }))
+      .rejects.toThrow('필수 보관 자료가 없습니다: scripts/build-classic-skin.ts');
+    await expect(access(archive(root, 'v001'))).rejects.toThrow();
+  });
+
   it('v001이 이미 있으면 덮어쓰기를 거부하고 기존 PNG와 manifest를 보존한다', async () => {
     const root = await fixture();
     await saveClassicVersion({ root, id: 'v001', label: '이전' });

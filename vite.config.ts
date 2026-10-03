@@ -31,7 +31,7 @@ const labImageGalleryIds = new Set(labImageGalleryCatalog.map((gallery) => galle
 function labImageGalleryPlugin(): Plugin {
   return {
     name: "not4k-image-gallery-lab",
-    apply: "serve" as const,
+    apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const mappedRequest = mapLabImageGalleryDevRequest(request.url ?? "", labImageGalleryIds);
@@ -55,7 +55,7 @@ function labImageGalleryPlugin(): Plugin {
 function flightBackgroundPreviewLabPlugin(): Plugin {
   return {
     name: "not4k-flight-background-preview-lab",
-    apply: "serve" as const,
+    apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const target = request.url ?? "";
@@ -80,7 +80,7 @@ function flightBackgroundPreviewLabPlugin(): Plugin {
 function excludeLabFromBuildPlugin(): Plugin {
   return {
     name: "not4k-exclude-lab-from-build",
-    apply: "build" as const,
+    apply: "build",
     closeBundle() {
       rmSync(resolve(workspaceRoot, "dist/lab"), { recursive: true, force: true });
       // eslint-disable-next-line no-console

@@ -17,8 +17,8 @@
 - 테스트 파일은 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴으로 둔다
 - 관련 테스트를 먼저 실행한다. 공유 모델이나 여러 모듈에 걸친 변경, 빌드·테스트 기반 변경, 출시 준비에서는 전체 단위 테스트를 실행한다
 - 요청한 변경 때문에 실패한 테스트는 수정하고 다시 실행한다. 무관한 기존 실패는 작업 범위를 넓혀 수정하지 말고 결과에 명시한다
-- 타입 검사는 `pnpm typecheck`로 하며 앱(`src`)과 도구 코드(`scripts/`, Vite·Vitest·Playwright 설정, `e2e/`, `tsconfig.tooling.json`)를 함께 검사한다. `pnpm build`·`pnpm build:lab`도 같은 검사를 먼저 실행한다
-- `scripts/`는 Node가 직접 실행하는 `.ts`로 쓰고 지울 수 있는 타입 문법만 쓴다(enum·namespace 금지, `tsconfig.scripts.json`이 검사). `assets-lab/`의 생성 코드는 JS로 둔다
+- 타입 검사는 `pnpm typecheck`로 하며 앱(`src`)과 도구 코드(`scripts/`, Vite·Vitest·Playwright 설정, `e2e/`)를 함께 검사한다(`tsconfig.tooling.json`). `pnpm build`·`pnpm build:lab`도 같은 검사를 먼저 실행한다
+- `scripts/`의 실행 스크립트는 Node(22.18 이상)가 타입만 지우고 바로 실행하는 `.ts`로 쓴다. 지울 수 있는 타입 문법만 쓰고(enum·namespace 금지) 타입만 가져올 때는 `import type`을 쓴다(`tsconfig.scripts.json`이 검사). Vite 설정이 쓰는 도우미(`classicVersionPreviews.ts`·`exportLabImageGalleries.ts`)는 예외다. `assets-lab/`의 생성 코드는 JS로 둔다
 
 ### 테스트명 작성 규칙
 

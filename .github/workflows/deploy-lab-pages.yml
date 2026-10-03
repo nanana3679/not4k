@@ -9,7 +9,7 @@ on:
       - "lab/**"
       - "output/prototypes/**"
       - "public/lab/**"
-      - "scripts/verify-lab-pages-build.ts"
+      - "scripts/**"
       - "src/**"
       - "package.json"
       - "pnpm-lock.yaml"
