@@ -23,12 +23,17 @@ import { runJudgmentCase, type JudgmentCaseRun, type JudgmentCaseRunEvent, type 
 
 const engine: JudgmentEngine = { compileJudgmentChart, NoteJudgmentSession, validateChart };
 
+/** 결정 ④(RFD 0020 §2.14): A↑1430은 N2 끝−Good 1440보다 일러 N2를 충족하지 못하므로 D↓1490이 N2를 시작하고, N3 head는 입력 없이 Miss 1680 */
 const D4 = [
   "제목: 결정 ④ — A를 1430에 뗌",
   "노트: holdOnly 1000-1500 | long 1500-1560 | head 1560 | long 1560-1760",
   "입력: A 1000-1430 | D 1490-1760",
   "메모: 가설 메모",
 ].join("\n");
+/** 결정 ④ 대조: A를 N2 끝−Good 1440 뒤(1450)에 떼 N2까지 충족하므로 D↓1490은 N3 head가 씀 */
+const D4_A_SATISFIES_N2 = D4.replace("A 1000-1430", "A 1000-1450");
+/** 결정 ④ 노트에서 D를 누르지 않음: A↑1430은 N2를 충족하지 못하고 시작 창에 새 누름도 없어 N2 시작 실패 1620 */
+const D4_WITHOUT_D = D4.replace(" | D 1490-1760", "");
 const R16 = "제목: R16\n노트: head 0 | long 0-1000 | head 1000 | long 1000-2000\n입력: A 0-1015 | B 1020-2000";
 const H08_LATE = "제목: H08 대조\n노트: head 1000 | holdOnly 1000-1500 | holdOnly 1500-2000 | holdOnly 2000-2500 | long 2500-3000\n입력: A 1121-3000";
 /** 리뷰 재현: A↓500은 시작 창(880~1120) 밖이라 N1은 시작하지 못하고, 그 기한 1120에 A를 뗀다 */
@@ -41,8 +46,6 @@ const HOLD_ONLY_UP_WITH_DOWN = "노트: holdOnly 1000-1500 | long 1500-1560 | he
 const HOLD_ONLY_UP_WITH_OTHER_LANE = "노트: holdOnly 1000-1500 | L2: head 1430\n입력: A 1000-1430 | L2:B 1430-1440";
 /** 리뷰 재현: A↓990이 N3 head를 일찍 쳐 N4를 A로 시작하고, N2를 쥔 D를 1060에 뗀다 */
 const EARLY_SUCCESSOR = "노트: head 1000 | long 1000-1100 | head 1100 | long 1100-1200 | head 1200\n입력: A 990-1210 | D 980-1060 | D 1170-1290";
-/** 리뷰 재현(main 엔진): 1328ms에 엔진 예외로 finalize 전에 멈춤 */
-const ENGINE_THROWS = "노트: head 1000 | holdOnly 1000-1200\n입력: A 940-1020 | A 1180-1440 | D 890-930 | D 1150-1330";
 
 const CLASSIC = makeTestSkin("classic");
 
@@ -103,6 +106,35 @@ function noteLabelsOf(text: string, options: { showLane?: boolean } = {}): strin
 
 function event(overrides: Partial<JudgmentCaseRunEvent>): JudgmentCaseRunEvent {
   return { kind: "head", noteIndex: 0, grade: "perfect", deltaMs: 0, inputAt: null, confirmedAt: 0, ...overrides };
+}
+
+/**
+ * 직접 만든 결정 ④ 결과: 시작 창의 D↓1490을 N3 head가 쓰고 N2는 시작하지 못함(결정 ④ 범위를 좁히기 전 엔진의 정산).
+ * 지금 엔진은 D↓1490으로 N2를 시작하므로, 두 이유 조각(앞 바디 키의 뗌 · 시작 창 누름을 쓴 head)을 함께 쓰는 라벨은 이 run으로 확인한다.
+ */
+const D4_HEAD_TAKES_START_DOWN: Partial<JudgmentCaseRun> = {
+  events: [
+    event({ kind: "holdOnly", noteIndex: 0, inputAt: 1430, confirmedAt: 1430 }),
+    event({ kind: "head", noteIndex: 2, grade: "great", deltaMs: -70, inputAt: 1490, confirmedAt: 1490, key: "D" }),
+    event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1620 }),
+    event({ kind: "release", noteIndex: 3, unitIndex: 0, inputAt: 1760, confirmedAt: 1760, key: "D" }),
+  ],
+  unitStates: [
+    unitState({ noteIndex: 0, complete: true, registeredKeys: ["A"] }),
+    unitState({ noteIndex: 1, active: false, failed: true }),
+    unitState({ noteIndex: 3, complete: true, registeredKeys: ["D"] }),
+  ],
+};
+
+/** 실제 세션으로 재생하다가 throwAt 이후 첫 입력 batch에서 예외를 던지는 엔진(finalize 전에 멈춘 run 재현용) */
+function engineThrowingAt(throwAt: number): JudgmentEngine {
+  class ThrowingSession extends NoteJudgmentSession {
+    processBatch(...args: Parameters<NoteJudgmentSession["processBatch"]>): void {
+      if (args[0] >= throwAt) throw new Error(`가짜 엔진 예외 ${args[0]}`);
+      super.processBatch(...args);
+    }
+  }
+  return { ...engine, NoteJudgmentSession: ThrowingSession };
 }
 
 describe("createCaseTimeAxis", () => {
@@ -240,20 +272,20 @@ describe("describeJudgmentEvent — 실제 엔진 이벤트", () => {
     ]);
   });
 
-  it("결정 ④는 N1 holdOnly Perfect ← A↑1430, N3 head Great −70 ← D↓1490, N4 release Perfect ±0 ← D↑1760", () => {
-    const labels = labelsOf(D4);
-    expect(labels).toContain("N1 holdOnly Perfect ← A↑1430");
+  it("A를 N2 끝−Good 1440 뒤 1450에 뗀 결정 ④ 대조는 N1 holdOnly Perfect ← A↑1450, N3 head Great −70 ← D↓1490, N4 release Perfect ±0 ← D↑1760", () => {
+    const labels = labelsOf(D4_A_SATISFIES_N2);
+    expect(labels).toContain("N1 holdOnly Perfect ← A↑1450");
     expect(labels).toContain("N3 head Great −70 ← D↓1490");
     expect(labels).toContain("N4 release Perfect ±0 ← D↑1760");
   });
 
-  it("결정 ④의 N2 시작 실패 이유: A↑1430이 N2 끝−Good 1440보다 이르고, 시작 창의 D↓1490은 N3 head가 씀", () => {
-    expect(labelsOf(D4)).toContain("N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head");
+  it("결정 ④ 노트를 A 1000-1430만으로 치면 A↑1430이 N2 끝−Good 1440보다 이르고 시작 창에 누름이 없어 N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · 새 입력 없음", () => {
+    expect(labelsOf(D4_WITHOUT_D)).toContain("N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · 새 입력 없음");
   });
 
   it("N2에 [가운데]를 붙이면 판정 라벨도 가운데 시작 실패 1620으로 시작", () => {
-    const labels = labelsOf(D4.replace("long 1500-1560", "long 1500-1560 [가운데]"));
-    expect(labels).toContain("가운데 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head");
+    const labels = labelsOf(D4_WITHOUT_D.replace("long 1500-1560", "long 1500-1560 [가운데]"));
+    expect(labels).toContain("가운데 시작 실패 1620 — A↑1430 < 끝−Good 1440 · 새 입력 없음");
   });
 
   it("R16에서 B를 누르지 않으면 N3 head Miss 1120 (입력 없음)과 N4 release 0점 처리 1120", () => {
@@ -318,11 +350,15 @@ describe("describeFailureReason — 바디 중간 유지 실패는 그 노트에
 });
 
 describe("describeFailureReason — 확실하지 않으면 생략", () => {
-  const panel = panelFor(D4);
+  const panel = panelFor(D4, D4_HEAD_TAKES_START_DOWN);
   const startFailure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1620 });
 
+  it("D↓1490을 N3 head가 쓰고 N2가 시작하지 못한 결정 ④ run(직접 만듦)이면 두 조각을 이어 N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head", () => {
+    expect(labelsOf(D4, D4_HEAD_TAKES_START_DOWN)).toContain("N2 시작 실패 1620 — A↑1430 < 끝−Good 1440 · D↓1490 → N3 head");
+  });
+
   it("앞 바디를 쥔 키 A가 끝−Good 1440 뒤(1450)에 떼졌으면 키 조각을 빼고 시작 창 입력만 남김(N2를 시작 실패로 바꾼 엔진 상태)", () => {
-    const later = panelFor(D4.replace("A 1000-1430", "A 1000-1450"));
+    const later = panelFor(D4_A_SATISFIES_N2);
     const run = withUnit(later.run, 1, { active: false, failed: true, complete: false, registeredKeys: [] });
     expect(labelText(describeFailureReason(startFailure, later.judgmentCase, run))).toBe("D↓1490 → N3 head");
   });
@@ -429,11 +465,12 @@ describe("describeJudgmentEvent — 표기 규칙", () => {
 });
 
 describe("renderJudgmentCaseSvg", () => {
-  it("제목·메모·판정 라벨과 키 열 라벨 A↓1000·A↑1430·D↓1490을 담음", () => {
+  it("제목·메모·판정 라벨 N1 holdOnly Perfect ← A↑1430과 키 열 라벨 A↓1000·A↑1430·D↓1490·D↑1760을 담음", () => {
     const { svg } = render([panelFor(D4)]);
     expect(svg).toContain("결정 ④ — A를 1430에 뗌");
     expect(svg).toContain("가설 메모");
-    for (const text of ["A↓1000", "A↑1430", "D↓1490", "D↑1760", "시작 실패"]) expect(svg).toContain(text);
+    for (const text of ["A↓1000", "A↑1430", "D↓1490", "D↑1760"]) expect(svg).toContain(text);
+    expect(svg).toMatch(/data-judgment-kind="holdOnly"[^>]*>.*N1.*holdOnly.*Perfect.*A↑1430/);
   });
 
   it("입력 시각마다 점선 가이드를 긋고 노트·입력 시각마다 축 눈금을 둠", () => {
@@ -488,14 +525,14 @@ describe("renderJudgmentCaseSvg", () => {
     expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="body" data-skin-asset="bodySingle"[^>]*>(<pattern[^>]*>)?.*?fill="url\(#jc-tile-0-1\)"/);
   });
 
-  it("판정과 상관없이 대기 모양만: 결정 ④·H08 대조의 실패한 바디도 대기 에셋이고, 스킨 참조에 켜짐(Held)·실패(Failed)·부분 상태 에셋이 없음", () => {
-    for (const text of [D4, H08_LATE]) {
+  it("판정과 상관없이 대기 모양만: D 없는 결정 ④·H08 대조의 실패한 바디도 대기 에셋이고, 스킨 참조에 켜짐(Held)·실패(Failed)·부분 상태 에셋이 없음", () => {
+    for (const text of [D4_WITHOUT_D, H08_LATE]) {
       const { svg } = render([panelFor(text)]);
       const refs = [...svg.matchAll(/data-skin-asset="([^"]+)"|href="#jc-skin-([^"]+)"|<image id="jc-skin-([^"]+)"/g)].map((match) => match[1] ?? match[2] ?? match[3]);
       expect(refs.length).toBeGreaterThan(0);
       expect(refs.join(" ")).not.toMatch(/Held|Failed|Partial/);
     }
-    const d4 = render([panelFor(D4)]).svg;
+    const d4 = render([panelFor(D4_WITHOUT_D)]).svg;
     expect(d4).toMatch(/data-judgment-kind="maintenanceMiss"[^>]*>.*N2.*시작 실패.*1620/);
     expect(skinAssetsOf(d4, 1, "body")).toEqual(["bodySingle"]);
     expect(d4).not.toContain("빗금");
@@ -531,9 +568,9 @@ describe("renderJudgmentCaseSvg", () => {
     expect(boundaries).toEqual(["1000", "1500", "1560", "1760"]);
   });
 
-  it("시작 실패 판정 아래 줄에 이유를 그림: data-judgment-reason에 A↑1430 < 끝−Good 1440", () => {
-    const { svg } = render([panelFor(D4)]);
-    expect(svg).toMatch(/data-judgment-reason="true"[^>]*>.*A↑1430.*끝−Good 1440.*N3/);
+  it("시작 실패 판정 아래 줄에 이유를 그림: D 없는 결정 ④의 data-judgment-reason에 A↑1430 < 끝−Good 1440 · 새 입력 없음", () => {
+    const { svg } = render([panelFor(D4_WITHOUT_D)]);
+    expect(svg).toMatch(/data-judgment-reason="true"[^>]*>.*A↑1430.*끝−Good 1440.*새 입력 없음/);
   });
 
   it("바닥글에 등급별 개수·달성률·Full Combo·엔진 표시", () => {
@@ -552,11 +589,13 @@ describe("renderJudgmentCaseSvg", () => {
     expect(svg).toContain("N4 release @2000 (n3:release:0)");
   });
 
-  it("엔진 예외로 finalize 전에 멈춘 사례(1328ms 예외)는 바닥글에 Full Combo 대신 판정 불가(finalize 전)", () => {
-    const panel = panelFor(ENGINE_THROWS);
-    expect(panel.run.finalized).toBe(false);
-    expect(panel.run.isFullCombo).toBe(true);
-    const { svg } = render([panel]);
+  it("R16을 1020ms batch에서 예외를 던지는 엔진으로 재생해 finalize 전에 멈추면 중간 isFullCombo가 true여도 바닥글에 Full Combo 대신 판정 불가(finalize 전)", () => {
+    const judgmentCase = judgmentCaseFromSource(R16);
+    const run = runJudgmentCase(judgmentCase, engineThrowingAt(1020));
+    expect(run.error).toEqual({ message: "가짜 엔진 예외 1020", atMs: 1020 });
+    expect(run.finalized).toBe(false);
+    expect(run.isFullCombo).toBe(true);
+    const { svg } = render([{ judgmentCase, run, engineLabel: "main @abc1234" }]);
     expect(svg).toContain("판정 불가(finalize 전)");
     expect(svg).not.toContain(">Full Combo<");
   });
