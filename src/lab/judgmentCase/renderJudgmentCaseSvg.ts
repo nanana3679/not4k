@@ -785,8 +785,10 @@ function skinImage(sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, flip
   return flipY ? `<g transform="matrix(1 0 0 -1 0 ${px(2 * box.y + box.height)})">${image}</g>` : image;
 }
 
-/** NineSliceSprite 위아래 테두리(게임 px) — stretch 바디의 위아래 4px는 늘이지 않는다 */
+/** NineSliceSprite 위아래 테두리(게임 px) — stretch 바디의 위아래 4px는 늘이지 않는다. src/game/renderer/GameNoteRenderer.ts getOrCreateBodySprite의 topHeight·bottomHeight를 따른다 */
 const BODY_SLICE_PX = 4;
+/** split-cap 짧은 바디에서 두 반쪽 캡 사이에 남기는 게임 px. src/game/renderer/GameNoteRenderer.ts renderLongNote의 WIRE_MIN_PX를 따른다 */
+const WIRE_MIN_PX = 5;
 
 /**
  * 롱노트 바디. repeat 스킨(Classic)은 게임 TilingSprite처럼 바디 폭에 맞춘 텍스처 비율 그대로 위(끝 쪽)에서부터 반복하고
@@ -861,6 +863,7 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     if (!isRange(note)) {
       const top = yOf(entry.startMs) - h / 2;
       if (note.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
+      // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 싱글·더블은 pointContactShadow, trill은 pointContactShadowTrill(예전 pointShadow는 고르지 않음).
       const reach = skin.pointContactShadow;
       if (kind !== "trill" && reach && skin.contactShadow) {
         // 텍스처 윗행이 가장 짙다. 위 그림자는 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
@@ -910,9 +913,9 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
       layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: startY - h / 2, width: terminalWidth, height: h }, part("start"), true));
       continue;
     }
-    // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 5px를 남긴다).
+    // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
     const cap = skin.cap?.[capKind] ?? skin.terminal[kind];
-    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - 5 * LANE_SCALE) / 2));
+    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - WIRE_MIN_PX * LANE_SCALE) / 2));
     if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
     layers.ends.push(skinImage(cap, { x: terminalX, y: top, width: terminalWidth, height: capHeight }, part("end")));
     layers.heads.push(skinImage(cap, { x: terminalX, y: bottom - capHeight, width: terminalWidth, height: capHeight }, part("start"), true));
@@ -1031,9 +1034,10 @@ function drawPanel(prepared: PreparedPanel, index: number, skin: JudgmentCaseSki
   });
   for (const zone of judgmentCase.trillZones) {
     if (!prepared.lanes.includes(zone.lane)) continue;
-    const top = yOf(Math.max(zone.startMs, zone.endMs));
-    const bottom = yOf(Math.min(zone.startMs, zone.endMs));
-    out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${top}" width="${LANE_W}" height="${bottom - top}" fill="${hexColor(COLORS.TRILL_ZONE_BG)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
+    // src/game/renderer/GameRenderer.ts renderTrillZones를 따른다: 롱노트 바디처럼 끝 박스 윗변부터 시작 박스 아랫변까지, 최소 노트 한 칸(길이 0).
+    const top = yOf(Math.max(zone.startMs, zone.endMs)) - NOTE_H / 2;
+    const height = Math.max(yOf(Math.min(zone.startMs, zone.endMs)) + NOTE_H / 2 - top, NOTE_H);
+    out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${px(top)}" width="${LANE_W}" height="${px(height)}" fill="${hexColor(COLORS.TRILL_ZONE_BG)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
   }
 
   // ms 축: 노트 시작·끝과 입력 시각에 눈금

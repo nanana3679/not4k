@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { compileJudgmentChart } from "../../game/judgment/compiledJudgmentChart";
 import { NoteJudgmentSession } from "../../game/judgment/NoteJudgmentSession";
-import { getSkinManifest } from "../../game/skin/skins";
 import { validateChart } from "../../shared/validation";
 import { judgmentCaseFromSource } from "./chartCase";
-import { createJudgmentCaseSkin, judgmentCaseSkinAssetPaths, type JudgmentCaseSkin } from "./judgmentCaseSkin";
+import { makeTestSkin } from "./makeTestSkin";
 import {
   createAutoCaseTimeAxis,
   createCaseTimeAxis,
@@ -45,26 +44,7 @@ const EARLY_SUCCESSOR = "노트: head 1000 | long 1000-1100 | head 1100 | long 1
 /** 리뷰 재현(main 엔진): 1328ms에 엔진 예외로 finalize 전에 멈춤 */
 const ENGINE_THROWS = "노트: head 1000 | holdOnly 1000-1200\n입력: A 940-1020 | A 1180-1440 | D 890-930 | D 1150-1330";
 
-/** public/skins PNG의 실제 크기(원본 픽셀) */
-function assetSize(assetPath: string): { width: number; height: number } {
-  if (assetPath.includes("grace-overlay")) return { width: 248, height: 88 };
-  if (assetPath.includes("contact-shadow-trill")) return { width: 200, height: 60 };
-  if (assetPath.includes("contact-shadow")) return { width: 200, height: 20 };
-  if (assetPath.includes("end-cap")) return { width: 100, height: 10 };
-  if (assetPath.startsWith("/skins/classic/note-single") || assetPath.startsWith("/skins/classic/note-double")) return { width: 212, height: 40 };
-  if (assetPath.startsWith("/skins/classic/")) return { width: 200, height: 40 };
-  return assetPath.includes("/body-") ? { width: 100, height: 60 } : { width: 100, height: 20 };
-}
-
-/** 실제 PNG 크기로 만든 스킨(이미지 내용은 짧은 가짜 주소) */
-function skinFor(id: string): JudgmentCaseSkin {
-  const manifest = getSkinManifest(id);
-  const images = Object.fromEntries(Object.entries(judgmentCaseSkinAssetPaths(manifest))
-    .map(([key, assetPath]) => [key, { href: `data:image/png;base64,${key}`, ...assetSize(assetPath!) }]));
-  return createJudgmentCaseSkin(manifest, images);
-}
-
-const CLASSIC = skinFor("classic");
+const CLASSIC = makeTestSkin("classic");
 
 function render(panels: JudgmentCasePanel[], options: Partial<RenderJudgmentCaseOptions> = {}) {
   return renderJudgmentCaseSvg(panels, { skin: CLASSIC, ...options });
@@ -73,6 +53,17 @@ function render(panels: JudgmentCasePanel[], options: Partial<RenderJudgmentCase
 /** 노트 부품(data-note-part)이 쓰는 스킨 에셋 키 목록 */
 function skinAssetsOf(svg: string, noteIndex: number, part: string): string[] {
   return [...svg.matchAll(new RegExp(`data-note-index="${noteIndex}" data-note-type="[^"]+" data-note-part="${part}" data-skin-asset="([^"]+)"`, "g"))].map((match) => match[1]);
+}
+
+/** ms 축 눈금(data-tick-ms)의 y */
+function tickY(svg: string, ms: number): number {
+  return Number(svg.match(new RegExp(`data-tick-ms="${ms}" x="[\\d.]+" y="([\\d.]+)"`))![1]);
+}
+
+/** trillZone 띠(data-trill-zone)의 y·높이 */
+function trillZoneBox(svg: string, lane: number): { top: number; height: number } {
+  const match = svg.match(new RegExp(`data-trill-zone="${lane}" x="[\\d.]+" y="([-\\d.]+)" width="80" height="([\\d.]+)"`));
+  return { top: Number(match![1]), height: Number(match![2]) };
 }
 
 /** SVG 안에서 노트 부품이 처음 나오는 위치(그리기 순서 비교용, 없으면 -1) */
@@ -616,6 +607,20 @@ describe("renderJudgmentCaseSvg", () => {
     expect(svg).toMatch(/data-trill-zone="1"[^>]*fill="#00ff88"/);
   });
 
+  it("trillZone 1000–1300은 게임처럼 롱노트 바디 범위: 1300 시각 선보다 노트 반 칸(8px) 위부터 1000 시각 선보다 8px 아래까지", () => {
+    const { svg } = render([panelFor("노트: trill 1000 | tlong 1000-1300 | trill 1300\n입력: A 1000-1300 | B 1300-1350")]);
+    const zone = trillZoneBox(svg, 1);
+    expect(zone.top).toBeCloseTo(tickY(svg, 1300) - 8, 1);
+    expect(zone.top + zone.height).toBeCloseTo(tickY(svg, 1000) + 8, 1);
+  });
+
+  it("길이 0 trillZone(zone 1500-1500)도 노트 한 칸(16px) 높이로 1500 시각 선에 가운데를 맞춤", () => {
+    const { svg } = render([panelFor("노트: zone 1500-1500 | trill 1500\n입력: A 1500-1550")]);
+    const zone = trillZoneBox(svg, 1);
+    expect(zone.height).toBeCloseTo(16, 1);
+    expect(zone.top).toBeCloseTo(tickY(svg, 1500) - 8, 1);
+  });
+
   it("grace head는 포인트보다 먼저 pointGraceOverlay를 그리고, 길이 0 holdOnly 1500-1500은 시작 터미널 하나와 그 overlay(끝 터미널 없음)", () => {
     const { svg } = render([panelFor("노트: grace head 1000 | head 1500 | holdOnly 1500-1500\n입력: A 1000-1050 | A 1500-1600")]);
     expect(skinAssetsOf(svg, 0, "overlay")).toEqual(["pointGraceOverlay"]);
@@ -626,7 +631,7 @@ describe("renderJudgmentCaseSvg", () => {
   });
 
   it("Simple(반쪽 캡)은 바디를 늘이고 끝·시작에 terminalSingle 윗부분 절반(viewBox 0 0 100 10) 캡, Grace는 overlay 에셋 없이 흰 글로우", () => {
-    const { svg } = render([panelFor("노트: grace head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: skinFor("simple") });
+    const { svg } = render([panelFor("노트: grace head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: makeTestSkin("simple") });
     expect(skinAssetsOf(svg, 1, "body")).toEqual(["bodySingle"]);
     expect(svg).not.toContain("<pattern");
     expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 10"/);
@@ -635,9 +640,54 @@ describe("renderJudgmentCaseSvg", () => {
   });
 
   it("Crystal(반쪽 캡)은 전용 캡 endCapSingle 전체를 끝·시작 캡으로 씀", () => {
-    const { svg } = render([panelFor("노트: head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: skinFor("crystal") });
+    const { svg } = render([panelFor("노트: head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: makeTestSkin("crystal") });
     expect(skinAssetsOf(svg, 1, "end")).toEqual(["endCapSingle"]);
     expect(skinAssetsOf(svg, 1, "start")).toEqual(["endCapSingle"]);
+  });
+
+  it("Crystal·Simple의 trillLong 끝은 반쪽 캡이 아닌 terminalTrill 이미지 전체(viewBox 0 0 100 20)를 노트 한 칸 80×16에 그림", () => {
+    for (const id of ["crystal", "simple"]) {
+      const { svg } = render([panelFor("노트: trill 1000 | tlong 1000-1300 | trill 1300\n입력: A 1000-1300")], { skin: makeTestSkin(id) });
+      expect(skinAssetsOf(svg, 1, "end")).toEqual(["terminalTrill"]);
+      expect(svg).toMatch(/data-note-index="1" data-note-type="trillLong" data-note-part="end" data-skin-asset="terminalTrill"[^>]* width="80" height="16" viewBox="0 0 100 20"/);
+    }
+  });
+
+  it("doubleLong 반쪽 캡: Crystal은 전용 endCapDouble 전체, Simple은 terminalDouble 윗부분 절반(둘 다 viewBox 0 0 100 10)을 끝·시작에 씀", () => {
+    for (const [id, cap] of [["crystal", "endCapDouble"], ["simple", "terminalDouble"]]) {
+      const { svg } = render([panelFor("노트: dhead 1000 | dlong 1000-1400\n입력: A 1000-1400 | B 1000-1400")], { skin: makeTestSkin(id) });
+      for (const part of ["end", "start"]) {
+        expect(skinAssetsOf(svg, 1, part)).toEqual([cap]);
+        expect(svg).toMatch(new RegExp(`data-note-index="1" data-note-type="doubleLong" data-note-part="${part}" data-skin-asset="${cap}"[^>]*viewBox="0 0 100 10"`));
+      }
+    }
+  });
+
+  it("길이 0 long 1500-1500: Crystal·Simple은 끝·시작 반쪽 캡 두 개(높이 (20 − 5) / 2 × 0.8 = 6px), Classic은 시작 터미널 하나", () => {
+    const text = "노트: long 1500-1500\n입력: A 1500-1550";
+    for (const [id, cap] of [["crystal", "endCapSingle"], ["simple", "terminalSingle"]]) {
+      const { svg } = render([panelFor(text)], { skin: makeTestSkin(id) });
+      for (const part of ["end", "start"]) {
+        expect(skinAssetsOf(svg, 0, part)).toEqual([cap]);
+        expect(svg).toMatch(new RegExp(`data-note-index="0" data-note-type="long" data-note-part="${part}" data-skin-asset="${cap}"[^>]* height="6" viewBox`));
+      }
+    }
+    const { svg } = render([panelFor(text)]);
+    expect(skinAssetsOf(svg, 0, "end")).toEqual([]);
+    expect(skinAssetsOf(svg, 0, "start")).toEqual(["terminalSingleIdle"]);
+  });
+
+  it("holdOnly 끝 overlay: Classic trillLong은 끝 터미널 아래 terminalGraceOverlay, overlay 에셋이 없는 Crystal·Simple은 trillLong·long 모두 게임 대체 글로우", () => {
+    const text = "노트: trill 1000 | holdOnly tlong 1000-1300 | trill 1300 | L2: holdOnly 1000-1300\n입력: A 1000-1300 | L2:J 1000-1300";
+    const classic = render([panelFor(text)]).svg;
+    expect(skinAssetsOf(classic, 1, "overlay")).toEqual(["terminalGraceOverlay"]);
+    expect(partOrder(classic, 1, "overlay")).toBeLessThan(partOrder(classic, 1, "end"));
+    for (const id of ["crystal", "simple"]) {
+      const { svg } = render([panelFor(text)], { skin: makeTestSkin(id) });
+      expect(svg).toContain('data-note-index="1" data-note-type="trillLong" data-note-part="overlay" data-grace-glow="true"');
+      expect(svg).toContain('data-note-index="3" data-note-type="long" data-note-part="overlay" data-grace-glow="true"');
+      expect(partOrder(svg, 3, "overlay")).toBeLessThan(partOrder(svg, 3, "end"));
+    }
   });
 
   it("비교 모드: 패널 2개를 나란히 그리고 각 머리글에 엔진 이름을 붙임", () => {

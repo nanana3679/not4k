@@ -2,31 +2,11 @@ import { describe, expect, it } from "vitest";
 import { getSkinManifest } from "../../game/skin/skins";
 import {
   createJudgmentCaseSkin,
+  JUDGMENT_CASE_SKIN_IDS,
   judgmentCaseSkinAssetPaths,
   readPngSize,
-  type JudgmentCaseSkinImage,
 } from "./judgmentCaseSkin";
-
-/** public/skins PNG의 실제 크기(원본 픽셀) */
-function assetSize(assetPath: string): { width: number; height: number } {
-  if (assetPath.includes("grace-overlay")) return { width: 248, height: 88 };
-  if (assetPath.includes("contact-shadow-trill")) return { width: 200, height: 60 };
-  if (assetPath.includes("contact-shadow")) return { width: 200, height: 20 };
-  if (assetPath.includes("end-cap")) return { width: 100, height: 10 };
-  if (assetPath.startsWith("/skins/classic/note-single") || assetPath.startsWith("/skins/classic/note-double")) return { width: 212, height: 40 };
-  if (assetPath.startsWith("/skins/classic/")) return { width: 200, height: 40 };
-  return assetPath.includes("/body-") ? { width: 100, height: 60 } : { width: 100, height: 20 };
-}
-
-/** 실제 PNG 크기로 만든 가짜 이미지(내용은 쓰지 않는다) */
-function fakeImages(paths: Partial<Record<string, string>>): Record<string, JudgmentCaseSkinImage> {
-  return Object.fromEntries(Object.entries(paths).map(([key, assetPath]) => [key, { href: `data:image/png;base64,${key}`, ...assetSize(assetPath!) }]));
-}
-
-function skinFor(id: string) {
-  const manifest = getSkinManifest(id);
-  return createJudgmentCaseSkin(manifest, fakeImages(judgmentCaseSkinAssetPaths(manifest)));
-}
+import { fakeSkinImages, makeTestSkin, readPublicSkinAsset } from "./makeTestSkin";
 
 describe("judgmentCaseSkinAssetPaths — 판정 전(대기) 에셋만 고름", () => {
   it("Classic은 포인트 3종·대기 바디 3종·중앙광이 꺼진 대기 터미널 3종·Grace overlay 2종·접촉 그림자 2종을 고름", () => {
@@ -55,6 +35,23 @@ describe("judgmentCaseSkinAssetPaths — 판정 전(대기) 에셋만 고름", (
     }
   });
 
+  it("classic·crystal·simple이 고른 에셋 경로(single·double·trill의 포인트·바디·터미널 포함)는 모두 public/에 있는 PNG 파일", () => {
+    for (const id of JUDGMENT_CASE_SKIN_IDS) {
+      const paths = judgmentCaseSkinAssetPaths(getSkinManifest(id));
+      const keys = Object.keys(paths);
+      for (const kind of ["Single", "Double", "Trill"]) {
+        expect(keys).toContain(`note${kind}`);
+        expect(keys).toContain(`body${kind}`);
+        expect(keys.some((key) => key.startsWith(`terminal${kind}`))).toBe(true);
+      }
+      for (const assetPath of Object.values(paths)) {
+        const bytes = readPublicSkinAsset(assetPath!);
+        expect(bytes, `${id}: public${assetPath}`).toBeDefined();
+        expect(() => readPngSize(bytes!), `${id}: public${assetPath}`).not.toThrow();
+      }
+    }
+  });
+
   it("대기 터미널이 없는 Crystal(반쪽 캡)은 terminalSingle과 전용 캡 endCapSingle·endCapDouble을 고름", () => {
     const paths = judgmentCaseSkinAssetPaths(getSkinManifest("crystal"));
     expect(paths.terminalSingle).toBe("/skins/crystal/terminal-single.png");
@@ -73,7 +70,7 @@ describe("judgmentCaseSkinAssetPaths — 판정 전(대기) 에셋만 고름", (
 
 describe("createJudgmentCaseSkin — 게임 그리기 규칙에 필요한 값", () => {
   it("Classic은 전체 높이 터미널·바디 반복, Grace overlay 여백 12px, 접촉 그림자 위아래 5px", () => {
-    const skin = skinFor("classic");
+    const skin = makeTestSkin("classic");
     expect(skin.terminalMode).toBe("full-height");
     expect(skin.bodyMode).toBe("repeat");
     expect(skin.graceOverlayPaddingPx).toBe(12);
@@ -83,27 +80,27 @@ describe("createJudgmentCaseSkin — 게임 그리기 규칙에 필요한 값", 
   });
 
   it("Classic 포인트 212px·바디 200px이면 싱글·더블 바디 폭 비율 200/212, 트릴은 포인트·바디 모두 200px라 1", () => {
-    const skin = skinFor("classic");
+    const skin = makeTestSkin("classic");
     expect(skin.bodyWidthScale.single).toBeCloseTo(200 / 212);
     expect(skin.bodyWidthScale.double).toBeCloseTo(200 / 212);
     expect(skin.bodyWidthScale.trill).toBe(1);
   });
 
   it("Crystal은 반쪽 캡·바디 늘이기이고 캡은 전용 endCapSingle 이미지 전체(100×10)", () => {
-    const skin = skinFor("crystal");
+    const skin = makeTestSkin("crystal");
     expect(skin.terminalMode).toBe("split-cap");
     expect(skin.bodyMode).toBe("stretch");
     expect(skin.cap?.single).toEqual({ key: "endCapSingle", x: 0, y: 0, width: 100, height: 10 });
   });
 
   it("전용 캡이 없는 Simple은 terminalSingle(100×20) 윗부분 절반 0,0,100,10을 캡으로 자름", () => {
-    const skin = skinFor("simple");
+    const skin = makeTestSkin("simple");
     expect(skin.cap?.single).toEqual({ key: "terminalSingle", x: 0, y: 0, width: 100, height: 10 });
     expect(skin.cap?.double).toEqual({ key: "terminalDouble", x: 0, y: 0, width: 100, height: 10 });
   });
 
   it("Simple은 Grace overlay·접촉 그림자가 없어 비워 둠(렌더러가 게임 대체 글로우를 그림)", () => {
-    const skin = skinFor("simple");
+    const skin = makeTestSkin("simple");
     expect(skin.pointGraceOverlay).toBeUndefined();
     expect(skin.terminalGraceOverlay).toBeUndefined();
     expect(skin.pointContactShadow).toBeUndefined();
@@ -112,7 +109,7 @@ describe("createJudgmentCaseSkin — 게임 그리기 규칙에 필요한 값", 
 
   it("고른 에셋의 이미지가 하나라도 빠지면 그 키를 담은 에러", () => {
     const manifest = getSkinManifest("classic");
-    const images = fakeImages(judgmentCaseSkinAssetPaths(manifest));
+    const images = fakeSkinImages(judgmentCaseSkinAssetPaths(manifest));
     delete images.bodySingle;
     expect(() => createJudgmentCaseSkin(manifest, images)).toThrow(/bodySingle/);
   });

@@ -81,8 +81,14 @@ async function loadSkin(local, skinId) {
   const manifest = getSkinManifest(skinId);
   const images = {};
   for (const [key, assetPath] of Object.entries(judgmentCaseSkinAssetPaths(manifest))) {
-    const bytes = await readFile(path.join(localRoot, 'public', assetPath.replace(/^\/+/, '')));
-    images[key] = { href: `data:image/png;base64,${bytes.toString('base64')}`, ...readPngSize(bytes) };
+    const file = path.join(localRoot, 'public', assetPath.replace(/^\/+/, ''));
+    try {
+      const bytes = await readFile(file);
+      images[key] = { href: `data:image/png;base64,${bytes.toString('base64')}`, ...readPngSize(bytes) };
+    } catch (error) {
+      // readPngSize 오류에는 파일 경로가 없으므로 어느 스킨·에셋 키·파일인지 붙인다.
+      throw new Error(`스킨 "${skinId}" 에셋 ${key} (${file}): ${error instanceof Error ? error.message : error}`, { cause: error });
+    }
   }
   return createJudgmentCaseSkin(manifest, images);
 }

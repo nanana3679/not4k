@@ -38,7 +38,6 @@ export interface JudgmentCaseSkinSprite {
 }
 
 export interface JudgmentCaseSkin {
-  id: string;
   name: string;
   /** 롱노트 양 끝: 노트 한 칸 높이 터미널(full-height) 또는 바디 안쪽 반쪽 캡(split-cap) */
   terminalMode: "split-cap" | "full-height";
@@ -71,7 +70,7 @@ export interface JudgmentCaseSkin {
 const KINDS: readonly JudgmentCaseNoteKind[] = ["single", "double", "trill"];
 const SUFFIX: Record<JudgmentCaseNoteKind, "Single" | "Double" | "Trill"> = { single: "Single", double: "Double", trill: "Trill" };
 
-/** SkinManager CAP_TEXTURE_KEY와 같은 대응: 대기 터미널 키 → 전용 반쪽 캡 키 */
+/** src/game/skin/SkinManager.ts CAP_TEXTURE_KEY의 대기 터미널 몫을 따른다: 대기 터미널 키 → 전용 반쪽 캡 키 */
 const DEDICATED_CAP: Partial<Record<SkinAssetKey, SkinAssetKey>> = {
   terminalSingle: "endCapSingle",
   terminalDouble: "endCapDouble",
@@ -114,7 +113,7 @@ function planSkin(manifest: SkinManifest): SkinPlan {
     ...(terminalMode(theme) === "split-cap" ? { cap: { single: capFor("single"), double: capFor("double") } } : {}),
     ...(has("pointGraceOverlay") ? { pointGraceOverlay: "pointGraceOverlay" as const } : {}),
     ...(has("terminalGraceOverlay") ? { terminalGraceOverlay: "terminalGraceOverlay" as const } : {}),
-    // 게임과 같이 테마 pointContactShadow와 에셋이 함께 있을 때만 접촉 그림자를 그린다.
+    // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 테마 pointContactShadow와 에셋이 함께 있을 때만 접촉 그림자.
     ...(theme.pointContactShadow && has("pointContactShadow") ? { contactShadow: "pointContactShadow" as const } : {}),
     ...(theme.pointContactShadow && has("pointContactShadowTrill") ? { contactShadowTrill: "pointContactShadowTrill" as const } : {}),
   };
@@ -162,7 +161,6 @@ export function createJudgmentCaseSkin(
   })) as Record<JudgmentCaseNoteKind, number>;
 
   return {
-    id: theme.id,
     name: theme.name,
     terminalMode: terminalMode(theme),
     bodyMode: theme.longNoteBodyMode === "repeat" ? "repeat" : "stretch",
