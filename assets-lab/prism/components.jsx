@@ -265,20 +265,6 @@ export function TerminalCap({ x, y, type = "single", coreSize = 7, coreGap = 26,
   );
 }
 
-// --- PRISM LongNote ---
-export function LongNote({ x, y, bodyH = 80, type = "single", held = false, coreSize, coreGap = 26, dimLeft = false, dimRight = false, wireThickness, lineThickness, glowIntensity }) {
-  return (
-    <g>
-      <BodySegment x={x} y={y + CH} height={bodyH} type={type} held={held}
-        coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} glowIntensity={glowIntensity} />
-      <TerminalCap x={x} y={y} type={type} coreSize={coreSize}
-        coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} />
-      <NoteContainer x={x} y={y + CH + bodyH} type={type} coreSize={coreSize}
-        coreGap={coreGap} dimLeft={dimLeft} dimRight={dimRight} />
-    </g>
-  );
-}
-
 // --- PRISM ButtonExport ---
 export function ButtonExport({ cx, cy, pressed }) {
   // Rounded hexagon path helper
