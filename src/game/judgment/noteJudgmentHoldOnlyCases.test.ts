@@ -763,8 +763,8 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     expect(r.unsettled).toEqual([]);
   });
 
-  // 결정 ③과 위 결정에서 도출: 충족하지 못한 가운데 바디는 E 1560이 지나도 S+Good 1620까지 새 down으로 시작하므로, 그 창 안의 down은 끝 head의 창 안이어도 가운데 바디에 간다.
-  it.each([1600, 1620])("NJ-A07 ④ 충족 못 함 도출: 같은 차트에서 A up 1430 뒤 가운데 E 1560 이후 S+Good 1620까지인 %ims에 누른 D도 가운데 바디를 시작해 head 1560은 1680ms Miss, D up 1760은 끝 release Perfect로 Miss 1", (dAt) => {
+  // 사용자 확정(2026-10-03): 충족하지 못한 가운데 바디는 E 1560이 지나도 S+Good 1620까지 새 down으로 시작하므로(결정 ③), 그 창 안의 down은 끝 head의 창 안이어도 가운데 바디에 간다. head 없는 바디도 시작에 키 down 하나를 쓰는 노트다.
+  it.each([1600, 1620])("NJ-A07 ④ 충족 못 함: 같은 차트에서 A up 1430 뒤 가운데 E 1560 이후 S+Good 1620까지인 %ims에 누른 D도 가운데 바디를 시작해 head 1560은 1680ms Miss, D up 1760은 끝 release Perfect로 Miss 1", (dAt) => {
     const r = playSession(headedTail(), [[1000, down("A")], [1430, up("A")], [dAt, down("D")], [1760, up("D")]]);
     expect(outcome(r.events)).toEqual([
       ["holdOnly", 0, 0, "perfect", 0, 1430, 1430],
@@ -774,6 +774,8 @@ describe("NJ-A07: 이어지는 바디는 E−Good까지만 유지하고 뗀 키�
     expect(middleBody(r)).toMatchObject({ failed: false, registeredKeys: ["D"] });
     expect(r.unsettled).toEqual([]);
   });
+
+  it.todo("NJ-A07 ④ 충족 못 함 레가토(#205): 같은 차트에서 A up 1430 → D down 1490 → E down 1550(head Perfect −10) → D up 1555(경계 전) → E up 1760이면 D가 시작한 가운데 바디를 E의 head가 교대로 이어 Full Combo여야 하나, 현재 head 뒤 바디가 1555ms에 시작 전 유지 실패하고 가운데 바디도 1680ms에 실패해 Miss 2");
 
   // PR #188 리뷰 3차 HIGH-2: 위와 순서만 바꿔 head를 먼저 치고 A를 나중에 떼도(레가토 교대: 누르고 떼기) 같은 결과다.
   // head가 이미 성공했으면 A up은 곧바로 그 head의 교대 up으로 쓰이므로, S까지 미룬 [1500,1560]의 승계가 먼저 그 up을 이어받는다.
