@@ -57,9 +57,9 @@ Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상�
 - `bright-body.mjs`는 선택 타일에 대기·홀드·부분충족·실패 표시를 적용한다. `states.mjs`는 각 상태의 바디와 시작·끝 터미널을 동일하게 출력한다. 모든 색면과 상태 효과는 세로로 일정해 상하 반복된다.
 - `pnpm build:classic`: SVG 시연 자료는 `public/lab/note-assets/classic/`, 런타임 PNG와16프레임 실버 봄·버튼은 `public/skins/classic/`에 생성한다. 같은 시안의 디자인을 수정할 때는 소스를 바꾼 뒤 이 명령만 실행하면 Lab과 인게임에 함께 반영된다. 런타임 PNG는 저장소에 보관하므로 일반 `pnpm build`에 별도 에셋 생성 단계는 필요하지 않다.
 - `src/lab/classicSkinVersions.ts`는 보관 버전의 스킨 매니페스트를 고정해 등록한다. `scripts/classicVersionPreviews.ts`는 보관본 해시를 검증한 뒤 PNG·Lab SVG·기어 이미지만 `/lab/skin-versions/classic/<version>/`에 제공한다. 개발 서버와 공개 Lab이 같은 주소 구조를 사용하며 원본·생성 코드는 내보내지 않는다. 일반 게임 빌드에는 이전 버전 이미지를 포함하지 않는다. 저장·검증·복원 명령은 [Classic 버전 보관 가이드](../../assets-lab/classic/versions/README.md)를 따른다.
-- `CLASSIC_SOURCE_NAMES`에 석영 `point-trill`, `body-trill`, `terminal-end-trill`과 바디·끝 터미널의 `-on`·`-failed` 원본까지7개를 포함한다. 이 원본을 재구성하려면 먼저 `node scripts/build-trill-quartz.mjs`를 실행한다. Classic 빌드는 저장된 SVG 원본을 읽어 트릴8개 런타임 상태 키에 연결하며, 싱글 대체 텍스처를 사용하지 않는다.
+- `CLASSIC_SOURCE_NAMES`에 석영 `point-trill`, `body-trill`, `terminal-end-trill`과 바디·끝 터미널의 `-on`·`-failed` 원본까지7개를 포함한다. 이 원본을 재구성하려면 먼저 `node scripts/build-trill-quartz.ts`를 실행한다. Classic 빌드는 저장된 SVG 원본을 읽어 트릴8개 런타임 상태 키에 연결하며, 싱글 대체 텍스처를 사용하지 않는다.
 - `/assets-lab/classic/terminal-preview.html`은 현재 선택 타일의 싱글·더블 시작/끝 조립, 100px 실제 크기, 길이 0과 PNG가 내장된 독립 SVG 4개 다운로드를 제공한다. 이전 벡터 터미널 제작 이력은 `assets-lab/classic/README.md`를 따른다.
-- `node scripts/build-skins.mjs --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
+- `node scripts/build-skins.ts --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
 - Simple은 켜짐 효과가 없는 스킨이다(테마 `heldEffect: false`, [RFD 0028](../rfd/0028-skin-held-effect.md)). `assets-lab/simple/components.jsx`의 `HELD_EFFECT = false`에 따라 `assets-lab/export.jsx`가 켜짐 요소를 그리지 않으므로 켜짐 PNG를 만들지 않는다. 유지 중에도 대기 바디·터미널을 그리고, 더블 부분 실패와 실패는 표시한다. 시연실 랙에는 켜짐·중앙광 항목이 없다. 두 선언이 어긋나면 `assets-lab/svgSkinHeldEffect.test.ts`가 실패한다.
 - Simple 트릴 끝 터미널은 에디터와 같은 납작한 회색 마름모(`#888888`, 실패 `#555555`, 불투명도 70%)다. 싱글·더블 롱노트는 반쪽 캡 스킨에서 터미널 윗부분 절반만 그리지만, 트릴 롱 끝은 스킨 방식과 관계없이 터미널 이미지 전체(100×20)를 그리므로 마름모 전체가 보인다.
 - 포인트의 사선 반사는 포함하지 않는다. 현재 승인된 부드러운 유광과 윗면 모서리 반사를 유지한다.

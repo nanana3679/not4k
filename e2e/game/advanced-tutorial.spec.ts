@@ -155,7 +155,7 @@ test.describe('Tutorial level tabs', () => {
     await expect(active.locator('[data-tutorial-binding-notice]')).toContainText('Q W S X');
     const previewCanvas = active.locator('[data-tutorial-preview-canvas="true"]');
     await expect(previewCanvas).toBeVisible();
-    await expect.poll(() => previewCanvas.evaluate(canvas => canvas.width > 0 && canvas.height > 0)).toBe(true);
+    await expect.poll(() => previewCanvas.evaluate((canvas: HTMLCanvasElement) => canvas.width > 0 && canvas.height > 0)).toBe(true);
     // Step animation frames through the short middle taps even on slow software WebGL.
     await page.clock.runFor(3200);
     await expect.poll(() => page.evaluate(() => {

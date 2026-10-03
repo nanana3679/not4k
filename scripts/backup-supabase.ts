@@ -28,8 +28,13 @@ const TABLES = ["songs", "charts"];
 const STORAGE_ROOTS = ["songs", "tutorials"];
 const CHARTS_ONLY = process.argv.includes("--charts-only");
 
-async function loadEnv() {
-  const env = {};
+interface SupabaseConfig {
+  url: string;
+  key: string;
+}
+
+async function loadEnv(): Promise<SupabaseConfig> {
+  const env: Record<string, string> = {};
   try {
     const raw = await readFile(path.join(ROOT, ".env.local"), "utf8");
     for (const line of raw.split("\n")) {
@@ -50,7 +55,7 @@ async function loadEnv() {
 const PAGE = 1000;
 
 // PostgREST는 기본 1000행 상한이 있어 Range 헤더로 전 페이지를 순회한다.
-async function dumpTable(cfg, table, outDir) {
+async function dumpTable(cfg: SupabaseConfig, table: string, outDir: string) {
   const rows = [];
   for (let from = 0; ; from += PAGE) {
     const res = await fetch(`${cfg.url}/rest/v1/${table}?select=*&order=id`, {
@@ -65,7 +70,7 @@ async function dumpTable(cfg, table, outDir) {
   return rows.length;
 }
 
-async function listStorage(cfg, prefix) {
+async function listStorage(cfg: SupabaseConfig, prefix: string) {
   const entries = [];
   for (let offset = 0; ; offset += PAGE) {
     const res = await fetch(`${cfg.url}/storage/v1/object/list/${BUCKET}`, {
@@ -82,7 +87,7 @@ async function listStorage(cfg, prefix) {
 }
 
 /** 폴더(id=null 엔트리)는 재귀 진입, 파일은 경로 수집 */
-async function collectFilePaths(cfg, prefix) {
+async function collectFilePaths(cfg: SupabaseConfig, prefix: string): Promise<string[]> {
   const entries = await listStorage(cfg, prefix);
   const files = [];
   for (const entry of entries) {
@@ -96,7 +101,7 @@ async function collectFilePaths(cfg, prefix) {
   return files;
 }
 
-async function downloadFile(cfg, storagePath, outDir) {
+async function downloadFile(cfg: SupabaseConfig, storagePath: string, outDir: string) {
   const storageRoot = path.join(outDir, "storage");
   const dest = path.resolve(storageRoot, storagePath);
   if (!dest.startsWith(storageRoot + path.sep)) {

@@ -6,7 +6,7 @@
 
 ## 빌드 입력과 상태
 
-현재 선택은 `v014`다. 이전 Classic은 `v001`, 고채도 포인트·아주 밝은 바디는 `v002`, 트릴 접촉 그림자가 없는 후보는 `v012`, 트릴 켜짐 바디가 이전 석영인 버전은 `v013`으로 [버전 보관 폴더](./versions/README.md)에 저장한다. 그 사이의 탐색 후보 v003~v011은 보관 폴더의 탐색 기록에 요약했다. 각 버전은 전체 런타임 PNG·Lab SVG·원본·생성 코드·설정과 파일 해시를 포함한다. 이후 확정본은 `node scripts/classic-versions.mjs save v015 "설명"`처럼 새 번호로 보관한다.
+현재 선택은 `v014`다. 이전 Classic은 `v001`, 고채도 포인트·아주 밝은 바디는 `v002`, 트릴 접촉 그림자가 없는 후보는 `v012`, 트릴 켜짐 바디가 이전 석영인 버전은 `v013`으로 [버전 보관 폴더](./versions/README.md)에 저장한다. 그 사이의 탐색 후보 v003~v011은 보관 폴더의 탐색 기록에 요약했다. 각 버전은 전체 런타임 PNG·Lab SVG·원본·생성 코드·설정과 파일 해시를 포함한다. 이후 확정본은 `node scripts/classic-versions.ts save v015 "설명"`처럼 새 번호로 보관한다.
 
 - `sources/point-{single,double}.svg`: 싱글 푸른 흰색·더블 크림색 흰색 중앙 면의 흰빛 포인트 원본. 흰 레일 안쪽 검은 세로띠와 바깥 외곽선은 없다. 1060×200 SVG를 212×40 PNG로 내보내 화면에서는 전체를 100×20으로 표시해 레인 폭을 기준으로 맞춘다. 가운데 접합부의 바디·터미널은 약94.34px 폭으로 중앙 정렬한다.
 - `sources/body-{single,double}-bright.svg`: imagegen 세로 트렌치 1000×200 타일을 내장한 SVG. 대기 상태는 타일 픽셀을 그대로 사용한다. 가로선 위주 무늬는 포인트와 겹쳐 보여 쓰지 않는다.
@@ -33,4 +33,4 @@ Penpot 확정본과 이전 V 형태는 `revisions/penpot-approved/`, `revisions/
 
 바디와 끝 터미널에는 켜짐(`-on`)·실패(`-failed`) 원본을 각각 추가해 SVG7개를 관리한다. 켜짐은 넓은 내부 흰빛, 실패는 어두운 무채색 재질이다. 각 상태의 바디·끝 터미널은 같은 표면을 공유한다.
 
-`node scripts/build-trill-quartz.mjs`로 SVG7개와 상태별 조립 SVG·ZIP을 생성한다. 이어 `pnpm build:classic`을 실행하면 저장된 석영 원본을200×40 PNG로 내보내 Lab Classic의 트릴 텍스처8개에 연결한다. `/lab/note-assets?design=classic`의 `트릴`·`트릴 롱` 차트와 에셋 랙에서 확인한다. 세부는 [미리보기 스펙](../../docs/spec/trill-quartz-svg-preview.md)을 따른다.
+`node scripts/build-trill-quartz.ts`로 SVG7개와 상태별 조립 SVG·ZIP을 생성한다. 이어 `pnpm build:classic`을 실행하면 저장된 석영 원본을200×40 PNG로 내보내 Lab Classic의 트릴 텍스처8개에 연결한다. `/lab/note-assets?design=classic`의 `트릴`·`트릴 롱` 차트와 에셋 랙에서 확인한다. 세부는 [미리보기 스펙](../../docs/spec/trill-quartz-svg-preview.md)을 따른다.

@@ -200,7 +200,7 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 ### 기어 라이트 조정 랩
 
-`/lab/gear-light`는 `gear.png`와 생성 기어 샘플의 양쪽 기둥 발광을 별도 레이어로 분리해 높이와 세기를 조정하는 테스트 페이지이다. `scripts/split-gear-light-layer.mjs`가 원본을 `gear-source.png`, 발광이 약해진 base 레이어를 `gear-base.png`, 발광 전용 레이어를 `gear-glow.png`로 출력한다. 게이지가 있는 새 샘플은 `scripts/generate-gear-gauge-samples.mjs`가 `gear-gauge.png`를 추가로 출력하며, metadata의 `gaugeBoxes`로 하단 기준 채움 높이를 조정한다. 루트 원본은 `public/lab/gear-light/`에, 생성 샘플은 `public/lab/gear-samples/option-XX/`에 저장한다.
+`/lab/gear-light`는 `gear.png`와 생성 기어 샘플의 양쪽 기둥 발광을 별도 레이어로 분리해 높이와 세기를 조정하는 테스트 페이지이다. `scripts/split-gear-light-layer.ts`가 원본을 `gear-source.png`, 발광이 약해진 base 레이어를 `gear-base.png`, 발광 전용 레이어를 `gear-glow.png`로 출력한다. 게이지가 있는 새 샘플은 `scripts/generate-gear-gauge-samples.mjs`가 `gear-gauge.png`를 추가로 출력하며, metadata의 `gaugeBoxes`로 하단 기준 채움 높이를 조정한다. 루트 원본은 `public/lab/gear-light/`에, 생성 샘플은 `public/lab/gear-samples/option-XX/`에 저장한다.
 
 테스트 페이지는 선택된 샘플의 metadata를 읽고 base 레이어 위에 glow 레이어를 좌·우 기둥 bbox로 clipping해서 다시 얹는다. 높이는 bbox 하단 기준으로 위쪽을 잘라 조정하고, 세기는 glow 레이어의 opacity, brightness, drop-shadow로 조정한다. `gear-gauge.png`가 있는 샘플은 게이지 레이어만 따로 보거나, adjusted 모드에서 `gaugeBoxes`를 기준으로 고도 채움 높이를 preview할 수 있다.
 

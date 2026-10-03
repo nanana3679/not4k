@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const args = process.argv.slice(2);
-const getArg = (name, fallback) => {
+const getArg = (name: string, fallback: string) => {
   const index = args.indexOf(name);
   return index === -1 ? fallback : args[index + 1] ?? fallback;
 };
@@ -34,8 +34,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 
 const result = await page.evaluate(async ({ dataUrl, sourceName }) => {
-  const clamp01 = (value) => Math.min(1, Math.max(0, value));
-  const clamp255 = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+  const clamp255 = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
   const image = new Image();
   image.src = dataUrl;
@@ -46,7 +46,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName }) => {
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = width;
   sourceCanvas.height = height;
-  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true })!;
   sourceCtx.drawImage(image, 0, 0);
 
   const source = sourceCtx.getImageData(0, 0, width, height);
@@ -61,7 +61,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName }) => {
   let glowPixels = 0;
   let alphaTotal = 0;
 
-  const markBox = (side, x, y) => {
+  const markBox = (side: "left" | "right", x: number, y: number) => {
     const box = boxes[side];
     box.minX = Math.min(box.minX, x);
     box.minY = Math.min(box.minY, y);
@@ -114,7 +114,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName }) => {
     }
   }
 
-  const serializeBox = (box, fallback) => {
+  const serializeBox = (box: typeof boxes.left, fallback: { x: number; y: number; width: number; height: number }) => {
     if (box.count === 0) return fallback;
     const padX = Math.round(width * 0.018);
     const padY = Math.round(height * 0.012);
@@ -133,12 +133,12 @@ const result = await page.evaluate(async ({ dataUrl, sourceName }) => {
   const baseCanvas = document.createElement("canvas");
   baseCanvas.width = width;
   baseCanvas.height = height;
-  baseCanvas.getContext("2d").putImageData(base, 0, 0);
+  baseCanvas.getContext("2d")!.putImageData(base, 0, 0);
 
   const glowCanvas = document.createElement("canvas");
   glowCanvas.width = width;
   glowCanvas.height = height;
-  glowCanvas.getContext("2d").putImageData(glow, 0, 0);
+  glowCanvas.getContext("2d")!.putImageData(glow, 0, 0);
 
   return {
     width,

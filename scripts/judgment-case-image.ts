@@ -11,12 +11,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { createServer } from 'vite';
+import type { ViteDevServer } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const localRoot = path.resolve(__dirname, '..');
 // pnpm은 스크립트를 패키지 루트에서 돌리고 명령을 친 디렉터리를 INIT_CWD로 넘긴다. 상대 경로는 그 디렉터리 기준이다.
 const invokedFrom = process.env.INIT_CWD ?? process.cwd();
-const resolveArg = (target) => path.resolve(invokedFrom, target);
+const resolveArg = (target: string) => path.resolve(invokedFrom, target);
 const BACKGROUND = '#11121b';
 /** PNG 폭이 대략 이 값이 되도록 deviceScaleFactor를 1~2 사이에서 고른다(휴대폰에서 읽히는 글자 크기). */
 const TARGET_PNG_WIDTH = 1200;
@@ -27,9 +28,15 @@ const ENGINE_MODULES = {
   validateChart: '/src/shared/validation/index.ts',
 };
 
-const servers = new Map();
+const servers = new Map<string, ViteDevServer>();
 
-async function moduleServer(root) {
+interface LoadedEngine {
+  root: string;
+  api: Record<string, unknown>;
+  label: string;
+}
+
+async function moduleServer(root: string) {
   if (!servers.has(root)) {
     servers.set(root, await createServer({
       root,
@@ -42,10 +49,10 @@ async function moduleServer(root) {
       optimizeDeps: { noDiscovery: true, include: [] },
     }));
   }
-  return servers.get(root);
+  return servers.get(root)!;
 }
 
-function git(root, args) {
+function git(root: string, args: string[]) {
   try {
     return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch {
@@ -53,19 +60,19 @@ function git(root, args) {
   }
 }
 
-function engineLabel(root) {
+function engineLabel(root: string) {
   const branch = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']) || '?';
   const sha = git(root, ['rev-parse', '--short', 'HEAD']) || '?';
   const dirty = git(root, ['status', '--porcelain', '--', 'src/game/judgment', 'src/shared']) !== '';
   return `${path.basename(root)} · ${branch} @${sha}${dirty ? ' (+커밋 안 된 수정)' : ''}`;
 }
 
-async function loadEngine(root) {
+async function loadEngine(root: string): Promise<LoadedEngine> {
   for (const modulePath of Object.values(ENGINE_MODULES)) {
     if (!existsSync(path.join(root, modulePath))) throw new Error(`엔진 모듈이 없습니다: ${path.join(root, modulePath)}`);
   }
   const server = await moduleServer(root);
-  const api = {};
+  const api: Record<string, unknown> = {};
   for (const [name, modulePath] of Object.entries(ENGINE_MODULES)) {
     const loaded = await server.ssrLoadModule(modulePath);
     if (!loaded[name]) throw new Error(`${root}${modulePath}에 ${name} export가 없습니다`);
@@ -75,13 +82,13 @@ async function loadEngine(root) {
 }
 
 /** --skin 매니페스트에서 판정 전(대기) 에셋 경로를 골라 public/ 아래 PNG를 data URI로 읽는다 */
-async function loadSkin(local, skinId) {
+async function loadSkin(local: ViteDevServer, skinId: string) {
   const { getSkinManifest } = await local.ssrLoadModule('/src/game/skin/skins.ts');
   const { judgmentCaseSkinAssetPaths, createJudgmentCaseSkin, readPngSize } = await local.ssrLoadModule('/src/lab/judgmentCase/judgmentCaseSkin.ts');
   const manifest = getSkinManifest(skinId);
-  const images = {};
+  const images: Record<string, unknown> = {};
   for (const [key, assetPath] of Object.entries(judgmentCaseSkinAssetPaths(manifest))) {
-    const file = path.join(localRoot, 'public', assetPath.replace(/^\/+/, ''));
+    const file = path.join(localRoot, 'public', (assetPath as string).replace(/^\/+/, ''));
     try {
       const bytes = await readFile(file);
       images[key] = { href: `data:image/png;base64,${bytes.toString('base64')}`, ...readPngSize(bytes) };
@@ -99,7 +106,7 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function screenshot(svg, width, height, out) {
+async function screenshot(svg: string, width: number, height: number, out: string) {
   const deviceScaleFactor = Math.min(2, Math.max(1, TARGET_PNG_WIDTH / width));
   const browser = await chromium.launch();
   try {
@@ -114,7 +121,9 @@ async function screenshot(svg, width, height, out) {
   }
 }
 
-function summary(panel) {
+// 사례와 실행 결과는 ssrLoadModule로 불러온 모듈이 만들어 타입 정보가 없다(Vite가 모듈을 Record<string, any>로 돌려준다).
+// src 타입을 import하면 scripts/ 검사(tsconfig.scripts.json)가 지울 수 없는 문법을 쓰는 src 모듈까지 읽으므로 필요한 모양만 적는다.
+function summary(panel: { judgmentCase: { title: string }; run: any; engineLabel: string }) {
   const { run } = panel;
   const counts = `Perfect ${run.counts.perfect} · Great ${run.counts.great} · Good ${run.counts.good}${run.counts.goodTrill ? ` · Good◇ ${run.counts.goodTrill}` : ''} · Miss ${run.counts.miss}`;
   const extras = [
@@ -134,7 +143,7 @@ async function main() {
   try {
     options = cli.parseJudgmentCaseCliArgs(process.argv.slice(2));
   } catch (error) {
-    console.error(error.message);
+    console.error((error as Error).message);
     process.exitCode = 2;
     return;
   }
@@ -149,7 +158,7 @@ async function main() {
   const skin = await loadSkin(local, options.skin);
 
   const engineRoots = options.engines.length > 0 ? options.engines.map(resolveArg) : [localRoot];
-  const engines = [];
+  const engines: LoadedEngine[] = [];
   for (const root of engineRoots) engines.push(await loadEngine(root));
 
   const cases = [];
