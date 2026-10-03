@@ -174,18 +174,21 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 | C down 1321(S+Good 뒤) → C up 1330 | 뒤 바디는 1320에 시작 실패. Miss 1 | 같음 |
 | 앞이 double `[1000,1200]`, A·B down 1000 → B up 1100(감소 release Good −100) → A up 1150 → C down 1310 → C up 1330 | C가 뒤 바디를 시작해 release Perfect(+30). Full Combo | C down 시각에 Perfect. Full Combo |
 
-**뒤 바디 끝의 head(결정 ④).** 차트: head 없는 `holdOnly [1000,1500]` → `[1500,1560]` → head 1560 + `[1560,1760]`. A down 1000 → A up 1450(가운데 E−Good 1440 이후). 뗀 키의 up이 가운데 바디를 충족하면, 그 바디 끝의 연결 head를 친 새 down은 결정 ②의 인수가 아니라 head의 입력이다. 옛 키를 떼고 새 키로 연결 head를 치는 교대(RFD 0020 §2.6·§2.12)이며, head가 성공하면 가운데 바디는 A up으로 이어진 것이다. 사용자 답: “가”. A up이 가운데 바디를 충족하지 못해도(예: 1430) 엔진은 그 head를 친 새 down을 head에 준다. 이 경우는 아래 도출 대조 표의 첫 행이다.
+**뒤 바디 끝의 head(결정 ④).** 차트: head 없는 `holdOnly [1000,1500]` → `[1500,1560]` → head 1560 + `[1560,1760]`. A down 1000 → A up 1450(가운데 E−Good 1440 이후). 뗀 키의 up이 가운데 바디를 충족하면, 그 바디 끝의 연결 head를 친 새 down은 결정 ②의 인수가 아니라 head의 입력이다. 옛 키를 떼고 새 키로 연결 head를 치는 교대(RFD 0020 §2.6·§2.12)이며, head가 성공하면 가운데 바디는 A up으로 이어진 것이다. 사용자 답: “가”. A up이 가운데 바디를 충족하지 못하면(예: 1430) A up은 앞 `holdOnly`만 끝내고 가운데 바디는 결정 ③대로 S+Good 1620까지 열려 있으므로, 그 head를 노린 새 down도 가운데 바디를 시작하고 head에는 따로 입력이 필요하다. 새 down은 아직 끝나지 않은 가장 이른 노트에 간다. 사용자 결정(2026-10-03, (나)) 원문: “A up하면 n1은 처리가 끝났고 그럼 d가 그다음 노트인 n2를 받는거 아니야?”, “원래 a를 1560까지 누르고있어야 하는데 일찍떼서 한번 덜누른게 맞음 a를 일찍떼고 퍼펙트 하려면 d 이후에 한번더 눌러야함”.
 
 | 입력 | 기대 결과 |
 |---|---|
-| D down 1490(head Great −70) → D up 1760 | A up이 head 1560의 교대 up으로 `[1500,1560]`을 잇고 D가 `[1560,1760]`을 이어 release Perfect. Full Combo. D down 1500·1510, 첫 시작 1030도 같다 |
+| A up 1450 → D down 1490(head Great −70) → D up 1760 | A up이 head 1560의 교대 up으로 `[1500,1560]`을 잇고 D가 `[1560,1760]`을 이어 release Perfect. Full Combo. D down 1500·1510, 첫 시작 1030도 같다 |
 | D down 1470(head Good −90) → A up 1475 → D up 1760(head를 먼저 치고 A를 나중에 뗌) | 같다. Full Combo. D down 1445 → A up 1450, D down 1480 → A up 1495, 가운데가 `[1500,1600]`이고 head 1600을 D down 1485 → A up 1490으로 친 경우도 같다 |
+| A up 1430(가운데 E−Good 1440 전) → D down 1490을 1760까지 쥠 | D가 가운데 `[1500,1560]`을 시작하고 head 1560은 1680에 Miss. D가 `[1560,1760]`을 이어 D up 1760이 release Perfect. Miss 1, 달성률 66.7%. D down 1510, 첫 시작 1030도 같다. 종전 엔진은 D를 head에 줘 head Great(−70)·가운데 1620 시작 실패로 88.9%였다 |
+| A up 1430 → D down 1490 뒤 head를 한 번 더 누름: E down 1560(D up 1550, E와 같은 1560, 경계 뒤 1600), 같은 키 D up 1550 → D down 1560, 또는 D up 1575 → D down 1580 → 끝 키 up 1760 | 새 down이 head Perfect(1580이면 +20)이고 D의 up은 그 head의 교대 up으로 가운데 바디를 잇는다. 끝 release Perfect. Full Combo, 달성률 100% |
 
 아래는 **규칙에서 도출한 대조**다.
 
 | 차트·입력 | 기대 결과 |
 |---|---|
-| 결정 ④ 차트에서 A up 1430(가운데 E−Good 1440 전) → D down 1490 → D up 1760 | D는 head Great(−70)이고 가운데 `[1500,1560]`은 1620에 시작 실패(Miss 1), D가 `[1560,1760]`을 이어 release Perfect. D를 가운데 바디에 주는 해석(결정 ③의 시작)이면 head가 1680에 Miss라 Miss가 생기는 노트만 다르고 Miss 수는 같다 |
+| 결정 ④ 차트에서 A up 1430 → D down 1600 또는 1620(가운데 E 1560 이후, S+Good 1620까지) → D up 1760 | 결정 ③대로 D가 가운데 바디를 시작하고 head 1560은 1680에 Miss, D up 1760은 끝 release Perfect. Miss 1 |
+| 결정 ④ 차트에서 A up(raw 1430)을 가운데 S 이후 1502에 늦게 관측 → D down 1510, 또는 A up 1430 → D down(raw 1490)을 1505에 관측 → D up 1760 | raw 시각으로 판단해 raw 처리와 같다. D가 가운데 바디를 시작하고 head 1560은 1680에 Miss, 끝 release Perfect |
 | 감소 차트에서 B up 1100(감소 release Good −100) → A up 1120(뒤 E−Good 1140 전), 새 키 없음 | 앞 바디 Miss 없이 뒤 바디만 1320에 시작 실패(뒤가 `holdOnly`든 일반이든). D down 1180을 더하면 D가 이어가 `holdOnly`는 1260에 Perfect |
 | 감소 차트에서 B up 1160 → A up 1170 → D down 1250(뒤 S 이후, 인수 기한 1260 전) | D가 이어간다. `holdOnly`는 1260에 Perfect, 일반은 D up 1310이 release Great(+50) |
 | 위와 같고 D down 1300(뒤 E 1260 이후, S+Good 전) | 인수 기한 뒤라 D는 뒤 바디를 이어받지 않는다(결정 ②). `holdOnly`는 A로 1320에 Perfect, 일반은 A up의 release Good(−90)을 1320에 확정하며 D up 1310은 쓰지 않음. 이전 대조(D가 이어가 `holdOnly` 1300 Perfect, 일반 Great +50)를 정정 |

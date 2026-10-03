@@ -334,8 +334,11 @@ export class NoteJudgmentCore {
     // E deadline holds only when the released up can satisfy the share (at or
     // after its E−Good); a share it cannot satisfy is open until S+Good like
     // any unstarted body (user decision ③, 2026-10-01). The head at a share's
-    // own end is not skipped: it continues the share through the released up
-    // (§2.6), so it keeps the down (user decision ④, 2026-10-01).
+    // own end is not skipped when the released up satisfies the share: it
+    // continues the share through that up (§2.6), so it keeps the down (user
+    // decision ④, 2026-10-01). A share the released up cannot satisfy is not
+    // finished yet, so the down starts it before that head (user decision
+    // 2026-10-03).
     const startable = (u: UnitState) => (!u.active || this.releasedPreparation(u)) && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end);
     const keyFree = (u: UnitState) => !this.units.some(other => other.noteIndex === u.noteIndex && !(other === u && u.active) && this.registersKey(other, key));
     const inStartWindow = (u: UnitState) => (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD;
@@ -343,7 +346,7 @@ export class NoteJudgmentCore {
     const startCandidates = this.units
       .filter(u => startable(u) && keyFree(u) && inStartWindow(u) && (u.active || this.canStart(u)) && !pastTakeoverDeadline(u))
       .sort((a, b) => a.start - b.start || Number(this.preparedShare(a)) - Number(this.preparedShare(b)));
-    const takesOverBeforePoint = (u: UnitState) => this.releasedShare(u) && !(point && point.lane === u.lane && point.at === u.end);
+    const takesOverBeforePoint = (u: UnitState) => this.releasedShare(u) && !(point && point.lane === u.lane && point.at === u.end && this.releasedUpSatisfies(u));
     const startCandidate = pointCandidate ? startCandidates.find(u => !this.startsContinuingShare(u) || takesOverBeforePoint(u)) : startCandidates[0];
     const preparedSuccessor = startCandidate && pointCandidate && this.units.some(predecessor =>
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
@@ -714,6 +717,24 @@ export class NoteJudgmentCore {
     const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
       (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
     return predecessor !== undefined && u.unitIndex >= this.heldPreparations(predecessor) && u.unitIndex < this.continuingCapacity(predecessor, u);
+  }
+  /**
+   * The released up continuing u's share satisfies it: the up is at or after
+   * u's E−Good (§2.14 short body rule), the same test as the decision ② E
+   * deadline. Before S the share is not chosen yet, so u counts as satisfied
+   * while held keys and such released ups still prepare up to its unit; like
+   * pickShare, an up another note's released share takes as its own release
+   * satisfies nothing here.
+   */
+  private releasedUpSatisfies(u: UnitState): boolean {
+    const satisfies = (token: PressToken) => token.upAt !== undefined && token.upAt >= u.end - this.windows.GOOD;
+    if (u.active) return u.share !== undefined && satisfies(u.share);
+    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
+      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
+    if (!predecessor) return false;
+    const satisfying = this.pressPool(predecessor).filter(token => satisfies(token) && this.prepares(token, u) &&
+      !this.units.some(v => v.noteIndex !== u.noteIndex && v.share === token && !v.holdOnly && this.judgesReleasedShare(v))).length;
+    return u.unitIndex < this.heldPreparations(predecessor) + satisfying;
   }
   /**
    * A new down starts u. Over a released preparation the new key takes that

@@ -17,6 +17,8 @@ const SEEDS = 3000;
 const SWAP_SEEDS = 3000;
 const SHORT_SEEDS = 1500;
 const OBSERVED_SEEDS = 1500;
+/** 짧은·중간 바디 생성기의 seed 수. PR #188 3차 수정(cafaa68)의 지연 승계 회귀(4차 리뷰 HIGH-1)가 seed 6202에서 드러난다. */
+const SHORT_MID_SEEDS = 6500;
 const START = 1000;
 const LATE_FIRST_HEAD = 30;
 const KEYS = ["A", "B", "C", "D"] as const;
@@ -24,6 +26,8 @@ const KEYS = ["A", "B", "C", "D"] as const;
 const GENERAL_LENGTHS = [60, 100, 200, 500, 1000] as const;
 /** 짧은 바디 생성기의 구간 길이(ms). 뒤 바디의 E−Good이 S보다 앞서는 짧은 체인(RFD 0020 §2.14)을 자주 만든다. */
 const SHORT_LENGTHS = [20, 40, 60, 100, 200] as const;
+/** 짧은·중간 바디 생성기의 구간 길이(ms). 짧은 바디 생성기에 80·120을 더해 뒤 E−Good이 경계 근처에 오는 체인을 늘린다. */
+const SHORT_MID_LENGTHS = [20, 40, 60, 80, 100, 120, 200] as const;
 /** 관측 지연 변형에서 batch마다 고르는 최대 지연(ms). */
 const MAX_OBSERVED_DELAY = 15;
 // #180(뒤 바디가 없는 끝 holdOnly unit이 E+Good까지 미확정이면 holdOnly 대신 release 판정을 내보내 세션이 미등록
@@ -162,7 +166,8 @@ function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batche
   const starts = new Map(notes.map((note, index) => [index, note.beat.n] as [number, number]));
   const ends = new Map<number, number>();
   notes.forEach((note, index) => { if ("endBeat" in note) ends.set(index, note.endBeat.n); });
-  const session = new NoteJudgmentSession(compileJudgmentChart(notes, starts, ends));
+  const compiled = compileJudgmentChart(notes, starts, ends);
+  const session = new NoteJudgmentSession(compiled);
   const timeline = new InputTimeline();
   const deliver = (rawAt: number, inputs: readonly JudgmentInput[]) => {
     if (!delays) { session.processBatch(rawAt, inputs); return; }
@@ -179,7 +184,18 @@ function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batche
   } catch (caught) {
     error = (caught as Error).message;
   }
-  return { error, state: session.score.getState(), events: session.events };
+  return { error, state: session.score.getState(), events: session.events, strayUnsettled: strayUnsettled(compiled, session.events) };
+}
+
+/**
+ * 끝까지 정산하지 않은 점수 항목 중 head 있는 2→1 감소 경계 앞 double의 감소 release(#181·#182)가 아닌 것.
+ * 그 감소 release는 #181 구현 전까지 정산되지 않고 남을 수 있다. 같은 항목의 중복 정산은 세션 예외로 잡힌다.
+ */
+function strayUnsettled(compiled: ReturnType<typeof compileJudgmentChart>, events: readonly NoteJudgmentEvent[]): string[] {
+  const settled = new Set(events.filter(event => event.kind !== "maintenanceMiss").map(event => event.itemId));
+  const headDecreaseRelease = (item: typeof compiled.scoreItems[number]) => item.kind === "release" && item.successorIndex !== undefined &&
+    compiled.notes[item.successorIndex]?.headIndex !== undefined;
+  return compiled.scoreItems.filter(item => !settled.has(item.itemId) && !headDecreaseRelease(item)).map(item => item.itemId);
 }
 
 const afterFirstHead = (events: readonly NoteJudgmentEvent[], firstAt: number) => events
@@ -232,6 +248,15 @@ const shortRuns = () => collect("short", SHORT_SEEDS, seed => {
   return { seed, onTime: play(notes, firstKeys, batches, START) };
 });
 
+/** 짧은 바디 생성기에 80·120ms 구간을 더한 생성기. 기존 생성기의 seed 재현성을 지키려고 이름을 따로 둔다. */
+const shortMidRuns = () => collect("shortMid", SHORT_MID_SEEDS, seed => {
+  const rng = mulberry32(seed);
+  const notes = chartFor(rng, SHORT_MID_LENGTHS);
+  if (!isValid(notes)) return undefined;
+  const { firstKeys, batches } = inputsFor(rng, notes);
+  return { seed, onTime: play(notes, firstKeys, batches, START) };
+});
+
 /** 일반·짧은 바디 생성기와 같은 차트·입력을 관측 지연으로 재생한다. */
 const observedRuns = (generator: "general" | "short") => collect(`observed:${generator}`, OBSERVED_SEEDS, seed => {
   const rng = mulberry32(seed);
@@ -244,6 +269,9 @@ const observedRuns = (generator: "general" | "short") => collect(`observed:${gen
 const throwingSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error !== undefined).map(run => run.seed);
 const fullComboWithUnsettledItems = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error === undefined &&
   run.onTime.state.isFullCombo && run.onTime.state.processedNotes !== run.onTime.state.totalNotes).map(run => run.seed);
+/** 예외 없이 끝났는데 head 있는 2→1 감소 release(#181·#182) 말고도 정산하지 않은 점수 항목이 남은 seed. */
+const strayUnsettledSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error === undefined && run.onTime.strayUnsettled.length > 0).map(run => run.seed);
+const EXACTLY_ONCE = "head 있는 2→1 감소 경계의 감소 release(#181·#182)를 빼고 모든 점수 항목을 정확히 한 번씩 정산함";
 
 describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력", () => {
   it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외 없음`, () => {
@@ -253,6 +281,10 @@ describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력
 
   it(`seed 1~${SEEDS}에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
     expect(fullComboWithUnsettledItems(runs())).toEqual([]);
+  });
+
+  it(`seed 1~${SEEDS}의 예외 없는 재생은 Full Combo가 아니어도 ${EXACTLY_ONCE}`, () => {
+    expect(strayUnsettledSeeds(runs())).toEqual([]);
   });
 
   it(`seed 1~${SEEDS}에서 모든 입력이 늦은 첫 head 뒤면 첫 head를 ${LATE_FIRST_HEAD}ms 늦게 눌러도 첫 head 외 판정·등급·확정 시각이 정박과 같음`, () => {
@@ -274,6 +306,10 @@ describe("판정 정산 퍼즈: 2→1 감소 경계의 연결 head 교대", () =
   it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
     expect(fullComboWithUnsettledItems(swapRuns())).toEqual([]);
   });
+
+  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 예외 없는 플레이는 Full Combo가 아니어도 ${EXACTLY_ONCE}`, () => {
+    expect(strayUnsettledSeeds(swapRuns())).toEqual([]);
+  });
 });
 
 describe("판정 정산 퍼즈: 짧은 바디(20~200ms) 체인의 경계 ±100ms 입력", () => {
@@ -284,6 +320,21 @@ describe("판정 정산 퍼즈: 짧은 바디(20~200ms) 체인의 경계 ±100ms
 
   it(`seed 1~${SHORT_SEEDS}의 20~200ms 구간 체인에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
     expect(fullComboWithUnsettledItems(shortRuns())).toEqual([]);
+  });
+
+  it(`seed 1~${SHORT_SEEDS}의 20~200ms 구간 체인에서 예외 없는 재생은 Full Combo가 아니어도 ${EXACTLY_ONCE}`, () => {
+    expect(strayUnsettledSeeds(shortRuns())).toEqual([]);
+  });
+});
+
+describe("판정 정산 퍼즈: 짧은·중간 바디(20~200ms, 80·120ms 포함) 체인의 경계 ±100ms 입력", () => {
+  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인을 끝까지 재생하면 미등록·중복 점수 정산 예외 없음`, () => {
+    expect(shortMidRuns().length).toBeGreaterThan(SHORT_MID_SEEDS / 2);
+    expect(throwingSeeds(shortMidRuns())).toEqual([]);
+  });
+
+  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인에서 예외 없는 재생은 Full Combo 여부와 관계없이 ${EXACTLY_ONCE}`, () => {
+    expect(strayUnsettledSeeds(shortMidRuns())).toEqual([]);
   });
 });
 
@@ -303,5 +354,12 @@ describe(`판정 정산 퍼즈: batch마다 0~${MAX_OBSERVED_DELAY}ms 늦게 관
     ["짧은 바디(20~200ms)", "short"],
   ] as const)(`%s 생성기 seed 1~${OBSERVED_SEEDS}의 관측 지연 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, (_label, generator) => {
     expect(fullComboWithUnsettledItems(observedRuns(generator))).toEqual([]);
+  });
+
+  it.each([
+    ["일반(60~1000ms)", "general"],
+    ["짧은 바디(20~200ms)", "short"],
+  ] as const)(`%s 생성기 seed 1~${OBSERVED_SEEDS}의 관측 지연 재생에서 예외 없는 플레이는 Full Combo가 아니어도 ${EXACTLY_ONCE}`, (_label, generator) => {
+    expect(strayUnsettledSeeds(observedRuns(generator))).toEqual([]);
   });
 });
