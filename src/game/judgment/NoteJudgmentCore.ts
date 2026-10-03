@@ -3,7 +3,7 @@ import { JUDGMENT_WINDOWS, type JudgmentWindows } from "../../shared/constants";
 import { ConnectionCorrections } from "./ConnectionCorrections";
 import { ConfirmationCombo } from "./ConfirmationCombo";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
-import { PointJudgmentState } from "./PointJudgmentState";
+import { PointJudgmentState, type PointCandidate } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
 
 /** A deliberately small seam between chart compilation and the judgment runtime. */
@@ -79,6 +79,15 @@ interface UnitState {
    */
   share?: PressToken;
 }
+/**
+ * How a unit's share stands for a new down in its start window (RFD 0020 §2.14):
+ * - unprepared: no predecessor continues it (an independent body or an increase unit, NJ-A06);
+ * - prepared: a held key prepares or keeps it, or a head at its start decides it (§2.6, NJ-A04);
+ * - releasedSatisfied: only released keys prepared it, and a released up at or after its E−Good satisfies it;
+ * - releasedUnsatisfied: only released keys prepared it, and no released up satisfies it.
+ */
+type ShareState = "unprepared" | "prepared" | "releasedSatisfied" | "releasedUnsatisfied";
+function isReleasedShare(state: ShareState): boolean { return state === "releasedSatisfied" || state === "releasedUnsatisfied"; }
 interface PointState { noteIndex: number; at: number; lane: number; needed: number; done: boolean; missed: boolean; keys: Set<string> }
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
 
@@ -321,38 +330,13 @@ export class NoteJudgmentCore {
     at = observed ?? at;
     const token: PressToken = { key, lane: lane ?? 1, at, used: false, valid: false, released: false, connectionConsumed: false };
     this.held.set(key, token);
-    // A down is consumed by the earliest eligible point, then by a start unit.
+    // A down is consumed by the earliest eligible point, then by a start unit;
+    // startTargetFor tells when a start goes ahead of the point (RFD 0020 §2.14).
     const pointCandidate = this.pointState.peek((lane ?? 1) as 1 | 2 | 3 | 4, key, at);
     const point = pointCandidate && this.points.find(p => p.noteIndex === pointCandidate.noteIndex);
-    // A unit kept only by its share's key released before its start can be
-    // taken over by a new down (RFD 0020 §2.14). That released key's
-    // registration blocks no new down on the note, the same key pressed again
-    // included. At one start time a share nobody prepared takes the down
-    // first (user decision ①, 2026-10-01). A released share is taken over
-    // front to back, even inside a later Point's window, until min(E, S+Good);
-    // a later down goes on to later notes (user decision ②, 2026-10-01). That
-    // E deadline holds only when the released up can satisfy the share (at or
-    // after its E−Good); a share it cannot satisfy is open until S+Good like
-    // any unstarted body (user decision ③, 2026-10-01). The head at a share's
-    // own end is not skipped when the released up satisfies the share: it
-    // continues the share through that up (§2.6), so it keeps the down (user
-    // decision ④, 2026-10-01). A share the released up cannot satisfy is not
-    // finished yet, so the down starts it before that head (user decision
-    // 2026-10-03).
-    const startable = (u: UnitState) => (!u.active || this.releasedPreparation(u)) && !u.failed && !u.complete && !(u.holdOnly && u.start === u.end);
-    const keyFree = (u: UnitState) => !this.units.some(other => other.noteIndex === u.noteIndex && !(other === u && u.active) && this.registersKey(other, key));
-    const inStartWindow = (u: UnitState) => (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD;
-    const pastTakeoverDeadline = (u: UnitState) => at > u.end && this.releasedPreparation(u) && u.share!.upAt! >= u.end - this.windows.GOOD;
-    const startCandidates = this.units
-      .filter(u => startable(u) && keyFree(u) && inStartWindow(u) && (u.active || this.canStart(u)) && !pastTakeoverDeadline(u))
-      .sort((a, b) => a.start - b.start || Number(this.preparedShare(a)) - Number(this.preparedShare(b)));
-    const takesOverBeforePoint = (u: UnitState) => this.releasedShare(u) && !(point && point.lane === u.lane && point.at === u.end && this.releasedUpSatisfies(u));
-    const startCandidate = pointCandidate ? startCandidates.find(u => !this.startsContinuingShare(u) || takesOverBeforePoint(u)) : startCandidates[0];
-    const preparedSuccessor = startCandidate && pointCandidate && this.units.some(predecessor =>
-      predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
-      predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
-    if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && (takesOverBeforePoint(startCandidate) || !preparedSuccessor))) {
-      this.startByDown(startCandidate, key, token, at); return;
+    const start = this.startTargetFor(key, at, lane, pointCandidate, point);
+    if (start?.aheadOfPoint) {
+      this.startByDown(start.unit, key, token, at); return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
@@ -361,8 +345,63 @@ export class NoteJudgmentCore {
       this.activateForHead(point.noteIndex, key, token, at, point.keys.size - 1);
       return;
     }
-    const candidate = startCandidate;
-    if (candidate) this.startByDown(candidate, key, token, at);
+    if (start) this.startByDown(start.unit, key, token, at);
+  }
+
+  /**
+   * The unit a new down of key starts, and whether that start goes ahead of
+   * the Point candidate (RFD 0020 §2.14). Units whose start window holds the
+   * down are candidates, earliest S first; at one S a share nobody prepared
+   * comes first (user decision ①, 2026-10-01). By shareState:
+   * - unprepared: the down starts it (NJ-A06);
+   * - prepared: with a Point in the window, the Point keeps the down (NJ-A04);
+   * - releasedSatisfied: taken over until min(E, S+Good), ahead of a later
+   *   Point; a later down goes on to later notes (decision ②). The head at its
+   *   own end continues it through the released up and keeps the down
+   *   (decision ④, 2026-10-01);
+   * - releasedUnsatisfied: taken over until S+Good like an unstarted body
+   *   (decision ③), ahead of any Point, its end head included (decision ④,
+   *   2026-10-03).
+   * Order and takeover read the share through connectedPredecessor, the Point
+   * rule through preparingPredecessor; the two differ (see both). A released
+   * key's registration blocks no new down on its note, the same key pressed
+   * again included (registersKey).
+   */
+  private startTargetFor(key: string, at: number, lane: number | undefined, pointCandidate: PointCandidate | undefined,
+    point: PointState | undefined): { unit: UnitState; aheadOfPoint: boolean } | undefined {
+    const inStartWindow = (u: UnitState) => (lane === undefined || u.lane === lane) && Math.abs(at - u.start) <= this.windows.GOOD;
+    // Open to a down: alive, not a zero-length holdOnly, and either not started
+    // yet (canStart) or a released preparation, which the down takes over.
+    const open = (u: UnitState) => !u.failed && !u.complete && !(u.holdOnly && u.start === u.end) &&
+      (u.active ? this.releasedPreparation(u) : this.canStart(u));
+    // The key must be new to the note; u's own registrations do not count when the down takes u over.
+    const keyOnNote = (u: UnitState) => (this.unitsByNote.get(u.noteIndex) ?? [])
+      .some(other => (other !== u || !u.active) && this.registersKey(other, key));
+    const states = new Map<UnitState, ShareState>();
+    for (const u of this.units) {
+      if (!inStartWindow(u) || !open(u) || keyOnNote(u)) continue;
+      const state = this.shareState(u, this.connectedPredecessor(u));
+      // An inherited share its released up satisfies is open only until E (decision ②).
+      if (u.active && state === "releasedSatisfied" && at > u.end) continue;
+      states.set(u, state);
+    }
+    const prepared = (u: UnitState) => states.get(u) !== "unprepared";
+    const candidates = [...states.keys()].sort((a, b) => a.start - b.start || Number(prepared(a)) - Number(prepared(b)));
+    if (!pointCandidate) return candidates.length > 0 ? { unit: candidates[0], aheadOfPoint: true } : undefined;
+    const pointIsEndHead = (u: UnitState) => point !== undefined && point.lane === u.lane && point.at === u.end;
+    const takesOverBeforePoint = (u: UnitState) => states.get(u) === "releasedUnsatisfied" ||
+      states.get(u) === "releasedSatisfied" && !pointIsEndHead(u);
+    // With a Point in the window, a share an unfinished predecessor still
+    // continues goes to the Point unless it is a released share taken over first.
+    const unit = candidates.find(u => this.shareState(u, this.preparingPredecessor(u)) === "unprepared" || takesOverBeforePoint(u));
+    if (!unit) return undefined;
+    // The start goes ahead only when its S is before the Point. A successor
+    // whose live predecessor already registered as many keys as it has units
+    // is prepared in full, so then only a released-share takeover goes ahead.
+    const preparedSuccessor = this.units.some(predecessor => predecessor.active && !predecessor.failed &&
+      predecessor.end === unit.start && predecessor.lane === unit.lane &&
+      predecessor.registered.size >= (this.unitsByNote.get(unit.noteIndex)?.length ?? 0));
+    return { unit, aheadOfPoint: unit.start < pointCandidate.timeMs && (takesOverBeforePoint(unit) || !preparedSuccessor) };
   }
 
   release(key: string, at: number = this.now, lane?: number): void {
@@ -434,8 +473,7 @@ export class NoteJudgmentCore {
     // A released share is judged at S+Good from its own key (§2.14): it takes
     // no other key's up, and its key's up is no release of a sibling share.
     const candidate = this.units.filter(u => u.active && u.terminal && !u.failed && !u.complete && !u.holdOnly && !u.endResolved &&
-      !this.judgesReleasedShare(u) && !(this.unitsByNote.get(u.noteIndex) ?? []).some(v => v.share === token && this.judgesReleasedShare(v)) &&
-      (lane === undefined || u.lane === lane) && Math.abs(at - u.end) <= this.windows.GOOD &&
+      !this.awaitsReleasedShare(u, token) && (lane === undefined || u.lane === lane) && Math.abs(at - u.end) <= this.windows.GOOD &&
       token.valid && !token.released && !token.connectionConsumed && this.pressPool(u).includes(token))
       .sort((a, b) => a.end - b.end)[0];
     if (!candidate) {
@@ -523,7 +561,7 @@ export class NoteJudgmentCore {
         // up near its end must not become a release there. A released share
         // and its key's up are judged at that share's S+Good (§2.14).
         const candidate = this.units.filter(unit => unit.active && !unit.failed && !unit.complete && !unit.holdOnly &&
-          !this.judgesReleasedShare(unit) && !(this.unitsByNote.get(unit.noteIndex) ?? []).some(v => v.share === pending && this.judgesReleasedShare(v)) &&
+          !this.awaitsReleasedShare(unit, pending) &&
           (this.itemQueues.get(`${unit.noteIndex}:release`)?.length ?? 0) > 0 &&
           Math.abs(upAt - unit.end) <= this.windows.GOOD && unit.tokens.some(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed)).sort((a, b) => a.end - b.end)[0];
         const authority = candidate?.tokens.find(token => token === pending || token.key === pending.key && !token.released && !token.connectionConsumed);
@@ -651,17 +689,40 @@ export class NoteJudgmentCore {
     this.now = at;
   }
 
+  /**
+   * Before it starts, a unit whose predecessor body is still in progress takes
+   * a new down only as an increase unit beyond that note's units, or as a
+   * share only released keys prepared (RFD 0020 §2.14). Otherwise the
+   * predecessor decides it: a held key's share is inherited, never started by
+   * another down (§2.1).
+   */
   private canStart(u: UnitState): boolean {
-    // A prepared connection unit is activated by inheritance, never by another
-    // down, while a held key prepares it. A released key no longer reserves a
-    // headless start (RFD 0020 §2.14).
     const predecessor = this.preparingPredecessor(u);
     if (!predecessor) return true;
-    const predecessorCount = this.unitsByNote.get(predecessor.noteIndex)?.length ?? 0;
-    return u.unitIndex >= predecessorCount || !this.hasHead(u) && u.unitIndex >= this.heldPreparations(predecessor) && u.unitIndex < this.continuingCapacity(predecessor, u);
+    if (u.unitIndex >= (this.unitsByNote.get(predecessor.noteIndex)?.length ?? 0)) return true;
+    return isReleasedShare(this.shareState(u, predecessor));
   }
+  /**
+   * A unit on u's lane ending at u's start that is still in progress (active,
+   * not failed, not complete), whether or not the chart connects it. Unlike
+   * connectedPredecessor, a predecessor already complete (e.g. a holdOnly that
+   * an up at its E−Good finished) no longer holds u: canStart and the Point
+   * rule of startTargetFor then see u as unprepared.
+   */
   private preparingPredecessor(u: UnitState): UnitState | undefined {
-    return this.units.find(other => other !== u && other.lane === u.lane && other.end === u.start && other.active && !other.failed && !other.complete);
+    return this.units.find(other => other !== u && other.lane === u.lane && other.end === u.start &&
+      other.active && !other.failed && !other.complete);
+  }
+  /**
+   * The predecessor inheritance continues u from: a live (active, not failed)
+   * unit ending at u's start, of a note the chart connects to u's (tryInherit
+   * also requires a registered key). A complete unit still counts, as in
+   * continuingCapacity. The share order of a new down (decision ①) and its
+   * released-share takeover read u's share through it.
+   */
+  private connectedPredecessor(u: UnitState): UnitState | undefined {
+    return (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
+      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
   }
   private hasHead(u: UnitState): boolean {
     return this.points.some(point => point.lane === u.lane && point.at === u.start);
@@ -669,72 +730,68 @@ export class NoteJudgmentCore {
   /** Keys of the predecessor note still held: only these keep preparing its successor (§2.14). */
   private heldPreparations(predecessor: UnitState): number {
     const tokens = new Set((this.unitsByNote.get(predecessor.noteIndex) ?? []).flatMap(unit => unit.tokens));
-    return [...tokens].filter(token => token.valid && !token.released && !token.connectionConsumed && this.held.get(token.key) === token).length;
+    return [...tokens].filter(token => token.valid && !token.released && !token.connectionConsumed &&
+      this.held.get(token.key) === token).length;
   }
   /**
-   * A headless unit whose own share was inherited from a predecessor key
-   * released at or before its start (RFD 0020 §2.14). That preparation is
-   * void: a new down in the start window takes the unit over; otherwise S+Good
-   * decides it from the released hold. Only this unit's share counts, so a
-   * key still held for a sibling share neither keeps nor blocks it. Head
-   * boundaries keep their §2.6/§2.12 provisional connection.
+   * A press released at or before the start of the inherited headless unit u
+   * it prepared (RFD 0020 §2.14): that preparation is void. Head boundaries
+   * keep their §2.6/§2.12 provisional connection.
+   */
+  private voidPreparation(token: PressToken, u: UnitState): boolean {
+    return u.inherited && !this.hasHead(u) && this.releasedBefore(token, u);
+  }
+  /**
+   * A live unit whose own share is a void preparation (§2.14): a new down in
+   * the start window takes the unit over; otherwise S+Good decides it from
+   * the released hold. Only this unit's share counts, so a key still held for
+   * a sibling share neither keeps nor blocks it.
    */
   private releasedPreparation(u: UnitState): boolean {
-    if (!u.active || u.failed || u.complete || !u.inherited || this.hasHead(u) || !u.share) return false;
-    return this.releasedBefore(u.share, u);
+    return u.active && !u.failed && !u.complete && u.share !== undefined && this.voidPreparation(u.share, u);
   }
-  /** A key's registration on u, except a released key's void preparation of an inherited share (§2.14). */
+  /** A key's registration on u, except a released key's void preparation (§2.14). */
   private registersKey(u: UnitState, key: string): boolean {
-    return u.tokens.some(token => token.key === key && !(u.inherited && !this.hasHead(u) && this.releasedBefore(token, u)));
+    return u.tokens.some(token => token.key === key && !this.voidPreparation(token, u));
   }
   private releasedBefore(token: PressToken, u: UnitState): boolean {
     return token.upAt !== undefined && token.upAt <= u.start;
   }
-  /** A share a live predecessor would continue. A new down prefers a share nobody prepared. */
-  private preparedShare(u: UnitState): boolean {
-    if (u.active) return true;
-    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
-      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
-    return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
+  /**
+   * u's ShareState seen through predecessor: connectedPredecessor or
+   * preparingPredecessor, as the rule asks. A started unit is released only
+   * while it is a released preparation, and its own share's up decides whether
+   * it is satisfied. Before S no share is chosen yet, so the note's units fill
+   * in unit order: first from the predecessor's held keys, then from released
+   * ups that satisfy their unit. A head at S keeps its §2.6/§2.12 connection,
+   * so its share is never a released one.
+   */
+  private shareState(u: UnitState, predecessor: UnitState | undefined): ShareState {
+    if (u.active) {
+      if (!this.releasedPreparation(u)) return "prepared";
+      return this.upSatisfies(u.share!, u) ? "releasedSatisfied" : "releasedUnsatisfied";
+    }
+    if (!predecessor || u.unitIndex >= this.continuingCapacity(predecessor, u)) return "unprepared";
+    const held = this.heldPreparations(predecessor);
+    if (this.hasHead(u) || u.unitIndex < held) return "prepared";
+    return u.unitIndex < held + this.satisfyingReleasedUps(predecessor, u) ? "releasedSatisfied" : "releasedUnsatisfied";
   }
-  /** A start on a continuing share of a live predecessor. Unless the share was released, a Point keeps the down (NJ-A04). */
-  private startsContinuingShare(u: UnitState): boolean {
-    if (u.active) return true;
-    const predecessor = this.preparingPredecessor(u);
-    return predecessor !== undefined && u.unitIndex < this.continuingCapacity(predecessor, u);
+  /** The press's up is at or after u's E−Good, so it satisfies u by the §2.14 short body rule. */
+  private upSatisfies(token: PressToken, u: UnitState): boolean {
+    return token.upAt !== undefined && token.upAt >= u.end - this.windows.GOOD;
+  }
+  /** Released ups in the predecessor's press pool that still prepare u and satisfy it, except another note's release. */
+  private satisfyingReleasedUps(predecessor: UnitState, u: UnitState): number {
+    return this.pressPool(predecessor).filter(token => this.upSatisfies(token, u) && this.prepares(token, u) &&
+      !this.releaseOfOtherNote(token, u)).length;
   }
   /**
-   * A headless share a predecessor would continue whose preparing keys were
-   * all released (§2.14): an inherited released preparation, or a not yet
-   * inherited share beyond the predecessor's keys still held. A new down
-   * takes it over before a later Point (decision ②): up to min(E, S+Good)
-   * while the released up can satisfy it, else up to S+Good (decision ③).
-   * A share a held key prepares is not one (NJ-A04).
+   * The press's up is the release another note's released share takes at its
+   * S+Good. One up settles one release, so it carries or satisfies no share of
+   * u's note; a holdOnly completion does not spend it (§2.3).
    */
-  private releasedShare(u: UnitState): boolean {
-    if (u.active) return this.releasedPreparation(u);
-    if (this.hasHead(u)) return false;
-    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
-      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
-    return predecessor !== undefined && u.unitIndex >= this.heldPreparations(predecessor) && u.unitIndex < this.continuingCapacity(predecessor, u);
-  }
-  /**
-   * The released up continuing u's share satisfies it: the up is at or after
-   * u's E−Good (§2.14 short body rule), the same test as the decision ② E
-   * deadline. Before S the share is not chosen yet, so u counts as satisfied
-   * while held keys and such released ups still prepare up to its unit; like
-   * pickShare, an up another note's released share takes as its own release
-   * satisfies nothing here.
-   */
-  private releasedUpSatisfies(u: UnitState): boolean {
-    const satisfies = (token: PressToken) => token.upAt !== undefined && token.upAt >= u.end - this.windows.GOOD;
-    if (u.active) return u.share !== undefined && satisfies(u.share);
-    const predecessor = (this.unitsByEnd.get(`${u.lane}:${u.start}`) ?? []).find(p => p.active && !p.failed &&
-      (!this.connections || this.connections.has(`${p.noteIndex}:${u.noteIndex}`)));
-    if (!predecessor) return false;
-    const satisfying = this.pressPool(predecessor).filter(token => satisfies(token) && this.prepares(token, u) &&
-      !this.units.some(v => v.noteIndex !== u.noteIndex && v.share === token && !v.holdOnly && this.judgesReleasedShare(v))).length;
-    return u.unitIndex < this.heldPreparations(predecessor) + satisfying;
+  private releaseOfOtherNote(token: PressToken, u: UnitState): boolean {
+    return this.units.some(v => v.noteIndex !== u.noteIndex && v.share === token && !v.holdOnly && this.judgesReleasedShare(v));
   }
   /**
    * A new down starts u. Over a released preparation the new key takes that
@@ -744,7 +801,9 @@ export class NoteJudgmentCore {
   private startByDown(u: UnitState, key: string, token: PressToken, at: number): void {
     token.used = true; token.valid = true;
     const takeover = u.active;
-    const predecessor = takeover || !this.startsContinuingShare(u) ? undefined : this.preparingPredecessor(u);
+    // A start on a share an unfinished predecessor continues may forward it (below).
+    const preparing = takeover ? undefined : this.preparingPredecessor(u);
+    const predecessor = preparing && this.shareState(u, preparing) !== "unprepared" ? preparing : undefined;
     if (takeover) {
       const kept = u.tokens.filter(press => !this.releasedBefore(press, u));
       u.tokens.length = 0; u.tokens.push(...kept);
@@ -799,8 +858,18 @@ export class NoteJudgmentCore {
     return u.holdOnly || u.terminal && (this.itemQueues.get(`${u.noteIndex}:release`)?.length ?? 0) > 0 &&
       !this.points.some(point => point.lane === u.lane && point.at === u.end);
   }
+  /** A released preparation that S+Good judges from its own key (settlesReleasedShare). */
   private judgesReleasedShare(u: UnitState): boolean {
     return this.releasedPreparation(u) && this.settlesReleasedShare(u);
+  }
+  /**
+   * A released share is judged at its S+Good from its own key (§2.14), so the
+   * up is no release of u now: u is such a share and takes no other key's up,
+   * or the up carries such a share of u's note and is no release of a sibling.
+   */
+  private awaitsReleasedShare(u: UnitState, token: PressToken): boolean {
+    return this.judgesReleasedShare(u) ||
+      (this.unitsByNote.get(u.noteIndex) ?? []).some(v => v.share === token && this.judgesReleasedShare(v));
   }
   private activateForHead(noteIndex: number, key: string, token: PressToken, at: number, unitIndex: number): void {
     const headStart = timeAt(this.times, noteIndex) ?? at;
@@ -984,7 +1053,7 @@ export class NoteJudgmentCore {
    */
   private pickShare(u: UnitState, candidates: readonly PressToken[]): PressToken | undefined {
     const siblingShares = new Set((this.unitsByNote.get(u.noteIndex) ?? []).filter(unit => unit !== u).map(unit => unit.share));
-    const pool = candidates.filter(t => !this.units.some(v => v.noteIndex !== u.noteIndex && v.share === t && !v.holdOnly && this.judgesReleasedShare(v)));
+    const pool = candidates.filter(t => !this.releaseOfOtherNote(t, u));
     return pool.find(t => t.upAt === undefined && !siblingShares.has(t)) ??
       pool.find(t => !siblingShares.has(t)) ?? pool.find(t => t.upAt === undefined);
   }
@@ -1014,8 +1083,7 @@ export class NoteJudgmentCore {
     for (const target of targets) {
       const own = this.unitsByNote.get(target.noteIndex) ?? [];
       for (const unit of own) if (!unit.active && !unit.failed && !unit.complete) this.tryInherit(unit, at);
-      const source = (this.unitsByEnd.get(`${target.lane}:${target.start}`) ?? []).find(unit => unit.active && !unit.failed &&
-        (!this.connections || this.connections.has(`${unit.noteIndex}:${target.noteIndex}`)));
+      const source = this.connectedPredecessor(target);
       if (!source) continue;
       // A holdOnly source unit may start only after its successor already
       // inherited (key-split double head). Once every source unit has started
