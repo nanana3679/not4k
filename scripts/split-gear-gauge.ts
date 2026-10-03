@@ -2,7 +2,7 @@
  * 기어 기둥 게이지 분리 스크립트
  *
  * gear.png에서 양 기둥 안의 게이지(발광 튜브)를 분리한다.
- * split-gear-light-layer.mjs와 같은 픽셀 휴리스틱을 쓰되,
+ * split-gear-light-layer.ts와 같은 픽셀 휴리스틱을 쓰되,
  * dim 처리를 기둥 박스 내부로 한정하고 기둥별 게이지 크롭을 추가로 출력한다.
  *
  * 출력:
@@ -22,7 +22,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const args = process.argv.slice(2);
-const getArg = (name, fallback) => {
+const getArg = (name: string, fallback: string) => {
   const index = args.indexOf(name);
   return index === -1 ? fallback : args[index + 1] ?? fallback;
 };
@@ -54,8 +54,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 
 const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) => {
-  const clamp01 = (value) => Math.min(1, Math.max(0, value));
-  const clamp255 = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+  const clamp255 = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
   const image = new Image();
   image.src = dataUrl;
@@ -66,20 +66,20 @@ const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) 
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = width;
   sourceCanvas.height = height;
-  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true })!;
   sourceCtx.drawImage(image, 0, 0);
 
   const source = sourceCtx.getImageData(0, 0, width, height);
 
   // --- Pass 1: 라이트 마스크 계산 + 기둥 발광 bounding box 검출 ---
-  // (split-gear-light-layer.mjs와 동일한 휴리스틱)
+  // (split-gear-light-layer.ts와 동일한 휴리스틱)
   const masks = new Float32Array(width * height);
   const boxes = {
     left: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
     right: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
   };
 
-  const markBox = (side, x, y) => {
+  const markBox = (side: "left" | "right", x: number, y: number) => {
     const box = boxes[side];
     box.minX = Math.min(box.minX, x);
     box.minY = Math.min(box.minY, y);
@@ -116,7 +116,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) 
     }
   }
 
-  const serializeBox = (box) => {
+  const serializeBox = (box: typeof boxes.left) => {
     if (box.count === 0) {
       throw new Error("gauge column glow not detected");
     }
@@ -150,7 +150,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) 
     right: new ImageData(columnBoxes.right.width, columnBoxes.right.height),
   };
 
-  for (const side of ["left", "right"]) {
+  for (const side of ["left", "right"] as const) {
     const box = columnBoxes[side];
     const gauge = gauges[side];
     for (let by = 0; by < box.height; by++) {
@@ -165,7 +165,7 @@ const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) 
         const b = source.data[i + 2];
         const a = source.data[i + 3];
 
-        // 게이지 크롭: 발광 픽셀만 (split-gear-light-layer.mjs의 glow 공식)
+        // 게이지 크롭: 발광 픽셀만 (split-gear-light-layer.ts의 glow 공식)
         const gi = (by * box.width + bx) * 4;
         gauge.data[gi] = r;
         gauge.data[gi + 1] = g;
@@ -184,16 +184,16 @@ const result = await page.evaluate(async ({ dataUrl, sourceName, outputScale }) 
   }
 
   // --- 다운스케일 후 PNG 추출 ---
-  const toScaledPng = (imageData) => {
+  const toScaledPng = (imageData: ImageData) => {
     const full = document.createElement("canvas");
     full.width = imageData.width;
     full.height = imageData.height;
-    full.getContext("2d").putImageData(imageData, 0, 0);
+    full.getContext("2d")!.putImageData(imageData, 0, 0);
 
     const scaled = document.createElement("canvas");
     scaled.width = Math.max(1, Math.round(imageData.width * outputScale));
     scaled.height = Math.max(1, Math.round(imageData.height * outputScale));
-    const ctx = scaled.getContext("2d");
+    const ctx = scaled.getContext("2d")!;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(full, 0, 0, scaled.width, scaled.height);

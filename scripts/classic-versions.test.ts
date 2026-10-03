@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { findCurrentClassicVersion, saveClassicVersion, verifyClassicVersion } from './classic-versions.mjs';
+import { findCurrentClassicVersion, saveClassicVersion, verifyClassicVersion } from './classic-versions.ts';
 
 const temporaryRoots: string[] = [];
 const runtimePath = 'public/skins/classic/note-single.png';
@@ -20,7 +20,7 @@ async function fixture() {
     'assets-lab/classic/README.md', 'assets-lab/classic/bomb-export.html',
     'assets-lab/classic/states.mjs', 'assets-lab/classic/sources/point-single.svg',
     runtimePath, 'public/lab/note-assets/classic/note-single.svg',
-    'scripts/build-classic-skin.mjs', 'src/game/skin/skins.ts', 'src/game/skin/types.ts',
+    'scripts/build-classic-skin.ts', 'src/game/skin/skins.ts', 'src/game/skin/types.ts',
     'src/shared/publicPath.ts', 'src/lab/noteAssetKeybomb.css', 'src/lab/keybombEffect.ts',
     'public/gear/gear-frame.png', 'public/gear/gear-gauge-left.png', 'public/gear/gear-gauge-right.png',
     'package.json', 'pnpm-lock.yaml',
@@ -53,6 +53,21 @@ describe('Classic 버전 보관', () => {
     expect((await verifyClassicVersion({ root, id: 'v002' })).source.kind).toBe('worktree');
   });
 
+  it('빌드 스크립트가 build-classic-skin.mjs였던 이전 커밋을 Git ref로 보관하면 .mjs 이름 그대로 v001에 담는다', async () => {
+    const root = await fixture();
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=Asset test', '-c', 'user.email=assets@example.invalid', ...args], { cwd: root });
+    git('mv', 'scripts/build-classic-skin.ts', 'scripts/build-classic-skin.mjs');
+    git('commit', '-qm', 'old name');
+    const oldCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    git('mv', 'scripts/build-classic-skin.mjs', 'scripts/build-classic-skin.ts');
+    git('commit', '-qm', 'new name');
+    const saved = await saveClassicVersion({ root, id: 'v001', label: '이전 이름', ref: oldCommit });
+    const paths = saved.files.map(file => file.path);
+    expect(paths).toContain('scripts/build-classic-skin.mjs');
+    expect(paths).not.toContain('scripts/build-classic-skin.ts');
+    expect((await verifyClassicVersion({ root, id: 'v001' })).id).toBe('v001');
+  });
+
   it('v001이 이미 있으면 덮어쓰기를 거부하고 기존 PNG와 manifest를 보존한다', async () => {
     const root = await fixture();
     await saveClassicVersion({ root, id: 'v001', label: '이전' });
@@ -72,7 +87,7 @@ describe('Classic 버전 보관', () => {
 
   it('필수 생성기 파일이 없으면 미완성 v001을 남기지 않는다', async () => {
     const root = await fixture();
-    await rm(join(root, 'scripts/build-classic-skin.mjs'));
+    await rm(join(root, 'scripts/build-classic-skin.ts'));
     await expect(saveClassicVersion({ root, id: 'v001', label: '이전' })).rejects.toThrow();
     await expect(access(archive(root, 'v001'))).rejects.toThrow();
   });
@@ -144,9 +159,9 @@ async function fakeRoot(files: Record<string, string>) {
 }
 
 async function runCli(root: string, ...args: string[]) {
-  const script = join(root, 'scripts/classic-versions.mjs');
+  const script = join(root, 'scripts/classic-versions.ts');
   await mkdir(dirname(script), { recursive: true });
-  await cp(join(repositoryRoot, 'scripts/classic-versions.mjs'), script);
+  await cp(join(repositoryRoot, 'scripts/classic-versions.ts'), script);
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', timeout: 30_000 });
 }
 

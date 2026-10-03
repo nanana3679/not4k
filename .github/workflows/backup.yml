@@ -43,7 +43,7 @@ jobs:
           fi
 
       - name: 백업 실행
-        run: node scripts/backup-supabase.mjs ${{ steps.mode.outputs.flag }}
+        run: node scripts/backup-supabase.ts ${{ steps.mode.outputs.flag }}
         env:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}

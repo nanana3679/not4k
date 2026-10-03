@@ -212,7 +212,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 | `src/lab/judgmentCase/judgmentCaseSkin.ts` | 게임 스킨 매니페스트 → 판정 전(대기) 에셋 경로 선택, PNG 크기·data URI로 렌더러용 스킨 구성 |
 | `src/lab/judgmentCase/renderJudgmentCaseSvg.ts` | 사례 + 결과 + 스킨 → SVG 문자열(스킨 에셋 노트·노트 이름표·판정 라벨·실패 이유 포함) |
 | `src/lab/judgmentCase/judgmentCaseCli.ts` | 명령 인자 해석 |
-| `scripts/judgment-case-image.mjs` | Vite로 모듈과 스킨 매니페스트를 읽고 `public/skins` PNG를 data URI로 넣어 Playwright로 SVG를 PNG로 저장 |
+| `scripts/judgment-case-image.ts` | Vite로 모듈과 스킨 매니페스트를 읽고 `public/skins` PNG를 data URI로 넣어 Playwright로 SVG를 PNG로 저장 |
 
 모두 개발 도구다. 앱과 Lab 번들 어디에서도 import하지 않으므로 `pnpm run build`·`pnpm run build:lab` 산출물에 들어가지 않는다.
 

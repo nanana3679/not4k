@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { handlePreviewRequest } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
 import { mapLabImageGalleryDevRequest } from "./src/lab/labImageGalleryDevRequest";
@@ -28,7 +28,7 @@ const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 const flightBackgroundPreviewLabPath = "/__lab/flight-background-preview";
 const labImageGalleryIds = new Set(labImageGalleryCatalog.map((gallery) => gallery.id));
 
-function labImageGalleryPlugin() {
+function labImageGalleryPlugin(): Plugin {
   return {
     name: "not4k-image-gallery-lab",
     apply: "serve" as const,
@@ -52,7 +52,7 @@ function labImageGalleryPlugin() {
   };
 }
 
-function flightBackgroundPreviewLabPlugin() {
+function flightBackgroundPreviewLabPlugin(): Plugin {
   return {
     name: "not4k-flight-background-preview-lab",
     apply: "serve" as const,
@@ -77,7 +77,7 @@ function flightBackgroundPreviewLabPlugin() {
  * lab 테스트 페이지는 개발 전용이며, vite는 public/을 무조건 dist로 복사하므로
  * 빌드 산출물에서만 lab 에셋을 제거해 배포 크기를 줄인다. dev 서버에는 영향이 없다.
  */
-function excludeLabFromBuildPlugin() {
+function excludeLabFromBuildPlugin(): Plugin {
   return {
     name: "not4k-exclude-lab-from-build",
     apply: "build" as const,

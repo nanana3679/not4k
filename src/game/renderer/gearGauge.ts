@@ -6,7 +6,7 @@ import gearGaugeMetadata from "./gearGaugeMetadata.json";
  *
  * 좌표계 3종:
  * - 원본: gear.png(3404×4704) 픽셀. GEAR_INNER_* 상수와 metadata columnBoxes가 이 좌표계
- * - 텍스처: scripts/split-gear-gauge.mjs가 outputScale로 다운스케일한 출력 픽셀
+ * - 텍스처: scripts/split-gear-gauge.ts가 outputScale로 다운스케일한 출력 픽셀
  * - 화면: srcScale(원본픽셀→화면 배율)을 거친 Pixi stage 좌표
  */
 

@@ -38,7 +38,7 @@
 
 ## 생성·검증
 
-저장소 루트에서 `node scripts/build-trill-quartz.mjs`를 실행한다. 생성기는 위7개 원본 SVG와 `assets-lab/classic/downloads/`의 상태별 조립 SVG·ZIP만 출력한다. ZIP 생성에는 Python 3 표준 라이브러리를 사용한다.
+저장소 루트에서 `node scripts/build-trill-quartz.ts`를 실행한다. 생성기는 위7개 원본 SVG와 `assets-lab/classic/downloads/`의 상태별 조립 SVG·ZIP만 출력한다. ZIP 생성에는 Python 3 표준 라이브러리를 사용한다.
 
 `pnpm build:classic`을 실행하면 포인트·바디 원본을200×40 PNG로 변환해 `/lab/note-assets?design=classic`에 반영한다. 재생 차트의 `트릴`·`트릴 롱`으로 실제 낙하 모습을 확인한다. 대기는 기존 회색, 실패하면 어두운 상태를 바디에 사용한다. Classic의 유지 중 바디는 반투명 기둥 타일로 바꿨다.
 

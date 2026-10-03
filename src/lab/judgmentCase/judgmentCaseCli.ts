@@ -1,5 +1,5 @@
 /**
- * scripts/judgment-case-image.mjs 인자 해석.
+ * scripts/judgment-case-image.ts 인자 해석.
  */
 
 import { DEFAULT_JUDGMENT_CASE_SKIN, JUDGMENT_CASE_SKIN_IDS, type JudgmentCaseSkinId } from "./judgmentCaseSkin";
@@ -18,7 +18,7 @@ export interface JudgmentCaseCliOptions {
 }
 
 export const JUDGMENT_CASE_CLI_USAGE = [
-  "사용법: node scripts/judgment-case-image.mjs <case.txt|chart.json|-> [더 많은 사례…] --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic|crystal|simple]",
+  "사용법: node scripts/judgment-case-image.ts <case.txt|chart.json|-> [더 많은 사례…] --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic|crystal|simple]",
   "",
   "  --out <file.png>     저장할 PNG 경로 (필수)",
   "  --engine <repoPath>  판정 엔진을 불러올 저장소(워크트리) 경로. 여러 번 쓰면 엔진별로 나란히 비교",

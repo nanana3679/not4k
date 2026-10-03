@@ -1,0 +1,24 @@
+// 도구 코드 타입 검사: scripts/, Vite·Vitest·Playwright 설정, E2E 스펙.
+// 앱(src) 검사는 브라우저 전용인 tsconfig.json이 맡는다. 여기서는 이 파일들이 import하는 src 모듈만 함께 읽는다.
+// assets-lab/(JS 생성 코드)와 output/(시연 보관)은 범위 밖이다.
+// scripts/의 지울 수 있는 문법 제한은 tsconfig.scripts.json이 따로 검사한다.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"],
+    // scripts/는 Node가 타입만 지우고 바로 실행하므로 서로 .ts 확장자로 import한다.
+    "allowImportingTsExtensions": true
+  },
+  // import.meta.env와 pixi.js/unsafe-eval 선언: import로 끌려온 src 모듈이 쓴다.
+  "files": ["src/vite-env.d.ts"],
+  "include": [
+    "scripts/**/*.ts",
+    "e2e/**/*.ts",
+    "vite.config.ts",
+    "vite.lab.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}

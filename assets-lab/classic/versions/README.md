@@ -65,7 +65,7 @@ git checkout f366566 -- assets-lab/classic/versions/v008
 지금 게임이 쓰는 `public/skins/classic/`의 PNG가 어느 보관 버전과 같은지 SHA-256으로 확인한다.
 
 ```sh
-node scripts/classic-versions.mjs current
+node scripts/classic-versions.ts current
 ```
 
 ```text
@@ -77,7 +77,7 @@ node scripts/classic-versions.mjs current
   src/game/skin/types.ts
 ```
 
-위 목록은 v014 저장 뒤에 바뀐 파일의 예다. 2026-10-03에 쓰지 않는 생성 코드 `terminals.mjs`·`terminal-material.mjs`를 지웠으므로, 다음 버전을 저장하기 전까지는 이 두 파일도 "보관본에만 있는 파일"로 함께 나온다.
+위 목록은 v014 저장 뒤에 바뀐 파일의 예다. 2026-10-03에 쓰지 않는 생성 코드 `terminals.mjs`·`terminal-material.mjs`를 지웠으므로, 다음 버전을 저장하기 전까지는 이 두 파일도 "보관본에만 있는 파일"로 함께 나온다. 같은 날 빌드 스크립트를 `scripts/build-classic-skin.ts`로 바꿨으므로, 보관본에만 있는 `scripts/build-classic-skin.mjs`와 작업본에만 있는 `scripts/build-classic-skin.ts`도 다음 버전을 저장하기 전까지 함께 나온다.
 
 현재 적용본은 게임 PNG 일치로만 정한다. 경로와 해시가 모두 같아야 일치이며, 보관본에 없는 PNG가 더 있거나 보관된 PNG가 빠져도 차이로 센다. 여러 버전이 일치하면 최신 번호부터 모두 보여 준다. 일치하면 종료 코드 0이다. 일치하는 버전이 없으면 다른 PNG가 가장 적은 버전(같으면 최신 번호)과 그 PNG 경로를 보여 주고 종료 코드 1로 끝나, 스크립트나 CI에서 감지할 수 있다.
 
@@ -100,9 +100,9 @@ node scripts/classic-versions.mjs current
 
 ```sh
 pnpm build:classic
-node scripts/classic-versions.mjs save v015 "변경한 디자인 설명"
-node scripts/classic-versions.mjs verify v015
-node scripts/classic-versions.mjs current
+node scripts/classic-versions.ts save v015 "변경한 디자인 설명"
+node scripts/classic-versions.ts verify v015
+node scripts/classic-versions.ts current
 ```
 
 기존 번호로 저장하면 오류로 종료한다. 보관본의 파일을 수정하지 않고 새 버전을 만든다. 저장·검증·확인 명령은 현재 스킨을 교체하지 않는다. 새 버전을 현재 적용본으로 확정하면 `current`가 그 번호를 첫 일치로 보고하는지 확인하고, 현재 적용본을 고정한 두 테스트의 기대 번호도 새 번호로 바꾼다.
@@ -115,7 +115,7 @@ node scripts/classic-versions.mjs current
 과거 커밋의 버전도 현재 작업 파일을 건드리지 않고 저장할 수 있다.
 
 ```sh
-node scripts/classic-versions.mjs save v016 "과거 디자인 설명" <Git-commit>
+node scripts/classic-versions.ts save v016 "과거 디자인 설명" <Git-commit>
 ```
 
 ## 이전 버전 복원

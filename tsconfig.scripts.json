@@ -1,0 +1,9 @@
+// scripts/는 Node가 타입만 지우고 바로 실행하므로 지울 수 있는 문법(enum·namespace·생성자 매개변수 속성 금지)만 허용한다.
+// tsconfig.tooling.json에 이 옵션을 켜지 않는 이유: E2E가 import하는 src 클래스(GameClock 등)가 생성자 매개변수 속성을 쓴다.
+{
+  "extends": "./tsconfig.tooling.json",
+  "compilerOptions": {
+    "erasableSyntaxOnly": true
+  },
+  "include": ["scripts/**/*.ts"]
+}

@@ -26,6 +26,8 @@ const pages = [
   { id: 'mobile-song-list', accent: '#60ddff', second: '#dc5fd0', beam: 'mobile-song-list' },
 ];
 
+type PageConfig = (typeof pages)[number];
+
 function chromePanels() {
   return `
     <svg class="chrome" viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-hidden="true">
@@ -68,15 +70,15 @@ function chromePanels() {
   `;
 }
 
-function plate(x, y, w, h, r = 12) {
+function plate(x: number, y: number, w: number, h: number, r = 12) {
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="#090810" stroke="#483a5d" stroke-width="2"/>`;
 }
 
-function glowLine(x1, y1, x2, y2, color = 'var(--accent)', width = 4, opacity = 0.75) {
+function glowLine(x1: number, y1: number, x2: number, y2: number, color = 'var(--accent)', width = 4, opacity = 0.75) {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" opacity="${opacity}"/>`;
 }
 
-function pageLayer(page) {
+function pageLayer(page: PageConfig) {
   switch (page.beam) {
     case 'quiet-gate':
       return `
@@ -185,7 +187,7 @@ function pageLayer(page) {
   }
 }
 
-function keys(x, y, cols, rows, w, h) {
+function keys(x: number, y: number, cols: number, rows: number, w: number, h: number) {
   let out = '';
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
@@ -197,7 +199,7 @@ function keys(x, y, cols, rows, w, h) {
   return out;
 }
 
-function songSlots(x, y, rows, gap) {
+function songSlots(x: number, y: number, rows: number, gap: number) {
   let out = '';
   for (let i = 0; i < rows; i += 1) {
     const yy = y + i * gap;
@@ -207,7 +209,7 @@ function songSlots(x, y, rows, gap) {
   return out;
 }
 
-function dots(x, y, count, gap) {
+function dots(x: number, y: number, count: number, gap: number) {
   let out = '';
   for (let i = 0; i < count; i += 1) {
     out += `<circle cx="${x + i * gap}" cy="${y + Math.sin(i * .8) * 14}" r="2.2" fill="${i % 3 === 0 ? 'var(--second)' : 'var(--accent)'}" opacity=".48"/>`;
@@ -223,7 +225,7 @@ function sparkles() {
   return pts.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${i % 3 === 0 ? 3 : 2}" fill="${i % 2 ? 'var(--accent)' : 'var(--second)'}" opacity=".42"/>`).join('');
 }
 
-function settingsRows(x, y) {
+function settingsRows(x: number, y: number) {
   let out = '';
   for (let i = 0; i < 5; i += 1) {
     const yy = y + i * 88;
@@ -233,7 +235,7 @@ function settingsRows(x, y) {
   return out;
 }
 
-function settingsControls(x, y) {
+function settingsControls(x: number, y: number) {
   let out = plate(x, y, 164, 318, 12);
   for (let i = 0; i < 4; i += 1) {
     out += `<rect x="${x + 38 + i * 26}" y="${y + 48}" width="8" height="148" rx="4" fill="#07060c" stroke="#403250" stroke-width="1.5"/>`;
@@ -255,7 +257,7 @@ function calibrationTicks() {
   return out;
 }
 
-function html(page) {
+function html(page: PageConfig) {
   return `<!doctype html>
   <html>
     <head>
