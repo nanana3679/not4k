@@ -105,7 +105,8 @@ test.describe('Classic Frame Fit Lab', () => {
       await page.screenshot({ path: testInfo.outputPath('stage.png') });
 
       await page.getByRole('link', { name: '← Lab 목록' }).click();
-      await expect(page).toHaveURL(/\/lab$/);
+      // 움직임까지 그리는 무대(swiftshader)를 정리하고 목록으로 돌아가므로 여러 워커가 겹치면 5초를 넘길 수 있다.
+      await expect(page).toHaveURL(/\/lab$/, { timeout: 15000 });
       expect(errors).toEqual([]);
     });
   }
@@ -401,6 +402,29 @@ test.describe('Classic Frame Fit Lab', () => {
     await expect(stage).toHaveAttribute('data-motion', 'off');
     await expect.poll(() => motionTime(page)).toBeNull();
     await expect(page.locator('.frame-fit-motion')).toContainText('레인 폭 맞춤·가로세로 같이 줄이기');
+    expect(errors).toEqual([]);
+  });
+
+  test('움직임 자료(frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/lab/classic-frame-fit/motion/frame-motion.json', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-motion-ready', 'false');
+    const key = await stage.getAttribute('data-renderer-key');
+    await page.locator('canvas[data-frame-fit-canvas]').evaluate((canvas) => { canvas.dataset.probe = 'early'; });
+
+    release();
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true', { timeout: 30000 });
+    await expect(stage).toHaveAttribute('data-renderer-key', key!);
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('data-probe', 'early');
+    await expect.poll(() => motionTime(page), { timeout: 10000 }).not.toBeNull();
     expect(errors).toEqual([]);
   });
 

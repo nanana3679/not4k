@@ -22,7 +22,7 @@ export type FrameMotionLayerVisibility = Record<FrameMotionLayer, boolean>;
 export const ALL_FRAME_MOTION_LAYERS_ON: Readonly<FrameMotionLayerVisibility> = Object.freeze({ armor: true, gauge: true, accent: true, bar: true });
 
 export const FRAME_MOTION_TEXTURE_KEYS = [
-  'armorLit', 'armorCore', 'armorShape', 'accentGlow', 'accentOverlap', 'liquidTile', 'barMask', 'barBase', 'glint', 'bubbles',
+  'armorLit', 'armorCore', 'accentGlow', 'accentOverlap', 'liquidTile', 'barMask', 'barBase', 'glint', 'bubbles',
 ] as const;
 export type FrameMotionTextureKey = (typeof FRAME_MOTION_TEXTURE_KEYS)[number];
 

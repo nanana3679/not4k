@@ -33,11 +33,11 @@ describe('parseFrameMotionData', () => {
     expect(() => parseFrameMotionData(value)).toThrow('accentOverlap');
   });
 
-  it('장갑 텍스처(armor-lit 992×1520)는 왼쪽 기둥·오른쪽 기둥·아래 띠 조각 3개로 원래 상자(992×1456)의 47%(675,328px)만 그린다', () => {
+  it('장갑 텍스처(armor-lit 512×1680 아틀라스)는 기둥 둘·아래 띠 두 쪽 조각 4개로 원래 상자(992×1456)의 47%(675,328px)만 그린다', () => {
     const { armorLit } = data.textures;
-    expect([armorLit.width, armorLit.height]).toEqual([992, 1520]);
+    expect([armorLit.width, armorLit.height]).toEqual([512, 1680]);
     expect(armorLit.pieces.map((piece) => [piece.x, piece.y, piece.width, piece.height])).toEqual([
-      [16, 16, 208, 1328], [800, 16, 208, 1328], [32, 1344, 960, 128],
+      [16, 16, 208, 1328], [800, 16, 208, 1328], [32, 1344, 480, 128], [512, 1344, 480, 128],
     ]);
     expect(armorLit.pieces.reduce((sum, piece) => sum + piece.width * piece.height, 0)).toBe(675_328);
   });
@@ -65,9 +65,10 @@ describe('움직임 자료 경로', () => {
     expect(FRAME_MOTION_SVG_PATH).toBe('/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg');
   });
 
-  it('JSON의 텍스처 파일 10개가 모두 motion 폴더의 PNG로 있다', () => {
+  it('JSON의 텍스처 파일 9개가 모두 motion 폴더의 PNG로 있다(armor-shape 없음)', () => {
     const files = Object.values(data.textures).map((box) => box.file).sort();
-    expect(files).toHaveLength(10);
+    expect(files).toHaveLength(9);
+    expect(files).not.toContain('armor-shape.png');
     const published = Object.keys(MOTION_PNGS).map((path) => path.split('/').pop()).sort();
     expect(published).toEqual(files);
   });

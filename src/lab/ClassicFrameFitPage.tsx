@@ -84,11 +84,7 @@ type Assets =
 
 type RendererState =
   | { status: 'loading'; key: string }
-  | {
-    status: 'ready'; key: string; backingWidth: number; backingHeight: number; gearTop: number | null; gearScale: number | null;
-    /** 움직임 레이어를 이 렌더러의 프레임에 얹었는지(움직임 자료를 읽었고 새 프레임 방식일 때). */
-    motionAttached: boolean;
-  }
+  | { status: 'ready'; key: string; backingWidth: number; backingHeight: number; gearTop: number | null; gearScale: number | null }
   | { status: 'error'; key: string; message: string };
 
 type MotionAssetsState =
@@ -149,7 +145,8 @@ export default function ClassicFrameFitPage() {
   const motionClock = useRef({ startMs: 0 });
   useEffect(() => { motionClock.current.startMs = performance.now(); }, []);
   const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
-  const [frameStats, setFrameStats] = useState<Record<'on' | 'off', FrameTimeSummary | null>>({ on: null, off: null });
+  // 움직임 레이어를 프레임에 얹은 렌더러의 key. 렌더러는 움직임 자료를 기다리지 않고 먼저 뜨고, 자료가 오면 그때 얹는다.
+  const [motionAttachedKey, setMotionAttachedKey] = useState<string | null>(null);
   const stageRef = useRef<HTMLElement>(null);
   const motionTimeRef = useRef<HTMLOutputElement>(null);
   const motionSettings = useMemo<MotionSettings>(
@@ -167,11 +164,6 @@ export default function ClassicFrameFitPage() {
     );
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setFrameStats({ on: frameWindows.on.summary(), off: frameWindows.off.summary() }), FRAME_STATS_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [frameWindows]);
 
   // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 시계 표시만 바꾼다.
   const handleMotionTime = useCallback((timeMs: number | null) => {
@@ -242,7 +234,7 @@ export default function ClassicFrameFitPage() {
   const liveView = rendererView?.key === rendererKey ? rendererView : null;
   const motionSupported = supportsFrameMotion(mode);
   const motionState = reducedMotion ? 'reduced' : motionEnabled && motionSupported && motionAssets.status !== 'error' ? 'on' : 'off';
-  const motionReady = rendererState.status === 'ready' && rendererState.motionAttached;
+  const motionReady = ready && motionAttachedKey === rendererKey;
   const loadedMotion = motionAssets.status === 'ready' ? motionAssets.assets : null;
 
   // 렌더러나 방식이 바뀌면 다른 장면이므로 프레임 간격 통계를 새로 모은다(표시는 다음 통계 갱신 때 바뀐다).
@@ -344,11 +336,9 @@ export default function ClassicFrameFitPage() {
           data-motion-gauge={motionLayers.gauge ? 'on' : 'off'}
           data-motion-accent={motionLayers.accent ? 'on' : 'off'}
           data-motion-bar={motionLayers.bar ? 'on' : 'off'}
-          data-frame-time-on={formatFrameStatsAttribute(frameStats.on)}
-          data-frame-time-off={formatFrameStatsAttribute(frameStats.off)}
         >
           <div className="frame-fit-viewport" ref={viewportRef} data-view={view}>
-            {assets.status === 'ready' && motionAssets.status !== 'loading' ? (
+            {assets.status === 'ready' ? (
               <FrameFitRenderer
                 key={rendererKey}
                 rendererKey={rendererKey}
@@ -368,6 +358,7 @@ export default function ClassicFrameFitPage() {
                 onState={handleRendererState}
                 onView={handleRendererView}
                 onMotionTime={handleMotionTime}
+                onMotionAttached={setMotionAttachedKey}
               />
             ) : (
               <div className="frame-fit-placeholder" style={hostStyle}>
@@ -453,14 +444,7 @@ export default function ClassicFrameFitPage() {
                 <dt>프레임 텍스처</dt>
                 <dd>{showCurrentGear ? '게임 기어 그대로' : '밉맵 · 삼선형 필터'}</dd>
               </div>
-              <div>
-                <dt>프레임 간격 · 움직임 켬</dt>
-                <dd>{describeFrameStats(frameStats.on)}</dd>
-              </div>
-              <div>
-                <dt>프레임 간격 · 움직임 끔</dt>
-                <dd>{describeFrameStats(frameStats.off)}</dd>
-              </div>
+              <FrameTimeReadout windows={frameWindows} stageRef={stageRef} />
             </dl>
           </div>
         </section>
@@ -562,7 +546,7 @@ function motionNote(state: MotionAssetsState, supported: boolean, reduced: boole
   if (state.status === 'error') return `움직임 자료를 불러오지 못했습니다: ${state.message}`;
   if (reduced) return '움직임 줄이기 설정이 켜져 있어 승인 SVG처럼 움직임 레이어를 모두 숨기고 멈췄습니다.';
   if (!supported) return '움직임은 프레임을 한 장으로 그리는 레인 폭 맞춤·가로세로 같이 줄이기에서만 얹습니다.';
-  return '승인된 애니메이션 SVG를 텍스처·마스크로 구운 Pixi 레이어입니다. 곡 시간과 무관한 벽시계로 계속 움직입니다.';
+  return '승인된 애니메이션 SVG를 텍스처·마스크로 구운 Pixi 레이어입니다. 곡 시간과 무관한 벽시계로 계속 움직입니다. 광원 띠 경계는 게임 렌더러처럼 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
 }
 
 function describeFrameStats(summary: FrameTimeSummary | null): string {
@@ -572,6 +556,40 @@ function describeFrameStats(summary: FrameTimeSummary | null): string {
 
 function formatFrameStatsAttribute(summary: FrameTimeSummary | null): string | undefined {
   return summary ? `${summary.averageMs.toFixed(2)}/${summary.p95Ms.toFixed(2)}` : undefined;
+}
+
+/**
+ * 프레임 간격 표시. 0.5초마다 이 작은 부분만 다시 그리고, 무대의 data-frame-time-on/off는 ref로 직접 쓴다
+ * (페이지 전체를 0.5초마다 다시 렌더링하지 않는다).
+ */
+function FrameTimeReadout({ windows, stageRef }: { windows: FrameWindows; stageRef: RefObject<HTMLElement | null> }) {
+  const [stats, setStats] = useState<Record<'on' | 'off', FrameTimeSummary | null>>({ on: null, off: null });
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = { on: windows.on.summary(), off: windows.off.summary() };
+      setStats(next);
+      const stage = stageRef.current;
+      if (!stage) return;
+      for (const [name, summary] of [['frameTimeOn', next.on], ['frameTimeOff', next.off]] as const) {
+        const value = formatFrameStatsAttribute(summary);
+        if (value === undefined) delete stage.dataset[name];
+        else stage.dataset[name] = value;
+      }
+    }, FRAME_STATS_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [windows, stageRef]);
+  return (
+    <>
+      <div>
+        <dt>프레임 간격 · 움직임 켬</dt>
+        <dd>{describeFrameStats(stats.on)}</dd>
+      </div>
+      <div>
+        <dt>프레임 간격 · 움직임 끔</dt>
+        <dd>{describeFrameStats(stats.off)}</dd>
+      </div>
+    </>
+  );
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -651,7 +669,7 @@ function useDevicePixelRatio(): number {
  */
 function FrameFitRenderer({
   rendererKey, scenario, showCurrentGear, zoom, hideGameMask, lift, layout, image, sharedSkin, hostStyle,
-  motionAssets, motionSettings, motionClock, frameWindows, onState, onView, onMotionTime,
+  motionAssets, motionSettings, motionClock, frameWindows, onState, onView, onMotionTime, onMotionAttached,
 }: {
   rendererKey: string;
   scenario: Scenario;
@@ -665,7 +683,7 @@ function FrameFitRenderer({
   /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
   sharedSkin: SharedSkin<SkinManager>;
   hostStyle: CSSProperties;
-  /** 렌더러를 만들 때 읽는다. null이면(못 읽음) 움직임 없이 프레임만 얹는다. */
+  /** 움직임 자료. 렌더러는 이것을 기다리지 않고 먼저 뜨며, 자료가 오면(나중이라도) 새 프레임에 움직임을 얹는다. */
   motionAssets: FrameMotionAssets | null;
   motionSettings: MotionSettings;
   /** 움직임 시계의 시작 시각(performance.now 기준). 처음부터 재생이 바꾸므로 프레임마다 읽는다. */
@@ -675,19 +693,28 @@ function FrameFitRenderer({
   onView: (view: RendererView) => void;
   /** 움직임을 그린 프레임마다 움직임 시계(ms), 그리지 않게 되면 null. */
   onMotionTime: (timeMs: number | null) => void;
+  /** 이 렌더러(key)에 움직임 레이어를 얹었을 때. */
+  onMotionAttached: (key: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<FrameFitOverlay | null>(null);
   // 판정선 높이·움직임 설정 effect가 쓰는 살아 있는 렌더러와, 판정선 y·게임 마스크를 다시 걸고 읽어 알리는 함수.
-  const liveRef = useRef<{ renderer: GameRenderer; applyLift: (lift: number) => void; applyMotion: (settings: MotionSettings) => void } | null>(null);
+  const liveRef = useRef<{
+    renderer: GameRenderer;
+    applyLift: (lift: number) => void;
+    applyMotion: (settings: MotionSettings) => void;
+    attachMotion: (source: FrameMotionAssets) => void;
+  } | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const liftRef = useRef(lift);
   liftRef.current = lift;
   const motionSettingsRef = useRef(motionSettings);
   motionSettingsRef.current = motionSettings;
+  const motionAssetsRef = useRef(motionAssets);
+  motionAssetsRef.current = motionAssets;
   const options = useRef({
-    rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, sharedSkin, motionAssets, motionClock, frameWindows, onState, onView, onMotionTime,
+    rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, sharedSkin, motionClock, frameWindows, onState, onView, onMotionTime, onMotionAttached,
   });
 
   useEffect(() => {
@@ -695,7 +722,7 @@ function FrameFitRenderer({
     if (!canvas) return;
     const {
       rendererKey: key, scenario: label, showCurrentGear: withGear, zoom: view, hideGameMask: hideMask, image: frameImage, sharedSkin: skins,
-      motionAssets: motionSource, motionClock: clock, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime,
+      motionClock: clock, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
     } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
@@ -797,13 +824,6 @@ function FrameFitRenderer({
           overlay = new FrameFitOverlay(getGearFrameLayer(renderer), createFrameFitSource(frameImage));
           overlay.apply(layoutRef.current);
           overlayRef.current = overlay;
-          if (motionSource) {
-            // 움직임 텍스처도 새 프레임과 같은 밉맵·삼선형 설정으로 만들어 줄여 그려도 바탕과 같은 선명도로 보이게 한다.
-            const created = createFrameMotionTextures(motionSource.images, FRAME_FIT_TEXTURE_OPTIONS);
-            motionTextures = created;
-            motion = createClassicFrameMotion(motionSource.data, created.textures);
-            overlay.attachMotion(motion.container);
-          }
         }
         const applyMotion = (settings: MotionSettings) => {
           if (!motion || !overlay) return;
@@ -811,8 +831,26 @@ function FrameFitRenderer({
           motion.setReducedMotion(settings.reduced);
           overlay.setMotionEnabled(settings.enabled);
         };
-        applyMotion(motionSettingsRef.current);
-        liveRef.current = { renderer: active, applyLift, applyMotion };
+        // 움직임 자료는 렌더러와 따로 읽으므로, 이미 와 있으면 지금, 아니면 도착했을 때 effect가 부른다. 한 번만 얹는다.
+        // 움직임을 얹지 못해도 게임 화면 미리보기는 그대로 돌게 오류는 기록만 한다.
+        const attachMotion = (source: FrameMotionAssets) => {
+          if (motion || !overlay || disposed) return;
+          // 움직임 텍스처도 새 프레임과 같은 밉맵·삼선형 설정으로 만들어 줄여 그려도 바탕과 같은 선명도로 보이게 한다.
+          const created = createFrameMotionTextures(source.images, FRAME_FIT_TEXTURE_OPTIONS);
+          try {
+            motion = createClassicFrameMotion(source.data, created.textures);
+          } catch (error) {
+            created.destroy();
+            console.error('ClassicFrameFit: motion attach failed', error);
+            return;
+          }
+          motionTextures = created;
+          overlay.attachMotion(motion.container);
+          applyMotion(motionSettingsRef.current);
+          reportMotionAttached(key);
+        };
+        liveRef.current = { renderer: active, applyLift, applyMotion, attachMotion };
+        if (motionAssetsRef.current) attachMotion(motionAssetsRef.current);
         const gear = withGear ? getGearFrameSprite(renderer) : null;
 
         let startNow = performance.now();
@@ -893,7 +931,6 @@ function FrameFitRenderer({
           backingHeight: canvas.height,
           gearTop: gear ? gear.y : null,
           gearScale: gear ? gear.scale.x : null,
-          motionAttached: motion !== null,
         });
         frame = requestAnimationFrame(loop);
       } catch (error) {
@@ -926,6 +963,11 @@ function FrameFitRenderer({
   useEffect(() => {
     liveRef.current?.applyMotion(motionSettings);
   }, [motionSettings]);
+
+  // 렌더러가 먼저 뜬 뒤 움직임 자료가 도착하면 그때 얹는다(이미 얹었으면 아무것도 하지 않는다).
+  useEffect(() => {
+    if (motionAssets) liveRef.current?.attachMotion(motionAssets);
+  }, [motionAssets]);
 
   return (
     <div className="frame-fit-canvas-host" style={hostStyle}>

@@ -16,6 +16,11 @@ export function cyclePosition(timeMs: number, periodMs: number, delayMs = 0): nu
   return (local < 0 ? local + periodMs : local) / periodMs;
 }
 
+/** 계수 (a, b, c)인 3차 베지어 한 축의 값 ((a·t + b)·t + c)·t. 매 프레임 부르므로 클로저를 만들지 않는다. */
+function bezierAxis(a: number, b: number, c: number, t: number): number {
+  return ((a * t + b) * t + c) * t;
+}
+
 /**
  * CSS cubic-bezier 타이밍 함수 값. 가로축 진행 x에 해당하는 곡선 매개변수를 뉴턴법(실패하면 이분법)으로 찾아
  * 세로축 값을 돌려준다(브라우저 구현과 같은 방식, 오차 1e-7 이하).
@@ -23,22 +28,18 @@ export function cyclePosition(timeMs: number, periodMs: number, delayMs = 0): nu
 export function cubicBezierProgress(curve: CubicBezier, x: number): number {
   if (x <= 0) return 0;
   if (x >= 1) return 1;
-  const [x1, y1, x2, y2] = curve;
-  const cx = 3 * x1;
-  const bx = 3 * (x2 - x1) - cx;
+  const cx = 3 * curve[0];
+  const bx = 3 * (curve[2] - curve[0]) - cx;
   const ax = 1 - cx - bx;
-  const cy = 3 * y1;
-  const by = 3 * (y2 - y1) - cy;
+  const cy = 3 * curve[1];
+  const by = 3 * (curve[3] - curve[1]) - cy;
   const ay = 1 - cy - by;
-  const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
-  const sampleY = (t: number) => ((ay * t + by) * t + cy) * t;
-  const slopeX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
 
   let t = x;
   for (let i = 0; i < 8; i++) {
-    const error = sampleX(t) - x;
-    if (Math.abs(error) < 1e-7) return sampleY(t);
-    const slope = slopeX(t);
+    const error = bezierAxis(ax, bx, cx, t) - x;
+    if (Math.abs(error) < 1e-7) return bezierAxis(ay, by, cy, t);
+    const slope = (3 * ax * t + 2 * bx) * t + cx;
     if (Math.abs(slope) < 1e-6) break;
     t -= error / slope;
   }
@@ -46,13 +47,13 @@ export function cubicBezierProgress(curve: CubicBezier, x: number): number {
   let high = 1;
   t = x;
   while (high - low > 1e-7) {
-    const value = sampleX(t);
+    const value = bezierAxis(ax, bx, cx, t);
     if (Math.abs(value - x) < 1e-7) break;
     if (value < x) low = t;
     else high = t;
     t = (low + high) / 2;
   }
-  return sampleY(t);
+  return bezierAxis(ay, by, cy, t);
 }
 
 /** A 큰 광원: 띠 중심이 fromY에서 toY까지 주기 동안 한 방향으로 일정하게 내려간다(linear). */
@@ -95,16 +96,18 @@ export interface BubbleRiseState {
   alpha: number;
 }
 
-export function bubbleRise(timeMs: number, bubble: BubbleTiming, rise: RiseTiming): BubbleRiseState {
+/** out을 넘기면 새 객체를 만들지 않고 거기에 써서 돌려준다(매 프레임 갱신용). */
+export function bubbleRise(timeMs: number, bubble: BubbleTiming, rise: RiseTiming, out: BubbleRiseState = { offsetY: 0, alpha: 0 }): BubbleRiseState {
   const progress = cyclePosition(timeMs, bubble.durationMs, bubble.delayMs);
   const fadeIn = rise.fadeInPercent / 100;
   const fadeOut = rise.fadeOutPercent / 100;
-  const alpha = progress < fadeIn
+  out.alpha = progress < fadeIn
     ? rise.opacity * (progress / fadeIn)
     : progress <= fadeOut
       ? rise.opacity
       : rise.opacity * (1 - (progress - fadeOut) / (1 - fadeOut));
-  return { offsetY: 0 - rise.distance * progress, alpha };
+  out.offsetY = 0 - rise.distance * progress;
+  return out;
 }
 
 /** C 발광선 호흡: 0%·100% 투명, peakPercent에 opacity. 두 구간 모두 easing을 따로 적용한다. */
@@ -140,14 +143,20 @@ export interface GlintState {
   alpha: number;
 }
 
-export function glintState(timeMs: number, glint: GlintTiming): GlintState {
+/** out을 넘기면 새 객체를 만들지 않고 거기에 써서 돌려준다(매 프레임 갱신용). */
+export function glintState(timeMs: number, glint: GlintTiming, out: GlintState = { offset: 0, alpha: 0 }): GlintState {
   const progress = cyclePosition(timeMs, glint.periodMs);
   const peak = glint.peakPercent / 100;
   const stop = glint.stopPercent / 100;
-  if (progress >= stop) return { offset: glint.travel, alpha: 0 };
-  const offset = glint.travel * cubicBezierProgress(glint.easing, progress / stop);
+  if (progress >= stop) {
+    out.offset = glint.travel;
+    out.alpha = 0;
+    return out;
+  }
   const alpha = progress < peak
     ? cubicBezierProgress(glint.easing, progress / peak)
     : 1 - cubicBezierProgress(glint.easing, (progress - peak) / (stop - peak));
-  return { offset: offset + 0, alpha: alpha + 0 };
+  out.offset = glint.travel * cubicBezierProgress(glint.easing, progress / stop) + 0;
+  out.alpha = alpha + 0;
+  return out;
 }

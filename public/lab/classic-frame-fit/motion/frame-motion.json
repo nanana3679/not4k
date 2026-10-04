@@ -9,8 +9,8 @@
   "textures": {
     "armorLit": {
       "file": "armor-lit.png",
-      "width": 992,
-      "height": 1520,
+      "width": 512,
+      "height": 1680,
       "pieces": [
         {
           "x": 16,
@@ -31,17 +31,25 @@
         {
           "x": 32,
           "y": 1344,
-          "width": 960,
+          "width": 480,
           "height": 128,
           "atlasX": 16,
           "atlasY": 1376
+        },
+        {
+          "x": 512,
+          "y": 1344,
+          "width": 480,
+          "height": 128,
+          "atlasX": 16,
+          "atlasY": 1536
         }
       ]
     },
     "armorCore": {
       "file": "armor-core.png",
-      "width": 992,
-      "height": 1520,
+      "width": 512,
+      "height": 1680,
       "pieces": [
         {
           "x": 16,
@@ -62,48 +70,25 @@
         {
           "x": 32,
           "y": 1344,
-          "width": 960,
+          "width": 480,
           "height": 128,
           "atlasX": 16,
           "atlasY": 1376
-        }
-      ]
-    },
-    "armorShape": {
-      "file": "armor-shape.png",
-      "width": 992,
-      "height": 1520,
-      "pieces": [
-        {
-          "x": 16,
-          "y": 16,
-          "width": 208,
-          "height": 1328,
-          "atlasX": 16,
-          "atlasY": 16
         },
         {
-          "x": 800,
-          "y": 16,
-          "width": 208,
-          "height": 1328,
-          "atlasX": 256,
-          "atlasY": 16
-        },
-        {
-          "x": 32,
+          "x": 512,
           "y": 1344,
-          "width": 960,
+          "width": 480,
           "height": 128,
           "atlasX": 16,
-          "atlasY": 1376
+          "atlasY": 1536
         }
       ]
     },
     "accentGlow": {
       "file": "accent-glow.png",
-      "width": 992,
-      "height": 1520,
+      "width": 480,
+      "height": 1680,
       "pieces": [
         {
           "x": 16,
@@ -124,17 +109,25 @@
         {
           "x": 32,
           "y": 1344,
-          "width": 960,
+          "width": 448,
           "height": 128,
           "atlasX": 16,
           "atlasY": 1376
+        },
+        {
+          "x": 544,
+          "y": 1344,
+          "width": 448,
+          "height": 128,
+          "atlasX": 16,
+          "atlasY": 1536
         }
       ]
     },
     "accentOverlap": {
       "file": "accent-overlap.png",
-      "width": 960,
-      "height": 1504,
+      "width": 416,
+      "height": 1632,
       "pieces": [
         {
           "x": 32,
@@ -155,10 +148,18 @@
         {
           "x": 48,
           "y": 1344,
-          "width": 928,
+          "width": 320,
           "height": 112,
           "atlasX": 16,
           "atlasY": 1376
+        },
+        {
+          "x": 816,
+          "y": 1344,
+          "width": 160,
+          "height": 96,
+          "atlasX": 16,
+          "atlasY": 1520
         }
       ]
     },

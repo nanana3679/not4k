@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import motionJsonText from '../../public/lab/classic-frame-fit/motion/frame-motion.json?raw';
 import {
   bandHalfWidth,
+  bandProfileAlpha,
   byteAlpha,
   createClassicFrameMotion,
   FRAME_MOTION_LAYER_LABELS,
@@ -47,6 +48,41 @@ describe('byteAlpha', () => {
   });
 });
 
+describe('bandProfileAlpha(부드러운 띠 가장자리용 1px 폭 세로 프로파일)', () => {
+  it('바깥 띠 1380은 1382행 중 위아래 끝 1행만 0이고 나머지 255라, 늘려 그리면 가장자리에서 1px 동안 0→1로 바뀐다', () => {
+    const outer = bandProfileAlpha(1380, [{ top: -690, height: 1380 }]);
+    expect(outer).toHaveLength(1382);
+    expect([outer[0], outer[1], outer[690], outer[1380], outer[1381]]).toEqual([0, 255, 255, 255, 0]);
+  });
+
+  it('가운데 띠 840은 1382행 중 271~1110행만 255, 절반 띠 두 줄은 1~270행과 1111~1380행만 255', () => {
+    const core = bandProfileAlpha(1380, [{ top: -420, height: 840 }]);
+    expect([core[270], core[271], core[1110], core[1111]]).toEqual([0, 255, 255, 0]);
+    const half = bandProfileAlpha(1380, [{ top: -690, height: 270 }, { top: 420, height: 270 }]);
+    expect([half[0], half[1], half[270], half[271], half[1110], half[1111], half[1380], half[1381]]).toEqual([0, 255, 255, 0, 0, 255, 255, 0]);
+  });
+});
+
+describe('부드러운 띠 가장자리(bandEdges: soft)', () => {
+  it('띠 마스크 세 개가 Graphics 대신 1px 프로파일 스프라이트(알파 채널 마스크)로 바뀌고, 띠 밖 어둡게는 뒤집은 마스크다', () => {
+    const motion = createClassicFrameMotion(data, fakeTextures(), { bandEdges: 'soft' });
+    for (const label of ['frame-motion-band-outer', 'frame-motion-band-half', 'frame-motion-band-core']) {
+      expect(byLabel(motion.container, label)).toBeInstanceOf(Sprite);
+    }
+    const dim = byLabel(motion.container, 'frame-motion-unlit') as unknown as { mask: unknown; _maskOptions: { inverse: boolean; channel: string } };
+    expect(dim.mask).toBe(byLabel(motion.container, 'frame-motion-band-outer'));
+    expect(dim._maskOptions).toMatchObject({ inverse: true, channel: 'alpha' });
+    const outer = byLabel(motion.container, 'frame-motion-band-outer') as Sprite;
+    // 1px 폭 프로파일을 띠 방향 반폭 702의 두 배(1404)로 늘리고 1382행 높이 그대로 쓴다.
+    expect([outer.texture.width, outer.texture.height, outer.scale.x, outer.scale.y]).toEqual([1, 1382, 1404, 1]);
+    motion.update(30_000);
+    expect(outer.position).toMatchObject({ x: 512, y: 768 });
+    expect(outer.rotation).toBeCloseTo(radians(-14), 10);
+    motion.destroy();
+    expect(outer.destroyed).toBe(true);
+  });
+});
+
 describe('bandHalfWidth', () => {
   it('폭 1024 프레임·띠 1380·기울기 −14°면 띠 방향 반폭 702(SVG 사각형 2424의 반 1212보다 짧다)', () => {
     expect(bandHalfWidth(data)).toBe(702);
@@ -76,9 +112,9 @@ describe('createClassicFrameMotion', () => {
     expect(motion.container.children.map((child) => child.label)).toEqual([
       'frame-motion-armor', 'frame-motion-gauge', 'frame-motion-accent', 'frame-motion-bar',
     ]);
-    // 장갑 텍스처는 왼쪽 기둥(16, 16)·오른쪽 기둥(800, 16)·아래 띠(32, 1344) 조각으로 프레임 원본 좌표에 놓인다.
+    // 장갑 텍스처는 왼쪽 기둥(16, 16)·오른쪽 기둥(800, 16)·아래 띠 왼쪽(32, 1344)·오른쪽(512, 1344) 조각으로 프레임 원본 좌표에 놓인다.
     const core = byLabel(motion.container, 'frame-motion-lit-core');
-    expect(core.children.map((piece) => [piece.x, piece.y])).toEqual([[16, 16], [800, 16], [32, 1344]]);
+    expect(core.children.map((piece) => [piece.x, piece.y])).toEqual([[16, 16], [800, 16], [32, 1344], [512, 1344]]);
     // 조각 스프라이트는 아틀라스에서 자기 상자만 쓴다(왼쪽 기둥 208×1328은 아틀라스 (16, 16)부터).
     const [left] = core.children as Sprite[];
     expect([left.texture.frame.x, left.texture.frame.y, left.texture.frame.width, left.texture.frame.height]).toEqual([16, 16, 208, 1328]);
@@ -96,6 +132,16 @@ describe('createClassicFrameMotion', () => {
     }
     motion.update(0);
     expect(byLabel(motion.container, 'frame-motion-band-core').y).toBe(-841);
+    motion.destroy();
+  });
+
+  it('빛 밖 어둡게는 armor-shape 없이 armor-lit 조각을 #04060a로 물들여 같은 알파로 쓴다', () => {
+    const textures = fakeTextures();
+    const motion = createClassicFrameMotion(data, textures);
+    const dim = byLabel(motion.container, 'frame-motion-unlit');
+    expect(dim.children).toHaveLength(data.textures.armorLit.pieces.length);
+    expect((dim.children as Sprite[]).every((piece) => piece.texture.source === textures.armorLit.source)).toBe(true);
+    expect(FRAME_MOTION_TEXTURE_KEYS).not.toContain('armorShape');
     motion.destroy();
   });
 
@@ -206,6 +252,31 @@ describe('createClassicFrameMotion', () => {
     motion.update(30_000);
     expect(byLabel(motion.container, 'frame-motion-band-core').y).toBe(768);
     motion.destroy();
+  });
+
+  it('30초 → 5초 → 30초로 갱신해도(재사용 객체에 값이 남지 않아) 마지막 30초 상태가 처음 30초 상태와 같다', () => {
+    const motion = createClassicFrameMotion(data, fakeTextures());
+    const snapshot = () => [
+      'frame-motion-band-core', 'frame-motion-liquid-left', 'frame-motion-liquid-right', 'frame-motion-bubbles-left', 'frame-motion-bubbles-right',
+      'frame-motion-accent-glow', 'frame-motion-accent-overlap', 'frame-motion-glint-right', 'frame-motion-glint-left', 'frame-motion-bar',
+    ].map((label) => {
+      const node = byLabel(motion.container, label);
+      return [label, node.x, node.y, node.alpha, node.visible, node.children.map((child) => [child.x, child.y, child.alpha])];
+    });
+    motion.update(30_000);
+    const first = snapshot();
+    motion.update(5_000);
+    expect(snapshot()).not.toEqual(first);
+    motion.update(30_000);
+    expect(snapshot()).toEqual(first);
+    motion.destroy();
+  });
+
+  it('구성 도중 실패하면(하단 바 빛 조각이 비어 있음) 그때까지 만든 조각 서브 텍스처를 모두 정리해 원본 소스의 resize 구독이 처음(1개)으로 돌아온다', () => {
+    const textures = fakeTextures();
+    const broken: FrameMotionData = { ...data, textures: { ...data.textures, glint: { ...data.textures.glint, pieces: [] } } };
+    expect(() => createClassicFrameMotion(broken, textures)).toThrow();
+    for (const key of FRAME_MOTION_TEXTURE_KEYS) expect(textures[key].source.listenerCount('resize')).toBe(1);
   });
 
   it('destroy하면 컨테이너가 부모에서 빠져 파괴되고 조각 서브 텍스처도 정리하지만, 받은 텍스처는 호출자가 쓰도록 파괴하지 않는다', () => {

@@ -66,8 +66,20 @@ describe('ClassicFrameFitPage', () => {
     expect(markup).toMatch(/<input id="frame-motion-compare-time" type="range" min="0" max="60" step="0.1" value="0"\/>/);
     expect(markup).toMatch(/<button type="button" class="frame-fit-button" aria-pressed="false" disabled="">재생<\/button>/);
     expect(markup.match(/class="frame-motion-viewport" style="aspect-ratio:1024 \/ 1536"/g)).toHaveLength(2);
-    expect(markup).toContain('data-frame-motion-compare-canvas="true"');
+    // Pixi 캔버스는 앱을 만들 때마다 새로 붙이므로 서버 렌더링에는 자리(host)만 있다.
+    expect(markup).toContain('data-frame-motion-pixi-host="true"');
     expect(markup).toContain('data-frame-motion-svg-host="true"');
+  });
+
+  it('비교의 띠 가장자리는 게임 렌더러와 같게 안티앨리어싱 꺼짐·스텐실로 시작하고, 가장자리 부드럽게(안티앨리어싱)·알파 마스크(실험) 체크를 둔다', () => {
+    const markup = render();
+    const section = markup.match(/<section[^>]*data-frame-motion-compare="true"[^>]*>/)![0];
+    expect(section).toContain('data-compare-antialias="off"');
+    expect(section).toContain('data-compare-band-edges="stencil"');
+    expect(section).toContain('data-compare-generation="0"');
+    expect(markup).toContain('<label class="frame-fit-check"><input type="checkbox"/><span>가장자리 부드럽게(안티앨리어싱)</span></label>');
+    expect(markup).toContain('<label class="frame-fit-check"><input type="checkbox"/><span>띠를 알파 마스크로(실험)</span></label>');
+    expect(markup).toContain('픽셀 단위 계단');
   });
 
   it('Lab 목록으로 돌아가는 /lab 링크가 있다', () => {

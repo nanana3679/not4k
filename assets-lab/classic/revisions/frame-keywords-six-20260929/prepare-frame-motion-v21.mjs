@@ -13,10 +13,10 @@ import {
 // from. Writes into public/lab/classic-frame-fit/motion/ (frame-space boxes in JSON):
 //   armor-lit.png      A  contrast copy of the base (the SVG's saturate 0.9 + linear 1.1/-0.032 filter,
 //                         rendered by Chromium), alpha = armor mask x frame-cutout alpha. Drawn at 128/255
-//                         (#808080 half band)
+//                         (#808080 half band), and tinted #04060a at 7% for the unlit dim (same alpha; the tinted
+//                         colour stays within 1/255 of the SVG's flat #04060a at 7%)
 //   armor-core.png     A  the same copy with the core's 3% white glow already composited (one sprite instead
 //                         of copy + glow): alpha m(1 + g - gm), colour (C(1 - gm) + g) / (1 + g - gm), g = 8/255
-//   armor-shape.png    A  white, alpha = armor alpha; tinted #04060a at 7% for the unlit dim
 //   accent-glow.png    C  T1: the SVG's blue accent layer composited over its bloom (stdDeviation 5 blur kept out
 //                         of the excluded boxes, rendered by Chromium), i.e. the #fm-accent group at opacity 1
 //   accent-overlap.png C  T2: the bloom under the accent alpha. The SVG group at breathe opacity o is
@@ -28,8 +28,9 @@ import {
 //   glint.png          D  one glint ellipse with the SVG's radial gradient (Chromium)
 //   bubbles.png        B  the five bubble discs at their radii, one 16x16 cell each (Chromium)
 //   frame-motion.json  texture pieces, glass polygons, bubble table, light/contrast/accent/bar values
-// The armor and accent layers are mostly empty between the pillars, so each is stored as up to three
-// pieces (left pillar, right pillar, bottom strip) cropped to their alpha box in multiples of 16px.
+// The armor and accent layers are mostly empty between the pillars, so each is stored as up to four
+// pieces (left pillar, right pillar, and the bottom strip in two halves) cropped to their alpha box in
+// multiples of 16px, packed as pillars side by side with each bottom half in its own row below.
 // Every piece keeps a 16px border of its real neighbouring pixels in the atlas, so bilinear and mipmap
 // sampling at a piece edge matches one whole texture, and atlas positions stay 16px-aligned with the
 // frame so the mip levels line up with the frame texture. Re-running gives byte-identical files.
@@ -42,11 +43,13 @@ const outputDir = resolve(workspaceRoot, 'public/lab/classic-frame-fit/motion');
 const cutoutPath = resolve(workspaceRoot, 'public/lab/classic-frame-fit/frame-cutout.png');
 const ALIGN = 16;
 const PIECE_BORDER = 16;
-// Piece regions (exclusive ends): the pillars above the key deck's bottom and the full-width bottom strip.
+// Piece regions (exclusive ends) and atlas rows: the pillars above the key deck's bottom share the first
+// row; the bottom strip is split at the centre so each half (about 500px) fits under the pillar row.
 const PIECE_REGIONS = [
-  { name: 'left', x0: 0, x1: 224, y0: 0, y1: 1344 },
-  { name: 'right', x0: 800, x1: WIDTH, y0: 0, y1: 1344 },
-  { name: 'bottom', x0: 0, x1: WIDTH, y0: 1344, y1: HEIGHT },
+  { name: 'left', row: 0, x0: 0, x1: 224, y0: 0, y1: 1344 },
+  { name: 'right', row: 0, x0: 800, x1: WIDTH, y0: 0, y1: 1344 },
+  { name: 'bottom-left', row: 1, x0: 0, x1: WIDTH / 2, y0: 1344, y1: HEIGHT },
+  { name: 'bottom-right', row: 2, x0: WIDTH / 2, x1: WIDTH, y0: 1344, y1: HEIGHT },
 ];
 const BUBBLE_CELL = 16;
 // CSS 'ease-in-out' as cubic-bezier control points.
@@ -132,23 +135,21 @@ const baked = await page.evaluate(async (input) => {
         x0: innerBox.x - border, y0: innerBox.y - border,
         x1: innerBox.x + innerBox.width + border - 1, y1: innerBox.y + innerBox.height + border - 1,
       });
-      pieces.push({ name: region.name, inner: innerBox, stored });
+      pieces.push({ name: region.name, row: region.row, inner: innerBox, stored });
     }
-    const top = pieces.filter((piece) => piece.name !== 'bottom');
-    const bottom = pieces.filter((piece) => piece.name === 'bottom');
-    let cursorX = 0;
-    let rowHeight = 0;
-    for (const piece of top) {
-      piece.atlas = { x: cursorX, y: 0 };
-      cursorX += piece.stored.width;
-      rowHeight = Math.max(rowHeight, piece.stored.height);
-    }
-    let atlasWidth = cursorX;
-    let atlasHeight = rowHeight;
-    for (const piece of bottom) {
-      piece.atlas = { x: 0, y: atlasHeight };
-      atlasWidth = Math.max(atlasWidth, piece.stored.width);
-      atlasHeight += piece.stored.height;
+    // Shelf packing: pieces of a row side by side, rows stacked.
+    let atlasWidth = 0;
+    let atlasHeight = 0;
+    for (const row of [...new Set(pieces.map((piece) => piece.row))].sort((a, b) => a - b)) {
+      let cursorX = 0;
+      let rowHeight = 0;
+      for (const piece of pieces.filter((candidate) => candidate.row === row)) {
+        piece.atlas = { x: cursorX, y: atlasHeight };
+        cursorX += piece.stored.width;
+        rowHeight = Math.max(rowHeight, piece.stored.height);
+      }
+      atlasWidth = Math.max(atlasWidth, cursorX);
+      atlasHeight += rowHeight;
     }
     const atlas = new ImageData(atlasWidth, atlasHeight);
     for (const piece of pieces) {
@@ -197,13 +198,11 @@ const baked = await page.evaluate(async (input) => {
   const litImage = await renderSvg(input.contrastSvg, width, height);
   const armorLit = new ImageData(width, height);
   const armorCore = new ImageData(width, height);
-  const armorShape = new ImageData(width, height);
   for (let i = 0; i < width * height; i++) {
     const a = armorAlpha[i];
     if (a === 0) continue;
     const lit = [litImage.data[i * 4], litImage.data[i * 4 + 1], litImage.data[i * 4 + 2]];
     armorLit.data.set([...lit, a], i * 4);
-    armorShape.data.set([255, 255, 255, a], i * 4);
     // Core: copy at alpha m, then white at alpha g*m on top, as one premultiplied pixel.
     const m = a / 255;
     straight(armorCore, i * 4, lit.map((value) => (value / 255) * m * (1 - glow * m) + glow * m), m * (1 + glow - glow * m));
@@ -248,7 +247,6 @@ const baked = await page.evaluate(async (input) => {
     textures: {
       armorLit: pieceAtlas(armorLit.data),
       armorCore: pieceAtlas(armorCore.data),
-      armorShape: pieceAtlas(armorShape.data),
       accentGlow: pieceAtlas(accentGlow.data),
       accentOverlap: pieceAtlas(accentOverlap.data),
       liquidTile: single(tile, input.liquidX, 0),
@@ -326,7 +324,6 @@ function buildInput() {
 const files = {
   armorLit: 'armor-lit.png',
   armorCore: 'armor-core.png',
-  armorShape: 'armor-shape.png',
   accentGlow: 'accent-glow.png',
   accentOverlap: 'accent-overlap.png',
   liquidTile: 'liquid-tile.png',

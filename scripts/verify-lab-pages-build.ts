@@ -17,7 +17,6 @@ const requiredPaths = [
   "lab/classic-frame-fit/motion/frame-motion.json",
   "lab/classic-frame-fit/motion/armor-lit.png",
   "lab/classic-frame-fit/motion/armor-core.png",
-  "lab/classic-frame-fit/motion/armor-shape.png",
   "lab/classic-frame-fit/motion/accent-glow.png",
   "lab/classic-frame-fit/motion/accent-overlap.png",
   "lab/classic-frame-fit/motion/liquid-tile.png",

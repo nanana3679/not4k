@@ -137,6 +137,25 @@ describe('breatheOpacity', () => {
   });
 });
 
+describe('결과 객체 재사용(매 프레임 할당 없이)', () => {
+  it('bubbleRise에 out을 넘기면 그 객체에 써서 돌려주고 값은 새 객체로 받은 것과 같다(0초 첫 기포 −126.4·0.75)', () => {
+    const out = { offsetY: 99, alpha: 99 };
+    const bubble = motionJson.gauge.bubbles[0];
+    const returned = bubbleRise(0, bubble, rise, out);
+    expect(returned).toBe(out);
+    expect(out).toEqual(bubbleRise(0, bubble, rise));
+    expect(out.offsetY).toBeCloseTo(-126.4, 6);
+  });
+
+  it('glintState에 out을 넘기면 그 객체에 써서 돌려주고, 0.88초 85px 뒤 2초에 다시 쓰면 170px·0으로 바뀐다', () => {
+    const out = { offset: -1, alpha: -1 };
+    expect(glintState(880, glint, out)).toBe(out);
+    expect(out.offset).toBeCloseTo(85, 6);
+    glintState(2_000, glint, out);
+    expect(out).toEqual({ offset: 170, alpha: 0 });
+  });
+});
+
 describe('glintState', () => {
   it('하단 바 빛은 0초에 0px·불투명도 0에서 출발해 0.48초(15%)에 불투명도 1', () => {
     expect(glintState(0, glint)).toEqual({ offset: 0, alpha: 0 });
