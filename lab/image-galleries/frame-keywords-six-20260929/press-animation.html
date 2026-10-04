@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>버튼 누름과 게이지</title><style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.65; word-break: keep-all; }
+    main { max-width: 1180px; margin: auto; padding: 24px clamp(18px, 3vw, 48px) 64px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    a:focus-visible, summary:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid #a3d9ff; outline-offset: 4px; }
+    nav { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+    nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 28px 0 24px; }
+    .eyebrow { color: #a8b9cb; font-size: 12px; letter-spacing: .12em; }
+    h1 { margin: 8px 0 12px; font-size: clamp(28px, 4vw, 44px); font-weight: 650; line-height: 1.25; }
+    .intro { color: #b8c4d0; max-width: 780px; margin: 0; }
+    .shared { margin: 18px 0 0; padding-left: 16px; border-left: 2px solid #8eabc1; color: #c5d0db; max-width: 850px; }
+    .player { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+    .viewport { position: relative; overflow: hidden; width: 100%; background: #090c11; aspect-ratio: 672 / 384; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    .viewport[data-view="full"] { aspect-ratio: 2 / 3; max-width: min(100%, calc(78vh * 2 / 3)); }
+    .frame { position: absolute; left: 0; top: 0; width: 1024px; height: 1536px; transform-origin: 0 0; }
+    .layer { position: absolute; display: block; pointer-events: none; }
+    .tint, .glow, .cap-cover { will-change: opacity; }
+    .tint { opacity: 0; transition: opacity var(--glow-ms, 150ms) ease-out; }
+    .glow { opacity: 0; transition: opacity var(--white-ms, 53ms) ease-out; }
+    .cap-cover { opacity: 1; transition: opacity var(--cap-ms, 40ms) cubic-bezier(.2, .6, .3, 1); }
+    .viewport[data-tint="off"] .tint { display: none; }
+    .key[data-color="single"] .double, .key[data-color="double"] .single { display: none; }
+    .key.is-down .tint, .key.is-down .glow { opacity: 1; transition: none; }
+    .key.is-down .cap-cover { opacity: 0; transition: none; }
+    .gauge { position: absolute; overflow: hidden; pointer-events: none; transition: height var(--gauge-ms, 300ms) ease-out; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); }
+    .gauge canvas { position: absolute; left: 0; top: 0; display: block; }
+    .hit { position: absolute; padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: none; }
+    .status { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; color: #b8c4d0; font-size: 14px; text-align: center; }
+    .viewport[data-state="ready"] .status { display: none; }
+    .legend { margin: 12px 0 0; color: #a8b9cb; font-size: 13px; }
+    kbd { display: inline-block; min-width: 1.6em; padding: 0 6px; border: 1px solid #4a5563; border-bottom-width: 2px; border-radius: 4px; color: #e8edf2; font: 600 12px/1.6 ui-monospace, monospace; text-align: center; }
+    .controls { display: grid; gap: 20px; }
+    fieldset { margin: 0; padding: 0; border: 0; }
+    legend, .control-label { display: block; margin-bottom: 6px; color: #a8b9cb; font-size: 12px; letter-spacing: .06em; }
+    .segmented { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #4a5563; }
+    .segmented label { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; font-size: 14px; color: #b8c4d0; }
+    .segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    .segmented label:has(input:checked) { background: #24303c; color: #e8edf2; }
+    .segmented label:has(input:focus-visible) { outline: 2px solid #a3d9ff; outline-offset: -2px; }
+    .range-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .range-row output { color: #e8edf2; font-variant-numeric: tabular-nums; font-size: 14px; }
+    input[type="range"] { width: 100%; min-height: 32px; accent-color: #8ecff5; }
+    .hint { margin: 2px 0 0; color: #8d9aa8; font-size: 12px; }
+    .check { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; font-size: 14px; color: #c5d0db; }
+    .check input { width: 18px; height: 18px; accent-color: #8ecff5; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .actions button { min-height: 44px; padding: 0 16px; border: 1px solid #4a5563; background: #18202a; color: #e8edf2; font: inherit; font-size: 14px; cursor: pointer; }
+    .actions button[aria-pressed="true"] { background: #24303c; border-color: #8ecff5; }
+    details { margin-top: 36px; padding-top: 20px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; min-height: 44px; padding: 8px 0; }
+    details p, details li { max-width: 800px; color: #b8c4d0; }
+    footer { border-top: 1px solid #343c46; margin-top: 24px; padding-top: 16px; }
+    @media (max-width: 860px) { .player { grid-template-columns: minmax(0, 1fr); } .viewport[data-view="full"] { margin: auto; } }
+</style></head><body><main>
+<nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a></nav>
+<header><div class="eyebrow">CLASSIC / PRESS MOTION / 2026.09.30</div>
+<h1>버튼 누름과 게이지</h1>
+<p class="intro">네 버튼을 누르는 동안 눌림과 발광이 켜집니다. 떼면 키가 먼저 올라오고 빛은 잔광으로 뒤따라 꺼집니다. 싱글은 연파랑, 더블은 금색 주변광이며 누를 때마다 바로 바뀝니다. 양옆 게이지는 채움 정도를 조절할 수 있습니다.</p>
+<p class="shared">누르는 순간은 지연 없이 전환 · 2·3번 키는 백색광 시안 v16, 1·4번 키는 1번 키 생성 이미지와 그 좌우 반전 · 더블 금색은 빛의 색 성분만 계산으로 교체 · 게이지의 빈 부분은 v16 게이지 빛을 남색 유리로 계산</p></header>
+<section class="player" aria-label="누름 애니메이션 시연">
+<div>
+<div class="viewport" id="viewport" data-view="deck" data-tint="on" data-state="loading">
+<div class="frame" id="frame">
+<canvas class="layer" id="idle-layer" data-layer="idle" width="1024" height="1536"></canvas>
+</div>
+<p class="status" id="status" role="status">시안을 불러오는 중…</p>
+</div>
+<p class="legend"><kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd> 1–4번 키 · <kbd>Shift</kbd>를 함께 누르면 반대 색 · 버튼을 직접 눌러도 됩니다.</p>
+</div>
+<form class="controls" id="controls" onsubmit="return false">
+<fieldset><legend>누를 때 색</legend><div class="segmented">
+<label><input type="radio" name="color" value="single" checked>싱글 연파랑</label>
+<label><input type="radio" name="color" value="double">더블 금색</label>
+</div></fieldset>
+<fieldset><legend>게이지</legend>
+<div class="range-row"><label class="control-label" for="gauge">채움</label><output id="gauge-value" for="gauge">100%</output></div>
+<input type="range" id="gauge" name="gauge" min="0" max="100" step="1" value="100">
+<label class="check"><input type="checkbox" id="gauge-auto">게이지 자동 변화</label>
+<label class="check"><input type="checkbox" id="gauge-generated" checked>빈 유리를 생성 이미지로</label>
+<p class="hint">게임에서는 <code>altitude</code>(0~1)를 표시합니다. 조절하면 전체 프레임 보기로 바뀝니다.</p>
+</fieldset>
+<fieldset><legend>보기</legend><div class="segmented">
+<label><input type="radio" name="view" value="deck" checked>버튼부 확대</label>
+<label><input type="radio" name="view" value="full">전체 프레임</label>
+</div></fieldset>
+<div><div class="range-row"><label class="control-label" for="cap-ms">키 복귀</label><output id="cap-ms-value" for="cap-ms">40ms</output></div>
+<input type="range" id="cap-ms" name="cap-ms" min="0" max="200" step="10" value="40">
+<p class="hint">뗀 뒤 키가 대기 높이로 돌아오는 시간</p></div>
+<div><div class="range-row"><label class="control-label" for="glow-ms">잔광</label><output id="glow-ms-value" for="glow-ms">150ms</output></div>
+<input type="range" id="glow-ms" name="glow-ms" min="0" max="600" step="10" value="150">
+<p class="hint">뗀 뒤 백색광과 주변광이 꺼지는 시간</p></div>
+<div>
+<label class="check"><input type="checkbox" id="slow-motion">10배 느리게</label>
+<label class="check"><input type="checkbox" id="tint-decay" checked>잔광이 고유색으로 꺼짐</label>
+<label class="check"><input type="checkbox" id="gap-fix" checked>가운데 틈 잔광 보정</label>
+</div>
+<div class="actions"><button type="button" id="demo" aria-pressed="false">자동 시연</button><button type="button" id="reset">기본값</button></div>
+</form>
+</section>
+<details id="method"><summary>만든 방법과 한계</summary>
+<ul>
+<li>소재는 <a href="53-white-core-frame-v16.svg" target="_blank" rel="noopener noreferrer">백색광 시안 v16</a>과 <a href="key1-press-insert-v17.png" target="_blank" rel="noopener noreferrer">1번 키 눌림 생성 이미지</a> 두 장입니다. 페이지가 열릴 때 두 이미지의 픽셀을 잘라 대기 레이어와 눌림 레이어를 만듭니다.</li>
+<li>프레임이 좌우 대칭이어서 셋째 키를 좌우로 뒤집어 둘째 키의 대기 모습으로 씁니다. 셋째 키의 눌림은 v16의 둘째 키를, 넷째 키의 눌림은 생성한 1번 키를 뒤집은 것입니다. 대칭축은 원본 캔버스 x=511.5입니다.</li>
+<li>1번 키 눌림은 네 키가 모두 대기인 화면을 편집 대상으로, v16을 발광 참조로 삼아 이미지 생성으로 한 번 만들었습니다. 생성 결과 전체가 아니라 1번 키 둘레만 잘라 쓰므로 프레임은 v16 픽셀 그대로입니다. 생성된 1번 키는 윗변 높이가 대기와 같고 누름면이 조금 좁아지는 정도로 눌려, 약 6px 내려가는 2·3번 키보다 눌림이 약하게 보입니다.</li>
+<li>v16에는 둘째 키의 연파랑 번짐이 셋째 키 가장자리까지 그려져 있습니다. 모두 대기 중일 때 이 번짐이 남지 않도록, 두 키 사이 틈의 폭 51px만 채도와 밝기를 낮춥니다. 이 부분은 픽셀 색 보정이며, 체크를 끄면 보정 전과 비교할 수 있습니다.</li>
+<li>게이지는 게임의 기어 기둥 게이지처럼 빈 게이지 레이어가 위에서부터 채움 경계까지 덮습니다. 빈 유리는 기본으로 <a href="gauge-empty-insert-v18.png" target="_blank" rel="noopener noreferrer">빈 게이지 생성 이미지</a>를 씁니다. 체크를 끄면 v16 유리관의 채도 높은 빛 픽셀만 어두운 남색으로 바꾼 계산 결과와 비교할 수 있습니다. 계산 방식은 흰색에 가까운 섬광을 빛으로 잡지 못해 비워도 바닥에 작은 반짝임이 남습니다. 빈 게이지 레이어는 측정한 유리 안쪽 윤곽(곧은 옆벽과 금속 마개 테두리를 따라가는 타원 끝)으로 잘라, 마개·테두리·옆 장갑에 비친 빛은 채움과 관계없이 그대로 둡니다. 경계는 8px에 걸쳐 부드럽게 이어지고, 값이 바뀌면 300ms 동안 움직입니다. 100%는 v16 그대로, 0%는 두 유리관의 빛이 모두 꺼진 모습입니다.</li>
+<li>이웃한 두 키의 빛 영역은 키 사이 틈의 가운데에서 만납니다. 그래서 두 키를 함께 눌러도 한 키의 빛 레이어가 다른 키의 윤곽을 덮지 않습니다.</li>
+<li>누르면 입력한 프레임에 바로 눌림과 발광으로 바뀝니다. 떼면 키 몸체 영역과 주변광 영역이 서로 다른 시간으로 대기 모습에 돌아옵니다. 그래서 두 이미지의 키 높이 차이 때문에 생기는 겹침이 짧게만 보입니다.</li>
+<li>두 이미지를 단순히 겹쳐 흐리게 하면 흰 섬광이 회색으로 탁해집니다. 기본값에서는 백색광이 잔광 시간의 35% 안에 먼저 빠지고, 그 아래에서 빛의 증가분에만 고유색을 곱한 잔광 레이어가 끝까지 꺼집니다. 이 잔광 레이어는 전환 중에만 보이는 계산 결과이며, 싱글의 눌린 상태 화면은 소재 그대로입니다. 체크를 끄면 단순 교차 전환과 비교할 수 있습니다.</li>
+<li>더블 금색은 새로 그리지 않고 계산했습니다. 눌림 픽셀이 대기 픽셀보다 더 띠는 색 성분을 빛의 색으로 보고, 흰빛은 그대로 둔 채 이 연파랑 성분만 같은 밝기의 금색으로 바꿉니다. 눌린 키와 대기 키의 윤곽이 어긋나므로 밝기 차이 대신 색 성분을 비교합니다. 금색 방향은 이전 생성 시안 v10의 더블 섬광에서 측정했습니다. 대기보다 색을 더 띠지 않는 픽셀은 싱글 눌림 화면과 같아서 키 형태가 바뀌지 않습니다.</li>
+</ul></details>
+<footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a></nav></footer>
+</main>
+<script>
+(() => {
+  const WIDTH = 1024;
+  const HEIGHT = 1536;
+  // Pixel x on the left of the deck mirrors pixel MIRROR_SUM - x on the right.
+  const MIRROR_SUM = 1022;
+  const SOURCES = { v16: "53-white-core-frame-v16.svg", key1: "key1-press-insert-v17.png", gaugeEmpty: "gauge-empty-insert-v18.png" };
+  // Inclusive pixel bounds on the 1024x1536 canvas with linear feather widths.
+  const IDLE_REGIONS = {
+    patch: { x0: 338, x1: 511, y0: 1092, y1: 1355, left: 12, right: 0, top: 12, bottom: 12 },
+    gap: { x0: 486, x1: 536, y0: 1092, y1: 1299, left: 12, right: 12, top: 12, bottom: 12 },
+  };
+  // Keys 1 and 2 come from pressed images; keys 4 and 3 mirror them.
+  // Neighboring glow regions meet at the center of the gap between two keys.
+  const PRESSED_KEYS = {
+    1: {
+      source: "key1",
+      mirror: 4,
+      glow: { x0: 200, x1: 372, y0: 1092, y1: 1355, left: 12, right: 10, top: 12, bottom: 12 },
+      cap: { x0: 220, x1: 366, y0: 1122, y1: 1270, left: 6, right: 6, top: 6, bottom: 6 },
+      hit: { x0: 222, x1: 364, y0: 1120, y1: 1330 },
+    },
+    2: {
+      source: "v16",
+      mirror: 3,
+      glow: { x0: 362, x1: 519, y0: 1092, y1: 1355, left: 10, right: 15, top: 12, bottom: 12 },
+      cap: { x0: 370, x1: 504, y0: 1128, y1: 1268, left: 6, right: 6, top: 6, bottom: 6 },
+      hit: { x0: 370, x1: 504, y0: 1120, y1: 1330 },
+    },
+  };
+  // Glass interior of the left tube. Its top and bottom follow the elliptical rims of the
+  // metal caps (y at the side walls → y at the center). The right tube mirrors x to 1023 - x.
+  const GLASS = { x0: 136, x1: 208, centerX: 172, top: [196, 203], bottom: [1010, 1016], feather: 2 };
+  const GAUGE_MIRROR_SUM = 1023;
+  const GAUGES = {
+    left: { x0: GLASS.x0, x1: GLASS.x1, y0: GLASS.top[0], y1: GLASS.bottom[1], mirror: false },
+    right: { x0: GAUGE_MIRROR_SUM - GLASS.x1, x1: GAUGE_MIRROR_SUM - GLASS.x0, y0: GLASS.top[0], y1: GLASS.bottom[1], mirror: true },
+  };
+  const GAUGE_FEATHER = 8;
+  // Empty glass: dims the colored gauge light toward dark navy.
+  const GAUGE_EMPTY = { strength: .95, tint: [.22, .30, .42] };
+  const GAUGE_SEQUENCE = [1, .82, .6, .74, .45, .3, .52, .2, .66, .9];
+  const GAUGE_STEP_MS = 700;
+  const GAUGE_MS = 300;
+  const KEYS = [1, 2, 3, 4];
+  const KEY_CODES = { KeyD: 1, KeyF: 2, KeyJ: 3, KeyK: 4 };
+  const KEY_LABELS = { 1: ["첫째", "D"], 2: ["둘째", "F"], 3: ["셋째", "J"], 4: ["넷째", "K"] };
+  const VIEWS = { deck: { x: 176, y: 1024, width: 672 }, full: { x: 0, y: 0, width: 1024 } };
+  const DEFAULTS = { capMs: 40, glowMs: 150 };
+  const LIGHTS = {
+    // Pale cyan measured from the v16 surrounding light (sRGB channel gains).
+    single: { decayTint: [.25, .78, 1] },
+    // Gold measured from the earlier generated double flash v10 (linear hue).
+    double: { hue: [.959, .643, .163], decayTint: [1, .82, .44] },
+  };
+  const COLORS = Object.keys(LIGHTS);
+  const WHITE_SHARE = .35;
+  const DEMO = [
+    ...[1, 2, 3, 4, 3, 2].map((key, index) => ({ at: index * 150, key, hold: 70, other: index >= 3 })),
+    { at: 1100, key: 1, hold: 90 }, { at: 1100, key: 4, hold: 90 },
+    { at: 1400, key: 2, hold: 90, other: true }, { at: 1400, key: 3, hold: 90, other: true },
+    ...[0, 1, 2, 3, 4, 5].map((index) => ({ at: 1800 + index * 110, key: index % 2 ? 2 : 1, hold: 60 })),
+    { at: 2700, key: 1, hold: 500, other: true }, { at: 3300, key: 4, hold: 500 },
+  ];
+  const DEMO_LOOP_MS = 4200;
+
+  const viewport = document.getElementById("viewport");
+  const frame = document.getElementById("frame");
+  const status = document.getElementById("status");
+  const idleCanvas = document.getElementById("idle-layer");
+  const capInput = document.getElementById("cap-ms");
+  const glowInput = document.getElementById("glow-ms");
+  const slowInput = document.getElementById("slow-motion");
+  const gapFixInput = document.getElementById("gap-fix");
+  const tintInput = document.getElementById("tint-decay");
+  const demoButton = document.getElementById("demo");
+  const gaugeInput = document.getElementById("gauge");
+  const gaugeAutoInput = document.getElementById("gauge-auto");
+  const gaugeGeneratedInput = document.getElementById("gauge-generated");
+  let sourcePixels = null;
+
+  const mirrorRegion = (region) => ({ ...region, x0: MIRROR_SUM - region.x1, x1: MIRROR_SUM - region.x0, left: region.right, right: region.left });
+  const baseKey = (key) => Number(Object.keys(PRESSED_KEYS).find((base) => Number(base) === key || PRESSED_KEYS[base].mirror === key));
+  const keyRegion = (key, name) => {
+    const region = PRESSED_KEYS[baseKey(key)][name];
+    return PRESSED_KEYS[key] ? region : mirrorRegion(region);
+  };
+
+  const gaugeElements = {};
+  for (const [side, box] of Object.entries(GAUGES)) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "gauge";
+    wrapper.dataset.gauge = side;
+    Object.assign(wrapper.style, { left: `${box.x0}px`, top: `${box.y0}px`, width: `${box.x1 - box.x0 + 1}px`, height: "0px" });
+    const canvas = document.createElement("canvas");
+    canvas.dataset.layer = `gauge-${side}-empty`;
+    wrapper.append(canvas);
+    frame.append(wrapper);
+    gaugeElements[side] = { wrapper, canvas };
+  }
+
+  const keyElements = {};
+  const hitElements = {};
+  const layers = {};
+  for (const key of KEYS) {
+    const element = document.createElement("div");
+    element.className = "key";
+    element.dataset.key = String(key);
+    element.dataset.color = "single";
+    const names = [...COLORS.flatMap((color) => [["tint", color], ["glow", color]]), ["cap-cover"]];
+    for (const [kind, color] of names) {
+      const canvas = document.createElement("canvas");
+      canvas.className = color ? `layer ${kind} ${color}` : `layer ${kind}`;
+      canvas.dataset.layer = color ? `${kind}-${key}-${color}` : `cap-${key}`;
+      layers[canvas.dataset.layer] = canvas;
+      element.append(canvas);
+    }
+    frame.append(element);
+    keyElements[key] = element;
+  }
+  for (const key of KEYS) {
+    const hit = document.createElement("button");
+    const [name, letter] = KEY_LABELS[key];
+    const region = keyRegion(key, "hit");
+    Object.assign(hit, { type: "button", className: "hit" });
+    hit.dataset.key = String(key);
+    hit.setAttribute("aria-label", `${name} 키 누르기 (${letter})`);
+    hit.setAttribute("aria-pressed", "false");
+    Object.assign(hit.style, { left: `${region.x0}px`, top: `${region.y0}px`, width: `${region.x1 - region.x0 + 1}px`, height: `${region.y1 - region.y0 + 1}px` });
+    frame.append(hit);
+    hitElements[key] = hit;
+  }
+
+  const feather = (value, low, high, lowWidth, highWidth) => {
+    if (value < low || value > high) return 0;
+    const fromLow = lowWidth ? Math.min(1, (value - low + 1) / (lowWidth + 1)) : 1;
+    const fromHigh = highWidth ? Math.min(1, (high - value + 1) / (highWidth + 1)) : 1;
+    return fromLow * fromHigh;
+  };
+  const regionAlpha = (region, x, y) => feather(x, region.x0, region.x1, region.left, region.right)
+    * feather(y, region.y0, region.y1, region.top, region.bottom);
+  const offset = (x, y) => (y * WIDTH + x) * 4;
+
+  function composeIdle(gapFix) {
+    const source = sourcePixels.v16;
+    const idle = new Uint8ClampedArray(source);
+    const patch = IDLE_REGIONS.patch;
+    for (let y = patch.y0; y <= patch.y1; y++) {
+      for (let x = patch.x0; x <= patch.x1; x++) {
+        const alpha = regionAlpha(patch, x, y);
+        const target = offset(x, y);
+        const mirrored = offset(MIRROR_SUM - x, y);
+        for (let channel = 0; channel < 3; channel++) {
+          idle[target + channel] = source[target + channel] * (1 - alpha) + source[mirrored + channel] * alpha;
+        }
+      }
+    }
+    if (gapFix) {
+      const gap = IDLE_REGIONS.gap;
+      for (let y = gap.y0; y <= gap.y1; y++) {
+        for (let x = gap.x0; x <= gap.x1; x++) {
+          const alpha = regionAlpha(gap, x, y);
+          const index = offset(x, y);
+          const luminance = (idle[index] * .3 + idle[index + 1] * .59 + idle[index + 2] * .11) * .75;
+          const neutral = [luminance * .95, luminance, luminance * 1.18];
+          for (let channel = 0; channel < 3; channel++) {
+            idle[index + channel] = idle[index + channel] * (1 - alpha) + neutral[channel] * alpha;
+          }
+        }
+      }
+    }
+    return idle;
+  }
+
+  const rgbAt = (pixels) => (index) => [pixels[index], pixels[index + 1], pixels[index + 2]];
+
+  function regionCanvas(region, colorAt) {
+    const width = region.x1 - region.x0 + 1;
+    const height = region.y1 - region.y0 + 1;
+    const image = new ImageData(width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const color = colorAt(offset(region.x0 + x, region.y0 + y));
+        const target = (y * width + x) * 4;
+        image.data[target] = color[0];
+        image.data[target + 1] = color[1];
+        image.data[target + 2] = color[2];
+        image.data[target + 3] = Math.round(255 * regionAlpha(region, region.x0 + x, region.y0 + y));
+      }
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").putImageData(image, 0, 0);
+    return canvas;
+  }
+
+  // The afterglow keeps only the light added over the idle frame, tinted by the identity color.
+  const tinted = (litAt, idle, decayTint) => (index) => litAt(index)
+    .map((value, channel) => idle[index + channel] + Math.max(0, value - idle[index + channel]) * decayTint[channel]);
+
+  const toLinear = Array.from({ length: 256 }, (_, value) => (value / 255) ** 2.2);
+  const toSrgb = (value) => 255 * Math.min(1, Math.max(0, value)) ** (1 / 2.2);
+  const luminance = (rgb) => rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+  const chromaOf = (rgb) => {
+    const lowest = Math.min(...rgb);
+    return rgb.map((value) => value - lowest);
+  };
+
+  // Keeps the pressed pixels and swaps only the extra color the light added.
+  // Chroma is compared instead of brightness because the pressed key and the
+  // idle key do not share the same outline.
+  function recolored(pressed, idle, hue) {
+    const direction = chromaOf(hue).map((value, _, chroma) => value / Math.max(...chroma));
+    const directionLuminance = luminance(direction);
+    return (index) => {
+      const linear = [0, 1, 2].map((channel) => toLinear[pressed[index + channel]]);
+      const idleChroma = chromaOf([0, 1, 2].map((channel) => toLinear[idle[index + channel]]));
+      const colored = chromaOf(linear).map((value, channel) => Math.max(0, value - idleChroma[channel]));
+      const strength = luminance(colored) / directionLuminance;
+      return linear.map((value, channel) => toSrgb(value - colored[channel] + direction[channel] * strength));
+    };
+  }
+
+  function paintLayer(element, canvas, left, top, mirror) {
+    element.width = canvas.width;
+    element.height = canvas.height;
+    Object.assign(element.style, { left: `${left}px`, top: `${top}px`, width: `${canvas.width}px`, height: `${canvas.height}px` });
+    const context = element.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.save();
+    if (mirror) {
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+    }
+    context.drawImage(canvas, 0, 0);
+    context.restore();
+  }
+
+  function buildLayers() {
+    const idle = composeIdle(gapFixInput.checked);
+    idleCanvas.getContext("2d").putImageData(new ImageData(idle, WIDTH, HEIGHT), 0, 0);
+    for (const [key, spec] of Object.entries(PRESSED_KEYS)) {
+      const pressed = sourcePixels[spec.source];
+      const glow = spec.glow;
+      for (const color of COLORS) {
+        const light = LIGHTS[color];
+        const litAt = light.hue ? recolored(pressed, idle, light.hue) : rgbAt(pressed);
+        for (const [kind, colorAt] of [["tint", tinted(litAt, idle, light.decayTint)], ["glow", litAt]]) {
+          const canvas = regionCanvas(glow, colorAt);
+          paintLayer(layers[`${kind}-${key}-${color}`], canvas, glow.x0, glow.y0, false);
+          paintLayer(layers[`${kind}-${spec.mirror}-${color}`], canvas, MIRROR_SUM - glow.x1, glow.y0, true);
+        }
+      }
+    }
+    // Every key returns to its own idle pixels, so the cap covers are not mirrored.
+    for (const key of KEYS) {
+      const cap = keyRegion(key, "cap");
+      paintLayer(layers[`cap-${key}`], regionCanvas(cap, rgbAt(idle)), cap.x0, cap.y0, false);
+    }
+  }
+
+  // Same colored-light heuristic as scripts/split-gear-gauge.ts.
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  function gaugeLight(r, g, b) {
+    const max = Math.max(r, g, b);
+    const chroma = max - Math.min(r, g, b);
+    if (.2126 * r + .7152 * g + .0722 * b <= 52) return 0;
+    const colored = clamp01((chroma - 28) / 105) * clamp01((max - 110) / 120);
+    const cool = clamp01((Math.max(g, b) - 130) / 105) * clamp01((Math.max(g, b) - r + 8) / 85);
+    return Math.max(colored, cool);
+  }
+
+  // Alpha of the glass interior at a left-tube pixel: straight side walls and elliptical ends.
+  function glassAlpha(x, y) {
+    const edge = (distance) => clamp01((distance + 1) / (GLASS.feather + 1));
+    const t = (x + .5 - GLASS.centerX) / ((GLASS.x1 - GLASS.x0 + 1) / 2);
+    const arc = Math.max(0, 1 - t * t);
+    const top = GLASS.top[0] + (GLASS.top[1] - GLASS.top[0]) * arc;
+    const bottom = GLASS.bottom[0] + (GLASS.bottom[1] - GLASS.bottom[0]) * arc;
+    return edge(x - GLASS.x0) * edge(GLASS.x1 - x) * edge(y - top) * edge(bottom - y);
+  }
+
+  // The empty glass is either the generated empty-gauge image or v16 with its light dimmed.
+  function buildGauges() {
+    const source = sourcePixels.v16;
+    const generated = gaugeGeneratedInput.checked ? sourcePixels.gaugeEmpty : null;
+    for (const [side, box] of Object.entries(GAUGES)) {
+      const width = box.x1 - box.x0 + 1;
+      const height = box.y1 - box.y0 + 1;
+      const image = new ImageData(width, height);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const index = offset(box.x0 + x, box.y0 + y);
+          const [r, g, b] = [source[index], source[index + 1], source[index + 2]];
+          const dim = Math.min(1, gaugeLight(r, g, b) * GAUGE_EMPTY.strength);
+          const lum = .2126 * r + .7152 * g + .0722 * b;
+          const target = (y * width + x) * 4;
+          [r, g, b].forEach((value, channel) => {
+            image.data[target + channel] = generated
+              ? generated[index + channel]
+              : value * (1 - dim) + lum * GAUGE_EMPTY.tint[channel] * dim;
+          });
+          const glassX = box.mirror ? GAUGE_MIRROR_SUM - (box.x0 + x) : box.x0 + x;
+          image.data[target + 3] = Math.round(255 * glassAlpha(glassX, box.y0 + y));
+        }
+      }
+      const { canvas } = gaugeElements[side];
+      canvas.width = width;
+      canvas.height = height;
+      Object.assign(canvas.style, { width: `${width}px`, height: `${height}px` });
+      canvas.getContext("2d").putImageData(image, 0, 0);
+    }
+  }
+
+  // The empty layer covers the tube from the top down to the fill line, with a soft edge.
+  function applyGauge() {
+    const level = Number(gaugeInput.value) / 100;
+    document.getElementById("gauge-value").value = `${gaugeInput.value}%`;
+    for (const [side, box] of Object.entries(GAUGES)) {
+      const emptyHeight = (1 - level) * (box.y1 - box.y0 + 1);
+      const edge = level <= 0 ? GAUGE_FEATHER : (GAUGE_FEATHER / 2) * Math.min(1, emptyHeight / GAUGE_FEATHER);
+      gaugeElements[side].wrapper.style.height = `${emptyHeight + edge}px`;
+    }
+  }
+
+  function showFullFrame() {
+    if (viewport.dataset.view === "full") return;
+    document.querySelector('input[name="view"][value="full"]').checked = true;
+    viewport.dataset.view = "full";
+    layout();
+  }
+
+  let gaugeTimer = null;
+  function stopGaugeAuto() {
+    clearTimeout(gaugeTimer);
+    gaugeTimer = null;
+    gaugeAutoInput.checked = false;
+  }
+  function stepGauge(index) {
+    gaugeInput.value = String(Math.round(GAUGE_SEQUENCE[index % GAUGE_SEQUENCE.length] * 100));
+    applyGauge();
+    gaugeTimer = setTimeout(() => stepGauge(index + 1), GAUGE_STEP_MS * slowFactor());
+  }
+
+  function layout() {
+    const view = VIEWS[viewport.dataset.view];
+    const scale = viewport.clientWidth / view.width;
+    frame.style.transform = `scale(${scale}) translate(${-view.x}px, ${-view.y}px)`;
+  }
+
+  const activeSources = Object.fromEntries(KEYS.map((key) => [key, new Set()]));
+  function pressColor(other) {
+    const selected = document.querySelector('input[name="color"]:checked').value;
+    return other ? COLORS.find((color) => color !== selected) : selected;
+  }
+  function setPressed(key, source, pressed, color) {
+    const sources = activeSources[key];
+    const wasDown = sources.size > 0;
+    if (pressed) {
+      sources.add(source);
+      keyElements[key].dataset.color = color;
+    } else sources.delete(source);
+    const isDown = sources.size > 0;
+    if (wasDown === isDown) return;
+    keyElements[key].classList.toggle("is-down", isDown);
+    hitElements[key].setAttribute("aria-pressed", String(isDown));
+  }
+  function releaseSources(predicate) {
+    for (const [key, sources] of Object.entries(activeSources)) {
+      for (const source of [...sources]) if (predicate(source)) setPressed(Number(key), source, false);
+    }
+  }
+
+  function slowFactor() {
+    return slowInput.checked ? 10 : 1;
+  }
+  function applyTiming() {
+    const capMs = Number(capInput.value);
+    const glowMs = Number(glowInput.value);
+    document.getElementById("cap-ms-value").value = `${capMs}ms`;
+    document.getElementById("glow-ms-value").value = `${glowMs}ms`;
+    viewport.style.setProperty("--cap-ms", `${capMs * slowFactor()}ms`);
+    viewport.style.setProperty("--glow-ms", `${glowMs * slowFactor()}ms`);
+    const whiteMs = tintInput.checked ? Math.round(glowMs * WHITE_SHARE) : glowMs;
+    viewport.style.setProperty("--white-ms", `${whiteMs * slowFactor()}ms`);
+    viewport.dataset.tint = tintInput.checked ? "on" : "off";
+    viewport.style.setProperty("--gauge-ms", `${GAUGE_MS * slowFactor()}ms`);
+  }
+
+  let demoTimers = [];
+  function stopDemo() {
+    demoTimers.forEach(clearTimeout);
+    demoTimers = [];
+    releaseSources((source) => source.startsWith("demo"));
+    demoButton.setAttribute("aria-pressed", "false");
+  }
+  function runDemoLoop() {
+    const factor = slowFactor();
+    DEMO.forEach((step, index) => {
+      const source = `demo-${index}`;
+      demoTimers.push(setTimeout(() => setPressed(step.key, source, true, pressColor(step.other)), step.at * factor));
+      demoTimers.push(setTimeout(() => setPressed(step.key, source, false), (step.at + step.hold) * factor));
+    });
+    demoTimers.push(setTimeout(runDemoLoop, DEMO_LOOP_MS * factor));
+  }
+
+  window.addEventListener("keydown", (event) => {
+    const key = KEY_CODES[event.code];
+    if (!key || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+    setPressed(key, `keyboard-${event.code}`, true, pressColor(event.shiftKey));
+  });
+  window.addEventListener("keyup", (event) => {
+    const key = KEY_CODES[event.code];
+    if (key) setPressed(key, `keyboard-${event.code}`, false);
+  });
+  window.addEventListener("blur", () => releaseSources((source) => !source.startsWith("demo")));
+  for (const [key, element] of Object.entries(hitElements)) {
+    element.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      element.setPointerCapture(event.pointerId);
+      setPressed(Number(key), `pointer-${event.pointerId}`, true, pressColor(event.shiftKey));
+    });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      element.addEventListener(type, (event) => setPressed(Number(key), `pointer-${event.pointerId}`, false));
+    }
+    element.addEventListener("contextmenu", (event) => event.preventDefault());
+  }
+
+  document.getElementById("controls").addEventListener("change", (event) => {
+    if (event.target.name === "view") {
+      viewport.dataset.view = event.target.value;
+      layout();
+    } else if (event.target === gapFixInput && sourcePixels) {
+      buildLayers();
+    } else if (event.target === tintInput) {
+      applyTiming();
+    } else if (event.target === gaugeGeneratedInput && sourcePixels) {
+      showFullFrame();
+      buildGauges();
+    } else if (event.target === gaugeAutoInput) {
+      if (gaugeAutoInput.checked) {
+        showFullFrame();
+        stepGauge(1);
+      } else stopGaugeAuto();
+    } else if (event.target === slowInput) {
+      applyTiming();
+      if (demoTimers.length) { stopDemo(); runDemoLoop(); demoButton.setAttribute("aria-pressed", "true"); }
+    }
+  });
+  gaugeInput.addEventListener("input", () => {
+    stopGaugeAuto();
+    showFullFrame();
+    applyGauge();
+  });
+  capInput.addEventListener("input", applyTiming);
+  glowInput.addEventListener("input", applyTiming);
+  demoButton.addEventListener("click", () => {
+    if (demoTimers.length) { stopDemo(); return; }
+    demoButton.setAttribute("aria-pressed", "true");
+    runDemoLoop();
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    capInput.value = String(DEFAULTS.capMs);
+    glowInput.value = String(DEFAULTS.glowMs);
+    slowInput.checked = false;
+    gapFixInput.checked = true;
+    tintInput.checked = true;
+    document.querySelector('input[name="color"][value="single"]').checked = true;
+    stopGaugeAuto();
+    gaugeGeneratedInput.checked = true;
+    if (sourcePixels) buildGauges();
+    gaugeInput.value = "100";
+    applyGauge();
+    applyTiming();
+    if (sourcePixels) buildLayers();
+  });
+
+  new ResizeObserver(layout).observe(viewport);
+  applyTiming();
+  applyGauge();
+  layout();
+
+  async function loadPixels(url) {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 0, 0, WIDTH, HEIGHT);
+    return context.getImageData(0, 0, WIDTH, HEIGHT).data;
+  }
+
+  (async () => {
+    try {
+      const entries = await Promise.all(Object.entries(SOURCES).map(async ([name, url]) => [name, await loadPixels(url)]));
+      sourcePixels = Object.fromEntries(entries);
+      buildLayers();
+      buildGauges();
+      viewport.dataset.state = "ready";
+    } catch (error) {
+      viewport.dataset.state = "error";
+      status.textContent = "이 브라우저에서는 시안의 픽셀을 읽을 수 없어 시연을 준비하지 못했습니다. 최신 Chrome에서 다시 열어 주세요.";
+      console.error(error);
+    }
+  })();
+})();
+</script>
+</body></html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전체 프레임 · 백색광 버튼</title><style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; scroll-behavior: smooth; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.65; word-break: keep-all; }
+    main { max-width: 1560px; margin: auto; padding: 24px clamp(18px, 3vw, 48px) 64px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    a:focus-visible, summary:focus-visible { outline: 2px solid #a3d9ff; outline-offset: 5px; }
+    nav { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+    nav a, figcaption a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 28px 0; }
+    .eyebrow { color: #a8b9cb; font-size: 12px; letter-spacing: .12em; }
+    h1 { margin: 8px 0 12px; font-size: clamp(28px, 4vw, 44px); font-weight: 650; line-height: 1.25; }
+    .intro { color: #b8c4d0; max-width: 780px; margin: 0; }
+    .shared { margin: 18px 0 0; padding-left: 16px; border-left: 2px solid #8eabc1; color: #c5d0db; max-width: 850px; }
+    .jump { padding: 0 0 20px; border-bottom: 1px solid #343c46; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 24px; padding-top: 30px; }
+    .study { min-width: 0; scroll-margin-top: 20px; }
+    .study-heading { display: flex; gap: 12px; align-items: baseline; }
+    h2 { margin: 0; font-size: clamp(20px, 2vw, 25px); font-weight: 600; }
+    .number { font-size: 18px; color: #8eabc1; font-variant-numeric: tabular-nums; }
+    .study-heading { min-height: 66px; align-items: flex-start; }
+    .focus-pair { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; margin: 12px 0 20px; }
+    .focus-before, .focus-after { flex: 1; min-width: 0; max-width: 128px; }
+    .focus-label { display: block; color: #a8b9cb; font-size: 12px; margin-bottom: 8px; }
+    .crop { position: relative; overflow: hidden; background: #090c11; }
+    .crop-button { width: 100%; max-width: 128px; aspect-ratio: 8 / 15; }
+    .crop img { position: absolute; max-width: none; height: auto; aspect-ratio: auto; }
+    .crop-button img { width: 640%; left: -225%; top: -356.6667%; }
+    .keywords { margin: 6px 0 16px; color: #a8b9cb; font-size: 13px; min-height: 43px; }
+    figure { margin: 0; }
+    .artwork { display: block; background: #090c11; }
+    img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; }
+    figcaption { padding-top: 12px; }
+    figcaption p { margin: 0 0 4px; color: #b8c4d0; font-size: 14px; }
+    figcaption a { font-size: 14px; }
+    details { margin-top: 36px; padding-top: 20px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; min-height: 44px; padding: 8px 0; }
+    details p { max-width: 800px; color: #b8c4d0; }
+    footer { border-top: 1px solid #343c46; margin-top: 24px; padding-top: 16px; }
+    @media (max-width: 1040px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .grid { grid-template-columns: minmax(0, 1fr); gap: 36px; } .keywords { min-height: 0; } header { margin-top: 20px; } }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  
+    .study-heading { min-height: 44px; }
+    .crop-deck { position: relative; overflow: hidden; width: 100%; aspect-ratio: 33 / 14; background: #090c11; margin: 8px 0 24px; }
+    .crop-deck img { position: absolute; max-width: none; width: 155.1515%; left: -27.2727%; top: -392.8571%; height: auto; aspect-ratio: auto; }
+
+    .crop-frame { position: relative; overflow: hidden; width: 100%; max-width: 300px; aspect-ratio: 1; background: #090c11; margin: 8px 0 24px; }
+    .crop-frame img { position: absolute; max-width: none; width: 409.6%; left: -308%; top: -176%; height: auto; aspect-ratio: auto; }
+
+.crop-key {position:relative; overflow:hidden; width:100%; max-width:260px; aspect-ratio:5/6; background:#090c11; margin:8px 0 24px;}
+.crop-key img {position:absolute; max-width:none; width:512%; left:-170%; top:-458.333333%; height:auto; aspect-ratio:auto;}
+.study-heading {min-height:72px;}
+@media(max-width:600px) {.study-heading {min-height:0;}}
+</style></head><body><main>
+<nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a><a href="press-animation.html">버튼 누름과 게이지</a></nav>
+<header><div class="eyebrow">CLASSIC / WHITE LIGHT / 2026.09.30</div>
+<h1>버튼 발광 · 백색광과 고유색 주변광</h1>
+<p class="intro">버튼 누름면은 밝은 백색광으로, 주변에 번지고 비치는 빛은 고유색으로 표현했습니다. 현재 싱글 버튼의 고유색은 연파랑입니다.</p>
+<p class="shared">임시 시안의 프레임과 버튼 형태 유지 · 낮고 평평한 화이트 키 · 둘째 버튼 눌림</p></header>
+<nav class="jump" aria-label="전후 바로가기"><a href="#before">임시 시안</a><a href="#after">백색광 수정안</a></nav>
+<div class="grid"><section class="study" id="before" aria-labelledby="title-before">
+<div class="study-heading"><h2 id="title-before">수정 전 · 임시 시안</h2></div>
+<p class="keywords">연파랑으로 빛나는 누름면.</p><span class="focus-label">버튼 발광 확대</span>
+<div class="crop-key" aria-hidden="true"><img src="52-restored-frame-v15.svg" width="1024" height="1536" alt="" loading="eager" decoding="async"></div>
+<figure><a class="artwork" href="52-restored-frame-v15.svg" target="_blank" rel="noopener noreferrer" aria-label="임시 시안 원본 확대"><img src="52-restored-frame-v15.svg" width="1024" height="1536" alt="수정 전 · 임시 시안: 연파랑으로 빛나는 누름면." loading="lazy" decoding="async"></a>
+<figcaption><a href="52-restored-frame-v15.svg" download>임시 시안 SVG 다운로드</a></figcaption></figure>
+</section>
+<section class="study" id="after" aria-labelledby="title-after">
+<div class="study-heading"><h2 id="title-after">수정 후 · 백색광과 연파랑 주변광</h2></div>
+<p class="keywords">밝은 백색 누름면과 고유색의 번짐·반사광.</p><span class="focus-label">버튼 발광 확대</span>
+<div class="crop-key" aria-hidden="true"><img src="53-white-core-frame-v16.svg" width="1024" height="1536" alt="" loading="lazy" decoding="async"></div>
+<figure><a class="artwork" href="53-white-core-frame-v16.svg" target="_blank" rel="noopener noreferrer" aria-label="백색광 수정안 원본 확대"><img src="53-white-core-frame-v16.svg" width="1024" height="1536" alt="수정 후 · 백색광과 연파랑 주변광: 밝은 백색 누름면과 고유색의 번짐·반사광." loading="lazy" decoding="async"></a>
+<figcaption><a href="53-white-core-frame-v16.svg" download>백색광 수정안 SVG 다운로드</a></figcaption></figure>
+</section></div>
+<details id="sources"><summary>기준 시안과 보존 영역</summary><p><a href="52-restored-frame-v15.svg" target="_blank" rel="noopener noreferrer">채택한 임시 시안 v15</a>를 바탕으로 둘째 버튼의 발광 영역만 수정했습니다. 프레임·게이지와 나머지 버튼은 그대로 보존합니다. 다운로드는 이미지를 내장한 SVG 한 파일입니다.</p></details>
+<details id="principles"><summary>실제 전달한 요청</summary><p class="generation-prompt">Use case: lighting-weather.<br>Image 1 is the EDIT TARGET: the existing four-key rhythm game frame concept. Make exactly one local lighting change to the currently illuminated SECOND KEY FROM THE LEFT at the bottom (approximately x=365..513, y=1128..1274 on the 1024x1536 canvas).<br>The user wants the key's emitted light to be BRIGHT NEUTRAL WHITE, with its identity color visible in the SURROUNDING LIGHT. Make the large flat top of this pressed key visibly self-luminous brilliant white, with a broad white-hot luminous center occupying most of the top face. It should read as a bright white LED diffuser, not a cyan-painted or cyan-tinted keycap. Keep a subtle transition at the outermost edge into pale cyan. Put the key's signature pale cyan/light blue into the halo around the key, light leaking under its rim and the soft reflected light on the adjacent dark housing. The white emission must be brighter than the neighboring unlit white keys, visibly glowing from inside with soft local bloom. Keep the original material outline readable. No starburst, laser ray, flame, plume or added LED dot.<br>Preserve EXACTLY the second key's low height, flat non-concave surface, depressed position, trapezoidal perspective and silhouette. Keep the other three keys unlit white. Keep the existing single aperture and its white-core cyan flash below the key unchanged. Preserve all geometry, button positions, frame armor, side gauges, lane field, other lighting, original exposure, background and camera. Do not redraw or soften the frame. No labels, text, new controls, crop, new angle or design changes. Output the same full 1024x1536 portrait composition.</p></details>
+<footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="press-animation.html">버튼 누름과 게이지</a></nav></footer>
+</main></body></html>

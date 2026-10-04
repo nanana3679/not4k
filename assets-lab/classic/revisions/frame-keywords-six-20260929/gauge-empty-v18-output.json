@@ -1,0 +1,12 @@
+{
+  "generator": "built-in image_gen",
+  "input": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+  "generatedSource": "/home/nanana3679/.codex/generated_images/01a0ef9e-97ed-7391-8177-0fbcdff1e29a/exec-35ca1741-d4de-41e2-864a-166783669127.png",
+  "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/gauge-empty-insert-v18.png",
+  "prompt": "assets-lab/classic/revisions/frame-keywords-six-20260929/gauge-empty-v18-prompt.json",
+  "size": [
+    1024,
+    1536
+  ],
+  "description": "The rhythm game frame has two empty, unlit dark navy glass gauge tubes with thin reflective highlights and the surrounding armor and four keys preserved."
+}

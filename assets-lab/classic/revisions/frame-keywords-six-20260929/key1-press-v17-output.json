@@ -1,0 +1,13 @@
+{
+  "generator": "built-in image_gen",
+  "input": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+  "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/white-core-v16-render.png",
+  "generatedSource": "/home/nanana3679/.codex/generated_images/01a0ef64-54eb-7852-9c35-e697789650d2/exec-18d0e0cf-804e-4ffa-a142-73bd0c2b71a7.png",
+  "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/key1-press-insert-v17.png",
+  "prompt": "assets-lab/classic/revisions/frame-keywords-six-20260929/key1-press-v17-prompt.json",
+  "size": [
+    1024,
+    1536
+  ],
+  "description": "The leftmost key glows bright neutral white with a cyan halo and illuminated lower aperture while the other three keys remain raised and unlit."
+}
