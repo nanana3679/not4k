@@ -16,16 +16,9 @@ const SWAP_SEEDS = 3000;
 const START = 1000;
 const LATE_FIRST_HEAD = 30;
 const KEYS = ["A", "B", "C", "D"] as const;
-/**
- * main에도 있는 별개 결함 #180: 뒤 바디가 없는 끝 holdOnly 바디가 E+Good까지 미확정으로 남으면
- * holdOnly 대신 release 판정을 내보내 세션이 미등록 score item 예외를 던진다
- * (예: 일반 seed 2578 — headless doubleLong [1000,1200] → holdOnly [1200,1260], B up 1160·A up 1170).
- * 래칫 목록은 일반 생성기 seed 1~SEEDS(3000) 범위 기준이다. 범위를 12000까지 넓히면 #180 seed
- * 5087·7212가 더 나온다. 교대 집중 생성기 seed 1~SWAP_SEEDS(3000)에서는 #180 예외가 없다.
- * 고치면 이 목록에서 빼야 테스트가 통과한다.
- */
-const KNOWN_TERMINAL_HOLD_ONLY_THROWS = [2578];
-const KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS: number[] = [];
+// #180(E+Good까지 미확정인 holdOnly unit이 release 판정을 내보내 세션이 미등록 score item 예외를 던지던 결함)은
+// 고쳤다. 래칫으로 남겼던 일반 seed 2578(headless doubleLong [1000,1200] → holdOnly [1200,1260], B up 1160·A up 1170)은
+// 이제 예외 없이 정산한다. 새 정산 예외를 이슈로 남겨야 할 때만 seed 래칫을 다시 둔다.
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -147,7 +140,8 @@ function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batche
   const starts = new Map(notes.map((note, index) => [index, note.beat.n] as [number, number]));
   const ends = new Map<number, number>();
   notes.forEach((note, index) => { if ("endBeat" in note) ends.set(index, note.endBeat.n); });
-  const session = new NoteJudgmentSession(compileJudgmentChart(notes, starts, ends));
+  const compiled = compileJudgmentChart(notes, starts, ends);
+  const session = new NoteJudgmentSession(compiled);
   let error: string | undefined;
   try {
     session.processBatch(firstAt, firstKeys.map(key => ({ key, lane: 1, type: "down" as const })));
@@ -156,7 +150,9 @@ function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batche
   } catch (caught) {
     error = (caught as Error).message;
   }
-  return { error, state: session.score.getState(), events: session.events };
+  const holdOnlyNotes = new Set(notes.flatMap((note, index) => ("holdOnly" in note && note.holdOnly ? [index] : [])));
+  const holdOnlyItems = compiled.scoreItems.filter(item => holdOnlyNotes.has(item.noteIndex)).map(item => item.itemId);
+  return { error, state: session.score.getState(), events: session.events, holdOnlyNotes, holdOnlyItems };
 }
 
 const afterFirstHead = (events: readonly NoteJudgmentEvent[], firstAt: number) => events
@@ -199,13 +195,25 @@ function swapRuns() {
 }
 
 const throwingSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error !== undefined).map(run => run.seed);
+/** holdOnly 끝에 release 판정을 내거나, 점수 항목을 두 번 정산하거나, holdOnly 항목을 정산하지 않고 끝난 seed. */
+const holdOnlySettlementViolations = (all: readonly FuzzRun[]) => all.filter(run => {
+  const { events, holdOnlyNotes, holdOnlyItems } = run.onTime;
+  const ids = events.filter(event => event.itemId !== undefined).map(event => event.itemId!);
+  const settled = new Set(ids);
+  return events.some(event => event.kind === "release" && holdOnlyNotes.has(event.noteIndex)) ||
+    ids.length !== settled.size || holdOnlyItems.some(itemId => !settled.has(itemId));
+}).map(run => run.seed);
 const fullComboWithUnsettledItems = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error === undefined &&
   run.onTime.state.isFullCombo && run.onTime.state.processedNotes !== run.onTime.state.totalNotes).map(run => run.seed);
 
 describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력", () => {
-  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외는 기존 끝 holdOnly 결함(#180) seed ${KNOWN_TERMINAL_HOLD_ONLY_THROWS.join("·")}뿐`, () => {
+  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외 없음`, () => {
     expect(runs().length).toBeGreaterThan(SEEDS / 2);
-    expect(throwingSeeds(runs())).toEqual(KNOWN_TERMINAL_HOLD_ONLY_THROWS);
+    expect(throwingSeeds(runs())).toEqual([]);
+  });
+
+  it(`seed 1~${SEEDS}에서 holdOnly 끝에는 release 판정이 없고, 어떤 점수 항목도 두 번 정산하지 않으며, 모든 holdOnly 항목을 정산함 (#180)`, () => {
+    expect(holdOnlySettlementViolations(runs())).toEqual([]);
   });
 
   it(`seed 1~${SEEDS}에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -223,11 +231,13 @@ describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력
 });
 
 describe("판정 정산 퍼즈: 2→1 감소 경계의 연결 head 교대", () => {
-  const throwsLabel = KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS.length > 0
-    ? `기존 끝 holdOnly 결함(#180) seed ${KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS.join("·")}뿐` : "없음";
-  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외는 ${throwsLabel}`, () => {
+  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외 없음`, () => {
     expect(swapRuns().length).toBeGreaterThan(SWAP_SEEDS / 2);
-    expect(throwingSeeds(swapRuns())).toEqual(KNOWN_SWAP_TERMINAL_HOLD_ONLY_THROWS);
+    expect(throwingSeeds(swapRuns())).toEqual([]);
+  });
+
+  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 holdOnly 끝에는 release 판정이 없고, 어떤 점수 항목도 두 번 정산하지 않으며, 모든 holdOnly 항목을 정산함 (#180)`, () => {
+    expect(holdOnlySettlementViolations(swapRuns())).toEqual([]);
   });
 
   it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {

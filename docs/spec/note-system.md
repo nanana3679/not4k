@@ -106,6 +106,7 @@ head는 자기 Point 점수 항목을 판정하면서 담당 unit의 시작도 �
 - double head + single 바디는 첫 성공으로 활성화하고 두 성공 키를 모두 등록한다.
 - 이미 건강하게 승계한 바디는 별도 head Miss만으로 실패하지 않는다.
 - head Miss로 종속 unit이 시작하지 못하면 해당 끝점의 원래 점수 항목은 0점으로 함께 정산하고, 끝점에서 추가 Miss 효과를 내지 않는다.
+- head의 놓친 몫 하나는 시작·승계하지 못한 unit 하나만 덮는다. single head + double 바디를 모두 놓치면 둘째 unit은 독립 시작 의무로 시작 기한에 Miss와 끝점 0점을 낸다. 입력 없는 독립 노트의 Miss는 max(head 몫 수, unit 수)이다([NJ-S04](note-judgment-cases.md#nj-s04)).
 
 #### 유지·끝점·실패
 

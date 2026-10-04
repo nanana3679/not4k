@@ -2,7 +2,7 @@
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
-사례는 40개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로 추가했다.
+사례는 41개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로 추가했다. [NJ-S04](#nj-s04)는 부분 입력이 입력 없음보다 나빠지던 결함을 사용자가 정한 head Miss 종속 범위로 정리하며 추가했다.
 
 ## 사용 방법
 
@@ -112,6 +112,17 @@ Perfect 4개, Miss 없음. 두 키의 held가 겹치지 않아도 된다. 서로
 | A up 1130 | 별도의 release나 추가 Miss 없음 |
 
 이미 활성화한 뒤 실패한 바디를 복구하는 경우는 아니다.
+
+아래는 **규칙에서 도출한 대조**(#180)다. `holdOnly` 끝은 Perfect/Miss 상태 판정이므로 release 점수 항목이 없고, 어떤 경로로도 release 판정을 내지 않는다. S 전에 시작하고 바로 뗀 up은 E−Good 전이라 이른 완료가 아니고 실제 release도 아니어서 그 unit을 E+Good까지 미확정으로 남긴다. 그 기한에 실패하면 유지 Miss 하나와 자기 `holdOnly` 항목의 종속 0점으로 한 번 정산한다. 같은 입력의 일반 바디가 E+Good에 release Miss 하나로 끝나는 것과 Miss 수·점수가 같다.
+
+| 차트 | 입력 | 기대 결과 |
+|---|---|---|
+| head 없는 `holdOnly [1000,1120]` | C down 880 / up 890 | 1240에 유지 Miss와 종속 0점. 0/3, Miss 1. release 판정 없음 |
+| 같은 차트 | C down 880 / up 1000 | E−Good 이후의 이른 완료 `holdOnly` Perfect. Miss 없음 |
+| 일반 `[1000,1120]` | C down 880 / up 890 | 1240에 release Miss. 0/3, Miss 1 |
+| head 없는 double `[1000,1200]` → `holdOnly [1200,1260]` | A·B down 1000, B up 1160, A up 1170 | B up은 감소 release Perfect(−40). `holdOnly`는 1380에 유지 Miss와 종속 0점. 모든 점수 항목을 한 번씩 정산 |
+
+S 전에 시작하고 뗀 up을 보류하지 않고 그 시점의 유지 실패로 확정할지는 일반 바디와 함께 정하지 않았다. [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 ## 일반 감소와 release
 
@@ -611,6 +622,40 @@ S+Good까지 허용한 늦은 첫 활성화는 정당한 시작이다. `holdOnly
 | 추가 입력 없이 1121까지 진행 | 남은 L1 head Miss와 B up의 terminal Great(-70)를 같은 기한 처리 묶음에서 확정. Miss 우선으로 콤보 0 |
 
 최종 콤보는 0이다. B의 release는 실제 up 시각으로 Great와 raw -70ms를 기록하지만, 1051의 Miss 전 성공으로 소급하지 않는다. 전체는 Perfect 4개·Great 1개·Miss 2개이며 별도 유지 Miss는 없다. 서로 다른 레인의 순회 순서나 늦게 관측한 기한들을 처리하는 코드 순서 때문에 이 결과가 달라지지 않아야 한다. 엔진을 실행한 검증 결과는 아니다.
+
+<a id="nj-s04"></a>
+### NJ-S04 — single head + 독립 double에 입력이 없으면 head Miss와 둘째 unit의 시작 Miss로 Miss 2
+
+차트: single head 1000 + 독립 double `[1000,2000]`. Perfect=3 기준 점수 항목은 head 1개와 release 2개, 분모 9이다.
+
+| 입력 | 기대 결과 | 획득/분모 | Miss | 출처 |
+|---|---|---|---:|---|
+| 입력 없음, 3000까지 진행 | 1120에 head Miss와 그 head가 덮는 unit의 종속 0점. 같은 시각에 둘째 unit의 시작 Miss와 그 끝점의 종속 0점. 2120에 추가 Miss 없음. 정산 3개 | 0/9 | 2 | 사용자 제안 규칙 |
+| A down 1000 / up 1500 | head Perfect. 둘째 unit 시작 Miss 1120, A의 유지 Miss 1500, 두 끝점 0점 | 3/9 | 2 | 도출 |
+| A down 1000 / up 2000 | head Perfect, 둘째 unit 시작 Miss 1120, release Perfect | 6/9 | 1 | 도출 |
+| A down 1000, B down 1030, A·B up 2000 | Perfect 3개 | 9/9 | 0 | 도출 |
+
+같은 독립 노트에서 일부만 성공한 입력은 입력 없음보다 최종 획득 점수가 낮거나 Miss가 많지 않다. 비교는 최종 점수와 전체 Miss 수에 한정하며, 순간 고도나 게임 오버 시점을 비교하지 않는다. 종전 결과는 입력 없음이 0/9·Miss 1이라 A down 1000 / up 1500보다 Miss가 적었다.
+
+**규칙에서 도출한 대조.** 모두 입력 없음, 3000까지 진행이다.
+
+| 차트 | 기대 결과 | Miss |
+|---|---|---:|
+| head 없는 single·double (`holdOnly` 포함) | unit마다 시작 Miss와 종속 0점 | 1 / 2 |
+| single head + single | head Miss와 종속 0점 1 | 1 |
+| single head + double `holdOnly` | 일반 double과 같다. 둘째 unit의 `holdOnly` 항목도 0점으로 한 번 정산 | 2 |
+| double head + single | head Miss 2와 종속 0점 1. 남는 head 몫이 덮을 unit이 없어도 추가 Miss 없음 | 2 |
+| double head + double | head Miss 2가 두 unit을 덮어 종속 0점 2 | 2 |
+
+**연결 차트의 대조.** head의 놓친 몫은 승계하지 못한 unit부터 덮는다.
+
+| 차트·입력 | 기대 결과 |
+|---|---|
+| double head 0 + double `[0,1000]` → single head 1000 + double `[1000,2000]`. A/B down 0, up 2000 | 두 unit 모두 승계. head 1000 Miss 하나만 있고 2000의 두 release Perfect |
+| head 0 + single `[0,1000]` → single head 1000 + double `[1000,2000]`. A down 0, up 2000 | 첫 unit 승계. head 1000 Miss가 둘째 unit을 덮어 종속 0점, release Perfect. 뒤 노트의 Miss는 head 하나 |
+| 위 차트. A down 0, up 500 | 앞 바디 유지 Miss. 승계가 없어 1120에 head Miss와 독립 시작 Miss 하나씩. 전체 Miss 3 |
+
+결정 배경은 [RFD 0020 §2.15](../rfd/0020-note-judgment-units-and-inheritance.md#215-head-miss의-종속-범위와-독립-시작-의무--후속-채택)를 따른다.
 
 ## 차트 배치
 
