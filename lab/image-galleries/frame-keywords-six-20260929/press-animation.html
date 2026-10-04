@@ -58,7 +58,7 @@
     footer { border-top: 1px solid #343c46; margin-top: 24px; padding-top: 16px; }
     @media (max-width: 860px) { .player { grid-template-columns: minmax(0, 1fr); } .viewport[data-view="full"] { margin: auto; } }
 </style></head><body><main>
-<nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a></nav>
+<nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a><a href="ambient-motion.html">프레임 움직임</a></nav>
 <header><div class="eyebrow">CLASSIC / PRESS MOTION / 2026.09.30</div>
 <h1>버튼 누름과 게이지</h1>
 <p class="intro">네 버튼을 누르는 동안 눌림과 발광이 켜집니다. 떼면 키가 먼저 올라오고 빛은 잔광으로 뒤따라 꺼집니다. 싱글은 연파랑, 더블은 금색 주변광이며 누를 때마다 바로 바뀝니다. 양옆 게이지는 채움 정도를 조절할 수 있습니다.</p>
@@ -115,7 +115,7 @@
 <li>두 이미지를 단순히 겹쳐 흐리게 하면 흰 섬광이 회색으로 탁해집니다. 기본값에서는 백색광이 잔광 시간의 35% 안에 먼저 빠지고, 그 아래에서 빛의 증가분에만 고유색을 곱한 잔광 레이어가 끝까지 꺼집니다. 이 잔광 레이어는 전환 중에만 보이는 계산 결과이며, 싱글의 눌린 상태 화면은 소재 그대로입니다. 체크를 끄면 단순 교차 전환과 비교할 수 있습니다.</li>
 <li>더블 금색은 새로 그리지 않고 계산했습니다. 눌림 픽셀이 대기 픽셀보다 더 띠는 색 성분을 빛의 색으로 보고, 흰빛은 그대로 둔 채 이 연파랑 성분만 같은 밝기의 금색으로 바꿉니다. 눌린 키와 대기 키의 윤곽이 어긋나므로 밝기 차이 대신 색 성분을 비교합니다. 금색 방향은 이전 생성 시안 v10의 더블 섬광에서 측정했습니다. 대기보다 색을 더 띠지 않는 픽셀은 싱글 눌림 화면과 같아서 키 형태가 바뀌지 않습니다.</li>
 </ul></details>
-<footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a></nav></footer>
+<footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a><a href="ambient-motion.html">프레임 움직임</a></nav></footer>
 </main>
 <script>
 (() => {
