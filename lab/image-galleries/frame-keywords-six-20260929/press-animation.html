@@ -27,6 +27,7 @@
     .key[data-color="single"] .double, .key[data-color="double"] .single { display: none; }
     .key.is-down .tint, .key.is-down .glow { opacity: 1; transition: none; }
     .key.is-down .cap-cover { opacity: 0; transition: none; }
+    .key.is-down .tint { visibility: hidden; }
     .gauge { position: absolute; overflow: hidden; pointer-events: none; transition: height var(--gauge-ms, 300ms) ease-out; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); }
     .gauge canvas { position: absolute; left: 0; top: 0; display: block; }
     .hit { position: absolute; padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: none; }
@@ -109,7 +110,7 @@
 <li>1번 키 눌림은 네 키가 모두 대기인 화면을 편집 대상으로, v16을 발광 참조로 삼아 이미지 생성으로 한 번 만들었습니다. 생성 결과 전체가 아니라 1번 키 둘레만 잘라 쓰므로 프레임은 v16 픽셀 그대로입니다. 생성된 1번 키는 윗변 높이가 대기와 같고 누름면이 조금 좁아지는 정도로 눌려, 약 6px 내려가는 2·3번 키보다 눌림이 약하게 보입니다.</li>
 <li>v16에는 둘째 키의 연파랑 번짐이 셋째 키 가장자리까지 그려져 있습니다. 모두 대기 중일 때 이 번짐이 남지 않도록, 두 키 사이 틈의 폭 51px만 채도와 밝기를 낮춥니다. 이 부분은 픽셀 색 보정이며, 체크를 끄면 보정 전과 비교할 수 있습니다.</li>
 <li>게이지는 게임의 기어 기둥 게이지처럼 빈 게이지 레이어가 위에서부터 채움 경계까지 덮습니다. 빈 유리는 기본으로 <a href="gauge-empty-insert-v18.png" target="_blank" rel="noopener noreferrer">빈 게이지 생성 이미지</a>를 씁니다. 체크를 끄면 v16 유리관의 채도 높은 빛 픽셀만 어두운 남색으로 바꾼 계산 결과와 비교할 수 있습니다. 계산 방식은 흰색에 가까운 섬광을 빛으로 잡지 못해 비워도 바닥에 작은 반짝임이 남습니다. 빈 게이지 레이어는 측정한 유리 안쪽 윤곽(곧은 옆벽과 금속 마개 테두리를 따라가는 타원 끝)으로 잘라, 마개·테두리·옆 장갑에 비친 빛은 채움과 관계없이 그대로 둡니다. 경계는 8px에 걸쳐 부드럽게 이어지고, 값이 바뀌면 300ms 동안 움직입니다. 100%는 v16 그대로, 0%는 두 유리관의 빛이 모두 꺼진 모습입니다.</li>
-<li>이웃한 두 키의 빛 영역은 키 사이 틈의 가운데에서 만납니다. 그래서 두 키를 함께 눌러도 한 키의 빛 레이어가 다른 키의 윤곽을 덮지 않습니다.</li>
+<li>이웃한 두 키의 빛 영역은 키 사이 틈 안에서 서로 흐려지며 교차합니다. 그래서 두 키를 함께 눌러도 한 키의 빛 레이어가 다른 키의 윤곽을 거의 덮지 않습니다.</li>
 <li>누르면 입력한 프레임에 바로 눌림과 발광으로 바뀝니다. 떼면 키 몸체 영역과 주변광 영역이 서로 다른 시간으로 대기 모습에 돌아옵니다. 그래서 두 이미지의 키 높이 차이 때문에 생기는 겹침이 짧게만 보입니다.</li>
 <li>두 이미지를 단순히 겹쳐 흐리게 하면 흰 섬광이 회색으로 탁해집니다. 기본값에서는 백색광이 잔광 시간의 35% 안에 먼저 빠지고, 그 아래에서 빛의 증가분에만 고유색을 곱한 잔광 레이어가 끝까지 꺼집니다. 이 잔광 레이어는 전환 중에만 보이는 계산 결과이며, 싱글의 눌린 상태 화면은 소재 그대로입니다. 체크를 끄면 단순 교차 전환과 비교할 수 있습니다.</li>
 <li>더블 금색은 새로 그리지 않고 계산했습니다. 눌림 픽셀이 대기 픽셀보다 더 띠는 색 성분을 빛의 색으로 보고, 흰빛은 그대로 둔 채 이 연파랑 성분만 같은 밝기의 금색으로 바꿉니다. 눌린 키와 대기 키의 윤곽이 어긋나므로 밝기 차이 대신 색 성분을 비교합니다. 금색 방향은 이전 생성 시안 v10의 더블 섬광에서 측정했습니다. 대기보다 색을 더 띠지 않는 픽셀은 싱글 눌림 화면과 같아서 키 형태가 바뀌지 않습니다.</li>
@@ -392,8 +393,8 @@
   // Alpha of the glass interior at a left-tube pixel: straight side walls and elliptical ends.
   function glassAlpha(x, y) {
     const edge = (distance) => clamp01((distance + 1) / (GLASS.feather + 1));
-    const t = (x + .5 - GLASS.centerX) / ((GLASS.x1 - GLASS.x0 + 1) / 2);
-    const arc = Math.max(0, 1 - t * t);
+    const t = (x - GLASS.centerX) / ((GLASS.x1 - GLASS.x0) / 2);
+    const arc = Math.sqrt(Math.max(0, 1 - t * t));
     const top = GLASS.top[0] + (GLASS.top[1] - GLASS.top[0]) * arc;
     const bottom = GLASS.bottom[0] + (GLASS.bottom[1] - GLASS.bottom[0]) * arc;
     return edge(x - GLASS.x0) * edge(GLASS.x1 - x) * edge(y - top) * edge(bottom - y);
@@ -507,14 +508,23 @@
   }
 
   let demoTimers = [];
+  let demoRunning = false;
   function stopDemo() {
     demoTimers.forEach(clearTimeout);
     demoTimers = [];
+    demoRunning = false;
     releaseSources((source) => source.startsWith("demo"));
     demoButton.setAttribute("aria-pressed", "false");
   }
+  function startDemo() {
+    demoRunning = true;
+    demoButton.setAttribute("aria-pressed", "true");
+    runDemoLoop();
+  }
   function runDemoLoop() {
     const factor = slowFactor();
+    // Every step of the previous loop ends before DEMO_LOOP_MS, so only the new loop's timers stay pending.
+    demoTimers = [];
     DEMO.forEach((step, index) => {
       const source = `demo-${index}`;
       demoTimers.push(setTimeout(() => setPressed(step.key, source, true, pressColor(step.other)), step.at * factor));
@@ -543,6 +553,15 @@
       element.addEventListener(type, (event) => setPressed(Number(key), `pointer-${event.pointerId}`, false));
     }
     element.addEventListener("contextmenu", (event) => event.preventDefault());
+    element.addEventListener("keydown", (event) => {
+      if ((event.key !== " " && event.key !== "Enter") || event.repeat) return;
+      event.preventDefault();
+      setPressed(Number(key), `button-${event.code}`, true, pressColor(event.shiftKey));
+    });
+    element.addEventListener("keyup", (event) => {
+      if (event.key === " " || event.key === "Enter") setPressed(Number(key), `button-${event.code}`, false);
+    });
+    element.addEventListener("blur", () => releaseSources((source) => source.startsWith("button-")));
   }
 
   document.getElementById("controls").addEventListener("change", (event) => {
@@ -563,7 +582,7 @@
       } else stopGaugeAuto();
     } else if (event.target === slowInput) {
       applyTiming();
-      if (demoTimers.length) { stopDemo(); runDemoLoop(); demoButton.setAttribute("aria-pressed", "true"); }
+      if (demoRunning) { stopDemo(); startDemo(); }
     }
   });
   gaugeInput.addEventListener("input", () => {
@@ -574,9 +593,7 @@
   capInput.addEventListener("input", applyTiming);
   glowInput.addEventListener("input", applyTiming);
   demoButton.addEventListener("click", () => {
-    if (demoTimers.length) { stopDemo(); return; }
-    demoButton.setAttribute("aria-pressed", "true");
-    runDemoLoop();
+    if (demoRunning) stopDemo(); else startDemo();
   });
   document.getElementById("reset").addEventListener("click", () => {
     capInput.value = String(DEFAULTS.capMs);
@@ -592,6 +609,7 @@
     applyGauge();
     applyTiming();
     if (sourcePixels) buildLayers();
+    if (demoRunning) { stopDemo(); startDemo(); }
   });
 
   new ResizeObserver(layout).observe(viewport);
@@ -620,7 +638,7 @@
       viewport.dataset.state = "ready";
     } catch (error) {
       viewport.dataset.state = "error";
-      status.textContent = "이 브라우저에서는 시안의 픽셀을 읽을 수 없어 시연을 준비하지 못했습니다. 최신 Chrome에서 다시 열어 주세요.";
+      status.textContent = "시안 이미지를 불러오거나 픽셀을 읽지 못해 시연을 준비하지 못했습니다. 파일이 같은 폴더에 있는지, 페이지를 서버 주소(file:// 아님)로 열었는지 확인한 뒤 최신 Chrome에서 다시 열어 주세요.";
       console.error(error);
     }
   })();

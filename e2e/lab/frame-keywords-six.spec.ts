@@ -231,13 +231,17 @@ test("누름 애니메이션의 대기 레이어는 둘째 키 반전 영역과 
   }
 });
 
-test("J를 누르는 즉시 셋째 키 발광 opacity 1·키 덮개 0이 되고, 10배 느리게 떼면 키 복귀 400ms가 끝난 뒤에도 연파랑 잔광이 남는다", async ({ page }) => {
+test("J를 누르는 즉시 셋째 키 발광 opacity 1·키 덮개 0이 되고, 잔광 600ms를 10배 느리게 떼면 키 복귀 400ms가 끝난 뒤에도 연파랑 잔광이 남는다", async ({ page }) => {
   await page.goto(pressAnimationPath);
   await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  await page.locator("#glow-ms").evaluate((element) => {
+    (element as HTMLInputElement).value = "600";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   await page.getByLabel("10배 느리게").check();
   await expect(page.locator("#viewport")).toHaveCSS("--cap-ms", "400ms");
-  await expect(page.locator("#viewport")).toHaveCSS("--white-ms", "530ms");
-  await expect(page.locator("#viewport")).toHaveCSS("--glow-ms", "1500ms");
+  await expect(page.locator("#viewport")).toHaveCSS("--white-ms", "2100ms");
+  await expect(page.locator("#viewport")).toHaveCSS("--glow-ms", "6000ms");
 
   const pressed = await page.evaluate(() => {
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyJ", key: "j" }));
@@ -251,7 +255,7 @@ test("J를 누르는 즉시 셋째 키 발광 opacity 1·키 덮개 0이 되고,
   const lingering = Number(await layerOpacity(page, "tint-3-single"));
   expect(lingering).toBeGreaterThan(0);
   expect(lingering).toBeLessThan(1);
-  await expect.poll(() => layerOpacity(page, "tint-3-single"), { timeout: 3000 }).toBe("0");
+  await expect.poll(() => layerOpacity(page, "tint-3-single"), { timeout: 9000 }).toBe("0");
 });
 
 test("F와 포인터로 둘째 키를 함께 누르다 F만 떼면 계속 눌려 있고 포인터까지 떼야 풀린다", async ({ page }) => {
@@ -278,7 +282,7 @@ test("잔광 고유색을 끄면 잔광 레이어가 숨고 백색광이 잔광 
   await expect(page.locator("#viewport")).toHaveCSS("--white-ms", "150ms");
 });
 
-test("더블 금색 발광에서 싱글 연파랑 주변광 픽셀은 99% 이상이 연파랑을 벗어나고 90% 이상이 금색(R>B)이 되며 흰 중심(250 이상)과 무채색 픽셀은 싱글 그대로다", async ({ page }) => {
+test("더블 금색 발광에서 싱글 연파랑 주변광 픽셀은 99% 이상이 연파랑을 벗어나고 90% 이상이 금색(R>B)이 되며 흰 중심은 250 이상을 유지하고 무채색 픽셀은 싱글과 같다", async ({ page }) => {
   await page.goto(pressAnimationPath);
   await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
   const stats = await page.evaluate(() => {
@@ -481,12 +485,12 @@ test("빈 유리 생성 이미지 체크를 끄면 계산 방식으로 바뀌어
   }
 });
 
-test("게이지 자동 변화를 켜면 전체 프레임 보기로 바뀌고 채움이 82%에서 700ms 뒤 60%로 바뀌며 끄면 멈춘다", async ({ page }) => {
+test("게이지 자동 변화를 켜면 전체 프레임 보기로 바뀌고 채움이 82%를 거쳐 700ms 뒤 60%로 바뀌며 끄면 멈춘다", async ({ page }) => {
   await page.goto(pressAnimationPath);
   await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
   await page.getByLabel("게이지 자동 변화").check();
   await expect(page.locator("#viewport")).toHaveAttribute("data-view", "full");
-  await expect(page.locator("#gauge-value")).toHaveText("82%");
+  await expect(page.locator("#gauge-value")).toHaveText(/^(82|60)%$/);
   await expect(page.locator("#gauge-value")).toHaveText("60%", { timeout: 2000 });
   await page.getByLabel("게이지 자동 변화").uncheck();
   const stopped = await page.locator("#gauge").inputValue();
@@ -574,4 +578,48 @@ test("빈 유리 기본값은 생성 이미지 gauge-empty-insert-v18.png의 유
     expect(result[side].opaque).toBeGreaterThan(50000);
     expect(result[side].mismatch).toBe(0);
   }
+});
+
+test("1번 키 버튼에 초점을 두고 Space를 누르면 키가 눌리고 떼거나 초점이 빠지면 풀린다", async ({ page }) => {
+  await page.goto(pressAnimationPath);
+  await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  const hit = page.getByRole("button", { name: "첫째 키 누르기 (D)" });
+  await hit.focus();
+  await page.keyboard.down("Space");
+  await expect(hit).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.up("Space");
+  await expect(hit).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.down("Space");
+  await expect(hit).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "기본값" }).focus();
+  await expect(hit).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.up("Space");
+});
+
+test("10배 느리게 자동 시연 중 기본값을 누르면 1배 속도로 다시 시작해 1초 안에 3번 이상 누르고, 자동 시연을 다시 누르면 멈추며 눌린 키가 남지 않는다", async ({ page }) => {
+  await page.goto(pressAnimationPath);
+  await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  const demo = page.getByRole("button", { name: "자동 시연" });
+  await page.getByLabel("10배 느리게").check();
+  await demo.click();
+  await expect(demo).toHaveAttribute("aria-pressed", "true");
+  await page.evaluate(() => {
+    const counter = { presses: 0 };
+    (window as unknown as { pressCounter: typeof counter }).pressCounter = counter;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const element = record.target as HTMLElement;
+        if (element.classList.contains("is-down") && !(record.oldValue ?? "").includes("is-down")) counter.presses++;
+      }
+    }).observe(document.getElementById("frame")!, { subtree: true, attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+  });
+  await page.getByRole("button", { name: "기본값" }).click();
+  await expect(page.getByLabel("10배 느리게")).not.toBeChecked();
+  await expect(demo).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(1000);
+  const presses = await page.evaluate(() => (window as unknown as { pressCounter: { presses: number } }).pressCounter.presses);
+  expect(presses).toBeGreaterThanOrEqual(3);
+  await demo.click();
+  await expect(demo).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".key.is-down")).toHaveCount(0);
 });

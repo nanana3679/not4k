@@ -1,16 +1,16 @@
 # 전체 프레임 키워드 시안 6종
 
 
-> 저장소 반영 범위: 아래에 기록한 v1–v14 이미지와 보관 페이지, `restored-frame-v15.html`은 저장소 용량 때문에 커밋하지 않았다. 이 폴더의 요청·기록 JSON과 조립 스크립트, 생성 입력·결과 PNG(`button-insert-v15.png`, `white-core-insert-v16.png`, `press-idle-deck-v17-input.png`, `white-core-v16-render.png`, `key1-press-insert-v17.png`, `gauge-empty-insert-v18.png`)는 남아 있다. 갤러리에는 `22-free-b-v6.png`, `52-restored-frame-v15.svg`, `53-white-core-frame-v16.svg`와 시연이 쓰는 생성 이미지만 둔다.
+> 저장소 반영 범위: 아래에 기록한 v1–v14 이미지와 보관 페이지, `restored-frame-v15.html`은 저장소 용량 때문에 커밋하지 않았다. 이 폴더의 요청·기록 JSON과 조립 스크립트, 생성 입력·결과 PNG(`button-insert-v15.png`, `white-core-insert-v16.png`, `press-idle-deck-v17-input.png`, `white-core-v16-render.png`, `key1-press-insert-v17.png`, `gauge-empty-insert-v18.png`)는 남아 있다. 갤러리에는 `52-restored-frame-v15.svg`, `53-white-core-frame-v16.svg`, 시연이 쓰는 생성 이미지, 그리고 v15 조립 스크립트의 바탕이자 프레임 보존 E2E의 기준인 `22-free-b-v6.png`만 둔다.
 ## 시연: 버튼 누름 애니메이션 1단계
 
 2026-09-30 사용자가 v16 버튼부의 누름 애니메이션 가능성을 묻고, 기존 픽셀로 되는 범위의 1단계부터 확인하기로 했다. **사용자 평가:** 자연스럽고, 키가 올라온 뒤 빛이 꺼지는 순서가 좋다. 2단계로 넘어간다. 새 이미지는 생성하지 않았다. 시연 페이지가 열릴 때 `53-white-core-frame-v16.svg`를 캔버스로 읽어 대기·눌림 레이어를 만든다. 최신 임시 시안은 계속 v16이다.
 
-- 시연: `/lab/images/frame-keywords-six-20260929/press-animation.html` — 비교 페이지의 `버튼 누름 애니메이션` 링크
+- 시연: `/lab/images/frame-keywords-six-20260929/press-animation.html` — 비교 페이지의 `버튼 누름과 게이지` 링크
 - 페이지: `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`
 - 둘째 키 대기: 셋째 키를 x=511.5 축으로 반전해 x 338–511, y 1092–1355에 덮는다. 왼쪽·위·아래 12px 전이, 축 쪽은 경계 없이 이어진다
 - 가운데 틈 보정: x 486–536, y 1092–1299의 채도·밝기 보정(끄기 가능)
-- 떼는 동작: 키 몸체 x 370–504, y 1128–1268은 키 복귀 시간, 나머지 빛 영역 x 338–519는 잔광 시간. 잔광은 증가분 × 연파랑 이득 (0.25, 0.78, 1)
+- 떼는 동작: 2번 키 몸체 x 370–504, y 1128–1268은 키 복귀 시간, 나머지 빛 영역 x 362–519는 잔광 시간(1번 키는 몸체 x 220–366, 빛 영역 x 200–372, 3·4번은 반전). 잔광은 증가분 × 연파랑 이득 (0.25, 0.78, 1)
 - 더블 금색(2단계): 눌림 픽셀이 대기보다 더 띠는 색 성분만 같은 선형 휘도의 금색으로 교체. 금색 방향은 `42-b-double-pressed-flash-v10.png`에서 측정한 선형 (0.959, 0.643, 0.163), 잔광 이득 (1, 0.82, 0.44). 기본 싱글, `Shift`로 반대 색
 - 1·4번 키(2단계): Codex CLI `gpt-6-astra`·`xhigh`로 내장 `image_gen` 1회. 요청 [key1-press-v17-prompt.json](key1-press-v17-prompt.json), 편집 대상 `press-idle-deck-v17-input.png`(시연 페이지의 대기 레이어 내보내기, 네 키 모두 대기), 발광 참조 `white-core-v16-render.png`(v16 SVG 렌더), 결과 [key1-press-insert-v17.png](key1-press-insert-v17.png)와 [기록](key1-press-v17-output.json). 갤러리에는 같은 파일을 `key1-press-insert-v17.png`로 복사해 페이지가 1번 키 둘레(x 200–372, y 1092–1355)만 쓴다. 4번 키는 반전. 생성된 1번 키는 윗변이 내려가지 않아 2·3번보다 눌림이 약하지만, 사용자가 이 결과를 수용했다
 - 게이지 채움: 빈 게이지 레이어가 위에서부터 채움 경계까지 덮는다(경계 8px, 전환 300ms). 레이어는 유리 안쪽 윤곽(x 136–208, 오른쪽은 1023 − x, 위 y 196→203·아래 y 1010→1016 타원 끝, 경계 2px)으로 자른다. 빈 유리는 Codex CLI `gpt-6-astra`·`xhigh`의 `image_gen` 1회 결과 [gauge-empty-insert-v18.png](gauge-empty-insert-v18.png)([요청](gauge-empty-v18-prompt.json), [기록](gauge-empty-v18-output.json), 편집 대상 `press-idle-deck-v17-input.png`)를 쓰고, 비교용 계산 방식은 `scripts/split-gear-gauge.ts`와 같은 판별식으로 남색(휘도 × 0.22, 0.30, 0.42)으로 바꾼다. **사용자 평가:** 유리 안쪽만 바뀌는 생성 빈 유리 게이지가 좋다 [게이지 채움 조절](../../../../docs/design/classic-frame-keywords-20260929.md#게이지-채움-조절)

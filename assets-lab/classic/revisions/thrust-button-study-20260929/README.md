@@ -7,7 +7,7 @@
 - 최신 이미지: `lab/image-galleries/thrust-button-study-20260929/{07-forward-slit,08-forward-armor,09-forward-inset}.png`.
 - 최신 전체 프롬프트와 생성 원본 경로: [forward-prompts.json](forward-prompts.json). 내장 `image_gen`으로 이전 3번을 방향 참고로 사용해 외형을 새로 생성했다.
 - 비교 페이지: `/lab/images/thrust-button-study-20260929/`.
-- 이전 단일 분출구 도안과 프롬프트는 `single-aperture-v2.html`과 [single-aperture-prompts.json](single-aperture-prompts.json)에 보존한다. 최신 비교의 `이전 단일 분출구`에서 연다.
-- 초기 셔터·덮개·두 분출구 탐색의 도안과 프롬프트는 `structure-exploration-v1.html`과 [prompts.json](prompts.json)에 보존한다. 이전 단일 분출구 페이지의 `이전 구조 탐색`에서 연다.
+- 이전 단일 분출구 도안의 프롬프트는 [single-aperture-prompts.json](single-aperture-prompts.json)에 남긴다. 이미지와 보관 페이지는 커밋하지 않았다.
+- 초기 셔터·덮개·두 분출구 탐색의 프롬프트는 [prompts.json](prompts.json)에 남긴다. 이미지와 보관 페이지는 커밋하지 않았다.
 
 외형 3종은 비교 시안이다. 실제 게임 에셋과 입력 처리는 이번 작업에서 변경하지 않았다.
