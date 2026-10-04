@@ -1,5 +1,7 @@
 import { Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
+import { GameRenderer } from '../game/renderer/GameRenderer';
+import type { SkinManager } from '../game/skin';
 import { computeFrameFitLayout, createFrameFitStage, FRAME_FIT_STAGE_WIDTH, type FrameFitGeometry } from './classicFrameFit';
 import {
   createFrameFitSource,
@@ -38,6 +40,10 @@ describe('getGearFrameLayer', () => {
     const sprite = new Sprite(Texture.EMPTY);
     expect(getGearFrameSprite({ gearFrameSprite: sprite })).toBe(sprite);
   });
+
+  it('gearFrameSprite 필드 자체가 없는 렌더러 객체면 gearFrameSprite를 찾을 수 없다는 에러', () => {
+    expect(() => getGearFrameSprite({})).toThrow('gearFrameSprite');
+  });
 });
 
 describe('readJudgmentLineY', () => {
@@ -65,6 +71,45 @@ describe('게임 레인 마스크·버튼 숨김', () => {
 
   it('maskGraphic이 없는 렌더러 객체면 maskGraphic을 찾을 수 없다는 에러', () => {
     expect(() => setGameLaneMaskVisible({ buttonSprites: [] }, false)).toThrow('maskGraphic');
+  });
+
+  it('buttonSprites가 배열이 아니면(이름이 바뀌어 undefined) buttonSprites를 찾을 수 없다는 에러, 빈 배열은 허용', () => {
+    expect(() => setGameLaneMaskVisible({ maskGraphic: new Graphics() }, false)).toThrow('buttonSprites');
+    expect(() => setGameLaneMaskVisible({ maskGraphic: new Graphics(), buttonSprites: [] }, false)).not.toThrow();
+  });
+});
+
+describe('GameRenderer 비공개 필드 계약(이름이 바뀌면 이 미리보기가 조용히 깨지지 않게)', () => {
+  // WebGL 없이 생성자만 쓴다. 오버레이가 런타임 캐스트로 읽는 필드가 기대한 모양으로 있어야 한다.
+  const createRenderer = (showGearFrame: boolean) => new GameRenderer({
+    canvas: {} as HTMLCanvasElement,
+    width: 1067 * 1.6,
+    height: 600 * 1.6,
+    judgmentLineOffset: 160 * 1.6,
+    skinManager: { getTheme: () => ({ bg: 0 }) } as unknown as SkinManager,
+    showGearFrame,
+    showFlightBackground: false,
+  });
+
+  it('gearFrameLayer는 Container, maskGraphic은 Graphics, buttonSprites는 배열, _judgmentLineY는 높이 − 오프셋(960 − 256 = 704)', () => {
+    const renderer = createRenderer(false);
+    expect(getGearFrameLayer(renderer)).toBeInstanceOf(Container);
+    expect(() => setGameLaneMaskVisible(renderer, false)).not.toThrow();
+    expect(isGameLaneMaskVisible(renderer)).toBe(false);
+    expect(Array.isArray((renderer as unknown as { buttonSprites: unknown }).buttonSprites)).toBe(true);
+    expect(readJudgmentLineY(renderer)).toBeCloseTo(704, 9);
+  });
+
+  it('setLift(38.4)를 부르면 _judgmentLineY가 704 − 38.4 = 665.6이 된다(판정선 화면 y 416)', () => {
+    const renderer = createRenderer(false);
+    (renderer as unknown as { judgmentUI: { setPosition(y: number): void }; noteRenderer: { setJudgmentLineY(y: number): void } }).judgmentUI = { setPosition: () => {} };
+    (renderer as unknown as { noteRenderer: { setJudgmentLineY(y: number): void } }).noteRenderer = { setJudgmentLineY: () => {} };
+    renderer.setLift(38.4);
+    expect(readJudgmentLineY(renderer) / 1.6).toBeCloseTo(416, 9);
+  });
+
+  it('gearFrameSprite 필드는 기어를 그리기 전(init 전)에는 null로 존재한다', () => {
+    expect(getGearFrameSprite(createRenderer(true))).toBeNull();
   });
 });
 

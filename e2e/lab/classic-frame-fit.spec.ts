@@ -15,8 +15,8 @@ const frameEdge = geometry.frameBottom + 1;
 const minLaneWidth = (600 * laneWindow) / frameEdge;
 const uniformTop = (width: number) => 600 - (frameEdge * width) / laneWindow;
 const uniformDeckTop = (width: number) => 600 - ((frameEdge - deckTop) * width) / laneWindow;
-// 판정선(게임 Lift 1% = 6)이 덱 위끝보다 아래로 가려지지 않는 최소 %.
-const minLiftPercent = (width: number) => Math.min(10, Math.max(0, Math.ceil((440 - uniformDeckTop(width)) / 6 - 1e-9)));
+// 판정선(게임 Lift 1% = 6) 아래끝(두께 ±2 렌더러 단위 = ±2W/400 화면 단위)이 덱 위끝에 가려지지 않는 최소 %.
+const minLiftPercent = (width: number) => Math.min(10, Math.max(0, Math.ceil((440 + (2 * width) / 400 - uniformDeckTop(width)) / 6 - 1e-9)));
 const stageSelector = '[data-frame-fit-stage="true"]';
 
 function collectErrors(page: Page) {
@@ -34,6 +34,10 @@ async function waitForRenderer(page: Page) {
 const frameTop = async (page: Page) => Number(await page.locator(stageSelector).getAttribute('data-frame-top'));
 
 test.describe('Classic Frame Fit Lab', () => {
+  // 실제 게임 렌더러와 비행 배경을 swiftshader로 띄우므로 여러 워커가 동시에 돌면 30초 안에 준비되지 않는다.
+  // 이 파일은 한 워커에서 차례로 돌리고 테스트마다 넉넉한 시간을 준다.
+  test.describe.configure({ mode: 'serial', timeout: 90_000 });
+
   for (const width of [1280, 390]) {
     test(`${width}px Lab 목록에서 Classic Frame Fit을 열면 실제 렌더러와 비행 배경이 준비되고 가로 넘침 없이 목록으로 돌아온다`, async ({ page }, testInfo) => {
       const errors = collectErrors(page);
@@ -191,6 +195,15 @@ test.describe('Classic Frame Fit Lab', () => {
     expect(minLiftPercent(320)).toBe(10);
     await expect(stage).toHaveAttribute('data-lift-percent', '10');
     await expect(stage).toHaveAttribute('data-judgment-line-y', '380.0');
+
+    // 레인 폭을 놓은 직후(0.25초 대기 중) 다른 방식으로 바꿔도 놓은 값(300)이 확정되고, 돌아오면 그 값이 남아 있다.
+    await laneWidth.fill('300');
+    await page.getByLabel('레인 폭 맞춤 (위 잘림)').check();
+    await waitForRenderer(page);
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-lane-width', '300');
+    await expect(page.locator('output[data-lane-width-draft]')).toContainText('300 · 현재의 75%');
 
     // 다른 방식으로 돌아가면 게임 마스크가 다시 보이고 판정선은 440이다.
     await page.getByLabel('레인 폭 맞춤 (위 잘림)').check();

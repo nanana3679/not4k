@@ -15,8 +15,13 @@ export function getGearFrameLayer(renderer: object): Container {
 
 /** 현재 게임 기어(showGearFrame) 스프라이트. 위치·배율을 실제 값으로 읽어 표시하는 데만 쓴다. */
 export function getGearFrameSprite(renderer: object): Sprite | null {
-  const sprite = (renderer as { gearFrameSprite?: unknown }).gearFrameSprite;
-  return sprite instanceof Sprite ? sprite : null;
+  if (!('gearFrameSprite' in renderer)) {
+    throw new Error('GameRenderer에서 gearFrameSprite를 찾을 수 없습니다. 기어 필드 이름이 바뀌었다면 Classic Frame Fit 미리보기도 함께 고쳐야 합니다.');
+  }
+  const sprite = (renderer as { gearFrameSprite: unknown }).gearFrameSprite;
+  if (sprite === null) return null;
+  if (!(sprite instanceof Sprite)) throw new Error('GameRenderer의 gearFrameSprite가 Sprite가 아닙니다.');
+  return sprite;
 }
 
 function getGameLaneMaskParts(renderer: object): { mask: Graphics; buttons: Sprite[] } {
@@ -24,8 +29,10 @@ function getGameLaneMaskParts(renderer: object): { mask: Graphics; buttons: Spri
   if (!(maskGraphic instanceof Graphics)) {
     throw new Error('GameRenderer에서 maskGraphic을 찾을 수 없습니다. 마스크 필드 이름이 바뀌었다면 Classic Frame Fit 미리보기도 함께 고쳐야 합니다.');
   }
-  const buttons = Array.isArray(buttonSprites) ? buttonSprites.filter((sprite): sprite is Sprite => sprite instanceof Sprite) : [];
-  return { mask: maskGraphic, buttons };
+  if (!Array.isArray(buttonSprites) || !buttonSprites.every((sprite) => sprite instanceof Sprite)) {
+    throw new Error('GameRenderer에서 buttonSprites(Sprite 배열)를 찾을 수 없습니다. 버튼 필드 이름이 바뀌었다면 Classic Frame Fit 미리보기도 함께 고쳐야 합니다.');
+  }
+  return { mask: maskGraphic, buttons: buttonSprites as Sprite[] };
 }
 
 /**

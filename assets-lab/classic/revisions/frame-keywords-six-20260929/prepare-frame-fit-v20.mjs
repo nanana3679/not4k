@@ -365,6 +365,23 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
 });
 await browser.close();
 
+// Sanity checks: a landmark the walk failed to find stays at -1, and the landmarks must keep their
+// top-to-bottom order. Stop before writing anything rather than publish broken geometry.
+const g = result.geometry;
+const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'silhouetteTop', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
+  'keyFaceTop', 'keyFaceBottom', 'deckBottom', 'barGlowTop', 'barGlowBottom', 'frameBottom'];
+const missing = landmarks.filter((key) => !Number.isInteger(g[key]) || g[key] < 0);
+if (missing.length > 0) throw new Error(`Measurement failed (not found): ${missing.join(', ')}`);
+const ordered = [
+  ['laneLeft', 'laneRight'], ['silhouetteTop', 'gaugeGlowTop'], ['gaugeGlowTop', 'gaugeGlowBottom'], ['gaugeGlowBottom', 'deckTop'],
+  ['deckTop', 'keyFaceTop'], ['keyFaceTop', 'keyFaceBottom'], ['keyFaceBottom', 'deckBottom'], ['deckBottom', 'barGlowTop'],
+  ['barGlowTop', 'barGlowBottom'], ['barGlowBottom', 'frameBottom'],
+];
+const misordered = ordered.filter(([a, b]) => !(g[a] < g[b]) && !(a === 'barGlowTop' && g[a] === g[b]));
+if (misordered.length > 0) throw new Error(`Measurement order broken: ${misordered.map(([a, b]) => `${a}(${g[a]}) < ${b}(${g[b]})`).join(', ')}`);
+if (!(g.seam.y1 > 0 && g.seam.y1 < g.seam.y2 && g.seam.y2 <= g.deckTop)) throw new Error(`Seam outside the pillar section: ${g.seam.y1}..${g.seam.y2}`);
+if (g.frameBottom >= g.height) throw new Error(`frameBottom ${g.frameBottom} is outside the image`);
+
 mkdirSync(outputDir, { recursive: true });
 const pngPath = resolve(outputDir, 'frame-cutout.png');
 const jsonPath = resolve(outputDir, 'frame-fit.json');

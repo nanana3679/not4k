@@ -47,6 +47,7 @@ import {
 } from './classicFrameFit';
 import { buildFrameFitDemo, buildFrameFitSchedule, initialFrameFitLoopState, stepFrameFitLoop } from './classicFrameFitChart';
 import type { FrameFitOverlay } from './classicFrameFitOverlay';
+import { createSharedSkin, type SharedSkin } from './classicFrameFitSkin';
 import { withLabPublicBase } from './labPublicPath';
 import './ClassicFrameFitPage.css';
 
@@ -103,6 +104,9 @@ export default function ClassicFrameFitPage() {
   const sliderRef = useRef<HTMLInputElement>(null);
   const devicePixelRatio = useDevicePixelRatio();
   const viewportRef = useRef<HTMLDivElement>(null);
+  // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 하나를 빌려 준다. 페이지를 떠나면 놓는다.
+  const [sharedSkin] = useState(() => createSharedSkin(loadClassicSkin));
+  useEffect(() => () => sharedSkin.close(), [sharedSkin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,17 +186,24 @@ export default function ClassicFrameFitPage() {
     const slider = sliderRef.current;
     if (!slider || !uniform || !geometry) return;
     let timer = 0;
+    let pending = false;
+    const commitNow = () => {
+      pending = false;
+      setLaneWidth(clampUniformLaneWidth(Number(slider.value), geometry, stage));
+      setLaneWidthDraft(null);
+    };
     const commit = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        setLaneWidth(clampUniformLaneWidth(Number(slider.value), geometry, stage));
-        setLaneWidthDraft(null);
-      }, LANE_WIDTH_COMMIT_DELAY_MS);
+      pending = true;
+      timer = window.setTimeout(commitNow, LANE_WIDTH_COMMIT_DELAY_MS);
     };
     slider.addEventListener('change', commit);
     return () => {
       slider.removeEventListener('change', commit);
       window.clearTimeout(timer);
+      // 놓은 직후(대기 중) 방식을 바꾸면 놓은 값을 바로 확정하고, 놓지 않고 끌기만 한 값은 버린다.
+      if (pending) commitNow();
+      else setLaneWidthDraft(null);
     };
   }, [uniform, geometry]);
 
@@ -252,6 +263,7 @@ export default function ClassicFrameFitPage() {
                 lift={judgment ? judgment.rendererLift : 0}
                 layout={layout}
                 image={assets.image}
+                sharedSkin={sharedSkin}
                 hostStyle={hostStyle}
                 onState={handleRendererState}
                 onView={handleRendererView}
@@ -391,7 +403,7 @@ export default function ClassicFrameFitPage() {
                 onChange={(event) => setLiftPercentChoice(clampUniformLiftPercent(Number(event.currentTarget.value), readoutJudgment.minimum))}
               />
               <p className="frame-fit-note">
-                최소 {readoutJudgment.minimum}%: 판정선이 프레임 덱에 가려지지 않는 최소값. 게임 Lift 설정과 같은 1% = 6 단위이며, 프레임은 움직이지 않고 판정선만 올라갑니다.
+                최소 {readoutJudgment.minimum}%: 판정선(두께 포함)이 프레임 덱에 가려지지 않는 최소값. 게임 Lift 설정과 같은 1% = 6 단위이며, 프레임은 움직이지 않고 판정선만 올라갑니다.
               </p>
             </div>
           )}
@@ -439,6 +451,18 @@ function pixelRatioText(layout: FrameFitLayout | null, state: RendererState, scr
   if (layout) return describePixelRatio(layout.screenScale * screenResolution);
   if (state.status === 'ready' && state.gearScale !== null) return describePixelRatio(state.gearScale * screenResolution);
   return '—';
+}
+
+async function loadClassicSkin(): Promise<SkinManager> {
+  const { SkinManager } = await import('../game/skin');
+  const skin = new SkinManager();
+  try {
+    await skin.loadSkin('classic');
+  } catch (error) {
+    skin.dispose();
+    throw error;
+  }
+  return skin;
 }
 
 function loadGameFonts(): Promise<unknown> {
@@ -495,7 +519,7 @@ function RadioGroup<T extends string | number>({ legend, name, value, options, o
  * 같은 캔버스에 게임 화면 전체를 작게 그린다. uniform은 게임 마스크·버튼을 끄고(hideGameMask) 오버레이가 덱부터 덮는다.
  * 노트는 정해 둔 데모 판정(buildFrameFitSchedule)대로 맞히거나 놓친 것처럼 표시한다.
  */
-function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, lift, layout, image, hostStyle, onState, onView }: {
+function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, lift, layout, image, sharedSkin, hostStyle, onState, onView }: {
   rendererKey: string;
   scenario: Scenario;
   showCurrentGear: boolean;
@@ -505,6 +529,8 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
   lift: number;
   layout: FrameFitLayout | null;
   image: HTMLImageElement;
+  /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
+  sharedSkin: SharedSkin<SkinManager>;
   hostStyle: CSSProperties;
   onState: (state: RendererState) => void;
   onView: (view: RendererView) => void;
@@ -517,30 +543,31 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
   layoutRef.current = layout;
   const liftRef = useRef(lift);
   liftRef.current = lift;
-  const options = useRef({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, onState, onView });
+  const options = useRef({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, sharedSkin, onState, onView });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { rendererKey: key, scenario: label, showCurrentGear: withGear, zoom: view, hideGameMask: hideMask, image: frameImage, onState, onView: reportView } = options.current;
+    const { rendererKey: key, scenario: label, showCurrentGear: withGear, zoom: view, hideGameMask: hideMask, image: frameImage, sharedSkin: skins, onState, onView: reportView } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
     let starting = true;
     let frame = 0;
     let renderer: GameRenderer | null = null;
-    let skin: SkinManager | null = null;
+    let skinAcquired = false;
     let overlay: FrameFitOverlay | null = null;
 
-    const release = () => {
+    // removeView: 정상 정리(키 변경·언마운트)는 캔버스까지 치우고, 오류일 때는 React가 소유한 캔버스를 남긴다.
+    const release = (removeView = true) => {
       cancelAnimationFrame(frame);
       overlay?.destroy();
       overlay = null;
       overlayRef.current = null;
       liveRef.current = null;
-      try { renderer?.dispose(); } catch (error) { console.warn('ClassicFrameFit: renderer dispose failed', error); }
+      try { renderer?.dispose(removeView); } catch (error) { console.warn('ClassicFrameFit: renderer dispose failed', error); }
       renderer = null;
-      skin?.dispose();
-      skin = null;
+      if (skinAcquired) skins.release();
+      skinAcquired = false;
     };
 
     const start = async () => {
@@ -548,18 +575,16 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
       try {
         const [
           { GameRenderer },
-          { SkinManager },
           { createFrameFitSource, FrameFitOverlay, getGearFrameLayer, getGearFrameSprite, isGameLaneMaskVisible, readJudgmentLineY, setGameLaneMaskVisible },
         ] = await Promise.all([
           import('../game/renderer'),
-          import('../game/skin'),
           import('./classicFrameFitOverlay'),
         ]);
         // 콤보·정확도 Pixi 텍스트는 만들 때 글꼴을 재므로 게임 글꼴을 먼저 받아 둔다(실패해도 진행).
         await loadGameFonts();
         if (disposed) return;
-        skin = new SkinManager();
-        await skin.loadSkin('classic');
+        skinAcquired = true;
+        const skin = await skins.acquire();
         if (disposed) return;
 
         renderer = new GameRenderer({
@@ -615,8 +640,7 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
         let startNow = performance.now();
         let previousNow = startNow;
         const beams = [false, false, false, false];
-        const loop = (now: number) => {
-          if (disposed) return;
+        const tick = (now: number) => {
           const deltaMs = Math.min(48, Math.max(0, now - previousNow));
           previousNow = now;
           let songMs = Math.max(0, now - startNow);
@@ -626,21 +650,25 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
           }
           const step = stepFrameFitLoop(schedule, loopState, songMs);
           if (step.wrapped) {
-            // 차트 끝에서 처음으로 되감는다. setChart가 노트 처리·놓침 표시와 비행 배경 고도를 처음으로 돌린다.
+            // 차트 끝에서 처음으로 되감는다. setChart가 노트 처리·놓침 표시와 비행 배경 고도를 처음으로 돌리고,
+            // resetTransientState가 키빔을 끄므로 키빔 캐시도 함께 비운다.
             active.resetTransientState();
             loadChart(active);
+            beams.fill(false);
           }
           const missedBefore = loopState.missed;
           const comboBefore = loopState.combo;
           for (const event of step.events) {
+            // 숨은 탭에서 돌아와 시간이 건너뛰었으면 오래된 이벤트의 키봄·판정 글자는 생략하고 노트 표시만 맞춘다.
             if (event.type === 'hit') {
+              if (event.stale) continue;
               active.showBombEffect(event.lane);
               active.showJudgment(JudgmentGrade.PERFECT, 0);
             } else if (event.type === 'processed') {
               active.applyNoteDisplayEffect(event.index, { body: null, visibility: 'processed' });
             } else {
               active.applyNoteDisplayEffect(event.index, { body: 'failed', visibility: 'missed' });
-              active.showJudgment(JudgmentGrade.MISS);
+              if (!event.stale) active.showJudgment(JudgmentGrade.MISS);
             }
           }
           loopState = step.state;
@@ -652,6 +680,18 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
             active.setKeyBeam(index + 1, on);
           });
           active.renderFrame(songMs, deltaMs);
+        };
+        const loop = (now: number) => {
+          if (disposed) return;
+          try {
+            tick(now);
+          } catch (error) {
+            // 무대가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
+            console.error('ClassicFrameFit: render loop failed', error);
+            release(false);
+            report({ status: 'error', message: error instanceof Error ? error.message : '재생 중 오류가 났습니다.' });
+            return;
+          }
           frame = requestAnimationFrame(loop);
         };
         active.renderFrame(0, 0);
@@ -664,7 +704,7 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
         });
         frame = requestAnimationFrame(loop);
       } catch (error) {
-        release();
+        release(false);
         if (!disposed) report({ status: 'error', message: error instanceof Error ? error.message : '렌더러를 시작하지 못했습니다.' });
       } finally {
         starting = false;

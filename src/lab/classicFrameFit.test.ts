@@ -310,10 +310,18 @@ describe('classicFrameFit 판정선 높이(게임 Lift %)', () => {
     expect(formatLiftPercent(0)).toBe('0% (+0)');
   });
 
-  it('레인 폭 250에서 판정선 높이 최소값은 2%(판정선 428 ≤ 덱 위끝 429.7), 1%(434)면 덱에 가려진다', () => {
+  it('레인 폭 250에서 판정선 높이 최소값은 2%(판정선 아래끝 428 + 1.25 ≤ 덱 위끝 429.7), 1%(434)면 덱에 가려진다', () => {
     expect(minUniformLiftPercent(at250, stage)).toBe(2);
     expect(uniformJudgment(at250, stage, 1).covered).toBe(true);
     expect(uniformJudgment(at250, stage, 2).covered).toBe(false);
+  });
+
+  it('레인 폭 270이면 최소 판정선 높이는 5%(덱 위끝 416.1, 4%의 판정선 아래끝 416 + 1.35가 덱에 걸린다)', () => {
+    const at270 = computeFrameFitLayout('uniform', geometry, stage, 270)!;
+    expect(at270.screenDeckTop).toBeCloseTo(416.09, 2);
+    expect(minUniformLiftPercent(at270, stage)).toBe(5);
+    expect(uniformJudgment(at270, stage, 4).covered).toBe(true);
+    expect(uniformJudgment(at270, stage, 5).covered).toBe(false);
   });
 
   it('판정선 높이 4%면 판정선 y 416, 덱과의 틈 13.7(화면 노트 두께 12.5의 1.1배), 줌 렌더러에는 lift 38.4를 건다', () => {

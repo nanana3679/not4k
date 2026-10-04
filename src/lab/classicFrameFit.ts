@@ -155,9 +155,18 @@ export function formatLiftPercent(percent: number): string {
   return `${percent}% (+${percent * LIFT_UNITS_PER_PERCENT})`;
 }
 
-/** uniform 판정선: 덱 위끝보다 아래로 내려가 가려지지 않는 가장 작은 정수 %(최대 10). */
+/** 게임 판정선 그래픽의 절반 두께(렌더러 논리 단위). 판정선은 y ± 2로 그려진다. */
+const JUDGMENT_LINE_HALF_THICKNESS = 2;
+
+/** 판정선 아래끝(화면 논리 y). 줌 렌더러에서는 두께도 1/zoom로 보인다. */
+function judgmentLineBottom(lineY: number, zoom: number): number {
+  return lineY + JUDGMENT_LINE_HALF_THICKNESS / zoom;
+}
+
+/** uniform 판정선: 판정선 아래끝(두께 포함)이 덱 위끝에 가려지지 않는 가장 작은 정수 %(최대 10). */
 export function minUniformLiftPercent(layout: FrameFitLayout, stage: FrameFitStage): number {
-  const needed = Math.ceil((stage.judgmentLineY - layout.screenDeckTop) / LIFT_UNITS_PER_PERCENT - 1e-9);
+  const overlap = judgmentLineBottom(stage.judgmentLineY, layout.zoom) - layout.screenDeckTop;
+  const needed = Math.ceil(overlap / LIFT_UNITS_PER_PERCENT - 1e-9);
   return Math.min(LIFT_PERCENT_MAX, Math.max(0, needed));
 }
 
@@ -166,11 +175,12 @@ export interface UniformJudgment {
   /** 판정선의 화면 논리 y. */
   lineY: number;
   deckTopY: number;
-  /** 판정선과 덱 위끝 사이 틈(화면 논리 단위). 음수면 판정선이 덱에 가려진다. */
+  /** 판정선 가운데와 덱 위끝 사이 틈(화면 논리 단위). */
   gap: number;
   /** 화면에서 보이는 노트 두께(NOTE_HEIGHT ÷ zoom)와 틈의 비. */
   noteThickness: number;
   gapNotes: number;
+  /** 판정선 아래끝(두께 포함)이 덱 위끝보다 아래라 일부가 프레임에 가려진다. */
   covered: boolean;
   /** 줌 렌더러의 setLift에 넘길 값(렌더러 논리 단위). */
   rendererLift: number;
@@ -187,7 +197,7 @@ export function uniformJudgment(layout: FrameFitLayout, stage: FrameFitStage, li
     gap,
     noteThickness,
     gapNotes: gap / noteThickness,
-    covered: gap < 0,
+    covered: judgmentLineBottom(lineY, layout.zoom) > layout.screenDeckTop,
     rendererLift: liftPercent * LIFT_UNITS_PER_PERCENT * layout.zoom,
   };
 }

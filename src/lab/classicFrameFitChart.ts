@@ -121,9 +121,12 @@ export function buildFrameFitSchedule(hits: readonly FrameFitHit[]): FrameFitSch
 export interface FrameFitLoopState {
   previousMs: number;
   combo: number;
-  /** 페이지를 연 뒤 놓친 노트 누적 수(되감아도 유지). */
+  /** 이 렌더러가 재생을 시작한 뒤 놓친 노트 누적 수(차트를 되감아도 유지, 렌더러를 다시 만들면 0부터). */
   missed: number;
 }
+
+/** 이보다 오래 지난 이벤트(숨은 탭에서 돌아와 시간이 건너뛴 경우)는 키봄·판정 글자를 생략한다. */
+export const FRAME_FIT_STALE_EVENT_MS = 100;
 
 export function initialFrameFitLoopState(): FrameFitLoopState {
   return { previousMs: -1, combo: 0, missed: 0 };
@@ -132,13 +135,16 @@ export function initialFrameFitLoopState(): FrameFitLoopState {
 /**
  * 한 프레임(previousMs → currentMs)에 지나간 이벤트와 콤보·놓친 수, 현재 키빔 레인.
  * 시각이 되감기면(wrapped) 콤보를 0으로 돌리고 0부터 currentMs까지만 본다. 호출자는 이때 setChart로 노트 표시 상태를 비운다.
+ * 100ms보다 오래 지난 이벤트는 stale로 표시한다. 호출자는 노트 표시 효과는 그대로 걸고 키봄·판정 글자만 생략한다.
  */
 export function stepFrameFitLoop(schedule: FrameFitSchedule, state: FrameFitLoopState, currentMs: number) {
   const wrapped = currentMs < state.previousMs;
   const from = wrapped ? -Infinity : state.previousMs;
   let combo = wrapped ? 0 : state.combo;
   let missed = state.missed;
-  const events = schedule.events.filter((event) => event.atMs > from && event.atMs <= currentMs);
+  const events = schedule.events
+    .filter((event) => event.atMs > from && event.atMs <= currentMs)
+    .map((event) => ({ ...event, stale: currentMs - event.atMs > FRAME_FIT_STALE_EVENT_MS }));
   for (const event of events) {
     if (event.type === 'hit') combo += 1;
     if (event.type === 'miss') { combo = 0; missed += 1; }

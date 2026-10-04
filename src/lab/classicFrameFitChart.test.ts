@@ -99,6 +99,7 @@ describe('classicFrameFitChart 재생 루프', () => {
   it('처음 1990 → 2010ms 프레임은 첫 노트 hit으로 콤보 1, 레인 1 키빔이 켜진다', () => {
     const step = stepFrameFitLoop(schedule, { ...initialFrameFitLoopState(), previousMs: 1990 }, 2010);
     expect(step.events.map((event) => event.type)).toEqual(['hit', 'processed']);
+    expect(step.events.every((event) => !event.stale)).toBe(true);
     expect(step.state.combo).toBe(1);
     expect(step.beamLanes).toEqual([true, false, false, false]);
     expect(step.wrapped).toBe(false);
@@ -115,6 +116,17 @@ describe('classicFrameFitChart 재생 루프', () => {
     expect(step.wrapped).toBe(true);
     expect(step.events).toEqual([]);
     expect(step.state).toEqual({ previousMs: 10, combo: 0, missed: 148 });
+  });
+
+  it('숨은 탭에서 돌아와 한 번에 1990 → 4000ms로 건너뛰면 100ms보다 오래된 이벤트(3900ms 이전)는 stale, 3900ms 이후는 아니다', () => {
+    const step = stepFrameFitLoop(schedule, { previousMs: 1990, combo: 0, missed: 0 }, 4000);
+    const stale = step.events.filter((event) => event.stale).map((event) => event.atMs);
+    const fresh = step.events.filter((event) => !event.stale).map((event) => event.atMs);
+    expect(stale.every((atMs) => atMs < 3900)).toBe(true);
+    expect(fresh).toEqual([4000, 4000]);
+    // 표시 효과(처리·놓침)는 오래된 이벤트도 모두 받는다.
+    expect(step.events.filter((event) => event.type === 'miss').map((event) => event.atMs)).toEqual([3120]);
+    expect(step.state.missed).toBe(1);
   });
 
   it('같은 시각으로 다시 그리면(2000 → 2000ms) 이벤트를 다시 내지 않는다', () => {
