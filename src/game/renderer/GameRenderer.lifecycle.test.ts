@@ -22,9 +22,11 @@ describe('GameRenderer 리소스 수명', () => {
   });
 
   it('프리뷰 하나를 닫아도 다른 슬롯이 빌린 Pixi 텍스처를 정상 반환할 수 있다', () => {
-    const borrowedTexture = TexturePool.getOptimalTexture(32, 16, 1, false);
+    const borrowedTexture = TexturePool.getOptimalTexture({ width: 32, height: 16, resolution: 1, antialias: false });
     const pixiRenderer = {
       runners: { destroy: { items: [], emit: vi.fn(), destroy: vi.fn() } },
+      // pixi.js 8.17+ AbstractRenderer.destroy()가 마지막에 removeAllListeners()를 부른다.
+      removeAllListeners: vi.fn(),
     };
     const destroyApplication = vi.fn((...args: Parameters<Application['destroy']>) => {
       // Use Pixi's real destruction policy, without requiring a GPU in Vitest.
@@ -39,7 +41,7 @@ describe('GameRenderer 리소스 수명', () => {
 
     Reflect.apply(GameRenderer.prototype.dispose, state, []);
     expect(() => TexturePool.returnTexture(borrowedTexture)).not.toThrow();
-    const reusedTexture = TexturePool.getOptimalTexture(32, 16, 1, false);
+    const reusedTexture = TexturePool.getOptimalTexture({ width: 32, height: 16, resolution: 1, antialias: false });
     expect(reusedTexture).toBe(borrowedTexture);
     expect(destroyApplication).toHaveBeenCalledTimes(1);
     Reflect.apply(GameRenderer.prototype.dispose, state, []);

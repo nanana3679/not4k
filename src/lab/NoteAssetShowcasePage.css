@@ -11,15 +11,21 @@
 }
 
 .note-asset-lab button,
-.note-asset-lab a {
+.note-asset-lab a,
+.note-asset-lab select {
   touch-action: manipulation;
 }
 
 .note-asset-lab button:focus-visible,
-.note-asset-lab a:focus-visible {
+.note-asset-lab a:focus-visible,
+.note-asset-lab select:focus-visible {
   outline: 2px solid #9ad9ff;
   outline-offset: 3px;
 }
+
+.asset-lab-version-control { display: grid; gap: 8px; margin-top: 16px; min-width: 0; }
+.asset-lab-version-control label { color: #c5d1df; font-size: 13px; }
+.asset-lab-version-control select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid #40536a; border-radius: 5px; color: #eef4fb; background: #111a27; font: inherit; font-size: 13px; text-overflow: ellipsis; }
 
 .asset-lab-header,
 .asset-lab-workbench,
@@ -122,6 +128,22 @@
 .asset-lab-player-toolbar > div {
   display: grid;
   gap: 5px;
+}
+
+.asset-lab-player-toolbar > .asset-lab-player-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.asset-lab-player-actions button {
+  white-space: nowrap;
+}
+
+.asset-lab-player-toolbar button[aria-pressed="true"] {
+  border-color: rgba(160, 215, 249, 0.6);
+  color: #ffffff;
+  background: #1d3a52;
 }
 
 .asset-lab-player-toolbar strong {

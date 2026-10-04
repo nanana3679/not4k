@@ -6,6 +6,10 @@ import P from "./palette.js";
 import { CW, CH } from "../shared/constants.js";
 import { BOMB_FRAMES, SHARD_DIRS, BURST_ANGS } from "../shared/bomb.js";
 
+// 롱노트 켜짐(홀드) 효과가 없는 스킨이다(RFD 0028). export.jsx가 켜짐 요소를 그리지 않아 켜짐 PNG를 만들지 않는다.
+// src/game/skin/skins.ts의 Simple 테마 heldEffect: false와 맞춰야 한다.
+export const HELD_EFFECT = false;
+
 /* ── 노트 헤드 ── */
 export function NoteContainer({ x, y, type = "single" }) {
   const col = type === "double" ? P.double.bright : P.single.bright;
@@ -75,17 +79,6 @@ export function PartialFailedTerminalCap({ x, y, failedSide }) {
 export function PartialFailedNoteContainer({ x, y, failedSide }) {
   return <g><NoteContainer x={x} y={y} type="double" />
     <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={CH} fill="#555555" /></g>;
-}
-
-/* ── 롱노트 조립 ── */
-export function LongNote({ x, y, bodyH = 80, type = "single", held = false }) {
-  return (
-    <g>
-      <BodySegment x={x} y={y} height={bodyH} type={type} held={held} />
-      <TerminalCap x={x} y={y} type={type} />
-      <NoteContainer x={x} y={y + bodyH - CH} type={type} />
-    </g>
-  );
 }
 
 /* ── 봄 프레임 ── */
@@ -168,9 +161,11 @@ export function TrillBodySegment({ x, y, height, held = false }) {
   );
 }
 
+/* 트릴 끝 터미널: 에디터와 같은 납작한 회색 마름모. 트릴 롱 끝은 터미널 이미지 전체를 그리므로 마름모 전체가 보인다. */
 export function TrillTerminalCap({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <rect x={x} y={y} width={CW} height={CH} fill="#888888" opacity={0.7} rx={2} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#888888" opacity={0.7} />
   );
 }
 
@@ -205,8 +200,9 @@ export function FailedTrillBody({ x, y, height }) {
 }
 
 export function FailedTrillTerminalCap({ x, y }) {
+  const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <rect x={x} y={y} width={CW} height={CH} fill="#555555" opacity={0.7} rx={2} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" opacity={0.7} />
   );
 }
 

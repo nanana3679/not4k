@@ -6,11 +6,12 @@ import type { KeybombVariant } from './noteAssetShowcase';
 import { KeybombEffect } from './KeybombEffect';
 
 /** 시안 묶음만 주입하고 튜토리얼의 재생·입력·판정 흐름을 그대로 사용한다. */
-export function NoteAssetPreviewPlayer({design, preview, bomb, onReady}: {
+export function NoteAssetPreviewPlayer({design, preview, bomb, onReady, paused = false}: {
   design: NoteAssetDesign;
   preview: TutorialPreviewDefinition;
   bomb: KeybombVariant;
   onReady: () => void;
+  paused?: boolean;
 }) {
   const [liveBombs, setLiveBombs] = useState<Record<number, {run: number; variant: KeybombVariant; position: TutorialBombPosition}>>({});
   const timers = useRef(new Map<number, number>());
@@ -27,8 +28,8 @@ export function NoteAssetPreviewPlayer({design, preview, bomb, onReady}: {
     return () => { for(const timer of pending.values()) window.clearTimeout(timer); };
   },[]);
   return <>
-    <TutorialPreviewPlayer preview={preview} skinId={design.skinId} showRendererBomb={!!bomb.frames}
-      onBombEffect={handleBomb} diagramModalEnabled={false} onReady={onReady} />
+    <TutorialPreviewPlayer preview={preview} skinId={design.skinId} skinManifest={design.skinManifest} showRendererBomb={!!bomb.frames}
+      onBombEffect={handleBomb} diagramModalEnabled={false} onReady={onReady} paused={paused} />
     {Object.entries(liveBombs).map(([lane,effect]) => (
       <span key={`${lane}:${effect.run}`} className="asset-lab-live-bomb" data-live-bomb-lane={lane}
         style={{left:`${effect.position.x * 100}%`, top:`${effect.position.y * 100}%`} as CSSProperties}>

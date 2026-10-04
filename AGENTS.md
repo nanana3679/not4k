@@ -17,6 +17,8 @@
 - 테스트 파일은 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴으로 둔다
 - 관련 테스트를 먼저 실행한다. 공유 모델이나 여러 모듈에 걸친 변경, 빌드·테스트 기반 변경, 출시 준비에서는 전체 단위 테스트를 실행한다
 - 요청한 변경 때문에 실패한 테스트는 수정하고 다시 실행한다. 무관한 기존 실패는 작업 범위를 넓혀 수정하지 말고 결과에 명시한다
+- 타입 검사는 `pnpm typecheck`로 하며 앱(`src`)과 도구 코드(`scripts/`, Vite·Vitest·Playwright 설정, `e2e/`)를 함께 검사한다(`tsconfig.tooling.json`). `pnpm build`·`pnpm build:lab`도 같은 검사를 먼저 실행한다
+- `scripts/`의 실행 스크립트는 Node(22.18 이상)가 타입만 지우고 바로 실행하는 `.ts`로 쓴다. 지울 수 있는 타입 문법만 쓰고(enum·namespace 금지) 타입만 가져올 때는 `import type`을 쓴다(`tsconfig.scripts.json`이 검사). Vite 설정이 쓰는 도우미(`classicVersionPreviews.ts`·`exportLabImageGalleries.ts`)는 예외다. `assets-lab/`의 생성 코드는 JS로 둔다
 
 ### 테스트명 작성 규칙
 
@@ -121,6 +123,12 @@
 - 특정 용어는 `docs/context/glossary.md`의 해당 항목을 검색하고, 기존 제품 결정에 영향을 주는 경우에만 관련 RFD를 읽는다
 - 문구·시각 스타일·격리된 빌드 설정처럼 도메인과 무관한 변경에는 도메인 문서 열람을 선행 조건으로 요구하지 않는다
 - 자세한 탐색 방법은 `docs/agents/domain.md`를 참고한다
+
+### Judgment case images
+
+판정 사례(노트·키 누름/뗌과 엔진 판정)를 사용자에게 설명할 때는 텍스트 표 대신 `pnpm case:image`로 PNG를 만들어 보여준다. 설명에서 노트는 이미지의 노트 이름(`N1`, `N2`, … 또는 `[이름]`)으로 가리킨다. 문법·노트 이름·에디터 JSON 입력·엔진 선택·비교 모드는 `docs/agents/judgment-case-images.md`를 따른다.
+
+사용자가 파일이나 이미지를 열어 볼 수 없는 환경이면 PNG 경로와 함께 스크립트가 표준 출력에 찍는 패널 요약도 대화에 그대로 붙인다.
 
 ### Lab previews
 

@@ -1,0 +1,49 @@
+{
+  "generation_mode": "built-in image_gen",
+  "outputs": [
+    {
+      "label": "A",
+      "id": "15-flat-square-v5",
+      "title": "평판 버튼 · 사각 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-79022cab-ed5f-4d4e-a024-dbf53ab86225.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/15-flat-square-v5.png"
+    },
+    {
+      "label": "B",
+      "id": "16-soft-capsule-v5",
+      "title": "둥근 버튼 · 캡슐 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-f0b94c8d-893e-4748-ab90-63068ee88734.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/16-soft-capsule-v5.png",
+      "initialSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-90a85644-9ace-4ea6-978a-28305bc45801.png",
+      "cleanup": "2차 수정 결과: 무광 캡슐 게이지, 눈금 흔적 없음"
+    },
+    {
+      "label": "C",
+      "id": "17-hex-taper-v5",
+      "title": "육각 버튼 · 쐐기 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-6d9bdc9a-f8ba-4e6e-85bd-c9488894ed5f.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/17-hex-taper-v5.png"
+    },
+    {
+      "label": "D",
+      "id": "18-concave-recess-v5",
+      "title": "오목 버튼 · 매립 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-0c087d54-be46-4d1e-bce3-1a83e92f2568.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/18-concave-recess-v5.png"
+    },
+    {
+      "label": "E",
+      "id": "19-wedge-tube-v5",
+      "title": "경사 버튼 · 유리관 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-93b12541-a5c8-470c-9cd2-adcfaae85f17.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/19-wedge-tube-v5.png"
+    },
+    {
+      "label": "F",
+      "id": "20-floating-borderless-v5",
+      "title": "떠 있는 버튼 · 무테 게이지",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-2c0b4ced-20f2-480f-a43a-5ed2aea36e38.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/20-floating-borderless-v5.png"
+    }
+  ]
+}

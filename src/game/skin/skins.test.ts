@@ -1,8 +1,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest } from "./skins";
+import { SKIN_LIST, AVAILABLE_SKINS, getSkinManifest, buildManifest } from "./skins";
 
 describe("SKIN_LIST", () => {
-  it("Crystal·Classic과 미공개 Prism·Simple·Note Asset Lab 5개 스킨을 등록", () => {
+  it("Classic과 미공개 Crystal·Prism·Simple·Note Asset Lab 5개 스킨을 등록", () => {
     expect(SKIN_LIST).toHaveLength(5);
   });
 
@@ -58,9 +58,14 @@ describe("공개 배포의 스킨 에셋 주소", () => {
 });
 
 describe("AVAILABLE_SKINS", () => {
-  it("available=true인 crystal과 classic을 인게임 스킨 선택지로 제공", () => {
+  it("available=true인 classic만 인게임 스킨 선택지로 제공", () => {
     const ids = AVAILABLE_SKINS.map((s) => s.theme.id);
-    expect(ids).toEqual(["crystal", "classic"]);
+    expect(ids).toEqual(["classic"]);
+  });
+
+  it("완성도가 낮아 개발 중으로 돌린 crystal은 available=false라 선택지에서 빠지지만 매니페스트는 남아 있다", () => {
+    expect(getSkinManifest("crystal").theme.available).toBe(false);
+    expect(AVAILABLE_SKINS.some((s) => s.theme.id === "crystal")).toBe(false);
   });
 
   it("prism, simple, note-asset-lab은 available=false라 선택지에서 제외됨", () => {
@@ -130,7 +135,9 @@ describe("SkinTheme", () => {
         ...(assets.terminalDoubleIdle ? [assets.terminalDoubleIdle] : []),
         ...(assets.terminalTrillIdle ? [assets.terminalTrillIdle] : []),
         assets.bodySingle, assets.bodyDouble,
-        assets.bodySingleHeld, assets.bodyDoubleHeld,
+        // 켜짐 에셋은 heldEffect: false 스킨(Simple)에 없다.
+        ...(assets.bodySingleHeld ? [assets.bodySingleHeld] : []),
+        ...(assets.bodyDoubleHeld ? [assets.bodyDoubleHeld] : []),
         assets.gearFrame, assets.gearGaugeLeft, assets.gearGaugeRight,
         ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
       ];
@@ -168,10 +175,49 @@ describe("부분 충족 held 바디 에셋 (더블 롱노트 1/2)", () => {
     expect(crystal.assets.bodyDoublePartialHeldRight).toBe("/skins/crystal/body-double-partial-held-right.png");
   });
 
-  it("모든 스킨이 부분 held 경로 키를 .png로 가짐 (부분 실패와 동일한 필수 키 취급)", () => {
+  it("켜짐 효과가 있는 모든 스킨은 부분 held 경로를 .png로 가지고, 효과 없는 스킨은 갖지 않는다", () => {
     for (const skin of SKIN_LIST) {
+      if (skin.theme.heldEffect === false) {
+        expect(skin.assets.bodyDoublePartialHeldLeft, skin.theme.id).toBeUndefined();
+        expect(skin.assets.bodyDoublePartialHeldRight, skin.theme.id).toBeUndefined();
+        continue;
+      }
       expect(skin.assets.bodyDoublePartialHeldLeft).toMatch(/body-double-partial-held-left\.png$/);
       expect(skin.assets.bodyDoublePartialHeldRight).toMatch(/body-double-partial-held-right\.png$/);
     }
+  });
+});
+
+describe("heldEffect 선언 (RFD 0028)", () => {
+  const theme = getSkinManifest("classic").theme;
+
+  it("heldEffect: false 테마로 만든 매니페스트에는 켜짐 에셋 5종 경로가 없고 부분 실패 에셋 경로는 남는다", () => {
+    const manifest = buildManifest("no-effect", { ...theme, id: "no-effect", heldEffect: false });
+    for (const key of ["bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld"] as const) {
+      expect(manifest.assets[key], key).toBeUndefined();
+    }
+    expect(manifest.assets.bodyDoublePartialFailedLeft).toBe("/skins/no-effect/body-double-partial-failed-left.png");
+  });
+
+  it("heldEffect를 생략하면 지금처럼 켜짐 에셋 경로를 만든다", () => {
+    const manifest = buildManifest("with-effect", { ...theme, id: "with-effect" });
+    expect(manifest.assets.bodySingleHeld).toBe("/skins/with-effect/body-single-held.png");
+    expect(manifest.assets.bodyTrillHeld).toBe("/skins/with-effect/body-trill-held.png");
+  });
+
+  it("Classic·Crystal은 켜짐 효과를 유지하고 켜짐 에셋 경로가 있다", () => {
+    for (const id of ["classic", "crystal"]) {
+      expect(getSkinManifest(id).theme.heldEffect, id).not.toBe(false);
+      expect(getSkinManifest(id).assets.bodySingleHeld, id).toBeDefined();
+    }
+  });
+
+  it("Simple은 heldEffect: false라 켜짐 에셋 경로가 없고 부분 실패 경로는 남는다", () => {
+    const simple = getSkinManifest("simple");
+    expect(simple.theme.heldEffect).toBe(false);
+    for (const key of ["bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld"] as const) {
+      expect(simple.assets[key], key).toBeUndefined();
+    }
+    expect(simple.assets.bodyDoublePartialFailedLeft).toBe("/skins/simple/body-double-partial-failed-left.png");
   });
 });

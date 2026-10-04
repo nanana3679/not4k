@@ -1,0 +1,43 @@
+{
+  "createdAt": "2026-09-29",
+  "generator": "built-in image_gen",
+  "promptSet": "prompts.json",
+  "outputs": [
+    {
+      "id": "01-long-shell",
+      "title": "긴 외피형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-44980e04-0969-4ccd-b46e-4899f1090ca2.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/01-long-shell.png"
+    },
+    {
+      "id": "02-deep-casing",
+      "title": "두꺼운 소켓형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-926f6250-110f-493c-8a84-1eb38a98dfb6.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/02-deep-casing.png"
+    },
+    {
+      "id": "03-open-skeleton",
+      "title": "노출 골격형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-b3bc7218-c05a-410b-a6c4-43ba1b385582.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/03-open-skeleton.png"
+    },
+    {
+      "id": "04-upper-mass",
+      "title": "상부 확장형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-1c5f95e4-69f1-47a4-8be1-3db179d83357.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/04-upper-mass.png"
+    },
+    {
+      "id": "05-lower-foundation",
+      "title": "하부 집중형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-a66787be-2e19-41bb-87f2-027a5bca5f1c.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/05-lower-foundation.png"
+    },
+    {
+      "id": "06-overlap-shells",
+      "title": "교차 장갑형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-3acb082e-53bd-4ee4-beb1-95e576302445.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/06-overlap-shells.png"
+    }
+  ]
+}

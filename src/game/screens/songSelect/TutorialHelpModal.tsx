@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
+import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
   TUTORIAL_PREVIEWS,
@@ -27,7 +28,6 @@ const TUTORIAL_MODAL_CLOSE_MS = 120;
 type TutorialPageTransitionDirection = 'forward' | 'backward';
 type TutorialPageTransitionPhase = 'preparing' | 'animating';
 type TutorialPreviewSlotId = 0 | 1;
-type TutorialPreviewSlotState = 'active' | 'standby' | 'exiting' | 'entering';
 
 interface TutorialPlayerTransition {
   fromIndex: number;
@@ -647,7 +647,8 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
-  // 멈춤(pause)은 entering에서 미리 arming해 도식 시작점에 프레임을 고정한다.
+  // entering 재생기는 paused라 루프를 진행하지 않으므로, 차트를 건 시점(루프 시간 0)에 시작하는 도식만 미리 arming해
+  // 도식 시작점에 프레임을 고정한다.
   const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
   // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
   // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
@@ -666,11 +667,13 @@ function TutorialPreviewSlot({
       aria-hidden={slotState === 'active' || slotState === 'entering' ? undefined : true}
     >
       <div className="not4k-tutorial-player-wrap" style={tutorialHelpStyles.playerWrap}>
+        {/* 레슨을 넘겨도 재생기와 렌더러는 그대로 두고 차트만 바꾼다. 재방문은 previewInstanceId로 처음부터 재생한다. */}
         <TutorialPreviewPlayer
-          key={`${preview.id}:${previewInstanceId}`}
           preview={preview}
+          previewInstanceId={previewInstanceId}
           diagramModalEnabled={diagramModalEnabled}
           diagramModalVisible={diagramModalVisible}
+          paused={!isTutorialPreviewSlotPlaying(slotState)}
           onReady={onReady}
         />
       </div>

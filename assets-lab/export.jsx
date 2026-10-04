@@ -70,13 +70,15 @@ function SkinExports({ skinId, C }) {
         <C.BodySegment x={0} y={0} height={BODY_H} type="double" held={false} />
       </SvgWrap>
 
-      {/* 바디 (held) */}
-      <SvgWrap id={`${skinId}--body-single-held`} w={CW} h={BODY_H}>
-        <C.BodySegment x={0} y={0} height={BODY_H} type="single" held={true} />
-      </SvgWrap>
-      <SvgWrap id={`${skinId}--body-double-held`} w={CW} h={BODY_H}>
-        <C.BodySegment x={0} y={0} height={BODY_H} type="double" held={true} />
-      </SvgWrap>
+      {/* 바디 (held) — 켜짐 효과가 없는 스킨(HELD_EFFECT === false)은 그리지 않는다 */}
+      {C.HELD_EFFECT !== false && <>
+        <SvgWrap id={`${skinId}--body-single-held`} w={CW} h={BODY_H}>
+          <C.BodySegment x={0} y={0} height={BODY_H} type="single" held={true} />
+        </SvgWrap>
+        <SvgWrap id={`${skinId}--body-double-held`} w={CW} h={BODY_H}>
+          <C.BodySegment x={0} y={0} height={BODY_H} type="double" held={true} />
+        </SvgWrap>
+      </>}
 
       {/* 봄 16프레임 */}
       {BOMB_FRAMES.map((_, fi) => (
@@ -126,7 +128,7 @@ function SkinExports({ skinId, C }) {
       </>}
 
       {/* 부분 충족(1/2 held) 바디 — waitingSide = 아직 안 잡힌 쪽 */}
-      {C.PartialHeldBody && <>
+      {C.PartialHeldBody && C.HELD_EFFECT !== false && <>
         <SvgWrap id={`${skinId}--body-double-partial-held-left`} w={CW} h={BODY_H}>
           <C.PartialHeldBody x={0} y={0} height={BODY_H} waitingSide="left" />
         </SvgWrap>
@@ -168,9 +170,11 @@ function SkinExports({ skinId, C }) {
         <C.TrillBodySegment x={0} y={0} height={BODY_H} held={false} />
       </SvgWrap>
 
-      <SvgWrap id={`${skinId}--body-trill-held`} w={CW} h={BODY_H}>
-        <C.TrillBodySegment x={0} y={0} height={BODY_H} held={true} />
-      </SvgWrap>
+      {C.HELD_EFFECT !== false && (
+        <SvgWrap id={`${skinId}--body-trill-held`} w={CW} h={BODY_H}>
+          <C.TrillBodySegment x={0} y={0} height={BODY_H} held={true} />
+        </SvgWrap>
+      )}
 
       {/* 트릴 실패 */}
       {C.FailedTrillNoteContainer && <>

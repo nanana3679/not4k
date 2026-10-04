@@ -22,16 +22,21 @@ export interface SkinTheme {
   longNoteTerminalMode?: "split-cap" | "full-height";
   /** full-height terminal의 외곽 프레임이 바디 좌우로 더 나오는 논리 픽셀 수 */
   longNoteTerminalFrameOverhangPx?: number;
-  /** 포인트의 바디 접합 폭100px 바깥으로 나오는 좌우 너비 */
-  pointNoteOverhangPx?: number;
   /** 반복 바디는 텍스처 비율을 유지해 세로로 타일링한다. */
   longNoteBodyMode?: "stretch" | "repeat";
   /** Grace overlay 텍스처의 본체 바깥 투명 여백 */
   graceOverlayPaddingPx?: number;
   /** 포인트 아래 바디에 겹치는 접촉 그림자 */
   pointShadow?: { offsetY: number; height: number };
+  /** 포인트 위아래 바디에 깔리는 접촉 그림자의 퍼짐 높이. 싱글·더블은 에셋 `pointContactShadow`, 트릴은 `pointContactShadowTrill`이 함께 있을 때만 `pointShadow` 대신 쓴다. */
+  pointContactShadow?: { above: number; below: number };
   /** 봄의 전체 재생 시간. 생략하면 60fps로 프레임 수만큼 재생 */
   bombDurationMs?: number;
+  /**
+   * 롱노트 켜짐(홀드) 효과를 표시할지(RFD 0028). 생략하면 true.
+   * false면 켜짐 에셋 없이 유지 중에도 대기 바디·터미널을 그린다. 부분 실패·실패는 그대로 표시한다.
+   */
+  heldEffect?: boolean;
 }
 
 /**
@@ -45,6 +50,10 @@ export interface SkinManifest {
     pointGraceOverlay?: string;
     terminalGraceOverlay?: string;
     pointShadow?: string;
+    /** 윗행이 가장 짙고 아래로 사라지는 세로 그라디언트. 포인트 아래에 그대로, 위에 뒤집어 그린다. */
+    pointContactShadow?: string;
+    /** 트릴 포인트 모양을 따라 번지는 그림자. 포인트 폭 × (위 + 포인트 높이 + 아래)에 맞춰 포인트 아래에 그린다. */
+    pointContactShadowTrill?: string;
     terminalSingle: string;
     terminalDouble: string;
     /** 누르기 전 중앙광이 꺼진 terminal. 없는 스킨은 일반 terminal로 fallback */
@@ -52,8 +61,9 @@ export interface SkinManifest {
     terminalDoubleIdle?: string;
     bodySingle: string;
     bodyDouble: string;
-    bodySingleHeld: string;
-    bodyDoubleHeld: string;
+    /** 켜짐 에셋. `theme.heldEffect`가 false가 아니면 필수이며 SkinManager가 로딩 전에 확인한다. */
+    bodySingleHeld?: string;
+    bodyDoubleHeld?: string;
     /** 실패 에셋 */
     noteDoubleFailed: string;
     bodySingleFailed: string;
@@ -76,16 +86,17 @@ export interface SkinManifest {
     terminalDoublePartialFailedRight: string;
     noteDoublePartialFailedLeft: string;
     noteDoublePartialFailedRight: string;
-    /** 부분 충족 held 에셋 (더블 롱노트 1/2, waitingSide = 아직 안 잡힌 쪽) */
-    bodyDoublePartialHeldLeft: string;
-    bodyDoublePartialHeldRight: string;
+    /** 부분 충족 held 에셋 (더블 롱노트 1/2, waitingSide = 아직 안 잡힌 쪽). `heldEffect: false`면 없어도 된다. */
+    bodyDoublePartialHeldLeft?: string;
+    bodyDoublePartialHeldRight?: string;
     /** 트릴 에셋 */
     noteTrill: string;
     terminalTrill: string;
     /** 누르기 전 중앙광이 꺼진 trillLong terminal. 없는 스킨은 terminalTrill로 fallback */
     terminalTrillIdle?: string;
     bodyTrill: string;
-    bodyTrillHeld: string;
+    /** 켜짐 에셋. `heldEffect: false`면 없어도 된다. */
+    bodyTrillHeld?: string;
     noteTrillFailed: string;
     bodyTrillFailed: string;
     terminalTrillFailed: string;

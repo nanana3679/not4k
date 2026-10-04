@@ -1,0 +1,114 @@
+{
+  "mode": "built-in image_gen · reference-based generation",
+  "pointVersions": [
+    "original",
+    "saturated"
+  ],
+  "geometry": "100:20, repeat-y; body and terminal share one tile",
+  "variants": [
+    {
+      "id": "color-a-porcelain",
+      "letter": "A",
+      "title": "백자 · 흰 면과 검은 테두리",
+      "description": "넓은 흰 중심면을 얇고 검은 홈으로 감쌉니다.",
+      "recommendedPoint": "saturated",
+      "design": "PORCELAIN WINDOW. A broad nearly flat porcelain-white center occupies 62% of width, with modest cool silver shading only close to its edges; the central 40% stays visibly solid near-white, not a giant diffuse glow. Deep almost-black graphite recessed gutters around the center occupy 7% each. Outer shoulders are neutral medium silver with a tiny white polished outer edge. Strong broad white versus narrow deep-black separation. White #F4F5F2, graphite #151B23, cool silver #78858F. Smooth ceramic and polished steel. No blue wash.",
+      "source": "generated/color-a-porcelain.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nPORCELAIN WINDOW. A broad nearly flat porcelain-white center occupies 62% of width, with modest cool silver shading only close to its edges; the central 40% stays visibly solid near-white, not a giant diffuse glow. Deep almost-black graphite recessed gutters around the center occupy 7% each. Outer shoulders are neutral medium silver with a tiny white polished outer edge. Strong broad white versus narrow deep-black separation. White #F4F5F2, graphite #151B23, cool silver #78858F. Smooth ceramic and polished steel. No blue wash.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    },
+    {
+      "id": "color-b-obsidian",
+      "letter": "B",
+      "title": "흑요석 · 어두운 면과 흰 레일",
+      "description": "짙은 중심면 양옆에 넓은 흰 레일을 둡니다.",
+      "recommendedPoint": "original",
+      "design": "OBSIDIAN CHANNEL. Invert the bright/dark balance of image 1: the wide center, 62% of the tile, is luxurious almost-black smoked glass, #111923, subtly lighter toward the center but never lighter than charcoal #283341. TWO ivory-white solid rails, each around 8% width, are near x=15% and x=85%; they must be wide legible white bands, not tiny hairlines. Outer side strips are graphite with thin silver chamfers. Crisp whites #F1F3F3 against dominant black. Broad dark face, precisely two bright white rails, cool-neutral overall, no saturated blue.",
+      "source": "generated/color-b-obsidian.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nOBSIDIAN CHANNEL. Invert the bright/dark balance of image 1: the wide center, 62% of the tile, is luxurious almost-black smoked glass, #111923, subtly lighter toward the center but never lighter than charcoal #283341. TWO ivory-white solid rails, each around 8% width, are near x=15% and x=85%; they must be wide legible white bands, not tiny hairlines. Outer side strips are graphite with thin silver chamfers. Crisp whites #F1F3F3 against dominant black. Broad dark face, precisely two bright white rails, cool-neutral overall, no saturated blue.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    },
+    {
+      "id": "color-c-silver-spine",
+      "letter": "C",
+      "title": "은색 중심축 · 밝은 중앙 띠",
+      "description": "가운데 은색 띠 하나와 넓은 어두운 양쪽 면을 대비시킵니다.",
+      "recommendedPoint": "saturated",
+      "design": "SILVER CENTRAL SPINE. Change the luminance structure radically: a SINGLE broad white-silver vertical band centered at x=50%, spanning 24% of total width. On either side, broad dark slate planes, about 28% width each, colored #27313E with simple beveled shading. Outside these sit tiny near-black gutters and narrow satin silver outer rails. The silver spine is visibly one continuous flat band with a narrow polished chamfer, not two bands, no central groove. White-silver #EAF0F1, slate #27313E, ink #090E15. Low chroma neutral, darker overall than porcelain.",
+      "source": "generated/color-c-silver-spine.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nSILVER CENTRAL SPINE. Change the luminance structure radically: a SINGLE broad white-silver vertical band centered at x=50%, spanning 24% of total width. On either side, broad dark slate planes, about 28% width each, colored #27313E with simple beveled shading. Outside these sit tiny near-black gutters and narrow satin silver outer rails. The silver spine is visibly one continuous flat band with a narrow polished chamfer, not two bands, no central groove. White-silver #EAF0F1, slate #27313E, ink #090E15. Low chroma neutral, darker overall than porcelain.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    },
+    {
+      "id": "color-d-twin-white",
+      "letter": "D",
+      "title": "쌍백색 패널 · 어두운 중앙 홈",
+      "description": "흰 패널 두 개 사이에 검은 중앙 홈을 냅니다.",
+      "recommendedPoint": "saturated",
+      "design": "TWIN PORCELAIN PANELS. Two broad luminous off-white vertical fields, each 27% of width, centered at x=28% and x=72%. A single deep graphite central trench is 15% wide at x=50%. Outer 13% shoulders each are dark gray steel; each white field has restrained narrow silver beveled edges. This should read as two broad bright panels with a clear dark stripe between them, completely different from the one-white-center reference. White #F0F2ED, charcoal #161D25, silver #85939D. Neutral daylight palette, no saturated color, no extra narrow repeated bars.",
+      "source": "generated/color-d-twin-white.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nTWIN PORCELAIN PANELS. Two broad luminous off-white vertical fields, each 27% of width, centered at x=28% and x=72%. A single deep graphite central trench is 15% wide at x=50%. Outer 13% shoulders each are dark gray steel; each white field has restrained narrow silver beveled edges. This should read as two broad bright panels with a clear dark stripe between them, completely different from the one-white-center reference. White #F0F2ED, charcoal #161D25, silver #85939D. Neutral daylight palette, no saturated color, no extra narrow repeated bars.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    },
+    {
+      "id": "color-e-smoke-blue",
+      "letter": "E",
+      "title": "청회색 유리 · 흰 안쪽 테두리",
+      "description": "중간 밝기의 청회색 면에 흰 테두리와 검은 홈을 더합니다.",
+      "recommendedPoint": "original",
+      "design": "SMOKED BLUE GRAY GLASS. A 56%-wide flat smoked-glass middle plane in muted steel blue #58717E, with restrained lighter center #8297A0, clearly MEDIUM luminance rather than near-white or near-black. Along its immediate sides run two very crisp white light strips, 3% width each. Outside them are broad near-black blue-gray recessed grooves #141F28, about 10% width each. Satin slate outer shoulders with an angled chrome edge. The color is visibly a subtle blue-gray rather than saturated blue. White pinstripes frame a broad mid-value glass panel. Rich tactile depth without texture noise.",
+      "source": "generated/color-e-smoke-blue.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nSMOKED BLUE GRAY GLASS. A 56%-wide flat smoked-glass middle plane in muted steel blue #58717E, with restrained lighter center #8297A0, clearly MEDIUM luminance rather than near-white or near-black. Along its immediate sides run two very crisp white light strips, 3% width each. Outside them are broad near-black blue-gray recessed grooves #141F28, about 10% width each. Satin slate outer shoulders with an angled chrome edge. The color is visibly a subtle blue-gray rather than saturated blue. White pinstripes frame a broad mid-value glass panel. Rich tactile depth without texture noise.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    },
+    {
+      "id": "color-f-warm-graphite",
+      "letter": "F",
+      "title": "웜그레이 · 크림색 어깨",
+      "description": "회갈색 중심면과 넓은 크림색 양옆 면을 조합합니다.",
+      "recommendedPoint": "saturated",
+      "design": "WARM GRAPHITE WITH CREAM SHOULDERS. A 42%-wide central flat smoked warm-gray metal field #514A40, subtle center highlight #776F61. Two almost-black recessed trenches #201D19, 5% width each, directly border the central field. Broad ivory/champagne-white shoulders occupy about 15% width each near x=17% and x=83%; outermost strips are dark bronze-gray with tiny pale metal edges. Overall low chroma, ivory #EDE4CF versus deep espresso graphite, NOT saturated yellow or gold. Warm but mostly gray. Broad cream shoulders, narrower dark center and grooves, clearly different from the two narrow-line variants.",
+      "source": "generated/color-f-warm-graphite.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/combined-01-02-contrast-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: style-transfer. Asset type: rhythm-game long-note BODY tile, also used unchanged as its start/end terminal. Image 1 is the previous BODY and is a reference for crisp metal/glass material and rectangular extrusion, not a shape lock: redesign the horizontal arrangement as specified. Images 2–5 are POINT NOTE references (original single, original double, saturated single, saturated double), provided only to show the style and colors the body must complement. Do not put any point note inside the generated body. Produce ONE finished body texture only. It must work with BOTH blue and gold points; white/dark luminance contrast should carry the body while point notes carry stronger chroma.\n\nWARM GRAPHITE WITH CREAM SHOULDERS. A 42%-wide central flat smoked warm-gray metal field #514A40, subtle center highlight #776F61. Two almost-black recessed trenches #201D19, 5% width each, directly border the central field. Broad ivory/champagne-white shoulders occupy about 15% width each near x=17% and x=83%; outermost strips are dark bronze-gray with tiny pale metal edges. Overall low chroma, ivory #EDE4CF versus deep espresso graphite, NOT saturated yellow or gold. Warm but mostly gray. Broad cream shoulders, narrower dark center and grooves, clearly different from the two narrow-line variants.\n\nComposition: perfectly front-on wide rectangular 100:20 (5:1) tile, full-bleed, symmetric left/right. Continuous vertical extruded surfaces: all columns constant along Y, no top/bottom caps, borders, corner rounding, transversal joints, horizontal lighting or perspective. This tile must repeat up/down seamlessly. Choose a shallow wide canvas and fill it. Everything described is vertical bands across the WIDTH; all surfaces run straight from top edge through bottom edge. High quality clean metal and glass shading ACROSS X only, crisp edges, broad readable shapes visible at 100x20 pixels, minimum visual noise. Do not add text, labels, backgrounds, sparks, decorations, controls, icons, mockup framing or comparisons. Preserve the basic flat game sprite language of the references."
+    }
+  ],
+  "status": "rejected",
+  "reason": "싱글·더블 바디를 공용 무채색으로 만들면 유형을 구분할 수 없음. 싱글 파랑·더블 금색의 고유색을 유지한 쌍으로 대체."
+}

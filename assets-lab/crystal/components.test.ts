@@ -9,7 +9,6 @@ describe("crystal/components export 검증", () => {
     expect(typeof C.NoteContainer).toBe("function");
     expect(typeof C.BodySegment).toBe("function");
     expect(typeof C.TerminalCap).toBe("function");
-    expect(typeof C.LongNote).toBe("function");
     expect(typeof C.ButtonExport).toBe("function");
     expect(typeof C.BombFrame).toBe("function");
   });

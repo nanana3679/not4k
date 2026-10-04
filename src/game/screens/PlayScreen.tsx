@@ -70,6 +70,7 @@ export function PlayScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    let activeSkin: SkinManager | null = null;
     const init = async () => {
       if (!canvasRef.current || !containerRef.current) return;
 
@@ -87,6 +88,11 @@ export function PlayScreen() {
         : audioBuffer.duration * 1000;
 
       try {
+        const skin = import.meta.env.DEV
+          ? (await import('../../lab/devSkinSelection')).resolveDevSkinSelection(settings.skinId)
+          : settings.skinId;
+        if (cancelled) return;
+
         // 차트의 시간 파생은 단일 ChartTiming 뷰가 소유한다 (노트 시작/끝 ms,
         // trillZone 시작 ms, 판정 수). renderer/judgment에 넘기는 것과 같은 인스턴스.
         const timing = createChartTiming(chartData);
@@ -116,7 +122,7 @@ export function PlayScreen() {
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
         const skinManager = new SkinManager();
-        await skinManager.loadSkin(settings.skinId);
+        await skinManager.loadSkin(skin);
         if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
@@ -132,6 +138,7 @@ export function PlayScreen() {
         await renderer.init();
         // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다.
         if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
+        activeSkin = skinManager;
 
         // Set up renderer with chart data
         renderer.setChart(
@@ -308,13 +315,17 @@ export function PlayScreen() {
       }
       if (audioEngineRef.current) {
         audioEngineRef.current.dispose();
+        audioEngineRef.current = null;
       }
       if (inputSystemRef.current) {
         inputSystemRef.current.detach();
+        inputSystemRef.current = null;
       }
       if (rendererRef.current) {
         rendererRef.current.dispose();
+        rendererRef.current = null;
       }
+      activeSkin?.dispose();
     };
   }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps -- settings는 init 내부에서 getState() 스냅샷으로 접근
 

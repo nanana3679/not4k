@@ -5,21 +5,22 @@
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "build:lab": "tsc && vite build --config vite.lab.config.ts && node scripts/verify-lab-pages-build.mjs",
+    "build": "pnpm run typecheck && vite build",
+    "build:lab": "pnpm run typecheck && vite build --config vite.lab.config.ts && node scripts/verify-lab-pages-build.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit",
-    "build:skins": "node scripts/build-skins.mjs",
-    "build:classic": "node scripts/build-classic-skin.mjs",
-    "split:gear": "node scripts/split-gear-gauge.mjs",
-    "backup": "node scripts/backup-supabase.mjs"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.tooling.json && tsc -p tsconfig.scripts.json",
+    "build:skins": "node scripts/build-skins.ts",
+    "build:classic": "node scripts/build-classic-skin.ts",
+    "split:gear": "node scripts/split-gear-gauge.ts",
+    "backup": "node scripts/backup-supabase.ts",
+    "case:image": "node scripts/judgment-case-image.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
-    "pixi.js": "^8.16.0",
+    "pixi.js": "^8.21.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.6.0",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
@@ -49,5 +51,5 @@
     "vite": "^6.4.1",
     "vitest": "^4.0.18"
   },
-  "version": "0.3.0"
+  "version": "0.4.7"
 }

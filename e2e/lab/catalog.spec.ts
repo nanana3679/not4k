@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Lab preview catalog", () => {
-  test("/lab에서 시설 통과와 에셋 시연실을 포함한 7개 미리보기와 이미지 갤러리 2개를 찾고 비행 시연을 연다", async ({ page }) => {
+  test("/lab에서 시설 통과와 에셋 시연실을 포함한 7개 미리보기와 이미지 갤러리 6개를 찾고 비행 시연을 연다", async ({ page }) => {
     await page.goto("/lab");
 
     await expect(page.getByRole("heading", { name: "Preview Archive" })).toBeVisible();
-    await expect(page.locator(".lab-index-group li")).toHaveCount(9);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(13);
     await expect(page.getByRole("link", { name: /^노트 에셋 시연실/ })).toBeVisible();
     await page.getByRole("link", { name: /Open preview/ }).click();
 
@@ -23,7 +23,7 @@ test.describe("Lab preview catalog", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/lab");
 
-    await expect(page.locator(".lab-index-group li")).toHaveCount(9);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(13);
     const overflow = await page.locator(".lab-index").evaluate((catalog) => catalog.scrollWidth > catalog.clientWidth + 1);
     expect(overflow).toBe(false);
     const scrollTop = await page.locator(".lab-index").evaluate((catalog) => {
@@ -93,7 +93,7 @@ test.describe("Lab preview catalog", () => {
     await expect(galleryPage.locator("img")).toHaveCount(9);
     for (const image of await galleryPage.locator("img").all()) await image.scrollIntoViewIfNeeded();
     await expect.poll(
-      () => galleryPage.locator("img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)),
+      () => galleryPage.locator("img").evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0)),
     ).toBe(true);
   });
 });

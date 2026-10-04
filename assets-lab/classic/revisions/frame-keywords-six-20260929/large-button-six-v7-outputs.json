@@ -1,0 +1,47 @@
+{
+  "generator": "built-in image_gen",
+  "outputs": [
+    {
+      "label": "A",
+      "id": "27-large-button-a-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/21-free-a-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-ba02d51c-902c-46ec-a7b6-3b23ada9e205.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/27-large-button-a-v7.png"
+    },
+    {
+      "label": "B",
+      "id": "28-large-button-b-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/22-free-b-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-7e97823a-f2f6-4e51-bc7c-d8e0b33e7ddb.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/28-large-button-b-v7.png"
+    },
+    {
+      "label": "C",
+      "id": "29-large-button-c-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/23-free-c-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-9773c6cd-2396-4f75-9c7e-ae95ad869013.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/29-large-button-c-v7.png"
+    },
+    {
+      "label": "D",
+      "id": "30-large-button-d-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/24-free-d-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-5c2aabe8-acbe-45d5-9fa5-d085d3d58d0b.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/30-large-button-d-v7.png"
+    },
+    {
+      "label": "E",
+      "id": "31-large-button-e-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/25-free-e-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-7ff72e3a-54d9-45d1-857c-55a9296b3b6d.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/31-large-button-e-v7.png"
+    },
+    {
+      "label": "F",
+      "id": "32-large-button-f-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/26-free-f-v6.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-e372ffc7-6218-4f2d-8f2f-703fe74c0632.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/32-large-button-f-v7.png"
+    }
+  ]
+}

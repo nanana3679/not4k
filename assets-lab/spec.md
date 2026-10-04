@@ -2,7 +2,7 @@
 
 현재 노트 에셋 Lab의 시안 교체와 Classic 런타임 규격은 [노트 에셋 Lab 명세](../docs/spec/note-asset-lab.md)를 따른다. 기존 단색 Classic은 `simple/`의 Simple로 이름을 바꾸었고, `classic/`은 승인된 유광 포인트·어두운 금속 바디·터미널·공통 봄의 SVG 소스와 상태 생성기를 관리한다.
 
-아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다.
+아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다. Crystal·Prism 탭 뷰어(`crystal.jsx`, `prism.jsx`)와 뷰어 전용 레이아웃 컴포넌트·롱노트 조립 컴포넌트는 2026-10-03에 지웠다. `assets-lab` 개발 서버는 이제 `pnpm build:skins`가 캡처하는 `export.jsx` 화면만 그리므로, 아래의 탭 뷰어·`BombPlayer` 설명은 당시 설계 기록이다.
 
 ## 게임 개요
 
@@ -200,7 +200,7 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 ### 기어 라이트 조정 랩
 
-`/lab/gear-light`는 `gear.png`와 생성 기어 샘플의 양쪽 기둥 발광을 별도 레이어로 분리해 높이와 세기를 조정하는 테스트 페이지이다. `scripts/split-gear-light-layer.mjs`가 원본을 `gear-source.png`, 발광이 약해진 base 레이어를 `gear-base.png`, 발광 전용 레이어를 `gear-glow.png`로 출력한다. 게이지가 있는 새 샘플은 `scripts/generate-gear-gauge-samples.mjs`가 `gear-gauge.png`를 추가로 출력하며, metadata의 `gaugeBoxes`로 하단 기준 채움 높이를 조정한다. 루트 원본은 `public/lab/gear-light/`에, 생성 샘플은 `public/lab/gear-samples/option-XX/`에 저장한다.
+`/lab/gear-light`는 `gear.png`와 생성 기어 샘플의 양쪽 기둥 발광을 별도 레이어로 분리해 높이와 세기를 조정하는 테스트 페이지이다. `scripts/split-gear-light-layer.ts`가 원본을 `gear-source.png`, 발광이 약해진 base 레이어를 `gear-base.png`, 발광 전용 레이어를 `gear-glow.png`로 출력한다. 게이지가 있는 새 샘플은 `scripts/generate-gear-gauge-samples.mjs`가 `gear-gauge.png`를 추가로 출력하며, metadata의 `gaugeBoxes`로 하단 기준 채움 높이를 조정한다. 루트 원본은 `public/lab/gear-light/`에, 생성 샘플은 `public/lab/gear-samples/option-XX/`에 저장한다.
 
 테스트 페이지는 선택된 샘플의 metadata를 읽고 base 레이어 위에 glow 레이어를 좌·우 기둥 bbox로 clipping해서 다시 얹는다. 높이는 bbox 하단 기준으로 위쪽을 잘라 조정하고, 세기는 glow 레이어의 opacity, brightness, drop-shadow로 조정한다. `gear-gauge.png`가 있는 샘플은 게이지 레이어만 따로 보거나, adjusted 모드에서 `gaugeBoxes`를 기준으로 고도 채움 높이를 preview할 수 있다.
 

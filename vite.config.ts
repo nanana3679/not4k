@@ -1,16 +1,20 @@
 import { rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { handlePreviewRequest } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
 import { mapLabImageGalleryDevRequest } from "./src/lab/labImageGalleryDevRequest";
 import { labImageGalleryCatalog } from "./src/lab/labImageGalleryCatalog";
+import { classicVersionPreviewsPlugin } from "./scripts/classicVersionPreviews";
 
 
 export default defineConfig({
+  // Worktrees may share node_modules; optimized React modules must stay local.
+  cacheDir: ".vite/dev",
   plugins: [
     react(),
+    classicVersionPreviewsPlugin(dirname(fileURLToPath(import.meta.url))),
     labImageGalleryPlugin(),
     flightBackgroundPreviewLabPlugin(),
     excludeLabFromBuildPlugin(),
@@ -24,10 +28,10 @@ const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 const flightBackgroundPreviewLabPath = "/__lab/flight-background-preview";
 const labImageGalleryIds = new Set(labImageGalleryCatalog.map((gallery) => gallery.id));
 
-function labImageGalleryPlugin() {
+function labImageGalleryPlugin(): Plugin {
   return {
     name: "not4k-image-gallery-lab",
-    apply: "serve" as const,
+    apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const mappedRequest = mapLabImageGalleryDevRequest(request.url ?? "", labImageGalleryIds);
@@ -48,10 +52,10 @@ function labImageGalleryPlugin() {
   };
 }
 
-function flightBackgroundPreviewLabPlugin() {
+function flightBackgroundPreviewLabPlugin(): Plugin {
   return {
     name: "not4k-flight-background-preview-lab",
-    apply: "serve" as const,
+    apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const target = request.url ?? "";
@@ -73,10 +77,10 @@ function flightBackgroundPreviewLabPlugin() {
  * lab 테스트 페이지는 개발 전용이며, vite는 public/을 무조건 dist로 복사하므로
  * 빌드 산출물에서만 lab 에셋을 제거해 배포 크기를 줄인다. dev 서버에는 영향이 없다.
  */
-function excludeLabFromBuildPlugin() {
+function excludeLabFromBuildPlugin(): Plugin {
   return {
     name: "not4k-exclude-lab-from-build",
-    apply: "build" as const,
+    apply: "build",
     closeBundle() {
       rmSync(resolve(workspaceRoot, "dist/lab"), { recursive: true, force: true });
       // eslint-disable-next-line no-console

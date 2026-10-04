@@ -1,6 +1,7 @@
 import { Assets, Texture, Rectangle } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
 import { getSkinManifest } from "./skins";
+import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
 
 // Pixi Assets caches textures globally by path. Multiple renderers (notably
 // the two tutorial carousel slots) can therefore share one loaded texture.
@@ -85,22 +86,39 @@ export class SkinManager {
   }
 
   /** 스킨의 모든 에셋을 로드 */
-  async loadSkin(skinId: string): Promise<void> {
-    // 같은 스킨이면 스킵
-    if (this.loaded && this.manifest?.theme.id === skinId) return;
+  async loadSkin(skin: string | SkinManifest): Promise<void> {
+    const manifest = typeof skin === 'string' ? getSkinManifest(skin) : skin;
+    // A preview may supply a different version with the same theme ID.
+    if (this.loaded && this.manifest === manifest) return;
+
+    // 켜짐 효과가 있는 스킨은 켜짐 에셋이 모두 있어야 한다. 기존 텍스처를 해제하기 전에 확인한다.
+    const heldEffect = manifest.theme.heldEffect !== false;
+    if (heldEffect) {
+      const missing = HELD_ASSET_KEYS.filter((key) => !manifest.assets[key]);
+      if (missing.length > 0) {
+        throw new Error(
+          `켜짐 효과가 있는 스킨 "${manifest.theme.id}"에 켜짐 에셋이 없습니다: ${missing.join(", ")}. `
+          + "효과 없는 스킨이면 theme.heldEffect를 false로 선언합니다.",
+        );
+      }
+    }
+
+    // 로딩은 되지만 화면에 반영되지 않는 설정·에셋 불일치를 개발 환경에서만 알린다(#174). 배포 빌드에서는 분기째 제거된다.
+    if (import.meta.env.DEV) {
+      for (const warning of findSkinManifestWarnings(manifest)) console.warn(warning);
+    }
 
     // 기존 텍스처 해제
     this.dispose();
     this.disposed = false;
     const generation = ++this.loadGeneration;
 
-    const manifest = getSkinManifest(skinId);
     this.manifest = manifest;
 
     const { assets } = manifest;
 
-    // 개별 에셋 로드
-    const entries: [string, string][] = [
+    // 개별 에셋 로드. 켜짐 에셋은 heldEffect가 false인 스킨에서 빠지므로 경로가 있는 항목만 남긴다.
+    const entries: [string, string][] = ([
       ["noteSingle", assets.noteSingle],
       ["noteDouble", assets.noteDouble],
       ["terminalSingle", assets.terminalSingle],
@@ -137,7 +155,9 @@ export class SkinManager {
       ["gearFrame", assets.gearFrame],
       ["gearGaugeLeft", assets.gearGaugeLeft],
       ["gearGaugeRight", assets.gearGaugeRight],
-    ];
+    ] as [string, string | undefined][])
+      .filter((entry): entry is [string, string] =>
+        entry[1] !== undefined && (heldEffect || !(HELD_ASSET_KEYS as readonly string[]).includes(entry[0])));
 
     if (assets.terminalSingleIdle) entries.push(["terminalSingleIdle", assets.terminalSingleIdle]);
     if (assets.terminalDoubleIdle) entries.push(["terminalDoubleIdle", assets.terminalDoubleIdle]);
@@ -145,6 +165,8 @@ export class SkinManager {
     if (assets.pointGraceOverlay) entries.push(["pointGraceOverlay", assets.pointGraceOverlay]);
     if (assets.terminalGraceOverlay) entries.push(["terminalGraceOverlay", assets.terminalGraceOverlay]);
     if (assets.pointShadow) entries.push(["pointShadow", assets.pointShadow]);
+    if (assets.pointContactShadow) entries.push(["pointContactShadow", assets.pointContactShadow]);
+    if (assets.pointContactShadowTrill) entries.push(["pointContactShadowTrill", assets.pointContactShadowTrill]);
 
     // 롱노트 전용 캡 에셋 (있는 스킨만 — 없으면 getHalfCapTexture가 terminal crop으로 fallback)
     if (assets.endCapSingle) entries.push(["endCapSingle", assets.endCapSingle]);
@@ -216,6 +238,19 @@ export class SkinManager {
   /** 현재 스킨에서 선택 에셋 키가 로드되어 있는지 확인 */
   hasTexture(key: string): boolean {
     return this.textures.has(key);
+  }
+
+  /**
+   * 포인트 이미지 폭 대비 바디 이미지 폭(최대 1). 포인트 이미지 전체가 레인 폭이므로,
+   * 바디 이미지가 포인트보다 좁은 스킨은 이 비율로 바디·끝 터미널·그림자를 줄여 가운데에 둔다.
+   * 두 이미지는 같은 배율로 내보냈다고 본다. 텍스처가 없으면 1이다.
+   */
+  getBodyWidthScale(kind: "single" | "double" | "trill"): number {
+    const suffix = kind === "single" ? "Single" : kind === "double" ? "Double" : "Trill";
+    const point = this.textures.get(`note${suffix}`)?.texture;
+    const body = this.textures.get(`body${suffix}`)?.texture;
+    if (!point || !body || point.width <= 0) return 1;
+    return Math.min(1, body.width / point.width);
   }
 
   /**

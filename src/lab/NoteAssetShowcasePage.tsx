@@ -6,10 +6,11 @@ FIRST VIEWPORT: 실제 튜토리얼 재생기가 화면 중심을 차지하고 �
 FORM: 기존 not4k Lab과 튜토리얼 재생기를 잇는 로컬 확장이므로 별도 플레이필드를 만들지 않는다.
 */
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { NoteAssetPreviewPlayer } from "./NoteAssetPreviewPlayer";
 import { KeybombEffect } from "./KeybombEffect";
-import { getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
+import { CLASSIC_NOTE_ASSET_VERSIONS, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from "./noteAssetDesigns";
+import { nextShowcaseSearch, type NoteAssetShowcaseSelection } from "./noteAssetShowcaseSearch";
 import {
   createTutorialPreview,
   makeChart,
@@ -96,19 +97,21 @@ function getPreview(previewId: string): TutorialPreviewDefinition {
 }
 
 export default function NoteAssetShowcasePage() {
-  const [selectedDesignId, setSelectedDesignId] = useState(() => getNoteAssetDesign(
-    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('design'),
-  ).id);
-  const design = getNoteAssetDesign(selectedDesignId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const design = getNoteAssetDesign(searchParams.get('design'), searchParams.get('version'));
   const [selectedPreviewId, setSelectedPreviewId] = useState(DEFAULT_PREVIEW_ID);
   const [previewInstance, setPreviewInstance] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
+  // 일시정지는 멈춘 재생 인스턴스에만 적용한다. 차트·시안·버전을 바꾸거나 처음부터 재생하면 키가 달라져 자동으로 재생 상태가 된다.
+  const [pausedPlayerKey, setPausedPlayerKey] = useState<string | null>(null);
   const [selectedBombId, setSelectedBombId] = useState<KeybombVariantId>(design.bombs[0].id);
   const [rackBombRun, setRackBombRun] = useState(0);
   const [cardBombRuns, setCardBombRuns] = useState<Record<KeybombVariantId, number>>({
     silver: 0, diagonal: 0, armor: 0, shockwave: 0, segmented: 0, compact: 0, skin: 0,
   });
   const preview = useMemo(() => getPreview(selectedPreviewId), [selectedPreviewId]);
+  const playerKey = `${design.skinId}:${preview.id}:${previewInstance}`;
+  const paused = pausedPlayerKey === playerKey;
   const selectedBomb = useMemo(
     () => design.bombs.find((variant) => variant.id === selectedBombId) ?? design.bombs[0],
     [selectedBombId, design],
@@ -120,16 +123,19 @@ export default function NoteAssetShowcasePage() {
     setPreviewInstance((current) => current + 1);
   };
 
-  const selectDesign = (id: string) => {
-    const next = getNoteAssetDesign(id);
-    setSelectedDesignId(next.id);
-    setSelectedBombId(next.bombs[0].id);
-    setPlayerReady(false);
-    setPreviewInstance(current => current + 1);
-    const url = new URL(window.location.href);
-    url.searchParams.set('design', next.id);
-    window.history.replaceState(null, '', url);
+  const selectShowcase = (change: NoteAssetShowcaseSelection) => {
+    // 라우터 전환이 반영되기 전 연속 클릭에서도 방금 쌓은 기록을 덮어쓰지 않도록 실제 주소를 기준으로 판단한다.
+    const { params, replace } = nextShowcaseSearch(new URLSearchParams(window.location.search), change);
+    setSearchParams(params, { replace });
   };
+
+  // 시안·버전이 바뀌면 렌더 중에 키봄 선택과 준비 상태를 초기화한다(effect 없이 한 번의 렌더로 반영).
+  const [shownDesign, setShownDesign] = useState(design);
+  if (shownDesign !== design) {
+    setShownDesign(design);
+    setSelectedBombId(design.bombs[0].id);
+    setPlayerReady(false);
+  }
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -140,7 +146,7 @@ export default function NoteAssetShowcasePage() {
   }, []);
 
   return (
-    <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id}>
+    <main className="note-asset-lab" data-lab-page="note-assets" data-asset-design={design.id} data-skin-version={design.versionId ?? 'current'}>
       <header className="asset-lab-header">
         <div>
           <p className="asset-lab-kicker"><Link className="asset-lab-back-link" to="/lab">← Lab 목록</Link></p>
@@ -149,7 +155,7 @@ export default function NoteAssetShowcasePage() {
         </div>
         <div className="asset-lab-status" aria-label="재생기 상태">
           <span>{playerReady ? "PLAYER READY" : "LOADING PLAYER"}</span>
-          <strong>{design.name}</strong>
+          <strong>{design.name}{design.versionId ? ` · ${design.versionId}` : ''}</strong>
         </div>
       </header>
 
@@ -157,16 +163,20 @@ export default function NoteAssetShowcasePage() {
         <div className="asset-lab-player-panel">
           <div className="asset-lab-player-toolbar">
             <div><span>ACTUAL TUTORIAL RENDERER</span><strong id="asset-player-title">{preview.title}</strong></div>
-            <button type="button" onClick={() => selectPreview(selectedPreviewId)}>처음부터 재생</button>
+            <div className="asset-lab-player-actions">
+              <button type="button" aria-pressed={paused} data-player-pause="true" onClick={() => setPausedPlayerKey(paused ? null : playerKey)}>{paused ? "재생" : "일시정지"}</button>
+              <button type="button" onClick={() => selectPreview(selectedPreviewId)}>처음부터 재생</button>
+            </div>
           </div>
           <div className="asset-lab-player-stage">
-            <div className="asset-lab-player-canvas" data-active-preview={preview.id}>
+            <div className="asset-lab-player-canvas" data-active-preview={preview.id} data-paused={paused}>
               <NoteAssetPreviewPlayer
-                key={`${design.id}:${preview.id}:${previewInstance}`}
+                key={playerKey}
                 design={design}
                 preview={preview}
                 bomb={selectedBomb}
                 onReady={() => setPlayerReady(true)}
+                paused={paused}
               />
             </div>
           </div>
@@ -177,11 +187,20 @@ export default function NoteAssetShowcasePage() {
             <div className="asset-lab-control-heading"><h2>시안</h2></div>
             <div className="asset-lab-preview-options" role="group" aria-label="시안 선택">
               {NOTE_ASSET_DESIGNS.map(option => (
-                <button key={option.id} type="button" aria-pressed={design.id === option.id} onClick={() => selectDesign(option.id)}>
+                <button key={option.id} type="button" aria-pressed={design.id === option.id} onClick={() => selectShowcase({ design: option.id })}>
                   {option.name}
                 </button>
               ))}
             </div>
+            {design.id === 'classic' && <div className="asset-lab-version-control">
+              <label htmlFor="classic-skin-version">버전</label>
+              <select id="classic-skin-version" value={design.versionId ?? 'current'} onChange={event => selectShowcase({ version: event.target.value })}>
+                <option value="current">현재 적용본</option>
+                {CLASSIC_NOTE_ASSET_VERSIONS.map(version => <option key={version.id} value={version.id}>
+                  {version.id} · {version.label}
+                </option>)}
+              </select>
+            </div>}
             <p className="asset-lab-inspector-note">{design.description}</p>
           </section>
           <section>

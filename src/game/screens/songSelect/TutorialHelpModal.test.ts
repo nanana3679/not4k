@@ -240,7 +240,7 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('carouselCard:');
     expect(tutorialHelpModalSource).toContain('playerPlaceholder:');
     expect(tutorialHelpModalSource).toContain('playerTrack:');
-    expect(tutorialHelpModalSource).toContain("type TutorialPreviewSlotState = 'active' | 'standby' | 'exiting' | 'entering'");
+    expect(tutorialHelpModalSource).toContain("from './tutorialPreviewSlots'");
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewSlotRenderOrder(activePlayerSlot, transition)');
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewTrackTransform(transition, transitionProgress)');
     expect(tutorialHelpModalSource).toContain('getEaseOutQuintProgress(elapsedRatio)');
@@ -252,6 +252,8 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('data-tutorial-transition-direction={transition?.direction ??');
     expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
     expect(tutorialHelpModalSource).toContain('diagramModalEnabled={diagramModalEnabled}');
+    // 들어오는·대기 슬롯은 첫 프레임에서 멈춰 두고 active가 된 뒤 재생한다(tutorialPreviewSlots.test.ts).
+    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState)}');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-standby');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-exiting');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-entering');
@@ -290,13 +292,23 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('diagramModalVisible={diagramModalVisible}');
   });
 
-  it('페이지를 다시 방문하면 같은 튜토리얼이라도 새 인스턴스 key로 프리뷰 상태를 처음부터 재생', () => {
+  it('페이지를 다시 방문하면 같은 튜토리얼이라도 새 인스턴스 id를 재생기에 넘겨 같은 렌더러에서 처음부터 재생', () => {
     expect(tutorialHelpModalSource).toContain('previewSlotInstanceIds');
     expect(tutorialHelpModalSource).toContain('nextPreviewSlotInstanceIdRef');
     expect(tutorialHelpModalSource).toContain('const nextSlotInstanceId = nextPreviewSlotInstanceIdRef.current++');
     expect(tutorialHelpModalSource).toContain('toSlotInstanceId: nextSlotInstanceId');
     expect(tutorialHelpModalSource).toContain('getTutorialPreviewSlotReadyKey(activePlayerSlot, visiblePlayerIndex, activePreviewInstanceId)');
     expect(tutorialHelpModalSource).toContain('previewInstanceId={previewInstanceId}');
-    expect(tutorialHelpModalSource).toContain('key={`${preview.id}:${previewInstanceId}`}');
+  });
+
+  it('레슨을 넘겨도 두 슬롯의 재생기를 다시 마운트하지 않도록 재생기 key에 차트·인스턴스 id를 넣지 않고 previewInstanceId prop으로 넘김', () => {
+    const playerStart = tutorialHelpModalSource.indexOf('<TutorialPreviewPlayer');
+    const playerEnd = tutorialHelpModalSource.indexOf('/>', playerStart);
+    const playerJsx = tutorialHelpModalSource.slice(playerStart, playerEnd);
+    expect(playerStart).toBeGreaterThan(-1);
+    expect(playerJsx).toContain('previewInstanceId={previewInstanceId}');
+    expect(playerJsx).not.toContain('key=');
+    expect(tutorialHelpModalSource).not.toContain('key={`${preview.id}:${previewInstanceId}`}');
+    expect(tutorialHelpModalSource).toContain('key={`preview-slot-${slotId}`}');
   });
 });

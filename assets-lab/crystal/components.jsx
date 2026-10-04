@@ -196,17 +196,6 @@ export function EndCap({ x, y, type = "single", failed = false }) {
   );
 }
 
-// --- Crystal LongNote ---
-export function LongNote({ x, y, bodyH = 80, type = "single", held = false, coreSize, coreGap = 18, holderPad, dimLeft = false, dimRight = false, wireThickness, lineThickness, glowIntensity }) {
-  return (
-    <g>
-      <BodySegment x={x} y={y + CH} height={bodyH} type={type} held={held} coreGap={coreGap} wireThickness={wireThickness} lineThickness={lineThickness} glowIntensity={glowIntensity} />
-      <TerminalCap x={x} y={y} type={type} coreSize={coreSize} coreGap={coreGap} holderPad={holderPad} held={held} />
-      <NoteContainer x={x} y={y + CH + bodyH} type={type} coreSize={coreSize} coreGap={coreGap} holderPad={holderPad} dimLeft={dimLeft} dimRight={dimRight} />
-    </g>
-  );
-}
-
 // --- Crystal ButtonExport ---
 export function ButtonExport({ cx, cy, pressed }) {
   return (
