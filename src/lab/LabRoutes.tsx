@@ -9,6 +9,7 @@ const NoteAssetShowcasePage = lazy(() => import('./NoteAssetShowcasePage'));
 const LabIndexPage = lazy(() => import('./LabIndexPage'));
 const FlightBackgroundPreviewLabPage = lazy(() => import('./FlightBackgroundPreviewLabPage'));
 const FacilityPassagePreviewLabPage = lazy(() => import('./FacilityPassagePreviewLabPage'));
+const ClassicFrameFitPage = lazy(() => import('./ClassicFrameFitPage'));
 
 /**
  * 개발 서버와 별도 공개 Lab이 공유하는 시연 라우트.
@@ -23,6 +24,7 @@ export default function LabRoutes() {
       <Route path="facility-passage" element={<FacilityPassagePreviewLabPage />} />
       <Route path="gear-light" element={<GearLightTestPage />} />
       <Route path="gear-measure-pulse" element={<GearMeasurePulseTestPage />} />
+      <Route path="classic-frame-fit" element={<ClassicFrameFitPage />} />
       <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />
       <Route path="judgment-playtest" element={<JudgmentPlaytestPage />} />
       <Route path="note-assets" element={<NoteAssetShowcasePage />} />
