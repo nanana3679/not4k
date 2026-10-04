@@ -39,6 +39,15 @@ export const FRAME_FIT_ASSET_PATHS = {
 /** 고정 16:9 무대의 논리 폭. 게임처럼 높이 600을 기준으로 화면비에서 정한다. */
 export const FRAME_FIT_STAGE_WIDTH = Math.round((GAME_HEIGHT * 16) / 9);
 
+/**
+ * 전체화면 무대의 논리 폭. 게임 PlayScreen처럼 높이 600에 화면 비율을 곱하되 레인 영역 + 80보다 좁아지지 않게 한다
+ * (21:9면 1400, 폰 가로 844×390이면 1298, 세로 화면이면 최소 480). 크기를 모르면 기본 16:9 폭이다.
+ */
+export function fullscreenLogicalWidth(width: number, height: number): number {
+  if (!(width > 0 && height > 0)) return FRAME_FIT_STAGE_WIDTH;
+  return Math.max(Math.round(GAME_HEIGHT * (width / height)), LANE_AREA_WIDTH + 80);
+}
+
 export interface FrameFitGeometry {
   width: number;
   height: number;

@@ -95,6 +95,85 @@
   overscroll-behavior: contain;
 }
 
+/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·움직임). 무대 오른쪽 위 비행 배경 자리에 겹친다. */
+.frame-fit-fullscreen-bar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.frame-fit-overlay-button,
+.frame-fit-overlay-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 7px;
+  background: rgba(8, 11, 17, 0.72);
+  color: #e8ecf0;
+  font: 600 13px/1 "Noto Sans KR", system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.frame-fit-overlay-button { cursor: pointer; }
+.frame-fit-overlay-button:hover { border-color: #5ce1e6; }
+.frame-fit-overlay-button:focus-visible,
+.frame-fit-overlay-toggle input:focus-visible { outline: 2px solid #9ad9ff; outline-offset: 2px; }
+.frame-fit-overlay-toggle { cursor: pointer; }
+.frame-fit-overlay-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #5ce1e6; }
+
+/* 전체화면(Fullscreen API·CSS 대체): 무대만 검은 바탕에 가득 채운다. */
+.frame-fit-viewport[data-fullscreen="api"],
+.frame-fit-viewport[data-fullscreen="css"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.frame-fit-viewport[data-fullscreen="css"] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.frame-fit-viewport[data-fullscreen="api"]:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.frame-fit-viewport[data-fullscreen="api"] .frame-fit-canvas-host,
+.frame-fit-viewport[data-fullscreen="css"] .frame-fit-canvas-host {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.frame-fit-fullscreen-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 5;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(8, 11, 17, 0.82);
+  color: #e8ecf0;
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
 .frame-fit-canvas-host,
 .frame-fit-placeholder {
   position: relative;

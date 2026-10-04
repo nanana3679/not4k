@@ -32,6 +32,7 @@ import {
   LIFT_PERCENT_MAX,
   listFrameParts,
   minUniformLiftPercent,
+  fullscreenLogicalWidth,
   oneToOneCssSize,
   parseFrameFitGeometry,
   supportsFrameMotion,
@@ -115,7 +116,13 @@ interface RendererView {
   songMs: number;
 }
 
-const stage = createFrameFitStage(FRAME_FIT_STAGE_WIDTH);
+// 기본(16:9) 무대. 레인 폭 범위처럼 논리 폭과 무관한 계산에 쓴다. 전체화면에서는 화면 비율로 논리 폭을 다시 정한다.
+const BASE_STAGE = createFrameFitStage(FRAME_FIT_STAGE_WIDTH);
+/** 전체화면 크기 변화(창 크기·회전)를 모아 렌더러를 한 번만 다시 만들기까지 기다리는 시간. */
+const FULLSCREEN_RESIZE_DELAY_MS = 200;
+
+/** off: 일반 페이지. api: Fullscreen API. css: API가 없거나 거절될 때(iPhone Safari 등) 화면을 덮는 CSS 전체화면. */
+type FullscreenMode = 'off' | 'api' | 'css';
 
 export default function ClassicFrameFitPage() {
   const [mode, setMode] = useState<FrameFitMode>('crop');
@@ -195,6 +202,15 @@ export default function ClassicFrameFitPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // 전체화면: 무대 영역 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
+  const [fullscreen, setFullscreen] = useState<FullscreenMode>('off');
+  const [fullscreenSize, setFullscreenSize] = useState<{ width: number; height: number } | null>(null);
+  const fullscreenActive = fullscreen !== 'off' && fullscreenSize !== null;
+  const stageWidth = fullscreenActive ? fullscreenLogicalWidth(fullscreenSize.width, fullscreenSize.height) : FRAME_FIT_STAGE_WIDTH;
+  // 화면이 최소 논리 폭(480)보다 세로로 길면(폰 세로) 위아래를 비우고 가로로 돌리라고 알린다.
+  const fullscreenNarrow = fullscreenActive && Math.round(GAME_HEIGHT * (fullscreenSize.width / fullscreenSize.height)) < stageWidth;
+  const stage = useMemo(() => createFrameFitStage(stageWidth), [stageWidth]);
+
   const geometry = assets.status === 'ready' ? assets.geometry : null;
   const uniform = mode === 'uniform';
   const laneRange = geometry ? uniformLaneWidthRange(geometry, stage) : null;
@@ -203,11 +219,11 @@ export default function ClassicFrameFitPage() {
   // 렌더러에 얹는 배치(놓은 레인 폭)와 설명에 쓰는 배치(끄는 중인 레인 폭)를 나눈다. 프레임은 판정선 높이와 무관하다.
   const layout = useMemo(
     () => (geometry ? computeFrameFitLayout(mode, geometry, stage, committedLaneWidth ?? undefined) : null),
-    [geometry, mode, committedLaneWidth],
+    [geometry, mode, stage, committedLaneWidth],
   );
   const readoutLayout = useMemo(
     () => (geometry ? computeFrameFitLayout(mode, geometry, stage, draftLaneWidth ?? undefined) : null),
-    [geometry, mode, draftLaneWidth],
+    [geometry, mode, stage, draftLaneWidth],
   );
   const judgmentFor = (target: FrameFitLayout | null) => {
     if (!uniform || !target) return null;
@@ -218,13 +234,14 @@ export default function ClassicFrameFitPage() {
   const readoutJudgment = judgmentFor(readoutLayout);
   const zoom = useMemo(
     () => computeFrameFitZoom(uniform && committedLaneWidth !== null ? committedLaneWidth : stage.laneAreaWidth, stage, renderHeight, SCROLL_SPEED),
-    [uniform, committedLaneWidth, renderHeight],
+    [uniform, committedLaneWidth, renderHeight, stage],
   );
   const screenResolution = renderHeight / GAME_HEIGHT;
   const showCurrentGear = mode === 'current';
-  // 렌더 높이·비행 장면·현재 기어 표시·uniform(게임 마스크 숨김)·줌은 렌더러 생성 옵션이라 바뀌면 렌더러를 새로 만든다.
+  // 렌더 높이·비행 장면·현재 기어 표시·uniform(게임 마스크 숨김)·줌·논리 폭(전체화면 비율)은 렌더러 생성 옵션이라
+  // 바뀌면 렌더러를 새로 만든다. 맞춤 방식·레인 폭·판정선 높이 선택은 그대로 다시 건다.
   const rendererKind = showCurrentGear ? 'gear' : uniform ? 'uniform' : 'overlay';
-  const rendererKey = `${renderHeight}:${scenario}:${rendererKind}:${zoom.zoom.toFixed(6)}`;
+  const rendererKey = `${renderHeight}:${scenario}:${rendererKind}:${zoom.zoom.toFixed(6)}:${stageWidth}`;
   // 렌더러를 새로 만드는 동안 이전 렌더러의 준비 상태를 보이지 않는다.
   const rendererState: RendererState = reportedState.key === rendererKey ? reportedState : { status: 'loading', key: rendererKey };
   const ready = rendererState.status === 'ready';
@@ -247,9 +264,75 @@ export default function ClassicFrameFitPage() {
     ? { width: rendererState.backingWidth, height: rendererState.backingHeight }
     : { width: Math.round(zoom.width * zoom.resolution), height: Math.round(zoom.height * zoom.resolution) };
   const pixelSize = oneToOneCssSize(backing.width, backing.height, devicePixelRatio);
-  const hostStyle: CSSProperties = view === 'pixel'
-    ? { width: `${pixelSize.width}px`, height: `${pixelSize.height}px` }
-    : { width: '100%', aspectRatio: `${FRAME_FIT_STAGE_WIDTH} / ${GAME_HEIGHT}` };
+  // 전체화면은 논리 폭이 화면 비율을 따르므로 캔버스가 화면을 꽉 채운다(최소 폭으로 묶인 세로 화면만 위아래가 빈다).
+  const hostStyle: CSSProperties = fullscreen !== 'off'
+    ? (fullscreenNarrow || !fullscreenActive ? { width: '100%', aspectRatio: `${stageWidth} / ${GAME_HEIGHT}` } : { width: '100%', height: '100%' })
+    : view === 'pixel'
+      ? { width: `${pixelSize.width}px`, height: `${pixelSize.height}px` }
+      : { width: '100%', aspectRatio: `${FRAME_FIT_STAGE_WIDTH} / ${GAME_HEIGHT}` };
+
+  const enterFullscreen = async () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    if (typeof viewport.requestFullscreen === 'function') {
+      try {
+        await viewport.requestFullscreen();
+        if (document.fullscreenElement === viewport) {
+          setFullscreen('api');
+          return;
+        }
+      } catch {
+        // iPhone Safari처럼 요소 전체화면이 없거나 거절되면 CSS로 화면을 덮는다.
+      }
+    }
+    setFullscreen('css');
+  };
+  const exitFullscreen = () => {
+    if (fullscreen === 'api' && document.fullscreenElement) void document.exitFullscreen().catch(() => setFullscreen('off'));
+    else setFullscreen('off');
+  };
+
+  // Esc(Fullscreen API)로 나가면 fullscreenchange로 일반 화면에 돌아오고, CSS 전체화면은 Esc 키로 닫는다.
+  useEffect(() => {
+    if (fullscreen === 'off') return;
+    const onChange = () => {
+      if (fullscreen === 'api' && document.fullscreenElement !== viewportRef.current) setFullscreen('off');
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (fullscreen === 'css' && event.key === 'Escape') setFullscreen('off');
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fullscreen]);
+
+  // 전체화면 영역 크기를 재고, 창 크기·회전이 바뀌면 잠시 모았다가 다시 잰다(렌더러는 논리 폭이 바뀔 때만 다시 만든다).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (fullscreen === 'off' || !viewport) return;
+    let timer = 0;
+    const measure = () => {
+      const rect = viewport.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) setFullscreenSize({ width: rect.width, height: rect.height });
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(measure, FULLSCREEN_RESIZE_DELAY_MS);
+    };
+    const frame = requestAnimationFrame(measure);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('orientationchange', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      setFullscreenSize(null);
+    };
+  }, [fullscreen]);
 
   // 1:1 보기로 바꾸면 레인 영역이 보이도록 가로 스크롤을 가운데로 맞춘다.
   useEffect(() => {
@@ -267,7 +350,7 @@ export default function ClassicFrameFitPage() {
     let pending = false;
     const commitNow = () => {
       pending = false;
-      setLaneWidth(clampUniformLaneWidth(Number(slider.value), geometry, stage));
+      setLaneWidth(clampUniformLaneWidth(Number(slider.value), geometry, BASE_STAGE));
       setLaneWidthDraft(null);
     };
     const commit = () => {
@@ -336,8 +419,10 @@ export default function ClassicFrameFitPage() {
           data-motion-gauge={motionLayers.gauge ? 'on' : 'off'}
           data-motion-accent={motionLayers.accent ? 'on' : 'off'}
           data-motion-bar={motionLayers.bar ? 'on' : 'off'}
+          data-fullscreen={fullscreen}
+          data-stage-width={stageWidth}
         >
-          <div className="frame-fit-viewport" ref={viewportRef} data-view={view}>
+          <div className="frame-fit-viewport" ref={viewportRef} data-view={fullscreen === 'off' ? view : 'fit'} data-fullscreen={fullscreen}>
             {assets.status === 'ready' ? (
               <FrameFitRenderer
                 key={rendererKey}
@@ -366,6 +451,25 @@ export default function ClassicFrameFitPage() {
               </div>
             )}
             {rendererState.status === 'error' && <p className="frame-fit-error" role="alert">{rendererState.message}</p>}
+            <div className="frame-fit-fullscreen-bar">
+              {fullscreen === 'off' ? (
+                <button type="button" className="frame-fit-overlay-button" onClick={() => void enterFullscreen()}>전체화면</button>
+              ) : (
+                <>
+                  <label className="frame-fit-overlay-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="움직임(전체화면)"
+                      checked={motionEnabled}
+                      onChange={(event) => setMotionEnabled(event.currentTarget.checked)}
+                    />
+                    <span>움직임</span>
+                  </label>
+                  <button type="button" className="frame-fit-overlay-button" aria-label="닫기" onClick={exitFullscreen}>✕</button>
+                </>
+              )}
+            </div>
+            {fullscreenNarrow && <p className="frame-fit-fullscreen-hint">가로로 돌리면 게임처럼 넓게 보입니다.</p>}
           </div>
 
           <div className="frame-fit-readout" aria-live="polite">

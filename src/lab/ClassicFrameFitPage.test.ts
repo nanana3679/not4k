@@ -82,6 +82,14 @@ describe('ClassicFrameFitPage', () => {
     expect(markup).toContain('픽셀 단위 계단');
   });
 
+  it('무대 안에 전체화면 버튼이 있고 무대는 data-fullscreen off·논리 폭 1067(16:9)로 시작한다', () => {
+    const markup = render();
+    const stage = markup.match(/<section[^>]*data-frame-fit-stage="true"[^>]*>/)![0];
+    expect(stage).toContain('data-fullscreen="off"');
+    expect(stage).toContain('data-stage-width="1067"');
+    expect(markup).toMatch(/<div class="frame-fit-fullscreen-bar"><button type="button" class="frame-fit-overlay-button">전체화면<\/button><\/div>/);
+  });
+
   it('Lab 목록으로 돌아가는 /lab 링크가 있다', () => {
     expect(render()).toMatch(/<a[^>]*href="\/lab"[^>]*>← Lab 목록<\/a>/);
   });

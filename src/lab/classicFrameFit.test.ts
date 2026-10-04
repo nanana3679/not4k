@@ -13,6 +13,7 @@ import {
   describeFrameParts,
   FRAME_FIT_STAGE_WIDTH,
   FRAME_MOTION_FIT_MODES,
+  fullscreenLogicalWidth,
   formatLiftPercent,
   LIFT_PERCENT_MAX,
   listFrameParts,
@@ -360,6 +361,36 @@ describe('classicFrameFit 판정선 높이(게임 Lift %)', () => {
     expect(clampUniformLiftPercent(2.6, 2)).toBe(3);
     expect(clampUniformLiftPercent(Number.NaN, 2)).toBe(4);
     expect(clampUniformLiftPercent(Number.NaN, 6)).toBe(6);
+  });
+});
+
+describe('classicFrameFit 전체화면 논리 폭(PlayScreen과 같은 규칙)', () => {
+  it('16:9 화면(1920×1080)이면 논리 폭 1067', () => {
+    expect(fullscreenLogicalWidth(1920, 1080)).toBe(1067);
+  });
+
+  it('21:9 화면(2520×1080)이면 논리 폭 1400', () => {
+    expect(fullscreenLogicalWidth(2520, 1080)).toBe(1400);
+  });
+
+  it('폰 가로(844×390)면 논리 폭 1298로 비행 배경이 더 넓게 보인다', () => {
+    expect(fullscreenLogicalWidth(844, 390)).toBe(1298);
+  });
+
+  it('세로 화면(390×844)이면 600 × 비율(277)이 레인 영역 + 80보다 좁아 최소 폭 480', () => {
+    expect(fullscreenLogicalWidth(390, 844)).toBe(480);
+  });
+
+  it('크기가 0이거나 숫자가 아니면 기본 16:9 폭 1067', () => {
+    expect(fullscreenLogicalWidth(0, 0)).toBe(FRAME_FIT_STAGE_WIDTH);
+    expect(fullscreenLogicalWidth(Number.NaN, 600)).toBe(FRAME_FIT_STAGE_WIDTH);
+  });
+
+  it('가로세로 같이 줄이기 줌 1.6(레인 폭 250)이면 렌더러 폭은 논리 폭 1400 × 1.6 = 2240', () => {
+    const zoom = computeFrameFitZoom(250, createFrameFitStage(1400), 1080, 800);
+    expect(zoom.zoom).toBeCloseTo(1.6, 10);
+    expect(zoom.width).toBeCloseTo(2240, 9);
+    expect(zoom.height).toBeCloseTo(960, 9);
   });
 });
 

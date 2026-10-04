@@ -405,6 +405,79 @@ test.describe('Classic Frame Fit Lab', () => {
     expect(errors).toEqual([]);
   });
 
+  test('전체화면을 누르면 무대가 1400×600 창을 꽉 채우고 논리 폭 1400(600 × 화면 비율)으로 렌더러를 다시 만들며, 닫기(✕)로 일반 화면·논리 폭 1067에 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.setViewportSize({ width: 1400, height: 600 });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    const button = page.getByRole('button', { name: '전체화면' });
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+    await button.click();
+    await expect(stage).toHaveAttribute('data-fullscreen', /^(api|css)$/);
+    await expect(stage).toHaveAttribute('data-stage-width', '1400');
+    await waitForRenderer(page);
+    const viewportBox = (await page.locator('.frame-fit-viewport').boundingBox())!;
+    const hostBox = (await page.locator('.frame-fit-canvas-host').boundingBox())!;
+    for (const box of [viewportBox, hostBox]) {
+      expect(Math.abs(box.x)).toBeLessThan(1);
+      expect(Math.abs(box.y)).toBeLessThan(1);
+      expect(Math.abs(box.width - 1400)).toBeLessThan(1);
+      expect(Math.abs(box.height - 600)).toBeLessThan(1);
+    }
+    // 렌더 높이 1080 그대로: 논리 1400×600을 1.8배로 그린다.
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('width', '2520');
+    // 다른 조절은 일반 페이지에 남고 전체화면 무대가 그 위를 덮는다(그 자리를 눌러도 무대가 받는다).
+    const coveredByStage = await page.evaluate(() => {
+      const controls = document.querySelector('.frame-fit-controls')!.getBoundingClientRect();
+      const x = Math.min(innerWidth - 2, Math.max(1, controls.left + 20));
+      const y = Math.min(innerHeight - 2, Math.max(1, controls.top + 20));
+      return document.querySelector('.frame-fit-viewport')!.contains(document.elementFromPoint(x, y));
+    });
+    expect(coveredByStage).toBe(true);
+    console.log(`[fullscreen] mode=${await stage.getAttribute('data-fullscreen')}`);
+
+    await page.getByRole('button', { name: '닫기' }).click();
+    await expect(stage).toHaveAttribute('data-fullscreen', 'off');
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    await waitForRenderer(page);
+    await expect(page.getByRole('button', { name: '전체화면' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('요소 전체화면이 거절되면(iPhone Safari처럼) 화면을 덮는 CSS 전체화면이 되어 844×390 가로 폰에서 논리 폭 1298로 꽉 채우고, 가로세로 같이 줄이기의 줌(1.6)을 유지하며 Esc로 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = function requestFullscreen() { return Promise.reject(new Error('blocked')); };
+    });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await page.getByRole('button', { name: '전체화면' }).click();
+    await expect(stage).toHaveAttribute('data-fullscreen', 'css');
+    await expect(stage).toHaveAttribute('data-stage-width', '1298');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-zoom', '1.6');
+    await expect(stage).toHaveAttribute('data-lane-width', '250');
+    const hostBox = (await page.locator('.frame-fit-canvas-host').boundingBox())!;
+    expect(Math.abs(hostBox.width - 844)).toBeLessThan(1);
+    expect(Math.abs(hostBox.height - 390)).toBeLessThan(1);
+    // 렌더러 논리 폭은 1298 × 1.6, 캔버스는 렌더 높이 1080 비율 그대로(1298 × 1.8).
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('width', String(Math.round(1298 * 1.8)));
+    await expect(page.getByLabel('움직임(전체화면)')).toBeChecked();
+
+    await page.keyboard.press('Escape');
+    await expect(stage).toHaveAttribute('data-fullscreen', 'off');
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    await waitForRenderer(page);
+    expect(errors).toEqual([]);
+  });
+
   test('움직임 자료(frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
