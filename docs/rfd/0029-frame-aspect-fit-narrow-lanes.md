@@ -47,9 +47,9 @@
 
 - **렌더러 배치:** `src/game/renderer/constants.ts`의 `LANE_AREA_WIDTH`·`LANE_WIDTH`·`NOTE_WIDTH`·`NOTE_HEIGHT`, 판정선 위치(`JUDGMENT_LINE_OFFSET`과 `setLift`), 판정선 아래 가림막(`drawMask`), 기어 프레임 배치(`GameRenderer`의 `GEAR_INNER_*`와 `updateGearFrameTransform`), 기존 40×40 버튼 그림, 키캡 라벨(`LANE_WIDTH` 기준). 기어 조정 모드(G 키)는 판정선과 기어를 함께 옮기므로 "프레임 고정, 판정선만 이동"에 맞게 바꾼다.
 - **플레이 화면:** `PlayScreen.tsx`의 최소 논리 폭(`LANE_AREA_WIDTH + 80`)과 판정선 위치 계산 두 곳(리프트 적용과 `DebugLogger`용)을 함께 바꾼다.
-- **에셋:** 기어 프레임과 양옆 게이지(`public/gear/`, `src/game/renderer/gearGaugeMetadata.json`, `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 새 프레임 바탕과 측정 마스크로 바꾼다. 기어 프레임은 지금처럼 스킨 공통 에셋이다.
+- **에셋:** 기어 프레임과 양옆 게이지(`public/gear/`, `src/game/renderer/gearGaugeMetadata.json`, `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 새 프레임 바탕과 측정 마스크로 바꾼다. 기어 프레임은 지금처럼 스킨 공통 에셋으로 쓴다. 나중에 스킨마다 다른 프레임을 쓸 가능성은 열어 둔다(사용자, 2026-10-04).
 - **노트 표시:** 놓친 노트를 덱까지 그리고, 놓친 롱노트의 판정선 고정을 푼다(#214).
 - **판정 사례 이미지:** `src/lab/judgmentCase/renderJudgmentCaseSvg.ts`가 `LANE_WIDTH`·`NOTE_HEIGHT`를 쓰므로 `pnpm case:image` 결과가 바뀐다.
 - **문서:** [게임 코어 명세](../spec/game-core.md)의 리프트 기본 위치, 키봄 기준 크기(120×120), 기어 게이지 분리 설명, [노트 에셋 Lab 명세](../spec/note-asset-lab.md)의 레인 100px·노트 100×20 기준, [PRD §12](../prd.md#12-미정-사항)의 `Classic 추진부 디자인` 행.
 - **튜토리얼·노트 에셋 재생기:** 기어는 없지만 폭이 `LANE_AREA_WIDTH`이고 렌더러가 모듈 상수를 직접 읽으므로, 상수를 바꾸면 키캡 라벨까지 함께 좁아진다. 폭 400을 유지하려면 레인 폭을 `GameRenderer` 옵션으로 바꿔야 한다.
-- 남은 선택(노트 두께·글자·키봄 크기, 노트 두께에 따른 정확한 판정선 위치와 틈, 리프트 상한과 큰 리프트 처리, 튜토리얼·노트 에셋 재생기의 레인 폭, 적용 후 시각 판정 기준 재확인, 움직임 레이어의 Pixi 구성)은 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.
+- 남은 선택(노트 두께·글자·키봄 크기, 노트 두께에 따른 정확한 판정선 위치와 틈, 리프트 상한과 큰 리프트 처리, 튜토리얼·노트 에셋 재생기의 레인 폭, 적용 후 시각 판정 기준 재확인, 움직임 레이어의 Pixi 구성, 스킨별 프레임 분리 여부)은 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.
