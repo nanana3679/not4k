@@ -15,7 +15,7 @@ import {
 } from './classicFrameFitOverlay';
 
 const geometry: FrameFitGeometry = {
-  width: 1024, height: 1536, laneLeft: 236, laneRight: 787, laneBottom: 1089, silhouetteTop: 16, gaugeGlowTop: 196,
+  width: 1024, height: 1536, laneLeft: 236, laneRight: 787, laneBottom: 1089, laneOpeningBottom: 1126, silhouetteTop: 16, gaugeGlowTop: 196,
   keyFaceTop: 1137, keyFaceBottom: 1235, deckBottom: 1340, barGlowTop: 1367, barGlowBottom: 1399, frameBottom: 1465,
   seam: { y1: 423, y2: 906, cost: 28.93, typicalAdjacentRowCost: 2.06 },
 };
@@ -162,7 +162,7 @@ describe('FrameFitOverlay', () => {
     expect(before - sprite.y).toBeCloseTo(48, 9);
   });
 
-  it('uniform 레이아웃(레인 폭 250)을 적용하면 프레임 아래에 레인 마스크(렌더러 x 653.6부터 400, 덱 위끝 687.5부터 화면 아래 960)를 깐다', () => {
+  it('uniform 레이아웃(레인 폭 250)을 적용하면 프레임 아래에 레인 마스크(렌더러 x 653.6부터 400, 열린 덱 바닥 714.3부터 화면 아래 960)를 깐다', () => {
     const layer = new Container();
     const overlay = new FrameFitOverlay(layer, createSource());
     overlay.apply(uniform250());
@@ -173,7 +173,7 @@ describe('FrameFitOverlay', () => {
     const bounds = (children[0] as Graphics).getLocalBounds();
     expect(bounds.x).toBeCloseTo(653.6, 1);
     expect(bounds.width).toBeCloseTo(400, 6);
-    expect(bounds.y).toBeCloseTo(687.5, 1);
+    expect(bounds.y).toBeCloseTo(714.3, 1);
     expect(bounds.y + bounds.height).toBeCloseTo(960, 6);
   });
 
@@ -218,6 +218,83 @@ describe('FrameFitOverlay', () => {
     expect(() => overlay.destroy()).not.toThrow();
     expect(textures.every((texture) => texture.destroyed)).toBe(true);
     expect(source.destroyed).toBe(true);
+  });
+});
+
+describe('FrameFitOverlay 움직임 레이어', () => {
+  const motionHolderOf = (layer: Container) => (layer.children[0] as Container).children.find((child) => child.label === 'classic-frame-fit-motion');
+
+  it('crop 레이아웃에 움직임 컨테이너를 붙이면 프레임 스프라이트 위(마지막 자식)에 프레임 스프라이트와 같은 위치·배율로 놓인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    const layout = layoutFor('crop');
+    overlay.apply(layout);
+    const motion = new Container();
+    overlay.attachMotion(motion);
+
+    const children = (layer.children[0] as Container).children;
+    const holder = motionHolderOf(layer)!;
+    expect(children[children.length - 1]).toBe(holder);
+    expect(holder.children).toEqual([motion]);
+    const [slice] = layout.slices;
+    expect([holder.x, holder.y, holder.scale.x, holder.scale.y]).toEqual([slice.x, slice.y, slice.scaleX, slice.scaleY]);
+    expect(holder.visible).toBe(true);
+    expect(overlay.motionPlaced).toBe(true);
+  });
+
+  it('uniform(레인 폭 250)에서는 레인 마스크·프레임 스프라이트 위에 프레임과 같은 렌더러 단위 배율(400 ÷ 552 = 0.7246)로 놓인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.attachMotion(new Container());
+    const layout = uniform250();
+    overlay.apply(layout);
+
+    const children = (layer.children[0] as Container).children;
+    expect(children[0]).toBeInstanceOf(Graphics);
+    expect(children[children.length - 1]).toBe(motionHolderOf(layer));
+    expect(motionHolderOf(layer)!.scale.x).toBeCloseTo(layout.slices[0].scaleX, 12);
+    expect(layout.slices[0].scaleX).toBeCloseTo(400 / 552, 4);
+  });
+
+  it('cut·squash(조각 2장)에서는 움직임을 숨기고 motionPlaced가 false, crop으로 돌아와 새 스프라이트가 생겨도 움직임이 맨 위에서 다시 보인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.attachMotion(new Container());
+    overlay.apply(layoutFor('cut'));
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+    expect(overlay.motionPlaced).toBe(false);
+    overlay.apply(layoutFor('squash'));
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+
+    overlay.apply(layoutFor('crop'));
+    const children = (layer.children[0] as Container).children;
+    expect(children[children.length - 1]).toBe(motionHolderOf(layer));
+    expect(motionHolderOf(layer)!.visible).toBe(true);
+    expect(overlay.motionPlaced).toBe(true);
+  });
+
+  it('setMotionEnabled(false)면 crop에서도 움직임을 숨기고 true면 다시 보인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.apply(layoutFor('crop'));
+    overlay.attachMotion(new Container());
+    overlay.setMotionEnabled(false);
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+    overlay.setMotionEnabled(true);
+    expect(motionHolderOf(layer)!.visible).toBe(true);
+  });
+
+  it('destroy는 붙인 움직임 컨테이너를 떼기만 하고 파괴하지 않는다(움직임 정리는 호출자 몫)', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.apply(layoutFor('crop'));
+    const motion = new Container();
+    overlay.attachMotion(motion);
+    overlay.destroy();
+
+    expect(layer.children).toHaveLength(0);
+    expect(motion.destroyed).toBe(false);
+    expect(motion.parent).toBeNull();
   });
 });
 

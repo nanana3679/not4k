@@ -95,6 +95,85 @@
   overscroll-behavior: contain;
 }
 
+/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·움직임). 무대 오른쪽 위 비행 배경 자리에 겹친다. */
+.frame-fit-fullscreen-bar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.frame-fit-overlay-button,
+.frame-fit-overlay-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 7px;
+  background: rgba(8, 11, 17, 0.72);
+  color: #e8ecf0;
+  font: 600 13px/1 "Noto Sans KR", system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.frame-fit-overlay-button { cursor: pointer; }
+.frame-fit-overlay-button:hover { border-color: #5ce1e6; }
+.frame-fit-overlay-button:focus-visible,
+.frame-fit-overlay-toggle input:focus-visible { outline: 2px solid #9ad9ff; outline-offset: 2px; }
+.frame-fit-overlay-toggle { cursor: pointer; }
+.frame-fit-overlay-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #5ce1e6; }
+
+/* 전체화면(Fullscreen API·CSS 대체): 무대만 검은 바탕에 가득 채운다. */
+.frame-fit-viewport[data-fullscreen="api"],
+.frame-fit-viewport[data-fullscreen="css"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.frame-fit-viewport[data-fullscreen="css"] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.frame-fit-viewport[data-fullscreen="api"]:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.frame-fit-viewport[data-fullscreen="api"] .frame-fit-canvas-host,
+.frame-fit-viewport[data-fullscreen="css"] .frame-fit-canvas-host {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.frame-fit-fullscreen-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 5;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(8, 11, 17, 0.82);
+  color: #e8ecf0;
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
 .frame-fit-canvas-host,
 .frame-fit-placeholder {
   position: relative;
@@ -313,6 +392,179 @@
   line-height: 1.55;
 }
 
+.frame-fit-motion {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #2f4a52;
+  border-radius: 7px;
+  background: rgba(16, 36, 41, 0.55);
+}
+
+.frame-fit-motion legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.frame-fit-checks {
+  display: grid;
+  gap: 2px;
+}
+
+.frame-fit-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: #c5d1df;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.frame-fit-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #5ce1e6;
+}
+
+.frame-fit-check input:focus-visible {
+  outline: 2px solid #9ad9ff;
+  outline-offset: 3px;
+}
+
+.frame-fit-check-master {
+  color: #e8ecf0;
+  font-weight: 700;
+  border-bottom: 1px solid #2b3442;
+}
+
+.frame-fit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.frame-fit-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #4a5a6b;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #2a2f37 0%, #1e2229 100%);
+  color: #e8ecf0;
+  font: 600 13px/1 "Noto Sans KR", system-ui, sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.frame-fit-button:hover:not(:disabled) { border-color: #5ce1e6; }
+.frame-fit-button:focus-visible { outline: 2px solid #9ad9ff; outline-offset: 3px; }
+.frame-fit-button:disabled { opacity: 0.5; cursor: default; }
+.frame-fit-button[aria-pressed="true"] { border-color: #5ce1e6; background: linear-gradient(180deg, #16333a 0%, #102429 100%); }
+
+.frame-fit-actions output {
+  color: #d8fbfd;
+  font: 600 14px/1 "Rajdhani", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.frame-motion-compare {
+  display: grid;
+  gap: 16px;
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto 40px;
+  padding: 16px;
+  border: 1px solid #252d39;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #151a21 0%, #10141a 100%);
+}
+
+.frame-motion-compare-head h2 {
+  color: #f4f7fa;
+  font: 700 clamp(20px, 2vw, 26px)/1.2 "Oxanium", "Noto Sans KR", sans-serif;
+}
+
+.frame-motion-compare-head p {
+  max-width: 80ch;
+  margin-top: 6px;
+  color: #b3c1d0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.frame-motion-compare-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.frame-motion-edges {
+  grid-column: 1 / -1;
+}
+
+.frame-motion-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.frame-motion-panel {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.frame-motion-viewport {
+  position: relative;
+  width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid #2b3442;
+  border-radius: 6px;
+  background: #090c11;
+}
+
+/* 세로로 긴 보기(전체·왼쪽 장갑)는 화면 높이에 맞춰 폭을 줄인다. 두 패널은 같은 규칙이라 같은 CSS 크기다. */
+.frame-motion-panels[data-view="full"] .frame-motion-viewport,
+.frame-motion-panels[data-view="left"] .frame-motion-viewport {
+  width: min(100%, calc(72vh * 2 / 3));
+}
+
+.frame-motion-canvas,
+.frame-motion-viewport > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.frame-motion-canvas {
+  touch-action: pan-x pan-y !important;
+}
+
+.frame-motion-viewport[data-off-armor] #fm-armor,
+.frame-motion-viewport[data-off-gauge] #fm-gauge,
+.frame-motion-viewport[data-off-accent] #fm-accent,
+.frame-motion-viewport[data-off-bar] #fm-bar {
+  display: none;
+}
+
+.frame-motion-panel figcaption {
+  color: #8f9aa8;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .frame-motion-compare-controls,
+  .frame-motion-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 960px) {
   .frame-fit-workbench {
     grid-template-columns: minmax(0, 1fr);
@@ -325,8 +577,13 @@
 
 @media (max-width: 520px) {
   .frame-fit-header,
-  .frame-fit-workbench {
+  .frame-fit-workbench,
+  .frame-motion-compare {
     width: calc(100% - 24px);
+  }
+
+  .frame-motion-compare {
+    padding: 12px;
   }
 
   .frame-fit-readout,

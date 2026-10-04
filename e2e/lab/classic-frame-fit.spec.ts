@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../public/lab/classic-frame-fit/frame-fit.json', import.meta.url)), 'utf8')) as {
-  laneLeft: number; laneRight: number; laneBottom: number; frameBottom: number;
+  laneLeft: number; laneRight: number; laneBottom: number; frameBottom: number; laneOpeningBottom: number;
+  laneOpening: { rows: [number, number, number][] };
 };
 // 게임 배치: 논리 폭 1067(16:9)의 레인 영역 400, 판정선 y 440.
 const scale = 400 / (geometry.laneRight - geometry.laneLeft + 1);
@@ -32,6 +33,64 @@ async function waitForRenderer(page: Page) {
 }
 
 const frameTop = async (page: Page) => Number(await page.locator(stageSelector).getAttribute('data-frame-top'));
+
+/** 무대에서 왼쪽 장갑(원본 x 40~190, y 300~900)이 있는 자리(화면 논리 단위 1067×600에 대한 비율). */
+async function leftArmorRegion(page: Page) {
+  const stage = page.locator(stageSelector);
+  const frameX = Number(await stage.getAttribute('data-frame-x'));
+  const frameScale = Number(await stage.getAttribute('data-frame-scale'));
+  const top = await frameTop(page);
+  return {
+    x: (frameX + 40 * frameScale) / 1067,
+    y: (top + 300 * frameScale) / 600,
+    width: (150 * frameScale) / 1067,
+    height: (600 * frameScale) / 600,
+  };
+}
+
+/** 두 무대 스크린샷의 같은 영역(비율)에서 RGB 채널 평균 절대 차이(0~255). */
+async function meanDifference(page: Page, a: Buffer, b: Buffer, region: { x: number; y: number; width: number; height: number }): Promise<number> {
+  return page.evaluate(async ({ first, second, region }) => {
+    const decode = async (data: string) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(image, 0, 0);
+      const x = Math.round(region.x * canvas.width);
+      const y = Math.round(region.y * canvas.height);
+      return context.getImageData(x, y, Math.round(region.width * canvas.width), Math.round(region.height * canvas.height)).data;
+    };
+    const [x, y] = await Promise.all([decode(first), decode(second)]);
+    let total = 0;
+    for (let i = 0; i < x.length; i += 4) total += Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2]);
+    return total / ((x.length / 4) * 3);
+  }, { first: a.toString('base64'), second: b.toString('base64'), region });
+}
+
+/** 무대 캔버스 스크린샷에서 화면 논리 좌표(1067×600) 점들의 RGBA. */
+async function pixelsAt(page: Page, points: { x: number; y: number }[]): Promise<number[][]> {
+  const shot = (await page.locator('.frame-fit-canvas-host').screenshot()).toString('base64');
+  return page.evaluate(async ({ shot, points }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${shot}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    context.drawImage(image, 0, 0);
+    return points.map((point) => [...context.getImageData(Math.round((point.x / 1067) * image.naturalWidth), Math.round((point.y / 600) * image.naturalHeight), 1, 1).data]);
+  }, { shot, points });
+}
+
+const motionTime = async (page: Page) => {
+  const value = await page.locator(stageSelector).getAttribute('data-motion-time-ms');
+  return value === null ? null : Number(value);
+};
 
 test.describe('Classic Frame Fit Lab', () => {
   // 실제 게임 렌더러와 비행 배경을 swiftshader로 띄우므로 여러 워커가 동시에 돌면 30초 안에 준비되지 않는다.
@@ -63,7 +122,8 @@ test.describe('Classic Frame Fit Lab', () => {
       await page.screenshot({ path: testInfo.outputPath('stage.png') });
 
       await page.getByRole('link', { name: '← Lab 목록' }).click();
-      await expect(page).toHaveURL(/\/lab$/);
+      // 움직임까지 그리는 무대(swiftshader)를 정리하고 목록으로 돌아가므로 여러 워커가 겹치면 5초를 넘길 수 있다.
+      await expect(page).toHaveURL(/\/lab$/, { timeout: 15000 });
       expect(errors).toEqual([]);
     });
   }
@@ -121,7 +181,7 @@ test.describe('Classic Frame Fit Lab', () => {
     await expect(page.locator('.frame-fit-readout')).toContainText('원본 1px → 화면 0.82px (축소)');
     await expect(page.locator('.frame-fit-readout')).toContainText('4% (+24) · y 416');
     await expect(page.locator('.frame-fit-caveat').first()).toContainText('노트 두께');
-    await expect(page.locator('.frame-fit-readout')).toContainText('프레임 덱에서 시작');
+    await expect(page.locator('.frame-fit-readout')).toContainText('열린 덱 바닥(키 테두리)에서 시작');
     // 데모 판정: 5개 중 1개꼴로 놓친 노트가 생긴다.
     await expect.poll(async () => Number(await stage.getAttribute('data-missed-count')), { timeout: 15000 }).toBeGreaterThan(0);
 
@@ -211,6 +271,56 @@ test.describe('Classic Frame Fit Lab', () => {
     await expect(stage).toHaveAttribute('data-game-mask', 'visible');
     await expect(stage).toHaveAttribute('data-lift-percent', '0');
     await expect(stage).toHaveAttribute('data-judgment-line-y', '440.0');
+    expect(errors).toEqual([]);
+  });
+
+  test('가로세로 같이 줄이기에서 레인이 보이는 아래끝(열린 덱 바닥 y 446.5)이 덱 위끝 429.7보다 아래이고, 프레임 그림은 열린 덱(1090~1126행) 레인 안쪽이 투명·꺾인 모서리 베벨은 불투명이며 화면에는 그 자리에 게임 레인이 비친다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    const deckTopY = Number(await stage.getAttribute('data-deck-top-y'));
+    const openingY = Number(await stage.getAttribute('data-lane-opening-bottom-y'));
+    expect(openingY).toBeGreaterThan(deckTopY);
+    expect(openingY).toBeCloseTo(uniformDeckTop(250) + ((geometry.laneOpeningBottom + 1 - (geometry.laneBottom + 1)) * 250) / laneWindow, 1);
+    await expect(page.locator('.frame-fit-readout')).toContainText(/판정선 · 열린 덱 바닥\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
+
+    // 프레임 그림: 열린 덱 가운데 행의 레인 안쪽(왼쪽 모서리 경계 + 3px)과 가운데 레인 선 자리는 투명,
+    // 꺾인 모서리 경계 3px 바깥(베벨)과 키 테두리(바닥 다음 행)는 불투명이다.
+    const [row, leftEdge] = geometry.laneOpening.rows[Math.floor(geometry.laneOpening.rows.length / 2)];
+    const probes = [
+      { x: Math.ceil(leftEdge) + 3, y: row }, { x: 512, y: geometry.laneOpeningBottom }, { x: 376, y: row },
+      { x: Math.floor(leftEdge) - 3, y: row }, { x: 512, y: geometry.laneOpeningBottom + 1 },
+    ];
+    const alphas = await page.evaluate(async (points) => {
+      const image = new Image();
+      image.src = '/lab/classic-frame-fit/frame-cutout.png';
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(image, 0, 0);
+      return points.map((point) => context.getImageData(point.x, point.y, 1, 1).data[3]);
+    }, probes);
+    expect(alphas).toEqual([0, 0, 0, 255, 255]);
+
+    // 화면: 열린 덱 안 레인 2 가운데는 지워진 그림 바닥색(약 13, 18, 23)이 아니라 게임 레인을 그린다. 같은 레인의 판정선 위 자리와 비교한다.
+    const frameX = Number(await stage.getAttribute('data-frame-x'));
+    const frameScale = Number(await stage.getAttribute('data-frame-scale'));
+    const top = await frameTop(page);
+    const laneTwo = geometry.laneLeft + 1.5 * (laneWindow / 4);
+    const pixels = await pixelsAt(page, [
+      { x: frameX + laneTwo * frameScale, y: top + (row + 0.5) * frameScale },
+      { x: frameX + laneTwo * frameScale, y: top + (geometry.laneBottom - 120) * frameScale },
+    ]);
+    const [inside, above] = pixels;
+    const painted = [13, 18, 23];
+    const distance = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    console.log(`[opening] inside ${inside.slice(0, 3)} above ${above.slice(0, 3)}`);
+    expect(distance(inside, painted)).toBeGreaterThan(10);
     expect(errors).toEqual([]);
   });
 
@@ -304,5 +414,175 @@ test.describe('Classic Frame Fit Lab', () => {
     expect(sizes.host).toBeCloseTo(sizes.expected, 0);
     expect(sizes.viewportScrolls).toBe(true);
     expect(sizes.pageOverflow).toBe(false);
+  });
+
+  test('가로세로 같이 줄이기에서 움직임이 켜져 벽시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되고 켬·끔 프레임 간격을 따로 모으며 기둥 잘라 줄이기에서는 얹지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    // 기본 레인 폭 맞춤(crop)도 한 장 배치라 움직임을 얹는다.
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    for (const label of ['움직임', 'A 큰 광원', 'B 게이지 액체', 'C 발광선 호흡', 'D 하단 바 흐름']) {
+      await expect(page.getByLabel(label, { exact: true })).toBeChecked();
+    }
+
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    // 움직임 시계는 렌더러를 다시 만들어도 이어지는 벽시계다.
+    const first = (await motionTime(page))!;
+    await expect.poll(async () => (await motionTime(page)) ?? 0, { timeout: 10000 }).toBeGreaterThan(first + 300);
+
+    await page.getByRole('button', { name: '처음부터 재생' }).click();
+    await expect.poll(async () => (await motionTime(page)) ?? Infinity, { timeout: 5000 }).toBeLessThan(2000);
+
+    // 움직임을 끄면 왼쪽 장갑 픽셀이 바뀐다(띠 밖 7% 어둡게·빛 받은 대비 복사본이 사라진다).
+    const host = page.locator('.frame-fit-canvas-host');
+    const region = await leftArmorRegion(page);
+    const withMotion = await host.screenshot();
+    await page.getByLabel('움직임', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+    await expect.poll(() => motionTime(page)).toBeNull();
+    const withoutMotion = await host.screenshot();
+    expect(await meanDifference(page, withMotion, withoutMotion, region)).toBeGreaterThan(2);
+    // 프레임 간격(rAF) 평균/p95를 움직임 켬·끔으로 나눠 모은다.
+    const statsPattern = /^\d+\.\d{2}\/\d+\.\d{2}$/;
+    await expect(stage).toHaveAttribute('data-frame-time-on', statsPattern);
+    await expect(stage).toHaveAttribute('data-frame-time-off', statsPattern, { timeout: 10000 });
+    await expect(page.locator('.frame-fit-readout')).toContainText(/프레임 간격 · 움직임 끔\s*평균 [\d.]+ms · p95 [\d.]+ms/);
+    await page.getByLabel('움직임', { exact: true }).check();
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    await expect.poll(() => motionTime(page)).not.toBeNull();
+
+    await page.getByLabel('A 큰 광원', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion-armor', 'off');
+    await expect(stage).toHaveAttribute('data-motion-gauge', 'on');
+    await page.getByLabel('A 큰 광원', { exact: true }).check();
+    await expect(stage).toHaveAttribute('data-motion-armor', 'on');
+
+    // 두 조각으로 그리는 방식에는 움직임을 얹지 않는다.
+    await page.getByLabel('기둥 잘라 줄이기').check();
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+    await expect.poll(() => motionTime(page)).toBeNull();
+    await expect(page.locator('.frame-fit-motion')).toContainText('레인 폭 맞춤·가로세로 같이 줄이기');
+    expect(errors).toEqual([]);
+  });
+
+  test('전체화면을 누르면 무대가 1400×600 창을 꽉 채우고 논리 폭 1400(600 × 화면 비율)으로 렌더러를 다시 만들며, 닫기(✕)로 일반 화면·논리 폭 1067에 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.setViewportSize({ width: 1400, height: 600 });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    const button = page.getByRole('button', { name: '전체화면' });
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+    await button.click();
+    await expect(stage).toHaveAttribute('data-fullscreen', /^(api|css)$/);
+    await expect(stage).toHaveAttribute('data-stage-width', '1400');
+    await waitForRenderer(page);
+    const viewportBox = (await page.locator('.frame-fit-viewport').boundingBox())!;
+    const hostBox = (await page.locator('.frame-fit-canvas-host').boundingBox())!;
+    for (const box of [viewportBox, hostBox]) {
+      expect(Math.abs(box.x)).toBeLessThan(1);
+      expect(Math.abs(box.y)).toBeLessThan(1);
+      expect(Math.abs(box.width - 1400)).toBeLessThan(1);
+      expect(Math.abs(box.height - 600)).toBeLessThan(1);
+    }
+    // 렌더 높이 1080 그대로: 논리 1400×600을 1.8배로 그린다.
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('width', '2520');
+    // 다른 조절은 일반 페이지에 남고 전체화면 무대가 그 위를 덮는다(그 자리를 눌러도 무대가 받는다).
+    const coveredByStage = await page.evaluate(() => {
+      const controls = document.querySelector('.frame-fit-controls')!.getBoundingClientRect();
+      const x = Math.min(innerWidth - 2, Math.max(1, controls.left + 20));
+      const y = Math.min(innerHeight - 2, Math.max(1, controls.top + 20));
+      return document.querySelector('.frame-fit-viewport')!.contains(document.elementFromPoint(x, y));
+    });
+    expect(coveredByStage).toBe(true);
+    console.log(`[fullscreen] mode=${await stage.getAttribute('data-fullscreen')}`);
+
+    await page.getByRole('button', { name: '닫기' }).click();
+    await expect(stage).toHaveAttribute('data-fullscreen', 'off');
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    await waitForRenderer(page);
+    await expect(page.getByRole('button', { name: '전체화면' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('요소 전체화면이 거절되면(iPhone Safari처럼) 화면을 덮는 CSS 전체화면이 되어 844×390 가로 폰에서 논리 폭 1298로 꽉 채우고, 가로세로 같이 줄이기의 줌(1.6)을 유지하며 Esc로 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = function requestFullscreen() { return Promise.reject(new Error('blocked')); };
+    });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await page.getByRole('button', { name: '전체화면' }).click();
+    await expect(stage).toHaveAttribute('data-fullscreen', 'css');
+    await expect(stage).toHaveAttribute('data-stage-width', '1298');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-zoom', '1.6');
+    await expect(stage).toHaveAttribute('data-lane-width', '250');
+    const hostBox = (await page.locator('.frame-fit-canvas-host').boundingBox())!;
+    expect(Math.abs(hostBox.width - 844)).toBeLessThan(1);
+    expect(Math.abs(hostBox.height - 390)).toBeLessThan(1);
+    // 렌더러 논리 폭은 1298 × 1.6, 캔버스는 렌더 높이 1080 비율 그대로(1298 × 1.8).
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('width', String(Math.round(1298 * 1.8)));
+    await expect(page.getByLabel('움직임(전체화면)')).toBeChecked();
+
+    await page.keyboard.press('Escape');
+    await expect(stage).toHaveAttribute('data-fullscreen', 'off');
+    await expect(stage).toHaveAttribute('data-stage-width', '1067');
+    await waitForRenderer(page);
+    expect(errors).toEqual([]);
+  });
+
+  test('움직임 자료(frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/lab/classic-frame-fit/motion/frame-motion.json', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-motion-ready', 'false');
+    const key = await stage.getAttribute('data-renderer-key');
+    await page.locator('canvas[data-frame-fit-canvas]').evaluate((canvas) => { canvas.dataset.probe = 'early'; });
+
+    release();
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true', { timeout: 30000 });
+    await expect(stage).toHaveAttribute('data-renderer-key', key!);
+    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('data-probe', 'early');
+    await expect.poll(() => motionTime(page), { timeout: 10000 }).not.toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  test('움직임 줄이기 설정이면 무대 data-motion이 reduced이고 움직임 시계가 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-motion', 'reduced');
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    await page.waitForTimeout(800);
+    expect(await motionTime(page)).toBeNull();
+    await expect(page.locator('.frame-fit-motion')).toContainText('움직임 줄이기');
+    await page.locator('[data-frame-motion-compare]').scrollIntoViewIfNeeded();
+    await expect(page.locator('[data-frame-motion-compare]')).toHaveAttribute('data-compare-ready', 'true', { timeout: 60000 });
+    const running = await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running').length);
+    expect(running).toBe(0);
+    expect(errors).toEqual([]);
   });
 });

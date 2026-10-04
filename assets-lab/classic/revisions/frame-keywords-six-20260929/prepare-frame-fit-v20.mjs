@@ -17,6 +17,10 @@ import { fileURLToPath } from 'node:url';
 //   gaugeGlowTop        first row of the gauge tube glow: the longest lit run down the left tube's centre column.
 //   seam                rows [y1, y2) whose removal lets the frame top reach the screen top in the
 //                       "cut" mode, chosen where the pillar rows above and below the cut match best.
+//   laneOpeningBottom   last row of the painted lane field between the pillar bases' angled corners
+//                       (deckTop .. this row), just above the key housings' rim. That trapezoid is cut
+//                       out too, so the game lanes show through it; laneOpening holds the fitted corner
+//                       edges, the per-row edges and the polygon (pixel-edge coordinates).
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <dir>]
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
@@ -37,10 +41,15 @@ const GAME = { laneAreaWidth: 400, judgmentLineY: 600 - 160 };
 const BACKDROP = { reference: [24, 28, 33], fill: 14, opaque: 40, feather: 2 };
 // Rows used to measure the straight pillar edges (below the lane box top, above the chamfers).
 const EDGE_BAND = { top: 200, bottom: 1000 };
+// Deck lane opening: walk each row from `walkStart` px inside lanes 1 and 4 outward while pixels stay
+// within `fieldTolerance` luminance of the row's field (median of `referenceWidth` px there); the field
+// ends where the centre columns rise more than `rimRise` above the lane field (the key rim); corner
+// samples further than `fitTolerance` px from the first line fit are dropped before refitting.
+const OPENING = { walkStart: 70, referenceWidth: 50, fieldTolerance: 6, rimRise: 10, fitTolerance: 1.5 };
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
-const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, debug }) => {
+const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, OPENING, debug }) => {
   const image = new Image();
   image.src = dataUrl;
   await image.decode();
@@ -110,6 +119,54 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
     if (keyFaceTop < 0 && white) keyFaceTop = y;
     if (keyFaceTop >= 0 && !white) { keyFaceBottom = y - 1; break; }
   }
+  // 3b. Lane opening in the deck. Below laneBottom the pillar bases angle inward and the painted lane field
+  //     (dark, with the lane lines) continues between the angled corners down to the key housings' rim.
+  //     Its bottom is the last row whose field columns stay dark; each corner edge is a straight line
+  //     fitted to where a per-row walk from inside lanes 1 and 4 meets the corner's dark outline.
+  const lineColumns = new Set();
+  for (let x = laneLeft; x <= laneRight; x++) {
+    if (median(range(laneBottom - 49, laneBottom).map((y) => lum(x, y))) > field + 6) {
+      for (let d = -3; d <= 3; d++) lineColumns.add(x + d);
+    }
+  }
+  const fieldColumns = range(laneLeft + 40, laneRight - 40).filter((x) => !lineColumns.has(x));
+  let laneOpeningBottom = deckTop;
+  for (let y = deckTop; y < keyFaceTop; y++) {
+    if (median(fieldColumns.map((x) => lum(x, y))) > field + OPENING.rimRise) break;
+    laneOpeningBottom = y;
+  }
+  const edgeSamples = { left: [], right: [] };
+  for (let y = deckTop; y <= laneOpeningBottom; y++) {
+    for (const side of ['left', 'right']) {
+      const outward = side === 'left' ? -1 : 1;
+      const start = side === 'left' ? laneLeft + OPENING.walkStart : laneRight - OPENING.walkStart;
+      const reference = median(range(0, OPENING.referenceWidth - 1).map((k) => lum(start - outward * k, y)));
+      let x = start;
+      while (x + outward >= laneLeft && x + outward <= laneRight && Math.abs(lum(x + outward, y) - reference) <= OPENING.fieldTolerance) x += outward;
+      // Boundary between the corner (opaque) and the field in pixel-edge coordinates, at the row centre.
+      edgeSamples[side].push({ y: y + 0.5, x: side === 'left' ? x : x + 1 });
+    }
+  }
+  const fitLine = (samples) => {
+    const solve = (points) => {
+      const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+      const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+      let sxy = 0;
+      let syy = 0;
+      for (const point of points) { sxy += (point.y - meanY) * (point.x - meanX); syy += (point.y - meanY) ** 2; }
+      const slope = syy > 0 ? sxy / syy : 0;
+      return { slope, intercept: meanX - slope * meanY };
+    };
+    const first = solve(samples);
+    const kept = samples.filter((point) => Math.abs(first.intercept + first.slope * point.y - point.x) <= OPENING.fitTolerance);
+    const line = kept.length >= 2 ? solve(kept) : first;
+    return { ...line, rowsUsed: kept.length, rows: samples.length };
+  };
+  const leftEdge = fitLine(edgeSamples.left);
+  const rightEdge = fitLine(edgeSamples.right);
+  const edgeAt = (edge, y) => edge.intercept + edge.slope * y;
+  const round2 = (value) => Math.round(value * 100) / 100;
+
   // Bottom bar glow: saturated blue-cyan light (same test as scripts/split-gear-gauge.ts).
   const clamp01 = (value) => Math.min(1, Math.max(0, value));
   const blueLight = (x, y) => {
@@ -218,6 +275,41 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
       }
     }
   }
+  // Lane opening alpha: rows deckTop..laneOpeningBottom between the fitted corner edges are transparent.
+  // A pixel the edge line crosses keeps the share the corner covers, with the row's field colour un-mixed
+  // from it (like the backdrop edge) so neither painted field nor a stair-stepped rim is left behind.
+  const openingRows = [];
+  let openingPixels = 0;
+  for (let y = deckTop; y <= laneOpeningBottom; y++) {
+    const fieldColour = [0, 1, 2].map((c) => median(fieldColumns.map((x) => source[at(x, y) + c])));
+    const left = edgeAt(leftEdge, y + 0.5);
+    const right = edgeAt(rightEdge, y + 0.5);
+    openingRows.push([y, round2(left), round2(right)]);
+    for (let x = Math.max(laneLeft, Math.floor(left)); x <= Math.min(laneRight, Math.ceil(right) - 1); x++) {
+      const cover = Math.max(clamp01(left - x), clamp01(x + 1 - right));
+      if (cover >= 1) continue;
+      const p = y * width + x;
+      alpha[p] = Math.round(cover * 255);
+      if (cover === 0) { openingPixels++; continue; }
+      const i = p * 4;
+      for (let c = 0; c < 3; c++) output[i + c] = (source[i + c] - (1 - cover) * fieldColour[c]) / cover;
+    }
+  }
+  const laneOpening = {
+    top: deckTop,
+    bottom: laneOpeningBottom,
+    leftEdge: { slope: Number(leftEdge.slope.toFixed(4)), xAtTop: round2(edgeAt(leftEdge, deckTop)), xAtBottom: round2(edgeAt(leftEdge, laneOpeningBottom + 1)), rowsUsed: leftEdge.rowsUsed, rows: leftEdge.rows },
+    rightEdge: { slope: Number(rightEdge.slope.toFixed(4)), xAtTop: round2(edgeAt(rightEdge, deckTop)), xAtBottom: round2(edgeAt(rightEdge, laneOpeningBottom + 1)), rowsUsed: rightEdge.rowsUsed, rows: rightEdge.rows },
+    // Trapezoid corners (top-left, top-right, bottom-right, bottom-left) in pixel-edge coordinates.
+    polygon: [
+      [round2(edgeAt(leftEdge, deckTop)), deckTop], [round2(edgeAt(rightEdge, deckTop)), deckTop],
+      [round2(edgeAt(rightEdge, laneOpeningBottom + 1)), laneOpeningBottom + 1], [round2(edgeAt(leftEdge, laneOpeningBottom + 1)), laneOpeningBottom + 1],
+    ],
+    // [row, left edge, right edge] at each row's centre.
+    rows: openingRows,
+    transparentPixels: openingPixels,
+  };
+
   for (let p = 0; p < width * height; p++) output[p * 4 + 3] = alpha[p];
   let silhouetteTop = -1;
   for (let y = 0; y < height && silhouetteTop < 0; y++) {
@@ -316,6 +408,51 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
       }
     });
     debugImages['edge-zoom'] = toPng(sheet, sheetWidth, sheetHeight);
+
+    // Deck lane opening: both angled corners and the centre of the bottom edge (6x over magenta), and the
+    // whole opening band over the in-game flight colour (3x).
+    const openingCrops = [
+      { x: laneLeft - 8, y: deckTop - 8 }, { x: laneRight - 39, y: deckTop - 8 },
+      { x: Math.round(edgeAt(leftEdge, laneOpeningBottom)) - 24, y: laneOpeningBottom - 30 },
+      { x: Math.round((laneLeft + laneRight) / 2) - 24, y: laneOpeningBottom - 30 },
+    ];
+    const openingSheet = new Uint8ClampedArray(sheetWidth * (2 * (tile + 4) - 4) * 4).fill(255);
+    const openingSheetHeight = 2 * (tile + 4) - 4;
+    openingCrops.forEach((crop, index) => {
+      const ox = (index % columns) * (tile + 4);
+      const oy = Math.floor(index / columns) * (tile + 4);
+      for (let y = 0; y < tile; y++) {
+        for (let x = 0; x < tile; x++) {
+          const i = at(crop.x + Math.floor(x / zoom), crop.y + Math.floor(y / zoom));
+          const a = output[i + 3] / 255;
+          const o = ((oy + y) * sheetWidth + ox + x) * 4;
+          openingSheet[o] = output[i] * a + 255 * (1 - a);
+          openingSheet[o + 1] = output[i + 1] * a;
+          openingSheet[o + 2] = output[i + 2] * a + 255 * (1 - a);
+          openingSheet[o + 3] = 255;
+        }
+      }
+    });
+    debugImages['opening-zoom'] = toPng(openingSheet, sheetWidth, openingSheetHeight);
+    const bandTop = deckTop - 20;
+    const bandBottom = keyFaceTop + 20;
+    const bandLeft = laneLeft - 30;
+    const bandWidth = laneRight - laneLeft + 61;
+    const scaleUp = 3;
+    const band = new Uint8ClampedArray(bandWidth * scaleUp * (bandBottom - bandTop) * scaleUp * 4);
+    for (let y = 0; y < (bandBottom - bandTop) * scaleUp; y++) {
+      for (let x = 0; x < bandWidth * scaleUp; x++) {
+        const i = at(bandLeft + Math.floor(x / scaleUp), bandTop + Math.floor(y / scaleUp));
+        const a = output[i + 3] / 255;
+        const o = (y * bandWidth * scaleUp + x) * 4;
+        // In-game flight backdrop colour behind the frame, as on the stage.
+        band[o] = output[i] * a + 8 * (1 - a);
+        band[o + 1] = output[i + 1] * a + 14 * (1 - a);
+        band[o + 2] = output[i + 2] * a + 27 * (1 - a);
+        band[o + 3] = 255;
+      }
+    }
+    debugImages['opening-on-flight'] = toPng(band, bandWidth * scaleUp, (bandBottom - bandTop) * scaleUp);
   }
 
   return {
@@ -328,6 +465,8 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
       laneRight,
       laneBottom,
       deckTop,
+      laneOpeningBottom,
+      laneOpening,
       silhouetteTop,
       gaugeColumn,
       gaugeGlowTop,
@@ -361,6 +500,7 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
   GAME,
   BACKDROP,
   EDGE_BAND,
+  OPENING,
   debug: Boolean(debugDir),
 });
 await browser.close();
@@ -368,19 +508,21 @@ await browser.close();
 // Sanity checks: a landmark the walk failed to find stays at -1, and the landmarks must keep their
 // top-to-bottom order. Stop before writing anything rather than publish broken geometry.
 const g = result.geometry;
-const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'silhouetteTop', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
+const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'laneOpeningBottom', 'silhouetteTop', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
   'keyFaceTop', 'keyFaceBottom', 'deckBottom', 'barGlowTop', 'barGlowBottom', 'frameBottom'];
 const missing = landmarks.filter((key) => !Number.isInteger(g[key]) || g[key] < 0);
 if (missing.length > 0) throw new Error(`Measurement failed (not found): ${missing.join(', ')}`);
 const ordered = [
   ['laneLeft', 'laneRight'], ['silhouetteTop', 'gaugeGlowTop'], ['gaugeGlowTop', 'gaugeGlowBottom'], ['gaugeGlowBottom', 'deckTop'],
-  ['deckTop', 'keyFaceTop'], ['keyFaceTop', 'keyFaceBottom'], ['keyFaceBottom', 'deckBottom'], ['deckBottom', 'barGlowTop'],
+  ['deckTop', 'laneOpeningBottom'], ['laneOpeningBottom', 'keyFaceTop'], ['keyFaceTop', 'keyFaceBottom'], ['keyFaceBottom', 'deckBottom'], ['deckBottom', 'barGlowTop'],
   ['barGlowTop', 'barGlowBottom'], ['barGlowBottom', 'frameBottom'],
 ];
 const misordered = ordered.filter(([a, b]) => !(g[a] < g[b]) && !(a === 'barGlowTop' && g[a] === g[b]));
 if (misordered.length > 0) throw new Error(`Measurement order broken: ${misordered.map(([a, b]) => `${a}(${g[a]}) < ${b}(${g[b]})`).join(', ')}`);
 if (!(g.seam.y1 > 0 && g.seam.y1 < g.seam.y2 && g.seam.y2 <= g.deckTop)) throw new Error(`Seam outside the pillar section: ${g.seam.y1}..${g.seam.y2}`);
 if (g.frameBottom >= g.height) throw new Error(`frameBottom ${g.frameBottom} is outside the image`);
+// The corners angle inward: the left edge moves right and the right edge left going down.
+if (!(g.laneOpening.leftEdge.slope > 0 && g.laneOpening.rightEdge.slope < 0)) throw new Error(`Lane opening corners do not narrow downward: ${JSON.stringify(g.laneOpening)}`);
 
 mkdirSync(outputDir, { recursive: true });
 const pngPath = resolve(outputDir, 'frame-cutout.png');
@@ -391,7 +533,11 @@ const geometry = {
   generator: relative(workspaceRoot, fileURLToPath(import.meta.url)),
   ...result.geometry,
 };
-writeFileSync(jsonPath, `${JSON.stringify(geometry, null, 2)}\n`);
+// Keep [x, y] and [row, left, right] lists on one line.
+const json = JSON.stringify(geometry, null, 2)
+  .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2, $3]')
+  .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]');
+writeFileSync(jsonPath, `${json}\n`);
 if (debugDir) {
   mkdirSync(debugDir, { recursive: true });
   for (const [name, base64] of Object.entries(result.debugImages)) {
