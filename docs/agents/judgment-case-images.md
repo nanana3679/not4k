@@ -192,7 +192,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 - **대기 모양만 그린다.** 켜짐(Held)·실패(Failed)·부분 실패·부분 충족 에셋은 고르지도 넣지도 않는다. 판정 결과는 판정 열에서 읽는다.
 - **포인트**: `noteSingle`·`noteDouble`·`noteTrill` 이미지 전체를 레인 폭에 맞춘다(Classic 212×40 원본 → 레인 80px × 16px).
 - **바디**: 대기 바디 `bodySingle`·`bodyDouble`·`bodyTrill`. 포인트 이미지보다 바디 이미지가 좁으면 그 비율만큼 바디·터미널·그림자를 줄여 가운데에 둔다(Classic 싱글·더블 200/212 → 약 75.47px). Classic(`longNoteBodyMode: "repeat"`)은 게임 `TilingSprite`처럼 바디 폭에 맞춘 원본 비율(약 15.09px 주기)로 끝 쪽부터 반복하고 바디 길이에서 자른다. 시간 축이 구간마다 배율이 달라도 무늬는 늘이거나 줄이지 않는다. 다른 스킨은 위아래 4px 테두리를 남기고 가운데를 늘인다.
-- **터미널**: 대기 터미널(중앙광 꺼짐) `terminalSingleIdle`·`terminalDoubleIdle`·`terminalTrillIdle`. 대기 전용 에셋이 없는 스킨은 일반 `terminal*`을 쓴다. Classic(전체 높이 터미널)은 끝 시각과 시작 시각에 노트 한 칸 높이 터미널을 그리고 시작 터미널은 상하반전한다. Crystal·Simple(반쪽 캡)은 바디 안쪽 위·아래 끝에 반쪽 캡을 그린다. 캡은 전용 `endCap*`(Crystal)이 있으면 그것을, 없으면(Simple) 터미널 이미지 윗부분 절반을 잘라 쓴다.
+- **터미널**: 대기 터미널(중앙광 꺼짐) `terminalSingleIdle`·`terminalDoubleIdle`·`terminalTrillIdle`. 대기 전용 에셋이 없는 스킨은 일반 `terminal*`을 쓴다. Classic(전체 높이 터미널)은 끝 시각과 시작 시각에 노트 한 칸 높이 터미널을 그리고 시작 터미널은 상하반전한다. Crystal(반쪽 캡)은 바디 안쪽 위·아래 끝에 전용 `endCap*` 반쪽 캡을 그린다. Simple(`editor`)은 끝에 50% 불투명도 터미널 전체, 시작에 불투명 바디 텍스처를 노트 한 칸 높이로 그린다. 바디는 두 파츠 사이만 채워 끝점의 반투명도를 보존하며 길이 0은 시작 파츠 하나만 표시한다. 트릴 끝은 불투명 회색 마름모 전체를 쓴다.
   - 정지 그림이라 시작·끝 터미널을 모두 그린다. 길이 0 롱노트는 Classic에서 시작 터미널 하나만 그린다.
   - head가 있는 롱노트도 게임처럼 시작 터미널을 그리고, 같은 시각의 head 포인트가 그 위를 덮는다.
   - `trillLong`은 두 마름모 가운데(시작·끝 시각) 사이에 바디를 채우고 끝 터미널 마름모만 그린다. 시작 마름모는 같은 시각의 trill 포인트다.

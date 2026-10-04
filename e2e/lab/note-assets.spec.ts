@@ -68,7 +68,7 @@ test.describe("Note Assets Lab", () => {
       const at = (x: number, y: number) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 4)];
       return { size: [width, height], center: at(width / 2, height / 2), corners: [at(1, 1), at(width - 2, 1), at(1, height - 2), at(width - 2, height - 2)].map(pixel => pixel[3]) };
     });
-    expect(shape).toEqual({ size: [100, 20], center: [135, 135, 135, 179], corners: [0, 0, 0, 0] });
+    expect(shape).toEqual({ size: [100, 20], center: [136, 136, 136, 255], corners: [0, 0, 0, 0] });
     await page.evaluate(async () => {
       const url = performance.getEntriesByType('resource').map(entry => entry.name)
         .find(name => new URL(name).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
@@ -90,6 +90,63 @@ test.describe("Note Assets Lab", () => {
     await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__trillCaps)).toBeTruthy();
     const caps = await page.evaluate(() => (window as unknown as { __trillCaps: Array<{ frameHeight: number; height: number }> }).__trillCaps);
     for (const cap of caps) expect(cap).toEqual({ frameHeight: 20, height: 20 });
+  });
+
+  test('Simple 1배·2배 PNG는 에디터의 각진 포인트·바디 색과 50% 끝점을 따르고 부분 실패의 정상 반쪽 색을 유지한다', async ({ page }, testInfo) => {
+    await page.goto('/lab/note-assets?design=simple');
+    await expect(page.getByText('PLAYER READY')).toBeVisible();
+    const pixels = await page.evaluate(async () => {
+      const constantsPath = '/src/editor/timeline/constants.ts';
+      const { COLORS } = await import(constantsPath);
+      const rgb = (color: number) => [(color >> 16) & 255, (color >> 8) & 255, color & 255];
+      const read = async (name: string, scale: number) => {
+        const image = new Image();
+        image.src = `/skins/simple/${scale === 2 ? '@2x/' : ''}${name}.png`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width; canvas.height = image.height;
+        const context = canvas.getContext('2d')!;
+        context.drawImage(image, 0, 0);
+        const at = (x: number, y = 10) => [...context.getImageData(x * scale, y * scale, 1, 1).data];
+        return { size: [image.width, image.height], corner: at(0, 0), left: at(10), center: at(50), right: at(90) };
+      };
+      return Promise.all([1, 2].map(async scale => ({
+        scale,
+        kinds: await Promise.all([
+          ['single', COLORS.SINGLE_NOTE, COLORS.SINGLE_LONG],
+          ['double', COLORS.DOUBLE_NOTE, COLORS.DOUBLE_LONG],
+          ['trill', COLORS.TRILL_NOTE, COLORS.TRILL_LONG],
+        ].map(async ([kind, pointColor, bodyColor]) => ({
+          kind, expectedPoint: rgb(Number(pointColor)), expectedBody: rgb(Number(bodyColor)),
+          point: await read(`note-${kind}`, scale), body: await read(`body-${kind}`, scale),
+          end: await read(`terminal-${kind}`, scale),
+        }))),
+        normal: await read('body-double', scale),
+        partial: await read('body-double-partial-failed-left', scale),
+        partialEnd: await read('terminal-double-partial-failed-left', scale),
+      })));
+    });
+    for (const { scale, kinds, normal, partial, partialEnd } of pixels) {
+      for (const { kind, expectedPoint, expectedBody, point, body, end } of kinds) {
+        expect(point.size).toEqual([100 * scale, 20 * scale]);
+        expect(point.center).toEqual([...expectedPoint, 255]);
+        if (kind !== 'trill') expect(point.corner).toEqual([...expectedPoint, 255]);
+        for (let channel = 0; channel < 3; channel++) {
+          expect(Math.abs(body.center[channel] - expectedBody[channel])).toBeLessThanOrEqual(2);
+          if (kind !== 'trill') expect(Math.abs(end.center[channel] - body.center[channel])).toBeLessThanOrEqual(2);
+        }
+        expect(end.center[3]).toBe(kind === 'trill' ? 255 : 128);
+      }
+      expect(partial.left).toEqual([85, 85, 85, 255]);
+      expect(partial.right).toEqual(normal.right);
+      expect(partialEnd.left[3]).toBe(128);
+      expect(partialEnd.right[3]).toBe(128);
+    }
+    await page.getByRole('button', { name: '트릴 롱', exact: true }).click();
+    await expect(page.getByText('PLAYER READY')).toBeVisible();
+    await page.waitForTimeout(1100);
+    await page.locator('[data-player-pause="true"]').click();
+    await page.screenshot({ path: testInfo.outputPath('simple-editor-style.png'), fullPage: true });
   });
 
   test('Classic 트릴 3연결은 실제 홀드한 구간만 켜지고 포인트 마름모 위아래 테두리를 따라 옅어지는 접촉 그림자가 바디와 구분된다', async ({ page }, testInfo) => {

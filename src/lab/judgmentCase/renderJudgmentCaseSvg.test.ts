@@ -630,12 +630,12 @@ describe("renderJudgmentCaseSvg", () => {
     expect(skinAssetsOf(svg, 2, "overlay")).toEqual(["terminalGraceOverlay"]);
   });
 
-  it("Simple(반쪽 캡)은 바디를 늘이고 끝·시작에 terminalSingle 윗부분 절반(viewBox 0 0 100 10) 캡, Grace는 overlay 에셋 없이 흰 글로우", () => {
+  it("Simple은 20px 끝 terminalSingle과 불투명 시작 bodySingle을 그리고 Grace에 흰 글로우를 표시한다", () => {
     const { svg } = render([panelFor("노트: grace head 1000 | long 1000-1400\n입력: A 1000-1400")], { skin: makeTestSkin("simple") });
     expect(skinAssetsOf(svg, 1, "body")).toEqual(["bodySingle"]);
     expect(svg).not.toContain("<pattern");
-    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 10"/);
-    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="start" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 10"/);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="end" data-skin-asset="terminalSingle"[^>]*viewBox="0 0 100 20"/);
+    expect(svg).toMatch(/data-note-index="1" data-note-type="long" data-note-part="start" data-skin-asset="bodySingle"[^>]*viewBox="0 0 100 60"/);
     expect(svg).toContain('data-note-index="0" data-note-type="single" data-note-part="overlay" data-grace-glow="true"');
   });
 
@@ -653,8 +653,8 @@ describe("renderJudgmentCaseSvg", () => {
     }
   });
 
-  it("doubleLong 반쪽 캡: Crystal은 전용 endCapDouble 전체, Simple은 terminalDouble 윗부분 절반(둘 다 viewBox 0 0 100 10)을 끝·시작에 씀", () => {
-    for (const [id, cap] of [["crystal", "endCapDouble"], ["simple", "terminalDouble"]]) {
+  it("Crystal doubleLong은 endCapDouble(100×10)을 끝·시작 반쪽 캡으로 쓴다", () => {
+    for (const [id, cap] of [["crystal", "endCapDouble"]]) {
       const { svg } = render([panelFor("노트: dhead 1000 | dlong 1000-1400\n입력: A 1000-1400 | B 1000-1400")], { skin: makeTestSkin(id) });
       for (const part of ["end", "start"]) {
         expect(skinAssetsOf(svg, 1, part)).toEqual([cap]);
@@ -663,9 +663,9 @@ describe("renderJudgmentCaseSvg", () => {
     }
   });
 
-  it("길이 0 long 1500-1500: Crystal·Simple은 끝·시작 반쪽 캡 두 개(높이 (20 − 5) / 2 × 0.8 = 6px), Classic은 시작 터미널 하나", () => {
+  it("길이 0 long 1500-1500에서 Crystal은 6px 반쪽 캡 두 개, Classic·Simple은 시작 파츠 하나를 표시한다", () => {
     const text = "노트: long 1500-1500\n입력: A 1500-1550";
-    for (const [id, cap] of [["crystal", "endCapSingle"], ["simple", "terminalSingle"]]) {
+    for (const [id, cap] of [["crystal", "endCapSingle"]]) {
       const { svg } = render([panelFor(text)], { skin: makeTestSkin(id) });
       for (const part of ["end", "start"]) {
         expect(skinAssetsOf(svg, 0, part)).toEqual([cap]);
@@ -675,6 +675,10 @@ describe("renderJudgmentCaseSvg", () => {
     const { svg } = render([panelFor(text)]);
     expect(skinAssetsOf(svg, 0, "end")).toEqual([]);
     expect(skinAssetsOf(svg, 0, "start")).toEqual(["terminalSingleIdle"]);
+    const simple = render([panelFor(text)], { skin: makeTestSkin("simple") }).svg;
+    expect(skinAssetsOf(simple, 0, "body")).toEqual([]);
+    expect(skinAssetsOf(simple, 0, "end")).toEqual([]);
+    expect(skinAssetsOf(simple, 0, "start")).toEqual(["bodySingle"]);
   });
 
   it("holdOnly 끝 overlay: Classic trillLong은 끝 터미널 아래 terminalGraceOverlay, overlay 에셋이 없는 Crystal·Simple은 trillLong·long 모두 게임 대체 글로우", () => {

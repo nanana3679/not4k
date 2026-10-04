@@ -40,7 +40,7 @@ export interface JudgmentCaseSkinSprite {
 export interface JudgmentCaseSkin {
   name: string;
   /** 롱노트 양 끝: 노트 한 칸 높이 터미널(full-height) 또는 바디 안쪽 반쪽 캡(split-cap) */
-  terminalMode: "split-cap" | "full-height";
+  terminalMode: NonNullable<SkinTheme["longNoteTerminalMode"]>;
   /** 바디: 텍스처 비율대로 세로 반복(repeat) 또는 늘이기(stretch) */
   bodyMode: "stretch" | "repeat";
   /** full-height 터미널이 바디 좌우로 더 나오는 게임 px */
@@ -89,7 +89,7 @@ interface SkinPlan {
 }
 
 function terminalMode(theme: SkinTheme): JudgmentCaseSkin["terminalMode"] {
-  return theme.longNoteTerminalMode === "full-height" ? "full-height" : "split-cap";
+  return theme.longNoteTerminalMode ?? "split-cap";
 }
 
 /** 게임이 판정 전(대기) 노트에 쓰는 에셋 키 */
