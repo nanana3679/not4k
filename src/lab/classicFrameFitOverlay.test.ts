@@ -15,7 +15,7 @@ import {
 } from './classicFrameFitOverlay';
 
 const geometry: FrameFitGeometry = {
-  width: 1024, height: 1536, laneLeft: 236, laneRight: 787, laneBottom: 1089, silhouetteTop: 16, gaugeGlowTop: 196,
+  width: 1024, height: 1536, laneLeft: 236, laneRight: 787, laneBottom: 1089, laneOpeningBottom: 1126, silhouetteTop: 16, gaugeGlowTop: 196,
   keyFaceTop: 1137, keyFaceBottom: 1235, deckBottom: 1340, barGlowTop: 1367, barGlowBottom: 1399, frameBottom: 1465,
   seam: { y1: 423, y2: 906, cost: 28.93, typicalAdjacentRowCost: 2.06 },
 };
@@ -162,7 +162,7 @@ describe('FrameFitOverlay', () => {
     expect(before - sprite.y).toBeCloseTo(48, 9);
   });
 
-  it('uniform 레이아웃(레인 폭 250)을 적용하면 프레임 아래에 레인 마스크(렌더러 x 653.6부터 400, 덱 위끝 687.5부터 화면 아래 960)를 깐다', () => {
+  it('uniform 레이아웃(레인 폭 250)을 적용하면 프레임 아래에 레인 마스크(렌더러 x 653.6부터 400, 열린 덱 바닥 714.3부터 화면 아래 960)를 깐다', () => {
     const layer = new Container();
     const overlay = new FrameFitOverlay(layer, createSource());
     overlay.apply(uniform250());
@@ -173,7 +173,7 @@ describe('FrameFitOverlay', () => {
     const bounds = (children[0] as Graphics).getLocalBounds();
     expect(bounds.x).toBeCloseTo(653.6, 1);
     expect(bounds.width).toBeCloseTo(400, 6);
-    expect(bounds.y).toBeCloseTo(687.5, 1);
+    expect(bounds.y).toBeCloseTo(714.3, 1);
     expect(bounds.y + bounds.height).toBeCloseTo(960, 6);
   });
 

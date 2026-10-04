@@ -409,6 +409,7 @@ export default function ClassicFrameFitPage() {
           data-missed-count={liveView ? liveView.missed : undefined}
           data-song-ms={liveView ? Math.round(liveView.songMs) : undefined}
           data-deck-top-y={layout ? layout.screenDeckTop.toFixed(1) : undefined}
+          data-lane-opening-bottom-y={layout ? layout.screenLaneOpeningBottom.toFixed(1) : undefined}
           data-frame-top={frameTop === null ? undefined : frameTop.toFixed(1)}
           data-frame-x={layout ? (layout.slices[0].x / layout.zoom).toFixed(3) : undefined}
           data-frame-scale={layout ? layout.screenScale.toFixed(6) : undefined}
@@ -499,6 +500,10 @@ export default function ClassicFrameFitPage() {
                   <div>
                     <dt>판정선 · 덱 틈</dt>
                     <dd>{readoutJudgment.gap.toFixed(1)} · 노트 두께 {readoutJudgment.gapNotes.toFixed(1)}개</dd>
+                  </div>
+                  <div>
+                    <dt>판정선 · 열린 덱 바닥</dt>
+                    <dd>y {readoutJudgment.openingBottomY.toFixed(1)}까지 {readoutJudgment.openGap.toFixed(1)} · 노트 두께 {readoutJudgment.openGapNotes.toFixed(1)}개</dd>
                   </div>
                   <div>
                     <dt>프레임(아래끝 고정)</dt>

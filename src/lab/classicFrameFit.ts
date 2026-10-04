@@ -56,6 +56,11 @@ export interface FrameFitGeometry {
   laneRight: number;
   /** 레인 창이 전체 폭을 유지하는 마지막 행. 다음 행부터 덱 구간이다. */
   laneBottom: number;
+  /**
+   * 덱 위끝(laneBottom + 1)부터 기둥 받침의 꺾인 모서리 사이로 그려진 레인 바닥이 이어지는 마지막 행(키 테두리 바로 위).
+   * 이 사다리꼴도 투명하게 잘라 실제 게임 레인이 비친다.
+   */
+  laneOpeningBottom: number;
   /** 프레임 실루엣의 첫 행(갑옷 꼭대기 끝). */
   silhouetteTop: number;
   /** 게이지 유리관 빛의 첫 행. */
@@ -109,9 +114,11 @@ export interface FrameFitLayout {
   screenFrameTop: number;
   /** 덱 첫 행 위끝의 화면 논리 y. crop·cut·squash는 판정선(440), uniform은 아래끝 고정으로 정해진다. */
   screenDeckTop: number;
+  /** 열린 덱 바닥(laneOpeningBottom + 1행 위끝, 키 테두리)의 화면 논리 y. 레인이 보이는 아래끝이다. */
+  screenLaneOpeningBottom: number;
   /**
-   * uniform 전용 레인 마스크(렌더러 논리 단위). 게임 마스크 대신 덱 위끝부터 화면 아래까지 레인 영역을 덮어,
-   * 놓친 노트가 판정선과 덱 사이 틈을 지나 프레임 아래로 사라지게 한다.
+   * uniform 전용 레인 마스크(렌더러 논리 단위). 게임 마스크 대신 열린 덱 바닥(키 테두리)부터 화면 아래까지 레인 영역을 덮어,
+   * 놓친 노트가 판정선과 덱 사이 틈, 기둥 모서리 사이 열린 덱을 지나 키 아래로 사라지게 한다.
    */
   laneMask: { x: number; y: number; width: number; height: number; color: number } | null;
   /** 프레임 아래끝(frameBottom + 1행)이 화면 아래로 넘친 높이(화면 논리 단위, 0 이상). */
@@ -201,6 +208,10 @@ export interface UniformJudgment {
   gapNotes: number;
   /** 판정선 아래끝(두께 포함)이 덱 위끝보다 아래라 일부가 프레임에 가려진다. */
   covered: boolean;
+  /** 열린 덱 바닥(키 테두리)의 화면 논리 y와, 판정선에서 그곳까지 레인이 보이는 거리·노트 두께 배수. */
+  openingBottomY: number;
+  openGap: number;
+  openGapNotes: number;
   /** 줌 렌더러의 setLift에 넘길 값(렌더러 논리 단위). */
   rendererLift: number;
 }
@@ -217,6 +228,9 @@ export function uniformJudgment(layout: FrameFitLayout, stage: FrameFitStage, li
     noteThickness,
     gapNotes: gap / noteThickness,
     covered: judgmentLineBottom(lineY, layout.zoom) > layout.screenDeckTop,
+    openingBottomY: layout.screenLaneOpeningBottom,
+    openGap: layout.screenLaneOpeningBottom - lineY,
+    openGapNotes: (layout.screenLaneOpeningBottom - lineY) / noteThickness,
     rendererLift: liftPercent * LIFT_UNITS_PER_PERCENT * layout.zoom,
   };
 }
@@ -274,7 +288,9 @@ export function computeFrameFitLayout(
   const scale = stage.laneAreaWidth / (geometry.laneRight - geometry.laneLeft + 1);
   // 덱 첫 행의 렌더러 y. crop·cut·squash는 판정선, uniform은 프레임 아래끝을 화면 아래에 붙인 자리다.
   const deckY = mode === 'uniform' ? stage.height - (frameEdge - deckTop) * scale : stage.judgmentLineY;
-  const screen = (layout: Omit<FrameFitLayout, 'zoom' | 'laneWidth' | 'screenScale' | 'screenVerticalScale' | 'screenFrameTop' | 'screenDeckTop' | 'laneMask' | 'bottomCut' | 'bottomCutRows'>): FrameFitLayout => {
+  // 열린 덱 바닥(키 테두리 위끝)의 렌더러 y. 덱 구간은 모든 방식에서 덱 첫 행부터 scale로 그려진다.
+  const openingY = deckY + (geometry.laneOpeningBottom + 1 - deckTop) * scale;
+  const screen = (layout: Omit<FrameFitLayout, 'zoom' | 'laneWidth' | 'screenScale' | 'screenVerticalScale' | 'screenFrameTop' | 'screenDeckTop' | 'screenLaneOpeningBottom' | 'laneMask' | 'bottomCut' | 'bottomCutRows'>): FrameFitLayout => {
     // 덱 구간은 모든 방식에서 덱 첫 행부터 scale로 그려진다. 화면 아래 끝까지 몇 행이 들어가는지 본다.
     const overflowRows = frameEdge - (deckTop + (stage.height - deckY) / layout.scale);
     return {
@@ -285,8 +301,9 @@ export function computeFrameFitLayout(
       screenVerticalScale: layout.verticalScale / zoom,
       screenFrameTop: layout.frameTop / zoom,
       screenDeckTop: deckY / zoom,
+      screenLaneOpeningBottom: openingY / zoom,
       laneMask: mode === 'uniform'
-        ? { x: stage.laneAreaX, y: deckY, width: stage.laneAreaWidth, height: stage.height - deckY, color: COLORS.MASK_BELOW_JUDGMENT }
+        ? { x: stage.laneAreaX, y: openingY, width: stage.laneAreaWidth, height: stage.height - openingY, color: COLORS.MASK_BELOW_JUDGMENT }
         : null,
       bottomCut: Math.max(0, (overflowRows * layout.scale) / zoom),
       bottomCutRows: Math.max(0, Math.ceil(overflowRows - 1e-9)),
@@ -371,13 +388,13 @@ export function laneWidthPercent(laneWidth: number, stage: FrameFitStage): strin
 }
 
 /** uniform의 레인 마스크가 실제 게임에 주는 뜻. 페이지 설명과 스펙이 같은 문장을 쓴다. */
-export const UNIFORM_MASK_NOTE = '실제 게임에 적용하면 레인 마스크가 판정선이 아니라 프레임 덱에서 시작합니다. 놓친 노트는 판정선을 지나 덱 사이 틈으로 계속 내려가다 프레임 아래로 사라집니다.';
+export const UNIFORM_MASK_NOTE = '실제 게임에 적용하면 레인 마스크가 판정선이 아니라 프레임의 열린 덱 바닥(키 테두리)에서 시작합니다. 놓친 노트는 판정선을 지나 덱 사이 틈과 기둥 모서리 사이 열린 덱을 계속 내려가다 키 아래로 사라집니다.';
 
 /** 화면 전체를 줄여 흉내 내는 방식의 한계. 페이지 설명과 스펙이 같은 문장을 쓴다. */
 export const UNIFORM_ZOOM_NOTE = '게임 화면 전체를 줄여 흉내 내므로 노트 두께, 콤보·정확도 글자, 키봄도 함께 작아집니다. 실제 구현은 레인만 좁히고 노트 두께는 유지할 수 있습니다.';
 
 const GEOMETRY_NUMBER_KEYS = [
-  'width', 'height', 'laneLeft', 'laneRight', 'laneBottom', 'silhouetteTop', 'gaugeGlowTop', 'keyFaceTop', 'keyFaceBottom',
+  'width', 'height', 'laneLeft', 'laneRight', 'laneBottom', 'laneOpeningBottom', 'silhouetteTop', 'gaugeGlowTop', 'keyFaceTop', 'keyFaceBottom',
   'deckBottom', 'barGlowTop', 'barGlowBottom', 'frameBottom',
 ] as const;
 
@@ -411,6 +428,9 @@ export function parseFrameFitGeometry(value: unknown): FrameFitGeometry {
   }
   if (!(geometry.laneBottom > 0 && geometry.laneBottom < geometry.height - 1)) {
     throw new Error('frame-fit.json의 laneBottom이 원본 높이 밖입니다.');
+  }
+  if (!(geometry.laneOpeningBottom > geometry.laneBottom && geometry.laneOpeningBottom < geometry.keyFaceTop)) {
+    throw new Error('frame-fit.json의 laneOpeningBottom이 덱 위끝과 키 윗면 사이가 아닙니다.');
   }
   if (!(geometry.seam.y1 > 0 && geometry.seam.y1 < geometry.seam.y2 && geometry.seam.y2 <= geometry.laneBottom + 1)) {
     throw new Error('frame-fit.json의 seam이 기둥 구간(0~laneBottom) 밖입니다.');
@@ -451,7 +471,7 @@ export function describeFrameFit(layout: FrameFitLayout, geometry: FrameFitGeome
     const top = layout.hiddenRowsAbove === 0
       ? '프레임 위끝이 화면 위에 닿아 잘리는 행이 없습니다'
       : `화면 위로 원본 ${layout.hiddenRowsAbove}행이 잘립니다`;
-    return `레인 폭을 ${formatLaneWidth(layout.laneWidth)}(현재의 ${percent})로 좁히려고 게임 화면 전체를 ${formatScale(1 / layout.zoom)}배로 줄입니다. 원본은 화면에서 ${formatScale(layout.screenScale)}배로 그려지고, 프레임은 아래끝(${geometry.frameBottom}행)을 화면 아래에 붙여 고정해 덱 위끝이 y ${layout.screenDeckTop.toFixed(1)}에 오며 ${top}.`;
+    return `레인 폭을 ${formatLaneWidth(layout.laneWidth)}(현재의 ${percent})로 좁히려고 게임 화면 전체를 ${formatScale(1 / layout.zoom)}배로 줄입니다. 원본은 화면에서 ${formatScale(layout.screenScale)}배로 그려지고, 프레임은 아래끝(${geometry.frameBottom}행)을 화면 아래에 붙여 고정해 덱 위끝(${deckTop}행)이 y ${layout.screenDeckTop.toFixed(1)}에 오며 ${top}. 레인은 덱 위끝까지 전체 폭으로, 그 아래 기둥 모서리 사이 열린 덱은 키 테두리(${geometry.laneOpeningBottom + 1}행) y ${layout.screenLaneOpeningBottom.toFixed(1)}까지 보입니다.`;
   }
 
   if (layout.mode === 'cut') {

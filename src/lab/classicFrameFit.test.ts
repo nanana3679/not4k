@@ -35,6 +35,7 @@ const geometry: FrameFitGeometry = {
   laneLeft: 236,
   laneRight: 787,
   laneBottom: 1089,
+  laneOpeningBottom: 1126,
   silhouetteTop: 16,
   gaugeGlowTop: 196,
   keyFaceTop: 1137,
@@ -120,11 +121,19 @@ describe('classicFrameFit 레이아웃', () => {
 });
 
 describe('classicFrameFit 측정값 검증', () => {
-  it('public frame-fit.json은 레인 창 236~787열, 마지막 레인 행 1089, 이음매 423~906행을 담는다', () => {
+  it('public frame-fit.json은 레인 창 236~787열, 마지막 레인 행 1089, 열린 덱 바닥 1126행, 이음매 423~906행을 담는다', () => {
     const json = JSON.parse(frameFitJson);
     const parsed = parseFrameFitGeometry(json);
-    expect(parsed).toMatchObject({ laneLeft: 236, laneRight: 787, laneBottom: 1089, seam: { y1: 423, y2: 906 } });
+    expect(parsed).toMatchObject({ laneLeft: 236, laneRight: 787, laneBottom: 1089, laneOpeningBottom: 1126, seam: { y1: 423, y2: 906 } });
+    // 열린 덱은 기둥 모서리 사이 사다리꼴: 왼쪽 236.7→266.1, 오른쪽 786.5→758.3로 아래로 좁아진다.
+    expect(json.laneOpening.polygon).toEqual([[236.73, 1090], [786.48, 1090], [758.3, 1127], [266.14, 1127]]);
     expect(computeFrameFitLayout('cut', parsed, stage)!.removedRows).toBe(json.seam.removedRows);
+  });
+
+  it('열린 덱 바닥이 덱 위끝(1090)보다 위이거나 키 윗면(1137) 이상이면 에러', () => {
+    const json = JSON.parse(frameFitJson);
+    expect(() => parseFrameFitGeometry({ ...json, laneOpeningBottom: 1089 })).toThrow('laneOpeningBottom');
+    expect(() => parseFrameFitGeometry({ ...json, laneOpeningBottom: 1137 })).toThrow('laneOpeningBottom');
   });
 
   it('laneLeft가 없는 측정값이면 에러', () => {
@@ -280,13 +289,26 @@ describe('classicFrameFit 가로세로 같이 줄이기(프레임 아래끝 고�
     expect(layout.laneMask).toBeNull();
   });
 
-  it('레인 폭 250이면 레인 영역(렌더러 x 653.6부터 400)을 덱 위끝(렌더러 687.5)부터 화면 아래 960까지 덮는 불투명 마스크를 프레임 아래에 둔다', () => {
+  it('레인 폭 250이면 레인이 보이는 아래끝은 열린 덱 바닥(1127행 위끝) y 446.47로, 덱 위끝 429.71보다 16.76(37행 × 0.4529) 아래다', () => {
+    const layout = computeFrameFitLayout('uniform', geometry, stage, 250)!;
+    expect(layout.screenLaneOpeningBottom).toBeCloseTo(446.47, 2);
+    expect(layout.screenLaneOpeningBottom - layout.screenDeckTop).toBeCloseTo(37 * layout.screenScale, 9);
+  });
+
+  it('레인 폭 맞춤(crop)에서도 열린 덱 바닥은 판정선 440 아래 37행 × 0.7246 = 26.8인 y 466.8이다', () => {
+    const layout = computeFrameFitLayout('crop', geometry, stage)!;
+    expect(layout.screenDeckTop).toBe(440);
+    expect(layout.screenLaneOpeningBottom).toBeCloseTo(440 + 37 * (400 / 552), 9);
+  });
+
+  it('레인 폭 250이면 레인 영역(렌더러 x 653.6부터 400)을 열린 덱 바닥(렌더러 714.3)부터 화면 아래 960까지 덮는 불투명 마스크를 프레임 아래에 둔다(덱 위끝 687.5부터가 아니다)', () => {
     const layout = computeFrameFitLayout('uniform', geometry, stage, 250)!;
     expect(layout.laneMask).not.toBeNull();
     const mask = layout.laneMask!;
     expect(mask.x).toBeCloseTo((1067 * 1.6 - 400) / 2, 9);
     expect(mask.width).toBe(400);
-    expect(mask.y).toBeCloseTo(429.71 * 1.6, 1);
+    expect(mask.y).toBeCloseTo(446.47 * 1.6, 1);
+    expect(mask.y).toBeGreaterThan(429.71 * 1.6 + 26);
     expect(mask.y + mask.height).toBeCloseTo(960, 9);
     expect(mask.color).toBe(0x04060c);
   });
@@ -334,6 +356,13 @@ describe('classicFrameFit 판정선 높이(게임 Lift %)', () => {
     expect(judgment.noteThickness).toBeCloseTo(12.5, 9);
     expect(judgment.gapNotes).toBeCloseTo(1.097, 3);
     expect(judgment.rendererLift).toBeCloseTo(38.4, 9);
+  });
+
+  it('판정선 높이 4%면 판정선 y 416에서 열린 덱 바닥 446.47까지 레인이 30.47(노트 두께 12.5의 2.44배) 보인다', () => {
+    const judgment = uniformJudgment(at250, stage, 4);
+    expect(judgment.openingBottomY).toBeCloseTo(446.47, 2);
+    expect(judgment.openGap).toBeCloseTo(30.47, 2);
+    expect(judgment.openGapNotes).toBeCloseTo(2.437, 3);
   });
 
   it('판정선 높이를 2%·4%·8%로 바꾸면 판정선은 428·416·392로 움직이고 프레임 위끝 −63.9·덱 위끝 429.7은 그대로', () => {

@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../public/lab/classic-frame-fit/frame-fit.json', import.meta.url)), 'utf8')) as {
-  laneLeft: number; laneRight: number; laneBottom: number; frameBottom: number;
+  laneLeft: number; laneRight: number; laneBottom: number; frameBottom: number; laneOpeningBottom: number;
+  laneOpening: { rows: [number, number, number][] };
 };
 // 게임 배치: 논리 폭 1067(16:9)의 레인 영역 400, 판정선 y 440.
 const scale = 400 / (geometry.laneRight - geometry.laneLeft + 1);
@@ -68,6 +69,22 @@ async function meanDifference(page: Page, a: Buffer, b: Buffer, region: { x: num
     for (let i = 0; i < x.length; i += 4) total += Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2]);
     return total / ((x.length / 4) * 3);
   }, { first: a.toString('base64'), second: b.toString('base64'), region });
+}
+
+/** 무대 캔버스 스크린샷에서 화면 논리 좌표(1067×600) 점들의 RGBA. */
+async function pixelsAt(page: Page, points: { x: number; y: number }[]): Promise<number[][]> {
+  const shot = (await page.locator('.frame-fit-canvas-host').screenshot()).toString('base64');
+  return page.evaluate(async ({ shot, points }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${shot}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    context.drawImage(image, 0, 0);
+    return points.map((point) => [...context.getImageData(Math.round((point.x / 1067) * image.naturalWidth), Math.round((point.y / 600) * image.naturalHeight), 1, 1).data]);
+  }, { shot, points });
 }
 
 const motionTime = async (page: Page) => {
@@ -164,7 +181,7 @@ test.describe('Classic Frame Fit Lab', () => {
     await expect(page.locator('.frame-fit-readout')).toContainText('원본 1px → 화면 0.82px (축소)');
     await expect(page.locator('.frame-fit-readout')).toContainText('4% (+24) · y 416');
     await expect(page.locator('.frame-fit-caveat').first()).toContainText('노트 두께');
-    await expect(page.locator('.frame-fit-readout')).toContainText('프레임 덱에서 시작');
+    await expect(page.locator('.frame-fit-readout')).toContainText('열린 덱 바닥(키 테두리)에서 시작');
     // 데모 판정: 5개 중 1개꼴로 놓친 노트가 생긴다.
     await expect.poll(async () => Number(await stage.getAttribute('data-missed-count')), { timeout: 15000 }).toBeGreaterThan(0);
 
@@ -254,6 +271,56 @@ test.describe('Classic Frame Fit Lab', () => {
     await expect(stage).toHaveAttribute('data-game-mask', 'visible');
     await expect(stage).toHaveAttribute('data-lift-percent', '0');
     await expect(stage).toHaveAttribute('data-judgment-line-y', '440.0');
+    expect(errors).toEqual([]);
+  });
+
+  test('가로세로 같이 줄이기에서 레인이 보이는 아래끝(열린 덱 바닥 y 446.5)이 덱 위끝 429.7보다 아래이고, 프레임 그림은 열린 덱(1090~1126행) 레인 안쪽이 투명·꺾인 모서리 베벨은 불투명이며 화면에는 그 자리에 게임 레인이 비친다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    const deckTopY = Number(await stage.getAttribute('data-deck-top-y'));
+    const openingY = Number(await stage.getAttribute('data-lane-opening-bottom-y'));
+    expect(openingY).toBeGreaterThan(deckTopY);
+    expect(openingY).toBeCloseTo(uniformDeckTop(250) + ((geometry.laneOpeningBottom + 1 - (geometry.laneBottom + 1)) * 250) / laneWindow, 1);
+    await expect(page.locator('.frame-fit-readout')).toContainText(/판정선 · 열린 덱 바닥\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
+
+    // 프레임 그림: 열린 덱 가운데 행의 레인 안쪽(왼쪽 모서리 경계 + 3px)과 가운데 레인 선 자리는 투명,
+    // 꺾인 모서리 경계 3px 바깥(베벨)과 키 테두리(바닥 다음 행)는 불투명이다.
+    const [row, leftEdge] = geometry.laneOpening.rows[Math.floor(geometry.laneOpening.rows.length / 2)];
+    const probes = [
+      { x: Math.ceil(leftEdge) + 3, y: row }, { x: 512, y: geometry.laneOpeningBottom }, { x: 376, y: row },
+      { x: Math.floor(leftEdge) - 3, y: row }, { x: 512, y: geometry.laneOpeningBottom + 1 },
+    ];
+    const alphas = await page.evaluate(async (points) => {
+      const image = new Image();
+      image.src = '/lab/classic-frame-fit/frame-cutout.png';
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(image, 0, 0);
+      return points.map((point) => context.getImageData(point.x, point.y, 1, 1).data[3]);
+    }, probes);
+    expect(alphas).toEqual([0, 0, 0, 255, 255]);
+
+    // 화면: 열린 덱 안 레인 2 가운데는 지워진 그림 바닥색(약 13, 18, 23)이 아니라 게임 레인을 그린다. 같은 레인의 판정선 위 자리와 비교한다.
+    const frameX = Number(await stage.getAttribute('data-frame-x'));
+    const frameScale = Number(await stage.getAttribute('data-frame-scale'));
+    const top = await frameTop(page);
+    const laneTwo = geometry.laneLeft + 1.5 * (laneWindow / 4);
+    const pixels = await pixelsAt(page, [
+      { x: frameX + laneTwo * frameScale, y: top + (row + 0.5) * frameScale },
+      { x: frameX + laneTwo * frameScale, y: top + (geometry.laneBottom - 120) * frameScale },
+    ]);
+    const [inside, above] = pixels;
+    const painted = [13, 18, 23];
+    const distance = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    console.log(`[opening] inside ${inside.slice(0, 3)} above ${above.slice(0, 3)}`);
+    expect(distance(inside, painted)).toBeGreaterThan(10);
     expect(errors).toEqual([]);
   });
 
