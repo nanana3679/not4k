@@ -33,6 +33,48 @@ async function waitForRenderer(page: Page) {
 
 const frameTop = async (page: Page) => Number(await page.locator(stageSelector).getAttribute('data-frame-top'));
 
+/** 무대에서 왼쪽 장갑(원본 x 40~190, y 300~900)이 있는 자리(화면 논리 단위 1067×600에 대한 비율). */
+async function leftArmorRegion(page: Page) {
+  const stage = page.locator(stageSelector);
+  const frameX = Number(await stage.getAttribute('data-frame-x'));
+  const frameScale = Number(await stage.getAttribute('data-frame-scale'));
+  const top = await frameTop(page);
+  return {
+    x: (frameX + 40 * frameScale) / 1067,
+    y: (top + 300 * frameScale) / 600,
+    width: (150 * frameScale) / 1067,
+    height: (600 * frameScale) / 600,
+  };
+}
+
+/** 두 무대 스크린샷의 같은 영역(비율)에서 RGB 채널 평균 절대 차이(0~255). */
+async function meanDifference(page: Page, a: Buffer, b: Buffer, region: { x: number; y: number; width: number; height: number }): Promise<number> {
+  return page.evaluate(async ({ first, second, region }) => {
+    const decode = async (data: string) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(image, 0, 0);
+      const x = Math.round(region.x * canvas.width);
+      const y = Math.round(region.y * canvas.height);
+      return context.getImageData(x, y, Math.round(region.width * canvas.width), Math.round(region.height * canvas.height)).data;
+    };
+    const [x, y] = await Promise.all([decode(first), decode(second)]);
+    let total = 0;
+    for (let i = 0; i < x.length; i += 4) total += Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2]);
+    return total / ((x.length / 4) * 3);
+  }, { first: a.toString('base64'), second: b.toString('base64'), region });
+}
+
+const motionTime = async (page: Page) => {
+  const value = await page.locator(stageSelector).getAttribute('data-motion-time-ms');
+  return value === null ? null : Number(value);
+};
+
 test.describe('Classic Frame Fit Lab', () => {
   // 실제 게임 렌더러와 비행 배경을 swiftshader로 띄우므로 여러 워커가 동시에 돌면 30초 안에 준비되지 않는다.
   // 이 파일은 한 워커에서 차례로 돌리고 테스트마다 넉넉한 시간을 준다.
@@ -304,5 +346,79 @@ test.describe('Classic Frame Fit Lab', () => {
     expect(sizes.host).toBeCloseTo(sizes.expected, 0);
     expect(sizes.viewportScrolls).toBe(true);
     expect(sizes.pageOverflow).toBe(false);
+  });
+
+  test('가로세로 같이 줄이기에서 움직임이 켜져 벽시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되고 켬·끔 프레임 간격을 따로 모으며 기둥 잘라 줄이기에서는 얹지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    // 기본 레인 폭 맞춤(crop)도 한 장 배치라 움직임을 얹는다.
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    for (const label of ['움직임', 'A 큰 광원', 'B 게이지 액체', 'C 발광선 호흡', 'D 하단 바 흐름']) {
+      await expect(page.getByLabel(label, { exact: true })).toBeChecked();
+    }
+
+    await page.getByLabel('가로세로 같이 줄이기').check();
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    // 움직임 시계는 렌더러를 다시 만들어도 이어지는 벽시계다.
+    const first = (await motionTime(page))!;
+    await expect.poll(async () => (await motionTime(page)) ?? 0, { timeout: 10000 }).toBeGreaterThan(first + 300);
+
+    await page.getByRole('button', { name: '처음부터 재생' }).click();
+    await expect.poll(async () => (await motionTime(page)) ?? Infinity, { timeout: 5000 }).toBeLessThan(2000);
+
+    // 움직임을 끄면 왼쪽 장갑 픽셀이 바뀐다(띠 밖 7% 어둡게·빛 받은 대비 복사본이 사라진다).
+    const host = page.locator('.frame-fit-canvas-host');
+    const region = await leftArmorRegion(page);
+    const withMotion = await host.screenshot();
+    await page.getByLabel('움직임', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+    await expect.poll(() => motionTime(page)).toBeNull();
+    const withoutMotion = await host.screenshot();
+    expect(await meanDifference(page, withMotion, withoutMotion, region)).toBeGreaterThan(2);
+    // 프레임 간격(rAF) 평균/p95를 움직임 켬·끔으로 나눠 모은다.
+    const statsPattern = /^\d+\.\d{2}\/\d+\.\d{2}$/;
+    await expect(stage).toHaveAttribute('data-frame-time-on', statsPattern);
+    await expect(stage).toHaveAttribute('data-frame-time-off', statsPattern, { timeout: 10000 });
+    await expect(page.locator('.frame-fit-readout')).toContainText(/프레임 간격 · 움직임 끔\s*평균 [\d.]+ms · p95 [\d.]+ms/);
+    await page.getByLabel('움직임', { exact: true }).check();
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    await expect.poll(() => motionTime(page)).not.toBeNull();
+
+    await page.getByLabel('A 큰 광원', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion-armor', 'off');
+    await expect(stage).toHaveAttribute('data-motion-gauge', 'on');
+    await page.getByLabel('A 큰 광원', { exact: true }).check();
+    await expect(stage).toHaveAttribute('data-motion-armor', 'on');
+
+    // 두 조각으로 그리는 방식에는 움직임을 얹지 않는다.
+    await page.getByLabel('기둥 잘라 줄이기').check();
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+    await expect.poll(() => motionTime(page)).toBeNull();
+    await expect(page.locator('.frame-fit-motion')).toContainText('레인 폭 맞춤·가로세로 같이 줄이기');
+    expect(errors).toEqual([]);
+  });
+
+  test('움직임 줄이기 설정이면 무대 data-motion이 reduced이고 움직임 시계가 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/lab/classic-frame-fit');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-motion', 'reduced');
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
+    await page.waitForTimeout(800);
+    expect(await motionTime(page)).toBeNull();
+    await expect(page.locator('.frame-fit-motion')).toContainText('움직임 줄이기');
+    await page.locator('[data-frame-motion-compare]').scrollIntoViewIfNeeded();
+    await expect(page.locator('[data-frame-motion-compare]')).toHaveAttribute('data-compare-ready', 'true', { timeout: 60000 });
+    const running = await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running').length);
+    expect(running).toBe(0);
+    expect(errors).toEqual([]);
   });
 });

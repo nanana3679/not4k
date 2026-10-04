@@ -12,6 +12,7 @@ import {
   describePixelRatio,
   describeFrameParts,
   FRAME_FIT_STAGE_WIDTH,
+  FRAME_MOTION_FIT_MODES,
   formatLiftPercent,
   LIFT_PERCENT_MAX,
   listFrameParts,
@@ -21,6 +22,7 @@ import {
   uniformJudgment,
   oneToOneCssSize,
   parseFrameFitGeometry,
+  supportsFrameMotion,
   uniformLaneWidthRange,
   type FrameFitGeometry,
 } from './classicFrameFit';
@@ -358,6 +360,13 @@ describe('classicFrameFit 판정선 높이(게임 Lift %)', () => {
     expect(clampUniformLiftPercent(2.6, 2)).toBe(3);
     expect(clampUniformLiftPercent(Number.NaN, 2)).toBe(4);
     expect(clampUniformLiftPercent(Number.NaN, 6)).toBe(6);
+  });
+});
+
+describe('classicFrameFit 움직임 레이어를 얹는 방식', () => {
+  it('레인 폭 맞춤·가로세로 같이 줄이기(한 장)에만 얹고 기둥 잘라 줄이기·세로로 눌러 맞추기(두 조각)·현재 게임 기어에는 얹지 않는다', () => {
+    expect(FRAME_MOTION_FIT_MODES).toEqual(['crop', 'uniform']);
+    expect(['crop', 'cut', 'squash', 'uniform', 'current'].map((mode) => supportsFrameMotion(mode as never))).toEqual([true, false, false, true, false]);
   });
 });
 

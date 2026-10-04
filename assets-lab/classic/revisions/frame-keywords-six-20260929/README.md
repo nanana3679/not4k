@@ -12,6 +12,15 @@
 - 마스크: 장갑 영역(배경·레인·버튼부·게이지·파란 발광선·하단 바 제외), 파란 발광선 레이어, 하단 바 빛, 게이지 유리 안쪽 윤곽(누름·게이지 시연과 같음)
 - 최종값과 반복 과정: [프레임 움직임](../../../../docs/design/classic-frame-keywords-20260929.md#프레임-움직임)
 
+## Pixi 움직임 자료 (v21)
+
+2026-10-04 승인된 v19 움직임을 게임 렌더러에서 쓸 수 있도록 Pixi 레이어로 옮겼다. 새 이미지는 생성하지 않았다.
+
+- 측정 모듈: `frame-motion-shared.mjs` — v19 SVG와 v21 자료가 같은 마스크 측정·값(제외 상자, 바 상자, 유리 윤곽, 광원·대비·기포·호흡·하단 바 값)을 쓴다. 이 모듈로 바꾼 뒤에도 `54-ambient-motion-v19.svg`는 같은 바이트다
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, `public/lab/classic-frame-fit/frame-cutout.png`). 다시 실행해도 같은 바이트다
+- 결과: `public/lab/classic-frame-fit/motion/`의 텍스처 10장과 `frame-motion.json`. SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 장갑·발광선은 기둥 둘과 아래 띠 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
+- 시연: `/lab/classic-frame-fit`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#classic-frame-fit)
+
 ## 시연: 버튼 누름 애니메이션 1단계
 
 2026-09-30 사용자가 v16 버튼부의 누름 애니메이션 가능성을 묻고, 기존 픽셀로 되는 범위의 1단계부터 확인하기로 했다. **사용자 평가:** 자연스럽고, 키가 올라온 뒤 빛이 꺼지는 순서가 좋다. 2단계로 넘어간다. 새 이미지는 생성하지 않았다. 시연 페이지가 열릴 때 `53-white-core-frame-v16.svg`를 캔버스로 읽어 대기·눌림 레이어를 만든다. 최신 임시 시안은 계속 v16이다.

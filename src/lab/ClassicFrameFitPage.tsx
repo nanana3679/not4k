@@ -1,11 +1,11 @@
 /*
-THESIS: 새 Classic 프레임은 따로 그린 모형이 아니라 실제 게임 렌더러·비행 배경·흐르는 노트 위에서 맞춤 방식을 고른다.
+THESIS: 새 Classic 프레임은 따로 그린 모형이 아니라 실제 게임 렌더러·비행 배경·흐르는 노트 위에서 맞춤 방식을 고르고, 승인된 움직임을 Pixi 레이어로 얹어 SVG와 같은지 확인한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 맞춤 방식을 바꿔 무엇이 잘리고 눌리는지 숫자로 읽고, 레인 폭 슬라이더로 프레임을 통째로 줄여 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를 확인한다.
-FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 네 가지 선택과 레인 폭만 둔다.
+FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 맞춤 선택·레인 폭·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 비교 도구이며 정적 합성 이미지를 만들지 않는다.
 */
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
@@ -34,6 +34,7 @@ import {
   minUniformLiftPercent,
   oneToOneCssSize,
   parseFrameFitGeometry,
+  supportsFrameMotion,
   uniformLaneWidthRange,
   UNIFORM_DEFAULT_LANE_WIDTH,
   UNIFORM_DEFAULT_LIFT_PERCENT,
@@ -48,6 +49,17 @@ import {
 import { buildFrameFitDemo, buildFrameFitSchedule, initialFrameFitLoopState, stepFrameFitLoop } from './classicFrameFitChart';
 import type { FrameFitOverlay } from './classicFrameFitOverlay';
 import { createSharedSkin, type SharedSkin } from './classicFrameFitSkin';
+import type { ClassicFrameMotion } from './classicFrameMotion';
+import {
+  ALL_FRAME_MOTION_LAYERS_ON,
+  FRAME_MOTION_LAYERS,
+  loadFrameMotionAssets,
+  type FrameMotionAssets,
+  type FrameMotionLayerVisibility,
+} from './classicFrameMotionData';
+import { FrameMotionLayerChecks, RadioGroup } from './ClassicFrameFitControls';
+import { ClassicFrameMotionCompare } from './ClassicFrameMotionCompare';
+import { createFrameTimeWindow, type FrameTimeSummary } from './frameTimeStats';
 import { withLabPublicBase } from './labPublicPath';
 import './ClassicFrameFitPage.css';
 
@@ -72,8 +84,30 @@ type Assets =
 
 type RendererState =
   | { status: 'loading'; key: string }
-  | { status: 'ready'; key: string; backingWidth: number; backingHeight: number; gearTop: number | null; gearScale: number | null }
+  | {
+    status: 'ready'; key: string; backingWidth: number; backingHeight: number; gearTop: number | null; gearScale: number | null;
+    /** 움직임 레이어를 이 렌더러의 프레임에 얹었는지(움직임 자료를 읽었고 새 프레임 방식일 때). */
+    motionAttached: boolean;
+  }
   | { status: 'error'; key: string; message: string };
+
+type MotionAssetsState =
+  | { status: 'loading' }
+  | { status: 'ready'; assets: FrameMotionAssets }
+  | { status: 'error'; message: string };
+
+/** 렌더러가 매 프레임 읽는 움직임 설정. 바뀌어도 렌더러를 다시 만들지 않는다. */
+interface MotionSettings {
+  enabled: boolean;
+  layers: FrameMotionLayerVisibility;
+  reduced: boolean;
+}
+
+/** 움직임 켬·끔 상태별 최근 120프레임의 requestAnimationFrame 간격. */
+type FrameWindows = Record<'on' | 'off', ReturnType<typeof createFrameTimeWindow>>;
+const FRAME_STATS_INTERVAL_MS = 500;
+/** 숨은 탭에서 돌아온 간격처럼 1초가 넘는 간격은 프레임 간격 통계에서 뺀다. */
+const FRAME_DELTA_LIMIT_MS = 1000;
 
 /** 살아 있는 렌더러에서 읽어 무대 data 속성으로 알리는 값(화면 논리 단위). */
 interface RendererView {
@@ -107,6 +141,48 @@ export default function ClassicFrameFitPage() {
   // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 하나를 빌려 준다. 페이지를 떠나면 놓는다.
   const [sharedSkin] = useState(() => createSharedSkin(loadClassicSkin));
   useEffect(() => () => sharedSkin.close(), [sharedSkin]);
+  const [motionAssets, setMotionAssets] = useState<MotionAssetsState>({ status: 'loading' });
+  const [motionEnabled, setMotionEnabled] = useState(true);
+  const [motionLayers, setMotionLayers] = useState<FrameMotionLayerVisibility>(ALL_FRAME_MOTION_LAYERS_ON);
+  const reducedMotion = usePrefersReducedMotion();
+  // 움직임 시계는 곡 시간·차트 되감기·렌더러 재생성과 무관한 벽시계다. 처음부터 재생은 시작 시각만 바꾼다.
+  const motionClock = useRef({ startMs: 0 });
+  useEffect(() => { motionClock.current.startMs = performance.now(); }, []);
+  const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
+  const [frameStats, setFrameStats] = useState<Record<'on' | 'off', FrameTimeSummary | null>>({ on: null, off: null });
+  const stageRef = useRef<HTMLElement>(null);
+  const motionTimeRef = useRef<HTMLOutputElement>(null);
+  const motionSettings = useMemo<MotionSettings>(
+    () => ({ enabled: motionEnabled, layers: motionLayers, reduced: reducedMotion }),
+    [motionEnabled, motionLayers, reducedMotion],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    loadFrameMotionAssets((path) => withLabPublicBase(path)).then(
+      (loaded) => { if (!cancelled) setMotionAssets({ status: 'ready', assets: loaded }); },
+      (error: unknown) => {
+        if (!cancelled) setMotionAssets({ status: 'error', message: error instanceof Error ? error.message : '움직임 자료를 불러오지 못했습니다.' });
+      },
+    );
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setFrameStats({ on: frameWindows.on.summary(), off: frameWindows.off.summary() }), FRAME_STATS_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [frameWindows]);
+
+  // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 시계 표시만 바꾼다.
+  const handleMotionTime = useCallback((timeMs: number | null) => {
+    const stageElement = stageRef.current;
+    if (stageElement) {
+      if (timeMs === null) delete stageElement.dataset.motionTimeMs;
+      else stageElement.dataset.motionTimeMs = String(Math.round(timeMs));
+    }
+    if (motionTimeRef.current) motionTimeRef.current.textContent = timeMs === null ? '멈춤' : `${(timeMs / 1000).toFixed(1)}초`;
+  }, []);
+  const restartMotion = () => { motionClock.current.startMs = performance.now(); };
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +240,16 @@ export default function ClassicFrameFitPage() {
   const handleRendererState = useCallback((state: RendererState) => setRendererState(state), []);
   const handleRendererView = useCallback((next: RendererView) => setRendererView(next), []);
   const liveView = rendererView?.key === rendererKey ? rendererView : null;
+  const motionSupported = supportsFrameMotion(mode);
+  const motionState = reducedMotion ? 'reduced' : motionEnabled && motionSupported && motionAssets.status !== 'error' ? 'on' : 'off';
+  const motionReady = rendererState.status === 'ready' && rendererState.motionAttached;
+  const loadedMotion = motionAssets.status === 'ready' ? motionAssets.assets : null;
+
+  // 렌더러나 방식이 바뀌면 다른 장면이므로 프레임 간격 통계를 새로 모은다(표시는 다음 통계 갱신 때 바뀐다).
+  useEffect(() => {
+    frameWindows.on.clear();
+    frameWindows.off.clear();
+  }, [frameWindows, rendererKey, mode]);
 
   const backing = ready
     ? { width: rendererState.backingWidth, height: rendererState.backingHeight }
@@ -223,12 +309,14 @@ export default function ClassicFrameFitPage() {
         <h1>Classic Frame Fit</h1>
         <p className="frame-fit-lede">
           승인된 새 Classic 프레임 그림(1024×1536)을 실제 게임 화면(높이 600, 레인 400, 판정선 y 440)에 얹어 봅니다.
-          비행 배경과 노트는 실제 게임 렌더러가 그리고, 프레임은 기어 자리에 정지 그림으로만 놓입니다.
+          비행 배경과 노트는 실제 게임 렌더러가 그리고, 프레임은 기어 자리에 놓입니다. 레인 폭 맞춤·가로세로 같이 줄이기에서는
+          승인된 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)을 Pixi 레이어로 얹고, 아래에서 승인 SVG와 나란히 비교합니다.
         </p>
       </header>
 
       <div className="frame-fit-workbench">
         <section
+          ref={stageRef}
           className="frame-fit-stage"
           aria-label="실제 게임 화면 미리보기"
           data-frame-fit-stage="true"
@@ -250,9 +338,17 @@ export default function ClassicFrameFitPage() {
           data-frame-x={layout ? (layout.slices[0].x / layout.zoom).toFixed(3) : undefined}
           data-frame-scale={layout ? layout.screenScale.toFixed(6) : undefined}
           data-lane-window={layout && geometry ? laneWindow(layout, geometry) : undefined}
+          data-motion={motionState}
+          data-motion-ready={motionReady ? 'true' : 'false'}
+          data-motion-armor={motionLayers.armor ? 'on' : 'off'}
+          data-motion-gauge={motionLayers.gauge ? 'on' : 'off'}
+          data-motion-accent={motionLayers.accent ? 'on' : 'off'}
+          data-motion-bar={motionLayers.bar ? 'on' : 'off'}
+          data-frame-time-on={formatFrameStatsAttribute(frameStats.on)}
+          data-frame-time-off={formatFrameStatsAttribute(frameStats.off)}
         >
           <div className="frame-fit-viewport" ref={viewportRef} data-view={view}>
-            {assets.status === 'ready' ? (
+            {assets.status === 'ready' && motionAssets.status !== 'loading' ? (
               <FrameFitRenderer
                 key={rendererKey}
                 rendererKey={rendererKey}
@@ -265,8 +361,13 @@ export default function ClassicFrameFitPage() {
                 image={assets.image}
                 sharedSkin={sharedSkin}
                 hostStyle={hostStyle}
+                motionAssets={loadedMotion}
+                motionSettings={motionSettings}
+                motionClock={motionClock}
+                frameWindows={frameWindows}
                 onState={handleRendererState}
                 onView={handleRendererView}
+                onMotionTime={handleMotionTime}
               />
             ) : (
               <div className="frame-fit-placeholder" style={hostStyle}>
@@ -352,6 +453,14 @@ export default function ClassicFrameFitPage() {
                 <dt>프레임 텍스처</dt>
                 <dd>{showCurrentGear ? '게임 기어 그대로' : '밉맵 · 삼선형 필터'}</dd>
               </div>
+              <div>
+                <dt>프레임 간격 · 움직임 켬</dt>
+                <dd>{describeFrameStats(frameStats.on)}</dd>
+              </div>
+              <div>
+                <dt>프레임 간격 · 움직임 끔</dt>
+                <dd>{describeFrameStats(frameStats.off)}</dd>
+              </div>
             </dl>
           </div>
         </section>
@@ -407,6 +516,22 @@ export default function ClassicFrameFitPage() {
               </p>
             </div>
           )}
+          <fieldset className="frame-fit-group frame-fit-motion">
+            <legend>움직임</legend>
+            <label className="frame-fit-check frame-fit-check-master">
+              <input type="checkbox" checked={motionEnabled} onChange={(event) => setMotionEnabled(event.currentTarget.checked)} />
+              <span>움직임</span>
+            </label>
+            <FrameMotionLayerChecks
+              value={motionLayers}
+              onChange={(layer, visible) => setMotionLayers((current) => ({ ...current, [layer]: visible }))}
+            />
+            <div className="frame-fit-actions">
+              <button type="button" className="frame-fit-button" onClick={restartMotion}>처음부터 재생</button>
+              <p className="frame-fit-note">움직임 시계 <output ref={motionTimeRef} data-motion-clock="true">멈춤</output></p>
+            </div>
+            <p className="frame-fit-note">{motionNote(motionAssets, motionSupported, reducedMotion)}</p>
+          </fieldset>
           <RadioGroup
             legend="렌더 높이"
             name="frame-fit-render-height"
@@ -427,8 +552,40 @@ export default function ClassicFrameFitPage() {
           </p>
         </aside>
       </div>
+
+      <ClassicFrameMotionCompare assets={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
     </main>
   );
+}
+
+function motionNote(state: MotionAssetsState, supported: boolean, reduced: boolean): string {
+  if (state.status === 'error') return `움직임 자료를 불러오지 못했습니다: ${state.message}`;
+  if (reduced) return '움직임 줄이기 설정이 켜져 있어 승인 SVG처럼 움직임 레이어를 모두 숨기고 멈췄습니다.';
+  if (!supported) return '움직임은 프레임을 한 장으로 그리는 레인 폭 맞춤·가로세로 같이 줄이기에서만 얹습니다.';
+  return '승인된 애니메이션 SVG를 텍스처·마스크로 구운 Pixi 레이어입니다. 곡 시간과 무관한 벽시계로 계속 움직입니다.';
+}
+
+function describeFrameStats(summary: FrameTimeSummary | null): string {
+  if (!summary) return '측정 전';
+  return `평균 ${summary.averageMs.toFixed(1)}ms · p95 ${summary.p95Ms.toFixed(1)}ms (${summary.count}프레임)`;
+}
+
+function formatFrameStatsAttribute(summary: FrameTimeSummary | null): string | undefined {
+  return summary ? `${summary.averageMs.toFixed(2)}/${summary.p95Ms.toFixed(2)}` : undefined;
+}
+
+function usePrefersReducedMotion(): boolean {
+  const query = '(prefers-reduced-motion: reduce)';
+  const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const list = window.matchMedia(query);
+    const update = () => setReduced(list.matches);
+    update();
+    list.addEventListener('change', update);
+    return () => list.removeEventListener('change', update);
+  }, []);
+  return reduced;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -484,42 +641,18 @@ function useDevicePixelRatio(): number {
   return ratio;
 }
 
-function RadioGroup<T extends string | number>({ legend, name, value, options, onChange }: {
-  legend: string;
-  name: string;
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <fieldset className="frame-fit-group">
-      <legend>{legend}</legend>
-      <div className="frame-fit-options">
-        {options.map((option) => (
-          <label className="frame-fit-option" key={option.value}>
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={option.value === value}
-              onChange={() => onChange(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
 /**
  * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·현재 기어·uniform·줌) 캔버스째 새로 만든다.
  * 비행 배경 DOM은 캔버스 앞 형제로 들어가므로, 캔버스 크기와 같은 위치 지정 래퍼에 캔버스만 둔다.
  * 줌(가로세로 같이 줄이기)은 렌더러 논리 크기·판정선 오프셋·스크롤 속도를 키우고 해상도를 같은 비율로 낮춰
  * 같은 캔버스에 게임 화면 전체를 작게 그린다. uniform은 게임 마스크·버튼을 끄고(hideGameMask) 오버레이가 덱부터 덮는다.
  * 노트는 정해 둔 데모 판정(buildFrameFitSchedule)대로 맞히거나 놓친 것처럼 표시한다.
+ * 움직임 자료가 있으면 새 프레임 오버레이에 움직임 레이어를 붙이고, 한 장 배치(crop·uniform)에서 벽시계로 갱신한다.
  */
-function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, lift, layout, image, sharedSkin, hostStyle, onState, onView }: {
+function FrameFitRenderer({
+  rendererKey, scenario, showCurrentGear, zoom, hideGameMask, lift, layout, image, sharedSkin, hostStyle,
+  motionAssets, motionSettings, motionClock, frameWindows, onState, onView, onMotionTime,
+}: {
   rendererKey: string;
   scenario: Scenario;
   showCurrentGear: boolean;
@@ -532,23 +665,38 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
   /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
   sharedSkin: SharedSkin<SkinManager>;
   hostStyle: CSSProperties;
+  /** 렌더러를 만들 때 읽는다. null이면(못 읽음) 움직임 없이 프레임만 얹는다. */
+  motionAssets: FrameMotionAssets | null;
+  motionSettings: MotionSettings;
+  /** 움직임 시계의 시작 시각(performance.now 기준). 처음부터 재생이 바꾸므로 프레임마다 읽는다. */
+  motionClock: RefObject<{ startMs: number }>;
+  frameWindows: FrameWindows;
   onState: (state: RendererState) => void;
   onView: (view: RendererView) => void;
+  /** 움직임을 그린 프레임마다 움직임 시계(ms), 그리지 않게 되면 null. */
+  onMotionTime: (timeMs: number | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<FrameFitOverlay | null>(null);
-  // 판정선 높이 effect가 쓰는 살아 있는 렌더러와, 판정선 y·게임 마스크를 다시 걸고 읽어 알리는 함수.
-  const liveRef = useRef<{ renderer: GameRenderer; applyLift: (lift: number) => void } | null>(null);
+  // 판정선 높이·움직임 설정 effect가 쓰는 살아 있는 렌더러와, 판정선 y·게임 마스크를 다시 걸고 읽어 알리는 함수.
+  const liveRef = useRef<{ renderer: GameRenderer; applyLift: (lift: number) => void; applyMotion: (settings: MotionSettings) => void } | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const liftRef = useRef(lift);
   liftRef.current = lift;
-  const options = useRef({ rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, sharedSkin, onState, onView });
+  const motionSettingsRef = useRef(motionSettings);
+  motionSettingsRef.current = motionSettings;
+  const options = useRef({
+    rendererKey, scenario, showCurrentGear, zoom, hideGameMask, image, sharedSkin, motionAssets, motionClock, frameWindows, onState, onView, onMotionTime,
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { rendererKey: key, scenario: label, showCurrentGear: withGear, zoom: view, hideGameMask: hideMask, image: frameImage, sharedSkin: skins, onState, onView: reportView } = options.current;
+    const {
+      rendererKey: key, scenario: label, showCurrentGear: withGear, zoom: view, hideGameMask: hideMask, image: frameImage, sharedSkin: skins,
+      motionAssets: motionSource, motionClock: clock, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime,
+    } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
     let starting = true;
@@ -556,10 +704,21 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
     let renderer: GameRenderer | null = null;
     let skinAcquired = false;
     let overlay: FrameFitOverlay | null = null;
+    let motion: ClassicFrameMotion | null = null;
+    let motionTextures: { destroy: () => void } | null = null;
+    // 이 렌더러가 움직임 시계를 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
+    let reportedMotion = false;
 
     // removeView: 정상 정리(키 변경·언마운트)는 캔버스까지 치우고, 오류일 때는 React가 소유한 캔버스를 남긴다.
     const release = (removeView = true) => {
       cancelAnimationFrame(frame);
+      if (reportedMotion) reportMotionTime(null);
+      reportedMotion = false;
+      // 움직임 컨테이너와 텍스처는 오버레이가 아니라 여기서 만든 쪽이 정리한다.
+      motion?.destroy();
+      motion = null;
+      motionTextures?.destroy();
+      motionTextures = null;
       overlay?.destroy();
       overlay = null;
       overlayRef.current = null;
@@ -575,10 +734,15 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
       try {
         const [
           { GameRenderer },
-          { createFrameFitSource, FrameFitOverlay, getGearFrameLayer, getGearFrameSprite, isGameLaneMaskVisible, readJudgmentLineY, setGameLaneMaskVisible },
+          {
+            createFrameFitSource, FRAME_FIT_TEXTURE_OPTIONS, FrameFitOverlay, getGearFrameLayer, getGearFrameSprite, isGameLaneMaskVisible,
+            readJudgmentLineY, setGameLaneMaskVisible,
+          },
+          { createClassicFrameMotion, createFrameMotionTextures },
         ] = await Promise.all([
           import('../game/renderer'),
           import('./classicFrameFitOverlay'),
+          import('./classicFrameMotion'),
         ]);
         // 콤보·정확도 Pixi 텍스트는 만들 때 글꼴을 재므로 게임 글꼴을 먼저 받아 둔다(실패해도 진행).
         await loadGameFonts();
@@ -628,21 +792,49 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
           publishView();
         };
         applyLift(liftRef.current);
-        liveRef.current = { renderer: active, applyLift };
 
         if (!withGear) {
           overlay = new FrameFitOverlay(getGearFrameLayer(renderer), createFrameFitSource(frameImage));
           overlay.apply(layoutRef.current);
           overlayRef.current = overlay;
+          if (motionSource) {
+            // 움직임 텍스처도 새 프레임과 같은 밉맵·삼선형 설정으로 만들어 줄여 그려도 바탕과 같은 선명도로 보이게 한다.
+            const created = createFrameMotionTextures(motionSource.images, FRAME_FIT_TEXTURE_OPTIONS);
+            motionTextures = created;
+            motion = createClassicFrameMotion(motionSource.data, created.textures);
+            overlay.attachMotion(motion.container);
+          }
         }
+        const applyMotion = (settings: MotionSettings) => {
+          if (!motion || !overlay) return;
+          for (const layer of FRAME_MOTION_LAYERS) motion.setLayerVisible(layer, settings.layers[layer]);
+          motion.setReducedMotion(settings.reduced);
+          overlay.setMotionEnabled(settings.enabled);
+        };
+        applyMotion(motionSettingsRef.current);
+        liveRef.current = { renderer: active, applyLift, applyMotion };
         const gear = withGear ? getGearFrameSprite(renderer) : null;
 
         let startNow = performance.now();
         let previousNow = startNow;
         const beams = [false, false, false, false];
         const tick = (now: number) => {
-          const deltaMs = Math.min(48, Math.max(0, now - previousNow));
+          const frameDelta = now - previousNow;
+          const deltaMs = Math.min(48, Math.max(0, frameDelta));
           previousNow = now;
+          // 움직임은 곡 시간과 무관한 벽시계(처음부터 재생 이후 경과)로 그려 차트를 되감아도 광원이 계속 흐른다.
+          const settings = motionSettingsRef.current;
+          const motionActive = motion !== null && overlay !== null && overlay.motionPlaced && settings.enabled && !settings.reduced;
+          if (frameDelta <= FRAME_DELTA_LIMIT_MS) windows[motionActive ? 'on' : 'off'].push(frameDelta);
+          if (motionActive && motion) {
+            const motionMs = now - clock.current.startMs;
+            motion.update(motionMs);
+            reportMotionTime(motionMs);
+            reportedMotion = true;
+          } else if (reportedMotion) {
+            reportMotionTime(null);
+            reportedMotion = false;
+          }
           let songMs = Math.max(0, now - startNow);
           if (songMs >= demo.durationMs) {
             startNow = now;
@@ -701,6 +893,7 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
           backingHeight: canvas.height,
           gearTop: gear ? gear.y : null,
           gearScale: gear ? gear.scale.x : null,
+          motionAttached: motion !== null,
         });
         frame = requestAnimationFrame(loop);
       } catch (error) {
@@ -728,6 +921,11 @@ function FrameFitRenderer({ rendererKey, scenario, showCurrentGear, zoom, hideGa
   useEffect(() => {
     liveRef.current?.applyLift(lift);
   }, [lift]);
+
+  // 움직임 켜기·요소·움직임 줄이기는 렌더러를 다시 만들지 않고 살아 있는 움직임 레이어에 건다.
+  useEffect(() => {
+    liveRef.current?.applyMotion(motionSettings);
+  }, [motionSettings]);
 
   return (
     <div className="frame-fit-canvas-host" style={hostStyle}>

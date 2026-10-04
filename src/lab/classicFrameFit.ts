@@ -12,6 +12,16 @@ export const FRAME_FIT_MODES = ['crop', 'cut', 'squash', 'uniform', 'current'] a
 export type FrameFitMode = (typeof FRAME_FIT_MODES)[number];
 export type NewFrameFitMode = Exclude<FrameFitMode, 'current'>;
 
+/**
+ * 움직임 레이어(광원·게이지·발광선·하단 바)를 얹는 방식. 프레임을 한 장·한 변환으로 그리는 방식에서만
+ * 움직임이 프레임 그림 좌표를 그대로 따른다. cut·squash는 두 조각이라 얹지 않는다.
+ */
+export const FRAME_MOTION_FIT_MODES = ['crop', 'uniform'] as const satisfies readonly NewFrameFitMode[];
+
+export function supportsFrameMotion(mode: FrameFitMode): boolean {
+  return (FRAME_MOTION_FIT_MODES as readonly FrameFitMode[]).includes(mode);
+}
+
 export const FRAME_FIT_MODE_LABELS: Record<FrameFitMode, string> = {
   crop: '레인 폭 맞춤 (위 잘림)',
   cut: '기둥 잘라 줄이기',

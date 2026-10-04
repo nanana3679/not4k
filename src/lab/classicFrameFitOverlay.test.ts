@@ -221,6 +221,83 @@ describe('FrameFitOverlay', () => {
   });
 });
 
+describe('FrameFitOverlay 움직임 레이어', () => {
+  const motionHolderOf = (layer: Container) => (layer.children[0] as Container).children.find((child) => child.label === 'classic-frame-fit-motion');
+
+  it('crop 레이아웃에 움직임 컨테이너를 붙이면 프레임 스프라이트 위(마지막 자식)에 프레임 스프라이트와 같은 위치·배율로 놓인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    const layout = layoutFor('crop');
+    overlay.apply(layout);
+    const motion = new Container();
+    overlay.attachMotion(motion);
+
+    const children = (layer.children[0] as Container).children;
+    const holder = motionHolderOf(layer)!;
+    expect(children[children.length - 1]).toBe(holder);
+    expect(holder.children).toEqual([motion]);
+    const [slice] = layout.slices;
+    expect([holder.x, holder.y, holder.scale.x, holder.scale.y]).toEqual([slice.x, slice.y, slice.scaleX, slice.scaleY]);
+    expect(holder.visible).toBe(true);
+    expect(overlay.motionPlaced).toBe(true);
+  });
+
+  it('uniform(레인 폭 250)에서는 레인 마스크·프레임 스프라이트 위에 프레임과 같은 렌더러 단위 배율(400 ÷ 552 = 0.7246)로 놓인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.attachMotion(new Container());
+    const layout = uniform250();
+    overlay.apply(layout);
+
+    const children = (layer.children[0] as Container).children;
+    expect(children[0]).toBeInstanceOf(Graphics);
+    expect(children[children.length - 1]).toBe(motionHolderOf(layer));
+    expect(motionHolderOf(layer)!.scale.x).toBeCloseTo(layout.slices[0].scaleX, 12);
+    expect(layout.slices[0].scaleX).toBeCloseTo(400 / 552, 4);
+  });
+
+  it('cut·squash(조각 2장)에서는 움직임을 숨기고 motionPlaced가 false, crop으로 돌아와 새 스프라이트가 생겨도 움직임이 맨 위에서 다시 보인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.attachMotion(new Container());
+    overlay.apply(layoutFor('cut'));
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+    expect(overlay.motionPlaced).toBe(false);
+    overlay.apply(layoutFor('squash'));
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+
+    overlay.apply(layoutFor('crop'));
+    const children = (layer.children[0] as Container).children;
+    expect(children[children.length - 1]).toBe(motionHolderOf(layer));
+    expect(motionHolderOf(layer)!.visible).toBe(true);
+    expect(overlay.motionPlaced).toBe(true);
+  });
+
+  it('setMotionEnabled(false)면 crop에서도 움직임을 숨기고 true면 다시 보인다', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.apply(layoutFor('crop'));
+    overlay.attachMotion(new Container());
+    overlay.setMotionEnabled(false);
+    expect(motionHolderOf(layer)!.visible).toBe(false);
+    overlay.setMotionEnabled(true);
+    expect(motionHolderOf(layer)!.visible).toBe(true);
+  });
+
+  it('destroy는 붙인 움직임 컨테이너를 떼기만 하고 파괴하지 않는다(움직임 정리는 호출자 몫)', () => {
+    const layer = new Container();
+    const overlay = new FrameFitOverlay(layer, createSource());
+    overlay.apply(layoutFor('crop'));
+    const motion = new Container();
+    overlay.attachMotion(motion);
+    overlay.destroy();
+
+    expect(layer.children).toHaveLength(0);
+    expect(motion.destroyed).toBe(false);
+    expect(motion.parent).toBeNull();
+  });
+});
+
 describe('새 프레임 텍스처 소스', () => {
   it('밉맵 자동 생성을 켜고 확대·축소·밉맵 사이 필터를 모두 선형(삼선형)으로, 이방성 필터 8로 둔다', () => {
     const source = new TextureSource({ width: 1024, height: 1536, ...FRAME_FIT_TEXTURE_OPTIONS });
