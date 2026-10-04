@@ -2,7 +2,7 @@
 
 2026-09-14. 확정된 포인트 노트, 롱노트 바디, 터미널, 키봄을 Lab의 **실제 튜토리얼 재생기**에서 시연하는 작업 공간이다.
 
-구현 경로는 `/lab/note-assets`이며 공통 Lab 카탈로그의 `Rendering` 분류에서 연다. 앱에서는 `import.meta.env.DEV` 라우트 아래에서 로드하고, 별도 공개 Lab 빌드에서도 제공한다. SVG 시연 자료는 `public/lab/note-assets/`에 두며 메인 앱 프로덕션 빌드에서는 기존 `excludeLabFromBuildPlugin`이 `dist/lab` 전체를 제거한다. Classic 런타임 PNG는 `public/skins/classic/`에서 Lab과 실제 플레이가 함께 읽으며 프로덕션 빌드에도 포함한다. Lab SVG와 런타임 PNG의 URL은 배포 base에 맞춰 계산한다. 게임의 `Settings → Skin → Classic`에서 선택하고 저장할 수 있다. 기본 스킨은 Crystal이다.
+구현 경로는 `/lab/note-assets`이며 공통 Lab 카탈로그의 `Rendering` 분류에서 연다. 앱에서는 `import.meta.env.DEV` 라우트 아래에서 로드하고, 별도 공개 Lab 빌드에서도 제공한다. SVG 시연 자료는 `public/lab/note-assets/`에 두며 메인 앱 프로덕션 빌드에서는 기존 `excludeLabFromBuildPlugin`이 `dist/lab` 전체를 제거한다. Classic 런타임 PNG는 `public/skins/classic/`에서 Lab과 실제 플레이가 함께 읽으며 프로덕션 빌드에도 포함한다. Lab SVG와 런타임 PNG의 URL은 배포 base에 맞춰 계산한다. 게임의 `Settings → Skin → Classic`에서 선택하고 저장할 수 있다. 기본 스킨은 Classic이다.
 
 공통 `/lab` 목록에서 **노트 에셋 시연실**을 누르면 Classic 시안으로 들어간다. 시연실 상단의 **← Lab 목록**으로 돌아올 수 있다. 목록은 다른 Lab 테스트 페이지도 함께 안내하며, 휴대폰에서도 사용할 수 있다.
 
@@ -77,7 +77,7 @@ Simple은 기존16프레임 봄을 Pixi에서 재생한다. 랙에도 같은 프
 
 ## 에셋 랙
 
-Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상태11개, 공통 키봄6개를 표시한다. 트릴은 대기·켜짐·실패를 표시하며 별도 Grace 도안은 나열하지 않는다. Simple도 세 종류의 상태 키에 해당하는 런타임 PNG와 기본 봄을 표시하고, 별도 Grace 소스가 없는 터미널은 대기·켜짐·실패만 나열한다.
+Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상태11개, 공통 키봄6개를 표시한다. 트릴은 대기·켜짐·실패를 표시하며 별도 Grace 도안은 나열하지 않는다. Simple은 에디터와 같은 노트 외형의 런타임 PNG와 기본 봄을 표시한다. 바디·터미널은 대기·실패만 나열하며 켜짐·중앙광 항목은 없다.
 
 ## 제작 및 교체
 
@@ -89,7 +89,9 @@ Classic은 트릴을 포함한 포인트3개, 바디 상태10개, 터미널 상�
 - `/assets-lab/classic/terminal-preview.html`은 현재 선택 타일의 싱글·더블 시작/끝 조립, 100px 실제 크기, 길이 0과 PNG가 내장된 독립 SVG 4개 다운로드를 제공한다. 이전 벡터 터미널 제작 이력은 `assets-lab/classic/README.md`를 따른다.
 - `node scripts/build-skins.ts --skin=simple`: 이름을 옮긴 기존 `assets-lab/simple/`에서 Simple PNG를 생성한다. 다른 스킨의 에셋을 다시 생성하지 않는다.
 - Simple은 켜짐 효과가 없는 스킨이다(테마 `heldEffect: false`, [RFD 0028](../rfd/0028-skin-held-effect.md)). `assets-lab/simple/components.jsx`의 `HELD_EFFECT = false`에 따라 `assets-lab/export.jsx`가 켜짐 요소를 그리지 않으므로 켜짐 PNG를 만들지 않는다. 유지 중에도 대기 바디·터미널을 그리고, 더블 부분 실패와 실패는 표시한다. 시연실 랙에는 켜짐·중앙광 항목이 없다. 두 선언이 어긋나면 `assets-lab/svgSkinHeldEffect.test.ts`가 실패한다.
-- Simple 트릴 끝 터미널은 에디터와 같은 납작한 회색 마름모(`#888888`, 실패 `#555555`, 불투명도 70%)다. 싱글·더블 롱노트는 반쪽 캡 스킨에서 터미널 윗부분 절반만 그리지만, 트릴 롱 끝은 스킨 방식과 관계없이 터미널 이미지 전체(100×20)를 그리므로 마름모 전체가 보인다.
+- Simple은 에디터 `NoteRenderer`의 선택되지 않은 기본 노트 외형을 기준으로 한다. 싱글·더블은 모서리를 둥글리지 않은 100×20 직사각형(`#4488ff`·`#ffcc00`), 트릴 포인트는 흰 마름모다. 바디 중앙은 싱글 `#88bbff`·더블 `#ffee88`·트릴 `#aaaaaa`이고, 에디터와 같이 양 가장자리를 70% 밝힌 가로 그라데이션을 쓴다. 트릴도 유지 여부에 따라 밝기를 바꾸지 않는다.
+- Simple의 `longNoteTerminalMode: "editor"`는 싱글·더블 시작 파츠에 해당 상태의 불투명 바디 텍스처를, 끝 파츠에 같은 외형의 불투명도 50% 터미널 전체(100×20)를 쓴다. 반투명 끝을 바디가 덮지 않도록 바디는 파츠 사이만 채운다. 게임의 판정선 고정·시작 후 시작 파츠 숨김을 적용하며, 시작 전 두 파츠가 겹치는 짧은 롱노트와 길이 0은 시작 파츠 하나만 표시한다. 부분 실패는 정상 반쪽의 대기색을 유지하고 실패 반쪽만 `#555555`로 바꾼다.
+- Simple 트릴 끝 터미널은 에디터와 같은 불투명 회색 마름모(`#888888`, 실패 `#555555`)다. 터미널 이미지 전체(100×20)를 그리며, 짧아서 양 끝 사이 공간이 없는 트릴 롱노트는 에디터처럼 바디를 생략한다. 에디터의 선택·호버·편집 핸들은 게임 스킨에 포함하지 않는다. Grace·`holdOnly`는 기존 게임의 흰 글로우로 구분하고, 키봄·버튼·기어는 기존 Simple 에셋을 사용한다.
 - 포인트의 사선 반사는 포함하지 않는다. 현재 승인된 부드러운 유광과 윗면 모서리 반사를 유지한다.
 - 스킨이 테마 `pointContactShadow { above, below }`와 에셋 `pointContactShadow`를 함께 선언하면, `GameNoteRenderer`는 싱글·더블 포인트 위아래 바디에 바디 폭 접촉 그림자를 그린다. 텍스처는 윗행이 가장 짙은 세로 그라디언트이며 아래는 그대로, 위는 세로로 뒤집어 포인트 경계에 짙은 행이 닿게 한다. 그림자는 바디 위, 포인트 아래 층에 놓인다. 이 경우 싱글·더블의 기존 `pointShadow`는 그리지 않는다. 트릴은 에셋 `pointContactShadowTrill`이 함께 있을 때 포인트 폭 × (위 + 포인트 높이 + 아래) 영역에 그 텍스처 하나를 포인트 아래 층에 깔고 기존 마름모 하단 그림자는 그리지 않는다. 텍스처는 스킨이 자기 트릴 모양에 맞춰 그린다. 선언하지 않은 스킨은 기존 하단 그림자를 그대로 쓴다. 테마 `pointContactShadow`는 있는데 이미지 `pointContactShadow`가 없거나, 이미지 `pointContactShadow`·`pointContactShadowTrill` 중 하나라도 있는데 테마 설정이 없으면 개발 환경(`pnpm dev`)의 `SkinManager`가 콘솔에 경고한다. 트릴 이미지 `pointContactShadowTrill`만 없는 경우는 의도한 fallback이라 경고하지 않는다.
 - 스킨은 테마 `heldEffect`로 롱노트 켜짐 효과 유무를 선언한다(생략 시 효과 있음, [RFD 0028](../rfd/0028-skin-held-effect.md)). 효과가 있는 스킨은 켜짐 에셋 `bodySingleHeld`·`bodyDoubleHeld`·`bodyDoublePartialHeldLeft/Right`·`bodyTrillHeld`가 모두 있어야 하며, 하나라도 없으면 `SkinManager`가 빠진 이름을 담은 오류로 로딩을 멈춘다. `heldEffect: false`인 스킨은 이 에셋을 만들거나 불러오지 않고, 유지 중에도 대기 바디·터미널을 그린다. 부분 실패·실패 에셋은 효과 유무와 관계없이 필요하다. 시연실 에셋 랙은 효과 없는 스킨의 켜짐·중앙광 항목을 보여 주지 않는다. `heldEffect: false`인 스킨이 켜짐 에셋을 선언하면 불러오지 않는 선언이므로 개발 환경(`pnpm dev`)의 `SkinManager`가 콘솔에 경고한다.

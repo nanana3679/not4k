@@ -318,7 +318,8 @@ export class GameNoteRenderer {
     const theme = this.skinManager.getTheme();
     // 켜짐 효과가 없는 스킨(RFD 0028)은 유지 중에도 대기 바디·터미널을 그린다. 실패·부분 실패는 그대로 표시한다.
     const heldEffect = theme.heldEffect !== false;
-    const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
+    const editorTerminal = theme.longNoteTerminalMode === "editor";
+    const fullHeightTerminal = theme.longNoteTerminalMode === "full-height" || editorTerminal;
     const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
     const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
     const terminalFrameOverhang = fullHeightTerminal
@@ -350,7 +351,7 @@ export class GameNoteRenderer {
       const TRILL_BODY_END_INSET = 10;
       const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
       const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
-      if (insetBodyHeight > 0) {
+      if (insetBodyHeight > (editorTerminal ? NOTE_HEIGHT : 0)) {
         const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
         bodySprite.x = bodyX;
         bodySprite.y = insetBodyY;
@@ -447,14 +448,22 @@ export class GameNoteRenderer {
         }
       }
 
-      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
-      bodySprite.x = bodyX;
-      bodySprite.y = adjustedEndY;
-      bodySprite.width = bodyWidth;
-      bodySprite.height = bodyHeight;
-      bodySprite.tint = 0xffffff;
-      bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
-      this.longNoteBodyLayer.addChild(bodySprite);
+      // 에디터의 끝점은 반투명이다. 바디를 그 밑에 깔면 끝점도 불투명하게 보이므로
+      // 양 끝 20px 파츠 사이만 채운다. 시작 파츠가 사라진 뒤에는 판정선까지 잇는다.
+      const bodyTop = editorTerminal ? adjustedEndY + NOTE_HEIGHT : adjustedEndY;
+      const bodyBottom = editorTerminal && songTimeMs <= startMs
+        ? Math.min(startY, this.judgmentLineY) - NOTE_HEIGHT
+        : startY;
+      if (bodyBottom > bodyTop) {
+        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+        bodySprite.x = bodyX;
+        bodySprite.y = bodyTop;
+        bodySprite.width = bodyWidth;
+        bodySprite.height = bodyBottom - bodyTop;
+        bodySprite.tint = 0xffffff;
+        bodySprite.alpha = (!editorTerminal && isPartial && !isPartialFailed) ? 0.7 : 1;
+        this.longNoteBodyLayer.addChild(bodySprite);
+      }
 
       // 기본 스킨은 terminal의 윗부분을 반쪽 cap으로 사용한다. full-height 스킨은 terminal
       // 전체를 노트 한 칸 높이로 사용하며, 길이 0에서는 시작 terminal 하나만 남긴다.
@@ -503,8 +512,11 @@ export class GameNoteRenderer {
         if (fullHeightTerminal && isZeroLength && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
           this.addGraceGlow(index, this.longNoteHeadLayer, terminalX, Math.min(startY, this.judgmentLineY) - capHeight, terminalWidth, 'terminal');
         }
-        const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey, capTexture);
-        startCap.texture = capTexture;
+        // 에디터의 시작 파츠는 바디와 같은 불투명 그라데이션, 끝 파츠만 반투명이다.
+        const startKey = editorTerminal ? bodyTexKey : endCapTexKey;
+        const startTexture = editorTerminal ? this.skinManager.getTexture(bodyTexKey) : capTexture;
+        const startCap = this.getOrCreateStartCapSprite(index, startKey, startTexture);
+        startCap.texture = startTexture;
         startCap.x = terminalX;
         startCap.y = fullHeightTerminal
           ? Math.min(startY, this.judgmentLineY)
@@ -513,7 +525,7 @@ export class GameNoteRenderer {
         startCap.height = capHeight;
         startCap.scale.y = -Math.abs(startCap.scale.y); // 상하반전 → [startY-capHeight, startY]
         startCap.tint = 0xffffff;
-        startCap.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
+        startCap.alpha = (!editorTerminal && isPartial && !isPartialFailed) ? 0.7 : 1;
         this.longNoteHeadLayer.addChild(startCap);
       }
     }

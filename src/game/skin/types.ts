@@ -18,8 +18,8 @@ export interface SkinTheme {
   bg: number;
   /** 텍스트 색상 */
   text: number;
-  /** 롱노트 양 끝에 terminal 전체 높이를 쓸지 여부. 생략하면 기존 반쪽 cap 방식 */
-  longNoteTerminalMode?: "split-cap" | "full-height";
+  /** editor는 불투명 시작·반투명 끝을 바디와 겹치지 않게 그린다. 생략하면 반쪽 cap 방식. */
+  longNoteTerminalMode?: "split-cap" | "full-height" | "editor";
   /** full-height terminal의 외곽 프레임이 바디 좌우로 더 나오는 논리 픽셀 수 */
   longNoteTerminalFrameOverhangPx?: number;
   /** 반복 바디는 텍스처 비율을 유지해 세로로 타일링한다. */

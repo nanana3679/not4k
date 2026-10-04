@@ -69,7 +69,7 @@ vi.mock("pixi.js", () => {
   return { Container, Graphics, Sprite, NineSliceSprite, TilingSprite, FillGradient, Mesh, MeshGeometry };
 });
 
-import { Container, TilingSprite } from "pixi.js";
+import { Container, TilingSprite, type Texture } from "pixi.js";
 import { GameNoteRenderer } from "./GameNoteRenderer";
 import { NOTE_HEIGHT } from "./constants";
 import type { SkinManager } from "../skin";
@@ -749,7 +749,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(skinManager.getHalfCapTexture).not.toHaveBeenCalledWith('terminalDoublePartialFailedLeft');
   });
 
-  it('켜짐 효과가 없는 simple의 더블을 1/2만 유지하면 부분 유지 바디 없이 대기 bodyDouble과 terminalDouble을 그린다', () => {
+  it('Simple의 더블을 1/2만 유지하면 대기 bodyDouble과 전체 높이 terminalDouble을 그린다', () => {
     const skinManager = createMockSkinManager();
     vi.mocked(skinManager.getTheme).mockReturnValue(getSkinManifest('simple').theme);
     const renderer = new GameNoteRenderer(
@@ -766,7 +766,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     renderer.renderLongNote(note, 0, 100, 300, 100);
     expect(skinManager.getTexture).toHaveBeenCalledWith('bodyDouble');
     expect(skinManager.getTexture).not.toHaveBeenCalledWith('bodyDoublePartialHeldLeft');
-    expect(skinManager.getHalfCapTexture).toHaveBeenCalledWith('terminalDouble');
+    expect(skinManager.getTexture).toHaveBeenCalledWith('terminalDouble');
+    expect(skinManager.getHalfCapTexture).not.toHaveBeenCalled();
   });
 
   it("full-height terminal 스킨의 길이 0 롱노트는 20px 시작 terminal 하나만 표시", () => {
@@ -1207,6 +1208,53 @@ describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(�
     // head=tail=300ms, song=250 → 당기면 안 됨. 당기면 하단이 520이 되지만 당기지 않으므로 470.
     renderer.renderLongNote(longEntity(), 0, 300, 300, 250);
     expect(bottomOf(bodyLayer)).toBe(470);
+  });
+});
+
+describe("Simple 에디터 외형", () => {
+  function setup() {
+    const skin = createMockSkinManager();
+    vi.mocked(skin.getTheme).mockReturnValue(getSkinManifest('simple').theme);
+    vi.mocked(skin.getTexture).mockImplementation(key => ({ key }) as unknown as Texture);
+    const body = new Container(), end = new Container(), start = new Container();
+    const renderer = new GameNoteRenderer(body, end, start, new Container(), skin, 500, 1000, 0, 600);
+    const note = { type: 'doubleLong', lane: 1, beat: { n: 0, d: 1 }, endBeat: { n: 1, d: 1 } } as const;
+    return { renderer, skin, body, end, start, note };
+  }
+
+  it('100~300ms 롱노트는 y220~400에만 바디를 채워 20px 반투명 끝과 불투명 시작 파츠에 겹치지 않는다', () => {
+    const { renderer, body, end, start, note } = setup();
+    renderer.renderLongNote(note, 0, 100, 300, 0);
+    expect(childrenOf(body)[0]).toMatchObject({ y: 220, height: 180, alpha: 1 });
+    expect(childrenOf(end)[0]).toMatchObject({ y: 200, height: 20, texture: { key: 'terminalDouble' } });
+    expect(childrenOf(start)[0]).toMatchObject({ y: 420, height: 20, texture: { key: 'bodyDouble' } });
+  });
+
+  it.each([0, 10])('길이 %sms 롱노트가 시작 전이면 바디 없이 불투명 시작 파츠 하나를 표시한다', duration => {
+    const { renderer, body, end, start, note } = setup();
+    renderer.renderLongNote(note, 0, 100, 100 + duration, 0);
+    expect(childrenOf(body)).toHaveLength(0);
+    expect(childrenOf(end)).toHaveLength(0);
+    expect(childrenOf(start)).toHaveLength(1);
+    expect(childrenOf(start)[0]).toMatchObject({ height: 20, texture: { key: 'bodyDouble' } });
+  });
+
+  it('100~300ms 롱노트를 150ms에 유지하면 시작 파츠를 숨기고 바디를 판정선까지 채운다', () => {
+    const { renderer, body, start, note, skin } = setup();
+    renderer.renderLongNote(note, 0, 100, 300, 150);
+    expect(childrenOf(start)).toHaveLength(0);
+    expect(childrenOf(body)[0]).toMatchObject({ y: 370, height: 150 });
+    expect(skin.getTexture).not.toHaveBeenCalledWith('bodyDoubleHeld');
+  });
+
+  it.each([[0, 'Left'], [1, 'Right']] as const)('더블 unit %s 실패 시 시작·바디·끝을 부분 실패 %s로 바꾸고 정상 반쪽은 흐리지 않는다', (failed, side) => {
+    const { renderer, body, end, start, note, skin } = setup();
+    renderer.setJudgmentBodyStateQuery(() => ({ units: [0, 1].map(unitIndex => ({ unitIndex, active: true, failed: unitIndex === failed, complete: false, registeredKeys: ['KeyA'] })) }));
+    renderer.renderLongNote(note, 0, 100, 300, 0);
+    expect(skin.getTexture).toHaveBeenCalledWith(`bodyDoublePartialFailed${side}`);
+    expect(childrenOf(body)[0].alpha).toBe(1);
+    expect(childrenOf(start)[0]).toMatchObject({ alpha: 1, texture: { key: `bodyDoublePartialFailed${side}` } });
+    expect(childrenOf(end)[0].texture).toMatchObject({ key: `terminalDoublePartialFailed${side}` });
   });
 });
 

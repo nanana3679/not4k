@@ -1,6 +1,6 @@
 /**
- * Simple skin — 원본 Graphics 렌더링을 SVG로 재현
- * 단색 직사각형 노트, 그래디언트 바디, 심플 원형 버튼
+ * Simple skin — 에디터 NoteRenderer의 기본 노트 외형을 SVG로 재현
+ * 각진 단색 포인트, 가로 그라데이션 바디, 반투명 끝 터미널
  */
 import P from "./palette.js";
 import { CW, CH } from "../shared/constants.js";
@@ -14,15 +14,14 @@ export const HELD_EFFECT = false;
 export function NoteContainer({ x, y, type = "single" }) {
   const col = type === "double" ? P.double.bright : P.single.bright;
   return (
-    <rect x={x} y={y} width={CW} height={CH} fill={col} rx={2} />
+    <rect x={x} y={y} width={CW} height={CH} fill={col} />
   );
 }
 
 /* ── 바디 세그먼트 ── */
-export function BodySegment({ x, y, height, type = "single", held = false }) {
-  const baseCol = type === "double" ? P.double.body : P.single.body;
-  const col = held ? (type === "double" ? P.double.bright : P.single.bright) : baseCol;
-  const gradId = `simple_body_${type}_${held ? "h" : "r"}_${x}_${y}`;
+function GradientBody({ x, y, height, color, id }) {
+  const col = color;
+  const gradId = `simple_body_${id}_${x}_${y}_${height}`;
 
   // 원본과 동일한 좌우 밝은 그래디언트
   const r = parseInt(col.slice(1, 3), 16);
@@ -46,35 +45,31 @@ export function BodySegment({ x, y, height, type = "single", held = false }) {
   );
 }
 
+export function BodySegment({ x, y, height, type = "single" }) {
+  return <GradientBody x={x} y={y} height={height} color={type === "double" ? P.double.body : P.single.body} id={type} />;
+}
+
 /* ── 터미널 캡 ── */
 export function TerminalCap({ x, y, type = "single" }) {
-  const col = type === "double" ? P.double.body : P.single.body;
-  return (
-    <rect x={x} y={y} width={CW} height={CH} fill={col} opacity={0.7} rx={2} />
-  );
+  return <g opacity={0.5}><BodySegment x={x} y={y} height={CH} type={type} /></g>;
 }
 
 /* 실패·부분 충족도 같은 단색 면을 사용한다. */
 export function FailedNoteContainer({ x, y }) {
-  return <rect x={x} y={y} width={CW} height={CH} fill="#555555" rx={2} />;
+  return <rect x={x} y={y} width={CW} height={CH} fill="#555555" />;
 }
 export function FailedBody({ x, y, height }) {
   return <rect x={x} y={y} width={CW} height={height} fill="#555555" />;
 }
 export function FailedTerminalCap({ x, y }) {
-  return <rect x={x} y={y} width={CW} height={CH} fill="#555555" opacity={.7} rx={2} />;
+  return <g opacity={0.5}><FailedBody x={x} y={y} height={CH} /></g>;
 }
 export function PartialFailedBody({ x, y, height, failedSide }) {
-  return <g><BodySegment x={x} y={y} height={height} type="double" held />
+  return <g><BodySegment x={x} y={y} height={height} type="double" />
     <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={height} fill="#555555" /></g>;
 }
-export function PartialHeldBody({ x, y, height, waitingSide }) {
-  return <g><BodySegment x={x} y={y} height={height} type="double" held />
-    <rect x={x + (waitingSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={height} fill={P.double.body} /></g>;
-}
 export function PartialFailedTerminalCap({ x, y, failedSide }) {
-  return <g><TerminalCap x={x} y={y} type="double" />
-    <rect x={x + (failedSide === 'right' ? CW / 2 : 0)} y={y} width={CW / 2} height={CH} fill="#555555" /></g>;
+  return <g opacity={0.5}><PartialFailedBody x={x} y={y} height={CH} failedSide={failedSide} /></g>;
 }
 export function PartialFailedNoteContainer({ x, y, failedSide }) {
   return <g><NoteContainer x={x} y={y} type="double" />
@@ -129,43 +124,15 @@ export function TrillNoteContainer({ x, y }) {
   );
 }
 
-export function TrillBodySegment({ x, y, height, held = false }) {
-  const gradId = `simple_trill_body_${held ? "h" : "r"}_${x}_${y}`;
-  return (
-    <g>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
-          {held ? (
-            // held: 에디터 룩(getBodyGradient(#aaaaaa)) — 가장자리 #e6e6e6 → 중앙 #aaaaaa. off보다 밝다.
-            <>
-              <stop offset="0%" stopColor="#e6e6e6" />
-              <stop offset="25%" stopColor="#c8c8c8" />
-              <stop offset="50%" stopColor="#aaaaaa" />
-              <stop offset="75%" stopColor="#c8c8c8" />
-              <stop offset="100%" stopColor="#e6e6e6" />
-            </>
-          ) : (
-            // off: 눌리기 전 어두운 회색(중앙 #575757). held(#aaaaaa)와 밝기로 대비.
-            <>
-              <stop offset="0%" stopColor="#cdcdcd" />
-              <stop offset="25%" stopColor="#929292" />
-              <stop offset="50%" stopColor="#575757" />
-              <stop offset="75%" stopColor="#929292" />
-              <stop offset="100%" stopColor="#cdcdcd" />
-            </>
-          )}
-        </linearGradient>
-      </defs>
-      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
-    </g>
-  );
+export function TrillBodySegment({ x, y, height }) {
+  return <GradientBody x={x} y={y} height={height} color="#aaaaaa" id="trill" />;
 }
 
 /* 트릴 끝 터미널: 에디터와 같은 납작한 회색 마름모. 트릴 롱 끝은 터미널 이미지 전체를 그리므로 마름모 전체가 보인다. */
 export function TrillTerminalCap({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#888888" opacity={0.7} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#888888" />
   );
 }
 
@@ -177,32 +144,13 @@ export function FailedTrillNoteContainer({ x, y }) {
 }
 
 export function FailedTrillBody({ x, y, height }) {
-  const col = "#555555";
-  const r = parseInt(col.slice(1, 3), 16);
-  const g = parseInt(col.slice(3, 5), 16);
-  const b = parseInt(col.slice(5, 7), 16);
-  const lr = Math.round(r + (255 - r) * 0.7);
-  const lg = Math.round(g + (255 - g) * 0.7);
-  const lb = Math.round(b + (255 - b) * 0.7);
-  const gradId = `simple_trill_fbody_${x}_${y}`;
-  return (
-    <g>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0.5" x2="1" y2="0.5">
-          <stop offset="0%" stopColor={`rgb(${lr},${lg},${lb})`} />
-          <stop offset="50%" stopColor={col} />
-          <stop offset="100%" stopColor={`rgb(${lr},${lg},${lb})`} />
-        </linearGradient>
-      </defs>
-      <rect x={x} y={y} width={CW} height={height} fill={`url(#${gradId})`} />
-    </g>
-  );
+  return <GradientBody x={x} y={y} height={height} color="#555555" id="trill_failed" />;
 }
 
 export function FailedTrillTerminalCap({ x, y }) {
   const cx = x + CW / 2, cy = y + CH / 2;
   return (
-    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" opacity={0.7} />
+    <polygon points={`${cx},${y} ${x + CW},${cy} ${cx},${y + CH} ${x},${cy}`} fill="#555555" />
   );
 }
 

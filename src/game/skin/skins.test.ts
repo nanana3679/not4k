@@ -157,7 +157,7 @@ describe("롱노트 캡 에셋", () => {
     expect(crystal.assets.endCapDoubleFailed).toBe("/skins/crystal/end-cap-double-failed.png");
   });
 
-  it("prism·simple은 endCap 경로가 없어 terminal crop으로 fallback함", () => {
+  it("Prism·Simple은 별도 endCap 에셋 경로가 없다", () => {
     for (const id of ["prism", "simple"]) {
       const skin = getSkinManifest(id);
       expect(skin.assets.endCapSingle).toBeUndefined();
@@ -215,6 +215,7 @@ describe("heldEffect 선언 (RFD 0028)", () => {
   it("Simple은 heldEffect: false라 켜짐 에셋 경로가 없고 부분 실패 경로는 남는다", () => {
     const simple = getSkinManifest("simple");
     expect(simple.theme.heldEffect).toBe(false);
+    expect(simple.theme.longNoteTerminalMode).toBe('editor');
     for (const key of ["bodySingleHeld", "bodyDoubleHeld", "bodyDoublePartialHeldLeft", "bodyDoublePartialHeldRight", "bodyTrillHeld"] as const) {
       expect(simple.assets[key], key).toBeUndefined();
     }

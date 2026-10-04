@@ -66,7 +66,7 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
     sourceBase:'/lab/note-assets/classic',
     bombs:KEYBOMB_VARIANTS,
   }),
-  createNoteAssetDesign(getSkinManifest('simple'), {description:'기존 Classic · 단색 노트와 기본 봄'}),
+  createNoteAssetDesign(getSkinManifest('simple'), {description:'에디터와 같은 단색 포인트 · 가로 그라데이션 바디 · 켜짐 효과 없음'}),
 ];
 
 export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {

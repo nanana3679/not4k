@@ -93,10 +93,11 @@ describe("createJudgmentCaseSkin — 게임 그리기 규칙에 필요한 값", 
     expect(skin.cap?.single).toEqual({ key: "endCapSingle", x: 0, y: 0, width: 100, height: 10 });
   });
 
-  it("전용 캡이 없는 Simple은 terminalSingle(100×20) 윗부분 절반 0,0,100,10을 캡으로 자름", () => {
+  it("Simple은 editor 방식으로 terminalSingle(100×20) 전체를 사용하고 반쪽 캡을 만들지 않는다", () => {
     const skin = makeTestSkin("simple");
-    expect(skin.cap?.single).toEqual({ key: "terminalSingle", x: 0, y: 0, width: 100, height: 10 });
-    expect(skin.cap?.double).toEqual({ key: "terminalDouble", x: 0, y: 0, width: 100, height: 10 });
+    expect(skin.terminalMode).toBe("editor");
+    expect(skin.cap).toBeUndefined();
+    expect(skin.terminal.single).toEqual({ key: "terminalSingle", x: 0, y: 0, width: 100, height: 20 });
   });
 
   it("Simple은 Grace overlay·접촉 그림자가 없어 비워 둠(렌더러가 게임 대체 글로우를 그림)", () => {

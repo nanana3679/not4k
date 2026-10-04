@@ -112,6 +112,7 @@ export const SKIN_LIST: SkinManifest[] = [
     available: false,
     // 켜짐 효과가 없는 스킨(RFD 0028). assets-lab/simple/components.jsx의 HELD_EFFECT와 맞춘다.
     heldEffect: false,
+    longNoteTerminalMode: "editor",
     accent: 0x4488ff,
     beamColor: 0xffffff,
     heldLine: 0x4488ff,
