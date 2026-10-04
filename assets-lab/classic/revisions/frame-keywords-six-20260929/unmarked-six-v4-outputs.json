@@ -1,0 +1,50 @@
+{
+  "createdAt": "2026-09-29",
+  "generator": "built-in image_gen",
+  "promptSet": "unmarked-six-v4-prompts.json",
+  "editTarget": "lab/image-galleries/frame-keywords-six-20260929/08-buttons-gauges-v3.png",
+  "outputs": [
+    {
+      "id": "09-slim-interlock-v4",
+      "label": "A",
+      "title": "날렵한 교차형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-33dfbe59-ed30-44f5-9734-644dc56a304b.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/09-slim-interlock-v4.png"
+    },
+    {
+      "id": "10-deep-armor-v4",
+      "label": "B",
+      "title": "두꺼운 장갑형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-5974a097-59dd-46c2-891c-074c6160814b.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/10-deep-armor-v4.png"
+    },
+    {
+      "id": "11-open-joints-v4",
+      "label": "C",
+      "title": "드러난 연결형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-4a16307d-64ee-4e8d-be11-cf46a74b8190.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/11-open-joints-v4.png"
+    },
+    {
+      "id": "12-flowing-shell-v4",
+      "label": "D",
+      "title": "이어진 외피형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-fb7c5e02-e16f-44cf-8132-5c7105419133.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/12-flowing-shell-v4.png"
+    },
+    {
+      "id": "13-angular-deck-v4",
+      "label": "E",
+      "title": "각진 버튼형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-4ec4ea07-a06c-4b3e-863d-7496f099b983.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/13-angular-deck-v4.png"
+    },
+    {
+      "id": "14-recessed-deck-v4",
+      "label": "F",
+      "title": "매립 버튼형",
+      "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-da477f08-d548-4845-9652-91761110cb72.png",
+      "savedPath": "lab/image-galleries/frame-keywords-six-20260929/14-recessed-deck-v4.png"
+    }
+  ]
+}

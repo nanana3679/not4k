@@ -1,0 +1,49 @@
+{
+  "generator": "built-in image_gen",
+  "base": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/22-free-b-v6.png",
+  "buttonReference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/51-white-key-led-v14.png",
+  "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-985082a4-17c5-45ec-b484-95d0351d7d87.png",
+  "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/button-insert-v15.png",
+  "assembly": "assets-lab/classic/revisions/frame-keywords-six-20260929/assemble-frame-v15.mjs",
+  "saved": "lab/image-galleries/frame-keywords-six-20260929/52-restored-frame-v15.svg",
+  "description": "Self-contained SVG with embedded original PNG and generated button-deck PNG; no raster resampling, sharpening or full-frame replacement.",
+  "buttonClip": [
+    [
+      248,
+      1118
+    ],
+    [
+      775,
+      1118
+    ],
+    [
+      820,
+      1204
+    ],
+    [
+      827,
+      1308
+    ],
+    [
+      777,
+      1352
+    ],
+    [
+      244,
+      1352
+    ],
+    [
+      199,
+      1308
+    ],
+    [
+      204,
+      1204
+    ]
+  ],
+  "seamFade": {
+    "topPx": 8,
+    "bottomPx": 6,
+    "scope": "inside button clip only"
+  }
+}

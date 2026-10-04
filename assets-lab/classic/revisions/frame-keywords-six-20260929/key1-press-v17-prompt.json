@@ -1,0 +1,20 @@
+{
+  "status": "prepared, not generated yet",
+  "generator": "built-in image_gen",
+  "input": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+  "inputSource": "Idle layer exported from press-animation.html: v16 with the second key replaced by the mirrored third key and the center gap spill corrected. All four keys are raised and unlit.",
+  "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/white-core-v16-render.png",
+  "referenceSource": "53-white-core-frame-v16.svg rendered at 1024x1536 in Chromium.",
+  "prompt": "Use case: precise-object-edit.\nImage 1 is the EDIT TARGET: the adopted four-key rhythm game frame with ALL FOUR low flat white keys raised and unlit. Image 2 is a STYLE REFERENCE ONLY: the same frame where the SECOND key from the left (approximately x=365..513) is pressed and lit.\nMake exactly one local change in Image 1: press and illuminate the FIRST (leftmost) key module, approximately x=215..372, y=1100..1350 on the 1024x1536 canvas, so it looks like the second key in Image 2 adapted to the first key's own perspective.\nPressed: lower the first keycap by about 6 px, like the pressed second key in Image 2 whose top face sits about 6 px lower than a raised key and shows a shorter front sidewall. Keep the first key's low height, flat non-concave top, rounded-rectangle outline, trapezoidal perspective and horizontal position.\nLight: the large flat top glows BRIGHT NEUTRAL WHITE from inside like a white LED diffuser, with only a subtle pale cyan transition at its outermost edge. Put the pale cyan identity color into the halo around the key, the light leaking under its rim, the soft reflection on the adjacent dark housing, and the white-core cyan flash inside its one wide aperture directly below. Match the brightness and color of the second key in Image 2.\nKeep the second, third and fourth keys raised and unlit white exactly as in Image 1. Keep the frame armor, gold joints, tall cyan side gauges, lane field, lower bumper, background, exposure and camera from Image 1. Do not copy any other part of Image 2. Do not redraw or soften the frame. No starburst, laser ray, flame, plume, added LED dot, labels, text, crop or angle change. Output the same full 1024x1536 portrait composition.",
+  "editRegion": {
+    "x": 215,
+    "y": 1100,
+    "width": 158,
+    "height": 251
+  },
+  "save": {
+    "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/key1-press-insert-v17.png",
+    "record": "assets-lab/classic/revisions/frame-keywords-six-20260929/key1-press-v17-output.json"
+  },
+  "afterGeneration": "Keep the adopted v16 SVG unchanged. Claude masks only the first key module from the insert, uses it as the pressed single light for key 1, mirrors it around x=511.5 for key 4, derives double gold with the existing recolor step and connects D/K in press-animation.html. Pixels outside the key modules are verified against the idle layer."
+}

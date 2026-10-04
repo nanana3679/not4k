@@ -1,0 +1,51 @@
+{
+  "generator": "built-in image_gen",
+  "outputs": [
+    {
+      "id": "a",
+      "title": "A · 포슬린 화이트",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-443648c2-a8fe-4772-80a6-c7c61c42b38a.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/45-flat-keycap-a-v13.png"
+    },
+    {
+      "id": "b",
+      "title": "B · 브러시드 실버",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-da8571ff-3f26-4767-9ce1-831a21907354.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/46-flat-keycap-b-v13.png",
+      "initialSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-aa957a3e-d0d8-4037-bec0-2d8f0c98254a.png",
+      "refined": true
+    },
+    {
+      "id": "c",
+      "title": "C · 더스티 블루",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-4efc3ab0-f16d-46a1-8fa3-e27c75839f51.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/47-flat-keycap-c-v13.png"
+    },
+    {
+      "id": "d",
+      "title": "D · 코랄 클레이",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-3054b2ef-b905-4631-9e3d-55ace0df8340.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/48-flat-keycap-d-v13.png"
+    },
+    {
+      "id": "e",
+      "title": "E · 세이지 민트",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-a9b35437-5567-4298-8613-4a833a81a2c3.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/49-flat-keycap-e-v13.png",
+      "initialSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-59f8da0c-1916-4bc8-9153-b7dc4ea5a9ee.png",
+      "refined": true
+    },
+    {
+      "id": "f",
+      "title": "F · 펄 라벤더",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/44-b-sculpted-keycaps-v12.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-0ec2bc12-731c-44b9-aaba-38603f731f16.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/50-flat-keycap-f-v13.png"
+    }
+  ]
+}

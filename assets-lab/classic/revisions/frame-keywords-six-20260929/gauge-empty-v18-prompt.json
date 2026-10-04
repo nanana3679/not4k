@@ -1,0 +1,26 @@
+{
+  "status": "prepared",
+  "generator": "built-in image_gen",
+  "input": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+  "inputSource": "Idle layer exported from press-animation.html: v16 with all four keys raised and unlit, both gauges full.",
+  "prompt": "Use case: precise-object-edit.\nImage 1 is the EDIT TARGET: the adopted rhythm game frame. Make exactly one local change: EMPTY the two tall vertical glass gauge tubes on the left and right sides (left tube glass approximately x=134..206, right tube glass approximately x=818..890, both approximately y=188..1012 on the 1024x1536 canvas).\nInside each glass tube, remove the glowing cyan liquid and all of its internal light, so the tube reads as an empty, unlit, dark navy glass cylinder: deep dark interior, faint cool glass tint, and thin crisp vertical specular highlights along the glass walls and the curved glass rims at the top and bottom. No glow, no bloom, no liquid, no bubbles, no particles inside the tubes.\nKeep the tube shape, width and position, the metal end caps, gold joints, the blue-lit armor strips and edges beside the tubes, all frame armor, the four keys, lane field, lower bumper, background, exposure and camera exactly as in Image 1. Do not redraw or soften the frame. No labels, text, crop or angle change. Output the same full 1024x1536 portrait composition.",
+  "editRegion": {
+    "left": {
+      "x": 134,
+      "y": 188,
+      "width": 73,
+      "height": 825
+    },
+    "right": {
+      "x": 818,
+      "y": 188,
+      "width": 73,
+      "height": 825
+    }
+  },
+  "save": {
+    "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/gauge-empty-insert-v18.png",
+    "record": "assets-lab/classic/revisions/frame-keywords-six-20260929/gauge-empty-v18-output.json"
+  },
+  "afterGeneration": "Claude cuts only the measured glass interior of each tube from the insert and uses it as the empty gauge layer above the fill line. Tube caps, rims and surrounding armor reflections stay as v16."
+}
