@@ -16,7 +16,6 @@
     .shared { margin: 18px 0 0; padding-left: 16px; border-left: 2px solid #8eabc1; color: #c5d0db; max-width: 850px; }
     .player { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
     .viewer { position: relative; width: 100%; margin: auto; background: #090c11; aspect-ratio: 2 / 3; max-width: min(100%, calc(78vh * 2 / 3)); }
-    .viewer[data-view="left"] { aspect-ratio: 2 / 3; }
     .viewer[data-view="bottom"] { aspect-ratio: 2 / 1; max-width: 100%; }
     .viewer svg { display: block; width: 100%; height: 100%; }
     .viewer[data-off-armor] #fm-armor, .viewer[data-off-gauge] #fm-gauge, .viewer[data-off-accent] #fm-accent, .viewer[data-off-bar] #fm-bar { display: none; }
@@ -76,7 +75,7 @@
 <li><strong>B 게이지 액체</strong>는 그림에 그려진 소용돌이 무늬를 잘라 반쯤 겹친 채 위로 흘려, 원래 무늬 자체가 흐르는 것처럼 보이게 합니다. 작은 기포도 함께 올라갑니다. 누름·게이지 시연과 같은 유리 안쪽 윤곽으로 자르며, 게이지 채움과는 아직 연결하지 않았습니다.</li>
 <li><strong>C 발광선 호흡:</strong> 장갑의 파란 발광 픽셀만 오려 낸 레이어와 그 번짐이 4.4초 주기로 밝아졌다 돌아옵니다.</li>
 <li><strong>D 하단 바 흐름:</strong> 하단 청색 바 안에서 빛 두 개가 가운데에서 양옆으로 3.2초마다 흘러갑니다.</li>
-<li>애니메이션은 SVG 안의 CSS로 넣어 이미지로만 열어도 재생됩니다. 게임은 PixiJS로 그리므로 이 SVG가 게임 안에서 그대로 재생되지는 않습니다. 모습이 확정되면 같은 레이어 구성을 게임 렌더러로 옮기는 작업이 따로 필요합니다.</li>
+<li>애니메이션은 SVG 안의 CSS로 넣어 이미지로만 열어도 재생됩니다. 이 페이지에서는 움직임 줄이기 설정을 켜면 모두 멈춥니다. 게임은 PixiJS로 그리므로 이 SVG가 게임 안에서 그대로 재생되지는 않습니다. 모습이 확정되면 같은 레이어 구성을 게임 렌더러로 옮기는 작업이 따로 필요합니다.</li>
 </ul></details>
 <footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a><a href="press-animation.html">버튼 누름과 게이지</a></nav></footer>
 </main>
@@ -119,14 +118,15 @@
       const response = await fetch(SOURCE);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const markup = await response.text();
-      const parsed = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
-      if (parsed.nodeName !== "svg") throw new Error("Not an SVG document");
+      const parsedDocument = new DOMParser().parseFromString(markup, "image/svg+xml");
+      const parsed = parsedDocument.documentElement;
+      if (parsed.nodeName !== "svg" || parsedDocument.querySelector("parsererror")) throw new Error("Not an SVG document");
       svg = document.importNode(parsed, true);
       svg.removeAttribute("width");
       svg.removeAttribute("height");
       svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
       svg.setAttribute("role", "img");
-      svg.setAttribute("aria-label", "반사광·게이지·발광선·하단 바가 움직이는 Classic 프레임");
+      svg.setAttribute("aria-label", "큰 광원·게이지·발광선·하단 바가 움직이는 Classic 프레임");
       viewer.prepend(svg);
       applyView();
       applyLayers();

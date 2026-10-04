@@ -19,7 +19,9 @@ const workspaceRoot = resolve(revisionDir, '../../../..');
 const basePath = resolve(revisionDir, 'press-idle-deck-v17-input.png');
 const outputPath = resolve(workspaceRoot, 'lab/image-galleries/frame-keywords-six-20260929/54-ambient-motion-v19.svg');
 const debugIndex = process.argv.indexOf('--debug');
-const debugDir = debugIndex === -1 ? null : resolve(process.argv[debugIndex + 1]);
+const debugTarget = debugIndex === -1 ? null : process.argv[debugIndex + 1];
+if (debugIndex !== -1 && !debugTarget) throw new Error('--debug needs a folder path.');
+const debugDir = debugTarget ? resolve(debugTarget) : null;
 
 const WIDTH = 1024;
 const HEIGHT = 1536;
@@ -32,7 +34,7 @@ const EXCLUDED = [
 ];
 const BAR = { x0: 360, x1: 663, y0: 1355, y1: 1420 };
 // Glass interior of the left tube (same outline as press-animation.html); the right tube mirrors x to 1023 - x.
-const GLASS = { x0: 136, x1: 208, centerX: 172, top: [196, 203], bottom: [1010, 1016] };
+const GLASS = { x0: 136, x1: 208, top: [196, 203], bottom: [1010, 1016] };
 const GAUGE_MIRROR_SUM = 1023;
 // Inner liquid column of the left tube, inside both glass walls.
 const LIQUID = { x: 146, width: 52 };
@@ -132,8 +134,14 @@ function glassPath(mirror) {
 // from fully above the frame to fully below it, then starts over above the frame. Its reach has two
 // hard-edged steps: a full core and half sides.
 // Speed stays at about 54px/s (the 4600px band took 120s for 6440px); the band is shortened to
-// 1380px so one pass, from fully above the frame to fully below it, takes 60s (3220px).
-const LIGHT = { travel: 60, from: -830, to: 2390, tilt: -14, core: 840, half: 270 };
+// 1380px so one pass, from fully above the frame to fully below it, takes 60s.
+const LIGHT = { travel: 60, tilt: -14, core: 840, half: 270 };
+// How far the tilted band reaches above and below its centre line across the frame width; the band
+// starts and ends that far (plus 2px) outside the frame, so the loop restart never shows.
+const tiltRadians = (Math.abs(LIGHT.tilt) * Math.PI) / 180;
+const bandReach = Math.ceil((LIGHT.core / 2 + LIGHT.half) / Math.cos(tiltRadians) + (WIDTH / 2) * Math.tan(tiltRadians) + 2);
+LIGHT.from = -bandReach;
+LIGHT.to = HEIGHT + bandReach;
 // Lit copy: slightly desaturated so the light reads white, then contrast around a low pivot so it
 // also reads brighter overall; unlit armor dims.
 const CONTRAST = { saturation: 0.9, slope: 1.1, pivot: 0.32, unlitDim: 0.07, whiteGlow: 0.03 };
@@ -204,6 +212,12 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${
     </mask>
     <radialGradient id="fm-glint-gradient"><stop offset="0" stop-color="#f2fdff" stop-opacity=".95"/><stop offset="1" stop-color="#7fe6ff" stop-opacity="0"/></radialGradient>
     <filter id="fm-bloom" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="5"/></filter>
+    <image id="fm-accent-image" width="${WIDTH}" height="${HEIGHT}" href="${png(layers.accent)}"/>
+    <!-- Keeps the blurred accent glow out of the lanes, key deck and gauge boxes. -->
+    <mask id="fm-outside-excluded" maskUnits="userSpaceOnUse" x="0" y="0" width="${WIDTH}" height="${HEIGHT}">
+      <rect width="${WIDTH}" height="${HEIGHT}" fill="#fff"/>
+      ${EXCLUDED.map((box) => `<rect x="${box.x0}" y="${box.y0}" width="${box.x1 - box.x0 + 1}" height="${box.y1 - box.y0 + 1}" fill="#000"/>`).join('')}
+    </mask>
   </defs>
   <image id="fm-base" width="${WIDTH}" height="${HEIGHT}" href="${png(readFileSync(basePath).toString('base64'))}"/>
   <g id="fm-armor" mask="url(#fm-armor-mask)">
@@ -222,9 +236,9 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${
       <g transform="translate(${GAUGE_MIRROR_SUM} 0) scale(-1 1)">${bubbles}</g>
     </g>
   </g>
-  <g id="fm-accent" class="fm-layer">
-    <image class="fm-accent" width="${WIDTH}" height="${HEIGHT}" href="${png(layers.accent)}" filter="url(#fm-bloom)"/>
-    <image class="fm-accent" width="${WIDTH}" height="${HEIGHT}" href="${png(layers.accent)}"/>
+  <g id="fm-accent" class="fm-layer" mask="url(#fm-outside-excluded)">
+    <use class="fm-accent" href="#fm-accent-image" filter="url(#fm-bloom)"/>
+    <use class="fm-accent" href="#fm-accent-image"/>
   </g>
   <g id="fm-bar" class="fm-layer" mask="url(#fm-bar-mask)">
     <ellipse class="fm-glint" cx="512" cy="1387" rx="46" ry="22" fill="url(#fm-glint-gradient)"/>

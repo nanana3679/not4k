@@ -22,6 +22,11 @@ test("버튼 발광 비교의 프레임 움직임 링크로 열면 애니메이�
     return [...layers].sort();
   });
   expect(runningLayers).toEqual(["fm-accent", "fm-armor", "fm-bar", "fm-gauge"]);
+  const orbitTimes = await page.evaluate(() => document.querySelector("#viewer svg")!.getAnimations({ subtree: true })
+    .filter((animation) => ((animation.effect as KeyframeEffect | null)?.target as Element | null)?.classList.contains("fm-orbit"))
+    .map((animation) => Math.round(Number(animation.currentTime))));
+  expect(orbitTimes).toHaveLength(4);
+  expect(new Set(orbitTimes).size).toBe(1);
 
   await page.getByLabel("A 큰 광원").uncheck();
   await expect(page.locator("#viewer svg #fm-armor")).toBeHidden();
@@ -49,7 +54,7 @@ test("움직임 마스크는 레인(x 222–801, y 0–1094)과 버튼부(x 196�
     };
     const armor = await decode("#fm-armor-mask image");
     const bar = await decode("#fm-bar-mask image");
-    const accent = await decode("#fm-accent image");
+    const accent = await decode("#fm-accent-image");
     const inBox = (x: number, y: number, x0: number, x1: number, y0: number, y1: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
     let armorInside = 0, accentInside = 0, barOutside = 0, armorTotal = 0, accentTotal = 0, barTotal = 0;
     for (let y = 0; y < 1536; y++) {
@@ -103,7 +108,7 @@ test("프레임 움직임 SVG 파일은 이미지로 열어도 1024×1536으로 
   expect(size).toEqual([1024, 1536]);
 });
 
-test("A 큰 광원 띠는 가로 중앙(x 512)에서 0초에 프레임 위(-830), 30초에 가운데, 59.9초에 아래(2390 근처)로 한 방향으로만 내려가고 60초에 다시 위에서 시작한다", async ({ page }) => {
+test("A 큰 광원 띠는 가로 중앙(x 512)에서 0초에 프레임 위(-841), 30초에 가운데(768), 59.9초에 아래(2370 넘게)로 한 방향으로만 내려가고 60초에 다시 위에서 시작하며 시작·끝에서 기울어진 띠가 프레임에 걸치지 않는다", async ({ page }) => {
   await page.goto(ambientPath);
   await expect(page.locator("#viewer")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
   const samples = await page.evaluate(() => {
@@ -118,10 +123,23 @@ test("A 큰 광원 띠는 가로 중앙(x 512)에서 0초에 프레임 위(-830)
   });
   const [top, middle, bottom, restart] = samples;
   for (const sample of samples) expect(Math.abs(sample.x - 512)).toBeLessThan(2);
-  expect(Math.abs(top.y + 830)).toBeLessThan(3);
-  expect(Math.abs(middle.y - 780)).toBeLessThan(3);
-  expect(bottom.y).toBeGreaterThan(2380);
-  expect(Math.abs(restart.y + 830)).toBeLessThan(3);
+  expect(Math.abs(top.y + 841)).toBeLessThan(3);
+  expect(Math.abs(middle.y - 768)).toBeLessThan(3);
+  expect(bottom.y).toBeGreaterThan(2370);
+  expect(Math.abs(restart.y + 841)).toBeLessThan(3);
+
+  const geometry = await page.evaluate(async (svgUrl) => {
+    const markup = await (await fetch(svgUrl)).text();
+    const doc = new DOMParser().parseFromString(markup, "image/svg+xml");
+    const height = Number(doc.querySelector("#fm-lit-mask rect")!.getAttribute("height"));
+    const tilt = Number(doc.querySelector("#fm-lit-mask [transform^='rotate']")!.getAttribute("transform")!.match(/rotate\((-?[\d.]+)/)![1]);
+    const [, from, to] = markup.match(/@keyframes fm-orbit \{ from \{ transform: translateY\((-?[\d.]+)px\); \} to \{ transform: translateY\((-?[\d.]+)px\); \} \}/)!.map(Number);
+    return { height, tilt, from, to };
+  }, svgPath);
+  const radians = Math.abs(geometry.tilt) * Math.PI / 180;
+  const reach = (geometry.height / 2) / Math.cos(radians) + 512 * Math.tan(radians);
+  expect(-geometry.from).toBeGreaterThan(reach);
+  expect(geometry.to - 1536).toBeGreaterThan(reach);
 });
 
 test("빛 받는 레이어는 채도 0.9 뒤 대비 1.1배(기준 밝기 0.32)로 높인 원래 프레임 복사본이고 곧은 경계의 사선 띠 두 단계(1380·840px)로 잘리며 띠 밖 장갑은 0.07만큼 어두워진다", async ({ page }) => {
@@ -147,18 +165,17 @@ test("빛 받는 레이어는 채도 0.9 뒤 대비 1.1배(기준 밝기 0.32)�
   expect(result.unlit).toBe("0.07");
 });
 
-test("1.5초 재생 뒤 처음부터 재생을 누르면 SVG의 모든 애니메이션이 0초부터 다시 재생된다", async ({ page }) => {
+test("모든 애니메이션을 5초에 멈춘 뒤 처음부터 재생을 누르면 SVG의 모든 애니메이션이 0초부터 다시 재생된다", async ({ page }) => {
   await page.goto(ambientPath);
   await expect(page.locator("#viewer")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
-  await page.waitForTimeout(1500);
-  const before = await page.evaluate(() => Math.min(...document.querySelector("#viewer svg")!.getAnimations({ subtree: true }).map((animation) => Number(animation.currentTime))));
-  expect(before).toBeGreaterThan(1000);
-  const after = await page.evaluate(() => {
+  const result = await page.evaluate(() => {
+    const svg = document.querySelector("#viewer svg")!;
+    for (const animation of svg.getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = 5000; }
     (document.getElementById("restart") as HTMLButtonElement).click();
-    const animations = document.querySelector("#viewer svg")!.getAnimations({ subtree: true });
+    const animations = svg.getAnimations({ subtree: true });
     return { count: animations.length, maxTime: Math.max(...animations.map((animation) => Number(animation.currentTime))), allRunning: animations.every((animation) => animation.playState === "running") };
   });
-  expect(after.count).toBeGreaterThan(10);
-  expect(after.maxTime).toBeLessThan(100);
-  expect(after.allRunning).toBe(true);
+  expect(result.count).toBeGreaterThan(10);
+  expect(result.maxTime).toBeLessThan(100);
+  expect(result.allRunning).toBe(true);
 });
