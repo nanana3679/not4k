@@ -47,6 +47,13 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/gear-measure-pulse",
   },
   {
+    id: "classic-frame-fit",
+    title: "Classic Frame Fit",
+    description: "새 Classic 프레임을 실제 게임 화면 비율로 Pixi 안에 얹어 맞춤 방식과 선명도를 비교합니다.",
+    category: "Interface",
+    path: "/lab/classic-frame-fit",
+  },
+  {
     id: "tutorial-pattern-diagram",
     title: "Tutorial Pattern Diagram",
     description: "튜토리얼의 연결 롱 노트 설명 도식을 단독으로 확인합니다.",

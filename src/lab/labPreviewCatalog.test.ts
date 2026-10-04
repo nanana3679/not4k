@@ -2,19 +2,20 @@ import { describe, expect, it } from "vitest";
 import { labPreviewCatalog } from "./labPreviewCatalog";
 
 describe("Lab 미리보기 카탈로그", () => {
-  it("시설 통과와 노트 에셋 시연실을 포함한 7개 미리보기는 중복 없는 id와 /lab 경로를 가진다", () => {
-    expect(labPreviewCatalog).toHaveLength(7);
+  it("시설 통과·노트 에셋 시연실·Classic Frame Fit을 포함한 8개 미리보기는 중복 없는 id와 /lab 경로를 가진다", () => {
+    expect(labPreviewCatalog).toHaveLength(8);
     expect(labPreviewCatalog.map((preview) => preview.id)).toEqual([
       "flight-background-preview",
       "facility-passage",
       "note-assets",
       "gear-light",
       "gear-measure-pulse",
+      "classic-frame-fit",
       "tutorial-pattern-diagram",
       "judgment-playtest",
     ]);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(7);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(7);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(8);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(8);
     expect(labPreviewCatalog.every((preview) => preview.path.startsWith("/lab/"))).toBe(true);
   });
 
@@ -23,6 +24,14 @@ describe("Lab 미리보기 카탈로그", () => {
       title: "노트 에셋 시연실",
       category: "Rendering",
       path: "/lab/note-assets",
+    });
+  });
+
+  it("Classic Frame Fit은 Interface 분류의 /lab/classic-frame-fit 경로로 등록된다", () => {
+    expect(labPreviewCatalog.find((preview) => preview.id === "classic-frame-fit")).toMatchObject({
+      title: "Classic Frame Fit",
+      category: "Interface",
+      path: "/lab/classic-frame-fit",
     });
   });
 

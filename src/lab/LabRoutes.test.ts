@@ -34,6 +34,14 @@ describe('LabRoutes', () => {
     expect(markup).toContain('data-tutorial-skin-id="classic"');
   });
 
+  it('/lab/classic-frame-fit를 직접 열면 새 Classic 프레임 맞춤 비교 화면과 Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/classic-frame-fit');
+
+    expect(markup).toContain('data-lab-page="classic-frame-fit"');
+    expect(markup).toContain('data-fit-mode="crop"');
+    expect(markup).toContain('href="/lab"');
+  });
+
   it('/lab/flight-background-preview를 직접 열면 비행 iframe과 Lab 복귀 링크가 표시된다', async () => {
     const markup = await renderLabPath('/lab/flight-background-preview');
 

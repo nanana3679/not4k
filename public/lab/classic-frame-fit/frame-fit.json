@@ -1,0 +1,60 @@
+{
+  "source": "assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+  "generator": "assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs",
+  "width": 1024,
+  "height": 1536,
+  "laneLeft": 236,
+  "laneRight": 787,
+  "laneBottom": 1089,
+  "deckTop": 1090,
+  "silhouetteTop": 16,
+  "gaugeColumn": 179,
+  "gaugeGlowTop": 196,
+  "gaugeGlowBottom": 1009,
+  "keyFaceTop": 1137,
+  "keyFaceBottom": 1235,
+  "deckBottom": 1340,
+  "barGlowTop": 1367,
+  "barGlowBottom": 1399,
+  "frameBottom": 1465,
+  "seam": {
+    "y1": 423,
+    "y2": 906,
+    "removedRows": 483,
+    "cost": 28.93,
+    "typicalAdjacentRowCost": 2.06,
+    "medianCandidateCost": 63.31,
+    "layout": {
+      "laneAreaWidth": 400,
+      "judgmentLineY": 440
+    }
+  },
+  "measurement": {
+    "fieldLuminance": 21.3,
+    "edgeBandRows": [
+      200,
+      1000
+    ],
+    "rowEdgeRange": {
+      "left": [
+        236,
+        236
+      ],
+      "right": [
+        786,
+        787
+      ]
+    },
+    "backdrop": {
+      "reference": [
+        24,
+        28,
+        33
+      ],
+      "fill": 14,
+      "opaque": 40,
+      "feather": 2
+    },
+    "softenedEdgePixels": 4124
+  }
+}
