@@ -2,6 +2,16 @@
 
 
 > 저장소 반영 범위: 아래에 기록한 v1–v14 이미지와 보관 페이지, `restored-frame-v15.html`은 저장소 용량 때문에 커밋하지 않았다. 이 폴더의 요청·기록 JSON과 조립 스크립트, 생성 입력·결과 PNG(`button-insert-v15.png`, `white-core-insert-v16.png`, `press-idle-deck-v17-input.png`, `white-core-v16-render.png`, `key1-press-insert-v17.png`, `gauge-empty-insert-v18.png`)는 남아 있다. 갤러리에는 `52-restored-frame-v15.svg`, `53-white-core-frame-v16.svg`, 시연이 쓰는 생성 이미지, 그리고 v15 조립 스크립트의 바탕이자 프레임 보존 E2E의 기준인 `22-free-b-v6.png`만 둔다.
+## 시연: 프레임 움직임 (v19)
+
+2026-10-04 사용자 요청으로 대기 프레임 위에 움직임 네 가지를 겹친 애니메이션 SVG를 만들었다. 새 이미지는 생성하지 않았다. 사용자가 최종 모습을 "딱 좋다"고 수용했다.
+
+- 시연: `/lab/images/frame-keywords-six-20260929/ambient-motion.html` — 비교 페이지와 누름 시연의 `프레임 움직임` 링크
+- 결과: `lab/image-galleries/frame-keywords-six-20260929/54-ambient-motion-v19.svg`
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/assemble-ambient-v19.mjs` (`--debug <폴더>`로 마스크 PNG 저장). 바탕은 `press-idle-deck-v17-input.png`
+- 마스크: 장갑 영역(배경·레인·버튼부·게이지·파란 발광선·하단 바 제외), 파란 발광선 레이어, 하단 바 빛, 게이지 유리 안쪽 윤곽(누름·게이지 시연과 같음)
+- 최종값과 반복 과정: [프레임 움직임](../../../../docs/design/classic-frame-keywords-20260929.md#프레임-움직임)
+
 ## 시연: 버튼 누름 애니메이션 1단계
 
 2026-09-30 사용자가 v16 버튼부의 누름 애니메이션 가능성을 묻고, 기존 픽셀로 되는 범위의 1단계부터 확인하기로 했다. **사용자 평가:** 자연스럽고, 키가 올라온 뒤 빛이 꺼지는 순서가 좋다. 2단계로 넘어간다. 새 이미지는 생성하지 않았다. 시연 페이지가 열릴 때 `53-white-core-frame-v16.svg`를 캔버스로 읽어 대기·눌림 레이어를 만든다. 최신 임시 시안은 계속 v16이다.

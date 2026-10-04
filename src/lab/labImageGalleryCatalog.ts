@@ -49,7 +49,7 @@ export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntr
   registerImageGallery({
     id: "frame-keywords-six-20260929",
     title: "전체 프레임 · 백색광 버튼",
-    description: "임시 시안의 백색광 버튼 전후를 비교하고, 네 키 누름과 게이지 채움 시연을 엽니다.",
+    description: "임시 시안의 백색광 버튼 전후를 비교하고, 네 키 누름·게이지 채움과 프레임 움직임 시연을 엽니다.",
     createdAt: "2026-09-29",
   }),
 ]);
