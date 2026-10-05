@@ -73,7 +73,8 @@ export function placeKeyboardDisplay(
   const right = area.width - KEYBOARD_DISPLAY_MARGIN;
   const bottom = area.height - KEYBOARD_DISPLAY_MARGIN;
   const available = right - area.freeLeft;
-  const scale = Math.min(1, available / size.width);
+  // 빈 폭이 음수(프레임이 오른쪽 여백까지 닿는 좁은 화면)면 음수 배율 대신 0으로 묶는다.
+  const scale = Math.max(0, Math.min(1, available / size.width));
   return {
     // 경계(정확히 0.6배)에서 부동소수 오차로 숨지 않게 아주 작은 여유를 둔다.
     visible: scale >= KEYBOARD_DISPLAY_MIN_SCALE - 1e-9,

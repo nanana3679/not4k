@@ -70,6 +70,14 @@ describe('GameRenderer 새 Classic 프레임 (RFD 0029)', () => {
     expect(sprite.y + 1466 * sprite.scale.y).toBeCloseTo(600, 9);
   });
 
+  it('frameLayout은 얼린 객체라 바깥에서 고쳐도 렌더러의 프레임 배치가 바뀌지 않는다', async () => {
+    const { renderer } = await createRenderer();
+    const layout = renderer.frameLayout!;
+    expect(Object.isFrozen(layout)).toBe(true);
+    expect(() => { (layout as { keyRimY: number }).keyRimY = 0; }).toThrow(TypeError);
+    expect(renderer.frameLayout!.keyRimY.toFixed(1)).toBe('446.5');
+  });
+
   it('프레임 레이어는 레인 가림막·판정선·레인 키 라벨 위, 키봄·UI 아래에 있다', async () => {
     const { scene } = await createRenderer();
     const order = (child: Container) => scene.app.stage.getChildIndex(child);

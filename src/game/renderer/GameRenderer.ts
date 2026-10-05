@@ -40,7 +40,13 @@ import { resolveFlightScenario } from "../../shared/chartDifficulty";
 
 // 플레이필드에 딸린 크기(레인 100 기준 설계값 × PLAYFIELD_SCALE, RFD 0029)
 const LANE_SEPARATOR_WIDTH = playfieldPx(2);
+/** 마디선 설계 두께. 화면 1px보다 얇아지는 낮은 렌더 높이에서는 1px로 그려 깜빡이지 않게 한다(`measureLineThickness`). */
 const MEASURE_LINE_THICKNESS = playfieldPx(1);
+/** 오른쪽 위 이벤트 문구의 화면 오른쪽 여백·최소 줄바꿈 폭 */
+const EVENT_MESSAGE_MARGIN = 20;
+const EVENT_MESSAGE_MIN_WRAP = 120;
+/** 판정선을 지난 노트를 그리는 최소 시간. 판정선 아래로 보이는 틈이 더 길면 그만큼 늘린다(`lateNoteWindowMs`). */
+const LATE_NOTE_MIN_WINDOW_MS = 500;
 const COMBO_FONT_SIZE = playfieldPx(120);
 const COMBO_OFFSET = playfieldPx(280); // 판정선 위
 const ACCURACY_FONT_SIZE = playfieldPx(20);
@@ -168,7 +174,7 @@ export class GameRenderer {
 
   // Gear frame (새 Classic 프레임, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearFrameLayer: Container;
-  private gearFrameLayout: ClassicFrameLayout | null = null;
+  private gearFrameLayout: Readonly<ClassicFrameLayout> | null = null;
 
   // UI elements
   private comboText: Text;
@@ -185,6 +191,8 @@ export class GameRenderer {
   private keyboardDisplay: KeyboardDisplay | null = null;
 
   private resolution: number;
+  /** 마디선 두께: 설계 두께와 화면 1px(1 ÷ 해상도) 중 큰 값 */
+  private readonly measureLineThickness: number;
   private laneAreaX: number;
   private showGearFrame: boolean;
   private showFlightBackground: boolean;
@@ -212,6 +220,7 @@ export class GameRenderer {
     this.width = options.width;
     this.height = options.height;
     this.resolution = options.resolution ?? 1;
+    this.measureLineThickness = Math.max(MEASURE_LINE_THICKNESS, 1 / this.resolution);
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
     this._judgmentLineY = options.height - this.judgmentLineOffset;
@@ -280,13 +289,24 @@ export class GameRenderer {
       fill: 0xffffff,
       align: "right",
       wordWrap: true,
-      wordWrapWidth: Math.max(120, (this.width - LANE_AREA_WIDTH) / 2 - 40),
+      wordWrapWidth: this.eventMessageWrapWidth(),
     });
     this.eventMessageText = new Text({ text: "", style: msgStyle });
     this.eventMessageText.anchor.set(1, 0);
-    this.eventMessageText.x = this.width - 20;
+    this.eventMessageText.x = this.width - EVENT_MESSAGE_MARGIN;
     this.eventMessageText.y = 40;
     this.eventMessageText.alpha = 0.9;
+  }
+
+  /**
+   * 오른쪽 위 이벤트 문구의 줄바꿈 폭. 문구는 화면 오른쪽에 붙으므로 프레임 실루엣(없으면 레인 영역) 오른쪽 끝 + 여백까지만 쓴다.
+   * 프레임 배치는 렌더러 논리 크기만으로 정해지므로 텍스처를 읽기 전(생성자)에도 계산할 수 있다.
+   */
+  private eventMessageWrapWidth(): number {
+    const obstacleRight = this.showGearFrame
+      ? layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
+      : this.laneAreaX + LANE_AREA_WIDTH;
+    return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + FRAME_CLEARANCE));
   }
 
   async init(): Promise<void> {
@@ -432,7 +452,8 @@ export class GameRenderer {
     sprite.position.set(layout.x, layout.y);
     sprite.width = layout.width;
     sprite.height = layout.height;
-    this.gearFrameLayout = layout;
+    // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
+    this.gearFrameLayout = Object.freeze(layout);
     this.gearFrameLayer.addChild(sprite);
   }
 
@@ -654,6 +675,15 @@ export class GameRenderer {
   }
 
   /**
+   * 판정선을 지난 노트를 그리는 시간. 프레임 가림막은 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈
+   * (가림막 위끝까지 + 노트 두께)을 다 지나야 사라진다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
+   */
+  private lateNoteWindowMs(): number {
+    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT;
+    return Math.max(LATE_NOTE_MIN_WINDOW_MS, (visibleBelowLine / this._scrollSpeed) * 1000);
+  }
+
+  /**
    * 레인 가림막. 프레임이 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다(RFD 0029).
    * 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다.
    * 이 높이는 프레임과 함께 고정이라 리프트로 움직이지 않는다. 프레임이 없는 미니 렌더러는 판정선 바로 아래부터 덮는다.
@@ -772,7 +802,7 @@ export class GameRenderer {
     this.noteLayer.removeChildren();
 
     const visibleWindowMs = (this.height / this._scrollSpeed) * 1000 + 500;
-    const minTime = songTimeMs - 500;
+    const minTime = songTimeMs - this.lateNoteWindowMs();
     const maxTime = songTimeMs + visibleWindowMs;
 
     this.renderRestZones(songTimeMs);
@@ -814,7 +844,7 @@ export class GameRenderer {
     }
     // 선 아래끝이 g.y에 오도록 위로 그린다.
     const g = new Graphics()
-      .rect(this.laneAreaX, -MEASURE_LINE_THICKNESS, LANE_AREA_WIDTH, MEASURE_LINE_THICKNESS)
+      .rect(this.laneAreaX, -this.measureLineThickness, LANE_AREA_WIDTH, this.measureLineThickness)
       .fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
     this.measureLinePool.push(g);
     this.measureLineLayer.addChild(g);
@@ -996,7 +1026,7 @@ export class GameRenderer {
   }
 
   /** 프레임 배치(논리 단위). 프레임을 그리지 않으면(showGearFrame false·텍스처 없음) null. */
-  get frameLayout(): ClassicFrameLayout | null {
+  get frameLayout(): Readonly<ClassicFrameLayout> | null {
     return this.gearFrameLayout;
   }
 
@@ -1005,7 +1035,7 @@ export class GameRenderer {
    * 프레임과 같은 변환으로 붙인다. 프레임 움직임 레이어(지금은 Lab 미리보기, PR B에서 게임으로 옮긴다)가 쓴다.
    * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다.
    */
-  addFrameOverlay(overlay: Container): ClassicFrameLayout | null {
+  addFrameOverlay(overlay: Container): Readonly<ClassicFrameLayout> | null {
     const layout = this.gearFrameLayout;
     if (!layout || this.gearFrameLayer.destroyed) return null;
     overlay.position.set(layout.x, layout.y);

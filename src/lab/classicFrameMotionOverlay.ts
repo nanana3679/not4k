@@ -11,7 +11,7 @@ export const FRAME_MOTION_TEXTURE_OPTIONS = CLASSIC_FRAME_TEXTURE_OPTIONS;
 export interface FrameMotionOverlay {
   /** 프레임 그림 좌표 레이어. 움직임 컨테이너를 자식으로 담는다. */
   readonly holder: Container;
-  readonly layout: ClassicFrameLayout;
+  readonly layout: Readonly<ClassicFrameLayout>;
   /** 움직임 켜기·끄기(페이지의 움직임 토글). */
   setEnabled(enabled: boolean): void;
   /** 레이어를 떼어 파괴한다. 움직임 컨테이너와 텍스처는 만든 쪽이 정리한다. */

@@ -245,6 +245,13 @@ describe('Classic 현재 적용본 판별 (current)', () => {
     expect(result.compared).toEqual({ id: 'v001', pngDiffs: [], otherDiffs: ['assets-lab/classic/gone.mjs', 'package.json'] });
   });
 
+  it('보관본에만 남은 옛 스킨 공통 기어 public/gear/gear-frame.png는 지금 보관 대상이 아니라 그 밖의 차이로 보고하지 않는다', async () => {
+    const root = await fakeRoot({ [runtimePath]: 'current', 'package.json': 'same' });
+    await fakeVersion(root, 'v014', { [runtimePath]: 'current', 'package.json': 'same', 'public/gear/gear-frame.png': 'old gear' });
+    const result = await findCurrentClassicVersion({ root });
+    expect(result.compared).toEqual({ id: 'v014', pngDiffs: [], otherDiffs: [] });
+  });
+
   it('v001 보관 뒤 작업본에 sources/brand-new.svg가 추가되면 보관본에 없는 그 경로를 그 밖의 차이로 보고하고 같은 old.svg는 뺀다', async () => {
     const root = await fakeRoot({
       [runtimePath]: 'current',

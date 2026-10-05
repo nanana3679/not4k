@@ -8,6 +8,7 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   liftPx,
+  judgmentLineYAtLift,
   NOTE_HEIGHT,
   NOTE_WIDTH,
   PLAYFIELD_SCALE,
@@ -51,6 +52,12 @@ describe('판정선 기본 위치와 리프트', () => {
   it('리프트 0%의 판정선은 화면 아래에서 184 위인 y 416', () => {
     expect(JUDGMENT_LINE_OFFSET).toBe(184);
     expect(GAME_HEIGHT - JUDGMENT_LINE_OFFSET).toBe(416);
+  });
+
+  it('높이 600 플레이 화면의 판정선 y는 리프트 0%에서 416, 4%에서 392, 10%에서 356', () => {
+    expect(judgmentLineYAtLift(0)).toBe(416);
+    expect(judgmentLineYAtLift(4)).toBe(392);
+    expect(judgmentLineYAtLift(10)).toBe(356);
   });
 
   it('리프트 1%는 화면 높이 600의 6 단위라 4%면 24, 100%면 600', () => {

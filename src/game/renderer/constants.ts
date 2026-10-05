@@ -42,6 +42,11 @@ export function liftPx(liftPercent: number): number {
   return (GAME_HEIGHT * liftPercent) / 100;
 }
 
+/** 높이 600 플레이 화면에서 리프트 %일 때의 판정선 y(0% = y 416). 렌더러가 setLift로 옮기는 위치와 같다. */
+export function judgmentLineYAtLift(liftPercent: number): number {
+  return GAME_HEIGHT - JUDGMENT_LINE_OFFSET - liftPx(liftPercent);
+}
+
 // 튜토리얼 프리뷰 키보드 strip (플레이 영역 아래 캔버스 확장부) 패딩
 export const TUTORIAL_KB_SIDE_PAD = playfieldPx(12);
 export const TUTORIAL_KB_VPAD = playfieldPx(10);

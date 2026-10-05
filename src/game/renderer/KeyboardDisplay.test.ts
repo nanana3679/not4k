@@ -77,8 +77,11 @@ describe('placeKeyboardDisplay — 프레임 오른쪽 빈 곳에 맞추거나 �
     expect(at(0.59).visible).toBe(false);
   });
 
-  it('최소 논리 폭 466에서는 빈 폭이 음수라 숨긴다', () => {
-    expect(placeKeyboardDisplay(TKL, area(466)).visible).toBe(false);
+  it('최소 논리 폭 466에서는 빈 폭이 음수(−3.6)라 배율을 음수 대신 0으로 묶고 숨긴다', () => {
+    const placement = placeKeyboardDisplay(TKL, area(466));
+    expect(placement.visible).toBe(false);
+    expect(placement.scale).toBe(0);
+    expect(placement.x).toBe(466 - 4);
   });
 });
 

@@ -1,5 +1,5 @@
 import { CLASSIC_FRAME_GEOMETRY, resolvePlayLogicalWidth, type ClassicFrameGeometry, type ClassicFrameLayout } from '../game/renderer/classicFrameLayout';
-import { GAME_HEIGHT, JUDGMENT_LINE_OFFSET, NOTE_HEIGHT, liftPx } from '../game/renderer/constants';
+import { NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
 
 /**
@@ -47,8 +47,8 @@ export interface FrameFitJudgment {
 }
 
 /** 게임과 같은 판정선(리프트 0% = y 416)과 프레임 덱·키 윗면 사이 거리. 프레임은 리프트로 움직이지 않는다. */
-export function describeFrameJudgment(layout: ClassicFrameLayout, liftPercent: number): FrameFitJudgment {
-  const lineY = GAME_HEIGHT - JUDGMENT_LINE_OFFSET - liftPx(liftPercent);
+export function describeFrameJudgment(layout: Readonly<ClassicFrameLayout>, liftPercent: number): FrameFitJudgment {
+  const lineY = judgmentLineYAtLift(liftPercent);
   const gap = layout.deckTopY - lineY;
   const openGap = layout.keyRimY - lineY;
   return {
@@ -64,7 +64,7 @@ export function describeFrameJudgment(layout: ClassicFrameLayout, liftPercent: n
 }
 
 /** 프레임이 원본의 어디를 어떻게 줄여 놓는지 숫자로 설명하는 문장. */
-export function describeFrame(layout: ClassicFrameLayout, geometry: ClassicFrameGeometry = CLASSIC_FRAME_GEOMETRY): string {
+export function describeFrame(layout: Readonly<ClassicFrameLayout>, geometry: ClassicFrameGeometry = CLASSIC_FRAME_GEOMETRY): string {
   const hiddenRows = Math.max(0, Math.round(-layout.y / layout.scale));
   const laneAreaWidth = Math.round((geometry.laneRight - geometry.laneLeft + 1) * layout.scale * 10) / 10;
   return `원본 ${geometry.width}×${geometry.height}을 ${layout.scale.toFixed(3)}배로 줄여 레인 창(${geometry.laneLeft}~${geometry.laneRight}열)을 `

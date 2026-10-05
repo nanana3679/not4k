@@ -227,7 +227,10 @@ export async function findCurrentClassicVersion({ root }: { root: string }) {
   // Newest first, so a strict comparison keeps the newest version on ties.
   const closest = versions.reduce((best, version) => version.pngDiffs.length < best.pngDiffs.length ? version : best);
   // The union also reports files added after archiving; a file in neither place (hash null on both sides) is no difference.
-  const archivedOther = new Map(closest.manifest.files.filter(file => !isPng(file.path)).map(file => [file.path, file.sha256]));
+  // Archived paths that the current rules no longer select (e.g. the skin-shared public/gear/ removed in RFD 0029) are history, not differences.
+  const archivedOther = new Map(closest.manifest.files
+    .filter(file => !isPng(file.path) && selected(file.path))
+    .map(file => [file.path, file.sha256]));
   const otherDiffs = [];
   for (const path of new Set([...archivedOther.keys(), ...selection.filter(path => !isPng(path))])) {
     if ((archivedOther.get(path) ?? null) !== await workingHash(root, path)) otherDiffs.push(path);
