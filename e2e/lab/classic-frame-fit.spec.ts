@@ -238,7 +238,7 @@ test.describe('Classic Frame Fit Lab — 새 프레임이 들어간 실제 게�
     expect(sizes.pageOverflow).toBe(false);
   });
 
-  test('움직임이 켜져 벽시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
+  test('렌더러 내장 움직임이 켜져 게임 프레임 시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/classic-frame-fit');
     await waitForRenderer(page);
@@ -375,11 +375,11 @@ test.describe('Classic Frame Fit Lab — 새 프레임이 들어간 실제 게�
     expect(errors).toEqual([]);
   });
 
-  test('움직임 자료(frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
+  test('움직임 자료(/gear/classic-frame-motion/frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
-    await page.route('**/lab/classic-frame-fit/motion/frame-motion.json', async (route) => {
+    await page.route('**/gear/classic-frame-motion/frame-motion.json', async (route) => {
       await gate;
       await route.continue();
     });

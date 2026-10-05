@@ -1,16 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RadioGroup } from './ClassicFrameFitControls';
 import type { FrameMotionPreview } from './classicFrameMotionCompare';
-import {
-  FRAME_MOTION_LAYERS,
-  FRAME_MOTION_SVG_PATH,
-  FRAME_MOTION_VIEWS,
-  formatViewBox,
-  readSvgBaseHref,
-  type FrameMotionAssets,
-  type FrameMotionLayerVisibility,
-  type FrameMotionView,
-} from './classicFrameMotionData';
+import type { FrameMotionResources } from '../game/renderer/classicFrameMotionAssets';
+import { FRAME_MOTION_LAYERS, type FrameMotionLayerVisibility } from '../game/renderer/classicFrameMotionData';
+import { FRAME_MOTION_SVG_PATH, FRAME_MOTION_VIEWS, formatViewBox, readSvgBaseHref, type FrameMotionView } from './classicFrameMotionView';
 import { withLabPublicBase } from './labPublicPath';
 
 /** 비교 시계 범위(광원 한 번 지나가는 60초). 재생하면 60초에서 0초로 돌아간다. */
@@ -33,8 +26,9 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
  */
-export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
-  assets: FrameMotionAssets | null;
+export function ClassicFrameMotionCompare({ resources, layers, reducedMotion }: {
+  /** 페이지가 공유 로더에서 빌린 움직임 자료(무대의 게임 렌더러와 같은 한 벌). 준비 전이면 null. */
+  resources: FrameMotionResources | null;
   layers: FrameMotionLayerVisibility;
   reducedMotion: boolean;
 }) {
@@ -74,7 +68,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
   // 승인 SVG를 문서에 넣고 그 바탕 그림을 꺼낸다. 가장자리 설정을 바꿔도 다시 읽지 않는다.
   useEffect(() => {
     const host = svgHostRef.current;
-    if (!assets || !nearViewport || !host) return;
+    if (!resources || !nearViewport || !host) return;
     let cancelled = false;
     (async () => {
       const response = await fetch(withLabPublicBase(FRAME_MOTION_SVG_PATH));
@@ -102,7 +96,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
       svgRef.current = null;
       host.replaceChildren();
     };
-  }, [assets, nearViewport]);
+  }, [resources, nearViewport]);
 
   const base = svgState.state === 'ready' ? svgState.base : null;
   const pixiKey = `${antialias ? 'msaa' : 'plain'}:${softBand ? 'soft' : 'stencil'}`;
@@ -111,7 +105,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
   // 같은 바탕 그림으로 Pixi 비교 앱을 만든다. 시도마다 새 캔버스를 붙이고, 정리할 때 앱과 캔버스를 함께 치운다.
   useEffect(() => {
     const viewport = pixiViewportRef.current;
-    if (!assets || !base || !viewport) return;
+    if (!resources || !base || !viewport) return;
     let cancelled = false;
     let preview: FrameMotionPreview | null = null;
     const canvas = document.createElement('canvas');
@@ -129,7 +123,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
         height: Math.max(1, Math.round(size.height)),
         resolution: window.devicePixelRatio || 1,
         base,
-        assets,
+        motion: resources,
         antialias,
         bandEdges: softBand ? 'soft' : 'stencil',
       });
@@ -150,7 +144,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
       if (previewRef.current === preview) previewRef.current = null;
       canvas.remove();
     };
-  }, [assets, base, antialias, softBand]);
+  }, [resources, base, antialias, softBand]);
 
   const ready = svgState.state === 'ready' && pixiState.state === 'ready';
   const generation = pixiState.state === 'ready' ? pixiState.generation : 0;
@@ -224,7 +218,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
       <header className="frame-motion-compare-head">
         <h2 id="frame-motion-compare-title">Pixi ↔ 승인 SVG 비교</h2>
         <p>
-          프레임만 그린 작은 Pixi 화면(게임 렌더러 아님)과 승인된 애니메이션 SVG를 같은 크기·같은 시각으로 나란히 봅니다.
+          게임과 같은 움직임 모듈로 프레임만 그린 작은 Pixi 화면(게임 렌더러 아님)과 승인된 애니메이션 SVG를 같은 크기·같은 시각으로 나란히 봅니다.
           두 화면 모두 SVG 안의 같은 바탕 그림을 쓰고, 위의 움직임 요소 체크가 양쪽에 함께 적용됩니다.
         </p>
       </header>
@@ -272,7 +266,7 @@ export function ClassicFrameMotionCompare({ assets, layers, reducedMotion }: {
         </fieldset>
       </div>
       {errors.map((message) => <p key={message} className="frame-fit-error-inline" role="alert">{message}</p>)}
-      {!assets && <p className="frame-fit-note">움직임 자료를 불러오는 중이거나 불러오지 못했습니다.</p>}
+      {!resources && <p className="frame-fit-note">움직임 자료를 불러오는 중이거나 불러오지 못했습니다.</p>}
       <div className="frame-motion-panels" data-view={view}>
         <figure className="frame-motion-panel">
           <div className="frame-motion-viewport" ref={pixiViewportRef} style={aspect} data-frame-motion-pixi-host="true" />

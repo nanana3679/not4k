@@ -1,7 +1,6 @@
-import { BufferImageSource, Container, Graphics, ImageSource, Rectangle, Sprite, Texture, type TextureSourceOptions } from 'pixi.js';
+import { BufferImageSource, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import {
   FRAME_MOTION_LAYERS,
-  FRAME_MOTION_TEXTURE_KEYS,
   type FrameMotionData,
   type FrameMotionLayer,
   type FrameMotionTextureKey,
@@ -29,12 +28,12 @@ export {
 } from './classicFrameMotionData';
 
 /**
- * Classic 프레임 움직임(승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다.
- * React·Lab 페이지에 의존하지 않는 자족 모듈이라 나중에 게임 렌더러로 옮길 수 있다.
+ * Classic 프레임 움직임(승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
+ * React·Lab에 의존하지 않는 게임 모듈이다. 게임 렌더러는 FrameMotionController로 내장 프레임 위에 얹고, Lab 비교 화면도 이 모듈을 쓴다.
  *
  * - 좌표: 컨테이너는 프레임 그림 좌표(1024×1536)다. 호출자가 프레임 스프라이트와 같은 변환을 컨테이너에 건다.
- * - 텍스처: prepare-frame-motion-v21.mjs가 SVG의 마스크·필터·블러를 미리 구운 PNG다. 런타임 필터는 없고,
- *   매 프레임 변환·불투명도만 바꾼다. 텍스처는 호출자 소유이며 destroy가 파괴하지 않는다.
+ * - 텍스처: prepare-frame-motion-v21.mjs가 SVG의 마스크·필터·블러를 미리 구운 PNG다(공유 로더 classicFrameMotionAssets가 프레임과 같은
+ *   밉맵·삼선형 설정으로 읽는다). 런타임 필터는 없고, 매 프레임 변환·불투명도만 바꾼다. 텍스처는 호출자 소유이며 destroy가 파괴하지 않는다.
  * - 마스크: 광원 띠·유리 윤곽은 Graphics 스텐실 마스크(띠 밖 어둡게는 inverse)로, 마스크 Graphics는 한 번 만들고
  *   위치만 옮긴다. 경계가 부드러운 하단 바 빛만 스프라이트 알파 마스크를 쓴다(빛이 보이는 동안만 그린다).
  */
@@ -44,6 +43,11 @@ export type FrameMotionTextures = Record<FrameMotionTextureKey, Texture>;
 export interface ClassicFrameMotion {
   /** 프레임 그림 좌표의 움직임 루트. 프레임 스프라이트 바로 위에 같은 변환으로 놓는다. */
   readonly container: Container;
+  /**
+   * B 게이지의 액체 타일과 기포를 담은 채움 컨테이너(프레임 그림 좌표). 유리 윤곽 마스크는 그 부모(게이지 레이어)에 걸려 있다.
+   * 고도 게이지(후속 작업)가 여기에 채움 높이 마스크를 걸어 액체·기포를 함께 자른다. 지금은 마스크 없이 유리관을 가득 채운다.
+   */
+  readonly gaugeFill: Container;
   readonly reducedMotion: boolean;
   /** 움직임 시계(ms). SVG 애니메이션 currentTime과 같은 뜻이다. */
   update(timeMs: number): void;
@@ -272,7 +276,10 @@ export function createClassicFrameMotion(data: FrameMotionData, textures: FrameM
     });
     const bubbleLayer = new Container({ label: 'frame-motion-bubbles' });
     bubbleLayer.addChild(bubblesLeft, bubblesRight);
-    gaugeLayer.addChild(liquidLayer, bubbleLayer, glass);
+    // 액체와 기포는 채움 컨테이너 하나에 담는다. 고도 게이지가 이 컨테이너만 채움 높이로 자르면 둘이 함께 잘린다.
+    const gaugeFill = new Container({ label: 'frame-motion-gauge-fill' });
+    gaugeFill.addChild(liquidLayer, bubbleLayer);
+    gaugeLayer.addChild(gaugeFill, glass);
     gaugeLayer.mask = glass;
 
     // C 발광선 호흡. SVG는 발광선과 번짐을 같은 불투명도 o로 한 그룹 안에서 겹친 뒤(선이 번짐 위) 그룹을 screen한다.
@@ -356,6 +363,7 @@ export function createClassicFrameMotion(data: FrameMotionData, textures: FrameM
 
     return {
       container: root,
+      gaugeFill,
       get reducedMotion() { return reduced; },
       update,
       setLayerVisible(layer, visible) {
@@ -374,27 +382,4 @@ export function createClassicFrameMotion(data: FrameMotionData, textures: FrameM
       },
     };
   }
-}
-
-/**
- * 렌더러(GL 컨텍스트)마다 텍스처 소스를 새로 만든다. 프레임 텍스처와 같은 옵션(밉맵·선형)을 넘기면 줄여 그릴 때
- * 빛 받은 복사본이 바탕 프레임과 같은 선명도로 보인다. 정리는 호출자가 destroy로 한다.
- */
-export function createFrameMotionTextures(
-  images: Record<FrameMotionTextureKey, HTMLImageElement>,
-  options: Partial<TextureSourceOptions> = {},
-): { textures: FrameMotionTextures; destroy: () => void } {
-  const sources: ImageSource[] = [];
-  const textures = Object.fromEntries(FRAME_MOTION_TEXTURE_KEYS.map((key) => {
-    const source = new ImageSource({ resource: images[key], ...options });
-    sources.push(source);
-    return [key, new Texture({ source })];
-  })) as FrameMotionTextures;
-  return {
-    textures,
-    destroy: () => {
-      for (const key of FRAME_MOTION_TEXTURE_KEYS) if (!textures[key].destroyed) textures[key].destroy(false);
-      for (const source of sources) source.destroy();
-    },
-  };
 }

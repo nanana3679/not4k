@@ -1,4 +1,4 @@
-import { FRAME_MOTION_LAYER_LABELS, FRAME_MOTION_LAYERS, type FrameMotionLayer, type FrameMotionLayerVisibility } from './classicFrameMotionData';
+import { FRAME_MOTION_LAYER_LABELS, FRAME_MOTION_LAYERS, type FrameMotionLayer, type FrameMotionLayerVisibility } from '../game/renderer/classicFrameMotionData';
 
 /** Classic Frame Fit 조절 패널과 Pixi ↔ SVG 비교가 함께 쓰는 라디오 묶음. */
 export function RadioGroup<T extends string | number>({ legend, name, value, options, onChange }: {

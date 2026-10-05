@@ -38,6 +38,8 @@ async function createRenderer({ width = 1067, showGearFrame = true }: { width?: 
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
     canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGearFrame, showFlightBackground: false,
+    // 프레임 움직임은 GameRenderer.frameMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
+    frameMotion: false,
   });
   const scene = renderer as unknown as Scene;
   // GPU 초기화만 생략하고 실제 Container/Sprite/Graphics와 init을 사용한다.

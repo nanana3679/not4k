@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../public/lab/classic-frame-fit/motion/frame-motion.json?raw';
+import motionJsonText from '../../../public/gear/classic-frame-motion/frame-motion.json?raw';
 import {
   breatheOpacity,
   bubbleRise,

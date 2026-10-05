@@ -131,6 +131,8 @@ export function PlayScreen() {
           resolution,
           skinManager,
           bombScale: settings.bombScale,
+          // 끄면 프레임 움직임 객체·텍스처를 만들지 않는다(약한 GPU용). 저장값이 없으면 켬.
+          frameMotion: settings.frameMotion ?? true,
           difficultyLabel: chartData.meta.difficultyLabel,
         });
         rendererRef.current = renderer;

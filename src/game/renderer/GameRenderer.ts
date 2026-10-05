@@ -24,6 +24,10 @@ import {
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
 import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame, type ClassicFrameLayout } from "./classicFrameLayout";
+import { acquireFrameMotionAssets, type FrameMotionAssetLease } from "./classicFrameMotionAssets";
+import { FRAME_MOTION_TEXTURE_KEYS } from "./classicFrameMotionData";
+import { FrameMotionController, type FrameMotionControls } from "./FrameMotionController";
+import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
@@ -94,6 +98,13 @@ export interface GameRendererOptions {
   bombScale?: number;
   /** 새 Classic 프레임(스킨 공통 `gearFrame`)을 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
   showGearFrame?: boolean;
+  /**
+   * 프레임 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 프레임을 그릴 때만 만든다.
+   * 끄면(게임 설정 `frameMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
+   */
+  frameMotion?: boolean;
+  /** @internal 테스트용 움직임 자료 임대 함수. 기본은 공유 로더(acquireFrameMotionAssets). */
+  frameMotionAssets?: () => FrameMotionAssetLease;
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
@@ -175,6 +186,10 @@ export class GameRenderer {
   // Gear frame (새 Classic 프레임, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearFrameLayer: Container;
   private gearFrameLayout: Readonly<ClassicFrameLayout> | null = null;
+  // 프레임 움직임 — 프레임 레이어에서 프레임 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
+  private readonly frameMotionEnabled: boolean;
+  private readonly acquireFrameMotion: () => FrameMotionAssetLease;
+  private frameMotionController: FrameMotionController | null = null;
 
   // UI elements
   private comboText: Text;
@@ -228,6 +243,8 @@ export class GameRenderer {
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
+    this.frameMotionEnabled = options.frameMotion ?? true;
+    this.acquireFrameMotion = options.frameMotionAssets ?? (() => acquireFrameMotionAssets());
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -364,6 +381,7 @@ export class GameRenderer {
     // Draw static elements. 프레임 배치가 레인 가림막의 시작 높이를 정하므로 프레임을 먼저 놓는다.
     if (this.showGearFrame) {
       this.buildGearFrame();
+      this.buildFrameMotion();
     }
     this.drawBackground();
     this.drawJudgmentLine();
@@ -455,6 +473,32 @@ export class GameRenderer {
     // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
     this.gearFrameLayout = Object.freeze(layout);
     this.gearFrameLayer.addChild(sprite);
+  }
+
+  /**
+   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 렌더러 준비와 곡 시작은
+   * 자료를 기다리지 않는다. 준비되기 전에는 정적 프레임만 그리고, 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹는다.
+   * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽는다.
+   */
+  private buildFrameMotion(): void {
+    if (!this.frameMotionEnabled || !this.gearFrameLayout) return;
+    const holder = new Container({ label: "classic-frame-motion-holder" });
+    if (!this.addFrameOverlay(holder)) {
+      holder.destroy();
+      return;
+    }
+    const controller = new FrameMotionController({
+      holder,
+      lease: this.acquireFrameMotion(),
+      upload: (textures) => {
+        // 처음 그리는 프레임에 업로드(밉맵 생성 포함)가 몰리지 않도록 자료가 준비된 때 미리 올린다.
+        const textureSystem = this.app.renderer?.texture;
+        if (!this.initialized || !textureSystem) return;
+        for (const key of FRAME_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
+      },
+    });
+    controller.setReducedMotion(prefersReducedMotion());
+    this.frameMotionController = controller;
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {
@@ -717,7 +761,8 @@ export class GameRenderer {
       songTimeMs,
       chartDurationMs: this.chartDurationMs,
     });
-    // 새 프레임의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다. 그때까지 유리관은 그림 그대로(가득) 보인다.
+    // 새 프레임의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다(frameMotion.gaugeFill을 채움 높이로 자른다).
+    // 그때까지 유리관은 그림 그대로(가득) 보인다.
     this.flightBackground?.render(altitude, deltaMs);
   }
 
@@ -797,6 +842,8 @@ export class GameRenderer {
     if (this.showFlightBackground) {
       this.renderFlightBackground(songTimeMs, deltaMs);
     }
+    // 프레임 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
+    this.frameMotionController?.advance(deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1038,9 +1085,17 @@ export class GameRenderer {
   }
 
   /**
+   * 프레임 움직임 조절(RFD 0029). 상태(loading·ready·error)와 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·움직임 줄이기·
+   * 처음부터 재생을 건다. 움직임을 만들지 않으면(frameMotion false·프레임 없음·dispose 뒤) null.
+   */
+  get frameMotion(): FrameMotionControls | null {
+    return this.frameMotionController;
+  }
+
+  /**
    * 프레임 그림 좌표(1024×1536)로 그린 레이어를 프레임 바로 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 프레임과 같은 변환으로 붙인다. 프레임 움직임 레이어(지금은 Lab 미리보기, PR B에서 게임으로 옮긴다)가 쓴다.
-   * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다.
+   * 프레임과 같은 변환으로 붙인다. 내장 프레임 움직임과 후속 고도 게이지가 쓴다.
+   * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(프레임 레이어와 함께 파괴된다).
    */
   addFrameOverlay(overlay: Container): Readonly<ClassicFrameLayout> | null {
     const layout = this.gearFrameLayout;
@@ -1116,6 +1171,9 @@ export class GameRenderer {
     this.initialized = false;
     this.flightBackground?.dispose();
     this.flightBackground = null;
+    // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).
+    this.frameMotionController?.destroy();
+    this.frameMotionController = null;
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.
