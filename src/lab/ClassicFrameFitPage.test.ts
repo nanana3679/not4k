@@ -58,6 +58,8 @@ describe('ClassicFrameFitPage — 새 프레임이 들어간 실제 게임 화�
     expect(pageSource).toContain('new GameRenderer({');
     expect(pageSource).not.toContain('showGearFrame');
     expect(pageSource).not.toContain('frameMotion: false');
+    // 페이지의 움직임 줄이기 토글이 동작하도록 움직임 줄이기에서도 움직임을 만들어 숨긴다.
+    expect(pageSource).toContain("frameMotionReducedMotion: 'hide'");
     // Lab이 움직임 레이어를 따로 만들거나 얹지 않는다.
     expect(pageSource).not.toContain('attachFrameMotion');
     expect(pageSource).not.toContain('createClassicFrameMotion');

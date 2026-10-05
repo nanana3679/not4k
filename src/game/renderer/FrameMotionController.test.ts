@@ -4,7 +4,7 @@ import motionJsonText from '../../../public/gear/classic-frame-motion/frame-moti
 import { createClassicFrameMotion, type FrameMotionTextures } from './classicFrameMotion';
 import type { FrameMotionAssetLease, FrameMotionResources } from './classicFrameMotionAssets';
 import { FRAME_MOTION_TEXTURE_KEYS, parseFrameMotionData } from './classicFrameMotionData';
-import { FRAME_MOTION_MAX_STEP_MS, FrameMotionController } from './FrameMotionController';
+import { FRAME_MOTION_MAX_STEP_MS, FrameMotionController, type FrameMotionControllerOptions } from './FrameMotionController';
 
 const data = parseFrameMotionData(JSON.parse(motionJsonText));
 
@@ -15,7 +15,7 @@ function fakeTextures(): FrameMotionTextures {
   })) as FrameMotionTextures;
 }
 
-/** 준비 시점을 테스트가 정하는 임대. */
+/** 준비 시점을 테스트가 정하는 임대. release는 멱등이 아닌 가짜라 몇 번 불렸는지 그대로 센다. */
 function controllableLease() {
   let resolve!: (resources: FrameMotionResources) => void;
   let reject!: (error: unknown) => void;
@@ -26,45 +26,55 @@ function controllableLease() {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-const bandY = (holder: Container) => holder.getChildByLabel('frame-motion-band-core', true)!.y;
+const node = (holder: Container, label: string) => holder.getChildByLabel(label, true)!;
+const bandY = (holder: Container) => node(holder, 'frame-motion-band-core').y;
 
-async function readyController(options: { hidden?: boolean } = {}) {
+function controllerWith(options: Partial<FrameMotionControllerOptions> = {}) {
   const holder = new Container();
-  const { lease, resolve } = controllableLease();
+  const { lease, resolve, reject } = controllableLease();
   const update = vi.fn();
   const controller = new FrameMotionController({
     holder,
     lease,
-    isHidden: () => options.hidden ?? false,
+    isHidden: () => false,
     create: (motionData, textures, motionOptions) => {
       const motion = createClassicFrameMotion(motionData, textures, motionOptions);
       const original = motion.update;
       return { ...motion, update: (timeMs: number) => { update(timeMs); original(timeMs); } };
     },
+    ...options,
   });
-  resolve();
+  return { holder, lease, resolve, reject, controller, update };
+}
+
+async function readyController(options: Partial<FrameMotionControllerOptions> = {}) {
+  const made = controllerWith(options);
+  made.resolve();
   await flush();
-  return { holder, lease, controller, update };
+  return made;
 }
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수명과 시계', () => {
-  it('자료가 준비되기 전에는 status loading·시계 0·running false이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', () => {
-    const holder = new Container();
-    const { lease } = controllableLease();
-    const controller = new FrameMotionController({ holder, lease });
+  it('자료가 준비되기 전에는 status loading·시계 0·running false·settled 미이행이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', async () => {
+    const { holder, controller } = controllerWith();
+    const settled = vi.fn();
+    void controller.settled.then(settled);
     controller.advance(16);
+    await flush();
     expect([controller.status, controller.timeMs, controller.running]).toEqual(['loading', 0, false]);
+    expect(settled).not.toHaveBeenCalled();
     expect(holder.children).toHaveLength(0);
     expect(controller.gaugeFill).toBeNull();
     controller.destroy();
   });
 
-  it('자료가 준비되면 움직임 컨테이너를 자리에 얹고 status ready, 시계 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
+  it('자료가 준비되면 움직임 컨테이너를 자리에 얹고 status ready·settled 이행, 시계 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
     const { holder, controller } = await readyController();
     expect(controller.status).toBe('ready');
     expect(controller.running).toBe(true);
+    await expect(controller.settled).resolves.toBeUndefined();
     expect(holder.children.map((child) => child.label)).toEqual(['classic-frame-motion']);
     expect(bandY(holder)).toBe(-841);
     expect(controller.gaugeFill?.label).toBe('frame-motion-gauge-fill');
@@ -100,7 +110,7 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
   });
 
   it('탭이 숨어 있으면 advance(16)이 시계를 0에 그대로 둔다(비행 배경과 같은 규칙)', async () => {
-    const { controller } = await readyController({ hidden: true });
+    const { controller } = await readyController({ isHidden: () => true });
     controller.advance(16);
     expect(controller.timeMs).toBe(0);
     controller.destroy();
@@ -110,20 +120,17 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     const { controller } = await readyController();
     controller.advance(16);
     controller.advance(16);
-    const paused = controller.timeMs;
-    expect(paused).toBe(32);
-    expect(controller.timeMs).toBe(paused);
+    expect(controller.timeMs).toBe(32);
     controller.advance(16);
     expect(controller.timeMs).toBe(48);
     controller.destroy();
   });
 
-  it('움직임 줄이기면 움직임을 숨기고 advance(16)이 시계를 32ms에 그대로 두며, 풀면 다시 보이고 멈춘 자리에서 이어 간다', async () => {
+  it('움직임 줄이기면 움직임을 숨기고 advance(16)이 시계를 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 자리에서 이어 간다', async () => {
     const { holder, controller } = await readyController();
     controller.advance(16);
     controller.advance(16);
     controller.setReducedMotion(true);
-    expect(controller.reducedMotion).toBe(true);
     expect(controller.running).toBe(false);
     expect(holder.children[0].visible).toBe(false);
     controller.advance(16);
@@ -139,7 +146,7 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     const { holder, controller } = await readyController();
     controller.advance(16);
     controller.setEnabled(false);
-    expect([controller.enabled, controller.running, holder.visible]).toEqual([false, false, false]);
+    expect([controller.running, holder.visible]).toEqual([false, false]);
     controller.advance(16);
     expect(controller.timeMs).toBe(16);
     controller.setEnabled(true);
@@ -150,16 +157,13 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
   });
 
   it('준비 전에 고른 A 큰 광원 끄기·움직임 줄이기는 움직임을 얹을 때 그대로 적용된다', async () => {
-    const holder = new Container();
-    const { lease, resolve } = controllableLease();
-    const controller = new FrameMotionController({ holder, lease });
+    const { holder, resolve, controller } = controllerWith();
     controller.setLayerVisible('armor', false);
     controller.setReducedMotion(true);
-    expect(controller.isLayerVisible('armor')).toBe(false);
     resolve();
     await flush();
-    expect(holder.getChildByLabel('frame-motion-armor', true)!.visible).toBe(false);
-    expect(holder.getChildByLabel('frame-motion-gauge', true)!.visible).toBe(true);
+    expect(node(holder, 'frame-motion-armor').visible).toBe(false);
+    expect(node(holder, 'frame-motion-gauge').visible).toBe(true);
     expect(holder.children[0].visible).toBe(false);
     controller.destroy();
   });
@@ -175,31 +179,52 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     controller.destroy();
   });
 
-  it('upload를 주면 움직임을 얹기 전에 준비된 텍스처 9장으로 한 번 부른다', async () => {
-    const holder = new Container();
-    const { lease, resolve } = controllableLease();
+  it('upload를 주면 움직임을 얹기 전에 준비된 텍스처 9장으로 한 번 부르고, 움직임 줄이기 중에는 올리지 않는다(그리지 않는 텍스처)', async () => {
     const upload = vi.fn((textures: FrameMotionTextures) => expect(Object.keys(textures)).toHaveLength(9));
-    const controller = new FrameMotionController({ holder, lease, upload });
-    resolve();
-    await flush();
+    const { controller } = await readyController({ upload });
     expect(upload).toHaveBeenCalledTimes(1);
     expect(controller.status).toBe('ready');
     controller.destroy();
+
+    const reducedUpload = vi.fn();
+    const reduced = controllerWith({ upload: reducedUpload });
+    reduced.controller.setReducedMotion(true);
+    reduced.resolve();
+    await flush();
+    expect(reduced.controller.status).toBe('ready');
+    expect(reducedUpload).not.toHaveBeenCalled();
+    reduced.controller.destroy();
   });
 
-  it('자료 읽기가 실패하면 status error로 자리를 비워 두고(프레임만 보임) advance는 시계를 움직이지 않으며 경고를 한 번 남긴다', async () => {
+  it('warmUp(render)은 얹은 움직임의 하단 바를 그 한 번 동안 그리게 하고, 움직임이 없으면 render만 부른다', async () => {
+    const { holder, controller } = await readyController();
+    const bar = node(holder, 'frame-motion-bar');
+    const seen: boolean[] = [];
+    controller.warmUp(() => seen.push(bar.visible));
+    expect(seen).toEqual([true]);
+    expect(bar.visible).toBe(false);
+    controller.destroy();
+    const empty = controllerWith().controller;
+    const render = vi.fn();
+    empty.warmUp(render);
+    expect(render).toHaveBeenCalledTimes(1);
+    empty.destroy();
+  });
+
+  it('자료 읽기가 실패하면 status error·settled 이행으로 자리를 비워 두고, 경고를 한 번 남기며 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const holder = new Container();
-    const { lease, reject } = controllableLease();
-    const controller = new FrameMotionController({ holder, lease });
+    const { holder, lease, reject, controller } = controllerWith();
     reject(new Error('404'));
     await flush();
     expect(controller.status).toBe('error');
+    await expect(controller.settled).resolves.toBeUndefined();
     expect(holder.children).toHaveLength(0);
     controller.advance(16);
     expect(controller.timeMs).toBe(0);
     expect(warn).toHaveBeenCalledTimes(1);
     controller.destroy();
+    controller.destroy();
+    expect(lease.release).toHaveBeenCalledTimes(1);
   });
 
   it('destroy하면 움직임을 정리하고 임대를 한 번 놓으며, 두 번 불러도 다시 놓지 않는다', async () => {
@@ -213,16 +238,77 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     expect(controller.running).toBe(false);
   });
 
-  it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않는다', async () => {
-    const holder = new Container();
-    const { lease, resolve } = controllableLease();
+  it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않고 임대는 한 번만 놓는다', async () => {
     const create = vi.fn(createClassicFrameMotion);
-    const controller = new FrameMotionController({ holder, lease, create });
+    const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();
     resolve();
     await flush();
     expect(create).not.toHaveBeenCalled();
     expect(holder.children).toHaveLength(0);
     expect(lease.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('FrameMotionController — 곡 재생 중 늦게 온 자료(얹기 미루기)', () => {
+  it('setAttachDeferred(true)인 동안(재생 중) 자료가 준비되면 얹지도 올리지도 않고 status deferred·settled 이행, 자리는 비어 있고 advance도 시계를 움직이지 않는다', async () => {
+    const upload = vi.fn();
+    const present = vi.fn();
+    const { holder, resolve, controller } = controllerWith({ upload, present });
+    controller.setAttachDeferred(true);
+    resolve();
+    await flush();
+    expect(controller.status).toBe('deferred');
+    await expect(controller.settled).resolves.toBeUndefined();
+    expect(holder.children).toHaveLength(0);
+    expect(upload).not.toHaveBeenCalled();
+    expect(present).not.toHaveBeenCalled();
+    controller.advance(16);
+    expect([controller.timeMs, controller.running]).toEqual([0, false]);
+    controller.destroy();
+  });
+
+  it('미뤄 둔 자료는 setAttachDeferred(false)(일시정지)가 되면 그때 텍스처를 올리고 얹은 뒤 하단 바까지 한 장 그린다(present 1번, 그동안 하단 바 보임)', async () => {
+    const upload = vi.fn();
+    const barDuringPresent: boolean[] = [];
+    const { holder, resolve, controller } = controllerWith({
+      upload,
+      present: () => barDuringPresent.push(node(holder, 'frame-motion-bar').visible),
+    });
+    controller.setAttachDeferred(true);
+    resolve();
+    await flush();
+    controller.setAttachDeferred(false);
+    expect(controller.status).toBe('ready');
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(barDuringPresent).toEqual([true]);
+    expect(holder.children.map((child) => child.label)).toEqual(['classic-frame-motion']);
+    // 재개하면(다시 미룸) 이미 얹은 움직임은 그대로 흐른다.
+    controller.setAttachDeferred(true);
+    controller.advance(16);
+    expect(controller.timeMs).toBe(16);
+    controller.destroy();
+  });
+
+  it('미루기가 끝까지 풀리지 않으면(일시정지 없이 곡 끝) 그 세션은 움직임 없이 끝나고 destroy가 임대를 한 번 놓는다', async () => {
+    const create = vi.fn(createClassicFrameMotion);
+    const { holder, lease, resolve, controller } = controllerWith({ create });
+    controller.setAttachDeferred(true);
+    resolve();
+    await flush();
+    controller.setAttachDeferred(true);
+    controller.destroy();
+    controller.setAttachDeferred(false);
+    expect(create).not.toHaveBeenCalled();
+    expect(holder.children).toHaveLength(0);
+    expect(lease.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('미루지 않은 상태(곡 시작 전·Lab)에서 준비되면 바로 얹고 present는 부르지 않는다(첫 화면은 호출자가 그린다)', async () => {
+    const present = vi.fn();
+    const { controller } = await readyController({ present });
+    expect(controller.status).toBe('ready');
+    expect(present).not.toHaveBeenCalled();
+    controller.destroy();
   });
 });

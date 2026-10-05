@@ -1,6 +1,6 @@
 # RFD 0029: 새 기어 프레임을 비율 그대로 배치하고 레인을 좁힌다
 
-**Status:** Accepted (2026-10-04, 사용자 결정, 근거 `/lab/classic-frame-fit` PR #215) · Lab 미리보기에 Pixi 움직임 레이어·전체화면·꺾인 덱 사이 실제 레인 반영, 판정선 4% 유지 결정 (2026-10-05, PR #217) · 실제 게임 적용: 플레이필드 0.625배·판정선 y 416·키 윗면부터 가림막·키보드 표시 오른쪽 아래, 옛 기어·게이지·G 키 조정 제거 (2026-10-05, PR #220) · 노트를 가운데 기준으로 그려 게임과 Visual 캘리브레이션의 판정 시각 기준 통일 (2026-10-05, [#224](https://github.com/nanana3679/not4k/issues/224)) · 사용자 Visual 캘리브레이션 재설정·체감 확인 (2026-10-05) · 프레임 움직임 게임 이전: 게임 렌더러 내장 움직임(게임 프레임 시계·일시정지 중 멈춤·움직임 줄이기)과 설정 `Frame Motion`(기본 켬), 자료는 `public/gear/classic-frame-motion/` (2026-10-05, PR B) · 남은 작업: 새 프레임 고도 게이지(PR C)
+**Status:** Accepted (2026-10-04, 사용자 결정, 근거 `/lab/classic-frame-fit` PR #215) · Lab 미리보기에 Pixi 움직임 레이어·전체화면·꺾인 덱 사이 실제 레인 반영, 판정선 4% 유지 결정 (2026-10-05, PR #217) · 실제 게임 적용: 플레이필드 0.625배·판정선 y 416·키 윗면부터 가림막·키보드 표시 오른쪽 아래, 옛 기어·게이지·G 키 조정 제거 (2026-10-05, PR #220) · 노트를 가운데 기준으로 그려 게임과 Visual 캘리브레이션의 판정 시각 기준 통일 (2026-10-05, [#224](https://github.com/nanana3679/not4k/issues/224)) · 사용자 Visual 캘리브레이션 재설정·체감 확인 (2026-10-05) · 프레임 움직임 게임 이전: 게임 렌더러 내장 움직임(게임 프레임 시계·일시정지 중 멈춤·곡 시작 전에 얹기·움직임 줄이기면 만들지 않음)과 설정 `Frame Motion`(기본 켬), 자료는 `public/gear/classic-frame-motion/` (2026-10-05, PR #226) · 남은 작업: 새 프레임 고도 게이지(PR C)
 
 ## 기존 결정과 문제
 
@@ -46,13 +46,17 @@
 
 ## 프레임 움직임 게임 적용 (2026-10-05)
 
-Lab에서 승인 SVG와 맞춘 움직임 레이어(PR #217)를 그대로 게임 렌더러에 넣었다(PR B). 리듬게임이라 프레임 시간 안정과 판정 일관성을 먼저 지켰다.
+Lab에서 승인 SVG와 맞춘 움직임 레이어(PR #217)를 그대로 게임 렌더러에 넣었다(PR #226). 리듬게임이라 프레임 시간 안정과 판정 일관성을 먼저 지켰다.
 
 - **위치와 깊이:** 게임 렌더러가 프레임을 그릴 때 프레임 레이어에 프레임과 같은 변환의 자리를 만들고 그 위에 움직임을 얹는다. 그래서 움직임은 프레임 바로 위, 키봄·판정 글자·UI 아래에 그려진다. 움직임 모듈(`src/game/renderer/classicFrameMotion.ts`·`classicFrameMotionTiming.ts`·`classicFrameMotionData.ts`)은 Lab·React에 의존하지 않는 게임 코드이고, Lab 비교 화면도 같은 모듈을 쓴다.
-- **자료와 읽기:** 텍스처 9장과 `frame-motion.json`(약 2.0MB)은 게임 프레임 옆 `public/gear/classic-frame-motion/`에 둔다(생성기 `prepare-frame-motion-v21.mjs`, 다시 실행하면 같은 바이트). 스킨 매니페스트에 넣지 않고 따로 읽는다. 스킨 읽기는 렌더러를 만들고 곡을 시작하기 전에 기다리는데 여기에 움직임을 더하면 첫 화면과 곡 시작이 늦어지고, 프레임을 그리지 않는 재생기도 스킨을 읽기 때문이다. 대신 스킨 에셋과 같은 장치(Pixi Assets 전역 캐시와 경로별 참조 세기)로 프레임과 같은 밉맵·삼선형 설정으로 읽어, 같은 페이지의 렌더러들이 한 벌을 나눠 쓰고 마지막 사용자가 놓을 때 해제한다. GPU 메모리는 밉맵 포함 약 16.8MiB다.
-- **늦게 얹기:** 렌더러 준비와 곡 시작은 움직임 자료를 기다리지 않는다. 준비되기 전에는 정적 프레임만 그리고, 준비되면 텍스처를 GPU에 미리 올린 뒤 얹는다. 자료를 못 읽으면 정적 프레임으로 계속한다.
+- **자료와 읽기:** 텍스처 9장과 `frame-motion.json`(약 2.0MB)은 게임 프레임 옆 `public/gear/classic-frame-motion/`에 둔다(생성기 `prepare-frame-motion-v21.mjs`, 다시 실행하면 같은 바이트). 스킨 매니페스트에 넣지 않고 따로 읽는다. 스킨 읽기에 더하면 프레임을 그리지 않는 재생기도 받게 되고, 설정을 끄거나 움직임 줄이기일 때 아예 받지 않을 수 없기 때문이다. 대신 스킨 에셋과 같은 장치(Pixi Assets 전역 캐시와 경로별 참조 세기)로 프레임과 같은 밉맵·삼선형 설정으로 읽어, 같은 페이지의 렌더러들이 한 벌을 나눠 쓰고 마지막 사용자가 놓을 때 해제한다. GPU 메모리는 밉맵 포함 약 16.8MiB다.
+- **곡 시작 전에 얹기:** 곡 중 프레임에 텍스처 업로드(밉맵 생성 포함)·마스크 필터·셰이더 준비가 몰리지 않도록, 움직임은 곡을 시작하기 전에 얹고 한 장 그려 둔다(리뷰 지적: 처음 구현은 재시도·다음 곡마다 자료를 다시 받아 곡 시작 뒤 약 80ms에 얹었다).
+  - 플레이 화면은 설정이 켜진 동안 자료 임대 하나를 붙잡아 둔다. 렌더러는 곡·재시도마다 새로 만들어져 자기 임대를 놓지만, 이 임대 때문에 자료가 해제되지 않아 재시도·다음 곡은 받아 둔 자료를 캐시에서 바로 쓴다. 설정을 끄면 놓는다.
+  - 곡을 시작하기 전에 자료를 스킨 읽기와 함께 최대 1.2초 기다리고, 렌더러를 만든 뒤 렌더러가 움직임을 얹기를 최대 0.25초 기다린다. 자료가 이미 있으면 늘어나지 않는다.
+  - 재생 직전에 곡 시작 시각의 모습을 한 장 그린다. 빛이 투명해 평소에는 그리지 않는 하단 바 알파 마스크도 이 한 장에서 함께 그려 준비한다(화면은 같다).
+  - 자료가 곡 시작 뒤에 오면 재생 중에는 얹지 않는다. 일시정지하면 그때 텍스처를 올리고 얹은 뒤 한 장 그리며, 일시정지하지 않으면 그 곡은 정적 프레임으로 끝난다. 자료를 못 읽어도 정적 프레임으로 계속한다.
 - **시간 기준:** 움직임 시계는 곡 시각이나 벽시계가 아니라 렌더러가 받는 게임 프레임 간격(`renderFrame`의 `deltaMs`)으로만 나아간다. 비행 배경과 같은 규칙이다. 게임 루프는 일시정지 중에 프레임을 그리지 않으므로 시계도 멈췄다가 재개하면 멈춘 자리에서 이어 간다. 한 프레임에 최대 50ms만 나아가 긴 프레임이나 숨은 탭에서 돌아올 때 건너뛰지 않고, 숨은 탭에서는 나아가지 않는다. 같은 렌더러로 차트를 다시 걸어도(되감기) 이어 가고, 재시도·새 곡은 새 렌더러라 0초부터 시작한다. 장식이라 곡과 맞출 필요가 없고 비행 배경의 재시작 규칙과 같다.
-- **움직임 줄이기:** `prefers-reduced-motion: reduce`이면 비행 배경과 같은 판정으로 렌더러를 만들 때 한 번 읽어, 움직임 레이어를 모두 숨기고 시계를 멈춘다. 정적 프레임만 보인다.
+- **움직임 줄이기:** `prefers-reduced-motion: reduce`이면 비행 배경과 같은 판정으로 렌더러를 만들 때 한 번 읽어, 움직임을 아예 만들지 않고 자료도 받지 않는다(설정 끔과 같은 0 비용). 정적 프레임만 보인다. Lab 미리보기만 움직임을 만들어 숨겨 두고 페이지의 움직임 줄이기 상태로 켜고 끈다.
 - **설정:** `Settings → Gameplay → Display`의 `Frame Motion`(기본 켬)을 끄면 렌더러가 움직임 객체를 만들지도 자료를 읽지도 않아 매 프레임 비용이 없다. 약한 GPU에서 프레임 시간을 지키기 위한 선택이다. 저장값이 없으면 켬이다.
 - **프레임마다 하는 일:** 위치·불투명도만 바꾸고 객체를 새로 만들지 않는다. 런타임 필터는 하단 바 빛이 보이는 동안(주기의 55%)의 알파 마스크 한 번뿐이다.
 - **프레임을 그리지 않는 렌더러:** 튜토리얼 재생기와 노트 에셋 시연실은 움직임을 만들지 않는다.
@@ -72,10 +76,10 @@ Lab에서 승인 SVG와 맞춘 움직임 레이어(PR #217)를 그대로 게임 
 
 - **렌더러 배치:** `src/game/renderer/constants.ts`의 `PLAYFIELD_SCALE`과 그로부터 정한 `LANE_WIDTH`·`LANE_AREA_WIDTH`·`NOTE_WIDTH`·`NOTE_HEIGHT`·`JUDGMENT_LINE_THICKNESS`·`KEY_BOMB_SIZE`, 판정선 위치(`JUDGMENT_LINE_OFFSET` 184와 `setLift`), 키 윗면부터 덮는 가림막(`drawMask`), 프레임 배치(`classicFrameLayout.ts`), 키캡 라벨. 옛 `GEAR_INNER_*`·`updateGearFrameTransform`·40×40 버튼 그리기와 기어 조정 모드(G 키)는 지웠다.
 - **플레이 화면:** `PlayScreen.tsx`의 최소 논리 폭은 프레임이 들어가는 466(`resolvePlayLogicalWidth`)이고, `DebugLogger`는 렌더러의 판정선 y를 그대로 쓴다.
-- **에셋:** 옛 기어 프레임과 양옆 게이지(`public/gear/gear-*.png`, `gearGaugeMetadata.json`, `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 지우고 새 프레임 `public/gear/classic-frame.png`를 스킨 공통 `gearFrame`으로 쓴다. 나중에 스킨마다 다른 프레임을 쓸 가능성은 열어 둔다(사용자, 2026-10-04). 프레임 움직임 자료는 Lab 경로에서 프레임 옆 `public/gear/classic-frame-motion/`으로 옮겨 게임이 읽는다(PR B). 고도 게이지는 후속 작업이다.
+- **에셋:** 옛 기어 프레임과 양옆 게이지(`public/gear/gear-*.png`, `gearGaugeMetadata.json`, `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 지우고 새 프레임 `public/gear/classic-frame.png`를 스킨 공통 `gearFrame`으로 쓴다. 나중에 스킨마다 다른 프레임을 쓸 가능성은 열어 둔다(사용자, 2026-10-04). 프레임 움직임 자료는 Lab 경로에서 프레임 옆 `public/gear/classic-frame-motion/`으로 옮겨 게임이 읽는다(PR #226). 고도 게이지는 후속 작업이다.
 - **노트 표시:** 판정 전·놓친 노트는 판정선 아래 틈과 열린 덱을 지나 키 윗면까지 보인다. 놓친 롱노트의 판정선 고정은 #214에서 푼다.
 - **판정 사례 이미지:** `src/lab/judgmentCase/renderJudgmentCaseSvg.ts`는 레인 80px 그림을 그대로 유지한다. 게임 논리 px에는 80/62.5를, 스킨 테마 설계 px에는 0.8을 곱한다.
 - **문서:** [게임 코어 명세](../spec/game-core.md)의 리프트 기본 위치·플레이필드·키봄 기준 크기·기어 게이지 설명, [키 바인딩 명세](../spec/keybinding.md)의 키보드 표시, [노트 에셋 Lab 명세](../spec/note-asset-lab.md)의 레인·노트 크기, [PRD §12](../prd.md#12-미정-사항)의 `Classic 추진부 디자인` 행.
-- **프레임 움직임(PR B):** 움직임 모듈을 `src/lab/`에서 `src/game/renderer/`로 옮기고, 게임 렌더러가 `FrameMotionController`로 수명·시계를 관리한다(공개 조절 `GameRenderer.frameMotion`). 자료는 공유 로더 `classicFrameMotionAssets.ts`가 스킨과 같은 참조 세기 장치(`src/game/skin/sharedAssets.ts`, SkinManager에서 분리)로 읽는다. 설정 `frameMotion`(`Frame Motion`)을 더했고, 비행 배경과 움직임이 같은 움직임 줄이기 판정(`reducedMotion.ts`)을 쓴다. Lab `Classic Frame Fit`은 Lab 전용 얹기 도우미를 지우고 렌더러 내장 움직임을 공개 API로 조절한다. 문서는 [게임 코어 명세](../spec/game-core.md)의 플레이 화면 배치·설정과 [Lab 카탈로그 명세](../spec/lab-preview-catalog.md#classic-frame-fit)다.
+- **프레임 움직임(PR #226):** 움직임 모듈을 `src/lab/`에서 `src/game/renderer/`로 옮기고, 게임 렌더러가 `FrameMotionController`로 수명·시계를 관리한다(공개 조절 `GameRenderer.frameMotion`). 자료는 공유 로더 `classicFrameMotionAssets.ts`가 스킨과 같은 참조 세기 장치(`src/game/skin/sharedAssets.ts`, SkinManager에서 분리)로 읽고, 플레이 화면이 설정이 켜진 동안 임대 하나를 붙잡아 둔다(`src/game/screens/frameMotionKeepAlive.ts`, 설정을 끄면 게임 루트가 놓는다). 플레이 화면은 곡 시작 전에 짧게 기다리고 한 장 그린 뒤(`GameRenderer.warmUp`) 재생 중 늦은 자료를 일시정지까지 미룬다(`frameMotion.setAttachDeferred`). 설정 `frameMotion`(`Frame Motion`)을 더했고, 비행 배경과 움직임이 같은 움직임 줄이기 판정(`reducedMotion.ts`)을 쓴다. Lab `Classic Frame Fit`은 Lab 전용 얹기 도우미를 지우고 렌더러 내장 움직임을 공개 API로 조절한다. 문서는 [게임 코어 명세](../spec/game-core.md)의 플레이 화면 배치·설정과 [Lab 카탈로그 명세](../spec/lab-preview-catalog.md#classic-frame-fit)다.
 - **튜토리얼·노트 에셋 재생기:** 같은 상수로 레인 영역이 250으로 좁아지고, 높이·판정선 오프셋·스크롤 속도·해상도를 같은 배율로 맞춰 화면 크기는 그대로다.
 - 남은 선택(리프트 상한과 큰 리프트 처리, 광원 띠 가장자리 처리([#219](https://github.com/nanana3679/not4k/issues/219)), 스킨별 프레임 분리 여부, 놓친 롱노트의 틈 통과([#214](https://github.com/nanana3679/not4k/issues/214)))은 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.

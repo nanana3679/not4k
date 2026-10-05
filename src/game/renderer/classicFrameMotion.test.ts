@@ -238,6 +238,22 @@ describe('createClassicFrameMotion', () => {
     motion.destroy();
   });
 
+  it('warmUp(render)은 빛이 투명해 숨겨 둔 D 하단 바(0ms)를 render 한 번 동안만 보이게 해 알파 마스크를 준비하고, 끝나면 다시 숨긴다', () => {
+    const motion = createClassicFrameMotion(data, fakeTextures());
+    const bar = byLabel(motion.container, 'frame-motion-bar');
+    motion.update(0);
+    expect(bar.visible).toBe(false);
+    const seen: boolean[] = [];
+    motion.warmUp(() => seen.push(bar.visible));
+    expect(seen).toEqual([true]);
+    expect(bar.visible).toBe(false);
+    // 사용자가 꺼 둔 하단 바는 강제로 그리지 않는다.
+    motion.setLayerVisible('bar', false);
+    motion.warmUp(() => seen.push(bar.visible));
+    expect(seen).toEqual([true, false]);
+    motion.destroy();
+  });
+
   it('setLayerVisible(armor, false)이면 A 레이어만 숨고 다시 켜면 보이며, 꺼 둔 D는 빛이 보이는 880ms에도 숨어 있다', () => {
     const motion = createClassicFrameMotion(data, fakeTextures());
     motion.setLayerVisible('armor', false);

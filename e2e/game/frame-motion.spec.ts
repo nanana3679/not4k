@@ -3,8 +3,10 @@ import { test, expect, type Page } from '@playwright/test';
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
 interface MotionProbe {
-  /** renderFrame이 불린 횟수(게임 프레임 수). */
+  /** renderFrame이 불린 횟수(곡 시작 전 한 장 + 게임 프레임 수). */
   frames: number;
+  /** renderFrame마다 그 순간의 frameMotion.status(없으면 null). resetStatusLog 뒤부터 쌓인다. */
+  statusLog: (string | null)[];
   status: string | null;
   timeMs: number | null;
   running: boolean | null;
@@ -23,6 +25,7 @@ async function installProbe(page: Page) {
     if (win.__frameMotionRenderer !== undefined) return;
     win.__frameMotionRenderer = null;
     win.__frameMotionFrames = 0;
+    win.__frameMotionStatusLog = [];
     const rendererPath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
@@ -30,6 +33,7 @@ async function installProbe(page: Page) {
     GameRenderer.prototype.renderFrame = function (...args) {
       win.__frameMotionRenderer = this;
       win.__frameMotionFrames = (win.__frameMotionFrames as number) + 1;
+      (win.__frameMotionStatusLog as (string | null)[]).push(this.frameMotion?.status ?? null);
       return renderFrame.apply(this, args);
     };
   });
@@ -50,6 +54,7 @@ async function readProbe(page: Page): Promise<MotionProbe> {
     const root = motionRoots.find(node => node.label === 'classic-frame-motion');
     return {
       frames: win.__frameMotionFrames as number,
+      statusLog: [...(win.__frameMotionStatusLog as (string | null)[])],
       status: motion?.status ?? null,
       timeMs: motion?.timeMs ?? null,
       running: motion?.running ?? null,
@@ -58,6 +63,10 @@ async function readProbe(page: Page): Promise<MotionProbe> {
       motionVisible: root ? root.visible : null,
     };
   });
+}
+
+async function resetStatusLog(page: Page) {
+  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__frameMotionStatusLog = []; });
 }
 
 /** 브라우저 requestAnimationFrame을 count번 기다린다(벽시계 대기 대신 화면 프레임 수로 기다린다). */
@@ -74,6 +83,7 @@ async function startLocalPlay(page: Page, frameMotion: boolean) {
   await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await installProbe(page);
+  await resetStatusLog(page);
   await page.evaluate(async (motionOn) => {
     const storePath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
@@ -145,18 +155,72 @@ test.describe('실제 플레이의 Classic 프레임 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  test('움직임 줄이기(prefers-reduced-motion: reduce)면 실제 플레이에서 움직임을 숨기고 시계가 0ms에 머문다', async ({ page }) => {
+  test('움직임 줄이기(prefers-reduced-motion: reduce)면 설정이 켜져 있어도 실제 플레이에서 움직임을 만들지 않고(frameMotion null·객체 0개) 움직임 자료를 요청하지 않는다', async ({ page }) => {
     const errors: string[] = [];
+    const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => requested.push(new URL(request.url()).pathname));
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await startLocalPlay(page, true);
 
-    await expect.poll(async () => (await readProbe(page)).status, { timeout: 30_000 }).toBe('ready');
-    const start = await readProbe(page);
-    await waitAnimationFrames(page, 20);
-    const later = await readProbe(page);
-    expect(later.frames).toBeGreaterThan(start.frames);
-    expect(later).toMatchObject({ timeMs: 0, running: false, motionVisible: false });
+    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    const probe = await readProbe(page);
+    expect(probe).toMatchObject({ hasFrame: true, status: null, timeMs: null, running: null, motionObjects: 0 });
+    expect(requested.some(path => path.includes('/gear/classic-frame-motion/'))).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  test('첫 플레이와 일시정지 메뉴 Retry 모두 첫 renderFrame(곡 시작 전 한 장)부터 frameMotion이 ready이고 재생 중 얹기가 일어나지 않는다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await startLocalPlay(page, true);
+
+    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    const first = await readProbe(page);
+    expect(first.statusLog[0]).toBe('ready');
+    expect(new Set(first.statusLog)).toEqual(new Set(['ready']));
+
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await resetStatusLog(page);
+    await expect.poll(async () => (await readProbe(page)).statusLog.length, { timeout: 30_000 }).toBeGreaterThan(10);
+    const retried = await readProbe(page);
+    expect(retried.statusLog[0]).toBe('ready');
+    expect(new Set(retried.statusLog)).toEqual(new Set(['ready']));
+    expect(errors).toEqual([]);
+  });
+
+  test('움직임 자료가 곡 시작 뒤에 오면 재생 중에는 얹지 않고(deferred, 정적 프레임) 일시정지하면 그때 얹으며 재개 뒤 흐른다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/gear/classic-frame-motion/frame-motion.json', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await startLocalPlay(page, true);
+
+    // 자료 없이 곡이 시작해 게임 프레임이 돈다(곡 시작 전 대기는 1.2초 안에서 끝난다).
+    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    expect((await readProbe(page)).status).toBe('loading');
+    const response = page.waitForResponse(response => response.url().endsWith('/gear/classic-frame-motion/frame-motion.json'));
+    release();
+    await (await response).finished();
+    await expect.poll(async () => (await readProbe(page)).status, { timeout: 30_000 }).toBe('deferred');
+    await waitAnimationFrames(page, 10);
+    const playing = await readProbe(page);
+    expect(playing.statusLog).not.toContain('ready');
+    expect(playing).toMatchObject({ status: 'deferred', motionObjects: 1, running: false, timeMs: 0 });
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    await expect.poll(async () => (await readProbe(page)).status, { timeout: 15_000 }).toBe('ready');
+    const paused = await readProbe(page);
+    expect(paused).toMatchObject({ motionObjects: 2, timeMs: 0 });
+
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
     expect(errors).toEqual([]);
   });
 });

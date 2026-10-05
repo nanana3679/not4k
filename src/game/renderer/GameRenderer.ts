@@ -24,7 +24,7 @@ import {
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
 import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame, type ClassicFrameLayout } from "./classicFrameLayout";
-import { acquireFrameMotionAssets, type FrameMotionAssetLease } from "./classicFrameMotionAssets";
+import { acquireFrameMotionAssets } from "./classicFrameMotionAssets";
 import { FRAME_MOTION_TEXTURE_KEYS } from "./classicFrameMotionData";
 import { FrameMotionController, type FrameMotionControls } from "./FrameMotionController";
 import { prefersReducedMotion } from "./reducedMotion";
@@ -103,8 +103,11 @@ export interface GameRendererOptions {
    * 끄면(게임 설정 `frameMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
   frameMotion?: boolean;
-  /** @internal 테스트용 움직임 자료 임대 함수. 기본은 공유 로더(acquireFrameMotionAssets). */
-  frameMotionAssets?: () => FrameMotionAssetLease;
+  /**
+   * 움직임 줄이기(`prefers-reduced-motion: reduce`)일 때. 'omit'(기본, 게임): 움직임을 아예 만들지 않고 자료도 읽지 않는다(설정 끔과 같은 0 비용).
+   * 'hide'(Lab 미리보기): 만들어 숨겨 두고, 페이지가 frameMotion.setReducedMotion으로 다시 보이게 할 수 있다.
+   */
+  frameMotionReducedMotion?: "omit" | "hide";
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
@@ -188,7 +191,7 @@ export class GameRenderer {
   private gearFrameLayout: Readonly<ClassicFrameLayout> | null = null;
   // 프레임 움직임 — 프레임 레이어에서 프레임 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
   private readonly frameMotionEnabled: boolean;
-  private readonly acquireFrameMotion: () => FrameMotionAssetLease;
+  private readonly frameMotionReducedMotion: "omit" | "hide";
   private frameMotionController: FrameMotionController | null = null;
 
   // UI elements
@@ -244,7 +247,7 @@ export class GameRenderer {
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
     this.frameMotionEnabled = options.frameMotion ?? true;
-    this.acquireFrameMotion = options.frameMotionAssets ?? (() => acquireFrameMotionAssets());
+    this.frameMotionReducedMotion = options.frameMotionReducedMotion ?? "omit";
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -381,7 +384,6 @@ export class GameRenderer {
     // Draw static elements. 프레임 배치가 레인 가림막의 시작 높이를 정하므로 프레임을 먼저 놓는다.
     if (this.showGearFrame) {
       this.buildGearFrame();
-      this.buildFrameMotion();
     }
     this.drawBackground();
     this.drawJudgmentLine();
@@ -394,6 +396,8 @@ export class GameRenderer {
       this.buildTutorialKeyboard();
     }
     this.initialized = true;
+    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 프레임 레이어의 프레임 스프라이트 바로 위에 붙는다.
+    this.buildFrameMotion();
     if (this.showFlightBackground) {
       this.flightBackground = new FlightBackground({
         canvas: this.canvas, width: this.width, height: this.height,
@@ -476,12 +480,14 @@ export class GameRenderer {
   }
 
   /**
-   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 렌더러 준비와 곡 시작은
-   * 자료를 기다리지 않는다. 준비되기 전에는 정적 프레임만 그리고, 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹는다.
-   * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽는다.
+   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 렌더러 준비는 자료를 기다리지 않는다.
+   * 준비되기 전에는 정적 프레임만 그리고, 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹는다(재생 중이면 일시정지까지 미룬다,
+   * FrameMotionControls.setAttachDeferred). 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본은 아예 만들지 않는다.
    */
   private buildFrameMotion(): void {
     if (!this.frameMotionEnabled || !this.gearFrameLayout) return;
+    const reduced = prefersReducedMotion();
+    if (reduced && this.frameMotionReducedMotion === "omit") return;
     const holder = new Container({ label: "classic-frame-motion-holder" });
     if (!this.addFrameOverlay(holder)) {
       holder.destroy();
@@ -489,16 +495,32 @@ export class GameRenderer {
     }
     const controller = new FrameMotionController({
       holder,
-      lease: this.acquireFrameMotion(),
+      lease: acquireFrameMotionAssets(),
       upload: (textures) => {
         // 처음 그리는 프레임에 업로드(밉맵 생성 포함)가 몰리지 않도록 자료가 준비된 때 미리 올린다.
         const textureSystem = this.app.renderer?.texture;
         if (!this.initialized || !textureSystem) return;
         for (const key of FRAME_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
       },
+      // 일시정지 중에 미뤄 둔 움직임을 얹었을 때 지금 장면을 한 장 그려 마스크·셰이더 준비를 재개 전에 끝낸다.
+      present: () => {
+        if (this.initialized && this.app.renderer) this.app.render();
+      },
     });
-    controller.setReducedMotion(prefersReducedMotion());
+    controller.setReducedMotion(reduced);
     this.frameMotionController = controller;
+  }
+
+  /**
+   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 프레임·노트·움직임 텍스처 업로드와 셰이더·마스크 준비를
+   * 재생 시작 전에 끝내, 곡의 첫 프레임들이 그 비용을 치르지 않게 한다. 프레임 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로
+   * 이 한 장 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다). 플레이 화면이 audio 재생 직전에 부른다.
+   */
+  warmUp(songTimeMs: number): void {
+    if (!this.initialized || !this.app.renderer) return;
+    const render = () => this.renderFrame(songTimeMs, 0);
+    if (this.frameMotionController) this.frameMotionController.warmUp(render);
+    else render();
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {

@@ -663,6 +663,8 @@ function FrameFitRenderer({
           skinManager: skin,
           difficultyLabel: label,
           showFlightBackground: true,
+          // 움직임 줄이기에서도 움직임을 만들어 두고 페이지의 움직임 줄이기 상태로 숨긴다(게임은 기본 omit으로 아예 만들지 않는다).
+          frameMotionReducedMotion: 'hide',
         });
         await renderer.init();
         if (disposed) return;

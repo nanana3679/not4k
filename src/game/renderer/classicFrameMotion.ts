@@ -55,6 +55,11 @@ export interface ClassicFrameMotion {
   isLayerVisible(layer: FrameMotionLayer): boolean;
   /** 움직임 줄이기: SVG의 prefers-reduced-motion처럼 모든 움직임 레이어를 숨기고 멈춘다. */
   setReducedMotion(reduced: boolean): void;
+  /**
+   * render를 한 번 부르는 동안 빛이 투명해 숨겨 둔 하단 바 레이어(알파 마스크 필터)도 그리게 해, 필터 프로그램·렌더 텍스처를
+   * 곡 재생 전에 준비한다. 빛이 투명하면 바 안에는 같은 바탕 복사본만 그려져 화면은 그대로다. 끝나면 원래 표시로 돌린다.
+   */
+  warmUp(render: () => void): void;
   destroy(): void;
 }
 
@@ -374,6 +379,15 @@ export function createClassicFrameMotion(data: FrameMotionData, textures: FrameM
       setReducedMotion(next) {
         reduced = next;
         if (!destroyed) root.visible = !next;
+      },
+      warmUp(render) {
+        const forced = !destroyed && !reduced && userVisible.bar && !barLayer.visible;
+        if (forced) barLayer.visible = true;
+        try {
+          render();
+        } finally {
+          if (forced && !destroyed) applyVisibility();
+        }
       },
       destroy() {
         if (destroyed) return;
