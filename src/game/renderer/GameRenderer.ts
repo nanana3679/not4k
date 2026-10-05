@@ -675,11 +675,12 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 지난 노트를 그리는 시간. 프레임 가림막은 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈
-   * (가림막 위끝까지 + 노트 두께)을 다 지나야 사라진다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
+   * 판정선을 지난 노트를 그리는 시간. 프레임 가림막은 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
+   * 노트 시각은 박스 가운데라(#224) 박스 윗변이 가림막 위끝에 닿는 때는 시각 위치가 (가림막 위끝 − 판정선) + 노트 반 칸 내려갔을 때다.
+   * 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
    */
   private lateNoteWindowMs(): number {
-    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT;
+    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT / 2;
     return Math.max(LATE_NOTE_MIN_WINDOW_MS, (visibleBelowLine / this._scrollSpeed) * 1000);
   }
 
@@ -842,9 +843,9 @@ export class GameRenderer {
     if (index < this.measureLinePool.length) {
       return this.measureLinePool[index];
     }
-    // 선 아래끝이 g.y에 오도록 위로 그린다.
+    // 판정선처럼 선 두께의 가운데가 g.y(마디 시각 위치)에 오도록 그린다. 노트 가운데와 같은 기준이다(#224).
     const g = new Graphics()
-      .rect(this.laneAreaX, -this.measureLineThickness, LANE_AREA_WIDTH, this.measureLineThickness)
+      .rect(this.laneAreaX, -this.measureLineThickness / 2, LANE_AREA_WIDTH, this.measureLineThickness)
       .fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
     this.measureLinePool.push(g);
     this.measureLineLayer.addChild(g);
@@ -892,7 +893,8 @@ export class GameRenderer {
       const zoneGraphic = this.getRestZoneFromPool(poolIdx++);
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
-      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다.
+      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다. 노트 칸이 아니라 시각 구간 자체를 그리므로
+      // 경계 박의 노트(허용)는 가운데가 밴드 경계에 걸친다 — 에디터 타임라인과 같다.
       zoneGraphic.position.set(laneX, endY);
       zoneGraphic.scale.y = Math.max(startY - endY, 1);
       zoneGraphic.visible = true;
@@ -926,10 +928,10 @@ export class GameRenderer {
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
       // trillZone은 같은 시작/끝 박의 롱노트 body와 같은 길이·위치로 그린다.
-      // 롱노트 body: top = endY(끝 박스 상단), bottom = startY + NOTE_HEIGHT(시작 박스 하단).
-      // (startY/endY는 박스 상단 기준. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치)
-      zoneGraphic.position.set(laneX, endY);
-      zoneGraphic.scale.y = Math.max(startY + NOTE_HEIGHT - endY, NOTE_HEIGHT); // 최소 한 칸(길이 0)
+      // startY/endY는 시각 위치(노트 박스 가운데, #224)라 롱노트 body는 top = endY − 노트 반 칸(끝 칸 윗변),
+      // bottom = startY + 노트 반 칸(머리 칸 아랫변)이다. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치.
+      zoneGraphic.position.set(laneX, endY - NOTE_HEIGHT / 2);
+      zoneGraphic.scale.y = Math.max(startY - endY + NOTE_HEIGHT, NOTE_HEIGHT); // 최소 한 칸(길이 0)
       zoneGraphic.visible = true;
     }
   }

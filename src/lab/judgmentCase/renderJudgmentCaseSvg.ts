@@ -12,7 +12,7 @@
  * 최소 MIN_GAP_PX를 보장해 20ms 바디나 10ms 차이 입력도 읽히게 한다. 축 눈금은 실제 ms를 표시한다.
  */
 
-import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, playfieldPx } from "../../game/renderer/constants";
+import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, noteBoxTopY, playfieldPx } from "../../game/renderer/constants";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
 import type { NoteEntity, RangeNote } from "../../shared/types";
 import { violationLabel, type ValidationErrorRule } from "../../shared/validation";
@@ -847,7 +847,7 @@ interface NoteLayers { bodies: string[]; ends: string[]; heads: string[]; points
  * (실패는 판정 라벨로만 보인다). 레이어는 게임과 같이 바디 < 끝 터미널 < 시작 터미널 < 포인트 순이고,
  * points(포인트 레이어)는 노트 경계선 위에 그리도록 따로 돌려준다.
  *
- * 게임은 포인트·터미널 박스 윗변을 시각에 맞추지만, 축 눈금과 함께 읽도록 박스 가운데를 시각 선에 맞춘다.
+ * 게임과 같이 포인트·터미널 박스 가운데를 시각 선에 맞춘다(노트 가운데 기준, #224 — `noteBoxTopY`). 그래서 축 눈금이 노트 가운데를 지난다.
  * 정지 그림이므로 시작·끝 터미널을 모두 그린다(길이 0 롱노트는 full-height 스킨에서 시작 터미널 하나).
  */
 function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: number, laneX: (lane: number) => number, yOf: (t: number) => number): { below: string; points: string } {
@@ -866,7 +866,7 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     const part = (name: string) => `data-note-index="${entry.index}" data-note-type="${note.type}" data-note-part="${name}"`;
 
     if (!isRange(note)) {
-      const top = yOf(entry.startMs) - h / 2;
+      const top = noteBoxTopY(yOf(entry.startMs), h);
       if (note.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
       // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 싱글·더블은 pointContactShadow, trill은 pointContactShadowTrill(예전 pointShadow는 고르지 않음).
       const reach = skin.pointContactShadow;

@@ -25,6 +25,7 @@ import {
   NOTE_HEIGHT,
   NOTE_WIDTH,
   COLORS,
+  noteBoxTopY,
   playfieldPx,
 } from "./constants";
 
@@ -148,7 +149,9 @@ export class GameNoteRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    const y = this.calculateNoteY(timeMs, songTimeMs);
+    // 노트 시각 위치는 박스 세로 가운데다(#224). 판정 순간 박스 = [판정선 − NOTE_HEIGHT/2, 판정선 + NOTE_HEIGHT/2].
+    // y는 박스 위끝이고, 아래 화면 밖 판정과 그림자·Grace 배치는 모두 박스 위끝 기준이다.
+    const y = noteBoxTopY(this.calculateNoteY(timeMs, songTimeMs));
     if (y < -NOTE_HEIGHT) return;
     // 화면 아래로 벗어난 miss 노트는 완료 처리하여 렌더링 누적 방지
     if (y > this.height + NOTE_HEIGHT) {
@@ -260,14 +263,19 @@ export class GameNoteRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    // 포인트 노트는 시간 위치를 박스 상단 기준으로 그린다(박스 = [y, y+NOTE_HEIGHT]).
-    // 롱노트도 같은 기준으로 맞춘다:
-    //  - 머리: 시작 시간 위치가 머리 박스 상단이 되도록 +NOTE_HEIGHT 내린다
-    //    (body 하단 = 시작 시간 + NOTE_HEIGHT → 포인트 노트 박스 하단과 일치).
-    //  - 끝점: 끝 시간 위치가 끝 박스 상단(terminal.y)이 되도록 보정 없이 그대로 쓴다.
+    // 포인트 노트는 시간 위치를 박스 세로 가운데로 그린다(#224, 박스 = [y − NOTE_HEIGHT/2, y + NOTE_HEIGHT/2]).
+    // 롱노트도 같은 기준으로 시작 시각 칸(머리 칸)과 끝 시각 칸(끝 칸)을 바디 하나로 잇는다:
+    //  - 바디 아랫변(startY) = 머리 칸 아랫변 = 시작 시간 위치 + NOTE_HEIGHT/2 → 같은 시각 포인트 노트 박스 아랫변과 일치.
+    //  - 바디 윗변(endY) = 끝 칸 윗변 = 끝 시간 위치 − NOTE_HEIGHT/2 → 같은 시각 포인트 노트 박스 윗변과 일치.
     // 이러면 길이 0 롱노트는 bodyHeight가 정확히 NOTE_HEIGHT가 되어 포인트 노트와 같은 칸에 온다.
-    const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
-    const endY = this.calculateNoteY(endMs, songTimeMs);
+    // 시작·끝 터미널(반쪽 캡·전체 높이)은 바디 양 끝 칸 안에 그려 바디와 틈·겹침 없이 맞물린다.
+    const startCenterY = this.calculateNoteY(startMs, songTimeMs);
+    const rawStartY = startCenterY + NOTE_HEIGHT / 2;
+    const endY = noteBoxTopY(this.calculateNoteY(endMs, songTimeMs));
+    // 머리 칸 가운데가 판정선에 왔을 때의 바디 아랫변. 잡고 있는 머리·당김·놓친 롱노트가 여기서 멈춘다.
+    const lineCellBottomY = this.judgmentLineY + NOTE_HEIGHT / 2;
+    // 머리 칸 가운데가 판정선에 닿았는지(곡 시각 ≥ 시작 시각) — 판정 조회가 없는 재생기의 기하 held 판단.
+    const headReachedLine = startCenterY >= this.judgmentLineY;
 
     // 화면 아래로 완전히 벗어난 miss 롱노트는 완료 처리
     if (endY > this.height + NOTE_HEIGHT && this.missedNotes.has(index)) {
@@ -294,16 +302,17 @@ export class GameNoteRenderer {
 
     // 헤드없는 롱노트의 홀드 충족 조회 (이슈 #85) — 텍스처 선택 + "빈 구간 채움"에 공용.
     const headlessFill = this.headlessHeldFillQuery?.(index, songTimeMs) ?? null;
-    // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 body 하단을 판정선까지 당겨 빈 구간을
+    // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 머리 칸 가운데가 판정선에 오도록 body 하단을 당겨 빈 구간을
     // 채운다 — "내 홀드가 이 롱을 맡고 있다"를 판정선 위 작은 텍스처 변화가 아니라 채워진 body로 보인다.
     // 길이 0 슬라이드/릴리즈 노트는 body가 없어 당기지 않는다.
     const pullToLine = headlessFill !== null && headlessFill.filled > 0 && endMs > startMs;
 
-    // 바디 시작 Y를 판정선으로 클램프 (머리 박스 상단이 판정선에 고정되도록 +NOTE_HEIGHT).
-    // 당김 중이면 노트가 아직 판정선에 안 닿았어도 하단을 판정선에 고정한다.
+    // 바디 아랫변을 판정선 가운데 칸 아랫변으로 클램프한다: 머리 칸 가운데가 판정선에 고정된다
+    // (잡고 있는 머리, 아직 판정선에 멈추는 놓친 롱노트 #214). 당김 중이면 노트가 아직 판정선에 안 닿았어도 고정한다.
+    // 터미널은 바디 양 끝 칸에 붙으므로 이 클램프만으로 판정선 가운데 칸 아래로 내려가지 않는다.
     const startY = pullToLine
-      ? this.judgmentLineY + NOTE_HEIGHT
-      : Math.min(rawStartY, this.judgmentLineY + NOTE_HEIGHT);
+      ? lineCellBottomY
+      : Math.min(rawStartY, lineCellBottomY);
 
     const laneX = this.getLaneX(entity.lane);
     let bodyHeight = startY - endY;
@@ -347,7 +356,7 @@ export class GameNoteRenderer {
       } else {
         const isHeld = heldEffect && (bodyState
           ? heldUnitCount >= requiredUnitCount && requiredUnitCount > 0
-          : rawStartY >= this.judgmentLineY + NOTE_HEIGHT);
+          : headReachedLine);
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
         endCapTexKey = !isHeld && this.skinManager.hasTexture("terminalTrillIdle")
           ? "terminalTrillIdle"
@@ -372,15 +381,14 @@ export class GameNoteRenderer {
       if ((!fullHeightTerminal || songTimeMs <= endMs)
         && adjustedEndY >= -NOTE_HEIGHT
         && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        // 끝 터미널은 끝 칸(바디 윗변부터 노트 한 칸)에 그린다. 바디 아랫변이 판정선 가운데 칸에서 멈추므로
+        // adjustedEndY ≤ 판정선 − NOTE_HEIGHT/2라, 끝 시각에 끝 칸 가운데가 판정선에 오고 그보다 내려가지 않는다.
         if (isHoldOnlyNote(entity) && !isFailed && !isMissed) {
-          const terminalY = fullHeightTerminal ? Math.min(adjustedEndY, this.judgmentLineY - NOTE_HEIGHT) : adjustedEndY;
-          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, terminalY, terminalWidth, 'terminal');
+          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, adjustedEndY, terminalWidth, 'terminal');
         }
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
         endCapSprite.x = fullHeightTerminal ? terminalX : laneX;
-        endCapSprite.y = fullHeightTerminal
-          ? Math.min(adjustedEndY, this.judgmentLineY - NOTE_HEIGHT)
-          : adjustedEndY;
+        endCapSprite.y = adjustedEndY;
         if (fullHeightTerminal) {
           endCapSprite.width = terminalWidth;
           endCapSprite.height = NOTE_HEIGHT;
@@ -393,8 +401,8 @@ export class GameNoteRenderer {
       // 헤드 다이아몬드는 그리지 않는다. trillLong은 검증 규칙상 항상 같은 레인·같은
       // 시작 박에 별도의 trill 포인트 노트(헤드)를 가지며(validateTrillLong, RFD 0009),
       // 그 노트가 renderPointNote에서 올바른 위치·올바른 헤드 판정 상태로 다이아몬드를 그린다.
-      // 여기서 또 그리면 헤드가 중복 렌더되고, body 정렬용 +NOTE_HEIGHT 보정 때문에
-      // NOTE_HEIGHT만큼 어긋난 두 번째 다이아몬드가 보인다.
+      // 여기서 또 그리면 같은 머리 칸에 헤드가 두 번 그려지고, 헤드가 처리되거나 놓쳐도
+      // 바디 쪽 다이아몬드는 그 판정 상태를 따르지 않는다.
     } else {
       // long / doubleLong: Sprite-based
       const isDouble = entity.type === "doubleLong";
@@ -433,7 +441,7 @@ export class GameNoteRenderer {
             ? heldUnitCount >= requiredUnitCount && requiredUnitCount > 0
             : fill
               ? fill.filled >= fill.required
-              : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
+              : headReachedLine ||
                 this.hasConnectedHeldPredecessor(index, songTimeMs);
           bodyTexKey = isHeld
             ? (isDouble ? "bodyDoubleHeld" : "bodySingleHeld")
@@ -486,16 +494,14 @@ export class GameNoteRenderer {
         && adjustedEndY <= this.height + NOTE_HEIGHT) {
         // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
         if ((entity.type === "long" || entity.type === "doubleLong") && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
-          const terminalY = fullHeightTerminal ? Math.min(adjustedEndY, this.judgmentLineY - capHeight) : adjustedEndY;
-          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, terminalY, terminalWidth, 'terminal');
+          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, adjustedEndY, terminalWidth, 'terminal');
         }
-        // 끝 terminal — 스킨 설정에 따라 전체 또는 윗부분 절반을 그린다.
+        // 끝 terminal — 끝 칸 윗변(바디 윗변)부터 스킨 설정에 따라 전체(끝 칸) 또는 윗부분 절반을 그린다.
+        // 바디 아랫변이 판정선 가운데 칸에서 멈추므로 끝 시각에 끝 칸 가운데가 판정선에 오고 그보다 내려가지 않는다.
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
         endCapSprite.texture = capTexture;
         endCapSprite.x = terminalX;
-        endCapSprite.y = fullHeightTerminal
-          ? Math.min(adjustedEndY, this.judgmentLineY - capHeight)
-          : adjustedEndY;
+        endCapSprite.y = adjustedEndY;
         endCapSprite.width = terminalWidth;
         endCapSprite.height = capHeight;
         endCapSprite.tint = 0xffffff;
@@ -503,19 +509,18 @@ export class GameNoteRenderer {
         this.longNoteEndLayer.addChild(endCapSprite);
       }
 
-      // 시작 terminal — 같은 텍스처를 상하반전(scale.y<0)해 머리 끝(startY)에 그린다.
+      // 시작 terminal — 같은 텍스처를 상하반전(scale.y<0)해 머리 칸 아랫변(바디 아랫변 startY)에서 위로 그린다.
+      // 전체 높이 terminal은 머리 칸 전체라 같은 시각 포인트 노트와 같은 칸이고, 판정선에서는 가운데가 판정선에 온다.
       if (showFullHeightStartTerminal
         && startY >= -NOTE_HEIGHT
         && startY <= this.height + NOTE_HEIGHT) {
         if (fullHeightTerminal && isZeroLength && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
-          this.addGraceGlow(index, this.longNoteHeadLayer, terminalX, Math.min(startY, this.judgmentLineY) - capHeight, terminalWidth, 'terminal');
+          this.addGraceGlow(index, this.longNoteHeadLayer, terminalX, startY - capHeight, terminalWidth, 'terminal');
         }
         const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey, capTexture);
         startCap.texture = capTexture;
         startCap.x = terminalX;
-        startCap.y = fullHeightTerminal
-          ? Math.min(startY, this.judgmentLineY)
-          : startY;
+        startCap.y = startY;
         startCap.width = terminalWidth;
         startCap.height = capHeight;
         startCap.scale.y = -Math.abs(startCap.scale.y); // 상하반전 → [startY-capHeight, startY]
@@ -695,16 +700,18 @@ export class GameNoteRenderer {
     }
 
     const startMs = this.noteStartMsByIndex.get(index);
-    if (startMs !== undefined) {
-      const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
-      if (rawStartY >= this.judgmentLineY + NOTE_HEIGHT) return true;
-    }
+    // 머리 칸 가운데가 판정선에 닿았으면(곡 시각 ≥ 시작 시각) held로 본다.
+    if (startMs !== undefined && this.calculateNoteY(startMs, songTimeMs) >= this.judgmentLineY) return true;
 
     const pred = this.connectedPredecessor.get(index);
     if (pred !== undefined) return this.isLongNoteHeldVisually(pred, songTimeMs);
     return false;
   }
 
+  /**
+   * 노트 시각의 y. 노트 박스 세로 가운데가 여기에 온다(#224, 박스 위끝은 `noteBoxTopY`).
+   * 마디선·구간 밴드처럼 시각 자체를 그리는 표시도 이 값을 그대로 쓴다.
+   */
   calculateNoteY(noteTimeMs: number, songTimeMs: number): number {
     return (
       this.judgmentLineY - ((noteTimeMs - songTimeMs) * this.scrollSpeed) / 1000

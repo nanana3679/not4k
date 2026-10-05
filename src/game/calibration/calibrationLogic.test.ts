@@ -4,6 +4,9 @@ import {
   calculateStdDev,
   removeOutliers,
   calculateCalibrationResult,
+  calibrationNoteProgress,
+  calibrationNoteTopY,
+  CALIBRATION_NOTE_HEIGHT,
 } from './calibrationLogic';
 
 describe('calculateMedian', () => {
@@ -110,5 +113,26 @@ describe('calculateCalibrationResult', () => {
     const diffs = [10, 11, 10, 11, 10, 11, 10, 11];
     const result = calculateCalibrationResult(diffs);
     expect(Number.isInteger(result.offset)).toBe(true);
+  });
+});
+
+describe('Visual 보정 노트 위치 — 게임과 같은 노트 가운데 기준 (#224)', () => {
+  it('박 시각(now = beat = 5000)에는 진행도 1이고 두께 12 노트 박스 가운데가 판정선 y 340에 와 위끝 334', () => {
+    const progress = calibrationNoteProgress(5000, 5000);
+    expect(progress).toBe(1);
+    expect(calibrationNoteTopY(progress, 340)).toBe(334);
+    expect(calibrationNoteTopY(progress, 340) + CALIBRATION_NOTE_HEIGHT / 2).toBe(340);
+  });
+
+  it('박 시각보다 한 간격(600ms) 전에는 진행도 0이고 노트 가운데가 캔버스 위끝 y 0(박스 위끝 −6)', () => {
+    const progress = calibrationNoteProgress(4400, 5000);
+    expect(progress).toBe(0);
+    expect(calibrationNoteTopY(progress, 340)).toBe(-6);
+  });
+
+  it('박 시각보다 300ms 전(한 간격 600ms의 절반)에는 진행도 0.5이고 노트 가운데가 판정선 y 340의 절반 y 170', () => {
+    const progress = calibrationNoteProgress(4700, 5000);
+    expect(progress).toBe(0.5);
+    expect(calibrationNoteTopY(progress, 340) + CALIBRATION_NOTE_HEIGHT / 2).toBe(170);
   });
 });

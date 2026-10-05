@@ -480,6 +480,23 @@ describe("renderJudgmentCaseSvg", () => {
     expect(pointY + 8).toBeCloseTo(tickY, 1);
   });
 
+  it("롱노트도 게임과 같은 노트 가운데 기준(#224): long N4 1560–1760 바디는 1760 시각 선 8px 위부터 1560 시각 선 8px 아래까지, Classic 끝·시작 터미널(16px) 가운데는 각 시각 선", () => {
+    const { svg } = render([panelFor(D4)]);
+    const body = svg.match(/data-note-index="3" data-note-type="long" data-note-part="body"[^>]*>(?:<pattern[^>]*>.*?<\/pattern>)?<rect x="[\d.]+" y="([-\d.]+)" width="[\d.]+" height="([\d.]+)"/)!;
+    const terminal = (part: string) => {
+      const match = svg.match(new RegExp(`data-note-index="3" data-note-type="long" data-note-part="${part}" data-skin-asset="[^"]+" x="[\\d.]+" y="([-\\d.]+)" width="[\\d.]+" height="([\\d.]+)"`))!;
+      return { top: Number(match[1]), height: Number(match[2]) };
+    };
+    const [bodyTop, bodyHeight] = [Number(body[1]), Number(body[2])];
+    expect(bodyTop).toBeCloseTo(tickY(svg, 1760) - 8, 1);
+    expect(bodyTop + bodyHeight).toBeCloseTo(tickY(svg, 1560) + 8, 1);
+    const end = terminal("end");
+    const start = terminal("start");
+    expect(end.height).toBeCloseTo(16, 1);
+    expect(end.top + 8).toBeCloseTo(tickY(svg, 1760), 1);
+    expect(start.top + 8).toBeCloseTo(tickY(svg, 1560), 1);
+  });
+
   it("Classic 바디는 늘이지 않고 반복: 레인 80px에서 바디 폭 80 × 200/212 ≈ 75.47px, 세로 주기 40 × 75.47/200 ≈ 15.09px 패턴", () => {
     const { svg } = render([panelFor(D4)]);
     const pattern = svg.match(/<pattern id="jc-tile-0-1" patternUnits="userSpaceOnUse" x="[\d.]+" y="[\d.]+" width="([\d.]+)" height="([\d.]+)">/);

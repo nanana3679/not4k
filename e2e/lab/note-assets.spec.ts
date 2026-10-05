@@ -157,18 +157,19 @@ test.describe("Note Assets Lab", () => {
         const after = withShadow.getContext('2d').getImageData(x, y, 1, 1).data;
         return (before[0] + before[1] + before[2] - after[0] - after[1] - after[2]) / 3;
       };
-      // 연결점의 두 번째 포인트(y=380~400, 중심 150·390)는 네 사선 바로 바깥이 가장 짙고 5px 안에서 옅어진다.
-      // x=125·175에서 아래 사선은 y=395, 위 사선은 y=385다.
-      const lowerEdgeShadow = [shadeAt(125, 396), shadeAt(175, 396)];
-      const upperEdgeShadow = [shadeAt(125, 384), shadeAt(175, 384)];
+      // 연결점의 두 번째 포인트(750ms)는 650ms 프레임에 시각 위치 y=380(판정선 420 − 100ms × 0.4)이 박스 가운데라(#224)
+      // y=370~390, 중심 150·380이다. 네 사선 바로 바깥이 가장 짙고 5px 안에서 옅어진다.
+      // x=125·175에서 아래 사선은 y=385, 위 사선은 y=375다.
+      const lowerEdgeShadow = [shadeAt(125, 386), shadeAt(175, 386)];
+      const upperEdgeShadow = [shadeAt(125, 374), shadeAt(175, 374)];
       // 아래 사선에서 3px 떨어진 곳은 옅지만 아직 그림자가 남는다.
-      const softShadowTail = [shadeAt(125, 398), shadeAt(175, 398)];
+      const softShadowTail = [shadeAt(125, 388), shadeAt(175, 388)];
       // 사선에서 약10px 떨어진 곳은 5px 퍼짐 밖이다.
-      const oldRectangularShadow = shadeAt(105, 401);
+      const oldRectangularShadow = shadeAt(105, 391);
       const samplePoint = () => {
         const image = screen();
         const context = image.getContext('2d');
-        return [...context.getImageData(125, 390, 1, 1).data];
+        return [...context.getImageData(125, 380, 1, 1).data];
       };
       const withTerminal = samplePoint();
       renderer.longNoteEndLayer.visible = false;
@@ -183,7 +184,7 @@ test.describe("Note Assets Lab", () => {
         for (let x = 5; x < 95; x++) {
           // 마름모 윤곽의 안티앨리어싱을 제외하고 하단을 포함한 전체 내부를 비교한다.
           if (Math.abs(x - 50) / 5 + Math.abs(y - 10) > 8) continue;
-          const i = ((380 + y) * 400 + 100 + x) * 4;
+          const i = ((370 + y) * 400 + 100 + x) * 4;
           if ([0, 1, 2].some(channel => Math.abs(barePointPixels[i + channel] - compositePixels[i + channel]) > 3)) changedPointPixels++;
         }
       }
