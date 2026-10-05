@@ -165,6 +165,22 @@ describe('비행 배경 공개 미리보기 서버', () => {
     }
   });
 
+  it('Pages의 이륙·침투 모듈을 export하면 광원 버퍼·hypot을 포함한 모든 상대 import 대상도 함께 존재한다', async () => {
+    const entries = await staticPreviewEntriesAt('/not4k/__lab/flight-background-preview');
+    const paths = new Set(entries.map(entry => entry.pathname));
+    for (const scene of ['liftoff', 'infiltration']) {
+      const base = `/not4k/__lab/flight-background-preview/flight/${scene}/`;
+      for (const name of ['visible-light-frame.mjs', 'hypot.mjs']) expect(paths.has(base + name), base + name).toBe(true);
+      for (const entry of entries.filter(entry => entry.pathname.startsWith(base) && entry.pathname.endsWith('.mjs'))) {
+        const imports = entry.body.toString('utf8').matchAll(/\b(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"](\.[^'"]+)['"]/g);
+        for (const match of imports) {
+          const dependency = new URL(match[1], `http://preview.local${entry.pathname}`).pathname;
+          expect(paths.has(dependency), `${entry.pathname} → ${dependency}`).toBe(true);
+        }
+      }
+    }
+  });
+
   it('Pages의 돌파 모듈을 export하면 시설·렌더 품질을 포함한 모든 상대 import 대상도 함께 존재한다', async () => {
     const base = '/not4k/__lab/flight-background-preview/flight/breakthrough/';
     const entries = await staticPreviewEntriesAt('/not4k/__lab/flight-background-preview');

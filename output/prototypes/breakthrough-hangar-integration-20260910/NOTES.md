@@ -235,3 +235,7 @@ A는 기존 장갑판 계열, B~H와 E의 뒤 골조는 기존 격납고 외벽 
 ## Lab 진입과 화면 크기 변경 (2026-09-16)
 
 시설 통과는 `/lab/facility-passage`에서 고도0%·정지 상태로 바로 열고 Lab 목록으로 돌아온다. 공개 배경의 간소화 화면과 전체 조절 화면은 같은 실행 모듈을 쓰며, 전체 화면은 별도 `study.html` 진입점으로 정적 export한다. 시설·렌더 품질 모듈도 공개 서버와 Pages 허용 목록에 포함한다. 560px 경계를 넘는 창 크기 변경·회전에서는 렌더 DPR과 잔상 예산을 함께 갱신한다. 위의 과거 성능 수치는 당시 합성 측정 기록이다.
+
+## 게임 배경의 프레임 할당 정리 (2026-10-06)
+
+게임은 돌파 배경을 매 프레임 그리므로 면·잔상·정점을 새 객체로 만들면 주기적인 GC 정지(끊김)가 생긴다. `legacy/`는 SHA-256으로 고정한 원본이라 고치지 않고, `face-frame.mjs`의 `FaceFrame`이 `frameAt`·`worldFaces`·`collectFaces`와 같은 값을 재사용 버퍼에 계산한다. 직선·윤곽선 도안은 이 모듈이 다시 계산하고, 삼각형 채움 도안은 legacy `worldFaces` 결과를 받아 쓴다. 잔상은 직전 프레임 면과 비교하므로 게임은 `FaceFrame` 두 개를 번갈아 쓴다. `world-trails.mjs`의 `TrailPool`은 수명이 끝난 잔상 표본 객체를 다음 표본으로 다시 쓰고, `LightBatch`는 typed array에 바로 쓴다. 버퍼를 넘기지 않으면 `collectFaces`·`advanceTrails`는 이전과 같이 새 결과를 돌려준다. legacy 식과 결과가 달라지면 `face-frame.test.ts`의 legacy 비교와 변경 전 기준 해시가 실패한다.

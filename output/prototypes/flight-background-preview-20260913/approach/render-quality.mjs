@@ -102,8 +102,11 @@ export function screenPolygonArea(points) {
 
 export function capDistantLights(lights, quality = 'high') {
   const profile = renderQualityProfile(quality);
+  // 예산 안이면 원거리 목록을 만들지 않고 입력 배열을 그대로 돌려준다. GPU 품질은 예산이 무한이라 매 프레임 이 경로다.
+  let distantCount = 0;
+  for (let i = 0; i < lights.length; i++) if (lights[i].lod === 'point') distantCount++;
+  if (distantCount <= profile.maxDistantPoints) return lights;
   const distant = lights.filter(light => light.lod === 'point');
-  if (distant.length <= profile.maxDistantPoints) return lights;
   const selected = new Set(distant
     .map(light => ({ light, rank: stableUnit(`${light.stableId ?? light.id}/budget`) }))
     .sort((a, b) => a.rank - b.rank)

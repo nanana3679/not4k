@@ -1,11 +1,13 @@
 import * as THREE from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/vendor/three.module.js';
 import { readSettings, scenePyramid, matchCamera, lightLayout, collectFaces, travelAt } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/integration.mjs';
 import { viewAt, advanceMotion } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/legacy/geometry.mjs';
-import { LightBatch } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/light-batch.mjs';
-import { advanceTrails, trailAlpha } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/world-trails.mjs';
+import { LightBatch, writeFaceLayers, writeTrailFaces } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/light-batch.mjs';
+import { TrailPool, advanceTrails } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/world-trails.mjs';
+import { FaceFrame } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/face-frame.mjs';
 import { createPaintedBackdrop, advanceBackdropPhase } from '../../../../output/prototypes/breakthrough-hangar-integration-20260910/painted-backdrop.mjs';
 import { breakthroughSearch } from '../../../../output/prototypes/flight-background-preview-20260913/flight-presets.mjs';
 
+const DEFAULT_TRAIL_QUALITY = Object.freeze({});
 const backdropUrl = new URL('../../../../output/imagegen/distant-architecture-backdrop-20260910/distant-architecture.png', import.meta.url).href;
 
 export async function createBreakthroughBackground({ container, width, height, resolution }) {
@@ -32,11 +34,15 @@ export async function createBreakthroughBackground({ container, width, height, r
   }
   let state, motion, lights, previous, trails, disposed = false;
   const drawingSize = renderer.getDrawingBufferSize(new THREE.Vector2());
+  // 프레임마다 광원 면과 잔상 표본을 새로 만들지 않도록 버퍼를 다시 쓴다.
+  // 잔상은 직전 프레임 면과 비교하므로 면 버퍼 두 개를 번갈아 쓴다.
+  const faceFrames = [new FaceFrame(), new FaceFrame()], trailPool = new TrailPool();
+  let faceFrameIndex = 0;
   function reset() {
     state = readSettings(breakthroughSearch);
     motion = { travel: travelAt(state.progress, scenePyramid(state)), time: 0, noteTime: 0 };
     lights = lightLayout(state);
-    previous = []; trails = [];
+    previous = []; trails = trailPool.clear();
   }
   reset();
   return {
@@ -49,19 +55,19 @@ export async function createBreakthroughBackground({ container, width, height, r
       const pyramid = scenePyramid(state), view = viewAt(width, height, altitude, pyramid);
       matchCamera(camera, view);
       backdrop.update(state, view, drawingSize);
-      const faces = collectFaces(lights, motion.travel, state, pyramid, view);
-      trails = advanceTrails(trails, previous, faces, motion.time, state.trail, dt);
+      faceFrameIndex = 1 - faceFrameIndex;
+      const faces = collectFaces(lights, motion.travel, state, pyramid, view, faceFrames[faceFrameIndex]);
+      trails = advanceTrails(trails, previous, faces, motion.time, state.trail, dt, DEFAULT_TRAIL_QUALITY, trailPool);
       previous = faces;
       core.begin(); halo.begin(); after.begin();
-      for (const face of trails) after.face(face, view, trailAlpha(face, motion.time, state.trail));
-      for (const face of faces) {
-        core.face(face, view);
-        halo.face(face, view, face.alpha * .07, 3);
-        halo.face(face, view, face.alpha * .025, 8);
-      }
+      writeTrailFaces(after, trails, view, motion.time, state.trail);
+      writeFaceLayers(core, halo, faces, view);
       core.end(); halo.end(); after.end();
       renderer.render(scene, camera);
-      Object.assign(container.dataset, { travel: String(motion.travel), time: String(motion.time), lights: String(faces.length) });
+      const { dataset } = container;
+      dataset.travel = String(motion.travel);
+      dataset.time = String(motion.time);
+      dataset.lights = String(faces.length);
     },
     reset,
     dispose() {

@@ -20,16 +20,17 @@ export function viewAt(altitude, width, height) {
   };
 }
 
-export function project(x, z, objectHeight, view) {
+// out을 주면 새 객체 대신 그 객체에 x·y·scale·depth를 기록해 돌려준다. 매 프레임 투영의 할당을 없앤다.
+export function project(x, z, objectHeight, view, out) {
   const down = view.cameraHeight - objectHeight;
   const depth = z * view.cosPitch + down * view.sinPitch;
   if (depth <= .1) return null;
-  return {
-    x: view.center + x * view.focal / depth,
-    y: view.principalY + (down * view.cosPitch - z * view.sinPitch) * view.focal / depth,
-    scale: view.focal / depth,
-    depth,
-  };
+  const screenX = view.center + x * view.focal / depth;
+  const screenY = view.principalY + (down * view.cosPitch - z * view.sinPitch) * view.focal / depth;
+  const scale = view.focal / depth;
+  if (!out) return { x: screenX, y: screenY, scale, depth };
+  out.x = screenX; out.y = screenY; out.scale = scale; out.depth = depth;
+  return out;
 }
 
 export function depthAtRow(y, view) {

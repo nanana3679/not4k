@@ -1,9 +1,10 @@
 // 시각 탐색 전용. 난이도 판정 규칙이나 게임의 altitude 수치가 아니다.
 import { viewAt, project } from './projection.mjs';
 import { makeLightGroups, elevatedLights } from './height.mjs';
-import { projectSurface, projectedSurfaceAreaEstimate, surfaceBounds, trailWidth } from './surface.mjs';
+import { ScreenPolygon, polygonBoundsInto, projectSurfaceInto, projectedSurfaceAreaEstimate, trailWidth } from './surface.mjs';
+import { VisibleLightFrame } from './visible-light-frame.mjs';
 import { makeFlowLights } from './flow.mjs';
-import { objectKind, panelObjectTemplate, panelScreenAreaEstimate, projectScenarioObject } from './objects.mjs';
+import { objectKind, panelObjectTemplate, panelTemplateKey, projectScenarioObject } from './objects.mjs';
 import { convergenceOffset, shiftProjection } from './convergence.mjs';
 import { capDistantLights, renderQualityProfile, screenSpaceLod, shouldProjectLight } from './render-quality.mjs';
 const lightGroups = makeLightGroups();
@@ -65,21 +66,80 @@ export function makeLights(key, heights = 'ground', layout = 'aligned') {
   return key === 'breakthrough' && heights === 'mixed' ? [...lights, ...elevatedLights(lightGroups)] : lights;
 }
 
-export function visibleLights(lights, travel, view, shape = 'line', objectOptions, renderOptions) {
-  const visible = [];
-  for (const light of lights) {
+// 광원 회차별 ID 문자열은 회차가 바뀔 때만 다시 만든다. ids는 출력 버퍼의 원본 광원 칸(frame.source)이다.
+function lightIds(ids, cycle) {
+  if (ids.cycle !== cycle) { ids.cycle = cycle; ids.object = `${ids.light.id}/${cycle}`; ids.panel = ''; ids.point = ''; }
+  return ids;
+}
+// 같은 장면·크기·배색의 panel 템플릿을 원본 광원 칸에 기억한다. panelObjectTemplate과 같은 객체다.
+function panelTemplate(source, options) {
+  const key = panelTemplateKey(options);
+  if (source.templateKey !== key) { source.template = panelObjectTemplate(source.light, options); source.templateKey = key; }
+  return source.template;
+}
+const panelId = ids => ids.panel || (ids.panel = `${ids.object}/part-panel`);
+const pointId = ids => ids.point || (ids.point = `${ids.object}/point`);
+
+const ZERO_OFFSET = Object.freeze({ x:0, y:0 });
+// 한 광원을 처리하는 동안만 쓰는 투영 작업 공간. 결과에 넣을 때는 출력 버퍼의 객체로 복사한다.
+const projectedBase = { x:0, y:0, scale:0, depth:0 }, projectedA = { x:0, y:0, scale:0, depth:0 }, projectedB = { x:0, y:0, scale:0, depth:0 };
+const polygon = new ScreenPolygon(), polygonBounds = { left:0, right:0, top:0, bottom:0 };
+const outsideView = (bounds, view) => bounds.right < -45 || bounds.left > view.width + 45 || bounds.bottom < -100 || bounds.top > view.height + 50;
+const pointOutsideView = (base, view) => base.x<-45||base.x>view.width+45||base.y<-100||base.y>view.height+50;
+
+function writePointBounds(bounds, base, pointSize) {
+  bounds.left = base.x - pointSize; bounds.right = base.x + pointSize; bounds.top = base.y - pointSize; bounds.bottom = base.y + pointSize;
+}
+function copyBounds(target, source) {
+  target.left = source.left; target.right = source.right; target.top = source.top; target.bottom = source.bottom;
+}
+
+// polygon의 면 조각 하나를 화면 밖 판정 후 detail 광원으로 기록하고 그 광원을 돌려준다. 화면 밖이면 null.
+// 깊이·크기·밝기는 호출한 쪽이 직접 쓴다(실수 인자를 함수 경계로 넘기면 매번 boxing 할당이 생긴다).
+function writeSurfacePiece(frame, view, source, ids, base, a, b, piece) {
+  const bounds = polygonBoundsInto(polygon, polygonBounds);
+  if (outsideView(bounds, view)) return null;
+  const data = polygon.data;
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < polygon.count; i++) { sumX = sumX + data[i * 4]; sumY = sumY + data[i * 4 + 1]; }
+  const slot = frame.next(source, base, a, b), light = slot.light;
+  light.id = piece.part === 'panel' ? panelId(ids) : `${ids.object}/part-${piece.part}`;
+  light.objectId = ids.object;
+  light.mask = piece.mask; light.part = piece.part; light.geometry = piece.geometry;
+  if (piece.rgb) { light.rgb = piece.rgb; light.colorIndex = piece.colorIndex; light.tier = piece.tier; }
+  light.x = sumX / polygon.count; light.y = sumY / polygon.count;
+  light.surface = frame.surface(slot, polygon);
+  copyBounds(light.bounds, bounds);
+  light.lod = 'detail'; light.stableId = source.id;
+  return light;
+}
+
+const PANEL_PIECE = { part:'panel', geometry:'panel', mask:undefined, rgb:undefined, colorIndex:undefined, tier:undefined };
+
+/**
+ * 화면에 보이는 광원을 계산한다. frame(VisibleLightFrame)을 넘기면 그 버퍼의 배열과 객체를 다시 써서
+ * 프레임마다 새 객체를 만들지 않는다. 이때 반환 배열과 광원 객체는 같은 frame의 다음 호출에서 덮어쓴다.
+ */
+export function visibleLights(lights, travel, view, shape = 'line', objectOptions, renderOptions, frame = new VisibleLightFrame()) {
+  frame.begin();
+  const quality=objectOptions?.quality??renderOptions?.quality;
+  // 투영 전 솎아내기가 없는 품질(gpu 포함)은 shouldProjectLight가 항상 true이므로 호출을 건너뛴다.
+  const thinsBeforeProjection=Boolean(quality)&&renderQualityProfile(quality).preProjectionKeep<1;
+  const objectDetailArea=objectOptions?.quality?renderQualityProfile(objectOptions.quality).detailArea:0;
+  const panelObjects=shape==='surface'&&objectOptions&&objectKind(objectOptions.scenario??objectOptions.palette)==='panel';
+  for (let index = 0; index < lights.length; index++) {
+    const light = lights[index], source = frame.source(index, light);
     const raw = light.z - travel;
     const cycle = Math.floor((raw + 384) / wrapLength);
     const z = raw - cycle * wrapLength;
     const elevation = light.elevation ?? .25;
-    const base = project(light.x, z, elevation, view);
+    const base = project(light.x, z, elevation, view, projectedBase);
     if (!base || base.depth < 2) continue;
     const horizonFade = light.layer && light.layer!=='ground' ? 1 : Math.min(1, Math.max(0, (base.y - view.horizon) / 95));
     const distanceFade = view.heightMix ? Math.max(0, 1 - base.depth / 1100) ** .85 : 1;
     const alpha = horizonFade * Math.min(1, 570 / base.depth) * distanceFade * light.bright;
     if (alpha < .025) continue;
-    const quality=objectOptions?.quality??renderOptions?.quality;
-    if(quality&&!shouldProjectLight(light.id,base.depth,quality))continue;
+    if(thinsBeforeProjection&&!shouldProjectLight(light.id,base.depth,quality))continue;
     const size = Math.min(3.2, Math.max(.45, base.scale * .27));
     if(shape==='surface'&&renderOptions?.quality){
       const estimatedArea=projectedSurfaceAreaEstimate(light,z,view);
@@ -88,55 +148,84 @@ export function visibleLights(lights, travel, view, shape = 'line', objectOption
         : screenSpaceLod(estimatedArea,light.id,renderOptions.quality);
       if(lod==='hidden')continue;
       if(lod==='point'){
-        if(base.x<-45||base.x>view.width+45||base.y<-100||base.y>view.height+50)continue;
+        if(pointOutsideView(base,view))continue;
         const pointSize=Math.max(.65,Math.min(1.15,Math.sqrt(estimatedArea)));
-        visible.push({id:`${light.id}/${cycle}/point`,stableId:light.id,kind:light.kind,layer:light.layer??'ground',elevation,
-          x:base.x,y:base.y,a:base,b:base,base,size:pointSize,alpha,lod:'point',geometry:'point',
-          bounds:{left:base.x-pointSize,right:base.x+pointSize,top:base.y-pointSize,bottom:base.y+pointSize}});
+        const record=frame.next(light,base,base,base).light;
+        record.elevation=elevation;record.size=pointSize;record.alpha=alpha;
+        record.id=pointId(lightIds(source,cycle));record.stableId=light.id;
+        record.x=base.x;record.y=base.y;record.lod='point';record.geometry='point';
+        writePointBounds(record.bounds,base,pointSize);
         continue;
       }
     }
-    if(shape==='surface'&&objectOptions&&objectKind(objectOptions.scenario??objectOptions.palette)==='panel'&&objectOptions.quality){
-      const estimatedArea=panelScreenAreaEstimate(light,z,view,objectOptions);
-      const lod=screenSpaceLod(estimatedArea,light.id,objectOptions.quality);
+    if(panelObjects&&objectOptions.quality){
+      // panelScreenAreaEstimate와 같은 값이다(템플릿 크기의 면 넓이 추정).
+      const estimatedArea=projectedSurfaceAreaEstimate(panelTemplate(source,objectOptions).sized,z,view);
+      // screenSpaceLod와 같은 판정이다. 원래 면으로 그릴 넓이면 함수 호출 없이 바로 detail로 둔다.
+      const lod=Number.isFinite(estimatedArea)&&estimatedArea>0&&estimatedArea>=objectDetailArea
+        ? 'detail'
+        : screenSpaceLod(estimatedArea,light.id,objectOptions.quality);
       if(lod==='hidden')continue;
       if(lod==='point'){
-        if(base.x<-45||base.x>view.width+45||base.y<-100||base.y>view.height+50)continue;
-        const color=panelObjectTemplate(light,objectOptions).color;
+        if(pointOutsideView(base,view))continue;
+        const color=panelTemplate(source,objectOptions).color;
         const pointSize=Math.max(.65,Math.min(1.15,Math.sqrt(estimatedArea)));
-        visible.push({id:`${light.id}/${cycle}/point`,stableId:light.id,objectId:`${light.id}/${cycle}`,
-          part:'point',geometry:'point',...color,kind:light.kind,layer:light.layer??'ground',elevation,
-          x:base.x,y:base.y,a:base,b:base,base,size:pointSize,alpha,lod:'point',
-          bounds:{left:base.x-pointSize,right:base.x+pointSize,top:base.y-pointSize,bottom:base.y+pointSize}});
+        const ids=lightIds(source,cycle);
+        const record=frame.next(light,base,base,base).light;
+        record.elevation=elevation;record.size=pointSize;record.alpha=alpha;
+        record.id=pointId(ids);record.stableId=light.id;record.objectId=ids.object;
+        record.part='point';record.geometry='point';record.tier=color.tier;record.colorIndex=color.colorIndex;record.rgb=color.rgb;
+        record.x=base.x;record.y=base.y;record.lod='point';
+        writePointBounds(record.bounds,base,pointSize);
         continue;
       }
     }
     let a = base, b = base;
-    if (light.kind === 'vertical') b = project(light.x, z, elevation + light.extent, view);
+    if (light.kind === 'vertical') b = project(light.x, z, elevation + light.extent, view, projectedB);
     if (light.kind === 'horizontal') {
-      a = project(light.x - light.extent / 2, z, elevation + .1, view);
-      b = project(light.x + light.extent / 2, z, elevation + .1, view);
+      a = project(light.x - light.extent / 2, z, elevation + .1, view, projectedA);
+      b = project(light.x + light.extent / 2, z, elevation + .1, view, projectedB);
     }
     if (!a || !b) continue;
     if(shape==='surface' && objectOptions) {
-      const offset=objectOptions.scenario==='breakthrough'?convergenceOffset(base,view,objectOptions.convergence,objectOptions):{x:0,y:0};
+      const ids=lightIds(source,cycle);
+      if(panelObjects) {
+        // panel은 조각 하나뿐이고 돌파가 아니므로 모으기 이동이 없다. projectScenarioObject와 같은 면을 작업 버퍼에 투영한다.
+        const {sized,color}=panelTemplate(source,objectOptions);
+        if(projectSurfaceInto(sized,z,view,polygon)<3)continue;
+        PANEL_PIECE.rgb=color.rgb;PANEL_PIECE.colorIndex=color.colorIndex;PANEL_PIECE.tier=color.tier;
+        const record=writeSurfacePiece(frame,view,light,ids,base,a,b,PANEL_PIECE);
+        if(record){record.elevation=elevation;record.size=size;record.alpha=alpha;}
+        continue;
+      }
+      const offset=objectOptions.scenario==='breakthrough'?convergenceOffset(base,view,objectOptions.convergence,objectOptions):ZERO_OFFSET;
       for(const piece of projectScenarioObject(light,z,view,objectOptions)) {
-        const surface=shiftProjection(piece.points,offset), bounds=surfaceBounds(surface);
-        if(bounds.right<-45 || bounds.left>view.width+45 || bounds.bottom<-100 || bounds.top>view.height+50) continue;
-        const x=surface.reduce((sum,p)=>sum+p.x,0)/surface.length;
-        const y=surface.reduce((sum,p)=>sum+p.y,0)/surface.length;
-        visible.push({id:`${light.id}/${cycle}/part-${piece.part}`,objectId:`${light.id}/${cycle}`,
-          mask:piece.mask,part:piece.part,geometry:piece.geometry,...(piece.rgb?{rgb:piece.rgb,colorIndex:piece.colorIndex,tier:piece.tier}:{}),kind:light.kind,layer:light.layer??'ground',elevation,
-          x,y,a,b,base,size,alpha,surface,bounds,lod:'detail',stableId:light.id});
+        const surface=shiftProjection(piece.points,offset);
+        polygon.reserve(surface.length);
+        for(let i=0;i<surface.length;i++){const p=surface[i];polygon.data[i*4]=p.x;polygon.data[i*4+1]=p.y;polygon.data[i*4+2]=p.scale;polygon.data[i*4+3]=p.depth;}
+        polygon.count=surface.length;
+        const record=writeSurfacePiece(frame,view,light,ids,base,a,b,piece);
+        if(record){record.elevation=elevation;record.size=size;record.alpha=alpha;}
       }
       continue;
     }
-    const surface = shape === 'surface' ? projectSurface(light, z, view) : undefined;
-    if (surface && surface.length < 3) continue;
-    const bounds = surfaceBounds(surface ?? [a,b]);
-    if (bounds.right < -45 || bounds.left > view.width + 45 || bounds.bottom < -100 || bounds.top > view.height + 50) continue;
-    visible.push({ id: `${light.id}/${cycle}`, kind: light.kind, layer: light.layer ?? 'ground', elevation, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b, base, size, alpha, surface, bounds });
+    let bounds;
+    if (shape === 'surface') {
+      if (projectSurfaceInto(light, z, view, polygon) < 3) continue;
+      bounds = polygonBoundsInto(polygon, polygonBounds);
+    } else {
+      bounds = polygonBounds;
+      bounds.left = Math.min(a.x, b.x); bounds.right = Math.max(a.x, b.x); bounds.top = Math.min(a.y, b.y); bounds.bottom = Math.max(a.y, b.y);
+    }
+    if (outsideView(bounds, view)) continue;
+    const slot = frame.next(light, base, a, b), record = slot.light;
+    record.elevation = elevation; record.size = size; record.alpha = alpha;
+    record.id = lightIds(source, cycle).object;
+    record.x = (a.x + b.x) / 2; record.y = (a.y + b.y) / 2;
+    if (shape === 'surface') record.surface = frame.surface(slot, polygon);
+    copyBounds(record.bounds, bounds);
   }
+  const visible = frame.end();
   return objectOptions?.quality && objectKind(objectOptions.scenario??objectOptions.palette)==='panel'
     ? capDistantLights(visible,objectOptions.quality)
     : visible;
