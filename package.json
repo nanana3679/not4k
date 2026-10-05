@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tooling.json && tsc -p tsconfig.scripts.json",
     "build:skins": "node scripts/build-skins.ts",
     "build:classic": "node scripts/build-classic-skin.ts",
-    "split:gear": "node scripts/split-gear-gauge.ts",
     "backup": "node scripts/backup-supabase.ts",
     "case:image": "node scripts/judgment-case-image.ts"
   },
@@ -51,5 +50,5 @@
     "vite": "^6.4.1",
     "vitest": "^4.0.18"
   },
-  "version": "0.4.7"
+  "version": "0.4.8"
 }

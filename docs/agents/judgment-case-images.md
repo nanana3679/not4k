@@ -199,7 +199,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 - **레이어**: 게임과 같이 바디 < 끝 터미널 < 시작 터미널 < 노트 경계선 < 포인트(그림자·overlay 포함) 순서다. 맞닿은 두 바디에서는 뒤 바디의 시작 터미널이 앞 바디의 끝 터미널을 덮는다.
 - **접촉 그림자**: 스킨이 테마 `pointContactShadow`와 에셋을 함께 선언하면(Classic) 싱글·더블 포인트 위아래 5px에 바디 폭 `pointContactShadow`(위는 뒤집음)를, trill 포인트에는 마름모를 따르는 `pointContactShadowTrill`을 포인트 아래에 깐다.
 - **Grace·`holdOnly`**: `grace` 포인트는 `pointGraceOverlay`, `holdOnly`(`long`·`doubleLong`·`trillLong`) 끝 터미널은 `terminalGraceOverlay`를 사방 12px 여백(`graceOverlayPaddingPx`)으로 본체 아래에 겹친다. 검정 1px → 흰색 1px 보더와 바깥 10px 흰빛이다. 길이 0 `holdOnly`는 시작 터미널에 overlay를 단다(Classic). overlay 에셋이 없는 스킨(Crystal·Simple)은 게임 대체 글로우(흰 둥근 사각형 4겹 + 바깥 2px 흰 윤곽)를 그린다.
-- **크기**: 게임 레인 100px·노트 높이 20px를 이미지 레인 80px·16px로 줄인 배율(0.8)을 그림자 높이·overlay 여백·캡 높이에 똑같이 곱한다.
+- **크기**: 이미지 레인은 80px·노트 높이 16px다. 게임 논리 px(레인 62.5·노트 12.5, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md))에는 80/62.5를, 레인 100 기준 설계 px인 스킨 테마 값(그림자 높이·overlay 여백·터미널 돌출)과 캡 사이 심지에는 0.8을 곱한다. 그래서 이미지는 게임 레인을 좁히기 전과 같은 크기로 그려진다.
 - PNG는 data URI로 SVG `<defs>`에 한 번씩만 넣고 노트는 `<use href="#jc-skin-<에셋 키>">`로 참조한다(Playwright `setContent`는 상대 경로 이미지를 읽지 못한다). Classic 에셋 13장은 원본 약 45KB(base64 약 60KB)다.
 
 ## 구성

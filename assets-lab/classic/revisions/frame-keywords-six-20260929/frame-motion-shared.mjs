@@ -152,7 +152,7 @@ export async function measureFrameMotionLayers(page) {
         const [r, g, b] = [source[i], source[i + 1], source[i + 2]];
         const max = Math.max(r, g, b);
         const chroma = max - Math.min(r, g, b);
-        // Blue light: saturated blue-cyan glow, as in scripts/split-gear-gauge.ts.
+        // Blue light: saturated blue-cyan glow, the old gear gauge split heuristic (scripts/split-gear-gauge.ts, removed in RFD 0029).
         const blue = clamp01((b - 120) / 100) * clamp01((b - r - 40) / 60) * clamp01((chroma - 40) / 40);
         // Backdrop around the frame: a flat dark gray near (24, 28, 33). Armor shadows are darker and bluer.
         const backdrop = Math.abs(r - 24) < 8 && Math.abs(g - 28) < 8 && Math.abs(b - 33) < 8;

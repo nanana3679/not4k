@@ -121,20 +121,23 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
       contact: Array<{ x: number; width: number; fromPointTop: number; height: number }>;
     };
   }).__devNoteBounds);
-  expect(bounds.points).toEqual([{ x: 0, width: 100 }, { x: 100, width: 100 }]);
+  // 레인 62.5·노트 62.5×12.5(설계값 100·20 × 플레이필드 배율 0.625, RFD 0029). 바디는 포인트 폭의 100/106.
+  expect(bounds.points.map(({ x, width }) => [x, Math.round(width * 1000) / 1000])).toEqual([[0, 62.5], [62.5, 62.5]]);
   bounds.bodies.forEach((body, lane) => {
-    expect(body.x).toBeCloseTo(lane * 100 + 2.83, 2);
-    expect(body.width).toBeCloseTo(94.34, 2);
+    expect(body.x).toBeCloseTo(lane * 62.5 + 1.77, 2);
+    expect(body.width).toBeCloseTo(58.96, 2);
     expect(body.x).toBeGreaterThan(bounds.points[lane].x);
     expect(body.x + body.width).toBeLessThan(bounds.points[lane].x + bounds.points[lane].width);
   });
-  // 레인마다 포인트 윗변에서 위로 5px, 아랫변에서 아래로 5px의 바디 폭 그림자가 있다.
+  // 레인마다 포인트 윗변에서 위로 3.125px, 아랫변에서 아래로 3.125px(테마 5px × 0.625)의 바디 폭 그림자가 있다.
   expect(bounds.contact).toHaveLength(4);
   for (const lane of [0, 1]) {
-    const shadows = bounds.contact.filter(shadow => Math.abs(shadow.x - (lane * 100 + 2.83)) < 0.01);
-    expect(shadows.map(({ fromPointTop, height }) => [Math.round(fromPointTop * 100) / 100, Math.round(height * 100) / 100]))
-      .toEqual([[0, -5], [20, 5]]);
-    shadows.forEach(shadow => expect(shadow.width).toBeCloseTo(94.34, 2));
+    const shadows = bounds.contact.filter(shadow => Math.abs(shadow.x - (lane * 62.5 + 1.77)) < 0.01);
+    expect(shadows).toHaveLength(2);
+    const [above, below] = shadows;
+    expect([above.fromPointTop, above.height, below.fromPointTop, below.height].map(value => Math.round(value * 1000) / 1000))
+      .toEqual([0, -3.125, 12.5, 3.125]);
+    shadows.forEach(shadow => expect(shadow.width).toBeCloseTo(58.96, 2));
   }
 
   expect(await page.evaluate(async () => {

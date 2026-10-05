@@ -1,6 +1,9 @@
 import type { SkinManifest } from "./types";
 import { withPublicBase } from "../../shared/publicPath";
 
+/** 모든 스킨이 함께 쓰는 새 Classic 프레임 그림(public 기준 경로). */
+export const CLASSIC_FRAME_PATH = "/gear/classic-frame.png";
+
 export function buildManifest(
   id: string,
   theme: SkinManifest["theme"],
@@ -67,10 +70,8 @@ export function buildManifest(
       bomb: Array.from({ length: 16 }, (_, i) =>
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
-      // 기어 프레임/게이지는 스킨 공통 공유 에셋 (scripts/split-gear-gauge.ts 산출물)
-      gearFrame: withPublicBase("/gear/gear-frame.png"),
-      gearGaugeLeft: withPublicBase("/gear/gear-gauge-left.png"),
-      gearGaugeRight: withPublicBase("/gear/gear-gauge-right.png"),
+      // 기어 프레임은 스킨 공통 공유 에셋 (prepare-frame-fit-v20.mjs 산출물, RFD 0029)
+      gearFrame: withPublicBase(CLASSIC_FRAME_PATH),
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

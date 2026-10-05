@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const archiveRoot = 'assets-lab/classic/versions';
+// The skin-shared gear frame (public/gear/) is not part of a Classic version since RFD 0029; older archives
+// still hold the old gear and gauges as a record, and verify keeps checking their hashes.
 const runtimeDirectory = 'public/skins/classic';
 const directories = [
   'assets-lab/classic/sources',
@@ -22,9 +24,6 @@ const fixedFiles = [
   'src/shared/publicPath.ts',
   'src/lab/noteAssetKeybomb.css',
   'src/lab/keybombEffect.ts',
-  'public/gear/gear-frame.png',
-  'public/gear/gear-gauge-left.png',
-  'public/gear/gear-gauge-right.png',
   'package.json',
   'pnpm-lock.yaml',
 ];
@@ -228,7 +227,10 @@ export async function findCurrentClassicVersion({ root }: { root: string }) {
   // Newest first, so a strict comparison keeps the newest version on ties.
   const closest = versions.reduce((best, version) => version.pngDiffs.length < best.pngDiffs.length ? version : best);
   // The union also reports files added after archiving; a file in neither place (hash null on both sides) is no difference.
-  const archivedOther = new Map(closest.manifest.files.filter(file => !isPng(file.path)).map(file => [file.path, file.sha256]));
+  // Archived paths that the current rules no longer select (e.g. the skin-shared public/gear/ removed in RFD 0029) are history, not differences.
+  const archivedOther = new Map(closest.manifest.files
+    .filter(file => !isPng(file.path) && selected(file.path))
+    .map(file => [file.path, file.sha256]));
   const otherDiffs = [];
   for (const path of new Set([...archivedOther.keys(), ...selection.filter(path => !isPng(path))])) {
     if ((archivedOther.get(path) ?? null) !== await workingHash(root, path)) otherDiffs.push(path);

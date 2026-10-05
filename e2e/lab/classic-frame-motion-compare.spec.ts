@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
-const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../public/lab/classic-frame-fit/frame-fit.json', import.meta.url)), 'utf8')) as {
+const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/classicFrame.json', import.meta.url)), 'utf8')) as {
   laneLeft: number; laneRight: number; laneBottom: number;
 };
 
@@ -41,7 +41,7 @@ interface Difference extends MeasureCase {
 
 /**
  * 프레임만 그리는 Pixi 비교 화면(createFrameMotionPreview, 1024×1536, 해상도 1)과 같은 시각으로 멈춘 승인 SVG를
- * 같은 크기 캔버스에 그려 픽셀을 비교한다. 비교 영역은 frame-cutout.png 알파 > 0(프레임 실루엣)이고 레인 창은 뺀다.
+ * 같은 크기 캔버스에 그려 픽셀을 비교한다. 비교 영역은 게임 프레임 그림(classic-frame.png) 알파 > 0(프레임 실루엣)이고 레인 창은 뺀다.
  * SVG는 각 애니메이션의 delay를 (원래 delay − t)로 바꾸고 일시정지해 정확히 t의 모습을 그린다. 두 화면 모두 SVG에
  * 들어 있는 같은 바탕 그림을 쓴다. 꺼 둔 레이어는 양쪽에서 함께 숨긴다.
  */
@@ -71,7 +71,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
       context.drawImage(source, 0, 0, width, height);
       return context.getImageData(0, 0, width, height).data;
     };
-    const cutout = readPixels(await loadImage('/lab/classic-frame-fit/frame-cutout.png'));
+    const cutout = readPixels(await loadImage('/gear/classic-frame.png'));
     const { light } = assets.data;
     const tilt = (light.tiltDeg * Math.PI) / 180;
     const regionFor = (item: { timeMs: number; boxes?: { x0: number; x1: number; y0: number; y1: number }[]; bandEdgesOnly?: boolean }) => {
@@ -261,7 +261,7 @@ test.describe('Classic 프레임 움직임 Pixi ↔ 승인 SVG 픽셀 비교', (
       const broken = { ...assets, data: { ...assets.data, textures: { ...assets.data.textures, glint: { ...assets.data.textures.glint, pieces: [] } } } };
       const canvas = document.createElement('canvas');
       const base = new Image();
-      base.src = '/lab/classic-frame-fit/frame-cutout.png';
+      base.src = '/gear/classic-frame.png';
       await base.decode();
       try {
         await createFrameMotionPreview({ canvas, width: 64, height: 96, resolution: 1, base, assets: broken });

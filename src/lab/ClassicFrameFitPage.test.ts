@@ -3,48 +3,69 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import ClassicFrameFitPage from './ClassicFrameFitPage';
-import { FRAME_FIT_ASSET_PATHS } from './classicFrameFit';
+import pageSource from './ClassicFrameFitPage.tsx?raw';
 
 const render = () => renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(ClassicFrameFitPage)));
+const stageOf = (markup: string) => markup.match(/<section[^>]*data-frame-fit-stage="true"[^>]*>/)![0];
 
-describe('ClassicFrameFitPage', () => {
-  it('처음 열면 레인 폭 맞춤·렌더 높이 1080·INFILTRATION·화면 맞춤이 선택되고 무대가 레인 폭 400·줌 1·판정선 높이 0과 함께 그 상태를 data 속성으로 알리며 레인 폭 슬라이더는 없다', () => {
+describe('ClassicFrameFitPage — 새 프레임이 들어간 실제 게임 화면 미리보기', () => {
+  it('처음 열면 렌더 높이 1080·INFILTRATION·화면 맞춤·리프트 0%·TKL 키보드로 시작하고 무대가 논리 폭 1067과 함께 그 상태를 data 속성으로 알린다', () => {
     const markup = render();
-
     expect(markup).toContain('data-lab-page="classic-frame-fit"');
-    expect(markup).toMatch(/<section[^>]*data-frame-fit-stage="true"[^>]*>/);
-    const stage = markup.match(/<section[^>]*data-frame-fit-stage="true"[^>]*>/)![0];
-    expect(stage).toContain('data-fit-mode="crop"');
-    expect(stage).toContain('data-render-height="1080"');
-    expect(stage).toContain('data-scenario="INFILTRATION"');
-    expect(stage).toContain('data-view="fit"');
-    expect(stage).toContain('data-renderer-ready="false"');
-    expect(stage).toContain('data-lane-width="400"');
-    expect(stage).toContain('data-zoom="1"');
-    expect(stage).toContain('data-lift-percent="0"');
-    expect(markup).not.toContain('id="frame-fit-lane-width"');
+    const stage = stageOf(markup);
+    for (const attribute of [
+      'data-render-height="1080"', 'data-scenario="INFILTRATION"', 'data-view="fit"', 'data-renderer-ready="false"',
+      'data-lift-percent="0"', 'data-keyboard="tkl"', 'data-keyboard-visible="true"', 'data-keyboard-scale="1.000"',
+      'data-stage-width="1067"', 'data-fullscreen="off"',
+    ]) expect(stage).toContain(attribute);
     const checkedValues = (markup.match(/<input[^>]*>/g) ?? [])
       .filter((input) => input.includes('type="radio"') && input.includes('checked=""'))
       .map((input) => input.match(/value="([^"]*)"/)![1]);
-    // 무대 조절 네 묶음과 아래 비교 보기(전체).
-    expect(checkedValues).toEqual(['crop', '1080', 'INFILTRATION', 'fit', 'full']);
+    // 무대 조절(키보드·렌더 높이·장면·보기)과 아래 비교 보기(전체).
+    expect(checkedValues).toEqual(['tkl', '1080', 'INFILTRATION', 'fit', 'full']);
   });
 
-  it('맞춤 방식 5개(가로세로 같이 줄이기 포함), 렌더 높이 3개(720·1080·1440), 비행 장면 3개, 보기 2개를 한국어 라벨의 라디오로 고른다', () => {
+  it('맞춤 방식·레인 폭 슬라이더·줌 흉내는 없고 키보드 2개·렌더 높이 3개·비행 장면 3개·보기 2개 라디오를 둔다', () => {
     const markup = render();
-
-    for (const label of ['레인 폭 맞춤 (위 잘림)', '기둥 잘라 줄이기', '세로로 눌러 맞추기', '가로세로 같이 줄이기', '현재 게임 기어', '화면 맞춤', '1:1 픽셀']) {
-      expect(markup).toContain(label);
-    }
-    expect(markup.match(/name="frame-fit-mode"/g)).toHaveLength(5);
+    expect(markup).not.toContain('name="frame-fit-mode"');
+    expect(markup).not.toContain('id="frame-fit-lane-width"');
+    expect(markup).not.toContain('data-zoom');
+    expect(markup).not.toContain('data-fit-mode');
+    expect(markup.match(/name="frame-fit-keyboard"/g)).toHaveLength(2);
     expect(markup.match(/name="frame-fit-render-height"/g)).toHaveLength(3);
     expect(markup.match(/name="frame-fit-scenario"/g)).toHaveLength(3);
     expect(markup.match(/name="frame-fit-view"/g)).toHaveLength(2);
+    for (const label of ['TKL', '넘버패드', '화면 맞춤', '1:1 픽셀']) expect(markup).toContain(label);
+  });
+
+  it('리프트 슬라이더는 게임 리프트와 같은 정수 0~10%이고 0%에서 시작한다', () => {
+    expect(render()).toMatch(/<input id="frame-fit-lift" type="range" min="0" max="10" step="1" value="0"\/>/);
+  });
+
+  it('설명은 게임과 같은 배치 숫자(0.453배·위 141행 잘림·판정선 y 416·덱 틈 13.7·키 윗면 446.5·선명도 0.82px)를 보여 준다', () => {
+    const markup = render();
+    expect(markup).toContain('0.453배');
+    expect(markup).toContain('141행');
+    expect(markup).toContain('0% (+0) · y 416');
+    expect(markup).toContain('13.7 · 노트 두께 1.1개');
+    expect(markup).toContain('y 446.5까지 30.5 · 노트 두께 2.4개');
+    expect(markup).toContain('원본 1px → 화면 0.82px (축소)');
+    expect(markup).toContain('원래 크기 · 오른쪽 아래');
+  });
+
+  it('무대는 실제 GameRenderer를 기본 옵션(내장 프레임)으로 만들고 Lab 움직임은 attachFrameMotion으로 프레임 위에 얹는다', () => {
+    expect(pageSource).toContain("import('../game/renderer')");
+    expect(pageSource).toContain('new GameRenderer({');
+    expect(pageSource).not.toContain('showGearFrame');
+    expect(pageSource).toContain('attachFrameMotion(active, built.container)');
+    expect(pageSource).toContain('active.setupKeyboardDisplay(');
+    // 게임 렌더러의 private 필드를 꺼내 쓰지 않는다.
+    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearFrameLayer|maskGraphic|_judgmentLineY)/);
   });
 
   it('움직임 토글과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {
     const markup = render();
-    const stage = markup.match(/<section[^>]*data-frame-fit-stage="true"[^>]*>/)![0];
+    const stage = stageOf(markup);
     expect(stage).toContain('data-motion="on"');
     expect(stage).toContain('data-motion-ready="false"');
     for (const layer of ['armor', 'gauge', 'accent', 'bar']) expect(stage).toContain(`data-motion-${layer}="on"`);
@@ -66,7 +87,6 @@ describe('ClassicFrameFitPage', () => {
     expect(markup).toMatch(/<input id="frame-motion-compare-time" type="range" min="0" max="60" step="0.1" value="0"\/>/);
     expect(markup).toMatch(/<button type="button" class="frame-fit-button" aria-pressed="false" disabled="">재생<\/button>/);
     expect(markup.match(/class="frame-motion-viewport" style="aspect-ratio:1024 \/ 1536"/g)).toHaveLength(2);
-    // Pixi 캔버스는 앱을 만들 때마다 새로 붙이므로 서버 렌더링에는 자리(host)만 있다.
     expect(markup).toContain('data-frame-motion-pixi-host="true"');
     expect(markup).toContain('data-frame-motion-svg-host="true"');
   });
@@ -82,22 +102,11 @@ describe('ClassicFrameFitPage', () => {
     expect(markup).toContain('픽셀 단위 계단');
   });
 
-  it('무대 안에 전체화면 버튼이 있고 무대는 data-fullscreen off·논리 폭 1067(16:9)로 시작한다', () => {
-    const markup = render();
-    const stage = markup.match(/<section[^>]*data-frame-fit-stage="true"[^>]*>/)![0];
-    expect(stage).toContain('data-fullscreen="off"');
-    expect(stage).toContain('data-stage-width="1067"');
-    expect(markup).toMatch(/<div class="frame-fit-fullscreen-bar"><button type="button" class="frame-fit-overlay-button">전체화면<\/button><\/div>/);
+  it('무대 안에 전체화면 버튼이 있다', () => {
+    expect(render()).toMatch(/<div class="frame-fit-fullscreen-bar"><button type="button" class="frame-fit-overlay-button">전체화면<\/button><\/div>/);
   });
 
   it('Lab 목록으로 돌아가는 /lab 링크가 있다', () => {
     expect(render()).toMatch(/<a[^>]*href="\/lab"[^>]*>← Lab 목록<\/a>/);
-  });
-
-  it('프레임 그림과 측정값은 /lab/classic-frame-fit/ 아래 정적 파일에서 읽는다', () => {
-    expect(FRAME_FIT_ASSET_PATHS).toEqual({
-      image: '/lab/classic-frame-fit/frame-cutout.png',
-      geometry: '/lab/classic-frame-fit/frame-fit.json',
-    });
   });
 });

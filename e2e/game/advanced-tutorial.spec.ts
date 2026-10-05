@@ -162,8 +162,9 @@ test.describe('Tutorial level tabs', () => {
       const transitions = (globalThis as typeof globalThis & {
         __tutorialKeyTransitions: Array<{ key: string; pressed: boolean; offset: number }>;
       }).__tutorialKeyTransitions;
+      // 눌린 키캡은 설계값 3 × 플레이필드 배율 0.625 = 1.875 내려간다(RFD 0029).
       return ['KeyS', 'KeyX'].every(key =>
-        transitions.some(item => item.key === key && item.pressed && item.offset === 3) &&
+        transitions.some(item => item.key === key && item.pressed && item.offset === 1.875) &&
         transitions.some(item => item.key === key && !item.pressed && item.offset === 0));
     }), { timeout: 10_000 }).toBe(true);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings')!).state.settings.keyBindings.lane1)).toEqual(['KeyQ', 'KeyW']);

@@ -1,5 +1,8 @@
 /**
  * 스킨 런타임 테마 — 이미지에 구워지지 않는 동적 색상값
+ *
+ * `...Px`·그림자 높이처럼 길이를 나타내는 값은 레인 100·노트 100×20 기준 설계 px다. 게임 렌더러는 플레이필드 배율
+ * (`PLAYFIELD_SCALE`, RFD 0029)을 곱해 노트와 같은 비율로 줄여 쓴다.
  */
 export interface SkinTheme {
   id: string;
@@ -102,14 +105,16 @@ export interface SkinManifest {
     terminalTrillFailed: string;
     /** 봄 16프레임 */
     bomb: string[];
-    /** 기어 프레임 (스킨 공통, 기둥 게이지는 분리됨) */
+    /**
+     * 기어 프레임 (스킨 공통, RFD 0029의 새 Classic 프레임). 레인 창과 꺾인 덱 사이 레인 바닥이 투명하다.
+     * 배치 측정값은 src/game/renderer/classicFrame.json이며 밉맵·삼선형 필터로 읽는다.
+     */
     gearFrame: string;
-    /** 기둥 게이지 발광 레이어 (좌/우) */
-    gearGaugeLeft: string;
-    gearGaugeRight: string;
-    /** 4개 버튼 idle */
+    /**
+     * 4개 버튼 idle/pressed. 새 프레임이 키를 그림으로 갖고 있어 게임은 더 이상 그리지 않는다.
+     * Classic 버전 판별(게임 PNG 60개)이 이 PNG를 포함하므로 필드와 에셋은 후속 정리 때 새 버전 보관과 함께 뺀다.
+     */
     buttonIdle: string[];
-    /** 4개 버튼 pressed */
     buttonPressed: string[];
   };
 }

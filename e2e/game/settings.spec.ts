@@ -151,7 +151,7 @@ test.describe('Game Settings', () => {
 
   for (const skin of ['Classic']) {
     for (const scale of [0, 3]) {
-      test(`Skin: ${skin} 키봄 ${scale}배를 저장하면 실제 플레이에서 ${scale === 0 ? '키봄을 숨겨도 Perfect 판정' : '360×360으로 표시하고 Perfect 판정'}을 유지한다`, async ({ page }) => {
+      test(`Skin: ${skin} 키봄 ${scale}배를 저장하면 실제 플레이에서 ${scale === 0 ? '키봄을 숨겨도 Perfect 판정' : '기본 75×75의 3배인 225×225로 표시하고 Perfect 판정'}을 유지한다`, async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', error => errors.push(error.message));
         const dialog = await openSettings(page);
@@ -196,7 +196,7 @@ test.describe('Game Settings', () => {
         });
 
         await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__keybombSize))
-          .toEqual(scale === 0 ? [] : [{ width: 360, height: 360 }]);
+          .toEqual(scale === 0 ? [] : [{ width: 225, height: 225 }]);
         await expect(page.getByText('100.00%', { exact: true })).toBeVisible({ timeout: 7000 });
         const result = await page.evaluate(async () => {
           const storePath = performance.getEntriesByType('resource').map(entry => entry.name)

@@ -69,18 +69,24 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
   createNoteAssetDesign(getSkinManifest('simple'), {description:'기존 Classic · 단색 노트와 기본 봄'}),
 ];
 
+/** 스킨 공통 기어 에셋. 보관본의 옛 기어·게이지 대신 지금 공통 프레임을 쓴다(렌더러 배치가 이 그림의 측정값을 따른다). */
+const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearGaugeLeft', 'gearGaugeRight']);
+
 export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {
   const base = `/lab/skin-versions/classic/${version.id}`;
   const assetPath = (path: string) => {
     if (path.startsWith('/skins/classic/')) return withLabPublicBase(`${base}/skin/${path.slice('/skins/classic/'.length)}`);
-    if (path.startsWith('/gear/')) return withLabPublicBase(`${base}${path}`);
     throw new Error(`Unknown archived Classic asset: ${path}`);
   };
+  const archivedAssets = Object.entries(version.manifest.assets).filter(([key]) => !SHARED_GEAR_ASSET_KEYS.has(key));
   const skin: SkinManifest = {
     theme: { ...version.manifest.theme, id: `classic-${version.id}`, name: `Classic ${version.id}`, available: false },
-    assets: Object.fromEntries(Object.entries(version.manifest.assets).map(([key, paths]) =>
-      [key, Array.isArray(paths) ? paths.map(assetPath) : assetPath(paths)],
-    )) as SkinManifest['assets'],
+    assets: {
+      ...Object.fromEntries(archivedAssets.map(([key, paths]) =>
+        [key, Array.isArray(paths) ? paths.map(assetPath) : assetPath(paths)],
+      )),
+      gearFrame: getSkinManifest('classic').assets.gearFrame,
+    } as SkinManifest['assets'],
   };
   const design: NoteAssetDesign = {
     ...createNoteAssetDesign(skin, { description: version.label, sourceBase: `${base}/svg` }),

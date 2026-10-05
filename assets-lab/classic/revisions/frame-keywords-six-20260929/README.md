@@ -12,12 +12,20 @@
 - 마스크: 장갑 영역(배경·레인·버튼부·게이지·파란 발광선·하단 바 제외), 파란 발광선 레이어, 하단 바 빛, 게이지 유리 안쪽 윤곽(누름·게이지 시연과 같음)
 - 최종값과 반복 과정: [프레임 움직임](../../../../docs/design/classic-frame-keywords-20260929.md#프레임-움직임)
 
+## 게임 프레임 (v20)
+
+새 Classic 프레임을 게임에 넣는 그림과 측정값이다([RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 저장소에 한 벌만 두고 게임 렌더러·`/lab/classic-frame-fit`·아래 움직임 생성기가 모두 이것을 읽는다.
+
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <폴더>]` (입력: `press-idle-deck-v17-input.png`). 다시 실행해도 같은 바이트다
+- 결과: 게임 프레임 그림 `public/gear/classic-frame.png`(1024×1536, 레인 창과 꺾인 덱 사이 레인 바닥·바깥 바탕 투명, 스킨 공통 `gearFrame`)와 렌더러 배치 측정값 `src/game/renderer/classicFrame.json`(레인 창 236~787열, 덱 위끝 1090행, 열린 덱 바닥 1126행, 실루엣 16~1007열·16~1465행 등). 둘이 같은 생성기 산출물인지와 그림 바이트는 `prepare-frame-fit-v20.test.ts`가 확인한다
+- 예전 Lab 비교용 복사본(`public/lab/classic-frame-fit/frame-cutout.png`·`frame-fit.json`)과 맞춤 방식 비교용 이음매(`seam`) 측정은 게임 적용 때 지웠다
+
 ## Pixi 움직임 자료 (v21)
 
 2026-10-04 승인된 v19 움직임을 게임 렌더러에서 쓸 수 있도록 Pixi 레이어로 옮겼다. 새 이미지는 생성하지 않았다.
 
 - 측정 모듈: `frame-motion-shared.mjs` — v19 SVG와 v21 자료가 같은 마스크 측정·값(제외 상자, 바 상자, 유리 윤곽, 광원·대비·기포·호흡·하단 바 값)을 쓴다. 이 모듈로 바꾼 뒤에도 `54-ambient-motion-v19.svg`는 같은 바이트다
-- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, `public/lab/classic-frame-fit/frame-cutout.png`). 다시 실행해도 같은 바이트다
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, 게임 프레임 그림 `public/gear/classic-frame.png`). 다시 실행해도 같은 바이트다
 - 결과: `public/lab/classic-frame-fit/motion/`의 텍스처 9장과 `frame-motion.json`. SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 띠 밖 어둡게는 `armor-lit.png`를 물들여 쓴다. 장갑·발광선은 기둥 둘과 아래 띠 두 쪽 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
 - 시연: `/lab/classic-frame-fit`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#classic-frame-fit)
 

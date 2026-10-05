@@ -40,13 +40,13 @@ describe('TutorialPreviewPlayer', () => {
 
   it('곡 선택 튜토리얼 미니 재생기는 정확도·콤보 HUD를 숨기고 판정선을 아래로 내림', () => {
     expect(tutorialPreviewPlayerSource).toContain('showComboAndAccuracy: false');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_JUDGMENT_LINE_OFFSET = 80');
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_JUDGMENT_LINE_OFFSET = playfieldPx(80)');
     expect(tutorialPreviewPlayerSource).toContain('judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET');
   });
 
   it('프리뷰 캔버스는 렌더 크기와 같은 aspectRatio를 사용해 찌그러지지 않음', () => {
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_WIDTH = LANE_AREA_WIDTH');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = 360');
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = playfieldPx(360)');
     expect(tutorialPreviewPlayerSource).toContain('width: PREVIEW_RENDER_WIDTH');
     expect(tutorialPreviewPlayerSource).toContain('height: PREVIEW_RENDER_HEIGHT');
     expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}`');
@@ -412,12 +412,24 @@ describe('프리뷰 렌더 오류 표면화', () => {
 
 
 describe('튜토리얼 봄 위치', () => {
-  it('키보드높이152에서2번레인 봄은 전체512 중 판정선280과 가로37.5%에 표시', () => {
-    expect(getTutorialBombPosition(2,152)).toEqual({x:.375,y:280/512});
+  it('높이 225·판정선 오프셋 50(설계값 360·80 × 0.625)에서 키보드높이95면 2번레인 봄은 전체320 중 판정선175와 가로37.5%에 표시', () => {
+    expect(getTutorialBombPosition(2,95)).toEqual({x:.375,y:175/320});
   });
-  it('키보드높이가80으로 줄어도4번레인 봄의 판정선은280px로 유지', () => {
-    const position = getTutorialBombPosition(4,80);
+  it('키보드높이가50으로 줄어도4번레인 봄의 판정선은175로 유지', () => {
+    const position = getTutorialBombPosition(4,50);
     expect(position.x).toBe(.875);
-    expect(position.y*440).toBe(280);
+    expect(position.y*275).toBe(175);
+  });
+});
+
+describe('튜토리얼 재생기 플레이필드 배율 (RFD 0029)', () => {
+  it('높이·판정선 오프셋·스크롤 속도를 레인과 같은 배율로 줄여 이전 비율(400×360, 판정선 80, 520px/s)을 유지한다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_SCROLL_SPEED = playfieldPx(520)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.scrollSpeed = PREVIEW_SCROLL_SPEED');
+  });
+
+  it('논리 폭이 250으로 줄어든 만큼 해상도를 1/0.625배 올려 같은 CSS 폭에서 이전과 같은 백버퍼 폭으로 그린다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RESOLUTION_BOOST = 1 / PLAYFIELD_SCALE');
+    expect(tutorialPreviewPlayerSource).toContain('resolution: Math.min(window.devicePixelRatio || 1, 2) * PREVIEW_RESOLUTION_BOOST');
   });
 });

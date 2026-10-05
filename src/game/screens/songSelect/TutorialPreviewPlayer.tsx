@@ -4,7 +4,7 @@ import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import type { SkinManager } from '../../skin';
 import type { SkinManifest } from '../../skin/types';
-import { LANE_AREA_WIDTH } from '../../renderer/constants';
+import { LANE_AREA_WIDTH, PLAYFIELD_SCALE, playfieldPx } from '../../renderer/constants';
 import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
@@ -66,9 +66,14 @@ type TutorialPreviewRendererState =
   | { status: 'failed' };
 
 const PREVIEW_LANES = [1, 2, 3, 4] as const;
+// 재생기는 게임과 같은 플레이필드 상수(레인 영역 250)로 그리고 CSS로 고정 폭(최대 420px)에 맞춰 보인다.
+// 높이·판정선 오프셋·스크롤 속도도 같은 플레이필드 배율(RFD 0029)로 줄여 레인 폭과의 비율(이전 400×360, 판정선 80,
+// 520px/s)과 화면 크기·노트 통과 시간을 그대로 두고, 해상도는 배율의 역수만큼 올려 같은 CSS 크기에서 이전처럼 선명하게 그린다.
 const PREVIEW_RENDER_WIDTH = LANE_AREA_WIDTH;
-const PREVIEW_RENDER_HEIGHT = 360;
-const PREVIEW_JUDGMENT_LINE_OFFSET = 80;
+const PREVIEW_RENDER_HEIGHT = playfieldPx(360);
+const PREVIEW_JUDGMENT_LINE_OFFSET = playfieldPx(80);
+const PREVIEW_SCROLL_SPEED = playfieldPx(520);
+const PREVIEW_RESOLUTION_BOOST = 1 / PLAYFIELD_SCALE;
 const TUTORIAL_DIAGRAM_ENTER_MS = 260;
 const TUTORIAL_DIAGRAM_EXIT_MS = 180;
 
@@ -372,7 +377,7 @@ export function TutorialPreviewPlayer({
           canvas,
           width: PREVIEW_RENDER_WIDTH,
           height: PREVIEW_RENDER_HEIGHT,
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          resolution: Math.min(window.devicePixelRatio || 1, 2) * PREVIEW_RESOLUTION_BOOST,
           skinManager: nextSkinManager,
           showGearFrame: false,
           showFlightBackground: false,
@@ -396,7 +401,7 @@ export function TutorialPreviewPlayer({
           return;
         }
 
-        renderer.scrollSpeed = 520;
+        renderer.scrollSpeed = PREVIEW_SCROLL_SPEED;
         renderer.updateAccuracy(100);
         publishRendererState({ status: 'ready', renderer });
       } catch (err) {

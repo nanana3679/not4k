@@ -25,7 +25,16 @@ import {
   NOTE_HEIGHT,
   NOTE_WIDTH,
   COLORS,
+  playfieldPx,
 } from "./constants";
+
+// 스킨 테마의 px 값(그림자 높이·Grace 여백·터미널 외곽 돌출)과 아래 값들은 레인 100·노트 100×20 기준 설계값이다.
+// 플레이필드 배율(RFD 0029)로 바꿔 써야 노트와 같은 비율로 줄어든다.
+/** trillLong 바디를 끝점·머리 쪽에서 줄여 다이아몬드 캡을 드러내는 길이 */
+const TRILL_BODY_END_INSET = playfieldPx(10);
+/** 반쪽 cap 스킨에서 두 캡 사이에 남기는 최소 바디 길이 */
+const WIRE_MIN_PX = playfieldPx(5);
+const GRACE_GLOW_RADIUS = playfieldPx(4);
 
 /** Core 타입에 의존하지 않는 unit별 body 표시 조회 계약. */
 export interface JudgmentBodyUnitView {
@@ -175,10 +184,10 @@ export class GameNoteRenderer {
         let shadow = this.trillPointShadowPool.get(index);
         if (!shadow) {
           if (!this.trillPointShadowGeometry) {
-            const tipY = shadowGeometry.offsetY;
+            const tipY = playfieldPx(shadowGeometry.offsetY);
             const sideY = tipY - NOTE_HEIGHT / 2;
             // 얇은 접촉선보다 넓게 퍼지는 낮은 농도의 그림자로 바디와 포인트를 구분한다.
-            const bottom = shadowGeometry.height * 2;
+            const bottom = playfieldPx(shadowGeometry.height) * 2;
             this.trillPointShadowGeometry = new MeshGeometry({
               positions: new Float32Array([
                 0, sideY, NOTE_WIDTH / 2, tipY, NOTE_WIDTH, sideY,
@@ -206,9 +215,9 @@ export class GameNoteRenderer {
         }
         const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
         shadow.x = laneX + (LANE_WIDTH - bodyWidth) / 2;
-        shadow.y = y + shadowGeometry.offsetY;
+        shadow.y = y + playfieldPx(shadowGeometry.offsetY);
         shadow.width = bodyWidth;
-        shadow.height = shadowGeometry.height;
+        shadow.height = playfieldPx(shadowGeometry.height);
         this.noteLayer.addChild(shadow);
       }
     }
@@ -322,7 +331,7 @@ export class GameNoteRenderer {
     const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
     const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
     const terminalFrameOverhang = fullHeightTerminal
-      ? Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0) * bodyWidth / LANE_WIDTH
+      ? playfieldPx(Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0)) * bodyWidth / LANE_WIDTH
       : 0;
     const terminalX = bodyX - terminalFrameOverhang;
     const terminalWidth = bodyWidth + terminalFrameOverhang * 2;
@@ -345,9 +354,8 @@ export class GameNoteRenderer {
           : "terminalTrill";
       }
 
-      // 바디는 처음(끝점 쪽)·끝(머리 쪽) 각각 10px 줄여, 헤드/끝 다이아몬드가
+      // 바디는 처음(끝점 쪽)·끝(머리 쪽) 각각 노트 두께 절반만큼 줄여, 헤드/끝 다이아몬드가
       // 캡처럼 드러나게 한다. 줄인 높이가 0 이하면(아주 짧은 트릴 롱) 바디는 생략.
-      const TRILL_BODY_END_INSET = 10;
       const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
       const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
       if (insetBodyHeight > 0) {
@@ -459,7 +467,6 @@ export class GameNoteRenderer {
       // 기본 스킨은 terminal의 윗부분을 반쪽 cap으로 사용한다. full-height 스킨은 terminal
       // 전체를 노트 한 칸 높이로 사용하며, 길이 0에서는 시작 terminal 하나만 남긴다.
       const isZeroLength = endMs === startMs;
-      const WIRE_MIN_PX = 5;
       const capHeight = fullHeightTerminal
         ? NOTE_HEIGHT
         : Math.min(NOTE_HEIGHT / 2, (bodyHeight - WIRE_MIN_PX) / 2);
@@ -795,10 +802,10 @@ export class GameNoteRenderer {
     // 텍스처는 윗행이 가장 짙다. 위 그림자는 세로로 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
     above.x = x;
     above.y = y;
-    above.scale.set(bodyWidth / above.texture.width, -reach.above / above.texture.height);
+    above.scale.set(bodyWidth / above.texture.width, -playfieldPx(reach.above) / above.texture.height);
     below.x = x;
     below.y = y + NOTE_HEIGHT;
-    below.scale.set(bodyWidth / below.texture.width, reach.below / below.texture.height);
+    below.scale.set(bodyWidth / below.texture.width, playfieldPx(reach.below) / below.texture.height);
     this.noteLayer.addChild(above, below);
   }
 
@@ -809,10 +816,11 @@ export class GameNoteRenderer {
       shadow = new Sprite(this.skinManager.getTexture('pointContactShadowTrill'));
       this.trillContactShadowPool.set(index, shadow);
     }
+    const above = playfieldPx(reach.above);
     shadow.x = x;
-    shadow.y = y - reach.above;
+    shadow.y = y - above;
     shadow.width = width;
-    shadow.height = reach.above + NOTE_HEIGHT + reach.below;
+    shadow.height = above + NOTE_HEIGHT + playfieldPx(reach.below);
     this.noteLayer.addChild(shadow);
   }
 
@@ -824,7 +832,7 @@ export class GameNoteRenderer {
         overlay = new Sprite(this.skinManager.getTexture(key));
         this.graceOverlayPool.set(index, overlay);
       }
-      const pad = this.skinManager.getTheme().graceOverlayPaddingPx ?? 0;
+      const pad = playfieldPx(this.skinManager.getTheme().graceOverlayPaddingPx ?? 0);
       overlay.x = x - pad;
       overlay.y = y - pad;
       overlay.width = width + pad * 2;
@@ -855,7 +863,7 @@ export class GameNoteRenderer {
       glow.roundRect(
         pad - stepPad, pad - stepPad,
         NOTE_WIDTH + stepPad * 2, NOTE_HEIGHT + stepPad * 2,
-        4 + stepPad * 0.3,
+        GRACE_GLOW_RADIUS + stepPad * 0.3,
       );
       glow.fill({ color: COLORS.GRACE_GLOW, alpha: baseAlpha / steps });
     }

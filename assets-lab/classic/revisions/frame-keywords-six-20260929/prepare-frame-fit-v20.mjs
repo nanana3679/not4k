@@ -3,38 +3,40 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Prepares the approved Classic frame painting (press-idle-deck v17) for the in-game fit preview
-// (/lab/classic-frame-fit). Writes two files into public/lab/classic-frame-fit/:
-//   frame-cutout.png  1024x1536 RGBA. The lane field between the pillars and the flat backdrop
-//                     around the frame are transparent; pillars, key deck and bottom bar stay opaque.
-//   frame-fit.json    The geometry the preview's layout uses, measured from pixels here.
+// Prepares the approved Classic frame painting (press-idle-deck v17) for the game (RFD 0029). Writes the
+// only copies of the frame the repository uses; the game renderer, /lab/classic-frame-fit and
+// prepare-frame-motion-v21.mjs all read these two files:
+//   public/gear/classic-frame.png       1024x1536 RGBA, the skin-shared game frame (manifest `gearFrame`).
+//                                        The lane field between the pillars and the flat backdrop around
+//                                        the frame are transparent; pillars, key deck and bottom bar stay opaque.
+//   src/game/renderer/classicFrame.json The geometry the renderer lays the frame out with, measured from pixels here.
 // Measurements (all inclusive source pixel rows/columns):
-//   laneLeft/laneRight  first/last column strictly inside the pillars' dark inner outlines.
+//   laneLeft/laneRight  first/last column strictly inside the pillars' dark inner outlines. The game fits
+//                       this lane window exactly over its lane area.
 //   laneBottom          last row where the lane window still spans laneLeft..laneRight. Below it the
-//                       pillar bases chamfer inward; the preview anchors laneBottom + 1 (deck top) on
-//                       the judgment line.
+//                       pillar bases chamfer inward; laneBottom + 1 is the deck top.
 //   silhouetteTop       first row with any frame pixel (top of the armor crowns).
+//   silhouetteLeft/silhouetteRight  first/last column with any frame pixel. The game keeps the keyboard
+//                       display and the minimum screen width clear of these.
 //   gaugeGlowTop        first row of the gauge tube glow: the longest lit run down the left tube's centre column.
-//   seam                rows [y1, y2) whose removal lets the frame top reach the screen top in the
-//                       "cut" mode, chosen where the pillar rows above and below the cut match best.
 //   laneOpeningBottom   last row of the painted lane field between the pillar bases' angled corners
 //                       (deckTop .. this row), just above the key housings' rim. That trapezoid is cut
 //                       out too, so the game lanes show through it; laneOpening holds the fitted corner
-//                       edges, the per-row edges and the polygon (pixel-edge coordinates).
+//                       edges, the per-row edges and the polygon (pixel-edge coordinates). The game's lane
+//                       mask starts at laneOpeningBottom + 1 (the key rim).
+//   frameBottom         last row with any frame pixel. The game puts its bottom edge on the screen bottom.
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <dir>]
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
 const sourcePath = resolve(revisionDir, 'press-idle-deck-v17-input.png');
-const outputDir = resolve(workspaceRoot, 'public/lab/classic-frame-fit');
+const imagePath = resolve(workspaceRoot, 'public/gear/classic-frame.png');
+const geometryPath = resolve(workspaceRoot, 'src/game/renderer/classicFrame.json');
 const debugIndex = process.argv.indexOf('--debug');
 const debugTarget = debugIndex === -1 ? null : process.argv[debugIndex + 1];
 if (debugIndex !== -1 && !debugTarget) throw new Error('--debug needs a folder path.');
 const debugDir = debugTarget ? resolve(debugTarget) : null;
 
-// Game layout from src/game/renderer/constants.ts: a 400-unit lane area and the judgment line
-// 160 units above the bottom of the 600-unit screen. The cut height depends on both.
-const GAME = { laneAreaWidth: 400, judgmentLineY: 600 - 160 };
 // Backdrop around the frame: flat dark gray near (24, 28, 33) with a soft vignette (measured range
 // about 19-29 / 23-33 / 27-39). Colours within `fill` of the reference are flooded from the image
 // border; within `feather` px of the flooded area, alpha ramps from 0 at `fill` to 1 at `opaque`.
@@ -49,7 +51,7 @@ const OPENING = { walkStart: 70, referenceWidth: 50, fieldTolerance: 6, rimRise:
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
-const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, OPENING, debug }) => {
+const result = await page.evaluate(async ({ dataUrl, BACKDROP, EDGE_BAND, OPENING, debug }) => {
   const image = new Image();
   image.src = dataUrl;
   await image.decode();
@@ -167,7 +169,7 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
   const edgeAt = (edge, y) => edge.intercept + edge.slope * y;
   const round2 = (value) => Math.round(value * 100) / 100;
 
-  // Bottom bar glow: saturated blue-cyan light (same test as scripts/split-gear-gauge.ts).
+  // Bottom bar glow: saturated blue-cyan light (same test as the old scripts/split-gear-gauge.ts, removed in RFD 0029).
   const clamp01 = (value) => Math.min(1, Math.max(0, value));
   const blueLight = (x, y) => {
     const i = at(x, y);
@@ -319,32 +321,14 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
   for (let y = height - 1; y >= 0 && frameBottom < 0; y--) {
     for (let x = 0; x < width; x++) if (alpha[y * width + x] > 0) { frameBottom = y; break; }
   }
-
-  // 5. Seam for the "cut" mode. Removing `removedRows` rows from the pillar section lifts the frame top
-  //    to the screen top when the deck top stays on the judgment line at the lane-width scale.
-  const scale = GAME.laneAreaWidth / (laneRight - laneLeft + 1);
-  const removedRows = Math.round(deckTop - GAME.judgmentLineY / scale);
-  const pillarColumns = [...range(0, laneLeft - 1), ...range(laneRight + 1, width - 1)];
-  // Mean absolute difference of alpha-premultiplied RGB across the pillar columns.
-  const rowDifference = (ya, yb) => {
-    let sum = 0;
-    for (const x of pillarColumns) {
-      const ia = at(x, ya);
-      const ib = at(x, yb);
-      const aa = output[ia + 3] / 255;
-      const ab = output[ib + 3] / 255;
-      sum += Math.abs(output[ia] * aa - output[ib] * ab)
-        + Math.abs(output[ia + 1] * aa - output[ib + 1] * ab)
-        + Math.abs(output[ia + 2] * aa - output[ib + 2] * ab);
-    }
-    return sum / (pillarColumns.length * 3);
-  };
-  const candidates = [];
-  for (let y1 = 1; y1 + removedRows <= deckTop; y1++) {
-    candidates.push({ y1, y2: y1 + removedRows, cost: rowDifference(y1 - 1, y1 + removedRows) });
+  let silhouetteLeft = -1;
+  for (let x = 0; x < width && silhouetteLeft < 0; x++) {
+    for (let y = 0; y < height; y++) if (alpha[y * width + x] > 0) { silhouetteLeft = x; break; }
   }
-  const best = candidates.reduce((winner, candidate) => (candidate.cost < winner.cost ? candidate : winner));
-  const adjacent = range(1, deckTop - 1).map((y) => rowDifference(y - 1, y));
+  let silhouetteRight = -1;
+  for (let x = width - 1; x >= 0 && silhouetteRight < 0; x--) {
+    for (let y = 0; y < height; y++) if (alpha[y * width + x] > 0) { silhouetteRight = x; break; }
+  }
 
   const toPng = (pixels, w = width, h = height) => {
     const out = document.createElement('canvas');
@@ -376,7 +360,6 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
     debugImages['on-magenta'] = over([255, 0, 255]);
     // In-game flight backdrop colour (FlightBackground container background).
     debugImages['on-flight'] = over([8, 14, 27]);
-    debugImages['cut-seam-on-magenta'] = over([255, 0, 255], [...range(0, best.y1 - 1), ...range(best.y2, height - 1)]);
     // Zoomed edge crops (6x nearest) over magenta: lane window corners, both straight edges, chamfers.
     const crops = [
       { x: laneLeft - 24, y: 80 }, { x: laneRight - 23, y: 80 },
@@ -468,6 +451,8 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
       laneOpeningBottom,
       laneOpening,
       silhouetteTop,
+      silhouetteLeft,
+      silhouetteRight,
       gaugeColumn,
       gaugeGlowTop,
       gaugeGlowBottom,
@@ -477,15 +462,6 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
       barGlowTop,
       barGlowBottom,
       frameBottom,
-      seam: {
-        y1: best.y1,
-        y2: best.y2,
-        removedRows,
-        cost: Number(best.cost.toFixed(2)),
-        typicalAdjacentRowCost: Number(median(adjacent).toFixed(2)),
-        medianCandidateCost: Number(median(candidates.map((candidate) => candidate.cost)).toFixed(2)),
-        layout: GAME,
-      },
       measurement: {
         fieldLuminance: Number(field.toFixed(1)),
         edgeBandRows: [EDGE_BAND.top, EDGE_BAND.bottom],
@@ -497,7 +473,6 @@ const result = await page.evaluate(async ({ dataUrl, GAME, BACKDROP, EDGE_BAND, 
   };
 }, {
   dataUrl: `data:image/png;base64,${readFileSync(sourcePath).toString('base64')}`,
-  GAME,
   BACKDROP,
   EDGE_BAND,
   OPENING,
@@ -508,42 +483,40 @@ await browser.close();
 // Sanity checks: a landmark the walk failed to find stays at -1, and the landmarks must keep their
 // top-to-bottom order. Stop before writing anything rather than publish broken geometry.
 const g = result.geometry;
-const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'laneOpeningBottom', 'silhouetteTop', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
+const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'laneOpeningBottom', 'silhouetteTop', 'silhouetteLeft', 'silhouetteRight', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
   'keyFaceTop', 'keyFaceBottom', 'deckBottom', 'barGlowTop', 'barGlowBottom', 'frameBottom'];
 const missing = landmarks.filter((key) => !Number.isInteger(g[key]) || g[key] < 0);
 if (missing.length > 0) throw new Error(`Measurement failed (not found): ${missing.join(', ')}`);
 const ordered = [
-  ['laneLeft', 'laneRight'], ['silhouetteTop', 'gaugeGlowTop'], ['gaugeGlowTop', 'gaugeGlowBottom'], ['gaugeGlowBottom', 'deckTop'],
+  ['silhouetteLeft', 'laneLeft'], ['laneLeft', 'laneRight'], ['laneRight', 'silhouetteRight'], ['silhouetteTop', 'gaugeGlowTop'], ['gaugeGlowTop', 'gaugeGlowBottom'], ['gaugeGlowBottom', 'deckTop'],
   ['deckTop', 'laneOpeningBottom'], ['laneOpeningBottom', 'keyFaceTop'], ['keyFaceTop', 'keyFaceBottom'], ['keyFaceBottom', 'deckBottom'], ['deckBottom', 'barGlowTop'],
   ['barGlowTop', 'barGlowBottom'], ['barGlowBottom', 'frameBottom'],
 ];
 const misordered = ordered.filter(([a, b]) => !(g[a] < g[b]) && !(a === 'barGlowTop' && g[a] === g[b]));
 if (misordered.length > 0) throw new Error(`Measurement order broken: ${misordered.map(([a, b]) => `${a}(${g[a]}) < ${b}(${g[b]})`).join(', ')}`);
-if (!(g.seam.y1 > 0 && g.seam.y1 < g.seam.y2 && g.seam.y2 <= g.deckTop)) throw new Error(`Seam outside the pillar section: ${g.seam.y1}..${g.seam.y2}`);
 if (g.frameBottom >= g.height) throw new Error(`frameBottom ${g.frameBottom} is outside the image`);
 // The corners angle inward: the left edge moves right and the right edge left going down.
 if (!(g.laneOpening.leftEdge.slope > 0 && g.laneOpening.rightEdge.slope < 0)) throw new Error(`Lane opening corners do not narrow downward: ${JSON.stringify(g.laneOpening)}`);
 
-mkdirSync(outputDir, { recursive: true });
-const pngPath = resolve(outputDir, 'frame-cutout.png');
-const jsonPath = resolve(outputDir, 'frame-fit.json');
-writeFileSync(pngPath, Buffer.from(result.png, 'base64'));
+for (const path of [imagePath, geometryPath]) mkdirSync(dirname(path), { recursive: true });
+writeFileSync(imagePath, Buffer.from(result.png, 'base64'));
 const geometry = {
   source: relative(workspaceRoot, sourcePath),
   generator: relative(workspaceRoot, fileURLToPath(import.meta.url)),
+  image: relative(workspaceRoot, imagePath),
   ...result.geometry,
 };
 // Keep [x, y] and [row, left, right] lists on one line.
 const json = JSON.stringify(geometry, null, 2)
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2, $3]')
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]');
-writeFileSync(jsonPath, `${json}\n`);
+writeFileSync(geometryPath, `${json}\n`);
 if (debugDir) {
   mkdirSync(debugDir, { recursive: true });
   for (const [name, base64] of Object.entries(result.debugImages)) {
     writeFileSync(resolve(debugDir, `${name}.png`), Buffer.from(base64, 'base64'));
   }
 }
-console.log(pngPath);
-console.log(jsonPath);
+console.log(imagePath);
+console.log(geometryPath);
 console.log(JSON.stringify(result.geometry, null, 2));

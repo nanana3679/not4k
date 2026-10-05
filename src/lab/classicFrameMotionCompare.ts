@@ -1,5 +1,5 @@
 import { Application, Container, ImageSource, Sprite, Texture, type TextureSourceOptions } from 'pixi.js';
-import { FRAME_FIT_TEXTURE_OPTIONS } from './classicFrameFitOverlay';
+import { FRAME_MOTION_TEXTURE_OPTIONS } from './classicFrameMotionOverlay';
 import { createClassicFrameMotion, createFrameMotionTextures, type ClassicFrameMotion, type ClassicFrameMotionOptions } from './classicFrameMotion';
 import { viewBoxTransform, type FrameMotionAssets, type FrameViewBox } from './classicFrameMotionData';
 
@@ -37,7 +37,7 @@ export async function createFrameMotionPreview(options: {
 }): Promise<FrameMotionPreview> {
   // 텍스처는 게임 무대의 새 프레임과 같은 설정(밉맵·삼선형)으로 만들어 줄여 볼 때도 같은 선명도로 비교한다.
   const {
-    canvas, width, height, resolution, base, assets, textureOptions = FRAME_FIT_TEXTURE_OPTIONS, preserveDrawingBuffer = false,
+    canvas, width, height, resolution, base, assets, textureOptions = FRAME_MOTION_TEXTURE_OPTIONS, preserveDrawingBuffer = false,
     antialias = false, bandEdges = 'stencil',
   } = options;
   // 앱 CSP가 eval을 막으므로 GameRenderer처럼 eval 없는 셰이더 동기화 모듈을 먼저 읽는다.
