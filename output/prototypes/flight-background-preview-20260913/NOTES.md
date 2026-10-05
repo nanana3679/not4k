@@ -44,9 +44,9 @@ Quick Tunnel 주소는 임시 URL이며 영구 배포 주소로 취급하지 않
 
 GPU 경로는 사용자가 선호한 밀도를 유지하기 위해 보이는 광원을 거리나 개수로 자르지 않고 모두 원래 panel 형태로 그린다. 잔광은 현재 프레임 광원 중 가까운 detail을 우선해 최대 160개 선분만 만든다. WebGL을 열지 못하면 기존 Canvas 2D 경로와 `high → balanced → reduced → minimal` 자동 품질 조절로 폴백한다. 돌파는 이미 Three.js 배치 렌더링을 사용하므로 이 변경의 대상이 아니다.
 
-### 프레임마다 새 객체를 만들지 않는 게임 경로 (2026-10-06)
+### 프레임마다 큰 할당을 만들지 않는 게임 경로 (2026-10-06)
 
-게임 배경은 이 경로를 매 프레임 부르므로, 프레임마다 생기는 메모리 할당이 주기적인 GC 정지(끊김)로 이어진다. `visibleLights`·`visibleRunwayLights`·`proceduralTrailSegments`는 출력 버퍼(`VisibleLightFrame`·`TrailSegmentFrame`)를 받으면 반환 배열과 광원·선분 객체를 다음 호출에서 다시 쓰고, 버퍼 없이 부르면 이전처럼 매번 새 결과를 돌려준다. 게임은 `game-light-frame.mjs`의 `createApproachLightFrames`로 한 프레임의 광원·잔광을 만든다. 면 투영은 `ScreenPolygon` typed array에 쓰고, 정점은 `LightVertexBatch`에 객체 없이 기록한다. V8은 실수를 함수 인자·반환값으로 넘길 때 숫자 객체를 만들기 때문에 색·선 굵기는 batch 필드로 넘기고, 호출마다 임시 배열을 만드는 `Math.hypot` 대신 같은 값을 내는 `hypot2`를 쓴다. 변경 전 구현과 같은 정점이 나오는지는 `approach/frame-reuse.test.ts`의 기준 해시가 확인한다.
+게임 배경은 이 경로를 매 프레임 부르므로, 프레임마다 생기는 메모리 할당이 주기적인 GC 정지(끊김)로 이어진다. `visibleLights`·`visibleRunwayLights`·`proceduralTrailSegments`는 출력 버퍼(`VisibleLightFrame`·`TrailSegmentFrame`)를 받으면 반환 배열과 광원·선분 객체를 다음 호출에서 다시 쓰고, 버퍼 없이 부르면 이전처럼 매번 새 결과를 돌려준다. 게임은 `game-light-frame.mjs`의 `createApproachLightFrames`로 한 프레임의 광원·잔광을 만든다. 면 투영은 `ScreenPolygon` typed array에 쓰고, 정점은 `LightVertexBatch`에 객체 없이 기록한다. 실수 boxing 등으로 프레임마다 수십 KB의 작은 할당은 남는다. V8은 실수를 함수 인자·반환값으로 넘길 때 숫자 객체를 만들기 때문에 색·선 굵기는 batch 필드로 넘기고, 호출마다 임시 배열을 만드는 `Math.hypot` 대신 같은 값을 내는 `hypot2`를 쓴다. 변경 전 구현과 같은 정점이 나오는지는 `approach/frame-reuse.test.ts`의 기준 해시가 확인한다.
 
 ## 검증
 

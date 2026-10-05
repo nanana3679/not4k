@@ -40,8 +40,10 @@ export function advanceTrails(history,previous,current,now,duration,dt,quality=D
 export const trailAlpha=(s,now,duration)=>s.alpha*surfaceTrailOpacity(now-s.time,duration,s.interval,.64);
 
 // 잔상 표본 버퍼. 수명이 끝난 표본 객체를 모아 두었다가 다음 표본으로 다시 쓴다.
-// 표본의 frame·screen은 원래 면의 버퍼를 가리키므로 그 면 버퍼가 다시 쓰이면(두 프레임 뒤) 함께 바뀐다.
-// 그리기와 trailAlpha는 points·rgb·outline·edges·lineWidth·alpha·time·interval만 쓴다.
+// 그리기와 trailAlpha는 points·rgb·outline·edges·lineWidth·alpha·time·interval만 쓴다. 원래 면의 frame·screen은
+// FaceFrame 버퍼라 두 프레임 뒤 덮어쓰이므로 표본에 옮기지 않고 null로 둔다(잘못 읽으면 바로 드러나게).
+// 재사용 대기 표본은 살아 있는 표본의 2배+256개까지만 남긴다. 잠깐 끊긴 프레임에 생긴 큰 묶음을 계속 붙잡지 않는다.
+const FREE_SLACK=256;
 export class TrailPool{
  constructor(){
   this.samples=[];this.free=[];this.freeCount=0;
@@ -55,6 +57,12 @@ export class TrailPool{
   return this.samples;
  }
  release(sample){if(sample.trailPool===this)this.free[this.freeCount++]=sample;}
+ // 대기 표본이 살아 있는 표본 수 live의 2배+256개를 넘으면 그만큼만 남기고 버린다. 남는 표본만 GC에 맡기므로 결과 값은 같다.
+ trim(live){
+  const cap=live*2+FREE_SLACK;
+  if(this.freeCount<=cap)return;
+  this.freeCount=cap;this.free.length=cap;
+ }
  take(){
   if(this.freeCount)return this.free[--this.freeCount];
   const sample={id:'',outline:false,rgb:null,points:[],edges:undefined,frame:null,surface:'wall',screen:null,alpha:0,lineWidth:0,time:0,interval:0};
@@ -83,9 +91,10 @@ export class TrailPool{
 }
 
 // old 면의 값을 표본으로 옮긴다. points는 표본 소유 배열에 복사하고 time·interval은 호출한 쪽이 쓴다.
+// frame·screen은 old의 FaceFrame 버퍼(두 프레임 뒤 덮어씀)라 참조를 남기지 않고 null로 둔다.
 function copyFace(sample,old){
- sample.id=old.id;sample.outline=old.outline;sample.rgb=old.rgb;sample.frame=old.frame;sample.surface=old.surface;
- sample.screen=old.screen;sample.alpha=old.alpha;sample.lineWidth=old.lineWidth;
+ sample.id=old.id;sample.outline=old.outline;sample.rgb=old.rgb;sample.frame=null;sample.surface=old.surface;
+ sample.screen=null;sample.alpha=old.alpha;sample.lineWidth=old.lineWidth;
  if(old.edges){
   const edges=sample.edgeStore;
   for(let i=0;i<old.edges.length;i++)edges[i]=old.edges[i];
@@ -116,6 +125,12 @@ function limitInPlace(pool,samples,maxSamples){
 }
 
 function advanceTrailsInto(pool,history,previous,current,now,duration,dt,quality){
+ const samples=advanceTrailSamples(pool,history,previous,current,now,duration,dt,quality);
+ pool.trim(samples.length);
+ return samples;
+}
+
+function advanceTrailSamples(pool,history,previous,current,now,duration,dt,quality){
  if(duration<=0)return pool.clear();
  const out=pool.samples,own=history===out;
  let count=0;

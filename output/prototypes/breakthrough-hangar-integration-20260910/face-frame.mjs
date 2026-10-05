@@ -92,8 +92,11 @@ class FaceSlot{
  }
 }
 
-const mappedScratch=new Float64Array(48),distanceScratch=new Float64Array(3);
-const FACE_KEYS_PER_LIGHT=8;
+// 도안 꼭짓점의 세계 좌표 작업 버퍼. 꼭짓점이 많은 도안이 오면 늘린다.
+let mappedScratch=new Float64Array(48);
+const distanceScratch=new Float64Array(3);
+// 광원 하나가 쓰는 면 슬롯 번호 폭. 도안은 직선·윤곽선 1개, 삼각형 채움 최대 4개라 8개면 충분하다.
+export const FACE_KEYS_PER_LIGHT=8;
 
 export class FaceFrame{
  constructor(){
@@ -102,7 +105,11 @@ export class FaceFrame{
  }
  begin(){this.count=0;}
  light(index){return this.lights[index]??(this.lights[index]=new LightFaces(index));}
- slot(lightFaces,partIndex){return lightFaces.slots[partIndex]??(lightFaces.slots[partIndex]=new FaceSlot(lightFaces.index*FACE_KEYS_PER_LIGHT+partIndex));}
+ slot(lightFaces,partIndex){
+  // slotKey가 다른 광원과 겹치지 않으려면 도안 번호가 폭보다 작아야 한다. 넘으면 잔상이 다른 면에 이어지므로 바로 실패한다.
+  if(partIndex>=FACE_KEYS_PER_LIGHT)throw new RangeError(`광원 하나의 면 도안은 ${FACE_KEYS_PER_LIGHT}개 미만이어야 합니다: ${partIndex}`);
+  return lightFaces.slots[partIndex]??(lightFaces.slots[partIndex]=new FaceSlot(lightFaces.index*FACE_KEYS_PER_LIGHT+partIndex));
+ }
  commit(face){this.faces[this.count++]=face;}
  // legacy와 같이 가까운 깊이(frame.point[2])가 큰 면부터 정렬한다. 같은 깊이는 원래 순서를 지킨다.
  end(){
@@ -186,8 +193,11 @@ function frameInto(lightFaces,light,travel,pyramid,terms,nearStretch=1){
 }
 
 // 도안 꼭짓점을 mapPoint로 세계 좌표에 놓고 clipAtFront처럼 앞면 z=0에서 자른 결과를 face.points에 쓴다.
-function placePart(slot,frame,unitPoints){
- const count=unitPoints.length,mapped=mappedScratch,point=frame.point,across=frame.across,forward=frame.forward;
+// legacy mapPoint·clipAtFront와 같은 값인지 테스트가 직접 확인하도록 내보낸다.
+export function placePart(slot,frame,unitPoints){
+ const count=unitPoints.length;
+ if(mappedScratch.length<count*3)mappedScratch=new Float64Array(count*6);
+ const mapped=mappedScratch,point=frame.point,across=frame.across,forward=frame.forward;
  for(let j=0;j<count;j++){
   const u=unitPoints[j][0],v=unitPoints[j][1];
   for(let i=0;i<3;i++)mapped[j*3+i]=point[i]+frame.side*(u*across[i]+v*frame.stretch*forward[i]);

@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {readSettings,scenePyramid,lightLayout,collectFaces,travelAt} from './integration.mjs';
-import {viewAt,advanceMotion} from './legacy/geometry.mjs';
-import {FaceFrame} from './face-frame.mjs';
+import {viewAt,advanceMotion,mapPoint,clipAtFront} from './legacy/geometry.mjs';
+import {FaceFrame,FACE_KEYS_PER_LIGHT,placePart} from './face-frame.mjs';
 import {LightBatch,writeFaceLayers,writeTrailFaces} from './light-batch.mjs';
 import {TrailPool,advanceTrails,trailAlpha} from './world-trails.mjs';
 import {breakthroughSearch} from '../flight-background-preview-20260913/flight-presets.mjs';
@@ -79,5 +79,22 @@ describe('돌파 광원 면 버퍼 재사용',()=>{
   for(const b of [...bulk,...single])b.end();
   expect(samples.length).toBeGreaterThan(0);
   for(let i=0;i<3;i++){const a=new Hash(),b=new Hash();hashBatch(a,bulk[i]);hashBatch(b,single[i]);expect(bulk[i].count).toBe(single[i].count);expect(a.hex()).toBe(b.hex());}
+ });
+ it('꼭짓점 20개 도안의 앞면 절단도 작업 버퍼를 늘려 legacy mapPoint·clipAtFront와 같은 꼭짓점을 만든다',()=>{
+  const frame=new FaceFrame(),slot=frame.slot(frame.light(0),0);
+  const place={t:.5,cycle:0,point:[3,4,2],forward:[.1,-.2,-.97],across:[.99,.05,.1],side:2.5,stretch:1.5};
+  const unit=Array.from({length:20},(_,i)=>[Math.cos(i/20*Math.PI*2)*.6,Math.sin(i/20*Math.PI*2)*.6]);
+  const expected=clipAtFront(unit.map(p=>mapPoint(place,p)));
+  expect(expected.length).toBeGreaterThan(16);
+  expect(expected.some(p=>p[2]===0)).toBe(true);
+  expect(placePart(slot,place,unit)).toBe(expected.length);
+  expect(slot.face.points.map(p=>[...p])).toEqual(expected);
+ });
+
+ it(`광원 3개×도안 ${FACE_KEYS_PER_LIGHT}개의 slotKey는 모두 다르고 도안 번호 ${FACE_KEYS_PER_LIGHT}은 RangeError다`,()=>{
+  const frame=new FaceFrame(),keys=new Set<number>();
+  for(let light=0;light<3;light++)for(let part=0;part<FACE_KEYS_PER_LIGHT;part++)keys.add((frame.slot(frame.light(light),part).face as unknown as {slotKey:number}).slotKey);
+  expect(keys.size).toBe(3*FACE_KEYS_PER_LIGHT);
+  expect(()=>frame.slot(frame.light(0),FACE_KEYS_PER_LIGHT)).toThrow(RangeError);
  });
 });

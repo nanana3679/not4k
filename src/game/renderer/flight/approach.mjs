@@ -1,5 +1,5 @@
 import { cameraAt, makeLights, scenarios } from '../../../../output/prototypes/flight-background-preview-20260913/approach/motion.mjs';
-import { liftoffLighting } from '../../../../output/prototypes/flight-background-preview-20260913/approach/runway.mjs';
+import { liftoffBlend } from '../../../../output/prototypes/flight-background-preview-20260913/approach/runway.mjs';
 import { createApproachLightFrames } from '../../../../output/prototypes/flight-background-preview-20260913/approach/game-light-frame.mjs';
 import { dimSky } from '../../../../output/prototypes/flight-background-preview-20260913/approach/sky-lighting.mjs';
 import { createGpuLightLayer, hexRgb } from '../../../../output/prototypes/flight-background-preview-20260913/approach/gpu-light-batch.mjs';
@@ -82,7 +82,8 @@ export async function createApproachBackground({ container, scenario, width, hei
       drawOptions.trails = frame.trails;
       groundOptions.view = view;
       groundOptions.travel = travel;
-      groundOptions.runwayAlpha = scenario === 'liftoff' ? liftoffLighting(altitude).ground : 0;
+      // liftoffLighting(altitude).ground와 같은 식이다. 매 프레임 조명 객체를 만들지 않으려고 직접 계산한다.
+      groundOptions.runwayAlpha = scenario === 'liftoff' ? .68 - .40 * liftoffBlend(altitude) : 0;
       gpu.draw(drawOptions);
       const { dataset } = container;
       dataset.travel = String(travel);

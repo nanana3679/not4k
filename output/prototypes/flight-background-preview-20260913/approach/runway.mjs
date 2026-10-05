@@ -64,7 +64,8 @@ export function writeLiftoffLights(target, objects, guides, altitude) {
     const light = objects[i];
     if (strength !== 1) {
       light.alpha = light.alpha * strength;
-      if (light.alpha < .025) continue;
+      // liftoffObjectLights의 filter(alpha >= .025)와 같게 NaN도 버린다.
+      if (!(light.alpha >= .025)) continue;
     }
     target[count++] = light;
   }

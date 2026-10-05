@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { hypot2 } from './hypot.mjs';
 
@@ -14,5 +15,11 @@ describe('할당 없는 2차원 hypot', () => {
       const a = (random() * 2 - 1) * 10 ** (Math.floor(random() * 40) - 20), b = (random() * 2 - 1) * 10 ** (Math.floor(random() * 40) - 20);
       if (!Object.is(hypot2(a, b), Math.hypot(a, b))) expect([a, b, hypot2(a, b)]).toEqual([a, b, Math.hypot(a, b)]);
     }
+  });
+
+  it('공개 미리보기와 돌파 시연의 hypot.mjs 두 사본은 바이트 단위로 같다', () => {
+    const own = readFileSync(new URL('./hypot.mjs', import.meta.url));
+    const breakthrough = readFileSync(new URL('../../breakthrough-hangar-integration-20260910/hypot.mjs', import.meta.url));
+    expect(own.equals(breakthrough)).toBe(true);
   });
 });

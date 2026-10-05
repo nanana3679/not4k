@@ -44,3 +44,23 @@ it('모바일 예산 3개로 TrailPool 표본 5개를 줄이면 limitTrailSample
  expect(full).toHaveLength(5);
  expect(samples.map(s=>s.time)).toEqual(limitTrailSamples(full,3).map(s=>s.time));
 });
+it('TrailPool 표본의 frame·screen은 원래 면 버퍼를 가리키지 않고 null이다',()=>{
+ const pool=new TrailPool(),samples=advanceTrails(pool.clear(),[{...face(),frame:{t:.5}}],[face(undefined,8)],.016,.12,.016,undefined,pool);
+ expect(samples.length).toBeGreaterThan(0);
+ for(const sample of samples){expect(sample.frame).toBeNull();expect(sample.screen).toBeNull();}
+});
+it('100px 이동 면 400개로 표본 4,800개가 생긴 뒤 이동이 멎으면 재사용 대기 표본은 살아 있는 표본×2+256개로 줄고 표본 값은 새 객체 계산과 같다',()=>{
+ const pool=new TrailPool(),faces=(shift:number)=>Array.from({length:400},(_,i)=>face(`p${i}/0/fill/line`,shift,10+i));
+ let fresh:ReturnType<typeof advanceTrails>=[],reused:ReturnType<typeof advanceTrails>=pool.clear(),now=.05;
+ fresh=advanceTrails(fresh,faces(0),faces(100),now,.12,.05);
+ reused=advanceTrails(reused,faces(0),faces(100),now,.12,.05,undefined,pool);
+ expect(reused).toHaveLength(4800);
+ for(const [dt,shift] of [[.2,0],[.016,1],[.016,1]]){
+  now+=dt;
+  fresh=advanceTrails(fresh,faces(100),faces(100+shift),now,.12,dt);
+  reused=advanceTrails(reused,faces(100),faces(100+shift),now,.12,dt,undefined,pool);
+  expect(reused.map(sampleValues)).toEqual(fresh.map(sampleValues));
+  expect(pool.freeCount).toBeLessThanOrEqual(reused.length*2+256);
+ }
+ expect(pool.freeCount).toBeLessThan(1000);
+});

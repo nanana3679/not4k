@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cameraAt, makeLights, scenarios, visibleLights } from './motion.mjs';
-import { liftoffObjectLights, makeRunwayLights, visibleRunwayLights } from './runway.mjs';
+import { liftoffObjectLights, makeRunwayLights, visibleRunwayLights, writeLiftoffLights } from './runway.mjs';
 import { projectSurface, projectSurfaceInto, ScreenPolygon, surfaceBounds, trailWidth } from './surface.mjs';
 import { proceduralTrailGlowAlpha, proceduralTrailSegments, TrailSegmentFrame } from './procedural-trails.mjs';
 import { hexRgb, LightVertexBatch, writeLightFrame } from './gpu-light-batch.mjs';
@@ -98,6 +98,29 @@ describe('게임 비행 배경의 광원 버퍼 재사용', () => {
     expect(second).toHaveLength(1);
     expect(second[0]).toBe(segment);
     expect(second[0].id).toBe('c');
+  });
+
+  it('버퍼 없이 visibleLights·visibleRunwayLights·proceduralTrailSegments를 두 번 부르면 Lab 잔광이 보관한 첫 결과의 배열·객체·값이 그대로다', () => {
+    const lights = makeLights('liftoff', heightMode(null), layoutMode(null));
+    const options = { palette:'liftoff', scenario:'liftoff', seed:42, scale:1, secondary:.15, quality:'high' };
+    const firstView = cameraAt('liftoff', .9, 960, 540, 3), secondView = cameraAt('liftoff', .4, 960, 540, 3);
+    const objects = visibleLights(lights, 130, firstView, 'surface', options), guides = visibleRunwayLights(130, firstView, undefined, 'high');
+    const trails = proceduralTrailSegments([...objects, ...guides], firstView, { altitude:.9 });
+    const saved = structuredClone({ objects, guides, trails });
+    const nextObjects = visibleLights(lights, 160, secondView, 'surface', options), nextGuides = visibleRunwayLights(160, secondView, undefined, 'high');
+    const nextTrails = proceduralTrailSegments([...nextObjects, ...nextGuides], secondView, { altitude:.4 });
+    expect(objects.length && guides.length && trails.length).toBeGreaterThan(0);
+    expect(nextObjects).not.toBe(objects); expect(nextObjects[0]).not.toBe(objects[0]); expect(nextObjects[0].surface).not.toBe(objects[0].surface);
+    expect(nextGuides).not.toBe(guides); expect(nextGuides[0]).not.toBe(guides[0]);
+    expect(nextTrails).not.toBe(trails); expect(nextTrails[0]).not.toBe(trails[0]);
+    expect({ objects, guides, trails }).toEqual(saved);
+  });
+
+  it('이륙 고도 45%의 게임 합성은 밝기 NaN 광원을 liftoffObjectLights처럼 버린다', () => {
+    const objects = [{ id:'a', alpha:.8 }, { id:'nan', alpha:NaN }, { id:'dim', alpha:.04 }];
+    const expected = liftoffObjectLights(objects, .45).map(light => light.id);
+    expect(writeLiftoffLights([], objects.map(light => ({ ...light })), [], .45).map(light => light.id)).toEqual(expected);
+    expect(expected).toEqual(['a']);
   });
 
   it('depth가 같은 detail 4개는 입력 순서 그대로 잔광 예산 3개를 채운다', () => {
