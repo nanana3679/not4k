@@ -12,7 +12,7 @@
  * 최소 MIN_GAP_PX를 보장해 20ms 바디나 10ms 차이 입력도 읽히게 한다. 축 눈금은 실제 ms를 표시한다.
  */
 
-import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, playfieldPx } from "../../game/renderer/constants";
+import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, noteBoxTopY, playfieldPx } from "../../game/renderer/constants";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
 import type { NoteEntity, RangeNote } from "../../shared/types";
 import { violationLabel, type ValidationErrorRule } from "../../shared/validation";
@@ -847,7 +847,7 @@ interface NoteLayers { bodies: string[]; ends: string[]; heads: string[]; points
  * (실패는 판정 라벨로만 보인다). 레이어는 게임과 같이 바디 < 끝 터미널 < 시작 터미널 < 포인트 순이고,
  * points(포인트 레이어)는 노트 경계선 위에 그리도록 따로 돌려준다.
  *
- * 게임은 포인트·터미널 박스 윗변을 시각에 맞추지만, 축 눈금과 함께 읽도록 박스 가운데를 시각 선에 맞춘다.
+ * 게임과 같이 포인트·터미널 박스 가운데를 시각 선에 맞춘다(노트 가운데 기준, #224 — `noteBoxTopY`). 그래서 축 눈금이 노트 가운데를 지난다.
  * 정지 그림이므로 시작·끝 터미널을 모두 그린다(길이 0 롱노트는 full-height 스킨에서 시작 터미널 하나).
  */
 function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: number, laneX: (lane: number) => number, yOf: (t: number) => number): { below: string; points: string } {
@@ -866,7 +866,7 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     const part = (name: string) => `data-note-index="${entry.index}" data-note-type="${note.type}" data-note-part="${name}"`;
 
     if (!isRange(note)) {
-      const top = yOf(entry.startMs) - h / 2;
+      const top = noteBoxTopY(yOf(entry.startMs), h);
       if (note.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
       // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 싱글·더블은 pointContactShadow, trill은 pointContactShadowTrill(예전 pointShadow는 고르지 않음).
       const reach = skin.pointContactShadow;
@@ -895,16 +895,16 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
       // 바디는 두 마름모 가운데(시작·끝 시각) 사이. 시작 마름모는 같은 시각의 trill 포인트가 그린다.
       layers.bodies.push(drawBody(skin, skin.body.trill, { x: bodyX, y: endY, width: bodyWidth, height: startY - endY }, part("body"), tileId));
       const terminal = fullHeight
-        ? { x: terminalX, y: endY - h / 2, width: terminalWidth, height: h }
-        : { x: lx, y: endY - h / 2, width: LANE_W, height: h };
-      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, endY - h / 2, terminalWidth, part("overlay")));
+        ? { x: terminalX, y: noteBoxTopY(endY, h), width: terminalWidth, height: h }
+        : { x: lx, y: noteBoxTopY(endY, h), width: LANE_W, height: h };
+      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(endY, h), terminalWidth, part("overlay")));
       layers.ends.push(skinImage(skin.terminal.trill, terminal, part("end")));
       continue;
     }
 
     // long·doubleLong: 바디는 끝 터미널 윗변부터 시작 터미널 아랫변까지 채운다(터미널 아래까지 채워 접합부가 비지 않음).
-    const top = endY - h / 2;
-    const bottom = startY + h / 2;
+    const top = noteBoxTopY(endY, h);
+    const bottom = noteBoxTopY(startY, h) + h;
     layers.bodies.push(drawBody(skin, skin.body[kind], { x: bodyX, y: top, width: bodyWidth, height: bottom - top }, part("body"), tileId));
     const zeroLength = entry.endMs === entry.startMs;
     const capKind = kind === "double" ? "double" : "single";
@@ -913,9 +913,9 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
         if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
         layers.ends.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("end")));
       } else if (holdOnly) {
-        layers.heads.push(graceOverlay(skin, "terminal", terminalX, startY - h / 2, terminalWidth, part("overlay")));
+        layers.heads.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(startY, h), terminalWidth, part("overlay")));
       }
-      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: startY - h / 2, width: terminalWidth, height: h }, part("start"), true));
+      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: noteBoxTopY(startY, h), width: terminalWidth, height: h }, part("start"), true));
       continue;
     }
     // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
@@ -1040,8 +1040,8 @@ function drawPanel(prepared: PreparedPanel, index: number, skin: JudgmentCaseSki
   for (const zone of judgmentCase.trillZones) {
     if (!prepared.lanes.includes(zone.lane)) continue;
     // src/game/renderer/GameRenderer.ts renderTrillZones를 따른다: 롱노트 바디처럼 끝 박스 윗변부터 시작 박스 아랫변까지, 최소 노트 한 칸(길이 0).
-    const top = yOf(Math.max(zone.startMs, zone.endMs)) - NOTE_H / 2;
-    const height = Math.max(yOf(Math.min(zone.startMs, zone.endMs)) + NOTE_H / 2 - top, NOTE_H);
+    const top = noteBoxTopY(yOf(Math.max(zone.startMs, zone.endMs)), NOTE_H);
+    const height = Math.max(noteBoxTopY(yOf(Math.min(zone.startMs, zone.endMs)), NOTE_H) + NOTE_H - top, NOTE_H);
     out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${px(top)}" width="${LANE_W}" height="${px(height)}" fill="${hexColor(COLORS.TRILL_ZONE_BG)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
   }
 

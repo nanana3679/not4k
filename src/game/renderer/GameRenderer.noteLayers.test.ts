@@ -31,7 +31,8 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
     noteLayer.removeChildren();
     renderer.renderPointNote(point(100, 'trill'), 0, 100, 10);
     expect(noteLayer.children[0]).toBe(shadow);
-    expect(shadow.y).toBe(410);
+    // 그림자는 포인트 박스 위끝을 따라간다: 노트 가운데 410(#224) − 노트 반 칸 6.25.
+    expect(shadow.y).toBe(403.75);
     renderer.renderPointNote(point(200, 'trill'), 1, 200, 10);
     expect((noteLayer.children[2] as Mesh).geometry).toBe(shadow.geometry);
     const destroyGeometry = vi.spyOn(shadow.geometry, 'destroy');

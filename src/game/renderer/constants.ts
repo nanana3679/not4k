@@ -27,6 +27,17 @@ export const NOTE_HEIGHT = playfieldPx(20); // 12.5px
 export const NOTE_WIDTH = NOTE_HEIGHT * 5; // 1:5 ratio = 62.5px (matches lane width, skin assets keep 1:5)
 
 /**
+ * 노트 시각 기준([#224](https://github.com/nanana3679/not4k/issues/224)): 노트의 시간 위치는 노트 박스의 세로 가운데다.
+ * 판정 순간(곡 시각 = 노트 시각) 노트 박스는 [판정선 − 두께/2, 판정선 + 두께/2]로 판정선에 가운데가 걸친다.
+ * 게임 렌더러와 Visual 캘리브레이션 화면이 이 기준을 함께 써서, 캘리브레이션 값이 스크롤 속도와 무관하게 게임에 그대로 맞는다.
+ * @param timeY 노트 시각의 y(`judgmentLineY − (노트 시각 − 곡 시각) × 속도`)
+ * @returns 노트 박스 위끝 y
+ */
+export function noteBoxTopY(timeY: number, noteHeight: number = NOTE_HEIGHT): number {
+  return timeY - noteHeight / 2;
+}
+
+/**
  * 리프트 0%의 판정선 높이(화면 아래에서). y 416은 프레임 덱 위끝(y 429.7)보다 노트 두께 약 1배(틈 13.7) 위로,
  * 사용자가 Lab 미리보기에서 고른 위치다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  * 리프트(`liftPx`)는 여기서 판정선과 딸린 표시만 올리고 프레임·레인 가림막은 움직이지 않는다.
