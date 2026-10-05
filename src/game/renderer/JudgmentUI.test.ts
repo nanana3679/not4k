@@ -77,3 +77,25 @@ describe("JudgmentUI 재사용 초기화", () => {
     }
   });
 });
+
+describe("JudgmentUI 플레이필드 배율 (RFD 0029, ×0.625)", () => {
+  function createAt(judgmentLineY: number) {
+    const layer = new Container();
+    const ui = new JudgmentUI(layer, judgmentLineY, 1067, 600);
+    const [judgmentText, fastSlowText, timingDiffText] =
+      (layer as unknown as { children: { y: number; style: { fontSize: number } }[] }).children;
+    return { ui, judgmentText, fastSlowText, timingDiffText };
+  }
+
+  it("판정선 y 416에서 판정 글자 22.5px는 75 위(341), FAST/SLOW 12.5px는 53.125 위, 타이밍 차이 13.75px는 90.625 위에 놓인다", () => {
+    const { judgmentText, fastSlowText, timingDiffText } = createAt(416);
+    expect([judgmentText.y, fastSlowText.y, timingDiffText.y]).toEqual([341, 362.875, 325.375]);
+    expect([judgmentText.style.fontSize, fastSlowText.style.fontSize, timingDiffText.style.fontSize]).toEqual([22.5, 12.5, 13.75]);
+  });
+
+  it("리프트로 판정선이 y 392(4%)로 오르면 setPosition이 세 글자를 같은 간격으로 함께 올린다", () => {
+    const { ui, judgmentText, fastSlowText, timingDiffText } = createAt(416);
+    ui.setPosition(392);
+    expect([judgmentText.y, fastSlowText.y, timingDiffText.y]).toEqual([317, 338.875, 301.375]);
+  });
+});

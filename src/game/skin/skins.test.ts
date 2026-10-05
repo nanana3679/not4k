@@ -24,11 +24,11 @@ describe("SKIN_LIST", () => {
     }
   });
 
-  it("기어 프레임과 기둥 게이지는 모든 스킨이 공통 /gear/ 경로를 사용", () => {
+  it("기어 프레임은 모든 스킨이 공통 새 Classic 프레임 /gear/classic-frame.png를 쓰고 옛 기둥 게이지 에셋은 없다", () => {
     for (const skin of SKIN_LIST) {
-      expect(skin.assets.gearFrame).toBe("/gear/gear-frame.png");
-      expect(skin.assets.gearGaugeLeft).toBe("/gear/gear-gauge-left.png");
-      expect(skin.assets.gearGaugeRight).toBe("/gear/gear-gauge-right.png");
+      expect(skin.assets.gearFrame).toBe("/gear/classic-frame.png");
+      expect(skin.assets).not.toHaveProperty("gearGaugeLeft");
+      expect(skin.assets).not.toHaveProperty("gearGaugeRight");
     }
   });
 });
@@ -138,7 +138,7 @@ describe("SkinTheme", () => {
         // 켜짐 에셋은 heldEffect: false 스킨(Simple)에 없다.
         ...(assets.bodySingleHeld ? [assets.bodySingleHeld] : []),
         ...(assets.bodyDoubleHeld ? [assets.bodyDoubleHeld] : []),
-        assets.gearFrame, assets.gearGaugeLeft, assets.gearGaugeRight,
+        assets.gearFrame,
         ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
       ];
       for (const p of paths) {

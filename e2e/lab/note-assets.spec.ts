@@ -107,12 +107,14 @@ test.describe("Note Assets Lab", () => {
       canvas.id = 'connected-trill-runtime';
       canvas.style.cssText = 'display:block;max-width:100%;margin:20px auto';
       document.body.prepend(canvas);
+      // 플레이필드 배율 0.625(RFD 0029)로 줄어든 렌더러를 해상도 1.6으로 그려, 이전 레인 100·노트 20 기준 픽셀 좌표를
+      // 그대로 쓴다(논리 250×320 → 400×512px, 판정선 y 262.5 → 420px, 스크롤 250 → 400px/s).
       const renderer = new GameRenderer({
-        canvas, width: 400, height: 500, judgmentLineOffset: 80, skinManager: skin,
+        canvas, width: 250, height: 320, resolution: 1.6, judgmentLineOffset: 57.5, skinManager: skin,
         showGearFrame: false, showFlightBackground: false, showComboAndAccuracy: false,
       });
       await renderer.init();
-      renderer.scrollSpeed = 400;
+      renderer.scrollSpeed = 250;
       const beat = (n: number, d = 1) => ({ n, d });
       const notes = [
         { type: 'trillLong', lane: 2, beat: beat(1), endBeat: beat(3, 2) },

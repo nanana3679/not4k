@@ -1,5 +1,6 @@
-import { Assets, Texture, Rectangle } from "pixi.js";
+import { Assets, Texture, Rectangle, type TextureSourceOptions } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
+import { CLASSIC_FRAME_TEXTURE_OPTIONS } from "../renderer/classicFrameLayout";
 import { getSkinManifest } from "./skins";
 import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
 
@@ -34,9 +35,11 @@ function releaseSkinAsset(path: string): void {
   skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
 }
 
-function loadSkinAsset<T>(path: string): Promise<T> {
+function loadSkinAsset<T>(path: string, data?: Partial<TextureSourceOptions>): Promise<T> {
   const previous = skinAssetOperations.get(path) ?? Promise.resolve();
-  const operation = previous.catch(() => undefined).then(() => Assets.load<T>(path));
+  // 텍스처 설정이 있는 에셋은 경로를 별칭으로 등록해 unload(path)가 같은 캐시 항목을 찾게 한다.
+  const operation = previous.catch(() => undefined)
+    .then(() => Assets.load<T>(data ? { alias: path, src: path, data } : path));
   skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
   return operation;
 }
@@ -46,6 +49,14 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
   ownership.released = true;
   for (const path of ownership.paths) releaseSkinAsset(path);
 }
+
+/**
+ * 기본(선형·밉맵 없음)과 다르게 읽어야 하는 텍스처. 기어 프레임은 원본보다 작게(렌더 높이 1080에서 약 0.82배) 그려지므로
+ * 밉맵·삼선형 필터로 읽는다. 업로드할 때 밉맵이 만들어지므로 로드 시점에 정해야 한다.
+ */
+const TEXTURE_LOAD_OPTIONS: Readonly<Record<string, Partial<TextureSourceOptions>>> = {
+  gearFrame: CLASSIC_FRAME_TEXTURE_OPTIONS,
+};
 
 /**
  * 롱노트 캡 텍스처 키 매핑: terminal texKey → 전용 endCap texKey.
@@ -151,10 +162,8 @@ export class SkinManager {
       ["noteTrillFailed", assets.noteTrillFailed],
       ["bodyTrillFailed", assets.bodyTrillFailed],
       ["terminalTrillFailed", assets.terminalTrillFailed],
-      // 기어 프레임 + 기둥 게이지
+      // 기어 프레임
       ["gearFrame", assets.gearFrame],
-      ["gearGaugeLeft", assets.gearGaugeLeft],
-      ["gearGaugeRight", assets.gearGaugeRight],
     ] as [string, string | undefined][])
       .filter((entry): entry is [string, string] =>
         entry[1] !== undefined && (heldEffect || !(HELD_ASSET_KEYS as readonly string[]).includes(entry[0])));
@@ -198,7 +207,7 @@ export class SkinManager {
 
     // 모든 텍스처를 병렬 로드
     const loadPromises = entries.map(async ([key, path]) => {
-      const texture = await loadSkinAsset<Texture>(path);
+      const texture = await loadSkinAsset<Texture>(path, TEXTURE_LOAD_OPTIONS[key]);
       if (!this.disposed && generation === this.loadGeneration) {
         this.textures.set(key, { texture, path });
       }

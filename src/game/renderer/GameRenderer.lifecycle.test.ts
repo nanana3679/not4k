@@ -11,7 +11,6 @@ describe('GameRenderer 리소스 수명', () => {
       flightBackground: { dispose: disposeBackground },
       noteRenderer: { dispose: vi.fn() },
       app: { destroy: destroyApplication },
-      gearGauges: [],
     };
     Reflect.apply(GameRenderer.prototype.dispose, state, [false]);
     expect(disposeBackground).toHaveBeenCalledOnce();
@@ -36,7 +35,6 @@ describe('GameRenderer 리소스 수명', () => {
       initialized: true,
       noteRenderer: { dispose: vi.fn() },
       app: { destroy: destroyApplication },
-      gearGauges: [],
     };
 
     Reflect.apply(GameRenderer.prototype.dispose, state, []);

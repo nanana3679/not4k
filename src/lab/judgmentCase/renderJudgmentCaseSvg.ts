@@ -12,7 +12,7 @@
  * 최소 MIN_GAP_PX를 보장해 20ms 바디나 10ms 차이 입력도 읽히게 한다. 축 눈금은 실제 ms를 표시한다.
  */
 
-import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT } from "../../game/renderer/constants";
+import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, playfieldPx } from "../../game/renderer/constants";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
 import type { NoteEntity, RangeNote } from "../../shared/types";
 import { violationLabel, type ValidationErrorRule } from "../../shared/validation";
@@ -68,10 +68,15 @@ const PANEL_PAD_X = 20;
 const PANEL_GUTTER = 28;
 const AXIS_W = 62;
 const LANE_W = 80;
-/** 게임 레인(100px) → 이미지 레인 배율. 노트·그림자·overlay의 게임 px 치수에 곱한다 */
+/** 게임 레인(62.5 논리 px) → 이미지 레인 배율. 노트 높이처럼 게임 렌더러의 논리 px 치수에 곱한다 */
 const LANE_SCALE = LANE_W / GAME_LANE_WIDTH;
-/** 포인트·터미널 높이(게임 20px → 16px) */
+/** 포인트·터미널 높이(게임 12.5px → 16px) */
 const NOTE_H = GAME_NOTE_HEIGHT * LANE_SCALE;
+/**
+ * 스킨 테마 px(그림자 퍼짐·Grace 여백·터미널 외곽 돌출)과 렌더러 설계값은 레인 100 기준이다. 게임은 플레이필드 배율
+ * (playfieldPx, RFD 0029)로 바꿔 그리므로 같은 값을 거쳐 이미지 px로 옮긴다(레인 100 → 80, 즉 × 0.8).
+ */
+const designPx = (value: number) => playfieldPx(value) * LANE_SCALE;
 const COLUMN_GAP = 14;
 const KEY_BAR_W = 12;
 const KEY_LABEL_FONT = 13;
@@ -787,7 +792,7 @@ function skinImage(sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, flip
 
 /** NineSliceSprite 위아래 테두리(게임 px) — stretch 바디의 위아래 4px는 늘이지 않는다. src/game/renderer/GameNoteRenderer.ts getOrCreateBodySprite의 topHeight·bottomHeight를 따른다 */
 const BODY_SLICE_PX = 4;
-/** split-cap 짧은 바디에서 두 반쪽 캡 사이에 남기는 게임 px. src/game/renderer/GameNoteRenderer.ts renderLongNote의 WIRE_MIN_PX를 따른다 */
+/** split-cap 짧은 바디에서 두 반쪽 캡 사이에 남기는 설계 px(레인 100 기준). src/game/renderer/GameNoteRenderer.ts의 WIRE_MIN_PX를 따른다 */
 const WIRE_MIN_PX = 5;
 
 /**
@@ -820,7 +825,7 @@ function drawBody(skin: JudgmentCaseSkin, sprite: JudgmentCaseSkinSprite, box: B
 function graceOverlay(skin: JudgmentCaseSkin, kind: "point" | "terminal", x: number, y: number, width: number, attrs: string): string {
   const sprite = kind === "point" ? skin.pointGraceOverlay : skin.terminalGraceOverlay;
   if (sprite) {
-    const pad = skin.graceOverlayPaddingPx * LANE_SCALE;
+    const pad = designPx(skin.graceOverlayPaddingPx);
     return skinImage(sprite, { x: x - pad, y: y - pad, width: width + pad * 2, height: NOTE_H + pad * 2 }, attrs);
   }
   const steps = 4;
@@ -828,7 +833,7 @@ function graceOverlay(skin: JudgmentCaseSkin, kind: "point" | "terminal", x: num
   for (let i = 0; i < steps; i++) {
     const stepPad = (COLORS.GRACE_GLOW_PAD * (i + 1)) / steps;
     const pad = stepPad * LANE_SCALE;
-    out.push(`<rect x="${px(x - pad)}" y="${px(y - pad)}" width="${px(LANE_W + pad * 2)}" height="${px(NOTE_H + pad * 2)}" rx="${px((4 + stepPad * 0.3) * LANE_SCALE)}" fill="${hexColor(COLORS.GRACE_GLOW)}" fill-opacity="${COLORS.GRACE_GLOW_ALPHA / steps}"/>`);
+    out.push(`<rect x="${px(x - pad)}" y="${px(y - pad)}" width="${px(LANE_W + pad * 2)}" height="${px(NOTE_H + pad * 2)}" rx="${px((playfieldPx(4) + stepPad * 0.3) * LANE_SCALE)}" fill="${hexColor(COLORS.GRACE_GLOW)}" fill-opacity="${COLORS.GRACE_GLOW_ALPHA / steps}"/>`);
   }
   const outline = COLORS.GRACE_OUTLINE_WIDTH * LANE_SCALE;
   out.push(`<rect x="${px(x - outline / 2)}" y="${px(y - outline / 2)}" width="${px(LANE_W + outline)}" height="${px(NOTE_H + outline)}" fill="none" stroke="${hexColor(COLORS.GRACE_OUTLINE)}" stroke-width="${px(outline)}"/>`);
@@ -868,11 +873,11 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
       if (kind !== "trill" && reach && skin.contactShadow) {
         // 텍스처 윗행이 가장 짙다. 위 그림자는 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
         layers.points.push(
-          skinImage(skin.contactShadow, { x: bodyX, y: top - reach.above * LANE_SCALE, width: bodyWidth, height: reach.above * LANE_SCALE }, part("shadow"), true),
-          skinImage(skin.contactShadow, { x: bodyX, y: top + h, width: bodyWidth, height: reach.below * LANE_SCALE }, part("shadow")),
+          skinImage(skin.contactShadow, { x: bodyX, y: top - designPx(reach.above), width: bodyWidth, height: designPx(reach.above) }, part("shadow"), true),
+          skinImage(skin.contactShadow, { x: bodyX, y: top + h, width: bodyWidth, height: designPx(reach.below) }, part("shadow")),
         );
       } else if (kind === "trill" && reach && skin.contactShadowTrill) {
-        layers.points.push(skinImage(skin.contactShadowTrill, { x: lx, y: top - reach.above * LANE_SCALE, width: LANE_W, height: (reach.above + GAME_NOTE_HEIGHT + reach.below) * LANE_SCALE }, part("shadow")));
+        layers.points.push(skinImage(skin.contactShadowTrill, { x: lx, y: top - designPx(reach.above), width: LANE_W, height: designPx(reach.above) + NOTE_H + designPx(reach.below) }, part("shadow")));
       }
       layers.points.push(skinImage(skin.point[kind], { x: lx, y: top, width: LANE_W, height: h }, part("point")));
       continue;
@@ -881,7 +886,7 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     const startY = yOf(entry.startMs);
     const endY = yOf(entry.endMs ?? entry.startMs);
     const holdOnly = note.holdOnly === true;
-    const overhang = fullHeight ? (skin.terminalFrameOverhangPx * LANE_SCALE * bodyWidth) / LANE_W : 0;
+    const overhang = fullHeight ? (designPx(skin.terminalFrameOverhangPx) * bodyWidth) / LANE_W : 0;
     const terminalX = bodyX - overhang;
     const terminalWidth = bodyWidth + overhang * 2;
     const tileId = `jc-tile-${panelIndex}-${entry.index}`;
@@ -915,7 +920,7 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     }
     // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
     const cap = skin.cap?.[capKind] ?? skin.terminal[kind];
-    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - WIRE_MIN_PX * LANE_SCALE) / 2));
+    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - designPx(WIRE_MIN_PX)) / 2));
     if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
     layers.ends.push(skinImage(cap, { x: terminalX, y: top, width: terminalWidth, height: capHeight }, part("end")));
     layers.heads.push(skinImage(cap, { x: terminalX, y: bottom - capHeight, width: terminalWidth, height: capHeight }, part("start"), true));

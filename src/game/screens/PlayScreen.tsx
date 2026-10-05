@@ -8,7 +8,8 @@ import { SessionRendererAdapter, type SessionRendererPort } from '../judgment';
 import { compileJudgmentChart, selectCompiledJudgmentChart } from '../judgment/compiledJudgmentChart';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
-import { GAME_HEIGHT, LANE_AREA_WIDTH, JUDGMENT_LINE_OFFSET } from '../renderer/constants';
+import { GAME_HEIGHT, liftPx } from '../renderer/constants';
+import { resolvePlayLogicalWidth } from '../renderer/classicFrameLayout';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
@@ -100,11 +101,10 @@ export function PlayScreen() {
         const compiledBase = compileJudgmentChart(chartData.notes, noteTimesMs, noteEndTimesMs, chartData.trillZones);
         const compiled = startTimeMs > 0 ? selectCompiledJudgmentChart(compiledBase, startTimeMs) : compiledBase;
 
-        // Calculate logical width from viewport aspect ratio (height fixed)
+        // 높이 600에 화면 비율을 곱한 논리 폭. 프레임 전체(최소 466)보다 좁히지 않는다.
         const containerW = containerRef.current!.clientWidth;
         const containerH = containerRef.current!.clientHeight;
-        const aspectRatio = containerW / containerH;
-        const logicalW = Math.max(Math.round(GAME_HEIGHT * aspectRatio), LANE_AREA_WIDTH + 80);
+        const logicalW = resolvePlayLogicalWidth(containerW, containerH);
         const resolution = settings.renderHeight / GAME_HEIGHT;
 
         // Set canvas CSS size to fill container
@@ -150,19 +150,10 @@ export function PlayScreen() {
           playableDurationMs,
         );
         renderer.scrollSpeed = settings.scrollSpeed;
-        renderer.setAdjustModeCallback((active) => {
-          if (active) {
-            audioEngine.pause();
-            isPausedRef.current = true;
-          } else {
-            audioEngine.resume();
-            isPausedRef.current = false;
-          }
-        });
         renderer.setShowFastSlow(settings.showFastSlow);
         renderer.setShowTimingDiff(settings.showTimingDiff);
         renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
-        renderer.setLift(GAME_HEIGHT * settings.liftPercent / 100);
+        renderer.setLift(liftPx(settings.liftPercent));
         renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
 
         // Setup keyboard layout display
@@ -175,8 +166,8 @@ export function PlayScreen() {
         });
         renderer.setupKeyboardDisplay(laneBindingsMap);
 
-        // Create debug logger if debug mode is enabled
-        const judgmentLineY = GAME_HEIGHT - JUDGMENT_LINE_OFFSET - (GAME_HEIGHT * settings.liftPercent / 100);
+        // Create debug logger if debug mode is enabled — 리프트를 반영한 렌더러의 판정선 y를 그대로 쓴다.
+        const judgmentLineY = renderer.judgmentLineY;
         const debugLogger = settings.debugMode
           ? new DebugLogger(settings.scrollSpeed, judgmentLineY)
           : null;

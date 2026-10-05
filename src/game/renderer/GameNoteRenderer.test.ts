@@ -130,8 +130,10 @@ function createRenderer() {
 }
 
 describe('Classic 시안 렌더링 규격', () => {
-  const bodyWidth = 100 * 100 / 106;
-  const bodyX = 100 + (100 - bodyWidth) / 2;
+  // 레인 62.5(설계값 100 × 플레이필드 배율 0.625, RFD 0029). 테마 px(접촉 그림자 5·Grace 12)도 같은 배율로 줄어든다.
+  const LANE = 62.5;
+  const bodyWidth = LANE * 100 / 106;
+  const bodyX = LANE + (LANE - bodyWidth) / 2;
   // Classic 에셋: 싱글·더블 포인트 212px·바디 200px, 트릴 포인트·바디 200px.
   const classicScale = (kind: string) => kind === 'trill' ? 1 : 200 / 212;
   function createClassicRenderer(bodyWidthScale: (kind: string) => number = classicScale) {
@@ -147,79 +149,79 @@ describe('Classic 시안 렌더링 규격', () => {
       renderer: new GameNoteRenderer(bodyLayer,endLayer,headLayer,noteLayer,skin,500,1000,0,600) };
   }
 
-  it('인접한 1·2번 레인의 Classic 포인트는 각각 100px 레인 안에 들어가 서로 겹치지 않는다', () => {
+  it('인접한 1·2번 레인의 Classic 포인트는 각각 62.5px 레인 안에 들어가 서로 겹치지 않는다', () => {
     const { renderer, noteLayer } = createClassicRenderer();
     renderer.renderPointNote({ type: 'single', lane: 1, beat: 0 } as unknown as NoteEntity, 0, 100, 0);
     renderer.renderPointNote({ type: 'double', lane: 2, beat: 0 } as unknown as NoteEntity, 1, 100, 0);
     // 각 포인트 앞에는 위·아래 접촉 그림자가 먼저 쌓인다.
     const [, , first, , , second] = childrenOf(noteLayer);
     expect(first.x).toBe(0);
-    expect(first.width).toBe(100);
-    expect(second.x).toBe(100);
-    expect(second.width).toBe(100);
+    expect(first.width).toBe(62.5);
+    expect(second.x).toBe(62.5);
+    expect(second.width).toBe(62.5);
     expect(first.x + first.width).toBeLessThanOrEqual(second.x);
   });
 
-  it('2번 레인 싱글 포인트는 x100·100×20이고 위아래 접촉 그림자는 약94.34px 바디 폭·5px 높이로 포인트 위아래 변에 맞닿는다', () => {
+  it('2번 레인 싱글 포인트는 x62.5·62.5×12.5이고 위아래 접촉 그림자는 약58.96px 바디 폭·3.125px(설계값 5) 높이로 포인트 위아래 변에 맞닿는다', () => {
     const {renderer,noteLayer} = createClassicRenderer();
     renderer.renderPointNote({type:'single',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
     const [above,below,point] = childrenOf(noteLayer);
-    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    expect(point).toMatchObject({x:62.5,y:400,width:62.5,height:12.5});
     for (const shadow of [above, below]) {
       expect(shadow.x).toBeCloseTo(bodyX);
       expect(shadow.scale.x * 200).toBeCloseTo(bodyWidth);
     }
-    // 위 그림자는 세로로 뒤집혀 포인트 윗변(y400)에서 위로 5px, 아래 그림자는 아랫변(y420)에서 아래로 5px 퍼진다.
+    // 위 그림자는 세로로 뒤집혀 포인트 윗변(y400)에서 위로 3.125px, 아래 그림자는 아랫변(y412.5)에서 아래로 3.125px 퍼진다.
     expect(above.y).toBe(400);
-    expect(above.scale.y * 40).toBeCloseTo(-5);
-    expect(below.y).toBe(420);
-    expect(below.scale.y * 40).toBeCloseTo(5);
+    expect(above.scale.y * 40).toBeCloseTo(-3.125);
+    expect(below.y).toBe(412.5);
+    expect(below.scale.y * 40).toBeCloseTo(3.125);
   });
 
-  it('2번 레인 트릴 포인트는 x100·100×20이고 마름모 테두리 그림자는 포인트 위 5px부터 아래 5px까지 x100·100×30으로 깔린다', () => {
+  it('2번 레인 트릴 포인트는 x62.5·62.5×12.5이고 마름모 테두리 그림자는 포인트 위 3.125px부터 아래 3.125px까지 x62.5·62.5×18.75로 깔린다', () => {
     const {renderer,noteLayer} = createClassicRenderer();
     renderer.renderPointNote({type:'trill',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
     const [shadow,point] = childrenOf(noteLayer);
-    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
-    expect(shadow).toMatchObject({x:100,y:395,width:100,height:30});
+    expect(point).toMatchObject({x:62.5,y:400,width:62.5,height:12.5});
+    expect(shadow).toMatchObject({x:62.5,y:396.875,width:62.5,height:18.75});
   });
 
-  it('200×40 바디는 약94.34×18.87 주기로 반복하고 터미널도 같은 폭으로 포인트 안에 들어간다', () => {
+  it('200×40 바디는 약58.96×11.79 주기로 반복하고 터미널도 같은 폭으로 포인트 안에 들어간다', () => {
     const {renderer,bodyLayer,endLayer} = createClassicRenderer();
     renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
     const body = childrenOf(bodyLayer)[0] as unknown as TilingSprite;
     expect(body).toBeInstanceOf(TilingSprite);
     expect(body.tileScale.set).toHaveBeenCalledWith(bodyWidth / 200);
-    expect(body).toMatchObject({x:bodyX,width:bodyWidth,height:220});
-    expect(childrenOf(endLayer)[0]).toMatchObject({x:bodyX,width:bodyWidth,height:20});
+    expect(body).toMatchObject({x:bodyX,width:bodyWidth,height:212.5});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:bodyX,width:bodyWidth,height:12.5});
   });
 
-  it('포인트와 바디 이미지 폭이 같은 스킨(비율 1)은 싱글 롱노트 바디와 끝 터미널을 레인 폭 x100·너비100 그대로 그린다', () => {
+  it('포인트와 바디 이미지 폭이 같은 스킨(비율 1)은 싱글 롱노트 바디와 끝 터미널을 레인 폭 x62.5·너비62.5 그대로 그린다', () => {
     const {renderer,bodyLayer,endLayer} = createClassicRenderer(() => 1);
     renderer.renderLongNote({type:'long',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
-    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:100,width:100});
-    expect(childrenOf(endLayer)[0]).toMatchObject({x:100,width:100});
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:62.5,width:62.5});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:62.5,width:62.5});
   });
 
-  it('트릴도 바디 이미지가 포인트보다 좁으면(비율 0.9) 노트 종류 예외 없이 트릴 롱 바디와 끝 터미널을 x105·너비90으로 줄인다', () => {
+  it('트릴도 바디 이미지가 포인트보다 좁으면(비율 0.9) 노트 종류 예외 없이 트릴 롱 바디와 끝 터미널을 x65.625·너비56.25로 줄인다', () => {
     const {renderer,bodyLayer,endLayer} = createClassicRenderer(kind => kind === 'trill' ? 0.9 : 1);
     renderer.renderLongNote({type:'trillLong',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},0,100,300,0);
-    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:105,width:90});
-    expect(childrenOf(endLayer)[0]).toMatchObject({x:105,width:90});
+    expect(childrenOf(bodyLayer)[0]).toMatchObject({x:65.625,width:56.25});
+    expect(childrenOf(endLayer)[0]).toMatchObject({x:65.625,width:56.25});
   });
 
-  it('Classic 트릴은 포인트·바디·끝 터미널 모두 x100·너비100이며 20px 바디를 반복하고 시작 캡은 없음', () => {
+  it('Classic 트릴은 포인트·바디·끝 터미널 모두 x62.5·너비62.5이며 12.5px 주기로 바디를 반복하고 시작 캡은 없음', () => {
     const {renderer,bodyLayer,endLayer,headLayer,noteLayer} = createClassicRenderer();
     renderer.renderPointNote({type:'trill',lane:2,beat:0} as unknown as NoteEntity,0,100,0);
     renderer.renderLongNote({type:'trillLong',lane:2,beat:0,endBeat:4} as unknown as NoteEntity & {endBeat:unknown},1,100,300,0);
     const point = childrenOf(noteLayer).at(-1)!;
     const body = childrenOf(bodyLayer)[0] as unknown as TilingSprite;
     const terminal = childrenOf(endLayer)[0];
-    expect(point).toMatchObject({x:100,y:400,width:100,height:20});
+    expect(point).toMatchObject({x:62.5,y:400,width:62.5,height:12.5});
     expect(body).toBeInstanceOf(TilingSprite);
-    expect(body.tileScale.set).toHaveBeenCalledWith(.5);
-    expect(body).toMatchObject({x:100,y:210,width:100,height:200});
-    expect(terminal).toMatchObject({x:100,y:200,width:100,height:20});
+    expect(body.tileScale.set).toHaveBeenCalledWith(.3125);
+    expect(body).toMatchObject({x:62.5,y:206.25,width:62.5,height:200});
+    expect(terminal).toMatchObject({x:62.5,y:200,width:62.5,height:12.5});
     expect(body.y).toBe(terminal.y + terminal.height / 2);
     expect(body.y + body.height).toBe(point.y + point.height / 2);
     expect(childrenOf(headLayer)).toHaveLength(0);
@@ -274,14 +276,14 @@ describe('Classic 시안 렌더링 규격', () => {
     }
   });
 
-  it('길이0 holdOnly는 시작 터미널 하나와 사방12px Grace를 표시하고 실패 후 외곽광을 숨김', () => {
+  it('길이0 holdOnly는 시작 터미널 하나와 사방7.5px(설계값 12) Grace를 표시하고 실패 후 외곽광을 숨김', () => {
     const {renderer,headLayer,endLayer} = createClassicRenderer();
     const note = {type:'long',lane:2,beat:0,endBeat:0,holdOnly:true} as unknown as NoteEntity & {endBeat:unknown};
     renderer.renderLongNote(note,0,100,100,0);
     expect(childrenOf(endLayer)).toHaveLength(0);
     const [grace,terminal] = childrenOf(headLayer);
-    expect(grace).toMatchObject({x:bodyX-12,y:388,width:bodyWidth+24,height:44});
-    expect(terminal).toMatchObject({x:bodyX,y:420,width:bodyWidth,height:20});
+    expect(grace).toMatchObject({x:bodyX-7.5,y:392.5,width:bodyWidth+15,height:27.5});
+    expect(terminal).toMatchObject({x:bodyX,y:412.5,width:bodyWidth,height:12.5});
     childrenOf(headLayer).length = 0;
     renderer.applyNoteDisplayEffect(0,{body:'failed',visibility:'missed'});
     renderer.renderLongNote(note,0,100,100,0);
@@ -494,9 +496,9 @@ describe("GameNoteRenderer 노트 상태 관리", () => {
 });
 
 describe("GameNoteRenderer 노트 정렬", () => {
-  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=12.5.
   // songTime=0, 노트 100ms → calculateNoteY = 500 - 100*1000/1000 = 400.
-  // 포인트 노트는 시간 위치를 박스 상단으로 쓰므로 박스 = [400, 420].
+  // 포인트 노트는 시간 위치를 박스 상단으로 쓰므로 박스 = [400, 412.5].
   let renderer: GameNoteRenderer;
   let noteLayer: Container;
   let bodyLayer: Container;
@@ -510,7 +512,7 @@ describe("GameNoteRenderer 노트 정렬", () => {
     endLayer = created.endLayer;
   });
 
-  it("같은 박자(100ms)의 포인트 노트 박스 하단과 롱노트 머리 하단이 모두 y=420으로 일치", () => {
+  it("같은 박자(100ms)의 포인트 노트 박스 하단과 롱노트 머리 하단이 모두 y=412.5로 일치", () => {
     const point = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
     renderer.renderPointNote(point, 0, 100, 0);
     const pointSprite = childrenOf(noteLayer)[0];
@@ -522,12 +524,12 @@ describe("GameNoteRenderer 노트 정렬", () => {
     const bodySprite = childrenOf(bodyLayer)[0] as MockSprite & { height: number };
 
     expect(pointSprite.y).toBe(400);
-    expect(pointSprite.y + NOTE_HEIGHT).toBe(420);
+    expect(pointSprite.y + NOTE_HEIGHT).toBe(412.5);
     // 롱노트 body 하단(= 머리의 아래 가장자리)이 포인트 노트 박스 하단과 일치해야 한다
     expect(bodySprite.y + bodySprite.height).toBe(pointSprite.y + NOTE_HEIGHT);
   });
 
-  it("길이 0 롱노트는 같은 박자(100ms) 포인트 노트와 같은 칸(y=400, 높이 20)에 그려짐", () => {
+  it("길이 0 롱노트는 같은 박자(100ms) 포인트 노트와 같은 칸(y=400, 높이 12.5)에 그려짐", () => {
     const point = { type: "single", beat: 0, lane: 1 } as unknown as NoteEntity;
     renderer.renderPointNote(point, 0, 100, 0);
     const pointSprite = childrenOf(noteLayer)[0];
@@ -562,8 +564,8 @@ describe("GameNoteRenderer 노트 정렬", () => {
 });
 
 describe("GameNoteRenderer 롱노트 캡", () => {
-  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
-  // 롱노트 100~300ms, song=0 → 끝점 y=200, 머리 startY=420.
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=12.5.
+  // 롱노트 100~300ms, song=0 → 끝점 y=200, 머리 startY=412.5.
   let renderer: GameNoteRenderer;
   let endLayer: Container;
   let headLayer: Container;
@@ -580,7 +582,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
       endBeat: unknown;
     };
 
-  it("끝 캡이 끝점(y=200)에 노트 높이 절반(10px)으로 그려짐", () => {
+  it("끝 캡이 끝점(y=200)에 노트 높이 절반(6.25px)으로 그려짐", () => {
     renderer.renderLongNote(longEntity(), 0, 100, 300, 0);
     const endCapSprite = childrenOf(endLayer)[0];
 
@@ -588,29 +590,29 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(endCapSprite.height).toBe(NOTE_HEIGHT / 2);
   });
 
-  it("시작 캡이 머리(y=420)에 10px 높이로 상하반전(scale.y<0)되어 headLayer에 추가됨", () => {
+  it("시작 캡이 머리(y=412.5)에 6.25px 높이로 상하반전(scale.y<0)되어 headLayer에 추가됨", () => {
     renderer.renderLongNote(longEntity(), 0, 100, 300, 0);
     const startCap = childrenOf(headLayer)[0];
 
     expect(startCap).toBeDefined();
-    expect(startCap.y).toBe(420);
+    expect(startCap.y).toBe(412.5);
     expect(startCap.height).toBe(NOTE_HEIGHT / 2);
     expect(startCap.scale.y).toBeLessThan(0);
   });
 
-  it("길이 0 롱노트는 시작·끝 캡이 (NOTE_HEIGHT-5)/2로 줄어 가운데 심지 5px가 남음", () => {
+  it("길이 0 롱노트는 시작·끝 캡이 (NOTE_HEIGHT-3.125)/2로 줄어 가운데 심지 3.125px(설계값 5)가 남음", () => {
     renderer.renderLongNote(longEntity(), 0, 100, 100, 0);
     const endCapSprite = childrenOf(endLayer)[0];
     const startCap = childrenOf(headLayer)[0];
 
-    const expectedCap = (NOTE_HEIGHT - 5) / 2; // 7.5px
+    const expectedCap = (NOTE_HEIGHT - 3.125) / 2; // 4.6875px
     expect(endCapSprite.height).toBe(expectedCap);
     expect(startCap.height).toBe(expectedCap);
-    // body 전체(NOTE_HEIGHT) 중 두 캡 사이에 심지 5px가 남아야 한다
-    expect(NOTE_HEIGHT - endCapSprite.height - startCap.height).toBe(5);
+    // body 전체(NOTE_HEIGHT) 중 두 캡 사이에 심지 3.125px가 남아야 한다
+    expect(NOTE_HEIGHT - endCapSprite.height - startCap.height).toBe(3.125);
   });
 
-  it("full-height terminal 스킨은 양 끝을 20px로 그리고 terminal 전체 텍스처를 사용", () => {
+  it("full-height terminal 스킨은 양 끝을 노트 두께 12.5px로 그리고 terminal 전체 텍스처를 사용", () => {
     const skinManager = createMockSkinManager("full-height");
     const end = new Container();
     const head = new Container();
@@ -626,7 +628,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(skinManager.getHalfCapTexture).not.toHaveBeenCalledWith("terminalSingle");
   });
 
-  it("full-height terminal 프레임 overhang=2이면 100px 바디 좌우로 2px씩 넓은 104px로 표시", () => {
+  it("full-height terminal 프레임 overhang=2(설계 px)이면 62.5px 바디 좌우로 1.25px씩 넓은 65px로 표시", () => {
     const skinManager = createMockSkinManager("full-height", 2);
     const body = new Container();
     const end = new Container();
@@ -638,11 +640,11 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 0);
 
     expect(childrenOf(body)[0].x).toBe(0);
-    expect(childrenOf(body)[0].width).toBe(100);
-    expect(childrenOf(end)[0].x).toBe(-2);
-    expect(childrenOf(end)[0].width).toBe(104);
-    expect(childrenOf(head)[0].x).toBe(-2);
-    expect(childrenOf(head)[0].width).toBe(104);
+    expect(childrenOf(body)[0].width).toBe(62.5);
+    expect(childrenOf(end)[0].x).toBe(-1.25);
+    expect(childrenOf(end)[0].width).toBe(65);
+    expect(childrenOf(head)[0].x).toBe(-1.25);
+    expect(childrenOf(head)[0].width).toBe(65);
   });
 
   it("full-height 싱글 롱노트는 누르기 전 bodySingle과 terminalSingleIdle을 함께 사용", () => {
@@ -769,7 +771,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(skinManager.getHalfCapTexture).toHaveBeenCalledWith('terminalDouble');
   });
 
-  it("full-height terminal 스킨의 길이 0 롱노트는 20px 시작 terminal 하나만 표시", () => {
+  it("full-height terminal 스킨의 길이 0 롱노트는 노트 두께 12.5px 시작 terminal 하나만 표시", () => {
     const skinManager = createMockSkinManager("full-height");
     const end = new Container();
     const head = new Container();
@@ -784,7 +786,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     expect(childrenOf(head)[0].height).toBe(NOTE_HEIGHT);
   });
 
-  it("full-height terminal은 판정선에 닿을 때 일부가 가려지지 않고 20px 전체가 판정선 위에 고정", () => {
+  it("full-height terminal은 판정선에 닿을 때 일부가 가려지지 않고 12.5px 전체가 판정선 위에 고정", () => {
     const skinManager = createMockSkinManager("full-height");
     const end = new Container();
     const head = new Container();
@@ -845,8 +847,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
 });
 
 describe("GameNoteRenderer 트릴 롱노트", () => {
-  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=20.
-  // 트릴롱 100~300ms, song=0 → 끝점 y=200, 머리 startY=420.
+  // setup: judgmentLineY=500, scrollSpeed=1000px/s, NOTE_HEIGHT=12.5.
+  // 트릴롱 100~300ms, song=0 → 끝점 y=200, 머리 startY=412.5.
   let renderer: GameNoteRenderer;
   let bodyLayer: Container;
   let endLayer: Container;
@@ -876,7 +878,7 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(endLayer).length).toBe(1);
   });
 
-  it("full-height trillLong terminal은 2배 PNG를 104×20으로 표시하고 끝 시각 뒤에는 숨김", () => {
+  it("full-height trillLong terminal은 overhang 2(설계 px)에서 65×12.5로 표시하고 끝 시각 뒤에는 숨김", () => {
     const skinManager = createMockSkinManager("full-height", 2, ["terminalTrillIdle"]);
     const end = new Container();
     const fullHeightRenderer = new GameNoteRenderer(
@@ -885,9 +887,9 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     );
 
     fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
-    expect(childrenOf(end)[0].x).toBe(-2);
-    expect(childrenOf(end)[0].width).toBe(104);
-    expect(childrenOf(end)[0].height).toBe(20);
+    expect(childrenOf(end)[0].x).toBe(-1.25);
+    expect(childrenOf(end)[0].width).toBe(65);
+    expect(childrenOf(end)[0].height).toBe(12.5);
 
     childrenOf(end).length = 0;
     fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 301);
@@ -913,15 +915,15 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(skinManager.getTexture).toHaveBeenCalledWith("terminalTrillFailed");
   });
 
-  it("바디는 처음·끝 각각 10px 줄어든다 — 끝점 y=200,길이220 → y=210,높이200", () => {
-    // 끝점 y=200(=adjustedEndY), 머리 startY=420, bodyHeight=220
+  it("바디는 처음·끝 각각 노트 두께 절반 6.25px 줄어든다 — 끝점 y=200,길이212.5 → y=206.25,높이200", () => {
+    // 끝점 y=200(=adjustedEndY), 머리 startY=412.5, bodyHeight=212.5
     renderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
     const bodySprite = childrenOf(bodyLayer)[0] as MockSprite & { height: number };
-    expect(bodySprite.y).toBe(210);
+    expect(bodySprite.y).toBe(206.25);
     expect(bodySprite.height).toBe(200);
   });
 
-  it("길이 0 트릴 롱노트는 바디가 생략된다(20px-20px=0) — 끝 다이아몬드만 남음", () => {
+  it("길이 0 트릴 롱노트는 바디가 생략된다(12.5px-12.5px=0) — 끝 다이아몬드만 남음", () => {
     renderer.renderLongNote(trillLongEntity(), 0, 100, 100, 0);
     expect(childrenOf(bodyLayer).length).toBe(0);
     expect(childrenOf(endLayer).length).toBe(1);
@@ -1163,8 +1165,8 @@ describe("GameNoteRenderer 더블롱 부분 실패 양쪽 → 완전 실패 승�
 });
 
 describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(당김) — 이슈 #85", () => {
-  // judgmentLineY=500, scroll=1000, NOTE_HEIGHT=20. 롱 head=300ms·tail=500ms, song=250(접근 중, 판정선 위).
-  // 안 당기면 head(rawStartY)=470, 당기면 판정선(520)까지 → body 하단 y+height로 검증.
+  // judgmentLineY=500, scroll=1000, NOTE_HEIGHT=12.5. 롱 head=300ms·tail=500ms, song=250(접근 중, 판정선 위).
+  // 안 당기면 head(rawStartY)=462.5, 당기면 판정선 + 노트 두께(512.5)까지 → body 하단 y+height로 검증.
   function setup(fill: { filled: number; required: number } | null, inject = true) {
     const bodyLayer = new Container();
     const endLayer = new Container();
@@ -1184,29 +1186,29 @@ describe("GameNoteRenderer 헤드없는 롱 held 충족 시 빈 구간 채움(�
     return s.y + s.height;
   };
 
-  it("충족(1/1) 홀드 중이면 판정선 위 접근 중이어도 body 하단이 판정선(520)까지 당겨짐", () => {
+  it("충족(1/1) 홀드 중이면 판정선 위 접근 중이어도 body 하단이 판정선 아래 노트 두께(512.5)까지 당겨짐", () => {
     const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
     renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
-    expect(bottomOf(bodyLayer)).toBe(520);
+    expect(bottomOf(bodyLayer)).toBe(512.5);
   });
 
-  it("홀드 안 하면(조회 null) 당기지 않아 body 하단이 접근 위치(470)에 머무름", () => {
+  it("홀드 안 하면(조회 null) 당기지 않아 body 하단이 접근 위치(462.5)에 머무름", () => {
     const { renderer, bodyLayer } = setup(null);
     renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
-    expect(bottomOf(bodyLayer)).toBe(470);
+    expect(bottomOf(bodyLayer)).toBe(462.5);
   });
 
-  it("filled 0(윈도우 내 홀드 없음)이면 당기지 않음 — 접근 위치(470) 유지", () => {
+  it("filled 0(윈도우 내 홀드 없음)이면 당기지 않음 — 접근 위치(462.5) 유지", () => {
     const { renderer, bodyLayer } = setup({ filled: 0, required: 1 });
     renderer.renderLongNote(longEntity(), 0, 300, 500, 250);
-    expect(bottomOf(bodyLayer)).toBe(470);
+    expect(bottomOf(bodyLayer)).toBe(462.5);
   });
 
   it("길이 0 슬라이드는 충족 중이어도 당기지 않음(body 없음)", () => {
     const { renderer, bodyLayer } = setup({ filled: 1, required: 1 });
-    // head=tail=300ms, song=250 → 당기면 안 됨. 당기면 하단이 520이 되지만 당기지 않으므로 470.
+    // head=tail=300ms, song=250 → 당기면 안 됨. 당기면 하단이 512.5가 되지만 당기지 않으므로 462.5.
     renderer.renderLongNote(longEntity(), 0, 300, 300, 250);
-    expect(bottomOf(bodyLayer)).toBe(470);
+    expect(bottomOf(bodyLayer)).toBe(462.5);
   });
 });
 

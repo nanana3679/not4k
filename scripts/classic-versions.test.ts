@@ -22,7 +22,6 @@ async function fixture() {
     runtimePath, 'public/lab/note-assets/classic/note-single.svg',
     'scripts/build-classic-skin.ts', 'src/game/skin/skins.ts', 'src/game/skin/types.ts',
     'src/shared/publicPath.ts', 'src/lab/noteAssetKeybomb.css', 'src/lab/keybombEffect.ts',
-    'public/gear/gear-frame.png', 'public/gear/gear-gauge-left.png', 'public/gear/gear-gauge-right.png',
     'package.json', 'pnpm-lock.yaml',
   ]) {
     await mkdir(dirname(join(root, path)), { recursive: true });

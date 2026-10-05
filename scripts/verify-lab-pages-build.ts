@@ -9,11 +9,7 @@ const requiredPaths = [
   "lab/flight-background-preview/index.html",
   "lab/facility-passage/index.html",
   "lab/note-assets/index.html",
-  "lab/gear-light/index.html",
-  "lab/gear-measure-pulse/index.html",
   "lab/classic-frame-fit/index.html",
-  "lab/classic-frame-fit/frame-cutout.png",
-  "lab/classic-frame-fit/frame-fit.json",
   "lab/classic-frame-fit/motion/frame-motion.json",
   "lab/classic-frame-fit/motion/armor-lit.png",
   "lab/classic-frame-fit/motion/armor-core.png",
@@ -37,7 +33,7 @@ const requiredPaths = [
   "__lab/flight-background-preview/flight/breakthrough/passage.mjs",
   "__lab/flight-background-preview/flight/breakthrough/render-quality.mjs",
   "skins/crystal/note-single.png",
-  "gear/gear-frame.png",
+  "gear/classic-frame.png",
   "lab/skin-versions/classic/v001/skin/note-single.png",
   "lab/skin-versions/classic/v002/skin/note-single.png",
   "lab/skin-versions/classic/v001/svg/body-double-idle.svg",
@@ -53,9 +49,12 @@ const requiredPaths = [
 
 await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pathname))));
 
-for (const retiredPath of ['lab/geometric-background', 'lab/perspective-surface-grid']) {
+for (const retiredPath of [
+  'lab/geometric-background', 'lab/perspective-surface-grid', 'lab/gear-light', 'lab/gear-measure-pulse', 'lab/gear-samples',
+  'lab/classic-frame-fit/frame-cutout.png', 'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
+]) {
   await access(resolve(outputRoot, retiredPath)).then(
-    () => { throw new Error(`Retired background must not be published: ${retiredPath}`); },
+    () => { throw new Error(`Retired Lab asset must not be published: ${retiredPath}`); },
     error => { if (error.code !== 'ENOENT') throw error; },
   );
 }

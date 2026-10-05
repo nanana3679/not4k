@@ -34,13 +34,13 @@ import {
 // Every piece keeps a 16px border of its real neighbouring pixels in the atlas, so bilinear and mipmap
 // sampling at a piece edge matches one whole texture, and atlas positions stay 16px-aligned with the
 // frame so the mip levels line up with the frame texture. Re-running gives byte-identical files.
-// Input: press-idle-deck-v17-input.png and public/lab/classic-frame-fit/frame-cutout.png (prepare-frame-fit-v20.mjs).
+// Input: press-idle-deck-v17-input.png and the game frame public/gear/classic-frame.png (prepare-frame-fit-v20.mjs).
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
 const outputDir = resolve(workspaceRoot, 'public/lab/classic-frame-fit/motion');
-const cutoutPath = resolve(workspaceRoot, 'public/lab/classic-frame-fit/frame-cutout.png');
+const cutoutPath = resolve(workspaceRoot, 'public/gear/classic-frame.png');
 const ALIGN = 16;
 const PIECE_BORDER = 16;
 // Piece regions (exclusive ends) and atlas rows: the pillars above the key deck's bottom share the first

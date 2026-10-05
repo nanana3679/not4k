@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const archiveRoot = 'assets-lab/classic/versions';
+// The skin-shared gear frame (public/gear/) is not part of a Classic version since RFD 0029; older archives
+// still hold the old gear and gauges as a record, and verify keeps checking their hashes.
 const runtimeDirectory = 'public/skins/classic';
 const directories = [
   'assets-lab/classic/sources',
@@ -22,9 +24,6 @@ const fixedFiles = [
   'src/shared/publicPath.ts',
   'src/lab/noteAssetKeybomb.css',
   'src/lab/keybombEffect.ts',
-  'public/gear/gear-frame.png',
-  'public/gear/gear-gauge-left.png',
-  'public/gear/gear-gauge-right.png',
   'package.json',
   'pnpm-lock.yaml',
 ];

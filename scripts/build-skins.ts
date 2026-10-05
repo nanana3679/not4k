@@ -72,7 +72,7 @@ const ASSETS = [
   ),
   ...Array.from({ length: 4 }, (_, i) => `button-idle-${i + 1}`),
   ...Array.from({ length: 4 }, (_, i) => `button-pressed-${i + 1}`),
-  // gear-frame은 스킨 공통 비트맵으로 분리됨 (scripts/split-gear-gauge.ts → public/gear/)
+  // 기어 프레임은 스킨 공통 비트맵이다 (public/gear/classic-frame.png, prepare-frame-fit-v20.mjs 산출물)
 ];
 
 async function main() {

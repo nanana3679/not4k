@@ -16,17 +16,26 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001·v002·v012의 재생기·랙 에셋 주소는 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001·v002·v012의 재생기·랙 에셋 주소는 공통 기어 프레임만 빼고 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => /\.(png|svg)$/.test(entry.pathname))).toBe(true);
     for (const { design } of CLASSIC_NOTE_ASSET_VERSIONS) {
-      for (const path of [...Object.values(design.skinManifest!.assets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
+      const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
+      // 보관본도 지금 공통 프레임으로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
+      expect(gearFrame).toBe('/gear/classic-frame.png');
+      expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
+      for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
         expect(paths.has(path), path).toBe(true);
       }
     }
     expect(entries.some(entry => entry.pathname.includes('/sources/') || entry.pathname.includes('manifest'))).toBe(false);
+  });
+
+  it('보관본에 기록으로 남은 옛 기어·기둥 게이지(public/gear/)는 정적 내보내기에 넣지 않는다', async () => {
+    const entries = await classicVersionPreviewEntries(root, ['v014']);
+    expect(entries.some(entry => entry.pathname.includes('/gear/'))).toBe(false);
   });
 
   it('v012는 흰빛 포인트·트렌치 바디·위아래 5px 접촉 그림자·에디터와 같은 회색 마름모 트릴 끝 터미널을 보관한다', async () => {
@@ -73,7 +82,12 @@ describe('Classic 버전 Lab 공개', () => {
     const current = getSkinManifest('classic');
     const registered = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!.manifest;
     expect(registered.theme).toEqual(current.theme);
-    expect(registered.assets).toEqual(current.assets);
+    // 스킨 공통 기어는 버전에 속하지 않는다. v014 보관 당시의 옛 기어·게이지 기록만 다르고 나머지 에셋은 같다.
+    const { gearFrame: archivedGear, gearGaugeLeft, gearGaugeRight, ...registeredSkinAssets } = registered.assets;
+    const { gearFrame: currentGear, ...currentSkinAssets } = current.assets;
+    expect([archivedGear, gearGaugeLeft, gearGaugeRight]).toEqual(['/gear/gear-frame.png', '/gear/gear-gauge-left.png', '/gear/gear-gauge-right.png']);
+    expect(currentGear).toBe('/gear/classic-frame.png');
+    expect(registeredSkinAssets).toEqual(currentSkinAssets);
     expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });
     expect(current.assets.pointContactShadowTrill).toBe('/skins/classic/point-contact-shadow-trill.png');
     const trill = await readFile(resolve(root, 'public/skins/classic/point-contact-shadow-trill.png'));

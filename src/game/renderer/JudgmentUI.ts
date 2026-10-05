@@ -6,8 +6,16 @@
 
 import { Container, Text, TextStyle } from "pixi.js";
 import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
-import { COLORS } from "./constants";
+import { COLORS, playfieldPx } from "./constants";
 import { formatTimingDiff } from "./formatTimingDiff";
+
+// 판정선 위 글자 크기·높이(레인 100 기준 설계값 × PLAYFIELD_SCALE, RFD 0029)
+const JUDGMENT_FONT_SIZE = playfieldPx(36);
+const JUDGMENT_OFFSET = playfieldPx(120);
+const FAST_SLOW_FONT_SIZE = playfieldPx(20);
+const FAST_SLOW_OFFSET = playfieldPx(85);
+const TIMING_DIFF_FONT_SIZE = playfieldPx(22);
+const TIMING_DIFF_OFFSET = playfieldPx(145);
 
 export class JudgmentUI {
   private judgmentText: Text;
@@ -23,7 +31,7 @@ export class JudgmentUI {
 
     const judgmentStyle = new TextStyle({
       fontFamily: "Audiowide",
-      fontSize: 36,
+      fontSize: JUDGMENT_FONT_SIZE,
       fontWeight: "bold",
       fill: 0xffffff,
       align: "center",
@@ -31,12 +39,11 @@ export class JudgmentUI {
     this.judgmentText = new Text({ text: "", style: judgmentStyle });
     this.judgmentText.anchor.set(0.5, 0.5);
     this.judgmentText.x = width / 2;
-    this.judgmentText.y = judgmentLineY - 120;
     this.judgmentText.alpha = 0;
 
     const fastSlowStyle = new TextStyle({
       fontFamily: "Audiowide",
-      fontSize: 20,
+      fontSize: FAST_SLOW_FONT_SIZE,
       fontWeight: "bold",
       fill: 0xffffff,
       align: "center",
@@ -44,12 +51,11 @@ export class JudgmentUI {
     this.fastSlowText = new Text({ text: "", style: fastSlowStyle });
     this.fastSlowText.anchor.set(0.5, 0.5);
     this.fastSlowText.x = width / 2;
-    this.fastSlowText.y = judgmentLineY - 85;
     this.fastSlowText.alpha = 0;
 
     const timingDiffStyle = new TextStyle({
       fontFamily: "Audiowide",
-      fontSize: 22,
+      fontSize: TIMING_DIFF_FONT_SIZE,
       fontWeight: "bold",
       fill: 0xffffff,
       align: "center",
@@ -57,8 +63,8 @@ export class JudgmentUI {
     this.timingDiffText = new Text({ text: "", style: timingDiffStyle });
     this.timingDiffText.anchor.set(0.5, 0.5);
     this.timingDiffText.x = width / 2;
-    this.timingDiffText.y = judgmentLineY - 145;
     this.timingDiffText.alpha = 0;
+    this.setPosition(judgmentLineY);
 
     uiLayer.addChild(this.judgmentText);
     uiLayer.addChild(this.fastSlowText);
@@ -146,9 +152,9 @@ export class JudgmentUI {
   }
 
   setPosition(judgmentLineY: number): void {
-    this.judgmentText.y = judgmentLineY - 120;
-    this.fastSlowText.y = judgmentLineY - 85;
-    this.timingDiffText.y = judgmentLineY - 145;
+    this.judgmentText.y = judgmentLineY - JUDGMENT_OFFSET;
+    this.fastSlowText.y = judgmentLineY - FAST_SLOW_OFFSET;
+    this.timingDiffText.y = judgmentLineY - TIMING_DIFF_OFFSET;
   }
 
   private getJudgmentColor(grade: JudgmentGrade): number {

@@ -3,12 +3,12 @@ import { withLabPublicBase } from "./labPublicPath";
 
 describe("withLabPublicBase", () => {
   it("개발 base=/에서 /lab 에셋 경로는 그대로 유지된다", () => {
-    expect(withLabPublicBase("/lab/gear-light/gear-base.png", "/")).toBe("/lab/gear-light/gear-base.png");
+    expect(withLabPublicBase("/lab/classic-frame-fit/motion/frame-motion.json", "/")).toBe("/lab/classic-frame-fit/motion/frame-motion.json");
   });
 
   it("GitHub Pages base=/not4k/에서 /lab 에셋 경로 앞에 저장소 이름이 붙는다", () => {
-    expect(withLabPublicBase("/lab/gear-light/gear-base.png", "/not4k/")).toBe(
-      "/not4k/lab/gear-light/gear-base.png",
+    expect(withLabPublicBase("/lab/classic-frame-fit/motion/frame-motion.json", "/not4k/")).toBe(
+      "/not4k/lab/classic-frame-fit/motion/frame-motion.json",
     );
   });
 

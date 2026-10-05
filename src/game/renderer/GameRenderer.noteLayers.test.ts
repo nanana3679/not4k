@@ -7,7 +7,7 @@ import { beat, createChartTiming, type ChartEvent } from '../../shared';
 import { body, point } from '../judgment/noteJudgmentTestHarness';
 
 describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
-  it('트릴 하단 그림자는 같은100px 너비에서 꼭짓점보다6px 아래까지 은은하게 퍼지고 프레임마다 재사용된다', () => {
+  it('트릴 하단 그림자는 같은62.5px 너비에서 꼭짓점보다3.75px(설계값 6) 아래까지 은은하게 퍼지고 프레임마다 재사용된다', () => {
     const noteLayer = new Container();
     const skinManager = {
       getTheme: () => ({ pointShadow: { offsetY: 19.6, height: 3.2 } }),
@@ -23,8 +23,9 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
     const bounds = shadow.getBounds();
     expect(bounds.minX).toBe(pointSprite.x);
     expect(bounds.maxX).toBe(pointSprite.x + pointSprite.width);
-    expect(bounds.minY).toBeCloseTo(pointSprite.y + 9.6);
-    expect(bounds.maxY).toBeCloseTo(pointSprite.y + pointSprite.height + 6);
+    // 테마 offsetY 19.6·height 3.2(설계 px) × 0.625 → 꼭짓점 12.25, 옆 꼭짓점 6, 아래로 4 퍼짐.
+    expect(bounds.minY).toBeCloseTo(pointSprite.y + 6);
+    expect(bounds.maxY).toBeCloseTo(pointSprite.y + pointSprite.height + 3.75);
     expect(shadow.alpha).toBe(.75);
 
     noteLayer.removeChildren();
@@ -99,7 +100,9 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
 });
 
 describe('GameNoteRenderer 포인트 접촉 그림자', () => {
-  const BODY_WIDTH = 100 * 100 / 106;
+  // 레인 62.5(설계값 100 × 0.625). 테마의 접촉 그림자 5px도 같은 배율로 3.125px이 된다.
+  const LANE = 62.5;
+  const BODY_WIDTH = LANE * 100 / 106;
   function setup(theme: Record<string, unknown>, available: (key: string) => boolean = () => true) {
     const textures = new Map<string, Texture>();
     const noteLayer = new Container();
@@ -117,7 +120,7 @@ describe('GameNoteRenderer 포인트 접촉 그림자', () => {
   }
   const contactTheme = { pointShadow: { offsetY: 19.6, height: 3.2 }, pointContactShadow: { above: 5, below: 5 } };
 
-  it.each(['single', 'double'] as const)('pointContactShadow {above 5, below 5}이면 %s 포인트 위아래 5px에 바디 폭 94.34px 그림자를 포인트 아래 층에 그리고 기존 하단 그림자는 쓰지 않는다', type => {
+  it.each(['single', 'double'] as const)('pointContactShadow {above 5, below 5}(설계 px)이면 %s 포인트 위아래 3.125px에 바디 폭 58.96px 그림자를 포인트 아래 층에 그리고 기존 하단 그림자는 쓰지 않는다', type => {
     const { renderer, noteLayer, texture } = setup(contactTheme);
     renderer.renderPointNote(point(100, type), 0, 100, 0);
     expect(noteLayer.children).toHaveLength(3);
@@ -125,14 +128,14 @@ describe('GameNoteRenderer 포인트 접촉 그림자', () => {
     for (const shadow of [above, below]) {
       expect(shadow.texture).toBe(texture('pointContactShadow'));
       const bounds = shadow.getBounds();
-      expect(bounds.minX).toBeCloseTo(pointSprite.x + (100 - BODY_WIDTH) / 2);
-      expect(bounds.maxX).toBeCloseTo(pointSprite.x + (100 + BODY_WIDTH) / 2);
+      expect(bounds.minX).toBeCloseTo(pointSprite.x + (LANE - BODY_WIDTH) / 2);
+      expect(bounds.maxX).toBeCloseTo(pointSprite.x + (LANE + BODY_WIDTH) / 2);
     }
-    expect(above.getBounds().minY).toBeCloseTo(pointSprite.y - 5);
+    expect(above.getBounds().minY).toBeCloseTo(pointSprite.y - 3.125);
     expect(above.getBounds().maxY).toBeCloseTo(pointSprite.y);
     expect(above.scale.y).toBeLessThan(0);
-    expect(below.getBounds().minY).toBeCloseTo(pointSprite.y + 20);
-    expect(below.getBounds().maxY).toBeCloseTo(pointSprite.y + 25);
+    expect(below.getBounds().minY).toBeCloseTo(pointSprite.y + 12.5);
+    expect(below.getBounds().maxY).toBeCloseTo(pointSprite.y + 15.625);
     expect(below.scale.y).toBeGreaterThan(0);
     expect(noteLayer.children.some(child => (child as Sprite).texture === texture('pointShadow'))).toBe(false);
 
@@ -156,7 +159,7 @@ describe('GameNoteRenderer 포인트 접촉 그림자', () => {
     renderer.dispose();
   });
 
-  it('pointContactShadow {above 5, below 5}와 pointContactShadowTrill 텍스처가 있으면 트릴 포인트 위 5px부터 아래 5px까지 포인트 폭 100×30 그림자 하나를 포인트 아래 층에 그리고 기존 마름모 하단 그림자 Mesh는 쓰지 않는다', () => {
+  it('pointContactShadow {above 5, below 5}와 pointContactShadowTrill 텍스처가 있으면 트릴 포인트 위 3.125px부터 아래 3.125px까지 포인트 폭 62.5×18.75 그림자 하나를 포인트 아래 층에 그리고 기존 마름모 하단 그림자 Mesh는 쓰지 않는다', () => {
     const { renderer, noteLayer, texture } = setup(contactTheme);
     renderer.renderPointNote(point(100, 'trill'), 0, 100, 0);
     expect(noteLayer.children).toHaveLength(2);
@@ -165,14 +168,14 @@ describe('GameNoteRenderer 포인트 접촉 그림자', () => {
     expect(shadow.texture).toBe(texture('pointContactShadowTrill'));
     const bounds = shadow.getBounds();
     expect(bounds.minX).toBeCloseTo(pointSprite.x);
-    expect(bounds.maxX).toBeCloseTo(pointSprite.x + 100);
-    expect(bounds.minY).toBeCloseTo(pointSprite.y - 5);
-    expect(bounds.maxY).toBeCloseTo(pointSprite.y + 25);
+    expect(bounds.maxX).toBeCloseTo(pointSprite.x + LANE);
+    expect(bounds.minY).toBeCloseTo(pointSprite.y - 3.125);
+    expect(bounds.maxY).toBeCloseTo(pointSprite.y + 15.625);
 
     noteLayer.removeChildren();
     renderer.renderPointNote(point(100, 'trill'), 0, 100, 10);
     expect(noteLayer.children[0]).toBe(shadow);
-    expect(shadow.getBounds().minY).toBeCloseTo((noteLayer.children[1] as Sprite).y - 5);
+    expect(shadow.getBounds().minY).toBeCloseTo((noteLayer.children[1] as Sprite).y - 3.125);
     renderer.dispose();
   });
 
@@ -195,14 +198,14 @@ describe('GameNoteRenderer 포인트 접촉 그림자', () => {
     renderer.dispose();
   });
 
-  it('pointContactShadow가 없는 기존 스킨의 싱글 포인트는 바로 아래 19.6px에서 3.2px 높이의 기존 그림자 하나만 그린다', () => {
+  it('pointContactShadow가 없는 기존 스킨의 싱글 포인트는 테마 19.6px·3.2px(설계값) × 0.625 = 바로 아래 12.25px에서 2px 높이의 기존 그림자 하나만 그린다', () => {
     const { renderer, noteLayer, texture } = setup({ pointShadow: { offsetY: 19.6, height: 3.2 } });
     renderer.renderPointNote(point(100, 'single'), 0, 100, 0);
     expect(noteLayer.children).toHaveLength(2);
     const [shadow, pointSprite] = noteLayer.children as Sprite[];
     expect(shadow.texture).toBe(texture('pointShadow'));
-    expect(shadow.y).toBeCloseTo(pointSprite.y + 19.6);
-    expect(shadow.height).toBeCloseTo(3.2);
+    expect(shadow.y).toBeCloseTo(pointSprite.y + 12.25);
+    expect(shadow.height).toBeCloseTo(2);
     renderer.dispose();
   });
 

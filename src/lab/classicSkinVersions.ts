@@ -1,7 +1,16 @@
 import type { SkinManifest } from '../game/skin/types';
 
+/**
+ * 보관 당시 skins.ts의 Classic 매니페스트. 스킨 공통 기어 에셋(`gearFrame`과 RFD 0029 이전의 기둥 게이지
+ * `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다. Lab·dev 재생은 지금 공통 프레임을 쓴다(noteAssetDesigns).
+ */
+export interface ArchivedClassicManifest {
+  theme: SkinManifest['theme'];
+  assets: SkinManifest['assets'] & { gearGaugeLeft?: string; gearGaugeRight?: string };
+}
+
 // Frozen from each archive's skins.ts; do not derive old themes from the live Classic.
-export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manifest: SkinManifest }[] = [
+export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manifest: ArchivedClassicManifest }[] = [
   {
     "id": "v014",
     "label": "흰빛 포인트 · 트렌치 바디 · 접촉 그림자(트릴 마름모 테두리 포함) · 반투명 사각 기둥 트릴 켜짐 바디 · 에디터 회색 마름모 트릴 끝 터미널",

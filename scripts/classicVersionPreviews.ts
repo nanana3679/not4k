@@ -13,10 +13,10 @@ export async function classicVersionPreviewEntries(
   const entries: ClassicVersionPreviewEntry[] = [];
   for (const id of ids) {
     const manifest = await verifyClassicVersion({ root, id });
+    // 스킨 공통 기어(public/gear/)는 보관본에 기록으로만 남고 공개하지 않는다. 재생은 지금 공통 프레임을 쓴다.
     const mappings = [
       ['public/skins/classic/', 'skin/'],
       ['public/lab/note-assets/classic/', 'svg/'],
-      ['public/gear/', 'gear/'],
     ];
     for (const { path } of manifest.files as { path: string }[]) {
       const mapping = mappings.find(([prefix]) => path.startsWith(prefix));
