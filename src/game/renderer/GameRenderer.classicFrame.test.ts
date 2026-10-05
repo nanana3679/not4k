@@ -149,18 +149,18 @@ describe('GameRenderer 새 Classic 프레임 (RFD 0029)', () => {
     expect([overlay.x, overlay.y, overlay.scale.x, overlay.scale.y]).toEqual([layout!.x, layout!.y, layout!.scale, layout!.scale]);
   });
 
-  it('showGearFrame=false면 프레임을 그리지 않고 frameLayout·addFrameOverlay는 null이며 가림막은 판정선 아래 가장자리(417.25)부터 덮는다', async () => {
+  it('showGearFrame=false면 프레임을 그리지 않고 frameLayout·addFrameOverlay는 null이며 가림막은 판정 순간 노트 칸 아래끝(판정선 416 + 노트 반 칸 6.25 = 422.25)부터 덮는다', async () => {
     const { renderer, scene } = await createRenderer({ showGearFrame: false });
     expect(renderer.frameLayout).toBeNull();
     expect(scene.gearFrameLayer.children).toHaveLength(0);
     expect(renderer.addFrameOverlay(new Container())).toBeNull();
-    expect(boundsOf(scene.maskGraphic).minY).toBe(417.25);
+    expect(boundsOf(scene.maskGraphic).minY).toBe(422.25);
   });
 
-  it('프레임이 없는 미니 렌더러는 리프트 4%면 가림막도 판정선을 따라 24 올라간다', async () => {
+  it('프레임이 없는 미니 렌더러는 리프트 4%면 가림막도 판정선을 따라 24 올라가 398.25부터 덮는다', async () => {
     const { renderer, scene } = await createRenderer({ showGearFrame: false });
     renderer.setLift(liftPx(4));
-    expect(boundsOf(scene.maskGraphic).minY).toBe(393.25);
+    expect(boundsOf(scene.maskGraphic).minY).toBe(398.25);
   });
 
   it('G 키 기어 조정 모드와 기둥 게이지는 없다', () => {

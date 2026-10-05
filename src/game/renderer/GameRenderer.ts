@@ -92,7 +92,7 @@ export interface GameRendererOptions {
   skinManager: SkinManager;
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
-  /** 새 Classic 프레임(스킨 공통 `gearFrame`)을 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정선 바로 아래부터 덮는다. */
+  /** 새 Classic 프레임(스킨 공통 `gearFrame`)을 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
   showGearFrame?: boolean;
   showFlightBackground?: boolean;
   difficultyLabel?: string;
@@ -677,20 +677,25 @@ export class GameRenderer {
   /**
    * 판정선을 지난 노트를 그리는 시간. 프레임 가림막은 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
    * 노트 시각은 박스 가운데라(#224) 박스 윗변이 가림막 위끝에 닿는 때는 시각 위치가 (가림막 위끝 − 판정선) + 노트 반 칸 내려갔을 때다.
-   * 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
+   * 놓친 노트는 박스 위에 접촉 그림자(스킨 `pointContactShadow.above`)를 깔므로, 그 띠까지 가림막 아래로 내려간 뒤 지운다.
+   * Grace 오버레이는 놓친 노트에 그리지 않아 더하지 않는다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
    */
   private lateNoteWindowMs(): number {
-    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT / 2;
+    const overlayAbove = playfieldPx(this.skinManager.getTheme().pointContactShadow?.above ?? 0);
+    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT / 2 + overlayAbove;
     return Math.max(LATE_NOTE_MIN_WINDOW_MS, (visibleBelowLine / this._scrollSpeed) * 1000);
   }
 
   /**
    * 레인 가림막. 프레임이 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다(RFD 0029).
    * 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다.
-   * 이 높이는 프레임과 함께 고정이라 리프트로 움직이지 않는다. 프레임이 없는 미니 렌더러는 판정선 바로 아래부터 덮는다.
+   * 이 높이는 프레임과 함께 고정이라 리프트로 움직이지 않는다. 프레임이 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸
+   * 아래끝(판정선 + 노트 반 칸, #224)부터 덮어, 판정선에 가운데가 걸친 노트·터미널이 게임처럼 한 칸 전부 보인다.
    */
   private laneMaskTop(): number {
-    return this.gearFrameLayout ? this.gearFrameLayout.keyRimY : this._judgmentLineY + JUDGMENT_LINE_THICKNESS / 2;
+    return this.gearFrameLayout
+      ? this.gearFrameLayout.keyRimY
+      : this._judgmentLineY + Math.max(NOTE_HEIGHT, JUDGMENT_LINE_THICKNESS) / 2;
   }
 
   private drawMask(): void {

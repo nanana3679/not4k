@@ -85,6 +85,13 @@ export const CALIBRATION_INTERVAL_MS = 600;
 
 /** Visual 보정 노트 두께(캔버스 px). 게임 노트와 크기는 달라도 판정선에 맞추는 기준은 같다(#224). */
 export const CALIBRATION_NOTE_HEIGHT = 12;
+/** Visual 보정 노트 폭(캔버스 px). */
+export const CALIBRATION_NOTE_WIDTH = 120;
+
+/** Visual 보정 노트 박스 왼끝 x. 노트는 캔버스 가로 가운데에 놓는다. */
+export function calibrationNoteLeftX(canvasWidth: number, noteWidth = CALIBRATION_NOTE_WIDTH): number {
+  return canvasWidth / 2 - noteWidth / 2;
+}
 
 /**
  * Visual 보정 노트의 진행도. 노트는 한 간격(`travelMs`) 동안 캔버스 위끝(0)에서 판정선(1)까지 내려오고,

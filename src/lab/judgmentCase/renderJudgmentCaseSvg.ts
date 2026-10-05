@@ -895,16 +895,16 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
       // 바디는 두 마름모 가운데(시작·끝 시각) 사이. 시작 마름모는 같은 시각의 trill 포인트가 그린다.
       layers.bodies.push(drawBody(skin, skin.body.trill, { x: bodyX, y: endY, width: bodyWidth, height: startY - endY }, part("body"), tileId));
       const terminal = fullHeight
-        ? { x: terminalX, y: endY - h / 2, width: terminalWidth, height: h }
-        : { x: lx, y: endY - h / 2, width: LANE_W, height: h };
-      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, endY - h / 2, terminalWidth, part("overlay")));
+        ? { x: terminalX, y: noteBoxTopY(endY, h), width: terminalWidth, height: h }
+        : { x: lx, y: noteBoxTopY(endY, h), width: LANE_W, height: h };
+      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(endY, h), terminalWidth, part("overlay")));
       layers.ends.push(skinImage(skin.terminal.trill, terminal, part("end")));
       continue;
     }
 
     // long·doubleLong: 바디는 끝 터미널 윗변부터 시작 터미널 아랫변까지 채운다(터미널 아래까지 채워 접합부가 비지 않음).
-    const top = endY - h / 2;
-    const bottom = startY + h / 2;
+    const top = noteBoxTopY(endY, h);
+    const bottom = noteBoxTopY(startY, h) + h;
     layers.bodies.push(drawBody(skin, skin.body[kind], { x: bodyX, y: top, width: bodyWidth, height: bottom - top }, part("body"), tileId));
     const zeroLength = entry.endMs === entry.startMs;
     const capKind = kind === "double" ? "double" : "single";
@@ -913,9 +913,9 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
         if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
         layers.ends.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("end")));
       } else if (holdOnly) {
-        layers.heads.push(graceOverlay(skin, "terminal", terminalX, startY - h / 2, terminalWidth, part("overlay")));
+        layers.heads.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(startY, h), terminalWidth, part("overlay")));
       }
-      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: startY - h / 2, width: terminalWidth, height: h }, part("start"), true));
+      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: noteBoxTopY(startY, h), width: terminalWidth, height: h }, part("start"), true));
       continue;
     }
     // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
@@ -1040,8 +1040,8 @@ function drawPanel(prepared: PreparedPanel, index: number, skin: JudgmentCaseSki
   for (const zone of judgmentCase.trillZones) {
     if (!prepared.lanes.includes(zone.lane)) continue;
     // src/game/renderer/GameRenderer.ts renderTrillZones를 따른다: 롱노트 바디처럼 끝 박스 윗변부터 시작 박스 아랫변까지, 최소 노트 한 칸(길이 0).
-    const top = yOf(Math.max(zone.startMs, zone.endMs)) - NOTE_H / 2;
-    const height = Math.max(yOf(Math.min(zone.startMs, zone.endMs)) + NOTE_H / 2 - top, NOTE_H);
+    const top = noteBoxTopY(yOf(Math.max(zone.startMs, zone.endMs)), NOTE_H);
+    const height = Math.max(noteBoxTopY(yOf(Math.min(zone.startMs, zone.endMs)), NOTE_H) + NOTE_H - top, NOTE_H);
     out.push(`<rect data-trill-zone="${zone.lane}" x="${laneX(zone.lane)}" y="${px(top)}" width="${LANE_W}" height="${px(height)}" fill="${hexColor(COLORS.TRILL_ZONE_BG)}" fill-opacity="${COLORS.TRILL_ZONE_ALPHA}"/>`);
   }
 

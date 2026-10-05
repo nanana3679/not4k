@@ -6,7 +6,9 @@ import {
   calculateCalibrationResult,
   calibrationNoteProgress,
   calibrationNoteTopY,
+  calibrationNoteLeftX,
   CALIBRATION_NOTE_HEIGHT,
+  CALIBRATION_NOTE_WIDTH,
 } from './calibrationLogic';
 
 describe('calculateMedian', () => {
@@ -134,5 +136,11 @@ describe('Visual 보정 노트 위치 — 게임과 같은 노트 가운데 기�
     const progress = calibrationNoteProgress(4700, 5000);
     expect(progress).toBe(0.5);
     expect(calibrationNoteTopY(progress, 340) + CALIBRATION_NOTE_HEIGHT / 2).toBe(170);
+  });
+
+  it('Visual 보정 노트는 폭 120이고 캔버스 폭 400의 가운데(x 140~260)에 그린다', () => {
+    expect(CALIBRATION_NOTE_WIDTH).toBe(120);
+    expect(calibrationNoteLeftX(400)).toBe(140);
+    expect(calibrationNoteLeftX(400) + CALIBRATION_NOTE_WIDTH / 2).toBe(200);
   });
 });

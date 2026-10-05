@@ -576,14 +576,14 @@ describe("노트 가운데 기준 — 노트 시각 = 박스 세로 가운데 (#
   // 게임 기본값: 판정선 y 416(리프트 0%), 스크롤 800px/s, 노트 두께 12.5.
   // 노트 시각 t의 가운데 y = 416 − (t − 곡 시각) × 0.8, 박스 = [가운데 − 6.25, 가운데 + 6.25].
   const LINE = 416;
-  function setup(mode: "split-cap" | "full-height" = "split-cap") {
+  function setup(mode: "split-cap" | "full-height" = "split-cap", scrollSpeed = 800) {
     const bodyLayer = new Container();
     const endLayer = new Container();
     const headLayer = new Container();
     const noteLayer = new Container();
     const skinManager = createMockSkinManager(mode);
-    const renderer = new GameNoteRenderer(bodyLayer, endLayer, headLayer, noteLayer, skinManager, LINE, 800, 0, 600);
-    return { renderer, bodyLayer, endLayer, headLayer, noteLayer };
+    const renderer = new GameNoteRenderer(bodyLayer, endLayer, headLayer, noteLayer, skinManager, LINE, scrollSpeed, 0, 600);
+    return { renderer, bodyLayer, endLayer, headLayer, noteLayer, skinManager };
   }
   const centerOf = (sprite: MockSprite) => sprite.y + sprite.height / 2;
   const point = (type: string, extra: Record<string, unknown> = {}) =>
@@ -767,6 +767,75 @@ describe("노트 가운데 기준 — 노트 시각 = 박스 세로 가운데 (#
     const calibrationTop = calibrationNoteTopY(calibrationNoteProgress(1000, 1000), LINE);
     expect(centerOf(sprite)).toBe(LINE);
     expect(calibrationTop + CALIBRATION_NOTE_HEIGHT / 2).toBe(LINE);
+  });
+
+  // 200px/s에서 50ms 롱노트(1000–1050)는 10px로 노트 두께 12.5보다 짧아 두 full-height 터미널이 겹친다.
+  // 시작 전에는 시작 터미널만, 시작 후에는 끝 터미널만 보이므로 끝 터미널이 시작 터미널 자리에서 이어받아야 한다.
+  /** full-height 짧은 롱노트를 곡 시각 songMs에 그려 보이는 터미널 하나의 박스와 Grace 글로우 y를 돌려준다. */
+  const shortTerminalAt = (songMs: number, extra: Record<string, unknown> = {}) => {
+    const { renderer, endLayer, headLayer } = setup("full-height", 200);
+    renderer.renderLongNote(range("long", extra), 0, 1000, 1050, songMs);
+    const ends = childrenOf(endLayer);
+    const heads = childrenOf(headLayer);
+    const count = ends.length + heads.length;
+    if (count === 0) return { box: null, glow: null, count, layer: null };
+    const shown = heads.length > 0 ? heads : ends;
+    const terminal = shown.at(-1)!;
+    const box = heads.length > 0 ? flippedBox(terminal) : [terminal.y, terminal.y + terminal.height];
+    // Grace 글로우는 같은 레이어에서 터미널보다 먼저 쌓인다.
+    const glow = shown.length > 1 ? shown[0].y : null;
+    return { box, glow, count, layer: heads.length > 0 ? "head" : "end" };
+  };
+
+  it("full-height 짧은 롱노트(1000–1050, 200px/s로 10px)는 판정 순간 시작 터미널 칸 [409.75, 422.25]을 0.5ms 뒤 끝 터미널이 같은 자리에서 이어받는다(위로 9.9px 튀지 않음)", () => {
+    const atHit = shortTerminalAt(1000);
+    const after = shortTerminalAt(1000.5);
+    expect(atHit).toMatchObject({ layer: "head", box: [409.75, 422.25] });
+    expect(after).toMatchObject({ layer: "end", box: [409.75, 422.25] });
+  });
+
+  it("full-height 짧은 롱노트(1000–1050, 200px/s)의 끝 터미널은 1025ms·끝 시각 1050ms까지 판정선 가운데 칸 [409.75, 422.25]에 머물고 1050.5ms에는 사라진다", () => {
+    expect(shortTerminalAt(1025).box).toEqual([409.75, 422.25]);
+    expect(shortTerminalAt(1050).box).toEqual([409.75, 422.25]);
+    expect(shortTerminalAt(1050.5).count).toBe(0);
+  });
+
+  it("full-height 짧은 holdOnly 롱노트(1000–1050, 200px/s)의 Grace 글로우는 판정 순간과 0.5ms 뒤 모두 터미널 칸 위끝 409.75 − 8.75 = y 401에 있다", () => {
+    const atHit = shortTerminalAt(1000, { holdOnly: true });
+    const after = shortTerminalAt(1000.5, { holdOnly: true });
+    expect(atHit.glow).toBe(401);
+    expect(after.glow).toBe(401);
+    expect(after.box).toEqual(atHit.box);
+  });
+
+  it("full-height 보통 롱노트(1000–2000, 800px/s)는 끝 10ms 전(1990ms) 두 터미널 칸이 겹쳐도 끝 터미널이 제 시각 칸 [401.75, 414.25]에 있어 판정선 칸으로 당겨지지 않는다", () => {
+    const { renderer, endLayer, headLayer } = setup("full-height");
+    renderer.renderLongNote(range("long"), 0, 1000, 2000, 1990);
+    const [endTerminal] = childrenOf(endLayer);
+    expect(childrenOf(headLayer)).toHaveLength(0);
+    expect([endTerminal.y, endTerminal.y + endTerminal.height]).toEqual([401.75, 414.25]);
+  });
+
+  // 판정 조회가 없는 재생기(튜토리얼 미주입 경로)의 기하 held는 머리 가운데가 판정선에 닿는 시각(= 시작 시각)에 켜진다.
+  /** 롱노트를 곡 시각 songMs에 한 번 그려 요청한 바디 텍스처 키를 돌려준다. */
+  const bodyKeysAt = (type: string, songMs: number, connect = false) => {
+    const { renderer, skinManager } = setup();
+    if (connect) renderer.setLongNoteConnections(new Map([[1, 0]]), new Map([[0, 500], [1, 1000]]));
+    renderer.renderLongNote(range(type), 1, 1000, 1500, songMs);
+    return vi.mocked(skinManager.getTexture).mock.calls.map(([key]) => key).filter((key) => String(key).startsWith("body"));
+  };
+
+  it.each([
+    ["long", "bodySingle", "bodySingleHeld"],
+    ["trillLong", "bodyTrill", "bodyTrillHeld"],
+  ])("판정 조회 없이 %s(1000–1500)는 곡 999ms에 %s, 머리 가운데가 판정선에 오는 1000ms에 %s", (type, idle, held) => {
+    expect(bodyKeysAt(type, 999)).toEqual([idle]);
+    expect(bodyKeysAt(type, 1000)).toEqual([held]);
+  });
+
+  it("판정 조회 없이 이어진 롱노트(1000–1500)는 앞 롱노트(500 시작)의 머리 가운데가 판정선에 오는 곡 500ms에 bodySingleHeld, 499ms에는 bodySingle", () => {
+    expect(bodyKeysAt("long", 499, true)).toEqual(["bodySingle"]);
+    expect(bodyKeysAt("long", 500, true)).toEqual(["bodySingleHeld"]);
   });
 });
 
@@ -1019,8 +1088,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
       new Container(), end, head, new Container(), skinManager, 500, 1000, 0, 600,
     );
 
-    // 100~110ms 롱노트의 105ms 프레임: 두 terminal을 모두 판정선 위에 고정하면
-    // 같은 20px 영역에 겹쳐져 하나가 두껍거나 두 배로 보인다.
+    // 100~110ms 롱노트(10px)의 105ms 프레임: 두 terminal은 같은 판정선 가운데 칸에 겹치므로
+    // 둘 다 그리면 하나가 두껍거나 두 배로 보인다. 시작 후에는 끝 terminal 하나만 그 칸을 이어받는다.
     fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 110, 105);
 
     expect(childrenOf(head)).toHaveLength(0);

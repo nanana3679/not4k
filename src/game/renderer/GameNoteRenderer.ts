@@ -482,26 +482,37 @@ export class GameNoteRenderer {
         ? this.skinManager.getTexture(endCapTexKey)
         : this.skinManager.getHalfCapTexture(endCapTexKey);
       const fullHeightTerminalsOverlap = fullHeightTerminal && bodyHeight < capHeight * 2;
+      // 길이(px)가 노트 한 칸보다 짧은 full-height 롱노트는 처음부터 두 터미널 칸이 겹친다. 시작 전에는 시작 터미널만,
+      // 시작 후에는 끝 터미널만 보이므로, 끝 터미널은 시작 터미널이 있던 머리 칸에서 이어받아 끝 시각까지 그 칸에 머문다
+      // (판정선에서는 판정선 가운데 칸 — 길이 0 롱노트와 같다). 끝 터미널이 제 시각 칸으로 최대 한 칸 위에 나타나
+      // 다시 내려오지 않게 한다. 보통 길이 롱노트는 끝 무렵 칸이 겹쳐도 끝 터미널이 제 시각 칸을 그대로 따른다.
+      const shortFullHeightLong = fullHeightTerminal
+        && ((endMs - startMs) * this.scrollSpeed) / 1000 < capHeight;
+      const endTerminalY = shortFullHeightLong
+        ? Math.max(adjustedEndY, startY - capHeight)
+        : adjustedEndY;
       const showFullHeightStartTerminal = !fullHeightTerminal || songTimeMs <= startMs;
       const showFullHeightEndTerminal = !fullHeightTerminal || (
         songTimeMs <= endMs
         && !(fullHeightTerminalsOverlap && songTimeMs <= startMs)
       );
+      // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
+      const showHoldOnlyGrace = isHoldOnlyNote(entity) && !isFailed && !isMissed;
 
-      if ((!fullHeightTerminal || !isZeroLength)
+      const drawEndTerminal = (!fullHeightTerminal || !isZeroLength)
         && showFullHeightEndTerminal
-        && adjustedEndY >= -NOTE_HEIGHT
-        && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
-        if ((entity.type === "long" || entity.type === "doubleLong") && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
-          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, adjustedEndY, terminalWidth, 'terminal');
+        && endTerminalY >= -NOTE_HEIGHT
+        && endTerminalY <= this.height + NOTE_HEIGHT;
+      if (drawEndTerminal) {
+        if (showHoldOnlyGrace) {
+          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, endTerminalY, terminalWidth, 'terminal');
         }
         // 끝 terminal — 끝 칸 윗변(바디 윗변)부터 스킨 설정에 따라 전체(끝 칸) 또는 윗부분 절반을 그린다.
         // 바디 아랫변이 판정선 가운데 칸에서 멈추므로 끝 시각에 끝 칸 가운데가 판정선에 오고 그보다 내려가지 않는다.
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
         endCapSprite.texture = capTexture;
         endCapSprite.x = terminalX;
-        endCapSprite.y = adjustedEndY;
+        endCapSprite.y = endTerminalY;
         endCapSprite.width = terminalWidth;
         endCapSprite.height = capHeight;
         endCapSprite.tint = 0xffffff;
@@ -514,7 +525,9 @@ export class GameNoteRenderer {
       if (showFullHeightStartTerminal
         && startY >= -NOTE_HEIGHT
         && startY <= this.height + NOTE_HEIGHT) {
-        if (fullHeightTerminal && isZeroLength && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
+        // 길이 0·짧은 full-height 롱노트는 시작 전 끝 터미널이 숨으므로 hold-only 글로우를 시작 터미널에 그린다.
+        // 시작 후 끝 터미널이 같은 칸을 이어받으면서 글로우도 같은 자리에서 이어진다(글로우는 노트당 하나라 끝 터미널이 그려지면 그쪽에 둔다).
+        if (shortFullHeightLong && showHoldOnlyGrace && !drawEndTerminal) {
           this.addGraceGlow(index, this.longNoteHeadLayer, terminalX, startY - capHeight, terminalWidth, 'terminal');
         }
         const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey, capTexture);

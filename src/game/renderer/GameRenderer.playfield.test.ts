@@ -23,12 +23,14 @@ const EVENTS: ChartEvent[] = [
   { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
 ];
 
-async function createRenderer({ width = 1067, resolution = 1.8, showGearFrame = true } = {}) {
+async function createRenderer({
+  width = 1067, resolution = 1.8, showGearFrame = true, theme = {}, textures = [],
+}: { width?: number; resolution?: number; showGearFrame?: boolean; theme?: Record<string, unknown>; textures?: string[] } = {}) {
   const frame = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
   const skinManager = {
-    getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
+    getTheme: () => ({ bg: 0, beamColor: 0xffffff, ...theme }),
     getBodyWidthScale: () => 1,
-    hasTexture: () => false,
+    hasTexture: (key: string) => textures.includes(key),
     getTexture: (key: string) => (key === 'gearFrame' ? frame : Texture.WHITE),
     getHalfCapTexture: () => Texture.WHITE,
   } as unknown as SkinManager;
@@ -62,8 +64,8 @@ afterEach(() => {
 
 describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까지 그린다 (RFD 0029)', () => {
   // 1000ms(2박)의 2번 레인 싱글을 놓친 것으로 표시한다. 노트 박스 가운데가 시각 위치다(#224).
-  const missedSingle = async () => {
-    const { renderer, scene } = await createRenderer();
+  const missedSingle = async (options: Parameters<typeof createRenderer>[0] = {}) => {
+    const { renderer, scene } = await createRenderer(options);
     loadChart(renderer, { notes: [{ type: 'single', lane: 2, beat: beat(2) } as NoteEntity] });
     renderer.applyNoteDisplayEffect(0, { body: 'failed', visibility: 'missed' });
     return { renderer, scene };
@@ -94,12 +96,36 @@ describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까�
     expect(note.y).toBeLessThan(keyRimY);
   });
 
-  it('같은 조건에서 790ms 늦어 박스 윗변 447.75가 키 윗면(약 446.47) 아래로 완전히 내려가면 더 그리지 않는다', async () => {
+  it('접촉 그림자가 없는 스킨에서는 790ms 늦어 박스 윗변 447.75가 키 윗면(약 446.47) 아래로 완전히 내려가면 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
     expect(296 + 0.2 * 790 - NOTE_HEIGHT / 2).toBeGreaterThan(keyRimY);
     renderer.renderFrame(1790);
+    expect(noteSprites(scene)).toHaveLength(0);
+  });
+
+  // Classic처럼 포인트 위 접촉 그림자(설계 5 → 3.125)가 있으면 박스 윗변이 키 윗면을 지나도 그림자 띠가 그 위에 남는다.
+  const contactShadowSkin = { theme: { pointContactShadow: { above: 5, below: 5 } }, textures: ['pointContactShadow'] };
+
+  it('위 접촉 그림자 3.125가 있는 스킨에서 790ms 늦은 놓친 노트는 박스 윗변 447.75가 키 윗면 아래여도 그림자 윗변 444.625가 아직 보여 노트와 그림자를 계속 그린다', async () => {
+    const { renderer, scene } = await missedSingle(contactShadowSkin);
+    renderer.scrollSpeed = 200;
+    renderer.setLift(liftPx(20));
+    renderer.renderFrame(1790);
+    const sprites = noteSprites(scene);
+    expect(sprites.length).toBeGreaterThan(1);
+    const shadowTop = Math.min(...sprites.map((sprite) => sprite.getBounds().minY));
+    expect(shadowTop).toBeCloseTo(447.75 - 3.125, 9);
+    expect(shadowTop).toBeLessThan(keyRimY);
+  });
+
+  it('위 접촉 그림자 3.125가 있는 스킨에서 800ms 늦어 그림자 윗변 446.625까지 키 윗면(약 446.47) 아래로 내려가면 더 그리지 않는다', async () => {
+    const { renderer, scene } = await missedSingle(contactShadowSkin);
+    renderer.scrollSpeed = 200;
+    renderer.setLift(liftPx(20));
+    expect(296 + 0.2 * 800 - NOTE_HEIGHT / 2 - 3.125).toBeGreaterThan(keyRimY);
+    renderer.renderFrame(1800);
     expect(noteSprites(scene)).toHaveLength(0);
   });
 

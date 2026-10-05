@@ -3,10 +3,12 @@ import { useGameStore } from '../../stores';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import {
   calculateCalibrationResult,
+  calibrationNoteLeftX,
   calibrationNoteProgress,
   calibrationNoteTopY,
   CALIBRATION_INTERVAL_MS,
   CALIBRATION_NOTE_HEIGHT,
+  CALIBRATION_NOTE_WIDTH,
   CALIBRATION_TOTAL_TAPS,
   CALIBRATION_WARMUP_TAPS,
   type CalibrationResult,
@@ -120,14 +122,12 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
         if (progress < 0 || progress > 1.5) continue;
 
-        const noteWidth = 120;
-
         // Fade out after passing judgment line
         const alpha = progress > 1.0 ? Math.max(0, 1 - (progress - 1.0) * 4) : 1;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = color.gold;
-        // 박 시각에 노트 가운데가 판정선에 온다 — 게임 렌더러와 같은 노트 가운데 기준(#224).
-        ctx.fillRect(w / 2 - noteWidth / 2, calibrationNoteTopY(progress, judgmentY), noteWidth, CALIBRATION_NOTE_HEIGHT);
+        // 박 시각에 노트 가운데가 판정선에 온다 — 게임 렌더러와 같은 노트 가운데 기준(#224). 박스는 calibrationLogic이 정한다.
+        ctx.fillRect(calibrationNoteLeftX(w), calibrationNoteTopY(progress, judgmentY), CALIBRATION_NOTE_WIDTH, CALIBRATION_NOTE_HEIGHT);
         ctx.globalAlpha = 1;
       }
 
