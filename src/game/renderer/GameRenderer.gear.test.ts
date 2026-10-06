@@ -165,10 +165,13 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(boundsOf(scene.maskGraphic).minY).toBe(398.25);
   });
 
-  it('G 키 기어 조정 모드와 기둥 게이지는 없다', () => {
+  it('G 키 기어 조정 모드와 RFD 0029 전 옛 기둥 게이지(분리 게이지 텍스처 gearGaugeLeft·gearGaugeRight와 렌더 텍스처 방식)는 없다', () => {
     expect(gameRendererSource).not.toContain('KeyG');
     expect(gameRendererSource).not.toContain('setAdjustModeCallback');
-    expect(gameRendererSource).not.toContain('gearGauge');
+    // 지금 고도 게이지는 빈 유리 덮개(gearGauge.ts의 GearGauge, 스킨 키 gearGaugeEmpty)다. 옛 분리 게이지의 키·함수 이름은 남지 않는다.
+    for (const old of ['gearGaugeLeft', 'gearGaugeRight', 'gearGauges', 'buildGearGauges', 'updateGearGauge(', 'getGaugeTextureFrame', 'getGaugeSpritePlacement']) {
+      expect(gameRendererSource, old).not.toContain(old);
+    }
     expect(gameRendererSource).not.toContain('RenderTexture');
   });
 });

@@ -1,6 +1,6 @@
 # RFD 0029: 새 기어 프레임을 비율 그대로 배치하고 레인을 좁힌다
 
-**Status:** Accepted (2026-10-04, 사용자 결정, 근거 `/lab/classic-frame-fit` PR #215) · Lab 미리보기에 Pixi 움직임 레이어·전체화면·꺾인 덱 사이 실제 레인 반영, 판정선 4% 유지 결정 (2026-10-05, PR #217) · 실제 게임 적용: 플레이필드 0.625배·판정선 y 416·키 윗면부터 가림막·키보드 표시 오른쪽 아래, 옛 기어·게이지·G 키 조정 제거 (2026-10-05, PR #220) · 노트를 가운데 기준으로 그려 게임과 Visual 캘리브레이션의 판정 시각 기준 통일 (2026-10-05, [#224](https://github.com/nanana3679/not4k/issues/224)) · 사용자 Visual 캘리브레이션 재설정·체감 확인 (2026-10-05) · 프레임 움직임 게임 이전: 게임 렌더러 내장 움직임(게임 프레임 시계·일시정지 중 멈춤·스킨처럼 필수 자료로 곡 시작 전에 얹기·움직임 줄이기면 만들지 않음)과 설정 `Frame Motion`(기본 켬), 자료는 `public/gear/classic-frame-motion/` (2026-10-05, PR #226) · 용어 정리: 장식 그림의 이름을 프레임에서 기어로 통일(코드·에셋 경로·설정 `Gear Motion`·Lab `/lab/gear`, 동작 변화 없음) (2026-10-06, [#231](https://github.com/nanana3679/not4k/issues/231)) · 남은 작업: 새 기어 고도 게이지(PR C)
+**Status:** Accepted (2026-10-04, 사용자 결정, 근거 `/lab/classic-frame-fit` PR #215) · Lab 미리보기에 Pixi 움직임 레이어·전체화면·꺾인 덱 사이 실제 레인 반영, 판정선 4% 유지 결정 (2026-10-05, PR #217) · 실제 게임 적용: 플레이필드 0.625배·판정선 y 416·키 윗면부터 가림막·키보드 표시 오른쪽 아래, 옛 기어·게이지·G 키 조정 제거 (2026-10-05, PR #220) · 노트를 가운데 기준으로 그려 게임과 Visual 캘리브레이션의 판정 시각 기준 통일 (2026-10-05, [#224](https://github.com/nanana3679/not4k/issues/224)) · 사용자 Visual 캘리브레이션 재설정·체감 확인 (2026-10-05) · 프레임 움직임 게임 이전: 게임 렌더러 내장 움직임(게임 프레임 시계·일시정지 중 멈춤·스킨처럼 필수 자료로 곡 시작 전에 얹기·움직임 줄이기면 만들지 않음)과 설정 `Frame Motion`(기본 켬), 자료는 `public/gear/classic-frame-motion/` (2026-10-05, PR #226) · 용어 정리: 장식 그림의 이름을 프레임에서 기어로 통일(코드·에셋 경로·설정 `Gear Motion`·Lab `/lab/gear`, 동작 변화 없음) (2026-10-06, [#231](https://github.com/nanana3679/not4k/issues/231)) · 새 기어 고도 게이지: 두 유리관에 같은 `altitude`를 빈 유리 덮개로 아래 기준 채움(약 300ms 이징·차트 걸기/곡 시작 전/움직임 줄이기면 바로·색 변화 없음), 덮개는 기어 움직임 위라 액체·기포는 채운 부분에서만 보이고 Lab `/lab/gear`에 고도 조절 (2026-10-06, PR C, [고도 게이지 게임 적용](#고도-게이지-게임-적용-2026-10-06))
 
 > **용어 (#231, 2026-10-06):** 이 문서의 "프레임"(레인을 둘러싼 장식 그림)은 이제 [기어](../context/glossary.md#기어-gear)로 부른다. 화면 한 장을 뜻하는 프레임(`renderFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 결정 본문은 결정 당시 표기를 그대로 두고, 지금 상태를 적은 [영향 범위](#영향-범위)만 새 용어와 지금 코드·경로 이름으로 고쳤다. 대응 예: `classicFrame.json`·`classicFrameLayout.ts`·`classicFrameMotion*.ts` → `gearGeometry.json`·`gearLayout.ts`·`gearMotion*.ts`, `FrameMotionController`·`GameRenderer.frameMotion` → `GearMotionController`·`GameRenderer.gearMotion`, `public/gear/classic-frame.png`·`classic-frame-motion/frame-motion.json` → `gear.png`·`gear-motion/gear-motion.json`, 설정 `Frame Motion` → `Gear Motion`, Lab `/lab/classic-frame-fit`(Classic Frame Fit) → `/lab/gear`(Gear), 스킨 매니페스트 키 `gearFrame` → `gearImage`, 렌더러 옵션 `showGearFrame` → `showGear`. 기어는 스킨 공용이라 중간에 붙였던 Classic 접두사(`classicGear*`, `/lab/classic-gear`)도 뺐다.
 
@@ -63,7 +63,17 @@ Lab에서 승인 SVG와 맞춘 움직임 레이어(PR #217)를 그대로 게임 
 - **설정:** `Settings → Gameplay → Display`의 `Frame Motion`(기본 켬)을 끄면 렌더러가 움직임 객체를 만들지도 자료를 읽지도 않아 매 프레임 비용이 없다. 약한 GPU에서 프레임 시간을 지키기 위한 선택이다. 저장값이 없으면 켬이다.
 - **프레임마다 하는 일:** 위치·불투명도만 바꾸고 객체를 새로 만들지 않는다. 런타임 필터는 하단 바 빛이 보이는 동안(주기의 55%)의 알파 마스크 한 번뿐이다.
 - **프레임을 그리지 않는 렌더러:** 튜토리얼 재생기와 노트 에셋 시연실은 움직임을 만들지 않는다.
-- **고도 게이지 자리:** B 게이지의 액체와 기포는 유리 윤곽 마스크 아래 채움 컨테이너 하나에 담겨 있다. 고도 게이지(PR C)가 이 컨테이너를 채움 높이로 자른다. 지금은 유리관을 가득 채운다.
+- **고도 게이지 자리:** B 게이지의 액체와 기포는 유리 윤곽 마스크 아래 채움 컨테이너 하나에 담겨 있다. 처음에는 고도 게이지(PR C)가 이 컨테이너를 채움 높이로 자르기로 했으나, 실제로는 자르지 않는다. 움직임을 끄거나 움직임 줄이기여도 게이지가 보여야 하므로 게이지는 기어와 함께 그리고, 기어 레이어에서 움직임 위에 빈 유리 덮개를 겹쳐 빈 부분의 액체·기포를 가린다([고도 게이지 게임 적용](#고도-게이지-게임-적용-2026-10-06)).
+
+## 고도 게이지 게임 적용 (2026-10-06)
+
+승인한 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) 시연을 게임 렌더러에 옮겼다(PR C). 사용자 결정: 표시는 시연처럼 약 300ms ease-out 느낌으로 따라가고, 두 유리관은 같은 값이며, 색을 바꾸거나 낮은 고도를 경고하지 않는다.
+
+- **에셋:** 생성기 `prepare-frame-fit-v20.mjs`가 v18 빈 유리 생성 이미지에서 두 유리관 안쪽만 시연과 같은 유리 안쪽 윤곽(경계 2px)으로 잘라 `public/gear/gear-gauge-empty.png`(192×832, 유리관마다 기어 좌표 16px 정렬 상자)로 쓰고, 윤곽·채움 구간(196~1016행, 821행)·유리관 상자와 아틀라스 자리를 `gearGeometry.json`의 `gauge`에 적는다. 윤곽은 움직임 자료의 유리 마스크와 같은 하나(`frame-motion-shared.mjs`)다. 스킨 공통 `gearGaugeEmpty`로 기어와 같은 밉맵·삼선형 필터로 읽는다(GPU 약 0.8MiB).
+- **그리기:** 기어 그림의 가득 찬 유리관 위에 빈 유리를 위에서부터 채움 경계까지 덮는다. 유리관마다 본체 스프라이트 하나와 경계 8행 스프라이트(행마다 알파 15/16 → 1/16)를 아틀라스 행 frame으로 그려, 마스크·필터·렌더 텍스처 없이 한 배치로 끝난다. 표시하는 빈 행 수가 바뀔 때만 frame·알파를 고친다. 덮개는 기어 레이어의 맨 위(움직임 위)라 움직임을 켜면 액체·기포가 채운 부분에서만 보인다. 유리 안쪽에 그리는 움직임 레이어는 게이지 액체·기포뿐이라 덮개가 다른 움직임을 가리지 않는다.
+- **이징:** 지수 접근(시간 상수 75ms, 300ms에 98%)이며 게임 프레임 간격(최대 50ms)으로만 나아가 일시정지 중에는 멈춘다. 차트를 걸 때·곡 시작 전 한 장·움직임 줄이기에서는 바로 맞춘다.
+- **고도 계산:** 렌더러가 프레임마다 고도를 한 번 계산해 비행 배경과 게이지에 같은 값을 준다. 비행 배경을 끈 렌더러에서도 게이지는 이 값을 따르고, 둘 다 없는 렌더러(튜토리얼 재생기)는 계산하지 않는다. 고도 상태는 같은 객체에 고쳐 써 프레임마다 객체를 만들지 않는다.
+- **Lab:** `/lab/gear`에 고도 조절(곡 진행 따라가기 기본, 0~100% 직접 정하기)을 더했다. 렌더러 공개 API는 미리보기 전용 `setAltitudeOverride`와 읽기용 `gearGaugeLevel` 두 개다.
 
 ## Trade-off
 
@@ -79,7 +89,7 @@ Lab에서 승인 SVG와 맞춘 움직임 레이어(PR #217)를 그대로 게임 
 
 - **렌더러 배치:** `src/game/renderer/constants.ts`의 `PLAYFIELD_SCALE`과 그로부터 정한 `LANE_WIDTH`·`LANE_AREA_WIDTH`·`NOTE_WIDTH`·`NOTE_HEIGHT`·`JUDGMENT_LINE_THICKNESS`·`KEY_BOMB_SIZE`, 판정선 위치(`JUDGMENT_LINE_OFFSET` 184와 `setLift`), 키 윗면부터 덮는 가림막(`drawMask`), 기어 배치(`gearLayout.ts`), 키캡 라벨. 옛 `GEAR_INNER_*`·`updateGearFrameTransform`·40×40 버튼 그리기와 기어 조정 모드(G 키)는 지웠다.
 - **플레이 화면:** `PlayScreen.tsx`의 최소 논리 폭은 기어가 들어가는 466(`resolvePlayLogicalWidth`)이고, `DebugLogger`는 렌더러의 판정선 y를 그대로 쓴다.
-- **에셋:** 옛 기어와 양옆 게이지(`public/gear/gear-*.png`, `gearGaugeMetadata.json`, `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 지우고 새 기어 `public/gear/gear.png`를 스킨 공통 `gearImage`로 쓴다. 나중에 스킨마다 다른 기어를 쓸 가능성은 열어 둔다(사용자, 2026-10-04). 기어 움직임 자료는 Lab 경로에서 기어 그림 옆 `public/gear/gear-motion/`으로 옮겨 게임이 읽는다(PR #226). 고도 게이지는 후속 작업이다.
+- **에셋:** 옛 기어와 양옆 게이지(`public/gear/gear-frame.png`·`gear-gauge-left.png`·`gear-gauge-right.png`, `gearGaugeMetadata.json`, 옛 분리 게이지 모듈 `gearGauge.ts`, `scripts/split-gear-gauge.ts`)를 지우고 새 기어 `public/gear/gear.png`를 스킨 공통 `gearImage`로 쓴다. 나중에 스킨마다 다른 기어를 쓸 가능성은 열어 둔다(사용자, 2026-10-04). 기어 움직임 자료는 Lab 경로에서 기어 그림 옆 `public/gear/gear-motion/`으로 옮겨 게임이 읽는다(PR #226). 고도 게이지의 빈 유리 `public/gear/gear-gauge-empty.png`(스킨 공통 `gearGaugeEmpty`)를 더했다(PR C).
 - **노트 표시:** 판정 전·놓친 노트는 판정선 아래 틈과 열린 덱을 지나 키 윗면까지 보인다. 놓친 롱노트의 판정선 고정은 #214에서 푼다.
 - **판정 사례 이미지:** `src/lab/judgmentCase/renderJudgmentCaseSvg.ts`는 레인 80px 그림을 그대로 유지한다. 게임 논리 px에는 80/62.5를, 스킨 테마 설계 px에는 0.8을 곱한다.
 - **문서:** [게임 코어 명세](../spec/game-core.md)의 리프트 기본 위치·플레이필드·키봄 기준 크기·기어 게이지 설명, [키 바인딩 명세](../spec/keybinding.md)의 키보드 표시, [노트 에셋 Lab 명세](../spec/note-asset-lab.md)의 레인·노트 크기, [PRD §12](../prd.md#12-미정-사항)의 `Classic 추진부 디자인` 행.

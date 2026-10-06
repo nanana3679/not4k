@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { JudgmentGrade } from "../../shared";
 import {
   applyFlightJudgment,
+  clampFlightAltitude,
   createFlightAltitudeState,
   derivePlaceholderFlightAltitude,
   resolveFlightAltitude,
@@ -99,5 +100,31 @@ describe("flight altitude state", () => {
 
     expect(afterRecovery).toBeGreaterThan(beforeRecovery);
     expect(afterRecovery).toBeLessThan(1);
+  });
+});
+
+describe("stepFlightAltitude out 매개변수(렌더러의 프레임마다 할당 없는 갱신)", () => {
+  it("out에 상태 자신을 주면 새 객체 없이 그 객체에 써서 돌려주고 값은 out 없이 부른 결과와 같다", () => {
+    const recovering = applyFlightJudgment(
+      applyFlightJudgment(createFlightAltitudeState(), JudgmentGrade.MISS),
+      JudgmentGrade.PERFECT,
+    );
+    const expected = stepFlightAltitude(recovering, 16);
+    const result = stepFlightAltitude(recovering, 16, recovering);
+    expect(result).toBe(recovering);
+    expect(result).toEqual(expected);
+  });
+
+  it("간격 0이면 out을 줘도 값이 그대로이고, 다른 out 객체에는 같은 값을 복사한다", () => {
+    const state = applyFlightJudgment(createFlightAltitudeState(), JudgmentGrade.BAD);
+    const out = createFlightAltitudeState();
+    expect(stepFlightAltitude(state, 0, out)).toBe(out);
+    expect(out).toEqual(state);
+  });
+});
+
+describe("clampFlightAltitude", () => {
+  it("1.5는 1, −0.5는 0, NaN·무한대는 비행 배경처럼 0", () => {
+    expect([clampFlightAltitude(1.5), clampFlightAltitude(-0.5), clampFlightAltitude(Number.NaN), clampFlightAltitude(Number.POSITIVE_INFINITY)]).toEqual([1, 0, 0, 0]);
   });
 });

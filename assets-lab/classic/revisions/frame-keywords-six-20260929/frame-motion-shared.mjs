@@ -21,8 +21,12 @@ export const EXCLUDED = [
 ];
 export const BAR = { x0: 360, x1: 663, y0: 1355, y1: 1420 };
 // Glass interior of the left tube (same outline as press-animation.html); the right tube mirrors x to 1023 - x.
+// The motion's gauge mask (gear-motion.json gauge.glass) and the altitude gauge's empty-glass cut and geometry
+// (prepare-frame-fit-v20.mjs -> gear-gauge-empty.png, gearGeometry.json gauge) both come from this one outline.
 export const GLASS = { x0: 136, x1: 208, top: [196, 203], bottom: [1010, 1016] };
 export const GAUGE_MIRROR_SUM = 1023;
+// The empty-glass cut's soft rim: every outline edge ramps 1/3, 2/3, 1 over this many px (press-animation.html feather).
+export const GLASS_FEATHER = 2;
 // Inner liquid column of the left tube, inside both glass walls.
 export const LIQUID = { x: 146, width: 52 };
 
@@ -113,6 +117,22 @@ export function glassPolygon(mirror, segments = 24) {
   }
   const round = (value) => Math.round(value * 1000) / 1000 + 0;
   return points.map(([px, py]) => [round(mirror ? GAUGE_MIRROR_SUM - px : px), round(py)]);
+}
+
+/**
+ * Alpha of the glass interior at a left-tube pixel, the accepted gauge demo's glassAlpha
+ * (press-animation.html): straight side walls and elliptical ends, each edge ramping over
+ * GLASS_FEATHER px. For the right tube pass the mirrored x (GAUGE_MIRROR_SUM - x).
+ */
+export function glassInteriorAlpha(x, y) {
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  const edge = (distance) => clamp01((distance + 1) / (GLASS_FEATHER + 1));
+  const radiusX = (GLASS.x1 - GLASS.x0) / 2;
+  const t = (x - (GLASS.x0 + radiusX)) / radiusX;
+  const arc = Math.sqrt(Math.max(0, 1 - t * t));
+  const top = GLASS.top[0] + (GLASS.top[1] - GLASS.top[0]) * arc;
+  const bottom = GLASS.bottom[0] + (GLASS.bottom[1] - GLASS.bottom[0]) * arc;
+  return edge(x - GLASS.x0) * edge(GLASS.x1 - x) * edge(y - top) * edge(bottom - y);
 }
 
 export function readBaseBase64() {

@@ -35,9 +35,12 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this.buildGear()');
   });
 
-  it('showFlightBackground=false이면 renderFrame에서 비행 배경 렌더를 건너뜀', () => {
+  it('showFlightBackground=false이면 비행 배경을 만들지 않고, renderFrame은 프레임마다 한 번 계산한 고도를 있는 비행 배경·기어 게이지에만 준다', () => {
     expect(gameRendererSource).toContain('if (this.showFlightBackground)');
-    expect(gameRendererSource).toContain('this.renderFlightBackground(songTimeMs, deltaMs)');
+    expect(gameRendererSource).toContain('if (this.flightBackground || this.gearGauge)');
+    expect(gameRendererSource).toContain('const altitude = this.advanceFlightAltitude(songTimeMs, deltaMs)');
+    expect(gameRendererSource).toContain('this.flightBackground?.render(altitude, deltaMs)');
+    expect(gameRendererSource).toContain('this.gearGauge?.update(altitude, deltaMs)');
   });
 
   it('렌더링은 Pixi auto ticker가 아니라 외부 renderFrame 루프에서 한 번만 수행', () => {

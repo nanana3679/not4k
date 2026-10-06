@@ -99,5 +99,39 @@
       "feather": 2
     },
     "softenedEdgePixels": 4124
+  },
+  "gauge": {
+    "image": "public/gear/gear-gauge-empty.png",
+    "source": "assets-lab/classic/revisions/frame-keywords-six-20260929/gauge-empty-insert-v18.png",
+    "width": 192,
+    "height": 832,
+    "glass": {
+      "x0": 136,
+      "x1": 208,
+      "top": [196, 203],
+      "bottom": [1010, 1016],
+      "feather": 2,
+      "mirrorSum": 1023
+    },
+    "fillTop": 196,
+    "fillRows": 821,
+    "tubes": [
+      {
+        "x": 136,
+        "y": 196,
+        "width": 73,
+        "height": 821,
+        "atlasX": 8,
+        "atlasY": 4
+      },
+      {
+        "x": 815,
+        "y": 196,
+        "width": 73,
+        "height": 821,
+        "atlasX": 111,
+        "atlasY": 4
+      }
+    ]
   }
 }

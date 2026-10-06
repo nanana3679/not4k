@@ -41,19 +41,21 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
-  it('기어만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
+  it('기어와 고도 게이지 빈 유리만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');
     const objectLoads = assetsLoad.mock.calls.map(([request]) => request as unknown).filter((request) => typeof request !== 'string');
-    expect(objectLoads).toEqual([{
-      alias: '/gear/gear.png',
-      src: '/gear/gear.png',
-      data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
-    }]);
+    expect(objectLoads).toEqual([
+      { alias: '/gear/gear.png', src: '/gear/gear.png', data: { autoGenerateMipmaps: true, scaleMode: 'linear' } },
+      // 빈 유리는 기어 위에 같은 배율로 겹치므로 기어와 똑같이 거른다(다르면 경계에서 선명도가 달라 보인다).
+      { alias: '/gear/gear-gauge-empty.png', src: '/gear/gear-gauge-empty.png', data: { autoGenerateMipmaps: true, scaleMode: 'linear' } },
+    ]);
     expect(manager.hasTexture('gearImage')).toBe(true);
+    expect(manager.hasTexture('gearGaugeEmpty')).toBe(true);
     expect(manager.hasTexture('gearGaugeLeft')).toBe(false);
     manager.dispose();
     await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear.png'));
+    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear-gauge-empty.png'));
   });
 
   it('heldEffect를 생략한 스킨에 bodySingleHeld가 없으면 빠진 에셋 이름을 담은 오류로 로딩이 실패한다', async () => {

@@ -3,7 +3,7 @@
  *
  * 기어는 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 겹치고, 실루엣 아래끝을 화면 아래에 붙인다.
  * 리프트와 무관하게 고정이며, 레인 가림막은 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다.
- * 측정값의 원본은 `gearGeometry.json` 하나다. 생성기 `prepare-frame-fit-v20.mjs`가 그림과 함께 만들고 Lab도 이 파일을 읽는다.
+ * 측정값의 원본은 `gearGeometry.json` 하나다. 생성기 `prepare-frame-fit-v20.mjs`가 그림(기어·고도 게이지 빈 유리)과 함께 만들고 Lab도 이 파일을 읽는다.
  */
 
 import type { TextureSourceOptions } from 'pixi.js';
@@ -26,7 +26,37 @@ export interface GearGeometry {
   silhouetteRight: number;
   /** 기어 실루엣의 마지막 행. 아래 가장자리(silhouetteBottom + 1)를 화면 아래에 붙인다. */
   silhouetteBottom: number;
+  /** 양옆 유리관 고도 게이지(빈 유리 아틀라스 `gearGaugeEmpty`)의 자리. */
+  gauge: GearGaugeGeometry;
 }
+
+/** 유리관 하나의 유리 안쪽 상자(기어 그림 좌표, 포함)와 빈 유리 아틀라스에서 같은 상자의 왼쪽 위. */
+export interface GearGaugeTube {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  atlasX: number;
+  atlasY: number;
+}
+
+/**
+ * 고도 게이지 측정값. 유리 안쪽 윤곽은 승인 시연과 기어 움직임의 유리 마스크와 같은 하나(frame-motion-shared.mjs의 GLASS)이고,
+ * 생성기가 그 윤곽으로 v18 빈 유리를 잘라 아틀라스(atlasWidth×atlasHeight)에 담는다.
+ */
+export interface GearGaugeGeometry {
+  atlasWidth: number;
+  atlasHeight: number;
+  /** 채움 구간: fillTop행부터 fillRows행(유리 안쪽 위끝 ~ 아래끝). 0이면 전부 빈 유리, 1이면 그림 그대로. */
+  fillTop: number;
+  fillRows: number;
+  /** 왼쪽 유리관 안쪽 윤곽: 곧은 옆벽 x0~x1, 위·아래 끝은 [옆벽 행, 가운데 행] 타원, 경계 feather px. 오른쪽은 x′ = mirrorSum − x. */
+  glass: { x0: number; x1: number; top: readonly [number, number]; bottom: readonly [number, number]; feather: number; mirrorSum: number };
+  /** [왼쪽, 오른쪽] 유리관. 두 유리관은 같은 값을 보여 준다. */
+  tubes: readonly [GearGaugeTube, GearGaugeTube];
+}
+
+const gaugeJson = gearJson.gauge;
 
 export const GEAR_GEOMETRY: GearGeometry = {
   width: gearJson.width,
@@ -38,11 +68,27 @@ export const GEAR_GEOMETRY: GearGeometry = {
   silhouetteLeft: gearJson.silhouetteLeft,
   silhouetteRight: gearJson.silhouetteRight,
   silhouetteBottom: gearJson.silhouetteBottom,
+  gauge: {
+    atlasWidth: gaugeJson.width,
+    atlasHeight: gaugeJson.height,
+    fillTop: gaugeJson.fillTop,
+    fillRows: gaugeJson.fillRows,
+    glass: {
+      x0: gaugeJson.glass.x0,
+      x1: gaugeJson.glass.x1,
+      top: [gaugeJson.glass.top[0], gaugeJson.glass.top[1]],
+      bottom: [gaugeJson.glass.bottom[0], gaugeJson.glass.bottom[1]],
+      feather: gaugeJson.glass.feather,
+      mirrorSum: gaugeJson.glass.mirrorSum,
+    },
+    tubes: [gaugeJson.tubes[0], gaugeJson.tubes[1]],
+  },
 };
 
 /**
  * 기어 텍스처 설정. 그림은 렌더 높이 1080에서 화면 약 0.82배, 720에서 0.54배로 줄여 그려지므로 업로드할 때 밉맵을 만들고
  * 확대·축소·밉맵 사이를 모두 선형으로 거른다(WebGL2 삼선형). 그렇지 않으면 줄인 테두리에 계단과 반짝임이 생긴다.
+ * 기어 위에 같은 배율로 겹치는 고도 게이지 빈 유리(`gearGaugeEmpty`)와 기어 움직임 텍스처도 같은 설정으로 읽는다.
  */
 export const GEAR_TEXTURE_OPTIONS = {
   autoGenerateMipmaps: true,

@@ -112,7 +112,7 @@ _Avoid_: 리프트
 _Avoid_: 달성률
 
 **기어**:
-플레이 화면에서 레인 영역을 둘러싼 장식 그림과 그 움직임·유리관 게이지·키 덱이다. 레인 창을 레인 영역에 맞추고 화면 아래에 고정한다(설정 `Gear Motion`으로 움직임을 끈다). 풀 정의는 [glossary](../../docs/context/glossary.md#기어-gear), 배치는 [RFD 0029](../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)를 따른다.
+플레이 화면에서 레인 영역을 둘러싼 장식 그림과 그 움직임·유리관 게이지·키 덱이다. 레인 창을 레인 영역에 맞추고 화면 아래에 고정한다(설정 `Gear Motion`으로 움직임을 끈다). 양옆 유리관 게이지는 비행 배경과 같은 `altitude`를 두 유리관에 아래 기준 채움으로 보여 준다(약 300ms에 걸쳐 따라가고 색은 바꾸지 않는다). 풀 정의는 [glossary](../../docs/context/glossary.md#기어-gear), 배치는 [RFD 0029](../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)를 따른다.
 _Avoid_: 프레임(화면 한 장과 헷갈림)
 
 **`flightRule`**:

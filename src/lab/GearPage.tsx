@@ -1,8 +1,8 @@
 /*
 THESIS: 새 기어와 그 움직임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 기어 움직임이 게임에서 그대로인지 보고, 같은 움직임 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
-STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·가림막은 그대로인지 보고, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
-FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·키보드·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
+STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·가림막은 그대로인지 보고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
+FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·고도·키보드·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정적 합성 이미지를 만들지 않는다.
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
@@ -14,12 +14,16 @@ import { GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from '../game/renderer/constants
 import { KEYBOARD_DISPLAY_MIN_SCALE, keyboardDisplaySize, placeKeyboardDisplay } from '../game/renderer/KeyboardDisplay';
 import { createChartTiming, JudgmentGrade } from '../shared';
 import {
+  altitudeOverrideFor,
+  clampAltitudePercent,
   clampLiftPercent,
+  describeGaugeLevel,
   describeGear,
   describeGearJudgment,
   describePixelRatio,
   GEAR_PREVIEW_KEYBOARDS,
   GEAR_PREVIEW_STAGE_WIDTH,
+  formatGaugeLevel,
   formatLiftPercent,
   fullscreenLogicalWidth,
   LIFT_PERCENT_MAX,
@@ -97,6 +101,10 @@ export default function GearPage() {
   const [scenario, setScenario] = useState<Scenario>('INFILTRATION');
   const [view, setView] = useState<View>('fit');
   const [liftPercent, setLiftPercent] = useState(0);
+  // 고도: 곡 진행 따라가기(렌더러 고도 모델)가 기본이고, 슬라이더를 움직이면 그 고도로 고정한다(비행 배경과 기어 게이지가 함께 따른다).
+  const [altitudeFollow, setAltitudeFollow] = useState(true);
+  const [altitudePercent, setAltitudePercent] = useState(100);
+  const altitudeOverride = altitudeOverrideFor(altitudeFollow, altitudePercent);
   const [keyboard, setKeyboard] = useState<GearPreviewKeyboard>('tkl');
   const [reportedState, setRendererState] = useState<RendererState>({ status: 'loading', key: '' });
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
@@ -116,6 +124,9 @@ export default function GearPage() {
   const restartRef = useRef<(() => void) | null>(null);
   const stageRef = useRef<HTMLElement>(null);
   const motionTimeRef = useRef<HTMLOutputElement>(null);
+  const gaugeReadoutRef = useRef<HTMLElement>(null);
+  // 마지막으로 알린 게이지 채움(천분율 정수, 게이지 없음은 null). 바뀔 때만 무대 속성과 설명을 고친다.
+  const reportedGaugeRef = useRef<number | null | undefined>(undefined);
   const motionSettings = useMemo<MotionSettings>(
     () => ({ enabled: motionEnabled, layers: motionLayers, reduced: reducedMotion }),
     [motionEnabled, motionLayers, reducedMotion],
@@ -151,6 +162,20 @@ export default function GearPage() {
     if (motionTimeRef.current) motionTimeRef.current.textContent = timeMs === null ? '멈춤' : `${(timeMs / 1000).toFixed(1)}초`;
   }, []);
   const restartMotion = () => restartRef.current?.();
+
+  // 매 프레임 렌더러가 지금 보이는 게이지 채움을 알린다. 천분율이 바뀔 때만 무대 data-gear-gauge-level과 설명을 고친다(React 상태를 거치지 않는다).
+  const handleGaugeLevel = useCallback((level: number | null) => {
+    const key = level === null ? null : Math.round(level * 1000);
+    if (key === reportedGaugeRef.current) return;
+    reportedGaugeRef.current = key;
+    const stageElement = stageRef.current;
+    const value = formatGaugeLevel(level);
+    if (stageElement) {
+      if (value === undefined) delete stageElement.dataset.gearGaugeLevel;
+      else stageElement.dataset.gearGaugeLevel = value;
+    }
+    if (gaugeReadoutRef.current) gaugeReadoutRef.current.textContent = describeGaugeLevel(level);
+  }, []);
 
   // 전체화면: 무대 영역 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
   const [fullscreen, setFullscreen] = useState<FullscreenMode>('off');
@@ -283,7 +308,7 @@ export default function GearPage() {
         <h1>Gear</h1>
         <p className="gear-preview-lede">
           새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면부터 덮는 레인 가림막,
-          오른쪽 아래 키보드 표시, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
+          오른쪽 아래 키보드 표시, 양옆 유리관 고도 게이지, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
           조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
         </p>
       </header>
@@ -300,6 +325,8 @@ export default function GearPage() {
           data-renderer-key={rendererKey}
           data-renderer-ready={ready ? 'true' : 'false'}
           data-lift-percent={liftPercent}
+          data-altitude-mode={altitudeFollow ? 'follow' : 'manual'}
+          data-altitude-percent={altitudePercent}
           data-keyboard={keyboard}
           data-keyboard-visible={keyboardPlacement.visible ? 'true' : 'false'}
           data-keyboard-scale={keyboardPlacement.scale.toFixed(3)}
@@ -329,6 +356,7 @@ export default function GearPage() {
               width={stageWidth}
               resolution={screenResolution}
               lift={liftPx(liftPercent)}
+              altitudeOverride={altitudeOverride}
               keyboardBindings={keyboardBindings}
               sharedSkin={sharedSkin}
               hostStyle={hostStyle}
@@ -339,6 +367,7 @@ export default function GearPage() {
               onView={handleRendererView}
               onMotionTime={handleMotionTime}
               onMotionAttached={setMotionAttachedKey}
+              onGaugeLevel={handleGaugeLevel}
             />
             {rendererState.status === 'error' && <p className="gear-preview-error" role="alert">{rendererState.message}</p>}
             <div className="gear-preview-fullscreen-bar">
@@ -376,6 +405,10 @@ export default function GearPage() {
               <div>
                 <dt>판정선 · 키 윗면(가림막)</dt>
                 <dd>y {judgment.keyRimY.toFixed(1)}까지 {judgment.openGap.toFixed(1)} · 노트 두께 {judgment.openGapNotes.toFixed(1)}개</dd>
+              </div>
+              <div>
+                <dt>유리관 게이지</dt>
+                <dd ref={gaugeReadoutRef}>{describeGaugeLevel(null)}</dd>
               </div>
               <div>
                 <dt>키보드 표시</dt>
@@ -418,6 +451,35 @@ export default function GearPage() {
               게임 설정은 0~100%를 허용하지만 여기서는 0~{LIFT_PERCENT_MAX}%만 봅니다.
             </p>
           </div>
+          <fieldset className="gear-preview-group gear-preview-altitude">
+            <legend>고도(유리관 게이지·비행 배경)</legend>
+            <label className="gear-preview-check">
+              <input type="checkbox" checked={altitudeFollow} onChange={(event) => setAltitudeFollow(event.currentTarget.checked)} />
+              <span>곡 진행 따라가기</span>
+            </label>
+            <div className="gear-preview-slider">
+              <div className="gear-preview-slider-head">
+                <label htmlFor="gear-preview-altitude">고도 직접 정하기</label>
+                <output htmlFor="gear-preview-altitude">{altitudeFollow ? '따라가는 중' : `${altitudePercent}%`}</output>
+              </div>
+              <input
+                id="gear-preview-altitude"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={altitudePercent}
+                onChange={(event) => {
+                  setAltitudePercent(clampAltitudePercent(Number(event.currentTarget.value)));
+                  setAltitudeFollow(false);
+                }}
+              />
+            </div>
+            <p className="gear-preview-note">
+              곡 진행 따라가기는 게임 렌더러의 임시 고도 모델(시연 차트 약 3분 동안 1 → 0)을 그대로 씁니다. 이 시연은 판정을 고도에 넣지 않습니다.
+              슬라이더를 움직이면 그 고도로 고정해 비행 배경과 두 유리관 게이지가 함께 바뀌고, 게이지는 약 300ms에 걸쳐 따라갑니다(움직임 줄이기면 바로).
+            </p>
+          </fieldset>
           <RadioGroup legend="키보드 표시" name="gear-preview-keyboard" value={keyboard} options={KEYBOARD_OPTIONS} onChange={setKeyboard} />
           <fieldset className="gear-preview-group gear-preview-motion">
             <legend>움직임</legend>
@@ -571,8 +633,8 @@ function useDevicePixelRatio(): number {
  * 맞히거나 놓친 것처럼 표시한다. 기어 움직임은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 gearMotion API로 조절만 한다.
  */
 function GearPreviewRenderer({
-  rendererKey, scenario, width, resolution, lift, keyboardBindings, sharedSkin, hostStyle,
-  motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached,
+  rendererKey, scenario, width, resolution, lift, altitudeOverride, keyboardBindings, sharedSkin, hostStyle,
+  motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
 }: {
   rendererKey: string;
   scenario: Scenario;
@@ -581,6 +643,8 @@ function GearPreviewRenderer({
   resolution: number;
   /** 리프트(논리 단위). 바뀌면 렌더러를 유지한 채 setLift로 옮긴다. */
   lift: number;
+  /** 고도 고정값(0~1). null이면 렌더러 고도 모델을 따른다. 바뀌면 렌더러를 유지한 채 setAltitudeOverride로 건다. */
+  altitudeOverride: number | null;
   keyboardBindings: ReadonlyMap<string, number>;
   /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
   sharedSkin: SharedSkin<SkinManager>;
@@ -595,22 +659,27 @@ function GearPreviewRenderer({
   onMotionTime: (timeMs: number | null) => void;
   /** 이 렌더러(key)의 내장 움직임이 준비되어 기어에 얹혔을 때. */
   onMotionAttached: (key: string) => void;
+  /** 프레임마다 지금 보이는 게이지 채움(gearGaugeLevel), 렌더러를 정리하면 null. */
+  onGaugeLevel: (level: number | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 리프트·키보드·움직임 설정 effect가 쓰는 살아 있는 렌더러와 그 값을 다시 거는 함수.
   const liveRef = useRef<{
     applyLift: (lift: number) => void;
+    applyAltitude: (altitude: number | null) => void;
     applyKeyboard: (bindings: ReadonlyMap<string, number>) => void;
     applyMotion: (settings: MotionSettings) => void;
   } | null>(null);
   const liftRef = useRef(lift);
   liftRef.current = lift;
+  const altitudeRef = useRef(altitudeOverride);
+  altitudeRef.current = altitudeOverride;
   const keyboardRef = useRef(keyboardBindings);
   keyboardRef.current = keyboardBindings;
   const motionSettingsRef = useRef(motionSettings);
   motionSettingsRef.current = motionSettings;
   const options = useRef({
-    rendererKey, scenario, width, resolution, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached,
+    rendererKey, scenario, width, resolution, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
   });
 
   useEffect(() => {
@@ -619,6 +688,7 @@ function GearPreviewRenderer({
     const {
       rendererKey: key, scenario: label, width: logicalWidth, resolution: rendererResolution, sharedSkin: skins,
       restartRef: restart, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
+      onGaugeLevel: reportGaugeLevel,
     } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
@@ -635,6 +705,7 @@ function GearPreviewRenderer({
       cancelAnimationFrame(frame);
       if (reportedMotion) reportMotionTime(null);
       reportedMotion = false;
+      reportGaugeLevel(null);
       if (restart.current === restartMotion) restart.current = null;
       liveRef.current = null;
       try { renderer?.dispose(removeView); } catch (error) { console.warn('GearPage: renderer dispose failed', error); }
@@ -703,6 +774,9 @@ function GearPreviewRenderer({
           publishView();
         };
         applyLift(liftRef.current);
+        // 고도 고정(Lab 전용 공개 API). null이면 곡 진행에 따른 렌더러 고도 모델을 따른다.
+        const applyAltitude = (altitude: number | null) => active.setAltitudeOverride(altitude);
+        applyAltitude(altitudeRef.current);
         const applyKeyboard = (bindings: ReadonlyMap<string, number>) => active.setupKeyboardDisplay(new Map(bindings));
         applyKeyboard(keyboardRef.current);
 
@@ -716,7 +790,7 @@ function GearPreviewRenderer({
           motion.setReducedMotion(settings.reduced);
         };
         applyMotion(motionSettingsRef.current);
-        liveRef.current = { applyLift, applyKeyboard, applyMotion };
+        liveRef.current = { applyLift, applyAltitude, applyKeyboard, applyMotion };
         restart.current = restartMotion;
 
         let startNow = performance.now();
@@ -766,6 +840,7 @@ function GearPreviewRenderer({
           });
           // 움직임 시계는 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
+          reportGaugeLevel(active.gearGaugeLevel);
           if (motion) {
             if (motion.running) {
               reportMotionTime(motion.timeMs);
@@ -790,6 +865,7 @@ function GearPreviewRenderer({
           frame = requestAnimationFrame(loop);
         };
         active.renderFrame(0, 0);
+        reportGaugeLevel(active.gearGaugeLevel);
         report({ status: 'ready', backingWidth: canvas.width, backingHeight: canvas.height });
         frame = requestAnimationFrame(loop);
       } catch (error) {
@@ -813,6 +889,11 @@ function GearPreviewRenderer({
   useEffect(() => {
     liveRef.current?.applyLift(lift);
   }, [lift]);
+
+  // 고도 고정: 렌더러를 다시 만들지 않고 살아 있는 렌더러에 건다(게이지는 약 300ms에 걸쳐 따라간다).
+  useEffect(() => {
+    liveRef.current?.applyAltitude(altitudeOverride);
+  }, [altitudeOverride]);
 
   useEffect(() => {
     liveRef.current?.applyKeyboard(keyboardBindings);

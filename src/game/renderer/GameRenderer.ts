@@ -27,6 +27,7 @@ import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./ge
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GEAR_MOTION_TEXTURE_KEYS } from "./gearMotionData";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
+import { GearGauge } from "./gearGauge";
 import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
@@ -34,6 +35,7 @@ import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
   applyFlightJudgment,
+  clampFlightAltitude,
   createFlightAltitudeState,
   resolveFlightAltitude,
   stepFlightAltitude,
@@ -96,7 +98,10 @@ export interface GameRendererOptions {
   skinManager: SkinManager;
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
-  /** 새 기어(스킨 공통 `gearImage`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
+  /**
+   * 새 기어(스킨 공통 `gearImage`)와 양옆 유리관 고도 게이지(`gearGaugeEmpty`)를 그린다.
+   * 끄면(튜토리얼 미니 렌더러) 둘 다 없고, 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다.
+   */
   showGear?: boolean;
   /**
    * 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
@@ -173,6 +178,8 @@ export class GameRenderer {
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
   private flightAltitudeState: FlightAltitudeState = createFlightAltitudeState();
+  /** Lab 미리보기가 고정한 고도(setAltitudeOverride). null이면 고도 모델을 따른다. */
+  private altitudeOverride: number | null = null;
 
   // Skin
   private skinManager: SkinManager;
@@ -193,6 +200,8 @@ export class GameRenderer {
   private readonly gearMotionEnabled: boolean;
   private readonly gearMotionReducedMotion: "omit" | "hide";
   private gearMotionController: GearMotionController | null = null;
+  // 고도 게이지 — 기어 레이어 맨 위(기어 움직임 위). 빈 유리 덮개가 빈 부분의 움직임 액체·기포를 함께 가린다.
+  private gearGauge: GearGauge | null = null;
 
   // UI elements
   private comboText: Text;
@@ -481,6 +490,23 @@ export class GameRenderer {
     // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
     this._gearLayout = Object.freeze(layout);
     this.gearLayer.addChild(sprite);
+    this.buildGearGauge(layout);
+  }
+
+  /**
+   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든(움직임 줄이기도) 같은 모습이다.
+   * 나중에 붙는 움직임 자리(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 움직임의 액체·기포를 가린다(유리 안쪽에 그리는
+   * 움직임은 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
+   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다.
+   */
+  private buildGearGauge(layout: Readonly<GearLayout>): void {
+    let texture;
+    try { texture = this.skinManager.getTexture("gearGaugeEmpty"); } catch { return; }
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge, reducedMotion: prefersReducedMotion() });
+    gauge.container.position.set(layout.x, layout.y);
+    gauge.container.scale.set(layout.scale);
+    this.gearLayer.addChild(gauge.container);
+    this.gearGauge = gauge;
   }
 
   /**
@@ -518,6 +544,8 @@ export class GameRenderer {
    */
   warmUp(songTimeMs: number): void {
     if (!this.initialized || !this.app.renderer) return;
+    // 곡 중간에서 시작해도(편집기 시험 재생) 게이지가 가득 찬 데서 내려오지 않게, 이 한 장에서 곡 시작 시각의 고도로 바로 맞춘다.
+    this.gearGauge?.snapNext();
     const render = () => this.renderFrame(songTimeMs, 0);
     if (this.gearMotionController) this.gearMotionController.warmUp(render);
     else render();
@@ -773,19 +801,18 @@ export class GameRenderer {
     this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
-  private renderFlightBackground(songTimeMs: number, deltaMs: number): void {
-    this.flightAltitudeState = stepFlightAltitude(
-      this.flightAltitudeState,
-      deltaMs,
-    );
-    const altitude = resolveFlightAltitude({
+  /**
+   * 이번 프레임의 고도(0~1). 고도 상태를 deltaMs만큼 나아가게 한 뒤(같은 객체에 쓴다) 곡 진행과 판정에 따른 임시 모델 값을 돌려준다.
+   * Lab 미리보기가 고정값을 걸었으면 그 값이다(고도 상태는 그래도 계속 나아간다). renderFrame이 프레임마다 한 번 부른다.
+   */
+  private advanceFlightAltitude(songTimeMs: number, deltaMs: number): number {
+    stepFlightAltitude(this.flightAltitudeState, deltaMs, this.flightAltitudeState);
+    if (this.altitudeOverride !== null) return this.altitudeOverride;
+    return resolveFlightAltitude({
       state: this.flightAltitudeState,
       songTimeMs,
       chartDurationMs: this.chartDurationMs,
     });
-    // 새 기어의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다(gearMotion.gaugeFill을 채움 높이로 자른다).
-    // 그때까지 유리관은 그림 그대로(가득) 보인다.
-    this.flightBackground?.render(altitude, deltaMs);
   }
 
   // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.
@@ -807,6 +834,8 @@ export class GameRenderer {
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.flightBackground?.reset();
     this.flightAltitudeState = createFlightAltitudeState();
+    // 차트를 (다시) 걸면(되감기·새 차트) 게이지는 이징 없이 새 고도로 바로 맞춘다.
+    this.gearGauge?.snapNext();
 
     this.noteRenderData = notes.map((entity, index) => {
       const timeMs = timing.noteTimesMs.get(index)!;
@@ -861,8 +890,12 @@ export class GameRenderer {
     if (!this.initialized || !this.app.renderer) return;
 
     this.judgmentUI.updateFade(deltaMs);
-    if (this.showFlightBackground) {
-      this.renderFlightBackground(songTimeMs, deltaMs);
+    // 고도는 프레임마다 한 번 계산해 보여 주는 곳(비행 배경·기어 게이지)에 같은 값을 준다. 둘 다 없으면(튜토리얼 재생기) 계산하지 않는다.
+    if (this.flightBackground || this.gearGauge) {
+      const altitude = this.advanceFlightAltitude(songTimeMs, deltaMs);
+      this.flightBackground?.render(altitude, deltaMs);
+      // 게이지 이징도 게임 프레임 간격으로만 나아가 일시정지 중에는 멈춘다(최대 50ms).
+      this.gearGauge?.update(altitude, deltaMs);
     }
     // 기어 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
     this.gearMotionController?.advance(deltaMs);
@@ -1107,6 +1140,23 @@ export class GameRenderer {
   }
 
   /**
+   * 기어 유리관 고도 게이지에 지금 보이는 채움(0~1, 이징 반영). 두 유리관은 같은 값이다.
+   * 게이지를 그리지 않으면(showGear false·빈 유리 텍스처 없음·dispose 뒤) null. Lab 무대와 E2E가 읽는다.
+   */
+  get gearGaugeLevel(): number | null {
+    return this.gearGauge?.level ?? null;
+  }
+
+  /**
+   * 미리보기(Lab `/lab/gear`) 전용: 비행 배경과 기어 게이지가 보여 줄 고도를 altitude(0~1로 자름, NaN은 0)로 고정한다.
+   * null이면 곡 진행·판정에 따른 고도 모델로 돌아간다. 게임은 부르지 않는다. 게이지는 바뀐 값으로 이징하고(움직임 줄이기면 바로),
+   * 고도 모델의 상태는 고정하는 동안에도 그대로 나아간다.
+   */
+  setAltitudeOverride(altitude: number | null): void {
+    this.altitudeOverride = altitude === null ? null : clampFlightAltitude(altitude);
+  }
+
+  /**
    * 기어 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
    * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(gearMotion false·움직임 줄이기 omit·기어 없음·dispose 뒤) null.
    */
@@ -1115,8 +1165,9 @@ export class GameRenderer {
   }
 
   /**
-   * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 바로 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 기어와 같은 변환으로 붙인다. 내장 기어 움직임과 후속 고도 게이지가 쓴다.
+   * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
+   * 기어와 같은 변환으로 붙인다. 내장 기어 움직임이 쓴다. 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
+   * (빈 유리 덮개가 빈 부분의 움직임 액체·기포를 가린다).
    * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
   addGearOverlay(overlay: Container): Readonly<GearLayout> | null {
@@ -1124,7 +1175,9 @@ export class GameRenderer {
     if (!layout || this.gearLayer.destroyed) return null;
     overlay.position.set(layout.x, layout.y);
     overlay.scale.set(layout.scale);
-    this.gearLayer.addChild(overlay);
+    const gauge = this.gearGauge?.container;
+    if (gauge && gauge.parent === this.gearLayer) this.gearLayer.addChildAt(overlay, this.gearLayer.getChildIndex(gauge));
+    else this.gearLayer.addChild(overlay);
     return layout;
   }
 
@@ -1196,13 +1249,16 @@ export class GameRenderer {
     // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).
     this.gearMotionController?.destroy();
     this.gearMotionController = null;
+    // 게이지가 만든 행 텍스처만 정리한다(빈 유리 아틀라스는 SkinManager 소유).
+    this.gearGauge?.destroy();
+    this.gearGauge = null;
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.
     this.app.destroy({ removeView, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
     // Text/Graphics/기어 스프라이트 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
-    // 기어 텍스처는 SkinManager 소유라 파괴하지 않는다(texture: false).
+    // 기어·빈 유리 텍스처는 SkinManager 소유라 파괴하지 않는다(texture: false).
     this.laneKeyLabels = [];
     this.tutorialKeyboardKeys = [];
     this.tutorialKeyboardKeyByCode = new Map();

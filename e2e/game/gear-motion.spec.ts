@@ -15,6 +15,12 @@ interface MotionProbe {
   hasGear: boolean;
   motionObjects: number;
   motionVisible: boolean | null;
+  /** 무대의 'gear-gauge'(고도 게이지 덮개) 수와, 그것이 기어 레이어의 맨 위(마지막 자식)인지. */
+  gaugeObjects: number;
+  gaugeOnTop: boolean | null;
+  /** 렌더러가 지금 보여 주는 게이지 채움(gearGaugeLevel)과 같은 프레임에 비행 배경이 받은 고도(data-altitude). */
+  gaugeLevel: number | null;
+  backgroundAltitude: number | null;
 }
 
 /**
@@ -56,8 +62,10 @@ async function readProbe(page: Page): Promise<MotionProbe> {
     const renderer = win.__gearMotionRenderer as import('../../src/game/renderer/GameRenderer').GameRenderer | null;
     const stage = renderer ? (renderer as unknown as { app: import('pixi.js').Application }).app.stage : null;
     const motionRoots: import('pixi.js').Container[] = [];
+    const gauges: import('pixi.js').Container[] = [];
     const walk = (node: import('pixi.js').Container) => {
       if (node.label === 'gear-motion' || node.label === 'gear-motion-holder') motionRoots.push(node);
+      if (node.label === 'gear-gauge') gauges.push(node);
       for (const child of node.children) walk(child);
     };
     if (stage) walk(stage);
@@ -73,8 +81,35 @@ async function readProbe(page: Page): Promise<MotionProbe> {
       hasGear: Boolean(renderer?.gearLayout),
       motionObjects: motionRoots.length,
       motionVisible: root ? root.visible : null,
+      gaugeObjects: gauges.length,
+      gaugeOnTop: gauges[0]?.parent ? gauges[0].parent.children.at(-1) === gauges[0] : null,
+      gaugeLevel: renderer?.gearGaugeLevel ?? null,
+      backgroundAltitude: (() => {
+        const value = document.querySelector<HTMLElement>('[data-flight-background]')?.dataset.altitude;
+        return value === undefined ? null : Number(value);
+      })(),
     };
   });
+}
+
+/**
+ * 실제 플레이 렌더러에 MISS 고도 효과를 넣고, 그 뒤 첫 renderFrame이 끝난 화면 프레임에서 게이지 채움과 비행 배경 고도를 읽는다.
+ * (판정 엔진 없이 렌더러 공개 메서드 recordFlightJudgment로 판정 결과만 흉내 낸다.)
+ */
+async function injectMissAndReadNextFrame(page: Page): Promise<{ gaugeLevel: number; backgroundAltitude: number; frames: number }> {
+  return page.evaluate(() => new Promise((resolve) => {
+    const win = window as unknown as Record<string, unknown>;
+    const renderer = win.__gearMotionRenderer as import('../../src/game/renderer/GameRenderer').GameRenderer;
+    const start = win.__gearMotionFrames as number;
+    renderer.recordFlightJudgment('miss');
+    const check = () => {
+      const frames = (win.__gearMotionFrames as number) - start;
+      if (frames < 1) { requestAnimationFrame(check); return; }
+      const background = document.querySelector<HTMLElement>('[data-flight-background]')!;
+      resolve({ gaugeLevel: renderer.gearGaugeLevel!, backgroundAltitude: Number(background.dataset.altitude), frames });
+    };
+    requestAnimationFrame(check);
+  }));
 }
 
 async function resetStatusLog(page: Page) {
@@ -152,6 +187,31 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
+  for (const motionOn of [true, false]) {
+    test(`기어 움직임 ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await startLocalPlay(page, motionOn);
+
+      await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+      const playing = await readProbe(page);
+      expect(playing).toMatchObject({ hasGear: true, gaugeObjects: 1, gaugeOnTop: true, motionObjects: motionOn ? 2 : 0 });
+      // 곡 진행에 따른 임시 고도(90초 곡 앞부분이라 1에 가깝다)를 배경과 게이지가 함께 보여 준다.
+      expect(playing.backgroundAltitude!).toBeGreaterThan(0.9);
+      expect(Math.abs(playing.gaugeLevel! - playing.backgroundAltitude!)).toBeLessThan(0.005);
+
+      const afterMiss = await injectMissAndReadNextFrame(page);
+      // 배경은 같은 프레임에 0.24 낮은 고도를 받지만, 게이지는 300ms ease-out 느낌으로 따라가 아직 위에 있다.
+      expect(afterMiss.backgroundAltitude).toBeLessThan(playing.backgroundAltitude! - 0.2);
+      expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(0.02);
+      await expect.poll(async () => {
+        const probe = await readProbe(page);
+        return Math.abs(probe.gaugeLevel! - probe.backgroundAltitude!);
+      }, { timeout: 5_000 }).toBeLessThan(0.005);
+      expect(errors).toEqual([]);
+    });
+  }
+
   test('기어 움직임 끔(설정 gearMotion false): 실제 플레이 렌더러는 기어만 그리고 gearMotion이 null이며 움직임 객체가 없고 움직임 자료를 요청하지 않는다', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
@@ -164,6 +224,8 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
     expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
     expect(requested).toContain('/gear/gear.png');
+    // 고도 게이지 빈 유리는 움직임 설정과 무관한 스킨 공통 에셋이다.
+    expect(requested).toContain('/gear/gear-gauge-empty.png');
     expect(errors).toEqual([]);
   });
 

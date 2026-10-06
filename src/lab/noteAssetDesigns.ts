@@ -70,12 +70,15 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
 ];
 
 /**
- * 보관본의 스킨 공통 기어 에셋 키(#231 전 키 `gearFrame`·지금 키 `gearImage`, RFD 0029 이전의 기둥 게이지).
- * 보관본의 옛 기어·게이지 대신 지금 공통 기어를 쓴다(렌더러 배치가 이 그림의 측정값을 따른다).
+ * 보관본의 스킨 공통 기어 에셋 키(#231 전 키 `gearFrame`·지금 키 `gearImage`·고도 게이지 빈 유리 `gearGaugeEmpty`,
+ * RFD 0029 이전의 기둥 게이지). 보관본의 옛 기어·게이지 대신 지금 공통 기어와 빈 유리를 쓴다(렌더러 배치가 이 그림의 측정값을 따른다).
  */
-const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearImage', 'gearGaugeLeft', 'gearGaugeRight']);
+const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearImage', 'gearGaugeEmpty', 'gearGaugeLeft', 'gearGaugeRight']);
 
-/** 보관한 Classic 버전 하나를 재생용 시안으로 바꾼다. 보관본의 기어 키(옛 `gearFrame`이든 지금 `gearImage`든)는 버리고 지금 공통 기어를 쓴다. */
+/**
+ * 보관한 Classic 버전 하나를 재생용 시안으로 바꾼다. 보관본의 기어 키(옛 `gearFrame`이든 지금 `gearImage`·`gearGaugeEmpty`든)는 버리고
+ * 지금 공통 기어와 고도 게이지 빈 유리를 쓴다. 고도 게이지보다 오래된 보관본도 지금 기어와 짝인 빈 유리로 재생한다.
+ */
 export function createArchivedClassicDesign(version: (typeof CLASSIC_SKIN_VERSIONS)[number]) {
   const base = `/lab/skin-versions/classic/${version.id}`;
   const assetPath = (path: string) => {
@@ -90,6 +93,7 @@ export function createArchivedClassicDesign(version: (typeof CLASSIC_SKIN_VERSIO
         [key, Array.isArray(paths) ? paths.map(assetPath) : assetPath(paths)],
       )),
       gearImage: getSkinManifest('classic').assets.gearImage,
+      gearGaugeEmpty: getSkinManifest('classic').assets.gearGaugeEmpty,
     } as SkinManifest['assets'],
   };
   const design: NoteAssetDesign = {

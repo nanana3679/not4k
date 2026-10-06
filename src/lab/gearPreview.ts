@@ -1,4 +1,5 @@
 import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
+import { gaugeEmptyRows } from '../game/renderer/gearGauge';
 import { NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
 
@@ -30,6 +31,30 @@ export function clampLiftPercent(value: number): number {
 
 export function formatLiftPercent(percent: number): string {
   return `${percent}% (+${liftPx(percent)})`;
+}
+
+/** 고도 직접 정하기 슬라이더 값. 정수 %로 맞추고 [0, 100]으로 묶는다. 숫자가 아니면 시작값 100%. */
+export function clampAltitudePercent(value: number): number {
+  if (!Number.isFinite(value)) return 100;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+/** 렌더러 setAltitudeOverride에 넘길 값. 곡 진행 따라가기면 null(고도 모델), 직접 정하기면 슬라이더 % ÷ 100. */
+export function altitudeOverrideFor(follow: boolean, percent: number): number | null {
+  return follow ? null : clampAltitudePercent(percent) / 100;
+}
+
+/** 무대 data-gear-gauge-level 값(소수 셋째 자리). 게이지가 없으면 undefined(속성을 쓰지 않는다). */
+export function formatGaugeLevel(level: number | null): string | undefined {
+  return level === null ? undefined : level.toFixed(3);
+}
+
+/** 설명의 게이지 채움: 채움 %와 위에서 덮은 빈 유리 행(채움 구간 821행 중). */
+export function describeGaugeLevel(level: number | null, geometry: GearGeometry = GEAR_GEOMETRY): string {
+  if (level === null) return '게이지 없음';
+  const rows = gaugeEmptyRows(level, geometry.gauge.fillRows);
+  const percent = `${Math.round(level * 100)}%`;
+  return rows === 0 ? `${percent} · 그림 그대로` : `${percent} · 빈 유리 ${rows}/${geometry.gauge.fillRows}행`;
 }
 
 export interface GearPreviewJudgment {

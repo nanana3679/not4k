@@ -180,7 +180,7 @@ describe('createGearMotion', () => {
     motion.destroy();
   });
 
-  it('B 게이지의 액체 타일과 기포는 채움 컨테이너(gaugeFill) 하나에 담기고 그 위에 유리 윤곽 마스크가 걸려, 고도 게이지가 채움 높이로 자를 자리를 준다', () => {
+  it('B 게이지의 액체 타일과 기포는 채움 컨테이너(gaugeFill) 하나에 담기고 그 부모에 유리 윤곽 마스크만 걸린다(고도 게이지는 자르지 않고 위에 빈 유리를 덮는다)', () => {
     const motion = createGearMotion(data, fakeTextures());
     const gauge = byLabel(motion.container, 'gear-motion-gauge');
     expect(motion.gaugeFill.label).toBe('gear-motion-gauge-fill');
@@ -188,7 +188,7 @@ describe('createGearMotion', () => {
     expect(motion.gaugeFill.children.map((child) => child.label)).toEqual(['gear-motion-liquid', 'gear-motion-bubbles']);
     expect(gauge.children.map((child) => child.label)).toEqual(['gear-motion-gauge-fill', 'gear-motion-glass']);
     expect(gauge.mask).toBe(byLabel(motion.container, 'gear-motion-glass'));
-    // 채움 컨테이너 자체에는 아직 마스크가 없다(게이지는 그림 그대로 가득).
+    // 채움 컨테이너 자체에는 마스크가 없다. 고도 게이지는 렌더러가 움직임 위에 겹친 빈 유리 덮개로 빈 부분을 가린다(GameRenderer.gearGauge.test.ts).
     expect(motion.gaugeFill.mask ?? null).toBeNull();
     motion.destroy();
   });
