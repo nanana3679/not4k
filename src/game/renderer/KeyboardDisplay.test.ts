@@ -7,12 +7,12 @@ import {
   keyboardDisplaySize,
   placeKeyboardDisplay,
 } from './KeyboardDisplay';
-import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear } from './classicGearLayout';
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from './constants';
 
 /** 화면 논리 폭 width에서 기어 실루엣 오른쪽 끝 + 여백(키보드가 쓸 수 있는 왼쪽 경계). */
 function gearFreeLeft(width: number): number {
-  const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
+  const layout = layoutGear(GEAR_GEOMETRY, {
     laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
   });
   return layout.silhouetteRightX + GEAR_CLEARANCE;

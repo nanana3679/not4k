@@ -4,7 +4,7 @@ import {
   type GearMotionData,
   type GearMotionLayer,
   type GearMotionTextureKey,
-} from './classicGearMotionData';
+} from './gearMotionData';
 import {
   breatheOpacity,
   bubbleRise,
@@ -13,7 +13,7 @@ import {
   liquidFlowOffset,
   type BubbleRiseState,
   type GlintState,
-} from './classicGearMotionTiming';
+} from './gearMotionTiming';
 
 export {
   GEAR_MOTION_LAYER_LABELS,
@@ -25,14 +25,14 @@ export {
   type GearMotionPiece,
   type GearMotionTextureBox,
   type GearMotionTextureKey,
-} from './classicGearMotionData';
+} from './gearMotionData';
 
 /**
- * Classic 기어 움직임(승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
+ * 기어 움직임(승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  * React·Lab에 의존하지 않는 게임 모듈이다. 게임 렌더러는 GearMotionController로 내장 기어 위에 얹고, Lab 비교 화면도 이 모듈을 쓴다.
  *
  * - 좌표: 컨테이너는 기어 그림 좌표(1024×1536)다. 호출자가 기어 스프라이트와 같은 변환을 컨테이너에 건다.
- * - 텍스처: prepare-frame-motion-v21.mjs가 SVG의 마스크·필터·블러를 미리 구운 PNG다(공유 로더 classicGearMotionAssets가 기어와 같은
+ * - 텍스처: prepare-frame-motion-v21.mjs가 SVG의 마스크·필터·블러를 미리 구운 PNG다(공유 로더 gearMotionAssets가 기어와 같은
  *   밉맵·삼선형 설정으로 읽는다). 런타임 필터는 없고, 매 프레임 변환·불투명도만 바꾼다. 텍스처는 호출자 소유이며 destroy가 파괴하지 않는다.
  * - 마스크: 광원 띠·유리 윤곽은 Graphics 스텐실 마스크(띠 밖 어둡게는 inverse)로, 마스크 Graphics는 한 번 만들고
  *   위치만 옮긴다. 경계가 부드러운 하단 바 빛만 스프라이트 알파 마스크를 쓴다(빛이 보이는 동안만 그린다).
@@ -40,7 +40,7 @@ export {
 
 export type GearMotionTextures = Record<GearMotionTextureKey, Texture>;
 
-export interface ClassicGearMotion {
+export interface GearMotion {
   /** 기어 그림 좌표의 움직임 루트. 기어 스프라이트 바로 위에 같은 변환으로 놓는다. */
   readonly container: Container;
   /**
@@ -113,7 +113,7 @@ export function bandProfileAlpha(outerHeight: number, strips: readonly BandStrip
   return alpha;
 }
 
-export interface ClassicGearMotionOptions {
+export interface GearMotionOptions {
   /**
    * 광원 띠 가장자리. 'stencil'(기본): Graphics 스텐실 마스크라 경계가 픽셀 단위로 켜지고 꺼진다(MSAA가 없으면 계단).
    * 'soft': 1px 프로파일 스프라이트를 알파 마스크로 써 경계를 1px 동안 섞는다. 대신 띠마다 마스크 필터 패스가 1번씩 든다.
@@ -121,9 +121,9 @@ export interface ClassicGearMotionOptions {
   bandEdges?: 'stencil' | 'soft';
 }
 
-export function createClassicGearMotion(data: GearMotionData, textures: GearMotionTextures, options: ClassicGearMotionOptions = {}): ClassicGearMotion {
+export function createGearMotion(data: GearMotionData, textures: GearMotionTextures, options: GearMotionOptions = {}): GearMotion {
   const { light, contrast, gauge, accent, bar } = data;
-  const root = new Container({ label: 'classic-gear-motion' });
+  const root = new Container({ label: 'gear-motion' });
   // 조각 서브 텍스처와 부드러운 띠 프로파일은 이 모듈이 만들고 정리한다(받은 텍스처는 호출자 소유).
   const ownedTextures: Texture[] = [];
   const ownedProfiles: Texture[] = [];
@@ -143,7 +143,7 @@ export function createClassicGearMotion(data: GearMotionData, textures: GearMoti
     throw error;
   }
 
-  function buildMotion(): ClassicGearMotion {
+  function buildMotion(): GearMotion {
     const pieceTexture = (key: GearMotionTextureKey, index: number) => {
       const source = textures[key];
       const piece = data.textures[key].pieces[index];

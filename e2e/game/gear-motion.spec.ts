@@ -19,7 +19,7 @@ interface MotionProbe {
 
 /**
  * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). 움직임 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
- * 움직임 객체 수는 무대에서 'classic-gear-motion' 라벨을 센다.
+ * 움직임 객체 수는 무대에서 'gear-motion' 라벨을 센다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -57,12 +57,12 @@ async function readProbe(page: Page): Promise<MotionProbe> {
     const stage = renderer ? (renderer as unknown as { app: import('pixi.js').Application }).app.stage : null;
     const motionRoots: import('pixi.js').Container[] = [];
     const walk = (node: import('pixi.js').Container) => {
-      if (node.label === 'classic-gear-motion' || node.label === 'classic-gear-motion-holder') motionRoots.push(node);
+      if (node.label === 'gear-motion' || node.label === 'gear-motion-holder') motionRoots.push(node);
       for (const child of node.children) walk(child);
     };
     if (stage) walk(stage);
     const motion = renderer?.gearMotion ?? null;
-    const root = motionRoots.find(node => node.label === 'classic-gear-motion');
+    const root = motionRoots.find(node => node.label === 'gear-motion');
     return {
       audioPlays: win.__audioPlays as number,
       frames: win.__gearMotionFrames as number,
@@ -114,7 +114,7 @@ async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas =
   if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe('실제 플레이의 Classic 기어 움직임', () => {
+test.describe('실제 플레이의 기어 움직임', () => {
   test.describe.configure({ timeout: 90_000 });
 
   test('기어 움직임 켬: 움직임 시계가 게임 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 자리에서 이어 간다', async ({ page }) => {
@@ -162,8 +162,8 @@ test.describe('실제 플레이의 Classic 기어 움직임', () => {
     await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
     const probe = await readProbe(page);
     expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
-    expect(requested.some(path => path.includes('/gear/classic-gear-motion/'))).toBe(false);
-    expect(requested).toContain('/gear/classic-gear.png');
+    expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
+    expect(requested).toContain('/gear/gear.png');
     expect(errors).toEqual([]);
   });
 
@@ -178,7 +178,7 @@ test.describe('실제 플레이의 Classic 기어 움직임', () => {
     await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
     const probe = await readProbe(page);
     expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
-    expect(requested.some(path => path.includes('/gear/classic-gear-motion/'))).toBe(false);
+    expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
     expect(errors).toEqual([]);
   });
 
@@ -209,7 +209,7 @@ test.describe('실제 플레이의 Classic 기어 움직임', () => {
     const gate = new Promise<void>((resolve) => { release = resolve; });
     let requested!: () => void;
     const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
-    await page.route('**/gear/classic-gear-motion/gear-motion.json', async (route) => {
+    await page.route('**/gear/gear-motion/gear-motion.json', async (route) => {
       requested();
       await gate;
       await route.continue();
@@ -233,7 +233,7 @@ test.describe('실제 플레이의 Classic 기어 움직임', () => {
   // 움직임 자료는 스킨 텍스처와 같은 필수 자료다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
   for (const [name, asset] of [
     ['스킨 텍스처(note-single.png)', '**/skins/classic/note-single.png'],
-    ['기어 움직임 자료(gear-motion.json)', '**/gear/classic-gear-motion/gear-motion.json'],
+    ['기어 움직임 자료(gear-motion.json)', '**/gear/gear-motion/gear-motion.json'],
   ] as const) {
     test(`${name}를 받지 못하면 곡을 시작하지 않고(renderFrame·오디오 0번) 오류 화면의 Back to Song Select로 곡 선택에 돌아간다`, async ({ page }) => {
       const errors: string[] = [];

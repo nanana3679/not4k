@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSIC_GEAR_GEOMETRY, layoutClassicGear } from '../game/renderer/classicGearLayout';
+import { GEAR_GEOMETRY, layoutGear } from '../game/renderer/gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../game/renderer/constants';
 import {
   clampLiftPercent,
@@ -12,13 +12,13 @@ import {
   fullscreenLogicalWidth,
   LIFT_PERCENT_MAX,
   oneToOneCssSize,
-} from './classicGearPreview';
+} from './gearPreview';
 
-const layoutFor = (width: number) => layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
+const layoutFor = (width: number) => layoutGear(GEAR_GEOMETRY, {
   laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
 });
 
-describe('Classic Gear 무대 논리 폭 (게임 PlayScreen과 같은 규칙)', () => {
+describe('Gear 무대 논리 폭 (게임 PlayScreen과 같은 규칙)', () => {
   it('기본 16:9 무대는 논리 폭 1067', () => {
     expect(GEAR_PREVIEW_STAGE_WIDTH).toBe(1067);
   });

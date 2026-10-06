@@ -24,9 +24,9 @@ describe("SKIN_LIST", () => {
     }
   });
 
-  it("기어는 모든 스킨이 공통 새 Classic 기어 /gear/classic-gear.png를 쓰고 옛 기둥 게이지 에셋은 없다", () => {
+  it("기어는 모든 스킨이 공통 새 기어 /gear/gear.png를 쓰고 옛 기둥 게이지 에셋은 없다", () => {
     for (const skin of SKIN_LIST) {
-      expect(skin.assets.gearImage).toBe("/gear/classic-gear.png");
+      expect(skin.assets.gearImage).toBe("/gear/gear.png");
       expect(skin.assets).not.toHaveProperty("gearGaugeLeft");
       expect(skin.assets).not.toHaveProperty("gearGaugeRight");
     }

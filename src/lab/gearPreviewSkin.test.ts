@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSharedSkin } from './classicGearPreviewSkin';
+import { createSharedSkin } from './gearPreviewSkin';
 
 const fakeSkin = () => ({ dispose: vi.fn() });
 

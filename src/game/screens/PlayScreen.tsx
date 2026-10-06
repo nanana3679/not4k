@@ -9,7 +9,7 @@ import { compileJudgmentChart, selectCompiledJudgmentChart } from '../judgment/c
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, liftPx } from '../renderer/constants';
-import { resolvePlayLogicalWidth } from '../renderer/classicGearLayout';
+import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
 import { prefersReducedMotion } from '../renderer/reducedMotion';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';

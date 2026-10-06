@@ -33,11 +33,11 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/note-assets",
   },
   {
-    id: "classic-gear",
-    title: "Classic Gear",
-    description: "실제 게임 화면에서 새 Classic 기어와 기어 움직임을 미리 보고, Pixi 움직임을 승인 SVG와 나란히 비교합니다.",
+    id: "gear",
+    title: "Gear",
+    description: "실제 게임 화면에서 새 기어와 기어 움직임을 미리 보고, Pixi 움직임을 승인 SVG와 나란히 비교합니다.",
     category: "Interface",
-    path: "/lab/classic-gear",
+    path: "/lab/gear",
   },
   {
     id: "tutorial-pattern-diagram",

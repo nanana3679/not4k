@@ -46,14 +46,14 @@ describe('SkinManager', () => {
     await manager.loadSkin('classic');
     const objectLoads = assetsLoad.mock.calls.map(([request]) => request as unknown).filter((request) => typeof request !== 'string');
     expect(objectLoads).toEqual([{
-      alias: '/gear/classic-gear.png',
-      src: '/gear/classic-gear.png',
+      alias: '/gear/gear.png',
+      src: '/gear/gear.png',
       data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     }]);
     expect(manager.hasTexture('gearImage')).toBe(true);
     expect(manager.hasTexture('gearGaugeLeft')).toBe(false);
     manager.dispose();
-    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/classic-gear.png'));
+    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear.png'));
   });
 
   it('heldEffect를 생략한 스킨에 bodySingleHeld가 없으면 빠진 에셋 이름을 담은 오류로 로딩이 실패한다', async () => {

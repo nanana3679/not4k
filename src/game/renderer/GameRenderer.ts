@@ -23,9 +23,9 @@ import {
   playfieldPx,
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
-import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear, type ClassicGearLayout } from "./classicGearLayout";
-import { acquireGearMotionAssets } from "./classicGearMotionAssets";
-import { GEAR_MOTION_TEXTURE_KEYS } from "./classicGearMotionData";
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./gearLayout";
+import { acquireGearMotionAssets } from "./gearMotionAssets";
+import { GEAR_MOTION_TEXTURE_KEYS } from "./gearMotionData";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
@@ -96,7 +96,7 @@ export interface GameRendererOptions {
   skinManager: SkinManager;
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
-  /** 새 Classic 기어(스킨 공통 `gearImage`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
+  /** 새 기어(스킨 공통 `gearImage`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
   showGear?: boolean;
   /**
    * 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
@@ -186,9 +186,9 @@ export class GameRenderer {
   private keyBeamGraphics: Graphics[] = [];
   private keyBeamGradient: FillGradient | null = null;
 
-  // Gear (새 Classic 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
+  // Gear (새 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearLayer: Container;
-  private _gearLayout: Readonly<ClassicGearLayout> | null = null;
+  private _gearLayout: Readonly<GearLayout> | null = null;
   // 기어 움직임 — 기어 레이어에서 기어 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
   private readonly gearMotionEnabled: boolean;
   private readonly gearMotionReducedMotion: "omit" | "hide";
@@ -324,7 +324,7 @@ export class GameRenderer {
    */
   private eventMessageWrapWidth(): number {
     const obstacleRight = this.showGear
-      ? layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
+      ? layoutGear(GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
       : this.laneAreaX + LANE_AREA_WIDTH;
     return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
   }
@@ -462,19 +462,19 @@ export class GameRenderer {
   }
 
   /**
-   * 새 Classic 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
+   * 새 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
    * 실루엣 아래 가장자리를 화면 아래에 붙인다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
   private buildGear(): void {
     let texture;
     try { texture = this.skinManager.getTexture("gearImage"); } catch { return; }
-    const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
+    const layout = layoutGear(GEAR_GEOMETRY, {
       laneAreaX: this.laneAreaX,
       laneAreaWidth: LANE_AREA_WIDTH,
       height: this.height,
     });
-    const sprite = new Sprite({ texture, label: "classic-gear" });
+    const sprite = new Sprite({ texture, label: "gear" });
     sprite.position.set(layout.x, layout.y);
     sprite.width = layout.width;
     sprite.height = layout.height;
@@ -492,7 +492,7 @@ export class GameRenderer {
     if (!this.gearMotionEnabled || !this._gearLayout) return;
     const reduced = prefersReducedMotion();
     if (reduced && this.gearMotionReducedMotion === "omit") return;
-    const holder = new Container({ label: "classic-gear-motion-holder" });
+    const holder = new Container({ label: "gear-motion-holder" });
     if (!this.addGearOverlay(holder)) {
       holder.destroy();
       return;
@@ -1102,7 +1102,7 @@ export class GameRenderer {
   }
 
   /** 기어 배치(논리 단위). 기어를 그리지 않으면(showGear false·텍스처 없음) null. */
-  get gearLayout(): Readonly<ClassicGearLayout> | null {
+  get gearLayout(): Readonly<GearLayout> | null {
     return this._gearLayout;
   }
 
@@ -1119,7 +1119,7 @@ export class GameRenderer {
    * 기어와 같은 변환으로 붙인다. 내장 기어 움직임과 후속 고도 게이지가 쓴다.
    * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
-  addGearOverlay(overlay: Container): Readonly<ClassicGearLayout> | null {
+  addGearOverlay(overlay: Container): Readonly<GearLayout> | null {
     const layout = this._gearLayout;
     if (!layout || this.gearLayer.destroyed) return null;
     overlay.position.set(layout.x, layout.y);

@@ -5,9 +5,9 @@ import {
   GEAR_PREVIEW_MISS_DELAY_MS,
   initialGearPreviewLoopState,
   stepGearPreviewLoop,
-} from './classicGearPreviewChart';
+} from './gearPreviewChart';
 
-describe('classicGearPreviewChart 데모 차트', () => {
+describe('gearPreviewChart 데모 차트', () => {
   it('90마디 데모 차트는 120 BPM에서 첫 노트가 2000ms에 오고 전체 길이는 184000ms', () => {
     const demo = buildGearPreviewDemo(90);
     expect(demo.hits[0].startMs).toBe(2000);
@@ -45,7 +45,7 @@ describe('classicGearPreviewChart 데모 차트', () => {
   });
 });
 
-describe('classicGearPreviewChart 데모 판정', () => {
+describe('gearPreviewChart 데모 판정', () => {
   const demo = buildGearPreviewDemo(90);
   const schedule = buildGearPreviewSchedule(demo.hits);
   const eventsOf = (index: number) => schedule.events.filter((event) => event.index === index);
@@ -92,7 +92,7 @@ describe('classicGearPreviewChart 데모 판정', () => {
   });
 });
 
-describe('classicGearPreviewChart 재생 루프', () => {
+describe('gearPreviewChart 재생 루프', () => {
   const demo = buildGearPreviewDemo(90);
   const schedule = buildGearPreviewSchedule(demo.hits);
 

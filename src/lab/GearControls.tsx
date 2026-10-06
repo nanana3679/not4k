@@ -1,6 +1,6 @@
-import { GEAR_MOTION_LAYER_LABELS, GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from '../game/renderer/classicGearMotionData';
+import { GEAR_MOTION_LAYER_LABELS, GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from '../game/renderer/gearMotionData';
 
-/** Classic Gear 조절 패널과 Pixi ↔ SVG 비교가 함께 쓰는 라디오 묶음. */
+/** Gear 조절 패널과 Pixi ↔ SVG 비교가 함께 쓰는 라디오 묶음. */
 export function RadioGroup<T extends string | number>({ legend, name, value, options, onChange }: {
   legend: string;
   name: string;

@@ -106,8 +106,8 @@ export interface SkinManifest {
     /** 봄 16프레임 */
     bomb: string[];
     /**
-     * 기어 (스킨 공통, RFD 0029의 새 Classic 기어). 레인 창과 꺾인 덱 사이 레인 바닥이 투명하다.
-     * 배치 측정값은 src/game/renderer/classicGear.json이며 밉맵·삼선형 필터로 읽는다.
+     * 기어 (스킨 공통, RFD 0029의 새 기어). 레인 창과 꺾인 덱 사이 레인 바닥이 투명하다.
+     * 배치 측정값은 src/game/renderer/gearGeometry.json이며 밉맵·삼선형 필터로 읽는다.
      */
     gearImage: string;
     /**

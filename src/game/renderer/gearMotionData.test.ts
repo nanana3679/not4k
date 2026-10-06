@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../../public/gear/classic-gear-motion/gear-motion.json?raw';
-import dataSource from './classicGearMotionData.ts?raw';
+import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
+import dataSource from './gearMotionData.ts?raw';
 import {
   GEAR_MOTION_ASSET_DIR,
   GEAR_MOTION_DATA_PATH,
   parseGearMotionData,
-} from './classicGearMotionData';
+} from './gearMotionData';
 
 const json = () => JSON.parse(motionJsonText);
 const data = parseGearMotionData(json());
 // 공개 폴더의 PNG 목록(내용은 읽지 않는다).
-const MOTION_PNGS = import.meta.glob('../../../public/gear/classic-gear-motion/*.png', { query: '?url', import: 'default' });
+const MOTION_PNGS = import.meta.glob('../../../public/gear/gear-motion/*.png', { query: '?url', import: 'default' });
 
 describe('parseGearMotionData', () => {
   it('생성된 gear-motion.json을 읽으면 1024×1536 기어 그림, 광원 −841→2377·60초, 기포 5개, 유리 윤곽 2개(왼쪽·반전)', () => {
@@ -55,12 +55,12 @@ describe('parseGearMotionData', () => {
 });
 
 describe('움직임 자료 경로', () => {
-  it('텍스처 9장과 gear-motion.json은 기어 그림 옆 /gear/classic-gear-motion/ 아래에 있다(Lab 경로가 아님)', () => {
-    expect(GEAR_MOTION_ASSET_DIR).toBe('/gear/classic-gear-motion');
-    expect(GEAR_MOTION_DATA_PATH).toBe('/gear/classic-gear-motion/gear-motion.json');
+  it('텍스처 9장과 gear-motion.json은 기어 그림 옆 /gear/gear-motion/ 아래에 있다(Lab 경로가 아님)', () => {
+    expect(GEAR_MOTION_ASSET_DIR).toBe('/gear/gear-motion');
+    expect(GEAR_MOTION_DATA_PATH).toBe('/gear/gear-motion/gear-motion.json');
   });
 
-  it('JSON의 텍스처 파일 9개가 모두 /gear/classic-gear-motion/ 폴더의 PNG로 있다(armor-shape 없음)', () => {
+  it('JSON의 텍스처 파일 9개가 모두 /gear/gear-motion/ 폴더의 PNG로 있다(armor-shape 없음)', () => {
     const files = Object.values(data.textures).map((box) => box.file).sort();
     expect(files).toHaveLength(9);
     expect(files).not.toContain('armor-shape.png');

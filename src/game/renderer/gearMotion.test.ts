@@ -1,21 +1,21 @@
 import { Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../../public/gear/classic-gear-motion/gear-motion.json?raw';
-import motionSource from './classicGearMotion.ts?raw';
-import timingSource from './classicGearMotionTiming.ts?raw';
-import dataSource from './classicGearMotionData.ts?raw';
+import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
+import motionSource from './gearMotion.ts?raw';
+import timingSource from './gearMotionTiming.ts?raw';
+import dataSource from './gearMotionData.ts?raw';
 import {
   bandHalfWidth,
   bandProfileAlpha,
   byteAlpha,
-  createClassicGearMotion,
+  createGearMotion,
   GEAR_MOTION_LAYER_LABELS,
   GEAR_MOTION_LAYERS,
   GEAR_MOTION_TEXTURE_KEYS,
   parseGearMotionData,
   type GearMotionData,
   type GearMotionTextures,
-} from './classicGearMotion';
+} from './gearMotion';
 
 const json = () => JSON.parse(motionJsonText);
 const data: GearMotionData = parseGearMotionData(json());
@@ -68,7 +68,7 @@ describe('bandProfileAlpha(부드러운 띠 가장자리용 1px 폭 세로 프�
 
 describe('부드러운 띠 가장자리(bandEdges: soft)', () => {
   it('띠 마스크 세 개가 Graphics 대신 1px 프로파일 스프라이트(알파 채널 마스크)로 바뀌고, 띠 밖 어둡게는 뒤집은 마스크다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures(), { bandEdges: 'soft' });
+    const motion = createGearMotion(data, fakeTextures(), { bandEdges: 'soft' });
     for (const label of ['gear-motion-band-outer', 'gear-motion-band-half', 'gear-motion-band-core']) {
       expect(byLabel(motion.container, label)).toBeInstanceOf(Sprite);
     }
@@ -107,9 +107,9 @@ describe('bandHalfWidth', () => {
   });
 });
 
-describe('createClassicGearMotion', () => {
+describe('createGearMotion', () => {
   it('레이어 4개(A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름)를 이 순서로 기어 그림 좌표 컨테이너에 쌓는다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     expect(GEAR_MOTION_LAYERS).toEqual(['armor', 'gauge', 'accent', 'bar']);
     expect(GEAR_MOTION_LAYERS.map((layer) => GEAR_MOTION_LAYER_LABELS[layer])).toEqual(['A 큰 광원', 'B 게이지 액체', 'C 발광선 호흡', 'D 하단 바 흐름']);
     expect(motion.container.children.map((child) => child.label)).toEqual([
@@ -125,7 +125,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('update(30000)이면 광원 마스크 세 개(바깥 띠·절반 띠·가운데 띠)의 중심이 (512, 768)에 있고 −14° 기울어 있다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     motion.update(30_000);
     for (const label of ['gear-motion-band-outer', 'gear-motion-band-half', 'gear-motion-band-core']) {
       const band = byLabel(motion.container, label);
@@ -140,7 +140,7 @@ describe('createClassicGearMotion', () => {
 
   it('빛 밖 어둡게는 armor-shape 없이 armor-lit 조각을 #04060a로 물들여 같은 알파로 쓴다', () => {
     const textures = fakeTextures();
-    const motion = createClassicGearMotion(data, textures);
+    const motion = createGearMotion(data, textures);
     const dim = byLabel(motion.container, 'gear-motion-unlit');
     expect(dim.children).toHaveLength(data.textures.armorLit.pieces.length);
     expect((dim.children as Sprite[]).every((piece) => piece.texture.source === textures.armorLit.source)).toBe(true);
@@ -149,7 +149,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('빛 밖 어둡게는 바깥 띠를 뒤집은 마스크(inverse)로, 절반·가운데 빛은 각자의 띠 마스크로 자르고 불투명도는 0.07·128/255·1(흰빛은 armor-core에 합성)', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const dim = byLabel(motion.container, 'gear-motion-unlit');
     const half = byLabel(motion.container, 'gear-motion-lit-half');
     const core = byLabel(motion.container, 'gear-motion-lit-core');
@@ -166,7 +166,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('update(5000)이면 왼쪽·오른쪽 액체 타일 3장이 320px 위(y −320, 320, 960)에 있고, 오른쪽은 x 1023 기준 좌우 반전이다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     motion.update(5_000);
     const left = byLabel(motion.container, 'gear-motion-liquid-left');
     const right = byLabel(motion.container, 'gear-motion-liquid-right');
@@ -181,7 +181,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('B 게이지의 액체 타일과 기포는 채움 컨테이너(gaugeFill) 하나에 담기고 그 위에 유리 윤곽 마스크가 걸려, 고도 게이지가 채움 높이로 자를 자리를 준다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const gauge = byLabel(motion.container, 'gear-motion-gauge');
     expect(motion.gaugeFill.label).toBe('gear-motion-gauge-fill');
     expect(motion.gaugeFill.parent).toBe(gauge);
@@ -194,7 +194,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('update(0)이면 첫 기포(x 150, 반지름 2.2)가 바닥 y 1004에서 126.4px 올라가 있고 불투명도 0.75, 화면 혼합 screen', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     motion.update(0);
     const [first] = byLabel(motion.container, 'gear-motion-bubbles-left').children as Sprite[];
     // 16px 칸 가운데가 기포 중심이다.
@@ -208,7 +208,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('update(2200)이면 번짐 위 발광선(T1)이 최대 불투명도 0.85, 겹침 보정(T2)이 0.85 × 0.15 = 0.1275이고 0초에는 둘 다 0, 둘 다 screen', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const glow = byLabel(motion.container, 'gear-motion-accent-glow');
     const overlap = byLabel(motion.container, 'gear-motion-accent-overlap');
     motion.update(2_200);
@@ -222,7 +222,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('update(880)이면 하단 바 빛 두 개가 가운데(464)에서 ±85px, 2000ms(이동 끝 뒤)에는 불투명도 0이라 하단 바 레이어를 그리지 않는다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const bar = byLabel(motion.container, 'gear-motion-bar');
     const right = byLabel(motion.container, 'gear-motion-glint-right') as Sprite;
     const left = byLabel(motion.container, 'gear-motion-glint-left') as Sprite;
@@ -239,7 +239,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('warmUp(render)은 빛이 투명해 숨겨 둔 D 하단 바(0ms)를 render 한 번 동안만 보이게 해 알파 마스크를 준비하고, 끝나면 다시 숨긴다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const bar = byLabel(motion.container, 'gear-motion-bar');
     motion.update(0);
     expect(bar.visible).toBe(false);
@@ -255,7 +255,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('setLayerVisible(armor, false)이면 A 레이어만 숨고 다시 켜면 보이며, 꺼 둔 D는 빛이 보이는 880ms에도 숨어 있다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     motion.setLayerVisible('armor', false);
     expect(byLabel(motion.container, 'gear-motion-armor').visible).toBe(false);
     expect(byLabel(motion.container, 'gear-motion-gauge').visible).toBe(true);
@@ -272,7 +272,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('setReducedMotion(true)면 움직임 전체가 숨고 update(30000)도 광원을 옮기지 않으며, false로 돌리면 다시 보이고 다음 update를 따른다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     motion.update(0);
     motion.setReducedMotion(true);
     expect(motion.reducedMotion).toBe(true);
@@ -287,7 +287,7 @@ describe('createClassicGearMotion', () => {
   });
 
   it('30초 → 5초 → 30초로 갱신해도(재사용 객체에 값이 남지 않아) 마지막 30초 상태가 처음 30초 상태와 같다', () => {
-    const motion = createClassicGearMotion(data, fakeTextures());
+    const motion = createGearMotion(data, fakeTextures());
     const snapshot = () => [
       'gear-motion-band-core', 'gear-motion-liquid-left', 'gear-motion-liquid-right', 'gear-motion-bubbles-left', 'gear-motion-bubbles-right',
       'gear-motion-accent-glow', 'gear-motion-accent-overlap', 'gear-motion-glint-right', 'gear-motion-glint-left', 'gear-motion-bar',
@@ -307,13 +307,13 @@ describe('createClassicGearMotion', () => {
   it('구성 도중 실패하면(하단 바 빛 조각이 비어 있음) 그때까지 만든 조각 서브 텍스처를 모두 정리해 원본 소스의 resize 구독이 처음(1개)으로 돌아온다', () => {
     const textures = fakeTextures();
     const broken: GearMotionData = { ...data, textures: { ...data.textures, glint: { ...data.textures.glint, pieces: [] } } };
-    expect(() => createClassicGearMotion(broken, textures)).toThrow();
+    expect(() => createGearMotion(broken, textures)).toThrow();
     for (const key of GEAR_MOTION_TEXTURE_KEYS) expect(textures[key].source.listenerCount('resize')).toBe(1);
   });
 
   it('destroy하면 컨테이너가 부모에서 빠져 파괴되고 조각 서브 텍스처도 정리하지만, 받은 텍스처는 호출자가 쓰도록 파괴하지 않는다', () => {
     const textures = fakeTextures();
-    const motion = createClassicGearMotion(data, textures);
+    const motion = createGearMotion(data, textures);
     const parent = new Container();
     parent.addChild(motion.container);
     const pieceTexture = (byLabel(motion.container, 'gear-motion-lit-half').children[0] as Sprite).texture;

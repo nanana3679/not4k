@@ -1,8 +1,8 @@
 import { Children, createElement, isValidElement, type ReactElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
-import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import LabRoutes from './LabRoutes';
+import LabRoutes, { LegacyLabRedirect } from './LabRoutes';
 import { labPreviewCatalog } from './labPreviewCatalog';
 
 async function renderLabPath(path: string) {
@@ -35,10 +35,10 @@ describe('LabRoutes', () => {
     expect(markup).toContain('data-tutorial-skin-id="classic"');
   });
 
-  it('/lab/classic-gear를 직접 열면 새 기어가 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
-    const markup = await renderLabPath('/lab/classic-gear');
+  it('/lab/gear를 직접 열면 새 기어가 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/gear');
 
-    expect(markup).toContain('data-lab-page="classic-gear"');
+    expect(markup).toContain('data-lab-page="gear"');
     expect(markup).toContain('data-stage-width="1067"');
     expect(markup).toContain('href="/lab"');
   });
@@ -51,13 +51,14 @@ describe('LabRoutes', () => {
     expect(markup).toContain('href="/lab"');
   });
 
-  it('#231 전 주소 /lab/classic-frame-fit은 /lab/classic-gear로 기록을 바꿔(replace) 넘기는 Navigate 라우트이고 카탈로그 항목이 아니라 정적 폴더를 만들지 않는다', () => {
-    type RouteProps = { path?: string; element?: ReactElement<{ to?: string; replace?: boolean }> };
+  // 구조만 본다: 서버 렌더링은 Navigate의 이동(effect)을 실행하지 않는다. 실제 이동·쿼리·해시 유지·기록 교체는 e2e/lab/gear.spec.ts가 본다.
+  it.each(['classic-frame-fit', 'classic-gear'])('옛 주소 /lab/%s는 /lab/gear로 넘기는 LegacyLabRedirect 라우트이고 카탈로그 항목이 아니라 정적 폴더를 만들지 않는다', (oldPath) => {
+    type RouteProps = { path?: string; element?: ReactElement<{ to?: string }> };
     const routes = Children.toArray((LabRoutes() as ReactElement<{ children: unknown }>).props.children as never)
       .filter((child): child is ReactElement<RouteProps> => isValidElement(child));
-    const legacy = routes.find((route) => route.props.path === 'classic-frame-fit');
-    expect(legacy?.props.element?.type).toBe(Navigate);
-    expect(legacy?.props.element?.props).toMatchObject({ to: '/lab/classic-gear', replace: true });
-    expect(labPreviewCatalog.map((preview) => preview.path)).not.toContain('/lab/classic-frame-fit');
+    const legacy = routes.find((route) => route.props.path === oldPath);
+    expect(legacy?.props.element?.type).toBe(LegacyLabRedirect);
+    expect(legacy?.props.element?.props).toMatchObject({ to: '/lab/gear' });
+    expect(labPreviewCatalog.map((preview) => preview.path)).not.toContain(`/lab/${oldPath}`);
   });
 });

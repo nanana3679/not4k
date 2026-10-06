@@ -4,12 +4,12 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Prepares the approved Classic frame painting (press-idle-deck v17) for the game (RFD 0029). Writes the
-// only copies of the gear the repository uses; the game renderer, /lab/classic-gear and
+// only copies of the gear the repository uses; the game renderer, /lab/gear and
 // prepare-frame-motion-v21.mjs all read these two files:
-//   public/gear/classic-gear.png        1024x1536 RGBA, the skin-shared game gear (manifest `gearImage`).
+//   public/gear/gear.png        1024x1536 RGBA, the skin-shared game gear (manifest `gearImage`).
 //                                        The lane field between the pillars and the flat backdrop around
 //                                        the frame are transparent; pillars, key deck and bottom bar stay opaque.
-//   src/game/renderer/classicGear.json  The geometry the renderer lays the gear out with, measured from pixels here.
+//   src/game/renderer/gearGeometry.json  The geometry the renderer lays the gear out with, measured from pixels here.
 // Measurements (all inclusive source pixel rows/columns):
 //   laneLeft/laneRight  first/last column strictly inside the pillars' dark inner outlines. The game fits
 //                       this lane window exactly over its lane area.
@@ -30,8 +30,8 @@ import { fileURLToPath } from 'node:url';
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
 const sourcePath = resolve(revisionDir, 'press-idle-deck-v17-input.png');
-const imagePath = resolve(workspaceRoot, 'public/gear/classic-gear.png');
-const geometryPath = resolve(workspaceRoot, 'src/game/renderer/classicGear.json');
+const imagePath = resolve(workspaceRoot, 'public/gear/gear.png');
+const geometryPath = resolve(workspaceRoot, 'src/game/renderer/gearGeometry.json');
 const debugIndex = process.argv.indexOf('--debug');
 const debugTarget = debugIndex === -1 ? null : process.argv[debugIndex + 1];
 if (debugIndex !== -1 && !debugTarget) throw new Error('--debug needs a folder path.');

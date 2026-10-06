@@ -75,7 +75,8 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
  */
 const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearImage', 'gearGaugeLeft', 'gearGaugeRight']);
 
-export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {
+/** 보관한 Classic 버전 하나를 재생용 시안으로 바꾼다. 보관본의 기어 키(옛 `gearFrame`이든 지금 `gearImage`든)는 버리고 지금 공통 기어를 쓴다. */
+export function createArchivedClassicDesign(version: (typeof CLASSIC_SKIN_VERSIONS)[number]) {
   const base = `/lab/skin-versions/classic/${version.id}`;
   const assetPath = (path: string) => {
     if (path.startsWith('/skins/classic/')) return withLabPublicBase(`${base}/skin/${path.slice('/skins/classic/'.length)}`);
@@ -96,7 +97,9 @@ export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => 
     id: 'classic', name: 'Classic', versionId: version.id, skinManifest: skin,
   };
   return { id: version.id, label: version.label, design };
-});
+}
+
+export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(createArchivedClassicDesign);
 
 export function getNoteAssetDesign(id: string | null, versionId: string | null = null): NoteAssetDesign {
   const design = NOTE_ASSET_DESIGNS.find(design => design.id === id) ?? NOTE_ASSET_DESIGNS[0];

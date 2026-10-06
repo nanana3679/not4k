@@ -24,7 +24,7 @@ describe('Classic 버전 Lab 공개', () => {
     for (const { design } of CLASSIC_NOTE_ASSET_VERSIONS) {
       const { gearImage, ...skinAssets } = design.skinManifest!.assets;
       // 보관본도 지금 공통 기어로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
-      expect(gearImage).toBe('/gear/classic-gear.png');
+      expect(gearImage).toBe('/gear/gear.png');
       expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
       for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
         expect(paths.has(path), path).toBe(true);
@@ -87,7 +87,7 @@ describe('Classic 버전 Lab 공개', () => {
     const { gearFrame: archivedGear, gearGaugeLeft, gearGaugeRight, ...registeredSkinAssets } = registered.assets;
     const { gearImage: currentGear, ...currentSkinAssets } = current.assets;
     expect([archivedGear, gearGaugeLeft, gearGaugeRight]).toEqual(['/gear/gear-frame.png', '/gear/gear-gauge-left.png', '/gear/gear-gauge-right.png']);
-    expect(currentGear).toBe('/gear/classic-gear.png');
+    expect(currentGear).toBe('/gear/gear.png');
     expect(registeredSkinAssets).toEqual(currentSkinAssets);
     expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });
     expect(current.assets.pointContactShadowTrill).toBe('/skins/classic/point-contact-shadow-trill.png');

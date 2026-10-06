@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
-const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/classicGear.json', import.meta.url)), 'utf8')) as {
+const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/gearGeometry.json', import.meta.url)), 'utf8')) as {
   laneLeft: number; laneRight: number; laneBottom: number;
 };
 
@@ -41,15 +41,15 @@ interface Difference extends MeasureCase {
 
 /**
  * 기어만 그리는 Pixi 비교 화면(createGearMotionPreview, 1024×1536, 해상도 1)과 같은 시각으로 멈춘 승인 SVG를
- * 같은 크기 캔버스에 그려 픽셀을 비교한다. 비교 영역은 기어 그림(classic-gear.png) 알파 > 0(기어 실루엣)이고 레인 창은 뺀다.
+ * 같은 크기 캔버스에 그려 픽셀을 비교한다. 비교 영역은 기어 그림(gear.png) 알파 > 0(기어 실루엣)이고 레인 창은 뺀다.
  * SVG는 각 애니메이션의 delay를 (원래 delay − t)로 바꾸고 일시정지해 정확히 t의 모습을 그린다. 두 화면 모두 SVG에
  * 들어 있는 같은 바탕 그림을 쓴다. 꺼 둔 레이어는 양쪽에서 함께 숨긴다.
  */
 async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> {
   return page.evaluate(async ({ cases, lane, allLayers }) => {
-    const compareModule = '/src/lab/classicGearMotionCompare.ts';
-    const viewModule = '/src/lab/classicGearMotionView.ts';
-    const assetsModule = '/src/game/renderer/classicGearMotionAssets.ts';
+    const compareModule = '/src/lab/gearMotionCompare.ts';
+    const viewModule = '/src/lab/gearMotionView.ts';
+    const assetsModule = '/src/game/renderer/gearMotionAssets.ts';
     const { createGearMotionPreview } = await import(/* @vite-ignore */ compareModule);
     const { GEAR_MOTION_SVG_PATH, readSvgBaseHref } = await import(/* @vite-ignore */ viewModule);
     const { acquireGearMotionAssets } = await import(/* @vite-ignore */ assetsModule);
@@ -75,7 +75,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
       context.drawImage(source, 0, 0, width, height);
       return context.getImageData(0, 0, width, height).data;
     };
-    const cutout = readPixels(await loadImage('/gear/classic-gear.png'));
+    const cutout = readPixels(await loadImage('/gear/gear.png'));
     const { light } = motion.data;
     const tilt = (light.tiltDeg * Math.PI) / 180;
     const regionFor = (item: { timeMs: number; boxes?: { x0: number; x1: number; y0: number; y1: number }[]; bandEdgesOnly?: boolean }) => {
@@ -182,7 +182,7 @@ function report(label: string, results: Difference[]) {
   }
 }
 
-test.describe('Classic 기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () => {
+test.describe('기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () => {
   // 원본 크기 Pixi 앱과 SVG를 swiftshader로 여러 번 그리므로 다른 무거운 파일과 겹쳐도 시간 안에 끝나게 한 워커에서 차례로 돌린다.
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
@@ -258,8 +258,8 @@ test.describe('Classic 기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () =
   test('구성 도중 실패하면(하단 바 빛 조각이 빔) createGearMotionPreview가 오류를 올리고 만든 앱을 정리해 캔버스의 WebGL 컨텍스트를 놓는다', async ({ page }) => {
     await page.goto('/lab');
     const result = await page.evaluate(async () => {
-      const compareModule = '/src/lab/classicGearMotionCompare.ts';
-      const assetsModule = '/src/game/renderer/classicGearMotionAssets.ts';
+      const compareModule = '/src/lab/gearMotionCompare.ts';
+      const assetsModule = '/src/game/renderer/gearMotionAssets.ts';
       const { createGearMotionPreview } = await import(/* @vite-ignore */ compareModule);
       const { acquireGearMotionAssets } = await import(/* @vite-ignore */ assetsModule);
       const lease = acquireGearMotionAssets((path: string) => path);
@@ -267,7 +267,7 @@ test.describe('Classic 기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () =
       const broken = { ...motion, data: { ...motion.data, textures: { ...motion.data.textures, glint: { ...motion.data.textures.glint, pieces: [] } } } };
       const canvas = document.createElement('canvas');
       const base = new Image();
-      base.src = '/gear/classic-gear.png';
+      base.src = '/gear/gear.png';
       await base.decode();
       try {
         await createGearMotionPreview({ canvas, width: 64, height: 96, resolution: 1, base, motion: broken });
@@ -294,11 +294,11 @@ async function waitForCompare(page: Page) {
   await expect(section).toHaveAttribute('data-compare-ready', 'true', { timeout: 60_000 });
 }
 
-test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
+test.describe('Gear의 Pixi ↔ SVG 비교 화면', () => {
   test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
   test('가장자리 부드럽게(안티앨리어싱)를 켜면 비교 Pixi 앱을 새 캔버스로 다시 만들어 MSAA를 얻고(generation 증가), 알파 마스크도 같은 방식으로 다시 만들며 끄면 게임과 같은 설정으로 돌아온다', async ({ page }) => {
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForCompare(page);
     const section = page.locator(compareSelector);
     await expect(section).toHaveAttribute('data-compare-antialias', 'off');
@@ -330,7 +330,7 @@ test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
 
   test('비교 시각을 30초로 옮기면 Pixi와 SVG가 같은 시각(30000ms)을 그리고, SVG 애니메이션은 모두 멈춘 채 광원 표시점이 y 768에 있으며 왼쪽 장갑 보기의 같은 크기 두 화면 평균 차이가 움직임을 끈 Pixi의 절반 아래다', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForCompare(page);
     const section = page.locator(compareSelector);
     await page.getByLabel('비교 시각').fill('30');
@@ -380,7 +380,7 @@ test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
   });
 
   test('보기를 왼쪽 장갑·하단으로 바꾸면 SVG viewBox가 0 420 320 480·300 1240 424 212가 되고 두 패널이 같은 크기(2:3·2:1)로 바뀐다', async ({ page }) => {
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForCompare(page);
     const section = page.locator(compareSelector);
     const svg = page.locator('[data-gear-motion-svg-host] svg');
@@ -396,7 +396,7 @@ test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
   });
 
   test('재생을 누르면 비교 시각이 흐르고 일시정지하면 멈추며, A 큰 광원 체크를 끄면 비교 SVG의 #fm-armor도 숨는다', async ({ page }) => {
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForCompare(page);
     const section = page.locator(compareSelector);
     const time = async () => Number(await section.getAttribute('data-compare-time-ms'));
@@ -419,7 +419,7 @@ test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     const svgRequests: string[] = [];
     page.on('request', (request) => { if (request.url().includes('54-ambient-motion-v19.svg')) svgRequests.push(request.url()); });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await expect(page.locator('[data-gear-preview-stage="true"]')).toHaveAttribute('data-motion-ready', 'true', { timeout: 60_000 });
     await expect(page.locator(compareSelector)).toHaveAttribute('data-compare-ready', 'false');
     expect(svgRequests).toEqual([]);
@@ -429,12 +429,12 @@ test.describe('Classic Gear의 Pixi ↔ SVG 비교 화면', () => {
 
   test('390px 화면에서는 비교 조절과 두 패널이 세로로 쌓이고 페이지에 가로 넘침이 없다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForCompare(page);
     const [pixiBox, svgBox] = await Promise.all((await page.locator('.gear-motion-viewport').all()).map((panel) => panel.boundingBox()));
     expect(svgBox!.y).toBeGreaterThan(pixiBox!.y + pixiBox!.height);
     expect(Math.abs(pixiBox!.width - svgBox!.width)).toBeLessThan(0.5);
-    const main = page.locator('[data-lab-page="classic-gear"]');
+    const main = page.locator('[data-lab-page="gear"]');
     expect(await main.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     for (const control of await page.locator('.gear-motion-compare .gear-preview-button, .gear-motion-compare .gear-preview-option').all()) {
       expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);

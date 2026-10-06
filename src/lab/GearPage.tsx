@@ -1,5 +1,5 @@
 /*
-THESIS: 새 Classic 기어와 그 움직임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 기어 움직임이 게임에서 그대로인지 보고, 같은 움직임 모듈을 승인 SVG와 나란히 비교한다.
+THESIS: 새 기어와 그 움직임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 기어 움직임이 게임에서 그대로인지 보고, 같은 움직임 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·가림막은 그대로인지 보고, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
 FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·키보드·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Link } from 'react-router-dom';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
-import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear } from '../game/renderer/classicGearLayout';
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from '../game/renderer/gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from '../game/renderer/constants';
 import { KEYBOARD_DISPLAY_MIN_SCALE, keyboardDisplaySize, placeKeyboardDisplay } from '../game/renderer/KeyboardDisplay';
 import { createChartTiming, JudgmentGrade } from '../shared';
@@ -25,19 +25,19 @@ import {
   LIFT_PERCENT_MAX,
   oneToOneCssSize,
   type GearPreviewKeyboard,
-} from './classicGearPreview';
-import { buildGearPreviewDemo, buildGearPreviewSchedule, initialGearPreviewLoopState, stepGearPreviewLoop } from './classicGearPreviewChart';
-import { createSharedSkin, type SharedSkin } from './classicGearPreviewSkin';
-import type { GearMotionResources } from '../game/renderer/classicGearMotionAssets';
+} from './gearPreview';
+import { buildGearPreviewDemo, buildGearPreviewSchedule, initialGearPreviewLoopState, stepGearPreviewLoop } from './gearPreviewChart';
+import { createSharedSkin, type SharedSkin } from './gearPreviewSkin';
+import type { GearMotionResources } from '../game/renderer/gearMotionAssets';
 import {
   ALL_GEAR_MOTION_LAYERS_ON,
   GEAR_MOTION_LAYERS,
   type GearMotionLayerVisibility,
-} from '../game/renderer/classicGearMotionData';
-import { GearMotionLayerChecks, RadioGroup } from './ClassicGearControls';
-import { ClassicGearMotionCompare } from './ClassicGearMotionCompare';
+} from '../game/renderer/gearMotionData';
+import { GearMotionLayerChecks, RadioGroup } from './GearControls';
+import { GearMotionCompare } from './GearMotionCompare';
 import { createFrameTimeWindow, type FrameTimeSummary } from './frameTimeStats';
-import './ClassicGearPage.css';
+import './GearPage.css';
 
 const RENDER_HEIGHTS = [720, 1080, 1440] as const;
 type RenderHeight = (typeof RENDER_HEIGHTS)[number];
@@ -92,7 +92,7 @@ const FULLSCREEN_RESIZE_DELAY_MS = 200;
 /** off: 일반 페이지. api: Fullscreen API. css: API가 없거나 거절될 때(iPhone Safari 등) 화면을 덮는 CSS 전체화면. */
 type FullscreenMode = 'off' | 'api' | 'css';
 
-export default function ClassicGearPage() {
+export default function GearPage() {
   const [renderHeight, setRenderHeight] = useState<RenderHeight>(1080);
   const [scenario, setScenario] = useState<Scenario>('INFILTRATION');
   const [view, setView] = useState<View>('fit');
@@ -129,7 +129,7 @@ export default function ClassicGearPage() {
     const fail = (error: unknown) => {
       if (!cancelled) setMotionAssets({ status: 'error', message: error instanceof Error ? error.message : '움직임 자료를 불러오지 못했습니다.' });
     };
-    import('../game/renderer/classicGearMotionAssets').then(({ acquireGearMotionAssets }) => {
+    import('../game/renderer/gearMotionAssets').then(({ acquireGearMotionAssets }) => {
       if (cancelled) return;
       const lease = acquireGearMotionAssets();
       release = () => lease.release();
@@ -161,7 +161,7 @@ export default function ClassicGearPage() {
   const fullscreenNarrow = fullscreenActive && Math.round(GAME_HEIGHT * (fullscreenSize.width / fullscreenSize.height)) < stageWidth;
 
   // 게임 렌더러와 같은 함수로 계산한 배치. 설명 숫자에 쓰고, 무대 data 속성은 살아 있는 렌더러가 알린 값을 쓴다.
-  const layout = useMemo(() => layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
+  const layout = useMemo(() => layoutGear(GEAR_GEOMETRY, {
     laneAreaX: (stageWidth - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
   }), [stageWidth]);
   const judgment = describeGearJudgment(layout, liftPercent);
@@ -274,15 +274,15 @@ export default function ClassicGearPage() {
   }, [view, pixelSize.width, pixelSize.height]);
 
   return (
-    <main className="gear-preview-lab" data-lab-page="classic-gear">
+    <main className="gear-preview-lab" data-lab-page="gear">
       <header className="gear-preview-header">
         <p className="gear-preview-kicker">
           <Link className="gear-preview-back" to="/lab">← Lab 목록</Link>
-          <span aria-hidden="true">Interface / Classic gear</span>
+          <span aria-hidden="true">Interface / Gear</span>
         </p>
-        <h1>Classic Gear</h1>
+        <h1>Gear</h1>
         <p className="gear-preview-lede">
-          새 Classic 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면부터 덮는 레인 가림막,
+          새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면부터 덮는 레인 가림막,
           오른쪽 아래 키보드 표시, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
           조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
         </p>
@@ -456,7 +456,7 @@ export default function ClassicGearPage() {
         </aside>
       </div>
 
-      <ClassicGearMotionCompare resources={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
+      <GearMotionCompare resources={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
     </main>
   );
 }
@@ -637,7 +637,7 @@ function GearPreviewRenderer({
       reportedMotion = false;
       if (restart.current === restartMotion) restart.current = null;
       liveRef.current = null;
-      try { renderer?.dispose(removeView); } catch (error) { console.warn('ClassicGear: renderer dispose failed', error); }
+      try { renderer?.dispose(removeView); } catch (error) { console.warn('GearPage: renderer dispose failed', error); }
       renderer = null;
       if (skinAcquired) skins.release();
       skinAcquired = false;
@@ -691,8 +691,8 @@ function GearPreviewRenderer({
             scale: gearLayout.scale,
             deckTopY: gearLayout.deckTopY,
             keyRimY: gearLayout.keyRimY,
-            laneLeft: gearLayout.x + CLASSIC_GEAR_GEOMETRY.laneLeft * gearLayout.scale,
-            laneRight: gearLayout.x + (CLASSIC_GEAR_GEOMETRY.laneRight + 1) * gearLayout.scale,
+            laneLeft: gearLayout.x + GEAR_GEOMETRY.laneLeft * gearLayout.scale,
+            laneRight: gearLayout.x + (GEAR_GEOMETRY.laneRight + 1) * gearLayout.scale,
           },
           missed: loopState.missed,
           songMs: Math.max(0, loopState.previousMs),
@@ -782,7 +782,7 @@ function GearPreviewRenderer({
             tick(now);
           } catch (error) {
             // 무대가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
-            console.error('ClassicGear: render loop failed', error);
+            console.error('GearPage: render loop failed', error);
             release(false);
             report({ status: 'error', message: error instanceof Error ? error.message : '재생 중 오류가 났습니다.' });
             return;

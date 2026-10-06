@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
-import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear } from './classicGearLayout';
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
 import { beat, createChartTiming, type ChartEvent, type NoteEntity, type RestZone, type TrillZone } from '../../shared';
 import type { SkinManager } from '../skin';
@@ -74,7 +74,7 @@ describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까�
   };
   const noteSprites = (scene: Scene) => scene.noteLayer.children.filter((child): child is Sprite => child instanceof Sprite);
   // 스크롤 200px/s·리프트 20%(판정선 y 296)에서 놓친 노트 박스 윗변 = 296 + 0.2 × 늦은 ms − 6.25
-  const keyRimY = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT }).keyRimY;
+  const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT }).keyRimY;
 
   it('스크롤 200px/s·리프트 20%(판정선 y 296)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 416, 박스 윗변 409.75(키 윗면 446.5 위)에 그린다', async () => {
     const { renderer, scene } = await missedSingle();
@@ -169,7 +169,7 @@ describe('마디선 두께', () => {
 describe('오른쪽 위 이벤트 문구', () => {
   it('16:9(1067)에서 줄바꿈 폭은 기어 실루엣 오른쪽 끝 + 8부터 화면 오른쪽 여백 20까지(약 280.9)라 오른쪽 기둥과 겹치지 않는다', async () => {
     const { scene } = await createRenderer();
-    const gear = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
+    const gear = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
     const text = scene.eventMessageText;
     expect(text.style.wordWrapWidth).toBeCloseTo(1067 - 20 - (gear.silhouetteRightX + GEAR_CLEARANCE), 9);
     expect(text.x - text.style.wordWrapWidth).toBeGreaterThanOrEqual(gear.silhouetteRightX + GEAR_CLEARANCE - 1e-9);

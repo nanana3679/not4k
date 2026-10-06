@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Sprite, Texture, TextureSource } from 'pixi.js';
-import motionJsonText from '../../../public/gear/classic-gear-motion/gear-motion.json?raw';
-import type { GearMotionTextures } from './classicGearMotion';
-import type { GearMotionAssetLease, GearMotionResources } from './classicGearMotionAssets';
-import { GEAR_MOTION_TEXTURE_KEYS, parseGearMotionData } from './classicGearMotionData';
+import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
+import type { GearMotionTextures } from './gearMotion';
+import type { GearMotionAssetLease, GearMotionResources } from './gearMotionAssets';
+import { GEAR_MOTION_TEXTURE_KEYS, parseGearMotionData } from './gearMotionData';
 import { createChartTiming } from '../../shared';
 import type { Chart } from '../../shared';
 import type { SkinManager } from '../skin';
 
 // 공유 로더 대신 준비 시점을 테스트가 정하는 임대를 준다(네트워크·Pixi Assets 없이).
 const loader = vi.hoisted(() => ({ acquire: vi.fn() }));
-vi.mock('./classicGearMotionAssets', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./classicGearMotionAssets')>()),
+vi.mock('./gearMotionAssets', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./gearMotionAssets')>()),
   acquireGearMotionAssets: loader.acquire,
 }));
 // 비행 배경 초기화 실패(init 도중 실패) 경로를 흉내 낸다.
@@ -26,7 +26,7 @@ vi.mock('./flight/FlightBackground', () => ({
 }));
 
 const { GameRenderer } = await import('./GameRenderer');
-const { CLASSIC_GEAR_GEOMETRY, layoutClassicGear } = await import('./classicGearLayout');
+const { GEAR_GEOMETRY, layoutGear } = await import('./gearLayout');
 const { GAME_HEIGHT, LANE_AREA_WIDTH } = await import('./constants');
 
 interface Scene {
@@ -126,8 +126,8 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(loader.acquire).toHaveBeenCalledTimes(1);
     const [gear, holder] = scene.gearLayer.children;
     expect(gear).toBeInstanceOf(Sprite);
-    expect(holder.label).toBe('classic-gear-motion-holder');
-    const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
+    expect(holder.label).toBe('gear-motion-holder');
+    const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
     expect([holder.x, holder.y]).toEqual([layout.x, layout.y]);
     expect(holder.scale.x).toBeCloseTo(250 / 552, 12);
     expect(renderer.gearMotion).not.toBeNull();
@@ -144,7 +144,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     await init;
     const holder = scene.gearLayer.children[1] as Container;
     expect(renderer.gearMotion!.status).toBe('ready');
-    expect(holder.children.map((child) => child.label)).toEqual(['classic-gear-motion']);
+    expect(holder.children.map((child) => child.label)).toEqual(['gear-motion']);
   });
 
   it('init 안에서 움직임을 얹기 전에 렌더러 GPU에 움직임 텍스처 9장을 올린다(init이 끝났을 때 initSource 9번)', async () => {
@@ -154,7 +154,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
 
   it('움직임 자료 읽기가 거절되면 init이 그 오류로 거절되고 렌더러가 비행 배경 실패와 같이 스스로 정리하며(app.destroy, 캔버스는 남김) 임대를 한 번 놓는다', async () => {
     const { renderer, init, destroy } = startRenderer();
-    const failure = new Error('[Loader.load] Failed to load /gear/classic-gear-motion/gear-motion.json');
+    const failure = new Error('[Loader.load] Failed to load /gear/gear-motion/gear-motion.json');
     current.reject(failure);
     await expect(init).rejects.toBe(failure);
     expect(destroy).toHaveBeenCalledWith(expect.objectContaining({ removeView: false }), expect.anything());
@@ -167,7 +167,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
     expect(scene.gearLayer.children).toHaveLength(1);
-    expect(scene.app.stage.getChildByLabel('classic-gear-motion', true)).toBeNull();
+    expect(scene.app.stage.getChildByLabel('gear-motion', true)).toBeNull();
     renderer.renderFrame(0, 16);
   });
 
@@ -193,7 +193,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.status).toBe('ready');
     expect(renderer.gearMotion!.running).toBe(false);
     expect(renderer.gearMotion!.timeMs).toBe(0);
-    expect(scene.app.stage.getChildByLabel('classic-gear-motion', true)!.visible).toBe(false);
+    expect(scene.app.stage.getChildByLabel('gear-motion', true)!.visible).toBe(false);
     // 그리지 않는 텍스처는 GPU에 미리 올리지 않는다.
     expect(initSource).not.toHaveBeenCalled();
   });
@@ -233,7 +233,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
 
   it('dispose하면 움직임을 정리하고 빌린 자료를 한 번 놓으며 gearMotion은 null이 된다', async () => {
     const { renderer, scene } = await createRenderer();
-    const motionRoot = scene.app.stage.getChildByLabel('classic-gear-motion', true)!;
+    const motionRoot = scene.app.stage.getChildByLabel('gear-motion', true)!;
     renderer.dispose();
     expect(motionRoot.destroyed).toBe(true);
     expect(current.lease.release).toHaveBeenCalledTimes(1);

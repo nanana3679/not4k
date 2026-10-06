@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
 import gameRendererSource from './GameRenderer.ts?raw';
-import { CLASSIC_GEAR_GEOMETRY, layoutClassicGear } from './classicGearLayout';
+import { GEAR_GEOMETRY, layoutGear } from './gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from './constants';
 import type { SkinManager } from '../skin';
 
@@ -58,10 +58,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('GameRenderer 새 Classic 기어 (RFD 0029)', () => {
+describe('GameRenderer 새 기어 (RFD 0029)', () => {
   it('16:9(1067)에서 기어 그림을 250/552배로 줄여 레인 창을 레인 영역 x 408.5~658.5에 겹치고 아래끝을 y 600에 붙인다', async () => {
     const { renderer, scene, texture } = await createRenderer();
-    const expected = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, stageFor(1067));
+    const expected = layoutGear(GEAR_GEOMETRY, stageFor(1067));
     expect(renderer.gearLayout).toEqual(expected);
     const [sprite] = scene.gearLayer.children as Sprite[];
     expect(sprite.texture).toBe(texture);

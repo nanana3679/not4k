@@ -8,10 +8,10 @@ import {
 } from './frame-motion-shared.mjs';
 
 // Bakes the approved Classic frame ambient motion (54-ambient-motion-v19.svg) into textures and
-// JSON for the game's Pixi gear motion (src/game/renderer/classicGearMotion.ts, also used by the
-// /lab/classic-gear comparison), so Pixi needs no runtime filters. Every mask and value comes
+// JSON for the game's Pixi gear motion (src/game/renderer/gearMotion.ts, also used by the
+// /lab/gear comparison), so Pixi needs no runtime filters. Every mask and value comes
 // from frame-motion-shared.mjs, the module assemble-ambient-v19.mjs builds the SVG from. Writes into
-// public/gear/classic-gear-motion/, next to the game gear (gear-image-space boxes in JSON):
+// public/gear/gear-motion/, next to the game gear (gear-image-space boxes in JSON):
 //   armor-lit.png      A  contrast copy of the base (the SVG's saturate 0.9 + linear 1.1/-0.032 filter,
 //                         rendered by Chromium), alpha = armor mask x frame-cutout alpha. Drawn at 128/255
 //                         (#808080 half band), and tinted #04060a at 7% for the unlit dim (same alpha; the tinted
@@ -35,13 +35,13 @@ import {
 // Every piece keeps a 16px border of its real neighbouring pixels in the atlas, so bilinear and mipmap
 // sampling at a piece edge matches one whole texture, and atlas positions stay 16px-aligned with the
 // frame so the mip levels line up with the frame texture. Re-running gives byte-identical files.
-// Input: press-idle-deck-v17-input.png and the game gear public/gear/classic-gear.png (prepare-frame-fit-v20.mjs).
+// Input: press-idle-deck-v17-input.png and the game gear public/gear/gear.png (prepare-frame-fit-v20.mjs).
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
-const outputDir = resolve(workspaceRoot, 'public/gear/classic-gear-motion');
-const cutoutPath = resolve(workspaceRoot, 'public/gear/classic-gear.png');
+const outputDir = resolve(workspaceRoot, 'public/gear/gear-motion');
+const cutoutPath = resolve(workspaceRoot, 'public/gear/gear.png');
 const ALIGN = 16;
 const PIECE_BORDER = 16;
 // Piece regions (exclusive ends) and atlas rows: the pillars above the key deck's bottom share the first

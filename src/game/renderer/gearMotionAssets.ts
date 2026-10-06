@@ -1,18 +1,18 @@
 import type { Texture } from 'pixi.js';
 import { withPublicBase } from '../../shared/publicPath';
 import { loadSharedAsset, releaseSharedAsset, retainSharedAsset } from '../skin/sharedAssets';
-import { CLASSIC_GEAR_TEXTURE_OPTIONS } from './classicGearLayout';
-import type { GearMotionTextures } from './classicGearMotion';
+import { GEAR_TEXTURE_OPTIONS } from './gearLayout';
+import type { GearMotionTextures } from './gearMotion';
 import {
   GEAR_MOTION_ASSET_DIR,
   GEAR_MOTION_DATA_PATH,
   GEAR_MOTION_TEXTURE_KEYS,
   parseGearMotionData,
   type GearMotionData,
-} from './classicGearMotionData';
+} from './gearMotionData';
 
 /**
- * 기어 움직임 자료(gear-motion.json과 텍스처 9장, public/gear/classic-gear-motion/)의 공유 로더.
+ * 기어 움직임 자료(gear-motion.json과 텍스처 9장, public/gear/gear-motion/)의 공유 로더.
  *
  * 스킨 매니페스트에 넣지 않고 따로 읽는다. SkinManager.loadSkin은 렌더러를 만들고 곡을 시작하기 전에 기다리는데, 약 2MB의 움직임 텍스처를
  * 거기에 더하면 첫 화면과 곡 시작이 늦어진다. 또 기어를 그리지 않는 튜토리얼·노트 에셋 재생기도 스킨을 읽고, 설정에서 움직임을 끄면
@@ -62,7 +62,7 @@ export function acquireGearMotionAssets(resolveUrl: (path: string) => string = w
     ensureHeld();
     const paths = GEAR_MOTION_TEXTURE_KEYS.map((key) => resolveUrl(`${GEAR_MOTION_ASSET_DIR}/${data.textures[key].file}`));
     for (const path of paths) hold(path);
-    const loaded = await Promise.all(paths.map((path) => loadSharedAsset<Texture>(path, CLASSIC_GEAR_TEXTURE_OPTIONS)));
+    const loaded = await Promise.all(paths.map((path) => loadSharedAsset<Texture>(path, GEAR_TEXTURE_OPTIONS)));
     ensureHeld();
     const textures = Object.fromEntries(GEAR_MOTION_TEXTURE_KEYS.map((key, index) => [key, loaded[index]])) as GearMotionTextures;
     return { data, textures };

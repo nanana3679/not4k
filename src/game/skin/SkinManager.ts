@@ -1,6 +1,6 @@
 import { Texture, Rectangle, type TextureSourceOptions } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
-import { CLASSIC_GEAR_TEXTURE_OPTIONS } from "../renderer/classicGearLayout";
+import { GEAR_TEXTURE_OPTIONS } from "../renderer/gearLayout";
 import { getSkinManifest } from "./skins";
 import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
 import { loadSharedAsset, releaseSharedAsset, retainSharedAsset } from "./sharedAssets";
@@ -21,7 +21,7 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
  * 밉맵·삼선형 필터로 읽는다. 업로드할 때 밉맵이 만들어지므로 로드 시점에 정해야 한다.
  */
 const TEXTURE_LOAD_OPTIONS: Readonly<Record<string, Partial<TextureSourceOptions>>> = {
-  gearImage: CLASSIC_GEAR_TEXTURE_OPTIONS,
+  gearImage: GEAR_TEXTURE_OPTIONS,
 };
 
 /**

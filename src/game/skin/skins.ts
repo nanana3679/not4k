@@ -1,8 +1,8 @@
 import type { SkinManifest } from "./types";
 import { withPublicBase } from "../../shared/publicPath";
 
-/** 모든 스킨이 함께 쓰는 새 Classic 기어 그림(public 기준 경로). */
-export const CLASSIC_GEAR_PATH = "/gear/classic-gear.png";
+/** 모든 스킨이 함께 쓰는 새 기어 그림(public 기준 경로). */
+export const GEAR_IMAGE_PATH = "/gear/gear.png";
 
 export function buildManifest(
   id: string,
@@ -71,7 +71,7 @@ export function buildManifest(
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
       // 기어는 스킨 공통 공유 에셋 (prepare-frame-fit-v20.mjs 산출물, RFD 0029)
-      gearImage: withPublicBase(CLASSIC_GEAR_PATH),
+      gearImage: withPublicBase(GEAR_IMAGE_PATH),
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

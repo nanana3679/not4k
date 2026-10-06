@@ -2,16 +2,16 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import ClassicGearPage from './ClassicGearPage';
-import pageSource from './ClassicGearPage.tsx?raw';
+import GearPage from './GearPage';
+import pageSource from './GearPage.tsx?raw';
 
-const render = () => renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(ClassicGearPage)));
+const render = () => renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(GearPage)));
 const stageOf = (markup: string) => markup.match(/<section[^>]*data-gear-preview-stage="true"[^>]*>/)![0];
 
-describe('ClassicGearPage — 새 기어가 들어간 실제 게임 화면 미리보기', () => {
+describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기', () => {
   it('처음 열면 렌더 높이 1080·INFILTRATION·화면 맞춤·리프트 0%·TKL 키보드로 시작하고 무대가 논리 폭 1067과 함께 그 상태를 data 속성으로 알린다', () => {
     const markup = render();
-    expect(markup).toContain('data-lab-page="classic-gear"');
+    expect(markup).toContain('data-lab-page="gear"');
     const stage = stageOf(markup);
     for (const attribute of [
       'data-render-height="1080"', 'data-scenario="INFILTRATION"', 'data-view="fit"', 'data-renderer-ready="false"',
@@ -64,7 +64,7 @@ describe('ClassicGearPage — 새 기어가 들어간 실제 게임 화면 미�
     expect(pageSource).not.toContain('reportedAttached');
     // Lab이 움직임 레이어를 따로 만들거나 얹지 않는다.
     expect(pageSource).not.toContain('attachGearMotion');
-    expect(pageSource).not.toContain('createClassicGearMotion');
+    expect(pageSource).not.toContain('createGearMotion');
     expect(pageSource).not.toContain('addGearOverlay');
     for (const call of ['.setEnabled(', '.setLayerVisible(', '.setReducedMotion(', '.restart()', '.timeMs', '.running', ".status === 'ready'"]) {
       expect(pageSource).toContain(call);
@@ -78,7 +78,7 @@ describe('ClassicGearPage — 새 기어가 들어간 실제 게임 화면 미�
   it('움직임 자료는 게임과 같은 공유 로더(acquireGearMotionAssets)로 페이지가 한 번 빌려 비교 화면에 넘기고, Lab 경로의 움직임 자료를 읽지 않는다', () => {
     expect(pageSource).toContain('acquireGearMotionAssets');
     expect(pageSource).not.toContain('loadGearMotionAssets');
-    expect(pageSource).not.toContain('classic-gear/motion');
+    expect(pageSource).not.toContain('gear/motion');
   });
 
   it('움직임 토글과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {

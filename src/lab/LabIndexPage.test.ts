@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import LabIndexPage from "./LabIndexPage";
 
 describe("LabIndexPage", () => {
-  it("/lab 색인은 시설 통과·노트 에셋 시연실·Classic Gear를 포함한 6개 미리보기와 대표 비행 실행 링크를 표시하고 옛 기어 미리보기는 없다", () => {
+  it("/lab 색인은 시설 통과·노트 에셋 시연실·Gear를 포함한 6개 미리보기와 대표 비행 실행 링크를 표시하고 옛 기어 미리보기는 없다", () => {
     const markup = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(LabIndexPage)));
 
     expect(markup).toContain('data-lab-page="preview-catalog"');
@@ -14,7 +14,7 @@ describe("LabIndexPage", () => {
     expect(markup).toContain("<dt>PREVIEWS</dt><dd>06</dd>");
     expect(markup).not.toContain('href="/lab/gear-light"');
     expect(markup).not.toContain('href="/lab/gear-measure-pulse"');
-    expect(markup).toContain('href="/lab/classic-gear"');
+    expect(markup).toContain('href="/lab/gear"');
     expect(markup).toContain('href="/lab/note-assets"');
     expect(markup).toContain("노트 에셋 시연실");
     expect(markup).toContain('href="/lab/flight-background-preview"');

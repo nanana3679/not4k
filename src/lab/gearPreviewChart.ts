@@ -49,7 +49,7 @@ export function buildGearPreviewDemo(measures = 90): GearPreviewDemo {
 
   const chart: Chart = {
     meta: {
-      title: 'Classic Gear',
+      title: 'Gear',
       artist: 'not4k',
       difficultyLabel: 'INFILTRATION',
       difficultyLevel: 1,

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { RadioGroup } from './ClassicGearControls';
-import type { GearMotionPreview } from './classicGearMotionCompare';
-import type { GearMotionResources } from '../game/renderer/classicGearMotionAssets';
-import { GEAR_MOTION_LAYERS, type GearMotionLayerVisibility } from '../game/renderer/classicGearMotionData';
-import { GEAR_MOTION_SVG_PATH, GEAR_MOTION_VIEWS, formatViewBox, readSvgBaseHref, type GearMotionView } from './classicGearMotionView';
+import { RadioGroup } from './GearControls';
+import type { GearMotionPreview } from './gearMotionCompare';
+import type { GearMotionResources } from '../game/renderer/gearMotionAssets';
+import { GEAR_MOTION_LAYERS, type GearMotionLayerVisibility } from '../game/renderer/gearMotionData';
+import { GEAR_MOTION_SVG_PATH, GEAR_MOTION_VIEWS, formatViewBox, readSvgBaseHref, type GearMotionView } from './gearMotionView';
 import { withLabPublicBase } from './labPublicPath';
 
 /** 비교 시계 범위(광원 한 번 지나가는 60초). 재생하면 60초에서 0초로 돌아간다. */
@@ -26,7 +26,7 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
  */
-export function ClassicGearMotionCompare({ resources, layers, reducedMotion }: {
+export function GearMotionCompare({ resources, layers, reducedMotion }: {
   /** 페이지가 공유 로더에서 빌린 움직임 자료(무대의 게임 렌더러와 같은 한 벌). 준비 전이면 null. */
   resources: GearMotionResources | null;
   layers: GearMotionLayerVisibility;
@@ -83,7 +83,7 @@ export function ClassicGearMotionCompare({ resources, layers, reducedMotion }: {
       svg.removeAttribute('width');
       svg.removeAttribute('height');
       svg.setAttribute('role', 'img');
-      svg.setAttribute('aria-label', '승인된 Classic 기어 움직임 SVG');
+      svg.setAttribute('aria-label', '승인된 기어 움직임 SVG');
       svg.classList.add('gear-motion-svg');
       host.replaceChildren(svg);
       svgRef.current = svg;
@@ -114,7 +114,7 @@ export function ClassicGearMotionCompare({ resources, layers, reducedMotion }: {
     viewport.replaceChildren(canvas);
     const key = `${antialias ? 'msaa' : 'plain'}:${softBand ? 'soft' : 'stencil'}`;
     (async () => {
-      const { createGearMotionPreview } = await import('./classicGearMotionCompare');
+      const { createGearMotionPreview } = await import('./gearMotionCompare');
       if (cancelled) return;
       const size = viewport.getBoundingClientRect();
       const created = await createGearMotionPreview({

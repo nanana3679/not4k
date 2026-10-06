@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../../public/gear/classic-gear-motion/gear-motion.json?raw';
+import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
 import {
   breatheOpacity,
   bubbleRise,
@@ -14,7 +14,7 @@ import {
   type LightTiming,
   type LiquidTiming,
   type RiseTiming,
-} from './classicGearMotionTiming';
+} from './gearMotionTiming';
 
 // 승인된 SVG(54-ambient-motion-v19.svg)와 같은 값. prepare-frame-motion-v21.mjs가 gear-motion.json에 쓴다.
 const motionJson = JSON.parse(motionJsonText);

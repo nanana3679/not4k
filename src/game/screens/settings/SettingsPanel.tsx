@@ -265,7 +265,7 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
                 />
                 <ToggleRow
                   label="Gear Motion"
-                  desc="Light sweeps and glows on the Classic gear. Turn off on slower GPUs."
+                  desc="Light sweeps and glows on the gear around the lanes. Turn off on slower GPUs."
                   checked={settings.gearMotion}
                   onChange={(c) => updateSettings({ gearMotion: c })}
                 />

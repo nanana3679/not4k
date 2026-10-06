@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GearMotionAssetLease, GearMotionResources } from '../renderer/classicGearMotionAssets';
+import type { GearMotionAssetLease, GearMotionResources } from '../renderer/gearMotionAssets';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
 import keepAliveSource from './gearMotionKeepAlive.ts?raw';
 import playScreenSource from './PlayScreen.tsx?raw';

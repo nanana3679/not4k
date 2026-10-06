@@ -5,7 +5,7 @@ import {
   GEAR_MOTION_VIEWS,
   readSvgBaseHref,
   viewBoxTransform,
-} from './classicGearMotionView';
+} from './gearMotionView';
 
 describe('승인 SVG 경로', () => {
   it('비교 기준 SVG는 이미지 갤러리의 54-ambient-motion-v19.svg', () => {

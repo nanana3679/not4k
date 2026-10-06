@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
-// 기어 측정값(prepare-frame-fit-v20.mjs → src/game/renderer/classicGear.json). 미리보기는 실제 게임 렌더러 배치를 그대로 알린다.
-const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/classicGear.json', import.meta.url)), 'utf8')) as {
+// 기어 측정값(prepare-frame-fit-v20.mjs → src/game/renderer/gearGeometry.json). 미리보기는 실제 게임 렌더러 배치를 그대로 알린다.
+const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/gearGeometry.json', import.meta.url)), 'utf8')) as {
   laneLeft: number; laneRight: number; deckTop: number; frameBottom: number; laneOpeningBottom: number;
   laneOpening: { rows: [number, number, number][] };
 };
@@ -68,11 +68,11 @@ async function pixelsAt(page: Page, points: { x: number; y: number }[]): Promise
   }, { shot, points });
 }
 
-/** 기어 그림 public/gear/classic-gear.png의 원본 좌표 알파. */
+/** 기어 그림 public/gear/gear.png의 원본 좌표 알파. */
 async function gearAlpha(page: Page, points: { x: number; y: number }[]): Promise<number[]> {
   return page.evaluate(async (points) => {
     const image = new Image();
-    image.src = '/gear/classic-gear.png';
+    image.src = '/gear/gear.png';
     await image.decode();
     const canvas = document.createElement('canvas');
     canvas.width = image.naturalWidth;
@@ -88,18 +88,18 @@ const motionTime = async (page: Page) => {
   return value === null ? null : Number(value);
 };
 
-test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면', () => {
+test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () => {
   // 실제 게임 렌더러와 비행 배경을 swiftshader로 띄우므로 여러 워커가 동시에 돌면 30초 안에 준비되지 않는다.
   // 이 파일은 한 워커에서 차례로 돌리고 테스트마다 넉넉한 시간을 준다.
   test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
   for (const width of [1280, 390]) {
-    test(`${width}px Lab 목록에서 Classic Gear를 열면 실제 렌더러와 비행 배경이 준비되고 가로 넘침 없이 목록으로 돌아온다`, async ({ page }) => {
+    test(`${width}px Lab 목록에서 Gear를 열면 실제 렌더러와 비행 배경이 준비되고 가로 넘침 없이 목록으로 돌아온다`, async ({ page }) => {
       const errors = collectErrors(page);
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/lab');
-      await page.getByRole('link', { name: /Classic Gear/ }).click();
-      await expect(page).toHaveURL(/\/lab\/classic-gear$/);
+      await page.getByRole('link', { name: /Gear/ }).click();
+      await expect(page).toHaveURL(/\/lab\/gear$/);
       await waitForRenderer(page);
 
       await expect(page.locator(stageSelector)).toHaveAttribute('data-scenario', 'INFILTRATION');
@@ -107,7 +107,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
       for (const option of await page.locator('.gear-preview-option').all()) {
         expect((await option.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       }
-      const main = page.locator('[data-lab-page="classic-gear"]');
+      const main = page.locator('[data-lab-page="gear"]');
       expect(await main.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       const host = await page.locator('.gear-preview-canvas-host').boundingBox();
       const controls = await page.locator('.gear-preview-controls').boundingBox();
@@ -120,20 +120,22 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
     });
   }
 
-  test('#231 전 주소 /lab/classic-frame-fit으로 열면 /lab/classic-gear로 바뀌어 같은 미리보기가 열리고, 뒤로 가기 기록에 옛 주소가 남지 않는다', async ({ page }) => {
-    const errors = collectErrors(page);
-    await page.goto('/lab');
-    await page.goto('/lab/classic-frame-fit');
-    await expect(page).toHaveURL(/\/lab\/classic-gear$/);
-    await expect(page.locator('[data-lab-page="classic-gear"]')).toBeVisible();
-    await page.goBack();
-    await expect(page).toHaveURL(/\/lab$/);
-    expect(errors).toEqual([]);
-  });
+  for (const oldPath of ['/lab/classic-frame-fit', '/lab/classic-gear']) {
+    test(`옛 주소 ${oldPath}?probe=1#stage로 열면 쿼리·해시를 유지한 채 /lab/gear로 바뀌어 같은 미리보기가 열리고, 뒤로 가기 기록에 옛 주소가 남지 않는다`, async ({ page }) => {
+      const errors = collectErrors(page);
+      await page.goto('/lab');
+      await page.goto(`${oldPath}?probe=1#stage`);
+      await expect(page).toHaveURL(/\/lab\/gear\?probe=1#stage$/);
+      await expect(page.locator('[data-lab-page="gear"]')).toBeVisible();
+      await page.goBack();
+      await expect(page).toHaveURL(/\/lab$/);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 판정선 y 416·덱 위끝 429.7·키 윗면 446.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-lane-window', '408.50-658.50');
@@ -154,7 +156,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
 
   test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 392로 움직이며 기어 위치와 덱·키 윗면은 그대로다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     const key = await stage.getAttribute('data-renderer-key');
@@ -177,7 +179,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
 
   test('기어 그림은 레인 창과 열린 덱(1090~1126행) 레인 안쪽이 투명하고 꺾인 모서리·키 테두리는 불투명하며 화면에는 그 자리에 게임 레인이 비친다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
 
     // 열린 덱 가운데 행의 레인 안쪽(왼쪽 모서리 경계 + 3px)·가운데 레인 선 자리·레인 창 가운데는 투명,
@@ -207,7 +209,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
 
   test('렌더 높이를 1440으로 바꾸면 렌더러를 새로 만들어 캔버스가 2.4배 크기로 다시 준비되고 비행 장면도 바꿀 수 있다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const canvas = page.locator('canvas[data-gear-preview-canvas]');
     await expect(canvas).toHaveAttribute('height', '1080');
@@ -227,7 +229,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
 
   test('1:1 픽셀 보기에서는 캔버스 CSS 크기가 백버퍼 픽셀 ÷ devicePixelRatio가 되고 무대 안에서만 스크롤한다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     await page.getByLabel('1:1 픽셀').check();
     await expect(page.locator(stageSelector)).toHaveAttribute('data-view', 'pixel');
@@ -236,7 +238,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
       const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-gear-preview-canvas]')!;
       const host = canvas.parentElement!.getBoundingClientRect();
       const viewport = document.querySelector('.gear-preview-viewport')!;
-      const main = document.querySelector('[data-lab-page="classic-gear"]')!;
+      const main = document.querySelector('[data-lab-page="gear"]')!;
       return {
         expected: canvas.width / devicePixelRatio,
         host: host.width,
@@ -251,7 +253,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
 
   test('렌더러 내장 움직임이 켜져 게임 프레임 시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-motion', 'on');
@@ -296,7 +298,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
   test('전체화면을 누르면 무대가 1400×600 창을 꽉 채우고 논리 폭 1400으로 렌더러를 다시 만들며, 기어는 가운데를 따라가고 닫기(✕)로 논리 폭 1067에 돌아온다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.setViewportSize({ width: 1400, height: 600 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-stage-width', '1067');
@@ -328,7 +330,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
       Element.prototype.requestFullscreen = function requestFullscreen() { return Promise.reject(new Error('blocked')); };
     });
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await page.getByRole('button', { name: '전체화면' }).click();
@@ -354,7 +356,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
       Element.prototype.requestFullscreen = function requestFullscreen() { return Promise.reject(new Error('blocked')); };
     });
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-keyboard-scale', '1.000');
@@ -386,18 +388,18 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
     expect(errors).toEqual([]);
   });
 
-  test('움직임 자료(/gear/classic-gear-motion/gear-motion.json)를 붙잡아 두면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 놓으면 움직임을 얹은 채 준비된다', async ({ page }) => {
+  test('움직임 자료(/gear/gear-motion/gear-motion.json)를 붙잡아 두면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 놓으면 움직임을 얹은 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
     let requested!: () => void;
     const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
-    await page.route('**/gear/classic-gear-motion/gear-motion.json', async (route) => {
+    await page.route('**/gear/gear-motion/gear-motion.json', async (route) => {
       requested();
       await gate;
       await route.continue();
     });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await requestStarted;
     const stage = page.locator(stageSelector);
     // 움직임 자료는 렌더러 준비에 필요한 자료라, 붙잡혀 있는 동안 렌더러는 준비되지 않는다(비행 배경이 준비되어도).
@@ -415,7 +417,7 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
   test('움직임 줄이기 설정이면 무대 data-motion이 reduced이고 움직임 시계가 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/lab/classic-gear');
+    await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-motion', 'reduced');

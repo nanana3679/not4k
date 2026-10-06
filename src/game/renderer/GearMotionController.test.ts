@@ -1,9 +1,9 @@
 import { Container, Texture, TextureSource } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import motionJsonText from '../../../public/gear/classic-gear-motion/gear-motion.json?raw';
-import { createClassicGearMotion, type GearMotionTextures } from './classicGearMotion';
-import type { GearMotionAssetLease, GearMotionResources } from './classicGearMotionAssets';
-import { GEAR_MOTION_TEXTURE_KEYS, parseGearMotionData } from './classicGearMotionData';
+import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
+import { createGearMotion, type GearMotionTextures } from './gearMotion';
+import type { GearMotionAssetLease, GearMotionResources } from './gearMotionAssets';
+import { GEAR_MOTION_TEXTURE_KEYS, parseGearMotionData } from './gearMotionData';
 import { GEAR_MOTION_MAX_STEP_MS, GearMotionController, type GearMotionControllerOptions } from './GearMotionController';
 
 const data = parseGearMotionData(JSON.parse(motionJsonText));
@@ -38,7 +38,7 @@ function controllerWith(options: Partial<GearMotionControllerOptions> = {}) {
     lease,
     isHidden: () => false,
     create: (motionData, textures, motionOptions) => {
-      const motion = createClassicGearMotion(motionData, textures, motionOptions);
+      const motion = createGearMotion(motionData, textures, motionOptions);
       const original = motion.update;
       return { ...motion, update: (timeMs: number) => { update(timeMs); original(timeMs); } };
     },
@@ -75,7 +75,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     expect(controller.status).toBe('ready');
     expect(controller.running).toBe(true);
     await expect(controller.ready).resolves.toBeUndefined();
-    expect(holder.children.map((child) => child.label)).toEqual(['classic-gear-motion']);
+    expect(holder.children.map((child) => child.label)).toEqual(['gear-motion']);
     expect(bandY(holder)).toBe(-841);
     expect(controller.gaugeFill?.label).toBe('gear-motion-gauge-fill');
     controller.destroy();
@@ -247,7 +247,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
   });
 
   it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않고 ready는 거절되며 임대는 한 번만 놓는다', async () => {
-    const create = vi.fn(createClassicGearMotion);
+    const create = vi.fn(createGearMotion);
     const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();
     resolve();

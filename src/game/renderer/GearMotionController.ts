@@ -1,7 +1,7 @@
 import type { Container } from 'pixi.js';
-import { createClassicGearMotion, type ClassicGearMotion, type GearMotionTextures } from './classicGearMotion';
-import { GearMotionLeaseReleasedError, type GearMotionAssetLease, type GearMotionResources } from './classicGearMotionAssets';
-import { GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from './classicGearMotionData';
+import { createGearMotion, type GearMotion, type GearMotionTextures } from './gearMotion';
+import { GearMotionLeaseReleasedError, type GearMotionAssetLease, type GearMotionResources } from './gearMotionAssets';
+import { GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from './gearMotionData';
 
 /**
  * 한 게임 프레임에 움직임 시계가 나아가는 최대 시간(ms). 숨은 탭에서 돌아오거나 프레임 하나가 길어도 광원이 건너뛰지 않게
@@ -49,7 +49,7 @@ export interface GearMotionControllerOptions {
   /** 움직임을 얹기 전에 준비된 텍스처를 GPU에 올린다(렌더러가 주입). 없으면 처음 그릴 때 올린다. 움직임 줄이기 중에는 부르지 않는다. */
   upload?: (textures: GearMotionTextures) => void;
   /** @internal 테스트용 움직임 생성 함수. */
-  create?: typeof createClassicGearMotion;
+  create?: typeof createGearMotion;
   /** @internal 탭이 숨었는지. 기본은 document.hidden. */
   isHidden?: () => boolean;
 }
@@ -70,9 +70,9 @@ export class GearMotionController implements GearMotionControls {
   private readonly holder: Container;
   private readonly lease: GearMotionAssetLease;
   private readonly upload?: (textures: GearMotionTextures) => void;
-  private readonly create: typeof createClassicGearMotion;
+  private readonly create: typeof createGearMotion;
   private readonly isHidden: () => boolean;
-  private motion: ClassicGearMotion | null = null;
+  private motion: GearMotion | null = null;
   private currentStatus: GearMotionStatus = 'loading';
   private clockMs = 0;
   private on = true;
@@ -85,7 +85,7 @@ export class GearMotionController implements GearMotionControls {
     this.holder = options.holder;
     this.lease = options.lease;
     this.upload = options.upload;
-    this.create = options.create ?? createClassicGearMotion;
+    this.create = options.create ?? createGearMotion;
     this.isHidden = options.isHidden ?? documentHidden;
     this.ready = options.lease.ready.then(
       (resources) => this.attach(resources),
@@ -157,7 +157,7 @@ export class GearMotionController implements GearMotionControls {
 
   private attach(resources: GearMotionResources): void {
     if (this.destroyed || this.holder.destroyed) throw new GearMotionLeaseReleasedError();
-    let motion: ClassicGearMotion;
+    let motion: GearMotion;
     try {
       if (!this.reduced) this.upload?.(resources.textures);
       motion = this.create(resources.data, resources.textures);

@@ -1,5 +1,5 @@
 /**
- * Classic 기어 움직임의 시간 곡선. 승인된 애니메이션 SVG(54-ambient-motion-v19.svg)의 CSS 키프레임을
+ * 기어 움직임의 시간 곡선. 승인된 애니메이션 SVG(54-ambient-motion-v19.svg)의 CSS 키프레임을
  * 그대로 옮긴 순수 함수다. 시간은 SVG의 애니메이션 currentTime과 같은 뜻(ms, 0부터)이고, 음수 지연(delay)은
  * CSS처럼 그만큼 먼저 시작한 것으로 본다. 값(주기·거리·불투명도)은 gear-motion.json에서 읽는다.
  */

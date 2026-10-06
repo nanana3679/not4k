@@ -200,7 +200,7 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 ### 현재 게임 기어 (Classic)
 
-게임은 스킨 공통 기어로 새 Classic 기어 그림 한 장(`public/gear/classic-gear.png`, 1024×1536)을 쓴다. 레인 창과 꺾인 덱 사이 레인 바닥은 투명하고, 기둥·키 덱·하단 바는 불투명하다. 그림과 배치 측정값(`src/game/renderer/classicGear.json`)은 `assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs`가 함께 만든다. 게임은 레인 창을 레인 영역(폭 250)에 맞추고 실루엣 아래끝을 화면 아래에 붙여 비율 그대로 줄여 그린다([RFD 0029](../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 키·게이지 유리관·광원은 그림에 들어 있다. 기어 움직임은 같은 그림 좌표의 부분 발광 레이어로 게임에 들어가 있다(자료 `public/gear/classic-gear-motion/`, 생성기 `prepare-frame-motion-v21.mjs`, 미리보기 `/lab/classic-gear`). 고도 게이지 채움은 후속 작업이다.
+게임은 스킨 공통 기어로 새 기어 그림 한 장(`public/gear/gear.png`, 1024×1536)을 쓴다. 레인 창과 꺾인 덱 사이 레인 바닥은 투명하고, 기둥·키 덱·하단 바는 불투명하다. 그림과 배치 측정값(`src/game/renderer/gearGeometry.json`)은 `assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs`가 함께 만든다. 게임은 레인 창을 레인 영역(폭 250)에 맞추고 실루엣 아래끝을 화면 아래에 붙여 비율 그대로 줄여 그린다([RFD 0029](../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 키·게이지 유리관·광원은 그림에 들어 있다. 기어 움직임은 같은 그림 좌표의 부분 발광 레이어로 게임에 들어가 있다(자료 `public/gear/gear-motion/`, 생성기 `prepare-frame-motion-v21.mjs`, 미리보기 `/lab/gear`). 고도 게이지 채움은 후속 작업이다.
 
 옛 기어(`gear-frame.png`와 분리 기둥 게이지)와 그 조정 랩(`/lab/gear-light`·`/lab/gear-measure-pulse`, `scripts/split-gear-gauge.ts`·`split-gear-light-layer.ts`, `public/lab/gear-light/`·`gear-samples/`)은 RFD 0029를 게임에 적용할 때 지웠다. 마디선을 기어 발광으로 대체하는 안은 [PRD §12](../docs/prd.md#12-미정-사항)에서 새 기어 기준으로 다시 검토한다.
 

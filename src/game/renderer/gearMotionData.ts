@@ -1,8 +1,8 @@
-import type { CubicBezier } from './classicGearMotionTiming';
+import type { CubicBezier } from './gearMotionTiming';
 
 /**
- * Classic 기어 움직임의 자료 계약(Pixi 없음). prepare-frame-motion-v21.mjs가 만든 gear-motion.json의 모양,
- * 레이어 이름, 공개 경로와 검증을 둔다. Pixi 레이어 구성은 classicGearMotion.ts, 읽기와 공유는 classicGearMotionAssets.ts가 한다.
+ * 기어 움직임의 자료 계약(Pixi 없음). prepare-frame-motion-v21.mjs가 만든 gear-motion.json의 모양,
+ * 레이어 이름, 공개 경로와 검증을 둔다. Pixi 레이어 구성은 gearMotion.ts, 읽기와 공유는 gearMotionAssets.ts가 한다.
  */
 
 export const GEAR_MOTION_LAYERS = ['armor', 'gauge', 'accent', 'bar'] as const;
@@ -73,10 +73,10 @@ export interface GearMotionData {
 }
 
 /**
- * prepare-frame-motion-v21.mjs가 만드는 정적 파일(기어 그림 public/gear/classic-gear.png 옆). 게임 렌더러와 Lab이 같은 한 벌을
- * 공유 로더(classicGearMotionAssets)로 읽는다. 읽을 때 배포 base(withPublicBase)를 붙인다.
+ * prepare-frame-motion-v21.mjs가 만드는 정적 파일(기어 그림 public/gear/gear.png 옆). 게임 렌더러와 Lab이 같은 한 벌을
+ * 공유 로더(gearMotionAssets)로 읽는다. 읽을 때 배포 base(withPublicBase)를 붙인다.
  */
-export const GEAR_MOTION_ASSET_DIR = '/gear/classic-gear-motion';
+export const GEAR_MOTION_ASSET_DIR = '/gear/gear-motion';
 export const GEAR_MOTION_DATA_PATH = `${GEAR_MOTION_ASSET_DIR}/gear-motion.json`;
 
 type JsonRecord = Record<string, unknown>;

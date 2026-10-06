@@ -1,9 +1,9 @@
-import { CLASSIC_GEAR_GEOMETRY, resolvePlayLogicalWidth, type ClassicGearGeometry, type ClassicGearLayout } from '../game/renderer/classicGearLayout';
+import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
 import { NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
 
 /**
- * Classic Gear 미리보기(/lab/classic-gear)의 숫자와 설명. 기어 배치 자체는 게임의 classicGearLayout이 정하고,
+ * Gear 미리보기(/lab/gear)의 숫자와 설명. 기어 배치 자체는 게임의 gearLayout이 정하고,
  * 여기서는 같은 값으로 Lab 화면에 보일 판정선·덱·키 윗면 사이 거리와 선명도를 계산한다(RFD 0029).
  */
 
@@ -47,7 +47,7 @@ export interface GearPreviewJudgment {
 }
 
 /** 게임과 같은 판정선(리프트 0% = y 416)과 기어 덱·키 윗면 사이 거리. 기어는 리프트로 움직이지 않는다. */
-export function describeGearJudgment(layout: Readonly<ClassicGearLayout>, liftPercent: number): GearPreviewJudgment {
+export function describeGearJudgment(layout: Readonly<GearLayout>, liftPercent: number): GearPreviewJudgment {
   const lineY = judgmentLineYAtLift(liftPercent);
   const gap = layout.deckTopY - lineY;
   const openGap = layout.keyRimY - lineY;
@@ -64,7 +64,7 @@ export function describeGearJudgment(layout: Readonly<ClassicGearLayout>, liftPe
 }
 
 /** 기어가 원본의 어디를 어떻게 줄여 놓는지 숫자로 설명하는 문장. */
-export function describeGear(layout: Readonly<ClassicGearLayout>, geometry: ClassicGearGeometry = CLASSIC_GEAR_GEOMETRY): string {
+export function describeGear(layout: Readonly<GearLayout>, geometry: GearGeometry = GEAR_GEOMETRY): string {
   const hiddenRows = Math.max(0, Math.round(-layout.y / layout.scale));
   const laneAreaWidth = Math.round((geometry.laneRight - geometry.laneLeft + 1) * layout.scale * 10) / 10;
   return `원본 ${geometry.width}×${geometry.height}을 ${layout.scale.toFixed(3)}배로 줄여 레인 창(${geometry.laneLeft}~${geometry.laneRight}열)을 `

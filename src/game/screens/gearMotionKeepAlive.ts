@@ -1,4 +1,4 @@
-import { acquireGearMotionAssets, type GearMotionAssetLease } from '../renderer/classicGearMotionAssets';
+import { acquireGearMotionAssets, type GearMotionAssetLease } from '../renderer/gearMotionAssets';
 
 /**
  * 게임 설정 `Gear Motion`이 켜져 있는 동안 기어 움직임 자료(약 2MB, GPU 약 16.8MiB)를 한 벌 붙잡아 둔다(RFD 0029).
