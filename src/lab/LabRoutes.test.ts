@@ -1,8 +1,9 @@
-import { createElement } from 'react';
+import { Children, createElement, isValidElement, type ReactElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import LabRoutes from './LabRoutes';
+import LabRoutes, { LegacyLabRedirect } from './LabRoutes';
+import { labPreviewCatalog } from './labPreviewCatalog';
 
 async function renderLabPath(path: string) {
   const stream = await renderToReadableStream(createElement(
@@ -34,10 +35,10 @@ describe('LabRoutes', () => {
     expect(markup).toContain('data-tutorial-skin-id="classic"');
   });
 
-  it('/lab/classic-frame-fit를 직접 열면 새 프레임이 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
-    const markup = await renderLabPath('/lab/classic-frame-fit');
+  it('/lab/gear를 직접 열면 새 기어가 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/gear');
 
-    expect(markup).toContain('data-lab-page="classic-frame-fit"');
+    expect(markup).toContain('data-lab-page="gear"');
     expect(markup).toContain('data-stage-width="1067"');
     expect(markup).toContain('href="/lab"');
   });
@@ -48,5 +49,16 @@ describe('LabRoutes', () => {
     expect(markup).toContain('title="Flight Background Preview"');
     expect(markup).toContain('src="/__lab/flight-background-preview/"');
     expect(markup).toContain('href="/lab"');
+  });
+
+  // 구조만 본다: 서버 렌더링은 Navigate의 이동(effect)을 실행하지 않는다. 실제 이동·쿼리·해시 유지·기록 교체는 e2e/lab/gear.spec.ts가 본다.
+  it.each(['classic-frame-fit', 'classic-gear'])('옛 주소 /lab/%s는 /lab/gear로 넘기는 LegacyLabRedirect 라우트이고 카탈로그 항목이 아니라 정적 폴더를 만들지 않는다', (oldPath) => {
+    type RouteProps = { path?: string; element?: ReactElement<{ to?: string }> };
+    const routes = Children.toArray((LabRoutes() as ReactElement<{ children: unknown }>).props.children as never)
+      .filter((child): child is ReactElement<RouteProps> => isValidElement(child));
+    const legacy = routes.find((route) => route.props.path === oldPath);
+    expect(legacy?.props.element?.type).toBe(LegacyLabRedirect);
+    expect(legacy?.props.element?.props).toMatchObject({ to: '/lab/gear' });
+    expect(labPreviewCatalog.map((preview) => preview.path)).not.toContain(`/lab/${oldPath}`);
   });
 });

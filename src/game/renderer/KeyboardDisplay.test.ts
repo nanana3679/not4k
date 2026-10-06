@@ -7,17 +7,17 @@ import {
   keyboardDisplaySize,
   placeKeyboardDisplay,
 } from './KeyboardDisplay';
-import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame } from './classicFrameLayout';
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from './constants';
 
-/** 화면 논리 폭 width에서 프레임 실루엣 오른쪽 끝 + 여백(키보드가 쓸 수 있는 왼쪽 경계). */
-function frameFreeLeft(width: number): number {
-  const layout = layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, {
+/** 화면 논리 폭 width에서 기어 실루엣 오른쪽 끝 + 여백(키보드가 쓸 수 있는 왼쪽 경계). */
+function gearFreeLeft(width: number): number {
+  const layout = layoutGear(GEAR_GEOMETRY, {
     laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
   });
-  return layout.silhouetteRightX + FRAME_CLEARANCE;
+  return layout.silhouetteRightX + GEAR_CLEARANCE;
 }
-const area = (width: number) => ({ width, height: GAME_HEIGHT, freeLeft: frameFreeLeft(width) });
+const area = (width: number) => ({ width, height: GAME_HEIGHT, freeLeft: gearFreeLeft(width) });
 const TKL = keyboardDisplaySize(false);
 const NUMPAD = keyboardDisplaySize(true);
 
@@ -32,7 +32,7 @@ describe('키보드 표시 크기', () => {
   });
 });
 
-describe('placeKeyboardDisplay — 프레임 오른쪽 빈 곳에 맞추거나 숨긴다', () => {
+describe('placeKeyboardDisplay — 기어 오른쪽 빈 곳에 맞추거나 숨긴다', () => {
   it('최소 배율은 0.6, 화면 가장자리 여백은 4', () => {
     expect(KEYBOARD_DISPLAY_MIN_SCALE).toBe(0.6);
     expect(KEYBOARD_DISPLAY_MARGIN).toBe(4);
@@ -46,12 +46,12 @@ describe('placeKeyboardDisplay — 프레임 오른쪽 빈 곳에 맞추거나 �
     expect(placeKeyboardDisplay(NUMPAD, area(1067))).toEqual({ visible: true, scale: 1, x: 810, y: 524.5 });
   });
 
-  it('16:10(960)에서 TKL은 원래 크기, 넘버패드는 빈 폭 243.4에 맞춰 0.962배로 줄여 프레임 여백에 붙는다', () => {
+  it('16:10(960)에서 TKL은 원래 크기, 넘버패드는 빈 폭 243.4에 맞춰 0.962배로 줄여 기어 여백에 붙는다', () => {
     expect(placeKeyboardDisplay(TKL, area(960)).scale).toBe(1);
     const placement = placeKeyboardDisplay(NUMPAD, area(960));
     expect(placement.visible).toBe(true);
     expect(placement.scale).toBeCloseTo(0.962, 3);
-    expect(placement.x).toBeCloseTo(frameFreeLeft(960), 9);
+    expect(placement.x).toBeCloseTo(gearFreeLeft(960), 9);
     expect(placement.x + NUMPAD.width * placement.scale).toBeCloseTo(960 - 4, 9);
     expect(placement.y + NUMPAD.height * placement.scale).toBeCloseTo(600 - 4, 9);
   });

@@ -111,7 +111,7 @@ test.describe("Note Assets Lab", () => {
       // 그대로 쓴다(논리 250×320 → 400×512px, 판정선 y 262.5 → 420px, 스크롤 250 → 400px/s).
       const renderer = new GameRenderer({
         canvas, width: 250, height: 320, resolution: 1.6, judgmentLineOffset: 57.5, skinManager: skin,
-        showGearFrame: false, showFlightBackground: false, showComboAndAccuracy: false,
+        showGear: false, showFlightBackground: false, showComboAndAccuracy: false,
       });
       await renderer.init();
       renderer.scrollSpeed = 250;

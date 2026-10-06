@@ -26,8 +26,8 @@ interface GameSettings {
   skinId: string;
   bombScale: number;
   renderHeight: number;
-  /** Classic 프레임 움직임(광원·게이지 액체·발광선·하단 바). 끄면 플레이 렌더러가 움직임 객체를 만들지 않는다. 없으면 켬. */
-  frameMotion: boolean;
+  /** 기어 움직임(광원·게이지 액체·발광선·하단 바). 끄면 플레이 렌더러가 움직임 객체를 만들지 않는다. 없으면 켬. */
+  gearMotion: boolean;
   playSpeed: number;
   judgmentMode: JudgmentMode;
   debugMode: boolean;
@@ -115,7 +115,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   skinId: 'classic',
   bombScale: 1,
   renderHeight: 1080,
-  frameMotion: true,
+  gearMotion: true,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
@@ -136,6 +136,8 @@ export function mergePersistedSettings(
     merged.audioOffsetMs = raw.offsetMs;
   }
   delete merged.offsetMs;
+  // #231에서 설정 이름을 frameMotion → gearMotion으로 바꿨다(미출시라 값은 옮기지 않는다). 옛 키는 남기지 않는다.
+  delete merged.frameMotion;
   return {
     ...cur,
     settings: merged as unknown as GameSettings,

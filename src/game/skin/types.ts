@@ -106,12 +106,12 @@ export interface SkinManifest {
     /** 봄 16프레임 */
     bomb: string[];
     /**
-     * 기어 프레임 (스킨 공통, RFD 0029의 새 Classic 프레임). 레인 창과 꺾인 덱 사이 레인 바닥이 투명하다.
-     * 배치 측정값은 src/game/renderer/classicFrame.json이며 밉맵·삼선형 필터로 읽는다.
+     * 기어 (스킨 공통, RFD 0029의 새 기어). 레인 창과 꺾인 덱 사이 레인 바닥이 투명하다.
+     * 배치 측정값은 src/game/renderer/gearGeometry.json이며 밉맵·삼선형 필터로 읽는다.
      */
-    gearFrame: string;
+    gearImage: string;
     /**
-     * 4개 버튼 idle/pressed. 새 프레임이 키를 그림으로 갖고 있어 게임은 더 이상 그리지 않는다.
+     * 4개 버튼 idle/pressed. 새 기어가 키를 그림으로 갖고 있어 게임은 더 이상 그리지 않는다.
      * Classic 버전 판별(게임 PNG 60개)이 이 PNG를 포함하므로 필드와 에셋은 후속 정리 때 새 버전 보관과 함께 뺀다.
      */
     buttonIdle: string[];

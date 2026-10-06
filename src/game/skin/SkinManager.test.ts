@@ -41,19 +41,19 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
-  it('기어 프레임만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
+  it('기어만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');
     const objectLoads = assetsLoad.mock.calls.map(([request]) => request as unknown).filter((request) => typeof request !== 'string');
     expect(objectLoads).toEqual([{
-      alias: '/gear/classic-frame.png',
-      src: '/gear/classic-frame.png',
+      alias: '/gear/gear.png',
+      src: '/gear/gear.png',
       data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     }]);
-    expect(manager.hasTexture('gearFrame')).toBe(true);
+    expect(manager.hasTexture('gearImage')).toBe(true);
     expect(manager.hasTexture('gearGaugeLeft')).toBe(false);
     manager.dispose();
-    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/classic-frame.png'));
+    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear.png'));
   });
 
   it('heldEffect를 생략한 스킨에 bodySingleHeld가 없으면 빠진 에셋 이름을 담은 오류로 로딩이 실패한다', async () => {

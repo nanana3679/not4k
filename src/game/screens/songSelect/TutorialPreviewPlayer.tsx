@@ -379,7 +379,7 @@ export function TutorialPreviewPlayer({
           height: PREVIEW_RENDER_HEIGHT,
           resolution: Math.min(window.devicePixelRatio || 1, 2) * PREVIEW_RESOLUTION_BOOST,
           skinManager: nextSkinManager,
-          showGearFrame: false,
+          showGear: false,
           showFlightBackground: false,
           showComboAndAccuracy: false,
           showLaneKeyLabels: true,

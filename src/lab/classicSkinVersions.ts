@@ -1,12 +1,13 @@
 import type { SkinManifest } from '../game/skin/types';
 
 /**
- * 보관 당시 skins.ts의 Classic 매니페스트. 스킨 공통 기어 에셋(`gearFrame`과 RFD 0029 이전의 기둥 게이지
- * `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다. Lab·dev 재생은 지금 공통 프레임을 쓴다(noteAssetDesigns).
+ * 보관 당시 skins.ts의 Classic 매니페스트. 키 이름도 보관 당시 그대로라, 스킨 공통 기어 그림은 #231 전 키 `gearFrame`(지금 `gearImage`)으로 남는다.
+ * 스킨 공통 기어 에셋(`gearFrame`과 RFD 0029 이전의 기둥 게이지 `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다.
+ * Lab·dev 재생은 지금 공통 기어를 쓴다(noteAssetDesigns).
  */
 export interface ArchivedClassicManifest {
   theme: SkinManifest['theme'];
-  assets: SkinManifest['assets'] & { gearGaugeLeft?: string; gearGaugeRight?: string };
+  assets: Omit<SkinManifest['assets'], 'gearImage'> & { gearFrame?: string; gearImage?: string; gearGaugeLeft?: string; gearGaugeRight?: string };
 }
 
 // Frozen from each archive's skins.ts; do not derive old themes from the live Classic.

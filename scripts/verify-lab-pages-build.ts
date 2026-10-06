@@ -9,7 +9,7 @@ const requiredPaths = [
   "lab/flight-background-preview/index.html",
   "lab/facility-passage/index.html",
   "lab/note-assets/index.html",
-  "lab/classic-frame-fit/index.html",
+  "lab/gear/index.html",
   "lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg",
   "lab/tutorial-pattern-diagram/index.html",
   "lab/judgment-playtest/index.html",
@@ -23,18 +23,18 @@ const requiredPaths = [
   "__lab/flight-background-preview/flight/breakthrough/passage.mjs",
   "__lab/flight-background-preview/flight/breakthrough/render-quality.mjs",
   "skins/crystal/note-single.png",
-  "gear/classic-frame.png",
-  // 프레임 움직임 자료는 게임 프레임 옆 공용 경로에 있고 게임과 Lab이 함께 읽는다(RFD 0029).
-  "gear/classic-frame-motion/frame-motion.json",
-  "gear/classic-frame-motion/armor-lit.png",
-  "gear/classic-frame-motion/armor-core.png",
-  "gear/classic-frame-motion/accent-glow.png",
-  "gear/classic-frame-motion/accent-overlap.png",
-  "gear/classic-frame-motion/liquid-tile.png",
-  "gear/classic-frame-motion/bar-mask.png",
-  "gear/classic-frame-motion/bar-base.png",
-  "gear/classic-frame-motion/glint.png",
-  "gear/classic-frame-motion/bubbles.png",
+  "gear/gear.png",
+  // 기어 움직임 자료는 기어 그림 옆 공용 경로에 있고 게임과 Lab이 함께 읽는다(RFD 0029).
+  "gear/gear-motion/gear-motion.json",
+  "gear/gear-motion/armor-lit.png",
+  "gear/gear-motion/armor-core.png",
+  "gear/gear-motion/accent-glow.png",
+  "gear/gear-motion/accent-overlap.png",
+  "gear/gear-motion/liquid-tile.png",
+  "gear/gear-motion/bar-mask.png",
+  "gear/gear-motion/bar-base.png",
+  "gear/gear-motion/glint.png",
+  "gear/gear-motion/bubbles.png",
   "lab/skin-versions/classic/v001/skin/note-single.png",
   "lab/skin-versions/classic/v002/skin/note-single.png",
   "lab/skin-versions/classic/v001/svg/body-double-idle.svg",
@@ -52,8 +52,12 @@ await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pat
 
 for (const retiredPath of [
   'lab/geometric-background', 'lab/perspective-surface-grid', 'lab/gear-light', 'lab/gear-measure-pulse', 'lab/gear-samples',
-  'lab/classic-frame-fit/frame-cutout.png', 'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
-  'lab/classic-frame-fit/motion',
+  'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
+  // #231에서 장식 그림의 이름을 frame에서 gear(기어)로 바꿨다. 옛 Lab 경로(옛 컷아웃·움직임 복사본 포함)와 에셋 경로는 공개하지 않는다.
+  // 옛 Lab 주소는 클라이언트 라우트가 /lab/gear로 넘기므로 정적 폴더가 없어야 한다.
+  'lab/classic-frame-fit', 'gear/classic-frame.png', 'gear/classic-frame-motion',
+  // 기어는 스킨 공용이라 Classic 스킨 이름을 붙이지 않는다. 그 전 이름의 Lab·에셋 경로도 공개하지 않는다.
+  'lab/classic-gear', 'gear/classic-gear.png', 'gear/classic-gear-motion',
 ]) {
   await access(resolve(outputRoot, retiredPath)).then(
     () => { throw new Error(`Retired Lab asset must not be published: ${retiredPath}`); },

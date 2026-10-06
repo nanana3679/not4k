@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildManifest, getSkinManifest } from '../game/skin/skins';
-import { createNoteAssetDesign, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from './noteAssetDesigns';
+import { CLASSIC_SKIN_VERSIONS } from './classicSkinVersions';
+import { createArchivedClassicDesign, createNoteAssetDesign, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from './noteAssetDesigns';
 
 describe('시안 교체', () => {
-  it('시안 미지정과 알 수 없는 ID는 Classic을 선택하고 기존 Classic은 Simple로 제공', () => {
+  it('시안 미지정과 알 수 없는 ID는 Classic을 선택하고 시안 목록은 Classic·Simple 두 가지이며 Simple은 simple 스킨을 쓴다', () => {
     expect(getNoteAssetDesign(null).id).toBe('classic');
     expect(getNoteAssetDesign('missing').id).toBe('classic');
     expect(NOTE_ASSET_DESIGNS.map(design => design.id)).toEqual(['classic','simple']);
@@ -39,15 +40,15 @@ describe('시안 교체', () => {
     expect(design.bombs[0].frames).toBe(skin.assets.bomb);
   });
 
-  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 공통 프레임 /gear/classic-frame.png를 사용한다', version => {
+  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 기어 그림 /gear/gear.png를 사용한다', version => {
     const design = getNoteAssetDesign('classic', version);
     const prefix = `/lab/skin-versions/classic/${version}/`;
     expect(design.id).toBe('classic');
     expect(design.versionId).toBe(version);
     expect(design.skinId).toBe(`classic-${version}`);
     expect(design.skinManifest?.theme.available).toBe(false);
-    const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/gear/classic-frame.png');
+    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/gear/gear.png');
     expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
     for (const path of Object.values(skinAssets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
     for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
@@ -100,11 +101,11 @@ describe('/not4k/ 배포의 시안 주소', () => {
     }
   });
 
-  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 프레임에 접두사를 한 번만 붙인다', async () => {
+  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림에 접두사를 한 번만 붙인다', async () => {
     const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
     const design = getPublicDesign('classic', 'v001');
-    const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/not4k/gear/classic-frame.png');
+    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/not4k/gear/gear.png');
     for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
       expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
       expect(path).not.toContain('/not4k/not4k/');
@@ -119,5 +120,17 @@ describe('켜짐 효과 없는 스킨의 시연실 랙 (RFD 0028)', () => {
     expect(design.bodies.map(body => `${body.kind}:${body.state}`)).toEqual([
       'single:idle', 'single:off', 'double:idle', 'double:off', 'trill:idle', 'trill:off',
     ]);
+  });
+});
+
+describe('보관한 Classic 버전의 기어 키', () => {
+  it('#231 뒤에 보관할 버전처럼 기어 키가 gearImage인 매니페스트도 오류 없이 지금 공통 기어 /gear/gear.png로 바꾸고 보관본 기어 경로는 쓰지 않는다', () => {
+    const v014 = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!;
+    const { gearFrame: _archivedGear, gearGaugeLeft: _left, gearGaugeRight: _right, ...assets } = v014.manifest.assets;
+    const future = { ...v014, id: 'v015', manifest: { ...v014.manifest, assets: { ...assets, gearImage: '/gear/archived-gear.png' } } };
+    const { design } = createArchivedClassicDesign(future);
+    expect(design.skinManifest!.assets.gearImage).toBe('/gear/gear.png');
+    expect(JSON.stringify(design)).not.toContain('/gear/archived-gear.png');
+    expect(design.skinManifest!.assets.noteSingle).toBe('/lab/skin-versions/classic/v015/skin/note-single.png');
   });
 });

@@ -8,10 +8,10 @@ import {
 } from './frame-motion-shared.mjs';
 
 // Bakes the approved Classic frame ambient motion (54-ambient-motion-v19.svg) into textures and
-// JSON for the game's Pixi frame motion (src/game/renderer/classicFrameMotion.ts, also used by the
-// /lab/classic-frame-fit comparison), so Pixi needs no runtime filters. Every mask and value comes
+// JSON for the game's Pixi gear motion (src/game/renderer/gearMotion.ts, also used by the
+// /lab/gear comparison), so Pixi needs no runtime filters. Every mask and value comes
 // from frame-motion-shared.mjs, the module assemble-ambient-v19.mjs builds the SVG from. Writes into
-// public/gear/classic-frame-motion/, next to the game frame (frame-space boxes in JSON):
+// public/gear/gear-motion/, next to the game gear (gear-image-space boxes in JSON):
 //   armor-lit.png      A  contrast copy of the base (the SVG's saturate 0.9 + linear 1.1/-0.032 filter,
 //                         rendered by Chromium), alpha = armor mask x frame-cutout alpha. Drawn at 128/255
 //                         (#808080 half band), and tinted #04060a at 7% for the unlit dim (same alpha; the tinted
@@ -28,20 +28,20 @@ import {
 //   bar-base.png       D  the base pixels under the bar mask (the glints screen over this copy)
 //   glint.png          D  one glint ellipse with the SVG's radial gradient (Chromium)
 //   bubbles.png        B  the five bubble discs at their radii, one 16x16 cell each (Chromium)
-//   frame-motion.json  texture pieces, glass polygons, bubble table, light/contrast/accent/bar values
+//   gear-motion.json   texture pieces, glass polygons, bubble table, light/contrast/accent/bar values
 // The armor and accent layers are mostly empty between the pillars, so each is stored as up to four
 // pieces (left pillar, right pillar, and the bottom strip in two halves) cropped to their alpha box in
 // multiples of 16px, packed as pillars side by side with each bottom half in its own row below.
 // Every piece keeps a 16px border of its real neighbouring pixels in the atlas, so bilinear and mipmap
 // sampling at a piece edge matches one whole texture, and atlas positions stay 16px-aligned with the
 // frame so the mip levels line up with the frame texture. Re-running gives byte-identical files.
-// Input: press-idle-deck-v17-input.png and the game frame public/gear/classic-frame.png (prepare-frame-fit-v20.mjs).
+// Input: press-idle-deck-v17-input.png and the game gear public/gear/gear.png (prepare-frame-fit-v20.mjs).
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
-const outputDir = resolve(workspaceRoot, 'public/gear/classic-frame-motion');
-const cutoutPath = resolve(workspaceRoot, 'public/gear/classic-frame.png');
+const outputDir = resolve(workspaceRoot, 'public/gear/gear-motion');
+const cutoutPath = resolve(workspaceRoot, 'public/gear/gear.png');
 const ALIGN = 16;
 const PIECE_BORDER = 16;
 // Piece regions (exclusive ends) and atlas rows: the pillars above the key deck's bottom share the first
@@ -333,8 +333,8 @@ const files = {
   glint: 'glint.png',
   bubbles: 'bubbles.png',
 };
-// Each texture: its PNG size and pieces. A piece draws atlas box (atlasX, atlasY, width, height) at frame
-// position (x, y). The liquid tile repeats every tileHeight downwards from its piece; both glints start at
+// image: the gear image size the pieces are placed in. Each texture: its PNG size and pieces. A piece draws
+// atlas box (atlasX, atlasY, width, height) at gear-image position (x, y). The liquid tile repeats every tileHeight downwards from its piece; both glints start at
 // the glint piece and move along x; the bubble atlas holds one bubbleCell-square cell per bubble.
 const textures = Object.fromEntries(Object.entries(files).map(([key, file]) => {
   const texture = baked.textures[key];
@@ -345,7 +345,7 @@ const data = {
   version: 1,
   generator: 'assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs',
   source: 'lab/image-galleries/frame-keywords-six-20260929/54-ambient-motion-v19.svg',
-  frame: { width: WIDTH, height: HEIGHT },
+  image: { width: WIDTH, height: HEIGHT },
   textures,
   light: {
     periodMs: ms(LIGHT.travel),
@@ -405,8 +405,8 @@ for (const [key, file] of Object.entries(files)) writeFileSync(resolve(outputDir
 // Keep [x, y] points and short number lists on one line.
 const json = JSON.stringify(data, null, 2).replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')
   .replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+),\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2, $3, $4]');
-writeFileSync(resolve(outputDir, 'frame-motion.json'), `${json}\n`);
-for (const file of [...Object.values(files), 'frame-motion.json']) console.log(relative(workspaceRoot, resolve(outputDir, file)));
+writeFileSync(resolve(outputDir, 'gear-motion.json'), `${json}\n`);
+for (const file of [...Object.values(files), 'gear-motion.json']) console.log(relative(workspaceRoot, resolve(outputDir, file)));
 console.log(`armor pixels ${baked.stats.armorPixels}, limited by the cutout ${baked.stats.cutoutLimited}`);
 for (const [key, texture] of Object.entries(textures)) {
   const drawn = texture.pieces.reduce((sum, piece) => sum + piece.width * piece.height, 0);

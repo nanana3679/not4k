@@ -4,7 +4,7 @@
  *
  * 키 그림은 setup에서 한 번만 만든다. 바인딩된 키는 대기·눌림 그림을 하나씩 두고 눌림 상태가 바뀔 때 보이는 쪽만 바꿔,
  * 키 입력마다 Graphics를 다시 그리거나 렌더 텍스처를 새로 굽지 않는다.
- * 프레임 오른쪽 빈 곳이 좁으면(16:10 넘버패드·4:3 등) 줄여 넣고, 읽기 어려울 만큼 줄여야 하면 숨긴다(`placeKeyboardDisplay`).
+ * 기어 오른쪽 빈 곳이 좁으면(16:10 넘버패드·4:3 등) 줄여 넣고, 읽기 어려울 만큼 줄여야 하면 숨긴다(`placeKeyboardDisplay`).
  */
 
 import { Container, Graphics } from "pixi.js";
@@ -36,7 +36,7 @@ export interface KeyboardDisplayArea {
   /** 플레이 영역 논리 크기(높이 600). 튜토리얼 키보드 strip처럼 그 아래 덧붙는 영역은 넣지 않는다. */
   width: number;
   height: number;
-  /** 키보드가 쓸 수 있는 가장 왼쪽 x(프레임 실루엣 오른쪽 끝 + 여백). */
+  /** 키보드가 쓸 수 있는 가장 왼쪽 x(기어 실루엣 오른쪽 끝 + 여백). */
   freeLeft: number;
 }
 
@@ -73,7 +73,7 @@ export function placeKeyboardDisplay(
   const right = area.width - KEYBOARD_DISPLAY_MARGIN;
   const bottom = area.height - KEYBOARD_DISPLAY_MARGIN;
   const available = right - area.freeLeft;
-  // 빈 폭이 음수(프레임이 오른쪽 여백까지 닿는 좁은 화면)면 음수 배율 대신 0으로 묶는다.
+  // 빈 폭이 음수(기어가 오른쪽 여백까지 닿는 좁은 화면)면 음수 배율 대신 0으로 묶는다.
   const scale = Math.max(0, Math.min(1, available / size.width));
   return {
     // 경계(정확히 0.6배)에서 부동소수 오차로 숨지 않게 아주 작은 여유를 둔다.

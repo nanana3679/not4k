@@ -154,19 +154,25 @@ describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어
   });
 });
 
-describe('gameStore — frameMotion(프레임 움직임)', () => {
-  it('처음 실행하면 프레임 움직임은 켜져 있다(frameMotion true)', () => {
-    expect(useGameStore.getInitialState().settings.frameMotion).toBe(true);
+describe('gameStore — gearMotion(기어 움직임)', () => {
+  it('처음 실행하면 기어 움직임은 켜져 있다(gearMotion true)', () => {
+    expect(useGameStore.getInitialState().settings.gearMotion).toBe(true);
   });
 
-  it('프레임 움직임을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
+  it('기어 움직임을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
     const restored = mergePersistedSettings({ settings: { renderHeight: 720 } }, useGameStore.getInitialState());
-    expect(restored.settings.frameMotion).toBe(true);
+    expect(restored.settings.gearMotion).toBe(true);
     expect(restored.settings.renderHeight).toBe(720);
   });
 
   it('끔(false)으로 저장한 설정을 복원하면 켬으로 되돌리지 않는다', () => {
+    const restored = mergePersistedSettings({ settings: { gearMotion: false } }, useGameStore.getInitialState());
+    expect(restored.settings.gearMotion).toBe(false);
+  });
+
+  it('#231 전 키 frameMotion: false만 저장된 설정을 복원하면 옛 키는 버리고 gearMotion은 기본 켬(true)이다', () => {
     const restored = mergePersistedSettings({ settings: { frameMotion: false } }, useGameStore.getInitialState());
-    expect(restored.settings.frameMotion).toBe(false);
+    expect(restored.settings).not.toHaveProperty('frameMotion');
+    expect(restored.settings.gearMotion).toBe(true);
   });
 });
