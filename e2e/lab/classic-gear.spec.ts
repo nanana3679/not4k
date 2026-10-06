@@ -8,7 +8,7 @@ const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/r
   laneOpening: { rows: [number, number, number][] };
 };
 const laneWindow = geometry.laneRight - geometry.laneLeft + 1;
-// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 아래끝(frameBottom + 1행)을 화면 아래에 붙인다.
+// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 실루엣 아래끝(측정 자료 키 frameBottom + 1행)을 화면 아래에 붙인다.
 const scale = 250 / laneWindow;
 const gearTop = 600 - (geometry.frameBottom + 1) * scale;
 const deckTopY = gearTop + geometry.deckTop * scale;
@@ -119,6 +119,17 @@ test.describe('Classic Gear Lab — 새 기어가 들어간 실제 게임 화면
       expect(errors).toEqual([]);
     });
   }
+
+  test('#231 전 주소 /lab/classic-frame-fit으로 열면 /lab/classic-gear로 바뀌어 같은 미리보기가 열리고, 뒤로 가기 기록에 옛 주소가 남지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab');
+    await page.goto('/lab/classic-frame-fit');
+    await expect(page).toHaveURL(/\/lab\/classic-gear$/);
+    await expect(page.locator('[data-lab-page="classic-gear"]')).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lab$/);
+    expect(errors).toEqual([]);
+  });
 
   test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 판정선 y 416·덱 위끝 429.7·키 윗면 446.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
     const errors = collectErrors(page);

@@ -136,6 +136,8 @@ export function mergePersistedSettings(
     merged.audioOffsetMs = raw.offsetMs;
   }
   delete merged.offsetMs;
+  // #231에서 설정 이름을 frameMotion → gearMotion으로 바꿨다(미출시라 값은 옮기지 않는다). 옛 키는 남기지 않는다.
+  delete merged.frameMotion;
   return {
     ...cur,
     settings: merged as unknown as GameSettings,

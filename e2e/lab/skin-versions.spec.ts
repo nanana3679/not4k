@@ -119,7 +119,7 @@ test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그
       // 플레이필드 배율 0.625(RFD 0029)로 줄어든 렌더러를 해상도 1.6으로 그려, 이전 레인 100·노트 20 기준 픽셀 좌표를
       // 그대로 쓴다(논리 250×320 → 400×512px, 판정선 y 262.5 → 420px, 스크롤 250 → 400px/s).
       const renderer = new GameRenderer({ canvas, width: 250, height: 320, resolution: 1.6, judgmentLineOffset: 57.5, skinManager: skin,
-        showGearFrame: false, showFlightBackground: false, showComboAndAccuracy: false });
+        showGear: false, showFlightBackground: false, showComboAndAccuracy: false });
       await renderer.init();
       renderer.scrollSpeed = 250;
       renderer.setChart(notes, [], [], events, createChartTiming({ notes, events, trillZones: [], meta: { offsetMs: 0 } }));

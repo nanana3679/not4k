@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 // Prepares the approved Classic frame painting (press-idle-deck v17) for the game (RFD 0029). Writes the
 // only copies of the gear the repository uses; the game renderer, /lab/classic-gear and
 // prepare-frame-motion-v21.mjs all read these two files:
-//   public/gear/classic-gear.png        1024x1536 RGBA, the skin-shared game gear (manifest `gearFrame`).
+//   public/gear/classic-gear.png        1024x1536 RGBA, the skin-shared game gear (manifest `gearImage`).
 //                                        The lane field between the pillars and the flat backdrop around
 //                                        the frame are transparent; pillars, key deck and bottom bar stay opaque.
 //   src/game/renderer/classicGear.json  The geometry the renderer lays the gear out with, measured from pixels here.

@@ -20,13 +20,13 @@ describe('Classic 기어 측정값 (prepare-frame-fit-v20.mjs → classicGear.js
       laneLeft: 236, laneRight: 787,
       deckTop: 1090, laneOpeningBottom: 1126,
       silhouetteLeft: 16, silhouetteRight: 1007,
-      frameBottom: 1465,
+      silhouetteBottom: 1465,
     });
   });
 
-  it('측정값 JSON은 기어 그림 public/gear/classic-gear.png를 가리키고 매니페스트 gearFrame도 같은 그림이다', () => {
+  it('측정값 JSON은 기어 그림 public/gear/classic-gear.png를 가리키고 매니페스트 gearImage도 같은 그림이다', () => {
     expect(gearJson.image).toBe('public/gear/classic-gear.png');
-    expect(getSkinManifest('classic').assets.gearFrame).toBe('/gear/classic-gear.png');
+    expect(getSkinManifest('classic').assets.gearImage).toBe('/gear/classic-gear.png');
   });
 
   it('밉맵·삼선형 필터로 읽어 0.45배 이하로 줄여 그려도 계단이 생기지 않게 한다', () => {

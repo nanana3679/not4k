@@ -24,18 +24,18 @@ const EVENTS: ChartEvent[] = [
 ];
 
 async function createRenderer({
-  width = 1067, resolution = 1.8, showGearFrame = true, theme = {}, textures = [],
-}: { width?: number; resolution?: number; showGearFrame?: boolean; theme?: Record<string, unknown>; textures?: string[] } = {}) {
+  width = 1067, resolution = 1.8, showGear = true, theme = {}, textures = [],
+}: { width?: number; resolution?: number; showGear?: boolean; theme?: Record<string, unknown>; textures?: string[] } = {}) {
   const gear = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
   const skinManager = {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff, ...theme }),
     getBodyWidthScale: () => 1,
     hasTexture: (key: string) => textures.includes(key),
-    getTexture: (key: string) => (key === 'gearFrame' ? gear : Texture.WHITE),
+    getTexture: (key: string) => (key === 'gearImage' ? gear : Texture.WHITE),
     getHalfCapTexture: () => Texture.WHITE,
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
-    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, resolution, skinManager, showGearFrame, showFlightBackground: false,
+    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, resolution, skinManager, showGear, showFlightBackground: false,
     // 기어 움직임은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
     gearMotion: false,
   });
@@ -176,7 +176,7 @@ describe('오른쪽 위 이벤트 문구', () => {
   });
 
   it('기어가 없으면 레인 영역 오른쪽 끝(658.5) + 8부터 재서 줄바꿈 폭 380.5', async () => {
-    const { scene } = await createRenderer({ showGearFrame: false });
+    const { scene } = await createRenderer({ showGear: false });
     expect(scene.eventMessageText.style.wordWrapWidth).toBeCloseTo(380.5, 9);
   });
 

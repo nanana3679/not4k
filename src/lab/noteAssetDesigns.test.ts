@@ -46,8 +46,8 @@ describe('시안 교체', () => {
     expect(design.versionId).toBe(version);
     expect(design.skinId).toBe(`classic-${version}`);
     expect(design.skinManifest?.theme.available).toBe(false);
-    const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/gear/classic-gear.png');
+    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/gear/classic-gear.png');
     expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
     for (const path of Object.values(skinAssets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
     for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
@@ -103,8 +103,8 @@ describe('/not4k/ 배포의 시안 주소', () => {
   it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림에 접두사를 한 번만 붙인다', async () => {
     const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
     const design = getPublicDesign('classic', 'v001');
-    const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/not4k/gear/classic-gear.png');
+    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/not4k/gear/classic-gear.png');
     for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
       expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
       expect(path).not.toContain('/not4k/not4k/');

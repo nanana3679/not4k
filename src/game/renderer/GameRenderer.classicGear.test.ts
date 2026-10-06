@@ -10,7 +10,7 @@ interface Scene {
   app: Application;
   maskGraphic: Graphics;
   judgmentLineGraphic: Graphics;
-  gearFrameLayer: Container;
+  gearLayer: Container;
   laneKeyLabelLayer: Container;
   effectLayer: Container;
   uiLayer: Container;
@@ -23,7 +23,7 @@ interface Scene {
 const gearTexture = () => new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
 const created: GameRenderer[] = [];
 
-async function createRenderer({ width = 1067, showGearFrame = true }: { width?: number; showGearFrame?: boolean } = {}) {
+async function createRenderer({ width = 1067, showGear = true }: { width?: number; showGear?: boolean } = {}) {
   const texture = gearTexture();
   const skinManager = {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
@@ -31,13 +31,13 @@ async function createRenderer({ width = 1067, showGearFrame = true }: { width?: 
     hasTexture: () => false,
     // 버튼 텍스처가 있어도 렌더러는 더 이상 40×40 버튼을 만들지 않아야 한다.
     getTexture: (key: string) => {
-      if (key === 'gearFrame') return texture;
+      if (key === 'gearImage') return texture;
       if (key.startsWith('button')) return Texture.WHITE;
       throw new Error(`unknown texture ${key}`);
     },
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
-    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGearFrame, showFlightBackground: false,
+    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground: false,
     // 기어 움직임은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
     gearMotion: false,
   });
@@ -63,7 +63,7 @@ describe('GameRenderer 새 Classic 기어 (RFD 0029)', () => {
     const { renderer, scene, texture } = await createRenderer();
     const expected = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, stageFor(1067));
     expect(renderer.gearLayout).toEqual(expected);
-    const [sprite] = scene.gearFrameLayer.children as Sprite[];
+    const [sprite] = scene.gearLayer.children as Sprite[];
     expect(sprite.texture).toBe(texture);
     expect([sprite.x, sprite.y]).toEqual([expected.x, expected.y]);
     expect(sprite.scale.x).toBeCloseTo(250 / 552, 12);
@@ -83,11 +83,11 @@ describe('GameRenderer 새 Classic 기어 (RFD 0029)', () => {
   it('기어 레이어는 레인 가림막·판정선·레인 키 라벨 위, 키봄·UI 아래에 있다', async () => {
     const { scene } = await createRenderer();
     const order = (child: Container) => scene.app.stage.getChildIndex(child);
-    expect(order(scene.gearFrameLayer)).toBeGreaterThan(order(scene.maskGraphic));
-    expect(order(scene.gearFrameLayer)).toBeGreaterThan(order(scene.judgmentLineGraphic));
-    expect(order(scene.gearFrameLayer)).toBeGreaterThan(order(scene.laneKeyLabelLayer));
-    expect(order(scene.gearFrameLayer)).toBeLessThan(order(scene.effectLayer));
-    expect(order(scene.gearFrameLayer)).toBeLessThan(order(scene.uiLayer));
+    expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.maskGraphic));
+    expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.judgmentLineGraphic));
+    expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.laneKeyLabelLayer));
+    expect(order(scene.gearLayer)).toBeLessThan(order(scene.effectLayer));
+    expect(order(scene.gearLayer)).toBeLessThan(order(scene.uiLayer));
   });
 
   it('레인 가림막은 판정선(y 416)이 아니라 키 윗면 y 446.5부터 화면 아래까지 레인 영역 폭 250을 덮는다', async () => {
@@ -109,7 +109,7 @@ describe('GameRenderer 새 Classic 기어 (RFD 0029)', () => {
 
   it('리프트 4%(24)는 판정선·콤보·정확도 글자만 24 올리고 기어와 레인 가림막은 그대로 둔다', async () => {
     const { renderer, scene } = await createRenderer();
-    const [gear] = scene.gearFrameLayer.children as Sprite[];
+    const [gear] = scene.gearLayer.children as Sprite[];
     const gearBefore = [gear.x, gear.y];
     const maskBefore = boundsOf(scene.maskGraphic);
     const comboBefore = scene.comboText.y;
@@ -146,21 +146,21 @@ describe('GameRenderer 새 Classic 기어 (RFD 0029)', () => {
     const overlay = new Container();
     const layout = renderer.addGearOverlay(overlay);
     expect(layout).toBe(renderer.gearLayout);
-    expect(overlay.parent).toBe(scene.gearFrameLayer);
-    expect(scene.gearFrameLayer.children.at(-1)).toBe(overlay);
+    expect(overlay.parent).toBe(scene.gearLayer);
+    expect(scene.gearLayer.children.at(-1)).toBe(overlay);
     expect([overlay.x, overlay.y, overlay.scale.x, overlay.scale.y]).toEqual([layout!.x, layout!.y, layout!.scale, layout!.scale]);
   });
 
-  it('showGearFrame=false면 기어를 그리지 않고 gearLayout·addGearOverlay는 null이며 가림막은 판정 순간 노트 칸 아래끝(판정선 416 + 노트 반 칸 6.25 = 422.25)부터 덮는다', async () => {
-    const { renderer, scene } = await createRenderer({ showGearFrame: false });
+  it('showGear=false면 기어를 그리지 않고 gearLayout·addGearOverlay는 null이며 가림막은 판정 순간 노트 칸 아래끝(판정선 416 + 노트 반 칸 6.25 = 422.25)부터 덮는다', async () => {
+    const { renderer, scene } = await createRenderer({ showGear: false });
     expect(renderer.gearLayout).toBeNull();
-    expect(scene.gearFrameLayer.children).toHaveLength(0);
+    expect(scene.gearLayer.children).toHaveLength(0);
     expect(renderer.addGearOverlay(new Container())).toBeNull();
     expect(boundsOf(scene.maskGraphic).minY).toBe(422.25);
   });
 
   it('기어가 없는 미니 렌더러는 리프트 4%면 가림막도 판정선을 따라 24 올라가 398.25부터 덮는다', async () => {
-    const { renderer, scene } = await createRenderer({ showGearFrame: false });
+    const { renderer, scene } = await createRenderer({ showGear: false });
     renderer.setLift(liftPx(4));
     expect(boundsOf(scene.maskGraphic).minY).toBe(398.25);
   });
@@ -194,7 +194,7 @@ describe('GameRenderer 키보드 표시 배치', () => {
   });
 
   it('기어가 없으면 레인 영역 오른쪽 끝(4:3에서 525) + 8을 피해 배치한다', async () => {
-    const { renderer, scene } = await createRenderer({ width: 800, showGearFrame: false });
+    const { renderer, scene } = await createRenderer({ width: 800, showGear: false });
     renderer.setupKeyboardDisplay(NUMPAD);
     expect(keyboardOf(scene).x).toBeCloseTo(800 - 4 - 253, 9);
   });

@@ -96,8 +96,8 @@ export interface GameRendererOptions {
   skinManager: SkinManager;
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
-  /** 새 Classic 기어(스킨 공통 `gearFrame`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
-  showGearFrame?: boolean;
+  /** 새 Classic 기어(스킨 공통 `gearImage`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
+  showGear?: boolean;
   /**
    * 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
    * 끄면(게임 설정 `gearMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
@@ -187,8 +187,8 @@ export class GameRenderer {
   private keyBeamGradient: FillGradient | null = null;
 
   // Gear (새 Classic 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
-  private gearFrameLayer: Container;
-  private gearFrameLayout: Readonly<ClassicGearLayout> | null = null;
+  private gearLayer: Container;
+  private _gearLayout: Readonly<ClassicGearLayout> | null = null;
   // 기어 움직임 — 기어 레이어에서 기어 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
   private readonly gearMotionEnabled: boolean;
   private readonly gearMotionReducedMotion: "omit" | "hide";
@@ -212,7 +212,7 @@ export class GameRenderer {
   /** 마디선 두께: 설계 두께와 화면 1px(1 ÷ 해상도) 중 큰 값 */
   private readonly measureLineThickness: number;
   private laneAreaX: number;
-  private showGearFrame: boolean;
+  private showGear: boolean;
   private showFlightBackground: boolean;
   private showComboAndAccuracy: boolean;
   private showLaneKeyLabels: boolean;
@@ -245,7 +245,7 @@ export class GameRenderer {
     this.skinManager = options.skinManager;
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
-    this.showGearFrame = options.showGearFrame ?? true;
+    this.showGear = options.showGear ?? true;
     this.gearMotionEnabled = options.gearMotion ?? true;
     this.gearMotionReducedMotion = options.gearMotionReducedMotion ?? "omit";
     this.showFlightBackground = options.showFlightBackground ?? true;
@@ -270,7 +270,7 @@ export class GameRenderer {
     this.maskGraphic = new Graphics();
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
-    this.gearFrameLayer = new Container();
+    this.gearLayer = new Container();
     this.laneKeyLabelLayer = new Container();
     this.tutorialKeyboardLayer = new Container();
     this.uiLayer = new Container();
@@ -323,7 +323,7 @@ export class GameRenderer {
    * 기어 배치는 렌더러 논리 크기만으로 정해지므로 텍스처를 읽기 전(생성자)에도 계산할 수 있다.
    */
   private eventMessageWrapWidth(): number {
-    const obstacleRight = this.showGearFrame
+    const obstacleRight = this.showGear
       ? layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
       : this.laneAreaX + LANE_AREA_WIDTH;
     return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
@@ -359,7 +359,7 @@ export class GameRenderer {
     this.app.stage.addChild(this.laneKeyLabelLayer);
     // 키보드 strip은 y >= this.height 별도 영역이라 다른 레이어와 z순서 영향 없음.
     this.app.stage.addChild(this.tutorialKeyboardLayer);
-    this.app.stage.addChild(this.gearFrameLayer);
+    this.app.stage.addChild(this.gearLayer);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
 
@@ -382,8 +382,8 @@ export class GameRenderer {
     );
 
     // Draw static elements. 기어 배치가 레인 가림막의 시작 높이를 정하므로 기어를 먼저 놓는다.
-    if (this.showGearFrame) {
-      this.buildGearFrame();
+    if (this.showGear) {
+      this.buildGear();
     }
     this.drawBackground();
     this.drawJudgmentLine();
@@ -466,9 +466,9 @@ export class GameRenderer {
    * 실루엣 아래 가장자리를 화면 아래에 붙인다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
-  private buildGearFrame(): void {
+  private buildGear(): void {
     let texture;
-    try { texture = this.skinManager.getTexture("gearFrame"); } catch { return; }
+    try { texture = this.skinManager.getTexture("gearImage"); } catch { return; }
     const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
       laneAreaX: this.laneAreaX,
       laneAreaWidth: LANE_AREA_WIDTH,
@@ -479,8 +479,8 @@ export class GameRenderer {
     sprite.width = layout.width;
     sprite.height = layout.height;
     // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
-    this.gearFrameLayout = Object.freeze(layout);
-    this.gearFrameLayer.addChild(sprite);
+    this._gearLayout = Object.freeze(layout);
+    this.gearLayer.addChild(sprite);
   }
 
   /**
@@ -489,7 +489,7 @@ export class GameRenderer {
    * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
    */
   private buildGearMotion(): void {
-    if (!this.gearMotionEnabled || !this.gearFrameLayout) return;
+    if (!this.gearMotionEnabled || !this._gearLayout) return;
     const reduced = prefersReducedMotion();
     if (reduced && this.gearMotionReducedMotion === "omit") return;
     const holder = new Container({ label: "classic-gear-motion-holder" });
@@ -759,8 +759,8 @@ export class GameRenderer {
    * 아래끝(판정선 + 노트 반 칸, #224)부터 덮어, 판정선에 가운데가 걸친 노트·터미널이 게임처럼 한 칸 전부 보인다.
    */
   private laneMaskTop(): number {
-    return this.gearFrameLayout
-      ? this.gearFrameLayout.keyRimY
+    return this._gearLayout
+      ? this._gearLayout.keyRimY
       : this._judgmentLineY + Math.max(NOTE_HEIGHT, JUDGMENT_LINE_THICKNESS) / 2;
   }
 
@@ -1101,9 +1101,9 @@ export class GameRenderer {
     return this._judgmentLineY;
   }
 
-  /** 기어 배치(논리 단위). 기어를 그리지 않으면(showGearFrame false·텍스처 없음) null. */
+  /** 기어 배치(논리 단위). 기어를 그리지 않으면(showGear false·텍스처 없음) null. */
   get gearLayout(): Readonly<ClassicGearLayout> | null {
-    return this.gearFrameLayout;
+    return this._gearLayout;
   }
 
   /**
@@ -1120,11 +1120,11 @@ export class GameRenderer {
    * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
   addGearOverlay(overlay: Container): Readonly<ClassicGearLayout> | null {
-    const layout = this.gearFrameLayout;
-    if (!layout || this.gearFrameLayer.destroyed) return null;
+    const layout = this._gearLayout;
+    if (!layout || this.gearLayer.destroyed) return null;
     overlay.position.set(layout.x, layout.y);
     overlay.scale.set(layout.scale);
-    this.gearFrameLayer.addChild(overlay);
+    this.gearLayer.addChild(overlay);
     return layout;
   }
 
@@ -1135,7 +1135,7 @@ export class GameRenderer {
   setLift(y: number): void {
     this._judgmentLineY = this.height - this.judgmentLineOffset - y;
     this.drawJudgmentLine();
-    if (!this.gearFrameLayout) this.drawMask();
+    if (!this._gearLayout) this.drawMask();
     this.comboText.y = this._judgmentLineY - COMBO_OFFSET;
     this.accuracyText.y = this._judgmentLineY - ACCURACY_OFFSET;
     this.judgmentUI.setPosition(this._judgmentLineY);
@@ -1153,7 +1153,7 @@ export class GameRenderer {
    */
   setupKeyboardDisplay(laneBindings: Map<string, number>): void {
     this.keyboardDisplay?.dispose();
-    const obstacleRight = this.gearFrameLayout?.silhouetteRightX ?? this.laneAreaX + LANE_AREA_WIDTH;
+    const obstacleRight = this._gearLayout?.silhouetteRightX ?? this.laneAreaX + LANE_AREA_WIDTH;
     this.keyboardDisplay = new KeyboardDisplay(this.uiLayer);
     this.keyboardDisplay.setup(laneBindings, {
       width: this.width,

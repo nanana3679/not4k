@@ -26,12 +26,12 @@
 
 플레이 화면에서 레인 영역을 둘러싼 요소. 장식 그림(기둥·장갑·하단 바)과 그 위의 움직임(광원·게이지 액체와 기포·발광선·하단 바 빛), 양옆 유리관 게이지, 레인 아래 키 덱을 함께 가리킨다. 한국 리듬게임 커뮤니티에서 레인을 둘러싼 테두리 스킨을 부르는 established 이름이라 "기어"로 쓴다([term-map](term-map.md) B).
 
-- **배치:** [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)에 따라 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 맞추고, 기어 아래끝을 화면 아래에 고정한다. 리프트와 무관하게 움직이지 않는다.
-- **에셋:** 지금은 스킨 공용 에셋 하나(`public/gear/classic-gear.png`, 스킨 매니페스트 키 `gearFrame`)를 모든 스킨이 함께 쓴다. 스킨마다 다른 기어를 쓸 가능성은 열어 둔다.
-- **기어 움직임:** 기어 위에 얹는 장식 애니메이션이다. 시계는 곡 시각이 아니라 게임 프레임 간격(`renderFrame`의 `deltaMs`)으로만 나아가 일시정지 중에는 멈춘다. 설정 `Gear Motion`(기본 켬)이나 움직임 줄이기면 만들지 않는다. 자료는 `public/gear/classic-gear-motion/`에 둔다.
-- **유리관 게이지:** 기어 양옆 유리관의 액체 채움이다. 후속 작업에서 `altitude`를 채움 높이로 보여 주는 고도 게이지가 되며, 지금은 그림 그대로 가득 차 있다.
-- **코드 식별자:** `gearFrame`(스킨 매니페스트 키·텍스처), `showGearFrame`(렌더러 옵션), `gearFrameLayer`, `classicGear.json`·`classicGearLayout.ts`의 `ClassicGearLayout`·`ClassicGearGeometry`·`layoutClassicGear`·`CLASSIC_GEAR_GEOMETRY`·`CLASSIC_GEAR_TEXTURE_OPTIONS`·`GEAR_CLEARANCE`, `GameRenderer.gearLayout`·`addGearOverlay`, 기어 움직임 `GearMotionController`·`GearMotionControls`(`GameRenderer.gearMotion`, 옵션 `gearMotion`·`gearMotionReducedMotion`), `classicGearMotion*.ts`의 `createClassicGearMotion`·`acquireGearMotionAssets`·`GEAR_MOTION_*`, `gearMotionKeepAlive.ts`의 `keepGearMotionAssets`, 게임 설정 `gearMotion`.
-- **쓰지 않는 표현:** 이 뜻으로 "프레임"을 쓰지 않는다. 프레임은 화면 한 장(`renderFrame`, `requestAnimationFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 옛 이름(`classicFrame*`, `FrameMotionController`, 설정 `Frame Motion`)은 [#231](https://github.com/nanana3679/not4k/issues/231)에서 바꿨다. 결정 기록(RFD 본문·디자인 문서·CHANGELOG 지난 항목)의 "프레임"은 그때의 표기로 남긴다.
+- **배치**: [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)에 따라 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 맞추고, 기어 아래끝을 화면 아래에 고정한다. 리프트와 무관하게 움직이지 않는다.
+- **에셋**: 지금은 스킨 공용 에셋 하나(`public/gear/classic-gear.png`, 스킨 매니페스트 키 `gearImage`)를 모든 스킨이 함께 쓴다. 스킨마다 다른 기어를 쓸 가능성은 열어 둔다.
+- **기어 움직임**: 기어 위에 얹는 장식 애니메이션이다. 시계는 곡 시각이 아니라 게임 프레임 간격(`renderFrame`의 `deltaMs`)으로만 나아가 일시정지 중에는 멈춘다. 설정 `Gear Motion`(기본 켬)이나 움직임 줄이기면 만들지 않는다. 자료는 `public/gear/classic-gear-motion/`에 둔다.
+- **유리관 게이지**: 기어 양옆 유리관의 액체 채움이다. 후속 작업에서 `altitude`를 채움 높이로 보여 주는 고도 게이지가 되며, 지금은 그림 그대로 가득 차 있다.
+- **코드 식별자**: `gearImage`(스킨 매니페스트 키·텍스처, 기어 바탕 그림), `showGear`(렌더러 옵션), `GameRenderer`의 `gearLayer`·`buildGear`, `classicGear.json`·`classicGearLayout.ts`의 `ClassicGearLayout`·`ClassicGearGeometry`(`silhouetteBottom` 등)·`layoutClassicGear`·`CLASSIC_GEAR_GEOMETRY`·`CLASSIC_GEAR_TEXTURE_OPTIONS`·`GEAR_CLEARANCE`, `GameRenderer.gearLayout`·`addGearOverlay`, 기어 움직임 `GearMotionController`·`GearMotionControls`(`GameRenderer.gearMotion`, 옵션 `gearMotion`·`gearMotionReducedMotion`), `classicGearMotion*.ts`의 `createClassicGearMotion`·`acquireGearMotionAssets`·`GEAR_MOTION_*`, `gearMotionKeepAlive.ts`의 `keepGearMotionAssets`, 게임 설정 `gearMotion`. 생성기가 만드는 측정 자료의 키 `frameBottom`(`classicGear.json`, 코드에서는 `ClassicGearGeometry.silhouetteBottom`으로 읽는다)과 `frame: {width, height}`(`gear-motion.json`, `GearMotionData.frame`)는 옛 이름 그대로 둔다. 키를 바꾸면 보관한 생성기(`prepare-frame-fit-v20.mjs`·`prepare-frame-motion-v21.mjs`)를 고쳐 다시 만들어야 하고 산출물 바이트가 바뀌기 때문이다.
+- **쓰지 않는 표현**: 이 뜻으로 "프레임"을 쓰지 않는다. 프레임은 화면 한 장(`renderFrame`, `requestAnimationFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 옛 이름(`classicFrame*`, `FrameMotionController`, 설정 `Frame Motion`, 매니페스트 키 `gearFrame`, 렌더러 옵션 `showGearFrame`)은 [#231](https://github.com/nanana3679/not4k/issues/231)에서 바꿨다. 보관한 Classic 버전의 매니페스트(`assets-lab/classic/versions/*`, `classicSkinVersions.ts`)는 보관 당시 키 `gearFrame`을 그대로 둔다. 결정 기록(RFD 본문·디자인 문서·CHANGELOG 지난 항목)의 "프레임"은 그때의 표기로 남긴다.
 
 ---
 

@@ -22,9 +22,9 @@ describe('Classic 버전 Lab 공개', () => {
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => /\.(png|svg)$/.test(entry.pathname))).toBe(true);
     for (const { design } of CLASSIC_NOTE_ASSET_VERSIONS) {
-      const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
+      const { gearImage, ...skinAssets } = design.skinManifest!.assets;
       // 보관본도 지금 공통 기어로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
-      expect(gearFrame).toBe('/gear/classic-gear.png');
+      expect(gearImage).toBe('/gear/classic-gear.png');
       expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
       for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
         expect(paths.has(path), path).toBe(true);
@@ -83,8 +83,9 @@ describe('Classic 버전 Lab 공개', () => {
     const registered = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!.manifest;
     expect(registered.theme).toEqual(current.theme);
     // 스킨 공통 기어는 버전에 속하지 않는다. v014 보관 당시의 옛 기어·게이지 기록만 다르고 나머지 에셋은 같다.
+    // 보관 매니페스트는 키 이름도 보관 당시 그대로다(#231 전 키 gearFrame).
     const { gearFrame: archivedGear, gearGaugeLeft, gearGaugeRight, ...registeredSkinAssets } = registered.assets;
-    const { gearFrame: currentGear, ...currentSkinAssets } = current.assets;
+    const { gearImage: currentGear, ...currentSkinAssets } = current.assets;
     expect([archivedGear, gearGaugeLeft, gearGaugeRight]).toEqual(['/gear/gear-frame.png', '/gear/gear-gauge-left.png', '/gear/gear-gauge-right.png']);
     expect(currentGear).toBe('/gear/classic-gear.png');
     expect(registeredSkinAssets).toEqual(currentSkinAssets);

@@ -17,7 +17,7 @@
 새 Classic 프레임을 게임에 넣는 그림과 측정값이다([RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 저장소에 한 벌만 두고 게임 렌더러·`/lab/classic-gear`·아래 움직임 생성기가 모두 이것을 읽는다. #231 뒤로 게임 쪽 이름은 "기어"로 바뀌었고 아래 경로는 바뀐 현재 경로다.
 
 - 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <폴더>]` (입력: `press-idle-deck-v17-input.png`). 다시 실행해도 같은 바이트다
-- 결과: 기어 그림 `public/gear/classic-gear.png`(1024×1536, 레인 창과 꺾인 덱 사이 레인 바닥·바깥 바탕 투명, 스킨 공통 `gearFrame`)와 렌더러 배치 측정값 `src/game/renderer/classicGear.json`(레인 창 236~787열, 덱 위끝 1090행, 열린 덱 바닥 1126행, 실루엣 16~1007열·16~1465행 등). 둘이 같은 생성기 산출물인지와 그림 바이트는 `prepare-frame-fit-v20.test.ts`가 확인한다
+- 결과: 기어 그림 `public/gear/classic-gear.png`(1024×1536, 레인 창과 꺾인 덱 사이 레인 바닥·바깥 바탕 투명, 스킨 공통 `gearImage`)와 렌더러 배치 측정값 `src/game/renderer/classicGear.json`(레인 창 236~787열, 덱 위끝 1090행, 열린 덱 바닥 1126행, 실루엣 16~1007열·16~1465행 등). 둘이 같은 생성기 산출물인지와 그림 바이트는 `prepare-frame-fit-v20.test.ts`가 확인한다
 - 예전 Lab 비교용 복사본(`public/lab/classic-frame-fit/frame-cutout.png`·`frame-fit.json`)과 맞춤 방식 비교용 이음매(`seam`) 측정은 게임 적용 때 지웠다
 
 ## Pixi 움직임 자료 (v21)

@@ -1,5 +1,5 @@
 /**
- * 새 Classic 기어(스킨 공통 `gearFrame`, public/gear/classic-gear.png)의 배치([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
+ * 새 Classic 기어(스킨 공통 `gearImage`, public/gear/classic-gear.png)의 배치([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  *
  * 기어는 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 겹치고, 실루엣 아래끝을 화면 아래에 붙인다.
  * 리프트와 무관하게 고정이며, 레인 가림막은 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다.
@@ -24,8 +24,11 @@ export interface ClassicGearGeometry {
   /** 기어 실루엣의 첫/마지막 열. */
   silhouetteLeft: number;
   silhouetteRight: number;
-  /** 기어 실루엣의 마지막 행. 아래 가장자리(frameBottom + 1)를 화면 아래에 붙인다. 이름은 생성기가 쓰는 측정 자료 키 그대로다. */
-  frameBottom: number;
+  /**
+   * 기어 실루엣의 마지막 행. 아래 가장자리(silhouetteBottom + 1)를 화면 아래에 붙인다.
+   * 측정 자료(classicGear.json)의 키는 생성기 prepare-frame-fit-v20.mjs가 쓰는 이름 그대로 `frameBottom`이다(산출물 바이트를 바꾸지 않으려고 둔다).
+   */
+  silhouetteBottom: number;
 }
 
 export const CLASSIC_GEAR_GEOMETRY: ClassicGearGeometry = {
@@ -37,7 +40,7 @@ export const CLASSIC_GEAR_GEOMETRY: ClassicGearGeometry = {
   laneOpeningBottom: gearJson.laneOpeningBottom,
   silhouetteLeft: gearJson.silhouetteLeft,
   silhouetteRight: gearJson.silhouetteRight,
-  frameBottom: gearJson.frameBottom,
+  silhouetteBottom: gearJson.frameBottom,
 };
 
 /**
@@ -80,7 +83,7 @@ export interface ClassicGearLayout {
 export function layoutClassicGear(geometry: ClassicGearGeometry, stage: ClassicGearStage): ClassicGearLayout {
   const scale = stage.laneAreaWidth / (geometry.laneRight - geometry.laneLeft + 1);
   const x = stage.laneAreaX - geometry.laneLeft * scale;
-  const y = stage.height - (geometry.frameBottom + 1) * scale;
+  const y = stage.height - (geometry.silhouetteBottom + 1) * scale;
   return {
     scale,
     x,

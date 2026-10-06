@@ -52,9 +52,9 @@ await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pat
 
 for (const retiredPath of [
   'lab/geometric-background', 'lab/perspective-surface-grid', 'lab/gear-light', 'lab/gear-measure-pulse', 'lab/gear-samples',
-  'lab/classic-frame-fit/frame-cutout.png', 'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
-  'lab/classic-frame-fit/motion',
-  // #231에서 장식 그림의 이름을 frame에서 gear(기어)로 바꿨다. 옛 Lab 경로와 에셋 경로는 공개하지 않는다.
+  'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
+  // #231에서 장식 그림의 이름을 frame에서 gear(기어)로 바꿨다. 옛 Lab 경로(옛 컷아웃·움직임 복사본 포함)와 에셋 경로는 공개하지 않는다.
+  // 옛 Lab 주소는 클라이언트 라우트가 /lab/classic-gear로 넘기므로 정적 폴더가 없어야 한다.
   'lab/classic-frame-fit', 'gear/classic-frame.png', 'gear/classic-frame-motion',
 ]) {
   await access(resolve(outputRoot, retiredPath)).then(

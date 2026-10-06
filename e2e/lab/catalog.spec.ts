@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Lab preview catalog", () => {
-  test("/lab에서 시설 통과·에셋 시연실·Classic Frame Fit을 포함한 6개 미리보기와 이미지 갤러리 6개를 찾고 비행 시연을 연다", async ({ page }) => {
+  test("/lab에서 시설 통과·에셋 시연실·Classic Gear를 포함한 6개 미리보기와 이미지 갤러리 6개를 찾고 비행 시연을 연다", async ({ page }) => {
     await page.goto("/lab");
 
     await expect(page.getByRole("heading", { name: "Preview Archive" })).toBeVisible();

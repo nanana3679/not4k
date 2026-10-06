@@ -71,7 +71,7 @@ export function buildManifest(
         `${base}/bomb-${String(i).padStart(2, "0")}.png`
       ),
       // 기어는 스킨 공통 공유 에셋 (prepare-frame-fit-v20.mjs 산출물, RFD 0029)
-      gearFrame: withPublicBase(CLASSIC_GEAR_PATH),
+      gearImage: withPublicBase(CLASSIC_GEAR_PATH),
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

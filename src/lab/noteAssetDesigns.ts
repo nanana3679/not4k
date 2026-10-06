@@ -69,8 +69,11 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
   createNoteAssetDesign(getSkinManifest('simple'), {description:'기존 Classic · 단색 노트와 기본 봄'}),
 ];
 
-/** 스킨 공통 기어 에셋. 보관본의 옛 기어·게이지 대신 지금 공통 기어를 쓴다(렌더러 배치가 이 그림의 측정값을 따른다). */
-const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearGaugeLeft', 'gearGaugeRight']);
+/**
+ * 보관본의 스킨 공통 기어 에셋 키(#231 전 키 `gearFrame`·지금 키 `gearImage`, RFD 0029 이전의 기둥 게이지).
+ * 보관본의 옛 기어·게이지 대신 지금 공통 기어를 쓴다(렌더러 배치가 이 그림의 측정값을 따른다).
+ */
+const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearImage', 'gearGaugeLeft', 'gearGaugeRight']);
 
 export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {
   const base = `/lab/skin-versions/classic/${version.id}`;
@@ -85,7 +88,7 @@ export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => 
       ...Object.fromEntries(archivedAssets.map(([key, paths]) =>
         [key, Array.isArray(paths) ? paths.map(assetPath) : assetPath(paths)],
       )),
-      gearFrame: getSkinManifest('classic').assets.gearFrame,
+      gearImage: getSkinManifest('classic').assets.gearImage,
     } as SkinManifest['assets'],
   };
   const design: NoteAssetDesign = {

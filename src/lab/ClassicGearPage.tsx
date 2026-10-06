@@ -637,7 +637,7 @@ function GearPreviewRenderer({
       reportedMotion = false;
       if (restart.current === restartMotion) restart.current = null;
       liveRef.current = null;
-      try { renderer?.dispose(removeView); } catch (error) { console.warn('ClassicGearFit: renderer dispose failed', error); }
+      try { renderer?.dispose(removeView); } catch (error) { console.warn('ClassicGear: renderer dispose failed', error); }
       renderer = null;
       if (skinAcquired) skins.release();
       skinAcquired = false;
@@ -782,7 +782,7 @@ function GearPreviewRenderer({
             tick(now);
           } catch (error) {
             // 무대가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
-            console.error('ClassicGearFit: render loop failed', error);
+            console.error('ClassicGear: render loop failed', error);
             release(false);
             report({ status: 'error', message: error instanceof Error ? error.message : '재생 중 오류가 났습니다.' });
             return;

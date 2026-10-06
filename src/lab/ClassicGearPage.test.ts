@@ -56,7 +56,7 @@ describe('ClassicGearPage — 새 기어가 들어간 실제 게임 화면 미�
   it('무대는 실제 GameRenderer를 기본 옵션(내장 기어·내장 움직임)으로 만들고, 움직임 조절은 렌더러의 공개 gearMotion API로만 건다', () => {
     expect(pageSource).toContain("import('../game/renderer')");
     expect(pageSource).toContain('new GameRenderer({');
-    expect(pageSource).not.toContain('showGearFrame');
+    expect(pageSource).not.toContain('showGear');
     expect(pageSource).not.toContain('gearMotion: false');
     // 페이지의 움직임 줄이기 토글이 동작하도록 움직임 줄이기에서도 움직임을 만들어 숨긴다.
     expect(pageSource).toContain("gearMotionReducedMotion: 'hide'");
@@ -72,7 +72,7 @@ describe('ClassicGearPage — 새 기어가 들어간 실제 게임 화면 미�
     expect(pageSource).toContain('active.gearMotion');
     expect(pageSource).toContain('active.setupKeyboardDisplay(');
     // 게임 렌더러의 private 필드를 꺼내 쓰지 않는다.
-    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearFrameLayer|maskGraphic|_judgmentLineY|gearMotionController)/);
+    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearLayer|maskGraphic|_judgmentLineY|gearMotionController)/);
   });
 
   it('움직임 자료는 게임과 같은 공유 로더(acquireGearMotionAssets)로 페이지가 한 번 빌려 비교 화면에 넘기고, Lab 경로의 움직임 자료를 읽지 않는다', () => {

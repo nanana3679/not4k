@@ -31,7 +31,7 @@ const { GAME_HEIGHT, LANE_AREA_WIDTH } = await import('./constants');
 
 interface Scene {
   app: Application;
-  gearFrameLayer: Container;
+  gearLayer: Container;
   buildKeyBeams(): void;
 }
 
@@ -71,7 +71,7 @@ afterEach(() => {
 async function createRenderer(options: {
   gearMotion?: boolean;
   gearMotionReducedMotion?: 'omit' | 'hide';
-  showGearFrame?: boolean;
+  showGear?: boolean;
   showFlightBackground?: boolean;
   beforeInit?: (scene: Scene) => void;
   resolveLease?: boolean;
@@ -89,13 +89,13 @@ function startRenderer(options: Parameters<typeof createRenderer>[0] = {}) {
     getBodyWidthScale: () => 1,
     hasTexture: () => false,
     getTexture: (key: string) => {
-      if (key === 'gearFrame') return gear;
+      if (key === 'gearImage') return gear;
       throw new Error(`unknown texture ${key}`);
     },
   } as unknown as SkinManager;
-  const { showGearFrame = true, showFlightBackground = false, gearMotion, gearMotionReducedMotion, beforeInit } = options;
+  const { showGear = true, showFlightBackground = false, gearMotion, gearMotionReducedMotion, beforeInit } = options;
   const renderer = new GameRenderer({
-    canvas: {} as HTMLCanvasElement, width: 1067, height: GAME_HEIGHT, skinManager, showGearFrame, showFlightBackground,
+    canvas: {} as HTMLCanvasElement, width: 1067, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground,
     gearMotion, gearMotionReducedMotion,
   });
   const scene = renderer as unknown as Scene;
@@ -124,7 +124,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
   it('기어가 있고 gearMotion을 생략(기본 켬)하면 자료를 한 번 빌리고, 기어 스프라이트 바로 위에 기어와 같은 변환(250/552배)으로 움직임 자리를 붙인다', async () => {
     const { renderer, scene } = await createRenderer();
     expect(loader.acquire).toHaveBeenCalledTimes(1);
-    const [gear, holder] = scene.gearFrameLayer.children;
+    const [gear, holder] = scene.gearLayer.children;
     expect(gear).toBeInstanceOf(Sprite);
     expect(holder.label).toBe('classic-gear-motion-holder');
     const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
@@ -142,7 +142,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.status).toBe('loading');
     current.resolve();
     await init;
-    const holder = scene.gearFrameLayer.children[1] as Container;
+    const holder = scene.gearLayer.children[1] as Container;
     expect(renderer.gearMotion!.status).toBe('ready');
     expect(holder.children.map((child) => child.label)).toEqual(['classic-gear-motion']);
   });
@@ -166,13 +166,13 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     const { renderer, scene } = await createRenderer({ gearMotion: false, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
-    expect(scene.gearFrameLayer.children).toHaveLength(1);
+    expect(scene.gearLayer.children).toHaveLength(1);
     expect(scene.app.stage.getChildByLabel('classic-gear-motion', true)).toBeNull();
     renderer.renderFrame(0, 16);
   });
 
-  it('showGearFrame: false(튜토리얼·노트 에셋 재생기)면 gearMotion을 켜도 움직임을 만들지 않는다(null, 임대 0번)', async () => {
-    const { renderer } = await createRenderer({ showGearFrame: false, gearMotion: true, resolveLease: false });
+  it('showGear: false(튜토리얼·노트 에셋 재생기)면 gearMotion을 켜도 움직임을 만들지 않는다(null, 임대 0번)', async () => {
+    const { renderer } = await createRenderer({ showGear: false, gearMotion: true, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
   });
@@ -182,7 +182,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     const { renderer, scene } = await createRenderer({ resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
-    expect(scene.gearFrameLayer.children).toHaveLength(1);
+    expect(scene.gearLayer.children).toHaveLength(1);
   });
 
   it('움직임 줄이기라도 gearMotionReducedMotion: hide(Lab)면 자료를 빌려 얹되 숨기고, renderFrame(…, 16)이 시계를 0에 둔다', async () => {
@@ -243,7 +243,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
   it('init이 자료를 기다리는 동안 dispose하면(화면 이탈) 나중에 자료가 와도 GPU에 올리지도(initSource 0번) 얹지도 않고 init은 거절되며 임대는 정확히 한 번 놓는다', async () => {
     const { renderer, scene, initSource, init } = startRenderer();
     await flush();
-    const holder = scene.gearFrameLayer.children[1] as Container;
+    const holder = scene.gearLayer.children[1] as Container;
     renderer.dispose();
     current.resolve();
     await expect(init).rejects.toThrow('released');

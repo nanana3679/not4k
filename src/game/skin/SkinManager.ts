@@ -21,7 +21,7 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
  * 밉맵·삼선형 필터로 읽는다. 업로드할 때 밉맵이 만들어지므로 로드 시점에 정해야 한다.
  */
 const TEXTURE_LOAD_OPTIONS: Readonly<Record<string, Partial<TextureSourceOptions>>> = {
-  gearFrame: CLASSIC_GEAR_TEXTURE_OPTIONS,
+  gearImage: CLASSIC_GEAR_TEXTURE_OPTIONS,
 };
 
 /**
@@ -129,7 +129,7 @@ export class SkinManager {
       ["bodyTrillFailed", assets.bodyTrillFailed],
       ["terminalTrillFailed", assets.terminalTrillFailed],
       // 기어
-      ["gearFrame", assets.gearFrame],
+      ["gearImage", assets.gearImage],
     ] as [string, string | undefined][])
       .filter((entry): entry is [string, string] =>
         entry[1] !== undefined && (heldEffect || !(HELD_ASSET_KEYS as readonly string[]).includes(entry[0])));

@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { lazy } from 'react';
 
 const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagramTestPage'));
@@ -21,6 +21,8 @@ export default function LabRoutes() {
       <Route path="flight-background-preview" element={<FlightBackgroundPreviewLabPage />} />
       <Route path="facility-passage" element={<FacilityPassagePreviewLabPage />} />
       <Route path="classic-gear" element={<ClassicGearPage />} />
+      {/* #231 전 주소. RFD 0029·지난 PR 본문이 이 주소를 가리키므로 새 주소로 넘긴다(정적 폴더는 만들지 않는다). */}
+      <Route path="classic-frame-fit" element={<Navigate to="/lab/classic-gear" replace />} />
       <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />
       <Route path="judgment-playtest" element={<JudgmentPlaytestPage />} />
       <Route path="note-assets" element={<NoteAssetShowcasePage />} />

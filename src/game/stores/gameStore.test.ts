@@ -169,4 +169,10 @@ describe('gameStore — gearMotion(기어 움직임)', () => {
     const restored = mergePersistedSettings({ settings: { gearMotion: false } }, useGameStore.getInitialState());
     expect(restored.settings.gearMotion).toBe(false);
   });
+
+  it('#231 전 키 frameMotion: false만 저장된 설정을 복원하면 옛 키는 버리고 gearMotion은 기본 켬(true)이다', () => {
+    const restored = mergePersistedSettings({ settings: { frameMotion: false } }, useGameStore.getInitialState());
+    expect(restored.settings).not.toHaveProperty('frameMotion');
+    expect(restored.settings.gearMotion).toBe(true);
+  });
 });

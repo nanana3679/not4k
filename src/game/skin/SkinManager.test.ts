@@ -50,7 +50,7 @@ describe('SkinManager', () => {
       src: '/gear/classic-gear.png',
       data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     }]);
-    expect(manager.hasTexture('gearFrame')).toBe(true);
+    expect(manager.hasTexture('gearImage')).toBe(true);
     expect(manager.hasTexture('gearGaugeLeft')).toBe(false);
     manager.dispose();
     await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/classic-gear.png'));

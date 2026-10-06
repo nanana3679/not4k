@@ -68,7 +68,7 @@ export function describeGear(layout: Readonly<ClassicGearLayout>, geometry: Clas
   const hiddenRows = Math.max(0, Math.round(-layout.y / layout.scale));
   const laneAreaWidth = Math.round((geometry.laneRight - geometry.laneLeft + 1) * layout.scale * 10) / 10;
   return `원본 ${geometry.width}×${geometry.height}을 ${layout.scale.toFixed(3)}배로 줄여 레인 창(${geometry.laneLeft}~${geometry.laneRight}열)을 `
-    + `레인 영역 ${laneAreaWidth}에 맞추고, 실루엣 아래끝(${geometry.frameBottom}행)을 화면 아래에 붙여 고정합니다. `
+    + `레인 영역 ${laneAreaWidth}에 맞추고, 실루엣 아래끝(${geometry.silhouetteBottom}행)을 화면 아래에 붙여 고정합니다. `
     + `위로 원본 ${hiddenRows}행만 잘리고 게이지·덱·하단 바는 모두 보입니다. 덱 위끝은 y ${layout.deckTopY.toFixed(1)}, `
     + `레인 가림막이 시작하는 키 윗면은 y ${layout.keyRimY.toFixed(1)}입니다.`;
 }

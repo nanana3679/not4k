@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import gameRendererSource from './GameRenderer.ts?raw';
 
 describe('GameRenderer optional chrome', () => {
-  it('showGearFrame 옵션은 기본값 true로 기존 플레이 화면 기어를 유지', () => {
-    expect(gameRendererSource).toContain('showGearFrame?: boolean');
-    expect(gameRendererSource).toContain('this.showGearFrame = options.showGearFrame ?? true');
+  it('showGear 옵션은 기본값 true로 기존 플레이 화면 기어를 유지', () => {
+    expect(gameRendererSource).toContain('showGear?: boolean');
+    expect(gameRendererSource).toContain('this.showGear = options.showGear ?? true');
+    // #231 이전 이름(showGearFrame·스킨 키 gearFrame)은 남아 있지 않다.
+    expect(gameRendererSource).not.toContain('showGearFrame');
+    expect(gameRendererSource).toContain('getTexture("gearImage")');
+    expect(gameRendererSource).not.toContain('"gearFrame"');
   });
 
   it('showFlightBackground 옵션은 기본값 true로 기존 플레이 화면 배경을 유지', () => {
@@ -26,9 +30,9 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this._judgmentLineY = this.height - this.judgmentLineOffset - y');
   });
 
-  it('showGearFrame=false이면 buildGearFrame 호출을 건너뛰도록 조건부 실행', () => {
-    expect(gameRendererSource).toContain('if (this.showGearFrame)');
-    expect(gameRendererSource).toContain('this.buildGearFrame()');
+  it('showGear=false이면 buildGear 호출을 건너뛰도록 조건부 실행', () => {
+    expect(gameRendererSource).toContain('if (this.showGear)');
+    expect(gameRendererSource).toContain('this.buildGear()');
   });
 
   it('showFlightBackground=false이면 renderFrame에서 비행 배경 렌더를 건너뜀', () => {
