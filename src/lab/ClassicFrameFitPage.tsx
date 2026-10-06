@@ -110,7 +110,7 @@ export default function ClassicFrameFitPage() {
   const [motionLayers, setMotionLayers] = useState<FrameMotionLayerVisibility>(ALL_FRAME_MOTION_LAYERS_ON);
   const reducedMotion = usePrefersReducedMotion();
   const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
-  // 내장 움직임을 프레임에 얹은 렌더러의 key. 렌더러는 움직임 자료를 기다리지 않고 먼저 뜨고, 자료가 오면 그때 얹는다.
+  // 내장 움직임을 프레임에 얹은 렌더러의 key. 움직임 자료는 렌더러 init이 기다리는 필수 자료라 렌더러가 준비되면 이미 얹혀 있다.
   const [motionAttachedKey, setMotionAttachedKey] = useState<string | null>(null);
   // 처음부터 재생: 살아 있는 렌더러의 frameMotion.restart()를 부른다.
   const restartRef = useRef<(() => void) | null>(null);
@@ -628,7 +628,6 @@ function FrameFitRenderer({
     let skinAcquired = false;
     // 이 렌더러가 움직임 시계를 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
     let reportedMotion = false;
-    let reportedAttached = false;
     const restartMotion = () => renderer?.frameMotion?.restart();
 
     // removeView: 정상 정리(키 변경·언마운트)는 캔버스까지 치우고, 오류일 때는 React가 소유한 캔버스를 남긴다.
@@ -707,8 +706,9 @@ function FrameFitRenderer({
         const applyKeyboard = (bindings: ReadonlyMap<string, number>) => active.setupKeyboardDisplay(new Map(bindings));
         applyKeyboard(keyboardRef.current);
 
-        // 내장 움직임(게임과 같음)은 렌더러가 자료를 빌려 준비되면 얹는다. 준비 전에 건 설정도 얹을 때 그대로 적용된다.
+        // 내장 움직임(게임과 같음)은 init이 자료를 기다려 이미 얹었다.
         const motion = active.frameMotion;
+        if (motion?.status === 'ready') reportMotionAttached(key);
         const applyMotion = (settings: MotionSettings) => {
           if (!motion) return;
           motion.setEnabled(settings.enabled);
@@ -767,10 +767,6 @@ function FrameFitRenderer({
           // 움직임 시계는 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
           if (motion) {
-            if (!reportedAttached && motion.status === 'ready') {
-              reportedAttached = true;
-              reportMotionAttached(key);
-            }
             if (motion.running) {
               reportMotionTime(motion.timeMs);
               reportedMotion = true;

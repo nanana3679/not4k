@@ -10,7 +10,10 @@ import type { SkinManager } from '../skin';
 
 // 공유 로더 대신 준비 시점을 테스트가 정하는 임대를 준다(네트워크·Pixi Assets 없이).
 const loader = vi.hoisted(() => ({ acquire: vi.fn() }));
-vi.mock('./classicFrameMotionAssets', () => ({ acquireFrameMotionAssets: loader.acquire }));
+vi.mock('./classicFrameMotionAssets', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./classicFrameMotionAssets')>()),
+  acquireFrameMotionAssets: loader.acquire,
+}));
 // 비행 배경 초기화 실패(init 도중 실패) 경로를 흉내 낸다.
 const flight = vi.hoisted(() => ({ fail: false }));
 vi.mock('./flight/FlightBackground', () => ({
@@ -40,9 +43,11 @@ const fakeTextures = () => Object.fromEntries(FRAME_MOTION_TEXTURE_KEYS.map((key
 
 function controllableLease() {
   let resolve!: (resources: FrameMotionResources) => void;
-  const ready = new Promise<FrameMotionResources>((onResolve) => { resolve = onResolve; });
+  let reject!: (error: unknown) => void;
+  const ready = new Promise<FrameMotionResources>((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  ready.catch(() => undefined);
   const lease = { ready, release: vi.fn<() => void>() } satisfies FrameMotionAssetLease;
-  return { lease, resolve: () => resolve({ data, textures: fakeTextures() }) };
+  return { lease, resolve: () => resolve({ data, textures: fakeTextures() }), reject };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -62,13 +67,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** 렌더러를 만들고 init을 시작한다. init은 움직임 자료를 기다리므로 resolveLease(기본 true)면 임대를 이행시킨 뒤 init을 기다린다. */
 async function createRenderer(options: {
   frameMotion?: boolean;
   frameMotionReducedMotion?: 'omit' | 'hide';
   showGearFrame?: boolean;
   showFlightBackground?: boolean;
   beforeInit?: (scene: Scene) => void;
+  resolveLease?: boolean;
 } = {}) {
+  const started = startRenderer(options);
+  if (options.resolveLease ?? true) current.resolve();
+  await started.init;
+  return started;
+}
+
+function startRenderer(options: Parameters<typeof createRenderer>[0] = {}) {
   const frame = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
   const skinManager = {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
@@ -94,8 +108,9 @@ async function createRenderer(options: {
   const destroy = vi.spyOn(scene.app, 'destroy').mockImplementation(() => {});
   beforeInit?.(scene);
   created.push(renderer);
-  await renderer.init();
-  return { renderer, scene, initSource, render, destroy };
+  const init = renderer.init();
+  init.catch(() => undefined);
+  return { renderer, scene, initSource, render, destroy, init };
 }
 
 const chart: Chart = {
@@ -118,27 +133,37 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
     expect(renderer.frameMotion).not.toBeNull();
   });
 
-  it('자료가 준비되기 전 frameMotion.status는 loading이고 프레임만 그리며, 준비되면 렌더러를 다시 만들지 않고 자리에 움직임을 얹어 ready가 된다', async () => {
-    const { renderer, scene } = await createRenderer();
-    const holder = scene.gearFrameLayer.children[1] as Container;
-    expect(renderer.frameMotion!.status).toBe('loading');
-    expect(holder.children).toHaveLength(0);
-    renderer.renderFrame(0, 16);
-    current.resolve();
+  it('init은 움직임 자료(필수)가 준비될 때까지 끝나지 않고(status loading), 준비되면 움직임을 얹은 뒤에 끝나 첫 renderFrame 전에 status ready', async () => {
+    const { renderer, scene, init } = startRenderer();
+    const finished = vi.fn();
+    void init.then(finished);
     await flush();
+    expect(finished).not.toHaveBeenCalled();
+    expect(renderer.frameMotion!.status).toBe('loading');
+    current.resolve();
+    await init;
+    const holder = scene.gearFrameLayer.children[1] as Container;
     expect(renderer.frameMotion!.status).toBe('ready');
     expect(holder.children.map((child) => child.label)).toEqual(['classic-frame-motion']);
   });
 
-  it('자료가 준비되면 얹기 전에 렌더러 GPU에 움직임 텍스처 9장을 올린다(initSource 9번)', async () => {
+  it('init 안에서 움직임을 얹기 전에 렌더러 GPU에 움직임 텍스처 9장을 올린다(init이 끝났을 때 initSource 9번)', async () => {
     const { initSource } = await createRenderer();
-    current.resolve();
-    await flush();
     expect(initSource).toHaveBeenCalledTimes(9);
   });
 
-  it('frameMotion: false(설정 끔)면 자료를 빌리지 않고 frameMotion은 null이며 프레임 레이어에는 프레임 스프라이트 하나뿐이다', async () => {
-    const { renderer, scene } = await createRenderer({ frameMotion: false });
+  it('움직임 자료 읽기가 거절되면 init이 그 오류로 거절되고 렌더러가 비행 배경 실패와 같이 스스로 정리하며(app.destroy, 캔버스는 남김) 임대를 한 번 놓는다', async () => {
+    const { renderer, init, destroy } = startRenderer();
+    const failure = new Error('[Loader.load] Failed to load /gear/classic-frame-motion/frame-motion.json');
+    current.reject(failure);
+    await expect(init).rejects.toBe(failure);
+    expect(destroy).toHaveBeenCalledWith(expect.objectContaining({ removeView: false }), expect.anything());
+    expect(renderer.frameMotion).toBeNull();
+    expect(current.lease.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('frameMotion: false(설정 끔)면 자료를 빌리지도 기다리지도 않아 init이 바로 끝나고, frameMotion은 null이며 프레임 레이어에는 프레임 스프라이트 하나뿐이다', async () => {
+    const { renderer, scene } = await createRenderer({ frameMotion: false, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.frameMotion).toBeNull();
     expect(scene.gearFrameLayer.children).toHaveLength(1);
@@ -147,14 +172,14 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
   });
 
   it('showGearFrame: false(튜토리얼·노트 에셋 재생기)면 frameMotion을 켜도 움직임을 만들지 않는다(null, 임대 0번)', async () => {
-    const { renderer } = await createRenderer({ showGearFrame: false, frameMotion: true });
+    const { renderer } = await createRenderer({ showGearFrame: false, frameMotion: true, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.frameMotion).toBeNull();
   });
 
   it('움직임 줄이기(prefers-reduced-motion: reduce)면 기본(omit)으로 자료를 빌리지도 움직임 자리를 만들지도 않는다(설정 끔과 같은 0 비용)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
-    const { renderer, scene } = await createRenderer();
+    const { renderer, scene } = await createRenderer({ resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.frameMotion).toBeNull();
     expect(scene.gearFrameLayer.children).toHaveLength(1);
@@ -163,8 +188,6 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
   it('움직임 줄이기라도 frameMotionReducedMotion: hide(Lab)면 자료를 빌려 얹되 숨기고, renderFrame(…, 16)이 시계를 0에 둔다', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     const { renderer, scene, initSource } = await createRenderer({ frameMotionReducedMotion: 'hide' });
-    current.resolve();
-    await flush();
     renderer.renderFrame(0, 16);
     expect(loader.acquire).toHaveBeenCalledTimes(1);
     expect(renderer.frameMotion!.status).toBe('ready');
@@ -177,24 +200,18 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
 
   it('곡 시각 10000ms에서 renderFrame(…, 16)을 3번 부르면 움직임 시계는 곡 시각이 아니라 게임 프레임 간격만 따라 48ms가 된다', async () => {
     const { renderer } = await createRenderer();
-    current.resolve();
-    await flush();
     for (let i = 0; i < 3; i++) renderer.renderFrame(10_000, 16);
     expect(renderer.frameMotion!.timeMs).toBe(48);
   });
 
   it('renderFrame에 5000ms 간격이 들어와도(숨은 탭 복귀·긴 프레임) 움직임 시계는 50ms만 나아간다', async () => {
     const { renderer } = await createRenderer();
-    current.resolve();
-    await flush();
     renderer.renderFrame(0, 5000);
     expect(renderer.frameMotion!.timeMs).toBe(50);
   });
 
   it('setChart로 차트를 다시 걸어도(같은 렌더러로 되감기) 움직임 시계는 32ms에서 이어 간다', async () => {
     const { renderer } = await createRenderer();
-    current.resolve();
-    await flush();
     renderer.renderFrame(0, 16);
     renderer.renderFrame(16, 16);
     renderer.setChart([], [], [], chart.events, createChartTiming(chart), 1000);
@@ -205,8 +222,6 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
 
   it('warmUp(1000)은 곡 시작 전 한 장을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 한 장 동안만 빛이 투명한 하단 바를 그린다', async () => {
     const { renderer, scene, render } = await createRenderer();
-    current.resolve();
-    await flush();
     const bar = scene.app.stage.getChildByLabel('frame-motion-bar', true)!;
     const barDuringRender: boolean[] = [];
     render.mockImplementation(() => { barDuringRender.push(bar.visible); });
@@ -216,26 +231,8 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
     expect(renderer.frameMotion!.timeMs).toBe(0);
   });
 
-  it('재생 중 얹기를 미룬 채(setAttachDeferred(true)) 자료가 오면 renderFrame 동안 얹지 않고(deferred), 일시정지로 풀면 그때 얹고 한 장 그린다', async () => {
-    const { renderer, scene, render, initSource } = await createRenderer();
-    renderer.frameMotion!.setAttachDeferred(true);
-    current.resolve();
-    await flush();
-    renderer.renderFrame(500, 16);
-    expect(renderer.frameMotion!.status).toBe('deferred');
-    expect(scene.app.stage.getChildByLabel('classic-frame-motion', true)).toBeNull();
-    expect(initSource).not.toHaveBeenCalled();
-    render.mockClear();
-    renderer.frameMotion!.setAttachDeferred(false);
-    expect(renderer.frameMotion!.status).toBe('ready');
-    expect(initSource).toHaveBeenCalledTimes(9);
-    expect(render).toHaveBeenCalledTimes(1);
-  });
-
   it('dispose하면 움직임을 정리하고 빌린 자료를 한 번 놓으며 frameMotion은 null이 된다', async () => {
     const { renderer, scene } = await createRenderer();
-    current.resolve();
-    await flush();
     const motionRoot = scene.app.stage.getChildByLabel('classic-frame-motion', true)!;
     renderer.dispose();
     expect(motionRoot.destroyed).toBe(true);
@@ -243,12 +240,13 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
     expect(renderer.frameMotion).toBeNull();
   });
 
-  it('dispose한 뒤에 자료가 준비되면 GPU에 올리지도(initSource 0번) 얹지도 않고 임대는 정확히 한 번 놓는다', async () => {
-    const { renderer, scene, initSource } = await createRenderer();
+  it('init이 자료를 기다리는 동안 dispose하면(화면 이탈) 나중에 자료가 와도 GPU에 올리지도(initSource 0번) 얹지도 않고 init은 거절되며 임대는 정확히 한 번 놓는다', async () => {
+    const { renderer, scene, initSource, init } = startRenderer();
+    await flush();
     const holder = scene.gearFrameLayer.children[1] as Container;
     renderer.dispose();
     current.resolve();
-    await flush();
+    await expect(init).rejects.toThrow('released');
     expect(initSource).not.toHaveBeenCalled();
     expect(holder.children).toHaveLength(0);
     expect(current.lease.release).toHaveBeenCalledTimes(1);
@@ -256,6 +254,7 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
 
   it('init 도중 키빔 만들기가 실패하면(초기화 전 실패) 움직임 자료를 빌리지 않아 dispose할 수 없는 임대가 남지 않는다', async () => {
     await expect(createRenderer({
+      resolveLease: false,
       beforeInit: (scene) => { vi.mocked(scene.buildKeyBeams).mockImplementation(() => { throw new Error('beams'); }); },
     })).rejects.toThrow('beams');
     expect(loader.acquire).not.toHaveBeenCalled();
@@ -263,7 +262,7 @@ describe('GameRenderer 프레임 움직임 (RFD 0029)', () => {
 
   it('init 끝의 비행 배경 준비가 실패하면 렌더러가 스스로 정리하며 빌린 움직임 자료를 한 번 놓는다', async () => {
     flight.fail = true;
-    await expect(createRenderer({ showFlightBackground: true })).rejects.toThrow('flight init failed');
+    await expect(createRenderer({ showFlightBackground: true, resolveLease: false })).rejects.toThrow('flight init failed');
     expect(loader.acquire).toHaveBeenCalledTimes(1);
     expect(current.lease.release).toHaveBeenCalledTimes(1);
   });

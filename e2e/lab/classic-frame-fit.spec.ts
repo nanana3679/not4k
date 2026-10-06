@@ -375,25 +375,28 @@ test.describe('Classic Frame Fit Lab — 새 프레임이 들어간 실제 게�
     expect(errors).toEqual([]);
   });
 
-  test('움직임 자료(/gear/classic-frame-motion/frame-motion.json)를 붙잡아 두면 게임 렌더러가 먼저 준비되고(data-motion-ready false), 자료를 놓으면 렌더러를 다시 만들지 않고 움직임을 얹는다', async ({ page }) => {
+  test('움직임 자료(/gear/classic-frame-motion/frame-motion.json)를 붙잡아 두면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 놓으면 움직임을 얹은 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
+    let requested!: () => void;
+    const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
     await page.route('**/gear/classic-frame-motion/frame-motion.json', async (route) => {
+      requested();
       await gate;
       await route.continue();
     });
     await page.goto('/lab/classic-frame-fit');
-    await waitForRenderer(page);
+    await requestStarted;
     const stage = page.locator(stageSelector);
+    // 움직임 자료는 렌더러 준비에 필요한 자료라, 붙잡혀 있는 동안 렌더러는 준비되지 않는다(비행 배경이 준비되어도).
+    await expect(page.locator('[data-flight-background][data-ready="true"]')).toHaveCount(1, { timeout: 60000 });
+    await expect(stage).toHaveAttribute('data-renderer-ready', 'false');
     await expect(stage).toHaveAttribute('data-motion-ready', 'false');
-    const key = await stage.getAttribute('data-renderer-key');
-    await page.locator('canvas[data-frame-fit-canvas]').evaluate((canvas) => { canvas.dataset.probe = 'early'; });
 
     release();
-    await expect(stage).toHaveAttribute('data-motion-ready', 'true', { timeout: 30000 });
-    await expect(stage).toHaveAttribute('data-renderer-key', key!);
-    await expect(page.locator('canvas[data-frame-fit-canvas]')).toHaveAttribute('data-probe', 'early');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-motion-ready', 'true');
     await expect.poll(() => motionTime(page), { timeout: 10000 }).not.toBeNull();
     expect(errors).toEqual([]);
   });

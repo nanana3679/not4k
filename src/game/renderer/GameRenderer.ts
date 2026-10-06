@@ -398,15 +398,19 @@ export class GameRenderer {
     this.initialized = true;
     // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 프레임 레이어의 프레임 스프라이트 바로 위에 붙는다.
     this.buildFrameMotion();
+    // 비행 배경과 프레임 움직임 자료는 렌더러 준비에 필요한 자료다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    const required: Promise<unknown>[] = [];
     if (this.showFlightBackground) {
       this.flightBackground = new FlightBackground({
         canvas: this.canvas, width: this.width, height: this.height,
         resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
       });
-      try { await this.flightBackground.init(); }
-      // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
-      catch (error) { this.dispose(false); throw error; }
+      required.push(this.flightBackground.init());
     }
+    if (this.frameMotionController) required.push(this.frameMotionController.ready);
+    try { await Promise.all(required); }
+    // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
+    catch (error) { this.dispose(false); throw error; }
   }
 
   private drawBackground(): void {
@@ -480,9 +484,9 @@ export class GameRenderer {
   }
 
   /**
-   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 렌더러 준비는 자료를 기다리지 않는다.
-   * 준비되기 전에는 정적 프레임만 그리고, 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹는다(재생 중이면 일시정지까지 미룬다,
-   * FrameMotionControls.setAttachDeferred). 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본은 아예 만들지 않는다.
+   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
+   * 필수라 init이 준비를 기다린다. 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹고, 읽지 못하면 init이 그 오류로 실패한다.
+   * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
    */
   private buildFrameMotion(): void {
     if (!this.frameMotionEnabled || !this.gearFrameLayout) return;
@@ -501,10 +505,6 @@ export class GameRenderer {
         const textureSystem = this.app.renderer?.texture;
         if (!this.initialized || !textureSystem) return;
         for (const key of FRAME_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
-      },
-      // 일시정지 중에 미뤄 둔 움직임을 얹었을 때 지금 장면을 한 장 그려 마스크·셰이더 준비를 재개 전에 끝낸다.
-      present: () => {
-        if (this.initialized && this.app.renderer) this.app.render();
       },
     });
     controller.setReducedMotion(reduced);
@@ -1107,8 +1107,8 @@ export class GameRenderer {
   }
 
   /**
-   * 프레임 움직임 조절(RFD 0029). 상태(loading·ready·error)와 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·움직임 줄이기·
-   * 처음부터 재생을 건다. 움직임을 만들지 않으면(frameMotion false·프레임 없음·dispose 뒤) null.
+   * 프레임 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
+   * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(frameMotion false·움직임 줄이기 omit·프레임 없음·dispose 뒤) null.
    */
   get frameMotion(): FrameMotionControls | null {
     return this.frameMotionController;

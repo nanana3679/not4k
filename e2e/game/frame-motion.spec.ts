@@ -3,6 +3,8 @@ import { test, expect, type Page } from '@playwright/test';
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
 interface MotionProbe {
+  /** AudioEngine.play가 불린 횟수(곡 시작). */
+  audioPlays: number;
   /** renderFrame이 불린 횟수(곡 시작 전 한 장 + 게임 프레임 수). */
   frames: number;
   /** renderFrame마다 그 순간의 frameMotion.status(없으면 null). resetStatusLog 뒤부터 쌓인다. */
@@ -26,6 +28,15 @@ async function installProbe(page: Page) {
     win.__frameMotionRenderer = null;
     win.__frameMotionFrames = 0;
     win.__frameMotionStatusLog = [];
+    win.__audioPlays = 0;
+    const audioPath = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(url => new URL(url).pathname === '/src/game/audio/AudioEngine.ts') ?? '/src/game/audio/AudioEngine.ts';
+    const { AudioEngine }: typeof import('../../src/game/audio/AudioEngine') = await import(audioPath);
+    const play = AudioEngine.prototype.play;
+    AudioEngine.prototype.play = function (...args) {
+      win.__audioPlays = (win.__audioPlays as number) + 1;
+      return play.apply(this, args);
+    };
     const rendererPath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
@@ -53,6 +64,7 @@ async function readProbe(page: Page): Promise<MotionProbe> {
     const motion = renderer?.frameMotion ?? null;
     const root = motionRoots.find(node => node.label === 'classic-frame-motion');
     return {
+      audioPlays: win.__audioPlays as number,
       frames: win.__frameMotionFrames as number,
       statusLog: [...(win.__frameMotionStatusLog as (string | null)[])],
       status: motion?.status ?? null,
@@ -78,7 +90,7 @@ async function waitAnimationFrames(page: Page, count: number) {
   }), count);
 }
 
-async function startLocalPlay(page: Page, frameMotion: boolean) {
+async function startLocalPlay(page: Page, frameMotion: boolean, { waitForCanvas = true }: { waitForCanvas?: boolean } = {}) {
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
@@ -99,7 +111,7 @@ async function startLocalPlay(page: Page, frameMotion: boolean) {
     state.setAudioBuffer(new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 }));
     useGameStore.setState({ screen: 'play', startTimeMs: 0, editorReturnUrl: null });
   }, frameMotion);
-  await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
+  if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
 test.describe('실제 플레이의 Classic 프레임 움직임', () => {
@@ -190,37 +202,54 @@ test.describe('실제 플레이의 Classic 프레임 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  test('움직임 자료가 곡 시작 뒤에 오면 재생 중에는 얹지 않고(deferred, 정적 프레임) 일시정지하면 그때 얹으며 재개 뒤 흐른다', async ({ page }) => {
+  test('frame-motion.json을 붙잡아 두면 곡 시작(renderFrame·오디오 재생)이 그만큼 기다리고, 놓으면 첫 renderFrame부터 ready로 시작한다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
+    let requested!: () => void;
+    const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
     await page.route('**/gear/classic-frame-motion/frame-motion.json', async (route) => {
+      requested();
       await gate;
       await route.continue();
     });
     await startLocalPlay(page, true);
+    await requestStarted;
 
-    // 자료 없이 곡이 시작해 게임 프레임이 돈다(곡 시작 전 대기는 1.2초 안에서 끝난다).
-    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
-    expect((await readProbe(page)).status).toBe('loading');
-    const response = page.waitForResponse(response => response.url().endsWith('/gear/classic-frame-motion/frame-motion.json'));
+    // 자료가 붙잡혀 있는 동안에는 화면이 30프레임 지나도 렌더러가 그리지 않고 곡도 시작하지 않는다.
+    await waitAnimationFrames(page, 30);
+    expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
+
     release();
-    await (await response).finished();
-    await expect.poll(async () => (await readProbe(page)).status, { timeout: 30_000 }).toBe('deferred');
-    await waitAnimationFrames(page, 10);
-    const playing = await readProbe(page);
-    expect(playing.statusLog).not.toContain('ready');
-    expect(playing).toMatchObject({ status: 'deferred', motionObjects: 1, running: false, timeMs: 0 });
-
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
-    await expect.poll(async () => (await readProbe(page)).status, { timeout: 15_000 }).toBe('ready');
-    const paused = await readProbe(page);
-    expect(paused).toMatchObject({ motionObjects: 2, timeMs: 0 });
-
-    await page.getByRole('button', { name: 'Resume', exact: true }).click();
-    await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    const started = await readProbe(page);
+    expect(started.audioPlays).toBe(1);
+    expect(started.statusLog[0]).toBe('ready');
+    expect(new Set(started.statusLog)).toEqual(new Set(['ready']));
     expect(errors).toEqual([]);
   });
+
+  // 움직임 자료는 스킨 텍스처와 같은 필수 자료다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
+  for (const [name, asset] of [
+    ['스킨 텍스처(note-single.png)', '**/skins/classic/note-single.png'],
+    ['프레임 움직임 자료(frame-motion.json)', '**/gear/classic-frame-motion/frame-motion.json'],
+  ] as const) {
+    test(`${name}를 받지 못하면 곡을 시작하지 않고(renderFrame·오디오 0번) 오류 화면의 Back to Song Select로 곡 선택에 돌아간다`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.route('**/rest/v1/**', route => route.fulfill({ json: [] }));
+      await page.route(asset, route => route.abort('failed'));
+      await startLocalPlay(page, true, { waitForCanvas: false });
+
+      const back = page.getByRole('button', { name: 'Back to Song Select', exact: true });
+      await expect(back).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('gameplay-canvas')).toHaveCount(0);
+      await expect(page.locator('[data-flight-background]')).toHaveCount(0);
+      expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
+      await back.click();
+      await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
 });

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FrameMotionAssetLease, FrameMotionResources } from '../renderer/classicFrameMotionAssets';
-import { keepFrameMotionAssets, settleWithin } from './frameMotionKeepAlive';
+import { keepFrameMotionAssets } from './frameMotionKeepAlive';
+import keepAliveSource from './frameMotionKeepAlive.ts?raw';
+import playScreenSource from './PlayScreen.tsx?raw';
 
 function fakeLease(ready: Promise<FrameMotionResources> = new Promise(() => {})) {
   return { ready, release: vi.fn<() => void>() } satisfies FrameMotionAssetLease;
@@ -8,7 +10,6 @@ function fakeLease(ready: Promise<FrameMotionResources> = new Promise(() => {}))
 
 afterEach(() => {
   keepFrameMotionAssets(false);
-  vi.useRealTimers();
 });
 
 describe('keepFrameMotionAssets — 설정이 켜진 동안 프레임 움직임 자료를 붙잡아 두기', () => {
@@ -46,22 +47,15 @@ describe('keepFrameMotionAssets — 설정이 켜진 동안 프레임 움직임 
   });
 });
 
-describe('settleWithin — 곡 시작 전 짧게만 기다리기', () => {
-  it('1200ms 안에 이행하면 그때 끝나고 true, 거절돼도 기다림만 끝내고 true를 돌려준다', async () => {
-    await expect(settleWithin(Promise.resolve('ok'), 1200)).resolves.toBe(true);
-    await expect(settleWithin(Promise.reject(new Error('x')), 1200)).resolves.toBe(true);
+describe('플레이 화면의 움직임 자료 대기(필수 자료)', () => {
+  it('곡 시작 전 대기에 시간 제한이 없고(settleWithin·_WAIT_MS 없음) 재생 중 얹기 미루기(setAttachDeferred)도 없다', () => {
+    expect(keepAliveSource).not.toContain('settleWithin');
+    expect(playScreenSource).not.toContain('settleWithin');
+    expect(playScreenSource).not.toMatch(/FRAME_MOTION_\w*WAIT_MS/);
+    expect(playScreenSource).not.toContain('setAttachDeferred');
   });
 
-  it('1200ms가 지나도록 이행하지 않으면 기다림을 끝내고 false, 기다릴 것이 없으면(undefined) 바로 true', async () => {
-    vi.useFakeTimers();
-    const waiting = settleWithin(new Promise(() => {}), 1200);
-    await vi.advanceTimersByTimeAsync(1199);
-    let done = false;
-    void waiting.then(() => { done = true; });
-    await Promise.resolve();
-    expect(done).toBe(false);
-    await vi.advanceTimersByTimeAsync(1);
-    await expect(waiting).resolves.toBe(false);
-    await expect(settleWithin(undefined, 1200)).resolves.toBe(true);
+  it('플레이 화면은 스킨 읽기와 움직임 자료를 함께 기다린다(Promise.all에 loadSkin과 keptMotion.ready)', () => {
+    expect(playScreenSource).toMatch(/Promise\.all\(\[skinManager\.loadSkin\(skin\), keptMotion\?\.ready\]\)/);
   });
 });

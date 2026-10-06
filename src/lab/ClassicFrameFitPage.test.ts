@@ -60,6 +60,8 @@ describe('ClassicFrameFitPage — 새 프레임이 들어간 실제 게임 화�
     expect(pageSource).not.toContain('frameMotion: false');
     // 페이지의 움직임 줄이기 토글이 동작하도록 움직임 줄이기에서도 움직임을 만들어 숨긴다.
     expect(pageSource).toContain("frameMotionReducedMotion: 'hide'");
+    // 움직임 자료는 렌더러 init이 기다리는 필수 자료라, 매 프레임 늦은 얹기를 확인하지 않고 init 직후 한 번 알린다.
+    expect(pageSource).not.toContain('reportedAttached');
     // Lab이 움직임 레이어를 따로 만들거나 얹지 않는다.
     expect(pageSource).not.toContain('attachFrameMotion');
     expect(pageSource).not.toContain('createClassicFrameMotion');

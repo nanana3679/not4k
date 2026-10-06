@@ -16,15 +16,7 @@ import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 import { drainPlaySessionInputs, stepPlaySession } from './playSessionInput';
-import { keepFrameMotionAssets, settleWithin } from './frameMotionKeepAlive';
-
-/**
- * 곡 시작 전에 프레임 움직임 자료를 기다리는 최대 시간. 스킨 읽기와 함께 기다리므로 자료가 이미 받아져 있으면(재시도·다음 곡) 늘어나지 않는다.
- * 처음 받는 자료가 이보다 늦으면 정적 프레임으로 시작하고, 재생 중에 도착하면 일시정지할 때 얹는다(RFD 0029).
- */
-const FRAME_MOTION_PRELOAD_WAIT_MS = 1200;
-/** 렌더러를 만든 뒤 렌더러 임대가 캐시에서 받아 움직임을 얹기까지 기다리는 최대 시간. */
-const FRAME_MOTION_ATTACH_WAIT_MS = 250;
+import { keepFrameMotionAssets } from './frameMotionKeepAlive';
 
 export function PlayScreen() {
   const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -131,11 +123,19 @@ export function PlayScreen() {
           audioOffsetMs: settings.audioOffsetMs,
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
-        // 프레임 움직임 자료는 설정이 켜진 동안 붙잡아 두고(재시도·다음 곡은 받아 둔 것을 씀), 스킨 읽기와 함께 짧게만 기다린다.
+        // 프레임 움직임 자료는 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 하는 자료다(RFD 0029). 설정이 켜진 동안 붙잡아 두어 재시도·다음 곡은
+        // 받아 둔 것을 쓰고, 스킨 읽기와 함께 시간 제한 없이 기다린다. 읽지 못하면 스킨을 읽지 못했을 때와 같이 아래 catch의 오류 화면으로 간다.
         // 움직임 줄이기면 렌더러가 움직임을 만들지 않으므로 받지도 않는다.
         const keptMotion = keepFrameMotionAssets(settings.frameMotion && !prefersReducedMotion());
         const skinManager = new SkinManager();
-        await Promise.all([skinManager.loadSkin(skin), settleWithin(keptMotion?.ready, FRAME_MOTION_PRELOAD_WAIT_MS)]);
+        try {
+          await Promise.all([skinManager.loadSkin(skin), keptMotion?.ready]);
+        } catch (loadError) {
+          // 한쪽이 실패해도 다른 쪽이 읽은 텍스처·오디오 장치를 남기지 않는다.
+          skinManager.dispose();
+          audioEngine.dispose();
+          throw loadError;
+        }
         if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
@@ -151,10 +151,7 @@ export function PlayScreen() {
         rendererRef.current = renderer;
         audioEngineRef.current = audioEngine;
         await renderer.init();
-        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다.
-        if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
-        // 렌더러 임대는 붙잡아 둔 자료를 캐시에서 받으므로 곧 움직임을 얹는다. 곡을 시작하기 전에 얹히도록 잠깐만 기다린다.
-        await settleWithin(renderer.frameMotion?.settled, FRAME_MOTION_ATTACH_WAIT_MS);
+        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다. init은 프레임 움직임을 얹은 뒤에 끝난다(렌더러 임대는 붙잡아 둔 자료를 캐시에서 받는다).
         if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
         activeSkin = skinManager;
 
@@ -304,9 +301,7 @@ export function PlayScreen() {
           animationFrameRef.current = requestAnimationFrame(gameLoop);
         };
 
-        // 재생 중에는 늦게 온 움직임 자료를 얹지 않고 일시정지까지 미룬다(업로드·마스크 준비가 곡 중 프레임에 몰리지 않게).
-        // 그리고 재생 전에 한 장 그려 텍스처 업로드·셰이더·마스크 준비를 끝낸다.
-        renderer.frameMotion?.setAttachDeferred(!isPausedRef.current);
+        // 재생 전에 한 장 그려 텍스처 업로드·셰이더·마스크 준비를 곡 시작 전에 끝낸다.
         renderer.warmUp(startTimeMs);
 
         // Start audio playback
@@ -346,8 +341,6 @@ export function PlayScreen() {
   // Sync isPaused to ref
   useEffect(() => {
     isPausedRef.current = isPaused;
-    // 재생 중에는 늦게 온 프레임 움직임 자료를 얹지 않고, 일시정지하면 그때 얹는다.
-    rendererRef.current?.frameMotion?.setAttachDeferred(!isPaused);
   }, [isPaused]);
 
   // Escape key handler for pause

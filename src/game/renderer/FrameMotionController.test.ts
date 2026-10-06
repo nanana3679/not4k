@@ -57,24 +57,24 @@ async function readyController(options: Partial<FrameMotionControllerOptions> = 
 afterEach(() => vi.restoreAllMocks());
 
 describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수명과 시계', () => {
-  it('자료가 준비되기 전에는 status loading·시계 0·running false·settled 미이행이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', async () => {
+  it('자료가 준비되기 전에는 status loading·시계 0·running false·ready 미이행이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', async () => {
     const { holder, controller } = controllerWith();
-    const settled = vi.fn();
-    void controller.settled.then(settled);
+    const ready = vi.fn();
+    void controller.ready.then(ready);
     controller.advance(16);
     await flush();
     expect([controller.status, controller.timeMs, controller.running]).toEqual(['loading', 0, false]);
-    expect(settled).not.toHaveBeenCalled();
+    expect(ready).not.toHaveBeenCalled();
     expect(holder.children).toHaveLength(0);
     expect(controller.gaugeFill).toBeNull();
     controller.destroy();
   });
 
-  it('자료가 준비되면 움직임 컨테이너를 자리에 얹고 status ready·settled 이행, 시계 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
+  it('자료가 준비되면 움직임 컨테이너를 자리에 얹은 뒤에 ready가 이행하고 status ready, 시계 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
     const { holder, controller } = await readyController();
     expect(controller.status).toBe('ready');
     expect(controller.running).toBe(true);
-    await expect(controller.settled).resolves.toBeUndefined();
+    await expect(controller.ready).resolves.toBeUndefined();
     expect(holder.children.map((child) => child.label)).toEqual(['classic-frame-motion']);
     expect(bandY(holder)).toBe(-841);
     expect(controller.gaugeFill?.label).toBe('frame-motion-gauge-fill');
@@ -211,18 +211,26 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     empty.destroy();
   });
 
-  it('자료 읽기가 실패하면 status error·settled 이행으로 자리를 비워 두고, 경고를 한 번 남기며 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
+  it('자료 읽기가 실패하면(필수 자료) ready가 같은 오류로 거절되고 자리는 비어 있으며, 경고 없이 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { holder, lease, reject, controller } = controllerWith();
-    reject(new Error('404'));
-    await flush();
-    expect(controller.status).toBe('error');
-    await expect(controller.settled).resolves.toBeUndefined();
+    const failure = new Error('404 frame-motion.json');
+    reject(failure);
+    await expect(controller.ready).rejects.toBe(failure);
     expect(holder.children).toHaveLength(0);
     controller.advance(16);
-    expect(controller.timeMs).toBe(0);
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect([controller.timeMs, controller.running]).toEqual([0, false]);
+    expect(warn).not.toHaveBeenCalled();
     controller.destroy();
+    controller.destroy();
+    expect(lease.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('움직임을 만들다 실패하면(조각 없는 자료) ready가 그 오류로 거절되고 임대를 한 번 놓는다', async () => {
+    const { lease, resolve, controller } = controllerWith({ create: () => { throw new Error('glint pieces'); } });
+    resolve();
+    await expect(controller.ready).rejects.toThrow('glint pieces');
+    expect(lease.release).toHaveBeenCalledTimes(1);
     controller.destroy();
     expect(lease.release).toHaveBeenCalledTimes(1);
   });
@@ -238,77 +246,14 @@ describe('FrameMotionController — 게임 렌더러의 프레임 움직임 수�
     expect(controller.running).toBe(false);
   });
 
-  it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않고 임대는 한 번만 놓는다', async () => {
+  it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않고 ready는 거절되며 임대는 한 번만 놓는다', async () => {
     const create = vi.fn(createClassicFrameMotion);
     const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();
     resolve();
-    await flush();
+    await expect(controller.ready).rejects.toThrow('released');
     expect(create).not.toHaveBeenCalled();
     expect(holder.children).toHaveLength(0);
     expect(lease.release).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('FrameMotionController — 곡 재생 중 늦게 온 자료(얹기 미루기)', () => {
-  it('setAttachDeferred(true)인 동안(재생 중) 자료가 준비되면 얹지도 올리지도 않고 status deferred·settled 이행, 자리는 비어 있고 advance도 시계를 움직이지 않는다', async () => {
-    const upload = vi.fn();
-    const present = vi.fn();
-    const { holder, resolve, controller } = controllerWith({ upload, present });
-    controller.setAttachDeferred(true);
-    resolve();
-    await flush();
-    expect(controller.status).toBe('deferred');
-    await expect(controller.settled).resolves.toBeUndefined();
-    expect(holder.children).toHaveLength(0);
-    expect(upload).not.toHaveBeenCalled();
-    expect(present).not.toHaveBeenCalled();
-    controller.advance(16);
-    expect([controller.timeMs, controller.running]).toEqual([0, false]);
-    controller.destroy();
-  });
-
-  it('미뤄 둔 자료는 setAttachDeferred(false)(일시정지)가 되면 그때 텍스처를 올리고 얹은 뒤 하단 바까지 한 장 그린다(present 1번, 그동안 하단 바 보임)', async () => {
-    const upload = vi.fn();
-    const barDuringPresent: boolean[] = [];
-    const { holder, resolve, controller } = controllerWith({
-      upload,
-      present: () => barDuringPresent.push(node(holder, 'frame-motion-bar').visible),
-    });
-    controller.setAttachDeferred(true);
-    resolve();
-    await flush();
-    controller.setAttachDeferred(false);
-    expect(controller.status).toBe('ready');
-    expect(upload).toHaveBeenCalledTimes(1);
-    expect(barDuringPresent).toEqual([true]);
-    expect(holder.children.map((child) => child.label)).toEqual(['classic-frame-motion']);
-    // 재개하면(다시 미룸) 이미 얹은 움직임은 그대로 흐른다.
-    controller.setAttachDeferred(true);
-    controller.advance(16);
-    expect(controller.timeMs).toBe(16);
-    controller.destroy();
-  });
-
-  it('미루기가 끝까지 풀리지 않으면(일시정지 없이 곡 끝) 그 세션은 움직임 없이 끝나고 destroy가 임대를 한 번 놓는다', async () => {
-    const create = vi.fn(createClassicFrameMotion);
-    const { holder, lease, resolve, controller } = controllerWith({ create });
-    controller.setAttachDeferred(true);
-    resolve();
-    await flush();
-    controller.setAttachDeferred(true);
-    controller.destroy();
-    controller.setAttachDeferred(false);
-    expect(create).not.toHaveBeenCalled();
-    expect(holder.children).toHaveLength(0);
-    expect(lease.release).toHaveBeenCalledTimes(1);
-  });
-
-  it('미루지 않은 상태(곡 시작 전·Lab)에서 준비되면 바로 얹고 present는 부르지 않는다(첫 화면은 호출자가 그린다)', async () => {
-    const present = vi.fn();
-    const { controller } = await readyController({ present });
-    expect(controller.status).toBe('ready');
-    expect(present).not.toHaveBeenCalled();
-    controller.destroy();
   });
 });
