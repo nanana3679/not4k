@@ -48,7 +48,8 @@ export interface GearMotionTextureBox {
 }
 
 export interface GearMotionData {
-  frame: { width: number; height: number };
+  /** 조각을 놓는 기어 그림의 크기(1024×1536). */
+  image: { width: number; height: number };
   textures: Record<GearMotionTextureKey, GearMotionTextureBox>;
   /** A: 띠 중심(pivotX, y)이 fromY→toY로 periodMs마다 한 번. 띠 사각형은 bandX부터 bandWidth, tiltDeg 회전. */
   light: {
@@ -148,7 +149,7 @@ export function parseGearMotionData(value: unknown): GearMotionData {
   const accentRecord = record(root.accent, 'accent');
   const barRecord = record(root.bar, 'bar');
   const data: GearMotionData = {
-    frame: numbers(root.frame, 'frame', ['width', 'height'] as const),
+    image: numbers(root.image, 'image', ['width', 'height'] as const),
     textures,
     light: numbers(root.light, 'light', [
       'periodMs', 'fromY', 'toY', 'tiltDeg', 'pivotX', 'bandX', 'bandWidth', 'outerHeight', 'coreHeight', 'halfAlpha',

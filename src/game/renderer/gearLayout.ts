@@ -24,10 +24,7 @@ export interface GearGeometry {
   /** 기어 실루엣의 첫/마지막 열. */
   silhouetteLeft: number;
   silhouetteRight: number;
-  /**
-   * 기어 실루엣의 마지막 행. 아래 가장자리(silhouetteBottom + 1)를 화면 아래에 붙인다.
-   * 측정 자료(gearGeometry.json)의 키는 생성기 prepare-frame-fit-v20.mjs가 쓰는 이름 그대로 `frameBottom`이다(산출물 바이트를 바꾸지 않으려고 둔다).
-   */
+  /** 기어 실루엣의 마지막 행. 아래 가장자리(silhouetteBottom + 1)를 화면 아래에 붙인다. */
   silhouetteBottom: number;
 }
 
@@ -40,7 +37,7 @@ export const GEAR_GEOMETRY: GearGeometry = {
   laneOpeningBottom: gearJson.laneOpeningBottom,
   silhouetteLeft: gearJson.silhouetteLeft,
   silhouetteRight: gearJson.silhouetteRight,
-  silhouetteBottom: gearJson.frameBottom,
+  silhouetteBottom: gearJson.silhouetteBottom,
 };
 
 /**

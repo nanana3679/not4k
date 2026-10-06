@@ -4,7 +4,7 @@ import { CLASSIC_SKIN_VERSIONS } from './classicSkinVersions';
 import { createArchivedClassicDesign, createNoteAssetDesign, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from './noteAssetDesigns';
 
 describe('시안 교체', () => {
-  it('시안 미지정과 알 수 없는 ID는 Classic을 선택하고 기존 Classic은 Simple로 제공', () => {
+  it('시안 미지정과 알 수 없는 ID는 Classic을 선택하고 시안 목록은 Classic·Simple 두 가지이며 Simple은 simple 스킨을 쓴다', () => {
     expect(getNoteAssetDesign(null).id).toBe('classic');
     expect(getNoteAssetDesign('missing').id).toBe('classic');
     expect(NOTE_ASSET_DESIGNS.map(design => design.id)).toEqual(['classic','simple']);

@@ -4,13 +4,13 @@ import { expect, test, type Page } from '@playwright/test';
 
 // 기어 측정값(prepare-frame-fit-v20.mjs → src/game/renderer/gearGeometry.json). 미리보기는 실제 게임 렌더러 배치를 그대로 알린다.
 const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/gearGeometry.json', import.meta.url)), 'utf8')) as {
-  laneLeft: number; laneRight: number; deckTop: number; frameBottom: number; laneOpeningBottom: number;
+  laneLeft: number; laneRight: number; deckTop: number; silhouetteBottom: number; laneOpeningBottom: number;
   laneOpening: { rows: [number, number, number][] };
 };
 const laneWindow = geometry.laneRight - geometry.laneLeft + 1;
-// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 실루엣 아래끝(측정 자료 키 frameBottom + 1행)을 화면 아래에 붙인다.
+// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래에 붙인다.
 const scale = 250 / laneWindow;
-const gearTop = 600 - (geometry.frameBottom + 1) * scale;
+const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale;
 const deckTopY = gearTop + geometry.deckTop * scale;
 const keyRimY = gearTop + (geometry.laneOpeningBottom + 1) * scale;
 const stageSelector = '[data-gear-preview-stage="true"]';

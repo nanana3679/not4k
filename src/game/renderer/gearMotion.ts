@@ -81,10 +81,10 @@ export function byteAlpha(value: number): number {
  * 띠 방향으로 중심에서 ±(512·cos + dy·sin)까지만 있다(dy는 띠 반높이를 기울기로 늘린 값). 그만큼(+2px)만 그려
  * 스텐실을 채우는 넓이를 줄인다. 기어 그림 안에서 보이는 띠 모양은 SVG와 같다.
  */
-export function bandHalfWidth(data: Pick<GearMotionData, 'frame' | 'light'>): number {
-  const { frame, light } = data;
+export function bandHalfWidth(data: Pick<GearMotionData, 'image' | 'light'>): number {
+  const { image, light } = data;
   const tilt = (Math.abs(light.tiltDeg) * Math.PI) / 180;
-  const reachX = frame.width / 2;
+  const reachX = image.width / 2;
   const reachY = (light.outerHeight / 2 + reachX * Math.sin(tilt)) / Math.cos(tilt);
   const needed = Math.ceil(reachX * Math.cos(tilt) + reachY * Math.sin(tilt)) + 2;
   return Math.min(light.bandWidth / 2, needed);

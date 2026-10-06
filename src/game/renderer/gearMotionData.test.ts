@@ -14,7 +14,7 @@ const MOTION_PNGS = import.meta.glob('../../../public/gear/gear-motion/*.png', {
 
 describe('parseGearMotionData', () => {
   it('생성된 gear-motion.json을 읽으면 1024×1536 기어 그림, 광원 −841→2377·60초, 기포 5개, 유리 윤곽 2개(왼쪽·반전)', () => {
-    expect(data.frame).toEqual({ width: 1024, height: 1536 });
+    expect(data.image).toEqual({ width: 1024, height: 1536 });
     expect(data.light).toMatchObject({ periodMs: 60000, fromY: -841, toY: 2377, tiltDeg: -14, outerHeight: 1380, coreHeight: 840 });
     expect(data.gauge.bubbles).toHaveLength(5);
     expect(data.gauge.glass).toHaveLength(2);

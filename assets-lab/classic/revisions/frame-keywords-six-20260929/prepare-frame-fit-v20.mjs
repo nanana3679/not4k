@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 //                       out too, so the game lanes show through it; laneOpening holds the fitted corner
 //                       edges, the per-row edges and the polygon (pixel-edge coordinates). The game's lane
 //                       mask starts at laneOpeningBottom + 1 (the key rim).
-//   frameBottom         last row with any frame pixel. The game puts its bottom edge on the screen bottom.
+//   silhouetteBottom    last row with any gear pixel. The game puts its bottom edge on the screen bottom.
 // Usage: node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <dir>]
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
@@ -317,9 +317,9 @@ const result = await page.evaluate(async ({ dataUrl, BACKDROP, EDGE_BAND, OPENIN
   for (let y = 0; y < height && silhouetteTop < 0; y++) {
     for (let x = 0; x < width; x++) if (alpha[y * width + x] > 0) { silhouetteTop = y; break; }
   }
-  let frameBottom = -1;
-  for (let y = height - 1; y >= 0 && frameBottom < 0; y--) {
-    for (let x = 0; x < width; x++) if (alpha[y * width + x] > 0) { frameBottom = y; break; }
+  let silhouetteBottom = -1;
+  for (let y = height - 1; y >= 0 && silhouetteBottom < 0; y--) {
+    for (let x = 0; x < width; x++) if (alpha[y * width + x] > 0) { silhouetteBottom = y; break; }
   }
   let silhouetteLeft = -1;
   for (let x = 0; x < width && silhouetteLeft < 0; x++) {
@@ -461,7 +461,7 @@ const result = await page.evaluate(async ({ dataUrl, BACKDROP, EDGE_BAND, OPENIN
       deckBottom,
       barGlowTop,
       barGlowBottom,
-      frameBottom,
+      silhouetteBottom,
       measurement: {
         fieldLuminance: Number(field.toFixed(1)),
         edgeBandRows: [EDGE_BAND.top, EDGE_BAND.bottom],
@@ -484,17 +484,17 @@ await browser.close();
 // top-to-bottom order. Stop before writing anything rather than publish broken geometry.
 const g = result.geometry;
 const landmarks = ['laneLeft', 'laneRight', 'laneBottom', 'deckTop', 'laneOpeningBottom', 'silhouetteTop', 'silhouetteLeft', 'silhouetteRight', 'gaugeColumn', 'gaugeGlowTop', 'gaugeGlowBottom',
-  'keyFaceTop', 'keyFaceBottom', 'deckBottom', 'barGlowTop', 'barGlowBottom', 'frameBottom'];
+  'keyFaceTop', 'keyFaceBottom', 'deckBottom', 'barGlowTop', 'barGlowBottom', 'silhouetteBottom'];
 const missing = landmarks.filter((key) => !Number.isInteger(g[key]) || g[key] < 0);
 if (missing.length > 0) throw new Error(`Measurement failed (not found): ${missing.join(', ')}`);
 const ordered = [
   ['silhouetteLeft', 'laneLeft'], ['laneLeft', 'laneRight'], ['laneRight', 'silhouetteRight'], ['silhouetteTop', 'gaugeGlowTop'], ['gaugeGlowTop', 'gaugeGlowBottom'], ['gaugeGlowBottom', 'deckTop'],
   ['deckTop', 'laneOpeningBottom'], ['laneOpeningBottom', 'keyFaceTop'], ['keyFaceTop', 'keyFaceBottom'], ['keyFaceBottom', 'deckBottom'], ['deckBottom', 'barGlowTop'],
-  ['barGlowTop', 'barGlowBottom'], ['barGlowBottom', 'frameBottom'],
+  ['barGlowTop', 'barGlowBottom'], ['barGlowBottom', 'silhouetteBottom'],
 ];
 const misordered = ordered.filter(([a, b]) => !(g[a] < g[b]) && !(a === 'barGlowTop' && g[a] === g[b]));
 if (misordered.length > 0) throw new Error(`Measurement order broken: ${misordered.map(([a, b]) => `${a}(${g[a]}) < ${b}(${g[b]})`).join(', ')}`);
-if (g.frameBottom >= g.height) throw new Error(`frameBottom ${g.frameBottom} is outside the image`);
+if (g.silhouetteBottom >= g.height) throw new Error(`silhouetteBottom ${g.silhouetteBottom} is outside the image`);
 // The corners angle inward: the left edge moves right and the right edge left going down.
 if (!(g.laneOpening.leftEdge.slope > 0 && g.laneOpening.rightEdge.slope < 0)) throw new Error(`Lane opening corners do not narrow downward: ${JSON.stringify(g.laneOpening)}`);
 

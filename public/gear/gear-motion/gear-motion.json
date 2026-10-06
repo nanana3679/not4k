@@ -2,7 +2,7 @@
   "version": 1,
   "generator": "assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs",
   "source": "lab/image-galleries/frame-keywords-six-20260929/54-ambient-motion-v19.svg",
-  "frame": {
+  "image": {
     "width": 1024,
     "height": 1536
   },

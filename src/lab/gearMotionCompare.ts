@@ -79,7 +79,7 @@ export async function createGearMotionPreview(options: {
     const gl = (app.renderer as unknown as { gl?: WebGL2RenderingContext }).gl;
     const samples = gl ? Number(gl.getParameter(gl.SAMPLES)) || 0 : 0;
 
-    let viewBox: GearViewBox = { x: 0, y: 0, width: resources.data.frame.width, height: resources.data.frame.height };
+    let viewBox: GearViewBox = { x: 0, y: 0, width: resources.data.image.width, height: resources.data.image.height };
     let size = { width, height };
     const place = () => {
       const transform = viewBoxTransform(viewBox, size.width, size.height);

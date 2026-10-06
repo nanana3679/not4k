@@ -333,8 +333,8 @@ const files = {
   glint: 'glint.png',
   bubbles: 'bubbles.png',
 };
-// Each texture: its PNG size and pieces. A piece draws atlas box (atlasX, atlasY, width, height) at frame
-// position (x, y). The liquid tile repeats every tileHeight downwards from its piece; both glints start at
+// image: the gear image size the pieces are placed in. Each texture: its PNG size and pieces. A piece draws
+// atlas box (atlasX, atlasY, width, height) at gear-image position (x, y). The liquid tile repeats every tileHeight downwards from its piece; both glints start at
 // the glint piece and move along x; the bubble atlas holds one bubbleCell-square cell per bubble.
 const textures = Object.fromEntries(Object.entries(files).map(([key, file]) => {
   const texture = baked.textures[key];
@@ -345,7 +345,7 @@ const data = {
   version: 1,
   generator: 'assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs',
   source: 'lab/image-galleries/frame-keywords-six-20260929/54-ambient-motion-v19.svg',
-  frame: { width: WIDTH, height: HEIGHT },
+  image: { width: WIDTH, height: HEIGHT },
   textures,
   light: {
     periodMs: ms(LIGHT.travel),

@@ -42,7 +42,7 @@ describe('acquireGearMotionAssets — 기어 움직임 자료 공유 로더', ()
       expect(request).toMatchObject({ data: { autoGenerateMipmaps: true, scaleMode: 'linear' } });
       expect((request as { alias: string }).alias).toBe((request as { src: string }).src);
     }
-    expect(resources.data.frame).toEqual({ width: 1024, height: 1536 });
+    expect(resources.data.image).toEqual({ width: 1024, height: 1536 });
     expect(Object.keys(resources.textures)).toEqual([...GEAR_MOTION_TEXTURE_KEYS]);
     expect((resources.textures.armorLit as unknown as { path: string }).path).toBe('/gear/gear-motion/armor-lit.png');
     lease.release();

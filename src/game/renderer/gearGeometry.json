@@ -84,7 +84,7 @@
   "deckBottom": 1340,
   "barGlowTop": 1367,
   "barGlowBottom": 1399,
-  "frameBottom": 1465,
+  "silhouetteBottom": 1465,
   "measurement": {
     "fieldLuminance": 21.3,
     "edgeBandRows": [200, 1000],
