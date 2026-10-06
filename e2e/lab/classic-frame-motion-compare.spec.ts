@@ -48,12 +48,16 @@ interface Difference extends MeasureCase {
 async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> {
   return page.evaluate(async ({ cases, lane, allLayers }) => {
     const compareModule = '/src/lab/classicFrameMotionCompare.ts';
-    const dataModule = '/src/lab/classicFrameMotionData.ts';
+    const viewModule = '/src/lab/classicFrameMotionView.ts';
+    const assetsModule = '/src/game/renderer/classicFrameMotionAssets.ts';
     const { createFrameMotionPreview } = await import(/* @vite-ignore */ compareModule);
-    const { FRAME_MOTION_SVG_PATH, loadFrameMotionAssets, readSvgBaseHref } = await import(/* @vite-ignore */ dataModule);
+    const { FRAME_MOTION_SVG_PATH, readSvgBaseHref } = await import(/* @vite-ignore */ viewModule);
+    const { acquireFrameMotionAssets } = await import(/* @vite-ignore */ assetsModule);
     const width = 1024;
     const height = 1536;
-    const assets = await loadFrameMotionAssets((path: string) => path);
+    // 게임 렌더러와 같은 공유 로더(프레임과 같은 밉맵·삼선형 설정)로 움직임 자료를 빌린다.
+    const lease = acquireFrameMotionAssets((path: string) => path);
+    const motion = await lease.ready;
     const markup = await (await fetch(FRAME_MOTION_SVG_PATH)).text();
     const svgDocument = new DOMParser().parseFromString(markup, 'image/svg+xml');
     const loadImage = async (url: string) => {
@@ -72,7 +76,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
       return context.getImageData(0, 0, width, height).data;
     };
     const cutout = readPixels(await loadImage('/gear/classic-frame.png'));
-    const { light } = assets.data;
+    const { light } = motion.data;
     const tilt = (light.tiltDeg * Math.PI) / 180;
     const regionFor = (item: { timeMs: number; boxes?: { x0: number; x1: number; y0: number; y1: number }[]; bandEdgesOnly?: boolean }) => {
       const { boxes } = item;
@@ -107,7 +111,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
       if (cached) return cached;
       const canvas = document.createElement('canvas');
       const preview: Preview = await createFrameMotionPreview({
-        canvas, width, height, resolution: 1, base, assets, preserveDrawingBuffer: true, antialias, bandEdges,
+        canvas, width, height, resolution: 1, base, motion, preserveDrawingBuffer: true, antialias, bandEdges,
       });
       const entry = { preview, canvas };
       previews.set(key, entry);
@@ -165,6 +169,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
       });
     }
     for (const { preview } of previews.values()) preview.destroy();
+    lease.release();
     return results;
   }, { cases, lane: geometry, allLayers: ALL_LAYERS });
 }
@@ -254,21 +259,24 @@ test.describe('Classic 프레임 움직임 Pixi ↔ 승인 SVG 픽셀 비교', (
     await page.goto('/lab');
     const result = await page.evaluate(async () => {
       const compareModule = '/src/lab/classicFrameMotionCompare.ts';
-      const dataModule = '/src/lab/classicFrameMotionData.ts';
+      const assetsModule = '/src/game/renderer/classicFrameMotionAssets.ts';
       const { createFrameMotionPreview } = await import(/* @vite-ignore */ compareModule);
-      const { loadFrameMotionAssets } = await import(/* @vite-ignore */ dataModule);
-      const assets = await loadFrameMotionAssets((path: string) => path);
-      const broken = { ...assets, data: { ...assets.data, textures: { ...assets.data.textures, glint: { ...assets.data.textures.glint, pieces: [] } } } };
+      const { acquireFrameMotionAssets } = await import(/* @vite-ignore */ assetsModule);
+      const lease = acquireFrameMotionAssets((path: string) => path);
+      const motion = await lease.ready;
+      const broken = { ...motion, data: { ...motion.data, textures: { ...motion.data.textures, glint: { ...motion.data.textures.glint, pieces: [] } } } };
       const canvas = document.createElement('canvas');
       const base = new Image();
       base.src = '/gear/classic-frame.png';
       await base.decode();
       try {
-        await createFrameMotionPreview({ canvas, width: 64, height: 96, resolution: 1, base, assets: broken });
+        await createFrameMotionPreview({ canvas, width: 64, height: 96, resolution: 1, base, motion: broken });
         return { threw: false, lost: false };
       } catch (error) {
         const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
         return { threw: true, message: String(error), lost: gl ? gl.isContextLost() : true };
+      } finally {
+        lease.release();
       }
     });
     expect(result.threw).toBe(true);

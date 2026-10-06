@@ -1,20 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../public/lab/classic-frame-fit/motion/frame-motion.json?raw';
+import motionJsonText from '../../../public/gear/classic-frame-motion/frame-motion.json?raw';
+import dataSource from './classicFrameMotionData.ts?raw';
 import {
-  formatViewBox,
   FRAME_MOTION_ASSET_DIR,
   FRAME_MOTION_DATA_PATH,
-  FRAME_MOTION_SVG_PATH,
-  FRAME_MOTION_VIEWS,
   parseFrameMotionData,
-  readSvgBaseHref,
-  viewBoxTransform,
 } from './classicFrameMotionData';
 
 const json = () => JSON.parse(motionJsonText);
 const data = parseFrameMotionData(json());
 // 공개 폴더의 PNG 목록(내용은 읽지 않는다).
-const MOTION_PNGS = import.meta.glob('../../public/lab/classic-frame-fit/motion/*.png', { query: '?url', import: 'default' });
+const MOTION_PNGS = import.meta.glob('../../../public/gear/classic-frame-motion/*.png', { query: '?url', import: 'default' });
 
 describe('parseFrameMotionData', () => {
   it('생성된 frame-motion.json을 읽으면 1024×1536 프레임, 광원 −841→2377·60초, 기포 5개, 유리 윤곽 2개(왼쪽·반전)', () => {
@@ -59,43 +55,23 @@ describe('parseFrameMotionData', () => {
 });
 
 describe('움직임 자료 경로', () => {
-  it('텍스처·JSON은 /lab/classic-frame-fit/motion/ 아래, 비교 기준 SVG는 이미지 갤러리의 54-ambient-motion-v19.svg', () => {
-    expect(FRAME_MOTION_ASSET_DIR).toBe('/lab/classic-frame-fit/motion');
-    expect(FRAME_MOTION_DATA_PATH).toBe('/lab/classic-frame-fit/motion/frame-motion.json');
-    expect(FRAME_MOTION_SVG_PATH).toBe('/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg');
+  it('텍스처 9장과 frame-motion.json은 게임 프레임 옆 /gear/classic-frame-motion/ 아래에 있다(Lab 경로가 아님)', () => {
+    expect(FRAME_MOTION_ASSET_DIR).toBe('/gear/classic-frame-motion');
+    expect(FRAME_MOTION_DATA_PATH).toBe('/gear/classic-frame-motion/frame-motion.json');
   });
 
-  it('JSON의 텍스처 파일 9개가 모두 motion 폴더의 PNG로 있다(armor-shape 없음)', () => {
+  it('JSON의 텍스처 파일 9개가 모두 /gear/classic-frame-motion/ 폴더의 PNG로 있다(armor-shape 없음)', () => {
     const files = Object.values(data.textures).map((box) => box.file).sort();
     expect(files).toHaveLength(9);
     expect(files).not.toContain('armor-shape.png');
     const published = Object.keys(MOTION_PNGS).map((path) => path.split('/').pop()).sort();
     expect(published).toEqual(files);
   });
-});
 
-describe('비교 보기(viewBox)', () => {
-  it('보기 세 개는 승인 SVG 시연과 같은 viewBox: 전체 0 0 1024 1536, 왼쪽 장갑 0 420 320 480, 하단 300 1240 424 212', () => {
-    expect(Object.values(FRAME_MOTION_VIEWS).map((view) => [view.label, formatViewBox(view.viewBox)])).toEqual([
-      ['전체', '0 0 1024 1536'],
-      ['왼쪽 장갑', '0 420 320 480'],
-      ['하단', '300 1240 424 212'],
-    ]);
-  });
-
-  it('왼쪽 장갑(0 420 320 480)을 640×960 화면에 맞추면 배율 2, 위로 840 올린다', () => {
-    expect(viewBoxTransform(FRAME_MOTION_VIEWS.left.viewBox, 640, 960)).toEqual({ scale: 2, x: 0, y: -840 });
-  });
-
-  it('하단(300 1240 424 212)을 비율이 다른 424×424 화면에 맞추면 배율 1로 가로를 채우고 세로 가운데(위 106)에 둔다', () => {
-    expect(viewBoxTransform(FRAME_MOTION_VIEWS.bottom.viewBox, 424, 424)).toEqual({ scale: 1, x: -300, y: -1240 + 106 });
-  });
-});
-
-describe('readSvgBaseHref', () => {
-  it('SVG의 #fm-base href(data URL)를 꺼내고, 없으면 #fm-base를 찾지 못했다는 에러', () => {
-    const withBase = { querySelector: (selector: string) => (selector === '#fm-base' ? { getAttribute: () => 'data:image/png;base64,AAAA' } : null) };
-    expect(readSvgBaseHref(withBase as unknown as ParentNode)).toBe('data:image/png;base64,AAAA');
-    expect(() => readSvgBaseHref({ querySelector: () => null } as unknown as ParentNode)).toThrow('#fm-base');
+  it('게임 자료 모듈은 Lab 경로·승인 SVG·비교 보기를 모른다(/lab·svg·viewBox 없음)', () => {
+    expect(dataSource).not.toMatch(/['"]\/lab\//);
+    expect(dataSource).not.toContain('.svg');
+    expect(dataSource).not.toContain('viewBox');
+    expect(dataSource).not.toMatch(/from ['"][^'"]*lab/);
   });
 });

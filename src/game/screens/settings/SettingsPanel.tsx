@@ -263,6 +263,12 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
                   ]}
                   onChange={(v) => updateSettings({ renderHeight: Number(v) })}
                 />
+                <ToggleRow
+                  label="Frame Motion"
+                  desc="Light sweeps and glows on the Classic frame. Turn off on slower GPUs."
+                  checked={settings.frameMotion}
+                  onChange={(c) => updateSettings({ frameMotion: c })}
+                />
               </Group>
             </div>
           )}

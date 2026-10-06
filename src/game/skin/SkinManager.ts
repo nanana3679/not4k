@@ -1,53 +1,19 @@
-import { Assets, Texture, Rectangle, type TextureSourceOptions } from "pixi.js";
+import { Texture, Rectangle, type TextureSourceOptions } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
 import { CLASSIC_FRAME_TEXTURE_OPTIONS } from "../renderer/classicFrameLayout";
 import { getSkinManifest } from "./skins";
 import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
-
-// Pixi Assets caches textures globally by path. Multiple renderers (notably
-// the two tutorial carousel slots) can therefore share one loaded texture.
-const skinAssetReferences = new Map<string, number>();
-const skinAssetOperations = new Map<string, Promise<void>>();
+import { loadSharedAsset, releaseSharedAsset, retainSharedAsset } from "./sharedAssets";
 
 interface SkinAssetOwnership {
   readonly paths: Set<string>;
   released: boolean;
 }
 
-function retainSkinAsset(path: string): void {
-  skinAssetReferences.set(path, (skinAssetReferences.get(path) ?? 0) + 1);
-}
-
-function releaseSkinAsset(path: string): void {
-  const nextCount = (skinAssetReferences.get(path) ?? 0) - 1;
-  if (nextCount > 0) {
-    skinAssetReferences.set(path, nextCount);
-    return;
-  }
-
-  skinAssetReferences.delete(path);
-  const previous = skinAssetOperations.get(path) ?? Promise.resolve();
-  const operation = previous.catch(() => undefined).then(async () => {
-    // A new owner may have appeared while the previous unload was queued.
-    if ((skinAssetReferences.get(path) ?? 0) > 0) return;
-    await Assets.unload(path);
-  });
-  skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
-}
-
-function loadSkinAsset<T>(path: string, data?: Partial<TextureSourceOptions>): Promise<T> {
-  const previous = skinAssetOperations.get(path) ?? Promise.resolve();
-  // 텍스처 설정이 있는 에셋은 경로를 별칭으로 등록해 unload(path)가 같은 캐시 항목을 찾게 한다.
-  const operation = previous.catch(() => undefined)
-    .then(() => Assets.load<T>(data ? { alias: path, src: path, data } : path));
-  skinAssetOperations.set(path, operation.then(() => undefined, () => undefined));
-  return operation;
-}
-
 function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
   if (ownership.released) return;
   ownership.released = true;
-  for (const path of ownership.paths) releaseSkinAsset(path);
+  for (const path of ownership.paths) releaseSharedAsset(path);
 }
 
 /**
@@ -202,12 +168,12 @@ export class SkinManager {
     };
     this.assetOwnership = assetOwnership;
     for (const path of assetOwnership.paths) {
-      retainSkinAsset(path);
+      retainSharedAsset(path);
     }
 
     // 모든 텍스처를 병렬 로드
     const loadPromises = entries.map(async ([key, path]) => {
-      const texture = await loadSkinAsset<Texture>(path, TEXTURE_LOAD_OPTIONS[key]);
+      const texture = await loadSharedAsset<Texture>(path, TEXTURE_LOAD_OPTIONS[key]);
       if (!this.disposed && generation === this.loadGeneration) {
         this.textures.set(key, { texture, path });
       }

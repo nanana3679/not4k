@@ -1,11 +1,14 @@
-import { Application, Container, ImageSource, Sprite, Texture, type TextureSourceOptions } from 'pixi.js';
-import { FRAME_MOTION_TEXTURE_OPTIONS } from './classicFrameMotionOverlay';
-import { createClassicFrameMotion, createFrameMotionTextures, type ClassicFrameMotion, type ClassicFrameMotionOptions } from './classicFrameMotion';
-import { viewBoxTransform, type FrameMotionAssets, type FrameViewBox } from './classicFrameMotionData';
+import { Application, Container, ImageSource, Sprite, Texture } from 'pixi.js';
+import { CLASSIC_FRAME_TEXTURE_OPTIONS } from '../game/renderer/classicFrameLayout';
+import { createClassicFrameMotion, type ClassicFrameMotion, type ClassicFrameMotionOptions } from '../game/renderer/classicFrameMotion';
+import type { FrameMotionResources } from '../game/renderer/classicFrameMotionAssets';
+import { viewBoxTransform, type FrameViewBox } from './classicFrameMotionView';
 
 /**
- * 프레임만 그리는 작은 Pixi 앱(GameRenderer 아님). 승인된 SVG와 같은 바탕(SVG의 #fm-base 그림) 위에 움직임 레이어를
- * 얹어, 같은 시각·같은 viewBox로 SVG와 나란히 비교한다. E2E 픽셀 비교도 이 함수로 원본 크기(1024×1536) 화면을 만든다.
+ * 프레임만 그리는 작은 Pixi 앱(GameRenderer 아님). 승인된 SVG와 같은 바탕(SVG의 #fm-base 그림) 위에 게임의 움직임 모듈
+ * (src/game/renderer/classicFrameMotion)을 얹어, 같은 시각·같은 viewBox로 SVG와 나란히 비교한다. 움직임 텍스처는 게임 렌더러와 같은
+ * 공유 로더(acquireFrameMotionAssets)의 한 벌을 받아 쓰고 정리하지 않는다(임대는 호출자가 놓는다).
+ * E2E 픽셀 비교도 이 함수로 원본 크기(1024×1536) 화면을 만든다.
  */
 
 export interface FrameMotionPreview {
@@ -27,18 +30,16 @@ export async function createFrameMotionPreview(options: {
   height: number;
   resolution: number;
   base: HTMLImageElement;
-  assets: FrameMotionAssets;
-  textureOptions?: Partial<TextureSourceOptions>;
+  /** 공유 로더가 준 움직임 자료와 텍스처(게임 프레임과 같은 밉맵·삼선형 설정). */
+  motion: FrameMotionResources;
   preserveDrawingBuffer?: boolean;
   /** MSAA. 게임 렌더러는 끈 채로 쓰므로 기본은 꺼짐이다. 스텐실 띠 경계가 얼마나 부드러워지는지 비교하는 데 쓴다. */
   antialias?: boolean;
   /** 띠 가장자리 방식(classicFrameMotion의 bandEdges). 기본은 게임과 같은 스텐실이다. */
   bandEdges?: ClassicFrameMotionOptions['bandEdges'];
 }): Promise<FrameMotionPreview> {
-  // 텍스처는 게임 무대의 새 프레임과 같은 설정(밉맵·삼선형)으로 만들어 줄여 볼 때도 같은 선명도로 비교한다.
   const {
-    canvas, width, height, resolution, base, assets, textureOptions = FRAME_MOTION_TEXTURE_OPTIONS, preserveDrawingBuffer = false,
-    antialias = false, bandEdges = 'stencil',
+    canvas, width, height, resolution, base, motion: resources, preserveDrawingBuffer = false, antialias = false, bandEdges = 'stencil',
   } = options;
   // 앱 CSP가 eval을 막으므로 GameRenderer처럼 eval 없는 셰이더 동기화 모듈을 먼저 읽는다.
   await import('pixi.js/unsafe-eval');
@@ -65,13 +66,12 @@ export async function createFrameMotionPreview(options: {
       background: '#000000',
       preserveDrawingBuffer,
     });
-    const baseSource = new ImageSource({ resource: base, ...textureOptions });
+    // 바탕도 게임 프레임과 같은 설정(밉맵·삼선형)으로 만들어 줄여 볼 때 움직임 텍스처와 같은 선명도로 비교한다.
+    const baseSource = new ImageSource({ resource: base, ...CLASSIC_FRAME_TEXTURE_OPTIONS });
     cleanups.push(() => baseSource.destroy());
     const baseTexture = new Texture({ source: baseSource });
     cleanups.push(() => baseTexture.destroy(false));
-    const motionTextures = createFrameMotionTextures(assets.images, textureOptions);
-    cleanups.push(() => motionTextures.destroy());
-    const motion = createClassicFrameMotion(assets.data, motionTextures.textures, { bandEdges });
+    const motion = createClassicFrameMotion(resources.data, resources.textures, { bandEdges });
     cleanups.push(() => motion.destroy());
     const root = new Container({ label: 'frame-motion-preview' });
     root.addChild(new Sprite({ texture: baseTexture, label: 'frame-motion-preview-base' }), motion.container);
@@ -79,7 +79,7 @@ export async function createFrameMotionPreview(options: {
     const gl = (app.renderer as unknown as { gl?: WebGL2RenderingContext }).gl;
     const samples = gl ? Number(gl.getParameter(gl.SAMPLES)) || 0 : 0;
 
-    let viewBox: FrameViewBox = { x: 0, y: 0, width: assets.data.frame.width, height: assets.data.frame.height };
+    let viewBox: FrameViewBox = { x: 0, y: 0, width: resources.data.frame.width, height: resources.data.frame.height };
     let size = { width, height };
     const place = () => {
       const transform = viewBoxTransform(viewBox, size.width, size.height);

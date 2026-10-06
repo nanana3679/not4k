@@ -53,14 +53,32 @@ describe('ClassicFrameFitPage — 새 프레임이 들어간 실제 게임 화�
     expect(markup).toContain('원래 크기 · 오른쪽 아래');
   });
 
-  it('무대는 실제 GameRenderer를 기본 옵션(내장 프레임)으로 만들고 Lab 움직임은 attachFrameMotion으로 프레임 위에 얹는다', () => {
+  it('무대는 실제 GameRenderer를 기본 옵션(내장 프레임·내장 움직임)으로 만들고, 움직임 조절은 렌더러의 공개 frameMotion API로만 건다', () => {
     expect(pageSource).toContain("import('../game/renderer')");
     expect(pageSource).toContain('new GameRenderer({');
     expect(pageSource).not.toContain('showGearFrame');
-    expect(pageSource).toContain('attachFrameMotion(active, built.container)');
+    expect(pageSource).not.toContain('frameMotion: false');
+    // 페이지의 움직임 줄이기 토글이 동작하도록 움직임 줄이기에서도 움직임을 만들어 숨긴다.
+    expect(pageSource).toContain("frameMotionReducedMotion: 'hide'");
+    // 움직임 자료는 렌더러 init이 기다리는 필수 자료라, 매 프레임 늦은 얹기를 확인하지 않고 init 직후 한 번 알린다.
+    expect(pageSource).not.toContain('reportedAttached');
+    // Lab이 움직임 레이어를 따로 만들거나 얹지 않는다.
+    expect(pageSource).not.toContain('attachFrameMotion');
+    expect(pageSource).not.toContain('createClassicFrameMotion');
+    expect(pageSource).not.toContain('addFrameOverlay');
+    for (const call of ['.setEnabled(', '.setLayerVisible(', '.setReducedMotion(', '.restart()', '.timeMs', '.running', ".status === 'ready'"]) {
+      expect(pageSource).toContain(call);
+    }
+    expect(pageSource).toContain('active.frameMotion');
     expect(pageSource).toContain('active.setupKeyboardDisplay(');
     // 게임 렌더러의 private 필드를 꺼내 쓰지 않는다.
-    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearFrameLayer|maskGraphic|_judgmentLineY)/);
+    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearFrameLayer|maskGraphic|_judgmentLineY|frameMotionController)/);
+  });
+
+  it('움직임 자료는 게임과 같은 공유 로더(acquireFrameMotionAssets)로 페이지가 한 번 빌려 비교 화면에 넘기고, Lab 경로의 움직임 자료를 읽지 않는다', () => {
+    expect(pageSource).toContain('acquireFrameMotionAssets');
+    expect(pageSource).not.toContain('loadFrameMotionAssets');
+    expect(pageSource).not.toContain('classic-frame-fit/motion');
   });
 
   it('움직임 토글과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {

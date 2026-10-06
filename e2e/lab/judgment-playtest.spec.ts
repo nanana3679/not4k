@@ -50,15 +50,38 @@ async function storePreviousSessionState(page: Page) {
   });
 }
 
+interface LabInput {
+  /** 판정 입력 시각(ms). installInputProbe가 GameClock.toInputTimeMs를 이 값(__labRawAt)으로 바꾼다. */
+  atMs: number;
+  code: 'KeyQ' | 'KeyW';
+  type: 'down' | 'up';
+}
+
+/**
+ * 입력 전부를 page.evaluate 한 번 안에서 차례로 보낸다(곡은 계속 재생된다).
+ * 입력 시각은 실제 시계가 아니라 __labRawAt이 정하고, 플레이 세션은 그 시각을 넘어 진행하지 않는다(stepPlaySession). 입력을 왕복마다 따로 보내면
+ * 그 사이에 게임 프레임이 끼어 세션이 다음 입력보다 먼저 나아갈 수 있어, 부하가 큰 환경에서 결과가 흔들렸다. 한 작업(task) 안에서 보내면
+ * 사이에 프레임이 끼지 않아, 같은 시각 입력은 한 묶음으로, 다른 시각 입력은 그 시각 그대로 차례로 처리된다(사례 단위 테스트의 play와 같은 순서).
+ */
+async function sendInputs(page: Page, inputs: readonly LabInput[]) {
+  await page.evaluate((events) => {
+    const win = window as unknown as Record<string, unknown>;
+    for (const { atMs, code, type } of events) {
+      win.__labRawAt = atMs;
+      const key = code.slice(3).toLowerCase();
+      window.dispatchEvent(new KeyboardEvent(type === 'down' ? 'keydown' : 'keyup', { code, key, bubbles: true }));
+    }
+  }, inputs);
+}
+
+/** o-o- 유지와 교대: 2000ms Q 누름 → 2500ms W 누름 → 2520ms W 뗌 → 3000ms Q 뗌. */
 async function playConnectedSingleSwap(page: Page) {
-  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 2000; });
-  await page.keyboard.down('q');
-  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 2500; });
-  await page.keyboard.down('w');
-  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 2520; });
-  await page.keyboard.up('w');
-  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 3000; });
-  await page.keyboard.up('q');
+  await sendInputs(page, [
+    { atMs: 2000, code: 'KeyQ', type: 'down' },
+    { atMs: 2500, code: 'KeyW', type: 'down' },
+    { atMs: 2520, code: 'KeyW', type: 'up' },
+    { atMs: 3000, code: 'KeyQ', type: 'up' },
+  ]);
 }
 
 async function readResult(page: Page) {
@@ -162,17 +185,21 @@ test.describe('Lab 판정 실플레이', () => {
     await installInputProbe(page);
     await page.locator('[data-scenario-id="decrease-chain"]').getByRole('button', { name: /플레이/ }).click();
     await expect.poll(() => page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__labInputAttached))).toBe(true);
-    await page.evaluate(() => { (window as unknown as Record<string, unknown>).__labRawAt = 2000; });
-    await page.keyboard.down('q');
-    await page.keyboard.down('w');
+    // 2000ms에 Q·W를 함께 누르고(사례 단위 테스트처럼 한 묶음) 그 뒤 입력은 생략한다.
+    await sendInputs(page, [
+      { atMs: 2000, code: 'KeyQ', type: 'down' },
+      { atMs: 2000, code: 'KeyW', type: 'down' },
+    ]);
     await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 9000 });
     const result = await readResult(page);
     expect(result?.judgmentCounts.perfect).toBe(2);
     expect(result?.judgmentCounts.miss).toBeGreaterThan(0);
     expect(result?.achievementRate).toBe(40);
     expect(result?.isFullCombo).toBe(false);
-    await page.keyboard.up('q');
-    await page.keyboard.up('w');
+    await sendInputs(page, [
+      { atMs: 2000, code: 'KeyQ', type: 'up' },
+      { atMs: 2000, code: 'KeyW', type: 'up' },
+    ]);
     expect(pageErrors).toEqual([]);
   });
 });

@@ -24,6 +24,10 @@ import {
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
 import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame, type ClassicFrameLayout } from "./classicFrameLayout";
+import { acquireFrameMotionAssets } from "./classicFrameMotionAssets";
+import { FRAME_MOTION_TEXTURE_KEYS } from "./classicFrameMotionData";
+import { FrameMotionController, type FrameMotionControls } from "./FrameMotionController";
+import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
@@ -94,6 +98,16 @@ export interface GameRendererOptions {
   bombScale?: number;
   /** 새 Classic 프레임(스킨 공통 `gearFrame`)을 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
   showGearFrame?: boolean;
+  /**
+   * 프레임 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 프레임을 그릴 때만 만든다.
+   * 끄면(게임 설정 `frameMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
+   */
+  frameMotion?: boolean;
+  /**
+   * 움직임 줄이기(`prefers-reduced-motion: reduce`)일 때. 'omit'(기본, 게임): 움직임을 아예 만들지 않고 자료도 읽지 않는다(설정 끔과 같은 0 비용).
+   * 'hide'(Lab 미리보기): 만들어 숨겨 두고, 페이지가 frameMotion.setReducedMotion으로 다시 보이게 할 수 있다.
+   */
+  frameMotionReducedMotion?: "omit" | "hide";
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
@@ -175,6 +189,10 @@ export class GameRenderer {
   // Gear frame (새 Classic 프레임, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearFrameLayer: Container;
   private gearFrameLayout: Readonly<ClassicFrameLayout> | null = null;
+  // 프레임 움직임 — 프레임 레이어에서 프레임 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
+  private readonly frameMotionEnabled: boolean;
+  private readonly frameMotionReducedMotion: "omit" | "hide";
+  private frameMotionController: FrameMotionController | null = null;
 
   // UI elements
   private comboText: Text;
@@ -228,6 +246,8 @@ export class GameRenderer {
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
+    this.frameMotionEnabled = options.frameMotion ?? true;
+    this.frameMotionReducedMotion = options.frameMotionReducedMotion ?? "omit";
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -376,15 +396,21 @@ export class GameRenderer {
       this.buildTutorialKeyboard();
     }
     this.initialized = true;
+    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 프레임 레이어의 프레임 스프라이트 바로 위에 붙는다.
+    this.buildFrameMotion();
+    // 비행 배경과 프레임 움직임 자료는 렌더러 준비에 필요한 자료다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    const required: Promise<unknown>[] = [];
     if (this.showFlightBackground) {
       this.flightBackground = new FlightBackground({
         canvas: this.canvas, width: this.width, height: this.height,
         resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
       });
-      try { await this.flightBackground.init(); }
-      // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
-      catch (error) { this.dispose(false); throw error; }
+      required.push(this.flightBackground.init());
     }
+    if (this.frameMotionController) required.push(this.frameMotionController.ready);
+    try { await Promise.all(required); }
+    // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
+    catch (error) { this.dispose(false); throw error; }
   }
 
   private drawBackground(): void {
@@ -455,6 +481,46 @@ export class GameRenderer {
     // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
     this.gearFrameLayout = Object.freeze(layout);
     this.gearFrameLayer.addChild(sprite);
+  }
+
+  /**
+   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
+   * 필수라 init이 준비를 기다린다. 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹고, 읽지 못하면 init이 그 오류로 실패한다.
+   * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
+   */
+  private buildFrameMotion(): void {
+    if (!this.frameMotionEnabled || !this.gearFrameLayout) return;
+    const reduced = prefersReducedMotion();
+    if (reduced && this.frameMotionReducedMotion === "omit") return;
+    const holder = new Container({ label: "classic-frame-motion-holder" });
+    if (!this.addFrameOverlay(holder)) {
+      holder.destroy();
+      return;
+    }
+    const controller = new FrameMotionController({
+      holder,
+      lease: acquireFrameMotionAssets(),
+      upload: (textures) => {
+        // 처음 그리는 프레임에 업로드(밉맵 생성 포함)가 몰리지 않도록 자료가 준비된 때 미리 올린다.
+        const textureSystem = this.app.renderer?.texture;
+        if (!this.initialized || !textureSystem) return;
+        for (const key of FRAME_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
+      },
+    });
+    controller.setReducedMotion(reduced);
+    this.frameMotionController = controller;
+  }
+
+  /**
+   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 프레임·노트·움직임 텍스처 업로드와 셰이더·마스크 준비를
+   * 재생 시작 전에 끝내, 곡의 첫 프레임들이 그 비용을 치르지 않게 한다. 프레임 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로
+   * 이 한 장 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다). 플레이 화면이 audio 재생 직전에 부른다.
+   */
+  warmUp(songTimeMs: number): void {
+    if (!this.initialized || !this.app.renderer) return;
+    const render = () => this.renderFrame(songTimeMs, 0);
+    if (this.frameMotionController) this.frameMotionController.warmUp(render);
+    else render();
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {
@@ -717,7 +783,8 @@ export class GameRenderer {
       songTimeMs,
       chartDurationMs: this.chartDurationMs,
     });
-    // 새 프레임의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다. 그때까지 유리관은 그림 그대로(가득) 보인다.
+    // 새 프레임의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다(frameMotion.gaugeFill을 채움 높이로 자른다).
+    // 그때까지 유리관은 그림 그대로(가득) 보인다.
     this.flightBackground?.render(altitude, deltaMs);
   }
 
@@ -797,6 +864,8 @@ export class GameRenderer {
     if (this.showFlightBackground) {
       this.renderFlightBackground(songTimeMs, deltaMs);
     }
+    // 프레임 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
+    this.frameMotionController?.advance(deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1038,9 +1107,17 @@ export class GameRenderer {
   }
 
   /**
+   * 프레임 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
+   * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(frameMotion false·움직임 줄이기 omit·프레임 없음·dispose 뒤) null.
+   */
+  get frameMotion(): FrameMotionControls | null {
+    return this.frameMotionController;
+  }
+
+  /**
    * 프레임 그림 좌표(1024×1536)로 그린 레이어를 프레임 바로 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 프레임과 같은 변환으로 붙인다. 프레임 움직임 레이어(지금은 Lab 미리보기, PR B에서 게임으로 옮긴다)가 쓴다.
-   * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다.
+   * 프레임과 같은 변환으로 붙인다. 내장 프레임 움직임과 후속 고도 게이지가 쓴다.
+   * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(프레임 레이어와 함께 파괴된다).
    */
   addFrameOverlay(overlay: Container): Readonly<ClassicFrameLayout> | null {
     const layout = this.gearFrameLayout;
@@ -1116,6 +1193,9 @@ export class GameRenderer {
     this.initialized = false;
     this.flightBackground?.dispose();
     this.flightBackground = null;
+    // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).
+    this.frameMotionController?.destroy();
+    this.frameMotionController = null;
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.

@@ -1,4 +1,5 @@
 import type { FlightScenario } from '../../../shared/chartDifficulty';
+import { prefersReducedMotion } from '../reducedMotion';
 
 export interface FlightBackgroundOptions {
   canvas: HTMLCanvasElement;
@@ -48,7 +49,7 @@ export class FlightBackground {
       position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden', background: '#080e1b',
     });
     options.canvas.before(this.container);
-    this.reducedMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.reducedMotion = prefersReducedMotion();
   }
 
   async init(factory?: FlightDriverFactory): Promise<void> {

@@ -1,5 +1,5 @@
 /*
-THESIS: 새 Classic 프레임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)가 게임에서 그대로인지 보고, 게임에 아직 없는 프레임 움직임을 Lab 레이어로 얹어 승인 SVG와 비교한다.
+THESIS: 새 Classic 프레임과 그 움직임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 프레임 움직임이 게임에서 그대로인지 보고, 같은 움직임 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 리프트를 올려 판정선만 움직이고 프레임·가림막은 그대로인지 보고, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
 FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·키보드·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
@@ -28,19 +28,15 @@ import {
 } from './classicFrameFit';
 import { buildFrameFitDemo, buildFrameFitSchedule, initialFrameFitLoopState, stepFrameFitLoop } from './classicFrameFitChart';
 import { createSharedSkin, type SharedSkin } from './classicFrameFitSkin';
-import type { ClassicFrameMotion } from './classicFrameMotion';
-import type { FrameMotionOverlay } from './classicFrameMotionOverlay';
+import type { FrameMotionResources } from '../game/renderer/classicFrameMotionAssets';
 import {
   ALL_FRAME_MOTION_LAYERS_ON,
   FRAME_MOTION_LAYERS,
-  loadFrameMotionAssets,
-  type FrameMotionAssets,
   type FrameMotionLayerVisibility,
-} from './classicFrameMotionData';
+} from '../game/renderer/classicFrameMotionData';
 import { FrameMotionLayerChecks, RadioGroup } from './ClassicFrameFitControls';
 import { ClassicFrameMotionCompare } from './ClassicFrameMotionCompare';
 import { createFrameTimeWindow, type FrameTimeSummary } from './frameTimeStats';
-import { withLabPublicBase } from './labPublicPath';
 import './ClassicFrameFitPage.css';
 
 const RENDER_HEIGHTS = [720, 1080, 1440] as const;
@@ -63,10 +59,10 @@ type RendererState =
 
 type MotionAssetsState =
   | { status: 'loading' }
-  | { status: 'ready'; assets: FrameMotionAssets }
+  | { status: 'ready'; resources: FrameMotionResources }
   | { status: 'error'; message: string };
 
-/** 렌더러가 매 프레임 읽는 움직임 설정. 바뀌어도 렌더러를 다시 만들지 않는다. */
+/** 살아 있는 렌더러의 내장 움직임(GameRenderer.frameMotion)에 거는 설정. 바뀌어도 렌더러를 다시 만들지 않는다. */
 interface MotionSettings {
   enabled: boolean;
   layers: FrameMotionLayerVisibility;
@@ -113,12 +109,11 @@ export default function ClassicFrameFitPage() {
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [motionLayers, setMotionLayers] = useState<FrameMotionLayerVisibility>(ALL_FRAME_MOTION_LAYERS_ON);
   const reducedMotion = usePrefersReducedMotion();
-  // 움직임 시계는 곡 시간·차트 되감기·렌더러 재생성과 무관한 벽시계다. 처음부터 재생은 시작 시각만 바꾼다.
-  const motionClock = useRef({ startMs: 0 });
-  useEffect(() => { motionClock.current.startMs = performance.now(); }, []);
   const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
-  // 움직임 레이어를 프레임에 얹은 렌더러의 key. 렌더러는 움직임 자료를 기다리지 않고 먼저 뜨고, 자료가 오면 그때 얹는다.
+  // 내장 움직임을 프레임에 얹은 렌더러의 key. 움직임 자료는 렌더러 init이 기다리는 필수 자료라 렌더러가 준비되면 이미 얹혀 있다.
   const [motionAttachedKey, setMotionAttachedKey] = useState<string | null>(null);
+  // 처음부터 재생: 살아 있는 렌더러의 frameMotion.restart()를 부른다.
+  const restartRef = useRef<(() => void) | null>(null);
   const stageRef = useRef<HTMLElement>(null);
   const motionTimeRef = useRef<HTMLOutputElement>(null);
   const motionSettings = useMemo<MotionSettings>(
@@ -126,15 +121,24 @@ export default function ClassicFrameFitPage() {
     [motionEnabled, motionLayers, reducedMotion],
   );
 
+  // 움직임 자료는 게임과 같은 공유 로더에서 페이지가 한 벌을 빌려 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면) 다시 읽지 않고,
+  // 아래 비교 화면도 같은 텍스처를 쓴다. 게임 렌더러는 자기 임대를 따로 잡으므로 이 임대와 무관하게 정리된다.
   useEffect(() => {
     let cancelled = false;
-    loadFrameMotionAssets((path) => withLabPublicBase(path)).then(
-      (loaded) => { if (!cancelled) setMotionAssets({ status: 'ready', assets: loaded }); },
-      (error: unknown) => {
-        if (!cancelled) setMotionAssets({ status: 'error', message: error instanceof Error ? error.message : '움직임 자료를 불러오지 못했습니다.' });
-      },
-    );
-    return () => { cancelled = true; };
+    let release: (() => void) | null = null;
+    const fail = (error: unknown) => {
+      if (!cancelled) setMotionAssets({ status: 'error', message: error instanceof Error ? error.message : '움직임 자료를 불러오지 못했습니다.' });
+    };
+    import('../game/renderer/classicFrameMotionAssets').then(({ acquireFrameMotionAssets }) => {
+      if (cancelled) return;
+      const lease = acquireFrameMotionAssets();
+      release = () => lease.release();
+      lease.ready.then((resources) => { if (!cancelled) setMotionAssets({ status: 'ready', resources }); }, fail);
+    }, fail);
+    return () => {
+      cancelled = true;
+      release?.();
+    };
   }, []);
 
   // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 시계 표시만 바꾼다.
@@ -146,7 +150,7 @@ export default function ClassicFrameFitPage() {
     }
     if (motionTimeRef.current) motionTimeRef.current.textContent = timeMs === null ? '멈춤' : `${(timeMs / 1000).toFixed(1)}초`;
   }, []);
-  const restartMotion = () => { motionClock.current.startMs = performance.now(); };
+  const restartMotion = () => restartRef.current?.();
 
   // 전체화면: 무대 영역 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
   const [fullscreen, setFullscreen] = useState<FullscreenMode>('off');
@@ -179,7 +183,7 @@ export default function ClassicFrameFitPage() {
   const liveFrame = liveView?.frame ?? null;
   const motionState = reducedMotion ? 'reduced' : motionEnabled && motionAssets.status !== 'error' ? 'on' : 'off';
   const motionReady = ready && motionAttachedKey === rendererKey;
-  const loadedMotion = motionAssets.status === 'ready' ? motionAssets.assets : null;
+  const loadedMotion = motionAssets.status === 'ready' ? motionAssets.resources : null;
 
   // 렌더러가 바뀌면 다른 장면이므로 프레임 간격 통계를 새로 모은다(표시는 다음 통계 갱신 때 바뀐다).
   useEffect(() => {
@@ -279,8 +283,8 @@ export default function ClassicFrameFitPage() {
         <h1>Classic Frame Fit</h1>
         <p className="frame-fit-lede">
           새 Classic 프레임이 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면부터 덮는 레인 가림막,
-          오른쪽 아래 키보드 표시까지 게임 렌더러가 그대로 그립니다(RFD 0029). 게임에 아직 없는 프레임 움직임(큰 광원·게이지 액체·
-          발광선 호흡·하단 바 흐름)만 Lab 레이어로 프레임 위에 얹고, 아래에서 승인 SVG와 나란히 비교합니다.
+          오른쪽 아래 키보드 표시, 프레임 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
+          조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
         </p>
       </header>
 
@@ -328,9 +332,8 @@ export default function ClassicFrameFitPage() {
               keyboardBindings={keyboardBindings}
               sharedSkin={sharedSkin}
               hostStyle={hostStyle}
-              motionAssets={loadedMotion}
               motionSettings={motionSettings}
-              motionClock={motionClock}
+              restartRef={restartRef}
               frameWindows={frameWindows}
               onState={handleRendererState}
               onView={handleRendererView}
@@ -453,7 +456,7 @@ export default function ClassicFrameFitPage() {
         </aside>
       </div>
 
-      <ClassicFrameMotionCompare assets={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
+      <ClassicFrameMotionCompare resources={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
     </main>
   );
 }
@@ -468,7 +471,7 @@ function describeKeyboard(placement: { visible: boolean; scale: number }): strin
 function motionNote(state: MotionAssetsState, reduced: boolean): string {
   if (state.status === 'error') return `움직임 자료를 불러오지 못했습니다: ${state.message}`;
   if (reduced) return '움직임 줄이기 설정이 켜져 있어 승인 SVG처럼 움직임 레이어를 모두 숨기고 멈췄습니다.';
-  return '승인된 애니메이션 SVG를 텍스처·마스크로 구운 Lab 레이어를 게임 프레임 위에 얹었습니다(게임에는 후속 작업에서 옮깁니다). 곡 시간과 무관한 벽시계로 계속 움직입니다. 광원 띠 경계는 게임 렌더러처럼 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
+  return '게임 렌더러가 내장한 프레임 움직임입니다(승인 SVG를 텍스처·마스크로 구운 Pixi 레이어). 움직임 시계는 곡 시간이 아니라 게임 프레임 간격으로만 나아가고(차트를 되감아도 이어 감), 렌더러를 새로 만들면 0초부터 다시 시작합니다. 광원 띠 경계는 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
 }
 
 function describeFrameStats(summary: FrameTimeSummary | null): string {
@@ -565,11 +568,11 @@ function useDevicePixelRatio(): number {
  * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·논리 폭) 캔버스째 새로 만든다.
  * 비행 배경 DOM은 캔버스 앞 형제로 들어가므로, 캔버스 크기와 같은 위치 지정 래퍼에 캔버스만 둔다.
  * 프레임·레인·판정선·가림막·키보드 표시는 게임 렌더러가 그대로 그리고, 노트는 정해 둔 데모 판정(buildFrameFitSchedule)대로
- * 맞히거나 놓친 것처럼 표시한다. 움직임 자료가 있으면 내장 프레임 위에 Lab 움직임 레이어를 얹어 벽시계로 갱신한다.
+ * 맞히거나 놓친 것처럼 표시한다. 프레임 움직임은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 frameMotion API로 조절만 한다.
  */
 function FrameFitRenderer({
   rendererKey, scenario, width, resolution, lift, keyboardBindings, sharedSkin, hostStyle,
-  motionAssets, motionSettings, motionClock, frameWindows, onState, onView, onMotionTime, onMotionAttached,
+  motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached,
 }: {
   rendererKey: string;
   scenario: Scenario;
@@ -582,17 +585,15 @@ function FrameFitRenderer({
   /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
   sharedSkin: SharedSkin<SkinManager>;
   hostStyle: CSSProperties;
-  /** 움직임 자료. 렌더러는 이것을 기다리지 않고 먼저 뜨며, 자료가 오면(나중이라도) 프레임에 움직임을 얹는다. */
-  motionAssets: FrameMotionAssets | null;
   motionSettings: MotionSettings;
-  /** 움직임 시계의 시작 시각(performance.now 기준). 처음부터 재생이 바꾸므로 프레임마다 읽는다. */
-  motionClock: RefObject<{ startMs: number }>;
+  /** 페이지의 처음부터 재생 버튼이 부를 함수를 이 렌더러가 채운다(살아 있는 렌더러의 frameMotion.restart()). */
+  restartRef: RefObject<(() => void) | null>;
   frameWindows: FrameWindows;
   onState: (state: RendererState) => void;
   onView: (view: RendererView) => void;
-  /** 움직임을 그린 프레임마다 움직임 시계(ms), 그리지 않게 되면 null. */
+  /** 움직임이 흐르는 프레임마다 움직임 시계(ms), 흐르지 않게 되면 null. */
   onMotionTime: (timeMs: number | null) => void;
-  /** 이 렌더러(key)에 움직임 레이어를 얹었을 때. */
+  /** 이 렌더러(key)의 내장 움직임이 준비되어 프레임에 얹혔을 때. */
   onMotionAttached: (key: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -601,7 +602,6 @@ function FrameFitRenderer({
     applyLift: (lift: number) => void;
     applyKeyboard: (bindings: ReadonlyMap<string, number>) => void;
     applyMotion: (settings: MotionSettings) => void;
-    attachMotion: (source: FrameMotionAssets) => void;
   } | null>(null);
   const liftRef = useRef(lift);
   liftRef.current = lift;
@@ -609,10 +609,8 @@ function FrameFitRenderer({
   keyboardRef.current = keyboardBindings;
   const motionSettingsRef = useRef(motionSettings);
   motionSettingsRef.current = motionSettings;
-  const motionAssetsRef = useRef(motionAssets);
-  motionAssetsRef.current = motionAssets;
   const options = useRef({
-    rendererKey, scenario, width, resolution, sharedSkin, motionClock, frameWindows, onState, onView, onMotionTime, onMotionAttached,
+    rendererKey, scenario, width, resolution, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached,
   });
 
   useEffect(() => {
@@ -620,7 +618,7 @@ function FrameFitRenderer({
     if (!canvas) return;
     const {
       rendererKey: key, scenario: label, width: logicalWidth, resolution: rendererResolution, sharedSkin: skins,
-      motionClock: clock, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
+      restartRef: restart, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
     } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
@@ -628,24 +626,16 @@ function FrameFitRenderer({
     let frame = 0;
     let renderer: GameRenderer | null = null;
     let skinAcquired = false;
-    let overlay: FrameMotionOverlay | null = null;
-    let motion: ClassicFrameMotion | null = null;
-    let motionTextures: { destroy: () => void } | null = null;
     // 이 렌더러가 움직임 시계를 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
     let reportedMotion = false;
+    const restartMotion = () => renderer?.frameMotion?.restart();
 
     // removeView: 정상 정리(키 변경·언마운트)는 캔버스까지 치우고, 오류일 때는 React가 소유한 캔버스를 남긴다.
     const release = (removeView = true) => {
       cancelAnimationFrame(frame);
       if (reportedMotion) reportMotionTime(null);
       reportedMotion = false;
-      // 움직임 컨테이너와 텍스처는 오버레이가 아니라 여기서 만든 쪽이 정리한다.
-      overlay?.destroy();
-      overlay = null;
-      motion?.destroy();
-      motion = null;
-      motionTextures?.destroy();
-      motionTextures = null;
+      if (restart.current === restartMotion) restart.current = null;
       liveRef.current = null;
       try { renderer?.dispose(removeView); } catch (error) { console.warn('ClassicFrameFit: renderer dispose failed', error); }
       renderer = null;
@@ -656,15 +646,7 @@ function FrameFitRenderer({
     const start = async () => {
       report({ status: 'loading' });
       try {
-        const [
-          { GameRenderer },
-          { attachFrameMotion, FRAME_MOTION_TEXTURE_OPTIONS },
-          { createClassicFrameMotion, createFrameMotionTextures },
-        ] = await Promise.all([
-          import('../game/renderer'),
-          import('./classicFrameMotionOverlay'),
-          import('./classicFrameMotion'),
-        ]);
+        const { GameRenderer } = await import('../game/renderer');
         // 콤보·정확도 Pixi 텍스트는 만들 때 글꼴을 재므로 게임 글꼴을 먼저 받아 둔다(실패해도 진행).
         await loadGameFonts();
         if (disposed) return;
@@ -680,6 +662,8 @@ function FrameFitRenderer({
           skinManager: skin,
           difficultyLabel: label,
           showFlightBackground: true,
+          // 움직임 줄이기에서도 움직임을 만들어 두고 페이지의 움직임 줄이기 상태로 숨긴다(게임은 기본 omit으로 아예 만들지 않는다).
+          frameMotionReducedMotion: 'hide',
         });
         await renderer.init();
         if (disposed) return;
@@ -722,41 +706,18 @@ function FrameFitRenderer({
         const applyKeyboard = (bindings: ReadonlyMap<string, number>) => active.setupKeyboardDisplay(new Map(bindings));
         applyKeyboard(keyboardRef.current);
 
+        // 내장 움직임(게임과 같음)은 init이 자료를 기다려 이미 얹었다.
+        const motion = active.frameMotion;
+        if (motion?.status === 'ready') reportMotionAttached(key);
         const applyMotion = (settings: MotionSettings) => {
-          if (!motion || !overlay) return;
+          if (!motion) return;
+          motion.setEnabled(settings.enabled);
           for (const layer of FRAME_MOTION_LAYERS) motion.setLayerVisible(layer, settings.layers[layer]);
           motion.setReducedMotion(settings.reduced);
-          overlay.setEnabled(settings.enabled);
         };
-        // 움직임 자료는 렌더러와 따로 읽으므로, 이미 와 있으면 지금, 아니면 도착했을 때 effect가 부른다. 한 번만 얹는다.
-        // 움직임을 얹지 못해도 게임 화면 미리보기는 그대로 돌게 오류는 기록만 한다.
-        const attachMotion = (source: FrameMotionAssets) => {
-          if (motion || disposed) return;
-          // 움직임 텍스처도 게임 프레임과 같은 밉맵·삼선형 설정으로 만들어 줄여 그려도 바탕과 같은 선명도로 보이게 한다.
-          const created = createFrameMotionTextures(source.images, FRAME_MOTION_TEXTURE_OPTIONS);
-          let built: ClassicFrameMotion;
-          try {
-            built = createClassicFrameMotion(source.data, created.textures);
-          } catch (error) {
-            created.destroy();
-            console.error('ClassicFrameFit: motion attach failed', error);
-            return;
-          }
-          const attached = attachFrameMotion(active, built.container);
-          if (!attached) {
-            built.destroy();
-            created.destroy();
-            console.error('ClassicFrameFit: renderer has no frame to attach motion to');
-            return;
-          }
-          motion = built;
-          motionTextures = created;
-          overlay = attached;
-          applyMotion(motionSettingsRef.current);
-          reportMotionAttached(key);
-        };
-        liveRef.current = { applyLift, applyKeyboard, applyMotion, attachMotion };
-        if (motionAssetsRef.current) attachMotion(motionAssetsRef.current);
+        applyMotion(motionSettingsRef.current);
+        liveRef.current = { applyLift, applyKeyboard, applyMotion };
+        restart.current = restartMotion;
 
         let startNow = performance.now();
         let previousNow = startNow;
@@ -765,19 +726,8 @@ function FrameFitRenderer({
           const frameDelta = now - previousNow;
           const deltaMs = Math.min(48, Math.max(0, frameDelta));
           previousNow = now;
-          // 움직임은 곡 시간과 무관한 벽시계(처음부터 재생 이후 경과)로 그려 차트를 되감아도 광원이 계속 흐른다.
-          const settings = motionSettingsRef.current;
-          const motionActive = motion !== null && settings.enabled && !settings.reduced;
-          if (frameDelta <= FRAME_DELTA_LIMIT_MS) windows[motionActive ? 'on' : 'off'].push(frameDelta);
-          if (motionActive && motion) {
-            const motionMs = now - clock.current.startMs;
-            motion.update(motionMs);
-            reportMotionTime(motionMs);
-            reportedMotion = true;
-          } else if (reportedMotion) {
-            reportMotionTime(null);
-            reportedMotion = false;
-          }
+          // 움직임 켬·끔 프레임 간격은 이번 프레임이 움직임을 그렸는지(running)로 나눠 모은다.
+          if (frameDelta <= FRAME_DELTA_LIMIT_MS) windows[motion?.running ? 'on' : 'off'].push(frameDelta);
           let songMs = Math.max(0, now - startNow);
           if (songMs >= demo.durationMs) {
             startNow = now;
@@ -814,7 +764,17 @@ function FrameFitRenderer({
             beams[index] = on;
             active.setKeyBeam(index + 1, on);
           });
+          // 움직임 시계는 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
+          if (motion) {
+            if (motion.running) {
+              reportMotionTime(motion.timeMs);
+              reportedMotion = true;
+            } else if (reportedMotion) {
+              reportMotionTime(null);
+              reportedMotion = false;
+            }
+          }
         };
         const loop = (now: number) => {
           if (disposed) return;
@@ -858,15 +818,10 @@ function FrameFitRenderer({
     liveRef.current?.applyKeyboard(keyboardBindings);
   }, [keyboardBindings]);
 
-  // 움직임 켜기·요소·움직임 줄이기는 렌더러를 다시 만들지 않고 살아 있는 움직임 레이어에 건다.
+  // 움직임 켜기·요소·움직임 줄이기는 렌더러를 다시 만들지 않고 살아 있는 렌더러의 frameMotion에 건다.
   useEffect(() => {
     liveRef.current?.applyMotion(motionSettings);
   }, [motionSettings]);
-
-  // 렌더러가 먼저 뜬 뒤 움직임 자료가 도착하면 그때 얹는다(이미 얹었으면 아무것도 하지 않는다).
-  useEffect(() => {
-    if (motionAssets) liveRef.current?.attachMotion(motionAssets);
-  }, [motionAssets]);
 
   return (
     <div className="frame-fit-canvas-host" style={hostStyle}>

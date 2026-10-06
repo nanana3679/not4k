@@ -2,7 +2,7 @@ import type { CubicBezier } from './classicFrameMotionTiming';
 
 /**
  * Classic 프레임 움직임의 자료 계약(Pixi 없음). prepare-frame-motion-v21.mjs가 만든 frame-motion.json의 모양,
- * 레이어 이름, 공개 경로와 읽기를 둔다. Pixi 레이어 구성은 classicFrameMotion.ts가 한다.
+ * 레이어 이름, 공개 경로와 검증을 둔다. Pixi 레이어 구성은 classicFrameMotion.ts, 읽기와 공유는 classicFrameMotionAssets.ts가 한다.
  */
 
 export const FRAME_MOTION_LAYERS = ['armor', 'gauge', 'accent', 'bar'] as const;
@@ -16,7 +16,7 @@ export const FRAME_MOTION_LAYER_LABELS: Record<FrameMotionLayer, string> = {
   bar: 'D 하단 바 흐름',
 };
 
-/** 레이어별 켜기·끄기. 무대와 비교 화면이 같은 값을 쓴다. */
+/** 레이어별 켜기·끄기. 게임 렌더러의 움직임 조절과 Lab 무대·비교 화면이 같은 값을 쓴다. */
 export type FrameMotionLayerVisibility = Record<FrameMotionLayer, boolean>;
 
 export const ALL_FRAME_MOTION_LAYERS_ON: Readonly<FrameMotionLayerVisibility> = Object.freeze({ armor: true, gauge: true, accent: true, bar: true });
@@ -72,66 +72,12 @@ export interface FrameMotionData {
   };
 }
 
-/** prepare-frame-motion-v21.mjs가 만드는 정적 파일. 페이지는 withLabPublicBase로 감싸 읽는다. */
-export const FRAME_MOTION_ASSET_DIR = '/lab/classic-frame-fit/motion';
+/**
+ * prepare-frame-motion-v21.mjs가 만드는 정적 파일(게임 프레임 public/gear/classic-frame.png 옆). 게임 렌더러와 Lab이 같은 한 벌을
+ * 공유 로더(classicFrameMotionAssets)로 읽는다. 읽을 때 배포 base(withPublicBase)를 붙인다.
+ */
+export const FRAME_MOTION_ASSET_DIR = '/gear/classic-frame-motion';
 export const FRAME_MOTION_DATA_PATH = `${FRAME_MOTION_ASSET_DIR}/frame-motion.json`;
-/** 비교 기준인 승인된 애니메이션 SVG(이미지 갤러리). */
-export const FRAME_MOTION_SVG_PATH = '/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg';
-
-export interface FrameMotionAssets {
-  data: FrameMotionData;
-  images: Record<FrameMotionTextureKey, HTMLImageElement>;
-}
-
-/** frame-motion.json과 텍스처 PNG를 모두 받아 디코드한다. resolveUrl은 공개 경로에 배포 base를 붙인다. */
-export async function loadFrameMotionAssets(resolveUrl: (path: string) => string): Promise<FrameMotionAssets> {
-  const response = await fetch(resolveUrl(FRAME_MOTION_DATA_PATH));
-  if (!response.ok) throw new Error(`frame-motion.json을 불러오지 못했습니다 (${response.status}).`);
-  const data = parseFrameMotionData(await response.json());
-  const entries = await Promise.all(FRAME_MOTION_TEXTURE_KEYS.map(async (key) => {
-    const image = new Image();
-    image.src = resolveUrl(`${FRAME_MOTION_ASSET_DIR}/${data.textures[key].file}`);
-    await image.decode();
-    return [key, image] as const;
-  }));
-  return { data, images: Object.fromEntries(entries) as Record<FrameMotionTextureKey, HTMLImageElement> };
-}
-
-export interface FrameViewBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** 승인된 SVG 시연 페이지와 같은 보기(전체·왼쪽 장갑·하단). */
-export const FRAME_MOTION_VIEWS = {
-  full: { label: '전체', viewBox: { x: 0, y: 0, width: 1024, height: 1536 } },
-  left: { label: '왼쪽 장갑', viewBox: { x: 0, y: 420, width: 320, height: 480 } },
-  bottom: { label: '하단', viewBox: { x: 300, y: 1240, width: 424, height: 212 } },
-} as const satisfies Record<string, { label: string; viewBox: FrameViewBox }>;
-export type FrameMotionView = keyof typeof FRAME_MOTION_VIEWS;
-
-export function formatViewBox(box: FrameViewBox): string {
-  return `${box.x} ${box.y} ${box.width} ${box.height}`;
-}
-
-/** viewBox를 width×height 화면에 맞추는 프레임 루트 변환(가로세로 같은 배율, SVG의 meet과 같음). */
-export function viewBoxTransform(box: FrameViewBox, width: number, height: number) {
-  const scale = Math.min(width / box.width, height / box.height);
-  return {
-    scale,
-    x: (width - box.width * scale) / 2 - box.x * scale,
-    y: (height - box.height * scale) / 2 - box.y * scale,
-  };
-}
-
-/** SVG 문서에서 바탕 그림(#fm-base)의 data URL을 꺼낸다. 비교 화면이 SVG와 같은 바탕 픽셀을 쓰게 한다. */
-export function readSvgBaseHref(svg: ParentNode): string {
-  const href = svg.querySelector('#fm-base')?.getAttribute('href');
-  if (!href) throw new Error('SVG에서 바탕 그림(#fm-base)을 찾지 못했습니다.');
-  return href;
-}
 
 type JsonRecord = Record<string, unknown>;
 

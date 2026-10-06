@@ -8,9 +8,10 @@ import {
 } from './frame-motion-shared.mjs';
 
 // Bakes the approved Classic frame ambient motion (54-ambient-motion-v19.svg) into textures and
-// JSON for the Pixi port in /lab/classic-frame-fit, so Pixi needs no runtime filters. Every mask
-// and value comes from frame-motion-shared.mjs, the module assemble-ambient-v19.mjs builds the SVG
-// from. Writes into public/lab/classic-frame-fit/motion/ (frame-space boxes in JSON):
+// JSON for the game's Pixi frame motion (src/game/renderer/classicFrameMotion.ts, also used by the
+// /lab/classic-frame-fit comparison), so Pixi needs no runtime filters. Every mask and value comes
+// from frame-motion-shared.mjs, the module assemble-ambient-v19.mjs builds the SVG from. Writes into
+// public/gear/classic-frame-motion/, next to the game frame (frame-space boxes in JSON):
 //   armor-lit.png      A  contrast copy of the base (the SVG's saturate 0.9 + linear 1.1/-0.032 filter,
 //                         rendered by Chromium), alpha = armor mask x frame-cutout alpha. Drawn at 128/255
 //                         (#808080 half band), and tinted #04060a at 7% for the unlit dim (same alpha; the tinted
@@ -39,7 +40,7 @@ import {
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(revisionDir, '../../../..');
-const outputDir = resolve(workspaceRoot, 'public/lab/classic-frame-fit/motion');
+const outputDir = resolve(workspaceRoot, 'public/gear/classic-frame-motion');
 const cutoutPath = resolve(workspaceRoot, 'public/gear/classic-frame.png');
 const ALIGN = 16;
 const PIECE_BORDER = 16;

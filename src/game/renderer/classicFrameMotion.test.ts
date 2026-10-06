@@ -1,6 +1,9 @@
 import { Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import motionJsonText from '../../public/lab/classic-frame-fit/motion/frame-motion.json?raw';
+import motionJsonText from '../../../public/gear/classic-frame-motion/frame-motion.json?raw';
+import motionSource from './classicFrameMotion.ts?raw';
+import timingSource from './classicFrameMotionTiming.ts?raw';
+import dataSource from './classicFrameMotionData.ts?raw';
 import {
   bandHalfWidth,
   bandProfileAlpha,
@@ -177,6 +180,19 @@ describe('createClassicFrameMotion', () => {
     motion.destroy();
   });
 
+  it('B 게이지의 액체 타일과 기포는 채움 컨테이너(gaugeFill) 하나에 담기고 그 위에 유리 윤곽 마스크가 걸려, 고도 게이지가 채움 높이로 자를 자리를 준다', () => {
+    const motion = createClassicFrameMotion(data, fakeTextures());
+    const gauge = byLabel(motion.container, 'frame-motion-gauge');
+    expect(motion.gaugeFill.label).toBe('frame-motion-gauge-fill');
+    expect(motion.gaugeFill.parent).toBe(gauge);
+    expect(motion.gaugeFill.children.map((child) => child.label)).toEqual(['frame-motion-liquid', 'frame-motion-bubbles']);
+    expect(gauge.children.map((child) => child.label)).toEqual(['frame-motion-gauge-fill', 'frame-motion-glass']);
+    expect(gauge.mask).toBe(byLabel(motion.container, 'frame-motion-glass'));
+    // 채움 컨테이너 자체에는 아직 마스크가 없다(게이지는 그림 그대로 가득).
+    expect(motion.gaugeFill.mask ?? null).toBeNull();
+    motion.destroy();
+  });
+
   it('update(0)이면 첫 기포(x 150, 반지름 2.2)가 바닥 y 1004에서 126.4px 올라가 있고 불투명도 0.75, 화면 혼합 screen', () => {
     const motion = createClassicFrameMotion(data, fakeTextures());
     motion.update(0);
@@ -219,6 +235,22 @@ describe('createClassicFrameMotion', () => {
     motion.update(2_000);
     expect(right.alpha).toBe(0);
     expect(bar.visible).toBe(false);
+    motion.destroy();
+  });
+
+  it('warmUp(render)은 빛이 투명해 숨겨 둔 D 하단 바(0ms)를 render 한 번 동안만 보이게 해 알파 마스크를 준비하고, 끝나면 다시 숨긴다', () => {
+    const motion = createClassicFrameMotion(data, fakeTextures());
+    const bar = byLabel(motion.container, 'frame-motion-bar');
+    motion.update(0);
+    expect(bar.visible).toBe(false);
+    const seen: boolean[] = [];
+    motion.warmUp(() => seen.push(bar.visible));
+    expect(seen).toEqual([true]);
+    expect(bar.visible).toBe(false);
+    // 사용자가 꺼 둔 하단 바는 강제로 그리지 않는다.
+    motion.setLayerVisible('bar', false);
+    motion.warmUp(() => seen.push(bar.visible));
+    expect(seen).toEqual([true, false]);
     motion.destroy();
   });
 
@@ -292,5 +324,19 @@ describe('createClassicFrameMotion', () => {
     expect(FRAME_MOTION_TEXTURE_KEYS.every((key) => !textures[key].destroyed)).toBe(true);
     // 두 번 불러도 에러가 없다.
     expect(() => motion.destroy()).not.toThrow();
+  });
+});
+
+describe('게임 모듈 경계', () => {
+  it('움직임·시간 곡선·자료 모듈은 Lab·React를 import하지 않는다', () => {
+    for (const source of [motionSource, timingSource, dataSource]) {
+      expect(source).not.toMatch(/from ['"][^'"]*\/lab\//);
+      expect(source).not.toMatch(/from ['"]react/);
+    }
+  });
+
+  it('게임 움직임 모듈은 HTMLImageElement로 텍스처 소스를 따로 만들지 않는다(텍스처는 공유 로더가 프레임과 같은 설정으로 읽는다)', () => {
+    expect(motionSource).not.toContain('HTMLImageElement');
+    expect(motionSource).not.toContain('createFrameMotionTextures');
   });
 });
