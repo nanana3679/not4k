@@ -2,6 +2,7 @@
 import {settingsFrom,makeLights,worldFaces,project,planeOffsets,clamp} from './legacy/geometry.mjs';
 import {clearanceScene} from './legacy/clearance.mjs';
 import {passagePyramid,passageProgressForDepth,PASSAGE_STOPS} from './passage.mjs';
+import {collectFacesInto} from './face-frame.mjs';
 export const TEXTURES=['armor','window','door','hull','soffit'];
 export const MODEL_IDS=['A','B','C','D','E','F','G','H'];
 // Architectural depth is independent of the finite light pyramid: a rigid 58-unit
@@ -49,7 +50,9 @@ export function linePyramidFor(s,p,view){
  return {...p,baseCenter:view.cameraHeight+(1-2*t)*p.height/2,
   apexHeight:view.cameraHeight+(view.principalY-focusY)*(p.depth+view.back)/view.focal};
 }
-export function collectFaces(lights,travel,s,p,view){
+// out(FaceFrame)을 넘기면 같은 값을 그 버퍼에 다시 써서 매 프레임 새 면 객체를 만들지 않는다(face-frame.mjs).
+export function collectFaces(lights,travel,s,p,view,out){
+ if(out)return collectFacesInto(out,lights,travel,s,p,view,s.size===0?null:linePyramidFor(s,p,view));
  const result=[];
  if(s.size===0)return result;
  const linePyramid=linePyramidFor(s,p,view);
