@@ -209,6 +209,16 @@ describe('GearGauge — 두 유리관에 같은 고도를 빈 유리 덮개로 �
     expect(spies.every((spy) => spy.mock.calls.length === 0)).toBe(true);
   });
 
+  it('행 텍스처 18장이 공유 아틀라스 소스에 건 resize 리스너는 destroy하면 모두 풀려 만들기 전 수로 돌아간다(SkinManager 소유 소스에 남지 않는다)', () => {
+    const texture = atlas();
+    const before = texture.source.listenerCount('resize');
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge, reducedMotion: false });
+    gauge.update(0.4, 16);
+    expect(texture.source.listenerCount('resize')).toBe(before + 18);
+    gauge.destroy();
+    expect(texture.source.listenerCount('resize')).toBe(before);
+  });
+
   it('destroy하면 덮개 컨테이너와 게이지가 만든 텍스처만 파괴하고 받은 아틀라스 텍스처·소스는 남긴다', () => {
     const { gauge, texture } = create();
     const parent = new Container();

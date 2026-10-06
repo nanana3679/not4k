@@ -15,6 +15,7 @@ import { KEYBOARD_DISPLAY_MIN_SCALE, keyboardDisplaySize, placeKeyboardDisplay }
 import { createChartTiming, JudgmentGrade } from '../shared';
 import {
   altitudeOverrideFor,
+  altitudePercentOf,
   clampAltitudePercent,
   clampLiftPercent,
   describeGaugeLevel,
@@ -25,6 +26,7 @@ import {
   GEAR_PREVIEW_STAGE_WIDTH,
   formatGaugeLevel,
   formatLiftPercent,
+  manualAltitudeOnUnfollow,
   fullscreenLogicalWidth,
   LIFT_PERCENT_MAX,
   oneToOneCssSize,
@@ -102,9 +104,11 @@ export default function GearPage() {
   const [view, setView] = useState<View>('fit');
   const [liftPercent, setLiftPercent] = useState(0);
   // 고도: 곡 진행 따라가기(렌더러 고도 모델)가 기본이고, 슬라이더를 움직이면 그 고도로 고정한다(비행 배경과 기어 게이지가 함께 따른다).
+  // 고정 고도는 0~1 값으로 두고 슬라이더는 그 정수 %를 가리킨다. 따라가기를 끄는 순간에는 그때 보이던 게이지 채움으로 고정한다.
   const [altitudeFollow, setAltitudeFollow] = useState(true);
-  const [altitudePercent, setAltitudePercent] = useState(100);
-  const altitudeOverride = altitudeOverrideFor(altitudeFollow, altitudePercent);
+  const [manualAltitude, setManualAltitude] = useState(1);
+  const altitudePercent = altitudePercentOf(manualAltitude);
+  const altitudeOverride = altitudeOverrideFor(altitudeFollow, manualAltitude);
   const [keyboard, setKeyboard] = useState<GearPreviewKeyboard>('tkl');
   const [reportedState, setRendererState] = useState<RendererState>({ status: 'loading', key: '' });
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
@@ -127,6 +131,8 @@ export default function GearPage() {
   const gaugeReadoutRef = useRef<HTMLElement>(null);
   // 마지막으로 알린 게이지 채움(천분율 정수, 게이지 없음은 null). 바뀔 때만 무대 속성과 설명을 고친다.
   const reportedGaugeRef = useRef<number | null | undefined>(undefined);
+  // 지금 보이는 게이지 채움 그대로(따라가기를 끄는 순간의 고정값). 매 프레임 숫자만 적는다.
+  const gaugeLevelRef = useRef<number | null>(null);
   const motionSettings = useMemo<MotionSettings>(
     () => ({ enabled: motionEnabled, layers: motionLayers, reduced: reducedMotion }),
     [motionEnabled, motionLayers, reducedMotion],
@@ -165,6 +171,7 @@ export default function GearPage() {
 
   // 매 프레임 렌더러가 지금 보이는 게이지 채움을 알린다. 천분율이 바뀔 때만 무대 data-gear-gauge-level과 설명을 고친다(React 상태를 거치지 않는다).
   const handleGaugeLevel = useCallback((level: number | null) => {
+    gaugeLevelRef.current = level;
     const key = level === null ? null : Math.round(level * 1000);
     if (key === reportedGaugeRef.current) return;
     reportedGaugeRef.current = key;
@@ -454,7 +461,17 @@ export default function GearPage() {
           <fieldset className="gear-preview-group gear-preview-altitude">
             <legend>고도(유리관 게이지·비행 배경)</legend>
             <label className="gear-preview-check">
-              <input type="checkbox" checked={altitudeFollow} onChange={(event) => setAltitudeFollow(event.currentTarget.checked)} />
+              <input
+                type="checkbox"
+                checked={altitudeFollow}
+                onChange={(event) => {
+                  const follow = event.currentTarget.checked;
+                  // 끄는 순간 보이던 채움으로 고정해 게이지가 슬라이더 시작값으로 뛰지 않고 그 자리에 멈춰 있게 한다.
+                  const shown = gaugeLevelRef.current;
+                  if (!follow) setManualAltitude((current) => manualAltitudeOnUnfollow(shown, current));
+                  setAltitudeFollow(follow);
+                }}
+              />
               <span>곡 진행 따라가기</span>
             </label>
             <div className="gear-preview-slider">
@@ -470,7 +487,7 @@ export default function GearPage() {
                 step={1}
                 value={altitudePercent}
                 onChange={(event) => {
-                  setAltitudePercent(clampAltitudePercent(Number(event.currentTarget.value)));
+                  setManualAltitude(clampAltitudePercent(Number(event.currentTarget.value)) / 100);
                   setAltitudeFollow(false);
                 }}
               />

@@ -497,7 +497,7 @@ export class GameRenderer {
    * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든(움직임 줄이기도) 같은 모습이다.
    * 나중에 붙는 움직임 자리(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 움직임의 액체·기포를 가린다(유리 안쪽에 그리는
    * 움직임은 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
-   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다.
+   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다. 아틀라스는 여기서 GPU에 미리 올린다.
    */
   private buildGearGauge(layout: Readonly<GearLayout>): void {
     let texture;
@@ -507,6 +507,9 @@ export class GameRenderer {
     gauge.container.scale.set(layout.scale);
     this.gearLayer.addChild(gauge.container);
     this.gearGauge = gauge;
+    // 채움 1에서는 덮개를 숨겨 두므로 Pixi가 그리지도 텍스처를 올리지도 않는다. 그대로 두면 곡 중 덮개가 처음 보이는 프레임(첫 MISS 등)에
+    // 아틀라스 업로드와 밉맵 생성이 몰린다. 기어 움직임 텍스처처럼 곡 시작 전(init)에 GPU에 미리 올린다.
+    this.app.renderer?.texture.initSource(texture.source);
   }
 
   /**
@@ -803,16 +806,13 @@ export class GameRenderer {
 
   /**
    * 이번 프레임의 고도(0~1). 고도 상태를 deltaMs만큼 나아가게 한 뒤(같은 객체에 쓴다) 곡 진행과 판정에 따른 임시 모델 값을 돌려준다.
+   * 고도 계산도 위치 인자로 불러 프레임마다 객체를 만들지 않는다.
    * Lab 미리보기가 고정값을 걸었으면 그 값이다(고도 상태는 그래도 계속 나아간다). renderFrame이 프레임마다 한 번 부른다.
    */
   private advanceFlightAltitude(songTimeMs: number, deltaMs: number): number {
     stepFlightAltitude(this.flightAltitudeState, deltaMs, this.flightAltitudeState);
     if (this.altitudeOverride !== null) return this.altitudeOverride;
-    return resolveFlightAltitude({
-      state: this.flightAltitudeState,
-      songTimeMs,
-      chartDurationMs: this.chartDurationMs,
-    });
+    return resolveFlightAltitude(this.flightAltitudeState, songTimeMs, this.chartDurationMs);
   }
 
   // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.

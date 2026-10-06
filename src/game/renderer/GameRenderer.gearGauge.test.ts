@@ -84,12 +84,13 @@ async function createRenderer({
   // GPU 초기화만 생략하고 실제 Container/Sprite와 init을 쓴다. renderFrame은 가짜 GPU 렌더러로 그리기만 건너뛴다.
   vi.spyOn(scene.app, 'init').mockResolvedValue(undefined);
   vi.spyOn(scene, 'buildKeyBeams').mockImplementation(() => {});
-  Object.assign(scene.app, { renderer: { texture: { initSource: vi.fn() } } });
+  const initSource = vi.fn();
+  Object.assign(scene.app, { renderer: { texture: { initSource } } });
   vi.spyOn(scene.app, 'render').mockImplementation(() => {});
   vi.spyOn(scene.app, 'destroy').mockImplementation(() => {});
   created.push(renderer);
   await renderer.init();
-  return { renderer, scene, gauge, requested };
+  return { renderer, scene, gauge, requested, initSource };
 }
 
 const chart: Chart = {
@@ -143,6 +144,23 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
     const { renderer, scene } = await createRenderer({ gaugeTexture: false });
     expect(renderer.gearGaugeLevel).toBeNull();
     expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear']);
+  });
+
+  it('init 안에서 빈 유리 아틀라스 소스를 GPU에 미리 올린다(채움 1이라 숨겨 둔 덮개가 곡 중 처음 보이는 프레임에 업로드·밉맵 생성이 몰리지 않게)', async () => {
+    const { initSource, gauge } = await createRenderer({ gearMotion: false });
+    expect(initSource).toHaveBeenCalledTimes(1);
+    expect(initSource).toHaveBeenCalledWith(gauge.source);
+  });
+
+  it('기어 움직임을 켜도 빈 유리 아틀라스는 한 번만 올리고 움직임 텍스처 9장과 함께 init이 끝나기 전에 올린다(initSource 10번)', async () => {
+    const { initSource, gauge } = await createRenderer({ gearMotion: true });
+    expect(initSource.mock.calls.filter(([source]) => source === gauge.source)).toHaveLength(1);
+    expect(initSource).toHaveBeenCalledTimes(10);
+  });
+
+  it('showGear: false(튜토리얼 재생기)면 빈 유리를 올리지 않는다(initSource 0번)', async () => {
+    const { initSource } = await createRenderer({ showGear: false });
+    expect(initSource).not.toHaveBeenCalled();
   });
 
   it('dispose하면 게이지 덮개를 정리하고 gearGaugeLevel은 null이 된다', async () => {

@@ -47,7 +47,7 @@ describe('기어 생성기 산출물 (RFD 0029)', () => {
   });
 });
 
-// 고도 게이지의 빈 유리(PR C). 생성기가 승인 시연(press-animation.html)과 같은 유리 안쪽 윤곽으로 v18 빈 유리를 잘라 아틀라스로 쓴다.
+// 고도 게이지의 빈 유리(PR #235). 생성기가 승인 시연(press-animation.html)과 같은 유리 안쪽 윤곽으로 v18 빈 유리를 잘라 아틀라스로 쓴다.
 describe('빈 유리관 아틀라스 (고도 게이지)', () => {
   const geometry = () => JSON.parse(read('src/game/renderer/gearGeometry.json').toString());
 

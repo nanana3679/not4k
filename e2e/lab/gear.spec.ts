@@ -108,9 +108,12 @@ async function gearToStage(page: Page) {
 
 /** 곡 진행 따라가기를 끄고 고도 직접 정하기 슬라이더를 percent로 옮긴 뒤 게이지가 그 채움에 붙을 때까지 기다린다. */
 async function setAltitude(page: Page, percent: number) {
-  // 슬라이더가 이미 그 값이면 fill이 변경 이벤트를 내지 않으므로 따라가기 체크를 먼저 끈다(끄면 슬라이더 값으로 고정된다).
+  // 따라가기를 끄면 그때 보이던 채움으로 고정되고 슬라이더도 그 %로 옮겨진다. 슬라이더가 이미 그 값이면 fill이 변경 이벤트를 내지 않으므로
+  // 이웃 값을 먼저 거쳐 정확히 percent ÷ 100으로 고정한다.
   await page.getByLabel('곡 진행 따라가기').uncheck();
-  await page.locator('#gear-preview-altitude').fill(String(percent));
+  const slider = page.locator('#gear-preview-altitude');
+  if (await slider.inputValue() === String(percent)) await slider.fill(String(percent === 100 ? 99 : percent + 1));
+  await slider.fill(String(percent));
   const stage = page.locator(stageSelector);
   await expect(stage).toHaveAttribute('data-altitude-mode', 'manual');
   await expect(stage).toHaveAttribute('data-altitude-percent', String(percent));
@@ -267,6 +270,37 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     const below = await pixelsAt(page, TUBE_COLUMNS.flatMap((x) => [800, 900].map((y) => toStage({ x, y }))));
     for (const pixel of above) expect(isEmptyGlass(pixel), `빈 유리 ${pixel}`).toBe(true);
     for (const pixel of below) expect(isLitLiquid(pixel), `액체 ${pixel}`).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('곡 진행 따라가기를 끄면 그 순간 보이던 채움 그대로 고정되어 슬라이더가 그 %를 가리키고, 1.5초가 지나도 게이지가 움직이지 않는다(시작값 100%로 뛰지 않음)', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    // 데모 곡이 몇 초 흘러 따라가는 고도가 1보다 확실히 낮아진 뒤 끈다(약 3분 동안 1 → 0, 1초에 약 0.0055).
+    await expect.poll(async () => Number(await stage.getAttribute('data-gear-gauge-level')), { timeout: 20000 }).toBeLessThan(0.985);
+    // 끄기 직전 채움을 같은 JS 작업 안에서 읽고 바로 체크를 끈다(Playwright 조작 대기 동안 따라가는 고도가 내려가지 않게).
+    const followed = await page.evaluate(() => {
+      const stageElement = document.querySelector<HTMLElement>('[data-gear-preview-stage="true"]')!;
+      const level = Number(stageElement.dataset.gearGaugeLevel);
+      const follow = [...document.querySelectorAll<HTMLLabelElement>('.gear-preview-altitude label')]
+        .find((label) => label.textContent?.includes('곡 진행 따라가기'))!.querySelector('input')!;
+      follow.click();
+      return level;
+    });
+    await expect(stage).toHaveAttribute('data-altitude-mode', 'manual');
+    await expect(page.getByLabel('곡 진행 따라가기')).not.toBeChecked();
+    // 고정값이 렌더러에 걸릴 때까지 몇 프레임 기다린 뒤 읽는다(그 사이 따라가던 고도가 0.001 넘게 바뀔 수 있다).
+    await page.waitForTimeout(300);
+    const held = Number(await stage.getAttribute('data-gear-gauge-level'));
+    expect(Math.abs(held - followed)).toBeLessThanOrEqual(0.003);
+    expect(held).toBeLessThan(0.99);
+    await expect(page.locator('#gear-preview-altitude')).toHaveValue(String(Math.round(held * 100)));
+    await expect(stage).toHaveAttribute('data-altitude-percent', String(Math.round(held * 100)));
+    await page.waitForTimeout(1500);
+    // 따라가기였다면 1.5초 동안 약 0.008 내려갔겠지만, 고정되어 소수 셋째 자리까지 그대로다.
+    await expect(stage).toHaveAttribute('data-gear-gauge-level', held.toFixed(3));
     expect(errors).toEqual([]);
   });
 

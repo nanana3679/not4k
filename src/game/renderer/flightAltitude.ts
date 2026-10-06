@@ -8,21 +8,14 @@ const RECOVERY_DECAY_PER_SECOND = 1.8;
 const MIN_ALTITUDE_OFFSET = -0.85;
 const MAX_ALTITUDE_OFFSET = 0.5;
 
-export interface PlaceholderFlightAltitudeInput {
-  songTimeMs: number;
-  chartDurationMs: number;
-}
-
 export interface FlightAltitudeState {
   offset: number;
   recoveryVelocityPerSecond: number;
 }
 
 // 비행 규칙 확정 전의 임시 모델: 곡 진행으로 하강하고 판정에 따라 하강·회복한다.
-export function derivePlaceholderFlightAltitude({
-  songTimeMs,
-  chartDurationMs,
-}: PlaceholderFlightAltitudeInput): number {
+// 렌더러가 프레임마다 부르므로 고도 계산 함수는 객체 대신 위치 인자를 받아 호출마다 객체를 만들지 않는다.
+export function derivePlaceholderFlightAltitude(songTimeMs: number, chartDurationMs: number): number {
   if (!Number.isFinite(chartDurationMs) || chartDurationMs <= 0) return 1;
 
   return clampFlightAltitude(1 - songTimeMs / chartDurationMs);
@@ -91,15 +84,14 @@ export function stepFlightAltitude(
   return out;
 }
 
-export function resolveFlightAltitude({
-  state,
-  songTimeMs,
-  chartDurationMs,
-}: PlaceholderFlightAltitudeInput & {
-  state: FlightAltitudeState;
-}): number {
+/** 곡 진행에 따른 임시 고도에 판정 오프셋을 더한 이번 고도(0~1). */
+export function resolveFlightAltitude(
+  state: FlightAltitudeState,
+  songTimeMs: number,
+  chartDurationMs: number,
+): number {
   return clampFlightAltitude(
-    derivePlaceholderFlightAltitude({ songTimeMs, chartDurationMs }) + state.offset,
+    derivePlaceholderFlightAltitude(songTimeMs, chartDurationMs) + state.offset,
   );
 }
 

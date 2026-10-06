@@ -56,6 +56,8 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
   it('고도 고정과 게이지 채움 읽기는 렌더러 공개 API(setAltitudeOverride·gearGaugeLevel)로만 하고 무대 data-gear-gauge-level에 알린다', () => {
     expect(pageSource).toContain('active.setAltitudeOverride(');
     expect(pageSource).toContain('active.gearGaugeLevel');
+    // 따라가기를 끄면 슬라이더 시작값(100%)으로 뛰지 않고 그때 보이던 게이지 채움에서 멈춘다.
+    expect(pageSource).toContain('manualAltitudeOnUnfollow(');
     expect(pageSource).toContain('gearGaugeLevel');
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearGauge\b|altitudeOverride|flightAltitudeState)/);
   });
