@@ -130,7 +130,7 @@ describe('보관한 Classic 버전의 기어 키', () => {
     const future = { ...v014, id: 'v015', manifest: { ...v014.manifest, assets: { ...assets, gearImage: '/gear/archived-gear.png' } } };
     const { design } = createArchivedClassicDesign(future);
     expect(design.skinManifest!.assets.gearImage).toBe('/gear/gear.png');
-    expect(design.skinManifest!.assets).not.toHaveProperty('gearFrame');
+    expect(JSON.stringify(design)).not.toContain('/gear/archived-gear.png');
     expect(design.skinManifest!.assets.noteSingle).toBe('/lab/skin-versions/classic/v015/skin/note-single.png');
   });
 });

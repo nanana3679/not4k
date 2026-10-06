@@ -98,7 +98,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
       const errors = collectErrors(page);
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/lab');
-      await page.getByRole('link', { name: /Gear/ }).click();
+      await page.getByRole('link', { name: /^Gear\b/ }).click();
       await expect(page).toHaveURL(/\/lab\/gear$/);
       await waitForRenderer(page);
 
