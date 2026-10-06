@@ -14,10 +14,10 @@
 
 ## 게임 프레임 (v20)
 
-새 Classic 프레임을 게임에 넣는 그림과 측정값이다([RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 저장소에 한 벌만 두고 게임 렌더러·`/lab/classic-frame-fit`·아래 움직임 생성기가 모두 이것을 읽는다.
+새 Classic 프레임을 게임에 넣는 그림과 측정값이다([RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 저장소에 한 벌만 두고 게임 렌더러·`/lab/classic-gear`·아래 움직임 생성기가 모두 이것을 읽는다. #231 뒤로 게임 쪽 이름은 "기어"로 바뀌었고 아래 경로는 바뀐 현재 경로다.
 
 - 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs [--debug <폴더>]` (입력: `press-idle-deck-v17-input.png`). 다시 실행해도 같은 바이트다
-- 결과: 게임 프레임 그림 `public/gear/classic-frame.png`(1024×1536, 레인 창과 꺾인 덱 사이 레인 바닥·바깥 바탕 투명, 스킨 공통 `gearFrame`)와 렌더러 배치 측정값 `src/game/renderer/classicFrame.json`(레인 창 236~787열, 덱 위끝 1090행, 열린 덱 바닥 1126행, 실루엣 16~1007열·16~1465행 등). 둘이 같은 생성기 산출물인지와 그림 바이트는 `prepare-frame-fit-v20.test.ts`가 확인한다
+- 결과: 기어 그림 `public/gear/classic-gear.png`(1024×1536, 레인 창과 꺾인 덱 사이 레인 바닥·바깥 바탕 투명, 스킨 공통 `gearFrame`)와 렌더러 배치 측정값 `src/game/renderer/classicGear.json`(레인 창 236~787열, 덱 위끝 1090행, 열린 덱 바닥 1126행, 실루엣 16~1007열·16~1465행 등). 둘이 같은 생성기 산출물인지와 그림 바이트는 `prepare-frame-fit-v20.test.ts`가 확인한다
 - 예전 Lab 비교용 복사본(`public/lab/classic-frame-fit/frame-cutout.png`·`frame-fit.json`)과 맞춤 방식 비교용 이음매(`seam`) 측정은 게임 적용 때 지웠다
 
 ## Pixi 움직임 자료 (v21)
@@ -25,9 +25,9 @@
 2026-10-04 승인된 v19 움직임을 게임 렌더러에서 쓸 수 있도록 Pixi 레이어로 옮겼다. 새 이미지는 생성하지 않았다.
 
 - 측정 모듈: `frame-motion-shared.mjs` — v19 SVG와 v21 자료가 같은 마스크 측정·값(제외 상자, 바 상자, 유리 윤곽, 광원·대비·기포·호흡·하단 바 값)을 쓴다. 이 모듈로 바꾼 뒤에도 `54-ambient-motion-v19.svg`는 같은 바이트다
-- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, 게임 프레임 그림 `public/gear/classic-frame.png`). 다시 실행해도 같은 바이트다
-- 결과: 게임 프레임 옆 `public/gear/classic-frame-motion/`의 텍스처 9장과 `frame-motion.json`(2026-10-05 게임 적용 때 Lab 경로 `public/lab/classic-frame-fit/motion/`에서 옮김). SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 띠 밖 어둡게는 `armor-lit.png`를 물들여 쓴다. 장갑·발광선은 기둥 둘과 아래 띠 두 쪽 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
-- 사용처: 게임 렌더러의 내장 프레임 움직임(`src/game/renderer/classicFrameMotion.ts`, [RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md#프레임-움직임-게임-적용-2026-10-05)). 시연은 `/lab/classic-frame-fit`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#classic-frame-fit)
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, 기어 그림 `public/gear/classic-gear.png`). 다시 실행해도 같은 바이트다
+- 결과: 기어 그림 옆 `public/gear/classic-gear-motion/`의 텍스처 9장과 `gear-motion.json`(2026-10-05 게임 적용 때 Lab 경로 `public/lab/classic-frame-fit/motion/`에서 옮기고, #231에서 `classic-frame-motion/`·`frame-motion.json`을 지금 이름으로 바꿈). SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 띠 밖 어둡게는 `armor-lit.png`를 물들여 쓴다. 장갑·발광선은 기둥 둘과 아래 띠 두 쪽 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
+- 사용처: 게임 렌더러의 내장 기어 움직임(`src/game/renderer/classicGearMotion.ts`, [RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md#프레임-움직임-게임-적용-2026-10-05)). 시연은 `/lab/classic-gear`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#classic-gear)
 
 ## 시연: 버튼 누름 애니메이션 1단계
 

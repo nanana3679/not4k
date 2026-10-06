@@ -250,11 +250,11 @@ test.describe('Game Settings', () => {
     await expect(select).toHaveValue('720');
   });
 
-  test('Gameplay: Frame Motion 토글은 기본 켬이고, 끄면 재방문 후에도 꺼진 채 저장된다', async ({ page }) => {
+  test('Gameplay: Gear Motion 토글은 기본 켬이고, 끄면 재방문 후에도 꺼진 채 저장된다', async ({ page }) => {
     const dialog = await openSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
 
-    const toggle = dialog.getByLabel('Frame Motion');
+    const toggle = dialog.getByLabel('Gear Motion');
     await expect(toggle).toBeChecked();
     await toggle.uncheck();
     await expect(toggle).not.toBeChecked();
@@ -262,8 +262,8 @@ test.describe('Game Settings', () => {
     await page.getByRole('button', { name: 'Start', exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
-    await expect(dialog.getByLabel('Frame Motion')).not.toBeChecked();
-    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state?.settings?.frameMotion);
+    await expect(dialog.getByLabel('Gear Motion')).not.toBeChecked();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state?.settings?.gearMotion);
     expect(stored).toBe(false);
   });
 

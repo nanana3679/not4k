@@ -23,10 +23,10 @@ import {
   playfieldPx,
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
-import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame, type ClassicFrameLayout } from "./classicFrameLayout";
-import { acquireFrameMotionAssets } from "./classicFrameMotionAssets";
-import { FRAME_MOTION_TEXTURE_KEYS } from "./classicFrameMotionData";
-import { FrameMotionController, type FrameMotionControls } from "./FrameMotionController";
+import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear, type ClassicGearLayout } from "./classicGearLayout";
+import { acquireGearMotionAssets } from "./classicGearMotionAssets";
+import { GEAR_MOTION_TEXTURE_KEYS } from "./classicGearMotionData";
+import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
@@ -96,18 +96,18 @@ export interface GameRendererOptions {
   skinManager: SkinManager;
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
-  /** 새 Classic 프레임(스킨 공통 `gearFrame`)을 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
+  /** 새 Classic 기어(스킨 공통 `gearFrame`)를 그린다. 끄면(튜토리얼 미니 렌더러) 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다. */
   showGearFrame?: boolean;
   /**
-   * 프레임 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 프레임을 그릴 때만 만든다.
-   * 끄면(게임 설정 `frameMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
+   * 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
+   * 끄면(게임 설정 `gearMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
-  frameMotion?: boolean;
+  gearMotion?: boolean;
   /**
    * 움직임 줄이기(`prefers-reduced-motion: reduce`)일 때. 'omit'(기본, 게임): 움직임을 아예 만들지 않고 자료도 읽지 않는다(설정 끔과 같은 0 비용).
-   * 'hide'(Lab 미리보기): 만들어 숨겨 두고, 페이지가 frameMotion.setReducedMotion으로 다시 보이게 할 수 있다.
+   * 'hide'(Lab 미리보기): 만들어 숨겨 두고, 페이지가 gearMotion.setReducedMotion으로 다시 보이게 할 수 있다.
    */
-  frameMotionReducedMotion?: "omit" | "hide";
+  gearMotionReducedMotion?: "omit" | "hide";
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
@@ -186,13 +186,13 @@ export class GameRenderer {
   private keyBeamGraphics: Graphics[] = [];
   private keyBeamGradient: FillGradient | null = null;
 
-  // Gear frame (새 Classic 프레임, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
+  // Gear (새 Classic 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearFrameLayer: Container;
-  private gearFrameLayout: Readonly<ClassicFrameLayout> | null = null;
-  // 프레임 움직임 — 프레임 레이어에서 프레임 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
-  private readonly frameMotionEnabled: boolean;
-  private readonly frameMotionReducedMotion: "omit" | "hide";
-  private frameMotionController: FrameMotionController | null = null;
+  private gearFrameLayout: Readonly<ClassicGearLayout> | null = null;
+  // 기어 움직임 — 기어 레이어에서 기어 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
+  private readonly gearMotionEnabled: boolean;
+  private readonly gearMotionReducedMotion: "omit" | "hide";
+  private gearMotionController: GearMotionController | null = null;
 
   // UI elements
   private comboText: Text;
@@ -246,8 +246,8 @@ export class GameRenderer {
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGearFrame = options.showGearFrame ?? true;
-    this.frameMotionEnabled = options.frameMotion ?? true;
-    this.frameMotionReducedMotion = options.frameMotionReducedMotion ?? "omit";
+    this.gearMotionEnabled = options.gearMotion ?? true;
+    this.gearMotionReducedMotion = options.gearMotionReducedMotion ?? "omit";
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -319,14 +319,14 @@ export class GameRenderer {
   }
 
   /**
-   * 오른쪽 위 이벤트 문구의 줄바꿈 폭. 문구는 화면 오른쪽에 붙으므로 프레임 실루엣(없으면 레인 영역) 오른쪽 끝 + 여백까지만 쓴다.
-   * 프레임 배치는 렌더러 논리 크기만으로 정해지므로 텍스처를 읽기 전(생성자)에도 계산할 수 있다.
+   * 오른쪽 위 이벤트 문구의 줄바꿈 폭. 문구는 화면 오른쪽에 붙으므로 기어 실루엣(없으면 레인 영역) 오른쪽 끝 + 여백까지만 쓴다.
+   * 기어 배치는 렌더러 논리 크기만으로 정해지므로 텍스처를 읽기 전(생성자)에도 계산할 수 있다.
    */
   private eventMessageWrapWidth(): number {
     const obstacleRight = this.showGearFrame
-      ? layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
+      ? layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
       : this.laneAreaX + LANE_AREA_WIDTH;
-    return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + FRAME_CLEARANCE));
+    return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
   }
 
   async init(): Promise<void> {
@@ -381,7 +381,7 @@ export class GameRenderer {
       this.height,
     );
 
-    // Draw static elements. 프레임 배치가 레인 가림막의 시작 높이를 정하므로 프레임을 먼저 놓는다.
+    // Draw static elements. 기어 배치가 레인 가림막의 시작 높이를 정하므로 기어를 먼저 놓는다.
     if (this.showGearFrame) {
       this.buildGearFrame();
     }
@@ -396,9 +396,9 @@ export class GameRenderer {
       this.buildTutorialKeyboard();
     }
     this.initialized = true;
-    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 프레임 레이어의 프레임 스프라이트 바로 위에 붙는다.
-    this.buildFrameMotion();
-    // 비행 배경과 프레임 움직임 자료는 렌더러 준비에 필요한 자료다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
+    this.buildGearMotion();
+    // 비행 배경과 기어 움직임 자료는 렌더러 준비에 필요한 자료다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
     const required: Promise<unknown>[] = [];
     if (this.showFlightBackground) {
       this.flightBackground = new FlightBackground({
@@ -407,7 +407,7 @@ export class GameRenderer {
       });
       required.push(this.flightBackground.init());
     }
-    if (this.frameMotionController) required.push(this.frameMotionController.ready);
+    if (this.gearMotionController) required.push(this.gearMotionController.ready);
     try { await Promise.all(required); }
     // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
     catch (error) { this.dispose(false); throw error; }
@@ -462,19 +462,19 @@ export class GameRenderer {
   }
 
   /**
-   * 새 Classic 프레임(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
+   * 새 Classic 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
    * 실루엣 아래 가장자리를 화면 아래에 붙인다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
   private buildGearFrame(): void {
     let texture;
     try { texture = this.skinManager.getTexture("gearFrame"); } catch { return; }
-    const layout = layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, {
+    const layout = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, {
       laneAreaX: this.laneAreaX,
       laneAreaWidth: LANE_AREA_WIDTH,
       height: this.height,
     });
-    const sprite = new Sprite({ texture, label: "classic-frame" });
+    const sprite = new Sprite({ texture, label: "classic-gear" });
     sprite.position.set(layout.x, layout.y);
     sprite.width = layout.width;
     sprite.height = layout.height;
@@ -484,42 +484,42 @@ export class GameRenderer {
   }
 
   /**
-   * 프레임 움직임(RFD 0029). 프레임 레이어에 프레임과 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
+   * 기어 움직임(RFD 0029). 기어 레이어에 기어와 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
    * 필수라 init이 준비를 기다린다. 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹고, 읽지 못하면 init이 그 오류로 실패한다.
    * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
    */
-  private buildFrameMotion(): void {
-    if (!this.frameMotionEnabled || !this.gearFrameLayout) return;
+  private buildGearMotion(): void {
+    if (!this.gearMotionEnabled || !this.gearFrameLayout) return;
     const reduced = prefersReducedMotion();
-    if (reduced && this.frameMotionReducedMotion === "omit") return;
-    const holder = new Container({ label: "classic-frame-motion-holder" });
-    if (!this.addFrameOverlay(holder)) {
+    if (reduced && this.gearMotionReducedMotion === "omit") return;
+    const holder = new Container({ label: "classic-gear-motion-holder" });
+    if (!this.addGearOverlay(holder)) {
       holder.destroy();
       return;
     }
-    const controller = new FrameMotionController({
+    const controller = new GearMotionController({
       holder,
-      lease: acquireFrameMotionAssets(),
+      lease: acquireGearMotionAssets(),
       upload: (textures) => {
         // 처음 그리는 프레임에 업로드(밉맵 생성 포함)가 몰리지 않도록 자료가 준비된 때 미리 올린다.
         const textureSystem = this.app.renderer?.texture;
         if (!this.initialized || !textureSystem) return;
-        for (const key of FRAME_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
+        for (const key of GEAR_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
       },
     });
     controller.setReducedMotion(reduced);
-    this.frameMotionController = controller;
+    this.gearMotionController = controller;
   }
 
   /**
-   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 프레임·노트·움직임 텍스처 업로드와 셰이더·마스크 준비를
-   * 재생 시작 전에 끝내, 곡의 첫 프레임들이 그 비용을 치르지 않게 한다. 프레임 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로
+   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 기어·노트·움직임 텍스처 업로드와 셰이더·마스크 준비를
+   * 재생 시작 전에 끝내, 곡의 첫 프레임들이 그 비용을 치르지 않게 한다. 기어 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로
    * 이 한 장 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다). 플레이 화면이 audio 재생 직전에 부른다.
    */
   warmUp(songTimeMs: number): void {
     if (!this.initialized || !this.app.renderer) return;
     const render = () => this.renderFrame(songTimeMs, 0);
-    if (this.frameMotionController) this.frameMotionController.warmUp(render);
+    if (this.gearMotionController) this.gearMotionController.warmUp(render);
     else render();
   }
 
@@ -741,7 +741,7 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 지난 노트를 그리는 시간. 프레임 가림막은 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
+   * 판정선을 지난 노트를 그리는 시간. 기어가 있으면 가림막이 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
    * 노트 시각은 박스 가운데라(#224) 박스 윗변이 가림막 위끝에 닿는 때는 시각 위치가 (가림막 위끝 − 판정선) + 노트 반 칸 내려갔을 때다.
    * 놓친 노트는 박스 위에 접촉 그림자(스킨 `pointContactShadow.above`)를 깔므로, 그 띠까지 가림막 아래로 내려간 뒤 지운다.
    * Grace 오버레이는 놓친 노트에 그리지 않아 더하지 않는다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
@@ -753,9 +753,9 @@ export class GameRenderer {
   }
 
   /**
-   * 레인 가림막. 프레임이 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다(RFD 0029).
+   * 레인 가림막. 기어가 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다(RFD 0029).
    * 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다.
-   * 이 높이는 프레임과 함께 고정이라 리프트로 움직이지 않는다. 프레임이 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸
+   * 이 높이는 기어와 함께 고정이라 리프트로 움직이지 않는다. 기어가 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸
    * 아래끝(판정선 + 노트 반 칸, #224)부터 덮어, 판정선에 가운데가 걸친 노트·터미널이 게임처럼 한 칸 전부 보인다.
    */
   private laneMaskTop(): number {
@@ -783,7 +783,7 @@ export class GameRenderer {
       songTimeMs,
       chartDurationMs: this.chartDurationMs,
     });
-    // 새 프레임의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다(frameMotion.gaugeFill을 채움 높이로 자른다).
+    // 새 기어의 고도 게이지는 후속 작업(PR C)에서 같은 고도로 연결한다(gearMotion.gaugeFill을 채움 높이로 자른다).
     // 그때까지 유리관은 그림 그대로(가득) 보인다.
     this.flightBackground?.render(altitude, deltaMs);
   }
@@ -864,8 +864,8 @@ export class GameRenderer {
     if (this.showFlightBackground) {
       this.renderFlightBackground(songTimeMs, deltaMs);
     }
-    // 프레임 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
-    this.frameMotionController?.advance(deltaMs);
+    // 기어 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
+    this.gearMotionController?.advance(deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1101,25 +1101,25 @@ export class GameRenderer {
     return this._judgmentLineY;
   }
 
-  /** 프레임 배치(논리 단위). 프레임을 그리지 않으면(showGearFrame false·텍스처 없음) null. */
-  get frameLayout(): Readonly<ClassicFrameLayout> | null {
+  /** 기어 배치(논리 단위). 기어를 그리지 않으면(showGearFrame false·텍스처 없음) null. */
+  get gearLayout(): Readonly<ClassicGearLayout> | null {
     return this.gearFrameLayout;
   }
 
   /**
-   * 프레임 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
-   * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(frameMotion false·움직임 줄이기 omit·프레임 없음·dispose 뒤) null.
+   * 기어 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
+   * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(gearMotion false·움직임 줄이기 omit·기어 없음·dispose 뒤) null.
    */
-  get frameMotion(): FrameMotionControls | null {
-    return this.frameMotionController;
+  get gearMotion(): GearMotionControls | null {
+    return this.gearMotionController;
   }
 
   /**
-   * 프레임 그림 좌표(1024×1536)로 그린 레이어를 프레임 바로 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 프레임과 같은 변환으로 붙인다. 내장 프레임 움직임과 후속 고도 게이지가 쓴다.
-   * 프레임이 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(프레임 레이어와 함께 파괴된다).
+   * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 바로 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
+   * 기어와 같은 변환으로 붙인다. 내장 기어 움직임과 후속 고도 게이지가 쓴다.
+   * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
-  addFrameOverlay(overlay: Container): Readonly<ClassicFrameLayout> | null {
+  addGearOverlay(overlay: Container): Readonly<ClassicGearLayout> | null {
     const layout = this.gearFrameLayout;
     if (!layout || this.gearFrameLayer.destroyed) return null;
     overlay.position.set(layout.x, layout.y);
@@ -1130,7 +1130,7 @@ export class GameRenderer {
 
   /**
    * 판정선을 기본 위치(y 416)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
-   * 이후 키봄)만 움직이고, 프레임과 레인 가림막은 고정이다(RFD 0029). 프레임이 없는 미니 렌더러는 가림막도 따라온다.
+   * 이후 키봄)만 움직이고, 기어와 레인 가림막은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 가림막도 따라온다.
    */
   setLift(y: number): void {
     this._judgmentLineY = this.height - this.judgmentLineOffset - y;
@@ -1148,8 +1148,8 @@ export class GameRenderer {
   }
 
   /**
-   * 플레이 영역(높이 600) 오른쪽 아래에 키보드 배치를 직접 그린다. 레인·프레임과 무관하게 화면 구석에 붙고,
-   * 프레임 실루엣(없으면 레인 영역) 오른쪽 빈 곳이 좁으면 줄이거나 숨긴다(KeyboardDisplay.placeKeyboardDisplay).
+   * 플레이 영역(높이 600) 오른쪽 아래에 키보드 배치를 직접 그린다. 레인·기어와 무관하게 화면 구석에 붙고,
+   * 기어 실루엣(없으면 레인 영역) 오른쪽 빈 곳이 좁으면 줄이거나 숨긴다(KeyboardDisplay.placeKeyboardDisplay).
    */
   setupKeyboardDisplay(laneBindings: Map<string, number>): void {
     this.keyboardDisplay?.dispose();
@@ -1158,7 +1158,7 @@ export class GameRenderer {
     this.keyboardDisplay.setup(laneBindings, {
       width: this.width,
       height: this.height,
-      freeLeft: obstacleRight + FRAME_CLEARANCE,
+      freeLeft: obstacleRight + GEAR_CLEARANCE,
     });
   }
 
@@ -1194,15 +1194,15 @@ export class GameRenderer {
     this.flightBackground?.dispose();
     this.flightBackground = null;
     // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).
-    this.frameMotionController?.destroy();
-    this.frameMotionController = null;
+    this.gearMotionController?.destroy();
+    this.gearMotionController = null;
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.
     this.app.destroy({ removeView, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
-    // Text/Graphics/프레임 스프라이트 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
-    // 프레임 텍스처는 SkinManager 소유라 파괴하지 않는다(texture: false).
+    // Text/Graphics/기어 스프라이트 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
+    // 기어 텍스처는 SkinManager 소유라 파괴하지 않는다(texture: false).
     this.laneKeyLabels = [];
     this.tutorialKeyboardKeys = [];
     this.tutorialKeyboardKeyByCode = new Map();

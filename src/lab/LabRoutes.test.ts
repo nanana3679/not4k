@@ -34,10 +34,10 @@ describe('LabRoutes', () => {
     expect(markup).toContain('data-tutorial-skin-id="classic"');
   });
 
-  it('/lab/classic-frame-fit를 직접 열면 새 프레임이 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
-    const markup = await renderLabPath('/lab/classic-frame-fit');
+  it('/lab/classic-gear를 직접 열면 새 기어가 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/classic-gear');
 
-    expect(markup).toContain('data-lab-page="classic-frame-fit"');
+    expect(markup).toContain('data-lab-page="classic-gear"');
     expect(markup).toContain('data-stage-width="1067"');
     expect(markup).toContain('href="/lab"');
   });

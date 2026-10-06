@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 // Shared measurements and constants of the Classic frame ambient motion. assemble-ambient-v19.mjs
 // builds the approved animated SVG from them, and prepare-frame-motion-v21.mjs bakes the same masks
-// and values into Pixi textures and JSON for /lab/classic-frame-fit. Changing a value here changes
+// and values into Pixi textures and JSON for the game gear motion (and /lab/classic-gear). Changing a value here changes
 // both outputs; the v19 SVG must stay byte-identical unless the approved look itself changes.
 
 const revisionDir = dirname(fileURLToPath(import.meta.url));

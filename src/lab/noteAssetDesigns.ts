@@ -69,7 +69,7 @@ export const NOTE_ASSET_DESIGNS: NoteAssetDesign[] = [
   createNoteAssetDesign(getSkinManifest('simple'), {description:'기존 Classic · 단색 노트와 기본 봄'}),
 ];
 
-/** 스킨 공통 기어 에셋. 보관본의 옛 기어·게이지 대신 지금 공통 프레임을 쓴다(렌더러 배치가 이 그림의 측정값을 따른다). */
+/** 스킨 공통 기어 에셋. 보관본의 옛 기어·게이지 대신 지금 공통 기어를 쓴다(렌더러 배치가 이 그림의 측정값을 따른다). */
 const SHARED_GEAR_ASSET_KEYS = new Set(['gearFrame', 'gearGaugeLeft', 'gearGaugeRight']);
 
 export const CLASSIC_NOTE_ASSET_VERSIONS = CLASSIC_SKIN_VERSIONS.map(version => {

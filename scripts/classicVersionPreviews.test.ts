@@ -16,15 +16,15 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001·v002·v012의 재생기·랙 에셋 주소는 공통 기어 프레임만 빼고 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001·v002·v012의 재생기·랙 에셋 주소는 공통 기어만 빼고 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => /\.(png|svg)$/.test(entry.pathname))).toBe(true);
     for (const { design } of CLASSIC_NOTE_ASSET_VERSIONS) {
       const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-      // 보관본도 지금 공통 프레임으로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
-      expect(gearFrame).toBe('/gear/classic-frame.png');
+      // 보관본도 지금 공통 기어로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
+      expect(gearFrame).toBe('/gear/classic-gear.png');
       expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
       for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
         expect(paths.has(path), path).toBe(true);
@@ -86,7 +86,7 @@ describe('Classic 버전 Lab 공개', () => {
     const { gearFrame: archivedGear, gearGaugeLeft, gearGaugeRight, ...registeredSkinAssets } = registered.assets;
     const { gearFrame: currentGear, ...currentSkinAssets } = current.assets;
     expect([archivedGear, gearGaugeLeft, gearGaugeRight]).toEqual(['/gear/gear-frame.png', '/gear/gear-gauge-left.png', '/gear/gear-gauge-right.png']);
-    expect(currentGear).toBe('/gear/classic-frame.png');
+    expect(currentGear).toBe('/gear/classic-gear.png');
     expect(registeredSkinAssets).toEqual(currentSkinAssets);
     expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });
     expect(current.assets.pointContactShadowTrill).toBe('/skins/classic/point-contact-shadow-trill.png');

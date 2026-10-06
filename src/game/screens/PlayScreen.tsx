@@ -9,14 +9,14 @@ import { compileJudgmentChart, selectCompiledJudgmentChart } from '../judgment/c
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, liftPx } from '../renderer/constants';
-import { resolvePlayLogicalWidth } from '../renderer/classicFrameLayout';
+import { resolvePlayLogicalWidth } from '../renderer/classicGearLayout';
 import { prefersReducedMotion } from '../renderer/reducedMotion';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 import { drainPlaySessionInputs, stepPlaySession } from './playSessionInput';
-import { keepFrameMotionAssets } from './frameMotionKeepAlive';
+import { keepGearMotionAssets } from './gearMotionKeepAlive';
 
 export function PlayScreen() {
   const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -103,7 +103,7 @@ export function PlayScreen() {
         const compiledBase = compileJudgmentChart(chartData.notes, noteTimesMs, noteEndTimesMs, chartData.trillZones);
         const compiled = startTimeMs > 0 ? selectCompiledJudgmentChart(compiledBase, startTimeMs) : compiledBase;
 
-        // 높이 600에 화면 비율을 곱한 논리 폭. 프레임 전체(최소 466)보다 좁히지 않는다.
+        // 높이 600에 화면 비율을 곱한 논리 폭. 기어 전체(최소 466)보다 좁히지 않는다.
         const containerW = containerRef.current!.clientWidth;
         const containerH = containerRef.current!.clientHeight;
         const logicalW = resolvePlayLogicalWidth(containerW, containerH);
@@ -123,10 +123,10 @@ export function PlayScreen() {
           audioOffsetMs: settings.audioOffsetMs,
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
-        // 프레임 움직임 자료는 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 하는 자료다(RFD 0029). 설정이 켜진 동안 붙잡아 두어 재시도·다음 곡은
+        // 기어 움직임 자료는 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 하는 자료다(RFD 0029). 설정이 켜진 동안 붙잡아 두어 재시도·다음 곡은
         // 받아 둔 것을 쓰고, 스킨 읽기와 함께 시간 제한 없이 기다린다. 읽지 못하면 스킨을 읽지 못했을 때와 같이 아래 catch의 오류 화면으로 간다.
         // 움직임 줄이기면 렌더러가 움직임을 만들지 않으므로 받지도 않는다.
-        const keptMotion = keepFrameMotionAssets(settings.frameMotion && !prefersReducedMotion());
+        const keptMotion = keepGearMotionAssets(settings.gearMotion && !prefersReducedMotion());
         const skinManager = new SkinManager();
         try {
           await Promise.all([skinManager.loadSkin(skin), keptMotion?.ready]);
@@ -144,14 +144,14 @@ export function PlayScreen() {
           resolution,
           skinManager,
           bombScale: settings.bombScale,
-          // 끄면 프레임 움직임 객체·텍스처를 만들지 않는다(약한 GPU용).
-          frameMotion: settings.frameMotion,
+          // 끄면 기어 움직임 객체·텍스처를 만들지 않는다(약한 GPU용).
+          gearMotion: settings.gearMotion,
           difficultyLabel: chartData.meta.difficultyLabel,
         });
         rendererRef.current = renderer;
         audioEngineRef.current = audioEngine;
         await renderer.init();
-        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다. init은 프레임 움직임을 얹은 뒤에 끝난다(렌더러 임대는 붙잡아 둔 자료를 캐시에서 받는다).
+        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다. init은 기어 움직임을 얹은 뒤에 끝난다(렌더러 임대는 붙잡아 둔 자료를 캐시에서 받는다).
         if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
         activeSkin = skinManager;
 

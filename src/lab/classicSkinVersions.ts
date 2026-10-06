@@ -2,7 +2,7 @@ import type { SkinManifest } from '../game/skin/types';
 
 /**
  * 보관 당시 skins.ts의 Classic 매니페스트. 스킨 공통 기어 에셋(`gearFrame`과 RFD 0029 이전의 기둥 게이지
- * `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다. Lab·dev 재생은 지금 공통 프레임을 쓴다(noteAssetDesigns).
+ * `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다. Lab·dev 재생은 지금 공통 기어를 쓴다(noteAssetDesigns).
  */
 export interface ArchivedClassicManifest {
   theme: SkinManifest['theme'];

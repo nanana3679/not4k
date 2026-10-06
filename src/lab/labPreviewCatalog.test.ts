@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { labPreviewCatalog } from "./labPreviewCatalog";
 
 describe("Lab 미리보기 카탈로그", () => {
-  it("옛 기어 Gear Light·Gear Measure Pulse를 뺀 6개 미리보기(시설 통과·노트 에셋 시연실·Classic Frame Fit 포함)는 중복 없는 id와 /lab 경로를 가진다", () => {
+  it("옛 기어 Gear Light·Gear Measure Pulse를 뺀 6개 미리보기(시설 통과·노트 에셋 시연실·Classic Gear 포함)는 중복 없는 id와 /lab 경로를 가진다", () => {
     expect(labPreviewCatalog).toHaveLength(6);
     expect(labPreviewCatalog.map((preview) => preview.id)).toEqual([
       "flight-background-preview",
       "facility-passage",
       "note-assets",
-      "classic-frame-fit",
+      "classic-gear",
       "tutorial-pattern-diagram",
       "judgment-playtest",
     ]);
@@ -25,11 +25,11 @@ describe("Lab 미리보기 카탈로그", () => {
     });
   });
 
-  it("Classic Frame Fit은 Interface 분류의 /lab/classic-frame-fit 경로로 등록된다", () => {
-    expect(labPreviewCatalog.find((preview) => preview.id === "classic-frame-fit")).toMatchObject({
-      title: "Classic Frame Fit",
+  it("Classic Gear는 Interface 분류의 /lab/classic-gear 경로로 등록된다", () => {
+    expect(labPreviewCatalog.find((preview) => preview.id === "classic-gear")).toMatchObject({
+      title: "Classic Gear",
       category: "Interface",
-      path: "/lab/classic-frame-fit",
+      path: "/lab/classic-gear",
     });
   });
 

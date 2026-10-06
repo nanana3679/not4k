@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
-import { CLASSIC_FRAME_GEOMETRY, FRAME_CLEARANCE, layoutClassicFrame } from './classicFrameLayout';
+import { CLASSIC_GEAR_GEOMETRY, GEAR_CLEARANCE, layoutClassicGear } from './classicGearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
 import { beat, createChartTiming, type ChartEvent, type NoteEntity, type RestZone, type TrillZone } from '../../shared';
 import type { SkinManager } from '../skin';
@@ -26,18 +26,18 @@ const EVENTS: ChartEvent[] = [
 async function createRenderer({
   width = 1067, resolution = 1.8, showGearFrame = true, theme = {}, textures = [],
 }: { width?: number; resolution?: number; showGearFrame?: boolean; theme?: Record<string, unknown>; textures?: string[] } = {}) {
-  const frame = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
+  const gear = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
   const skinManager = {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff, ...theme }),
     getBodyWidthScale: () => 1,
     hasTexture: (key: string) => textures.includes(key),
-    getTexture: (key: string) => (key === 'gearFrame' ? frame : Texture.WHITE),
+    getTexture: (key: string) => (key === 'gearFrame' ? gear : Texture.WHITE),
     getHalfCapTexture: () => Texture.WHITE,
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
     canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, resolution, skinManager, showGearFrame, showFlightBackground: false,
-    // 프레임 움직임은 GameRenderer.frameMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
-    frameMotion: false,
+    // 기어 움직임은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
+    gearMotion: false,
   });
   const scene = renderer as unknown as Scene;
   // GPU 초기화만 생략하고 실제 Container/Sprite/Graphics와 init·renderFrame을 사용한다.
@@ -74,7 +74,7 @@ describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까�
   };
   const noteSprites = (scene: Scene) => scene.noteLayer.children.filter((child): child is Sprite => child instanceof Sprite);
   // 스크롤 200px/s·리프트 20%(판정선 y 296)에서 놓친 노트 박스 윗변 = 296 + 0.2 × 늦은 ms − 6.25
-  const keyRimY = layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT }).keyRimY;
+  const keyRimY = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT }).keyRimY;
 
   it('스크롤 200px/s·리프트 20%(판정선 y 296)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 416, 박스 윗변 409.75(키 윗면 446.5 위)에 그린다', async () => {
     const { renderer, scene } = await missedSingle();
@@ -167,15 +167,15 @@ describe('마디선 두께', () => {
 });
 
 describe('오른쪽 위 이벤트 문구', () => {
-  it('16:9(1067)에서 줄바꿈 폭은 프레임 실루엣 오른쪽 끝 + 8부터 화면 오른쪽 여백 20까지(약 280.9)라 오른쪽 기둥과 겹치지 않는다', async () => {
+  it('16:9(1067)에서 줄바꿈 폭은 기어 실루엣 오른쪽 끝 + 8부터 화면 오른쪽 여백 20까지(약 280.9)라 오른쪽 기둥과 겹치지 않는다', async () => {
     const { scene } = await createRenderer();
-    const frame = layoutClassicFrame(CLASSIC_FRAME_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
+    const gear = layoutClassicGear(CLASSIC_GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
     const text = scene.eventMessageText;
-    expect(text.style.wordWrapWidth).toBeCloseTo(1067 - 20 - (frame.silhouetteRightX + FRAME_CLEARANCE), 9);
-    expect(text.x - text.style.wordWrapWidth).toBeGreaterThanOrEqual(frame.silhouetteRightX + FRAME_CLEARANCE - 1e-9);
+    expect(text.style.wordWrapWidth).toBeCloseTo(1067 - 20 - (gear.silhouetteRightX + GEAR_CLEARANCE), 9);
+    expect(text.x - text.style.wordWrapWidth).toBeGreaterThanOrEqual(gear.silhouetteRightX + GEAR_CLEARANCE - 1e-9);
   });
 
-  it('프레임이 없으면 레인 영역 오른쪽 끝(658.5) + 8부터 재서 줄바꿈 폭 380.5', async () => {
+  it('기어가 없으면 레인 영역 오른쪽 끝(658.5) + 8부터 재서 줄바꿈 폭 380.5', async () => {
     const { scene } = await createRenderer({ showGearFrame: false });
     expect(scene.eventMessageText.style.wordWrapWidth).toBeCloseTo(380.5, 9);
   });

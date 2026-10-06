@@ -1,6 +1,6 @@
 import { Texture, Rectangle, type TextureSourceOptions } from "pixi.js";
 import type { SkinManifest, SkinTheme } from "./types";
-import { CLASSIC_FRAME_TEXTURE_OPTIONS } from "../renderer/classicFrameLayout";
+import { CLASSIC_GEAR_TEXTURE_OPTIONS } from "../renderer/classicGearLayout";
 import { getSkinManifest } from "./skins";
 import { findSkinManifestWarnings, HELD_ASSET_KEYS } from "./skinManifestWarnings";
 import { loadSharedAsset, releaseSharedAsset, retainSharedAsset } from "./sharedAssets";
@@ -17,11 +17,11 @@ function releaseSkinAssetOwnership(ownership: SkinAssetOwnership): void {
 }
 
 /**
- * 기본(선형·밉맵 없음)과 다르게 읽어야 하는 텍스처. 기어 프레임은 원본보다 작게(렌더 높이 1080에서 약 0.82배) 그려지므로
+ * 기본(선형·밉맵 없음)과 다르게 읽어야 하는 텍스처. 기어는 원본보다 작게(렌더 높이 1080에서 약 0.82배) 그려지므로
  * 밉맵·삼선형 필터로 읽는다. 업로드할 때 밉맵이 만들어지므로 로드 시점에 정해야 한다.
  */
 const TEXTURE_LOAD_OPTIONS: Readonly<Record<string, Partial<TextureSourceOptions>>> = {
-  gearFrame: CLASSIC_FRAME_TEXTURE_OPTIONS,
+  gearFrame: CLASSIC_GEAR_TEXTURE_OPTIONS,
 };
 
 /**
@@ -128,7 +128,7 @@ export class SkinManager {
       ["noteTrillFailed", assets.noteTrillFailed],
       ["bodyTrillFailed", assets.bodyTrillFailed],
       ["terminalTrillFailed", assets.terminalTrillFailed],
-      // 기어 프레임
+      // 기어
       ["gearFrame", assets.gearFrame],
     ] as [string, string | undefined][])
       .filter((entry): entry is [string, string] =>

@@ -39,7 +39,7 @@ describe('시안 교체', () => {
     expect(design.bombs[0].frames).toBe(skin.assets.bomb);
   });
 
-  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 공통 프레임 /gear/classic-frame.png를 사용한다', version => {
+  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 기어 그림 /gear/classic-gear.png를 사용한다', version => {
     const design = getNoteAssetDesign('classic', version);
     const prefix = `/lab/skin-versions/classic/${version}/`;
     expect(design.id).toBe('classic');
@@ -47,7 +47,7 @@ describe('시안 교체', () => {
     expect(design.skinId).toBe(`classic-${version}`);
     expect(design.skinManifest?.theme.available).toBe(false);
     const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/gear/classic-frame.png');
+    expect(gearFrame).toBe('/gear/classic-gear.png');
     expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
     for (const path of Object.values(skinAssets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
     for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
@@ -100,11 +100,11 @@ describe('/not4k/ 배포의 시안 주소', () => {
     }
   });
 
-  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 프레임에 접두사를 한 번만 붙인다', async () => {
+  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림에 접두사를 한 번만 붙인다', async () => {
     const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
     const design = getPublicDesign('classic', 'v001');
     const { gearFrame, ...skinAssets } = design.skinManifest!.assets;
-    expect(gearFrame).toBe('/not4k/gear/classic-frame.png');
+    expect(gearFrame).toBe('/not4k/gear/classic-gear.png');
     for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
       expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
       expect(path).not.toContain('/not4k/not4k/');
