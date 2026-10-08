@@ -501,8 +501,4 @@ const calibrationCss = `
   font-family: ${font.numeric}; font-size: 13px; font-variant-numeric: tabular-nums; color: ${color.inkDim};
 }
 .cal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .cal-view *, .cal-progress-fill { transition-duration: 1ms !important; }
-}
 `;

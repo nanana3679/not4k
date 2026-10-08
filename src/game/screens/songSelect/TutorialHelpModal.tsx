@@ -175,7 +175,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     closeTimeoutRef.current = window.setTimeout(() => {
       closeTimeoutRef.current = null;
       onClose();
-    }, getTutorialModalCloseDurationMs());
+    }, TUTORIAL_MODAL_CLOSE_MS);
   }, [cancelScheduledTransitionStart, isClosing, onClose]);
 
   const resetViewedTutorialCache = useCallback(() => {
@@ -260,7 +260,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
           ? null
           : transition
       ));
-    }, getTutorialTransitionDurationMs());
+    }, TUTORIAL_PAGE_TRANSITION_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [playerTransition]);
@@ -271,11 +271,10 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     }
 
     let animationFrameId: number | null = null;
-    const durationMs = getTutorialTransitionDurationMs();
     const startMs = performance.now();
 
     const step = (now: number) => {
-      const elapsedRatio = durationMs <= 1 ? 1 : Math.min(1, (now - startMs) / durationMs);
+      const elapsedRatio = Math.min(1, (now - startMs) / TUTORIAL_PAGE_TRANSITION_MS);
       setPlayerTransitionProgress(getEaseOutQuintProgress(elapsedRatio));
 
       if (elapsedRatio < 1) {
@@ -721,22 +720,6 @@ function getTutorialTransitionDirection(
   return nextIndex >= currentIndex ? 'forward' : 'backward';
 }
 
-function getTutorialTransitionDurationMs(): number {
-  if (typeof window === 'undefined') return TUTORIAL_PAGE_TRANSITION_MS;
-
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ? 1
-    : TUTORIAL_PAGE_TRANSITION_MS;
-}
-
-function getTutorialModalCloseDurationMs(): number {
-  if (typeof window === 'undefined') return TUTORIAL_MODAL_CLOSE_MS;
-
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ? 1
-    : TUTORIAL_MODAL_CLOSE_MS;
-}
-
 function getOppositeHandPlacementLine(
   preset: 'numpad' | 'tkl',
   keyBindings: TutorialKeyBindings,
@@ -887,22 +870,6 @@ const tutorialHelpCss = `
   }
   to {
     opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .not4k-tutorial-player-slot,
-  .not4k-tutorial-carousel-track,
-  .not4k-tutorial-player-stage,
-  .not4k-tutorial-player-placeholder,
-  .not4k-tutorial-overlay,
-  .not4k-tutorial-modal,
-  .not4k-tutorial-text-transition {
-    animation-duration: 1ms !important;
-    transition-duration: 1ms !important;
-  }
-  .not4k-tutorial-placeholder-spinner {
-    animation: none !important;
   }
 }
 
