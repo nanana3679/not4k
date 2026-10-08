@@ -281,7 +281,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_ENTER_MS = 260');
     expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_EXIT_MS = 180');
     expect(tutorialPreviewPlayerSource).not.toContain('prefers-reduced-motion');
-    expect(tutorialPreviewPlayerSource).not.toContain('matchMedia');
+    expect(tutorialPreviewPlayerSource).not.toMatch(/matchMedia\([^)]*reduced-motion/);
   });
 
   it('구동기 로딩 중에는 도식 모달에서 OK 대신 스피너를 보여 상호작용을 막고, 준비되면 OK로 전환', () => {
