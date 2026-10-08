@@ -90,7 +90,7 @@
 | lease | lease. 얻을 때 acquire, 끝낼 때 release("lease를 release"처럼 대상을 붙인다). 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
 | release와 unload | 둘을 나눠 쓴다. release는 reference count를 1 줄이고, unload는 마지막 release 뒤 `Assets.unload`가 캐시에서 지우는 것이다. Pixi 객체 정리는 destroy(`destroy()`). 무엇(lease·경로·텍스처)을 다루는지 함께 쓴다 | 놓다(어느 쪽에도) | `releaseSharedAsset` → `Assets.unload` |
 | 에셋 | 에셋. 예: `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`(`gearMotionData.ts`)·`GearMotionTextures`(`gearMotion.ts`), 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
-| warm-up | warm-up(`GameRenderer.prepareForPlayback(songTimeMs)`): 곡 재생 전에 곡 중 쓰는 텍스처 소스를 GPU 업로드(`initSource`)하고 첫 프레임을 한 번 그려 셰이더·마스크를 준비한다. 기어 모션 하단 바 알파 마스크 준비는 `GearMotionController.warmUp(render)` | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.prepareForPlayback`, `GearMotionController.warmUp`, `PlayScreen.tsx` |
+| warm-up | warm-up(`GameRenderer.prepareForPlayback(songTimeMs)`): 곡 재생 전에 곡 중 쓰는 텍스처 소스를 GPU 업로드(`initSource`)하고 첫 프레임을 한 번 그려 셰이더·마스크를 준비한다. 기어 움직임 하단 바 알파 마스크 준비는 `GearMotionController.warmUp(render)` | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.prepareForPlayback`, `GearMotionController.warmUp`, `PlayScreen.tsx` |
 | holder / container | `holder`(Pixi `Container`). 기어 위 레이어는 `addGearOverlay`로 추가한 컨테이너 | 자리, 움직임 자리 | `GearMotionController`의 `holder: Container`, `GameRenderer.addGearOverlay` |
 | atlas frame | atlas frame(`Texture.frame`). 텍스처 안의 원본 영역(`atlasX`·`atlasY`·`width`·`height`)과 그릴 위치(`x`·`y`)를 구분해 쓴다 | 조각, 상자, 아틀라스 상자, 자리, bare "프레임" | `GearMotionPiece`(`gearMotionData.ts`), `gearMotion.ts` |
 | GPU 업로드 | GPU 업로드(`initSource`) | (GPU에) 올리다, 올리기. 올리다는 리프트 뜻으로 남긴다 | `renderer.texture.initSource`(`GameRenderer.ts`) |
@@ -124,7 +124,7 @@
 
 ### 단위 명사·일상 동사 금지
 
-한 장, 한 벌, 자리, 조각, 상자, 자료, 얹다, 걸다, 놓다를 기술 개념의 명사·동사로 쓰지 않는다. 식별자를 쓰고, 식별자가 없으면 E 표의 용어를 쓴다. 예: 한 장 → 렌더 프레임·이미지·warm-up, 한 벌 → 공유 에셋, 자리 → `holder`·atlas frame, 조각·상자 → atlas frame, 자료 → 에셋·측정 데이터, 얹다 → `addChild`, 걸다 → `setChart`, 놓다 → release·배치.
+한 장, 한 벌, 자리, 조각, 상자, 자료, 얹다, 걸다, 놓다를 기술 개념의 명사·동사로 쓰지 않는다. 식별자를 쓰고, 식별자가 없으면 E 표의 용어를 쓴다. 예: 한 장 → 렌더 프레임·이미지·warm-up, 한 벌 → 공유 에셋, 자리 → `holder`·atlas frame, 조각·상자 → atlas frame, 자료 → 에셋·측정 데이터, 얹다 → `addChild`, 걸다 → `setChart`, 놓다 → 대상을 붙인 release(lease·경로)·unload·위치 지정.
 
 ### 용어 단위로 고치기
 
