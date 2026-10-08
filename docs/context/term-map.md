@@ -38,7 +38,7 @@
 
 ## B. 기존 개념 — established 이름 유지
 
-레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout`·`GearMotionController`·설정 `gearMotion`, 전체는 [glossary](glossary.md#기어-gear) 참조. 이 뜻의 "프레임"은 화면 한 장과 헷갈려 쓰지 않는다. 2026-10-06 #231).
+레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout`·`GearMotionController`·설정 `gearMotion`, 전체는 [glossary](glossary.md#기어-gear) 참조. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231).
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
@@ -81,46 +81,46 @@
 
 ## E. 엔진·웹·수명 주기 용어 (2026-10-08)
 
-그래픽스·웹·오디오·타이밍·에셋 수명 주기의 개념은 이 프로젝트가 만든 것이 아니라 원래 있는 소프트웨어 개념이라 B(established 이름)에 속한다. 이 분야의 커뮤니티 표준은 대개 영어 용어나 API 식별자이므로 그것을 쓰고, 자연스럽게 굳은 한국어(캐시, 텍스처, 스프라이트, 밉맵, 컨테이너, 렌더 프레임, 페이드)만 한국어로 쓴다. 코드 식별자가 있다는 것만으로 발명이 되지는 않는다. 문서에서 처음 나올 때 식별자나 영어 용어를 적고, 일상어 비유로 한국어 이름을 새로 만들지 않는다. "피할 말"은 이 표를 추가한 시점에 저장소에 남아 있으며, 아래 [용어 단위로 고치기](#용어-단위로-고치기)에 따라 용어별 PR로 고친다.
+그래픽스·웹·오디오·타이밍·에셋 수명 주기의 개념은 이 프로젝트가 만든 것이 아니라 원래 있는 소프트웨어 개념이라 B(established 이름)에 속한다. 이 분야의 커뮤니티 표준은 대개 영어 용어나 API 식별자이므로 그것을 쓰고, 자연스럽게 굳은 한국어(캐시, 텍스처, 스프라이트, 밉맵, 컨테이너, 렌더 프레임, 페이드, 에셋, 업로드 등)와 표에 적은 한국어 표기만 쓴다. 코드 식별자가 있다는 것만으로 발명이 되지는 않는다. 문서에서 처음 나올 때 식별자나 영어 용어를 적고, 일상어 비유로 한국어 이름을 새로 만들지 않는다. "피할 말"은 이 표를 추가한 시점에 저장소에 남아 있으며, 아래 [용어 단위로 고치기](#용어-단위로-고치기)에 따라 용어별 PR로 고친다.
 
 | 개념 | 쓸 표기 | 피할 말 | 근거/식별자 |
 |---|---|---|---|
-| 운영체제·브라우저의 모션 감소 설정 | 처음: 모션 감소 설정(`prefers-reduced-motion`), 이후 `prefers-reduced-motion`. 인게임 설정 `Gear Motion`과 구분 | 움직임 줄이기 | [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md), `prefersReducedMotion()` |
+| 운영체제·브라우저의 모션 감소 설정 | 처음: 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과'), 이후 `prefers-reduced-motion`. 인게임 설정 `Gear Motion`과 구분 | 움직임 줄이기 | [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md), `prefersReducedMotion()` |
 | reference counting | reference counting. 동작은 retain/release, 저장 값은 경로별 reference count | 참조 세기 | `retainSharedAsset`/`releaseSharedAsset`, `references`(`src/game/skin/sharedAssets.ts`) |
-| lease | lease. 얻을 때 acquire, 끝낼 때 release. 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
+| lease | lease. 얻을 때 acquire, 끝낼 때 release("lease를 release"처럼 대상을 붙인다). 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
 | release와 unload | 둘을 나눠 쓴다. release는 reference count를 1 줄이고, unload는 마지막 release 뒤 `Assets.unload`가 캐시에서 지우는 것이다. Pixi 객체 정리는 destroy(`destroy()`). 무엇(lease·경로·텍스처)을 다루는지 함께 쓴다 | 놓다(어느 쪽에도) | `releaseSharedAsset` → `Assets.unload` |
-| 에셋 | 에셋. 예: `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`·`GearMotionTextures`, 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
-| warm-up | warm-up(`GameRenderer.warmUp`): 곡 재생 전에 `renderFrame`을 한 번 불러 텍스처 업로드·셰이더 준비를 미리 끝낸다. 식별자가 바뀌면(예: `prepareForPlayback` 제안) 새 이름을 따른다 | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.warmUp`, `PlayScreen.tsx` |
+| 에셋 | 에셋. 예: `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`(`gearMotionData.ts`)·`GearMotionTextures`(`gearMotion.ts`), 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
+| warm-up | warm-up(`GameRenderer.prepareForPlayback(songTimeMs)`): 곡 재생 전에 곡 중 쓰는 텍스처 소스를 GPU 업로드(`initSource`)하고 첫 프레임을 한 번 그려 셰이더·마스크를 준비한다. 기어 모션 하단 바 알파 마스크 준비는 `GearMotionController.warmUp(render)` | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.prepareForPlayback`, `GearMotionController.warmUp`, `PlayScreen.tsx` |
 | holder / container | `holder`(Pixi `Container`). 기어 위 레이어는 `addGearOverlay`로 추가한 컨테이너 | 자리, 움직임 자리 | `GearMotionController`의 `holder: Container`, `GameRenderer.addGearOverlay` |
 | atlas frame | atlas frame(`Texture.frame`). 텍스처 안의 원본 영역(`atlasX`·`atlasY`·`width`·`height`)과 그릴 위치(`x`·`y`)를 구분해 쓴다 | 조각, 상자, 아틀라스 상자, 자리, bare "프레임" | `GearMotionPiece`(`gearMotionData.ts`), `gearMotion.ts` |
 | GPU 업로드 | GPU 업로드(`initSource`) | (GPU에) 올리다, 올리기. 올리다는 리프트 뜻으로 남긴다 | `renderer.texture.initSource`(`GameRenderer.ts`) |
-| double buffer | double buffer: `FaceFrame` 두 개(`faceFrames`)를 프레임마다 번갈아 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | `src/game/renderer/flight/breakthrough.mjs` |
+| double buffer | double buffer: `FaceFrame` 두 개(`faceFrames`)를 프레임마다 번갈아 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | 쓰는 곳 `src/game/renderer/flight/breakthrough.mjs`(정의는 `output/prototypes/` 아래 모듈) |
 | object pool | object pool(`TrailPool`): 수명이 끝난 trail 표본 객체를 모아 다음 표본에 다시 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | 같은 파일 |
-| trail | trail(`trails`, `TrailPool`, `advanceTrails`) | trail 뜻의 잔상·잔광. 잔광은 버튼 빛이 키를 뗀 뒤 사라지는 fade-out(버튼 누름 시연 `press-animation.html`의 "잔광")에만 쓴다 | `breakthrough.mjs`, `approach.mjs` |
+| trail | trail(`trails`, `TrailPool`, `advanceTrails`) | trail 뜻의 잔상·잔광. 잔광은 버튼 빛이 키를 뗀 뒤 사라지는 페이드 아웃(버튼 누름 시연 `press-animation.html`의 "잔광")에만 쓴다 | `breakthrough.mjs`, `approach.mjs` |
 | tint | `tint` | 물들이기, 물들여 | `gearMotion.ts`의 `unlit.tint` |
 | 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 판정선 아래 레인을 덮는 사각형이나 서든의 상단 커버를 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처 |
-| 판정선 아래 레인을 덮는 불투명 사각형 | **없앨 예정([#247](https://github.com/nanana3679/not4k/issues/247)).** 덮개 대신 레인 길이를 레인 끝(기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)에서 클립한다. 그 전까지는 코드 식별자 `drawMask`·`maskGraphic`로 부르고, Pixi mask가 아니라 불투명 `Graphics` 채우기임을 함께 적는다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 덮개 기능(PRD G-10 서든)에 남겨 둔다 | `drawMask`·`maskGraphic`·`laneMaskTop`, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
+| 판정선 아래 레인을 덮는 불투명 사각형 | **없앨 예정([#247](https://github.com/nanana3679/not4k/issues/247)).** 이 사각형 대신 레인 길이를 레인 끝(기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)에서 클립한다. 그 전까지는 코드 식별자 `drawMask`·`maskGraphic`로 부르고, Pixi mask가 아니라 불투명 `Graphics` 채우기임을 함께 적는다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 커버 기능(PRD G-10 서든)에 남겨 둔다 | `drawMask`·`maskGraphic`·`laneMaskTop`, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
 | 애니메이션 경과 시간 | 애니메이션 경과 시간(`GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계 | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
 | scene graph에 추가 | 추가(`addChild`). 기어 위 레이어는 `addGearOverlay` | 얹다, 얹기 | Pixi `Container.addChild` |
 | 렌더러에 차트 설정 | `setChart` | 차트를 걸다 | `GameRenderer.setChart` |
-| 표시 객체 위치 정하기 | 배치 | 놓다 | `GameRenderer.ts`의 정적 요소 그리기 순서 |
+| 표시 객체 위치 지정 | 위치 지정(`x`·`y`·`position.set`). 차트의 노트·피스 "배치"와 구분한다 | 놓다 | 예: `GearGauge`가 유리관마다 만든 컨테이너의 `holder.position.set(tube.x, tube.y)`(`gearGauge.ts`) |
 | 에디터 연산 | 연산마다 이름을 쓴다. 정규화(`normalizeSelection`), 캡슐화(`TimelineSpace`가 좌표 변환·스냅·히트테스트를 한 인터페이스로 묶음), 매핑(`scheduleFromGrabTarget`: `GrabTarget` → 터치 스케줄), 변환(`maxTimelineBeat`: 부동소수 박을 1/960 단위로 내림해 `Beat`로) | 비유만 쓰는 접기, 접는다, 접은 | `selectionSlice.ts`, `TimelineSpace.ts`·`useTimelineSpace.ts`, `touchEditRouting.ts`, `SelectMode.ts` |
 | modifier 키 | modifier 키 상태(`shiftKey`·`altKey`)와 선택 토글 플래그(`toggleSelection`) | 수식자, 보조키(게임 용어) | `PointerGesture`(`src/editor/modes/editorMode.ts`) |
-| 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts` |
+| 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts`, `src/editor/modes/longPressRouting.ts` |
 
 버퍼나 객체를 다시 쓴다고 적을 때는 구조 이름(double buffer, object pool)이나 다시 쓰는 대상의 식별자(`createApproachLightFrames()`의 결과 등)를 쓴다.
 
 ### 게임 용어 예약
 
-아래 말은 왼쪽 뜻으로만 쓴다. 다른 뜻이 필요하면 오른쪽 말을 쓴다.
+기술 개념을 가리킬 때 아래 말은 왼쪽 뜻으로만 쓴다. 다른 기술 뜻이 필요하면 오른쪽 말을 쓴다. 일상어 쓰임("난이도를 올리다", "커서가 올라가면")과 오른쪽 "그대로 쓰는 다른 뜻"은 이 규칙의 대상이 아니다.
 
-| 용어 | 남겨 둘 뜻 | 다른 뜻일 때 쓸 말 |
-|---|---|---|
-| 판정 | judgment(노트 입력의 판정) | 검사(`matchMedia` 조회 등), 검증 결과 |
-| 놓다·놓친 | 놓친 노트(missed), 키를 놓다(키 release) | release, unload, 배치 |
-| 올리다 | 리프트(판정선 올리기) | GPU 업로드 |
-| 시계 | `GameClock` | 애니메이션 경과 시간(`GearMotionControls.timeMs`), `deltaMs` |
-| 프레임 | 렌더 프레임(`renderFrame`, `requestAnimationFrame`) | 텍스처 안 영역은 atlas frame(`Texture.frame`), 레인을 둘러싼 테두리는 기어 |
+| 용어 | 남겨 둘 뜻 | 다른 기술 뜻일 때 쓸 말 | 그대로 쓰는 다른 뜻 |
+|---|---|---|---|
+| 판정 | judgment(노트 입력의 판정) | 검사(`matchMedia` 조회 등), 검증 결과 | — |
+| 놓다·놓친 | 놓친 노트(missed), 키를 떼다·release 판정 | 대상을 붙인 release("lease를 release", "경로 release"), unload, 위치 지정 | — |
+| 올리다 | 리프트(판정선 올리기) | GPU 업로드 | 일상어 올리다·올라가다 |
+| 시계 | `GameClock` | 애니메이션 경과 시간(`GearMotionControls.timeMs`), `deltaMs` | 오디오 시계(`AudioContext.currentTime`), `performance.now()` 시계(그 API를 함께 적는다) |
+| 프레임 | 렌더 프레임(`renderFrame`, `requestAnimationFrame`) | 텍스처 안 영역은 atlas frame(`Texture.frame`), 레인을 둘러싼 테두리는 기어 | 애니메이션 프레임(스프라이트 연속 그림, 예: 키봄 16프레임) |
 
 ### 단위 명사·일상 동사 금지
 
