@@ -6,7 +6,7 @@ import { GEAR_MOTION_LAYERS, type GearMotionLayerVisibility } from '../game/rend
 import { GEAR_MOTION_SVG_PATH, GEAR_MOTION_VIEWS, formatViewBox, readSvgBaseHref, type GearMotionView } from './gearMotionView';
 import { withLabPublicBase } from './labPublicPath';
 
-/** 비교 시계 범위(광원 한 번 지나가는 60초). 재생하면 60초에서 0초로 돌아간다. */
+/** `비교 시각`(애니메이션 경과 시간)의 범위(광원이 한 번 지나가는 60초). 재생하면 60초에서 0초로 돌아간다. */
 export const COMPARE_DURATION_MS = 60_000;
 const VIEW_OPTIONS = (Object.keys(GEAR_MOTION_VIEWS) as GearMotionView[]).map((value) => ({ value, label: GEAR_MOTION_VIEWS[value].label }));
 

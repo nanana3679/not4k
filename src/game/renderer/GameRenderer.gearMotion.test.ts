@@ -164,7 +164,7 @@ describe('GameRenderer gearMotion (RFD 0029)', () => {
     expect(current.lease.release).toHaveBeenCalledTimes(1);
   });
 
-  it('gearMotion: false(설정 끔)면 자료를 빌리지도 기다리지도 않아 init이 바로 끝나고, gearMotion은 null이며 기어 레이어에는 기어 스프라이트 하나뿐이다', async () => {
+  it('gearMotion: false(설정 끔)면 gearMotion 에셋 lease를 acquire하지도 기다리지도 않아 init이 바로 끝나고, GameRenderer.gearMotion은 null이며 기어 레이어에는 기어 스프라이트 하나뿐이다', async () => {
     const { renderer, scene } = await createRenderer({ gearMotion: false, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
@@ -235,7 +235,7 @@ describe('GameRenderer gearMotion (RFD 0029)', () => {
     expect(renderer.gearMotion).toBeNull();
   });
 
-  it('init이 자료를 기다리는 동안 dispose하면(화면 이탈) 나중에 자료가 와도 GPU에 올리지도(initSource 0번) 얹지도 않고 init은 거절되며 임대는 정확히 한 번 놓는다', async () => {
+  it('init이 gearMotion 에셋을 기다리는 동안 dispose하면(화면 이탈) 나중에 에셋이 와도 GPU 업로드하지도(initSource 0번) holder에 추가하지도 않고 init은 거절되며 임대는 정확히 한 번 놓는다', async () => {
     const { renderer, scene, initSource, init } = startRenderer();
     await flush();
     const holder = scene.gearLayer.children[1] as Container;

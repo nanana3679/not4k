@@ -406,7 +406,7 @@ export class GameRenderer {
       this.buildTutorialKeyboard();
     }
     this.initialized = true;
-    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
+    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
     this.buildGearMotion();
     // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
     const required: Promise<unknown>[] = [];
@@ -580,7 +580,7 @@ export class GameRenderer {
   }
 
   /**
-   * 곡을 시작하기 전에 songTimeMs의 첫 프레임을 그린다(시계는 나아가지 않는다). 셰이더·마스크 준비를 재생 시작 전에 끝낸다.
+   * 곡을 시작하기 전에 songTimeMs의 첫 프레임을 그린다(deltaMs 0이라 애니메이션 경과 시간·게이지 이징은 나아가지 않는다). 셰이더·마스크 준비를 재생 시작 전에 끝낸다.
    * `gearMotion`의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로 이 첫 프레임 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다).
    */
   private renderFirstFrame(songTimeMs: number): void {
@@ -931,7 +931,7 @@ export class GameRenderer {
     if (this.flightBackground || this.gearGauge) {
       const altitude = this.advanceFlightAltitude(songTimeMs, deltaMs);
       this.flightBackground?.render(altitude, deltaMs);
-      // 게이지 이징도 게임 프레임 간격으로만 나아가 일시정지 중에는 멈춘다(최대 50ms).
+      // 게이지 이징도 렌더 프레임 간격 `deltaMs`로만 나아가 일시정지 중에는 멈춘다(최대 50ms).
       this.gearGauge?.update(altitude, deltaMs);
     }
     // `gearMotion`의 애니메이션 경과 시간은 곡 시간이 아니라 렌더 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).

@@ -25,7 +25,7 @@ export interface GearMotionControls {
   readonly status: GearMotionStatus;
   /** 애니메이션 경과 시간(ms, 승인 SVG 애니메이션의 currentTime과 같은 뜻). 렌더러를 만들 때 0에서 시작한다. */
   readonly timeMs: number;
-  /** 지금 재생 중인지: `holder`에 추가했고(ready)·켜져 있고·`setReducedMotion(true)`가 아님. 이때만 게임 프레임마다 갱신 비용이 든다. */
+  /** 지금 재생 중인지: `holder`에 추가했고(ready)·켜져 있고·`setReducedMotion(true)`가 아님. 이때만 렌더 프레임마다 갱신 비용이 든다. */
   readonly running: boolean;
   /** 끄면 `gearMotion`을 숨기고 애니메이션 경과 시간을 멈춘다(객체는 남는다, Lab 토글). 게임 설정의 끄기는 렌더러를 만들 때 객체 자체를 만들지 않는다. */
   setEnabled(enabled: boolean): void;

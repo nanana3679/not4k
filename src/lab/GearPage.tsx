@@ -158,7 +158,7 @@ export default function GearPage() {
     };
   }, []);
 
-  // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 시계 표시만 바꾼다.
+  // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 `움직임 시계` 표시만 바꾼다.
   const handleMotionTime = useCallback((timeMs: number | null) => {
     const stageElement = stageRef.current;
     if (stageElement) {
@@ -853,7 +853,7 @@ function GearPreviewRenderer({
             beams[index] = on;
             active.setKeyBeam(index + 1, on);
           });
-          // 애니메이션 경과 시간은 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
+          // 애니메이션 경과 시간은 renderFrame의 deltaMs(렌더 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
           reportGaugeLevel(active.gearGaugeLevel);
           if (motion) {

@@ -5,7 +5,7 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 interface MotionProbe {
   /** AudioEngine.play가 불린 횟수(곡 시작). */
   audioPlays: number;
-  /** renderFrame이 불린 횟수(곡 시작 전 한 장 + 게임 프레임 수). */
+  /** renderFrame이 불린 횟수(warm-up의 첫 프레임 + 렌더 프레임 수). */
   frames: number;
   /** renderFrame마다 그 순간의 gearMotion.status(없으면 null). resetStatusLog 뒤부터 쌓인다. */
   statusLog: (string | null)[];
@@ -161,7 +161,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     const ready = await readProbe(page);
     expect(ready).toMatchObject({ hasGear: true, running: true, motionObjects: 2, motionVisible: true });
 
-    // 게임 프레임이 지나면 시계가 나아간다. 프레임 하나에 최대 50ms라 지난 프레임 수 × 50을 넘지 않는다.
+    // 렌더 프레임이 지나면 애니메이션 경과 시간(timeMs)이 나아간다. 프레임 하나에 최대 50ms라 지난 프레임 수 × 50을 넘지 않는다.
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 30_000 }).toBeGreaterThan(200);
     const before = await readProbe(page);
     await waitAnimationFrames(page, 10);
@@ -175,14 +175,14 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     const paused = await readProbe(page);
     await waitAnimationFrames(page, 30);
     const stillPaused = await readProbe(page);
-    // 일시정지 중에는 게임 루프가 renderFrame을 부르지 않으므로 시계도 그대로다.
+    // 일시정지 중에는 게임 루프가 renderFrame을 부르지 않으므로 애니메이션 경과 시간도 그대로다.
     expect(stillPaused.frames).toBe(paused.frames);
     expect(stillPaused.timeMs).toBe(paused.timeMs);
 
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 15_000 }).toBeGreaterThan(paused.timeMs!);
     const resumed = await readProbe(page);
-    // 일시정지한 시간만큼 건너뛰지 않고 재개 뒤 게임 프레임만큼만 나아간다.
+    // 일시정지한 시간만큼 건너뛰지 않고 재개 뒤 렌더 프레임만큼만 나아간다.
     expect(resumed.timeMs! - paused.timeMs!).toBeLessThanOrEqual(50 * (resumed.frames - paused.frames));
     expect(errors).toEqual([]);
   });
@@ -247,7 +247,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(errors).toEqual([]);
   });
 
-  test('첫 플레이와 일시정지 메뉴 Retry 모두 첫 renderFrame(곡 시작 전 한 장)부터 gearMotion이 ready이고 재생 중 얹기가 일어나지 않는다', async ({ page }) => {
+  test('첫 플레이와 일시정지 메뉴 Retry 모두 첫 renderFrame(warm-up의 첫 프레임)부터 gearMotion이 ready이고 재생 중 holder 추가가 일어나지 않는다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, true);
@@ -267,7 +267,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(errors).toEqual([]);
   });
 
-  test('gear-motion.json을 붙잡아 두면 곡 시작(renderFrame·오디오 재생)이 그만큼 기다리고, 놓으면 첫 renderFrame부터 ready로 시작한다', async ({ page }) => {
+  test('gear-motion.json 응답을 보류하면 곡 시작(renderFrame·오디오 재생)이 그만큼 기다리고, 응답을 보내면 첫 renderFrame부터 ready로 시작한다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     let release: () => void = () => {};
@@ -282,7 +282,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     await startLocalPlay(page, true);
     await requestStarted;
 
-    // 자료가 붙잡혀 있는 동안에는 화면이 30프레임 지나도 렌더러가 그리지 않고 곡도 시작하지 않는다.
+    // `gearMotion` 에셋 응답이 보류된 동안에는 화면이 30프레임 지나도 렌더러가 그리지 않고 곡도 시작하지 않는다.
     await waitAnimationFrames(page, 30);
     expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
 

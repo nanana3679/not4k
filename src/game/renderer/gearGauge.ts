@@ -13,7 +13,7 @@ import { GEAR_MOTION_MAX_STEP_MS } from './GearMotionController';
  * - 부드러운 경계: 마스크·필터·렌더 텍스처 없이 아틀라스의 한 행씩을 보여 주는 스프라이트 8개에 알파를 준다. 유리관마다 본체 1개와
  *   경계 8개, 두 유리관 18개 사각형이 텍스처 소스 하나라 한 배치로 그려진다(추가 렌더 패스 없음).
  * - 갱신: 표시하는 빈 행 수가 바뀔 때만 텍스처 frame·위치·알파를 고친다. 프레임마다 객체를 만들지 않는다.
- * - 경과 시간: 이징은 렌더러가 넘기는 게임 프레임 간격(`renderFrame`의 deltaMs, 최대 50ms)으로만 나아가 일시정지 중에는 멈춘다.
+ * - 경과 시간: 이징은 렌더러가 넘기는 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자, 최대 50ms)로만 나아가 일시정지 중에는 멈춘다.
  */
 
 /**
@@ -80,7 +80,7 @@ interface TubeCover {
 
 /**
  * 고도 게이지 하나의 수명. 렌더러가 기어를 그릴 때 만들어 기어 레이어의 `gearMotion` 위에 붙이고, 프레임마다 update(고도, deltaMs)를 부른다.
- * 처음 update와 snapNext 뒤의 update는 이징 없이 목표로 바로 맞춘다(차트 걸기·곡 시작 전 한 장).
+ * 처음 update와 snapNext 뒤의 update는 이징 없이 목표로 바로 맞춘다(`setChart` 때와 warm-up의 첫 프레임).
  */
 export class GearGauge {
   /** 기어 그림 좌표의 덮개 루트(두 유리관). 채움 1이면 숨긴다. */
@@ -147,7 +147,7 @@ export class GearGauge {
     if (rows !== this.shownRows) this.applyRows(rows);
   }
 
-  /** 다음 update는 이징 없이 목표로 바로 맞춘다(차트를 다시 걸 때·곡 시작 전 한 장). */
+  /** 다음 update는 이징 없이 목표로 바로 맞춘다(`setChart` 때와 warm-up의 첫 프레임). */
   snapNext(): void {
     this.snapPending = true;
   }

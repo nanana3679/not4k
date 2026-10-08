@@ -7,7 +7,7 @@ import { viewBoxTransform, type GearViewBox } from './gearMotionView';
 /**
  * 기어만 그리는 작은 Pixi 앱(GameRenderer 아님). 승인된 SVG와 같은 바탕(SVG의 #fm-base 그림) 위에 게임의 `gearMotion`(기어 위 장식 애니메이션) 모듈
  * (src/game/renderer/gearMotion)을 추가해, 같은 시각·같은 viewBox로 SVG와 나란히 비교한다. `gearMotion` 텍스처는 게임 렌더러와 같은
- * 공유 로더(acquireGearMotionAssets)의 공유 에셋을 받아 쓰고 destroy하지 않는다(lease는 호출자가 release한다).
+ * 공유 로더(acquireGearMotionAssets)가 준 같은 에셋을 쓰고 destroy하지 않는다(lease는 호출자가 release한다).
  * E2E 픽셀 비교도 이 함수로 원본 크기(1024×1536) 화면을 만든다.
  */
 

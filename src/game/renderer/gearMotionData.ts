@@ -26,7 +26,7 @@ export const GEAR_MOTION_TEXTURE_KEYS = [
 ] as const;
 export type GearMotionTextureKey = (typeof GEAR_MOTION_TEXTURE_KEYS)[number];
 
-/** 텍스처 안의 한 조각: 아틀라스 상자(atlasX, atlasY, width, height)를 기어 그림 좌표 (x, y)에 그린다(움직임 0일 때). */
+/** 텍스처 안의 atlas frame 하나: 원본 영역(atlasX, atlasY, width, height)을 기어 그림 좌표 (x, y)에 그린다(애니메이션 오프셋 0일 때). */
 export interface GearMotionPiece {
   x: number;
   y: number;

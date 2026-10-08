@@ -68,7 +68,7 @@ describe('gearMotion 에셋 경로', () => {
     expect(published).toEqual(files);
   });
 
-  it('게임 자료 모듈은 Lab 경로·승인 SVG·비교 보기를 모른다(/lab·svg·viewBox 없음)', () => {
+  it('게임 데이터 모듈은 Lab 경로·승인 SVG·비교 보기를 모른다(/lab·svg·viewBox 없음)', () => {
     expect(dataSource).not.toMatch(/['"]\/lab\//);
     expect(dataSource).not.toContain('.svg');
     expect(dataSource).not.toContain('viewBox');

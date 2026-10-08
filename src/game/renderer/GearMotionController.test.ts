@@ -57,7 +57,7 @@ async function readyController(options: Partial<GearMotionControllerOptions> = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애니메이션 경과 시간', () => {
-  it('자료가 준비되기 전에는 status loading·시계 0·running false·ready 미이행이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', async () => {
+  it('gearMotion 에셋이 준비되기 전에는 status loading·애니메이션 경과 시간 0·running false·ready 미이행이고 advance(16)을 해도 애니메이션 경과 시간이 0이며 holder는 비어 있다', async () => {
     const { holder, controller } = controllerWith();
     const ready = vi.fn();
     void controller.ready.then(ready);
@@ -92,7 +92,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it(`advance에 5000ms가 들어와도(숨은 탭 복귀·긴 프레임) 시계는 ${GEAR_MOTION_MAX_STEP_MS}ms만 나아간다`, async () => {
+  it(`advance에 5000ms가 들어와도(숨은 탭 복귀·긴 프레임) 애니메이션 경과 시간은 ${GEAR_MOTION_MAX_STEP_MS}ms만 나아간다`, async () => {
     const { controller } = await readyController();
     controller.advance(5000);
     expect(GEAR_MOTION_MAX_STEP_MS).toBe(50);
@@ -109,14 +109,14 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('탭이 숨어 있으면 advance(16)이 시계를 0에 그대로 둔다(비행 배경과 같은 규칙)', async () => {
+  it('탭이 숨어 있으면 advance(16)이 애니메이션 경과 시간을 0에 그대로 둔다(비행 배경과 같은 규칙)', async () => {
     const { controller } = await readyController({ isHidden: () => true });
     controller.advance(16);
     expect(controller.timeMs).toBe(0);
     controller.destroy();
   });
 
-  it('advance를 부르지 않는 동안(게임 일시정지) 시계는 32ms에 멈춰 있고, 다시 advance(16)하면 멈춘 자리에서 48ms로 이어 간다', async () => {
+  it('advance를 부르지 않는 동안(게임 일시정지) 애니메이션 경과 시간은 32ms에 멈춰 있고, 다시 advance(16)하면 멈춘 시점에서 48ms로 이어 간다', async () => {
     const { controller } = await readyController();
     controller.advance(16);
     controller.advance(16);
@@ -142,7 +142,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('setEnabled(false)면 자리를 숨기고 시계를 멈추며(running false), 다시 켜면 보이고 이어 간다', async () => {
+  it('setEnabled(false)면 holder를 숨기고 애니메이션 경과 시간을 멈추며(running false), 다시 켜면 보이고 이어 간다', async () => {
     const { holder, controller } = await readyController();
     controller.advance(16);
     controller.setEnabled(false);
@@ -168,7 +168,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('seek(30000)이면 시계가 30000ms이고 광원 띠 중심이 y 768에 오며, restart()면 0으로 돌아가 y −841', async () => {
+  it('seek(30000)이면 애니메이션 경과 시간이 30000ms이고 광원 띠 중심이 y 768에 오며, restart()면 0으로 돌아가 y −841', async () => {
     const { holder, controller } = await readyController();
     controller.seek(30_000);
     expect(controller.timeMs).toBe(30_000);
@@ -215,7 +215,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     empty.destroy();
   });
 
-  it('자료 읽기가 실패하면(필수 자료) ready가 같은 오류로 거절되고 자리는 비어 있으며, 경고 없이 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
+  it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { holder, lease, reject, controller } = controllerWith();
     const failure = new Error('404 gear-motion.json');
