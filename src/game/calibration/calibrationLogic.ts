@@ -81,7 +81,6 @@ export function calculateCalibrationResult(diffs: number[]): CalibrationResult {
   return { offset, stdDev, sampleCount: cleaned.length };
 }
 
-
 /** 캘리브레이션에서 사용하는 기본 간격 (ms) */
 export const CALIBRATION_INTERVAL_MS = 600;
 

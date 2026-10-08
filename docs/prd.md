@@ -482,7 +482,7 @@ Lv.1~15, 5단계 등급.
   - 실제 튜토리얼 팝업에서 도식 확인 후 연결 예시를 반복 재생하고, 서로 다른 두 세션의 4000ms 마지막 release가 각각 한 번만 Perfect로 정산되는지 확인했다. 100%·Miss 0과 브라우저 page error 0도 확인했다.
 - 브라우저에서 발견한 회귀 수정: `TutorialPreviewPlayer`가 루프 끝과 같은 시각의 입력을 처리하기 전에 세션을 초기화하여 마지막 release를 누락했다. 이제 이전 세션을 `loopMs`까지 진행한 뒤 새 반복을 시작한다. `tutorialPreviewSession.test.ts`에 3970 → 4000 → 0ms의 마지막 release·점수·초기화 검사를 추가했다.
 - 기존 game/editor E2E는 전체 통과하지 않았다. game의 기존 19개 중 11개 통과·8개 실패: 설정 입력의 순서 기반 selector와 사라진 Placeholder Song/EASY fixture가 현재 화면과 맞지 않는다. editor는 필수 `songId`·`difficulty` 없이 `/editor`로 이동하여 `/game`으로 되돌아가는 공통 준비 단계에서 10개가 실패했다. 같은 원인 확인 후 통합 실행을 중단하여 그 실행의 나머지 25개는 실행하지 않았다. 해당 라우팅과 설정·곡 선택 화면은 이번 판정 변경 전부터 같은 동작이었다. editor 테스트 두 파일의 ESM `__dirname` 오류는 `import.meta.url` 기반 경로로 수정했지만 기존 시나리오 전반의 보수는 남아 있다.
-- 시각 주입 통합 검사: ±100ms 입력 오프셋의 Good 경계, 늦은 프레임에서 입력을 기한보다 먼저 전달, 과거 timestamp의 raw 등급 보존과 확정 Miss 불가역, +200ms 오프셋과 AutoPlayer 병합, 같은 관측 묶음의 Miss 우선을 검증했다.
+- 시각 주입 통합 검사: ±100ms 입력 오프셋의 Good 경계, 늦은 프레임에서 입력을 기한보다 먼저 전달, 과거 timestamp의 raw 등급 보존과 확정 Miss 불가역, −200ms 입력 오프셋(입력이 앞섬, 2026-10-08 부호 정정 전에는 +200ms로 적음)과 AutoPlayer 병합, +50ms 입력 오프셋(입력이 늦음)에서 뒤따르는 auto 노트가 수동 노트의 늦은 입력보다 먼저 core를 앞당기지 않음(PR #242), 같은 관측 묶음의 Miss 우선을 검증했다.
 - 독립 성능 측정: 4ms 간격의 합법 `holdOnly` 연결 1,000개를 한 키로 유지하고 16ms마다 총 259회 진행했다. Perfect 1,000개·Miss 0개, 초기화 약 65ms, 판정 처리 p50 3.8ms / p95 6.5ms / 최대 8.8ms였다. 이 환경의 core 측정이며 GPU 렌더링이나 실제 브라우저 프레임률을 보장하는 결과는 아니다.
 
 기존 `JudgmentEngine`·`tutorialPreviewJudgment`는 이전 동작의 호환 회귀용으로 표시하여 보존했다. 현재 PlayScreen·TutorialPreviewPlayer는 이 경로를 호출하지 않는다. 이번 검증에 추가 권한은 필요하지 않다. 배포·커밋·외부 데이터 변경은 수행하지 않았다.
