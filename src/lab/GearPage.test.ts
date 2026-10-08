@@ -42,6 +42,26 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toMatch(/<input id="gear-preview-lift" type="range" min="0" max="10" step="1" value="0"\/>/);
   });
 
+  it('고도 조절은 곡 진행 따라가기(기본 켬)와 정수 0~100% 직접 정하기 슬라이더(100%에서 시작)이고 무대가 data-altitude-mode="follow"를 알린다', () => {
+    const markup = render();
+    const stage = stageOf(markup);
+    expect(stage).toContain('data-altitude-mode="follow"');
+    expect(stage).toContain('data-altitude-percent="100"');
+    // 렌더러가 준비되기 전에는 게이지 채움을 알리지 않는다.
+    expect(stage).not.toContain('data-gear-gauge-level');
+    expect(markup).toContain('<label class="gear-preview-check"><input type="checkbox" checked=""/><span>곡 진행 따라가기</span></label>');
+    expect(markup).toMatch(/<input id="gear-preview-altitude" type="range" min="0" max="100" step="1" value="100"\/>/);
+  });
+
+  it('고도 고정과 게이지 채움 읽기는 렌더러 공개 API(setAltitudeOverride·gearGaugeLevel)로만 하고 무대 data-gear-gauge-level에 알린다', () => {
+    expect(pageSource).toContain('active.setAltitudeOverride(');
+    expect(pageSource).toContain('active.gearGaugeLevel');
+    // 따라가기를 끄면 슬라이더 시작값(100%)으로 뛰지 않고 그때 보이던 게이지 채움에서 멈춘다.
+    expect(pageSource).toContain('manualAltitudeOnUnfollow(');
+    expect(pageSource).toContain('gearGaugeLevel');
+    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearGauge\b|altitudeOverride|flightAltitudeState)/);
+  });
+
   it('설명은 게임과 같은 배치 숫자(0.453배·위 141행 잘림·판정선 y 416·덱 틈 13.7·키 윗면 446.5·선명도 0.82px)를 보여 준다', () => {
     const markup = render();
     expect(markup).toContain('0.453배');

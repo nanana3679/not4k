@@ -392,7 +392,8 @@
   line-height: 1.55;
 }
 
-.gear-preview-motion {
+.gear-preview-motion,
+.gear-preview-altitude {
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -401,10 +402,18 @@
   background: rgba(16, 36, 41, 0.55);
 }
 
-.gear-preview-motion legend {
+.gear-preview-motion legend,
+.gear-preview-altitude legend {
   float: left;
   width: 100%;
   margin-bottom: 4px;
+}
+
+/* 고도 묶음 안의 슬라이더는 묶음과 같은 판 위에 두고 따로 테두리를 두르지 않는다. */
+.gear-preview-altitude .gear-preview-slider {
+  padding: 0;
+  border: 0;
+  background: none;
 }
 
 .gear-preview-checks {

@@ -40,15 +40,17 @@ describe('시안 교체', () => {
     expect(design.bombs[0].frames).toBe(skin.assets.bomb);
   });
 
-  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 기어 그림 /gear/gear.png를 사용한다', version => {
+  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 기어 그림 /gear/gear.png와 빈 유리 /gear/gear-gauge-empty.png를 사용한다', version => {
     const design = getNoteAssetDesign('classic', version);
     const prefix = `/lab/skin-versions/classic/${version}/`;
     expect(design.id).toBe('classic');
     expect(design.versionId).toBe(version);
     expect(design.skinId).toBe(`classic-${version}`);
     expect(design.skinManifest?.theme.available).toBe(false);
-    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    const { gearImage, gearGaugeEmpty, ...skinAssets } = design.skinManifest!.assets;
     expect(gearImage).toBe('/gear/gear.png');
+    // 보관본은 고도 게이지보다 오래되었어도 지금 기어와 짝인 지금 빈 유리를 쓴다(렌더러가 기어 측정값의 유리관 자리에 겹친다).
+    expect(gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
     expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
     for (const path of Object.values(skinAssets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
     for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
@@ -101,11 +103,12 @@ describe('/not4k/ 배포의 시안 주소', () => {
     }
   });
 
-  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림에 접두사를 한 번만 붙인다', async () => {
+  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림·빈 유리에 접두사를 한 번만 붙인다', async () => {
     const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
     const design = getPublicDesign('classic', 'v001');
-    const { gearImage, ...skinAssets } = design.skinManifest!.assets;
+    const { gearImage, gearGaugeEmpty, ...skinAssets } = design.skinManifest!.assets;
     expect(gearImage).toBe('/not4k/gear/gear.png');
+    expect(gearGaugeEmpty).toBe('/not4k/gear/gear-gauge-empty.png');
     for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
       expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
       expect(path).not.toContain('/not4k/not4k/');
@@ -124,13 +127,15 @@ describe('켜짐 효과 없는 스킨의 시연실 랙 (RFD 0028)', () => {
 });
 
 describe('보관한 Classic 버전의 기어 키', () => {
-  it('#231 뒤에 보관할 버전처럼 기어 키가 gearImage인 매니페스트도 오류 없이 지금 공통 기어 /gear/gear.png로 바꾸고 보관본 기어 경로는 쓰지 않는다', () => {
+  it('#231 뒤에 보관할 버전처럼 기어 키가 gearImage·gearGaugeEmpty인 매니페스트도 오류 없이 지금 공통 기어·빈 유리로 바꾸고 보관본 기어 경로는 쓰지 않는다', () => {
     const v014 = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!;
     const { gearFrame: _archivedGear, gearGaugeLeft: _left, gearGaugeRight: _right, ...assets } = v014.manifest.assets;
-    const future = { ...v014, id: 'v015', manifest: { ...v014.manifest, assets: { ...assets, gearImage: '/gear/archived-gear.png' } } };
+    const future = { ...v014, id: 'v015', manifest: { ...v014.manifest, assets: { ...assets, gearImage: '/gear/archived-gear.png', gearGaugeEmpty: '/gear/archived-gauge.png' } } };
     const { design } = createArchivedClassicDesign(future);
     expect(design.skinManifest!.assets.gearImage).toBe('/gear/gear.png');
+    expect(design.skinManifest!.assets.gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
     expect(JSON.stringify(design)).not.toContain('/gear/archived-gear.png');
+    expect(JSON.stringify(design)).not.toContain('/gear/archived-gauge.png');
     expect(design.skinManifest!.assets.noteSingle).toBe('/lab/skin-versions/classic/v015/skin/note-single.png');
   });
 });

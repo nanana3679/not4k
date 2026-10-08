@@ -21,12 +21,33 @@ describe('기어 측정값 (prepare-frame-fit-v20.mjs → gearGeometry.json)', (
       deckTop: 1090, laneOpeningBottom: 1126,
       silhouetteLeft: 16, silhouetteRight: 1007,
       silhouetteBottom: 1465,
+      gauge: {
+        atlasWidth: 192, atlasHeight: 832,
+        fillTop: 196, fillRows: 821,
+        glass: { x0: 136, x1: 208, top: [196, 203], bottom: [1010, 1016], feather: 2, mirrorSum: 1023 },
+        tubes: [
+          { x: 136, y: 196, width: 73, height: 821, atlasX: 8, atlasY: 4 },
+          { x: 815, y: 196, width: 73, height: 821, atlasX: 111, atlasY: 4 },
+        ],
+      },
     });
+  });
+
+  it('유리관 게이지 상자는 채움 구간(196행부터 821행)과 같고 오른쪽 유리관은 왼쪽을 x′ = 1023 − x로 반전한 자리(815~887열)다', () => {
+    const { gauge } = GEAR_GEOMETRY;
+    for (const tube of gauge.tubes) expect([tube.y, tube.height]).toEqual([gauge.fillTop, gauge.fillRows]);
+    const [left, right] = gauge.tubes;
+    expect([right.x, right.x + right.width - 1]).toEqual([1023 - (left.x + left.width - 1), 1023 - left.x]);
   });
 
   it('측정값 JSON은 기어 그림 public/gear/gear.png를 가리키고 매니페스트 gearImage도 같은 그림이다', () => {
     expect(gearJson.image).toBe('public/gear/gear.png');
     expect(getSkinManifest('classic').assets.gearImage).toBe('/gear/gear.png');
+  });
+
+  it('측정값 JSON의 게이지는 빈 유리 아틀라스 public/gear/gear-gauge-empty.png를 가리키고 매니페스트 gearGaugeEmpty도 같은 그림이다', () => {
+    expect(gearJson.gauge.image).toBe('public/gear/gear-gauge-empty.png');
+    expect(getSkinManifest('classic').assets.gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
   });
 
   it('밉맵·삼선형 필터로 읽어 0.45배 이하로 줄여 그려도 계단이 생기지 않게 한다', () => {

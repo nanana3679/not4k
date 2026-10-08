@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { GEAR_GEOMETRY, layoutGear } from '../game/renderer/gearLayout';
 import { GAME_HEIGHT, LANE_AREA_WIDTH } from '../game/renderer/constants';
 import {
+  altitudeOverrideFor,
+  altitudePercentOf,
+  clampAltitudePercent,
   clampLiftPercent,
+  describeGaugeLevel,
+  formatGaugeLevel,
+  manualAltitudeOnUnfollow,
   describeGear,
   describeGearJudgment,
   describePixelRatio,
@@ -107,5 +113,38 @@ describe('키보드 표시 선택', () => {
     expect([...GEAR_PREVIEW_KEYBOARDS.numpad.bindings.keys()].some((code) => code.startsWith('Numpad'))).toBe(true);
     expect([...GEAR_PREVIEW_KEYBOARDS.tkl.bindings.keys()].some((code) => code.startsWith('Numpad'))).toBe(false);
     expect(GEAR_PREVIEW_KEYBOARDS.tkl.bindings.get('KeyQ')).toBe(1);
+  });
+});
+
+describe('고도 조절(기어 게이지·비행 배경)', () => {
+  it('직접 정하기 슬라이더 값은 정수 %로 맞추고 0~100으로 묶는다(−5 → 0, 130 → 100, 29.6 → 30, NaN → 100)', () => {
+    expect([clampAltitudePercent(-5), clampAltitudePercent(130), clampAltitudePercent(29.6), clampAltitudePercent(Number.NaN)]).toEqual([0, 100, 30, 100]);
+  });
+
+  it('곡 진행 따라가기면 렌더러 고정값은 null, 직접 정한 고도 0.3이면 0.3이고 1.2는 1로 자른다', () => {
+    expect(altitudeOverrideFor(true, 0.3)).toBeNull();
+    expect(altitudeOverrideFor(false, 0.3)).toBe(0.3);
+    expect(altitudeOverrideFor(false, 1.2)).toBe(1);
+  });
+
+  it('슬라이더는 고정 고도를 정수 %로 가리킨다(0.734 → 73, 0.996 → 100)', () => {
+    expect([altitudePercentOf(0.734), altitudePercentOf(0.996)]).toEqual([73, 100]);
+  });
+
+  it('따라가기를 끄는 순간에는 그때 보이던 게이지 채움 0.734를 그대로 고정값으로 써 게이지가 멈춰 있고, 게이지가 없으면(null) 지금 고정값 0.6을 유지한다', () => {
+    expect(manualAltitudeOnUnfollow(0.734, 1)).toBe(0.734);
+    expect(manualAltitudeOnUnfollow(null, 0.6)).toBe(0.6);
+  });
+
+  it('무대 data 속성은 게이지 채움을 소수 셋째 자리까지 적고(0.3 → "0.300"), 게이지가 없으면 속성을 쓰지 않는다', () => {
+    expect(formatGaugeLevel(0.3)).toBe('0.300');
+    expect(formatGaugeLevel(1)).toBe('1.000');
+    expect(formatGaugeLevel(null)).toBeUndefined();
+  });
+
+  it('설명은 채움 %와 덮은 빈 유리 행을 보여 준다(0.3 → "30% · 빈 유리 575/821행", 1 → "100% · 그림 그대로", 없으면 "게이지 없음")', () => {
+    expect(describeGaugeLevel(0.3)).toBe('30% · 빈 유리 575/821행');
+    expect(describeGaugeLevel(1)).toBe('100% · 그림 그대로');
+    expect(describeGaugeLevel(null)).toBe('게이지 없음');
   });
 });

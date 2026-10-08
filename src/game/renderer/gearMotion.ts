@@ -44,8 +44,9 @@ export interface GearMotion {
   /** 기어 그림 좌표의 움직임 루트. 기어 스프라이트 바로 위에 같은 변환으로 놓는다. */
   readonly container: Container;
   /**
-   * B 게이지의 액체 타일과 기포를 담은 채움 컨테이너(기어 그림 좌표). 유리 윤곽 마스크는 그 부모(게이지 레이어)에 걸려 있다.
-   * 고도 게이지(후속 작업)가 여기에 채움 높이 마스크를 걸어 액체·기포를 함께 자른다. 지금은 마스크 없이 유리관을 가득 채운다.
+   * B 게이지의 액체 타일과 기포를 담은 채움 컨테이너(기어 그림 좌표). 유리 윤곽 마스크는 그 부모(게이지 레이어)에 걸려 있고
+   * 이 컨테이너에는 마스크가 없어 유리관 전체에서 흐른다. 고도 게이지는 이것을 자르지 않는다. 렌더러가 기어 레이어에서 움직임 위에
+   * 빈 유리 덮개(gearGauge.ts)를 겹치므로, 빈 부분에서는 덮개가 액체·기포를 가리고 채운 부분에서만 보인다.
    */
   readonly gaugeFill: Container;
   readonly reducedMotion: boolean;
@@ -281,7 +282,7 @@ export function createGearMotion(data: GearMotionData, textures: GearMotionTextu
     });
     const bubbleLayer = new Container({ label: 'gear-motion-bubbles' });
     bubbleLayer.addChild(bubblesLeft, bubblesRight);
-    // 액체와 기포는 채움 컨테이너 하나에 담는다. 고도 게이지가 이 컨테이너만 채움 높이로 자르면 둘이 함께 잘린다.
+    // 액체와 기포는 채움 컨테이너 하나에 담는다(유리 윤곽 마스크만 걸린다). 고도 게이지의 빈 부분에서는 그 위에 겹친 빈 유리 덮개가 둘을 함께 가린다.
     const gaugeFill = new Container({ label: 'gear-motion-gauge-fill' });
     gaugeFill.addChild(liquidLayer, bubbleLayer);
     gaugeLayer.addChild(gaugeFill, glass);

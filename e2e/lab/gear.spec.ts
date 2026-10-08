@@ -83,6 +83,48 @@ async function gearAlpha(page: Page, points: { x: number; y: number }[]): Promis
   }, points);
 }
 
+/** 기어 그림 public/gear/gear.png의 원본 좌표 RGB. */
+async function gearColour(page: Page, points: { x: number; y: number }[]): Promise<number[][]> {
+  return page.evaluate(async (points) => {
+    const image = new Image();
+    image.src = '/gear/gear.png';
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    context.drawImage(image, 0, 0);
+    return points.map((point) => [...context.getImageData(point.x, point.y, 1, 1).data].slice(0, 3));
+  }, points);
+}
+
+/** 기어 그림 좌표 점들을 무대 논리 좌표로 바꾸는 함수(살아 있는 렌더러가 알린 기어 배치). */
+async function gearToStage(page: Page) {
+  const gearX = await numberAttribute(page, 'data-gear-x');
+  const gearScale = await numberAttribute(page, 'data-gear-scale');
+  const top = await numberAttribute(page, 'data-gear-top');
+  return (point: { x: number; y: number }) => ({ x: gearX + point.x * gearScale, y: top + point.y * gearScale });
+}
+
+/** 곡 진행 따라가기를 끄고 고도 직접 정하기 슬라이더를 percent로 옮긴 뒤 게이지가 그 채움에 붙을 때까지 기다린다. */
+async function setAltitude(page: Page, percent: number) {
+  // 따라가기를 끄면 그때 보이던 채움으로 고정되고 슬라이더도 그 %로 옮겨진다. 슬라이더가 이미 그 값이면 fill이 변경 이벤트를 내지 않으므로
+  // 이웃 값을 먼저 거쳐 정확히 percent ÷ 100으로 고정한다.
+  await page.getByLabel('곡 진행 따라가기').uncheck();
+  const slider = page.locator('#gear-preview-altitude');
+  if (await slider.inputValue() === String(percent)) await slider.fill(String(percent === 100 ? 99 : percent + 1));
+  await slider.fill(String(percent));
+  const stage = page.locator(stageSelector);
+  await expect(stage).toHaveAttribute('data-altitude-mode', 'manual');
+  await expect(stage).toHaveAttribute('data-altitude-percent', String(percent));
+  await expect(stage).toHaveAttribute('data-gear-gauge-level', (percent / 100).toFixed(3), { timeout: 5000 });
+}
+
+// 두 유리관 가운데 열(왼쪽 172, 반전한 오른쪽 851)의 표본 행. 채움 구간은 196~1016행(821행)이다.
+const TUBE_COLUMNS = [172, 851];
+const isEmptyGlass = ([r, g, b]: number[]) => b < 70 && g < 50 && r < 40;
+const isLitLiquid = ([, g, b]: number[]) => b > 200 && g > 150;
+
 const motionTime = async (page: Page) => {
   const value = await page.locator(stageSelector).getAttribute('data-motion-time-ms');
   return value === null ? null : Number(value);
@@ -200,10 +242,112 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     const painted = [13, 18, 23];
     expect(Math.hypot(inside[0] - painted[0], inside[1] - painted[1], inside[2] - painted[2])).toBeGreaterThan(10);
 
-    // 왼쪽 게이지 유리 안(원본 172, 800)은 화면에 파란빛으로 보인다(게이지는 그림 그대로 가득).
+    // 고도 100%로 정하면 왼쪽 게이지 유리 안(원본 172, 800)은 화면에 파란빛으로 보인다(게이지가 그림 그대로 가득).
+    await setAltitude(page, 100);
     const [gauge] = await pixelsAt(page, [{ x: gearX + 172 * gearScale, y: top + 800 * gearScale }]);
     expect(gauge[2]).toBeGreaterThan(160);
     expect(gauge[2] - gauge[0]).toBeGreaterThan(60);
+    expect(errors).toEqual([]);
+  });
+
+  test('고도는 곡 진행 따라가기로 시작해 무대에 게이지 채움을 알리고, 직접 30%로 정하면 두 유리관 모두 채움 경계(771행) 위는 빈 유리로 어둡고 아래는 청록 액체다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-altitude-mode', 'follow');
+    // 곡 진행 따라가기: 시연 차트(약 3분) 앞부분이라 게이지가 거의 가득이다.
+    await expect.poll(async () => Number(await stage.getAttribute('data-gear-gauge-level'))).toBeGreaterThan(0.5);
+    await expect(page.locator('.gear-preview-readout')).toContainText('유리관 게이지');
+    // 움직임을 끄면 정적 기어만 남아 픽셀이 시간에 따라 바뀌지 않는다.
+    await page.getByLabel('움직임', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+
+    await setAltitude(page, 30);
+    await expect(page.locator('.gear-preview-readout')).toContainText('30% · 빈 유리 575/821행');
+    const toStage = await gearToStage(page);
+    const above = await pixelsAt(page, TUBE_COLUMNS.flatMap((x) => [300, 500, 740].map((y) => toStage({ x, y }))));
+    const below = await pixelsAt(page, TUBE_COLUMNS.flatMap((x) => [800, 900].map((y) => toStage({ x, y }))));
+    for (const pixel of above) expect(isEmptyGlass(pixel), `빈 유리 ${pixel}`).toBe(true);
+    for (const pixel of below) expect(isLitLiquid(pixel), `액체 ${pixel}`).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('곡 진행 따라가기를 끄면 그 순간 보이던 채움 그대로 고정되어 슬라이더가 그 %를 가리키고, 1.5초가 지나도 게이지가 움직이지 않는다(시작값 100%로 뛰지 않음)', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    // 데모 곡이 몇 초 흘러 따라가는 고도가 1보다 확실히 낮아진 뒤 끈다(약 3분 동안 1 → 0, 1초에 약 0.0055).
+    await expect.poll(async () => Number(await stage.getAttribute('data-gear-gauge-level')), { timeout: 20000 }).toBeLessThan(0.985);
+    // 끄기 직전 채움을 같은 JS 작업 안에서 읽고 바로 체크를 끈다(Playwright 조작 대기 동안 따라가는 고도가 내려가지 않게).
+    const followed = await page.evaluate(() => {
+      const stageElement = document.querySelector<HTMLElement>('[data-gear-preview-stage="true"]')!;
+      const level = Number(stageElement.dataset.gearGaugeLevel);
+      const follow = [...document.querySelectorAll<HTMLLabelElement>('.gear-preview-altitude label')]
+        .find((label) => label.textContent?.includes('곡 진행 따라가기'))!.querySelector('input')!;
+      follow.click();
+      return level;
+    });
+    await expect(stage).toHaveAttribute('data-altitude-mode', 'manual');
+    await expect(page.getByLabel('곡 진행 따라가기')).not.toBeChecked();
+    // 고정값이 렌더러에 걸릴 때까지 몇 프레임 기다린 뒤 읽는다(그 사이 따라가던 고도가 0.001 넘게 바뀔 수 있다).
+    await page.waitForTimeout(300);
+    const held = Number(await stage.getAttribute('data-gear-gauge-level'));
+    expect(Math.abs(held - followed)).toBeLessThanOrEqual(0.003);
+    expect(held).toBeLessThan(0.99);
+    await expect(page.locator('#gear-preview-altitude')).toHaveValue(String(Math.round(held * 100)));
+    await expect(stage).toHaveAttribute('data-altitude-percent', String(Math.round(held * 100)));
+    await page.waitForTimeout(1500);
+    // 따라가기였다면 1.5초 동안 약 0.008 내려갔겠지만, 고정되어 소수 셋째 자리까지 그대로다.
+    await expect(stage).toHaveAttribute('data-gear-gauge-level', held.toFixed(3));
+    expect(errors).toEqual([]);
+  });
+
+  test('고도 100%면 두 유리관이 기어 그림과 같은 색(채널 차 24 이내)이고, 0%면 위에서 아래까지 모두 빈 유리이며, 곡 진행 따라가기를 다시 켜면 고정이 풀린다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await page.getByLabel('움직임', { exact: true }).uncheck();
+    const toStage = await gearToStage(page);
+    const points = TUBE_COLUMNS.flatMap((x) => [300, 500, 900].map((y) => ({ x, y })));
+
+    await setAltitude(page, 100);
+    await expect(page.locator('.gear-preview-readout')).toContainText('100% · 그림 그대로');
+    const painted = await gearColour(page, points);
+    const full = await pixelsAt(page, points.map(toStage));
+    full.forEach((pixel, index) => {
+      const difference = Math.max(...[0, 1, 2].map((channel) => Math.abs(pixel[channel] - painted[index][channel])));
+      expect(difference, `${JSON.stringify(points[index])} 화면 ${pixel} 그림 ${painted[index]}`).toBeLessThanOrEqual(24);
+    });
+
+    await setAltitude(page, 0);
+    const empty = await pixelsAt(page, TUBE_COLUMNS.flatMap((x) => [300, 600, 900].map((y) => toStage({ x, y }))));
+    for (const pixel of empty) expect(isEmptyGlass(pixel), `빈 유리 ${pixel}`).toBe(true);
+
+    await page.getByLabel('곡 진행 따라가기').check();
+    await expect(stage).toHaveAttribute('data-altitude-mode', 'follow');
+    await expect.poll(async () => Number(await stage.getAttribute('data-gear-gauge-level')), { timeout: 5000 }).toBeGreaterThan(0.5);
+    expect(errors).toEqual([]);
+  });
+
+  test('기어 움직임이 켜져 있어도 고도 30%에서 채움 경계 위 유리 안에는 움직임의 액체·기포가 보이지 않는다(빈 유리 덮개가 움직임 위)', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-motion', 'on');
+    await setAltitude(page, 30);
+    const toStage = await gearToStage(page);
+    // 액체 타일(45%)이 흐르고 기포가 오르는 동안 몇 번 찍어도 경계 위는 늘 빈 유리다.
+    for (let shot = 0; shot < 3; shot++) {
+      const above = await pixelsAt(page, TUBE_COLUMNS.flatMap((x) => [300, 500, 740].map((y) => toStage({ x, y }))));
+      for (const pixel of above) expect(isEmptyGlass(pixel), `빈 유리 ${pixel}`).toBe(true);
+      await page.waitForTimeout(300);
+    }
+    const below = await pixelsAt(page, TUBE_COLUMNS.map((x) => toStage({ x, y: 900 })));
+    for (const pixel of below) expect(isLitLiquid(pixel), `액체 ${pixel}`).toBe(true);
     expect(errors).toEqual([]);
   });
 

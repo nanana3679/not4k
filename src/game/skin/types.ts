@@ -111,6 +111,11 @@ export interface SkinManifest {
      */
     gearImage: string;
     /**
+     * 고도 게이지의 빈 유리(스킨 공통). 두 유리관 안쪽만 유리 윤곽 알파로 잘라 담은 아틀라스이며, 렌더러가 기어 그림의 유리관 위에
+     * 위에서부터 채움 경계까지 덮는다. 자리는 gearGeometry.json의 `gauge`이며 기어와 같은 밉맵·삼선형 필터로 읽는다.
+     */
+    gearGaugeEmpty: string;
+    /**
      * 4개 버튼 idle/pressed. 새 기어가 키를 그림으로 갖고 있어 게임은 더 이상 그리지 않는다.
      * Classic 버전 판별(게임 PNG 60개)이 이 PNG를 포함하므로 필드와 에셋은 후속 정리 때 새 버전 보관과 함께 뺀다.
      */

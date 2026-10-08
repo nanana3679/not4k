@@ -16,15 +16,16 @@ afterEach(async () => {
 });
 
 describe('Classic 버전 Lab 공개', () => {
-  it('v001·v002·v012의 재생기·랙 에셋 주소는 공통 기어만 빼고 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
+  it('v001·v002·v012의 재생기·랙 에셋 주소는 공통 기어(그림·빈 유리)만 빼고 모두 보관 파일에 연결되고 원본 코드·manifest는 공개하지 않는다', async () => {
     const entries = await classicVersionPreviewEntries(root);
     const paths = new Set(entries.map(entry => entry.pathname));
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => /\.(png|svg)$/.test(entry.pathname))).toBe(true);
     for (const { design } of CLASSIC_NOTE_ASSET_VERSIONS) {
-      const { gearImage, ...skinAssets } = design.skinManifest!.assets;
-      // 보관본도 지금 공통 기어로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
+      const { gearImage, gearGaugeEmpty, ...skinAssets } = design.skinManifest!.assets;
+      // 보관본도 지금 공통 기어와 고도 게이지 빈 유리로 재생한다(렌더러 배치가 이 그림의 측정값을 따른다).
       expect(gearImage).toBe('/gear/gear.png');
+      expect(gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
       expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
       for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
         expect(paths.has(path), path).toBe(true);
@@ -85,9 +86,9 @@ describe('Classic 버전 Lab 공개', () => {
     // 스킨 공통 기어는 버전에 속하지 않는다. v014 보관 당시의 옛 기어·게이지 기록만 다르고 나머지 에셋은 같다.
     // 보관 매니페스트는 키 이름도 보관 당시 그대로다(#231 전 키 gearFrame).
     const { gearFrame: archivedGear, gearGaugeLeft, gearGaugeRight, ...registeredSkinAssets } = registered.assets;
-    const { gearImage: currentGear, ...currentSkinAssets } = current.assets;
+    const { gearImage: currentGear, gearGaugeEmpty: currentGaugeEmpty, ...currentSkinAssets } = current.assets;
     expect([archivedGear, gearGaugeLeft, gearGaugeRight]).toEqual(['/gear/gear-frame.png', '/gear/gear-gauge-left.png', '/gear/gear-gauge-right.png']);
-    expect(currentGear).toBe('/gear/gear.png');
+    expect([currentGear, currentGaugeEmpty]).toEqual(['/gear/gear.png', '/gear/gear-gauge-empty.png']);
     expect(registeredSkinAssets).toEqual(currentSkinAssets);
     expect(current.theme.pointContactShadow).toEqual({ above: 5, below: 5 });
     expect(current.assets.pointContactShadowTrill).toBe('/skins/classic/point-contact-shadow-trill.png');
