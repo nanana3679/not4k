@@ -126,22 +126,6 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('setReducedMotion(true)(Lab 미리보기 전용)면 gearMotion을 숨기고 advance(16)이 애니메이션 경과 시간을 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 시점에서 이어 간다', async () => {
-    const { holder, controller } = await readyController();
-    controller.advance(16);
-    controller.advance(16);
-    controller.setReducedMotion(true);
-    expect(controller.running).toBe(false);
-    expect(holder.children[0].visible).toBe(false);
-    controller.advance(16);
-    expect(controller.timeMs).toBe(32);
-    controller.setReducedMotion(false);
-    expect(holder.children[0].visible).toBe(true);
-    controller.advance(16);
-    expect(controller.timeMs).toBe(48);
-    controller.destroy();
-  });
-
   it('setEnabled(false)면 holder를 숨기고 애니메이션 경과 시간을 멈추며(running false), 다시 켜면 보이고 이어 간다', async () => {
     const { holder, controller } = await readyController();
     controller.advance(16);
@@ -156,15 +140,19 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('준비 전에 고른 A 큰 광원 끄기·setReducedMotion(true)는 gearMotion을 holder에 추가할 때 그대로 적용된다', async () => {
+  it('준비 전에 고른 A 큰 광원 끄기·setEnabled(false)는 gearMotion을 holder에 추가할 때 그대로 적용되어 A만 숨고 holder는 숨으며 running false라 advance(16)에도 0ms에 머문다', async () => {
     const { holder, resolve, controller } = controllerWith();
     controller.setLayerVisible('armor', false);
-    controller.setReducedMotion(true);
+    controller.setEnabled(false);
     resolve();
     await flush();
+    expect(controller.status).toBe('ready');
     expect(node(holder, 'gear-motion-armor').visible).toBe(false);
     expect(node(holder, 'gear-motion-gauge').visible).toBe(true);
-    expect(holder.children[0].visible).toBe(false);
+    expect(holder.children[0].visible).toBe(true);
+    expect([controller.running, holder.visible]).toEqual([false, false]);
+    controller.advance(16);
+    expect(controller.timeMs).toBe(0);
     controller.destroy();
   });
 
@@ -179,7 +167,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('textures는 holder에 추가하기 전 빈 배열, 추가하고 재생 중(running)이면 받은 텍스처 9개이고, setReducedMotion(true)·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
+  it('textures는 holder에 추가하기 전 빈 배열, 추가하고 재생 중(running)이면 받은 텍스처 9개이고, 끔(setEnabled(false))·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
     let received: GearMotionTextures | undefined;
     const { controller, resolve } = controllerWith({
       create: (motionData, textures, motionOptions) => { received = textures; return createGearMotion(motionData, textures, motionOptions); },
@@ -189,9 +177,6 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     await flush();
     expect(controller.textures).toHaveLength(9);
     expect(new Set(controller.textures)).toEqual(new Set(GEAR_MOTION_TEXTURE_KEYS.map((key) => received![key])));
-    controller.setReducedMotion(true);
-    expect(controller.textures).toEqual([]);
-    controller.setReducedMotion(false);
     controller.setEnabled(false);
     expect(controller.textures).toEqual([]);
     controller.setEnabled(true);

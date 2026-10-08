@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import GearPage from './GearPage';
 import pageSource from './GearPage.tsx?raw';
+import compareSource from './GearMotionCompare.tsx?raw';
 
 const render = () => renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(GearPage)));
 const stageOf = (markup: string) => markup.match(/<section[^>]*data-gear-preview-stage="true"[^>]*>/)![0];
@@ -84,7 +85,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).not.toContain('attachGearMotion');
     expect(pageSource).not.toContain('createGearMotion');
     expect(pageSource).not.toContain('addGearOverlay');
-    for (const call of ['.setEnabled(', '.setLayerVisible(', '.setReducedMotion(', '.restart()', '.timeMs', '.running', ".status === 'ready'"]) {
+    for (const call of ['.setEnabled(', '.setLayerVisible(', '.restart()', '.timeMs', '.running', ".status === 'ready'"]) {
       expect(pageSource).toContain(call);
     }
     expect(pageSource).toContain('active.gearMotion');
@@ -110,6 +111,22 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(layerChecks.map((input) => input.match(/value="([^"]*)"/)![1])).toEqual(['armor', 'gauge', 'accent', 'bar']);
     expect(layerChecks.every((input) => input.includes('checked=""'))).toBe(true);
     for (const label of ['A 큰 광원', 'B 게이지 액체', 'C 발광선 호흡', 'D 하단 바 흐름', '처음부터 재생']) expect(markup).toContain(label);
+  });
+
+  it('운영체제 모션 감소 설정을 읽지 않아(RFD 0030) 무대 data-motion은 on·off 둘뿐이고, 무대와 비교 화면 모두 gearMotion을 숨기는 setReducedMotion을 부르지 않으며 화면 문구에 움직임 줄이기가 없다', () => {
+    expect(pageSource).toContain("const motionState = motionEnabled && motionAssets.status !== 'error' ? 'on' : 'off';");
+    for (const source of [pageSource, compareSource]) {
+      expect(source).not.toContain('setReducedMotion');
+      expect(source).not.toContain('reducedMotion');
+      expect(source).not.toContain('matchMedia');
+    }
+    expect(render()).not.toContain('움직임 줄이기');
+  });
+
+  it('비교 화면은 승인 SVG를 문서에 넣기(importNode) 전에 stripSvgReducedMotionRules로 SVG 자체의 모션 감소 규칙을 걷어 낸다(보관 파일은 그대로, RFD 0030 결정 5)', () => {
+    const strip = compareSource.indexOf('stripSvgReducedMotionRules(parsed)');
+    expect(strip).toBeGreaterThan(-1);
+    expect(strip).toBeLessThan(compareSource.indexOf('document.importNode(parsed.documentElement'));
   });
 
   it('Pixi ↔ 승인 SVG 비교는 보기 3개(전체 기본), 0~60초 0.1초 단위 비교 시각(처음 0초), 준비 전에는 누를 수 없는 재생 버튼, 같은 2:3 비율의 Pixi 캔버스와 SVG 자리를 둔다', () => {

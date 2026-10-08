@@ -558,28 +558,32 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이면 무대 data-motion이 reduced이고 애니메이션 경과 시간이 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 무대 data-motion은 on이고 애니메이션 경과 시간이 300ms를 넘게 흐르며, 비교 SVG는 #fm-lit·#fm-unlit을 숨기지 않고 CSS 애니메이션 10개 넘게를 그대로 가진다(RFD 0030)', async ({ page }) => {
     const errors = collectErrors(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
-    await expect(stage).toHaveAttribute('data-motion', 'reduced');
+    await expect(stage).toHaveAttribute('data-motion', 'on');
     await expect(stage).toHaveAttribute('data-motion-ready', 'true');
-    await page.waitForTimeout(800);
-    expect(await motionTime(page)).toBeNull();
-    await expect(page.locator('.gear-preview-motion')).toContainText('움직임 줄이기');
+    await expect.poll(async () => (await motionTime(page)) ?? 0, { timeout: 10000 }).toBeGreaterThan(300);
     await page.locator('[data-gear-motion-compare]').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-gear-motion-compare]')).toHaveAttribute('data-compare-ready', 'true', { timeout: 60000 });
-    // 비교 SVG 안의 애니메이션만 센다(버튼 hover 전환 같은 페이지 CSS 전환은 셈에서 뺀다).
-    const running = await page.evaluate(() => {
-      const host = document.querySelector('[data-gear-motion-svg-host="true"]');
-      return document.getAnimations().filter((animation) => {
-        const target = (animation.effect as KeyframeEffect | null)?.target;
-        return animation.playState === 'running' && target instanceof Element && host?.contains(target);
-      }).length;
+    // 보관 승인 SVG의 모션 감소 규칙(@media)은 문서에 넣기 전에 걷어 내므로, 운영체제 설정이 켜져 있어도 레이어와 애니메이션이 남는다.
+    const svgState = await page.evaluate(() => {
+      const svg = document.querySelector<SVGSVGElement>('[data-gear-motion-svg-host] svg')!;
+      return {
+        osReduce: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        hidden: ['#fm-lit', '#fm-unlit'].filter((selector) => getComputedStyle(svg.querySelector(selector)!).display === 'none'),
+        animations: svg.getAnimations({ subtree: true }).length,
+        reduceRuleLeft: [...svg.querySelectorAll('style')].some((style) => (style.textContent ?? '').includes('prefers-reduced-motion')),
+      };
     });
-    expect(running).toBe(0);
+    expect(svgState).toMatchObject({ osReduce: true, hidden: [], reduceRuleLeft: false });
+    expect(svgState.animations).toBeGreaterThan(10);
+    for (const layer of ['armor', 'gauge', 'accent', 'bar']) {
+      await expect(page.locator(`[data-gear-motion-svg-host] svg #fm-${layer}`)).toBeVisible();
+    }
     expect(errors).toEqual([]);
   });
 });

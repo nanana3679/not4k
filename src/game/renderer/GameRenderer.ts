@@ -1195,7 +1195,7 @@ export class GameRenderer {
 
   /**
    * `gearMotion` 조절(RFD 0029). init이 끝나면 `gearMotion`은 `holder`에 추가돼 있다(status ready). 애니메이션 경과 시간(`timeMs`)을 읽고, Lab 미리보기가 켜기·레이어·
-   * `setReducedMotion`(Lab 전용)·처음부터 재생을 부른다. `gearMotion`을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
+   * 처음부터 재생을 부른다. `gearMotion`을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
    */
   get gearMotion(): GearMotionControls | null {
     return this.gearMotionController;
