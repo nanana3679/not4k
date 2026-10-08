@@ -42,7 +42,7 @@ export function PlayScreen() {
     const session = sessionRef.current;
     if (!session || !chartData) return;
     // 늦게 누르는 사람의 보정(음수 입력 오프셋)에서는 곡 끝 직전 auto 입력이 아직 없을 수 있어, 남은 auto 입력까지 넣고 큐를 비운 뒤 정산한다.
-    // 세션과 입력 큐·autoPlayer는 같은 시점에 만들어지므로 세션이 있으면 둘도 있다.
+    // 곡 끝은 게임 루프에서만 부르고, 루프는 세션·입력 큐·autoPlayer를 모두 만든 뒤에 시작한다.
     if (inputTimelineRef.current && autoPlayerRef.current) finishPlaySession(inputTimelineRef.current, session, autoPlayerRef.current);
 
     const state = session.finalize();
