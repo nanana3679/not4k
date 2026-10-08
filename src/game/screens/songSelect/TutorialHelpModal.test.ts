@@ -267,7 +267,16 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('not4kTutorialTextFade');
     expect(tutorialHelpModalSource).not.toContain('translateX(');
     expect(tutorialHelpModalSource).not.toContain('brightness(0.72) saturate(0.82)');
-    expect(tutorialHelpModalSource).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('운영체제 prefers-reduced-motion이 reduce여도 페이지 전환은 260ms·모달 닫기는 120ms로 같다(matchMedia·@media 규칙 없음, RFD 0030)', () => {
+    // 전환 타이머·진행률과 닫기 타이머는 상수만 쓰고 운영체제 설정을 읽지 않는다.
+    expect(tutorialHelpModalSource).toContain('}, TUTORIAL_PAGE_TRANSITION_MS);');
+    expect(tutorialHelpModalSource).toContain('(now - startMs) / TUTORIAL_PAGE_TRANSITION_MS');
+    expect(tutorialHelpModalSource).toContain('}, TUTORIAL_MODAL_CLOSE_MS);');
+    expect(tutorialHelpModalSource).not.toContain('matchMedia');
+    // CSS 전환·애니메이션도 운영체제 설정으로 1ms로 줄이지 않는다.
+    expect(tutorialHelpModalSource).not.toContain('prefers-reduced-motion');
   });
 
   it('새 프리뷰 준비 후 두 animation frame을 기다린 뒤 캐러셀 이동을 시작해 준비 위치가 먼저 그려짐', () => {

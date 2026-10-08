@@ -911,17 +911,6 @@ const tutorialPreviewPlayerCss = `
     transform: translateY(-8px) scale(0.985);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .not4k-tutorial-diagram-overlay,
-  .not4k-tutorial-diagram-panel {
-    animation-duration: 1ms !important;
-    transition-duration: 1ms !important;
-  }
-  .not4k-tutorial-diagram-spinner {
-    animation: none !important;
-  }
-}
 `;
 
 const styles: Record<string, CSSProperties> = {

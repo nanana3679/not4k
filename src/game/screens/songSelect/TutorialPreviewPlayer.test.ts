@@ -275,7 +275,13 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('TUTORIAL_DIAGRAM_EXIT_MS');
     expect(tutorialPreviewPlayerSource).toContain('data-tutorial-diagram-phase={diagramDisplay.phase}');
     expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-overlay');
-    expect(tutorialPreviewPlayerSource).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('운영체제 prefers-reduced-motion이 reduce여도 도식 등장 260ms·퇴장 180ms 전환과 로딩 스피너를 그대로 쓴다(@media 규칙 없음, RFD 0030)', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_ENTER_MS = 260');
+    expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_EXIT_MS = 180');
+    expect(tutorialPreviewPlayerSource).not.toContain('prefers-reduced-motion');
+    expect(tutorialPreviewPlayerSource).not.toContain('matchMedia');
   });
 
   it('구동기 로딩 중에는 도식 모달에서 OK 대신 스피너를 보여 상호작용을 막고, 준비되면 OK로 전환', () => {
