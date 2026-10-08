@@ -4,6 +4,8 @@
 
 > **용어 (#231, 2026-10-06):** 이 문서의 "프레임"(레인을 둘러싼 장식 그림)은 이제 [기어](../context/glossary.md#기어-gear)로 부른다. 화면 한 장을 뜻하는 프레임(`renderFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 결정 본문은 결정 당시 표기를 그대로 두고, 지금 상태를 적은 [영향 범위](#영향-범위)만 새 용어와 지금 코드·경로 이름으로 고쳤다. 대응 예: `classicFrame.json`·`classicFrameLayout.ts`·`classicFrameMotion*.ts` → `gearGeometry.json`·`gearLayout.ts`·`gearMotion*.ts`, `FrameMotionController`·`GameRenderer.frameMotion` → `GearMotionController`·`GameRenderer.gearMotion`, `public/gear/classic-frame.png`·`classic-frame-motion/frame-motion.json` → `gear.png`·`gear-motion/gear-motion.json`, 설정 `Frame Motion` → `Gear Motion`, Lab `/lab/classic-frame-fit`(Classic Frame Fit) → `/lab/gear`(Gear), 스킨 매니페스트 키 `gearFrame` → `gearImage`, 렌더러 옵션 `showGearFrame` → `showGear`. 기어는 스킨 공용이라 중간에 붙였던 Classic 접두사(`classicGear*`, `/lab/classic-gear`)도 뺐다.
 
+> **움직임 줄이기 (RFD 0030, 2026-10-07):** 이 문서가 정한 "움직임 줄이기(`prefers-reduced-motion: reduce`)면 기어 움직임을 만들지 않는다"와 "고도 게이지는 움직임 줄이기면 바로 맞춘다"는 [RFD 0030](0030-ignore-os-reduced-motion.md)으로 바뀐다. 게임은 운영체제 설정을 따르지 않고 인게임 설정만 따른다(구현 [#236](https://github.com/nanana3679/not4k/issues/236)).
+
 ## 기존 결정과 문제
 
 게임은 논리 높이 600 화면 가운데에 폭 400의 레인 영역을 두고, 판정선을 y 440(아래에서 160)에 그린다. 기어 프레임(스킨 공통 에셋 `public/gear/gear-frame.png`)은 안쪽 창의 폭을 레인 영역 400에 맞춰 같은 배율로 그린다. 이 배율에서는 프레임 위쪽 약 332 논리 단위가 화면 밖으로 잘린다. 판정선 아래 레인은 불투명 가림막(`drawMask`)이 판정선 바로 밑부터 덮는다. 노트는 시간 위치를 박스 위끝으로 그리므로 판정 순간의 노트 박스는 판정선 바로 아래에 있고, 지금은 이 자리를 가림막이 덮어 노트가 판정선 속으로 사라지듯 보인다(이 기준은 이후 [#224](https://github.com/nanana3679/not4k/issues/224)에서 노트 가운데로 바꿨다). 리프트는 판정선과 함께 가림막도 올린다.
