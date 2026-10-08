@@ -768,10 +768,4 @@ const settingsPanelCss = `
   /* 좁은 폭에서 4열 → 2×2 (Lane 1·2 / 3·4, 좌→우 순서 유지) */
   .stg-lanes { grid-template-columns: repeat(2, 1fr); }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .stg-panel *, .stg-addkey.is-listening, .stg-toast {
-    animation-duration: 1ms !important; transition-duration: 1ms !important;
-  }
-}
 `;

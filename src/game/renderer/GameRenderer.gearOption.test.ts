@@ -7,7 +7,8 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this.showGear = options.showGear ?? true');
     // #231 이전 이름(showGearFrame·스킨 키 gearFrame)은 남아 있지 않다.
     expect(gameRendererSource).not.toContain('showGearFrame');
-    expect(gameRendererSource).toContain('getTexture("gearImage")');
+    expect(gameRendererSource).toContain('const GEAR_IMAGE_KEY = "gearImage"');
+    expect(gameRendererSource).toContain('getTexture(GEAR_IMAGE_KEY)');
     expect(gameRendererSource).not.toContain('"gearFrame"');
   });
 

@@ -9,7 +9,9 @@ import {
   calibrationNoteLeftX,
   CALIBRATION_NOTE_HEIGHT,
   CALIBRATION_NOTE_WIDTH,
+  offsetToApply,
 } from './calibrationLogic';
+import { GameClock } from '../time/GameClock';
 
 describe('calculateMedian', () => {
   it('홀수 개 [1, 2, 3] → 중앙값 2', () => {
@@ -115,6 +117,40 @@ describe('calculateCalibrationResult', () => {
     const diffs = [10, 11, 10, 11, 10, 11, 10, 11];
     const result = calculateCalibrationResult(diffs);
     expect(Number.isInteger(result.offset)).toBe(true);
+  });
+});
+
+describe('offsetToApply — 측정값의 반대 부호를 오프셋으로 저장', () => {
+  it('탭이 박보다 중앙값 +15ms 늦음(측정 offset 15) → 적용 오프셋 −15', () => {
+    expect(offsetToApply({ offset: 15, stdDev: 1, sampleCount: 20 })).toBe(-15);
+  });
+
+  it('탭이 박보다 중앙값 −20ms 빠름(측정 offset −20) → 적용 오프셋 +20', () => {
+    expect(offsetToApply({ offset: -20, stdDev: 1, sampleCount: 20 })).toBe(20);
+  });
+
+  it('측정 offset 0 → 적용 오프셋 0(−0이 아님)', () => {
+    expect(Object.is(offsetToApply({ offset: 0, stdDev: 0, sampleCount: 20 }), 0)).toBe(true);
+  });
+
+  it('오디오 시각 1000ms 박에 15ms 늦게 누르는 사람: 측정 +15를 적용하면 GameClock 입력 시간이 박 시각 1000ms와 같다', () => {
+    const measured = calculateCalibrationResult([15, 15, 15, 15, 15]);
+    // 박 1000ms보다 15ms 늦은 순간(오디오 1015ms)에 키 이벤트가 핸들러 지연 없이 들어온다.
+    const clock = new GameClock(
+      { currentTimeMs: 1015, getOutputLatencyMs: () => 0 },
+      { audioOffsetMs: 0, judgmentOffsetMs: offsetToApply(measured) },
+      () => 5000,
+    );
+    expect(clock.toInputTimeMs(5000)).toBe(1000);
+  });
+
+  it('같은 사람에게 측정값을 부호 그대로 넣으면(이전 동작) 입력 시간이 1030ms로 30ms 늦게 판정된다', () => {
+    const clock = new GameClock(
+      { currentTimeMs: 1015, getOutputLatencyMs: () => 0 },
+      { audioOffsetMs: 0, judgmentOffsetMs: 15 },
+      () => 5000,
+    );
+    expect(clock.toInputTimeMs(5000)).toBe(1030);
   });
 });
 
