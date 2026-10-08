@@ -179,21 +179,25 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('upload를 주면 움직임을 얹기 전에 준비된 텍스처 9장으로 한 번 부르고, 움직임 줄이기 중에는 올리지 않는다(그리지 않는 텍스처)', async () => {
-    const upload = vi.fn((textures: GearMotionTextures) => expect(Object.keys(textures)).toHaveLength(9));
-    const { controller } = await readyController({ upload });
-    expect(upload).toHaveBeenCalledTimes(1);
-    expect(controller.status).toBe('ready');
-    controller.destroy();
-
-    const reducedUpload = vi.fn();
-    const reduced = controllerWith({ upload: reducedUpload });
-    reduced.controller.setReducedMotion(true);
-    reduced.resolve();
+  it('textures는 얹기 전 빈 배열, 얹고 움직이면 받은 텍스처 9장이고, 움직임 줄이기·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
+    let received: GearMotionTextures | undefined;
+    const { controller, resolve } = controllerWith({
+      create: (motionData, textures, motionOptions) => { received = textures; return createGearMotion(motionData, textures, motionOptions); },
+    });
+    expect(controller.textures).toEqual([]);
+    resolve();
     await flush();
-    expect(reduced.controller.status).toBe('ready');
-    expect(reducedUpload).not.toHaveBeenCalled();
-    reduced.controller.destroy();
+    expect(controller.textures).toHaveLength(9);
+    expect(new Set(controller.textures)).toEqual(new Set(GEAR_MOTION_TEXTURE_KEYS.map((key) => received![key])));
+    controller.setReducedMotion(true);
+    expect(controller.textures).toEqual([]);
+    controller.setReducedMotion(false);
+    controller.setEnabled(false);
+    expect(controller.textures).toEqual([]);
+    controller.setEnabled(true);
+    expect(controller.textures).toHaveLength(9);
+    controller.destroy();
+    expect(controller.textures).toEqual([]);
   });
 
   it('warmUp(render)은 얹은 움직임의 하단 바를 그 한 번 동안 그리게 하고, 움직임이 없으면 render만 부른다', async () => {

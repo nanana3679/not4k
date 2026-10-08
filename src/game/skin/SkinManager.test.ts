@@ -41,6 +41,34 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
+  it('Classic을 로드하면 getLoadedTextures는 불러온 텍스처 62개(봄 16프레임·켜짐·실패·부분 실패·Grace·터미널 idle·기어 2종·버튼 8장)를 키별로 getTexture와 같은 객체로 돌려준다', async () => {
+    const manager = new SkinManager();
+    await manager.loadSkin('classic');
+    const loaded = manager.getLoadedTextures();
+    expect(loaded.size).toBe(62);
+    for (const key of [
+      'bomb0', 'bomb15', 'bodySingleHeld', 'bodyDoublePartialHeldLeft', 'noteDoubleFailed', 'terminalTrillFailed',
+      'bodyDoublePartialFailedRight', 'pointGraceOverlay', 'terminalGraceOverlay', 'terminalSingleIdle', 'gearImage', 'gearGaugeEmpty',
+    ]) expect(loaded.has(key), key).toBe(true);
+    for (const [key, texture] of loaded) expect(texture, key).toBe(manager.getTexture(key));
+    manager.dispose();
+  });
+
+  it('heldEffect: false 스킨이면 getLoadedTextures에 켜짐 텍스처 5종이 없고 Classic보다 5개 적은 57개다', async () => {
+    const base = getSkinManifest('classic');
+    const manifest = { theme: { ...base.theme, id: 'no-effect', heldEffect: false }, assets: withoutHeldAssets(base.assets) } as unknown as typeof base;
+    const manager = new SkinManager();
+    await manager.loadSkin(manifest);
+    const loaded = manager.getLoadedTextures();
+    for (const key of HELD_ASSET_KEYS) expect(loaded.has(key), key).toBe(false);
+    expect(loaded.size).toBe(57);
+    manager.dispose();
+  });
+
+  it('스킨을 불러오기 전에 getLoadedTextures를 부르면 "no skin loaded" 오류', () => {
+    expect(() => new SkinManager().getLoadedTextures()).toThrow('no skin loaded');
+  });
+
   it('기어와 고도 게이지 빈 유리만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');

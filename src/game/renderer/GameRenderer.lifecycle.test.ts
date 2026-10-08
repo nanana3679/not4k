@@ -8,6 +8,7 @@ describe('GameRenderer 리소스 수명', () => {
     const disposeBackground = vi.fn();
     const state = {
       initialized: true,
+      autoGarbageCollectBeforePlayback: new Map(),
       flightBackground: { dispose: disposeBackground },
       noteRenderer: { dispose: vi.fn() },
       app: { destroy: destroyApplication },
@@ -33,6 +34,7 @@ describe('GameRenderer 리소스 수명', () => {
     });
     const state = {
       initialized: true,
+      autoGarbageCollectBeforePlayback: new Map(),
       noteRenderer: { dispose: vi.fn() },
       app: { destroy: destroyApplication },
     };

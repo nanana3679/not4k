@@ -213,6 +213,17 @@ export class SkinManager {
     return entry.texture;
   }
 
+  /**
+   * 불러온 텍스처 전부(키 → 텍스처). 봄 프레임(`bomb0`~)·기어 그림·빈 유리도 들어 있고, 켜짐 효과가 없는 스킨은 켜짐 에셋을
+   * 불러오지 않으므로 없다. 곡 시작 전 준비(GameRenderer.prepareForPlayback)가 곡 중 쓸 텍스처를 미리 GPU 업로드할 때 읽는다.
+   */
+  getLoadedTextures(): ReadonlyMap<string, Texture> {
+    if (!this.loaded) {
+      throw new Error("SkinManager: no skin loaded");
+    }
+    return new Map([...this.textures].map(([key, entry]) => [key, entry.texture]));
+  }
+
   /** 현재 스킨에서 선택 에셋 키가 로드되어 있는지 확인 */
   hasTexture(key: string): boolean {
     return this.textures.has(key);

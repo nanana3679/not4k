@@ -301,8 +301,8 @@ export function PlayScreen() {
           animationFrameRef.current = requestAnimationFrame(gameLoop);
         };
 
-        // 재생 전에 한 장 그려 텍스처 업로드·셰이더·마스크 준비를 곡 시작 전에 끝낸다.
-        renderer.warmUp(startTimeMs);
+        // 곡 중 쓸 텍스처를 전부 GPU 업로드하고 한 장 그려 셰이더·마스크를 준비한다(곡 시작 전 준비).
+        renderer.prepareForPlayback(startTimeMs);
 
         // Start audio playback
         audioEngine.play(startTimeMs);

@@ -5,7 +5,7 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, type TextureSource } from "pixi.js";
 import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -25,7 +25,6 @@ import {
 import { KeyboardDisplay } from "./KeyboardDisplay";
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./gearLayout";
 import { acquireGearMotionAssets } from "./gearMotionAssets";
-import { GEAR_MOTION_TEXTURE_KEYS } from "./gearMotionData";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
 import { prefersReducedMotion } from "./reducedMotion";
@@ -69,6 +68,8 @@ const TUTORIAL_KEY_GAP = playfieldPx(2);
 const TUTORIAL_KEY_PRESS_DROP = playfieldPx(3);
 const TUTORIAL_BOARD_INSET = playfieldPx(2);
 const TUTORIAL_BOARD_RADIUS = playfieldPx(7);
+/** 기어를 그리는 렌더러만 쓰는 스킨 텍스처(기어 그림·빈 유리). 기어가 없는 렌더러(showGear false)면 곡 시작 전 준비가 GPU 업로드하지 않는다. */
+const GEAR_SKIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["gearImage", "gearGaugeEmpty"]);
 
 /** 튜토리얼 프리뷰 키보드 strip 스펙 — 레이아웃/매핑 계산은 React가 하고 렌더러는 그리기만 한다.
  *  (순환 import 방지를 위해 player 쪽 타입을 import하지 않고 자체 선언) */
@@ -202,6 +203,11 @@ export class GameRenderer {
   private gearMotionController: GearMotionController | null = null;
   // 고도 게이지 — 기어 레이어 맨 위(기어 움직임 위). 빈 유리 덮개가 빈 부분의 움직임 액체·기포를 함께 가린다.
   private gearGauge: GearGauge | null = null;
+  /**
+   * 곡 시작 전 준비가 Pixi 자동 GC에서 뺀 소스와 그 전의 `autoGarbageCollect` 값. dispose가 되돌린다.
+   * 소스는 SkinManager·공유 로더 소유라 렌더러보다 오래 남을 수 있어, 렌더러가 끝나면 원래 동작으로 돌려준다.
+   */
+  private readonly autoGarbageCollectBeforePlayback = new Map<TextureSource, boolean>();
 
   // UI elements
   private comboText: Text;
@@ -497,7 +503,8 @@ export class GameRenderer {
    * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든(움직임 줄이기도) 같은 모습이다.
    * 나중에 붙는 움직임 자리(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 움직임의 액체·기포를 가린다(유리 안쪽에 그리는
    * 움직임은 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
-   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다. 아틀라스는 여기서 GPU에 미리 올린다.
+   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다.
+   * 채움 1에서는 덮개를 숨겨 두어 Pixi가 아틀라스를 그리지도 GPU 업로드하지도 않으므로, 곡 시작 전 준비(prepareForPlayback)가 미리 GPU 업로드한다.
    */
   private buildGearGauge(layout: Readonly<GearLayout>): void {
     let texture;
@@ -507,14 +514,11 @@ export class GameRenderer {
     gauge.container.scale.set(layout.scale);
     this.gearLayer.addChild(gauge.container);
     this.gearGauge = gauge;
-    // 채움 1에서는 덮개를 숨겨 두므로 Pixi가 그리지도 텍스처를 올리지도 않는다. 그대로 두면 곡 중 덮개가 처음 보이는 프레임(첫 MISS 등)에
-    // 아틀라스 업로드와 밉맵 생성이 몰린다. 기어 움직임 텍스처처럼 곡 시작 전(init)에 GPU에 미리 올린다.
-    this.app.renderer?.texture.initSource(texture.source);
   }
 
   /**
    * 기어 움직임(RFD 0029). 기어 레이어에 기어와 같은 변환의 자리를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
-   * 필수라 init이 준비를 기다린다. 준비되면 텍스처를 GPU에 미리 올린 뒤 그 자리에 움직임을 얹고, 읽지 못하면 init이 그 오류로 실패한다.
+   * 필수라 init이 준비를 기다린다. 준비되면 그 자리에 움직임을 얹고(텍스처 GPU 업로드는 곡 시작 전 준비가 한다), 읽지 못하면 init이 그 오류로 실패한다.
    * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
    */
   private buildGearMotion(): void {
@@ -526,27 +530,65 @@ export class GameRenderer {
       holder.destroy();
       return;
     }
-    const controller = new GearMotionController({
-      holder,
-      lease: acquireGearMotionAssets(),
-      upload: (textures) => {
-        // 처음 그리는 프레임에 업로드(밉맵 생성 포함)가 몰리지 않도록 자료가 준비된 때 미리 올린다.
-        const textureSystem = this.app.renderer?.texture;
-        if (!this.initialized || !textureSystem) return;
-        for (const key of GEAR_MOTION_TEXTURE_KEYS) textureSystem.initSource(textures[key].source);
-      },
-    });
+    const controller = new GearMotionController({ holder, lease: acquireGearMotionAssets() });
     controller.setReducedMotion(reduced);
     this.gearMotionController = controller;
   }
 
   /**
-   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 기어·노트·움직임 텍스처 업로드와 셰이더·마스크 준비를
-   * 재생 시작 전에 끝내, 곡의 첫 프레임들이 그 비용을 치르지 않게 한다. 기어 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로
-   * 이 한 장 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다). 플레이 화면이 audio 재생 직전에 부른다.
+   * 곡 시작 전 준비. 플레이 화면이 audio 재생 직전에 한 번 부른다(튜토리얼 재생기·Lab 미리보기는 부르지 않아 텍스처를 처음 그릴 때 GPU 업로드한다).
+   * 곡 중 프레임이 GPU 준비 비용(텍스처 업로드·밉맵 생성, 셰이더·마스크 준비)을 치르지 않도록 재생 전에 두 단계로 끝낸다.
+   * 1. uploadPlaybackTextures: 곡 중 그릴 수 있는 텍스처를 보이든 말든 전부 GPU 업로드하고 곡 중 Pixi 자동 GC에서 뺀다(첫 판정 키봄·첫 MISS 실패 노트 등).
+   * 2. renderFirstFrame: songTimeMs의 모습을 한 장 그려 셰이더·마스크를 준비한다.
    */
-  warmUp(songTimeMs: number): void {
+  prepareForPlayback(songTimeMs: number): void {
     if (!this.initialized || !this.app.renderer) return;
+    this.uploadPlaybackTextures();
+    this.renderFirstFrame(songTimeMs);
+  }
+
+  /**
+   * 곡 중 그릴 수 있는 텍스처 소스를 한 번씩 GPU 업로드한다(밉맵을 쓰는 기어·움직임 텍스처는 밉맵 생성까지). 이미 업로드된 소스는 Pixi가 건너뛴다.
+   * 목록은 화면이 넘기지 않고 렌더러가 스스로 모은다(collectPlaybackTextureSources).
+   * 업로드한 소스는 렌더러를 dispose할 때까지 Pixi 자동 GC에서 뺀다(`autoGarbageCollect` false). 불러온 이미지는 자동 GC 대상이라
+   * 기본 설정에서 60초 넘게 그리지 않으면 GPU 텍스처가 해제되고, 곡 중 다시 쓰는 프레임에 GPU 업로드가 다시 일어나기 때문이다.
+   */
+  private uploadPlaybackTextures(): void {
+    const textureSystem = this.app.renderer.texture;
+    for (const source of this.collectPlaybackTextureSources()) {
+      // 같은 소스를 두 번 준비해도(두 번째에는 이미 false) 처음 값을 기록한다.
+      if (!this.autoGarbageCollectBeforePlayback.has(source)) {
+        this.autoGarbageCollectBeforePlayback.set(source, source.autoGarbageCollect);
+      }
+      source.autoGarbageCollect = false;
+      textureSystem.initSource(source);
+    }
+  }
+
+
+  /**
+   * 곡 중 이 렌더러가 그릴 수 있는 텍스처 소스(중복 없음). 여러 텍스처가 나눠 쓰는 소스(터미널에서 잘라 쓴 롱노트 캡, 게이지 행 등)는 한 번만 담는다.
+   * - SkinManager가 불러온 텍스처 전부: 노트·바디·터미널과 실패·켜짐·부분 실패·idle 변형, Grace·그림자, 키봄 16프레임 등.
+   *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리는 이 렌더러가 기어를 그릴 때만 담는다.
+   * - 기어 움직임 텍스처 9장: 움직임이 움직일 때만(설정 끔·움직임 줄이기면 그리지 않는다).
+   * - 키빔 그라데이션: 레인 키를 처음 누르는 프레임에 GPU 업로드되지 않게.
+   */
+  private collectPlaybackTextureSources(): Set<TextureSource> {
+    const sources = new Set<TextureSource>();
+    for (const [key, texture] of this.skinManager.getLoadedTextures()) {
+      if (GEAR_SKIN_TEXTURE_KEYS.has(key) && !this._gearLayout) continue;
+      sources.add(texture.source);
+    }
+    for (const texture of this.gearMotionController?.textures ?? []) sources.add(texture.source);
+    if (this.keyBeamGradient?.texture) sources.add(this.keyBeamGradient.texture.source);
+    return sources;
+  }
+
+  /**
+   * 곡을 시작하기 전에 songTimeMs의 모습을 한 장 그린다(시계는 나아가지 않는다). 셰이더·마스크 준비를 재생 시작 전에 끝낸다.
+   * 기어 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로 이 한 장 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다).
+   */
+  private renderFirstFrame(songTimeMs: number): void {
     // 곡 중간에서 시작해도(편집기 시험 재생) 게이지가 가득 찬 데서 내려오지 않게, 이 한 장에서 곡 시작 시각의 고도로 바로 맞춘다.
     this.gearGauge?.snapNext();
     const render = () => this.renderFrame(songTimeMs, 0);
@@ -1244,6 +1286,11 @@ export class GameRenderer {
   dispose(removeView = true): void {
     if (!this.initialized) return;
     this.initialized = false;
+    // 곡 시작 전 준비가 끈 autoGarbageCollect를 원래 값으로 되돌린다. 스킨이 먼저 해제되어 파괴된 소스는 건너뛴다.
+    for (const [source, autoGarbageCollect] of this.autoGarbageCollectBeforePlayback) {
+      if (!source.destroyed) source.autoGarbageCollect = autoGarbageCollect;
+    }
+    this.autoGarbageCollectBeforePlayback.clear();
     this.flightBackground?.dispose();
     this.flightBackground = null;
     // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).

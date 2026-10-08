@@ -70,6 +70,7 @@ async function createRenderer({
     getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
     getBodyWidthScale: () => 1,
     hasTexture: () => false,
+    getLoadedTextures: () => new Map<string, Texture>(gaugeTexture ? [['gearImage', gear], ['gearGaugeEmpty', gauge]] : [['gearImage', gear]]),
     getTexture: (key: string) => {
       requested.push(key);
       if (key === 'gearImage') return gear;
@@ -146,20 +147,24 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
     expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear']);
   });
 
-  it('init 안에서 빈 유리 아틀라스 소스를 GPU에 미리 올린다(채움 1이라 숨겨 둔 덮개가 곡 중 처음 보이는 프레임에 업로드·밉맵 생성이 몰리지 않게)', async () => {
-    const { initSource, gauge } = await createRenderer({ gearMotion: false });
-    expect(initSource).toHaveBeenCalledTimes(1);
+  it('init은 빈 유리 아틀라스를 GPU 업로드하지 않고, 곡 시작 전 준비 prepareForPlayback(0)이 기어 그림과 함께 GPU 업로드한다(채움 1이라 숨겨 둔 덮개가 곡 중 처음 보이는 프레임에 업로드·밉맵 생성이 몰리지 않게, initSource 2번)', async () => {
+    const { renderer, initSource, gauge } = await createRenderer({ gearMotion: false });
+    expect(initSource).not.toHaveBeenCalled();
+    renderer.prepareForPlayback(0);
+    expect(initSource).toHaveBeenCalledTimes(2);
     expect(initSource).toHaveBeenCalledWith(gauge.source);
   });
 
-  it('기어 움직임을 켜도 빈 유리 아틀라스는 한 번만 올리고 움직임 텍스처 9장과 함께 init이 끝나기 전에 올린다(initSource 10번)', async () => {
-    const { initSource, gauge } = await createRenderer({ gearMotion: true });
+  it('기어 움직임을 켜도 prepareForPlayback(0)은 빈 유리 아틀라스를 한 번만 GPU 업로드하고 기어 그림·움직임 텍스처 9장과 함께 GPU 업로드한다(initSource 11번)', async () => {
+    const { renderer, initSource, gauge } = await createRenderer({ gearMotion: true });
+    renderer.prepareForPlayback(0);
     expect(initSource.mock.calls.filter(([source]) => source === gauge.source)).toHaveLength(1);
-    expect(initSource).toHaveBeenCalledTimes(10);
+    expect(initSource).toHaveBeenCalledTimes(11);
   });
 
-  it('showGear: false(튜토리얼 재생기)면 빈 유리를 올리지 않는다(initSource 0번)', async () => {
-    const { initSource } = await createRenderer({ showGear: false });
+  it('showGear: false(튜토리얼 재생기)면 prepareForPlayback(0)도 빈 유리·기어 그림을 GPU 업로드하지 않는다(initSource 0번)', async () => {
+    const { renderer, initSource } = await createRenderer({ showGear: false });
+    renderer.prepareForPlayback(0);
     expect(initSource).not.toHaveBeenCalled();
   });
 
@@ -243,11 +248,11 @@ describe('GameRenderer 기어 게이지 이징·맞춤', () => {
     expect(tube.getChildByLabel('gear-gauge-body')!.visible).toBe(true);
   });
 
-  it('warmUp(7000)(곡 시작 전 한 장, 간격 0)도 이징 없이 곡 시작 시각의 고도 .3으로 맞춘다', async () => {
+  it('prepareForPlayback(7000)(곡 시작 전 한 장, 간격 0)도 이징 없이 곡 시작 시각의 고도 .3으로 맞춘다', async () => {
     const { renderer } = await createRenderer();
     setChart(renderer);
     renderer.renderFrame(0, 16);
-    renderer.warmUp(7000);
+    renderer.prepareForPlayback(7000);
     expect(renderer.gearGaugeLevel).toBeCloseTo(0.3, 12);
   });
 
