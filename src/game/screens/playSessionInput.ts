@@ -36,11 +36,28 @@ export function stepPlaySession(
   // 뒤의 auto 입력이 먼저 core를 앞당겨 수동 노트의 기한을 넘기고 Miss로 확정한다.
   // 음수 오프셋(입력이 앞섬)으로 큐가 앞서 있으면 그 시각까지 만들어, 앞선 합성 입력을 기한보다 먼저 넣는다.
   const autoEvents = autoPlayer.eventsThrough(Math.max(advanceAt, timeline.latestTime));
-  timeline.enqueueMany(autoEvents.map(event => ({
-    lane: event.lane, inputAt: event.timeMs, key: event.key,
-    type: event.type === "release" ? "up" : "down",
-  })));
+  enqueueAutoInputs(timeline, autoEvents);
   drainPlaySessionInputs(timeline, session, songTime, Infinity);
   if (advanceAt >= session.core.time) session.advance(advanceAt);
   return autoEvents;
+}
+
+/**
+ * 곡 끝 정산 직전에 부른다. 입력 오프셋(늦음 양)이 양수면 진행 시각이 곡 시간보다 뒤처져, 곡 끝 직전의 auto 입력이
+ * 마지막 프레임까지 만들어지지 않을 수 있다. 남은 auto 입력을 모두 만들고 큐를 비운 뒤 finalize하게 한다.
+ */
+export function finishPlaySession(
+  timeline: InputTimeline,
+  session: NoteJudgmentSession,
+  autoPlayer: Pick<AutoPlayer, "eventsThrough">,
+): void {
+  enqueueAutoInputs(timeline, autoPlayer.eventsThrough(Number.POSITIVE_INFINITY));
+  drainPlaySessionInputs(timeline, session, session.core.time, Number.POSITIVE_INFINITY);
+}
+
+function enqueueAutoInputs(timeline: InputTimeline, events: readonly AutoInput[]): void {
+  timeline.enqueueMany(events.map(event => ({
+    lane: event.lane, inputAt: event.timeMs, key: event.key,
+    type: event.type === "release" ? "up" : "down",
+  })));
 }

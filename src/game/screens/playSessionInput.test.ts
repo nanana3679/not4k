@@ -6,7 +6,7 @@ import { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
 import { body, point } from "../judgment/noteJudgmentTestHarness";
 import { compileJudgmentChart } from "../judgment/compiledJudgmentChart";
 import type { NoteEntity } from "../../shared/types";
-import { stepPlaySession } from "./playSessionInput";
+import { finishPlaySession, stepPlaySession } from "./playSessionInput";
 
 function play(
   notes: readonly NoteEntity[],
@@ -31,6 +31,10 @@ function play(
     frame(at: number) {
       audio.currentTimeMs = at;
       stepPlaySession(timeline, session, player, clock, at);
+    },
+    finish() {
+      finishPlaySession(timeline, session, player);
+      return session.finalize();
     },
   };
 }
@@ -95,5 +99,14 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events[0]).toMatchObject({ kind: "head", grade: "good", deltaMs: 100, inputAt: 1100 });
     p.frame(1200);
     expect(p.session.events.map(event => [event.grade, event.inputAt])).toEqual([["good", 1100], ["perfect", 1125]]);
+  });
+
+  it("+50ms 입력 offset에서 곡 끝 2000ms 직전 1990ms auto Point는 마지막 프레임까지 만들어지지 않아도 곡 끝 정산에서 Perfect", () => {
+    const p = play([point(1990, "single", 2)], 50, true);
+    // 마지막 프레임: 진행 시각은 입력 시간 1950이라 1990 auto 입력은 아직 만들지 않는다.
+    p.frame(2000);
+    expect(p.session.events).toHaveLength(0);
+    p.finish();
+    expect(p.session.events).toMatchObject([{ kind: "head", grade: "perfect", inputAt: 1990 }]);
   });
 });
