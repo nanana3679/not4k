@@ -483,7 +483,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 
 ### `fadeInTime`/`fadeOutTime` (구 표기: 인게임 페이드)
 
-`gameplayRange`의 시작과 끝에 적용하는 페이드 인/페이드 아웃 시간. 초 단위로 저장하며, 페이드가 구간 길이보다 길어지지 않도록 각 값은 `gameplayRange` 길이의 절반 이하로 제한한다.
+`gameplayRange`의 시작과 끝에 적용하는 페이드 인/페이드 아웃 시간. 초 단위로 저장하며, 페이드가 구간 길이보다 길어지지 않도록 각 값은 `gameplayRange` 길이의 절반 이하로 제한한다. 같은 필드 이름이 `previewRange`(곡 선택 미리듣기 구간)에도 있으므로 문서에서는 "`gameplayRange` 페이드 인·아웃"처럼 구간을 앞에 붙여 쓴다([term-map](term-map.md) B).
 
 ---
 
