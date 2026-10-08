@@ -27,5 +27,5 @@ product
 
 ## Accessibility & Inclusion
 - 본문/라벨 대비 ≥ 4.5:1, 큰 텍스트 ≥ 3:1 유지.
-- `prefers-reduced-motion` 존중: 포커스 글로우/전환은 모션 축소 시 즉시 전환으로 대체.
+- 움직임은 운영체제·브라우저의 모션 감소 설정(`prefers-reduced-motion`)이 아니라 인게임 설정으로 다룬다. 움직임에 민감한 플레이어를 위한 선택지도 효과별 인게임 설정으로 둔다([RFD 0030](docs/rfd/0030-ignore-os-reduced-motion.md)).
 - 난이도는 색만으로 구분하지 않고 라벨(EASY/HARD 등) 텍스트를 함께 표기.
