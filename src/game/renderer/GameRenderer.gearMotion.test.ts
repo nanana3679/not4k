@@ -88,6 +88,7 @@ function startRenderer(options: Parameters<typeof createRenderer>[0] = {}) {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
     getBodyWidthScale: () => 1,
     hasTexture: () => false,
+    getLoadedTextures: () => new Map([['gearImage', gear]]),
     getTexture: (key: string) => {
       if (key === 'gearImage') return gear;
       throw new Error(`unknown texture ${key}`);
@@ -147,9 +148,11 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(holder.children.map((child) => child.label)).toEqual(['gear-motion']);
   });
 
-  it('init 안에서 움직임을 얹기 전에 렌더러 GPU에 움직임 텍스처 9장을 올린다(init이 끝났을 때 initSource 9번)', async () => {
-    const { initSource } = await createRenderer();
-    expect(initSource).toHaveBeenCalledTimes(9);
+  it('init은 움직임 텍스처를 GPU 업로드하지 않고(initSource 0번), 곡 시작 전 준비 prepareForPlayback(0)이 움직임 텍스처 9장과 기어 그림을 한 번씩 GPU 업로드한다(10번)', async () => {
+    const { renderer, initSource } = await createRenderer();
+    expect(initSource).not.toHaveBeenCalled();
+    renderer.prepareForPlayback(0);
+    expect(initSource).toHaveBeenCalledTimes(10);
   });
 
   it('움직임 자료 읽기가 거절되면 init이 그 오류로 거절되고 렌더러가 비행 배경 실패와 같이 스스로 정리하며(app.destroy, 캔버스는 남김) 임대를 한 번 놓는다', async () => {
@@ -220,12 +223,12 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.timeMs).toBe(48);
   });
 
-  it('warmUp(1000)은 곡 시작 전 한 장을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 한 장 동안만 빛이 투명한 하단 바를 그린다', async () => {
+  it('prepareForPlayback(1000)은 곡 시작 전 첫 프레임을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 첫 프레임 동안만 빛이 투명한 하단 바를 그린다', async () => {
     const { renderer, scene, render } = await createRenderer();
     const bar = scene.app.stage.getChildByLabel('gear-motion-bar', true)!;
     const barDuringRender: boolean[] = [];
     render.mockImplementation(() => { barDuringRender.push(bar.visible); });
-    renderer.warmUp(1000);
+    renderer.prepareForPlayback(1000);
     expect(barDuringRender).toEqual([true]);
     expect(bar.visible).toBe(false);
     expect(renderer.gearMotion!.timeMs).toBe(0);

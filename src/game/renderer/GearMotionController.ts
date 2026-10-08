@@ -1,7 +1,7 @@
-import type { Container } from 'pixi.js';
-import { createGearMotion, type GearMotion, type GearMotionTextures } from './gearMotion';
+import type { Container, Texture } from 'pixi.js';
+import { createGearMotion, type GearMotion } from './gearMotion';
 import { GearMotionLeaseReleasedError, type GearMotionAssetLease, type GearMotionResources } from './gearMotionAssets';
-import { GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from './gearMotionData';
+import { GEAR_MOTION_LAYERS, GEAR_MOTION_TEXTURE_KEYS, type GearMotionLayer, type GearMotionLayerVisibility } from './gearMotionData';
 
 /**
  * 한 게임 프레임에 움직임 시계가 나아가는 최대 시간(ms). 숨은 탭에서 돌아오거나 프레임 하나가 길어도 광원이 건너뛰지 않게
@@ -46,8 +46,6 @@ export interface GearMotionControllerOptions {
   /** 기어 레이어에 기어와 같은 변환으로 붙인 자리. 자료가 준비되면 움직임 컨테이너가 여기에 들어간다. */
   holder: Container;
   lease: GearMotionAssetLease;
-  /** 움직임을 얹기 전에 준비된 텍스처를 GPU에 올린다(렌더러가 주입). 없으면 처음 그릴 때 올린다. 움직임 줄이기 중에는 부르지 않는다. */
-  upload?: (textures: GearMotionTextures) => void;
   /** @internal 테스트용 움직임 생성 함수. */
   create?: typeof createGearMotion;
   /** @internal 탭이 숨었는지. 기본은 document.hidden. */
@@ -69,10 +67,10 @@ export class GearMotionController implements GearMotionControls {
   readonly ready: Promise<void>;
   private readonly holder: Container;
   private readonly lease: GearMotionAssetLease;
-  private readonly upload?: (textures: GearMotionTextures) => void;
   private readonly create: typeof createGearMotion;
   private readonly isHidden: () => boolean;
   private motion: GearMotion | null = null;
+  private motionTextures: readonly Texture[] = [];
   private currentStatus: GearMotionStatus = 'loading';
   private clockMs = 0;
   private on = true;
@@ -84,7 +82,6 @@ export class GearMotionController implements GearMotionControls {
   constructor(options: GearMotionControllerOptions) {
     this.holder = options.holder;
     this.lease = options.lease;
-    this.upload = options.upload;
     this.create = options.create ?? createGearMotion;
     this.isHidden = options.isHidden ?? documentHidden;
     this.ready = options.lease.ready.then(
@@ -102,6 +99,12 @@ export class GearMotionController implements GearMotionControls {
   get timeMs(): number { return this.clockMs; }
   get running(): boolean { return this.motion !== null && this.on && !this.reduced; }
   get gaugeFill(): Container | null { return this.motion?.gaugeFill ?? null; }
+
+  /**
+   * 움직임이 그리는 텍스처 9장. 움직이는 동안(running: 얹었고·켜져 있고·움직임 줄이기가 아님)만 돌려주고, 그 밖에는 그리지 않으므로 빈 배열이다.
+   * 곡 시작 전 준비(GameRenderer.prepareForPlayback)가 미리 GPU 업로드할 목록에 넣는다. 텍스처는 공유 로더 소유다.
+   */
+  get textures(): readonly Texture[] { return this.running ? this.motionTextures : []; }
 
   /** 게임 프레임 하나만큼 시계를 나아가게 한다(GameRenderer.renderFrame이 부른다). */
   advance(deltaMs: number): void {
@@ -139,7 +142,7 @@ export class GearMotionController implements GearMotionControls {
 
   /**
    * render를 한 번 부른다. 움직임을 얹었으면 그동안 빛이 투명해 숨겨 둔 하단 바(알파 마스크 필터)도 그려 필터를 준비한다(화면은 그대로).
-   * 곡 시작 전 첫 장(GameRenderer.warmUp)에 쓴다.
+   * 곡 시작 전 준비의 첫 프레임(GameRenderer.prepareForPlayback)에 쓴다.
    */
   warmUp(render: () => void): void {
     if (this.motion && this.on && !this.reduced) this.motion.warmUp(render);
@@ -152,6 +155,7 @@ export class GearMotionController implements GearMotionControls {
     this.destroyed = true;
     this.motion?.destroy();
     this.motion = null;
+    this.motionTextures = [];
     this.releaseLease();
   }
 
@@ -159,7 +163,6 @@ export class GearMotionController implements GearMotionControls {
     if (this.destroyed || this.holder.destroyed) throw new GearMotionLeaseReleasedError();
     let motion: GearMotion;
     try {
-      if (!this.reduced) this.upload?.(resources.textures);
       motion = this.create(resources.data, resources.textures);
     } catch (error) {
       this.releaseLease();
@@ -170,6 +173,7 @@ export class GearMotionController implements GearMotionControls {
     motion.setReducedMotion(this.reduced);
     this.holder.addChild(motion.container);
     this.motion = motion;
+    this.motionTextures = GEAR_MOTION_TEXTURE_KEYS.map((key) => resources.textures[key]);
     this.currentStatus = 'ready';
   }
 
