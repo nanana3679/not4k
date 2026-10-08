@@ -11,7 +11,6 @@ import {
   CALIBRATION_NOTE_WIDTH,
   CALIBRATION_TOTAL_TAPS,
   CALIBRATION_WARMUP_TAPS,
-  offsetToApply,
   type CalibrationResult,
 } from '../../calibration/calibrationLogic';
 
@@ -288,9 +287,9 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   const applyResult = () => {
     if (!result) return;
     if (calibType === 'visual') {
-      updateSettings({ judgmentOffsetMs: offsetToApply(result) });
+      updateSettings({ judgmentOffsetMs: result.offset });
     } else {
-      updateSettings({ audioOffsetMs: offsetToApply(result) });
+      updateSettings({ audioOffsetMs: result.offset });
     }
     setPhase('select');
   };
@@ -381,12 +380,12 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
           {result && result.sampleCount > 0 ? (
             <>
               <div className="cal-result-value">
-                <span className="cal-result-num">{offsetToApply(result)}</span>
+                <span className="cal-result-num">{result.offset > 0 ? '+' : ''}{result.offset}</span>
                 <span className="cal-result-unit">ms</span>
               </div>
               <p className="cal-result-label">{offsetLabel}</p>
               <div className="cal-result-meta">
-                <span>{`tap ${result.offset > 0 ? '+' : ''}${result.offset} ms${result.offset > 0 ? ' (late)' : result.offset < 0 ? ' (early)' : ''}`}</span>
+                <span>{result.offset > 0 ? 'taps late' : result.offset < 0 ? 'taps early' : 'on time'}</span>
                 <span>σ {result.stdDev} ms</span>
                 <span>{result.sampleCount} samples</span>
               </div>

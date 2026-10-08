@@ -203,7 +203,8 @@ export class DebugLogger {
 
     // 오프셋 추천 (헤드/포인트 타이밍 기준)
     if (s.totalNotes > 0) {
-      const recommended = -Math.round(s.avgDeltaMs);
+      // 오프셋은 늦음 양(양수 = 늦음)이라, 평균이 늦게(+) 치우친 만큼 오프셋을 키운다.
+      const recommended = Math.round(s.avgDeltaMs);
       lines.push('');
       lines.push('=== Offset Recommendation ===');
       if (Math.abs(s.avgDeltaMs) < 5) {

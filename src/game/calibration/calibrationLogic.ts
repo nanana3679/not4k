@@ -3,6 +3,7 @@
  *
  * 시각/오디오 캘리브레이션에서 측정된 차이값(diff)을 분석하여
  * 오프셋을 산출한다. 이상치 제거 후 중앙값을 사용한다.
+ * 오프셋은 늦음 양(양수 = 늦게 누름)이라 측정 중앙값을 그대로 저장하고, `GameClock`이 그만큼 뺀다.
  * Visual 보정 노트의 위치도 여기서 정해 게임과 같은 노트 가운데 기준을 쓴다.
  */
 
@@ -80,14 +81,6 @@ export function calculateCalibrationResult(diffs: number[]): CalibrationResult {
   return { offset, stdDev, sampleCount: cleaned.length };
 }
 
-/**
- * 캘리브레이션 결과로 저장할 오프셋(ms). 측정값은 "탭 − 박"(양수 = 늦게 누름)이고, 오프셋은 `GameClock`이
- * 타임라인에 더하는 양이다(`audioOffsetMs`는 판정 시간에, `judgmentOffsetMs`는 입력 시간에 더한다).
- * 늦게 누르는 만큼을 지우려면 반대 부호를 더해야 하므로 측정 중앙값의 부호를 뒤집는다(15ms 늦음 → −15).
- */
-export function offsetToApply(result: CalibrationResult): number {
-  return result.offset === 0 ? 0 : -result.offset;
-}
 
 /** 캘리브레이션에서 사용하는 기본 간격 (ms) */
 export const CALIBRATION_INTERVAL_MS = 600;

@@ -33,7 +33,8 @@ function play(notes: readonly NoteEntity[], offset = 0, auto = false) {
 describe("실제 GameClock·입력 큐·Session 통합", () => {
   it.each([-100, 100])("입력 offset %ims에서도 1000ms Point의 raw 1120ms 입력은 Good 경계까지 허용", offset => {
     const p = play([point(1000)], offset);
-    const physicalTime = 1120 - offset;
+    // 입력 오프셋은 늦음 양이라 입력 시간 = 물리 시각 − offset. raw 1120이 되려면 물리 시각은 1120 + offset.
+    const physicalTime = 1120 + offset;
     p.frame(physicalTime - 1);
     expect(p.session.events).toHaveLength(0);
     p.input(physicalTime, physicalTime);
@@ -68,8 +69,8 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events[0].grade).toBe("miss");
   });
 
-  it("+200ms 입력 offset으로 manual이 raw1200까지 진행해도 raw1050 auto Point를 먼저 Perfect 처리", () => {
-    const p = play([point(1050, "single", 2)], 200, true);
+  it("−200ms 입력 offset(입력이 200ms 이름)으로 manual이 raw1200까지 진행해도 raw1050 auto Point를 먼저 Perfect 처리", () => {
+    const p = play([point(1050, "single", 2)], -200, true);
     p.frame(900);
     p.input(1000, 1000);
     p.frame(1000);
