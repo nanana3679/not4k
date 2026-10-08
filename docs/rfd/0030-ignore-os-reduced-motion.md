@@ -1,6 +1,6 @@
 # RFD 0030: 운영체제의 `prefers-reduced-motion` 설정을 따르지 않는다
 
-**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, 이 PR) · 남은 구현: Lab 페이지별 설정 읽기와 Lab만 부르는 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` (#236)
+**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, PR #248) · 남은 구현: Lab 페이지별 설정 읽기와 Lab만 부르는 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` (#236)
 
 ## 기존 결정과 문제
 
