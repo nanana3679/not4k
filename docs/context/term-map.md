@@ -7,7 +7,7 @@
 ## 판별 규칙
 
 1. **발명 + 코드 식별자 존재** → 영어 코드 식별자(`백틱`)
-2. **기존 개념**(리듬게임·음악계에 원래 있는 것) → established 이름(자연스러우면 한국어, 커뮤니티 표준이 영어면 영어)
+2. **기존 개념**(리듬게임·음악계에 원래 있는 것) → established 이름(자연스러우면 한국어, 커뮤니티 표준이 영어면 영어). 그래픽스·웹·오디오·타이밍·에셋 수명 주기 같은 소프트웨어 개념도 여기 속한다(→ E)
 3. **코드 없는 발명 용어** → 우선순위:
    - a. 기존 용어가 있으면 그것 (엄검중약, 앵커, 가변 분할)
    - b. 전용 표기 심볼이 있으면 정의에 표기 명시 + 구어 이름 유지 (릴리즈탭=`-o`)
@@ -75,6 +75,57 @@
 ### NM 트릴 표기 규약 (SDVX 관용)
 
 트릴은 점유 레인쌍으로 `NM 트릴`로 표기한다 (N<M, 예: `12 트릴`·`23 트릴`·`34 트릴`). SDVX에서 흔한 established 표기. **23 트릴**은 2/2 분할의 중앙 경계를 넘어 수평 이동/파지와 직결되며, 같은 트릴이라도 손배치(2/2 vs 1/3)에 따라 난이도가 달라진다. (레인 번호=언어 중립 + 트릴=기존어 조합이라 한/영 무관.)
+
+## E. 엔진·웹·수명 주기 용어 (2026-10-08)
+
+그래픽스·웹·오디오·타이밍·에셋 수명 주기의 개념은 이 프로젝트가 만든 것이 아니라 원래 있는 소프트웨어 개념이라 B(established 이름)에 속한다. 이 분야의 커뮤니티 표준은 대개 영어 용어나 API 식별자이므로 그것을 쓰고, 자연스럽게 굳은 한국어(캐시, 텍스처, 스프라이트, 밉맵, 컨테이너, 렌더 프레임, 페이드)만 한국어로 쓴다. 코드 식별자가 있다는 것만으로 발명이 되지는 않는다. 문서에서 처음 나올 때 식별자나 영어 용어를 적고, 일상어 비유로 한국어 이름을 새로 만들지 않는다. "피할 말"은 이 표를 추가한 시점에 저장소에 남아 있으며, 아래 [용어 단위로 고치기](#용어-단위로-고치기)에 따라 용어별 PR로 고친다.
+
+| 개념 | 쓸 표기 | 피할 말 | 근거/식별자 |
+|---|---|---|---|
+| 운영체제·브라우저의 모션 감소 설정 | 처음: 모션 감소 설정(`prefers-reduced-motion`), 이후 `prefers-reduced-motion`. 인게임 설정 `Gear Motion`과 구분 | 움직임 줄이기 | [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md), `prefersReducedMotion()` |
+| reference counting | reference counting. 동작은 retain/release, 저장 값은 경로별 reference count | 참조 세기 | `retainSharedAsset`/`releaseSharedAsset`, `references`(`src/game/skin/sharedAssets.ts`) |
+| lease | lease. 얻을 때 acquire, 끝낼 때 release. 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
+| release와 unload | 둘을 나눠 쓴다. release는 reference count를 1 줄이고, unload는 마지막 release 뒤 `Assets.unload`가 캐시에서 지우는 것이다. Pixi 객체 정리는 destroy(`destroy()`). 무엇(lease·경로·텍스처)을 다루는지 함께 쓴다 | 놓다(어느 쪽에도) | `releaseSharedAsset` → `Assets.unload` |
+| 에셋 | 에셋. 예: `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`·`GearMotionTextures`, 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
+| warm-up | warm-up(`GameRenderer.warmUp`): 곡 재생 전에 `renderFrame`을 한 번 불러 텍스처 업로드·셰이더 준비를 미리 끝낸다. 식별자가 바뀌면(예: `prepareForPlayback` 제안) 새 이름을 따른다 | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.warmUp`, `PlayScreen.tsx` |
+| holder / container | `holder`(Pixi `Container`). 기어 위 레이어는 `addGearOverlay`로 추가한 컨테이너 | 자리, 움직임 자리 | `GearMotionController`의 `holder: Container`, `GameRenderer.addGearOverlay` |
+| atlas frame | atlas frame(`Texture.frame`). 텍스처 안의 원본 영역(`atlasX`·`atlasY`·`width`·`height`)과 그릴 위치(`x`·`y`)를 구분해 쓴다 | 조각, 상자, 아틀라스 상자, 자리, bare "프레임" | `GearMotionPiece`(`gearMotionData.ts`), `gearMotion.ts` |
+| GPU 업로드 | GPU 업로드(`initSource`) | (GPU에) 올리다, 올리기. 올리다는 리프트 뜻으로 남긴다 | `renderer.texture.initSource`(`GameRenderer.ts`) |
+| double buffer | double buffer: `FaceFrame` 두 개(`faceFrames`)를 프레임마다 번갈아 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | `src/game/renderer/flight/breakthrough.mjs` |
+| object pool | object pool(`TrailPool`): 수명이 끝난 trail 표본 객체를 모아 다음 표본에 다시 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | 같은 파일 |
+| trail | trail(`trails`, `TrailPool`, `advanceTrails`) | trail 뜻의 잔상·잔광. 잔광은 버튼 빛이 키를 뗀 뒤 사라지는 fade-out(버튼 누름 시연 `press-animation.html`의 "잔광")에만 쓴다 | `breakthrough.mjs`, `approach.mjs` |
+| tint | `tint` | 물들이기, 물들여 | `gearMotion.ts`의 `unlit.tint` |
+| 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 판정선 아래 레인을 덮는 사각형이나 서든의 상단 커버를 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처 |
+| 판정선 아래 레인을 덮는 불투명 사각형 | **사용자 확인 필요.** 후보 (1) 지금 표기 "레인 가림막" 유지, (2) lane cover. IIDX에서 lane cover는 서든(SUDDEN+) 같은 상단 커버를 가리키고 [PRD](../prd.md) G-10 서든도 "상단 커버"라 겹친다. 어느 쪽이든 처음 나올 때 `drawMask`를 함께 쓴다 | bare "마스크"(Pixi mask와 헷갈림) | `drawMask`·`maskGraphic`·`laneMaskTop`(Pixi mask가 아니라 불투명 `Graphics` 채우기), [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
+| 애니메이션 경과 시간 | 애니메이션 경과 시간(`GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계 | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
+| scene graph에 추가 | 추가(`addChild`). 기어 위 레이어는 `addGearOverlay` | 얹다, 얹기 | Pixi `Container.addChild` |
+| 렌더러에 차트 설정 | `setChart` | 차트를 걸다 | `GameRenderer.setChart` |
+| 표시 객체 위치 정하기 | 배치 | 놓다 | `GameRenderer.ts`의 정적 요소 그리기 순서 |
+| 에디터 연산 | 연산마다 이름을 쓴다. 정규화(`normalizeSelection`), 캡슐화(`TimelineSpace`가 좌표 변환·스냅·히트테스트를 한 인터페이스로 묶음), 매핑(`scheduleFromGrabTarget`: `GrabTarget` → 터치 스케줄), 변환(`maxTimelineBeat`: 부동소수 박을 1/960 단위로 내림해 `Beat`로) | 비유만 쓰는 접기, 접는다, 접은 | `selectionSlice.ts`, `TimelineSpace.ts`·`useTimelineSpace.ts`, `touchEditRouting.ts`, `SelectMode.ts` |
+| modifier 키 | modifier 키 상태(`shiftKey`·`altKey`)와 선택 토글 플래그(`toggleSelection`) | 수식자, 보조키(게임 용어) | `PointerGesture`(`src/editor/modes/editorMode.ts`) |
+| 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts` |
+
+버퍼나 객체를 다시 쓴다고 적을 때는 구조 이름(double buffer, object pool)이나 다시 쓰는 대상의 식별자(`createApproachLightFrames()`의 결과 등)를 쓴다.
+
+### 게임 용어 예약
+
+아래 말은 왼쪽 뜻으로만 쓴다. 다른 뜻이 필요하면 오른쪽 말을 쓴다.
+
+| 용어 | 남겨 둘 뜻 | 다른 뜻일 때 쓸 말 |
+|---|---|---|
+| 판정 | judgment(노트 입력의 판정) | 검사(`matchMedia` 조회 등), 검증 결과 |
+| 놓다·놓친 | 놓친 노트(missed), 키를 놓다(키 release) | release, unload, 배치 |
+| 올리다 | 리프트(판정선 올리기) | GPU 업로드 |
+| 시계 | `GameClock` | 애니메이션 경과 시간(`GearMotionControls.timeMs`), `deltaMs` |
+| 프레임 | 렌더 프레임(`renderFrame`, `requestAnimationFrame`) | 텍스처 안 영역은 atlas frame(`Texture.frame`), 레인을 둘러싼 테두리는 기어 |
+
+### 단위 명사·일상 동사 금지
+
+한 장, 한 벌, 자리, 조각, 상자, 자료, 얹다, 걸다, 놓다를 기술 개념의 명사·동사로 쓰지 않는다. 식별자를 쓰고, 식별자가 없으면 E 표의 용어를 쓴다. 예: 한 장 → 렌더 프레임·이미지·warm-up, 한 벌 → 공유 에셋, 자리 → `holder`·atlas frame, 조각·상자 → atlas frame, 자료 → 에셋·측정 데이터, 얹다 → `addChild`, 걸다 → `setChart`, 놓다 → release·배치.
+
+### 용어 단위로 고치기
+
+용어 하나를 바로잡을 때는 같은 PR에서 저장소 전체(문서, 코드 주석, 테스트 이름)를 옛 표기와 그 활용형(예: 임대·빌리다·붙잡아 두다)으로 검색해 함께 고친다. 문서 하나씩 고치면 옛 표기가 다른 문서에 남아 다시 퍼진다(RFD 0030이 `prefers-reduced-motion`을 정한 뒤에도 "움직임 줄이기"가 glossary·spec·PRD·코드에 남은 사례). 지난 CHANGELOG 항목과 [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md) 결정 5가 고정한 보관·시연 기록은 제외한다. 용어 항목이 따로 정한 예외(glossary `기어` 항목의 옛 "프레임" 표기 등)는 그 항목을 따른다.
 
 ## 미구현·주의
 
