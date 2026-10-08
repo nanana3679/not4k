@@ -129,13 +129,13 @@ const uploadCounts = (initSource: ReturnType<typeof vi.fn>) => {
   return counts;
 };
 
-describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 업로드와 첫 장', () => {
+describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업로드와 첫 프레임', () => {
   it('init은 텍스처를 GPU 업로드하지 않는다(빈 유리·기어 움직임 9장 포함 initSource 0번). GPU 업로드는 곡 시작 전 준비가 한다', async () => {
     const { initSource } = await createRenderer();
     expect(initSource).not.toHaveBeenCalled();
   });
 
-  it('prepareForPlayback(0)은 첫 장을 그리기 전에 스킨 텍스처 소스 전부(봄 16프레임·실패·켜짐·부분 실패·Grace·터미널 idle)와 기어 그림·빈 유리·기어 움직임 9장·키빔 그라데이션을 한 번씩 GPU 업로드한다', async () => {
+  it('prepareForPlayback(0)은 첫 프레임을 그리기 전에 스킨 텍스처 소스 전부(봄 16프레임·실패·켜짐·부분 실패·Grace·터미널 idle)와 기어 그림·빈 유리·기어 움직임 9장·키빔 그라데이션을 한 번씩 GPU 업로드한다', async () => {
     const { renderer, textures, initSource, calls, keyBeamTexture } = await createRenderer();
     renderer.prepareForPlayback(0);
 
@@ -149,7 +149,7 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 업로드
     expect([...counts.values()].every((n) => n === 1)).toBe(true);
     // 스킨 텍스처 27개 중 소스는 26개(잘라 쓴 캡이 터미널 소스를 나눠 씀) + 움직임 9장 + 키빔 1장 = 36번
     expect(initSource).toHaveBeenCalledTimes(36);
-    // 업로드가 모두 끝난 뒤에 곡 시작 시각의 한 장을 한 번 그린다.
+    // GPU 업로드가 모두 끝난 뒤에 곡 시작 시각의 첫 프레임을 한 번 그린다.
     expect(calls.indexOf('render')).toBe(36);
     expect(calls.filter((call) => call === 'render')).toHaveLength(1);
   });
@@ -178,7 +178,7 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 업로드
     expect(initSource).toHaveBeenCalledTimes(25);
   });
 
-  it('showGear: false(튜토리얼 재생기)면 기어 그림·빈 유리는 GPU 업로드하지 않고 나머지 스킨 텍스처만 GPU 업로드한 뒤 첫 장을 그린다', async () => {
+  it('showGear: false(튜토리얼 재생기)면 기어 그림·빈 유리는 GPU 업로드하지 않고 나머지 스킨 텍스처만 GPU 업로드한 뒤 첫 프레임을 그린다', async () => {
     const { renderer, textures, initSource, calls } = await createRenderer({ showGear: false, keyBeams: false });
     renderer.prepareForPlayback(0);
     const uploaded = new Set(uploadCounts(initSource).keys());

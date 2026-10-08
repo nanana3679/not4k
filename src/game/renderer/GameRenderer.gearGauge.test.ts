@@ -248,7 +248,7 @@ describe('GameRenderer 기어 게이지 이징·맞춤', () => {
     expect(tube.getChildByLabel('gear-gauge-body')!.visible).toBe(true);
   });
 
-  it('prepareForPlayback(7000)(곡 시작 전 한 장, 간격 0)도 이징 없이 곡 시작 시각의 고도 .3으로 맞춘다', async () => {
+  it('prepareForPlayback(7000)(곡 시작 전 첫 프레임, 간격 0)도 이징 없이 곡 시작 시각의 고도 .3으로 맞춘다', async () => {
     const { renderer } = await createRenderer();
     setChart(renderer);
     renderer.renderFrame(0, 16);

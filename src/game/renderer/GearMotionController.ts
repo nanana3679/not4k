@@ -142,7 +142,7 @@ export class GearMotionController implements GearMotionControls {
 
   /**
    * render를 한 번 부른다. 움직임을 얹었으면 그동안 빛이 투명해 숨겨 둔 하단 바(알파 마스크 필터)도 그려 필터를 준비한다(화면은 그대로).
-   * 곡 시작 전 준비의 첫 장(GameRenderer.prepareForPlayback)에 쓴다.
+   * 곡 시작 전 준비의 첫 프레임(GameRenderer.prepareForPlayback)에 쓴다.
    */
   warmUp(render: () => void): void {
     if (this.motion && this.on && !this.reduced) this.motion.warmUp(render);

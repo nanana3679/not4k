@@ -223,7 +223,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.timeMs).toBe(48);
   });
 
-  it('prepareForPlayback(1000)은 곡 시작 전 한 장을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 한 장 동안만 빛이 투명한 하단 바를 그린다', async () => {
+  it('prepareForPlayback(1000)은 곡 시작 전 첫 프레임을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 첫 프레임 동안만 빛이 투명한 하단 바를 그린다', async () => {
     const { renderer, scene, render } = await createRenderer();
     const bar = scene.app.stage.getChildByLabel('gear-motion-bar', true)!;
     const barDuringRender: boolean[] = [];
