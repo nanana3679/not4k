@@ -1,7 +1,5 @@
 # not4k — 오디오-비주얼 동기화
 
-> **오프셋 부호 (PR #242, 2026-10-08):** 지금 오프셋(`audioOffsetMs`·`judgmentOffsetMs`)은 늦음 양(양수 = 늦음)이고 `GameClock`이 타임라인에서 **뺀다**. 아래 식의 `+ settings.offsetMs`는 이전 표기다. 시각 시간의 출력 지연 보정 부호(`+ audioOutputLatencyMs`)는 별도 타이밍 RFD에서 다시 정한다.
-
 > 플레이어가 보는 노트 위치, 듣는 음악, 누르는 입력이 일치하도록 각 구간의 레이턴시를 보정하는 설계.
 
 ---

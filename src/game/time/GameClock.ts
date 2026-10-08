@@ -7,11 +7,8 @@
  *  - 판정 시간(judgmentTimeMs): 게임 로직(롱노트 유지·미스·끝점 판정·auto)이 쓰는 순수 클럭.
  *  - 시각 시간(visualTimeMs): 판정 시간에 오디오 출력 지연을 얹어, 스피커에서 소리가 나는 순간
  *    노트가 판정선 위에 오도록 렌더 시각을 미래로 민 것.
- *  - 입력 시간(toInputTimeMs): 판정 시간에서 핸들러 지연과 입력 오프셋을 뺀 것.
+ *  - 입력 시간(toInputTimeMs): 판정 시간에서 핸들러 지연을 빼고 입력 오프셋을 얹은 것.
  *    입력 오프셋(judgmentOffsetMs)은 입력 경로에만 적용되며, 판정/시각 시간에는 닿지 않는다.
- *
- * 두 오프셋은 "얼마나 늦는가"를 나타내는 양이다(양수 = 늦음). 캘리브레이션이 잰 값(탭 − 박의 중앙값)을
- * 그대로 저장하고, 이 클럭이 그만큼 타임라인에서 빼서 늦음을 지운다(15ms 늦게 누르면 +15 저장 → 입력 시간 −15).
  *
  * 의존 방향은 game → GameClock 단방향이다. 이 클럭은 게임 상태(노트·점수·일시정지·auto)를
  * 일절 보유하지 않는다. 일시정지·재생배속·gameplayRange 클램프는 audio.currentTimeMs가 이미
@@ -30,9 +27,9 @@ export interface ClockAudioSource {
 
 /** 한 플레이 세션 동안 불변인 캘리브레이션 오프셋. */
 export interface ClockOffsets {
-  /** 오디오 오프셋(양수 = 늦음) — 음악(노래) 타임라인에서 뺀다. 판정·시각·입력 시간 모두의 기준점. */
+  /** 오디오 오프셋 — 음악(노래) 타임라인을 이동. 판정·시각·입력 시간 모두의 기준점. */
   readonly audioOffsetMs: number;
-  /** 입력 오프셋(양수 = 늦음) — 입력 타임라인에서만 뺀다(입력 장치 지연 + 개인 체감). 입력 시간에만 적용. */
+  /** 입력 오프셋 — 입력 타임라인만 이동(입력 장치 지연 + 개인 체감). 입력 시간에만 적용. */
   readonly judgmentOffsetMs: number;
 }
 
@@ -45,7 +42,7 @@ export class GameClock {
 
   /** 판정 시간 — 게임 로직이 쓰는 순수 클럭(척추). */
   judgmentTimeMs(): number {
-    return this.audio.currentTimeMs - this.offsets.audioOffsetMs;
+    return this.audio.currentTimeMs + this.offsets.audioOffsetMs;
   }
 
   /** 시각 시간 — 판정 시간 + 오디오 출력 지연. 출력 지연은 변동하므로 매 질의 live 읽기. */
@@ -54,7 +51,7 @@ export class GameClock {
   }
 
   /**
-   * 입력 시간 — 판정 시간에서 핸들러 지연과 입력 오프셋(늦음 양)을 뺀 것.
+   * 입력 시간 — 판정 시간에서 핸들러 지연을 빼고 입력 오프셋을 얹은 것.
    *
    * handlerDelay = now() − eventTimeStamp 는 둘 다 performance 클럭이라 뺄셈이 유효하다.
    * 이 짧은 delta만 오디오 "지금"에 적용하므로 두 시계의 누적 드리프트에는 영향받지 않는다.
@@ -62,6 +59,6 @@ export class GameClock {
    */
   toInputTimeMs(eventTimeStamp: number): number {
     const handlerDelay = Math.max(0, this.now() - eventTimeStamp);
-    return this.judgmentTimeMs() - handlerDelay - this.offsets.judgmentOffsetMs;
+    return this.judgmentTimeMs() - handlerDelay + this.offsets.judgmentOffsetMs;
   }
 }

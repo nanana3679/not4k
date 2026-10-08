@@ -42,8 +42,7 @@ function play(
 describe("실제 GameClock·입력 큐·Session 통합", () => {
   it.each([-100, 100])("입력 offset %ims에서도 1000ms Point의 raw 1120ms 입력은 Good 경계까지 허용", offset => {
     const p = play([point(1000)], offset);
-    // 입력 오프셋은 늦음 양이라 입력 시간 = 물리 시각 − offset. raw 1120이 되려면 물리 시각은 1120 + offset.
-    const physicalTime = 1120 + offset;
+    const physicalTime = 1120 - offset;
     p.frame(physicalTime - 1);
     expect(p.session.events).toHaveLength(0);
     p.input(physicalTime, physicalTime);
@@ -78,8 +77,8 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events[0].grade).toBe("miss");
   });
 
-  it("−200ms 입력 offset(입력이 200ms 이름)으로 manual이 raw1200까지 진행해도 raw1050 auto Point를 먼저 Perfect 처리", () => {
-    const p = play([point(1050, "single", 2)], -200, true);
+  it("+200ms 입력 offset으로 manual이 raw1200까지 진행해도 raw1050 auto Point를 먼저 Perfect 처리", () => {
+    const p = play([point(1050, "single", 2)], 200, true);
     p.frame(900);
     p.input(1000, 1000);
     p.frame(1000);
@@ -88,12 +87,12 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events).toHaveLength(1);
   });
 
-  it("+50ms 입력 offset(입력이 50ms 늦음)에서 1000ms 수동 Point를 입력 시각 1100에 치면, 1125ms auto Point가 뒤따라도 Miss가 아니라 Good", () => {
-    const p = play([point(1000, "single", 1), point(1125, "single", 2)], 50, [{ startMs: 1100, endMs: 5000 }]);
+  it("−50ms 입력 offset(50ms 늦게 누르는 사람의 보정)에서 1000ms 수동 Point를 입력 시각 1100에 치면, 1125ms auto Point가 뒤따라도 Miss가 아니라 Good", () => {
+    const p = play([point(1000, "single", 1), point(1125, "single", 2)], -50, [{ startMs: 1100, endMs: 5000 }]);
     // 물리 1149ms 프레임: 입력 시간은 1099라 auto 1125를 아직 만들면 안 된다(만들면 core가 1120 기한을 넘겨 수동 노트가 Miss).
     p.frame(1149);
     expect(p.session.events).toHaveLength(0);
-    // 물리 1150ms에 누른 키 = 입력 시간 1150 − 50 = 1100.
+    // 물리 1150ms에 누른 키 = 입력 시간 1150 + (−50) = 1100.
     p.input(1150, 1150);
     p.frame(1150);
     expect(p.session.events[0]).toMatchObject({ kind: "head", grade: "good", deltaMs: 100, inputAt: 1100 });
@@ -101,8 +100,8 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events.map(event => [event.grade, event.inputAt])).toEqual([["good", 1100], ["perfect", 1125]]);
   });
 
-  it("+50ms 입력 offset에서 곡 끝 2000ms 직전 1990ms auto Point는 마지막 프레임까지 만들어지지 않아도 곡 끝 정산에서 Perfect", () => {
-    const p = play([point(1990, "single", 2)], 50, true);
+  it("−50ms 입력 offset에서 곡 끝 2000ms 직전 1990ms auto Point는 마지막 프레임까지 만들어지지 않아도 곡 끝 정산에서 Perfect", () => {
+    const p = play([point(1990, "single", 2)], -50, true);
     // 마지막 프레임: 진행 시각은 입력 시간 1950이라 1990 auto 입력은 아직 만들지 않는다.
     p.frame(2000);
     expect(p.session.events).toHaveLength(0);

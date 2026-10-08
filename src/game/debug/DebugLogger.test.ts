@@ -215,7 +215,7 @@ describe('DebugLogger', () => {
     const s = logger.getSummary();
     expect(s.avgDeltaMs).toBe(-40); // 바디 0이 섞였다면 -20이 됐을 것
     const text = logger.exportAsText();
-    expect(text).toContain('추천 오프셋 조정: -40ms'); // 오프셋 추천이 헤드 편향 기준(늦음 양이라 평균 −40 → −40 조정)
+    expect(text).toContain('추천 오프셋 조정: +40ms'); // 오프셋 추천이 헤드 편향 기준(평균 −40ms FAST → +40 더함)
   });
 
   it('바디 등급은 bodyGradeDistribution으로 분리 집계되고 head 분포엔 안 섞인다', () => {

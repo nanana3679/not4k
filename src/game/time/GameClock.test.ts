@@ -10,14 +10,14 @@ function fakeAudio(currentTimeMs: number, outputLatencyMs = 0): ClockAudioSource
 }
 
 describe("GameClock", () => {
-  it("currentTime 1000ms·audioOffset 20ms(소리가 20ms 늦음)면 판정 시간 980ms", () => {
+  it("currentTime 1000ms·audioOffset 20ms면 판정 시간 1020ms", () => {
     const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 });
-    expect(clock.judgmentTimeMs()).toBe(980);
+    expect(clock.judgmentTimeMs()).toBe(1020);
   });
 
   it("출력 지연 15ms면 시각 시간 = 판정 시간 + 15ms", () => {
     const clock = new GameClock(fakeAudio(1000, 15), { audioOffsetMs: 20, judgmentOffsetMs: 0 });
-    expect(clock.visualTimeMs()).toBe(995);
+    expect(clock.visualTimeMs()).toBe(1035);
     // 불변: 시각 시간 − 판정 시간 === 출력 지연
     expect(clock.visualTimeMs() - clock.judgmentTimeMs()).toBe(15);
   });
@@ -25,22 +25,22 @@ describe("GameClock", () => {
   it("핸들러 지연 8ms면 입력 시간이 판정 시간보다 8ms 앞당겨짐", () => {
     // now()=1000, eventTimeStamp=992 → handlerDelay=8
     const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 }, () => 1000);
-    // 판정 시간 980 − 핸들러 지연 8 − 입력 오프셋 0 = 972
-    expect(clock.toInputTimeMs(992)).toBe(972);
+    // 판정 시간 1020 − 핸들러 지연 8 + 입력 오프셋 0 = 1012
+    expect(clock.toInputTimeMs(992)).toBe(1012);
     expect(clock.judgmentTimeMs() - clock.toInputTimeMs(992)).toBe(8);
   });
 
-  it("입력 오프셋 +5ms(입력이 5ms 늦음)면 입력 시간에서 5ms를 뺀다", () => {
-    // handlerDelay=0(now=eventTimeStamp), 판정 시간 980 − 0 − 5 = 975
-    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 5 }, () => 1000);
-    expect(clock.toInputTimeMs(1000)).toBe(975);
+  it("입력 오프셋 −5ms면 입력 시간에 −5ms 반영", () => {
+    // handlerDelay=0(now=eventTimeStamp), 판정 시간 1020 − 0 + (−5) = 1015
+    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: -5 }, () => 1000);
+    expect(clock.toInputTimeMs(1000)).toBe(1015);
   });
 
   it("eventTimeStamp가 미래(now보다 큼)면 핸들러 지연 0으로 클램프", () => {
     // now()=1000, eventTimeStamp=1008 → now−eventTs=−8 → max(0,−8)=0
     const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 }, () => 1000);
-    // 음수 보정 없이 판정 시간 그대로 = 980
-    expect(clock.toInputTimeMs(1008)).toBe(980);
+    // 음수 보정 없이 판정 시간 그대로 = 1020
+    expect(clock.toInputTimeMs(1008)).toBe(1020);
   });
 
   it("일시정지로 currentTimeMs가 고정이면 세 시간 모두 고정값 유지", () => {

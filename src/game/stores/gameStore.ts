@@ -130,7 +130,7 @@ export function mergePersistedSettings(
   const p = persisted as { settings?: Partial<GameSettings> };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
-  // Migration: 기존 offsetMs → audioOffsetMs. 옛 값은 더하던 값이라 지금(늦음 양, GameClock이 뺌)과 부호 뜻이 반대지만 미출시라 그대로 옮긴다.
+  // Migration: 기존 offsetMs → audioOffsetMs
   const raw = p.settings as Record<string, unknown> | undefined;
   if (raw && 'offsetMs' in raw && !('audioOffsetMs' in raw)) {
     merged.audioOffsetMs = raw.offsetMs;
