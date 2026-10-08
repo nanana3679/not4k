@@ -73,14 +73,14 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('원래 크기 · 오른쪽 아래');
   });
 
-  it('무대는 실제 GameRenderer를 기본 옵션(내장 기어·내장 움직임)으로 만들고, 움직임 조절은 렌더러의 공개 gearMotion API로만 건다', () => {
+  it('무대는 실제 GameRenderer를 기본 옵션(내장 기어·내장 gearMotion)으로 만들고, gearMotion 조절은 렌더러의 공개 gearMotion API로만 한다', () => {
     expect(pageSource).toContain("import('../game/renderer')");
     expect(pageSource).toContain('new GameRenderer({');
     expect(pageSource).not.toContain('showGear');
     expect(pageSource).not.toContain('gearMotion: false');
-    // 움직임 자료는 렌더러 init이 기다리는 필수 자료라, 매 프레임 늦은 얹기를 확인하지 않고 init 직후 한 번 알린다.
+    // `gearMotion` 에셋은 렌더러 init이 기다리는 필수 에셋이라, 매 프레임 늦은 추가를 확인하지 않고 init 직후 한 번 알린다.
     expect(pageSource).not.toContain('reportedAttached');
-    // Lab이 움직임 레이어를 따로 만들거나 얹지 않는다.
+    // Lab이 `gearMotion` 레이어를 따로 만들거나 추가하지 않는다.
     expect(pageSource).not.toContain('attachGearMotion');
     expect(pageSource).not.toContain('createGearMotion');
     expect(pageSource).not.toContain('addGearOverlay');
@@ -93,13 +93,13 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearLayer|maskGraphic|_judgmentLineY|gearMotionController)/);
   });
 
-  it('움직임 자료는 게임과 같은 공유 로더(acquireGearMotionAssets)로 페이지가 한 번 빌려 비교 화면에 넘기고, Lab 경로의 움직임 자료를 읽지 않는다', () => {
+  it('gearMotion 에셋은 게임과 같은 공유 로더(acquireGearMotionAssets)로 페이지가 lease를 한 번 acquire해 비교 화면에 넘기고, Lab 경로의 gearMotion 에셋을 읽지 않는다', () => {
     expect(pageSource).toContain('acquireGearMotionAssets');
     expect(pageSource).not.toContain('loadGearMotionAssets');
     expect(pageSource).not.toContain('gear/motion');
   });
 
-  it('움직임 토글과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {
+  it('gearMotion 토글(라벨 움직임)과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {
     const markup = render();
     const stage = stageOf(markup);
     expect(stage).toContain('data-motion="on"');

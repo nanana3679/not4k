@@ -1,8 +1,8 @@
 /*
-THESIS: 새 기어와 그 움직임은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 기어 움직임이 게임에서 그대로인지 보고, 같은 움직임 모듈을 승인 SVG와 나란히 비교한다.
+THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·가림막은 그대로인지 보고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
-FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·고도·키보드·움직임 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
+FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정적 합성 이미지를 만들지 않는다.
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
@@ -68,14 +68,14 @@ type MotionAssetsState =
   | { status: 'ready'; resources: GearMotionResources }
   | { status: 'error'; message: string };
 
-/** 살아 있는 렌더러의 내장 움직임(GameRenderer.gearMotion)에 거는 설정. 바뀌어도 렌더러를 다시 만들지 않는다. */
+/** 살아 있는 렌더러의 내장 `gearMotion`(GameRenderer.gearMotion)에 적용하는 설정. 바뀌어도 렌더러를 다시 만들지 않는다. */
 interface MotionSettings {
   enabled: boolean;
   layers: GearMotionLayerVisibility;
   reduced: boolean;
 }
 
-/** 움직임 켬·끔 상태별 최근 120프레임의 requestAnimationFrame 간격. */
+/** `gearMotion` 켬·끔 상태별 최근 120프레임의 requestAnimationFrame 간격. */
 type FrameWindows = Record<'on' | 'off', ReturnType<typeof createFrameTimeWindow>>;
 const FRAME_STATS_INTERVAL_MS = 500;
 /** 숨은 탭에서 돌아온 간격처럼 1초가 넘는 간격은 프레임 간격 통계에서 뺀다. */
@@ -122,7 +122,7 @@ export default function GearPage() {
   const [motionLayers, setMotionLayers] = useState<GearMotionLayerVisibility>(ALL_GEAR_MOTION_LAYERS_ON);
   const reducedMotion = usePrefersReducedMotion();
   const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
-  // 내장 움직임을 기어에 얹은 렌더러의 key. 움직임 자료는 렌더러 init이 기다리는 필수 자료라 렌더러가 준비되면 이미 얹혀 있다.
+  // 내장 `gearMotion`을 기어에 추가한 렌더러의 key. `gearMotion` 에셋은 렌더러 init이 기다리는 필수 에셋이라 렌더러가 준비되면 이미 추가돼 있다.
   const [motionAttachedKey, setMotionAttachedKey] = useState<string | null>(null);
   // 처음부터 재생: 살아 있는 렌더러의 gearMotion.restart()를 부른다.
   const restartRef = useRef<(() => void) | null>(null);
@@ -138,7 +138,7 @@ export default function GearPage() {
     [motionEnabled, motionLayers, reducedMotion],
   );
 
-  // 움직임 자료는 게임과 같은 공유 로더에서 페이지가 한 벌을 빌려 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면) 다시 읽지 않고,
+  // `gearMotion` 에셋은 게임과 같은 공유 로더에서 페이지가 lease 하나를 acquire해 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면) 다시 읽지 않고,
   // 아래 비교 화면도 같은 텍스처를 쓴다. 게임 렌더러는 자기 임대를 따로 잡으므로 이 임대와 무관하게 정리된다.
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +204,7 @@ export default function GearPage() {
   );
   const screenResolution = renderHeight / GAME_HEIGHT;
   // 렌더 높이·비행 장면·논리 폭(전체화면 비율)은 렌더러 생성 옵션이라 바뀌면 렌더러를 새로 만든다.
-  // 리프트·키보드·움직임 설정은 살아 있는 렌더러에 그대로 다시 건다.
+  // 리프트·키보드·`gearMotion` 설정은 살아 있는 렌더러에 그대로 다시 적용한다.
   const rendererKey = `${renderHeight}:${scenario}:${stageWidth}`;
   // 렌더러를 새로 만드는 동안 이전 렌더러의 준비 상태를 보이지 않는다.
   const rendererState: RendererState = reportedState.key === rendererKey ? reportedState : { status: 'loading', key: rendererKey };
@@ -647,7 +647,7 @@ function useDevicePixelRatio(): number {
  * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·논리 폭) 캔버스째 새로 만든다.
  * 비행 배경 DOM은 캔버스 앞 형제로 들어가므로, 캔버스 크기와 같은 위치 지정 래퍼에 캔버스만 둔다.
  * 기어·레인·판정선·가림막·키보드 표시는 게임 렌더러가 그대로 그리고, 노트는 정해 둔 데모 판정(buildGearPreviewSchedule)대로
- * 맞히거나 놓친 것처럼 표시한다. 기어 움직임은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 gearMotion API로 조절만 한다.
+ * 맞히거나 놓친 것처럼 표시한다. `gearMotion`은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 gearMotion API로 조절만 한다.
  */
 function GearPreviewRenderer({
   rendererKey, scenario, width, resolution, lift, altitudeOverride, keyboardBindings, sharedSkin, hostStyle,
@@ -672,15 +672,15 @@ function GearPreviewRenderer({
   frameWindows: FrameWindows;
   onState: (state: RendererState) => void;
   onView: (view: RendererView) => void;
-  /** 움직임이 흐르는 프레임마다 움직임 시계(ms), 흐르지 않게 되면 null. */
+  /** `gearMotion`이 재생되는 프레임마다 애니메이션 경과 시간(ms), 재생되지 않게 되면 null. */
   onMotionTime: (timeMs: number | null) => void;
-  /** 이 렌더러(key)의 내장 움직임이 준비되어 기어에 얹혔을 때. */
+  /** 이 렌더러(key)의 내장 `gearMotion`이 준비되어 기어에 추가됐을 때. */
   onMotionAttached: (key: string) => void;
   /** 프레임마다 지금 보이는 게이지 채움(gearGaugeLevel), 렌더러를 정리하면 null. */
   onGaugeLevel: (level: number | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // 리프트·키보드·움직임 설정 effect가 쓰는 살아 있는 렌더러와 그 값을 다시 거는 함수.
+  // 리프트·키보드·`gearMotion` 설정 effect가 쓰는 살아 있는 렌더러와 그 값을 다시 적용하는 함수.
   const liveRef = useRef<{
     applyLift: (lift: number) => void;
     applyAltitude: (altitude: number | null) => void;
@@ -713,7 +713,7 @@ function GearPreviewRenderer({
     let frame = 0;
     let renderer: GameRenderer | null = null;
     let skinAcquired = false;
-    // 이 렌더러가 움직임 시계를 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
+    // 이 렌더러가 애니메이션 경과 시간을 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
     let reportedMotion = false;
     const restartMotion = () => renderer?.gearMotion?.restart();
 
@@ -795,7 +795,7 @@ function GearPreviewRenderer({
         const applyKeyboard = (bindings: ReadonlyMap<string, number>) => active.setupKeyboardDisplay(new Map(bindings));
         applyKeyboard(keyboardRef.current);
 
-        // 내장 움직임(게임과 같음)은 init이 자료를 기다려 이미 얹었다.
+        // 내장 `gearMotion`(게임과 같음)은 init이 에셋을 기다려 이미 추가했다.
         const motion = active.gearMotion;
         if (motion?.status === 'ready') reportMotionAttached(key);
         const applyMotion = (settings: MotionSettings) => {
@@ -815,7 +815,7 @@ function GearPreviewRenderer({
           const frameDelta = now - previousNow;
           const deltaMs = Math.min(48, Math.max(0, frameDelta));
           previousNow = now;
-          // 움직임 켬·끔 프레임 간격은 이번 프레임이 움직임을 그렸는지(running)로 나눠 모은다.
+          // `gearMotion` 켬·끔 프레임 간격은 이번 프레임이 `gearMotion`을 그렸는지(running)로 나눠 모은다.
           if (frameDelta <= FRAME_DELTA_LIMIT_MS) windows[motion?.running ? 'on' : 'off'].push(frameDelta);
           let songMs = Math.max(0, now - startNow);
           if (songMs >= demo.durationMs) {
@@ -853,7 +853,7 @@ function GearPreviewRenderer({
             beams[index] = on;
             active.setKeyBeam(index + 1, on);
           });
-          // 움직임 시계는 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
+          // 애니메이션 경과 시간은 renderFrame의 deltaMs(게임 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
           reportGaugeLevel(active.gearGaugeLevel);
           if (motion) {
@@ -914,7 +914,7 @@ function GearPreviewRenderer({
     liveRef.current?.applyKeyboard(keyboardBindings);
   }, [keyboardBindings]);
 
-  // 움직임 켜기·요소·움직임 줄이기는 렌더러를 다시 만들지 않고 살아 있는 렌더러의 gearMotion에 건다.
+  // `gearMotion` 켜기·요소·`setReducedMotion`은 렌더러를 다시 만들지 않고 살아 있는 렌더러의 gearMotion에 적용한다.
   useEffect(() => {
     liveRef.current?.applyMotion(motionSettings);
   }, [motionSettings]);

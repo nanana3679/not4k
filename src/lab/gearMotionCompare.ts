@@ -5,9 +5,9 @@ import type { GearMotionResources } from '../game/renderer/gearMotionAssets';
 import { viewBoxTransform, type GearViewBox } from './gearMotionView';
 
 /**
- * 기어만 그리는 작은 Pixi 앱(GameRenderer 아님). 승인된 SVG와 같은 바탕(SVG의 #fm-base 그림) 위에 게임의 움직임 모듈
- * (src/game/renderer/gearMotion)을 얹어, 같은 시각·같은 viewBox로 SVG와 나란히 비교한다. 움직임 텍스처는 게임 렌더러와 같은
- * 공유 로더(acquireGearMotionAssets)의 한 벌을 받아 쓰고 정리하지 않는다(임대는 호출자가 놓는다).
+ * 기어만 그리는 작은 Pixi 앱(GameRenderer 아님). 승인된 SVG와 같은 바탕(SVG의 #fm-base 그림) 위에 게임의 `gearMotion`(기어 위 장식 애니메이션) 모듈
+ * (src/game/renderer/gearMotion)을 추가해, 같은 시각·같은 viewBox로 SVG와 나란히 비교한다. `gearMotion` 텍스처는 게임 렌더러와 같은
+ * 공유 로더(acquireGearMotionAssets)의 공유 에셋을 받아 쓰고 destroy하지 않는다(lease는 호출자가 release한다).
  * E2E 픽셀 비교도 이 함수로 원본 크기(1024×1536) 화면을 만든다.
  */
 
@@ -18,7 +18,7 @@ export interface GearMotionPreview {
   readonly samples: number;
   setViewBox(box: GearViewBox): void;
   resize(width: number, height: number, resolution: number): void;
-  /** 움직임 시계 timeMs로 맞추고 한 장 그린다. */
+  /** 애니메이션 경과 시간 timeMs로 맞추고 렌더 프레임 하나를 그린다. */
   render(timeMs: number): void;
   destroy(): void;
 }
@@ -30,7 +30,7 @@ export async function createGearMotionPreview(options: {
   height: number;
   resolution: number;
   base: HTMLImageElement;
-  /** 공유 로더가 준 움직임 자료와 텍스처(게임 기어와 같은 밉맵·삼선형 설정). */
+  /** 공유 로더가 준 `gearMotion` 에셋(`gear-motion.json` 데이터와 텍스처, 게임 기어와 같은 밉맵·삼선형 설정). */
   motion: GearMotionResources;
   preserveDrawingBuffer?: boolean;
   /** MSAA. 게임 렌더러는 끈 채로 쓰므로 기본은 꺼짐이다. 스텐실 띠 경계가 얼마나 부드러워지는지 비교하는 데 쓴다. */
@@ -66,7 +66,7 @@ export async function createGearMotionPreview(options: {
       background: '#000000',
       preserveDrawingBuffer,
     });
-    // 바탕도 게임 기어와 같은 설정(밉맵·삼선형)으로 만들어 줄여 볼 때 움직임 텍스처와 같은 선명도로 비교한다.
+    // 바탕도 게임 기어와 같은 설정(밉맵·삼선형)으로 만들어 줄여 볼 때 `gearMotion` 텍스처와 같은 선명도로 비교한다.
     const baseSource = new ImageSource({ resource: base, ...GEAR_TEXTURE_OPTIONS });
     cleanups.push(() => baseSource.destroy());
     const baseTexture = new Texture({ source: baseSource });

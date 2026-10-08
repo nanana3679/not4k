@@ -33,12 +33,13 @@
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
+| 기어 움직임 | `gearMotion` (기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛. 설정 라벨 `Gear Motion`은 화면 표시라 그대로 둔다. "움직이다"는 위치 변화(노트 스크롤·리프트)에만 남긴다, 2026-10-09) | `gearMotion`/`GearMotionController`/`GearMotionControls`/`gear-motion.json` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 
 ## B. 기존 개념 — established 이름 유지
 
-레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout`·`GearMotionController`·설정 `gearMotion`, 전체는 [glossary](glossary.md#기어-gear) 참조. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231).
+레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout`·`GearMotionController`·설정 `gearMotion`, 전체는 [glossary](glossary.md#기어-gear) 참조. 기어 위 장식 애니메이션은 A의 `gearMotion`. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231).
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
@@ -89,8 +90,8 @@
 | reference counting | reference counting. 동작은 retain/release, 저장 값은 경로별 reference count | 참조 세기 | `retainSharedAsset`/`releaseSharedAsset`, `references`(`src/game/skin/sharedAssets.ts`) |
 | lease | lease. 얻을 때 acquire, 끝낼 때 release("lease를 release"처럼 대상을 붙인다). 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
 | release와 unload | 둘을 나눠 쓴다. release는 reference count를 1 줄이고, unload는 마지막 release 뒤 `Assets.unload`가 캐시에서 지우는 것이다. Pixi 객체 정리는 destroy(`destroy()`). 무엇(lease·경로·텍스처)을 다루는지 함께 쓴다 | 놓다(어느 쪽에도) | `releaseSharedAsset` → `Assets.unload` |
-| 에셋 | 에셋. 예: `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`(`gearMotionData.ts`)·`GearMotionTextures`(`gearMotion.ts`), 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
-| warm-up | warm-up(`GameRenderer.prepareForPlayback(songTimeMs)`): 곡 재생 전에 곡 중 쓰는 텍스처 소스를 GPU 업로드(`initSource`)하고 첫 프레임을 한 번 그려 셰이더·마스크를 준비한다. 기어 움직임 하단 바 알파 마스크 준비는 `GearMotionController.warmUp(render)` | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.prepareForPlayback`, `GearMotionController.warmUp`, `PlayScreen.tsx` |
+| 에셋 | 에셋. 예: `gearMotion` 에셋 = `public/gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개(코드 `GearMotionData`(`gearMotionData.ts`)·`GearMotionTextures`(`gearMotion.ts`), 둘을 묶은 `GearMotionResources`). 생성기가 잰 값은 측정 데이터(`gearGeometry.json`) | 자료, 움직임 자료, 측정 자료 | `gearMotionAssets.ts`, `gearMotionData.ts` |
+| warm-up | warm-up(`GameRenderer.prepareForPlayback(songTimeMs)`): 곡 재생 전에 곡 중 쓰는 텍스처 소스를 GPU 업로드(`initSource`)하고 첫 프레임을 한 번 그려 셰이더·마스크를 준비한다. `gearMotion` 하단 바 알파 마스크 준비는 `GearMotionController.warmUp(render)` | 한 장, 곡 시작 전 한 장, 첫 장 | `GameRenderer.prepareForPlayback`, `GearMotionController.warmUp`, `PlayScreen.tsx` |
 | holder / container | `holder`(Pixi `Container`). 기어 위 레이어는 `addGearOverlay`로 추가한 컨테이너 | 자리, 움직임 자리 | `GearMotionController`의 `holder: Container`, `GameRenderer.addGearOverlay` |
 | atlas frame | atlas frame(`Texture.frame`). 텍스처 안의 원본 영역(`atlasX`·`atlasY`·`width`·`height`)과 그릴 위치(`x`·`y`)를 구분해 쓴다 | 조각, 상자, 아틀라스 상자, 자리, bare "프레임" | `GearMotionPiece`(`gearMotionData.ts`), `gearMotion.ts` |
 | GPU 업로드 | GPU 업로드(`initSource`) | (GPU에) 올리다, 올리기. 올리다는 리프트 뜻으로 남긴다 | `renderer.texture.initSource`(`GameRenderer.ts`) |
@@ -100,7 +101,8 @@
 | tint | `tint` | 물들이기, 물들여 | `gearMotion.ts`의 `unlit.tint` |
 | 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 판정선 아래 레인을 덮는 사각형이나 서든의 상단 커버를 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처 |
 | 판정선 아래 레인을 덮는 불투명 사각형 | **없앨 예정([#247](https://github.com/nanana3679/not4k/issues/247)).** 이 사각형 대신 레인 길이를 레인 끝(기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)에서 클립한다. 그 전까지는 코드 식별자 `drawMask`·`maskGraphic`로 부르고, Pixi mask가 아니라 불투명 `Graphics` 채우기임을 함께 적는다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 커버 기능(PRD G-10 서든)에 남겨 둔다 | `drawMask`·`maskGraphic`·`laneMaskTop`, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
-| 애니메이션 경과 시간 | 애니메이션 경과 시간(`GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계 | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
+| 애니메이션 경과 시간 | 애니메이션 경과 시간(`gearMotion`의 `GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계, 시계(이 뜻일 때) | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
+| `gearMotion`을 이루는 Pixi 레이어 | `gearMotion` 레이어(`GEAR_MOTION_LAYERS`: `armor`·`gauge`·`accent`·`bar`, Lab 표시 이름 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름). 레이어 묶음 전체는 `gearMotion` (2026-10-09) | 움직임 레이어, bare "움직임" | `GearMotionLayer`·`GearMotionLayerVisibility`(`gearMotionData.ts`), `setLayerVisible` |
 | scene graph에 추가 | 추가(`addChild`). 기어 위 레이어는 `addGearOverlay` | 얹다, 얹기 | Pixi `Container.addChild` |
 | 렌더러에 차트 설정 | `setChart` | 차트를 걸다 | `GameRenderer.setChart` |
 | 표시 객체 위치 지정 | 위치 지정(`x`·`y`·`position.set`). 차트의 노트·피스 "배치"와 구분한다 | 놓다 | 예: `GearGauge`가 유리관마다 만든 컨테이너의 `holder.position.set(tube.x, tube.y)`(`gearGauge.ts`) |

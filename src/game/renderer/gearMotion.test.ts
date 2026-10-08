@@ -188,7 +188,7 @@ describe('createGearMotion', () => {
     expect(motion.gaugeFill.children.map((child) => child.label)).toEqual(['gear-motion-liquid', 'gear-motion-bubbles']);
     expect(gauge.children.map((child) => child.label)).toEqual(['gear-motion-gauge-fill', 'gear-motion-glass']);
     expect(gauge.mask).toBe(byLabel(motion.container, 'gear-motion-glass'));
-    // 채움 컨테이너 자체에는 마스크가 없다. 고도 게이지는 렌더러가 움직임 위에 겹친 빈 유리 덮개로 빈 부분을 가린다(GameRenderer.gearGauge.test.ts).
+    // 채움 컨테이너 자체에는 마스크가 없다. 고도 게이지는 렌더러가 `gearMotion` 위에 겹친 빈 유리 덮개로 빈 부분을 가린다(GameRenderer.gearGauge.test.ts).
     expect(motion.gaugeFill.mask ?? null).toBeNull();
     motion.destroy();
   });
@@ -271,7 +271,7 @@ describe('createGearMotion', () => {
     motion.destroy();
   });
 
-  it('setReducedMotion(true)면 움직임 전체가 숨고 update(30000)도 광원을 옮기지 않으며, false로 돌리면 다시 보이고 다음 update를 따른다', () => {
+  it('setReducedMotion(true)면 gearMotion 전체가 숨고 update(30000)도 광원을 옮기지 않으며, false로 돌리면 다시 보이고 다음 update를 따른다', () => {
     const motion = createGearMotion(data, fakeTextures());
     motion.update(0);
     motion.setReducedMotion(true);
@@ -328,14 +328,14 @@ describe('createGearMotion', () => {
 });
 
 describe('게임 모듈 경계', () => {
-  it('움직임·시간 곡선·자료 모듈은 Lab·React를 import하지 않는다', () => {
+  it('gearMotion·시간 곡선·데이터 모듈(gearMotion.ts·gearMotionTiming.ts·gearMotionData.ts)은 Lab·React를 import하지 않는다', () => {
     for (const source of [motionSource, timingSource, dataSource]) {
       expect(source).not.toMatch(/from ['"][^'"]*\/lab\//);
       expect(source).not.toMatch(/from ['"]react/);
     }
   });
 
-  it('게임 움직임 모듈은 HTMLImageElement로 텍스처 소스를 따로 만들지 않는다(텍스처는 공유 로더가 기어와 같은 설정으로 읽는다)', () => {
+  it('게임 gearMotion 모듈은 HTMLImageElement로 텍스처 소스를 따로 만들지 않는다(텍스처는 공유 로더가 기어와 같은 설정으로 읽는다)', () => {
     expect(motionSource).not.toContain('HTMLImageElement');
     expect(motionSource).not.toContain('createGearMotionTextures');
   });

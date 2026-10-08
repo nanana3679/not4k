@@ -26,7 +26,7 @@ interface GameSettings {
   skinId: string;
   bombScale: number;
   renderHeight: number;
-  /** 기어 움직임(광원·게이지 액체·발광선·하단 바). 끄면 플레이 렌더러가 움직임 객체를 만들지 않는다. 없으면 켬. */
+  /** `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛). 끄면 플레이 렌더러가 `gearMotion` 객체를 만들지 않는다. 없으면 켬. */
   gearMotion: boolean;
   playSpeed: number;
   judgmentMode: JudgmentMode;

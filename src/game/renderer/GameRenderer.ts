@@ -105,8 +105,8 @@ export interface GameRendererOptions {
    */
   showGear?: boolean;
   /**
-   * 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
-   * 끄면(게임 설정 `gearMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
+   * `gearMotion`(기어 위 장식 애니메이션: 큰 광원 띠·게이지 액체 흐름과 기포·발광선 호흡·하단 바 빛, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
+   * 끄면(게임 설정 `gearMotion` 끔) `gearMotion` 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
   gearMotion?: boolean;
   showFlightBackground?: boolean;
@@ -192,10 +192,10 @@ export class GameRenderer {
   // Gear (새 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
   private gearLayer: Container;
   private _gearLayout: Readonly<GearLayout> | null = null;
-  // 기어 움직임 — 기어 레이어에서 기어 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
+  // `gearMotion` — 기어 레이어에서 기어 스프라이트 바로 위. 애니메이션 경과 시간은 renderFrame의 deltaMs로만 나아간다.
   private readonly gearMotionEnabled: boolean;
   private gearMotionController: GearMotionController | null = null;
-  // 고도 게이지 — 기어 레이어 맨 위(기어 움직임 위). 빈 유리 덮개가 빈 부분의 움직임 액체·기포를 함께 가린다.
+  // 고도 게이지 — 기어 레이어 맨 위(`gearMotion` 위). 빈 유리 덮개가 빈 부분의 `gearMotion` 액체·기포를 함께 가린다.
   private gearGauge: GearGauge | null = null;
   /** 이 렌더러가 기어·게이지를 만들 때 쓴 스킨 텍스처(기어 그림·빈 유리 아틀라스). 기어를 그리지 않으면 비어 있다. */
   private gearTextures: Texture[] = [];
@@ -408,7 +408,7 @@ export class GameRenderer {
     this.initialized = true;
     // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. 자리는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
     this.buildGearMotion();
-    // 비행 배경과 기어 움직임 자료는 렌더러 준비에 필요한 자료다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
     const required: Promise<unknown>[] = [];
     if (this.showFlightBackground) {
       this.flightBackground = new FlightBackground({
@@ -496,9 +496,9 @@ export class GameRenderer {
   }
 
   /**
-   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든 같은 모습이다.
-   * 나중에 붙는 움직임 자리(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 움직임의 액체·기포를 가린다(유리 안쪽에 그리는
-   * 움직임은 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
+   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, `gearMotion`을 켜든 끄든 같은 모습이다.
+   * 나중에 붙는 `gearMotion`의 `holder`(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 `gearMotion`의 액체·기포를 가린다(유리 안쪽에 그리는
+   * `gearMotion` 레이어는 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
    * 운영체제의 `prefers-reduced-motion`은 읽지 않고 늘 이징으로 따라간다(RFD 0030).
    * 채움 1에서는 덮개를 숨겨 두어 Pixi가 아틀라스를 그리지도 GPU 업로드하지도 않으므로, 곡 시작 전 준비(prepareForPlayback)가 미리 GPU 업로드한다.
    */
@@ -514,8 +514,8 @@ export class GameRenderer {
   }
 
   /**
-   * 기어 움직임(RFD 0029). 기어 레이어에 기어와 같은 변환의 기어 모션 holder를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
-   * 필수라 init이 준비를 기다린다. 준비되면 holder에 움직임을 얹고(텍스처 GPU 업로드는 곡 시작 전 준비가 한다), 읽지 못하면 init이 그 오류로 실패한다.
+   * `gearMotion`(RFD 0029). 기어 레이어에 기어와 같은 변환의 `holder`를 붙이고 공유 로더에서 `gearMotion` 에셋 lease를 acquire한다. `gearMotion` 에셋은 스킨 텍스처처럼
+   * 필수라 init이 준비를 기다린다. 준비되면 `holder`에 `gearMotion`을 추가하고(텍스처 GPU 업로드는 곡 시작 전 준비가 한다), 읽지 못하면 init이 그 오류로 실패한다.
    * 만들지 여부는 옵션 `gearMotion`(게임 설정 `Gear Motion`)만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
    */
   private buildGearMotion(): void {
@@ -542,7 +542,7 @@ export class GameRenderer {
   }
 
   /**
-   * 곡 중 그릴 수 있는 텍스처 소스를 한 번씩 GPU 업로드한다(밉맵을 쓰는 기어·움직임 텍스처는 밉맵 생성까지). 이미 업로드된 소스는 Pixi가 건너뛴다.
+   * 곡 중 그릴 수 있는 텍스처 소스를 한 번씩 GPU 업로드한다(밉맵을 쓰는 기어·`gearMotion` 텍스처는 밉맵 생성까지). 이미 업로드된 소스는 Pixi가 건너뛴다.
    * 목록은 화면이 넘기지 않고 렌더러가 스스로 모은다(collectPlaybackTextureSources).
    * 업로드한 소스는 렌더러를 dispose할 때까지 Pixi 자동 GC에서 뺀다(`autoGarbageCollect` false). 불러온 이미지는 자동 GC 대상이라
    * 기본 설정에서 60초 넘게 그리지 않으면 GPU 텍스처가 해제되고, 곡 중 다시 쓰는 프레임에 GPU 업로드가 다시 일어나기 때문이다.
@@ -563,7 +563,7 @@ export class GameRenderer {
    * 곡 중 이 렌더러가 그릴 수 있는 텍스처 소스(중복 없음). 여러 텍스처가 나눠 쓰는 소스(터미널에서 잘라 쓴 롱노트 캡, 게이지 행 등)는 한 번만 담는다.
    * - SkinManager가 불러온 텍스처 전부: 노트·바디·터미널과 실패·켜짐·부분 실패·idle 변형, Grace·그림자, 키봄 16프레임 등.
    *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리는 이 렌더러가 실제로 만든 것(gearTextures)만 담는다.
-   * - 기어 움직임 텍스처 9장: 움직임이 움직일 때만(`running`. 설정 끔이면 움직임을 만들지 않는다).
+   * - `gearMotion` 텍스처 9개: `gearMotion`이 재생 중일 때만(`running`. 설정 끔이면 `gearMotion`을 만들지 않는다).
    * - 키빔 그라데이션: 레인 키를 처음 누르는 프레임에 GPU 업로드되지 않게.
    */
   private collectPlaybackTextureSources(): Set<TextureSource> {
@@ -581,7 +581,7 @@ export class GameRenderer {
 
   /**
    * 곡을 시작하기 전에 songTimeMs의 첫 프레임을 그린다(시계는 나아가지 않는다). 셰이더·마스크 준비를 재생 시작 전에 끝낸다.
-   * 기어 움직임의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로 이 첫 프레임 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다).
+   * `gearMotion`의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로 이 첫 프레임 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다).
    */
   private renderFirstFrame(songTimeMs: number): void {
     // 곡 중간에서 시작해도(편집기 시험 재생) 게이지가 가득 찬 데서 내려오지 않게, 첫 프레임에서 곡 시작 시각의 고도로 바로 맞춘다.
@@ -934,7 +934,7 @@ export class GameRenderer {
       // 게이지 이징도 게임 프레임 간격으로만 나아가 일시정지 중에는 멈춘다(최대 50ms).
       this.gearGauge?.update(altitude, deltaMs);
     }
-    // 기어 움직임 시계는 곡 시각이 아니라 게임 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
+    // `gearMotion`의 애니메이션 경과 시간은 곡 시간이 아니라 렌더 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
     this.gearMotionController?.advance(deltaMs);
 
     // Hide all pooled graphics
@@ -1194,8 +1194,8 @@ export class GameRenderer {
   }
 
   /**
-   * 기어 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
-   * `setReducedMotion`(Lab 전용)·처음부터 재생을 건다. 움직임을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
+   * `gearMotion` 조절(RFD 0029). init이 끝나면 `gearMotion`은 `holder`에 추가돼 있다(status ready). 애니메이션 경과 시간(`timeMs`)을 읽고, Lab 미리보기가 켜기·레이어·
+   * `setReducedMotion`(Lab 전용)·처음부터 재생을 부른다. `gearMotion`을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
    */
   get gearMotion(): GearMotionControls | null {
     return this.gearMotionController;
@@ -1203,8 +1203,8 @@ export class GameRenderer {
 
   /**
    * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 기어와 같은 변환으로 붙인다. 내장 기어 움직임이 쓴다. 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
-   * (빈 유리 덮개가 빈 부분의 움직임 액체·기포를 가린다).
+   * 기어와 같은 변환으로 붙인다. 내장 `gearMotion`이 쓴다. 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
+   * (빈 유리 덮개가 빈 부분의 `gearMotion` 액체·기포를 가린다).
    * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
   addGearOverlay(overlay: Container): Readonly<GearLayout> | null {
@@ -1288,7 +1288,7 @@ export class GameRenderer {
     this.autoGarbageCollectBeforePlayback.clear();
     this.flightBackground?.dispose();
     this.flightBackground = null;
-    // 움직임 텍스처는 공유 로더 소유라 임대만 놓는다(마지막 임대면 로더가 unload한다).
+    // `gearMotion` 텍스처는 공유 로더 소유라 lease만 release한다(마지막 lease면 로더가 unload한다).
     this.gearMotionController?.destroy();
     this.gearMotionController = null;
     // 게이지가 만든 행 텍스처만 정리한다(빈 유리 아틀라스는 SkinManager 소유).

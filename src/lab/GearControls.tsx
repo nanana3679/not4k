@@ -29,7 +29,7 @@ export function RadioGroup<T extends string | number>({ legend, name, value, opt
   );
 }
 
-/** 움직임 요소 체크(승인 SVG 시연과 같은 이름 A~D). 무대와 비교 화면에 함께 적용한다. */
+/** `gearMotion` 요소 체크(승인 SVG 시연과 같은 이름 A~D). 무대와 비교 화면에 함께 적용한다. */
 export function GearMotionLayerChecks({ value, onChange }: {
   value: GearMotionLayerVisibility;
   onChange: (layer: GearMotionLayer, visible: boolean) => void;

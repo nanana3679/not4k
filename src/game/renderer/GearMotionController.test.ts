@@ -56,7 +56,7 @@ async function readyController(options: Partial<GearMotionControllerOptions> = {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('GearMotionController — 게임 렌더러의 기어 움직임 수명과 시계', () => {
+describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애니메이션 경과 시간', () => {
   it('자료가 준비되기 전에는 status loading·시계 0·running false·ready 미이행이고 advance(16)을 해도 시계가 0이며 자리(holder)는 비어 있다', async () => {
     const { holder, controller } = controllerWith();
     const ready = vi.fn();
@@ -70,7 +70,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('자료가 준비되면 움직임 컨테이너를 자리에 얹은 뒤에 ready가 이행하고 status ready, 시계 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
+  it('에셋이 준비되면 gearMotion 컨테이너를 holder에 추가한 뒤에 ready가 이행하고 status ready, 애니메이션 경과 시간 0의 모습(광원 띠 중심 y −841)으로 시작한다', async () => {
     const { holder, controller } = await readyController();
     expect(controller.status).toBe('ready');
     expect(controller.running).toBe(true);
@@ -81,7 +81,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('ready 뒤 advance(16)을 3번 부르면 시계가 48ms이고 움직임을 update(16)·update(32)·update(48)로 갱신한다', async () => {
+  it('ready 뒤 advance(16)을 3번 부르면 애니메이션 경과 시간이 48ms이고 gearMotion을 update(16)·update(32)·update(48)로 갱신한다', async () => {
     const { controller, update } = await readyController();
     update.mockClear();
     controller.advance(16);
@@ -100,7 +100,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('advance에 −16·NaN·Infinity가 들어오면 시계를 0에 그대로 두고 움직임을 갱신하지 않는다', async () => {
+  it('advance에 −16·NaN·Infinity가 들어오면 애니메이션 경과 시간을 0에 그대로 두고 gearMotion을 갱신하지 않는다', async () => {
     const { controller, update } = await readyController();
     update.mockClear();
     for (const delta of [-16, Number.NaN, Number.POSITIVE_INFINITY]) controller.advance(delta);
@@ -126,7 +126,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('setReducedMotion(true)(Lab 미리보기 전용)면 움직임을 숨기고 advance(16)이 시계를 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 자리에서 이어 간다', async () => {
+  it('setReducedMotion(true)(Lab 미리보기 전용)면 gearMotion을 숨기고 advance(16)이 애니메이션 경과 시간을 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 시점에서 이어 간다', async () => {
     const { holder, controller } = await readyController();
     controller.advance(16);
     controller.advance(16);
@@ -156,7 +156,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('준비 전에 고른 A 큰 광원 끄기·setReducedMotion(true)는 움직임을 얹을 때 그대로 적용된다', async () => {
+  it('준비 전에 고른 A 큰 광원 끄기·setReducedMotion(true)는 gearMotion을 holder에 추가할 때 그대로 적용된다', async () => {
     const { holder, resolve, controller } = controllerWith();
     controller.setLayerVisible('armor', false);
     controller.setReducedMotion(true);
@@ -179,7 +179,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('textures는 얹기 전 빈 배열, 얹고 움직이면 받은 텍스처 9장이고, setReducedMotion(true)·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
+  it('textures는 holder에 추가하기 전 빈 배열, 추가하고 재생 중(running)이면 받은 텍스처 9개이고, setReducedMotion(true)·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
     let received: GearMotionTextures | undefined;
     const { controller, resolve } = controllerWith({
       create: (motionData, textures, motionOptions) => { received = textures; return createGearMotion(motionData, textures, motionOptions); },
@@ -200,7 +200,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     expect(controller.textures).toEqual([]);
   });
 
-  it('warmUp(render)은 얹은 움직임의 하단 바를 그 한 번 동안 그리게 하고, 움직임이 없으면 render만 부른다', async () => {
+  it('warmUp(render)은 추가한 gearMotion의 하단 바를 그 한 번 동안 그리게 하고, gearMotion이 없으면 render만 부른다', async () => {
     const { holder, controller } = await readyController();
     const bar = node(holder, 'gear-motion-bar');
     const seen: boolean[] = [];
@@ -230,7 +230,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     expect(lease.release).toHaveBeenCalledTimes(1);
   });
 
-  it('움직임을 만들다 실패하면(조각 없는 자료) ready가 그 오류로 거절되고 임대를 한 번 놓는다', async () => {
+  it('gearMotion을 만들다 실패하면(atlas frame 없는 데이터) ready가 그 오류로 거절되고 lease를 한 번 release한다', async () => {
     const { lease, resolve, controller } = controllerWith({ create: () => { throw new Error('glint pieces'); } });
     resolve();
     await expect(controller.ready).rejects.toThrow('glint pieces');
@@ -239,7 +239,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     expect(lease.release).toHaveBeenCalledTimes(1);
   });
 
-  it('destroy하면 움직임을 정리하고 임대를 한 번 놓으며, 두 번 불러도 다시 놓지 않는다', async () => {
+  it('destroy하면 gearMotion을 destroy하고 lease를 한 번 release하며, 두 번 불러도 다시 release하지 않는다', async () => {
     const { holder, lease, controller } = await readyController();
     const motionRoot = holder.children[0];
     controller.destroy();
@@ -250,7 +250,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     expect(controller.running).toBe(false);
   });
 
-  it('준비 전에 destroy하면 나중에 자료가 준비되어도 움직임을 만들지 않고 ready는 거절되며 임대는 한 번만 놓는다', async () => {
+  it('준비 전에 destroy하면 나중에 에셋이 준비되어도 gearMotion을 만들지 않고 ready는 거절되며 lease는 한 번만 release한다', async () => {
     const create = vi.fn(createGearMotion);
     const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();

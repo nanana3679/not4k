@@ -95,7 +95,7 @@
   overscroll-behavior: contain;
 }
 
-/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·움직임). 무대 오른쪽 위 비행 배경 자리에 겹친다. */
+/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·`gearMotion`). 무대 오른쪽 위 비행 배경 자리에 겹친다. */
 .gear-preview-fullscreen-bar {
   position: absolute;
   top: 8px;

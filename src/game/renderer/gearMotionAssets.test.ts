@@ -16,7 +16,7 @@ import { sharedAssetReferenceCount } from '../skin/sharedAssets';
 const requestPath = (request: unknown) => (typeof request === 'string' ? request : (request as { src: string }).src);
 const loadedPaths = () => assetsLoad.mock.calls.map(([request]) => requestPath(request));
 
-describe('acquireGearMotionAssets — 기어 움직임 자료 공유 로더', () => {
+describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
   beforeEach(() => {
     gate.json = null;
     assetsUnload.mockClear();

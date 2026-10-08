@@ -54,7 +54,7 @@ describe('parseGearMotionData', () => {
   });
 });
 
-describe('움직임 자료 경로', () => {
+describe('gearMotion 에셋 경로', () => {
   it('텍스처 9장과 gear-motion.json은 기어 그림 옆 /gear/gear-motion/ 아래에 있다(Lab 경로가 아님)', () => {
     expect(GEAR_MOTION_ASSET_DIR).toBe('/gear/gear-motion');
     expect(GEAR_MOTION_DATA_PATH).toBe('/gear/gear-motion/gear-motion.json');

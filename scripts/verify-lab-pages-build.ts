@@ -26,7 +26,7 @@ const requiredPaths = [
   "gear/gear.png",
   // 고도 게이지 빈 유리(스킨 공통 gearGaugeEmpty). /lab/gear와 Lab 재생기의 스킨 읽기가 함께 받는다.
   "gear/gear-gauge-empty.png",
-  // 기어 움직임 자료는 기어 그림 옆 공용 경로에 있고 게임과 Lab이 함께 읽는다(RFD 0029).
+  // `gearMotion` 에셋은 기어 그림 옆 공용 경로에 있고 게임과 Lab이 함께 읽는다(RFD 0029).
   "gear/gear-motion/gear-motion.json",
   "gear/gear-motion/armor-lit.png",
   "gear/gear-motion/armor-core.png",
@@ -55,7 +55,7 @@ await Promise.all(requiredPaths.map((pathname) => access(resolve(outputRoot, pat
 for (const retiredPath of [
   'lab/geometric-background', 'lab/perspective-surface-grid', 'lab/gear-light', 'lab/gear-measure-pulse', 'lab/gear-samples',
   'gear/gear-frame.png', 'gear/gear-gauge-left.png', 'lab/skin-versions/classic/v014/gear',
-  // #231에서 장식 그림의 이름을 frame에서 gear(기어)로 바꿨다. 옛 Lab 경로(옛 컷아웃·움직임 복사본 포함)와 에셋 경로는 공개하지 않는다.
+  // #231에서 장식 그림의 이름을 frame에서 gear(기어)로 바꿨다. 옛 Lab 경로(옛 컷아웃·`gearMotion` 에셋 복사본 포함)와 에셋 경로는 공개하지 않는다.
   // 옛 Lab 주소는 클라이언트 라우트가 /lab/gear로 넘기므로 정적 폴더가 없어야 한다.
   'lab/classic-frame-fit', 'gear/classic-frame.png', 'gear/classic-frame-motion',
   // 기어는 스킨 공용이라 Classic 스킨 이름을 붙이지 않는다. 그 전 이름의 Lab·에셋 경로도 공개하지 않는다.

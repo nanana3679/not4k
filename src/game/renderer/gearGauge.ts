@@ -8,12 +8,12 @@ import { GEAR_MOTION_MAX_STEP_MS } from './GearMotionController';
  * 승인 시연(press-animation.html)처럼 기어 그림의 가득 찬 유리관 위에 빈 유리(`gearGaugeEmpty`, v18 생성 이미지를 유리 안쪽 윤곽
  * 알파로 자른 아틀라스)를 위에서부터 채움 경계까지 덮고, 경계 8행은 부드럽게 옅어진다. 색은 바꾸지 않고 낮은 고도 경고도 없다.
  *
- * - 좌표: 컨테이너는 기어 그림 좌표다. 렌더러가 기어 스프라이트와 같은 변환을 걸고 기어 움직임 위에 놓는다. 다른 움직임 레이어는
- *   유리 안쪽에 그리지 않으므로, 빈 부분에서는 덮개가 움직임의 액체·기포만 가리고 아래(채운 부분)에서만 그것들이 보인다.
+ * - 좌표: 컨테이너는 기어 그림 좌표다. 렌더러가 기어 스프라이트와 같은 변환을 지정하고 `gearMotion`(기어 위 장식 애니메이션) 위에 추가한다. 다른 `gearMotion` 레이어는
+ *   유리 안쪽에 그리지 않으므로, 빈 부분에서는 덮개가 `gearMotion`의 액체·기포만 가리고 아래(채운 부분)에서만 그것들이 보인다.
  * - 부드러운 경계: 마스크·필터·렌더 텍스처 없이 아틀라스의 한 행씩을 보여 주는 스프라이트 8개에 알파를 준다. 유리관마다 본체 1개와
  *   경계 8개, 두 유리관 18개 사각형이 텍스처 소스 하나라 한 배치로 그려진다(추가 렌더 패스 없음).
  * - 갱신: 표시하는 빈 행 수가 바뀔 때만 텍스처 frame·위치·알파를 고친다. 프레임마다 객체를 만들지 않는다.
- * - 시계: 이징은 렌더러가 넘기는 게임 프레임 간격(`renderFrame`의 deltaMs, 최대 50ms)으로만 나아가 일시정지 중에는 멈춘다.
+ * - 경과 시간: 이징은 렌더러가 넘기는 게임 프레임 간격(`renderFrame`의 deltaMs, 최대 50ms)으로만 나아가 일시정지 중에는 멈춘다.
  */
 
 /**
@@ -55,7 +55,7 @@ export function gaugeCoverAlpha(bottom: number, row: number): number {
 }
 
 /**
- * 표시 채움을 목표로 deltaMs만큼 다가가게 한다(지수 접근, τ = GEAR_GAUGE_EASE_TAU_MS). 간격은 기어 움직임처럼 최대 50ms로 자르고,
+ * 표시 채움을 목표로 deltaMs만큼 다가가게 한다(지수 접근, τ = GEAR_GAUGE_EASE_TAU_MS). 간격은 `gearMotion`처럼 최대 50ms로 자르고,
  * 0·음수·NaN이면 움직이지 않는다. 남은 거리가 0.001보다 작으면 목표로 맞춘다.
  */
 export function easeGaugeLevel(display: number, target: number, deltaMs: number): number {
@@ -79,7 +79,7 @@ interface TubeCover {
 }
 
 /**
- * 고도 게이지 하나의 수명. 렌더러가 기어를 그릴 때 만들어 기어 레이어의 기어 움직임 위에 붙이고, 프레임마다 update(고도, deltaMs)를 부른다.
+ * 고도 게이지 하나의 수명. 렌더러가 기어를 그릴 때 만들어 기어 레이어의 `gearMotion` 위에 붙이고, 프레임마다 update(고도, deltaMs)를 부른다.
  * 처음 update와 snapNext 뒤의 update는 이징 없이 목표로 바로 맞춘다(차트 걸기·곡 시작 전 한 장).
  */
 export class GearGauge {

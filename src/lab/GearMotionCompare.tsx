@@ -22,12 +22,12 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
 
 /**
  * 기어만 그린 작은 Pixi 앱(GameRenderer 아님)과 승인된 애니메이션 SVG를 같은 CSS 크기·viewBox·시각으로 나란히 보여 준다.
- * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. 움직임 요소 체크와 움직임 줄이기는 양쪽에 함께 건다.
+ * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. `gearMotion` 요소 체크와 `reducedMotion`은 양쪽에 함께 적용한다.
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
  */
 export function GearMotionCompare({ resources, layers, reducedMotion }: {
-  /** 페이지가 공유 로더에서 빌린 움직임 자료(무대의 게임 렌더러와 같은 한 벌). 준비 전이면 null. */
+  /** 페이지가 공유 로더에서 acquire한 `gearMotion` 에셋(무대의 게임 렌더러와 같은 공유 에셋). 준비 전이면 null. */
   resources: GearMotionResources | null;
   layers: GearMotionLayerVisibility;
   reducedMotion: boolean;

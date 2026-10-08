@@ -67,7 +67,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** 렌더러를 만들고 init을 시작한다. init은 움직임 자료를 기다리므로 resolveLease(기본 true)면 임대를 이행시킨 뒤 init을 기다린다. */
+/** 렌더러를 만들고 init을 시작한다. init은 `gearMotion` 에셋을 기다리므로 resolveLease(기본 true)면 lease를 이행시킨 뒤 init을 기다린다. */
 async function createRenderer(options: {
   gearMotion?: boolean;
   showGear?: boolean;
@@ -120,8 +120,8 @@ const chart: Chart = {
   events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 }],
 } as unknown as Chart;
 
-describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
-  it('기어가 있고 gearMotion을 생략(기본 켬)하면 자료를 한 번 빌리고, 기어 스프라이트 바로 위에 기어와 같은 변환(250/552배)으로 움직임 자리를 붙인다', async () => {
+describe('GameRenderer gearMotion (RFD 0029)', () => {
+  it('기어가 있고 gearMotion을 생략(기본 켬)하면 gearMotion 에셋 lease를 한 번 acquire하고, 기어 스프라이트 바로 위에 기어와 같은 변환(250/552배)으로 gearMotion holder를 붙인다', async () => {
     const { renderer, scene } = await createRenderer();
     expect(loader.acquire).toHaveBeenCalledTimes(1);
     const [gear, holder] = scene.gearLayer.children;
@@ -133,7 +133,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion).not.toBeNull();
   });
 
-  it('init은 움직임 자료(필수)가 준비될 때까지 끝나지 않고(status loading), 준비되면 움직임을 얹은 뒤에 끝나 첫 renderFrame 전에 status ready', async () => {
+  it('init은 gearMotion 에셋(필수)이 준비될 때까지 끝나지 않고(status loading), 준비되면 gearMotion을 holder에 추가한 뒤에 끝나 첫 renderFrame 전에 status ready', async () => {
     const { renderer, scene, init } = startRenderer();
     const finished = vi.fn();
     void init.then(finished);
@@ -147,14 +147,14 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(holder.children.map((child) => child.label)).toEqual(['gear-motion']);
   });
 
-  it('init은 움직임 텍스처를 GPU 업로드하지 않고(initSource 0번), 곡 시작 전 준비 prepareForPlayback(0)이 움직임 텍스처 9장과 기어 그림을 한 번씩 GPU 업로드한다(10번)', async () => {
+  it('init은 gearMotion 텍스처를 GPU 업로드하지 않고(initSource 0번), 곡 시작 전 준비 prepareForPlayback(0)이 gearMotion 텍스처 9개와 기어 그림을 한 번씩 GPU 업로드한다(10번)', async () => {
     const { renderer, initSource } = await createRenderer();
     expect(initSource).not.toHaveBeenCalled();
     renderer.prepareForPlayback(0);
     expect(initSource).toHaveBeenCalledTimes(10);
   });
 
-  it('움직임 자료 읽기가 거절되면 init이 그 오류로 거절되고 렌더러가 비행 배경 실패와 같이 스스로 정리하며(app.destroy, 캔버스는 남김) 임대를 한 번 놓는다', async () => {
+  it('gearMotion 에셋 읽기가 거절되면 init이 그 오류로 거절되고 렌더러가 비행 배경 실패와 같이 스스로 정리하며(app.destroy, 캔버스는 남김) lease를 한 번 release한다', async () => {
     const { renderer, init, destroy } = startRenderer();
     const failure = new Error('[Loader.load] Failed to load /gear/gear-motion/gear-motion.json');
     current.reject(failure);
@@ -173,13 +173,13 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     renderer.renderFrame(0, 16);
   });
 
-  it('showGear: false(튜토리얼·노트 에셋 재생기)면 gearMotion을 켜도 움직임을 만들지 않는다(null, 임대 0번)', async () => {
+  it('showGear: false(튜토리얼·노트 에셋 재생기)면 gearMotion 옵션을 켜도 gearMotion을 만들지 않는다(null, lease acquire 0번)', async () => {
     const { renderer } = await createRenderer({ showGear: false, gearMotion: true, resolveLease: false });
     expect(loader.acquire).not.toHaveBeenCalled();
     expect(renderer.gearMotion).toBeNull();
   });
 
-  it('운영체제 prefers-reduced-motion이 reduce여도 기본 옵션이면 lease를 한 번 acquire해 움직임을 보이게 만들고 renderFrame(…, 16) 2번에 timeMs 32가 된다(matchMedia를 읽지 않음, RFD 0030)', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 기본 옵션이면 lease를 한 번 acquire해 gearMotion을 보이게 만들고 renderFrame(…, 16) 2번에 timeMs 32가 된다(matchMedia를 읽지 않음, RFD 0030)', async () => {
     const matchMedia = vi.fn((query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     vi.stubGlobal('matchMedia', matchMedia);
     const { renderer, scene } = await createRenderer();
@@ -193,19 +193,19 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(matchMedia).not.toHaveBeenCalled();
   });
 
-  it('곡 시각 10000ms에서 renderFrame(…, 16)을 3번 부르면 움직임 시계는 곡 시각이 아니라 게임 프레임 간격만 따라 48ms가 된다', async () => {
+  it('곡 시각 10000ms에서 renderFrame(…, 16)을 3번 부르면 애니메이션 경과 시간(timeMs)은 곡 시간이 아니라 렌더 프레임 간격만 따라 48ms가 된다', async () => {
     const { renderer } = await createRenderer();
     for (let i = 0; i < 3; i++) renderer.renderFrame(10_000, 16);
     expect(renderer.gearMotion!.timeMs).toBe(48);
   });
 
-  it('renderFrame에 5000ms 간격이 들어와도(숨은 탭 복귀·긴 프레임) 움직임 시계는 50ms만 나아간다', async () => {
+  it('renderFrame에 5000ms 간격이 들어와도(숨은 탭 복귀·긴 프레임) 애니메이션 경과 시간은 50ms만 나아간다', async () => {
     const { renderer } = await createRenderer();
     renderer.renderFrame(0, 5000);
     expect(renderer.gearMotion!.timeMs).toBe(50);
   });
 
-  it('setChart로 차트를 다시 걸어도(같은 렌더러로 되감기) 움직임 시계는 32ms에서 이어 간다', async () => {
+  it('setChart를 다시 불러도(같은 렌더러로 되감기) 애니메이션 경과 시간은 32ms에서 이어 간다', async () => {
     const { renderer } = await createRenderer();
     renderer.renderFrame(0, 16);
     renderer.renderFrame(16, 16);
@@ -215,7 +215,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.timeMs).toBe(48);
   });
 
-  it('prepareForPlayback(1000)은 곡 시작 전 첫 프레임을 그리되(app.render 1번) 움직임 시계를 0에 두고, 그 첫 프레임 동안만 빛이 투명한 하단 바를 그린다', async () => {
+  it('prepareForPlayback(1000)은 곡 시작 전 첫 프레임을 그리되(app.render 1번) 애니메이션 경과 시간을 0에 두고, 그 첫 프레임 동안만 빛이 투명한 하단 바를 그린다', async () => {
     const { renderer, scene, render } = await createRenderer();
     const bar = scene.app.stage.getChildByLabel('gear-motion-bar', true)!;
     const barDuringRender: boolean[] = [];
@@ -226,7 +226,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion!.timeMs).toBe(0);
   });
 
-  it('dispose하면 움직임을 정리하고 빌린 자료를 한 번 놓으며 gearMotion은 null이 된다', async () => {
+  it('dispose하면 gearMotion을 destroy하고 에셋 lease를 한 번 release하며 GameRenderer.gearMotion은 null이 된다', async () => {
     const { renderer, scene } = await createRenderer();
     const motionRoot = scene.app.stage.getChildByLabel('gear-motion', true)!;
     renderer.dispose();
@@ -247,7 +247,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(current.lease.release).toHaveBeenCalledTimes(1);
   });
 
-  it('init 도중 키빔 만들기가 실패하면(초기화 전 실패) 움직임 자료를 빌리지 않아 dispose할 수 없는 임대가 남지 않는다', async () => {
+  it('init 도중 키빔 만들기가 실패하면(초기화 전 실패) gearMotion 에셋 lease를 acquire하지 않아 dispose가 release할 수 없는 lease가 남지 않는다', async () => {
     await expect(createRenderer({
       resolveLease: false,
       beforeInit: (scene) => { vi.mocked(scene.buildKeyBeams).mockImplementation(() => { throw new Error('beams'); }); },
@@ -255,7 +255,7 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(loader.acquire).not.toHaveBeenCalled();
   });
 
-  it('init 끝의 비행 배경 준비가 실패하면 렌더러가 스스로 정리하며 빌린 움직임 자료를 한 번 놓는다', async () => {
+  it('init 끝의 비행 배경 준비가 실패하면 렌더러가 스스로 정리하며 acquire한 gearMotion 에셋 lease를 한 번 release한다', async () => {
     flight.fail = true;
     await expect(createRenderer({ showFlightBackground: true, resolveLease: false })).rejects.toThrow('flight init failed');
     expect(loader.acquire).toHaveBeenCalledTimes(1);

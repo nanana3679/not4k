@@ -24,8 +24,8 @@ interface MotionProbe {
 }
 
 /**
- * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). 움직임 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
- * 움직임 객체 수는 무대에서 'gear-motion' 라벨을 센다.
+ * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). `gearMotion` 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
+ * `gearMotion` 객체 수는 무대에서 'gear-motion' 라벨을 센다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -149,10 +149,10 @@ async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas =
   if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe('실제 플레이의 기어 움직임', () => {
+test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)', () => {
   test.describe.configure({ timeout: 90_000 });
 
-  test('기어 움직임 켬: 움직임 시계가 게임 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 자리에서 이어 간다', async ({ page }) => {
+  test('gearMotion 켬: 애니메이션 경과 시간(timeMs)이 렌더 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 시점에서 이어 간다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, true);
@@ -188,7 +188,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
   });
 
   for (const motionOn of [true, false]) {
-    test(`기어 움직임 ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await startLocalPlay(page, motionOn);
@@ -212,7 +212,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     });
   }
 
-  test('기어 움직임 끔(설정 gearMotion false): 실제 플레이 렌더러는 기어만 그리고 gearMotion이 null이며 움직임 객체가 없고 움직임 자료를 요청하지 않는다', async ({ page }) => {
+  test('gearMotion 끔(설정 gearMotion false): 실제 플레이 렌더러는 기어만 그리고 GameRenderer.gearMotion이 null이며 gearMotion 객체가 없고 gearMotion 에셋을 요청하지 않는다', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -224,12 +224,12 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
     expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
     expect(requested).toContain('/gear/gear.png');
-    // 고도 게이지 빈 유리는 움직임 설정과 무관한 스킨 공통 에셋이다.
+    // 고도 게이지 빈 유리는 `Gear Motion` 설정과 무관한 스킨 공통 에셋이다.
     expect(requested).toContain('/gear/gear-gauge-empty.png');
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 움직임 에셋을 요청해 움직임을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -295,10 +295,10 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  // 움직임 자료는 스킨 텍스처와 같은 필수 자료다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
+  // `gearMotion` 에셋은 스킨 텍스처와 같은 필수 에셋이다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
   for (const [name, asset] of [
     ['스킨 텍스처(note-single.png)', '**/skins/classic/note-single.png'],
-    ['기어 움직임 자료(gear-motion.json)', '**/gear/gear-motion/gear-motion.json'],
+    ['gearMotion 데이터(gear-motion.json)', '**/gear/gear-motion/gear-motion.json'],
   ] as const) {
     test(`${name}를 받지 못하면 곡을 시작하지 않고(renderFrame·오디오 0번) 오류 화면의 Back to Song Select로 곡 선택에 돌아간다`, async ({ page }) => {
       const errors: string[] = [];

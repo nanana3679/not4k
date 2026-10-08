@@ -6,7 +6,7 @@ import type { GearMotionAssetLease, GearMotionResources } from './gearMotionAsse
 import { GEAR_MOTION_TEXTURE_KEYS, parseGearMotionData } from './gearMotionData';
 import type { SkinManager } from '../skin';
 
-// 공유 로더 대신 바로 준비되는 움직임 자료 임대를 준다(네트워크·Pixi Assets 없이).
+// 공유 로더 대신 바로 준비되는 `gearMotion` 에셋 lease를 준다(네트워크·Pixi Assets 없이).
 const loader = vi.hoisted(() => ({ acquire: vi.fn() }));
 vi.mock('./gearMotionAssets', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./gearMotionAssets')>()),
@@ -129,12 +129,12 @@ const uploadCounts = (initSource: ReturnType<typeof vi.fn>) => {
 };
 
 describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업로드와 첫 프레임', () => {
-  it('init은 텍스처를 GPU 업로드하지 않는다(빈 유리·기어 움직임 9장 포함 initSource 0번). GPU 업로드는 곡 시작 전 준비가 한다', async () => {
+  it('init은 텍스처를 GPU 업로드하지 않는다(빈 유리·gearMotion 텍스처 9개 포함 initSource 0번). GPU 업로드는 곡 시작 전 준비가 한다', async () => {
     const { initSource } = await createRenderer();
     expect(initSource).not.toHaveBeenCalled();
   });
 
-  it('prepareForPlayback(0)은 첫 프레임을 그리기 전에 스킨 텍스처 소스 전부(봄 16프레임·실패·켜짐·부분 실패·Grace·터미널 idle)와 기어 그림·빈 유리·기어 움직임 9장·키빔 그라데이션을 한 번씩 GPU 업로드한다', async () => {
+  it('prepareForPlayback(0)은 첫 프레임을 그리기 전에 스킨 텍스처 소스 전부(봄 16프레임·실패·켜짐·부분 실패·Grace·터미널 idle)와 기어 그림·빈 유리·gearMotion 텍스처 9개·키빔 그라데이션을 한 번씩 GPU 업로드한다', async () => {
     const { renderer, textures, initSource, calls, keyBeamTexture } = await createRenderer();
     renderer.prepareForPlayback(0);
 
@@ -146,7 +146,7 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업�
     const counts = uploadCounts(initSource);
     expect(new Set(counts.keys())).toEqual(expected);
     expect([...counts.values()].every((n) => n === 1)).toBe(true);
-    // 스킨 텍스처 27개 중 소스는 26개(잘라 쓴 캡이 터미널 소스를 나눠 씀) + 움직임 9장 + 키빔 1장 = 36번
+    // 스킨 텍스처 27개 중 소스는 26개(잘라 쓴 캡이 터미널 소스를 나눠 씀) + `gearMotion` 9개 + 키빔 1개 = 36번
     expect(initSource).toHaveBeenCalledTimes(36);
     // GPU 업로드가 모두 끝난 뒤에 곡 시작 시각의 첫 프레임을 한 번 그린다.
     expect(calls.indexOf('render')).toBe(36);
@@ -173,7 +173,7 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업�
     const { renderer, initSource } = await createRenderer({ textures, gearMotion: false, keyBeams: false });
     renderer.prepareForPlayback(0);
     expect(textures.has('bodySingleHeld')).toBe(false);
-    // 스킨 텍스처 26개, 소스 25개(캡 공유). 움직임·키빔 없음.
+    // 스킨 텍스처 26개, 소스 25개(캡 공유). `gearMotion`·키빔 없음.
     expect(initSource).toHaveBeenCalledTimes(25);
   });
 
@@ -184,12 +184,12 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업�
     expect(uploaded.has(textures.get('gearImage')!.source)).toBe(false);
     expect(uploaded.has(textures.get('gearGaugeEmpty')!.source)).toBe(false);
     expect(uploaded.has(textures.get('bomb15')!.source)).toBe(true);
-    // 기어가 없으면 움직임도 없다. 스킨 27개 − 기어 2개 = 25개, 소스 24개.
+    // 기어가 없으면 `gearMotion`도 없다. 스킨 27개 − 기어 2개 = 25개, 소스 24개.
     expect(initSource).toHaveBeenCalledTimes(24);
     expect(calls.at(-1)).toBe('render');
   });
 
-  it('운영체제 prefers-reduced-motion이 reduce여도 기어 움직임 텍스처 9장을 GPU 업로드한다(키빔 없이 소스 35개, RFD 0030)', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 gearMotion 텍스처 9개를 GPU 업로드한다(키빔 없이 소스 35개, RFD 0030)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     const { renderer, initSource } = await createRenderer({ keyBeams: false });
     renderer.prepareForPlayback(0);
@@ -216,7 +216,7 @@ describe('GameRenderer.prepareForPlayback — 곡 중 Pixi 자동 GC 제외(auto
     return textures;
   }
 
-  it('prepareForPlayback(0) 뒤에는 GPU 업로드한 소스 36개(스킨·기어·움직임·키빔) 모두 autoGarbageCollect가 false다', async () => {
+  it('prepareForPlayback(0) 뒤에는 GPU 업로드한 소스 36개(스킨·기어·gearMotion·키빔) 모두 autoGarbageCollect가 false다', async () => {
     for (const t of Object.values(motionTextures)) t.source.autoGarbageCollect = true;
     const { renderer, initSource } = await createRenderer({ textures: gcTextures() });
     renderer.prepareForPlayback(0);
@@ -225,7 +225,7 @@ describe('GameRenderer.prepareForPlayback — 곡 중 Pixi 자동 GC 제외(auto
     expect(uploaded.filter((source) => source.autoGarbageCollect)).toEqual([]);
   });
 
-  it('dispose하면 원래 값으로 되돌린다: true였던 bomb0·움직임 텍스처는 true, 처음부터 false였던 noteSingle은 false', async () => {
+  it('dispose하면 원래 값으로 되돌린다: true였던 bomb0·gearMotion 텍스처는 true, 처음부터 false였던 noteSingle은 false', async () => {
     for (const t of Object.values(motionTextures)) t.source.autoGarbageCollect = true;
     const textures = gcTextures();
     const { renderer } = await createRenderer({ textures });
