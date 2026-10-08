@@ -22,7 +22,7 @@ describe('keepGearMotionAssets — 설정이 켜진 동안 기어 움직임 자�
     expect(lease.release).not.toHaveBeenCalled();
   });
 
-  it('끄면(설정 끔·움직임 줄이기) 붙잡은 임대를 한 번 놓고 null을 돌려주며, 다시 켜면 새로 빌린다', () => {
+  it('끄면(설정 `Gear Motion` 끔) 붙잡은 임대를 한 번 놓고 null을 돌려주며, 다시 켜면 새로 빌린다', () => {
     const first = fakeLease();
     const second = fakeLease();
     const acquire = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
@@ -57,5 +57,10 @@ describe('플레이 화면의 움직임 자료 대기(필수 자료)', () => {
 
   it('플레이 화면은 스킨 읽기와 움직임 자료를 함께 기다린다(Promise.all에 loadSkin과 keptMotion.ready)', () => {
     expect(playScreenSource).toMatch(/Promise\.all\(\[skinManager\.loadSkin\(skin\), keptMotion\?\.ready\]\)/);
+  });
+
+  it('플레이 화면의 keep-alive 조건은 설정 `Gear Motion`뿐이다(keepGearMotionAssets(settings.gearMotion), prefers-reduced-motion 검사 없음, RFD 0030)', () => {
+    expect(playScreenSource).toContain('keepGearMotionAssets(settings.gearMotion);');
+    expect(playScreenSource).not.toMatch(/prefersReducedMotion|matchMedia/);
   });
 });

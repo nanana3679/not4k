@@ -17,19 +17,19 @@ export type GearMotionStatus = 'loading' | 'ready';
 
 /**
  * GameRenderer.gearMotion이 돌려주는 기어 움직임 조절. 렌더러 init이 끝나면 움직임은 이미 얹혀 있다(status ready).
- * Lab 미리보기 조절 패널은 켜기·레이어·움직임 줄이기·처음부터 재생을 쓴다. 시계는 렌더러의 게임 프레임(renderFrame의 deltaMs)으로만 나아가므로
+ * Lab 미리보기 조절 패널은 켜기·레이어·`setReducedMotion`·처음부터 재생을 쓴다. 시계는 렌더러의 게임 프레임(renderFrame의 deltaMs)으로만 나아가므로
  * 일시정지 중에는 멈춰 있다.
  */
 export interface GearMotionControls {
   readonly status: GearMotionStatus;
   /** 움직임 시계(ms, 승인 SVG 애니메이션의 currentTime과 같은 뜻). 렌더러를 만들 때 0에서 시작한다. */
   readonly timeMs: number;
-  /** 지금 움직이는지: 얹었고(ready)·켜져 있고·움직임 줄이기가 아님. 이때만 게임 프레임마다 갱신 비용이 든다. */
+  /** 지금 움직이는지: 얹었고(ready)·켜져 있고·`setReducedMotion(true)`가 아님. 이때만 게임 프레임마다 갱신 비용이 든다. */
   readonly running: boolean;
   /** 끄면 움직임을 숨기고 시계를 멈춘다(객체는 남는다, Lab 토글). 게임 설정의 끄기는 렌더러를 만들 때 객체 자체를 만들지 않는다. */
   setEnabled(enabled: boolean): void;
   setLayerVisible(layer: GearMotionLayer, visible: boolean): void;
-  /** 움직임 줄이기: 움직임 레이어를 모두 숨기고 시계를 멈춘다(정적 기어만 보임). */
+  /** Lab 미리보기 전용(게임은 부르지 않는다, RFD 0030): 움직임 레이어를 모두 숨기고 시계를 멈춘다(정적 기어만 보임). */
   setReducedMotion(reduced: boolean): void;
   /** 시계를 timeMs로 옮기고 그 순간의 모습으로 맞춘다(Lab·검증 스크린샷이 광원 위치를 바로 고를 때). */
   seek(timeMs: number): void;
@@ -59,7 +59,7 @@ const documentHidden = () => typeof document !== 'undefined' && document.hidden;
  * 자료 임대가 준비되면 자리(holder)에 움직임을 얹고 ready를 이행한다. 렌더러 init은 ready를 기다리므로 곡이 시작되기 전에 얹힌다.
  * 자료를 읽지 못하거나 움직임을 만들지 못하면 임대를 놓고 ready가 그 오류로 거절된다(필수 자료, 렌더러 init 실패로 이어진다).
  * 시계는 advance(deltaMs)로만 나아간다. 게임 루프는 일시정지 중에 renderFrame을 부르지 않으므로 시계도 멈춘다.
- * 큰 간격은 GEAR_MOTION_MAX_STEP_MS로 자르고, 숨은 탭·움직임 줄이기·끔에서는 나아가지 않는다(비행 배경과 같은 규칙).
+ * 큰 간격은 GEAR_MOTION_MAX_STEP_MS로 자르고, 숨은 탭·끔·`setReducedMotion(true)`(Lab 전용)에서는 나아가지 않는다.
  * advance는 매 프레임 객체를 만들지 않는다.
  */
 export class GearMotionController implements GearMotionControls {
@@ -101,7 +101,7 @@ export class GearMotionController implements GearMotionControls {
   get gaugeFill(): Container | null { return this.motion?.gaugeFill ?? null; }
 
   /**
-   * 움직임이 그리는 텍스처 9장. 움직이는 동안(running: 얹었고·켜져 있고·움직임 줄이기가 아님)만 돌려주고, 그 밖에는 그리지 않으므로 빈 배열이다.
+   * 움직임이 그리는 텍스처 9장. 움직이는 동안(running: 얹었고·켜져 있고·`setReducedMotion(true)`가 아님)만 돌려주고, 그 밖에는 그리지 않으므로 빈 배열이다.
    * 곡 시작 전 준비(GameRenderer.prepareForPlayback)가 미리 GPU 업로드할 목록에 넣는다. 텍스처는 공유 로더 소유다.
    */
   get textures(): readonly Texture[] { return this.running ? this.motionTextures : []; }
@@ -132,7 +132,7 @@ export class GearMotionController implements GearMotionControls {
 
   seek(timeMs: number): void {
     this.clockMs = Number.isFinite(timeMs) ? Math.max(0, timeMs) : 0;
-    // 움직임 줄이기 중에는 update가 아무것도 바꾸지 않는다. 풀린 뒤 다음 advance가 이 시각부터 그린다.
+    // setReducedMotion(true) 중에는 update가 아무것도 바꾸지 않는다. 풀린 뒤 다음 advance가 이 시각부터 그린다.
     this.motion?.update(this.clockMs);
   }
 

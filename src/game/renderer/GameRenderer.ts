@@ -27,7 +27,6 @@ import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./ge
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
-import { prefersReducedMotion } from "./reducedMotion";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
@@ -110,11 +109,6 @@ export interface GameRendererOptions {
    * 끄면(게임 설정 `gearMotion` 끔) 움직임 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
   gearMotion?: boolean;
-  /**
-   * 움직임 줄이기(`prefers-reduced-motion: reduce`)일 때. 'omit'(기본, 게임): 움직임을 아예 만들지 않고 자료도 읽지 않는다(설정 끔과 같은 0 비용).
-   * 'hide'(Lab 미리보기): 만들어 숨겨 두고, 페이지가 gearMotion.setReducedMotion으로 다시 보이게 할 수 있다.
-   */
-  gearMotionReducedMotion?: "omit" | "hide";
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
@@ -200,7 +194,6 @@ export class GameRenderer {
   private _gearLayout: Readonly<GearLayout> | null = null;
   // 기어 움직임 — 기어 레이어에서 기어 스프라이트 바로 위. 시계는 renderFrame의 deltaMs로만 나아간다.
   private readonly gearMotionEnabled: boolean;
-  private readonly gearMotionReducedMotion: "omit" | "hide";
   private gearMotionController: GearMotionController | null = null;
   // 고도 게이지 — 기어 레이어 맨 위(기어 움직임 위). 빈 유리 덮개가 빈 부분의 움직임 액체·기포를 함께 가린다.
   private gearGauge: GearGauge | null = null;
@@ -265,7 +258,6 @@ export class GameRenderer {
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
     this.showGear = options.showGear ?? true;
     this.gearMotionEnabled = options.gearMotion ?? true;
-    this.gearMotionReducedMotion = options.gearMotionReducedMotion ?? "omit";
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
@@ -504,16 +496,16 @@ export class GameRenderer {
   }
 
   /**
-   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든(움직임 줄이기도) 같은 모습이다.
+   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, 기어 움직임을 켜든 끄든 같은 모습이다.
    * 나중에 붙는 움직임 자리(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 움직임의 액체·기포를 가린다(유리 안쪽에 그리는
    * 움직임은 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
-   * 움직임 줄이기 설정은 기어 움직임처럼 렌더러를 만들 때 한 번 읽고, 켜져 있으면 이징 없이 바로 맞춘다.
+   * 운영체제의 `prefers-reduced-motion`은 읽지 않고 늘 이징으로 따라간다(RFD 0030).
    * 채움 1에서는 덮개를 숨겨 두어 Pixi가 아틀라스를 그리지도 GPU 업로드하지도 않으므로, 곡 시작 전 준비(prepareForPlayback)가 미리 GPU 업로드한다.
    */
   private buildGearGauge(layout: Readonly<GearLayout>): void {
     let texture;
     try { texture = this.skinManager.getTexture(GEAR_GAUGE_EMPTY_KEY); } catch { return; }
-    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge, reducedMotion: prefersReducedMotion() });
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge });
     gauge.container.position.set(layout.x, layout.y);
     gauge.container.scale.set(layout.scale);
     this.gearLayer.addChild(gauge.container);
@@ -524,20 +516,16 @@ export class GameRenderer {
   /**
    * 기어 움직임(RFD 0029). 기어 레이어에 기어와 같은 변환의 기어 모션 holder를 붙이고 공유 로더에서 자료를 빌린다. 움직임 자료는 스킨 텍스처처럼
    * 필수라 init이 준비를 기다린다. 준비되면 holder에 움직임을 얹고(텍스처 GPU 업로드는 곡 시작 전 준비가 한다), 읽지 못하면 init이 그 오류로 실패한다.
-   * 움직임 줄이기 설정은 비행 배경처럼 렌더러를 만들 때 한 번 읽고, 기본(omit)은 아예 만들지 않아 읽지도 기다리지도 않는다.
+   * 만들지 여부는 옵션 `gearMotion`(게임 설정 `Gear Motion`)만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
    */
   private buildGearMotion(): void {
     if (!this.gearMotionEnabled || !this._gearLayout) return;
-    const reduced = prefersReducedMotion();
-    if (reduced && this.gearMotionReducedMotion === "omit") return;
     const holder = new Container({ label: "gear-motion-holder" });
     if (!this.addGearOverlay(holder)) {
       holder.destroy();
       return;
     }
-    const controller = new GearMotionController({ holder, lease: acquireGearMotionAssets() });
-    controller.setReducedMotion(reduced);
-    this.gearMotionController = controller;
+    this.gearMotionController = new GearMotionController({ holder, lease: acquireGearMotionAssets() });
   }
 
   /**
@@ -575,7 +563,7 @@ export class GameRenderer {
    * 곡 중 이 렌더러가 그릴 수 있는 텍스처 소스(중복 없음). 여러 텍스처가 나눠 쓰는 소스(터미널에서 잘라 쓴 롱노트 캡, 게이지 행 등)는 한 번만 담는다.
    * - SkinManager가 불러온 텍스처 전부: 노트·바디·터미널과 실패·켜짐·부분 실패·idle 변형, Grace·그림자, 키봄 16프레임 등.
    *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리는 이 렌더러가 실제로 만든 것(gearTextures)만 담는다.
-   * - 기어 움직임 텍스처 9장: 움직임이 움직일 때만(설정 끔·움직임 줄이기면 그리지 않는다).
+   * - 기어 움직임 텍스처 9장: 움직임이 움직일 때만(`running`. 설정 끔이면 움직임을 만들지 않는다).
    * - 키빔 그라데이션: 레인 키를 처음 누르는 프레임에 GPU 업로드되지 않게.
    */
   private collectPlaybackTextureSources(): Set<TextureSource> {
@@ -1198,7 +1186,7 @@ export class GameRenderer {
 
   /**
    * 미리보기(Lab `/lab/gear`) 전용: 비행 배경과 기어 게이지가 보여 줄 고도를 altitude(0~1로 자름, NaN은 0)로 고정한다.
-   * null이면 곡 진행·판정에 따른 고도 모델로 돌아간다. 게임은 부르지 않는다. 게이지는 바뀐 값으로 이징하고(움직임 줄이기면 바로),
+   * null이면 곡 진행·판정에 따른 고도 모델로 돌아간다. 게임은 부르지 않는다. 게이지는 바뀐 값으로 이징하고,
    * 고도 모델의 상태는 고정하는 동안에도 그대로 나아간다.
    */
   setAltitudeOverride(altitude: number | null): void {
@@ -1207,7 +1195,7 @@ export class GameRenderer {
 
   /**
    * 기어 움직임 조절(RFD 0029). init이 끝나면 움직임은 얹혀 있다(status ready). 게임 프레임 시계를 읽고, Lab 미리보기가 켜기·레이어·
-   * 움직임 줄이기·처음부터 재생을 건다. 움직임을 만들지 않으면(gearMotion false·움직임 줄이기 omit·기어 없음·dispose 뒤) null.
+   * `setReducedMotion`(Lab 전용)·처음부터 재생을 건다. 움직임을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
    */
   get gearMotion(): GearMotionControls | null {
     return this.gearMotionController;

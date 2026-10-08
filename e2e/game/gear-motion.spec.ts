@@ -229,7 +229,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  test('움직임 줄이기(prefers-reduced-motion: reduce)면 설정이 켜져 있어도 실제 플레이에서 움직임을 만들지 않고(gearMotion null·객체 0개) 움직임 자료를 요청하지 않는다', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 움직임 에셋을 요청해 움직임을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -237,10 +237,13 @@ test.describe('실제 플레이의 기어 움직임', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await startLocalPlay(page, true);
 
-    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 30_000 }).toBeGreaterThan(200);
     const probe = await readProbe(page);
-    expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
-    expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
+    expect(probe).toMatchObject({ hasGear: true, status: 'ready', running: true, motionObjects: 2, motionVisible: true });
+    expect(requested).toContain('/gear/gear-motion/gear-motion.json');
+
+    const afterMiss = await injectMissAndReadNextFrame(page);
+    expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(0.02);
     expect(errors).toEqual([]);
   });
 

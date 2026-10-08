@@ -1,5 +1,4 @@
 import type { FlightScenario } from '../../../shared/chartDifficulty';
-import { prefersReducedMotion } from '../reducedMotion';
 
 export interface FlightBackgroundOptions {
   canvas: HTMLCanvasElement;
@@ -36,7 +35,6 @@ export class FlightBackground {
   private driver: FlightBackgroundDriver | null = null;
   private disposed = false;
   private readonly container: HTMLDivElement;
-  private readonly reducedMotion: boolean;
   private readonly canvasPosition: string;
 
   constructor(private readonly options: FlightBackgroundOptions) {
@@ -49,7 +47,6 @@ export class FlightBackground {
       position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden', background: '#080e1b',
     });
     options.canvas.before(this.container);
-    this.reducedMotion = prefersReducedMotion();
   }
 
   async init(factory?: FlightDriverFactory): Promise<void> {
@@ -65,7 +62,7 @@ export class FlightBackground {
   render(altitude: number, deltaMs: number): void {
     if (this.disposed || !this.driver) return;
     const value = Number.isFinite(altitude) ? Math.min(1, Math.max(0, altitude)) : 0;
-    const dt = this.reducedMotion || document.hidden || !Number.isFinite(deltaMs)
+    const dt = document.hidden || !Number.isFinite(deltaMs)
       ? 0 : Math.min(.05, Math.max(0, deltaMs / 1000));
     this.driver.render(value, dt);
     this.container.dataset.altitude = String(value);

@@ -126,7 +126,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('움직임 줄이기면 움직임을 숨기고 advance(16)이 시계를 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 자리에서 이어 간다', async () => {
+  it('setReducedMotion(true)(Lab 미리보기 전용)면 움직임을 숨기고 advance(16)이 시계를 32ms에 그대로 두며(running false), 풀면 다시 보이고 멈춘 자리에서 이어 간다', async () => {
     const { holder, controller } = await readyController();
     controller.advance(16);
     controller.advance(16);
@@ -156,7 +156,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('준비 전에 고른 A 큰 광원 끄기·움직임 줄이기는 움직임을 얹을 때 그대로 적용된다', async () => {
+  it('준비 전에 고른 A 큰 광원 끄기·setReducedMotion(true)는 움직임을 얹을 때 그대로 적용된다', async () => {
     const { holder, resolve, controller } = controllerWith();
     controller.setLayerVisible('armor', false);
     controller.setReducedMotion(true);
@@ -179,7 +179,7 @@ describe('GearMotionController — 게임 렌더러의 기어 움직임 수명�
     controller.destroy();
   });
 
-  it('textures는 얹기 전 빈 배열, 얹고 움직이면 받은 텍스처 9장이고, 움직임 줄이기·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
+  it('textures는 얹기 전 빈 배열, 얹고 움직이면 받은 텍스처 9장이고, setReducedMotion(true)·끔·destroy 뒤에는 그리지 않으므로 빈 배열이다', async () => {
     let received: GearMotionTextures | undefined;
     const { controller, resolve } = controllerWith({
       create: (motionData, textures, motionOptions) => { received = textures; return createGearMotion(motionData, textures, motionOptions); },

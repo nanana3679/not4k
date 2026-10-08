@@ -69,8 +69,6 @@ export interface GearGaugeOptions {
   /** 빈 유리 아틀라스(스킨 공통 `gearGaugeEmpty`). 소유자는 SkinManager이며 destroy가 파괴하지 않는다. */
   texture: Texture;
   geometry: GearGaugeGeometry;
-  /** 움직임 줄이기면 이징 없이 늘 목표로 바로 맞춘다. */
-  reducedMotion: boolean;
 }
 
 interface TubeCover {
@@ -88,7 +86,6 @@ export class GearGauge {
   /** 기어 그림 좌표의 덮개 루트(두 유리관). 채움 1이면 숨긴다. */
   readonly container: Container;
   private readonly fillRows: number;
-  private readonly reducedMotion: boolean;
   private readonly covers: TubeCover[];
   private readonly ownedTextures: Texture[] = [];
   private display = 1;
@@ -97,9 +94,8 @@ export class GearGauge {
   private snapPending = true;
   private destroyed = false;
 
-  constructor({ texture, geometry, reducedMotion }: GearGaugeOptions) {
+  constructor({ texture, geometry }: GearGaugeOptions) {
     this.fillRows = geometry.fillRows;
-    this.reducedMotion = reducedMotion;
     this.container = new Container({ label: 'gear-gauge' });
     const sides = ['left', 'right'] as const;
     this.covers = geometry.tubes.map((tube, index) => {
@@ -141,7 +137,7 @@ export class GearGauge {
   update(altitude: number, deltaMs: number): void {
     if (this.destroyed) return;
     this.targetLevel = clampGaugeLevel(altitude);
-    if (this.snapPending || this.reducedMotion) {
+    if (this.snapPending) {
       this.snapPending = false;
       this.display = this.targetLevel;
     } else {

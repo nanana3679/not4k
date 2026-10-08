@@ -10,7 +10,6 @@ import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
 import { GAME_HEIGHT, liftPx } from '../renderer/constants';
 import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
-import { prefersReducedMotion } from '../renderer/reducedMotion';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
@@ -128,8 +127,8 @@ export function PlayScreen() {
         });
         // 기어 움직임 자료는 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 하는 자료다(RFD 0029). 설정이 켜진 동안 붙잡아 두어 재시도·다음 곡은
         // 받아 둔 것을 쓰고, 스킨 읽기와 함께 시간 제한 없이 기다린다. 읽지 못하면 스킨을 읽지 못했을 때와 같이 아래 catch의 오류 화면으로 간다.
-        // 움직임 줄이기면 렌더러가 움직임을 만들지 않으므로 받지도 않는다.
-        const keptMotion = keepGearMotionAssets(settings.gearMotion && !prefersReducedMotion());
+        // 유지 여부는 설정 `Gear Motion`만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
+        const keptMotion = keepGearMotionAssets(settings.gearMotion);
         const skinManager = new SkinManager();
         try {
           await Promise.all([skinManager.loadSkin(skin), keptMotion?.ready]);

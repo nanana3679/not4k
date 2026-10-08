@@ -121,11 +121,11 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
     expect(renderer.gearGaugeLevel).toBe(1);
   });
 
-  it('움직임 줄이기(omit, 움직임을 만들지 않음)여도 게이지는 있다', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 기어 레이어는 [기어, 기어 움직임 holder, 게이지]로 움직임과 게이지가 모두 있다(RFD 0030)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     const { renderer, scene } = await createRenderer({ gearMotion: true });
-    expect(renderer.gearMotion).toBeNull();
-    expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear', 'gear-gauge']);
+    expect(renderer.gearMotion).not.toBeNull();
+    expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear', 'gear-motion-holder', 'gear-gauge']);
   });
 
   it('addGearOverlay로 붙인 레이어는 기어 바로 위·게이지 아래에 들어가 게이지가 늘 맨 위에 남는다', async () => {
@@ -256,14 +256,15 @@ describe('GameRenderer 기어 게이지 이징·맞춤', () => {
     expect(renderer.gearGaugeLevel).toBeCloseTo(0.3, 12);
   });
 
-  it('움직임 줄이기면 MISS 뒤 첫 renderFrame에서 게이지가 바로 .76이 된다', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 MISS 뒤 첫 renderFrame(0, 16)에서 게이지는 바로 .76이 되지 않고 1과 .76 사이로 이징한다(RFD 0030)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     const { renderer } = await createRenderer();
     setChart(renderer, 0);
     renderer.renderFrame(0, 16);
     renderer.recordFlightJudgment(JudgmentGrade.MISS);
     renderer.renderFrame(0, 16);
-    expect(renderer.gearGaugeLevel).toBe(0.76);
+    expect(renderer.gearGaugeLevel!).toBeLessThan(1);
+    expect(renderer.gearGaugeLevel!).toBeGreaterThan(0.76);
   });
 
   it('렌더 시간 간격이 0(일시정지 뒤 같은 장)이면 게이지가 다가가지 않는다', async () => {

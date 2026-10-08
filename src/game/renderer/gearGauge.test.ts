@@ -120,9 +120,9 @@ describe('easeGaugeLevel — 표시 채움이 목표로 다가간다(지수 접�
 
 describe('GearGauge — 두 유리관에 같은 고도를 빈 유리 덮개로 그린다', () => {
   const atlas = () => new Texture({ source: new TextureSource({ width: GEAR_GEOMETRY.gauge.atlasWidth, height: GEAR_GEOMETRY.gauge.atlasHeight }) });
-  const create = (reducedMotion = false) => {
+  const create = () => {
     const texture = atlas();
-    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge, reducedMotion });
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge });
     return { gauge, texture };
   };
   const tube = (gauge: GearGauge, side: 'left' | 'right') => gauge.container.getChildByLabel(`gear-gauge-${side}`) as Container;
@@ -192,13 +192,6 @@ describe('GearGauge — 두 유리관에 같은 고도를 빈 유리 덮개로 �
     expect(gauge.level).toBe(0.8);
   });
 
-  it('움직임 줄이기면 update마다 이징 없이 목표로 바로 맞춘다', () => {
-    const { gauge } = create(true);
-    gauge.update(0.3, 16);
-    gauge.update(0.8, 16);
-    expect(gauge.level).toBe(0.8);
-  });
-
   it('표시 행이 그대로면(같은 고도로 다시 update) 덮개 텍스처를 다시 고치지 않는다', () => {
     const { gauge } = create();
     gauge.update(0.3, 16);
@@ -212,7 +205,7 @@ describe('GearGauge — 두 유리관에 같은 고도를 빈 유리 덮개로 �
   it('행 텍스처 18장이 공유 아틀라스 소스에 건 resize 리스너는 destroy하면 모두 풀려 만들기 전 수로 돌아간다(SkinManager 소유 소스에 남지 않는다)', () => {
     const texture = atlas();
     const before = texture.source.listenerCount('resize');
-    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge, reducedMotion: false });
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge });
     gauge.update(0.4, 16);
     expect(texture.source.listenerCount('resize')).toBe(before + 18);
     gauge.destroy();
