@@ -1,6 +1,6 @@
 /**
  * Gear의 Pixi ↔ 승인 SVG 비교에만 쓰는 값(Pixi 없음). 승인 SVG 경로와 비교 보기(viewBox), SVG에서 바탕 그림을 꺼내는
- * 도우미를 둔다. 움직임 자료 계약과 레이어 구성은 게임 모듈(src/game/renderer/gearMotion*)에 있다.
+ * 도우미를 둔다. `gearMotion` 에셋의 데이터 계약과 레이어 구성은 게임 모듈(src/game/renderer/gearMotion*)에 있다.
  */
 
 /** 비교 기준인 승인된 애니메이션 SVG(이미지 갤러리). 페이지는 withLabPublicBase로 감싸 읽는다. */

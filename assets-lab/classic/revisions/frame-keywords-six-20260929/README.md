@@ -28,7 +28,7 @@
 - 측정 모듈: `frame-motion-shared.mjs` — v19 SVG와 v21 자료가 같은 마스크 측정·값(제외 상자, 바 상자, 유리 윤곽, 광원·대비·기포·호흡·하단 바 값)을 쓴다. 유리 윤곽은 v20의 고도 게이지 빈 유리도 함께 쓴다. 이 모듈로 바꾼 뒤에도 `54-ambient-motion-v19.svg`는 같은 바이트다
 - 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-motion-v21.mjs` (입력: `press-idle-deck-v17-input.png`, 기어 그림 `public/gear/gear.png`). 다시 실행해도 같은 바이트다
 - 결과: 기어 그림 옆 `public/gear/gear-motion/`의 텍스처 9장과 `gear-motion.json`(2026-10-05 게임 적용 때 Lab 경로 `public/lab/classic-frame-fit/motion/`에서 옮기고, #231에서 `classic-frame-motion/`·`frame-motion.json`을 지금 이름으로 바꿈). SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 띠 밖 어둡게는 `armor-lit.png`를 물들여 쓴다. 장갑·발광선은 기둥 둘과 아래 띠 두 쪽 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
-- 사용처: 게임 렌더러의 내장 기어 움직임(`src/game/renderer/gearMotion.ts`, [RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md#프레임-움직임-게임-적용-2026-10-05)). 시연은 `/lab/gear`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#gear)
+- 사용처: 게임 렌더러의 내장 `gearMotion`(`src/game/renderer/gearMotion.ts`, [RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md#프레임-움직임-게임-적용-2026-10-05)). 시연은 `/lab/gear`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#gear)
 
 ## 시연: 버튼 누름 애니메이션 1단계
 

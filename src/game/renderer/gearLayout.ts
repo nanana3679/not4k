@@ -41,7 +41,7 @@ export interface GearGaugeTube {
 }
 
 /**
- * 고도 게이지 측정값. 유리 안쪽 윤곽은 승인 시연과 기어 움직임의 유리 마스크와 같은 하나(frame-motion-shared.mjs의 GLASS)이고,
+ * 고도 게이지 측정값. 유리 안쪽 윤곽은 승인 시연과 `gearMotion`(기어 위 장식 애니메이션)의 유리 마스크와 같은 하나(frame-motion-shared.mjs의 GLASS)이고,
  * 생성기가 그 윤곽으로 v18 빈 유리를 잘라 아틀라스(atlasWidth×atlasHeight)에 담는다.
  */
 export interface GearGaugeGeometry {
@@ -88,7 +88,7 @@ export const GEAR_GEOMETRY: GearGeometry = {
 /**
  * 기어 텍스처 설정. 그림은 렌더 높이 1080에서 화면 약 0.82배, 720에서 0.54배로 줄여 그려지므로 업로드할 때 밉맵을 만들고
  * 확대·축소·밉맵 사이를 모두 선형으로 거른다(WebGL2 삼선형). 그렇지 않으면 줄인 테두리에 계단과 반짝임이 생긴다.
- * 기어 위에 같은 배율로 겹치는 고도 게이지 빈 유리(`gearGaugeEmpty`)와 기어 움직임 텍스처도 같은 설정으로 읽는다.
+ * 기어 위에 같은 배율로 겹치는 고도 게이지 빈 유리(`gearGaugeEmpty`)와 `gearMotion` 텍스처도 같은 설정으로 읽는다.
  */
 export const GEAR_TEXTURE_OPTIONS = {
   autoGenerateMipmaps: true,

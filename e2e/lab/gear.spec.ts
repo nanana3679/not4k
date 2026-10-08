@@ -259,7 +259,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     // 곡 진행 따라가기: 시연 차트(약 3분) 앞부분이라 게이지가 거의 가득이다.
     await expect.poll(async () => Number(await stage.getAttribute('data-gear-gauge-level'))).toBeGreaterThan(0.5);
     await expect(page.locator('.gear-preview-readout')).toContainText('유리관 게이지');
-    // 움직임을 끄면 정적 기어만 남아 픽셀이 시간에 따라 바뀌지 않는다.
+    // `gearMotion`을 끄면 정적 기어만 남아 픽셀이 시간에 따라 바뀌지 않는다.
     await page.getByLabel('움직임', { exact: true }).uncheck();
     await expect(stage).toHaveAttribute('data-motion', 'off');
 
@@ -332,7 +332,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('기어 움직임이 켜져 있어도 고도 30%에서 채움 경계 위 유리 안에는 움직임의 액체·기포가 보이지 않는다(빈 유리 덮개가 움직임 위)', async ({ page }) => {
+  test('gearMotion이 켜져 있어도 고도 30%에서 채움 경계 위 유리 안에는 gearMotion의 액체·기포가 보이지 않는다(빈 유리 덮개가 gearMotion 위)', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -395,7 +395,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(sizes.pageOverflow).toBe(false);
   });
 
-  test('렌더러 내장 움직임이 켜져 게임 프레임 시계로 흐르고, 처음부터 재생·움직임 토글·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
+  test('렌더러 내장 gearMotion이 켜져 애니메이션 경과 시간이 렌더 프레임마다 흐르고, 처음부터 재생·gearMotion 토글(라벨 움직임)·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -411,7 +411,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await page.getByRole('button', { name: '처음부터 재생' }).click();
     await expect.poll(async () => (await motionTime(page)) ?? Infinity, { timeout: 5000 }).toBeLessThan(2000);
 
-    // 움직임을 끄면 왼쪽 장갑(원본 x 40~190, y 300~900) 픽셀이 바뀐다(띠 밖 7% 어둡게·빛 받은 대비 복사본이 사라진다).
+    // `gearMotion`을 끄면 왼쪽 장갑(원본 x 40~190, y 300~900) 픽셀이 바뀐다(띠 밖 7% 어둡게·빛 받은 대비 복사본이 사라진다).
     const gearX = await numberAttribute(page, 'data-gear-x');
     const gearScale = await numberAttribute(page, 'data-gear-scale');
     const top = await numberAttribute(page, 'data-gear-top');
@@ -532,7 +532,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('움직임 자료(/gear/gear-motion/gear-motion.json)를 붙잡아 두면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 놓으면 움직임을 얹은 채 준비된다', async ({ page }) => {
+  test('gearMotion 에셋(/gear/gear-motion/gear-motion.json) 응답을 보류하면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 응답을 보내면 gearMotion을 추가한 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -546,7 +546,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await page.goto('/lab/gear');
     await requestStarted;
     const stage = page.locator(stageSelector);
-    // 움직임 자료는 렌더러 준비에 필요한 자료라, 붙잡혀 있는 동안 렌더러는 준비되지 않는다(비행 배경이 준비되어도).
+    // `gearMotion` 에셋은 렌더러 준비에 필요한 에셋이라, 응답이 보류된 동안 렌더러는 준비되지 않는다(비행 배경이 준비되어도).
     await expect(page.locator('[data-flight-background][data-ready="true"]')).toHaveCount(1, { timeout: 60000 });
     await expect(stage).toHaveAttribute('data-renderer-ready', 'false');
     await expect(stage).toHaveAttribute('data-motion-ready', 'false');
@@ -558,7 +558,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('움직임 줄이기 설정이면 무대 data-motion이 reduced이고 움직임 시계가 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이면 무대 data-motion이 reduced이고 애니메이션 경과 시간이 흐르지 않으며 비교 SVG 애니메이션도 돌지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/lab/gear');

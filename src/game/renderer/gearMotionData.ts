@@ -1,7 +1,7 @@
 import type { CubicBezier } from './gearMotionTiming';
 
 /**
- * 기어 움직임의 자료 계약(Pixi 없음). prepare-frame-motion-v21.mjs가 만든 gear-motion.json의 모양,
+ * `gearMotion`(기어 위 장식 애니메이션) 에셋의 데이터 계약(Pixi 없음). prepare-frame-motion-v21.mjs가 만든 gear-motion.json의 모양,
  * 레이어 이름, 공개 경로와 검증을 둔다. Pixi 레이어 구성은 gearMotion.ts, 읽기와 공유는 gearMotionAssets.ts가 한다.
  */
 
@@ -16,7 +16,7 @@ export const GEAR_MOTION_LAYER_LABELS: Record<GearMotionLayer, string> = {
   bar: 'D 하단 바 흐름',
 };
 
-/** 레이어별 켜기·끄기. 게임 렌더러의 움직임 조절과 Lab 무대·비교 화면이 같은 값을 쓴다. */
+/** 레이어별 켜기·끄기. 게임 렌더러의 `gearMotion` 조절(`GearMotionControls`)과 Lab 무대·비교 화면이 같은 값을 쓴다. */
 export type GearMotionLayerVisibility = Record<GearMotionLayer, boolean>;
 
 export const ALL_GEAR_MOTION_LAYERS_ON: Readonly<GearMotionLayerVisibility> = Object.freeze({ armor: true, gauge: true, accent: true, bar: true });
@@ -26,7 +26,7 @@ export const GEAR_MOTION_TEXTURE_KEYS = [
 ] as const;
 export type GearMotionTextureKey = (typeof GEAR_MOTION_TEXTURE_KEYS)[number];
 
-/** 텍스처 안의 한 조각: 아틀라스 상자(atlasX, atlasY, width, height)를 기어 그림 좌표 (x, y)에 그린다(움직임 0일 때). */
+/** 텍스처 안의 atlas frame 하나: 원본 영역(atlasX, atlasY, width, height)을 기어 그림 좌표 (x, y)에 그린다(애니메이션 오프셋 0일 때). */
 export interface GearMotionPiece {
   x: number;
   y: number;

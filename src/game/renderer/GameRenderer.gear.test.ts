@@ -38,7 +38,7 @@ async function createRenderer({ width = 1067, showGear = true }: { width?: numbe
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
     canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground: false,
-    // 기어 움직임은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
+    // `gearMotion`은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
     gearMotion: false,
   });
   const scene = renderer as unknown as Scene;

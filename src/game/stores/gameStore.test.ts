@@ -154,12 +154,12 @@ describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어
   });
 });
 
-describe('gameStore — gearMotion(기어 움직임)', () => {
-  it('처음 실행하면 기어 움직임은 켜져 있다(gearMotion true)', () => {
+describe('gameStore — gearMotion(설정 Gear Motion)', () => {
+  it('처음 실행하면 설정 Gear Motion은 켜져 있다(gearMotion true)', () => {
     expect(useGameStore.getInitialState().settings.gearMotion).toBe(true);
   });
 
-  it('기어 움직임을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
+  it('gearMotion을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
     const restored = mergePersistedSettings({ settings: { renderHeight: 720 } }, useGameStore.getInitialState());
     expect(restored.settings.gearMotion).toBe(true);
     expect(restored.settings.renderHeight).toBe(720);

@@ -5,7 +5,7 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 interface MotionProbe {
   /** AudioEngine.play가 불린 횟수(곡 시작). */
   audioPlays: number;
-  /** renderFrame이 불린 횟수(곡 시작 전 한 장 + 게임 프레임 수). */
+  /** renderFrame이 불린 횟수(warm-up의 첫 프레임 + 렌더 프레임 수). */
   frames: number;
   /** renderFrame마다 그 순간의 gearMotion.status(없으면 null). resetStatusLog 뒤부터 쌓인다. */
   statusLog: (string | null)[];
@@ -24,8 +24,8 @@ interface MotionProbe {
 }
 
 /**
- * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). 움직임 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
- * 움직임 객체 수는 무대에서 'gear-motion' 라벨을 센다.
+ * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). `gearMotion` 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
+ * `gearMotion` 객체 수는 무대에서 'gear-motion' 라벨을 센다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -149,10 +149,10 @@ async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas =
   if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe('실제 플레이의 기어 움직임', () => {
+test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)', () => {
   test.describe.configure({ timeout: 90_000 });
 
-  test('기어 움직임 켬: 움직임 시계가 게임 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 자리에서 이어 간다', async ({ page }) => {
+  test('gearMotion 켬: 애니메이션 경과 시간(timeMs)이 렌더 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 시점에서 이어 간다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, true);
@@ -161,7 +161,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     const ready = await readProbe(page);
     expect(ready).toMatchObject({ hasGear: true, running: true, motionObjects: 2, motionVisible: true });
 
-    // 게임 프레임이 지나면 시계가 나아간다. 프레임 하나에 최대 50ms라 지난 프레임 수 × 50을 넘지 않는다.
+    // 렌더 프레임이 지나면 애니메이션 경과 시간(timeMs)이 나아간다. 프레임 하나에 최대 50ms라 지난 프레임 수 × 50을 넘지 않는다.
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 30_000 }).toBeGreaterThan(200);
     const before = await readProbe(page);
     await waitAnimationFrames(page, 10);
@@ -175,20 +175,20 @@ test.describe('실제 플레이의 기어 움직임', () => {
     const paused = await readProbe(page);
     await waitAnimationFrames(page, 30);
     const stillPaused = await readProbe(page);
-    // 일시정지 중에는 게임 루프가 renderFrame을 부르지 않으므로 시계도 그대로다.
+    // 일시정지 중에는 게임 루프가 renderFrame을 부르지 않으므로 애니메이션 경과 시간도 그대로다.
     expect(stillPaused.frames).toBe(paused.frames);
     expect(stillPaused.timeMs).toBe(paused.timeMs);
 
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 15_000 }).toBeGreaterThan(paused.timeMs!);
     const resumed = await readProbe(page);
-    // 일시정지한 시간만큼 건너뛰지 않고 재개 뒤 게임 프레임만큼만 나아간다.
+    // 일시정지한 시간만큼 건너뛰지 않고 재개 뒤 렌더 프레임만큼만 나아간다.
     expect(resumed.timeMs! - paused.timeMs!).toBeLessThanOrEqual(50 * (resumed.frames - paused.frames));
     expect(errors).toEqual([]);
   });
 
   for (const motionOn of [true, false]) {
-    test(`기어 움직임 ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await startLocalPlay(page, motionOn);
@@ -212,7 +212,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     });
   }
 
-  test('기어 움직임 끔(설정 gearMotion false): 실제 플레이 렌더러는 기어만 그리고 gearMotion이 null이며 움직임 객체가 없고 움직임 자료를 요청하지 않는다', async ({ page }) => {
+  test('gearMotion 끔(설정 gearMotion false): 실제 플레이 렌더러는 기어만 그리고 GameRenderer.gearMotion이 null이며 gearMotion 객체가 없고 gearMotion 에셋을 요청하지 않는다', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -224,12 +224,12 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(probe).toMatchObject({ hasGear: true, status: null, timeMs: null, running: null, motionObjects: 0 });
     expect(requested.some(path => path.includes('/gear/gear-motion/'))).toBe(false);
     expect(requested).toContain('/gear/gear.png');
-    // 고도 게이지 빈 유리는 움직임 설정과 무관한 스킨 공통 에셋이다.
+    // 고도 게이지 빈 유리는 `Gear Motion` 설정과 무관한 스킨 공통 에셋이다.
     expect(requested).toContain('/gear/gear-gauge-empty.png');
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 움직임 에셋을 요청해 움직임을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -247,7 +247,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  test('첫 플레이와 일시정지 메뉴 Retry 모두 첫 renderFrame(곡 시작 전 한 장)부터 gearMotion이 ready이고 재생 중 얹기가 일어나지 않는다', async ({ page }) => {
+  test('첫 플레이와 일시정지 메뉴 Retry 모두 첫 renderFrame(warm-up의 첫 프레임)부터 gearMotion이 ready이고 재생 중 holder 추가가 일어나지 않는다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, true);
@@ -267,7 +267,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  test('gear-motion.json을 붙잡아 두면 곡 시작(renderFrame·오디오 재생)이 그만큼 기다리고, 놓으면 첫 renderFrame부터 ready로 시작한다', async ({ page }) => {
+  test('gear-motion.json 응답을 보류하면 곡 시작(renderFrame·오디오 재생)이 그만큼 기다리고, 응답을 보내면 첫 renderFrame부터 ready로 시작한다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     let release: () => void = () => {};
@@ -282,7 +282,7 @@ test.describe('실제 플레이의 기어 움직임', () => {
     await startLocalPlay(page, true);
     await requestStarted;
 
-    // 자료가 붙잡혀 있는 동안에는 화면이 30프레임 지나도 렌더러가 그리지 않고 곡도 시작하지 않는다.
+    // `gearMotion` 에셋 응답이 보류된 동안에는 화면이 30프레임 지나도 렌더러가 그리지 않고 곡도 시작하지 않는다.
     await waitAnimationFrames(page, 30);
     expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
 
@@ -295,10 +295,10 @@ test.describe('실제 플레이의 기어 움직임', () => {
     expect(errors).toEqual([]);
   });
 
-  // 움직임 자료는 스킨 텍스처와 같은 필수 자료다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
+  // `gearMotion` 에셋은 스킨 텍스처와 같은 필수 에셋이다. 둘 중 하나를 받지 못하면 같은 길(곡을 시작하지 않고 오류 화면 → 곡 선택)을 간다.
   for (const [name, asset] of [
     ['스킨 텍스처(note-single.png)', '**/skins/classic/note-single.png'],
-    ['기어 움직임 자료(gear-motion.json)', '**/gear/gear-motion/gear-motion.json'],
+    ['gearMotion 데이터(gear-motion.json)', '**/gear/gear-motion/gear-motion.json'],
   ] as const) {
     test(`${name}를 받지 못하면 곡을 시작하지 않고(renderFrame·오디오 0번) 오류 화면의 Back to Song Select로 곡 선택에 돌아간다`, async ({ page }) => {
       const errors: string[] = [];

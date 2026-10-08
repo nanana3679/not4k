@@ -28,8 +28,8 @@ export {
 } from './gearMotionData';
 
 /**
- * 기어 움직임(승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
- * React·Lab에 의존하지 않는 게임 모듈이다. 게임 렌더러는 GearMotionController로 내장 기어 위에 얹고, Lab 비교 화면도 이 모듈을 쓴다.
+ * `gearMotion`(기어 위 장식 애니메이션, 승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
+ * React·Lab에 의존하지 않는 게임 모듈이다. 게임 렌더러는 GearMotionController로 내장 기어 위에 추가하고, Lab 비교 화면도 이 모듈을 쓴다.
  *
  * - 좌표: 컨테이너는 기어 그림 좌표(1024×1536)다. 호출자가 기어 스프라이트와 같은 변환을 컨테이너에 건다.
  * - 텍스처: prepare-frame-motion-v21.mjs가 SVG의 마스크·필터·블러를 미리 구운 PNG다(공유 로더 gearMotionAssets가 기어와 같은
@@ -41,20 +41,20 @@ export {
 export type GearMotionTextures = Record<GearMotionTextureKey, Texture>;
 
 export interface GearMotion {
-  /** 기어 그림 좌표의 움직임 루트. 기어 스프라이트 바로 위에 같은 변환으로 놓는다. */
+  /** 기어 그림 좌표의 `gearMotion` 루트 컨테이너. 기어 스프라이트 바로 위에 같은 변환으로 추가한다. */
   readonly container: Container;
   /**
    * B 게이지의 액체 타일과 기포를 담은 채움 컨테이너(기어 그림 좌표). 유리 윤곽 마스크는 그 부모(게이지 레이어)에 걸려 있고
-   * 이 컨테이너에는 마스크가 없어 유리관 전체에서 흐른다. 고도 게이지는 이것을 자르지 않는다. 렌더러가 기어 레이어에서 움직임 위에
+   * 이 컨테이너에는 마스크가 없어 유리관 전체에서 흐른다. 고도 게이지는 이것을 자르지 않는다. 렌더러가 기어 레이어에서 `gearMotion` 위에
    * 빈 유리 덮개(gearGauge.ts)를 겹치므로, 빈 부분에서는 덮개가 액체·기포를 가리고 채운 부분에서만 보인다.
    */
   readonly gaugeFill: Container;
   readonly reducedMotion: boolean;
-  /** 움직임 시계(ms). SVG 애니메이션 currentTime과 같은 뜻이다. */
+  /** 애니메이션 경과 시간(ms). SVG 애니메이션 currentTime과 같은 뜻이다. */
   update(timeMs: number): void;
   setLayerVisible(layer: GearMotionLayer, visible: boolean): void;
   isLayerVisible(layer: GearMotionLayer): boolean;
-  /** Lab 미리보기 전용(게임은 부르지 않는다, RFD 0030): 모든 움직임 레이어를 숨기고 멈춘다. */
+  /** Lab 미리보기 전용(게임은 부르지 않는다, RFD 0030): 모든 `gearMotion` 레이어를 숨기고 멈춘다. */
   setReducedMotion(reduced: boolean): void;
   /**
    * render를 한 번 부르는 동안 빛이 투명해 숨겨 둔 하단 바 레이어(알파 마스크 필터)도 그리게 해, 필터 프로그램·렌더 텍스처를

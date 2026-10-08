@@ -54,7 +54,7 @@ describe('parseGearMotionData', () => {
   });
 });
 
-describe('움직임 자료 경로', () => {
+describe('gearMotion 에셋 경로', () => {
   it('텍스처 9장과 gear-motion.json은 기어 그림 옆 /gear/gear-motion/ 아래에 있다(Lab 경로가 아님)', () => {
     expect(GEAR_MOTION_ASSET_DIR).toBe('/gear/gear-motion');
     expect(GEAR_MOTION_DATA_PATH).toBe('/gear/gear-motion/gear-motion.json');
@@ -68,7 +68,7 @@ describe('움직임 자료 경로', () => {
     expect(published).toEqual(files);
   });
 
-  it('게임 자료 모듈은 Lab 경로·승인 SVG·비교 보기를 모른다(/lab·svg·viewBox 없음)', () => {
+  it('게임 데이터 모듈은 Lab 경로·승인 SVG·비교 보기를 모른다(/lab·svg·viewBox 없음)', () => {
     expect(dataSource).not.toMatch(/['"]\/lab\//);
     expect(dataSource).not.toContain('.svg');
     expect(dataSource).not.toContain('viewBox');

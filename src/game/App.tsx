@@ -18,7 +18,7 @@ export default function GameApp() {
   const experience = useGameExperience();
   const gearMotion = useGameStore((state) => state.settings.gearMotion);
 
-  // 설정에서 기어 움직임을 끄면 플레이 화면이 붙잡아 둔 움직임 자료를 바로 놓는다(다시 켜면 다음 플레이가 잡는다).
+  // 설정 `Gear Motion`을 끄면 플레이 화면이 keep-alive로 둔 `gearMotion` 에셋 lease를 바로 release한다(다시 켜면 다음 플레이가 acquire한다).
   useEffect(() => {
     if (!gearMotion) keepGearMotionAssets(false);
   }, [gearMotion]);

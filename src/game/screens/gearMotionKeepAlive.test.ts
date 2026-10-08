@@ -12,7 +12,7 @@ afterEach(() => {
   keepGearMotionAssets(false);
 });
 
-describe('keepGearMotionAssets — 설정이 켜진 동안 기어 움직임 자료를 붙잡아 두기', () => {
+describe('keepGearMotionAssets — 설정이 켜진 동안 gearMotion 에셋 lease를 keep-alive로 두기', () => {
   it('켜진 채 두 번(첫 플레이·재시도) 부르면 같은 임대 하나만 빌린다(acquire 1번)', () => {
     const lease = fakeLease();
     const acquire = vi.fn(() => lease);
@@ -47,7 +47,7 @@ describe('keepGearMotionAssets — 설정이 켜진 동안 기어 움직임 자�
   });
 });
 
-describe('플레이 화면의 움직임 자료 대기(필수 자료)', () => {
+describe('플레이 화면의 gearMotion 에셋 대기(필수 에셋)', () => {
   it('곡 시작 전 대기에 시간 제한이 없고(settleWithin·_WAIT_MS 없음) 재생 중 얹기 미루기(setAttachDeferred)도 없다', () => {
     expect(keepAliveSource).not.toContain('settleWithin');
     expect(playScreenSource).not.toContain('settleWithin');
@@ -55,7 +55,7 @@ describe('플레이 화면의 움직임 자료 대기(필수 자료)', () => {
     expect(playScreenSource).not.toContain('setAttachDeferred');
   });
 
-  it('플레이 화면은 스킨 읽기와 움직임 자료를 함께 기다린다(Promise.all에 loadSkin과 keptMotion.ready)', () => {
+  it('플레이 화면은 스킨 읽기와 gearMotion 에셋을 함께 기다린다(Promise.all에 loadSkin과 keptMotion.ready)', () => {
     expect(playScreenSource).toMatch(/Promise\.all\(\[skinManager\.loadSkin\(skin\), keptMotion\?\.ready\]\)/);
   });
 

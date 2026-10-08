@@ -8,7 +8,7 @@ import { createChartTiming, JudgmentGrade } from '../../shared';
 import type { Chart } from '../../shared';
 import type { SkinManager } from '../skin';
 
-// 공유 로더 대신 바로 준비되는 움직임 자료 임대를 준다(네트워크·Pixi Assets 없이).
+// 공유 로더 대신 바로 준비되는 `gearMotion` 에셋 lease를 준다(네트워크·Pixi Assets 없이).
 const loader = vi.hoisted(() => ({ acquire: vi.fn() }));
 vi.mock('./gearMotionAssets', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./gearMotionAssets')>()),
@@ -105,7 +105,7 @@ const setChart = (renderer: InstanceType<typeof GameRenderer>, durationMs = 10_0
 const gaugeContainer = (scene: Scene) => scene.gearLayer.getChildByLabel('gear-gauge') as Container;
 
 describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', () => {
-  it('기어 움직임 켬: 기어 레이어는 [기어, 움직임 자리, 게이지] 순서라 게이지 덮개가 움직임의 액체·기포 위에 있고 기어와 같은 변환(250/552배)이다', async () => {
+  it('gearMotion 켬: 기어 레이어는 [기어, gearMotion holder, 게이지] 순서라 게이지 덮개가 gearMotion의 액체·기포 위에 있고 기어와 같은 변환(250/552배)이다', async () => {
     const { scene } = await createRenderer({ gearMotion: true });
     expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear', 'gear-motion-holder', 'gear-gauge']);
     const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
@@ -115,13 +115,13 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
     expect(gauge.scale.y).toBeCloseTo(250 / 552, 12);
   });
 
-  it('기어 움직임 끔이어도 게이지는 기어 바로 위에 있다([기어, 게이지])', async () => {
+  it('gearMotion 끔이어도 게이지는 기어 바로 위에 있다([기어, 게이지])', async () => {
     const { renderer, scene } = await createRenderer({ gearMotion: false });
     expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear', 'gear-gauge']);
     expect(renderer.gearGaugeLevel).toBe(1);
   });
 
-  it('운영체제 prefers-reduced-motion이 reduce여도 기어 레이어는 [기어, 기어 움직임 holder, 게이지]로 움직임과 게이지가 모두 있다(RFD 0030)', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 기어 레이어는 [기어, gearMotion holder, 게이지]로 gearMotion과 게이지가 모두 있다(RFD 0030)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
     const { renderer, scene } = await createRenderer({ gearMotion: true });
     expect(renderer.gearMotion).not.toBeNull();
@@ -155,7 +155,7 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
     expect(initSource).toHaveBeenCalledWith(gauge.source);
   });
 
-  it('기어 움직임을 켜도 prepareForPlayback(0)은 빈 유리 아틀라스를 한 번만 GPU 업로드하고 기어 그림·움직임 텍스처 9장과 함께 GPU 업로드한다(initSource 11번)', async () => {
+  it('gearMotion을 켜도 prepareForPlayback(0)은 빈 유리 아틀라스를 한 번만 GPU 업로드하고 기어 그림·gearMotion 텍스처 9개와 함께 GPU 업로드한다(initSource 11번)', async () => {
     const { renderer, initSource, gauge } = await createRenderer({ gearMotion: true });
     renderer.prepareForPlayback(0);
     expect(initSource.mock.calls.filter(([source]) => source === gauge.source)).toHaveLength(1);

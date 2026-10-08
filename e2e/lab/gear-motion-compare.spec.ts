@@ -32,7 +32,7 @@ interface Difference extends MeasureCase {
   /** 픽셀별 RGB 평균 차이의 99번째 백분위(0~255, 정수로 반올림). */
   p99: number;
   max: number;
-  /** 같은 SVG 시각과 움직임 없는 바탕의 차이. 움직임이 바꾼 양이라 비교가 민감한지 보는 기준이다. */
+  /** 같은 SVG 시각과 `gearMotion` 없는 바탕의 차이. `gearMotion`이 바꾼 양이라 비교가 민감한지 보는 기준이다. */
   baselineMean: number;
   baselineP99: number;
   /** 비교 앱이 실제로 얻은 MSAA 샘플 수. */
@@ -55,7 +55,7 @@ async function measure(page: Page, cases: MeasureCase[]): Promise<Difference[]> 
     const { acquireGearMotionAssets } = await import(/* @vite-ignore */ assetsModule);
     const width = 1024;
     const height = 1536;
-    // 게임 렌더러와 같은 공유 로더(기어와 같은 밉맵·삼선형 설정)로 움직임 자료를 빌린다.
+    // 게임 렌더러와 같은 공유 로더(기어와 같은 밉맵·삼선형 설정)로 `gearMotion` 에셋 lease를 acquire한다.
     const lease = acquireGearMotionAssets((path: string) => path);
     const motion = await lease.ready;
     const markup = await (await fetch(GEAR_MOTION_SVG_PATH)).text();
@@ -182,11 +182,11 @@ function report(label: string, results: Difference[]) {
   }
 }
 
-test.describe('기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () => {
+test.describe('gearMotion Pixi ↔ 승인 SVG 픽셀 비교', () => {
   // 원본 크기 Pixi 앱과 SVG를 swiftshader로 여러 번 그리므로 다른 무거운 파일과 겹쳐도 시간 안에 끝나게 한 워커에서 차례로 돌린다.
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
-  test('0·15·30·45초에 네 레이어를 모두 켠 Pixi와 SVG의 기어 실루엣 평균 차이 ≤ 1.5/255·99번째 백분위 ≤ 6/255이고, 움직임 없는 바탕보다 4배 이상 가깝다', async ({ page }) => {
+  test('0·15·30·45초에 네 레이어를 모두 켠 Pixi와 SVG의 기어 실루엣 평균 차이 ≤ 1.5/255·99번째 백분위 ≤ 6/255이고, gearMotion 없는 바탕보다 4배 이상 가깝다', async ({ page }) => {
     await page.goto('/lab');
     const results = await measure(page, [0, 15_000, 30_000, 45_000].map((timeMs) => ({ timeMs, layers: ALL_LAYERS })));
     report('all', results);
@@ -194,7 +194,7 @@ test.describe('기어 움직임 Pixi ↔ 승인 SVG 픽셀 비교', () => {
       expect(result.pixels).toBeGreaterThan(700_000);
       expect(result.mean).toBeLessThanOrEqual(1.5);
       expect(result.p99).toBeLessThanOrEqual(6);
-      // 비교가 움직임을 실제로 본다: 움직임 없는 바탕은 같은 SVG와 평균 4/255 이상 다르다.
+      // 비교가 `gearMotion`을 실제로 본다: `gearMotion` 없는 바탕은 같은 SVG와 평균 4/255 이상 다르다.
       expect(result.baselineMean).toBeGreaterThan(4);
       expect(result.baselineMean).toBeGreaterThan(result.mean * 4);
     }
@@ -328,7 +328,7 @@ test.describe('Gear의 Pixi ↔ SVG 비교 화면', () => {
     await expect(page.locator('canvas[data-gear-motion-compare-canvas]')).toHaveCount(1);
   });
 
-  test('비교 시각을 30초로 옮기면 Pixi와 SVG가 같은 시각(30000ms)을 그리고, SVG 애니메이션은 모두 멈춘 채 광원 표시점이 y 768에 있으며 왼쪽 장갑 보기의 같은 크기 두 화면 평균 차이가 움직임을 끈 Pixi의 절반 아래다', async ({ page }) => {
+  test('비교 시각을 30초로 옮기면 Pixi와 SVG가 같은 시각(30000ms)을 그리고, SVG 애니메이션은 모두 멈춘 채 광원 표시점이 y 768에 있으며 왼쪽 장갑 보기의 같은 크기 두 화면 평균 차이가 gearMotion을 끈 Pixi의 절반 아래다', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto('/lab/gear');
     await waitForCompare(page);
@@ -353,9 +353,9 @@ test.describe('Gear의 Pixi ↔ SVG 비교 화면', () => {
     expect(Math.abs(svgState.markerY - 768)).toBeLessThan(3);
 
     // 화면에 보이는 두 패널(같은 CSS 크기)을 그대로 찍어 비교한다. 전체 보기는 1024px를 480px로 줄이며 두 쪽의 축소 필터가
-    // 달라(Pixi 밉맵 삼선형, SVG는 브라우저 이미지 축소) 평균 약 2.2/255가 움직임과 무관하게 남는다. 그래서 장갑이 패널을 채우고
+    // 달라(Pixi 밉맵 삼선형, SVG는 브라우저 이미지 축소) 평균 약 2.2/255가 `gearMotion`과 무관하게 남는다. 그래서 장갑이 패널을 채우고
     // 1.5배로 그려지는 왼쪽 장갑 보기를, 크기(1280×1000 창, 패널 480×720)와 devicePixelRatio 1을 고정해 비교한다
-    // (측정: 움직임 켬 약 0.9 vs 끔 약 3.8). 정밀한 일치는 위의 원본 크기 비교가 확인한다.
+    // (측정: `gearMotion` 켬 약 0.9 vs 끔 약 3.8). 정밀한 일치는 위의 원본 크기 비교가 확인한다.
     expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);
     await page.getByLabel('왼쪽 장갑', { exact: true }).check();
     await expect(section).toHaveAttribute('data-compare-view', 'left');

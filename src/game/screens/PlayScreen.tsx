@@ -125,7 +125,7 @@ export function PlayScreen() {
           audioOffsetMs: settings.audioOffsetMs,
           judgmentOffsetMs: settings.judgmentOffsetMs,
         });
-        // 기어 움직임 자료는 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 하는 자료다(RFD 0029). 설정이 켜진 동안 붙잡아 두어 재시도·다음 곡은
+        // `gearMotion`(기어 위 장식 애니메이션) 에셋은 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 한다(RFD 0029). 설정이 켜진 동안 lease를 keep-alive로 두어 재시도·다음 곡은
         // 받아 둔 것을 쓰고, 스킨 읽기와 함께 시간 제한 없이 기다린다. 읽지 못하면 스킨을 읽지 못했을 때와 같이 아래 catch의 오류 화면으로 간다.
         // 유지 여부는 설정 `Gear Motion`만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
         const keptMotion = keepGearMotionAssets(settings.gearMotion);
@@ -146,14 +146,14 @@ export function PlayScreen() {
           resolution,
           skinManager,
           bombScale: settings.bombScale,
-          // 끄면 기어 움직임 객체·텍스처를 만들지 않는다(약한 GPU용).
+          // 끄면 `gearMotion` 객체·텍스처를 만들지 않는다(약한 GPU용).
           gearMotion: settings.gearMotion,
           difficultyLabel: chartData.meta.difficultyLabel,
         });
         rendererRef.current = renderer;
         audioEngineRef.current = audioEngine;
         await renderer.init();
-        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다. init은 기어 움직임을 얹은 뒤에 끝난다(렌더러 임대는 붙잡아 둔 자료를 캐시에서 받는다).
+        // ref 등록 뒤의 이탈은 effect cleanup이 오디오를 이미 해제했다. init은 `gearMotion`을 추가한 뒤에 끝난다(렌더러의 lease는 keep-alive로 둔 에셋을 캐시에서 받는다).
         if (cancelled) { renderer.dispose(); skinManager.dispose(); return; }
         activeSkin = skinManager;
 

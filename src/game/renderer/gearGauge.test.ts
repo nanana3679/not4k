@@ -112,7 +112,7 @@ describe('easeGaugeLevel — 표시 채움이 목표로 다가간다(지수 접�
     expect([easeGaugeLevel(0.8, 0.2, 0), easeGaugeLevel(0.8, 0.2, -16), easeGaugeLevel(0.8, 0.2, Number.NaN)]).toEqual([0.8, 0.8, 0.8]);
   });
 
-  it('한 프레임 간격 5000ms(숨은 탭 복귀)도 기어 움직임처럼 50ms만큼만 다가간다', () => {
+  it('한 프레임 간격 5000ms(숨은 탭 복귀)도 gearMotion처럼 50ms만큼만 다가간다', () => {
     expect(easeGaugeLevel(1, 0, 5000)).toBeCloseTo(easeGaugeLevel(1, 0, 50), 12);
     expect(easeGaugeLevel(1, 0, Number.POSITIVE_INFINITY)).toBeCloseTo(easeGaugeLevel(1, 0, 50), 12);
   });

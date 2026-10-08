@@ -12,11 +12,11 @@ import {
 } from './gearMotionData';
 
 /**
- * 기어 움직임 자료(gear-motion.json과 텍스처 9장, public/gear/gear-motion/)의 공유 로더.
+ * `gearMotion`(기어 위 장식 애니메이션) 에셋(gear-motion.json과 텍스처 9개, public/gear/gear-motion/)의 공유 로더.
  *
- * 스킨 매니페스트에 넣지 않고 따로 읽는다. SkinManager.loadSkin은 렌더러를 만들고 곡을 시작하기 전에 기다리는데, 약 2MB의 움직임 텍스처를
- * 거기에 더하면 첫 화면과 곡 시작이 늦어진다. 또 기어를 그리지 않는 튜토리얼·노트 에셋 재생기도 스킨을 읽고, 설정에서 움직임을 끄면
- * 아예 읽지 않아야 한다. 그래서 기어를 그리는 렌더러가 움직임을 켤 때만 빌리고, 기다리지 않고 준비되면 얹는다.
+ * 스킨 매니페스트에 넣지 않고 따로 읽는다. SkinManager.loadSkin은 렌더러를 만들고 곡을 시작하기 전에 기다리는데, 약 2MB의 `gearMotion` 텍스처를
+ * 거기에 더하면 첫 화면과 곡 시작이 늦어진다. 또 기어를 그리지 않는 튜토리얼·노트 에셋 재생기도 스킨을 읽고, 설정에서 `gearMotion`을 끄면
+ * 아예 읽지 않아야 한다. 그래서 기어를 그리는 렌더러가 `gearMotion`을 켤 때만 lease를 acquire하고, 기다리지 않고 준비되면 추가한다.
  *
  * 읽기와 공유는 스킨 에셋과 같은 장치(sharedAssets: Pixi Assets 전역 캐시 + 경로별 참조 세기)를 쓴다. 텍스처는 기어(gearImage)와 같은
  * 밉맵·삼선형 설정으로 경로 별칭을 붙여 읽으므로, 같은 페이지의 게임 렌더러와 Lab 비교 화면이 한 벌을 나눠 쓰고 마지막 임대를 놓을 때
@@ -29,7 +29,7 @@ export interface GearMotionResources {
 }
 
 export interface GearMotionAssetLease {
-  /** 자료와 텍스처가 준비되면 이행한다. 읽기에 실패하거나, 준비되기 전에 놓으면 거절한다. */
+  /** `gear-motion.json`(`GearMotionData`)과 텍스처가 준비되면 이행한다. 읽기에 실패하거나, 준비되기 전에 lease를 release하면 거절한다. */
   readonly ready: Promise<GearMotionResources>;
   /** 이 임대가 잡은 참조를 놓는다(두 번 불러도 한 번만). 놓은 뒤에는 받은 텍스처를 쓰지 않는다. */
   release(): void;
