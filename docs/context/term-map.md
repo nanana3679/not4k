@@ -96,7 +96,7 @@
 | trail | trail(`trails`, `TrailPool`, `advanceTrails`) | trail 뜻의 잔상·잔광. 잔광은 버튼 빛이 키를 뗀 뒤 사라지는 fade-out(버튼 누름 시연 `press-animation.html`의 "잔광")에만 쓴다 | `breakthrough.mjs`, `approach.mjs` |
 | tint | `tint` | 물들이기, 물들여 | `gearMotion.ts`의 `unlit.tint` |
 | 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 판정선 아래 레인을 덮는 사각형이나 서든의 상단 커버를 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처 |
-| 판정선 아래 레인을 덮는 불투명 사각형 | **사용자 확인 필요.** 후보 (1) 지금 표기 "레인 가림막" 유지, (2) lane cover. IIDX에서 lane cover는 서든(SUDDEN+) 같은 상단 커버를 가리키고 [PRD](../prd.md) G-10 서든도 "상단 커버"라 겹친다. 어느 쪽이든 처음 나올 때 `drawMask`를 함께 쓴다 | bare "마스크"(Pixi mask와 헷갈림) | `drawMask`·`maskGraphic`·`laneMaskTop`(Pixi mask가 아니라 불투명 `Graphics` 채우기), [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
+| 판정선 아래 레인을 덮는 불투명 사각형 | **없앨 예정([#247](https://github.com/nanana3679/not4k/issues/247)).** 덮개 대신 레인 길이를 레인 끝(기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)에서 클립한다. 그 전까지는 코드 식별자 `drawMask`·`maskGraphic`로 부르고, Pixi mask가 아니라 불투명 `Graphics` 채우기임을 함께 적는다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 덮개 기능(PRD G-10 서든)에 남겨 둔다 | `drawMask`·`maskGraphic`·`laneMaskTop`, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
 | 애니메이션 경과 시간 | 애니메이션 경과 시간(`GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계 | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
 | scene graph에 추가 | 추가(`addChild`). 기어 위 레이어는 `addGearOverlay` | 얹다, 얹기 | Pixi `Container.addChild` |
 | 렌더러에 차트 설정 | `setChart` | 차트를 걸다 | `GameRenderer.setChart` |
