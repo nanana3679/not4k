@@ -29,15 +29,35 @@ export function stepPlaySession(
   frameTimestamp: number,
 ): readonly AutoInput[] {
   const songTime = clock.judgmentTimeMs();
-  // 양수 오프셋 입력으로 core가 앞서더라도, 그보다 앞선 합성 입력을
-  // 생성하기 전에 deadline부터 확정하지 않도록 같은 논리 시각까지 수집한다.
-  const autoEvents = autoPlayer.eventsThrough(Math.max(songTime, timeline.latestTime));
-  timeline.enqueueMany(autoEvents.map(event => ({
+  // 이번 프레임에 기한을 진행할 시각. 입력 오프셋이 음수면(늦게 누르는 사람의 보정) 입력 시간이 곡 시간보다 뒤처지므로
+  // 실제 입력이 아직 도착할 수 있는 입력 시간까지만 진행한다.
+  const advanceAt = Math.min(songTime, clock.toInputTimeMs(frameTimestamp));
+  // 합성(auto) 입력은 진행할 시각까지만 만든다. 곡 시간까지 만들면, 입력이 늦은 사람의 정당한 늦은 입력보다
+  // 뒤의 auto 입력이 먼저 core를 앞당겨 수동 노트의 기한을 넘기고 Miss로 확정한다.
+  // 양수 오프셋(일찍 누르는 사람의 보정)으로 큐가 앞서 있으면 그 시각까지 만들어, 앞선 합성 입력을 기한보다 먼저 넣는다.
+  const autoEvents = autoPlayer.eventsThrough(Math.max(advanceAt, timeline.latestTime));
+  enqueueAutoInputs(timeline, autoEvents);
+  drainPlaySessionInputs(timeline, session, songTime, Infinity);
+  if (advanceAt >= session.core.time) session.advance(advanceAt);
+  return autoEvents;
+}
+
+/**
+ * 곡 끝 정산 직전에 부른다. 입력 오프셋이 음수면(늦게 누르는 사람의 보정) 진행 시각이 곡 시간보다 뒤처져, 곡 끝 직전의 auto 입력이
+ * 마지막 프레임까지 만들어지지 않을 수 있다. 남은 auto 입력을 모두 만들고 큐를 비운 뒤 finalize하게 한다.
+ */
+export function finishPlaySession(
+  timeline: InputTimeline,
+  session: NoteJudgmentSession,
+  autoPlayer: Pick<AutoPlayer, "eventsThrough">,
+): void {
+  enqueueAutoInputs(timeline, autoPlayer.eventsThrough(Number.POSITIVE_INFINITY));
+  drainPlaySessionInputs(timeline, session, session.core.time, Number.POSITIVE_INFINITY);
+}
+
+function enqueueAutoInputs(timeline: InputTimeline, events: readonly AutoInput[]): void {
+  timeline.enqueueMany(events.map(event => ({
     lane: event.lane, inputAt: event.timeMs, key: event.key,
     type: event.type === "release" ? "up" : "down",
   })));
-  drainPlaySessionInputs(timeline, session, songTime, Infinity);
-  const advanceAt = Math.min(songTime, clock.toInputTimeMs(frameTimestamp));
-  if (advanceAt >= session.core.time) session.advance(advanceAt);
-  return autoEvents;
 }

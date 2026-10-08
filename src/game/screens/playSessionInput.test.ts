@@ -6,9 +6,13 @@ import { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
 import { body, point } from "../judgment/noteJudgmentTestHarness";
 import { compileJudgmentChart } from "../judgment/compiledJudgmentChart";
 import type { NoteEntity } from "../../shared/types";
-import { stepPlaySession } from "./playSessionInput";
+import { finishPlaySession, stepPlaySession } from "./playSessionInput";
 
-function play(notes: readonly NoteEntity[], offset = 0, auto = false) {
+function play(
+  notes: readonly NoteEntity[],
+  offset = 0,
+  auto: boolean | readonly { startMs: number; endMs: number }[] = false,
+) {
   const starts = new Map(notes.map((note, i) => [i, note.beat.n / note.beat.d]));
   const ends = new Map(notes.flatMap((note, i) => "endBeat" in note ? [[i, note.endBeat.n / note.endBeat.d] as const] : []));
   const compiled = compileJudgmentChart(notes, starts, ends);
@@ -16,7 +20,8 @@ function play(notes: readonly NoteEntity[], offset = 0, auto = false) {
   const timeline = new InputTimeline();
   const audio = { currentTimeMs: 0, getOutputLatencyMs: () => 15 };
   const clock = new GameClock(audio, { audioOffsetMs: 0, judgmentOffsetMs: offset }, () => audio.currentTimeMs);
-  const player = new AutoPlayer(notes, starts, ends, auto ? [{ startMs: 0, endMs: 5000 }] : [], compiled);
+  const autoRanges = Array.isArray(auto) ? auto : auto ? [{ startMs: 0, endMs: 5000 }] : [];
+  const player = new AutoPlayer(notes, starts, ends, autoRanges, compiled);
   return {
     session, timeline, clock,
     input(observed: number, eventTime: number, key = "A", type: "down" | "up" = "down") {
@@ -26,6 +31,10 @@ function play(notes: readonly NoteEntity[], offset = 0, auto = false) {
     frame(at: number) {
       audio.currentTimeMs = at;
       stepPlaySession(timeline, session, player, clock, at);
+    },
+    finish() {
+      finishPlaySession(timeline, session, player);
+      return session.finalize();
     },
   };
 }
@@ -76,5 +85,27 @@ describe("실제 GameClock·입력 큐·Session 통합", () => {
     expect(p.session.events).toMatchObject([{ kind: "head", grade: "perfect", inputAt: 1050 }]);
     expect(() => p.frame(1010)).not.toThrow();
     expect(p.session.events).toHaveLength(1);
+  });
+
+  it("−50ms 입력 offset(50ms 늦게 누르는 사람의 보정)에서 1000ms 수동 Point를 입력 시각 1100에 치면, 1125ms auto Point가 뒤따라도 Miss가 아니라 Good", () => {
+    const p = play([point(1000, "single", 1), point(1125, "single", 2)], -50, [{ startMs: 1100, endMs: 5000 }]);
+    // 물리 1149ms 프레임: 입력 시간은 1099라 auto 1125를 아직 만들면 안 된다(만들면 core가 1120 기한을 넘겨 수동 노트가 Miss).
+    p.frame(1149);
+    expect(p.session.events).toHaveLength(0);
+    // 물리 1150ms에 누른 키 = 입력 시간 1150 + (−50) = 1100.
+    p.input(1150, 1150);
+    p.frame(1150);
+    expect(p.session.events[0]).toMatchObject({ kind: "head", grade: "good", deltaMs: 100, inputAt: 1100 });
+    p.frame(1200);
+    expect(p.session.events.map(event => [event.grade, event.inputAt])).toEqual([["good", 1100], ["perfect", 1125]]);
+  });
+
+  it("−50ms 입력 offset에서 곡 끝 2000ms 직전 1990ms auto Point는 마지막 프레임까지 만들어지지 않아도 곡 끝 정산에서 Perfect", () => {
+    const p = play([point(1990, "single", 2)], -50, true);
+    // 마지막 프레임: 진행 시각은 입력 시간 1950이라 1990 auto 입력은 아직 만들지 않는다.
+    p.frame(2000);
+    expect(p.session.events).toHaveLength(0);
+    p.finish();
+    expect(p.session.events).toMatchObject([{ kind: "head", grade: "perfect", inputAt: 1990 }]);
   });
 });
