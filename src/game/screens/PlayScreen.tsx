@@ -15,7 +15,7 @@ import { font, color, surface, edge, radius, primitives } from '../../shared/the
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
-import { drainPlaySessionInputs, finishPlaySession, stepPlaySession } from './playSessionInput';
+import { finishPlaySession, stepPlaySession } from './playSessionInput';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
 
 export function PlayScreen() {
@@ -41,9 +41,9 @@ export function PlayScreen() {
   const handleSongEnd = () => {
     const session = sessionRef.current;
     if (!session || !chartData) return;
-    // 입력이 늦은 오프셋에서는 곡 끝 직전 auto 입력이 아직 없을 수 있어, 남은 auto 입력까지 넣고 큐를 비운 뒤 정산한다.
+    // 늦게 누르는 사람의 보정(음수 입력 오프셋)에서는 곡 끝 직전 auto 입력이 아직 없을 수 있어, 남은 auto 입력까지 넣고 큐를 비운 뒤 정산한다.
+    // 세션과 입력 큐·autoPlayer는 같은 시점에 만들어지므로 세션이 있으면 둘도 있다.
     if (inputTimelineRef.current && autoPlayerRef.current) finishPlaySession(inputTimelineRef.current, session, autoPlayerRef.current);
-    else if (inputTimelineRef.current) drainPlaySessionInputs(inputTimelineRef.current, session, session.core.time, Number.POSITIVE_INFINITY);
 
     const state = session.finalize();
     // Output debug log if debug mode was active
