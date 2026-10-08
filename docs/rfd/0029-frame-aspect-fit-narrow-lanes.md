@@ -4,7 +4,7 @@
 
 > **용어 (#231, 2026-10-06):** 이 문서의 "프레임"(레인을 둘러싼 장식 그림)은 이제 [기어](../context/glossary.md#기어-gear)로 부른다. 화면 한 장을 뜻하는 프레임(`renderFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 결정 본문은 결정 당시 표기를 그대로 두고, 지금 상태를 적은 [영향 범위](#영향-범위)만 새 용어와 지금 코드·경로 이름으로 고쳤다. 대응 예: `classicFrame.json`·`classicFrameLayout.ts`·`classicFrameMotion*.ts` → `gearGeometry.json`·`gearLayout.ts`·`gearMotion*.ts`, `FrameMotionController`·`GameRenderer.frameMotion` → `GearMotionController`·`GameRenderer.gearMotion`, `public/gear/classic-frame.png`·`classic-frame-motion/frame-motion.json` → `gear.png`·`gear-motion/gear-motion.json`, 설정 `Frame Motion` → `Gear Motion`, Lab `/lab/classic-frame-fit`(Classic Frame Fit) → `/lab/gear`(Gear), 스킨 매니페스트 키 `gearFrame` → `gearImage`, 렌더러 옵션 `showGearFrame` → `showGear`. 기어는 스킨 공용이라 중간에 붙였던 Classic 접두사(`classicGear*`, `/lab/classic-gear`)도 뺐다.
 
-> **움직임 줄이기 (RFD 0030, 2026-10-07):** 이 문서가 정한 "움직임 줄이기(`prefers-reduced-motion: reduce`)면 기어 움직임을 만들지 않는다"와 "고도 게이지는 움직임 줄이기면 바로 맞춘다"는 [RFD 0030](0030-ignore-os-reduced-motion.md)으로 바뀐다. 게임은 운영체제 설정을 따르지 않고 인게임 설정만 따른다(구현 [#236](https://github.com/nanana3679/not4k/issues/236)).
+> **`prefers-reduced-motion` (RFD 0030, 2026-10-07):** 이 문서가 정한 "움직임 줄이기(`prefers-reduced-motion: reduce`)면 기어 움직임을 만들지 않는다"와 "고도 게이지는 움직임 줄이기면 바로 맞춘다"는 [RFD 0030](0030-ignore-os-reduced-motion.md)으로 바뀐다. 게임은 운영체제 설정을 따르지 않고 인게임 설정만 따른다(구현 [#236](https://github.com/nanana3679/not4k/issues/236)).
 
 ## 기존 결정과 문제
 
