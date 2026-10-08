@@ -70,7 +70,6 @@ afterEach(() => {
 /** 렌더러를 만들고 init을 시작한다. init은 움직임 자료를 기다리므로 resolveLease(기본 true)면 임대를 이행시킨 뒤 init을 기다린다. */
 async function createRenderer(options: {
   gearMotion?: boolean;
-  gearMotionReducedMotion?: 'omit' | 'hide';
   showGear?: boolean;
   showFlightBackground?: boolean;
   beforeInit?: (scene: Scene) => void;
@@ -94,10 +93,10 @@ function startRenderer(options: Parameters<typeof createRenderer>[0] = {}) {
       throw new Error(`unknown texture ${key}`);
     },
   } as unknown as SkinManager;
-  const { showGear = true, showFlightBackground = false, gearMotion, gearMotionReducedMotion, beforeInit } = options;
+  const { showGear = true, showFlightBackground = false, gearMotion, beforeInit } = options;
   const renderer = new GameRenderer({
     canvas: {} as HTMLCanvasElement, width: 1067, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground,
-    gearMotion, gearMotionReducedMotion,
+    gearMotion,
   });
   const scene = renderer as unknown as Scene;
   // GPU 초기화만 생략하고 실제 Container/Sprite와 init을 쓴다. renderFrame은 가짜 GPU 렌더러로 그리기만 건너뛴다.
@@ -180,25 +179,18 @@ describe('GameRenderer 기어 움직임 (RFD 0029)', () => {
     expect(renderer.gearMotion).toBeNull();
   });
 
-  it('움직임 줄이기(prefers-reduced-motion: reduce)면 기본(omit)으로 자료를 빌리지도 움직임 자리를 만들지도 않는다(설정 끔과 같은 0 비용)', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
-    const { renderer, scene } = await createRenderer({ resolveLease: false });
-    expect(loader.acquire).not.toHaveBeenCalled();
-    expect(renderer.gearMotion).toBeNull();
-    expect(scene.gearLayer.children).toHaveLength(1);
-  });
-
-  it('움직임 줄이기라도 gearMotionReducedMotion: hide(Lab)면 자료를 빌려 얹되 숨기고, renderFrame(…, 16)이 시계를 0에 둔다', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
-    const { renderer, scene, initSource } = await createRenderer({ gearMotionReducedMotion: 'hide' });
+  it('운영체제 prefers-reduced-motion이 reduce여도 기본 옵션이면 lease를 한 번 acquire해 움직임을 보이게 만들고 renderFrame(…, 16) 2번에 timeMs 32가 된다(matchMedia를 읽지 않음, RFD 0030)', async () => {
+    const matchMedia = vi.fn((query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
+    vi.stubGlobal('matchMedia', matchMedia);
+    const { renderer, scene } = await createRenderer();
+    renderer.renderFrame(0, 16);
     renderer.renderFrame(0, 16);
     expect(loader.acquire).toHaveBeenCalledTimes(1);
     expect(renderer.gearMotion!.status).toBe('ready');
-    expect(renderer.gearMotion!.running).toBe(false);
-    expect(renderer.gearMotion!.timeMs).toBe(0);
-    expect(scene.app.stage.getChildByLabel('gear-motion', true)!.visible).toBe(false);
-    // 그리지 않는 텍스처는 GPU에 미리 올리지 않는다.
-    expect(initSource).not.toHaveBeenCalled();
+    expect(renderer.gearMotion!.running).toBe(true);
+    expect(renderer.gearMotion!.timeMs).toBe(32);
+    expect(scene.app.stage.getChildByLabel('gear-motion', true)!.visible).toBe(true);
+    expect(matchMedia).not.toHaveBeenCalled();
   });
 
   it('곡 시각 10000ms에서 renderFrame(…, 16)을 3번 부르면 움직임 시계는 곡 시각이 아니라 게임 프레임 간격만 따라 48ms가 된다', async () => {

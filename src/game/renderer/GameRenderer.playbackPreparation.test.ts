@@ -80,11 +80,10 @@ function skinTextures({ heldEffect = true }: { heldEffect?: boolean } = {}) {
 }
 
 async function createRenderer({
-  showGear = true, gearMotion = true, gearMotionReducedMotion, keyBeams = true, textures = skinTextures(),
+  showGear = true, gearMotion = true, keyBeams = true, textures = skinTextures(),
 }: {
   showGear?: boolean;
   gearMotion?: boolean;
-  gearMotionReducedMotion?: 'omit' | 'hide';
   keyBeams?: boolean;
   textures?: Map<string, Texture>;
 } = {}) {
@@ -102,7 +101,7 @@ async function createRenderer({
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
     canvas: {} as HTMLCanvasElement, width: 1067, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground: false,
-    gearMotion, gearMotionReducedMotion,
+    gearMotion,
   });
   const scene = renderer as unknown as Scene;
   // GPU 초기화만 생략하고 실제 Container/Sprite와 init을 쓴다. GPU 업로드(initSource)와 그리기(app.render)는 순서만 기록한다.
@@ -190,13 +189,13 @@ describe('GameRenderer.prepareForPlayback — 곡 시작 전 텍스처 GPU 업�
     expect(calls.at(-1)).toBe('render');
   });
 
-  it('움직임 줄이기에서 숨겨 둔 기어 움직임(Lab hide)은 그리지 않으므로 움직임 텍스처 9장은 GPU 업로드하지 않는다', async () => {
+  it('운영체제 prefers-reduced-motion이 reduce여도 기어 움직임 텍스처 9장을 GPU 업로드한다(키빔 없이 소스 35개, RFD 0030)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
-    const { renderer, initSource } = await createRenderer({ gearMotionReducedMotion: 'hide', keyBeams: false });
+    const { renderer, initSource } = await createRenderer({ keyBeams: false });
     renderer.prepareForPlayback(0);
     const uploaded = new Set(uploadCounts(initSource).keys());
-    for (const key of GEAR_MOTION_TEXTURE_KEYS) expect(uploaded.has(motionTextures[key].source), key).toBe(false);
-    expect(initSource).toHaveBeenCalledTimes(26);
+    for (const key of GEAR_MOTION_TEXTURE_KEYS) expect(uploaded.has(motionTextures[key].source), key).toBe(true);
+    expect(initSource).toHaveBeenCalledTimes(35);
   });
 
   it('dispose 뒤에 prepareForPlayback(0)을 부르면 GPU 업로드도 그리기도 하지 않는다(initSource 0번·app.render 0번)', async () => {

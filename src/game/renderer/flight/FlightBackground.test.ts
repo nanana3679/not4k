@@ -13,7 +13,6 @@ function setup() {
 
 beforeEach(() => {
   vi.stubGlobal('document', { hidden: false, createElement: () => element() });
-  vi.stubGlobal('matchMedia', () => ({ matches: false }));
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -34,12 +33,14 @@ describe('게임 비행 배경 수명과 시간', () => {
     expect(driver.render).toHaveBeenLastCalledWith(.4, .05);
   });
 
-  it('움직임 줄이기에서는 고도 .7을 표시해도 배경 시간은 0초만 진행한다', async () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+  it('운영체제 prefers-reduced-motion이 reduce여도 고도 .7과 16ms 프레임이면 배경 시간 .016초를 전달한다(matchMedia를 읽지 않음, RFD 0030)', async () => {
+    const matchMedia = vi.fn(() => ({ matches: true }));
+    vi.stubGlobal('matchMedia', matchMedia);
     const { background, driver } = setup();
     await background.init(async () => driver);
     background.render(.7, 16);
-    expect(driver.render).toHaveBeenLastCalledWith(.7, 0);
+    expect(driver.render).toHaveBeenLastCalledWith(.7, .016);
+    expect(matchMedia).not.toHaveBeenCalled();
   });
 
   it('숨긴 탭과 NaN 시간은 이동하지 않으며 고도 2는 1로 제한한다', async () => {
