@@ -25,7 +25,7 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 ## Flight Background Preview
 
-`/lab/flight-background-preview`는 `/__lab/flight-background-preview/`에 마운트한 독립 공개 미리보기를 iframe으로 연다. Lab 복귀 링크만 바깥에 두며, iframe 안의 `LIFTOFF`, `INFILTRATION`, `BREAKTHROUGH` 탭과 고도 슬라이더는 공개 미리보기와 같은 소스를 사용한다.
+`/lab/flight-background-preview`는 `/__lab/flight-background-preview/`에 마운트한 독립 공개 미리보기를 iframe으로 연다. Lab 복귀 링크만 바깥에 두며, iframe 안의 `LIFTOFF`, `INFILTRATION`, `BREAKTHROUGH` 탭과 고도 슬라이더는 공개 미리보기와 같은 소스를 사용한다. 이 미리보기는 보관 시연(`output/prototypes/flight-background-preview-20260913/`)을 그대로 띄우므로, Lab의 다른 페이지와 달리 운영체제 모션 감소 설정(`prefers-reduced-motion: reduce`)이 켜져 있으면 멈춘 채 시작한다([RFD 0030](../rfd/0030-ignore-os-reduced-motion.md)의 남은 예외, [#253](https://github.com/nanana3679/not4k/issues/253)에서 정리, 우선순위 낮음).
 
 정식 공개 진입점은 `https://nanana3679.github.io/not4k/lab/flight-background-preview/`다. Cloudflare Quick Tunnel은 브랜치가 `main`에 반영되기 전 임시 확인용으로만 사용한다.
 

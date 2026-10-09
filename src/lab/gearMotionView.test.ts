@@ -79,6 +79,29 @@ describe('stripReducedMotionRules — 보관 승인 SVG의 모션 감소 규칙 
     expect(stripReducedMotionRules('')).toBe('');
   });
 
+  it('불리언 형태 @media (prefers-reduced-motion) 블록도 reduce와 같은 뜻이라 지운다', () => {
+    expect(stripReducedMotionRules('@media (prefers-reduced-motion) { .a { animation: none; } }.b{}')).toBe('.b{}');
+  });
+
+  it('대문자로 쓴 @MEDIA (PREFERS-REDUCED-MOTION: REDUCE) 블록도 지운다', () => {
+    expect(stripReducedMotionRules('@MEDIA (PREFERS-REDUCED-MOTION: REDUCE) { .a { animation: none; } }.b{}')).toBe('.b{}');
+  });
+
+  it('조건을 뒤집은 @media not all and (prefers-reduced-motion: reduce) 블록은 모션 감소가 아닐 때 적용되므로 남긴다', () => {
+    const css = '@media not all and (prefers-reduced-motion: reduce) { .a { animation: spin 1s; } }';
+    expect(stripReducedMotionRules(css)).toBe(css);
+  });
+
+  it('쉼표 목록 @media print, (prefers-reduced-motion: reduce) 블록은 인쇄에도 적용되므로 남긴다', () => {
+    const css = '@media print, (prefers-reduced-motion: reduce) { .a { animation: none; } }';
+    expect(stripReducedMotionRules(css)).toBe(css);
+  });
+
+  it('(prefers-reduced-motion: no-preference) 블록은 모션 감소 조건이 아니라 남긴다', () => {
+    const css = '@media (prefers-reduced-motion: no-preference) { .a { animation: spin 1s; } }';
+    expect(stripReducedMotionRules(css)).toBe(css);
+  });
+
   it('닫는 중괄호가 없는 모션 감소 블록은 브라우저처럼 텍스트 끝까지를 그 블록으로 보고 지운다', () => {
     expect(stripReducedMotionRules('.a{}@media (prefers-reduced-motion: reduce) { .b { opacity: 0; }')).toBe('.a{}');
   });

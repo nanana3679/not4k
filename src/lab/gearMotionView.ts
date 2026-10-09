@@ -42,22 +42,28 @@ export function readSvgBaseHref(svg: ParentNode): string {
   return href;
 }
 
-/** 승인 SVG가 지닌 운영체제 모션 감소 규칙의 조건. `@media` 조건에 이것이 들어 있으면 그 블록을 걷어 낸다. */
-const REDUCE_CONDITION = /prefers-reduced-motion\s*:\s*reduce/;
+/** 모션 감소 조건 `(prefers-reduced-motion: reduce)`와 같은 뜻의 불리언 형태 `(prefers-reduced-motion)`. 대소문자는 가리지 않는다. */
+const REDUCE_CONDITION = /\(\s*prefers-reduced-motion\s*(?::\s*reduce\s*)?\)/i;
+/** 조건을 뒤집거나(`not`) 다른 조건과 OR로 묶은(쉼표) 블록은 모션 감소가 아닐 때도 적용되므로 지우지 않는다. */
+const NOT_ONLY_REDUCE = /\bnot\b|,/i;
 
 /**
- * CSS 텍스트에서 조건에 `prefers-reduced-motion: reduce`가 들어간 `@media` 블록을 닫는 중괄호까지 통째로 지우고, 나머지 텍스트는 그대로 둔다.
- * 닫는 중괄호가 없으면 브라우저처럼 텍스트 끝까지를 그 블록으로 본다. 다른 `@media` 블록(`no-preference` 조건 포함)은 건드리지 않는다.
- * 보관한 승인 SVG는 고치지 않고(RFD 0030 결정 5), Lab 비교 화면이 문서에 넣기 전에 이 규칙만 걷어 내 운영체제 설정과 관계없이 게임과 같게 보여 준다.
+ * 보관한 승인 SVG(`54-ambient-motion-v19.svg`)의 `<style>`에서 운영체제 모션 감소 규칙을 걷어 내려고 쓰는 좁은 텍스트 변환이다.
+ * 조건이 `(prefers-reduced-motion: reduce)` 또는 `(prefers-reduced-motion)`을 담은 `@media` 블록을 닫는 중괄호까지 통째로 지우고,
+ * 나머지 텍스트는 한 글자도 바꾸지 않는다. 조건에 `not`이나 쉼표가 있는 블록과 `no-preference` 블록은 남긴다.
+ * 닫는 중괄호가 없으면 브라우저처럼 텍스트 끝까지를 그 블록으로 본다. CSS 주석과 문자열은 해석하지 않으므로(보관 SVG에는 없다)
+ * 그 안의 `@media`·중괄호도 규칙으로 본다. 범용 CSS 파서가 아니다.
+ * 보관 파일은 고치지 않고(RFD 0030 결정 5), Lab 비교 화면이 문서에 넣기 전에 이 규칙만 걷어 내 운영체제 설정과 관계없이 게임과 같게 보여 준다.
  */
 export function stripReducedMotionRules(css: string): string {
   let result = '';
   let cursor = 0;
-  const media = /@media\b/g;
+  const media = /@media\b/gi;
   for (let match = media.exec(css); match !== null; match = media.exec(css)) {
     const open = css.indexOf('{', match.index);
     if (open === -1) break;
-    if (!REDUCE_CONDITION.test(css.slice(match.index, open))) continue;
+    const prelude = css.slice(match.index + match[0].length, open);
+    if (!REDUCE_CONDITION.test(prelude) || NOT_ONLY_REDUCE.test(prelude)) continue;
     let depth = 0;
     let end = css.length;
     for (let index = open; index < css.length; index++) {

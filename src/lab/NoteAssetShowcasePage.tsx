@@ -137,7 +137,7 @@ export default function NoteAssetShowcasePage() {
     setPlayerReady(false);
   }
 
-  // 랙 키봄은 1.5초마다 다시 재생한다. 숨은 탭에서는 건너뛰며, 운영체제 모션 감소 설정은 읽지 않는다(RFD 0030).
+  // 랙 키봄은 1.5초마다 다시 재생한다. 숨은 탭에서는 건너뛰며, 운영체제 모션 감소 설정(`prefers-reduced-motion`)은 읽지 않는다(RFD 0030).
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (!document.hidden) setRackBombRun((current) => current + 1);

@@ -200,6 +200,26 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     empty.destroy();
   });
 
+  it('setEnabled(false) 뒤 warmUp(render)은 gearMotion의 warmUp을 부르지 않고 render만 1번 부르며, 다시 켜면 gearMotion의 warmUp을 1번 부른다', async () => {
+    const motionWarmUp = vi.fn();
+    const { controller } = await readyController({
+      create: (motionData, textures, motionOptions) => {
+        const motion = createGearMotion(motionData, textures, motionOptions);
+        return { ...motion, warmUp: (render: () => void) => { motionWarmUp(); motion.warmUp(render); } };
+      },
+    });
+    const render = vi.fn();
+    controller.setEnabled(false);
+    controller.warmUp(render);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(motionWarmUp).not.toHaveBeenCalled();
+    controller.setEnabled(true);
+    controller.warmUp(render);
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(motionWarmUp).toHaveBeenCalledTimes(1);
+    controller.destroy();
+  });
+
   it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { holder, lease, reject, controller } = controllerWith();

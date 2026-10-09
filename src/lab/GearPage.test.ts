@@ -114,7 +114,8 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
   });
 
   it('운영체제 모션 감소 설정을 읽지 않아(RFD 0030) 무대 data-motion은 on·off 둘뿐이고, 무대와 비교 화면 모두 gearMotion을 숨기는 setReducedMotion을 부르지 않으며 화면 문구에 움직임 줄이기가 없다', () => {
-    expect(pageSource).toContain("const motionState = motionEnabled && motionAssets.status !== 'error' ? 'on' : 'off';");
+    expect(pageSource).not.toContain("'reduced'");
+    expect(stageOf(render())).toContain('data-motion="on"');
     for (const source of [pageSource, compareSource]) {
       expect(source).not.toContain('setReducedMotion');
       expect(source).not.toContain('reducedMotion');

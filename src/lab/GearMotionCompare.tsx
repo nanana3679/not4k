@@ -23,7 +23,7 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
 /**
  * 기어만 그린 작은 Pixi 앱(GameRenderer 아님)과 승인된 애니메이션 SVG를 같은 CSS 크기·viewBox·시각으로 나란히 보여 준다.
  * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. `gearMotion` 요소 체크는 양쪽에 함께 적용한다.
- * 운영체제의 모션 감소 설정은 읽지 않는다(RFD 0030). 보관한 승인 SVG는 이 설정이 켜져 있으면 레이어를 숨기는 자체 `@media` 규칙을 가지므로,
+ * 운영체제의 모션 감소 설정(`prefers-reduced-motion`)은 읽지 않는다(RFD 0030). 보관한 승인 SVG는 이 설정이 켜져 있으면 레이어를 숨기는 자체 `@media` 규칙을 가지므로,
  * 파일은 그대로 두고 문서에 넣기 전에 그 규칙을 걷어 낸다(stripSvgReducedMotionRules, RFD 0030 결정 5).
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
@@ -76,7 +76,7 @@ export function GearMotionCompare({ resources, layers }: {
       if (!response.ok) throw new Error(`승인 SVG를 불러오지 못했습니다 (${response.status}).`);
       const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
       if (parsed.documentElement.nodeName !== 'svg' || parsed.querySelector('parsererror')) throw new Error('승인 SVG를 읽지 못했습니다.');
-      // 운영체제 모션 감소 설정이 켜져 있어도 SVG 레이어가 숨지 않게, 문서에 넣기 전에 SVG 자체의 모션 감소 규칙을 걷어 낸다.
+      // 운영체제 모션 감소 설정(`prefers-reduced-motion`)이 켜져 있어도 SVG 레이어가 숨지 않게, 문서에 넣기 전에 SVG 자체의 `@media` 규칙을 걷어 낸다.
       stripSvgReducedMotionRules(parsed);
       const base = new Image();
       base.src = readSvgBaseHref(parsed);
