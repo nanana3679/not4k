@@ -28,8 +28,8 @@ export const KEYBOARD_DISPLAY_STYLE = {
   // 한다(#258). 대기 화면 투명도는 0.5 × 0.85 ≈ 0.43. PRODUCT.md "네온은 상태에만"에 따라 밝은 강조색은 누르는 동안만 쓴다.
   /** 레인 1·3 대기: 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 은색, 테두리는 조금 더 밝게. */
   boundOdd: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
-  /** 레인 2·4 대기: 기어 유리관 게이지 액체(중앙값 #3cddfd)와 같은 하늘색, 테두리는 조금 더 밝게. */
-  boundEven: { fill: 0x3cddfd, stroke: 0x8eeaff, strokeWidth: 1, alpha: 0.5 },
+  /** 레인 2·4 대기: 기어 유리관 게이지 액체(중앙값 #3cddfd)를 흰색 쪽으로 30% 섞은 하늘색, 테두리는 조금 더 밝게. */
+  boundEven: { fill: 0x76e7fd, stroke: 0xb0f1ff, strokeWidth: 1, alpha: 0.5 },
   /** 레인 1·3 누름: 테두리·번짐 없이 대기 키와 같은 크기로 흰색을 꽉 채운다. */
   pressedOdd: { fill: 0xffffff, alpha: 1 },
   /** 레인 2·4 누름: 테두리·번짐 없이 대기 키와 같은 크기로, 대기 하늘색보다 훨씬 밝은 하늘색을 꽉 채운다. */
