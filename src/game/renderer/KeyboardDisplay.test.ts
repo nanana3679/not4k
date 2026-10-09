@@ -181,24 +181,23 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 
     expect(boundOdd.stroke).not.toBe(boundEven.stroke);
   });
 
-  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 대기보다 더 밝은 하늘색(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
+  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 대기보다 더 밝은 하늘색(pressedEven)으로 테두리·번짐 없이 같은 크기로 꽉 채워지고 대기 그림보다 불투명하다', () => {
     const display = setUp();
-    type Pressed = { glow: number; glowAlpha: number; fill: number; alpha: number };
+    type Pressed = { fill: number; alpha: number };
     const cases: Array<[string, Pressed]> = [['KeyD', pressedOdd], ['KeyF', pressedEven], ['KeyJ', pressedOdd], ['KeyK', pressedEven]];
     for (const [code, style] of cases) {
       display.setKeyState(code, true);
       const lit = keyOf(display, `key-${code}-pressed`);
       expect(lit.visible).toBe(true);
       expect(keyOf(display, `key-${code}`).visible).toBe(false);
-      // 눌린 키는 테두리 없이 번짐과 밝은 채움만 그린다.
-      expect(paintOf(lit)).toEqual([
-        { action: 'fill', color: style.glow, alpha: style.glowAlpha },
-        { action: 'fill', color: style.fill, alpha: 1 },
-      ]);
+      // 눌린 키는 테두리·번짐 없이 채움 하나만 그리고, 겉 크기는 테두리를 포함한 대기 키와 같다(테두리와 채움 사이 틈이 없다).
+      expect(paintOf(lit)).toEqual([{ action: 'fill', color: style.fill, alpha: 1 }]);
+      const idleBounds = keyOf(display, `key-${code}`).getLocalBounds();
+      const litBounds = lit.getLocalBounds();
+      expect([litBounds.x, litBounds.y, litBounds.width, litBounds.height]).toEqual([idleBounds.x, idleBounds.y, idleBounds.width, idleBounds.height]);
       expect(lit.alpha).toBe(style.alpha);
       expect(style.alpha).toBeGreaterThan(Math.max(boundOdd.alpha, boundEven.alpha));
     }
-    expect(pressedOdd.glow).not.toBe(pressedEven.glow);
     expect(pressedOdd.fill).not.toBe(pressedEven.fill);
   });
 
@@ -216,7 +215,7 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 
   });
 
   it('네온은 상태에만: 눌림 색(채움·번짐)은 대기 색·바인딩되지 않은 키 색과 다르다', () => {
-    const neon = [pressedOdd.fill, pressedOdd.glow, pressedEven.fill, pressedEven.glow];
+    const neon = [pressedOdd.fill, pressedEven.fill];
     for (const color of [boundOdd.fill, boundOdd.stroke, boundEven.fill, boundEven.stroke, unbound.fill]) expect(neon).not.toContain(color);
   });
 });

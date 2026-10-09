@@ -1,6 +1,6 @@
 /**
  * KeyboardDisplay — 플레이 화면 오른쪽 아래에 작은 키보드 배치를 그리고(keybinding.md "키보드 레이아웃 오버레이"),
- * 레인에 바인딩된 키를 레인 1·3(은색)과 레인 2·4(하늘색) 두 계열로 칠하고 누르는 동안만 테두리 없이 밝은 색(흰색·하늘색)으로 밝힌다. 레인마다 다른 색은 쓰지 않는다(#258).
+ * 레인에 바인딩된 키를 레인 1·3(은색)과 레인 2·4(하늘색) 두 계열로 칠하고 누르는 동안만 테두리 없이 밝은 색(흰색·하늘색)으로 꽉 채운다. 레인마다 다른 색은 쓰지 않는다(#258).
  *
  * 키 그림은 setup에서 한 번만 만든다. 바인딩된 키는 대기·눌림 그림을 하나씩 두고 눌림 상태가 바뀔 때 보이는 쪽만 바꿔,
  * 키 입력마다 Graphics를 다시 그리거나 렌더 텍스처를 새로 굽지 않는다.
@@ -30,15 +30,15 @@ export const KEYBOARD_DISPLAY_STYLE = {
   boundOdd: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
   /** 레인 2·4 대기: 기어 유리관 게이지 액체(중앙값 #3cddfd)와 같은 하늘색, 테두리는 조금 더 밝게. */
   boundEven: { fill: 0x3cddfd, stroke: 0x8eeaff, strokeWidth: 1, alpha: 0.5 },
-  /** 레인 1·3 누름: 테두리 없이 흰색으로 채우고 옅은 흰빛 번짐을 두른다. 번짐 폭은 KEYBOARD_DISPLAY_MARGIN(4)보다 작아야 화면 밖으로 잘리지 않는다. */
-  pressedOdd: { fill: 0xffffff, glow: 0xeef4ff, glowAlpha: 0.35, glowSpread: 2, alpha: 1 },
-  /** 레인 2·4 누름: 테두리 없이 대기 하늘색보다 훨씬 밝은 하늘색(게이지 액체 밝은 쪽 #69f6fe보다 더 흰빛)으로 채우고 게이지 밝은 하늘색 번짐을 두른다. */
-  pressedEven: { fill: 0xb5f6ff, glow: 0x69f6fe, glowAlpha: 0.4, glowSpread: 2, alpha: 1 },
+  /** 레인 1·3 누름: 테두리·번짐 없이 대기 키와 같은 크기로 흰색을 꽉 채운다. */
+  pressedOdd: { fill: 0xffffff, alpha: 1 },
+  /** 레인 2·4 누름: 테두리·번짐 없이 대기 키와 같은 크기로, 대기 하늘색보다 훨씬 밝은 하늘색을 꽉 채운다. */
+  pressedEven: { fill: 0xb5f6ff, alpha: 1 },
   /** 바인딩되지 않은 키: 대기 금속 톤을 아주 흐리게. 화면 투명도 0.07 × 0.85 ≈ 0.06. */
   unbound: { fill: 0xa9b4c2, alpha: 0.07 },
 } as const;
 
-/** 화면 오른쪽·아래 가장자리와 키보드 사이 여백. 눌림 번짐(KEYBOARD_DISPLAY_STYLE.pressedOdd·pressedEven.glowSpread 2)이 화면 밖으로 잘리지 않는다. */
+/** 화면 오른쪽·아래 가장자리와 키보드 사이 여백. */
 export const KEYBOARD_DISPLAY_MARGIN = 4;
 /**
  * 이보다 줄여야 들어가면 숨긴다. 0.6배면 키 한 칸이 6 논리 단위(렌더 높이 720에서 화면 약 7px)이고 키 사이 간격이
@@ -191,14 +191,16 @@ function drawUnboundKey(width: number, height: number): Graphics {
   return graphic;
 }
 
-/** 레인 번호(1부터)가 홀수면 레인 1·3 눌림 색, 짝수면 레인 2·4 눌림 색. */
+/**
+ * 레인 번호(1부터)가 홀수면 레인 1·3 눌림 색, 짝수면 레인 2·4 눌림 색. 테두리·번짐 없이 키 하나를 꽉 채운다.
+ * 대기 키는 테두리 선이 가장자리 바깥으로 절반 걸치므로, 그 바깥 끝까지 채워 대기와 눌림의 겉 크기를 맞춘다.
+ */
 function drawPressedKey(width: number, height: number, lane: number): Graphics {
-  const { fill, glow, glowAlpha, glowSpread, alpha } = lane % 2 === 1 ? KEYBOARD_DISPLAY_STYLE.pressedOdd : KEYBOARD_DISPLAY_STYLE.pressedEven;
+  const odd = lane % 2 === 1;
+  const { fill, alpha } = odd ? KEYBOARD_DISPLAY_STYLE.pressedOdd : KEYBOARD_DISPLAY_STYLE.pressedEven;
+  const outset = (odd ? KEYBOARD_DISPLAY_STYLE.boundOdd : KEYBOARD_DISPLAY_STYLE.boundEven).strokeWidth / 2;
   const graphic = new Graphics();
-  // 바깥에 번지는 빛을 깔고 그 위에 테두리 없이 밝은 키를 채운다.
-  graphic.roundRect(-glowSpread, -glowSpread, width + glowSpread * 2, height + glowSpread * 2, 2 + glowSpread / 2);
-  graphic.fill({ color: glow, alpha: glowAlpha });
-  graphic.roundRect(0, 0, width, height, 2);
+  graphic.roundRect(-outset, -outset, width + outset * 2, height + outset * 2, 2 + outset);
   graphic.fill(fill);
   graphic.alpha = alpha;
   return graphic;
