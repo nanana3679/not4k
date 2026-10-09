@@ -163,6 +163,8 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).toContain('active.setKeyState(');
     // 렌더러를 정리할 때 리스너도 함께 뗀다.
     expect(pageSource).toContain("window.removeEventListener('keydown', onStageKey)");
+    expect(pageSource).toContain("window.removeEventListener('keyup', onStageKey)");
+    expect(pageSource).toContain("window.removeEventListener('blur', releaseStageKeys)");
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*keyboardDisplay/);
     expect(render()).toContain('바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다');
   });

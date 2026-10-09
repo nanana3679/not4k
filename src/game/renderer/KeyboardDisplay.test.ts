@@ -214,6 +214,16 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 
     }
   });
 
+  it('레인 번호가 1~4 정수가 아닌 바인딩(KeyQ→0·KeyW→NaN·KeyE→5·KeyR→2.5)은 바인딩 안 된 키로 흐리게 그리고 눌림 그림을 만들지 않는다', () => {
+    const display = new KeyboardDisplay(new Container());
+    display.setup(bindings([['KeyQ', 0], ['KeyW', Number.NaN], ['KeyE', 5], ['KeyR', 2.5], ['KeyD', 1]]), area(1067));
+    for (const code of ['KeyQ', 'KeyW', 'KeyE', 'KeyR']) {
+      expect(paintOf(keyOf(display, `key-${code}`))).toEqual([{ action: 'fill', color: unbound.fill, alpha: 1 }]);
+      expect(display.container.getChildByLabel(`key-${code}-pressed`)).toBeNull();
+    }
+    expect(display.container.getChildByLabel('key-KeyD-pressed')).not.toBeNull();
+  });
+
   it('네온은 상태에만: 눌림 색(채움·번짐)은 대기 색·바인딩되지 않은 키 색과 다르다', () => {
     const neon = [pressedOdd.fill, pressedEven.fill];
     for (const color of [boundOdd.fill, boundOdd.stroke, boundEven.fill, boundEven.stroke, unbound.fill]) expect(neon).not.toContain(color);

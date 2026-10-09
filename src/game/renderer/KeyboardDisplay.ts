@@ -132,7 +132,9 @@ export class KeyboardDisplay {
       const y = def.y * KB_KEY_STEP;
       const w = Math.round((def.w ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
       const h = Math.round((def.h ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
-      const lane = laneBindings.get(def.code);
+      // 레인 1~4 정수만 바인딩으로 본다. 저장된 설정이 깨져 0·NaN·5 같은 값이 와도 바인딩 안 된 키로 그린다.
+      const bound = laneBindings.get(def.code);
+      const lane = bound !== undefined && Number.isInteger(bound) && bound >= 1 && bound <= 4 ? bound : undefined;
       const idle = lane !== undefined ? drawBoundKey(w, h, lane) : drawUnboundKey(w, h);
       idle.label = `key-${def.code}`;
       idle.position.set(x, y);

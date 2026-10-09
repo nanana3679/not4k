@@ -566,6 +566,13 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await page.keyboard.up('KeyD');
     await expect.poll(async () => Math.abs(brightness(await keyColor(keys.KeyQ)) - brightness(idleQ)), { timeout: 30_000 }).toBeLessThan(60);
     expect(Math.abs(brightness(await keyColor(keys.KeyD)) - brightness(idleD))).toBeLessThan(60);
+
+    // 누른 채 창이 포커스를 잃으면(blur) 키를 떼지 않아도 대기 색으로 돌아온다.
+    await page.keyboard.down('KeyQ');
+    await expect.poll(async () => brightness(await keyColor(keys.KeyQ)) - brightness(idleQ), { timeout: 30_000 }).toBeGreaterThan(200);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect.poll(async () => Math.abs(brightness(await keyColor(keys.KeyQ)) - brightness(idleQ)), { timeout: 30_000 }).toBeLessThan(60);
+    await page.keyboard.up('KeyQ');
     expect(errors).toEqual([]);
   });
 
