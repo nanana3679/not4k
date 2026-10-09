@@ -19,19 +19,27 @@ pnpm case:image <case.txt|chart.json|-> [더 많은 사례…] --out <file.png> 
 사례 파일·`--out`·`--engine`의 상대 경로는 명령을 친 디렉터리 기준이다(`pnpm`이 넘기는 `INIT_CWD`, 없으면 현재 디렉터리). 사례를 여러 개 줄 때 문법 오류는 `bad.txt: 2행: …`처럼 사례 출처를 앞에 붙여 알린다.
 
 ```bash
-pnpm -s case:image - --out /tmp/case.png --engine ../terminal-holdonly-settlement <<'EOF'
+pnpm -s case:image - --out /tmp/case.png <<'EOF'
 제목: 결정 ④ — A를 1430에 뗌
 노트: holdOnly 1000-1500 | long 1500-1560 | head 1560 | long 1560-1760
 입력: A 1000-1430 | D 1490-1760
-메모: A는 holdOnly 끝(1500) 전에 떼고, D로 head 1560을 일찍(1490) 친다
+메모: A는 N2 끝−Good(1440) 전에 떼고, D를 1490에 눌러 1760까지 쥔다
 EOF
 ```
 
-이 사례의 노트는 `N1`(holdOnly 1000–1500), `N2`(바디 1500–1560), `N3`(head 1560), `N4`(바디 1560–1760)이고, 이미지의 `N2` 판정은 다음과 같이 읽힌다.
+이 사례의 노트는 `N1`(holdOnly 1000–1500), `N2`(바디 1500–1560), `N3`(head 1560), `N4`(바디 1560–1760)이고, 판정 열에는 시간순으로 다음 라벨이 붙는다.
+
+```
+N1 holdOnly Perfect ← A↑1430
+N3 head Miss 1680 (입력 없음)
+N4 release Perfect ±0 ← D↑1760
+```
+
+`N2` 라벨은 없다. A↑1430은 `N2`의 끝−Good(1440)보다 일러 `N2`를 충족하지 못하므로 D↓1490이 `N2`를 시작해 이어 가고([RFD 0020 §2.14 결정 ④](../rfd/0020-note-judgment-units-and-inheritance.md#214-이어지는-바디의-유지-기준과-시작-준비-해제--후속-채택)), D↓1490을 받지 못한 `N3` head는 기한 1680에 입력 없이 Miss다. 같은 노트를 `입력: A 1000-1430`만으로 치면 `N2`가 시작 실패가 되고, 라벨 아래 둘째 줄에 이유가 붙는다.
 
 ```
 N2 시작 실패 1620
-  A↑1430 < 끝−Good 1440 · D↓1490 → N3 head
+  A↑1430 < 끝−Good 1440 · 새 입력 없음
 ```
 
 ## 텍스트 문법
@@ -110,7 +118,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 - `src/game/judgment/NoteJudgmentSession.ts`의 `NoteJudgmentSession`
 - `src/shared/validation/index.ts`의 `validateChart`
 
-리뷰 중인 PR의 엔진과 `main` 엔진을 같은 사례로 비교할 때 쓴다. 예: `--engine . --engine ../terminal-holdonly-settlement`. 각 패널에는 엔진 표시(워크트리 이름 · 브랜치 @짧은 커밋, 판정·shared 코드에 커밋 안 된 수정이 있으면 `(+커밋 안 된 수정)`)와 저장소 경로가 붙는다.
+리뷰 중인 PR의 엔진과 `main` 엔진을 같은 사례로 비교할 때 쓴다. 예: `--engine . --engine ../<리뷰할 워크트리>`. 각 패널에는 엔진 표시(워크트리 이름 · 브랜치 @짧은 커밋, 판정·shared 코드에 커밋 안 된 수정이 있으면 `(+커밋 안 된 수정)`)와 저장소 경로가 붙는다.
 
 엔진 구동은 기존 프로브와 같다. 입력 시각마다 `processBatch`, 그 사이는 16ms 프레임으로 `advance`, 마지막 노트 시각 + Good을 처음 넘는 프레임까지 진행한 뒤 `finalize`한다. 입력 batch마다 그 직전과 재생을 마친 뒤의 엔진 유닛 상태(`NoteJudgmentSession.bodyStates`: 유닛별 시작 여부·실패·완료·등록된 유지 키)도 함께 담아 실패 라벨에 쓴다. 이 getter가 없는 엔진이면 유닛 상태 없이 그린다.
 
