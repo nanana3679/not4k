@@ -488,7 +488,13 @@ export class NoteJudgmentCore {
       point.done = true; point.missed = true;
       this.emit(expired);
       if (!firstMiss) continue;
-      for (const u of this.units.filter(u => u.start === point.at && u.lane === point.lane && !u.active && !u.complete && !u.failed)) {
+      // Each missed head share covers one start it would have provided (RFD
+      // 0020 §2.15). Started or inherited units consume no share. A unit left
+      // uncovered is an independent start and fails at its own S+Good below.
+      const missedShares = point.needed - point.keys.size;
+      const dependents = this.units.filter(u => u.start === point.at && u.lane === point.lane && !u.active && !u.complete && !u.failed)
+        .sort((a, b) => a.unitIndex - b.unitIndex).slice(0, missedShares);
+      for (const u of dependents) {
         const itemId = this.takeUnitScoreItem(u);
         if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: point.at + this.windows.GOOD, consumed: false, bodyState: "failed" });
         u.failed = true;
@@ -550,8 +556,16 @@ export class NoteJudgmentCore {
       const blockedByMissedHead = this.points.some(p => p.missed && p.lane === u.lane && p.at === u.end);
       if (u.active && !u.failed && !u.complete && !u.forwarded && (at > u.end + this.windows.GOOD || (inclusiveDeadline && at >= u.end + this.windows.GOOD))) {
         u.failed = true;
-        if (u.terminal && !blockedByMissedHead) this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
-        else this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        // A holdOnly end is a Perfect/Miss state judgment and owns no release
+        // item (#180). When a pending up keeps such a unit unresolved to this
+        // deadline it fails as a state Miss and settles its own holdOnly item
+        // as dependent 0 exactly once, terminal or not.
+        if (u.terminal && !u.holdOnly && !blockedByMissedHead) this.emit({ kind: "release", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        else {
+          this.emit({ kind: "maintenanceMiss", noteIndex: u.noteIndex, unitIndex: u.unitIndex, grade: "miss", deltaMs: this.windows.GOOD, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+          const itemId = u.holdOnly ? this.takeUnitScoreItem(u) : undefined;
+          if (itemId) this.emit({ kind: "dependentZero", noteIndex: u.noteIndex, unitIndex: u.unitIndex, itemId, grade: "miss", deltaMs: 0, inputAt: null, confirmedAt: u.end + this.windows.GOOD, consumed: false, bodyState: "failed" });
+        }
       }
     }
   }

@@ -41,8 +41,11 @@ const HOLD_ONLY_UP_WITH_DOWN = "노트: holdOnly 1000-1500 | long 1500-1560 | he
 const HOLD_ONLY_UP_WITH_OTHER_LANE = "노트: holdOnly 1000-1500 | L2: head 1430\n입력: A 1000-1430 | L2:B 1430-1440";
 /** 리뷰 재현: A↓990이 N3 head를 일찍 쳐 N4를 A로 시작하고, N2를 쥔 D를 1060에 뗀다 */
 const EARLY_SUCCESSOR = "노트: head 1000 | long 1000-1100 | head 1100 | long 1100-1200 | head 1200\n입력: A 990-1210 | D 980-1060 | D 1170-1290";
-/** 리뷰 재현(main 엔진): 1328ms에 엔진 예외로 finalize 전에 멈춤 */
-const ENGINE_THROWS = "노트: head 1000 | holdOnly 1000-1200\n입력: A 940-1020 | A 1180-1440 | D 890-930 | D 1150-1330";
+/**
+ * #180 회귀: D↓890이 친 head로 시작한 holdOnly를 S 전 D↑930에 떼어 E+Good 1320까지 미확정으로 남는 사례.
+ * #180 수정 전 엔진은 여기서 없는 release 항목을 정산하려다 1328ms 프레임에 예외로 finalize 전에 멈췄다.
+ */
+const HOLD_ONLY_EARLY_TAP_180 = "노트: head 1000 | holdOnly 1000-1200\n입력: A 940-1020 | A 1180-1440 | D 890-930 | D 1150-1330";
 
 const CLASSIC = makeTestSkin("classic");
 
@@ -569,13 +572,35 @@ describe("renderJudgmentCaseSvg", () => {
     expect(svg).toContain("N4 release @2000 (n3:release:0)");
   });
 
-  it("엔진 예외로 finalize 전에 멈춘 사례(1328ms 예외)는 바닥글에 Full Combo 대신 판정 불가(finalize 전)", () => {
-    const panel = panelFor(ENGINE_THROWS);
-    expect(panel.run.finalized).toBe(false);
-    expect(panel.run.isFullCombo).toBe(true);
+  it("#180 회귀: head 1000 + holdOnly 1000-1200에 D 890-930 tap이면 예외 없이 finalize하고 head Good(−110)·1320 유지 Miss·holdOnly 항목 종속 0점으로 항목 2개를 한 번씩 정산해 바닥글이 Good 1·Miss 1·달성률 16.67%·Full Combo 아님", () => {
+    const panel = panelFor(HOLD_ONLY_EARLY_TAP_180);
+    const { run } = panel;
+    expect({ finalized: run.finalized, error: run.error, unsettled: run.unsettledItems, processed: run.processedNotes, total: run.totalNotes })
+      .toEqual({ finalized: true, error: null, unsettled: [], processed: 2, total: 2 });
+    expect(run.events.map((e) => [e.kind, e.noteIndex, e.itemId, e.grade, e.deltaMs, e.confirmedAt, e.key])).toEqual([
+      ["head", 0, "n0:head", "good", -110, 890, "D"],
+      ["maintenanceMiss", 1, undefined, "miss", 120, 1320, undefined],
+      ["dependentZero", 1, "n1:holdOnly:0", "miss", 0, 1320, undefined],
+    ]);
+    const settledIds = run.events.flatMap((e) => (e.itemId === undefined ? [] : [e.itemId]));
+    expect([...settledIds].sort()).toEqual(run.scoreItems.map((item) => item.id).sort());
+    expect(run.events.some((e) => e.kind === "release")).toBe(false);
+    expect({ counts: run.counts, isFullCombo: run.isFullCombo }).toEqual({ counts: { perfect: 0, great: 0, good: 1, goodTrill: 0, miss: 1 }, isFullCombo: false });
+    const { svg } = render([panel]);
+    expect(svg).toContain("Good 1");
+    expect(svg).toContain("Miss 1");
+    expect(svg).toContain("달성률 16.67%");
+    expect(svg).toContain("Full Combo 아님");
+    expect(svg).not.toContain("판정 불가(finalize 전)");
+    expect(svg).not.toContain("엔진 예외");
+  });
+
+  it("엔진 예외로 finalize 전에 멈춘 run(가짜 결과: 1328ms 예외, 중간 isFullCombo true)이면 바닥글에 Full Combo 대신 판정 불가(finalize 전)와 예외를 표시", () => {
+    const panel = panelFor(R16, { finalized: false, isFullCombo: true, error: { message: "미등록 또는 중복 점수 정산: n1:release:0", atMs: 1328 } });
     const { svg } = render([panel]);
     expect(svg).toContain("판정 불가(finalize 전)");
     expect(svg).not.toContain(">Full Combo<");
+    expect(svg).toContain("엔진 예외 @1328ms: 미등록 또는 중복 점수 정산: n1:release:0");
   });
 
   it("finalize 전 run(가짜 엔진 결과)이면 Full Combo 아님도 쓰지 않고 판정 불가(finalize 전)", () => {

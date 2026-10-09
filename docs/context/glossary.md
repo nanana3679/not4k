@@ -345,7 +345,7 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 - **시작 준비**: 실제 시작 입력 또는 정당한 승계로 충족한 시작의 몫이다. 이미 준비된 unit은 새 시작 down을 소비하지 않는다. held 수만 충분한 미처리 시작과는 다르다.
 - **release 권한**: 등록된 키의 한 번의 누름에 부여하며, 그 누름을 끝내는 up을 준비된 실제 release에 사용할 자격이다. 같은 연결 구간에서 공유할 수 있지만 한 up으로 실제 release 하나만 소비한다. 유효한 새 head·미처리 시작을 처리하면 같은 물리 키도 새 누름의 권한을 얻으며, 같은 double 끝의 이전 사용 이력으로 이를 차단하지 않는다. 임의의 재누름에는 새 권한이 없다.
 - **활성화**: 양수 길이는 자기 head·시작 입력 또는 정당한 승계로 시작한다. head 없는 시작은 down을 소비하되 시작 점수는 없다. 기한은 S+Good이며 길이가 짧거나 E를 지났어도 유효한 첫 활성화를 허용한다. S보다 늦은 첫 활성화도 정당한 시작이므로 맞닿은 뒤 바디의 승계나 연결 보정을 막지 않는다([NJ-H08](../spec/note-judgment-cases.md#nj-h08)).
-- **head와 unit**: double head + double 바디는 unit별로 시작한다. single head + double 바디는 한 unit이 head를 담당하고 나머지는 별도 시작 또는 승계를 받는다. double head + single 바디는 첫 성공 head로 활성화하며 두 성공 키 모두 등록한다. 건강하게 승계된 바디는 자신의 head Miss와 독립적이다.
+- **head와 unit**: double head + double 바디는 unit별로 시작한다. single head + double 바디는 한 unit이 head를 담당하고 나머지는 별도 시작 또는 승계를 받는다. double head + single 바디는 첫 성공 head로 활성화하며 두 성공 키 모두 등록한다. 건강하게 승계된 바디는 자신의 head Miss와 독립적이다. head의 놓친 몫 하나는 아직 시작·승계하지 못한 unit 하나만 종속으로 덮는다. 덮이지 않은 unit은 독립 시작 의무로, 시작 기한에 무점수 Miss 하나와 끝점 종속 0점을 낸다. 따라서 독립 노트에 입력이 전혀 없으면 Miss는 head가 있을 때 max(head 몫 수, unit 수), 없을 때 unit 수이다([RFD 0020 §2.15](../rfd/0020-note-judgment-units-and-inheritance.md#215-head-miss의-종속-범위와-독립-시작-의무--후속-채택), [NJ-S04](../spec/note-judgment-cases.md#nj-s04)).
 - **유지 실패**: 같은 timestamp의 입력을 모두 반영한 뒤 유효 유지 키가 부족하면 해당 활성 unit이 실패한다. 연결 교대 후보로 보류한 up은 용도가 정해질 때까지 부족으로 확정하지 않으며, 교대가 끝내 성립하지 않으면 유지 실패가 아니라 교대 실패로 정리한다([`consume`](#consume-구-표기-흡수소비)의 연결 keyup 보정·교대 실패). 실제 입력의 인과관계를 보존한다. 실패한 같은 바디는 되살리지 않고 끝점에서 중복 실패시키지 않는다.
 - **동시 입력의 결과 일관성**: 같은 차트의 같은 키·시각 입력은 서로 다른 키의 동시 up을 내부에서 배정한 순서가 달라도 후속 판정 결과가 같아야 한다. 유지 부족 확인뿐 아니라 이후 release 자격과 성공·Miss에도 적용한다. 유효한 새 입력의 권한 갱신은 [RFD 0020 §2.8](../rfd/0020-note-judgment-units-and-inheritance.md#28-유효한-새-입력에-따른-release-권한-갱신--후속-채택), 전체 검산 상태는 [PRD §12](../prd.md#12-미정-사항)를 따른다.
 - **보류 판정과 콤보**: 현재 콤보는 판정 확정 순서로 반영한다. 보류 중인 up은 콤보에 넣지 않고, 확정된 뒤에도 원래 입력 시각으로 소급하지 않는다. 등급과 raw FAST/SLOW는 실제 입력 시각으로 계산한다. 동일 timestamp·phase의 판정 묶음에서는 Miss가 콤보 결과에 우선하며, 입력·기한에 따른 확정 순서를 프레임이나 레인 순회 순서로 바꾸지 않는다. [RFD 0020 §2.9](../rfd/0020-note-judgment-units-and-inheritance.md#29-보류-판정의-콤보는-확정-순서로-반영--후속-채택)를 따른다.
@@ -362,7 +362,7 @@ double에서 두 release를 서로 다른 시점에 수행하는 것. `D=-`에�
 
 ### 감소 release
 
-연결 경계에서 필요한 unit 수가 줄어드는 몫에 대한 실제 release이다. head 없는 일반 2→1(`D=-`)은 한 번의 실제 keyup을 요구한다. 2→1 경계에 head가 있으면 그 head가 경계의 판정이며 감소 release는 없다(구현은 #181 대기. 그 전까지 엔진은 이 경계의 감소 release를 남은 키의 실제 up 또는 끝 기한의 Miss로 정확히 한 번 정산한다). A·B를 모두 떼고 새 키로 head를 치는 입력과 한 키만 새 키로 옮기고 다른 키를 계속 쥐는 입력 모두 정당하다([RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)). 2→1에 `holdOnly`가 붙으면 실제 감소를 면제하고 앞 double의 두 unit을 각각 상태 판정한다.
+연결 경계에서 필요한 unit 수가 줄어드는 몫에 대한 실제 release이다. head 없는 일반 2→1(`D=-`)은 한 번의 실제 keyup을 요구한다. 2→1 경계에 head가 있으면 그 head가 경계의 판정이며 감소 release는 없다(구현은 #181 대기. 그 전까지 남아 있는 감소 release도 남은 키의 실제 up 또는 끝 기한의 Miss로 정확히 한 번 정산해야 한다. 현재 정산 결함과 후속 이행은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다). A·B를 모두 떼고 새 키로 head를 치는 입력과 한 키만 새 키로 옮기고 다른 키를 계속 쥐는 입력 모두 정당하다([RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)). 2→1에 `holdOnly`가 붙으면 실제 감소를 면제하고 앞 double의 두 unit을 각각 상태 판정한다.
 
 ### `connection` 판정
 
@@ -424,7 +424,7 @@ head가 시작에 함께 있으면 해당 head의 down 소비가 담당 unit의 
 
 head, 실제 release, 명시된 `holdOnly`는 차트로 이론 가중치가 정해지는 점수 항목이다. 일반 연결 유지 실패는 Miss 기록·고도 손실·콤보 단절에 반영하지만 새로운 점수 항목이나 직접 감점을 추가하지 않는다.
 
-실시간 달성률의 분모는 지금까지 처리한 점수 항목의 이론 가중치 합이며, 최종 분모는 차트 전체의 합이다. head Miss로 시작할 수 없는 종속 끝점은 0점과 원래 가중치를 head Miss와 함께 처리하고, 끝점에서 추가 Miss 표시·고도 손실을 주지 않는다. 활성 후 실패한 unit도 한 번만 실패 처리한다.
+실시간 달성률의 분모는 지금까지 처리한 점수 항목의 이론 가중치 합이며, 최종 분모는 차트 전체의 합이다. head Miss로 시작할 수 없는 종속 끝점은 0점과 원래 가중치를 head Miss와 함께 처리하고, 끝점에서 추가 Miss 표시·고도 손실을 주지 않는다. 종속 범위는 놓친 head 몫 수까지이며, 그 밖의 미시작 unit은 자기 시작 실패의 무점수 Miss와 끝점 종속 0점을 낸다([RFD 0020 §2.15](../rfd/0020-note-judgment-units-and-inheritance.md#215-head-miss의-종속-범위와-독립-시작-의무--후속-채택)). 활성 후 실패한 unit도 한 번만 실패 처리한다.
 
 Miss가 있으면 Full Combo가 아니지만, 무점수 연결 Miss만 있다면 점수 항목을 모두 Perfect로 처리해 달성률 100%가 될 수 있다. [NJ-S01](../spec/note-judgment-cases.md#nj-s01)을 따른다.
 
