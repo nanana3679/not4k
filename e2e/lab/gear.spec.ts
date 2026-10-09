@@ -532,7 +532,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 금색으로 대기하고, 누르는 동안 두 키가 레인과 무관하게 같은 청록 강조색으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
+  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 파란색으로 대기하고, 누르는 동안 KeyQ는 청록·KeyD는 파란 강조색으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -549,8 +549,8 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     const idleQ = await keyColor(keys.KeyQ);
     const idleD = await keyColor(keys.KeyD);
-    // 대기: 레인 2·4 금색은 빨강이 파랑보다 확실히 밝고, 레인 1·3 은색은 그렇지 않다.
-    expect((idleD[0] - idleD[2]) - (idleQ[0] - idleQ[2])).toBeGreaterThanOrEqual(15);
+    // 대기: 레인 2·4 파란색은 파랑이 빨강보다 레인 1·3 은색보다도 확실히 더 밝다.
+    expect((idleD[2] - idleD[0]) - (idleQ[2] - idleQ[0])).toBeGreaterThanOrEqual(15);
     await page.keyboard.down('KeyQ');
     await page.keyboard.down('KeyD');
     // swiftshader에서 무대 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
@@ -558,12 +558,10 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     const litQ = await keyColor(keys.KeyQ);
     const litD = await keyColor(keys.KeyD);
     expect(brightness(litD) - brightness(idleD)).toBeGreaterThan(200);
-    for (const channel of [0, 1, 2]) expect(Math.abs(litQ[channel] - litD[channel])).toBeLessThanOrEqual(20);
-    // 청록: 초록·파랑이 빨강보다 밝다.
-    for (const lit of [litQ, litD]) {
-      expect(lit[1] - lit[0]).toBeGreaterThanOrEqual(15);
-      expect(lit[2] - lit[0]).toBeGreaterThanOrEqual(15);
-    }
+    // 둘 다 빨강보다 초록·파랑이 밝은 네온이고, 레인 1 청록은 초록이 파랑과 비슷하며 레인 2 파란색은 파랑이 초록보다 확실히 밝다.
+    for (const lit of [litQ, litD]) expect(lit[2] - lit[0]).toBeGreaterThanOrEqual(15);
+    expect(litQ[1] - litQ[0]).toBeGreaterThanOrEqual(15);
+    expect((litD[2] - litD[1]) - (litQ[2] - litQ[1])).toBeGreaterThanOrEqual(10);
 
     await page.keyboard.up('KeyQ');
     await page.keyboard.up('KeyD');
