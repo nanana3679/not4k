@@ -3,7 +3,7 @@ import { RadioGroup } from './GearControls';
 import type { GearMotionPreview } from './gearMotionCompare';
 import type { GearMotionResources } from '../game/renderer/gearMotionAssets';
 import { GEAR_MOTION_LAYERS, type GearMotionLayerVisibility } from '../game/renderer/gearMotionData';
-import { GEAR_MOTION_SVG_PATH, GEAR_MOTION_VIEWS, formatViewBox, readSvgBaseHref, type GearMotionView } from './gearMotionView';
+import { GEAR_MOTION_SVG_PATH, GEAR_MOTION_VIEWS, formatViewBox, readSvgBaseHref, stripSvgReducedMotionRules, type GearMotionView } from './gearMotionView';
 import { withLabPublicBase } from './labPublicPath';
 
 /** `비교 시각`(애니메이션 경과 시간)의 범위(광원이 한 번 지나가는 60초). 재생하면 60초에서 0초로 돌아간다. */
@@ -22,15 +22,16 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
 
 /**
  * 기어만 그린 작은 Pixi 앱(GameRenderer 아님)과 승인된 애니메이션 SVG를 같은 CSS 크기·viewBox·시각으로 나란히 보여 준다.
- * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. `gearMotion` 요소 체크와 `reducedMotion`은 양쪽에 함께 적용한다.
+ * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. `gearMotion` 요소 체크는 양쪽에 함께 적용한다.
+ * 운영체제의 모션 감소 설정(`prefers-reduced-motion`)은 읽지 않는다(RFD 0030). 보관한 승인 SVG는 이 설정이 켜져 있으면 레이어를 숨기는 자체 `@media` 규칙을 가지므로,
+ * 파일은 그대로 두고 문서에 넣기 전에 그 규칙을 걷어 낸다(stripSvgReducedMotionRules, RFD 0030 결정 5).
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
  */
-export function GearMotionCompare({ resources, layers, reducedMotion }: {
+export function GearMotionCompare({ resources, layers }: {
   /** 페이지가 공유 로더에서 acquire한 `gearMotion` 에셋(무대의 게임 렌더러와 같은 공유 에셋). 준비 전이면 null. */
   resources: GearMotionResources | null;
   layers: GearMotionLayerVisibility;
-  reducedMotion: boolean;
 }) {
   const [view, setView] = useState<GearMotionView>('full');
   const [timeMs, setTimeMs] = useState(0);
@@ -48,8 +49,8 @@ export function GearMotionCompare({ resources, layers, reducedMotion }: {
   const previewRef = useRef<GearMotionPreview | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const generationRef = useRef(0);
-  const stateRef = useRef({ view, timeMs, layers, reducedMotion });
-  stateRef.current = { view, timeMs, layers, reducedMotion };
+  const stateRef = useRef({ view, timeMs, layers });
+  stateRef.current = { view, timeMs, layers };
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -75,6 +76,8 @@ export function GearMotionCompare({ resources, layers, reducedMotion }: {
       if (!response.ok) throw new Error(`승인 SVG를 불러오지 못했습니다 (${response.status}).`);
       const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
       if (parsed.documentElement.nodeName !== 'svg' || parsed.querySelector('parsererror')) throw new Error('승인 SVG를 읽지 못했습니다.');
+      // 운영체제 모션 감소 설정(`prefers-reduced-motion`)이 켜져 있어도 SVG 레이어가 숨지 않게, 문서에 넣기 전에 SVG 자체의 `@media` 규칙을 걷어 낸다.
+      stripSvgReducedMotionRules(parsed);
       const base = new Image();
       base.src = readSvgBaseHref(parsed);
       await base.decode();
@@ -157,14 +160,13 @@ export function GearMotionCompare({ resources, layers, reducedMotion }: {
     const { viewBox } = GEAR_MOTION_VIEWS[view];
     svg.setAttribute('viewBox', formatViewBox(viewBox));
     for (const layer of GEAR_MOTION_LAYERS) preview.motion.setLayerVisible(layer, layers[layer]);
-    preview.motion.setReducedMotion(reducedMotion);
     preview.setViewBox(viewBox);
     for (const animation of svg.getAnimations({ subtree: true })) {
       animation.pause();
       animation.currentTime = timeMs;
     }
     preview.render(timeMs);
-  }, [ready, generation, view, timeMs, layers, reducedMotion]);
+  }, [ready, generation, view, timeMs, layers]);
 
   // 패널 크기가 바뀌면(보기·창 폭) 캔버스 백버퍼를 CSS 크기 × devicePixelRatio로 맞춘다.
   useEffect(() => {

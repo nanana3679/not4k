@@ -72,7 +72,6 @@ type MotionAssetsState =
 interface MotionSettings {
   enabled: boolean;
   layers: GearMotionLayerVisibility;
-  reduced: boolean;
 }
 
 /** `gearMotion` 켬·끔 상태별 최근 120프레임의 requestAnimationFrame 간격. */
@@ -120,7 +119,6 @@ export default function GearPage() {
   const [motionAssets, setMotionAssets] = useState<MotionAssetsState>({ status: 'loading' });
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [motionLayers, setMotionLayers] = useState<GearMotionLayerVisibility>(ALL_GEAR_MOTION_LAYERS_ON);
-  const reducedMotion = usePrefersReducedMotion();
   const [frameWindows] = useState<FrameWindows>(() => ({ on: createFrameTimeWindow(120), off: createFrameTimeWindow(120) }));
   // 내장 `gearMotion`을 기어에 추가한 렌더러의 key. `gearMotion` 에셋은 렌더러 init이 기다리는 필수 에셋이라 렌더러가 준비되면 이미 추가돼 있다.
   const [motionAttachedKey, setMotionAttachedKey] = useState<string | null>(null);
@@ -134,8 +132,8 @@ export default function GearPage() {
   // 지금 보이는 게이지 채움 그대로(따라가기를 끄는 순간의 고정값). 매 프레임 숫자만 적는다.
   const gaugeLevelRef = useRef<number | null>(null);
   const motionSettings = useMemo<MotionSettings>(
-    () => ({ enabled: motionEnabled, layers: motionLayers, reduced: reducedMotion }),
-    [motionEnabled, motionLayers, reducedMotion],
+    () => ({ enabled: motionEnabled, layers: motionLayers }),
+    [motionEnabled, motionLayers],
   );
 
   // `gearMotion` 에셋은 게임과 같은 공유 로더에서 페이지가 lease 하나를 acquire해 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면) 다시 읽지 않고,
@@ -213,7 +211,7 @@ export default function GearPage() {
   const handleRendererView = useCallback((next: RendererView) => setRendererView(next), []);
   const liveView = rendererView?.key === rendererKey ? rendererView : null;
   const liveGear = liveView?.gear ?? null;
-  const motionState = reducedMotion ? 'reduced' : motionEnabled && motionAssets.status !== 'error' ? 'on' : 'off';
+  const motionState = motionEnabled && motionAssets.status !== 'error' ? 'on' : 'off';
   const motionReady = ready && motionAttachedKey === rendererKey;
   const loadedMotion = motionAssets.status === 'ready' ? motionAssets.resources : null;
 
@@ -494,7 +492,7 @@ export default function GearPage() {
             </div>
             <p className="gear-preview-note">
               곡 진행 따라가기는 게임 렌더러의 임시 고도 모델(시연 차트 약 3분 동안 1 → 0)을 그대로 씁니다. 이 시연은 판정을 고도에 넣지 않습니다.
-              슬라이더를 움직이면 그 고도로 고정해 비행 배경과 두 유리관 게이지가 함께 바뀌고, 게이지는 약 300ms에 걸쳐 따라갑니다(움직임 줄이기면 바로).
+              슬라이더를 움직이면 그 고도로 고정해 비행 배경과 두 유리관 게이지가 함께 바뀌고, 게이지는 약 300ms에 걸쳐 따라갑니다.
             </p>
           </fieldset>
           <RadioGroup legend="키보드 표시" name="gear-preview-keyboard" value={keyboard} options={KEYBOARD_OPTIONS} onChange={setKeyboard} />
@@ -512,7 +510,7 @@ export default function GearPage() {
               <button type="button" className="gear-preview-button" onClick={restartMotion}>처음부터 재생</button>
               <p className="gear-preview-note">움직임 시계 <output ref={motionTimeRef} data-motion-clock="true">멈춤</output></p>
             </div>
-            <p className="gear-preview-note">{motionNote(motionAssets, reducedMotion)}</p>
+            <p className="gear-preview-note">{motionNote(motionAssets)}</p>
           </fieldset>
           <RadioGroup
             legend="렌더 높이"
@@ -535,7 +533,7 @@ export default function GearPage() {
         </aside>
       </div>
 
-      <GearMotionCompare resources={loadedMotion} layers={motionLayers} reducedMotion={reducedMotion} />
+      <GearMotionCompare resources={loadedMotion} layers={motionLayers} />
     </main>
   );
 }
@@ -547,9 +545,8 @@ function describeKeyboard(placement: { visible: boolean; scale: number }): strin
   return placement.scale >= 1 ? '원래 크기 · 오른쪽 아래' : `${placement.scale.toFixed(2)}배로 줄여 기어 오른쪽에 맞춤`;
 }
 
-function motionNote(state: MotionAssetsState, reduced: boolean): string {
+function motionNote(state: MotionAssetsState): string {
   if (state.status === 'error') return `움직임 자료를 불러오지 못했습니다: ${state.message}`;
-  if (reduced) return '움직임 줄이기 설정이 켜져 있어 승인 SVG처럼 움직임 레이어를 모두 숨기고 멈췄습니다.';
   return '게임 렌더러가 내장한 기어 움직임입니다(승인 SVG를 텍스처·마스크로 구운 Pixi 레이어). 움직임 시계는 곡 시간이 아니라 게임 프레임 간격으로만 나아가고(차트를 되감아도 이어 감), 렌더러를 새로 만들면 0초부터 다시 시작합니다. 광원 띠 경계는 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
 }
 
@@ -594,20 +591,6 @@ function FrameTimeReadout({ windows, stageRef }: { windows: FrameWindows; stageR
       </div>
     </>
   );
-}
-
-function usePrefersReducedMotion(): boolean {
-  const query = '(prefers-reduced-motion: reduce)';
-  const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const list = window.matchMedia(query);
-    const update = () => setReduced(list.matches);
-    update();
-    list.addEventListener('change', update);
-    return () => list.removeEventListener('change', update);
-  }, []);
-  return reduced;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -802,7 +785,6 @@ function GearPreviewRenderer({
           if (!motion) return;
           motion.setEnabled(settings.enabled);
           for (const layer of GEAR_MOTION_LAYERS) motion.setLayerVisible(layer, settings.layers[layer]);
-          motion.setReducedMotion(settings.reduced);
         };
         applyMotion(motionSettingsRef.current);
         liveRef.current = { applyLift, applyAltitude, applyKeyboard, applyMotion };
@@ -914,7 +896,7 @@ function GearPreviewRenderer({
     liveRef.current?.applyKeyboard(keyboardBindings);
   }, [keyboardBindings]);
 
-  // `gearMotion` 켜기·요소·`setReducedMotion`은 렌더러를 다시 만들지 않고 살아 있는 렌더러의 gearMotion에 적용한다.
+  // `gearMotion` 켜기·요소는 렌더러를 다시 만들지 않고 살아 있는 렌더러의 gearMotion에 적용한다.
   useEffect(() => {
     liveRef.current?.applyMotion(motionSettings);
   }, [motionSettings]);

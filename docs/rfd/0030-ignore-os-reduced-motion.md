@@ -1,6 +1,6 @@
 # RFD 0030: 운영체제의 `prefers-reduced-motion` 설정을 따르지 않는다
 
-**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, PR #248) · 남은 구현: Lab 페이지별 설정 읽기와 Lab만 부르는 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` (#236)
+**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, PR #248) · Lab(`Gear` 무대·Pixi ↔ 승인 SVG 비교, 노트 에셋 시연실·키봄 CSS)이 `prefers-reduced-motion`을 읽지 않음: `usePrefersReducedMotion`·`data-motion`의 `reduced`와 Lab만 부르던 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` 제거, 비교 화면은 보관 승인 SVG를 문서에 넣기 전에 그 SVG의 `@media (prefers-reduced-motion: reduce)` 규칙을 걷어 냄 (2026-10-09, PR #252) · 구현 완료: 게임 화면 #248·메뉴 UI #241·Lab #252 (남은 예외: 보관 시연을 띄우는 `/lab/flight-background-preview`는 운영체제 설정에서 멈춘 채 시작, [#253](https://github.com/nanana3679/not4k/issues/253)에서 정리, 우선순위 낮음)
 
 ## 기존 결정과 문제
 

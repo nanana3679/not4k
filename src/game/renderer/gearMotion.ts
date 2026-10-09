@@ -49,13 +49,10 @@ export interface GearMotion {
    * 빈 유리 덮개(gearGauge.ts)를 겹치므로, 빈 부분에서는 덮개가 액체·기포를 가리고 채운 부분에서만 보인다.
    */
   readonly gaugeFill: Container;
-  readonly reducedMotion: boolean;
   /** 애니메이션 경과 시간(ms). SVG 애니메이션 currentTime과 같은 뜻이다. */
   update(timeMs: number): void;
   setLayerVisible(layer: GearMotionLayer, visible: boolean): void;
   isLayerVisible(layer: GearMotionLayer): boolean;
-  /** Lab 미리보기 전용(게임은 부르지 않는다, RFD 0030): 모든 `gearMotion` 레이어를 숨기고 멈춘다. */
-  setReducedMotion(reduced: boolean): void;
   /**
    * render를 한 번 부르는 동안 빛이 투명해 숨겨 둔 하단 바 레이어(알파 마스크 필터)도 그리게 해, 필터 프로그램·렌더 텍스처를
    * 곡 재생 전에 준비한다. 빛이 투명하면 바 안에는 같은 바탕 복사본만 그려져 화면은 그대로다. 끝나면 원래 표시로 돌린다.
@@ -314,7 +311,6 @@ export function createGearMotion(data: GearMotionData, textures: GearMotionTextu
     const layerContainers: Record<GearMotionLayer, Container> = { armor, gauge: gaugeLayer, accent: accentLayer, bar: barLayer };
     const userVisible: Record<GearMotionLayer, boolean> = { armor: true, gauge: true, accent: true, bar: true };
     let barActive = false;
-    let reduced = false;
     let destroyed = false;
     // update가 매 프레임 덮어쓰는 결과 객체(새로 만들지 않는다).
     const bubbleState: BubbleRiseState = { offsetY: 0, alpha: 0 };
@@ -329,7 +325,7 @@ export function createGearMotion(data: GearMotionData, textures: GearMotionTextu
     };
 
     const update = (timeMs: number) => {
-      if (destroyed || reduced) return;
+      if (destroyed) return;
       const centreY = lightBandCenterY(timeMs, light);
       for (let index = 0; index < bands.length; index++) bands[index].y = centreY;
 
@@ -370,19 +366,14 @@ export function createGearMotion(data: GearMotionData, textures: GearMotionTextu
     return {
       container: root,
       gaugeFill,
-      get reducedMotion() { return reduced; },
       update,
       setLayerVisible(layer, visible) {
         userVisible[layer] = visible;
         if (!destroyed) applyVisibility();
       },
       isLayerVisible: (layer) => userVisible[layer],
-      setReducedMotion(next) {
-        reduced = next;
-        if (!destroyed) root.visible = !next;
-      },
       warmUp(render) {
-        const forced = !destroyed && !reduced && userVisible.bar && !barLayer.visible;
+        const forced = !destroyed && userVisible.bar && !barLayer.visible;
         if (forced) barLayer.visible = true;
         try {
           render();
