@@ -97,6 +97,11 @@ describe('stripReducedMotionRules — 보관 승인 SVG의 모션 감소 규칙 
     expect(stripReducedMotionRules(css)).toBe(css);
   });
 
+  it('or로 묶은 @media (prefers-reduced-motion: reduce) or (hover: none) 블록은 hover 없는 기기에도 적용되므로 남긴다', () => {
+    const css = '@media (prefers-reduced-motion: reduce) or (hover: none) { .a { animation: none; } }';
+    expect(stripReducedMotionRules(css)).toBe(css);
+  });
+
   it('(prefers-reduced-motion: no-preference) 블록은 모션 감소 조건이 아니라 남긴다', () => {
     const css = '@media (prefers-reduced-motion: no-preference) { .a { animation: spin 1s; } }';
     expect(stripReducedMotionRules(css)).toBe(css);
