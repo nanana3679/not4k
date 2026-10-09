@@ -1,12 +1,12 @@
 /*
 THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
-STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·레인 끝(키 윗면)은 그대로인지 보고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
-FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
+STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·레인 끝(키 윗면)은 그대로인지 보고, 기어와 판정선을 함께 얼마나 내릴지(#257) 골라 주소로 남기고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
+FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·기어·판정선 내리기·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정적 합성 이미지를 만들지 않는다.
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from '../game/renderer/gearLayout';
@@ -18,14 +18,21 @@ import {
   altitudePercentOf,
   clampAltitudePercent,
   clampLiftPercent,
+  clampPreviewGearDrop,
   describeGaugeLevel,
   describeGear,
+  describeGearDrop,
   describeGearJudgment,
   describePixelRatio,
   GEAR_PREVIEW_KEYBOARDS,
   GEAR_PREVIEW_STAGE_WIDTH,
   formatGaugeLevel,
+  formatGearDrop,
   formatLiftPercent,
+  GEAR_DROP_MAX,
+  GEAR_DROP_STEP,
+  nextGearDropSearch,
+  parseGearDropParam,
   manualAltitudeOnUnfollow,
   fullscreenLogicalWidth,
   LIFT_PERCENT_MAX,
@@ -93,6 +100,8 @@ interface RendererView {
 
 /** 전체화면 크기 변화(창 크기·회전)를 모아 렌더러를 한 번만 다시 만들기까지 기다리는 시간. */
 const FULLSCREEN_RESIZE_DELAY_MS = 200;
+/** 기어·판정선 내리기 슬라이더를 끌거나 숫자를 입력하는 동안 값을 모아, 멈춘 뒤 렌더러를 한 번만 다시 만들기까지 기다리는 시간. */
+const GEAR_DROP_SETTLE_MS = 200;
 
 /** off: 일반 페이지. api: Fullscreen API. css: API가 없거나 거절될 때(iPhone Safari 등) 화면을 덮는 CSS 전체화면. */
 type FullscreenMode = 'off' | 'api' | 'css';
@@ -109,6 +118,20 @@ export default function GearPage() {
   const altitudePercent = altitudePercentOf(manualAltitude);
   const altitudeOverride = altitudeOverrideFor(altitudeFollow, manualAltitude);
   const [keyboard, setKeyboard] = useState<GearPreviewKeyboard>('tkl');
+  // 기어·판정선 내리기(#257): 고른 값은 주소 쿼리 `drop`에 두어 새로 고치거나 공유해도 남는다. 설명 숫자는 고른 값을 바로 따르고,
+  // 렌더러는 값이 멈춘 뒤(GEAR_DROP_SETTLE_MS) rendererDrop으로 새로 만든다(렌더러 생성 옵션 gearDrop).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const gearDrop = parseGearDropParam(searchParams.get('drop'));
+  const [rendererDrop, setRendererDrop] = useState(gearDrop);
+  useEffect(() => {
+    if (rendererDrop === gearDrop) return;
+    const timer = window.setTimeout(() => setRendererDrop(gearDrop), GEAR_DROP_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [gearDrop, rendererDrop]);
+  // 슬라이더를 끄는 동안 방문 기록이 쌓이지 않게 주소를 바꿔 쓴다(replace).
+  const setGearDrop = useCallback((value: number) => {
+    setSearchParams((current) => nextGearDropSearch(current, clampPreviewGearDrop(value)), { replace: true });
+  }, [setSearchParams]);
   const [reportedState, setRendererState] = useState<RendererState>({ status: 'loading', key: '' });
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
   const devicePixelRatio = useDevicePixelRatio();
@@ -136,7 +159,7 @@ export default function GearPage() {
     [motionEnabled, motionLayers],
   );
 
-  // `gearMotion` 에셋은 게임과 같은 공유 로더에서 페이지가 lease 하나를 acquire해 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면) 다시 읽지 않고,
+  // `gearMotion` 에셋은 게임과 같은 공유 로더에서 페이지가 lease 하나를 acquire해 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면·기어·판정선 내리기) 다시 읽지 않고,
   // 아래 비교 화면도 같은 텍스처를 쓴다. 게임 렌더러는 자기 임대를 따로 잡으므로 이 임대와 무관하게 정리된다.
   useEffect(() => {
     let cancelled = false;
@@ -192,18 +215,18 @@ export default function GearPage() {
 
   // 게임 렌더러와 같은 함수로 계산한 배치. 설명 숫자에 쓰고, 무대 data 속성은 살아 있는 렌더러가 알린 값을 쓴다.
   const layout = useMemo(() => layoutGear(GEAR_GEOMETRY, {
-    laneAreaX: (stageWidth - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
-  }), [stageWidth]);
-  const judgment = describeGearJudgment(layout, liftPercent);
+    laneAreaX: (stageWidth - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, drop: gearDrop,
+  }), [stageWidth, gearDrop]);
+  const judgment = describeGearJudgment(layout, liftPercent, gearDrop);
   const keyboardBindings = GEAR_PREVIEW_KEYBOARDS[keyboard].bindings;
   const keyboardPlacement = placeKeyboardDisplay(
     keyboardDisplaySize(keyboard === 'numpad'),
     { width: stageWidth, height: GAME_HEIGHT, freeLeft: layout.silhouetteRightX + GEAR_CLEARANCE },
   );
   const screenResolution = renderHeight / GAME_HEIGHT;
-  // 렌더 높이·비행 장면·논리 폭(전체화면 비율)은 렌더러 생성 옵션이라 바뀌면 렌더러를 새로 만든다.
+  // 렌더 높이·비행 장면·논리 폭(전체화면 비율)·기어 내리기 양은 렌더러 생성 옵션이라 바뀌면 렌더러를 새로 만든다.
   // 리프트·키보드·`gearMotion` 설정은 살아 있는 렌더러에 그대로 다시 적용한다.
-  const rendererKey = `${renderHeight}:${scenario}:${stageWidth}`;
+  const rendererKey = `${renderHeight}:${scenario}:${stageWidth}:${rendererDrop}`;
   // 렌더러를 새로 만드는 동안 이전 렌더러의 준비 상태를 보이지 않는다.
   const rendererState: RendererState = reportedState.key === rendererKey ? reportedState : { status: 'loading', key: rendererKey };
   const ready = rendererState.status === 'ready';
@@ -330,6 +353,7 @@ export default function GearPage() {
           data-renderer-key={rendererKey}
           data-renderer-ready={ready ? 'true' : 'false'}
           data-lift-percent={liftPercent}
+          data-gear-drop={formatGearDrop(rendererDrop)}
           data-altitude-mode={altitudeFollow ? 'follow' : 'manual'}
           data-altitude-percent={altitudePercent}
           data-keyboard={keyboard}
@@ -360,6 +384,7 @@ export default function GearPage() {
               scenario={scenario}
               width={stageWidth}
               resolution={screenResolution}
+              gearDrop={rendererDrop}
               lift={liftPx(liftPercent)}
               altitudeOverride={altitudeOverride}
               keyboardBindings={keyboardBindings}
@@ -456,6 +481,28 @@ export default function GearPage() {
               게임 설정은 0~100%를 허용하지만 여기서는 0~{LIFT_PERCENT_MAX}%만 봅니다.
             </p>
           </div>
+          <div className="gear-preview-slider gear-preview-drop">
+            <div className="gear-preview-slider-head">
+              <label htmlFor="gear-preview-drop">기어·판정선 내리기</label>
+              <GearDropNumberInput value={gearDrop} onChange={setGearDrop} />
+            </div>
+            <input
+              id="gear-preview-drop"
+              type="range"
+              min={0}
+              max={GEAR_DROP_MAX}
+              step={GEAR_DROP_STEP}
+              value={gearDrop}
+              onChange={(event) => setGearDrop(Number(event.currentTarget.value))}
+            />
+            <output htmlFor="gear-preview-drop gear-preview-drop-value" className="gear-preview-drop-readout" data-gear-drop-readout="true">
+              {describeGearDrop(layout, judgment)}
+            </output>
+            <p className="gear-preview-note">
+              기어와 리프트 0%의 판정선을 같은 양(논리 px, 0~{GEAR_DROP_MAX}, {GEAR_DROP_STEP} 단위)만큼 함께 내립니다. 레인 끝(키 윗면)·고도 게이지·기어 움직임도 기어를 따라오고,
+              기어 아래쪽은 화면 밖으로 잘립니다. 값은 주소(?drop=)에 남아 새로 고치거나 공유해도 유지되고, 바꾸면 렌더러를 새로 만듭니다. 게임 기본값은 아직 0입니다(#257).
+            </p>
+          </div>
           <fieldset className="gear-preview-group gear-preview-altitude">
             <legend>고도(유리관 게이지·비행 배경)</legend>
             <label className="gear-preview-check">
@@ -535,6 +582,33 @@ export default function GearPage() {
 
       <GearMotionCompare resources={loadedMotion} layers={motionLayers} />
     </main>
+  );
+}
+
+/**
+ * 기어·판정선 내리기 숫자 입력. 입력하는 동안(예: "12.")에는 입력한 글자를 그대로 두고 숫자로 읽히는 값만 반영하며,
+ * 포커스를 잃으면 반영된 값(0.5 단위로 맞춘 값)을 다시 보여 준다.
+ */
+function GearDropNumberInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <input
+      id="gear-preview-drop-value"
+      className="gear-preview-number"
+      aria-label="기어·판정선 내리기 값(논리 px)"
+      type="number"
+      inputMode="decimal"
+      min={0}
+      max={GEAR_DROP_MAX}
+      step={GEAR_DROP_STEP}
+      value={draft ?? formatGearDrop(value)}
+      onChange={(event) => {
+        const input = event.currentTarget;
+        setDraft(input.value);
+        if (input.value.trim() !== '' && Number.isFinite(input.valueAsNumber)) onChange(input.valueAsNumber);
+      }}
+      onBlur={() => setDraft(null)}
+    />
   );
 }
 
@@ -627,13 +701,13 @@ function useDevicePixelRatio(): number {
 }
 
 /**
- * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·논리 폭) 캔버스째 새로 만든다.
+ * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·논리 폭·기어 내리기 양) 캔버스째 새로 만든다.
  * 비행 배경 DOM은 캔버스 앞 형제로 들어가므로, 캔버스 크기와 같은 위치 지정 래퍼에 캔버스만 둔다.
  * 기어·레인(레인 끝 클립 포함)·판정선·키보드 표시는 게임 렌더러가 그대로 그리고, 노트는 정해 둔 데모 판정(buildGearPreviewSchedule)대로
  * 맞히거나 놓친 것처럼 표시한다. `gearMotion`은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 gearMotion API로 조절만 한다.
  */
 function GearPreviewRenderer({
-  rendererKey, scenario, width, resolution, lift, altitudeOverride, keyboardBindings, sharedSkin, hostStyle,
+  rendererKey, scenario, width, resolution, gearDrop, lift, altitudeOverride, keyboardBindings, sharedSkin, hostStyle,
   motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
 }: {
   rendererKey: string;
@@ -641,6 +715,8 @@ function GearPreviewRenderer({
   /** 렌더러 논리 폭(높이 600). */
   width: number;
   resolution: number;
+  /** 렌더러 생성 옵션 gearDrop(기어와 판정선을 함께 내리는 논리 px). key에 들어가 바뀌면 렌더러를 새로 만든다. */
+  gearDrop: number;
   /** 리프트(논리 단위). 바뀌면 렌더러를 유지한 채 setLift로 옮긴다. */
   lift: number;
   /** 고도 고정값(0~1). null이면 렌더러 고도 모델을 따른다. 바뀌면 렌더러를 유지한 채 setAltitudeOverride로 건다. */
@@ -679,14 +755,14 @@ function GearPreviewRenderer({
   const motionSettingsRef = useRef(motionSettings);
   motionSettingsRef.current = motionSettings;
   const options = useRef({
-    rendererKey, scenario, width, resolution, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
+    rendererKey, scenario, width, resolution, gearDrop, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
   });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const {
-      rendererKey: key, scenario: label, width: logicalWidth, resolution: rendererResolution, sharedSkin: skins,
+      rendererKey: key, scenario: label, width: logicalWidth, resolution: rendererResolution, gearDrop: drop, sharedSkin: skins,
       restartRef: restart, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
       onGaugeLevel: reportGaugeLevel,
     } = options.current;
@@ -733,6 +809,7 @@ function GearPreviewRenderer({
           skinManager: skin,
           difficultyLabel: label,
           showFlightBackground: true,
+          gearDrop: drop,
         });
         await renderer.init();
         if (disposed) return;

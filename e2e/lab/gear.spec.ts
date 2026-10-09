@@ -219,6 +219,69 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
+  test('주소 ?drop=20으로 열면 무대가 data-gear-drop 20을 알리고 판정선 y·키 윗면 y·기어 위끝이 쿼리 없을 때보다 20 아래(436.0·466.5)이며 화면 아래로 원본 44.2행이 잘린다고 보여 준다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-gear-drop', '0');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '416.0');
+    const baseLine = await numberAttribute(page, 'data-judgment-line-y');
+    const baseRim = await numberAttribute(page, 'data-key-rim-y');
+    const baseTop = await numberAttribute(page, 'data-gear-top');
+
+    await page.goto('/lab/gear?drop=20');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-gear-drop', '20');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '436.0');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '466.5');
+    expect(await numberAttribute(page, 'data-judgment-line-y') - baseLine).toBeCloseTo(20, 5);
+    expect(await numberAttribute(page, 'data-key-rim-y') - baseRim).toBeCloseTo(20, 5);
+    expect(await numberAttribute(page, 'data-gear-top') - baseTop).toBeCloseTo(20, 1);
+    await expect(page.locator('#gear-preview-drop')).toHaveValue('20');
+    await expect(page.locator('#gear-preview-drop-value')).toHaveValue('20');
+    await expect(page.locator('[data-gear-drop-readout]')).toHaveText('판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림');
+    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 436');
+    expect(errors).toEqual([]);
+  });
+
+  test('기어·판정선 내리기 슬라이더를 12.5로 옮기면 주소가 ?drop=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 drop이 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab');
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    const keyBefore = await stage.getAttribute('data-renderer-key');
+    const slider = page.locator('#gear-preview-drop');
+    expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect((await page.locator('#gear-preview-drop-value').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(slider).toHaveAttribute('max', '60');
+    await expect(slider).toHaveAttribute('step', '0.5');
+
+    await slider.fill('12.5');
+    await expect(page).toHaveURL(/\/lab\/gear\?drop=12\.5$/);
+    await expect(page.locator('#gear-preview-drop-value')).toHaveValue('12.5');
+    await expect(stage).toHaveAttribute('data-gear-drop', '12.5');
+    await expect(stage).not.toHaveAttribute('data-renderer-key', keyBefore!);
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '428.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
+
+    await page.locator('#gear-preview-lift').fill('4');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '404.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
+
+    await page.locator('#gear-preview-drop-value').fill('0');
+    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(stage).toHaveAttribute('data-gear-drop', '0');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    // 주소를 바꿔 썼으므로(replace) 뒤로 가기는 Lab 목록으로 돌아간다.
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lab$/);
+    expect(errors).toEqual([]);
+  });
+
   test('기어 그림은 레인 창과 열린 덱(1090~1126행) 레인 안쪽이 투명하고 꺾인 모서리·키 테두리는 불투명하며 화면에는 그 자리에 게임 레인이 비친다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');

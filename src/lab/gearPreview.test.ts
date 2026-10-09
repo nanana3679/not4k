@@ -6,6 +6,14 @@ import {
   altitudePercentOf,
   clampAltitudePercent,
   clampLiftPercent,
+  clampPreviewGearDrop,
+  describeGearDrop,
+  formatGearDrop,
+  GEAR_DROP_MAX,
+  GEAR_DROP_STEP,
+  gearRowsBelowScreen,
+  nextGearDropSearch,
+  parseGearDropParam,
   describeGaugeLevel,
   formatGaugeLevel,
   manualAltitudeOnUnfollow,
@@ -20,8 +28,8 @@ import {
   oneToOneCssSize,
 } from './gearPreview';
 
-const layoutFor = (width: number) => layoutGear(GEAR_GEOMETRY, {
-  laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT,
+const layoutFor = (width: number, drop = 0) => layoutGear(GEAR_GEOMETRY, {
+  laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, drop,
 });
 
 describe('Gear 무대 논리 폭 (게임 PlayScreen과 같은 규칙)', () => {
@@ -78,6 +86,51 @@ describe('describeGearJudgment — 실제 게임 판정선과 기어 덱 사이'
   });
 });
 
+describe('기어·판정선 내리기(#257)', () => {
+  it('Lab 슬라이더는 0~60을 0.5 단위로 다룬다: 12.3 → 12.5, 75 → 60, −5 → 0, NaN → 0', () => {
+    expect([GEAR_DROP_MAX, GEAR_DROP_STEP]).toEqual([60, 0.5]);
+    expect([clampPreviewGearDrop(12.3), clampPreviewGearDrop(75), clampPreviewGearDrop(-5), clampPreviewGearDrop(Number.NaN)]).toEqual([12.5, 60, 0, 0]);
+  });
+
+  it('주소의 drop 값을 읽는다: "20" → 20, "12.5" → 12.5, "75" → 60, "-3" → 0, "abc"·빈 값·없음 → 0', () => {
+    expect([parseGearDropParam('20'), parseGearDropParam('12.5'), parseGearDropParam('75'), parseGearDropParam('-3')]).toEqual([20, 12.5, 60, 0]);
+    expect([parseGearDropParam('abc'), parseGearDropParam(''), parseGearDropParam(null)]).toEqual([0, 0, 0]);
+  });
+
+  it('값을 바꾸면 다른 쿼리는 두고 drop만 쓰며(12.5 → "drop=12.5"), 0이면 drop을 지워 기본 주소로 돌아간다', () => {
+    expect(nextGearDropSearch(new URLSearchParams('probe=1'), 12.5).toString()).toBe('probe=1&drop=12.5');
+    expect(nextGearDropSearch(new URLSearchParams('drop=20&probe=1'), 0).toString()).toBe('probe=1');
+    expect(formatGearDrop(20)).toBe('20');
+    expect(formatGearDrop(12.5)).toBe('12.5');
+  });
+
+  it('기어를 20 내리면 실루엣 아래쪽 원본 20 ÷ 배율 = 44.2행이 화면 아래로 잘리고, 내리지 않으면 0행이다', () => {
+    expect(gearRowsBelowScreen(layoutFor(1067, 20)).toFixed(1)).toBe('44.2');
+    expect(gearRowsBelowScreen(layoutFor(1067))).toBe(0);
+  });
+
+  it('20 내리면 판정선 y 436·키 윗면 466.5로 함께 내려가 틈은 30.5 그대로이고, 리프트 4%면 판정선만 y 412로 올라 틈이 54.5다', () => {
+    const dropped = describeGearJudgment(layoutFor(1067, 20), 0, 20);
+    expect(dropped.lineY).toBe(436);
+    expect(dropped.keyRimY.toFixed(1)).toBe('466.5');
+    expect(dropped.deckTopY.toFixed(1)).toBe('449.7');
+    expect(dropped.openGap.toFixed(1)).toBe('30.5');
+    expect(dropped.gap.toFixed(1)).toBe('13.7');
+    const lifted = describeGearJudgment(layoutFor(1067, 20), 4, 20);
+    expect(lifted.lineY).toBe(412);
+    expect(lifted.keyRimY).toBe(dropped.keyRimY);
+    expect(lifted.openGap.toFixed(1)).toBe('54.5');
+  });
+
+  it('조절 옆 숫자: 20 내리면 "판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림", 0이면 "… · 아래로 잘리는 행 없음"', () => {
+    const dropped = layoutFor(1067, 20);
+    expect(describeGearDrop(dropped, describeGearJudgment(dropped, 0, 20))).toBe('판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림');
+    const base = layoutFor(1067);
+    expect(describeGearDrop(base, describeGearJudgment(base, 0))).toBe('판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
+    expect(describeGearDrop(layoutFor(1067, 12.5), describeGearJudgment(layoutFor(1067, 12.5), 0, 12.5))).toBe('판정선 y 428.5 · 키 윗면 y 459.0 · 틈 30.5 · 아래로 원본 27.6행 잘림');
+  });
+});
+
 describe('describeGear', () => {
   it('원본 1024×1536을 0.453배로 줄여 레인 창 236~787열을 레인 영역 250에 맞추고 위로 141행만 잘린다고 설명한다', () => {
     const text = describeGear(layoutFor(1067));
@@ -88,6 +141,18 @@ describe('describeGear', () => {
     expect(text).toContain('141행');
     expect(text).toContain('y 429.7');
     expect(text).toContain('y 446.5');
+    expect(text).toContain('화면 아래에 붙여');
+    expect(text).not.toContain('아래로 원본');
+  });
+
+  it('20 내리면 실루엣 아래끝을 화면 아래보다 20 아래에 두어 위로 원본 97행, 아래로 원본 44.2행이 잘리고 덱 위끝 y 449.7·키 윗면 y 466.5라고 설명한다', () => {
+    const text = describeGear(layoutFor(1067, 20));
+    expect(text).toContain('화면 아래보다 20 아래');
+    expect(text).toContain('위로 원본 97행');
+    expect(text).toContain('아래로 원본 44.2행');
+    expect(text).toContain('y 449.7');
+    expect(text).toContain('y 466.5');
+    expect(text).not.toContain('하단 바는 모두 보입니다');
   });
 });
 

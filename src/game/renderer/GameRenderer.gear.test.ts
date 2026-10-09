@@ -32,7 +32,7 @@ interface Scene {
 const gearTexture = () => new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
 const created: GameRenderer[] = [];
 
-async function createRenderer({ width = 1067, showGear = true }: { width?: number; showGear?: boolean } = {}) {
+async function createRenderer({ width = 1067, showGear = true, gearDrop }: { width?: number; showGear?: boolean; gearDrop?: number } = {}) {
   const texture = gearTexture();
   const skinManager = {
     getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
@@ -46,7 +46,7 @@ async function createRenderer({ width = 1067, showGear = true }: { width?: numbe
     },
   } as unknown as SkinManager;
   const renderer = new GameRenderer({
-    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground: false,
+    canvas: {} as HTMLCanvasElement, width, height: GAME_HEIGHT, skinManager, showGear, showFlightBackground: false, gearDrop,
     // `gearMotion`은 GameRenderer.gearMotion.test.ts에서 따로 본다(여기서는 공유 로더를 부르지 않는다).
     gearMotion: false,
   });
@@ -238,6 +238,85 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
       expect(gameRendererSource, old).not.toContain(old);
     }
     expect(gameRendererSource).not.toContain('RenderTexture');
+  });
+});
+
+describe('GameRenderer gearDrop — 기어와 판정선을 함께 내리기(#257)', () => {
+  it('gearDrop 20이면 기어 배치가 layoutGear(drop 20)와 같아 기어 위끝이 20 내려가고, 판정선은 y 436(416 + 20)에 두께 2.5(434.75~437.25), 콤보·정확도 글자도 20 내려간다', async () => {
+    const { renderer, scene } = await createRenderer({ gearDrop: 20 });
+    const base = layoutGear(GEAR_GEOMETRY, stageFor(1067));
+    expect(renderer.gearLayout).toEqual(layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: 20 }));
+    const [sprite] = scene.gearLayer.children as Sprite[];
+    expect(sprite.y - base.y).toBeCloseTo(20, 9);
+    expect(sprite.x).toBe(base.x);
+    expect(renderer.judgmentLineY).toBe(436);
+    expect([boundsOf(scene.judgmentLineGraphic).minY, boundsOf(scene.judgmentLineGraphic).maxY]).toEqual([434.75, 437.25]);
+    expect(scene.comboText.y).toBe(436 - 175);
+    expect(scene.accuracyText.y).toBe(436 - 112.5);
+  });
+
+  it('gearDrop 20이면 레인 끝 = 키 윗면 466.5라 레인 내용 클립과 레인 배경이 466.5에서 끝난다', async () => {
+    const { renderer, scene } = await createRenderer({ gearDrop: 20 });
+    expect(renderer.gearLayout!.keyRimY.toFixed(1)).toBe('466.5');
+    expect(boundsOf(laneClipOf(scene)).maxY.toFixed(1)).toBe('466.5');
+    expect(boundsOf(laneClipOf(scene)).maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
+    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
+  });
+
+  it('gearDrop 20에서 리프트 4%(24)는 판정선만 y 412로 올리고 기어·레인 끝 클립(466.5)·레인 배경은 그대로 둔다', async () => {
+    const { renderer, scene } = await createRenderer({ gearDrop: 20 });
+    const [gear] = scene.gearLayer.children as Sprite[];
+    const gearBefore = [gear.x, gear.y];
+    const clipBefore = boundsOf(laneClipOf(scene));
+    const laneBefore = boundsOf(laneBackgroundOf(scene));
+
+    renderer.setLift(liftPx(4));
+
+    expect(renderer.judgmentLineY).toBe(412);
+    expect(boundsOf(scene.judgmentLineGraphic).minY).toBe(410.75);
+    expect(scene.comboText.y).toBe(412 - 175);
+    expect([gear.x, gear.y]).toEqual(gearBefore);
+    expect(boundsOf(laneClipOf(scene))).toEqual(clipBefore);
+    expect(clipBefore.maxY.toFixed(1)).toBe('466.5');
+    expect(boundsOf(laneBackgroundOf(scene))).toEqual(laneBefore);
+    // 리프트를 0으로 되돌리면 내린 기본 위치(436)로 돌아온다.
+    renderer.setLift(0);
+    expect(renderer.judgmentLineY).toBe(436);
+  });
+
+  it('addGearOverlay로 붙인 기어 위 레이어(gearMotion holder 등)도 내린 기어 위끝 y에 붙는다', async () => {
+    const { renderer } = await createRenderer({ gearDrop: 20 });
+    const overlay = new Container();
+    const layout = renderer.addGearOverlay(overlay)!;
+    expect(overlay.y).toBe(layout.y);
+    expect(overlay.y - layoutGear(GEAR_GEOMETRY, stageFor(1067)).y).toBeCloseTo(20, 9);
+  });
+
+  it('gearDrop을 주지 않거나 0이면 판정선 y 416·키 윗면 446.5로 지금과 같다', async () => {
+    for (const gearDrop of [undefined, 0]) {
+      const { renderer, scene } = await createRenderer({ gearDrop });
+      expect(renderer.judgmentLineY).toBe(416);
+      expect(renderer.gearLayout).toEqual(layoutGear(GEAR_GEOMETRY, stageFor(1067)));
+      expect(boundsOf(laneClipOf(scene)).maxY.toFixed(1)).toBe('446.5');
+    }
+  });
+
+  it('gearDrop −15·NaN은 0으로 맞춰 판정선 y 416·키 윗면 446.5에 둔다', async () => {
+    for (const gearDrop of [-15, Number.NaN]) {
+      const { renderer, scene } = await createRenderer({ gearDrop });
+      expect(renderer.judgmentLineY).toBe(416);
+      expect(renderer.gearLayout!.keyRimY.toFixed(1)).toBe('446.5');
+      expect(boundsOf(laneClipOf(scene)).maxY.toFixed(1)).toBe('446.5');
+    }
+  });
+
+  it('기어가 없는 렌더러(showGear false)는 gearDrop 20을 무시해 판정선 y 416, 레인 끝 422.25(판정선 + 노트 반 칸)에 둔다', async () => {
+    const { renderer, scene } = await createRenderer({ showGear: false, gearDrop: 20 });
+    expect(renderer.judgmentLineY).toBe(416);
+    expect(boundsOf(laneClipOf(scene)).maxY).toBe(422.25);
+    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(422.25);
+    renderer.setLift(liftPx(4));
+    expect(renderer.judgmentLineY).toBe(392);
   });
 });
 

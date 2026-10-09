@@ -4,6 +4,7 @@ import {
   GEAR_GEOMETRY,
   GEAR_TEXTURE_OPTIONS,
   GEAR_CLEARANCE,
+  clampGearDrop,
   layoutGear,
   minimumPlayLogicalWidth,
   resolvePlayLogicalWidth,
@@ -93,6 +94,39 @@ describe('layoutGear — 레인 창을 레인 영역에 맞추고 아래끝을 �
     expect(wide.y).toBeCloseTo(square.y, 9);
     expect(wide.keyRimY).toBeCloseTo(square.keyRimY, 9);
     expect(wide.x - square.x).toBeCloseTo(400, 9);
+  });
+
+  it('drop 20이면 기어 위끝 y·덱 위끝 deckTopY·키 윗면 keyRimY가 모두 20 내려가고(키 윗면 466.5) 배율·가로 배치·실루엣 x는 그대로다', () => {
+    const base = layoutGear(GEAR_GEOMETRY, stageFor(1067));
+    const dropped = layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: 20 });
+    expect(dropped.y - base.y).toBeCloseTo(20, 9);
+    expect(dropped.deckTopY - base.deckTopY).toBeCloseTo(20, 9);
+    expect(dropped.keyRimY - base.keyRimY).toBeCloseTo(20, 9);
+    expect(dropped.keyRimY.toFixed(1)).toBe('466.5');
+    expect([dropped.scale, dropped.x, dropped.width, dropped.height, dropped.silhouetteLeftX, dropped.silhouetteRightX])
+      .toEqual([base.scale, base.x, base.width, base.height, base.silhouetteLeftX, base.silhouetteRightX]);
+    // 실루엣 아래 가장자리(1466행 위끝)는 화면 아래 600보다 20 아래라, 원본 20 ÷ 배율 = 44.2행이 화면 밖으로 잘린다.
+    expect(dropped.y + 1466 * dropped.scale).toBeCloseTo(620, 9);
+    expect((20 / dropped.scale).toFixed(1)).toBe('44.2');
+  });
+
+  it('drop을 주지 않거나 0이면 drop 없는 배치와 같다(키 윗면 446.5)', () => {
+    const base = layoutGear(GEAR_GEOMETRY, stageFor(1067));
+    expect(layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: 0 })).toEqual(base);
+    expect(base.keyRimY.toFixed(1)).toBe('446.5');
+  });
+
+  it('drop −10·NaN은 0으로 맞춰 기어를 위로 올리지 않는다(키 윗면 446.5 그대로)', () => {
+    const base = layoutGear(GEAR_GEOMETRY, stageFor(1067));
+    expect(layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: -10 })).toEqual(base);
+    expect(layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: Number.NaN })).toEqual(base);
+  });
+});
+
+describe('clampGearDrop — 기어 내리기 양', () => {
+  it('12.5 → 12.5, 100 → 100(위쪽 한계 없음), −3 → 0, NaN·Infinity·undefined → 0', () => {
+    expect([clampGearDrop(12.5), clampGearDrop(100), clampGearDrop(-3)]).toEqual([12.5, 100, 0]);
+    expect([clampGearDrop(Number.NaN), clampGearDrop(Number.POSITIVE_INFINITY), clampGearDrop(undefined)]).toEqual([0, 0, 0]);
   });
 
   it('리프트 0% 판정선 y 416은 선 두께(2.5)까지 덱 위끝보다 위이고 덱과의 틈 13.7은 노트 두께 약 1.1개', () => {

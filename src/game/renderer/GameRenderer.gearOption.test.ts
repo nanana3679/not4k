@@ -27,8 +27,14 @@ describe('GameRenderer optional chrome', () => {
   it('judgmentLineOffset 옵션은 기본 판정선 위치를 유지하면서 미니 렌더러만 아래로 내릴 수 있음', () => {
     expect(gameRendererSource).toContain('judgmentLineOffset?: number');
     expect(gameRendererSource).toContain('this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET');
-    expect(gameRendererSource).toContain('this._judgmentLineY = options.height - this.judgmentLineOffset');
-    expect(gameRendererSource).toContain('this._judgmentLineY = this.height - this.judgmentLineOffset - y');
+    expect(gameRendererSource).toContain('this.baseJudgmentLineY = options.height - this.judgmentLineOffset + this.gearDrop');
+    expect(gameRendererSource).toContain('this._judgmentLineY = this.baseJudgmentLineY - y');
+  });
+
+  it('gearDrop 옵션은 기본 0이고 기어를 그릴 때만 clampGearDrop(0 이상)으로 받아 기어 배치와 판정선 기본 위치에 함께 더한다', () => {
+    expect(gameRendererSource).toContain('gearDrop?: number');
+    expect(gameRendererSource).toContain('this.gearDrop = this.showGear ? clampGearDrop(options.gearDrop) : 0');
+    expect(gameRendererSource).toContain('drop: this.gearDrop');
   });
 
   it('showGear=false이면 buildGear 호출을 건너뛰도록 조건부 실행', () => {
