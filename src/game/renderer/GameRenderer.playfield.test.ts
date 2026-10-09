@@ -8,6 +8,7 @@ import type { SkinManager } from '../skin';
 
 interface Scene {
   app: Application;
+  laneContentLayer: Container;
   noteLayer: Container;
   measureLineLayer: Container;
   trillZoneLayer: Container;
@@ -58,6 +59,11 @@ function loadChart(renderer: GameRenderer, chart: { notes?: NoteEntity[]; trillZ
 }
 
 const boundsOf = (child: Container) => child.getBounds();
+/** 레인 끝 클립 사각형(`laneContentLayer.mask`)의 범위. Pixi가 캐시해 다시 쓰는 Bounds 객체 대신 숫자를 복사한다. */
+const clipOf = (scene: Scene) => {
+  const { minX, minY, maxX, maxY } = (scene.laneContentLayer.mask as Graphics).getLocalBounds();
+  return { minX, minY, maxX, maxY };
+};
 
 afterEach(() => {
   for (const scene of created.splice(0)) scene.app.stage.destroy({ children: true });
@@ -261,5 +267,58 @@ describe('마디선·구간 밴드 풀', () => {
     for (const spy of redraws) expect(spy).not.toHaveBeenCalled();
     // 200ms 뒤에는 160 아래로 내려온다.
     expect(boundsOf(scene.trillZoneLayer.children[0]).minY - trillTopBefore).toBeCloseTo(160, 9);
+  });
+});
+
+describe('레인 끝 클립의 가로 범위 (#247)', () => {
+  // 16:9(1067)에서 레인 영역은 408.5~658.5다. 클립은 양옆에 레인 폭 62.5씩 여유를 둔 346~721이다.
+
+  // 키빔(레인마다 레인 폭 62.5 사각형)은 FillGradient가 DOM을 써 여기서 만들지 않는다.
+  it('레인 1·4의 Grace 노트 글로우(레인 밖 8.75)·trillZone·restZone·마디선은 가로로 399.75~667.25 안이라 클립 사각형 346~721이 양옆을 자르지 않는다', async () => {
+    const { renderer, scene } = await createRenderer();
+    loadChart(renderer, {
+      notes: [
+        { type: 'single', lane: 1, beat: beat(5), grace: true } as NoteEntity,
+        { type: 'single', lane: 4, beat: beat(5), grace: true } as NoteEntity,
+      ],
+      trillZones: [{ lane: 1, beat: beat(2), endBeat: beat(6) }, { lane: 4, beat: beat(2), endBeat: beat(6) }] as TrillZone[],
+      restZones: [{ lane: 1, beat: beat(2), endBeat: beat(6) }, { lane: 4, beat: beat(2), endBeat: beat(6) }] as RestZone[],
+      durationMs: 8000,
+    });
+    renderer.renderFrame(2200);
+
+    const clip = clipOf(scene);
+    expect([clip.minX, clip.maxX]).toEqual([346, 721]);
+    const visible = scene.laneContentLayer.children.filter((layer) => layer.children.some((child) => child.visible));
+    // restZone·마디선·trillZone·노트 레이어에 그린 것이 있다(키빔·롱노트 레이어는 이 테스트에서 비어 있다).
+    expect(visible).toHaveLength(4);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const layer of visible) {
+      const bounds = layer.getBounds();
+      minX = Math.min(minX, bounds.minX);
+      maxX = Math.max(maxX, bounds.maxX);
+    }
+    expect(minX).toBeCloseTo(408.5 - 8.75, 9);
+    expect(maxX).toBeCloseTo(658.5 + 8.75, 9);
+    expect(minX).toBeGreaterThan(clip.minX);
+    expect(maxX).toBeLessThan(clip.maxX);
+  });
+});
+
+describe('기어 없는 렌더러의 레인 끝 값 자르기 (#247)', () => {
+  // 리프트 100%(600)면 판정선은 600 − 184 − 600 = −184, 레인 끝은 −184 + 6.25 = −177.75로 화면 위쪽 밖이다.
+  it('리프트 100%면 레인 끝(−177.75)을 0으로 잘라 클립과 레인 배경의 높이가 0이고, 늦은 노트 시간은 자르지 않은 값으로 판정선 + 노트 반 칸(12.5 ÷ 스크롤 20px/s = 625ms)을 쓴다', async () => {
+    const { renderer, scene } = await createRenderer({ showGear: false });
+    renderer.scrollSpeed = 20;
+    renderer.setLift(liftPx(100));
+    expect(renderer.judgmentLineY).toBe(-184);
+    const clip = clipOf(scene);
+    expect([clip.minY, clip.maxY]).toEqual([0, 0]);
+    const lane = (scene as unknown as { backgroundLayer: Container }).backgroundLayer.children[0].getLocalBounds();
+    expect(lane.maxY - lane.minY).toBe(0);
+    expect(lane.maxY).toBe(0);
+    // 자른 값(0)을 쓰면 (0 − (−184) + 6.25) ÷ 20 ≈ 9512ms가 된다.
+    expect((renderer as unknown as { lateNoteWindowMs(): number }).lateNoteWindowMs()).toBe(625);
   });
 });

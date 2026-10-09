@@ -60,7 +60,14 @@ async function createRenderer({ width = 1067, showGear = true }: { width?: numbe
 }
 
 const stageFor = (width: number) => ({ laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
-const boundsOf = (graphic: Graphics) => graphic.getLocalBounds();
+/**
+ * Graphics의 로컬 범위를 숫자로 복사한다. Pixi는 getLocalBounds가 돌려준 Bounds 객체를 캐시해 다시 쓰므로,
+ * 객체를 그대로 들고 있다가 나중 값과 비교하면 같은 객체끼리 비교하게 된다.
+ */
+const boundsOf = (graphic: Graphics) => {
+  const { minX, minY, maxX, maxY } = graphic.getLocalBounds();
+  return { minX, minY, maxX, maxY };
+};
 /** 레인 내용 컨테이너에 건 클립 사각형(`laneContentLayer.mask`). */
 const laneClipOf = (scene: Scene) => scene.laneContentLayer.mask as Graphics;
 /** 레인 배경·구분선을 그린 Graphics(backgroundLayer의 유일한 자식). */
@@ -103,7 +110,7 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(order(scene.gearLayer)).toBeLessThan(order(scene.uiLayer));
   });
 
-  it('휴지 구간·키빔·마디선·트릴 구간·롱노트 바디·끝·머리·노트 레이어 8개는 이 순서로 laneContentLayer 하나에 들어 있고, 레인 배경·판정선·레인 키 라벨·튜토리얼 키보드·기어·키봄·UI는 그 밖 stage에 있다', async () => {
+  it('restZone·키빔·마디선·trillZone·롱노트 바디·끝·머리·노트 레이어 8개는 이 순서로 laneContentLayer 하나에 들어 있고, 레인 배경·판정선·레인 키 라벨·튜토리얼 키보드·기어·키봄·UI는 그 밖 stage에 있다', async () => {
     const { scene } = await createRenderer();
     expect(scene.laneContentLayer.parent).toBe(scene.app.stage);
     expect(scene.laneContentLayer.children).toEqual([
@@ -121,7 +128,7 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(order(scene.laneContentLayer)).toBeLessThan(order(scene.judgmentLineGraphic));
   });
 
-  it('기어가 있으면 laneContentLayer.mask는 y 0부터 레인 끝 = 키 윗면 y 446.5까지 화면 폭 전체(0~1067)를 덮는 Graphics 사각형이고, stage에 있지만 화면에 그리지 않는다', async () => {
+  it('기어가 있으면 laneContentLayer.mask는 y 0부터 레인 끝 = 키 윗면 y 446.5까지, 레인 영역(408.5~658.5) 양옆에 레인 폭 62.5씩 여유를 둔 x 346~721을 덮는 Graphics 사각형이고, stage에 있지만 화면에 그리지 않는다', async () => {
     const { renderer, scene } = await createRenderer();
     expect(renderer.judgmentLineY).toBe(416);
     const clip = laneClipOf(scene);
@@ -131,7 +138,7 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     const bounds = boundsOf(clip);
     expect(bounds.maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
     expect(bounds.maxY.toFixed(1)).toBe('446.5');
-    expect([bounds.minX, bounds.minY, bounds.maxX]).toEqual([0, 0, 1067]);
+    expect([bounds.minX, bounds.minY, bounds.maxX]).toEqual([346, 0, 721]);
   });
 
   it('기어가 있으면 레인 배경·구분선(backgroundLayer)은 y 0부터 레인 끝 446.5까지만 레인 영역 폭 250(408.5~658.5)으로 그린다', async () => {

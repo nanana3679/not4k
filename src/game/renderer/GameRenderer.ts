@@ -148,11 +148,11 @@ export class GameRenderer {
   /** 레인 배경·구분선. 레인 끝(`laneEndY`)까지만 그린다. */
   private laneBackground: Graphics;
   /**
-   * 레인 안에서 움직이는 것(휴지 구간·키빔·마디선·트릴 구간·롱노트 세 레이어·노트)을 담는 컨테이너.
+   * 레인 안에서 움직이는 것(`restZone`·키빔·마디선·`trillZone`·롱노트 세 레이어·노트)을 담는 컨테이너.
    * `laneEndClip`을 mask로 걸어 레인 끝 아래를 자른다(#247).
    */
   private laneContentLayer: Container;
-  /** `laneContentLayer`의 mask. y 0부터 레인 끝까지 화면 폭 전체를 덮는 사각형이라 아래 경계만 자른다. */
+  /** `laneContentLayer`의 mask. y 0부터 레인 끝까지, 레인 영역 양옆에 레인 폭만큼 여유를 둔 사각형이라 아래 경계만 자른다. */
   private laneEndClip: Graphics;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
@@ -384,6 +384,8 @@ export class GameRenderer {
     // pop 때 다시 그려 되돌림) 그 앞뒤로 batch break와 stencil·colorMask 상태 변경이 생긴다. 이 비용은 #247에서 받아들였다.
     // mask Graphics는 stage에 두어 변환을 갱신하게 하고, Pixi가 mask로 쓰는 동안 화면에는 그리지 않는다(includeInBuild false).
     this.app.stage.addChild(this.laneEndClip);
+    // 주의: mask를 다시 지정하면 Pixi가 laneEndClip의 includeInBuild를 되돌려 흰 사각형으로 그린다. Container의 mask는 하나뿐이라
+    // 나중 서든 커버(setSudden)도 이 클립과 함께 동작하도록 만들어야 한다(같은 사각형의 위끝을 내리거나 컨테이너를 하나 더 둔다).
     this.laneContentLayer.mask = this.laneEndClip;
     this.app.stage.addChild(this.judgmentLineGraphic);
     // 레인 키 라벨은 레인 끝 클립 밖(레인 끝 아래 밴드)에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
@@ -471,10 +473,13 @@ export class GameRenderer {
     }
   }
 
-  /** 화면 폭 전체 × (0 ~ 레인 끝) 사각형. 양옆으로 레인 밖에 걸친 그림(Grace 빛 등)은 자르지 않고 아래 경계만 자른다. */
+  /**
+   * (레인 영역 ± 레인 폭) × (0 ~ 레인 끝) 사각형. 레인 밖으로 가장 많이 걸치는 그림은 Grace 빛(GRACE_GLOW_PAD 8.75)이라
+   * 양옆 여유(레인 폭 62.5)가 자르지 않고 아래 경계만 자른다. 화면 폭 전체보다 좁혀 스텐실을 쓰는 픽셀 수를 줄인다.
+   */
   private drawLaneEndClip(laneEndY: number): void {
     this.laneEndClip.clear();
-    this.laneEndClip.rect(0, 0, this.width, laneEndY);
+    this.laneEndClip.rect(this.laneAreaX - LANE_WIDTH, 0, LANE_AREA_WIDTH + LANE_WIDTH * 2, laneEndY);
     this.laneEndClip.fill(0xffffff);
   }
 
