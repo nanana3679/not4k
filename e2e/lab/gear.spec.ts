@@ -131,6 +131,24 @@ async function inputGearDrop(page: Page, value: number) {
   }, value);
 }
 
+/**
+ * 슬라이더 입력과 그 직후의 이동을 한 번의 evaluate(같은 작업) 안에서 한다. 두 호출로 나누면 그 사이 메인 스레드가 200ms 넘게
+ * 막힐 때(swiftshader 렌더러 생성) 타이머가 먼저 울려 결과가 시간에 따라 달라진다.
+ */
+async function inputGearDropThenNavigate(page: Page, value: number, navigation: { back: true } | { push: string }) {
+  await page.evaluate(({ value, navigation }) => {
+    const slider = document.getElementById('gear-preview-drop') as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(slider, String(value));
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    if ('back' in navigation) {
+      history.back();
+    } else {
+      history.pushState(null, '', navigation.push);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  }, { value, navigation });
+}
+
 /** 페이지를 다시 읽지 않고 바깥에서 주소를 바꾼다: 방문 기록에 url을 넣고 popstate를 보내 라우터와 페이지가 주소를 다시 읽게 한다. */
 async function pushExternalUrl(page: Page, url: string) {
   await page.evaluate((url) => {
@@ -417,14 +435,12 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
       expect(await gearDropState(page)).toEqual(expected);
     };
     const historyLength = await page.evaluate(() => history.length);
-    await inputGearDrop(page, 25);
-    await page.evaluate(() => history.back());
+    await inputGearDropThenNavigate(page, 25, { back: true });
     await settledAt({ slider: '20', search: '?drop=20', stage: '20' });
     await page.evaluate(() => history.forward());
     await settledAt({ slider: '40', search: '?drop=40', stage: '40' });
 
-    await inputGearDrop(page, 20);
-    await page.evaluate(() => history.back());
+    await inputGearDropThenNavigate(page, 20, { back: true });
     await settledAt({ slider: '20', search: '?drop=20', stage: '20' });
     await page.evaluate(() => history.forward());
     await settledAt({ slider: '40', search: '?drop=40', stage: '40' });
@@ -442,9 +458,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
       await expect.poll(() => gearDropState(page)).toEqual({ slider: '20', search: '?drop=20', stage: '20' });
       const before = await replaceCalls();
 
-      await inputGearDrop(page, 33);
-      await expect(page.locator('#gear-preview-drop-value')).toHaveValue('33');
-      await pushExternalUrl(page, `/lab/gear${destination}`);
+      await inputGearDropThenNavigate(page, 33, { push: `/lab/gear${destination}` });
       await page.waitForTimeout(600);
       expect(await gearDropState(page)).toEqual({ slider: '20', search: destination, stage: '20' });
       expect(await replaceCalls()).toBe(before);

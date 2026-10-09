@@ -130,6 +130,9 @@ export default function GearPage() {
   const [gearDrop, setGearDropState] = useState(() => parseGearDropParam(searchParams.get('drop')));
   const [rendererDrop, setRendererDrop] = useState(gearDrop);
   const settleTimerRef = useRef<number | undefined>(undefined);
+  // 이 페이지의 경로. 떠나는 중(링크 클릭 뒤 다음 페이지 코드를 읽는 동안 이 컴포넌트가 아직 남아 있을 때)에 타이머가 울리면
+  // 주소가 이미 다른 경로라 아무것도 하지 않는다. 쓰면 상대 주소("?drop=")가 이 경로로 풀려 떠난 이동을 되돌린다.
+  const gearPathRef = useRef(typeof window === 'undefined' ? '' : window.location.pathname);
   const setSearchParamsRef = useRef(setSearchParams);
   useEffect(() => { setSearchParamsRef.current = setSearchParams; }, [setSearchParams]);
   // 값이 멈추면 렌더러를 그 값으로 다시 만들고, 지금 실제 주소(window.location)와 다를 때만 주소를 한 번 바꿔 쓴다(replace).
@@ -138,6 +141,7 @@ export default function GearPage() {
     window.clearTimeout(settleTimerRef.current);
     settleTimerRef.current = window.setTimeout(() => {
       settleTimerRef.current = undefined;
+      if (window.location.pathname !== gearPathRef.current) return;
       setRendererDrop(value);
       const current = new URLSearchParams(window.location.search);
       if (parseGearDropParam(current.get('drop')) === value) return;
