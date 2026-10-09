@@ -78,19 +78,6 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(stageOf(render('/lab/gear?drop=abc'))).toContain('data-gear-drop="10"');
   });
 
-  it('내리기 양은 렌더러 생성 옵션 gearDrop으로 넘겨 바뀌면 렌더러를 새로 만들고, 주소는 입력마다가 아니라 값이 멈춘 뒤의 타이머 안에서만 방문 기록을 쌓지 않고(replace) 한 번 바꾼다', () => {
-    expect(pageSource).toMatch(/const rendererKey = `\$\{renderHeight\}:\$\{scenario\}:\$\{stageWidth\}:\$\{rendererDrop\}`/);
-    expect(pageSource).toContain('gearDrop: drop,');
-    // 주소를 쓰는 곳은 settle 타이머(GEAR_DROP_SETTLE_MS) 안의 한 곳뿐이다. 입력 핸들러는 페이지 상태만 바꾼다.
-    expect(pageSource.match(/setSearchParams\(/g)).toHaveLength(1);
-    const timer = pageSource.indexOf('const timer = window.setTimeout(() => {\n      setRendererDrop(gearDrop);');
-    expect(timer).toBeGreaterThan(-1);
-    const write = pageSource.indexOf('setSearchParams((current) => nextGearDropSearch(current, gearDrop), { replace: true });');
-    expect(write).toBeGreaterThan(timer);
-    expect(write).toBeLessThan(pageSource.indexOf('}, GEAR_DROP_SETTLE_MS);'));
-    expect(pageSource).toContain('const setGearDrop = useCallback((value: number) => setGearDropState(clampPreviewGearDrop(value)), []);');
-  });
-
   it('고도 조절은 곡 진행 따라가기(기본 켬)와 정수 0~100% 직접 정하기 슬라이더(100%에서 시작)이고 무대가 data-altitude-mode="follow"를 알린다', () => {
     const markup = render();
     const stage = stageOf(markup);

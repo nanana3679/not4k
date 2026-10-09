@@ -122,6 +122,43 @@ async function setAltitude(page: Page, percent: number) {
   await expect(stage).toHaveAttribute('data-gear-gauge-level', (percent / 100).toFixed(3), { timeout: 5000 });
 }
 
+/** 기어·판정선 내리기 슬라이더에 값을 넣고 input 이벤트를 보낸다(끄는 동작 한 번). */
+async function inputGearDrop(page: Page, value: number) {
+  await page.evaluate((value) => {
+    const slider = document.getElementById('gear-preview-drop') as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(slider, String(value));
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+/** 페이지를 다시 읽지 않고 바깥에서 주소를 바꾼다: 방문 기록에 url을 넣고 popstate를 보내 라우터와 페이지가 주소를 다시 읽게 한다. */
+async function pushExternalUrl(page: Page, url: string) {
+  await page.evaluate((url) => {
+    history.pushState(null, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, url);
+}
+
+/** 슬라이더 값, 주소 쿼리, 렌더러에 넘긴 값(무대 data-gear-drop). */
+async function gearDropState(page: Page) {
+  return page.evaluate(() => ({
+    slider: (document.getElementById('gear-preview-drop') as HTMLInputElement).value,
+    search: location.search,
+    stage: document.querySelector('[data-gear-preview-stage="true"]')!.getAttribute('data-gear-drop'),
+  }));
+}
+
+/** 페이지가 부르는 history.replaceState 수를 센다. */
+async function countReplaceState(page: Page) {
+  await page.addInitScript(() => {
+    const counter = { replace: 0 };
+    (window as typeof window & { __replaceCalls: typeof counter }).__replaceCalls = counter;
+    const replace = history.replaceState.bind(history);
+    history.replaceState = (...args: Parameters<History['replaceState']>) => { counter.replace += 1; replace(...args); };
+  });
+  return () => page.evaluate(() => (window as typeof window & { __replaceCalls: { replace: number } }).__replaceCalls.replace);
+}
+
 // 두 유리관 가운데 열(왼쪽 172, 반전한 오른쪽 851)의 표본 행. 채움 구간은 196~1016행(821행)이다.
 const TUBE_COLUMNS = [172, 851];
 const isEmptyGlass = ([r, g, b]: number[]) => b < 70 && g < 50 && r < 40;
@@ -362,6 +399,88 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-gear-drop', '10');
     await waitForRenderer(page);
     await expect(stage).toHaveAttribute('data-judgment-line-y', '426.0');
+    expect(errors).toEqual([]);
+  });
+
+  // 아래 세 테스트는 주소·슬라이더·무대 data-gear-drop만 보므로 렌더러(WebGL) 준비를 기다리지 않는다(같은 시나리오를 Firefox에서도 돌릴 수 있다).
+  test('값이 멈추기 전(200ms 안)에 뒤로 가기로 다른 값의 기록(?drop=20)으로 가면 남은 값 25를 주소에 쓰지 않고 20을 따르며, 앞으로 가기는 ?drop=40, 같은 값 20을 고른 채 뒤로 가도 20이다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear?drop=20');
+    await page.locator('#gear-preview-drop').waitFor();
+    await pushExternalUrl(page, '/lab/gear?drop=40');
+    await expect.poll(() => gearDropState(page)).toEqual({ slider: '40', search: '?drop=40', stage: '40' });
+
+    // 렌더러를 새로 만드는 동안(swiftshader) 메인 스레드가 막혀 타이머가 늦을 수 있어 멈춘 상태를 기다린 뒤, 그 뒤에도 주소가 덮이지 않았는지 본다.
+    const settledAt = async (expected: { slider: string; search: string; stage: string }) => {
+      await expect.poll(() => gearDropState(page), { timeout: 10000 }).toEqual(expected);
+      await page.waitForTimeout(400);
+      expect(await gearDropState(page)).toEqual(expected);
+    };
+    const historyLength = await page.evaluate(() => history.length);
+    await inputGearDrop(page, 25);
+    await page.evaluate(() => history.back());
+    await settledAt({ slider: '20', search: '?drop=20', stage: '20' });
+    await page.evaluate(() => history.forward());
+    await settledAt({ slider: '40', search: '?drop=40', stage: '40' });
+
+    await inputGearDrop(page, 20);
+    await page.evaluate(() => history.back());
+    await settledAt({ slider: '20', search: '?drop=20', stage: '20' });
+    await page.evaluate(() => history.forward());
+    await settledAt({ slider: '40', search: '?drop=40', stage: '40' });
+    // 이동 사이에 기록을 더하지 않았다.
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    expect(errors).toEqual([]);
+  });
+
+  for (const destination of ['?drop=20', '?drop=20.0']) {
+    test(`?drop=20에서 33으로 바꾸고 값이 멈추기 전에 같은 값의 주소(${destination})로 이동하면 남은 33을 그 기록에 덮어쓰지 않고(replaceState 0번) 20을 따른다`, async ({ page }) => {
+      const errors = collectErrors(page);
+      const replaceCalls = await countReplaceState(page);
+      await page.goto('/lab/gear?drop=20');
+      await page.locator('#gear-preview-drop').waitFor();
+      await expect.poll(() => gearDropState(page)).toEqual({ slider: '20', search: '?drop=20', stage: '20' });
+      const before = await replaceCalls();
+
+      await inputGearDrop(page, 33);
+      await expect(page.locator('#gear-preview-drop-value')).toHaveValue('33');
+      await pushExternalUrl(page, `/lab/gear${destination}`);
+      await page.waitForTimeout(600);
+      expect(await gearDropState(page)).toEqual({ slider: '20', search: destination, stage: '20' });
+      expect(await replaceCalls()).toBe(before);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('값이 멈춰 주소를 ?drop=30으로 바꿔 쓴 바로 다음(같은 작업)에 뒤로 가기가 그 쓰기를 앞지르면 ?drop=20 기록을 따르고(무대도 20), 앞으로 가기로 돌아온 기록은 쓴 값 30 그대로이며 덮어쓰지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    const replaceCalls = await countReplaceState(page);
+    await page.goto('/lab/gear?drop=20');
+    await page.locator('#gear-preview-drop').waitFor();
+    await pushExternalUrl(page, '/lab/gear?drop=40');
+    await expect.poll(() => gearDropState(page)).toEqual({ slider: '40', search: '?drop=40', stage: '40' });
+
+    // 페이지의 다음 replaceState(값이 멈춘 뒤 주소 쓰기) 바로 뒤에 같은 작업에서 뒤로 가기를 부른다. react-router가 위치 갱신을
+    // startTransition으로 미루므로 쓴 위치(?drop=30)는 그리지 않고 지나갈 수 있다.
+    await page.evaluate(() => {
+      const original = history.replaceState.bind(history);
+      history.replaceState = (...args: Parameters<History['replaceState']>) => {
+        original(...args);
+        history.replaceState = original;
+        history.back();
+      };
+    });
+    await inputGearDrop(page, 30);
+    await expect.poll(() => gearDropState(page), { timeout: 5000 }).toEqual({ slider: '20', search: '?drop=20', stage: '20' });
+    await page.waitForTimeout(500);
+    expect(await gearDropState(page)).toEqual({ slider: '20', search: '?drop=20', stage: '20' });
+    const afterBack = await replaceCalls();
+
+    await page.evaluate(() => history.forward());
+    await expect.poll(() => gearDropState(page)).toEqual({ slider: '30', search: '?drop=30', stage: '30' });
+    await page.waitForTimeout(500);
+    expect(await gearDropState(page)).toEqual({ slider: '30', search: '?drop=30', stage: '30' });
+    expect(await replaceCalls()).toBe(afterBack);
     expect(errors).toEqual([]);
   });
 

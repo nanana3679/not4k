@@ -122,30 +122,46 @@ export default function GearPage() {
   // 슬라이더·숫자 입력·설명 숫자는 페이지 상태 gearDrop을 바로 따르고, 렌더러(rendererDrop, 렌더러 생성 옵션 gearDrop)와 주소는
   // 값이 멈춘 뒤(GEAR_DROP_SETTLE_MS) 한 번만 바꾼다. 입력 이벤트마다 주소를 쓰면 history.replaceState가 브라우저 한도(Firefox 10초에 약 200번,
   // Safari 약 100번)를 넘어 SecurityError를 던지고 react-router가 잡지 않아 주소와 슬라이더가 멈춘다.
+  // 바깥에서 주소가 바뀌는 길은 앞으로·뒤로 가기(popstate)뿐이다(이 페이지에는 다른 drop 주소로 가는 링크가 없다). popstate가 오면 남은 타이머를
+  // 취소하고 주소 값을 따른다. 이 페이지가 쓰는 주소(replace)는 popstate를 내지 않으므로 자기 쓰기를 따로 표시하거나 값으로 구별하지 않는다.
+  // react-router는 위치 객체를 주소·state·key로 메모하므로 같은 주소의 기록 사이 이동은 useLocation으로 보이지 않을 수 있어 popstate를 직접 듣는다.
+  // 알려진 한계: 값이 멈추기 전(200ms 안)에 페이지를 떠나면 마지막 값은 주소에 남지 않는다. 떠나는 중에 쓰면 다음 페이지 주소를 덮을 수 있어 일부러 쓰지 않는다.
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlDrop = parseGearDropParam(searchParams.get('drop'));
-  const [gearDrop, setGearDropState] = useState(urlDrop);
-  const [rendererDrop, setRendererDrop] = useState(urlDrop);
-  // 주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 그 값을 따른다. 이 페이지가 쓴 값이 돌아온 것(writtenDrop)은 그 사이 슬라이더를 더 움직였을 수 있어 따르지 않는다.
-  const [seenUrlDrop, setSeenUrlDrop] = useState(urlDrop);
-  const [writtenDrop, setWrittenDrop] = useState<number | null>(null);
-  if (seenUrlDrop !== urlDrop) {
-    setSeenUrlDrop(urlDrop);
-    if (urlDrop === writtenDrop) setWrittenDrop(null);
-    else setGearDropState(urlDrop);
-  }
-  useEffect(() => {
-    if (gearDrop === rendererDrop && gearDrop === urlDrop) return;
-    const timer = window.setTimeout(() => {
-      setRendererDrop(gearDrop);
-      if (gearDrop === urlDrop) return;
-      // 방문 기록이 쌓이지 않게 주소를 바꿔 쓴다(replace).
-      setWrittenDrop(gearDrop);
-      setSearchParams((current) => nextGearDropSearch(current, gearDrop), { replace: true });
+  const [gearDrop, setGearDropState] = useState(() => parseGearDropParam(searchParams.get('drop')));
+  const [rendererDrop, setRendererDrop] = useState(gearDrop);
+  const settleTimerRef = useRef<number | undefined>(undefined);
+  const setSearchParamsRef = useRef(setSearchParams);
+  useEffect(() => { setSearchParamsRef.current = setSearchParams; }, [setSearchParams]);
+  // 값이 멈추면 렌더러를 그 값으로 다시 만들고, 지금 실제 주소(window.location)와 다를 때만 주소를 한 번 바꿔 쓴다(replace).
+  // 실제 주소와 비교하므로 같은 값을 두 번 쓰지 않는다(react-router가 위치 갱신을 startTransition으로 미뤄도 history는 바로 바뀐다).
+  const settleGearDrop = useCallback((value: number) => {
+    window.clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = window.setTimeout(() => {
+      settleTimerRef.current = undefined;
+      setRendererDrop(value);
+      const current = new URLSearchParams(window.location.search);
+      if (parseGearDropParam(current.get('drop')) === value) return;
+      setSearchParamsRef.current(nextGearDropSearch(current, value), { replace: true });
     }, GEAR_DROP_SETTLE_MS);
-    return () => window.clearTimeout(timer);
-  }, [gearDrop, rendererDrop, urlDrop, setSearchParams]);
-  const setGearDrop = useCallback((value: number) => setGearDropState(clampPreviewGearDrop(value)), []);
+  }, []);
+  useEffect(() => {
+    const followHistory = () => {
+      const value = parseGearDropParam(new URLSearchParams(window.location.search).get('drop'));
+      setGearDropState(value);
+      // 남은 값의 타이머를 이 값으로 바꿔 건다: 이동한 기록을 덮어쓰지 않고(주소가 이미 이 값) 렌더러만 맞춘다.
+      settleGearDrop(value);
+    };
+    window.addEventListener('popstate', followHistory);
+    return () => {
+      window.removeEventListener('popstate', followHistory);
+      window.clearTimeout(settleTimerRef.current);
+    };
+  }, [settleGearDrop]);
+  const setGearDrop = useCallback((value: number) => {
+    const next = clampPreviewGearDrop(value);
+    setGearDropState(next);
+    settleGearDrop(next);
+  }, [settleGearDrop]);
   const [reportedState, setRendererState] = useState<RendererState>({ status: 'loading', key: '' });
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
   const devicePixelRatio = useDevicePixelRatio();
