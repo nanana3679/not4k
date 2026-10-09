@@ -118,20 +118,34 @@ export default function GearPage() {
   const altitudePercent = altitudePercentOf(manualAltitude);
   const altitudeOverride = altitudeOverrideFor(altitudeFollow, manualAltitude);
   const [keyboard, setKeyboard] = useState<GearPreviewKeyboard>('tkl');
-  // 기어·판정선 내리기(#257): 기본은 게임 값 GEAR_DROP(10)이다. 다른 값은 주소 쿼리 `drop`(절대 내림 양)에 두어 새로 고치거나 공유해도 남는다. 설명 숫자는 고른 값을 바로 따르고,
-  // 렌더러는 값이 멈춘 뒤(GEAR_DROP_SETTLE_MS) rendererDrop으로 새로 만든다(렌더러 생성 옵션 gearDrop).
+  // 기어·판정선 내리기(#257): 기본은 게임 값 GEAR_DROP(10)이다. 다른 값은 주소 쿼리 `drop`(절대 내림 양)에 두어 새로 고치거나 공유해도 남는다.
+  // 슬라이더·숫자 입력·설명 숫자는 페이지 상태 gearDrop을 바로 따르고, 렌더러(rendererDrop, 렌더러 생성 옵션 gearDrop)와 주소는
+  // 값이 멈춘 뒤(GEAR_DROP_SETTLE_MS) 한 번만 바꾼다. 입력 이벤트마다 주소를 쓰면 history.replaceState가 브라우저 한도(Firefox 10초에 약 200번,
+  // Safari 약 100번)를 넘어 SecurityError를 던지고 react-router가 잡지 않아 주소와 슬라이더가 멈춘다.
   const [searchParams, setSearchParams] = useSearchParams();
-  const gearDrop = parseGearDropParam(searchParams.get('drop'));
-  const [rendererDrop, setRendererDrop] = useState(gearDrop);
+  const urlDrop = parseGearDropParam(searchParams.get('drop'));
+  const [gearDrop, setGearDropState] = useState(urlDrop);
+  const [rendererDrop, setRendererDrop] = useState(urlDrop);
+  // 주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 그 값을 따른다. 이 페이지가 쓴 값이 돌아온 것(writtenDrop)은 그 사이 슬라이더를 더 움직였을 수 있어 따르지 않는다.
+  const [seenUrlDrop, setSeenUrlDrop] = useState(urlDrop);
+  const [writtenDrop, setWrittenDrop] = useState<number | null>(null);
+  if (seenUrlDrop !== urlDrop) {
+    setSeenUrlDrop(urlDrop);
+    if (urlDrop === writtenDrop) setWrittenDrop(null);
+    else setGearDropState(urlDrop);
+  }
   useEffect(() => {
-    if (rendererDrop === gearDrop) return;
-    const timer = window.setTimeout(() => setRendererDrop(gearDrop), GEAR_DROP_SETTLE_MS);
+    if (gearDrop === rendererDrop && gearDrop === urlDrop) return;
+    const timer = window.setTimeout(() => {
+      setRendererDrop(gearDrop);
+      if (gearDrop === urlDrop) return;
+      // 방문 기록이 쌓이지 않게 주소를 바꿔 쓴다(replace).
+      setWrittenDrop(gearDrop);
+      setSearchParams((current) => nextGearDropSearch(current, gearDrop), { replace: true });
+    }, GEAR_DROP_SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [gearDrop, rendererDrop]);
-  // 슬라이더를 끄는 동안 방문 기록이 쌓이지 않게 주소를 바꿔 쓴다(replace).
-  const setGearDrop = useCallback((value: number) => {
-    setSearchParams((current) => nextGearDropSearch(current, clampPreviewGearDrop(value)), { replace: true });
-  }, [setSearchParams]);
+  }, [gearDrop, rendererDrop, urlDrop, setSearchParams]);
+  const setGearDrop = useCallback((value: number) => setGearDropState(clampPreviewGearDrop(value)), []);
   const [reportedState, setRendererState] = useState<RendererState>({ status: 'loading', key: '' });
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
   const devicePixelRatio = useDevicePixelRatio();
@@ -499,7 +513,7 @@ export default function GearPage() {
               {describeGearDrop(layout, judgment)}
             </output>
             <p className="gear-preview-note">
-              기어와 리프트 0%의 판정선을 같은 양(논리 px, 0~{GEAR_DROP_MAX}, {GEAR_DROP_STEP} 단위)만큼 함께 내립니다. 레인 끝(키 윗면)·고도 게이지·기어 움직임도 기어를 따라오고,
+              기어와 리프트 0%의 판정선을 같은 양(논리 px, 0~{GEAR_DROP_MAX}, {GEAR_DROP_STEP} 단위)만큼 함께 내립니다. 레인 끝(키 윗면)·고도 게이지·기어 위 장식 애니메이션도 기어를 따라오고,
               기어 아래쪽은 화면 밖으로 잘립니다. 기본은 게임 값 {GEAR_DROP}이고, 다른 값은 주소(?drop=, 게임과 같은 절대 내림 양)에 남아 새로 고치거나 공유해도 유지됩니다. 바꾸면 렌더러를 새로 만듭니다(#257).
             </p>
           </div>

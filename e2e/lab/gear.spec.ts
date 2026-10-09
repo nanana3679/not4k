@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { GEAR_DROP } from '../../src/game/renderer/constants';
 
 // 기어 측정값(prepare-frame-fit-v20.mjs → src/game/renderer/gearGeometry.json). 미리보기는 실제 게임 렌더러 배치를 그대로 알린다.
 const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/gearGeometry.json', import.meta.url)), 'utf8')) as {
@@ -9,8 +10,7 @@ const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/r
 };
 const laneWindow = geometry.laneRight - geometry.laneLeft + 1;
 // 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600. 게임은 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래보다
-// GEAR_DROP(src/game/renderer/constants.ts, #257)만큼 아래에 두고 판정선도 같은 양만큼 내린다.
-const GEAR_DROP = 10;
+// GEAR_DROP(10, #257)만큼 아래에 두고 판정선도 같은 양만큼 내린다.
 const scale = 250 / laneWindow;
 const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale + GEAR_DROP;
 const deckTopY = gearTop + geometry.deckTop * scale;
@@ -293,6 +293,75 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     // 주소를 바꿔 썼으므로(replace) 뒤로 가기는 Lab 목록으로 돌아간다.
     await page.goBack();
     await expect(page).toHaveURL(/\/lab$/);
+    expect(errors).toEqual([]);
+  });
+
+  test('기어·판정선 내리기 슬라이더에 입력 이벤트 250개를 몰아 보내도 주소는 값이 멈춘 뒤 한 번만 바꿔 써(history.replaceState 2번 이하) 브라우저의 History API 호출 한도에 걸리지 않고, 마지막 값 33이 주소·무대에 남는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    // 페이지가 부르는 history.replaceState·pushState 수를 센다(Firefox는 10초에 약 200번, Safari는 약 100번을 넘으면 SecurityError를 던진다).
+    await page.addInitScript(() => {
+      const counts = { replace: 0, push: 0 };
+      (window as typeof window & { __historyCalls: typeof counts }).__historyCalls = counts;
+      const replace = history.replaceState.bind(history);
+      const push = history.pushState.bind(history);
+      history.replaceState = (...args: Parameters<History['replaceState']>) => { counts.replace += 1; replace(...args); };
+      history.pushState = (...args: Parameters<History['pushState']>) => { counts.push += 1; push(...args); };
+    });
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const before = await page.evaluate(() => ({ ...(window as typeof window & { __historyCalls: { replace: number; push: number } }).__historyCalls }));
+
+    // 끄는 것처럼 0 → 60 → 0 …으로 250번 바꾸고 10번마다 한 번 양보해 React가 커밋하게 한 뒤, 마지막에 33을 넣는다.
+    await page.evaluate(async () => {
+      const slider = document.getElementById('gear-preview-drop') as HTMLInputElement;
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      for (let k = 0; k < 250; k++) {
+        const step = k % 121;
+        setValue.call(slider, String((step <= 60 ? step : 120 - step) * 0.5));
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        if (k % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      setValue.call(slider, '33');
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // 숫자 입력과 설명은 값이 멈추기 전에도 바로 따른다.
+    await expect(page.locator('#gear-preview-drop-value')).toHaveValue('33');
+    await expect(page).toHaveURL(/\/lab\/gear\?drop=33$/);
+    await expect(page.locator(stageSelector)).toHaveAttribute('data-gear-drop', '33');
+    await page.waitForTimeout(500);
+    const after = await page.evaluate(() => ({ ...(window as typeof window & { __historyCalls: { replace: number; push: number } }).__historyCalls }));
+    expect(after.replace - before.replace).toBeLessThanOrEqual(2);
+    expect(after.push - before.push).toBe(0);
+    await waitForRenderer(page);
+    await expect(page.locator(stageSelector)).toHaveAttribute('data-judgment-line-y', '449.0');
+    expect(errors).toEqual([]);
+  });
+
+  test('주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 기어·판정선 내리기 값이 주소를 따라 슬라이더·숫자 입력·무대가 함께 바뀐다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-gear-drop', '10');
+
+    // 페이지를 다시 읽지 않는 이동: 방문 기록에 ?drop=20을 넣고 popstate를 보내 라우터가 주소를 다시 읽게 한다.
+    await page.evaluate(() => {
+      history.pushState(null, '', '/lab/gear?drop=20');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page.locator('#gear-preview-drop')).toHaveValue('20');
+    await expect(page.locator('#gear-preview-drop-value')).toHaveValue('20');
+    await expect(stage).toHaveAttribute('data-gear-drop', '20');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '436.0');
+
+    // 뒤로 가기: 쿼리 없는 /lab/gear로 돌아오면 게임 값 10으로 돌아간다.
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(page.locator('#gear-preview-drop')).toHaveValue('10');
+    await expect(stage).toHaveAttribute('data-gear-drop', '10');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '426.0');
     expect(errors).toEqual([]);
   });
 

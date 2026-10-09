@@ -180,7 +180,7 @@ export class GameRenderer {
   private _judgmentLineY: number;
   /** 리프트 0%의 판정선 y(높이 − 판정선 오프셋 + gearDrop). 리프트는 여기서 올린다. */
   private readonly baseJudgmentLineY: number;
-  /** 기어와 판정선을 함께 내린 양(옵션 `gearDrop`, 0 이상). 기어를 그리지 않으면 0이다. */
+  /** 기어와 판정선을 함께 내린 양(옵션 `gearDrop`, 0 이상, 주지 않으면 `GEAR_DROP`). showGear false면 0이다. */
   private readonly gearDrop: number;
   private readonly bombScale: number;
 
@@ -1272,7 +1272,7 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 기본 위치(기어가 있으면 y 416 + gearDrop, 게임 기본 y 426. 기어가 없으면 화면 높이 − 판정선 오프셋)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
+   * 판정선을 기본 위치(높이 − 판정선 오프셋 + gearDrop. gearDrop은 showGear false면 0)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
    * 이후 키봄)만 움직이고, 기어와 레인 끝은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 레인 끝(레인 배경·클립)도 따라온다.
    */
   setLift(y: number): void {
