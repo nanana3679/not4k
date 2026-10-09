@@ -15,6 +15,7 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  GEAR_DROP,
   JUDGMENT_LINE_THICKNESS,
   KEY_BOMB_SIZE,
   TUTORIAL_KB_SIDE_PAD,
@@ -105,10 +106,11 @@ export interface GameRendererOptions {
    */
   showGear?: boolean;
   /**
-   * 기어와 판정선을 함께 아래로 내리는 양(논리 px, 기본 0, 음수·NaN은 0, [#257](https://github.com/nanana3679/not4k/issues/257)).
-   * 기어 배치(`layoutGear`의 `drop`)와 리프트 0%의 판정선이 같은 양만큼 내려가고, 기어 배치에서 정해지는 레인 끝(키 윗면)·고도 게이지·
-   * `gearMotion` `holder`도 따라온다. 리프트는 내린 판정선에서 판정선만 올린다. 기어 아래쪽 원본 gearDrop ÷ 배율 행은 화면 밖으로 잘린다.
-   * 기어를 그리지 않는 렌더러(showGear false)는 이 값을 무시한다. 값을 고르는 동안 Lab `/lab/gear`만 넘기고 게임은 넘기지 않는다(0).
+   * 기어와 판정선을 함께 아래로 내리는 양(논리 px, [#257](https://github.com/nanana3679/not4k/issues/257)). 주지 않으면 게임 값 `GEAR_DROP`(10)이고,
+   * 준 값은 0 이상으로 맞춘다(음수·NaN은 0). 기어 배치(`layoutGear`의 `drop`)와 리프트 0%의 판정선이 같은 양만큼 내려가고,
+   * 기어 배치에서 정해지는 레인 끝(키 윗면)·고도 게이지·`gearMotion` `holder`도 따라온다. 리프트는 내린 판정선에서 판정선만 올린다.
+   * 기어 아래쪽 원본 gearDrop ÷ 배율 행은 화면 밖으로 잘린다. 기어를 그리지 않는 렌더러(showGear false)는 이 값과 기본값을 모두 무시한다.
+   * 게임 플레이 화면은 넘기지 않아 기본값을 쓰고, Lab `/lab/gear`가 다른 값을 시험할 때 넘긴다.
    */
   gearDrop?: number;
   /**
@@ -272,8 +274,9 @@ export class GameRenderer {
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
     this.showGear = options.showGear ?? true;
-    // 기어가 없는 렌더러(튜토리얼 재생기)는 내릴 기어가 없으므로 판정선도 그대로 둔다.
-    this.gearDrop = this.showGear ? clampGearDrop(options.gearDrop) : 0;
+    // 기어가 있으면 게임 값 GEAR_DROP(10)만큼 기어와 판정선을 함께 내린다(#257). 기어가 없는 렌더러(튜토리얼 재생기)는
+    // 내릴 기어가 없으므로 판정선도 그대로 둔다.
+    this.gearDrop = this.showGear ? clampGearDrop(options.gearDrop ?? GEAR_DROP) : 0;
     this.baseJudgmentLineY = options.height - this.judgmentLineOffset + this.gearDrop;
     this._judgmentLineY = this.baseJudgmentLineY;
     this.skinManager = options.skinManager;
@@ -535,7 +538,7 @@ export class GameRenderer {
 
   /**
    * 새 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
-   * 실루엣 아래 가장자리를 화면 아래에 붙인다(옵션 gearDrop이 있으면 그만큼 아래). 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
+   * 실루엣 아래 가장자리를 화면 아래보다 gearDrop(게임 기본 10)만큼 아래에 둔다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
   private buildGear(): void {
@@ -1269,7 +1272,7 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 기본 위치(y 416, 옵션 gearDrop이 있으면 그만큼 아래)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
+   * 판정선을 기본 위치(기어가 있으면 y 416 + gearDrop, 게임 기본 y 426. 기어가 없으면 화면 높이 − 판정선 오프셋)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
    * 이후 키봄)만 움직이고, 기어와 레인 끝은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 레인 끝(레인 배경·클립)도 따라온다.
    */
   setLift(y: number): void {

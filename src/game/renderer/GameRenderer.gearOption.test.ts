@@ -31,9 +31,9 @@ describe('GameRenderer optional chrome', () => {
     expect(gameRendererSource).toContain('this._judgmentLineY = this.baseJudgmentLineY - y');
   });
 
-  it('gearDrop 옵션은 기본 0이고 기어를 그릴 때만 clampGearDrop(0 이상)으로 받아 기어 배치와 판정선 기본 위치에 함께 더한다', () => {
+  it('gearDrop 옵션은 기본이 게임 값 GEAR_DROP이고 기어를 그릴 때만 clampGearDrop(0 이상)으로 받아 기어 배치와 판정선 기본 위치에 함께 더한다', () => {
     expect(gameRendererSource).toContain('gearDrop?: number');
-    expect(gameRendererSource).toContain('this.gearDrop = this.showGear ? clampGearDrop(options.gearDrop) : 0');
+    expect(gameRendererSource).toContain('this.gearDrop = this.showGear ? clampGearDrop(options.gearDrop ?? GEAR_DROP) : 0');
     expect(gameRendererSource).toContain('drop: this.gearDrop');
   });
 

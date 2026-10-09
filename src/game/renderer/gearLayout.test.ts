@@ -9,7 +9,7 @@ import {
   minimumPlayLogicalWidth,
   resolvePlayLogicalWidth,
 } from './gearLayout';
-import { GAME_HEIGHT, JUDGMENT_LINE_OFFSET, JUDGMENT_LINE_THICKNESS, LANE_AREA_WIDTH, NOTE_HEIGHT } from './constants';
+import { GAME_HEIGHT, GEAR_DROP, JUDGMENT_LINE_OFFSET, JUDGMENT_LINE_THICKNESS, LANE_AREA_WIDTH, NOTE_HEIGHT, judgmentLineYAtLift } from './constants';
 import { getSkinManifest } from '../skin/skins';
 
 const stageFor = (width: number) => ({ laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
@@ -137,6 +137,17 @@ describe('clampGearDrop — 기어 내리기 양', () => {
     expect(((layout.deckTopY - lineY) / NOTE_HEIGHT).toFixed(1)).toBe('1.1');
     // 판정선에서 키 윗면까지 30.5(노트 두께 약 2.4개)가 보인다.
     expect((layout.keyRimY - lineY).toFixed(1)).toBe('30.5');
+  });
+
+  it('게임 배치(GEAR_DROP 10, #257)는 판정선 y 426·덱 위끝 439.7·키 윗면 456.5로 함께 내려가 틈 13.7·30.5는 그대로이고, 실루엣 아래쪽 원본 22.1행이 화면 밖으로 잘린다', () => {
+    const layout = layoutGear(GEAR_GEOMETRY, { ...stageFor(1067), drop: GEAR_DROP });
+    const lineY = judgmentLineYAtLift(0);
+    expect(lineY).toBe(426);
+    expect(layout.deckTopY.toFixed(1)).toBe('439.7');
+    expect(layout.keyRimY.toFixed(1)).toBe('456.5');
+    expect((layout.deckTopY - lineY).toFixed(1)).toBe('13.7');
+    expect((layout.keyRimY - lineY).toFixed(1)).toBe('30.5');
+    expect(((layout.y + 1466 * layout.scale - GAME_HEIGHT) / layout.scale).toFixed(1)).toBe('22.1');
   });
 });
 

@@ -8,9 +8,11 @@ const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/r
   laneOpening: { rows: [number, number, number][] };
 };
 const laneWindow = geometry.laneRight - geometry.laneLeft + 1;
-// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래에 붙인다.
+// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600. 게임은 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래보다
+// GEAR_DROP(src/game/renderer/constants.ts, #257)만큼 아래에 두고 판정선도 같은 양만큼 내린다.
+const GEAR_DROP = 10;
 const scale = 250 / laneWindow;
-const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale;
+const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale + GEAR_DROP;
 const deckTopY = gearTop + geometry.deckTop * scale;
 const keyRimY = gearTop + (geometry.laneOpeningBottom + 1) * scale;
 const stageSelector = '[data-gear-preview-stage="true"]';
@@ -175,28 +177,30 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     });
   }
 
-  test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 판정선 y 416·덱 위끝 429.7·키 윗면 446.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
+  test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 기어와 함께 10 내린 판정선 y 426·덱 위끝 439.7·키 윗면 456.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-lane-window', '408.50-658.50');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '416.0');
+    await expect(stage).toHaveAttribute('data-gear-drop', '10');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '426.0');
     expect(await numberAttribute(page, 'data-deck-top-y')).toBeCloseTo(deckTopY, 1);
     expect(await numberAttribute(page, 'data-key-rim-y')).toBeCloseTo(keyRimY, 1);
-    await expect(stage).toHaveAttribute('data-deck-top-y', '429.7');
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-deck-top-y', '439.7');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     expect(await numberAttribute(page, 'data-gear-top')).toBeCloseTo(gearTop, 1);
     expect(await numberAttribute(page, 'data-gear-scale')).toBeCloseTo(scale, 5);
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('height', '1080');
     await expect(page.locator('.gear-preview-readout')).toContainText('원본 1px → 화면 0.82px (축소)');
-    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 416');
-    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(레인 끝\)\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
+    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 426');
+    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(레인 끝\)\s*y 456\.5까지 30\.5 · 노트 두께 2\.4개/);
+    await expect(page.locator('[data-gear-drop-readout]')).toHaveText('판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림');
     await expect.poll(async () => numberAttribute(page, 'data-missed-count'), { timeout: 15000 }).toBeGreaterThan(0);
     expect(errors).toEqual([]);
   });
 
-  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 392로 움직이며 기어 위치와 덱·키 윗면은 그대로다', async ({ page }) => {
+  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 426에서 402로 움직이며 기어 위치와 덱·키 윗면(456.5)은 그대로다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -210,22 +214,24 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     await lift.fill('4');
     await expect(stage).toHaveAttribute('data-lift-percent', '4');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '392.0');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '402.0');
     await expect(stage).toHaveAttribute('data-gear-top', topBefore!);
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     await expect(stage).toHaveAttribute('data-renderer-key', key!);
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('data-probe', 'first');
-    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+24) · y 392');
+    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+24) · y 402');
     expect(errors).toEqual([]);
   });
 
-  test('주소 ?drop=20으로 열면 무대가 data-gear-drop 20을 알리고 판정선 y·키 윗면 y·기어 위끝이 쿼리 없을 때보다 20 아래(436.0·466.5)이며 화면 아래로 원본 44.2행이 잘린다고 보여 준다', async ({ page }) => {
+  test('주소 drop은 절대 내림 양이라 ?drop=0이면 내리지 않은 배치(판정선 y 416·키 윗면 446.5)이고, ?drop=20이면 판정선 y·키 윗면 y·기어 위끝이 그보다 20 아래(436.0·466.5)이며 화면 아래로 원본 44.2행이 잘린다고 보여 준다', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/lab/gear');
+    await page.goto('/lab/gear?drop=0');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-gear-drop', '0');
     await expect(stage).toHaveAttribute('data-judgment-line-y', '416.0');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(page.locator('[data-gear-drop-readout]')).toHaveText('판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
     const baseLine = await numberAttribute(page, 'data-judgment-line-y');
     const baseRim = await numberAttribute(page, 'data-key-rim-y');
     const baseTop = await numberAttribute(page, 'data-gear-top');
@@ -245,7 +251,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('기어·판정선 내리기 슬라이더를 12.5로 옮기면 주소가 ?drop=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 drop이 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
+  test('기어·판정선 내리기는 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?drop=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 ?drop=0, 10이면 drop이 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab');
     await page.goto('/lab/gear');
@@ -253,6 +259,8 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     const stage = page.locator(stageSelector);
     const keyBefore = await stage.getAttribute('data-renderer-key');
     const slider = page.locator('#gear-preview-drop');
+    await expect(slider).toHaveValue('10');
+    await expect(stage).toHaveAttribute('data-gear-drop', '10');
     expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect((await page.locator('#gear-preview-drop-value').boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(slider).toHaveAttribute('max', '60');
@@ -272,10 +280,16 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
 
     await page.locator('#gear-preview-drop-value').fill('0');
-    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(page).toHaveURL(/\/lab\/gear\?drop=0$/);
     await expect(stage).toHaveAttribute('data-gear-drop', '0');
     await waitForRenderer(page);
     await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+
+    await page.locator('#gear-preview-drop-value').fill('10');
+    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(stage).toHaveAttribute('data-gear-drop', '10');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     // 주소를 바꿔 썼으므로(replace) 뒤로 가기는 Lab 목록으로 돌아간다.
     await page.goBack();
     await expect(page).toHaveURL(/\/lab$/);
@@ -517,7 +531,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-stage-width', '1400');
     await waitForRenderer(page);
     await expect(stage).toHaveAttribute('data-lane-window', '575.00-825.00');
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     const hostBox = (await page.locator('.gear-preview-canvas-host').boundingBox())!;
     expect(Math.abs(hostBox.width - 1400)).toBeLessThan(1);
     expect(Math.abs(hostBox.height - 600)).toBeLessThan(1);

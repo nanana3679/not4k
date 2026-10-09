@@ -17,7 +17,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     for (const attribute of [
       'data-render-height="1080"', 'data-scenario="INFILTRATION"', 'data-view="fit"', 'data-renderer-ready="false"',
       'data-lift-percent="0"', 'data-keyboard="tkl"', 'data-keyboard-visible="true"', 'data-keyboard-scale="1.000"',
-      'data-stage-width="1067"', 'data-fullscreen="off"', 'data-gear-drop="0"',
+      'data-stage-width="1067"', 'data-fullscreen="off"', 'data-gear-drop="10"',
     ]) expect(stage).toContain(attribute);
     const checkedValues = (markup.match(/<input[^>]*>/g) ?? [])
       .filter((input) => input.includes('type="radio"') && input.includes('checked=""'))
@@ -43,12 +43,20 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toMatch(/<input id="gear-preview-lift" type="range" min="0" max="10" step="1" value="0"\/>/);
   });
 
-  it('기어·판정선 내리기는 0~60을 0.5 단위로 다루는 슬라이더와 숫자 입력이고, 주소에 drop이 없으면 0에서 시작해 옆에 판정선 y 416·키 윗면 446.5·틈 30.5를 보여 준다', () => {
+  it('기어·판정선 내리기는 0~60을 0.5 단위로 다루는 슬라이더와 숫자 입력이고, 주소에 drop이 없으면 게임 값 10에서 시작해(렌더러 key도 10) 옆에 판정선 y 426·키 윗면 456.5·틈 30.5·아래 22.1행 잘림을 보여 준다', () => {
     const markup = render();
     expect(markup).toContain('<label for="gear-preview-drop">기어·판정선 내리기</label>');
-    expect(markup).toMatch(/<input id="gear-preview-drop" type="range" min="0" max="60" step="0.5" value="0"\/>/);
-    expect(markup).toMatch(/<input id="gear-preview-drop-value"[^>]*type="number"[^>]*min="0" max="60" step="0.5"[^>]*value="0"/);
+    expect(markup).toMatch(/<input id="gear-preview-drop" type="range" min="0" max="60" step="0.5" value="10"\/>/);
+    expect(markup).toMatch(/<input id="gear-preview-drop-value"[^>]*type="number"[^>]*min="0" max="60" step="0.5"[^>]*value="10"/);
+    expect(markup).toContain('판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림');
+    expect(stageOf(markup)).toContain('data-renderer-key="1080:INFILTRATION:1067:10"');
+  });
+
+  it('주소 ?drop=0으로 열면 내리지 않은 배치(판정선 y 416·키 윗면 446.5·잘리는 행 없음)를 보여 준다', () => {
+    const markup = render('/lab/gear?drop=0');
+    expect(stageOf(markup)).toContain('data-gear-drop="0"');
     expect(markup).toContain('판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
+    expect(markup).toContain('0% (+0) · y 416');
   });
 
   it('주소 ?drop=20으로 열면 무대가 data-gear-drop="20"과 그 값을 담은 렌더러 key를 알리고, 슬라이더·숫자 입력이 20을 가리키며 판정선 y 436·키 윗면 466.5·아래 44.2행 잘림을 보여 준다', () => {
@@ -65,9 +73,9 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('아래로 원본 44.2행');
   });
 
-  it('주소 drop이 범위 밖(75)이면 60, 숫자가 아니면(abc) 0으로 연다', () => {
+  it('주소 drop이 범위 밖(75)이면 60, 숫자가 아니면(abc) 게임 값 10으로 연다', () => {
     expect(stageOf(render('/lab/gear?drop=75'))).toContain('data-gear-drop="60"');
-    expect(stageOf(render('/lab/gear?drop=abc'))).toContain('data-gear-drop="0"');
+    expect(stageOf(render('/lab/gear?drop=abc'))).toContain('data-gear-drop="10"');
   });
 
   it('내리기 양은 렌더러 생성 옵션 gearDrop으로 넘겨 바뀌면 렌더러를 새로 만들고, 주소는 방문 기록을 쌓지 않고(replace) 바꾼다', () => {
@@ -97,13 +105,14 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearGauge\b|altitudeOverride|flightAltitudeState)/);
   });
 
-  it('설명은 게임과 같은 배치 숫자(0.453배·위 141행 잘림·판정선 y 416·덱 틈 13.7·레인 끝인 키 윗면 446.5·선명도 0.82px)를 보여 주고 "가림막"이라 부르지 않는다', () => {
+  it('설명은 게임과 같은 배치 숫자(0.453배·10 내려 위 119행·아래 22.1행 잘림·판정선 y 426·덱 틈 13.7·레인 끝인 키 윗면 456.5·선명도 0.82px)를 보여 주고 "가림막"이라 부르지 않는다', () => {
     const markup = render();
     expect(markup).toContain('0.453배');
-    expect(markup).toContain('141행');
-    expect(markup).toContain('0% (+0) · y 416');
+    expect(markup).toContain('위로 원본 119행');
+    expect(markup).toContain('아래로 원본 22.1행');
+    expect(markup).toContain('0% (+0) · y 426');
     expect(markup).toContain('13.7 · 노트 두께 1.1개');
-    expect(markup).toContain('y 446.5까지 30.5 · 노트 두께 2.4개');
+    expect(markup).toContain('y 456.5까지 30.5 · 노트 두께 2.4개');
     // 키 윗면은 레인 끝(레인 내용을 자르는 곳)이다. "가림막"은 사용자 커버 기능(서든 등)에 남겨 둔다.
     expect(markup).toContain('판정선 · 키 윗면(레인 끝)');
     expect(markup).not.toContain('가림막');

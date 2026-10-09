@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   GAME_HEIGHT,
+  GEAR_DROP,
   JUDGMENT_LINE_OFFSET,
   JUDGMENT_LINE_THICKNESS,
   KEY_BOMB_SIZE,
@@ -49,15 +50,24 @@ describe('플레이필드 배율 (RFD 0029)', () => {
 });
 
 describe('판정선 기본 위치와 리프트', () => {
-  it('리프트 0%의 판정선은 화면 아래에서 184 위인 y 416', () => {
+  it('기어 없는 렌더러의 리프트 0% 판정선은 화면 아래에서 184 위인 y 416', () => {
     expect(JUDGMENT_LINE_OFFSET).toBe(184);
     expect(GAME_HEIGHT - JUDGMENT_LINE_OFFSET).toBe(416);
   });
 
-  it('높이 600 플레이 화면의 판정선 y는 리프트 0%에서 416, 4%에서 392, 10%에서 356', () => {
-    expect(judgmentLineYAtLift(0)).toBe(416);
-    expect(judgmentLineYAtLift(4)).toBe(392);
-    expect(judgmentLineYAtLift(10)).toBe(356);
+  it('게임은 기어와 판정선을 함께 10 내린다(#257): GEAR_DROP 10', () => {
+    expect(GEAR_DROP).toBe(10);
+  });
+
+  it('높이 600 플레이 화면(기어 10 내림)의 판정선 y는 리프트 0%에서 426, 4%에서 402, 10%에서 366', () => {
+    expect(judgmentLineYAtLift(0)).toBe(426);
+    expect(judgmentLineYAtLift(4)).toBe(402);
+    expect(judgmentLineYAtLift(10)).toBe(366);
+  });
+
+  it('기어 내림 양을 직접 주면 그 위치를 쓴다: 내림 0·리프트 0%면 y 416, 내림 20·리프트 4%면 y 412', () => {
+    expect(judgmentLineYAtLift(0, 0)).toBe(416);
+    expect(judgmentLineYAtLift(4, 20)).toBe(412);
   });
 
   it('리프트 1%는 화면 높이 600의 6 단위라 4%면 24, 100%면 600', () => {

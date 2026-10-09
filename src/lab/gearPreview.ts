@@ -1,7 +1,7 @@
 import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
 import { gaugeEmptyRows } from '../game/renderer/gearGauge';
 import { clampFlightAltitude } from '../game/renderer/flightAltitude';
-import { GAME_HEIGHT, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
+import { GAME_HEIGHT, GEAR_DROP, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
 
 /**
@@ -36,7 +36,8 @@ export function formatLiftPercent(percent: number): string {
 
 /**
  * 기어·판정선 내리기([#257](https://github.com/nanana3679/not4k/issues/257)): 렌더러 옵션 `gearDrop`으로 기어와 리프트 0%의 판정선을
- * 함께 내릴 양을 Lab에서 골라 본다. 게임 기본값은 아직 0이다. Lab은 0~60 논리 px를 0.5 단위로 다룬다.
+ * 함께 내릴 양을 Lab에서 시험한다. 기본은 게임 값 `GEAR_DROP`(10)이고, 주소 `drop`은 게임과 같은 절대 내림 양이다(기본값과의 차이가 아니다).
+ * Lab은 0~60 논리 px를 0.5 단위로 다룬다.
  */
 export const GEAR_DROP_MAX = 60;
 export const GEAR_DROP_STEP = 0.5;
@@ -48,16 +49,17 @@ export function clampPreviewGearDrop(value: number): number {
   return Math.min(GEAR_DROP_MAX, Math.max(0, stepped));
 }
 
-/** 주소의 `drop` 쿼리 값. 없거나 숫자가 아니면 0이다. */
+/** 주소의 `drop` 쿼리 값(절대 내림 양). 없거나 비었거나 숫자가 아니면 게임 값 `GEAR_DROP`이다. */
 export function parseGearDropParam(raw: string | null): number {
-  if (raw === null || raw.trim() === '') return 0;
-  return clampPreviewGearDrop(Number(raw));
+  if (raw === null || raw.trim() === '') return GEAR_DROP;
+  const value = Number(raw);
+  return Number.isFinite(value) ? clampPreviewGearDrop(value) : GEAR_DROP;
 }
 
-/** 내리기 양을 반영한 다음 쿼리. 다른 쿼리는 그대로 두고, 0이면 `drop`을 지워 기본 주소로 돌아간다. */
+/** 내리기 양을 반영한 다음 쿼리. 다른 쿼리는 그대로 두고, 게임 값 `GEAR_DROP`이면 `drop`을 지워 기본 주소로 돌아간다. */
 export function nextGearDropSearch(current: URLSearchParams, drop: number): URLSearchParams {
   const params = new URLSearchParams(current);
-  if (drop === 0) params.delete('drop');
+  if (drop === GEAR_DROP) params.delete('drop');
   else params.set('drop', formatGearDrop(drop));
   return params;
 }
@@ -132,11 +134,11 @@ export interface GearPreviewJudgment {
 }
 
 /**
- * 게임과 같은 판정선(리프트 0% = y 416, 기어와 함께 gearDrop만큼 내린다)과 기어 덱·키 윗면 사이 거리. 기어는 리프트로 움직이지 않는다.
+ * 게임과 같은 판정선(리프트 0% = y 416 + gearDrop, 게임 값 10이면 y 426)과 기어 덱·키 윗면 사이 거리. 기어는 리프트로 움직이지 않는다.
  * layout은 같은 gearDrop으로 만든 배치여야 한다.
  */
-export function describeGearJudgment(layout: Readonly<GearLayout>, liftPercent: number, gearDrop = 0): GearPreviewJudgment {
-  const lineY = judgmentLineYAtLift(liftPercent) + gearDrop;
+export function describeGearJudgment(layout: Readonly<GearLayout>, liftPercent: number, gearDrop: number = GEAR_DROP): GearPreviewJudgment {
+  const lineY = judgmentLineYAtLift(liftPercent, gearDrop);
   const gap = layout.deckTopY - lineY;
   const openGap = layout.keyRimY - lineY;
   return {

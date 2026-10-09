@@ -1,5 +1,5 @@
 /*
-THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
+THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·기어와 함께 10 내린 판정선 y 426·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·레인 끝(키 윗면)은 그대로인지 보고, 기어와 판정선을 함께 얼마나 내릴지(#257) 골라 주소로 남기고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
 FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·기어·판정선 내리기·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
@@ -10,7 +10,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from '../game/renderer/gearLayout';
-import { GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from '../game/renderer/constants';
+import { GAME_HEIGHT, GEAR_DROP, LANE_AREA_WIDTH, liftPx } from '../game/renderer/constants';
 import { KEYBOARD_DISPLAY_MIN_SCALE, keyboardDisplaySize, placeKeyboardDisplay } from '../game/renderer/KeyboardDisplay';
 import { createChartTiming, JudgmentGrade } from '../shared';
 import {
@@ -118,7 +118,7 @@ export default function GearPage() {
   const altitudePercent = altitudePercentOf(manualAltitude);
   const altitudeOverride = altitudeOverrideFor(altitudeFollow, manualAltitude);
   const [keyboard, setKeyboard] = useState<GearPreviewKeyboard>('tkl');
-  // 기어·판정선 내리기(#257): 고른 값은 주소 쿼리 `drop`에 두어 새로 고치거나 공유해도 남는다. 설명 숫자는 고른 값을 바로 따르고,
+  // 기어·판정선 내리기(#257): 기본은 게임 값 GEAR_DROP(10)이다. 다른 값은 주소 쿼리 `drop`(절대 내림 양)에 두어 새로 고치거나 공유해도 남는다. 설명 숫자는 고른 값을 바로 따르고,
   // 렌더러는 값이 멈춘 뒤(GEAR_DROP_SETTLE_MS) rendererDrop으로 새로 만든다(렌더러 생성 옵션 gearDrop).
   const [searchParams, setSearchParams] = useSearchParams();
   const gearDrop = parseGearDropParam(searchParams.get('drop'));
@@ -335,7 +335,7 @@ export default function GearPage() {
         </p>
         <h1>Gear</h1>
         <p className="gear-preview-lede">
-          새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면에서 끝나는 레인,
+          새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 기어와 함께 10 내린 판정선 y 426(리프트 0%), 키 윗면에서 끝나는 레인,
           오른쪽 아래 키보드 표시, 양옆 유리관 고도 게이지, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
           조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
         </p>
@@ -500,7 +500,7 @@ export default function GearPage() {
             </output>
             <p className="gear-preview-note">
               기어와 리프트 0%의 판정선을 같은 양(논리 px, 0~{GEAR_DROP_MAX}, {GEAR_DROP_STEP} 단위)만큼 함께 내립니다. 레인 끝(키 윗면)·고도 게이지·기어 움직임도 기어를 따라오고,
-              기어 아래쪽은 화면 밖으로 잘립니다. 값은 주소(?drop=)에 남아 새로 고치거나 공유해도 유지되고, 바꾸면 렌더러를 새로 만듭니다. 게임 기본값은 아직 0입니다(#257).
+              기어 아래쪽은 화면 밖으로 잘립니다. 기본은 게임 값 {GEAR_DROP}이고, 다른 값은 주소(?drop=, 게임과 같은 절대 내림 양)에 남아 새로 고치거나 공유해도 유지됩니다. 바꾸면 렌더러를 새로 만듭니다(#257).
             </p>
           </div>
           <fieldset className="gear-preview-group gear-preview-altitude">

@@ -27,7 +27,7 @@ vi.mock('./flight/FlightBackground', () => ({
 
 const { GameRenderer } = await import('./GameRenderer');
 const { GEAR_GEOMETRY, layoutGear } = await import('./gearLayout');
-const { GAME_HEIGHT, LANE_AREA_WIDTH } = await import('./constants');
+const { GAME_HEIGHT, GEAR_DROP, LANE_AREA_WIDTH } = await import('./constants');
 
 interface Scene {
   app: Application;
@@ -127,7 +127,7 @@ describe('GameRenderer gearMotion (RFD 0029)', () => {
     const [gear, holder] = scene.gearLayer.children;
     expect(gear).toBeInstanceOf(Sprite);
     expect(holder.label).toBe('gear-motion-holder');
-    const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
+    const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, drop: GEAR_DROP });
     expect([holder.x, holder.y]).toEqual([layout.x, layout.y]);
     expect(holder.scale.x).toBeCloseTo(250 / 552, 12);
     expect(renderer.gearMotion).not.toBeNull();
