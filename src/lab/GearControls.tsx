@@ -1,12 +1,14 @@
 import { GEAR_MOTION_LAYER_LABELS, GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from '../game/renderer/gearMotionData';
 
 /** Gear 조절 패널과 Pixi ↔ SVG 비교가 함께 쓰는 라디오 묶음. */
-export function RadioGroup<T extends string | number>({ legend, name, value, options, onChange }: {
+export function RadioGroup<T extends string | number>({ legend, name, value, options, onChange, note }: {
   legend: string;
   name: string;
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
+  /** 선택지 아래 안내 문장. */
+  note?: string;
 }) {
   return (
     <fieldset className="gear-preview-group">
@@ -25,6 +27,7 @@ export function RadioGroup<T extends string | number>({ legend, name, value, opt
           </label>
         ))}
       </div>
+      {note && <p className="gear-preview-note">{note}</p>}
     </fieldset>
   );
 }

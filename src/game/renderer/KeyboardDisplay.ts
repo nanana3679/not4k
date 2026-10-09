@@ -1,6 +1,6 @@
 /**
  * KeyboardDisplay — 플레이 화면 오른쪽 아래에 작은 키보드 배치를 그리고(keybinding.md "키보드 레이아웃 오버레이"),
- * 레인에 바인딩된 키를 레인 색으로 칠해 누르는 동안 밝힌다.
+ * 레인에 바인딩된 키를 금속 톤 하나로 칠해 누르는 동안만 강조색 하나로 밝힌다. 레인 색은 쓰지 않는다(#258).
  *
  * 키 그림은 setup에서 한 번만 만든다. 바인딩된 키는 대기·눌림 그림을 하나씩 두고 눌림 상태가 바뀔 때 보이는 쪽만 바꿔,
  * 키 입력마다 Graphics를 다시 그리거나 렌더 텍스처를 새로 굽지 않는다.
@@ -8,27 +8,37 @@
  */
 
 import { Container, Graphics } from "pixi.js";
-import {
-  KB_TKL_KEYS,
-  KB_NUMPAD_KEYS,
-  KB_IDLE_COLORS,
-  KB_PRESSED_COLORS,
-  KB_IDLE_FILL,
-  KB_PRESSED_FILL,
-  type KbKeyDef,
-} from "./keyboardLayout";
+import { KB_TKL_KEYS, KB_NUMPAD_KEYS, type KbKeyDef } from "./keyboardLayout";
 
 // 키 1단위 = 키 10 + 간격 1 (논리 px)
 const KB_KEY_SIZE = 10;
 const KB_KEY_GAP = 1;
 const KB_KEY_STEP = KB_KEY_SIZE + KB_KEY_GAP;
-const UNBOUND_COLOR = 0x00cccc;
 
-/** 화면 오른쪽·아래 가장자리와 키보드 사이 여백. 눌림 번짐(2)이 화면 밖으로 잘리지 않는다. */
+/**
+ * 키보드 표시의 색·투명도. 조절은 여기서만 한다(#258).
+ * PRODUCT.md "네온은 상태에만"에 따라 바인딩된 키는 레인과 무관하게 금속 톤 하나로 그리고,
+ * 누르는 동안만 네온 하나로 밝힌다. 각 `alpha`는 키 그림의 투명도이고, 화면에서는 키보드 전체 `alpha`를 곱해 보인다.
+ */
+export const KEYBOARD_DISPLAY_STYLE = {
+  /** 키보드 전체 투명도. */
+  alpha: 0.85,
+  /** 바인딩된 키(대기): 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 회색, 테두리는 조금 더 밝게. 화면 투명도 0.5 × 0.85 ≈ 0.43. */
+  bound: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
+  /**
+   * 누르는 동안: 앱 테마 네온(theme.ts `color.neon` #5ce1e6, 기어 유리관 빛과 같은 청록)으로 테두리와 바깥 번짐을 두르고
+   * 채움은 네온 위 글자색(`color.neonInk` #d8fbfd)으로 밝힌다. 번짐 폭은 KEYBOARD_DISPLAY_MARGIN(4)보다 작아야 화면 밖으로 잘리지 않는다.
+   */
+  pressed: { fill: 0xd8fbfd, stroke: 0x5ce1e6, strokeWidth: 1.5, glow: 0x5ce1e6, glowAlpha: 0.35, glowSpread: 2, alpha: 1 },
+  /** 바인딩되지 않은 키: 대기 금속 톤을 아주 흐리게. 화면 투명도 0.07 × 0.85 ≈ 0.06. */
+  unbound: { fill: 0xa9b4c2, alpha: 0.07 },
+} as const;
+
+/** 화면 오른쪽·아래 가장자리와 키보드 사이 여백. 눌림 번짐(KEYBOARD_DISPLAY_STYLE.pressed.glowSpread 2)이 화면 밖으로 잘리지 않는다. */
 export const KEYBOARD_DISPLAY_MARGIN = 4;
 /**
  * 이보다 줄여야 들어가면 숨긴다. 0.6배면 키 한 칸이 6 논리 단위(렌더 높이 720에서 화면 약 7px)이고 키 사이 간격이
- * 화면 1px 아래로 내려가기 시작해, 그보다 작으면 이웃 키와 레인 색을 구분하기 어렵다.
+ * 화면 1px 아래로 내려가기 시작해, 그보다 작으면 이웃 키를 구분하기 어렵다.
  */
 export const KEYBOARD_DISPLAY_MIN_SCALE = 0.6;
 
@@ -118,12 +128,14 @@ export class KeyboardDisplay {
       const y = def.y * KB_KEY_STEP;
       const w = Math.round((def.w ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
       const h = Math.round((def.h ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
-      const lane = laneBindings.get(def.code);
-      const idle = drawIdleKey(w, h, lane);
+      const isBound = laneBindings.has(def.code);
+      const idle = isBound ? drawBoundKey(w, h) : drawUnboundKey(w, h);
+      idle.label = `key-${def.code}`;
       idle.position.set(x, y);
       this.keyboardContainer.addChild(idle);
-      if (!lane) continue;
-      const pressed = drawPressedKey(w, h, lane);
+      if (!isBound) continue;
+      const pressed = drawPressedKey(w, h);
+      pressed.label = `key-${def.code}-pressed`;
       pressed.position.set(x, y);
       pressed.visible = false;
       this.keyboardContainer.addChild(pressed);
@@ -135,7 +147,7 @@ export class KeyboardDisplay {
     this.keyboardContainer.position.set(x, y);
     this.keyboardContainer.scale.set(scale);
     this.keyboardContainer.visible = visible;
-    this.keyboardContainer.alpha = 0.85;
+    this.keyboardContainer.alpha = KEYBOARD_DISPLAY_STYLE.alpha;
   }
 
   /** 바인딩된 키의 눌림 표시만 바꾼다. 바인딩되지 않은 키나 같은 상태는 무시한다. */
@@ -155,29 +167,34 @@ export class KeyboardDisplay {
   }
 }
 
-function drawIdleKey(width: number, height: number, lane: number | undefined): Graphics {
+function drawBoundKey(width: number, height: number): Graphics {
+  const { fill, stroke, strokeWidth, alpha } = KEYBOARD_DISPLAY_STYLE.bound;
   const graphic = new Graphics();
   graphic.roundRect(0, 0, width, height, 2);
-  if (lane) {
-    graphic.fill(KB_IDLE_FILL[lane] ?? 0xddeeff);
-    graphic.stroke({ width: 1.5, color: KB_IDLE_COLORS[lane] ?? UNBOUND_COLOR });
-    graphic.alpha = 0.5;
-  } else {
-    graphic.fill(UNBOUND_COLOR);
-    graphic.alpha = 0.15;
-  }
+  graphic.fill(fill);
+  graphic.stroke({ width: strokeWidth, color: stroke });
+  graphic.alpha = alpha;
   return graphic;
 }
 
-function drawPressedKey(width: number, height: number, lane: number): Graphics {
-  const color = KB_PRESSED_COLORS[lane] ?? 0x888888;
+function drawUnboundKey(width: number, height: number): Graphics {
+  const { fill, alpha } = KEYBOARD_DISPLAY_STYLE.unbound;
   const graphic = new Graphics();
-  // 레인 색으로 2px 번지는 빛 위에 밝은 키를 그린다.
-  graphic.roundRect(-2, -2, width + 4, height + 4, 3);
-  graphic.fill({ color, alpha: 0.3 });
   graphic.roundRect(0, 0, width, height, 2);
-  graphic.fill(KB_PRESSED_FILL[lane] ?? 0xffffff);
-  graphic.stroke({ width: 1.5, color });
-  graphic.alpha = 0.8;
+  graphic.fill(fill);
+  graphic.alpha = alpha;
+  return graphic;
+}
+
+function drawPressedKey(width: number, height: number): Graphics {
+  const { fill, stroke, strokeWidth, glow, glowAlpha, glowSpread, alpha } = KEYBOARD_DISPLAY_STYLE.pressed;
+  const graphic = new Graphics();
+  // 레인과 무관한 강조색 하나로 바깥에 번지는 빛을 깔고 그 위에 밝은 키를 그린다.
+  graphic.roundRect(-glowSpread, -glowSpread, width + glowSpread * 2, height + glowSpread * 2, 2 + glowSpread / 2);
+  graphic.fill({ color: glow, alpha: glowAlpha });
+  graphic.roundRect(0, 0, width, height, 2);
+  graphic.fill(fill);
+  graphic.stroke({ width: strokeWidth, color: stroke });
+  graphic.alpha = alpha;
   return graphic;
 }

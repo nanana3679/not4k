@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   KEYBOARD_DISPLAY_MARGIN,
   KEYBOARD_DISPLAY_MIN_SCALE,
+  KEYBOARD_DISPLAY_STYLE,
   KeyboardDisplay,
   keyboardDisplaySize,
   placeKeyboardDisplay,
@@ -93,13 +94,14 @@ describe('KeyboardDisplay', () => {
     return { parent, display };
   }
 
-  it('플레이 영역(높이 600) 오른쪽 아래에 배치 결과대로 놓고 투명도 0.85로 그린다', () => {
+  it('플레이 영역(높이 600) 오른쪽 아래에 배치 결과대로 놓고 키보드 전체 투명도 KEYBOARD_DISPLAY_STYLE.alpha(0.85)로 그린다', () => {
     const { parent, display } = setUp();
     expect(parent.children).toContain(display.container);
     expect(display.placement).toEqual({ visible: true, scale: 1, x: 859.5, y: 524.5 });
     expect([display.container.x, display.container.y, display.container.scale.x, display.container.scale.y]).toEqual([859.5, 524.5, 1, 1]);
     expect(display.container.visible).toBe(true);
-    expect(display.container.alpha).toBe(0.85);
+    expect(KEYBOARD_DISPLAY_STYLE.alpha).toBe(0.85);
+    expect(display.container.alpha).toBe(KEYBOARD_DISPLAY_STYLE.alpha);
   });
 
   it('넘버패드 키가 바인딩에 있으면 넘버패드까지 그리고, 4:3에서는 0.646배로 줄인다', () => {
@@ -145,5 +147,72 @@ describe('KeyboardDisplay', () => {
     expect(container.destroyed).toBe(true);
     expect(parent.children).not.toContain(container);
     expect(() => display.setKeyState('KeyD', true)).not.toThrow();
+  });
+});
+
+describe('KeyboardDisplay 색 — 레인 색 없이 금속 톤 하나, 누르는 동안만 강조색 하나(#258)', () => {
+  const { bound, pressed, unbound } = KEYBOARD_DISPLAY_STYLE;
+  const LANE_KEYS = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
+
+  function setUp() {
+    const display = new KeyboardDisplay(new Container());
+    display.setup(TKL_BINDINGS, area(1067));
+    return display;
+  }
+  const keyOf = (display: KeyboardDisplay, label: string) => display.container.getChildByLabel(label) as Graphics;
+  /** Graphics에 기록된 채움·테두리 순서와 색·투명도. */
+  const paintOf = (graphic: Graphics) => graphic.context.instructions.map((instruction) => {
+    const style = (instruction.data as { style: { color: number; alpha: number } }).style;
+    return { action: instruction.action, color: style.color, alpha: style.alpha };
+  });
+
+  it('레인 1~4 바인딩 키(KeyD·KeyF·KeyJ·KeyK)의 대기 그림은 레인과 무관하게 모두 같은 금속 톤(bound 채움·테두리, 키 alpha 0.5)이다', () => {
+    const display = setUp();
+    const expected = [
+      { action: 'fill', color: bound.fill, alpha: 1 },
+      { action: 'stroke', color: bound.stroke, alpha: 1 },
+    ];
+    for (const code of LANE_KEYS) {
+      const idle = keyOf(display, `key-${code}`);
+      expect(paintOf(idle)).toEqual(expected);
+      expect(idle.alpha).toBe(bound.alpha);
+      expect(idle.visible).toBe(true);
+    }
+  });
+
+  it('레인 1~4 바인딩 키를 누르면 레인과 무관하게 모두 같은 강조색(pressed 번짐·채움·테두리)으로 바뀌고 대기 그림보다 불투명하다', () => {
+    const display = setUp();
+    const expected = [
+      { action: 'fill', color: pressed.glow, alpha: pressed.glowAlpha },
+      { action: 'fill', color: pressed.fill, alpha: 1 },
+      { action: 'stroke', color: pressed.stroke, alpha: 1 },
+    ];
+    for (const code of LANE_KEYS) {
+      display.setKeyState(code, true);
+      const lit = keyOf(display, `key-${code}-pressed`);
+      expect(lit.visible).toBe(true);
+      expect(keyOf(display, `key-${code}`).visible).toBe(false);
+      expect(paintOf(lit)).toEqual(expected);
+      expect(lit.alpha).toBe(pressed.alpha);
+    }
+    expect(pressed.alpha).toBeGreaterThan(bound.alpha);
+  });
+
+  it('바인딩되지 않은 키(KeyQ·Space·F1)는 화면 투명도(키 alpha × 키보드 alpha)가 0.07 이하이고 0보다 커 흐리게나마 보인다', () => {
+    const display = setUp();
+    const effective = unbound.alpha * KEYBOARD_DISPLAY_STYLE.alpha;
+    expect(effective).toBeLessThanOrEqual(0.07);
+    expect(effective).toBeGreaterThan(0);
+    for (const code of ['KeyQ', 'Space', 'F1']) {
+      const key = keyOf(display, `key-${code}`);
+      expect(key.alpha * display.container.alpha).toBeCloseTo(effective, 12);
+      expect(paintOf(key)).toEqual([{ action: 'fill', color: unbound.fill, alpha: 1 }]);
+      expect(display.container.getChildByLabel(`key-${code}-pressed`)).toBeNull();
+    }
+  });
+
+  it('네온은 상태에만: 눌림 강조색(테두리·번짐)은 대기 금속 톤·바인딩되지 않은 키 색과 다르다', () => {
+    const neon = [pressed.stroke, pressed.glow];
+    for (const color of [bound.fill, bound.stroke, unbound.fill]) expect(neon).not.toContain(color);
   });
 });
