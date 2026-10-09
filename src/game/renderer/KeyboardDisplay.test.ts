@@ -150,7 +150,7 @@ describe('KeyboardDisplay', () => {
   });
 });
 
-describe('KeyboardDisplay 색 — 레인 1·3 은색/청록, 레인 2·4 파란색/파란 네온, 네온은 누르는 동안만(#258)', () => {
+describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 파란색/누름 하늘색, 밝은 강조는 누르는 동안만(#258)', () => {
   const { boundOdd, boundEven, pressedOdd, pressedEven, unbound } = KEYBOARD_DISPLAY_STYLE;
 
   function setUp() {
@@ -181,7 +181,7 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/청록, 레인 2·4 파란�
     expect(boundOdd.stroke).not.toBe(boundEven.stroke);
   });
 
-  it('누르면 레인 1·3(KeyD·KeyJ)은 청록(pressedOdd), 레인 2·4(KeyF·KeyK)는 흰색에 가까운 파랑(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
+  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 밝은 하늘색(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
     const display = setUp();
     type Pressed = { glow: number; glowAlpha: number; fill: number; alpha: number };
     const cases: Array<[string, Pressed]> = [['KeyD', pressedOdd], ['KeyF', pressedEven], ['KeyJ', pressedOdd], ['KeyK', pressedEven]];
@@ -199,6 +199,7 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/청록, 레인 2·4 파란�
       expect(style.alpha).toBeGreaterThan(Math.max(boundOdd.alpha, boundEven.alpha));
     }
     expect(pressedOdd.glow).not.toBe(pressedEven.glow);
+    expect(pressedOdd.fill).not.toBe(pressedEven.fill);
   });
 
   it('바인딩되지 않은 키(KeyQ·Space·F1)는 화면 투명도(키 alpha × 키보드 alpha)가 0.07 이하이고 0보다 커 흐리게나마 보인다', () => {

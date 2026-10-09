@@ -1,6 +1,6 @@
 /**
  * KeyboardDisplay — 플레이 화면 오른쪽 아래에 작은 키보드 배치를 그리고(keybinding.md "키보드 레이아웃 오버레이"),
- * 레인에 바인딩된 키를 레인 1·3(은색)과 레인 2·4(파란색) 두 계열로 칠하고 누르는 동안만 테두리 없이 밝은 색(청록·흰색에 가까운 파랑)으로 밝힌다. 레인마다 다른 색은 쓰지 않는다(#258).
+ * 레인에 바인딩된 키를 레인 1·3(은색)과 레인 2·4(파란색) 두 계열로 칠하고 누르는 동안만 테두리 없이 밝은 색(흰색·하늘색)으로 밝힌다. 레인마다 다른 색은 쓰지 않는다(#258).
  *
  * 키 그림은 setup에서 한 번만 만든다. 바인딩된 키는 대기·눌림 그림을 하나씩 두고 눌림 상태가 바뀔 때 보이는 쪽만 바꿔,
  * 키 입력마다 Graphics를 다시 그리거나 렌더 텍스처를 새로 굽지 않는다.
@@ -23,20 +23,17 @@ const KB_KEY_STEP = KB_KEY_SIZE + KB_KEY_GAP;
 export const KEYBOARD_DISPLAY_STYLE = {
   /** 키보드 전체 투명도. */
   alpha: 0.85,
-  // 바인딩된 키는 레인 1·3(은색 → 누르면 청록)과 레인 2·4(파란색 → 누르면 흰색에 가까운 파랑)를 두 계열로 나눠, 처음 보는 사람도
+  // 바인딩된 키는 레인 1·3(은색 → 누르면 흰색)과 레인 2·4(파란색 → 누르면 게이지 같은 밝은 하늘색)를 두 계열로 나눠, 처음 보는 사람도
   // 키보드만 보고 이웃 레인이 번갈아 배정된 규칙(왼손 R은 레인 3, 오른손 O는 레인 2처럼 손을 건너는 키 포함)을 알아볼 수 있게
   // 한다(#258). 대기 화면 투명도는 0.5 × 0.85 ≈ 0.43. PRODUCT.md "네온은 상태에만"에 따라 밝은 강조색은 누르는 동안만 쓴다.
   /** 레인 1·3 대기: 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 은색, 테두리는 조금 더 밝게. */
   boundOdd: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
   /** 레인 2·4 대기: 기어 파란 장갑선(중앙값 #11538c)을 어두운 배경에서 보이도록 밝힌 차분한 파란색, 테두리는 조금 더 밝게. */
   boundEven: { fill: 0x4f7fbf, stroke: 0x9cbde8, strokeWidth: 1, alpha: 0.5 },
-  /**
-   * 레인 1·3 누름: 테두리 없이 앱 테마 네온(theme.ts `color.neon` #5ce1e6, 기어 유리관 빛과 같은 청록) 바깥 번짐 위에
-   * 네온 위 글자색(`color.neonInk` #d8fbfd)으로 밝게 채운다. 번짐 폭은 KEYBOARD_DISPLAY_MARGIN(4)보다 작아야 화면 밖으로 잘리지 않는다.
-   */
-  pressedOdd: { fill: 0xd8fbfd, glow: 0x5ce1e6, glowAlpha: 0.35, glowSpread: 2, alpha: 1 },
-  /** 레인 2·4 누름: 테두리 없이 흰색에 가까운 파랑으로 채우고 옅은 파란 번짐을 두른다. 번짐 폭은 레인 1·3과 같다. */
-  pressedEven: { fill: 0xe4eeff, glow: 0x9fbfff, glowAlpha: 0.4, glowSpread: 2, alpha: 1 },
+  /** 레인 1·3 누름: 테두리 없이 흰색으로 채우고 옅은 흰빛 번짐을 두른다. 번짐 폭은 KEYBOARD_DISPLAY_MARGIN(4)보다 작아야 화면 밖으로 잘리지 않는다. */
+  pressedOdd: { fill: 0xffffff, glow: 0xeef4ff, glowAlpha: 0.35, glowSpread: 2, alpha: 1 },
+  /** 레인 2·4 누름: 테두리 없이 기어 유리관 게이지 액체(중앙값 #3cddfd, 밝은 쪽 #69f6fe)처럼 밝은 하늘색으로 채우고 같은 색 번짐을 두른다. */
+  pressedEven: { fill: 0x6ae4ff, glow: 0x3cddfd, glowAlpha: 0.4, glowSpread: 2, alpha: 1 },
   /** 바인딩되지 않은 키: 대기 금속 톤을 아주 흐리게. 화면 투명도 0.07 × 0.85 ≈ 0.06. */
   unbound: { fill: 0xa9b4c2, alpha: 0.07 },
 } as const;

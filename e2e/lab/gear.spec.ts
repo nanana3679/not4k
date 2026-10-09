@@ -532,7 +532,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 파란색으로 대기하고, 누르는 동안 KeyQ는 청록·KeyD는 흰색에 가까운 파랑으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
+  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 파란색으로 대기하고, 누르는 동안 KeyQ는 흰색·KeyD는 밝은 하늘색으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -558,10 +558,9 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     const litQ = await keyColor(keys.KeyQ);
     const litD = await keyColor(keys.KeyD);
     expect(brightness(litD) - brightness(idleD)).toBeGreaterThan(200);
-    // 둘 다 빨강보다 파랑이 밝고, 레인 1 청록은 초록이 파랑과 비슷하며 레인 2 흰빛 파랑은 파랑이 초록보다 더 밝다.
-    for (const lit of [litQ, litD]) expect(lit[2] - lit[0]).toBeGreaterThanOrEqual(15);
-    expect(litQ[1] - litQ[0]).toBeGreaterThanOrEqual(15);
-    expect((litD[2] - litD[1]) - (litQ[2] - litQ[1])).toBeGreaterThanOrEqual(10);
+    // 레인 1 흰색은 세 채널이 비슷하고, 레인 2 하늘색은 파랑이 빨강보다 확실히 밝다.
+    expect(Math.max(...litQ) - Math.min(...litQ)).toBeLessThanOrEqual(30);
+    expect(litD[2] - litD[0]).toBeGreaterThanOrEqual(60);
 
     await page.keyboard.up('KeyQ');
     await page.keyboard.up('KeyD');
