@@ -532,7 +532,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('바인딩된 키(레인 1 KeyQ·레인 2 KeyD)를 누르는 동안 키보드 표시의 두 키가 레인과 무관하게 같은 청록 강조색으로 밝아지고, 떼면 금속 톤으로 돌아온다', async ({ page }) => {
+  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 금색으로 대기하고, 누르는 동안 두 키가 레인과 무관하게 같은 청록 강조색으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -549,6 +549,8 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     const idleQ = await keyColor(keys.KeyQ);
     const idleD = await keyColor(keys.KeyD);
+    // 대기: 레인 2·4 금색은 빨강이 파랑보다 확실히 밝고, 레인 1·3 은색은 그렇지 않다.
+    expect((idleD[0] - idleD[2]) - (idleQ[0] - idleQ[2])).toBeGreaterThanOrEqual(15);
     await page.keyboard.down('KeyQ');
     await page.keyboard.down('KeyD');
     // swiftshader에서 무대 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.

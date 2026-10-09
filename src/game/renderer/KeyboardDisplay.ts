@@ -23,8 +23,13 @@ const KB_KEY_STEP = KB_KEY_SIZE + KB_KEY_GAP;
 export const KEYBOARD_DISPLAY_STYLE = {
   /** 키보드 전체 투명도. */
   alpha: 0.85,
-  /** 바인딩된 키(대기): 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 회색, 테두리는 조금 더 밝게. 화면 투명도 0.5 × 0.85 ≈ 0.43. */
-  bound: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
+  // 바인딩된 키(대기)는 레인 1·3과 레인 2·4를 두 색으로 나눠, 처음 보는 사람도 키보드만 보고 이웃 레인이 번갈아 배정된
+  // 규칙(왼손 R은 레인 3, 오른손 O는 레인 2처럼 손을 건너는 키 포함)을 알아볼 수 있게 한다(#258). 두 색 모두 기어 그림에서 뽑았고
+  // 화면 투명도는 0.5 × 0.85 ≈ 0.43이다.
+  /** 레인 1·3: 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 은색, 테두리는 조금 더 밝게. */
+  boundOdd: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
+  /** 레인 2·4: 기어 금색 장식(중앙값 #b58c56, 밝은 쪽 #cea56b)에 맞춘 금색, 테두리는 조금 더 밝게. */
+  boundEven: { fill: 0xb58c56, stroke: 0xe0bd82, strokeWidth: 1, alpha: 0.5 },
   /**
    * 누르는 동안: 앱 테마 네온(theme.ts `color.neon` #5ce1e6, 기어 유리관 빛과 같은 청록)으로 테두리와 바깥 번짐을 두르고
    * 채움은 네온 위 글자색(`color.neonInk` #d8fbfd)으로 밝힌다. 번짐 폭은 KEYBOARD_DISPLAY_MARGIN(4)보다 작아야 화면 밖으로 잘리지 않는다.
@@ -129,7 +134,8 @@ export class KeyboardDisplay {
       const w = Math.round((def.w ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
       const h = Math.round((def.h ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
       const isBound = laneBindings.has(def.code);
-      const idle = isBound ? drawBoundKey(w, h) : drawUnboundKey(w, h);
+      const lane = laneBindings.get(def.code);
+      const idle = lane !== undefined ? drawBoundKey(w, h, lane) : drawUnboundKey(w, h);
       idle.label = `key-${def.code}`;
       idle.position.set(x, y);
       this.keyboardContainer.addChild(idle);
@@ -167,8 +173,9 @@ export class KeyboardDisplay {
   }
 }
 
-function drawBoundKey(width: number, height: number): Graphics {
-  const { fill, stroke, strokeWidth, alpha } = KEYBOARD_DISPLAY_STYLE.bound;
+/** 레인 번호(1부터)가 홀수면 레인 1·3 색, 짝수면 레인 2·4 색. */
+function drawBoundKey(width: number, height: number, lane: number): Graphics {
+  const { fill, stroke, strokeWidth, alpha } = lane % 2 === 1 ? KEYBOARD_DISPLAY_STYLE.boundOdd : KEYBOARD_DISPLAY_STYLE.boundEven;
   const graphic = new Graphics();
   graphic.roundRect(0, 0, width, height, 2);
   graphic.fill(fill);
