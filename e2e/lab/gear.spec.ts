@@ -532,6 +532,50 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
+  test('키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 하늘색으로 대기하고, 누르는 동안 KeyQ는 흰색·KeyD는 더 밝은 하늘색으로 밝아지며, 떼면 대기 색으로 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    // 16:9(1067) TKL은 원래 크기로 x 859.5, y 524.5에 놓이고 키 한 칸은 11(키 10 + 간격 1)이다.
+    const keyCenter = (unitX: number, unitY: number) => ({ x: 859.5 + unitX * 11 + 5, y: 524.5 + unitY * 11 + 5 });
+    const keys = { KeyQ: keyCenter(1.5, 2.5), KeyD: keyCenter(3.75, 3.5) };
+    // 비행 배경의 빛줄기가 한 점에 겹쳐도 흔들리지 않게 키 안쪽 다섯 점의 평균을 쓴다.
+    const keyColor = async (center: { x: number; y: number }) => {
+      const offsets = [[0, 0], [-2, -2], [2, -2], [-2, 2], [2, 2]];
+      const pixels = await pixelsAt(page, offsets.map(([dx, dy]) => ({ x: center.x + dx, y: center.y + dy })));
+      return [0, 1, 2].map((channel) => pixels.reduce((sum, pixel) => sum + pixel[channel], 0) / pixels.length);
+    };
+    const brightness = (rgb: number[]) => rgb[0] + rgb[1] + rgb[2];
+
+    const idleQ = await keyColor(keys.KeyQ);
+    const idleD = await keyColor(keys.KeyD);
+    // 대기: 레인 2·4 하늘색은 파랑이 빨강보다 레인 1·3 은색보다도 확실히 더 밝다.
+    expect((idleD[2] - idleD[0]) - (idleQ[2] - idleQ[0])).toBeGreaterThanOrEqual(15);
+    await page.keyboard.down('KeyQ');
+    await page.keyboard.down('KeyD');
+    // swiftshader에서 무대 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
+    await expect.poll(async () => brightness(await keyColor(keys.KeyQ)) - brightness(idleQ), { timeout: 30_000 }).toBeGreaterThan(200);
+    const litQ = await keyColor(keys.KeyQ);
+    const litD = await keyColor(keys.KeyD);
+    expect(brightness(litD) - brightness(idleD)).toBeGreaterThan(200);
+    // 레인 1 흰색은 세 채널이 비슷하고, 레인 2 하늘색은 파랑이 빨강보다 확실히 밝다.
+    expect(Math.max(...litQ) - Math.min(...litQ)).toBeLessThanOrEqual(30);
+    expect(litD[2] - litD[0]).toBeGreaterThanOrEqual(40);
+
+    await page.keyboard.up('KeyQ');
+    await page.keyboard.up('KeyD');
+    await expect.poll(async () => Math.abs(brightness(await keyColor(keys.KeyQ)) - brightness(idleQ)), { timeout: 30_000 }).toBeLessThan(60);
+    expect(Math.abs(brightness(await keyColor(keys.KeyD)) - brightness(idleD))).toBeLessThan(60);
+
+    // 누른 채 창이 포커스를 잃으면(blur) 키를 떼지 않아도 대기 색으로 돌아온다.
+    await page.keyboard.down('KeyQ');
+    await expect.poll(async () => brightness(await keyColor(keys.KeyQ)) - brightness(idleQ), { timeout: 30_000 }).toBeGreaterThan(200);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect.poll(async () => Math.abs(brightness(await keyColor(keys.KeyQ)) - brightness(idleQ)), { timeout: 30_000 }).toBeLessThan(60);
+    await page.keyboard.up('KeyQ');
+    expect(errors).toEqual([]);
+  });
+
   test('gearMotion 에셋(/gear/gear-motion/gear-motion.json) 응답을 보류하면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 응답을 보내면 gearMotion을 추가한 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};

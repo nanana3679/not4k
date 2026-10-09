@@ -495,7 +495,14 @@ export default function GearPage() {
               슬라이더를 움직이면 그 고도로 고정해 비행 배경과 두 유리관 게이지가 함께 바뀌고, 게이지는 약 300ms에 걸쳐 따라갑니다.
             </p>
           </fieldset>
-          <RadioGroup legend="키보드 표시" name="gear-preview-keyboard" value={keyboard} options={KEYBOARD_OPTIONS} onChange={setKeyboard} />
+          <RadioGroup
+            legend="키보드 표시"
+            name="gear-preview-keyboard"
+            value={keyboard}
+            options={KEYBOARD_OPTIONS}
+            onChange={setKeyboard}
+            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다. 데모 노트 판정과 키빔은 그대로입니다."
+          />
           <fieldset className="gear-preview-group gear-preview-motion">
             <legend>움직임</legend>
             <label className="gear-preview-check gear-preview-check-master">
@@ -699,6 +706,8 @@ function GearPreviewRenderer({
     // 이 렌더러가 애니메이션 경과 시간을 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
     let reportedMotion = false;
     const restartMotion = () => renderer?.gearMotion?.restart();
+    // 키보드 표시 눌림 리스너를 뗀다. 렌더러가 준비된 뒤에 채운다.
+    let removeStageKeyListeners: (() => void) | null = null;
 
     // removeView: 정상 정리(키 변경·언마운트)는 캔버스까지 치우고, 오류일 때는 React가 소유한 캔버스를 남긴다.
     const release = (removeView = true) => {
@@ -707,6 +716,8 @@ function GearPreviewRenderer({
       reportedMotion = false;
       reportGaugeLevel(null);
       if (restart.current === restartMotion) restart.current = null;
+      removeStageKeyListeners?.();
+      removeStageKeyListeners = null;
       liveRef.current = null;
       try { renderer?.dispose(removeView); } catch (error) { console.warn('GearPage: renderer dispose failed', error); }
       renderer = null;
@@ -789,6 +800,21 @@ function GearPreviewRenderer({
         applyMotion(motionSettingsRef.current);
         liveRef.current = { applyLift, applyAltitude, applyKeyboard, applyMotion };
         restart.current = restartMotion;
+
+        // 키보드 표시 눌림: 게임처럼 바인딩된 키를 누르는 동안 그 키만 밝힌다. 데모 노트 판정·키빔에는 넣지 않는다.
+        const onStageKey = (event: KeyboardEvent) => active.setKeyState(event.code, event.type === 'keydown');
+        // 누른 채 창을 떠나면 keyup이 오지 않으므로 바인딩된 키를 모두 뗀다.
+        const releaseStageKeys = () => {
+          for (const code of keyboardRef.current.keys()) active.setKeyState(code, false);
+        };
+        window.addEventListener('keydown', onStageKey);
+        window.addEventListener('keyup', onStageKey);
+        window.addEventListener('blur', releaseStageKeys);
+        removeStageKeyListeners = () => {
+          window.removeEventListener('keydown', onStageKey);
+          window.removeEventListener('keyup', onStageKey);
+          window.removeEventListener('blur', releaseStageKeys);
+        };
 
         let startNow = performance.now();
         let previousNow = startNow;
