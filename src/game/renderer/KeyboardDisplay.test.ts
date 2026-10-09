@@ -181,24 +181,23 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/청록, 레인 2·4 파란�
     expect(boundOdd.stroke).not.toBe(boundEven.stroke);
   });
 
-  it('누르면 레인 1·3(KeyD·KeyJ)은 청록 강조색(pressedOdd), 레인 2·4(KeyF·KeyK)는 파란 강조색(pressedEven)으로 바뀌고 대기 그림보다 불투명하다', () => {
+  it('누르면 레인 1·3(KeyD·KeyJ)은 청록(pressedOdd), 레인 2·4(KeyF·KeyK)는 흰색에 가까운 파랑(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
     const display = setUp();
-    type Pressed = { glow: number; glowAlpha: number; fill: number; stroke: number; alpha: number };
+    type Pressed = { glow: number; glowAlpha: number; fill: number; alpha: number };
     const cases: Array<[string, Pressed]> = [['KeyD', pressedOdd], ['KeyF', pressedEven], ['KeyJ', pressedOdd], ['KeyK', pressedEven]];
     for (const [code, style] of cases) {
       display.setKeyState(code, true);
       const lit = keyOf(display, `key-${code}-pressed`);
       expect(lit.visible).toBe(true);
       expect(keyOf(display, `key-${code}`).visible).toBe(false);
+      // 눌린 키는 테두리 없이 번짐과 밝은 채움만 그린다.
       expect(paintOf(lit)).toEqual([
         { action: 'fill', color: style.glow, alpha: style.glowAlpha },
         { action: 'fill', color: style.fill, alpha: 1 },
-        { action: 'stroke', color: style.stroke, alpha: 1 },
       ]);
       expect(lit.alpha).toBe(style.alpha);
       expect(style.alpha).toBeGreaterThan(Math.max(boundOdd.alpha, boundEven.alpha));
     }
-    expect(pressedOdd.stroke).not.toBe(pressedEven.stroke);
     expect(pressedOdd.glow).not.toBe(pressedEven.glow);
   });
 
@@ -215,8 +214,8 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/청록, 레인 2·4 파란�
     }
   });
 
-  it('네온은 상태에만: 눌림 강조색(테두리·번짐)은 대기 금속 톤·바인딩되지 않은 키 색과 다르다', () => {
-    const neon = [pressedOdd.stroke, pressedOdd.glow, pressedEven.stroke, pressedEven.glow];
+  it('네온은 상태에만: 눌림 색(채움·번짐)은 대기 색·바인딩되지 않은 키 색과 다르다', () => {
+    const neon = [pressedOdd.fill, pressedOdd.glow, pressedEven.fill, pressedEven.glow];
     for (const color of [boundOdd.fill, boundOdd.stroke, boundEven.fill, boundEven.stroke, unbound.fill]) expect(neon).not.toContain(color);
   });
 });
