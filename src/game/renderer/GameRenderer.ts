@@ -474,8 +474,9 @@ export class GameRenderer {
   }
 
   /**
-   * (레인 영역 ± 레인 폭) × (0 ~ 레인 끝) 사각형. 레인 밖으로 가장 많이 걸치는 그림은 Grace 빛(GRACE_GLOW_PAD 8.75)이라
-   * 양옆 여유(레인 폭 62.5)가 자르지 않고 아래 경계만 자른다. 화면 폭 전체보다 좁혀 스텐실을 쓰는 픽셀 수를 줄인다.
+   * (레인 영역 ± 레인 폭) × (0 ~ 레인 끝) 사각형. 레인 밖으로 걸치는 그림(Grace 빛 GRACE_GLOW_PAD 8.75, Classic Grace 덧그림 7.5,
+   * 일부 스킨의 트릴 끝 터미널 최대 약 37.5)은 모두 양옆 여유(레인 폭 62.5) 안이라 자르지 않고 아래 경계만 자른다.
+   * 화면 폭 전체보다 좁혀 스텐실을 쓰는 픽셀 수를 줄인다. 스킨이 레인 밖으로 이보다 크게 걸치게 되면 이 여유도 넓혀야 한다.
    */
   private drawLaneEndClip(laneEndY: number): void {
     this.laneEndClip.clear();
