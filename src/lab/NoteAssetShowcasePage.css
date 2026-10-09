@@ -611,9 +611,3 @@
     gap: 8px;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .asset-lab-live-bomb {
-    display: none;
-  }
-}

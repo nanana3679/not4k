@@ -2,6 +2,12 @@
 
 이 프로젝트의 주요 변경 사항을 기록합니다.
 
+## [0.4.8.10] - 2026-10-09
+
+### Changed
+
+- Lab도 운영체제·브라우저의 모션 감소 설정(`prefers-reduced-motion`. macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과')을 읽지 않습니다. 지금까지는 이 설정이 켜져 있으면 Lab `Gear`(`/lab/gear`)가 `gearMotion`을 숨기고 멈췄고, 아래 Pixi ↔ 승인 SVG 비교의 SVG도 레이어를 숨겼으며, 노트 에셋 시연실은 레인의 키봄을 숨기고 랙의 키봄·봄 프레임을 정지 장면으로 보여 주었습니다. 이제 게임과 같이 설정과 관계없이 움직이고, Lab `Gear`의 `gearMotion`은 `움직임` 토글로만 끕니다. Lab만 쓰던 `GameRenderer.gearMotion.setReducedMotion`은 없앴습니다. 보관한 승인 SVG 파일과 그 시연 페이지(`ambient-motion.html`)는 당시 기록이라 그대로 두고, 비교 화면만 SVG를 넣을 때 그 규칙을 걷어 냅니다(RFD 0030).
+
 ## [0.4.8.9] - 2026-10-09
 
 ### Changed

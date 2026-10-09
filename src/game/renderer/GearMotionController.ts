@@ -18,20 +18,18 @@ export type GearMotionStatus = 'loading' | 'ready';
 /**
  * GameRenderer.gearMotion이 돌려주는 `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛) 조절.
  * 렌더러 init이 끝나면 `gearMotion`은 이미 `holder`에 추가돼 있다(status ready).
- * Lab 미리보기 조절 패널은 켜기·레이어·`setReducedMotion`·처음부터 재생을 쓴다. 애니메이션 경과 시간은 렌더러의 렌더 프레임 간격(renderFrame의 deltaMs)으로만 나아가므로
+ * Lab 미리보기 조절 패널은 켜기·레이어·처음부터 재생을 쓴다. 애니메이션 경과 시간은 렌더러의 렌더 프레임 간격(renderFrame의 deltaMs)으로만 나아가므로
  * 일시정지 중에는 멈춰 있다.
  */
 export interface GearMotionControls {
   readonly status: GearMotionStatus;
   /** 애니메이션 경과 시간(ms, 승인 SVG 애니메이션의 currentTime과 같은 뜻). 렌더러를 만들 때 0에서 시작한다. */
   readonly timeMs: number;
-  /** 지금 재생 중인지: `holder`에 추가했고(ready)·켜져 있고·`setReducedMotion(true)`가 아님. 이때만 렌더 프레임마다 갱신 비용이 든다. */
+  /** 지금 재생 중인지: `holder`에 추가했고(ready)·켜져 있음. 이때만 렌더 프레임마다 갱신 비용이 든다. */
   readonly running: boolean;
   /** 끄면 `gearMotion`을 숨기고 애니메이션 경과 시간을 멈춘다(객체는 남는다, Lab 토글). 게임 설정의 끄기는 렌더러를 만들 때 객체 자체를 만들지 않는다. */
   setEnabled(enabled: boolean): void;
   setLayerVisible(layer: GearMotionLayer, visible: boolean): void;
-  /** Lab 미리보기 전용(게임은 부르지 않는다, RFD 0030): `gearMotion` 레이어를 모두 숨기고 애니메이션 경과 시간을 멈춘다(정적 기어만 보임). */
-  setReducedMotion(reduced: boolean): void;
   /** 애니메이션 경과 시간을 timeMs로 옮기고 그 순간의 모습으로 맞춘다(Lab·검증 스크린샷이 광원 위치를 바로 고를 때). */
   seek(timeMs: number): void;
   /** 애니메이션 경과 시간을 0으로 되돌린다(Lab 처음부터 재생). */
@@ -60,7 +58,7 @@ const documentHidden = () => typeof document !== 'undefined' && document.hidden;
  * 에셋 lease가 준비되면 `holder`에 `gearMotion`을 추가(`addChild`)하고 ready를 이행한다. 렌더러 init은 ready를 기다리므로 곡이 시작되기 전에 추가된다.
  * 에셋을 읽지 못하거나 `gearMotion`을 만들지 못하면 lease를 release하고 ready가 그 오류로 거절된다(필수 에셋, 렌더러 init 실패로 이어진다).
  * 애니메이션 경과 시간은 advance(deltaMs)로만 나아간다. 게임 루프는 일시정지 중에 renderFrame을 부르지 않으므로 애니메이션 경과 시간도 멈춘다.
- * 큰 간격은 GEAR_MOTION_MAX_STEP_MS로 자르고, 숨은 탭·끔·`setReducedMotion(true)`(Lab 전용)에서는 나아가지 않는다.
+ * 큰 간격은 GEAR_MOTION_MAX_STEP_MS로 자르고, 숨은 탭·끔에서는 나아가지 않는다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
  * advance는 매 프레임 객체를 만들지 않는다.
  */
 export class GearMotionController implements GearMotionControls {
@@ -75,7 +73,6 @@ export class GearMotionController implements GearMotionControls {
   private currentStatus: GearMotionStatus = 'loading';
   private clockMs = 0;
   private on = true;
-  private reduced = false;
   private readonly layers: GearMotionLayerVisibility = { armor: true, gauge: true, accent: true, bar: true };
   private destroyed = false;
   private leaseReleased = false;
@@ -98,11 +95,11 @@ export class GearMotionController implements GearMotionControls {
 
   get status(): GearMotionStatus { return this.currentStatus; }
   get timeMs(): number { return this.clockMs; }
-  get running(): boolean { return this.motion !== null && this.on && !this.reduced; }
+  get running(): boolean { return this.motion !== null && this.on; }
   get gaugeFill(): Container | null { return this.motion?.gaugeFill ?? null; }
 
   /**
-   * `gearMotion`이 그리는 텍스처 9개. 재생 중(running: 추가했고·켜져 있고·`setReducedMotion(true)`가 아님)에만 돌려주고, 그 밖에는 그리지 않으므로 빈 배열이다.
+   * `gearMotion`이 그리는 텍스처 9개. 재생 중(running: 추가했고·켜져 있음)에만 돌려주고, 그 밖에는 그리지 않으므로 빈 배열이다.
    * 곡 시작 전 준비(GameRenderer.prepareForPlayback)가 미리 GPU 업로드할 목록에 넣는다. 텍스처는 공유 로더 소유다.
    */
   get textures(): readonly Texture[] { return this.running ? this.motionTextures : []; }
@@ -110,7 +107,7 @@ export class GearMotionController implements GearMotionControls {
   /** 렌더 프레임 하나만큼 애니메이션 경과 시간을 나아가게 한다(GameRenderer.renderFrame이 부른다). */
   advance(deltaMs: number): void {
     const motion = this.motion;
-    if (motion === null || !this.on || this.reduced) return;
+    if (motion === null || !this.on) return;
     if (!(deltaMs > 0) || deltaMs === Number.POSITIVE_INFINITY || this.isHidden()) return;
     this.clockMs += Math.min(GEAR_MOTION_MAX_STEP_MS, deltaMs);
     motion.update(this.clockMs);
@@ -126,14 +123,8 @@ export class GearMotionController implements GearMotionControls {
     this.motion?.setLayerVisible(layer, visible);
   }
 
-  setReducedMotion(reduced: boolean): void {
-    this.reduced = reduced;
-    this.motion?.setReducedMotion(reduced);
-  }
-
   seek(timeMs: number): void {
     this.clockMs = Number.isFinite(timeMs) ? Math.max(0, timeMs) : 0;
-    // setReducedMotion(true) 중에는 update가 아무것도 바꾸지 않는다. 풀린 뒤 다음 advance가 이 시각부터 그린다.
     this.motion?.update(this.clockMs);
   }
 
@@ -146,7 +137,7 @@ export class GearMotionController implements GearMotionControls {
    * 곡 시작 전 준비의 첫 프레임(GameRenderer.prepareForPlayback)에 쓴다.
    */
   warmUp(render: () => void): void {
-    if (this.motion && this.on && !this.reduced) this.motion.warmUp(render);
+    if (this.motion && this.on) this.motion.warmUp(render);
     else render();
   }
 
@@ -171,7 +162,6 @@ export class GearMotionController implements GearMotionControls {
     }
     for (const layer of GEAR_MOTION_LAYERS) motion.setLayerVisible(layer, this.layers[layer]);
     motion.update(this.clockMs);
-    motion.setReducedMotion(this.reduced);
     this.holder.addChild(motion.container);
     this.motion = motion;
     this.motionTextures = GEAR_MOTION_TEXTURE_KEYS.map((key) => resources.textures[key]);

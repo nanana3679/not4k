@@ -160,11 +160,3 @@
   66% { opacity: .25; transform: rotate(var(--angle)) translateY(-48px); }
   100% { opacity: 0; transform: rotate(var(--angle)) translateY(-54px); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .asset-lab-bomb-frame { animation: none; }
-  .asset-lab-bomb-frame:nth-child(4) { opacity: 1; }
-  .asset-lab-keybomb .fx { animation: none !important; opacity: 0; }
-  .asset-lab-keybomb .halo { opacity: .46; transform: scale(.78); }
-  .asset-lab-keybomb .core { opacity: .86; transform: rotate(var(--core-rotation, 0deg)) scale(.82); }
-  .asset-lab-keybomb .star { opacity: .42; transform: rotate(var(--star-rotation, 0deg)) scale(.68); }
-}

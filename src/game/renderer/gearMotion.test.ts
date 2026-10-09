@@ -271,21 +271,6 @@ describe('createGearMotion', () => {
     motion.destroy();
   });
 
-  it('setReducedMotion(true)면 gearMotion 전체가 숨고 update(30000)도 광원을 옮기지 않으며, false로 돌리면 다시 보이고 다음 update를 따른다', () => {
-    const motion = createGearMotion(data, fakeTextures());
-    motion.update(0);
-    motion.setReducedMotion(true);
-    expect(motion.reducedMotion).toBe(true);
-    expect(motion.container.visible).toBe(false);
-    motion.update(30_000);
-    expect(byLabel(motion.container, 'gear-motion-band-core').y).toBe(-841);
-    motion.setReducedMotion(false);
-    expect(motion.container.visible).toBe(true);
-    motion.update(30_000);
-    expect(byLabel(motion.container, 'gear-motion-band-core').y).toBe(768);
-    motion.destroy();
-  });
-
   it('30초 → 5초 → 30초로 갱신해도(재사용 객체에 값이 남지 않아) 마지막 30초 상태가 처음 30초 상태와 같다', () => {
     const motion = createGearMotion(data, fakeTextures());
     const snapshot = () => [

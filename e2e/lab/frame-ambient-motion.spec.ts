@@ -76,7 +76,7 @@ test("움직임 마스크는 레인(x 222–801, y 0–1094)과 버튼부(x 196�
   expect(result.barTotal).toBeGreaterThan(2000);
 });
 
-test("움직임 줄이기 설정이면 프레임 움직임 SVG의 애니메이션이 하나도 돌지 않는다", async ({ page }) => {
+test("보관한 시연 페이지 ambient-motion.html은 당시 동작 그대로 모션 감소 설정(prefers-reduced-motion: reduce)이면 애니메이션 SVG의 애니메이션이 하나도 돌지 않는다(RFD 0030 결정 5, Lab Gear 비교 화면과 다름)", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(ambientPath);
   await expect(page.locator("#viewer")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
