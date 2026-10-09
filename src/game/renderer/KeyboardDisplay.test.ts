@@ -150,7 +150,7 @@ describe('KeyboardDisplay', () => {
   });
 });
 
-describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 파란색/누름 하늘색, 밝은 강조는 누르는 동안만(#258)', () => {
+describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 하늘색/누름 더 밝은 하늘색(#258)', () => {
   const { boundOdd, boundEven, pressedOdd, pressedEven, unbound } = KEYBOARD_DISPLAY_STYLE;
 
   function setUp() {
@@ -165,7 +165,7 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 
     return { action: instruction.action, color: style.color, alpha: style.alpha };
   });
 
-  it('레인 1·3 바인딩 키(KeyD·KeyJ)는 은색(boundOdd), 레인 2·4 바인딩 키(KeyF·KeyK)는 파란색(boundEven) 대기 그림이고 키 alpha는 둘 다 0.5다', () => {
+  it('레인 1·3 바인딩 키(KeyD·KeyJ)는 은색(boundOdd), 레인 2·4 바인딩 키(KeyF·KeyK)는 하늘색(boundEven) 대기 그림이고 키 alpha는 둘 다 0.5다', () => {
     const display = setUp();
     const cases: Array<[string, { fill: number; stroke: number; alpha: number }]> = [['KeyD', boundOdd], ['KeyF', boundEven], ['KeyJ', boundOdd], ['KeyK', boundEven]];
     for (const [code, style] of cases) {
@@ -181,7 +181,7 @@ describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 
     expect(boundOdd.stroke).not.toBe(boundEven.stroke);
   });
 
-  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 밝은 하늘색(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
+  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 대기보다 더 밝은 하늘색(pressedEven)으로 테두리 없이 바뀌고 대기 그림보다 불투명하다', () => {
     const display = setUp();
     type Pressed = { glow: number; glowAlpha: number; fill: number; alpha: number };
     const cases: Array<[string, Pressed]> = [['KeyD', pressedOdd], ['KeyF', pressedEven], ['KeyJ', pressedOdd], ['KeyK', pressedEven]];
