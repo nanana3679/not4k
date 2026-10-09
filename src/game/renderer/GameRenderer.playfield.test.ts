@@ -64,7 +64,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까지 그린다 (RFD 0029)', () => {
+describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는 틈을 다 지날 때까지 그린다 (RFD 0029, #247)', () => {
   // 1000ms(2박)의 2번 레인 싱글을 놓친 것으로 표시한다. 노트 박스 가운데가 시각 위치다(#224).
   const missedSingle = async (options: Parameters<typeof createRenderer>[0] = {}) => {
     const { renderer, scene } = await createRenderer(options);
@@ -136,6 +136,25 @@ describe('놓친 노트는 판정선 아래 보이는 틈을 다 지날 때까�
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
     renderer.renderFrame(1900);
+    expect(noteSprites(scene)).toHaveLength(0);
+  });
+
+  // 기어가 없는 렌더러(튜토리얼 재생기)의 레인 끝은 판정선 416 + 노트 반 칸 6.25 = 422.25다.
+  // 스크롤 20px/s면 박스 윗변이 레인 끝에 닿는 시간은 (6.25 + 6.25) / 20 = 625ms로, 최소 500ms보다 길다.
+  it('기어 없는 렌더러(레인 끝 422.25)에서 스크롤 20px/s면 600ms 늦은 놓친 노트는 박스 윗변 421.75가 레인 끝 위라 계속 그린다', async () => {
+    const { renderer, scene } = await missedSingle({ showGear: false });
+    renderer.scrollSpeed = 20;
+    renderer.renderFrame(1600);
+    const [note] = noteSprites(scene);
+    expect(note).toBeDefined();
+    expect(note.y).toBe(421.75);
+  });
+
+  it('기어 없는 렌더러에서 같은 조건으로 630ms 늦어 박스 윗변 422.35가 레인 끝 422.25 아래로 내려가면 더 그리지 않는다', async () => {
+    const { renderer, scene } = await missedSingle({ showGear: false });
+    renderer.scrollSpeed = 20;
+    expect(416 + 0.02 * 630 - NOTE_HEIGHT / 2).toBeGreaterThan(422.25);
+    renderer.renderFrame(1630);
     expect(noteSprites(scene)).toHaveLength(0);
   });
 });

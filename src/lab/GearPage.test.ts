@@ -62,13 +62,16 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearGauge\b|altitudeOverride|flightAltitudeState)/);
   });
 
-  it('설명은 게임과 같은 배치 숫자(0.453배·위 141행 잘림·판정선 y 416·덱 틈 13.7·키 윗면 446.5·선명도 0.82px)를 보여 준다', () => {
+  it('설명은 게임과 같은 배치 숫자(0.453배·위 141행 잘림·판정선 y 416·덱 틈 13.7·레인 끝인 키 윗면 446.5·선명도 0.82px)를 보여 주고 "가림막"이라 부르지 않는다', () => {
     const markup = render();
     expect(markup).toContain('0.453배');
     expect(markup).toContain('141행');
     expect(markup).toContain('0% (+0) · y 416');
     expect(markup).toContain('13.7 · 노트 두께 1.1개');
     expect(markup).toContain('y 446.5까지 30.5 · 노트 두께 2.4개');
+    // 키 윗면은 레인 끝(레인 내용을 자르는 곳)이다. "가림막"은 사용자 커버 기능(서든 등)에 남겨 둔다.
+    expect(markup).toContain('판정선 · 키 윗면(레인 끝)');
+    expect(markup).not.toContain('가림막');
     expect(markup).toContain('원본 1px → 화면 0.82px (축소)');
     expect(markup).toContain('원래 크기 · 오른쪽 아래');
   });
@@ -90,7 +93,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).toContain('active.gearMotion');
     expect(pageSource).toContain('active.setupKeyboardDisplay(');
     // 게임 렌더러의 private 필드를 꺼내 쓰지 않는다.
-    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearLayer|maskGraphic|_judgmentLineY|gearMotionController)/);
+    expect(pageSource).not.toMatch(/as unknown as \{[^}]*(gearLayer|laneContentLayer|laneEndClip|_judgmentLineY|gearMotionController)/);
   });
 
   it('gearMotion 에셋은 게임과 같은 공유 로더(acquireGearMotionAssets)로 페이지가 lease를 한 번 acquire해 비교 화면에 넘기고, Lab 경로의 gearMotion 에셋을 읽지 않는다', () => {

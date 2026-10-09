@@ -265,3 +265,113 @@ test.describe('Tutorial level tabs', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
+
+interface LaneEndProbe {
+  /** 레인 끝 아래로 내려간 노트를 본 렌더 프레임 수 */
+  frames: number;
+  /** 그 프레임들에서 레인 끝 아래(키캡·키봄·글자 밖) 노트 자리를 검사한 픽셀 수와, 캔버스 바탕색과의 최대 채널 차이 */
+  checkedBelow: number;
+  worstBelow: number;
+  /** 레인 끝 바로 위 레인 열(레인 배경·노트)이 바탕색과 다른 정도. 검사 방법이 실제 픽셀을 읽는지 확인한다 */
+  bestAbove: number;
+}
+
+test.describe('튜토리얼 재생기 레인 끝 클립 (#247)', () => {
+  test.setTimeout(120_000);
+
+  test('기어 없는 재생기에서 놓친 노트가 판정선을 지나 레인 끝(판정선 + 노트 반 칸) 아래로 내려가도 레인 끝 아래 노트 자리는 키캡·키봄·판정 글자 밖에서 캔버스 바탕색 그대로(채널 차 8 이하)이고, 레인 끝 바로 위 레인 열은 레인 배경으로 보인다', async ({ page }) => {
+    const dialog = await openTutorial(page);
+    await expect(dialog.locator('[data-tutorial-preview-slot="active"] [data-tutorial-preview-canvas="true"]')).toBeVisible();
+    // 재생기에는 테스트 훅이 없으므로 실제 GameRenderer.renderFrame을 감싸, 그린 직후(같은 task라 드로잉 버퍼가 남아 있다)
+    // 레인 끝 아래로 내려간 노트 자리의 픽셀을 gl.readPixels로 읽는다. 실제 WebGL 스텐실이 필요해 vitest로는 확인할 수 없다.
+    await page.evaluate(async () => {
+      // Vite HMR은 재생기가 가져오는 모듈에 ?t=를 붙일 수 있다. 같은 소스를 별도 URL로 import하면 다른 class를 계측하게 된다.
+      const rendererUrl = performance.getEntriesByType('resource').map(entry => entry.name)
+        .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts');
+      if (!rendererUrl) throw new Error('튜토리얼 재생기가 로드한 GameRenderer 모듈을 찾을 수 없습니다');
+      const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererUrl);
+      type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+      type Child = { visible: boolean; getBounds(): Bounds };
+      type Layer = { children: Child[] };
+      type Internals = {
+        app: { canvas: HTMLCanvasElement; renderer: { gl: WebGLRenderingContext; resolution: number } };
+        width: number; height: number;
+        skinManager: { getTheme(): { bg: number } };
+        laneEndY(): number;
+        noteLayer: Layer; longNoteHeadLayer: Layer; longNoteEndLayer: Layer; longNoteBodyLayer: Layer;
+        laneKeyLabelLayer: Layer; effectLayer: Layer; uiLayer: Layer; tutorialKeyboardLayer: Layer;
+      };
+      const probe = { frames: 0, checkedBelow: 0, worstBelow: 0, bestAbove: 0 };
+      (globalThis as typeof globalThis & { __laneEndProbe: typeof probe }).__laneEndProbe = probe;
+      const original = GameRenderer.prototype.renderFrame;
+      GameRenderer.prototype.renderFrame = function (songTimeMs, deltaMs) {
+        original.call(this, songTimeMs, deltaMs);
+        const self = this as unknown as Internals;
+        if (!self.app?.canvas?.closest('[data-tutorial-preview-slot="active"][data-tutorial-preview-id="advanced-partial-double"]')) return;
+        const laneEnd = self.laneEndY();
+        const passed: Bounds[] = [];
+        for (const layer of [self.noteLayer, self.longNoteHeadLayer, self.longNoteEndLayer, self.longNoteBodyLayer]) {
+          for (const child of layer.children) {
+            if (!child.visible) continue;
+            const bounds = child.getBounds();
+            if (bounds.maxY > laneEnd + 4) passed.push(bounds);
+          }
+        }
+        if (passed.length === 0) return;
+        // 클립 밖(stage)에 그리는 레인 키캡·키봄·판정 글자·키보드 strip은 레인 끝 아래에도 보이는 게 맞으므로 검사에서 뺀다.
+        const overlays: Bounds[] = [];
+        for (const layer of [self.laneKeyLabelLayer, self.effectLayer, self.uiLayer, self.tutorialKeyboardLayer]) {
+          for (const child of layer.children) if (child.visible) overlays.push(child.getBounds());
+        }
+        const covered = (x: number, y: number) => overlays.some(o => x >= o.minX - 1 && x <= o.maxX + 1 && y >= o.minY - 1 && y <= o.maxY + 1);
+        const { gl, resolution } = self.app.renderer;
+        const width = gl.drawingBufferWidth;
+        const height = gl.drawingBufferHeight;
+        const pixels = new Uint8Array(width * height * 4);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        const bg = self.skinManager.getTheme().bg;
+        const bgRgb = [(bg >> 16) & 0xff, (bg >> 8) & 0xff, bg & 0xff];
+        const differenceAt = (x: number, y: number) => {
+          const i = ((height - 1 - y) * width + x) * 4;
+          return Math.max(...bgRgb.map((value, channel) => Math.abs(pixels[i + channel] - value)));
+        };
+        probe.frames++;
+        for (const bounds of passed) {
+          const left = Math.ceil(Math.max(0, bounds.minX) * resolution) + 1;
+          const right = Math.floor(Math.min(self.width, bounds.maxX) * resolution) - 1;
+          // 레인 끝 아래: 경계 반올림을 피해 레인 끝 1 아래부터 노트 아래끝(플레이 영역 안)까지
+          const belowTop = Math.ceil((Math.max(bounds.minY, laneEnd) + 1) * resolution);
+          const belowBottom = Math.floor(Math.min(bounds.maxY, self.height) * resolution) - 1;
+          for (let y = belowTop; y <= belowBottom; y++) {
+            for (let x = left; x <= right; x++) {
+              if (covered((x + 0.5) / resolution, (y + 0.5) / resolution)) continue;
+              probe.checkedBelow++;
+              probe.worstBelow = Math.max(probe.worstBelow, differenceAt(x, y));
+            }
+          }
+        }
+        // 레인 끝 바로 위(레인 끝 3~1 위) 레인 열: 레인 배경이나 노트라 바탕색과 달라야 한다.
+        for (let y = Math.ceil((laneEnd - 3) * resolution); y <= Math.floor((laneEnd - 1) * resolution); y++) {
+          for (let x = 0; x < Math.floor(self.width * resolution); x++) {
+            if (covered((x + 0.5) / resolution, (y + 0.5) / resolution)) continue;
+            probe.bestAbove = Math.max(probe.bestAbove, differenceAt(x, y));
+          }
+        }
+      };
+    });
+
+    await selectTab(dialog, 'Advanced');
+    await choose(dialog, 'advanced-partial-double');
+    const readProbe = () => page.evaluate(() => (globalThis as typeof globalThis & { __laneEndProbe: LaneEndProbe }).__laneEndProbe);
+    // 시연은 더블 시작에서 한 키만 눌러 다른 쪽을 Miss로 두므로, 루프마다 놓친 노트가 판정선 아래로 내려간다.
+    await expect.poll(async () => {
+      const probe = await readProbe();
+      return probe.frames >= 3 && probe.checkedBelow > 0;
+    }, { timeout: 60_000 }).toBe(true);
+    const probe = await readProbe();
+    // 레인 끝 아래 노트 자리는 캔버스 바탕색(채널 차 8 이하)이다. 지금은 클립이, 예전에는 불투명 사각형이 노트를 가렸다.
+    expect(probe.worstBelow, `레인 끝 아래 ${probe.checkedBelow}픽셀의 바탕색 최대 차이`).toBeLessThanOrEqual(8);
+    // 검사 방법이 실제 픽셀을 읽는지: 레인 끝 바로 위 레인 열은 레인 배경(0x202038·0x26263f)이라 바탕색과 20 넘게 다르다.
+    expect(probe.bestAbove).toBeGreaterThan(20);
+  });
+});

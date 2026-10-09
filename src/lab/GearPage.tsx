@@ -1,7 +1,7 @@
 /*
-THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면부터 가림막)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
+THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·판정선 y 416·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
-STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·가림막은 그대로인지 보고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
+STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·레인 끝(키 윗면)은 그대로인지 보고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
 FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정적 합성 이미지를 만들지 않는다.
 */
@@ -314,7 +314,7 @@ export default function GearPage() {
         </p>
         <h1>Gear</h1>
         <p className="gear-preview-lede">
-          새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면부터 덮는 레인 가림막,
+          새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 판정선 y 416(리프트 0%), 키 윗면에서 끝나는 레인,
           오른쪽 아래 키보드 표시, 양옆 유리관 고도 게이지, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
           조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
         </p>
@@ -410,7 +410,7 @@ export default function GearPage() {
                 <dd>{judgment.gap.toFixed(1)} · 노트 두께 {judgment.gapNotes.toFixed(1)}개</dd>
               </div>
               <div>
-                <dt>판정선 · 키 윗면(가림막)</dt>
+                <dt>판정선 · 키 윗면(레인 끝)</dt>
                 <dd>y {judgment.keyRimY.toFixed(1)}까지 {judgment.openGap.toFixed(1)} · 노트 두께 {judgment.openGapNotes.toFixed(1)}개</dd>
               </div>
               <div>
@@ -454,7 +454,7 @@ export default function GearPage() {
               onChange={(event) => setLiftPercent(clampLiftPercent(Number(event.currentTarget.value)))}
             />
             <p className="gear-preview-note">
-              게임 설정의 리프트와 같은 값(1% = 6 단위)입니다. 판정선과 딸린 표시만 올라가고 기어와 레인 가림막은 움직이지 않습니다.
+              게임 설정의 리프트와 같은 값(1% = 6 단위)입니다. 판정선과 딸린 표시만 올라가고 기어와 레인 끝(키 윗면)은 움직이지 않습니다.
               게임 설정은 0~100%를 허용하지만 여기서는 0~{LIFT_PERCENT_MAX}%만 봅니다.
             </p>
           </div>
@@ -646,7 +646,7 @@ function useDevicePixelRatio(): number {
 /**
  * 실제 GameRenderer 하나의 수명. key가 바뀌면(렌더 높이·장면·논리 폭) 캔버스째 새로 만든다.
  * 비행 배경 DOM은 캔버스 앞 형제로 들어가므로, 캔버스 크기와 같은 위치 지정 래퍼에 캔버스만 둔다.
- * 기어·레인·판정선·가림막·키보드 표시는 게임 렌더러가 그대로 그리고, 노트는 정해 둔 데모 판정(buildGearPreviewSchedule)대로
+ * 기어·레인(레인 끝 클립 포함)·판정선·키보드 표시는 게임 렌더러가 그대로 그리고, 노트는 정해 둔 데모 판정(buildGearPreviewSchedule)대로
  * 맞히거나 놓친 것처럼 표시한다. `gearMotion`은 렌더러가 내장하며(게임과 같음), 이 컴포넌트는 공개 gearMotion API로 조절만 한다.
  */
 function GearPreviewRenderer({
@@ -783,7 +783,7 @@ function GearPreviewRenderer({
           missed: loopState.missed,
           songMs: Math.max(0, loopState.previousMs),
         });
-        // 리프트는 판정선과 딸린 표시만 옮긴다. 기어와 레인 가림막은 그대로다.
+        // 리프트는 판정선과 딸린 표시만 옮긴다. 기어와 레인 끝은 그대로다.
         const applyLift = (nextLift: number) => {
           active.setLift(nextLift);
           publishView();
@@ -900,7 +900,7 @@ function GearPreviewRenderer({
     };
   }, []);
 
-  // 리프트: 판정선·콤보/정확도·판정 글자·노트 판정 위치는 setLift가 옮긴다. 기어와 가림막은 움직이지 않는다.
+  // 리프트: 판정선·콤보/정확도·판정 글자·노트 판정 위치는 setLift가 옮긴다. 기어와 레인 끝은 움직이지 않는다.
   useEffect(() => {
     liveRef.current?.applyLift(lift);
   }, [lift]);

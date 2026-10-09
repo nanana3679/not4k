@@ -2,7 +2,7 @@
  * 새 기어(스킨 공통 `gearImage`, public/gear/gear.png)의 배치([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  *
  * 기어는 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 겹치고, 실루엣 아래끝을 화면 아래에 붙인다.
- * 리프트와 무관하게 고정이며, 레인 가림막은 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다.
+ * 리프트와 무관하게 고정이며, 레인은 키 윗면(열린 덱 바닥 바로 아래)에서 끝난다(렌더러의 레인 끝 `laneEndY`).
  * 측정값의 원본은 `gearGeometry.json` 하나다. 생성기 `prepare-frame-fit-v20.mjs`가 그림(기어·고도 게이지 빈 유리)과 함께 만들고 Lab도 이 파일을 읽는다.
  */
 
@@ -116,7 +116,7 @@ export interface GearLayout {
   height: number;
   /** 덱 첫 행의 위 가장자리. 판정선은 선 두께까지 이보다 위에 있어야 기둥 모서리에 가리지 않는다. */
   deckTopY: number;
-  /** 키 윗면 테두리(laneOpeningBottom + 1행 위 가장자리). 레인 가림막이 여기서 시작한다. */
+  /** 키 윗면 테두리(laneOpeningBottom + 1행 위 가장자리). 레인이 여기서 끝난다(렌더러의 레인 끝 `laneEndY`). */
   keyRimY: number;
   /** 실루엣 왼쪽·오른쪽 가장자리의 논리 x. */
   silhouetteLeftX: number;

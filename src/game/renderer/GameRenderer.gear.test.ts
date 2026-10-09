@@ -3,15 +3,24 @@ import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource 
 import { GameRenderer } from './GameRenderer';
 import gameRendererSource from './GameRenderer.ts?raw';
 import { GEAR_GEOMETRY, layoutGear } from './gearLayout';
-import { GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from './constants';
+import { COLORS, GAME_HEIGHT, LANE_AREA_WIDTH, liftPx } from './constants';
 import type { SkinManager } from '../skin';
 
 interface Scene {
   app: Application;
-  maskGraphic: Graphics;
+  laneContentLayer: Container;
+  restZoneLayer: Container;
+  keyBeamLayer: Container;
+  measureLineLayer: Container;
+  trillZoneLayer: Container;
+  longNoteBodyLayer: Container;
+  longNoteEndLayer: Container;
+  longNoteHeadLayer: Container;
+  noteLayer: Container;
   judgmentLineGraphic: Graphics;
   gearLayer: Container;
   laneKeyLabelLayer: Container;
+  tutorialKeyboardLayer: Container;
   effectLayer: Container;
   uiLayer: Container;
   backgroundLayer: Container;
@@ -52,6 +61,10 @@ async function createRenderer({ width = 1067, showGear = true }: { width?: numbe
 
 const stageFor = (width: number) => ({ laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
 const boundsOf = (graphic: Graphics) => graphic.getLocalBounds();
+/** 레인 내용 컨테이너에 건 클립 사각형(`laneContentLayer.mask`). */
+const laneClipOf = (scene: Scene) => scene.laneContentLayer.mask as Graphics;
+/** 레인 배경·구분선을 그린 Graphics(backgroundLayer의 유일한 자식). */
+const laneBackgroundOf = (scene: Scene) => scene.backgroundLayer.children[0] as Graphics;
 
 afterEach(() => {
   for (const renderer of created.splice(0)) (renderer as unknown as Scene).app.stage.destroy({ children: true });
@@ -80,24 +93,53 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(renderer.gearLayout!.keyRimY.toFixed(1)).toBe('446.5');
   });
 
-  it('기어 레이어는 레인 가림막·판정선·레인 키 라벨 위, 키봄·UI 아래에 있다', async () => {
+  it('기어 레이어는 레인 내용(laneContentLayer)·판정선·레인 키 라벨 위, 키봄·UI 아래에 있다', async () => {
     const { scene } = await createRenderer();
     const order = (child: Container) => scene.app.stage.getChildIndex(child);
-    expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.maskGraphic));
+    expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.laneContentLayer));
     expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.judgmentLineGraphic));
     expect(order(scene.gearLayer)).toBeGreaterThan(order(scene.laneKeyLabelLayer));
     expect(order(scene.gearLayer)).toBeLessThan(order(scene.effectLayer));
     expect(order(scene.gearLayer)).toBeLessThan(order(scene.uiLayer));
   });
 
-  it('레인 가림막은 판정선(y 416)이 아니라 키 윗면 y 446.5부터 화면 아래까지 레인 영역 폭 250을 덮는다', async () => {
+  it('휴지 구간·키빔·마디선·트릴 구간·롱노트 바디·끝·머리·노트 레이어 8개는 이 순서로 laneContentLayer 하나에 들어 있고, 레인 배경·판정선·레인 키 라벨·튜토리얼 키보드·기어·키봄·UI는 그 밖 stage에 있다', async () => {
+    const { scene } = await createRenderer();
+    expect(scene.laneContentLayer.parent).toBe(scene.app.stage);
+    expect(scene.laneContentLayer.children).toEqual([
+      scene.restZoneLayer, scene.keyBeamLayer, scene.measureLineLayer, scene.trillZoneLayer,
+      scene.longNoteBodyLayer, scene.longNoteEndLayer, scene.longNoteHeadLayer, scene.noteLayer,
+    ]);
+    for (const outside of [
+      scene.backgroundLayer, scene.judgmentLineGraphic, scene.laneKeyLabelLayer, scene.tutorialKeyboardLayer,
+      scene.gearLayer, scene.effectLayer, scene.uiLayer,
+    ]) {
+      expect(outside.parent).toBe(scene.app.stage);
+    }
+    const order = (child: Container) => scene.app.stage.getChildIndex(child);
+    expect(order(scene.laneContentLayer)).toBeGreaterThan(order(scene.backgroundLayer));
+    expect(order(scene.laneContentLayer)).toBeLessThan(order(scene.judgmentLineGraphic));
+  });
+
+  it('기어가 있으면 laneContentLayer.mask는 y 0부터 레인 끝 = 키 윗면 y 446.5까지 화면 폭 전체(0~1067)를 덮는 Graphics 사각형이고, stage에 있지만 화면에 그리지 않는다', async () => {
     const { renderer, scene } = await createRenderer();
     expect(renderer.judgmentLineY).toBe(416);
-    const mask = boundsOf(scene.maskGraphic);
-    expect(mask.minY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
-    expect(mask.minY.toFixed(1)).toBe('446.5');
-    expect(mask.maxY).toBe(600);
-    expect([mask.minX, mask.maxX]).toEqual([408.5, 658.5]);
+    const clip = laneClipOf(scene);
+    expect(clip).toBeInstanceOf(Graphics);
+    expect(clip.parent).toBe(scene.app.stage);
+    expect(clip.includeInBuild).toBe(false);
+    const bounds = boundsOf(clip);
+    expect(bounds.maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
+    expect(bounds.maxY.toFixed(1)).toBe('446.5');
+    expect([bounds.minX, bounds.minY, bounds.maxX]).toEqual([0, 0, 1067]);
+  });
+
+  it('기어가 있으면 레인 배경·구분선(backgroundLayer)은 y 0부터 레인 끝 446.5까지만 레인 영역 폭 250(408.5~658.5)으로 그린다', async () => {
+    const { renderer, scene } = await createRenderer();
+    const lane = boundsOf(laneBackgroundOf(scene));
+    expect(lane.minY).toBe(0);
+    expect(lane.maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
+    expect([lane.minX, lane.maxX]).toEqual([408.5, 658.5]);
   });
 
   it('판정선은 y 416을 중심으로 두께 2.5(414.75~417.25)로 그린다', async () => {
@@ -107,11 +149,13 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect([line.minX, line.maxX]).toEqual([408.5, 658.5]);
   });
 
-  it('리프트 4%(24)는 판정선·콤보·정확도 글자만 24 올리고 기어와 레인 가림막은 그대로 둔다', async () => {
+  it('리프트 4%(24)는 판정선·콤보·정확도 글자만 24 올리고 기어·레인 끝 클립(446.5)·레인 배경은 그대로 둔다', async () => {
     const { renderer, scene } = await createRenderer();
     const [gear] = scene.gearLayer.children as Sprite[];
     const gearBefore = [gear.x, gear.y];
-    const maskBefore = boundsOf(scene.maskGraphic);
+    const clip = laneClipOf(scene);
+    const clipBefore = boundsOf(clip);
+    const laneBefore = boundsOf(laneBackgroundOf(scene));
     const comboBefore = scene.comboText.y;
     const accuracyBefore = scene.accuracyText.y;
 
@@ -122,7 +166,9 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(scene.comboText.y).toBe(comboBefore - 24);
     expect(scene.accuracyText.y).toBe(accuracyBefore - 24);
     expect([gear.x, gear.y]).toEqual(gearBefore);
-    expect(boundsOf(scene.maskGraphic)).toEqual(maskBefore);
+    expect(laneClipOf(scene)).toBe(clip);
+    expect(boundsOf(clip)).toEqual(clipBefore);
+    expect(boundsOf(laneBackgroundOf(scene))).toEqual(laneBefore);
   });
 
   it('콤보 글자(75px)는 판정선 175 위, 정확도 글자(12.5px)는 112.5 위에 놓인다', async () => {
@@ -151,18 +197,30 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect([overlay.x, overlay.y, overlay.scale.x, overlay.scale.y]).toEqual([layout!.x, layout!.y, layout!.scale, layout!.scale]);
   });
 
-  it('showGear=false면 기어를 그리지 않고 gearLayout·addGearOverlay는 null이며 가림막은 판정 순간 노트 칸 아래끝(판정선 416 + 노트 반 칸 6.25 = 422.25)부터 덮는다', async () => {
+  it('showGear=false면 기어를 그리지 않고 gearLayout·addGearOverlay는 null이며 레인 끝은 판정 순간 노트 칸 아래끝(판정선 416 + 노트 반 칸 6.25 = 422.25)이라 클립과 레인 배경이 422.25에서 끝난다', async () => {
     const { renderer, scene } = await createRenderer({ showGear: false });
     expect(renderer.gearLayout).toBeNull();
     expect(scene.gearLayer.children).toHaveLength(0);
     expect(renderer.addGearOverlay(new Container())).toBeNull();
-    expect(boundsOf(scene.maskGraphic).minY).toBe(422.25);
+    expect(boundsOf(laneClipOf(scene)).maxY).toBe(422.25);
+    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(422.25);
   });
 
-  it('기어가 없는 미니 렌더러는 리프트 4%면 가림막도 판정선을 따라 24 올라가 398.25부터 덮는다', async () => {
+  it('기어가 없는 미니 렌더러는 리프트 4%면 레인 끝도 판정선을 따라 24 올라가 같은 클립 사각형과 레인 배경이 398.25에서 끝난다', async () => {
     const { renderer, scene } = await createRenderer({ showGear: false });
+    const clip = laneClipOf(scene);
     renderer.setLift(liftPx(4));
-    expect(boundsOf(scene.maskGraphic).minY).toBe(398.25);
+    expect(laneClipOf(scene)).toBe(clip);
+    expect(boundsOf(clip).maxY).toBe(398.25);
+    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(398.25);
+    expect(scene.backgroundLayer.children).toHaveLength(1);
+  });
+
+  it('판정선 아래 레인을 덮던 불투명 사각형(maskGraphic·drawMask·laneMaskTop·COLORS.MASK_BELOW_JUDGMENT)은 남지 않는다', () => {
+    for (const old of ['maskGraphic', 'drawMask', 'laneMaskTop', 'MASK_BELOW_JUDGMENT']) {
+      expect(gameRendererSource, old).not.toContain(old);
+    }
+    expect(COLORS).not.toHaveProperty('MASK_BELOW_JUDGMENT');
   });
 
   it('G 키 기어 조정 모드와 RFD 0029 전 옛 기둥 게이지(분리 게이지 텍스처 gearGaugeLeft·gearGaugeRight와 렌더 텍스처 방식)는 없다', () => {

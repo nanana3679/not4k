@@ -40,7 +40,7 @@ export function noteBoxTopY(timeY: number, noteHeight: number = NOTE_HEIGHT): nu
 /**
  * 리프트 0%의 판정선 높이(화면 아래에서). y 416은 기어 덱 위끝(y 429.7)보다 노트 두께 약 1배(틈 13.7) 위로,
  * 사용자가 Lab 미리보기에서 고른 위치다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
- * 리프트(`liftPx`)는 여기서 판정선과 딸린 표시만 올리고 기어·레인 가림막은 움직이지 않는다.
+ * 리프트(`liftPx`)는 여기서 판정선과 딸린 표시만 올리고 기어·레인 끝은 움직이지 않는다.
  */
 export const JUDGMENT_LINE_OFFSET = 184;
 /** 판정선 두께. 미리보기(게임 화면 전체를 1/1.6로 줄임)에서 보인 두께(설계값 4 → 2.5)와 같다. */
@@ -105,6 +105,4 @@ export const COLORS = {
   GRACE_GLOW_PAD: playfieldPx(14),
   GRACE_OUTLINE: 0xffffff,
   GRACE_OUTLINE_WIDTH: playfieldPx(2),
-
-  MASK_BELOW_JUDGMENT: 0x04060c,
 } as const;

@@ -12,14 +12,14 @@ describe('GameRenderer 레인 키 라벨', () => {
     expect(gameRendererSource).toContain('this.buildLaneKeyLabels()');
   });
 
-  it('laneKeyLabelLayer는 마스크보다 위·effectLayer(bomb)보다 아래에 addChild 되어 마스크엔 안 가리고 bomb엔 가림', () => {
-    const maskIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.maskGraphic)');
+  it('laneKeyLabelLayer는 laneContentLayer(레인 끝 클립)와 별개로 그 위·effectLayer(bomb)보다 아래에 stage에 addChild 되어 레인 끝 아래 밴드에서 잘리지 않고 bomb엔 가림', () => {
+    const laneContentIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.laneContentLayer)');
     const labelLayerIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.laneKeyLabelLayer)');
     const effectIndex = gameRendererSource.indexOf('this.app.stage.addChild(this.effectLayer)');
-    expect(maskIndex).toBeGreaterThan(-1);
+    expect(laneContentIndex).toBeGreaterThan(-1);
     expect(labelLayerIndex).toBeGreaterThan(-1);
     expect(effectIndex).toBeGreaterThan(-1);
-    expect(labelLayerIndex).toBeGreaterThan(maskIndex);
+    expect(labelLayerIndex).toBeGreaterThan(laneContentIndex);
     expect(labelLayerIndex).toBeLessThan(effectIndex);
   });
 
