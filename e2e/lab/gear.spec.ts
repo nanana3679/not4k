@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { GEAR_OFFSET_Y } from '../../src/game/renderer/constants';
 
 // 기어 측정값(prepare-frame-fit-v20.mjs → src/game/renderer/gearGeometry.json). 미리보기는 실제 게임 렌더러 배치를 그대로 알린다.
 const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/renderer/gearGeometry.json', import.meta.url)), 'utf8')) as {
@@ -8,9 +9,10 @@ const geometry = JSON.parse(readFileSync(fileURLToPath(new URL('../../src/game/r
   laneOpening: { rows: [number, number, number][] };
 };
 const laneWindow = geometry.laneRight - geometry.laneLeft + 1;
-// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600, 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래에 붙인다.
+// 레인 영역 250(플레이필드 배율 0.625), 논리 높이 600. 게임은 기어 실루엣 아래끝(silhouetteBottom + 1행)을 화면 아래보다
+// GEAR_OFFSET_Y(10, #257)만큼 아래에 두고 판정선도 같은 양만큼 내린다.
 const scale = 250 / laneWindow;
-const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale;
+const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale + GEAR_OFFSET_Y;
 const deckTopY = gearTop + geometry.deckTop * scale;
 const keyRimY = gearTop + (geometry.laneOpeningBottom + 1) * scale;
 const stageSelector = '[data-gear-preview-stage="true"]';
@@ -120,6 +122,61 @@ async function setAltitude(page: Page, percent: number) {
   await expect(stage).toHaveAttribute('data-gear-gauge-level', (percent / 100).toFixed(3), { timeout: 5000 });
 }
 
+/** 기어·판정선 y 오프셋 슬라이더에 값을 넣고 input 이벤트를 보낸다(끄는 동작 한 번). */
+async function inputGearOffsetY(page: Page, value: number) {
+  await page.evaluate((value) => {
+    const slider = document.getElementById('gear-preview-offset-y') as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(slider, String(value));
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+/**
+ * 슬라이더 입력과 그 직후의 이동을 한 번의 evaluate(같은 작업) 안에서 한다. 두 호출로 나누면 그 사이 메인 스레드가 200ms 넘게
+ * 막힐 때(swiftshader 렌더러 생성) 타이머가 먼저 울려 결과가 시간에 따라 달라진다.
+ */
+async function inputGearOffsetYThenNavigate(page: Page, value: number, navigation: { back: true } | { push: string }) {
+  await page.evaluate(({ value, navigation }) => {
+    const slider = document.getElementById('gear-preview-offset-y') as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(slider, String(value));
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    if ('back' in navigation) {
+      history.back();
+    } else {
+      history.pushState(null, '', navigation.push);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  }, { value, navigation });
+}
+
+/** 페이지를 다시 읽지 않고 바깥에서 주소를 바꾼다: 방문 기록에 url을 넣고 popstate를 보내 라우터와 페이지가 주소를 다시 읽게 한다. */
+async function pushExternalUrl(page: Page, url: string) {
+  await page.evaluate((url) => {
+    history.pushState(null, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, url);
+}
+
+/** 슬라이더 값, 주소 쿼리, 렌더러에 넘긴 값(무대 data-gear-offset-y). */
+async function gearOffsetYState(page: Page) {
+  return page.evaluate(() => ({
+    slider: (document.getElementById('gear-preview-offset-y') as HTMLInputElement).value,
+    search: location.search,
+    stage: document.querySelector('[data-gear-preview-stage="true"]')!.getAttribute('data-gear-offset-y'),
+  }));
+}
+
+/** 페이지가 부르는 history.replaceState 수를 센다. */
+async function countReplaceState(page: Page) {
+  await page.addInitScript(() => {
+    const counter = { replace: 0 };
+    (window as typeof window & { __replaceCalls: typeof counter }).__replaceCalls = counter;
+    const replace = history.replaceState.bind(history);
+    history.replaceState = (...args: Parameters<History['replaceState']>) => { counter.replace += 1; replace(...args); };
+  });
+  return () => page.evaluate(() => (window as typeof window & { __replaceCalls: { replace: number } }).__replaceCalls.replace);
+}
+
 // 두 유리관 가운데 열(왼쪽 172, 반전한 오른쪽 851)의 표본 행. 채움 구간은 196~1016행(821행)이다.
 const TUBE_COLUMNS = [172, 851];
 const isEmptyGlass = ([r, g, b]: number[]) => b < 70 && g < 50 && r < 40;
@@ -175,28 +232,30 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     });
   }
 
-  test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 판정선 y 416·덱 위끝 429.7·키 윗면 446.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
+  test('게임 렌더러가 레인 창(408.5~658.5)을 레인 영역 250에 맞춰 기어를 놓고 기어와 함께 10 내린 판정선 y 426·덱 위끝 439.7·키 윗면 456.5를 알리며 놓친 노트 수가 는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await expect(stage).toHaveAttribute('data-lane-window', '408.50-658.50');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '416.0');
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '10');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '426.0');
     expect(await numberAttribute(page, 'data-deck-top-y')).toBeCloseTo(deckTopY, 1);
     expect(await numberAttribute(page, 'data-key-rim-y')).toBeCloseTo(keyRimY, 1);
-    await expect(stage).toHaveAttribute('data-deck-top-y', '429.7');
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-deck-top-y', '439.7');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     expect(await numberAttribute(page, 'data-gear-top')).toBeCloseTo(gearTop, 1);
     expect(await numberAttribute(page, 'data-gear-scale')).toBeCloseTo(scale, 5);
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('height', '1080');
     await expect(page.locator('.gear-preview-readout')).toContainText('원본 1px → 화면 0.82px (축소)');
-    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 416');
-    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(레인 끝\)\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
+    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 426');
+    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(레인 끝\)\s*y 456\.5까지 30\.5 · 노트 두께 2\.4개/);
+    await expect(page.locator('[data-gear-offset-y-readout]')).toHaveText('+10 논리 px(+가 아래) · 판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림');
     await expect.poll(async () => numberAttribute(page, 'data-missed-count'), { timeout: 15000 }).toBeGreaterThan(0);
     expect(errors).toEqual([]);
   });
 
-  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 392로 움직이며 기어 위치와 덱·키 윗면은 그대로다', async ({ page }) => {
+  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 426에서 402로 움직이며 기어 위치와 덱·키 윗면(456.5)은 그대로다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -210,12 +269,232 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     await lift.fill('4');
     await expect(stage).toHaveAttribute('data-lift-percent', '4');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '392.0');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '402.0');
     await expect(stage).toHaveAttribute('data-gear-top', topBefore!);
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     await expect(stage).toHaveAttribute('data-renderer-key', key!);
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('data-probe', 'first');
-    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+24) · y 392');
+    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+24) · y 402');
+    expect(errors).toEqual([]);
+  });
+
+  test('주소 offsetY는 절대값이라 ?offsetY=0이면 y 오프셋 없는 배치(판정선 y 416·키 윗면 446.5)이고, ?offsetY=20이면 판정선 y·키 윗면 y·기어 위끝이 그보다 20 아래(436.0·466.5)이며 화면 아래로 원본 44.2행이 잘린다고 보여 준다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear?offsetY=0');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '0');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '416.0');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(page.locator('[data-gear-offset-y-readout]')).toHaveText('0 논리 px(+가 아래) · 판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
+    const baseLine = await numberAttribute(page, 'data-judgment-line-y');
+    const baseRim = await numberAttribute(page, 'data-key-rim-y');
+    const baseTop = await numberAttribute(page, 'data-gear-top');
+
+    await page.goto('/lab/gear?offsetY=20');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '20');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '436.0');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '466.5');
+    expect(await numberAttribute(page, 'data-judgment-line-y') - baseLine).toBeCloseTo(20, 5);
+    expect(await numberAttribute(page, 'data-key-rim-y') - baseRim).toBeCloseTo(20, 5);
+    expect(await numberAttribute(page, 'data-gear-top') - baseTop).toBeCloseTo(20, 1);
+    await expect(page.locator('#gear-preview-offset-y')).toHaveValue('20');
+    await expect(page.locator('#gear-preview-offset-y-value')).toHaveValue('20');
+    await expect(page.locator('[data-gear-offset-y-readout]')).toHaveText('+20 논리 px(+가 아래) · 판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림');
+    await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 436');
+    expect(errors).toEqual([]);
+  });
+
+  test('기어·판정선 y 오프셋은 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?offsetY=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 ?offsetY=0, 10이면 offsetY가 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab');
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    const keyBefore = await stage.getAttribute('data-renderer-key');
+    const slider = page.locator('#gear-preview-offset-y');
+    await expect(slider).toHaveValue('10');
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '10');
+    expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect((await page.locator('#gear-preview-offset-y-value').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(slider).toHaveAttribute('max', '60');
+    await expect(slider).toHaveAttribute('step', '0.5');
+
+    await slider.fill('12.5');
+    await expect(page).toHaveURL(/\/lab\/gear\?offsetY=12\.5$/);
+    await expect(page.locator('#gear-preview-offset-y-value')).toHaveValue('12.5');
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '12.5');
+    await expect(stage).not.toHaveAttribute('data-renderer-key', keyBefore!);
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '428.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
+
+    await page.locator('#gear-preview-lift').fill('4');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '404.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
+
+    await page.locator('#gear-preview-offset-y-value').fill('0');
+    await expect(page).toHaveURL(/\/lab\/gear\?offsetY=0$/);
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '0');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+
+    await page.locator('#gear-preview-offset-y-value').fill('10');
+    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '10');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
+    // 주소를 바꿔 썼으므로(replace) 뒤로 가기는 Lab 목록으로 돌아간다.
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lab$/);
+    expect(errors).toEqual([]);
+  });
+
+  test('기어·판정선 y 오프셋 슬라이더에 입력 이벤트 250개를 몰아 보내도 주소는 값이 멈춘 뒤 한 번만 바꿔 써(history.replaceState 2번 이하) 브라우저의 History API 호출 한도에 걸리지 않고, 마지막 값 33이 주소·무대에 남는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    // 페이지가 부르는 history.replaceState·pushState 수를 센다(Firefox는 10초에 약 200번, Safari는 약 100번을 넘으면 SecurityError를 던진다).
+    await page.addInitScript(() => {
+      const counts = { replace: 0, push: 0 };
+      (window as typeof window & { __historyCalls: typeof counts }).__historyCalls = counts;
+      const replace = history.replaceState.bind(history);
+      const push = history.pushState.bind(history);
+      history.replaceState = (...args: Parameters<History['replaceState']>) => { counts.replace += 1; replace(...args); };
+      history.pushState = (...args: Parameters<History['pushState']>) => { counts.push += 1; push(...args); };
+    });
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const before = await page.evaluate(() => ({ ...(window as typeof window & { __historyCalls: { replace: number; push: number } }).__historyCalls }));
+
+    // 끄는 것처럼 0 → 60 → 0 …으로 250번 바꾸고 10번마다 한 번 양보해 React가 커밋하게 한 뒤, 마지막에 33을 넣는다.
+    await page.evaluate(async () => {
+      const slider = document.getElementById('gear-preview-offset-y') as HTMLInputElement;
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      for (let k = 0; k < 250; k++) {
+        const step = k % 121;
+        setValue.call(slider, String((step <= 60 ? step : 120 - step) * 0.5));
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        if (k % 10 === 9) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      setValue.call(slider, '33');
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // 숫자 입력과 설명은 값이 멈추기 전에도 바로 따른다.
+    await expect(page.locator('#gear-preview-offset-y-value')).toHaveValue('33');
+    await expect(page).toHaveURL(/\/lab\/gear\?offsetY=33$/);
+    await expect(page.locator(stageSelector)).toHaveAttribute('data-gear-offset-y', '33');
+    await page.waitForTimeout(500);
+    const after = await page.evaluate(() => ({ ...(window as typeof window & { __historyCalls: { replace: number; push: number } }).__historyCalls }));
+    expect(after.replace - before.replace).toBeLessThanOrEqual(2);
+    expect(after.push - before.push).toBe(0);
+    await waitForRenderer(page);
+    await expect(page.locator(stageSelector)).toHaveAttribute('data-judgment-line-y', '449.0');
+    expect(errors).toEqual([]);
+  });
+
+  test('주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 기어·판정선 y 오프셋 값이 주소를 따라 슬라이더·숫자 입력·무대가 함께 바뀐다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '10');
+
+    // 페이지를 다시 읽지 않는 이동: 방문 기록에 ?offsetY=20을 넣고 popstate를 보내 라우터가 주소를 다시 읽게 한다.
+    await page.evaluate(() => {
+      history.pushState(null, '', '/lab/gear?offsetY=20');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page.locator('#gear-preview-offset-y')).toHaveValue('20');
+    await expect(page.locator('#gear-preview-offset-y-value')).toHaveValue('20');
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '20');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '436.0');
+
+    // 뒤로 가기: 쿼리 없는 /lab/gear로 돌아오면 게임 값 10으로 돌아간다.
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lab\/gear$/);
+    await expect(page.locator('#gear-preview-offset-y')).toHaveValue('10');
+    await expect(stage).toHaveAttribute('data-gear-offset-y', '10');
+    await waitForRenderer(page);
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '426.0');
+    expect(errors).toEqual([]);
+  });
+
+  // 아래 세 테스트는 주소·슬라이더·무대 data-gear-offset-y만 보므로 렌더러(WebGL) 준비를 기다리지 않는다(같은 시나리오를 Firefox에서도 돌릴 수 있다).
+  test('값이 멈추기 전(200ms 안)에 뒤로 가기로 다른 값의 기록(?offsetY=20)으로 가면 남은 값 25를 주소에 쓰지 않고 20을 따르며, 앞으로 가기는 ?offsetY=40, 같은 값 20을 고른 채 뒤로 가도 20이다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear?offsetY=20');
+    await page.locator('#gear-preview-offset-y').waitFor();
+    await pushExternalUrl(page, '/lab/gear?offsetY=40');
+    await expect.poll(() => gearOffsetYState(page)).toEqual({ slider: '40', search: '?offsetY=40', stage: '40' });
+
+    // 렌더러를 새로 만드는 동안(swiftshader) 메인 스레드가 막혀 타이머가 늦을 수 있어 멈춘 상태를 기다린 뒤, 그 뒤에도 주소가 덮이지 않았는지 본다.
+    const settledAt = async (expected: { slider: string; search: string; stage: string }) => {
+      await expect.poll(() => gearOffsetYState(page), { timeout: 10000 }).toEqual(expected);
+      await page.waitForTimeout(400);
+      expect(await gearOffsetYState(page)).toEqual(expected);
+    };
+    const historyLength = await page.evaluate(() => history.length);
+    await inputGearOffsetYThenNavigate(page, 25, { back: true });
+    await settledAt({ slider: '20', search: '?offsetY=20', stage: '20' });
+    await page.evaluate(() => history.forward());
+    await settledAt({ slider: '40', search: '?offsetY=40', stage: '40' });
+
+    await inputGearOffsetYThenNavigate(page, 20, { back: true });
+    await settledAt({ slider: '20', search: '?offsetY=20', stage: '20' });
+    await page.evaluate(() => history.forward());
+    await settledAt({ slider: '40', search: '?offsetY=40', stage: '40' });
+    // 이동 사이에 기록을 더하지 않았다.
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    expect(errors).toEqual([]);
+  });
+
+  for (const destination of ['?offsetY=20', '?offsetY=20.0']) {
+    test(`?offsetY=20에서 33으로 바꾸고 값이 멈추기 전에 같은 값의 주소(${destination})로 이동하면 남은 33을 그 기록에 덮어쓰지 않고(replaceState 0번) 20을 따른다`, async ({ page }) => {
+      const errors = collectErrors(page);
+      const replaceCalls = await countReplaceState(page);
+      await page.goto('/lab/gear?offsetY=20');
+      await page.locator('#gear-preview-offset-y').waitFor();
+      await expect.poll(() => gearOffsetYState(page)).toEqual({ slider: '20', search: '?offsetY=20', stage: '20' });
+      const before = await replaceCalls();
+
+      await inputGearOffsetYThenNavigate(page, 33, { push: `/lab/gear${destination}` });
+      await page.waitForTimeout(600);
+      expect(await gearOffsetYState(page)).toEqual({ slider: '20', search: destination, stage: '20' });
+      expect(await replaceCalls()).toBe(before);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('값이 멈춰 주소를 ?offsetY=30으로 바꿔 쓴 바로 다음(같은 작업)에 뒤로 가기가 그 쓰기를 앞지르면 ?offsetY=20 기록을 따르고(무대도 20), 앞으로 가기로 돌아온 기록은 쓴 값 30 그대로이며 덮어쓰지 않는다', async ({ page }) => {
+    const errors = collectErrors(page);
+    const replaceCalls = await countReplaceState(page);
+    await page.goto('/lab/gear?offsetY=20');
+    await page.locator('#gear-preview-offset-y').waitFor();
+    await pushExternalUrl(page, '/lab/gear?offsetY=40');
+    await expect.poll(() => gearOffsetYState(page)).toEqual({ slider: '40', search: '?offsetY=40', stage: '40' });
+
+    // 페이지의 다음 replaceState(값이 멈춘 뒤 주소 쓰기) 바로 뒤에 같은 작업에서 뒤로 가기를 부른다. react-router가 위치 갱신을
+    // startTransition으로 미루므로 쓴 위치(?offsetY=30)는 그리지 않고 지나갈 수 있다.
+    await page.evaluate(() => {
+      const original = history.replaceState.bind(history);
+      history.replaceState = (...args: Parameters<History['replaceState']>) => {
+        original(...args);
+        history.replaceState = original;
+        history.back();
+      };
+    });
+    await inputGearOffsetY(page, 30);
+    await expect.poll(() => gearOffsetYState(page), { timeout: 5000 }).toEqual({ slider: '20', search: '?offsetY=20', stage: '20' });
+    await page.waitForTimeout(500);
+    expect(await gearOffsetYState(page)).toEqual({ slider: '20', search: '?offsetY=20', stage: '20' });
+    const afterBack = await replaceCalls();
+
+    await page.evaluate(() => history.forward());
+    await expect.poll(() => gearOffsetYState(page)).toEqual({ slider: '30', search: '?offsetY=30', stage: '30' });
+    await page.waitForTimeout(500);
+    expect(await gearOffsetYState(page)).toEqual({ slider: '30', search: '?offsetY=30', stage: '30' });
+    expect(await replaceCalls()).toBe(afterBack);
     expect(errors).toEqual([]);
   });
 
@@ -454,7 +733,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-stage-width', '1400');
     await waitForRenderer(page);
     await expect(stage).toHaveAttribute('data-lane-window', '575.00-825.00');
-    await expect(stage).toHaveAttribute('data-key-rim-y', '446.5');
+    await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     const hostBox = (await page.locator('.gear-preview-canvas-host').boundingBox())!;
     expect(Math.abs(hostBox.width - 1400)).toBeLessThan(1);
     expect(Math.abs(hostBox.height - 600)).toBeLessThan(1);

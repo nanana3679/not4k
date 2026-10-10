@@ -76,7 +76,7 @@ _Avoid_: 정확도
 _Avoid_: 난이도 등급
 
 **오디오 오프셋**:
-출력 장치의 소리 지연을 보정하기 위해 음악 재생 기준을 이동시키는 설정이다.
+출력 장치의 소리 지연을 보정하기 위해 음악 재생 기준을 이동시키는 설정이다(`audioOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#오디오-오프셋-audio-offset).
 _Avoid_: 판정 오프셋
 
 **`gameplayRange`** (구 표기: 인게임 구간):
@@ -84,8 +84,12 @@ _Avoid_: 판정 오프셋
 _Avoid_: 프리뷰 구간
 
 **입력 오프셋**:
-입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다.
+입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다(`judgmentOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#입력-오프셋-judgment-offset).
 _Avoid_: 오디오 오프셋
+
+**오프셋 구분**:
+오디오·입력 오프셋(시간, ms)과 판정선 오프셋·기어 y 오프셋(화면 위치, 논리 px)은 기준과 부호가 다른 별개의 값이라, 어느 오프셋인지 이름을 붙여 쓴다. 표는 [glossary](../../docs/context/glossary.md#오프셋-구분).
+_Avoid_: 이름 없는 "오프셋"
 
 **`GameClock`**:
 한 플레이 세션의 시간 권위이다. "지금 몇 ms인가"를 의미에 따라 세 타임라인으로 답한다 — **판정 시간**(게임 로직이 쓰는 순수 클럭), **시각 시간**(판정 시간 + 오디오 출력 지연), **입력 시간**(판정 시간 − 핸들러 지연 + **입력 오프셋**). offset 합성을 단독으로 소유하며, 게임 상태(노트·점수·일시정지)는 갖지 않는다(의존은 game → `GameClock` 단방향). 일시정지·재생배속·**`gameplayRange`** 클램프는 오디오 클럭에서 상속한다. 설계 배경은 `../../docs/spec/audio-visual-sync.md`를 따른다.
@@ -112,7 +116,7 @@ _Avoid_: 리프트
 _Avoid_: 달성률
 
 **기어**:
-플레이 화면에서 레인 영역을 둘러싼 장식 그림과 그 위의 `gearMotion`(장식 애니메이션)·유리관 게이지·키 덱이다. 레인 창을 레인 영역에 맞추고 화면 아래에 고정한다(설정 `Gear Motion`으로 `gearMotion`을 끈다). 레인은 키 윗면(레인 끝 `laneEndY`)에서 끝난다. 양옆 유리관 게이지는 비행 배경과 같은 `altitude`를 두 유리관에 아래 기준 채움으로 보여 준다(약 300ms에 걸쳐 따라가고 색은 바꾸지 않는다). 풀 정의는 [glossary](../../docs/context/glossary.md#기어-gear), 배치는 [RFD 0029](../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)를 따른다.
+플레이 화면에서 레인 영역을 둘러싼 장식 그림과 그 위의 `gearMotion`(장식 애니메이션)·유리관 게이지·키 덱이다. 레인 창을 레인 영역에 맞추고, 판정선과 함께 화면 아래보다 기어 y 오프셋 `GEAR_OFFSET_Y`(10, +가 아래)만큼 내려 고정한다(설정 `Gear Motion`으로 `gearMotion`을 끈다). 레인은 키 윗면(레인 끝 `laneEndY`)에서 끝난다. 양옆 유리관 게이지는 비행 배경과 같은 `altitude`를 두 유리관에 아래 기준 채움으로 보여 준다(약 300ms에 걸쳐 따라가고 색은 바꾸지 않는다). 풀 정의는 [glossary](../../docs/context/glossary.md#기어-gear), 배치는 [RFD 0029](../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)를 따른다.
 _Avoid_: 프레임(화면 한 장과 헷갈림)
 
 **`flightRule`**:
