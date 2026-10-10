@@ -191,7 +191,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('height', '1080');
     await expect(page.locator('.gear-preview-readout')).toContainText('원본 1px → 화면 0.82px (축소)');
     await expect(page.locator('.gear-preview-readout')).toContainText('0% (+0) · y 416');
-    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(가림막\)\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
+    await expect(page.locator('.gear-preview-readout')).toContainText(/판정선 · 키 윗면\(레인 끝\)\s*y 446\.5까지 30\.5 · 노트 두께 2\.4개/);
     await expect.poll(async () => numberAttribute(page, 'data-missed-count'), { timeout: 15000 }).toBeGreaterThan(0);
     expect(errors).toEqual([]);
   });

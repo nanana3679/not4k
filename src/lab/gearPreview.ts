@@ -79,7 +79,7 @@ export interface GearPreviewJudgment {
   /** 판정선 가운데와 덱 위끝 사이 틈, 노트 두께 배수. */
   gap: number;
   gapNotes: number;
-  /** 레인 가림막이 시작하는 키 윗면 y와, 판정선에서 그곳까지 레인이 보이는 거리·노트 두께 배수. */
+  /** 레인 끝인 키 윗면 y와, 판정선에서 그곳까지 레인이 보이는 거리·노트 두께 배수. */
   keyRimY: number;
   openGap: number;
   openGapNotes: number;
@@ -109,7 +109,7 @@ export function describeGear(layout: Readonly<GearLayout>, geometry: GearGeometr
   return `원본 ${geometry.width}×${geometry.height}을 ${layout.scale.toFixed(3)}배로 줄여 레인 창(${geometry.laneLeft}~${geometry.laneRight}열)을 `
     + `레인 영역 ${laneAreaWidth}에 맞추고, 실루엣 아래끝(${geometry.silhouetteBottom}행)을 화면 아래에 붙여 고정합니다. `
     + `위로 원본 ${hiddenRows}행만 잘리고 게이지·덱·하단 바는 모두 보입니다. 덱 위끝은 y ${layout.deckTopY.toFixed(1)}, `
-    + `레인 가림막이 시작하는 키 윗면은 y ${layout.keyRimY.toFixed(1)}입니다.`;
+    + `레인이 끝나는 키 윗면은 y ${layout.keyRimY.toFixed(1)}입니다.`;
 }
 
 /** 원본 1px이 실제 화면 픽셀 몇 개로 그려지는지(배율 × 해상도) 한 줄로 쓴다. */
