@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   GAME_HEIGHT,
-  GEAR_DROP,
+  GEAR_OFFSET_Y,
   JUDGMENT_LINE_OFFSET,
   JUDGMENT_LINE_THICKNESS,
   KEY_BOMB_SIZE,
@@ -55,8 +55,8 @@ describe('판정선 기본 위치와 리프트', () => {
     expect(GAME_HEIGHT - JUDGMENT_LINE_OFFSET).toBe(416);
   });
 
-  it('게임은 기어와 판정선을 함께 10 내린다(#257): GEAR_DROP 10', () => {
-    expect(GEAR_DROP).toBe(10);
+  it('게임은 기어와 판정선을 함께 10 내린다(#257): GEAR_OFFSET_Y 10', () => {
+    expect(GEAR_OFFSET_Y).toBe(10);
   });
 
   it('높이 600 플레이 화면(기어 10 내림)의 판정선 y는 리프트 0%에서 426, 4%에서 402, 10%에서 366', () => {
@@ -65,7 +65,7 @@ describe('판정선 기본 위치와 리프트', () => {
     expect(judgmentLineYAtLift(10)).toBe(366);
   });
 
-  it('기어 내림 양을 직접 주면 그 위치를 쓴다: 내림 0·리프트 0%면 y 416, 내림 20·리프트 4%면 y 412', () => {
+  it('기어 y 오프셋을 직접 주면 그 위치를 쓴다: y 오프셋 0·리프트 0%면 y 416, y 오프셋 20·리프트 4%면 y 412', () => {
     expect(judgmentLineYAtLift(0, 0)).toBe(416);
     expect(judgmentLineYAtLift(4, 20)).toBe(412);
   });

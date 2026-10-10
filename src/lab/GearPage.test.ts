@@ -17,7 +17,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     for (const attribute of [
       'data-render-height="1080"', 'data-scenario="INFILTRATION"', 'data-view="fit"', 'data-renderer-ready="false"',
       'data-lift-percent="0"', 'data-keyboard="tkl"', 'data-keyboard-visible="true"', 'data-keyboard-scale="1.000"',
-      'data-stage-width="1067"', 'data-fullscreen="off"', 'data-gear-drop="10"',
+      'data-stage-width="1067"', 'data-fullscreen="off"', 'data-gear-offset-y="10"',
     ]) expect(stage).toContain(attribute);
     const checkedValues = (markup.match(/<input[^>]*>/g) ?? [])
       .filter((input) => input.includes('type="radio"') && input.includes('checked=""'))
@@ -43,30 +43,30 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toMatch(/<input id="gear-preview-lift" type="range" min="0" max="10" step="1" value="0"\/>/);
   });
 
-  it('기어·판정선 내리기는 0~60을 0.5 단위로 다루는 슬라이더와 숫자 입력이고, 주소에 drop이 없으면 게임 값 10에서 시작해(렌더러 key도 10) 옆에 판정선 y 426·키 윗면 456.5·틈 30.5·아래 22.1행 잘림을 보여 준다', () => {
+  it('기어·판정선 y 오프셋은 0~60을 0.5 단위로 다루는 슬라이더와 숫자 입력이고, 주소에 offsetY가 없으면 게임 값 10에서 시작해(렌더러 key도 10) 옆에 판정선 y 426·키 윗면 456.5·틈 30.5·아래 22.1행 잘림을 보여 준다', () => {
     const markup = render();
-    expect(markup).toContain('<label for="gear-preview-drop">기어·판정선 내리기</label>');
-    expect(markup).toMatch(/<input id="gear-preview-drop" type="range" min="0" max="60" step="0.5" value="10"\/>/);
-    expect(markup).toMatch(/<input id="gear-preview-drop-value"[^>]*type="number"[^>]*min="0" max="60" step="0.5"[^>]*value="10"/);
-    expect(markup).toContain('판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림');
+    expect(markup).toContain('<label for="gear-preview-offset-y">기어·판정선 y 오프셋</label>');
+    expect(markup).toMatch(/<input id="gear-preview-offset-y" type="range" min="0" max="60" step="0.5" value="10"\/>/);
+    expect(markup).toMatch(/<input id="gear-preview-offset-y-value"[^>]*type="number"[^>]*min="0" max="60" step="0.5"[^>]*value="10"/);
+    expect(markup).toContain('+10 논리 px(+가 아래) · 판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림');
     expect(stageOf(markup)).toContain('data-renderer-key="1080:INFILTRATION:1067:10"');
   });
 
-  it('주소 ?drop=0으로 열면 내리지 않은 배치(판정선 y 416·키 윗면 446.5·잘리는 행 없음)를 보여 준다', () => {
-    const markup = render('/lab/gear?drop=0');
-    expect(stageOf(markup)).toContain('data-gear-drop="0"');
-    expect(markup).toContain('판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
+  it('주소 ?offsetY=0으로 열면 내리지 않은 배치(판정선 y 416·키 윗면 446.5·잘리는 행 없음)를 보여 준다', () => {
+    const markup = render('/lab/gear?offsetY=0');
+    expect(stageOf(markup)).toContain('data-gear-offset-y="0"');
+    expect(markup).toContain('0 논리 px(+가 아래) · 판정선 y 416 · 키 윗면 y 446.5 · 틈 30.5 · 아래로 잘리는 행 없음');
     expect(markup).toContain('0% (+0) · y 416');
   });
 
-  it('주소 ?drop=20으로 열면 무대가 data-gear-drop="20"과 그 값을 담은 렌더러 key를 알리고, 슬라이더·숫자 입력이 20을 가리키며 판정선 y 436·키 윗면 466.5·아래 44.2행 잘림을 보여 준다', () => {
-    const markup = render('/lab/gear?drop=20');
+  it('주소 ?offsetY=20으로 열면 무대가 data-gear-offset-y="20"과 그 값을 담은 렌더러 key를 알리고, 슬라이더·숫자 입력이 20을 가리키며 판정선 y 436·키 윗면 466.5·아래 44.2행 잘림을 보여 준다', () => {
+    const markup = render('/lab/gear?offsetY=20');
     const stage = stageOf(markup);
-    expect(stage).toContain('data-gear-drop="20"');
+    expect(stage).toContain('data-gear-offset-y="20"');
     expect(stage).toMatch(/data-renderer-key="1080:INFILTRATION:1067:20"/);
-    expect(markup).toMatch(/<input id="gear-preview-drop" type="range" min="0" max="60" step="0.5" value="20"\/>/);
-    expect(markup).toMatch(/<input id="gear-preview-drop-value"[^>]*value="20"/);
-    expect(markup).toContain('판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림');
+    expect(markup).toMatch(/<input id="gear-preview-offset-y" type="range" min="0" max="60" step="0.5" value="20"\/>/);
+    expect(markup).toMatch(/<input id="gear-preview-offset-y-value"[^>]*value="20"/);
+    expect(markup).toContain('+20 논리 px(+가 아래) · 판정선 y 436 · 키 윗면 y 466.5 · 틈 30.5 · 아래로 원본 44.2행 잘림');
     // 기존 판정선·키 윗면 설명과 기어 설명도 내린 값을 따른다.
     expect(markup).toContain('0% (+0) · y 436');
     expect(markup).toContain('y 466.5까지 30.5 · 노트 두께 2.4개');
@@ -74,8 +74,8 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
   });
 
   it('주소 drop이 범위 밖(75)이면 60, 숫자가 아니면(abc) 게임 값 10으로 연다', () => {
-    expect(stageOf(render('/lab/gear?drop=75'))).toContain('data-gear-drop="60"');
-    expect(stageOf(render('/lab/gear?drop=abc'))).toContain('data-gear-drop="10"');
+    expect(stageOf(render('/lab/gear?offsetY=75'))).toContain('data-gear-offset-y="60"');
+    expect(stageOf(render('/lab/gear?offsetY=abc'))).toContain('data-gear-offset-y="10"');
   });
 
   it('고도 조절은 곡 진행 따라가기(기본 켬)와 정수 0~100% 직접 정하기 슬라이더(100%에서 시작)이고 무대가 data-altitude-mode="follow"를 알린다', () => {

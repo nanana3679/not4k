@@ -386,7 +386,7 @@
   outline-offset: 2px;
 }
 
-/* 기어·판정선 내리기: 머리줄의 숫자 입력과 슬라이더 아래 결과 숫자 */
+/* 기어·판정선 y 오프셋: 머리줄의 숫자 입력과 슬라이더 아래 결과 숫자 */
 .gear-preview-number {
   box-sizing: border-box;
   width: 6.5em;
@@ -406,7 +406,7 @@
   outline-offset: 2px;
 }
 
-.gear-preview-slider .gear-preview-drop-readout {
+.gear-preview-slider .gear-preview-offset-y-readout {
   display: block;
   color: #d8fbfd;
   font: 600 14px/1.45 "Rajdhani", "Noto Sans KR", sans-serif;

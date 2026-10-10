@@ -1,7 +1,7 @@
 import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
 import { gaugeEmptyRows } from '../game/renderer/gearGauge';
 import { clampFlightAltitude } from '../game/renderer/flightAltitude';
-import { GAME_HEIGHT, GEAR_DROP, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
+import { GAME_HEIGHT, GEAR_OFFSET_Y, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
 
 /**
@@ -35,38 +35,38 @@ export function formatLiftPercent(percent: number): string {
 }
 
 /**
- * 기어·판정선 내리기([#257](https://github.com/nanana3679/not4k/issues/257)): 렌더러 옵션 `gearDrop`으로 기어와 리프트 0%의 판정선을
- * 함께 내릴 양을 Lab에서 시험한다. 기본은 게임 값 `GEAR_DROP`(10)이고, 주소 `drop`은 게임과 같은 절대 내림 양이다(기본값과의 차이가 아니다).
- * Lab은 0~60 논리 px를 0.5 단위로 다룬다.
+ * 기어·판정선 y 오프셋([#257](https://github.com/nanana3679/not4k/issues/257)): 렌더러 옵션 `gearOffsetY`(화면 y축, +가 아래, 논리 px)로 기어와
+ * 리프트 0%의 판정선을 함께 내리는 값을 Lab에서 시험한다. 기본은 게임 값 `GEAR_OFFSET_Y`(10)이고, 주소 `offsetY`는 게임과 같은 절대값이다
+ * (게임 값과의 차이가 아니다). Lab은 0~60 논리 px를 0.5 단위로 다룬다.
  */
-export const GEAR_DROP_MAX = 60;
-export const GEAR_DROP_STEP = 0.5;
+export const GEAR_OFFSET_Y_MAX = 60;
+export const GEAR_OFFSET_Y_STEP = 0.5;
 
 /** 0.5 단위로 맞추고 [0, 60]으로 묶는다. 숫자가 아니면 0. */
-export function clampPreviewGearDrop(value: number): number {
+export function clampPreviewGearOffsetY(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  const stepped = Math.round(value / GEAR_DROP_STEP) * GEAR_DROP_STEP;
-  return Math.min(GEAR_DROP_MAX, Math.max(0, stepped));
+  const stepped = Math.round(value / GEAR_OFFSET_Y_STEP) * GEAR_OFFSET_Y_STEP;
+  return Math.min(GEAR_OFFSET_Y_MAX, Math.max(0, stepped));
 }
 
-/** 주소의 `drop` 쿼리 값(절대 내림 양). 없거나 비었거나 숫자가 아니면 게임 값 `GEAR_DROP`이다. */
-export function parseGearDropParam(raw: string | null): number {
-  if (raw === null || raw.trim() === '') return GEAR_DROP;
+/** 주소의 `offsetY` 쿼리 값(절대값). 없거나 비었거나 숫자가 아니면 게임 값 `GEAR_OFFSET_Y`다. */
+export function parseGearOffsetYParam(raw: string | null): number {
+  if (raw === null || raw.trim() === '') return GEAR_OFFSET_Y;
   const value = Number(raw);
-  return Number.isFinite(value) ? clampPreviewGearDrop(value) : GEAR_DROP;
+  return Number.isFinite(value) ? clampPreviewGearOffsetY(value) : GEAR_OFFSET_Y;
 }
 
-/** 내리기 양을 반영한 다음 쿼리. 다른 쿼리는 그대로 두고, 게임 값 `GEAR_DROP`이면 `drop`을 지워 기본 주소로 돌아간다. */
-export function nextGearDropSearch(current: URLSearchParams, drop: number): URLSearchParams {
+/** y 오프셋을 반영한 다음 쿼리. 다른 쿼리는 그대로 두고, 게임 값 `GEAR_OFFSET_Y`면 `offsetY`를 지워 기본 주소로 돌아간다. */
+export function nextGearOffsetYSearch(current: URLSearchParams, offsetY: number): URLSearchParams {
   const params = new URLSearchParams(current);
-  if (drop === GEAR_DROP) params.delete('drop');
-  else params.set('drop', formatGearDrop(drop));
+  if (offsetY === GEAR_OFFSET_Y) params.delete('offsetY');
+  else params.set('offsetY', formatGearOffsetY(offsetY));
   return params;
 }
 
-/** 내리기 양 표시(20 → "20", 12.5 → "12.5"). 주소 쿼리와 무대 data-gear-drop도 같은 표기다. */
-export function formatGearDrop(drop: number): string {
-  return String(drop);
+/** y 오프셋 표시(20 → "20", 12.5 → "12.5"). 주소 쿼리와 무대 data-gear-offset-y도 같은 표기다. */
+export function formatGearOffsetY(offsetY: number): string {
+  return String(offsetY);
 }
 
 /** 화면 아래(stageHeight)보다 밑으로 내려가 잘리는 기어 실루엣의 원본 행 수(소수). 내리지 않았으면 0. */
@@ -75,11 +75,12 @@ export function gearRowsBelowScreen(layout: Readonly<GearLayout>, stageHeight: n
   return Math.max(0, (silhouetteBottomY - stageHeight) / layout.scale);
 }
 
-/** 내리기 조절 옆 숫자: 판정선 y, 키 윗면 y, 둘 사이 틈, 화면 아래로 잘리는 기어 원본 행. */
-export function describeGearDrop(layout: Readonly<GearLayout>, judgment: GearPreviewJudgment): string {
+/** y 오프셋 조절 옆 숫자: 값(논리 px, +가 아래), 판정선 y, 키 윗면 y, 둘 사이 틈, 화면 아래로 잘리는 기어 원본 행. */
+export function describeGearOffsetY(layout: Readonly<GearLayout>, judgment: GearPreviewJudgment, offsetY: number): string {
   const rows = gearRowsBelowScreen(layout);
   const cut = rows > 0 ? `아래로 원본 ${rows.toFixed(1)}행 잘림` : '아래로 잘리는 행 없음';
-  return `판정선 y ${judgment.lineY} · 키 윗면 y ${judgment.keyRimY.toFixed(1)} · 틈 ${judgment.openGap.toFixed(1)} · ${cut}`;
+  const value = `${offsetY > 0 ? '+' : ''}${formatGearOffsetY(offsetY)} 논리 px(+가 아래)`;
+  return `${value} · 판정선 y ${judgment.lineY} · 키 윗면 y ${judgment.keyRimY.toFixed(1)} · 틈 ${judgment.openGap.toFixed(1)} · ${cut}`;
 }
 
 /** 고도 직접 정하기 슬라이더 값. 정수 %로 맞추고 [0, 100]으로 묶는다. 숫자가 아니면 시작값 100%. */
@@ -134,11 +135,11 @@ export interface GearPreviewJudgment {
 }
 
 /**
- * 게임과 같은 판정선(리프트 0% = y 416 + gearDrop, 게임 값 10이면 y 426)과 기어 덱·키 윗면 사이 거리. 기어는 리프트로 움직이지 않는다.
- * layout은 같은 gearDrop으로 만든 배치여야 한다.
+ * 게임과 같은 판정선(리프트 0% = y 416 + gearOffsetY, 게임 값 10이면 y 426)과 기어 덱·키 윗면 사이 거리. 기어는 리프트로 움직이지 않는다.
+ * layout은 같은 gearOffsetY로 만든 배치여야 한다.
  */
-export function describeGearJudgment(layout: Readonly<GearLayout>, liftPercent: number, gearDrop: number = GEAR_DROP): GearPreviewJudgment {
-  const lineY = judgmentLineYAtLift(liftPercent, gearDrop);
+export function describeGearJudgment(layout: Readonly<GearLayout>, liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): GearPreviewJudgment {
+  const lineY = judgmentLineYAtLift(liftPercent, gearOffsetY);
   const gap = layout.deckTopY - lineY;
   const openGap = layout.keyRimY - lineY;
   return {
@@ -159,7 +160,7 @@ export function describeGear(layout: Readonly<GearLayout>, geometry: GearGeometr
   const rowsBelow = gearRowsBelowScreen(layout, GAME_HEIGHT, geometry);
   const laneAreaWidth = Math.round((geometry.laneRight - geometry.laneLeft + 1) * layout.scale * 10) / 10;
   const placement = rowsBelow > 0
-    ? `실루엣 아래끝(${geometry.silhouetteBottom}행)을 화면 아래보다 ${formatGearDrop(Math.round(rowsBelow * layout.scale * 10) / 10)} 아래에 두어 고정합니다. `
+    ? `실루엣 아래끝(${geometry.silhouetteBottom}행)을 화면 아래보다 ${formatGearOffsetY(Math.round(rowsBelow * layout.scale * 10) / 10)} 아래에 두어 고정합니다. `
       + `위로 원본 ${hiddenRows}행, 아래로 원본 ${rowsBelow.toFixed(1)}행이 화면 밖으로 잘립니다.`
     : `실루엣 아래끝(${geometry.silhouetteBottom}행)을 화면 아래에 붙여 고정합니다. 위로 원본 ${hiddenRows}행만 잘리고 게이지·덱·하단 바는 모두 보입니다.`;
   return `원본 ${geometry.width}×${geometry.height}을 ${layout.scale.toFixed(3)}배로 줄여 레인 창(${geometry.laneLeft}~${geometry.laneRight}열)을 `

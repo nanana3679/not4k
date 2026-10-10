@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
-import { GAME_HEIGHT, GEAR_DROP, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
+import { GAME_HEIGHT, GEAR_OFFSET_Y, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
 import { beat, createChartTiming, type ChartEvent, type NoteEntity, type RestZone, type TrillZone } from '../../shared';
 import type { SkinManager } from '../skin';
 
@@ -80,7 +80,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   };
   const noteSprites = (scene: Scene) => scene.noteLayer.children.filter((child): child is Sprite => child instanceof Sprite);
   // 게임 기어 배치(기어·판정선 10 내림, #257)에서 스크롤 200px/s·리프트 20%(판정선 y 306)의 놓친 노트 박스 윗변 = 306 + 0.2 × 늦은 ms − 6.25
-  const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, drop: GEAR_DROP }).keyRimY;
+  const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY: GEAR_OFFSET_Y }).keyRimY;
 
   it('스크롤 200px/s·리프트 20%(판정선 y 306)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 426, 박스 윗변 419.75(키 윗면 456.5 위)에 그린다', async () => {
     const { renderer, scene } = await missedSingle();

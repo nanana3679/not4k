@@ -38,19 +38,21 @@ export function noteBoxTopY(timeY: number, noteHeight: number = NOTE_HEIGHT): nu
 }
 
 /**
- * 리프트 0%의 판정선 높이(화면 아래에서, 기어를 내리기 전). y 416은 내리기 전 기어 덱 위끝(y 429.7)보다 노트 두께 약 1배(틈 13.7) 위로,
+ * 리프트 0%의 판정선 높이(화면 아래에서 위로 잰 거리, 기어 y 오프셋을 더하기 전). y 416은 기어 y 오프셋 0일 때의 덱 위끝(y 429.7)보다 노트 두께 약 1배(틈 13.7) 위로,
  * 사용자가 Lab 미리보기에서 고른 위치다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
- * 기어가 있는 플레이 화면은 기어와 판정선을 함께 `GEAR_DROP`만큼 더 내리므로 판정선이 y 426이다(틈 13.7은 그대로).
+ * 기어가 있는 플레이 화면은 기어와 판정선을 함께 `GEAR_OFFSET_Y`만큼 더 내리므로 판정선이 y 426이다(틈 13.7은 그대로).
  * 기어가 없는 렌더러(튜토리얼 재생기 등)는 이 값(또는 자기 오프셋)만 쓴다.
  * 리프트(`liftPx`)는 여기서 판정선과 딸린 표시만 올리고 기어·레인 끝은 움직이지 않는다.
  */
 export const JUDGMENT_LINE_OFFSET = 184;
+// 주의: JUDGMENT_LINE_OFFSET은 화면 아래에서 위로 잰 거리(클수록 위)이고 GEAR_OFFSET_Y는 화면 y축 이동(+가 아래)이라 기준과 부호가 반대다([오프셋 구분](../../../docs/context/glossary.md#오프셋-구분)).
 /**
- * 기어가 있는 플레이 화면에서 기어와 판정선을 함께 내리는 양(논리 px). 사용자가 Lab `/lab/gear`의 `기어·판정선 내리기`로 고른 값이다
+ * 기어 y 오프셋의 게임 값: 기어가 있는 플레이 화면에서 기어와 판정선을 함께 아래로 옮기는 양(논리 px, 화면 y축이라 +가 아래).
+ * 사용자가 Lab `/lab/gear`의 `기어·판정선 y 오프셋`으로 고른 값이다
  * ([#257](https://github.com/nanana3679/not4k/issues/257), 2026-10-09). 기어 아래쪽 원본 약 22행이 화면 밖으로 잘린다.
- * `GameRenderer`가 기어를 그릴 때의 기본 `gearDrop`이며, 기어가 없는 렌더러에는 적용하지 않는다.
+ * `GameRenderer`가 기어를 그릴 때의 기본 `gearOffsetY`이며, 기어가 없는 렌더러에는 적용하지 않는다.
  */
-export const GEAR_DROP = 10;
+export const GEAR_OFFSET_Y = 10;
 /** 판정선 두께. 미리보기(게임 화면 전체를 1/1.6로 줄임)에서 보인 두께(설계값 4 → 2.5)와 같다. */
 export const JUDGMENT_LINE_THICKNESS = playfieldPx(4);
 /** 키봄 기본 크기(가로·세로). 설정의 키봄 배율(`bombScale`)을 곱한다. */
@@ -62,11 +64,11 @@ export function liftPx(liftPercent: number): number {
 }
 
 /**
- * 높이 600 플레이 화면(기어 있음)에서 리프트 %일 때의 판정선 y(기본 내림 `GEAR_DROP` 10이면 0% = y 426). 렌더러가 setLift로 옮기는 위치와 같다.
- * gearDrop을 주면 그만큼 내린 기어 배치의 판정선이다(0이면 내리기 전 y 416 기준).
+ * 높이 600 플레이 화면(기어 있음)에서 리프트 %일 때의 판정선 y(게임 값 `GEAR_OFFSET_Y` 10이면 0% = y 426). 렌더러가 setLift로 옮기는 위치와 같다.
+ * gearOffsetY를 주면 그 y 오프셋의 판정선이다(0이면 y 416 기준).
  */
-export function judgmentLineYAtLift(liftPercent: number, gearDrop: number = GEAR_DROP): number {
-  return GAME_HEIGHT - JUDGMENT_LINE_OFFSET + gearDrop - liftPx(liftPercent);
+export function judgmentLineYAtLift(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
+  return GAME_HEIGHT - JUDGMENT_LINE_OFFSET + gearOffsetY - liftPx(liftPercent);
 }
 
 // 튜토리얼 프리뷰 키보드 strip (플레이 영역 아래 캔버스 확장부) 패딩

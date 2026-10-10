@@ -2,7 +2,7 @@
  * 새 기어(스킨 공통 `gearImage`, public/gear/gear.png)의 배치([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  *
  * 기어는 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 겹치고, 실루엣 아래끝을 화면 아래에 붙인다
- * (`GearStage.drop`을 주면 그만큼 아래로 내려 아래쪽이 화면 밖으로 잘린다).
+ * (`GearStage.offsetY`를 주면 그만큼 아래로 내려 아래쪽이 화면 밖으로 잘린다).
  * 리프트와 무관하게 고정이며, 레인은 키 윗면(열린 덱 바닥 바로 아래)에서 끝난다(렌더러의 레인 끝 `laneEndY`).
  * 측정값의 원본은 `gearGeometry.json` 하나다. 생성기 `prepare-frame-fit-v20.mjs`가 그림(기어·고도 게이지 빈 유리)과 함께 만들고 Lab도 이 파일을 읽는다.
  */
@@ -105,15 +105,15 @@ export interface GearStage {
   /** 플레이 영역 높이(600). 기어 아래끝이 여기에 붙는다. */
   height: number;
   /**
-   * 기어를 아래로 내리는 양(논리 px, 기본 0, 음수·NaN은 0). 실루엣 아래끝이 화면 아래보다 이만큼 아래에 와서
-   * 기어 아래쪽 원본 drop ÷ scale 행이 화면 밖으로 잘린다. 렌더러 옵션 `gearDrop`([#257](https://github.com/nanana3679/not4k/issues/257))이 넘긴다.
+   * 기어 y 오프셋(논리 px, 화면 y축이라 +가 아래, 기본 0, 음수·NaN은 0). 실루엣 아래끝이 화면 아래보다 이만큼 아래에 와서
+   * 기어 아래쪽 원본 offsetY ÷ scale 행이 화면 밖으로 잘린다. 렌더러 옵션 `gearOffsetY`([#257](https://github.com/nanana3679/not4k/issues/257))가 넘긴다.
    */
-  drop?: number;
+  offsetY?: number;
 }
 
-/** 기어 내리기 양을 0 이상의 유한한 값으로 맞춘다(음수·NaN·Infinity → 0). 위쪽 한계는 두지 않는다. */
-export function clampGearDrop(drop: number | undefined): number {
-  return drop !== undefined && Number.isFinite(drop) ? Math.max(0, drop) : 0;
+/** 기어 y 오프셋을 0 이상의 유한한 값으로 맞춘다(음수·NaN·Infinity → 0). 위쪽 한계는 두지 않는다. */
+export function clampGearOffsetY(offsetY: number | undefined): number {
+  return offsetY !== undefined && Number.isFinite(offsetY) ? Math.max(0, offsetY) : 0;
 }
 
 /** 기어 그림의 논리 좌표 배치. 그림 좌표 (px, py)는 화면 (x + px·scale, y + py·scale)에 그려진다. */
@@ -137,7 +137,7 @@ export interface GearLayout {
 export function layoutGear(geometry: GearGeometry, stage: GearStage): GearLayout {
   const scale = stage.laneAreaWidth / (geometry.laneRight - geometry.laneLeft + 1);
   const x = stage.laneAreaX - geometry.laneLeft * scale;
-  const y = stage.height - (geometry.silhouetteBottom + 1) * scale + clampGearDrop(stage.drop);
+  const y = stage.height - (geometry.silhouetteBottom + 1) * scale + clampGearOffsetY(stage.offsetY);
   return {
     scale,
     x,

@@ -34,7 +34,7 @@ describe('GameRenderer 키봄 크기', () => {
     { scale: 3, size: 225, label: '3배' },
     { scale: 4, size: 225, label: '범위 밖 4배(최대 3배)' },
     { scale: NaN, size: 75, label: '유효하지 않은 값(기본 1배)' },
-  ])('$label에서 키봄을 표시하면 가로·세로 $size px이고 2번 레인 가운데(93.75)·판정선 y 426(기어 있는 게임 기본 위치 416 + 내림 10) 중심과 280ms 재생 시간을 유지한다', ({ scale, size }) => {
+  ])('$label에서 키봄을 표시하면 가로·세로 $size px이고 2번 레인 가운데(93.75)·판정선 y 426(기어 있는 게임 기본 위치 416 + y 오프셋 10) 중심과 280ms 재생 시간을 유지한다', ({ scale, size }) => {
     const { renderer, effectLayer, play } = createRenderer(scale);
     renderer.showBombEffect(2);
 
