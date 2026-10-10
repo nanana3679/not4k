@@ -98,7 +98,7 @@ describe('기어·판정선 y 오프셋(#257)', () => {
     expect(GEAR_OFFSET_Y).toBe(10);
   });
 
-  it('값을 바꾸면 다른 쿼리는 두고 drop만 쓰며(12.5 → "offsetY=12.5", 0 → "offsetY=0"), 게임 값 10이면 drop을 지워 기본 주소로 돌아간다', () => {
+  it('값을 바꾸면 다른 쿼리는 두고 offsetY만 쓰며(12.5 → "offsetY=12.5", 0 → "offsetY=0"), 게임 값 10이면 offsetY를 지워 기본 주소로 돌아간다', () => {
     expect(nextGearOffsetYSearch(new URLSearchParams('probe=1'), 12.5).toString()).toBe('probe=1&offsetY=12.5');
     expect(nextGearOffsetYSearch(new URLSearchParams('probe=1'), 0).toString()).toBe('probe=1&offsetY=0');
     expect(nextGearOffsetYSearch(new URLSearchParams('offsetY=20&probe=1'), 10).toString()).toBe('probe=1');

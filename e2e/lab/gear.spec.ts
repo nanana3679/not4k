@@ -306,7 +306,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('기어·판정선 y 오프셋은 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?offsetY=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 ?offsetY=0, 10이면 drop이 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
+  test('기어·판정선 y 오프셋은 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?offsetY=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 ?offsetY=0, 10이면 offsetY가 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab');
     await page.goto('/lab/gear');

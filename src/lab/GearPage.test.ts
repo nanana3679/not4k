@@ -73,7 +73,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('아래로 원본 44.2행');
   });
 
-  it('주소 drop이 범위 밖(75)이면 60, 숫자가 아니면(abc) 게임 값 10으로 연다', () => {
+  it('주소 offsetY가 범위 밖(75)이면 60, 숫자가 아니면(abc) 게임 값 10으로 연다', () => {
     expect(stageOf(render('/lab/gear?offsetY=75'))).toContain('data-gear-offset-y="60"');
     expect(stageOf(render('/lab/gear?offsetY=abc'))).toContain('data-gear-offset-y="10"');
   });
