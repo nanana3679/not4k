@@ -41,12 +41,12 @@
 
 | 이름 | 식별자 | 종류 | 단위 | 기준과 부호 |
 |---|---|---|---|---|
-| 오디오 오프셋 | `audioOffsetMs` (설정 `Audio Offset`) | 시간 | ms | 오디오 재생 위치에 더해 판정 시간을 만든다(`GameClock.judgmentTimeMs`, 판정·시각·입력 시간 모두에 닿는다). 캘리브레이션은 측정값의 반대 부호를 저장해 늦게 누르면(SLOW) 음수다([PR #242](https://github.com/nanana3679/not4k/pull/242)) |
-| 입력 오프셋 | `judgmentOffsetMs` (설정 `Judgment Offset`) | 시간 | ms | 입력 시간에만 더한다(`GameClock.toInputTimeMs`). 늦게 누르면(SLOW) 음수다(PR #242) |
+| [오디오 오프셋](#오디오-오프셋-audio-offset) | `audioOffsetMs` (설정 `Audio Offset`) | 시간 | ms | 오디오 재생 위치에 더해 판정 시간을 만든다(`GameClock.judgmentTimeMs`, 판정·시각·입력 시간 모두에 닿는다). 캘리브레이션은 측정값의 반대 부호를 저장해 늦게 누르면(SLOW) 음수다([PR #242](https://github.com/nanana3679/not4k/pull/242)) |
+| [입력 오프셋](#입력-오프셋-judgment-offset) | `judgmentOffsetMs` (설정 `Judgment Offset`) | 시간 | ms | 입력 시간에만 더한다(`GameClock.toInputTimeMs`). 늦게 누르면(SLOW) 음수다(PR #242) |
 | 판정선 오프셋 | `judgmentLineOffset` (기본 `JUDGMENT_LINE_OFFSET`) | 위치 | 논리 px | 화면 아래에서 **위로** 잰 거리, 기본 184(튜토리얼 재생기 50). 클수록 판정선이 위다 |
 | 기어 y 오프셋 | `gearOffsetY` (게임 값 `GEAR_OFFSET_Y`) | 위치 | 논리 px | 화면 y축이라 **+가 아래**, 게임 값 10. 기어와 판정선을 함께 옮긴다([#257](https://github.com/nanana3679/not4k/issues/257)) |
 
-"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 오디오 오프셋·입력 오프셋은 아직 glossary 항목이 없고 [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)에 요약만 있다. 이 표가 두 오프셋의 기준과 부호를 정하며, 항목은 [#261](https://github.com/nanana3679/not4k/issues/261)에서 추가한다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
+"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 시간 오프셋 둘의 자세한 정의는 [오디오 오프셋](#오디오-오프셋-audio-offset)·[입력 오프셋](#입력-오프셋-judgment-offset) 항목에 있다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
 
 ---
 
@@ -348,6 +348,16 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 ### 판정 윈도우 (Judgment Window)
 
 노트 기준 시점 주변에서 입력을 허용하는 범위. 등급은 Perfect / Great / Good / Miss이다. Normal의 Perfect/Great/Good은 ±41/82/120ms, Easy는 ±50/100/150ms이다. head와 실제 release에 타이밍 등급을 적용한다. `holdOnly`는 Perfect/Miss 상태 판정이다.
+
+### 오디오 오프셋 (Audio Offset)
+
+출력 장치의 소리 지연을 보정하려고 음악 재생 기준을 옮기는 설정이다(설정 `Audio Offset`, 코드 `audioOffsetMs`, 단위 ms). `GameClock`은 오디오 재생 위치에 이 값을 더해 판정 시간을 만든다(`judgmentTimeMs = audio.currentTimeMs + audioOffsetMs`). 시각 시간과 입력 시간은 판정 시간에서 나오므로 이 값은 세 시간 모두에 닿는다. Audio 캘리브레이션은 박자에 맞춰 누른 시각과 비트의 차이 중앙값을 재고 그 반대 부호를 저장한다(`offsetToApply`). 그래서 늦게 누르는 사람(SLOW)은 음수가 된다. beatmania IIDX·SOUND VOLTEX·DJMAX RESPECT V의 판정 타이밍 조절과 같은 방향이다([PR #242](https://github.com/nanana3679/not4k/pull/242)). 화면 위치 값인 판정선 오프셋·기어 y 오프셋과는 별개다([오프셋 구분](#오프셋-구분)).
+_Avoid_: 판정 오프셋, 이름 없는 "오프셋"
+
+### 입력 오프셋 (Judgment Offset)
+
+입력 장치 지연이나 개인 체감 타이밍을 보정하려고 입력 기준을 옮기는 설정이다(설정 `Judgment Offset`, 코드 `judgmentOffsetMs`, 단위 ms). 입력 시간에만 더하고(`toInputTimeMs = judgmentTimeMs − handlerDelay + judgmentOffsetMs`) 판정 시간·시각 시간에는 닿지 않는다. Visual 캘리브레이션이 오디오 오프셋과 같은 방식으로 측정값의 반대 부호를 저장하므로 늦게 누르면(SLOW) 음수다(PR #242). 설정 라벨은 `Judgment Offset`이지만 판정 시간을 옮기지 않으므로 문서에서는 입력 오프셋이라고 쓴다([오프셋 구분](#오프셋-구분)).
+_Avoid_: 오디오 오프셋, 판정 오프셋, 이름 없는 "오프셋"
 
 ### 롱노트 판정 모델
 
