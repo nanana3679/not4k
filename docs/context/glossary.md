@@ -46,7 +46,7 @@
 | 판정선 오프셋 | `judgmentLineOffset` (기본 `JUDGMENT_LINE_OFFSET`) | 위치 | 논리 px | 화면 아래에서 **위로** 잰 거리, 기본 184(튜토리얼 재생기 50). 클수록 판정선이 위다 |
 | 기어 y 오프셋 | `gearOffsetY` (게임 값 `GEAR_OFFSET_Y`) | 위치 | 논리 px | 화면 y축이라 **+가 아래**, 게임 값 10. 기어와 판정선을 함께 옮긴다([#257](https://github.com/nanana3679/not4k/issues/257)) |
 
-"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 시간 오프셋의 풀 정의는 지금은 [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 **오디오 오프셋**·**입력 오프셋**을 따른다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
+"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 오디오 오프셋·입력 오프셋은 아직 glossary 항목이 없고 [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)에 요약만 있다. 이 표가 두 오프셋의 기준과 부호를 정하며, 항목은 [#261](https://github.com/nanana3679/not4k/issues/261)에서 추가한다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
 
 ---
 
