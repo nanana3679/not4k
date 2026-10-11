@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
-import { GAME_HEIGHT, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
+import { GAME_HEIGHT, GEAR_OFFSET_Y, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
 import { beat, createChartTiming, type ChartEvent, type NoteEntity, type RestZone, type TrillZone } from '../../shared';
 import type { SkinManager } from '../skin';
 
@@ -79,36 +79,36 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
     return { renderer, scene };
   };
   const noteSprites = (scene: Scene) => scene.noteLayer.children.filter((child): child is Sprite => child instanceof Sprite);
-  // 스크롤 200px/s·리프트 20%(판정선 y 296)에서 놓친 노트 박스 윗변 = 296 + 0.2 × 늦은 ms − 6.25
-  const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT }).keyRimY;
+  // 게임 기어 배치(기어·판정선 10 내림, #257)에서 스크롤 200px/s·리프트 20%(판정선 y 306)의 놓친 노트 박스 윗변 = 306 + 0.2 × 늦은 ms − 6.25
+  const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY: GEAR_OFFSET_Y }).keyRimY;
 
-  it('스크롤 200px/s·리프트 20%(판정선 y 296)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 416, 박스 윗변 409.75(키 윗면 446.5 위)에 그린다', async () => {
+  it('스크롤 200px/s·리프트 20%(판정선 y 306)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 426, 박스 윗변 419.75(키 윗면 456.5 위)에 그린다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
     renderer.renderFrame(1600);
     const [note] = noteSprites(scene);
     expect(note).toBeDefined();
-    expect(note.y).toBe(409.75);
-    expect(note.y + NOTE_HEIGHT / 2).toBe(416);
+    expect(note.y).toBe(419.75);
+    expect(note.y + NOTE_HEIGHT / 2).toBe(426);
   });
 
-  it('같은 조건에서 780ms 늦어 박스 윗변 445.75가 아직 키 윗면(약 446.47) 위에 보이면 계속 그린다', async () => {
+  it('같은 조건에서 780ms 늦어 박스 윗변 455.75가 아직 키 윗면(약 456.47) 위에 보이면 계속 그린다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
     renderer.renderFrame(1780);
     const [note] = noteSprites(scene);
     expect(note).toBeDefined();
-    expect(note.y).toBe(445.75);
+    expect(note.y).toBe(455.75);
     expect(note.y).toBeLessThan(keyRimY);
   });
 
-  it('접촉 그림자가 없는 스킨에서는 790ms 늦어 박스 윗변 447.75가 키 윗면(약 446.47) 아래로 완전히 내려가면 더 그리지 않는다', async () => {
+  it('접촉 그림자가 없는 스킨에서는 790ms 늦어 박스 윗변 457.75가 키 윗면(약 456.47) 아래로 완전히 내려가면 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
-    expect(296 + 0.2 * 790 - NOTE_HEIGHT / 2).toBeGreaterThan(keyRimY);
+    expect(306 + 0.2 * 790 - NOTE_HEIGHT / 2).toBeGreaterThan(keyRimY);
     renderer.renderFrame(1790);
     expect(noteSprites(scene)).toHaveLength(0);
   });
@@ -116,7 +116,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   // Classic처럼 포인트 위 접촉 그림자(설계 5 → 3.125)가 있으면 박스 윗변이 키 윗면을 지나도 그림자 띠가 그 위에 남는다.
   const contactShadowSkin = { theme: { pointContactShadow: { above: 5, below: 5 } }, textures: ['pointContactShadow'] };
 
-  it('위 접촉 그림자 3.125가 있는 스킨에서 790ms 늦은 놓친 노트는 박스 윗변 447.75가 키 윗면 아래여도 그림자 윗변 444.625가 아직 보여 노트와 그림자를 계속 그린다', async () => {
+  it('위 접촉 그림자 3.125가 있는 스킨에서 790ms 늦은 놓친 노트는 박스 윗변 457.75가 키 윗면 아래여도 그림자 윗변 454.625가 아직 보여 노트와 그림자를 계속 그린다', async () => {
     const { renderer, scene } = await missedSingle(contactShadowSkin);
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
@@ -124,20 +124,20 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
     const sprites = noteSprites(scene);
     expect(sprites.length).toBeGreaterThan(1);
     const shadowTop = Math.min(...sprites.map((sprite) => sprite.getBounds().minY));
-    expect(shadowTop).toBeCloseTo(447.75 - 3.125, 9);
+    expect(shadowTop).toBeCloseTo(457.75 - 3.125, 9);
     expect(shadowTop).toBeLessThan(keyRimY);
   });
 
-  it('위 접촉 그림자 3.125가 있는 스킨에서 800ms 늦어 그림자 윗변 446.625까지 키 윗면(약 446.47) 아래로 내려가면 더 그리지 않는다', async () => {
+  it('위 접촉 그림자 3.125가 있는 스킨에서 800ms 늦어 그림자 윗변 456.625까지 키 윗면(약 456.47) 아래로 내려가면 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle(contactShadowSkin);
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
-    expect(296 + 0.2 * 800 - NOTE_HEIGHT / 2 - 3.125).toBeGreaterThan(keyRimY);
+    expect(306 + 0.2 * 800 - NOTE_HEIGHT / 2 - 3.125).toBeGreaterThan(keyRimY);
     renderer.renderFrame(1800);
     expect(noteSprites(scene)).toHaveLength(0);
   });
 
-  it('같은 조건에서 900ms 늦어 키 윗면 아래(가운데 y 476)로 완전히 내려간 노트는 더 그리지 않는다', async () => {
+  it('같은 조건에서 900ms 늦어 키 윗면 아래(가운데 y 486)로 완전히 내려간 노트는 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
     renderer.setLift(liftPx(20));
@@ -183,11 +183,11 @@ describe('마디선 두께', () => {
     expect(line.getLocalBounds().height).toBeCloseTo(0.625, 9);
   });
 
-  it('곡 0ms의 0ms 마디선은 두께 0.625의 가운데가 시각 위치(판정선 y 416)에 와 [415.6875, 416.3125]로 판정선과 같은 가운데를 쓴다', async () => {
+  it('곡 0ms의 0ms 마디선은 두께 0.625의 가운데가 시각 위치(게임 판정선 y 426)에 와 [425.6875, 426.3125]로 판정선과 같은 가운데를 쓴다', async () => {
     const line = await measureLine(1.8);
     const bounds = line.getBounds();
-    expect(bounds.minY).toBeCloseTo(416 - 0.3125, 9);
-    expect(bounds.maxY).toBeCloseTo(416 + 0.3125, 9);
+    expect(bounds.minY).toBeCloseTo(426 - 0.3125, 9);
+    expect(bounds.maxY).toBeCloseTo(426 + 0.3125, 9);
   });
 });
 
@@ -225,8 +225,8 @@ describe('마디선·구간 밴드 풀', () => {
     ] as RestZone[],
     durationMs: 8000,
   };
-  // 판정선 y 416, 800px/s → 시각 t의 y = 416 − (t − 곡 시각) × 0.8
-  const yAt = (timeMs: number, songMs: number) => 416 - (timeMs - songMs) * 0.8;
+  // 게임 판정선 y 426(기어·판정선 10 내림), 800px/s → 시각 t의 y = 426 − (t − 곡 시각) × 0.8
+  const yAt = (timeMs: number, songMs: number) => 426 - (timeMs - songMs) * 0.8;
 
   it('트릴 구간은 롱노트 바디처럼 끝 y − 노트 반 칸부터 시작 y + 노트 반 칸까지(길이 0이면 시각에 가운데를 맞춘 노트 두께 12.5), 휴지 구간은 끝 y부터 시작 y까지(길이 0이면 1)를 레인 폭 62.5로 덮는다', async () => {
     const { renderer, scene } = await createRenderer();

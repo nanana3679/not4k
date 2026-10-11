@@ -34,6 +34,7 @@
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
 | 기어 움직임 | `gearMotion` (기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛. 설정 라벨 `Gear Motion`은 화면 표시라 그대로 둔다. "움직이다"는 위치 변화(노트 스크롤·리프트)에만 남긴다, 2026-10-09) | `gearMotion`/`GearMotionController`/`GearMotionControls`/`gear-motion.json` |
+| 기어 y 오프셋 (Lab 조절 이름. 검토 중 "기어·판정선 내리기"·`gearDrop`·`?drop=`에서 바꿨다, 2026-10-10) | `gearOffsetY` (기어와 판정선을 함께 옮기는 화면 y축 값, +가 아래, 논리 px, 게임 값 10. 이 값을 가리킬 때 "내리기"·"내린 양"을 쓰지 않고, 화면 효과를 서술할 때만 "내린다"를 쓴다. 다른 오프셋과의 구분은 [glossary](glossary.md#오프셋-구분)) | `gearOffsetY`/`GEAR_OFFSET_Y`/`clampGearOffsetY`/`GearStage.offsetY`, Lab `data-gear-offset-y`·주소 `?offsetY=`·`#gear-preview-offset-y` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 
@@ -109,6 +110,7 @@
 | 에디터 연산 | 연산마다 이름을 쓴다. 정규화(`normalizeSelection`), 캡슐화(`TimelineSpace`가 좌표 변환·스냅·히트테스트를 한 인터페이스로 묶음), 매핑(`scheduleFromGrabTarget`: `GrabTarget` → 터치 스케줄), 변환(`maxTimelineBeat`: 부동소수 박을 1/960 단위로 내림해 `Beat`로) | 비유만 쓰는 접기, 접는다, 접은 | `selectionSlice.ts`, `TimelineSpace.ts`·`useTimelineSpace.ts`, `touchEditRouting.ts`, `SelectMode.ts` |
 | modifier 키 | modifier 키 상태(`shiftKey`·`altKey`)와 선택 토글 플래그(`toggleSelection`) | 수식자, 보조키(게임 용어) | `PointerGesture`(`src/editor/modes/editorMode.ts`) |
 | 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts`, `src/editor/modes/longPressRouting.ts` |
+| 오프셋 | 어느 오프셋인지 이름을 붙인다: 오디오 오프셋(`audioOffsetMs`)·입력 오프셋(`judgmentOffsetMs`)은 시간(ms), 판정선 오프셋(`judgmentLineOffset`, 아래에서 위로)·기어 y 오프셋(`gearOffsetY`, +가 아래)은 화면 위치(논리 px)다. 차트 메타데이터 `offsetMs`는 차트 오프셋 | 이름 없는 "오프셋", offset | [glossary 오프셋 구분](glossary.md#오프셋-구분), `GameClock.ts`, `constants.ts` |
 
 버퍼나 객체를 다시 쓴다고 적을 때는 구조 이름(double buffer, object pool)이나 다시 쓰는 대상의 식별자(`createApproachLightFrames()`의 결과 등)를 쓴다.
 

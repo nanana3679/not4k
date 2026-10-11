@@ -27,7 +27,7 @@ vi.mock('./flight/FlightBackground', () => ({
 
 const { GameRenderer } = await import('./GameRenderer');
 const { GEAR_GEOMETRY, layoutGear } = await import('./gearLayout');
-const { GAME_HEIGHT, LANE_AREA_WIDTH } = await import('./constants');
+const { GAME_HEIGHT, GEAR_OFFSET_Y, LANE_AREA_WIDTH } = await import('./constants');
 const { gaugeEmptyRows } = await import('./gearGauge');
 
 interface Scene {
@@ -108,7 +108,7 @@ describe('GameRenderer 기어 고도 게이지 — 배치와 레이어 순서', 
   it('gearMotion 켬: 기어 레이어는 [기어, gearMotion holder, 게이지] 순서라 게이지 덮개가 gearMotion의 액체·기포 위에 있고 기어와 같은 변환(250/552배)이다', async () => {
     const { scene } = await createRenderer({ gearMotion: true });
     expect(scene.gearLayer.children.map((child) => child.label)).toEqual(['gear', 'gear-motion-holder', 'gear-gauge']);
-    const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT });
+    const layout = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY: GEAR_OFFSET_Y });
     const gauge = gaugeContainer(scene);
     expect([gauge.x, gauge.y]).toEqual([layout.x, layout.y]);
     expect(gauge.scale.x).toBeCloseTo(250 / 552, 12);

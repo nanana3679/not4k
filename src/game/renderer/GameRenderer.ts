@@ -15,6 +15,7 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  GEAR_OFFSET_Y,
   JUDGMENT_LINE_THICKNESS,
   KEY_BOMB_SIZE,
   TUTORIAL_KB_SIDE_PAD,
@@ -23,7 +24,7 @@ import {
   playfieldPx,
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
-import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./gearLayout";
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, clampGearOffsetY, layoutGear, type GearLayout, type GearStage } from "./gearLayout";
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
@@ -105,6 +106,14 @@ export interface GameRendererOptions {
    */
   showGear?: boolean;
   /**
+   * 기어 y 오프셋: 기어와 판정선을 함께 아래로 옮기는 양(논리 px, 화면 y축이라 +가 아래, [#257](https://github.com/nanana3679/not4k/issues/257)).
+   * 주지 않으면 게임 값 `GEAR_OFFSET_Y`(10)이고, 준 값은 0 이상으로 맞춘다(음수·NaN은 0). 기어 배치(`layoutGear`의 `offsetY`)와 리프트 0%의 판정선이 같은 양만큼 내려가고,
+   * 기어 배치에서 정해지는 레인 끝(키 윗면)·고도 게이지·`gearMotion` `holder`도 따라온다. 리프트는 내린 판정선에서 판정선만 올린다.
+   * 기어 아래쪽 원본 gearOffsetY ÷ 배율 행은 화면 밖으로 잘린다. 기어를 그리지 않는 렌더러(showGear false)는 이 값과 기본값을 모두 무시한다.
+   * 게임 플레이 화면은 넘기지 않아 기본값을 쓰고, Lab `/lab/gear`가 다른 값을 시험할 때 넘긴다.
+   */
+  gearOffsetY?: number;
+  /**
    * `gearMotion`(기어 위 장식 애니메이션: 큰 광원 띠·게이지 액체 흐름과 기포·발광선 호흡·하단 바 빛, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
    * 끄면(게임 설정 `gearMotion` 끔) `gearMotion` 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
@@ -169,6 +178,10 @@ export class GameRenderer {
   // Rendering state
   private _scrollSpeed: number = 800; // pixels per second
   private _judgmentLineY: number;
+  /** 리프트 0%의 판정선 y(높이 − 판정선 오프셋 + gearOffsetY). 리프트는 여기서 올린다. */
+  private readonly baseJudgmentLineY: number;
+  /** 기어 y 오프셋(옵션 `gearOffsetY`, 0 이상, 주지 않으면 `GEAR_OFFSET_Y`). 기어와 판정선을 함께 이만큼 내린다. showGear false면 0이다. */
+  private readonly gearOffsetY: number;
   private readonly bombScale: number;
 
   // Chart data
@@ -260,11 +273,15 @@ export class GameRenderer {
     this.measureLineThickness = Math.max(MEASURE_LINE_THICKNESS, 1 / this.resolution);
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
-    this._judgmentLineY = options.height - this.judgmentLineOffset;
+    this.showGear = options.showGear ?? true;
+    // 기어가 있으면 게임 값 GEAR_OFFSET_Y(10)만큼 기어와 판정선을 함께 내린다(#257). 기어가 없는 렌더러(튜토리얼 재생기)는
+    // 내릴 기어가 없으므로 판정선도 그대로 둔다.
+    this.gearOffsetY = this.showGear ? clampGearOffsetY(options.gearOffsetY ?? GEAR_OFFSET_Y) : 0;
+    this.baseJudgmentLineY = options.height - this.judgmentLineOffset + this.gearOffsetY;
+    this._judgmentLineY = this.baseJudgmentLineY;
     this.skinManager = options.skinManager;
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
-    this.showGear = options.showGear ?? true;
     this.gearMotionEnabled = options.gearMotion ?? true;
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
@@ -344,9 +361,14 @@ export class GameRenderer {
    */
   private eventMessageWrapWidth(): number {
     const obstacleRight = this.showGear
-      ? layoutGear(GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
+      ? layoutGear(GEAR_GEOMETRY, this.gearStage()).silhouetteRightX
       : this.laneAreaX + LANE_AREA_WIDTH;
     return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
+  }
+
+  /** 기어 배치의 입력: 레인 영역, 플레이 영역 높이, 기어 y 오프셋(gearOffsetY). */
+  private gearStage(): GearStage {
+    return { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height, offsetY: this.gearOffsetY };
   }
 
   async init(): Promise<void> {
@@ -516,17 +538,13 @@ export class GameRenderer {
 
   /**
    * 새 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
-   * 실루엣 아래 가장자리를 화면 아래에 붙인다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
+   * 실루엣 아래 가장자리를 화면 아래보다 gearOffsetY(게임 기본 10)만큼 아래에 둔다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
   private buildGear(): void {
     let texture;
     try { texture = this.skinManager.getTexture(GEAR_IMAGE_KEY); } catch { return; }
-    const layout = layoutGear(GEAR_GEOMETRY, {
-      laneAreaX: this.laneAreaX,
-      laneAreaWidth: LANE_AREA_WIDTH,
-      height: this.height,
-    });
+    const layout = layoutGear(GEAR_GEOMETRY, this.gearStage());
     const sprite = new Sprite({ texture, label: "gear" });
     sprite.position.set(layout.x, layout.y);
     sprite.width = layout.width;
@@ -1254,11 +1272,11 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 기본 위치(y 416)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
+   * 판정선을 기본 위치(높이 − 판정선 오프셋 + gearOffsetY. gearOffsetY는 showGear false면 0)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
    * 이후 키봄)만 움직이고, 기어와 레인 끝은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 레인 끝(레인 배경·클립)도 따라온다.
    */
   setLift(y: number): void {
-    this._judgmentLineY = this.height - this.judgmentLineOffset - y;
+    this._judgmentLineY = this.baseJudgmentLineY - y;
     this.drawJudgmentLine();
     if (!this._gearLayout) this.drawLaneEnd();
     this.comboText.y = this._judgmentLineY - COMBO_OFFSET;
