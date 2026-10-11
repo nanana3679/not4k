@@ -15,6 +15,7 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  GEAR_OFFSET_Y,
   JUDGMENT_LINE_THICKNESS,
   KEY_BOMB_SIZE,
   TUTORIAL_KB_SIDE_PAD,
@@ -23,7 +24,7 @@ import {
   playfieldPx,
 } from "./constants";
 import { KeyboardDisplay } from "./KeyboardDisplay";
-import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear, type GearLayout } from "./gearLayout";
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, clampGearOffsetY, layoutGear, type GearLayout, type GearStage } from "./gearLayout";
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
@@ -101,9 +102,17 @@ export interface GameRendererOptions {
   bombScale?: number;
   /**
    * 새 기어(스킨 공통 `gearImage`)와 양옆 유리관 고도 게이지(`gearGaugeEmpty`)를 그린다.
-   * 끄면(튜토리얼 미니 렌더러) 둘 다 없고, 레인 가림막이 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)부터 덮는다.
+   * 끄면(튜토리얼 미니 렌더러) 둘 다 없고, 레인 끝(`laneEndY`)은 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)이다.
    */
   showGear?: boolean;
+  /**
+   * 기어 y 오프셋: 기어와 판정선을 함께 아래로 옮기는 양(논리 px, 화면 y축이라 +가 아래, [#257](https://github.com/nanana3679/not4k/issues/257)).
+   * 주지 않으면 게임 값 `GEAR_OFFSET_Y`(10)이고, 준 값은 0 이상으로 맞춘다(음수·NaN은 0). 기어 배치(`layoutGear`의 `offsetY`)와 리프트 0%의 판정선이 같은 양만큼 내려가고,
+   * 기어 배치에서 정해지는 레인 끝(키 윗면)·고도 게이지·`gearMotion` `holder`도 따라온다. 리프트는 내린 판정선에서 판정선만 올린다.
+   * 기어 아래쪽 원본 gearOffsetY ÷ 배율 행은 화면 밖으로 잘린다. 기어를 그리지 않는 렌더러(showGear false)는 이 값과 기본값을 모두 무시한다.
+   * 게임 플레이 화면은 넘기지 않아 기본값을 쓰고, Lab `/lab/gear`가 다른 값을 시험할 때 넘긴다.
+   */
+  gearOffsetY?: number;
   /**
    * `gearMotion`(기어 위 장식 애니메이션: 큰 광원 띠·게이지 액체 흐름과 기포·발광선 호흡·하단 바 빛, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
    * 끄면(게임 설정 `gearMotion` 끔) `gearMotion` 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
@@ -145,6 +154,15 @@ export class GameRenderer {
   private flightBackground: FlightBackground | null = null;
   private readonly difficultyLabel: string;
   private backgroundLayer: Container;
+  /** 레인 배경·구분선. 레인 끝(`laneEndY`)까지만 그린다. */
+  private laneBackground: Graphics;
+  /**
+   * 레인 안에서 움직이는 것(`restZone`·키빔·마디선·`trillZone`·롱노트 세 레이어·노트)을 담는 컨테이너.
+   * `laneEndClip`을 mask로 걸어 레인 끝 아래를 자른다(#247).
+   */
+  private laneContentLayer: Container;
+  /** `laneContentLayer`의 mask. y 0부터 레인 끝까지, 레인 영역 양옆에 레인 폭만큼 여유를 둔 사각형이라 아래 경계만 자른다. */
+  private laneEndClip: Graphics;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
   private restZoneLayer: Container;
@@ -153,7 +171,6 @@ export class GameRenderer {
   private longNoteEndLayer: Container;
   private longNoteHeadLayer: Container;
   private noteLayer: Container;
-  private maskGraphic: Graphics;
   private judgmentLineGraphic: Graphics;
   private effectLayer: Container;
   private uiLayer: Container;
@@ -161,6 +178,10 @@ export class GameRenderer {
   // Rendering state
   private _scrollSpeed: number = 800; // pixels per second
   private _judgmentLineY: number;
+  /** 리프트 0%의 판정선 y(높이 − 판정선 오프셋 + gearOffsetY). 리프트는 여기서 올린다. */
+  private readonly baseJudgmentLineY: number;
+  /** 기어 y 오프셋(옵션 `gearOffsetY`, 0 이상, 주지 않으면 `GEAR_OFFSET_Y`). 기어와 판정선을 함께 이만큼 내린다. showGear false면 0이다. */
+  private readonly gearOffsetY: number;
   private readonly bombScale: number;
 
   // Chart data
@@ -252,11 +273,15 @@ export class GameRenderer {
     this.measureLineThickness = Math.max(MEASURE_LINE_THICKNESS, 1 / this.resolution);
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
-    this._judgmentLineY = options.height - this.judgmentLineOffset;
+    this.showGear = options.showGear ?? true;
+    // 기어가 있으면 게임 값 GEAR_OFFSET_Y(10)만큼 기어와 판정선을 함께 내린다(#257). 기어가 없는 렌더러(튜토리얼 재생기)는
+    // 내릴 기어가 없으므로 판정선도 그대로 둔다.
+    this.gearOffsetY = this.showGear ? clampGearOffsetY(options.gearOffsetY ?? GEAR_OFFSET_Y) : 0;
+    this.baseJudgmentLineY = options.height - this.judgmentLineOffset + this.gearOffsetY;
+    this._judgmentLineY = this.baseJudgmentLineY;
     this.skinManager = options.skinManager;
     const bombScale = options.bombScale ?? 1;
     this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
-    this.showGear = options.showGear ?? true;
     this.gearMotionEnabled = options.gearMotion ?? true;
     this.showFlightBackground = options.showFlightBackground ?? true;
     this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
@@ -269,6 +294,9 @@ export class GameRenderer {
 
     // Pre-create layers
     this.backgroundLayer = new Container();
+    this.laneBackground = new Graphics();
+    this.laneContentLayer = new Container({ label: "lane-content" });
+    this.laneEndClip = new Graphics({ label: "lane-end-clip" });
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
     this.restZoneLayer = new Container();
@@ -277,7 +305,6 @@ export class GameRenderer {
     this.longNoteEndLayer = new Container();
     this.longNoteHeadLayer = new Container();
     this.noteLayer = new Container();
-    this.maskGraphic = new Graphics();
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
     this.gearLayer = new Container();
@@ -334,9 +361,14 @@ export class GameRenderer {
    */
   private eventMessageWrapWidth(): number {
     const obstacleRight = this.showGear
-      ? layoutGear(GEAR_GEOMETRY, { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height }).silhouetteRightX
+      ? layoutGear(GEAR_GEOMETRY, this.gearStage()).silhouetteRightX
       : this.laneAreaX + LANE_AREA_WIDTH;
     return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
+  }
+
+  /** 기어 배치의 입력: 레인 영역, 플레이 영역 높이, 기어 y 오프셋(gearOffsetY). */
+  private gearStage(): GearStage {
+    return { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height, offsetY: this.gearOffsetY };
   }
 
   async init(): Promise<void> {
@@ -353,19 +385,32 @@ export class GameRenderer {
 
     // Build scene graph
     this.app.stage.addChild(this.backgroundLayer);
+    this.backgroundLayer.addChild(this.laneBackground);
+    // 레인 안에서 움직이는 것은 레인 내용 컨테이너 하나에 담는다.
     // 휴지 밴드는 레인 배경 바로 위(빔/노트 아래)에 깔아 레인을 가라앉힌다.
-    this.app.stage.addChild(this.restZoneLayer);
-    this.app.stage.addChild(this.keyBeamLayer);
-    this.app.stage.addChild(this.measureLineLayer);
-    this.app.stage.addChild(this.trillZoneLayer);
-    this.app.stage.addChild(this.longNoteBodyLayer);
-    this.app.stage.addChild(this.longNoteEndLayer);
-    this.app.stage.addChild(this.longNoteHeadLayer);
-    // 노트 배열의 순서와 무관하게 포인트·그림자·Grace는 바디와 시작/끝 터미널 위에 그린다.
-    this.app.stage.addChild(this.noteLayer);
-    this.app.stage.addChild(this.maskGraphic);
+    this.laneContentLayer.addChild(
+      this.restZoneLayer,
+      this.keyBeamLayer,
+      this.measureLineLayer,
+      this.trillZoneLayer,
+      this.longNoteBodyLayer,
+      this.longNoteEndLayer,
+      this.longNoteHeadLayer,
+      // 노트 배열의 순서와 무관하게 포인트·그림자·Grace는 바디와 시작/끝 터미널 위에 그린다.
+      this.noteLayer,
+    );
+    this.app.stage.addChild(this.laneContentLayer);
+    // 레인 끝 클립(#247): 기어가 있든 없든 레인 내용을 레인 끝(laneEndY) 위 사각형 하나로 자른다.
+    // Pixi 8.21에는 scissor 경로가 없어(`ScissorMask` 클래스만 있고 `scissorMask` pipe가 없다) Graphics mask는 스텐실 마스크
+    // (`StencilMaskPipe`)가 된다. 렌더러마다 프레임당 클립 사각형을 2번 더 그리고(push 때 색 쓰기를 끄고 stencil 표시,
+    // pop 때 다시 그려 되돌림) 그 앞뒤로 batch break와 stencil·colorMask 상태 변경이 생긴다. 이 비용은 #247에서 받아들였다.
+    // mask Graphics는 stage에 두어 변환을 갱신하게 하고, Pixi가 mask로 쓰는 동안 화면에는 그리지 않는다(includeInBuild false).
+    this.app.stage.addChild(this.laneEndClip);
+    // 주의: mask를 다시 지정하면 Pixi가 laneEndClip의 includeInBuild를 되돌려 흰 사각형으로 그린다. Container의 mask는 하나뿐이라
+    // 나중 서든 커버(setSudden)도 이 클립과 함께 동작하도록 만들어야 한다(같은 사각형의 위끝을 내리거나 컨테이너를 하나 더 둔다).
+    this.laneContentLayer.mask = this.laneEndClip;
     this.app.stage.addChild(this.judgmentLineGraphic);
-    // 레인 키 라벨은 마스크 위에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
+    // 레인 키 라벨은 레인 끝 클립 밖(레인 끝 아래 밴드)에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
     this.app.stage.addChild(this.laneKeyLabelLayer);
     // 키보드 strip은 y >= this.height 별도 영역이라 다른 레이어와 z순서 영향 없음.
     this.app.stage.addChild(this.tutorialKeyboardLayer);
@@ -391,13 +436,12 @@ export class GameRenderer {
       this.height,
     );
 
-    // Draw static elements. 기어 배치가 레인 가림막의 시작 높이를 정하므로 기어를 먼저 놓는다.
+    // Draw static elements. 기어 배치가 레인 끝(laneEndY)을 정하므로 기어를 먼저 만든다.
     if (this.showGear) {
       this.buildGear();
     }
-    this.drawBackground();
     this.drawJudgmentLine();
-    this.drawMask();
+    this.drawLaneEnd();
     this.buildKeyBeams();
     if (this.showLaneKeyLabels) {
       this.buildLaneKeyLabels();
@@ -423,23 +467,43 @@ export class GameRenderer {
     catch (error) { this.dispose(false); throw error; }
   }
 
-  private drawBackground(): void {
-    const bg = new Graphics();
+  /**
+   * 레인 끝(`laneEndY`)이 정하는 두 가지를 다시 그린다: 레인 배경·구분선의 길이와 레인 내용 클립 사각형(`laneEndClip`).
+   * init과, 기어가 없는 렌더러의 리프트(setLift)가 부른다. 같은 Graphics를 비우고 다시 그린다.
+   */
+  private drawLaneEnd(): void {
+    const laneEndY = Math.min(this.height, Math.max(0, this.laneEndY()));
+    this.drawLaneBackground(laneEndY);
+    this.drawLaneEndClip(laneEndY);
+  }
+
+  private drawLaneBackground(laneEndY: number): void {
+    const bg = this.laneBackground;
+    bg.clear();
 
     for (let i = 0; i < LANE_COUNT; i++) {
       const x = this.laneAreaX + i * LANE_WIDTH;
       const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
-      bg.rect(x, 0, LANE_WIDTH, this.height);
+      bg.rect(x, 0, LANE_WIDTH, laneEndY);
       bg.fill(color);
     }
 
     for (let i = 1; i < LANE_COUNT; i++) {
       const x = this.laneAreaX + i * LANE_WIDTH;
-      bg.rect(x - LANE_SEPARATOR_WIDTH / 2, 0, LANE_SEPARATOR_WIDTH, this.height);
+      bg.rect(x - LANE_SEPARATOR_WIDTH / 2, 0, LANE_SEPARATOR_WIDTH, laneEndY);
       bg.fill(COLORS.LANE_SEPARATOR);
     }
+  }
 
-    this.backgroundLayer.addChild(bg);
+  /**
+   * (레인 영역 ± 레인 폭) × (0 ~ 레인 끝) 사각형. 레인 밖으로 걸치는 그림(Grace 빛 GRACE_GLOW_PAD 8.75, Classic Grace 덧그림 7.5,
+   * 일부 스킨의 트릴 끝 터미널 최대 약 37.5)은 모두 양옆 여유(레인 폭 62.5) 안이라 자르지 않고 아래 경계만 자른다.
+   * 화면 폭 전체보다 좁혀 스텐실을 쓰는 픽셀 수를 줄인다. 스킨이 레인 밖으로 이보다 크게 걸치게 되면 이 여유도 넓혀야 한다.
+   */
+  private drawLaneEndClip(laneEndY: number): void {
+    this.laneEndClip.clear();
+    this.laneEndClip.rect(this.laneAreaX - LANE_WIDTH, 0, LANE_AREA_WIDTH + LANE_WIDTH * 2, laneEndY);
+    this.laneEndClip.fill(0xffffff);
   }
 
   private buildKeyBeams(): void {
@@ -462,6 +526,7 @@ export class GameRenderer {
       const flash = new Graphics();
       const laneX = this.laneAreaX + i * LANE_WIDTH;
 
+      // 그라데이션이 높이 전체 기준(textureSpace local)이라 키빔은 화면 높이로 그리고, 레인 끝 아래는 클립이 자른다.
       flash.rect(laneX, 0, LANE_WIDTH, this.height);
       flash.fill({ fill: this.keyBeamGradient, alpha: 0.5 });
 
@@ -473,22 +538,18 @@ export class GameRenderer {
 
   /**
    * 새 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
-   * 실루엣 아래 가장자리를 화면 아래에 붙인다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
+   * 실루엣 아래 가장자리를 화면 아래보다 gearOffsetY(게임 기본 10)만큼 아래에 둔다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
    * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
    */
   private buildGear(): void {
     let texture;
     try { texture = this.skinManager.getTexture(GEAR_IMAGE_KEY); } catch { return; }
-    const layout = layoutGear(GEAR_GEOMETRY, {
-      laneAreaX: this.laneAreaX,
-      laneAreaWidth: LANE_AREA_WIDTH,
-      height: this.height,
-    });
+    const layout = layoutGear(GEAR_GEOMETRY, this.gearStage());
     const sprite = new Sprite({ texture, label: "gear" });
     sprite.position.set(layout.x, layout.y);
     sprite.width = layout.width;
     sprite.height = layout.height;
-    // 바깥(접근자)에서 고쳐도 가림막·키보드 배치가 어긋나지 않게 얼려 둔다.
+    // 바깥(접근자)에서 고쳐도 레인 끝·키보드 배치가 어긋나지 않게 얼려 둔다.
     this._gearLayout = Object.freeze(layout);
     this.gearLayer.addChild(sprite);
     this.gearTextures.push(texture);
@@ -809,36 +870,28 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 지난 노트를 그리는 시간. 기어가 있으면 가림막이 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
-   * 노트 시각은 박스 가운데라(#224) 박스 윗변이 가림막 위끝에 닿는 때는 시각 위치가 (가림막 위끝 − 판정선) + 노트 반 칸 내려갔을 때다.
-   * 놓친 노트는 박스 위에 접촉 그림자(스킨 `pointContactShadow.above`)를 깔므로, 그 띠까지 가림막 아래로 내려간 뒤 지운다.
+   * 판정선을 지난 노트를 그리는 시간. 기어가 있으면 레인 끝이 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
+   * 노트 시각은 박스 가운데라(#224) 박스 윗변이 레인 끝에 닿는 때는 시각 위치가 (레인 끝 − 판정선) + 노트 반 칸 내려갔을 때다.
+   * 놓친 노트는 박스 위에 접촉 그림자(스킨 `pointContactShadow.above`)를 깔므로, 그 띠까지 레인 끝 아래로 내려간 뒤 지운다.
    * Grace 오버레이는 놓친 노트에 그리지 않아 더하지 않는다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
    */
   private lateNoteWindowMs(): number {
     const overlayAbove = playfieldPx(this.skinManager.getTheme().pointContactShadow?.above ?? 0);
-    const visibleBelowLine = this.laneMaskTop() - this._judgmentLineY + NOTE_HEIGHT / 2 + overlayAbove;
+    const visibleBelowLine = this.laneEndY() - this._judgmentLineY + NOTE_HEIGHT / 2 + overlayAbove;
     return Math.max(LATE_NOTE_MIN_WINDOW_MS, (visibleBelowLine / this._scrollSpeed) * 1000);
   }
 
   /**
-   * 레인 가림막. 기어가 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)부터 덮는다(RFD 0029).
-   * 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다.
-   * 이 높이는 기어와 함께 고정이라 리프트로 움직이지 않는다. 기어가 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸
-   * 아래끝(판정선 + 노트 반 칸, #224)부터 덮어, 판정선에 가운데가 걸친 노트·터미널이 게임처럼 한 칸 전부 보인다.
+   * 레인 끝: 레인 배경과 레인 내용(`laneContentLayer`)이 끝나는 y. 그 아래는 클립(`laneEndClip`)이 잘라 그리지 않는다(#247).
+   * 기어가 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)이다(RFD 0029). 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이
+   * 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다. 이 높이는 기어와 함께 고정이라 리프트로 움직이지 않는다.
+   * 기어가 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸, #224)이라, 판정선에 가운데가 걸친
+   * 노트·터미널이 게임처럼 한 칸 전부 보이고 리프트를 따라 움직인다.
    */
-  private laneMaskTop(): number {
+  private laneEndY(): number {
     return this._gearLayout
       ? this._gearLayout.keyRimY
       : this._judgmentLineY + Math.max(NOTE_HEIGHT, JUDGMENT_LINE_THICKNESS) / 2;
-  }
-
-  private drawMask(): void {
-    this.maskGraphic.clear();
-    const maskY = this.laneMaskTop();
-    const maskHeight = this.height - maskY;
-    if (maskHeight <= 0) return;
-    this.maskGraphic.rect(this.laneAreaX, maskY, LANE_AREA_WIDTH, maskHeight);
-    this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
   }
 
   /**
@@ -1219,13 +1272,13 @@ export class GameRenderer {
   }
 
   /**
-   * 판정선을 기본 위치(y 416)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
-   * 이후 키봄)만 움직이고, 기어와 레인 가림막은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 가림막도 따라온다.
+   * 판정선을 기본 위치(높이 − 판정선 오프셋 + gearOffsetY. gearOffsetY는 showGear false면 0)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
+   * 이후 키봄)만 움직이고, 기어와 레인 끝은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 레인 끝(레인 배경·클립)도 따라온다.
    */
   setLift(y: number): void {
-    this._judgmentLineY = this.height - this.judgmentLineOffset - y;
+    this._judgmentLineY = this.baseJudgmentLineY - y;
     this.drawJudgmentLine();
-    if (!this._gearLayout) this.drawMask();
+    if (!this._gearLayout) this.drawLaneEnd();
     this.comboText.y = this._judgmentLineY - COMBO_OFFSET;
     this.accuracyText.y = this._judgmentLineY - ACCURACY_OFFSET;
     this.judgmentUI.setPosition(this._judgmentLineY);

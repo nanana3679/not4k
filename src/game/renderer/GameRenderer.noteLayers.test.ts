@@ -90,8 +90,11 @@ describe('GameRenderer 포인트와 바디·터미널 겹침', () => {
         expect(overlappingCaps.length).toBeGreaterThanOrEqual(2);
         expect(overlappingBodies).toHaveLength(2);
         expect(sprite.texture).toBe(textures.get(type === 'trill' ? 'noteTrill' : type === 'double' ? 'noteDouble' : 'noteSingle'));
+        // 노트·롱노트 레이어는 모두 레인 내용 컨테이너(laneContentLayer) 안에 있다.
+        const laneContent = scene.noteLayer.parent!;
         for (const part of [...overlappingCaps, ...overlappingBodies]) {
-          expect(scene.app.stage.getChildIndex(scene.noteLayer)).toBeGreaterThan(scene.app.stage.getChildIndex(part.parent!));
+          expect(part.parent!.parent).toBe(laneContent);
+          expect(laneContent.getChildIndex(scene.noteLayer)).toBeGreaterThan(laneContent.getChildIndex(part.parent!));
         }
       }
       scene.app.stage.destroy({ children: true });

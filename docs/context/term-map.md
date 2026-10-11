@@ -34,6 +34,7 @@
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
 | 기어 움직임 | `gearMotion` (기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛. 설정 라벨 `Gear Motion`은 화면 표시라 그대로 둔다. "움직이다"는 위치 변화(노트 스크롤·리프트)에만 남긴다, 2026-10-09) | `gearMotion`/`GearMotionController`/`GearMotionControls`/`gear-motion.json` |
+| 기어 y 오프셋 (Lab 조절 이름. 검토 중 "기어·판정선 내리기"·`gearDrop`·`?drop=`에서 바꿨다, 2026-10-10) | `gearOffsetY` (기어와 판정선을 함께 옮기는 화면 y축 값, +가 아래, 논리 px, 게임 값 10. 이 값을 가리킬 때 "내리기"·"내린 양"을 쓰지 않고, 화면 효과를 서술할 때만 "내린다"를 쓴다. 다른 오프셋과의 구분은 [glossary](glossary.md#오프셋-구분)) | `gearOffsetY`/`GEAR_OFFSET_Y`/`clampGearOffsetY`/`GearStage.offsetY`, Lab `data-gear-offset-y`·주소 `?offsetY=`·`#gear-preview-offset-y` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
 
@@ -99,8 +100,8 @@
 | object pool | object pool(`TrailPool`): 수명이 끝난 trail 표본 객체를 모아 다음 표본에 다시 쓴다 | 같은 버퍼를 다시 써서, bare "버퍼 재사용" | 같은 파일 |
 | trail | trail(`trails`, `TrailPool`, `advanceTrails`) | trail 뜻의 잔상·잔광. 잔광은 버튼 빛이 키를 뗀 뒤 사라지는 페이드 아웃(버튼 누름 시연 `press-animation.html`의 "잔광")에만 쓴다 | `breakthrough.mjs`, `approach.mjs` |
 | tint | `tint` | 물들이기, 물들여 | `gearMotion.ts`의 `unlit.tint` |
-| 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 판정선 아래 레인을 덮는 사각형이나 서든의 상단 커버를 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처 |
-| 판정선 아래 레인을 덮는 불투명 사각형 | **없앨 예정([#247](https://github.com/nanana3679/not4k/issues/247)).** 이 사각형 대신 레인 길이를 레인 끝(기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)에서 클립한다. 그 전까지는 코드 식별자 `drawMask`·`maskGraphic`로 부르고, Pixi mask가 아니라 불투명 `Graphics` 채우기임을 함께 적는다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 커버 기능(PRD G-10 서든)에 남겨 둔다 | `drawMask`·`maskGraphic`·`laneMaskTop`, [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
+| 마스크 | 그래픽스 뜻(Pixi `mask`, 스텐실 마스크, 알파 마스크 텍스처)에만 쓴다 | 서든의 상단 커버나 [#247](https://github.com/nanana3679/not4k/issues/247) 전 판정선 아래 레인을 덮던 불투명 사각형을 "마스크"로 부르기 | `gaugeLayer.mask`(`gearMotion.ts`), `barMask` 텍스처, 레인 끝 클립 `laneContentLayer.mask`(`GameRenderer.ts`) |
+| 레인이 판정선 아래에서 끝나는 곳과 그 아래 자르기 | 레인 끝(`laneEndY`: 기어가 있으면 키 윗면, 없으면 판정선 + 노트 반 칸)과 레인 끝 클립(`laneContentLayer`의 mask `laneEndClip`, 스텐실 마스크). 레인 배경은 레인 끝까지만 그린다. **[#247](https://github.com/nanana3679/not4k/issues/247)에서 바꿨다**: 그 전에는 판정선 아래 레인을 불투명 `Graphics` 채우기(`drawMask`·`maskGraphic`·`laneMaskTop`·`COLORS.MASK_BELOW_JUDGMENT`, 지움)로 덮었다 | 레인 가림막, 레인 커버, bare "마스크". "가림막"·"레인 커버"는 SUDDEN+·HIDDEN·LIFT 같은 사용자 커버 기능(PRD G-10 서든)에 남겨 둔다 | `laneEndY`·`laneContentLayer`·`laneEndClip`(`GameRenderer.ts`), [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md) |
 | 애니메이션 경과 시간 | 애니메이션 경과 시간(`gearMotion`의 `GearMotionControls.timeMs`, `renderFrame`의 `deltaMs` 누적). 곡 시간은 `GameClock` | 움직임 시계, 게임 프레임 시계, 시계(이 뜻일 때) | `GearMotionController.ts`, [`src/game/CONTEXT.md`](../../src/game/CONTEXT.md)의 `GameClock` |
 | `gearMotion`을 이루는 Pixi 레이어 | `gearMotion` 레이어(`GEAR_MOTION_LAYERS`: `armor`·`gauge`·`accent`·`bar`, Lab 표시 이름 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름). 레이어 묶음 전체는 `gearMotion` (2026-10-09) | 움직임 레이어, bare "움직임" | `GearMotionLayer`·`GearMotionLayerVisibility`(`gearMotionData.ts`), `setLayerVisible` |
 | scene graph에 추가 | 추가(`addChild`). 기어 위 레이어는 `addGearOverlay` | 얹다, 얹기 | Pixi `Container.addChild` |
@@ -109,6 +110,7 @@
 | 에디터 연산 | 연산마다 이름을 쓴다. 정규화(`normalizeSelection`), 캡슐화(`TimelineSpace`가 좌표 변환·스냅·히트테스트를 한 인터페이스로 묶음), 매핑(`scheduleFromGrabTarget`: `GrabTarget` → 터치 스케줄), 변환(`maxTimelineBeat`: 부동소수 박을 1/960 단위로 내림해 `Beat`로) | 비유만 쓰는 접기, 접는다, 접은 | `selectionSlice.ts`, `TimelineSpace.ts`·`useTimelineSpace.ts`, `touchEditRouting.ts`, `SelectMode.ts` |
 | modifier 키 | modifier 키 상태(`shiftKey`·`altKey`)와 선택 토글 플래그(`toggleSelection`) | 수식자, 보조키(게임 용어) | `PointerGesture`(`src/editor/modes/editorMode.ts`) |
 | 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts`, `src/editor/modes/longPressRouting.ts` |
+| 오프셋 | 어느 오프셋인지 이름을 붙인다: 오디오 오프셋(`audioOffsetMs`)·입력 오프셋(`judgmentOffsetMs`)은 시간(ms), 판정선 오프셋(`judgmentLineOffset`, 아래에서 위로)·기어 y 오프셋(`gearOffsetY`, +가 아래)은 화면 위치(논리 px)다. 차트 메타데이터 `offsetMs`는 차트 오프셋 | 이름 없는 "오프셋", offset | [glossary 오프셋 구분](glossary.md#오프셋-구분), `GameClock.ts`, `constants.ts` |
 
 버퍼나 객체를 다시 쓴다고 적을 때는 구조 이름(double buffer, object pool)이나 다시 쓰는 대상의 식별자(`createApproachLightFrames()`의 결과 등)를 쓴다.
 

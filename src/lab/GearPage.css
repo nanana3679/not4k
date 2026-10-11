@@ -386,6 +386,33 @@
   outline-offset: 2px;
 }
 
+/* 기어·판정선 y 오프셋: 머리줄의 숫자 입력과 슬라이더 아래 결과 숫자 */
+.gear-preview-number {
+  box-sizing: border-box;
+  width: 6.5em;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #2f4a52;
+  border-radius: 5px;
+  background: rgba(6, 16, 19, 0.8);
+  color: #d8fbfd;
+  font: 600 15px/1.2 "Rajdhani", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.gear-preview-number:focus-visible {
+  outline: 2px solid #9ad9ff;
+  outline-offset: 2px;
+}
+
+.gear-preview-slider .gear-preview-offset-y-readout {
+  display: block;
+  color: #d8fbfd;
+  font: 600 14px/1.45 "Rajdhani", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 .gear-preview-note {
   color: #8f9aa8;
   font-size: 12px;
