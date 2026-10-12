@@ -112,6 +112,19 @@ async function injectMissAndReadNextFrame(page: Page): Promise<{ gaugeLevel: num
   }));
 }
 
+/**
+ * renderFrame이 count번 더 불릴 때까지 기다린다. 게이지 이징처럼 renderFrame마다 나아가는 값은 벽시계 대신 이 프레임 수로 기다려야
+ * 병렬 E2E 부하(swiftshader)로 프레임이 드물어져도 결과가 같다.
+ */
+async function waitRenderFrames(page: Page, count: number) {
+  await page.evaluate((frames) => new Promise<void>((resolve) => {
+    const win = window as unknown as Record<string, unknown>;
+    const target = (win.__gearMotionFrames as number) + frames;
+    const check = () => { if ((win.__gearMotionFrames as number) >= target) resolve(); else requestAnimationFrame(check); };
+    requestAnimationFrame(check);
+  }), count);
+}
+
 async function resetStatusLog(page: Page) {
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__gearMotionStatusLog = []; });
 }
@@ -188,7 +201,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
   });
 
   for (const motionOn of [true, false]) {
-    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 renderFrame 20번 뒤 배경 고도와 0.02 안으로 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await startLocalPlay(page, motionOn);
@@ -204,10 +217,13 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
       // 배경은 같은 프레임에 0.24 낮은 고도를 받지만, 게이지는 300ms ease-out 느낌으로 따라가 아직 위에 있다.
       expect(afterMiss.backgroundAltitude).toBeLessThan(playing.backgroundAltitude! - 0.2);
       expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(0.02);
-      await expect.poll(async () => {
-        const probe = await readProbe(page);
-        return Math.abs(probe.gaugeLevel! - probe.backgroundAltitude!);
-      }, { timeout: 5_000 }).toBeLessThan(0.005);
+      // 이징은 renderFrame마다 최대 50ms만큼만 나아가므로 벽시계(5초) 대신 renderFrame 수로 기다린다. 0.24 차이는 이징 시간 약 290ms
+      // (τ 75ms × ln 48)면 0.005 아래로 줄고, 20프레임은 60fps(약 17ms)에서 약 333ms, 프레임이 50ms보다 느리면 1000ms다.
+      // 배경 고도는 곡 진행(90초에 1 → 0, 초당 약 0.011)으로 계속 내려가는데, 프레임이 드물면 한 프레임에 곡 시간은 그 간격만큼 가고 이징은
+      // 50ms만 가서 게이지가 약 0.011 × 프레임 간격(초)만큼 뒤따른다(병렬 부하에서 프레임 간격 약 0.4~0.5초 → 약 0.005 실측). 그래서 0.02로 본다.
+      await waitRenderFrames(page, 20);
+      const settled = await readProbe(page);
+      expect(Math.abs(settled.gaugeLevel! - settled.backgroundAltitude!)).toBeLessThan(0.02);
       expect(errors).toEqual([]);
     });
   }
