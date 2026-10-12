@@ -1,6 +1,6 @@
 /**
  * Keyboard layout data for the keyboard display UI.
- * Contains key definitions and color constants for idle/pressed states.
+ * Contains key definitions only. Colours and alphas live in `KEYBOARD_DISPLAY_STYLE` (KeyboardDisplay.ts).
  */
 
 export interface KbKeyDef {
@@ -129,23 +129,3 @@ export const KB_NUMPAD_KEYS: KbKeyDef[] = [
   { code: 'Numpad0', label: '0', x: 19, y: 5.5, w: 2 },
   { code: 'NumpadDecimal', label: '.', x: 21, y: 5.5 },
 ];
-
-/** 외곽선 색상 */
-export const KB_IDLE_COLORS: Record<number, number> = {
-  1: 0x00cc88, 2: 0x00aacc, 3: 0xaa00cc, 4: 0xcc0088,
-};
-
-/** 눌림 외곽선 색상 */
-export const KB_PRESSED_COLORS: Record<number, number> = {
-  1: 0x00ffaa, 2: 0x00ddff, 3: 0xcc00ff, 4: 0xff00aa,
-};
-
-/** idle 채우기 — 각 레인 색상과 흰색의 중간 */
-export const KB_IDLE_FILL: Record<number, number> = {
-  1: 0x80e6c4, 2: 0x80d5e6, 3: 0xd580e6, 4: 0xe680c4,
-};
-
-/** pressed 채우기 — 흰색에 가까운 밝은 톤 */
-export const KB_PRESSED_FILL: Record<number, number> = {
-  1: 0xb3ffd9, 2: 0xb3eeff, 3: 0xe6b3ff, 4: 0xffb3d9,
-};

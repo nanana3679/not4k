@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   KEYBOARD_DISPLAY_MARGIN,
   KEYBOARD_DISPLAY_MIN_SCALE,
+  KEYBOARD_DISPLAY_STYLE,
   KeyboardDisplay,
   keyboardDisplaySize,
   placeKeyboardDisplay,
@@ -93,13 +94,14 @@ describe('KeyboardDisplay', () => {
     return { parent, display };
   }
 
-  it('플레이 영역(높이 600) 오른쪽 아래에 배치 결과대로 놓고 투명도 0.85로 그린다', () => {
+  it('플레이 영역(높이 600) 오른쪽 아래에 배치 결과대로 놓고 키보드 전체 투명도 KEYBOARD_DISPLAY_STYLE.alpha(0.85)로 그린다', () => {
     const { parent, display } = setUp();
     expect(parent.children).toContain(display.container);
     expect(display.placement).toEqual({ visible: true, scale: 1, x: 859.5, y: 524.5 });
     expect([display.container.x, display.container.y, display.container.scale.x, display.container.scale.y]).toEqual([859.5, 524.5, 1, 1]);
     expect(display.container.visible).toBe(true);
-    expect(display.container.alpha).toBe(0.85);
+    expect(KEYBOARD_DISPLAY_STYLE.alpha).toBe(0.85);
+    expect(display.container.alpha).toBe(KEYBOARD_DISPLAY_STYLE.alpha);
   });
 
   it('넘버패드 키가 바인딩에 있으면 넘버패드까지 그리고, 4:3에서는 0.646배로 줄인다', () => {
@@ -145,5 +147,85 @@ describe('KeyboardDisplay', () => {
     expect(container.destroyed).toBe(true);
     expect(parent.children).not.toContain(container);
     expect(() => display.setKeyState('KeyD', true)).not.toThrow();
+  });
+});
+
+describe('KeyboardDisplay 색 — 레인 1·3 은색/누름 흰색, 레인 2·4 하늘색/누름 더 밝은 하늘색(#258)', () => {
+  const { boundOdd, boundEven, pressedOdd, pressedEven, unbound } = KEYBOARD_DISPLAY_STYLE;
+
+  function setUp() {
+    const display = new KeyboardDisplay(new Container());
+    display.setup(TKL_BINDINGS, area(1067));
+    return display;
+  }
+  const keyOf = (display: KeyboardDisplay, label: string) => display.container.getChildByLabel(label) as Graphics;
+  /** Graphics에 기록된 채움·테두리 순서와 색·투명도. */
+  const paintOf = (graphic: Graphics) => graphic.context.instructions.map((instruction) => {
+    const style = (instruction.data as { style: { color: number; alpha: number } }).style;
+    return { action: instruction.action, color: style.color, alpha: style.alpha };
+  });
+
+  it('레인 1·3 바인딩 키(KeyD·KeyJ)는 은색(boundOdd), 레인 2·4 바인딩 키(KeyF·KeyK)는 하늘색(boundEven) 대기 그림이고 키 alpha는 둘 다 0.5다', () => {
+    const display = setUp();
+    const cases: Array<[string, { fill: number; stroke: number; alpha: number }]> = [['KeyD', boundOdd], ['KeyF', boundEven], ['KeyJ', boundOdd], ['KeyK', boundEven]];
+    for (const [code, style] of cases) {
+      const idle = keyOf(display, `key-${code}`);
+      expect(paintOf(idle)).toEqual([
+        { action: 'fill', color: style.fill, alpha: 1 },
+        { action: 'stroke', color: style.stroke, alpha: 1 },
+      ]);
+      expect(idle.alpha).toBe(style.alpha);
+      expect(idle.visible).toBe(true);
+    }
+    expect(boundOdd.fill).not.toBe(boundEven.fill);
+    expect(boundOdd.stroke).not.toBe(boundEven.stroke);
+  });
+
+  it('누르면 레인 1·3(KeyD·KeyJ)은 흰색(pressedOdd), 레인 2·4(KeyF·KeyK)는 대기보다 더 밝은 하늘색(pressedEven)으로 테두리·번짐 없이 같은 크기로 꽉 채워지고 대기 그림보다 불투명하다', () => {
+    const display = setUp();
+    type Pressed = { fill: number; alpha: number };
+    const cases: Array<[string, Pressed]> = [['KeyD', pressedOdd], ['KeyF', pressedEven], ['KeyJ', pressedOdd], ['KeyK', pressedEven]];
+    for (const [code, style] of cases) {
+      display.setKeyState(code, true);
+      const lit = keyOf(display, `key-${code}-pressed`);
+      expect(lit.visible).toBe(true);
+      expect(keyOf(display, `key-${code}`).visible).toBe(false);
+      // 눌린 키는 테두리·번짐 없이 채움 하나만 그리고, 겉 크기는 테두리를 포함한 대기 키와 같다(테두리와 채움 사이 틈이 없다).
+      expect(paintOf(lit)).toEqual([{ action: 'fill', color: style.fill, alpha: 1 }]);
+      const idleBounds = keyOf(display, `key-${code}`).getLocalBounds();
+      const litBounds = lit.getLocalBounds();
+      expect([litBounds.x, litBounds.y, litBounds.width, litBounds.height]).toEqual([idleBounds.x, idleBounds.y, idleBounds.width, idleBounds.height]);
+      expect(lit.alpha).toBe(style.alpha);
+      expect(style.alpha).toBeGreaterThan(Math.max(boundOdd.alpha, boundEven.alpha));
+    }
+    expect(pressedOdd.fill).not.toBe(pressedEven.fill);
+  });
+
+  it('바인딩되지 않은 키(KeyQ·Space·F1)는 화면 투명도(키 alpha × 키보드 alpha)가 0.07 이하이고 0보다 커 흐리게나마 보인다', () => {
+    const display = setUp();
+    const effective = unbound.alpha * KEYBOARD_DISPLAY_STYLE.alpha;
+    expect(effective).toBeLessThanOrEqual(0.07);
+    expect(effective).toBeGreaterThan(0);
+    for (const code of ['KeyQ', 'Space', 'F1']) {
+      const key = keyOf(display, `key-${code}`);
+      expect(key.alpha * display.container.alpha).toBeCloseTo(effective, 12);
+      expect(paintOf(key)).toEqual([{ action: 'fill', color: unbound.fill, alpha: 1 }]);
+      expect(display.container.getChildByLabel(`key-${code}-pressed`)).toBeNull();
+    }
+  });
+
+  it('레인 번호가 1~4 정수가 아닌 바인딩(KeyQ→0·KeyW→NaN·KeyE→5·KeyR→2.5)은 바인딩 안 된 키로 흐리게 그리고 눌림 그림을 만들지 않는다', () => {
+    const display = new KeyboardDisplay(new Container());
+    display.setup(bindings([['KeyQ', 0], ['KeyW', Number.NaN], ['KeyE', 5], ['KeyR', 2.5], ['KeyD', 1]]), area(1067));
+    for (const code of ['KeyQ', 'KeyW', 'KeyE', 'KeyR']) {
+      expect(paintOf(keyOf(display, `key-${code}`))).toEqual([{ action: 'fill', color: unbound.fill, alpha: 1 }]);
+      expect(display.container.getChildByLabel(`key-${code}-pressed`)).toBeNull();
+    }
+    expect(display.container.getChildByLabel('key-KeyD-pressed')).not.toBeNull();
+  });
+
+  it('네온은 상태에만: 눌림 색(채움·번짐)은 대기 색·바인딩되지 않은 키 색과 다르다', () => {
+    const neon = [pressedOdd.fill, pressedEven.fill];
+    for (const color of [boundOdd.fill, boundOdd.stroke, boundEven.fill, boundEven.stroke, unbound.fill]) expect(neon).not.toContain(color);
   });
 });
