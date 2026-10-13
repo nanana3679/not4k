@@ -32,8 +32,8 @@ const layoutFor = (width: number, offsetY = 0) => layoutGear(GEAR_GEOMETRY, {
   laneAreaX: (width - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY,
 });
 
-describe('Gear 무대 논리 폭 (게임 PlayScreen과 같은 규칙)', () => {
-  it('기본 16:9 무대는 논리 폭 1067', () => {
+describe('렌더러 캔버스를 담은 Lab 미리보기 <section>(gear-preview-stage)의 논리 폭 (게임 PlayScreen과 같은 규칙)', () => {
+  it('기본 16:9 gear-preview-stage는 논리 폭 1067', () => {
     expect(GEAR_PREVIEW_STAGE_WIDTH).toBe(1067);
   });
 
@@ -214,7 +214,7 @@ describe('고도 조절(기어 게이지·비행 배경)', () => {
     expect(manualAltitudeOnUnfollow(null, 0.6)).toBe(0.6);
   });
 
-  it('무대 data 속성은 게이지 채움을 소수 셋째 자리까지 적고(0.3 → "0.300"), 게이지가 없으면 속성을 쓰지 않는다', () => {
+  it('gear-preview-stage의 data 속성은 게이지 채움을 소수 셋째 자리까지 적고(0.3 → "0.300"), 게이지가 없으면 속성을 쓰지 않는다', () => {
     expect(formatGaugeLevel(0.3)).toBe('0.300');
     expect(formatGaugeLevel(1)).toBe('1.000');
     expect(formatGaugeLevel(null)).toBeUndefined();

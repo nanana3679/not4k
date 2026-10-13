@@ -16,7 +16,7 @@ export const GEAR_MOTION_LAYER_LABELS: Record<GearMotionLayer, string> = {
   bar: 'D 하단 바 흐름',
 };
 
-/** 레이어별 켜기·끄기. 게임 렌더러의 `gearMotion` 조절(`GearMotionControls`)과 Lab 무대·비교 화면이 같은 값을 쓴다. */
+/** 레이어별 켜기·끄기. 게임 렌더러의 `gearMotion` 조절(`GearMotionControls`)과 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)·비교 화면이 같은 값을 쓴다. */
 export type GearMotionLayerVisibility = Record<GearMotionLayer, boolean>;
 
 export const ALL_GEAR_MOTION_LAYERS_ON: Readonly<GearMotionLayerVisibility> = Object.freeze({ armor: true, gauge: true, accent: true, bar: true });

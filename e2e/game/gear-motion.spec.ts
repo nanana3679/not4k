@@ -15,7 +15,7 @@ interface MotionProbe {
   hasGear: boolean;
   motionObjects: number;
   motionVisible: boolean | null;
-  /** 무대의 'gear-gauge'(고도 게이지 덮개) 수와, 그것이 기어 레이어의 맨 위(마지막 자식)인지. */
+  /** Pixi `stage`(`app.stage`) 아래 'gear-gauge'(고도 게이지 덮개) 수와, 그것이 기어 레이어의 맨 위(마지막 자식)인지. */
   gaugeObjects: number;
   gaugeOnTop: boolean | null;
   /** 렌더러가 지금 보여 주는 게이지 채움(gearGaugeLevel)과 같은 프레임에 비행 배경이 받은 고도(data-altitude). */
@@ -37,7 +37,7 @@ const GAUGE_FOLLOW_EASE_BUDGET_MS = 500;
 
 /**
  * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). `gearMotion` 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
- * `gearMotion` 객체 수는 무대에서 'gear-motion' 라벨을 센다.
+ * `gearMotion` 객체 수는 Pixi `stage`에서 'gear-motion' 라벨을 센다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
