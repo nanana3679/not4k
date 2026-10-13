@@ -55,7 +55,7 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     lease.release();
   });
 
-  it('두 lease가 함께 쓰면 먼저 release해도 unload하지 않고, 마지막 lease를 release할 때 JSON과 PNG 9장(10개)을 unload한다', async () => {
+  it('두 lease가 같은 경로를 retain하면 한 lease를 먼저 release해도 unload하지 않고, 마지막 lease를 release할 때 JSON과 PNG 9장(10개)을 unload한다', async () => {
     const first = acquireGearMotionAssets((path) => path);
     const second = acquireGearMotionAssets((path) => path);
     await Promise.all([first.ready, second.ready]);

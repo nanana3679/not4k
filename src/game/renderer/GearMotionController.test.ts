@@ -220,7 +220,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 lease는 destroy까지 합쳐 정확히 한 번 release한다', async () => {
+  it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 destroy까지 합쳐 lease를 정확히 한 번 release한다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { holder, lease, reject, controller } = controllerWith();
     const failure = new Error('404 gear-motion.json');

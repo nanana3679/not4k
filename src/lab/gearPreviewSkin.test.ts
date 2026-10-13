@@ -4,7 +4,7 @@ import { createSharedSkin } from './gearPreviewSkin';
 const fakeSkin = () => ({ dispose: vi.fn() });
 
 describe('createSharedSkin', () => {
-  it('렌더러 두 개가 차례로 acquire했다 release해도(렌더러 다시 만들기) 스킨은 한 번만 읽고 같은 인스턴스를 준다', async () => {
+  it('첫 렌더러가 스킨을 acquire·release한 뒤 둘째 렌더러가 acquire해도(렌더러 다시 만들기) 스킨은 한 번만 읽고 같은 인스턴스를 준다', async () => {
     const skin = fakeSkin();
     const load = vi.fn(async () => skin);
     const shared = createSharedSkin(load);
@@ -18,7 +18,7 @@ describe('createSharedSkin', () => {
     expect(skin.dispose).not.toHaveBeenCalled();
   });
 
-  it('페이지를 닫아도 acquire한 렌더러가 release할 때까지 dispose를 미루고, release하면 한 번만 dispose한다', async () => {
+  it('페이지를 닫아도 acquire한 렌더러가 스킨을 release할 때까지 dispose를 미루고, 스킨을 release하면 한 번만 dispose한다', async () => {
     const skin = fakeSkin();
     const shared = createSharedSkin(async () => skin);
     await shared.acquire();
@@ -33,7 +33,7 @@ describe('createSharedSkin', () => {
     expect(skin.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it('읽는 도중 렌더러가 release하고 페이지도 닫으면 읽기가 끝난 뒤 dispose한다', async () => {
+  it('읽는 도중 렌더러가 스킨을 release하고 페이지도 닫으면 읽기가 끝난 뒤 dispose한다', async () => {
     const skin = fakeSkin();
     let finish!: () => void;
     const shared = createSharedSkin(() => new Promise<typeof skin>((resolve) => { finish = () => resolve(skin); }));

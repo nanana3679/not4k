@@ -235,7 +235,7 @@ describe('GameRenderer gearMotion (RFD 0029)', () => {
     expect(renderer.gearMotion).toBeNull();
   });
 
-  it('init이 gearMotion 에셋을 기다리는 동안 dispose하면(화면 이탈) 나중에 에셋이 와도 GPU 업로드하지도(initSource 0번) holder에 추가하지도 않고 init은 거절되며 lease는 정확히 한 번 release한다', async () => {
+  it('init이 gearMotion 에셋을 기다리는 동안 dispose하면(화면 이탈) 나중에 에셋이 와도 GPU 업로드하지도(initSource 0번) holder에 추가하지도 않고 init은 거절되며 lease를 정확히 한 번 release한다', async () => {
     const { renderer, scene, initSource, init } = startRenderer();
     await flush();
     const holder = scene.gearLayer.children[1] as Container;
