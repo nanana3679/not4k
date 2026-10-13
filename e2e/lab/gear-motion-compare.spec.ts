@@ -415,7 +415,7 @@ test.describe('Gear의 Pixi ↔ SVG 비교 화면', () => {
     await expect(page.locator('[data-gear-motion-svg-host] svg #fm-gauge')).toBeVisible();
   });
 
-  test('비교 구역이 화면에서 멀면 `gearMotion` 시안 SVG를 읽지 않고(data-compare-ready false), 스크롤해 가까워지면 준비된다', async ({ page }) => {
+  test('비교 구역이 화면에서 멀면 gearMotion 시안 SVG를 읽지 않고(data-compare-ready false), 스크롤해 가까워지면 준비된다', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     const svgRequests: string[] = [];
     page.on('request', (request) => { if (request.url().includes('54-ambient-motion-v19.svg')) svgRequests.push(request.url()); });

@@ -3,7 +3,7 @@
  * 도우미, SVG 자체의 모션 감소 규칙을 걷어 내는 도우미를 둔다. `gearMotion` 에셋의 데이터 계약과 레이어 구성은 게임 모듈(src/game/renderer/gearMotion*)에 있다.
  */
 
-/** 비교 기준인 `gearMotion` 시안 SVG(확정한 v19 애니메이션 시안, 이미지 갤러리). 페이지는 withLabPublicBase로 감싸 읽는다. */
+/** 비교 기준인 `gearMotion` 시안 SVG(확정한 v19, 이미지 갤러리의 `54-ambient-motion-v19.svg`). 페이지는 withLabPublicBase로 감싸 읽는다. */
 export const GEAR_MOTION_SVG_PATH = '/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg';
 
 export interface GearViewBox {

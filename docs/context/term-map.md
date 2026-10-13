@@ -34,7 +34,7 @@
 | 정지 이벤트 | `StopEvent` | `StopEvent`(type `"stop"`) |
 | 레인 경계 레이어 | `laneAxis` | `laneAxis` 모듈, `MAIN_LANE_COUNT`, `isMainLane`/`isAuxLane`, `mainNotes`/`auxNotes`, `toAuxIndex`/`fromAuxIndex`, `isVisibleLane`, `maxAuxLane` |
 | 기어 움직임 | `gearMotion` (기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛. 설정 라벨 `Gear Motion`은 화면 표시라 그대로 둔다. "움직이다"는 위치 변화(노트 스크롤·리프트)에만 남긴다, 2026-10-09) | `gearMotion`/`GearMotionController`/`GearMotionControls`/`gear-motion.json` |
-| 승인 SVG ("승인된 애니메이션 SVG"·"승인된 기어 움직임 SVG" 등. "승인"은 누가 언제 승인했는지 드러나지 않고 "SVG"만으로는 노트 에셋 SVG와 구분되지 않아 바꿨다, 2026-10-09 결정) | `gearMotion` 시안 SVG (처음 나올 때 "`gearMotion` 시안 SVG(확정한 v19, `54-ambient-motion-v19.svg`, `GEAR_MOTION_SVG_PATH`)". Pixi `gearMotion`이 똑같이 보여야 하는 기준이다. 그 SVG를 레이어별로 켜고 끄는 보관 페이지는 `gearMotion` 시안 SVG 시연 페이지(`ambient-motion.html`)) | `GEAR_MOTION_SVG_PATH`(`src/lab/gearMotionView.ts`) |
+| 승인 SVG ("승인된 애니메이션 SVG"·"승인된 기어 움직임 SVG" 등. "승인"은 누가 언제 승인했는지 드러나지 않고 "SVG"만으로는 노트 에셋 SVG와 구분되지 않아 바꿨다, 2026-10-09 결정. `docs/design/cel-shaded-asset-workflow.md`의 "승인 SVG"는 Classic 노트 에셋 소스(`assets-lab/classic/sources/`)라 이 행에 속하지 않는다) | `gearMotion` 시안 SVG (처음 나올 때 "`gearMotion` 시안 SVG(확정한 v19, `54-ambient-motion-v19.svg`)". Lab 스펙(`lab-preview-catalog.md`)에서는 경로 상수 `GEAR_MOTION_SVG_PATH`도 적는다. Pixi `gearMotion`이 똑같이 보여야 하는 기준이다. 그 SVG를 레이어별로 켜고 끄는 보관 페이지는 `gearMotion` 시안 SVG 시연 페이지(`ambient-motion.html`)) | `GEAR_MOTION_SVG_PATH`(`src/lab/gearMotionView.ts`) |
 | 기어 y 오프셋 (Lab 조절 이름. 검토 중 "기어·판정선 내리기"·`gearDrop`·`?drop=`에서 바꿨다, 2026-10-10) | `gearOffsetY` (기어와 판정선을 함께 옮기는 화면 y축 값, +가 아래, 논리 px, 게임 값 10. 이 값을 가리킬 때 "내리기"·"내린 양"을 쓰지 않고, 화면 효과를 서술할 때만 "내린다"를 쓴다. 다른 오프셋과의 구분은 [glossary](glossary.md#오프셋-구분)) | `gearOffsetY`/`GEAR_OFFSET_Y`/`clampGearOffsetY`/`GearStage.offsetY`, Lab `data-gear-offset-y`·주소 `?offsetY=`·`#gear-preview-offset-y` |
 
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
@@ -59,7 +59,7 @@
 | 다중키 바인딩 | 다중키 바인딩 | 구현: `keyBindings`/`KeyBinding`/`laneBindings` — 배열명이 "다중" 의미를 못 담아 캐논 부적합 (2026-07-06 A에서 재분류) |
 | 분할 릴리즈 | 분할 릴리즈 | `D=-` |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
-| 승인 시연(게이지. "승인"이 누가 언제 승인했는지 드러나지 않아 바꿨다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
+| 고도 게이지 시연 (← 게이지 "승인 시연" 개명. "승인"이 누가 언제 승인했는지 드러나지 않아 바꿨다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
 
 ## D. 손·키·패턴 계층 어휘 (2026-06-30 정리, 모두 한국어 유지)
 
