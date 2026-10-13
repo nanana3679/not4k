@@ -123,11 +123,11 @@ export function formatGearButtonStates(states: readonly GearButtonStateView[] | 
 }
 
 /**
- * Lab에서 바인딩된 키를 누를 때 기어 버튼 색. Shift를 함께 누르면 더블 금색이다(버튼 누름 깊이 비교 시연의 Shift와 같음).
- * 게임에서 어떤 누름을 더블로 볼지는 정하지 않았으므로 Lab에서 금색을 확인하는 용도로만 쓴다.
+ * Lab에서 바인딩된 키를 누를 때 기어 버튼 색. Lab 키 입력은 판정하지 않아 모두 공입력이므로 게임과 같은 공입력 규칙(그 레인에 키를 둘 이상
+ * 누르면 더블 금색)을 쓰도록 undefined를 돌려주고, Shift를 함께 누르면 Lab 확인용으로 더블 금색을 강제한다(버튼 누름 깊이 비교 시연의 Shift와 같음).
  */
-export function labGearButtonColor(shiftKey: boolean): GearButtonColor {
-  return shiftKey ? 'double' : 'single';
+export function labGearButtonColor(shiftKey: boolean): GearButtonColor | undefined {
+  return shiftKey ? 'double' : undefined;
 }
 
 /** 설명의 게이지 채움: 채움 %와 위에서 덮은 빈 유리 행(채움 구간 821행 중). */

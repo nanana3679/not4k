@@ -6,7 +6,7 @@ type Renderer = import('../../src/game/renderer/GameRenderer').GameRenderer;
 
 /**
  * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). renderFrame이 끝날 때마다 그 프레임에 그린
- * 기어 버튼 단계(레인 1~4를 쉼표로)와 그 프레임의 곡 시각(renderFrame의 첫 인자, ms)을 기록한다.
+ * 기어 버튼 상태(레인 1~4를 쉼표로, 대기는 idle, 그 밖에는 단계-색 pressed-single·releasing-double 등)와 그 프레임의 곡 시각(renderFrame의 첫 인자, ms)을 기록한다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -22,7 +22,7 @@ async function installProbe(page: Page) {
     GameRenderer.prototype.renderFrame = function (...args) {
       const result = renderFrame.apply(this, args);
       win.__gearButtonRenderer = this;
-      (win.__gearButtonLog as (string | null)[]).push(this.gearButtonStates?.map(state => state.phase).join(',') ?? null);
+      (win.__gearButtonLog as (string | null)[]).push(this.gearButtonStates?.map(state => (state.phase === 'idle' ? 'idle' : `${state.phase}-${state.color}`)).join(',') ?? null);
       (win.__gearButtonTimes as number[]).push(args[0]);
       return result;
     };
@@ -147,16 +147,36 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     expect(atPress.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
     await waitAnimationFrames(page, 3);
     const afterPress = await readProbe(page);
-    expect(afterPress.log[atPress.frames]).toBe('idle,pressed,idle,idle');
+    expect(afterPress.log[atPress.frames]).toBe('idle,pressed-single,idle,idle');
     await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_FACE)), { timeout: 30_000 }).toBeGreaterThan(80);
 
     const beforeRelease = await readProbe(page);
     await page.keyboard.up('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
     const released = (await readProbe(page)).log.slice(beforeRelease.frames);
-    expect(released).toContain('idle,releasing,idle,idle');
+    expect(released).toContain('idle,releasing-single,idle,idle');
     expect(released.at(-1)).toBe('idle,idle,idle,idle');
     await expect.poll(async () => maxDifference(await gearColor(page, KEY_TWO_FACE), idleFace), { timeout: 30_000 }).toBeLessThan(12);
+    expect(errors).toEqual([]);
+  });
+
+  test('레인 2 KeyD를 누른 채 같은 레인 KeyO를 누르면(노트를 치지 않은 공입력, 키 2개) 그 뒤 첫 렌더 프레임부터 2번 버튼이 pressed-double이고 키 앞면이 금색이며, KeyO를 떼도 마지막 누름의 금색을 유지한다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await startLocalPlay(page, QUIET_CHART);
+    await page.keyboard.down('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].color).toBe('single');
+    await page.keyboard.down('KeyO');
+    const atSecond = await readProbe(page);
+    expect(atSecond.states?.[1]).toEqual({ phase: 'pressed', color: 'double', releaseMs: 0 });
+    await waitAnimationFrames(page, 3);
+    expect((await readProbe(page)).log[atSecond.frames]).toBe('idle,pressed-double,idle,idle');
+    await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_FACE); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await page.keyboard.up('KeyO');
+    await waitAnimationFrames(page, 2);
+    expect((await readProbe(page)).states?.[1]).toMatchObject({ phase: 'pressed', color: 'double' });
+    await page.keyboard.up('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
     expect(errors).toEqual([]);
   });
 
@@ -182,33 +202,39 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     expect(errors).toEqual([]);
   });
 
-  test('AutoEvent 구간의 레인 3 롱노트(2~3초)와 레인 1 싱글 노트(1.5초)는 AutoPlayer 합성 입력으로 각 레인 기어 버튼을 눌렀다가 떼어 대기로 되돌린다', async ({ page }) => {
+  test('AutoPlayer가 친 노트는 노트 종류로 색이 정해져 첫 렌더 프레임부터 맞다: 레인 1 싱글(1.5초)은 연파랑, 레인 2 더블(2초)은 금색, 레인 3 롱노트(2.5~4.5초) 중 3.5초 싱글 노트는 키 2개를 누르고 있어도 연파랑이다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, {
       notes: [
         { type: 'single', lane: 1, beat: { n: 3, d: 1 } },
-        { type: 'long', lane: 3, beat: { n: 4, d: 1 }, endBeat: { n: 6, d: 1 } },
+        { type: 'double', lane: 2, beat: { n: 4, d: 1 } },
+        { type: 'long', lane: 3, beat: { n: 5, d: 1 }, endBeat: { n: 9, d: 1 } },
+        { type: 'single', lane: 3, beat: { n: 7, d: 1 } },
       ],
-      events: [...BPM_EVENTS, { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 8, d: 1 } }],
+      events: [...BPM_EVENTS, { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 12, d: 1 } }],
     });
-    // 3초(롱노트 끝) 뒤 150ms가 지나면 모두 대기다.
+    // 4.5초(롱노트 끝) 뒤 150ms가 지나면 모두 대기다.
     await expect.poll(async () => {
-      const { log } = await readProbe(page);
-      const laneThreePressed = log.some(entry => entry?.split(',')[2] === 'pressed');
-      const laneOnePressed = log.some(entry => entry?.split(',')[0] !== 'idle');
-      return laneThreePressed && laneOnePressed && log.at(-1) === 'idle,idle,idle,idle';
+      const { log, times } = await readProbe(page);
+      return log.some(entry => entry?.split(',')[2] !== 'idle') && times.at(-1)! > 4800 && log.at(-1) === 'idle,idle,idle,idle';
     }, { timeout: 30_000 }).toBe(true);
     const { log, times } = await readProbe(page);
-    const laneThree = log.map((entry, index) => ({ phase: entry?.split(',')[2], timeMs: times[index] }));
+    const lane = (index: number) => log.map((entry, frame) => ({ state: entry?.split(',')[index], timeMs: times[frame] }));
+    const shown = (index: number) => lane(index).filter(frame => frame.state !== 'idle').map(frame => frame.state);
+    // 각 레인에서 버튼이 보인 모든 렌더 프레임의 색. 공입력 규칙의 임시 색(레인 3은 키 2개라 금색)이 그려진 프레임은 없어야 한다.
+    expect(shown(0).length).toBeGreaterThan(0);
+    expect(shown(0).every(state => state!.endsWith('-single'))).toBe(true);
+    expect(shown(1).length).toBeGreaterThan(0);
+    expect(shown(1).every(state => state!.endsWith('-double'))).toBe(true);
+    expect(shown(2).every(state => state!.endsWith('-single'))).toBe(true);
     // 렌더 프레임 수는 환경마다 다르므로 곡 시각으로 본다. 그리는 시각(시각 시간)과 합성 입력 시각 사이 차이를 150ms 띄워 둔다.
-    // 롱노트 시작(2초) 전에는 대기, 누르는 동안(2.15~2.85초)에는 모든 렌더 프레임에서 눌려 있다.
-    expect(laneThree.filter(frame => frame.timeMs < 1850).every(frame => frame.phase === 'idle')).toBe(true);
-    const holding = laneThree.filter(frame => frame.timeMs > 2150 && frame.timeMs < 2850);
+    // 롱노트를 누르는 동안(2.65~4.35초, 3.5초 싱글 노트 포함)에는 모든 렌더 프레임에서 연파랑으로 눌려 있다.
+    const holding = lane(2).filter(frame => frame.timeMs > 2650 && frame.timeMs < 4350);
     expect(holding.length).toBeGreaterThan(0);
-    expect(holding.every(frame => frame.phase === 'pressed')).toBe(true);
-    // 키보드는 누르지 않았으므로 레인 2·4는 늘 대기다.
-    expect(log.every(entry => entry?.split(',')[1] === 'idle' && entry?.split(',')[3] === 'idle')).toBe(true);
+    expect(holding.every(frame => frame.state === 'pressed-single')).toBe(true);
+    // 레인 4에는 노트가 없으므로 늘 대기다.
+    expect(lane(3).every(frame => frame.state === 'idle')).toBe(true);
     expect(errors).toEqual([]);
   });
 });

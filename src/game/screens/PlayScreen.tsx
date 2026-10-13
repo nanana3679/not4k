@@ -16,6 +16,7 @@ import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '.
 import { DebugLogger } from '../debug/DebugLogger';
 import { canFinishPlaySession, finishPlaySession, stepPlaySession } from './playSessionInput';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
+import { GearButtonPressColors } from './gearButtonPressColors';
 
 export function PlayScreen() {
   const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -208,7 +209,13 @@ export function PlayScreen() {
             debugLogger.recordJudgment(event.noteIndex, noteCenterY, event.grade, event.deltaMs, event.unitIndex, isBody);
           },
         };
-        const session = new NoteJudgmentSession(compiled, { windows, onBatchConfirmed: view => adapter.apply(view) });
+        // 기어 버튼 색: 판정 core가 keydown을 노트에 소비할 때 알리는 노트 종류로 그 누름의 색을 정해 두었다가 그리기 직전에 넘긴다(공입력은 렌더러가 누를 때 정한 색 그대로).
+        const gearPressColors = new GearButtonPressColors(compiled.rawNotes);
+        const session = new NoteJudgmentSession(compiled, {
+          windows,
+          onBatchConfirmed: view => adapter.apply(view),
+          onDownConsumed: gearPressColors.onDownConsumed,
+        });
         const adapter = new SessionRendererAdapter({ notes: compiled.rawNotes, connections: compiled.connections, bodyStates: () => session.bodyStates, scoreAccuracy: () => session.score.getState().achievementRate, port: rendererPort });
         sessionRef.current = session;
         inputTimelineRef.current = new InputTimeline();
@@ -227,7 +234,8 @@ export function PlayScreen() {
             inputTimelineRef.current?.enqueue({ lane, inputAt: gameClock.toInputTimeMs(timestampMs), key: keyCode, type: 'down' });
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
-            // 기어 버튼은 키를 누른 그 순간 표시를 바꿔 다음 렌더 프레임에 바로 눌려 빛난다. 같은 레인의 키를 모두 떼야 돌아온다.
+            // 기어 버튼은 키를 누른 그 순간 표시를 바꿔 다음 렌더 프레임에 바로 눌려 빛난다(같은 레인의 키를 모두 떼야 돌아온다).
+            // 색은 우선 공입력 규칙으로 정하고, 이 누름이 노트를 쳤으면 다음 프레임의 입력 처리 뒤 그리기 전에 노트 규칙의 색으로 바뀐다.
             renderer.setGearButtonKey(lane, keyCode, true);
           },
           onLaneRelease: (lane, timestampMs, keyCode) => {
@@ -292,6 +300,8 @@ export function PlayScreen() {
               // 합성 입력도 실제 키처럼 기어 버튼을 누르고 뗀다(판정 입력과 같은 규칙: release가 아니면 누름).
               renderer.setGearButtonKey(event.lane, event.key, event.type !== 'release');
             }
+            // 이번 프레임에 판정이 노트에 소비한 누름(키보드·합성)의 색을 그리기 전에 고친다. 그래서 누름이 처음 보이는 프레임부터 맞는 색이다.
+            gearPressColors.flush(renderer);
 
             // 소리 기준 시각 시간 V로 노트·마디선·구간을 그린다.
             renderer.renderFrame(visualTimeMs, frameDeltaMs);
