@@ -75,7 +75,7 @@
 </div>
 <p class="legend"><kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd> 1–4번 키 · <kbd>Shift</kbd>를 함께 누르면 반대 색 · 버튼을 직접 눌러도 됩니다 · <kbd>1</kbd>–<kbd>5</kbd> 누름 깊이</p>
 </div>
-<form class="controls" id="controls" onsubmit="return false">
+<form class="controls" id="controls" autocomplete="off" onsubmit="return false">
 <fieldset><legend>누름 깊이</legend><div class="segmented depth">
 <label><input type="radio" name="depth" value="current">현재</label>
 <label><input type="radio" name="depth" value="6">6px</label>
@@ -747,7 +747,8 @@
   new ResizeObserver(layout).observe(viewport);
   applyTiming();
   applyGauge();
-  // The browser may restore the radio state (e.g. back navigation); keep it in line with what is drawn.
+  // The form has autocomplete="off" so the browser does not restore controls on back navigation;
+  // still sync the radio and hint with what is drawn.
   setDepth(DEFAULT_DEPTH);
   layout();
 
