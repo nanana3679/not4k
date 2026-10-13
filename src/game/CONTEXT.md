@@ -87,6 +87,10 @@ _Avoid_: 프리뷰 구간
 입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다(`judgmentOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#입력-오프셋-judgment-offset).
 _Avoid_: 오디오 오프셋
 
+**시각 오프셋** (RFD 0031 채택, 구현 대기):
+노트를 그리는 시각만 옮겨 화면 표시 지연을 보정하는 설정이다(`visualOffsetMs`, 화면이 늦으면 +). [RFD 0031](../../docs/rfd/0031-audio-first-timing-model.md)은 오디오 오프셋을 없애고 입력 오프셋(`inputOffsetMs`)·시각 오프셋 두 개로 정리한다. 정의는 [glossary](../../docs/context/glossary.md#시각-오프셋-visual-offset).
+_Avoid_: 화면 오프셋
+
 **오프셋 구분**:
 오디오·입력 오프셋(시간, ms)과 판정선 오프셋·기어 y 오프셋(화면 위치, 논리 px)은 기준과 부호가 다른 별개의 값이라, 어느 오프셋인지 이름을 붙여 쓴다. 표는 [glossary](../../docs/context/glossary.md#오프셋-구분).
 _Avoid_: 이름 없는 "오프셋"

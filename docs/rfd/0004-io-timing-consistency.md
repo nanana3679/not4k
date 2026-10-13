@@ -117,6 +117,8 @@ this.ctx = new AudioContext({ latencyHint: 'interactive' });
 
 ### W4. `AudioContext.outputLatency` 주입 — `audio-visual-sync.md` §A 구현
 
+> [RFD 0031](0031-audio-first-timing-model.md)(2026-10-13 채택)이 이 항목을 대체한다. 출력 지연은 시각 시간에 더하지 않고 판정 시간에서 빼며(소리 기준), 곡마다 한 번 읽어 고정한다. 아래 마이그레이션 질문(Q1)은 미출시라 이전하지 않는 것으로 정리됐다.
+
 **현재 상태:** `audio-visual-sync.md` 우선순위 1번으로 설계되어 있으나 **미구현**. `AudioEngine.getOutputLatencyMs()` 함수는 존재하지만 `PlayScreen`에서 호출되지 않는다.
 
 **스펙 요약 (`audio-visual-sync.md` §보정 설계 A):**
