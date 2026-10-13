@@ -30,6 +30,16 @@
 - 결과: 기어 그림 옆 `public/gear/gear-motion/`의 텍스처 9장과 `gear-motion.json`(2026-10-05 게임 적용 때 Lab 경로 `public/lab/classic-frame-fit/motion/`에서 옮기고, #231에서 `classic-frame-motion/`·`frame-motion.json`을 지금 이름으로 바꿈). SVG의 대비 필터·발광선 번짐·하단 바 빛 그라데이션·기포는 Chromium으로 그려 굽고, 가운데 띠의 흰빛 3%는 `armor-core.png`에 미리 합성한다. 띠 밖 어둡게는 `armor-lit.png`를 물들여 쓴다. 장갑·발광선은 기둥 둘과 아래 띠 두 쪽 조각(이웃 픽셀 16px 테두리 포함)만 아틀라스에 담는다
 - 사용처: 게임 렌더러의 내장 `gearMotion`(`src/game/renderer/gearMotion.ts`, [RFD 0029](../../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md#프레임-움직임-게임-적용-2026-10-05)). 시연은 `/lab/gear`의 무대와 `Pixi ↔ 승인 SVG 비교`. 자세한 동작은 [Lab 미리보기 카탈로그](../../../../docs/spec/lab-preview-catalog.md#gear)
 
+## 게임 기어 버튼 누름 (v22)
+
+2026-10-13 사용자가 고른 버튼 누름 깊이 비교 시연(`press-depth.html`, PR #271: 네 키 공통 15px)을 게임 기어에 넣는 레이어다. 새 이미지는 생성하지 않았다.
+
+- 재생성: `node assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-gear-buttons-v22.mjs [--debug <폴더>]` (입력: 갤러리의 `53-white-core-frame-v16.svg`, 이 폴더의 `key1-press-insert-v17.png`·`press-idle-deck-v17-input.png`, 게임 기어 그림 `public/gear/gear.png`). Chromium으로 시연과 같게 소재를 1024×1536 캔버스에 그려 픽셀을 읽는다. 다시 실행해도 같은 바이트다. `--debug`는 덱 부분을 원본 1:1로 대기·네 키 싱글/더블 눌림·떼는 중 몇 단계로 합성한 PNG를 쓴다
+- 계산: `button-press-shared.mjs`가 시연 페이지의 값(`SINK`·`SOURCE_TRAVEL`·`PRESSED_KEYS`·`LIGHTS` 등)과 계산(`sinkCap`·`recolored`·잔광)을 그대로 옮긴 모듈이다. `prepare-gear-buttons-v22.test.ts`가 그 값이 시연 페이지에 같은 줄로 있는지 확인하므로 승인된 모습을 바꾸려면 둘을 함께 바꾼다
+- 결과: 스킨 공통 `gearButtons` 아틀라스 `public/gear/gear-buttons.png`(816×1344)와 자리 `src/game/renderer/gearButtonGeometry.json`. 키마다 glow 싱글·더블(눌려 내려간 키와 빛), tint 싱글·더블(뗀 뒤 남는 빛만, 더하기 블렌드), cap(키 자리의 대기 픽셀)을 담는다. 3·4번은 시연처럼 2·1번을 x → 1022 − x로 반전한다. 레이어 알파는 시연의 깃털 영역 알파 × 기어 그림 알파라, 기어가 투명한 레인 창·열린 덱에는 그리지 않는다(그 자리의 시연 그림 바닥 빛 번짐은 게임 레인과 키빔으로 대신한다). frame은 바뀌는 픽셀을 감싼 16px 정렬 상자로 자르고 16px 간격으로 놓아 밉맵이 기어 텍스처와 같은 칸으로 줄어든다
+- 확인: 생성기는 v16 래스터가 `press-idle-deck-v17-input.png`(시연의 대기 레이어)와 픽셀 단위로 같은지, 기어 그림의 불투명 픽셀이 그 대기와 같은지 먼저 확인하고 다르면 쓰지 않는다
+- 사용처: 게임 렌더러의 기어 버튼(`src/game/renderer/gearButtons.ts`)과 `/lab/gear`. 동작은 [game-core 명세의 플레이 화면 배치](../../../../docs/spec/game-core.md#플레이-화면-배치)
+
 ## 시연: 버튼 누름 애니메이션 1단계
 
 2026-09-30 사용자가 v16 버튼부의 누름 애니메이션 가능성을 묻고, 기존 픽셀로 되는 범위의 1단계부터 확인하기로 했다. **사용자 평가:** 자연스럽고, 키가 올라온 뒤 빛이 꺼지는 순서가 좋다. 2단계로 넘어간다. 새 이미지는 생성하지 않았다. 시연 페이지가 열릴 때 `53-white-core-frame-v16.svg`를 캔버스로 읽어 대기·눌림 레이어를 만든다. 최신 임시 시안은 계속 v16이다.
