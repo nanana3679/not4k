@@ -63,6 +63,11 @@ export interface NoteJudgmentCoreOptions {
   windows?: JudgmentWindows;
   onConfirmed?: (event: NoteJudgmentEvent) => void;
   onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  /**
+   * 표시 전용 관찰: keydown 하나가 노트(Point head 또는 롱노트 시작)에 소비된 순간, 그 키·레인과 소비한 노트의 index를 알린다.
+   * 소비되지 않은 keydown(공입력)은 알리지 않는다. 판정·점수에는 아무 영향이 없고, 기어 버튼 색처럼 누름이 어느 노트를 쳤는지만 필요한 표시가 쓴다.
+   */
+  onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 interface PressToken { key: string; lane: number; at: number; upAt?: number; correctionId?: string; used: boolean; valid: boolean; released: boolean; connectionConsumed: boolean; claimedAt?: number }
@@ -103,6 +108,7 @@ export class NoteJudgmentCore {
   private readonly windows: JudgmentWindows;
   private readonly onConfirmed?: (event: NoteJudgmentEvent) => void;
   private readonly onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  private readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
   private currentCombo = 0;
   private readonly confirmationCombo = new ConfirmationCombo();
   private batchingEvents: NoteJudgmentEvent[] | undefined;
@@ -197,6 +203,7 @@ export class NoteJudgmentCore {
     this.zeroHoldState = new ZeroHoldOnlyState(pointCompiled, this.windows.GOOD);
     this.onConfirmed = options.onConfirmed;
     this.onBatchConfirmed = options.onBatchConfirmed;
+    this.onDownConsumed = options.onDownConsumed;
     for (let i = 0; i < this.notes.length; i++) {
       const note = this.notes[i]; const at = timeAt(this.times, i);
       if (at === undefined) continue;
@@ -340,17 +347,23 @@ export class NoteJudgmentCore {
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
     if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && !preparedSuccessor)) {
-      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false); return;
+      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, startCandidate.noteIndex);
+      return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
       const event = this.pointState.consume(pointCandidate, key, at);
       this.emit(event);
       this.activateForHead(point.noteIndex, key, token, at, point.keys.size - 1);
+      this.onDownConsumed?.(key, token.lane, point.noteIndex);
       return;
     }
     const candidate = startCandidate;
-    if (candidate) { token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false); }
+    if (candidate) {
+      token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, candidate.noteIndex);
+    }
   }
 
   release(key: string, at: number = this.now, lane?: number): void {
