@@ -24,6 +24,18 @@ interface MotionProbe {
 }
 
 /**
+ * 게이지가 비행 배경 고도를 따라간다고 보는 허용치. 배경 고도는 곡 진행(이 테스트의 90초 곡에서 초당 약 0.011)으로 계속 내려가고,
+ * 게이지 이징은 renderFrame마다 최대 50ms(`GEAR_MOTION_MAX_STEP_MS`)만 나아간다. 그래서 병렬 E2E 부하로 프레임 간격이 d초로 벌어지면
+ * 게이지가 약 0.0117 × d만큼 늘 뒤따른다(d 0.4~0.5초에서 약 0.005 실측). 0.02는 d가 약 1.7초가 될 때까지 버틴다.
+ */
+const GAUGE_FOLLOW_TOLERANCE = 0.02;
+/**
+ * MISS 뒤 게이지가 허용치 안으로 붙기를 기다리는 이징 시간 상한(ms). 0.24 차이가 0.02 아래로 줄려면 이징 시간 약 186ms(τ 75ms × ln 12)가
+ * 필요하고, 500ms는 그 2.7배다. 60Hz에서 renderFrame 약 30번, 프레임이 50ms보다 느리면 10번이다.
+ */
+const GAUGE_FOLLOW_EASE_BUDGET_MS = 500;
+
+/**
  * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). `gearMotion` 상태는 공개 접근자 gearMotion·gearLayout으로 읽고,
  * `gearMotion` 객체 수는 무대에서 'gear-motion' 라벨을 센다.
  */
@@ -33,6 +45,7 @@ async function installProbe(page: Page) {
     if (win.__gearMotionRenderer !== undefined) return;
     win.__gearMotionRenderer = null;
     win.__gearMotionFrames = 0;
+    win.__gearGaugeEaseMs = 0;
     win.__gearMotionStatusLog = [];
     win.__audioPlays = 0;
     const audioPath = performance.getEntriesByType('resource').map(entry => entry.name)
@@ -46,10 +59,16 @@ async function installProbe(page: Page) {
     const rendererPath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
+    const motionControllerPath = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(url => new URL(url).pathname === '/src/game/renderer/GearMotionController.ts') ?? '/src/game/renderer/GearMotionController.ts';
+    const { GEAR_MOTION_MAX_STEP_MS }: typeof import('../../src/game/renderer/GearMotionController') = await import(motionControllerPath);
     const renderFrame = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       win.__gearMotionRenderer = this;
       win.__gearMotionFrames = (win.__gearMotionFrames as number) + 1;
+      // 게이지 이징이 실제로 나아간 시간(easeGaugeLevel과 같이 renderFrame 간격을 GEAR_MOTION_MAX_STEP_MS로 자른 합).
+      const deltaMs = args[1] ?? 16;
+      if (deltaMs > 0) win.__gearGaugeEaseMs = (win.__gearGaugeEaseMs as number) + Math.min(GEAR_MOTION_MAX_STEP_MS, deltaMs);
       (win.__gearMotionStatusLog as (string | null)[]).push(this.gearMotion?.status ?? null);
       return renderFrame.apply(this, args);
     };
@@ -110,6 +129,31 @@ async function injectMissAndReadNextFrame(page: Page): Promise<{ gaugeLevel: num
     };
     requestAnimationFrame(check);
   }));
+}
+
+/**
+ * 게이지가 비행 배경 고도와 tolerance 안으로 붙을 때까지 requestAnimationFrame마다 확인한다. 끝은 벽시계도 프레임 수도 아닌
+ * 게이지 이징이 실제로 나아간 시간(renderFrame 간격을 GEAR_MOTION_MAX_STEP_MS로 자른 합)이 easeBudgetMs에 이를 때로 정해,
+ * 병렬 E2E 부하로 프레임이 드물어져도(한 프레임 최대 50ms) 주사율이 높아 프레임이 짧아도(한 프레임 몇 ms) 이징 양이 같다.
+ * renderFrame이 멈추면(게임 루프 예외·일시정지) 테스트 시간 제한까지 매달리지 않도록 30초 뒤에는 그때 값을 돌려준다.
+ */
+async function waitGaugeFollows(page: Page, tolerance: number, easeBudgetMs: number): Promise<{ diff: number; frames: number; easeMs: number }> {
+  return page.evaluate(({ tolerance, easeBudgetMs }) => new Promise((resolve) => {
+    const win = window as unknown as Record<string, unknown>;
+    const renderer = win.__gearMotionRenderer as import('../../src/game/renderer/GameRenderer').GameRenderer;
+    const startFrames = win.__gearMotionFrames as number;
+    const startEaseMs = win.__gearGaugeEaseMs as number;
+    const deadline = performance.now() + 30_000;
+    const check = () => {
+      const frames = (win.__gearMotionFrames as number) - startFrames;
+      const easeMs = (win.__gearGaugeEaseMs as number) - startEaseMs;
+      const background = document.querySelector<HTMLElement>('[data-flight-background]')!;
+      const diff = Math.abs(renderer.gearGaugeLevel! - Number(background.dataset.altitude));
+      if (diff < tolerance || easeMs >= easeBudgetMs || performance.now() >= deadline) { resolve({ diff, frames, easeMs }); return; }
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }), { tolerance, easeBudgetMs });
 }
 
 async function resetStatusLog(page: Page) {
@@ -188,7 +232,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
   });
 
   for (const motionOn of [true, false]) {
-    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 배경 고도에 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도(${GAUGE_FOLLOW_TOLERANCE} 안)를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 이징 시간 ${GAUGE_FOLLOW_EASE_BUDGET_MS}ms 안에 배경 고도와 ${GAUGE_FOLLOW_TOLERANCE} 안으로 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await startLocalPlay(page, motionOn);
@@ -198,16 +242,15 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
       expect(playing).toMatchObject({ hasGear: true, gaugeObjects: 1, gaugeOnTop: true, motionObjects: motionOn ? 2 : 0 });
       // 곡 진행에 따른 임시 고도(90초 곡 앞부분이라 1에 가깝다)를 배경과 게이지가 함께 보여 준다.
       expect(playing.backgroundAltitude!).toBeGreaterThan(0.9);
-      expect(Math.abs(playing.gaugeLevel! - playing.backgroundAltitude!)).toBeLessThan(0.005);
+      expect(Math.abs(playing.gaugeLevel! - playing.backgroundAltitude!)).toBeLessThan(GAUGE_FOLLOW_TOLERANCE);
 
       const afterMiss = await injectMissAndReadNextFrame(page);
       // 배경은 같은 프레임에 0.24 낮은 고도를 받지만, 게이지는 300ms ease-out 느낌으로 따라가 아직 위에 있다.
       expect(afterMiss.backgroundAltitude).toBeLessThan(playing.backgroundAltitude! - 0.2);
-      expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(0.02);
-      await expect.poll(async () => {
-        const probe = await readProbe(page);
-        return Math.abs(probe.gaugeLevel! - probe.backgroundAltitude!);
-      }, { timeout: 5_000 }).toBeLessThan(0.005);
+      expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(GAUGE_FOLLOW_TOLERANCE);
+      // 붙는 즉시 끝나므로 보통은 이징 시간 상한을 다 기다리지 않는다.
+      const settled = await waitGaugeFollows(page, GAUGE_FOLLOW_TOLERANCE, GAUGE_FOLLOW_EASE_BUDGET_MS);
+      expect(settled.diff, `확인 시작 뒤 renderFrame ${settled.frames}번, 이징 시간 ${settled.easeMs}ms`).toBeLessThan(GAUGE_FOLLOW_TOLERANCE);
       expect(errors).toEqual([]);
     });
   }
@@ -243,7 +286,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(requested).toContain('/gear/gear-motion/gear-motion.json');
 
     const afterMiss = await injectMissAndReadNextFrame(page);
-    expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(0.02);
+    expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(GAUGE_FOLLOW_TOLERANCE);
     expect(errors).toEqual([]);
   });
 
