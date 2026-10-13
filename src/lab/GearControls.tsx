@@ -32,7 +32,7 @@ export function RadioGroup<T extends string | number>({ legend, name, value, opt
   );
 }
 
-/** `gearMotion` 요소 체크(`gearMotion` 시안 SVG 시연 페이지 `ambient-motion.html`과 같은 이름 A~D). 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)과 비교 화면에 함께 적용한다. */
+/** `gearMotion` 요소 체크(`gearMotion` 시안 SVG 시연 페이지 `ambient-motion.html`과 같은 이름 A~D). Lab 미리보기의 게임 렌더러와 비교 화면에 함께 적용한다. */
 export function GearMotionLayerChecks({ value, onChange }: {
   value: GearMotionLayerVisibility;
   onChange: (layer: GearMotionLayer, visible: boolean) => void;

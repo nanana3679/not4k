@@ -1231,7 +1231,7 @@ export class GameRenderer {
 
   /**
    * 기어 유리관 고도 게이지에 지금 보이는 채움(0~1, 이징 반영). 두 유리관은 같은 값이다.
-   * 게이지를 그리지 않으면(showGear false·빈 유리 텍스처 없음·dispose 뒤) null. `/lab/gear`가 읽어 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)의 `data-gear-gauge-level`로 알리고, E2E도 읽는다.
+   * 게이지를 그리지 않으면(showGear false·빈 유리 텍스처 없음·dispose 뒤) null. Lab Gear(`/lab/gear`)가 읽어 `data-gear-gauge-level`로 알리고 E2E도 읽는다.
    */
   get gearGaugeLevel(): number | null {
     return this.gearGauge?.level ?? null;

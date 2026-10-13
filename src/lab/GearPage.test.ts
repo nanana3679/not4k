@@ -23,7 +23,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     const checkedValues = (markup.match(/<input[^>]*>/g) ?? [])
       .filter((input) => input.includes('type="radio"') && input.includes('checked=""'))
       .map((input) => input.match(/value="([^"]*)"/)![1]);
-    // `gear-preview-stage`를 바꾸는 조절(키보드·렌더 높이·장면·보기)과 아래 비교 보기(전체).
+    // 미리보기 조절(키보드·렌더 높이·장면·보기)과 아래 비교 보기(전체).
     expect(checkedValues).toEqual(['tkl', '1080', 'INFILTRATION', 'fit', 'full']);
   });
 
@@ -114,7 +114,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('원래 크기 · 오른쪽 아래');
   });
 
-  it('gear-preview-stage는 실제 GameRenderer를 기본 옵션(내장 기어·내장 gearMotion)으로 만들고, gearMotion 조절은 렌더러의 공개 gearMotion API로만 한다', () => {
+  it('Gear 페이지는 실제 GameRenderer를 기본 옵션(내장 기어·내장 gearMotion)으로 만들어 gear-preview-stage에 띄우고, gearMotion 조절은 렌더러의 공개 gearMotion API로만 한다', () => {
     expect(pageSource).toContain("import('../game/renderer')");
     expect(pageSource).toContain('new GameRenderer({');
     expect(pageSource).not.toContain('showGear');
@@ -209,7 +209,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toContain('바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다');
   });
 
-  it('gear-preview-stage 안에 전체화면 버튼이 있다', () => {
+  it('캔버스 영역 안에 전체화면 버튼이 있다', () => {
     expect(render()).toMatch(/<div class="gear-preview-fullscreen-bar"><button type="button" class="gear-preview-overlay-button">전체화면<\/button><\/div>/);
   });
 

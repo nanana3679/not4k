@@ -651,7 +651,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('1:1 픽셀 보기에서는 캔버스 CSS 크기가 백버퍼 픽셀 ÷ devicePixelRatio가 되고 gear-preview-stage 안에서만 스크롤한다', async ({ page }) => {
+  test('1:1 픽셀 보기에서는 캔버스 CSS 크기가 백버퍼 픽셀 ÷ devicePixelRatio가 되고 캔버스 영역 안에서만 스크롤한다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/lab/gear');
     await waitForRenderer(page);
