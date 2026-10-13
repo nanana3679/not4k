@@ -42,7 +42,7 @@ export interface GearGaugeTube {
 }
 
 /**
- * 고도 게이지 측정값. 유리 안쪽 윤곽은 승인 시연과 `gearMotion`(기어 위 장식 애니메이션)의 유리 마스크와 같은 하나(frame-motion-shared.mjs의 GLASS)이고,
+ * 고도 게이지 측정값. 유리 안쪽 윤곽은 고도 게이지 시연(`press-animation.html`)과 `gearMotion`(기어 위 장식 애니메이션)의 유리 마스크와 같은 하나(frame-motion-shared.mjs의 GLASS)이고,
  * 생성기가 그 윤곽으로 v18 빈 유리를 잘라 아틀라스(atlasWidth×atlasHeight)에 담는다.
  */
 export interface GearGaugeGeometry {

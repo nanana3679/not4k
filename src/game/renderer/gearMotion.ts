@@ -28,7 +28,7 @@ export {
 } from './gearMotionData';
 
 /**
- * `gearMotion`(기어 위 장식 애니메이션, 승인된 54-ambient-motion-v19.svg)을 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
+ * `gearMotion`(기어 위 장식 애니메이션)을 `gearMotion` 시안 SVG(확정한 v19, `54-ambient-motion-v19.svg`)대로 Pixi 레이어로 다시 구성한다([RFD 0029](../../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)).
  * React·Lab에 의존하지 않는 게임 모듈이다. 게임 렌더러는 GearMotionController로 내장 기어 위에 추가하고, Lab 비교 화면도 이 모듈을 쓴다.
  *
  * - 좌표: 컨테이너는 기어 그림 좌표(1024×1536)다. 호출자가 기어 스프라이트와 같은 변환을 컨테이너에 건다.

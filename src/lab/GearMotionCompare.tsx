@@ -21,9 +21,9 @@ type PixiState =
 const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
 
 /**
- * 기어만 그린 작은 Pixi 앱(GameRenderer 아님)과 승인된 애니메이션 SVG를 같은 CSS 크기·viewBox·시각으로 나란히 보여 준다.
+ * 기어만 그린 작은 Pixi 앱(GameRenderer 아님)과 `gearMotion` 시안 SVG(확정한 v19, `54-ambient-motion-v19.svg`, `GEAR_MOTION_SVG_PATH`)를 같은 CSS 크기·viewBox·시각으로 나란히 보여 준다.
  * SVG의 CSS 애니메이션은 모두 멈추고 currentTime을 비교 시각으로 맞춘다. `gearMotion` 요소 체크는 양쪽에 함께 적용한다.
- * 운영체제의 모션 감소 설정(`prefers-reduced-motion`)은 읽지 않는다(RFD 0030). 보관한 승인 SVG는 이 설정이 켜져 있으면 레이어를 숨기는 자체 `@media` 규칙을 가지므로,
+ * 운영체제의 모션 감소 설정(`prefers-reduced-motion`)은 읽지 않는다(RFD 0030). 보관한 `gearMotion` 시안 SVG는 이 설정이 켜져 있으면 레이어를 숨기는 자체 `@media` 규칙을 가지므로,
  * 파일은 그대로 두고 문서에 넣기 전에 그 규칙을 걷어 낸다(stripSvgReducedMotionRules, RFD 0030 결정 5).
  * Pixi 앱은 만들 때마다 새 캔버스를 쓴다. WebGL 컨텍스트 속성(MSAA)은 캔버스마다 한 번만 정해지고, 앞선 초기화가 끝나기 전에
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
@@ -41,7 +41,7 @@ export function GearMotionCompare({ resources, layers }: {
   const [softBand, setSoftBand] = useState(false);
   const [svgState, setSvgState] = useState<SvgState>({ state: 'loading' });
   const [reportedPixi, setPixiState] = useState<PixiState>({ state: 'loading', key: '' });
-  // 승인 SVG(약 3.8MB)와 두 번째 WebGL 앱은 구역이 화면 가까이(600px) 오면 그때 만든다.
+  // `gearMotion` 시안 SVG(약 3.8MB)와 두 번째 WebGL 앱은 구역이 화면 가까이(600px) 오면 그때 만든다.
   const [nearViewport, setNearViewport] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const pixiViewportRef = useRef<HTMLDivElement>(null);
@@ -66,16 +66,16 @@ export function GearMotionCompare({ resources, layers }: {
     return () => observer.disconnect();
   }, [nearViewport]);
 
-  // 승인 SVG를 문서에 넣고 그 바탕 그림을 꺼낸다. 가장자리 설정을 바꿔도 다시 읽지 않는다.
+  // `gearMotion` 시안 SVG를 문서에 넣고 그 바탕 그림을 꺼낸다. 가장자리 설정을 바꿔도 다시 읽지 않는다.
   useEffect(() => {
     const host = svgHostRef.current;
     if (!resources || !nearViewport || !host) return;
     let cancelled = false;
     (async () => {
       const response = await fetch(withLabPublicBase(GEAR_MOTION_SVG_PATH));
-      if (!response.ok) throw new Error(`승인 SVG를 불러오지 못했습니다 (${response.status}).`);
+      if (!response.ok) throw new Error(`gearMotion 시안 SVG를 불러오지 못했습니다 (${response.status}).`);
       const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
-      if (parsed.documentElement.nodeName !== 'svg' || parsed.querySelector('parsererror')) throw new Error('승인 SVG를 읽지 못했습니다.');
+      if (parsed.documentElement.nodeName !== 'svg' || parsed.querySelector('parsererror')) throw new Error('gearMotion 시안 SVG를 읽지 못했습니다.');
       // 운영체제 모션 감소 설정(`prefers-reduced-motion`)이 켜져 있어도 SVG 레이어가 숨지 않게, 문서에 넣기 전에 SVG 자체의 `@media` 규칙을 걷어 낸다.
       stripSvgReducedMotionRules(parsed);
       const base = new Image();
@@ -86,13 +86,13 @@ export function GearMotionCompare({ resources, layers }: {
       svg.removeAttribute('width');
       svg.removeAttribute('height');
       svg.setAttribute('role', 'img');
-      svg.setAttribute('aria-label', '승인된 기어 움직임 SVG');
+      svg.setAttribute('aria-label', 'gearMotion 시안 SVG');
       svg.classList.add('gear-motion-svg');
       host.replaceChildren(svg);
       svgRef.current = svg;
       setSvgState({ state: 'ready', base });
     })().catch((error: unknown) => {
-      if (!cancelled) setSvgState({ state: 'error', message: errorMessage(error, '승인 SVG를 읽지 못했습니다.') });
+      if (!cancelled) setSvgState({ state: 'error', message: errorMessage(error, 'gearMotion 시안 SVG를 읽지 못했습니다.') });
     });
     return () => {
       cancelled = true;
@@ -218,9 +218,9 @@ export function GearMotionCompare({ resources, layers }: {
       data-compare-samples={pixiState.state === 'ready' ? pixiState.samples : undefined}
     >
       <header className="gear-motion-compare-head">
-        <h2 id="gear-motion-compare-title">Pixi ↔ 승인 SVG 비교</h2>
+        <h2 id="gear-motion-compare-title">Pixi ↔ gearMotion 시안 SVG 비교</h2>
         <p>
-          게임과 같은 움직임 모듈로 기어만 그린 작은 Pixi 화면(게임 렌더러 아님)과 승인된 애니메이션 SVG를 같은 크기·같은 시각으로 나란히 봅니다.
+          게임과 같은 움직임 모듈로 기어만 그린 작은 Pixi 화면(게임 렌더러 아님)과 gearMotion 시안 SVG를 같은 크기·같은 시각으로 나란히 봅니다.
           두 화면 모두 SVG 안의 같은 바탕 그림을 쓰고, 위의 움직임 요소 체크가 양쪽에 함께 적용됩니다.
         </p>
       </header>
@@ -276,7 +276,7 @@ export function GearMotionCompare({ resources, layers }: {
         </figure>
         <figure className="gear-motion-panel">
           <div className="gear-motion-viewport" ref={svgHostRef} style={aspect} data-gear-motion-svg-host="true" {...offLayers} />
-          <figcaption>승인 SVG(54-ambient-motion-v19.svg)</figcaption>
+          <figcaption>gearMotion 시안 SVG(54-ambient-motion-v19.svg)</figcaption>
         </figure>
       </div>
     </section>

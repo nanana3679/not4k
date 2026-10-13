@@ -48,7 +48,7 @@ describe('gaugeEmptyRows — 채움에서 위쪽 빈 유리 행 수(정수 행)'
 describe('gaugeCoverBottom·gaugeCoverAlpha — 빈 유리 덮개와 아래 8행 부드러운 경계', () => {
   const alphas = (bottom: number, rows: number[]) => rows.map((row) => gaugeCoverAlpha(bottom, row));
 
-  it('부드러운 경계는 8행이다(승인 시연의 8px 그라데이션)', () => {
+  it('부드러운 경계는 8행이다(고도 게이지 시연의 8px 그라데이션)', () => {
     expect(GEAR_GAUGE_EDGE_ROWS).toBe(8);
   });
 
@@ -78,7 +78,7 @@ describe('gaugeCoverBottom·gaugeCoverAlpha — 빈 유리 덮개와 아래 8행
   });
 });
 
-describe('easeGaugeLevel — 표시 채움이 목표로 다가간다(지수 접근, 승인 시연 300ms ease-out 느낌)', () => {
+describe('easeGaugeLevel — 표시 채움이 목표로 다가간다(지수 접근, 고도 게이지 시연의 300ms ease-out 느낌)', () => {
   it('시간 상수 τ는 75ms다', () => {
     expect(GEAR_GAUGE_EASE_TAU_MS).toBe(75);
   });

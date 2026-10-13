@@ -8,7 +8,7 @@ import type { CubicBezier } from './gearMotionTiming';
 export const GEAR_MOTION_LAYERS = ['armor', 'gauge', 'accent', 'bar'] as const;
 export type GearMotionLayer = (typeof GEAR_MOTION_LAYERS)[number];
 
-/** 승인된 SVG 시연 페이지(ambient-motion.html)와 같은 이름. */
+/** `gearMotion` 시안 SVG 시연 페이지(`ambient-motion.html`)와 같은 이름. */
 export const GEAR_MOTION_LAYER_LABELS: Record<GearMotionLayer, string> = {
   armor: 'A 큰 광원',
   gauge: 'B 게이지 액체',
