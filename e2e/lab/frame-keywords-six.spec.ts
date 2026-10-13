@@ -152,7 +152,7 @@ for (const width of [390, 1280]) {
   });
 }
 
-test("버튼 발광 비교에서 버튼 누름 깊이를 열면 15px이 기본으로 선택돼 있고, 숫자 키 1로 현재를 고르면 안내가 원래 시연 깊이로 바뀌며 둘째 키 눌림 레이어 픽셀도 달라진다", async ({ page }) => {
+test("버튼 발광 비교에서 버튼 누름 깊이를 열면 15px이 선택돼 있고 처음 그린 둘째 키 빛 레이어가 숫자 키 5로 고른 15px과 같으며, 숫자 키 4(12px)·1(현재)로 바꾸면 픽셀이 달라지고 현재는 원래 시연 깊이 안내를 보인다", async ({ page }) => {
   await page.goto(galleryPath);
   await page.getByRole("link", { name: "버튼 누름 깊이", exact: true }).first().click();
   await expect(page).toHaveURL(/\/press-depth\.html$/);
@@ -167,12 +167,19 @@ test("버튼 발광 비교에서 버튼 누름 깊이를 열면 15px이 기본�
     for (let i = 0; i < data.length; i += 4) sum += data[i] * 3 + data[i + 1] * 5 + data[i + 2] * 7 + data[i + 3];
     return sum;
   });
-  const deep = await glowChecksum();
+  const initial = await glowChecksum();
+
+  await page.keyboard.press("Digit4");
+  await expect(page.locator('input[name="depth"][value="12"]')).toBeChecked();
+  expect(await glowChecksum()).not.toBe(initial);
+  await page.keyboard.press("Digit5");
+  await expect(page.locator('input[name="depth"][value="15"]')).toBeChecked();
+  expect(await glowChecksum()).toBe(initial);
 
   await page.keyboard.press("Digit1");
   await expect(page.locator('input[name="depth"][value="current"]')).toBeChecked();
   await expect(page.locator("#depth-hint")).toHaveText("2·3번 약 6px, 1·4번 거의 0px (원래 시연과 같음)");
-  expect(await glowChecksum()).not.toBe(deep);
+  expect(await glowChecksum()).not.toBe(initial);
 
   const hit = page.getByRole("button", { name: "둘째 키 누르기 (F)" });
   const box = (await hit.boundingBox())!;
