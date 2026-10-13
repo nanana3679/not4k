@@ -80,11 +80,11 @@ _Avoid_: 난이도 등급
 _Avoid_: 프리뷰 구간
 
 **입력 오프셋**:
-입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다(`inputOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#입력-오프셋-input-offset).
+입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다(`inputOffsetMs`, 실제 ±1000ms, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#입력-오프셋-input-offset).
 _Avoid_: 오디오 오프셋
 
 **시각 오프셋**:
-노트를 그리는 시각만 옮겨 화면 표시 지연을 보정하는 설정이다(`visualOffsetMs`, 화면이 늦으면 +). 정의는 [glossary](../../docs/context/glossary.md#시각-오프셋-visual-offset).
+노트를 그리는 시각만 옮겨 화면 표시 지연을 보정하는 설정이다(`visualOffsetMs`, 실제 ±1000ms, 화면이 늦으면 +). 정의는 [glossary](../../docs/context/glossary.md#시각-오프셋-visual-offset).
 _Avoid_: 화면 오프셋
 
 **오프셋 구분**:

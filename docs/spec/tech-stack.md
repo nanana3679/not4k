@@ -281,7 +281,7 @@ V = J + visualOffsetMs·r
 입력 = J − handlerDelay·r + inputOffsetMs·r
 ```
 
-`outputLatency`는 기능 감지하고 미지원이면 그 몫만 0으로 둔다. `AudioEngine.prepareForPlayback()`이 로딩 중 running 컨텍스트에 무음을 출력하면서 25ms 간격으로 관측한다. 최소 100ms 이후 최근 3개 값 차이가 0.1ms 이하면 확정하며, 최대 500ms 뒤에는 마지막 보고값을 쓴다. L₀는 pause/resume 동안 유지하고 새 engine을 만드는 Retry·다음 곡에서 다시 읽는다. 계산·부호·남은 오차는 [오디오·비주얼 동기화](audio-visual-sync.md)를 따른다.
+`outputLatency`는 기능 감지하고 미지원이면 그 몫만 0으로 둔다. 지원하지만 0을 보고하면 안정된 값으로 보지 않고 계속 관측한다. `AudioEngine.prepareForPlayback()`이 로딩 중 running 컨텍스트에 무음을 출력하면서 25ms 간격으로 관측한다. 무음 시작부터 `performance.now()`로 잰 실제 최소 100ms 이후 최근 연속 3개 안정 후보 값 차이가 0.1ms 이하면 확정하며, 실제 500ms 이후 첫 관측에서는 마지막 보고값을 쓴다. 합산 지연이 유한하지 않으면 0ms를 쓴다. 준비 전 `AudioContext.resume()`에는 별도로 2초 제한을 두고, 초과하면 준비를 거부해 `PlayScreen`의 오류 화면으로 보낸다. L₀는 pause/resume 동안 유지하고 새 engine을 만드는 Retry·다음 곡에서 다시 읽는다. 계산·부호·남은 오차는 [오디오·비주얼 동기화](audio-visual-sync.md)를 따른다.
 
 ### 오디오 로딩과 재생
 

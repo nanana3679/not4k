@@ -3,6 +3,7 @@ import { AVAILABLE_SKINS } from '../../skin';
 import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
+import { NumberRow } from './NumberRow';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
@@ -474,30 +475,6 @@ function SelectRow({
       <select className="stg-select" value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-    </div>
-  );
-}
-
-function NumberRow({
-  label, unit, text, onText, onCommit,
-}: {
-  label: string; unit: string; text: string;
-  onText: (v: string) => void; onCommit: (n: number) => void;
-}) {
-  return (
-    <div className="stg-row">
-      <span className="stg-row-label">{label}</span>
-      <div className="stg-number-wrap">
-        <input
-          type="number"
-          className="stg-number"
-          value={text}
-          aria-label={`${label} (${unit})`}
-          onChange={(e) => onText(e.target.value)}
-          onBlur={() => { const n = Number(text); onCommit(isNaN(n) ? 0 : n); }}
-        />
-        <span className="stg-number-unit">{unit}</span>
-      </div>
     </div>
   );
 }

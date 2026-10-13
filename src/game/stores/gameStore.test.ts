@@ -3,6 +3,17 @@ import { mergePersistedSettings, useGameStore } from './gameStore';
 
 describe('mergePersistedSettings', () => {
   it.each([
+    [1001, 1000], [-1001, -1000], [1000, 1000], [-1000, -1000], [12.5, 12.5],
+    [NaN, 0], [Infinity, 0], [-Infinity, 0], [null, 0], ['1500', 0],
+  ])('저장된 입력·시각 오프셋 %s를 병합하면 각각 %sms로 복원한다', (value, expected) => {
+    const result = mergePersistedSettings({ settings: {
+      inputOffsetMs: value, visualOffsetMs: value,
+    } }, useGameStore.getInitialState());
+    expect(result.settings.inputOffsetMs).toBe(expected);
+    expect(result.settings.visualOffsetMs).toBe(expected);
+  });
+
+  it.each([
     { offsetMs: 42 },
     { audioOffsetMs: 25 },
     { judgmentOffsetMs: -15 },

@@ -355,14 +355,14 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 
 ### 입력 오프셋 (Input Offset)
 
-입력 장치 지연과 개인 체감 타이밍을 보정하는 설정이다(설정 `Input Offset`, 코드 `inputOffsetMs`, 실제 시간 ms, 기본 0). 배속 r을 곱해 입력 시간에만 더한다(`입력 = J − handlerDelay·r + inputOffsetMs·r`, `J = P − L₀·r`). 판정 시간·시각 시간에는 닿지 않는다. 늦게 눌러 SLOW가 많으면 음수, FAST가 많으면 양수다([PR #242](https://github.com/nanana3679/not4k/pull/242)의 부호 유지).
+입력 장치 지연과 개인 체감 타이밍을 보정하는 설정이다(설정 `Input Offset`, 코드 `inputOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000~+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 배속 r을 곱해 입력 시간에만 더한다(`입력 = J − handlerDelay·r + inputOffsetMs·r`, `J = P − L₀·r`). 판정 시간·시각 시간에는 닿지 않는다. 늦게 눌러 SLOW가 많으면 음수, FAST가 많으면 양수다([PR #242](https://github.com/nanana3679/not4k/pull/242)의 부호 유지).
 
 현재는 설정 숫자 입력으로 조절한다. 입력 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 2에서 게임과 같은 시간 경로의 비프·탭 비교로 구현한다. 옛 설정 `judgmentOffsetMs`·`audioOffsetMs`·`offsetMs`는 읽을 때 버리고 이전하지 않는다.
 _Avoid_: 오디오 오프셋, 판정 오프셋, 이름 없는 "오프셋"
 
 ### 시각 오프셋 (Visual Offset)
 
-화면 표시 지연을 보정하는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 실제 시간 ms, 기본 0). 시각 시간 `V = J + visualOffsetMs·r`로 노트·마디선·구간을 그리며 판정과 입력 시간에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수로 노트를 앞당겨 그린다. 브라우저의 출력 지연 보고가 정확하면 화면 표시 지연과 같다.
+화면 표시 지연을 보정하는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000~+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 시각 시간 `V = J + visualOffsetMs·r`로 노트·마디선·구간을 그리며 판정과 입력 시간에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수로 노트를 앞당겨 그린다. 브라우저의 출력 지연 보고가 정확하면 화면 표시 지연과 같다.
 
 현재는 설정 숫자 입력으로 조절한다. 비프와 함께 떨어지는 노트를 보고 맞추는 시각 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 3에서 구현한다. 입력 오프셋과 달리 장치가 늦을 때 양수다. 브라우저 지연 보고의 고정 오차는 두 오프셋이 함께 흡수할 수 있다.
 _Avoid_: 화면 오프셋, 디스플레이 딜레이, 이름 없는 "오프셋"

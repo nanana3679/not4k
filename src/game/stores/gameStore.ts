@@ -122,6 +122,13 @@ const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 1.0,
 };
 
+/** 입력·시각 오프셋은 실제 시간 ±1000ms로 제한하고 잘못된 값은 기본 0ms로 둔다. */
+export function clampTimingOffsetMs(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(-1000, Math.min(1000, value))
+    : 0;
+}
+
 /** @internal 테스트용으로 export. persist merge 콜백. */
 export function mergePersistedSettings(
   persisted: unknown,
@@ -130,6 +137,8 @@ export function mergePersistedSettings(
   const p = persisted as { settings?: Partial<GameSettings> };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
+  merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
+  merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
   // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
   delete merged.audioOffsetMs;
   delete merged.judgmentOffsetMs;

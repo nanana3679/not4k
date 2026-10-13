@@ -304,6 +304,7 @@ export function PlayScreen() {
         };
 
         // 곡 중 쓸 텍스처를 전부 GPU 업로드하고 첫 프레임을 그려 셰이더·마스크를 준비한다(곡 시작 전 준비).
+        // 재생 전 P = 0을 전제하므로 startTimeMs + (visualOffsetMs − L₀)·r과 같다.
         renderer.prepareForPlayback(startTimeMs + gameClock.visualTimeMs());
 
         // Start audio playback

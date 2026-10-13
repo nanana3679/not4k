@@ -67,7 +67,7 @@ function createMockAudioContext(): MockAudioContext {
     },
     state: "running",
     resume: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(async () => { ctx.state = "closed"; }),
     destination: {},
     decodeAudioData: vi.fn(),
     sampleRate: 48000,
@@ -107,12 +107,12 @@ function createMockBuffer(durationSeconds: number): AudioBuffer {
 let mockCtx: ReturnType<typeof createMockAudioContext>;
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
   mockCtx = createMockAudioContext();
   stubGlobalAudioContext(mockCtx);
 });
 
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -127,6 +127,120 @@ describe("AudioEngine L₀ 준비", () => {
 
   it("준비 전 L₀를 읽으면 오류로 막아 첫 프레임에 임시 0ms를 쓰지 않는다", () => {
     expect(() => new AudioEngine().getOutputLatencyMs()).toThrow("prepareForPlayback");
+  });
+
+  it.each(["close", "dispose"])("준비 50ms 뒤 %s하면 준비가 거부되고 무음은 1번 정지·연결 해제되며 L₀ 읽기도 오류다", async action => {
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    const rejected = expect(ready).rejects.toThrow("AudioContext stopped during latency preparation");
+    await vi.advanceTimersByTimeAsync(50);
+    const silence = mockCtx.createBufferSource.mock.results[0].value;
+    if (action === "close") await mockCtx.close();
+    else await engine.dispose();
+    await vi.advanceTimersByTimeAsync(25);
+    await rejected;
+    expect(silence.stop).toHaveBeenCalledOnce();
+    expect(silence.disconnect).toHaveBeenCalledOnce();
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    expect(engine.prepareForPlayback()).toBe(ready);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(silence.stop).toHaveBeenCalledOnce();
+    expect(silence.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("25ms 콜백 4번 뒤에도 실제 경과가 99ms면 대기하고 100ms가 되면 L₀=10ms를 확정한다", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    mockCtx.outputLatency = 0.01;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    now.mockReturnValue(1099);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    now.mockReturnValue(1100);
+    await vi.advanceTimersByTimeAsync(25);
+    await ready;
+    expect(engine.getOutputLatencyMs()).toBe(10);
+  });
+
+  it("첫 콜백이 실제 100ms 뒤 도착해도 관측 3개를 모은 150ms에 L₀=10ms를 확정한다", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    mockCtx.outputLatency = 0.01;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    for (const elapsed of [100, 125]) {
+      now.mockReturnValue(1000 + elapsed);
+      await vi.advanceTimersByTimeAsync(25);
+      expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    }
+    now.mockReturnValue(1150);
+    await vi.advanceTimersByTimeAsync(25);
+    expect(engine.getOutputLatencyMs()).toBe(10);
+    await ready;
+  });
+
+  it("첫 콜백이 실제 550ms 뒤 도착하면 20번을 채우지 않고 마지막 L₀=10ms로 준비를 끝낸다", async () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    mockCtx.outputLatency = 0.01;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    now.mockReturnValue(1550);
+    await vi.advanceTimersByTimeAsync(25);
+    expect(engine.getOutputLatencyMs()).toBe(10);
+    await ready;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("outputLatency 지원 값이 계속 0이면 499ms까지 관측하고 500ms에 baseLatency=5ms를 채택한다", async () => {
+    mockCtx.baseLatency = 0.005;
+    mockCtx.outputLatency = 0;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    await vi.advanceTimersByTimeAsync(1);
+    await ready;
+    expect(engine.getOutputLatencyMs()).toBe(5);
+  });
+
+  it("outputLatency가 0에서 400ms에 20ms로 바뀌면 450ms까지 관측해 L₀=20ms를 채택한다", async () => {
+    mockCtx.outputLatency = 0;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    await vi.advanceTimersByTimeAsync(399);
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    mockCtx.outputLatency = 0.02;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    await vi.advanceTimersByTimeAsync(1);
+    await ready;
+    expect(engine.getOutputLatencyMs()).toBe(20);
+  });
+
+  it.each([
+    [NaN, 0.01], [0.005, NaN], [Infinity, 0.01], [0.005, -Infinity], [Number.MAX_VALUE, Number.MAX_VALUE],
+  ])("baseLatency=%s·outputLatency=%s로 계산한 지연이 유한하지 않으면 L₀=0ms다", async (base, output) => {
+    mockCtx.baseLatency = base;
+    mockCtx.outputLatency = output;
+    const engine = new AudioEngine();
+    await prepare(engine);
+    expect(engine.getOutputLatencyMs()).toBe(0);
+  });
+
+  it("suspended의 resume이 2000ms 동안 끝나지 않으면 설명이 있는 오류로 거부하고 무음을 만들지 않는다", async () => {
+    mockCtx.state = "suspended";
+    mockCtx.resume.mockReturnValue(new Promise<void>(() => {}));
+    const engine = new AudioEngine();
+    const rejected = vi.fn();
+    const ready = engine.prepareForPlayback().catch(rejected);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(rejected).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(rejected).toHaveBeenCalledOnce();
+    expect(rejected.mock.calls[0][0].message).toMatch(/AudioContext\.resume.*2000ms/);
+    await ready;
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    expect(() => engine.getOutputLatencyMs()).toThrow("prepareForPlayback");
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("baseLatency와 outputLatency가 없으면 100ms 준비 후 L₀=0ms다", async () => {

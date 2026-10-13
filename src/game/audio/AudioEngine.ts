@@ -264,7 +264,8 @@ export class AudioEngine {
 
   /**
    * 재생 전 로딩 중 호출한다. running 출력에 무음 버퍼를 연결하고 25ms 간격으로 관측한다.
-   * 최소 100ms 뒤 연속 3개 값의 차이가 0.1ms 이하면 확정하고, 최대 500ms 뒤 마지막 값을 쓴다.
+   * 실제 최소 100ms 뒤 연속 3개 값의 차이가 0.1ms 이하면 확정하고, 최대 500ms 뒤 마지막 값을 쓴다.
+   * 지원되는 outputLatency가 0이면 아직 안정되지 않은 것으로 보고 관측을 계속한다.
    * Promise와 L₀를 보관하므로 중복 호출·pause/resume은 다시 읽지 않는다.
    */
   prepareForPlayback(): Promise<void> {
@@ -273,23 +274,41 @@ export class AudioEngine {
   }
 
   private async captureOutputLatency(): Promise<void> {
-    if (this.ctx.state !== 'running') await this.ctx.resume();
+    if (this.ctx.state !== 'running') {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          this.ctx.resume(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('AudioContext.resume() timed out after 2000ms during playback preparation')), 2000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
     const silence = this.ctx.createBufferSource();
     silence.buffer = this.ctx.createBuffer(1, 128, this.ctx.sampleRate);
     silence.loop = true;
     silence.connect(this.masterGain);
     silence.start();
+    const startedAt = performance.now();
     const samples: number[] = [];
     try {
-      for (let elapsed = 25; elapsed <= 500; elapsed += 25) {
+      while (true) {
         await new Promise<void>(resolve => setTimeout(resolve, 25));
         if (this.ctx.state !== 'running') throw new Error('AudioContext stopped during latency preparation');
+        const elapsed = performance.now() - startedAt;
         const base = this.ctx.baseLatency ?? 0;
-        const output = 'outputLatency' in this.ctx ? (this.ctx.outputLatency ?? 0) : 0;
-        const latencyMs = (base + output) * 1000;
+        const supportsOutputLatency = 'outputLatency' in this.ctx;
+        const output = supportsOutputLatency ? (this.ctx.outputLatency ?? 0) : 0;
+        const reportedLatencyMs = (base + output) * 1000;
+        const latencyMs = Number.isFinite(reportedLatencyMs) ? reportedLatencyMs : 0;
         samples.push(latencyMs);
         if (samples.length > 3) samples.shift();
-        if ((elapsed >= 100 && Math.max(...samples) - Math.min(...samples) <= 0.1) || elapsed === 500) {
+        if (supportsOutputLatency && output === 0) samples.length = 0;
+        const stable = samples.length === 3 && Math.max(...samples) - Math.min(...samples) <= 0.1;
+        if ((elapsed >= 100 && stable) || elapsed >= 500) {
           this.outputLatencyMs = latencyMs;
           break;
         }

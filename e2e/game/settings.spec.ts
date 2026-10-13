@@ -292,6 +292,28 @@ test.describe('Game Settings', () => {
     expect(stored.visualOffsetMs).toBe(30);
   });
 
+  test('Gameplay에서 입력 1500ms·시각 −1500ms를 확정하면 ±1000ms로 제한되어 재방문 후에도 유지된다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    const input = dialog.getByLabel('Input Offset (ms)');
+    const visual = dialog.getByLabel('Visual Offset (ms)');
+    await input.fill('1500');
+    await input.press('Tab');
+    await expect(input).toHaveValue('1000');
+    await visual.fill('-1500');
+    await visual.press('Tab');
+    await expect(visual).toHaveValue('-1000');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state.settings);
+    expect(stored.inputOffsetMs).toBe(1000);
+    expect(stored.visualOffsetMs).toBe(-1000);
+    await page.reload();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    await expect(input).toHaveValue('1000');
+    await expect(visual).toHaveValue('-1000');
+  });
+
   test('Controls: + Add 클릭 시 리스닝 상태 후 새 키 칩 추가', async ({ page }) => {
     const dialog = await openSettings(page);
 
