@@ -121,7 +121,7 @@ const BPM_EVENTS = [
 ];
 /** 노트가 50초 뒤에 하나뿐인 차트(입력해도 판정할 노트가 없다). */
 const QUIET_CHART: PlayChart = { notes: [{ type: 'single', lane: 1, beat: { n: 100, d: 1 } }], events: BPM_EVENTS };
-// 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)으로 빛나는 자리다.
+// 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)으로 빛나는 곳이다.
 const KEY_TWO_FACE = { x: 437, y: 1250 };
 const blueOverRed = ([red, , blue]: number[]) => blue - red;
 const maxDifference = (a: number[], b: number[]) => Math.max(...a.map((value, channel) => Math.abs(value - b[channel])));
@@ -182,7 +182,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     expect(errors).toEqual([]);
   });
 
-  test('AutoEvent 구간의 레인 3 롱노트(2~3초)와 레인 1 싱글 노트(1.5초)는 AutoPlayer 합성 입력으로 각 레인 기어 버튼을 눌렀다가 떼어 대기로 돌려놓는다', async ({ page }) => {
+  test('AutoEvent 구간의 레인 3 롱노트(2~3초)와 레인 1 싱글 노트(1.5초)는 AutoPlayer 합성 입력으로 각 레인 기어 버튼을 눌렀다가 떼어 대기로 되돌린다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, {

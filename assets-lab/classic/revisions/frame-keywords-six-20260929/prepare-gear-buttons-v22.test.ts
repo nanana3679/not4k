@@ -33,7 +33,7 @@ describe('공유 모듈(button-press-shared.mjs) — 버튼 누름 깊이 비교
     expect(DEPTH).toBe(15);
   });
 
-  it('대기 보정 영역과 1·2번 키의 빛·키 자리 영역이 press-depth.html의 줄과 같다', () => {
+  it('대기 보정 영역과 1·2번 키의 빛(glow)·키캡 덮개(cap) 영역이 press-depth.html의 줄과 같다', () => {
     expect(demo).toContain(`patch: ${regionText(IDLE_REGIONS.patch)},`);
     expect(demo).toContain(`gap: ${regionText(IDLE_REGIONS.gap)},`);
     for (const key of [1, 2] as const) {
@@ -113,7 +113,7 @@ describe('공유 모듈 — 영역과 키캡 이동 계산', () => {
 });
 
 describe('아틀라스 배치(gear-buttons-atlas.mjs)', () => {
-  it('alignedCrop: 상자 x 362~519·y 1127~1351이면 16px 정렬해 x 352·y 1120·폭 176·높이 240이다', () => {
+  it('alignedCrop: 픽셀 범위 x 362~519·y 1127~1351이면 16px 정렬해 x 352·y 1120·폭 176·높이 240이다', () => {
     expect(alignedCrop({ x0: 362, y0: 1127, x1: 519, y1: 1351 })).toEqual({ x: 352, y: 1120, width: 176, height: 240 });
   });
 
@@ -170,7 +170,7 @@ describe('생성기 산출물 — public/gear/gear-buttons.png와 gearButtonGeom
     }
   });
 
-  it('각 버튼의 frame 자리(기어 그림 좌표)는 그 키의 시연 영역(glow·cap, 3·4번은 x → 1022 − x 반전)을 16px 정렬한 상자 안에 있다', () => {
+  it('각 버튼 atlas frame의 기어 그림 좌표 범위는 그 키의 시연 영역(glow·cap, 3·4번은 x → 1022 − x 반전)을 16px 정렬한 범위 안에 있다', () => {
     geometry.buttons.forEach((button: { lane: number; glow: Record<string, Frame>; tint: Record<string, Frame>; cap: Frame }, index: number) => {
       const key = index + 1;
       expect(button.lane).toBe(key);
