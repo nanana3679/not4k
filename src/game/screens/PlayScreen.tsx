@@ -227,11 +227,14 @@ export function PlayScreen() {
             inputTimelineRef.current?.enqueue({ lane, inputAt: gameClock.toInputTimeMs(timestampMs), key: keyCode, type: 'down' });
             renderer.setKeyBeam(lane, true);
             renderer.setKeyState(keyCode, true);
+            // 기어 버튼은 키를 누른 그 순간 표시를 바꿔 다음 렌더 프레임에 바로 눌려 빛난다. 같은 레인의 키를 모두 떼야 돌아온다.
+            renderer.setGearButtonKey(lane, keyCode, true);
           },
           onLaneRelease: (lane, timestampMs, keyCode) => {
             inputTimelineRef.current?.enqueue({ lane, inputAt: gameClock.toInputTimeMs(timestampMs), key: keyCode, type: 'up' });
             renderer.setKeyBeam(lane, false);
             renderer.setKeyState(keyCode, false);
+            renderer.setGearButtonKey(lane, keyCode, false);
           },
         });
 
@@ -286,6 +289,8 @@ export function PlayScreen() {
             const autoEvents = stepPlaySession(inputTimelineRef.current!, session, autoPlayer, gameClock, timestamp);
             for (const event of autoEvents) {
               renderer.setKeyBeam(event.lane, event.type === 'press');
+              // 합성 입력도 실제 키처럼 기어 버튼을 누르고 뗀다(판정 입력과 같은 규칙: release가 아니면 누름).
+              renderer.setGearButtonKey(event.lane, event.key, event.type !== 'release');
             }
 
             // 소리 기준 시각 시간 V로 노트·마디선·구간을 그린다.

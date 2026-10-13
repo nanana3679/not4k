@@ -26,6 +26,8 @@ const requiredPaths = [
   "gear/gear.png",
   // 고도 게이지 빈 유리(스킨 공통 gearGaugeEmpty). /lab/gear와 Lab 재생기의 스킨 읽기가 함께 받는다.
   "gear/gear-gauge-empty.png",
+  // 기어 버튼 누름 레이어(스킨 공통 gearButtons). /lab/gear에서 바인딩된 키를 누르면 쓴다.
+  "gear/gear-buttons.png",
   // `gearMotion` 에셋은 기어 그림 옆 공용 경로에 있고 게임과 Lab이 함께 읽는다(RFD 0029).
   "gear/gear-motion/gear-motion.json",
   "gear/gear-motion/armor-lit.png",

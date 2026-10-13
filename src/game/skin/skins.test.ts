@@ -37,6 +37,12 @@ describe("SKIN_LIST", () => {
       expect(skin.assets.gearGaugeEmpty).toBe("/gear/gear-gauge-empty.png");
     }
   });
+
+  it("기어 버튼 누름 레이어는 모든 스킨이 공통 /gear/gear-buttons.png를 쓴다", () => {
+    for (const skin of SKIN_LIST) {
+      expect(skin.assets.gearButtons).toBe("/gear/gear-buttons.png");
+    }
+  });
 });
 
 describe("공개 배포의 스킨 에셋 주소", () => {
@@ -144,7 +150,7 @@ describe("SkinTheme", () => {
         // 켜짐 에셋은 heldEffect: false 스킨(Simple)에 없다.
         ...(assets.bodySingleHeld ? [assets.bodySingleHeld] : []),
         ...(assets.bodyDoubleHeld ? [assets.bodyDoubleHeld] : []),
-        assets.gearImage, assets.gearGaugeEmpty,
+        assets.gearImage, assets.gearGaugeEmpty, assets.gearButtons,
         ...assets.bomb, ...assets.buttonIdle, ...assets.buttonPressed,
       ];
       for (const p of paths) {
