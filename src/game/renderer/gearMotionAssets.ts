@@ -19,7 +19,7 @@ import {
  * 아예 읽지 않아야 한다. 그래서 기어를 그리는 렌더러가 `gearMotion`을 켤 때만 lease를 acquire하고, 기다리지 않고 준비되면 추가한다.
  *
  * 읽기와 공유는 스킨 에셋과 같은 장치(sharedAssets: Pixi Assets 전역 캐시 + 경로별 참조 세기)를 쓴다. 텍스처는 기어(gearImage)와 같은
- * 밉맵·삼선형 설정으로 경로 별칭을 붙여 읽으므로, 같은 페이지의 게임 렌더러와 Lab 비교 화면이 한 벌을 나눠 쓰고 마지막 임대를 놓을 때
+ * 밉맵·삼선형 설정으로 경로 별칭을 붙여 읽으므로, 같은 페이지의 게임 렌더러와 Lab 비교 화면이 같은 텍스처를 함께 쓰고 마지막 lease를 release할 때
  * JSON과 PNG를 함께 unload한다.
  */
 
@@ -31,11 +31,11 @@ export interface GearMotionResources {
 export interface GearMotionAssetLease {
   /** `gear-motion.json`(`GearMotionData`)과 텍스처가 준비되면 이행한다. 읽기에 실패하거나, 준비되기 전에 lease를 release하면 거절한다. */
   readonly ready: Promise<GearMotionResources>;
-  /** 이 임대가 잡은 참조를 놓는다(두 번 불러도 한 번만). 놓은 뒤에는 받은 텍스처를 쓰지 않는다. */
+  /** 이 lease가 retain한 경로를 모두 release한다(두 번 불러도 한 번만). lease를 release한 뒤에는 받은 텍스처를 쓰지 않는다. */
   release(): void;
 }
 
-/** 준비되기 전에 놓은 임대의 ready가 거절될 때의 오류. */
+/** 준비되기 전에 release한 lease의 ready가 거절될 때의 오류. */
 export class GearMotionLeaseReleasedError extends Error {
   constructor() {
     super('Gear motion asset lease was released before the assets were ready.');
@@ -67,7 +67,7 @@ export function acquireGearMotionAssets(resolveUrl: (path: string) => string = w
     const textures = Object.fromEntries(GEAR_MOTION_TEXTURE_KEYS.map((key, index) => [key, loaded[index]])) as GearMotionTextures;
     return { data, textures };
   })();
-  // 소비자가 늦게 처리를 붙이거나 놓은 뒤 거절되어도 처리되지 않은 거절로 남지 않게 한다(소비자 처리에는 그대로 전달된다).
+  // 소비자가 늦게 처리를 붙이거나 lease를 release한 뒤 거절되어도 처리되지 않은 거절로 남지 않게 한다(소비자 처리에는 그대로 전달된다).
   ready.catch(() => undefined);
 
   return {

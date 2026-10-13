@@ -170,7 +170,7 @@ export default function GearPage() {
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
   const devicePixelRatio = useDevicePixelRatio();
   const viewportRef = useRef<HTMLDivElement>(null);
-  // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 하나를 빌려 준다. 페이지를 떠나면 놓는다.
+  // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 스킨 하나를 `SharedSkin`으로 공유한다(렌더러가 acquire·release). 페이지를 떠나면 close한다.
   const [sharedSkin] = useState(() => createSharedSkin(loadClassicSkin));
   useEffect(() => () => sharedSkin.close(), [sharedSkin]);
   const [motionAssets, setMotionAssets] = useState<MotionAssetsState>({ status: 'loading' });
@@ -194,7 +194,7 @@ export default function GearPage() {
   );
 
   // `gearMotion` 에셋은 게임과 같은 공유 로더에서 페이지가 lease 하나를 acquire해 둔다. 렌더러를 다시 만들어도(렌더 높이·장면·전체화면·기어·판정선 y 오프셋) 다시 읽지 않고,
-  // 아래 비교 화면도 같은 텍스처를 쓴다. 게임 렌더러는 자기 임대를 따로 잡으므로 이 임대와 무관하게 정리된다.
+  // 아래 비교 화면도 같은 텍스처를 쓴다. 게임 렌더러는 자기 lease를 따로 acquire하므로 이 lease와 무관하게 정리된다.
   useEffect(() => {
     let cancelled = false;
     let release: (() => void) | null = null;
@@ -763,7 +763,7 @@ function GearPreviewRenderer({
   /** 고도 고정값(0~1). null이면 렌더러 고도 모델을 따른다. 바뀌면 렌더러를 유지한 채 setAltitudeOverride로 건다. */
   altitudeOverride: number | null;
   keyboardBindings: ReadonlyMap<string, number>;
-  /** 페이지가 빌려 주는 Classic 스킨. 렌더러를 다시 만들어도 다시 읽지 않는다. */
+  /** 페이지가 공유하는 Classic 스킨(`SharedSkin`). 렌더러를 다시 만들어도 다시 읽지 않는다. */
   sharedSkin: SharedSkin<SkinManager>;
   hostStyle: CSSProperties;
   motionSettings: MotionSettings;

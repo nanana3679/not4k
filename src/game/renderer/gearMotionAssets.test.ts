@@ -31,7 +31,7 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     });
   });
 
-  it('임대하면 gear-motion.json을 먼저 읽고 텍스처 9장을 기어와 같은 밉맵·삼선형 설정으로 경로 별칭 로드해 키별 텍스처를 준다', async () => {
+  it('lease를 acquire하면 gear-motion.json을 먼저 읽고 텍스처 9장을 기어와 같은 밉맵·삼선형 설정으로 경로 별칭 로드해 키별 텍스처를 준다', async () => {
     const lease = acquireGearMotionAssets((path) => path);
     const resources = await lease.ready;
     expect(loadedPaths()[0]).toBe('/gear/gear-motion/gear-motion.json');
@@ -55,7 +55,7 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     lease.release();
   });
 
-  it('두 임대가 함께 쓰면 먼저 놓아도 unload하지 않고, 마지막 임대를 놓을 때 JSON과 PNG 9장(10개)을 unload한다', async () => {
+  it('두 lease가 함께 쓰면 먼저 release해도 unload하지 않고, 마지막 lease를 release할 때 JSON과 PNG 9장(10개)을 unload한다', async () => {
     const first = acquireGearMotionAssets((path) => path);
     const second = acquireGearMotionAssets((path) => path);
     await Promise.all([first.ready, second.ready]);
@@ -69,7 +69,7 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     expect(sharedAssetReferenceCount('/gear/gear-motion/armor-lit.png')).toBe(0);
   });
 
-  it('JSON을 읽는 동안 놓으면 PNG를 하나도 읽지 않고 ready는 거절되며, release를 두 번 불러도 JSON 참조는 한 번만 놓는다', async () => {
+  it('JSON을 읽는 동안 lease를 release하면 PNG를 하나도 읽지 않고 ready는 거절되며, release를 두 번 불러도 JSON 경로는 한 번만 release한다', async () => {
     let open!: () => void;
     gate.json = new Promise<void>((resolve) => { open = resolve; });
     const lease = acquireGearMotionAssets((path) => path);
