@@ -217,10 +217,20 @@ describe("AudioEngine L₀ 준비", () => {
   });
 
   it.each([
-    [NaN, 0.01], [0.005, NaN], [Infinity, 0.01], [0.005, -Infinity], [Number.MAX_VALUE, Number.MAX_VALUE],
-  ])("baseLatency=%s·outputLatency=%s로 계산한 지연이 유한하지 않으면 L₀=0ms다", async (base, output) => {
+    [NaN, 0.01, 10], [0.005, NaN, 5],
+    [Infinity, 0.01, 10], [-Infinity, 0.01, 10],
+    [0.005, Infinity, 5], [0.005, -Infinity, 5], [NaN, Infinity, 0],
+  ])("baseLatency=%s·outputLatency=%s에서 유한하지 않은 성분만 0으로 두고 L₀=%sms를 유지한다", async (base, output, expected) => {
     mockCtx.baseLatency = base;
     mockCtx.outputLatency = output;
+    const engine = new AudioEngine();
+    await prepare(engine);
+    expect(engine.getOutputLatencyMs()).toBe(expected);
+  });
+
+  it("baseLatency와 outputLatency가 각각 Number.MAX_VALUE이면 합산 오버플로를 L₀=0ms로 처리한다", async () => {
+    mockCtx.baseLatency = Number.MAX_VALUE;
+    mockCtx.outputLatency = Number.MAX_VALUE;
     const engine = new AudioEngine();
     await prepare(engine);
     expect(engine.getOutputLatencyMs()).toBe(0);

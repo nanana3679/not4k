@@ -302,7 +302,7 @@ export class AudioEngine {
         const base = this.ctx.baseLatency ?? 0;
         const supportsOutputLatency = 'outputLatency' in this.ctx;
         const output = supportsOutputLatency ? (this.ctx.outputLatency ?? 0) : 0;
-        const reportedLatencyMs = (base + output) * 1000;
+        const reportedLatencyMs = ((Number.isFinite(base) ? base : 0) + (Number.isFinite(output) ? output : 0)) * 1000;
         const latencyMs = Number.isFinite(reportedLatencyMs) ? reportedLatencyMs : 0;
         samples.push(latencyMs);
         if (samples.length > 3) samples.shift();

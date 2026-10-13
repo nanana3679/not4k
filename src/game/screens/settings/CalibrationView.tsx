@@ -286,6 +286,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   const applyResult = () => {
     // RFD 0031 PR 2·3 전에는 진입을 숨긴다. 옛 보정 결과를 새 설정에 저장하지 않는다.
     // PR 2·3에서 SettingsModal의 캘리브레이션 뷰와 함께 Apply를 새 보정 경로에 다시 연결해야 한다.
+    // ±1000ms 제한은 숫자 입력 확정과 저장 설정 병합에만 있으므로 PR 2·3의 보정 결과에도 적용해야 한다.
     setPhase('select');
   };
 

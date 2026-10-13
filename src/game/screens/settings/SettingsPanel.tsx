@@ -3,7 +3,7 @@ import { AVAILABLE_SKINS } from '../../skin';
 import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
-import { NumberRow } from './NumberRow';
+import { OffsetRow } from './OffsetRow';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
@@ -177,14 +177,14 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   min={0} max={1} step={0.01}
                   onChange={(v) => updateSettings({ masterVolume: v })}
                 />
-                <NumberRow
+                <OffsetRow
                   label="Input Offset"
                   unit="ms"
                   text={inputOffsetText}
                   onText={setInputOffsetText}
                   onCommit={(n) => { updateSettings({ inputOffsetMs: n }); setInputOffsetText(String(n)); }}
                 />
-                <NumberRow
+                <OffsetRow
                   label="Visual Offset"
                   unit="ms"
                   text={visualOffsetText}

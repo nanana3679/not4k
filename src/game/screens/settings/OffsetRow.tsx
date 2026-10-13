@@ -1,6 +1,6 @@
-import { clampTimingOffsetMs } from '../../stores/gameStore';
+import { clampTimingOffsetMs, TIMING_OFFSET_LIMIT_MS } from '../../stores/gameStore';
 
-export function NumberRow({
+export function OffsetRow({
   label, unit, text, onText, onCommit,
 }: {
   label: string; unit: string; text: string;
@@ -13,8 +13,8 @@ export function NumberRow({
         <input
           type="number"
           className="stg-number"
-          min={-1000}
-          max={1000}
+          min={-TIMING_OFFSET_LIMIT_MS}
+          max={TIMING_OFFSET_LIMIT_MS}
           value={text}
           aria-label={`${label} (${unit})`}
           onChange={(e) => onText(e.target.value)}

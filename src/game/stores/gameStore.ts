@@ -122,10 +122,12 @@ const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 1.0,
 };
 
+export const TIMING_OFFSET_LIMIT_MS = 1000;
+
 /** 입력·시각 오프셋은 실제 시간 ±1000ms로 제한하고 잘못된 값은 기본 0ms로 둔다. */
 export function clampTimingOffsetMs(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(-1000, Math.min(1000, value))
+    ? Math.max(-TIMING_OFFSET_LIMIT_MS, Math.min(TIMING_OFFSET_LIMIT_MS, value))
     : 0;
 }
 
