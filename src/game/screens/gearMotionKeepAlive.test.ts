@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe('keepGearMotionAssets — 설정이 켜진 동안 gearMotion 에셋 lease를 keep-alive로 두기', () => {
-  it('켜진 채 두 번(첫 플레이·재시도) 부르면 같은 임대 하나만 빌린다(acquire 1번)', () => {
+  it('켜진 채 두 번(첫 플레이·재시도) 부르면 lease를 한 번만 acquire하고 같은 lease를 돌려준다', () => {
     const lease = fakeLease();
     const acquire = vi.fn(() => lease);
     expect(keepGearMotionAssets(true, acquire)).toBe(lease);
@@ -22,7 +22,7 @@ describe('keepGearMotionAssets — 설정이 켜진 동안 gearMotion 에셋 lea
     expect(lease.release).not.toHaveBeenCalled();
   });
 
-  it('끄면(설정 `Gear Motion` 끔) 붙잡은 임대를 한 번 놓고 null을 돌려주며, 다시 켜면 새로 빌린다', () => {
+  it('끄면(설정 `Gear Motion` 끔) keep-alive한 lease를 한 번 release하고 null을 돌려주며, 다시 켜면 새로 acquire한다', () => {
     const first = fakeLease();
     const second = fakeLease();
     const acquire = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
@@ -34,7 +34,7 @@ describe('keepGearMotionAssets — 설정이 켜진 동안 gearMotion 에셋 lea
     expect(acquire).toHaveBeenCalledTimes(2);
   });
 
-  it('붙잡은 임대의 읽기가 실패하면 놓고 잊어, 다음 플레이에서 다시 빌린다(실패를 붙잡아 두지 않음)', async () => {
+  it('keep-alive한 lease의 읽기가 실패하면 그 lease를 release하고 잊어, 다음 플레이에서 다시 acquire한다(실패한 lease는 keep-alive하지 않음)', async () => {
     const failed = fakeLease(Promise.reject(new Error('offline')));
     failed.ready.catch(() => undefined);
     const retried = fakeLease();

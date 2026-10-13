@@ -21,7 +21,7 @@ describe('GameRenderer 리소스 수명', () => {
     expect(state.initialized).toBe(false);
   });
 
-  it('프리뷰 하나를 닫아도 다른 슬롯이 빌린 Pixi 텍스처를 정상 반환할 수 있다', () => {
+  it('프리뷰 하나를 닫아도 다른 슬롯이 TexturePool.getOptimalTexture로 받은 32×16 텍스처를 returnTexture로 반환하면 같은 요청에 그 텍스처를 다시 받는다', () => {
     const borrowedTexture = TexturePool.getOptimalTexture({ width: 32, height: 16, resolution: 1, antialias: false });
     const pixiRenderer = {
       runners: { destroy: { items: [], emit: vi.fn(), destroy: vi.fn() } },

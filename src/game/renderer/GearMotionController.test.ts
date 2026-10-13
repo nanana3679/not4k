@@ -15,7 +15,7 @@ function fakeTextures(): GearMotionTextures {
   })) as GearMotionTextures;
 }
 
-/** 준비 시점을 테스트가 정하는 임대. release는 멱등이 아닌 가짜라 몇 번 불렸는지 그대로 센다. */
+/** 준비 시점을 테스트가 정하는 lease. release는 멱등이 아닌 가짜라 몇 번 불렸는지 그대로 센다. */
 function controllableLease() {
   let resolve!: (resources: GearMotionResources) => void;
   let reject!: (error: unknown) => void;
@@ -220,7 +220,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     controller.destroy();
   });
 
-  it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 임대는 destroy까지 합쳐 정확히 한 번 놓는다', async () => {
+  it('gearMotion 에셋 읽기가 실패하면(필수 에셋) ready가 같은 오류로 거절되고 holder는 비어 있으며, 경고 없이 destroy까지 합쳐 lease를 정확히 한 번 release한다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { holder, lease, reject, controller } = controllerWith();
     const failure = new Error('404 gear-motion.json');
@@ -255,7 +255,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     expect(controller.running).toBe(false);
   });
 
-  it('준비 전에 destroy하면 나중에 에셋이 준비되어도 gearMotion을 만들지 않고 ready는 거절되며 lease는 한 번만 release한다', async () => {
+  it('준비 전에 destroy하면 나중에 에셋이 준비되어도 gearMotion을 만들지 않고 ready는 거절되며 lease를 한 번만 release한다', async () => {
     const create = vi.fn(createGearMotion);
     const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();

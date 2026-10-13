@@ -450,7 +450,7 @@ export class GameRenderer {
       this.buildTutorialKeyboard();
     }
     this.initialized = true;
-    // 임대는 dispose가 놓을 수 있는 시점(초기화 뒤)에 빌린다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
+    // lease는 dispose가 release할 수 있는 시점(초기화 뒤)에 acquire한다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
     this.buildGearMotion();
     // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
     const required: Promise<unknown>[] = [];
