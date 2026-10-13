@@ -170,7 +170,7 @@ export default function GearPage() {
   const [rendererView, setRendererView] = useState<RendererView | null>(null);
   const devicePixelRatio = useDevicePixelRatio();
   const viewportRef = useRef<HTMLDivElement>(null);
-  // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 스킨 하나를 `SharedSkin`으로 공유한다(렌더러가 acquire·release). 페이지를 떠나면 close한다.
+  // 렌더러를 다시 만들 때마다 Classic 스킨을 다시 읽지 않도록 페이지가 스킨 하나를 `SharedSkin`으로 공유한다(렌더러가 스킨을 acquire·release). 페이지를 떠나면 close한다.
   const [sharedSkin] = useState(() => createSharedSkin(loadClassicSkin));
   useEffect(() => () => sharedSkin.close(), [sharedSkin]);
   const [motionAssets, setMotionAssets] = useState<MotionAssetsState>({ status: 'loading' });

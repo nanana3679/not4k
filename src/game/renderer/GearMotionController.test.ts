@@ -255,7 +255,7 @@ describe('GearMotionController — 게임 렌더러의 gearMotion 수명과 애�
     expect(controller.running).toBe(false);
   });
 
-  it('준비 전에 destroy하면 나중에 에셋이 준비되어도 gearMotion을 만들지 않고 ready는 거절되며 lease는 한 번만 release한다', async () => {
+  it('준비 전에 destroy하면 나중에 에셋이 준비되어도 gearMotion을 만들지 않고 ready는 거절되며 lease를 한 번만 release한다', async () => {
     const create = vi.fn(createGearMotion);
     const { holder, lease, resolve, controller } = controllerWith({ create });
     controller.destroy();
