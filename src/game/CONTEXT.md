@@ -75,7 +75,7 @@ _Avoid_: 정확도
 달성률을 구간별로 요약한 결과 등급이다.
 _Avoid_: 난이도 등급
 
-**오디오 오프셋**:
+**오디오 오프셋** (RFD 0031에서 없앰, 구현 대기):
 출력 장치의 소리 지연을 보정하기 위해 음악 재생 기준을 이동시키는 설정이다(`audioOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#오디오-오프셋-audio-offset).
 _Avoid_: 판정 오프셋
 
@@ -83,7 +83,7 @@ _Avoid_: 판정 오프셋
 원본 음원 중 플레이 세션에서 실제로 재생하고 판정 시간의 0ms 기준으로 삼는 구간이다.
 _Avoid_: 프리뷰 구간
 
-**입력 오프셋**:
+**입력 오프셋** (RFD 0031에서 `inputOffsetMs`로 바꿈, 구현 대기):
 입력 장치 지연이나 개인 체감 타이밍을 보정하기 위해 입력 기준을 이동시키는 설정이다(`judgmentOffsetMs`, SLOW면 −). 정의는 [glossary](../../docs/context/glossary.md#입력-오프셋-judgment-offset).
 _Avoid_: 오디오 오프셋
 

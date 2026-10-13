@@ -40,7 +40,7 @@
    - **흡수:** 캘리브레이션과 플레이가 같은 절차로 같은 L₀를 얻으면 브라우저 값의 고정 오차는 보정값에 흡수된다. 출력 장치를 바꿨을 때 브라우저 값이 실제 지연 변화를 정확히 반영하는 만큼은 다시 보정하지 않아도 된다. 장치마다 브라우저 오차가 다르면 그 차이만큼 두 오프셋을 다시 맞춰야 한다.
 3. **오프셋은 입력 오프셋과 시각 오프셋 두 개다.** 오디오 오프셋(`audioOffsetMs`)은 없앤다. 입력과 화면을 같은 양만큼 함께 옮기는 값이라 두 오프셋을 같이 바꾸는 것과 같기 때문이다. 음원 자체의 어긋남은 차트 오프셋(`offsetMs`)이 맡는다. PRD §10.3이 나눈 원인 중 출력 장치는 L₀가 자동으로 맡고, 입력 장치·체감은 입력 오프셋이, 화면 표시는 시각 오프셋이 맡는다.
 4. **캘리브레이션.**
-   - **입력 캘리브레이션:** 비프에 맞춘 탭으로 한다. 비프는 `AudioContext` 시계로 예약해 곡 좌표의 정해진 위치에서 나게 한다. 측정하는 동안 입력 오프셋은 0으로 두고, 탭을 플레이와 같은 방식으로 입력 시간(L₀를 뺀 "들린 소리" 좌표)으로 옮겨 같은 좌표의 비프 위치와 비교한다. 측정 중앙값의 반대 부호를 입력 오프셋에 저장한다.
+   - **입력 캘리브레이션:** 배속 1에서 비프에 맞춘 탭으로 한다. 비프는 `AudioContext` 시계로 예약해 곡 좌표의 정해진 위치에서 나게 한다. 측정하는 동안 입력 오프셋은 0으로 두고, 탭을 플레이와 같은 방식으로 입력 시간(L₀를 뺀 "들린 소리" 좌표)으로 옮겨 같은 좌표의 비프 위치와 비교한다. 측정 중앙값의 반대 부호를 입력 오프셋에 저장한다.
    - **시각 캘리브레이션:** 보고 맞춘다. 비프와 함께 노트가 판정선으로 떨어지는 화면에서 사용자가 시각 오프셋을 움직여(슬라이더, 키로 ±1ms) 소리와 노트가 동시에 닿는 값을 고른다. 탭을 쓰지 않으므로 I가 섞이지 않는다.
    - **경로 일치:** 캘리브레이션 화면은 게임과 같은 `AudioContext` 생성 함수(`latencyHint` 포함), 같은 L₀ 읽기 절차, 같은 `GameClock` 계산(판정·시각·입력 시간과 `handlerDelay` 변환)을 쓴다. 시각 캘리브레이션의 노트는 게임과 같은 Pixi 노트 그리기 경로로 그린다([#224](https://github.com/nanana3679/not4k/issues/224)에서 게임과 캘리브레이션의 노트 기준을 맞춘 선례). 이 조건이 깨지면 캘리브레이션과 플레이의 체계 오차가 달라져 흡수되지 않는다.
 5. **이름과 부호.**
@@ -66,8 +66,8 @@
 ```
 
 - **판정 진행:** 한 프레임에 기한을 진행하는 상한(미스 확정)은 지금처럼 `min(J, 지금의 입력 시간)`이다(PR #242, `stepPlaySession`). 늦게 누르는 사람의 입력 시간은 J보다 뒤처지므로, J까지 바로 진행하면 정당한 늦은 입력보다 미스 확정이 먼저 온다. 큐에 쌓인 입력 처리와 auto 입력 생성 규칙도 지금처럼 둔다. auto 입력은 진행 상한까지 만들되, 이미 수집한 입력이 그보다 앞서 있으면 그 시각까지(`max(진행 상한, 큐의 마지막 입력 시각)`) 먼저 만들어 순서를 지킨다.
-- **시각 시간을 쓰는 곳:** 시간으로 위치를 정해 그리는 것(노트·마디선·구간)은 V를 쓴다. auto 노트의 키빔·키봄은 판정 확정을 기다리지 않고 차트의 auto 시각이 V에 닿을 때 낸다. 확정은 진행 상한까지만 오므로 보통 V보다 늦기 때문이다(#245). 확정 효과 경로(`SessionRendererAdapter`)의 auto 키봄은 중복되지 않게 뺀다. 실제 입력에 대한 피드백(키빔·판정 글자)은 처리 즉시 보인다.
-- **곡 끝:** `AudioEngine.currentTimeMs`는 재생 구간 끝에서 멈추므로 J = P − L₀·r은 끝에 닿지 못한다. 오디오가 끝난 뒤에도 J를 계속 진행한다. 이때 P는 `AudioContext` 경과 시간 × r로 늘리고 같은 식 J = P − L₀·r로 구한다. 결과로 넘어가는 조건은 두 가지를 모두 만족할 때다. (1) 들린 끝(오디오 끝 + L₀)에 도달했고, (2) 진행 상한 `min(J, 지금의 입력 시간)`이 마지막 노트의 판정 기한(늦은 판정 창 끝)을 지났다. 그 전에 남은 기한을 강제로 정산(`finalize`)하지 않는다. 곡 끝 L₀·r 안의 노트가 소리가 나기 전에 정산되거나(오프셋이 0인 사람에게도 새로 생기는 일), 마지막 노트의 늦은 판정 창이 잘리는 일(T11)을 함께 막는다. 이 대기 중에 일시정지하면 진행을 멈추고, 재개하면 멈춘 곳부터 이어 가며, 이미 끝난 음악을 다시 재생하지 않는다.
+- **시각 시간을 쓰는 곳:** 시간으로 위치를 정해 그리는 것(노트·마디선·구간)은 V를 쓴다. auto 노트의 키빔·키봄은 판정 확정을 기다리지 않고, 확정 경로가 키봄을 낼 auto 노트의 판정 시각(머리·연결·`holdOnly`·끝)이 V에 닿을 때 낸다. 큐가 앞서지 않는 한 확정은 진행 상한까지만 오므로 보통 V보다 늦기 때문이다(#245). 확정 효과 경로(`SessionRendererAdapter`)의 auto 키봄과 `stepPlaySession`이 돌려준 auto 이벤트로 그리던 키빔은 중복되지 않게 뺀다. 판정 글자·콤보, 처리된 노트 숨기기, held 바디 상태처럼 확정 시각에 오는 나머지 auto 피드백은 이 RFD에서 바꾸지 않는다(지금도 같은 지연이 있어 회귀가 아니다). 실제 입력에 대한 피드백(키빔·판정 글자)은 처리 즉시 보인다.
+- **곡 끝:** `AudioEngine.currentTimeMs`는 재생 구간 끝에서 멈추므로 J = P − L₀·r은 끝에 닿지 못한다. 오디오가 끝난 뒤에도 J를 계속 진행한다. 이때 P는 `AudioContext` 경과 시간 × r로 늘리고 같은 식 J = P − L₀·r로 구한다. 결과로 넘어가는 조건은 두 가지를 모두 만족할 때다. (1) J가 재생 구간 끝에 닿았고(실제 시간으로 오디오 끝 + L₀), (2) 진행 상한 `min(J, 지금의 입력 시간)`이 모든 노트 중 가장 늦은 판정 기한(`finalize`가 쓰는 노트별 max(시작·끝) + Good 창)을 지났다. 그 전에 남은 기한을 강제로 정산(`finalize`)하지 않는다. 곡 끝 L₀·r 안의 노트가 소리가 나기 전에 정산되거나(오프셋이 0인 사람에게도 새로 생기는 일), 마지막 노트의 늦은 판정 창이 잘리는 일(T11)을 함께 막는다. 이 대기 중에 일시정지하면 진행을 멈추고, 재개하면 멈춘 곳부터 이어 가며, 이미 끝난 음악을 다시 재생하지 않는다.
 - **판정 창과 표시 단위:** 판정 창은 바꾸지 않는다. 지금처럼 곡 시간 기준이라 배속을 올리면 실제 시간으로는 좁아진다. Show Timing Diff·FAST/SLOW·디버그 `deltaMs`도 곡 시간 ms로 둔다. 디버그 로그의 오프셋 추천값은 입력 오프셋 기준이며 ÷r로 실제 ms로 바꿔 보여 주고, 노트 위치 기록(`noteCenterY`)은 V 기준으로 계산한다.
 
 ## 검토한 대안
@@ -90,7 +90,7 @@
 - **코드:**
   - `GameClock`(계산식, L₀ 고정, 배속 환산, `ClockAudioSource`에 배속 추가), `AudioEngine`(L₀ 읽는 시점, 곡 끝 뒤 진행, 재생 시작을 `start(when)` 예약으로 맞출지 검토).
   - `gameStore` 설정(`audioOffsetMs` 제거, `judgmentOffsetMs` → `inputOffsetMs`, `visualOffsetMs` 추가, 옛 키와 `offsetMs` 이전 코드 삭제), 설정 화면(`SettingsPanel`), `src/lab/JudgmentPlaytestPage.tsx`의 오프셋 표시.
-  - `PlayScreen`(렌더러에 V 전달, 곡 끝 검사, `recordDebug`의 `noteCenterY`), `stepPlaySession`·`finishPlaySession`, `SessionRendererAdapter`(auto 키봄), `DebugLogger`(오프셋 추천값).
+  - `PlayScreen`(렌더러에 V 전달, 곡 끝 검사, `stepPlaySession` 반환 auto 이벤트로 그리던 키빔 제거, `recordDebug`의 `noteCenterY`), `stepPlaySession`·`finishPlaySession`, `SessionRendererAdapter`(auto 키봄), `DebugLogger`(오프셋 추천값).
   - 캘리브레이션(`CalibrationView`·`calibrationLogic`): 입력 캘리브레이션의 비프 예약과 같은 좌표 비교, 시각 캘리브레이션 화면 새로 만들기.
 - **문서:**
   - glossary의 [오프셋 구분](../context/glossary.md#오프셋-구분)·오디오 오프셋·입력 오프셋 항목(시각 오프셋 추가, 오디오 오프셋 삭제), `src/game/CONTEXT.md`의 `GameClock`·오프셋 요약, [term-map](../context/term-map.md) E의 오프셋 행.
@@ -98,7 +98,7 @@
   - `docs/spec/audio-visual-sync.md`(보정 설계 A·B·C와 "이상적인 동기화 상태"의 검증 지표), `docs/spec/game-core.md`(오디오 오프셋 절, 두 오프셋을 나눈 이유, 진행 시각), `docs/spec/tech-stack.md`(오디오 레이턴시 보정), `docs/spec/debug-mode.md`(`yDifference`, Offset Recommendation).
   - RFD 0004 W4(같은 + 부호 공식과 마이그레이션 질문 Q1)는 이 RFD로 대체된다.
   - CHANGELOG.
-- **테스트:** `GameClock`·`stepPlaySession` 단위 테스트, 설정 화면의 오프셋 이름을 쓰는 E2E(`e2e/game/settings.spec.ts` 등). 캘리브레이션 E2E는 지금 없으므로 새 캘리브레이션 화면에 맞춰 새로 만든다. `GameClock.prototype.toInputTimeMs`를 고정값으로 바꿔 결과 화면을 기다리는 E2E(`e2e/game/manual-note-judgment.spec.ts`, `e2e/lab/judgment-playtest.spec.ts`)는 곡 끝 조건이 진행 상한을 보므로 패치 방식을 고친다. 곡 끝 뒤 진행으로 결과 화면까지 걸리는 시간이 늘어나는 E2E의 제한 시간도 확인한다. 단위 테스트는 `gameStore`(옛 키 삭제), `AudioEngine`(L₀ 읽기, 끝 뒤 진행), `calibrationLogic`도 고친다.
+- **테스트:** `GameClock`·`stepPlaySession` 단위 테스트, 설정 화면의 오프셋 이름을 쓰는 E2E(`e2e/game/settings.spec.ts` 등). 캘리브레이션 E2E는 지금 없으므로 새 캘리브레이션 화면에 맞춰 새로 만든다. `GameClock.prototype.toInputTimeMs`를 고정값으로 바꿔 결과 화면을 기다리는 E2E(`e2e/game/manual-note-judgment.spec.ts`, `e2e/lab/judgment-playtest.spec.ts`)는 곡 끝 조건이 진행 상한을 보므로 패치 방식을 고친다. 곡 끝 뒤 진행으로 결과 화면까지 걸리는 시간이 늘어나는 E2E의 제한 시간도 확인한다. 단위 테스트는 `gameStore`(옛 키 삭제), `AudioEngine`(L₀ 읽기, 끝 뒤 진행), `calibrationLogic`, `DebugLogger`(÷r), `SessionRendererAdapter`(auto 키봄)도 고친다.
 
 ## 구현 계획
 
