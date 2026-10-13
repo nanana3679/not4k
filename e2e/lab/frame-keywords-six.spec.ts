@@ -152,6 +152,70 @@ for (const width of [390, 1280]) {
   });
 }
 
+test("버튼 발광 비교에서 버튼 누름 깊이를 열면 15px이 선택돼 있고 처음 그린 둘째 키 빛 레이어가 숫자 키 5로 고른 15px과 같으며, 숫자 키 4(12px)·1(현재)로 바꾸면 픽셀이 달라지고 현재는 원래 시연 깊이 안내를 보인다", async ({ page }) => {
+  await page.goto(galleryPath);
+  await page.getByRole("link", { name: "버튼 누름 깊이", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/press-depth\.html$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("버튼 누름 깊이");
+  await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  await expect(page.locator('input[name="depth"][value="15"]')).toBeChecked();
+  await expect(page.locator("#depth-hint")).toHaveText("네 키 모두 대기보다 15px 내려감");
+  const glowChecksum = () => page.locator('[data-layer="glow-2-single"]').evaluate(node => {
+    const canvas = node as HTMLCanvasElement;
+    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) sum += data[i] * 3 + data[i + 1] * 5 + data[i + 2] * 7 + data[i + 3];
+    return sum;
+  });
+  const initial = await glowChecksum();
+
+  await page.keyboard.press("Digit4");
+  await expect(page.locator('input[name="depth"][value="12"]')).toBeChecked();
+  expect(await glowChecksum()).not.toBe(initial);
+  await page.keyboard.press("Digit5");
+  await expect(page.locator('input[name="depth"][value="15"]')).toBeChecked();
+  expect(await glowChecksum()).toBe(initial);
+
+  await page.keyboard.press("Digit1");
+  await expect(page.locator('input[name="depth"][value="current"]')).toBeChecked();
+  await expect(page.locator("#depth-hint")).toHaveText("2·3번 약 6px, 1·4번 거의 0px (원래 시연과 같음)");
+  expect(await glowChecksum()).not.toBe(initial);
+
+  const hit = page.getByRole("button", { name: "둘째 키 누르기 (F)" });
+  const box = (await hit.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(hit).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.up();
+  await expect(hit).toHaveAttribute("aria-pressed", "false");
+});
+
+test("버튼 누름 깊이에서 12px을 고르고 다른 페이지에 갔다가 뒤로 돌아오면 선택된 깊이와 실제로 그린 둘째 키 빛 레이어가 일치한다", async ({ page }) => {
+  await page.goto(`${galleryPath}press-depth.html`);
+  await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  await page.keyboard.press("Digit4");
+  await expect(page.locator('input[name="depth"][value="12"]')).toBeChecked();
+  await page.getByRole("link", { name: "버튼 누름과 게이지", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/press-animation\.html$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/press-depth\.html$/);
+  await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
+  const glowChecksum = () => page.locator('[data-layer="glow-2-single"]').evaluate(node => {
+    const canvas = node as HTMLCanvasElement;
+    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) sum += data[i] * 3 + data[i + 1] * 5 + data[i + 2] * 7 + data[i + 3];
+    return sum;
+  });
+  const checked = await page.locator('input[name="depth"]:checked').getAttribute("value");
+  const index = ["current", "6", "9", "12", "15"].indexOf(checked!);
+  expect(index).toBeGreaterThanOrEqual(0);
+  await expect(page.locator("#depth-hint")).toContainText(checked === "current" ? "원래 시연" : `${checked}px`);
+  const drawn = await glowChecksum();
+  await page.keyboard.press(`Digit${index + 1}`);
+  expect(await glowChecksum()).toBe(drawn);
+});
+
 test("누름 애니메이션의 대기 레이어는 둘째 키 반전 영역과 가운데 틈 밖 1,521,728개 픽셀이 v16과 같고 셋째 키 레이어는 둘째 키의 x↔1022-x 반전이다", async ({ page }) => {
   await page.goto(pressAnimationPath);
   await expect(page.locator("#viewport")).toHaveAttribute("data-state", "ready", { timeout: 30000 });
