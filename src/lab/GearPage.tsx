@@ -1,8 +1,8 @@
 /*
-THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·기어와 함께 10 내린 판정선 y 426·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 승인 SVG와 나란히 비교한다.
+THESIS: 새 기어와 `gearMotion`(기어 위 장식 애니메이션)은 이제 게임에 들어가 있다. 실제 게임 렌더러를 그대로 띄워 승인한 배치(레인 250·기어와 함께 10 내린 판정선 y 426·키 윗면에서 끝나는 레인)와 내장 `gearMotion`이 게임에서 그대로인지 보고, 같은 `gearMotion` 모듈을 `gearMotion` 시안 SVG(확정한 v19, `54-ambient-motion-v19.svg`)와 나란히 비교한다.
 OWN-WORLD: 기존 Lab의 건메탈 다크 패널과 청록 상태광, 게임 그대로의 Pixi 플레이필드를 잇는다.
 STORY: 사용자는 리프트를 올려 판정선만 움직이고 기어·레인 끝(키 윗면)은 그대로인지 보고, 기어와 판정선을 함께 얼마나 내릴지(#257) 골라 주소로 남기고, 고도를 직접 정해 양옆 유리관 게이지가 채움 경계까지 비는지 보며, 렌더 높이와 1:1 픽셀 보기로 선명도를, 전체화면으로 화면 비율별 배치와 키보드 표시를 확인한다.
-FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·기어·판정선 y 오프셋·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ 승인 SVG 비교가 이어진다.
+FIRST VIEWPORT: 16:9 실제 게임 화면이 중심을 차지하고 바로 아래 설명, 오른쪽(좁은 화면은 아래)에 리프트·기어·판정선 y 오프셋·고도·키보드·`gearMotion` 조절을 둔다. 그 아래에 Pixi ↔ `gearMotion` 시안 SVG 비교가 이어진다.
 FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정적 합성 이미지를 만들지 않는다.
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
@@ -371,7 +371,7 @@ export default function GearPage() {
         <p className="gear-preview-lede">
           새 기어가 들어간 실제 게임 화면입니다. 레인 영역 250, 기어와 함께 10 내린 판정선 y 426(리프트 0%), 키 윗면에서 끝나는 레인,
           오른쪽 아래 키보드 표시, 양옆 유리관 고도 게이지, 기어 움직임(큰 광원·게이지 액체·발광선 호흡·하단 바 흐름)까지 게임 렌더러가 그대로 그립니다(RFD 0029).
-          조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 승인 SVG와 나란히 비교합니다.
+          조절 패널은 렌더러의 내장 움직임을 켜고 끄며, 아래에서 같은 움직임 모듈을 gearMotion 시안 SVG와 나란히 비교합니다.
         </p>
       </header>
 
@@ -662,7 +662,7 @@ function describeKeyboard(placement: { visible: boolean; scale: number }): strin
 
 function motionNote(state: MotionAssetsState): string {
   if (state.status === 'error') return `움직임 자료를 불러오지 못했습니다: ${state.message}`;
-  return '게임 렌더러가 내장한 기어 움직임입니다(승인 SVG를 텍스처·마스크로 구운 Pixi 레이어). 움직임 시계는 곡 시간이 아니라 게임 프레임 간격으로만 나아가고(차트를 되감아도 이어 감), 렌더러를 새로 만들면 0초부터 다시 시작합니다. 광원 띠 경계는 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
+  return '게임 렌더러가 내장한 기어 움직임입니다(gearMotion 시안 SVG를 텍스처·마스크로 구운 Pixi 레이어). 움직임 시계는 곡 시간이 아니라 게임 프레임 간격으로만 나아가고(차트를 되감아도 이어 감), 렌더러를 새로 만들면 0초부터 다시 시작합니다. 광원 띠 경계는 안티앨리어싱 없이 잘려 픽셀 계단으로 보입니다(아래 비교에서 부드럽게 한 모습과 견줄 수 있습니다).';
 }
 
 function describeFrameStats(summary: FrameTimeSummary | null): string {

@@ -1,9 +1,9 @@
 /**
- * Gear의 Pixi ↔ 승인 SVG 비교에만 쓰는 값(Pixi 없음). 승인 SVG 경로와 비교 보기(viewBox), SVG에서 바탕 그림을 꺼내는
+ * Gear의 Pixi ↔ `gearMotion` 시안 SVG 비교에만 쓰는 값(Pixi 없음). 그 SVG의 경로와 비교 보기(viewBox), SVG에서 바탕 그림을 꺼내는
  * 도우미, SVG 자체의 모션 감소 규칙을 걷어 내는 도우미를 둔다. `gearMotion` 에셋의 데이터 계약과 레이어 구성은 게임 모듈(src/game/renderer/gearMotion*)에 있다.
  */
 
-/** 비교 기준인 승인된 애니메이션 SVG(이미지 갤러리). 페이지는 withLabPublicBase로 감싸 읽는다. */
+/** 비교 기준인 `gearMotion` 시안 SVG(확정한 v19, 이미지 갤러리의 `54-ambient-motion-v19.svg`). 페이지는 withLabPublicBase로 감싸 읽는다. */
 export const GEAR_MOTION_SVG_PATH = '/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg';
 
 export interface GearViewBox {
@@ -13,7 +13,7 @@ export interface GearViewBox {
   height: number;
 }
 
-/** 승인된 SVG 시연 페이지와 같은 보기(전체·왼쪽 장갑·하단). */
+/** `gearMotion` 시안 SVG 시연 페이지(`ambient-motion.html`)와 같은 보기(전체·왼쪽 장갑·하단). */
 export const GEAR_MOTION_VIEWS = {
   full: { label: '전체', viewBox: { x: 0, y: 0, width: 1024, height: 1536 } },
   left: { label: '왼쪽 장갑', viewBox: { x: 0, y: 420, width: 320, height: 480 } },
@@ -48,7 +48,7 @@ const REDUCE_CONDITION = /\(\s*prefers-reduced-motion\s*(?::\s*reduce\s*)?\)/i;
 const NOT_ONLY_REDUCE = /\bnot\b|\bor\b|,/i;
 
 /**
- * 보관한 승인 SVG(`54-ambient-motion-v19.svg`)의 `<style>`에서 운영체제 모션 감소 규칙을 걷어 내려고 쓰는 좁은 텍스트 변환이다.
+ * 보관한 `gearMotion` 시안 SVG(`54-ambient-motion-v19.svg`)의 `<style>`에서 운영체제 모션 감소 규칙을 걷어 내려고 쓰는 좁은 텍스트 변환이다.
  * 조건이 `(prefers-reduced-motion: reduce)` 또는 `(prefers-reduced-motion)`을 담은 `@media` 블록을 닫는 중괄호까지 통째로 지우고,
  * 나머지 텍스트는 한 글자도 바꾸지 않는다. 조건에 `not`·`or`·쉼표가 있는 블록과 `no-preference` 블록은 남긴다.
  * 닫는 중괄호가 없으면 브라우저처럼 텍스트 끝까지를 그 블록으로 본다. CSS 주석과 문자열은 해석하지 않으므로(보관 SVG에는 없다)

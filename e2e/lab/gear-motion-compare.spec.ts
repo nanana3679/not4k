@@ -40,7 +40,7 @@ interface Difference extends MeasureCase {
 }
 
 /**
- * 기어만 그리는 Pixi 비교 화면(createGearMotionPreview, 1024×1536, 해상도 1)과 같은 시각으로 멈춘 승인 SVG를
+ * 기어만 그리는 Pixi 비교 화면(createGearMotionPreview, 1024×1536, 해상도 1)과 같은 시각으로 멈춘 `gearMotion` 시안 SVG를
  * 같은 크기 캔버스에 그려 픽셀을 비교한다. 비교 영역은 기어 그림(gear.png) 알파 > 0(기어 실루엣)이고 레인 창은 뺀다.
  * SVG는 각 애니메이션의 delay를 (원래 delay − t)로 바꾸고 일시정지해 정확히 t의 모습을 그린다. 두 화면 모두 SVG에
  * 들어 있는 같은 바탕 그림을 쓴다. 꺼 둔 레이어는 양쪽에서 함께 숨긴다.
@@ -182,7 +182,7 @@ function report(label: string, results: Difference[]) {
   }
 }
 
-test.describe('gearMotion Pixi ↔ 승인 SVG 픽셀 비교', () => {
+test.describe('Pixi gearMotion ↔ gearMotion 시안 SVG 픽셀 비교', () => {
   // 원본 크기 Pixi 앱과 SVG를 swiftshader로 여러 번 그리므로 다른 무거운 파일과 겹쳐도 시간 안에 끝나게 한 워커에서 차례로 돌린다.
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
@@ -287,7 +287,7 @@ test.describe('gearMotion Pixi ↔ 승인 SVG 픽셀 비교', () => {
 
 const compareSelector = '[data-gear-motion-compare]';
 
-/** 비교 구역은 화면 가까이 와야 승인 SVG와 Pixi 앱을 만든다. */
+/** 비교 구역은 화면 가까이 와야 `gearMotion` 시안 SVG와 Pixi 앱을 만든다. */
 async function waitForCompare(page: Page) {
   const section = page.locator(compareSelector);
   await section.scrollIntoViewIfNeeded();
@@ -415,7 +415,7 @@ test.describe('Gear의 Pixi ↔ SVG 비교 화면', () => {
     await expect(page.locator('[data-gear-motion-svg-host] svg #fm-gauge')).toBeVisible();
   });
 
-  test('비교 구역이 화면에서 멀면 승인 SVG를 읽지 않고(data-compare-ready false), 스크롤해 가까워지면 준비된다', async ({ page }) => {
+  test('비교 구역이 화면에서 멀면 gearMotion 시안 SVG를 읽지 않고(data-compare-ready false), 스크롤해 가까워지면 준비된다', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     const svgRequests: string[] = [];
     page.on('request', (request) => { if (request.url().includes('54-ambient-motion-v19.svg')) svgRequests.push(request.url()); });

@@ -16,7 +16,7 @@ import {
   type RiseTiming,
 } from './gearMotionTiming';
 
-// 승인된 SVG(54-ambient-motion-v19.svg)와 같은 값. prepare-frame-motion-v21.mjs가 gear-motion.json에 쓴다.
+// `gearMotion` 시안 SVG(`54-ambient-motion-v19.svg`)와 같은 값. prepare-frame-motion-v21.mjs가 gear-motion.json에 쓴다.
 const motionJson = JSON.parse(motionJsonText);
 const light: LightTiming = motionJson.light;
 const liquid: LiquidTiming = motionJson.gauge.liquid;

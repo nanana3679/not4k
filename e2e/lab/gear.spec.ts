@@ -892,7 +892,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect.poll(async () => (await motionTime(page)) ?? 0, { timeout: 10000 }).toBeGreaterThan(300);
     await page.locator('[data-gear-motion-compare]').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-gear-motion-compare]')).toHaveAttribute('data-compare-ready', 'true', { timeout: 60000 });
-    // 보관 승인 SVG의 모션 감소 규칙(@media)은 문서에 넣기 전에 걷어 내므로, 운영체제 설정이 켜져 있어도 레이어와 애니메이션이 남는다.
+    // 보관한 `gearMotion` 시안 SVG의 모션 감소 규칙(@media)은 문서에 넣기 전에 걷어 내므로, 운영체제 설정이 켜져 있어도 레이어와 애니메이션이 남는다.
     const svgState = await page.evaluate(() => {
       const svg = document.querySelector<SVGSVGElement>('[data-gear-motion-svg-host] svg')!;
       return {

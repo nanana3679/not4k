@@ -23,7 +23,7 @@ export type GearMotionStatus = 'loading' | 'ready';
  */
 export interface GearMotionControls {
   readonly status: GearMotionStatus;
-  /** 애니메이션 경과 시간(ms, 승인 SVG 애니메이션의 currentTime과 같은 뜻). 렌더러를 만들 때 0에서 시작한다. */
+  /** 애니메이션 경과 시간(ms, `gearMotion` 시안 SVG 애니메이션의 currentTime과 같은 뜻). 렌더러를 만들 때 0에서 시작한다. */
   readonly timeMs: number;
   /** 지금 재생 중인지: `holder`에 추가했고(ready)·켜져 있음. 이때만 렌더 프레임마다 갱신 비용이 든다. */
   readonly running: boolean;

@@ -10,18 +10,18 @@ import {
   viewBoxTransform,
 } from './gearMotionView';
 
-// 보관한 승인 SVG(RFD 0030 결정 5로 고치지 않는다)의 <style> 원문.
+// 보관한 `gearMotion` 시안 SVG(RFD 0030 결정 5로 고치지 않는다)의 <style> 원문.
 const archivedStyles = [...archivedSvg.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((match) => match[1]);
 const ARCHIVED_REDUCE_RULE = '@media (prefers-reduced-motion: reduce) { .fm-orbit, .fm-liquid-flow, .fm-bubble, .fm-accent, .fm-glint { animation: none; opacity: 0; } #fm-lit, #fm-unlit { display: none; } }';
 
-describe('승인 SVG 경로', () => {
+describe('gearMotion 시안 SVG 경로', () => {
   it('비교 기준 SVG는 이미지 갤러리의 54-ambient-motion-v19.svg', () => {
     expect(GEAR_MOTION_SVG_PATH).toBe('/lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg');
   });
 });
 
 describe('비교 보기(viewBox)', () => {
-  it('보기 세 개는 승인 SVG 시연과 같은 viewBox: 전체 0 0 1024 1536, 왼쪽 장갑 0 420 320 480, 하단 300 1240 424 212', () => {
+  it('보기 세 개는 gearMotion 시안 SVG 시연 페이지(ambient-motion.html)와 같은 viewBox: 전체 0 0 1024 1536, 왼쪽 장갑 0 420 320 480, 하단 300 1240 424 212', () => {
     expect(Object.values(GEAR_MOTION_VIEWS).map((view) => [view.label, formatViewBox(view.viewBox)])).toEqual([
       ['전체', '0 0 1024 1536'],
       ['왼쪽 장갑', '0 420 320 480'],
@@ -46,7 +46,7 @@ describe('readSvgBaseHref', () => {
   });
 });
 
-describe('stripReducedMotionRules — 보관 승인 SVG의 모션 감소 규칙 걷어 내기(RFD 0030)', () => {
+describe('stripReducedMotionRules — 보관한 gearMotion 시안 SVG의 모션 감소 규칙 걷어 내기(RFD 0030)', () => {
   it('보관 SVG 파일 자체는 고치지 않아 <style> 1개에 @media (prefers-reduced-motion: reduce) 규칙 1개를 그대로 가진다(결정 5)', () => {
     expect(archivedStyles).toHaveLength(1);
     expect(archivedStyles[0]).toContain(ARCHIVED_REDUCE_RULE);

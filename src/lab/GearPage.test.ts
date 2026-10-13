@@ -163,13 +163,13 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).not.toContain('움직임 줄이기');
   });
 
-  it('비교 화면은 승인 SVG를 문서에 넣기(importNode) 전에 stripSvgReducedMotionRules로 SVG 자체의 모션 감소 규칙을 걷어 낸다(보관 파일은 그대로, RFD 0030 결정 5)', () => {
+  it('비교 화면은 gearMotion 시안 SVG를 문서에 넣기(importNode) 전에 stripSvgReducedMotionRules로 SVG 자체의 모션 감소 규칙을 걷어 낸다(보관 파일은 그대로, RFD 0030 결정 5)', () => {
     const strip = compareSource.indexOf('stripSvgReducedMotionRules(parsed)');
     expect(strip).toBeGreaterThan(-1);
     expect(strip).toBeLessThan(compareSource.indexOf('document.importNode(parsed.documentElement'));
   });
 
-  it('Pixi ↔ 승인 SVG 비교는 보기 3개(전체 기본), 0~60초 0.1초 단위 비교 시각(처음 0초), 준비 전에는 누를 수 없는 재생 버튼, 같은 2:3 비율의 Pixi 캔버스와 SVG 자리를 둔다', () => {
+  it('Pixi ↔ gearMotion 시안 SVG 비교는 보기 3개(전체 기본), 0~60초 0.1초 단위 비교 시각(처음 0초), 준비 전에는 누를 수 없는 재생 버튼, 같은 2:3 비율의 Pixi 캔버스와 SVG 자리를 둔다', () => {
     const markup = render();
     const section = markup.match(/<section[^>]*data-gear-motion-compare="true"[^>]*>/)![0];
     expect(section).toContain('data-compare-ready="false"');

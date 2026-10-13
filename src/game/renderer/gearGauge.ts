@@ -5,7 +5,7 @@ import { GEAR_MOTION_MAX_STEP_MS } from './GearMotionController';
 
 /**
  * 기어 양옆 유리관의 고도 게이지. 비행 배경과 같은 `altitude`(0~1)를 두 유리관에 똑같이, 아래 기준 채움으로 보여 준다.
- * 승인 시연(press-animation.html)처럼 기어 그림의 가득 찬 유리관 위에 빈 유리(`gearGaugeEmpty`, v18 생성 이미지를 유리 안쪽 윤곽
+ * 고도 게이지 시연(`press-animation.html`)처럼 기어 그림의 가득 찬 유리관 위에 빈 유리(`gearGaugeEmpty`, v18 생성 이미지를 유리 안쪽 윤곽
  * 알파로 자른 아틀라스)를 위에서부터 채움 경계까지 덮고, 경계 8행은 부드럽게 옅어진다. 색은 바꾸지 않고 낮은 고도 경고도 없다.
  *
  * - 좌표: 컨테이너는 기어 그림 좌표다. 렌더러가 기어 스프라이트와 같은 변환을 지정하고 `gearMotion`(기어 위 장식 애니메이션) 위에 추가한다. 다른 `gearMotion` 레이어는
@@ -17,13 +17,13 @@ import { GEAR_MOTION_MAX_STEP_MS } from './GearMotionController';
  */
 
 /**
- * 이징 시간 상수(ms). 표시 채움이 목표로 `1 − e^(−t/τ)`만큼 다가간다. 승인 시연은 CSS 300ms ease-out(cubic-bezier(0, 0, .58, 1))이고,
+ * 이징 시간 상수(ms). 표시 채움이 목표로 `1 − e^(−t/τ)`만큼 다가간다. 고도 게이지 시연은 CSS 300ms ease-out(cubic-bezier(0, 0, .58, 1))이고,
  * τ 75ms는 225ms에 95%, 300ms에 98%를 지나 시연처럼 약 300ms에 움직임이 끝나 보인다. 곡선 모양을 최소제곱으로 맞추면 τ가 130ms 안팎이지만
  * 그러면 MISS 낙하의 마지막 몇 px이 0.6초 넘게 기어가 시연보다 굼떠 보인다. 시작은 시연보다 빠르다(ease-out 느낌은 같다).
  * 지수 접근이라 목표가 곡 진행처럼 계속 움직여도 다시 시작할 필요가 없고, 프레임 간격이 달라도 같은 시간에는 같은 곳에 이른다.
  */
 export const GEAR_GAUGE_EASE_TAU_MS = 75;
-/** 아래 경계를 부드럽게 옅게 하는 행 수(승인 시연의 8px 그라데이션). */
+/** 아래 경계를 부드럽게 옅게 하는 행 수(고도 게이지 시연의 8px 그라데이션). */
 export const GEAR_GAUGE_EDGE_ROWS = 8;
 /** 남은 거리가 이보다 작으면 목표로 맞춘다(유리관 0.8행, 렌더 높이 1080에서 화면 약 0.7px). 그 뒤로는 갱신이 멈춘다. */
 const SETTLE_LEVEL = 0.001;
@@ -41,7 +41,7 @@ export function gaugeEmptyRows(level: number, fillRows: number): number {
 /**
  * 빈 유리 덮개의 아래끝(행, 배타). 경계 가운데(알파 1/2)가 빈 행의 끝(emptyRows행 위끝)에 오도록 경계 반(4행)만큼 아래로 내린다.
  * 빈 행이 8행보다 적으면 그 반만큼만 내려 채움 1 근처에서 덮개가 갑자기 진하게 생기지 않고, 전부 비면(emptyRows ≥ fillRows) 경계를
- * 유리관 밖으로 밀어 모든 행을 알파 1로 덮는다(승인 시연과 같다).
+ * 유리관 밖으로 밀어 모든 행을 알파 1로 덮는다(고도 게이지 시연과 같다).
  */
 export function gaugeCoverBottom(emptyRows: number, fillRows: number): number {
   if (emptyRows <= 0) return 0;

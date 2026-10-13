@@ -35,7 +35,7 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
   {
     id: "gear",
     title: "Gear",
-    description: "실제 게임 화면에서 새 기어와 기어 움직임을 미리 보고, Pixi 움직임을 승인 SVG와 나란히 비교합니다.",
+    description: "실제 게임 화면에서 새 기어와 기어 움직임을 미리 보고, Pixi 움직임을 gearMotion 시안 SVG와 나란히 비교합니다.",
     category: "Interface",
     path: "/lab/gear",
   },
