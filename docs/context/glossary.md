@@ -37,16 +37,17 @@
 
 ### 오프셋 구분
 
-"오프셋"이라 부르는 값이 넷이다. 둘은 시간(ms), 둘은 화면 위치(논리 px)이고 기준과 부호가 서로 다르다.
+"오프셋"이라 부르는 값이 지금은 넷이다([RFD 0031](../rfd/0031-audio-first-timing-model.md) 채택안에서는 오디오 오프셋을 없애고 시각 오프셋을 더한다, 구현 대기). 둘은 시간(ms), 둘은 화면 위치(논리 px)이고 기준과 부호가 서로 다르다.
 
 | 이름 | 식별자 | 종류 | 단위 | 기준과 부호 |
 |---|---|---|---|---|
-| [오디오 오프셋](#오디오-오프셋-audio-offset) | `audioOffsetMs` (설정 `Audio Offset`) | 시간 | ms | 오디오 재생 위치에 더해 판정 시간을 만든다(`GameClock.judgmentTimeMs`, 판정·시각·입력 시간 모두에 닿는다). 캘리브레이션은 측정값의 반대 부호를 저장해 늦게 누르면(SLOW) 음수다([PR #242](https://github.com/nanana3679/not4k/pull/242)) |
-| [입력 오프셋](#입력-오프셋-judgment-offset) | `judgmentOffsetMs` (설정 `Judgment Offset`) | 시간 | ms | 입력 시간에만 더한다(`GameClock.toInputTimeMs`). 늦게 누르면(SLOW) 음수다(PR #242) |
+| [오디오 오프셋](#오디오-오프셋-audio-offset) (RFD 0031에서 없앰, 구현 대기) | `audioOffsetMs` (설정 `Audio Offset`) | 시간 | ms | 오디오 재생 위치에 더해 판정 시간을 만든다(`GameClock.judgmentTimeMs`, 판정·시각·입력 시간 모두에 닿는다). 캘리브레이션은 측정값의 반대 부호를 저장해 늦게 누르면(SLOW) 음수다([PR #242](https://github.com/nanana3679/not4k/pull/242)) |
+| [입력 오프셋](#입력-오프셋-judgment-offset) (RFD 0031에서 `inputOffsetMs`로 바꿈, 구현 대기) | `judgmentOffsetMs` (설정 `Judgment Offset`) | 시간 | ms | 입력 시간에만 더한다(`GameClock.toInputTimeMs`). 늦게 누르면(SLOW) 음수다(PR #242) |
+| [시각 오프셋](#시각-오프셋-visual-offset) (RFD 0031 채택, 구현 대기) | `visualOffsetMs` (설정 `Visual Offset`) | 시간 | ms | 시각 시간에만 더해 노트를 그리는 시각을 옮긴다. 화면이 소리보다 늦게 보이면 양수 |
 | 판정선 오프셋 | `judgmentLineOffset` (기본 `JUDGMENT_LINE_OFFSET`) | 위치 | 논리 px | 화면 아래에서 **위로** 잰 거리, 기본 184(튜토리얼 재생기 50). 클수록 판정선이 위다 |
 | 기어 y 오프셋 | `gearOffsetY` (게임 값 `GEAR_OFFSET_Y`) | 위치 | 논리 px | 화면 y축이라 **+가 아래**, 게임 값 10. 기어와 판정선을 함께 옮긴다([#257](https://github.com/nanana3679/not4k/issues/257)) |
 
-"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 시간 오프셋 둘의 자세한 정의는 [오디오 오프셋](#오디오-오프셋-audio-offset)·[입력 오프셋](#입력-오프셋-judgment-offset) 항목에 있다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
+"오프셋"만 따로 쓰지 않고 어느 오프셋인지 이름을 붙인다. 지금 시간 오프셋은 오디오·입력 둘이고, RFD 0031 구현 뒤에는 입력·시각 둘이 된다. 시간 오프셋의 자세한 정의는 [오디오 오프셋](#오디오-오프셋-audio-offset)·[입력 오프셋](#입력-오프셋-judgment-offset)·[시각 오프셋](#시각-오프셋-visual-offset) 항목에 있다. 차트 메타데이터의 `offsetMs`(음원 재생 시작에서 0박까지의 시간, ms)도 쓸 때 차트 오프셋이라고 밝힌다.
 
 ---
 
@@ -352,12 +353,19 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 ### 오디오 오프셋 (Audio Offset)
 
 출력 장치의 소리 지연을 보정하려고 음악 재생 기준을 옮기는 설정이다(설정 `Audio Offset`, 코드 `audioOffsetMs`, 단위 ms). `GameClock`은 오디오 재생 위치에 이 값을 더해 판정 시간을 만든다(`judgmentTimeMs = audio.currentTimeMs + audioOffsetMs`). 시각 시간과 입력 시간은 판정 시간에서 나오므로 이 값은 세 시간 모두에 닿는다. Audio 캘리브레이션은 박자에 맞춰 누른 시각과 비트의 차이 중앙값을 재고 그 반대 부호를 저장한다(`offsetToApply`). 그래서 늦게 누르는 사람(SLOW)은 음수가 된다. beatmania IIDX·SOUND VOLTEX·DJMAX RESPECT V의 판정 타이밍 조절과 같은 방향이다([PR #242](https://github.com/nanana3679/not4k/pull/242)). 화면 위치 값인 판정선 오프셋·기어 y 오프셋과는 별개다([오프셋 구분](#오프셋-구분)).
+[RFD 0031](../rfd/0031-audio-first-timing-model.md)(2026-10-13 채택, 구현 대기)에서 없앤다. 출력 장치 지연은 브라우저가 알려 주는 출력 지연을 곡마다 한 번 읽어 고정한 값(RFD의 L₀)을 판정 시간에서 빼는 것으로 대신하고, 남는 몫은 입력 오프셋과 시각 오프셋이 맡는다. 위 설명은 구현 전 현재 동작이다.
 _Avoid_: 판정 오프셋, 이름 없는 "오프셋"
 
 ### 입력 오프셋 (Judgment Offset)
 
 입력 장치 지연이나 개인 체감 타이밍을 보정하려고 입력 기준을 옮기는 설정이다(설정 `Judgment Offset`, 코드 `judgmentOffsetMs`, 단위 ms). 입력 시간에만 더하고(`toInputTimeMs = judgmentTimeMs − handlerDelay + judgmentOffsetMs`) 판정 시간·시각 시간에는 닿지 않는다. Visual 캘리브레이션이 오디오 오프셋과 같은 방식으로 측정값의 반대 부호를 저장하므로 늦게 누르면(SLOW) 음수다(PR #242). 설정 라벨은 `Judgment Offset`이지만 판정 시간을 옮기지 않으므로 문서에서는 입력 오프셋이라고 쓴다([오프셋 구분](#오프셋-구분)).
+[RFD 0031](../rfd/0031-audio-first-timing-model.md)(2026-10-13 채택, 구현 대기)에서 코드 `inputOffsetMs`·설정 `Input Offset`으로 바꾸고, 입력 캘리브레이션(비프에 맞춘 탭을 같은 곡 좌표의 비프 위치와 비교)이 채운다. 부호(SLOW면 음수)는 그대로다. 위 설명은 구현 전 현재 동작이다.
 _Avoid_: 오디오 오프셋, 판정 오프셋, 이름 없는 "오프셋"
+
+### 시각 오프셋 (Visual Offset)
+
+[RFD 0031](../rfd/0031-audio-first-timing-model.md)(2026-10-13 채택, 구현 대기)에서 새로 두는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 단위 ms). 시각 시간에만 더해 노트를 그리는 시각을 옮기고 판정에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수이고, 그만큼 노트를 앞당겨 그린다. 브라우저가 알려 주는 출력 지연이 정확하면 화면 표시 지연과 같다. 시각 캘리브레이션(비프와 함께 떨어지는 노트를 보며 직접 맞추기)이 채운다. 입력 오프셋과 달리 장치가 늦을 때 양수다.
+_Avoid_: 화면 오프셋, 디스플레이 딜레이, 이름 없는 "오프셋"
 
 ### 롱노트 판정 모델
 
