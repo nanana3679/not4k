@@ -14,7 +14,7 @@
 
 전체 최종 프롬프트 세트: prompts.json (`prompts.json`, 로컬 보관). 생성 결과의 원본 위치: sources.json (`sources.json`, 로컬 보관).
 
-시연 경로는 `~/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/`다. 이 폴더의 `assets/`에 같은 PNG를 복사해 사용하며 원본은 이 프로젝트 폴더에도 보존한다. `node preview-server.mjs` 실행으로 Tailscale 임시 링크를 만들고, 시연 안의 썸네일을 선택하면 해당 면에 적용된다. 계열 버튼은 두 면을 함께 바꾸며 원본 크게 보기 링크로 채팅 밖에서도 각 이미지를 볼 수 있다.
+시연 경로는 `~/not4k-prototypes/apex-height-prototype-20260909/`다. 이 폴더의 `assets/`에 같은 PNG를 복사해 사용하며 원본은 이 프로젝트 폴더에도 보존한다. `node preview-server.mjs` 실행으로 Tailscale 임시 링크를 만들고, 시연 안의 썸네일을 선택하면 해당 면에 적용된다. 계열 버튼은 두 면을 함께 바꾸며 원본 크게 보기 링크로 채팅 밖에서도 각 이미지를 볼 수 있다.
 
 표면 이미지는 그림의 음영으로 깊이를 표현한다. 입체 구조물의 옆면이나 실제 가림을 재현하지 않는다. 현재 시연의 고도 변화는 면 자체를 기울이므로 이미지도 함께 변형된다. 긴 방향은 앞뒤를 번갈아 반복하며, 원본이 완전한 반복용 텍스처라는 보장은 아니다.
 
