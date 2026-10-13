@@ -19,8 +19,10 @@ async function installInputProbe(page: Page) {
     const clockModule: typeof import('../../src/game/time/GameClock') = await import(clockPath);
     const clockProto = clockModule.GameClock.prototype as typeof clockModule.GameClock.prototype & { __labPatched?: boolean };
     if (!clockProto.__labPatched) {
-      clockProto.toInputTimeMs = function () {
-        return Number((window as unknown as Record<string, unknown>).__labRawAt ?? 0);
+      const toInputTimeMs = clockProto.toInputTimeMs;
+      win.__labRawAt = 0;
+      clockProto.toInputTimeMs = function (timestamp) {
+        return typeof win.__labRawAt === 'number' ? win.__labRawAt : toInputTimeMs.call(this, timestamp);
       };
       clockProto.__labPatched = true;
     }
@@ -59,7 +61,7 @@ interface LabInput {
 
 /**
  * 입력 전부를 page.evaluate 한 번 안에서 차례로 보낸다(곡은 계속 재생된다).
- * 입력 시각은 실제 시계가 아니라 __labRawAt이 정하고, 플레이 세션은 그 시각을 넘어 진행하지 않는다(stepPlaySession). 입력을 왕복마다 따로 보내면
+ * 입력 주입 중에는 __labRawAt으로 진행 상한을 고정하고, 주입을 마치면 실제 시계로 복구한다. 입력을 왕복마다 따로 보내면
  * 그 사이에 게임 프레임이 끼어 세션이 다음 입력보다 먼저 나아갈 수 있어, 부하가 큰 환경에서 결과가 흔들렸다. 한 작업(task) 안에서 보내면
  * 사이에 프레임이 끼지 않아, 같은 시각 입력은 한 묶음으로, 다른 시각 입력은 그 시각 그대로 차례로 처리된다(사례 단위 테스트의 play와 같은 순서).
  */
@@ -71,6 +73,8 @@ async function sendInputs(page: Page, inputs: readonly LabInput[]) {
       const key = code.slice(3).toLowerCase();
       window.dispatchEvent(new KeyboardEvent(type === 'down' ? 'keydown' : 'keyup', { code, key, bubbles: true }));
     }
+    // 이후 프레임은 실제 입력 시간을 써 곡 끝과 마지막 판정 기한까지 진행한다.
+    delete win.__labRawAt;
   }, inputs);
 }
 

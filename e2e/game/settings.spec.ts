@@ -12,8 +12,8 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
       scrollSpeed: 800,
       liftPercent: 0,
       suddenPercent: 0,
-      audioOffsetMs: 0,
-      judgmentOffsetMs: 0,
+      inputOffsetMs: 0,
+      visualOffsetMs: 0,
       renderHeight: 1080,
       preset: 'tkl',
       isFirstLaunch: false,
@@ -267,13 +267,29 @@ test.describe('Game Settings', () => {
     expect(stored).toBe(false);
   });
 
-  test('Gameplay: Audio Offset 입력에 숫자 50 입력', async ({ page }) => {
+  test('Gameplay에서 Input Offset −50ms·Visual Offset 30ms를 저장하면 재방문 후 유지되고 Calibrate는 숨겨진다', async ({ page }) => {
     const dialog = await openSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
-
-    const input = dialog.getByLabel('Audio Offset (ms)');
-    await input.fill('50');
-    await expect(input).toHaveValue('50');
+    const input = dialog.getByLabel('Input Offset (ms)');
+    const visual = dialog.getByLabel('Visual Offset (ms)');
+    await expect(input).toHaveValue('0');
+    await expect(visual).toHaveValue('0');
+    await input.fill('-50');
+    await input.press('Tab');
+    await visual.fill('30');
+    await visual.press('Tab');
+    await expect(dialog.getByRole('button', { name: /Calibrate/ })).toHaveCount(0);
+    await expect(dialog.getByLabel('Audio Offset (ms)')).toHaveCount(0);
+    await expect(dialog.getByLabel('Judgment Offset (ms)')).toHaveCount(0);
+    await page.reload();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    await expect(dialog.getByLabel('Input Offset (ms)')).toHaveValue('-50');
+    await expect(dialog.getByLabel('Visual Offset (ms)')).toHaveValue('30');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state.settings);
+    expect(stored.inputOffsetMs).toBe(-50);
+    expect(stored.visualOffsetMs).toBe(30);
   });
 
   test('Controls: + Add 클릭 시 리스닝 상태 후 새 키 칩 추가', async ({ page }) => {

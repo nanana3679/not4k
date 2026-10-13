@@ -19,8 +19,10 @@ async function injectManualChart(page: Page) {
     const clockModule: typeof import('../../src/game/time/GameClock') = await import(clockModulePath);
     const clockProto = clockModule.GameClock.prototype as typeof clockModule.GameClock.prototype & { __e2ePatched?: boolean };
     if (!clockProto.__e2ePatched) {
-      clockProto.toInputTimeMs = function () {
-        return Number(win.__e2eRawAt ?? 0);
+      const toInputTimeMs = clockProto.toInputTimeMs;
+      win.__e2eRawAt = 0;
+      clockProto.toInputTimeMs = function (timestamp) {
+        return typeof win.__e2eRawAt === 'number' ? win.__e2eRawAt : toInputTimeMs.call(this, timestamp);
       };
       clockProto.__e2ePatched = true;
     }
@@ -61,6 +63,8 @@ test('합성 키 입력과 raw timestamp 주입으로 실제 InputSystem 경로�
   await page.keyboard.down('w');
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__e2eRawAt = 2000; });
   await page.keyboard.up('w');
+  // 입력 주입을 마쳤으므로 마지막 Good 기한을 지날 수 있게 실제 시계로 복구한다.
+  await page.evaluate(() => { delete (window as unknown as Record<string, unknown>).__e2eRawAt; });
   await expect.poll(async () => page.evaluate(async () => {
     const storePath = '/src/game/stores/gameStore.ts';
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
