@@ -116,6 +116,11 @@ export interface SkinManifest {
      */
     gearGaugeEmpty: string;
     /**
+     * 기어 버튼 누름 레이어 아틀라스(스킨 공통). 키 덱 네 버튼의 눌림 빛(싱글·더블)·뗀 뒤 남는 빛(싱글·더블)·대기 덮개를 담고,
+     * 렌더러가 레인 키를 누르는 동안 기어 그림 위에 겹친다. 자리는 src/game/renderer/gearButtonGeometry.json이며 기어와 같은 밉맵·삼선형 필터로 읽는다.
+     */
+    gearButtons: string;
+    /**
      * 4개 버튼 idle/pressed. 새 기어가 키를 그림으로 갖고 있어 게임은 더 이상 그리지 않는다.
      * Classic 버전 판별(게임 PNG 60개)이 이 PNG를 포함하므로 필드와 에셋은 후속 정리 때 새 버전 보관과 함께 뺀다.
      */
