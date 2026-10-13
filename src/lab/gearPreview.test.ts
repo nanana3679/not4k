@@ -241,7 +241,7 @@ describe('Gear 미리보기 기어 버튼 표시', () => {
     expect(formatGearButtonStates(null)).toBeUndefined();
   });
 
-  it('Lab에서 바인딩된 키를 누를 때 Shift를 함께 누르면 더블, 아니면 싱글이다', () => {
-    expect([labGearButtonColor(true), labGearButtonColor(false)]).toEqual(['double', 'single']);
+  it('Lab에서 바인딩된 키를 누를 때 Shift를 함께 누르면 더블을 강제하고, 아니면 색을 넘기지 않아(undefined) 게임과 같은 공입력 규칙을 쓴다', () => {
+    expect([labGearButtonColor(true), labGearButtonColor(false)]).toEqual(['double', undefined]);
   });
 });

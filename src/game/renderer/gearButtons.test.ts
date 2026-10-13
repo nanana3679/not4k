@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Container, Sprite, Texture, TextureSource } from 'pixi.js';
 import {
-  GAME_GEAR_BUTTON_COLOR,
   GEAR_BUTTON_COLORS,
   GEAR_BUTTON_GEOMETRY,
   GearButtonState,
   GearButtons,
+  gearButtonPressColor,
   gearButtonReleaseLook,
   type GearButtonLook,
 } from './gearButtons';
@@ -37,8 +37,21 @@ describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 �
     expect(RELEASE).toEqual({ capMs: 40, whiteMs: 53, glowMs: 150, capEasing: [0.2, 0.6, 0.3, 1], glowEasing: [0, 0, 0.58, 1] });
   });
 
-  it('게임에서 누를 때 쓰는 색 GAME_GEAR_BUTTON_COLOR는 싱글이다(더블 금색을 쓸 조건은 미정)', () => {
-    expect(GAME_GEAR_BUTTON_COLOR).toBe('single');
+});
+
+describe('gearButtonPressColor — 레인 키 누름의 빛 색(2026-10-14 결정)', () => {
+  it('노트를 친 누름은 그 노트가 double·doubleLong이면 더블, single·trill·long·trillLong이면 싱글이다', () => {
+    expect([gearButtonPressColor('double', 1), gearButtonPressColor('doubleLong', 1)]).toEqual(['double', 'double']);
+    expect(['single', 'trill', 'long', 'trillLong'].map((type) => gearButtonPressColor(type as 'single', 1))).toEqual(['single', 'single', 'single', 'single']);
+  });
+
+  it('싱글 노트를 친 누름은 그 레인에 키 3개를 누르고 있어도 싱글이고, 더블 노트를 친 누름은 키 1개여도 더블이다(노트 종류가 정함)', () => {
+    expect(gearButtonPressColor('single', 3)).toBe('single');
+    expect(gearButtonPressColor('double', 1)).toBe('double');
+  });
+
+  it('공입력(친 노트 null)은 그 레인에 누르고 있는 키가 1개면 싱글, 2개·3개면 더블이다', () => {
+    expect([1, 2, 3].map((held) => gearButtonPressColor(null, held))).toEqual(['single', 'double', 'double']);
   });
 });
 
@@ -171,6 +184,41 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
     state.press('KeyD', 'single');
     expect(state.press('KeyD', 'single')).toBe(false);
   });
+
+  it('색을 주지 않은 누름은 공입력 규칙이다: KeyD만 누르면 싱글, KeyD를 누른 채 KeyO를 누르면 더블, KeyD를 떼고 KeyO만 다시 누르면 싱글', () => {
+    const state = new GearButtonState();
+    state.press('KeyD');
+    expect(state.color).toBe('single');
+    state.press('KeyO');
+    expect(state.color).toBe('double');
+    state.release('KeyD');
+    state.release('KeyO');
+    state.press('KeyO');
+    expect(state.color).toBe('single');
+  });
+
+  it('resolveColor: 마지막으로 누른 KeyO의 색은 싱글로 고치고, 그 전에 누른 KeyD의 색 알림은 버튼 색을 바꾸지 않는다', () => {
+    const state = new GearButtonState();
+    state.press('KeyD');
+    state.press('KeyO');
+    expect(state.color).toBe('double');
+    expect(state.resolveColor('KeyD', 'single')).toBe(false);
+    expect(state.color).toBe('double');
+    expect(state.resolveColor('KeyO', 'single')).toBe(true);
+    expect(state.color).toBe('single');
+  });
+
+  it('resolveColor: 한 프레임 안에 눌렀다 뗀 KeyD(돌아오는 중)도 색을 더블로 고치고, 대기로 돌아간 뒤의 알림은 무시한다', () => {
+    const state = new GearButtonState();
+    state.press('KeyD');
+    state.release('KeyD');
+    expect(state.resolveColor('KeyD', 'double')).toBe(true);
+    expect([state.phase, state.color]).toEqual(['releasing', 'double']);
+    state.advance(16, RELEASE);
+    state.advance(150, RELEASE);
+    expect(state.phase).toBe('idle');
+    expect(state.resolveColor('KeyD', 'single')).toBe(false);
+  });
 });
 
 describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
@@ -246,6 +294,17 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     expect(after.tint.texture.frame.y).toBe(880);
     buttons.setKey(1, 'KeyW', true, 'single');
     expect(layers(buttons, 1).glow.texture.frame.y).toBe(16);
+  });
+
+  it('색을 주지 않고 레인 2에 KeyD·KeyO를 누르면 두 번째 누름에서 더블 frame(glow 아틀라스 y 272)으로 바뀌고, resolvePress(2, KeyO, 싱글)이면 싱글 frame(y 16)으로 돌아온다', () => {
+    const buttons = new GearButtons({ texture: atlas() });
+    buttons.setKey(2, 'KeyD', true);
+    expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
+    buttons.setKey(2, 'KeyO', true);
+    expect(layers(buttons, 2).glow.texture.frame.y).toBe(272);
+    buttons.resolvePress(2, 'KeyO', 'single');
+    expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
+    expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 2 });
   });
 
   it('범위 밖 레인 0·5의 입력은 무시하고 어떤 버튼도 보이지 않는다', () => {
