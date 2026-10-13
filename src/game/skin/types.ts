@@ -117,7 +117,7 @@ export interface SkinManifest {
     gearGaugeEmpty: string;
     /**
      * 기어 버튼 누름 레이어 아틀라스(스킨 공통). 키 덱 네 버튼의 눌림 빛(싱글·더블)·뗀 뒤 남는 빛(싱글·더블)·대기 덮개를 담고,
-     * 렌더러가 레인 키를 누르는 동안 기어 그림 위에 겹친다. 자리는 src/game/renderer/gearButtonGeometry.json이며 기어와 같은 밉맵·삼선형 필터로 읽는다.
+     * 렌더러가 레인 키를 누르는 동안 기어 그림 위에 겹친다. atlas frame은 src/game/renderer/gearButtonGeometry.json에 있으며 기어와 같은 밉맵·삼선형 필터로 읽는다.
      */
     gearButtons: string;
     /**

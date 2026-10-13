@@ -13,8 +13,8 @@ import {
 const RELEASE = GEAR_BUTTON_GEOMETRY.release;
 const look = (): GearButtonLook => ({ tint: 0, glow: 0, cap: 0 });
 
-describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 적은 기어 버튼 자리', () => {
-  it('네 버튼 모두 glow·tint의 싱글·더블과 cap 자리가 있고, 기어 그림 좌표·아틀라스 좌표·크기가 모두 16px 정렬이며 아틀라스 816×1344 안이다', () => {
+describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 적은 기어 버튼 atlas frame', () => {
+  it('네 버튼 모두 glow·tint의 싱글·더블과 cap atlas frame이 있고, 기어 그림 좌표·아틀라스 좌표·크기가 모두 16px 정렬이며 아틀라스 816×1344 안이다', () => {
     expect(GEAR_BUTTON_GEOMETRY.buttons).toHaveLength(4);
     expect([GEAR_BUTTON_GEOMETRY.atlasWidth, GEAR_BUTTON_GEOMETRY.atlasHeight]).toEqual([816, 1344]);
     for (const button of GEAR_BUTTON_GEOMETRY.buttons) {
@@ -27,7 +27,7 @@ describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 �
     }
   });
 
-  it('버튼은 왼쪽부터 레인 1~4 순서로 놓이고(1번 glow x 192, 4번 x 640), 키 덱 위끝(1088행)보다 위로 나가지 않는다', () => {
+  it('버튼은 왼쪽부터 레인 1~4 순서로 위치하고(1번 glow x 192, 4번 x 640), 키 덱 위끝(1088행)보다 위로 나가지 않는다', () => {
     const glowX = GEAR_BUTTON_GEOMETRY.buttons.map((button) => button.glow.single.x);
     expect(glowX).toEqual([192, 352, 496, 640]);
     for (const button of GEAR_BUTTON_GEOMETRY.buttons) expect(button.glow.single.y).toBeGreaterThanOrEqual(1088);
@@ -54,7 +54,7 @@ describe('gearButtonReleaseLook — 뗀 뒤 경과 시간의 레이어 불투명
     expect(out.tint).toBeCloseTo(0.7889, 3);
   });
 
-  it('뗀 뒤 40ms면 cap이 1로 키 자리를 다 덮고 glow는 0.090, tint는 0.599 남는다', () => {
+  it('뗀 뒤 40ms면 cap이 1로 대기 키캡을 다 덮고 glow는 0.090, tint는 0.599 남는다', () => {
     const out = gearButtonReleaseLook(40, RELEASE, look());
     expect(out.cap).toBe(1);
     expect(out.glow).toBeCloseTo(0.0903, 3);
@@ -193,7 +193,7 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     }
   });
 
-  it('1번 버튼 glow는 기어 그림 (192, 1088)에 놓이고 아틀라스 (16, 16)의 192×272 frame을, cap은 (208, 1120)에 아틀라스 (16, 1168)의 160×160 frame을 쓴다', () => {
+  it('1번 버튼 glow는 기어 그림 (192, 1088)에 위치하고 아틀라스 (16, 16)의 192×272 frame을, cap은 (208, 1120)에 아틀라스 (16, 1168)의 160×160 frame을 쓴다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     const { glow, cap } = layers(buttons, 1);
     expect([glow.x, glow.y]).toEqual([192, 1088]);

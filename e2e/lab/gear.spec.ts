@@ -866,10 +866,10 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-motion', 'off');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
     const toStage = await gearToStage(page);
-    // 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)·금색(더블)으로 빛나는 자리다. 기둥(원본 120, 1200)은 버튼 레이어 밖이다.
+    // 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)·금색(더블)으로 빛나는 곳이다. 기둥(원본 120, 1200)은 버튼 레이어 밖이다.
     const face = toStage({ x: 437, y: 1250 });
     const pillar = toStage({ x: 120, y: 1200 });
-    // 비행 배경과 상관없는 기어 위 자리라 한 점이면 되지만, 확대로 생긴 가장자리에 걸리지 않게 둘레 다섯 점(±1 논리 px)을 평균한다.
+    // 비행 배경과 상관없는 기어 위 점이라 한 점이면 되지만, 확대로 생긴 윤곽에 닿아도 흔들리지 않게 둘레 다섯 점(±1 논리 px)을 평균한다.
     const area = async (center: { x: number; y: number }) => {
       const offsets = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
       const pixels = await pixelsAt(page, offsets.map(([dx, dy]) => ({ x: center.x + dx, y: center.y + dy })));
@@ -882,7 +882,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     await page.keyboard.down('KeyD');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
-    // swiftshader에서 캔버스 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
+    // swiftshader에서 캔버스 스크린샷 하나가 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
     await expect.poll(async () => { const [red, , blue] = await area(face); return blue - red; }, { timeout: 30_000 }).toBeGreaterThan(80);
     expect(maxDifference(await area(pillar), idlePillar)).toBeLessThan(6);
 

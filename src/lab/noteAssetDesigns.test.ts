@@ -49,7 +49,7 @@ describe('시안 교체', () => {
     expect(design.skinManifest?.theme.available).toBe(false);
     const { gearImage, gearGaugeEmpty, gearButtons, ...skinAssets } = design.skinManifest!.assets;
     expect(gearImage).toBe('/gear/gear.png');
-    // 보관본은 고도 게이지·버튼 레이어보다 오래되었어도 지금 기어와 짝인 지금 빈 유리·버튼 레이어를 쓴다(렌더러가 기어 측정값의 자리에 겹친다).
+    // 보관본은 고도 게이지·버튼 레이어보다 오래되었어도 지금 기어와 짝인 지금 빈 유리·버튼 레이어를 쓴다(렌더러가 기어 측정값의 위치에 겹친다).
     expect(gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
     expect(gearButtons).toBe('/gear/gear-buttons.png');
     expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');

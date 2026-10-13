@@ -5,9 +5,9 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
 /**
  * 기어 버튼: 기어 키 덱의 네 버튼이 레인 키를 누르는 동안 눌려 빛나고, 떼면 버튼 누름 깊이 비교 시연(`press-depth.html`, PR #271)처럼
  * 키가 먼저 돌아온 뒤 빛이 꺼진다. 에셋은 생성기 `prepare-gear-buttons-v22.mjs`가 시연과 같은 계산으로 만든 아틀라스
- * (스킨 공통 `gearButtons`, `public/gear/gear-buttons.png`)와 그 자리(`gearButtonGeometry.json`)다.
+ * (스킨 공통 `gearButtons`, `public/gear/gear-buttons.png`)와 그 atlas frame 측정 데이터(`gearButtonGeometry.json`)다.
  *
- * - 레이어: 버튼마다 tint(뗀 뒤 남는 빛, 더하기 블렌드)·glow(눌려 내려간 키와 빛, 보통 블렌드)·cap(키 자리의 대기 픽셀, 보통 블렌드)을
+ * - 레이어: 버튼마다 tint(뗀 뒤 남는 빛, 더하기 블렌드)·glow(눌려 내려간 키와 빛, 보통 블렌드)·cap(대기 키캡 픽셀, 보통 블렌드)을
  *   이 순서로 겹친다. 시연의 tint 캔버스는 대기 + 남는 빛을 대기 위에 그린 것이라, 남는 빛만 더하는 것과 같다.
  *   레이어는 기어 그림 좌표로 그리고 기어가 투명한 곳(레인 창·열린 덱)은 비어 있어 게임 레인을 가리지 않는다.
  * - 누름: 누르는 순간(`setKey`) 다음 렌더 프레임에 바로 보이도록 표시를 바꾼다. 전환 시간을 두지 않는다.
@@ -31,7 +31,7 @@ export const GAME_GEAR_BUTTON_COLOR: GearButtonColor = 'single';
 /** idle: 대기(레이어를 그리지 않음) · pressed: 눌림 · releasing: 뗀 뒤 돌아오는 중. */
 export type GearButtonPhase = 'idle' | 'pressed' | 'releasing';
 
-/** 레이어 하나의 자리: 기어 그림 좌표의 상자(x, y, width, height)와 아틀라스에서 같은 상자의 왼쪽 위(atlasX, atlasY). */
+/** 레이어 하나의 atlas frame: 기어 그림 좌표의 범위(x, y, width, height)와 아틀라스 안에서 같은 범위의 왼쪽 위(atlasX, atlasY). */
 export interface GearButtonFrame {
   x: number;
   y: number;
