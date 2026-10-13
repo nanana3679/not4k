@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useGameStore } from '../../stores';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import {
   calculateCalibrationResult,
@@ -41,7 +40,6 @@ function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
 }
 
 export function CalibrationView({ onExit }: CalibrationViewProps) {
-  const { updateSettings } = useGameStore();
   const [phase, setPhase] = useState<Phase>('select');
   const [calibType, setCalibType] = useState<CalibrationType>('visual');
   const [tapCount, setTapCount] = useState(0);
@@ -286,12 +284,7 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   }, [phase, handleBack]);
 
   const applyResult = () => {
-    if (!result) return;
-    if (calibType === 'visual') {
-      updateSettings({ judgmentOffsetMs: offsetToApply(result) });
-    } else {
-      updateSettings({ audioOffsetMs: offsetToApply(result) });
-    }
+    // RFD 0031 PR 2·3 전에는 진입을 숨긴다. 옛 보정 결과를 새 설정에 저장하지 않는다.
     setPhase('select');
   };
 

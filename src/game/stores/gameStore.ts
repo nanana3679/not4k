@@ -17,8 +17,8 @@ interface GameSettings {
   scrollSpeed: number;
   liftPercent: number;
   suddenPercent: number;
-  audioOffsetMs: number;
-  judgmentOffsetMs: number;
+  visualOffsetMs: number;
+  inputOffsetMs: number;
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
@@ -106,8 +106,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   scrollSpeed: 800,
   liftPercent: 0,
   suddenPercent: 0,
-  audioOffsetMs: 0,
-  judgmentOffsetMs: 0,
+  visualOffsetMs: 0,
+  inputOffsetMs: 0,
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
@@ -130,11 +130,9 @@ export function mergePersistedSettings(
   const p = persisted as { settings?: Partial<GameSettings> };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
-  // Migration: 기존 offsetMs → audioOffsetMs
-  const raw = p.settings as Record<string, unknown> | undefined;
-  if (raw && 'offsetMs' in raw && !('audioOffsetMs' in raw)) {
-    merged.audioOffsetMs = raw.offsetMs;
-  }
+  // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
+  delete merged.audioOffsetMs;
+  delete merged.judgmentOffsetMs;
   delete merged.offsetMs;
   // #231에서 설정 이름을 frameMotion → gearMotion으로 바꿨다(미출시라 값은 옮기지 않는다). 옛 키는 남기지 않는다.
   delete merged.frameMotion;

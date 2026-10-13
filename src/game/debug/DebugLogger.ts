@@ -16,7 +16,7 @@ export interface DebugNoteEntry {
   noteCenterY: number;
   /** 판정선 Y 위치 */
   judgmentLineY: number;
-  /** noteCenterY - judgmentLineY (0에 가까울수록 이상적) */
+  /** 시각 시간 V로 계산한 noteCenterY - judgmentLineY (렌더 시점 위치) */
   yDifference: number;
   /** 판정 타이밍 차이 (ms, 양수 = 늦음) */
   deltaMs: number;
@@ -56,7 +56,7 @@ export class DebugLogger {
   /** 직전 프레임의 실제 경과 시간 (ms) */
   private lastFrameDeltaMs: number | null = null;
 
-  constructor(scrollSpeed: number, judgmentLineY: number) {
+  constructor(scrollSpeed: number, judgmentLineY: number, private readonly playbackRate = 1) {
     this.scrollSpeed = scrollSpeed;
     this.judgmentLineY = judgmentLineY;
   }
@@ -203,15 +203,16 @@ export class DebugLogger {
 
     // 오프셋 추천 (헤드/포인트 타이밍 기준)
     if (s.totalNotes > 0) {
-      const recommended = -Math.round(s.avgDeltaMs);
+      const realDeltaMs = s.avgDeltaMs / this.playbackRate;
+      const recommended = -Math.round(realDeltaMs);
       lines.push('');
       lines.push('=== Offset Recommendation ===');
-      if (Math.abs(s.avgDeltaMs) < 5) {
-        lines.push(`현재 오프셋이 적절합니다 (평균 편차 ${s.avgDeltaMs.toFixed(1)}ms)`);
+      if (Math.abs(realDeltaMs) < 5) {
+        lines.push(`현재 inputOffsetMs가 적절합니다 (평균 편차 ${realDeltaMs.toFixed(1)}ms, 실제 시간)`);
       } else {
         const direction = s.avgDeltaMs > 0 ? 'SLOW (늦게 누름)' : 'FAST (빨리 누름)';
-        lines.push(`평균 편향: ${s.avgDeltaMs.toFixed(1)}ms ${direction}`);
-        lines.push(`추천 오프셋 조정: ${recommended > 0 ? '+' : ''}${recommended}ms (현재 오프셋에 더할 값)`);
+        lines.push(`평균 편향: ${realDeltaMs.toFixed(1)}ms ${direction} (실제 시간)`);
+        lines.push(`추천 inputOffsetMs 조정: ${recommended > 0 ? '+' : ''}${recommended}ms (현재 inputOffsetMs에 더할 실제 ms)`);
       }
     }
 

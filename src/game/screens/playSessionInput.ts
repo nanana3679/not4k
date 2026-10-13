@@ -42,9 +42,21 @@ export function stepPlaySession(
   return autoEvents;
 }
 
+/** J가 재생 끝에 도달하고 진행 상한이 마지막 Good 경계를 지난 뒤에만 정산한다. */
+export function canFinishPlaySession(
+  session: NoteJudgmentSession,
+  clock: GameClock,
+  playableEndMs: number,
+  frameTimestamp: number,
+): boolean {
+  const judgmentTime = clock.judgmentTimeMs();
+  const advanceAt = Math.min(judgmentTime, clock.toInputTimeMs(frameTimestamp));
+  return playableEndMs > 0 && judgmentTime >= playableEndMs && advanceAt > session.latestJudgmentDeadlineMs;
+}
+
 /**
- * 곡 끝 정산 직전에 부른다. 입력 오프셋이 음수면(늦게 누르는 사람의 보정) 진행 시각이 곡 시간보다 뒤처져, 곡 끝 직전의 auto 입력이
- * 마지막 프레임까지 만들어지지 않을 수 있다. 남은 auto 입력을 모두 만들고 큐를 비운 뒤 finalize하게 한다.
+ * canFinishPlaySession을 통과한 뒤 정산 직전에 부른다.
+ * 남은 auto 입력을 모두 만들고 큐를 비우는 기존 정산 순서를 유지한다.
  */
 export function finishPlaySession(
   timeline: InputTimeline,

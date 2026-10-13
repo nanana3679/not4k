@@ -215,7 +215,7 @@ describe('DebugLogger', () => {
     const s = logger.getSummary();
     expect(s.avgDeltaMs).toBe(-40); // 바디 0이 섞였다면 -20이 됐을 것
     const text = logger.exportAsText();
-    expect(text).toContain('추천 오프셋 조정: +40ms'); // 오프셋 추천이 헤드 편향 기준(평균 −40ms FAST → +40 더함)
+    expect(text).toContain('추천 inputOffsetMs 조정: +40ms'); // 오프셋 추천이 헤드 편향 기준(평균 −40ms FAST → +40 더함)
   });
 
   it('바디 등급은 bodyGradeDistribution으로 분리 집계되고 head 분포엔 안 섞인다', () => {
@@ -236,5 +236,24 @@ describe('DebugLogger', () => {
     expect(text).toContain('Note #1 BODY');
     expect(text).toContain('Body/endpoint notes: 1');
     expect(text).toContain('Grade distribution (body/endpoint):');
+  });
+});
+
+describe('DebugLogger 실제 ms 오프셋 추천', () => {
+  it.each([
+    { rate: 2, delta: 40, adjustment: '-20' },
+    { rate: 0.5, delta: -40, adjustment: '+80' },
+    { rate: 4, delta: 40, adjustment: '-10' },
+  ])('r=$rate·곡 시간 deltaMs=$delta이면 inputOffsetMs에 실제 $adjustment ms를 더하도록 추천한다', ({ rate, delta, adjustment }) => {
+    const logger = new DebugLogger(800, 500, rate);
+    logger.recordJudgment(0, 520, JudgmentGrade.GREAT, delta);
+    expect(logger.getSummary().avgDeltaMs).toBe(delta);
+    expect(logger.exportAsText()).toContain(`추천 inputOffsetMs 조정: ${adjustment}ms (현재 inputOffsetMs에 더할 실제 ms)`);
+  });
+
+  it('r=2·곡 시간 편차 8ms이면 실제 4ms라 현재 inputOffsetMs를 유지하도록 권한다', () => {
+    const logger = new DebugLogger(800, 500, 2);
+    logger.recordJudgment(0, 500, JudgmentGrade.PERFECT, 8);
+    expect(logger.exportAsText()).toContain('현재 inputOffsetMs가 적절합니다 (평균 편차 4.0ms, 실제 시간)');
   });
 });

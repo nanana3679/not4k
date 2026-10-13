@@ -137,8 +137,8 @@ describe('offsetToApply — 측정값의 반대 부호를 오프셋으로 저장
     const measured = calculateCalibrationResult([15, 15, 15, 15, 15]);
     // 박 1000ms보다 15ms 늦은 순간(오디오 1015ms)에 키 이벤트가 핸들러 지연 없이 들어온다.
     const clock = new GameClock(
-      { currentTimeMs: 1015, getOutputLatencyMs: () => 0 },
-      { audioOffsetMs: 0, judgmentOffsetMs: offsetToApply(measured) },
+      { currentTimeMs: 1015, playbackRate: 1, getOutputLatencyMs: () => 0 },
+      { visualOffsetMs: 0, inputOffsetMs: offsetToApply(measured) },
       () => 5000,
     );
     expect(clock.toInputTimeMs(5000)).toBe(1000);
@@ -146,8 +146,8 @@ describe('offsetToApply — 측정값의 반대 부호를 오프셋으로 저장
 
   it('같은 사람에게 측정값을 부호 그대로 넣으면(이전 동작) 입력 시간이 1030ms로 30ms 늦게 판정된다', () => {
     const clock = new GameClock(
-      { currentTimeMs: 1015, getOutputLatencyMs: () => 0 },
-      { audioOffsetMs: 0, judgmentOffsetMs: 15 },
+      { currentTimeMs: 1015, playbackRate: 1, getOutputLatencyMs: () => 0 },
+      { visualOffsetMs: 0, inputOffsetMs: 15 },
       () => 5000,
     );
     expect(clock.toInputTimeMs(5000)).toBe(1030);

@@ -2,49 +2,31 @@ import { describe, it, expect } from 'vitest';
 import { mergePersistedSettings, useGameStore } from './gameStore';
 
 describe('mergePersistedSettings', () => {
-  const makeCurrentState = () => ({
-    settings: {
-      audioOffsetMs: 0,
-      judgmentOffsetMs: 0,
-      scrollSpeed: 800,
-    },
+  it.each([
+    { offsetMs: 42 },
+    { audioOffsetMs: 25 },
+    { judgmentOffsetMs: -15 },
+    { offsetMs: 42, audioOffsetMs: 25, judgmentOffsetMs: -15 },
+  ])('옛 설정 %j를 읽으면 세 키를 버리고 입력·시각 오프셋은 0ms다', legacy => {
+    const result = mergePersistedSettings({ settings: legacy }, useGameStore.getInitialState());
+    expect(result.settings.inputOffsetMs).toBe(0);
+    expect(result.settings.visualOffsetMs).toBe(0);
+    for (const key of ['offsetMs', 'audioOffsetMs', 'judgmentOffsetMs']) {
+      expect(result.settings).not.toHaveProperty(key);
+    }
   });
 
-  it('기존 offsetMs만 있으면 audioOffsetMs로 마이그레이션', () => {
-    const persisted = { settings: { offsetMs: 42 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(42);
-    expect(result.settings.judgmentOffsetMs).toBe(0);
-    expect(result.settings).not.toHaveProperty('offsetMs');
+  it('새 입력 −15ms·시각 +30ms와 옛 audioOffsetMs=99를 읽으면 새 값과 scrollSpeed=1000만 유지한다', () => {
+    const result = mergePersistedSettings({ settings: {
+      inputOffsetMs: -15, visualOffsetMs: 30, audioOffsetMs: 99, judgmentOffsetMs: 100, offsetMs: 42, scrollSpeed: 1000,
+    } }, useGameStore.getInitialState());
+    expect(result.settings).toMatchObject({ inputOffsetMs: -15, visualOffsetMs: 30, scrollSpeed: 1000 });
+    for (const key of ['offsetMs', 'audioOffsetMs', 'judgmentOffsetMs']) expect(result.settings).not.toHaveProperty(key);
   });
 
-  it('audioOffsetMs가 이미 있으면 offsetMs를 무시하고 삭제만 수행', () => {
-    const persisted = { settings: { offsetMs: 10, audioOffsetMs: 25 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(25);
-    expect(result.settings).not.toHaveProperty('offsetMs');
-  });
-
-  it('offsetMs가 없으면 기본값 0 유지', () => {
-    const persisted = { settings: { scrollSpeed: 1000 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(0);
-    expect(result.settings.judgmentOffsetMs).toBe(0);
-    expect(result.settings.scrollSpeed).toBe(1000);
-  });
-
-  it('judgmentOffsetMs가 persisted에 있으면 그대로 반영', () => {
-    const persisted = { settings: { judgmentOffsetMs: -15 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.judgmentOffsetMs).toBe(-15);
+  it('저장한 오프셋이 없으면 inputOffsetMs·visualOffsetMs 기본값 0ms를 유지한다', () => {
+    const result = mergePersistedSettings({ settings: { scrollSpeed: 1000 } }, useGameStore.getInitialState());
+    expect(result.settings).toMatchObject({ inputOffsetMs: 0, visualOffsetMs: 0, scrollSpeed: 1000 });
   });
 });
 

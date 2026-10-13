@@ -82,7 +82,7 @@ export function calculateCalibrationResult(diffs: number[]): CalibrationResult {
 
 /**
  * 캘리브레이션 결과로 저장할 오프셋(ms). 측정값은 "탭 − 박"(양수 = 늦게 누름)이고, 오프셋은 `GameClock`이
- * 타임라인에 더하는 양이다(`audioOffsetMs`는 판정 시간에, `judgmentOffsetMs`는 입력 시간에 더한다).
+ * 입력 시간에 더하는 실제 ms이다(플레이에서는 inputOffsetMs에 배속을 곱한다).
  * 늦게 누르는 만큼을 지우려면 반대 부호를 더해야 하므로 측정 중앙값의 부호를 뒤집는다(15ms 늦음 → −15).
  */
 export function offsetToApply(result: CalibrationResult): number {

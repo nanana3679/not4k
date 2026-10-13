@@ -126,7 +126,7 @@ export default function JudgmentPlaytestPage() {
           </div>
           <p>A/B/C/D는 서로 다른 키의 별칭입니다. 위에 표시된 실제 키를 사용하세요.</p>
           <p>120 BPM · 1박 = 500ms · 첫 노트 2000ms. 시각은 차트 기준이며, 예시 결과는 Normal · 1배속 기준입니다.</p>
-          <p>현재 설정: {settings.judgmentMode === "easy" ? "Easy" : "Normal"} · {settings.playSpeed}배속 · Good ±{windows.GOOD}ms · 입력 오프셋 {settings.judgmentOffsetMs}ms</p>
+          <p>현재 설정: {settings.judgmentMode === "easy" ? "Easy" : "Normal"} · {settings.playSpeed}배속 · Good ±{windows.GOOD}ms · 입력 오프셋 {settings.inputOffsetMs}ms</p>
           <p><kbd>Esc</kbd> → Retry로 재시도하거나 Quit으로 이 목록에 돌아옵니다. 완주 뒤에는 결과 화면의 Back to Lab을 누르세요.</p>
           <details>
             <summary>판정 로그와 결과 읽기</summary>
