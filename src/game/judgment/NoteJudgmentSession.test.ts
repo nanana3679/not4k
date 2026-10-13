@@ -164,3 +164,18 @@ describe("NoteJudgmentSession", () => {
     expect(second.events).toEqual([]);
   });
 });
+
+
+describe("NoteJudgmentSession 곡 끝 대기 기한", () => {
+  it("시작 1000ms·끝 2000ms·Good 180ms이면 종료 기한 2180ms를 공유하고 finalize는 2181ms까지 진행한다", () => {
+    const compiled = compileJudgmentChart([point(1000), body(1000, 2000)], [1000, 1000], new Map([[1, 2000]]));
+    const s = new NoteJudgmentSession(compiled, { windows: { ...JUDGMENT_WINDOWS_EASY, GOOD: 180 } });
+    expect(s.latestJudgmentDeadlineMs).toBe(2180);
+    s.processBatch(1000, [down("A")]);
+    s.advance(2180);
+    expect(s.events).toHaveLength(1);
+    s.finalize();
+    expect(s.core.time).toBe(2181);
+    expect(s.events[1]).toMatchObject({ kind: "release", grade: "miss", confirmedAt: 2180 });
+  });
+});

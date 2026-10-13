@@ -36,6 +36,8 @@ export class NoteJudgmentSession {
   private readonly onBatchConfirmed?: (view: NoteJudgmentSessionView) => void;
   private readonly effectsByEvent: ConfirmedJudgmentEffects[] = [];
   private finalized = false;
+  /** 모든 노트의 max(시작·끝) + Good 창. 곡 끝 대기와 finalize가 공유한다. */
+  readonly latestJudgmentDeadlineMs: number;
 
   constructor(
     private readonly chart: CompiledJudgmentChart,
@@ -43,6 +45,9 @@ export class NoteJudgmentSession {
   ) {
     this.notes = chart.rawNotes;
     this.windows = options.windows ?? JUDGMENT_WINDOWS;
+    this.latestJudgmentDeadlineMs = chart.notes.reduce(
+      (latest, note) => Math.max(latest, note.startMs, note.endMs ?? note.startMs), 0,
+    ) + this.windows.GOOD;
     this.onBatchConfirmed = options.onBatchConfirmed;
     this.score = new ScoreManager(chart.scoreItems, this.windows);
     this.core = new NoteJudgmentCore(chart, {
@@ -70,9 +75,7 @@ export class NoteJudgmentSession {
   /** 모든 S/E + Good deadline을 지나 남은 이벤트를 확정하고 이론 분모를 고정한다. */
   finalize(): Readonly<ScoreState> {
     if (this.finalized) return this.score.getFinalState();
-    const deadline = this.chart.notes.reduce(
-      (latest, note) => Math.max(latest, note.startMs, note.endMs ?? note.startMs), 0,
-    ) + this.windows.GOOD + 1;
+    const deadline = this.latestJudgmentDeadlineMs + 1;
     this.advance(Math.max(deadline, this.core.time));
     this.finalized = true;
     return this.score.finalize();

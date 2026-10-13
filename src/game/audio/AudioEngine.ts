@@ -18,7 +18,12 @@ export class AudioEngine {
   private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
   private startOffset: number = 0; // offset into the buffer when playback started (seconds)
+  // 음악이 끝나도 판정 대기 중에는 시계가 계속 돈다. pause/stop만 멈춘다.
+  private clockRunning = false;
   private _playing: boolean = false;
+  private audioEnded = false;
+  private outputLatencyMs: number | null = null;
+  private preparation: Promise<void> | null = null;
   private pauseTime: number = 0; // position in buffer when paused (seconds)
   private _playbackRate: number = 1.0;
   private requestedPlaybackRange: PlaybackRange | null = null;
@@ -44,10 +49,10 @@ export class AudioEngine {
    */
   set playbackRate(rate: number) {
     const clamped = Math.max(0.1, Math.min(rate, 4.0));
-    if (this._playing) {
+    if (this.clockRunning) {
       // 현재까지의 위치를 누적하고 startTime을 리셋
       const elapsed = this.ctx.currentTime - this.startTime;
-      this.startOffset = Math.min(this.getRangeDurationSeconds(), this.startOffset + elapsed * this._playbackRate);
+      this.startOffset = this.startOffset + elapsed * this._playbackRate;
       this.startTime = this.ctx.currentTime;
     }
     this._playbackRate = clamped;
@@ -115,6 +120,7 @@ export class AudioEngine {
     }
 
     if (this.source) {
+      this.source.onended = null;
       try {
         this.source.stop();
       } catch (e) {
@@ -134,10 +140,10 @@ export class AudioEngine {
 
     // Handle natural playback end
     this.source.onended = () => {
-      if (this._playing) {
-        this._playing = false;
-        this.pauseTime = this.getRangeDurationSeconds();
-      }
+      // onended 전달이 늦어도 기준 시각을 바꾸지 않는다. P는 원래 AudioContext 시계로 계속 진행한다.
+      this._playing = false;
+      this.audioEnded = true;
+      this.stopActiveSource();
     };
 
     // Convert offset from ms to seconds
@@ -155,6 +161,8 @@ export class AudioEngine {
     this.startTime = this.ctx.currentTime;
     this.source.start(0, actualOffsetSeconds, remainingSeconds);
     this._playing = true;
+    this.audioEnded = false;
+    this.clockRunning = true;
     this.pauseTime = 0;
   }
 
@@ -163,17 +171,12 @@ export class AudioEngine {
    * Saves current position for resume
    */
   pause(): void {
-    if (!this._playing) {
-      return;
-    }
-
-    // Calculate current position before stopping (elapsed wall time * playbackRate)
-    this.pauseTime = Math.min(
-      this.getRangeDurationSeconds(),
-      this.startOffset + (this.ctx.currentTime - this.startTime) * this._playbackRate,
-    );
+    if (!this.clockRunning) return;
+    this.pauseTime = this.currentTimeMs / 1000;
+    this.clockRunning = false;
 
     if (this.source) {
+      this.source.onended = null;
       this.source.stop();
     }
     this.stopActiveSource();
@@ -185,11 +188,18 @@ export class AudioEngine {
    * Resume playback from paused position
    */
   resume(): void {
-    if (this._playing || !this.buffer) {
+    if (this.clockRunning || !this.buffer) {
       return;
     }
 
-    this.play(this.pauseTime * 1000);
+    if (this.audioEnded || this.pauseTime >= this.getRangeDurationSeconds()) {
+      // 판정 대기 재개는 시계만 잇는다. 끝난 음원은 다시 재생하지 않는다.
+      this.startOffset = this.pauseTime;
+      this.startTime = this.ctx.currentTime;
+      this.clockRunning = true;
+    } else {
+      this.play(this.pauseTime * 1000);
+    }
   }
 
   /**
@@ -197,6 +207,7 @@ export class AudioEngine {
    */
   stop(): void {
     if (this.source) {
+      this.source.onended = null;
       try {
         this.source.stop();
       } catch (e) {
@@ -208,6 +219,8 @@ export class AudioEngine {
     this.stopActiveSource();
 
     this._playing = false;
+    this.clockRunning = false;
+    this.audioEnded = false;
     this.startTime = 0;
     this.startOffset = 0;
     this.pauseTime = 0;
@@ -222,13 +235,13 @@ export class AudioEngine {
       return 0;
     }
 
-    if (this._playing) {
+    if (this.clockRunning) {
       // Calculate current position from start offset and elapsed time * playbackRate
       const elapsed = this.ctx.currentTime - this.startTime;
       const position = this.startOffset + elapsed * this._playbackRate;
 
-      // Clamp to playable range duration
-      return Math.min(position * 1000, this.duration);
+      // 곡 끝 뒤에도 같은 P를 이어 J가 출력 지연과 마지막 Good 창을 지날 수 있게 한다.
+      return position * 1000;
     } else {
       // Return paused position or 0
       return this.pauseTime * 1000;
@@ -250,15 +263,47 @@ export class AudioEngine {
   }
 
   /**
-   * Get audio output latency in milliseconds.
-   * Combines baseLatency and outputLatency from AudioContext.
-   * Returns 0 if AudioContext or properties are unavailable.
+   * 재생 전 로딩 중 호출한다. running 출력에 무음 버퍼를 연결하고 25ms 간격으로 관측한다.
+   * 최소 100ms 뒤 연속 3개 값의 차이가 0.1ms 이하면 확정하고, 최대 500ms 뒤 마지막 값을 쓴다.
+   * Promise와 L₀를 보관하므로 중복 호출·pause/resume은 다시 읽지 않는다.
    */
+  prepareForPlayback(): Promise<void> {
+    this.preparation ??= this.captureOutputLatency();
+    return this.preparation;
+  }
+
+  private async captureOutputLatency(): Promise<void> {
+    if (this.ctx.state !== 'running') await this.ctx.resume();
+    const silence = this.ctx.createBufferSource();
+    silence.buffer = this.ctx.createBuffer(1, 128, this.ctx.sampleRate);
+    silence.loop = true;
+    silence.connect(this.masterGain);
+    silence.start();
+    const samples: number[] = [];
+    try {
+      for (let elapsed = 25; elapsed <= 500; elapsed += 25) {
+        await new Promise<void>(resolve => setTimeout(resolve, 25));
+        if (this.ctx.state !== 'running') throw new Error('AudioContext stopped during latency preparation');
+        const base = this.ctx.baseLatency ?? 0;
+        const output = 'outputLatency' in this.ctx ? (this.ctx.outputLatency ?? 0) : 0;
+        const latencyMs = (base + output) * 1000;
+        samples.push(latencyMs);
+        if (samples.length > 3) samples.shift();
+        if ((elapsed >= 100 && Math.max(...samples) - Math.min(...samples) <= 0.1) || elapsed === 500) {
+          this.outputLatencyMs = latencyMs;
+          break;
+        }
+      }
+    } finally {
+      silence.stop();
+      silence.disconnect();
+    }
+  }
+
+  /** 로딩 중 확정한 L₀. 미준비 값 0을 첫 프레임에 쓰지 않는다. */
   getOutputLatencyMs(): number {
-    if (!this.ctx) return 0;
-    const base = this.ctx.baseLatency ?? 0;
-    const output = this.ctx.outputLatency ?? 0;
-    return (base + output) * 1000;
+    if (this.outputLatencyMs === null) throw new Error('AudioEngine.prepareForPlayback must finish before creating GameClock');
+    return this.outputLatencyMs;
   }
 
   /**

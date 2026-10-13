@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
 import { AudioEngine } from "./AudioEngine";
 
@@ -8,6 +8,7 @@ import { AudioEngine } from "./AudioEngine";
 
 interface MockAudioSource {
   buffer: AudioBuffer | null;
+  loop: boolean;
   playbackRate: { value: number };
   connect: Mock;
   disconnect: Mock;
@@ -36,6 +37,8 @@ interface MockAudioContext {
   close: Mock;
   destination: object;
   decodeAudioData: Mock;
+  createBuffer: Mock;
+  sampleRate: number;
   createBufferSource: Mock<() => MockAudioSource>;
   createGain: Mock<() => MockGainNode>;
   baseLatency?: number;
@@ -49,6 +52,7 @@ function createMockAudioContext(): MockAudioContext {
 
   const createSource = (): MockAudioSource => ({
     buffer: null,
+    loop: false,
     playbackRate: { value: 1 },
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -66,6 +70,8 @@ function createMockAudioContext(): MockAudioContext {
     close: vi.fn().mockResolvedValue(undefined),
     destination: {},
     decodeAudioData: vi.fn(),
+    sampleRate: 48000,
+    createBuffer: vi.fn(() => createMockBuffer(128 / 48000)),
     createBufferSource: vi.fn(createSource),
     createGain: vi.fn(() => ({
       gain: {
@@ -101,42 +107,104 @@ function createMockBuffer(durationSeconds: number): AudioBuffer {
 let mockCtx: ReturnType<typeof createMockAudioContext>;
 
 beforeEach(() => {
+  vi.useFakeTimers();
   mockCtx = createMockAudioContext();
   stubGlobalAudioContext(mockCtx);
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("AudioEngine getOutputLatencyMs", () => {
-  it("AudioContext가 없으면 0 반환", () => {
-    // ctx는 constructor에서 항상 생성되므로, ctx의 속성이 없는 케이스를 테스트
-    // baseLatency와 outputLatency 둘 다 undefined인 경우
-    const ctxWithoutLatency = createMockAudioContext();
-    delete ctxWithoutLatency.baseLatency;
-    delete ctxWithoutLatency.outputLatency;
-    stubGlobalAudioContext(ctxWithoutLatency);
+describe("AudioEngine L₀ 준비", () => {
+  async function prepare(engine: AudioEngine) {
+    const ready = engine.prepareForPlayback();
+    await vi.advanceTimersByTimeAsync(500);
+    await ready;
+  }
+
+  it("준비 전 L₀를 읽으면 오류로 막아 첫 프레임에 임시 0ms를 쓰지 않는다", () => {
+    expect(() => new AudioEngine().getOutputLatencyMs()).toThrow("prepareForPlayback");
+  });
+
+  it("baseLatency와 outputLatency가 없으면 100ms 준비 후 L₀=0ms다", async () => {
     const engine = new AudioEngine();
+    await prepare(engine);
     expect(engine.getOutputLatencyMs()).toBe(0);
   });
 
-  it("baseLatency만 있으면 baseLatency * 1000 반환", () => {
-    const ctxWithBase = createMockAudioContext();
-    ctxWithBase.baseLatency = 0.005; // 5ms
-    delete ctxWithBase.outputLatency;
-    stubGlobalAudioContext(ctxWithBase);
+  it("outputLatency 미지원·baseLatency=5ms이면 준비 후 L₀=5ms다", async () => {
+    mockCtx.baseLatency = 0.005;
     const engine = new AudioEngine();
+    await prepare(engine);
     expect(engine.getOutputLatencyMs()).toBe(5);
   });
 
-  it("baseLatency + outputLatency 둘 다 있으면 합산 * 1000 반환", () => {
-    const ctxWithBoth = createMockAudioContext();
-    ctxWithBoth.baseLatency = 0.005; // 5ms
-    ctxWithBoth.outputLatency = 0.01; // 10ms
-    stubGlobalAudioContext(ctxWithBoth);
+  it("suspended에서 resume 완료 후 무음을 출력하고 100ms 동안 안정된 5+10ms를 L₀로 고정한다", async () => {
+    mockCtx.state = "suspended";
+    let resume!: () => void;
+    mockCtx.resume.mockImplementation(() => new Promise<void>(resolve => { resume = () => { mockCtx.state = "running"; resolve(); }; }));
+    mockCtx.baseLatency = 0.005;
+    mockCtx.outputLatency = 0.01;
     const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    resume();
+    await vi.advanceTimersByTimeAsync(99);
+    expect(() => engine.getOutputLatencyMs()).toThrow();
+    const silence = mockCtx.createBufferSource.mock.results[0].value;
+    expect(silence.loop).toBe(true);
+    expect(silence.start).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await ready;
     expect(engine.getOutputLatencyMs()).toBe(15);
+    expect(silence.stop).toHaveBeenCalledOnce();
+    expect(silence.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("초기 0ms가 75ms 뒤 25ms로 바뀌면 125ms까지 기다려 L₀=25ms를 채택한다", async () => {
+    mockCtx.outputLatency = 0;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    await vi.advanceTimersByTimeAsync(74);
+    mockCtx.outputLatency = 0.025;
+    await vi.advanceTimersByTimeAsync(26);
+    expect(() => engine.getOutputLatencyMs()).toThrow();
+    await vi.advanceTimersByTimeAsync(25);
+    await ready;
+    expect(engine.getOutputLatencyMs()).toBe(25);
+  });
+
+  it("25ms마다 1ms씩 흔들리면 500ms에 대기를 끝내고 마지막 20ms를 채택한다", async () => {
+    let reads = 0;
+    Object.defineProperty(mockCtx, "outputLatency", { get: () => ++reads / 1000 });
+    const engine = new AudioEngine();
+    await prepare(engine);
+    expect(engine.getOutputLatencyMs()).toBe(20);
+    expect(reads).toBe(20);
+  });
+
+  it("L₀=15ms 확정 후 보고가 85ms로 바뀌어도 pause/resume·재준비는 15ms를 유지하고 새 engine만 85ms를 읽는다", async () => {
+    mockCtx.baseLatency = 0.005;
+    mockCtx.outputLatency = 0.01;
+    const engine = new AudioEngine();
+    const ready = engine.prepareForPlayback();
+    expect(engine.prepareForPlayback()).toBe(ready);
+    await vi.advanceTimersByTimeAsync(100);
+    await ready;
+    engine.loadBuffer(createMockBuffer(1));
+    engine.play();
+    mockCtx._advanceTime(0.25);
+    engine.pause();
+    mockCtx.outputLatency = 0.08;
+    engine.resume();
+    await engine.prepareForPlayback();
+    expect(engine.getOutputLatencyMs()).toBe(15);
+    const retry = new AudioEngine();
+    await prepare(retry);
+    expect(retry.getOutputLatencyMs()).toBe(85);
   });
 });
 
@@ -272,14 +340,14 @@ describe("AudioEngine playbackRate", () => {
     expect(engine.currentTimeMs).toBe(3000);
   });
 
-  it("currentTimeMs는 버퍼 duration을 초과하지 않음 (playbackRate=2.0, 5초 버퍼)", () => {
+  it("5초 버퍼·r=2에서 실제 10초가 지나면 P는 끝을 넘어 20000ms다", () => {
     const engine = new AudioEngine();
     engine.loadBuffer(createMockBuffer(5));
     engine.playbackRate = 2.0;
     engine.play();
 
-    mockCtx._advanceTime(10); // 벽시계 10초 → 재생 위치 20초 but 버퍼는 5초
-    expect(engine.currentTimeMs).toBe(5000);
+    mockCtx._advanceTime(10); // 콜백이 늦어져도 시계는 원래 기준을 유지한다.
+    expect(engine.currentTimeMs).toBe(20000);
   });
 
   it("재생 중 playbackRate 변경 시 source.playbackRate.value에 즉시 반영", () => {
@@ -388,5 +456,56 @@ describe("AudioEngine playbackRange", () => {
     expect(sourceGain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, 1);
     expect(sourceGain.gain.setValueAtTime).toHaveBeenCalledWith(1, 58);
     expect(sourceGain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 60);
+  });
+});
+
+describe("AudioEngine 곡 끝 판정 대기", () => {
+  it("1초 곡·r=2에서 50ms 늦은 onended를 받아도 P=1100ms를 유지하고 100ms 뒤 1300ms로 진행한다", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(1));
+    engine.playbackRate = 2;
+    engine.play();
+    const source = mockCtx.createBufferSource.mock.results[0].value;
+    mockCtx._advanceTime(0.55);
+    expect(engine.currentTimeMs).toBe(1100);
+    source.onended!();
+    expect(engine.playing).toBe(false);
+    expect(engine.currentTimeMs).toBe(1100);
+    mockCtx._advanceTime(0.1);
+    expect(engine.currentTimeMs).toBe(1300);
+  });
+
+  it.each([false, true])("onended 전달=%s·P=1200ms에 정지하면 10초간 고정되고 재개 100ms 뒤 1400ms이며 음원은 1번만 생성한다", ended => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(1));
+    engine.playbackRate = 2;
+    engine.play();
+    mockCtx._advanceTime(0.6);
+    if (ended) mockCtx.createBufferSource.mock.results[0].value.onended!();
+    engine.pause();
+    mockCtx._advanceTime(10);
+    expect(engine.currentTimeMs).toBe(1200);
+    engine.resume();
+    expect(engine.currentTimeMs).toBe(1200);
+    mockCtx._advanceTime(0.1);
+    expect(engine.currentTimeMs).toBeCloseTo(1400);
+    expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(1);
+    expect(engine.playing).toBe(false);
+  });
+
+  it("30~31초 구간 끝 뒤 P=1200ms에서 배속 1→2 변경 시 연속성을 유지하고 100ms 뒤 1400ms가 된다", () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(60));
+    engine.setPlaybackRange({ startTime: 30, endTime: 31, fadeInTime: 0, fadeOutTime: 0 });
+    engine.play();
+    mockCtx._advanceTime(1.2);
+    mockCtx.createBufferSource.mock.results[0].value.onended!();
+    engine.playbackRate = 2;
+    expect(engine.currentTimeMs).toBe(1200);
+    mockCtx._advanceTime(0.1);
+    expect(engine.currentTimeMs).toBeCloseTo(1400);
+    engine.stop();
+    mockCtx._advanceTime(1);
+    expect(engine.currentTimeMs).toBe(0);
   });
 });
