@@ -208,10 +208,12 @@ test("버튼 누름 깊이에서 12px을 고르고 다른 페이지에 갔다가
     return sum;
   });
   const checked = await page.locator('input[name="depth"]:checked').getAttribute("value");
+  const index = ["current", "6", "9", "12", "15"].indexOf(checked!);
+  expect(index).toBeGreaterThanOrEqual(0);
+  await expect(page.locator("#depth-hint")).toContainText(checked === "current" ? "원래 시연" : `${checked}px`);
   const drawn = await glowChecksum();
-  await page.keyboard.press(`Digit${["current", "6", "9", "12", "15"].indexOf(checked!) + 1}`);
+  await page.keyboard.press(`Digit${index + 1}`);
   expect(await glowChecksum()).toBe(drawn);
-  await expect(page.locator("#depth-hint")).not.toBeEmpty();
 });
 
 test("누름 애니메이션의 대기 레이어는 둘째 키 반전 영역과 가운데 틈 밖 1,521,728개 픽셀이 v16과 같고 셋째 키 레이어는 둘째 키의 x↔1022-x 반전이다", async ({ page }) => {

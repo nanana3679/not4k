@@ -748,7 +748,7 @@
   applyTiming();
   applyGauge();
   // The form has autocomplete="off" so the browser does not restore controls on back navigation;
-  // still sync the radio and hint with what is drawn.
+  // still derive the radio and hint from DEFAULT_DEPTH instead of trusting the static markup.
   setDepth(DEFAULT_DEPTH);
   layout();
 
