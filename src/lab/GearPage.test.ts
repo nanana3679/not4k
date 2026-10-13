@@ -209,7 +209,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toContain('바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다');
   });
 
-  it('캔버스 영역 안에 전체화면 버튼이 있다', () => {
+  it('전체화면이 꺼져 있으면 오른쪽 위 막대(gear-preview-fullscreen-bar)에 전체화면 버튼이 있다', () => {
     expect(render()).toMatch(/<div class="gear-preview-fullscreen-bar"><button type="button" class="gear-preview-overlay-button">전체화면<\/button><\/div>/);
   });
 
