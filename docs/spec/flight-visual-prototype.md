@@ -307,10 +307,10 @@ A 관제실의 연속 움직임에 대한 긍정 평가 이후, 사용자가 승
 
 후속으로 기존 고정 시점 조절·투명 벽면 비교와 새 연출의 바닥/천장 이미지 선택 회귀도 재실행해 통과했다. 헤드리스 소프트웨어 GPU의 병렬 검사 결과는 실물 휴대폰의 프레임 성능을 보증하지 않는다.
 
-원본: `~/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/`.
+원본: `~/not4k-prototypes/apex-height-prototype-20260909/`.
 
 ```sh
-node /home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/preview-server.mjs
+node /home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/preview-server.mjs
 ```
 
 서버가 출력하는 링크는 PC가 실행 중이고 같은 Tailscale에 연결된 동안 사용할 수 있으며 24시간 뒤 종료한다. HTML·CSS·명시한 실행 모듈, 돌파 이미지 8장과 이륙·침투의 하늘·지면 이미지 2장만 제공하며 테스트·로그·접속 상태 파일은 제공하지 않는다. 파일은 메모리에서 제공하므로 변경 후 서버를 재시작한다. 기존 서버를 종료한 뒤 `--reuse-link`로 실행하면 만료되지 않은 링크와 원래 만료 시각을 유지한다.

@@ -37,4 +37,4 @@
 - [RFD 0001 §7](0001-flight-rules-and-observer-boundary.md#7-비주얼-원칙)의 낮은 고도 수평선 이동 방향을 이 결정으로 대체한다.
 - [아트 디렉션 탐색 기록](../design/art-direction-notes.md)에 사용자 피드백과 시연 결과를 기록한다.
 - 기존 `altitude`와 `flightRule`의 의미는 유지하므로 glossary 및 컨텍스트의 용어 정의는 변경하지 않는다.
-- 외부 시연 위치: `~/.gstack/projects/nanana3679-not4k/designs/altitude-pitch-study-20260908/`. 실제 게임의 렌더러·판정 연결에는 적용하지 않았다. 제품의 미정 사항 추적은 기존 [PRD §12](../prd.md#12-미정-사항)를 따른다.
+- 외부 시연 위치: `~/not4k-prototypes/altitude-pitch-study-20260908/`. 실제 게임의 렌더러·판정 연결에는 적용하지 않았다. 제품의 미정 사항 추적은 기존 [PRD §12](../prd.md#12-미정-사항)를 따른다.

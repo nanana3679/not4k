@@ -1,34 +1,34 @@
 {
   "legacy/geometry.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/geometry.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/geometry.mjs",
     "sha256": "2f705d42ef4ab19ddb0ab25e1f1e025c6887da3c86b6760acd55fec345640b7e"
   },
   "legacy/architecture.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/architecture.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/architecture.mjs",
     "sha256": "6bc6dc00c24f826791d802633b960de52e71827d15df7194e7569f5c68e97328"
   },
   "legacy/original-motion.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/original-motion.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/original-motion.mjs",
     "sha256": "5f74d7c0868b50145226e85a97481e7ba3bf518c27b7c4b423571f2de4076d05"
   },
   "legacy/palette.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/palette.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/palette.mjs",
     "sha256": "a39a8b97e970dba33b82d2321c8eacb521d47a35f187ae1718df2475e183b3ff"
   },
   "legacy/surface-art.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/surface-art.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/surface-art.mjs",
     "sha256": "44e3dc709b7505cfa5971810fa2b8ea5f7be3701a3994029b261b51fe4ee5343"
   },
   "legacy/wall-contours.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/wall-contours.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/wall-contours.mjs",
     "sha256": "bf06d4dbc383623cca211398d5ef5404f8b1dc621d2301dc50acb527532d89a2"
   },
   "legacy/clearance.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/clearance.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/clearance.mjs",
     "sha256": "27dcf83a453dbf8a71ca792fd89ef84e2adb447f00e1a86f39c5d6d2d617626d"
   },
   "legacy/afterglow.mjs": {
-    "source": "/home/nanana3679/.gstack/projects/nanana3679-not4k/designs/apex-height-prototype-20260909/afterglow.mjs",
+    "source": "/home/nanana3679/not4k-prototypes/apex-height-prototype-20260909/afterglow.mjs",
     "sha256": "2f016d27c0bfde9c53e33e1874ab021757a4728e4b9b6e392090204de51cd69b"
   },
   "render-model.mjs": {
