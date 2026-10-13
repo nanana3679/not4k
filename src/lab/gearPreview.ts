@@ -9,11 +9,11 @@ import { PRESET_BINDINGS } from '../game/stores/gameStore';
  * 여기서는 같은 값으로 Lab 화면에 보일 판정선·덱·키 윗면 사이 거리와 선명도를 계산한다(RFD 0029).
  */
 
-/** 고정 16:9 무대의 논리 폭. 게임 PlayScreen과 같은 규칙(높이 600 × 화면 비율)이다. */
+/** Lab 미리보기 렌더러의 고정 16:9 논리 폭. 게임 PlayScreen과 같은 규칙(높이 600 × 화면 비율)이다. */
 export const GEAR_PREVIEW_STAGE_WIDTH = resolvePlayLogicalWidth(16, 9);
 
 /**
- * 전체화면 무대의 논리 폭. 게임 PlayScreen처럼 높이 600에 화면 비율을 곱하되 기어 최소 폭(466)보다 좁히지 않는다
+ * 전체화면일 때 렌더러의 논리 폭. 게임 PlayScreen처럼 높이 600에 화면 비율을 곱하되 기어 최소 폭(466)보다 좁히지 않는다
  * (21:9면 1400, 폰 가로 844×390이면 1298, 세로 화면이면 466). 크기를 모르면 기본 16:9 폭이다.
  */
 export function fullscreenLogicalWidth(width: number, height: number): number {
@@ -64,7 +64,7 @@ export function nextGearOffsetYSearch(current: URLSearchParams, offsetY: number)
   return params;
 }
 
-/** y 오프셋 표시(20 → "20", 12.5 → "12.5"). 주소 쿼리와 무대 data-gear-offset-y도 같은 표기다. */
+/** y 오프셋 표시(20 → "20", 12.5 → "12.5"). 주소 쿼리와 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)의 data-gear-offset-y도 같은 표기다. */
 export function formatGearOffsetY(offsetY: number): string {
   return String(offsetY);
 }
@@ -107,7 +107,7 @@ export function manualAltitudeOnUnfollow(gaugeLevel: number | null, current: num
   return clampFlightAltitude(gaugeLevel ?? current);
 }
 
-/** 무대 data-gear-gauge-level 값(소수 셋째 자리). 게이지가 없으면 undefined(속성을 쓰지 않는다). */
+/** `gear-preview-stage`의 data-gear-gauge-level 값(소수 셋째 자리). 게이지가 없으면 undefined(속성을 쓰지 않는다). */
 export function formatGaugeLevel(level: number | null): string | undefined {
   return level === null ? undefined : level.toFixed(3);
 }
@@ -189,7 +189,7 @@ function laneBindings(bindings: Readonly<Record<'lane1' | 'lane2' | 'lane3' | 'l
   return map;
 }
 
-/** 무대 오른쪽 아래 키보드 표시. 게임 기본 프리셋 두 가지로 기어 오른쪽 빈 곳에 맞추는 규칙을 본다. */
+/** 캔버스 오른쪽 아래 키보드 표시. 게임 기본 프리셋 두 가지로 기어 오른쪽 빈 곳에 맞추는 규칙을 본다. */
 export const GEAR_PREVIEW_KEYBOARDS = {
   tkl: { label: 'TKL', bindings: laneBindings(PRESET_BINDINGS.tkl) },
   numpad: { label: '넘버패드', bindings: laneBindings(PRESET_BINDINGS.numpad) },

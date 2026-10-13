@@ -95,7 +95,7 @@
   overscroll-behavior: contain;
 }
 
-/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·`gearMotion`). 무대 오른쪽 위 비행 배경 자리에 겹친다. */
+/* 전체화면 버튼과 전체화면 안의 작은 조절(닫기·`gearMotion`). 캔버스 영역(`.gear-preview-viewport`) 오른쪽 위 비행 배경 자리에 겹친다. */
 .gear-preview-fullscreen-bar {
   position: absolute;
   top: 8px;
@@ -130,7 +130,7 @@
 .gear-preview-overlay-toggle { cursor: pointer; }
 .gear-preview-overlay-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #5ce1e6; }
 
-/* 전체화면(Fullscreen API·CSS 대체): 무대만 검은 바탕에 가득 채운다. */
+/* 전체화면(Fullscreen API·CSS 대체): 캔버스 영역(`.gear-preview-viewport`)만 검은 바탕에 가득 채운다. */
 .gear-preview-viewport[data-fullscreen="api"],
 .gear-preview-viewport[data-fullscreen="css"] {
   display: flex;
@@ -193,7 +193,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  /* Pixi가 inline touch-action:none을 걸어 무대 위 드래그가 스크롤을 먹지 않도록 덮는다. */
+  /* Pixi가 inline touch-action:none을 걸어 캔버스 위 드래그가 스크롤을 먹지 않도록 덮는다. */
   touch-action: pan-x pan-y !important;
 }
 

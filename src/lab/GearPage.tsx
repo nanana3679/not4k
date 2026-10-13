@@ -87,7 +87,7 @@ const FRAME_STATS_INTERVAL_MS = 500;
 /** 숨은 탭에서 돌아온 간격처럼 1초가 넘는 간격은 프레임 간격 통계에서 뺀다. */
 const FRAME_DELTA_LIMIT_MS = 1000;
 
-/** 살아 있는 렌더러에서 읽어 무대 data 속성으로 알리는 값(논리 단위). */
+/** 살아 있는 렌더러에서 읽은 값(논리 단위). 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)의 data 속성으로 알린다. */
 interface RendererView {
   key: string;
   judgmentLineY: number;
@@ -184,7 +184,7 @@ export default function GearPage() {
   const stageRef = useRef<HTMLElement>(null);
   const motionTimeRef = useRef<HTMLOutputElement>(null);
   const gaugeReadoutRef = useRef<HTMLElement>(null);
-  // 마지막으로 알린 게이지 채움(천분율 정수, 게이지 없음은 null). 바뀔 때만 무대 속성과 설명을 고친다.
+  // 마지막으로 알린 게이지 채움(천분율 정수, 게이지 없음은 null). 바뀔 때만 `gear-preview-stage`의 속성과 설명을 고친다.
   const reportedGaugeRef = useRef<number | null | undefined>(undefined);
   // 지금 보이는 게이지 채움 그대로(따라가기를 끄는 순간의 고정값). 매 프레임 숫자만 적는다.
   const gaugeLevelRef = useRef<number | null>(null);
@@ -213,7 +213,7 @@ export default function GearPage() {
     };
   }, []);
 
-  // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 무대 data 속성과 `움직임 시계` 표시만 바꾼다.
+  // 매 프레임 렌더러가 부른다. React 상태를 거치지 않고 `gear-preview-stage`의 data 속성과 `움직임 시계` 표시만 바꾼다.
   const handleMotionTime = useCallback((timeMs: number | null) => {
     const stageElement = stageRef.current;
     if (stageElement) {
@@ -224,7 +224,7 @@ export default function GearPage() {
   }, []);
   const restartMotion = () => restartRef.current?.();
 
-  // 매 프레임 렌더러가 지금 보이는 게이지 채움을 알린다. 천분율이 바뀔 때만 무대 data-gear-gauge-level과 설명을 고친다(React 상태를 거치지 않는다).
+  // 매 프레임 렌더러가 지금 보이는 게이지 채움을 알린다. 천분율이 바뀔 때만 `gear-preview-stage`의 data-gear-gauge-level과 설명을 고친다(React 상태를 거치지 않는다).
   const handleGaugeLevel = useCallback((level: number | null) => {
     gaugeLevelRef.current = level;
     const key = level === null ? null : Math.round(level * 1000);
@@ -239,7 +239,7 @@ export default function GearPage() {
     if (gaugeReadoutRef.current) gaugeReadoutRef.current.textContent = describeGaugeLevel(level);
   }, []);
 
-  // 전체화면: 무대 영역 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
+  // 전체화면: 화면을 채운 캔버스 영역(`viewportRef`) 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
   const [fullscreen, setFullscreen] = useState<FullscreenMode>('off');
   const [fullscreenSize, setFullscreenSize] = useState<{ width: number; height: number } | null>(null);
   const fullscreenActive = fullscreen !== 'off' && fullscreenSize !== null;
@@ -247,7 +247,7 @@ export default function GearPage() {
   // 화면이 최소 논리 폭(466)보다 세로로 길면(폰 세로) 위아래를 비우고 가로로 돌리라고 알린다.
   const fullscreenNarrow = fullscreenActive && Math.round(GAME_HEIGHT * (fullscreenSize.width / fullscreenSize.height)) < stageWidth;
 
-  // 게임 렌더러와 같은 함수로 계산한 배치. 설명 숫자에 쓰고, 무대 data 속성은 살아 있는 렌더러가 알린 값을 쓴다.
+  // 게임 렌더러와 같은 함수로 계산한 배치. 설명 숫자에 쓰고, `gear-preview-stage`의 data 속성은 살아 있는 렌더러가 알린 값을 쓴다.
   const layout = useMemo(() => layoutGear(GEAR_GEOMETRY, {
     laneAreaX: (stageWidth - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY: gearOffsetY,
   }), [stageWidth, gearOffsetY]);
@@ -616,7 +616,7 @@ export default function GearPage() {
           />
           <RadioGroup legend="보기" name="gear-preview-view" value={view} options={[...VIEWS]} onChange={setView} />
           <p className="gear-preview-note">
-            1:1 픽셀은 캔버스 1px을 기기 화면 1px로 보여 줍니다. 무대보다 크면 안에서 스크롤합니다.
+            1:1 픽셀은 캔버스 1px을 기기 화면 1px로 보여 줍니다. 미리보기 영역보다 크면 안에서 스크롤합니다.
           </p>
         </aside>
       </div>
@@ -675,7 +675,7 @@ function formatFrameStatsAttribute(summary: FrameTimeSummary | null): string | u
 }
 
 /**
- * 프레임 간격 표시. 0.5초마다 이 작은 부분만 다시 그리고, 무대의 data-frame-time-on/off는 ref로 직접 쓴다
+ * 프레임 간격 표시. 0.5초마다 이 작은 부분만 다시 그리고, `gear-preview-stage`의 data-frame-time-on/off는 ref로 직접 쓴다
  * (페이지 전체를 0.5초마다 다시 렌더링하지 않는다).
  */
 function FrameTimeReadout({ windows, stageRef }: { windows: FrameWindows; stageRef: RefObject<HTMLElement | null> }) {
@@ -813,7 +813,7 @@ function GearPreviewRenderer({
     let frame = 0;
     let renderer: GameRenderer | null = null;
     let skinAcquired = false;
-    // 이 렌더러가 애니메이션 경과 시간을 알리고 있는지. 정리할 때 무대에 남은 값을 지운다.
+    // 이 렌더러가 애니메이션 경과 시간을 알리고 있는지. 정리할 때 `gear-preview-stage`에 남은 값을 지운다.
     let reportedMotion = false;
     const restartMotion = () => renderer?.gearMotion?.restart();
     // 키보드 표시 눌림 리스너를 뗀다. 렌더러가 준비된 뒤에 채운다.
@@ -990,7 +990,7 @@ function GearPreviewRenderer({
           try {
             tick(now);
           } catch (error) {
-            // 무대가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
+            // `gear-preview-stage`가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
             console.error('GearPage: render loop failed', error);
             release(false);
             report({ status: 'error', message: error instanceof Error ? error.message : '재생 중 오류가 났습니다.' });

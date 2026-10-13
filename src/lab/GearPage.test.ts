@@ -7,10 +7,11 @@ import pageSource from './GearPage.tsx?raw';
 import compareSource from './GearMotionCompare.tsx?raw';
 
 const render = (path = '/lab/gear') => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: [path] }, createElement(GearPage)));
+/** 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)의 여는 태그. */
 const stageOf = (markup: string) => markup.match(/<section[^>]*data-gear-preview-stage="true"[^>]*>/)![0];
 
 describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기', () => {
-  it('처음 열면 렌더 높이 1080·INFILTRATION·화면 맞춤·리프트 0%·TKL 키보드로 시작하고 무대가 논리 폭 1067과 함께 그 상태를 data 속성으로 알린다', () => {
+  it('처음 열면 렌더 높이 1080·INFILTRATION·화면 맞춤·리프트 0%·TKL 키보드로 시작하고 gear-preview-stage가 논리 폭 1067과 함께 그 상태를 data 속성으로 알린다', () => {
     const markup = render();
     expect(markup).toContain('data-lab-page="gear"');
     const stage = stageOf(markup);
@@ -22,7 +23,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     const checkedValues = (markup.match(/<input[^>]*>/g) ?? [])
       .filter((input) => input.includes('type="radio"') && input.includes('checked=""'))
       .map((input) => input.match(/value="([^"]*)"/)![1]);
-    // 무대 조절(키보드·렌더 높이·장면·보기)과 아래 비교 보기(전체).
+    // 미리보기 조절(키보드·렌더 높이·장면·보기)과 아래 비교 보기(전체).
     expect(checkedValues).toEqual(['tkl', '1080', 'INFILTRATION', 'fit', 'full']);
   });
 
@@ -59,7 +60,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('0% (+0) · y 416');
   });
 
-  it('주소 ?offsetY=20으로 열면 무대가 data-gear-offset-y="20"과 그 값을 담은 렌더러 key를 알리고, 슬라이더·숫자 입력이 20을 가리키며 판정선 y 436·키 윗면 466.5·아래 44.2행 잘림을 보여 준다', () => {
+  it('주소 ?offsetY=20으로 열면 gear-preview-stage가 data-gear-offset-y="20"과 그 값을 담은 렌더러 key를 알리고, 슬라이더·숫자 입력이 20을 가리키며 판정선 y 436·키 윗면 466.5·아래 44.2행 잘림을 보여 준다', () => {
     const markup = render('/lab/gear?offsetY=20');
     const stage = stageOf(markup);
     expect(stage).toContain('data-gear-offset-y="20"');
@@ -78,7 +79,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(stageOf(render('/lab/gear?offsetY=abc'))).toContain('data-gear-offset-y="10"');
   });
 
-  it('고도 조절은 곡 진행 따라가기(기본 켬)와 정수 0~100% 직접 정하기 슬라이더(100%에서 시작)이고 무대가 data-altitude-mode="follow"를 알린다', () => {
+  it('고도 조절은 곡 진행 따라가기(기본 켬)와 정수 0~100% 직접 정하기 슬라이더(100%에서 시작)이고 gear-preview-stage가 data-altitude-mode="follow"를 알린다', () => {
     const markup = render();
     const stage = stageOf(markup);
     expect(stage).toContain('data-altitude-mode="follow"');
@@ -89,7 +90,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toMatch(/<input id="gear-preview-altitude" type="range" min="0" max="100" step="1" value="100"\/>/);
   });
 
-  it('고도 고정과 게이지 채움 읽기는 렌더러 공개 API(setAltitudeOverride·gearGaugeLevel)로만 하고 무대 data-gear-gauge-level에 알린다', () => {
+  it('고도 고정과 게이지 채움 읽기는 렌더러 공개 API(setAltitudeOverride·gearGaugeLevel)로만 하고 gear-preview-stage의 data-gear-gauge-level에 알린다', () => {
     expect(pageSource).toContain('active.setAltitudeOverride(');
     expect(pageSource).toContain('active.gearGaugeLevel');
     // 따라가기를 끄면 슬라이더 시작값(100%)으로 뛰지 않고 그때 보이던 게이지 채움에서 멈춘다.
@@ -113,7 +114,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('원래 크기 · 오른쪽 아래');
   });
 
-  it('무대는 실제 GameRenderer를 기본 옵션(내장 기어·내장 gearMotion)으로 만들고, gearMotion 조절은 렌더러의 공개 gearMotion API로만 한다', () => {
+  it('Gear 페이지는 실제 GameRenderer를 기본 옵션(내장 기어·내장 gearMotion)으로 만들어 gear-preview-stage에 띄우고, gearMotion 조절은 렌더러의 공개 gearMotion API로만 한다', () => {
     expect(pageSource).toContain("import('../game/renderer')");
     expect(pageSource).toContain('new GameRenderer({');
     expect(pageSource).not.toContain('showGear');
@@ -139,7 +140,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).not.toContain('gear/motion');
   });
 
-  it('gearMotion 토글(라벨 움직임)과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, 무대는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {
+  it('gearMotion 토글(라벨 움직임)과 A 큰 광원·B 게이지 액체·C 발광선 호흡·D 하단 바 흐름 체크 4개가 모두 켜진 채 시작하고, gear-preview-stage는 data-motion on·준비 전 data-motion-ready false를 알린다', () => {
     const markup = render();
     const stage = stageOf(markup);
     expect(stage).toContain('data-motion="on"');
@@ -152,7 +153,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     for (const label of ['A 큰 광원', 'B 게이지 액체', 'C 발광선 호흡', 'D 하단 바 흐름', '처음부터 재생']) expect(markup).toContain(label);
   });
 
-  it('운영체제 모션 감소 설정을 읽지 않아(RFD 0030) 무대 data-motion은 on·off 둘뿐이고, 무대와 비교 화면 모두 gearMotion을 숨기는 setReducedMotion을 부르지 않으며 화면 문구에 움직임 줄이기가 없다', () => {
+  it('운영체제 모션 감소 설정을 읽지 않아(RFD 0030) gear-preview-stage의 data-motion은 on·off 둘뿐이고, 페이지와 비교 화면 모두 gearMotion을 숨기는 setReducedMotion을 부르지 않으며 화면 문구에 움직임 줄이기가 없다', () => {
     expect(pageSource).not.toContain("'reduced'");
     expect(stageOf(render())).toContain('data-motion="on"');
     for (const source of [pageSource, compareSource]) {
@@ -208,7 +209,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toContain('바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다');
   });
 
-  it('무대 안에 전체화면 버튼이 있다', () => {
+  it('전체화면이 꺼져 있으면 오른쪽 위 막대(gear-preview-fullscreen-bar)에 전체화면 버튼이 있다', () => {
     expect(render()).toMatch(/<div class="gear-preview-fullscreen-bar"><button type="button" class="gear-preview-overlay-button">전체화면<\/button><\/div>/);
   });
 

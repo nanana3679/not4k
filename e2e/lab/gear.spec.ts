@@ -15,6 +15,7 @@ const scale = 250 / laneWindow;
 const gearTop = 600 - (geometry.silhouetteBottom + 1) * scale + GEAR_OFFSET_Y;
 const deckTopY = gearTop + geometry.deckTop * scale;
 const keyRimY = gearTop + (geometry.laneOpeningBottom + 1) * scale;
+// 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`). 렌더러가 알려 준 값은 이 `<section>`의 data 속성으로 읽는다.
 const stageSelector = '[data-gear-preview-stage="true"]';
 
 function collectErrors(page: Page) {
@@ -31,7 +32,7 @@ async function waitForRenderer(page: Page) {
 
 const numberAttribute = async (page: Page, name: string) => Number(await page.locator(stageSelector).getAttribute(name));
 
-/** 두 무대 스크린샷의 같은 영역(비율)에서 RGB 채널 평균 절대 차이(0~255). */
+/** `gear-preview-stage` 캔버스 스크린샷 두 개의 같은 영역(비율)에서 RGB 채널 평균 절대 차이(0~255). */
 async function meanDifference(page: Page, a: Buffer, b: Buffer, region: { x: number; y: number; width: number; height: number }): Promise<number> {
   return page.evaluate(async ({ first, second, region }) => {
     const decode = async (data: string) => {
@@ -54,7 +55,7 @@ async function meanDifference(page: Page, a: Buffer, b: Buffer, region: { x: num
   }, { first: a.toString('base64'), second: b.toString('base64'), region });
 }
 
-/** 무대 캔버스 스크린샷에서 논리 좌표(1067×600) 점들의 RGBA. */
+/** `gear-preview-stage` 캔버스 스크린샷에서 논리 좌표(1067×600) 점들의 RGBA. */
 async function pixelsAt(page: Page, points: { x: number; y: number }[]): Promise<number[][]> {
   const shot = (await page.locator('.gear-preview-canvas-host').screenshot()).toString('base64');
   return page.evaluate(async ({ shot, points }) => {
@@ -100,7 +101,7 @@ async function gearColour(page: Page, points: { x: number; y: number }[]): Promi
   }, points);
 }
 
-/** 기어 그림 좌표 점들을 무대 논리 좌표로 바꾸는 함수(살아 있는 렌더러가 알린 기어 배치). */
+/** 기어 그림 좌표 점들을 렌더러 논리 좌표로 바꾸는 함수(살아 있는 렌더러가 `gear-preview-stage`에 알린 기어 배치). */
 async function gearToStage(page: Page) {
   const gearX = await numberAttribute(page, 'data-gear-x');
   const gearScale = await numberAttribute(page, 'data-gear-scale');
@@ -157,7 +158,7 @@ async function pushExternalUrl(page: Page, url: string) {
   }, url);
 }
 
-/** 슬라이더 값, 주소 쿼리, 렌더러에 넘긴 값(무대 data-gear-offset-y). */
+/** 슬라이더 값, 주소 쿼리, 렌더러에 넘긴 값(`gear-preview-stage`의 data-gear-offset-y). */
 async function gearOffsetYState(page: Page) {
   return page.evaluate(() => ({
     slider: (document.getElementById('gear-preview-offset-y') as HTMLInputElement).value,
@@ -351,7 +352,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('기어·판정선 y 오프셋 슬라이더에 입력 이벤트 250개를 몰아 보내도 주소는 값이 멈춘 뒤 한 번만 바꿔 써(history.replaceState 2번 이하) 브라우저의 History API 호출 한도에 걸리지 않고, 마지막 값 33이 주소·무대에 남는다', async ({ page }) => {
+  test('기어·판정선 y 오프셋 슬라이더에 입력 이벤트 250개를 몰아 보내도 주소는 값이 멈춘 뒤 한 번만 바꿔 써(history.replaceState 2번 이하) 브라우저의 History API 호출 한도에 걸리지 않고, 마지막 값 33이 주소와 gear-preview-stage에 남는다', async ({ page }) => {
     const errors = collectErrors(page);
     // 페이지가 부르는 history.replaceState·pushState 수를 센다(Firefox는 10초에 약 200번, Safari는 약 100번을 넘으면 SecurityError를 던진다).
     await page.addInitScript(() => {
@@ -392,7 +393,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 기어·판정선 y 오프셋 값이 주소를 따라 슬라이더·숫자 입력·무대가 함께 바뀐다', async ({ page }) => {
+  test('주소가 바깥에서 바뀌면(앞으로·뒤로 가기) 기어·판정선 y 오프셋 값이 주소를 따라 슬라이더·숫자 입력·gear-preview-stage가 함께 바뀐다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -420,7 +421,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  // 아래 세 테스트는 주소·슬라이더·무대 data-gear-offset-y만 보므로 렌더러(WebGL) 준비를 기다리지 않는다(같은 시나리오를 Firefox에서도 돌릴 수 있다).
+  // 아래 세 테스트는 주소·슬라이더·`gear-preview-stage`의 data-gear-offset-y만 보므로 렌더러(WebGL) 준비를 기다리지 않는다(같은 시나리오를 Firefox에서도 돌릴 수 있다).
   test('값이 멈추기 전(200ms 안)에 뒤로 가기로 다른 값의 기록(?offsetY=20)으로 가면 남은 값 25를 주소에 쓰지 않고 20을 따르며, 앞으로 가기는 ?offsetY=40, 같은 값 20을 고른 채 뒤로 가도 20이다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear?offsetY=20');
@@ -466,7 +467,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     });
   }
 
-  test('값이 멈춰 주소를 ?offsetY=30으로 바꿔 쓴 바로 다음(같은 작업)에 뒤로 가기가 그 쓰기를 앞지르면 ?offsetY=20 기록을 따르고(무대도 20), 앞으로 가기로 돌아온 기록은 쓴 값 30 그대로이며 덮어쓰지 않는다', async ({ page }) => {
+  test('값이 멈춰 주소를 ?offsetY=30으로 바꿔 쓴 바로 다음(같은 작업)에 뒤로 가기가 그 쓰기를 앞지르면 ?offsetY=20 기록을 따르고(gear-preview-stage도 20), 앞으로 가기로 돌아온 기록은 쓴 값 30 그대로이며 덮어쓰지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     const replaceCalls = await countReplaceState(page);
     await page.goto('/lab/gear?offsetY=20');
@@ -529,7 +530,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('고도는 곡 진행 따라가기로 시작해 무대에 게이지 채움을 알리고, 직접 30%로 정하면 두 유리관 모두 채움 경계(771행) 위는 빈 유리로 어둡고 아래는 청록 액체다', async ({ page }) => {
+  test('고도는 곡 진행 따라가기로 시작해 gear-preview-stage에 게이지 채움을 알리고, 직접 30%로 정하면 두 유리관 모두 채움 경계(771행) 위는 빈 유리로 어둡고 아래는 청록 액체다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -650,7 +651,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('1:1 픽셀 보기에서는 캔버스 CSS 크기가 백버퍼 픽셀 ÷ devicePixelRatio가 되고 무대 안에서만 스크롤한다', async ({ page }) => {
+  test('1:1 픽셀 보기에서는 캔버스 CSS 크기가 백버퍼 픽셀 ÷ devicePixelRatio가 되고 캔버스 영역 안에서만 스크롤한다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -674,7 +675,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(sizes.pageOverflow).toBe(false);
   });
 
-  test('렌더러 내장 gearMotion이 켜져 애니메이션 경과 시간이 렌더 프레임마다 흐르고, 처음부터 재생·gearMotion 토글(라벨 움직임)·A 큰 광원 체크가 무대 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
+  test('렌더러 내장 gearMotion이 켜져 애니메이션 경과 시간이 렌더 프레임마다 흐르고, 처음부터 재생·gearMotion 토글(라벨 움직임)·A 큰 광원 체크가 gear-preview-stage의 data 속성에 반영되며 켬·끔 프레임 간격을 따로 모은다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -718,7 +719,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('전체화면을 누르면 무대가 1400×600 창을 꽉 채우고 논리 폭 1400으로 렌더러를 다시 만들며, 기어는 가운데를 따라가고 닫기(✕)로 논리 폭 1067에 돌아온다', async ({ page }) => {
+  test('전체화면을 누르면 캔버스가 1400×600 창을 꽉 채우고 논리 폭 1400으로 렌더러를 다시 만들며, 기어는 가운데를 따라가고 닫기(✕)로 논리 폭 1067에 돌아온다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.setViewportSize({ width: 1400, height: 600 });
     await page.goto('/lab/gear');
@@ -832,7 +833,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect((idleD[2] - idleD[0]) - (idleQ[2] - idleQ[0])).toBeGreaterThanOrEqual(15);
     await page.keyboard.down('KeyQ');
     await page.keyboard.down('KeyD');
-    // swiftshader에서 무대 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
+    // swiftshader에서 캔버스 스크린샷 한 장이 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
     await expect.poll(async () => brightness(await keyColor(keys.KeyQ)) - brightness(idleQ), { timeout: 30_000 }).toBeGreaterThan(200);
     const litQ = await keyColor(keys.KeyQ);
     const litD = await keyColor(keys.KeyD);
@@ -881,7 +882,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 무대 data-motion은 on이고 애니메이션 경과 시간이 300ms를 넘게 흐르며, 비교 SVG는 #fm-lit·#fm-unlit을 숨기지 않고 CSS 애니메이션 10개 넘게를 그대로 가진다(RFD 0030)', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 gear-preview-stage의 data-motion은 on이고 애니메이션 경과 시간이 300ms를 넘게 흐르며, 비교 SVG는 #fm-lit·#fm-unlit을 숨기지 않고 CSS 애니메이션 10개 넘게를 그대로 가진다(RFD 0030)', async ({ page }) => {
     const errors = collectErrors(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/lab/gear');

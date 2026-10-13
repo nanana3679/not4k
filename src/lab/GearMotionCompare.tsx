@@ -29,7 +29,7 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
  * 다시 만들더라도 두 앱이 한 컨텍스트를 함께 쓰지 않게 하기 위해서다.
  */
 export function GearMotionCompare({ resources, layers }: {
-  /** 페이지가 공유 로더에서 acquire한 `gearMotion` 에셋(무대의 게임 렌더러와 같은 공유 에셋). 준비 전이면 null. */
+  /** 페이지가 공유 로더에서 acquire한 `gearMotion` 에셋. 렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)의 게임 렌더러와 같은 공유 에셋이다. 준비 전이면 null. */
   resources: GearMotionResources | null;
   layers: GearMotionLayerVisibility;
 }) {
