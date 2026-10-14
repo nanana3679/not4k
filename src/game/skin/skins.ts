@@ -5,6 +5,8 @@ import { withPublicBase } from "../../shared/publicPath";
 export const GEAR_IMAGE_PATH = "/gear/gear.png";
 /** 모든 스킨이 함께 쓰는 고도 게이지 빈 유리(public 기준 경로). 기어 그림의 유리관에 겹친다. */
 export const GEAR_GAUGE_EMPTY_PATH = "/gear/gear-gauge-empty.png";
+/** 모든 스킨이 함께 쓰는 기어 버튼 누름 레이어 아틀라스(public 기준 경로). 기어 그림의 키 덱에 겹친다. */
+export const GEAR_BUTTONS_PATH = "/gear/gear-buttons.png";
 
 export function buildManifest(
   id: string,
@@ -75,6 +77,8 @@ export function buildManifest(
       // 기어와 고도 게이지 빈 유리는 스킨 공통 공유 에셋 (prepare-frame-fit-v20.mjs 산출물, RFD 0029)
       gearImage: withPublicBase(GEAR_IMAGE_PATH),
       gearGaugeEmpty: withPublicBase(GEAR_GAUGE_EMPTY_PATH),
+      // 기어 버튼 누름 레이어도 스킨 공통 공유 에셋 (prepare-gear-buttons-v22.mjs 산출물)
+      gearButtons: withPublicBase(GEAR_BUTTONS_PATH),
       buttonIdle: Array.from({ length: 4 }, (_, i) =>
         `${base}/button-idle-${i + 1}.png`
       ),

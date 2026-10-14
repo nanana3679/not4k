@@ -1,5 +1,6 @@
 import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
 import { gaugeEmptyRows } from '../game/renderer/gearGauge';
+import type { GearButtonColor, GearButtonStateView } from '../game/renderer/gearButtons';
 import { clampFlightAltitude } from '../game/renderer/flightAltitude';
 import { GAME_HEIGHT, GEAR_OFFSET_Y, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
@@ -110,6 +111,23 @@ export function manualAltitudeOnUnfollow(gaugeLevel: number | null, current: num
 /** `gear-preview-stage`의 data-gear-gauge-level 값(소수 셋째 자리). 게이지가 없으면 undefined(속성을 쓰지 않는다). */
 export function formatGaugeLevel(level: number | null): string | undefined {
   return level === null ? undefined : level.toFixed(3);
+}
+
+/**
+ * `gear-preview-stage`의 data-gear-buttons 값: 레인 1~4 기어 버튼을 쉼표로 이어, 대기는 `idle`, 그 밖에는 `단계-색`
+ * (`pressed-single`·`releasing-double` 등)이다. 기어 버튼이 없으면 undefined(속성을 쓰지 않는다).
+ */
+export function formatGearButtonStates(states: readonly GearButtonStateView[] | null): string | undefined {
+  if (states === null) return undefined;
+  return states.map((state) => (state.phase === 'idle' ? 'idle' : `${state.phase}-${state.color}`)).join(',');
+}
+
+/**
+ * Lab에서 바인딩된 키를 누를 때 기어 버튼 색. Lab 키 입력은 판정하지 않아 모두 공입력이므로 게임과 같은 공입력 규칙(그 레인에 키를 둘 이상
+ * 누르면 더블 금색)을 쓰도록 undefined를 돌려주고, Shift를 함께 누르면 Lab 확인용으로 더블 금색을 강제한다(버튼 누름 깊이 비교 시연의 Shift와 같음).
+ */
+export function labGearButtonColor(shiftKey: boolean): GearButtonColor | undefined {
+  return shiftKey ? 'double' : undefined;
 }
 
 /** 설명의 게이지 채움: 채움 %와 위에서 덮은 빈 유리 행(채움 구간 821행 중). */

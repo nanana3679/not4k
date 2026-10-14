@@ -62,6 +62,11 @@ export interface NoteJudgmentCoreOptions {
   windows?: JudgmentWindows;
   onConfirmed?: (event: NoteJudgmentEvent) => void;
   onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  /**
+   * 표시 전용 관찰: keydown 하나가 노트(Point head 또는 롱노트 시작)에 소비된 순간, 그 키·레인과 소비한 노트의 index를 알린다.
+   * 소비되지 않은 keydown(공입력)은 알리지 않는다. 판정·점수에는 아무 영향이 없고, 기어 버튼 색처럼 누름이 어느 노트를 쳤는지만 필요한 표시가 쓴다.
+   */
+  onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 interface PressToken { key: string; lane: number; at: number; upAt?: number; correctionId?: string; used: boolean; valid: boolean; released: boolean; connectionConsumed: boolean; claimedAt?: number }
@@ -75,6 +80,11 @@ interface UnitState {
 }
 interface PointState { noteIndex: number; at: number; lane: number; needed: number; done: boolean; missed: boolean; keys: Set<string> }
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
+/**
+ * 표시 전용: 정렬된 입력을 적용하기 직전에 관찰한다. down의 소비 알림은 이어지는 press 안에서 동기적으로 발생한다.
+ * 입력을 바꿀 수 없게 읽기 전용으로 받는다. 관찰자가 예외를 던지면 batch가 그 자리에서 끊기므로 던지지 않아야 한다.
+ */
+export type JudgmentInputObserver = (input: Readonly<JudgmentInput>) => void;
 
 function timeAt(value: ReadonlyMap<number, number> | readonly (number | undefined)[], index: number): number | undefined {
   return Array.isArray(value) ? value[index] : (value as ReadonlyMap<number, number>).get(index);
@@ -102,6 +112,7 @@ export class NoteJudgmentCore {
   private readonly windows: JudgmentWindows;
   private readonly onConfirmed?: (event: NoteJudgmentEvent) => void;
   private readonly onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  private readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
   private currentCombo = 0;
   private readonly confirmationCombo = new ConfirmationCombo();
   private batchingEvents: NoteJudgmentEvent[] | undefined;
@@ -185,6 +196,7 @@ export class NoteJudgmentCore {
     this.zeroHoldState = new ZeroHoldOnlyState(pointCompiled, this.windows.GOOD);
     this.onConfirmed = options.onConfirmed;
     this.onBatchConfirmed = options.onBatchConfirmed;
+    this.onDownConsumed = options.onDownConsumed;
     for (let i = 0; i < this.notes.length; i++) {
       const note = this.notes[i]; const at = timeAt(this.times, i);
       if (at === undefined) continue;
@@ -256,7 +268,7 @@ export class NoteJudgmentCore {
   get confirmed(): readonly NoteJudgmentEvent[] { return this.events; }
   get corrections(): ReadonlyMap<string, ConnectionCorrections> { return this.correctionLedgers; }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.prepareInputAt(at);
     // Deadlines crossed while moving to this timestamp are a prior logical
     // phase. They must be delivered before the current input batch and never
@@ -268,6 +280,7 @@ export class NoteJudgmentCore {
     this.batchingEvents = [];
     try {
       for (const input of this.orderInputs(inputs)) {
+        observeInput?.(input);
         if (input.type === "press" || input.type === "down") this.press(input.key, at, input.lane);
         else this.release(input.key, at, input.lane);
       }
@@ -288,7 +301,7 @@ export class NoteJudgmentCore {
    * clock is monotonic; rawAt is retained at this seam for adapters that
    * attach raw timing metadata while the state transition is observed now.
    */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     if (observedAt < this.now) throw new Error("관측 시각은 core 시간보다 과거일 수 없습니다");
     this.sweepBefore(observedAt);
     this.now = observedAt;
@@ -298,6 +311,7 @@ export class NoteJudgmentCore {
     this.batchingEvents = [];
     try {
       for (const selected of this.orderInputs(inputs)) {
+        observeInput?.(selected);
         if (selected.type === "up" || selected.type === "release") this.release(selected.key, rawAt, selected.lane);
         else this.press(selected.key, rawAt, selected.lane);
       }
@@ -325,17 +339,26 @@ export class NoteJudgmentCore {
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
     if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && !preparedSuccessor)) {
-      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false); return;
+      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, startCandidate.noteIndex);
+      return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
       const event = this.pointState.consume(pointCandidate, key, at);
       this.emit(event);
       this.activateForHead(point.noteIndex, key, token, at, point.keys.size - 1);
+      this.onDownConsumed?.(key, token.lane, point.noteIndex);
       return;
     }
     const candidate = startCandidate;
-    if (candidate) { token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false); }
+    // 정상 컴파일된 차트에서는 아래 fallback에 도달할 수 없다. pointCandidate가 없으면 위 start 분기가 이미 반환하고,
+    // 있으면 points에도 같은 노트가 있으며 peek가 이미 사용한 키를 제외하므로 위 point 분기가 반드시 소비하고 반환한다.
+    // 두 키 집합은 point 소비 시 함께 갱신된다. 판정 동작은 유지하고 방어적 fallback을 남긴다.
+    if (candidate) {
+      token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, candidate.noteIndex);
+    }
   }
 
   release(key: string, at: number = this.now, lane?: number): void {

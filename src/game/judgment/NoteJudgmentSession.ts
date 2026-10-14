@@ -8,6 +8,7 @@ import {
 import {
   NoteJudgmentCore,
   type JudgmentInput,
+  type JudgmentInputObserver,
   type NoteJudgmentEvent,
 } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
@@ -22,6 +23,8 @@ export interface NoteJudgmentSessionView {
 export interface NoteJudgmentSessionOptions {
   readonly windows?: JudgmentWindows;
   readonly onBatchConfirmed?: (view: NoteJudgmentSessionView) => void;
+  /** 표시 전용: keydown이 노트에 소비된 순간 키·레인·노트 index(core의 `onDownConsumed`를 그대로 넘긴다). 판정에는 영향이 없다. */
+  readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 /**
@@ -54,17 +57,18 @@ export class NoteJudgmentSession {
       windows: this.windows,
       onConfirmed: (event) => this.applyConfirmedEvent(event),
       onBatchConfirmed: (events, at) => this.publishBatch(events, at),
+      onDownConsumed: options.onDownConsumed,
     });
   }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processBatch(at, inputs);
+    this.core.processBatch(at, inputs, observeInput);
   }
 
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processObservedBatch(rawAt, inputs, observedAt);
+    this.core.processObservedBatch(rawAt, inputs, observedAt, observeInput);
   }
 
   advance(at: number): void {
