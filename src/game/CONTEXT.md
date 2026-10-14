@@ -57,7 +57,7 @@ _Avoid_: 익명 keyup, 실제 release의 이진 판정
 _Avoid_: 무시 입력
 
 **공입력**:
-어떤 노트에도 소비되지 않은 keydown이다. 판정에는 영향이 없고 기어 버튼 색에서 노트를 친 누름과 구분한다. 풀 정의는 [glossary](../../docs/context/glossary.md#공입력)를 따른다.
+어떤 노트에도 소비되지 않은 keydown이다. 이후 held 상태는 판정에 쓰일 수 있으며, 기어 버튼 색에서 노트를 친 누름과 구분한다. 풀 정의는 [glossary](../../docs/context/glossary.md#공입력)를 따른다.
 _Avoid_: 빈 레인 입력(노트에 소비될 수 있음)
 
 **처리된 노트**:

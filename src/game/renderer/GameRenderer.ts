@@ -685,19 +685,11 @@ export class GameRenderer {
    * 기어 버튼 입력: lane(1~4)의 입력 key(물리 키 `KeyboardEvent.code`나 `AutoPlayer`의 합성 키)가 눌렸거나(pressed) 떼어졌다.
    * 누름은 다음 렌더 프레임에 바로 눌려 빛나는 모습으로 그리고, 같은 레인의 키를 모두 떼면 렌더 프레임 간격으로 돌아온다.
    * color는 누를 때 쓰는 빛의 색이다. 주지 않으면 공입력 규칙(이 키를 포함해 그 레인에 누르고 있는 키가 둘 이상이면 더블 금색)으로 정하고,
-   * 그 누름이 노트를 쳤으면 그리기 전에 `resolveGearButtonPress`가 노트 규칙의 색으로 고친다(`gearButtonPressColor`).
+   * 노트를 친 누름은 호출자가 노트 규칙의 색을 넘긴다(`gearButtonPressColor`). 게임은 판정 적용 순서로 입력을 재생한다.
    * 기어 버튼을 그리지 않는 렌더러(showGear false·아틀라스 없음·dispose 뒤)에서는 아무것도 하지 않는다.
    */
   setGearButtonKey(lane: number, key: string, pressed: boolean, color?: GearButtonColor): void {
     this.gearButtons?.setKey(lane, key, pressed, color);
-  }
-
-  /**
-   * lane의 key 누름이 판정에서 노트를 쳐 정해진 색(친 노트가 더블이면 더블 금색)을 넘긴다. 그 키가 그 레인에서 마지막으로 누른 키일 때만 버튼 색이 바뀐다.
-   * 플레이 화면은 입력 큐를 비운 뒤 `renderFrame` 전에 부르므로, 누름이 처음 그려지는 프레임에는 이미 이 색이다.
-   */
-  resolveGearButtonPress(lane: number, key: string, color: GearButtonColor): void {
-    this.gearButtons?.resolvePress(lane, key, color);
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {

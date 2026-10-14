@@ -14,10 +14,10 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
  * - 누름: 누르는 순간(`setKey`) 다음 렌더 프레임에 바로 보이도록 표시를 바꾼다. 전환 시간을 두지 않는다.
  * - 뗌: 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자)로만 나아가 일시정지 중에는 멈춘다. cap이 `capMs`(40ms)에 걸쳐 덮이고,
  *   흰빛(glow)이 `whiteMs`(53ms)에, 남는 빛(tint)이 `glowMs`(150ms)에 걸쳐 꺼진다(시연의 CSS 전환과 같은 곡선).
- *   뗀 뒤 첫 렌더 프레임은 경과 0으로 그려, 한 프레임보다 짧게 눌러도 눌린 모습이 한 프레임은 보인다.
+ *   누른 뒤 한 번도 그리기 전에 뗀 경우만 첫 렌더 프레임을 경과 0으로 그려 짧은 누름도 보이게 한다.
  * - 색: 누를 때마다 정한다(RFD 0027: 싱글 연파랑·더블 금색, 중간 단계 없이 바로 바뀜, 게임 규칙은 `gearButtonPressColor`). 버튼 색은 그 레인에서
- *   마지막으로 누른 키의 색이고, 떼는 동안은 그 색을 유지한다. 색을 주지 않은 누름은 공입력 규칙(레인에 누른 키 수)으로 칠하고, 판정이 그 누름이
- *   노트를 쳤다고 알리면 `resolvePress`로 노트 규칙의 색으로 고친다. 둘 다 렌더 프레임을 그리기 전에 일어나므로 그 사이 색은 보이지 않는다.
+ *   마지막 누름의 색이고, 떼는 동안은 그 색을 유지한다. 노트를 친 누름은 노트 규칙의 색을 받아 누르고,
+ *   색을 주지 않은 누름은 공입력 규칙(이 키를 포함해 레인에 누른 키 수)으로 칠한다. 게임은 판정 적용 순서로 입력을 재생한다.
  * - 비용: 스프라이트와 텍스처는 만들 때 한 번만 만들고, 이후에는 보이기·알파·텍스처 교체만 한다. 렌더 프레임마다 객체를 만들지 않는다.
  */
 
@@ -123,11 +123,9 @@ export class GearButtonState implements GearButtonStateView {
   private readonly keys = new Set<string>();
   private currentPhase: GearButtonPhase = 'idle';
   private currentColor: GearButtonColor = 'single';
-  /** 이 레인에서 마지막으로 누른 키. 버튼 색은 이 누름의 색이다. */
-  private lastKey: string | null = null;
   private elapsedMs = 0;
-  /** 뗀 뒤 아직 렌더 프레임을 한 번도 그리지 않았는지. 그 프레임은 경과 0으로 그린다. */
-  private releaseFresh = false;
+  /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭도 한 번은 눌린 모습으로 그린다. */
+  private pressFresh = false;
 
   get phase(): GearButtonPhase { return this.currentPhase; }
   get color(): GearButtonColor { return this.currentColor; }
@@ -142,22 +140,11 @@ export class GearButtonState implements GearButtonStateView {
     this.keys.add(key);
     const pressColor = color ?? gearButtonPressColor(null, this.keys.size);
     const changed = this.currentPhase !== 'pressed' || this.currentColor !== pressColor;
-    this.lastKey = key;
     this.currentColor = pressColor;
     this.currentPhase = 'pressed';
     this.elapsedMs = 0;
-    this.releaseFresh = false;
+    this.pressFresh = true;
     return changed;
-  }
-
-  /**
-   * key의 누름이 판정에서 노트를 쳤을 때 그 누름의 색을 color로 고친다. key가 이 레인에서 마지막으로 누른 키이고 버튼이 눌렸거나 돌아오는 중일 때만
-   * 버튼 색이 바뀐다(그 뒤에 다른 키를 눌렀다면 그 누름의 색이 버튼 색이다). 색이 바뀌었으면 true.
-   */
-  resolveColor(key: string, color: GearButtonColor): boolean {
-    if (this.currentPhase === 'idle' || key !== this.lastKey || color === this.currentColor) return false;
-    this.currentColor = color;
-    return true;
   }
 
   /** key를 뗀다. 누른 적 없는 키는 무시한다. 마지막 키를 떼면 돌아오기 시작하고 true. */
@@ -165,21 +152,17 @@ export class GearButtonState implements GearButtonStateView {
     if (!this.keys.delete(key) || this.keys.size > 0) return false;
     this.currentPhase = 'releasing';
     this.elapsedMs = 0;
-    this.releaseFresh = true;
     return true;
   }
 
   /**
-   * 돌아오는 중이면 렌더 프레임 하나(deltaMs)만큼 나아가고, glowMs를 지나면 대기로 돌아간다. 뗀 뒤 첫 렌더 프레임은 나아가지 않는다
-   * (경과 0으로 그린다). 경과가 바뀌었으면 true.
+   * 돌아오는 중이면 렌더 프레임 하나(deltaMs)만큼 나아가고, glowMs를 지나면 대기로 돌아간다.
+   * 누른 뒤 한 번도 그리지 못한 경우만 경과 0으로 그린다. 이미 눌림을 그렸으면 뗀 뒤 첫 프레임부터 나아간다.
    */
   advance(deltaMs: number, release: GearButtonRelease): boolean {
-    if (this.currentPhase !== 'releasing') return false;
-    if (this.releaseFresh) {
-      // 뗀 순간 이미 경과 0으로 그렸으므로 이 프레임은 그대로 둔다.
-      this.releaseFresh = false;
-      return false;
-    }
+    const fresh = this.pressFresh;
+    this.pressFresh = false;
+    if (this.currentPhase !== 'releasing' || fresh) return false;
     if (!(deltaMs > 0)) return false;
     this.elapsedMs += deltaMs;
     if (this.elapsedMs >= release.glowMs) {
@@ -291,13 +274,6 @@ export class GearButtons {
     if (this.destroyed || !view) return;
     const changed = pressed ? view.state.press(key, color) : view.state.release(key);
     if (changed) this.apply(view);
-  }
-
-  /** lane의 key 누름이 노트를 쳐 색이 정해졌다(`GearButtonState.resolveColor`). 마지막 누름이면 바로 그 색으로 그린다. */
-  resolvePress(lane: number, key: string, color: GearButtonColor): void {
-    const view = this.views[lane - 1];
-    if (this.destroyed || !view) return;
-    if (view.state.resolveColor(key, color)) this.apply(view);
   }
 
   /** 렌더 프레임 하나(deltaMs)만큼 돌아오는 버튼을 나아가게 한다. 돌아오는 버튼이 없으면 아무것도 바꾸지 않는다. */

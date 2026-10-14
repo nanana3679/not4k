@@ -43,6 +43,16 @@ async function readProbe(page: Page) {
   });
 }
 
+/** 누름과 프레임 경계를 같은 브라우저 작업에서 잡아 다음 renderFrame이 첫 입력 프레임인지 확인한다. */
+async function pressBeforeNextFrame(page: Page, code: string) {
+  return page.evaluate(code => {
+    const win = window as unknown as Record<string, unknown>;
+    const frame = (win.__gearButtonLog as (string | null)[]).length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+    return frame;
+  }, code);
+}
+
 /** 브라우저 requestAnimationFrame을 count번 기다린다(벽시계 대기 대신 화면 프레임 수로 기다린다). */
 async function waitAnimationFrames(page: Page, count: number) {
   await page.evaluate((frames) => new Promise<void>((resolve) => {
@@ -141,13 +151,12 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     const idleFace = await gearColor(page, KEY_TWO_FACE);
     expect(Math.max(...idleFace)).toBeLessThan(90);
 
-    await page.keyboard.down('KeyD');
-    // 키 이벤트 처리기가 이미 표시를 바꿨다. 그다음 렌더 프레임이 첫 기록이다.
-    const atPress = await readProbe(page);
-    expect(atPress.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
+    const atPress = await pressBeforeNextFrame(page, 'KeyD');
+    // 세션이 큐를 모두 처리한 뒤 그린 첫 프레임부터 맞는 색이다.
     await waitAnimationFrames(page, 3);
     const afterPress = await readProbe(page);
-    expect(afterPress.log[atPress.frames]).toBe('idle,pressed-single,idle,idle');
+    expect(afterPress.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
+    expect(afterPress.log[atPress]).toBe('idle,pressed-single,idle,idle');
     await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_FACE)), { timeout: 30_000 }).toBeGreaterThan(80);
 
     const beforeRelease = await readProbe(page);
@@ -166,11 +175,11 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     await startLocalPlay(page, QUIET_CHART);
     await page.keyboard.down('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].color).toBe('single');
-    await page.keyboard.down('KeyO');
-    const atSecond = await readProbe(page);
-    expect(atSecond.states?.[1]).toEqual({ phase: 'pressed', color: 'double', releaseMs: 0 });
+    const atSecond = await pressBeforeNextFrame(page, 'KeyO');
     await waitAnimationFrames(page, 3);
-    expect((await readProbe(page)).log[atSecond.frames]).toBe('idle,pressed-double,idle,idle');
+    const afterSecond = await readProbe(page);
+    expect(afterSecond.states?.[1]).toEqual({ phase: 'pressed', color: 'double', releaseMs: 0 });
+    expect(afterSecond.log[atSecond]).toBe('idle,pressed-double,idle,idle');
     await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_FACE); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
     await page.keyboard.up('KeyO');
     await waitAnimationFrames(page, 2);
@@ -180,7 +189,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     expect(errors).toEqual([]);
   });
 
-  test('KeyD를 누른 채 일시정지(Esc)하고 떼면 기어 2번 버튼은 releasing·경과 0ms에 멈춰 있고(renderFrame 없음), Resume 뒤 렌더 프레임으로 돌아와 대기가 된다', async ({ page }) => {
+  test('KeyD를 누른 채 일시정지(Esc)하고 떼면 기어 2번 버튼은 pressed로 멈춰 있고, Resume 뒤 큐의 up을 처리한 첫 프레임부터 돌아와 대기가 된다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, QUIET_CHART);
@@ -191,14 +200,15 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
     await page.keyboard.up('KeyD');
     const paused = await readProbe(page);
-    expect(paused.states?.[1]).toEqual({ phase: 'releasing', color: 'single', releaseMs: 0 });
+    expect(paused.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
     await waitAnimationFrames(page, 30);
     const stillPaused = await readProbe(page);
     expect(stillPaused.frames).toBe(paused.frames);
-    expect(stillPaused.states?.[1]).toEqual({ phase: 'releasing', color: 'single', releaseMs: 0 });
+    expect(stillPaused.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
 
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
+    expect((await readProbe(page)).log[paused.frames]).toBe('idle,releasing-single,idle,idle');
     expect(errors).toEqual([]);
   });
 
@@ -222,7 +232,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     const { log, times } = await readProbe(page);
     const lane = (index: number) => log.map((entry, frame) => ({ state: entry?.split(',')[index], timeMs: times[frame] }));
     const shown = (index: number) => lane(index).filter(frame => frame.state !== 'idle').map(frame => frame.state);
-    // 각 레인에서 버튼이 보인 모든 렌더 프레임의 색. 공입력 규칙의 임시 색(레인 3은 키 2개라 금색)이 그려진 프레임은 없어야 한다.
+    // 각 레인에서 버튼이 보인 모든 렌더 프레임의 색. 소비된 노트의 색으로 바로 누르므로 레인 3의 키가 2개여도 금색 프레임은 없다.
     expect(shown(0).length).toBeGreaterThan(0);
     expect(shown(0).every(state => state!.endsWith('-single'))).toBe(true);
     expect(shown(1).length).toBeGreaterThan(0);

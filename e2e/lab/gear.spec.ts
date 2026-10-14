@@ -919,6 +919,33 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
+  test('Shift+KeyD 뒤 반복 입력은 금색을 유지하고 TKL에서 넘버패드로 바꿔도 keyup·blur가 원래 레인 2 버튼을 뗀다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await page.keyboard.up('Shift');
+    // Playwright는 이미 누른 키의 두 번째 down을 repeat으로 보낸다.
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await page.getByLabel('넘버패드').check();
+    await expect(stage).toHaveAttribute('data-keyboard', 'numpad');
+    await page.keyboard.up('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
+
+    await page.getByLabel('TKL').check();
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await page.getByLabel('넘버패드').check();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
+    await page.keyboard.up('KeyD');
+    expect(errors).toEqual([]);
+  });
+
   test('gearMotion 에셋(/gear/gear-motion/gear-motion.json) 응답을 보류하면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 응답을 보내면 gearMotion을 추가한 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};
