@@ -116,6 +116,30 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1 });
   });
 
+  it('일시정지 중 A를 두 번 탭해 down 999·up 996·down 998·up 995ms로 들어가 up·up·down·down 순서여도 재개 뒤 버튼이 돌아온다', () => {
+    const p = play([]);
+    p.frame(900);
+    p.input(999, 'A', 'down');
+    p.input(996, 'A', 'up');
+    p.input(998, 'A', 'down');
+    p.input(995, 'A', 'up');
+    p.frame(1010);
+    expect(p.state).toMatchObject({ phase: 'releasing', heldKeys: 0 });
+  });
+
+  it('일시정지 중 A를 탭한 뒤 다시 눌러 down 999·up 996·down 998ms로 들어가면 재개 뒤 마지막 누름이 남아 버튼이 눌려 있다', () => {
+    const p = play([]);
+    p.frame(900);
+    p.input(999, 'A', 'down');
+    p.input(996, 'A', 'up');
+    p.input(998, 'A', 'down');
+    p.frame(1010);
+    expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1 });
+    p.input(1100, 'A', 'up');
+    p.frame(1110);
+    expect(p.state).toMatchObject({ phase: 'releasing', heldKeys: 0 });
+  });
+
   it('1000ms single 헤드·doubleLong 바디에 A·B를 누르면 A는 연파랑, 남은 unit을 시작한 B는 금색으로 재생한다', () => {
     const p = play([point(1000), body(1000, 2000, 'doubleLong')]);
     p.input(1000, 'A', 'down');

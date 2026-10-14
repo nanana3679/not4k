@@ -27,10 +27,16 @@ const emptyRecord = (): GearButtonInput => ({ type: 'up', lane: 0, key: '', cons
 export class GearButtonPressColors {
   private readonly records: GearButtonInput[] = Array.from({ length: 64 }, emptyRecord);
   private count = 0;
-  /** 재생으로 렌더러에 눌러 둔 키. 프레임을 넘어 렌더러의 키 상태와 같게 유지한다. */
-  private readonly heldKeys = new Set<string>();
-  /** 이번 flush에서 아직 누르지 않은 키의 뗌. 같은 flush의 그 키 down 바로 뒤에 적용한다. */
-  private readonly pendingUps = new Set<string>();
+  /**
+   * 키별로 재생한 down 수 − up 수. 양수면 렌더러에 눌려 있다. 일시정지 중 뒤섞인 순서로 up이 먼저 오면 음수가 되고,
+   * 이어지는 down은 누른 모습을 보인 뒤 바로 뗀다. 키마다 항목을 한 번만 만들고 다시 쓴다.
+   */
+  private readonly keyBalance = new Map<string, number>();
+  /** 이번 flush에서 음수가 된 키가 있는지. 짝 없는 up은 그 flush 안에서만 보류한다. */
+  private negativeBalance = false;
+  private readonly resetNegative = (value: number, key: string): void => {
+    if (value < 0) this.keyBalance.set(key, 0);
+  };
 
   /** notes는 판정 core와 같은 노트 배열(`CompiledJudgmentChart.rawNotes`)이다. */
   constructor(private readonly notes: readonly NoteEntity[]) {}
@@ -54,29 +60,33 @@ export class GearButtonPressColors {
   get pending(): number { return this.count; }
 
   /**
-   * 기록을 같은 순서로 렌더러에 재생한다. 일시정지 중에는 J가 멈춘 채 handlerDelay만 빠져 같은 키의 뗌이 누름보다 이른 시각으로
-   * 큐에 들어갈 수 있다(예: down 999ms, up 996ms). 그러면 up이 먼저 오므로, 아직 누르지 않은 키의 up은 보류했다가 같은 flush에서
-   * 그 키의 down을 누른 직후 적용해 버튼이 눌린 채 남지 않게 한다. 판정 쪽 같은 순서 문제는 #249 T9다.
+   * 기록을 같은 순서로 렌더러에 재생한다. 일시정지 중에는 J가 멈춘 채 handlerDelay만 빠지므로 같은 키의 up이 down보다 이른 시각으로
+   * 큐에 들어갈 수 있다(예: down 999ms, up 996ms, 두 번 탭하면 up·up·down·down). 키별 down−up 수를 세어, 아직 누르지 않은 키의 up은
+   * 보류했다가 이어지는 down을 누른 직후 적용한다. 그래서 탭 수와 상관없이 마지막 상태가 실제 키 상태와 같다. 판정 쪽 같은 순서 문제는 #249 T9다.
+   * 입력이 없는 프레임은 바로 돌아가 아무것도 할당하지 않는다.
    */
   flush(target: GearButtonPressTarget): void {
+    if (this.count === 0) return;
     for (let index = 0; index < this.count; index++) {
       const record = this.records[index];
+      const before = this.keyBalance.get(record.key) ?? 0;
       if (record.type === 'down') {
+        this.keyBalance.set(record.key, before + 1);
         const note = record.consumedNoteIndex === null ? undefined : this.notes[record.consumedNoteIndex];
-        this.heldKeys.add(record.key);
-        // 색을 생략하면 renderer가 이 down을 held에 추가한 직후의 키 수로 공입력 색을 정한다.
+        // 색을 생략하면 renderer가 이 down을 held에 추가한 직후의 키 수로 공입력 색을 정한다. 이미 눌린 키(before > 0)면 색만 다시 정한다.
         target.setGearButtonKey(record.lane, record.key, true, note ? gearButtonPressColor(note.type, 0) : undefined);
-        if (this.pendingUps.delete(record.key)) {
-          this.heldKeys.delete(record.key);
-          target.setGearButtonKey(record.lane, record.key, false);
-        }
-      } else if (this.heldKeys.delete(record.key)) {
-        target.setGearButtonKey(record.lane, record.key, false);
+        // 이 down보다 뒤에 일어난 up이 먼저 재생됐다. 누른 모습을 보인 뒤 바로 뗀다.
+        if (before < 0) target.setGearButtonKey(record.lane, record.key, false);
       } else {
-        this.pendingUps.add(record.key);
+        this.keyBalance.set(record.key, before - 1);
+        if (before === 1) target.setGearButtonKey(record.lane, record.key, false);
+        else if (before <= 0) this.negativeBalance = true;
       }
     }
-    this.pendingUps.clear();
+    if (this.negativeBalance) {
+      this.negativeBalance = false;
+      this.keyBalance.forEach(this.resetNegative);
+    }
     this.count = 0;
   }
 }
