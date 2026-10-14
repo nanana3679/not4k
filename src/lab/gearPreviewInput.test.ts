@@ -40,7 +40,10 @@ describe('Lab Gear 키 입력', () => {
     expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 1 });
   });
 
-  it.each([1, undefined])('레인 2 KeyD를 누른 뒤 바인딩을 레인 %s로 바꿔도 keyup은 원래 레인 2를 뗀다', lane => {
+  it.each([
+    ['바인딩을 레인 1로 바꿔도', 1],
+    ['바인딩에서 KeyD가 빠져도', undefined],
+  ] as const)('레인 2 KeyD를 누른 뒤 %s keyup은 원래 레인 2를 뗀다', (_case, lane) => {
     const p = setup();
     p.down();
     p.bind(lane === undefined ? [] : [['KeyD', lane]]);

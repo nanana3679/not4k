@@ -80,8 +80,11 @@ interface UnitState {
 }
 interface PointState { noteIndex: number; at: number; lane: number; needed: number; done: boolean; missed: boolean; keys: Set<string> }
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
-/** 표시 전용: 정렬된 입력을 적용하기 직전에 관찰한다. down의 소비 알림은 이어지는 press 안에서 동기적으로 발생한다. */
-export type JudgmentInputObserver = (input: JudgmentInput) => void;
+/**
+ * 표시 전용: 정렬된 입력을 적용하기 직전에 관찰한다. down의 소비 알림은 이어지는 press 안에서 동기적으로 발생한다.
+ * 입력을 바꿀 수 없게 읽기 전용으로 받는다. 관찰자가 예외를 던지면 batch가 그 자리에서 끊기므로 던지지 않아야 한다.
+ */
+export type JudgmentInputObserver = (input: Readonly<JudgmentInput>) => void;
 
 function timeAt(value: ReadonlyMap<number, number> | readonly (number | undefined)[], index: number): number | undefined {
   return Array.isArray(value) ? value[index] : (value as ReadonlyMap<number, number>).get(index);
