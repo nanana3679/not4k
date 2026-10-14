@@ -33,6 +33,15 @@ describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 �
     for (const button of GEAR_BUTTON_GEOMETRY.buttons) expect(button.glow.single.y).toBeGreaterThanOrEqual(1088);
   });
 
+  it('네 버튼의 glow·tint는 더블과 싱글의 기어 좌표·크기가 같아 싱글 기준 스프라이트에서 텍스처만 바꿀 수 있다', () => {
+    for (const button of GEAR_BUTTON_GEOMETRY.buttons) {
+      for (const layer of [button.glow, button.tint]) {
+        const { x, y, width, height } = layer.single;
+        expect(layer.double).toMatchObject({ x, y, width, height });
+      }
+    }
+  });
+
   it('떼는 시간은 cap 40ms·흰빛 53ms·남는 빛 150ms이고, 곡선은 cap cubic-bezier(0.2, 0.6, 0.3, 1)·빛 ease-out(0, 0, 0.58, 1)이다', () => {
     expect(RELEASE).toEqual({ capMs: 40, whiteMs: 53, glowMs: 150, capEasing: [0.2, 0.6, 0.3, 1], glowEasing: [0, 0, 0.58, 1] });
   });
@@ -99,7 +108,7 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
     expect(state.look(RELEASE, look())).toEqual({ glow: 1, tint: 0, cap: 0 });
   });
 
-  it('KeyD를 떼면 releasing이 되고, 뗀 뒤 첫 렌더 프레임(16ms)은 경과 0을 유지해 눌린 모습을 한 프레임 보이고 다음 프레임(16ms)부터 16ms로 나아간다', () => {
+  it('KeyD를 누르고 그리기 전에 떼면 releasing이 되고, 뗀 뒤 첫 렌더 프레임(16ms)은 경과 0을 유지해 눌린 모습을 한 프레임 보이고 다음 프레임(16ms)부터 16ms로 나아간다', () => {
     const state = new GearButtonState();
     state.press('KeyD', 'single');
     expect(state.release('KeyD')).toBe(true);
@@ -118,6 +127,18 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
     expect([state.phase, state.heldKeys]).toEqual(['pressed', 1]);
     expect(state.release('KeyO')).toBe(true);
     expect([state.phase, state.heldKeys]).toEqual(['releasing', 0]);
+  });
+
+  it('KeyD를 1000ms 동안 그린 뒤 떼면 첫 16ms 프레임부터 cap이 돌아오고 누적 40ms에 cap 1이 된다', () => {
+    const state = new GearButtonState();
+    state.press('KeyD');
+    state.advance(1000, RELEASE);
+    state.release('KeyD');
+    expect(state.advance(16, RELEASE)).toBe(true);
+    expect(state.releaseMs).toBe(16);
+    expect(state.look(RELEASE, look()).cap).toBeCloseTo(0.818, 3);
+    state.advance(24, RELEASE);
+    expect(state.look(RELEASE, look()).cap).toBe(1);
   });
 
   it('누른 적 없는 키(KeyX)를 떼면 무시한다: 대기는 대기, 눌림은 눌림 그대로', () => {
@@ -196,29 +217,6 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
     state.press('KeyO');
     expect(state.color).toBe('single');
   });
-
-  it('resolveColor: 마지막으로 누른 KeyO의 색은 싱글로 고치고, 그 전에 누른 KeyD의 색 알림은 버튼 색을 바꾸지 않는다', () => {
-    const state = new GearButtonState();
-    state.press('KeyD');
-    state.press('KeyO');
-    expect(state.color).toBe('double');
-    expect(state.resolveColor('KeyD', 'single')).toBe(false);
-    expect(state.color).toBe('double');
-    expect(state.resolveColor('KeyO', 'single')).toBe(true);
-    expect(state.color).toBe('single');
-  });
-
-  it('resolveColor: 한 프레임 안에 눌렀다 뗀 KeyD(돌아오는 중)도 색을 더블로 고치고, 대기로 돌아간 뒤의 알림은 무시한다', () => {
-    const state = new GearButtonState();
-    state.press('KeyD');
-    state.release('KeyD');
-    expect(state.resolveColor('KeyD', 'double')).toBe(true);
-    expect([state.phase, state.color]).toEqual(['releasing', 'double']);
-    state.advance(16, RELEASE);
-    state.advance(150, RELEASE);
-    expect(state.phase).toBe('idle');
-    expect(state.resolveColor('KeyD', 'single')).toBe(false);
-  });
 });
 
 describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
@@ -259,7 +257,7 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
-  it('뗀 뒤 첫 렌더 프레임은 tint·glow 알파 1·cap 숨김(경과 0)이고, 다음 렌더 프레임(16ms)에 cap 0.818·glow 0.552·tint 0.829가 된다', () => {
+  it('누른 뒤 그리기 전에 떼면 첫 렌더 프레임은 tint·glow 알파 1·cap 숨김(경과 0)이고, 다음 렌더 프레임(16ms)에 cap 0.818·glow 0.552·tint 0.829가 된다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     buttons.setKey(2, 'KeyD', true, 'single');
     buttons.setKey(2, 'KeyD', false, 'single');
@@ -296,15 +294,15 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     expect(layers(buttons, 1).glow.texture.frame.y).toBe(16);
   });
 
-  it('색을 주지 않고 레인 2에 KeyD·KeyO를 누르면 두 번째 누름에서 더블 frame(glow 아틀라스 y 272)으로 바뀌고, resolvePress(2, KeyO, 싱글)이면 싱글 frame(y 16)으로 돌아온다', () => {
+  it('색을 주지 않고 레인 2에 KeyD·KeyO를 누르면 두 번째 누름에서 더블 frame(glow 아틀라스 y 272)으로 바뀌고, 세 번째 KeyC를 싱글로 누르면 싱글 frame(y 16)으로 돌아온다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     buttons.setKey(2, 'KeyD', true);
     expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
     buttons.setKey(2, 'KeyO', true);
     expect(layers(buttons, 2).glow.texture.frame.y).toBe(272);
-    buttons.resolvePress(2, 'KeyO', 'single');
+    buttons.setKey(2, 'KeyC', true, 'single');
     expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
-    expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 2 });
+    expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 3 });
   });
 
   it('범위 밖 레인 0·5의 입력은 무시하고 어떤 버튼도 보이지 않는다', () => {

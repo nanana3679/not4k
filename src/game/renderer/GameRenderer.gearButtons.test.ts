@@ -124,12 +124,12 @@ describe('GameRenderer 기어 버튼 — 입력과 렌더 프레임', () => {
     expect(renderer.gearButtonStates![1]).toMatchObject({ color: 'single', heldKeys: 1 });
   });
 
-  it('색을 주지 않고 레인 2에 KeyD를 누른 채 KeyO를 누르면 공입력 규칙으로 더블이 되고, resolveGearButtonPress(2, KeyO, 싱글)이 renderFrame 전에 싱글로 고친다', async () => {
+  it('색을 주지 않고 레인 2에 KeyD를 누른 채 KeyO를 누르면 공입력 규칙으로 더블이 되고, 세 번째 KeyC를 싱글로 누르면 첫 렌더 프레임부터 싱글이다', async () => {
     const { renderer } = await createRenderer();
     renderer.setGearButtonKey(2, 'KeyD', true);
     renderer.setGearButtonKey(2, 'KeyO', true);
     expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
-    renderer.resolveGearButtonPress(2, 'KeyO', 'single');
+    renderer.setGearButtonKey(2, 'KeyC', true, 'single');
     renderer.renderFrame(0, 16);
     expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'single' });
   });
@@ -140,7 +140,7 @@ describe('GameRenderer 기어 버튼 — 입력과 렌더 프레임', () => {
     expect(renderer.gearButtonStates![3]).toMatchObject({ phase: 'pressed', color: 'double' });
   });
 
-  it('뗀 버튼은 renderFrame(…, 16)의 렌더 프레임 간격으로만 돌아와 뗀 뒤 첫 프레임 경과 0, 이후 16ms씩 쌓여 150ms에 idle이 된다', async () => {
+  it('그리기 전에 눌렀다 뗀 버튼은 renderFrame(…, 16)의 렌더 프레임 간격으로만 돌아와 뗀 뒤 첫 프레임 경과 0, 이후 16ms씩 쌓여 150ms에 idle이 된다', async () => {
     const { renderer } = await createRenderer();
     renderer.setGearButtonKey(3, 'KeyP', true);
     renderer.setGearButtonKey(3, 'KeyP', false);
@@ -157,7 +157,6 @@ describe('GameRenderer 기어 버튼 — 입력과 렌더 프레임', () => {
     renderer.setGearButtonKey(1, 'KeyQ', true);
     renderer.setGearButtonKey(1, 'KeyQ', false);
     for (let frame = 0; frame < 3; frame++) renderer.renderFrame(frame * 16, 16);
-    expect(renderer.gearButtonStates![0].releaseMs).toBe(32);
     expect(renderer.gearButtonStates![0].releaseMs).toBe(32);
     renderer.renderFrame(48, 16);
     expect(renderer.gearButtonStates![0].releaseMs).toBe(48);

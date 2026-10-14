@@ -196,13 +196,11 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('픽셀 단위 계단');
   });
 
-  it('바인딩된 키를 누르는 동안 키보드 표시를 밝히고 그 레인의 기어 버튼을 누르도록 window keydown·keyup을 렌더러 공개 API setKeyState·setGearButtonKey로만 넘기고(공입력 규칙, Shift는 더블 금색 강제), 창이 포커스를 잃으면 바인딩된 키를 모두 떼며, 키보드 표시 조절에 그 안내를 둔다', () => {
+  it('바인딩된 키를 누르는 동안 키보드 표시를 밝히고 그 레인의 기어 버튼을 누르도록 window keydown·keyup을 렌더러 공개 API setKeyState·setGearButtonKey로만 넘기고(공입력 규칙, Shift는 더블 금색 강제), 창이 포커스를 잃으면 눌렀던 키를 모두 떼며, 키보드 표시 조절에 그 안내를 둔다', () => {
     expect(pageSource).toContain("window.addEventListener('keydown', onStageKey)");
     expect(pageSource).toContain("window.addEventListener('keyup', onStageKey)");
     expect(pageSource).toContain("window.addEventListener('blur', releaseStageKeys)");
-    expect(pageSource).toContain('active.setKeyState(');
-    expect(pageSource).toContain('active.setGearButtonKey(lane, event.code, pressed, labGearButtonColor(event.shiftKey))');
-    expect(pageSource).toContain('active.setGearButtonKey(lane, code, false)');
+    expect(pageSource).toContain('createGearPreviewInput(active, () => keyboardRef.current)');
     // 렌더러를 정리할 때 리스너도 함께 뗀다.
     expect(pageSource).toContain("window.removeEventListener('keydown', onStageKey)");
     expect(pageSource).toContain("window.removeEventListener('keyup', onStageKey)");

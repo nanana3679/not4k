@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { NoteEntity } from "../../shared";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
 import { NoteJudgmentSession } from "./NoteJudgmentSession";
+import type { JudgmentInput } from "./NoteJudgmentCore";
 import { body, createHarness, down, point, up } from "./noteJudgmentTestHarness";
 
 // onDownConsumed는 기어 버튼 색처럼 "이 누름이 어느 노트를 쳤는가"만 필요한 표시를 위한 관찰이다(판정 결과는 바꾸지 않는다).
@@ -12,6 +13,40 @@ function observe(notes: readonly NoteEntity[]) {
 }
 
 describe("NoteJudgmentCore onDownConsumed — keydown이 노트에 소비된 순간만 알림", () => {
+  it("1000ms single 헤드와 doubleLong 바디를 A·B로 누르면 A는 노트 0(single), B는 노트 1(doubleLong)을 소비한다", () => {
+    const h = observe([point(1000), body(1000, 2000, "doubleLong")]);
+    h.at(1000, down("A"), down("B"));
+    expect(h.consumed).toEqual([["A", 1, 0], ["B", 1, 1]]);
+  });
+
+  it("정상 1000ms·늦게 관측한 raw1010ms 배치에서 입력 관찰 직후 소비를 알리고, 관찰 유무가 판정·점수·효과·바디 상태를 바꾸지 않는다", () => {
+    const notes = [point(1000), body(1000, 2000), point(1010, "single", 2)];
+    const compiled = compileJudgmentChart(notes, [1000, 1000, 1010], new Map([[1, 2000]]));
+    const run = (observeInputs: boolean) => {
+      const order: string[] = [];
+      const session = new NoteJudgmentSession(compiled, observeInputs ? {
+        onDownConsumed: (key, _lane, noteIndex) => order.push(`consumed ${key} ${noteIndex}`),
+      } : {});
+      const observer = observeInputs ? (input: JudgmentInput) => { order.push(`${input.type} ${input.key}`); } : undefined;
+      session.processBatch(1000, [down("A")], observer);
+      session.advance(1080);
+      session.processObservedBatch(1010, [down("B", 2), up("A")], 1080, observer);
+      const score = session.finalize();
+      return { order, result: { events: session.events, effects: session.effects, bodies: session.bodyStates, score } };
+    };
+    const observed = run(true);
+    expect(observed.order).toEqual(['down A', 'consumed A 0', 'up A', 'down B', 'consumed B 2']);
+    expect(observed.result).toEqual(run(false).result);
+  });
+
+  it("1000ms 길이 0 holdOnly 앞 900ms의 A down은 공입력이라 알리지 않아도 held 상태로 1000ms에 Perfect가 된다", () => {
+    const h = observe([body(1000, 1000, "long", true)]);
+    h.at(900, down("A"));
+    h.core.advance(1000);
+    expect(h.consumed).toEqual([]);
+    expect(h.events).toMatchObject([{ kind: "holdOnly", grade: "perfect", consumed: false }]);
+  });
+
   it("1000ms 싱글 노트(레인 2)를 1010ms에 누르면 키 A·레인 2·노트 0을 한 번 알린다", () => {
     const h = observe([point(1000, "single", 2)]);
     h.at(1010, down("A", 2));

@@ -1,54 +1,60 @@
 import type { NoteEntity } from '../../shared';
+import type { JudgmentInput } from '../judgment/NoteJudgmentCore';
 import { gearButtonPressColor, type GearButtonColor } from '../renderer/gearButtons';
 
-/** 판정이 정한 누름 색을 받는 쪽(`GameRenderer.resolveGearButtonPress`). */
+/** 판정 적용 순서로 누름·뗌을 받는 쪽(`GameRenderer.setGearButtonKey`). */
 export interface GearButtonPressTarget {
-  resolveGearButtonPress(lane: number, key: string, color: GearButtonColor): void;
+  setGearButtonKey(lane: number, key: string, pressed: boolean, color?: GearButtonColor): void;
 }
 
-interface PressColor {
+interface GearButtonInput {
+  type: 'down' | 'up';
   lane: number;
   key: string;
-  color: GearButtonColor;
+  consumedNoteIndex: number | null;
 }
 
+const emptyRecord = (): GearButtonInput => ({ type: 'up', lane: 0, key: '', consumedNoteIndex: null });
+
 /**
- * 플레이 화면의 기어 버튼 색 중 "노트를 친 누름"의 색을 판정에서 받아 렌더 프레임을 그리기 직전에 넘긴다.
- *
- * 키를 누르면 렌더러는 곧바로 공입력 규칙(그 레인에 누르고 있는 키 수)의 색으로 버튼을 누른다. 그 누름이 노트를 쳤는지는 게임 루프가
- * `stepPlaySession`으로 입력 큐를 비울 때 판정 core가 keydown을 노트에 소비하면서 알린다(`onDownConsumed`). 이 객체가 그 알림을 모아 두었다가,
- * 같은 렌더 프레임의 `AutoPlayer` 누름까지 렌더러에 넘긴 뒤 `flush`로 노트 규칙의 색(친 노트가 더블이면 금색)을 넘긴다. 렌더러는 `renderFrame`
- * 안에서만 그리므로, 누름이 처음 보이는 프레임에는 이미 맞는 색이다.
- * 알림은 키 누름마다 한 번이고, 기록 칸은 처음 쓸 때만 만들어 다시 쓴다(렌더 프레임마다 객체를 만들지 않는다).
+ * 한 렌더 프레임의 판정 입력 기록기. `playSessionInput` drain이 넘긴 관찰자를 core가 입력 적용 직전에 부른다.
+ * 수동·AutoPlayer 입력 모두 시간순, 같은 timestamp 안에서는 core가 실제 적용하는 순서로 down/up을 기록한다.
+ * 이어지는 press 안의 동기 `onDownConsumed`가 바로 그 down에 소비된 노트 index를 붙인다(판정 규칙은 바꾸지 않음).
+ * `renderFrame` 직전 flush가 같은 순서로 렌더러를 누르고 뗀다. 소비된 down은 노트 종류로, 공입력은 재생 중 그 순간의
+ * held 키 수(합성 키 포함)로 색을 정하므로 같은 키의 재누름에도 이전 누름의 색이 섞이지 않는다.
+ * 기록 칸 64개를 미리 만들고 재사용한다. 한 프레임의 입력 수가 기존 최대 용량을 넘을 때만 늘리며, flush는 할당하지 않는다.
  */
 export class GearButtonPressColors {
-  private readonly records: PressColor[] = [];
+  private readonly records: GearButtonInput[] = Array.from({ length: 64 }, emptyRecord);
   private count = 0;
 
-  /** notes는 판정 core와 같은 노트 배열(`CompiledJudgmentChart.rawNotes`)이다. noteIndex로 친 노트의 종류를 찾는다. */
+  /** notes는 판정 core와 같은 노트 배열(`CompiledJudgmentChart.rawNotes`)이다. */
   constructor(private readonly notes: readonly NoteEntity[]) {}
 
-  /** `NoteJudgmentSession`의 `onDownConsumed`: keydown이 noteIndex 노트에 소비됐다. */
-  readonly onDownConsumed = (key: string, lane: number, noteIndex: number): void => {
-    const type = this.notes[noteIndex]?.type ?? null;
-    if (type === null) return;
-    const record = this.records[this.count] ?? (this.records[this.count] = { lane: 0, key: '', color: 'single' });
-    record.lane = lane;
-    record.key = key;
-    record.color = gearButtonPressColor(type, 0);
+  readonly onInput = (input: JudgmentInput): void => {
+    const record = this.records[this.count] ?? (this.records[this.count] = emptyRecord());
+    record.type = input.type === 'down' || input.type === 'press' ? 'down' : 'up';
+    record.lane = input.lane ?? 1;
+    record.key = input.key;
+    record.consumedNoteIndex = null;
     this.count += 1;
   };
 
-  /** 아직 넘기지 않은 노트 친 누름 수. */
-  get pending(): number {
-    return this.count;
-  }
+  /** 직전에 관찰한 down의 press 호출 안에서만 동기적으로 발생하는 소비 알림. */
+  readonly onDownConsumed = (key: string, lane: number, noteIndex: number): void => {
+    const record = this.records[this.count - 1];
+    if (record?.type === 'down' && record.key === key && record.lane === lane) record.consumedNoteIndex = noteIndex;
+  };
 
-  /** 모아 둔 색을 판정 순서대로 target에 넘기고 비운다. 게임 루프가 `renderFrame` 직전에 부른다. */
+  /** 이번 프레임에 아직 재생하지 않은 down/up 수. */
+  get pending(): number { return this.count; }
+
   flush(target: GearButtonPressTarget): void {
     for (let index = 0; index < this.count; index++) {
       const record = this.records[index];
-      target.resolveGearButtonPress(record.lane, record.key, record.color);
+      const note = record.consumedNoteIndex === null ? undefined : this.notes[record.consumedNoteIndex];
+      // 색을 생략하면 renderer가 이 down을 held에 추가한 직후의 키 수로 공입력 색을 정한다.
+      target.setGearButtonKey(record.lane, record.key, record.type === 'down', note ? gearButtonPressColor(note.type, 0) : undefined);
     }
     this.count = 0;
   }

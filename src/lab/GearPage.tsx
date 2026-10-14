@@ -7,6 +7,7 @@ FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정�
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { createGearPreviewInput } from './gearPreviewInput';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from '../game/renderer/gearLayout';
@@ -29,7 +30,6 @@ import {
   formatGaugeLevel,
   formatGearButtonStates,
   formatGearOffsetY,
-  labGearButtonColor,
   formatLiftPercent,
   GEAR_OFFSET_Y_MAX,
   GEAR_OFFSET_Y_STEP,
@@ -947,19 +947,7 @@ function GearPreviewRenderer({
         // 키보드 표시·기어 버튼 눌림: 게임처럼 바인딩된 키를 누르는 동안 그 키를 밝히고 그 레인의 기어 버튼을 누른다.
         // 데모 노트 판정·키빔에는 넣지 않으므로 키 입력은 모두 공입력이고, 게임처럼 한 레인에 키를 둘 이상 누르면 더블 금색이다.
         // Shift를 함께 누르면 Lab 확인용으로 더블 금색을 강제한다.
-        const onStageKey = (event: KeyboardEvent) => {
-          const pressed = event.type === 'keydown';
-          active.setKeyState(event.code, pressed);
-          const lane = keyboardRef.current.get(event.code);
-          if (lane !== undefined) active.setGearButtonKey(lane, event.code, pressed, labGearButtonColor(event.shiftKey));
-        };
-        // 누른 채 창을 떠나면 keyup이 오지 않으므로 바인딩된 키를 모두 뗀다.
-        const releaseStageKeys = () => {
-          for (const [code, lane] of keyboardRef.current) {
-            active.setKeyState(code, false);
-            active.setGearButtonKey(lane, code, false);
-          }
-        };
+        const { onKey: onStageKey, releaseAll: releaseStageKeys } = createGearPreviewInput(active, () => keyboardRef.current);
         window.addEventListener('keydown', onStageKey);
         window.addEventListener('keyup', onStageKey);
         window.addEventListener('blur', releaseStageKeys);

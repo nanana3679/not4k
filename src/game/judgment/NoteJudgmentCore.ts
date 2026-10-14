@@ -80,6 +80,8 @@ interface UnitState {
 }
 interface PointState { noteIndex: number; at: number; lane: number; needed: number; done: boolean; missed: boolean; keys: Set<string> }
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
+/** 표시 전용: 정렬된 입력을 적용하기 직전에 관찰한다. down의 소비 알림은 이어지는 press 안에서 동기적으로 발생한다. */
+export type JudgmentInputObserver = (input: JudgmentInput) => void;
 
 function timeAt(value: ReadonlyMap<number, number> | readonly (number | undefined)[], index: number): number | undefined {
   return Array.isArray(value) ? value[index] : (value as ReadonlyMap<number, number>).get(index);
@@ -263,7 +265,7 @@ export class NoteJudgmentCore {
   get confirmed(): readonly NoteJudgmentEvent[] { return this.events; }
   get corrections(): ReadonlyMap<string, ConnectionCorrections> { return this.correctionLedgers; }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.prepareInputAt(at);
     // Deadlines crossed while moving to this timestamp are a prior logical
     // phase. They must be delivered before the current input batch and never
@@ -275,6 +277,7 @@ export class NoteJudgmentCore {
     this.batchingEvents = [];
     try {
       for (const input of this.orderInputs(inputs)) {
+        observeInput?.(input);
         if (input.type === "press" || input.type === "down") this.press(input.key, at, input.lane);
         else this.release(input.key, at, input.lane);
       }
@@ -295,7 +298,7 @@ export class NoteJudgmentCore {
    * clock is monotonic; rawAt is retained at this seam for adapters that
    * attach raw timing metadata while the state transition is observed now.
    */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     if (observedAt < this.now) throw new Error("관측 시각은 core 시간보다 과거일 수 없습니다");
     this.sweepBefore(observedAt);
     this.now = observedAt;
@@ -305,6 +308,7 @@ export class NoteJudgmentCore {
     this.batchingEvents = [];
     try {
       for (const selected of this.orderInputs(inputs)) {
+        observeInput?.(selected);
         if (selected.type === "up" || selected.type === "release") this.release(selected.key, rawAt, selected.lane);
         else this.press(selected.key, rawAt, selected.lane);
       }
@@ -345,6 +349,9 @@ export class NoteJudgmentCore {
       return;
     }
     const candidate = startCandidate;
+    // 정상 컴파일된 차트에서는 아래 fallback에 도달할 수 없다. pointCandidate가 없으면 위 start 분기가 이미 반환하고,
+    // 있으면 points에도 같은 노트가 있으며 peek가 이미 사용한 키를 제외하므로 위 point 분기가 반드시 소비하고 반환한다.
+    // 두 키 집합은 point 소비 시 함께 갱신된다. 판정 동작은 유지하고 방어적 fallback을 남긴다.
     if (candidate) {
       token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false);
       this.onDownConsumed?.(key, token.lane, candidate.noteIndex);
