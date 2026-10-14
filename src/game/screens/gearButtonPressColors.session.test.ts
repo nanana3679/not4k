@@ -140,6 +140,31 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'releasing', heldKeys: 0 });
   });
 
+  it('일시정지 중 down 995·up 999·down 997ms로 들어가 down·down·up 순서면 판정 core처럼 뗀 모습이 되고 다음 뗌·누름에서 정상으로 돌아온다', () => {
+    const p = play([]);
+    p.frame(900);
+    p.input(995, 'A', 'down');
+    p.input(999, 'A', 'up');
+    p.input(997, 'A', 'down');
+    p.frame(1010);
+    expect(p.state).toMatchObject({ phase: 'releasing', heldKeys: 0 });
+    p.input(1100, 'A', 'up');
+    p.frame(1110);
+    p.input(1200, 'A', 'down');
+    p.frame(1210);
+    expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1 });
+  });
+
+  it('자동 구간에서 0~1000ms doubleLong 뒤 1000ms single 헤드·1000~2000ms doubleLong을 AutoPlayer가 이어 눌러도 끝나면 버튼이 눌린 채 남지 않는다', () => {
+    const p = play([body(0, 1000, 'doubleLong'), point(1000), body(1000, 2000, 'doubleLong')], true);
+    for (let at = 0; at <= 3000; at += 100) p.frame(at);
+    expect(p.state).toMatchObject({ heldKeys: 0 });
+    expect(p.state.phase).not.toBe('pressed');
+    p.input(3050, 'A', 'down');
+    p.frame(3100);
+    expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1, color: 'single' });
+  });
+
   it('1000ms single 헤드·doubleLong 바디에 A·B를 누르면 A는 연파랑, 남은 unit을 시작한 B는 금색으로 재생한다', () => {
     const p = play([point(1000), body(1000, 2000, 'doubleLong')]);
     p.input(1000, 'A', 'down');
