@@ -1,53 +1,65 @@
-import { describe, it, expect } from "vitest";
-import { GameClock, type ClockAudioSource } from "./GameClock";
+import { describe, it, expect, vi } from "vitest";
+import { GameClock } from "./GameClock";
 
-/** currentTimeMs와 출력 지연을 마음대로 고정할 수 있는 fake 오디오 소스. */
-function fakeAudio(currentTimeMs: number, outputLatencyMs = 0): ClockAudioSource {
-  return {
-    currentTimeMs,
-    getOutputLatencyMs: () => outputLatencyMs,
-  };
+function fakeAudio(currentTimeMs: number, outputLatencyMs = 0, playbackRate = 1) {
+  return { currentTimeMs, playbackRate, getOutputLatencyMs: vi.fn(() => outputLatencyMs) };
 }
 
 describe("GameClock", () => {
-  it("currentTime 1000ms·audioOffset 20ms면 판정 시간 1020ms", () => {
-    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 });
-    expect(clock.judgmentTimeMs()).toBe(1020);
+  it("P=1000ms·L₀=15ms·오프셋 0이면 J와 V와 입력 시간은 985ms", () => {
+    const clock = new GameClock(fakeAudio(1000, 15), { inputOffsetMs: 0, visualOffsetMs: 0 }, () => 5000);
+    expect(clock.judgmentTimeMs()).toBe(985);
+    expect(clock.visualTimeMs()).toBe(985);
+    expect(clock.toInputTimeMs(5000)).toBe(985);
   });
 
-  it("출력 지연 15ms면 시각 시간 = 판정 시간 + 15ms", () => {
-    const clock = new GameClock(fakeAudio(1000, 15), { audioOffsetMs: 20, judgmentOffsetMs: 0 });
-    expect(clock.visualTimeMs()).toBe(1035);
-    // 불변: 시각 시간 − 판정 시간 === 출력 지연
-    expect(clock.visualTimeMs() - clock.judgmentTimeMs()).toBe(15);
+  it.each([
+    { rate: 0.5, judgment: 990, visual: 1005, input: 983.5 },
+    { rate: 1, judgment: 980, visual: 1010, input: 967 },
+    { rate: 2, judgment: 960, visual: 1020, input: 934 },
+    { rate: 4, judgment: 920, visual: 1040, input: 868 },
+  ])("r=$rate·P=1000·L₀=20·시각 +30·입력 −5·지연 8ms이면 J=$judgment·V=$visual·입력=$input ms", ({ rate, judgment, visual, input }) => {
+    const clock = new GameClock(fakeAudio(1000, 20, rate), { inputOffsetMs: -5, visualOffsetMs: 30 }, () => 5000);
+    expect(clock.judgmentTimeMs()).toBe(judgment);
+    expect(clock.visualTimeMs()).toBe(visual);
+    expect(clock.toInputTimeMs(4992)).toBe(input);
   });
 
-  it("핸들러 지연 8ms면 입력 시간이 판정 시간보다 8ms 앞당겨짐", () => {
-    // now()=1000, eventTimeStamp=992 → handlerDelay=8
-    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 }, () => 1000);
-    // 판정 시간 1020 − 핸들러 지연 8 + 입력 오프셋 0 = 1012
-    expect(clock.toInputTimeMs(992)).toBe(1012);
-    expect(clock.judgmentTimeMs() - clock.toInputTimeMs(992)).toBe(8);
+  it("입력 +20ms·시각 −30ms이면 J=985ms는 유지하고 입력=1005ms·V=955ms로 이동한다", () => {
+    const clock = new GameClock(fakeAudio(1000, 15), { inputOffsetMs: 20, visualOffsetMs: -30 }, () => 5000);
+    expect(clock.judgmentTimeMs()).toBe(985);
+    expect(clock.visualTimeMs()).toBe(955);
+    expect(clock.toInputTimeMs(5000)).toBe(1005);
   });
 
-  it("입력 오프셋 −5ms면 입력 시간에 −5ms 반영", () => {
-    // handlerDelay=0(now=eventTimeStamp), 판정 시간 1020 − 0 + (−5) = 1015
-    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: -5 }, () => 1000);
-    expect(clock.toInputTimeMs(1000)).toBe(1015);
+  it("r=2에서 timestamp가 8ms 미래면 handlerDelay=0으로 제한해 입력=970ms를 유지한다", () => {
+    const clock = new GameClock(fakeAudio(1000, 15, 2), { inputOffsetMs: 0, visualOffsetMs: 0 }, () => 5000);
+    expect(clock.toInputTimeMs(5008)).toBe(970);
   });
 
-  it("eventTimeStamp가 미래(now보다 큼)면 핸들러 지연 0으로 클램프", () => {
-    // now()=1000, eventTimeStamp=1008 → now−eventTs=−8 → max(0,−8)=0
-    const clock = new GameClock(fakeAudio(1000), { audioOffsetMs: 20, judgmentOffsetMs: 0 }, () => 1000);
-    // 음수 보정 없이 판정 시간 그대로 = 1020
-    expect(clock.toInputTimeMs(1008)).toBe(1020);
+  it("L₀=15ms로 생성 후 소스 지연이 80ms로 바뀌어도 첫 프레임과 다음 프레임은 15ms만 뺀다", () => {
+    const audio = fakeAudio(1000, 15);
+    const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => 5000);
+    audio.getOutputLatencyMs.mockReturnValue(80);
+    expect(clock.judgmentTimeMs()).toBe(985);
+    audio.currentTimeMs = 2000;
+    expect(clock.visualTimeMs()).toBe(1985);
+    expect(clock.toInputTimeMs(5000)).toBe(1985);
+    expect(audio.getOutputLatencyMs).toHaveBeenCalledTimes(1);
   });
 
-  it("일시정지로 currentTimeMs가 고정이면 세 시간 모두 고정값 유지", () => {
-    // 일시정지 시 audio.currentTimeMs는 변하지 않는다 → 클럭은 게임 상태를 안 들고 그 값을 읽기만 한다
-    const clock = new GameClock(fakeAudio(3000, 10), { audioOffsetMs: 0, judgmentOffsetMs: 0 }, () => 5000);
-    expect(clock.judgmentTimeMs()).toBe(3000);
-    expect(clock.visualTimeMs()).toBe(3010);
-    expect(clock.toInputTimeMs(5000)).toBe(3000);
+  it("P=0·L₀=20ms·r=2이면 첫 J=−40ms를 0으로 제한하지 않는다", () => {
+    const clock = new GameClock(fakeAudio(0, 20, 2), { inputOffsetMs: 0, visualOffsetMs: 0 });
+    expect(clock.judgmentTimeMs()).toBe(-40);
+  });
+
+  it("일시정지로 P=3000ms가 고정이면 실제 시간이 1초 지나도 J·V·현재 입력은 2990ms다", () => {
+    let now = 5000;
+    const clock = new GameClock(fakeAudio(3000, 10), { inputOffsetMs: 0, visualOffsetMs: 0 }, () => now);
+    expect(clock.toInputTimeMs(now)).toBe(2990);
+    now += 1000;
+    expect(clock.judgmentTimeMs()).toBe(2990);
+    expect(clock.visualTimeMs()).toBe(2990);
+    expect(clock.toInputTimeMs(now)).toBe(2990);
   });
 });

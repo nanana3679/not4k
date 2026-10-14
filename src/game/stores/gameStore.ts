@@ -17,8 +17,8 @@ interface GameSettings {
   scrollSpeed: number;
   liftPercent: number;
   suddenPercent: number;
-  audioOffsetMs: number;
-  judgmentOffsetMs: number;
+  visualOffsetMs: number;
+  inputOffsetMs: number;
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
@@ -106,8 +106,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   scrollSpeed: 800,
   liftPercent: 0,
   suddenPercent: 0,
-  audioOffsetMs: 0,
-  judgmentOffsetMs: 0,
+  visualOffsetMs: 0,
+  inputOffsetMs: 0,
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
@@ -122,6 +122,15 @@ const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 1.0,
 };
 
+export const TIMING_OFFSET_LIMIT_MS = 1000;
+
+/** 입력·시각 오프셋은 실제 시간 ±1000ms로 제한하고 잘못된 값은 기본 0ms로 둔다. */
+export function clampTimingOffsetMs(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(-TIMING_OFFSET_LIMIT_MS, Math.min(TIMING_OFFSET_LIMIT_MS, value))
+    : 0;
+}
+
 /** @internal 테스트용으로 export. persist merge 콜백. */
 export function mergePersistedSettings(
   persisted: unknown,
@@ -130,11 +139,11 @@ export function mergePersistedSettings(
   const p = persisted as { settings?: Partial<GameSettings> };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
-  // Migration: 기존 offsetMs → audioOffsetMs
-  const raw = p.settings as Record<string, unknown> | undefined;
-  if (raw && 'offsetMs' in raw && !('audioOffsetMs' in raw)) {
-    merged.audioOffsetMs = raw.offsetMs;
-  }
+  merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
+  merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
+  // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
+  delete merged.audioOffsetMs;
+  delete merged.judgmentOffsetMs;
   delete merged.offsetMs;
   // #231에서 설정 이름을 frameMotion → gearMotion으로 바꿨다(미출시라 값은 옮기지 않는다). 옛 키는 남기지 않는다.
   delete merged.frameMotion;

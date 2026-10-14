@@ -55,8 +55,8 @@ describe('플레이 화면의 gearMotion 에셋 대기(필수 에셋)', () => {
     expect(playScreenSource).not.toContain('setAttachDeferred');
   });
 
-  it('플레이 화면은 스킨 읽기와 gearMotion 에셋을 함께 기다린다(Promise.all에 loadSkin과 keptMotion.ready)', () => {
-    expect(playScreenSource).toMatch(/Promise\.all\(\[skinManager\.loadSkin\(skin\), keptMotion\?\.ready\]\)/);
+  it('플레이 화면은 스킨·gearMotion·L₀ 준비 3개를 함께 기다린 뒤 재생한다', () => {
+    expect(playScreenSource).toMatch(/Promise\.all\(\[skinManager\.loadSkin\(skin\), keptMotion\?\.ready, audioEngine\.prepareForPlayback\(\)\]\)/);
   });
 
   it('플레이 화면의 keep-alive 조건은 설정 `Gear Motion`뿐이다(keepGearMotionAssets(settings.gearMotion), prefers-reduced-motion 검사 없음, RFD 0030)', () => {

@@ -14,7 +14,7 @@ import { font, color, surface, edge, radius, primitives } from '../../shared/the
 import { SkinManager } from '../skin';
 import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
-import { finishPlaySession, stepPlaySession } from './playSessionInput';
+import { canFinishPlaySession, finishPlaySession, stepPlaySession } from './playSessionInput';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
 
 export function PlayScreen() {
@@ -40,7 +40,7 @@ export function PlayScreen() {
   const handleSongEnd = () => {
     const session = sessionRef.current;
     if (!session || !chartData) return;
-    // 늦게 누르는 사람의 보정(음수 입력 오프셋)에서는 곡 끝 직전 auto 입력이 아직 없을 수 있어, 남은 auto 입력까지 넣고 큐를 비운 뒤 정산한다.
+    // J와 진행 상한이 곡 끝·마지막 판정 기한을 통과한 뒤에만 큐를 비우고 정산한다.
     // 곡 끝은 게임 루프에서만 부르고, 루프는 세션·입력 큐·autoPlayer를 모두 만든 뒤에 시작한다.
     if (inputTimelineRef.current && autoPlayerRef.current) finishPlaySession(inputTimelineRef.current, session, autoPlayerRef.current);
 
@@ -119,19 +119,13 @@ export function PlayScreen() {
         const audioEngine = new AudioEngine();
         audioEngine.masterVolume = settings.masterVolume ?? 1;
         audioEngine.playbackRate = settings.playSpeed;
-        // 이 플레이 세션의 시간 권위. 판정/시각/입력 시간을 단일 출처에서 파생한다.
-        // offset은 세션 동안 불변이므로 여기서 캡처한다.
-        const gameClock = new GameClock(audioEngine, {
-          audioOffsetMs: settings.audioOffsetMs,
-          judgmentOffsetMs: settings.judgmentOffsetMs,
-        });
         // `gearMotion`(기어 위 장식 애니메이션) 에셋은 스킨 텍스처처럼 곡 시작 전에 꼭 있어야 한다(RFD 0029). 설정이 켜진 동안 lease를 keep-alive로 두어 재시도·다음 곡은
         // 받아 둔 것을 쓰고, 스킨 읽기와 함께 시간 제한 없이 기다린다. 읽지 못하면 스킨을 읽지 못했을 때와 같이 아래 catch의 오류 화면으로 간다.
         // 유지 여부는 설정 `Gear Motion`만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
         const keptMotion = keepGearMotionAssets(settings.gearMotion);
         const skinManager = new SkinManager();
         try {
-          await Promise.all([skinManager.loadSkin(skin), keptMotion?.ready]);
+          await Promise.all([skinManager.loadSkin(skin), keptMotion?.ready, audioEngine.prepareForPlayback()]);
         } catch (loadError) {
           // 한쪽이 실패해도 다른 쪽이 읽은 텍스처·오디오 장치를 남기지 않는다.
           skinManager.dispose();
@@ -139,6 +133,11 @@ export function PlayScreen() {
           throw loadError;
         }
         if (cancelled) { skinManager.dispose(); audioEngine.dispose(); return; }
+        // L₀ 확정 뒤 만들어 첫 판정·렌더 프레임부터 고정된 값을 쓴다.
+        const gameClock = new GameClock(audioEngine, {
+          inputOffsetMs: settings.inputOffsetMs,
+          visualOffsetMs: settings.visualOffsetMs,
+        });
         const renderer = new GameRenderer({
           canvas: canvasRef.current,
           width: logicalW,
@@ -186,7 +185,7 @@ export function PlayScreen() {
         // Create debug logger if debug mode is enabled — 리프트를 반영한 렌더러의 판정선 y를 그대로 쓴다.
         const judgmentLineY = renderer.judgmentLineY;
         const debugLogger = settings.debugMode
-          ? new DebugLogger(settings.scrollSpeed, judgmentLineY)
+          ? new DebugLogger(settings.scrollSpeed, judgmentLineY, audioEngine.playbackRate)
           : null;
         debugLoggerRef.current = debugLogger;
 
@@ -205,7 +204,7 @@ export function PlayScreen() {
             const isBody = event.kind !== 'head';
             const positionMs = isBody ? noteEndTimesMs.get(event.noteIndex) : noteTimesMs.get(event.noteIndex);
             if (positionMs === undefined) return;
-            const noteCenterY = judgmentLineY - ((positionMs - gameClock.judgmentTimeMs()) * settings.scrollSpeed) / 1000;
+            const noteCenterY = judgmentLineY - ((positionMs - gameClock.visualTimeMs()) * settings.scrollSpeed) / 1000;
             debugLogger.recordJudgment(event.noteIndex, noteCenterY, event.grade, event.deltaMs, event.unitIndex, isBody);
           },
         };
@@ -289,11 +288,11 @@ export function PlayScreen() {
               renderer.setKeyBeam(event.lane, event.type === 'press');
             }
 
-            // Render frame (오디오 출력 레이턴시만큼 미래 시각으로 렌더링)
+            // 소리 기준 시각 시간 V로 노트·마디선·구간을 그린다.
             renderer.renderFrame(visualTimeMs, frameDeltaMs);
 
             // Check if song ended
-            if (audioEngine.currentTimeMs >= audioEngine.duration && audioEngine.duration > 0) {
+            if (canFinishPlaySession(session, gameClock, audioEngine.duration, timestamp)) {
               handleSongEnd();
               return;
             }
@@ -305,7 +304,8 @@ export function PlayScreen() {
         };
 
         // 곡 중 쓸 텍스처를 전부 GPU 업로드하고 첫 프레임을 그려 셰이더·마스크를 준비한다(곡 시작 전 준비).
-        renderer.prepareForPlayback(startTimeMs);
+        // 재생 전 P = 0을 전제하므로 startTimeMs + (visualOffsetMs − L₀)·r과 같다.
+        renderer.prepareForPlayback(startTimeMs + gameClock.visualTimeMs());
 
         // Start audio playback
         audioEngine.play(startTimeMs);

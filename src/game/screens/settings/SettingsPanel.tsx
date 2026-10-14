@@ -3,6 +3,7 @@ import { AVAILABLE_SKINS } from '../../skin';
 import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
+import { OffsetRow } from './OffsetRow';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
@@ -18,8 +19,6 @@ interface SettingsPanelProps {
    * 패널은 "어디로 가는지"를 모른 채 닫기 의사만 전달한다.
    */
   onClose: () => void;
-  /** 오프셋 보정 뷰로 전환하는 동작. 모달 래퍼가 내부 뷰 전환을 주입한다. */
-  onCalibrate: () => void;
 }
 
 const SECTIONS: { id: SectionId; label: string }[] = [
@@ -39,14 +38,14 @@ const KB_KEYS = [...KB_TKL_KEYS, ...KB_NUMPAD_KEYS];
 const KB_W = Math.max(...KB_KEYS.map((k) => k.x + (k.w ?? 1)));
 const KB_H = Math.max(...KB_KEYS.map((k) => k.y + (k.h ?? 1)));
 
-export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
+export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { settings, updateSettings } = useGameStore();
   const [section, setSection] = useState<SectionId>('controls');
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [audioOffsetText, setAudioOffsetText] = useState(String(settings.audioOffsetMs));
-  const [judgmentOffsetText, setJudgmentOffsetText] = useState(String(settings.judgmentOffsetMs));
+  const [inputOffsetText, setInputOffsetText] = useState(String(settings.inputOffsetMs));
+  const [visualOffsetText, setVisualOffsetText] = useState(String(settings.visualOffsetMs));
 
   useEffect(() => {
     return () => {
@@ -178,26 +177,21 @@ export function SettingsPanel({ onClose, onCalibrate }: SettingsPanelProps) {
                   min={0} max={1} step={0.01}
                   onChange={(v) => updateSettings({ masterVolume: v })}
                 />
-                <NumberRow
-                  label="Audio Offset"
+                <OffsetRow
+                  label="Input Offset"
                   unit="ms"
-                  text={audioOffsetText}
-                  onText={setAudioOffsetText}
-                  onCommit={(n) => { updateSettings({ audioOffsetMs: n }); setAudioOffsetText(String(n)); }}
+                  text={inputOffsetText}
+                  onText={setInputOffsetText}
+                  onCommit={(n) => { updateSettings({ inputOffsetMs: n }); setInputOffsetText(String(n)); }}
                 />
-                <NumberRow
-                  label="Judgment Offset"
+                <OffsetRow
+                  label="Visual Offset"
                   unit="ms"
-                  text={judgmentOffsetText}
-                  onText={setJudgmentOffsetText}
-                  onCommit={(n) => { updateSettings({ judgmentOffsetMs: n }); setJudgmentOffsetText(String(n)); }}
+                  text={visualOffsetText}
+                  onText={setVisualOffsetText}
+                  onCommit={(n) => { updateSettings({ visualOffsetMs: n }); setVisualOffsetText(String(n)); }}
                 />
-                <div className="stg-row stg-row--action">
-                  <span className="stg-row-label">Calibrate offsets</span>
-                  <button className="stg-btn stg-btn--accent" onClick={onCalibrate}>
-                    Calibrate…
-                  </button>
-                </div>
+                {/* RFD 0031 PR 2·3에서 새 보정 경로와 함께 Calibrate 진입을 되살린다. */}
               </Group>
 
               <Group title="Judgment">
@@ -481,30 +475,6 @@ function SelectRow({
       <select className="stg-select" value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-    </div>
-  );
-}
-
-function NumberRow({
-  label, unit, text, onText, onCommit,
-}: {
-  label: string; unit: string; text: string;
-  onText: (v: string) => void; onCommit: (n: number) => void;
-}) {
-  return (
-    <div className="stg-row">
-      <span className="stg-row-label">{label}</span>
-      <div className="stg-number-wrap">
-        <input
-          type="number"
-          className="stg-number"
-          value={text}
-          aria-label={`${label} (${unit})`}
-          onChange={(e) => onText(e.target.value)}
-          onBlur={() => { const n = Number(text); onCommit(isNaN(n) ? 0 : n); }}
-        />
-        <span className="stg-number-unit">{unit}</span>
-      </div>
     </div>
   );
 }
