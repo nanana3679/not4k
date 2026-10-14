@@ -27,11 +27,15 @@ const emptyRecord = (): GearButtonInput => ({ type: 'up', lane: 0, key: '', cons
 export class GearButtonPressColors {
   private readonly records: GearButtonInput[] = Array.from({ length: 64 }, emptyRecord);
   private count = 0;
+  /** 재생으로 렌더러에 눌러 둔 키. 프레임을 넘어 렌더러의 키 상태와 같게 유지한다. */
+  private readonly heldKeys = new Set<string>();
+  /** 이번 flush에서 아직 누르지 않은 키의 뗌. 같은 flush의 그 키 down 바로 뒤에 적용한다. */
+  private readonly pendingUps = new Set<string>();
 
   /** notes는 판정 core와 같은 노트 배열(`CompiledJudgmentChart.rawNotes`)이다. */
   constructor(private readonly notes: readonly NoteEntity[]) {}
 
-  readonly onInput = (input: JudgmentInput): void => {
+  readonly onInput = (input: Readonly<JudgmentInput>): void => {
     const record = this.records[this.count] ?? (this.records[this.count] = emptyRecord());
     record.type = input.type === 'down' || input.type === 'press' ? 'down' : 'up';
     record.lane = input.lane ?? 1;
@@ -49,13 +53,30 @@ export class GearButtonPressColors {
   /** 이번 프레임에 아직 재생하지 않은 down/up 수. */
   get pending(): number { return this.count; }
 
+  /**
+   * 기록을 같은 순서로 렌더러에 재생한다. 일시정지 중에는 J가 멈춘 채 handlerDelay만 빠져 같은 키의 뗌이 누름보다 이른 시각으로
+   * 큐에 들어갈 수 있다(예: down 999ms, up 996ms). 그러면 up이 먼저 오므로, 아직 누르지 않은 키의 up은 보류했다가 같은 flush에서
+   * 그 키의 down을 누른 직후 적용해 버튼이 눌린 채 남지 않게 한다. 판정 쪽 같은 순서 문제는 #249 T9다.
+   */
   flush(target: GearButtonPressTarget): void {
     for (let index = 0; index < this.count; index++) {
       const record = this.records[index];
-      const note = record.consumedNoteIndex === null ? undefined : this.notes[record.consumedNoteIndex];
-      // 색을 생략하면 renderer가 이 down을 held에 추가한 직후의 키 수로 공입력 색을 정한다.
-      target.setGearButtonKey(record.lane, record.key, record.type === 'down', note ? gearButtonPressColor(note.type, 0) : undefined);
+      if (record.type === 'down') {
+        const note = record.consumedNoteIndex === null ? undefined : this.notes[record.consumedNoteIndex];
+        this.heldKeys.add(record.key);
+        // 색을 생략하면 renderer가 이 down을 held에 추가한 직후의 키 수로 공입력 색을 정한다.
+        target.setGearButtonKey(record.lane, record.key, true, note ? gearButtonPressColor(note.type, 0) : undefined);
+        if (this.pendingUps.delete(record.key)) {
+          this.heldKeys.delete(record.key);
+          target.setGearButtonKey(record.lane, record.key, false);
+        }
+      } else if (this.heldKeys.delete(record.key)) {
+        target.setGearButtonKey(record.lane, record.key, false);
+      } else {
+        this.pendingUps.add(record.key);
+      }
     }
+    this.pendingUps.clear();
     this.count = 0;
   }
 }

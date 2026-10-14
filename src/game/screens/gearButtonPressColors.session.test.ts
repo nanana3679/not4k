@@ -103,6 +103,19 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'releasing', releaseMs: 0, heldKeys: 0 });
   });
 
+  it('일시정지로 J가 멈춘 동안 A down이 999ms·up이 996ms로 큐에 들어가 up이 먼저 와도 재개 프레임에 누른 뒤 떼어 버튼이 돌아온다', () => {
+    const p = play([]);
+    p.frame(900);
+    p.input(999, 'A', 'down');
+    p.input(996, 'A', 'up');
+    p.frame(1010);
+    expect(p.applied).toEqual([['A', true, 'single'], ['A', false, 'single']]);
+    expect(p.state).toMatchObject({ phase: 'releasing', releaseMs: 0, heldKeys: 0 });
+    p.input(1100, 'A', 'down');
+    p.frame(1110);
+    expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1 });
+  });
+
   it('1000ms single 헤드·doubleLong 바디에 A·B를 누르면 A는 연파랑, 남은 unit을 시작한 B는 금색으로 재생한다', () => {
     const p = play([point(1000), body(1000, 2000, 'doubleLong')]);
     p.input(1000, 'A', 'down');
