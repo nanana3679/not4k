@@ -144,6 +144,8 @@ function renderRestZonesInView(restZones: RestZone[], minTimeMs: number, maxTime
 /** 두 번째 fill(빗금)에 쌓인 띠 다각형들의 평탄한 좌표 배열. */
 function stripePolygons(g: Graphics): number[][] {
   const fills = g.context.instructions.filter(instruction => instruction.action === "fill");
+  // 빗금이 하나도 안 그려지면 TypeError 대신 읽을 수 있는 실패로 끝낸다.
+  expect(fills).toHaveLength(2);
   const { path } = fills[1].data as { path: GraphicsPath };
   return path.shapePath.shapePrimitives.map(primitive => (primitive.shape as Polygon).points);
 }
