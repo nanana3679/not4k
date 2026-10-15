@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   depthFadeAlpha, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
-  restPanelTiming, sharedCameraLane,
+  restPanelTiming, separatorTop, sharedCameraLane,
 } from './restZonePanel';
 
 describe('restZone 판넬 시각', () => {
@@ -98,7 +98,7 @@ describe('restZone 판넬 전환 시각', () => {
     expect(minRestZoneMs(estimatedDwellMs, animMs)).toBe(expected);
   });
 
-  it('restZone이 최소 길이 2100ms(추정 녹숫 1500ms + 애니메이션 300ms × 2)면 1ms라도 다 꺼진다', () => {
+  it('restZone이 최소 길이 2100ms(추정 녹숫 1500ms + 애니메이션 300ms × 2)와 같으면 4300ms 한 순간 progress 1까지 꺼졌다가 바로 올라온다', () => {
     const exact = restPanelTiming(4000, 6100, 1500, 300);
     expect(restPanelState(4300, exact)).toEqual({ progress: 1, phase: 'down' });
     expect(restPanelState(4301, exact).phase).toBe('rising');
@@ -228,13 +228,38 @@ describe('붙어서 접히는 판넬의 공유 카메라', () => {
     const panels = [{ firstLane: 1, laneCount: 1, progress: 1 }, { firstLane: 3, laneCount: 1, progress: 1 }];
     expect([sharedCameraLane(panels, 0), sharedCameraLane(panels, 1)]).toEqual([1.5, 3.5]);
   });
-  it('붙어 있어도 이웃 progress가 0이면 자기 가운데에서 본다', () => {
+  it('레인 2(progress 1)와 붙은 레인 3이 progress 0이면 레인 2 카메라는 자기 가운데 2.5다', () => {
     const panels = [{ firstLane: 2, laneCount: 1, progress: 1 }, { firstLane: 3, laneCount: 1, progress: 0 }];
     expect(sharedCameraLane(panels, 0)).toBe(2.5);
+  });
+  it('레인 1·2·3이 progress 1·0.000001·1이면 레인 1 카메라는 자기 가운데 1.5에서 0.001 안이라 가운데 판넬이 접히기 시작해도 튀지 않는다', () => {
+    const panels = [
+      { firstLane: 1, laneCount: 1, progress: 1 }, { firstLane: 2, laneCount: 1, progress: 0.000001 }, { firstLane: 3, laneCount: 1, progress: 1 },
+    ];
+    expect(Math.abs(sharedCameraLane(panels, 0) - 1.5)).toBeLessThan(0.001);
+    expect(Math.abs(sharedCameraLane(panels, 2) - 3.5)).toBeLessThan(0.001);
+  });
+  it('레인 1·2·3이 모두 progress 1이면 셋 다 묶음 가운데인 레인 좌표 2.5에서 본다', () => {
+    const panels = [1, 2, 3].map(firstLane => ({ firstLane, laneCount: 1, progress: 1 }));
+    expect(panels.map((_, index) => sharedCameraLane(panels, index))).toEqual([2.5, 2.5, 2.5]);
   });
   it('레인 2(progress 1) 오른쪽에 레인 3이 0.5로 접히면 레인 2의 이웃은 왼쪽 0·오른쪽 0.5다', () => {
     const panels = [{ firstLane: 2, laneCount: 1, progress: 1 }, { firstLane: 3, laneCount: 1, progress: 0.5 }];
     expect(neighborProgress(panels, 0)).toEqual({ left: 0, right: 0.5 });
     expect(neighborProgress(panels, 1)).toEqual({ left: 1, right: 0 });
+  });
+});
+
+describe('접힌 판넬 둘레의 레인 구분선', () => {
+  it('레인 2부터 2칸인 묶인 판넬이 접혀 있고 판정선이 y 246이면 그 안쪽 경계 3의 구분선은 판정선 y 246부터 그려 판정선 아래가 남는다', () => {
+    expect(separatorTop(3, [{ firstLane: 2, laneCount: 2 }], true, 246)).toBe(246);
+  });
+  it('접힌 판넬과 닿지 않는 경계 1의 구분선은 레인 맨 위 y 0부터 그린다', () => {
+    expect(separatorTop(1, [{ firstLane: 2, laneCount: 2 }], true, 246)).toBe(0);
+  });
+  it('레인 2·3이 따로 접혀 있으면 사이 경계 3은 틈 메우기를 켜면 판정선 y 246부터, 끄면 y 0부터 그린다', () => {
+    const folding = [{ firstLane: 2, laneCount: 1 }, { firstLane: 3, laneCount: 1 }];
+    expect(separatorTop(3, folding, true, 246)).toBe(246);
+    expect(separatorTop(3, folding, false, 246)).toBe(0);
   });
 });

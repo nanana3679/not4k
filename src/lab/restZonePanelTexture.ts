@@ -1,5 +1,5 @@
 import { CanvasSource, Texture } from 'pixi.js';
-import { depthFadeAlpha } from './restZonePanel';
+import { REST_EDGE_RED, depthFadeAlpha } from './restZonePanel';
 
 
 /** 판넬 전용 텍스처. 호출자가 교체·종료 시 destroy(true)로 소유권을 정리한다. */
@@ -66,7 +66,7 @@ export function createRestPanelTexture(options: {
       ctx.closePath();
       ctx.fill();
       if (hatch.stripeEdgeRed) {
-        ctx.strokeStyle = '#ff3344';
+        ctx.strokeStyle = `#${REST_EDGE_RED.toString(16).padStart(6, '0')}`;
         ctx.lineWidth = 1;
         for (const edge of [offset, offset + stripe]) {
           ctx.beginPath();
@@ -91,9 +91,6 @@ export function createRestPanelTexture(options: {
   }
   return new Texture({ source: new CanvasSource({ resource: canvas, resolution }) });
 }
-
-/** 판넬 좌우 변 띠의 기본 붉은색. */
-export const REST_EDGE_RED = 0xff3344;
 
 /**
  * 판넬 좌우 변 띠 텍스처: 흰색이 깊이 어둠만큼 검게 바뀌는 세로 그라데이션(불투명).

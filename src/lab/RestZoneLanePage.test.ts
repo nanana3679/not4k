@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import RestZoneLanePage from './RestZoneLanePage';
 
 describe('RestZoneLanePage', () => {
-  it('WebGL 없는 서버에서 렌더링하면 rest-zone-lane 루트·16초 탐색·주요 조절 항목·사용자 녹숫 1217ms·추정 녹숫과의 차 −283ms·최소 길이 지침 2.10초와 Lab 복귀 링크를 표시한다', () => {
+  it('WebGL 없는 서버에서 렌더링하면 rest-zone-lane 루트·16초 탐색·주요 조절 항목·사용자 녹숫 1218ms·추정 녹숫과의 차 −282ms·최소 길이 지침 2.10초와 Lab 복귀 링크를 표시한다', () => {
     const html = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(RestZoneLanePage)));
     expect(html).toContain('data-lab-page="rest-zone-lane"');
     expect(html).toContain('href="/lab"');
@@ -17,10 +17,10 @@ describe('RestZoneLanePage', () => {
     expect(html).toContain('평상');
     expect(html).toContain('120 BPM');
     expect(html).toContain('레인 2 8 → 24박');
-    // 기본 스크롤 347px/초·리프트 0%·서든 0%: (416 + 노트 반 칸 6.25)px / 347px/초 ≈ 1217ms.
-    expect(html).toContain('data-note-dwell-ms="1217"');
-    // 기본 추정 녹숫 1500ms보다 283ms 빠른 설정이라 판넬이 다음 노트보다 먼저 올라온다.
-    expect(html).toContain('data-dwell-gap-ms="-283"');
+    // 기본 스크롤 355px/초·리프트 0%·서든 0%: (게임 판정선 426 + 노트 반 칸 6.25)px / 355px/초 ≈ 1218ms.
+    expect(html).toContain('data-note-dwell-ms="1218"');
+    // 기본 추정 녹숫 1500ms보다 282ms 빠른 설정이라 판넬이 다음 노트보다 먼저 올라온다.
+    expect(html).toContain('data-dwell-gap-ms="-282"');
     expect(html).toContain('지침상 restZone은 2.10초(추정 녹숫 + 애니메이션 2번) 이상');
   });
 });

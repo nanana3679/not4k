@@ -6,6 +6,9 @@ export interface RestPanelTiming {
 
 export type RestPanelPhase = 'up' | 'falling' | 'down' | 'rising';
 
+/** 판넬 좌우 변 띠와 빗금 경계의 붉은색. 페이지가 Pixi를 미리 불러오지 않도록 텍스처 모듈이 아니라 여기에 둔다. */
+export const REST_EDGE_RED = 0xff3344;
+
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 /**
@@ -53,7 +56,8 @@ export function restPanelTiming(startMs: number, endMs: number, dwellMs: number,
 
 /**
  * 차트 제작 지침의 restZone 최소 길이(ms). 꺼짐(animMs)·올라옴(animMs)과, 다 올라온 뒤 다음 노트가 판정선까지 내려오는
- * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지 않는다.
+ * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 꺼질 수 있다. 이보다 짧아도 restPanelTiming이
+ * 올라옴을 (끝 − 추정 녹숫)에 끝내므로 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지는 않고, 덜 꺼질 뿐이다.
  */
 export function minRestZoneMs(estimatedDwellMs: number, animMs: number): number {
   return Math.max(0, estimatedDwellMs) + 2 * Math.max(0, animMs);
@@ -156,19 +160,35 @@ function foldingRun(panels: readonly FoldingPanel[], index: number): [number, nu
  * 붙어서 접히는 판넬들이 함께 쓰는 카메라 위치(레인 좌표, 레인 0 왼쪽 끝이 0).
  * 판넬 가운데를 (레인 수 × progress)로 가중 평균한다. 혼자면 자기 가운데라 지금처럼 대칭으로 접히고,
  * 이웃이 다 접히면 묶음 전체의 가운데가 되어 맞닿은 변이 정확히 겹친다(같은 구간을 묶은 넓은 판넬과 같은 모양).
- * 이웃 progress가 0에서 시작하므로 카메라가 연속으로 움직여 모양이 튀지 않는다.
+ * 두 칸 이상 떨어진 판넬은 사이에 낀 판넬들의 progress도 곱한다. 가운데 판넬이 막 접히기 시작해 묶음이 이어질 때도
+ * 바깥 판넬의 영향이 0에서 시작하므로, 판넬이 몇 개든 카메라가 연속으로 움직여 모양이 튀지 않는다.
  */
 export function sharedCameraLane(panels: readonly FoldingPanel[], index: number): number {
   const [first, last] = foldingRun(panels, index);
   let weighted = 0;
   let total = 0;
   for (let i = first; i <= last; i++) {
-    const weight = panels[i].laneCount * panels[i].progress;
+    let weight = panels[i].laneCount * panels[i].progress;
+    for (let between = Math.min(i, index) + 1; between < Math.max(i, index); between++) weight *= panels[between].progress;
     weighted += (panels[i].firstLane + panels[i].laneCount / 2) * weight;
     total += weight;
   }
   const own = panels[index];
   return total > 0 ? weighted / total : own.firstLane + own.laneCount / 2;
+}
+
+/**
+ * 레인 경계 boundary(레인 boundary − 1과 boundary 사이)에서 화면 레이어가 그릴 구분선의 위끝 y. 접힌 판넬 안쪽 경계와
+ * 틈을 메운 두 판넬 사이 경계는 판넬이 판정선 위 부분을 대신 그리므로 판정선(hingeY)부터, 나머지는 레인 맨 위(0)부터다.
+ * 어느 경우든 판정선 아래 구분선은 남는다.
+ */
+export function separatorTop(
+  boundary: number, folding: readonly Pick<RestPanelGroup, 'firstLane' | 'laneCount'>[], fillGaps: boolean, hingeY: number,
+): number {
+  const insidePanel = folding.some(group => group.firstLane < boundary && boundary < group.firstLane + group.laneCount);
+  const betweenFilledPanels = fillGaps && folding.some(group => group.firstLane + group.laneCount === boundary)
+    && folding.some(group => group.firstLane === boundary);
+  return insidePanel || betweenFilledPanels ? hingeY : 0;
 }
 
 /** panels[index]의 바로 왼쪽·오른쪽에 붙어 접히는 판넬의 progress(없으면 0). */

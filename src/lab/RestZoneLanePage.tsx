@@ -1,22 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  COLORS, GAME_HEIGHT, JUDGMENT_LINE_OFFSET, JUDGMENT_LINE_THICKNESS,
-  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, liftPx, playfieldPx,
+  COLORS, GAME_HEIGHT, JUDGMENT_LINE_THICKNESS,
+  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx,
 } from '../game/renderer/constants';
 import {
-  fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming,
-  sharedCameraLane, type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
+  REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
+  restPanelTiming, separatorTop, sharedCameraLane, type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
 } from './restZonePanel';
-import { REST_EDGE_RED } from './restZonePanelTexture';
 import './RestZoneLanePage.css';
 
 // 기존 Lab의 어두운 작업 화면: 왼쪽에 실제 레인, 오른쪽에 조절 항목을 두고 폰에서는 세로로 쌓는다.
 // 판넬 움직임과 노트의 겹침이 주인공이다. 재생·탐색은 캔버스 바로 아래에서 조작한다.
 const BEAT_MS = 500;
 const LOOP_MS = 32 * BEAT_MS;
-/** 리프트 0%의 판정선 y. */
-const JUDGE_Y = GAME_HEIGHT - JUDGMENT_LINE_OFFSET;
+/**
+ * 리프트 0%의 판정선 y. 기어는 그리지 않지만 게임 플레이 화면(기어 있음)과 같은 y 426을 써서 녹숫이 게임과 같게 한다.
+ */
+const JUDGE_Y = judgmentLineYAtLift(0);
 /** 기어가 있는 플레이 화면처럼 리프트를 올려도 레인 끝은 그대로다. */
 const LANE_END_Y = JUDGE_Y + NOTE_HEIGHT / 2;
 /** 서든을 내려도 판정선 위로 남기는 레인 높이(논리 px). */
@@ -93,7 +94,7 @@ interface Controls {
  * 노트는 위끝에 처음 보이고 판정선에 닿을 때까지 dwellMs 동안 레인에 머문다.
  */
 const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scrollPxPerSecond'>) => {
-  const judgeY = JUDGE_Y - liftPx(current.liftPercent);
+  const judgeY = judgmentLineYAtLift(current.liftPercent);
   const visibleTop = Math.max(0, Math.min(GAME_HEIGHT * current.suddenPercent / 100, judgeY - MIN_VISIBLE_LANE));
   // 노트 아래끝이 위끝에 닿을 때부터 노트 가운데가 판정선에 닿을 때까지다.
   const dwellMs = noteDwellMs(judgeY - visibleTop + NOTE_HEIGHT / 2, current.scrollPxPerSecond);
@@ -191,8 +192,9 @@ export default function RestZoneLanePage() {
       const slots = Array.from({ length: LANE_COUNT }, () => {
         const container = new Container();
         const voidRect = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
-        const plain = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 8, verticesY: 40 });
-        const hatch = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 8, verticesY: 40 });
+        // 판넬의 한 행은 모두 같은 깊이라 가로는 꼭짓점 2개로 정확하다. 꼭짓점이 적어야(2 × 40) Pixi가 메시를 묶어 그린다.
+        const plain = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 2, verticesY: 40 });
+        const hatch = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 2, verticesY: 40 });
         // 좌우 변 띠: 혼자일 때는 붉은 테두리, 이웃 판넬과 맞닿으면 레인 구분선으로 바뀐다.
         const leftEdge = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 2, verticesY: 40 });
         const rightEdge = new PerspectiveMesh({ texture: Texture.EMPTY, verticesX: 2, verticesY: 40 });
@@ -231,6 +233,9 @@ export default function RestZoneLanePage() {
             textures.delete(edgeTexture);
             edgeTexture.destroy(true);
           }
+          // 렌더러가 실제로 텍스처를 다시 만들었는지 E2E가 읽는다.
+          host.dataset.panelTextureHeight = String(height);
+          host.dataset.panelTextureEdge = current.edgeStyle;
           edgeTexture = createRestEdgeTexture({
             height, resolution: window.devicePixelRatio || 1,
             fadeStart: current.fadeStart / 100, topBrightness: current.topBrightness / 100,
@@ -277,9 +282,12 @@ export default function RestZoneLanePage() {
         const view = laneView(current);
         judgment.y = view.judgeY - JUDGE_Y;
         // 지금 접혀 있는 판넬만 firstLane 순서로(groupRestPanels가 이미 정렬). 이웃·공유 카메라 계산의 입력이다.
-        const active = groups
-          .map(group => ({ group, progress: restPanelState(timeRef.current, groupTiming(group, current.estimatedDwellMs, current.animMs)).progress }))
-          .filter(entry => entry.progress > 0);
+        const states = groups
+          .map(group => ({ group, progress: restPanelState(timeRef.current, groupTiming(group, current.estimatedDwellMs, current.animMs)).progress }));
+        const active = states.filter(entry => entry.progress > 0);
+        // 화면에 그린 진행도를 판넬마다 알린다. React 상태 표시와 따로 계산하므로 E2E가 렌더 경로를 확인할 수 있다.
+        const drawnProgress = states.map(entry => entry.progress.toFixed(3)).join(',');
+        if (host.dataset.drawnProgress !== drawnProgress) host.dataset.drawnProgress = drawnProgress;
         const panels: FoldingPanel[] = active.map(({ group, progress }) => ({ firstLane: group.firstLane, laneCount: group.laneCount, progress }));
         const folding = active.map(entry => entry.group);
         slots.forEach((slot, index) => {
@@ -325,14 +333,12 @@ export default function RestZoneLanePage() {
             mesh.alpha = progress * strength;
           }
         });
-        // 접히는 판넬 안쪽의 레인 구분선은 판넬 텍스처가 대신 그려 판넬과 함께 기운다. 화면 레이어에서는 뺀다.
+        // 접히는 판넬 안쪽의 레인 구분선은 판넬 텍스처가, 틈을 메운 두 판넬 사이 구분선은 두 판넬의 변 띠가 판넬과 함께
+        // 기울여 그린다. 판넬은 판정선 위만 덮으므로 화면 레이어는 그 구분선의 판정선~레인 끝 부분만 계속 그린다.
         separators.clear();
         for (let boundary = 1; boundary < LANE_COUNT; boundary++) {
-          if (folding.some(group => group.firstLane < boundary && boundary < group.firstLane + group.laneCount)) continue;
-          // 틈을 메운 두 판넬 사이 구분선은 두 판넬의 변 띠가 판넬과 함께 기울여 그린다.
-          if (current.fillGaps && folding.some(group => group.firstLane + group.laneCount === boundary)
-            && folding.some(group => group.firstLane === boundary)) continue;
-          separators.rect(boundary * LANE_WIDTH - SEPARATOR_WIDTH / 2, 0, SEPARATOR_WIDTH, LANE_END_Y).fill(COLORS.LANE_SEPARATOR);
+          const top = separatorTop(boundary, folding, current.fillGaps, view.judgeY);
+          separators.rect(boundary * LANE_WIDTH - SEPARATOR_WIDTH / 2, top, SEPARATOR_WIDTH, LANE_END_Y - top).fill(COLORS.LANE_SEPARATOR);
         }
         notes.clear();
         if (current.showNotes) {
