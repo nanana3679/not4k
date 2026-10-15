@@ -9,6 +9,7 @@ const requiredPaths = [
   "lab/flight-background-preview/index.html",
   "lab/facility-passage/index.html",
   "lab/note-assets/index.html",
+  "lab/rest-zone-lane/index.html",
   "lab/gear/index.html",
   "lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg",
   "lab/tutorial-pattern-diagram/index.html",
