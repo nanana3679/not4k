@@ -4,6 +4,7 @@ import { lazy } from 'react';
 const TutorialPatternDiagramTestPage = lazy(() => import('./TutorialPatternDiagramTestPage'));
 const JudgmentPlaytestPage = lazy(() => import('./JudgmentPlaytestPage'));
 const NoteAssetShowcasePage = lazy(() => import('./NoteAssetShowcasePage'));
+const RestZoneLanePage = lazy(() => import('./RestZoneLanePage'));
 const LabIndexPage = lazy(() => import('./LabIndexPage'));
 const FlightBackgroundPreviewLabPage = lazy(() => import('./FlightBackgroundPreviewLabPage'));
 const FacilityPassagePreviewLabPage = lazy(() => import('./FacilityPassagePreviewLabPage'));
@@ -33,6 +34,7 @@ export default function LabRoutes() {
       <Route path="tutorial-pattern-diagram" element={<TutorialPatternDiagramTestPage />} />
       <Route path="judgment-playtest" element={<JudgmentPlaytestPage />} />
       <Route path="note-assets" element={<NoteAssetShowcasePage />} />
+      <Route path="rest-zone-lane" element={<RestZoneLanePage />} />
     </Routes>
   );
 }

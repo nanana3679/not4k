@@ -35,6 +35,13 @@ describe('LabRoutes', () => {
     expect(markup).toContain('data-tutorial-skin-id="classic"');
   });
 
+  it('/lab/rest-zone-lane을 직접 열면 판넬 미리보기·기본 각도 60°·Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/rest-zone-lane');
+    expect(markup).toContain('data-lab-page="rest-zone-lane"');
+    expect(markup).toContain('value="60"');
+    expect(markup).toContain('href="/lab"');
+  });
+
   it('/lab/gear를 직접 열면 새 기어가 들어간 게임 화면 미리보기(논리 폭 1067)와 Lab 복귀 링크가 표시된다', async () => {
     const markup = await renderLabPath('/lab/gear');
 

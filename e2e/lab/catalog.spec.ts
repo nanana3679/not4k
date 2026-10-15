@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Lab preview catalog", () => {
-  test("/lab에서 시설 통과·에셋 시연실·Gear를 포함한 6개 미리보기와 이미지 갤러리 6개를 찾고 비행 시연을 연다", async ({ page }) => {
+  test("/lab에서 시설 통과·에셋 시연실·Gear를 포함한 7개 미리보기와 이미지 갤러리 6개를 찾고 비행 시연을 연다", async ({ page }) => {
     await page.goto("/lab");
 
     await expect(page.getByRole("heading", { name: "Preview Archive" })).toBeVisible();
-    await expect(page.locator(".lab-index-group li")).toHaveCount(12);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(13);
     await expect(page.getByRole("link", { name: /^노트 에셋 시연실/ })).toBeVisible();
     await page.getByRole("link", { name: /Open preview/ }).click();
 
@@ -23,7 +23,7 @@ test.describe("Lab preview catalog", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/lab");
 
-    await expect(page.locator(".lab-index-group li")).toHaveCount(12);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(13);
     const overflow = await page.locator(".lab-index").evaluate((catalog) => catalog.scrollWidth > catalog.clientWidth + 1);
     expect(overflow).toBe(false);
     const scrollTop = await page.locator(".lab-index").evaluate((catalog) => {
@@ -77,6 +77,101 @@ test.describe("Lab preview catalog", () => {
       expect(errors).toEqual([]);
       await page.getByRole('link', { name: 'Preview Archive로 돌아가기' }).click();
       await expect(page).toHaveURL(/\/lab$/);
+    });
+  }
+
+  for (const width of [390, 1280]) {
+    test(`${width}px Lab에서 restZone을 열어 4.15초·4.3초·10.35초·10.6초 판넬 상태와 추정 녹숫·사용자 녹숫·최소 길이 지침을 확인하고 목록으로 돌아온다`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.setViewportSize({ width, height: 900 });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/lab');
+      await page.getByRole('link', { name: /^restZone Lane/ }).click();
+      const preview = page.locator('[data-lab-page="rest-zone-lane"]');
+      await expect(preview).toHaveAttribute('data-preview-ready', 'true');
+      const canvas = preview.locator('canvas');
+      await expect(canvas).toHaveCount(1);
+      const phase = page.locator('[data-panel-phase]');
+      // 판넬은 4초부터 300ms 동안 꺼지고, 기본 추정 녹숫 1.5초를 뺀 10.5초까지 다 올라온다.
+      // 사용자 녹숫(기본 약 1217ms)은 전환 시각을 바꾸지 않는다.
+      const dwell = page.locator('[data-note-dwell-ms]');
+      const gap = page.locator('[data-dwell-gap-ms]');
+      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '1217');
+      await expect(gap).toContainText('추정보다 0.28초 빠른 설정입니다');
+      for (const [ms, expected] of [['3999', 'up'], ['4150', 'falling'], ['4300', 'down'], ['10350', 'rising'], ['10600', 'up']]) {
+        await page.getByLabel('재생 위치', { exact: true }).fill(ms);
+        await expect(phase).toHaveAttribute('data-panel-phase', expected);
+        await expect(page.getByRole('button', { name: '재생', exact: true })).toBeEnabled();
+      }
+      await page.getByLabel('재생 위치', { exact: true }).fill('4150');
+      await expect(page.getByLabel('현재 판넬 상태')).toContainText('진행도 25%');
+      // 리프트 30%면 사용자 녹숫이 약 698ms로 줄지만 판넬은 그대로 10.5초에 다 올라와 있다.
+      await page.getByLabel('재생 위치', { exact: true }).fill('10600');
+      await page.getByLabel(/^리프트/).fill('30');
+      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '698');
+      await expect(gap).toContainText('추정보다 0.80초 빠른 설정입니다');
+      await expect(phase).toHaveAttribute('data-panel-phase', 'up');
+      await page.getByLabel(/^리프트/).fill('0');
+      // 서든 20%면 위 120px가 가려져 약 871ms, 스크롤 200px/초면 약 2111ms로 추정보다 0.61초 느리다.
+      await page.getByLabel(/^서든/).fill('20');
+      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '871');
+      await page.getByLabel(/^서든/).fill('0');
+      await page.getByLabel(/^스크롤 속도/).fill('200');
+      await expect(gap).toContainText('추정보다 0.61초 느린 설정입니다');
+      await page.getByLabel(/^스크롤 속도/).fill('347');
+      // 추정 녹숫을 0.6초로 낮추면 11.4초까지 다 올라오므로 10.6초에는 아직 꺼져 있다.
+      await page.getByLabel(/^난이도별 추정 녹숫/).fill('600');
+      await expect(phase).toHaveAttribute('data-panel-phase', 'down');
+      // 1.5초짜리 restZone은 추정 녹숫 0.6초면 최소 길이 1.2초를 넘지만, 1.5초면 최소 길이 2.1초보다 짧아 꺼지지 않는다.
+      await page.getByLabel('restZone 배치', { exact: true }).selectOption('short');
+      await expect(page.getByRole('note')).toHaveCount(0);
+      await page.getByLabel(/^난이도별 추정 녹숫/).fill('1500');
+      await expect(page.getByRole('note')).toContainText('지침 최소 길이 2.10초');
+      await expect(page.getByRole('note')).toContainText('꺼지지 않습니다');
+      await page.getByLabel('restZone 배치', { exact: true }).selectOption('single');
+      await expect(page.getByRole('note')).toHaveCount(0);
+      for (const style of ['red-stripe', 'rim', 'none', 'red-outline']) {
+        await page.getByLabel('테두리', { exact: true }).selectOption(style);
+      }
+      await page.getByLabel('restZone 배치', { exact: true }).selectOption('pair-offset');
+      await expect(page.getByLabel('현재 판넬 상태')).toContainText('레인 4');
+      await page.getByLabel('restZone 배치', { exact: true }).selectOption('pair-same');
+      await expect(page.getByLabel('현재 판넬 상태')).toContainText('레인 3·4');
+      await page.getByLabel('인접 레인 묶기', { exact: true }).uncheck();
+      await expect(page.getByLabel('현재 판넬 상태')).not.toContainText('레인 3·4');
+      await page.getByLabel('인접 레인 묶기', { exact: true }).check();
+      await page.getByLabel('레인 사이 틈 메우기', { exact: true }).uncheck();
+      await page.getByLabel('레인 사이 틈 메우기', { exact: true }).check();
+      await page.getByLabel(/^빗금 레인색 밝기/).fill('200');
+      await page.getByLabel(/^빗금 간격/).fill('4');
+      await page.getByLabel(/^어둠 시작 위치/).fill('20');
+      await page.getByLabel(/^윗변 남는 밝기/).fill('30');
+      await page.getByLabel(/^꺼지는 각도/).fill('85');
+      await page.getByLabel(/^원근 거리/).fill('0.6');
+      await page.getByLabel(/^애니메이션 길이/).fill('1000');
+      await page.getByLabel(/^스크롤 속도/).fill('500');
+      await page.getByLabel('노트 표시', { exact: true }).uncheck();
+      await page.getByLabel('노트 표시', { exact: true }).check();
+      await page.getByLabel('재생 속도', { exact: true }).selectOption('0.25');
+      await expect(canvas).toHaveCount(1);
+      const stage = await page.locator('.rest-zone-canvas').boundingBox();
+      const controls = await page.getByRole('region', { name: '판넬 조절' }).boundingBox();
+      if (width === 390) expect(controls!.y).toBeGreaterThan(stage!.y + stage!.height);
+      expect(await preview.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false);
+      await page.getByRole('button', { name: '처음으로' }).click();
+      await expect(page.getByLabel('재생 위치', { exact: true })).toHaveValue('0');
+      await page.getByRole('button', { name: '재생', exact: true }).click();
+      await expect.poll(() => page.getByLabel('재생 위치', { exact: true }).inputValue()).not.toBe('0');
+      // 메쉬가 그려진 앱의 종료·재진입도 검증한다(Pixi 8.21 GC 회귀).
+      await page.getByRole('link', { name: 'Preview Archive로 돌아가기' }).click();
+      await page.getByRole('link', { name: /^restZone Lane/ }).click();
+      await expect(preview).toHaveAttribute('data-preview-ready', 'true');
+      await page.getByLabel('재생 위치', { exact: true }).fill('4300');
+      await expect(phase).toHaveAttribute('data-panel-phase', 'down');
+      await page.getByRole('link', { name: 'Preview Archive로 돌아가기' }).click();
+      await expect(page).toHaveURL(/\/lab$/);
+      expect(errors).toEqual([]);
     });
   }
 
