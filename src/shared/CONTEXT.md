@@ -54,7 +54,7 @@ _Avoid_: 포인트 노트
 _Avoid_: 트릴존, 트릴 노트
 
 **`restZone`**:
-그 레인이 해당 구간 동안 안 쓰임을 나타내는 레인별 저작 구간(`{ lane, beat, endBeat }`)으로, `trillZone`처럼 차트의 1급 구조로 저장된다. 시각 dim + 에디터 배치 제약만 하고 판정에는 개입하지 않는다. 풀 정의는 glossary의 `restZone` 항목과 [RFD 0019](../../docs/rfd/0019-rest-zone-lane-guidance.md)를 따른다.
+그 레인이 해당 구간 동안 안 쓰임을 나타내는 레인별 저작 구간(`{ lane, beat, endBeat }`)으로, `trillZone`처럼 차트의 1급 구조로 저장된다. 시각 표시(게임 dim·에디터 빗금) + 에디터 배치 제약만 하고 판정에는 개입하지 않는다. 풀 정의는 glossary의 `restZone` 항목과 [RFD 0019](../../docs/rfd/0019-rest-zone-lane-guidance.md)를 따른다.
 _Avoid_: 휴지존, 비활성 레인
 
 **차트 에셋**:

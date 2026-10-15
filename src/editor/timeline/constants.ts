@@ -5,6 +5,8 @@
 export const LANE_COUNT = 4;
 
 export const LANE_WIDTH = 60; // px per lane
+/** restZone 빗금 띠 폭(줄에 수직으로 잰 px). 검정 띠와 레인색 띠가 같은 폭으로 번갈아 나온다. */
+export const REST_ZONE_STRIPE_WIDTH = 6;
 export const NOTE_HEIGHT = 12; // px
 // 트릴존 핸들 — 리사이즈 캡(끝=위)만 존재. 이동은 선택 후 몸통 드래그 (RFD 0016 §6-6).
 export const TRILL_RESIZE_CAP_HEIGHT = 5;  // px — 리사이즈 캡(끝=위, 풀폭 가로 바) 높이
@@ -45,11 +47,13 @@ export const COLORS = {
   TRILL_ZONE: 0x00ff88,
   TRILL_ZONE_ALPHA: 0.2,
 
-  // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 인게임 dim과 동일하게 어두운 오버레이로
-  // 레인을 가라앉힌다(game REST_ZONE_DIM 0x000000 / α0.72와 일치). 리프트된 레인 배경 위에서
-  // 대비로 "쉬는 레인"이 읽히며, 겹침 위반은 그 위 빨간 해칭이 표시한다.
+  // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 타임라인은 레인을 살짝 어둡게 깐 위에 굵은 검정 빗금을
+  // 그어 "안 쓰는 레인"으로 읽히게 한다(restZone 판넬 Lab 시안의 빗금과 같은 시각 언어). 겹침 위반은 그 위
+  // 가는 빨간 해칭이라 굵은 검정 빗금과 구별된다. 미니맵은 칸이 작아 빗금 없이 REST_ZONE_ALPHA 단색 dim을 쓴다.
   REST_ZONE: 0x000000,
   REST_ZONE_ALPHA: 0.6,
+  REST_ZONE_BASE_ALPHA: 0.2,
+  REST_ZONE_STRIPE_ALPHA: 0.6,
 
   SELECTED_OUTLINE: 0xff4444,
   HOVERED_OUTLINE: 0xffffff,

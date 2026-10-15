@@ -161,7 +161,19 @@ describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
     expect(host.restZoneLayer.children.length).toBe(0);
   });
 
-  it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색은 trillZone(0x00ff88)과 다른 인게임 dim(검정 오버레이)이다", () => {
+  it("restZone 밴드(lane 2, 0→200px)는 레인을 검정 α0.2로 깐 뒤 그 위에 검정 α0.6 빗금 띠 여러 개를 한 번에 채운다", () => {
+    const host = renderRestZones([{ lane: 2, beat: beat(0), endBeat: beat(4) }]);
+    const g = host.restZoneLayer.children[0] as Graphics;
+    const fills = g.context.instructions.filter(instruction => instruction.action === "fill");
+    expect(fills.map(fill => (fill.data as { style: { alpha: number } }).style.alpha))
+      .toEqual([COLORS.REST_ZONE_BASE_ALPHA, COLORS.REST_ZONE_STRIPE_ALPHA]);
+    expect(fills.map(fill => (fill.data as { style: { color: number } }).style.color)).toEqual([0x000000, 0x000000]);
+    // 폭 60·높이 200을 띠 폭 6(주기 약 17)으로 덮으면 띠가 10개 넘게 나온다.
+    const stripePath = (fills[1].data as { path: { shapePath: { shapePrimitives: unknown[] } } }).path;
+    expect(stripePath.shapePath.shapePrimitives.length).toBeGreaterThan(10);
+  });
+
+  it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색은 trillZone(0x00ff88)과 다른 검정(0x000000)이다", () => {
     const host = renderRestZones([{ lane: 3, beat: beat(0), endBeat: beat(2) }]);
     expect(host.restZoneLayer.children.length).toBe(1);
     expect(host.trillZoneLayer.children.length).toBe(0);
