@@ -408,11 +408,12 @@ export class GridRenderer {
       const bg = new Graphics();
       bg.rect(x, adjustedTopY, width, height);
       bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_BASE_ALPHA });
-      // 빗금은 화면에 보이는 부분만 만들되, 위상은 구간 위쪽 모서리에 고정해 스크롤해도 구간과 함께 움직인다.
+      // 빗금은 화면에 보이는 부분만 만들되, 위상은 구간 시작 박 위치(startY)에 고정한다. 스크롤·이동하면 구간과 함께
+      // 움직이고, 끝 캡으로 길이를 바꿔도(시작은 그대로) 빗금이 미끄러지지 않는다.
       const visibleTop = Math.max(adjustedTopY, Math.min(visibleYA, visibleYB));
       const visibleBottom = Math.min(adjustedTopY + height, Math.max(visibleYA, visibleYB));
       const bands = diagonalStripeBands(
-        { x, y: visibleTop, width, height: visibleBottom - visibleTop }, REST_ZONE_STRIPE_WIDTH, x, adjustedTopY,
+        { x, y: visibleTop, width, height: visibleBottom - visibleTop }, REST_ZONE_STRIPE_WIDTH, x, startY,
       );
       if (bands.length > 0) {
         for (const band of bands) bg.poly(band);

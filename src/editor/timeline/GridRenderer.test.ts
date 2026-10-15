@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Container, Graphics } from "pixi.js";
+import type { GraphicsPath, Polygon } from "pixi.js";
 import { beat } from "../../shared";
 import type { Chart, ChartEvent, RestZone, BpmMarker, TimeSignatureMarker } from "../../shared";
 import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
@@ -130,6 +131,37 @@ function renderRestZones(restZones: RestZone[] | undefined): GridHost {
   return host;
 }
 
+/** 실제 타임라인처럼 시간이 갈수록 y가 작아지는 host로, 보이는 범위를 좁혀 restZone을 그린다. */
+function renderRestZonesInView(restZones: RestZone[], minTimeMs: number, maxTimeMs: number): Graphics {
+  const host = makeHost(makeChart([], restZones));
+  const mutable = host as { getVisibleTimeRange: GridHost["getVisibleTimeRange"]; timeToY: GridHost["timeToY"] };
+  mutable.getVisibleTimeRange = () => ({ minTimeMs, maxTimeMs });
+  mutable.timeToY = (ms: number) => (100_000 - ms) / 10;
+  new GridRenderer(host).renderRestZones();
+  return host.restZoneLayer.children[0] as Graphics;
+}
+
+/** 두 번째 fill(빗금)에 쌓인 띠 다각형들의 평탄한 좌표 배열. */
+function stripePolygons(g: Graphics): number[][] {
+  const fills = g.context.instructions.filter(instruction => instruction.action === "fill");
+  const { path } = fills[1].data as { path: GraphicsPath };
+  return path.shapePath.shapePrimitives.map(primitive => (primitive.shape as Polygon).points);
+}
+
+function insideAnyStripe(bands: number[][], px: number, py: number): boolean {
+  return bands.some(points => {
+    let sign = 0;
+    for (let i = 0; i < points.length; i += 2) {
+      const j = (i + 2) % points.length;
+      const cross = (points[j] - points[i]) * (py - points[i + 1]) - (points[j + 1] - points[i + 1]) * (px - points[i]);
+      if (Math.abs(cross) < 1e-9) continue;
+      if (sign === 0) sign = Math.sign(cross);
+      else if (Math.sign(cross) !== sign) return false;
+    }
+    return true;
+  });
+}
+
 describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
   it("restZone(lane 2, beat 0→4)은 120 BPM에서 x=LANE_WIDTH·y 0→200 풀레인 밴드로 restZoneLayer에 그려진다", () => {
     const host = renderRestZones([{ lane: 2, beat: beat(0), endBeat: beat(4) }]);
@@ -171,6 +203,42 @@ describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
     // 폭 60·높이 200을 띠 폭 6(주기 약 17)으로 덮으면 띠가 10개 넘게 나온다.
     const stripePath = (fills[1].data as { path: { shapePath: { shapePrimitives: unknown[] } } }).path;
     expect(stripePath.shapePath.shapePrimitives.length).toBeGreaterThan(10);
+  });
+
+  it("시간이 갈수록 y가 작아지는 타임라인에서 보이는 범위가 1000~1500ms뿐이면 0~4000ms restZone의 빗금 꼭짓점은 y 9850~9900 안에만 생긴다", () => {
+    const bands = stripePolygons(renderRestZonesInView([{ lane: 2, beat: beat(0), endBeat: beat(8) }], 1000, 1500));
+    expect(bands.length).toBeGreaterThan(0);
+    for (const points of bands) {
+      for (let i = 1; i < points.length; i += 2) {
+        expect(points[i]).toBeGreaterThanOrEqual(9850 - 1e-9);
+        expect(points[i]).toBeLessThanOrEqual(9900 + 1e-9);
+      }
+    }
+  });
+
+  it("보이는 범위를 1000~1500ms → 1100~1600ms로 옮겨 다시 그려도 겹치는 1100~1500ms(y 9850~9890)의 빗금이 같다", () => {
+    const zones: RestZone[] = [{ lane: 2, beat: beat(0), endBeat: beat(8) }];
+    const before = stripePolygons(renderRestZonesInView(zones, 1000, 1500));
+    const after = stripePolygons(renderRestZonesInView(zones, 1100, 1600));
+    let black = 0;
+    let samples = 0;
+    for (let px = LANE_WIDTH + 0.37; px < LANE_WIDTH * 2; px += 1.13) {
+      for (let py = 9850.29; py < 9890; py += 1.07) {
+        const inBefore = insideAnyStripe(before, px, py);
+        expect(insideAnyStripe(after, px, py)).toBe(inBefore);
+        samples++;
+        if (inBefore) black++;
+      }
+    }
+    expect(black / samples).toBeGreaterThan(0.4);
+    expect(black / samples).toBeLessThan(0.6);
+  });
+
+  it("끝 캡으로 restZone 끝을 8박 → 6박으로 줄여도 시작 쪽(보이는 범위 0~500ms)의 빗금 다각형이 그대로다", () => {
+    const long = stripePolygons(renderRestZonesInView([{ lane: 2, beat: beat(0), endBeat: beat(8) }], 0, 500));
+    const short = stripePolygons(renderRestZonesInView([{ lane: 2, beat: beat(0), endBeat: beat(6) }], 0, 500));
+    expect(long.length).toBeGreaterThan(0);
+    expect(short).toEqual(long);
   });
 
   it("restZone은 trillZoneLayer가 아닌 restZoneLayer에만 그려지고, 밴드 색은 trillZone(0x00ff88)과 다른 검정(0x000000)이다", () => {

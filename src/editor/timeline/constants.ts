@@ -48,8 +48,8 @@ export const COLORS = {
   TRILL_ZONE_ALPHA: 0.2,
 
   // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 타임라인은 레인을 살짝 어둡게 깐 위에 굵은 검정 빗금을
-  // 그어 "안 쓰는 레인"으로 읽히게 한다(restZone 판넬 Lab 시안의 빗금과 같은 시각 언어). 겹침 위반은 그 위
-  // 가는 빨간 해칭이라 굵은 검정 빗금과 구별된다. 미니맵은 칸이 작아 빗금 없이 REST_ZONE_ALPHA 단색 dim을 쓴다.
+  // 그어 "안 쓰는 레인"으로 읽히게 한다(Lab restZone 판넬 시안(#282)의 빗금과 같은 시각 언어). 겹침 위반은 그 위
+  // 가는 빨간 해칭이라 굵은 검정 빗금과 구별된다. REST_ZONE_ALPHA는 미니맵 전용으로, 칸이 작아 빗금 없이 단색 dim을 쓴다.
   REST_ZONE: 0x000000,
   REST_ZONE_ALPHA: 0.6,
   REST_ZONE_BASE_ALPHA: 0.2,
