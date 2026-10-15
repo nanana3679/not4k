@@ -163,6 +163,9 @@ function foldingRun(panels: readonly FoldingPanel[], index: number): [number, nu
  * 두 칸 이상 떨어진 판넬의 progress는 사이에 낀 판넬들의 progress 중 가장 작은 값을 넘지 않게 한다. 가운데 판넬이 막
  * 접히기 시작해 묶음이 이어질 때도 바깥 판넬의 영향이 0에서 시작해 카메라가 연속으로 움직이고, 모두 같은 progress로
  * 접히면 가중치가 같아져 묶음 전체가 한 카메라를 써서 맞닿은 변이 겹친다.
+ * 알려진 한계: 판넬마다 카메라 하나라, 3개 이상 붙은 묶음에서 progress가 서로 다르면 맞닿은 변이 몇 px 벌어질 수 있다
+ * (예: 0.5·0.5·1이면 앞 두 판넬 사이 약 4px). 지금 Lab 배치는 많아야 2개라 생기지 않는다. 게임에 옮길 때는 이음새마다
+ * 카메라를 따로 두고 판넬 왼쪽 윗모서리는 왼쪽 이음새, 오른쪽 윗모서리는 오른쪽 이음새 카메라로 투영하는 방식을 검토한다.
  */
 export function sharedCameraLane(panels: readonly FoldingPanel[], index: number): number {
   const [first, last] = foldingRun(panels, index);
