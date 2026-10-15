@@ -239,6 +239,19 @@ describe('붙어서 접히는 판넬의 공유 카메라', () => {
     expect(Math.abs(sharedCameraLane(panels, 0) - 1.5)).toBeLessThan(0.001);
     expect(Math.abs(sharedCameraLane(panels, 2) - 3.5)).toBeLessThan(0.001);
   });
+  it('따로 묶인 레인 1·2·3이 모두 progress 0.5로 함께 접히면 셋 다 레인 좌표 2.5에서 보고, 60°·거리 1.5에서 맞닿은 윗모서리가 겹친다', () => {
+    const panels = [1, 2, 3].map(firstLane => ({ firstLane, laneCount: 1, progress: 0.5 }));
+    const cameras = panels.map((_, index) => sharedCameraLane(panels, index));
+    expect(cameras).toEqual([2.5, 2.5, 2.5]);
+    const camera = { cameraDistance: 1.5, eyeHeight: 0.5 };
+    const corners = panels.map((panel, index) => panelCorners(
+      { x: panel.firstLane * 62.5, width: 62.5, hingeY: 426, height: 426 }, Math.PI / 6, camera, cameras[index] * 62.5,
+    ));
+    for (const [left, right] of [[0, 1], [1, 2]]) {
+      expect(corners[left][1].x).toBeCloseTo(corners[right][0].x, 9);
+      expect(corners[left][1].y).toBeCloseTo(corners[right][0].y, 9);
+    }
+  });
   it('레인 1·2·3이 모두 progress 1이면 셋 다 묶음 가운데인 레인 좌표 2.5에서 본다', () => {
     const panels = [1, 2, 3].map(firstLane => ({ firstLane, laneCount: 1, progress: 1 }));
     expect(panels.map((_, index) => sharedCameraLane(panels, index))).toEqual([2.5, 2.5, 2.5]);

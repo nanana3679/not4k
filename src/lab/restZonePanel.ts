@@ -160,16 +160,18 @@ function foldingRun(panels: readonly FoldingPanel[], index: number): [number, nu
  * 붙어서 접히는 판넬들이 함께 쓰는 카메라 위치(레인 좌표, 레인 0 왼쪽 끝이 0).
  * 판넬 가운데를 (레인 수 × progress)로 가중 평균한다. 혼자면 자기 가운데라 지금처럼 대칭으로 접히고,
  * 이웃이 다 접히면 묶음 전체의 가운데가 되어 맞닿은 변이 정확히 겹친다(같은 구간을 묶은 넓은 판넬과 같은 모양).
- * 두 칸 이상 떨어진 판넬은 사이에 낀 판넬들의 progress도 곱한다. 가운데 판넬이 막 접히기 시작해 묶음이 이어질 때도
- * 바깥 판넬의 영향이 0에서 시작하므로, 판넬이 몇 개든 카메라가 연속으로 움직여 모양이 튀지 않는다.
+ * 두 칸 이상 떨어진 판넬의 progress는 사이에 낀 판넬들의 progress 중 가장 작은 값을 넘지 않게 한다. 가운데 판넬이 막
+ * 접히기 시작해 묶음이 이어질 때도 바깥 판넬의 영향이 0에서 시작해 카메라가 연속으로 움직이고, 모두 같은 progress로
+ * 접히면 가중치가 같아져 묶음 전체가 한 카메라를 써서 맞닿은 변이 겹친다.
  */
 export function sharedCameraLane(panels: readonly FoldingPanel[], index: number): number {
   const [first, last] = foldingRun(panels, index);
   let weighted = 0;
   let total = 0;
   for (let i = first; i <= last; i++) {
-    let weight = panels[i].laneCount * panels[i].progress;
-    for (let between = Math.min(i, index) + 1; between < Math.max(i, index); between++) weight *= panels[between].progress;
+    let reach = panels[i].progress;
+    for (let between = Math.min(i, index) + 1; between < Math.max(i, index); between++) reach = Math.min(reach, panels[between].progress);
+    const weight = panels[i].laneCount * reach;
     weighted += (panels[i].firstLane + panels[i].laneCount / 2) * weight;
     total += weight;
   }
