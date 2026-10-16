@@ -49,7 +49,7 @@ _Avoid_: 키 이벤트 처리
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
-같은 double 끝의 두 실제 release는 서로 다른 물리 키를 요구하며 처음 유지한 키와 달라도 된다. 그 double에서 쓴 키도 뒤 독립 노트의 release에는 다시 쓸 수 있다. 연결 head의 교대·유지 중 탭에서 연결 보정에 배정한 up은 뒤 실제 release에 쓰지 않는다. 연결 보정은 head보다 뒤 끝의 release보다 먼저, head와 같거나 앞선 감소 release보다 나중에 배정한다(RFD 0032 §29). 나머지 up은 적격 대상 중 차트상 끝 시각이 가장 이른 release 하나를 처리한다. 입력 자격·소비와 Grace의 역할, 사례별 합의와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
+같은 double 끝의 두 실제 release는 서로 다른 물리 키를 요구하며 처음 유지한 키와 달라도 된다. 그 double에서 쓴 키도 뒤 독립 노트의 release에는 다시 쓸 수 있다. 연결 head의 교대·유지 중 탭에서 연결 보정에 배정한 up은 뒤 실제 release에 쓰지 않는다. 연결 보정은 head보다 뒤 끝의 release보다 먼저, head와 같거나 앞선 감소 release보다 나중에 배정한다(RFD 0032 §29). 연결 head 전에 경계보다 먼저 뗀 up은 앞 바디를 끝낸다(RFD 0032 §36·§37). 나머지 up은 끝 창 안의 적격 대상(바디의 시작 여부와 무관) 중 차트상 끝 시각이 가장 이른 것 하나를 처리하며, `holdOnly` 끝도 자기 Good 창 안의 up 하나를 가져간다(§37). 입력 자격·소비와 Grace의 역할, 사례별 합의와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
 _Avoid_: 익명 keyup, 실제 release의 이진 판정
 
 **빈 레인 입력**:
