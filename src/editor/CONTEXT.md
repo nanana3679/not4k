@@ -3,7 +3,7 @@
 Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하는 작업 언어를 다룬다.
 차트 자체의 도메인 구조는 `src/shared/CONTEXT.md`의 Shared chart model을 따른다.
 
-연결용으로 소비되지 않는 교대 up이 이른 release를 만들고 그 손해가 차트의 의도가 아니라면 해당 끝에 Grace(`holdOnly`)를 적용한다. 패턴별 합의 범위와 속성의 영향은 [glossary](../../docs/context/glossary.md#release-판정)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
+연결 보정에 배정되지 않는 교대 up이 이른 release를 만들고 그 손해가 차트의 의도가 아니라면 해당 끝에 Grace(`holdOnly`)를 적용한다. 패턴별 합의 범위와 속성의 영향은 [glossary](../../docs/context/glossary.md#release-판정)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
 
 ## Language
 

@@ -65,7 +65,7 @@ _Avoid_: 롱노트 교대
 _Avoid_: 단순 트릴
 
 **의도된 연주**:
-경계를 지난 뒤 바디가 요구하는 수만큼만 키가 남아 모든 up이 감소 release·연결용 흡수·끝 release 중 하나에 쓰이는 연주다. 판정은 이 연주를 점수 손해 없이 처리해야 한다. 기본 기준이며, 차트가 여분 홀드를 일부러 쓰게 짠 패턴에서는 차트의 의도를 우선한다. 세부는 [glossary](docs/context/glossary.md#의도된-연주)를 따른다.
+경계를 지난 뒤 바디가 요구하는 수만큼만 키가 남아 모든 up이 감소 release·연결 보정·끝 release 중 하나에 쓰이는 연주다. 판정은 이 연주를 점수 손해 없이 처리해야 한다. 기본 기준이며, `holdOnly` 끝에서 뗀 up은 쓰이지 않아도 되고, 차트가 여분 홀드를 일부러 쓰게 짠 패턴에서는 차트의 의도를 우선한다. 세부는 [glossary](docs/context/glossary.md#의도된-연주)를 따른다.
 _Avoid_: 정석 플레이, 정답 연주
 
 **엄지 눕히기**:
@@ -103,7 +103,7 @@ _Avoid_: 연타 노트
 _Avoid_: 자동 입력 구간
 
 **더블 노트**:
-같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. double 끝의 두 실제 release도 서로 다른 키를 요구한다. 단, 같은 키를 다시 눌러 노트를 처리했다면 그 누름의 up은 같은 끝의 남은 release를 처리할 수 있다. 처음 유지한 키와 달라도 된다. 자격·이행 상태와 held 겹침의 세부는 [glossary](docs/context/glossary.md#더블-노트-double-note)를 따른다.
+같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. double 끝의 두 실제 release도 서로 다른 키를 요구한다. 단, 같은 키를 다시 눌러 그 double 바디가 시작하는 연결 head를 처리했다면 그 누름의 up은 같은 끝의 남은 release를 처리할 수 있다. 처음 유지한 키와 달라도 된다. 자격·이행 상태와 held 겹침의 세부는 [glossary](docs/context/glossary.md#더블-노트-double-note)를 따른다.
 _Avoid_: 더블클릭
 
 **Grace 노트**:
@@ -111,7 +111,7 @@ Good 윈도우 안에서 입력하면 타이밍 정밀도와 무관하게 Perfec
 _Avoid_: 보너스 노트
 
 **`holdOnly`**:
-롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 등록 키 유지로, 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0020](docs/rfd/0020-note-judgment-units-and-inheritance.md)를 따른다.
+롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 유지로(기존 엔진은 등록 키, 후속 모델은 hold 수), 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0020](docs/rfd/0020-note-judgment-units-and-inheritance.md)를 따른다.
 _Avoid_: Grace 노트
 
 ### 피스
@@ -201,7 +201,7 @@ _Avoid_: 인지 부하
 _Avoid_: 판정선
 
 **유지 판정**:
-활성화한 롱 노트 unit 수를 등록된 유지 키로 충족하는지 확인하는 판정이다. 고정 물리 owner는 두지 않는다.
+활성화한 롱 노트 unit 수를 등록된 유지 키로 충족하는지 확인하는 판정이다. 고정 물리 owner는 두지 않는다. 기존 엔진 기준이며, 후속 hold 수 모델에서는 같은 레인의 hold 수로 확인한다([RFD 0032](docs/rfd/0032-body-held-count.md#바디와-point의-역할), 엔진 이행 전).
 _Avoid_: 헤드 판정
 
 **끝점 판정**:
