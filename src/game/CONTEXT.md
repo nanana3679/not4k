@@ -5,11 +5,13 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 ## 판정 모델의 전제
 
+아래 등록 키·연결 보류는 기존 엔진 기준이다. 후속 설계는 패턴별 허용 입력·기대 결과를 먼저 정하며, release와 Grace의 역할 및 현재 합의 범위는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다. 연결 head를 처리한 single 사례는 이르거나 늦은 실제 head down부터 뒤 바디의 유지를 판단하고 임시 20ms 유지 유예를 적용한다([glossary](../../docs/context/glossary.md#유예-시간-grace-period)). head를 놓쳐도 계속 유지한 뒤 바디의 실제 release는 처리한다([glossary](../../docs/context/glossary.md#release-판정)). 연결 head 창 안에서 hold가 끊기고 head도 놓친 사례는 head Miss 하나와 뒤 끝 종속 0점으로 정리한다. head 기한까지 유지한 뒤 새로 유지가 끊기면 20ms 유예 후 유지 Miss를 추가하고 끝은 종속 0점으로 정산한다. 같은 double 끝의 두 release는 서로 다른 키를 요구하되, 같은 키를 다시 눌러 노트를 처리했다면 그 누름의 up으로 남은 release를 처리할 수 있다. 나머지 적용 범위와 엔진 이행은 아직 남아 있다.
+
 - 같은 레인의 바디 열린 구간은 겹치지 않는다. 다중 unit 구간은 `doubleLong`, 순차 구간은 `connection`으로 표현한다. 판정 창은 겹칠 수 있어 앞 release 대기와 뒤 시작 준비가 함께 존재할 수 있다.
 - 바디는 head·시작 입력·정당한 승계로 활성화한다. 등록된 유지 키 수와 release 권한을 구분하며, 고정 물리 owner나 임의의 raw held로 설명하지 않는다.
 - 유효한 새 head·미처리 시작은 해당 누름에 새 release 권한을 준다. 같은 double 끝에서 그 물리 키를 이미 썼어도 새 권한은 유효하며, 임의의 재누름에는 권한을 주지 않는다.
 - `connection`은 차트상 끝점과 시작점이 맞닿는 관계이다. 같은 unit 수의 경계에는 head 또는 `holdOnly`가 필요하고, unit 수 변화는 그 자체로 경계를 드러낸다.
-- 일반 승계 성공에는 점수·콤보가 없다. 감소하는 unit은 실제 release를 요구하되 `holdOnly`가 이를 면제할 수 있다. head가 있는 2→1 감소 경계는 그 head가 경계의 판정이며 감소 release가 없다(구현은 #181 대기, 그 전까지 엔진은 감소 release를 정확히 한 번 정산).
+- 일반 승계 성공에는 점수·콤보가 없다. 감소하는 unit은 실제 release를 요구하되 `holdOnly`가 이를 면제할 수 있다. head가 있는 2→1 감소 경계에도 감소 release가 있다. 경계 근처의 첫 up이 감소 release를, 연결 head 창 안의 다음 up이 연결용 흡수를 맡는다(RFD 0032 §28, 엔진 이행 전).
 - 유지 부족은 같은 timestamp 입력을 반영한 뒤 확인한다. 연결 교대 후보로 보류한 up은 연결 head 기한까지 부족으로 확정하지 않고, 교대가 끝내 성립하지 않으면 경계 전 교대 실패와 같게 정리한다. 이미 실패한 unit은 되살리거나 건너뛰어 승계하지 않는다.
 - 같은 키·시각의 입력에서 서로 다른 키의 동시 up을 내부 배정한 순서만으로 후속 성공·Miss가 달라지면 안 된다. 세부 요구와 영향은 glossary의 동시 입력 결과 일관성을 따른다.
 - 트릴 교대 추적에는 head를 소비한 키만 등록하며 바디 유지·승계·release 키는 추가하지 않는다. 구간 귀속과 동시 입력의 세부는 glossary의 트릴 노트를 따른다.
@@ -47,7 +49,7 @@ _Avoid_: 키 이벤트 처리
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
-유효한 연결에 사용한 up은 동일 키 재타격과 서로 다른 키 교대 모두 뒤 release에서 제외하며, 키가 같다는 이유로 연결 Miss를 추가하지 않는다. 후보는 허용된 연결 몫만큼 발생 순서로 배정하고, 동일 키 후보를 우선하지 않는다. 실제 release의 키 제한·실패 처리·면제의 세부는 [glossary](../../docs/context/glossary.md#consume-구-표기-흡수소비)와 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다.
+같은 double 끝의 두 실제 release는 서로 다른 물리 키를 요구하며 처음 유지한 키와 달라도 된다. 그 double에서 쓴 키도 뒤 독립 노트의 release에는 다시 쓸 수 있다. 연결 head의 교대·유지 중 탭에서 연결용으로 소비한 up은 뒤 실제 release에 쓰지 않는다. 나머지 up은 적격 대상 중 차트상 끝 시각이 가장 이른 release 하나를 처리한다. 입력 자격·소비와 Grace의 역할, 사례별 합의와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
 _Avoid_: 익명 keyup, 실제 release의 이진 판정
 
 **빈 레인 입력**:

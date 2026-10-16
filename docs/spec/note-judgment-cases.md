@@ -2,6 +2,10 @@
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 
+**후속 규칙의 패턴별 확인:** [RFD 0032 §12](../rfd/0032-body-held-count.md#12-패턴-확인-단독-롱노트의-교대-up과-grace)에서 단독 일반 롱노트의 교대 up을 이른 release로 인정하고, 그 손해가 의도가 아니라면 끝에 Grace를 배치한다고 확인했다. 아래 사례나 현재 엔진의 결과를 새 모델의 정답으로 자동 채택하지 않고, 사용자 확인·규칙에서 도출한 결과·현재 실행 결과를 구별한다. [RFD 0032 §13](../rfd/0032-body-held-count.md#13-패턴-확인-double-끝의-두-release는-서로-다른-키)에서는 같은 double 끝의 두 release에 서로 다른 키를 요구한다. [RFD 0032 §22](../rfd/0032-body-held-count.md#22-패턴-확인-새-head를-쳐도-같은-double-끝의-키-중복을-허용하지-않음)에서 NJ-R13의 새 head 뒤 같은 키 재사용을 한때 거절했으나, [RFD 0032 §23](../rfd/0032-body-held-count.md#23-패턴-확인-노트를-처리한-같은-키의-재누름은-같은-double-끝의-남은-release를-처리)에서 같은 키를 다시 눌러 노트를 처리했다면 그 누름의 up으로 남은 release를 처리한다고 정정했다. NJ-R13·NJ-R14의 기대값은 아래 기록 그대로다. [RFD 0032 §14](../rfd/0032-body-held-count.md#14-패턴-확인-유지-키와-다른-두-키의-up으로-double-release-처리)의 double을 A/B로 유지하며 C/D를 끝 근처에서 눌렀다 떼는 사례는 새 기대 결과가 Perfect 2이며 기존 실행의 Miss 2와 다르다. [RFD 0032 §15](../rfd/0032-body-held-count.md#15-패턴-확인-double에서-사용한-키의-다음-up을-뒤-single에-사용)의 앞 double에서 쓴 B를 뒤 독립 single에 다시 사용하는 사례는 두 번째 B up이 뒤 single을 처리하며 새 기대 결과 Perfect 2·Miss 1이 기존 실행과 일치한다. [RFD 0032 §16](../rfd/0032-body-held-count.md#16-패턴-확인-양쪽-끝에-적격인-up은-앞-double의-남은-release를-처리)에서 두 번째 입력을 C로 바꾸면 C up은 앞 double의 남은 release를 처리한다고 확인했다. 도출한 새 기대 결과는 Perfect 1·Great 1·Miss 1이며 기존 실행의 Perfect 2·Miss 1과 다르다. [RFD 0032 §17](../rfd/0032-body-held-count.md#17-패턴-확인-연결-head의-교대와-유지-중-탭에서-up-소비)에서는 연결 head를 교대 또는 유지 중 탭으로 칠 때의 up을 연결용으로 소비한다고 확인했다. 마지막 끝을 별도 up으로 치는 두 대조의 기대 결과는 Perfect 2이며, 기존 엔진에서 유지 중 탭만 Miss가 나는 #281 형태의 결함과 구별한다. 기존 사례 ID를 유지한 재대조와 구현은 PRD의 hold 수 판정 전환 항목에서 추적한다.
+
+[RFD 0032 §18](../rfd/0032-body-held-count.md#18-패턴-확인-연결-head를-처리한-down부터-유지-유예-적용)의 연결 head 사례는 이르거나 늦은 실제 head down부터 뒤 바디의 유지를 판단하고 유지 유예를 적용한다. A up 2010 → B down 2100의 90ms 공백으로 N3를 실패시키지 않으며, N2 head 2000은 Good, B up 3000으로 처리하는 N3 끝은 Perfect가 도출된다. head 2000을 B down 1960으로 처리한 사례는 N3의 유지 판정도 1960부터 시작한다고 확인했다. hold가 1990~2015에 비면 25ms 공백으로 N3는 유지 실패하며, 차트상 시작 2000부터 부족 시간을 다시 세지 않는다. [RFD 0032 §19](../rfd/0032-body-held-count.md#19-패턴-확인-연결-head-miss와-계속-유지한-뒤-바디의-release)에서는 N2를 놓쳐도 A를 1000~3000까지 계속 유지했다면 A up 3000으로 N3의 release를 처리한다고 확인했다. 도출 결과는 N2 head Miss·N3 release Perfect이다. [RFD 0032 §20](../rfd/0032-body-held-count.md#20-패턴-확인-연결-head-창-안에서-유지가-끊긴-뒤-head-miss)에서는 A up 2010 뒤 추가 입력이 없으면 기존처럼 2120에 N2 Miss 하나와 N3 끝 종속 0점으로 정리한다고 확인했다. 별도 N3 유지·release Miss를 더하지 않는다. [RFD 0032 §21](../rfd/0032-body-held-count.md#21-패턴-확인-head-miss-뒤에-새로-발생한-유지-실패)에서는 head 기한까지 유지한 뒤 A를 2200에 떼면 N3 유지 Miss를 추가해 합계 Miss 2로 처리한다고 확인했다. 임시 20ms를 적용한 N3 실패 기한은 2220이며, 끝은 종속 0점으로 정산한다. double 등 나머지 적용 범위와 엔진 이행은 PRD에서 추적한다.
+
 사례는 40개이다. 계획 수립 때의 38개 사례를 테스트로 옮기는 순서, 추가 Point·트릴 회귀와 시간·입력 순서 검증은 [구현·검증 계획](../plans/note-judgment-implementation.md)을 따른다. [NJ-H08](#nj-h08)은 이후 실플레이에서 발견한 결함으로, [NJ-R16](#nj-r16)은 그 수정 검토에서 사용자가 정한 경계 뒤 교대 규칙으로 추가했다.
 
 ## 사용 방법
@@ -299,6 +303,8 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 <a id="nj-r13"></a>
 ### NJ-R13 — 첫 up은 연결, B 1040ms up은 terminal Great이며 새 B head 뒤 1100ms up은 terminal Perfect
 
+> **후속 규칙 확인:** [RFD 0032 §22](../rfd/0032-body-held-count.md#22-패턴-확인-새-head를-쳐도-같은-double-끝의-키-중복을-허용하지-않음)에서 새 head 뒤 두 번째 B up을 한때 거절했으나, [RFD 0032 §23](../rfd/0032-body-held-count.md#23-패턴-확인-노트를-처리한-같은-키의-재누름은-같은-double-끝의-남은-release를-처리)에서 정정했다. 아래 Perfect 기대값과 누름별 권한 갱신을 새 hold 수 모델에서도 유지한다.
+
 차트: double head 0 + double `[0,1000]` → single head 1000 + double `[1000,1100]`. `holdOnly`와 `trillZone` 없음. 중간 head 하나에 연결용 up 하나를 배정하며, 중간점의 실제 점수 release를 새로 만드는 것은 아니다.
 
 | 입력·진행 | 기대 결과 |
@@ -361,7 +367,7 @@ Perfect 3개, Great 2개이며 Miss는 없다. 실제 release 사용 키는 B/C�
 | 짧은 뒤 바디 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]`. A down 0, up 1015, 입력 없음 | 1120에 head Miss와 끝 1100의 종속 0점. 뒤 바디가 head 기한 전에 끝나도 유지 Miss·release Miss 없음. `[1000,1030]`도 같음. Perfect 1·Miss 1 |
 | 짧은 뒤 바디 뒤 증가 | head 0 + `[0,1000]` → head 1000 + `[1000,1100]` → double `[1100,2000]`. A down 0, up 1015, 입력 없음 | 1120 head Miss. 끝 release가 없는 `[1000,1100]`은 점수 항목 없이 닫힘. 시작하지 못한 double의 두 unit만 시작 기한 1220에 유지 Miss와 종속 0점. Perfect 1·Miss 3 |
 
-head가 있는 2→1 감소 경계의 감소 release는 [RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)에 따라 없애며, 그 경계의 입력별 기대 결과는 구현(#181)과 함께 정한다.
+head가 있는 2→1 감소 경계의 감소 release는 [RFD 0020 §2.13](../rfd/0020-note-judgment-units-and-inheritance.md#213-head가-있는-21-감소의-release--후속-채택)에서 없앴으나, [RFD 0032 §28](../rfd/0032-body-held-count.md#28-패턴-확인-head가-있는-21-감소의-release-복원과-짧은-뒤-바디)에서 다시 두기로 했다. 경계 근처의 첫 up이 감소 release를, 연결 head 창 안의 다음 up이 연결용 흡수를 맡으며, 네 연주의 기대 결과는 그 절을 따른다. 엔진 이행은 남아 있다.
 
 첫 head를 늦게 시작해도 결과는 같다. 아래는 **규칙에서 도출한 대조**다.
 

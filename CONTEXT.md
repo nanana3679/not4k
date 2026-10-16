@@ -64,6 +64,10 @@ _Avoid_: 롱노트 교대
 짧은 롱 노트가 연속되며 키 교대와 홀드 유지가 함께 요구되는 입력방식이다.
 _Avoid_: 단순 트릴
 
+**의도된 연주**:
+경계를 지난 뒤 바디가 요구하는 수만큼만 키가 남아 모든 up이 감소 release·연결용 흡수·끝 release 중 하나에 쓰이는 연주다. 판정은 이 연주를 점수 손해 없이 처리해야 한다. 기본 기준이며, 차트가 여분 홀드를 일부러 쓰게 짠 패턴에서는 차트의 의도를 우선한다. 세부는 [glossary](docs/context/glossary.md#의도된-연주)를 따른다.
+_Avoid_: 정석 플레이, 정답 연주
+
 **엄지 눕히기**:
 엄지를 옆으로 눕혀 인접한 두 키를 동시에 누르는 입력방식이다.
 _Avoid_: 엄지 더블클릭
@@ -99,7 +103,7 @@ _Avoid_: 연타 노트
 _Avoid_: 자동 입력 구간
 
 **더블 노트**:
-같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. 두 held가 반드시 겹쳐야 하는 것은 아니다.
+같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. double 끝의 두 실제 release도 서로 다른 키를 요구한다. 단, 같은 키를 다시 눌러 노트를 처리했다면 그 누름의 up은 같은 끝의 남은 release를 처리할 수 있다. 처음 유지한 키와 달라도 된다. 자격·이행 상태와 held 겹침의 세부는 [glossary](docs/context/glossary.md#더블-노트-double-note)를 따른다.
 _Avoid_: 더블클릭
 
 **Grace 노트**:
@@ -209,11 +213,11 @@ _Avoid_: 유지 판정
 _Avoid_: `connection`
 
 **`connection`**:
-같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없고, 유효한 연결에 사용한 up은 키의 동일 여부와 관계없이 뒤 release에 쓰지 않는다. 감소분은 실제 release 또는 `holdOnly`로 처리하며, 감소 경계에 head가 있으면 그 head가 경계의 판정이다(구현은 #181 대기). 세부는 [glossary](docs/context/glossary.md#consume-구-표기-흡수소비)를 따른다.
+같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없으며 감소분은 실제 release 또는 `holdOnly`로 처리한다. 후속 설계에서는 release 배정과 Grace의 역할을 패턴별로 확인하며, 합의 범위와 이행 상태는 [glossary](docs/context/glossary.md#release-판정)를 따른다.
 _Avoid_: `termination`
 
 **유예 시간**:
-연결 경계의 유효 판정 창에서 교대를 허용하는 시간 여유이다. 이미 확정된 바디 실패를 되돌리지 않으며, 세부는 [glossary](docs/context/glossary.md#유예-시간-grace-period)를 따른다.
+필요한 hold 수보다 적어진 짧은 공백의 유지 실패를 보호하는 시간이다. 후속 채택값은 임시 20ms이며, 연결 head를 처리한 single 사례는 이르거나 늦은 실제 head down부터 뒤 바디에 적용한다. release 후보의 처리 정책은 별도로 재검토한다. 기존 엔진과의 차이와 세부는 [glossary](docs/context/glossary.md#유예-시간-grace-period)를 따른다.
 _Avoid_: Grace 노트
 
 **Good◇**:
