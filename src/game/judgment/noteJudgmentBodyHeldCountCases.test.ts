@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NoteEntity } from "../../shared/types";
 import type { NoteJudgmentEvent } from "./NoteJudgmentCore";
-import { body, counts, judgments, playHolds, point, unsettledItemIds, type KeyHold } from "./noteJudgmentTestHarness";
+import { body, counts, playHolds, point, unsettledItemIds, type KeyHold } from "./noteJudgmentTestHarness";
 
 /**
  * RFD 0032(hold 수로 바디의 시작과 유지 판단)가 기대 결과를 적은 차트·입력의 회귀 사례.
@@ -12,20 +12,26 @@ import { body, counts, judgments, playHolds, point, unsettledItemIds, type KeyHo
  *
  * 노트 이름은 차트 배열 순서의 N1, N2, …(RFD와 같은 순서)이다. 판정 창은 Normal(Perfect ±41ms, Great ±82ms, Good ±120ms),
  * 시각은 ms이며 Beat에도 같은 수를 쓴다. 입력 [키, down, up]은 RFD의 "A 1000–1800"과 같다.
+ *
+ * 확정 시각도 확인한다. 입력으로 낸 판정은 그 입력 시각에 확정한다(§2-3 "교대 여부를 알아보기 위해 실제 release를 20ms 보류하지
+ * 않는다"). 종속 0점은 원인인 head Miss·유지 Miss와 같은 시각에 확정한다(§5-2 "N2의 Good 기한 2120에 처리", §5-4 "유예 뒤
+ * 유지 Miss와 종속 0점으로 처리").
  */
 
 type Harness = ReturnType<typeof playHolds>;
-interface Outcome { lines: string[]; perfect: number; great: number; good: number; miss: number; unsettled: string[] }
+interface Outcome { lines: string[]; perfect: number; great: number; good: number; miss: number; unsettled: string[]; confirmedLate: string[] }
 
 const signed = (value: number) => value > 0 ? `+${value}` : `${value}`;
 
 /**
- * 판정 하나를 한 줄로 적는다. 종속 0점(dependentZero)은 Miss가 아니므로 줄로 만들지 않고, 미정산 항목 검사로 확인한다.
+ * 판정 하나를 한 줄로 적는다. 종속 0점(dependentZero)은 Miss 합계에 넣지 않지만 줄로 적어 정산 시각을 확인한다.
  * - 성공: "N3 head great +50", "N1 release perfect -10", "N1 holdOnly perfect"
  * - Miss: "N2 head miss@2120", "N1 release miss@2120", "N3 maintenanceMiss@2220" (@ 뒤는 확정 시각)
+ * - 종속 0점: "N3 release dependentZero@2120" (점수 항목 종류와 확정 시각. double의 어느 몫인지는 적지 않는다)
  */
 function line(event: NoteJudgmentEvent): string {
   const note = `N${event.noteIndex + 1}`;
+  if (event.kind === "dependentZero") return `${note} ${event.itemId?.split(":")[1]} dependentZero@${event.confirmedAt}`;
   if (event.kind === "maintenanceMiss") return `${note} maintenanceMiss@${event.confirmedAt}`;
   if (event.grade === "miss") return `${note} ${event.kind} miss@${event.confirmedAt}`;
   if (event.kind === "holdOnly") return `${note} holdOnly ${event.grade}`;
@@ -38,15 +44,16 @@ const sortLines = (lines: readonly string[]) => [...lines].sort((a, b) => noteOr
 function outcome(h: Harness): Outcome {
   const tally = counts(h.events);
   return {
-    lines: sortLines(judgments(h.events).map(line)),
+    lines: sortLines(h.events.map(line)),
     perfect: tally.perfect, great: tally.great, good: tally.good + tally.goodTrill, miss: tally.miss,
     unsettled: unsettledItemIds(h),
+    confirmedLate: h.events.filter(event => event.inputAt !== null && event.confirmedAt !== event.inputAt).map(line),
   };
 }
 
-/** 노트별 판정 줄과 Perfect/Great/Good/Miss 합계를 확인하고, 모든 점수 항목이 정산됐는지도 본다. */
+/** 노트별 판정 줄과 Perfect/Great/Good/Miss 합계를 확인하고, 모든 점수 항목이 정산됐는지와 입력 판정을 입력 시각에 확정했는지도 본다. */
 function expectOutcome(h: Harness, lines: readonly string[], total: Partial<Pick<Outcome, "perfect" | "great" | "good" | "miss">>) {
-  expect(outcome(h)).toEqual({ lines: sortLines(lines), perfect: 0, great: 0, good: 0, miss: 0, ...total, unsettled: [] });
+  expect(outcome(h)).toEqual({ lines: sortLines(lines), perfect: 0, great: 0, good: 0, miss: 0, ...total, unsettled: [], confirmedLate: [] });
 }
 
 function play(notes: readonly NoteEntity[], ...holds: KeyHold[]) {
@@ -75,7 +82,7 @@ describe("RFD 0032 §2-1 hold 수로 시작과 유지 판단", () => {
   // main: 유예 없이 1800에 한 몫, B up 2500에 남은 몫까지 유지 Miss — Miss 2
   it.fails("doubleLong [1000,3000]에서 A 1000–1800·B 1000–2500·C 1830–3000이면 한 몫은 1820에 유지 Miss이고 B를 2500에 떼도 C의 hold로 남은 몫을 유지해 C up이 release Perfect", () => {
     const h = play([body(1000, 3000, "doubleLong")], ["A", 1000, 1800], ["B", 1000, 2500], ["C", 1830, 3000]);
-    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release dependentZero@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
   });
 });
 
@@ -83,13 +90,13 @@ describe("RFD 0032 §2-2 유지 유예", () => {
   // main: 유예 없이 A up 1800에 바로 유지 Miss(@1800) — 합계는 같은 Perfect 1·Miss 1
   it.fails("doubleLong [1000,3000]에서 A 1000–1800·B 1000–3000·C 1830–3000이면 hold 1개인 30ms 공백이 유예 20ms보다 길어 한 몫이 1820에 유지 Miss이고 남은 몫은 release Perfect", () => {
     const h = play([body(1000, 3000, "doubleLong")], ["A", 1000, 1800], ["B", 1000, 3000], ["C", 1830, 3000]);
-    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release dependentZero@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
   });
 
   // main: 유예 없이 1800·1810에 두 몫 모두 유지 Miss — Miss 2
   it.fails("doubleLong [1000,3000]에서 hold 수가 2→1→0→1→2(A up 1800·B up 1810·C down 1815·D down 1825)면 2 기준 공백 25ms로 한 몫만 1820에 유지 Miss이고 1 기준 공백 5ms는 유예 안이라 남은 몫은 release Perfect", () => {
     const h = play([body(1000, 3000, "doubleLong")], ["A", 1000, 1800], ["B", 1000, 1810], ["C", 1815, 3000], ["D", 1825, 3000]);
-    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release dependentZero@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
   });
 });
 
@@ -234,7 +241,7 @@ describe("RFD 0032 §4-3 head를 처리한 down부터 뒤 바디 유지", () => 
     const h = play(singleConnection(), ["A", 1000, 1980], ["B", 1960, 1990], ["C", 2015, 3000]);
     // RFD는 N2·N3만 정했다. N1의 실패 여부와 전체 Miss 수는 승인하지 않았으므로 확인하지 않는다.
     const { lines, unsettled } = outcome(h);
-    expect({ lines: lines.filter(text => /^N[23] /.test(text)), unsettled }).toEqual({ lines: ["N2 head perfect -40", "N3 maintenanceMiss@2010"], unsettled: [] });
+    expect({ lines: lines.filter(text => /^N[23] /.test(text)), unsettled }).toEqual({ lines: ["N2 head perfect -40", "N3 maintenanceMiss@2010", "N3 release dependentZero@2010"], unsettled: [] });
   });
 
   it("doubleLong [1000,2000] → head 2000 + doubleLong [2000,2100]에서 A 1000–2010·C 1000–2100·B 2050–2100이면 head가 맡는 몫을 B down부터 판단해 N2 Great(+50)·N3 두 끝 Perfect", () => {
@@ -293,7 +300,7 @@ describe("RFD 0032 §5-1 계속 유지한 뒤 바디", () => {
 describe("RFD 0032 §5-2 head 창 안에서 끊김", () => {
   it("long [1000,2000] → head 2000 + long [2000,3000]에서 A 1000–2010만 누르면 head 창 안에서 끊겨 N2 Miss 하나만 내고 N3 끝은 종속 0점", () => {
     const h = play(singleConnection(), ["A", 1000, 2010]);
-    expectOutcome(h, ["N2 head miss@2120"], { miss: 1 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 release dependentZero@2120"], { miss: 1 });
   });
 });
 
@@ -301,7 +308,7 @@ describe("RFD 0032 §5-3 head 창 뒤에 끊김", () => {
   // main: 유예 없이 A up 2200에 바로 N3 유지 Miss(@2200)
   it.fails("long [1000,2000] → head 2000 + long [2000,3000]에서 A 1000–2200만 누르면 2120에 N2 Miss이고 head 창 뒤 끊김은 유예 뒤 2220에 N3 유지 Miss라 Miss 2", () => {
     const h = play(singleConnection(), ["A", 1000, 2200]);
-    expectOutcome(h, ["N2 head miss@2120", "N3 maintenanceMiss@2220"], { miss: 2 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 maintenanceMiss@2220", "N3 release dependentZero@2220"], { miss: 2 });
   });
 });
 
@@ -313,25 +320,25 @@ describe("RFD 0032 §5-4 double 연결에서 head가 맡는 몫", () => {
 
   it("doubleLong [1000,2000] → head 2000 + doubleLong [2000,3000]에서 C 1000–3000·A 1000–2010이면 2120에 N2 Miss, head가 맡는 몫은 종속 0점이고 C up이 남은 release Perfect", () => {
     const h = play(doubleConnection(3000), ["C", 1000, 3000], ["A", 1000, 2010]);
-    expectOutcome(h, ["N2 head miss@2120", "N3 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 release dependentZero@2120", "N3 release perfect 0"], { perfect: 1, miss: 1 });
   });
 
   // main: 유예 없이 A up 2200에 바로 N3 한 몫 유지 Miss(@2200)
   it.fails("doubleLong [1000,2000] → head 2000 + doubleLong [2000,3000]에서 C 1000–3000·A 1000–2200이면 2120에 N2 Miss, 2220에 N3 한 몫 유지 Miss이고 C up이 남은 release Perfect", () => {
     const h = play(doubleConnection(3000), ["C", 1000, 3000], ["A", 1000, 2200]);
-    expectOutcome(h, ["N2 head miss@2120", "N3 maintenanceMiss@2220", "N3 release perfect 0"], { perfect: 1, miss: 2 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 maintenanceMiss@2220", "N3 release dependentZero@2220", "N3 release perfect 0"], { perfect: 1, miss: 2 });
   });
 });
 
 describe("RFD 0032 §5-5 짧은 뒤 바디", () => {
   it("long [1000,2000] → head 2000 + 짧은 long [2000,2060]에서 A 1000–2060만 누르면 head 전 A up이 연결 release라 2120에 N2 Miss와 N3 끝 종속 0점으로 Miss 1", () => {
     const h = play(singleConnection(2060), ["A", 1000, 2060]);
-    expectOutcome(h, ["N2 head miss@2120"], { miss: 1 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 release dependentZero@2120"], { miss: 1 });
   });
 
   it("doubleLong [1000,2000] → head 2000 + 짧은 doubleLong [2000,2060]에서 A/B 1000–2060만 누르면 한 up이 연결 release, 다른 up이 N3 한 끝 Perfect이고 N2 Miss라 Perfect 1·Miss 1", () => {
     const h = play(doubleConnection(2060), ["A", 1000, 2060], ["B", 1000, 2060]);
-    expectOutcome(h, ["N2 head miss@2120", "N3 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(h, ["N2 head miss@2120", "N3 release dependentZero@2120", "N3 release perfect 0"], { perfect: 1, miss: 1 });
   });
 });
 
@@ -353,7 +360,7 @@ describe("RFD 0032 §6-1 1→2 증가", () => {
   });
 
   it("long [1000,2000] → head 없는 doubleLong [2000,3000]에서 B를 2200에 누르면 2120에 N2u2 시작 실패 Miss이고 B는 실패한 몫을 되살리지 않아 Perfect 1·Miss 1", () => {
-    expectOutcome(play(chart(), ["A", 1000, 3000], ["B", 2200, 3000]), ["N2 maintenanceMiss@2120", "N2 release perfect 0"], { perfect: 1, miss: 1 });
+    expectOutcome(play(chart(), ["A", 1000, 3000], ["B", 2200, 3000]), ["N2 maintenanceMiss@2120", "N2 release dependentZero@2120", "N2 release perfect 0"], { perfect: 1, miss: 1 });
   });
 
   // main: B down 2040을 head에만 써서 늘어난 몫이 2120에 시작 실패 — Perfect 2·Miss 1
@@ -509,12 +516,12 @@ describe("RFD 0032 §8-1 시작 직후의 재충전", () => {
   });
 
   it("head 1000 → head 없는 long [1100,1500]에서 A 1000–1105 뒤 다시 누르지 않으면 1125가 아닌 S+Good 1220에 N2 유지 Miss", () => {
-    expectOutcome(play(chart(), ["A", 1000, 1105]), ["N1 head perfect 0", "N2 maintenanceMiss@1220"], { perfect: 1, miss: 1 });
+    expectOutcome(play(chart(), ["A", 1000, 1105]), ["N1 head perfect 0", "N2 maintenanceMiss@1220", "N2 release dependentZero@1220"], { perfect: 1, miss: 1 });
   });
 
   // main: head 없는 N2 시작에 새 down을 요구해 S+Good 1220에 시작 실패(@1220)
   it.fails("head 1000 → head 없는 long [1100,1500]에서 A 1000–1210으로 S+Good 직전에 hold를 잃으면 1210+20=1230에 N2 유지 Miss", () => {
-    expectOutcome(play(chart(), ["A", 1000, 1210]), ["N1 head perfect 0", "N2 maintenanceMiss@1230"], { perfect: 1, miss: 1 });
+    expectOutcome(play(chart(), ["A", 1000, 1210]), ["N1 head perfect 0", "N2 maintenanceMiss@1230", "N2 release dependentZero@1230"], { perfect: 1, miss: 1 });
   });
 
   // main: A up 2010에 N2 한 몫이 바로 유지 Miss(@2010) — Perfect 1·Miss 1
@@ -532,7 +539,7 @@ describe("RFD 0032 §8-1 §1-4의 holdOnly 예", () => {
   });
 
   it("Point 1000 → head 없는 holdOnly [1010,1500]에서 A 1000–1030 탭 뒤 아무것도 누르지 않으면 1050이 아닌 S+Good 1130에 N2 유지 Miss", () => {
-    expectOutcome(play(chart(), ["A", 1000, 1030]), ["N1 head perfect 0", "N2 maintenanceMiss@1130"], { perfect: 1, miss: 1 });
+    expectOutcome(play(chart(), ["A", 1000, 1030]), ["N1 head perfect 0", "N2 maintenanceMiss@1130", "N2 holdOnly dependentZero@1130"], { perfect: 1, miss: 1 });
   });
 });
 

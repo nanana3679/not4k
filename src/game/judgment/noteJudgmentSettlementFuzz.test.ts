@@ -190,13 +190,23 @@ function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batche
     for (const [at, inputs] of batches) deliver(at, inputs);
     session.finalize();
   } catch (caught) {
-    error = (caught as Error).message;
+    error = describeError((caught as Error).message, compiled);
   }
   return {
     error, state: session.score.getState(), events: session.events,
     unsettled: unsettledItems(compiled, session.events),
     holdOnlyViolation: holdOnlyViolation(notes, compiled, session.events),
   };
+}
+
+/**
+ * 세션의 정산 예외("중복 또는 미등록 score item: n1:release:0")는 항목이 차트에 있으면 "중복", 없으면 "미등록"으로 나눠
+ * "미등록 n1:release:0"처럼 적는다. 그 밖의 예외는 메시지를 그대로 둬 아래 예외 래칫과 어긋나게 한다.
+ */
+function describeError(message: string, compiled: CompiledChart): string {
+  const itemId = /^중복 또는 미등록 (?:score|dependent) item: (.+)$/.exec(message)?.[1];
+  if (itemId === undefined) return message;
+  return `${compiled.scoreItems.some(item => item.itemId === itemId) ? "중복" : "미등록"} ${itemId}`;
 }
 
 /** maintenanceMiss는 점수 항목을 정산하지 않는다(무득점 Miss). 나머지 이벤트의 itemId가 정산한 항목이다. */
@@ -295,15 +305,15 @@ const observedRuns = (generator: "general" | "short") => collect(`observed:${gen
   return { seed, onTime: play(notes, firstKeys, batches, START, delayRngFor(seed)) };
 });
 
-const throwingSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error !== undefined).map(run => run.seed);
+/** 예외로 끝난 seed와 예외 설명("2578 미등록 n1:release:0"). */
+const thrownErrors = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error !== undefined).map(run => `${run.seed} ${run.onTime.error}`);
 const fullComboWithUnsettledItems = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.error === undefined &&
   run.onTime.state.isFullCombo && run.onTime.state.processedNotes !== run.onTime.state.totalNotes).map(run => run.seed);
 /** 예외 없이 끝났는데 점수 항목이 남은 seed를 결함 범주별로 모은다. Full Combo 여부와 관계없다. */
 const unsettledSeeds = (all: readonly FuzzRun[]) => {
   const finished = all.filter(run => run.onTime.error === undefined);
-  const seedsWith = (category: keyof Unsettled) => finished.filter(run => run.onTime.unsettled[category].length > 0).map(run => run.seed);
   const items = (category: keyof Unsettled) => finished.flatMap(run => run.onTime.unsettled[category].map(itemId => `${run.seed}:${itemId}`));
-  return { "#182": digest(items("headMissDecrease")), "#181": digest(items("headHitDecrease")), other: seedsWith("other") };
+  return { "#182": digest(items("headMissDecrease")), "#181": digest(items("headHitDecrease")), other: items("other") };
 };
 const holdOnlyViolationSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.holdOnlyViolation).map(run => run.seed);
 
@@ -311,9 +321,12 @@ const holdOnlyViolationSeeds = (all: readonly FuzzRun[]) => all.filter(run => ru
 
 type Generator = "general" | "swap" | "short" | "shortMid" | "observedGeneral" | "observedShort";
 type Ratchet = Record<Generator, number[]>;
+/** seed와 예외 설명("2578 미등록 n1:release:0") 또는 `seed:itemId` 목록. 같은 seed라도 다른 예외·항목이면 어긋난다. */
+type EntryRatchet = Record<Generator, string[]>;
+const seedsOf = (entries: readonly string[]) => entries.map(entry => Number(entry.split(/[ :]/)[0]));
 /**
  * 결함 범주가 고정된 미정산은 `seed:itemId`가 수백 개라 목록 대신 항목 수와 정렬한 목록의 FNV-1a 해시로 고정한다.
- * 항목이 하나라도 바뀌면(한 seed가 고쳐지고 다른 seed가 깨져도) 해시가 바뀐다. 다른 종류의 미정산은 `other`가 seed 목록으로 잡는다.
+ * 항목이 하나라도 바뀌면(한 seed가 고쳐지고 다른 seed가 깨져도) 해시가 바뀐다. 다른 종류의 미정산은 `other`가 `seed:itemId` 목록으로 잡는다.
  */
 type ItemDigest = { items: number; hash: string };
 type DigestRatchet = Record<Generator, ItemDigest>;
@@ -324,7 +337,7 @@ const digest = (ids: readonly string[]): ItemDigest => {
 };
 
 /**
- * 정산 예외(미등록·중복 score item)를 던지는 seed.
+ * 정산 예외를 던지는 seed와 예외 종류(미등록·중복)·항목. 같은 seed가 다른 예외를 던져도 어긋난다.
  * - #180: 뒤 바디가 없는 끝 holdOnly unit이 E+Good까지 미확정이면 holdOnly 대신 release 판정을 내보내 미등록 score item
  *   예외를 던진다(예: 일반 seed 2578 — headless doubleLong [1000,1200] → holdOnly [1200,1260], B up 1160·A up 1170;
  *   짧은·중간 seed 2294·3296·3439·5050·5073·5087도 모두 끝 holdOnly 노트의 `n?:release:0` 예외).
@@ -332,8 +345,16 @@ const digest = (ids: readonly string[]): ItemDigest => {
  * - #199: 관측 지연 경로에서 head 있는 2→1 감소 경계의 release를 두 번 정산한다(관측 일반 seed 1457 — doubleLong [1160,1220]
  *   → head 1220 + holdOnly [1220,1720]의 `n5:release:0` 중복).
  */
-const KNOWN_THROWS: Ratchet = {
-  general: [2578], swap: [], short: [], shortMid: [2294, 3296, 3439, 5050, 5073, 5087], observedGeneral: [1457], observedShort: [],
+const KNOWN_THROWS: EntryRatchet = {
+  general: ["2578 미등록 n1:release:0"],
+  swap: [],
+  short: [],
+  shortMid: [
+    "2294 미등록 n3:release:0", "3296 미등록 n6:release:0", "3439 미등록 n2:release:0",
+    "5050 미등록 n5:release:0", "5073 미등록 n4:release:0", "5087 미등록 n1:release:0",
+  ],
+  observedGeneral: ["1457 중복 n5:release:0"],
+  observedShort: [],
 };
 
 /**
@@ -346,8 +367,8 @@ const KNOWN_HOLD_ONLY_VIOLATIONS: Ratchet = {
   general: [2578], swap: [], short: [], shortMid: [2294, 2375, 3296, 3439, 5050, 5073, 5087], observedGeneral: [1457], observedShort: [],
 };
 
-/** 정산 예외 없이 끝났는데 감소 release가 아닌 점수 항목이 남은 seed. 짧은·중간 2375는 위 #180 경로의 holdOnly 항목이다. */
-const OTHER_UNSETTLED: Ratchet = { general: [], swap: [], short: [], shortMid: [2375], observedGeneral: [], observedShort: [] };
+/** 정산 예외 없이 끝났는데 남은 감소 release가 아닌 점수 항목(`seed:itemId`). 짧은·중간 2375는 위 #180 경로의 holdOnly 항목이다. */
+const OTHER_UNSETTLED: EntryRatchet = { general: [], swap: [], short: [], shortMid: ["2375:n2:holdOnly:0"], observedGeneral: [], observedShort: [] };
 
 /**
  * #182: head 있는 2→1 감소 경계에서 연결 head가 Miss이면 core가 앞 double의 감소 release unit을 판정 없이 실패시켜
@@ -384,20 +405,20 @@ const unsettledRatchet = (generator: Generator) => ({
 /** 래칫을 테스트명에 쓰는 요약. 비었으면 "없음", 아니면 결함 이슈와 seed를 적는다. */
 const ratchetLabel = (seeds: readonly number[], issue: string) => seeds.length === 0 ? "없음" : `${issue} seed ${seeds.join("·")}뿐`;
 const itemCount = ({ items }: ItemDigest) => items === 0 ? "없음" : `항목 ${items}개`;
-const seedList = (seeds: readonly number[]) => seeds.length === 0 ? "없음" : `seed ${seeds.join("·")}`;
+const itemList = (items: readonly string[]) => items.length === 0 ? "없음" : items.join("·");
 /** 미정산 래칫을 테스트명에 쓰는 요약. */
 const unsettledLabel = (generator: Generator) => {
   const ratchet = unsettledRatchet(generator);
-  return `head Miss 뒤 감소 release(#182) ${itemCount(ratchet["#182"])}, head 뒤 감소 release(#181) ${itemCount(ratchet["#181"])}, 그 밖 ${seedList(ratchet.other)}`;
+  return `head Miss 뒤 감소 release(#182) ${itemCount(ratchet["#182"])}, head 뒤 감소 release(#181) ${itemCount(ratchet["#181"])}, 그 밖 ${itemList(ratchet.other)}`;
 };
 const UNSETTLED_TITLE = "Full Combo가 아니어도 끝까지 재생하면 점수 항목이 남지 않아야 하며, 지금 남는 래칫은";
 
 /* ── 테스트 ───────────────────────────────────────────────────────────────────────────────────────────── */
 
 describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력", () => {
-  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외는 기존 끝 holdOnly 결함(#180) seed ${KNOWN_THROWS.general.join("·")}뿐`, () => {
+  it(`seed 1~${SEEDS}의 유효한 차트를 끝까지 재생하면 미등록·중복 점수 정산 예외는 기존 끝 holdOnly 결함(#180) seed ${seedsOf(KNOWN_THROWS.general).join("·")}뿐`, () => {
     expect(runs().length).toBeGreaterThan(SEEDS / 2);
-    expect(throwingSeeds(runs())).toEqual(KNOWN_THROWS.general);
+    expect(thrownErrors(runs())).toEqual(KNOWN_THROWS.general);
   });
 
   it(`seed 1~${SEEDS}에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -423,9 +444,9 @@ describe("판정 정산 퍼즈: 유효한 연결 차트의 경계 ±100ms 입력
 });
 
 describe("판정 정산 퍼즈: 2→1 감소 경계의 연결 head 교대", () => {
-  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외는 ${ratchetLabel(KNOWN_THROWS.swap, "#180")}`, () => {
+  it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 up −60~+80ms·연결 head −40~+115ms 재생에서 미등록·중복 점수 정산 예외는 ${ratchetLabel(seedsOf(KNOWN_THROWS.swap), "#180")}`, () => {
     expect(swapRuns().length).toBeGreaterThan(SWAP_SEEDS / 2);
-    expect(throwingSeeds(swapRuns())).toEqual(KNOWN_THROWS.swap);
+    expect(thrownErrors(swapRuns())).toEqual(KNOWN_THROWS.swap);
   });
 
   it(`seed 1~${SWAP_SEEDS}의 double 감소·교대 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -442,9 +463,9 @@ describe("판정 정산 퍼즈: 2→1 감소 경계의 연결 head 교대", () =
 });
 
 describe("판정 정산 퍼즈: 짧은 바디(20~200ms) 체인의 경계 ±100ms 입력", () => {
-  it(`seed 1~${SHORT_SEEDS}의 20~200ms 구간 체인을 끝까지 재생하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(KNOWN_THROWS.short, "#180")}`, () => {
+  it(`seed 1~${SHORT_SEEDS}의 20~200ms 구간 체인을 끝까지 재생하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(seedsOf(KNOWN_THROWS.short), "#180")}`, () => {
     expect(shortRuns().length).toBeGreaterThan(SHORT_SEEDS / 2);
-    expect(throwingSeeds(shortRuns())).toEqual(KNOWN_THROWS.short);
+    expect(thrownErrors(shortRuns())).toEqual(KNOWN_THROWS.short);
   });
 
   it(`seed 1~${SHORT_SEEDS}의 20~200ms 구간 체인에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -461,9 +482,9 @@ describe("판정 정산 퍼즈: 짧은 바디(20~200ms) 체인의 경계 ±100ms
 });
 
 describe("판정 정산 퍼즈: 짧은·중간 바디(20~200ms, 80·120ms 포함) 체인의 경계 ±100ms 입력", () => {
-  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인을 끝까지 재생하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(KNOWN_THROWS.shortMid, "#180")}`, () => {
+  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인을 끝까지 재생하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(seedsOf(KNOWN_THROWS.shortMid), "#180")}`, () => {
     expect(shortMidRuns().length).toBeGreaterThan(SHORT_MID_SEEDS / 2);
-    expect(throwingSeeds(shortMidRuns())).toEqual(KNOWN_THROWS.shortMid);
+    expect(thrownErrors(shortMidRuns())).toEqual(KNOWN_THROWS.shortMid);
   });
 
   it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
@@ -488,9 +509,9 @@ describe(`판정 정산 퍼즈: batch마다 0~${MAX_OBSERVED_DELAY}ms 늦게 관
   ] as const;
 
   for (const [label, generator, ratchet] of generators) {
-    it(`${label} 생성기 seed 1~${OBSERVED_SEEDS}의 입력을 관측 지연으로 전달하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(KNOWN_THROWS[ratchet], "#199")}`, () => {
+    it(`${label} 생성기 seed 1~${OBSERVED_SEEDS}의 입력을 관측 지연으로 전달하면 미등록·중복 점수 정산 예외는 ${ratchetLabel(seedsOf(KNOWN_THROWS[ratchet]), "#199")}`, () => {
       expect(observedRuns(generator).length).toBeGreaterThan(OBSERVED_SEEDS / 2);
-      expect(throwingSeeds(observedRuns(generator))).toEqual(KNOWN_THROWS[ratchet]);
+      expect(thrownErrors(observedRuns(generator))).toEqual(KNOWN_THROWS[ratchet]);
     });
 
     it(`${label} 생성기 seed 1~${OBSERVED_SEEDS}의 관측 지연 재생에서 Full Combo로 끝난 플레이는 모든 점수 항목을 정확히 한 번씩 정산함`, () => {
