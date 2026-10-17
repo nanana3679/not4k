@@ -23,7 +23,7 @@ describe("NoteJudgmentCore laneHolds 관측 (RFD 0032 이행 전, 판정에 쓰�
     expect(core.laneHolds.count(2)).toBe(1);
     core.processBatch(1800, [{ key: "A", lane: 1, type: "up" }]);
     expect(core.laneHolds.count(1)).toBe(1);
-    expect(core.laneHolds.shortSince(1, 2)).toBe(1800);
+    expect(core.laneHolds.belowSince(1, 2)).toBe(1800);
     expect(core.laneHolds.count(2)).toBe(1);
   });
 
@@ -33,25 +33,25 @@ describe("NoteJudgmentCore laneHolds 관측 (RFD 0032 이행 전, 판정에 쓰�
     core.processBatch(1500, [{ key: "X", lane: 1, type: "up" }]);
     core.processBatch(1800, [{ key: "B", lane: 1, type: "down" }, { key: "A", lane: 1, type: "up" }]);
     expect(core.laneHolds.count(1)).toBe(1);
-    expect(core.laneHolds.shortSince(1, 1)).toBeUndefined();
-    expect(core.laneHolds.shortSince(1, 2)).toBe(1500);
+    expect(core.laneHolds.belowSince(1, 1)).toBeUndefined();
+    expect(core.laneHolds.belowSince(1, 2)).toBe(1500);
   });
 
-  it("processObservedBatch(rawAt=1800, [A up], observedAt=1815)의 up은 raw 1800에 기록되어 shortSince(1, 1)=1800", () => {
+  it("processObservedBatch(rawAt=1800, [A up], observedAt=1815)의 up은 raw 1800에 기록되어 belowSince(1, 1)=1800", () => {
     const core = twoLaneCore();
     core.processBatch(1000, [{ key: "A", lane: 1, type: "down" }]);
     core.processObservedBatch(1800, [{ key: "A", lane: 1, type: "up" }], 1815);
     expect(core.laneHolds.count(1)).toBe(0);
-    expect(core.laneHolds.shortSince(1, 1)).toBe(1800);
+    expect(core.laneHolds.belowSince(1, 1)).toBe(1800);
   });
 
-  it("lane 없는 handlePress A 1000은 레인 1로 세고 handleRelease A 1500 뒤 shortSince(1, 1)=1500", () => {
+  it("lane 없는 handlePress A 1000은 레인 1로 세고 handleRelease A 1500 뒤 belowSince(1, 1)=1500", () => {
     const core = twoLaneCore();
     core.handlePress("A", 1000);
     expect(core.laneHolds.count(1)).toBe(1);
     expect(core.laneHolds.count(2)).toBe(0);
     core.handleRelease("A", 1500);
     expect(core.laneHolds.count(1)).toBe(0);
-    expect(core.laneHolds.shortSince(1, 1)).toBe(1500);
+    expect(core.laneHolds.belowSince(1, 1)).toBe(1500);
   });
 });

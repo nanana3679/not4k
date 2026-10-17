@@ -127,7 +127,7 @@ export class NoteJudgmentCore {
   /** tracker를 고칠 수 없게 조회 메서드만 감싼 view. */
   private readonly holdView: LaneHoldView = {
     count: lane => this.holdTracker.count(lane),
-    shortSince: (lane, need) => this.holdTracker.shortSince(lane, need),
+    belowSince: (lane, need) => this.holdTracker.belowSince(lane, need),
     failureDeadline: (lane, need, window) => this.holdTracker.failureDeadline(lane, need, window),
   };
   private readonly pendingUps: PressToken[] = [];

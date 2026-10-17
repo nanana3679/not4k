@@ -5,7 +5,7 @@ export interface MaintenanceWindow {
   /**
    * 이 시각부터 hold 수를 요구한다. 그전의 부족은 세지 않는다. head 없는 바디는 시작 S,
    * head가 있는 바디는 head를 처리한 down 시각을 넘긴다(그 down부터 유예를 적용, §4-3).
-   * head Miss는 다르다. head의 Good 기한에 `shortSince(lane, need)`로 그 몫까지 채웠는지 먼저 보고,
+   * head Miss는 다르다. head의 Good 기한에 `belowSince(lane, need)`로 그 몫까지 채웠는지 먼저 보고,
    * 채우지 못했으면 유예 없이 head Miss와 그 몫의 종속 0점으로 바로 정리한 뒤 줄어든 `need`로 판단한다.
    * 채웠을 때만 head의 Good 기한을 `judgedFrom`으로 넘겨 이어서 판단한다(§5-2, §5-4).
    */
@@ -22,10 +22,10 @@ export interface LaneHoldView {
    * hold 수가 `need`보다 적어진 시각. `count(lane) >= need`이거나 `need <= 0`이면 `undefined`,
    * 추적을 시작한 뒤 한 번도 `need`에 도달하지 않았으면 `-Infinity`이다.
    */
-  shortSince(lane: number, need: number): number | undefined;
+  belowSince(lane: number, need: number): number | undefined;
   /**
    * 부족이 회복되지 않을 때 유지 실패를 확정할 시각. 부족이 없으면 `undefined`, 있으면
-   * `max(shortSince, judgedFrom) + graceMs`이고 `refillUntil`을 주면 그보다 이르지 않다.
+   * `max(belowSince, judgedFrom) + graceMs`이고 `refillUntil`을 주면 그보다 이르지 않다.
    * `judgedFrom`이 있으므로 한 번도 도달하지 않은 기준도 유한한 시각을 돌려준다.
    */
   failureDeadline(lane: number, need: number, window: MaintenanceWindow): number | undefined;
@@ -43,14 +43,14 @@ export interface LaneHoldView {
 export class LaneHoldTracker implements LaneHoldView {
   private readonly graceMs: number;
   /** 눌려 있는 키 → down 때 받은 레인. up은 레인 없이 이 기록으로 키를 뺀다. */
-  private readonly keyLanes = new Map<string, number>();
-  private readonly counts = new Map<number, number>();
+  private readonly laneByHeldKey = new Map<string, number>();
+  private readonly holdCountByLane = new Map<number, number>();
   /**
    * 레인 → (기준 need → hold 수가 need 아래로 내려간 시각).
    * 기준을 회복하면 항목을 지우고, 다시 내려가면 새 시각으로 기록한다.
    * 한 번도 도달하지 않은 기준은 항목이 없다.
    */
-  private readonly shortStarts = new Map<number, Map<number, number>>();
+  private readonly belowSinceByLane = new Map<number, Map<number, number>>();
 
   constructor(graceMs: number = MAINTENANCE_GRACE_MS) {
     this.graceMs = graceMs;
@@ -61,39 +61,39 @@ export class LaneHoldTracker implements LaneHoldView {
    * (core가 `held`를 덮어쓰는 것과 같은 길이 0의 공백, 다른 레인이면 키를 옮긴다).
    */
   down(key: string, lane: number, at: number): void {
-    if (this.keyLanes.has(key)) this.up(key, at);
-    this.keyLanes.set(key, lane);
+    if (this.laneByHeldKey.has(key)) this.up(key, at);
+    this.laneByHeldKey.set(key, lane);
     const next = this.count(lane) + 1;
-    this.counts.set(lane, next);
-    this.shortStarts.get(lane)?.delete(next);
+    this.holdCountByLane.set(lane, next);
+    this.belowSinceByLane.get(lane)?.delete(next);
   }
 
   /** 키 up을 기록한다. 눌려 있지 않은 키의 up은 무시한다(core `release`의 token 없음과 같다). */
   up(key: string, at: number): void {
-    const lane = this.keyLanes.get(key);
+    const lane = this.laneByHeldKey.get(key);
     if (lane === undefined) return;
-    this.keyLanes.delete(key);
+    this.laneByHeldKey.delete(key);
     const previous = this.count(lane);
-    this.counts.set(lane, previous - 1);
-    let starts = this.shortStarts.get(lane);
-    if (!starts) {
-      starts = new Map();
-      this.shortStarts.set(lane, starts);
+    this.holdCountByLane.set(lane, previous - 1);
+    let belowSinceByNeed = this.belowSinceByLane.get(lane);
+    if (!belowSinceByNeed) {
+      belowSinceByNeed = new Map();
+      this.belowSinceByLane.set(lane, belowSinceByNeed);
     }
-    starts.set(previous, at);
+    belowSinceByNeed.set(previous, at);
   }
 
   count(lane: number): number {
-    return this.counts.get(lane) ?? 0;
+    return this.holdCountByLane.get(lane) ?? 0;
   }
 
-  shortSince(lane: number, need: number): number | undefined {
+  belowSince(lane: number, need: number): number | undefined {
     if (need <= 0 || this.count(lane) >= need) return undefined;
-    return this.shortStarts.get(lane)?.get(need) ?? -Infinity;
+    return this.belowSinceByLane.get(lane)?.get(need) ?? -Infinity;
   }
 
   failureDeadline(lane: number, need: number, { judgedFrom, refillUntil }: MaintenanceWindow): number | undefined {
-    const since = this.shortSince(lane, need);
+    const since = this.belowSince(lane, need);
     if (since === undefined) return undefined;
     const deadline = Math.max(since, judgedFrom) + this.graceMs;
     return refillUntil === undefined ? deadline : Math.max(deadline, refillUntil);
