@@ -252,7 +252,7 @@ describe("LaneHoldTracker 유예 길이", () => {
   });
 });
 
-describe("LaneHoldTracker 유지를 요구하기 시작한 시각 judgedFrom (RFD 0032 §4-3)", () => {
+describe("LaneHoldTracker 유지를 요구하기 시작한 시각 judgedFrom (RFD 0032 §4-3, §5-4)", () => {
   it("A·C 1000에 누르고 A up 2010·C up 2040 뒤 head를 친 B down 2050부터 need 2를 요구하면 실패 기한은 2010+20이 아닌 2050+20=2070", () => {
     const tracker = new LaneHoldTracker();
     tracker.down("A", 1, 1000);
@@ -273,6 +273,24 @@ describe("LaneHoldTracker 유지를 요구하기 시작한 시각 judgedFrom (RF
     tracker.down("B", 1, 2050);
     tracker.down("D", 1, 2055);
     expect(tracker.failureDeadline(1, 2, { judgedFrom: 2050 })).toBeUndefined();
+  });
+
+  it("§5-4 head Miss: A·C 1000–, A up 2010이면 head 기한 2120에 shortSince(1, 2)=2010이라 그 몫은 유예 없이 바로 정리할 대상", () => {
+    const tracker = new LaneHoldTracker();
+    tracker.down("A", 1, 1000);
+    tracker.down("C", 1, 1000);
+    tracker.up("A", 2010);
+    expect(tracker.shortSince(1, 2)).toBe(2010);
+    expect(tracker.shortSince(1, 1)).toBeUndefined();
+  });
+
+  it("§5-4 head Miss: A·C 1000–, A up 2200이면 head 기한 2120에는 채워 이어서 판단하고 judgedFrom 2120의 실패 기한은 2220", () => {
+    const tracker = new LaneHoldTracker();
+    tracker.down("A", 1, 1000);
+    tracker.down("C", 1, 1000);
+    expect(tracker.shortSince(1, 2)).toBeUndefined();
+    tracker.up("A", 2200);
+    expect(tracker.failureDeadline(1, 2, { judgedFrom: 2120 })).toBe(2220);
   });
 
   it("judgedFrom보다 늦게 부족해지면 부족 시각 기준: judgedFrom 1000에 A up 1800이면 기한 1820", () => {

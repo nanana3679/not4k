@@ -4,7 +4,10 @@ import { MAINTENANCE_GRACE_MS } from "../../shared/constants";
 export interface MaintenanceWindow {
   /**
    * 이 시각부터 hold 수를 요구한다. 그전의 부족은 세지 않는다. head 없는 바디는 시작 S,
-   * head가 있는 바디는 head를 처리한 down 시각, head Miss면 head의 Good 기한을 넘긴다.
+   * head가 있는 바디는 head를 처리한 down 시각을 넘긴다(그 down부터 유예를 적용, §4-3).
+   * head Miss는 다르다. head의 Good 기한에 `shortSince(lane, need)`로 그 몫까지 채웠는지 먼저 보고,
+   * 채우지 못했으면 유예 없이 head Miss와 그 몫의 종속 0점으로 바로 정리한 뒤 줄어든 `need`로 판단한다.
+   * 채웠을 때만 head의 Good 기한을 `judgedFrom`으로 넘겨 이어서 판단한다(§5-2, §5-4).
    */
   readonly judgedFrom: number;
   /** head 없는 시작·경계의 S+Good. 주면 실패 기한이 이보다 이르지 않다(§8-1, §8-2). */
