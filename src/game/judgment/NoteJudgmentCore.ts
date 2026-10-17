@@ -2,6 +2,7 @@ import type { NoteEntity, RangeNote } from "../../shared/types";
 import { JUDGMENT_WINDOWS, type JudgmentWindows } from "../../shared/constants";
 import { ConnectionCorrections } from "./ConnectionCorrections";
 import { ConfirmationCombo } from "./ConfirmationCombo";
+import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
@@ -118,6 +119,11 @@ export class NoteJudgmentCore {
   private readonly carriedCapacity = new Map<number, number>();
   private readonly waivedSurplus = new Map<number, number>();
   private readonly held = new Map<string, PressToken>();
+  /**
+   * 레인별 hold 수. RFD 0032의 시작·유지 판단을 hold 수로 옮기기 전까지(#287)
+   * 입력을 받아 기록만 하며 판정에는 쓰지 않는다.
+   */
+  private readonly holdTracker = new LaneHoldTracker();
   private readonly pendingUps: PressToken[] = [];
   private readonly correctionLedgers = new Map<string, ConnectionCorrections>();
   private correctionSerial = 0;
@@ -233,6 +239,8 @@ export class NoteJudgmentCore {
 
   get time(): number { return this.now; }
   get combo(): number { return this.currentCombo; }
+  /** 레인별 hold 수와 기준별 부족 시각의 읽기 전용 view (RFD 0032 §2-1, §2-2). */
+  get laneHolds(): LaneHoldView { return this.holdTracker; }
   get bodyStates(): readonly { noteIndex: number; unitIndex: number; active: boolean; failed: boolean; complete: boolean; registeredKeys: readonly string[] }[] {
     return this.units.map(u => ({ noteIndex: u.noteIndex, unitIndex: u.unitIndex, active: u.active, failed: u.failed, complete: u.complete, registeredKeys: [...u.registered] }));
   }
@@ -313,6 +321,7 @@ export class NoteJudgmentCore {
     const observed = this.observedRawAt;
     if (observed === undefined) this.prepareInputAt(at);
     at = observed ?? at;
+    this.holdTracker.down(key, lane ?? 1, at);
     const token: PressToken = { key, lane: lane ?? 1, at, used: false, valid: false, released: false, connectionConsumed: false };
     this.held.set(key, token);
     // A down is consumed by the earliest eligible point, then by a start unit.
@@ -342,6 +351,7 @@ export class NoteJudgmentCore {
     const observed = this.observedRawAt;
     if (observed === undefined) this.prepareInputAt(at);
     at = observed ?? at;
+    this.holdTracker.up(key, at);
     const token = this.held.get(key);
     if (!token) return;
     token.upAt = at;

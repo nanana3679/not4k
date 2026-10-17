@@ -59,6 +59,14 @@ export function getJudgmentWindows(mode: JudgmentMode): JudgmentWindows {
 export const GRACE_PERIOD_MS = 12;
 
 /**
+ * 유지 유예 (ms) — RFD 0032 §2-2
+ *
+ * 바디의 hold 수가 필요한 수보다 적어진 뒤 이 시간 안에 회복하면 유지 부족 Miss를
+ * 확정하지 않는다. 임시값이며 최종값은 PRD 미정 사항(`docs/prd.md`)에서 추적한다.
+ */
+export const MAINTENANCE_GRACE_MS = 20;
+
+/**
  * 판정 등급
  */
 export const JudgmentGrade = {
