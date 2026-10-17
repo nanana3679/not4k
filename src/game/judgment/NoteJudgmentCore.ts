@@ -124,6 +124,12 @@ export class NoteJudgmentCore {
    * 입력을 받아 기록만 하며 판정에는 쓰지 않는다.
    */
   private readonly holdTracker = new LaneHoldTracker();
+  /** tracker를 고칠 수 없게 조회 메서드만 감싼 view. */
+  private readonly holdView: LaneHoldView = {
+    count: lane => this.holdTracker.count(lane),
+    shortSince: (lane, need) => this.holdTracker.shortSince(lane, need),
+    failureDeadline: (lane, need, window) => this.holdTracker.failureDeadline(lane, need, window),
+  };
   private readonly pendingUps: PressToken[] = [];
   private readonly correctionLedgers = new Map<string, ConnectionCorrections>();
   private correctionSerial = 0;
@@ -240,7 +246,7 @@ export class NoteJudgmentCore {
   get time(): number { return this.now; }
   get combo(): number { return this.currentCombo; }
   /** 레인별 hold 수와 기준별 부족 시각의 읽기 전용 view (RFD 0032 §2-1, §2-2). */
-  get laneHolds(): LaneHoldView { return this.holdTracker; }
+  get laneHolds(): LaneHoldView { return this.holdView; }
   get bodyStates(): readonly { noteIndex: number; unitIndex: number; active: boolean; failed: boolean; complete: boolean; registeredKeys: readonly string[] }[] {
     return this.units.map(u => ({ noteIndex: u.noteIndex, unitIndex: u.unitIndex, active: u.active, failed: u.failed, complete: u.complete, registeredKeys: [...u.registered] }));
   }

@@ -27,12 +27,14 @@ describe("NoteJudgmentCore laneHolds 관측 (RFD 0032 이행 전, 판정에 쓰�
     expect(core.laneHolds.count(2)).toBe(1);
   });
 
-  it("같은 timestamp 1800 batch에서 레인 1의 A up과 B down이 함께 오면 count(1)=1 그대로이고 shortSince(1, 1)은 undefined", () => {
+  it("같은 timestamp 1800 batch에 B down·A up 순으로 와도 core가 up을 먼저 알려 count(1)=1, need 1은 충족이고 need 2의 부족 시작은 X up 1500 그대로", () => {
     const core = twoLaneCore();
-    core.processBatch(1000, [{ key: "A", lane: 1, type: "down" }]);
+    core.processBatch(1000, [{ key: "X", lane: 1, type: "down" }, { key: "A", lane: 1, type: "down" }]);
+    core.processBatch(1500, [{ key: "X", lane: 1, type: "up" }]);
     core.processBatch(1800, [{ key: "B", lane: 1, type: "down" }, { key: "A", lane: 1, type: "up" }]);
     expect(core.laneHolds.count(1)).toBe(1);
     expect(core.laneHolds.shortSince(1, 1)).toBeUndefined();
+    expect(core.laneHolds.shortSince(1, 2)).toBe(1500);
   });
 
   it("processObservedBatch(rawAt=1800, [A up], observedAt=1815)의 up은 raw 1800에 기록되어 shortSince(1, 1)=1800", () => {

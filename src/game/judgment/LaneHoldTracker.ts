@@ -1,5 +1,16 @@
 import { MAINTENANCE_GRACE_MS } from "../../shared/constants";
 
+/** 유지 실패 기한을 계산할 바디 쪽 기준(RFD 0032 §2-2, §4-3, §8-1). */
+export interface MaintenanceWindow {
+  /**
+   * 이 시각부터 hold 수를 요구한다. 그전의 부족은 세지 않는다. head 없는 바디는 시작 S,
+   * head가 있는 바디는 head를 처리한 down 시각, head Miss면 head의 Good 기한을 넘긴다.
+   */
+  readonly judgedFrom: number;
+  /** head 없는 시작·경계의 S+Good. 주면 실패 기한이 이보다 이르지 않다(§8-1, §8-2). */
+  readonly refillUntil?: number;
+}
+
 /** 레인별 hold 수와 기준별 부족 시각을 읽기만 하는 view. */
 export interface LaneHoldView {
   /** 레인에서 지금 눌려 있는 서로 다른 키의 수. 입력이 없던 레인은 0이다. */
@@ -10,19 +21,21 @@ export interface LaneHoldView {
    */
   shortSince(lane: number, need: number): number | undefined;
   /**
-   * 부족이 회복되지 않을 때 유지 실패를 확정할 시각. 부족이 없으면 `undefined`,
-   * 있으면 `shortSince + graceMs`이고 `refillUntil`(head 없는 시작의 S+Good)을 주면
-   * 둘 중 늦은 쪽이다(RFD 0032 §8-1).
+   * 부족이 회복되지 않을 때 유지 실패를 확정할 시각. 부족이 없으면 `undefined`, 있으면
+   * `max(shortSince, judgedFrom) + graceMs`이고 `refillUntil`을 주면 그보다 이르지 않다.
+   * `judgedFrom`이 있으므로 한 번도 도달하지 않은 기준도 유한한 시각을 돌려준다.
    */
-  failureDeadline(lane: number, need: number, refillUntil?: number): number | undefined;
+  failureDeadline(lane: number, need: number, window: MaintenanceWindow): number | undefined;
 }
 
 /**
  * 레인별로 서로 다른 키의 hold 수를 세고, 각 hold 수 기준(`need`) 아래로 내려간
  * 시각을 기준마다 따로 기록하는 순수 상태(RFD 0032 §2-1, §2-2).
  *
- * 차트·노트를 모르며 현재 시각도 모른다. 조회 결과는 마지막으로 받은 입력 뒤의 상태이다.
- * 입력은 시각이 줄지 않는 순서로 받는다고 가정하며, 순서를 검사하거나 예외를 던지지 않는다.
+ * 차트·노트를 모르며 현재 시각도 모른다. 조회 결과는 마지막으로 받은 입력 뒤의 상태이며 지난 부족을 기억하지 않으므로,
+ * 회복 전에 지난 실패 기한은 호출하는 쪽이 회복 입력을 넣기 전에 확정해야 한다.
+ * 입력은 시각이 줄지 않는 순서로 받는다고 가정하며, 순서를 검사하거나 예외를 던지지 않는다. 같은 시각의 입력은 받은
+ * 순서대로 반영하므로(core는 up을 down보다 먼저 넣는다) 순서에 따라 기준별 부족 시작이 달라질 수 있다.
  */
 export class LaneHoldTracker implements LaneHoldView {
   private readonly graceMs: number;
@@ -76,10 +89,10 @@ export class LaneHoldTracker implements LaneHoldView {
     return this.shortStarts.get(lane)?.get(need) ?? -Infinity;
   }
 
-  failureDeadline(lane: number, need: number, refillUntil?: number): number | undefined {
+  failureDeadline(lane: number, need: number, { judgedFrom, refillUntil }: MaintenanceWindow): number | undefined {
     const since = this.shortSince(lane, need);
     if (since === undefined) return undefined;
-    const deadline = since + this.graceMs;
+    const deadline = Math.max(since, judgedFrom) + this.graceMs;
     return refillUntil === undefined ? deadline : Math.max(deadline, refillUntil);
   }
 }
