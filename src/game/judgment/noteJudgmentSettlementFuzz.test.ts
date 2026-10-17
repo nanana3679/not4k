@@ -302,7 +302,8 @@ const fullComboWithUnsettledItems = (all: readonly FuzzRun[]) => all.filter(run 
 const unsettledSeeds = (all: readonly FuzzRun[]) => {
   const finished = all.filter(run => run.onTime.error === undefined);
   const seedsWith = (category: keyof Unsettled) => finished.filter(run => run.onTime.unsettled[category].length > 0).map(run => run.seed);
-  return { "#182": seedsWith("headMissDecrease").length, "#181": seedsWith("headHitDecrease").length, other: seedsWith("other") };
+  const items = (category: keyof Unsettled) => finished.flatMap(run => run.onTime.unsettled[category].map(itemId => `${run.seed}:${itemId}`));
+  return { "#182": digest(items("headMissDecrease")), "#181": digest(items("headHitDecrease")), other: seedsWith("other") };
 };
 const holdOnlyViolationSeeds = (all: readonly FuzzRun[]) => all.filter(run => run.onTime.holdOnlyViolation).map(run => run.seed);
 
@@ -310,8 +311,17 @@ const holdOnlyViolationSeeds = (all: readonly FuzzRun[]) => all.filter(run => ru
 
 type Generator = "general" | "swap" | "short" | "shortMid" | "observedGeneral" | "observedShort";
 type Ratchet = Record<Generator, number[]>;
-/** 결함 범주가 고정된 래칫은 seed가 많아 개수로 고정한다. 범주 판별이 다른 종류의 미정산을 `other`로 따로 잡는다. */
-type SeedCount = Record<Generator, number>;
+/**
+ * 결함 범주가 고정된 미정산은 `seed:itemId`가 수백 개라 목록 대신 항목 수와 정렬한 목록의 FNV-1a 해시로 고정한다.
+ * 항목이 하나라도 바뀌면(한 seed가 고쳐지고 다른 seed가 깨져도) 해시가 바뀐다. 다른 종류의 미정산은 `other`가 seed 목록으로 잡는다.
+ */
+type ItemDigest = { items: number; hash: string };
+type DigestRatchet = Record<Generator, ItemDigest>;
+const digest = (ids: readonly string[]): ItemDigest => {
+  let hash = 0x811c9dc5;
+  for (const ch of [...ids].sort().join("\n")) hash = Math.imul(hash ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  return { items: ids.length, hash: hash.toString(16).padStart(8, "0") };
+};
 
 /**
  * 정산 예외(미등록·중복 score item)를 던지는 seed.
@@ -343,8 +353,13 @@ const OTHER_UNSETTLED: Ratchet = { general: [], swap: [], short: [], shortMid: [
  * #182: head 있는 2→1 감소 경계에서 연결 head가 Miss이면 core가 앞 double의 감소 release unit을 판정 없이 실패시켜
  * 점수 항목이 남는다. RFD 0032 §6-3은 이 감소 release를 유지하므로 퍼즈에서 빼지 않고 seed를 고정한다.
  */
-const HEAD_MISS_DECREASE_RELEASE_UNSETTLED: SeedCount = {
-  general: 286, swap: 0, short: 150, shortMid: 572, observedGeneral: 150, observedShort: 145,
+const HEAD_MISS_DECREASE_RELEASE_UNSETTLED: DigestRatchet = {
+  general: { items: 287, hash: "bbfb4127" },
+  swap: { items: 0, hash: "811c9dc5" },
+  short: { items: 150, hash: "2d6a4767" },
+  shortMid: { items: 573, hash: "37d5cc6d" },
+  observedGeneral: { items: 151, hash: "f823a7f4" },
+  observedShort: { items: 145, hash: "3bcb8293" },
 };
 
 /**
@@ -354,8 +369,13 @@ const HEAD_MISS_DECREASE_RELEASE_UNSETTLED: SeedCount = {
  * #181은 이 경계의 감소 release를 없애는 RFD 0020 §2.13 구현으로 잡혀 있었지만, RFD 0032 §6-3은 감소 release를 유지하고
  * 경계 근처의 첫 up이 처리하게 하므로 seed를 고정한다.
  */
-const HEAD_HIT_DECREASE_RELEASE_UNSETTLED: SeedCount = {
-  general: 50, swap: 72, short: 30, shortMid: 105, observedGeneral: 26, observedShort: 27,
+const HEAD_HIT_DECREASE_RELEASE_UNSETTLED: DigestRatchet = {
+  general: { items: 50, hash: "2e3272f8" },
+  swap: { items: 72, hash: "e8812239" },
+  short: { items: 30, hash: "8212eede" },
+  shortMid: { items: 105, hash: "4106a8c9" },
+  observedGeneral: { items: 26, hash: "6aaca690" },
+  observedShort: { items: 27, hash: "c67cfe01" },
 };
 
 const unsettledRatchet = (generator: Generator) => ({
@@ -363,12 +383,12 @@ const unsettledRatchet = (generator: Generator) => ({
 });
 /** 래칫을 테스트명에 쓰는 요약. 비었으면 "없음", 아니면 결함 이슈와 seed를 적는다. */
 const ratchetLabel = (seeds: readonly number[], issue: string) => seeds.length === 0 ? "없음" : `${issue} seed ${seeds.join("·")}뿐`;
-const seedCount = (count: number) => count === 0 ? "없음" : `seed ${count}개`;
+const itemCount = ({ items }: ItemDigest) => items === 0 ? "없음" : `항목 ${items}개`;
 const seedList = (seeds: readonly number[]) => seeds.length === 0 ? "없음" : `seed ${seeds.join("·")}`;
 /** 미정산 래칫을 테스트명에 쓰는 요약. */
 const unsettledLabel = (generator: Generator) => {
   const ratchet = unsettledRatchet(generator);
-  return `head Miss 뒤 감소 release(#182) ${seedCount(ratchet["#182"])}, head 뒤 감소 release(#181) ${seedCount(ratchet["#181"])}, 그 밖 ${seedList(ratchet.other)}`;
+  return `head Miss 뒤 감소 release(#182) ${itemCount(ratchet["#182"])}, head 뒤 감소 release(#181) ${itemCount(ratchet["#181"])}, 그 밖 ${seedList(ratchet.other)}`;
 };
 const UNSETTLED_TITLE = "Full Combo가 아니어도 끝까지 재생하면 점수 항목이 남지 않아야 하며, 지금 남는 래칫은";
 
@@ -454,7 +474,7 @@ describe("판정 정산 퍼즈: 짧은·중간 바디(20~200ms, 80·120ms 포함
     expect(unsettledSeeds(shortMidRuns())).toEqual(unsettledRatchet("shortMid"));
   });
 
-  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인에서 holdOnly 끝 release 판정·중복 정산·holdOnly 미정산은 ${ratchetLabel(KNOWN_HOLD_ONLY_VIOLATIONS.shortMid, "#180")}`, () => {
+  it(`seed 1~${SHORT_MID_SEEDS}의 20~200ms(80·120ms 포함) 구간 체인에서 holdOnly 끝 release 판정·중복 정산·holdOnly 미정산은 ${ratchetLabel(KNOWN_HOLD_ONLY_VIOLATIONS.shortMid, "#180(2375는 끝이 아닌 holdOnly)")}`, () => {
     expect(holdOnlyViolationSeeds(shortMidRuns())).toEqual(KNOWN_HOLD_ONLY_VIOLATIONS.shortMid);
   });
 });

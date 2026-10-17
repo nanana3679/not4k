@@ -70,6 +70,15 @@ describe("RFD 0032 §1-1 기존 결정과 문제", () => {
   });
 });
 
+describe("RFD 0032 §2-1 hold 수로 시작과 유지 판단", () => {
+  // §2-1의 변형: B를 끝 창 밖인 2500에 떼도(RFD에 B up 시각이 없어 끝 창 밖으로 둠) C의 hold로 남은 몫을 유지한다.
+  // main: 유예 없이 1800에 한 몫, B up 2500에 남은 몫까지 유지 Miss — Miss 2
+  it.fails("doubleLong [1000,3000]에서 A 1000–1800·B 1000–2500·C 1830–3000이면 한 몫은 1820에 유지 Miss이고 B를 2500에 떼도 C의 hold로 남은 몫을 유지해 C up이 release Perfect", () => {
+    const h = play([body(1000, 3000, "doubleLong")], ["A", 1000, 1800], ["B", 1000, 2500], ["C", 1830, 3000]);
+    expectOutcome(h, ["N1 maintenanceMiss@1820", "N1 release perfect 0"], { perfect: 1, miss: 1 });
+  });
+});
+
 describe("RFD 0032 §2-2 유지 유예", () => {
   // main: 유예 없이 A up 1800에 바로 유지 Miss(@1800) — 합계는 같은 Perfect 1·Miss 1
   it.fails("doubleLong [1000,3000]에서 A 1000–1800·B 1000–3000·C 1830–3000이면 hold 1개인 30ms 공백이 유예 20ms보다 길어 한 몫이 1820에 유지 Miss이고 남은 몫은 release Perfect", () => {
@@ -102,7 +111,7 @@ describe("RFD 0032 §2-3 release 등급과 자격, 판정 창 기준", () => {
     expectOutcome(h, ["N1 head perfect 0", "N2 release good -95"], { perfect: 1, good: 1 });
   });
 
-  it("head 1000 → head 없는 long [1100,1200]에서 A 1000–1050·1080–1090·1140–1200이면 A down 1080은 N2를 시작시키지 않고 A up 1090이 N2 release Good(−110)이라 Perfect 1·Good 1", () => {
+  it("head 1000 → head 없는 long [1100,1200]에서 A 1000–1050·1080–1090·1140–1200으로 A를 1080–1090에 탭해도 A up 1090이 N2 release Good(−110)이라 Perfect 1·Good 1", () => {
     const h = play([point(1000), body(1100, 1200)], ["A", 1000, 1050], ["A", 1080, 1090], ["A", 1140, 1200]);
     expectOutcome(h, ["N1 head perfect 0", "N2 release good -110"], { perfect: 1, good: 1 });
   });
@@ -512,6 +521,18 @@ describe("RFD 0032 §8-1 시작 직후의 재충전", () => {
   it.fails("long [1000,2000] → head 없는 doubleLong [2000,3000]에서 A 1000–2010·2080–3000·B 1990–3000이면 증가 직후 끊긴 A도 S+Good 2120까지 다시 채울 수 있어 Perfect 2", () => {
     const h = play([body(1000, 2000), body(2000, 3000, "doubleLong")], ["A", 1000, 2010], ["A", 2080, 3000], ["B", 1990, 3000]);
     expectOutcome(h, ["N2 release perfect 0", "N2 release perfect 0"], { perfect: 2 });
+  });
+});
+
+describe("RFD 0032 §8-1 §1-4의 holdOnly 예", () => {
+  const chart = () => [point(1000), body(1010, 1500, "long", true)];
+
+  it("Point 1000 → head 없는 holdOnly [1010,1500]에서 A 1000–1030 탭 뒤 B 1060–1500이면 실패 기한이 1050이 아닌 S+Good 1130이라 B down으로 이어 가 Perfect 2", () => {
+    expectOutcome(play(chart(), ["A", 1000, 1030], ["B", 1060, 1500]), ["N1 head perfect 0", "N2 holdOnly perfect"], { perfect: 2 });
+  });
+
+  it("Point 1000 → head 없는 holdOnly [1010,1500]에서 A 1000–1030 탭 뒤 아무것도 누르지 않으면 1050이 아닌 S+Good 1130에 N2 유지 Miss", () => {
+    expectOutcome(play(chart(), ["A", 1000, 1030]), ["N1 head perfect 0", "N2 maintenanceMiss@1130"], { perfect: 1, miss: 1 });
   });
 });
 
