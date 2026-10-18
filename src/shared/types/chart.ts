@@ -105,12 +105,12 @@ export function isHoldOnlyNote(note: NoteEntity): boolean {
 // Extra 노트 (에디터 전용 — 게임에 등장하지 않는 보조 레인)
 // ---------------------------------------------------------------------------
 
-/** Extra 포인트 노트 — PointNote의 판정 속성을 공유하고 레인 축만 바꾼다. */
+/** Extra 포인트 노트 — PointNote에서 lane만 extraLane으로 바꾼 형태(`grace` 포함). */
 export type ExtraPointNote = Omit<PointNote, "lane"> & {
   extraLane: number; // 1~10
 };
 
-/** Extra 구간 노트 — RangeNote의 판정 속성을 공유하고 레인 축만 바꾼다. */
+/** Extra 구간 노트 — RangeNote에서 lane만 extraLane으로 바꾼 형태(`holdOnly` 포함). */
 export type ExtraRangeNote = Omit<RangeNote, "lane"> & {
   extraLane: number; // 1~10
 };

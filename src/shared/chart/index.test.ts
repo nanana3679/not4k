@@ -164,7 +164,7 @@ describe('parseExtraNotes 런타임 스키마 검증', () => {
   });
 });
 
-describe('보조 노트 판정 속성 저장→불러오기 왕복 보존', () => {
+describe('보조 노트 grace·holdOnly 저장→불러오기 왕복 보존', () => {
   it('extraLane=2 grace 포인트 노트는 왕복 후 grace=true 유지', () => {
     const source = [{
       type: 'single' as const,

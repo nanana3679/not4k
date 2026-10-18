@@ -35,7 +35,7 @@ describe("noteToExtra", () => {
     expect(extraToNote(noteToExtra(aux7))).toEqual(aux7);
   });
 
-  it("lane 6 grace 포인트와 lane 7 holdOnly 롱노트는 변환 왕복 후 판정 속성 유지", () => {
+  it("lane 6 grace single과 lane 7 holdOnly long은 noteToExtra→extraToNote 왕복 후 grace=true·holdOnly=true 유지", () => {
     const grace: NoteEntity = { type: "single", lane: 6, beat: beat(1), grace: true };
     const holdOnly: NoteEntity = {
       type: "long",
