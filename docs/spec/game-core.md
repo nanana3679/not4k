@@ -212,25 +212,27 @@ Classic은 현재 적용본 v014(흰빛 포인트, 세로 트렌치 바디, 포�
 
 Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`**이 적용된다. 초기 스펙의 "게이지 없음, 무조건 완주, 게임 오버 없음" 결정은 RFD 0001로 대체되었다.
 
-**`altitude` 시각화 (기어 게이지)**: 새 기어 양옆 유리관 게이지가 플레이 중 `altitude` 값(0~1)을 아래 기준 채움으로 보여 준다. 두 유리관은 같은 값이다. 채움 방식은 [고도 게이지 시연](../design/classic-frame-keywords-20260929.md#게이지-채움-조절)(`press-animation.html`)과 같다. 기어 그림의 가득 찬 유리관 위에 생성한 빈 유리를 유리 안쪽 윤곽(경계 2px)으로 잘라, 위에서부터 채움 경계까지 덮는다. 채움 구간은 유리 안쪽 821행이고, 경계는 8행에 걸쳐 부드럽게 옅어진다. 채움 1은 그림 그대로, 0은 두 유리관이 모두 빈 유리다. 값이 바뀌면 표시는 약 300ms ease-out 느낌으로 따라간다(시간 상수 75ms의 지수 접근). 이징은 렌더 프레임 간격 `deltaMs`(최대 50ms)로만 나아가 일시정지 중에는 멈춘다. `setChart` 때와 warm-up(`prepareForPlayback`)의 첫 프레임(곡 중간에서 시작하는 시험 재생 포함)에는 이징 없이 바로 맞춘다. 그 밖에는 운영체제의 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과')과 관계없이 늘 이징한다([RFD 0030](../rfd/0030-ignore-os-reduced-motion.md)). 빈 유리 텍스처는 [곡 시작 전 준비](#플레이-화면-배치)에서 GPU 업로드해, 덮개가 곡 중 처음 나타나는 프레임에 GPU 업로드가 몰리지 않게 한다. 낮은 고도에서도 칠한 청록색을 바꾸지 않고 경고 표시를 더하지 않는다. 게이지는 `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛)보다 위에 겹쳐, `gearMotion`을 켜면 액체·기포가 채운 부분에서만 흐른다. `gearMotion`을 꺼도 게이지는 같다. 옛 기어의 분리 기둥 게이지는 옛 기어와 함께 지웠다([RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)). `flightRule`이 구현되기 전까지 고도는 배경 연출과 동일한 임시 `altitude` 모델(곡 진행에 따라 1→0, MISS·BAD로 즉시 하강, 그 밖의 판정으로 서서히 회복)로 구동된다.
+**`altitude` 시각화 (기어 게이지)**: 새 기어 양옆 유리관 게이지가 플레이 중 `altitude` 값(0~1)을 아래 기준 채움으로 보여 준다. 두 유리관은 같은 값이다. 채움 방식은 [고도 게이지 시연](../design/classic-frame-keywords-20260929.md#게이지-채움-조절)(`press-animation.html`)과 같다. 기어 그림의 가득 찬 유리관 위에 생성한 빈 유리를 유리 안쪽 윤곽(경계 2px)으로 잘라, 위에서부터 채움 경계까지 덮는다. 채움 구간은 유리 안쪽 821행이고, 경계는 8행에 걸쳐 부드럽게 옅어진다. 채움 1은 그림 그대로, 0은 두 유리관이 모두 빈 유리다. 값이 바뀌면 표시는 약 300ms ease-out 느낌으로 따라간다(시간 상수 75ms의 지수 접근). 이징은 렌더 프레임 간격 `deltaMs`(최대 50ms)로만 나아가 일시정지 중에는 멈춘다. `setChart` 때와 warm-up(`prepareForPlayback`)의 첫 프레임(곡 중간에서 시작하는 시험 재생 포함)에는 이징 없이 바로 맞춘다. 그 밖에는 운영체제의 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과')과 관계없이 늘 이징한다([RFD 0030](../rfd/0030-ignore-os-reduced-motion.md)). 빈 유리 텍스처는 [곡 시작 전 준비](#플레이-화면-배치)에서 GPU 업로드해, 덮개가 곡 중 처음 나타나는 프레임에 GPU 업로드가 몰리지 않게 한다. 낮은 고도에서도 칠한 청록색을 바꾸지 않고 경고 표시를 더하지 않는다. `Breakthrough`의 저고도 경고는 배경이 맡는다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)). 게이지는 `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛)보다 위에 겹쳐, `gearMotion`을 켜면 액체·기포가 채운 부분에서만 흐른다. `gearMotion`을 꺼도 게이지는 같다. 옛 기어의 분리 기둥 게이지는 옛 기어와 함께 지웠다([RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)). `flightRule`이 구현되기 전까지 고도는 배경 연출과 동일한 임시 `altitude` 모델(곡 진행에 따라 1→0, MISS·BAD로 즉시 하강, 그 밖의 판정으로 서서히 회복)로 구동된다.
 
 **도입 이유**: 첫째, 비행이라는 가벼운 내러티브를 게임 규칙과 연결하기 위해서다. `altitude`에 따라 배경 연출(지평선, 광원, 시야각)이 변하는 비행 콘셉트는, `altitude`가 장식이 아니라 실제 클리어/실패와 연결될 때 의미를 가진다. 둘째, 리듬게임에 익숙하지 않은 유저에게 클리어/실패라는 목표 구조와 동기를 제공하기 위해서다(RFD 0003).
 
-**난이도명·시나리오**: `Liftoff → Infiltration → Breakthrough` 순서로 한 곡 안의 차트를 구분하며, 각 단계의 비행 시나리오와 연결한다([RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)). 이름 표시와 공개 시연 배경을 실제 게임에 연결했다([RFD 0026](../rfd/0026-game-flight-backgrounds.md)). 클리어/실패 규칙은 미구현이다. 풀 정의는 [glossary](../context/glossary.md#flightrule-flight-rule)를 따른다.
+**난이도명·시나리오**: `Liftoff → Infiltration → Breakthrough` 순서로 한 곡 안의 차트를 구분하며, 각 단계의 비행 시나리오와 연결한다([RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)). 이름 표시와 공개 시연 배경을 실제 게임에 연결했다([RFD 0026](../rfd/0026-game-flight-backgrounds.md)). `Breakthrough`는 `Survival` 규칙을 쓰기로 정했으며([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)) 클리어/실패 규칙은 미구현이다. 풀 정의는 [glossary](../context/glossary.md#flightrule-flight-rule)를 따른다.
 
-**단계별 연출**: `Liftoff`는 시선 각도를 유지하며 고도가 변한다. `Infiltration`은 낮아질수록 시선이 지면을 향해 회전하고 지평선이 위로 사라진다. `Breakthrough`는 낮은 고도에서 전방을 보며 계속 비행한다. `Breakthrough`의 낮은 시각 고도는 정상적인 숙련 비행이며, 실패 직전 상태로 일괄 해석하지 않는다. 중앙 레인·판정선·노트 속도는 배경 연출의 영향을 받지 않는다.
+**단계별 연출**: `Liftoff`는 시선 각도를 유지하며 고도가 변한다. `Infiltration`은 낮아질수록 시선이 지면을 향해 회전하고 지평선이 위로 사라진다. `Breakthrough`는 저공비행 범위 안에서 전방을 보며 계속 비행하고, 화면 고도가 `Survival` 규칙의 `altitude`를 따르므로 고도가 낮을수록 실패에 가깝다. `altitude`가 기준값 아래로 내려가면 배경이 약한 주홍빛으로 점멸한다(구현 전, 수치는 [PRD §12](../prd.md#12-미정-사항)). 중앙 레인·판정선·노트 속도는 배경 연출의 영향을 받지 않는다.
 
 **시각적 구별**: 난이도별 색상 배합과 광원 밀도에 차이를 둔다. `Breakthrough`는 지평선 없이 화면 맨 위까지 광원이 움직이며 지나가도록 구성한다. 돌파의 주홍 후보는 사용자가 수용했으며, 다른 후보 배합과 광원 분포 제안은 [아트 디렉션 기록](../design/art-direction-notes.md#난이도별-색상과-광원-분포)을 따른다. 실제 게임에는 공개 시연의 현재 배색·광원 밀도를 사용한다. `Liftoff`는 속도300%, `Infiltration`은600%, `Breakthrough`는1000%이며 돌파의 건축 배경은 밝기10%·재귀 확대300%다. 세부 튜닝은 계속 가능하다.
 
 **게임 배경 수명**: 기존 격자 배경을 공개 시연의 세 배경으로 교체했으며 이전 프리셋·시연·저장 API는 제거했다. 고도 모델은 `flightAltitude`, 배경 표시 옵션은 `showFlightBackground`로 관리한다. 렌더러가 프레임마다 고도를 한 번 계산해 비행 배경과 새 기어 게이지에 같은 값을 준다. 배경을 끈 렌더러에서도 기어 게이지는 이 값을 따르고, 둘 다 없는 렌더러(튜토리얼 재생기)는 고도를 계산하지 않는다. 곡 진행·판정에 따른 기존 임시 고도 모델을 유지하며, 돌파 직선은 고도1에서 좌우 하단→중앙 상단, 고도0에서 좌우 상단→중앙 하단을 향한다. 배경 시간은 게임 프레임만 진행시키고 일시정지·숨긴 탭에서는 전진하지 않는다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다([RFD 0030](../rfd/0030-ignore-os-reduced-motion.md)). 재시작은 새 캔버스와 초기 이동 상태를 사용하며 화면 종료 시 해당 GPU 자원을 해제한다. 광원·잔광·정점 데이터는 매 프레임 같은 버퍼를 다시 써서 프레임마다 큰 할당을 만들지 않는다. 프레임마다 쌓이는 할당은 주기적인 GC 정지로 이어져 화면이 끊기기 때문이다. 중앙 레인·판정선·노트는 기존 Pixi 렌더러가 앞쪽에 표시한다.
 
-**관대한 밸런싱**: `Liftoff`의 고도 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 기존 관대한 역할을 유지한다. 종전 `Survival`의 Perfect-only 회복·0 도달 실패 규칙을 새 단계에 자동으로 배정하지 않는다.
+**관대한 밸런싱**: `Liftoff`의 고도 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 기존 관대한 역할을 유지한다.
+
+**`Breakthrough`의 `Survival`**: `altitude`는 1에서 시작해 1을 넘지 않는다. Perfect(`holdOnly`·Grace head 포함)는 회복하고, Great·Good(`goodTrill` 포함)은 회복하지 않으며, Miss는 감소시킨다. 종속 0점 정산은 추가 고도 손실이 없고, 점수가 없는 일반 connection 성공은 회복하지 않는다([scoring](scoring.md#점수-항목과-정산)). 0에 도달하면 즉시 실패한다. 회복·감소량, Great·Good 미세 감소 여부, 빈 입력 패널티 여부는 [PRD §12](../prd.md#12-미정-사항)에서 정한다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
 
 **실패 조건 없는 완주/학습**: 실패 조건 없이 차트를 끝까지 확인하거나 구간을 반복 학습하려는 유저는 Observer 계열을 사용한다(`observer-mode.md`).
 
 **후속 설계**: 세부 판정 규칙·상태와 시각 고도의 대응·기존 차트의 이행·속도와 각도 조정은 [PRD §12](../prd.md#12-미정-사항)에서 단일 추적한다. 이번 결정은 실제 충돌이나 레이더 탐지 판정을 도입하지 않는다.
 
-**결정 배경**: 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md), 하향 시점의 표현은 [RFD 0021](../rfd/0021-low-altitude-downward-view.md), 초기 도입 목적과 과거 규칙은 RFD 0001~0003·0005를 참조한다.
+**결정 배경**: 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md), 하향 시점의 표현은 [RFD 0021](../rfd/0021-low-altitude-downward-view.md), 초기 도입 목적과 과거 규칙은 RFD 0001~0003·0005, `Breakthrough`의 `Survival` 규칙과 저고도 경고는 [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)을 참조한다.
 
 ---
 
@@ -442,7 +444,7 @@ Trill은 연결 켜짐 표시에서 제외한다. 각 바디·터미널은 자�
 
 **결과 화면을 표시하지 않는 이유**: 중도 포기는 "이 차트를 더 이상 진행할 의사가 없다"는 의미이다. 완주하지 않은 플레이의 달성률과 랭크는 유저에게 유의미한 정보가 아니며, 불완전한 결과를 보여주는 것은 부정적 경험을 강화할 뿐이다.
 
-**중도 포기와 `flightRule` 실패의 구분**: 중도 포기는 유저의 자발적 선택이고, `flightRule` 실패는 해당 규칙에 의한 게임 오버다. 단계별 실패 조건과 실패 시 화면 전환·기록 처리는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 낮은 시각 고도 자체를 모든 단계의 실패 조건으로 두지 않는다.
+**중도 포기와 `flightRule` 실패의 구분**: 중도 포기는 유저의 자발적 선택이고, `flightRule` 실패는 해당 규칙에 의한 게임 오버다. `Breakthrough`의 실패 조건은 `altitude` 0 도달이다. 그 밖의 단계별 실패 조건과 실패 시 화면 전환·기록 처리는 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 ### 설정 접근
 

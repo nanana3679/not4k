@@ -135,6 +135,7 @@
 | [0021](docs/rfd/0021-low-altitude-downward-view.md) | **낮은 고도의 하향 시점**. 고도가 낮아질수록 지면을 내려다보는 연출; 현재 Infiltration에 배치 |
 | [0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md) | **현재 난이도명과 연출 배치**. Liftoff → Infiltration → Breakthrough, 각도 유지 / 하향 회전 / 지속 저공비행. 이름 표시·배경 연결은 RFD 0026으로 구현 |
 | [0026](docs/rfd/0026-game-flight-backgrounds.md) | **비행 배경 인게임 적용**. 기존 차트 저장 식별자를 유지한 난이도명 표시와 세 배경 연결, 이전 격자 배경·Lab·저장 API 제거 |
+| [0033](docs/rfd/0033-breakthrough-survival-and-low-altitude-warning.md) | **Breakthrough의 Survival 규칙과 저고도 경고**. 돌파 차트는 Perfect로만 회복·Miss로 감소·0이면 실패하는 Survival을 쓰고, `altitude`가 기준값 아래로 내려가면 배경이 약한 주홍빛으로 점멸(구현 전) |
 
 ## 제품 요구사항
 

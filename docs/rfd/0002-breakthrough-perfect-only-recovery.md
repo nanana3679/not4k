@@ -14,6 +14,8 @@
 
 **후속 결정:** RFD 0005가 Breakthrough를 `Survival`로 이름만 바꿔 계승한다. 이 문서의 Perfect-only 회복 규칙은 그대로 유효하며, 현재 명칭은 `Survival`이다.
 
+> **후속 결정(2026-10-18):** [RFD 0022](0022-flight-difficulty-names-and-visuals.md)는 이 규칙을 새 난이도 단계에 자동 승계하지 않기로 했고, [RFD 0033](0033-breakthrough-survival-and-low-altitude-warning.md)으로 현재 `Breakthrough` 차트가 이 규칙을 다시 쓴다. 지금 판정 체계에는 Bad가 없어 Miss가 `altitude`를 감소시키며, 빈 입력 패널티와 §8의 Great·Good 미세 감소 여부는 [PRD §12](../prd.md#12-미정-사항)에서 정한다.
+
 ---
 
 ## 1. 배경

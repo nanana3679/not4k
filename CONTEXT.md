@@ -163,7 +163,7 @@ Play에서 고도 상태와 클리어/실패를 다루며, 차트 난이도명�
 _Avoid_: 차트 레벨, 달성률
 
 **고도**:
-`flightRule`의 상태와 고도 연출을 연결하는 `altitude` 지표다. 시각 고도와 위험의 관계는 시나리오에 따라 다르며, `Breakthrough`의 저고도는 정상 비행이다. 풀 정의는 [glossary](docs/context/glossary.md#altitude-altitude)를 따른다.
+`flightRule`의 상태와 고도 연출을 연결하는 `altitude` 지표다. 시각 고도와 위험의 관계는 시나리오에 따라 다르며, `Breakthrough`는 화면 고도가 `Survival` 규칙의 `altitude`를 따라 고도가 낮을수록 실패에 가깝다. 풀 정의는 [glossary](docs/context/glossary.md#altitude-altitude)를 따른다.
 _Avoid_: 달성률, 랭크
 
 **`Liftoff`**:
@@ -175,8 +175,8 @@ _Avoid_: Takeoff, Ascent
 _Avoid_: Survival
 
 **`Breakthrough`**:
-최상위 난이도명·돌파 시나리오다. 낮은 고도에서 전방을 보며 안정된 자세로 계속 비행한다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
-_Avoid_: Survival, Stealth
+최상위 난이도명·돌파 시나리오다. 저공비행 범위 안에서 전방을 보며 계속 비행하고, `Survival` 규칙(Perfect로만 회복, Miss로 감소, 0이면 실패)을 쓴다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Survival(단계 이름으로), Stealth
 
 **난이도 등급**:
 Lv. 구간을 입문, 초급, 중급, 상급, 최상급으로 묶은 분류이다.

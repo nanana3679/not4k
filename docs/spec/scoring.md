@@ -112,7 +112,7 @@ raw 입력 오차의 절댓값이 Perfect 창 절반을 넘을 때 음수는 FAS
 - **달성률·랭크**: 연주 정확도의 측정. `flightRule`과 무관하게 산출된다.
 - **`altitude`·클리어/실패**: `flightRule`의 상태. 달성률이나 랭크를 대체하지 않는다.
 
-`flightRule`의 클리어/실패는 랭크 산출에 영향을 주지 않는다. [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)의 `Liftoff / Infiltration / Breakthrough` 이름·연출 배치는 점수 가중치를 변경하지 않는다. 종전 `Survival`의 Perfect-only 회복 규칙은 새 단계에 자동 승계하지 않으며, 세부 고도 규칙과 실패 시 기록 정책은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+`flightRule`의 클리어/실패는 랭크 산출에 영향을 주지 않는다. [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)의 `Liftoff / Infiltration / Breakthrough` 이름·연출 배치는 점수 가중치를 변경하지 않는다. `Breakthrough`는 `Survival`의 Perfect-only 회복 규칙을 쓰지만([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)) 이 규칙도 달성률·랭크 산식은 바꾸지 않는다. 나머지 고도 규칙과 실패 시 기록 정책은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 ---
 
