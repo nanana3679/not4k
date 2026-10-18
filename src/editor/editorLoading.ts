@@ -17,16 +17,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * 저장소가 "객체 없음"으로 답했는지 판별한다.
- * 표준 HTTP 404와 함께, Supabase Storage가 없는 객체에 주는 응답
- * (HTTP 400 + 본문 `{"statusCode":"404","error":"not_found",...}`, 2026-10-18 실측)도 없음으로 본다.
- * 그 밖의 400(권한·잘못된 요청 등)은 없음이 아니라 실패다.
+ * 표준 HTTP 404와 함께, Supabase Storage가 없는 객체에 주는 HTTP 400 응답도 없음으로 본다.
+ * 본문 `statusCode`가 "404"인 것만으로는 부족하다 — 버킷 없음(`NoSuchBucket`)도 "404"를 쓰기 때문이다.
+ * - 배포된 형식(2026-10-18 실측): `{"statusCode":"404","error":"not_found","message":"Object not found","code":"NoSuchKey"}`
+ * - 현재 Storage 형식: `code`·`error`가 둘 다 "NoSuchKey"
+ * - `code` 없는 이전 형식: `error`가 "not_found"
+ * 그 밖의 400(버킷 없음, 권한, 잘못된 요청 등)은 없음이 아니라 실패다.
  */
 async function isObjectNotFound(response: Response): Promise<boolean> {
   if (response.status === 404) return true;
   if (response.status !== 400) return false;
   try {
     const body: unknown = await response.json();
-    return isRecord(body) && String(body.statusCode) === "404";
+    if (!isRecord(body) || String(body.statusCode) !== "404") return false;
+    if (body.code !== undefined) return body.code === "NoSuchKey";
+    return body.error === "not_found";
   } catch {
     return false;
   }

@@ -91,6 +91,50 @@ describe("fetchOptionalExtraChartText", () => {
     expect(result).toBeNull();
   });
 
+  it("HTTP 400 본문이 현재 Storage 형식(statusCode \"404\", code·error \"NoSuchKey\")이면 파일 없음으로 null 반환", async () => {
+    const result = await fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "404", code: "NoSuchKey", error: "NoSuchKey", message: "Object not found" }),
+        { status: 400 },
+      ),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("HTTP 400 본문이 code 없는 이전 Storage 형식(statusCode \"404\", error \"not_found\")이면 파일 없음으로 null 반환", async () => {
+    const result = await fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "404", error: "not_found", message: "Object not found" }),
+        { status: 400 },
+      ),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("HTTP 400 본문이 statusCode \"404\"여도 code가 \"NoSuchBucket\"(버킷 없음)이면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "404", code: "NoSuchBucket", error: "Bucket not found", message: "Bucket not found" }),
+        { status: 400 },
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
+  });
+
+  it("HTTP 400 본문이 code 없이 statusCode \"404\"·error \"Bucket not found\"이면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "404", error: "Bucket not found", message: "Bucket not found" }),
+        { status: 400 },
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
+  });
+
   it("HTTP 400 본문의 statusCode가 \"403\"이면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
     await expect(fetchOptionalExtraChartText(
       "https://example.com/chart.extra.json",
@@ -519,11 +563,11 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
 
   function recordingAdapter() {
     const calls: string[] = [];
-    const uploads = new Map<string, string>();
+    const uploadedContentByPath = new Map<string, string>();
     const adapter: SongAssetPersistenceAdapter = {
       uploadText: async (asset) => {
         calls.push(`upload:${asset.path}`);
-        uploads.set(asset.path, asset.content);
+        uploadedContentByPath.set(asset.path, asset.content);
       },
       remove: async (paths) => {
         calls.push(`remove:${paths.join(",")}`);
@@ -539,7 +583,7 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
         calls.push("deleteSongRow");
       },
     };
-    return { adapter, calls, uploads };
+    return { adapter, calls, uploadedContentByPath };
   }
 
   /**
@@ -566,6 +610,7 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
     }],
     ["HTTP 200이지만 JSON이 아닌 본문", () => new Response("<html>gateway error</html>", { status: 200 })],
     ["HTTP 400 statusCode \"403\"", () => new Response(JSON.stringify({ statusCode: "403", error: "Unauthorized" }), { status: 400 })],
+    ["HTTP 400 statusCode \"404\"·code \"NoSuchBucket\"", () => new Response(JSON.stringify({ statusCode: "404", code: "NoSuchBucket", error: "Bucket not found", message: "Bucket not found" }), { status: 400 })],
   ])("저장소에 보조 노트 2개가 있는데 보조 파일 요청이 %s이면 이어진 저장이 보조 파일을 remove·덮어쓰지 않는다", async (_label, extraResponse) => {
     const { adapter, calls } = recordingAdapter();
 
@@ -577,7 +622,7 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
   });
 
   it("보조 파일을 200으로 열고 바로 저장하면 보조 파일을 원본과 같은 바이트로 다시 쓴다", async () => {
-    const { adapter, uploads } = recordingAdapter();
+    const { adapter, uploadedContentByPath } = recordingAdapter();
 
     await loadChartIntoEditor(
       OPEN_TARGET,
@@ -585,6 +630,6 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
     );
 
     expect(await saveLikeEditor(adapter)).toBe("saved");
-    expect(uploads.get(STORED_EXTRA_PATH)).toBe(STORED_EXTRA_JSON);
+    expect(uploadedContentByPath.get(STORED_EXTRA_PATH)).toBe(STORED_EXTRA_JSON);
   });
 });
