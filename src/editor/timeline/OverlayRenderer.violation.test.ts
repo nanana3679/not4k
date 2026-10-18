@@ -55,6 +55,8 @@ function makeHost(
     violatingRestZoneIndices: violatingRestZones,
     violatingEventIndices: violatingEvents,
     moveOrigins: null,
+    trillZoneMoveOrigins: null,
+    restZoneMoveOrigins: null,
     boxSelectRect: null,
     scrollY: 0,
     contentOffsetX: 0,

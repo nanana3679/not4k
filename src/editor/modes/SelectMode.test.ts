@@ -238,6 +238,129 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// 구간 유닛 이동의 원위치 고스트 프리뷰 (#94) — 노트 원위치(moveOrigins)와 대칭으로
+// 이동 중인 trillZone·restZone의 원래 위치를 프리뷰에 싣는다.
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 구간 유닛 이동 원위치 프리뷰 (#94)", () => {
+  it("trillZone 유닛(lane 1, 2~4박)을 +1레인 +3박 드래그하는 중 preview.trillZoneMoveOrigins는 원래 위치 [lane 1, 2~4박] 하나를 담는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(1, 2, false, false); // 선택된 존 몸통 → 유닛 이동 드래그
+    const result = mode.onPointerMove(2, 5); // +1레인 +3박
+
+    expect(result.preview?.trillZoneMoveOrigins).toEqual([{ lane: 1, beat: beat(2), endBeat: beat(4) }]);
+    // 내부 트릴 노트 2개는 기존처럼 노트 원위치로 함께 실린다
+    expect(result.preview?.moveOrigins?.length).toBe(2);
+    expect(result.preview?.restZoneMoveOrigins).toBeUndefined();
+  });
+
+  it("내부 노트가 없는 trillZone 유닛(lane 2, 0~2박)을 드래그하는 중에도 preview.trillZoneMoveOrigins가 원래 위치를 담고 노트 원위치(moveOrigins)는 없다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 2 as Lane, beat: beat(0), endBeat: beat(2) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(2, 1, false, false);
+    const result = mode.onPointerMove(3, 2); // +1레인 +1박
+
+    expect(result.preview?.trillZoneMoveOrigins).toEqual([{ lane: 2, beat: beat(0), endBeat: beat(2) }]);
+    expect(result.preview?.moveOrigins).toBeUndefined();
+  });
+
+  it("restZone 유닛(lane 2, 2~6박)을 +1레인 +2박 드래그하는 중 preview.restZoneMoveOrigins는 원래 위치 [lane 2, 2~6박]이고 노트·trillZone 원위치는 없다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+      restZones: [{ lane: 2 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      hitTestRestZone: (x: number) => (x === 2 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectRestZoneUnit(0);
+
+    mode.onPointerDown(2, 2, false, false); // 선택된 restZone 몸통 → 유닛 이동 드래그
+    const result = mode.onPointerMove(3, 4); // +1레인 +2박
+
+    expect(result.preview?.restZoneMoveOrigins).toEqual([{ lane: 2, beat: beat(2), endBeat: beat(6) }]);
+    expect(result.preview?.moveOrigins).toBeUndefined();
+    expect(result.preview?.trillZoneMoveOrigins).toBeUndefined();
+  });
+
+  it("노트만 이동하는 드래그 중 preview에는 trillZoneMoveOrigins·restZoneMoveOrigins가 없다(선택 안 된 구간은 그대로)", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+      trillZones: [{ lane: 3 as Lane, beat: beat(2), endBeat: beat(4) }],
+      restZones: [{ lane: 4 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    const result = mode.onPointerMove(2, 1);
+
+    expect(result.preview?.moveOrigins?.length).toBe(1);
+    expect(result.preview?.trillZoneMoveOrigins).toBeUndefined();
+    expect(result.preview?.restZoneMoveOrigins).toBeUndefined();
+  });
+
+  it("같은 구간의 트릴 노트만 선택해 이동하는 드래그 중에는 구간이 움직이지 않으므로 trillZoneMoveOrigins가 없다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({ yToBeat: (y: number): Beat => beat(y) });
+    const mode = makeMode(chart, cb);
+
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 2);
+    const result = mode.onPointerMove(1, 3); // 구간 안에서 +1박
+
+    expect(result.preview?.moveOrigins?.length).toBe(1);
+    expect(result.preview?.trillZoneMoveOrigins).toBeUndefined();
+  });
+
+  it("trillZone 유닛 이동 중 cancel()하면 clearDragPreview를 반환하고 다음 onPointerMove preview에 trillZoneMoveOrigins가 없다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    mode.onPointerDown(1, 2, false, false);
+    expect(mode.onPointerMove(2, 3).preview?.trillZoneMoveOrigins).toHaveLength(1);
+
+    expect(mode.cancel().clearDragPreview).toBe(true);
+    expect(mode.onPointerMove(2, 4).preview?.trillZoneMoveOrigins).toBeUndefined();
+  });
+});
+
 describe("SelectMode — handlePointerUp", () => {
   it("onPointerUp을 호출하고 clearDragPreview 신호를 반환", () => {
     const chart = makeChart();

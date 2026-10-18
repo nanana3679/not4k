@@ -5,19 +5,24 @@
 
 import { Container, Graphics } from "pixi.js";
 import { beatToMs } from "../../shared";
-import type { Chart, Beat, NoteEntity, BpmMarker, Lane } from "../../shared";
+import type { Chart, Beat, NoteEntity, BpmMarker, Lane, TrillZone, RestZone } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
+  REST_ZONE_STRIPE_WIDTH,
   TRILL_HANDLE_SELECTED_BUMP,
 } from "./constants";
 import { laneToX, laneWidth, eventLaneToX } from "./laneGeometry";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
 import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./trillZoneHandles";
+import { diagonalStripeBands } from "./restZoneHatch";
+
+/** 이동 원위치 고스트의 불투명도 — 노트·구간 고스트 공통. */
+const ORIGIN_ALPHA = 0.3;
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
@@ -32,6 +37,10 @@ export interface OverlayHost {
   readonly violatingRestZoneIndices: Set<number>;
   readonly violatingEventIndices: Set<number>;
   readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
+  /** 구간 단위로 이동 중인 trillZone들의 원래 위치(#94). 이동 중이 아니면 null. */
+  readonly trillZoneMoveOrigins: readonly TrillZone[] | null;
+  /** 유닛으로 이동 중인 restZone들의 원래 위치(#94). 이동 중이 아니면 null. */
+  readonly restZoneMoveOrigins: readonly RestZone[] | null;
   readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
@@ -54,14 +63,16 @@ export class OverlayRenderer {
   constructor(private host: OverlayHost) {}
 
   /**
-   * 이동 중인 노트의 원본 위치에 반투명 고스트 렌더링
+   * 이동 중인 노트·구간의 원본 위치에 반투명 고스트 렌더링.
+   * 구간 고스트를 먼저 추가해 노트 고스트 아래에 깔리게 한다(타임라인 z-order: restZone < trillZone < 노트).
    */
   renderMoveOrigins(): void {
-    if (!this.host.moveOrigins || !this.host.chart) return;
+    if (!this.host.chart) return;
+    this.renderZoneMoveOrigins();
+    if (!this.host.moveOrigins) return;
 
     const bpmMarkers = this.host.cachedBpmMarkers;
     const meta = this.host.chart.meta;
-    const ORIGIN_ALPHA = 0.3;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     for (const origin of this.host.moveOrigins) {
@@ -134,6 +145,74 @@ export class OverlayRenderer {
         end.fill({ color: bodyColor, alpha: ORIGIN_ALPHA * 0.5 });
         this.host.moveOriginLayer.addChild(end);
       }
+    }
+  }
+
+  /**
+   * 구간 단위로 이동 중인 restZone·trillZone의 원래 위치에 고스트를 그린다 (#94).
+   * 모양·색은 타임라인 밴드(GridRenderer.renderRestZones·renderTrillZones)와 같고 그래픽 전체 alpha만
+   * ORIGIN_ALPHA로 낮춘다 — 노트 고스트처럼 "원래 모습의 흐린 사본"이며 선택 테두리는 그리지 않는다.
+   * 밴드 기하를 바꾸면 GridRenderer와 함께 바꾼다(OverlayRenderer.moveOrigin.test.ts가 둘을 비교한다).
+   */
+  private renderZoneMoveOrigins(): void {
+    const chart = this.host.chart;
+    if (!chart) return;
+    const restZones = this.host.restZoneMoveOrigins ?? [];
+    const trillZones = this.host.trillZoneMoveOrigins ?? [];
+    if (restZones.length === 0 && trillZones.length === 0) return;
+
+    const bpmMarkers = this.host.cachedBpmMarkers;
+    const { offsetMs } = chart.meta;
+    const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
+    const visibleYA = this.host.timeToY(minTimeMs);
+    const visibleYB = this.host.timeToY(maxTimeMs);
+
+    // 구간 → 레인 폭 밴드. 화면 밖이면 null, 길이 0 구간은 beat 위치 중심 NOTE_HEIGHT 높이(타임라인과 같다).
+    const bandOf = (zone: TrillZone | RestZone) => {
+      const startMs = beatToMs(zone.beat, bpmMarkers, offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmMarkers, offsetMs);
+      if (Math.max(startMs, endMs) < minTimeMs || Math.min(startMs, endMs) > maxTimeMs) return null;
+      const startY = this.host.timeToY(startMs);
+      const endY = this.host.timeToY(endMs);
+      const topY = Math.min(startY, endY);
+      const rawHeight = Math.abs(endY - startY);
+      return {
+        x: (zone.lane - 1) * LANE_WIDTH,
+        y: rawHeight > 0 ? topY : topY - NOTE_HEIGHT / 2,
+        height: rawHeight > 0 ? rawHeight : NOTE_HEIGHT,
+        startY,
+      };
+    };
+
+    for (const zone of restZones) {
+      const band = bandOf(zone);
+      if (!band) continue;
+      const gfx = new Graphics();
+      gfx.rect(band.x, band.y, LANE_WIDTH, band.height);
+      gfx.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_BASE_ALPHA });
+      // 빗금은 보이는 부분만 만들고 위상은 구간 시작 박 위치(startY)에 고정한다 — 타임라인 restZone과 같은 무늬.
+      const visibleTop = Math.max(band.y, Math.min(visibleYA, visibleYB));
+      const visibleBottom = Math.min(band.y + band.height, Math.max(visibleYA, visibleYB));
+      const stripes = diagonalStripeBands(
+        { x: band.x, y: visibleTop, width: LANE_WIDTH, height: visibleBottom - visibleTop },
+        REST_ZONE_STRIPE_WIDTH, band.x, band.startY,
+      );
+      if (stripes.length > 0) {
+        for (const stripe of stripes) gfx.poly(stripe);
+        gfx.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_STRIPE_ALPHA });
+      }
+      gfx.alpha = ORIGIN_ALPHA;
+      this.host.moveOriginLayer.addChild(gfx);
+    }
+
+    for (const zone of trillZones) {
+      const band = bandOf(zone);
+      if (!band) continue;
+      const gfx = new Graphics();
+      gfx.rect(band.x, band.y, LANE_WIDTH, band.height);
+      gfx.fill({ color: COLORS.TRILL_ZONE, alpha: COLORS.TRILL_ZONE_ALPHA });
+      gfx.alpha = ORIGIN_ALPHA;
+      this.host.moveOriginLayer.addChild(gfx);
     }
   }
 

@@ -663,6 +663,14 @@ export class SelectMode implements EditorMode {
         }
         preview.moveOrigins = data;
       }
+      // 구간 유닛 이동이면 구간도 원래 위치에 고스트를 남긴다 — 노트 고스트만 남으면 "구간만 떠나고
+      // 내부 노트는 남았다"로 오독된다(#94). 노트 단위 트릴 이동은 구간을 캡처하지 않아 고스트가 없다.
+      if (this.originalZonePositions.size > 0) {
+        preview.trillZoneMoveOrigins = [...this.originalZonePositions.values()];
+      }
+      if (this.originalRestZonePositions.size > 0) {
+        preview.restZoneMoveOrigins = [...this.originalRestZonePositions.values()];
+      }
     }
     return preview;
   }

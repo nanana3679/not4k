@@ -14,6 +14,8 @@ import type {
   NoteEntity,
   BpmMarker,
   TimeSignatureMarker,
+  TrillZone,
+  RestZone,
 } from "../../shared";
 import { beatToMs, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "../../shared";
 import {
@@ -118,6 +120,9 @@ export class TimelineRenderer {
   private _selectedTrillZones: Set<number> = new Set();
   private _selectedRestZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
+  // 구간 유닛 이동 중인 trillZone·restZone의 원래 위치 — 노트 원위치와 함께 고스트로 그리고 함께 지운다 (#94)
+  private _trillZoneMoveOrigins: readonly TrillZone[] | null = null;
+  private _restZoneMoveOrigins: readonly RestZone[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
   // Extra lane state
@@ -411,6 +416,8 @@ export class TimelineRenderer {
       get violatingRestZoneIndices() { return self._violatingRestZoneIndices; },
       get violatingEventIndices() { return self._violatingEventIndices; },
       get moveOrigins() { return self._moveOrigins; },
+      get trillZoneMoveOrigins() { return self._trillZoneMoveOrigins; },
+      get restZoneMoveOrigins() { return self._restZoneMoveOrigins; },
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
       get contentOffsetX() { return self.contentOffsetX; },
@@ -573,9 +580,21 @@ export class TimelineRenderer {
     this._moveOrigins = origins;
   }
 
-  /** Clear move origin ghosts */
+  /** 구간 단위로 이동 중인 trillZone들의 원래 위치 설정 — 원위치 고스트로 그려진다 (#94) */
+  setTrillZoneMoveOrigins(origins: readonly TrillZone[]): void {
+    this._trillZoneMoveOrigins = origins;
+  }
+
+  /** 유닛으로 이동 중인 restZone들의 원래 위치 설정 — 원위치 고스트로 그려진다 (#94) */
+  setRestZoneMoveOrigins(origins: readonly RestZone[]): void {
+    this._restZoneMoveOrigins = origins;
+  }
+
+  /** Clear move origin ghosts (노트·trillZone·restZone 원위치를 함께 지운다 — 드롭·취소 경로 공용) */
   clearMoveOrigins(): void {
     this._moveOrigins = null;
+    this._trillZoneMoveOrigins = null;
+    this._restZoneMoveOrigins = null;
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
