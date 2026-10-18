@@ -163,6 +163,8 @@ export function useSongNavigation(options: {
         hasPendingChartTarget: newChartTarget !== null,
         songsEmpty: songs.length === 0,
         key: e.key,
+        defaultPrevented: e.defaultPrevented,
+        repeat: e.repeat,
       })) return;
 
       if (e.key === 'ArrowUp') {

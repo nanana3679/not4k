@@ -77,6 +77,13 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     setScreen('loading');
   }, [playAllowed, selectSong, setScreen]);
 
+  // 곡 선택 위에 차단성 오버레이(설정·튜토리얼·곡 추가·곡 삭제 모달)가 떠 있는지. true면 곡 선택 키·휠 네비를 막는다.
+  const blockingModalOpen = showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null;
+  // 모달이 하나라도 떠 있으면(새 차트 모달 포함) 뒤의 헤더·곡 목록을 inert로 만들어 Tab 포커스·클릭이 닿지 않게 한다.
+  // focus trap이 없는 모달(곡 추가 등)에서 Tab으로 뒤의 버튼에 닿으면 두 번째 모달을 겹쳐 열 수 있고, 그러면
+  // Escape 한 번이 가려진 첫 모달을 닫는다. 모달은 renderOverlays()로 inert 밖에 렌더링하므로 열린 모달은 영향이 없다.
+  const backgroundInert = blockingModalOpen || newChartTarget !== null;
+
   const {
     songs,
     loading,
@@ -91,7 +98,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
+    blockingModalOpen,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -233,7 +240,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   if (mobileListOnly) {
     return (
       <div style={styles.mobileContainer}>
-        <div style={styles.mobileHeader}>
+        <div style={styles.mobileHeader} inert={backgroundInert}>
           <div style={styles.mobileHeaderTop}>
             <h1 style={styles.mobileTitle}>
               <span style={styles.mobileTitleAccent} aria-hidden="true" />
@@ -279,6 +286,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
         <div
           ref={songListRef}
+          inert={backgroundInert}
           style={{
             ...styles.mobileSongList,
             ...(showSongListState ? styles.mobileSongListState : {}),
@@ -331,7 +339,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
+      <div style={styles.header} inert={backgroundInert}>
         <h1 style={styles.title}>
           <span style={styles.titleAccent} aria-hidden="true" />
           Song Select
@@ -365,7 +373,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
         </div>
       </div>
 
-      <div style={styles.splitContainer}>
+      <div style={styles.splitContainer} inert={backgroundInert}>
         {/* Left panel — song detail */}
         <div style={styles.leftPanel}>
           {focusedSong ? (

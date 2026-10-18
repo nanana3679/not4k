@@ -114,14 +114,23 @@ export function getCircularDistance(a: number, b: number, total: number): number
  * 곡 선택 위에 차단성 오버레이(설정 모달, 추가/삭제/난이도 모달 등)가 떠 있으면
  * 그 아래 곡 네비가 살아있으면 안 된다. 특히 모달 안에서 누른 Enter가 게임을 시작하거나
  * Escape가 타이틀로 이탈하는 회귀를 막는다. 곡이 없을 때는 Escape(뒤로가기)만 허용한다.
+ *
+ * 다른 리스너가 이미 처리한(`defaultPrevented`) 키는 리스너 등록 순서와 상관없이 무시한다.
+ * 모달이 Escape로 닫히며 처리한 같은 이벤트가 타이틀 이탈로 이어지지 않게 한다.
+ * Escape 자동 반복(`repeat`)도 무시한다. 모달을 닫은 Escape를 누르고 있으면 반복 keydown이
+ * 곡 선택에 닿아 타이틀로 나가기 때문이다. 방향키 반복은 곡을 계속 넘기도록 그대로 둔다.
  */
 export function shouldBlockSongNavKey(params: {
   blockingModalOpen: boolean;
   hasPendingChartTarget: boolean;
   songsEmpty: boolean;
   key: string;
+  defaultPrevented: boolean;
+  repeat: boolean;
 }): boolean {
-  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key } = params;
+  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key, defaultPrevented, repeat } = params;
+  if (defaultPrevented) return true;
+  if (key === 'Escape' && repeat) return true;
   if (blockingModalOpen || hasPendingChartTarget) return true;
   if (songsEmpty && key !== 'Escape') return true;
   return false;

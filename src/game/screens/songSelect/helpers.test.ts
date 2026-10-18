@@ -295,7 +295,7 @@ describe('resolveGameplayRange', () => {
 });
 
 describe('shouldBlockSongNavKey', () => {
-  const base = { blockingModalOpen: false, hasPendingChartTarget: false, songsEmpty: false };
+  const base = { blockingModalOpen: false, hasPendingChartTarget: false, songsEmpty: false, defaultPrevented: false, repeat: false };
 
   it('차단 모달 없고 곡 있으면 ArrowDown 통과(차단 안 함)', () => {
     expect(shouldBlockSongNavKey({ ...base, key: 'ArrowDown' })).toBe(false);
@@ -323,5 +323,26 @@ describe('shouldBlockSongNavKey', () => {
 
   it('곡 0개 + 차단 오버레이면 Escape도 차단(오버레이 우선)', () => {
     expect(shouldBlockSongNavKey({ ...base, songsEmpty: true, blockingModalOpen: true, key: 'Escape' })).toBe(true);
+  });
+
+  it('다른 리스너가 이미 처리한(defaultPrevented=true) Escape는 차단 — 모달을 닫으며 처리한 Escape로 타이틀 이동 안 함', () => {
+    expect(shouldBlockSongNavKey({ ...base, defaultPrevented: true, key: 'Escape' })).toBe(true);
+  });
+
+  it('defaultPrevented=true면 ArrowDown·Enter도 차단', () => {
+    expect(shouldBlockSongNavKey({ ...base, defaultPrevented: true, key: 'ArrowDown' })).toBe(true);
+    expect(shouldBlockSongNavKey({ ...base, defaultPrevented: true, key: 'Enter' })).toBe(true);
+  });
+
+  it('차단 모달 없고 repeat=false인 Escape는 통과(타이틀로 이동)', () => {
+    expect(shouldBlockSongNavKey({ ...base, key: 'Escape' })).toBe(false);
+  });
+
+  it('Escape 자동 반복(repeat=true)은 차단 — 모달을 닫은 뒤 누르고 있는 Escape로 타이틀 이동 안 함', () => {
+    expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'Escape' })).toBe(true);
+  });
+
+  it('ArrowDown 자동 반복(repeat=true)은 통과 — 누르고 있으면 곡을 계속 넘김', () => {
+    expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'ArrowDown' })).toBe(false);
   });
 });

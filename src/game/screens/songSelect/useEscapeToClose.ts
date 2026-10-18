@@ -6,7 +6,7 @@ interface EscapeToCloseOptions {
 }
 
 /**
- * keydown 하나가 곡 선택의 관리 모달(곡 삭제·곡 추가·새 차트 난이도)을 닫아야 하는지 판정한다.
+ * keydown 하나가 곡 선택의 관리 모달(곡 삭제·곡 추가·새 차트 난이도)을 닫아야 하는지 정한다.
  *
  * - Escape만 닫는다. 자동 반복(`repeat`)은 거르지 않는다 — 설정·튜토리얼 모달의 Escape 닫기와 같다.
  * - IME 조합 중(`isComposing`)의 Escape는 조합 취소에 양보한다.
@@ -26,11 +26,12 @@ export function shouldCloseOnEscape(
 /**
  * Escape를 누르면 `onClose`로 모달을 닫는다. `disabled`인 동안에는 닫지 않는다.
  *
- * 리스너는 곡 선택 키 네비(`useSongNavigation`)와 같은 `window`의 bubble 단계에 둔다. 곡 선택 네비는
- * 모달이 열린 동안 Escape를 무시하지만, 모달을 닫으면 React가 다음 리스너 전에 다시 렌더링해 네비 리스너를
- * 새로 등록할 수 있다. 같은 대상·단계에서는 디스패치 중 새로 등록한 리스너가 그 이벤트를 받지 않고 제거된
- * 옛 리스너도 실행되지 않으므로, Escape 한 번이 모달을 닫으면서 타이틀로 나가지 않는다. `document`나
- * capture 단계로 옮기면 이 보장이 깨진다(`e2e/game/song-select-modal-escape.spec.ts`가 확인).
+ * Escape 한 번이 모달을 닫으면서 타이틀로 나가지 않도록 두 겹으로 막는다.
+ * - 닫을 때 `preventDefault()`로 처리됨을 표시하고, 곡 선택 키 네비(`shouldBlockSongNavKey`)는 처리된 키를 무시한다.
+ * - 리스너를 네비(`useSongNavigation`)와 같은 `window`의 bubble 단계에 둔다. 모달을 닫으면 React가 다음 리스너 전에
+ *   다시 렌더링해 네비 리스너를 새로 등록할 수 있는데, 같은 대상·단계에서는 디스패치 중 새로 등록한 리스너가
+ *   그 이벤트를 받지 않는다.
+ * 실제 브라우저 동작은 `e2e/game/song-select-modal-escape.spec.ts`가 확인한다.
  */
 export function useEscapeToClose(onClose: () => void, { disabled = false }: EscapeToCloseOptions = {}): void {
   useEffect(() => {
