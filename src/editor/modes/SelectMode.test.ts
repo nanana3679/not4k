@@ -359,6 +359,87 @@ describe("SelectMode — 구간 유닛 이동 원위치 프리뷰 (#94)", () => 
     expect(mode.cancel().clearDragPreview).toBe(true);
     expect(mode.onPointerMove(2, 4).preview?.trillZoneMoveOrigins).toBeUndefined();
   });
+
+  it("trillZone 유닛(lane 1, 2~4박)·restZone(lane 4, 2~6박)·일반 노트(lane 3, 9박)를 함께 선택해 +1박 드래그하는 중 preview에 trillZone·restZone 원위치 각 1개와 노트 원위치 3개(파생 트릴 2 + 일반 1)가 함께 실린다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간 내부 — 파생)
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },  // 1 (구간 내부 — 파생)
+        { type: "single", lane: 3 as Lane, beat: beat(9) }, // 2 (직접 선택)
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+      restZones: [{ lane: 4 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
+      yToBeat: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    cb.setSelection({ notes: new Set([2]), zones: new Set([0]), restZones: new Set([0]) });
+    expect(cb.getSelectionState().notes).toEqual(new Set([2])); // 세 축 공존(게이트 통과)
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+    expect(cb.getSelectionState().restZones).toEqual(new Set([0]));
+
+    mode.onPointerDown(1, 3, false, false); // 선택된 trillZone 몸통 → 혼합 선택째 이동 드래그
+    const result = mode.onPointerMove(1, 4); // +1박(레인 그대로)
+
+    expect(result.preview?.trillZoneMoveOrigins).toEqual([{ lane: 1, beat: beat(2), endBeat: beat(4) }]);
+    expect(result.preview?.restZoneMoveOrigins).toEqual([{ lane: 4, beat: beat(2), endBeat: beat(6) }]);
+    expect(result.preview?.moveOrigins?.map((origin) => origin.lane).sort()).toEqual([1, 1, 3]);
+  });
+
+  it("trillZone 유닛(lane 1, 0~4박) 선택 중 내부 트릴 노트(1박)를 잡아 +1박 드래그해도 선택은 유닛 그대로이고 preview.trillZoneMoveOrigins가 원래 위치 [lane 1, 0~4박]을 담는다", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(1) },
+        { type: "trill", lane: 1 as Lane, beat: beat(2) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestNote: (x: number, y: number) => (x === 1 && y === 1 ? 0 : null), // (1,1) = 내부 노트 0
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+
+    mode.onPointerDown(1, 1, false, false); // 파생 내부 노트 0 히트 → 유닛째 이동 드래그
+    const result = mode.onPointerMove(1, 2); // +1박
+
+    expect(cb.getSelectionState().notes).toEqual(new Set()); // 단독 선택으로 교체되지 않음
+    expect(result.preview?.trillZoneMoveOrigins).toEqual([{ lane: 1, beat: beat(0), endBeat: beat(4) }]);
+    expect(result.preview?.moveOrigins?.length).toBe(2);
+  });
+
+  it("박스(레인 1~2, 0~9박)로 trillZone 2개(lane 1 2~4박, lane 2 6~8박)를 유닛 선택한 뒤 몸통을 +1박 드래그하면 preview.trillZoneMoveOrigins에 원래 위치 2개가 실린다", () => {
+    const chart = makeChart({
+      trillZones: [
+        { lane: 1 as Lane, beat: beat(2), endBeat: beat(4) },
+        { lane: 2 as Lane, beat: beat(6), endBeat: beat(8) },
+      ],
+    });
+    const cb = makeCallbacks({
+      yToBeatRaw: (y: number): Beat => beat(y),
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestTrillZone: (x: number, y: number) =>
+        x === 1 && y >= 2 && y <= 4 ? 0 : x === 2 && y >= 6 && y <= 8 ? 1 : null,
+    });
+    const mode = makeMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false); // 빈 곳(레인1, 0박)에서 박스 시작
+    mode.onPointerMove(2, 9);               // 레인 1~2, 0~9박 — 두 구간을 완전히 감쌈
+    mode.onPointerUp(2, 9);
+    expect([...cb.getSelectionState().zones].sort()).toEqual([0, 1]);
+
+    mode.onPointerDown(1, 3, false, false); // 선택된 구간0 몸통 → 두 구간째 유닛 이동 드래그
+    const result = mode.onPointerMove(1, 4); // +1박
+
+    const origins = [...(result.preview?.trillZoneMoveOrigins ?? [])].sort((a, b) => a.lane - b.lane);
+    expect(origins).toEqual([
+      { lane: 1, beat: beat(2), endBeat: beat(4) },
+      { lane: 2, beat: beat(6), endBeat: beat(8) },
+    ]);
+  });
 });
 
 describe("SelectMode — handlePointerUp", () => {
