@@ -1,7 +1,7 @@
 {
   "createdAt": "2026-10-18",
   "generator": "built-in image_gen (codex exec, gpt-6-astra, reasoning xhigh)",
-  "feedback": "Round 1 (../background-drafts-20261018/) was too strong: the background does not have to be metallic, it must not be so busy that it pulls attention from the in-game elements, and the current background should be referenced at altitude high, mid and low.",
+  "feedback": "Round 1 (six metallic drafts, archived outside the repository in ~/not4k-prototypes/background-drafts-r1-20261018/) was too strong: the background does not have to be metallic, it must not be so busy that it pulls attention from the in-game elements, and the current background should be referenced at altitude high, mid and low.",
   "references": {
     "gear": "public/gear/gear.png",
     "current": "lab/image-galleries/background-drafts-20261018/captures/current-<scenario>-<high|mid|low>.webp (the real game background at altitude 100% / 50% / 0%)"
@@ -22,7 +22,8 @@
     {
       "id": "breakthrough",
       "title": "Breakthrough",
-      "direction": "Breakthrough: sustained fast flight low inside a vast dark structure, with no sky and no horizon. Black-blue darkness with faint, dim distant architecture. Thin vermilion and coral line lights run along the walls, floor and ceiling toward one vanishing point; the vanishing point and the direction of the lines follow the references for each altitude. Keep the lines thin and sparse, the darkness wide, and the brightest light small; a few teal accents."
+      "direction": "Breakthrough: sustained fast flight low inside a vast dark structure, with no sky and no horizon. Deep black-blue darkness with faint, dim silhouettes of distant architecture. Line lights run along the walls, floor and ceiling toward one vanishing point; the vanishing point and the direction of the lines follow the references for each altitude. A previous attempt was rejected because its red lines pulled the eye away from the notes. Keep the vermilion identity but very muted: desaturated, dim ember and rust-coral tones, far darker than the gear's cyan glow and closer to the background values than to neon. Fewer lines, mostly thin, faint and soft-edged; no bright saturated red streak anywhere and no glow halos; a few dim teal accents. The whole image should read as a dark, cool space with a faint warm flow, not as red light.",
+      "revision": "2nd Breakthrough attempt. The first attempt (same brief with 'thin vermilion and coral line lights ... keep the lines thin and sparse') is archived in ~/not4k-prototypes/background-drafts-r2-breakthrough-v1-20261018/ after the user found its red too eye-catching."
     }
   ]
 }

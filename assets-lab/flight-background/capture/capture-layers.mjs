@@ -10,10 +10,15 @@
 // - layer-gear-<altitude>.webp: the gear, whose glass gauges show the altitude
 // - layer-<group>.webp for the other groups (lanes, notes, judgment-line, hud), which do not depend on altitude
 // See RENDERER_FIELDS_BY_GROUP in capture-page.mjs for what each group holds.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+//
+// The files are written to a temporary folder and moved into outDir only after every capture succeeded, so a failed
+// run never leaves a mix of old and new images. While it runs, do not edit HTML files or files vite.config imports:
+// Vite then reloads the capture page and the run fails.
+import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { chromium } from '@playwright/test';
 import { encodeWebp } from './encode-webp.mjs';
+import { ALTITUDE_BY_NAME, DIFFICULTY_LABELS } from './capture-plan.mjs';
 
 const [baseUrl, outDir] = process.argv.slice(2);
 if (!baseUrl || !outDir) {
@@ -21,60 +26,77 @@ if (!baseUrl || !outDir) {
   process.exit(1);
 }
 
-// Chart difficulty labels; each one picks its flight scenario.
-const DIFFICULTY_LABELS = ['LIFTOFF', 'INFILTRATION', 'BREAKTHROUGH'];
-// Altitude samples high / mid / low (docs/design/flight-concept.md compares one continuous space at these three).
-const ALTITUDES = { high: 1, mid: 0.5, low: 0 };
 const BACKGROUND_QUALITY = 0.86;
 // Lossy but high quality: lossless (quality 1) keeps thin coloured strokes exact but makes the seven layers about
 // 2.6 MB instead of 0.4 MB, too heavy for the phone view, and the difference is not visible once composited.
 const LAYER_QUALITY = 0.92;
+const PAGE_TIMEOUT_MS = 180_000;
 const kebab = (name) => name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
-mkdirSync(outDir, { recursive: true });
+mkdirSync(dirname(outDir), { recursive: true });
+const stagingDir = mkdtempSync(`${outDir.replace(/\/$/, '')}.partial-`);
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
-  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
-  page.on('console', (message) => { if (message.type() === 'error') console.error('[page]', message.text()); });
-  // A module that fails to load never reaches start(), so report it instead of waiting for the ready timeout.
-  page.on('pageerror', (error) => page.evaluate((message) => { document.body.dataset.captureError ??= message; }, String(error)).catch(() => undefined));
   const encoder = await browser.newPage();
-  const captureRoot = page.locator('#capture-root');
-  const waitForPaint = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const save = async (name, png, quality) => {
-    writeFileSync(join(outDir, name), await encodeWebp(encoder, png, quality));
-    console.log('wrote', join(outDir, name));
-  };
-  const show = async (options) => {
-    await page.evaluate((shown) => window.__layerCapture.show(shown), options);
-    await waitForPaint();
+    writeFileSync(join(stagingDir, name), await encodeWebp(encoder, png, quality));
+    console.log('captured', name);
   };
 
   let capturedSharedLayers = false;
   for (const label of DIFFICULTY_LABELS) {
-    for (const [altitudeName, altitude] of Object.entries(ALTITUDES)) {
+    for (const [altitudeName, altitude] of Object.entries(ALTITUDE_BY_NAME)) {
+      // A fresh page per capture also releases the previous renderer's WebGL contexts.
+      const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(String(error)));
+      page.on('console', (message) => { if (message.type() === 'error') console.error('[page]', message.text()); });
+      const failIfPageErrored = () => {
+        if (pageErrors.length > 0) throw new Error(`${label} ${altitudeName}: ${pageErrors.join('; ')}`);
+      };
+      const captureRoot = page.locator('#capture-root');
+      const show = async (options) => {
+        await page.evaluate((shown) => window.__layerCapture.show(shown), options);
+        // Two animation frames: the canvas has been composited before the screenshot.
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        failIfPageErrored();
+      };
+
       const url = new URL('/assets-lab/flight-background/capture/index.html', baseUrl);
       url.search = new URLSearchParams({ label, altitude: String(altitude) }).toString();
-      await page.goto(url.href);
-      await page.waitForFunction(() => document.body.dataset.captureReady || document.body.dataset.captureError, null, { timeout: 180_000 });
-      const error = await page.evaluate(() => document.body.dataset.captureError);
+      await page.goto(url.href, { timeout: PAGE_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(
+        () => window.__captureLoadError || document.body?.dataset.captureError || document.body?.dataset.captureReady,
+        null,
+        { timeout: PAGE_TIMEOUT_MS },
+      );
+      const error = await page.evaluate(() => window.__captureLoadError || document.body.dataset.captureError);
       if (error) throw new Error(`${label} ${altitudeName}: ${error}`);
+      failIfPageErrored();
 
       await show({ background: true, groups: [] });
       await save(`current-${label.toLowerCase()}-${altitudeName}.webp`, await captureRoot.screenshot(), BACKGROUND_QUALITY);
 
       // The layers do not depend on the scenario, and only the gear's glass gauges follow the altitude.
-      if (label !== DIFFICULTY_LABELS[0]) continue;
-      const groups = await page.evaluate(() => window.__layerCapture.groups);
-      for (const group of groups) {
-        if (group !== 'gear' && capturedSharedLayers) continue;
-        await show({ background: false, groups: [group] });
-        const name = group === 'gear' ? `layer-gear-${altitudeName}.webp` : `layer-${kebab(group)}.webp`;
-        await save(name, await captureRoot.screenshot({ omitBackground: true }), LAYER_QUALITY);
+      if (label === DIFFICULTY_LABELS[0]) {
+        const groups = await page.evaluate(() => window.__layerCapture.groups);
+        for (const group of groups) {
+          if (group !== 'gear' && capturedSharedLayers) continue;
+          await show({ background: false, groups: [group] });
+          const name = group === 'gear' ? `layer-gear-${altitudeName}.webp` : `layer-${kebab(group)}.webp`;
+          await save(name, await captureRoot.screenshot({ omitBackground: true }), LAYER_QUALITY);
+        }
+        capturedSharedLayers = true;
       }
-      capturedSharedLayers = true;
+      await page.close();
     }
   }
+
+  mkdirSync(outDir, { recursive: true });
+  const names = readdirSync(stagingDir);
+  for (const name of names) renameSync(join(stagingDir, name), join(outDir, name));
+  console.log(`wrote ${names.length} files to ${outDir}`);
 } finally {
   await browser.close();
+  rmSync(stagingDir, { recursive: true, force: true });
 }

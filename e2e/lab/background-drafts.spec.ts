@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 const galleryPath = "/lab/images/background-drafts-20261018/";
 const ALL_LAYER_FILES = ["layer-lanes.webp", "layer-notes.webp", "layer-judgment-line.webp", "layer-gear-mid.webp", "layer-hud.webp"];
+const SCENARIOS = ["liftoff", "infiltration", "breakthrough"];
+const ALTITUDES = ["high", "mid", "low"];
 
 /** File names of the preview layers that are actually drawn (computed opacity 1, after the 120 ms fade). */
 function drawnLayerFiles(page: Page) {
@@ -11,7 +13,7 @@ function drawnLayerFiles(page: Page) {
 }
 
 for (const width of [390, 1280]) {
-  test(`${width}px Lab에서 배경 시안 갤러리를 열어 미리보기 누르기로 레이어 5장을 내렸다 올리고, HUD 끄기·지금 배경·Breakthrough 고도 하로 바꾼 뒤 목록으로 돌아온다`, async ({ context, page }) => {
+  test(`${width}px Lab에서 배경 시안 갤러리를 열어 미리보기 누르기로 레이어 5장을 숨겼다 보이고, HUD 끄기·지금 배경·Breakthrough 고도 하로 바꾼 뒤 목록으로 돌아온다`, async ({ context, page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/lab");
     const galleryPromise = context.waitForEvent("page");
@@ -55,48 +57,168 @@ for (const width of [390, 1280]) {
   });
 }
 
-test("주소 source=current·infiltration·high·layers=gear·overlay=0·brightness=60을 복원하고 H·C·↓·→ 키로 바꾸며, 일부만 적은 주소는 나머지를 기본값으로 읽는다", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(String(error)));
+test("주소 source=current&scenario=infiltration&altitude=high&layers=gear&overlay=0&brightness=60으로 열면 지금 배경 Infiltration 고도 상·레이어 숨김·기어만 체크·밝기 60%다", async ({ page }) => {
   await page.goto(`${galleryPath}#source=current&scenario=infiltration&altitude=high&layers=gear&overlay=0&brightness=60`);
   await expect(page.locator("#background")).toHaveAttribute("src", "captures/current-infiltration-high.webp");
   await expect(page.locator("#gear-layer")).toHaveAttribute("src", "captures/layer-gear-high.webp");
+  await expect(page.locator("#selected-title")).toHaveText("지금 배경 · Infiltration · 고도 상");
   await expect.poll(() => drawnLayerFiles(page)).toEqual([]);
-  // 내린 동안에도 레이어 체크는 켜고 끌 수 있고(포커스가 사라지지 않게), 고른 레이어(기어)만 체크되어 있다.
   await expect(page.getByRole("checkbox", { name: /기어/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /기어/ })).toBeEnabled();
   await expect(page.getByRole("checkbox", { name: /HUD/ })).not.toBeChecked();
   await expect(page.locator("#brightness-value")).toHaveText("60%");
   await expect(page.locator("#background")).toHaveCSS("filter", "brightness(0.6)");
+});
 
+test("레이어를 숨긴 상태(overlay=0)에서 HUD 체크를 켜면 체크는 포커스를 잃지 않고 기어·HUD 레이어가 다시 보인다", async ({ page }) => {
+  await page.goto(`${galleryPath}#layers=gear&overlay=0`);
+  await expect.poll(() => drawnLayerFiles(page)).toEqual([]);
+  const hud = page.getByRole("checkbox", { name: /HUD/ });
+  await hud.focus();
+  await page.keyboard.press("Space");
+  await expect.poll(() => drawnLayerFiles(page)).toEqual(["layer-gear-mid.webp", "layer-hud.webp"]);
+  await expect(hud).toBeFocused();
+});
+
+test("H는 레이어를 숨기고, C는 2차 시안→지금 배경, ↓는 고도 상→중, →는 Infiltration→Breakthrough로 바꾼다", async ({ page }) => {
+  await page.goto(`${galleryPath}#scenario=infiltration&altitude=high`);
   await page.keyboard.press("h");
-  await expect.poll(() => drawnLayerFiles(page)).toEqual(["layer-gear-high.webp"]);
+  await expect.poll(() => drawnLayerFiles(page)).toEqual([]);
   await page.keyboard.press("c");
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/infiltration-high.webp");
+  await expect(page.locator("#background")).toHaveAttribute("src", "captures/current-infiltration-high.webp");
   await page.keyboard.press("ArrowDown");
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/infiltration-mid.webp");
+  await expect(page.locator("#background")).toHaveAttribute("src", "captures/current-infiltration-mid.webp");
   await page.keyboard.press("ArrowRight");
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
-  // 라디오에 포커스가 있어도 H는 동작한다(화살표만 라디오가 쓴다).
+  await expect(page.locator("#background")).toHaveAttribute("src", "captures/current-breakthrough-mid.webp");
+});
+
+test("Liftoff 라디오와 밝기 슬라이더에 포커스가 있어도 H는 레이어를 숨겼다 보인다", async ({ page }) => {
+  await page.goto(galleryPath);
   await page.getByRole("radio", { name: "Liftoff" }).focus();
   await page.keyboard.press("h");
   await expect.poll(() => drawnLayerFiles(page)).toEqual([]);
+  await page.locator("#brightness").focus();
+  await page.keyboard.press("h");
+  await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
+});
 
-  // 슬라이더 단계(5%)에 맞지 않는 밝기 37은 35로 맞춘다.
+test("키보드 단축키 체크를 끄면 H·C·→·↓가 레이어와 배경을 바꾸지 않는다", async ({ page }) => {
+  await page.goto(galleryPath);
+  await page.getByRole("checkbox", { name: /키보드 단축키/ }).uncheck();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  for (const key of ["h", "c", "ArrowRight", "ArrowDown"]) await page.keyboard.press(key);
+  await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+});
+
+test("'만든 방법과 한계 펼치기'에 포커스가 있으면 ↓는 고도 중을 바꾸지 않는다", async ({ page }) => {
+  await page.goto(galleryPath);
+  await page.locator("summary").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Liftoff · 고도 중");
+});
+
+test("주소 brightness=37은 슬라이더 5% 단계에 맞춰 35%로 읽는다", async ({ page }) => {
   await page.goto(`${galleryPath}#brightness=37`);
   await expect(page.locator("#brightness-value")).toHaveText("35%");
-  // 일부만 적은 주소: 적지 않은 값은 이전 화면이 아니라 기본값(2차 시안·고도 중·레이어 전체·보이기·밝기 100%)이다.
+  await expect(page.locator("#brightness")).toHaveValue("35");
+});
+
+test("다른 화면 뒤에 일부만 적은 주소 #scenario=breakthrough로 가면 나머지는 기본값(2차 시안·고도 중·레이어 전체·보이기·100%)이다", async ({ page }) => {
+  await page.goto(`${galleryPath}#source=current&altitude=low&layers=gear&overlay=0&brightness=50`);
+  await expect(page.locator("#background")).toHaveAttribute("src", "captures/current-liftoff-low.webp");
   await page.goto(`${galleryPath}#scenario=breakthrough`);
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
   await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
   await expect(page.locator("#brightness-value")).toHaveText("100%");
-  // Object 원형의 이름(__proto__·toString)은 값으로 받지 않고 기본값으로 읽는다.
+});
+
+test("주소 scenario=__proto__&altitude=toString&source=constructor는 오류 없이 기본값 2차 시안 Liftoff 고도 중으로 읽는다", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
   await page.goto(`${galleryPath}#scenario=__proto__&altitude=toString&source=constructor`);
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+  await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Liftoff · 고도 중");
   expect(errors).toEqual([]);
 });
 
-test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 레인 바탕·노트·판정선·HUD·기어는 각자 자리에서 불투명하며, 기어 유리관은 고도 상에서 하늘색·하에서 어둡다", async ({ page }) => {
+test("→ 키를 40번 연달아 눌러도 주소 기록(replaceState)은 2번 이하이고, Liftoff에서 40칸 간 Infiltration이 주소에 남는다", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = history.replaceState.bind(history);
+    const counter = window as unknown as { replaceCount: number };
+    counter.replaceCount = 0;
+    history.replaceState = (...args: Parameters<History["replaceState"]>) => {
+      counter.replaceCount += 1;
+      original(...args);
+    };
+  });
+  await page.goto(galleryPath);
+  await expect(page).toHaveURL(/#source=draft&scenario=liftoff/);
+  const before = await page.evaluate(() => (window as unknown as { replaceCount: number }).replaceCount);
+  for (let i = 0; i < 40; i++) await page.keyboard.press("ArrowRight");
+  // 장면 3개를 도는 40칸 = 13바퀴 + 1칸 → Infiltration
+  await expect(page).toHaveURL(/scenario=infiltration/);
+  const after = await page.evaluate(() => (window as unknown as { replaceCount: number }).replaceCount);
+  expect(after - before).toBeLessThanOrEqual(2);
+});
+
+test("주소가 기록되기 전(250ms 안)에 뒤로 가기로 Breakthrough 기록에 돌아가면 그 화면을 읽고, 대기 중이던 기록이 Breakthrough 주소를 덮지 않는다", async ({ page }) => {
+  await page.goto(`${galleryPath}#scenario=breakthrough`);
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
+  await page.goto(`${galleryPath}#scenario=liftoff`);
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+  await page.keyboard.press("ArrowRight");
+  await page.goBack();
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
+  await page.waitForTimeout(400);
+  await expect(page).toHaveURL(/scenario=breakthrough/);
+});
+
+test("Infiltration 이미지가 800ms 늦게 오는 동안 Breakthrough로 바꾸면 늦게 온 Infiltration이 Breakthrough를 덮지 않는다", async ({ page }) => {
+  await page.goto(galleryPath);
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+  await page.route("**/drafts/infiltration-mid.webp", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+  await page.getByText("Infiltration", { exact: true }).first().click();
+  await page.getByText("Breakthrough", { exact: true }).first().click();
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
+  await page.waitForTimeout(1200);
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
+});
+
+test("Infiltration 이미지를 받지 못하면 이전 Liftoff 배경을 그대로 두고 실패한 파일 drafts/infiltration-mid.webp를 알린다", async ({ page }) => {
+  await page.goto(galleryPath);
+  await expect.poll(() => page.locator("#background").evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1672);
+  await page.route("**/drafts/infiltration-mid.webp", (route) => route.abort());
+  await page.getByText("Infiltration", { exact: true }).first().click();
+  await expect(page.locator("#selected-note")).toContainText("drafts/infiltration-mid.webp");
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+});
+
+test("배경 18장(2차 시안 9장 1672×941·지금 배경 9장 1920×1080)이 모두 디코딩된다", async ({ page }) => {
+  await page.goto(galleryPath);
+  const sizes = await page.evaluate(async ({ scenarios, altitudes }) => {
+    const size = async (path: string) => {
+      const image = new Image();
+      image.src = new URL(path, location.href).href;
+      await image.decode();
+      return `${image.naturalWidth}x${image.naturalHeight}`;
+    };
+    const sizeByPath: Record<string, string> = {};
+    for (const scenario of scenarios) {
+      for (const altitude of altitudes) {
+        sizeByPath[`drafts/${scenario}-${altitude}`] = await size(`drafts/${scenario}-${altitude}.webp`);
+        sizeByPath[`captures/current-${scenario}-${altitude}`] = await size(`captures/current-${scenario}-${altitude}.webp`);
+      }
+    }
+    return sizeByPath;
+  }, { scenarios: SCENARIOS, altitudes: ALTITUDES });
+  expect(Object.keys(sizes)).toHaveLength(18);
+  for (const [path, size] of Object.entries(sizes)) expect(size, path).toBe(path.startsWith("drafts/") ? "1672x941" : "1920x1080");
+});
+
+test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 각자 자리에서만 불투명하며, 기어 유리관은 고도 상에서 하늘색·하에서 어둡다", async ({ page }) => {
   await page.goto(galleryPath);
   const files = ["layer-lanes", "layer-notes", "layer-judgment-line", "layer-gear-high", "layer-gear-mid", "layer-gear-low", "layer-hud"];
   const samples = await page.evaluate(async (names) => {
@@ -133,12 +255,18 @@ test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 레인 바�
     expect(samples[name].size).toBe("1920x1080");
     expect(samples[name].corner).toBe(0);
   }
+  // 각 레이어는 자기 자리에서 불투명하다.
   expect(samples["layer-lanes"].laneArea).toBe(255);
   expect(samples["layer-judgment-line"].judgmentLineRow).toBe(255);
-  expect(samples["layer-judgment-line"].laneArea).toBe(0);
   expect(samples["layer-notes"].laneOneLongNote).toBe(255);
   expect(samples["layer-hud"].judgmentText).toBeGreaterThan(150);
   for (const altitude of ["high", "mid", "low"]) expect(samples[`layer-gear-${altitude}`].key).toBe(255);
+  // 다른 레이어의 자리는 비어 있다(묶음이 겹치거나 섞이지 않음).
+  expect(samples["layer-judgment-line"].laneArea).toBe(0);
+  expect(samples["layer-notes"].judgmentLineRow).toBe(0);
+  expect(samples["layer-gear-mid"].laneArea).toBe(0);
+  expect(samples["layer-hud"].key).toBe(0);
+  expect(samples["layer-lanes"].key).toBe(0);
   // 고도 상(100%)은 유리관이 액체로 가득 차 밝은 하늘색, 하(0%)는 빈 유리라 어둡다.
   const [highBlue, lowBlue] = [samples["layer-gear-high"].tube[2], samples["layer-gear-low"].tube[2]];
   expect(highBlue - lowBlue).toBeGreaterThan(150);

@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <title>In-game layer capture</title>
   <!-- Same game fonts as the app shell (index.html) so combo and judgment text match the play screen. -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Alumni+Sans+Collegiate+One&family=Zen+Dots&display=swap">
+  <!-- The error handlers make a failed download stop the capture at once instead of after the driver's ready timeout. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Alumni+Sans+Collegiate+One&family=Zen+Dots&display=swap"
+    onerror="window.__captureLoadError ??= 'game font stylesheet failed to load'">
   <style>
     html, body { margin: 0; background: transparent; overflow: hidden; }
     #capture-root { position: relative; width: 1920px; height: 1080px; }
@@ -13,6 +15,6 @@
 </head>
 <body>
   <div id="capture-root"><canvas id="game"></canvas></div>
-  <script type="module" src="./capture-page.mjs"></script>
+  <script type="module" src="./capture-page.mjs" onerror="window.__captureLoadError ??= 'capture-page or one of its imports failed to load'"></script>
 </body>
 </html>

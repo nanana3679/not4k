@@ -19,9 +19,9 @@
 
     .viewer { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
     .preview { position: relative; overflow: hidden; background: #05080d; border-radius: 6px; cursor: pointer; user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-    .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+    .aspect-box { position: relative; width: 100%; aspect-ratio: 16 / 9; }
     .preview:fullscreen { display: flex; align-items: center; justify-content: center; border-radius: 0; background: #000; }
-    .preview:fullscreen .frame { width: min(100vw, 100vh * 16 / 9); }
+    .preview:fullscreen .aspect-box { width: min(100vw, 100vh * 16 / 9); }
     .preview img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     .preview .background { object-fit: cover; filter: brightness(var(--brightness, 1)); }
     .preview .layer { object-fit: fill; transition: opacity .12s ease-out; }
@@ -38,7 +38,7 @@
     legend { padding: 0; margin-bottom: 6px; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
     .master { width: 100%; min-height: 48px; border: 1px solid #4d6378; border-radius: 6px; background: #1a2430; color: #e8edf2; font: inherit; font-weight: 600; cursor: pointer; }
     .master[aria-pressed="true"] { background: #23384a; border-color: #8fc8ef; }
-    .master span, legend kbd { color: #8e9daf; font-weight: 400; font-family: inherit; font-size: 12px; }
+    .master span, legend kbd { color: #b8c4d0; font-weight: 400; font-family: inherit; font-size: 12px; }
     .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
     .segmented label { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 6px; border: 1px solid #343c46; border-radius: 6px; cursor: pointer; text-align: center; font-size: 14px; line-height: 1.2; }
     .segmented input { position: absolute; opacity: 0; pointer-events: none; }
@@ -49,7 +49,7 @@
     .check input { width: 18px; height: 18px; margin: 0; accent-color: #8fc8ef; }
     .check small { display: block; color: #8e9daf; font-size: 12px; line-height: 1.3; }
     .brightness { display: grid; gap: 4px; }
-    .brightness label { display: flex; justify-content: space-between; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+    .brightness-head { display: flex; justify-content: space-between; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
     .brightness input { width: 100%; accent-color: #8fc8ef; min-height: 32px; }
     .hint { margin: 0; color: #8e9daf; font-size: 13px; }
 
@@ -64,7 +64,8 @@
     .grid img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
 
     details { margin-top: 32px; padding-top: 16px; border-top: 1px solid #343c46; }
-    summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+    summary { cursor: pointer; padding: 10px 0; }
+    .error-note { color: #ffb4a8; }
     details p, details li { color: #b8c4d0; max-width: 780px; }
     footer { border-top: 1px solid #343c46; margin-top: 32px; padding-top: 12px; }
 
@@ -87,13 +88,13 @@
     <header>
       <div class="eyebrow">FLIGHT BACKGROUND / 2026.10.18 · 2차</div>
       <h1>배경 시안 위에 인게임 에셋 겹쳐 보기</h1>
-      <p class="intro">지금 배경은 어둡고 평평한 픽셀풍이라 광택 일러스트로 그린 기어와 화풍이 다릅니다. 2차 시안은 지금 배경의 장면 구성과 고도 상·중·하를 그대로 따르면서 기어와 같은 일러스트 화풍으로 다시 그렸습니다. 노트와 기어에 집중할 수 있도록 대비·채도·디테일은 낮췄습니다. 실제 게임 렌더러에서 뽑은 기어·레인·노트·HUD를 올렸다 내리며 지금 배경과 비교합니다.</p>
+      <p class="intro">지금 배경은 어둡고 평평한 픽셀풍이라 광택 일러스트로 그린 기어와 화풍이 다릅니다. 2차 시안은 지금 배경의 장면 구성과 고도 상·중·하를 그대로 따르면서 기어와 같은 일러스트 화풍으로 다시 그렸습니다. 노트와 기어에 집중할 수 있도록 대비·채도·디테일은 낮췄습니다. 실제 게임 렌더러에서 뽑은 기어·레인·노트·HUD를 보였다 숨기며 지금 배경과 비교합니다.</p>
     </header>
 
     <section class="viewer" aria-label="겹쳐 보기">
       <div>
         <div class="preview" id="preview" role="button" tabindex="0" aria-label="인게임 에셋 보이기" aria-pressed="true" aria-keyshortcuts="H">
-          <div class="frame">
+          <div class="aspect-box">
             <img class="background" id="background" src="drafts/liftoff-mid.webp" width="1672" height="941" alt="" decoding="async">
             <img class="layer" data-layer="lanes" src="captures/layer-lanes.webp" width="1920" height="1080" alt="" decoding="async">
             <img class="layer" data-layer="notes" src="captures/layer-notes.webp" width="1920" height="1080" alt="" decoding="async">
@@ -144,10 +145,11 @@
           </div>
         </fieldset>
         <div class="brightness">
-          <label for="brightness"><span>배경 밝기</span><output id="brightness-value" for="brightness">100%</output></label>
+          <div class="brightness-head"><label for="brightness">배경 밝기</label><output id="brightness-value" for="brightness">100%</output></div>
           <input type="range" id="brightness" min="30" max="100" step="5" value="100">
         </div>
-        <p class="hint">미리보기를 누르거나 H 키로 에셋을 올리고 내립니다. C 키로 2차 시안과 지금 배경을 바꿔 봅니다.</p>
+        <label class="check"><input type="checkbox" id="shortcuts" checked><span>키보드 단축키<small>H·C·화살표, 음성 입력 등과 겹치면 끕니다</small></span></label>
+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 보이고 숨깁니다. C 키로 2차 시안과 지금 배경을 바꿔 봅니다.</p>
       </div>
     </section>
 
@@ -183,19 +185,20 @@
     <footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a></nav></footer>
   </main>
   <script>
-    const SCENARIOS = { liftoff: 'Liftoff', infiltration: 'Infiltration', breakthrough: 'Breakthrough' };
-    const ALTITUDES = { high: '상', mid: '중', low: '하' };
-    const SOURCES = { draft: '2차 시안', current: '지금 배경' };
+    const LABEL_BY_SCENARIO = { liftoff: 'Liftoff', infiltration: 'Infiltration', breakthrough: 'Breakthrough' };
+    const LABEL_BY_ALTITUDE = { high: '상', mid: '중', low: '하' };
+    const LABEL_BY_SOURCE = { draft: '2차 시안', current: '지금 배경' };
     const LAYERS = ['gear', 'lanes', 'notes', 'hud'];
     const NOTE_BY_SCENARIO = {
       liftoff: '지금 이륙 배경의 구도(지평선 높이, 고도별 지면 불빛)를 그대로 두고, 밭과 도로가 보이는 차분한 지면과 부드러운 구름으로 다시 그렸습니다. 고도 하에서는 하늘이 어두워지고 금색 유도등 두 줄만 남습니다.',
       infiltration: '먹구름 아래 시설 불빛을 무리 지어 두었고, 고도가 낮을수록 시선이 아래로 꺾여 지평선이 화면 위로 사라집니다. 고도 하는 지금 배경처럼 바로 위에서 내려다본 근접 시점이 아니라, 비스듬히 내려다본 시설로 그려졌습니다.',
-      breakthrough: '하늘 없이 어두운 구조물 사이로 주홍 선 광원이 소실점으로 흐릅니다. 소실점은 지금 배경처럼 고도 상에서 위, 중에서 가운데, 하에서 아래에 있습니다. 구조물 윤곽은 더 또렷하게, 선 수는 더 적게 그렸습니다.',
+      breakthrough: '하늘 없이 어두운 구조물 사이로 선 광원이 소실점으로 흐릅니다. 소실점은 지금 배경처럼 고도 상에서 위, 중에서 가운데, 하에서 아래에 있습니다. 빨간 선이 너무 눈에 띈다는 피드백으로 주홍을 어둡고 흐린 불씨색으로 낮추고 선 수도 줄였습니다.',
     };
     const DEFAULT_STATE = { source: 'draft', scenario: 'liftoff', altitude: 'mid', layers: LAYERS, overlayShown: true, brightness: 100 };
     const HASH_WRITE_DELAY_MS = 250;
-    const scenarioIds = Object.keys(SCENARIOS);
-    const altitudeIds = Object.keys(ALTITUDES);
+    const scenarioIds = Object.keys(LABEL_BY_SCENARIO);
+    const altitudeIds = Object.keys(LABEL_BY_ALTITUDE);
+    const sourceIds = Object.keys(LABEL_BY_SOURCE);
 
     const preview = document.getElementById('preview');
     const background = document.getElementById('background');
@@ -203,6 +206,8 @@
     const master = document.getElementById('master');
     const brightness = document.getElementById('brightness');
     const brightnessValue = document.getElementById('brightness-value');
+    const shortcuts = document.getElementById('shortcuts');
+    const selectedNote = document.getElementById('selected-note');
     const imagesByLayer = Object.fromEntries(LAYERS.map((name) => [name, [...preview.querySelectorAll(`[data-layer="${name}"]`)]]));
     const checkboxByLayer = Object.fromEntries(LAYERS.map((name) => [name, document.querySelector(`[data-toggle="${name}"]`)]));
 
@@ -218,7 +223,7 @@
       const pick = (name, allowed, fallback) => (allowed.includes(params.get(name)) ? params.get(name) : fallback);
       const brightnessPercent = Number(params.get('brightness'));
       return {
-        source: pick('source', Object.keys(SOURCES), DEFAULT_STATE.source),
+        source: pick('source', sourceIds, DEFAULT_STATE.source),
         scenario: pick('scenario', scenarioIds, DEFAULT_STATE.scenario),
         altitude: pick('altitude', altitudeIds, DEFAULT_STATE.altitude),
         layers: new Set(params.has('layers') ? params.get('layers').split(',').filter((name) => LAYERS.includes(name)) : DEFAULT_STATE.layers),
@@ -239,28 +244,47 @@
       })}`;
     }
 
-    // Swap an image only after the next one has decoded, so switching never flashes an empty preview.
+    // Swap an image only after the next one has decoded, so switching never flashes an empty preview. If the file
+    // cannot be loaded the previous image stays and the note says which file failed. The first render sets the
+    // sources directly, so a deep link does not show the default images under the requested title.
     const pendingSrcByImage = new Map();
+    const failedSrcs = new Set();
+    let firstRender = true;
     function swapImage(image, src) {
+      if (firstRender) { image.src = src; return; }
       if (image.getAttribute('src') === src && !pendingSrcByImage.has(image)) return;
       pendingSrcByImage.set(image, src);
       const next = new Image();
       next.src = src;
-      next.decode().catch(() => undefined).then(() => {
+      next.decode().then(() => {
         if (pendingSrcByImage.get(image) !== src) return;
         pendingSrcByImage.delete(image);
+        failedSrcs.delete(src);
         image.src = src;
+        renderNote();
+      }, () => {
+        if (pendingSrcByImage.get(image) !== src) return;
+        pendingSrcByImage.delete(image);
+        failedSrcs.add(src);
+        renderNote();
       });
+    }
+
+    function renderNote() {
+      const failed = [backgroundSrc(state), `captures/layer-gear-${state.altitude}.webp`].filter((src) => failedSrcs.has(src));
+      selectedNote.classList.toggle('error-note', failed.length > 0);
+      selectedNote.textContent = failed.length > 0
+        ? `이미지를 불러오지 못해 이전 이미지를 보여 주고 있습니다: ${failed.join(', ')}`
+        : state.source === 'draft' ? NOTE_BY_SCENARIO[state.scenario] : '지금 게임 배경을 같은 고도로 캡처했습니다.';
     }
 
     function render() {
       const src = backgroundSrc(state);
       swapImage(background, src);
       swapImage(gearLayer, `captures/layer-gear-${state.altitude}.webp`);
-      document.getElementById('selected-title').textContent = `${SOURCES[state.source]} · ${SCENARIOS[state.scenario]} · 고도 ${ALTITUDES[state.altitude]}`;
-      document.getElementById('selected-note').textContent = state.source === 'draft'
-        ? NOTE_BY_SCENARIO[state.scenario]
-        : '지금 게임 배경을 같은 고도로 캡처했습니다.';
+      firstRender = false;
+      document.getElementById('selected-title').textContent = `${LABEL_BY_SOURCE[state.source]} · ${LABEL_BY_SCENARIO[state.scenario]} · 고도 ${LABEL_BY_ALTITUDE[state.altitude]}`;
+      renderNote();
       document.getElementById('selected-original').href = src;
       for (const name of ['source', 'scenario', 'altitude']) {
         document.querySelector(`input[name="${name}"][value="${state[name]}"]`).checked = true;
@@ -286,11 +310,14 @@
     // Holding an arrow key or dragging the slider renders many times a second; browsers throttle replaceState
     // bursts, so the address is written once the input settles.
     let hashWriteTimer = 0;
+    function writeHash() {
+      clearTimeout(hashWriteTimer);
+      hashWriteTimer = 0;
+      if (location.hash !== hashFromState()) history.replaceState(null, '', hashFromState());
+    }
     function scheduleHashWrite() {
       clearTimeout(hashWriteTimer);
-      hashWriteTimer = setTimeout(() => {
-        if (location.hash !== hashFromState()) history.replaceState(null, '', hashFromState());
-      }, HASH_WRITE_DELAY_MS);
+      hashWriteTimer = setTimeout(writeHash, HASH_WRITE_DELAY_MS);
     }
 
     function update(change) { state = { ...state, ...change }; render(); }
@@ -303,7 +330,7 @@
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleOverlay(); }
     });
     master.addEventListener('click', toggleOverlay);
-    // Fullscreen is mainly for phones held sideways; tapping the preview still raises and lowers the assets there.
+    // Fullscreen is mainly for phones held sideways; tapping the preview still shows and hides the assets there.
     const fullscreen = document.getElementById('fullscreen');
     if (preview.requestFullscreen) {
       fullscreen.hidden = false;
@@ -313,7 +340,8 @@
       checkboxByLayer[name].addEventListener('change', () => {
         const layers = new Set(state.layers);
         if (checkboxByLayer[name].checked) layers.add(name); else layers.delete(name);
-        update({ layers });
+        // Changing a layer while the overlay is hidden would show nothing, so the overlay comes back.
+        update({ layers, overlayShown: true });
       });
     }
     for (const name of ['source', 'scenario', 'altitude']) {
@@ -329,14 +357,17 @@
       if (preview.getBoundingClientRect().top < 0) preview.scrollIntoView({ block: 'start' });
     });
     brightness.addEventListener('input', () => update({ brightness: Number(brightness.value) }));
+    // Arrow keys belong to the page (scrolling, radios, the slider, links) unless nothing in particular has focus.
+    const ownsArrowKeys = (target) => target === document.body || target === preview || target === master;
     document.addEventListener('keydown', (event) => {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!shortcuts.checked || event.altKey || event.ctrlKey || event.metaKey) return;
       const key = event.key;
-      // event.code so the shortcuts also work while a Korean input method is active; a held key toggles once.
-      if (event.code === 'KeyH') { if (!event.repeat) toggleOverlay(); return; }
-      if (event.code === 'KeyC') { if (!event.repeat) toggleSource(); return; }
-      // Focused radios and the range slider already move with the arrow keys.
-      if (event.target instanceof HTMLInputElement && (event.target.type === 'range' || event.target.type === 'radio')) return;
+      // The printed letter, so other layouts work; under the Korean input method the key is 'Process' or a jamo (ㅗ, ㅊ),
+      // so fall back to the physical key there. A held key toggles once.
+      const letter = key === 'Process' || key === 'ㅗ' || key === 'ㅊ' ? { KeyH: 'h', KeyC: 'c' }[event.code] : key.toLowerCase();
+      if (letter === 'h') { if (!event.repeat) toggleOverlay(); return; }
+      if (letter === 'c') { if (!event.repeat) toggleSource(); return; }
+      if (!ownsArrowKeys(event.target)) return;
       if (key === 'ArrowRight' || key === 'ArrowLeft') {
         event.preventDefault();
         update({ scenario: adjacent(scenarioIds, state.scenario, key === 'ArrowRight' ? 1 : -1) });
@@ -347,8 +378,12 @@
         update({ altitude: altitudeIds[Math.min(altitudeIds.length - 1, Math.max(0, index))] });
       }
     });
-    // render() writes the hash with replaceState, which does not fire hashchange; only edits from outside land here.
-    window.addEventListener('hashchange', () => { state = stateFromHash(location.hash); render(); });
+    // render() writes the hash with replaceState, which fires neither event; edits of the address and back/forward
+    // land here. A pending write is dropped first so it cannot overwrite the entry the user moved to.
+    const readAddress = () => { clearTimeout(hashWriteTimer); state = stateFromHash(location.hash); render(); };
+    window.addEventListener('hashchange', readAddress);
+    window.addEventListener('popstate', readAddress);
+    window.addEventListener('pagehide', () => { if (hashWriteTimer) writeHash(); });
 
     state = stateFromHash(location.hash);
     render();
