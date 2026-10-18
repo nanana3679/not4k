@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Chart, NoteEntity } from "../types";
 import { beat } from "../types";
+import { auxNotesAsExtra, mainNotes, serializeChart, serializeExtraNotes } from "../chart";
 import {
   createChartAsset,
   deleteChartAsset,
   deleteSongAsset,
   saveChartAsset,
   SongHasChartsError,
+  type ChartAssetWriteResult,
   type SongAssetPersistenceAdapter,
 } from "./chartAssetPersistence";
 
@@ -130,6 +132,45 @@ describe("saveChartAsset", () => {
       extraNotes: [{ type: "single", extraLane: 2, beat: "1/4" }],
       extraLaneCount: 3,
     });
+  });
+});
+
+// 에디터 isDirty(EditorToolbar·App)와 같은 비교다. 저장 직후 스냅샷은 saveChartAsset 결과(useFileOperations)이고,
+// 현재 차트는 저장 분리와 같은 직렬화로 메인/보조를 따로 다시 만들어 비교한다 (RFD 0018 ③).
+function isDirtySinceSave(chart: Chart, extraLaneCount: number, saved: ChartAssetWriteResult): boolean {
+  return serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== saved.chartJson
+    || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== saved.extraJson;
+}
+
+describe("보조 노트 grace·holdOnly 토글의 dirty 비교", () => {
+  it("저장 직후 lane 6 보조 single에 grace를 켜면 dirty 비교가 false에서 true로 바뀜", async () => {
+    const before = makeChart({ notes: [{ type: "single", lane: 6, beat: beat(1) }] });
+    const saved = await saveChartAsset(makeAdapter().adapter, {
+      songId: "song-nine",
+      difficulty: "HARD",
+      chart: before,
+      extraLaneCount: 2,
+    });
+    const after = makeChart({ notes: [{ type: "single", lane: 6, beat: beat(1), grace: true }] });
+
+    expect(isDirtySinceSave(before, 2, saved)).toBe(false);
+    expect(isDirtySinceSave(after, 2, saved)).toBe(true);
+  });
+
+  it("저장 직후 lane 7 보조 long의 holdOnly를 끄면 dirty 비교가 false에서 true로 바뀜", async () => {
+    const before = makeChart({
+      notes: [{ type: "long", lane: 7, beat: beat(1), endBeat: beat(2), holdOnly: true }],
+    });
+    const saved = await saveChartAsset(makeAdapter().adapter, {
+      songId: "song-nine",
+      difficulty: "HARD",
+      chart: before,
+      extraLaneCount: 3,
+    });
+    const after = makeChart({ notes: [{ type: "long", lane: 7, beat: beat(1), endBeat: beat(2) }] });
+
+    expect(isDirtySinceSave(before, 3, saved)).toBe(false);
+    expect(isDirtySinceSave(after, 3, saved)).toBe(true);
   });
 });
 

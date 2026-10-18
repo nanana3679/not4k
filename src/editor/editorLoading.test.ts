@@ -14,6 +14,7 @@ import {
   loadEditorChartAssets,
   parseEditorChartAssets,
 } from "./editorLoading";
+import type { NoteEntity } from "../shared/types/chart";
 import { useEditorStore } from "./stores";
 
 function chartText(extra: Record<string, unknown> = {}): string {
@@ -418,6 +419,75 @@ describe("parseEditorChartAssets", () => {
     );
 
     expect(result.extraLaneCount).toBe(10);
+  });
+});
+
+// 저장(saveChartAsset)이 chart.notes를 메인/보조 파일로 나누고, 로드(parseEditorChartAssets)가
+// 두 파일을 다시 chart.notes 하나로 합치는 왕복 (RFD 0018 ③). 실제 저장·로드 함수를 그대로 잇는다.
+describe("보조 노트 grace·holdOnly 저장 분리→로드 병합 왕복", () => {
+  const noopAdapter: SongAssetPersistenceAdapter = {
+    uploadText: async () => {},
+    remove: async () => {},
+    upsertChartRow: async () => {},
+    deleteChartRow: async () => {},
+    listSongFiles: async () => [],
+    deleteSongRow: async () => {},
+  };
+
+  function makeChart(notes: NoteEntity[]): Chart {
+    return {
+      meta: {
+        title: "Test Song",
+        artist: "Tester",
+        difficultyLabel: "HARD",
+        difficultyLevel: 10,
+        imageFile: "",
+        audioFile: "",
+        previewAudioFile: "",
+        offsetMs: 0,
+      },
+      notes,
+      trillZones: [],
+      events: [],
+    };
+  }
+
+  function save(chart: Chart, extraLaneCount: number) {
+    return saveChartAsset(noopAdapter, { songId: "song", difficulty: "HARD", chart, extraLaneCount });
+  }
+
+  // 로드 병합 결과와 같은 [...메인, ...보조] 순서. 메인 노트의 grace·holdOnly는 메인 파일 경로 대조군이다.
+  const notes: NoteEntity[] = [
+    { type: "single", lane: 1, beat: beat(0), grace: true },
+    { type: "long", lane: 2, beat: beat(1), endBeat: beat(2), holdOnly: true },
+    { type: "single", lane: 5, beat: beat(0) },
+    { type: "single", lane: 6, beat: beat(1, 2), grace: true },
+    { type: "long", lane: 7, beat: beat(1), endBeat: beat(3), holdOnly: true },
+  ];
+
+  it("lane 6 grace single과 lane 7 holdOnly long은 저장 분리→로드 병합 후 grace=true·holdOnly=true 유지", async () => {
+    const saved = await save(makeChart(notes), 3);
+
+    const loaded = parseEditorChartAssets(saved.chartJson, saved.extraJson);
+
+    expect(loaded.chart.notes).toEqual(notes);
+    expect(loaded.extraLaneCount).toBe(3);
+  });
+
+  it("extraLane 2 grace·extraLane 3 holdOnly가 기록된 보조 파일을 로드해 그대로 다시 저장하면 extraJson이 원본과 바이트 동일", async () => {
+    // Storage에 있는 보조 파일 본문 그대로 (serializeExtraNotes와 같은 키 순서·들여쓰기)
+    const extraText = JSON.stringify({
+      extraNotes: [
+        { type: "single", extraLane: 2, beat: "1/2", grace: true },
+        { type: "long", extraLane: 3, beat: "1", endBeat: "3", holdOnly: true },
+      ],
+      extraLaneCount: 3,
+    }, null, 2);
+    const loaded = parseEditorChartAssets(chartText(), extraText);
+
+    const resaved = await save(loaded.chart, loaded.extraLaneCount);
+
+    expect(resaved.extraJson).toBe(extraText);
   });
 });
 
