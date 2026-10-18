@@ -15,8 +15,8 @@
 // replaces outDir (the old folder is kept until the swap succeeded and restored if it fails), so a failed or
 // interrupted run never leaves a mix of old and new images. While it runs, do not edit HTML files or files
 // vite.config imports: Vite then reloads the capture page and the run fails.
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { encodeWebp } from './encode-webp.mjs';
 import { ALTITUDE_BY_NAME, DIFFICULTY_LABELS } from './capture-plan.mjs';
@@ -37,6 +37,22 @@ const kebab = (name) => name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCas
 // Resolve a symlinked outDir so the staging folder sits on the same filesystem and the final rename cannot fail
 // with EXDEV.
 const targetDir = existsSync(outDir) ? realpathSync(outDir) : resolve(outDir);
+
+// Publishing replaces targetDir as a whole, so refuse any folder that holds something this tool did not write
+// (a mistyped path such as the gallery folder or the repository would otherwise be deleted) before capturing.
+const GENERATED_FILE = /^(current|layer)-[a-z-]+\.webp$/;
+function assertReplaceableTarget() {
+  const fromCwd = relative(targetDir, process.cwd());
+  if (fromCwd === '' || !fromCwd.startsWith('..')) {
+    throw new Error(`refusing to replace ${targetDir}: it is the working directory or one of its parents`);
+  }
+  if (!existsSync(targetDir)) return;
+  const foreign = readdirSync(targetDir, { withFileTypes: true }).filter((entry) => !entry.isFile() || !GENERATED_FILE.test(entry.name));
+  if (foreign.length > 0) {
+    throw new Error(`refusing to replace ${targetDir}: it holds ${foreign.map((entry) => entry.name).join(', ')}, which this tool does not write`);
+  }
+}
+assertReplaceableTarget();
 let stagingDir = null;
 const removeStaging = () => { if (stagingDir) rmSync(stagingDir, { recursive: true, force: true }); };
 for (const signal of ['SIGINT', 'SIGTERM']) {
@@ -77,7 +93,15 @@ try {
       // A fresh page per capture also releases the previous renderer's WebGL contexts.
       const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
       const pageErrors = [];
-      page.on('pageerror', (error) => pageErrors.push(String(error)));
+      // Settles as soon as the first page error arrives, even one raised while the page is still loading, so the
+      // ready wait below does not sit out its timeout when a module fails to link or evaluate.
+      let rejectOnPageError;
+      const pageErrored = new Promise((_, reject) => { rejectOnPageError = reject; });
+      pageErrored.catch(() => undefined);
+      page.on('pageerror', (error) => {
+        pageErrors.push(String(error));
+        rejectOnPageError(new Error(`${label} ${altitudeName}: ${error}`));
+      });
       page.on('console', (message) => { if (message.type() === 'error') console.error('[page]', message.text()); });
       const failIfPageErrored = () => {
         if (pageErrors.length > 0) throw new Error(`${label} ${altitudeName}: ${pageErrors.join('; ')}`);
@@ -101,9 +125,7 @@ try {
           null,
           { timeout: PAGE_TIMEOUT_MS },
         ),
-        page.waitForEvent('pageerror', { timeout: PAGE_TIMEOUT_MS }).then((error) => {
-          throw new Error(`${label} ${altitudeName}: ${error}`);
-        }),
+        pageErrored,
       ]);
       const error = await page.evaluate(() => window.__captureLoadError || document.body.dataset.captureError);
       if (error) throw new Error(`${label} ${altitudeName}: ${error}`);
@@ -129,6 +151,8 @@ try {
     }
   }
 
+  // mkdtemp creates the folder as 0700; give the published folder the usual mode so static servers can read it.
+  chmodSync(stagingDir, 0o755);
   publish();
   console.log(`wrote ${targetDir}`);
 } finally {

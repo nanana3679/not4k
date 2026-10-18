@@ -3,6 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 const galleryPath = "/lab/images/background-drafts-20261018/";
 const ALL_LAYER_FILES = ["layer-lanes.webp", "layer-notes.webp", "layer-judgment-line.webp", "layer-gear-mid.webp", "layer-hud.webp"];
 const SCENARIOS = ["liftoff", "infiltration", "breakthrough"];
+const CLOCK_START = new Date("2026-10-18T00:00:00Z");
+const CLOCK_PAUSE = new Date("2026-10-18T00:01:00Z");
 const ALTITUDES = ["high", "mid", "low"];
 
 /** File names of the preview layers that are actually drawn (computed opacity 1, after the 120 ms fade). */
@@ -105,6 +107,7 @@ test("키보드 단축키 체크를 끄면 H·C·→·↓가 레이어와 배경
   await page.goto(galleryPath);
   await page.getByRole("checkbox", { name: /키보드 단축키/ }).uncheck();
   await expect(page.locator("legend kbd").first()).toBeHidden();
+  for (const hint of await page.locator(".shortcut-hint").all()) await expect(hint).toBeHidden();
   await expect(page.locator("#preview")).not.toHaveAttribute("aria-keyshortcuts", "H");
   await expect(page.locator("#master")).not.toHaveAttribute("aria-keyshortcuts", "H");
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -171,15 +174,17 @@ test("→ 키를 40번 연달아 눌러도 주소 기록(replaceState)은 2번 �
   expect(after - before).toBeLessThanOrEqual(2);
 });
 
-test("주소 기록이 대기 중일 때 같은 주소의 이전 기록으로 뒤로 가면(popstate만 발생) Breakthrough 화면을 다시 읽고, 대기하던 Infiltration 기록이 그 주소를 덮지 않는다", async ({ page }) => {
-  await page.clock.install();
+test("주소 기록이 대기 중일 때 같은 주소의 이전 기록으로 뒤로 가면(popstate만 발생) Breakthrough 화면을 다시 읽고, 대기하던 Liftoff 기록이 그 주소를 덮지 않는다", async ({ page }) => {
+  // Time stands still after pauseAt, so the address write scheduled by the next input stays pending.
+  await page.clock.install({ time: CLOCK_START });
   await page.goto(`${galleryPath}#scenario=breakthrough`);
-  await page.clock.runFor(300);
+  await page.clock.pauseAt(CLOCK_PAUSE);
   await expect(page).toHaveURL(/scenario=breakthrough&altitude=mid/);
   // A second history entry with the same address: going back to it fires popstate but not hashchange.
   await page.evaluate(() => history.pushState(null, "", location.hash));
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Liftoff · 고도 중");
+  await expect(page).toHaveURL(/scenario=breakthrough/);
   await page.goBack();
   await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Breakthrough · 고도 중");
   await page.clock.runFor(500);
@@ -187,11 +192,13 @@ test("주소 기록이 대기 중일 때 같은 주소의 이전 기록으로 �
 });
 
 test("→로 Infiltration을 고른 뒤 250ms 안에 Lab 목록으로 나가도 pagehide에서 주소를 기록해, 뒤로 돌아오면 Infiltration 주소다", async ({ page }) => {
-  await page.clock.install();
+  await page.clock.install({ time: CLOCK_START });
   await page.goto(galleryPath);
-  await page.clock.runFor(300);
+  await page.clock.pauseAt(CLOCK_PAUSE);
   await expect(page).toHaveURL(/scenario=liftoff/);
   await page.keyboard.press("ArrowRight");
+  // The write is still pending (time is paused); only pagehide can record it.
+  await expect(page).toHaveURL(/scenario=liftoff/);
   await page.getByRole("link", { name: "← Lab 목록", exact: true }).first().click();
   await expect(page).toHaveURL(/\/lab\/$/);
   await page.goBack();
@@ -216,8 +223,15 @@ test("Infiltration 이미지 응답을 붙잡아 둔 사이 Breakthrough로 바�
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
   const infiltrationLoaded = page.waitForResponse("**/drafts/infiltration-mid.webp");
   releaseInfiltration();
-  await infiltrationLoaded;
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await (await infiltrationLoaded).finished();
+  // Decode the same (now cached) file and let two frames pass, so the page's own decode of the late response has
+  // settled before the check.
+  await page.evaluate(async () => {
+    const image = new Image();
+    image.src = "drafts/infiltration-mid.webp";
+    await image.decode().catch(() => undefined);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
 });
 
@@ -237,6 +251,22 @@ test("딥 링크 #scenario=breakthrough의 이미지를 받지 못하면 role=al
   await page.route("**/drafts/breakthrough-mid.webp", (route) => route.abort());
   await page.goto(`${galleryPath}#scenario=breakthrough`);
   await expect(page.getByRole("alert")).toContainText("drafts/breakthrough-mid.webp");
+});
+
+test("딥 링크 #scenario=breakthrough 이미지를 받지 못해 안내가 뜬 뒤, 받을 수 있게 되어 같은 칸을 다시 고르면 1672px 이미지로 바뀌고 안내가 사라진다", async ({ page }) => {
+  await page.route("**/drafts/breakthrough-mid.webp", (route) => route.abort());
+  await page.goto(`${galleryPath}#scenario=breakthrough`);
+  await expect(page.getByRole("alert")).toContainText("drafts/breakthrough-mid.webp");
+  await page.unroute("**/drafts/breakthrough-mid.webp");
+  await page.getByRole("button", { name: "Breakthrough 고도 중" }).click();
+  await expect(page.getByRole("alert")).toBeHidden();
+  await expect.poll(() => page.locator("#background").evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1672);
+});
+
+test("고정 레이어 captures/layer-hud.webp를 받지 못하면 role=alert 안내에 그 파일을 알린다", async ({ page }) => {
+  await page.route("**/captures/layer-hud.webp", (route) => route.abort());
+  await page.goto(galleryPath);
+  await expect(page.getByRole("alert")).toContainText("captures/layer-hud.webp");
 });
 
 test("고른 Infiltration 이미지를 받지 못하면 이전 Liftoff 배경을 그대로 두고 role=alert 안내에 drafts/infiltration-mid.webp를 알린다", async ({ page }) => {

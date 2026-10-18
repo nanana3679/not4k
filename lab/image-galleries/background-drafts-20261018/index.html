@@ -262,12 +262,15 @@
     const pendingSrcByImage = new Map();
     const failedSrcs = new Set();
     let firstRender = true;
+    // Report a failure of the source an image is loading now; listen only until that source settles.
+    function watchFirstLoad(image, src) {
+      const settled = new AbortController();
+      image.addEventListener('load', () => settled.abort(), { signal: settled.signal });
+      image.addEventListener('error', () => { settled.abort(); failedSrcs.add(src); renderNote(); }, { signal: settled.signal });
+    }
     function swapImage(image, src) {
       if (firstRender) {
-        // Listen only until this first source settles.
-        const settled = new AbortController();
-        image.addEventListener('load', () => settled.abort(), { signal: settled.signal });
-        image.addEventListener('error', () => { settled.abort(); failedSrcs.add(src); renderNote(); }, { signal: settled.signal });
+        watchFirstLoad(image, src);
         image.src = src;
         return;
       }
@@ -291,7 +294,8 @@
 
     function renderNote() {
       selectedNote.textContent = state.source === 'draft' ? NOTE_BY_SCENARIO[state.scenario] : '지금 게임 배경을 같은 고도로 캡처했습니다.';
-      const failed = [backgroundSrc(state), `captures/layer-gear-${state.altitude}.webp`].filter((src) => failedSrcs.has(src));
+      const shown = [backgroundSrc(state), `captures/layer-gear-${state.altitude}.webp`, ...fixedLayerSrcs];
+      const failed = shown.filter((src) => failedSrcs.has(src));
       const message = failed.length > 0 ? `이미지를 불러오지 못했습니다: ${failed.join(', ')}` : '';
       if (imageError.textContent !== message) imageError.textContent = message;
       imageError.hidden = message === '';
@@ -412,6 +416,16 @@
     window.addEventListener('hashchange', readHash);
     window.addEventListener('popstate', readHash);
     window.addEventListener('pagehide', () => { if (hashWriteTimer) writeHash(); });
+
+    // The lanes, notes, judgment line and HUD images never change; one that failed before this script ran is already
+    // complete with no pixels.
+    const fixedLayerSrcs = [];
+    for (const image of preview.querySelectorAll('.layer')) {
+      if (image === gearLayer) continue;
+      const src = image.getAttribute('src');
+      fixedLayerSrcs.push(src);
+      if (image.complete && image.naturalWidth === 0) failedSrcs.add(src); else watchFirstLoad(image, src);
+    }
 
     state = stateFromHash(location.hash);
     render();
