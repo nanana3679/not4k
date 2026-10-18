@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>In-game layer capture</title>
+  <!-- Same game fonts as the app shell (index.html) so combo and judgment text match the play screen. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Alumni+Sans+Collegiate+One&family=Zen+Dots&display=swap">
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    #stage { position: relative; width: 1920px; height: 1080px; }
+    #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="stage"><canvas id="game"></canvas></div>
+  <script type="module" src="./capture-page.mjs"></script>
+</body>
+</html>

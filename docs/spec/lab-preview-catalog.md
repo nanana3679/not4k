@@ -88,6 +88,15 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 새 비행 배경 적용 후 `Geometric Background`와 `Perspective Surface Grid` 시연, 카탈로그 항목, 라우트를 제거했다. 이전 인게임 프리셋과 이를 다시 생성하던 개발 서버 저장 API도 제공하지 않는다. 현재 배경은 `Flight Background Preview`에서 확인한다.
 
+## 배경 시안 겹쳐 보기
+
+`/lab/images/background-drafts-20261018/`는 비행 배경 시안 위에 실제 게임 화면의 레이어를 올렸다 내리는 이미지 HTML 컬렉션이다. 무대는 16:9이고, 배경 한 장 위에 기어·레인·노트·HUD 레이어 4장(각 1920×1080 투명 WebP)을 겹친다.
+
+- 배경: 생성 시안 6장(3:2, 무대에서는 위아래를 잘라 채움)과 지금 게임의 세 비행 배경 캡처 중에서 카드로 고르거나 ←·→ 키로 바꾼다.
+- 조작: 무대를 누르거나 H 키를 누르면 레이어 전체를 내리고 올린다. 레이어별 체크와 배경 밝기(30~100%)를 둔다. 상태는 주소 해시(`bg`·`layers`·`raised`·`dim`)에 남고, 주소를 직접 바꾸면 다시 읽는다. 전체화면을 지원하는 브라우저에서는 무대만 전체화면으로 볼 수 있다.
+- 레이어 캡처: `assets-lab/flight-background/capture/`의 캡처 페이지가 Vite 개발 서버에서 실제 `GameRenderer`(Classic 스킨, 기어, `/lab/gear` 데모 차트)를 만들고, 곡 8.8초까지 데모 판정을 다시 재생한 뒤 멈춘다. `capture-layers.mjs <개발 서버 주소> <출력 폴더>`가 레이어 묶음을 하나씩 보이게 해 투명 배경으로 찍고, 비행 배경만 보이게 해 세 장면을 찍는다. 레이어 묶음은 렌더러의 private 필드 이름으로 고르므로, 필드 이름이 바뀌면 캡처가 오류로 멈춘다. 키봄은 렌더러 프레임과 별개로 실제 시간에 맞춰 재생되므로 캡처 순간의 프레임에 멈춰 둔다. 기어나 노트 에셋이 바뀌면 이 명령으로 다시 만든다.
+- 시안 원본: 생성 요청(`prompts.json`)과 참고 이미지, 원본 PNG는 `assets-lab/flight-background/revisions/background-drafts-20261018/`에 둔다. `encode-drafts.mjs <출력 폴더>`가 이를 WebP로 바꿔 컬렉션에 넣는다.
+
 ## 옛 기어 미리보기 제거
 
 새 기어를 게임에 적용하면서([RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)) 옛 기어 그림을 다루던 `Gear Light`(`/lab/gear-light`)와 `Gear Measure Pulse`(`/lab/gear-measure-pulse`) 시연, 카탈로그 항목, 라우트, 도우미·테스트·E2E와 자산(`public/lab/gear-light/`·`public/lab/gear-samples/`, `scripts/split-gear-light-layer.ts`)을 지웠다. 새 기어는 `Gear`에서 확인한다.
@@ -103,13 +112,14 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 ## 검증
 
 - `labPreviewCatalog.test.ts`: 7개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실·restZone Lane·Gear 등록을 확인한다.
-- `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 2개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
+- `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 7개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
 - `labImageGalleryDevRequest.test.ts`: 등록된 로컬 alias만 재작성하고 literal·URL 인코딩 traversal을 거부하는지 확인한다.
 - `exportLabImageGalleries.test.ts`: 등록한 HTML·중첩 자산만 복사하고 미등록 컬렉션은 제외하는지 확인한다.
 - `LabIndexPage.test.ts`: 인터랙티브 카탈로그 7개(옛 기어 미리보기 없음)와 `IMAGE GALLERIES` 링크를 확인한다.
 - `FlightBackgroundPreviewLabPage.test.ts`·`FacilityPassagePreviewLabPage.test.ts`: 각 iframe 경로·시설 초기값과 Lab 복귀 링크를 확인한다.
 - `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다. 시설 통과는 390px·1280px에서 진입·내부 정지·고도 조절·목록 복귀를 검증한다. restZone Lane은 390px·1280px에서 판넬 상태(4.15초 꺼지는 중·4.3초 꺼짐·10.35초 올라오는 중·10.6초 평상)를 React 상태 표시와 렌더러가 실제로 그린 진행도(`data-drawn-progress`) 양쪽에서 확인한다. 리프트·서든을 바꿔도 그린 전환 시각이 그대로인지, 추정 녹숫을 바꾸면 바뀌는지, 판넬이 접혀 있는 동안 리프트·서든·테두리를 바꾸면 렌더러가 판넬 텍스처를 그 높이·테두리로 다시 만드는지(`data-panel-texture-height`·`data-panel-texture-edge`), 사용자 녹숫과 추정과의 차이 표시, 최소 길이 경고, 배치·묶기 조작, 목록 복귀와 재진입, Pixi 경고(`PixiJS Warning`)가 콘솔에 나오지 않는지를 검증한다.
 - `restZonePanel.test.ts`·`RestZoneLanePage.test.ts`: 판넬 진행도와 전환 시각(시작 직후 꺼짐·끝 − 추정 녹숫에 다 올라옴·짧은 구간), 녹숫 계산, 최소 길이, 투영 모서리, 판넬 묶기와 공유 카메라, 서버 렌더링한 페이지의 조절 항목과 기본 녹숫 표시를 확인한다.
+- `e2e/lab/background-drafts.spec.ts`: 390px·1280px에서 카탈로그로 배경 시안 컬렉션을 열어 배경과 레이어 4장이 모두 로드되는지, 무대를 누르면 레이어 전체가 내려갔다 올라오는지, HUD만 끄기, 카드로 배경 바꾸기와 주소 해시 기록, 목록 복귀를 확인한다. 주소 해시 복원(배경·레이어·내림·밝기 60%), H 키와 내린 동안 체크 비활성, → 키 순환(마지막 다음은 처음)도 확인한다. 레이어 4장이 1920×1080이고 왼쪽 위 구석이 투명하며 기어 레이어의 키 자리가 불투명한지 픽셀로 확인한다.
 - `e2e/lab/note-assets.spec.ts`: 공통 카탈로그에서 노트 에셋 시연실을 열면 Classic 재생기가 준비되고 목록으로 돌아올 수 있는지 390px·1280px에서 확인한다.
 - `gearPreview.test.ts`·`gearPreviewChart.test.ts`·`gearMotionView.test.ts`·`GearPage.test.ts`: 게임과 같은 논리 폭 규칙(16:9 1067·가로 폰 1298·세로 466), 리프트 % 범위와 표시, 고도 조절(따라가기 기본·0~100% 슬라이더·렌더러 고정값·게이지 채움 표시와 렌더러 공개 API `setAltitudeOverride`·`gearGaugeLevel`만 쓰는지), 판정선·덱·키 윗면 사이 거리(0% 13.7·30.5, 4% 37.7·54.5), 기어 설명 숫자, 키보드 프리셋, 데모 차트와 판정 일정(놓칠 노트·맞힘 시점·롱노트 끝 처리·되감기), 비교 viewBox·`gearMotion` 시안 SVG 경로, 그 SVG의 `<style>`에서 모션 감소 `@media` 블록만 지우고 나머지 텍스트는 그대로 두는지(보관 파일 자체는 그 규칙을 그대로 가짐), 비교 화면이 문서에 넣기 전에 그 규칙을 걷어 내는지, 키 입력을 렌더러 공개 `setKeyState`로만 넘기고 창이 포커스를 잃으면 키를 떼는지, `gearMotion`을 따로 만들지 않고 렌더러의 공개 `gearMotion`으로만 조절하며 `gearMotion` 에셋 lease를 게임과 같은 공유 로더로 acquire하는지, `data-motion`이 `on`·`off`뿐이고 페이지가 모션 감소 설정을 읽지 않는지, 기본 선택 상태와 맞춤 방식·레인 폭 슬라이더가 없는지를 확인한다. `ignoreOsReducedMotion.test.ts`는 `src/lab` 소스(테스트 제외)에서 `prefers-reduced-motion`을 적은 파일이 그 규칙을 걷어 내는 `gearMotionView.ts` 하나뿐인지 확인해, `matchMedia` 검사나 `@media` 규칙이 다시 생기지 않게 한다. 게임 쪽 배치와 `gearMotion`·고도 게이지는 `src/game/renderer/{gearLayout,GameRenderer.gear,GameRenderer.gearMotion,GameRenderer.gearGauge,gearGauge,GearMotionController,gearMotionAssets,KeyboardDisplay}.test.ts`가 확인한다.
 - `e2e/lab/gear.spec.ts`: 390px·1280px에서 카탈로그로 열어 렌더러·비행 배경 준비와 목록 복귀, 옛 주소 `/lab/classic-frame-fit`·`/lab/classic-gear`가 쿼리·해시를 유지한 채 `/lab/gear`로 넘어가는지, 렌더러가 위치 지정한 레인 창(408.5~658.5)·게임 값 10으로 내린 판정선 y 426·덱 위끝 439.7·키 윗면 456.5와 놓친 노트 수 증가, 리프트 4%(판정선 402)를 렌더러 재생성 없이 판정선에만 반영하는지, `?offsetY=0`(416·446.5)과 `?offsetY=20`(436·466.5)이 절대값으로 배치를 바꾸는지, 슬라이더·숫자 입력이 주소 `offsetY`를 바꿔 쓰고(게임 값 10이면 지움) 렌더러를 새로 만드는지, 입력 이벤트 250개를 몰아 보내도 `history.replaceState`가 2번 이하인지, 앞으로·뒤로 가기로 주소가 바뀌면 값이 따라오는지, 값이 멈추기 전에 뒤로 가거나 같은 값의 주소(`?offsetY=20`·`?offsetY=20.0`)로 가도 남은 값을 그 기록에 쓰지 않는지, 주소 쓰기 직후 같은 작업의 뒤로 가기가 쓰기를 앞질러도 앞으로 가기로 돌아온 기록이 쓴 값 그대로인지, 기어 그림의 투명·불투명 영역과 열린 덱에 비치는 게임 레인·고도 100%의 게이지 빛, 고도 직접 30%에서 두 유리관의 채움 경계(771행) 위는 빈 유리·아래는 청록 액체이고 `gearMotion`을 켜도 경계 위에 액체·기포가 보이지 않는지, 고도 100%가 기어 그림과 같은 색(채널 차 24 이내)·0%가 모두 빈 유리이고 따라가기를 다시 켜면 풀리는지, 렌더 높이·장면 변경 시 렌더러 재생성, 1:1 픽셀 보기, 렌더러 내장 `gearMotion` 켬·애니메이션 경과 시간 흐름·처음부터 재생·토글·레이어 체크·프레임 간격 표시, 전체화면(1400·CSS 1298)과 4:3·5:4의 키보드 배율·숨김, 키보드 표시에서 레인 1 KeyQ는 은색·레인 2 KeyD는 하늘색으로 대기하고 누르는 동안 각각 흰색·더 밝은 하늘색으로 밝아졌다가 떼면 돌아오는지, `gearMotion` 에셋(`/gear/gear-motion/gear-motion.json`) 응답을 보류하면 렌더러 준비도 기다렸다가 응답을 보내면 `gearMotion`을 추가한 채 준비되는지, 모션 감소 설정(`prefers-reduced-motion: reduce`)을 켜도 `data-motion`이 `on`이고 애니메이션 경과 시간이 흐르며 비교 SVG의 레이어·애니메이션이 숨지 않는지를 확인한다.

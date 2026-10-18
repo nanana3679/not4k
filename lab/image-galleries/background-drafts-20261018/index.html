@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>배경 시안 · 인게임 겹쳐 보기</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.6; word-break: keep-all; }
+    main { max-width: 1280px; margin: auto; padding: 24px clamp(16px, 4vw, 48px) 72px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    :focus-visible { outline: 2px solid #a3d9ff; outline-offset: 3px; }
+    nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 28px 0 24px; }
+    .eyebrow { color: #a8b9cb; font-size: 13px; letter-spacing: .08em; }
+    h1 { margin: 6px 0 12px; font-size: clamp(26px, 4vw, 40px); font-weight: 650; line-height: 1.25; }
+    .intro { max-width: 760px; color: #b8c4d0; margin: 0; }
+
+    .viewer { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+    .stage { position: relative; overflow: hidden; background: #05080d; border-radius: 6px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+    .stage:fullscreen { display: flex; align-items: center; justify-content: center; border-radius: 0; background: #000; }
+    .stage:fullscreen .frame { width: min(100vw, 100vh * 16 / 9); }
+    .stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .stage .background { object-fit: cover; filter: brightness(var(--dim, 1)); }
+    .stage .layer { object-fit: fill; transition: opacity .12s ease-out; }
+    .stage .layer[hidden] { display: block; opacity: 0; }
+    .stage-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; color: #a8b9cb; font-size: 14px; padding: 10px 0 0; }
+    .stage-caption strong { color: #e8edf2; font-weight: 600; }
+    .stage-caption .links { display: flex; gap: 16px; }
+    .stage-caption button { padding: 0; border: 0; background: none; color: #b7d8f0; font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; min-height: 44px; }
+    .stage-caption a { display: inline-flex; align-items: center; min-height: 44px; }
+    .selected-note { margin: 8px 0 0; color: #b8c4d0; max-width: 760px; }
+
+    .panel { display: grid; gap: 18px; }
+    fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+    legend { padding: 0; margin-bottom: 8px; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+    .master { width: 100%; min-height: 48px; border: 1px solid #4d6378; border-radius: 6px; background: #1a2430; color: #e8edf2; font: inherit; font-weight: 600; cursor: pointer; }
+    .master[aria-pressed="true"] { background: #23384a; border-color: #8fc8ef; }
+    .master span { color: #a8b9cb; font-weight: 400; }
+    .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .check { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; border: 1px solid #343c46; border-radius: 6px; cursor: pointer; }
+    .check input { width: 18px; height: 18px; margin: 0; accent-color: #8fc8ef; }
+    .check small { display: block; color: #8e9daf; font-size: 12px; line-height: 1.3; }
+    .dim { display: grid; gap: 6px; }
+    .dim label { display: flex; justify-content: space-between; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+    .dim input { width: 100%; accent-color: #8fc8ef; min-height: 32px; }
+    .hint { margin: 0; color: #8e9daf; font-size: 13px; }
+
+    .picker { margin-top: 28px; }
+    .picker h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+    .picker > p { margin: 0 0 14px; color: #b8c4d0; }
+    .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .choice { position: relative; display: block; border: 1px solid #343c46; border-radius: 6px; overflow: hidden; cursor: pointer; background: #151a21; }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+    .choice .label { display: block; padding: 8px 10px 10px; }
+    .choice .label strong { display: block; font-weight: 600; }
+    .choice .label span { color: #a8b9cb; font-size: 13px; }
+    .choice:has(input:checked) { border-color: #8fc8ef; box-shadow: 0 0 0 1px #8fc8ef; }
+    .choice:has(input:focus-visible) { outline: 2px solid #a3d9ff; outline-offset: 3px; }
+    .group-title { grid-column: 1 / -1; margin: 10px 0 0; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+
+    details { margin-top: 32px; padding-top: 16px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+    details p, details li { color: #b8c4d0; max-width: 760px; }
+    footer { border-top: 1px solid #343c46; margin-top: 32px; padding-top: 12px; }
+
+    @media (max-width: 900px) {
+      .viewer { grid-template-columns: 1fr; }
+      .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .choice .label { padding: 6px 8px 8px; }
+      .choice .label span { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .stage .layer { transition: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a></nav>
+    <header>
+      <div class="eyebrow">FLIGHT BACKGROUND / 2026.10.18</div>
+      <h1>배경 시안 위에 인게임 에셋 겹쳐 보기</h1>
+      <p class="intro">지금 배경은 어둡고 평평한 픽셀풍이라 흰 장갑, 금색 테두리, 하늘색 발광으로 그린 Classic 기어와 화풍이 다릅니다. 기어와 같은 광택 일러스트로 그린 배경 시안 6장 위에, 실제 게임 렌더러에서 뽑은 기어·레인·노트·HUD를 올렸다 내리며 비교합니다.</p>
+    </header>
+
+    <section class="viewer" aria-label="겹쳐 보기">
+      <div>
+        <div class="stage" id="stage" role="button" tabindex="0" aria-label="인게임 에셋 올리기·내리기" aria-pressed="true">
+          <div class="frame">
+            <img class="background" id="background" src="backgrounds/a-painted-liftoff.webp" width="1536" height="1024" alt="" decoding="async">
+            <img class="layer" data-layer="lanes" src="captures/layer-lanes.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="notes" src="captures/layer-notes.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="gear" src="captures/layer-gear.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="hud" src="captures/layer-hud.webp" width="1920" height="1080" alt="" decoding="async">
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span><strong id="selected-title">A · 기어 화풍 이륙</strong> <span id="selected-tag">Liftoff</span></span>
+          <span class="links"><button type="button" id="fullscreen" hidden>전체화면</button><a id="selected-original" href="backgrounds/a-painted-liftoff.webp">배경 원본 보기</a></span>
+        </div>
+        <p class="selected-note" id="selected-note"></p>
+      </div>
+
+      <div class="panel">
+        <button type="button" class="master" id="master" aria-pressed="true">인게임 에셋 내리기 <span>(H)</span></button>
+        <fieldset>
+          <legend>레이어</legend>
+          <div class="layers">
+            <label class="check"><input type="checkbox" data-toggle="gear" checked><span>기어<small>프레임·게이지</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="lanes" checked><span>레인<small>바탕·판정선</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="notes" checked><span>노트<small>롱노트·키빔</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="hud" checked><span>HUD<small>판정·콤보·키봄</small></span></label>
+          </div>
+        </fieldset>
+        <div class="dim">
+          <label for="dim"><span>배경 밝기</span><output id="dim-value" for="dim">100%</output></label>
+          <input type="range" id="dim" min="30" max="100" step="5" value="100">
+        </div>
+        <p class="hint">화면을 누르거나 H 키로 에셋을 올리고 내립니다. ← → 키로 배경을 바꿉니다.</p>
+      </div>
+    </section>
+
+    <section class="picker" aria-labelledby="picker-title">
+      <h2 id="picker-title">배경 고르기</h2>
+      <p>시안은 3:2로 생성해 16:9 화면에서는 위아래가 조금 잘립니다. 원본은 고른 배경 아래 링크에서 볼 수 있습니다.</p>
+      <fieldset aria-labelledby="picker-title">
+        <div class="choices" id="choices">
+          <p class="group-title">새 시안</p>
+          <label class="choice"><input type="radio" name="background" value="a-painted-liftoff" checked><img src="backgrounds/a-painted-liftoff.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>A · 기어 화풍 이륙</strong><span>Liftoff 다시 그리기</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="b-twilight-ascent"><img src="backgrounds/b-twilight-ascent.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>B · 황혼 상승</strong><span>새 분위기</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="c-stratosphere"><img src="backgrounds/c-stratosphere.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>C · 성층권</strong><span>새 분위기</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="d-launch-bay"><img src="backgrounds/d-launch-bay.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>D · 발진 터널</strong><span>새 분위기</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="e-infiltration-storm"><img src="backgrounds/e-infiltration-storm.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>E · 침투 폭풍</strong><span>Infiltration 다시 그리기</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="f-breakthrough-canyon"><img src="backgrounds/f-breakthrough-canyon.webp" width="1536" height="1024" alt="" loading="lazy" decoding="async"><span class="label"><strong>F · 돌파 협곡</strong><span>Breakthrough 다시 그리기</span></span></label>
+          <p class="group-title">지금 게임 배경</p>
+          <label class="choice"><input type="radio" name="background" value="current-liftoff"><img src="captures/current-liftoff.webp" width="1920" height="1080" alt="" loading="lazy" decoding="async"><span class="label"><strong>현재 · Liftoff</strong><span>게임 캡처</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="current-infiltration"><img src="captures/current-infiltration.webp" width="1920" height="1080" alt="" loading="lazy" decoding="async"><span class="label"><strong>현재 · Infiltration</strong><span>게임 캡처</span></span></label>
+          <label class="choice"><input type="radio" name="background" value="current-breakthrough"><img src="captures/current-breakthrough.webp" width="1920" height="1080" alt="" loading="lazy" decoding="async"><span class="label"><strong>현재 · Breakthrough</strong><span>게임 캡처</span></span></label>
+        </div>
+      </fieldset>
+    </section>
+
+    <details>
+      <summary>만든 방법과 한계 펼치기</summary>
+      <ul>
+        <li>배경 시안은 Classic 기어 원본과 지금 게임 화면을 참고 이미지로 넣어 생성했습니다. 기어와 같은 화풍·색을 쓰고, 기어에 가려지는 가운데 띠는 차분하게, 양옆에 볼거리를 두도록 요청했습니다.</li>
+        <li>인게임 레이어와 지금 배경은 실제 게임 렌더러(Classic 스킨, 기어, <code>/lab/gear</code> 시연 차트)를 곡 시작 8.8초 시점에 멈춰 1920×1080으로 캡처했습니다. 기어 위 장식 움직임과 키봄도 그 순간의 프레임입니다.</li>
+        <li>시안은 정지 이미지라 고도 변화와 움직임이 없습니다. 지금 게임 배경은 고도에 따라 움직이는 3D 장면입니다. 방향을 고르면 그 화풍을 움직이는 배경으로 옮기는 작업이 따로 필요합니다.</li>
+      </ul>
+    </details>
+    <footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a></nav></footer>
+  </main>
+  <script>
+    const BACKGROUNDS = {
+      'a-painted-liftoff': { title: 'A · 기어 화풍 이륙', tag: 'Liftoff 다시 그리기', src: 'backgrounds/a-painted-liftoff.webp', note: '지금의 이륙 장면(밤하늘, 활주로, 도시 불빛)을 기어와 같은 광택 일러스트로 다시 그렸습니다. 하늘색 유도등 사이에 금색 불빛을 섞었습니다.' },
+      'b-twilight-ascent': { title: 'B · 황혼 상승', tag: '새 분위기', src: 'backgrounds/b-twilight-ascent.webp', note: '남색에서 청록, 지평선의 금빛으로 넘어가는 하늘과 구름 바다입니다. 양옆 은색 탑의 하늘색 표지등이 소실점으로 모입니다.' },
+      'c-stratosphere': { title: 'C · 성층권', tag: '새 분위기', src: 'backgrounds/c-stratosphere.webp', note: '달빛을 받은 흰 구름 바다가 기어의 흰 장갑과 맞물립니다. 양옆에 흰색과 금색의 공중 플랫폼을 띄웠습니다.' },
+      'd-launch-bay': { title: 'D · 발진 터널', tag: '새 분위기', src: 'backgrounds/d-launch-bay.webp', note: '기어와 같은 장갑판(흰 판, 금색 테두리, 하늘색 발광 띠)으로 지은 터널 끝에 밤하늘 출구가 보입니다.' },
+      'e-infiltration-storm': { title: 'E · 침투 폭풍', tag: 'Infiltration 다시 그리기', src: 'backgrounds/e-infiltration-storm.webp', note: '남보라 먹구름과 하늘색 번개 아래로 금속 시설의 지붕을 내려다봅니다. 금색 경고등과 하늘색 유도선이 소실점으로 이어집니다.' },
+      'f-breakthrough-canyon': { title: 'F · 돌파 협곡', tag: 'Breakthrough 다시 그리기', src: 'backgrounds/f-breakthrough-canyon.webp', note: '하늘이 없는 거대 구조물 사이를 낮게 지납니다. 흰 장갑 벽에 돌파의 주홍 발광판과 금색 테두리를 넣었습니다.' },
+      'current-liftoff': { title: '현재 · Liftoff', tag: '게임 캡처', src: 'captures/current-liftoff.webp', note: '지금 게임의 이륙 배경입니다. 곡 시작 직후의 고도로 캡처했습니다.' },
+      'current-infiltration': { title: '현재 · Infiltration', tag: '게임 캡처', src: 'captures/current-infiltration.webp', note: '지금 게임의 침투 배경입니다. 난이도명이 없는 차트도 이 배경을 씁니다.' },
+      'current-breakthrough': { title: '현재 · Breakthrough', tag: '게임 캡처', src: 'captures/current-breakthrough.webp', note: '지금 게임의 돌파 배경입니다.' },
+    };
+    const LAYERS = ['gear', 'lanes', 'notes', 'hud'];
+    const ids = Object.keys(BACKGROUNDS);
+
+    const stage = document.getElementById('stage');
+    const background = document.getElementById('background');
+    const master = document.getElementById('master');
+    const dim = document.getElementById('dim');
+    const dimValue = document.getElementById('dim-value');
+    const layerImages = Object.fromEntries(LAYERS.map((name) => [name, stage.querySelector(`[data-layer="${name}"]`)]));
+    const layerChecks = Object.fromEntries(LAYERS.map((name) => [name, document.querySelector(`[data-toggle="${name}"]`)]));
+
+    const state = { background: ids[0], layers: new Set(LAYERS), raised: true, dim: 100 };
+
+    function readHash() {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const bg = params.get('bg');
+      if (bg && BACKGROUNDS[bg]) state.background = bg;
+      if (params.has('layers')) state.layers = new Set(params.get('layers').split(',').filter((name) => LAYERS.includes(name)));
+      state.raised = params.get('raised') !== '0';
+      const dimParam = Number(params.get('dim'));
+      if (Number.isFinite(dimParam) && dimParam >= 30 && dimParam <= 100) state.dim = dimParam;
+    }
+
+    function writeHash() {
+      const params = new URLSearchParams({ bg: state.background, layers: [...state.layers].join(','), raised: state.raised ? '1' : '0', dim: String(state.dim) });
+      history.replaceState(null, '', `#${params}`);
+    }
+
+    function render() {
+      const entry = BACKGROUNDS[state.background];
+      if (background.getAttribute('src') !== entry.src) background.src = entry.src;
+      document.getElementById('selected-title').textContent = entry.title;
+      document.getElementById('selected-tag').textContent = entry.tag;
+      document.getElementById('selected-note').textContent = entry.note;
+      document.getElementById('selected-original').href = entry.src;
+      document.querySelector(`input[name="background"][value="${state.background}"]`).checked = true;
+      for (const name of LAYERS) {
+        layerImages[name].hidden = !(state.raised && state.layers.has(name));
+        layerChecks[name].checked = state.layers.has(name);
+        layerChecks[name].disabled = !state.raised;
+      }
+      master.setAttribute('aria-pressed', String(state.raised));
+      stage.setAttribute('aria-pressed', String(state.raised));
+      master.firstChild.textContent = state.raised ? '인게임 에셋 내리기 ' : '인게임 에셋 올리기 ';
+      background.style.setProperty('--dim', String(state.dim / 100));
+      dim.value = String(state.dim);
+      dimValue.textContent = `${state.dim}%`;
+      writeHash();
+    }
+
+    function toggleRaised() { state.raised = !state.raised; render(); }
+    function step(offset) {
+      state.background = ids[(ids.indexOf(state.background) + offset + ids.length) % ids.length];
+      render();
+    }
+
+    stage.addEventListener('click', toggleRaised);
+    stage.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleRaised(); }
+    });
+    master.addEventListener('click', toggleRaised);
+    // Fullscreen is mainly for phones held sideways; tapping the stage still raises and lowers the assets there.
+    const fullscreen = document.getElementById('fullscreen');
+    if (stage.requestFullscreen) {
+      fullscreen.hidden = false;
+      fullscreen.addEventListener('click', () => { stage.requestFullscreen().catch(() => undefined); });
+    }
+    for (const name of LAYERS) {
+      layerChecks[name].addEventListener('change', () => {
+        if (layerChecks[name].checked) state.layers.add(name); else state.layers.delete(name);
+        render();
+      });
+    }
+    document.getElementById('choices').addEventListener('change', (event) => {
+      if (event.target.name !== 'background') return;
+      state.background = event.target.value;
+      render();
+      // On a phone the stage sits above the picker; bring it back so the change is visible.
+      if (stage.getBoundingClientRect().bottom < 0) stage.scrollIntoView({ block: 'start' });
+    });
+    dim.addEventListener('input', () => { state.dim = Number(dim.value); render(); });
+    document.addEventListener('keydown', (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      // Range and radio inputs already use the arrow keys.
+      if (event.target instanceof HTMLInputElement && (event.target.type === 'range' || event.target.type === 'radio')) return;
+      if (event.key === 'h' || event.key === 'H') toggleRaised();
+      else if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
+    });
+    // Warm the cache so switching backgrounds does not flash an empty stage.
+    window.addEventListener('load', () => { for (const id of ids) new Image().src = BACKGROUNDS[id].src; });
+
+    // render() rewrites the hash with replaceState, which does not fire hashchange; only edits from outside land here.
+    window.addEventListener('hashchange', () => { readHash(); render(); });
+
+    readHash();
+    render();
+  </script>
+</body>
+</html>
