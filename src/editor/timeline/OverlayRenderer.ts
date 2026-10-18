@@ -21,7 +21,7 @@ import { destroyChildren } from "./utils";
 import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./trillZoneHandles";
 import { diagonalStripeBands } from "./restZoneHatch";
 
-/** 이동 원위치 고스트의 불투명도 — 노트·구간 고스트 공통. */
+/** 원위치 고스트(이동 중 원래 위치에 남는 흐린 사본)의 불투명도 — 노트·구간 공통. */
 const ORIGIN_ALPHA = 0.3;
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -63,8 +63,8 @@ export class OverlayRenderer {
   constructor(private host: OverlayHost) {}
 
   /**
-   * 이동 중인 노트·구간의 원본 위치에 반투명 고스트 렌더링.
-   * 구간 고스트를 먼저 추가해 노트 고스트 아래에 깔리게 한다(타임라인 z-order: restZone < trillZone < 노트).
+   * 이동 중인 노트·구간의 원래 위치에 원위치 고스트를 그린다.
+   * 구간 원위치 고스트를 먼저 추가해 노트 원위치 고스트 아래에 깔리게 한다(타임라인 z-order: restZone < trillZone < 노트).
    */
   renderMoveOrigins(): void {
     if (!this.host.chart) return;
@@ -150,16 +150,16 @@ export class OverlayRenderer {
 
   /**
    * 이미 그린 이동 원위치 고스트(노트·구간)를 바로 지운다. 드롭은 마지막 프리뷰와 같은 차트를 다시
-   * 커밋해 전체 렌더가 따라오지 않으므로, 여기서 지우지 않으면 고스트가 다음 전체 렌더까지 남는다.
+   * 커밋해 전체 렌더가 따라오지 않으므로, 여기서 지우지 않으면 원위치 고스트가 다음 전체 렌더까지 남는다.
    */
   clearMoveOriginGhosts(): void {
     destroyChildren(this.host.moveOriginLayer);
   }
 
   /**
-   * 구간 단위로 이동 중인 restZone·trillZone의 원래 위치에 고스트를 그린다 (#94).
+   * 구간 단위로 이동 중인 restZone·trillZone의 원래 위치에 원위치 고스트를 그린다 (#94).
    * 모양·색은 타임라인 밴드(GridRenderer.renderRestZones·renderTrillZones)와 같고 그래픽 전체 alpha만
-   * ORIGIN_ALPHA로 낮춘다 — 노트 고스트처럼 "원래 모습의 흐린 사본"이며 선택 테두리는 그리지 않는다.
+   * ORIGIN_ALPHA로 낮춘다 — 노트의 원위치 고스트처럼 "원래 모습의 흐린 사본"이며 선택 테두리는 그리지 않는다.
    * 밴드 기하를 바꾸면 GridRenderer와 함께 바꾼다(OverlayRenderer.moveOrigin.test.ts가 둘을 비교한다).
    */
   private renderZoneMoveOrigins(): void {

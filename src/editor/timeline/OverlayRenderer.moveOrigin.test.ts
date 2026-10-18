@@ -70,7 +70,7 @@ function makeOverlayHost(
   };
 }
 
-/** 같은 구간을 타임라인(GridRenderer)이 그린 밴드 — 고스트가 따라야 할 기준 모양. */
+/** 같은 구간을 타임라인(GridRenderer)이 그린 밴드 — 원위치 고스트가 따라야 할 기준 모양. */
 function timelineBand(chart: Chart, kind: "trillZone" | "restZone", visible = ALL_VISIBLE): Graphics {
   const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
   const host: GridHost = {
@@ -128,7 +128,7 @@ function renderOrigins(host: OverlayHost): Graphics[] {
 }
 
 describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", () => {
-  it("trillZone 원위치(lane 2, 0~4박) 고스트는 타임라인 trillZone 밴드와 같은 사각형·채우기(0x00ff88 α0.2)로 moveOriginLayer에 그려지고 그래픽 alpha만 0.3이다", () => {
+  it("trillZone 원위치 고스트(lane 2, 0~4박)는 타임라인 trillZone 밴드와 같은 사각형·채우기(0x00ff88 α0.2)로 moveOriginLayer에 그려지고 그래픽 alpha만 0.3이다", () => {
     const zone: TrillZone = { lane: 2, beat: beat(0), endBeat: beat(4) };
     const chart = makeChart([zone]);
 
@@ -142,7 +142,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(children[0].getLocalBounds()).toEqual(band.getLocalBounds());
   });
 
-  it("restZone 원위치(lane 3, 0~4박) 고스트는 타임라인 restZone 밴드와 같은 바탕(검정 α0.2)·빗금(검정 α0.6) 채우기로 그려지고 그래픽 alpha만 0.3이다", () => {
+  it("restZone 원위치 고스트(lane 3, 0~4박)는 타임라인 restZone 밴드와 같은 바탕(검정 α0.2)·빗금(검정 α0.6) 채우기로 그려지고 그래픽 alpha만 0.3이다", () => {
     const zone: RestZone = { lane: 3, beat: beat(0), endBeat: beat(4) };
     const chart = makeChart([], [zone]);
 
@@ -158,7 +158,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     ]);
   });
 
-  it("보이는 범위가 1000~1500ms뿐이면 0~8박(0~4000ms) restZone 고스트의 빗금도 타임라인처럼 그 범위만 같은 위상으로 만든다", () => {
+  it("보이는 범위가 1000~1500ms뿐이면 0~8박(0~4000ms) restZone 원위치 고스트의 빗금도 타임라인처럼 그 범위만 같은 위상으로 만든다", () => {
     const zone: RestZone = { lane: 2, beat: beat(0), endBeat: beat(8) };
     const chart = makeChart([], [zone]);
     const visible = { minTimeMs: 1000, maxTimeMs: 1500 };
@@ -168,7 +168,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(fillsOf(children[0])).toEqual(fillsOf(timelineBand(chart, "restZone", visible)));
   });
 
-  it("beat와 endBeat가 같은 trillZone 원위치(beat 2)는 타임라인처럼 beat 위치 중심 NOTE_HEIGHT 높이 고스트로 그려진다", () => {
+  it("beat와 endBeat가 같은 trillZone 원위치(beat 2)는 타임라인처럼 beat 위치 중심 NOTE_HEIGHT 높이 원위치 고스트로 그려진다", () => {
     const zone: TrillZone = { lane: 1, beat: beat(2), endBeat: beat(2) };
     const chart = makeChart([zone]);
 
@@ -177,7 +177,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(children[0].getLocalBounds()).toEqual(timelineBand(chart, "trillZone").getLocalBounds());
   });
 
-  it("노트 원위치(moveOrigins)가 null이어도 restZone 원위치 1개만 있으면 고스트 1개를 그린다(노트 없는 구간 이동)", () => {
+  it("노트 원위치(moveOrigins)가 null이어도 restZone 원위치 1개만 있으면 원위치 고스트 1개를 그린다(노트 없는 구간 이동)", () => {
     const zone: RestZone = { lane: 1, beat: beat(2), endBeat: beat(4) };
 
     const children = renderOrigins(makeOverlayHost(makeChart([], [zone]), { notes: null, restZones: [zone] }));
@@ -185,7 +185,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(children).toHaveLength(1);
   });
 
-  it("구간 원위치가 둘 다 null이면(노트만 이동) moveOriginLayer에는 single 노트 고스트 1개만 그려진다", () => {
+  it("구간 원위치가 둘 다 null이면(노트만 이동) moveOriginLayer에는 single 노트 원위치 고스트 1개만 그려진다", () => {
     const note: NoteEntity = { type: "single", lane: 1, beat: beat(1) };
     const chart = makeChart([{ lane: 3, beat: beat(0), endBeat: beat(4) }], [{ lane: 4, beat: beat(0), endBeat: beat(4) }], [note]);
 
@@ -195,7 +195,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(fillsOf(children[0]).map((fill) => fill.color)).toEqual([COLORS.SINGLE_NOTE]);
   });
 
-  it("restZone·trillZone·노트 원위치가 함께 있으면 restZone → trillZone → 노트 고스트 순으로 추가돼 타임라인 z-order와 같다", () => {
+  it("restZone·trillZone·노트 원위치가 함께 있으면 restZone → trillZone → 노트 원위치 고스트 순으로 추가돼 타임라인 z-order와 같다", () => {
     const trillZone: TrillZone = { lane: 2, beat: beat(0), endBeat: beat(4) };
     const restZone: RestZone = { lane: 4, beat: beat(0), endBeat: beat(4) };
     const note: NoteEntity = { type: "trill", lane: 2, beat: beat(1) };
@@ -214,7 +214,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     ]);
   });
 
-  it("가시 범위(5000~6000ms) 밖 trillZone 원위치(0~4박 = 0~2000ms)는 고스트를 그리지 않는다(컬링)", () => {
+  it("가시 범위(5000~6000ms) 밖 trillZone 원위치(0~4박 = 0~2000ms)는 원위치 고스트를 그리지 않는다(컬링)", () => {
     const zone: TrillZone = { lane: 1, beat: beat(0), endBeat: beat(4) };
 
     const children = renderOrigins(makeOverlayHost(makeChart([zone]), { trillZones: [zone] }, { minTimeMs: 5000, maxTimeMs: 6000 }));
@@ -224,7 +224,7 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
 });
 
 describe("OverlayRenderer.clearMoveOriginGhosts", () => {
-  it("restZone·trillZone·노트 고스트 3개를 그린 뒤 clearMoveOriginGhosts()하면 다음 전체 렌더를 기다리지 않고 moveOriginLayer가 바로 빈다", () => {
+  it("restZone·trillZone·노트 원위치 고스트 3개를 그린 뒤 clearMoveOriginGhosts()하면 다음 전체 렌더를 기다리지 않고 moveOriginLayer가 바로 빈다", () => {
     const trillZone: TrillZone = { lane: 2, beat: beat(0), endBeat: beat(4) };
     const restZone: RestZone = { lane: 4, beat: beat(0), endBeat: beat(4) };
     const note: NoteEntity = { type: "trill", lane: 2, beat: beat(1) };

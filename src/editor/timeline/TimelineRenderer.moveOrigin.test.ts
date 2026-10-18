@@ -13,14 +13,14 @@ function methodBody(signatureStart: string): string {
 }
 
 describe("TimelineRenderer 이동 원위치 고스트 배선 (소스 수준, #94)", () => {
-  it("clearMoveOrigins는 노트·trillZone·restZone 원위치를 함께 null로 지워 드롭·취소 경로가 새 배선 없이 구간 고스트도 지운다", () => {
+  it("clearMoveOrigins는 노트·trillZone·restZone 원위치를 함께 null로 지워 드롭·취소 경로가 새 배선 없이 구간 원위치 고스트도 지운다", () => {
     const body = methodBody("clearMoveOrigins(): void {");
     expect(body).toContain("this._moveOrigins = null;");
     expect(body).toContain("this._trillZoneMoveOrigins = null;");
     expect(body).toContain("this._restZoneMoveOrigins = null;");
   });
 
-  it("clearMoveOrigins는 원위치를 지운 뒤 overlayRenderer.clearMoveOriginGhosts()로 이미 그린 고스트도 바로 지운다(드롭은 같은 차트를 커밋해 전체 렌더가 따라오지 않는다)", () => {
+  it("clearMoveOrigins는 원위치를 지운 뒤 overlayRenderer.clearMoveOriginGhosts()로 이미 그린 원위치 고스트도 바로 지운다(드롭은 같은 차트를 커밋해 전체 렌더가 따라오지 않는다)", () => {
     const body = methodBody("clearMoveOrigins(): void {");
     const nulled = body.indexOf("this._restZoneMoveOrigins = null;");
     const cleared = body.indexOf("this.overlayRenderer.clearMoveOriginGhosts();");

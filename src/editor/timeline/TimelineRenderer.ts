@@ -120,7 +120,7 @@ export class TimelineRenderer {
   private _selectedTrillZones: Set<number> = new Set();
   private _selectedRestZones: Set<number> = new Set();
   private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
-  // 구간 유닛 이동 중인 trillZone·restZone의 원래 위치 — 노트 원위치와 함께 고스트로 그리고 함께 지운다 (#94)
+  // 구간 유닛 이동 중인 trillZone·restZone의 원래 위치 — 노트 원위치와 함께 원위치 고스트로 그리고 함께 지운다 (#94)
   private _trillZoneMoveOrigins: readonly TrillZone[] | null = null;
   private _restZoneMoveOrigins: readonly RestZone[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
@@ -590,12 +590,12 @@ export class TimelineRenderer {
     this._restZoneMoveOrigins = origins;
   }
 
-  /** Clear move origin ghosts (노트·trillZone·restZone 원위치를 함께 지운다 — 드롭·취소 경로 공용) */
+  /** Clear move origin ghosts (노트·trillZone·restZone 원위치 데이터와 이미 그린 원위치 고스트를 함께 지운다 — 드롭·취소 경로 공용) */
   clearMoveOrigins(): void {
     this._moveOrigins = null;
     this._trillZoneMoveOrigins = null;
     this._restZoneMoveOrigins = null;
-    // 이미 그린 고스트도 바로 지운다 — 드롭은 같은 차트 참조를 다시 커밋해 render()가 따라오지 않는다.
+    // 이미 그린 원위치 고스트도 바로 지운다 — 드롭은 같은 차트 참조를 다시 커밋해 render()가 따라오지 않는다.
     this.overlayRenderer.clearMoveOriginGhosts();
   }
 
