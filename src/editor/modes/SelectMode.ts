@@ -434,6 +434,20 @@ export class SelectMode implements EditorMode {
   }
 
   /**
+   * 터치 탭 한 번을 (x, y)의 down+up 한 쌍으로 처리한다 — 마우스 클릭과 같은 짝이다(#154).
+   *
+   * 터치 탭은 뗀 시점(up)에 발화해 물리 up이 따로 오지 않는다. down만 보내면 노트 down이 연
+   * 이동 드래그(beginMoveDrag)가 남아, 다음 박스 드래그의 down이 재진입 가드에 막히고 그 move가
+   * 직전에 탭한 노트를 끌고 간다. 같은 좌표의 up으로 바로 닫는다(이동량 0 커밋 하나는 마우스
+   * 클릭과 같다). toggleSelection에는 터치 다중선택 래치를 넘긴다 — 켜져 있으면 탭한 노트를
+   * 선택에 추가/제거만 하고 드래그를 열지 않는다.
+   */
+  tapAt(x: number, y: number, toggleSelection: boolean): void {
+    this.onPointerDown(x, y, false, false, toggleSelection);
+    this.onPointerUp(x, y);
+  }
+
+  /**
    * grab 우선순위 사다리(resolveGrab)를 현재 선택·차트 사실을 주입해 실행하는 공개 seam.
    *
    * 마우스 down(onPointerDown)과 터치 select down 스케줄(useCanvasEvents →
