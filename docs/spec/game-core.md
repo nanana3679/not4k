@@ -218,7 +218,7 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 **난이도명·시나리오**: `Liftoff → Infiltration → Breakthrough` 순서로 한 곡 안의 차트를 구분하며, 각 단계의 비행 시나리오와 연결한다([RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)). 이름 표시와 공개 시연 배경을 실제 게임에 연결했다([RFD 0026](../rfd/0026-game-flight-backgrounds.md)). `Breakthrough`는 `Survival` 규칙을 쓰기로 정했으며([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)) 클리어/실패 규칙은 미구현이다. 풀 정의는 [glossary](../context/glossary.md#flightrule-flight-rule)를 따른다.
 
-**단계별 연출**: `Liftoff`는 시선 각도를 유지하며 고도가 변한다. `Infiltration`은 낮아질수록 시선이 지면을 향해 회전하고 지평선이 위로 사라진다. `Breakthrough`는 저공비행 범위 안에서 전방을 보며 계속 비행하고, 화면 고도가 `Survival` 게이지를 따르므로 고도 하는 실패에 가까운 상태다. 게이지가 기준값 아래로 내려가면 배경 전체가 약한 주홍빛으로 천천히 점멸한다(기준값·주기·세기는 Lab 시연으로 정함). 중앙 레인·판정선·노트 속도는 배경 연출의 영향을 받지 않는다.
+**단계별 연출**: `Liftoff`는 시선 각도를 유지하며 고도가 변한다. `Infiltration`은 낮아질수록 시선이 지면을 향해 회전하고 지평선이 위로 사라진다. `Breakthrough`는 저공비행 범위 안에서 전방을 보며 계속 비행하고, 화면 고도가 `Survival` 규칙의 `altitude`를 따르므로 고도가 낮을수록 실패에 가깝다. `altitude`가 기준값 아래로 내려가면 배경이 약한 주홍빛으로 점멸한다(구현 전, 수치는 [PRD §12](../prd.md#12-미정-사항)). 중앙 레인·판정선·노트 속도는 배경 연출의 영향을 받지 않는다.
 
 **시각적 구별**: 난이도별 색상 배합과 광원 밀도에 차이를 둔다. `Breakthrough`는 지평선 없이 화면 맨 위까지 광원이 움직이며 지나가도록 구성한다. 돌파의 주홍 후보는 사용자가 수용했으며, 다른 후보 배합과 광원 분포 제안은 [아트 디렉션 기록](../design/art-direction-notes.md#난이도별-색상과-광원-분포)을 따른다. 실제 게임에는 공개 시연의 현재 배색·광원 밀도를 사용한다. `Liftoff`는 속도300%, `Infiltration`은600%, `Breakthrough`는1000%이며 돌파의 건축 배경은 밝기10%·재귀 확대300%다. 세부 튜닝은 계속 가능하다.
 
@@ -226,13 +226,13 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 **관대한 밸런싱**: `Liftoff`의 고도 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 기존 관대한 역할을 유지한다.
 
-**`Breakthrough`의 `Survival`**: `altitude`는 1에서 시작해 1을 넘지 않는다. Perfect(`holdOnly`·Grace 포함)는 회복하고, Great·Good(`goodTrill` 포함)은 변화가 없으며, Miss(유지 Miss 포함)는 감소시킨다. 의존 0점 정산은 영향이 없다. 0에 도달하면 즉시 실패한다. 회복·감소량은 [PRD §12](../prd.md#12-미정-사항)에서 정한다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
+**`Breakthrough`의 `Survival`**: `altitude`는 1에서 시작해 1을 넘지 않는다. Perfect(`holdOnly`·Grace head 포함)는 회복하고, Great·Good(`goodTrill` 포함)은 회복하지 않으며, Miss는 감소시킨다. 고도 손실·회복이 없는 경우(종속 0점 정산, 일반 connection 성공)는 [scoring](scoring.md#점수-항목과-정산)을 따른다. 0에 도달하면 즉시 실패한다. 회복·감소량과 Great·Good 미세 감소 여부는 [PRD §12](../prd.md#12-미정-사항)에서 정한다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
 
 **실패 조건 없는 완주/학습**: 실패 조건 없이 차트를 끝까지 확인하거나 구간을 반복 학습하려는 유저는 Observer 계열을 사용한다(`observer-mode.md`).
 
 **후속 설계**: 세부 판정 규칙·상태와 시각 고도의 대응·기존 차트의 이행·속도와 각도 조정은 [PRD §12](../prd.md#12-미정-사항)에서 단일 추적한다. 이번 결정은 실제 충돌이나 레이더 탐지 판정을 도입하지 않는다.
 
-**결정 배경**: 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md), 하향 시점의 표현은 [RFD 0021](../rfd/0021-low-altitude-downward-view.md), 초기 도입 목적과 과거 규칙은 RFD 0001~0003·0005를 참조한다.
+**결정 배경**: 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md), 하향 시점의 표현은 [RFD 0021](../rfd/0021-low-altitude-downward-view.md), 초기 도입 목적과 과거 규칙은 RFD 0001~0003·0005, `Breakthrough`의 `Survival` 규칙과 저고도 경고는 [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)을 참조한다.
 
 ---
 
