@@ -805,7 +805,7 @@ describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
     expect(cb.getSelectionState().notes).toEqual(new Set([1])); // lane 2~3 × beat 0~5
   });
 
-  it("노트 0을 tapAt한 뒤 노트 1 위 (2, 1)에서 시작한 드래그를 beginBoxSelect로 승격하면 박스가 그려지고 노트 0은 lane 1·beat 0에 남는다", () => {
+  it("노트 0을 tapAt한 뒤 노트 1 위 (2, 1)에서 시작한 드래그를 beginBoxSelect로 승격하면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
     const { cb, mode, priv } = setupTwoNotes();
     mode.tapAt(1, 0, false);
 
