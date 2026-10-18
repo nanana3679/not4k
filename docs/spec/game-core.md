@@ -226,7 +226,7 @@ Play에는 **`altitude`** 기반 클리어/실패를 결정하는 **`flightRule`
 
 **관대한 밸런싱**: `Liftoff`의 고도 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 기존 관대한 역할을 유지한다.
 
-**`Breakthrough`의 `Survival`**: `altitude`는 1에서 시작해 1을 넘지 않는다. Perfect(`holdOnly`·Grace head 포함)는 회복하고, Great·Good(`goodTrill` 포함)은 회복하지 않으며, Miss는 감소시킨다. 고도 손실·회복이 없는 경우(종속 0점 정산, 일반 connection 성공)는 [scoring](scoring.md#점수-항목과-정산)을 따른다. 0에 도달하면 즉시 실패한다. 회복·감소량과 Great·Good 미세 감소 여부는 [PRD §12](../prd.md#12-미정-사항)에서 정한다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
+**`Breakthrough`의 `Survival`**: `altitude`는 1에서 시작해 1을 넘지 않는다. Perfect(`holdOnly`·Grace head 포함)는 회복하고, Great·Good(`goodTrill` 포함)은 회복하지 않으며, Miss는 감소시킨다. 종속 0점 정산은 추가 고도 손실이 없고, 점수가 없는 일반 connection 성공은 회복하지 않는다([scoring](scoring.md#점수-항목과-정산)). 0에 도달하면 즉시 실패한다. 회복·감소량, Great·Good 미세 감소 여부, 빈 입력 패널티 여부는 [PRD §12](../prd.md#12-미정-사항)에서 정한다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
 
 **실패 조건 없는 완주/학습**: 실패 조건 없이 차트를 끝까지 확인하거나 구간을 반복 학습하려는 유저는 Observer 계열을 사용한다(`observer-mode.md`).
 

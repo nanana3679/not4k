@@ -315,13 +315,13 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 | --------- | ---- |
 | **`Liftoff`** | 첫 번째 난이도명·이륙 시나리오. 시선 각도를 유지하며 고도가 변한다. 기존 `altitude` 0 시작·곡 종료 기준 클리어·곡 중 게임 오버 없음의 관대한 역할을 유지한다. |
 | **`Infiltration`** | 두 번째 난이도명·침투 시나리오. 낮아질수록 시선이 지면을 향해 꺾이고, 지평선이 위로 사라지며 지면이 평면에 가까워진다. |
-| **`Breakthrough`** | 세 번째·최상위 난이도명·돌파 시나리오. 저공비행 범위 안에서 전방을 보며 계속 비행한다. `Survival` 규칙을 쓴다: `altitude` 1에서 시작해 Perfect로만 회복하고(Great·Good은 회복하지 않음), Miss로 감소하며, 0에 도달하면 즉시 실패한다. 화면 고도가 `altitude`를 따르므로 고도가 낮을수록 실패에 가깝고, `altitude`가 기준값 아래로 내려가면 배경이 약한 주홍빛으로 점멸한다(구현 전, 수치는 [PRD §12](../prd.md#12-미정-사항))([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)). |
+| **`Breakthrough`** | 세 번째·최상위 난이도명·돌파 시나리오. 저공비행 범위 안에서 전방을 보며 계속 비행한다. `Survival` 규칙을 쓴다: `altitude` 1에서 시작해 Perfect로만 회복하고(Great·Good은 회복하지 않음), Miss로 감소하며, 0에 도달하면 즉시 실패한다. 화면 고도가 `altitude`를 따르므로 고도가 낮을수록 실패에 가깝고, `altitude`가 기준값 아래로 내려가면 배경이 약한 주홍빛으로 점멸한다(구현 전, [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md), 수치는 [PRD §12](../prd.md#12-미정-사항)). |
 
-`Survival`과 `Stealth`는 단계 이름이 아니다. `Survival`은 `Breakthrough`가 쓰는 규칙의 이름이다. RFD 0002·0005의 규칙을 다시 쓰되, 지금 판정 체계에는 Bad가 없으므로 Miss만 `altitude`를 감소시킨다. 무점수 유지·연결 Miss는 고도 손실 1회, 종속 0점 정산은 추가 고도 손실이 없고, 점수가 없는 일반 connection 성공은 회복하지 않는다([scoring](../spec/scoring.md#점수-항목과-정산), [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
+`Survival`과 `Stealth`는 단계 이름이 아니다. `Survival`은 `Breakthrough`가 쓰는 규칙의 이름이다. RFD 0002·0005의 규칙을 다시 쓰되, 지금 판정 체계에는 Bad가 없고, Miss는 `altitude`를 감소시킨다. Great·Good의 미세 감소와 빈 입력 패널티를 둘지는 [PRD §12](../prd.md#12-미정-사항)에서 정한다. 무점수 유지·연결 Miss는 고도 손실 1회, 종속 0점 정산은 추가 고도 손실이 없고, 점수가 없는 일반 connection 성공은 회복하지 않는다([scoring](../spec/scoring.md#점수-항목과-정산), [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
 
 ### `altitude` (Altitude)
 
-`flightRule`의 상태와 고도 연출을 연결하는 플레이 중 지표(0~1). 시각 고도와 위험의 관계는 시나리오에 따라 다르다. `Breakthrough`는 화면 고도가 `Survival` 규칙의 `altitude`를 그대로 따라 고도가 낮을수록 실패에 가깝다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)). `Liftoff`는 곡 중 게임 오버가 없고, `Infiltration`의 상태·시각 고도 대응은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 달성률이나 랭크와는 다른 개념이다.
+`flightRule`의 상태와 고도 연출을 연결하는 플레이 중 지표(0~1). 시각 고도와 위험의 관계는 시나리오에 따라 다르다. `Breakthrough`는 화면 고도가 `Survival` 규칙의 `altitude`를 그대로 따라 고도가 낮을수록 실패에 가깝다([RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)). `Liftoff`는 곡 중 게임 오버가 없고, `Liftoff`·`Infiltration`의 판정별 증감과 상태·시각 고도 대응은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다. 달성률이나 랭크와는 다른 개념이다.
 
 ### 난이도 등급 (Difficulty Class)
 

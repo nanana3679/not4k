@@ -57,9 +57,9 @@
 | 2 | `Infiltration` · 침투 | 낮아질수록 시선이 지면을 향해 꺾임. 지평선이 위로 사라지는 시연 06의 방향 | 목표 영역 안으로 파고드는 시점 변화의 긴장감 |
 | 3 | `Breakthrough` · 돌파 | 낮은 고도에서 전방을 보며 계속 비행. 가까운 지면과 빠른 광원 속에서 자세를 안정적으로 유지 | 좁은 여유 속에서 끝까지 돌파하는 숙련 비행 |
 
-`Breakthrough`에서는 저고도 유지가 정상 비행이다. 낮은 고도 자체를 모든 단계의 실패 직전 상태로 표현하지 않는다.
+`Breakthrough`에서는 저고도 유지가 정상 비행이다. 낮은 고도 자체를 모든 단계의 실패 직전 상태로 표현하지 않는다. `Stealth`는 비교했던 이름이며 채택하지 않았다. 이전 대화에서 시연 06을 `Breakthrough`로 부른 배치는 위의 최종 배치로 대체한다.
 
-> **후속 결정(2026-10-18):** [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)으로 `Breakthrough`는 `Survival` 규칙을 쓰고, 고도가 낮을수록 실패에 가까워져 `altitude`가 기준값 아래로 내려가면 배경의 약한 주홍 점멸로 경고한다. 위 문단과 아래 "`Breakthrough`의 정상 저공비행" 서술은 `Breakthrough`에 대해 이 결정으로 대체된다. `Stealth`는 비교했던 이름이며 채택하지 않았다. 이전 대화에서 시연 06을 `Breakthrough`로 부른 배치는 위의 최종 배치로 대체한다.
+> **후속 결정(2026-10-18):** [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)으로 `Breakthrough`는 `Survival` 규칙을 쓰고, 고도가 낮을수록 실패에 가까워져 `altitude`가 기준값 아래로 내려가면 배경의 약한 주홍 점멸로 경고한다. 위 문단과 아래 "`Breakthrough`의 정상 저공비행" 서술은 `Breakthrough`에 대해 이 결정으로 대체된다.
 
 ## 난이도별 색상과 광원 분포
 
