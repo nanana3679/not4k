@@ -16,7 +16,7 @@
 // interrupted run never leaves a mix of old and new images. While it runs, do not edit HTML files or files
 // vite.config imports: Vite then reloads the capture page and the run fails.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { chromium } from '@playwright/test';
 import { encodeWebp } from './encode-webp.mjs';
 import { ALTITUDE_BY_NAME, DIFFICULTY_LABELS } from './capture-plan.mjs';
@@ -42,8 +42,11 @@ const targetDir = existsSync(outDir) ? realpathSync(outDir) : resolve(outDir);
 // (a mistyped path such as the gallery folder or the repository would otherwise be deleted) before capturing.
 const GENERATED_FILE = /^(current|layer)-[a-z-]+\.webp$/;
 function assertReplaceableTarget() {
+  // targetDir is outside the working directory's ancestry only if the path from it to the working directory first
+  // climbs out of it.
   const fromCwd = relative(targetDir, process.cwd());
-  if (fromCwd === '' || !fromCwd.startsWith('..')) {
+  const outsideCwdAncestry = fromCwd === '..' || fromCwd.startsWith(`..${sep}`) || isAbsolute(fromCwd);
+  if (!outsideCwdAncestry) {
     throw new Error(`refusing to replace ${targetDir}: it is the working directory or one of its parents`);
   }
   if (!existsSync(targetDir)) return;
@@ -64,6 +67,8 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 /** Swap the finished staging folder in for targetDir, keeping the old folder until the swap has succeeded. */
 function publish() {
+  // Check again: something may have been written into (or created at) targetDir while the capture ran.
+  assertReplaceableTarget();
   const previousDir = existsSync(targetDir) ? `${targetDir}.previous-${process.pid}` : null;
   if (previousDir) renameSync(targetDir, previousDir);
   try {

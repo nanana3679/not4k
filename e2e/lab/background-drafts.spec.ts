@@ -269,6 +269,32 @@ test("고정 레이어 captures/layer-hud.webp를 받지 못하면 role=alert �
   await expect(page.getByRole("alert")).toContainText("captures/layer-hud.webp");
 });
 
+test("고정 레이어 captures/layer-hud.webp가 갤러리 스크립트 실행 전에 이미 실패해 있어도 role=alert 안내에 그 파일을 알린다", async ({ page }) => {
+  // Hold a parser-blocking script in front of the gallery script until the HUD image has failed, so the image is
+  // already complete with no pixels when the gallery script starts.
+  let hudFailed!: () => void;
+  const hudFailure = new Promise<void>((resolve) => { hudFailed = resolve; });
+  await page.route("**/captures/layer-hud.webp", async (route) => {
+    await route.abort();
+    hudFailed();
+  });
+  await page.route("**/__hold-gallery-script.js", async (route) => {
+    await hudFailure;
+    await page.waitForFunction(() => {
+      const hud = document.querySelector<HTMLImageElement>('img[src="captures/layer-hud.webp"]');
+      return hud !== null && hud.complete && hud.naturalWidth === 0;
+    });
+    await route.fulfill({ contentType: "text/javascript", body: "" });
+  });
+  await page.route("**/lab/images/background-drafts-20261018/", async (route) => {
+    const response = await route.fetch();
+    const html = await response.text();
+    await route.fulfill({ response, body: html.replace("  <script>\n", '  <script src="__hold-gallery-script.js"></script>\n  <script>\n') });
+  });
+  await page.goto(galleryPath);
+  await expect(page.getByRole("alert")).toContainText("captures/layer-hud.webp");
+});
+
 test("고른 Infiltration 이미지를 받지 못하면 이전 Liftoff 배경을 그대로 두고 role=alert 안내에 drafts/infiltration-mid.webp를 알린다", async ({ page }) => {
   await page.goto(galleryPath);
   await expect.poll(() => page.locator("#background").evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1672);
