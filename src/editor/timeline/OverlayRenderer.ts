@@ -152,7 +152,7 @@ export class OverlayRenderer {
    * 이미 그린 이동 원위치 고스트(노트·구간)를 바로 지운다. 드롭은 마지막 프리뷰와 같은 차트를 다시
    * 커밋해 전체 렌더가 따라오지 않으므로, 여기서 지우지 않으면 고스트가 다음 전체 렌더까지 남는다.
    */
-  clearMoveOrigins(): void {
+  clearMoveOriginGhosts(): void {
     destroyChildren(this.host.moveOriginLayer);
   }
 
