@@ -12,8 +12,8 @@ const GAP_SLACK_MS = 1e-6;
  * The replay steps up to captureMs: one step per 60 fps frame, the last one exactly on captureMs.
  * `drawDeltaMs` is the renderFrame delta for steps that draw and null for steps that only process judgment events.
  * Steps within `tailMs` of captureMs (and the last step) always draw. Earlier steps draw whenever waiting one more
- * frame would make the delta exceed `maxDrawGapMs`, so animation clocks that clamp each delta to that value still
- * add up to the song time.
+ * frame would make the delta exceed `maxDrawGapMs`, so animations that clamp each delta to that value still advance
+ * by the full song time.
  */
 export function planReplay({ captureMs, frameMs, tailMs, maxDrawGapMs }) {
   const songTimes = [];

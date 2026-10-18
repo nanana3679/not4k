@@ -65,7 +65,8 @@
 
     details { margin-top: 32px; padding-top: 16px; border-top: 1px solid #343c46; }
     summary { cursor: pointer; padding: 10px 0; }
-    .error-note { color: #ffb4a8; }
+    .image-error { margin: 4px 0 0; color: #ffb4a8; }
+    main[data-shortcuts="off"] kbd, main[data-shortcuts="off"] .shortcut-hint { display: none; }
     details p, details li { color: #b8c4d0; max-width: 780px; }
     footer { border-top: 1px solid #343c46; margin-top: 32px; padding-top: 12px; }
 
@@ -108,10 +109,11 @@
           <span class="links"><button type="button" id="fullscreen" hidden>전체화면</button><a id="selected-original" href="drafts/liftoff-mid.webp">배경 원본 보기</a></span>
         </div>
         <p class="selected-note" id="selected-note"></p>
+        <p class="image-error" id="image-error" role="alert" hidden></p>
       </div>
 
       <div class="panel">
-        <button type="button" class="master" id="master" aria-pressed="true" aria-keyshortcuts="H">인게임 에셋 보이기 <span aria-hidden="true" id="master-state">켬 (H)</span></button>
+        <button type="button" class="master" id="master" aria-pressed="true" aria-keyshortcuts="H">인게임 에셋 보이기 <span aria-hidden="true"><span id="master-state">켬</span><span class="shortcut-hint"> (H)</span></span></button>
         <fieldset>
           <legend>배경 <kbd>(C)</kbd></legend>
           <div class="segmented">
@@ -148,8 +150,8 @@
           <div class="brightness-head"><label for="brightness">배경 밝기</label><output id="brightness-value" for="brightness">100%</output></div>
           <input type="range" id="brightness" min="30" max="100" step="5" value="100">
         </div>
-        <label class="check"><input type="checkbox" id="shortcuts" checked><span>키보드 단축키<small>H·C·화살표, 음성 입력 등과 겹치면 끕니다</small></span></label>
-        <p class="hint">미리보기를 누르거나 H 키로 에셋을 보이고 숨깁니다. C 키로 2차 시안과 지금 배경을 바꿔 봅니다.</p>
+        <label class="check"><input type="checkbox" id="shortcuts" checked><span>키보드 단축키<small>H·C·화살표. 음성 입력 등과 겹치면 끕니다</small></span></label>
+        <p class="hint">미리보기를 누르면 에셋을 보이고 숨깁니다.<span class="shortcut-hint"> H 키도 같고, C 키로 2차 시안과 지금 배경을 바꿔 봅니다.</span></p>
       </div>
     </section>
 
@@ -192,7 +194,7 @@
     const NOTE_BY_SCENARIO = {
       liftoff: '지금 이륙 배경의 구도(지평선 높이, 고도별 지면 불빛)를 그대로 두고, 밭과 도로가 보이는 차분한 지면과 부드러운 구름으로 다시 그렸습니다. 고도 하에서는 하늘이 어두워지고 금색 유도등 두 줄만 남습니다.',
       infiltration: '먹구름 아래 시설 불빛을 무리 지어 두었고, 고도가 낮을수록 시선이 아래로 꺾여 지평선이 화면 위로 사라집니다. 고도 하는 지금 배경처럼 바로 위에서 내려다본 근접 시점이 아니라, 비스듬히 내려다본 시설로 그려졌습니다.',
-      breakthrough: '하늘 없이 어두운 구조물 사이로 선 광원이 소실점으로 흐릅니다. 소실점은 지금 배경처럼 고도 상에서 위, 중에서 가운데, 하에서 아래에 있습니다. 빨간 선이 너무 눈에 띈다는 피드백으로 주홍을 어둡고 흐린 불씨색으로 낮추고 선 수도 줄였습니다.',
+      breakthrough: '하늘 없이 어두운 구조물 사이로 선 광원이 소실점으로 흐릅니다. 소실점은 지금 배경처럼 고도 상에서 위, 중에서 가운데, 하에서 아래에 있습니다. 빨간 선이 너무 눈에 띈다는 피드백으로 주홍을 어둡고 흐린 불씨색으로 낮췄습니다. 고도 상·하는 선도 줄었고, 고도 중은 선이 아직 촘촘합니다.',
     };
     const DEFAULT_STATE = { source: 'draft', scenario: 'liftoff', altitude: 'mid', layers: LAYERS, overlayShown: true, brightness: 100 };
     const HASH_WRITE_DELAY_MS = 250;
@@ -208,6 +210,8 @@
     const brightnessValue = document.getElementById('brightness-value');
     const shortcuts = document.getElementById('shortcuts');
     const selectedNote = document.getElementById('selected-note');
+    const imageError = document.getElementById('image-error');
+    const main = document.querySelector('main');
     const imagesByLayer = Object.fromEntries(LAYERS.map((name) => [name, [...preview.querySelectorAll(`[data-layer="${name}"]`)]]));
     const checkboxByLayer = Object.fromEntries(LAYERS.map((name) => [name, document.querySelector(`[data-toggle="${name}"]`)]));
 
@@ -216,6 +220,13 @@
     const backgroundSrc = ({ source, scenario, altitude }) => source === 'draft'
       ? `drafts/${scenario}-${altitude}.webp`
       : `captures/current-${scenario}-${altitude}.webp`;
+
+    // `layers=` (empty) means no layers on purpose; a value without any known layer name falls back to all layers.
+    function layersFromParam(raw) {
+      if (raw === null) return DEFAULT_STATE.layers;
+      const names = raw.split(',').filter((name) => LAYERS.includes(name));
+      return raw !== '' && names.length === 0 ? DEFAULT_STATE.layers : names;
+    }
 
     // Every hash is read into a complete state from the defaults, so the same address always shows the same view.
     function stateFromHash(hash) {
@@ -226,7 +237,7 @@
         source: pick('source', sourceIds, DEFAULT_STATE.source),
         scenario: pick('scenario', scenarioIds, DEFAULT_STATE.scenario),
         altitude: pick('altitude', altitudeIds, DEFAULT_STATE.altitude),
-        layers: new Set(params.has('layers') ? params.get('layers').split(',').filter((name) => LAYERS.includes(name)) : DEFAULT_STATE.layers),
+        layers: new Set(layersFromParam(params.get('layers'))),
         overlayShown: params.get('overlay') !== '0',
         // Snap to the slider's 5% steps so the label, the slider and the filter agree.
         brightness: params.has('brightness') && brightnessPercent >= 30 && brightnessPercent <= 100 ? Math.round(brightnessPercent / 5) * 5 : DEFAULT_STATE.brightness,
@@ -245,14 +256,22 @@
     }
 
     // Swap an image only after the next one has decoded, so switching never flashes an empty preview. If the file
-    // cannot be loaded the previous image stays and the note says which file failed. The first render sets the
-    // sources directly, so a deep link does not show the default images under the requested title.
+    // cannot be loaded the previous image stays and an alert names the failed file; choosing it again retries.
+    // The first render sets the sources directly, so a deep link does not show the default images under the
+    // requested title; a failure there is reported the same way.
     const pendingSrcByImage = new Map();
     const failedSrcs = new Set();
     let firstRender = true;
     function swapImage(image, src) {
-      if (firstRender) { image.src = src; return; }
-      if (image.getAttribute('src') === src && !pendingSrcByImage.has(image)) return;
+      if (firstRender) {
+        // Listen only until this first source settles.
+        const settled = new AbortController();
+        image.addEventListener('load', () => settled.abort(), { signal: settled.signal });
+        image.addEventListener('error', () => { settled.abort(); failedSrcs.add(src); renderNote(); }, { signal: settled.signal });
+        image.src = src;
+        return;
+      }
+      if (image.getAttribute('src') === src && !pendingSrcByImage.has(image) && !failedSrcs.has(src)) return;
       pendingSrcByImage.set(image, src);
       const next = new Image();
       next.src = src;
@@ -271,11 +290,11 @@
     }
 
     function renderNote() {
+      selectedNote.textContent = state.source === 'draft' ? NOTE_BY_SCENARIO[state.scenario] : '지금 게임 배경을 같은 고도로 캡처했습니다.';
       const failed = [backgroundSrc(state), `captures/layer-gear-${state.altitude}.webp`].filter((src) => failedSrcs.has(src));
-      selectedNote.classList.toggle('error-note', failed.length > 0);
-      selectedNote.textContent = failed.length > 0
-        ? `이미지를 불러오지 못해 이전 이미지를 보여 주고 있습니다: ${failed.join(', ')}`
-        : state.source === 'draft' ? NOTE_BY_SCENARIO[state.scenario] : '지금 게임 배경을 같은 고도로 캡처했습니다.';
+      const message = failed.length > 0 ? `이미지를 불러오지 못했습니다: ${failed.join(', ')}` : '';
+      if (imageError.textContent !== message) imageError.textContent = message;
+      imageError.hidden = message === '';
     }
 
     function render() {
@@ -300,7 +319,8 @@
       }
       master.setAttribute('aria-pressed', String(state.overlayShown));
       preview.setAttribute('aria-pressed', String(state.overlayShown));
-      document.getElementById('master-state').textContent = state.overlayShown ? '켬 (H)' : '끔 (H)';
+      document.getElementById('master-state').textContent = state.overlayShown ? '켬' : '끔';
+      renderShortcutHints();
       background.style.setProperty('--brightness', String(state.brightness / 100));
       brightness.value = String(state.brightness);
       brightnessValue.textContent = `${state.brightness}%`;
@@ -358,7 +378,15 @@
     });
     brightness.addEventListener('input', () => update({ brightness: Number(brightness.value) }));
     // Arrow keys belong to the page (scrolling, radios, the slider, links) unless nothing in particular has focus.
-    const ownsArrowKeys = (target) => target === document.body || target === preview || target === master;
+    const galleryTakesArrowKeys = (target) => target === document.body || target === preview || target === master;
+    // With the shortcuts off, no hint or aria-keyshortcuts may still advertise them.
+    function renderShortcutHints() {
+      main.dataset.shortcuts = shortcuts.checked ? 'on' : 'off';
+      for (const element of [preview, master]) {
+        if (shortcuts.checked) element.setAttribute('aria-keyshortcuts', 'H'); else element.removeAttribute('aria-keyshortcuts');
+      }
+    }
+    shortcuts.addEventListener('change', renderShortcutHints);
     document.addEventListener('keydown', (event) => {
       if (!shortcuts.checked || event.altKey || event.ctrlKey || event.metaKey) return;
       const key = event.key;
@@ -367,7 +395,7 @@
       const letter = key === 'Process' || key === 'ㅗ' || key === 'ㅊ' ? { KeyH: 'h', KeyC: 'c' }[event.code] : key.toLowerCase();
       if (letter === 'h') { if (!event.repeat) toggleOverlay(); return; }
       if (letter === 'c') { if (!event.repeat) toggleSource(); return; }
-      if (!ownsArrowKeys(event.target)) return;
+      if (!galleryTakesArrowKeys(event.target)) return;
       if (key === 'ArrowRight' || key === 'ArrowLeft') {
         event.preventDefault();
         update({ scenario: adjacent(scenarioIds, state.scenario, key === 'ArrowRight' ? 1 : -1) });
@@ -380,9 +408,9 @@
     });
     // render() writes the hash with replaceState, which fires neither event; edits of the address and back/forward
     // land here. A pending write is dropped first so it cannot overwrite the entry the user moved to.
-    const readAddress = () => { clearTimeout(hashWriteTimer); state = stateFromHash(location.hash); render(); };
-    window.addEventListener('hashchange', readAddress);
-    window.addEventListener('popstate', readAddress);
+    const readHash = () => { clearTimeout(hashWriteTimer); state = stateFromHash(location.hash); render(); };
+    window.addEventListener('hashchange', readHash);
+    window.addEventListener('popstate', readHash);
     window.addEventListener('pagehide', () => { if (hashWriteTimer) writeHash(); });
 
     state = stateFromHash(location.hash);

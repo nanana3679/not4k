@@ -11,11 +11,12 @@
 // - layer-<group>.webp for the other groups (lanes, notes, judgment-line, hud), which do not depend on altitude
 // See RENDERER_FIELDS_BY_GROUP in capture-page.mjs for what each group holds.
 //
-// The files are written to a temporary folder and moved into outDir only after every capture succeeded, so a failed
-// run never leaves a mix of old and new images. While it runs, do not edit HTML files or files vite.config imports:
-// Vite then reloads the capture page and the run fails.
-import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+// The files are written to a staging folder next to outDir, and only after every capture succeeded the whole folder
+// replaces outDir (the old folder is kept until the swap succeeded and restored if it fails), so a failed or
+// interrupted run never leaves a mix of old and new images. While it runs, do not edit HTML files or files
+// vite.config imports: Vite then reloads the capture page and the run fails.
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { encodeWebp } from './encode-webp.mjs';
 import { ALTITUDE_BY_NAME, DIFFICULTY_LABELS } from './capture-plan.mjs';
@@ -33,10 +34,37 @@ const LAYER_QUALITY = 0.92;
 const PAGE_TIMEOUT_MS = 180_000;
 const kebab = (name) => name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
-mkdirSync(dirname(outDir), { recursive: true });
-const stagingDir = mkdtempSync(`${outDir.replace(/\/$/, '')}.partial-`);
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// Resolve a symlinked outDir so the staging folder sits on the same filesystem and the final rename cannot fail
+// with EXDEV.
+const targetDir = existsSync(outDir) ? realpathSync(outDir) : resolve(outDir);
+let stagingDir = null;
+const removeStaging = () => { if (stagingDir) rmSync(stagingDir, { recursive: true, force: true }); };
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    removeStaging();
+    process.exit(130);
+  });
+}
+
+/** Swap the finished staging folder in for targetDir, keeping the old folder until the swap has succeeded. */
+function publish() {
+  const previousDir = existsSync(targetDir) ? `${targetDir}.previous-${process.pid}` : null;
+  if (previousDir) renameSync(targetDir, previousDir);
+  try {
+    renameSync(stagingDir, targetDir);
+    stagingDir = null;
+  } catch (error) {
+    if (previousDir) renameSync(previousDir, targetDir);
+    throw error;
+  }
+  if (previousDir) rmSync(previousDir, { recursive: true, force: true });
+}
+
+let browser = null;
 try {
+  browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  mkdirSync(dirname(targetDir), { recursive: true });
+  stagingDir = mkdtempSync(`${targetDir}.partial-`);
   const encoder = await browser.newPage();
   const save = async (name, png, quality) => {
     writeFileSync(join(stagingDir, name), await encodeWebp(encoder, png, quality));
@@ -65,11 +93,18 @@ try {
       const url = new URL('/assets-lab/flight-background/capture/index.html', baseUrl);
       url.search = new URLSearchParams({ label, altitude: String(altitude) }).toString();
       await page.goto(url.href, { timeout: PAGE_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(
-        () => window.__captureLoadError || document.body?.dataset.captureError || document.body?.dataset.captureReady,
-        null,
-        { timeout: PAGE_TIMEOUT_MS },
-      );
+      // A module that fails to link or evaluate never reaches start() and only raises a page error, so that ends
+      // the wait as well.
+      await Promise.race([
+        page.waitForFunction(
+          () => window.__captureLoadError || document.body?.dataset.captureError || document.body?.dataset.captureReady,
+          null,
+          { timeout: PAGE_TIMEOUT_MS },
+        ),
+        page.waitForEvent('pageerror', { timeout: PAGE_TIMEOUT_MS }).then((error) => {
+          throw new Error(`${label} ${altitudeName}: ${error}`);
+        }),
+      ]);
       const error = await page.evaluate(() => window.__captureLoadError || document.body.dataset.captureError);
       if (error) throw new Error(`${label} ${altitudeName}: ${error}`);
       failIfPageErrored();
@@ -88,15 +123,18 @@ try {
         }
         capturedSharedLayers = true;
       }
+      // Errors raised during the last screenshot or encoding count too.
+      failIfPageErrored();
       await page.close();
     }
   }
 
-  mkdirSync(outDir, { recursive: true });
-  const names = readdirSync(stagingDir);
-  for (const name of names) renameSync(join(stagingDir, name), join(outDir, name));
-  console.log(`wrote ${names.length} files to ${outDir}`);
+  publish();
+  console.log(`wrote ${targetDir}`);
 } finally {
-  await browser.close();
-  rmSync(stagingDir, { recursive: true, force: true });
+  try {
+    await browser?.close();
+  } finally {
+    removeStaging();
+  }
 }

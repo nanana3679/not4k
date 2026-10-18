@@ -15,7 +15,7 @@ describe('planReplay', () => {
     expect(drawn.reduce((sum, step) => sum + step.drawDeltaMs!, 0)).toBeCloseTo(8800, 6);
   });
 
-  it('captureMs 8800에서 그린 deltaMs는 모두 50ms 이하(부동소수 오차 1e-9 이내)라 50ms로 자르는 시계도 곡 시간과 같이 간다', () => {
+  it('captureMs 8800에서 그린 deltaMs는 모두 50ms 이하(부동소수 오차 1e-9 이내)라 한 프레임을 50ms로 자르는 애니메이션 경과 시간도 곡 시간만큼 나아간다', () => {
     expect(Math.max(...drawn.map((step) => step.drawDeltaMs!))).toBeLessThanOrEqual(50 + 1e-9);
   });
 

@@ -101,9 +101,12 @@ test("Liftoff 라디오와 밝기 슬라이더에 포커스가 있어도 H는 �
   await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
 });
 
-test("키보드 단축키 체크를 끄면 H·C·→·↓가 레이어와 배경을 바꾸지 않는다", async ({ page }) => {
+test("키보드 단축키 체크를 끄면 H·C·→·↓가 레이어와 배경을 바꾸지 않고, 단축키 안내와 aria-keyshortcuts도 사라진다", async ({ page }) => {
   await page.goto(galleryPath);
   await page.getByRole("checkbox", { name: /키보드 단축키/ }).uncheck();
+  await expect(page.locator("legend kbd").first()).toBeHidden();
+  await expect(page.locator("#preview")).not.toHaveAttribute("aria-keyshortcuts", "H");
+  await expect(page.locator("#master")).not.toHaveAttribute("aria-keyshortcuts", "H");
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   for (const key of ["h", "c", "ArrowRight", "ArrowDown"]) await page.keyboard.press(key);
   await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
@@ -115,6 +118,13 @@ test("'만든 방법과 한계 펼치기'에 포커스가 있으면 ↓는 고�
   await page.locator("summary").focus();
   await page.keyboard.press("ArrowDown");
   await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Liftoff · 고도 중");
+});
+
+test("주소 layers=bogus는 레이어 전체로 읽고, 비어 있는 layers=는 레이어 없음으로 읽는다", async ({ page }) => {
+  await page.goto(`${galleryPath}#layers=bogus`);
+  await expect.poll(() => drawnLayerFiles(page)).toEqual(ALL_LAYER_FILES);
+  await page.goto(`${galleryPath}#layers=`);
+  await expect.poll(() => drawnLayerFiles(page)).toEqual([]);
 });
 
 test("주소 brightness=37은 슬라이더 5% 단계에 맞춰 35%로 읽는다", async ({ page }) => {
@@ -161,38 +171,80 @@ test("→ 키를 40번 연달아 눌러도 주소 기록(replaceState)은 2번 �
   expect(after - before).toBeLessThanOrEqual(2);
 });
 
-test("주소가 기록되기 전(250ms 안)에 뒤로 가기로 Breakthrough 기록에 돌아가면 그 화면을 읽고, 대기 중이던 기록이 Breakthrough 주소를 덮지 않는다", async ({ page }) => {
+test("주소 기록이 대기 중일 때 같은 주소의 이전 기록으로 뒤로 가면(popstate만 발생) Breakthrough 화면을 다시 읽고, 대기하던 Infiltration 기록이 그 주소를 덮지 않는다", async ({ page }) => {
+  await page.clock.install();
   await page.goto(`${galleryPath}#scenario=breakthrough`);
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
-  await page.goto(`${galleryPath}#scenario=liftoff`);
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+  await page.clock.runFor(300);
+  await expect(page).toHaveURL(/scenario=breakthrough&altitude=mid/);
+  // A second history entry with the same address: going back to it fires popstate but not hashchange.
+  await page.evaluate(() => history.pushState(null, "", location.hash));
   await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Liftoff · 고도 중");
   await page.goBack();
-  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
-  await page.waitForTimeout(400);
+  await expect(page.locator("#selected-title")).toHaveText("2차 시안 · Breakthrough · 고도 중");
+  await page.clock.runFor(500);
   await expect(page).toHaveURL(/scenario=breakthrough/);
 });
 
-test("Infiltration 이미지가 800ms 늦게 오는 동안 Breakthrough로 바꾸면 늦게 온 Infiltration이 Breakthrough를 덮지 않는다", async ({ page }) => {
+test("→로 Infiltration을 고른 뒤 250ms 안에 Lab 목록으로 나가도 pagehide에서 주소를 기록해, 뒤로 돌아오면 Infiltration 주소다", async ({ page }) => {
+  await page.clock.install();
+  await page.goto(galleryPath);
+  await page.clock.runFor(300);
+  await expect(page).toHaveURL(/scenario=liftoff/);
+  await page.keyboard.press("ArrowRight");
+  await page.getByRole("link", { name: "← Lab 목록", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/lab\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/scenario=infiltration/);
+});
+
+test("Infiltration 이미지 응답을 붙잡아 둔 사이 Breakthrough로 바꾸면, 나중에 도착한 Infiltration이 Breakthrough를 덮지 않는다", async ({ page }) => {
   await page.goto(galleryPath);
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
+  let releaseInfiltration!: () => void;
+  const infiltrationHeld = new Promise<void>((resolve) => { releaseInfiltration = resolve; });
+  let infiltrationRequested!: () => void;
+  const infiltrationArrived = new Promise<void>((resolve) => { infiltrationRequested = resolve; });
   await page.route("**/drafts/infiltration-mid.webp", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    infiltrationRequested();
+    await infiltrationHeld;
     await route.continue();
   });
   await page.getByText("Infiltration", { exact: true }).first().click();
+  await infiltrationArrived;
   await page.getByText("Breakthrough", { exact: true }).first().click();
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
-  await page.waitForTimeout(1200);
+  const infiltrationLoaded = page.waitForResponse("**/drafts/infiltration-mid.webp");
+  releaseInfiltration();
+  await infiltrationLoaded;
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp");
 });
 
-test("Infiltration 이미지를 받지 못하면 이전 Liftoff 배경을 그대로 두고 실패한 파일 drafts/infiltration-mid.webp를 알린다", async ({ page }) => {
+test("딥 링크 #scenario=breakthrough는 Breakthrough 이미지가 도착하기 전에도 첫 화면 src를 곧바로 그 파일로 둔다", async ({ page }) => {
+  let releaseBreakthrough!: () => void;
+  const breakthroughHeld = new Promise<void>((resolve) => { releaseBreakthrough = resolve; });
+  await page.route("**/drafts/breakthrough-mid.webp", async (route) => {
+    await breakthroughHeld;
+    await route.continue();
+  });
+  await page.goto(`${galleryPath}#scenario=breakthrough`, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#background")).toHaveAttribute("src", "drafts/breakthrough-mid.webp", { timeout: 1000 });
+  releaseBreakthrough();
+});
+
+test("딥 링크 #scenario=breakthrough의 이미지를 받지 못하면 role=alert 안내에 drafts/breakthrough-mid.webp를 알린다", async ({ page }) => {
+  await page.route("**/drafts/breakthrough-mid.webp", (route) => route.abort());
+  await page.goto(`${galleryPath}#scenario=breakthrough`);
+  await expect(page.getByRole("alert")).toContainText("drafts/breakthrough-mid.webp");
+});
+
+test("고른 Infiltration 이미지를 받지 못하면 이전 Liftoff 배경을 그대로 두고 role=alert 안내에 drafts/infiltration-mid.webp를 알린다", async ({ page }) => {
   await page.goto(galleryPath);
   await expect.poll(() => page.locator("#background").evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1672);
   await page.route("**/drafts/infiltration-mid.webp", (route) => route.abort());
   await page.getByText("Infiltration", { exact: true }).first().click();
-  await expect(page.locator("#selected-note")).toContainText("drafts/infiltration-mid.webp");
+  await expect(page.getByRole("alert")).toContainText("drafts/infiltration-mid.webp");
   await expect(page.locator("#background")).toHaveAttribute("src", "drafts/liftoff-mid.webp");
 });
 
@@ -218,7 +270,7 @@ test("배경 18장(2차 시안 9장 1672×941·지금 배경 9장 1920×1080)이
   for (const [path, size] of Object.entries(sizes)) expect(size, path).toBe(path.startsWith("drafts/") ? "1672x941" : "1920x1080");
 });
 
-test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 각자 자리에서만 불투명하며, 기어 유리관은 고도 상에서 하늘색·하에서 어둡다", async ({ page }) => {
+test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 각 레이어는 제 위치(레인·노트·판정선·HUD·키)에서만 불투명하며, 기어 유리관은 고도 상에서 하늘색·하에서 어둡다", async ({ page }) => {
   await page.goto(galleryPath);
   const files = ["layer-lanes", "layer-notes", "layer-judgment-line", "layer-gear-high", "layer-gear-mid", "layer-gear-low", "layer-hud"];
   const samples = await page.evaluate(async (names) => {
@@ -255,13 +307,13 @@ test("인게임 레이어 7장은 1920×1080 투명 이미지이고, 각자 자�
     expect(samples[name].size).toBe("1920x1080");
     expect(samples[name].corner).toBe(0);
   }
-  // 각 레이어는 자기 자리에서 불투명하다.
+  // 각 레이어는 제 위치에서 불투명하다.
   expect(samples["layer-lanes"].laneArea).toBe(255);
   expect(samples["layer-judgment-line"].judgmentLineRow).toBe(255);
   expect(samples["layer-notes"].laneOneLongNote).toBe(255);
   expect(samples["layer-hud"].judgmentText).toBeGreaterThan(150);
   for (const altitude of ["high", "mid", "low"]) expect(samples[`layer-gear-${altitude}`].key).toBe(255);
-  // 다른 레이어의 자리는 비어 있다(묶음이 겹치거나 섞이지 않음).
+  // 다른 레이어가 그리는 위치는 비어 있다(묶음이 겹치거나 섞이지 않음).
   expect(samples["layer-judgment-line"].laneArea).toBe(0);
   expect(samples["layer-notes"].judgmentLineRow).toBe(0);
   expect(samples["layer-gear-mid"].laneArea).toBe(0);

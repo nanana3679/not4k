@@ -22,10 +22,10 @@ import { assertGroupsCoverStage, DIFFICULTY_LABELS, parseCaptureParams, planRepl
 const CAPTURE_HEIGHT_PX = 1080;
 const SCROLL_SPEED = 800; // same as /lab/gear
 const FRAME_MS = 1000 / 60;
-// The last second is drawn at 60 fps like the game. Before that the replay draws only as often as the animation
-// clocks need: gearMotion (GEAR_MOTION_MAX_STEP_MS) and the flight background (FlightBackground.render, which clamps
-// to .05 s) each cap one renderFrame delta at 50 ms, so drawing at least every 50 ms keeps both clocks equal to the
-// song time while skipping two thirds of the SwiftShader draws. If either cap changes, change MAX_DRAW_GAP_MS too.
+// The last second is drawn at 60 fps like the game. Before that the replay draws only as often as the animations
+// need: gearMotion (GEAR_MOTION_MAX_STEP_MS) and the flight background (FlightBackground.render, which clamps to .05 s)
+// each cap one renderFrame delta at 50 ms, so drawing at least every 50 ms keeps both elapsed times equal to the song
+// time while skipping two thirds of the SwiftShader draws. If either cap changes, change MAX_DRAW_GAP_MS too.
 const DRAWN_REPLAY_TAIL_MS = 1000;
 const MAX_DRAW_GAP_MS = GEAR_MOTION_MAX_STEP_MS;
 const FONT_TIMEOUT_MS = 10_000;
@@ -45,11 +45,16 @@ export const RENDERER_FIELDS_BY_GROUP = {
 
 async function loadFonts() {
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('game fonts did not load in time')), FONT_TIMEOUT_MS));
-  const facesByFont = await Promise.race([Promise.all(GAME_FONTS.map((font) => document.fonts.load(font))), timeout]);
+  let facesPerFont;
+  try {
+    facesPerFont = await Promise.race([Promise.all(GAME_FONTS.map((font) => document.fonts.load(font))), timeout]);
+  } catch (error) {
+    throw new Error(`game fonts failed to load: ${error?.message ?? error}`);
+  }
   // If the font stylesheet itself failed, load() finds no face and check() reports true for an undeclared family,
   // so require at least one loaded face per font; a fallback font would otherwise still capture "successfully".
   const missing = GAME_FONTS.filter((font, index) => {
-    const faces = facesByFont[index];
+    const faces = facesPerFont[index];
     return faces.length === 0 || faces.some((face) => face.status !== 'loaded');
   });
   if (missing.length > 0) throw new Error(`game fonts missing: ${missing.join(', ')}`);
