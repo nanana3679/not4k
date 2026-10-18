@@ -91,7 +91,7 @@ describe("fetchOptionalExtraChartText", () => {
     expect(result).toBeNull();
   });
 
-  it("HTTP 400 본문이 현재 Storage 형식(statusCode \"404\", code·error \"NoSuchKey\")이면 파일 없음으로 null 반환", async () => {
+  it("HTTP 400 본문의 error도 code와 같은 \"NoSuchKey\"인 형식(Storage render() 원래 출력)이면 파일 없음으로 null 반환", async () => {
     const result = await fetchOptionalExtraChartText(
       "https://example.com/chart.extra.json",
       async () => new Response(
@@ -113,6 +113,16 @@ describe("fetchOptionalExtraChartText", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it("HTTP 400 본문에 code \"NoSuchUpload\"가 있으면 error가 \"not_found\"여도 code가 우선해 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "404", code: "NoSuchUpload", error: "not_found", message: "Upload not found" }),
+        { status: 400 },
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
   });
 
   it("HTTP 400 본문이 statusCode \"404\"여도 code가 \"NoSuchBucket\"(버킷 없음)이면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
@@ -270,7 +280,7 @@ describe("parseEditorChartAssets", () => {
     expect(result.extraLaneCount).toBe(2);
   });
 
-  it("200 응답의 보조 파일이 유효하지 않은 JSON이면 메인 차트만 연 상태로 진입하지 않고 에러", () => {
+  it("200 응답의 보조 파일 본문이 \"not json\"이면 \"유효한 JSON이 아닙니다\" 오류로 거부", () => {
     expect(() => parseEditorChartAssets(chartText(), "not json"))
       .toThrow("보조 차트 파싱 실패: 유효한 JSON이 아닙니다");
   });
@@ -309,14 +319,14 @@ describe("parseEditorChartAssets", () => {
     expect(result.extraLaneCount).toBe(0);
   });
 
-  it("보조 노트 3개 중 extraNotes[1]의 beat가 \"12junk\"이면 오류 메시지에 extraNotes[1]이 들어간다", () => {
+  it("보조 노트 3개 중 extraNotes[1]의 beat가 \"12junk\"이고 extraNotes[2]의 extraLane이 0이면 오류 메시지에는 처음 어긋난 extraNotes[1]이 들어간다", () => {
     expect(() => parseEditorChartAssets(
       chartText(),
       JSON.stringify({
         extraNotes: [
           { type: "single", extraLane: 1, beat: "1" },
           { type: "single", extraLane: 1, beat: "12junk" },
-          { type: "single", extraLane: 2, beat: "3" },
+          { type: "single", extraLane: 0, beat: "3" },
         ],
         extraLaneCount: 2,
       }),
