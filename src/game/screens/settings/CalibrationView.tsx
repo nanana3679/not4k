@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useGameStore } from '../../stores';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import {
   calculateCalibrationResult,
+  calibrationNoteLeftX,
+  calibrationNoteProgress,
+  calibrationNoteTopY,
   CALIBRATION_INTERVAL_MS,
+  CALIBRATION_NOTE_HEIGHT,
+  CALIBRATION_NOTE_WIDTH,
   CALIBRATION_TOTAL_TAPS,
   CALIBRATION_WARMUP_TAPS,
+  offsetToApply,
   type CalibrationResult,
 } from '../../calibration/calibrationLogic';
 
@@ -35,7 +40,6 @@ function playBeep(audioCtx: AudioContext, durationMs = 30, frequency = 1000) {
 }
 
 export function CalibrationView({ onExit }: CalibrationViewProps) {
-  const { updateSettings } = useGameStore();
   const [phase, setPhase] = useState<Phase>('select');
   const [calibType, setCalibType] = useState<CalibrationType>('visual');
   const [tapCount, setTapCount] = useState(0);
@@ -113,19 +117,16 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
       for (let i = currentBeatIdx - 1; i <= currentBeatIdx + 2; i++) {
         if (i < 0) continue;
         const beatTime = startTime + i * interval;
-        const progress = (now - beatTime + travelTime) / travelTime;
+        const progress = calibrationNoteProgress(now, beatTime, travelTime);
 
         if (progress < 0 || progress > 1.5) continue;
-
-        const noteY = progress * judgmentY;
-        const noteWidth = 120;
-        const noteHeight = 12;
 
         // Fade out after passing judgment line
         const alpha = progress > 1.0 ? Math.max(0, 1 - (progress - 1.0) * 4) : 1;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = color.gold;
-        ctx.fillRect(w / 2 - noteWidth / 2, noteY - noteHeight / 2, noteWidth, noteHeight);
+        // 박 시각에 노트 가운데가 판정선에 온다 — 게임 렌더러와 같은 노트 가운데 기준(#224). 박스는 calibrationLogic이 정한다.
+        ctx.fillRect(calibrationNoteLeftX(w), calibrationNoteTopY(progress, judgmentY), CALIBRATION_NOTE_WIDTH, CALIBRATION_NOTE_HEIGHT);
         ctx.globalAlpha = 1;
       }
 
@@ -283,12 +284,9 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
   }, [phase, handleBack]);
 
   const applyResult = () => {
-    if (!result) return;
-    if (calibType === 'visual') {
-      updateSettings({ judgmentOffsetMs: result.offset });
-    } else {
-      updateSettings({ audioOffsetMs: result.offset });
-    }
+    // RFD 0031 PR 2·3 전에는 진입을 숨긴다. 옛 보정 결과를 새 설정에 저장하지 않는다.
+    // PR 2·3에서 SettingsModal의 캘리브레이션 뷰와 함께 Apply를 새 보정 경로에 다시 연결해야 한다.
+    // ±1000ms 제한은 숫자 입력 확정과 저장 설정 병합에만 있으므로 PR 2·3의 보정 결과에도 적용해야 한다.
     setPhase('select');
   };
 
@@ -378,11 +376,12 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
           {result && result.sampleCount > 0 ? (
             <>
               <div className="cal-result-value">
-                <span className="cal-result-num">{result.offset}</span>
+                <span className="cal-result-num">{offsetToApply(result)}</span>
                 <span className="cal-result-unit">ms</span>
               </div>
               <p className="cal-result-label">{offsetLabel}</p>
               <div className="cal-result-meta">
+                <span>{`tap ${result.offset > 0 ? '+' : ''}${result.offset} ms${result.offset > 0 ? ' (late)' : result.offset < 0 ? ' (early)' : ''}`}</span>
                 <span>σ {result.stdDev} ms</span>
                 <span>{result.sampleCount} samples</span>
               </div>
@@ -497,8 +496,4 @@ const calibrationCss = `
   font-family: ${font.numeric}; font-size: 13px; font-variant-numeric: tabular-nums; color: ${color.inkDim};
 }
 .cal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .cal-view *, .cal-progress-fill { transition-duration: 1ms !important; }
-}
 `;

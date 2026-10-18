@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="200" viewBox="0 0 1060 200" role="img" aria-label="입체 더블 포인트 노트 · 윗면 100 / 외곽 106" data-revision="10" data-attachment-x="30" data-attachment-width="1000">
+<title>입체 더블 포인트 노트 · 윗면 100 / 외곽 106</title>
+
+<defs><linearGradient id="p-shell" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200"><stop offset="0" stop-color="#544319" stop-opacity="1"/><stop offset="0.06" stop-color="#221e14" stop-opacity="1"/><stop offset="0.19" stop-color="#635020" stop-opacity="1"/><stop offset="0.8" stop-color="#352f20" stop-opacity="1"/><stop offset="1" stop-color="#201c12" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-rim" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200"><stop offset="0" stop-color="#967c3a" stop-opacity="0.8"/><stop offset="0.16" stop-color="#bea056" stop-opacity="0.65"/><stop offset="0.2" stop-color="#1f1b13" stop-opacity="0"/><stop offset="0.93" stop-color="#8f7125" stop-opacity="0.8"/><stop offset="1" stop-color="#6c551b" stop-opacity="0.42"/></linearGradient>
+<linearGradient id="p-top" gradientUnits="userSpaceOnUse" x1="0" y1="11" x2="0" y2="34"><stop offset="0" stop-color="#a99155" stop-opacity="1"/><stop offset="0.18" stop-color="#cdb577" stop-opacity="1"/><stop offset="0.76" stop-color="#eddbae" stop-opacity="1"/><stop offset="1" stop-color="#efede9" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-top-polish" gradientUnits="userSpaceOnUse" x1="0" y1="11" x2="0" y2="34"><stop offset="0" stop-color="#322d21" stop-opacity="0.28"/><stop offset="0.22" stop-color="#ebe8e2" stop-opacity="0.1"/><stop offset="0.68" stop-color="#fafaf9" stop-opacity="0.32"/><stop offset="0.8" stop-color="#ffffff" stop-opacity="0.92"/><stop offset="1" stop-color="#efede8" stop-opacity="0.55"/></linearGradient>
+<linearGradient id="p-end" gradientUnits="userSpaceOnUse" x1="10" y1="80" x2="78" y2="80"><stop offset="0" stop-color="#baa571" stop-opacity="1"/><stop offset="0.2" stop-color="#b79f63" stop-opacity="1"/><stop offset="0.63" stop-color="#a99153" stop-opacity="1"/><stop offset="0.65" stop-color="#e9d299" stop-opacity="1"/><stop offset="0.96" stop-color="#eddbad" stop-opacity="1"/><stop offset="1" stop-color="#ece9e3" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-blue-slot" gradientUnits="userSpaceOnUse" x1="78" y1="80" x2="95" y2="80"><stop offset="0" stop-color="#947320" stop-opacity="1"/><stop offset="0.33" stop-color="#6b5317" stop-opacity="1"/><stop offset="0.73" stop-color="#82661d" stop-opacity="1"/><stop offset="1" stop-color="#ba9129" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-dark-panel" gradientUnits="userSpaceOnUse" x1="119" y1="90" x2="217" y2="90"><stop offset="0" stop-color="#d3a737" stop-opacity="1"/><stop offset="0.07" stop-color="#ad8726" stop-opacity="1"/><stop offset="0.24" stop-color="#71591b" stop-opacity="1"/><stop offset="0.54" stop-color="#4e3f18" stop-opacity="1"/><stop offset="0.92" stop-color="#342f21" stop-opacity="1"/><stop offset="1" stop-color="#2a2519" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-blue-panel" gradientUnits="userSpaceOnUse" x1="221" y1="90" x2="388" y2="90"><stop offset="0" stop-color="#a28f5e" stop-opacity="1"/><stop offset="0.02" stop-color="#948151" stop-opacity="1"/><stop offset="0.23" stop-color="#998450" stop-opacity="1"/><stop offset="0.52" stop-color="#b39852" stop-opacity="1"/><stop offset="0.75" stop-color="#caac60" stop-opacity="1"/><stop offset="0.751" stop-color="#e1cb91" stop-opacity="1"/><stop offset="0.99" stop-color="#e9d39b" stop-opacity="1"/><stop offset="1" stop-color="#e5e1d9" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-face-light" gradientUnits="userSpaceOnUse" x1="0" y1="34" x2="0" y2="185"><stop offset="0" stop-color="#f1e3bf" stop-opacity="0.29"/><stop offset="0.11" stop-color="#e4c984" stop-opacity="0.09"/><stop offset="0.36" stop-color="#1e1a11" stop-opacity="0.08"/><stop offset="0.72" stop-color="#352f20" stop-opacity="0.02"/><stop offset="1" stop-color="#e0c172" stop-opacity="0.13"/></linearGradient>
+<linearGradient id="p-center-metal" gradientUnits="userSpaceOnUse" x1="396" y1="0" x2="664" y2="0"><stop offset="0" stop-color="#968250" stop-opacity="1"/><stop offset="0.16" stop-color="#a08d5e" stop-opacity="1"/><stop offset="0.42" stop-color="#b3a070" stop-opacity="1"/><stop offset="0.55" stop-color="#b6a477" stop-opacity="1"/><stop offset="0.551" stop-color="#c7b893" stop-opacity="1"/><stop offset="0.72" stop-color="#c0b18a" stop-opacity="1"/><stop offset="1" stop-color="#a49266" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-rail" gradientUnits="userSpaceOnUse" x1="95" y1="0" x2="118" y2="0"><stop offset="0" stop-color="#fffcee" stop-opacity="1"/><stop offset="0.1" stop-color="#fff4ca" stop-opacity="1"/><stop offset="0.48" stop-color="#faedb8" stop-opacity="1"/><stop offset="0.86" stop-color="#ffeda5" stop-opacity="1"/><stop offset="1" stop-color="#fffcf1" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-bottom" gradientUnits="userSpaceOnUse" x1="0" y1="185" x2="0" y2="200"><stop offset="0" stop-color="#947830" stop-opacity="1"/><stop offset="0.17" stop-color="#65501c" stop-opacity="1"/><stop offset="0.58" stop-color="#3d3726" stop-opacity="1"/><stop offset="1" stop-color="#19160e" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-front-rim" gradientUnits="userSpaceOnUse" x1="0" y1="185" x2="1060" y2="185"><stop offset="0" stop-color="#bfa45f" stop-opacity="1"/><stop offset="0.2" stop-color="#816622" stop-opacity="1"/><stop offset="0.42" stop-color="#a48d55" stop-opacity="1"/><stop offset="0.5" stop-color="#b8a880" stop-opacity="1"/><stop offset="0.58" stop-color="#a48d55" stop-opacity="1"/><stop offset="0.8" stop-color="#816622" stop-opacity="1"/><stop offset="1" stop-color="#bfa45f" stop-opacity="1"/></linearGradient>
+<linearGradient id="p-gloss-face" gradientUnits="userSpaceOnUse" x1="0" y1="34" x2="0" y2="185"><stop offset="0" stop-color="#faf9f7" stop-opacity="0.2"/><stop offset="0.2" stop-color="#faf9f7" stop-opacity="0.08"/><stop offset="0.38" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.4" stop-color="#191610" stop-opacity="0.12"/><stop offset="0.59" stop-color="#191610" stop-opacity="0.2"/><stop offset="0.68" stop-color="#191610" stop-opacity="0.04"/><stop offset="0.88" stop-color="#f5f4f1" stop-opacity="0.04"/><stop offset="1" stop-color="#f5f4f1" stop-opacity="0.2"/></linearGradient>
+<filter id="p-halo" x="-80%" y="-150%" width="260%" height="400%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="9"/></filter>
+<filter id="p-material-brighter" filterUnits="userSpaceOnUse" x="0" y="0" width="1060" height="200" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear" slope="1.08"/><feFuncG type="linear" slope="1.08"/><feFuncB type="linear" slope="1.08"/><feFuncA type="identity"/></feComponentTransfer></filter>
+<clipPath id="p-clip"><path d="M30 0H1030L1060 29V191L1051 200H9L0 191V29Z" fill="#fff"/></clipPath>
+<clipPath id="p-lit-surface"><path d="M30 11H1030L1050 34H10Z" fill="#fff"/><path d="M10 34H1050V185H10Z" fill="#fff"/></clipPath>
+<clipPath id="p-metal-face"><rect x="10" y="34" width="68" height="151" fill="#fff"/><rect x="982" y="34" width="68" height="151" fill="#fff"/><rect x="118" y="34" width="99" height="151" fill="#fff"/><rect x="843" y="34" width="99" height="151" fill="#fff"/><rect x="221" y="34" width="167" height="151" fill="#fff"/><rect x="672" y="34" width="167" height="151" fill="#fff"/><rect x="396" y="34" width="268" height="151" fill="#fff"/></clipPath></defs>
+<g data-material="point-brighter" filter="url(#p-material-brighter)">
+<g id="point-note-base" data-layer="base">
+  <path d="M30 0H1030L1060 29V191L1051 200H9L0 191V29Z" fill="url(#p-shell)"/>
+  <path d="M30 11H1030L1050 34H10Z" fill="#c3ad75"/>
+  <path d="M10 34H1050V185H10Z" fill="#978351"/>
+  <rect x="10" y="34" width="68" height="151" fill="#b6a068"/>
+<rect x="78" y="34" width="17" height="151" fill="#7d621c"/>
+<rect x="95" y="34" width="23" height="151" fill="#d0b572"/>
+<rect x="118" y="34" width="99" height="151" fill="#383325"/>
+<rect x="217" y="34" width="4" height="151" fill="#282419"/>
+<rect x="221" y="34" width="124" height="151" fill="#9d8956"/>
+<rect x="345" y="34" width="43" height="151" fill="#ddc893"/>
+<rect x="388" y="34" width="8" height="151" fill="#322d21"/>
+<path d="M30 11H95.385L78 34H10Z" fill="#eedfbb"/>
+<path d="M95.385 11H111.731L95 34H78Z" fill="#b9953c"/>
+<path d="M111.731 11H133.846L118 34H95Z" fill="#e0ddd7"/>
+<path d="M133.846 11H229.038L217 34H118Z" fill="#c0ac78"/>
+<path d="M229.038 11H232.885L221 34H217Z" fill="#87713a"/>
+<path d="M232.885 11H393.462L388 34H221Z" fill="#e4cd93"/>
+<path d="M393.462 11H401.154L396 34H388Z" fill="#736238"/>
+<g transform="translate(1060 0) scale(-1 1)"><rect x="10" y="34" width="68" height="151" fill="#b6a068"/>
+<rect x="78" y="34" width="17" height="151" fill="#7d621c"/>
+<rect x="95" y="34" width="23" height="151" fill="#d0b572"/>
+<rect x="118" y="34" width="99" height="151" fill="#383325"/>
+<rect x="217" y="34" width="4" height="151" fill="#282419"/>
+<rect x="221" y="34" width="124" height="151" fill="#9d8956"/>
+<rect x="345" y="34" width="43" height="151" fill="#ddc893"/>
+<rect x="388" y="34" width="8" height="151" fill="#322d21"/>
+<path d="M30 11H95.385L78 34H10Z" fill="#eedfbb"/>
+<path d="M95.385 11H111.731L95 34H78Z" fill="#b9953c"/>
+<path d="M111.731 11H133.846L118 34H95Z" fill="#e0ddd7"/>
+<path d="M133.846 11H229.038L217 34H118Z" fill="#c0ac78"/>
+<path d="M229.038 11H232.885L221 34H217Z" fill="#87713a"/>
+<path d="M232.885 11H393.462L388 34H221Z" fill="#e4cd93"/>
+<path d="M393.462 11H401.154L396 34H388Z" fill="#736238"/></g>
+  <path d="M401.154 11H658.846L664 34H396Z" fill="#c6b792"/>
+  <rect x="396" y="34" width="268" height="151" fill="#a08c5a"/>
+  <path d="M10 185H1050L1060 191L1051 200H9L0 191Z" fill="url(#p-bottom)"/>
+</g>
+<g id="point-note-reflection" data-layer="reflection" clip-path="url(#p-clip)">
+  <rect x="10" y="34" width="68" height="151" fill="url(#p-end)"/>
+<rect x="78" y="34" width="17" height="151" fill="url(#p-blue-slot)"/>
+<rect x="118" y="34" width="99" height="151" fill="url(#p-dark-panel)"/>
+<rect x="221" y="34" width="167" height="151" fill="url(#p-blue-panel)"/>
+<rect x="217" y="34" width="1.6" height="151" fill="#18140c" opacity=".72"/>
+<rect x="219" y="34" width="2" height="151" fill="#eedeb5" opacity=".65"/>
+<rect x="222" y="34" width="1.2" height="151" fill="#252015" opacity=".28"/>
+<rect x="10" y="34" width="1.5" height="151" fill="#eceae4" opacity=".52"/>
+<rect x="76" y="34" width="1.4" height="151" fill="#edebe6" opacity=".88"/>
+<rect x="345" y="34" width="1.1" height="151" fill="#eeddb3" opacity=".48"/>
+<rect x="388" y="34" width="1.5" height="151" fill="#1f1c13" opacity=".7"/>
+<rect x="394.5" y="34" width="1.5" height="151" fill="#d0c3a2" opacity=".6"/>
+<path d="M30 11H95.385L78 34H10Z" fill="#f8f7f5" opacity=".63"/>
+<path d="M133.846 11H229.038L217 34H118Z" fill="url(#p-top)" opacity=".64"/>
+<path d="M232.885 11H393.462L388 34H221Z" fill="url(#p-top)" opacity=".75"/>
+<path d="M229.038 11H230.481L218.5 34H217Z" fill="#605026" opacity=".6"/>
+<path d="M232.885 11H233.942L222.1 34H221Z" fill="#edeae4" opacity=".64"/>
+<g transform="translate(1060 0) scale(-1 1)"><rect x="10" y="34" width="68" height="151" fill="url(#p-end)"/>
+<rect x="78" y="34" width="17" height="151" fill="url(#p-blue-slot)"/>
+<rect x="118" y="34" width="99" height="151" fill="url(#p-dark-panel)"/>
+<rect x="221" y="34" width="167" height="151" fill="url(#p-blue-panel)"/>
+<rect x="217" y="34" width="1.6" height="151" fill="#18140c" opacity=".72"/>
+<rect x="219" y="34" width="2" height="151" fill="#eedeb5" opacity=".65"/>
+<rect x="222" y="34" width="1.2" height="151" fill="#252015" opacity=".28"/>
+<rect x="10" y="34" width="1.5" height="151" fill="#eceae4" opacity=".52"/>
+<rect x="76" y="34" width="1.4" height="151" fill="#edebe6" opacity=".88"/>
+<rect x="345" y="34" width="1.1" height="151" fill="#eeddb3" opacity=".48"/>
+<rect x="388" y="34" width="1.5" height="151" fill="#1f1c13" opacity=".7"/>
+<rect x="394.5" y="34" width="1.5" height="151" fill="#d0c3a2" opacity=".6"/>
+<path d="M30 11H95.385L78 34H10Z" fill="#f8f7f5" opacity=".63"/>
+<path d="M133.846 11H229.038L217 34H118Z" fill="url(#p-top)" opacity=".64"/>
+<path d="M232.885 11H393.462L388 34H221Z" fill="url(#p-top)" opacity=".75"/>
+<path d="M229.038 11H230.481L218.5 34H217Z" fill="#605026" opacity=".6"/>
+<path d="M232.885 11H233.942L222.1 34H221Z" fill="#edeae4" opacity=".64"/></g>
+  <path d="M401.154 11H658.846L664 34H396Z" fill="url(#p-top)" opacity=".62"/>
+  <rect x="396" y="34" width="268" height="151" fill="url(#p-center-metal)" data-surface="center-metal"/>
+  <path d="M30 11H1030L1050 34H10Z" fill="url(#p-top-polish)"/>
+  <rect x="10" y="34" width="1040" height="151" fill="url(#p-face-light)"/>
+  <g data-reflection="gloss" clip-path="url(#p-metal-face)">
+    <rect x="10" y="34" width="1040" height="151" fill="url(#p-gloss-face)"/>
+  </g>
+  <rect x="10" y="32.5" width="1040" height="2.5" fill="#f5f4f1" opacity=".78"/>
+  <rect x="10" y="35" width="1040" height="1.3" fill="#ebdcb5" opacity=".32"/>
+  <rect x="10" y="184" width="1040" height="1.5" fill="url(#p-front-rim)"/>
+  <path d="M30 0H1030L1060 29V191L1051 200H9L0 191V29Z" fill="none" stroke="url(#p-rim)" stroke-width="1.6"/>
+  <path d="M30 1H1030" fill="none" stroke="#c4ac6f" stroke-opacity=".48" stroke-width="1"/>
+</g>
+</g>
+<g id="point-note-emission" data-layer="emission" clip-path="url(#p-lit-surface)">
+  <rect x="78" y="29" width="53" height="161" fill="#ffcc00" opacity=".47" filter="url(#p-halo)"/>
+<path d="M111.731 11H133.846L118 34H95Z" fill="#fff9e3"/>
+<rect x="95" y="34" width="23" height="151" fill="url(#p-rail)"/>
+<rect x="95" y="34" width="1.5" height="151" fill="#fff"/>
+<rect x="116.5" y="34" width="1.5" height="151" fill="#fffcf2"/>
+<g transform="translate(1060 0) scale(-1 1)"><rect x="78" y="29" width="53" height="161" fill="#ffcc00" opacity=".47" filter="url(#p-halo)"/>
+<path d="M111.731 11H133.846L118 34H95Z" fill="#fff9e3"/>
+<rect x="95" y="34" width="23" height="151" fill="url(#p-rail)"/>
+<rect x="95" y="34" width="1.5" height="151" fill="#fff"/>
+<rect x="116.5" y="34" width="1.5" height="151" fill="#fffcf2"/></g>
+</g>
+</svg>

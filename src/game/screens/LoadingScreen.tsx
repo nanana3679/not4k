@@ -1,3 +1,4 @@
+import { formatDifficultyLabel } from '../../shared/chartDifficulty';
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
 import { loadSongData } from '../../supabase';
@@ -59,7 +60,7 @@ export function LoadingScreen() {
   return (
     <PageLoading
       message="Loading..."
-      sub={`${selectedSongId} - ${selectedDifficulty}`}
+      sub={`${selectedSongId} - ${formatDifficultyLabel(selectedDifficulty ?? '')}`}
     />
   );
 }

@@ -49,9 +49,9 @@ test.describe('Song Select Screen', () => {
 
   test('difficulty buttons rendered per song', async ({ page }) => {
     // Song 1: EASY, NORMAL, HARD; Song 2: NORMAL, HARD; Song 3: EASY, NORMAL
-    const easyButtons = page.getByRole('button', { name: 'EASY' });
-    const normalButtons = page.getByRole('button', { name: 'NORMAL' });
-    const hardButtons = page.getByRole('button', { name: 'HARD' });
+    const easyButtons = page.getByRole('button', { name: /LIFTOFF/ });
+    const normalButtons = page.getByRole('button', { name: /INFILTRATION/ });
+    const hardButtons = page.getByRole('button', { name: /BREAKTHROUGH/ });
 
     await expect(easyButtons).toHaveCount(2);
     await expect(normalButtons).toHaveCount(3);
@@ -59,7 +59,7 @@ test.describe('Song Select Screen', () => {
   });
 
   test('clicking difficulty navigates away from song select', async ({ page }) => {
-    await page.getByRole('button', { name: 'EASY' }).first().click();
+    await page.getByRole('button', { name: /LIFTOFF/ }).first().click();
     // Navigates to loading screen (shows "Loading..." briefly, then Supabase error)
     const loadingText = page.getByText('Loading...');
     const supabaseError = page.getByText('Supabase not configured');

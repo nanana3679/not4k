@@ -1,0 +1,15 @@
+{
+  "model": "gpt-6-astra",
+  "reasoning": "xhigh",
+  "size": "1024x1536",
+  "input": "input/body-trill-idle-column-1024x1536.png",
+  "common": "Edit the attached image. It is a straight-on front view of one vertical faceted quartz pillar filling the canvas edge to edge: two flat faces meet at a sharp vertical center ridge (left face lighter gray, right face darker gray), with slightly brighter outer edges. This is the idle state of a long-note body texture in a vertical-scrolling rhythm game. Create the 'held / switched on' state of the SAME pillar. Keep exactly the same silhouette, the same left/right face division, the same center ridge position and the same outer edge positions; the pillar must still read as the same faceted crystal column. Only lighting and material change to show that light has been switched on inside it. Strict rules: pure vertical stripe profile, nothing may change from top to bottom so it tiles seamlessly when stacked; no horizontal lines, bands, rings, gaps or segments; no particles, sparkles, noise, text, logos, background, perspective, vignette or top-to-bottom lighting change. Keep a neutral quartz identity (white, silver and gray) unless the variant says otherwise. Readability: a bright white diamond-shaped note head will be drawn on top of this texture, so keep large areas below pure white; concentrate the brightest light in narrow lines or cores and keep the faces at mid-tone gray. Polished premium game-UI material, crisp edges, not pixelated.",
+  "variants": {
+    "trill-on-core": "Variant core: a narrow luminous core of white light rises along the center ridge, with a soft inner glow spreading a short distance into both faces; the faces keep their gray tones and brighten only gently near the core.",
+    "trill-on-seam": "Variant seam: the center ridge opens into a thin, very bright seam of light, as if light leaks through a fine vertical crack in the crystal, with a tight glow hugging the seam; both faces become slightly darker than idle to frame the light.",
+    "trill-on-rails": "Variant rails: both outer edges of the pillar become thin glowing light rails running the full height; the center ridge catches a thin highlight; the faces stay mid-tone gray.",
+    "trill-on-inner": "Variant inner: the whole crystal is lit from within, the faces become translucent luminous pale gray with depth, while the center ridge and the outer edges remain crisply defined; overall one step brighter than idle but clearly not white.",
+    "trill-on-twin": "Variant twin: two thin vertical filaments of light are embedded inside the crystal, one running down the middle of each face, each with a soft glow; the center ridge stays visible between them; the faces stay mid-tone gray.",
+    "trill-on-ice": "Variant ice: like a luminous core along the center ridge with a soft glow into both faces, but the light is a subtle cool icy cyan-white (#bfefff to #e8fbff) only in the lit parts; the faces remain neutral gray."
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "generator": "built-in image_gen",
+  "method": "직전 자유 변형 A–F 각각에 같은 짧은 비율 수정 요청을 전달함. 세부 모양은 사전 지정하지 않음.",
+  "variants": [
+    {
+      "label": "A",
+      "id": "27-large-button-a-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/21-free-a-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    },
+    {
+      "label": "B",
+      "id": "28-large-button-b-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/22-free-b-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    },
+    {
+      "label": "C",
+      "id": "29-large-button-c-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/23-free-c-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    },
+    {
+      "label": "D",
+      "id": "30-large-button-d-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/24-free-d-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    },
+    {
+      "label": "E",
+      "id": "31-large-button-e-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/25-free-e-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    },
+    {
+      "label": "F",
+      "id": "32-large-button-f-v7",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/26-free-f-v6.png",
+      "prompt": "첨부 시안에서 하단의 누르는 버튼 면은 크게, 각 버튼 아래 빛이 나오는 출력구는 하나씩 작게 바꿔줘. 나머지는 유지하고, 세부 모양은 자유롭게 디자인해줘."
+    }
+  ]
+}

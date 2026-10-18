@@ -17,7 +17,7 @@
 
 ---
 
-**후속 결정:** RFD 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFD 0003이 `flightRule`의 도입 목적(입문 유저 동기 장치)과 Takeoff/Ascent의 관대한 밸런싱 방향을 확정한다. 특히 Ascent의 IIDX Hard Gauge 참조는 구조 참조이지 체감 난이도 참조가 아니다. RFD 0005가 `flightRule`을 2종(`Liftoff` = 종전 Takeoff/Ascent 통합, `Survival` = 종전 Breakthrough)으로 재편하고 명칭을 확정한다. 따라서 이 문서의 `Takeoff / Ascent / Breakthrough` 명칭은 현재 명칭이 아니다. RFD 0001의 Play/Observer 경계와 난이도 축 분리 결정은 유지한다.
+**후속 결정:** RFD 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFD 0003은 입문 유저 동기 부여와 관대한 밸런싱 방향을 정했고, RFD 0005는 `Liftoff / Survival` 2종으로 재편했다. 현재 명칭·분류는 [RFD 0022](0022-flight-difficulty-names-and-visuals.md)의 `Liftoff → Infiltration → Breakthrough`와 차트 난이도명 연결 관계를 따른다. 따라서 아래의 난이도명·`flightRule` 축 분리는 당시 결정이며 현재 분류로 복원하지 않는다. Play/Observer 경계와 `Lv.`·달성률·랭크의 구분은 유지한다. 현재 `Breakthrough`의 이름만으로 이 문서의 과거 세부 규칙을 승계하지 않는다.
 
 ## 1. 배경
 
@@ -188,8 +188,8 @@ Play에는 `flightRule`을 적용하되, 입력 가능한 무기록 완주 모�
 
 - 중앙 4레인은 어둡고 고정된 계기판처럼 유지한다.
 - 수평선, 격자, 원거리 비콘, 외곽 오브젝트만 `altitude`에 반응한다.
-- 높은 `altitude`에서는 수평선이 보이고 시야가 넓으며 오브젝트가 작고 느리다.
-- 낮은 `altitude`에서는 수평선이 낮아지고 근거리 격자가 커지며 속도감이 강해진다.
+- 높은 시각 고도에서는 수평선이 보이고 시야가 넓으며 오브젝트가 작고 느리다.
+- [RFD 0022](0022-flight-difficulty-names-and-visuals.md)에 따라 `Liftoff`는 시선 각도를 유지하며 고도가 변하고, `Infiltration`은 낮아질수록 시선이 아래로 회전하며 수평선이 위로 사라진다([RFD 0021](0021-low-altitude-downward-view.md)). `Breakthrough`는 낮은 고도에서 전방을 보는 숙련 비행을 유지한다. 낮은 시각 고도 자체를 공통 실패 상태로 해석하지 않는다.
 - 위험 상태에서도 레인 폭, 판정선, 리프트, 서든은 흔들지 않는다.
 - `altitude` 변화는 장식이 아니라 실제 `flightRule` 상태와 연결되어야 한다.
 

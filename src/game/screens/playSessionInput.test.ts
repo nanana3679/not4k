@@ -1,0 +1,194 @@
+import { describe, expect, it } from "vitest";
+import { InputTimeline } from "../input/InputTimeline";
+import { AutoPlayer } from "../input/AutoPlayer";
+import { GameClock } from "../time/GameClock";
+import { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
+import { body, point } from "../judgment/noteJudgmentTestHarness";
+import { compileJudgmentChart } from "../judgment/compiledJudgmentChart";
+import type { NoteEntity } from "../../shared/types";
+import { canFinishPlaySession, finishPlaySession, stepPlaySession } from "./playSessionInput";
+
+function play(
+  notes: readonly NoteEntity[],
+  offset = 0,
+  auto: boolean | readonly { startMs: number; endMs: number }[] = false,
+  latencyMs = 0,
+  playbackRate = 1,
+) {
+  const starts = new Map(notes.map((note, i) => [i, note.beat.n / note.beat.d]));
+  const ends = new Map(notes.flatMap((note, i) => "endBeat" in note ? [[i, note.endBeat.n / note.endBeat.d] as const] : []));
+  const compiled = compileJudgmentChart(notes, starts, ends);
+  const session = new NoteJudgmentSession(compiled);
+  const timeline = new InputTimeline();
+  const audio = { currentTimeMs: 0, playbackRate, getOutputLatencyMs: () => latencyMs };
+  const clock = new GameClock(audio, { visualOffsetMs: 0, inputOffsetMs: offset }, () => audio.currentTimeMs);
+  const autoRanges = Array.isArray(auto) ? auto : auto ? [{ startMs: 0, endMs: 5000 }] : [];
+  const player = new AutoPlayer(notes, starts, ends, autoRanges, compiled);
+  return {
+    session, timeline, clock,
+    canFinish(end: number, at: number) {
+      audio.currentTimeMs = at;
+      return canFinishPlaySession(session, clock, end, at);
+    },
+    input(observed: number, eventTime: number, key = "A", type: "down" | "up" = "down") {
+      audio.currentTimeMs = observed;
+      timeline.enqueue({ inputAt: clock.toInputTimeMs(eventTime), lane: 1, key, type });
+    },
+    frame(at: number) {
+      audio.currentTimeMs = at;
+      stepPlaySession(timeline, session, player, clock, at);
+    },
+    finish() {
+      finishPlaySession(timeline, session, player);
+      return session.finalize();
+    },
+  };
+}
+
+describe("실제 GameClock·입력 큐·Session 통합", () => {
+  it.each([-100, 100])("입력 offset %ims에서도 1000ms Point의 raw 1120ms 입력은 Good 경계까지 허용", offset => {
+    const p = play([point(1000)], offset);
+    const physicalTime = 1120 - offset;
+    p.frame(physicalTime - 1);
+    expect(p.session.events).toHaveLength(0);
+    p.input(physicalTime, physicalTime);
+    p.frame(physicalTime);
+    expect(p.session.events).toMatchObject([{ kind: "head", grade: "good", deltaMs: 120, inputAt: 1120 }]);
+    expect(p.clock.judgmentTimeMs()).toBe(physicalTime);
+    expect(p.clock.visualTimeMs()).toBe(physicalTime);
+  });
+
+  it("frame이 1400ms까지 늦어져도 큐의 down1000/up1100을 기한보다 먼저 원래 시각으로 처리", () => {
+    const p = play([point(1000), body(1000, 1100)]);
+    p.frame(900);
+    p.input(1000, 1000); p.input(1100, 1100, "A", "up");
+    p.frame(1400);
+    expect(p.session.events.map(event => [event.kind, event.grade, event.inputAt])).toEqual([
+      ["head", "perfect", 1000], ["release", "perfect", 1100],
+    ]);
+  });
+
+  it("core가 1080ms까지 진행한 뒤 도착한 event timestamp1000은 raw Perfect를 유지하고 관측1080에 확정", () => {
+    const p = play([point(1000)]);
+    p.frame(1080);
+    p.input(1080, 1000); p.frame(1080);
+    expect(p.session.events).toMatchObject([{ grade: "perfect", deltaMs: 0, inputAt: 1000, confirmedAt: 1080 }]);
+  });
+
+  it("1000ms Point가 1121ms에 Miss 확정된 후 늦은 timestamp1000을 전달해도 다시 정산하지 않음", () => {
+    const p = play([point(1000)]);
+    p.frame(1121);
+    p.input(1130, 1000); p.frame(1130);
+    expect(p.session.events).toHaveLength(1);
+    expect(p.session.events[0].grade).toBe("miss");
+  });
+
+  it("+200ms 입력 offset으로 manual이 raw1200까지 진행해도 raw1050 auto Point를 먼저 Perfect 처리", () => {
+    const p = play([point(1050, "single", 2)], 200, true);
+    p.frame(900);
+    p.input(1000, 1000);
+    p.frame(1000);
+    expect(p.session.events).toMatchObject([{ kind: "head", grade: "perfect", inputAt: 1050 }]);
+    expect(() => p.frame(1010)).not.toThrow();
+    expect(p.session.events).toHaveLength(1);
+  });
+
+  it("−50ms 입력 offset(50ms 늦게 누르는 사람의 보정)에서 1000ms 수동 Point를 입력 시각 1100에 치면, 1125ms auto Point가 뒤따라도 Miss가 아니라 Good", () => {
+    const p = play([point(1000, "single", 1), point(1125, "single", 2)], -50, [{ startMs: 1100, endMs: 5000 }]);
+    // 물리 1149ms 프레임: 입력 시간은 1099라 auto 1125를 아직 만들면 안 된다(만들면 core가 1120 기한을 넘겨 수동 노트가 Miss).
+    p.frame(1149);
+    expect(p.session.events).toHaveLength(0);
+    // 물리 1150ms에 누른 키 = 입력 시간 1150 + (−50) = 1100.
+    p.input(1150, 1150);
+    p.frame(1150);
+    expect(p.session.events[0]).toMatchObject({ kind: "head", grade: "good", deltaMs: 100, inputAt: 1100 });
+    p.frame(1200);
+    expect(p.session.events.map(event => [event.grade, event.inputAt])).toEqual([["good", 1100], ["perfect", 1125]]);
+  });
+
+  it("−50ms 입력 오프셋에서 1990ms auto Point는 음원 끝 2000ms에 미확정이고 대기 중 2040ms에 Perfect", () => {
+    const p = play([point(1990, "single", 2)], -50, true);
+    // 마지막 프레임: 진행 시각은 입력 시간 1950이라 1990 auto 입력은 아직 만들지 않는다.
+    p.frame(2000);
+    expect(p.session.events).toHaveLength(0);
+    expect(p.canFinish(2000, 2000)).toBe(false);
+    p.frame(2040);
+    expect(p.session.events).toMatchObject([{ kind: "head", grade: "perfect", inputAt: 1990 }]);
+    expect(p.canFinish(2000, 2160)).toBe(false);
+    expect(p.canFinish(2000, 2161)).toBe(true);
+    expect(p.finish().judgmentCounts.perfect).toBe(1);
+  });
+});
+
+describe("곡 끝과 마지막 판정 기한", () => {
+  it("L₀=15ms에서 마지막 기한 620ms를 지나도 P=2014ms이면 2000ms 곡을 끝내지 않고 P=2015ms부터 끝낸다", () => {
+    const p = play([point(500)], 0, false, 15);
+    p.frame(2014);
+    expect(p.canFinish(2000, 2014)).toBe(false);
+    expect(p.canFinish(2000, 2015)).toBe(true);
+  });
+
+  it("L₀=15ms·입력 −50ms에서 1990ms 노트의 Good 끝 2110ms는 P=2175ms까지 열려 있고 P=2176ms에 끝난다", () => {
+    const p = play([point(1990)], -50, false, 15);
+    p.frame(2015); // J는 곡 끝, 진행 상한은 1950.
+    expect(p.canFinish(2000, 2015)).toBe(false);
+    expect(p.session.events).toHaveLength(0);
+    p.frame(2175);
+    expect(p.canFinish(2000, 2175)).toBe(false);
+    expect(p.session.events).toHaveLength(0);
+    p.input(2175, 2175);
+    p.frame(2175);
+    expect(p.session.events).toMatchObject([{ grade: "good", inputAt: 2110 }]);
+    p.frame(2176);
+    expect(p.canFinish(2000, 2176)).toBe(true);
+    expect(p.finish().judgmentCounts.miss).toBe(0);
+  });
+
+  it("r=2·L₀=20ms·입력 −50ms이면 1990ms 노트의 기한 2110ms는 P=2250ms까지 열리고 2251ms에 닫힌다", () => {
+    const p = play([point(1990)], -50, false, 20, 2);
+    p.frame(2040);
+    expect(p.clock.judgmentTimeMs()).toBe(2000);
+    expect(p.session.events).toHaveLength(0);
+    expect(p.canFinish(2000, 2250)).toBe(false);
+    p.frame(2251);
+    expect(p.canFinish(2000, 2251)).toBe(true);
+    expect(p.finish().judgmentCounts.miss).toBe(1);
+  });
+
+  it("입력 +200ms로 큐가 2200ms까지 앞서도 J=2000ms가 마지막 기한 2110ms를 넘기 전에는 정산하지 않는다", () => {
+    const p = play([point(1990)], 200);
+    p.input(2000, 2000);
+    p.frame(2000);
+    expect(p.session.core.time).toBe(2200);
+    expect(p.canFinish(2000, 2000)).toBe(false);
+    expect(p.canFinish(2000, 2110)).toBe(false);
+    expect(p.canFinish(2000, 2111)).toBe(true);
+  });
+
+  it("시작 1000ms·끝 3000ms 바디가 있으면 곡 길이 2000ms를 넘어 마지막 끝점 기한 3120ms까지 기다린다", () => {
+    const p = play([point(1000), body(1000, 3000)]);
+    expect(p.session.latestJudgmentDeadlineMs).toBe(3120);
+    expect(p.canFinish(2000, 2000)).toBe(false);
+    expect(p.canFinish(2000, 3120)).toBe(false);
+    expect(p.canFinish(2000, 3121)).toBe(true);
+  });
+
+  it("L₀=50ms일 때 P=2000ms에서는 1990ms 노트를 미리 Miss 처리하지 않고 P=2161ms에 처리한다", () => {
+    const p = play([point(1990)], 0, false, 50);
+    p.frame(2000);
+    expect(p.canFinish(2000, 2000)).toBe(false);
+    expect(p.session.events).toHaveLength(0);
+    p.frame(2160);
+    expect(p.session.events).toHaveLength(0);
+    p.frame(2161);
+    expect(p.canFinish(2000, 2161)).toBe(true);
+    expect(p.finish().judgmentCounts.miss).toBe(1);
+  });
+
+  it("노트 0개·길이 2000ms이면 J=2000ms에 끝나고 길이 0ms인 미로딩 음원은 끝내지 않는다", () => {
+    const p = play([]);
+    expect(p.canFinish(2000, 1999)).toBe(false);
+    expect(p.canFinish(2000, 2000)).toBe(true);
+    expect(p.canFinish(0, 2000)).toBe(false);
+  });
+});

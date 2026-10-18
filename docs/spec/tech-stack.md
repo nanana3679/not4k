@@ -264,46 +264,30 @@ AudioContext.currentTime (오디오 하드웨어 스레드)
 ```
 [매 프레임 (requestAnimationFrame)]
 
-1. songTime = audioCtx.currentTime - songStartTime
-2. 노트 렌더링: songTime 기준으로 각 노트의 화면 위치 계산
-3. Miss 판정: songTime이 노트 시점 + Bad 윈도우(160ms)를 지나면 Miss
-4. 키 입력 처리: 입력 시점의 songTime과 가장 이른 노트의 시점 비교 → 판정
+1. GameClock에서 판정 시간·시각 시간·입력 시간을 구분해 읽음
+2. 수집된 키보드·합성 입력을 원래 timestamp별로 Session에 전달
+3. 입력 오프셋을 고려한 진행 시각까지 Good 기한과 바디 상태를 처리
+4. 확정 묶음의 점수·효과를 적용하고 시각 시간으로 렌더링
 ```
 
 ### 오디오 레이턴시 보정
 
+[RFD 0031](../rfd/0031-audio-first-timing-model.md)의 소리 기준 타이밍 모델을 사용한다.
+
 ```
-실제 소리 출력 시점 = AudioContext.currentTime + outputLatency
+L₀ = (baseLatency + outputLatency) × 1000  // 실제 ms, 곡마다 고정
+J = P − L₀·r
+V = J + visualOffsetMs·r
+입력 = J − handlerDelay·r + inputOffsetMs·r
 ```
 
-- `audioCtx.outputLatency`: 오디오 버퍼가 실제 스피커에서 재생되기까지의 지연. 유선 이어폰 ~15-25ms, 블루투스 ~150-180ms.
-- 시각적 노트 위치를 `outputLatency`만큼 보정하여, 유저가 보는 노트와 듣는 소리가 일치하도록 한다.
-- `game-core.md`의 오디오 오프셋 + 입력 오프셋 시스템이 이를 보완한다.
+`outputLatency`는 기능 감지하고 미지원이면 그 몫만 0으로 둔다. 지원하지만 0을 보고하면 안정된 값으로 보지 않고 계속 관측한다. `AudioEngine.prepareForPlayback()`이 로딩 중 running 컨텍스트에 무음을 출력하면서 25ms 간격으로 관측한다. 무음 시작부터 `performance.now()`로 잰 실제 최소 100ms 이후 최근 연속 3개 안정 후보 값 차이가 0.1ms 이하면 확정하며, 실제 500ms 이후 첫 관측에서는 마지막 보고값을 쓴다. 합산 지연이 유한하지 않으면 0ms를 쓴다. 준비 전 `AudioContext.resume()`에는 별도로 2초 제한을 두고, 초과하면 준비를 거부해 `PlayScreen`의 오류 화면으로 보낸다. L₀는 pause/resume 동안 유지하고 새 engine을 만드는 Retry·다음 곡에서 다시 읽는다. 계산·부호·남은 오차는 [오디오·비주얼 동기화](audio-visual-sync.md)를 따른다.
 
 ### 오디오 로딩과 재생
 
-```js
-// 1. 음원 로딩 (곡 선택 → 로딩 화면)
-const response = await fetch(songUrl);
-const arrayBuffer = await response.arrayBuffer();
-const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+음원은 먼저 디코딩한다. `PlayScreen`은 `AudioEngine`을 만들고 실제 배속·볼륨을 설정한 뒤 스킨 로딩과 L₀ 준비를 병렬로 기다린다. 준비가 끝나면 `GameClock`을 만들고 렌더러 초기화·GPU warm-up을 마친 후 음원을 재생한다. 첫 프레임부터 확정한 L₀를 쓴다.
 
-// 2. 재생 시작 (플레이 화면 진입)
-const source = audioCtx.createBufferSource();
-source.buffer = audioBuffer;
-source.connect(audioCtx.destination);
-
-const songStartTime = audioCtx.currentTime;
-source.start(songStartTime);
-
-// 3. 게임 루프에서 현재 곡 시점 계산
-function gameLoop() {
-  const songTime = audioCtx.currentTime - songStartTime;
-  updateNotes(songTime);
-  checkJudgments(songTime);
-  requestAnimationFrame(gameLoop);
-}
-```
+P는 `AudioContext.currentTime` 경과에 r을 곱한 곡 시간이다. 음원은 지정한 `gameplayRange` 끝에서 멈추지만 시계는 계속 진행한다. `onended` 콜백 시각으로 기준을 다시 잡지 않는다. 결과 전환은 J의 구간 끝 도달과 진행 상한의 마지막 Good 기한 경과를 모두 기다린다. 대기 중 pause/resume은 P를 멈췄다가 이어 가고 음원을 다시 시작하지 않는다.
 
 ### 효과음 (히트 사운드)
 

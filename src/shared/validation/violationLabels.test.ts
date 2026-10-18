@@ -9,7 +9,7 @@ import type { ValidationError, ValidationErrorRule } from "./index";
 import { beat } from "../types/beat";
 import type { NoteEntity, TrillZone, RestZone, ChartEvent } from "../types/chart";
 
-// ValidationError["rule"] 유니온 16종 전수 — 새 rule이 추가되면 이 배열과
+// ValidationError["rule"] 유니온 17종 전수 — 새 rule이 추가되면 이 배열과
 // RULE_SEVERITY·카탈로그가 함께 갱신돼야 한다 (Record 타입이 컴파일 타임에도 강제).
 const ALL_RULES: ValidationErrorRule[] = [
   "duplicate",
@@ -22,6 +22,7 @@ const ALL_RULES: ValidationErrorRule[] = [
   "eventOverlap",
   "eventDuplicate",
   "tutorialInputOverlap",
+  "noteConstraint",
   "stopZone",
   "timeSigNotNatural",
   "timeSigNotAtMeasureStart",
@@ -40,7 +41,7 @@ const err = (rule: ValidationErrorRule, message: string): ValidationError => ({
 // =========================================================================
 
 describe("RULE_SEVERITY", () => {
-  it("16개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
+  it("17개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
     for (const rule of ALL_RULES) {
       expect(["structural", "semantic"]).toContain(RULE_SEVERITY[rule]);
     }
@@ -96,13 +97,13 @@ describe("RULE_SEVERITY", () => {
     }
   });
 
-  it("structural은 정확히 4종, semantic은 정확히 12종", () => {
+  it("structural은 정확히 4종, semantic은 정확히 13종", () => {
     const structural = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "structural");
     const semantic = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "semantic");
     expect(structural.sort()).toEqual(
       ["beatMalformed", "laneMalformed", "rangeInverted", "timeSigNotNatural"].sort(),
     );
-    expect(semantic).toHaveLength(12);
+    expect(semantic).toHaveLength(13);
   });
 });
 
@@ -111,7 +112,7 @@ describe("RULE_SEVERITY", () => {
 // =========================================================================
 
 describe("violationLabel", () => {
-  it("16개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
+  it("17개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
     for (const rule of ALL_RULES) {
       const label = violationLabel(rule, "ko");
       expect(label, `rule=${rule}`).toBeTruthy();

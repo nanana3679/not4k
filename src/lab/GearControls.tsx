@@ -1,0 +1,56 @@
+import { GEAR_MOTION_LAYER_LABELS, GEAR_MOTION_LAYERS, type GearMotionLayer, type GearMotionLayerVisibility } from '../game/renderer/gearMotionData';
+
+/** Gear 조절 패널과 Pixi ↔ SVG 비교가 함께 쓰는 라디오 묶음. */
+export function RadioGroup<T extends string | number>({ legend, name, value, options, onChange, note }: {
+  legend: string;
+  name: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+  /** 선택지 아래 안내 문장. */
+  note?: string;
+}) {
+  return (
+    <fieldset className="gear-preview-group">
+      <legend>{legend}</legend>
+      <div className="gear-preview-options">
+        {options.map((option) => (
+          <label className="gear-preview-option" key={option.value}>
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={option.value === value}
+              onChange={() => onChange(option.value)}
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+      {note && <p className="gear-preview-note">{note}</p>}
+    </fieldset>
+  );
+}
+
+/** `gearMotion` 요소 체크(`gearMotion` 시안 SVG 시연 페이지 `ambient-motion.html`과 같은 이름 A~D). Lab 미리보기의 게임 렌더러와 비교 화면에 함께 적용한다. */
+export function GearMotionLayerChecks({ value, onChange }: {
+  value: GearMotionLayerVisibility;
+  onChange: (layer: GearMotionLayer, visible: boolean) => void;
+}) {
+  return (
+    <div className="gear-preview-checks">
+      {GEAR_MOTION_LAYERS.map((layer) => (
+        <label className="gear-preview-check" key={layer}>
+          <input
+            type="checkbox"
+            name="gear-motion-layer"
+            value={layer}
+            checked={value[layer]}
+            onChange={(event) => onChange(layer, event.currentTarget.checked)}
+          />
+          <span>{GEAR_MOTION_LAYER_LABELS[layer]}</span>
+        </label>
+      ))}
+    </div>
+  );
+}

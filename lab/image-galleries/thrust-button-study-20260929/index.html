@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>추진부 버튼 · 정면 분출</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; scroll-behavior: smooth; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.65; word-break: keep-all; }
+    main { max-width: 1200px; margin: auto; padding: 28px clamp(18px, 4vw, 48px) 72px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    a:focus-visible, summary:focus-visible { outline: 2px solid #a3d9ff; outline-offset: 5px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+    nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 42px 0 32px; }
+    .eyebrow { color: #a8b9cb; font-size: 13px; letter-spacing: .08em; }
+    h1 { margin: 8px 0 16px; font-size: clamp(28px, 4.5vw, 46px); font-weight: 650; line-height: 1.25; }
+    .intro { max-width: 700px; color: #b8c4d0; margin: 0; }
+    .decision { padding-left: 18px; border-left: 2px solid #9cc9e8; margin: 24px 0; }
+    .decision strong { display: block; color: #e8edf2; margin-bottom: 4px; }
+    .decision p { margin: 0; color: #b8c4d0; }
+    .jump { padding: 8px 0 20px; border-bottom: 1px solid #343c46; }
+    .study { padding-top: 40px; scroll-margin-top: 20px; }
+    .study h2 { margin: 0; font-size: clamp(21px, 3vw, 28px); font-weight: 600; }
+    .number { display: inline-block; color: #8eabc1; margin-right: 16px; font-weight: 400; }
+    .study p { margin: 8px 0 20px; max-width: 740px; color: #b8c4d0; }
+    figure { margin: 0; }
+    .artwork { display: block; background: #090c11; }
+    img { display: block; width: 100%; height: auto; }
+    figcaption { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #a8b9cb; font-size: 14px; padding: 10px 0; }
+    figcaption a { display: inline-flex; align-items: center; min-height: 44px; }
+    figcaption span { align-self: center; }
+    details { margin-top: 36px; padding-top: 20px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; padding: 8px 0 16px; min-height: 44px; }
+    details p { color: #b8c4d0; max-width: 720px; }
+    footer { border-top: 1px solid #343c46; margin-top: 32px; padding-top: 16px; }
+    @media (max-width: 600px) { header { margin-top: 26px; } .study { padding-top: 30px; } .number { margin-right: 10px; } }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a></nav>
+    <header>
+      <div class="eyebrow">CLASSIC / 2026.09.29</div>
+      <h1>사용자를 향하는 추진부</h1>
+      <p class="intro">빛이 화면 앞의 사용자를 향해 퍼집니다. 같은 분출 방향을 유지한 채 버튼 외형을 새로 비교합니다.</p>
+      <div class="decision"><strong>유지하는 기준</strong><p>분출구 하나 · 싱글은 연파랑 · 더블은 금색. 기구와 빛의 모양을 유지하며 색만 즉시 바뀝니다. 이전 3번은 방향의 기준이며 외형은 새로 탐색합니다.</p></div>
+    </header>
+    <nav class="jump" aria-label="시안 바로가기">
+      <a href="#study-1">01 낮은 일체형</a><a href="#study-2">02 겹친 장갑형</a><a href="#study-3">03 매립형 광창</a>
+    </nav>
+    <section class="study" id="study-1" aria-labelledby="title-1">
+      <h2 id="title-1"><span class="number">01</span>낮은 일체형</h2>
+      <p>낮은 쐐기형 본체의 앞면에 가로 출구 하나를 넣었습니다. 외곽을 간결하게 잇고 얇은 빛이 앞으로 퍼지는 방향입니다.</p>
+      <figure><a class="artwork" href="07-forward-slit.png" aria-label="01 낮은 일체형 원본 확대"><img src="07-forward-slit.png" width="1774" height="887" alt="낮은 일체형 버튼의 구멍 하나에서 사용자를 향하는 연파랑·금색 분출 비교" loading="eager" decoding="async"></a>
+        <figcaption><span>왼쪽부터 기본 · 싱글 · 더블</span><a href="07-forward-slit.png" download>01 PNG 다운로드</a></figcaption>
+      </figure>
+    </section>
+    <section class="study" id="study-2" aria-labelledby="title-2">
+      <h2 id="title-2"><span class="number">02</span>겹친 장갑형</h2>
+      <p>겹친 금속 면이 하나의 각진 출구를 감쌉니다. 앞면의 꺾인 윤곽과 깊이로 기계적인 인상을 만드는 방향입니다.</p>
+      <figure><a class="artwork" href="08-forward-armor.png" aria-label="02 겹친 장갑형 원본 확대"><img src="08-forward-armor.png" width="1774" height="887" alt="겹친 장갑형 버튼의 구멍 하나에서 사용자를 향하는 연파랑·금색 분출 비교" loading="lazy" decoding="async"></a>
+        <figcaption><span>왼쪽부터 기본 · 싱글 · 더블</span><a href="08-forward-armor.png" download>02 PNG 다운로드</a></figcaption>
+      </figure>
+    </section>
+    <section class="study" id="study-3" aria-labelledby="title-3">
+      <h2 id="title-3"><span class="number">03</span>매립형 광창</h2>
+      <p>매끈한 앞면 안에 출구 하나를 매립했습니다. 얇은 모서리와 어두운 내부를 두고 빛이 정면으로 드러나는 방향입니다.</p>
+      <figure><a class="artwork" href="09-forward-inset.png" aria-label="03 매립형 광창 원본 확대"><img src="09-forward-inset.png" width="1774" height="887" alt="매립형 버튼의 구멍 하나에서 사용자를 향하는 연파랑·금색 분출 비교" loading="lazy" decoding="async"></a>
+        <figcaption><span>왼쪽부터 기본 · 싱글 · 더블</span><a href="09-forward-inset.png" download>03 PNG 다운로드</a></figcaption>
+      </figure>
+    </section>
+    <details id="reference">
+      <summary>방향 기준이 된 이전 3번 펼치기</summary>
+      <p>사용자를 향해 분출되는 방향만 기준으로 삼았습니다. 원형 출구와 버튼 외형은 채택하지 않았습니다.</p>
+      <a class="artwork" href="06-single-nozzle.png" aria-label="이전 3번 방향 참고 이미지 원본 확대"><img src="06-single-nozzle.png" width="1774" height="887" alt="분출 방향만 기준으로 삼은 이전 원형 분출구 시안" loading="lazy" decoding="async"></a>
+    </details>
+    <footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="#study-1">첫 시안으로</a></nav></footer>
+  </main>
+</body>
+</html>

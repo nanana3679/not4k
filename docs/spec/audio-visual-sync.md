@@ -1,205 +1,74 @@
 # not4k — 오디오-비주얼 동기화
 
-> 플레이어가 보는 노트 위치, 듣는 음악, 누르는 입력이 일치하도록 각 구간의 레이턴시를 보정하는 설계.
+> [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 1의 계산식·설정·곡 끝 처리를 구현했다. 입력·시각 캘리브레이션(PR 2·3)과 auto 키빔·키봄 시각 시간 적용(#245)은 후속이다.
 
----
-
-## 문제 정의
-
-브라우저 리듬 게임에서 플레이어는 3개의 독립적인 지연 경로를 경험한다:
+플레이어가 듣는 소리를 판정과 화면의 기준으로 삼는다. 출력·화면·입력의 지연은 서로 다른 경로에서 생긴다.
 
 ```
-[오디오]  AudioContext 재생 → DAC → 스피커 → 귀     (audio output latency)
-[비주얼]  Y 위치 계산 → GPU → V-Sync → 모니터 → 눈  (display latency)
-[입력]    키 누름 → USB → OS → 브라우저 → JS 핸들러  (input latency)
+[오디오] AudioContext → 출력 장치 → 귀                  L
+[화면]   위치 계산 → GPU → V-Sync → 모니터 → 눈         D
+[입력]   키 누름 → OS → KeyboardEvent.timeStamp          I
+         timeStamp → JS 핸들러                         handlerDelay
 ```
 
-현재 구현은 `audioEngine.currentTimeMs`를 단일 기준으로 사용하여 렌더링과 판정을 모두 수행한다. 이 값은 **오디오 버퍼에 데이터를 넣은 시점**이지 **스피커에서 소리가 나는 시점**이 아니므로, 오디오 출력 레이턴시만큼 시각과 청각이 어긋난다.
-
----
-
-## 구간별 레이턴시 분석
-
-### 1. 오디오 출력 레이턴시
-
-Web Audio API의 출력 지연은 두 값의 합이다:
-
-```
-audioOutputLatency = audioContext.baseLatency + audioContext.outputLatency
-```
-
-| 환경 | baseLatency | outputLatency | 합계 |
-|------|-------------|---------------|------|
-| Chrome / Windows (WASAPI) | 3~12ms (버퍼 128~256 frames @ 44.1~48kHz) | ~10ms | 13~22ms |
-| Chrome / macOS (CoreAudio) | ~3ms (128 frames @ 48kHz) | ~10ms | ~13ms |
-| Firefox / Windows | 3~12ms | ~20ms | 23~32ms |
-
-`baseLatency`는 오디오 처리 그래프의 내부 버퍼링 지연이며, 실제 값은 샘플레이트와 버퍼 크기에 따라 달라진다. Windows에서 WASAPI 기본 버퍼가 128 frames @ 44.1kHz이면 ~2.9ms이지만, 256 frames이나 공유 모드에서는 ~6~12ms까지 올라갈 수 있다. 위 테이블의 합계는 범위로 표기한다.
-
-**핵심**: `audioEngine.currentTimeMs`가 1000ms일 때, 플레이어가 실제로 소리를 듣는 시점은 유선 환경 기준 1013~1032ms이다.
-
-### 2. 디스플레이 레이턴시
-
-렌더링 파이프라인의 지연:
-
-```
-rAF 콜백 실행 → GPU 처리 → V-Sync 대기 → 모니터 스캔아웃 → 응답 시간
-```
-
-| 구간 | 60Hz | 144Hz |
-|------|------|-------|
-| GPU 처리 | 1~3ms | 1~3ms |
-| V-Sync 평균 대기 | ~8ms | ~3.5ms |
-| 모니터 응답 시간 | 5~15ms | 1~5ms |
-| **합계** | ~17~26ms | ~6~12ms |
-
-**핵심**: rAF에서 계산한 노트 위치는 실제로 1~2프레임 뒤에 화면에 표시된다.
-
-### 3. 입력 레이턴시
-
-키보드 입력이 JS 핸들러에 도달하기까지:
-
-| 구간 | 최소 (광축+1kHz) | 일반 (기계식+1kHz) | 최악 (멤브레인+125Hz) |
-|------|------------------|--------------------|-----------------------|
-| 스위치 + 디바운스 | 0.4ms | 5.5ms | 20ms |
-| USB 폴링 대기 | 0~1ms | 0~1ms | 0~8ms |
-| OS + 브라우저 처리 | 1.3ms | 2.5ms | 6ms |
-| **합계** | ~2ms | ~9ms | ~34ms |
-
----
-
-## 현재 구현의 문제점
-
-### 문제 1: 오디오-비주얼 불일치
-
-```ts
-// PlayScreen.tsx — 현재 코드
-const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
-judgmentEngine.update(songTimeMs);   // 판정: audioEngine 기준
-renderer.renderFrame(songTimeMs);     // 렌더링: 같은 기준
-```
-
-렌더링과 오디오가 같은 `songTimeMs`를 사용하므로:
-- 노트가 판정선에 도달하는 시각 = `audioEngine.currentTimeMs` 기준
-- 플레이어가 소리를 듣는 시각 = `audioEngine.currentTimeMs + audioOutputLatency`
-- **결과**: 노트가 판정선에 닿는 것을 본 뒤 소리가 늦게 들림 (또는 소리 기준으로 치면 노트가 이미 지나감)
-
-### 문제 2: event.timeStamp 미사용
-
-```ts
-// PlayScreen.tsx — 현재 코드
-onLanePress: (lane, _timestampMs, keyCode) => {
-  const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
-  judgmentEngine.onLanePress(lane, songTimeMs, keyCode);
-};
-```
-
-`InputSystem`이 전달하는 `event.timeStamp`를 무시하고 핸들러 실행 시점의 `audioEngine.currentTimeMs`를 사용한다. 메인 스레드가 바쁘면 핸들러 실행이 수~수십 ms 지연되어, 실제 키 입력 시점보다 늦은 오디오 시각을 판정에 사용하게 된다.
-
----
+`AudioEngine.currentTimeMs`는 `AudioContext.currentTime` 기반 곡 위치 P다. 실제 경과 시간에 실제 배속 r(`AudioEngine.playbackRate`, 0.1~4.0)을 곱하며, `gameplayRange`의 시작을 0ms로 삼는다. 브라우저가 보고하는 출력 지연과 사용자 오프셋·handlerDelay는 실제 시간 ms이므로 곡 시간에 적용할 때 r을 곱한다.
 
 ## 보정 설계
 
-### A. 오디오 출력 레이턴시 보정 (렌더링 시각 보정)
-
-**원리**: 오디오가 스피커에서 나오는 시점에 노트가 판정선 위에 있도록, 렌더링 시각을 오디오 출력 레이턴시만큼 앞당긴다.
-
-```ts
-// 보정 후
-const audioOutputLatencyMs =
-  (audioCtx.baseLatency + audioCtx.outputLatency) * 1000;
-
-const songTimeMs = audioEngine.currentTimeMs + settings.offsetMs;
-const visualTimeMs = songTimeMs + audioOutputLatencyMs;
-
-judgmentEngine.update(songTimeMs);      // 판정: 보정 없이 원래 기준
-renderer.renderFrame(visualTimeMs);      // 렌더링: 오디오 출력 지연만큼 미래
-```
-
-**효과**:
-- 스피커에서 비트가 나오는 순간 노트가 판정선 위에 있음
-- 보정량: 유선 환경 기준 13~32ms
-- 판정 로직은 변경 없음 — 렌더링만 영향
-
-**주의사항**:
-- `audioContext.outputLatency`는 Chrome 102+, Firefox 70+에서 지원. Safari는 미지원이므로 폴백 필요
-- 폴백 기본값: 0ms (보정 없음 = 현재와 동일 동작)
-- `outputLatency`가 미지원이면 `baseLatency`만 사용 (부분 보정)
-
-### B. event.timeStamp 기반 입력 보정
-
-**원리**: 키 입력의 실제 발생 시각(`event.timeStamp`)을 오디오 타임라인으로 변환하여, 핸들러 실행 지연의 영향을 제거한다.
-
-```ts
-onLanePress: (lane, timestampMs, keyCode) => {
-  const now = performance.now();
-  const currentAudioMs = audioEngine.currentTimeMs;
-  const handlerDelay = Math.max(0, now - timestampMs);
-  const correctedSongTimeMs = (currentAudioMs - handlerDelay) + settings.offsetMs;
-
-  judgmentEngine.onLanePress(lane, correctedSongTimeMs, keyCode);
-};
-```
-
-**효과**:
-- 메인 스레드 블로킹 시에도 정확한 입력 시각 사용
-- 보정량: 보통 0~5ms, 부하 시 수십 ms
-
-**주의사항**:
-- `event.timeStamp`와 `performance.now()`는 같은 시계 원점(`performance.timeOrigin`)을 사용하므로 뺄셈이 유효
-- **시계 드리프트**: `audioEngine.currentTimeMs`가 `AudioContext.currentTime` 기반이라면 별도의 시계(AudioContext 클럭)이다. `performance.now()`와 AudioContext 클럭 사이에 장시간 재생 시 미세한 드리프트가 발생할 수 있다. 현재 구현에서 `audioEngine.currentTimeMs`가 `AudioContext.currentTime`을 직접 사용하는지 확인하고, 드리프트가 문제가 되면 주기적으로 두 시계를 재동기화하는 방안을 검토한다
-- `event.timeStamp` 정밀도는 브라우저 보안 정책에 따라 제한됨:
-  - Chrome: 기본 5µs 정밀도. Cross-Origin Isolation 없으면 `performance.now()`는 100µs로 제한되나, `event.timeStamp`는 별도 정책 적용
-  - Firefox: `privacy.reduceTimerPrecision` 기본 활성으로 ~1ms 단위 (버전에 따라 다름). `resistFingerprinting` 활성 시 100ms 단위로 반올림
-- Cross-Origin Isolation 헤더로 모든 타이머 정밀도 최대화 가능:
-  ```http
-  Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Embedder-Policy: require-corp
-  ```
-  단, 외부 리소스(CDN, 이미지, 오디오 스트리밍) 호환성 확인 필요
-
-### C. 디스플레이 레이턴시 보정
-
-모니터 응답 시간과 V-Sync 지연을 자동 측정할 방법이 없으므로, **사용자 오프셋으로 대체**한다.
-
-기존 `game-core.md`의 오프셋 설계와 동일:
-- **오디오 오프셋**: 오디오 출력 지연 보정 (A에서 자동화되지 않는 잔여분)
-- **입력 오프셋**: 입력 장치 + 디스플레이 지연 + 개인 체감 보정
-
----
-
-## 구현 우선순위
-
-| 순위 | 작업 | 체감 개선 | 난이도 | 비고 |
-|------|------|-----------|--------|------|
-| 1 | A. 오디오 출력 레이턴시 보정 | 13~32ms | 낮음 | 유선 환경에서도 체감 효과 있음 |
-| 2 | B. event.timeStamp 입력 보정 | 0~15ms (부하 시) | 낮음 | 기존 InputSystem이 이미 전달 중 |
-| 3 | 오프셋 캘리브레이션 UI | 잔여 전부 | 중간 | `[미구현]` — game-core.md 참조 |
-| 4 | C. 디스플레이 보정 | 6~26ms | 높음 | 자동 측정 불가, 오프셋으로 대체 |
-| 5 | Cross-Origin Isolation | 정밀도 향상 | 낮음 | 서버 헤더 설정만 필요, 단 외부 리소스 호환성 확인 필요 |
-
----
-
-## 이상적인 동기화 상태
-
-모든 보정이 적용된 후의 목표:
+### A. 소리 기준 판정·시각 시간
 
 ```
-시점 T에서:
-  - 스피커에서 비트 소리가 남
-  - 노트가 정확히 판정선 위에 있음 (화면에 표시됨)
-  - 플레이어가 이 순간 키를 누르면 deltaMs ≈ 0
+L₀ = (baseLatency + outputLatency) × 1000  // 재생 전 한 번 확정, 실제 ms
+J = P − L₀·r
+V = J + visualOffsetMs·r
 ```
 
-디버그 모드(`docs/spec/debug-mode.md`)로 검증 가능한 지표:
-- Summary의 `Avg deltaMs` 편향이 0에 가까움 → 오디오-입력 동기화 성공
-- `yDifference`가 `deltaMs × scrollSpeed / 1000`과 일치 → 오디오-비주얼 동기화 성공
-- Summary의 `Offset Recommendation`이 "현재 오프셋이 적절합니다" → 전체 동기화 성공
+`AudioEngine.prepareForPlayback()`은 스킨 로딩과 병렬로 진행한다. `AudioContext.resume()`이 2초 안에 끝나지 않으면 원인을 설명하는 오류로 준비를 거부하고 `PlayScreen`의 오류 화면으로 간다. resume이 끝나 running이 되면 무음 반복 버퍼를 출력에 연결한다. 25ms 간격으로 지연을 읽고 최소 100ms 후 최근 연속 3개 안정 후보 값의 차이가 0.1ms 이하면 마지막 값을 확정한다. 100ms·500ms는 반복 횟수가 아니라 무음 출력 시작부터 `performance.now()`로 잰 실제 경과 시간이다. 500ms까지 안정되지 않으면 마지막 보고값을 쓰며, 콜백이 늦어지면 500ms가 지난 뒤 처음 실행되는 관측에서 확정한다. `baseLatency`와 `outputLatency`는 각각 검사하며 NaN·Infinity 등 유한하지 않은 성분만 0으로 두고 다른 성분은 유지한다. 유한한 성분을 합산하고 ms로 변환한 결과가 오버플로하면 0ms를 쓴다. 무음은 정리하고, 준비 Promise를 기다린 뒤 `GameClock`을 만들어 첫 판정·렌더 프레임부터 L₀를 쓴다. 준비 중 컨텍스트가 closed·interrupted 등 running이 아닌 상태가 되면 준비를 거부하고 무음을 정리한다. 미준비·실패 상태에서 L₀를 읽으면 오류다.
 
----
+`outputLatency`는 기능 감지하며 없으면 그 몫만 0으로 두고 `baseLatency`는 유지한다. 지원하지만 0을 보고하면 아직 안정되지 않은 것으로 보고 연속 안정 후보를 비운다. 이후 0이 아닌 값이 안정될 때까지 관측하며, 계속 0이면 실제 500ms까지 기다린 뒤 `baseLatency`만 반영한다. 준비 결과는 일시정지·재개와 중복 준비 호출에서 유지하고, 새 `AudioEngine`을 만드는 Retry·다음 곡에서 다시 읽는다. 곡 중 장치 변경은 반영하지 않는다. 실제 장치 지연과 브라우저 보고값의 고정 오차는 두 사용자 오프셋으로 보정할 수 있다.
+
+노트·마디선·구간처럼 시간으로 위치를 정하는 렌더링에는 V를 전달한다. 시각 오프셋은 판정에 영향을 주지 않는다. auto 키빔·키봄은 아직 기존 확정·auto 입력 경로를 사용하며, V에 맞추는 변경은 #245에서 한다.
+
+### B. event.timeStamp 기반 입력 시간
+
+```
+handlerDelay = max(0, performance.now() − event.timeStamp)
+입력 시간 = J − handlerDelay·r + inputOffsetMs·r
+```
+
+`InputSystem`이 전달한 timestamp를 `GameClock.toInputTimeMs`에서 변환한다. `performance.now()`와 이벤트 timestamp의 짧은 차이만 AudioContext 기반 현재 J에 적용하므로 두 클럭의 원점을 직접 비교하지 않는다. 미래 timestamp의 handlerDelay는 0이다. timestamp 이전의 장치 지연 I와 개인 체감은 입력 오프셋이 맡는다. 타이머 정밀도·클럭 stepping·메인 스레드 지연 자체를 없애는 보정은 아니다.
+
+입력 큐는 원래 입력 시각별로 처리한다. 한 프레임의 기한 진행 상한은 `min(J, 현재 입력 시간)`이다. auto 입력은 그 상한까지 만들되 이미 큐에 더 앞선 입력이 있으면 `max(진행 상한, 큐의 마지막 입력 시각)`까지 먼저 만들어 시간순으로 처리한다. 이 규칙은 음수 입력 오프셋의 정당한 늦은 입력 창을 지킨다.
+
+### C. 입력·화면 오프셋
+
+| 설정 | 코드 | 적용 | 부호 |
+|---|---|---|---|
+| Input Offset | `inputOffsetMs` | 입력 장치 지연·개인 체감 | SLOW면 음수, FAST면 양수 |
+| Visual Offset | `visualOffsetMs` | 화면 표시 지연 D | 화면이 소리보다 늦으면 양수 |
+
+둘 다 기본 0, 실제 시간 ms로 숫자 입력한다. 포커스를 옮겨 입력을 확정할 때와 저장 설정을 병합할 때 모두 −1000~+1000ms로 제한한다. 유효하지 않거나 유한하지 않은 숫자는 0ms로 둔다. 출력 장치 지연은 L₀가 맡으므로 Audio Offset은 제거했다. 저장 설정의 `audioOffsetMs`·`judgmentOffsetMs`·`offsetMs`를 읽을 때 버리고 이전하지 않는다. 차트 오프셋 `offsetMs`는 음원과 차트의 정렬을 맡으며 그대로다.
+
+Calibrate 진입은 새 경로 구현 전까지 숨긴다. PR 2는 비프에 맞춘 탭으로 입력 오프셋을, PR 3은 비프와 떨어지는 노트를 보고 시각 오프셋을 맞춘다. 세부 설계는 RFD 0031을 따른다.
+
+## 곡 끝과 일시정지
+
+오디오 끝에서도 P는 같은 AudioContext 시간 기준으로 실제 경과 × r만큼 계속 증가한다. `onended`는 음원 노드만 정리하며 시계를 재설정하지 않는다. 결과 화면은 아래 두 조건을 모두 만족할 때 연다.
+
+- J가 재생 구간 끝에 도달했다.
+- `min(J, 현재 입력 시간)`이 `NoteJudgmentSession.latestJudgmentDeadlineMs`를 **지났다**. 이 기한은 모든 노트의 `max(시작, 끝) + Good 창`의 최댓값으로 `finalize()`와 공유한다.
+
+그 전에 `finalize()`로 남은 창을 강제 정산하지 않는다. 판정 대기 중 pause는 P를 고정하고, resume은 그 위치에서 시간만 이어 간다. 이미 끝난 오디오는 다시 재생하지 않는다.
+
+## 이상적인 동기화와 검증
+
+목표는 스피커에서 비트가 들리고 노트 가운데가 판정선에 보이는 순간 누르면 `deltaMs ≈ 0`인 상태다. 판정 창·Show Timing Diff·FAST/SLOW·디버그 `deltaMs`는 계속 **곡 시간 ms**다. r이 커지면 실제 시간으로 판정 창은 좁아진다.
+
+디버그의 `noteCenterY`는 판정 확정 시점의 V로 계산한다. `yDifference = (V − 노트 시각) × scrollSpeed / 1000`이며, 입력 오프셋·시각 오프셋·handlerDelay·큐 대기로 인해 `deltaMs × scrollSpeed / 1000`과 같을 필요가 없다. `Avg deltaMs`는 입력 편향을 보여 주지만 화면 동기화를 단독으로 증명하지 않는다. Offset Recommendation은 평균 편향을 r로 나눈 실제 ms의 반대 부호를 **현재 inputOffsetMs에 더할 값**으로 제시한다. 모니터 표시 지연 D는 로그만으로 검증할 수 없다.
 
 ## 관련 문서
 
-- 오프셋 설계: `game-core.md` § 오프셋
-- 디버그 검증: `debug-mode.md`
-- 판정 윈도우: `scoring.md` § 판정 윈도우
+- 용어·부호: [glossary 오프셋 구분](../context/glossary.md#오프셋-구분)
+- 게임 동작: [game-core.md](game-core.md#오프셋)
+- 로그 해석: [debug-mode.md](debug-mode.md)
+- 판정 윈도우: [scoring.md](scoring.md)

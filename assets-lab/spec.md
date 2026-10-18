@@ -1,5 +1,9 @@
 # 리듬게임 노트 스킨 시스템 — 프로젝트 스펙
 
+현재 노트 에셋 Lab의 시안 교체와 Classic 런타임 규격은 [노트 에셋 Lab 명세](../docs/spec/note-asset-lab.md)를 따른다. 기존 단색 Classic은 `simple/`의 Simple로 이름을 바꾸었고, `classic/`은 승인된 유광 포인트·어두운 금속 바디·터미널·공통 봄의 SVG 소스와 상태 생성기를 관리한다.
+
+아래의 공통 컴포넌트·props·코어 규칙과 스킨 콘셉트 목록은 기존 JSX 스킨 제작기의 기준이다. Classic의 SVG 파츠·상태·봄 규격은 위 Lab 명세를 따른다. 현재 `/lab/note-assets`의 시안 선택지는 Classic·Simple이며, Crystal·Prism은 이 목록에 등록되어 있지 않다. Crystal·Prism 탭 뷰어(`crystal.jsx`, `prism.jsx`)와 뷰어 전용 레이아웃 컴포넌트·롱노트 조립 컴포넌트는 2026-10-03에 지웠다. `assets-lab` 개발 서버는 이제 `pnpm build:skins`가 캡처하는 `export.jsx` 화면만 그리므로, 아래의 탭 뷰어·`BombPlayer` 설명은 당시 설계 기록이다.
+
 ## 게임 개요
 
 4레인 낙하형 리듬게임. 노트가 위에서 아래로 내려오며 판정선에 도달하면 플레이어가 입력.
@@ -192,25 +196,13 @@ shardDist, shardSz, shardOp, ringR, ringOp, ringW
 
 ## 기어 (Gear)
 
-4레인 전체를 감싸는 프레임 + 버튼부. 아래 독립 에셋으로 구성된다.
+4레인 전체를 감싸는 장식 그림 + 버튼부. 용어 정의는 [glossary](../docs/context/glossary.md#기어-gear)를 따른다. 아래 독립 에셋으로 구성된다.
 
-### 기어 라이트 조정 랩
+### 현재 게임 기어 (Classic)
 
-`/lab/gear-light`는 `gear.png`와 생성 기어 샘플의 양쪽 기둥 발광을 별도 레이어로 분리해 높이와 세기를 조정하는 테스트 페이지이다. `scripts/split-gear-light-layer.mjs`가 원본을 `gear-source.png`, 발광이 약해진 base 레이어를 `gear-base.png`, 발광 전용 레이어를 `gear-glow.png`로 출력한다. 게이지가 있는 새 샘플은 `scripts/generate-gear-gauge-samples.mjs`가 `gear-gauge.png`를 추가로 출력하며, metadata의 `gaugeBoxes`로 하단 기준 채움 높이를 조정한다. 루트 원본은 `public/lab/gear-light/`에, 생성 샘플은 `public/lab/gear-samples/option-XX/`에 저장한다.
+게임은 스킨 공통 기어로 새 기어 그림 한 장(`public/gear/gear.png`, 1024×1536)을 쓴다. 레인 창과 꺾인 덱 사이 레인 바닥은 투명하고, 기둥·키 덱·하단 바는 불투명하다. 그림과 배치 측정값(`src/game/renderer/gearGeometry.json`)은 `assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-frame-fit-v20.mjs`가 함께 만든다. 게임은 레인 창을 레인 영역(폭 250)에 맞추고 실루엣 아래끝을 화면 아래에 붙여 비율 그대로 줄여 그린다([RFD 0029](../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)). 키·게이지 유리관·광원은 그림에 들어 있다. `gearMotion`(기어 위 장식 애니메이션)은 같은 그림 좌표의 부분 발광 레이어로 게임에 들어가 있다(에셋 `public/gear/gear-motion/`, 생성기 `prepare-frame-motion-v21.mjs`, 미리보기 `/lab/gear`). 고도 게이지 채움은 후속 작업이다.
 
-테스트 페이지는 선택된 샘플의 metadata를 읽고 base 레이어 위에 glow 레이어를 좌·우 기둥 bbox로 clipping해서 다시 얹는다. 높이는 bbox 하단 기준으로 위쪽을 잘라 조정하고, 세기는 glow 레이어의 opacity, brightness, drop-shadow로 조정한다. `gear-gauge.png`가 있는 샘플은 게이지 레이어만 따로 보거나, adjusted 모드에서 `gaugeBoxes`를 기준으로 고도 채움 높이를 preview할 수 있다.
-
-런타임 게이지 샘플은 `영역 보정`을 켜서 `eraseMask`와 `gaugeWindow`를 별도 overlay로 이동·리사이즈할 수 있다. 두 overlay는 개별 표시 토글로 숨기거나 다시 켤 수 있고, 오른쪽 패널의 export JSON은 imagegen inpaint mask와 runtime skin config 초안으로 사용한다. 오른쪽 조정 패널은 화면보다 내용이 길어지면 자체 세로 스크롤로 이동한다.
-
-채택된 runtime config는 `gauges[].window`와 함께 `eraseMasks[]`를 저장할 수 있으며, 랩의 영역 보정 초기값은 `sourceGaugeId`가 일치하는 `eraseMasks[]`를 우선 사용한다.
-
-메인 프리뷰 영역은 50%~400% 확대/축소와 상하좌우 스크롤을 지원해 게이지 구멍, erase mask 경계, 하단 키보드부 같은 세부 영역을 확대해서 보정한다.
-
-### 마디 펄스 랩
-
-`/lab/gear-measure-pulse`는 인게임 레인 안의 마디선을 기어 프레임 발광으로 대체하는 안(동행 하이라이트)을 튜닝하는 테스트 페이지이다. `gear-base.png` 위에 `gear-glow.png`를 가로 밴드 그라데이션 마스크로 잘라 얹고, 그 밴드가 마디선 y좌표를 따라 위에서 아래로 내려온다. 스크롤 매핑은 게임과 동일한 선형 공식(`y = 판정선 - Δt × scrollSpeed / 1000`)을 progress 0(레인 상단)~1(판정선)로 정규화해 사용하므로, 여기서 정한 파라미터를 그대로 `GameRenderer` 이식 기준으로 쓸 수 있다.
-
-조절 항목: BPM·박자 수·스크롤 속도·레인 높이(실곡 조건 시뮬레이션), 빛 세기(기둥 라이트와 동일한 발광 모델), 밴드 높이·페더(펄스 두께와 부드러움), 레인 마디선 표시 토글+알파(완전 대체 vs 하이브리드 비교). 에셋은 `public/lab/gear-light/`의 original 샘플을 재사용하며, 펄스 이동 범위는 metadata의 좌·우 기둥 bbox 합집합 세로 구간이다. 순수 계산 로직은 `src/lab/gearMeasurePulse.ts`에 있다.
+옛 기어(`gear-frame.png`와 분리 기둥 게이지)와 그 조정 랩(`/lab/gear-light`·`/lab/gear-measure-pulse`, `scripts/split-gear-gauge.ts`·`split-gear-light-layer.ts`, `public/lab/gear-light/`·`gear-samples/`)은 RFD 0029를 게임에 적용할 때 지웠다. 마디선을 기어 발광으로 대체하는 안은 [PRD §12](../docs/prd.md#12-미정-사항)에서 새 기어 기준으로 다시 검토한다.
 
 ### 에셋 분류
 

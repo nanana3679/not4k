@@ -1,0 +1,208 @@
+{
+  "mode": "built-in image_gen · precise-object-edit",
+  "pointVersions": [
+    "original",
+    "saturated"
+  ],
+  "typeColors": {
+    "single": "blue/cyan",
+    "double": "yellow/gold"
+  },
+  "geometry": "100:20 repeat-y; each type's body tile also serves its terminal",
+  "families": [
+    {
+      "letter": "A",
+      "key": "pearl",
+      "title": "밝은 유리 면",
+      "description": "밝은 고유색 중심면과 짙은 색 홈을 대비시킵니다."
+    },
+    {
+      "letter": "B",
+      "key": "deep",
+      "title": "짙은 유리 면",
+      "description": "짙은 고유색 바탕 위에 밝은 레일을 올립니다."
+    },
+    {
+      "letter": "C",
+      "key": "spine",
+      "title": "밝은 중앙 띠",
+      "description": "밝은 중앙 띠 양옆에 넓은 고유색 면을 둡니다."
+    },
+    {
+      "letter": "D",
+      "key": "twins",
+      "title": "밝은 양쪽 면",
+      "description": "밝은 고유색 패널 두 개와 어두운 중앙 홈을 조합합니다."
+    },
+    {
+      "letter": "E",
+      "key": "glass",
+      "title": "선명한 색 유리",
+      "description": "중간 밝기의 고유색 면과 가는 흰 레일을 대비시킵니다."
+    },
+    {
+      "letter": "F",
+      "key": "shoulders",
+      "title": "넓은 색 레일",
+      "description": "어두운 중심면 양옆에 넓고 밝은 고유색 레일을 둡니다."
+    }
+  ],
+  "variants": [
+    {
+      "id": "type-a-pearl-single",
+      "family": "A",
+      "kind": "single",
+      "title": "A · 밝은 유리 면 · 싱글",
+      "source": "generated/type-a-pearl-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-a-porcelain.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nThe broad center becomes luminous unmistakably BLUE glass: main face #63C9FF, center highlight #AFEAFF, edges #158BDD. Keep highlights pale blue, NOT neutral white. Dark gutters deep saturated navy #073462. Outer shoulders vivid steel-blue #237CAE. Tiny silver-white edge accents only.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-a-pearl-double",
+      "family": "A",
+      "kind": "double",
+      "title": "A · 밝은 유리 면 · 더블",
+      "source": "generated/type-a-pearl-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nMap the broad blue center to luminous YELLOW GOLD glass: main face #EAC047, center highlight #FFE99A, edges #CA930B. Dark blue gutters become deep ochre #644009. Outer blue shoulders become warm golden metal #A87515. Tiny creamy-white edge accents only.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-b-deep-single",
+      "family": "B",
+      "kind": "single",
+      "title": "B · 짙은 유리 면 · 싱글",
+      "source": "generated/type-b-deep-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-b-obsidian.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nMake the broad dark center strongly BLUE sapphire glass, not black: center #104D9D, edge #052C62. The wide rails become luminous pale cyan #95E7FF with narrow white reflections. Outer shoulders rich cobalt #1969A9. The result is dark but visibly blue over most of its surface at thumbnail size.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-b-deep-double",
+      "family": "B",
+      "kind": "double",
+      "title": "B · 짙은 유리 면 · 더블",
+      "source": "generated/type-b-deep-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-b-deep-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nMake the broad dark center strongly GOLD/AMBER glass, not brown-gray or black: center #986910, edge #573806. The wide pale-cyan rails become light yellow #FFDA68 with narrow cream-white reflections. Outer shoulders rich golden ochre #BC8A1A. The result is dark but visibly warm gold over most of its surface at thumbnail size.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-c-spine-single",
+      "family": "C",
+      "kind": "single",
+      "title": "C · 밝은 중앙 띠 · 싱글",
+      "source": "generated/type-c-spine-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-c-silver-spine.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nKeep the single central 26%-wide strip pale icy blue #C2EDFF with a thin white chamfer. The two broad side fields must now be saturated rich BLUE #087ACE, edged deep sapphire #06477D. Outer rails cyan-blue metal #46AADD. Near-black gutters remain blue-black. Most of the tile must be plainly blue.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-c-spine-double",
+      "family": "C",
+      "kind": "double",
+      "title": "C · 밝은 중앙 띠 · 더블",
+      "source": "generated/type-c-spine-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-c-spine-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nKeep the single central 26%-wide strip pale butter-yellow #FFE8A4 with a thin cream-white chamfer. Map the two broad saturated blue side fields to rich GOLD #C39515, edged deep amber #825207. Outer rails yellow-gold metal #EBC24D. Near-black gutters become warm ochre-black. Most of the tile must be plainly gold.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-d-twins-single",
+      "family": "D",
+      "kind": "single",
+      "title": "D · 밝은 양쪽 면 · 싱글",
+      "source": "generated/type-d-twins-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-d-twin-white.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nThe two large bright panels become clearly colored luminous CYAN-BLUE #56C3FF with pale cyan highlight #A6E8FF. Central dark trench is deep royal blue #083E82. Outer shoulders are medium sapphire blue #165DA0. Thin icy-white bevel highlights can remain, but the broad panels must never look white/gray.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-d-twins-double",
+      "family": "D",
+      "kind": "double",
+      "title": "D · 밝은 양쪽 면 · 더블",
+      "source": "generated/type-d-twins-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-d-twins-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nThe two large cyan-blue panels become clearly colored luminous YELLOW GOLD #F5CD4C with pale yellow highlight #FFE890. Central dark trench is deep golden amber #805008. Outer shoulders are medium gold #AE7B12. Thin cream-white bevel highlights can remain, but the broad panels must never look white/gray.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-e-glass-single",
+      "family": "E",
+      "kind": "single",
+      "title": "E · 선명한 색 유리 · 싱글",
+      "source": "generated/type-e-glass-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-e-smoke-blue.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nReplace smoky gray-blue with much richer sapphire-blue glass: large center #147BC4 with a smooth bright cyan-blue highlight #48B4EA; center stays mid-luminance blue, not pale gray. Inner narrow rails icy white #D6F6FF. Gutters deep saturated navy #063264. Outer shoulders deep bright blue #176499. Glass has clear colored depth.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-e-glass-double",
+      "family": "E",
+      "kind": "double",
+      "title": "E · 선명한 색 유리 · 더블",
+      "source": "generated/type-e-glass-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-e-glass-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nReplace sapphire-blue glass with rich golden-yellow glass: large center #C59313 with smooth bright yellow-gold highlight #EDC64B; center stays mid-luminance gold. Inner narrow rails creamy white #FFF2CC. Gutters deep golden brown #674108. Outer shoulders dark gold #A0740D. Glass has clear colored depth.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-f-shoulders-single",
+      "family": "F",
+      "kind": "single",
+      "title": "F · 넓은 색 레일 · 싱글",
+      "source": "generated/type-f-shoulders-single.png",
+      "references": [
+        "assets-lab/classic/revisions/body-six-20260929/rejected-neutral/color-f-warm-graphite.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-single-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is a BODY TILE and the edit target. Images 2 and 3 are the existing SINGLE point notes, original and saturated, used ONLY as blue/cyan palette references. Correct the body so it identifies SINGLE by itself.\n\nRecolor ALL warm gray surfaces into vivid blue family: central 44%-wide field deep royal blue #124F9E, center glow #237BCC. Broad shoulders very clear bright cyan-blue #5BCBFF with pale cyan highlights #B1EEFF. Trenches blue-black #052854. Outer bands mid sapphire #226CB0. This is a BLUE single-note body, with no warm brown remaining.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    },
+    {
+      "id": "type-f-shoulders-double",
+      "family": "F",
+      "kind": "double",
+      "title": "F · 넓은 색 레일 · 더블",
+      "source": "generated/type-f-shoulders-double.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-f-shoulders-single.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-latest.png",
+        "lab/image-galleries/long-note-body-six-20260929/point-double-saturated.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the blue SINGLE BODY TILE and the edit target. Make its matching GOLD DOUBLE BODY by recoloring only. Images 2 and 3 are existing DOUBLE point notes, original and saturated, used ONLY as yellow/gold palette references. This double must have the identical design and band widths as the single; change color family only.\n\nMap deep royal-blue central field to deep amber gold #94600D with center glow #BC8C22. Broad cyan-blue shoulders become very clear bright yellow-gold #F2C43A with pale yellow highlights #FFEA91. Trenches become ochre-black #513006. Outer bands mid gold #B68A24. This is an unmistakably GOLD double-note body, with no blue remaining.\n\nCritical invariants: maintain the exact geometry, widths, alignment, number of rails and face layout of Image 1. This is a flat 100:20 (5:1) rectangular body/terminal tile, full-bleed without a top or bottom border. All vertical bands continue uniformly in Y; it repeats seamlessly upward/downward. Material shading only across X. No point note inside this asset, no labels, letters, presentation board, margins, scene, caps, horizontal flare, corner rounding or new structures. Strong luminance contrast is welcome, but type-identifying COLOR must cover the broad faces, not merely a thin edge: color should be obvious with the point note hidden. Never produce a generic gray/white body. Restrict white to small highlights or the specified light strips. Keep crisp metal/glass depth and readability at 100x20 pixels."
+    }
+  ]
+}

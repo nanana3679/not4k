@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>프레임 움직임</title><style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.65; word-break: keep-all; }
+    main { max-width: 1180px; margin: auto; padding: 24px clamp(18px, 3vw, 48px) 64px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    a:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid #a3d9ff; outline-offset: 4px; }
+    nav { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+    nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 28px 0 24px; }
+    .eyebrow { color: #a8b9cb; font-size: 12px; letter-spacing: .12em; }
+    h1 { margin: 8px 0 12px; font-size: clamp(28px, 4vw, 44px); font-weight: 650; line-height: 1.25; }
+    .intro { color: #b8c4d0; max-width: 780px; margin: 0; }
+    .shared { margin: 18px 0 0; padding-left: 16px; border-left: 2px solid #8eabc1; color: #c5d0db; max-width: 850px; }
+    .player { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+    .viewer { position: relative; width: 100%; margin: auto; background: #090c11; aspect-ratio: 2 / 3; max-width: min(100%, calc(78vh * 2 / 3)); }
+    .viewer[data-view="bottom"] { aspect-ratio: 2 / 1; max-width: 100%; }
+    .viewer svg { display: block; width: 100%; height: 100%; }
+    .viewer[data-off-armor] #fm-armor, .viewer[data-off-gauge] #fm-gauge, .viewer[data-off-accent] #fm-accent, .viewer[data-off-bar] #fm-bar { display: none; }
+    .status { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; color: #b8c4d0; font-size: 14px; text-align: center; }
+    .viewer[data-state="ready"] .status { display: none; }
+    .controls { display: grid; gap: 20px; }
+    fieldset { margin: 0; padding: 0; border: 0; }
+    legend { display: block; margin-bottom: 6px; color: #a8b9cb; font-size: 12px; letter-spacing: .06em; }
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #4a5563; }
+    .segmented label { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; font-size: 14px; color: #b8c4d0; text-align: center; }
+    .segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    .segmented label:has(input:checked) { background: #24303c; color: #e8edf2; }
+    .segmented label:has(input:focus-visible) { outline: 2px solid #a3d9ff; outline-offset: -2px; }
+    .segmented.two { grid-template-columns: repeat(2, 1fr); }
+    .check { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; font-size: 14px; color: #c5d0db; }
+    .check input { width: 18px; height: 18px; accent-color: #8ecff5; }
+    .hint { margin: 2px 0 0; color: #8d9aa8; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .actions button { min-height: 44px; padding: 0 16px; border: 1px solid #4a5563; background: #18202a; color: #e8edf2; font: inherit; font-size: 14px; cursor: pointer; }
+    .actions button:focus-visible { outline: 2px solid #a3d9ff; outline-offset: 4px; }
+    details { margin-top: 36px; padding-top: 20px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; min-height: 44px; padding: 8px 0; }
+    details p, details li { max-width: 800px; color: #b8c4d0; }
+    footer { border-top: 1px solid #343c46; margin-top: 24px; padding-top: 16px; }
+    @media (max-width: 860px) { .player { grid-template-columns: minmax(0, 1fr); } }
+</style></head><body><main>
+<nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a><a href="press-animation.html">버튼 누름과 게이지</a></nav>
+<header><div class="eyebrow">CLASSIC / AMBIENT MOTION / 2026.10.04</div>
+<h1>프레임 움직임</h1>
+<p class="intro">큰 광원 곁을 지나듯 사선 빛 띠 하나가 프레임 위에서 아래로 천천히 지나가며 장갑을 비추고, 게이지 액체·파란 발광선·하단 바에도 은은한 움직임을 넣은 애니메이션 SVG입니다.</p>
+<p class="shared">레인과 버튼부에는 움직임을 넣지 않음 · 움직임 레이어는 측정한 마스크 안에서만 보임 · 움직임 줄이기 설정을 켜면 모두 멈춤</p></header>
+<section class="player" aria-label="프레임 움직임 시연">
+<div class="viewer" id="viewer" data-view="full" data-state="loading">
+<p class="status" id="status" role="status">애니메이션 SVG를 불러오는 중…</p>
+</div>
+<form class="controls" id="controls" onsubmit="return false">
+<div class="actions"><button type="button" id="restart">처음부터 재생</button></div>
+<fieldset><legend>보기</legend><div class="segmented">
+<label><input type="radio" name="view" value="full" checked>전체</label>
+<label><input type="radio" name="view" value="left">왼쪽 장갑</label>
+<label><input type="radio" name="view" value="bottom">하단</label>
+</div></fieldset>
+<fieldset><legend>움직이는 요소</legend>
+<label class="check"><input type="checkbox" name="layer" value="armor" checked>A 큰 광원</label>
+<label class="check"><input type="checkbox" name="layer" value="gauge" checked>B 게이지 액체</label>
+<label class="check"><input type="checkbox" name="layer" value="accent" checked>C 발광선 호흡</label>
+<label class="check"><input type="checkbox" name="layer" value="bar" checked>D 하단 바 흐름</label>
+<p class="hint">끄면 그 요소의 움직임만 사라지고 바탕 프레임은 그대로입니다.</p>
+</fieldset>
+<p><a href="54-ambient-motion-v19.svg" target="_blank" rel="noopener noreferrer">SVG 원본 열기</a> · <a href="54-ambient-motion-v19.svg" download>SVG 다운로드</a></p>
+</form>
+</section>
+<details id="method"><summary>만든 방법과 한계</summary>
+<ul>
+<li>바탕은 네 키가 모두 꺼진 대기 프레임 한 장입니다. 그 위에 움직임 레이어 네 개를 겹치고, 각 레이어는 바탕 픽셀에서 측정한 마스크 안에서만 보입니다. 레인(x 222–801)과 버튼부(y 1095–1345), 게이지 유리관은 A·C·D 마스크에서 빠져 있습니다.</li>
+<li><strong>A 큰 광원:</strong> 큰 광원 하나를 경계가 곧은 넓은 사선 띠로 표현했습니다. 띠는 프레임 높이와 비슷한 크기의 면으로, 위에서 아래로 한 방향으로만 1분에 걸쳐 천천히 지나가고, 다 지나가면 다시 위에서 시작합니다. 한 광원이 만든 하나의 면이라 기울기 때문에 왼쪽과 오른쪽 장갑에 닿는 높이가 조금 다릅니다. 띠 안쪽은 경계가 또렷한 두 단계(가운데 강하게, 양옆 절반)로 나뉩니다. 그 안의 장갑은 채도를 조금 낮춘 뒤 명암 대비를 조금 키워 흰빛을 받은 것처럼 보이고, 띠 밖의 장갑은 조금 어두워집니다. 장갑 영역은 배경·레인·버튼부·게이지·발광선을 뺀 프레임 부분입니다.</li>
+<li><strong>B 게이지 액체</strong>는 그림에 그려진 소용돌이 무늬를 잘라 반쯤 겹친 채 위로 흘려, 원래 무늬 자체가 흐르는 것처럼 보이게 합니다. 작은 기포도 함께 올라갑니다. 누름·게이지 시연과 같은 유리 안쪽 윤곽으로 자르며, 게이지 채움과는 아직 연결하지 않았습니다.</li>
+<li><strong>C 발광선 호흡:</strong> 장갑의 파란 발광 픽셀만 오려 낸 레이어와 그 번짐이 4.4초 주기로 밝아졌다 돌아옵니다.</li>
+<li><strong>D 하단 바 흐름:</strong> 하단 청색 바 안에서 빛 두 개가 가운데에서 양옆으로 3.2초마다 흘러갑니다.</li>
+<li>애니메이션은 SVG 안의 CSS로 넣어 이미지로만 열어도 재생됩니다. 이 페이지에서는 움직임 줄이기 설정을 켜면 모두 멈춥니다. 게임은 PixiJS로 그리므로 이 SVG가 게임 안에서 그대로 재생되지는 않습니다. 모습이 확정되면 같은 레이어 구성을 게임 렌더러로 옮기는 작업이 따로 필요합니다.</li>
+</ul></details>
+<footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a><a href="./">버튼 발광 전후 비교</a><a href="press-animation.html">버튼 누름과 게이지</a></nav></footer>
+</main>
+<script>
+(() => {
+  const SOURCE = "54-ambient-motion-v19.svg";
+  // Viewbox per view on the 1024x1536 frame canvas.
+  const VIEWS = { full: "0 0 1024 1536", left: "0 420 320 480", bottom: "300 1240 424 212" };
+  const viewer = document.getElementById("viewer");
+  const status = document.getElementById("status");
+  let svg = null;
+
+  function applyView() {
+    const view = document.querySelector('input[name="view"]:checked').value;
+    viewer.dataset.view = view;
+    if (svg) svg.setAttribute("viewBox", VIEWS[view]);
+  }
+  function applyLayers() {
+    for (const input of document.querySelectorAll('input[name="layer"]')) {
+      viewer.toggleAttribute(`data-off-${input.value}`, !input.checked);
+    }
+  }
+
+  // Every animation goes back to its own starting phase, so staggered delays line up as on first load.
+  function restart() {
+    if (!svg) return;
+    for (const animation of svg.getAnimations({ subtree: true })) {
+      animation.currentTime = 0;
+      animation.play();
+    }
+  }
+  document.getElementById("restart").addEventListener("click", restart);
+  document.getElementById("controls").addEventListener("change", (event) => {
+    if (event.target.name === "view") applyView();
+    else if (event.target.name === "layer") applyLayers();
+  });
+
+  (async () => {
+    try {
+      const response = await fetch(SOURCE);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const markup = await response.text();
+      const parsedDocument = new DOMParser().parseFromString(markup, "image/svg+xml");
+      const parsed = parsedDocument.documentElement;
+      if (parsed.nodeName !== "svg" || parsedDocument.querySelector("parsererror")) throw new Error("Not an SVG document");
+      svg = document.importNode(parsed, true);
+      svg.removeAttribute("width");
+      svg.removeAttribute("height");
+      svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", "큰 광원·게이지·발광선·하단 바가 움직이는 Classic 프레임");
+      viewer.prepend(svg);
+      applyView();
+      applyLayers();
+      viewer.dataset.state = "ready";
+    } catch (error) {
+      viewer.dataset.state = "error";
+      status.textContent = "애니메이션 SVG를 불러오지 못했습니다. 페이지를 서버 주소(file:// 아님)로 열었는지 확인해 주세요.";
+      console.error(error);
+    }
+  })();
+})();
+</script>
+</body></html>

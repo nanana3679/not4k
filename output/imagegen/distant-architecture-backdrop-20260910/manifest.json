@@ -1,0 +1,14 @@
+{
+  "file": "distant-architecture.png",
+  "source": "/home/nanana3679/.codex/generated_images/01a07eca-9bbd-7dd2-87a0-4597ce737660/exec-b2aea380-5fa7-4a25-bd38-651d89b261fa.png",
+  "generator": "built-in image_gen",
+  "references": [
+    "output/imagegen/open-depth-backgrounds-20260910/lower-depth.png",
+    "output/prototypes/breakthrough-hangar-integration-20260910/space-alt-0-0-1.png"
+  ],
+  "sha256": "e08c6000fe57a8213609f85cb39e71f2e1252128e7ec624e1fc2ec4ab83842d3",
+  "dimensions": [
+    1672,
+    941
+  ]
+}

@@ -1,20 +1,31 @@
 # Project Guidelines
 
-이 파일은 이 저장소에서 작업하는 AI agent가 따라야 할 공통 규칙이다. `CLAUDE.md`는 의도적으로 비워 두고, 실제 지침은 이 `AGENTS.md`에만 둔다.
+이 파일은 이 저장소에서 작업하는 AI agent가 따라야 할 공통 규칙이다. `CLAUDE.md`는 `@AGENTS.md`만 참조하며, 실제 지침은 이 파일에서 관리한다.
+
+## 작업 수행 원칙
+
+- 변경 요청은 구현, 관련 테스트·문서 갱신, 적절한 검증까지 완료한다. 안전하게 수행할 작업이 남아 있으면 첫 구현만 제시하고 멈추지 않는다
+- 요청 범위 안의 읽기, 로컬 파일 수정, 관련 테스트·검증은 별도 승인을 기다리지 않고 진행한다
+- 문서로 확정되지 않은 제품 결정이 결과를 크게 바꾸거나, 사용자 요청으로 승인되지 않은 배포·병합·외부 쓰기·데이터 삭제·파괴적 Git 작업이 필요하면 사용자에게 결정을 요청한다
+- 사용자가 명시한 범위와 결과는 선택적인 skill 절차보다 우선한다. 저장소의 필수 불변식과 승인 경계는 유지한다
 
 ## 테스트 규칙
 
-- 기능 구현 시 반드시 해당 기능의 단위 테스트를 함께 작성할 것
-- 테스트 프레임워크: Vitest (`npx vitest run`)
-- 테스트 파일 위치: 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴
-- 테스트 실행 후 모든 테스트가 통과하는지 확인할 것
+- 동작을 추가·변경하거나 버그를 수정할 때 회귀 위험을 검증하는 단위 테스트를 작성하거나 수정할 것
+- 문서·문구·시각 스타일만 바꾸고 동작에 영향이 없으면 새 단위 테스트를 요구하지 않는다
+- 테스트 프레임워크는 Vitest이다. 전체 단위 테스트는 `pnpm test`, 대상 테스트는 `pnpm exec vitest run <path>`로 실행한다
+- 테스트 파일은 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴으로 둔다
+- 관련 테스트를 먼저 실행한다. 공유 모델이나 여러 모듈에 걸친 변경, 빌드·테스트 기반 변경, 출시 준비에서는 전체 단위 테스트를 실행한다
+- 요청한 변경 때문에 실패한 테스트는 수정하고 다시 실행한다. 무관한 기존 실패는 작업 범위를 넓혀 수정하지 말고 결과에 명시한다
+- 타입 검사는 `pnpm typecheck`로 하며 앱(`src`)과 도구 코드(`scripts/`, Vite·Vitest·Playwright 설정, `e2e/`)를 함께 검사한다(`tsconfig.tooling.json`). `pnpm build`·`pnpm build:lab`도 같은 검사를 먼저 실행한다
+- `scripts/`의 실행 스크립트는 Node(22.18 이상)가 타입만 지우고 바로 실행하는 `.ts`로 쓴다. 지울 수 있는 타입 문법만 쓰고(enum·namespace 금지) 타입만 가져올 때는 `import type`을 쓴다(`tsconfig.scripts.json`이 검사). Vite 설정이 쓰는 도우미(`classicVersionPreviews.ts`·`exportLabImageGalleries.ts`)는 예외다. `assets-lab/`의 생성 코드는 JS로 둔다
 
 ### 테스트명 작성 규칙
 
 테스트명은 구체적인 동작 문서를 대신해야 한다. 코드를 읽지 않아도 테스트명만으로 기능의 동작을 이해할 수 있게 작성할 것.
 
 - **[상황] + [행동] + [결과]** 패턴으로 작성
-  - 좋은 예: `"120 BPM에서 1박 = 500ms"`, `"Bad 있으면 풀콤보 아님"`, `"음원 길이를 초과하는 위치로 이동 가능"`
+  - 좋은 예: `"120 BPM에서 1박 = 500ms"`, `"Miss 있으면 Full Combo 아님"`, `"음원 길이를 초과하는 위치로 이동 가능"`
   - 나쁜 예: `"테스트1"`, `"beatToMs 작동"`, `"에러 처리"`
 - 구체적인 입력값과 기대값을 테스트명에 포함할 것
   - 좋은 예: `"99.5% → SSS"`, `"snap=4에서 중간값은 가까운 박으로 스냅"`
@@ -25,7 +36,7 @@
 
 ## 커밋 메시지 규칙
 
-`<type>: <한국어 설명>` 형식을 반드시 따를 것.
+커밋할 때는 `<type>: <한국어 설명>` 형식을 반드시 따를 것.
 
 ### Type 목록
 
@@ -49,46 +60,87 @@
 
 ## 용어 규칙
 
-- 프로젝트 고유 용어나 모르는 용어를 만나면 추측하지 말고 먼저 `CONTEXT-MAP.md`를 읽고, 관련 `CONTEXT.md`와 `docs/context/glossary.md`를 참조할 것
 - **용어 정의의 권위는 `docs/context/glossary.md`이다.** 풀 정의·세부 규칙·배경 링크는 glossary에 둔다
 - **용어 표기 언어는 출처 기반으로 정한다(RFD 0010):** 프로젝트가 발명한 구성물(코드 식별자가 있는 것)은 영어 코드 식별자(`백틱`)로, 원래 있는 개념은 established 이름(자연스러우면 한국어, 커뮤니티 표준이 영어면 영어)으로 표기한다. prose(서술)는 한국어를 유지한다. 용어별 분류는 `docs/context/term-map.md`를 따른다
 - 루트 및 모듈 `CONTEXT.md`에는 한두 줄 요약 정의만 두고, 세부는 glossary 또는 관련 RFD 링크로 연결할 것
-- 새로운 개념이나 용어를 도입할 때는 `docs/context/glossary.md`에 먼저 정의를 추가하고, 관련 `CONTEXT.md`에 요약을 동기화할 것
-- 용어의 의미가 바뀌면 glossary를 먼저 갱신하고, 같은 용어를 요약한 `CONTEXT.md`들을 함께 동기화할 것
+- 새로운 공식 도메인 개념이나 사용자에게 노출되는 용어를 도입할 때는 glossary에 먼저 정의하고 관련 `CONTEXT.md`에 요약을 동기화할 것
+- 공식 도메인 용어의 의미가 바뀌면 glossary를 먼저 갱신하고, 같은 용어를 요약한 `CONTEXT.md`들을 함께 동기화할 것
+
+## 식별자 작명 규칙
+
+분명한 이름·약어 자제 같은 일반 원칙은 따로 적지 않는다. 아래는 저장소를 보고 추측할 수 없어 이 저장소에서 정한 것이다.
+
+- 키로 값을 찾는 Map 필드는 `값By키`로 짓는다(`unitsByNote`, `trillKeysByZone`). 이 규칙만을 이유로 `headToRange` 같은 기존 이름을 바꾸지 않는다
+- 도메인 개념은 glossary·term-map의 용어를 식별자로 옮긴다. 문서가 "hold 수"라고 부르면 `holdCount`이며, 같은 개념에 다른 영어 단어를 새로 만들지 않는다
+- 도메인에서 이미 다른 뜻으로 쓰는 단어는 다른 개념에 쓰지 않는다. 판정 코드에서 `short`는 짧은 바디·짧은 연쇄로 읽히므로 hold 수가 모자란 상태에 쓰지 않는다
+- 리뷰할 때는 새 식별자를 선언부가 아니라 호출부와 diff에서 이름만 보고 뜻이 통하는지 확인한다
 
 ## 문서 업데이트 규칙
 
-코드 변경 시 해당 스코프에 관련된 문서가 있으면 함께 수정할 것.
+코드 변경 시 해당 스코프의 기존 문서가 영향을 받으면 함께 수정할 것.
 
-- `docs/spec/`: 기능 스펙 문서. 새 기능 추가나 기존 동작 변경 시 해당 스펙 문서를 업데이트
-- `e2e/`: E2E 테스트 스펙. UI 동작이나 사용자 플로우가 바뀌면 관련 e2e 스펙을 업데이트
-- 문서가 존재하지 않는 새 기능이라면 기존 문서 컨벤션을 따라 새 스펙 문서를 생성
+- `docs/spec/`: 사용자에게 보이는 기능이나 도메인 동작을 추가·변경할 때 관련 스펙을 업데이트한다
+- `e2e/`: UI 동작이나 사용자 플로우가 바뀌면 관련 E2E 스펙을 업데이트한다
+- 문서가 없는 새로운 사용자 동작이나 도메인 규칙을 추가할 때는 기존 컨벤션에 맞춰 스펙을 만든다. 내부 리팩터링이나 개발 도구는 기존 계약을 바꾸지 않는 한 새 스펙을 요구하지 않는다
 - 변경사항과 무관한 문서는 건드리지 않을 것
 
 ## 결정 기록 규칙
 
-기존 `CONTEXT.md`, `docs/context/`, `docs/spec/`, `docs/prd.md`의 결정과 충돌하거나
-플레이 철학, 도메인 용어, 게임 플로우, 기록/랭킹/실패 조건처럼 되돌리기 어려운 제품 결정을 바꿀 때는
-먼저 `docs/rfd/`에 RFD를 작성할 것.
+기존 `CONTEXT.md`, `docs/context/`, `docs/spec/`, `docs/prd.md`의 결정과 충돌하거나 플레이 철학, 도메인 용어, 게임 플로우, 기록·랭킹·실패 조건처럼 되돌리기 어려운 제품 결정을 바꿀 때는 먼저 `docs/rfd/`에 RFD를 작성할 것.
 
-- RFD에는 기존 결정, 문제의식, 대안, 채택안, trade-off, 영향 받는 문서를 기록할 것
-- 이후 `CONTEXT.md`와 관련 컨텍스트 문서에는 변경 내역이 아니라 현재 확정된 용어와 규칙만 반영할 것
-- `CONTEXT.md`에는 필요한 경우 해당 RFD 링크를 남길 것
-- 단순 구현 세부사항이나 되돌리기 쉬운 변경은 RFD를 만들지 말 것
-- 결정 문서의 정식 명칭은 **RFD**로 통일한다. 파일 제목과 본문에서 RFC, ADR을 사용하지 말 것
-- **RFD의 구현이 진행·완료되면 문서 상단 `**Status:**` 라인에 마일스톤을 시간순으로 누적 기록할 것**(예: `· §6-2 박스 감쌈 선택 구현 (2026-07-14, PR #110)`). Status는 "완료/미완료" 플래그가 아니라 **구현 진척을 남기는 로그**다. 부분 구현이면 잔여 항목을 Status나 상단 "구현 기록" 문단에 명시할 것. 항목별 세부 이력은 "구현 기록" 문단에 두고 Status는 한 줄 요약만 둔다
-- 미정/미결정 사항의 추적은 `docs/prd.md`의 "미정 사항" 섹션에서 단일하게 관리할 것. 다른 문서에 미정 추적 표를 중복으로 만들지 말고 PRD를 링크할 것
+- 단순 구현 세부사항이나 되돌리기 쉬운 변경은 RFD를 만들지 않는다
+- 결정 문서의 정식 명칭은 **RFD**로 통일한다. 파일 제목과 본문에서 RFC, ADR을 사용하지 않는다
+- RFD 작성과 구현 진척 기록은 `docs/agents/rfd.md`를 따른다
+- 미정·미결정 사항은 `docs/prd.md`의 "미정 사항" 섹션에서 단일 관리한다. 다른 문서에 추적 표를 중복하지 말고 PRD를 링크한다
 
-## Agent skills
+## Deploy Configuration (configured by /setup-deploy)
+
+- Platform: GitHub Pages (Lab 전용, 기존 앱 배포와 분리)
+- Production URL: https://nanana3679.github.io/not4k/lab/
+- Deploy workflow: `.github/workflows/deploy-lab-pages.yml`
+- Deploy status command: `gh run list --workflow deploy-lab-pages.yml --limit 1`
+- Merge method: squash
+- Project type: static Lab preview site
+- Post-deploy health check: `https://nanana3679.github.io/not4k/lab/`
+
+### Custom deploy hooks
+
+- Pre-merge: `pnpm run build:lab`
+- Deploy trigger: `main`의 Lab 관련 경로 변경 또는 수동 `workflow_dispatch`
+- Deploy status: `gh run watch $(gh run list --workflow deploy-lab-pages.yml --limit 1 --json databaseId --jq '.[0].databaseId')`
+- Health check: `curl -fsS https://nanana3679.github.io/not4k/lab/`
+
+## Agent workflows
 
 ### Issue tracker
 
-이 저장소의 이슈와 PRD는 GitHub Issues에서 관리한다. `gh` CLI를 사용한다. 자세한 내용은 `docs/agents/issue-tracker.md`를 참고한다.
+이슈나 GitHub Issues 기반 PRD를 조회·생성·수정할 때는 저장소 루트에서 `gh` CLI를 사용하고 `docs/agents/issue-tracker.md`를 따른다.
+
+### Pull requests
+
+- PR 본문에 변경 파일을 필수·권장·생략 가능으로 나눈 `리뷰 중요도` 절을 둔다. 필수 파일은 파일마다 바뀐 내용과 위험, 읽는 순서를 적는다
+- 에이전트는 머지 전에 필수 파일마다 내용을 이해해야 답할 수 있는 질문을 대화로 던져 사람이 자기 말로 설명하게 하고, 답을 실제 diff와 대조해 이해를 확인한다. "읽었다"·"머지해" 같은 답이나 자동 리뷰 승인은 이 확인을 대신하지 않는다
+- 등급 기준과 확인 절차는 `docs/agents/pull-requests.md`를 따른다
 
 ### Triage labels
 
-기본 triage 라벨 vocabulary를 그대로 사용한다: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. 자세한 내용은 `docs/agents/triage-labels.md`를 참고한다.
+이슈 triage 작업에서는 `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`를 사용한다. 매핑과 의미는 `docs/agents/triage-labels.md`를 따른다.
 
 ### Domain docs
 
-멀티 컨텍스트 저장소로 취급한다. 먼저 루트 `CONTEXT-MAP.md`를 읽고, 작업 영역에 맞는 `CONTEXT.md`를 추가로 읽는다. 자세한 내용은 `docs/agents/domain.md`를 참고한다.
+- 도메인 동작·용어·데이터 모델을 다룰 때 `CONTEXT-MAP.md`에서 작업 영역을 찾고, 루트 `CONTEXT.md`와 관련 모듈 `CONTEXT.md`를 읽는다
+- 특정 용어는 `docs/context/glossary.md`의 해당 항목을 검색하고, 기존 제품 결정에 영향을 주는 경우에만 관련 RFD를 읽는다
+- 문구·시각 스타일·격리된 빌드 설정처럼 도메인과 무관한 변경에는 도메인 문서 열람을 선행 조건으로 요구하지 않는다
+- 자세한 탐색 방법은 `docs/agents/domain.md`를 참고한다
+
+### Judgment case images
+
+판정 사례(노트·키 누름/뗌과 엔진 판정)를 사용자에게 설명할 때는 텍스트 표 대신 `pnpm case:image`로 PNG를 만들어 보여준다. 설명에서 노트는 이미지의 노트 이름(`N1`, `N2`, … 또는 `[이름]`)으로 가리킨다. 문법·노트 이름·에디터 JSON 입력·엔진 선택·비교 모드는 `docs/agents/judgment-case-images.md`를 따른다.
+
+사용자가 파일이나 이미지를 열어 볼 수 없는 환경이면 PNG 경로와 함께 스크립트가 표준 출력에 찍는 패널 요약도 대화에 그대로 붙인다.
+
+### Lab previews
+
+에셋·렌더링·인터랙션을 사용자에게 확인받기 위한 개발용 미리보기는 `/lab/<고유-id>`를 기본 경로로 사용하고 `/lab` 카탈로그에 등록한다. 기존 미리보기와 새 미리보기의 등록·라우팅·검증 규칙은 `docs/agents/lab-previews.md`를 따른다.
+
+이미지 생성 결과를 독립 HTML 비교 페이지로 만든 경우 개별 이미지를 다시 등록하지 않는다. 완성된 HTML 번들을 `lab/image-galleries/<고유-id>/`에 두고 `src/lab/labImageGalleryCatalog.ts`에 컬렉션 하나만 등록해 `/lab/images/<고유-id>/`로 공개한다.

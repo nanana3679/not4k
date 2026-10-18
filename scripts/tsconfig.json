@@ -1,0 +1,6 @@
+// 편집기용: scripts/ 파일을 tsconfig.tooling.json 규칙으로 보여 준다.
+// Node가 실행하는 스크립트의 추가 제한(tsconfig.scripts.json)은 pnpm typecheck가 검사한다.
+{
+  "extends": "../tsconfig.tooling.json",
+  "include": ["./**/*.ts"]
+}

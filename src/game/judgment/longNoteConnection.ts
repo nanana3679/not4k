@@ -4,16 +4,18 @@
  * `o-o-`처럼 같은 레인에서 앞 롱노트의 끝 시간과 뒤 롱노트의 시작 시간이 맞닿아 있으면
  * 두 롱노트는 "이어진" 것으로 본다. `o- o-`처럼 시간 간격이 벌어져 있으면 이어지지 않는다.
  *
- * 연결의 정의(같은 레인 + 끝 시간 ≈ 시작 시간, threshold 이내)와 임계값을 이 모듈이 단독으로 소유하며
+ * 연결의 정의(같은 레인 + 끝 Beat와 시작 Beat가 정확히 일치)를 이 모듈이 단독으로 소유하며
  * 두 소비처가 각자 필요한 뷰를 여기서 얻는다 — 정의가 두 곳으로 갈라져 어긋나는 것을 막는다:
  *  - 렌더러: `computeConnectedLongNotePredecessors`(뒤보기) → 앞 롱이 held면 뒤 연결 롱도 불 들어옴.
  *  - 판정: `computeConnectionSources`(앞보기) → 끝점이 다음 롱으로 이어지는 노트(연결/termination 판정 대상).
  * 두 뷰는 같은 계산에서 파생되므로 항상 일치한다.
  */
 
+import { beatEq } from "../../shared";
 import type { NoteEntity } from "../../shared";
 
 /** 이어진 롱노트로 간주하는 끝-시작 시간 차이 허용치 (ms) — 판정 쪽과 동일 */
+/** 과거 public API 호환용 상수. 차트 관계 판정에는 사용하지 않는다. */
 export const LONG_NOTE_CONNECTION_THRESHOLD_MS = 10;
 
 /**
@@ -22,7 +24,7 @@ export const LONG_NOTE_CONNECTION_THRESHOLD_MS = 10;
  * @param notes 노트 배열 (시간 정렬을 가정하지 않는다)
  * @param startTimesMs 노트 인덱스 → 시작 시간(ms)
  * @param endTimesMs 노트 인덱스 → 끝 시간(ms)
- * @param thresholdMs 끝-시작 시간 차이 허용치
+ * @param thresholdMs 과거 호환용 인자(차트 관계 판정에는 사용하지 않음)
  * @returns 롱노트 인덱스 → 연결 선행 롱노트 인덱스. 이어진 선행 노트가 없으면 키가 없다.
  */
 export function computeConnectedLongNotePredecessors(
@@ -31,6 +33,7 @@ export function computeConnectedLongNotePredecessors(
   endTimesMs: ReadonlyMap<number, number>,
   thresholdMs: number = LONG_NOTE_CONNECTION_THRESHOLD_MS,
 ): Map<number, number> {
+  void thresholdMs;
   const predecessors = new Map<number, number>();
 
   for (let cur = 0; cur < notes.length; cur++) {
@@ -42,7 +45,6 @@ export function computeConnectedLongNotePredecessors(
     if (curStart === undefined) continue;
 
     let best: number | undefined;
-    let bestDiff = Infinity;
 
     for (let prev = 0; prev < notes.length; prev++) {
       if (prev === cur) continue;
@@ -50,16 +52,16 @@ export function computeConnectedLongNotePredecessors(
       // 선행 노트도 롱노트여야 하며, 같은 레인이어야 한다
       if (!("endBeat" in prevNote)) continue;
       if (prevNote.lane !== curNote.lane) continue;
+      // 판정 창 또는 반올림된 ms로 인접성을 추정하지 않는다.
+      if (!beatEq(prevNote.endBeat, curNote.beat)) continue;
 
       const prevEnd = endTimesMs.get(prev);
       if (prevEnd === undefined) continue;
 
+      // Beat가 같은 후보가 여럿인 malformed 차트에서도 결과를 안정화한다.
       const diff = Math.abs(prevEnd - curStart);
-      // 같은 레인은 시간상 겹칠 수 없으므로 후보는 사실상 최대 1개지만,
-      // 안전하게 가장 가까운 끝을 선택한다.
-      if (diff <= thresholdMs && diff < bestDiff) {
+      if (best === undefined || diff < Math.abs(endTimesMs.get(best)! - curStart) || prev < best) {
         best = prev;
-        bestDiff = diff;
       }
     }
 

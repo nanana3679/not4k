@@ -5,7 +5,7 @@
  * Uses object pooling for performance. Rendering is driven by external game loop.
  */
 
-import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, Rectangle, RenderTexture, Mesh, MeshGeometry, Texture } from "pixi.js";
+import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, type Texture, type TextureSource } from "pixi.js";
 import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
@@ -15,39 +15,62 @@ import {
   LANE_AREA_WIDTH,
   NOTE_HEIGHT,
   JUDGMENT_LINE_OFFSET,
+  GEAR_OFFSET_Y,
+  JUDGMENT_LINE_THICKNESS,
+  KEY_BOMB_SIZE,
   TUTORIAL_KB_SIDE_PAD,
   TUTORIAL_KB_VPAD,
   COLORS,
+  playfieldPx,
 } from "./constants";
-import { KeyboardDisplay, KB_SECTIONS } from "./KeyboardDisplay";
+import { KeyboardDisplay } from "./KeyboardDisplay";
+import { GEAR_GEOMETRY, GEAR_CLEARANCE, clampGearOffsetY, layoutGear, type GearLayout, type GearStage } from "./gearLayout";
+import { acquireGearMotionAssets } from "./gearMotionAssets";
+import { GearMotionController, type GearMotionControls } from "./GearMotionController";
+import { GearGauge } from "./gearGauge";
 import { JudgmentUI } from "./JudgmentUI";
-import { GameNoteRenderer } from "./GameNoteRenderer";
+import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
 import { computeConnectedLongNotePredecessors } from "../judgment/longNoteConnection";
 import {
-  applyPerspectiveSurfaceJudgment,
-  createPerspectiveSurfaceAltitudeState,
-  resolvePerspectiveSurfaceAltitude,
-  stepPerspectiveSurfaceAltitude,
-  type PerspectiveSurfaceAltitudeState,
-} from "./perspectiveSurfaceAltitude";
-import {
-  buildPerspectiveSurfaceGrid,
-  getPerspectiveGridObjectConnectionSegment,
-  getPerspectiveGridObjectTrail,
-  projectPerspectiveGridObjectSurfaceShape,
-  resolvePerspectiveSurfaceGridParamsFromAltitude,
-  type PerspectiveSurfaceGridLine,
-  type PerspectiveSurfaceGridObjectAppearance,
-  type PerspectiveSurfaceGridParams,
-  type ProjectedGroundPoint,
-} from "../../lab/perspectiveSurfaceGrid";
-import { DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET } from "./perspectiveSurfaceGridPreset";
-import {
-  GEAR_GAUGE_METADATA,
-  getGaugeSpritePlacement,
-  getGaugeTextureFrame,
-} from "./gearGauge";
+  applyFlightJudgment,
+  clampFlightAltitude,
+  createFlightAltitudeState,
+  resolveFlightAltitude,
+  stepFlightAltitude,
+  type FlightAltitudeState,
+} from "./flightAltitude";
+import { FlightBackground } from "./flight/FlightBackground";
+import { resolveFlightScenario } from "../../shared/chartDifficulty";
+
+// 플레이필드에 딸린 크기(레인 100 기준 설계값 × PLAYFIELD_SCALE, RFD 0029)
+const LANE_SEPARATOR_WIDTH = playfieldPx(2);
+/** 마디선 설계 두께. 화면 1px보다 얇아지는 낮은 렌더 높이에서는 1px로 그려 깜빡이지 않게 한다(`measureLineThickness`). */
+const MEASURE_LINE_THICKNESS = playfieldPx(1);
+/** 오른쪽 위 이벤트 문구의 화면 오른쪽 여백·최소 줄바꿈 폭 */
+const EVENT_MESSAGE_MARGIN = 20;
+const EVENT_MESSAGE_MIN_WRAP = 120;
+/** 판정선을 지난 노트를 그리는 최소 시간. 판정선 아래로 보이는 틈이 더 길면 그만큼 늘린다(`lateNoteWindowMs`). */
+const LATE_NOTE_MIN_WINDOW_MS = 500;
+const COMBO_FONT_SIZE = playfieldPx(120);
+const COMBO_OFFSET = playfieldPx(280); // 판정선 위
+const ACCURACY_FONT_SIZE = playfieldPx(20);
+const ACCURACY_OFFSET = playfieldPx(180); // 판정선 위
+// 튜토리얼 레인 키캡(판정선 아래 밴드)과 키보드 strip
+const LANE_KEY_CAP_HEIGHT = playfieldPx(42);
+const LANE_KEY_CAP_INSET = playfieldPx(8);
+const LANE_KEY_FONT_SIZE = playfieldPx(14);
+const LANE_KEY_PRESS_DROP = playfieldPx(4);
+const KEY_CAP_RADIUS = playfieldPx(4);
+const KEY_CAP_STROKE = playfieldPx(1);
+const TUTORIAL_KEY_FONT_SIZE = playfieldPx(10);
+const TUTORIAL_KEY_GAP = playfieldPx(2);
+const TUTORIAL_KEY_PRESS_DROP = playfieldPx(3);
+const TUTORIAL_BOARD_INSET = playfieldPx(2);
+const TUTORIAL_BOARD_RADIUS = playfieldPx(7);
+/** 스킨의 기어 그림·빈 유리 텍스처 키. buildGear·buildGearGauge가 이 키로 읽고, 곡 시작 전 준비는 이 키를 건너뛰고 실제로 만든 것만 GPU 업로드한다. */
+const GEAR_IMAGE_KEY = "gearImage";
+const GEAR_GAUGE_EMPTY_KEY = "gearGaugeEmpty";
 
 /** 튜토리얼 프리뷰 키보드 strip 스펙 — 레이아웃/매핑 계산은 React가 하고 렌더러는 그리기만 한다.
  *  (순환 import 방지를 위해 player 쪽 타입을 import하지 않고 자체 선언) */
@@ -75,8 +98,28 @@ export interface GameRendererOptions {
   height: number;
   resolution?: number;
   skinManager: SkinManager;
-  showGearFrame?: boolean;
-  showPerspectiveSurface?: boolean;
+  /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
+  bombScale?: number;
+  /**
+   * 새 기어(스킨 공통 `gearImage`)와 양옆 유리관 고도 게이지(`gearGaugeEmpty`)를 그린다.
+   * 끄면(튜토리얼 미니 렌더러) 둘 다 없고, 레인 끝(`laneEndY`)은 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)이다.
+   */
+  showGear?: boolean;
+  /**
+   * 기어 y 오프셋: 기어와 판정선을 함께 아래로 옮기는 양(논리 px, 화면 y축이라 +가 아래, [#257](https://github.com/nanana3679/not4k/issues/257)).
+   * 주지 않으면 게임 값 `GEAR_OFFSET_Y`(10)이고, 준 값은 0 이상으로 맞춘다(음수·NaN은 0). 기어 배치(`layoutGear`의 `offsetY`)와 리프트 0%의 판정선이 같은 양만큼 내려가고,
+   * 기어 배치에서 정해지는 레인 끝(키 윗면)·고도 게이지·`gearMotion` `holder`도 따라온다. 리프트는 내린 판정선에서 판정선만 올린다.
+   * 기어 아래쪽 원본 gearOffsetY ÷ 배율 행은 화면 밖으로 잘린다. 기어를 그리지 않는 렌더러(showGear false)는 이 값과 기본값을 모두 무시한다.
+   * 게임 플레이 화면은 넘기지 않아 기본값을 쓰고, Lab `/lab/gear`가 다른 값을 시험할 때 넘긴다.
+   */
+  gearOffsetY?: number;
+  /**
+   * `gearMotion`(기어 위 장식 애니메이션: 큰 광원 띠·게이지 액체 흐름과 기포·발광선 호흡·하단 바 빛, RFD 0029). 기본 켬이며 기어를 그릴 때만 만든다.
+   * 끄면(게임 설정 `gearMotion` 끔) `gearMotion` 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
+   */
+  gearMotion?: boolean;
+  showFlightBackground?: boolean;
+  difficultyLabel?: string;
   showComboAndAccuracy?: boolean;
   showLaneKeyLabels?: boolean;
   judgmentLineOffset?: number;
@@ -108,9 +151,18 @@ export class GameRenderer {
   private initialized: boolean = false;
 
   // Layers (bottom to top)
-  private surfaceLayer: Container;
-  private surfaceGraphic: Graphics;
+  private flightBackground: FlightBackground | null = null;
+  private readonly difficultyLabel: string;
   private backgroundLayer: Container;
+  /** 레인 배경·구분선. 레인 끝(`laneEndY`)까지만 그린다. */
+  private laneBackground: Graphics;
+  /**
+   * 레인 안에서 움직이는 것(`restZone`·키빔·마디선·`trillZone`·롱노트 세 레이어·노트)을 담는 컨테이너.
+   * `laneEndClip`을 mask로 걸어 레인 끝 아래를 자른다(#247).
+   */
+  private laneContentLayer: Container;
+  /** `laneContentLayer`의 mask. y 0부터 레인 끝까지, 레인 영역 양옆에 레인 폭만큼 여유를 둔 사각형이라 아래 경계만 자른다. */
+  private laneEndClip: Graphics;
   private keyBeamLayer: Container;
   private measureLineLayer: Container;
   private restZoneLayer: Container;
@@ -119,7 +171,6 @@ export class GameRenderer {
   private longNoteEndLayer: Container;
   private longNoteHeadLayer: Container;
   private noteLayer: Container;
-  private maskGraphic: Graphics;
   private judgmentLineGraphic: Graphics;
   private effectLayer: Container;
   private uiLayer: Container;
@@ -127,6 +178,11 @@ export class GameRenderer {
   // Rendering state
   private _scrollSpeed: number = 800; // pixels per second
   private _judgmentLineY: number;
+  /** 리프트 0%의 판정선 y(높이 − 판정선 오프셋 + gearOffsetY). 리프트는 여기서 올린다. */
+  private readonly baseJudgmentLineY: number;
+  /** 기어 y 오프셋(옵션 `gearOffsetY`, 0 이상, 주지 않으면 `GEAR_OFFSET_Y`). 기어와 판정선을 함께 이만큼 내린다. showGear false면 0이다. */
+  private readonly gearOffsetY: number;
+  private readonly bombScale: number;
 
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
@@ -138,8 +194,9 @@ export class GameRenderer {
   private textEvents: TextEventRenderData[] = [];
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
-  private surfaceScrollOffsetZ: number = 0;
-  private perspectiveSurfaceAltitudeState: PerspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
+  private flightAltitudeState: FlightAltitudeState = createFlightAltitudeState();
+  /** Lab 미리보기가 고정한 고도(setAltitudeOverride). null이면 고도 모델을 따른다. */
+  private altitudeOverride: number | null = null;
 
   // Skin
   private skinManager: SkinManager;
@@ -153,42 +210,21 @@ export class GameRenderer {
   private keyBeamGraphics: Graphics[] = [];
   private keyBeamGradient: FillGradient | null = null;
 
-  // Button sprites (per lane)
-  private buttonSprites: Sprite[] = [];
-
-  // Gear frame
-  private gearFrameLayer: Container;
-  private gearFrameSprite: Sprite | null = null;
-  // 기둥 게이지 (분리된 발광 레이어, 게이지 값에 따라 아래 기준으로 클리핑)
-  private gearGauges: {
-    side: "left" | "right";
-    sprite: Sprite;
-    texture: Texture;
-    fullWidth: number;
-    fullHeight: number;
-    lastFrameHeight: number;
-    lastVisible: boolean;
-  }[] = [];
-  private gearAdjustMode = false;
-  private gearOffsetX = 0;
-  private gearOffsetY = 0;
-  private gearScaleOverride: number | null = null;
-  private judgmentLineAdjust = 0;
-  private gearAdjustText: Text | null = null;
-  private gearAdjustHandler: ((e: KeyboardEvent) => void) | null = null;
-  private onAdjustModeChange: ((active: boolean) => void) | null = null;
-  // 키보드 디스플레이 조정
-  private adjustTarget: 'gear' | 'keyboard' = 'gear';
-  private kbOffsetX = -418;
-  private kbOffsetY = -44;
-  private kbWidth = 416;
-  private kbHeight = 107;
-  private kbPerspective = 0.06;
-  private kbSectionIdx = -1;  // -1 = 전체, 0-7 = 개별 섹션
-  private kbGuide: Graphics | null = null;
-  private kbMesh: Mesh<MeshGeometry> | null = null;
-  private kbRenderTexture: RenderTexture | null = null;
-
+  // Gear (새 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
+  private gearLayer: Container;
+  private _gearLayout: Readonly<GearLayout> | null = null;
+  // `gearMotion` — 기어 레이어에서 기어 스프라이트 바로 위. 애니메이션 경과 시간은 renderFrame의 deltaMs로만 나아간다.
+  private readonly gearMotionEnabled: boolean;
+  private gearMotionController: GearMotionController | null = null;
+  // 고도 게이지 — 기어 레이어 맨 위(`gearMotion` 위). 빈 유리 덮개가 빈 부분의 `gearMotion` 액체·기포를 함께 가린다.
+  private gearGauge: GearGauge | null = null;
+  /** 이 렌더러가 기어·게이지를 만들 때 쓴 스킨 텍스처(기어 그림·빈 유리 아틀라스). 기어를 그리지 않으면 비어 있다. */
+  private gearTextures: Texture[] = [];
+  /**
+   * 곡 시작 전 준비가 Pixi 자동 GC에서 뺀 소스와 그 전의 `autoGarbageCollect` 값. dispose가 되돌린다.
+   * 소스는 SkinManager·공유 로더 소유라 렌더러보다 오래 남을 수 있어, 렌더러가 끝나면 원래 동작으로 돌려준다.
+   */
+  private readonly autoGarbageCollectBeforePlayback = new Map<TextureSource, boolean>();
 
   // UI elements
   private comboText: Text;
@@ -205,9 +241,11 @@ export class GameRenderer {
   private keyboardDisplay: KeyboardDisplay | null = null;
 
   private resolution: number;
+  /** 마디선 두께: 설계 두께와 화면 1px(1 ÷ 해상도) 중 큰 값 */
+  private readonly measureLineThickness: number;
   private laneAreaX: number;
-  private showGearFrame: boolean;
-  private showPerspectiveSurface: boolean;
+  private showGear: boolean;
+  private showFlightBackground: boolean;
   private showComboAndAccuracy: boolean;
   private showLaneKeyLabels: boolean;
   private judgmentLineOffset: number;
@@ -232,12 +270,21 @@ export class GameRenderer {
     this.width = options.width;
     this.height = options.height;
     this.resolution = options.resolution ?? 1;
+    this.measureLineThickness = Math.max(MEASURE_LINE_THICKNESS, 1 / this.resolution);
     this.laneAreaX = (this.width - LANE_AREA_WIDTH) / 2;
     this.judgmentLineOffset = options.judgmentLineOffset ?? JUDGMENT_LINE_OFFSET;
-    this._judgmentLineY = options.height - this.judgmentLineOffset;
+    this.showGear = options.showGear ?? true;
+    // 기어가 있으면 게임 값 GEAR_OFFSET_Y(10)만큼 기어와 판정선을 함께 내린다(#257). 기어가 없는 렌더러(튜토리얼 재생기)는
+    // 내릴 기어가 없으므로 판정선도 그대로 둔다.
+    this.gearOffsetY = this.showGear ? clampGearOffsetY(options.gearOffsetY ?? GEAR_OFFSET_Y) : 0;
+    this.baseJudgmentLineY = options.height - this.judgmentLineOffset + this.gearOffsetY;
+    this._judgmentLineY = this.baseJudgmentLineY;
     this.skinManager = options.skinManager;
-    this.showGearFrame = options.showGearFrame ?? true;
-    this.showPerspectiveSurface = options.showPerspectiveSurface ?? true;
+    const bombScale = options.bombScale ?? 1;
+    this.bombScale = Number.isFinite(bombScale) ? Math.max(0, Math.min(3, bombScale)) : 1;
+    this.gearMotionEnabled = options.gearMotion ?? true;
+    this.showFlightBackground = options.showFlightBackground ?? true;
+    this.difficultyLabel = options.difficultyLabel ?? 'INFILTRATION';
     this.showComboAndAccuracy = options.showComboAndAccuracy ?? true;
     this.showLaneKeyLabels = options.showLaneKeyLabels ?? false;
     this.keyboardAreaHeight = options.keyboardAreaHeight ?? 0;
@@ -246,9 +293,10 @@ export class GameRenderer {
     this.app = new Application();
 
     // Pre-create layers
-    this.surfaceLayer = new Container();
-    this.surfaceGraphic = new Graphics();
     this.backgroundLayer = new Container();
+    this.laneBackground = new Graphics();
+    this.laneContentLayer = new Container({ label: "lane-content" });
+    this.laneEndClip = new Graphics({ label: "lane-end-clip" });
     this.keyBeamLayer = new Container();
     this.measureLineLayer = new Container();
     this.restZoneLayer = new Container();
@@ -257,10 +305,9 @@ export class GameRenderer {
     this.longNoteEndLayer = new Container();
     this.longNoteHeadLayer = new Container();
     this.noteLayer = new Container();
-    this.maskGraphic = new Graphics();
     this.judgmentLineGraphic = new Graphics();
     this.effectLayer = new Container();
-    this.gearFrameLayer = new Container();
+    this.gearLayer = new Container();
     this.laneKeyLabelLayer = new Container();
     this.tutorialKeyboardLayer = new Container();
     this.uiLayer = new Container();
@@ -268,7 +315,7 @@ export class GameRenderer {
     // Create combo / accuracy text (owned by GameRenderer)
     const comboStyle = new TextStyle({
       fontFamily: "'Alumni Sans Collegiate One'",
-      fontSize: 120,
+      fontSize: COMBO_FONT_SIZE,
       fill: COLORS.COMBO_TEXT,
       align: "center",
     });
@@ -276,12 +323,12 @@ export class GameRenderer {
     this.comboText.anchor.set(0.5, 0.5);
     this.comboText.alpha = 0.5;
     this.comboText.x = this.width / 2;
-    this.comboText.y = this._judgmentLineY - 280;
+    this.comboText.y = this._judgmentLineY - COMBO_OFFSET;
     this.comboText.visible = this.showComboAndAccuracy;
 
     const accuracyStyle = new TextStyle({
       fontFamily: "'Zen Dots'",
-      fontSize: 20,
+      fontSize: ACCURACY_FONT_SIZE,
       fill: 0xaaaaaa,
       align: "center",
     });
@@ -289,7 +336,7 @@ export class GameRenderer {
     this.accuracyText.anchor.set(0.5, 0.5);
     this.accuracyText.alpha = 0.5;
     this.accuracyText.x = this.width / 2;
-    this.accuracyText.y = this._judgmentLineY - 180;
+    this.accuracyText.y = this._judgmentLineY - ACCURACY_OFFSET;
     this.accuracyText.visible = this.showComboAndAccuracy;
 
     // Event message text (right side)
@@ -299,13 +346,29 @@ export class GameRenderer {
       fill: 0xffffff,
       align: "right",
       wordWrap: true,
-      wordWrapWidth: Math.max(120, (this.width - LANE_AREA_WIDTH) / 2 - 40),
+      wordWrapWidth: this.eventMessageWrapWidth(),
     });
     this.eventMessageText = new Text({ text: "", style: msgStyle });
     this.eventMessageText.anchor.set(1, 0);
-    this.eventMessageText.x = this.width - 20;
+    this.eventMessageText.x = this.width - EVENT_MESSAGE_MARGIN;
     this.eventMessageText.y = 40;
     this.eventMessageText.alpha = 0.9;
+  }
+
+  /**
+   * 오른쪽 위 이벤트 문구의 줄바꿈 폭. 문구는 화면 오른쪽에 붙으므로 기어 실루엣(없으면 레인 영역) 오른쪽 끝 + 여백까지만 쓴다.
+   * 기어 배치는 렌더러 논리 크기만으로 정해지므로 텍스처를 읽기 전(생성자)에도 계산할 수 있다.
+   */
+  private eventMessageWrapWidth(): number {
+    const obstacleRight = this.showGear
+      ? layoutGear(GEAR_GEOMETRY, this.gearStage()).silhouetteRightX
+      : this.laneAreaX + LANE_AREA_WIDTH;
+    return Math.max(EVENT_MESSAGE_MIN_WRAP, this.width - EVENT_MESSAGE_MARGIN - (obstacleRight + GEAR_CLEARANCE));
+  }
+
+  /** 기어 배치의 입력: 레인 영역, 플레이 영역 높이, 기어 y 오프셋(gearOffsetY). */
+  private gearStage(): GearStage {
+    return { laneAreaX: this.laneAreaX, laneAreaWidth: LANE_AREA_WIDTH, height: this.height, offsetY: this.gearOffsetY };
   }
 
   async init(): Promise<void> {
@@ -317,28 +380,41 @@ export class GameRenderer {
       resolution: this.resolution,
       autoStart: false,
       backgroundColor: this.skinManager.getTheme().bg,
+      backgroundAlpha: this.showFlightBackground ? 0 : 1,
     });
 
     // Build scene graph
-    this.surfaceLayer.addChild(this.surfaceGraphic);
-    this.app.stage.addChild(this.surfaceLayer);
     this.app.stage.addChild(this.backgroundLayer);
+    this.backgroundLayer.addChild(this.laneBackground);
+    // 레인 안에서 움직이는 것은 레인 내용 컨테이너 하나에 담는다.
     // 휴지 밴드는 레인 배경 바로 위(빔/노트 아래)에 깔아 레인을 가라앉힌다.
-    this.app.stage.addChild(this.restZoneLayer);
-    this.app.stage.addChild(this.keyBeamLayer);
-    this.app.stage.addChild(this.measureLineLayer);
-    this.app.stage.addChild(this.trillZoneLayer);
-    this.app.stage.addChild(this.longNoteBodyLayer);
-    this.app.stage.addChild(this.longNoteEndLayer);
-    this.app.stage.addChild(this.longNoteHeadLayer);
-    this.app.stage.addChild(this.noteLayer);
-    this.app.stage.addChild(this.maskGraphic);
+    this.laneContentLayer.addChild(
+      this.restZoneLayer,
+      this.keyBeamLayer,
+      this.measureLineLayer,
+      this.trillZoneLayer,
+      this.longNoteBodyLayer,
+      this.longNoteEndLayer,
+      this.longNoteHeadLayer,
+      // 노트 배열의 순서와 무관하게 포인트·그림자·Grace는 바디와 시작/끝 터미널 위에 그린다.
+      this.noteLayer,
+    );
+    this.app.stage.addChild(this.laneContentLayer);
+    // 레인 끝 클립(#247): 기어가 있든 없든 레인 내용을 레인 끝(laneEndY) 위 사각형 하나로 자른다.
+    // Pixi 8.21에는 scissor 경로가 없어(`ScissorMask` 클래스만 있고 `scissorMask` pipe가 없다) Graphics mask는 스텐실 마스크
+    // (`StencilMaskPipe`)가 된다. 렌더러마다 프레임당 클립 사각형을 2번 더 그리고(push 때 색 쓰기를 끄고 stencil 표시,
+    // pop 때 다시 그려 되돌림) 그 앞뒤로 batch break와 stencil·colorMask 상태 변경이 생긴다. 이 비용은 #247에서 받아들였다.
+    // mask Graphics는 stage에 두어 변환을 갱신하게 하고, Pixi가 mask로 쓰는 동안 화면에는 그리지 않는다(includeInBuild false).
+    this.app.stage.addChild(this.laneEndClip);
+    // 주의: mask를 다시 지정하면 Pixi가 laneEndClip의 includeInBuild를 되돌려 흰 사각형으로 그린다. Container의 mask는 하나뿐이라
+    // 나중 서든 커버(setSudden)도 이 클립과 함께 동작하도록 만들어야 한다(같은 사각형의 위끝을 내리거나 컨테이너를 하나 더 둔다).
+    this.laneContentLayer.mask = this.laneEndClip;
     this.app.stage.addChild(this.judgmentLineGraphic);
-    // 레인 키 라벨은 마스크 위에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
+    // 레인 키 라벨은 레인 끝 클립 밖(레인 끝 아래 밴드)에 보이되, bomb 등 이펙트(effectLayer)보다는 아래에 둔다.
     this.app.stage.addChild(this.laneKeyLabelLayer);
     // 키보드 strip은 y >= this.height 별도 영역이라 다른 레이어와 z순서 영향 없음.
     this.app.stage.addChild(this.tutorialKeyboardLayer);
-    this.app.stage.addChild(this.gearFrameLayer);
+    this.app.stage.addChild(this.gearLayer);
     this.app.stage.addChild(this.effectLayer);
     this.app.stage.addChild(this.uiLayer);
 
@@ -360,41 +436,74 @@ export class GameRenderer {
       this.height,
     );
 
-    // Draw static elements
-    this.drawBackground();
+    // Draw static elements. 기어 배치가 레인 끝(laneEndY)을 정하므로 기어를 먼저 만든다.
+    if (this.showGear) {
+      this.buildGear();
+    }
     this.drawJudgmentLine();
-    this.drawMask();
+    this.drawLaneEnd();
     this.buildKeyBeams();
-    this.buildButtons();
     if (this.showLaneKeyLabels) {
       this.buildLaneKeyLabels();
     }
     if (this.tutorialKeyboardSpec) {
       this.buildTutorialKeyboard();
     }
-    if (this.showGearFrame) {
-      this.buildGearFrame();
-    }
     this.initialized = true;
+    // lease는 dispose가 release할 수 있는 시점(초기화 뒤)에 acquire한다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
+    this.buildGearMotion();
+    // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    const required: Promise<unknown>[] = [];
+    if (this.showFlightBackground) {
+      this.flightBackground = new FlightBackground({
+        canvas: this.canvas, width: this.width, height: this.height,
+        resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
+      });
+      required.push(this.flightBackground.init());
+    }
+    if (this.gearMotionController) required.push(this.gearMotionController.ready);
+    try { await Promise.all(required); }
+    // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
+    catch (error) { this.dispose(false); throw error; }
   }
 
-  private drawBackground(): void {
-    const bg = new Graphics();
+  /**
+   * 레인 끝(`laneEndY`)이 정하는 두 가지를 다시 그린다: 레인 배경·구분선의 길이와 레인 내용 클립 사각형(`laneEndClip`).
+   * init과, 기어가 없는 렌더러의 리프트(setLift)가 부른다. 같은 Graphics를 비우고 다시 그린다.
+   */
+  private drawLaneEnd(): void {
+    const laneEndY = Math.min(this.height, Math.max(0, this.laneEndY()));
+    this.drawLaneBackground(laneEndY);
+    this.drawLaneEndClip(laneEndY);
+  }
+
+  private drawLaneBackground(laneEndY: number): void {
+    const bg = this.laneBackground;
+    bg.clear();
 
     for (let i = 0; i < LANE_COUNT; i++) {
       const x = this.laneAreaX + i * LANE_WIDTH;
       const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
-      bg.rect(x, 0, LANE_WIDTH, this.height);
+      bg.rect(x, 0, LANE_WIDTH, laneEndY);
       bg.fill(color);
     }
 
     for (let i = 1; i < LANE_COUNT; i++) {
       const x = this.laneAreaX + i * LANE_WIDTH;
-      bg.rect(x - 1, 0, 2, this.height);
+      bg.rect(x - LANE_SEPARATOR_WIDTH / 2, 0, LANE_SEPARATOR_WIDTH, laneEndY);
       bg.fill(COLORS.LANE_SEPARATOR);
     }
+  }
 
-    this.backgroundLayer.addChild(bg);
+  /**
+   * (레인 영역 ± 레인 폭) × (0 ~ 레인 끝) 사각형. 레인 밖으로 걸치는 그림(Grace 빛 GRACE_GLOW_PAD 8.75, Classic Grace 덧그림 7.5,
+   * 일부 스킨의 트릴 끝 터미널 최대 약 37.5)은 모두 양옆 여유(레인 폭 62.5) 안이라 자르지 않고 아래 경계만 자른다.
+   * 화면 폭 전체보다 좁혀 스텐실을 쓰는 픽셀 수를 줄인다. 스킨이 레인 밖으로 이보다 크게 걸치게 되면 이 여유도 넓혀야 한다.
+   */
+  private drawLaneEndClip(laneEndY: number): void {
+    this.laneEndClip.clear();
+    this.laneEndClip.rect(this.laneAreaX - LANE_WIDTH, 0, LANE_AREA_WIDTH + LANE_WIDTH * 2, laneEndY);
+    this.laneEndClip.fill(0xffffff);
   }
 
   private buildKeyBeams(): void {
@@ -417,6 +526,7 @@ export class GameRenderer {
       const flash = new Graphics();
       const laneX = this.laneAreaX + i * LANE_WIDTH;
 
+      // 그라데이션이 높이 전체 기준(textureSpace local)이라 키빔은 화면 높이로 그리고, 레인 끝 아래는 클립이 자른다.
       flash.rect(laneX, 0, LANE_WIDTH, this.height);
       flash.fill({ fill: this.keyBeamGradient, alpha: 0.5 });
 
@@ -426,532 +536,126 @@ export class GameRenderer {
     }
   }
 
-  private buildButtons(): void {
-    const BTN_SIZE = 40;
-    for (let i = 0; i < LANE_COUNT; i++) {
-      const texKey = `buttonIdle${i}`;
-      let tex;
-      try { tex = this.skinManager.getTexture(texKey); } catch { continue; }
-      const sprite = new Sprite(tex);
-      sprite.width = BTN_SIZE;
-      sprite.height = BTN_SIZE;
-      sprite.anchor.set(0.5, 0);
-      sprite.x = this.laneAreaX + i * LANE_WIDTH + LANE_WIDTH / 2;
-      sprite.y = this._judgmentLineY + 4;
-      sprite.alpha = 0.8;
-      this.buttonSprites.push(sprite);
-      this.backgroundLayer.addChild(sprite);
-    }
+  /**
+   * 새 기어(RFD 0029). 그림을 비율 그대로 줄여 레인 창(236~787열)을 레인 영역에 정확히 겹치고,
+   * 실루엣 아래 가장자리를 화면 아래보다 gearOffsetY(게임 기본 10)만큼 아래에 둔다. 리프트와 무관하게 고정이며, 배치는 렌더러 논리 크기에서 정해진다
+   * (화면 비율이 바뀌면 새 렌더러가 다시 계산한다). 텍스처는 SkinManager가 밉맵·삼선형으로 읽는다.
+   */
+  private buildGear(): void {
+    let texture;
+    try { texture = this.skinManager.getTexture(GEAR_IMAGE_KEY); } catch { return; }
+    const layout = layoutGear(GEAR_GEOMETRY, this.gearStage());
+    const sprite = new Sprite({ texture, label: "gear" });
+    sprite.position.set(layout.x, layout.y);
+    sprite.width = layout.width;
+    sprite.height = layout.height;
+    // 바깥(접근자)에서 고쳐도 레인 끝·키보드 배치가 어긋나지 않게 얼려 둔다.
+    this._gearLayout = Object.freeze(layout);
+    this.gearLayer.addChild(sprite);
+    this.gearTextures.push(texture);
+    this.buildGearGauge(layout);
   }
 
-  // 기어 프레임 원본 이미지 내 빈 공간(기둥 사이) 치수
-  private static readonly GEAR_INNER_WIDTH = 1710;
-  private static readonly GEAR_INNER_LEFT = 972;
-  private static readonly GEAR_INNER_TOP = 670;
-  private static readonly GEAR_INNER_HEIGHT = 2630;
-
-  private buildGearFrame(): void {
-    let tex;
-    try { tex = this.skinManager.getTexture("gearFrame"); } catch { return; }
-    const sprite = new Sprite(tex);
-    this.gearFrameSprite = sprite;
-    this.gearFrameLayer.addChild(sprite);
-    this.buildGearGauges();
-    this.updateGearFrameTransform();
-
-    // 조정 모드 HUD 텍스트
-    const adjustStyle = new TextStyle({
-      fontFamily: "monospace",
-      fontSize: 14,
-      fill: 0x00ff00,
-      stroke: { color: 0x000000, width: 3 },
-    });
-    this.gearAdjustText = new Text({ text: "", style: adjustStyle });
-    this.gearAdjustText.x = 8;
-    this.gearAdjustText.y = 8;
-    this.gearAdjustText.visible = false;
-    this.uiLayer.addChild(this.gearAdjustText);
-
-    // 키 핸들러 등록
-    this.gearAdjustHandler = (e: KeyboardEvent) => this.handleGearAdjustKey(e);
-    window.addEventListener("keydown", this.gearAdjustHandler);
+  /**
+   * 양옆 유리관 고도 게이지. 기어와 같은 변환으로 기어 레이어 맨 위에 붙여, `gearMotion`을 켜든 끄든 같은 모습이다.
+   * 나중에 붙는 `gearMotion`의 `holder`(addGearOverlay)는 이 아래에 들어가므로, 빈 부분에서는 덮개가 `gearMotion`의 액체·기포를 가린다(유리 안쪽에 그리는
+   * `gearMotion` 레이어는 게이지 액체·기포뿐이다). 빈 유리 텍스처는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 게이지 없이 기어만 그린다.
+   * 운영체제의 `prefers-reduced-motion`은 읽지 않고 늘 이징으로 따라간다(RFD 0030).
+   * 채움 1에서는 덮개를 숨겨 두어 Pixi가 아틀라스를 그리지도 GPU 업로드하지도 않으므로, 곡 시작 전 준비(prepareForPlayback)가 미리 GPU 업로드한다.
+   */
+  private buildGearGauge(layout: Readonly<GearLayout>): void {
+    let texture;
+    try { texture = this.skinManager.getTexture(GEAR_GAUGE_EMPTY_KEY); } catch { return; }
+    const gauge = new GearGauge({ texture, geometry: GEAR_GEOMETRY.gauge });
+    gauge.container.position.set(layout.x, layout.y);
+    gauge.container.scale.set(layout.scale);
+    this.gearLayer.addChild(gauge.container);
+    this.gearGauge = gauge;
+    this.gearTextures.push(texture);
   }
 
-  /** 기둥 게이지 스프라이트 생성 — Assets 캐시 텍스처를 변형하지 않도록 사이드별 서브 텍스처 사용 */
-  private buildGearGauges(): void {
-    for (const side of ["left", "right"] as const) {
-      let base;
-      try {
-        base = this.skinManager.getTexture(side === "left" ? "gearGaugeLeft" : "gearGaugeRight");
-      } catch { continue; }
-      const texture = new Texture({
-        source: base.source,
-        frame: new Rectangle(0, 0, base.width, base.height),
-        dynamic: true, // frame을 매 갱신마다 변형하므로 sprite가 update 이벤트를 구독하게 함
-      });
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(0, 1); // 좌하단 기준 — 게이지가 아래에서 차오름
-      this.gearFrameLayer.addChild(sprite);
-      this.gearGauges.push({
-        side,
-        sprite,
-        texture,
-        fullWidth: base.width,
-        fullHeight: base.height,
-        lastFrameHeight: -1,
-        lastVisible: true,
-      });
-    }
-  }
-
-  private updateGearFrameTransform(): void {
-    const sprite = this.gearFrameSprite;
-    if (!sprite) return;
-    const { GEAR_INNER_WIDTH, GEAR_INNER_LEFT, GEAR_INNER_TOP, GEAR_INNER_HEIGHT } = GameRenderer;
-    // scale은 원본(gear.png) 픽셀→화면 배율. 텍스처는 outputScale로 다운스케일되어 있어 보정한다.
-    const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
-    const { outputScale, columnBoxes } = GEAR_GAUGE_METADATA;
-    sprite.scale.set(scale / outputScale);
-    sprite.x = this.laneAreaX - GEAR_INNER_LEFT * scale + this.gearOffsetX;
-    sprite.y = this._judgmentLineY - (GEAR_INNER_TOP + GEAR_INNER_HEIGHT) * scale + this.gearOffsetY;
-
-    for (const gauge of this.gearGauges) {
-      const placement = getGaugeSpritePlacement(
-        columnBoxes[gauge.side],
-        scale,
-        sprite.x,
-        sprite.y,
-        outputScale,
-      );
-      gauge.sprite.scale.set(placement.scale);
-      gauge.sprite.x = placement.x;
-      gauge.sprite.y = placement.y;
-    }
-  }
-
-  /** 게이지 값(0~1)에 따라 기둥 게이지의 보이는 높이를 갱신 (아래 기준) */
-  private updateGearGauge(gaugeValue: number): void {
-    for (const gauge of this.gearGauges) {
-      const frame = getGaugeTextureFrame(
-        { width: gauge.fullWidth, height: gauge.fullHeight },
-        gaugeValue,
-      );
-      // 픽셀 행 단위로 변화 없으면 uv 갱신 스킵
-      if (frame.height === gauge.lastFrameHeight && frame.visible === gauge.lastVisible) continue;
-      gauge.lastFrameHeight = frame.height;
-      gauge.lastVisible = frame.visible;
-      gauge.sprite.visible = frame.visible;
-      if (!frame.visible) continue;
-      gauge.texture.frame.y = frame.y;
-      gauge.texture.frame.height = frame.height;
-      gauge.texture.update();
-    }
-  }
-
-  private handleGearAdjustKey(e: KeyboardEvent): void {
-    // G 키로 조정 모드 토글
-    if (e.code === "KeyG" && !e.repeat) {
-      this.gearAdjustMode = !this.gearAdjustMode;
-      if (this.gearAdjustText) {
-        this.gearAdjustText.visible = this.gearAdjustMode;
-      }
-      if (this.gearAdjustMode) {
-        this.updateGearAdjustHUD();
-      }
-      this.applyKeyboardDisplayTransform();
-      this.onAdjustModeChange?.(this.gearAdjustMode);
+  /**
+   * `gearMotion`(RFD 0029). 기어 레이어에 기어와 같은 변환의 `holder`를 붙이고 공유 로더에서 `gearMotion` 에셋 lease를 acquire한다. `gearMotion` 에셋은 스킨 텍스처처럼
+   * 필수라 init이 준비를 기다린다. 준비되면 `holder`에 `gearMotion`을 추가하고(텍스처 GPU 업로드는 곡 시작 전 준비가 한다), 읽지 못하면 init이 그 오류로 실패한다.
+   * 만들지 여부는 옵션 `gearMotion`(게임 설정 `Gear Motion`)만 정한다. 운영체제의 `prefers-reduced-motion`은 읽지 않는다(RFD 0030).
+   */
+  private buildGearMotion(): void {
+    if (!this.gearMotionEnabled || !this._gearLayout) return;
+    const holder = new Container({ label: "gear-motion-holder" });
+    if (!this.addGearOverlay(holder)) {
+      holder.destroy();
       return;
     }
-
-    if (!this.gearAdjustMode) return;
-
-    // K 키로 조정 대상 전환
-    if (e.code === "KeyK" && !e.repeat) {
-      this.adjustTarget = this.adjustTarget === 'gear' ? 'keyboard' : 'gear';
-      this.applyKeyboardDisplayTransform();
-      this.updateGearAdjustHUD();
-      return;
-    }
-
-    const step = e.shiftKey ? 1 : 10;
-    const scaleStep = e.shiftKey ? 0.001 : 0.01;
-
-    if (this.adjustTarget === 'keyboard') {
-      // Tab: 다음 섹션, Backspace: 이전/나가기
-      if (e.code === 'Tab') {
-        e.preventDefault();
-        this.kbSectionIdx = this.kbSectionIdx >= KB_SECTIONS.length - 1 ? -1 : this.kbSectionIdx + 1;
-        this.updateGearAdjustHUD();
-        return;
-      }
-      if (e.code === 'Backspace') {
-        e.preventDefault();
-        this.kbSectionIdx = this.kbSectionIdx <= -1 ? KB_SECTIONS.length - 1 : this.kbSectionIdx - 1;
-        this.updateGearAdjustHUD();
-        return;
-      }
-
-      // 개별 섹션 모드
-      if (this.kbSectionIdx >= 0) {
-        const section = KB_SECTIONS[this.kbSectionIdx];
-        const cur = this.keyboardDisplay?.getSectionOffset(section) ?? { x: 0, y: 0 };
-        const curScale = this.keyboardDisplay?.getSectionScale(section) ?? { sx: 1, sy: 1 };
-        switch (e.code) {
-          case "ArrowLeft":  cur.x -= step; break;
-          case "ArrowRight": cur.x += step; break;
-          case "ArrowUp":    cur.y -= step; break;
-          case "ArrowDown":  cur.y += step; break;
-          case "Equal":
-          case "NumpadAdd":
-            curScale.sx += scaleStep; curScale.sy += scaleStep; break;
-          case "Minus":
-          case "NumpadSubtract":
-            curScale.sx = Math.max(0.1, curScale.sx - scaleStep);
-            curScale.sy = Math.max(0.1, curScale.sy - scaleStep); break;
-          case "KeyR":       // X 간격만
-            curScale.sx += scaleStep; break;
-          case "KeyT":
-            curScale.sx = Math.max(0.1, curScale.sx - scaleStep); break;
-          case "KeyF":       // Y 간격만
-            curScale.sy += scaleStep; break;
-          case "KeyV":
-            curScale.sy = Math.max(0.1, curScale.sy - scaleStep); break;
-          case "Digit0":
-            cur.x = 0; cur.y = 0; curScale.sx = 1; curScale.sy = 1; break;
-          case "Enter":
-          case "NumpadEnter": {
-            const lines: string[] = [];
-            for (const s of KB_SECTIONS) {
-              const o = this.keyboardDisplay?.getSectionOffset(s) ?? { x: 0, y: 0 };
-              const sc = this.keyboardDisplay?.getSectionScale(s) ?? { sx: 1, sy: 1 };
-              const hasOffset = o.x !== 0 || o.y !== 0;
-              const hasScale = sc.sx !== 1 || sc.sy !== 1;
-              if (hasOffset || hasScale) {
-                let info = `  ${s}: offset(${o.x}, ${o.y})`;
-                if (hasScale) info += ` scale(${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
-                lines.push(info);
-              }
-            }
-            console.log(`[KeyboardDisplay Sections]\n${lines.join('\n') || '  (all default)'}`);
-            break;
-          }
-          default: return;
-        }
-        e.preventDefault();
-        this.keyboardDisplay?.setSectionOffset(section, cur.x, cur.y);
-        this.keyboardDisplay?.setSectionScale(section, curScale.sx, curScale.sy);
-        this.buildKeyboardMesh();
-        this.updateGearAdjustHUD();
-        return;
-      }
-
-      // 전체 모드 (기존)
-      switch (e.code) {
-        case "ArrowLeft":  this.kbOffsetX -= step; break;
-        case "ArrowRight": this.kbOffsetX += step; break;
-        case "ArrowUp":    this.kbOffsetY -= step; break;
-        case "ArrowDown":  this.kbOffsetY += step; break;
-        case "Equal":
-        case "NumpadAdd":
-          this.kbWidth += step; break;
-        case "Minus":
-        case "NumpadSubtract":
-          this.kbWidth = Math.max(10, this.kbWidth - step); break;
-        case "KeyR":
-          this.kbHeight = Math.max(10, this.kbHeight - step); break;
-        case "KeyT":
-          this.kbHeight += step; break;
-        case "KeyF":
-          this.kbPerspective += (e.shiftKey ? 0.01 : 0.05); break;
-        case "KeyV":
-          this.kbPerspective -= (e.shiftKey ? 0.01 : 0.05); break;
-        case "BracketLeft": {
-          const sp = (this.keyboardDisplay?.getGlobalSpacing() ?? 0) - (e.shiftKey ? 0.1 : 0.5);
-          this.keyboardDisplay?.setGlobalSpacing(sp);
-          this.buildKeyboardMesh();
-          break;
-        }
-        case "BracketRight": {
-          const sp = (this.keyboardDisplay?.getGlobalSpacing() ?? 0) + (e.shiftKey ? 0.1 : 0.5);
-          this.keyboardDisplay?.setGlobalSpacing(sp);
-          this.buildKeyboardMesh();
-          break;
-        }
-        case "Digit0":
-          this.kbOffsetX = -418; this.kbOffsetY = -44;
-          this.kbWidth = 416; this.kbHeight = 107;
-          this.kbPerspective = 0.06;
-          this.keyboardDisplay?.resetSectionOffsets();
-          this.keyboardDisplay?.setGlobalSpacing(1.5);
-          this.keyboardDisplay?.setSectionOffset('esc', 0, 1);
-          this.keyboardDisplay?.setSectionOffset('fn1', -4, 1);
-          this.keyboardDisplay?.setSectionOffset('fn2', -2, 1);
-          this.keyboardDisplay?.setSectionOffset('fn3', 1, 1);
-          this.keyboardDisplay?.setSectionOffset('main', 0, -3);
-          this.keyboardDisplay?.setSectionOffset('navTop', 0, 1);
-          this.keyboardDisplay?.setSectionOffset('navBottom', 0, -4);
-          this.keyboardDisplay?.setSectionOffset('arrows', 0, -5);
-          this.keyboardDisplay?.setSectionOffset('numpad', 0, -5);
-          this.kbSectionIdx = -1;
-          break;
-        case "Enter":
-        case "NumpadEnter": {
-          const sectionLines: string[] = [];
-          for (const s of KB_SECTIONS) {
-            const o = this.keyboardDisplay?.getSectionOffset(s) ?? { x: 0, y: 0 };
-            const sc = this.keyboardDisplay?.getSectionScale(s) ?? { sx: 1, sy: 1 };
-            const hasOffset = o.x !== 0 || o.y !== 0;
-            const hasScale = sc.sx !== 1 || sc.sy !== 1;
-            if (hasOffset || hasScale) {
-              let info = `  ${s}: offset(${o.x}, ${o.y})`;
-              if (hasScale) info += ` scale(${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
-              sectionLines.push(info);
-            }
-          }
-          const spacing = this.keyboardDisplay?.getGlobalSpacing() ?? 0;
-          console.log(
-            `[KeyboardDisplay] 현재 값:\n` +
-            `  offset: (${this.kbOffsetX}, ${this.kbOffsetY})  width: ${this.kbWidth}  height: ${this.kbHeight}  perspective: ${this.kbPerspective.toFixed(4)}  spacing: ${spacing.toFixed(1)}\n` +
-            `  sections:\n${sectionLines.join('\n') || '    (all default)'}`
-          );
-          break;
-        }
-        default: return;
-      }
-      e.preventDefault();
-      this.applyKeyboardDisplayTransform();
-      this.updateKeyboardMesh();
-      this.updateGearAdjustHUD();
-      return;
-    }
-
-    // 기어 프레임 조정 (기존 로직)
-    const { GEAR_INNER_WIDTH } = GameRenderer;
-    const currentScale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
-
-    switch (e.code) {
-      case "ArrowLeft":  this.gearOffsetX -= step; break;
-      case "ArrowRight": this.gearOffsetX += step; break;
-      case "ArrowUp":    this.gearOffsetY -= step; break;
-      case "ArrowDown":  this.gearOffsetY += step; break;
-      case "Equal":
-      case "NumpadAdd":
-        this.gearScaleOverride = currentScale + scaleStep; break;
-      case "Minus":
-      case "NumpadSubtract":
-        this.gearScaleOverride = Math.max(0.01, currentScale - scaleStep); break;
-      case "PageUp":
-        this.judgmentLineAdjust += step;
-        this.setLift(this.judgmentLineAdjust);
-        this.updateGearFrameTransform();
-        break;
-      case "PageDown":
-        this.judgmentLineAdjust -= step;
-        this.setLift(this.judgmentLineAdjust);
-        this.updateGearFrameTransform();
-        break;
-      case "Digit0":
-        this.gearOffsetX = 0;
-        this.gearOffsetY = 0;
-        this.gearScaleOverride = null;
-        this.judgmentLineAdjust = 0;
-        this.setLift(0);
-        this.updateGearFrameTransform();
-        break;
-      case "Enter":
-      case "NumpadEnter": {
-        const s = this.gearScaleOverride ?? LANE_AREA_WIDTH / GameRenderer.GEAR_INNER_WIDTH;
-        console.log(
-          `[GearFrame] 현재 값을 constants에 반영하세요:\n` +
-          `  GEAR_INNER_LEFT = ${Math.round(GameRenderer.GEAR_INNER_LEFT - this.gearOffsetX / s)}\n` +
-          `  GEAR_INNER_TOP = ${Math.round(GameRenderer.GEAR_INNER_TOP - this.gearOffsetY / s)}\n` +
-          `  GEAR_INNER_WIDTH = ${this.gearScaleOverride ? Math.round(LANE_AREA_WIDTH / this.gearScaleOverride) : GameRenderer.GEAR_INNER_WIDTH}\n` +
-          `  JUDGMENT_LINE_OFFSET = ${this.judgmentLineOffset + this.judgmentLineAdjust}\n` +
-          `  offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${s.toFixed(4)}  judgmentLineAdjust: ${this.judgmentLineAdjust}`
-        );
-        break;
-      }
-      default: return;
-    }
-    e.preventDefault();
-    this.updateGearFrameTransform();
-    this.updateGearAdjustHUD();
+    this.gearMotionController = new GearMotionController({ holder, lease: acquireGearMotionAssets() });
   }
 
-  /** 키보드 영역 가이드 사다리꼴 그리기 (조정 모드용) */
-  private applyKeyboardDisplayTransform(): void {
-    if (!this.gearAdjustMode || this.adjustTarget !== 'keyboard') {
-      if (this.kbGuide) this.kbGuide.visible = false;
-      return;
-    }
-
-    if (!this.kbGuide) {
-      this.kbGuide = new Graphics();
-      this.uiLayer.addChild(this.kbGuide);
-    }
-
-    const baseW = this.kbWidth;
-    const baseH = this.kbHeight;
-    const p = this.kbPerspective;
-    const topInset = baseW * p / 2;
-
-    // 우하단 기준점
-    const anchorX = this.width - baseW - 4 + this.kbOffsetX;
-    const anchorY = this.height - baseH - 4 + this.kbOffsetY;
-
-    this.kbGuide.clear();
-    this.kbGuide.moveTo(anchorX + topInset, anchorY);
-    this.kbGuide.lineTo(anchorX + baseW - topInset, anchorY);
-    this.kbGuide.lineTo(anchorX + baseW, anchorY + baseH);
-    this.kbGuide.lineTo(anchorX, anchorY + baseH);
-    this.kbGuide.closePath();
-    this.kbGuide.fill({ color: 0x00ff00, alpha: 0.15 });
-    this.kbGuide.stroke({ width: 1, color: 0x00ff00, alpha: 0.8 });
-    this.kbGuide.visible = true;
+  /**
+   * 곡 시작 전 준비. init이 끝난(resolve된) 뒤, 플레이 화면이 audio 재생 직전에 한 번 부른다. init 전이나 dispose 뒤에 부르면 아무것도 하지 않는다.
+   * 튜토리얼 재생기·Lab 미리보기는 부르지 않아 텍스처를 처음 그릴 때 GPU 업로드한다.
+   * 곡 중 프레임이 GPU 준비 비용(텍스처 업로드·밉맵 생성, 셰이더·마스크 준비)을 치르지 않도록 재생 전에 두 단계로 끝낸다.
+   * 1. uploadPlaybackTextures: 곡 중 그릴 수 있는 텍스처를 보이든 말든 전부 GPU 업로드하고 곡 중 Pixi 자동 GC에서 뺀다(첫 판정 키봄·첫 MISS 실패 노트 등).
+   * 2. renderFirstFrame: songTimeMs의 첫 프레임을 그려 셰이더·마스크를 준비한다.
+   */
+  prepareForPlayback(songTimeMs: number): void {
+    if (!this.initialized || !this.app.renderer) return;
+    this.uploadPlaybackTextures();
+    this.renderFirstFrame(songTimeMs);
   }
 
-  // 키보드 텍스처 캡처 해상도 배율
-  private static readonly KB_RENDER_SCALE = 4;
-  // 메시 세분화 수 (가로×세로 셀)
-  private static readonly KB_MESH_COLS = 16;
-  private static readonly KB_MESH_ROWS = 8;
-
-  /** 키보드 디스플레이를 사다리꼴 Mesh로 렌더링 */
-  private buildKeyboardMesh(): void {
-    if (!this.keyboardDisplay || !this.app.renderer) return;
-    const c = this.keyboardDisplay.container;
-    const rs = GameRenderer.KB_RENDER_SCALE;
-
-    // 원본 위치 저장 후 고해상도 캡처용으로 리셋
-    const savedX = c.x, savedY = c.y, savedAlpha = c.alpha;
-    c.x = 0; c.y = 0; c.alpha = 1;
-    c.scale.set(rs); c.skew.set(0, 0); c.rotation = 0;
-
-    const bounds = c.getLocalBounds();
-    const tw = Math.ceil((bounds.width + bounds.x) * rs);
-    const th = Math.ceil((bounds.height + bounds.y) * rs);
-    if (tw <= 0 || th <= 0) { c.x = savedX; c.y = savedY; c.alpha = savedAlpha; return; }
-
-    this.kbRenderTexture?.destroy();
-    this.kbRenderTexture = RenderTexture.create({ width: tw, height: th });
-    this.app.renderer.render({ container: c, target: this.kbRenderTexture, clear: true });
-
-    c.x = savedX; c.y = savedY; c.alpha = 0;
-
-    // 세분화된 메시 생성
-    const { positions, uvs, indices } = this.buildSubdividedMesh();
-
-    if (this.kbMesh) this.kbMesh.destroy();
-    const geometry = new MeshGeometry({ positions, uvs, indices });
-    this.kbMesh = new Mesh({ geometry, texture: this.kbRenderTexture });
-    this.kbMesh.x = this.width - this.kbWidth - 4 + this.kbOffsetX;
-    this.kbMesh.y = this.height - this.kbHeight - 4 + this.kbOffsetY;
-    this.uiLayer.addChild(this.kbMesh);
-  }
-
-  /** 세분화된 사다리꼴 메시 꼭짓점 생성 */
-  private buildSubdividedMesh(): { positions: Float32Array; uvs: Float32Array; indices: Uint32Array } {
-    const cols = GameRenderer.KB_MESH_COLS;
-    const rows = GameRenderer.KB_MESH_ROWS;
-    const w = this.kbWidth;
-    const h = this.kbHeight;
-    const p = this.kbPerspective;
-    const topInset = w * p / 2;
-
-    const vCount = (cols + 1) * (rows + 1);
-    const positions = new Float32Array(vCount * 2);
-    const uvs = new Float32Array(vCount * 2);
-
-    for (let r = 0; r <= rows; r++) {
-      const v = r / rows;
-      // 행별 좌우 경계 보간: 위(topInset) → 아래(0)
-      const leftX = topInset * (1 - v);
-      const rightX = w - topInset * (1 - v);
-      for (let c = 0; c <= cols; c++) {
-        const u = c / cols;
-        const idx = (r * (cols + 1) + c) * 2;
-        positions[idx] = leftX + (rightX - leftX) * u;
-        positions[idx + 1] = h * v;
-        uvs[idx] = u;
-        uvs[idx + 1] = v;
+  /**
+   * 곡 중 그릴 수 있는 텍스처 소스를 한 번씩 GPU 업로드한다(밉맵을 쓰는 기어·`gearMotion` 텍스처는 밉맵 생성까지). 이미 업로드된 소스는 Pixi가 건너뛴다.
+   * 목록은 화면이 넘기지 않고 렌더러가 스스로 모은다(collectPlaybackTextureSources).
+   * 업로드한 소스는 렌더러를 dispose할 때까지 Pixi 자동 GC에서 뺀다(`autoGarbageCollect` false). 불러온 이미지는 자동 GC 대상이라
+   * 기본 설정에서 60초 넘게 그리지 않으면 GPU 텍스처가 해제되고, 곡 중 다시 쓰는 프레임에 GPU 업로드가 다시 일어나기 때문이다.
+   */
+  private uploadPlaybackTextures(): void {
+    const textureSystem = this.app.renderer.texture;
+    for (const source of this.collectPlaybackTextureSources()) {
+      // 같은 소스를 두 번 준비해도(두 번째에는 이미 false) 처음 값을 기록한다.
+      if (!this.autoGarbageCollectBeforePlayback.has(source)) {
+        this.autoGarbageCollectBeforePlayback.set(source, source.autoGarbageCollect);
       }
+      source.autoGarbageCollect = false;
+      textureSystem.initSource(source);
     }
-
-    const iCount = cols * rows * 6;
-    const indices = new Uint32Array(iCount);
-    let ii = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const tl = r * (cols + 1) + c;
-        const tr = tl + 1;
-        const bl = (r + 1) * (cols + 1) + c;
-        const br = bl + 1;
-        indices[ii++] = tl; indices[ii++] = tr; indices[ii++] = br;
-        indices[ii++] = tl; indices[ii++] = br; indices[ii++] = bl;
-      }
-    }
-    return { positions, uvs, indices };
   }
 
-  /** 키 상태 변경 시 Mesh 텍스처 갱신 */
-  private updateKeyboardMeshTexture(): void {
-    if (!this.keyboardDisplay || !this.kbRenderTexture || !this.app.renderer) return;
-    const c = this.keyboardDisplay.container;
-    const rs = GameRenderer.KB_RENDER_SCALE;
-    const savedX = c.x, savedY = c.y, savedAlpha = c.alpha;
-    c.x = 0; c.y = 0; c.alpha = 1;
-    c.scale.set(rs); c.skew.set(0, 0); c.rotation = 0;
-    this.app.renderer.render({ container: c, target: this.kbRenderTexture, clear: true });
-    c.x = savedX; c.y = savedY; c.alpha = savedAlpha;
-  }
-
-  /** G모드에서 가이드 변경 후 Mesh 갱신 */
-  private updateKeyboardMesh(): void {
-    if (!this.kbMesh) return;
-    const { positions } = this.buildSubdividedMesh();
-    this.kbMesh.geometry.positions = positions;
-    this.kbMesh.x = this.width - this.kbWidth - 4 + this.kbOffsetX;
-    this.kbMesh.y = this.height - this.kbHeight - 4 + this.kbOffsetY;
-  }
-
-  private updateGearAdjustHUD(): void {
-    if (!this.gearAdjustText) return;
-    const { GEAR_INNER_WIDTH } = GameRenderer;
-
-    if (this.adjustTarget === 'keyboard') {
-      if (this.kbSectionIdx >= 0) {
-        const section = KB_SECTIONS[this.kbSectionIdx];
-        const o = this.keyboardDisplay?.getSectionOffset(section) ?? { x: 0, y: 0 };
-        const sc = this.keyboardDisplay?.getSectionScale(section) ?? { sx: 1, sy: 1 };
-        this.gearAdjustText.text =
-          `[Section: ${section}] Tab:next  Bksp:prev  Arrows:move  +/-:scale  R/T:scaleX  F/V:scaleY  0:reset  Enter:export\n` +
-          `offset: (${o.x}, ${o.y})  scale: (${sc.sx.toFixed(3)}, ${sc.sy.toFixed(3)})`;
-      } else {
-        const sp = this.keyboardDisplay?.getGlobalSpacing() ?? 0;
-        this.gearAdjustText.text =
-          `[Keyboard ALL] Tab:section  K:→gear  Arrows:move  +/-:width  R/T:height  F/V:perspective  [/]:spacing  0:reset  Enter:export\n` +
-          `offset: (${this.kbOffsetX}, ${this.kbOffsetY})  size: ${this.kbWidth}×${this.kbHeight}  perspective: ${this.kbPerspective.toFixed(3)}  spacing: ${sp.toFixed(1)}`;
-      }
-    } else {
-      const scale = this.gearScaleOverride ?? (LANE_AREA_WIDTH / GEAR_INNER_WIDTH);
-      const jlOffset = this.judgmentLineOffset + this.judgmentLineAdjust;
-      this.gearAdjustText.text =
-        `[Gear Adjust] G:close  K:switch to keyboard  Arrows:move  +/-:scale  PgUp/Dn:judgmentLine  Shift:fine  0:reset  Enter:export\n` +
-        `offset: (${this.gearOffsetX}, ${this.gearOffsetY})  scale: ${scale.toFixed(4)}  JUDGMENT_LINE_OFFSET: ${jlOffset}`;
+  /**
+   * 곡 중 이 렌더러가 그릴 수 있는 텍스처 소스(중복 없음). 여러 텍스처가 나눠 쓰는 소스(터미널에서 잘라 쓴 롱노트 캡, 게이지 행 등)는 한 번만 담는다.
+   * - SkinManager가 불러온 텍스처 전부: 노트·바디·터미널과 실패·켜짐·부분 실패·idle 변형, Grace·그림자, 키봄 16프레임 등.
+   *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리는 이 렌더러가 실제로 만든 것(gearTextures)만 담는다.
+   * - `gearMotion` 텍스처 9개: `gearMotion`이 재생 중일 때만(`running`. 설정 끔이면 `gearMotion`을 만들지 않는다).
+   * - 키빔 그라데이션: 레인 키를 처음 누르는 프레임에 GPU 업로드되지 않게.
+   */
+  private collectPlaybackTextureSources(): Set<TextureSource> {
+    const sources = new Set<TextureSource>();
+    for (const [key, texture] of this.skinManager.getLoadedTextures()) {
+      if (key === GEAR_IMAGE_KEY || key === GEAR_GAUGE_EMPTY_KEY) continue;
+      sources.add(texture.source);
     }
+    for (const texture of this.gearTextures) sources.add(texture.source);
+    for (const texture of this.gearMotionController?.textures ?? []) sources.add(texture.source);
+    // Pixi의 Graphics.fill()이 그라데이션 텍스처를 동기로 만들므로(buildKeyBeams 안) init 뒤에는 이미 있다.
+    if (this.keyBeamGradient?.texture) sources.add(this.keyBeamGradient.texture.source);
+    return sources;
+  }
+
+  /**
+   * 곡을 시작하기 전에 songTimeMs의 첫 프레임을 그린다(deltaMs 0이라 애니메이션 경과 시간·게이지 이징은 나아가지 않는다). 셰이더·마스크 준비를 재생 시작 전에 끝낸다.
+   * `gearMotion`의 하단 바 알파 마스크는 빛이 보일 때만 그려지므로 이 첫 프레임 동안만 함께 그려 준비한다(빛이 투명해 화면은 같다).
+   */
+  private renderFirstFrame(songTimeMs: number): void {
+    // 곡 중간에서 시작해도(편집기 시험 재생) 게이지가 가득 찬 데서 내려오지 않게, 첫 프레임에서 곡 시작 시각의 고도로 바로 맞춘다.
+    this.gearGauge?.snapNext();
+    const render = () => this.renderFrame(songTimeMs, 0);
+    if (this.gearMotionController) this.gearMotionController.warmUp(render);
+    else render();
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {
     const idx = lane - 1;
     if (idx >= 0 && idx < this.keyBeamGraphics.length) {
       this.keyBeamGraphics[idx].visible = pressed;
-    }
-    if (idx >= 0 && idx < this.buttonSprites.length) {
-      const texKey = pressed ? `buttonPressed${idx}` : `buttonIdle${idx}`;
-      try {
-        this.buttonSprites[idx].texture = this.skinManager.getTexture(texKey);
-        this.buttonSprites[idx].alpha = pressed ? 1 : 0.8;
-      } catch { /* 텍스처 미로드 시 무시 */ }
     }
     if (idx >= 0 && idx < this.laneKeyLabels.length) {
       const entry = this.laneKeyLabels[idx];
@@ -978,7 +682,7 @@ export class GameRenderer {
         text: '',
         style: new TextStyle({
           fontFamily: 'sans-serif',
-          fontSize: 14,
+          fontSize: LANE_KEY_FONT_SIZE,
           fontWeight: '800',
           fill: 0xe5ecef,
           align: 'center',
@@ -1006,27 +710,27 @@ export class GameRenderer {
     // dispose 경합 방어 — app.destroy로 이미 파괴된 Graphics에 clear()를 부르면
     // 내부 context가 null이라 크래시한다("Cannot read properties of null (reading 'clear')").
     if (entry.cap.destroyed) return;
-    const capH = 42;
-    const capW = LANE_WIDTH - 8;
+    const capH = LANE_KEY_CAP_HEIGHT;
+    const capW = LANE_WIDTH - LANE_KEY_CAP_INSET;
     const cy = this._judgmentLineY + this.judgmentLineOffset / 2;
 
     entry.cap.clear();
-    entry.cap.roundRect(-capW / 2, -capH / 2, capW, capH, 4);
+    entry.cap.roundRect(-capW / 2, -capH / 2, capW, capH, KEY_CAP_RADIUS);
     if (entry.empty) {
       entry.cap.fill({ color: 0x0a0d0f, alpha: 0.54 });
-      entry.cap.stroke({ width: 1, color: 0xffffff, alpha: 0.14 });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0xffffff, alpha: 0.14 });
       entry.text.style.fill = 0x6f767a;
     } else if (pressed) {
       entry.cap.fill(0x355f66);
-      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0x76d6df });
       entry.text.style.fill = 0xffffff;
     } else {
       entry.cap.fill(0x303538);
-      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0x6b7b80 });
       entry.text.style.fill = 0xe5ecef;
     }
 
-    const y = pressed && !entry.empty ? cy + 4 : cy;
+    const y = pressed && !entry.empty ? cy + LANE_KEY_PRESS_DROP : cy;
     entry.cap.y = y;
     entry.text.y = y;
   }
@@ -1043,9 +747,15 @@ export class GameRenderer {
 
     // 배경 박스 (HTML miniKeyboard 톤)
     const box = new Graphics();
-    box.roundRect(this.laneAreaX + 2, this.height + 2, LANE_AREA_WIDTH - 4, this.keyboardAreaHeight - 4, 7);
+    box.roundRect(
+      this.laneAreaX + TUTORIAL_BOARD_INSET,
+      this.height + TUTORIAL_BOARD_INSET,
+      LANE_AREA_WIDTH - TUTORIAL_BOARD_INSET * 2,
+      this.keyboardAreaHeight - TUTORIAL_BOARD_INSET * 2,
+      TUTORIAL_BOARD_RADIUS,
+    );
     box.fill(0x191919);
-    box.stroke({ width: 1, color: 0x3f3f3f });
+    box.stroke({ width: KEY_CAP_STROKE, color: 0x3f3f3f });
     this.tutorialKeyboardLayer.addChild(box);
 
     for (const kd of spec.keys) {
@@ -1059,7 +769,7 @@ export class GameRenderer {
       cap.y = ky;
       const text = new Text({
         text: kd.label,
-        style: new TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fontWeight: '800', fill: 0xe5ecef, align: 'center' }),
+        style: new TextStyle({ fontFamily: 'sans-serif', fontSize: TUTORIAL_KEY_FONT_SIZE, fontWeight: '800', fill: 0xe5ecef, align: 'center' }),
       });
       text.anchor.set(0.5);
       text.x = kx + kw / 2;
@@ -1089,32 +799,49 @@ export class GameRenderer {
   private drawTutorialKey(entry: TutorialKeyboardKeyEntry, pressed: boolean): void {
     // dispose 경합 방어 — 파괴된 Graphics에 clear()를 부르면 크래시한다.
     if (entry.cap.destroyed) return;
-    const gap = 2;
+    const gap = TUTORIAL_KEY_GAP;
     entry.cap.clear();
-    entry.cap.roundRect(gap, gap, entry.kw - gap * 2, entry.kh - gap * 2, 4);
+    entry.cap.roundRect(gap, gap, entry.kw - gap * 2, entry.kh - gap * 2, KEY_CAP_RADIUS);
     if (!entry.mapped) {
       entry.cap.fill(0x121415);
-      entry.cap.stroke({ width: 1, color: 0x24282a });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0x24282a });
       entry.cap.alpha = 0.68;
       entry.text.alpha = 0.68;
       entry.text.style.fill = 0x343a3d;
     } else if (pressed) {
       entry.cap.fill(0x355f66);
-      entry.cap.stroke({ width: 1, color: 0x76d6df });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0x76d6df });
       entry.cap.alpha = 1;
       entry.text.alpha = 1;
       entry.text.style.fill = 0xffffff;
     } else {
       entry.cap.fill(0x303538);
-      entry.cap.stroke({ width: 1, color: 0x6b7b80 });
+      entry.cap.stroke({ width: KEY_CAP_STROKE, color: 0x6b7b80 });
       entry.cap.alpha = 1;
       entry.text.alpha = 1;
       entry.text.style.fill = 0xe5ecef;
     }
     // 눌리면 살짝 내려감 — cap 로컬 좌표가 (gap,gap)부터라 x는 그대로 두고 y만 dy 반영.
-    const dy = pressed && entry.mapped ? 3 : 0;
+    const dy = pressed && entry.mapped ? TUTORIAL_KEY_PRESS_DROP : 0;
     entry.cap.y = entry.baseY + dy;
     entry.text.y = entry.baseY + entry.kh / 2 + dy;
+  }
+
+  /**
+   * 튜토리얼 키보드 strip의 라벨·매핑만 바꾼다 — 키캡 배치(프리셋 레이아웃)는 init 때 만든 것을 그대로 쓴다.
+   * 같은 렌더러로 다른 튜토리얼 차트를 그릴 때 차트마다 달라지는 키 표시만 교체하고, 눌림은 해제한다.
+   */
+  updateTutorialKeyboardKeys(keys: readonly { code: string; label: string; mapped: boolean }[]): void {
+    for (const { code, label, mapped } of keys) {
+      const entry = this.tutorialKeyboardKeyByCode.get(code);
+      if (!entry) continue;
+      // 바뀐 게 없는 키캡은 Graphics를 다시 만들지 않는다.
+      if (entry.text.text === label && entry.mapped === mapped && !entry.pressed) continue;
+      entry.mapped = mapped;
+      entry.pressed = false;
+      entry.text.text = label;
+      this.drawTutorialKey(entry, false);
+    }
   }
 
   /** 레인 키 라벨 텍스트·표시 여부 갱신 — 라벨 계산은 React가 하고 렌더러는 그리기만 한다. */
@@ -1135,228 +862,47 @@ export class GameRenderer {
     this.judgmentLineGraphic.clear();
     this.judgmentLineGraphic.rect(
       this.laneAreaX,
-      this._judgmentLineY - 2,
+      this._judgmentLineY - JUDGMENT_LINE_THICKNESS / 2,
       LANE_AREA_WIDTH,
-      4
+      JUDGMENT_LINE_THICKNESS,
     );
     this.judgmentLineGraphic.fill(COLORS.JUDGMENT_LINE);
   }
 
-  private drawMask(): void {
-    this.maskGraphic.clear();
-    const maskY = this._judgmentLineY + 2; // just below the judgment line
-    const maskHeight = this.height - maskY;
-    if (maskHeight <= 0) return;
-    this.maskGraphic.rect(this.laneAreaX, maskY, LANE_AREA_WIDTH, maskHeight);
-    this.maskGraphic.fill(COLORS.MASK_BELOW_JUDGMENT);
+  /**
+   * 판정선을 지난 노트를 그리는 시간. 기어가 있으면 레인 끝이 키 윗면에 고정이라 판정 전·놓친 노트는 판정선 아래 틈을 다 지나야 사라진다.
+   * 노트 시각은 박스 가운데라(#224) 박스 윗변이 레인 끝에 닿는 때는 시각 위치가 (레인 끝 − 판정선) + 노트 반 칸 내려갔을 때다.
+   * 놓친 노트는 박스 위에 접촉 그림자(스킨 `pointContactShadow.above`)를 깔므로, 그 띠까지 레인 끝 아래로 내려간 뒤 지운다.
+   * Grace 오버레이는 놓친 노트에 그리지 않아 더하지 않는다. 리프트가 크거나 스크롤이 느리면 그 시간이 500ms보다 길다(RFD 0029).
+   */
+  private lateNoteWindowMs(): number {
+    const overlayAbove = playfieldPx(this.skinManager.getTheme().pointContactShadow?.above ?? 0);
+    const visibleBelowLine = this.laneEndY() - this._judgmentLineY + NOTE_HEIGHT / 2 + overlayAbove;
+    return Math.max(LATE_NOTE_MIN_WINDOW_MS, (visibleBelowLine / this._scrollSpeed) * 1000);
   }
 
-  private renderPerspectiveSurface(songTimeMs: number, deltaMs: number): void {
-    this.perspectiveSurfaceAltitudeState = stepPerspectiveSurfaceAltitude(
-      this.perspectiveSurfaceAltitudeState,
-      deltaMs,
-    );
-    const altitude = resolvePerspectiveSurfaceAltitude({
-      state: this.perspectiveSurfaceAltitudeState,
-      songTimeMs,
-      chartDurationMs: this.chartDurationMs,
-    });
-    this.updateGearGauge(altitude);
-
-    const baseParams = resolvePerspectiveSurfaceGridParamsFromAltitude(
-      altitude,
-      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfaceRanges,
-      DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.params,
-    );
-    const deltaSeconds = Math.max(0, Math.min(0.05, deltaMs / 1000));
-    this.surfaceScrollOffsetZ += baseParams.scrollSpeed * deltaSeconds;
-
-    const params: PerspectiveSurfaceGridParams = {
-      ...baseParams,
-      scrollOffsetZ: this.surfaceScrollOffsetZ,
-    };
-    const grid = buildPerspectiveSurfaceGrid(params);
-    const surface = this.surfaceGraphic;
-
-    surface.clear();
-    surface.rect(0, 0, this.width, this.height);
-    surface.fill(0x05080d);
-    this.drawPerspectiveSurfaceSky(surface, params);
-    this.drawPerspectiveSurfaceForwardLight(surface, params);
-
-    if (DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET.surfacePattern === "triangles") {
-      grid.triangles.forEach((triangle, index) => {
-        const color = index % 9 === 0 ? 0xffd27c : 0x52d4e6;
-        this.strokePerspectiveSurfaceLine(surface, triangle.points, color, 0.16, 1);
-      });
-    } else {
-      grid.rows.forEach((row, index) => {
-        const alpha = this.getPerspectiveSurfaceRowAlpha(row, params);
-        const color = index % 5 === 0 ? 0xffd27c : 0x5ee9ee;
-        this.strokePerspectiveSurfaceLine(surface, row.points, color, alpha, 1);
-      });
-
-      grid.columns.forEach((column, index) => {
-        const color = index % 7 === 0 ? 0xffd27c : 0x52d4e6;
-        this.strokePerspectiveSurfaceLine(surface, column.points, color, 0.28, 1);
-      });
-    }
-
-    this.drawPerspectiveSurfaceObjects(surface, params);
+  /**
+   * 레인 끝: 레인 배경과 레인 내용(`laneContentLayer`)이 끝나는 y. 그 아래는 클립(`laneEndClip`)이 잘라 그리지 않는다(#247).
+   * 기어가 있으면 판정선이 아니라 키 윗면(열린 덱 바닥 바로 아래)이다(RFD 0029). 판정선 아래 틈과 꺾인 덱 사이로 실제 레인이
+   * 이어지고, 판정 전·놓친 노트는 그곳을 지나 키 밑으로 사라진다. 이 높이는 기어와 함께 고정이라 리프트로 움직이지 않는다.
+   * 기어가 없는 미니 렌더러(튜토리얼 재생기)는 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸, #224)이라, 판정선에 가운데가 걸친
+   * 노트·터미널이 게임처럼 한 칸 전부 보이고 리프트를 따라 움직인다.
+   */
+  private laneEndY(): number {
+    return this._gearLayout
+      ? this._gearLayout.keyRimY
+      : this._judgmentLineY + Math.max(NOTE_HEIGHT, JUDGMENT_LINE_THICKNESS) / 2;
   }
 
-  private drawPerspectiveSurfaceSky(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    const horizonY = this.toSurfaceY(params.horizonYPercent);
-    const skyHeight = Math.max(0, Math.min(this.height, horizonY));
-    if (skyHeight <= 0) return;
-
-    surface.rect(0, 0, this.width, skyHeight);
-    surface.fill({ color: 0x111a21, alpha: 0.58 });
-  }
-
-  private drawPerspectiveSurfaceForwardLight(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    if (params.forwardLightOpacity <= 0) return;
-
-    const lightTopY = this.toSurfaceY(params.forwardLightHeightPercent);
-    const clampedTopY = Math.max(0, Math.min(this.height, lightTopY));
-    const alpha = Math.min(0.24, params.forwardLightOpacity * 0.24);
-    if (alpha <= 0 || clampedTopY >= this.height) return;
-
-    surface.rect(0, clampedTopY, this.width, this.height - clampedTopY);
-    surface.fill({ color: 0xc6fff7, alpha });
-  }
-
-  private drawPerspectiveSurfaceObjects(surface: Graphics, params: PerspectiveSurfaceGridParams): void {
-    const {
-      objectConnections = [],
-      objectPlacements,
-      objectLightTrail,
-    } = DEFAULT_GAME_PERSPECTIVE_SURFACE_GRID_PRESET;
-
-    objectConnections.forEach((connection) => {
-      const segment = getPerspectiveGridObjectConnectionSegment(connection, objectPlacements, params);
-      if (segment === null) return;
-
-      this.strokePerspectiveSurfaceLine(
-        surface,
-        [segment.from, segment.to],
-        GameRenderer.parseHexColor(segment.color),
-        0.42,
-        1.2,
-      );
-    });
-
-    objectPlacements.forEach((placement) => {
-      const trail = getPerspectiveGridObjectTrail(placement, params, objectLightTrail.timeSeconds);
-      const trailPoints = trail.points.slice(0, -1);
-      trailPoints.forEach((point, index) => {
-        const progress = (index + 1) / Math.max(1, trailPoints.length);
-        this.fillPerspectiveSurfaceObjectShape(
-          surface,
-          point,
-          placement.appearance,
-          params,
-          objectLightTrail.opacity * 0.5 * progress ** 1.45,
-        );
-      });
-
-      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, {
-        ...placement.appearance,
-        diameter: placement.appearance.diameter * 1.75,
-      }, params, 0.16);
-      this.fillPerspectiveSurfaceObjectShape(surface, trail.head, placement.appearance, params, 0.92);
-    });
-  }
-
-  private fillPerspectiveSurfaceObjectShape(
-    surface: Graphics,
-    center: ProjectedGroundPoint,
-    appearance: PerspectiveSurfaceGridObjectAppearance,
-    params: PerspectiveSurfaceGridParams,
-    alpha: number,
-  ): void {
-    if (alpha <= 0) return;
-
-    const shape = projectPerspectiveGridObjectSurfaceShape(center, appearance, params);
-    const first = shape.vertices[0];
-    if (!first) return;
-    const color = GameRenderer.parseHexColor(appearance.color);
-    const renderMode = appearance.renderMode ?? "filled";
-    const outlineWidth = GameRenderer.getPerspectiveSurfaceObjectOutlineWidth(appearance);
-
-    if (appearance.shape === "point") {
-      surface.circle(
-        this.toSurfaceX(shape.center.screenXPercent),
-        this.toSurfaceY(shape.center.screenYPercent),
-        Math.max(1, appearance.diameter * shape.center.scale * 1.4),
-      );
-      if (renderMode === "outline") {
-        surface.stroke({ width: outlineWidth, color, alpha });
-      } else {
-        surface.fill({ color, alpha });
-      }
-      return;
-    }
-
-    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
-    for (const vertex of shape.vertices.slice(1)) {
-      surface.lineTo(this.toSurfaceX(vertex.screenXPercent), this.toSurfaceY(vertex.screenYPercent));
-    }
-    surface.closePath();
-    if (renderMode === "outline") {
-      surface.stroke({ width: outlineWidth, color, alpha, alignment: 0.5 });
-    } else {
-      surface.fill({ color, alpha });
-    }
-  }
-
-  private static getPerspectiveSurfaceObjectOutlineWidth(appearance: PerspectiveSurfaceGridObjectAppearance): number {
-    const outlineWidth = appearance.outlineWidth ?? 0.18;
-    if (!Number.isFinite(outlineWidth)) return 1.2;
-
-    return Math.max(0.25, Math.min(6, outlineWidth * 6.667));
-  }
-
-  private strokePerspectiveSurfaceLine(
-    surface: Graphics,
-    points: ProjectedGroundPoint[],
-    color: number,
-    alpha: number,
-    width: number,
-  ): void {
-    const first = points[0];
-    if (!first || alpha <= 0) return;
-
-    surface.moveTo(this.toSurfaceX(first.screenXPercent), this.toSurfaceY(first.screenYPercent));
-    for (const point of points.slice(1)) {
-      surface.lineTo(this.toSurfaceX(point.screenXPercent), this.toSurfaceY(point.screenYPercent));
-    }
-    surface.stroke({ width, color, alpha, alignment: 0.5 });
-  }
-
-  private getPerspectiveSurfaceRowAlpha(
-    row: PerspectiveSurfaceGridLine,
-    params: PerspectiveSurfaceGridParams,
-  ): number {
-    if (row.z === undefined) return 0.18;
-
-    const depth = (row.z - params.zNear) / Math.max(1, params.zFar - params.zNear);
-    return Math.max(0.05, Math.min(0.38, 0.08 + (1 - depth) ** 1.2 * 0.3));
-  }
-
-  private toSurfaceX(percent: number): number {
-    return (percent / 100) * this.width;
-  }
-
-  private toSurfaceY(percent: number): number {
-    return (percent / 100) * this.height;
-  }
-
-  private static parseHexColor(value: string): number {
-    const normalized = value.trim().replace(/^#/, "");
-    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return 0xebfffb;
-
-    return Number.parseInt(normalized, 16);
+  /**
+   * 이번 프레임의 고도(0~1). 고도 상태를 deltaMs만큼 나아가게 한 뒤(같은 객체에 쓴다) 곡 진행과 판정에 따른 임시 모델 값을 돌려준다.
+   * 고도 계산도 위치 인자로 불러 프레임마다 객체를 만들지 않는다.
+   * Lab 미리보기가 고정값을 걸었으면 그 값이다(고도 상태는 그래도 계속 나아간다). renderFrame이 프레임마다 한 번 부른다.
+   */
+  private advanceFlightAltitude(songTimeMs: number, deltaMs: number): number {
+    stepFlightAltitude(this.flightAltitudeState, deltaMs, this.flightAltitudeState);
+    if (this.altitudeOverride !== null) return this.altitudeOverride;
+    return resolveFlightAltitude(this.flightAltitudeState, songTimeMs, this.chartDurationMs);
   }
 
   // 불변: timing은 여기 넘기는 notes/trillZones/events와 **같은 차트**에서 파생돼야 한다.
@@ -1376,8 +922,10 @@ export class GameRenderer {
     this.trillZones = trillZones;
     this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
-    this.surfaceScrollOffsetZ = 0;
-    this.perspectiveSurfaceAltitudeState = createPerspectiveSurfaceAltitudeState();
+    this.flightBackground?.reset();
+    this.flightAltitudeState = createFlightAltitudeState();
+    // 차트를 (다시) 걸면(되감기·새 차트) 게이지는 이징 없이 새 고도로 바로 맞춘다.
+    this.gearGauge?.snapNext();
 
     this.noteRenderData = notes.map((entity, index) => {
       const timeMs = timing.noteTimesMs.get(index)!;
@@ -1420,7 +968,10 @@ export class GameRenderer {
       startMsByIndex,
       endMsByIndex,
     );
-    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex);
+    const trillLongIndices = new Set(this.noteRenderData
+      .filter(data => data.entity.type === 'trillLong')
+      .map(data => data.index));
+    this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex, trillLongIndices);
   }
 
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
@@ -1429,9 +980,15 @@ export class GameRenderer {
     if (!this.initialized || !this.app.renderer) return;
 
     this.judgmentUI.updateFade(deltaMs);
-    if (this.showPerspectiveSurface) {
-      this.renderPerspectiveSurface(songTimeMs, deltaMs);
+    // 고도는 프레임마다 한 번 계산해 보여 주는 곳(비행 배경·기어 게이지)에 같은 값을 준다. 둘 다 없으면(튜토리얼 재생기) 계산하지 않는다.
+    if (this.flightBackground || this.gearGauge) {
+      const altitude = this.advanceFlightAltitude(songTimeMs, deltaMs);
+      this.flightBackground?.render(altitude, deltaMs);
+      // 게이지 이징도 렌더 프레임 간격 `deltaMs`로만 나아가 일시정지 중에는 멈춘다(최대 50ms).
+      this.gearGauge?.update(altitude, deltaMs);
     }
+    // `gearMotion`의 애니메이션 경과 시간은 곡 시간이 아니라 렌더 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
+    this.gearMotionController?.advance(deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1443,7 +1000,7 @@ export class GameRenderer {
     this.noteLayer.removeChildren();
 
     const visibleWindowMs = (this.height / this._scrollSpeed) * 1000 + 500;
-    const minTime = songTimeMs - 500;
+    const minTime = songTimeMs - this.lateNoteWindowMs();
     const maxTime = songTimeMs + visibleWindowMs;
 
     this.renderRestZones(songTimeMs);
@@ -1471,28 +1028,37 @@ export class GameRenderer {
     this.app.render();
   }
 
-  recordPerspectiveSurfaceJudgment(grade: JudgmentGrade): void {
-    this.perspectiveSurfaceAltitudeState = applyPerspectiveSurfaceJudgment(
-      this.perspectiveSurfaceAltitudeState,
+  recordFlightJudgment(grade: JudgmentGrade): void {
+    this.flightAltitudeState = applyFlightJudgment(
+      this.flightAltitudeState,
       grade,
     );
   }
 
+  // 마디선·구간 밴드는 풀에 넣을 때 한 번만 그리고 프레임마다 위치·세로 배율만 바꾼다(매 프레임 Graphics를 다시 만들지 않는다).
   private getMeasureLineFromPool(index: number): Graphics {
     if (index < this.measureLinePool.length) {
       return this.measureLinePool[index];
     }
-    const g = new Graphics();
+    // 판정선처럼 선 두께의 가운데가 g.y(마디 시각 위치)에 오도록 그린다. 노트 가운데와 같은 기준이다(#224).
+    const g = new Graphics()
+      .rect(this.laneAreaX, -this.measureLineThickness / 2, LANE_AREA_WIDTH, this.measureLineThickness)
+      .fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
     this.measureLinePool.push(g);
     this.measureLineLayer.addChild(g);
     return g;
+  }
+
+  /** 레인 폭 × 높이 1 밴드. 놓을 때 위끝을 y, 높이를 scale.y로 정한다. */
+  private static createLaneBand(color: number, alpha: number): Graphics {
+    return new Graphics().rect(0, 0, LANE_WIDTH, 1).fill({ color, alpha });
   }
 
   private getTrillZoneFromPool(index: number): Graphics {
     if (index < this.trillZonePool.length) {
       return this.trillZonePool[index];
     }
-    const g = new Graphics();
+    const g = GameRenderer.createLaneBand(COLORS.TRILL_ZONE_BG, COLORS.TRILL_ZONE_ALPHA);
     this.trillZonePool.push(g);
     this.trillZoneLayer.addChild(g);
     return g;
@@ -1502,7 +1068,7 @@ export class GameRenderer {
     if (index < this.restZonePool.length) {
       return this.restZonePool[index];
     }
-    const g = new Graphics();
+    const g = GameRenderer.createLaneBand(COLORS.REST_ZONE_DIM, COLORS.REST_ZONE_ALPHA);
     this.restZonePool.push(g);
     this.restZoneLayer.addChild(g);
     return g;
@@ -1522,14 +1088,12 @@ export class GameRenderer {
       if (startY < -50 || endY > this.height + 50) continue;
 
       const zoneGraphic = this.getRestZoneFromPool(poolIdx++);
-      zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
-      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다.
-      const topY = endY;
-      const height = Math.max(startY - endY, 1);
-      zoneGraphic.rect(laneX, topY, LANE_WIDTH, height);
-      zoneGraphic.fill({ color: COLORS.REST_ZONE_DIM, alpha: COLORS.REST_ZONE_ALPHA });
+      // endY(구간 끝, 위) → startY(구간 시작, 아래) 사이를 레인 폭으로 채운다. 노트 칸이 아니라 시각 구간 자체를 그리므로
+      // 경계 박의 노트(허용)는 가운데가 밴드 경계에 걸친다 — 에디터 타임라인과 같다.
+      zoneGraphic.position.set(laneX, endY);
+      zoneGraphic.scale.y = Math.max(startY - endY, 1);
       zoneGraphic.visible = true;
     }
   }
@@ -1541,9 +1105,7 @@ export class GameRenderer {
       if (y < -2 || y > this.height + 2) continue;
 
       const line = this.getMeasureLineFromPool(poolIdx++);
-      line.clear();
-      line.rect(this.laneAreaX, y - 1, LANE_AREA_WIDTH, 1);
-      line.fill({ color: COLORS.MEASURE_LINE, alpha: COLORS.MEASURE_LINE_ALPHA });
+      line.y = y;
       line.visible = true;
     }
   }
@@ -1560,16 +1122,13 @@ export class GameRenderer {
       if (startY < -50 || endY > this.height + 50) continue;
 
       const zoneGraphic = this.getTrillZoneFromPool(poolIdx++);
-      zoneGraphic.clear();
       const laneX = this.noteRenderer.getLaneX(zone.lane);
 
       // trillZone은 같은 시작/끝 박의 롱노트 body와 같은 길이·위치로 그린다.
-      // 롱노트 body: top = endY(끝 박스 상단), bottom = startY + NOTE_HEIGHT(시작 박스 하단).
-      // (startY/endY는 박스 상단 기준. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치)
-      const topY = endY;
-      const height = Math.max(startY + NOTE_HEIGHT - endY, NOTE_HEIGHT); // 최소 한 칸(길이 0)
-      zoneGraphic.rect(laneX, topY, LANE_WIDTH, height);
-      zoneGraphic.fill({ color: COLORS.TRILL_ZONE_BG, alpha: COLORS.TRILL_ZONE_ALPHA });
+      // startY/endY는 시각 위치(노트 박스 가운데, #224)라 롱노트 body는 top = endY − 노트 반 칸(끝 칸 윗변),
+      // bottom = startY + 노트 반 칸(머리 칸 아랫변)이다. 트릴 노트 바운딩 박스 폭 = LANE_WIDTH와도 일치.
+      zoneGraphic.position.set(laneX, endY - NOTE_HEIGHT / 2);
+      zoneGraphic.scale.y = Math.max(startY - endY + NOTE_HEIGHT, NOTE_HEIGHT); // 최소 한 칸(길이 0)
       zoneGraphic.visible = true;
     }
   }
@@ -1591,6 +1150,7 @@ export class GameRenderer {
 
   /** 노트 판정 시 봄 이펙트 재생 */
   showBombEffect(lane: number): void {
+    if (this.bombScale === 0) return;
     const textures = this.skinManager.getBombTextures();
     if (textures.length === 0) return;
 
@@ -1598,13 +1158,34 @@ export class GameRenderer {
     anim.anchor.set(0.5, 0.5);
     anim.x = this.noteRenderer.getLaneX(lane) + LANE_WIDTH / 2;
     anim.y = this._judgmentLineY;
-    anim.width = 120;
-    anim.height = 120;
-    anim.animationSpeed = 1;
+    anim.width = KEY_BOMB_SIZE * this.bombScale;
+    anim.height = KEY_BOMB_SIZE * this.bombScale;
+    const durationMs = this.skinManager.getTheme().bombDurationMs;
+    anim.animationSpeed = durationMs ? textures.length * 1000 / (60 * durationMs) : 1;
     anim.loop = false;
     anim.onComplete = () => { anim.destroy(); };
     anim.play();
     this.effectLayer.addChild(anim);
+  }
+
+  /**
+   * 같은 렌더러로 다른 차트를 이어 그릴 때(튜토리얼 프리뷰 슬롯 재사용) 이전 차트가 남긴 일시 표시를 지운다.
+   * 재생 중인 봄, 판정 텍스트, 키빔·레인 키캡·키보드 눌림, 이벤트 문구, 이전 판정 세션의 body 조회가 대상이다.
+   * 노트 풀과 노트 표시 상태는 setChart가 비운다.
+   */
+  resetTransientState(): void {
+    if (!this.initialized) return;
+    // 봄은 Ticker.shared로 재생하다 끝나면 스스로 파괴된다. 끝나기 전에 떼어 내 새 차트 위에 남지 않게 한다.
+    for (const bomb of this.effectLayer.removeChildren()) bomb.destroy();
+    this.judgmentUI.reset();
+    for (let lane = 1; lane <= LANE_COUNT; lane++) this.setKeyBeam(lane, false);
+    for (const entry of this.tutorialKeyboardKeys) {
+      if (!entry.pressed) continue;
+      entry.pressed = false;
+      this.drawTutorialKey(entry, false);
+    }
+    this.eventMessageText.text = "";
+    this.noteRenderer.setJudgmentBodyStateQuery(null);
   }
 
   setShowFastSlow(enabled: boolean): void {
@@ -1638,22 +1219,70 @@ export class GameRenderer {
     return this._scrollSpeed;
   }
 
-  /** G 모드 토글 시 호출되는 콜백 설정 */
-  setAdjustModeCallback(cb: (active: boolean) => void): void {
-    this.onAdjustModeChange = cb;
+  /** 지금 판정선 y(논리 단위, 리프트 반영). 노트 판정 위치·키봄·디버그 기록이 같은 값을 쓴다. */
+  get judgmentLineY(): number {
+    return this._judgmentLineY;
   }
 
+  /** 기어 배치(논리 단위). 기어를 그리지 않으면(showGear false·텍스처 없음) null. */
+  get gearLayout(): Readonly<GearLayout> | null {
+    return this._gearLayout;
+  }
+
+  /**
+   * 기어 유리관 고도 게이지에 지금 보이는 채움(0~1, 이징 반영). 두 유리관은 같은 값이다.
+   * 게이지를 그리지 않으면(showGear false·빈 유리 텍스처 없음·dispose 뒤) null. Lab Gear(`/lab/gear`)가 읽어 `data-gear-gauge-level`로 알리고 E2E도 읽는다.
+   */
+  get gearGaugeLevel(): number | null {
+    return this.gearGauge?.level ?? null;
+  }
+
+  /**
+   * 미리보기(Lab `/lab/gear`) 전용: 비행 배경과 기어 게이지가 보여 줄 고도를 altitude(0~1로 자름, NaN은 0)로 고정한다.
+   * null이면 곡 진행·판정에 따른 고도 모델로 돌아간다. 게임은 부르지 않는다. 게이지는 바뀐 값으로 이징하고,
+   * 고도 모델의 상태는 고정하는 동안에도 그대로 나아간다.
+   */
+  setAltitudeOverride(altitude: number | null): void {
+    this.altitudeOverride = altitude === null ? null : clampFlightAltitude(altitude);
+  }
+
+  /**
+   * `gearMotion` 조절(RFD 0029). init이 끝나면 `gearMotion`은 `holder`에 추가돼 있다(status ready). 애니메이션 경과 시간(`timeMs`)을 읽고, Lab 미리보기가 켜기·레이어·
+   * 처음부터 재생을 부른다. `gearMotion`을 만들지 않으면(gearMotion false·기어 없음·dispose 뒤) null.
+   */
+  get gearMotion(): GearMotionControls | null {
+    return this.gearMotionController;
+  }
+
+  /**
+   * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
+   * 기어와 같은 변환으로 붙인다. 내장 `gearMotion`이 쓴다. 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
+   * (빈 유리 덮개가 빈 부분의 `gearMotion` 액체·기포를 가린다).
+   * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
+   */
+  addGearOverlay(overlay: Container): Readonly<GearLayout> | null {
+    const layout = this._gearLayout;
+    if (!layout || this.gearLayer.destroyed) return null;
+    overlay.position.set(layout.x, layout.y);
+    overlay.scale.set(layout.scale);
+    const gauge = this.gearGauge?.container;
+    if (gauge && gauge.parent === this.gearLayer) this.gearLayer.addChildAt(overlay, this.gearLayer.getChildIndex(gauge));
+    else this.gearLayer.addChild(overlay);
+    return layout;
+  }
+
+  /**
+   * 판정선을 기본 위치(높이 − 판정선 오프셋 + gearOffsetY. gearOffsetY는 showGear false면 0)에서 y만큼 올린다. 판정선과 딸린 표시(노트 판정 위치·판정 글자·콤보와 정확도 글자·
+   * 이후 키봄)만 움직이고, 기어와 레인 끝은 고정이다(RFD 0029). 기어가 없는 미니 렌더러는 레인 끝(레인 배경·클립)도 따라온다.
+   */
   setLift(y: number): void {
-    this._judgmentLineY = this.height - this.judgmentLineOffset - y;
+    this._judgmentLineY = this.baseJudgmentLineY - y;
     this.drawJudgmentLine();
-    this.drawMask();
-    this.comboText.y = this._judgmentLineY - 280;
-    this.accuracyText.y = this._judgmentLineY - 180;
+    if (!this._gearLayout) this.drawLaneEnd();
+    this.comboText.y = this._judgmentLineY - COMBO_OFFSET;
+    this.accuracyText.y = this._judgmentLineY - ACCURACY_OFFSET;
     this.judgmentUI.setPosition(this._judgmentLineY);
     this.noteRenderer.setJudgmentLineY(this._judgmentLineY);
-    for (const btn of this.buttonSprites) {
-      btn.y = this._judgmentLineY + 4;
-    }
   }
 
   setSudden(y: number): void {
@@ -1661,31 +1290,23 @@ export class GameRenderer {
     void y;
   }
 
+  /**
+   * 플레이 영역(높이 600) 오른쪽 아래에 키보드 배치를 직접 그린다. 레인·기어와 무관하게 화면 구석에 붙고,
+   * 기어 실루엣(없으면 레인 영역) 오른쪽 빈 곳이 좁으면 줄이거나 숨긴다(KeyboardDisplay.placeKeyboardDisplay).
+   */
   setupKeyboardDisplay(laneBindings: Map<string, number>): void {
-    if (this.keyboardDisplay) {
-      this.keyboardDisplay.dispose();
-      this.keyboardDisplay = null;
-    }
-
-    this.keyboardDisplay = new KeyboardDisplay(this.uiLayer, this.width, this.height);
-    this.keyboardDisplay.setup(laneBindings, []);
-    // 확정된 간격 및 섹션 오프셋 적용
-    this.keyboardDisplay.setGlobalSpacing(1.5);
-    this.keyboardDisplay.setSectionOffset('esc', 0, 1);
-    this.keyboardDisplay.setSectionOffset('fn1', -4, 1);
-    this.keyboardDisplay.setSectionOffset('fn2', -2, 1);
-    this.keyboardDisplay.setSectionOffset('fn3', 1, 1);
-    this.keyboardDisplay.setSectionOffset('main', 0, -3);
-    this.keyboardDisplay.setSectionOffset('navTop', 0, 1);
-    this.keyboardDisplay.setSectionOffset('navBottom', 0, -4);
-    this.keyboardDisplay.setSectionOffset('arrows', 0, -5);
-    this.keyboardDisplay.setSectionOffset('numpad', 0, -5);
-    this.buildKeyboardMesh();
+    this.keyboardDisplay?.dispose();
+    const obstacleRight = this._gearLayout?.silhouetteRightX ?? this.laneAreaX + LANE_AREA_WIDTH;
+    this.keyboardDisplay = new KeyboardDisplay(this.uiLayer);
+    this.keyboardDisplay.setup(laneBindings, {
+      width: this.width,
+      height: this.height,
+      freeLeft: obstacleRight + GEAR_CLEARANCE,
+    });
   }
 
   setKeyState(keyCode: string, pressed: boolean): void {
     this.keyboardDisplay?.setKeyState(keyCode, pressed);
-    if (this.kbMesh && this.keyboardDisplay) this.updateKeyboardMeshTexture();
     const kbEntry = this.tutorialKeyboardKeyByCode.get(keyCode);
     // 눌림 상태가 실제로 바뀔 때만 다시 그린다 — 매 프레임 Graphics 재구성 방지.
     if (kbEntry && kbEntry.mapped && kbEntry.pressed !== pressed) {
@@ -1705,22 +1326,38 @@ export class GameRenderer {
     this.noteRenderer.setHeadlessHeldFillQuery(query);
   }
 
-  dispose(): void {
+  /** 새 core의 unit별 body 상태를 전달한다. 실제 live 연결은 통합 gate 이후에 수행한다. */
+  setJudgmentBodyStateQuery(query: JudgmentBodyStateQuery | null): void {
+    this.noteRenderer.setJudgmentBodyStateQuery(query);
+  }
+
+  dispose(removeView = true): void {
     if (!this.initialized) return;
     this.initialized = false;
+    // 곡 시작 전 준비가 끈 autoGarbageCollect를 원래 값으로 되돌린다. 스킨이 먼저 해제되어 파괴된 소스는 건너뛴다.
+    for (const [source, autoGarbageCollect] of this.autoGarbageCollectBeforePlayback) {
+      if (!source.destroyed) source.autoGarbageCollect = autoGarbageCollect;
+    }
+    this.autoGarbageCollectBeforePlayback.clear();
+    this.flightBackground?.dispose();
+    this.flightBackground = null;
+    // `gearMotion` 텍스처는 공유 로더 소유라 lease만 release한다(마지막 lease면 로더가 unload한다).
+    this.gearMotionController?.destroy();
+    this.gearMotionController = null;
+    // 게이지가 만든 행 텍스처만 정리한다(빈 유리 아틀라스는 SkinManager 소유).
+    this.gearGauge?.destroy();
+    this.gearGauge = null;
+    this.gearTextures = [];
     this.noteRenderer.dispose();
-    this.app.destroy(true, { children: true, texture: false });
+    // Boolean true also clears Pixi's global pools in v8. Other tutorial
+    // slots still own pooled text textures and bounds, so release only this app.
+    this.app.destroy({ removeView, releaseGlobalResources: false }, { children: true, texture: false });
     this.keyBeamGraphics = [];
-    this.buttonSprites = [];
-    // Text/Graphics 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
+    // Text/Graphics/기어 스프라이트 자체는 app.destroy(children: true)가 파괴한다 — 참조만 비운다.
+    // 기어·빈 유리 텍스처는 SkinManager 소유라 파괴하지 않는다(texture: false).
     this.laneKeyLabels = [];
     this.tutorialKeyboardKeys = [];
     this.tutorialKeyboardKeyByCode = new Map();
-    // 서브 텍스처만 정리 — source는 SkinManager 소유라 파괴하지 않음
-    for (const gauge of this.gearGauges) {
-      if (!gauge.texture.destroyed) gauge.texture.destroy(false);
-    }
-    this.gearGauges = [];
     if (this.keyboardDisplay) {
       this.keyboardDisplay.dispose();
       this.keyboardDisplay = null;
@@ -1728,22 +1365,6 @@ export class GameRenderer {
     if (this.keyBeamGradient) {
       this.keyBeamGradient.destroy();
       this.keyBeamGradient = null;
-    }
-    if (this.gearAdjustHandler) {
-      window.removeEventListener("keydown", this.gearAdjustHandler);
-      this.gearAdjustHandler = null;
-    }
-    if (this.kbGuide) {
-      this.kbGuide.destroy();
-      this.kbGuide = null;
-    }
-    if (this.kbMesh) {
-      this.kbMesh.destroy();
-      this.kbMesh = null;
-    }
-    if (this.kbRenderTexture) {
-      this.kbRenderTexture.destroy();
-      this.kbRenderTexture = null;
     }
   }
 }

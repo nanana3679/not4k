@@ -1,14 +1,15 @@
+import { CHART_DIFFICULTIES, formatDifficultyLabel } from '../../../shared/chartDifficulty';
 import type React from 'react';
 import { beat, normalizePlaybackRange } from '../../../shared';
 import type { Chart, PlaybackRange } from '../../../shared';
 import type { DbChart, DbSong } from './types';
 
-export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const;
+export const DIFFICULTIES = CHART_DIFFICULTIES;
 
-const DIFFICULTY_ORDER = new Map(DIFFICULTIES.map((d, i) => [d, i]));
+const DIFFICULTY_ORDER = new Map([...DIFFICULTIES, 'EXPERT'].map((d, i) => [d, i]));
 
 export function getDifficultyOrder(label: string): number {
-  return DIFFICULTY_ORDER.get(label.toUpperCase() as typeof DIFFICULTIES[number]) ?? DIFFICULTIES.length;
+  return DIFFICULTY_ORDER.get(formatDifficultyLabel(label)) ?? DIFFICULTIES.length + 1;
 }
 
 export function sortChartsByDifficulty(charts: DbChart[]): DbChart[] {
@@ -60,11 +61,11 @@ export function resolveGameplayRange(song: DbSong): PlaybackRange | null {
 }
 
 export function getDifficultyColor(difficulty: string): React.CSSProperties {
-  switch (difficulty.toLowerCase()) {
-    case 'easy': return { background: 'linear-gradient(180deg, #1e7a54, #145a3c)', borderColor: '#37c98a' };
-    case 'normal': return { background: 'linear-gradient(180deg, #1e5aa0, #133f74)', borderColor: '#4a95e6' };
-    case 'hard': return { background: 'linear-gradient(180deg, #9a3830, #6d2019)', borderColor: '#e8564a' };
-    case 'expert': return { background: 'linear-gradient(180deg, #6d38a0, #43206e)', borderColor: '#b06fe6' };
+  switch (formatDifficultyLabel(difficulty)) {
+    case 'LIFTOFF': return { background: 'linear-gradient(180deg, #1e7a54, #145a3c)', borderColor: '#37c98a' };
+    case 'INFILTRATION': return { background: 'linear-gradient(180deg, #1e5aa0, #133f74)', borderColor: '#4a95e6' };
+    case 'BREAKTHROUGH': return { background: 'linear-gradient(180deg, #9a3830, #6d2019)', borderColor: '#e8564a' };
+    case 'EXPERT': return { background: 'linear-gradient(180deg, #6d38a0, #43206e)', borderColor: '#b06fe6' };
     default: return { background: 'linear-gradient(180deg, #3a3f47, #262a30)', borderColor: '#5a616b' };
   }
 }

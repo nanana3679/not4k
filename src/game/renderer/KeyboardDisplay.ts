@@ -1,275 +1,209 @@
 /**
- * KeyboardDisplay — renders a mini keyboard layout in the UI layer.
- * Shows which keys are bound to lanes and highlights them on press.
+ * KeyboardDisplay — 플레이 화면 오른쪽 아래에 작은 키보드 배치를 그리고(keybinding.md "키보드 레이아웃 오버레이"),
+ * 레인에 바인딩된 키를 레인 1·3(은색)과 레인 2·4(하늘색) 두 계열로 칠하고 누르는 동안만 테두리 없이 밝은 색(흰색·하늘색)으로 꽉 채운다. 레인마다 다른 색은 쓰지 않는다(#258).
+ *
+ * 키 그림은 setup에서 한 번만 만든다. 바인딩된 키는 대기·눌림 그림을 하나씩 두고 눌림 상태가 바뀔 때 보이는 쪽만 바꿔,
+ * 키 입력마다 Graphics를 다시 그리거나 렌더 텍스처를 새로 굽지 않는다.
+ * 기어 오른쪽 빈 곳이 좁으면(16:10 넘버패드·4:3 등) 줄여 넣고, 읽기 어려울 만큼 줄여야 하면 숨긴다(`placeKeyboardDisplay`).
  */
 
 import { Container, Graphics } from "pixi.js";
-import {
-  KB_TKL_KEYS,
-  KB_NUMPAD_KEYS,
-  KB_IDLE_COLORS,
-  KB_PRESSED_COLORS,
-  KB_IDLE_FILL,
-  KB_PRESSED_FILL,
-} from "./keyboardLayout";
+import { KB_TKL_KEYS, KB_NUMPAD_KEYS, type KbKeyDef } from "./keyboardLayout";
 
-// Keyboard layout display constants
+// 키 1단위 = 키 10 + 간격 1 (논리 px)
 const KB_KEY_SIZE = 10;
 const KB_KEY_GAP = 1;
 const KB_KEY_STEP = KB_KEY_SIZE + KB_KEY_GAP;
 
-/** 키보드 섹션 이름 */
-export type KbSection = 'esc' | 'fn1' | 'fn2' | 'fn3' | 'main' | 'navTop' | 'navBottom' | 'arrows' | 'numpad';
+/**
+ * 키보드 표시의 색·투명도. 조절은 여기서만 한다(#258).
+ * 바인딩된 키는 레인 1·3과 레인 2·4를 두 색 계열로 나누고, PRODUCT.md "네온은 상태에만"에 따라
+ * 누르는 동안만 네온으로 밝힌다. 각 `alpha`는 키 그림의 투명도이고, 화면에서는 키보드 전체 `alpha`를 곱해 보인다.
+ */
+export const KEYBOARD_DISPLAY_STYLE = {
+  /** 키보드 전체 투명도. */
+  alpha: 0.85,
+  // 바인딩된 키는 레인 1·3(은색 → 누르면 흰색)과 레인 2·4(게이지 같은 하늘색 → 누르면 더 밝은 하늘색)를 두 계열로 나눠, 처음 보는 사람도
+  // 키보드만 보고 이웃 레인이 번갈아 배정된 규칙(왼손 R은 레인 3, 오른손 O는 레인 2처럼 손을 건너는 키 포함)을 알아볼 수 있게
+  // 한다(#258). 대기 화면 투명도는 0.5 × 0.85 ≈ 0.43. PRODUCT.md "네온은 상태에만"에 따라 밝은 강조색은 누르는 동안만 쓴다.
+  /** 레인 1·3 대기: 기어 금속(밝은 면 약 #d0d8e8)에 맞춘 차가운 은색, 테두리는 조금 더 밝게. */
+  boundOdd: { fill: 0xa9b4c2, stroke: 0xdde4ee, strokeWidth: 1, alpha: 0.5 },
+  /** 레인 2·4 대기: 기어 유리관 게이지 액체(중앙값 #3cddfd)를 흰색 쪽으로 30% 섞은 하늘색, 테두리는 조금 더 밝게. */
+  boundEven: { fill: 0x76e7fd, stroke: 0xb0f1ff, strokeWidth: 1, alpha: 0.5 },
+  /** 레인 1·3 누름: 테두리·번짐 없이 대기 키와 같은 크기로 흰색을 꽉 채운다. */
+  pressedOdd: { fill: 0xffffff, alpha: 1 },
+  /** 레인 2·4 누름: 테두리·번짐 없이 대기 키와 같은 크기로, 대기 하늘색보다 훨씬 밝은 하늘색을 꽉 채운다. */
+  pressedEven: { fill: 0xb5f6ff, alpha: 1 },
+  /** 바인딩되지 않은 키: 대기 금속 톤을 아주 흐리게. 화면 투명도 0.07 × 0.85 ≈ 0.06. */
+  unbound: { fill: 0xa9b4c2, alpha: 0.07 },
+} as const;
 
-export const KB_SECTIONS: readonly KbSection[] = ['esc', 'fn1', 'fn2', 'fn3', 'main', 'navTop', 'navBottom', 'arrows', 'numpad'];
+/** 화면 오른쪽·아래 가장자리와 키보드 사이 여백. */
+export const KEYBOARD_DISPLAY_MARGIN = 4;
+/**
+ * 이보다 줄여야 들어가면 숨긴다. 0.6배면 키 한 칸이 6 논리 단위(렌더 높이 720에서 화면 약 7px)이고 키 사이 간격이
+ * 화면 1px 아래로 내려가기 시작해, 그보다 작으면 이웃 키를 구분하기 어렵다.
+ */
+export const KEYBOARD_DISPLAY_MIN_SCALE = 0.6;
 
-const NAV_TOP_CODES = new Set(['PrintScreen', 'ScrollLock', 'Pause']);
-const NAV_BOTTOM_CODES = new Set(['Insert', 'Home', 'PageUp', 'Delete', 'End', 'PageDown']);
-const ARROW_CODES = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
-const FN1_CODES = new Set(['F1', 'F2', 'F3', 'F4']);
-const FN2_CODES = new Set(['F5', 'F6', 'F7', 'F8']);
-const FN3_CODES = new Set(['F9', 'F10', 'F11', 'F12']);
+export interface KeyboardDisplayArea {
+  /** 플레이 영역 논리 크기(높이 600). 튜토리얼 키보드 strip처럼 그 아래 덧붙는 영역은 넣지 않는다. */
+  width: number;
+  height: number;
+  /** 키보드가 쓸 수 있는 가장 왼쪽 x(기어 실루엣 오른쪽 끝 + 여백). */
+  freeLeft: number;
+}
 
-function classifyKey(code: string): KbSection {
-  if (code === 'Escape') return 'esc';
-  if (FN1_CODES.has(code)) return 'fn1';
-  if (FN2_CODES.has(code)) return 'fn2';
-  if (FN3_CODES.has(code)) return 'fn3';
-  if (NAV_TOP_CODES.has(code)) return 'navTop';
-  if (NAV_BOTTOM_CODES.has(code)) return 'navBottom';
-  if (ARROW_CODES.has(code)) return 'arrows';
-  if (code.startsWith('Numpad') || code === 'NumLock') return 'numpad';
-  return 'main';
+export interface KeyboardDisplayPlacement {
+  visible: boolean;
+  scale: number;
+  x: number;
+  y: number;
+}
+
+function layoutKeys(hasNumpad: boolean): readonly KbKeyDef[] {
+  return hasNumpad ? [...KB_TKL_KEYS, ...KB_NUMPAD_KEYS] : KB_TKL_KEYS;
+}
+
+/** 원래 크기(1배)의 키보드 표시 크기. 마지막 키의 오른쪽·아래 단위 경계까지다. */
+export function keyboardDisplaySize(hasNumpad: boolean): { width: number; height: number } {
+  let width = 0;
+  let height = 0;
+  for (const def of layoutKeys(hasNumpad)) {
+    width = Math.max(width, (def.x + (def.w ?? 1)) * KB_KEY_STEP);
+    height = Math.max(height, (def.y + (def.h ?? 1)) * KB_KEY_STEP);
+  }
+  return { width, height };
+}
+
+/**
+ * 오른쪽 아래 구석에 붙이되 freeLeft보다 왼쪽으로 넘어가지 않게 필요하면 줄인다(키우지는 않는다).
+ * 필요한 배율이 KEYBOARD_DISPLAY_MIN_SCALE보다 작으면 숨긴다.
+ */
+export function placeKeyboardDisplay(
+  size: { width: number; height: number },
+  area: KeyboardDisplayArea,
+): KeyboardDisplayPlacement {
+  const right = area.width - KEYBOARD_DISPLAY_MARGIN;
+  const bottom = area.height - KEYBOARD_DISPLAY_MARGIN;
+  const available = right - area.freeLeft;
+  // 빈 폭이 음수(기어가 오른쪽 여백까지 닿는 좁은 화면)면 음수 배율 대신 0으로 묶는다.
+  const scale = Math.max(0, Math.min(1, available / size.width));
+  return {
+    // 경계(정확히 0.6배)에서 부동소수 오차로 숨지 않게 아주 작은 여유를 둔다.
+    visible: scale >= KEYBOARD_DISPLAY_MIN_SCALE - 1e-9,
+    scale,
+    x: right - size.width * scale,
+    y: bottom - size.height * scale,
+  };
+}
+
+interface BoundKey {
+  idle: Graphics;
+  pressed: Graphics;
+  isPressed: boolean;
 }
 
 export class KeyboardDisplay {
-  private keyboardContainer: Container;
-  private keyGraphicsMap: Map<string, Graphics> = new Map();
-  private keyLaneMap: Map<string, number> = new Map();
-  private keyWidthMap: Map<string, number> = new Map();
-  private keyHeightMap: Map<string, number> = new Map();
-  private keyOriginals: Map<string, { x: number; y: number; w: number }> = new Map();
-  private keyUnits: Map<string, { ux: number; uy: number; uw: number; uh: number }> = new Map();
-  private keySections: Map<string, KbSection> = new Map();
-  private sectionOffsets: Map<KbSection, { x: number; y: number }> = new Map();
-  private sectionScales: Map<KbSection, { sx: number; sy: number }> = new Map();
-  private globalSpacing = 0; // 키 간격 추가 px (양수=벌림, 음수=좁힘)
+  private readonly keyboardContainer = new Container({ label: "keyboard-display" });
+  private boundKeys = new Map<string, BoundKey>();
+  private _placement: KeyboardDisplayPlacement = { visible: false, scale: 1, x: 0, y: 0 };
 
-  constructor(parentContainer: Container, width: number, height: number) {
-    this.keyboardContainer = new Container();
-    // Position will be set during setup() once we know the keyboard bounds
-    this._width = width;
-    this._height = height;
+  constructor(parentContainer: Container) {
     parentContainer.addChild(this.keyboardContainer);
   }
-
-  private _width: number;
-  private _height: number;
 
   get container(): Container {
     return this.keyboardContainer;
   }
 
-  setup(laneBindings: Map<string, number>, _laneColors: string[]): void {
-    // Clear previous state
-    this.keyboardContainer.removeChildren();
-    this.keyGraphicsMap.clear();
-    this.keyWidthMap.clear();
-
-    this.keyLaneMap = new Map(laneBindings);
-
-    const hasNumpad = [...laneBindings.keys()].some(k => k.startsWith('Numpad'));
-    const allKeys = hasNumpad ? [...KB_TKL_KEYS, ...KB_NUMPAD_KEYS] : KB_TKL_KEYS;
-
-    for (const def of allKeys) {
-      const w = def.w ?? 1;
-      const h = def.h ?? 1;
-      const px = def.x * KB_KEY_STEP;
-      const py = def.y * KB_KEY_STEP;
-      const pw = Math.round(w * KB_KEY_STEP - KB_KEY_GAP);
-      const ph = Math.round(h * KB_KEY_STEP - KB_KEY_GAP);
-      this.keyUnits.set(def.code, { ux: def.x, uy: def.y, uw: w, uh: h });
-      this.createKeyDisplay(def.code, def.label, px, py, pw, ph);
-    }
-
-    // Compute bounds and position at bottom-right
-    let maxRight = 0, maxBottom = 0;
-    for (const def of allKeys) {
-      const w = def.w ?? 1;
-      const h = def.h ?? 1;
-      const right = (def.x + w) * KB_KEY_STEP;
-      const bottom = (def.y + h) * KB_KEY_STEP;
-      if (right > maxRight) maxRight = right;
-      if (bottom > maxBottom) maxBottom = bottom;
-    }
-    this.keyboardContainer.x = this._width - maxRight - 4;
-    this.keyboardContainer.y = this._height - maxBottom - 4;
-    this.keyboardContainer.alpha = 0.85;
+  get placement(): KeyboardDisplayPlacement {
+    return this._placement;
   }
 
-  private createKeyDisplay(
-    code: string,
-    _label: string,
-    x: number,
-    y: number,
-    pixelWidth: number,
-    pixelHeight: number = KB_KEY_SIZE,
-  ): void {
-    const lane = this.keyLaneMap.get(code);
-    const strokeColor = lane ? (KB_IDLE_COLORS[lane] ?? 0x00cccc) : 0x00cccc;
+  /** 키 그림을 만들고 배치한다. 다시 부르면 이전 키 그림을 지우고 새 바인딩으로 만든다. */
+  setup(laneBindings: ReadonlyMap<string, number>, area: KeyboardDisplayArea): void {
+    for (const child of this.keyboardContainer.removeChildren()) child.destroy();
+    this.boundKeys.clear();
 
-    const g = new Graphics();
-    g.roundRect(0, 0, pixelWidth, pixelHeight, 2);
-    g.fill(lane ? (KB_IDLE_FILL[lane] ?? 0xddeeff) : 0x00cccc);
-    if (lane) g.stroke({ width: 1.5, color: strokeColor });
-    g.x = x;
-    g.y = y;
-    g.alpha = lane ? 0.5 : 0.15;
+    const hasNumpad = [...laneBindings.keys()].some(code => code.startsWith("Numpad"));
+    for (const def of layoutKeys(hasNumpad)) {
+      const x = def.x * KB_KEY_STEP;
+      const y = def.y * KB_KEY_STEP;
+      const w = Math.round((def.w ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
+      const h = Math.round((def.h ?? 1) * KB_KEY_STEP - KB_KEY_GAP);
+      // 레인 1~4 정수만 바인딩으로 본다. 저장된 설정이 깨져 0·NaN·5 같은 값이 와도 바인딩 안 된 키로 그린다.
+      const bound = laneBindings.get(def.code);
+      const lane = bound !== undefined && Number.isInteger(bound) && bound >= 1 && bound <= 4 ? bound : undefined;
+      const idle = lane !== undefined ? drawBoundKey(w, h, lane) : drawUnboundKey(w, h);
+      idle.label = `key-${def.code}`;
+      idle.position.set(x, y);
+      this.keyboardContainer.addChild(idle);
+      if (lane === undefined) continue;
+      const pressed = drawPressedKey(w, h, lane);
+      pressed.label = `key-${def.code}-pressed`;
+      pressed.position.set(x, y);
+      pressed.visible = false;
+      this.keyboardContainer.addChild(pressed);
+      this.boundKeys.set(def.code, { idle, pressed, isPressed: false });
+    }
 
-    this.keyboardContainer.addChild(g);
-    this.keyGraphicsMap.set(code, g);
-    this.keyWidthMap.set(code, pixelWidth);
-    this.keyHeightMap.set(code, pixelHeight);
-    this.keyOriginals.set(code, { x, y, w: pixelWidth });
-    this.keySections.set(code, classifyKey(code));
+    this._placement = placeKeyboardDisplay(keyboardDisplaySize(hasNumpad), area);
+    const { visible, scale, x, y } = this._placement;
+    this.keyboardContainer.position.set(x, y);
+    this.keyboardContainer.scale.set(scale);
+    this.keyboardContainer.visible = visible;
+    this.keyboardContainer.alpha = KEYBOARD_DISPLAY_STYLE.alpha;
   }
 
+  /** 바인딩된 키의 눌림 표시만 바꾼다. 바인딩되지 않은 키나 같은 상태는 무시한다. */
   setKeyState(keyCode: string, pressed: boolean): void {
-    const g = this.keyGraphicsMap.get(keyCode);
-    if (!g) return;
-
-    const lane = this.keyLaneMap.get(keyCode);
-    if (!lane) return;
-
-    const w = this.keyWidthMap.get(keyCode) ?? KB_KEY_SIZE;
-    const h = this.keyHeightMap.get(keyCode) ?? KB_KEY_SIZE;
-
-    g.clear();
-    if (pressed) {
-      const color = KB_PRESSED_COLORS[lane] ?? 0x888888;
-      const fill = KB_PRESSED_FILL[lane] ?? 0xffffff;
-      g.roundRect(-2, -2, w + 4, h + 4, 3);
-      g.fill({ color, alpha: 0.3 });
-      g.roundRect(0, 0, w, h, 2);
-      g.fill(fill);
-      g.stroke({ width: 1.5, color });
-      g.alpha = 0.8;
-    } else {
-      const color = KB_IDLE_COLORS[lane] ?? 0x00cccc;
-      const fill = KB_IDLE_FILL[lane] ?? 0xddeeff;
-      g.roundRect(0, 0, w, h, 2);
-      g.fill(fill);
-      g.stroke({ width: 1.5, color });
-      g.alpha = 0.5;
-    }
-  }
-
-  /** 섹션별 오프셋 설정 */
-  setSectionOffset(section: KbSection, dx: number, dy: number): void {
-    this.sectionOffsets.set(section, { x: dx, y: dy });
-    this.applySectionTransforms();
-  }
-
-  /** 섹션별 오프셋 조회 */
-  getSectionOffset(section: KbSection): { x: number; y: number } {
-    return this.sectionOffsets.get(section) ?? { x: 0, y: 0 };
-  }
-
-  /** 섹션별 스케일 설정 (키 간격 조절) */
-  setSectionScale(section: KbSection, sx: number, sy: number): void {
-    this.sectionScales.set(section, { sx, sy });
-    this.applySectionTransforms();
-  }
-
-  /** 섹션별 스케일 조회 */
-  getSectionScale(section: KbSection): { sx: number; sy: number } {
-    return this.sectionScales.get(section) ?? { sx: 1, sy: 1 };
-  }
-
-  /** 전체 키 간격 설정 (px 단위 추가 간격) */
-  setGlobalSpacing(spacing: number): void {
-    this.globalSpacing = spacing;
-    // 원본 위치 재계산
-    const step = KB_KEY_SIZE + KB_KEY_GAP + this.globalSpacing;
-    for (const [code, units] of this.keyUnits) {
-      const orig = this.keyOriginals.get(code);
-      if (!orig) continue;
-      orig.x = units.ux * step;
-      orig.y = units.uy * step;
-      orig.w = Math.round(units.uw * step - KB_KEY_GAP - this.globalSpacing);
-      // 높이도 갱신
-      const ph = Math.round(units.uh * step - KB_KEY_GAP - this.globalSpacing);
-      this.keyHeightMap.set(code, ph);
-      this.keyWidthMap.set(code, orig.w);
-      // Graphics 내부 다시 그리기
-      const g = this.keyGraphicsMap.get(code);
-      if (g) {
-        const lane = this.keyLaneMap.get(code);
-        const strokeColor = lane ? (KB_IDLE_COLORS[lane] ?? 0x00cccc) : 0x00cccc;
-        g.clear();
-        g.roundRect(0, 0, orig.w, ph, 2);
-        g.fill(lane ? (KB_IDLE_FILL[lane] ?? 0xddeeff) : 0x00cccc);
-        if (lane) g.stroke({ width: 1.5, color: strokeColor });
-        g.alpha = lane ? 0.5 : 0.15;
-      }
-    }
-    this.applySectionTransforms();
-  }
-
-  getGlobalSpacing(): number {
-    return this.globalSpacing;
-  }
-
-  /** 섹션 중심점 계산 */
-  private getSectionCenter(section: KbSection): { cx: number; cy: number } {
-    let sumX = 0, sumY = 0, count = 0;
-    for (const [code, orig] of this.keyOriginals) {
-      if (this.keySections.get(code) !== section) continue;
-      sumX += orig.x + orig.w / 2;
-      sumY += orig.y + KB_KEY_SIZE / 2;
-      count++;
-    }
-    if (count === 0) return { cx: 0, cy: 0 };
-    return { cx: sumX / count, cy: sumY / count };
-  }
-
-  /** 모든 섹션 오프셋+스케일을 키 위치에 반영 */
-  private applySectionTransforms(): void {
-    // 섹션별 중심점 캐시
-    const centers = new Map<KbSection, { cx: number; cy: number }>();
-
-    for (const [code, g] of this.keyGraphicsMap) {
-      const orig = this.keyOriginals.get(code);
-      if (!orig) continue;
-      const section = this.keySections.get(code);
-      if (!section) continue;
-
-      const offset = this.sectionOffsets.get(section) ?? { x: 0, y: 0 };
-      const scale = this.sectionScales.get(section);
-
-      if (scale && (scale.sx !== 1 || scale.sy !== 1)) {
-        if (!centers.has(section)) centers.set(section, this.getSectionCenter(section));
-        const { cx, cy } = centers.get(section)!;
-        g.x = cx + (orig.x + orig.w / 2 - cx) * scale.sx - orig.w / 2 + offset.x;
-        g.y = cy + (orig.y + KB_KEY_SIZE / 2 - cy) * scale.sy - KB_KEY_SIZE / 2 + offset.y;
-      } else {
-        g.x = orig.x + offset.x;
-        g.y = orig.y + offset.y;
-      }
-    }
-  }
-
-  /** 모든 섹션 오프셋/스케일 리셋 */
-  resetSectionOffsets(): void {
-    this.sectionOffsets.clear();
-    this.sectionScales.clear();
-    this.applySectionTransforms();
+    const key = this.boundKeys.get(keyCode);
+    if (!key || key.isPressed === pressed || key.idle.destroyed) return;
+    key.isPressed = pressed;
+    key.idle.visible = !pressed;
+    key.pressed.visible = pressed;
   }
 
   dispose(): void {
+    this.boundKeys.clear();
+    if (this.keyboardContainer.destroyed) return;
+    this.keyboardContainer.removeFromParent();
     this.keyboardContainer.destroy({ children: true });
-    this.keyGraphicsMap.clear();
-    this.keyLaneMap.clear();
-    this.keyWidthMap.clear();
   }
+}
+
+/** 레인 번호(1부터)가 홀수면 레인 1·3 색, 짝수면 레인 2·4 색. */
+function drawBoundKey(width: number, height: number, lane: number): Graphics {
+  const { fill, stroke, strokeWidth, alpha } = lane % 2 === 1 ? KEYBOARD_DISPLAY_STYLE.boundOdd : KEYBOARD_DISPLAY_STYLE.boundEven;
+  const graphic = new Graphics();
+  graphic.roundRect(0, 0, width, height, 2);
+  graphic.fill(fill);
+  graphic.stroke({ width: strokeWidth, color: stroke });
+  graphic.alpha = alpha;
+  return graphic;
+}
+
+function drawUnboundKey(width: number, height: number): Graphics {
+  const { fill, alpha } = KEYBOARD_DISPLAY_STYLE.unbound;
+  const graphic = new Graphics();
+  graphic.roundRect(0, 0, width, height, 2);
+  graphic.fill(fill);
+  graphic.alpha = alpha;
+  return graphic;
+}
+
+/**
+ * 레인 번호(1부터)가 홀수면 레인 1·3 눌림 색, 짝수면 레인 2·4 눌림 색. 테두리·번짐 없이 키 하나를 꽉 채운다.
+ * 대기 키는 테두리 선이 가장자리 바깥으로 절반 걸치므로, 그 바깥 끝까지 채워 대기와 눌림의 겉 크기를 맞춘다.
+ */
+function drawPressedKey(width: number, height: number, lane: number): Graphics {
+  const odd = lane % 2 === 1;
+  const { fill, alpha } = odd ? KEYBOARD_DISPLAY_STYLE.pressedOdd : KEYBOARD_DISPLAY_STYLE.pressedEven;
+  const outset = (odd ? KEYBOARD_DISPLAY_STYLE.boundOdd : KEYBOARD_DISPLAY_STYLE.boundEven).strokeWidth / 2;
+  const graphic = new Graphics();
+  graphic.roundRect(-outset, -outset, width + outset * 2, height + outset * 2, 2 + outset);
+  graphic.fill(fill);
+  graphic.alpha = alpha;
+  return graphic;
 }

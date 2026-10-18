@@ -1,3 +1,4 @@
+import { formatDifficultyLabel } from '../../shared/chartDifficulty';
 import { useState, useCallback, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
@@ -406,7 +407,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                       }}
                       onClick={() => setFocusedChartIndex(chartIdx)}
                     >
-                      {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                      {formatDifficultyLabel(chart.difficulty_label)} Lv.{chart.difficulty_level}
                     </span>
                   );
                 })}
@@ -530,7 +531,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                           setFocusedChartIndex(chartIdx);
                         }}
                       >
-                        {chart.difficulty_label.toUpperCase()} Lv.{chart.difficulty_level}
+                        {formatDifficultyLabel(chart.difficulty_label)} Lv.{chart.difficulty_level}
                       </span>
                     );
                   })}

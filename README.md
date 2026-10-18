@@ -119,6 +119,7 @@
 | [song-preview.md](docs/spec/song-preview.md) | **곡 프리뷰/`gameplayRange` 설정**. 프리뷰 오디오 저장, 실제 플레이 구간과 페이드 설정 |
 | [debug-mode.md](docs/spec/debug-mode.md) | **디버그 모드**. 노트 판정 로깅 시스템 |
 | [project-assets.md](docs/spec/project-assets.md) | **프로젝트 에셋 정의**. 비주얼/오디오/폰트 에셋 카탈로그, 단계별 수급 계획 |
+| [note-asset-lab.md](docs/spec/note-asset-lab.md) | **노트 에셋 Lab**. 실제 튜토리얼 재생기로 Classic 에셋과 보관 버전을 비교하고, S05·D05 짙은 바디를 시연 |
 
 ## rfd — 결정 기록
 
@@ -131,6 +132,9 @@
 | [0003](docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md) | **비행 규칙 포지셔닝**. 게이지는 입문 유저 동기 장치, 관대 규칙은 관대하게 밸런싱 |
 | [0004](docs/rfd/0004-io-timing-consistency.md) | **IO 타이밍 일관성 개선**. 입력·오디오 지터 제거 작업 계획 |
 | [0005](docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md) | **비행 규칙 2종 재편**. Liftoff(관대, 기본값) / Survival(숙련자 정확도)로 통합 |
+| [0021](docs/rfd/0021-low-altitude-downward-view.md) | **낮은 고도의 하향 시점**. 고도가 낮아질수록 지면을 내려다보는 연출; 현재 Infiltration에 배치 |
+| [0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md) | **현재 난이도명과 연출 배치**. Liftoff → Infiltration → Breakthrough, 각도 유지 / 하향 회전 / 지속 저공비행. 이름 표시·배경 연결은 RFD 0026으로 구현 |
+| [0026](docs/rfd/0026-game-flight-backgrounds.md) | **비행 배경 인게임 적용**. 기존 차트 저장 식별자를 유지한 난이도명 표시와 세 배경 연결, 이전 격자 배경·Lab·저장 API 제거 |
 
 ## 제품 요구사항
 

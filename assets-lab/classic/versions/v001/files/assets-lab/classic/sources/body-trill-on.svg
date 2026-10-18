@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200" fill="none" data-artwork="trill-quartz-06" data-role="body" data-repeat="y" data-state="on">
+  <title>Trill · 석영 바디</title>
+  <desc>Editable vector artwork. Shared width 1000; point and terminal have a vertically symmetric 5:1 diamond silhouette. No embedded raster image.</desc>
+  <defs>
+    <linearGradient id="quartz-body-left-reflection" x1="0" y1="0" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.66"/>
+      <stop offset="0.1" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0.23"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="quartz-body-right-reflection" x1="500" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="0.9" stop-color="#ffffff" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.66"/>
+    </linearGradient>
+    <linearGradient id="quartz-body-internal-light" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0.23"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.68"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.88"/>
+      <stop offset="0.485" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.99"/>
+      <stop offset="0.52" stop-color="#ffffff" stop-opacity="0.94"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.61"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <g id="quartz-body-base" data-layer="base">
+    <path id="quartz-body-material-foundation" fill="#9da2ab" d="M0 0H1000V200H0Z"/>
+    <path id="quartz-body-right-face" fill="#9b9fa8" d="M500 0H1000V200H500Z"/>
+  </g>
+  <g id="quartz-body-reflections" data-layer="reflections">
+    <path fill="url(#quartz-body-left-reflection)" d="M0 0H500V200H0Z"/>
+    <path fill="url(#quartz-body-right-reflection)" d="M500 0H1000V200H500Z"/>
+    <path d="M500 0V200" fill="none" stroke="#ffffff" stroke-opacity="0" stroke-width="2"/>
+    <path d="M.6 0V200M999.4 0V200" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1.2"/>
+  </g>
+  <g id="quartz-body-emission" data-layer="emission" data-light="white">
+    <path fill="url(#quartz-body-internal-light)" d="M0 0H1000V200H0Z"/>
+  </g>
+</svg>

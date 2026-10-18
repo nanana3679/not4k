@@ -1,0 +1,61 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createSharedSkin } from './gearPreviewSkin';
+
+const fakeSkin = () => ({ dispose: vi.fn() });
+
+describe('createSharedSkin', () => {
+  it('첫 렌더러가 스킨을 acquire·release한 뒤 둘째 렌더러가 acquire해도(렌더러 다시 만들기) 스킨은 한 번만 읽고 같은 인스턴스를 준다', async () => {
+    const skin = fakeSkin();
+    const load = vi.fn(async () => skin);
+    const shared = createSharedSkin(load);
+
+    const first = await shared.acquire();
+    shared.release();
+    const second = await shared.acquire();
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(second).toBe(first);
+    expect(skin.dispose).not.toHaveBeenCalled();
+  });
+
+  it('페이지를 닫아도 acquire한 렌더러가 스킨을 release할 때까지 dispose를 미루고, 스킨을 release하면 한 번만 dispose한다', async () => {
+    const skin = fakeSkin();
+    const shared = createSharedSkin(async () => skin);
+    await shared.acquire();
+
+    shared.close();
+    expect(skin.dispose).not.toHaveBeenCalled();
+    shared.release();
+    await Promise.resolve();
+    expect(skin.dispose).toHaveBeenCalledTimes(1);
+    shared.release();
+    await Promise.resolve();
+    expect(skin.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('읽는 도중 렌더러가 스킨을 release하고 페이지도 닫으면 읽기가 끝난 뒤 dispose한다', async () => {
+    const skin = fakeSkin();
+    let finish!: () => void;
+    const shared = createSharedSkin(() => new Promise<typeof skin>((resolve) => { finish = () => resolve(skin); }));
+    const pending = shared.acquire();
+    shared.release();
+    shared.close();
+    finish();
+    await pending;
+    await Promise.resolve();
+    expect(skin.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('읽기에 실패하면 다음 acquire에서 다시 읽는다', async () => {
+    const skin = fakeSkin();
+    const load = vi.fn()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(skin);
+    const shared = createSharedSkin(load);
+
+    await expect(shared.acquire()).rejects.toThrow('network');
+    shared.release();
+    await expect(shared.acquire()).resolves.toBe(skin);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+});

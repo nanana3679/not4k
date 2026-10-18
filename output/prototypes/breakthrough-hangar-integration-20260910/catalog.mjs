@@ -1,0 +1,10 @@
+import * as A from './modules/a-wedge.mjs';
+import * as B from './modules/b-maintenance.mjs';
+import * as C from './modules/c-service-tower.mjs';
+import * as D from './modules/d-twin-gallery.mjs';
+import * as E from './modules/e-hangar.mjs';
+import * as F from './modules/f-open-dock.mjs';
+import * as G from './modules/g-transfer-spine.mjs';
+import * as H from './modules/h-logistics-hub.mjs';
+export const modules=[A,B,C,D,E,F,G,H];
+export const moduleIds=modules.map(m=>m.metadata.id);

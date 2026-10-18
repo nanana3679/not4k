@@ -3,9 +3,9 @@ import gameRendererSource from './GameRenderer.ts?raw';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from './constants';
 
 describe('GameRenderer 튜토리얼 키보드 strip', () => {
-  it('키보드 strip 공유 상수는 좌우 12px·상하 10px 패딩', () => {
-    expect(TUTORIAL_KB_SIDE_PAD).toBe(12);
-    expect(TUTORIAL_KB_VPAD).toBe(10);
+  it('키보드 strip 공유 상수는 설계값 좌우 12px·상하 10px에 플레이필드 배율 0.625를 곱한 7.5px·6.25px 패딩', () => {
+    expect(TUTORIAL_KB_SIDE_PAD).toBe(7.5);
+    expect(TUTORIAL_KB_VPAD).toBe(6.25);
   });
 
   it('keyboardAreaHeight 옵션 기본값은 0이라 플레이 화면 캔버스 높이가 바뀌지 않음', () => {

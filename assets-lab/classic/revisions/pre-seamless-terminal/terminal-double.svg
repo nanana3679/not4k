@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="200" viewBox="0 0 1040 200" role="img" aria-label="어두운 더블 롱노트 터미널 · 내부 100 / 외곽 104" data-revision="6" data-attachment-x="20" data-attachment-width="1000">
+<title>어두운 더블 롱노트 터미널 · 내부 100 / 외곽 104</title>
+
+<defs>
+
+
+
+<linearGradient id="t-shell" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200"><stop offset="0" stop-color="#201c13" stop-opacity="1"/><stop offset="0.07" stop-color="#272318" stop-opacity="1"/><stop offset="0.45" stop-color="#201c13" stop-opacity="1"/><stop offset="0.9" stop-color="#3a3321" stop-opacity="1"/><stop offset="1" stop-color="#1f1b12" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-panel" gradientUnits="userSpaceOnUse" x1="20" y1="80" x2="452" y2="80"><stop offset="0" stop-color="#5c491b" stop-opacity="1"/><stop offset="0.18" stop-color="#544318" stop-opacity="1"/><stop offset="0.32" stop-color="#4e3f18" stop-opacity="1"/><stop offset="0.47" stop-color="#53441f" stop-opacity="1"/><stop offset="0.62" stop-color="#66562d" stop-opacity="1"/><stop offset="0.8" stop-color="#806c39" stop-opacity="1"/><stop offset="0.96" stop-color="#816c36" stop-opacity="1"/><stop offset="1" stop-color="#786533" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-panel-shade" gradientUnits="userSpaceOnUse" x1="0" y1="25" x2="0" y2="181"><stop offset="0" stop-color="#554418" stop-opacity="0.04"/><stop offset="0.13" stop-color="#211e15" stop-opacity="0.11"/><stop offset="0.6" stop-color="#1f1c13" stop-opacity="0.03"/><stop offset="1" stop-color="#d4ab42" stop-opacity="0.2"/></linearGradient>
+<linearGradient id="t-light-spill" gradientUnits="userSpaceOnUse" x1="27" y1="0" x2="164" y2="0"><stop offset="0" stop-color="#ffcc00" stop-opacity="0"/><stop offset="0.19" stop-color="#ffcc00" stop-opacity="0.26"/><stop offset="0.32" stop-color="#ffcc00" stop-opacity="0.84"/><stop offset="0.42" stop-color="#ffd012" stop-opacity="1"/><stop offset="0.56" stop-color="#ffd21e" stop-opacity="1"/><stop offset="0.67" stop-color="#ffcc00" stop-opacity="0.74"/><stop offset="0.84" stop-color="#dbb109" stop-opacity="0.2"/><stop offset="1" stop-color="#ffcc00" stop-opacity="0"/></linearGradient>
+<linearGradient id="t-rail" gradientUnits="userSpaceOnUse" x1="80" y1="0" x2="107" y2="0"><stop offset="0" stop-color="#fffcf0" stop-opacity="1"/><stop offset="0.09" stop-color="#fff6d4" stop-opacity="1"/><stop offset="0.48" stop-color="#fcf0c0" stop-opacity="1"/><stop offset="0.87" stop-color="#ffeda3" stop-opacity="1"/><stop offset="1" stop-color="#fff7d5" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-top-lip" gradientUnits="userSpaceOnUse" x1="0" y1="14" x2="0" y2="25"><stop offset="0" stop-color="#a79463" stop-opacity="1"/><stop offset="0.18" stop-color="#e5d2a3" stop-opacity="1"/><stop offset="0.68" stop-color="#eddfba" stop-opacity="1"/><stop offset="1" stop-color="#c7b078" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-top-polish" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="1020" y2="0"><stop offset="0" stop-color="#d6c8a3" stop-opacity="1"/><stop offset="0.22" stop-color="#e8ddc1" stop-opacity="1"/><stop offset="0.41" stop-color="#e4e1da" stop-opacity="1"/><stop offset="0.5" stop-color="#fbfbfa" stop-opacity="1"/><stop offset="0.59" stop-color="#e4e1da" stop-opacity="1"/><stop offset="0.78" stop-color="#e9dec3" stop-opacity="1"/><stop offset="1" stop-color="#cfc09b" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-bottom-lip" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="1020" y2="0"><stop offset="0" stop-color="#e9c536" stop-opacity="1"/><stop offset="0.15" stop-color="#f3d147" stop-opacity="1"/><stop offset="0.37" stop-color="#f8db66" stop-opacity="1"/><stop offset="0.5" stop-color="#ffeda3" stop-opacity="1"/><stop offset="0.63" stop-color="#f8db66" stop-opacity="1"/><stop offset="0.85" stop-color="#f3d147" stop-opacity="1"/><stop offset="1" stop-color="#e9c536" stop-opacity="1"/></linearGradient>
+<linearGradient id="t-edge" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200"><stop offset="0" stop-color="#7b652d" stop-opacity="0.4"/><stop offset="0.12" stop-color="#ab955f" stop-opacity="0.63"/><stop offset="0.5" stop-color="#54451e" stop-opacity="0.2"/><stop offset="0.93" stop-color="#8c6e22" stop-opacity="0.7"/><stop offset="1" stop-color="#3d3626" stop-opacity="0.18"/></linearGradient>
+<filter id="t-halo" x="-80%" y="-150%" width="260%" height="400%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="7"/></filter>
+<clipPath id="t-inner"><rect x="20" y="14" width="1000" height="176" fill="#fff"/></clipPath>
+<clipPath id="t-face"><rect x="20" y="25" width="1000" height="156" fill="#fff"/></clipPath><linearGradient id="body-03-double-on-g20" gradientUnits="userSpaceOnUse" x1="326" x2="410" y1="0" y2="0"><stop offset="0" stop-color="#d1982e" stop-opacity="0"/><stop offset="0.4" stop-color="#c99019" stop-opacity="0.35"/><stop offset="0.65" stop-color="#e9af15" stop-opacity="0.67"/><stop offset="0.88" stop-color="#ffde26" stop-opacity="1"/><stop offset="1" stop-color="#fffc74" stop-opacity="1"/></linearGradient><linearGradient id="body-03-double-on-g21" gradientUnits="userSpaceOnUse" x1="590" x2="674" y1="0" y2="0"><stop offset="0" stop-color="#fffc74" stop-opacity="1"/><stop offset="0.12" stop-color="#ffde26" stop-opacity="1"/><stop offset="0.35" stop-color="#e9af15" stop-opacity="0.67"/><stop offset="0.6" stop-color="#c99019" stop-opacity="0.35"/><stop offset="1" stop-color="#d1982e" stop-opacity="0"/></linearGradient><linearGradient id="body-03-double-on-g22" gradientUnits="userSpaceOnUse" x1="432" x2="472" y1="0" y2="0"><stop offset="0" stop-color="#ffed42" stop-opacity="1"/><stop offset="0.35" stop-color="#ffdb3e" stop-opacity="1"/><stop offset="0.55" stop-color="#ffda58" stop-opacity="1"/><stop offset="0.85" stop-color="#ffe577" stop-opacity="1"/><stop offset="1" stop-color="#fff5c1" stop-opacity="1"/></linearGradient><linearGradient id="body-03-double-on-g23" gradientUnits="userSpaceOnUse" x1="528" x2="568" y1="0" y2="0"><stop offset="0" stop-color="#fff5c1" stop-opacity="1"/><stop offset="0.15" stop-color="#ffe577" stop-opacity="1"/><stop offset="0.45" stop-color="#ffda58" stop-opacity="1"/><stop offset="0.65" stop-color="#ffdb3e" stop-opacity="1"/><stop offset="1" stop-color="#ffed42" stop-opacity="1"/></linearGradient><linearGradient id="body-03-double-on-g36" gradientUnits="userSpaceOnUse" x1="410" x2="432" y1="0" y2="0"><stop offset="0" stop-color="#ffffbd" stop-opacity="1"/><stop offset="0.12" stop-color="#fffcb4" stop-opacity="1"/><stop offset="0.84" stop-color="#fffba9" stop-opacity="1"/><stop offset="1" stop-color="#fff05e" stop-opacity="1"/></linearGradient><linearGradient id="body-03-double-on-g37" gradientUnits="userSpaceOnUse" x1="568" x2="590" y1="0" y2="0"><stop offset="0" stop-color="#fff05e" stop-opacity="1"/><stop offset="0.16" stop-color="#fffba9" stop-opacity="1"/><stop offset="0.88" stop-color="#fffcb4" stop-opacity="1"/><stop offset="1" stop-color="#ffffbd" stop-opacity="1"/></linearGradient><linearGradient id="body-03-double-on-g38" gradientUnits="userSpaceOnUse" x1="470.6" x2="472" y1="0" y2="0"><stop offset="0" stop-color="#ffff8f" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.92"/></linearGradient><linearGradient id="body-03-double-on-g39" gradientUnits="userSpaceOnUse" x1="528" x2="529.4" y1="0" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/><stop offset="1" stop-color="#ffff8f" stop-opacity="0"/></linearGradient></defs>
+<g id="terminal-base" data-layer="base">
+  <rect x="0" y="0" width="1040" height="200" fill="url(#t-shell)"/>
+  <rect x="20" y="18" width="1000" height="164" fill="#50411b"/>
+  <rect x="20" y="25" width="432" height="156" fill="#57471f"/>
+<rect x="80" y="25" width="27" height="156" fill="#cab378"/>
+<rect x="452" y="25" width="13" height="156" fill="#ccb16e"/>
+<rect x="465" y="25" width="27" height="156" fill="#5d4e26"/>
+<g transform="translate(1040 0) scale(-1 1)"><rect x="20" y="25" width="432" height="156" fill="#57471f"/>
+<rect x="80" y="25" width="27" height="156" fill="#cab378"/>
+<rect x="452" y="25" width="13" height="156" fill="#ccb16e"/>
+<rect x="465" y="25" width="27" height="156" fill="#5d4e26"/></g>
+  <rect x="492" y="25" width="56" height="156" fill="#d4c9af"/>
+  <rect x="20" y="14" width="1000" height="11" fill="#b7a67c"/>
+  <rect x="20" y="181" width="1000" height="9" fill="#bfa258"/>
+</g>
+<g id="terminal-reflection" data-layer="reflection">
+  <rect x="20" y="25" width="432" height="156" fill="url(#t-panel)"/>
+<rect x="20" y="25" width="1.5" height="156" fill="#ecddb7" opacity=".39"/>
+<rect x="22" y="25" width="2" height="156" fill="#bc9d4e" opacity=".15"/>
+<g transform="translate(1040 0) scale(-1 1)"><rect x="20" y="25" width="432" height="156" fill="url(#t-panel)"/>
+<rect x="20" y="25" width="1.5" height="156" fill="#ecddb7" opacity=".39"/>
+<rect x="22" y="25" width="2" height="156" fill="#bc9d4e" opacity=".15"/></g>
+  <rect x="20" y="25" width="1000" height="156" fill="url(#t-panel-shade)"/>
+  <rect x="20" y="14" width="1000" height="11" fill="url(#t-top-lip)"/>
+  <rect x="20" y="15" width="1000" height="2.2" fill="url(#t-top-polish)"/>
+  <rect x="20" y="25" width="1000" height="1.2" fill="#e2d0a2" opacity=".5"/>
+  <path d="M1 1H1039V199H1Z" fill="none" stroke="url(#t-edge)" stroke-width="1.5"/>
+  <rect x="18" y="16" width="1.5" height="173" fill="#8a733b" opacity=".55"/>
+  <rect x="1020.5" y="16" width="1.5" height="173" fill="#6b5622" opacity=".48"/>
+</g>
+<g id="terminal-emission" data-layer="emission">
+  <g clip-path="url(#t-inner)">
+    <g clip-path="url(#t-face)">
+      <rect x="27" y="25" width="137" height="156" fill="url(#t-light-spill)"/>
+<rect x="75" y="22" width="37" height="166" fill="#ffce0a" opacity=".55" filter="url(#t-halo)"/>
+<rect x="80" y="25" width="27" height="156" fill="url(#t-rail)"/>
+<rect x="80" y="25" width="1.4" height="156" fill="#fffbea"/>
+<g transform="translate(1040 0) scale(-1 1)"><rect x="27" y="25" width="137" height="156" fill="url(#t-light-spill)"/>
+<rect x="75" y="22" width="37" height="166" fill="#ffce0a" opacity=".55" filter="url(#t-halo)"/>
+<rect x="80" y="25" width="27" height="156" fill="url(#t-rail)"/>
+<rect x="80" y="25" width="1.4" height="156" fill="#fffbea"/></g>
+      <rect x="20" y="179" width="1000" height="4" fill="#ffcd03" opacity=".56" filter="url(#t-halo)"/>
+    </g>
+    <rect x="80" y="15" width="27" height="10" fill="#fff7d7"/>
+    <rect x="933" y="15" width="27" height="10" fill="#fff7d7"/>
+    <rect x="20" y="181" width="1000" height="9" fill="url(#t-bottom-lip)"/>
+    <rect x="20" y="181" width="1000" height="2" fill="#ffeca1" opacity=".67"/>
+  </g>
+  <g data-light="body-center" transform="translate(20 0)"><g data-light="spill"><rect x="326" y="14" width="84" height="186" fill="url(#body-03-double-on-g20)"/><rect x="590" y="14" width="84" height="186" fill="url(#body-03-double-on-g21)"/></g><g data-light="yellow"><rect x="432" y="14" width="40" height="186" fill="url(#body-03-double-on-g22)"/><rect x="528" y="14" width="40" height="186" fill="url(#body-03-double-on-g23)"/><rect x="410" y="14" width="22" height="186" fill="url(#body-03-double-on-g36)"/><rect x="568" y="14" width="22" height="186" fill="url(#body-03-double-on-g37)"/></g><g data-light="white"><rect x="472" y="14" width="56" height="186" fill="#fcfeff"/><rect x="470.6" y="14" width="1.4" height="186" fill="url(#body-03-double-on-g38)"/><rect x="528" y="14" width="1.4" height="186" fill="url(#body-03-double-on-g39)"/></g></g>
+</g>
+</svg>

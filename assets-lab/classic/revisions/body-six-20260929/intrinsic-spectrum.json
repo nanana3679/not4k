@@ -1,0 +1,207 @@
+{
+  "mode": "built-in image_gen · color-only edit",
+  "basis": "A · broad single center field",
+  "constraint": "single stays blue; double stays gold; compare lightness steps within each original type color",
+  "steps": [
+    {
+      "step": 1,
+      "title": "아주 밝게",
+      "lightness": 85
+    },
+    {
+      "step": 2,
+      "title": "밝게",
+      "lightness": 75
+    },
+    {
+      "step": 3,
+      "title": "중간",
+      "lightness": 65
+    },
+    {
+      "step": 4,
+      "title": "선명하게",
+      "lightness": 55
+    },
+    {
+      "step": 5,
+      "title": "짙게",
+      "lightness": 42
+    },
+    {
+      "step": 6,
+      "title": "아주 짙게",
+      "lightness": 28
+    }
+  ],
+  "variants": [
+    {
+      "id": "spectrum-single-01",
+      "kind": "single",
+      "step": 1,
+      "title": "아주 밝게",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 85,
+      "source": "generated/spectrum-single-01.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 1 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,85%). This is a LIGHT pastel tint of the type's own color; keep it visibly blue/gold, not neutral white. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-single-02",
+      "kind": "single",
+      "step": 2,
+      "title": "밝게",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 75,
+      "source": "generated/spectrum-single-02.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 2 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,75%). This is a LIGHT pastel tint of the type's own color; keep it visibly blue/gold, not neutral white. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-single-03",
+      "kind": "single",
+      "step": 3,
+      "title": "중간",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 65,
+      "source": "generated/spectrum-single-03.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 3 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,65%). This is a clearly colored middle/bright tone of its original color. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-single-04",
+      "kind": "single",
+      "step": 4,
+      "title": "선명하게",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 55,
+      "source": "generated/spectrum-single-04.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 4 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,55%). This is a clearly colored middle/bright tone of its original color. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-single-05",
+      "kind": "single",
+      "step": 5,
+      "title": "짙게",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 42,
+      "source": "generated/spectrum-single-05.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 5 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,42%). This is a DARK shade of the type's own color; it must still read as blue/gold, never gray or generic black. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-single-06",
+      "kind": "single",
+      "step": 6,
+      "title": "아주 짙게",
+      "hue": 206,
+      "saturation": 88,
+      "lightness": 28,
+      "source": "generated/spectrum-single-06.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing BLUE SINGLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 6 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the BLUE family at hue 206 degrees (azure/sapphire). Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(206,88%,28%). This is a DARK shade of the type's own color; it must still read as blue/gold, never gray or generic black. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-01",
+      "kind": "double",
+      "step": 1,
+      "title": "아주 밝게",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 85,
+      "source": "generated/spectrum-double-01.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 1 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,85%). This is a LIGHT pastel tint of the type's own color; keep it visibly blue/gold, not neutral white. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-02",
+      "kind": "double",
+      "step": 2,
+      "title": "밝게",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 75,
+      "source": "generated/spectrum-double-02.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 2 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,75%). This is a LIGHT pastel tint of the type's own color; keep it visibly blue/gold, not neutral white. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-03",
+      "kind": "double",
+      "step": 3,
+      "title": "중간",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 65,
+      "source": "generated/spectrum-double-03.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 3 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,65%). This is a clearly colored middle/bright tone of its original color. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-04",
+      "kind": "double",
+      "step": 4,
+      "title": "선명하게",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 55,
+      "source": "generated/spectrum-double-04.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 4 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,55%). This is a clearly colored middle/bright tone of its original color. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-05",
+      "kind": "double",
+      "step": 5,
+      "title": "짙게",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 42,
+      "source": "generated/spectrum-double-05.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 5 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,42%). This is a DARK shade of the type's own color; it must still read as blue/gold, never gray or generic black. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    },
+    {
+      "id": "spectrum-double-06",
+      "kind": "double",
+      "step": 6,
+      "title": "아주 짙게",
+      "hue": 45,
+      "saturation": 88,
+      "lightness": 28,
+      "source": "generated/spectrum-double-06.png",
+      "references": [
+        "lab/image-galleries/long-note-body-six-20260929/type-a-pearl-double.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Image 1 is the ONLY edit target: the existing GOLD DOUBLE rhythm-game long-note body tile. This is a controlled color-only study, NOT a redesign. Make one recolored tile for step 6 of a six-step light-to-dark spectrum WITHIN ITS ORIGINAL TYPE COLOR. Stay exclusively in the YELLOW-GOLD family at hue 45 degrees. Absolutely no other hue family. Recolor the broad central face so its main representative color is HSL(45,88%,28%). This is a DARK shade of the type's own color; it must still read as blue/gold, never gray or generic black. Keep the same smooth lateral shading but modest in amplitude so the specified main color dominates. Recolor the outer colored shoulders consistently with the central face. Keep the existing narrow white highlights and deep dark colored gutters so the same highlight/shadow geometry is preserved across all steps.\nLOCK ALL GEOMETRY: exact same broad unsegmented middle field, groove and side-strip locations, edge widths, framing and scale as the reference. No additional rails, no center strip, no two-panel division. Identical shape in every spectrum sample; ONLY COLOR CHANGES. No point note, text, labels, scene, comparison chart or decoration. Output ONE clean full-bleed horizontal 100:20 (5:1) rectangle. All columns constant in Y, vertical seamless repeat, no top or bottom caps/borders, no perspective, no horizontal highlights, no corners. The reference's polished glass/metal material stays the same."
+    }
+  ]
+}

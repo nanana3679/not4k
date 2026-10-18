@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
+import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
   TUTORIAL_PREVIEWS,
   type TutorialPreviewDefinition,
 } from './tutorialPreviewChart';
+import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
 import { getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
   canShowTutorialCacheInvalidationButton,
@@ -26,7 +28,6 @@ const TUTORIAL_MODAL_CLOSE_MS = 120;
 type TutorialPageTransitionDirection = 'forward' | 'backward';
 type TutorialPageTransitionPhase = 'preparing' | 'animating';
 type TutorialPreviewSlotId = 0 | 1;
-type TutorialPreviewSlotState = 'active' | 'standby' | 'exiting' | 'entering';
 
 interface TutorialPlayerTransition {
   fromIndex: number;
@@ -51,6 +52,7 @@ function getTutorialViewedStorage(): Storage | null {
 
 export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModalProps) {
   const [tutorialIndex, setTutorialIndex] = useState(0);
+  const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_PREVIEWS.length });
   const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
   const [activePlayerSlot, setActivePlayerSlot] = useState<TutorialPreviewSlotId>(0);
   const [previewSlotIndexes, setPreviewSlotIndexes] = useState<readonly [number, number]>(() => [0, 0]);
@@ -68,7 +70,9 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
   );
   const settings = useGameStore((state) => state.settings);
-  const currentTutorial = TUTORIAL_PREVIEWS[tutorialIndex] ?? TUTORIAL_PREVIEWS[0];
+  const currentSection = getTutorialSection(tutorialIndex);
+  const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;
+  const currentTutorial = ALL_TUTORIAL_PREVIEWS[tutorialIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
   const bodyLines = currentTutorial.bodyLines.map((line) =>
     line === TUTORIAL_OPPOSITE_HAND_BODY_LINE
       ? getOppositeHandPlacementLine(settings.preset, settings.keyBindings)
@@ -93,7 +97,17 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
 
   const goToTutorialIndex = useCallback((nextIndex: number, directionOverride?: TutorialPageTransitionDirection) => {
     const normalizedIndex = normalizeTutorialIndex(nextIndex);
-    const nextTutorial = TUTORIAL_PREVIEWS[normalizedIndex] ?? TUTORIAL_PREVIEWS[0];
+    const nextTutorial = ALL_TUTORIAL_PREVIEWS[normalizedIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
+    lastSectionIndexesRef.current[getTutorialSection(normalizedIndex).id] = normalizedIndex;
+    setViewedTutorialIds((previous) => {
+      if (previous.has(nextTutorial.id)) return previous;
+      const next = new Set(previous);
+      next.add(nextTutorial.id);
+      return next;
+    });
+    // Clicking the selected tab must not cancel the two-frame preparation
+    // of a preview that is still becoming ready.
+    if (normalizedIndex === tutorialIndex) return;
     const sourcePlayerIndex = playerTransition?.toIndex ?? visiblePlayerIndex;
     const sourcePlayerSlot = playerTransition?.toSlot ?? activePlayerSlot;
     const sourcePlayerInstanceId =
@@ -133,12 +147,6 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
         phase: 'preparing',
       });
     }
-    setViewedTutorialIds((previous) => {
-      if (previous.has(nextTutorial.id)) return previous;
-      const next = new Set(previous);
-      next.add(nextTutorial.id);
-      return next;
-    });
   }, [
     activePlayerSlot,
     cancelScheduledTransitionStart,
@@ -149,11 +157,11 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
   ]);
 
   const goToPreviousTutorial = useCallback(() => {
-    goToTutorialIndex(tutorialIndex - 1, 'backward');
+    goToTutorialIndex(getAdjacentTutorialIndex(tutorialIndex, -1), 'backward');
   }, [goToTutorialIndex, tutorialIndex]);
 
   const goToNextTutorial = useCallback(() => {
-    goToTutorialIndex(tutorialIndex + 1, 'forward');
+    goToTutorialIndex(getAdjacentTutorialIndex(tutorialIndex, 1), 'forward');
   }, [goToTutorialIndex, tutorialIndex]);
 
   const requestClose = useCallback(() => {
@@ -167,7 +175,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     closeTimeoutRef.current = window.setTimeout(() => {
       closeTimeoutRef.current = null;
       onClose();
-    }, getTutorialModalCloseDurationMs());
+    }, TUTORIAL_MODAL_CLOSE_MS);
   }, [cancelScheduledTransitionStart, isClosing, onClose]);
 
   const resetViewedTutorialCache = useCallback(() => {
@@ -252,23 +260,21 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
           ? null
           : transition
       ));
-    }, getTutorialTransitionDurationMs());
+    }, TUTORIAL_PAGE_TRANSITION_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [playerTransition]);
 
   useEffect(() => {
     if (!playerTransition || playerTransition.phase !== 'animating') {
-      setPlayerTransitionProgress(0);
       return;
     }
 
     let animationFrameId: number | null = null;
-    const durationMs = getTutorialTransitionDurationMs();
     const startMs = performance.now();
 
     const step = (now: number) => {
-      const elapsedRatio = durationMs <= 1 ? 1 : Math.min(1, (now - startMs) / durationMs);
+      const elapsedRatio = Math.min(1, (now - startMs) / TUTORIAL_PAGE_TRANSITION_MS);
       setPlayerTransitionProgress(getEaseOutQuintProgress(elapsedRatio));
 
       if (elapsedRatio < 1) {
@@ -297,6 +303,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.key === 'Escape') {
         requestClose();
       } else if (event.key === 'ArrowLeft') {
@@ -346,8 +353,8 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
             >
               <span aria-hidden="true">←</span>
             </button>
-            <span style={tutorialHelpStyles.pageIndicator} aria-label={`Tutorial ${tutorialIndex + 1} of ${TUTORIAL_PREVIEWS.length}`}>
-              {tutorialIndex + 1} / {TUTORIAL_PREVIEWS.length}
+            <span style={tutorialHelpStyles.pageIndicator} aria-label={`Tutorial ${sectionTutorialIndex + 1} of ${currentSection.previews.length}`}>
+              {sectionTutorialIndex + 1} / {currentSection.previews.length}
             </span>
             <button
               type="button"
@@ -381,13 +388,50 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
           </div>
         </header>
 
-        <div className="not4k-tutorial-content-layout" style={tutorialHelpStyles.contentLayout}>
+        <div role="tablist" aria-label="Tutorial level" style={tutorialHelpStyles.tabs}>
+          {TUTORIAL_SECTIONS.map((section, index) => (
+            <button
+              key={section.id}
+              id={`tutorial-tab-${section.id}`}
+              type="button"
+              role="tab"
+              aria-selected={currentSection.id === section.id}
+              aria-controls="tutorial-level-panel"
+              tabIndex={currentSection.id === section.id ? 0 : -1}
+              style={{ ...tutorialHelpStyles.tab, ...(currentSection.id === section.id ? tutorialHelpStyles.tabSelected : {}) }}
+              onClick={() => goToTutorialIndex(lastSectionIndexesRef.current[section.id])}
+              onKeyDown={(event) => {
+                const nextSectionIndex = event.key === 'Home' ? 0
+                  : event.key === 'End' ? TUTORIAL_SECTIONS.length - 1
+                  : event.key === 'ArrowRight' ? (index + 1) % TUTORIAL_SECTIONS.length
+                  : event.key === 'ArrowLeft' ? (index + TUTORIAL_SECTIONS.length - 1) % TUTORIAL_SECTIONS.length
+                  : null;
+                if (nextSectionIndex === null) return;
+                event.preventDefault();
+                const nextSection = TUTORIAL_SECTIONS[nextSectionIndex];
+                goToTutorialIndex(lastSectionIndexesRef.current[nextSection.id]);
+                document.getElementById(`tutorial-tab-${nextSection.id}`)?.focus();
+              }}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+
+        <div
+          id="tutorial-level-panel"
+          role="tabpanel"
+          aria-labelledby={`tutorial-tab-${currentSection.id}`}
+          className="not4k-tutorial-content-layout"
+          style={tutorialHelpStyles.contentLayout}
+        >
           <nav
             className="not4k-tutorial-index"
             style={tutorialHelpStyles.indexNav}
             aria-label="Tutorial index"
           >
-            {TUTORIAL_PREVIEWS.map((tutorial, index) => {
+            {currentSection.previews.map((tutorial, localIndex) => {
+              const index = currentSection.startIndex + localIndex;
               const isCurrent = index === tutorialIndex;
               const isSeen = viewedTutorialIds.has(tutorial.id);
               return (
@@ -405,7 +449,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
                   data-tutorial-index-current={isCurrent ? 'true' : 'false'}
                   data-tutorial-index-seen={isSeen ? 'true' : 'false'}
                 >
-                  <span style={tutorialHelpStyles.indexNumber}>{index}</span>
+                  <span style={tutorialHelpStyles.indexNumber}>{localIndex}</span>
                   <span style={tutorialHelpStyles.indexTitle}>{tutorial.title}</span>
                   {isSeen && (
                     <span
@@ -518,7 +562,7 @@ function TutorialPreviewTransitionStage({
           return (
             <TutorialPreviewSlot
               key={`preview-slot-${slotId}`}
-              preview={TUTORIAL_PREVIEWS[previewIndex] ?? TUTORIAL_PREVIEWS[0]}
+              preview={ALL_TUTORIAL_PREVIEWS[previewIndex] ?? ALL_TUTORIAL_PREVIEWS[0]}
               previewInstanceId={previewInstanceId}
               slotState={slotState}
               transition={transition}
@@ -602,7 +646,8 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
-  // 멈춤(pause)은 entering에서 미리 arming해 도식 시작점에 프레임을 고정한다.
+  // entering 재생기는 paused라 루프를 진행하지 않으므로, 차트를 건 시점(루프 시간 0)에 시작하는 도식만 미리 arming해
+  // 도식 시작점에 프레임을 고정한다.
   const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
   // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
   // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
@@ -621,11 +666,13 @@ function TutorialPreviewSlot({
       aria-hidden={slotState === 'active' || slotState === 'entering' ? undefined : true}
     >
       <div className="not4k-tutorial-player-wrap" style={tutorialHelpStyles.playerWrap}>
+        {/* 레슨을 넘겨도 재생기와 렌더러는 그대로 두고 차트만 바꾼다. 재방문은 previewInstanceId로 처음부터 재생한다. */}
         <TutorialPreviewPlayer
-          key={`${preview.id}:${previewInstanceId}`}
           preview={preview}
+          previewInstanceId={previewInstanceId}
           diagramModalEnabled={diagramModalEnabled}
           diagramModalVisible={diagramModalVisible}
+          paused={!isTutorialPreviewSlotPlaying(slotState)}
           onReady={onReady}
         />
       </div>
@@ -663,7 +710,7 @@ function getTutorialPreviewTrackClassName(
 }
 
 function normalizeTutorialIndex(index: number): number {
-  return (index + TUTORIAL_PREVIEWS.length) % TUTORIAL_PREVIEWS.length;
+  return (index + ALL_TUTORIAL_PREVIEWS.length) % ALL_TUTORIAL_PREVIEWS.length;
 }
 
 function getTutorialTransitionDirection(
@@ -671,22 +718,6 @@ function getTutorialTransitionDirection(
   nextIndex: number,
 ): TutorialPageTransitionDirection {
   return nextIndex >= currentIndex ? 'forward' : 'backward';
-}
-
-function getTutorialTransitionDurationMs(): number {
-  if (typeof window === 'undefined') return TUTORIAL_PAGE_TRANSITION_MS;
-
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ? 1
-    : TUTORIAL_PAGE_TRANSITION_MS;
-}
-
-function getTutorialModalCloseDurationMs(): number {
-  if (typeof window === 'undefined') return TUTORIAL_MODAL_CLOSE_MS;
-
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ? 1
-    : TUTORIAL_MODAL_CLOSE_MS;
 }
 
 function getOppositeHandPlacementLine(
@@ -842,25 +873,14 @@ const tutorialHelpCss = `
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .not4k-tutorial-player-slot,
-  .not4k-tutorial-carousel-track,
-  .not4k-tutorial-player-stage,
-  .not4k-tutorial-player-placeholder,
-  .not4k-tutorial-overlay,
-  .not4k-tutorial-modal,
-  .not4k-tutorial-text-transition {
-    animation-duration: 1ms !important;
-    transition-duration: 1ms !important;
-  }
-  .not4k-tutorial-placeholder-spinner {
-    animation: none !important;
-  }
-}
-
 @media (max-width: 900px) {
   .not4k-tutorial-content-layout {
     flex-direction: column !important;
+  }
+
+  .not4k-tutorial-player-column {
+    flex: none !important;
+    overflow-y: visible !important;
   }
 
   .not4k-tutorial-index {
@@ -937,6 +957,29 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
     flexShrink: 0,
   },
+  tabs: {
+    display: 'flex',
+    gap: '8px',
+    flexShrink: 0,
+    borderBottom: '1px solid #454545',
+    paddingBottom: '10px',
+  },
+  tab: {
+    minHeight: '36px',
+    padding: '6px 18px',
+    color: '#b7b7b7',
+    background: '#303030',
+    border: '1px solid #454545',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 700,
+  },
+  tabSelected: {
+    color: '#b9f4f8',
+    background: '#24383b',
+    borderColor: '#4d8e96',
+  },
   title: {
     margin: 0,
     display: 'flex',
@@ -956,6 +999,8 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
   },
   headerControls: {
     display: 'flex',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
     alignItems: 'center',
     gap: '8px',
     flexShrink: 0,

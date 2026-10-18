@@ -1,0 +1,510 @@
+import type { SkinManifest } from '../game/skin/types';
+
+/**
+ * 보관 당시 skins.ts의 Classic 매니페스트. 키 이름도 보관 당시 그대로라, 스킨 공통 기어 그림은 #231 전 키 `gearFrame`(지금 `gearImage`)으로 남는다.
+ * 스킨 공통 기어 에셋(`gearFrame`과 RFD 0029 이전의 기둥 게이지 `gearGaugeLeft`·`gearGaugeRight`)은 보관 기록으로만 남는다.
+ * 고도 게이지 빈 유리(`gearGaugeEmpty`)는 이 보관본들보다 나중에 생겨 매니페스트에 없다.
+ * Lab·dev 재생은 지금 공통 기어를 쓴다(noteAssetDesigns).
+ */
+export interface ArchivedClassicManifest {
+  theme: SkinManifest['theme'];
+  assets: Omit<SkinManifest['assets'], 'gearImage' | 'gearGaugeEmpty'> & {
+    gearFrame?: string; gearImage?: string; gearGaugeEmpty?: string; gearGaugeLeft?: string; gearGaugeRight?: string;
+  };
+}
+
+// Frozen from each archive's skins.ts; do not derive old themes from the live Classic.
+export const CLASSIC_SKIN_VERSIONS: readonly { id: string; label: string; manifest: ArchivedClassicManifest }[] = [
+  {
+    "id": "v014",
+    "label": "흰빛 포인트 · 트렌치 바디 · 접촉 그림자(트릴 마름모 테두리 포함) · 반투명 사각 기둥 트릴 켜짐 바디 · 에디터 회색 마름모 트릴 끝 터미널",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "pointContactShadow": {
+          "above": 5,
+          "below": 5
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png",
+        "pointContactShadow": "/skins/classic/point-contact-shadow.png",
+        "pointContactShadowTrill": "/skins/classic/point-contact-shadow-trill.png"
+      }
+    }
+  },
+  {
+    "id": "v013",
+    "label": "흰빛 포인트 · 트렌치 바디 · 접촉 그림자(트릴 마름모 테두리 포함) · 에디터 회색 마름모 트릴 끝 터미널",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "pointContactShadow": {
+          "above": 5,
+          "below": 5
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png",
+        "pointContactShadow": "/skins/classic/point-contact-shadow.png",
+        "pointContactShadowTrill": "/skins/classic/point-contact-shadow-trill.png"
+      }
+    }
+  },
+  {
+    "id": "v012",
+    "label": "흰빛 포인트 · 트렌치 바디 · 접촉 그림자 · 에디터 회색 마름모 트릴 끝 터미널",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "pointContactShadow": {
+          "above": 5,
+          "below": 5
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png",
+        "pointContactShadow": "/skins/classic/point-contact-shadow.png"
+      }
+    }
+  },
+  {
+    "id": "v002",
+    "label": "고채도 포인트 · 아주 밝은 바디 · 공용 터미널",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png"
+      }
+    }
+  },
+  {
+    "id": "v001",
+    "label": "유광 포인트 · 어두운 금속 바디 · V 터미널",
+    "manifest": {
+      "theme": {
+        "id": "classic",
+        "name": "Classic",
+        "available": true,
+        "accent": 8640767,
+        "beamColor": 16777215,
+        "heldLine": 9362687,
+        "heldGlow": 8965119,
+        "bg": 329741,
+        "text": 14215412,
+        "longNoteTerminalMode": "full-height",
+        "longNoteTerminalFrameOverhangPx": 0,
+        "longNoteBodyMode": "repeat",
+        "graceOverlayPaddingPx": 12,
+        "pointShadow": {
+          "offsetY": 19.6,
+          "height": 3.2
+        },
+        "bombDurationMs": 280
+      },
+      "assets": {
+        "terminalSingleIdle": "/skins/classic/terminal-single-idle.png",
+        "terminalDoubleIdle": "/skins/classic/terminal-double-idle.png",
+        "terminalTrillIdle": "/skins/classic/terminal-trill-idle.png",
+        "noteSingle": "/skins/classic/note-single.png",
+        "noteDouble": "/skins/classic/note-double.png",
+        "terminalSingle": "/skins/classic/terminal-single.png",
+        "terminalDouble": "/skins/classic/terminal-double.png",
+        "bodySingle": "/skins/classic/body-single.png",
+        "bodyDouble": "/skins/classic/body-double.png",
+        "bodySingleHeld": "/skins/classic/body-single-held.png",
+        "bodyDoubleHeld": "/skins/classic/body-double-held.png",
+        "noteDoubleFailed": "/skins/classic/note-double-failed.png",
+        "bodySingleFailed": "/skins/classic/body-single-failed.png",
+        "bodyDoubleFailed": "/skins/classic/body-double-failed.png",
+        "bodyDoublePartialFailedLeft": "/skins/classic/body-double-partial-failed-left.png",
+        "bodyDoublePartialFailedRight": "/skins/classic/body-double-partial-failed-right.png",
+        "terminalDoublePartialFailedLeft": "/skins/classic/terminal-double-partial-failed-left.png",
+        "terminalDoublePartialFailedRight": "/skins/classic/terminal-double-partial-failed-right.png",
+        "noteDoublePartialFailedLeft": "/skins/classic/note-double-partial-failed-left.png",
+        "noteDoublePartialFailedRight": "/skins/classic/note-double-partial-failed-right.png",
+        "bodyDoublePartialHeldLeft": "/skins/classic/body-double-partial-held-left.png",
+        "bodyDoublePartialHeldRight": "/skins/classic/body-double-partial-held-right.png",
+        "terminalSingleFailed": "/skins/classic/terminal-single-failed.png",
+        "terminalDoubleFailed": "/skins/classic/terminal-double-failed.png",
+        "noteTrill": "/skins/classic/note-trill.png",
+        "terminalTrill": "/skins/classic/terminal-trill.png",
+        "bodyTrill": "/skins/classic/body-trill.png",
+        "bodyTrillHeld": "/skins/classic/body-trill-held.png",
+        "noteTrillFailed": "/skins/classic/note-trill-failed.png",
+        "bodyTrillFailed": "/skins/classic/body-trill-failed.png",
+        "terminalTrillFailed": "/skins/classic/terminal-trill-failed.png",
+        "bomb": [
+          "/skins/classic/bomb-00.png",
+          "/skins/classic/bomb-01.png",
+          "/skins/classic/bomb-02.png",
+          "/skins/classic/bomb-03.png",
+          "/skins/classic/bomb-04.png",
+          "/skins/classic/bomb-05.png",
+          "/skins/classic/bomb-06.png",
+          "/skins/classic/bomb-07.png",
+          "/skins/classic/bomb-08.png",
+          "/skins/classic/bomb-09.png",
+          "/skins/classic/bomb-10.png",
+          "/skins/classic/bomb-11.png",
+          "/skins/classic/bomb-12.png",
+          "/skins/classic/bomb-13.png",
+          "/skins/classic/bomb-14.png",
+          "/skins/classic/bomb-15.png"
+        ],
+        "gearFrame": "/gear/gear-frame.png",
+        "gearGaugeLeft": "/gear/gear-gauge-left.png",
+        "gearGaugeRight": "/gear/gear-gauge-right.png",
+        "buttonIdle": [
+          "/skins/classic/button-idle-1.png",
+          "/skins/classic/button-idle-2.png",
+          "/skins/classic/button-idle-3.png",
+          "/skins/classic/button-idle-4.png"
+        ],
+        "buttonPressed": [
+          "/skins/classic/button-pressed-1.png",
+          "/skins/classic/button-pressed-2.png",
+          "/skins/classic/button-pressed-3.png",
+          "/skins/classic/button-pressed-4.png"
+        ],
+        "pointGraceOverlay": "/skins/classic/point-grace-overlay.png",
+        "terminalGraceOverlay": "/skins/classic/terminal-grace-overlay.png",
+        "pointShadow": "/skins/classic/point-shadow.png"
+      }
+    }
+  }
+];

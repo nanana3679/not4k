@@ -104,7 +104,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         {view === 'settings' ? (
           <SettingsPanel
             onClose={onClose}
-            onCalibrate={() => setView('calibration')}
           />
         ) : (
           <CalibrationView onExit={() => setView('settings')} />

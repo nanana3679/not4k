@@ -2,6 +2,8 @@
 
 **Status:** Accepted (2026-06-19)
 
+**후속 결정:** [RFD 0022](0022-flight-difficulty-names-and-visuals.md)가 이름·분류를 `Liftoff → Infiltration → Breakthrough`와 차트 난이도명 연결 관계로 대체한다. 이 문서의 2종·별도 축 설명은 당시 결정이다. `Liftoff`의 관대한 역할은 유지하며, 종전 `Survival`의 세부 규칙을 새 단계에 자동 승계하지 않는다.
+
 **관련 문서:**
 
 - [`docs/rfd/0001-flight-rules-and-observer-boundary.md`](0001-flight-rules-and-observer-boundary.md) — `flightRule`과 Observer 경계

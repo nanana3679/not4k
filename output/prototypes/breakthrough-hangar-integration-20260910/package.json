@@ -1,0 +1,10 @@
+{
+  "name": "breakthrough-hangar-integration-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node preview-server.mjs",
+    "test": "../../../node_modules/.bin/vitest run --config vitest.config.mjs",
+    "check:browser": "node browser-check.mjs"
+  }
+}

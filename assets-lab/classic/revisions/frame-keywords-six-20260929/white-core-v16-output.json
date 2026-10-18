@@ -1,0 +1,16 @@
+{
+  "generator": "built-in image_gen",
+  "base": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/52-restored-frame-v15.svg",
+  "input": "/home/nanana3679/orca/workspaces/not4k/melusine/assets-lab/classic/revisions/frame-keywords-six-20260929/button-insert-v15.png",
+  "generatedSource": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-797eccde-c2bd-45e1-b94b-39734eb61459.png",
+  "insert": "assets-lab/classic/revisions/frame-keywords-six-20260929/white-core-insert-v16.png",
+  "saved": "lab/image-galleries/frame-keywords-six-20260929/53-white-core-frame-v16.svg",
+  "assembly": "assets-lab/classic/revisions/frame-keywords-six-20260929/assemble-frame-v16.mjs",
+  "maskBounds": {
+    "x": 348,
+    "y": 1096,
+    "width": 188,
+    "height": 178
+  },
+  "description": "Bright neutral white emitted light on the pressed second key, pale cyan light around it. The remainder of the adopted v15 SVG is unchanged."
+}

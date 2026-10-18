@@ -1,11 +1,5 @@
+// 편집기용: e2e 파일을 pnpm typecheck와 같은 규칙(tsconfig.tooling.json)으로 보여 준다.
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "rootDir": null,
-    "outDir": null,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false
-  },
+  "extends": "../tsconfig.tooling.json",
   "include": ["./**/*.ts"]
 }

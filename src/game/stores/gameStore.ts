@@ -17,14 +17,17 @@ interface GameSettings {
   scrollSpeed: number;
   liftPercent: number;
   suddenPercent: number;
-  audioOffsetMs: number;
-  judgmentOffsetMs: number;
+  visualOffsetMs: number;
+  inputOffsetMs: number;
   preset: 'numpad' | 'tkl';
   isFirstLaunch: boolean;
   showFastSlow: boolean;
   showTimingDiff: boolean;
   skinId: string;
+  bombScale: number;
   renderHeight: number;
+  /** `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛). 끄면 플레이 렌더러가 `gearMotion` 객체를 만들지 않는다. 없으면 켬. */
+  gearMotion: boolean;
   playSpeed: number;
   judgmentMode: JudgmentMode;
   debugMode: boolean;
@@ -36,7 +39,8 @@ interface PlayResult {
   difficulty: string;
   achievementRate: number;
   rank: string;
-  maxCombo: number;
+  /** @deprecated PlayScreen compatibility; result UI does not expose combo statistics. */
+  maxCombo?: number;
   isFullCombo: boolean;
   judgmentCounts: Record<string, number>;
   goodTrillCount: number;
@@ -102,19 +106,30 @@ const DEFAULT_SETTINGS: GameSettings = {
   scrollSpeed: 800,
   liftPercent: 0,
   suddenPercent: 0,
-  audioOffsetMs: 0,
-  judgmentOffsetMs: 0,
+  visualOffsetMs: 0,
+  inputOffsetMs: 0,
   preset: 'tkl',
   isFirstLaunch: true,
   showFastSlow: true,
   showTimingDiff: false,
-  skinId: 'crystal',
+  skinId: 'classic',
+  bombScale: 1,
   renderHeight: 1080,
+  gearMotion: true,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
   masterVolume: 1.0,
 };
+
+export const TIMING_OFFSET_LIMIT_MS = 1000;
+
+/** 입력·시각 오프셋은 실제 시간 ±1000ms로 제한하고 잘못된 값은 기본 0ms로 둔다. */
+export function clampTimingOffsetMs(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(-TIMING_OFFSET_LIMIT_MS, Math.min(TIMING_OFFSET_LIMIT_MS, value))
+    : 0;
+}
 
 /** @internal 테스트용으로 export. persist merge 콜백. */
 export function mergePersistedSettings(
@@ -124,12 +139,14 @@ export function mergePersistedSettings(
   const p = persisted as { settings?: Partial<GameSettings> };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
-  // Migration: 기존 offsetMs → audioOffsetMs
-  const raw = p.settings as Record<string, unknown> | undefined;
-  if (raw && 'offsetMs' in raw && !('audioOffsetMs' in raw)) {
-    merged.audioOffsetMs = raw.offsetMs;
-  }
+  merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
+  merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
+  // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
+  delete merged.audioOffsetMs;
+  delete merged.judgmentOffsetMs;
   delete merged.offsetMs;
+  // #231에서 설정 이름을 frameMotion → gearMotion으로 바꿨다(미출시라 값은 옮기지 않는다). 옛 키는 남기지 않는다.
+  delete merged.frameMotion;
   return {
     ...cur,
     settings: merged as unknown as GameSettings,

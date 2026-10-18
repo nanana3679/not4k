@@ -1,14 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { getTutorialBombPosition } from "./TutorialPreviewPlayer";
+import { describe, expect, it } from 'vitest';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
 import {
   buildTutorialKeyboardKeys,
-  createSafeRenderFrame,
   getLaneKeyLabels,
-  isTransientTeardownRenderError,
   uniqueTutorialKeys,
   type TutorialKeyView,
 } from './TutorialPreviewPlayer';
-import type { GameRenderer } from '../../renderer';
 import { TUTORIAL_PREVIEWS, getTutorialInputTimings } from './tutorialPreviewChart';
 import {
   getTutorialKeyboardLayout,
@@ -36,19 +34,19 @@ function buildHandPlacementKeyboardFixture() {
 
 describe('TutorialPreviewPlayer', () => {
   it('곡 선택 튜토리얼 미니 재생기는 GameRenderer 기어와 원근 배경을 끈다', () => {
-    expect(tutorialPreviewPlayerSource).toContain('showGearFrame: false');
-    expect(tutorialPreviewPlayerSource).toContain('showPerspectiveSurface: false');
+    expect(tutorialPreviewPlayerSource).toContain('showGear: false');
+    expect(tutorialPreviewPlayerSource).toContain('showFlightBackground: false');
   });
 
   it('곡 선택 튜토리얼 미니 재생기는 정확도·콤보 HUD를 숨기고 판정선을 아래로 내림', () => {
     expect(tutorialPreviewPlayerSource).toContain('showComboAndAccuracy: false');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_JUDGMENT_LINE_OFFSET = 80');
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_JUDGMENT_LINE_OFFSET = playfieldPx(80)');
     expect(tutorialPreviewPlayerSource).toContain('judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET');
   });
 
   it('프리뷰 캔버스는 렌더 크기와 같은 aspectRatio를 사용해 찌그러지지 않음', () => {
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_WIDTH = LANE_AREA_WIDTH');
-    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = 360');
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RENDER_HEIGHT = playfieldPx(360)');
     expect(tutorialPreviewPlayerSource).toContain('width: PREVIEW_RENDER_WIDTH');
     expect(tutorialPreviewPlayerSource).toContain('height: PREVIEW_RENDER_HEIGHT');
     expect(tutorialPreviewPlayerSource).toContain('aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}`');
@@ -57,8 +55,9 @@ describe('TutorialPreviewPlayer', () => {
   it('키 입력 표시는 사용자가 선택한 프리셋 기반 키보드 스펙을 GameRenderer 생성 시 넘겨 캔버스 안에 그림', () => {
     expect(tutorialPreviewPlayerSource).toContain('useGameStore((state) => state.settings)');
     expect(tutorialPreviewPlayerSource).toContain('getTutorialKeyboardLayout(settings.preset)');
-    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, settings.keyBindings)');
-    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight,');
+    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialKeyboardBindings(baseTimings, settings.keyBindings, settings.preset)');
+    expect(tutorialPreviewPlayerSource).toContain('resolveTutorialInputTimingsForKeyboard(baseTimings, bindingResolution.bindings)');
+    expect(tutorialPreviewPlayerSource).toContain('keyboardAreaHeight: rendererOptions.keyboardAreaHeight,');
     expect(tutorialPreviewPlayerSource).toContain('tutorialKeyboard: {');
     expect(tutorialPreviewPlayerSource).toContain('buildTutorialKeyboardKeys(keyboardLayout, keyByCode)');
     expect(tutorialPreviewPlayerSource).not.toContain('data-keyboard-key');
@@ -172,11 +171,19 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).not.toContain('activeKeySet');
   });
 
-  it('튜토리얼 키 이벤트는 기존 JudgmentEngine 컨트롤러가 만든 판정 효과(판정 텍스트·bomb)를 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain('createTutorialPreviewJudgmentController');
-    expect(tutorialPreviewPlayerSource).toContain('decideJudgmentEffects(result, note)');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.showJudgment(effects.judgmentText.grade, effects.judgmentText.deltaMs)');
-    expect(tutorialPreviewPlayerSource).toContain('if (effects.bomb !== null)');
+  it('4-slot 보충 매핑이 적용된 시연에는 실제 임시 키 배정을 안내한다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-binding-notice="true"');
+    expect(tutorialPreviewPlayerSource).toContain('옵션에서 레인별 키를 추가할 수 있습니다.');
+  });
+
+  it('튜토리얼 키 이벤트는 SessionRendererAdapter를 통해 판정 텍스트·bomb·노트 표시를 전달', () => {
+    expect(tutorialPreviewPlayerSource).toContain('createTutorialPreviewSessionController');
+    expect(tutorialPreviewPlayerSource).toContain('new SessionRendererAdapter');
+    expect(tutorialPreviewPlayerSource).toContain('showJudgment:');
+    expect(tutorialPreviewPlayerSource).toContain('showBombEffect:');
+    expect(tutorialPreviewPlayerSource).toContain('applyNoteDisplayEffect:');
+    expect(tutorialPreviewPlayerSource).not.toContain('createTutorialPreviewJudgmentController');
+    expect(tutorialPreviewPlayerSource).not.toContain('decideJudgmentEffects');
     expect(tutorialPreviewPlayerSource).not.toContain('currentRenderer.showJudgment(JudgmentGrade.PERFECT, 0)');
   });
 
@@ -184,10 +191,10 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderChart');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderStartMs');
-    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = (now - loopStartNow) % preview.loopMs');
+    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
-    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
   });
 
   it('선택된 튜토리얼 preview prop으로 차트와 키 입력 이벤트를 렌더링', () => {
@@ -249,16 +256,16 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('document.body,');
   });
 
-  it('튜토리얼 도식이 0ms에서 시작하면 렌더러 init 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
-    expect(tutorialPreviewPlayerSource).toContain(
-      [
-        'resolveDiagramPauseTime(0);',
-        '    if (activeDiagramPause) {',
-        '      notifyReady();',
-        '    }',
-        '',
-        '    const start = async () => {',
-      ].join('\n'),
+  it('튜토리얼 도식이 0ms에서 시작하면 렌더러 준비를 기다리기 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
+    const earlyDiagramNotify = [
+      'resolveDiagramPauseTime(0);',
+      '    if (activeDiagramPause) {',
+      '      notifyReady();',
+      '    }',
+    ].join('\n');
+    expect(tutorialPreviewPlayerSource).toContain(earlyDiagramNotify);
+    expect(tutorialPreviewPlayerSource.indexOf(earlyDiagramNotify)).toBeLessThan(
+      tutorialPreviewPlayerSource.indexOf('handleRendererState(rendererStateRef.current);'),
     );
   });
 
@@ -268,7 +275,13 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('TUTORIAL_DIAGRAM_EXIT_MS');
     expect(tutorialPreviewPlayerSource).toContain('data-tutorial-diagram-phase={diagramDisplay.phase}');
     expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-overlay');
-    expect(tutorialPreviewPlayerSource).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('운영체제 prefers-reduced-motion이 reduce여도 도식 등장 260ms·퇴장 180ms 전환과 로딩 스피너를 그대로 쓴다(@media 규칙 없음, RFD 0030)', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_ENTER_MS = 260');
+    expect(tutorialPreviewPlayerSource).toContain('const TUTORIAL_DIAGRAM_EXIT_MS = 180');
+    expect(tutorialPreviewPlayerSource).not.toContain('prefers-reduced-motion');
+    expect(tutorialPreviewPlayerSource).not.toMatch(/matchMedia\([^)]*reduced-motion/);
   });
 
   it('구동기 로딩 중에는 도식 모달에서 OK 대신 스피너를 보여 상호작용을 막고, 준비되면 OK로 전환', () => {
@@ -282,10 +295,10 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('not4k-tutorial-diagram-spinner');
   });
 
-  it('페이지 전환용 새 렌더러는 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
+  it('레슨을 넘기면 같은 렌더러에 새 차트의 첫 프레임을 그린 뒤 준비 콜백을 호출', () => {
     expect(tutorialPreviewPlayerSource).toContain('onReady?: () => void');
     expect(tutorialPreviewPlayerSource).toContain('onReady?.()');
-    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(preview.renderStartMs, 0)');
     expect(tutorialPreviewPlayerSource).toContain('if (!readyNotifiedRef.current)');
   });
 
@@ -307,133 +320,122 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain(
       [
         '        if (disposed || !renderer) {',
-        '          // init()이 끝나기 전에 언마운트되면 cleanup의 dispose()가 아직 initialized=false라',
-        '          // no-op으로 지나간다. 여기서 이미 초기화된 renderer(WebGL 컨텍스트)를 직접 정리하지 않으면',
-        '          // PIXI Application이 orphan으로 남아 누수된다. dispose()는 idempotent라 이중 호출도 안전하다.',
+        '          // 초기화 도중 닫힌 슬롯은 WebGL 준비가 끝난 뒤 리소스를 정리한다.',
         '          disposeTutorialPreviewRenderer(renderer);',
-        '          skinManager.dispose();',
+        '          nextSkinManager.dispose();',
+        '          if (skinManager === nextSkinManager) skinManager = null;',
         '          return;',
         '        }',
       ].join('\n'),
     );
   });
+
+
+  it('렌더러는 스킨·키보드 프리셋 키(rendererKey)가 바뀔 때만 새로 만들고, 그때만 캔버스도 새로 붙여 잃은 WebGL 컨텍스트를 재사용하지 않음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const rendererKey = `${skinManifest?.theme.id ?? skinId}:${settings.preset}`');
+    expect(tutorialPreviewPlayerSource).toContain('key={rendererKey}');
+    expect(tutorialPreviewPlayerSource).toContain('  }, [rendererKey]);');
+    expect(tutorialPreviewPlayerSource.split('new GameRenderer(').length - 1).toBe(1);
+  });
+
+  it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
+    const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
+    expect(tutorialPreviewPlayerSource).toContain(contentDeps);
+    const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer) => {');
+    expect(attachStart).toBeGreaterThan(-1);
+    const order = [
+      'renderer.resetTransientState();',
+      'renderer.setChart(',
+      'renderer.updateTutorialKeyboardKeys(tutorialKeyboardKeys);',
+      'renderer.setLaneKeyLabels(getLaneKeyLabels(keys, [], {})',
+      'renderer.renderFrame(preview.renderStartMs, 0);',
+      'activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);',
+      'notifyReady();',
+      'setRendererReady(true);',
+    ].map((snippet) => tutorialPreviewPlayerSource.indexOf(snippet, attachStart));
+    expect(order.every((index) => index > attachStart)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
+    const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
+    expect(contentStart).toBeGreaterThan(-1);
+    expect(contentEnd).toBeGreaterThan(contentStart);
+    const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
+    expect(contentEffect).toContain('cancelAnimationFrame(animationFrameId)');
+    expect(contentEffect).not.toContain('disposeTutorialPreviewRenderer');
+    expect(contentEffect).not.toContain('.dispose()');
+  });
+
+  it('렌더러 준비·실패·재생성은 차트 effect가 구독해 처리하고, 실패하면 이후 레슨도 준비 완료로 알려 캐러셀이 멈추지 않음', () => {
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'ready', renderer });");
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'failed' });");
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'loading' });");
+    expect(tutorialPreviewPlayerSource).toContain('rendererStateListenerRef.current = handleRendererState;');
+    // 실제 동작은 e2e/game/tutorial-preview-pingpong.spec.ts의 렌더러 실패 시나리오가 확인한다.
+    const failedBranch = tutorialPreviewPlayerSource.indexOf("if (state.status === 'failed') {");
+    expect(failedBranch).toBeGreaterThan(-1);
+    const notifyIndex = tutorialPreviewPlayerSource.indexOf('notifyReady();', failedBranch);
+    const readyIndex = tutorialPreviewPlayerSource.indexOf('setRendererReady(true);', failedBranch);
+    const branchEnd = tutorialPreviewPlayerSource.indexOf('} else {', failedBranch);
+    expect(notifyIndex).toBeGreaterThan(failedBranch);
+    expect(readyIndex).toBeGreaterThan(notifyIndex);
+    expect(branchEnd).toBeGreaterThan(readyIndex);
+    expect(tutorialPreviewPlayerSource).toContain('const error = rendererError ?? contentError;');
+  });
+
+  it('재생기는 같은 튜토리얼 재방문을 구분하는 previewInstanceId prop을 받음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('previewInstanceId?: number;');
+  });
+
+
 });
 
-describe('isTransientTeardownRenderError', () => {
-  it("Chrome의 \"Cannot read properties of null (reading 'clear')\"는 교차 teardown 레이스로 판정", () => {
-    const err = new TypeError("Cannot read properties of null (reading 'clear')");
-    expect(isTransientTeardownRenderError(err)).toBe(true);
+describe('프리뷰 렌더 오류 표면화', () => {
+  it('프리뷰 렌더 진입점 2곳(첫 프레임·루프)은 renderer.renderFrame을 직접 불러 렌더 오류를 삼키지 않음', () => {
+    // 교차 teardown 레이스용 프레임 스킵 안전망(createSafeRenderFrame)은 pixi.js 8.21과
+    // releaseGlobalResources: false로 원인이 사라져 제거했다. 렌더 오류가 다시 묻히지 않게 고정한다.
+    expect(tutorialPreviewPlayerSource.split('renderer.renderFrame(').length - 1).toBe(2);
+    expect(tutorialPreviewPlayerSource).not.toContain('createSafeRenderFrame');
+    expect(tutorialPreviewPlayerSource).not.toContain('isTransientTeardownRenderError');
   });
 
-  it('구형 V8의 "Cannot read property \'x\' of null"도 교차 teardown 레이스로 판정', () => {
-    const err = new TypeError("Cannot read property 'clear' of null");
-    expect(isTransientTeardownRenderError(err)).toBe(true);
-  });
-
-  it('Safari의 "null is not an object"도 교차 teardown 레이스로 판정', () => {
-    const err = new TypeError("null is not an object (evaluating 'batch.clear')");
-    expect(isTransientTeardownRenderError(err)).toBe(true);
-  });
-
-  it('Firefox의 "can\'t access property \\"x\\", batch is null"도 교차 teardown 레이스로 판정', () => {
-    const err = new TypeError('can\'t access property "clear", batch is null');
-    expect(isTransientTeardownRenderError(err)).toBe(true);
-  });
-
-  it('Firefox 구형 "batch is undefined"(문장 끝 null/undefined)도 교차 teardown 레이스로 판정', () => {
-    expect(isTransientTeardownRenderError(new TypeError('batch is null'))).toBe(true);
-    expect(isTransientTeardownRenderError(new TypeError('_texturePool[key] is undefined'))).toBe(true);
-  });
-
-  it("TexturePool의 \"Cannot read properties of undefined (reading 'push')\"도 교차 teardown 레이스로 판정", () => {
-    // 형제 Application의 destroy가 공유 TexturePool을 흩뜨려, 살아있는 렌더러의 returnTexture가 크래시한다.
-    const err = new TypeError("Cannot read properties of undefined (reading 'push')");
-    expect(isTransientTeardownRenderError(err)).toBe(true);
-  });
-
-  it('null/undefined 역참조가 아닌 일반 에러는 교차 teardown 레이스가 아님(재던져져야 함)', () => {
-    expect(isTransientTeardownRenderError(new Error('chart data is invalid'))).toBe(false);
-    expect(isTransientTeardownRenderError(new RangeError('offset out of bounds'))).toBe(false);
-    expect(isTransientTeardownRenderError(new Error('WebGL context lost'))).toBe(false);
-  });
-
-  it('TypeError가 아니면(문자열·일반 Error·TypeError 상속 아님) 같은 문구여도 삼키지 않음', () => {
-    // null/undefined 역참조는 항상 TypeError다. 우리가 던지는 일반 Error가 우연히 같은 문구를 담아도 재던진다.
-    expect(isTransientTeardownRenderError("Cannot read properties of null (reading 'x')")).toBe(false);
-    expect(isTransientTeardownRenderError(new Error("Cannot read properties of null (reading 'x')"))).toBe(false);
-    expect(isTransientTeardownRenderError(new RangeError('batch is null'))).toBe(false);
-    expect(isTransientTeardownRenderError(undefined)).toBe(false);
-  });
-});
-
-describe('createSafeRenderFrame', () => {
-  // 지정한 순서(true=성공, Error=throw)대로 renderFrame이 동작하는 가짜 렌더러.
-  function fakeRenderer(script: Array<true | Error>): { renderer: GameRenderer; calls: () => number } {
-    let i = 0;
-    const renderer = {
-      renderFrame: () => {
-        const step = script[Math.min(i, script.length - 1)];
-        i += 1;
-        if (step !== true) throw step;
-      },
-    } as unknown as GameRenderer;
-    return { renderer, calls: () => i };
-  }
-
-  const teardownErr = () => new TypeError("Cannot read properties of null (reading 'clear')");
-
-  it('일시적 teardown 크래시는 삼켜 프레임을 스킵하고 예외를 밖으로 던지지 않음', () => {
-    const safe = createSafeRenderFrame();
-    const { renderer } = fakeRenderer([teardownErr()]);
-    expect(() => safe(renderer, 0, 16)).not.toThrow();
-  });
-
-  it('teardown이 아닌 일반 에러는 삼키지 않고 즉시 재던짐', () => {
-    const safe = createSafeRenderFrame();
-    const { renderer } = fakeRenderer([new Error('chart data is invalid')]);
-    expect(() => safe(renderer, 0, 16)).toThrow('chart data is invalid');
-  });
-
-  it('연속 실패가 상한 이하면 계속 삼킴(성공하면 스트릭 리셋)', () => {
-    const safe = createSafeRenderFrame(3);
-    const { renderer } = fakeRenderer([
-      teardownErr(), teardownErr(), teardownErr(), // 3회 = 상한 이하, 삼킴
-      true, // 회복 → 스트릭 리셋
-      teardownErr(), teardownErr(), teardownErr(), // 다시 3회, 여전히 삼킴
-    ]);
-    for (let n = 0; n < 7; n++) {
-      expect(() => safe(renderer, 0, 16)).not.toThrow();
-    }
-  });
-
-  it('연속 실패가 상한을 넘으면 조용히 묻지 않고 재던지며 console.error로 표면화', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const safe = createSafeRenderFrame(3);
-    const { renderer } = fakeRenderer([teardownErr()]); // 매번 teardown 크래시
-    // 1~3회는 삼킴
-    for (let n = 0; n < 3; n++) expect(() => safe(renderer, 0, 16)).not.toThrow();
-    // 4회째(상한 초과)는 재던짐 + 경고
-    expect(() => safe(renderer, 0, 16)).toThrow();
-    expect(errorSpy).toHaveBeenCalledOnce();
-    errorSpy.mockRestore();
+  it('rAF 렌더 루프 본문에는 try/catch가 없어 루프 중 렌더 오류가 uncaught로 드러남', () => {
+    const loopStart = tutorialPreviewPlayerSource.indexOf('const renderLoop = ');
+    const loopEnd = tutorialPreviewPlayerSource.indexOf(
+      '        };\n\n        animationFrameId = requestAnimationFrame(renderLoop);',
+      loopStart,
+    );
+    expect(loopStart).toBeGreaterThan(-1);
+    expect(loopEnd).toBeGreaterThan(loopStart);
+    const renderLoopBody = tutorialPreviewPlayerSource.slice(loopStart, loopEnd);
+    expect(renderLoopBody).toContain('renderer.renderFrame(renderTimeMs, deltaMs);');
+    expect(renderLoopBody).not.toMatch(/\btry\s*\{/);
+    expect(renderLoopBody).not.toMatch(/\bcatch\b/);
   });
 });
 
-describe('safeRenderFrame 배선(소스)', () => {
-  it('renderer.renderFrame 직접 호출은 createSafeRenderFrame 헬퍼 안에서 딱 한 번만 등장', () => {
-    // 두 렌더 진입점(초기·루프)이 모두 safeRenderFrame 경유이고, 실제 renderFrame 호출은
-    // 헬퍼 내부 한 곳으로 모여야 한다 — 새 렌더 진입점이 가드 없이 추가되는 걸 막는다.
-    const count = tutorialPreviewPlayerSource.split('renderer.renderFrame(').length - 1;
-    expect(count).toBe(1);
+
+describe('튜토리얼 봄 위치', () => {
+  it('높이 225·판정선 오프셋 50(설계값 360·80 × 0.625)에서 키보드높이95면 2번레인 봄은 전체320 중 판정선175와 가로37.5%에 표시', () => {
+    expect(getTutorialBombPosition(2,95)).toEqual({x:.375,y:175/320});
+  });
+  it('키보드높이가50으로 줄어도4번레인 봄의 판정선은175로 유지', () => {
+    const position = getTutorialBombPosition(4,50);
+    expect(position.x).toBe(.875);
+    expect(position.y*275).toBe(175);
+  });
+});
+
+describe('튜토리얼 재생기 플레이필드 배율 (RFD 0029)', () => {
+  it('높이·판정선 오프셋·스크롤 속도를 레인과 같은 배율로 줄여 이전 비율(400×360, 판정선 80, 520px/s)을 유지한다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_SCROLL_SPEED = playfieldPx(520)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.scrollSpeed = PREVIEW_SCROLL_SPEED');
   });
 
-  it('effect는 프리뷰마다 createSafeRenderFrame 인스턴스를 만들어 두 렌더 진입점에 사용', () => {
-    expect(tutorialPreviewPlayerSource).toContain('const safeRenderFrame = createSafeRenderFrame()');
-    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, preview.renderStartMs, 0)');
-    expect(tutorialPreviewPlayerSource).toContain('safeRenderFrame(renderer, renderTimeMs, deltaMs)');
-  });
-
-  it('createSafeRenderFrame은 teardown 레이스만 삼키고 나머지는 재던짐', () => {
-    expect(tutorialPreviewPlayerSource).toContain('if (!isTransientTeardownRenderError(err)) throw err;');
+  it('논리 폭이 250으로 줄어든 만큼 해상도를 1/0.625배 올려 같은 CSS 폭에서 이전과 같은 백버퍼 폭으로 그린다', () => {
+    expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RESOLUTION_BOOST = 1 / PLAYFIELD_SCALE');
+    expect(tutorialPreviewPlayerSource).toContain('resolution: Math.min(window.devicePixelRatio || 1, 2) * PREVIEW_RESOLUTION_BOOST');
   });
 });

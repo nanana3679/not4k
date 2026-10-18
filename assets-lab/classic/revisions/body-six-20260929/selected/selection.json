@@ -1,0 +1,116 @@
+{
+  "status": "selected",
+  "selectedAt": "2026-09-29",
+  "request": "바디 아주밝게 포인트 고채도 이걸로 할래",
+  "body": {
+    "study": "intrinsic-spectrum.json",
+    "step": 1,
+    "label": "아주 밝게",
+    "aspectRatio": "100:20",
+    "verticalRepeat": true
+  },
+  "point": {
+    "variant": "saturated",
+    "label": "고채도",
+    "shape": "중앙 분할을 제거한 기존 readability-face 원본"
+  },
+  "colors": {
+    "single": "파랑",
+    "double": "금색"
+  },
+  "terminal": "각 유형의 바디와 시작·끝 터미널은 같은 타일 사용",
+  "gallery": "/lab/images/long-note-body-six-20260929/#selected-combination",
+  "files": [
+    {
+      "file": "body-single.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-single-01.png",
+      "width": 1000,
+      "height": 200,
+      "sha256": "7ea1ae30eb22f32c4802ce6c8e2ec853f37dbbd275782c0265342f34b2637feb"
+    },
+    {
+      "file": "body-single-200x40.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-single-01-200x40.png",
+      "width": 200,
+      "height": 40,
+      "sha256": "f26d90975df7177e97b8a1d2da07278c25d29678019aa39665b0f0f623710ef2"
+    },
+    {
+      "file": "terminal-single.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-single-01.png",
+      "width": 1000,
+      "height": 200,
+      "sha256": "7ea1ae30eb22f32c4802ce6c8e2ec853f37dbbd275782c0265342f34b2637feb"
+    },
+    {
+      "file": "terminal-single-200x40.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-single-01-200x40.png",
+      "width": 200,
+      "height": 40,
+      "sha256": "f26d90975df7177e97b8a1d2da07278c25d29678019aa39665b0f0f623710ef2"
+    },
+    {
+      "file": "point-single.png",
+      "source": "assets-lab/classic/revisions/body-six-20260929/references/note-single-saturated.png",
+      "width": 212,
+      "height": 40,
+      "sha256": "ca0e2b248c3f161fed1052cfa44997681bfacbda8e58a08b060230fc7364c148"
+    },
+    {
+      "file": "point-single.svg",
+      "source": "assets-lab/classic/revisions/body-six-20260929/references/note-single-saturated.svg",
+      "width": 1060,
+      "height": 200,
+      "sha256": "edeb0886287cd8684a3a8ec9c5d96a12fbf2bbacd9e93e747de7e7ee0160b9d8"
+    },
+    {
+      "file": "body-double.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-double-01.png",
+      "width": 1000,
+      "height": 200,
+      "sha256": "35188ff31531e932095a088f40a3d6a0b7ce0a3f6299927959888746cc6b8732"
+    },
+    {
+      "file": "body-double-200x40.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-double-01-200x40.png",
+      "width": 200,
+      "height": 40,
+      "sha256": "31a2176accd0a504af3e2fd85ae2d921df71b6bb5b0b2ffdc7cc17aacc04305d"
+    },
+    {
+      "file": "terminal-double.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-double-01.png",
+      "width": 1000,
+      "height": 200,
+      "sha256": "35188ff31531e932095a088f40a3d6a0b7ce0a3f6299927959888746cc6b8732"
+    },
+    {
+      "file": "terminal-double-200x40.png",
+      "source": "lab/image-galleries/long-note-body-six-20260929/spectrum-double-01-200x40.png",
+      "width": 200,
+      "height": 40,
+      "sha256": "31a2176accd0a504af3e2fd85ae2d921df71b6bb5b0b2ffdc7cc17aacc04305d"
+    },
+    {
+      "file": "point-double.png",
+      "source": "assets-lab/classic/revisions/body-six-20260929/references/note-double-saturated.png",
+      "width": 212,
+      "height": 40,
+      "sha256": "b0e11343d40e9a39fed566fcbabbd9d0ca9d86f16f312469a9bf0a21f355ca8d"
+    },
+    {
+      "file": "point-double.svg",
+      "source": "assets-lab/classic/revisions/body-six-20260929/references/note-double-saturated.svg",
+      "width": 1060,
+      "height": 200,
+      "sha256": "743aa35bd213a88961b107266f0ec476f4f48b5149a52facfae21448bf63d6e8"
+    }
+  ],
+  "runtime": {
+    "skin": "classic",
+    "appliedAt": "2026-09-29",
+    "source": "assets-lab/classic/sources/",
+    "output": "public/skins/classic/",
+    "buildCommand": "pnpm build:classic"
+  }
+}

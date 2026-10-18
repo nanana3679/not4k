@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="100" viewBox="0 0 1000 100" data-contrast="point-contact-shadow"><defs><linearGradient id="contact" x2="0" y2="1"><stop stop-color="#020915" stop-opacity=".4"/><stop offset="1" stop-color="#020915" stop-opacity="0"/></linearGradient></defs><rect width="1000" height="100" fill="url(#contact)"/></svg>

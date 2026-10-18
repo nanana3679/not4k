@@ -1,0 +1,80 @@
+/* 비행 장면을 모든 화면 방향에서 16:9로 유지한다. */
+body { padding-bottom: 0; }
+body.scene-only { overflow: hidden; }
+body > header, body > .scenario-bar, body > main, body[data-flight-view="approach"] > main {
+  width: 100%; max-width: 1720px; margin-inline: auto;
+  padding-inline: max(12px, env(safe-area-inset-left), env(safe-area-inset-right));
+}
+body > header, body[data-flight-view="approach"] header { padding-top: 12px; padding-bottom: 12px; margin-bottom: 0; align-items: center; }
+body > main { display: block; }
+.scenario-bar { margin-bottom: 12px; }
+.scenario-nav { display: flex; gap: 8px; }
+.scenario-nav a {
+  display: inline-flex; align-items: center; justify-content: center; flex: 1;
+  min-width: 0; min-height: 44px; padding: 8px 12px;
+  color: #bccbdc; background: #101825; border: 1px solid #334256;
+  border-radius: 6px; text-decoration: none; font-size: 15px;
+}
+.scenario-nav a[aria-current="page"] { color: #ffe2d0; border-color: #d28e73; background: #302024; }
+body[data-scenario="liftoff"] .scenario-nav a[aria-current="page"] { color: #b9f2f9; border-color: #75dae9; background: #102730; }
+body[data-scenario="infiltration"] .scenario-nav a[aria-current="page"] { color: #e0d4ff; border-color: #b3a1ff; background: #252039; }
+.scenario-nav a:focus-visible { outline: 2px solid #b9f2f9; outline-offset: 3px; }
+.orientation-hint { margin: 8px 0 0; color: #a7b6cb; font-size: 12px; line-height: 1.5; }
+#stage, body .stage { width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: 16 / 9; }
+#flight, #scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+#settings-toggle { display: block; }
+#controls, .controls { display: block; padding: 20px 4px; }
+body.scene-only #controls, body.scene-only .controls { display: none; }
+body.scene-only.panel-open #controls, body.scene-only.panel-open .controls { display: block; }
+.stage-actions button, .stage-tools button { min-width: 44px; min-height: 44px; font-size: 13px; }
+.presets button, .alt-controls button, .text-button, .art-original { min-height: 44px; }
+input[type="range"] { min-height: 44px; }
+body .object-dock { position: static; width: 100%; transform: none; margin-top: 20px; box-shadow: none; }
+body[data-flight-view="approach"] > main { padding-top: 0; }
+body[data-flight-view="approach"] .caption { max-width: 55%; top: 12px; left: 12px; }
+body[data-flight-view="approach"] .caption strong { font-size: 18px; margin-top: 4px; }
+body[data-flight-view="approach"] .caption p { display: none; }
+body[data-flight-view="approach"] .stamp { display: none; }
+body.scene-only #stage, body.scene-only .stage {
+  position: fixed; inset: 0; width: 100%; height: 100dvh;
+  max-height: none; min-height: 0; aspect-ratio: auto;
+  border: 0; border-radius: 0; z-index: 5;
+}
+body.scene-only #flight, body.scene-only #scene {
+  inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(100vw, calc(100dvh * 16 / 9));
+  height: min(100dvh, calc(100vw * 9 / 16));
+}
+body.scene-only .scenario-bar {
+  position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: min(360px, calc(100% - 24px)); padding: 0; z-index: 8;
+}
+body.scene-only .orientation-hint { display: none; }
+body.scene-only .stage-label, body.scene-only .caption { display: none; }
+body.scene-only .stage-tools { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); }
+body.scene-only #exit { display: block; }
+body.scene-only.panel-open #controls, body.scene-only.panel-open .controls {
+  position: fixed; z-index: 7; top: max(66px, calc(env(safe-area-inset-top) + 58px));
+  bottom: max(74px, calc(env(safe-area-inset-bottom) + 62px)); right: max(12px, env(safe-area-inset-right));
+  width: min(340px, calc(100vw - 24px)); overflow: auto;
+  background: #0b1220; border: 1px solid #344155; border-radius: 10px; padding: 16px;
+}
+@media (min-width: 900px) {
+  body > header, body > .scenario-bar, body > main, body[data-flight-view="approach"] > main { padding-inline: 24px; }
+  .scenario-nav { max-width: 480px; }
+  .scenario-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .scenario-nav { flex: 1; }
+  .orientation-hint { margin: 0; }
+  body:not(.scene-only) #controls { columns: 3 270px; column-gap: 30px; }
+  #controls > * { break-inside: avoid; }
+  body.scene-only.panel-open #controls { columns: auto; }
+}
+@media (max-width: 430px) {
+  body > header h1 { font-size: 16px; }
+  body > header h1 span { font-size: 12px; margin-left: 4px; }
+  .stage-label { top: 8px; left: 10px; gap: 3px; }
+  #status { font-size: 11px; }
+  .stage-actions { bottom: 8px; left: 8px; right: 8px; }
+  .stage-tools { right: 8px; top: auto; bottom: 8px; }
+  .stage-tools button { padding: 8px; font-size: 12px; }
+}

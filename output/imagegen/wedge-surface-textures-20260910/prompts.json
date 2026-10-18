@@ -1,0 +1,29 @@
+[
+  {
+    "id": "armor",
+    "prompt": "Reference image is a STYLE and material reference, not the composition. Maintain its hard angular 2D anime mechanical illustration: dark blue charcoal metal, precise fine black ink contours, restrained small wear, muted cool surfaces, warm amber practical lights. NO rounded bevels, no ornamental eaves, no city background, no floating building, no text or logos. This is an opaque FLAT surface texture for application onto a 3D building: the texture MUST fill every pixel, perfectly front-on with NO perspective, NO isometric view, NO outside background or transparency, NO overall building silhouette.\nCreate a square 1024x1024 armor-surface texture. Broad mostly quiet irregular navy steel panels with thin recessed seams, 4-6 large angular subdivisions, one diagonal joint, a few small flush bolt heads at corners, subtle hand-painted edge highlights. Surface average brightness around dark slate blue #354357, readable but dark. No window, no door, no emissive light, no repetitive checker grid, no busy greebles, no deep holes. All panel lines stay coplanar, color variation is subdued. Uniform flat illumination, no spotlight gradient. It should read as clean anime background painting when seen close up.",
+    "artifact": "armor.png",
+    "sourceImages": [
+      "/home/nanana3679/not4k/output/imagegen/wedge-distance-altitude-assets-20260910/low-near.png"
+    ],
+    "mode": "built-in imagegen / style reference surface texture"
+  },
+  {
+    "id": "window",
+    "prompt": "Reference image is a STYLE and material reference, not the composition. Maintain its hard angular 2D anime mechanical illustration: dark blue charcoal metal, precise fine black ink contours, restrained small wear, muted cool surfaces, warm amber practical lights. NO rounded bevels, no ornamental eaves, no city background, no floating building, no text or logos. This is an opaque FLAT surface texture for application onto a 3D building: the texture MUST fill every pixel, perfectly front-on with NO perspective, NO isometric view, NO outside background or transparency, NO overall building silhouette.\nCreate a VERY WIDE 1536x512 rectangular panoramic observation-window surface texture, viewed perfectly front-on. The entire rectangle is glass showing an amber-lit control-room interior, muted golden ceiling light strips, four dark angular chair silhouettes and simple console silhouettes along the bottom, interior side walls barely visible, subdued interior depth, crisp 2D painted anime lighting. NO external frame, NO vertical mullions or horizontal dividing bars: these will be real geometry. Glass spans the full image, no armor outside it, no bright white margins. Color mainly dark desaturated warm brown with warm amber light; brightest ceiling strips pale amber, NOT a uniform yellow glowing slab. Architectural utilitarian machinery, no people, no writing, no blue cyberpunk neon.",
+    "artifact": "window.png",
+    "sourceImages": [
+      "/home/nanana3679/not4k/output/imagegen/wedge-distance-altitude-assets-20260910/low-near.png"
+    ],
+    "mode": "built-in imagegen / style reference surface texture"
+  },
+  {
+    "id": "door",
+    "prompt": "Reference image is a STYLE and material reference, not the composition. Maintain its hard angular 2D anime mechanical illustration: dark blue charcoal metal, precise fine black ink contours, restrained small wear, muted cool surfaces, warm amber practical lights. NO rounded bevels, no ornamental eaves, no city background, no floating building, no text or logos. This is an opaque FLAT surface texture for application onto a 3D building: the texture MUST fill every pixel, perfectly front-on with NO perspective, NO isometric view, NO outside background or transparency, NO overall building silhouette.\nCreate a 1024x1536 front elevation texture of ONE closed angular mechanical service door including a narrow dark navy steel frame around it. Single light gray-blue inset door leaf, sharp stepped rectangular corners, subtle recessed panel perimeter, one small latch on its right, warm slim horizontal amber light over the door and a tiny red status lamp on the upper left frame. Door occupies central 65 percent width and 80 percent height, border extends to image edges as dark slate-blue wall plate. Door bottom exactly upright level, no visible floor, no perspective, no threshold ground, no cast shadow outside. Mechanical anime line art matching the reference cabin.",
+    "artifact": "door.png",
+    "sourceImages": [
+      "/home/nanana3679/not4k/output/imagegen/wedge-distance-altitude-assets-20260910/low-near.png"
+    ],
+    "mode": "built-in imagegen / style reference surface texture"
+  }
+]

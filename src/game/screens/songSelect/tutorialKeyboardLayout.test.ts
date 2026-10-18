@@ -1,13 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { PRESET_BINDINGS } from '../../stores';
-import { getTutorialInputTimings, TUTORIAL_PREVIEWS } from './tutorialPreviewChart';
+import { beat } from '../../../shared/types/beat';
+import { getTutorialInputTimings, TUTORIAL_PREVIEWS, type TutorialInputTiming } from './tutorialPreviewChart';
 import {
   getTutorialKeyboardLayout,
+  resolveTutorialKeyboardBindings,
   resolveTutorialInputTimingsForKeyboard,
   sortLaneKeysForLabel,
 } from './tutorialKeyboardLayout';
 
+function bindingTimings(...keyCodes: string[]): TutorialInputTiming[] {
+  return keyCodes.map((keyCode, index) => ({
+    event: { type: 'tutorialInput', beat: beat(index), endBeat: beat(index + 1), lane: 1, keyCode },
+    startMs: index * 500,
+    endMs: (index + 1) * 500,
+  }));
+}
+
 describe('tutorialKeyboardLayout', () => {
+  it('8키 배치의 C와 Comma가 이미 설정에 있으면 손배치 시연에 불필요한 세 번째 키를 추가하지 않는다', () => {
+    const bindings = {
+      lane1: ['KeyQ', 'KeyW'], lane2: ['KeyE', 'KeyC'], lane3: ['KeyP', 'Comma'], lane4: ['BracketLeft', 'BracketRight'],
+    };
+    const result = resolveTutorialKeyboardBindings(
+      getTutorialInputTimings(TUTORIAL_PREVIEWS[0].chart), bindings, 'tkl',
+    );
+    expect(result.bindings).toEqual(bindings);
+    expect(result.supplementedLanes).toEqual([]);
+  });
+
   it('TKL 프리셋이면 손배치 튜토리얼 입력은 Q/W/E/C와 P/[/]/,로 매핑', () => {
     const timings = resolveTutorialInputTimingsForKeyboard(
       getTutorialInputTimings(TUTORIAL_PREVIEWS[0].chart),
@@ -134,5 +155,36 @@ describe('tutorialKeyboardLayout', () => {
 
     expect(numpadLabels).toEqual(['4', '7']);
     expect(tklLabels).toEqual(['P', 'L']);
+  });
+
+  it('기본 lane1 Q/W와 2-slot 시연은 원본 binding을 복사하고 보충하지 않는다', () => {
+    const bindings = { lane1: ['KeyQ', 'KeyW'], lane2: [], lane3: [], lane4: [] };
+    const result = resolveTutorialKeyboardBindings(bindingTimings('Binding1', 'Binding2'), bindings, 'tkl');
+    expect(result.bindings).toEqual(bindings);
+    expect(result.supplementedLanes).toEqual([]);
+    expect(bindings.lane1).toEqual(['KeyQ', 'KeyW']);
+  });
+
+  it('4-slot lane1 시연은 TKL 기본 Q/W에 S/X를 임시 보충하고 사용자 binding은 바꾸지 않는다', () => {
+    const bindings = { lane1: ['KeyQ', 'KeyW'], lane2: [], lane3: [], lane4: [] };
+    const result = resolveTutorialKeyboardBindings(
+      bindingTimings('Binding1', 'Binding2', 'Binding3', 'Binding4'), bindings, 'tkl',
+    );
+    expect(result.bindings.lane1).toEqual(['KeyQ', 'KeyW', 'KeyS', 'KeyX']);
+    expect(result.supplementedLanes).toEqual([1]);
+    expect(bindings.lane1).toEqual(['KeyQ', 'KeyW']);
+  });
+
+  it('Numpad와 equivalent source slot은 preset visible key로 4개를 만들고 lane 간 중복을 피한다', () => {
+    const bindings = { lane1: ['KeyQ', 'KeyW'], lane2: ['KeyS'], lane3: [], lane4: [] };
+    const result = resolveTutorialKeyboardBindings(
+      bindingTimings('KeyQ', 'KeyW', 'KeyS', 'KeyX'), bindings, 'numpad',
+    );
+    expect(new Set(Object.values(result.bindings).flat()).size).toBe(
+      Object.values(result.bindings).flat().length,
+    );
+    expect(result.bindings.lane1).toHaveLength(4);
+    expect(result.bindings.lane1).not.toContain('KeyS');
+    expect(result.supplementedLanes).toEqual([1]);
   });
 });

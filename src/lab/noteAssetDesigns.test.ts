@@ -1,0 +1,141 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildManifest, getSkinManifest } from '../game/skin/skins';
+import { CLASSIC_SKIN_VERSIONS } from './classicSkinVersions';
+import { createArchivedClassicDesign, createNoteAssetDesign, getNoteAssetDesign, NOTE_ASSET_DESIGNS } from './noteAssetDesigns';
+
+describe('시안 교체', () => {
+  it('시안 미지정과 알 수 없는 ID는 Classic을 선택하고 시안 목록은 Classic·Simple 두 가지이며 Simple은 simple 스킨을 쓴다', () => {
+    expect(getNoteAssetDesign(null).id).toBe('classic');
+    expect(getNoteAssetDesign('missing').id).toBe('classic');
+    expect(NOTE_ASSET_DESIGNS.map(design => design.id)).toEqual(['classic','simple']);
+    expect(getNoteAssetDesign('simple').skinId).toBe('simple');
+  });
+  it('Classic 시안은 석영 트릴을 포함한 포인트3개·바디10개·터미널11개와 봄6종을 함께 교체', () => {
+    const design = getNoteAssetDesign('classic');
+    expect(design.points.single).toBe('/lab/note-assets/classic/note-single.svg');
+    expect(design.points.double).toBe('/lab/note-assets/classic/note-double.svg');
+    expect(design.points.trill).toBe('/lab/note-assets/classic/note-trill.svg');
+    expect(design.bodies).toHaveLength(10);
+    expect(design.terminals).toHaveLength(11);
+    expect(design.bodies.filter(asset => asset.kind === 'trill').map(asset => asset.src)).toEqual([
+      '/lab/note-assets/classic/body-trill-idle.svg',
+      '/lab/note-assets/classic/body-trill-on.svg',
+      '/lab/note-assets/classic/body-trill-off.svg',
+    ]);
+    expect(design.terminals.filter(asset => asset.kind === 'trill').map(asset => asset.state)).toEqual(['idle','on','failed']);
+    expect(design.bombs.map(bomb => bomb.id)).toEqual(['silver','diagonal','armor','shockwave','segmented','compact']);
+  });
+  it('Simple로 교체하면 노트·바디·터미널·16프레임 봄 모두 Simple 에셋을 사용', () => {
+    const design = getNoteAssetDesign('simple');
+    for(const src of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src), ...design.bombs[0].frames!]) {
+      expect(src).toMatch(/^\/skins\/simple\//);
+    }
+    expect(design.bombs[0].frames).toHaveLength(16);
+  });
+  it('새 스킨 매니페스트를 주면 플레이어 변경 없이 시안과 봄 랙 설정을 생성', () => {
+    const skin = getSkinManifest('crystal');
+    const design = createNoteAssetDesign(skin, {description:'재사용 확인'});
+    expect(design.skinId).toBe('crystal');
+    expect(design.points.single).toBe(skin.assets.noteSingle);
+    expect(design.bombs[0].frames).toBe(skin.assets.bomb);
+  });
+
+  it.each(['v001', 'v002', 'v012', 'v013', 'v014'])('Classic %s를 고르면 재생기·포인트·바디·터미널·봄은 같은 보관본을, 스킨 공통 기어는 지금 기어 그림 /gear/gear.png와 빈 유리 /gear/gear-gauge-empty.png를 사용한다', version => {
+    const design = getNoteAssetDesign('classic', version);
+    const prefix = `/lab/skin-versions/classic/${version}/`;
+    expect(design.id).toBe('classic');
+    expect(design.versionId).toBe(version);
+    expect(design.skinId).toBe(`classic-${version}`);
+    expect(design.skinManifest?.theme.available).toBe(false);
+    const { gearImage, gearGaugeEmpty, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/gear/gear.png');
+    // 보관본은 고도 게이지보다 오래되었어도 지금 기어와 짝인 지금 빈 유리를 쓴다(렌더러가 기어 측정값의 유리관 자리에 겹친다).
+    expect(gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
+    expect(design.skinManifest!.assets).not.toHaveProperty('gearGaugeLeft');
+    for (const path of Object.values(skinAssets).flat()) expect(path).toMatch(new RegExp(`^${prefix}`));
+    for (const path of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
+      expect(path).toMatch(new RegExp(`^${prefix}svg/`));
+    }
+    expect(design.bombs[0].frames).toEqual(design.skinManifest!.assets.bomb);
+    expect(design.bombs[0].frames).toHaveLength(16);
+    expect(getSkinManifest('classic').assets.noteSingle).toBe('/skins/classic/note-single.png');
+  });
+
+  it('알 수 없는 v999는 현재 Classic으로 돌아가고 Simple에서는 버전 인자를 무시한다', () => {
+    expect(getNoteAssetDesign('classic', 'v999')).toBe(getNoteAssetDesign('classic'));
+    expect(getNoteAssetDesign('simple', 'v001')).toBe(getNoteAssetDesign('simple'));
+  });
+});
+
+describe('/not4k/ 배포의 시안 주소', () => {
+  beforeEach(() => {
+    vi.stubEnv('BASE_URL', '/not4k/');
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('Classic 포인트3개·바디10개·터미널11개 SVG는 /not4k/lab/note-assets/classic/에서 읽는다', async () => {
+    const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
+    const design = getPublicDesign('classic');
+    const paths = [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)];
+
+    expect(paths).toHaveLength(24);
+    for (const src of paths) {
+      expect(src).toMatch(/^\/not4k\/lab\/note-assets\/classic\/[^/]+\.svg$/);
+    }
+  });
+
+  it('Simple의 PNG와 봄16프레임은 스킨 매니페스트의 /not4k/ 접두사를 중복해서 붙이지 않는다', async () => {
+    const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
+    const { getSkinManifest: getPublicSkinManifest } = await import('../game/skin/skins');
+    const design = getPublicDesign('simple');
+    const skin = getPublicSkinManifest('simple');
+
+    expect(design.points.single).toBe(skin.assets.noteSingle);
+    expect(design.bombs[0].frames).toBe(skin.assets.bomb);
+    expect(design.bombs[0].frames).toHaveLength(16);
+    for (const src of [...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src), ...design.bombs[0].frames!]) {
+      expect(src).toMatch(/^\/not4k\/skins\/simple\/[^/]+\.png$/);
+    }
+  });
+
+  it('/not4k/ 배포에서 v001의 SVG·PNG·봄과 공통 기어 그림·빈 유리에 접두사를 한 번만 붙인다', async () => {
+    const { getNoteAssetDesign: getPublicDesign } = await import('./noteAssetDesigns');
+    const design = getPublicDesign('classic', 'v001');
+    const { gearImage, gearGaugeEmpty, ...skinAssets } = design.skinManifest!.assets;
+    expect(gearImage).toBe('/not4k/gear/gear.png');
+    expect(gearGaugeEmpty).toBe('/not4k/gear/gear-gauge-empty.png');
+    for (const path of [...Object.values(skinAssets).flat(), ...Object.values(design.points), ...design.bodies.map(asset => asset.src), ...design.terminals.map(asset => asset.src)]) {
+      expect(path).toMatch(/^\/not4k\/lab\/skin-versions\/classic\/v001\//);
+      expect(path).not.toContain('/not4k/not4k/');
+    }
+  });
+});
+
+describe('켜짐 효과 없는 스킨의 시연실 랙 (RFD 0028)', () => {
+  it('heldEffect: false 스킨은 바디 랙에서 켜짐·중앙광을 빼고 대기·실패만 보여 준다', () => {
+    const theme = getSkinManifest('classic').theme;
+    const design = createNoteAssetDesign(buildManifest('no-effect', {...theme, id:'no-effect', heldEffect:false}), {description:'효과 없음'});
+    expect(design.bodies.map(body => `${body.kind}:${body.state}`)).toEqual([
+      'single:idle', 'single:off', 'double:idle', 'double:off', 'trill:idle', 'trill:off',
+    ]);
+  });
+});
+
+describe('보관한 Classic 버전의 기어 키', () => {
+  it('#231 뒤에 보관할 버전처럼 기어 키가 gearImage·gearGaugeEmpty인 매니페스트도 오류 없이 지금 공통 기어·빈 유리로 바꾸고 보관본 기어 경로는 쓰지 않는다', () => {
+    const v014 = CLASSIC_SKIN_VERSIONS.find(version => version.id === 'v014')!;
+    const { gearFrame: _archivedGear, gearGaugeLeft: _left, gearGaugeRight: _right, ...assets } = v014.manifest.assets;
+    const future = { ...v014, id: 'v015', manifest: { ...v014.manifest, assets: { ...assets, gearImage: '/gear/archived-gear.png', gearGaugeEmpty: '/gear/archived-gauge.png' } } };
+    const { design } = createArchivedClassicDesign(future);
+    expect(design.skinManifest!.assets.gearImage).toBe('/gear/gear.png');
+    expect(design.skinManifest!.assets.gearGaugeEmpty).toBe('/gear/gear-gauge-empty.png');
+    expect(JSON.stringify(design)).not.toContain('/gear/archived-gear.png');
+    expect(JSON.stringify(design)).not.toContain('/gear/archived-gauge.png');
+    expect(design.skinManifest!.assets.noteSingle).toBe('/lab/skin-versions/classic/v015/skin/note-single.png');
+  });
+});

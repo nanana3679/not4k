@@ -64,6 +64,10 @@ _Avoid_: 롱노트 교대
 짧은 롱 노트가 연속되며 키 교대와 홀드 유지가 함께 요구되는 입력방식이다.
 _Avoid_: 단순 트릴
 
+**의도된 연주**:
+박자에 맞춰 치면서 경계를 지난 뒤 바디가 요구하는 수만큼만 키가 남고, 판정 창 안의 모든 up이 감소 release·연결 release·끝 release 중 하나에 쓰이며, Perfect 창 안의 오차에도 점수 손해가 없는 연주다. 판정은 이 연주를 점수 손해 없이 처리해야 한다. 창 밖의 up은 중립이고, 같은 키를 경계 앞뒤로 떼고 다시 누르는 연주는 허용 입력(탈출구)이다. 기본 기준이며, `holdOnly` 끝에서 뗀 up은 그 끝이 가져가고, 차트가 여분 홀드를 일부러 쓰게 짠 패턴에서는 차트의 의도를 우선한다. 세부는 [glossary](docs/context/glossary.md#의도된-연주)를 따른다.
+_Avoid_: 정석 플레이, 정답 연주
+
 **엄지 눕히기**:
 엄지를 옆으로 눕혀 인접한 두 키를 동시에 누르는 입력방식이다.
 _Avoid_: 엄지 더블클릭
@@ -99,7 +103,7 @@ _Avoid_: 연타 노트
 _Avoid_: 자동 입력 구간
 
 **더블 노트**:
-같은 레인에 바인딩된 서로 다른 두 키를 동시에 누르는 노트이다.
+같은 레인의 서로 다른 두 물리 키로 각 입력을 판정 창 안에 처리하는 노트이다. double 끝의 두 실제 release도 서로 다른 키를 요구한다. 단, 같은 키를 다시 눌러 그 double 바디가 시작하는 연결 head를 처리했다면 그 누름의 up은 같은 끝의 남은 release를 처리할 수 있다. 처음 유지한 키와 달라도 된다. 자격·이행 상태와 held 겹침의 세부는 [glossary](docs/context/glossary.md#더블-노트-double-note)를 따른다.
 _Avoid_: 더블클릭
 
 **Grace 노트**:
@@ -107,7 +111,7 @@ Good 윈도우 안에서 입력하면 타이밍 정밀도와 무관하게 Perfec
 _Avoid_: 보너스 노트
 
 **`holdOnly`**:
-롱 노트 끝점의 떼는 판정을 면제하여, 그 구간(길이 0이면 그 한 점) 동안 눌려 있기만 하면 Perfect를 주는 롱 노트 속성이다. 결정 배경은 `docs/rfd/0009-hold-only-long-note.md`를 따른다.
+롱 노트 끝의 release를 면제하는 속성이다. 양수 길이는 활성화된 바디의 유지로(기존 엔진은 등록 키, 후속 모델은 hold 수), 길이 0은 held 상태로 Perfect/Miss를 판정한다. 감소 면제와 승계의 세부는 [glossary](docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [RFD 0020](docs/rfd/0020-note-judgment-units-and-inheritance.md)를 따른다.
 _Avoid_: Grace 노트
 
 ### 피스
@@ -151,24 +155,28 @@ _Avoid_: PLv.
 _Avoid_: Lv.
 
 **난이도명**:
-한 곡 안에서 차트를 구분하는 EASY, NORMAL, HARD 같은 라벨이다.
+한 곡 안에서 차트를 구분하는 `Liftoff → Infiltration → Breakthrough` 순서의 라벨이며, 각 단계의 비행 시나리오·연출에 대응한다. 기존 `EASY / NORMAL / HARD`도 화면에서는 이 이름으로 표시한다. 풀 정의는 [glossary](docs/context/glossary.md#난이도명-difficulty-name), 채택 근거는 [RFD 0022](docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 _Avoid_: 차트 레벨
 
 **비행 규칙**:
-Play에서 **고도** 기반 클리어/실패를 결정하는 규칙이다. **난이도명**, **Lv.**, **난이도 등급**과 별개의 축이다. 리듬게임에 익숙하지 않은 유저에게 동기를 제공하는 장치로 포지셔닝하며, Liftoff는 숙련 유저 기준 관대하게 밸런싱하고 기본값으로 둔다. 현재 비행 규칙은 **Liftoff / Survival** 2종이며, 결정 배경은 `docs/rfd/0001-flight-rules-and-observer-boundary.md`, `docs/rfd/0003-flight-rules-positioning-newcomer-motivation.md`, `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
-_Avoid_: 난이도명, 차트 레벨
+Play에서 고도 상태와 클리어/실패를 다루며, 차트 난이도명에 대응하는 시나리오와 연결되는 `flightRule`이다. 풀 정의와 세 단계의 관계는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: 차트 레벨, 달성률
 
 **고도**:
-**비행 규칙**의 현재 상태를 표현하는 플레이 중 지표이다. 높을수록 안정 비행, 낮을수록 실패 위험을 의미한다.
+`flightRule`의 상태와 고도 연출을 연결하는 `altitude` 지표다. 시각 고도와 위험의 관계는 시나리오에 따라 다르며, `Breakthrough`의 저고도는 정상 비행이다. 풀 정의는 [glossary](docs/context/glossary.md#altitude-altitude)를 따른다.
 _Avoid_: 달성률, 랭크
 
-**Liftoff**:
-고도 0에서 시작해 곡 종료 시 기준 고도 이상이면 클리어되는 관대한 비행 규칙이다. 곡 중 게임 오버가 없으며 비행 규칙의 기본값이다. 종전 Takeoff/Ascent의 관대 역할을 통합한다. UI와 코드에서는 영어 `Liftoff`/`liftoff`를 사용한다.
-_Avoid_: 이륙, 활주, Takeoff, Ascent
+**`Liftoff`**:
+첫 번째 난이도명·이륙 시나리오다. 시선 각도를 유지하며 고도가 변하고, 기존의 관대한 종료 기준 모델을 유지한다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Takeoff, Ascent
 
-**Survival**:
-고도 100에서 시작해 **Perfect로만 고도를 회복**하고 0 도달 시 실패하는 비행 규칙이다. Great/Good은 회복하지 않고, Bad/Miss와 빈 레인 입력 Bad는 고도를 감소시킨다. 종전 Breakthrough를 계승하며 숙련 유저 대상 정확도 압박을 전담한다. UI와 코드에서는 영어 `Survival`/`survival`을 사용한다. beatmania IIDX에 상응하는 게이지가 없는 not4k 고유 규칙이며, 결정 배경은 `docs/rfd/0002-breakthrough-perfect-only-recovery.md`와 `docs/rfd/0005-flight-rules-two-tier-liftoff-survival.md`를 따른다.
-_Avoid_: 돌파, 생존, HARD, Breakthrough, Time Hell Gauge, EX-HARD
+**`Infiltration`**:
+두 번째 난이도명·침투 시나리오다. 낮아질수록 시선이 지면을 향해 꺾이고 지평선이 위로 사라진다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Survival
+
+**`Breakthrough`**:
+최상위 난이도명·돌파 시나리오다. 낮은 고도에서 전방을 보며 안정된 자세로 계속 비행한다. 세부는 [glossary](docs/context/glossary.md#flightrule-flight-rule)를 따른다.
+_Avoid_: Survival, Stealth
 
 **난이도 등급**:
 Lv. 구간을 입문, 초급, 중급, 상급, 최상급으로 묶은 분류이다.
@@ -193,11 +201,11 @@ _Avoid_: 인지 부하
 _Avoid_: 판정선
 
 **유지 판정**:
-롱 노트 바디 구간 동안 해당 레인의 홀드 상태가 지속되는지 확인하는 판정이다.
+활성화한 롱 노트 unit 수를 등록된 유지 키로 충족하는지 확인하는 판정이다. 고정 물리 owner는 두지 않는다. 기존 엔진 기준이며, 후속 hold 수 모델에서는 같은 레인의 hold 수로 확인한다([RFD 0032 §2-1](docs/rfd/0032-body-held-count.md#2-1-hold-수로-시작과-유지-판단), 엔진 이행 전).
 _Avoid_: 헤드 판정
 
 **끝점 판정**:
-롱 노트 끝점에서 `termination` 또는 `connection` 여부를 확인하는 판정이다.
+롱 노트 끝에서 실제 release, `holdOnly` 상태 완료 또는 다음 바디로의 승계를 처리하는 판정이다.
 _Avoid_: 유지 판정
 
 **`termination`**:
@@ -205,11 +213,11 @@ _Avoid_: 유지 판정
 _Avoid_: `connection`
 
 **`connection`**:
-롱 노트 끝점에 같은 레인의 다른 롱 노트 시작점이 있을 때 발생하는 끝점 판정이다.
+같은 레인에서 앞 바디 끝과 뒤 바디 시작이 맞닿는 연결 관계이다. 정상 승계에는 점수·콤보가 없으며 감소분은 실제 release 또는 `holdOnly`로 처리한다. 후속 설계에서는 release 배정과 Grace의 역할을 패턴별로 확인하며, 합의 범위와 이행 상태는 [glossary](docs/context/glossary.md#release-판정)를 따른다.
 _Avoid_: `termination`
 
 **유예 시간**:
-롱 노트 바디 진행 중 짧은 릴리즈 공백을 홀드 유지로 인정하는 허용 시간이다.
+필요한 hold 수보다 적어진 짧은 공백의 유지 실패를 보호하는 시간이다. 후속 채택값은 임시 20ms이며, 연결 head를 처리한 single 사례는 이르거나 늦은 실제 head down부터 뒤 바디에 적용한다. release 후보의 처리 정책은 별도로 재검토한다. 기존 엔진과의 차이와 세부는 [glossary](docs/context/glossary.md#유예-시간-grace-period)를 따른다.
 _Avoid_: Grace 노트
 
 **Good◇**:
@@ -242,7 +250,7 @@ _Avoid_: BPM 변경
 - **다중키 바인딩**은 **트릴 노트**, **더블 노트**, **홀드 중 탭**, **릴리즈탭**, **홀드 교대**를 가능하게 한다.
 - **가변 손배치**는 **레인 분할**이 차트 흐름에 따라 달라지는 플레이 방식이다.
 - **차트**는 하나의 **Lv.**와 하나의 **난이도명**을 가진다.
-- **비행 규칙**은 Play의 클리어/실패 조건이며, **Lv.**와 **난이도명**을 대체하지 않는다.
+- **비행 규칙**은 **난이도명**에 대응하는 시나리오와 연결되며, **Lv.**를 대체하지 않는다.
 - **고도**는 **비행 규칙**의 상태 지표이며, **달성률**이나 **랭크**와 바꿔 쓰지 않는다.
 - **노트 타입**은 Lv.1부터 등장할 수 있고, 난이도 상승은 주로 **피스**의 빈도와 복합도로 표현된다.
 - **피스**는 하나 이상의 **노트 타입**이 배치상 상호작용하여 만들어진다.
@@ -272,7 +280,7 @@ _Avoid_: BPM 변경
 - "패턴 조각"은 구 용어이므로 **피스**로 통일한다.
 - "바디"는 **롱 노트** 전체가 아니라 시작점과 끝점 사이의 유지 구간만 가리킨다.
 - `trillZone`은 입력 요구 자체가 아니며, 실제 키 교대 요구는 **트릴 노트**가 만든다.
-- **Lv.**, **PLv.**, **난이도명**, **난이도 등급**, **비행 규칙**은 서로 바꿔 쓰지 않는다.
+- **Lv.**, **PLv.**, **난이도 등급**은 **난이도명**과 다르다. **난이도명**과 **비행 규칙**은 세 단계로 연결되지만 라벨과 규칙의 역할은 구분한다.
 - **고도**는 비행 규칙의 상태 지표이고 **달성률**이나 **랭크**가 아니다.
 - "Grace"는 **Grace 노트**와 **유예 시간**에서 서로 다른 뜻으로 쓰이므로 문맥 없이 단독으로 쓰지 않는다.
 - **`holdOnly`**는 떼는 판정 면제이며, **Grace 노트**(타이밍 면제)·**유예 시간**과 다른 개념이다. "grace"로 부르지 않는다.

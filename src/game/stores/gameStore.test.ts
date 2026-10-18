@@ -2,49 +2,50 @@ import { describe, it, expect } from 'vitest';
 import { mergePersistedSettings, useGameStore } from './gameStore';
 
 describe('mergePersistedSettings', () => {
-  const makeCurrentState = () => ({
-    settings: {
-      audioOffsetMs: 0,
-      judgmentOffsetMs: 0,
-      scrollSpeed: 800,
-    },
+  it.each([
+    [1001, 1000], [-1001, -1000], [1000, 1000], [-1000, -1000], [12.5, 12.5],
+    [NaN, 0], [Infinity, 0], [-Infinity, 0], [null, 0],
+  ])('저장된 입력·시각 오프셋 %s를 병합하면 각각 %sms로 복원한다', (value, expected) => {
+    const result = mergePersistedSettings({ settings: {
+      inputOffsetMs: value, visualOffsetMs: value,
+    } }, useGameStore.getInitialState());
+    expect(result.settings.inputOffsetMs).toBe(expected);
+    expect(result.settings.visualOffsetMs).toBe(expected);
   });
 
-  it('기존 offsetMs만 있으면 audioOffsetMs로 마이그레이션', () => {
-    const persisted = { settings: { offsetMs: 42 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(42);
-    expect(result.settings.judgmentOffsetMs).toBe(0);
-    expect(result.settings).not.toHaveProperty('offsetMs');
+  it("문자열 '1500'으로 저장된 입력·시각 오프셋은 각각 0ms로 복원한다", () => {
+    const result = mergePersistedSettings({ settings: {
+      inputOffsetMs: '1500', visualOffsetMs: '1500',
+    } }, useGameStore.getInitialState());
+    expect(result.settings.inputOffsetMs).toBe(0);
+    expect(result.settings.visualOffsetMs).toBe(0);
   });
 
-  it('audioOffsetMs가 이미 있으면 offsetMs를 무시하고 삭제만 수행', () => {
-    const persisted = { settings: { offsetMs: 10, audioOffsetMs: 25 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(25);
-    expect(result.settings).not.toHaveProperty('offsetMs');
+  it.each([
+    { offsetMs: 42 },
+    { audioOffsetMs: 25 },
+    { judgmentOffsetMs: -15 },
+    { offsetMs: 42, audioOffsetMs: 25, judgmentOffsetMs: -15 },
+  ])('옛 설정 %j를 읽으면 세 키를 버리고 입력·시각 오프셋은 0ms다', legacy => {
+    const result = mergePersistedSettings({ settings: legacy }, useGameStore.getInitialState());
+    expect(result.settings.inputOffsetMs).toBe(0);
+    expect(result.settings.visualOffsetMs).toBe(0);
+    for (const key of ['offsetMs', 'audioOffsetMs', 'judgmentOffsetMs']) {
+      expect(result.settings).not.toHaveProperty(key);
+    }
   });
 
-  it('offsetMs가 없으면 기본값 0 유지', () => {
-    const persisted = { settings: { scrollSpeed: 1000 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.audioOffsetMs).toBe(0);
-    expect(result.settings.judgmentOffsetMs).toBe(0);
-    expect(result.settings.scrollSpeed).toBe(1000);
+  it('새 입력 −15ms·시각 +30ms와 옛 audioOffsetMs=99를 읽으면 새 값과 scrollSpeed=1000만 유지한다', () => {
+    const result = mergePersistedSettings({ settings: {
+      inputOffsetMs: -15, visualOffsetMs: 30, audioOffsetMs: 99, judgmentOffsetMs: 100, offsetMs: 42, scrollSpeed: 1000,
+    } }, useGameStore.getInitialState());
+    expect(result.settings).toMatchObject({ inputOffsetMs: -15, visualOffsetMs: 30, scrollSpeed: 1000 });
+    for (const key of ['offsetMs', 'audioOffsetMs', 'judgmentOffsetMs']) expect(result.settings).not.toHaveProperty(key);
   });
 
-  it('judgmentOffsetMs가 persisted에 있으면 그대로 반영', () => {
-    const persisted = { settings: { judgmentOffsetMs: -15 } };
-    const result = mergePersistedSettings(persisted, makeCurrentState()) as unknown as {
-      settings: Record<string, unknown>;
-    };
-    expect(result.settings.judgmentOffsetMs).toBe(-15);
+  it('저장한 오프셋이 없으면 inputOffsetMs·visualOffsetMs 기본값 0ms를 유지한다', () => {
+    const result = mergePersistedSettings({ settings: { scrollSpeed: 1000 } }, useGameStore.getInitialState());
+    expect(result.settings).toMatchObject({ inputOffsetMs: 0, visualOffsetMs: 0, scrollSpeed: 1000 });
   });
 });
 
@@ -78,6 +79,34 @@ describe('gameStore — masterVolume', () => {
       settings: { masterVolume: number };
     };
     expect(result.settings.masterVolume).toBe(0);
+  });
+});
+
+describe('gameStore — skinId', () => {
+  it('처음 실행하면 기본 스킨은 classic이다', () => {
+    expect(useGameStore.getInitialState().settings.skinId).toBe('classic');
+  });
+
+  it('스킨을 저장하지 않은 설정을 복원하면 기본값 classic을 유지한다', () => {
+    const restored = mergePersistedSettings({ settings: { scrollSpeed: 900 } }, useGameStore.getInitialState()) as unknown as {
+      settings: { skinId: string };
+    };
+    expect(restored.settings.skinId).toBe('classic');
+  });
+});
+
+describe('gameStore — bombScale', () => {
+  it('키봄 크기를 저장하지 않은 기존 설정을 복원하면 기본값 1배를 유지한다', () => {
+    const current = useGameStore.getInitialState();
+    expect(current.settings.bombScale).toBe(1);
+    const restored = mergePersistedSettings({ settings: { skinId: 'classic' } }, current);
+    expect(restored.settings.bombScale).toBe(1);
+    expect(restored.settings.skinId).toBe('classic');
+  });
+
+  it.each([0, 1.7, 3])('저장된 키봄 크기 %s배를 복원하면 1배로 초기화하지 않는다', bombScale => {
+    const restored = mergePersistedSettings({ settings: { bombScale } }, useGameStore.getInitialState());
+    expect(restored.settings.bombScale).toBe(bombScale);
   });
 });
 
@@ -123,5 +152,28 @@ describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어
     useGameStore.getState().setCalibrationActive(true);
     useGameStore.getState().setSettingsOpen(true);
     expect(useGameStore.getState().calibrationActive).toBe(true);
+  });
+});
+
+describe('gameStore — gearMotion(설정 Gear Motion)', () => {
+  it('처음 실행하면 설정 Gear Motion은 켜져 있다(gearMotion true)', () => {
+    expect(useGameStore.getInitialState().settings.gearMotion).toBe(true);
+  });
+
+  it('gearMotion을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
+    const restored = mergePersistedSettings({ settings: { renderHeight: 720 } }, useGameStore.getInitialState());
+    expect(restored.settings.gearMotion).toBe(true);
+    expect(restored.settings.renderHeight).toBe(720);
+  });
+
+  it('끔(false)으로 저장한 설정을 복원하면 켬으로 되돌리지 않는다', () => {
+    const restored = mergePersistedSettings({ settings: { gearMotion: false } }, useGameStore.getInitialState());
+    expect(restored.settings.gearMotion).toBe(false);
+  });
+
+  it('#231 전 키 frameMotion: false만 저장된 설정을 복원하면 옛 키는 버리고 gearMotion은 기본 켬(true)이다', () => {
+    const restored = mergePersistedSettings({ settings: { frameMotion: false } }, useGameStore.getInitialState());
+    expect(restored.settings).not.toHaveProperty('frameMotion');
+    expect(restored.settings.gearMotion).toBe(true);
   });
 });

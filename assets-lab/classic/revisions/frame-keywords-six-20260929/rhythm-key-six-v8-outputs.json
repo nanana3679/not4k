@@ -1,0 +1,47 @@
+{
+  "generator": "built-in image_gen",
+  "outputs": [
+    {
+      "label": "A",
+      "id": "33-rhythm-key-a-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/27-large-button-a-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-cfb8fba0-810f-4d62-91bb-ce9bf178cda7.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/33-rhythm-key-a-v8.png"
+    },
+    {
+      "label": "B",
+      "id": "34-rhythm-key-b-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/28-large-button-b-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-f62daaba-2c6d-414b-bdbe-913a2b9d82f0.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/34-rhythm-key-b-v8.png"
+    },
+    {
+      "label": "C",
+      "id": "35-rhythm-key-c-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/29-large-button-c-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-a00e1f2e-6b09-4fb0-a438-ae07ed8f6ad9.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/35-rhythm-key-c-v8.png"
+    },
+    {
+      "label": "D",
+      "id": "36-rhythm-key-d-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/30-large-button-d-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-81a0ede0-30b9-490b-9e77-0587b3c24fc8.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/36-rhythm-key-d-v8.png"
+    },
+    {
+      "label": "E",
+      "id": "37-rhythm-key-e-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/31-large-button-e-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-7cb00b53-8c70-4e77-b572-d37b7456efd2.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/37-rhythm-key-e-v8.png"
+    },
+    {
+      "label": "F",
+      "id": "38-rhythm-key-f-v8",
+      "reference": "/home/nanana3679/orca/workspaces/not4k/melusine/lab/image-galleries/frame-keywords-six-20260929/32-large-button-f-v7.png",
+      "source": "/home/nanana3679/.codex/generated_images/01a0eccc-659e-7851-ac9b-ac8e4276ff50/exec-ef472314-f135-4da2-a544-78dc528c2e2d.png",
+      "saved": "lab/image-galleries/frame-keywords-six-20260929/38-rhythm-key-f-v8.png"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="200" viewBox="0 0 1000 200" fill="none" data-artwork="trill-quartz-06" data-role="terminal-end" data-state="failed">
+  <title>Trill · 바디 재질의 마름모 끝 터미널</title>
+  <desc>Editable vector artwork. Shared width 1000; point and terminal have a vertically symmetric 5:1 diamond silhouette. No embedded raster image.</desc>
+  <defs>
+    <linearGradient id="quartz-terminal-left-reflection" x1="0" y1="0" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26"/>
+      <stop offset="0.1" stop-color="#ffffff" stop-opacity="0.17"/>
+      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0.01"/>
+      <stop offset="0.9" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.11"/>
+    </linearGradient>
+    <linearGradient id="quartz-terminal-right-reflection" x1="500" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.17"/>
+      <stop offset="0.04" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="0.1" stop-color="#ffffff" stop-opacity="0.045"/>
+      <stop offset="0.2" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.015"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.065"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="0.9" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.3"/>
+    </linearGradient>
+    <clipPath id="quartz-terminal-diamond" clipPathUnits="userSpaceOnUse"><path d="M0 100 500 0 1000 100 500 200Z"/></clipPath>
+  </defs>
+  <g id="quartz-terminal-silhouette" clip-path="url(#quartz-terminal-diamond)">
+  <g id="quartz-terminal-base" data-layer="base">
+    <path id="quartz-terminal-material-foundation" fill="#4c4c4c" d="M0 0H1000V200H0Z"/>
+    <path id="quartz-terminal-right-face" fill="#383838" d="M500 0H1000V200H500Z"/>
+  </g>
+  <g id="quartz-terminal-reflections" data-layer="reflections">
+    <path fill="url(#quartz-terminal-left-reflection)" d="M0 0H500V200H0Z"/>
+    <path fill="url(#quartz-terminal-right-reflection)" d="M500 0H1000V200H500Z"/>
+    <path d="M500 0V200" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+    <path d="M.6 0V200M999.4 0V200" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.2"/>
+  </g>
+  </g>
+</svg>

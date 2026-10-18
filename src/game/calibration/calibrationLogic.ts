@@ -3,7 +3,10 @@
  *
  * 시각/오디오 캘리브레이션에서 측정된 차이값(diff)을 분석하여
  * 오프셋을 산출한다. 이상치 제거 후 중앙값을 사용한다.
+ * Visual 보정 노트의 위치도 여기서 정해 게임과 같은 노트 가운데 기준을 쓴다.
  */
+
+import { noteBoxTopY } from '../renderer/constants';
 
 /**
  * 정렬된 배열의 중앙값을 구한다.
@@ -77,8 +80,43 @@ export function calculateCalibrationResult(diffs: number[]): CalibrationResult {
   return { offset, stdDev, sampleCount: cleaned.length };
 }
 
+/**
+ * 캘리브레이션 결과로 저장할 오프셋(ms). 측정값은 "탭 − 박"(양수 = 늦게 누름)이고, 오프셋은 `GameClock`이
+ * 입력 시간에 더하는 실제 ms이다(플레이에서는 inputOffsetMs에 배속을 곱한다).
+ * 늦게 누르는 만큼을 지우려면 반대 부호를 더해야 하므로 측정 중앙값의 부호를 뒤집는다(15ms 늦음 → −15).
+ */
+export function offsetToApply(result: CalibrationResult): number {
+  return result.offset === 0 ? 0 : -result.offset;
+}
+
 /** 캘리브레이션에서 사용하는 기본 간격 (ms) */
 export const CALIBRATION_INTERVAL_MS = 600;
+
+/** Visual 보정 노트 두께(캔버스 px). 게임 노트와 크기는 달라도 판정선에 맞추는 기준은 같다(#224). */
+export const CALIBRATION_NOTE_HEIGHT = 12;
+/** Visual 보정 노트 폭(캔버스 px). */
+export const CALIBRATION_NOTE_WIDTH = 120;
+
+/** Visual 보정 노트 박스 왼끝 x. 노트는 캔버스 가로 가운데에 놓는다. */
+export function calibrationNoteLeftX(canvasWidth: number, noteWidth = CALIBRATION_NOTE_WIDTH): number {
+  return canvasWidth / 2 - noteWidth / 2;
+}
+
+/**
+ * Visual 보정 노트의 진행도. 노트는 한 간격(`travelMs`) 동안 캔버스 위끝(0)에서 판정선(1)까지 내려오고,
+ * 박 시각에 1이 된다. 1을 넘으면 판정선을 지나 사라지는 중이다.
+ */
+export function calibrationNoteProgress(nowMs: number, beatTimeMs: number, travelMs = CALIBRATION_INTERVAL_MS): number {
+  return (nowMs - beatTimeMs + travelMs) / travelMs;
+}
+
+/**
+ * 진행도의 Visual 보정 노트 박스 위끝 y. 노트 가운데가 `진행도 × 판정선 y`에 오므로 박 시각(진행도 1)에
+ * 노트 가운데가 판정선에 닿는다 — 게임 렌더러와 같은 노트 가운데 기준(`noteBoxTopY`, #224).
+ */
+export function calibrationNoteTopY(progress: number, judgmentY: number, noteHeight = CALIBRATION_NOTE_HEIGHT): number {
+  return noteBoxTopY(progress * judgmentY, noteHeight);
+}
 
 /** 측정 횟수 */
 export const CALIBRATION_TOTAL_TAPS = 15;

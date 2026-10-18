@@ -11,6 +11,10 @@ import {
   Graphics,
   Sprite,
   NineSliceSprite,
+  TilingSprite,
+  Mesh,
+  MeshGeometry,
+  type Texture,
 } from "pixi.js";
 import type { NoteEntity } from "../../shared";
 import { isGraceNote, isHoldOnlyNote } from "../../shared";
@@ -21,7 +25,43 @@ import {
   NOTE_HEIGHT,
   NOTE_WIDTH,
   COLORS,
+  noteBoxTopY,
+  playfieldPx,
 } from "./constants";
+
+// 스킨 테마의 px 값(그림자 높이·Grace 여백·터미널 외곽 돌출)과 아래 값들은 레인 100·노트 100×20 기준 설계값이다.
+// 플레이필드 배율(RFD 0029)로 바꿔 써야 노트와 같은 비율로 줄어든다.
+/** trillLong 바디를 끝점·머리 쪽에서 줄여 다이아몬드 캡을 드러내는 길이 */
+const TRILL_BODY_END_INSET = playfieldPx(10);
+/** 반쪽 cap 스킨에서 두 캡 사이에 남기는 최소 바디 길이 */
+const WIRE_MIN_PX = playfieldPx(5);
+const GRACE_GLOW_RADIUS = playfieldPx(4);
+
+/** Core 타입에 의존하지 않는 unit별 body 표시 조회 계약. */
+export interface JudgmentBodyUnitView {
+  readonly unitIndex: number;
+  readonly active: boolean;
+  readonly failed: boolean;
+  readonly complete: boolean;
+  readonly registeredKeys: readonly string[];
+}
+
+export interface JudgmentBodyStateView {
+  readonly units: readonly JudgmentBodyUnitView[];
+  readonly successorIndex?: number;
+}
+
+export type JudgmentBodyStateQuery =
+  (noteIndex: number, timeMs: number) => JudgmentBodyStateView | null;
+
+type NoteKind = "single" | "double" | "trill";
+
+/** 포인트·롱노트 종류를 같은 에셋 묶음(싱글·더블·트릴)으로 모은다. */
+function noteKindOf(type: NoteEntity["type"]): NoteKind {
+  if (type === "double" || type === "doubleLong") return "double";
+  if (type === "trill" || type === "trillLong") return "trill";
+  return "single";
+}
 
 export class GameNoteRenderer {
   private longNoteBodyLayer: Container;
@@ -38,13 +78,19 @@ export class GameNoteRenderer {
   // Object pools — Sprite-based (single/double/long/doubleLong)
   // 노트 인덱스 → (texKey → Sprite) : 상태별 스프라이트를 모두 보유
   private noteSpritePool: Map<number, Map<string, Sprite>> = new Map();
-  private bodySpritePool: Map<number, Map<string, NineSliceSprite>> = new Map();
+  private bodySpritePool: Map<number, Map<string, NineSliceSprite | TilingSprite>> = new Map();
   private endCapSpritePool: Map<number, Map<string, Sprite>> = new Map();
   // 롱노트 시작 캡 (끝 캡 텍스처를 상하반전해 재사용)
   private startCapSpritePool: Map<number, Map<string, Sprite>> = new Map();
 
   // Object pools — Graphics (grace glow only)
   private graceGlowPool: Map<number, Graphics> = new Map();
+  private graceOverlayPool: Map<number, Sprite> = new Map();
+  private pointShadowPool: Map<number, Sprite> = new Map();
+  private pointContactShadowPool: Map<number, [Sprite, Sprite]> = new Map();
+  private trillContactShadowPool: Map<number, Sprite> = new Map();
+  private trillPointShadowPool: Map<number, Mesh> = new Map();
+  private trillPointShadowGeometry: MeshGeometry | null = null;
 
   // Note state sets
   private failedBodies: Set<number> = new Set();
@@ -59,6 +105,8 @@ export class GameNoteRenderer {
   private connectedPredecessor: Map<number, number> = new Map();
   /** 노트 인덱스 → 시작 시간(ms) — 선행 노트의 held 여부 계산용 */
   private noteStartMsByIndex: Map<number, number> = new Map();
+  /** Trill 구간은 연결 켜짐 표시를 보내거나 이어받지 않는다. */
+  private trillLongIndices: Set<number> = new Set();
 
   /**
    * 헤드없는 롱노트의 held 충족 조회 (엔진 주입, 이슈 #85). null이면 미주입(튜토리얼 프리뷰 등)이라
@@ -67,6 +115,7 @@ export class GameNoteRenderer {
   private headlessHeldFillQuery:
     | ((index: number, timeMs: number) => { filled: number; required: number } | null)
     | null = null;
+  private judgmentBodyStateQuery: JudgmentBodyStateQuery | null = null;
 
   constructor(
     longNoteBodyLayer: Container,
@@ -100,7 +149,9 @@ export class GameNoteRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    const y = this.calculateNoteY(timeMs, songTimeMs);
+    // 노트 시각 위치는 박스 세로 가운데다(#224). 판정 순간 박스 = [판정선 − NOTE_HEIGHT/2, 판정선 + NOTE_HEIGHT/2].
+    // y는 박스 위끝이고, 아래 화면 밖 판정과 그림자·Grace 배치는 모두 박스 위끝 기준이다.
+    const y = noteBoxTopY(this.calculateNoteY(timeMs, songTimeMs));
     if (y < -NOTE_HEIGHT) return;
     // 화면 아래로 벗어난 miss 노트는 완료 처리하여 렌더링 누적 방지
     if (y > this.height + NOTE_HEIGHT) {
@@ -114,20 +165,73 @@ export class GameNoteRenderer {
     const isPartial = this.doublePartialNotes.has(index);
     const isMissed = this.missedNotes.has(index);
     const isGrace = isGraceNote(entity);
+    // 포인트 전체 외곽이 레인의 기준이다. 바디 이미지가 포인트보다 좁은 스킨은 바디를 안쪽으로 줄인다.
+    const pointX = laneX;
+    const pointWidth = NOTE_WIDTH;
 
     // Grace glow effect (miss 시에는 표시하지 않음)
     if (isGrace && !isMissed) {
-      const glow = this.getOrCreateGraceGlow(index);
-      glow.x = laneX - COLORS.GRACE_GLOW_PAD;
-      glow.y = y - COLORS.GRACE_GLOW_PAD;
-      this.noteLayer.addChild(glow);
+      this.addGraceGlow(index, this.noteLayer, pointX, y, pointWidth, 'point');
+    }
+
+    const theme = this.skinManager.getTheme();
+    const shadowGeometry = theme.pointShadow;
+    if (entity.type !== 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadow')) {
+      this.addPointContactShadow(index, laneX, y, theme.pointContactShadow, noteKindOf(entity.type));
+    } else if (entity.type === 'trill' && theme.pointContactShadow && this.skinManager.hasTexture('pointContactShadowTrill')) {
+      this.addTrillContactShadow(index, pointX, y, pointWidth, theme.pointContactShadow);
+    } else if (shadowGeometry && this.skinManager.hasTexture('pointShadow')) {
+      if (entity.type === 'trill') {
+        // 직사각형 그림자는 마름모 하단과 떨어져 가로 절단선처럼 보인다.
+        // 같은 그림자 텍스처를 아래 두 변에 맞춰 흰 바디 위에서도 윤곽을 유지한다.
+        let shadow = this.trillPointShadowPool.get(index);
+        if (!shadow) {
+          if (!this.trillPointShadowGeometry) {
+            const tipY = playfieldPx(shadowGeometry.offsetY);
+            const sideY = tipY - NOTE_HEIGHT / 2;
+            // 얇은 접촉선보다 넓게 퍼지는 낮은 농도의 그림자로 바디와 포인트를 구분한다.
+            const bottom = playfieldPx(shadowGeometry.height) * 2;
+            this.trillPointShadowGeometry = new MeshGeometry({
+              positions: new Float32Array([
+                0, sideY, NOTE_WIDTH / 2, tipY, NOTE_WIDTH, sideY,
+                0, sideY + bottom, NOTE_WIDTH / 2, tipY + bottom, NOTE_WIDTH, sideY + bottom,
+              ]),
+              uvs: new Float32Array([0, 0, .5, 0, 1, 0, 0, 1, .5, 1, 1, 1]),
+              indices: new Uint32Array([0, 1, 3, 1, 4, 3, 1, 2, 4, 2, 5, 4]),
+            });
+          }
+          shadow = new Mesh({
+            geometry: this.trillPointShadowGeometry,
+            texture: this.skinManager.getTexture('pointShadow'),
+          });
+          shadow.alpha = .75;
+          this.trillPointShadowPool.set(index, shadow);
+        }
+        shadow.x = pointX;
+        shadow.y = y;
+        this.noteLayer.addChild(shadow);
+      } else {
+        let shadow = this.pointShadowPool.get(index);
+        if (!shadow) {
+          shadow = new Sprite(this.skinManager.getTexture('pointShadow'));
+          this.pointShadowPool.set(index, shadow);
+        }
+        const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
+        shadow.x = laneX + (LANE_WIDTH - bodyWidth) / 2;
+        shadow.y = y + playfieldPx(shadowGeometry.offsetY);
+        shadow.width = bodyWidth;
+        shadow.height = playfieldPx(shadowGeometry.height);
+        this.noteLayer.addChild(shadow);
+      }
     }
 
     if (entity.type === "trill") {
       const texKey = isMissed ? "noteTrillFailed" : "noteTrill";
       const sprite = this.getOrCreateNoteSprite(index, texKey);
-      sprite.x = laneX;
+      sprite.x = pointX;
       sprite.y = y;
+      sprite.width = pointWidth;
+      sprite.height = NOTE_HEIGHT;
       sprite.tint = 0xffffff;
       sprite.alpha = isMissed ? 1 : (isPartial ? 0.5 : 1);
       this.noteLayer.addChild(sprite);
@@ -140,8 +244,10 @@ export class GameNoteRenderer {
         texKey = isDouble ? "noteDouble" : "noteSingle";
       }
       const sprite = this.getOrCreateNoteSprite(index, texKey);
-      sprite.x = laneX;
+      sprite.x = pointX;
       sprite.y = y;
+      sprite.width = pointWidth;
+      sprite.height = NOTE_HEIGHT;
       sprite.tint = 0xffffff;
       sprite.alpha = isMissed ? 1 : (isPartial ? 0.7 : 1);
       this.noteLayer.addChild(sprite);
@@ -157,14 +263,19 @@ export class GameNoteRenderer {
   ): void {
     if (this.completedNotes.has(index)) return;
 
-    // 포인트 노트는 시간 위치를 박스 상단 기준으로 그린다(박스 = [y, y+NOTE_HEIGHT]).
-    // 롱노트도 같은 기준으로 맞춘다:
-    //  - 머리: 시작 시간 위치가 머리 박스 상단이 되도록 +NOTE_HEIGHT 내린다
-    //    (body 하단 = 시작 시간 + NOTE_HEIGHT → 포인트 노트 박스 하단과 일치).
-    //  - 끝점: 끝 시간 위치가 끝 박스 상단(terminal.y)이 되도록 보정 없이 그대로 쓴다.
+    // 포인트 노트는 시간 위치를 박스 세로 가운데로 그린다(#224, 박스 = [y − NOTE_HEIGHT/2, y + NOTE_HEIGHT/2]).
+    // 롱노트도 같은 기준으로 시작 시각 칸(머리 칸)과 끝 시각 칸(끝 칸)을 바디 하나로 잇는다:
+    //  - 바디 아랫변(startY) = 머리 칸 아랫변 = 시작 시간 위치 + NOTE_HEIGHT/2 → 같은 시각 포인트 노트 박스 아랫변과 일치.
+    //  - 바디 윗변(endY) = 끝 칸 윗변 = 끝 시간 위치 − NOTE_HEIGHT/2 → 같은 시각 포인트 노트 박스 윗변과 일치.
     // 이러면 길이 0 롱노트는 bodyHeight가 정확히 NOTE_HEIGHT가 되어 포인트 노트와 같은 칸에 온다.
-    const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
-    const endY = this.calculateNoteY(endMs, songTimeMs);
+    // 시작·끝 터미널(반쪽 캡·전체 높이)은 바디 양 끝 칸 안에 그려 바디와 틈·겹침 없이 맞물린다.
+    const startCenterY = this.calculateNoteY(startMs, songTimeMs);
+    const rawStartY = startCenterY + NOTE_HEIGHT / 2;
+    const endY = noteBoxTopY(this.calculateNoteY(endMs, songTimeMs));
+    // 머리 칸 가운데가 판정선에 왔을 때의 바디 아랫변. 잡고 있는 머리·당김·놓친 롱노트가 여기서 멈춘다.
+    const lineCellBottomY = this.judgmentLineY + NOTE_HEIGHT / 2;
+    // 머리 칸 가운데가 판정선에 닿았는지(곡 시각 ≥ 시작 시각) — 판정 조회가 없는 재생기의 기하 held 판단.
+    const headReachedLine = startCenterY >= this.judgmentLineY;
 
     // 화면 아래로 완전히 벗어난 miss 롱노트는 완료 처리
     if (endY > this.height + NOTE_HEIGHT && this.missedNotes.has(index)) {
@@ -172,18 +283,36 @@ export class GameNoteRenderer {
       return;
     }
 
+    const bodyState = this.judgmentBodyStateQuery?.(index, songTimeMs) ?? null;
+    const queryUnits = bodyState?.units ?? [];
+    const queryFailedCount = queryUnits.filter((unit) => unit.failed).length;
+    const queryCompleted = queryUnits.length > 0 && queryUnits.every((unit) => unit.complete);
+    const heldUnitCount = bodyState
+      ? entity.type === 'trillLong'
+        ? queryUnits.filter(unit => unit.active && !unit.failed && !unit.complete && unit.registeredKeys.length > 0).length
+        : this.getJudgmentHeldUnitCount(index, bodyState, songTimeMs)
+      : 0;
+    const requiredUnitCount = queryUnits.length;
+    // terminal 성공은 즉시 숨긴다. 연결 body의 성공은 자기 E까지 geometry를 유지한다.
+    // 실패 unit은 끝 시각 이후에도 실패색으로 남아 core body state를 표시한다.
+    if (bodyState && queryCompleted && bodyState.successorIndex === undefined) {
+      this.completedNotes.add(index);
+      return;
+    }
+
     // 헤드없는 롱노트의 홀드 충족 조회 (이슈 #85) — 텍스처 선택 + "빈 구간 채움"에 공용.
     const headlessFill = this.headlessHeldFillQuery?.(index, songTimeMs) ?? null;
-    // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 body 하단을 판정선까지 당겨 빈 구간을
+    // 미리 홀드로 충족 중(filled>0)이고 길이가 있는 롱이면 머리 칸 가운데가 판정선에 오도록 body 하단을 당겨 빈 구간을
     // 채운다 — "내 홀드가 이 롱을 맡고 있다"를 판정선 위 작은 텍스처 변화가 아니라 채워진 body로 보인다.
     // 길이 0 슬라이드/릴리즈 노트는 body가 없어 당기지 않는다.
     const pullToLine = headlessFill !== null && headlessFill.filled > 0 && endMs > startMs;
 
-    // 바디 시작 Y를 판정선으로 클램프 (머리 박스 상단이 판정선에 고정되도록 +NOTE_HEIGHT).
-    // 당김 중이면 노트가 아직 판정선에 안 닿았어도 하단을 판정선에 고정한다.
+    // 바디 아랫변을 판정선 가운데 칸 아랫변으로 클램프한다: 머리 칸 가운데가 판정선에 고정된다
+    // (잡고 있는 머리, 아직 판정선에 멈추는 놓친 롱노트 #214). 당김 중이면 노트가 아직 판정선에 안 닿았어도 고정한다.
+    // 터미널은 바디 양 끝 칸에 붙으므로 이 클램프만으로 판정선 가운데 칸 아래로 내려가지 않는다.
     const startY = pullToLine
-      ? this.judgmentLineY + NOTE_HEIGHT
-      : Math.min(rawStartY, this.judgmentLineY + NOTE_HEIGHT);
+      ? lineCellBottomY
+      : Math.min(rawStartY, lineCellBottomY);
 
     const laneX = this.getLaneX(entity.lane);
     let bodyHeight = startY - endY;
@@ -198,11 +327,23 @@ export class GameNoteRenderer {
 
     if (adjustedEndY < -NOTE_HEIGHT && startY < -NOTE_HEIGHT) return;
 
-    const isFailed = this.failedBodies.has(index);
+    const isFailed = bodyState ? queryUnits.length > 0 && queryFailedCount === queryUnits.length : this.failedBodies.has(index);
     const isMissed = this.missedNotes.has(index);
-    const isPartial = this.doublePartialNotes.has(index);
+    const queryPartialFailed = bodyState ? queryFailedCount > 0 && queryFailedCount < queryUnits.length : false;
+    const isPartial = bodyState ? queryPartialFailed : this.doublePartialNotes.has(index);
     const partialSide = this.partialFailedBodies.get(index);
     const isPartialFailed = partialSide !== undefined;
+    const theme = this.skinManager.getTheme();
+    // 켜짐 효과가 없는 스킨(RFD 0028)은 유지 중에도 대기 바디·터미널을 그린다. 실패·부분 실패는 그대로 표시한다.
+    const heldEffect = theme.heldEffect !== false;
+    const fullHeightTerminal = theme.longNoteTerminalMode === "full-height";
+    const bodyWidth = this.getBodyWidth(noteKindOf(entity.type));
+    const bodyX = laneX + (LANE_WIDTH - bodyWidth) / 2;
+    const terminalFrameOverhang = fullHeightTerminal
+      ? playfieldPx(Math.max(0, theme.longNoteTerminalFrameOverhangPx ?? 0)) * bodyWidth / LANE_WIDTH
+      : 0;
+    const terminalX = bodyX - terminalFrameOverhang;
+    const terminalWidth = bodyWidth + terminalFrameOverhang * 2;
 
     if (entity.type === "trillLong") {
       // Trill long: Sprite-based
@@ -213,33 +354,45 @@ export class GameNoteRenderer {
         bodyTexKey = "bodyTrillFailed";
         endCapTexKey = "terminalTrillFailed";
       } else {
-        const isHeld =
-          rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-          this.hasConnectedHeldPredecessor(index, songTimeMs);
+        const isHeld = heldEffect && (bodyState
+          ? heldUnitCount >= requiredUnitCount && requiredUnitCount > 0
+          : headReachedLine);
         bodyTexKey = isHeld ? "bodyTrillHeld" : "bodyTrill";
-        endCapTexKey = "terminalTrill";
+        endCapTexKey = !isHeld && this.skinManager.hasTexture("terminalTrillIdle")
+          ? "terminalTrillIdle"
+          : "terminalTrill";
       }
 
-      // 바디는 처음(끝점 쪽)·끝(머리 쪽) 각각 10px 줄여, 헤드/끝 다이아몬드가
+      // 바디는 처음(끝점 쪽)·끝(머리 쪽) 각각 노트 두께 절반만큼 줄여, 헤드/끝 다이아몬드가
       // 캡처럼 드러나게 한다. 줄인 높이가 0 이하면(아주 짧은 트릴 롱) 바디는 생략.
-      const TRILL_BODY_END_INSET = 10;
       const insetBodyY = adjustedEndY + TRILL_BODY_END_INSET;
       const insetBodyHeight = bodyHeight - TRILL_BODY_END_INSET * 2;
       if (insetBodyHeight > 0) {
-        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-        bodySprite.x = laneX;
+        const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+        bodySprite.x = bodyX;
         bodySprite.y = insetBodyY;
-        bodySprite.width = LANE_WIDTH;
+        bodySprite.width = bodyWidth;
         bodySprite.height = insetBodyHeight;
         bodySprite.tint = 0xffffff;
         bodySprite.alpha = 1;
         this.longNoteBodyLayer.addChild(bodySprite);
       }
 
-      if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
+      if ((!fullHeightTerminal || songTimeMs <= endMs)
+        && adjustedEndY >= -NOTE_HEIGHT
+        && adjustedEndY <= this.height + NOTE_HEIGHT) {
+        // 끝 터미널은 끝 칸(바디 윗변부터 노트 한 칸)에 그린다. 바디 아랫변이 판정선 가운데 칸에서 멈추므로
+        // adjustedEndY ≤ 판정선 − NOTE_HEIGHT/2라, 끝 시각에 끝 칸 가운데가 판정선에 오고 그보다 내려가지 않는다.
+        if (isHoldOnlyNote(entity) && !isFailed && !isMissed) {
+          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, adjustedEndY, terminalWidth, 'terminal');
+        }
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
-        endCapSprite.x = laneX;
+        endCapSprite.x = fullHeightTerminal ? terminalX : laneX;
         endCapSprite.y = adjustedEndY;
+        if (fullHeightTerminal) {
+          endCapSprite.width = terminalWidth;
+          endCapSprite.height = NOTE_HEIGHT;
+        }
         endCapSprite.tint = 0xffffff;
         endCapSprite.alpha = 1;
         this.longNoteEndLayer.addChild(endCapSprite);
@@ -248,8 +401,8 @@ export class GameNoteRenderer {
       // 헤드 다이아몬드는 그리지 않는다. trillLong은 검증 규칙상 항상 같은 레인·같은
       // 시작 박에 별도의 trill 포인트 노트(헤드)를 가지며(validateTrillLong, RFD 0009),
       // 그 노트가 renderPointNote에서 올바른 위치·올바른 헤드 판정 상태로 다이아몬드를 그린다.
-      // 여기서 또 그리면 헤드가 중복 렌더되고, body 정렬용 +NOTE_HEIGHT 보정 때문에
-      // NOTE_HEIGHT만큼 어긋난 두 번째 다이아몬드가 보인다.
+      // 여기서 또 그리면 같은 머리 칸에 헤드가 두 번 그려지고, 헤드가 처리되거나 놓쳐도
+      // 바디 쪽 다이아몬드는 그 판정 상태를 따르지 않는다.
     } else {
       // long / doubleLong: Sprite-based
       const isDouble = entity.type === "doubleLong";
@@ -260,70 +413,128 @@ export class GameNoteRenderer {
       if (isFailed || isMissed) {
         bodyTexKey = isDouble ? "bodyDoubleFailed" : "bodySingleFailed";
         endCapTexKey = isDouble ? "terminalDoubleFailed" : "terminalSingleFailed";
-      } else if (isDouble && isPartialFailed) {
-        bodyTexKey = partialSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
-        endCapTexKey = partialSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
+      } else if (isDouble && (isPartialFailed || queryPartialFailed)) {
+        const failedUnit = queryUnits.find((unit) => unit.failed);
+        const failedSide = failedUnit ? (failedUnit.unitIndex === 0 ? 'left' : 'right') : partialSide;
+        bodyTexKey = failedSide === 'left' ? 'bodyDoublePartialFailedLeft' : 'bodyDoublePartialFailedRight';
+        endCapTexKey = failedSide === 'left' ? 'terminalDoublePartialFailedLeft' : 'terminalDoublePartialFailedRight';
       } else {
         // 헤드없는 롱노트가 홀드로 consume 충족 중이면 엔진 술어를 그대로 조회해 body를 켠다
         // (이슈 #85 — 시각·판정 단일 진실). null이면(조회 대상 아님·윈도우 밖·미주입) 기하 held로 폴백.
         const fill = headlessFill;
-        if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
+        let terminalActivated: boolean;
+        if (!heldEffect) {
+          bodyTexKey = isDouble ? "bodyDouble" : "bodySingle";
+          terminalActivated = false;
+        } else if (bodyState && isDouble && heldUnitCount > 0 && heldUnitCount < requiredUnitCount) {
+          bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
+          terminalActivated = true;
+        } else if (bodyState && heldUnitCount > 0 && heldUnitCount === requiredUnitCount) {
+          bodyTexKey = isDouble ? "bodyDoubleHeld" : "bodySingleHeld";
+          terminalActivated = true;
+        } else if (fill && isDouble && fill.filled > 0 && fill.filled < fill.required) {
           // 부분 충족(1/2): 레인 위치로 대기 쪽 결정 (레인 1·2=왼쪽 대기, 3·4=오른쪽 대기)
           bodyTexKey = entity.lane <= 2 ? "bodyDoublePartialHeldLeft" : "bodyDoublePartialHeldRight";
+          terminalActivated = true;
         } else {
-          const isHeld = fill
-            ? fill.filled >= fill.required
-            : rawStartY >= this.judgmentLineY + NOTE_HEIGHT ||
-              this.hasConnectedHeldPredecessor(index, songTimeMs);
+          const isHeld = bodyState
+            ? heldUnitCount >= requiredUnitCount && requiredUnitCount > 0
+            : fill
+              ? fill.filled >= fill.required
+              : headReachedLine ||
+                this.hasConnectedHeldPredecessor(index, songTimeMs);
           bodyTexKey = isHeld
             ? (isDouble ? "bodyDoubleHeld" : "bodySingleHeld")
             : (isDouble ? "bodyDouble" : "bodySingle");
+          terminalActivated = isHeld;
         }
-        endCapTexKey = isDouble ? "terminalDouble" : "terminalSingle";
+        const activeTerminalTexKey = isDouble ? "terminalDouble" : "terminalSingle";
+        const idleTerminalTexKey = isDouble ? "terminalDoubleIdle" : "terminalSingleIdle";
+        // 전체 높이 terminal의 부분 유지는 부분 실패와 같은 중앙광 도안을 쓴다.
+        // 반쪽 cap 스킨은 기존 terminal 선택을 유지한다.
+        if (fullHeightTerminal && bodyTexKey === "bodyDoublePartialHeldLeft") {
+          endCapTexKey = "terminalDoublePartialFailedLeft";
+        } else if (fullHeightTerminal && bodyTexKey === "bodyDoublePartialHeldRight") {
+          endCapTexKey = "terminalDoublePartialFailedRight";
+        } else {
+          endCapTexKey = !terminalActivated && this.skinManager.hasTexture(idleTerminalTexKey)
+            ? idleTerminalTexKey
+            : activeTerminalTexKey;
+        }
       }
 
-      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey);
-      bodySprite.x = laneX;
+      const bodySprite = this.getOrCreateBodySprite(index, bodyTexKey, bodyWidth);
+      bodySprite.x = bodyX;
       bodySprite.y = adjustedEndY;
-      bodySprite.width = LANE_WIDTH;
+      bodySprite.width = bodyWidth;
       bodySprite.height = bodyHeight;
       bodySprite.tint = 0xffffff;
       bodySprite.alpha = (isPartial && !isPartialFailed) ? 0.7 : 1;
       this.longNoteBodyLayer.addChild(bodySprite);
 
-      // 끝 캡·시작 캡은 기본적으로 노트 높이의 절반(10px)으로 양 끝을 마감한다.
-      // 단, 길이가 짧은 롱노트(특히 길이 0)에서는 두 캡이 body를 꽉 덮어 가운데 심지(wire)가
-      // 가려지므로, 캡 사이에 최소 WIRE_MIN_PX의 심지가 남도록 캡 높이를 제한한다.
-      const WIRE_MIN_PX = 5;
-      const capHeight = Math.min(NOTE_HEIGHT / 2, (bodyHeight - WIRE_MIN_PX) / 2);
+      // 기본 스킨은 terminal의 윗부분을 반쪽 cap으로 사용한다. full-height 스킨은 terminal
+      // 전체를 노트 한 칸 높이로 사용하며, 길이 0에서는 시작 terminal 하나만 남긴다.
+      const isZeroLength = endMs === startMs;
+      const capHeight = fullHeightTerminal
+        ? NOTE_HEIGHT
+        : Math.min(NOTE_HEIGHT / 2, (bodyHeight - WIRE_MIN_PX) / 2);
+      const capTexture = fullHeightTerminal
+        ? this.skinManager.getTexture(endCapTexKey)
+        : this.skinManager.getHalfCapTexture(endCapTexKey);
+      const fullHeightTerminalsOverlap = fullHeightTerminal && bodyHeight < capHeight * 2;
+      // 길이(px)가 노트 한 칸보다 짧은 full-height 롱노트는 처음부터 두 터미널 칸이 겹친다. 시작 전에는 시작 터미널만,
+      // 시작 후에는 끝 터미널만 보이므로, 끝 터미널은 시작 터미널이 있던 머리 칸에서 이어받아 끝 시각까지 그 칸에 머문다
+      // (판정선에서는 판정선 가운데 칸 — 길이 0 롱노트와 같다). 끝 터미널이 제 시각 칸으로 최대 한 칸 위에 나타나
+      // 다시 내려오지 않게 한다. 보통 길이 롱노트는 끝 무렵 칸이 겹쳐도 끝 터미널이 제 시각 칸을 그대로 따른다.
+      const shortFullHeightLong = fullHeightTerminal
+        && ((endMs - startMs) * this.scrollSpeed) / 1000 < capHeight;
+      const endTerminalY = shortFullHeightLong
+        ? Math.max(adjustedEndY, startY - capHeight)
+        : adjustedEndY;
+      const showFullHeightStartTerminal = !fullHeightTerminal || songTimeMs <= startMs;
+      const showFullHeightEndTerminal = !fullHeightTerminal || (
+        songTimeMs <= endMs
+        && !(fullHeightTerminalsOverlap && songTimeMs <= startMs)
+      );
+      // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
+      const showHoldOnlyGrace = isHoldOnlyNote(entity) && !isFailed && !isMissed;
 
-      if (adjustedEndY >= -NOTE_HEIGHT && adjustedEndY <= this.height + NOTE_HEIGHT) {
-        // hold-only(싱글·더블 롱) 끝점에 면제 글로우 — 유지 실패 시에는 표시하지 않음
-        if ((entity.type === "long" || entity.type === "doubleLong") && isHoldOnlyNote(entity) && !isFailed && !isMissed) {
-          const glow = this.getOrCreateGraceGlow(index);
-          glow.x = laneX - COLORS.GRACE_GLOW_PAD;
-          glow.y = adjustedEndY - COLORS.GRACE_GLOW_PAD;
-          this.longNoteEndLayer.addChild(glow);
+      const drawEndTerminal = (!fullHeightTerminal || !isZeroLength)
+        && showFullHeightEndTerminal
+        && endTerminalY >= -NOTE_HEIGHT
+        && endTerminalY <= this.height + NOTE_HEIGHT;
+      if (drawEndTerminal) {
+        if (showHoldOnlyGrace) {
+          this.addGraceGlow(index, this.longNoteEndLayer, terminalX, endTerminalY, terminalWidth, 'terminal');
         }
-        // 끝 캡 — terminal 텍스처 윗부분 절반을 끝점에 그린다
+        // 끝 terminal — 끝 칸 윗변(바디 윗변)부터 스킨 설정에 따라 전체(끝 칸) 또는 윗부분 절반을 그린다.
+        // 바디 아랫변이 판정선 가운데 칸에서 멈추므로 끝 시각에 끝 칸 가운데가 판정선에 오고 그보다 내려가지 않는다.
         const endCapSprite = this.getOrCreateEndCapSprite(index, endCapTexKey);
-        endCapSprite.texture = this.skinManager.getHalfCapTexture(endCapTexKey);
-        endCapSprite.x = laneX;
-        endCapSprite.y = adjustedEndY;
-        endCapSprite.width = LANE_WIDTH;
+        endCapSprite.texture = capTexture;
+        endCapSprite.x = terminalX;
+        endCapSprite.y = endTerminalY;
+        endCapSprite.width = terminalWidth;
         endCapSprite.height = capHeight;
         endCapSprite.tint = 0xffffff;
         endCapSprite.alpha = 1;
         this.longNoteEndLayer.addChild(endCapSprite);
       }
 
-      // 시작 캡 — 같은 캡 텍스처를 상하반전(scale.y<0)해 머리 끝(startY)에 그린다
-      if (startY >= -NOTE_HEIGHT && startY <= this.height + NOTE_HEIGHT) {
-        const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey);
-        startCap.texture = this.skinManager.getHalfCapTexture(endCapTexKey);
-        startCap.x = laneX;
+      // 시작 terminal — 같은 텍스처를 상하반전(scale.y<0)해 머리 칸 아랫변(바디 아랫변 startY)에서 위로 그린다.
+      // 전체 높이 terminal은 머리 칸 전체라 같은 시각 포인트 노트와 같은 칸이고, 판정선에서는 가운데가 판정선에 온다.
+      if (showFullHeightStartTerminal
+        && startY >= -NOTE_HEIGHT
+        && startY <= this.height + NOTE_HEIGHT) {
+        // 길이 0·짧은 full-height 롱노트는 시작 전 끝 터미널이 숨으므로 hold-only 글로우를 시작 터미널에 그린다.
+        // 시작 후 끝 터미널이 같은 칸을 이어받으면서 글로우도 같은 자리에서 이어진다(글로우는 노트당 하나라 끝 터미널이 그려지면 그쪽에 둔다).
+        if (shortFullHeightLong && showHoldOnlyGrace && !drawEndTerminal) {
+          this.addGraceGlow(index, this.longNoteHeadLayer, terminalX, startY - capHeight, terminalWidth, 'terminal');
+        }
+        const startCap = this.getOrCreateStartCapSprite(index, endCapTexKey, capTexture);
+        startCap.texture = capTexture;
+        startCap.x = terminalX;
         startCap.y = startY;
-        startCap.width = LANE_WIDTH;
+        startCap.width = terminalWidth;
         startCap.height = capHeight;
         startCap.scale.y = -Math.abs(startCap.scale.y); // 상하반전 → [startY-capHeight, startY]
         startCap.tint = 0xffffff;
@@ -374,11 +585,23 @@ export class GameNoteRenderer {
 
   // ── 풀/상태 초기화 ────────────────────────────────────────
 
+  /**
+   * 차트를 바꿀 때(setChart) 노트 인덱스에 묶인 풀과 표시 상태를 비운다.
+   * 같은 인덱스가 다른 차트에서는 다른 노트라, Grace 오버레이처럼 노트 종류별 텍스처를 쓰는 스프라이트를 남기면
+   * 엉뚱한 텍스처를 재사용한다. Grace 글로우 Graphics는 자기 GraphicsContext를 소유하므로 파괴해 GPU 자원을 돌려준다.
+   */
   clearPools(): void {
     this.noteSpritePool.clear();
     this.bodySpritePool.clear();
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
+    for (const glow of this.graceGlowPool.values()) glow.destroy();
+    this.graceGlowPool.clear();
+    this.graceOverlayPool.clear();
+    this.pointShadowPool.clear();
+    this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
+    this.trillPointShadowPool.clear();
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
@@ -386,6 +609,7 @@ export class GameNoteRenderer {
     this.partialFailedBodies.clear();
     this.connectedPredecessor.clear();
     this.noteStartMsByIndex.clear();
+    this.trillLongIndices.clear();
   }
 
   // ── 설정 업데이트 ─────────────────────────────────────────
@@ -394,13 +618,16 @@ export class GameNoteRenderer {
    * 이어진 롱노트 연결 정보를 설정한다. setChart에서 차트별로 1회 호출.
    * @param connectedPredecessor 롱노트 인덱스 → 이어진 선행 롱노트 인덱스
    * @param noteStartMsByIndex 노트 인덱스 → 시작 시간(ms)
+   * @param trillLongIndices 연결 켜짐 표시에서 제외할 Trill 구간
    */
   setLongNoteConnections(
     connectedPredecessor: ReadonlyMap<number, number>,
     noteStartMsByIndex: ReadonlyMap<number, number>,
+    trillLongIndices: ReadonlySet<number> = new Set(),
   ): void {
     this.connectedPredecessor = new Map(connectedPredecessor);
     this.noteStartMsByIndex = new Map(noteStartMsByIndex);
+    this.trillLongIndices = new Set(trillLongIndices);
   }
 
   /**
@@ -413,6 +640,11 @@ export class GameNoteRenderer {
     this.headlessHeldFillQuery = query;
   }
 
+  /** 새 core의 unit별 body 상태를 주입한다. 미주입 시 기존 표시 경로를 유지한다. */
+  setJudgmentBodyStateQuery(query: JudgmentBodyStateQuery | null): void {
+    this.judgmentBodyStateQuery = query;
+  }
+
   setJudgmentLineY(y: number): void {
     this.judgmentLineY = y;
   }
@@ -422,6 +654,42 @@ export class GameNoteRenderer {
   }
 
   // ── 계산 헬퍼 ────────────────────────────────────────────
+
+  /**
+   * 아직 시작하지 않은 연결 구간은 앞 구간의 유지 중인 unit 수만큼 미리 켠다.
+   * 각 구간의 건강한 unit 수를 상한으로 삼아 single을 거친 double을 전부 켜지 않는다.
+   * 판정 unit을 활성화하지 않으며, 시작한 구간의 해제·실패·완료 상태는 건너뛰지 않는다.
+   */
+  private getJudgmentHeldUnitCount(
+    index: number,
+    bodyState: JudgmentBodyStateView,
+    songTimeMs: number,
+  ): number {
+    let current = index;
+    let state = bodyState;
+    let capacity = state.units.length;
+    const visited = new Set<number>();
+
+    while (!visited.has(current)) {
+      visited.add(current);
+      const available = state.units.filter((unit) => !unit.failed && !unit.complete);
+      capacity = Math.min(capacity, available.length);
+      if (capacity === 0) return 0;
+
+      const held = available.filter((unit) => unit.active && unit.registeredKeys.length > 0).length;
+      if (held > 0) return Math.min(capacity, held);
+      if (state.units.some((unit) => unit.active)) return 0;
+
+      const predecessor = this.connectedPredecessor.get(current);
+      if (predecessor === undefined || this.trillLongIndices.has(predecessor)) return 0;
+      const previous = this.judgmentBodyStateQuery?.(predecessor, songTimeMs);
+      // 표시용 연결도 현재 판정 세션에 포함된 연결만 따른다.
+      if (!previous || previous.successorIndex !== current) return 0;
+      current = predecessor;
+      state = previous;
+    }
+    return 0;
+  }
 
   /**
    * 이어진 선행 롱노트가 현재 held(불 들어옴) 상태인지 — 그러면 이 롱노트에도 불을 켠다.
@@ -438,19 +706,25 @@ export class GameNoteRenderer {
    * 이어진 선행 롱노트가 held). 실패/미스한 롱노트는 연속 홀드가 끊긴 것이므로 전파하지 않는다.
    */
   private isLongNoteHeldVisually(index: number, songTimeMs: number): boolean {
-    if (this.failedBodies.has(index) || this.missedNotes.has(index)) return false;
+    if (this.trillLongIndices.has(index) || this.failedBodies.has(index) || this.missedNotes.has(index)) return false;
+    if (this.judgmentBodyStateQuery) {
+      const state = this.judgmentBodyStateQuery(index, songTimeMs);
+      return state !== null && this.getJudgmentHeldUnitCount(index, state, songTimeMs) > 0;
+    }
 
     const startMs = this.noteStartMsByIndex.get(index);
-    if (startMs !== undefined) {
-      const rawStartY = this.calculateNoteY(startMs, songTimeMs) + NOTE_HEIGHT;
-      if (rawStartY >= this.judgmentLineY + NOTE_HEIGHT) return true;
-    }
+    // 머리 칸 가운데가 판정선에 닿았으면(곡 시각 ≥ 시작 시각) held로 본다.
+    if (startMs !== undefined && this.calculateNoteY(startMs, songTimeMs) >= this.judgmentLineY) return true;
 
     const pred = this.connectedPredecessor.get(index);
     if (pred !== undefined) return this.isLongNoteHeldVisually(pred, songTimeMs);
     return false;
   }
 
+  /**
+   * 노트 시각의 y. 노트 박스 세로 가운데가 여기에 온다(#224, 박스 위끝은 `noteBoxTopY`).
+   * 마디선·구간 밴드처럼 시각 자체를 그리는 표시도 이 값을 그대로 쓴다.
+   */
   calculateNoteY(noteTimeMs: number, songTimeMs: number): number {
     return (
       this.judgmentLineY - ((noteTimeMs - songTimeMs) * this.scrollSpeed) / 1000
@@ -459,6 +733,11 @@ export class GameNoteRenderer {
 
   getLaneX(lane: number): number {
     return this.laneAreaX + (lane - 1) * LANE_WIDTH;
+  }
+
+  /** 노트 종류가 아니라 에셋 폭으로 정한다: 바디 이미지가 포인트 이미지보다 좁은 만큼만 줄인다. */
+  private getBodyWidth(kind: NoteKind): number {
+    return LANE_WIDTH * this.skinManager.getBodyWidthScale(kind);
   }
 
   // ── 오브젝트 풀 ───────────────────────────────────────────
@@ -477,7 +756,7 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateBodySprite(index: number, texKey: string): NineSliceSprite {
+  private getOrCreateBodySprite(index: number, texKey: string, width: number): NineSliceSprite | TilingSprite {
     let pool = this.bodySpritePool.get(index);
     if (!pool) {
       pool = new Map();
@@ -485,13 +764,14 @@ export class GameNoteRenderer {
     }
     let sprite = pool.get(texKey);
     if (!sprite) {
-      sprite = new NineSliceSprite({
-        texture: this.skinManager.getTexture(texKey),
-        leftWidth: 4,
-        rightWidth: 4,
-        topHeight: 4,
-        bottomHeight: 4,
-      });
+      const texture = this.skinManager.getTexture(texKey);
+      if (this.skinManager.getTheme().longNoteBodyMode === 'repeat') {
+        const tile = new TilingSprite({ texture, width, height: NOTE_HEIGHT });
+        tile.tileScale.set(width / texture.width);
+        sprite = tile;
+      } else {
+        sprite = new NineSliceSprite({ texture, leftWidth: 4, rightWidth: 4, topHeight: 4, bottomHeight: 4 });
+      }
       pool.set(texKey, sprite);
     }
     return sprite;
@@ -511,7 +791,7 @@ export class GameNoteRenderer {
     return sprite;
   }
 
-  private getOrCreateStartCapSprite(index: number, texKey: string): Sprite {
+  private getOrCreateStartCapSprite(index: number, texKey: string, texture?: Texture): Sprite {
     let pool = this.startCapSpritePool.get(index);
     if (!pool) {
       pool = new Map();
@@ -519,10 +799,71 @@ export class GameNoteRenderer {
     }
     let sprite = pool.get(texKey);
     if (!sprite) {
-      sprite = new Sprite(this.skinManager.getHalfCapTexture(texKey));
+      sprite = new Sprite(texture ?? this.skinManager.getHalfCapTexture(texKey));
       pool.set(texKey, sprite);
     }
     return sprite;
+  }
+
+  /**
+   * 싱글·더블 포인트 위아래 바디에 접촉 그림자를 깐다. 바디 전체를 어둡게 하지 않고
+   * 포인트 경계에서만 명도 대비를 만들어 밝은 바디 위에서도 포인트를 분리한다.
+   */
+  private addPointContactShadow(index: number, laneX: number, y: number, reach: { above: number; below: number }, kind: NoteKind): void {
+    let pair = this.pointContactShadowPool.get(index);
+    if (!pair) {
+      const texture = this.skinManager.getTexture('pointContactShadow');
+      pair = [new Sprite(texture), new Sprite(texture)];
+      this.pointContactShadowPool.set(index, pair);
+    }
+    const [above, below] = pair;
+    const bodyWidth = this.getBodyWidth(kind);
+    const x = laneX + (LANE_WIDTH - bodyWidth) / 2;
+    // 텍스처는 윗행이 가장 짙다. 위 그림자는 세로로 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
+    above.x = x;
+    above.y = y;
+    above.scale.set(bodyWidth / above.texture.width, -playfieldPx(reach.above) / above.texture.height);
+    below.x = x;
+    below.y = y + NOTE_HEIGHT;
+    below.scale.set(bodyWidth / below.texture.width, playfieldPx(reach.below) / below.texture.height);
+    this.noteLayer.addChild(above, below);
+  }
+
+  /** 트릴 포인트 모양을 따라 번지는 그림자. 텍스처는 포인트 폭 × (위 + 포인트 높이 + 아래) 영역을 그린다. */
+  private addTrillContactShadow(index: number, x: number, y: number, width: number, reach: { above: number; below: number }): void {
+    let shadow = this.trillContactShadowPool.get(index);
+    if (!shadow) {
+      shadow = new Sprite(this.skinManager.getTexture('pointContactShadowTrill'));
+      this.trillContactShadowPool.set(index, shadow);
+    }
+    const above = playfieldPx(reach.above);
+    shadow.x = x;
+    shadow.y = y - above;
+    shadow.width = width;
+    shadow.height = above + NOTE_HEIGHT + playfieldPx(reach.below);
+    this.noteLayer.addChild(shadow);
+  }
+
+  private addGraceGlow(index: number, layer: Container, x: number, y: number, width: number, kind: 'point' | 'terminal'): void {
+    const key = kind === 'point' ? 'pointGraceOverlay' : 'terminalGraceOverlay';
+    if (this.skinManager.hasTexture(key)) {
+      let overlay = this.graceOverlayPool.get(index);
+      if (!overlay) {
+        overlay = new Sprite(this.skinManager.getTexture(key));
+        this.graceOverlayPool.set(index, overlay);
+      }
+      const pad = playfieldPx(this.skinManager.getTheme().graceOverlayPaddingPx ?? 0);
+      overlay.x = x - pad;
+      overlay.y = y - pad;
+      overlay.width = width + pad * 2;
+      overlay.height = NOTE_HEIGHT + pad * 2;
+      layer.addChild(overlay);
+      return;
+    }
+    const glow = this.getOrCreateGraceGlow(index);
+    glow.x = x - COLORS.GRACE_GLOW_PAD;
+    glow.y = y - COLORS.GRACE_GLOW_PAD;
+    layer.addChild(glow);
   }
 
   /** Grace 노트 글로우 이펙트 */
@@ -542,7 +883,7 @@ export class GameNoteRenderer {
       glow.roundRect(
         pad - stepPad, pad - stepPad,
         NOTE_WIDTH + stepPad * 2, NOTE_HEIGHT + stepPad * 2,
-        4 + stepPad * 0.3,
+        GRACE_GLOW_RADIUS + stepPad * 0.3,
       );
       glow.fill({ color: COLORS.GRACE_GLOW, alpha: baseAlpha / steps });
     }
@@ -558,6 +899,13 @@ export class GameNoteRenderer {
     this.endCapSpritePool.clear();
     this.startCapSpritePool.clear();
     this.graceGlowPool.clear();
+    this.graceOverlayPool.clear();
+    this.pointShadowPool.clear();
+    this.pointContactShadowPool.clear();
+    this.trillContactShadowPool.clear();
+    this.trillPointShadowPool.clear();
+    this.trillPointShadowGeometry?.destroy();
+    this.trillPointShadowGeometry = null;
     this.failedBodies.clear();
     this.completedNotes.clear();
     this.doublePartialNotes.clear();
