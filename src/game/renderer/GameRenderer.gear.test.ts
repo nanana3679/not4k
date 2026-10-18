@@ -159,7 +159,7 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect([line.minX, line.maxX]).toEqual([408.5, 658.5]);
   });
 
-  it('리프트 4%(24)는 판정선(426 → 402)·콤보·정확도 글자만 24 올리고 기어·레인 끝 클립(456.5)·레인 배경은 그대로 둔다', async () => {
+  it('리프트 4%(426의 4%인 17.04)는 판정선(426 → 408.96)·콤보·정확도 글자만 17.04 올리고 기어·레인 끝 클립(456.5)·레인 배경은 그대로 둔다', async () => {
     const { renderer, scene } = await createRenderer();
     const [gear] = scene.gearLayer.children as Sprite[];
     const gearBefore = [gear.x, gear.y];
@@ -171,11 +171,11 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
 
     renderer.setLift(liftPx(4));
 
-    expect(renderer.judgmentLineY).toBe(402);
-    expect(boundsOf(scene.judgmentLineGraphic).minY).toBe(400.75);
+    expect(renderer.judgmentLineY).toBe(408.96);
+    expect(boundsOf(scene.judgmentLineGraphic).minY).toBeCloseTo(407.71, 9);
     expect(clipBefore.maxY.toFixed(1)).toBe('456.5');
-    expect(scene.comboText.y).toBe(comboBefore - 24);
-    expect(scene.accuracyText.y).toBe(accuracyBefore - 24);
+    expect(scene.comboText.y).toBeCloseTo(comboBefore - 17.04, 9);
+    expect(scene.accuracyText.y).toBeCloseTo(accuracyBefore - 17.04, 9);
     expect([gear.x, gear.y]).toEqual(gearBefore);
     expect(laneClipOf(scene)).toBe(clip);
     expect(boundsOf(clip)).toEqual(clipBefore);
@@ -218,13 +218,13 @@ describe('GameRenderer 새 기어 (RFD 0029)', () => {
     expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(422.25);
   });
 
-  it('기어가 없는 미니 렌더러는 리프트 4%면 레인 끝도 판정선을 따라 24 올라가 같은 클립 사각형과 레인 배경이 398.25에서 끝난다', async () => {
+  it('기어가 없는 미니 렌더러는 y 오프셋 0 기준 리프트 4%(416의 4%인 16.64)면 레인 끝도 판정선(399.36)을 따라 올라가 같은 클립 사각형과 레인 배경이 405.61에서 끝난다', async () => {
     const { renderer, scene } = await createRenderer({ showGear: false });
     const clip = laneClipOf(scene);
-    renderer.setLift(liftPx(4));
+    renderer.setLift(liftPx(4, 0));
     expect(laneClipOf(scene)).toBe(clip);
-    expect(boundsOf(clip).maxY).toBe(398.25);
-    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(398.25);
+    expect(boundsOf(clip).maxY).toBeCloseTo(405.61, 9);
+    expect(boundsOf(laneBackgroundOf(scene)).maxY).toBeCloseTo(405.61, 9);
     expect(scene.backgroundLayer.children).toHaveLength(1);
   });
 
@@ -268,18 +268,18 @@ describe('GameRenderer gearOffsetY — 기어와 판정선을 함께 아래로 �
     expect(boundsOf(laneBackgroundOf(scene)).maxY).toBeCloseTo(renderer.gearLayout!.keyRimY, 9);
   });
 
-  it('gearOffsetY 20에서 리프트 4%(24)는 판정선만 y 412로 올리고 기어·레인 끝 클립(466.5)·레인 배경은 그대로 둔다', async () => {
+  it('gearOffsetY 20에서 리프트 4%(리프트 0% 판정선 436의 4%인 17.44)는 판정선만 y 418.56으로 올리고 기어·레인 끝 클립(466.5)·레인 배경은 그대로 둔다', async () => {
     const { renderer, scene } = await createRenderer({ gearOffsetY: 20 });
     const [gear] = scene.gearLayer.children as Sprite[];
     const gearBefore = [gear.x, gear.y];
     const clipBefore = boundsOf(laneClipOf(scene));
     const laneBefore = boundsOf(laneBackgroundOf(scene));
 
-    renderer.setLift(liftPx(4));
+    renderer.setLift(liftPx(4, 20));
 
-    expect(renderer.judgmentLineY).toBe(412);
-    expect(boundsOf(scene.judgmentLineGraphic).minY).toBe(410.75);
-    expect(scene.comboText.y).toBe(412 - 175);
+    expect(renderer.judgmentLineY).toBe(418.56);
+    expect(boundsOf(scene.judgmentLineGraphic).minY).toBeCloseTo(417.31, 9);
+    expect(scene.comboText.y).toBeCloseTo(418.56 - 175, 9);
     expect([gear.x, gear.y]).toEqual(gearBefore);
     expect(boundsOf(laneClipOf(scene))).toEqual(clipBefore);
     expect(clipBefore.maxY.toFixed(1)).toBe('466.5');
@@ -297,15 +297,26 @@ describe('GameRenderer gearOffsetY — 기어와 판정선을 함께 아래로 �
     expect(overlay.y - layoutGear(GEAR_GEOMETRY, stageFor(1067)).y).toBeCloseTo(20, 9);
   });
 
-  it('gearOffsetY를 주지 않으면 게임 값 GEAR_OFFSET_Y 10을 써 판정선 y 426·키 윗면(레인 끝) 456.5이고, 리프트 4%면 판정선만 402로 오른다', async () => {
+  it('gearOffsetY를 주지 않으면 게임 값 GEAR_OFFSET_Y 10을 써 판정선 y 426·키 윗면(레인 끝) 456.5이고, 리프트 4%면 판정선만 408.96으로 오른다', async () => {
     const { renderer, scene } = await createRenderer();
     expect(renderer.judgmentLineY).toBe(426);
     expect(renderer.gearLayout).toEqual(layoutGear(GEAR_GEOMETRY, gameStageFor(1067)));
     expect(renderer.gearLayout!.keyRimY.toFixed(1)).toBe('456.5');
     expect(boundsOf(laneClipOf(scene)).maxY.toFixed(1)).toBe('456.5');
     renderer.setLift(liftPx(4));
-    expect(renderer.judgmentLineY).toBe(402);
+    expect(renderer.judgmentLineY).toBe(408.96);
     expect(boundsOf(laneClipOf(scene)).maxY.toFixed(1)).toBe('456.5');
+  });
+
+  it('리프트 100%면 게임 값 y 오프셋 10(liftPx 426)에서도 gearOffsetY 20(liftPx 436)에서도 판정선이 레인 위끝 y 0이고 레인 끝 클립(키 윗면)은 그대로다', async () => {
+    const game = await createRenderer();
+    game.renderer.setLift(liftPx(100));
+    expect(game.renderer.judgmentLineY).toBe(0);
+    expect(boundsOf(laneClipOf(game.scene)).maxY.toFixed(1)).toBe('456.5');
+    const shifted = await createRenderer({ gearOffsetY: 20 });
+    shifted.renderer.setLift(liftPx(100, 20));
+    expect(shifted.renderer.judgmentLineY).toBe(0);
+    expect(boundsOf(laneClipOf(shifted.scene)).maxY.toFixed(1)).toBe('466.5');
   });
 
   it('gearOffsetY 0을 주면 내리지 않은 배치(판정선 y 416·키 윗면 446.5)다', async () => {
@@ -324,7 +335,7 @@ describe('GameRenderer gearOffsetY — 기어와 판정선을 함께 아래로 �
     }
   });
 
-  it('기어가 없는 렌더러(showGear false)는 gearOffsetY 20도 게임 기본 y 오프셋 10도 적용하지 않아 판정선 y 416, 레인 끝 422.25(판정선 + 노트 반 칸)에 둔다', async () => {
+  it('기어가 없는 렌더러(showGear false)는 gearOffsetY 20도 게임 기본 y 오프셋 10도 적용하지 않아 판정선 y 416, 레인 끝 422.25(판정선 + 노트 반 칸)에 두고, y 오프셋 0 기준 리프트 4%(16.64)면 판정선이 399.36이다', async () => {
     const plain = await createRenderer({ showGear: false });
     expect(plain.renderer.judgmentLineY).toBe(416);
     expect(boundsOf(laneClipOf(plain.scene)).maxY).toBe(422.25);
@@ -332,8 +343,8 @@ describe('GameRenderer gearOffsetY — 기어와 판정선을 함께 아래로 �
     expect(renderer.judgmentLineY).toBe(416);
     expect(boundsOf(laneClipOf(scene)).maxY).toBe(422.25);
     expect(boundsOf(laneBackgroundOf(scene)).maxY).toBe(422.25);
-    renderer.setLift(liftPx(4));
-    expect(renderer.judgmentLineY).toBe(392);
+    renderer.setLift(liftPx(4, 0));
+    expect(renderer.judgmentLineY).toBe(399.36);
   });
 });
 

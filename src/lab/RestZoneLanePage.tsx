@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   COLORS, GAME_HEIGHT, JUDGMENT_LINE_THICKNESS,
-  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx,
+  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx, suddenCoverPx,
 } from '../game/renderer/constants';
 import {
   REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
@@ -92,10 +92,11 @@ interface Controls {
 /**
  * 사용자 설정에 따른 레인 모양. 판넬은 판정선(경첩)부터 레인이 보이는 위끝까지만 덮는다.
  * 노트는 위끝에 처음 보이고 판정선에 닿을 때까지 dwellMs 동안 레인에 머문다.
+ * 리프트·서든은 게임과 같은 공통 눈금(레인 위끝~리프트 0% 판정선 426 = 100%, #291)이라 서든 20%면 커버가 85.2 내려온다.
  */
 const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scrollPxPerSecond'>) => {
   const judgeY = judgmentLineYAtLift(current.liftPercent);
-  const visibleTop = Math.max(0, Math.min(GAME_HEIGHT * current.suddenPercent / 100, judgeY - MIN_VISIBLE_LANE));
+  const visibleTop = Math.max(0, Math.min(suddenCoverPx(current.suddenPercent), judgeY - MIN_VISIBLE_LANE));
   // 노트 아래끝이 위끝에 닿을 때부터 노트 가운데가 판정선에 닿을 때까지다.
   const dwellMs = noteDwellMs(judgeY - visibleTop + NOTE_HEIGHT / 2, current.scrollPxPerSecond);
   return { judgeY, visibleTop, panelHeight: judgeY - visibleTop, dwellMs };

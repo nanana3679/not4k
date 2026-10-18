@@ -21,7 +21,10 @@ export function fullscreenLogicalWidth(width: number, height: number): number {
   return resolvePlayLogicalWidth(width, height);
 }
 
-/** Lab의 리프트 슬라이더 범위(게임 설정은 0~100%). 1% = 화면 600의 6 단위. */
+/**
+ * Lab의 리프트 슬라이더 범위(게임 설정은 0~100%). 1%는 게임과 같이 레인 위끝~리프트 0% 판정선 길이의 1%(`liftPx`)라
+ * 게임 값 y 오프셋 10에서 4.26 단위, 다른 y 오프셋이면 그 판정선 기준이다(#291).
+ */
 export const LIFT_PERCENT_MAX = 10;
 
 /** 정수 %로 맞추고 [0, 10]으로 묶는다. 숫자가 아니면 0%. */
@@ -30,8 +33,9 @@ export function clampLiftPercent(value: number): number {
   return Math.min(LIFT_PERCENT_MAX, Math.max(0, Math.round(value)));
 }
 
-export function formatLiftPercent(percent: number): string {
-  return `${percent}% (+${liftPx(percent)})`;
+/** 리프트 %와 판정선을 올리는 논리 px(4% → "4% (+17.04)"). gearOffsetY는 그리는 렌더러·`describeGearJudgment`와 같은 값을 줘야 표시가 그림과 맞는다. */
+export function formatLiftPercent(percent: number, gearOffsetY: number = GEAR_OFFSET_Y): string {
+  return `${percent}% (+${liftPx(percent, gearOffsetY)})`;
 }
 
 /**

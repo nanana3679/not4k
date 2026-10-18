@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application, Container, Graphics, Sprite, Text, Texture, TextureSource } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from './gearLayout';
-import { GAME_HEIGHT, GEAR_OFFSET_Y, LANE_AREA_WIDTH, NOTE_HEIGHT, liftPx } from './constants';
+import { GAME_HEIGHT, GEAR_OFFSET_Y, LANE_AREA_WIDTH, NOTE_HEIGHT } from './constants';
 import { beat, createChartTiming, type ChartEvent, type NoteEntity, type RestZone, type TrillZone } from '../../shared';
 import type { SkinManager } from '../skin';
 
@@ -79,13 +79,14 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
     return { renderer, scene };
   };
   const noteSprites = (scene: Scene) => scene.noteLayer.children.filter((child): child is Sprite => child instanceof Sprite);
-  // 게임 기어 배치(기어·판정선 10 내림, #257)에서 스크롤 200px/s·리프트 20%(판정선 y 306)의 놓친 노트 박스 윗변 = 306 + 0.2 × 늦은 ms − 6.25
+  // 게임 기어 배치(기어·판정선 10 내림, #257)에서 스크롤 200px/s·판정선을 120 올린(y 306) 놓친 노트 박스 윗변 = 306 + 0.2 × 늦은 ms − 6.25.
+  // 렌더러의 setLift는 논리 px를 받으므로 설정 %(liftPx, constants.test.ts)를 거치지 않고 120을 직접 준다.
   const keyRimY = layoutGear(GEAR_GEOMETRY, { laneAreaX: (1067 - LANE_AREA_WIDTH) / 2, laneAreaWidth: LANE_AREA_WIDTH, height: GAME_HEIGHT, offsetY: GEAR_OFFSET_Y }).keyRimY;
 
-  it('스크롤 200px/s·리프트 20%(판정선 y 306)에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 426, 박스 윗변 419.75(키 윗면 456.5 위)에 그린다', async () => {
+  it('스크롤 200px/s·판정선을 120 올린(y 306) 렌더러에서 600ms 늦은 놓친 노트는 가운데가 판정선 120 아래 y 426, 박스 윗변 419.75(키 윗면 456.5 위)에 그린다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     renderer.renderFrame(1600);
     const [note] = noteSprites(scene);
     expect(note).toBeDefined();
@@ -96,7 +97,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   it('같은 조건에서 780ms 늦어 박스 윗변 455.75가 아직 키 윗면(약 456.47) 위에 보이면 계속 그린다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     renderer.renderFrame(1780);
     const [note] = noteSprites(scene);
     expect(note).toBeDefined();
@@ -107,7 +108,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   it('접촉 그림자가 없는 스킨에서는 790ms 늦어 박스 윗변 457.75가 키 윗면(약 456.47) 아래로 완전히 내려가면 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     expect(306 + 0.2 * 790 - NOTE_HEIGHT / 2).toBeGreaterThan(keyRimY);
     renderer.renderFrame(1790);
     expect(noteSprites(scene)).toHaveLength(0);
@@ -119,7 +120,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   it('위 접촉 그림자 3.125가 있는 스킨에서 790ms 늦은 놓친 노트는 박스 윗변 457.75가 키 윗면 아래여도 그림자 윗변 454.625가 아직 보여 노트와 그림자를 계속 그린다', async () => {
     const { renderer, scene } = await missedSingle(contactShadowSkin);
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     renderer.renderFrame(1790);
     const sprites = noteSprites(scene);
     expect(sprites.length).toBeGreaterThan(1);
@@ -131,7 +132,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   it('위 접촉 그림자 3.125가 있는 스킨에서 800ms 늦어 그림자 윗변 456.625까지 키 윗면(약 456.47) 아래로 내려가면 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle(contactShadowSkin);
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     expect(306 + 0.2 * 800 - NOTE_HEIGHT / 2 - 3.125).toBeGreaterThan(keyRimY);
     renderer.renderFrame(1800);
     expect(noteSprites(scene)).toHaveLength(0);
@@ -140,7 +141,7 @@ describe('놓친 노트는 판정선 아래 레인 끝(laneEndY)까지 보이는
   it('같은 조건에서 900ms 늦어 키 윗면 아래(가운데 y 486)로 완전히 내려간 노트는 더 그리지 않는다', async () => {
     const { renderer, scene } = await missedSingle();
     renderer.scrollSpeed = 200;
-    renderer.setLift(liftPx(20));
+    renderer.setLift(120);
     renderer.renderFrame(1900);
     expect(noteSprites(scene)).toHaveLength(0);
   });
@@ -307,11 +308,12 @@ describe('레인 끝 클립의 가로 범위 (#247)', () => {
 });
 
 describe('기어 없는 렌더러의 레인 끝 값 자르기 (#247)', () => {
-  // 리프트 100%(600)면 판정선은 600 − 184 − 600 = −184, 레인 끝은 −184 + 6.25 = −177.75로 화면 위쪽 밖이다.
-  it('리프트 100%면 레인 끝(−177.75)을 0으로 잘라 클립과 레인 배경의 높이가 0이고, 늦은 노트 시간은 자르지 않은 값으로 판정선 + 노트 반 칸(12.5 ÷ 스크롤 20px/s = 625ms)을 쓴다', async () => {
+  // 리프트 설정은 100%여도 판정선이 레인 위끝(y 0)까지라(#291) 이 경우는 렌더러에 범위 밖 px가 들어올 때의 방어다.
+  // 판정선을 600 올리면 판정선은 600 − 184 − 600 = −184, 레인 끝은 −184 + 6.25 = −177.75로 화면 위쪽 밖이다.
+  it('판정선을 600 올려 레인 끝(−177.75)이 화면 위쪽 밖이면 0으로 잘라 클립과 레인 배경의 높이가 0이고, 늦은 노트 시간은 자르지 않은 값으로 판정선 + 노트 반 칸(12.5 ÷ 스크롤 20px/s = 625ms)을 쓴다', async () => {
     const { renderer, scene } = await createRenderer({ showGear: false });
     renderer.scrollSpeed = 20;
-    renderer.setLift(liftPx(100));
+    renderer.setLift(600);
     expect(renderer.judgmentLineY).toBe(-184);
     const clip = clipOf(scene);
     expect([clip.minY, clip.maxY]).toEqual([0, 0]);

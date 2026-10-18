@@ -8,7 +8,7 @@ import { SessionRendererAdapter, type SessionRendererPort } from '../judgment';
 import { compileJudgmentChart, selectCompiledJudgmentChart } from '../judgment/compiledJudgmentChart';
 import { GameClock } from '../time';
 import { GameRenderer } from '../renderer';
-import { GAME_HEIGHT, liftPx } from '../renderer/constants';
+import { GAME_HEIGHT, liftPx, suddenCoverPx } from '../renderer/constants';
 import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
@@ -170,7 +170,7 @@ export function PlayScreen() {
         renderer.setShowTimingDiff(settings.showTimingDiff);
         renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
         renderer.setLift(liftPx(settings.liftPercent));
-        renderer.setSudden(GAME_HEIGHT * settings.suddenPercent / 100);
+        renderer.setSudden(suddenCoverPx(settings.suddenPercent));
 
         // Setup keyboard layout display
         const laneBindingsMap = new Map<string, number>();
