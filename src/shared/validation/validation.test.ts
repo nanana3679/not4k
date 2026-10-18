@@ -508,6 +508,24 @@ describe("validateTrillZoneMainOnly — trillZone 메인 레인 전용 (RFD 0018
     expect(validateChartSemantic(input).map((e) => e.rule)).toEqual(["trillZoneMainOnly"]);
   });
 
+  it("lane 0 존은 laneMalformed 1건만, trillZoneMainOnly 0건 (malformed lane은 구조 검증 소관)", () => {
+    const errors = validateChart({
+      notes: [],
+      trillZones: [{ lane: 0, beat: beat(0), endBeat: beat(4) }] as unknown as TrillZone[],
+      events: [],
+    });
+    expect(errors.map((e) => e.rule)).toEqual(["laneMalformed"]);
+  });
+
+  it("lane 2.5 존은 laneMalformed 1건만, trillZoneMainOnly 0건", () => {
+    const errors = validateChart({
+      notes: [],
+      trillZones: [{ lane: 2.5, beat: beat(0), endBeat: beat(4) }] as unknown as TrillZone[],
+      events: [],
+    });
+    expect(errors.map((e) => e.rule)).toEqual(["laneMalformed"]);
+  });
+
   it("lane 5 존(인덱스 1)이 위반이면 chartViolationIndices.trillZones = {1} — 해칭 대상에 들어간다", () => {
     const input = {
       notes: [] as NoteEntity[],

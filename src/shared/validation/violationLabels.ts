@@ -49,8 +49,9 @@ const catalogs: Record<string, Record<ValidationErrorRule, string>> = {
     longOverlap: "롱노트 겹침",
     trillExclusive: "트릴 배타 위반",
     trillLongInvalid: "트릴·롱 조합 불가",
-    trillZoneOverlap: "트릴존 겹침",
-    trillZoneMainOnly: "트릴 구간 메인 레인 전용 위반",
+    // trillZone은 발명 구성물이라 라벨에서도 식별자로 쓴다(RFD 0010 §3, 피할 말: 트릴존)
+    trillZoneOverlap: "trillZone 겹침",
+    trillZoneMainOnly: "trillZone 메인 레인 전용 위반",
     restZoneOverlap: "휴지 구간 겹침",
     restZoneExclusive: "휴지 구간 배타 위반",
     eventOverlap: "이벤트 겹침",

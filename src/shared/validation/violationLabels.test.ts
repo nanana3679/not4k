@@ -133,8 +133,9 @@ describe("violationLabel", () => {
     expect(violationLabel("restZoneExclusive")).toBe("휴지 구간 배타 위반");
   });
 
-  it("trillZoneMainOnly → '트릴 구간 메인 레인 전용 위반' (RFD 0018 §3-2)", () => {
-    expect(violationLabel("trillZoneMainOnly")).toBe("트릴 구간 메인 레인 전용 위반");
+  it("trillZoneOverlap → 'trillZone 겹침', trillZoneMainOnly → 'trillZone 메인 레인 전용 위반' (발명 구성물은 식별자 표기, RFD 0010)", () => {
+    expect(violationLabel("trillZoneOverlap")).toBe("trillZone 겹침");
+    expect(violationLabel("trillZoneMainOnly")).toBe("trillZone 메인 레인 전용 위반");
   });
 
   it("미지원 locale 'en'을 넘기면 ko 라벨로 fallback한다", () => {
