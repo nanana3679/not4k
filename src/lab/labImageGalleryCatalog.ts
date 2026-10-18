@@ -55,7 +55,7 @@ export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntr
   registerImageGallery({
     id: "background-drafts-20261018",
     title: "배경 시안 · 인게임 겹쳐 보기",
-    description: "기어 화풍으로 그린 배경 시안 6장과 지금 배경 위에 실제 게임의 기어·레인·노트·HUD를 올렸다 내리며 비교합니다.",
+    description: "장면별 고도 상·중·하 배경 시안과 지금 배경 위에 실제 게임의 기어·레인·노트·HUD를 올렸다 내리며 비교합니다.",
     createdAt: "2026-10-18",
   }),
 ]);

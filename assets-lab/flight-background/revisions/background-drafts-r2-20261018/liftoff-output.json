@@ -1,0 +1,20 @@
+{
+  "scenario": "liftoff",
+  "outputs": [
+    {
+      "altitude": "MID",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dca-7be5-78d2-a36d-e8207e6f98d7/exec-887e6aaf-2664-499b-afcc-4a0d98fb80db.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/liftoff-mid.png"
+    },
+    {
+      "altitude": "HIGH",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dca-7be5-78d2-a36d-e8207e6f98d7/exec-d9098415-0e8e-4668-8d33-18a16b332bd5.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/liftoff-high.png"
+    },
+    {
+      "altitude": "LOW",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dca-7be5-78d2-a36d-e8207e6f98d7/exec-107ce1f3-b213-4073-b569-391048e5cd97.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/liftoff-low.png"
+    }
+  ]
+}

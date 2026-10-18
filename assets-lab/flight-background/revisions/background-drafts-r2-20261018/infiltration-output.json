@@ -1,0 +1,20 @@
+{
+  "scenario": "infiltration",
+  "outputs": [
+    {
+      "altitude": "MID",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcc-0b65-7f01-a09e-a6e6ff5381dd/exec-13083730-cb2a-44a9-a303-59bf3c88a67b.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/infiltration-mid.png"
+    },
+    {
+      "altitude": "HIGH",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcc-0b65-7f01-a09e-a6e6ff5381dd/exec-1e6b34c5-7baf-40e3-b587-4a651b5c2e4f.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/infiltration-high.png"
+    },
+    {
+      "altitude": "LOW",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcc-0b65-7f01-a09e-a6e6ff5381dd/exec-434437d6-0365-41e8-88f5-045ea69f1216.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/infiltration-low.png"
+    }
+  ]
+}

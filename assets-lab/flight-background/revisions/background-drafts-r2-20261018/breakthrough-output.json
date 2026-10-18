@@ -1,0 +1,20 @@
+{
+  "scenario": "breakthrough",
+  "outputs": [
+    {
+      "altitude": "MID",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcf-2940-7ed2-81c1-8576891fab98/exec-2f629fe5-b1df-472f-93ce-cbb6fb210399.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/breakthrough-mid.png"
+    },
+    {
+      "altitude": "HIGH",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcf-2940-7ed2-81c1-8576891fab98/exec-e30de3d6-ab0d-4999-ac3e-a437e1c9d544.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/breakthrough-high.png"
+    },
+    {
+      "altitude": "LOW",
+      "source": "/home/nanana3679/.codex/generated_images/01a14dcf-2940-7ed2-81c1-8576891fab98/exec-e1449289-11bb-4c47-8803-7092f7e1683e.png",
+      "saved": "assets-lab/flight-background/revisions/background-drafts-r2-20261018/breakthrough-low.png"
+    }
+  ]
+}
