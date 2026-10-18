@@ -1,7 +1,7 @@
 import type { Lane } from "../../shared/constants";
 import { JUDGMENT_WINDOWS, type JudgmentWindows } from "../../shared/constants";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
-import type { NoteJudgmentEvent } from "./NoteJudgmentCore";
+import type { NoteJudgmentEvent } from "./JudgmentCore";
 
 export interface PointCandidate { noteIndex: number; unitIndex: number; timeMs: number }
 

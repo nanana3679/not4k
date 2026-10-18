@@ -6,6 +6,10 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
+import type { JudgmentBodyState, JudgmentCore, JudgmentGrade, JudgmentInput, NoteJudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
+
+/** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
+export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** A deliberately small seam between chart compilation and the judgment runtime. */
 export interface JudgmentChartLike {
@@ -38,33 +42,6 @@ export interface CompiledUnit {
   successor?: number;
 }
 
-export type JudgmentEventKind = "head" | "release" | "holdOnly" | "maintenanceMiss" | "dependentZero";
-export type JudgmentGrade = "perfect" | "great" | "good" | "goodTrill" | "miss";
-
-export interface NoteJudgmentEvent {
-  kind: JudgmentEventKind;
-  noteIndex: number;
-  unitIndex?: number;
-  itemId?: string;
-  grade: JudgmentGrade;
-  deltaMs: number;
-  inputAt: number | null;
-  confirmedAt: number;
-  /** Physical key belonging to the down/up which consumed this event. */
-  key?: string;
-  /** True for an actual keyup release; holdOnly and maintenance are false. */
-  consumed: boolean;
-  /** Explicitly distinguishes a connection from a scored judgment. */
-  bodyState?: "active" | "inherited" | "failed" | "complete";
-  phase?: "input" | "deadline";
-}
-
-export interface NoteJudgmentCoreOptions {
-  windows?: JudgmentWindows;
-  onConfirmed?: (event: NoteJudgmentEvent) => void;
-  onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
-}
-
 interface PressToken { key: string; lane: number; at: number; upAt?: number; correctionId?: string; used: boolean; valid: boolean; released: boolean; connectionConsumed: boolean; claimedAt?: number }
 interface UnitState {
   noteIndex: number; unitIndex: number; lane: number; start: number; end: number;
@@ -75,7 +52,6 @@ interface UnitState {
   late: boolean;
 }
 interface PointState { noteIndex: number; at: number; lane: number; needed: number; done: boolean; missed: boolean; keys: Set<string> }
-export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
 
 function timeAt(value: ReadonlyMap<number, number> | readonly (number | undefined)[], index: number): number | undefined {
   return Array.isArray(value) ? value[index] : (value as ReadonlyMap<number, number>).get(index);
@@ -95,7 +71,7 @@ function gradeFor(delta: number, windows: JudgmentWindows): JudgmentGrade {
  * keyboard, or frame-loop dependency. Calls may be made in any frame sizes;
  * `advance` performs the same deadline sweep for every skipped interval.
  */
-export class NoteJudgmentCore {
+export class NoteJudgmentCore implements JudgmentCore {
   readonly events: NoteJudgmentEvent[] = [];
   private readonly notes: readonly NoteEntity[];
   private readonly times: ReadonlyMap<number, number> | readonly (number | undefined)[];
@@ -247,7 +223,7 @@ export class NoteJudgmentCore {
   get combo(): number { return this.currentCombo; }
   /** 레인별 hold 수와 기준별 부족 시각의 읽기 전용 view (RFD 0032 §2-1, §2-2). */
   get laneHolds(): LaneHoldView { return this.holdView; }
-  get bodyStates(): readonly { noteIndex: number; unitIndex: number; active: boolean; failed: boolean; complete: boolean; registeredKeys: readonly string[] }[] {
+  get bodyStates(): readonly JudgmentBodyState[] {
     return this.units.map(u => ({ noteIndex: u.noteIndex, unitIndex: u.unitIndex, active: u.active, failed: u.failed, complete: u.complete, registeredKeys: [...u.registered] }));
   }
   private orderInputs(inputs: readonly JudgmentInput[]): JudgmentInput[] {
