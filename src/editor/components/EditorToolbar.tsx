@@ -571,10 +571,10 @@ const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong',
 const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone', 'restZone'];
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
-const MIN_EXTRA_LANE_COUNT = 2;
+const MIN_SELECTABLE_EXTRA_LANE_COUNT = 2;
 const extraLaneOptions = Array.from(
-  { length: MAX_EXTRA_LANE_COUNT - MIN_EXTRA_LANE_COUNT + 1 },
-  (_, index) => MIN_EXTRA_LANE_COUNT + index,
+  { length: MAX_EXTRA_LANE_COUNT - MIN_SELECTABLE_EXTRA_LANE_COUNT + 1 },
+  (_, index) => MIN_SELECTABLE_EXTRA_LANE_COUNT + index,
 );
 
 const entityLabels: Record<EntityType, string> = {

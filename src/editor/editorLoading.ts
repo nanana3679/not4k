@@ -103,8 +103,9 @@ export function parseEditorChartAssets(
   let extra: ReturnType<typeof parseExtraNotes>;
   try {
     extra = parseExtraNotes(extraJson, { requireFileFields: extraText !== null });
-  } catch {
-    throw new Error("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다 (${detail})`);
   }
 
   if (extra.extraNotes.length === 0 && extra.extraLaneCount === 0) {

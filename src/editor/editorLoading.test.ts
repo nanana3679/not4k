@@ -81,7 +81,7 @@ describe("fetchOptionalExtraChartText", () => {
     expect(result).toBeNull();
   });
 
-  it("보조 파일 응답이 Supabase의 객체 없음(HTTP 400, 본문 statusCode \"404\")이면 파일 없음으로 null 반환", async () => {
+  it("보조 파일 응답이 Supabase 배포 형식의 객체 없음(HTTP 400, 본문 statusCode \"404\"·code \"NoSuchKey\")이면 파일 없음으로 null 반환", async () => {
     const result = await fetchOptionalExtraChartText(
       "https://example.com/chart.extra.json",
       async () => supabaseObjectNotFound(),
@@ -151,14 +151,14 @@ describe("fetchOptionalExtraChartText", () => {
     )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
   });
 
-  it("보조 파일 응답이 500이면 메인 차트만 연 상태로 진입하지 않고 에러", async () => {
+  it("보조 파일 응답이 HTTP 500이면 파일 없음으로 보지 않고 HTTP 500 에러로 거부", async () => {
     await expect(fetchOptionalExtraChartText(
       "https://example.com/chart.extra.json",
       async () => new Response("", { status: 500 }),
     )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 500");
   });
 
-  it("보조 파일 요청이 네트워크 오류로 실패하면 메인 차트만 연 상태로 진입하지 않고 에러", async () => {
+  it("보조 파일 요청이 네트워크 오류로 실패하면 파일 없음으로 보지 않고 네트워크 오류로 거부", async () => {
     await expect(fetchOptionalExtraChartText(
       "https://example.com/chart.extra.json",
       async () => {
@@ -306,6 +306,20 @@ describe("parseEditorChartAssets", () => {
 
     expect(result.chart.notes.map((note) => note.lane)).toEqual([1]);
     expect(result.extraLaneCount).toBe(0);
+  });
+
+  it("보조 노트 3개 중 extraNotes[1]의 beat가 \"12junk\"이면 오류 메시지에 extraNotes[1]이 들어간다", () => {
+    expect(() => parseEditorChartAssets(
+      chartText(),
+      JSON.stringify({
+        extraNotes: [
+          { type: "single", extraLane: 1, beat: "1" },
+          { type: "single", extraLane: 1, beat: "12junk" },
+          { type: "single", extraLane: 2, beat: "3" },
+        ],
+        extraLaneCount: 2,
+      }),
+    )).toThrow("보조 차트 파싱 실패: 데이터 형식이 올바르지 않습니다 (Extra chart: invalid extraNotes[1])");
   });
 
   it("extraNotes가 배열이 아니면 데이터 형식 오류로 변환", () => {
@@ -541,7 +555,7 @@ describe("보조 파일 로드 실패 뒤 저장", () => {
     ["HTTP 200이지만 JSON이 아닌 본문", () => new Response("<html>gateway error</html>", { status: 200 })],
     ["HTTP 400 statusCode \"403\"", () => new Response(JSON.stringify({ statusCode: "403", error: "Unauthorized" }), { status: 400 })],
     ["HTTP 400 statusCode \"404\"·code \"NoSuchBucket\"", () => new Response(JSON.stringify({ statusCode: "404", code: "NoSuchBucket", error: "Bucket not found", message: "Bucket not found" }), { status: 400 })],
-  ])("저장소에 보조 노트 2개가 있는데 보조 파일 요청이 %s이면 이어진 저장이 보조 파일을 remove·덮어쓰지 않는다", async (_label, extraResponse) => {
+  ])("저장소에 보조 노트 2개가 있는데 보조 파일 요청이 %s이면 activeSongId가 설정되지 않아 이어진 저장 시도가 거부되고 보조 파일 remove·덮어쓰기가 없다", async (_label, extraResponse) => {
     const { adapter, calls } = recordingAdapter();
 
     const opened = await loadChartIntoEditor(OPEN_TARGET, storageFetcher(extraResponse)).then(() => true, () => false);
