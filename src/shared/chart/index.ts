@@ -577,11 +577,11 @@ function assertExtraNotesJson(
   ) {
     throw new Error("Extra chart: missing required fields");
   }
-  if (
-    value.extraNotes !== undefined
-    && (!Array.isArray(value.extraNotes) || !value.extraNotes.every(isExtraNoteJson))
-  ) {
-    throw new Error("Extra chart: invalid extraNotes");
+  if (value.extraNotes !== undefined) {
+    if (!Array.isArray(value.extraNotes)) throw new Error("Extra chart: invalid extraNotes");
+    // 손으로 고쳐야 할 때 찾을 수 있도록 처음 어긋난 노트의 위치를 알린다.
+    const invalidIndex = value.extraNotes.findIndex((note) => !isExtraNoteJson(note));
+    if (invalidIndex !== -1) throw new Error(`Extra chart: invalid extraNotes[${invalidIndex}]`);
   }
   if (
     value.extraLaneCount !== undefined
