@@ -4,6 +4,7 @@ import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
+import { extraLaneCountCoveringTrillZones } from "../editorLoading";
 import { beat, beatToFloat, validateChart, withAuxNotes } from "../../shared";
 import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, TrillZone } from "../../shared";
 
@@ -1576,7 +1577,23 @@ describe("SelectMode — 보조 레인 trillZone 수리 경로 (trillZoneMainOnl
     expect(rulesOf(updated)).toEqual([]);
   });
 
-  it("lane 6 존은 moveByLane('left')의 목적지 lane 5도 보조라 '더 이상 이동할 수 없습니다' 경고 후 차트 무변 — 삭제로만 해소", () => {
+  it("lane 15 존: 로드 규칙(extraLaneCountCoveringTrillZones)이 넓힌 보조 레인 수 11에서 박스로 선택해 deleteSelected하면 위반 0건", () => {
+    const chart = makeAuxZoneChart(15);
+    const extraLaneCount = extraLaneCountCoveringTrillZones(2, chart.trillZones);
+    expect(extraLaneCount).toBe(11);
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount });
+    const mode = makeMode(chart, cb);
+
+    boxSelectAuxZone(mode, 15);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+    mode.deleteSelected();
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones).toEqual([]);
+    expect(rulesOf(updated)).toEqual([]);
+  });
+
+  it("lane 6 존을 박스로 선택하고 moveByLane('left')하면 목적지 lane 5도 보조라 '더 이상 이동할 수 없습니다' 경고 후 차트 무변", () => {
     const chart = makeAuxZoneChart(6);
     const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount: 2 });
     const mode = makeMode(chart, cb);

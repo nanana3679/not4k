@@ -32,7 +32,7 @@ import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
-import { getEditorAudioLoadingSurface } from './editorLoading';
+import { extraLaneCountCoveringTrillZones, getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
@@ -161,6 +161,11 @@ export default function EditorApp() {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(merged);
         if (mergedExtraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
+        // 보조 레인 trillZone(#102)은 숨으면 선택·삭제할 수 없어 저장이 막힌 채 남는다 — 보조 파일이
+        // 없어도 존이 보이게 보조 레인 수를 넓힌다(줄이지 않음).
+        const loadedExtraLaneCount = useEditorStore.getState().extraLaneCount;
+        const zoneExtraLaneCount = extraLaneCountCoveringTrillZones(loadedExtraLaneCount, merged.trillZones);
+        if (zoneExtraLaneCount !== loadedExtraLaneCount) useEditorStore.getState().setExtraLaneCount(zoneExtraLaneCount);
         setActiveSongId(songId);
         resetHistory();
 
@@ -959,11 +964,12 @@ function ChartEditorPage() {
             </p>
             {(() => {
               // 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는
-              // 노트가 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
+              // 노트·보조 레인 trillZone이 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
               const hidden = hiddenViolationLanes(
                 validationErrors,
                 chart.notes,
                 extraLaneCount,
+                chart.trillZones,
               );
               if (hidden.length === 0) return null;
               const needed = toAuxIndex(Math.max(...hidden));
