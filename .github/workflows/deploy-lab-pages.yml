@@ -5,10 +5,15 @@ on:
     branches:
       - main
     paths:
+      # Lab 산출물(dist-lab)을 바꿀 수 있는 경로다. public/은 전체가 복사되고, Classic 보관본(assets-lab/classic/versions/)은
+      # /lab/skin-versions/로, 비행 배경 텍스처(output/imagegen/)는 비행 배경 번들과 Flight Background Preview로 들어간다.
+      # Lab 빌드가 이 밖의 파일을 새로 읽게 되면 여기에 추가한다.
       - ".github/workflows/deploy-lab-pages.yml"
+      - "assets-lab/classic/versions/**"
       - "lab/**"
+      - "output/imagegen/**"
       - "output/prototypes/**"
-      - "public/lab/**"
+      - "public/**"
       - "scripts/**"
       - "src/**"
       - "package.json"
