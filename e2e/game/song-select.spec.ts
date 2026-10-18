@@ -52,9 +52,10 @@ function mockSong(
 }
 
 // 곡 선택 화면이 받는 고정 곡 목록. 저장된 난이도 식별자 easy·normal·hard는 화면에서 LIFTOFF·INFILTRATION·BREAKTHROUGH로 보인다.
-// Mock Song A의 차트는 hard·easy·normal 순서로 두어, 곡 카드가 난이도 순서(sortChartsByDifficulty)로 정렬해 보여 주는지 확인한다.
+// Mock Song A의 차트는 hard·easy·normal 순서로 두고 레벨은 난이도와 반대(hard 3, easy 9)로 두어, 곡 카드가 레벨이 아니라
+// 난이도 순서(sortChartsByDifficulty)로 정렬해 보여 주는지 확인한다.
 const MOCK_SONGS: DbSong[] = [
-  mockSong('mock-song-a', 'Mock Song A', 'Artist A', [['hard', 9], ['easy', 3], ['normal', 6]]),
+  mockSong('mock-song-a', 'Mock Song A', 'Artist A', [['hard', 3], ['easy', 9], ['normal', 6]]),
   mockSong('mock-song-b', 'Mock Song B', 'Artist B', [['normal', 5], ['hard', 8]]),
   mockSong('mock-song-c', 'Mock Song C', 'Artist C', [['easy', 2], ['normal', 4]]),
 ];
@@ -76,14 +77,14 @@ const SONG_MEDIA_PATH = /^\/storage\/v1\/object\/public\/assets\/songs\/[^/]+\/(
  * - 나머지(위 세 경로가 아닌 Supabase 경로, 그 밖의 origin, 앱 origin의 GET이 아닌 요청)는 중단하고 기록한다.
  * 기록은 `${method} ${origin}${pathname}` 형식으로 돌려주는 배열에 쌓이며, 중단한 요청에는 ` (aborted)`를 붙인다.
  */
-async function mockSupabase(page: Page, appOrigin: string): Promise<string[]> {
+async function guardOfflineRequests(page: Page, appOrigin: string): Promise<string[]> {
   const unexpectedRequests: string[] = [];
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-    const label = `${method} ${url.origin}${path}`;
+    const requestLabel = `${method} ${url.origin}${path}`;
     if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
       if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
       if (method === 'GET' && path === '/rest/v1/songs') {
@@ -92,13 +93,13 @@ async function mockSupabase(page: Page, appOrigin: string): Promise<string[]> {
       if (method === 'GET' && SONG_MEDIA_PATH.test(path)) {
         await route.fulfill({ status: 404, body: 'Not found' }); return;
       }
-      unexpectedRequests.push(label);
+      unexpectedRequests.push(requestLabel);
       await route.fulfill({ status: 500, json: { error: 'Unexpected offline test request' } }); return;
     }
     if (url.origin === appOrigin && method === 'GET') {
       await route.continue(); return;
     }
-    if (!GOOGLE_FONTS_ORIGINS.has(url.origin)) unexpectedRequests.push(`${label} (aborted)`);
+    if (!GOOGLE_FONTS_ORIGINS.has(url.origin)) unexpectedRequests.push(`${requestLabel} (aborted)`);
     await route.abort();
   });
   return unexpectedRequests;
@@ -137,7 +138,7 @@ test.describe('Song Select Screen', () => {
   let unexpectedRequests: string[] = [];
 
   test.beforeEach(async ({ page, baseURL }) => {
-    unexpectedRequests = await mockSupabase(page, new URL(baseURL!).origin);
+    unexpectedRequests = await guardOfflineRequests(page, new URL(baseURL!).origin);
     await navigateToSongSelect(page);
   });
 
@@ -155,9 +156,9 @@ test.describe('Song Select Screen', () => {
     }
   });
 
-  test('차트를 hard·easy·normal 순서로 받아도 곡 카드에는 그 곡이 가진 차트만 LIFTOFF·INFILTRATION·BREAKTHROUGH 순서 태그로 표시', async ({ page }) => {
+  test('Mock Song A 차트를 hard·easy·normal 순서와 난이도 반대 레벨로 받아도 곡 카드에는 곡마다 가진 차트만 LIFTOFF·INFILTRATION·BREAKTHROUGH 순서 태그로 표시', async ({ page }) => {
     await expect(songCard(page, 'Mock Song A').getByText(CHART_TAG_TEXT))
-      .toHaveText(['LIFTOFF Lv.3', 'INFILTRATION Lv.6', 'BREAKTHROUGH Lv.9']);
+      .toHaveText(['LIFTOFF Lv.9', 'INFILTRATION Lv.6', 'BREAKTHROUGH Lv.3']);
     await expect(songCard(page, 'Mock Song B').getByText(CHART_TAG_TEXT))
       .toHaveText(['INFILTRATION Lv.5', 'BREAKTHROUGH Lv.8']);
     await expect(songCard(page, 'Mock Song C').getByText(CHART_TAG_TEXT))
