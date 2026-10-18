@@ -64,17 +64,17 @@ export const KEY_BOMB_SIZE = playfieldPx(120);
  * 화면 높이(600)가 아니라 이 길이라서 노트가 보이는 레인은 이 길이 × (100 − 서든 − 리프트)%이고, 둘을 더해 100%면 0이다.
  * 판정선 아래 틈(키 윗면까지)은 넣지 않는다. 레인 위끝이 y 0이라 이 길이는 리프트 0% 판정선 y와 같은 숫자다.
  */
-function laneLengthToLiftZeroJudgmentLine(gearOffsetY: number): number {
+function liftZeroJudgmentLineY(gearOffsetY: number): number {
   return GAME_HEIGHT - JUDGMENT_LINE_OFFSET + gearOffsetY;
 }
 
 /**
  * 리프트 설정(%)을 판정선을 올리는 논리 px로 바꾼다. 서든과 같은 공통 눈금이라 게임 값에서 1% = 4.26이고, 100%면 판정선이 레인 위끝(y 0)에 닿는다.
- * gearOffsetY를 주면 그 y 오프셋의 리프트 0% 판정선까지를 100%로 본다(렌더러에 준 gearOffsetY와 같아야 판정선이 `judgmentLineYAtLift`와 맞는다).
+ * gearOffsetY를 주면 그 y 오프셋의 리프트 0% 판정선까지를 100%로 본다(렌더러가 실제로 쓰는 y 오프셋과 같아야 판정선이 `judgmentLineYAtLift`와 맞는다. 기어를 그리지 않는 렌더러는 0이다).
  * 먼저 곱하고 나눠 3%가 12.780000000000001이 아니라 12.78로 나온다.
  */
 export function liftPx(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
-  return (laneLengthToLiftZeroJudgmentLine(gearOffsetY) * liftPercent) / 100;
+  return (liftZeroJudgmentLineY(gearOffsetY) * liftPercent) / 100;
 }
 
 /**
@@ -82,16 +82,16 @@ export function liftPx(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y)
  * 100%면 리프트 0% 판정선까지 가린다. gearOffsetY는 `liftPx`와 같다.
  */
 export function suddenCoverPx(suddenPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
-  return (laneLengthToLiftZeroJudgmentLine(gearOffsetY) * suddenPercent) / 100;
+  return (liftZeroJudgmentLineY(gearOffsetY) * suddenPercent) / 100;
 }
 
 /**
- * 높이 600 플레이 화면(기어 있음)에서 리프트 %일 때의 판정선 y(게임 값 `GEAR_OFFSET_Y` 10이면 0% = y 426, 100% = y 0). 렌더러가 setLift로 옮기는 위치와 같다.
+ * 높이 600 플레이 화면(기어 있음)에서 리프트 %일 때의 판정선 y(게임 값 `GEAR_OFFSET_Y` 10이면 0% = y 426, 100% = y 0). 렌더러가 setLift(`liftPx`)로 옮기는 위치와 같다(렌더러는 빼서 구하므로 9%처럼 일부 %에서 부동소수 마지막 자리만 다를 수 있다).
  * gearOffsetY를 주면 그 y 오프셋의 판정선이다(0이면 y 416 기준).
  * 공통 눈금 길이의 (100 − 리프트)%로 곱해 구해서, 426 − 38.34처럼 빼면 생기는 387.65999… 같은 꼬리 없이 Lab에 보이는 y가 387.66으로 나온다.
  */
 export function judgmentLineYAtLift(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
-  return (laneLengthToLiftZeroJudgmentLine(gearOffsetY) * (100 - liftPercent)) / 100;
+  return (liftZeroJudgmentLineY(gearOffsetY) * (100 - liftPercent)) / 100;
 }
 
 // 튜토리얼 프리뷰 키보드 strip (플레이 영역 아래 캔버스 확장부) 패딩

@@ -511,7 +511,7 @@ export default function GearPage() {
               onChange={(event) => setLiftPercent(clampLiftPercent(Number(event.currentTarget.value)))}
             />
             <p className="gear-preview-note">
-              {`게임 설정의 리프트와 같은 값입니다. 서든과 같이 레인 위끝부터 리프트 0% 판정선까지를 100%로 봐서 지금 y 오프셋에서는 1% = ${liftPx(1, gearOffsetY)} 단위입니다.`}
+              {`게임 설정의 리프트와 같은 값입니다. 서든과 같이 레인 위끝부터 리프트 0% 판정선까지를 100%로 봐서 지금 y 오프셋에서는 1% = ${liftPx(1, gearOffsetY)} 단위입니다. `}
               판정선과 딸린 표시만 올라가고 기어와 레인 끝(키 윗면)은 움직이지 않습니다.
               게임 설정은 0~100%를 허용하지만 여기서는 0~{LIFT_PERCENT_MAX}%만 봅니다.
             </p>

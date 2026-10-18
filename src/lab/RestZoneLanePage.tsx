@@ -20,7 +20,10 @@ const LOOP_MS = 32 * BEAT_MS;
 const JUDGE_Y = judgmentLineYAtLift(0);
 /** 기어가 있는 플레이 화면처럼 리프트를 올려도 레인 끝은 그대로다. */
 const LANE_END_Y = JUDGE_Y + NOTE_HEIGHT / 2;
-/** 서든을 내려도 판정선 위로 남기는 레인 높이(논리 px). */
+/**
+ * 서든을 내려도 판정선 위로 남기는 레인 높이(논리 px). 판넬이 보이도록 남기는 Lab 전용 값이라,
+ * 서든 + 리프트가 약 86%를 넘으면 보이는 레인과 녹숫이 게임 식(426 × (100 − 서든 − 리프트)%)보다 길다.
+ */
 const MIN_VISIBLE_LANE = 60;
 const SUDDEN_COVER_COLOR = 0x1c1c28;
 const SUDDEN_EDGE_COLOR = 0x6a6a82;
