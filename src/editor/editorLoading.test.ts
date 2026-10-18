@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  beat,
+  saveChartAsset,
+  serializeChart,
+  serializeExtraNotes,
+  songChartExtraPath,
+} from "../shared";
+import type { Chart, SongAssetPersistenceAdapter } from "../shared";
 import {
   fetchOptionalExtraChartText,
   getEditorAudioLoadingSurface,
+  loadChartIntoEditor,
   loadEditorChartAssets,
   parseEditorChartAssets,
 } from "./editorLoading";
+import { useEditorStore } from "./stores";
 
 function chartText(extra: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -14,6 +24,14 @@ function chartText(extra: Record<string, unknown> = {}): string {
     events: [],
     ...extra,
   });
+}
+
+/** Supabase Storage가 없는 객체에 실제로 주는 응답(2026-10-18 실측: HTTP 400 + 본문 statusCode "404") */
+function supabaseObjectNotFound(): Response {
+  return new Response(
+    JSON.stringify({ statusCode: "404", error: "not_found", message: "Object not found", code: "NoSuchKey" }),
+    { status: 400, headers: { "content-type": "application/json" } },
+  );
 }
 
 describe("getEditorAudioLoadingSurface", () => {
@@ -61,6 +79,32 @@ describe("fetchOptionalExtraChartText", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it("보조 파일 응답이 Supabase의 객체 없음(HTTP 400, 본문 statusCode \"404\")이면 파일 없음으로 null 반환", async () => {
+    const result = await fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => supabaseObjectNotFound(),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("HTTP 400 본문의 statusCode가 \"403\"이면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response(
+        JSON.stringify({ statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" }),
+        { status: 400 },
+      ),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
+  });
+
+  it("HTTP 400 본문이 JSON이 아니면 파일 없음으로 보지 않고 HTTP 400 에러", async () => {
+    await expect(fetchOptionalExtraChartText(
+      "https://example.com/chart.extra.json",
+      async () => new Response("Bad Request", { status: 400 }),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 400");
   });
 
   it("보조 파일 응답이 500이면 메인 차트만 연 상태로 진입하지 않고 에러", async () => {
@@ -134,6 +178,21 @@ describe("loadEditorChartAssets", () => {
 
     expect(result.chart.notes.map((note) => note.lane)).toEqual([1, 6]);
     expect(result.extraLaneCount).toBe(2);
+  });
+
+  it("메인 파일 200·보조 파일이 Supabase 객체 없음이면 메인 노트만 반환하고 extraLaneCount=0", async () => {
+    const result = await loadEditorChartAssets(
+      "https://example.com/chart.json",
+      "https://example.com/chart.extra.json",
+      async (input) => (
+        String(input).endsWith(".extra.json")
+          ? supabaseObjectNotFound()
+          : new Response(chartText(), { status: 200 })
+      ),
+    );
+
+    expect(result.chart.notes.map((note) => note.lane)).toEqual([1]);
+    expect(result.extraLaneCount).toBe(0);
   });
 });
 
@@ -291,5 +350,171 @@ describe("parseEditorChartAssets", () => {
     );
 
     expect(result.extraLaneCount).toBe(10);
+  });
+});
+
+const SONG_ID = "song-1";
+const OPEN_TARGET = {
+  songId: SONG_ID,
+  chartUrl: "https://storage.test/songs/song-1/hard.json",
+  extraUrl: "https://storage.test/songs/song-1/hard.extra.json",
+};
+const STORED_EXTRA_PATH = songChartExtraPath(SONG_ID, "hard");
+
+function storedChart(): Chart {
+  return {
+    meta: {
+      title: "Stored Song",
+      artist: "Tester",
+      difficultyLabel: "HARD",
+      difficultyLevel: 12,
+      imageFile: "",
+      audioFile: "",
+      previewAudioFile: "",
+      offsetMs: 0,
+    },
+    notes: [{ type: "single", lane: 1, beat: beat(0, 1) }],
+    trillZones: [],
+    events: [
+      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+    ],
+  };
+}
+
+/** 저장소에 이미 있는 보조 파일: 보조 노트 2개, 보조 레인 3개 */
+const STORED_EXTRA_JSON = serializeExtraNotes(
+  [
+    { type: "single", extraLane: 1, beat: beat(1, 1) },
+    { type: "long", extraLane: 2, beat: beat(2, 1), endBeat: beat(3, 1) },
+  ],
+  3,
+);
+
+/** 메인 파일은 항상 200, 보조 파일 응답만 바꿔 끼우는 저장소 fetch */
+function storageFetcher(extraResponse: () => Response): typeof fetch {
+  return async (input) => (
+    String(input) === OPEN_TARGET.extraUrl
+      ? extraResponse()
+      : new Response(serializeChart(storedChart()), { status: 200 })
+  );
+}
+
+describe("loadChartIntoEditor", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("보조 파일이 HTTP 500이면 거부하고 store의 chart·extraLaneCount=2·activeSongId=null을 바꾸지 않는다", async () => {
+    const before = useEditorStore.getState();
+
+    await expect(loadChartIntoEditor(
+      OPEN_TARGET,
+      storageFetcher(() => new Response("", { status: 500 })),
+    )).rejects.toThrow("보조 차트 가져오기 실패: HTTP 500");
+
+    const after = useEditorStore.getState();
+    expect(after.chart).toBe(before.chart);
+    expect(after.extraLaneCount).toBe(2);
+    expect(after.activeSongId).toBeNull();
+  });
+
+  it("보조 파일이 Supabase 객체 없음이면 메인 노트 1개만 열고 activeSongId를 설정하며 extraLaneCount=2를 유지", async () => {
+    await loadChartIntoEditor(OPEN_TARGET, storageFetcher(supabaseObjectNotFound));
+
+    const state = useEditorStore.getState();
+    expect(state.chart.notes.map((note) => note.lane)).toEqual([1]);
+    expect(state.extraLaneCount).toBe(2);
+    expect(state.activeSongId).toBe(SONG_ID);
+  });
+
+  it("보조 파일 200이면 보조 노트 2개를 lane 5·6으로 병합해 열고 extraLaneCount=3으로 설정한 뒤 undo 기록을 비운다", async () => {
+    await loadChartIntoEditor(
+      OPEN_TARGET,
+      storageFetcher(() => new Response(STORED_EXTRA_JSON, { status: 200 })),
+    );
+
+    const state = useEditorStore.getState();
+    expect(state.chart.notes.map((note) => note.lane)).toEqual([1, 5, 6]);
+    expect(state.extraLaneCount).toBe(3);
+    expect(state.activeSongId).toBe(SONG_ID);
+    expect(state.historyPast).toEqual([]);
+  });
+});
+
+describe("보조 파일 로드 실패 뒤 저장", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function recordingAdapter() {
+    const calls: string[] = [];
+    const uploads = new Map<string, string>();
+    const adapter: SongAssetPersistenceAdapter = {
+      uploadText: async (asset) => {
+        calls.push(`upload:${asset.path}`);
+        uploads.set(asset.path, asset.content);
+      },
+      remove: async (paths) => {
+        calls.push(`remove:${paths.join(",")}`);
+      },
+      upsertChartRow: async (row) => {
+        calls.push(`upsert:${row.songId}:${row.difficulty}`);
+      },
+      deleteChartRow: async () => {
+        calls.push("deleteChartRow");
+      },
+      listSongFiles: async () => [],
+      deleteSongRow: async () => {
+        calls.push("deleteSongRow");
+      },
+    };
+    return { adapter, calls, uploads };
+  }
+
+  /**
+   * useFileOperations의 handleSaveChart와 같은 전제·입력으로 저장한다.
+   * activeSongId가 없으면 저장하지 않고, 저장 입력은 store의 chart·extraLaneCount를 그대로 쓴다.
+   */
+  async function saveLikeEditor(adapter: SongAssetPersistenceAdapter): Promise<"saved" | "refused"> {
+    const { activeSongId, chart, extraLaneCount } = useEditorStore.getState();
+    if (!activeSongId) return "refused";
+    await saveChartAsset(adapter, {
+      songId: activeSongId,
+      difficulty: chart.meta.difficultyLabel.toLowerCase(),
+      chart,
+      extraLaneCount,
+    });
+    return "saved";
+  }
+
+  it.each<[string, () => Response]>([
+    ["HTTP 500", () => new Response("", { status: 500 })],
+    ["HTTP 503", () => new Response("", { status: 503 })],
+    ["네트워크 오류", () => {
+      throw new TypeError("Failed to fetch");
+    }],
+    ["HTTP 200이지만 JSON이 아닌 본문", () => new Response("<html>gateway error</html>", { status: 200 })],
+    ["HTTP 400 statusCode \"403\"", () => new Response(JSON.stringify({ statusCode: "403", error: "Unauthorized" }), { status: 400 })],
+  ])("저장소에 보조 노트 2개가 있는데 보조 파일 요청이 %s이면 이어진 저장이 보조 파일을 remove·덮어쓰지 않는다", async (_label, extraResponse) => {
+    const { adapter, calls } = recordingAdapter();
+
+    const opened = await loadChartIntoEditor(OPEN_TARGET, storageFetcher(extraResponse)).then(() => true, () => false);
+    const saved = await saveLikeEditor(adapter);
+
+    expect(calls.filter((call) => call.startsWith("remove:") || call === `upload:${STORED_EXTRA_PATH}`)).toEqual([]);
+    expect({ opened, saved }).toEqual({ opened: false, saved: "refused" });
+  });
+
+  it("보조 파일을 200으로 열고 바로 저장하면 보조 파일을 원본과 같은 바이트로 다시 쓴다", async () => {
+    const { adapter, uploads } = recordingAdapter();
+
+    await loadChartIntoEditor(
+      OPEN_TARGET,
+      storageFetcher(() => new Response(STORED_EXTRA_JSON, { status: 200 })),
+    );
+
+    expect(await saveLikeEditor(adapter)).toBe("saved");
+    expect(uploads.get(STORED_EXTRA_PATH)).toBe(STORED_EXTRA_JSON);
   });
 });

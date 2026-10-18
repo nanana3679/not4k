@@ -34,7 +34,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import {
   getEditorAudioLoadingSurface,
-  loadEditorChartAssets,
+  loadChartIntoEditor,
 } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
@@ -93,9 +93,7 @@ function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): bo
 export default function EditorApp() {
   const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
   const setChart = useEditorStore((s) => s.setChart);
-  const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
-  const resetHistory = useEditorStore((s) => s.resetHistory);
 
   const [chartLoading, setChartLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,17 +128,11 @@ export default function EditorApp() {
       return;
     }
 
-    // Fetch chart + extra data in parallel
+    // Fetch chart + extra data in parallel — 둘 다 읽어야 store에 연다. 실패하면 아래 catch가 Error 화면을 띄운다.
     const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
     const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
-    loadEditorChartAssets(chartUrl, extraUrl)
-      .then((loaded) => {
-        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
-        useEditorStore.getState().loadChart(loaded.chart);
-        if (loaded.extraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(loaded.extraLaneCount);
-        setActiveSongId(songId);
-        resetHistory();
-
+    loadChartIntoEditor({ songId, chartUrl, extraUrl })
+      .then(() => {
         // Fetch audio URL from songs table
         return supabase.from('songs').select('audio_url').eq('id', songId).single();
       })
@@ -154,7 +146,7 @@ export default function EditorApp() {
         setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
-  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl, resetHistory]);
+  }, [songId, difficulty, setChart, setPendingAudioUrl]);
 
   if (loading || chartLoading) {
     return <PageLoading message="Loading editor..." />;
