@@ -3,6 +3,7 @@ import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
 import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
+import { useTutorialPreviewSkin, type TutorialPreviewSkin } from './tutorialPreviewSkin';
 import {
   TUTORIAL_OPPOSITE_HAND_BODY_LINE,
   TUTORIAL_PREVIEWS,
@@ -70,6 +71,8 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
   );
   const settings = useGameStore((state) => state.settings);
+  // 재생기는 플레이 화면과 같은 스킨으로 재생한다. 개발 환경에서는 개발용 스킨 선택을 불러오기 전까지 null이라 재생기를 마운트하지 않는다.
+  const previewSkin = useTutorialPreviewSkin(settings.skinId);
   const currentSection = getTutorialSection(tutorialIndex);
   const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;
   const currentTutorial = ALL_TUTORIAL_PREVIEWS[tutorialIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
@@ -480,14 +483,17 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
               >
                 <span className="not4k-tutorial-placeholder-spinner" />
               </div>
-              <TutorialPreviewTransitionStage
-                activePlayerSlot={activePlayerSlot}
-                previewSlotIndexes={previewSlotIndexes}
-                previewSlotInstanceIds={previewSlotInstanceIds}
-                playerTransition={playerTransition}
-                transitionProgress={playerTransitionProgress}
-                handlePreviewSlotReady={handlePreviewSlotReady}
-              />
+              {previewSkin && (
+                <TutorialPreviewTransitionStage
+                  activePlayerSlot={activePlayerSlot}
+                  previewSlotIndexes={previewSlotIndexes}
+                  previewSlotInstanceIds={previewSlotInstanceIds}
+                  previewSkin={previewSkin}
+                  playerTransition={playerTransition}
+                  transitionProgress={playerTransitionProgress}
+                  handlePreviewSlotReady={handlePreviewSlotReady}
+                />
+              )}
             </div>
           </div>
 
@@ -519,6 +525,7 @@ function TutorialPreviewTransitionStage({
   activePlayerSlot,
   previewSlotIndexes,
   previewSlotInstanceIds,
+  previewSkin,
   playerTransition: transition,
   transitionProgress,
   handlePreviewSlotReady,
@@ -526,6 +533,7 @@ function TutorialPreviewTransitionStage({
   activePlayerSlot: TutorialPreviewSlotId;
   previewSlotIndexes: readonly [number, number];
   previewSlotInstanceIds: readonly [number, number];
+  previewSkin: TutorialPreviewSkin;
   playerTransition: TutorialPlayerTransition | null;
   transitionProgress: number;
   handlePreviewSlotReady: (
@@ -564,6 +572,7 @@ function TutorialPreviewTransitionStage({
               key={`preview-slot-${slotId}`}
               preview={ALL_TUTORIAL_PREVIEWS[previewIndex] ?? ALL_TUTORIAL_PREVIEWS[0]}
               previewInstanceId={previewInstanceId}
+              previewSkin={previewSkin}
               slotState={slotState}
               transition={transition}
               onReady={() => handlePreviewSlotReady(slotId, previewIndex, previewInstanceId)}
@@ -636,12 +645,14 @@ function getStandbyTutorialPreviewSlot(activePlayerSlot: TutorialPreviewSlotId):
 function TutorialPreviewSlot({
   preview,
   previewInstanceId,
+  previewSkin,
   slotState,
   transition,
   onReady,
 }: {
   preview: TutorialPreviewDefinition;
   previewInstanceId: number;
+  previewSkin: TutorialPreviewSkin;
   slotState: TutorialPreviewSlotState;
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
@@ -670,6 +681,8 @@ function TutorialPreviewSlot({
         <TutorialPreviewPlayer
           preview={preview}
           previewInstanceId={previewInstanceId}
+          skinId={previewSkin.skinId}
+          skinManifest={previewSkin.skinManifest}
           diagramModalEnabled={diagramModalEnabled}
           diagramModalVisible={diagramModalVisible}
           paused={!isTutorialPreviewSlotPlaying(slotState)}
