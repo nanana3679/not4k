@@ -31,6 +31,8 @@ function getClient(): SupabaseClient {
 
 // 속성 읽기를 실제 클라이언트로 넘긴다. 메서드는 실제 클라이언트에 bind해서,
 // `supabase.from(...)`처럼 부르든 구조 분해로 꺼내 부르든 `this`가 실제 클라이언트를 가리키게 한다.
+// 넘기는 것은 속성 읽기뿐이다. `in`, `Object.keys`, 대입, `vi.spyOn(supabase, ...)`은 빈 대상에 닿으므로
+// 테스트에서 바꿔 끼울 때는 `vi.mock("./client", ...)`처럼 모듈을 대체한다.
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_target, property) {
     const real = getClient();
