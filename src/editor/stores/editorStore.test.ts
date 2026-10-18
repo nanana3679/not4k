@@ -153,7 +153,7 @@ describe('editorStore 차트 변이 게이트', () => {
     expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // 전체 valid 아님 — 씨앗 미갱신 (게이트가 restZones를 봄)
   });
 
-  it('보조 레인(lane 5) trillZone 차트 setChart는 구조 거부 없이 커밋되고, 저장 게이트의 validateChart가 trillZoneMainOnly로 막는다', () => {
+  it('보조 레인(lane 5) trillZone 차트 setChart는 구조 거부 없이 커밋되고 lastValidSnapshot은 null 유지, validateChart는 trillZoneMainOnly 1건', () => {
     // 외부·레거시 파일로만 들어오는 값(TrillZone.lane 타입은 1..4) — RFD 0018 §3-2, #102
     const auxZoneChart: Chart = {
       ...makeChart(),
