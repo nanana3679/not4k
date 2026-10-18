@@ -9,13 +9,14 @@ interface PauseProbe {
   frames: number;
   /** 마지막으로 play한 AudioEngine이 음원을 재생 중인지(`AudioEngine.playing`). 아직 아무 AudioEngine도 play하지 않았으면 null. */
   audioPlaying: boolean | null;
-  /** holdNextPreparation 뒤 보류한 L₀ 준비(AudioEngine.prepareForPlayback) 수. */
-  heldPreparations: number;
+  /** holdNextOutputLatencyPreparation 뒤 보류한 L₀ 준비(`AudioEngine.prepareForPlayback`) 수. */
+  heldOutputLatencyPreparations: number;
 }
 
 /**
  * 실제 PlayScreen이 만든 AudioEngine·GameRenderer를 관찰한다. play·renderFrame 호출 수와 마지막으로 play한 AudioEngine을 기록한다.
- * holdNextPreparation을 켜 두면 다음에 만든 AudioEngine의 L₀ 준비(prepareForPlayback)가 releasePreparation 전까지 끝나지 않는다(느린 오디오 장치처럼 로딩이 길어진다).
+ * holdNextOutputLatencyPreparation을 부르면 다음에 만든 AudioEngine의 L₀ 준비(`AudioEngine.prepareForPlayback`, 출력 지연 L₀ 확정)가
+ * releaseOutputLatencyPreparation 전까지 끝나지 않는다(느린 오디오 장치처럼 로딩이 길어진다). 렌더러 warm-up(`GameRenderer.prepareForPlayback`)은 보류하지 않는다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -25,8 +26,8 @@ async function installProbe(page: Page) {
     win.__audioPlays = 0;
     win.__frames = 0;
     win.__audioEngine = null;
-    win.__holdNextPreparation = false;
-    win.__heldPreparations = 0;
+    win.__holdNextOutputLatencyPreparation = false;
+    win.__heldOutputLatencyPreparations = 0;
     const modulePath = (path: string) => performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === path) ?? path;
     const { AudioEngine }: typeof import('../../src/game/audio/AudioEngine') = await import(modulePath('/src/game/audio/AudioEngine.ts'));
@@ -39,10 +40,10 @@ async function installProbe(page: Page) {
     const prepare = AudioEngine.prototype.prepareForPlayback;
     AudioEngine.prototype.prepareForPlayback = function () {
       const ready = prepare.call(this);
-      if (!win.__holdNextPreparation) return ready;
-      win.__holdNextPreparation = false;
-      win.__heldPreparations = (win.__heldPreparations as number) + 1;
-      const released = new Promise<void>((resolve) => { win.__releasePreparation = resolve; });
+      if (!win.__holdNextOutputLatencyPreparation) return ready;
+      win.__holdNextOutputLatencyPreparation = false;
+      win.__heldOutputLatencyPreparations = (win.__heldOutputLatencyPreparations as number) + 1;
+      const released = new Promise<void>((resolve) => { win.__releaseOutputLatencyPreparation = resolve; });
       return Promise.all([ready, released]).then(() => undefined);
     };
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(modulePath('/src/game/renderer/GameRenderer.ts'));
@@ -62,9 +63,53 @@ async function readProbe(page: Page): Promise<PauseProbe> {
       audioPlays: win.__audioPlays as number,
       frames: win.__frames as number,
       audioPlaying: engine ? engine.playing : null,
-      heldPreparations: win.__heldPreparations as number,
+      heldOutputLatencyPreparations: win.__heldOutputLatencyPreparations as number,
     };
   });
+}
+
+/** 다음에 만든 AudioEngine의 L₀ 준비(`AudioEngine.prepareForPlayback`)를 releaseOutputLatencyPreparation 전까지 보류한다. */
+async function holdNextOutputLatencyPreparation(page: Page) {
+  await page.evaluate(() => { (window as unknown as Record<string, unknown>).__holdNextOutputLatencyPreparation = true; });
+}
+
+/**
+ * L₀ 준비 보류를 끄고, 보류 중인 준비가 있으면 끝나게 한다. 여러 번 불러도 되므로 finally에서도 부른다.
+ * 페이지가 이미 닫혔으면(시간 초과 뒤 정리) 풀 것이 없다.
+ */
+async function releaseOutputLatencyPreparation(page: Page) {
+  if (page.isClosed()) return;
+  await page.evaluate(() => {
+    const win = window as unknown as Record<string, unknown>;
+    win.__holdNextOutputLatencyPreparation = false;
+    (win.__releaseOutputLatencyPreparation as (() => void) | undefined)?.();
+  });
+}
+
+/**
+ * asset 응답을 release를 부를 때까지 보류한다. dispose는 보류를 풀고 page의 route를 모두 지우며, 진행 중인 route 처리기가
+ * 응답을 보내고 끝날 때까지 기다린다(`unrouteAll({ behavior: 'wait' })`). 단언이 실패해도 보류한 요청·처리기가 남지 않도록 finally에서 부른다.
+ */
+async function holdResponse(page: Page, asset: string | RegExp) {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let markRequested!: () => void;
+  const requested = new Promise<void>((resolve) => { markRequested = resolve; });
+  await page.route(asset, async (route) => {
+    markRequested();
+    await gate;
+    await route.continue();
+  });
+  return {
+    /** 보류할 요청이 처음 들어오면 끝난다. */
+    requested,
+    release,
+    async dispose() {
+      release();
+      // 페이지가 이미 닫혔으면(시간 초과 뒤 정리) 기다릴 처리기가 없다.
+      if (!page.isClosed()) await page.unrouteAll({ behavior: 'wait' });
+    },
+  };
 }
 
 /** 브라우저 requestAnimationFrame을 count번 기다린다(벽시계 대기 대신 화면 프레임 수로 기다린다). */
@@ -140,55 +185,55 @@ test.describe('플레이 화면 일시정지(Esc)는 곡이 시작된 뒤에만 
     test(`로딩 중 ${step} 응답을 보류한 동안 Esc를 누르면 일시정지 메뉴가 뜨지 않고, 응답을 보내면 곡이 일시정지 없이 시작되며(play 1번), 시작 뒤 Esc는 일시정지 메뉴를 띄우고 음원·renderFrame을 멈춘다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
-      let release: () => void = () => {};
-      const gate = new Promise<void>((resolve) => { release = resolve; });
-      let requested!: () => void;
-      const requestStarted = new Promise<void>((resolve) => { requested = resolve; });
-      await page.route(asset, async (route) => {
-        requested();
-        await gate;
-        await route.continue();
-      });
-      await startLocalPlay(page);
-      await requestStarted;
+      const held = await holdResponse(page, asset);
+      try {
+        await startLocalPlay(page);
+        await held.requested;
 
-      await pressEscapeAndExpectNoPauseMenu(page);
-      // Esc를 누른 동안은 아직 곡 시작 전이다.
-      expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
+        await pressEscapeAndExpectNoPauseMenu(page);
+        // Esc를 누른 동안은 아직 곡 시작 전이다.
+        expect(await readProbe(page)).toMatchObject({ frames: 0, audioPlays: 0 });
 
-      release();
-      await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
-      expect((await readProbe(page)).audioPlays).toBe(1);
-      await expectPlayingWithoutPause(page);
+        held.release();
+        await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+        expect((await readProbe(page)).audioPlays).toBe(1);
+        await expectPlayingWithoutPause(page);
 
-      await expectEscapePauses(page);
-      expect(errors).toEqual([]);
+        await expectEscapePauses(page);
+        expect(errors).toEqual([]);
+      } finally {
+        await held.dispose();
+      }
     });
   }
 
   test('일시정지 메뉴 Retry로 다시 불러오는 동안(L₀ 준비 보류) Esc를 누르면 일시정지 메뉴가 뜨지 않고, 준비가 끝나면 곡이 일시정지 없이 다시 시작되며(play 2번째), 시작 뒤 Esc는 다시 일시정지 메뉴를 띄운다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await startLocalPlay(page);
-    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
-    await expectEscapePauses(page);
+    try {
+      await startLocalPlay(page);
+      await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+      await expectEscapePauses(page);
 
-    // Retry는 keep-alive한 `gearMotion` 에셋을 다시 요청하지 않으므로, 새 AudioEngine의 L₀ 준비를 보류해 로딩이 끝나지 않게 한다.
-    await page.evaluate(() => { (window as unknown as Record<string, unknown>).__holdNextPreparation = true; });
-    await page.getByRole('button', { name: 'Retry', exact: true }).click();
-    await expect.poll(async () => (await readProbe(page)).heldPreparations, { timeout: 30_000 }).toBe(1);
+      // Retry는 keep-alive한 `gearMotion` 에셋을 다시 요청하지 않으므로, 새 AudioEngine의 L₀ 준비를 보류해 로딩이 끝나지 않게 한다.
+      await holdNextOutputLatencyPreparation(page);
+      await page.getByRole('button', { name: 'Retry', exact: true }).click();
+      await expect.poll(async () => (await readProbe(page)).heldOutputLatencyPreparations, { timeout: 30_000 }).toBe(1);
 
-    await pressEscapeAndExpectNoPauseMenu(page);
-    const loading = await readProbe(page);
-    // Esc를 누른 동안은 아직 Retry 곡 시작 전이다.
-    expect(loading.audioPlays).toBe(1);
+      await pressEscapeAndExpectNoPauseMenu(page);
+      const loading = await readProbe(page);
+      // Esc를 누른 동안은 아직 Retry 곡 시작 전이다.
+      expect(loading.audioPlays).toBe(1);
 
-    await page.evaluate(() => (window as unknown as { __releasePreparation: () => void }).__releasePreparation());
-    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(loading.frames + 10);
-    expect((await readProbe(page)).audioPlays).toBe(2);
-    await expectPlayingWithoutPause(page);
+      await releaseOutputLatencyPreparation(page);
+      await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(loading.frames + 10);
+      expect((await readProbe(page)).audioPlays).toBe(2);
+      await expectPlayingWithoutPause(page);
 
-    await expectEscapePauses(page);
-    expect(errors).toEqual([]);
+      await expectEscapePauses(page);
+      expect(errors).toEqual([]);
+    } finally {
+      await releaseOutputLatencyPreparation(page);
+    }
   });
 });
