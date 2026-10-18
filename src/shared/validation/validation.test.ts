@@ -6,6 +6,7 @@ import {
   validateTrillLong,
   validateNoteJudgmentConstraints,
   validateNoTrillZoneOverlap,
+  validateTrillZoneMainOnly,
   validateNoRestZoneOverlap,
   validateRestZoneExclusive,
   validateNoEventDuplicate,
@@ -454,6 +455,69 @@ describe("validateNoTrillZoneOverlap", () => {
       { kind: "trillZone", index: 1 },
       { kind: "trillZone", index: 2 },
     ]);
+  });
+});
+
+// =========================================================================
+// 규칙 4-3: trillZone 메인 레인 전용 (RFD 0018 §3-2)
+// =========================================================================
+
+describe("validateTrillZoneMainOnly — trillZone 메인 레인 전용 (RFD 0018 §3-2)", () => {
+  it("lane 1 존 뒤 lane 5 존이 있으면 trillZoneMainOnly 위반 1건이고 refs는 lane 5 존(인덱스 1)만 가리킨다", () => {
+    const zones = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) }, // 인덱스 0, 메인
+      { lane: 5, beat: beat(0), endBeat: beat(4) }, // 인덱스 1, 보조 — 외부 파일로만 유입
+    ] as unknown as TrillZone[];
+    const errors = validateTrillZoneMainOnly(zones);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].rule).toBe("trillZoneMainOnly");
+    expect(errors[0].refs).toEqual([{ kind: "trillZone", index: 1 }]);
+    expect(errors[0].message).toContain("lane 5");
+  });
+
+  it("메인 lane 1·2·3·4 존은 trillZoneMainOnly 위반 0건", () => {
+    const zones: TrillZone[] = [
+      { lane: 1, beat: beat(0), endBeat: beat(4) },
+      { lane: 2, beat: beat(0), endBeat: beat(4) },
+      { lane: 3, beat: beat(0), endBeat: beat(4) },
+      { lane: 4, beat: beat(0), endBeat: beat(4) },
+    ];
+    expect(validateTrillZoneMainOnly(zones)).toEqual([]);
+  });
+
+  it("lane 6 존과 lane 12 존은 보조 레인 번호와 무관하게 존마다 위반 1건씩(총 2건)", () => {
+    const zones = [
+      { lane: 6, beat: beat(0), endBeat: beat(2) },
+      { lane: 12, beat: beat(4), endBeat: beat(6) },
+    ] as unknown as TrillZone[];
+    const errors = validateTrillZoneMainOnly(zones);
+    expect(errors.map((e) => e.rule)).toEqual(["trillZoneMainOnly", "trillZoneMainOnly"]);
+    expect(errors.map((e) => e.refs)).toEqual([
+      [{ kind: "trillZone", index: 0 }],
+      [{ kind: "trillZone", index: 1 }],
+    ]);
+  });
+
+  it("lane 5 존 차트는 구조 검증 0건(setChart 거부 대상 아님)이고 의미 검증에서만 trillZoneMainOnly로 잡힌다", () => {
+    const input = {
+      notes: [] as NoteEntity[],
+      trillZones: [{ lane: 5, beat: beat(0), endBeat: beat(4) }] as unknown as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(validateChartStructural(input)).toEqual([]);
+    expect(validateChartSemantic(input).map((e) => e.rule)).toEqual(["trillZoneMainOnly"]);
+  });
+
+  it("lane 5 존(인덱스 1)이 위반이면 chartViolationIndices.trillZones = {1} — 해칭 대상에 들어간다", () => {
+    const input = {
+      notes: [] as NoteEntity[],
+      trillZones: [
+        { lane: 2, beat: beat(0), endBeat: beat(4) }, // 인덱스 0, 메인
+        { lane: 5, beat: beat(0), endBeat: beat(4) }, // 인덱스 1, 보조
+      ] as unknown as TrillZone[],
+      events: [] as ChartEvent[],
+    };
+    expect(chartViolationIndices(input).trillZones).toEqual(new Set([1]));
   });
 });
 
@@ -1572,6 +1636,14 @@ describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)
     const errors = validateChart({ notes, trillZones: [], events: [] });
     expect(errors).toHaveLength(1);
     expect(errors[0].rule).toBe("duplicate");
+  });
+
+  it("validateChart 통합: lane 5 존(0~4) 안의 lane 5 trill 노트는 면제되고 존만 trillZoneMainOnly 1건 (존은 메인 전용)", () => {
+    const notes = [{ type: "trill", lane: 5, beat: beat(2) }] as NoteEntity[];
+    const trillZones = [{ lane: 5, beat: beat(0), endBeat: beat(4) }] as unknown as TrillZone[];
+    const errors = validateChart({ notes, trillZones, events: [] });
+    expect(errors.map((e) => e.rule)).toEqual(["trillZoneMainOnly"]);
+    expect(errors[0].refs).toEqual([{ kind: "trillZone", index: 0 }]);
   });
 });
 

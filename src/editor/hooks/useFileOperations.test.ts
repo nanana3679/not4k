@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { performPlayTest, resolveAudioUploadPath, resolvePreviewRegenRange, type PerformPlayTestParams } from './useFileOperations';
 import { beat } from '../../shared';
-import type { PlaybackRange, Lane } from '../../shared';
+import type { PlaybackRange, Lane, TrillZone } from '../../shared';
 import { useEditorStore } from '../stores';
 
 function fakeAudioFile(name: string): File {
@@ -144,6 +144,23 @@ describe('performPlayTest', () => {
 
     expect(result).toBe(false);
     expect(addToast).toHaveBeenCalledWith('배치 제약 위반 1건이 남아 있어 플레이할 수 없습니다', 'error');
+    expect(game.setScreen).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('보조 레인(lane 5) trillZone이 남은 차트는 화면 전환·네비게이션 없이 "배치 제약 위반 1건" 토스트와 false 반환', () => {
+    // RFD 0018 §3-2·#102: 존은 메인 레인 전용 — 외부 파일로 들어온 보조 레인 존이 게임으로 넘어가지 않게 막는다
+    const invalidChart = {
+      ...baseChart,
+      trillZones: [{ lane: 5, beat: beat(0, 1), endBeat: beat(4) }] as unknown as TrillZone[],
+    };
+    const { params, game, addToast, navigate } = buildParams({ chart: invalidChart });
+
+    const result = performPlayTest(params);
+
+    expect(result).toBe(false);
+    expect(addToast).toHaveBeenCalledWith('배치 제약 위반 1건이 남아 있어 플레이할 수 없습니다', 'error');
+    expect(game.setChartData).not.toHaveBeenCalled();
     expect(game.setScreen).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });

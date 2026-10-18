@@ -4,7 +4,7 @@ import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
-import { beat, beatToFloat, withAuxNotes } from "../../shared";
+import { beat, beatToFloat, validateChart, withAuxNotes } from "../../shared";
 import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, TrillZone } from "../../shared";
 
 function makeChart(overrides?: Partial<Chart>): Chart {
@@ -1516,6 +1516,77 @@ describe("SelectMode — 박스 선택 보조 레인 (통합 인덱스, RFD 0018
 
     mode.onPointerMove(5, 3); // beat 0~3
     expect(cb.getSelectionState().notes).toEqual(new Set([0, 1]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 보조 레인 trillZone 수리 경로 — trillZoneMainOnly 위반(#102)을 에디터 안에서 해소
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 보조 레인 trillZone 수리 경로 (trillZoneMainOnly, #102)", () => {
+  // 외부 파일로 들어온 보조 레인 존. 존 몸통 히트테스트는 메인 레인(xToLane)만 보므로
+  // 탭으로는 안 잡히고, 통합 레인(xToUnifiedLane) 박스로 감싸야 유닛 선택된다.
+  function makeAuxZoneChart(lane: number): Chart {
+    return makeChart({
+      trillZones: [{ lane, beat: beat(2), endBeat: beat(4) }] as unknown as TrillZone[],
+    });
+  }
+
+  function rulesOf(chart: Chart): string[] {
+    return validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      restZones: chart.restZones,
+      events: chart.events,
+    }).map((e) => e.rule);
+  }
+
+  /** 보조 열 x=lane에서 beat 0~5 박스로 존(beat 2~4)을 감싸 선택한다 */
+  function boxSelectAuxZone(mode: SelectMode, lane: number): void {
+    mode.onPointerDown(lane, 0, false, false);
+    mode.onPointerMove(lane, 5);
+    mode.onPointerUp(lane, 5);
+  }
+
+  it("lane 5 존(beat 2~4)을 박스(lane 5, beat 0~5)로 감싸 선택하고 deleteSelected하면 존이 지워져 위반 0건", () => {
+    const chart = makeAuxZoneChart(5);
+    expect(rulesOf(chart)).toEqual(["trillZoneMainOnly"]);
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+
+    boxSelectAuxZone(mode, 5);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+    mode.deleteSelected();
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones).toEqual([]);
+    expect(rulesOf(updated)).toEqual([]);
+  });
+
+  it("lane 5 존을 박스로 선택하고 moveByLane('left')하면 lane 4로 옮겨져 위반 0건", () => {
+    const chart = makeAuxZoneChart(5);
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+
+    boxSelectAuxZone(mode, 5);
+    mode.moveByLane("left");
+
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    expect(updated.trillZones).toEqual([{ lane: 4, beat: beat(2), endBeat: beat(4) }]);
+    expect(rulesOf(updated)).toEqual([]);
+  });
+
+  it("lane 6 존은 moveByLane('left')의 목적지 lane 5도 보조라 '더 이상 이동할 수 없습니다' 경고 후 차트 무변 — 삭제로만 해소", () => {
+    const chart = makeAuxZoneChart(6);
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount: 2 });
+    const mode = makeMode(chart, cb);
+
+    boxSelectAuxZone(mode, 6);
+    expect(cb.getSelectionState().zones).toEqual(new Set([0]));
+    mode.moveByLane("left");
+
+    expect(cb.onWarn).toHaveBeenCalledWith("더 이상 이동할 수 없습니다");
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
   });
 });
 
