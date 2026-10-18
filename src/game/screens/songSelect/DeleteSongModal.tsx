@@ -1,6 +1,7 @@
 import type { DbSong } from './types';
 import { color, primitives } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
+import { useEscapeToClose } from './useEscapeToClose';
 
 // ---------------------------------------------------------------------------
 // DeleteSongModal — 곡 삭제 확인 모달 (admin)
@@ -19,6 +20,7 @@ interface DeleteSongModalProps {
 export function DeleteSongModal({ song, deleting, onConfirm, onClose }: DeleteSongModalProps) {
   const remainingCharts = song.charts.length;
   const blocked = remainingCharts > 0;
+  useEscapeToClose(onClose, { disabled: deleting });
 
   return (
     <div style={modalStyles.overlay} onMouseDown={deleting ? undefined : onClose}>

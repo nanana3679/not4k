@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { font, color } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
 import { availableChartDifficulties } from '../../../shared/chartDifficulty';
+import { useEscapeToClose } from './useEscapeToClose';
 
 export interface DifficultyModalProps {
   existingDifficulties: string[];
@@ -17,6 +18,7 @@ export function DifficultyModal({ existingDifficulties, onSelect, onClose }: Dif
 
   const [difficulty, setDifficulty] = useState(() => available.length > 0 ? available[0] : '');
   const [level, setLevel] = useState('1');
+  useEscapeToClose(onClose);
 
   return (
     <div style={modalStyles.overlay} onMouseDown={onClose}>
