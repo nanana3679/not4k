@@ -101,6 +101,9 @@ const NUMPAD_BINDINGS: KeyBindings = {
   lane4: ['Numpad8', 'Numpad9', 'Numpad5', 'Numpad2'],
 };
 
+/** 기본 스킨 id. 처음 실행할 때의 `skinId`다. */
+export const DEFAULT_SKIN_ID = 'classic';
+
 const DEFAULT_SETTINGS: GameSettings = {
   keyBindings: TKL_BINDINGS,
   scrollSpeed: 800,
@@ -112,7 +115,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   isFirstLaunch: true,
   showFastSlow: true,
   showTimingDiff: false,
-  skinId: 'classic',
+  skinId: DEFAULT_SKIN_ID,
   bombScale: 1,
   renderHeight: 1080,
   gearMotion: true,

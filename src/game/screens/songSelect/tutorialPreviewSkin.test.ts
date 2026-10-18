@@ -8,11 +8,20 @@ import tutorialPreviewSkinSource from './tutorialPreviewSkin.ts?raw';
 const classicV012 = CLASSIC_NOTE_ASSET_VERSIONS.find(version => version.id === 'v012')?.design.skinManifest;
 
 beforeEach(() => useDevSkinSelection.getState().select('settings'));
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.doUnmock('../../../lab/devSkinSelection');
+  vi.restoreAllMocks();
+});
 
 describe('튜토리얼 재생기 스킨', () => {
-  it('스킨 id crystal은 skinId crystal로 나누고 skinManifest는 넘기지 않는다', () => {
+  it('숨긴 스킨(available: false)이지만 등록된 crystal은 skinId crystal 그대로 나누고 skinManifest는 넘기지 않는다', () => {
+    expect(getSkinManifest('crystal').theme.available).toBe(false);
     expect(toTutorialPreviewSkin('crystal')).toEqual({ skinId: 'crystal' });
+  });
+
+  it('등록되지 않은 스킨 id removed-skin은 기본 스킨 classic으로 바꾸고 skinManifest는 넘기지 않는다', () => {
+    expect(toTutorialPreviewSkin('removed-skin')).toEqual({ skinId: 'classic' });
   });
 
   it('보관 manifest classic-v012는 skinId classic-v012와 받은 manifest 참조 그대로의 skinManifest로 나눈다', () => {
@@ -46,8 +55,30 @@ describe('튜토리얼 재생기 스킨', () => {
     expect(await resolveTutorialPreviewSkin('crystal')).toEqual({ skinId: 'crystal' });
   });
 
+  it('배포 빌드(import.meta.env.DEV=false)에서 저장된 skinId가 등록되지 않은 removed-skin이면 classic으로 재생한다', async () => {
+    vi.stubEnv('DEV', false);
+    expect(await resolveTutorialPreviewSkin('removed-skin')).toEqual({ skinId: 'classic' });
+  });
+
+  it('개발 환경에서 개발용 스킨이 게임 설정 사용이고 저장된 skinId가 등록되지 않은 removed-skin이면 classic으로 재생한다', async () => {
+    vi.stubEnv('DEV', true);
+    expect(await resolveTutorialPreviewSkin('removed-skin')).toEqual({ skinId: 'classic' });
+  });
+
+  it('개발 환경에서 개발용 스킨 선택을 불러오지 못하고 저장된 skinId가 등록되지 않은 removed-skin이면 경고 1번 뒤 classic으로 재생한다', async () => {
+    vi.stubEnv('DEV', true);
+    vi.doMock('../../../lab/devSkinSelection', () => {
+      throw new Error('dev skin selection import failed');
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(await resolveTutorialPreviewSkin('removed-skin')).toEqual({ skinId: 'classic' });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('개발용 스킨 선택은 PlayScreen처럼 import.meta.env.DEV 삼항 안에서만 동적으로 불러오고 lab 모듈을 정적으로 import하지 않는다', () => {
-    expect(tutorialPreviewSkinSource).toContain("import.meta.env.DEV\n    ? (await import('../../../lab/devSkinSelection')).resolveDevSkinSelection(settingsSkinId)\n    : settingsSkinId");
+    expect(tutorialPreviewSkinSource).toMatch(
+      /import\.meta\.env\.DEV\s*\?\s*\(await import\('\.\.\/\.\.\/\.\.\/lab\/devSkinSelection'\)\)\.resolveDevSkinSelection\(settingsSkinId\)\s*:\s*settingsSkinId/,
+    );
     expect(tutorialPreviewSkinSource).not.toMatch(/from '\.\.\/\.\.\/\.\.\/lab\//);
   });
 });

@@ -134,6 +134,18 @@ describe('TutorialHelpModal', () => {
     expect(html).not.toContain('data-tutorial-skin-id="classic"');
   });
 
+  it('배포 빌드에서 저장된 skinId가 등록되지 않은 removed-skin이면 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', () => {
+    vi.stubEnv('DEV', false);
+    // 위 테스트와 같이 서버 스냅샷의 settings를 바꿔 지워진 스킨이 저장된 설정을 흉내 낸다.
+    useGameStore.getInitialState().settings = { ...defaultSettings, skinId: 'removed-skin' };
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-skin-id="classic"')).toBe(2);
+    expect(html).not.toContain('removed-skin');
+  });
+
   it('개발 환경에서는 개발용 스킨 선택을 불러오기 전 첫 렌더에 재생기를 마운트하지 않고 로딩 placeholder만 렌더링', () => {
     // 설정 스킨으로 먼저 만든 렌더러를 개발용 스킨으로 다시 만들지 않도록, 스킨을 정한 뒤에 재생기 2개를 마운트한다.
     vi.stubEnv('DEV', true);
