@@ -4,6 +4,8 @@
 
 **후속 결정:** [RFD 0022](0022-flight-difficulty-names-and-visuals.md)가 이름·분류를 `Liftoff → Infiltration → Breakthrough`와 차트 난이도명 연결 관계로 대체한다. 이 문서의 2종·별도 축 설명은 당시 결정이다. `Liftoff`의 관대한 역할은 유지하며, 종전 `Survival`의 세부 규칙을 새 단계에 자동 승계하지 않는다.
 
+> **후속 결정(2026-10-18):** [RFD 0033](0033-breakthrough-survival-and-low-altitude-warning.md)으로 현재 `Breakthrough` 차트가 이 문서의 `Survival` 규칙을 다시 쓴다. 따로 켜는 선택 축이 아니라 난이도명에 딸린 규칙이며, Bad가 없는 지금 판정 체계에서는 Miss가 감소시킨다.
+
 **관련 문서:**
 
 - [`docs/rfd/0001-flight-rules-and-observer-boundary.md`](0001-flight-rules-and-observer-boundary.md) — `flightRule`과 Observer 경계

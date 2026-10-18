@@ -16,6 +16,8 @@
 
 **후속 결정:** RFD 0005가 `flightRule`을 2종으로 재편한다. 이 문서가 역할 중복으로 지적한 Takeoff/Ascent는 관대 규칙 `Liftoff` 하나로 통합되고, 숙련자 정확도 압박을 전담하던 Breakthrough는 `Survival`로 계승된다. 이 문서의 입문 유저 동기 포지셔닝은 그대로 유지되며, "관대 규칙은 기본값(Liftoff)으로 두고 정확도 압박은 Survival이 전담한다"로 읽는다.
 
+> **후속 결정(2026-10-18):** [RFD 0022](0022-flight-difficulty-names-and-visuals.md) 이후 끊겼던 정확도 압박 규칙의 승계는 [RFD 0033](0033-breakthrough-survival-and-low-altitude-warning.md)으로 현재 `Breakthrough` 차트에 다시 붙는다. "정확도 압박은 Survival이 전담한다"는 "`Breakthrough` 차트의 `Survival` 규칙이 전담한다"로 읽는다.
+
 ---
 
 ## 1. 배경

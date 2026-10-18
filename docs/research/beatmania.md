@@ -56,7 +56,7 @@ IIDX는 단순한 노트 외에 다양한 특수 노트를 통해 조작의 복�
 
 ### 2.3 게이지 옵션과 생존 압박
 
-아래 not4k 대응은 RFD 0002·0005 당시의 규칙 설계 참조를 기록한 것이다. 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)의 `Liftoff / Infiltration / Breakthrough`를 따르며, 아래의 `Survival` 규칙을 새 단계에 자동 승계하지 않는다.
+아래 not4k 대응은 RFD 0002·0005 당시의 규칙 설계 참조를 기록한 것이다. 현재 이름·연출 배치는 [RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)의 `Liftoff / Infiltration / Breakthrough`를 따르며, 아래의 `Survival` 규칙은 [RFD 0033](../rfd/0033-breakthrough-survival-and-low-altitude-warning.md)으로 현재 `Breakthrough` 차트가 다시 쓴다(Bad가 없는 지금 판정 체계에서는 Miss가 감소시킨다).
 
 IIDX의 게이지는 정확도 점수와 별도로 "클리어/생존"을 판정하는 축이다. Standard 모드의 기본 클리어는 곡 종료 시 게이지의 붉은 영역이 남아 있는지를 보며, HARD/EX HARD 옵션은 게이지가 소진되는 즉시 게임 오버가 된다. not4k의 `flightRule`은 이 구조를 복제하지 않고, `altitude`와 실패 조건을 설계하기 위한 참조 모델로만 사용한다.
 

@@ -126,11 +126,11 @@ _Avoid_: 달성률
 _Avoid_: 프레임(화면 한 장과 헷갈림)
 
 **`flightRule`**:
-Play의 고도 상태와 클리어/실패를 다루며, 차트 난이도명 `Liftoff → Infiltration → Breakthrough`에 대응하는 시나리오와 연결된다. 이름 표시와 배경은 적용했으며 세부 비행 규칙은 미구현이다. 풀 정의는 [glossary](../../docs/context/glossary.md#flightrule-flight-rule), 현재 배치는 [RFD 0022](../../docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
+Play의 고도 상태와 클리어/실패를 다루며, 차트 난이도명 `Liftoff → Infiltration → Breakthrough`에 대응하는 시나리오와 연결된다. 이름 표시와 배경은 적용했으며, `Breakthrough`는 `Survival` 규칙을 쓰기로 정했지만([RFD 0033](../../docs/rfd/0033-breakthrough-survival-and-low-altitude-warning.md)) 비행 규칙은 아직 구현하지 않았다. 풀 정의는 [glossary](../../docs/context/glossary.md#flightrule-flight-rule), 현재 배치는 [RFD 0022](../../docs/rfd/0022-flight-difficulty-names-and-visuals.md)를 따른다.
 _Avoid_: 차트 레벨
 
 **`altitude`**:
-`flightRule`의 상태와 고도 연출을 연결하는 지표다. `Breakthrough`의 저고도는 정상 비행이므로 낮은 시각 고도를 모든 단계의 실패 위험으로 해석하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#altitude-altitude)를 따른다.
+`flightRule`의 상태와 고도 연출을 연결하는 지표다. `Breakthrough`는 화면 고도가 `Survival` 게이지를 따라 고도 하가 실패에 가까운 상태이고, 다른 단계에는 "낮을수록 실패 위험"을 일괄 적용하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#altitude-altitude)를 따른다.
 _Avoid_: 달성률
 
 ## Relationships
@@ -163,7 +163,7 @@ _Avoid_: 달성률
 - **랭크**는 결과 등급이고 **난이도 등급**은 차트 레벨 구간이다.
 - **입력 오프셋**과 **시각 오프셋**은 합치지 않는다. 오디오 오프셋은 제거했다.
 - **`flightRule`**은 **난이도명**에 대응하는 시나리오와 연결된다. **Lv.**·**난이도 등급**과는 다르다.
-- **`Infiltration`**에는 하향 시선 회전, **`Breakthrough`**에는 전방을 보는 지속 저공비행을 배치한다. 이름만으로 종전 규칙의 회복·실패 조건을 승계하지 않는다.
+- **`Infiltration`**에는 하향 시선 회전, **`Breakthrough`**에는 전방을 보는 지속 저공비행을 배치한다. `Breakthrough`는 `Survival` 규칙을 쓰고 저고도에서 배경이 약한 주홍빛으로 점멸해 경고한다([RFD 0033](../../docs/rfd/0033-breakthrough-survival-and-low-altitude-warning.md)).
 - **`altitude`**는 **달성률**이나 **랭크**와 다르다.
 - **기어**는 레인을 둘러싼 장식이고, 프레임은 렌더 프레임(`renderFrame`, 프레임 시간)이다. `gearMotion`의 애니메이션 경과 시간이 "렌더 프레임마다" 나아간다는 말에서 둘을 섞지 않는다.
 - **`gearMotion`**은 기어 위 장식 애니메이션이고, "움직이다"는 위치가 바뀌는 것(노트 스크롤, 리프트)에만 쓴다. 기어는 리프트로 움직이지 않는다.
