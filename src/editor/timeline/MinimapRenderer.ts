@@ -237,7 +237,7 @@ export class MinimapRenderer {
     }
 
     // (3.6) Rest zones (RFD 0019) — trillZone 밴드와 동일 레이어/z-order 취급.
-    // 색·alpha는 타임라인 restZone 밴드 상수를 그대로 쓴다(trillZone 미니맵 렌더 관례).
+    // 색은 타임라인 restZone 밴드와 같은 검정이고, 칸이 작아 빗금 없이 미니맵 전용 REST_ZONE_ALPHA 단색 dim으로 채운다.
     const restRects = computeMinimapRestZoneRects(
       chart.restZones ?? [], bpmMarkers, meta.offsetMs,
       (ms) => this.host.timeToY(ms), toMinimapY, trackX, laneW,

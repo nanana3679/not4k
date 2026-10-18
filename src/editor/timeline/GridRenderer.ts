@@ -13,9 +13,11 @@ import {
   TIMELINE_WIDTH,
   EXTRA_LANE_WIDTH,
   COLORS,
+  REST_ZONE_STRIPE_WIDTH,
 } from "./constants";
 import { destroyChildren } from "./utils";
 import { eventLaneToX } from "./laneGeometry";
+import { diagonalStripeBands } from "./restZoneHatch";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
@@ -382,6 +384,8 @@ export class GridRenderer {
     const { meta } = chart;
     const bpmMarkers = this.host.cachedBpmMarkers;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
+    const visibleYA = this.host.timeToY(minTimeMs);
+    const visibleYB = this.host.timeToY(maxTimeMs);
 
     for (let i = 0; i < restZones.length; i++) {
       const zone = restZones[i];
@@ -403,7 +407,18 @@ export class GridRenderer {
 
       const bg = new Graphics();
       bg.rect(x, adjustedTopY, width, height);
-      bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_ALPHA });
+      bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_BASE_ALPHA });
+      // 빗금은 화면에 보이는 부분만 만들되, 위상은 구간 시작 박 위치(startY)에 고정한다. 스크롤·이동하면 구간과 함께
+      // 움직이고, 끝 캡으로 길이를 바꿔도(시작은 그대로) 빗금이 미끄러지지 않는다.
+      const visibleTop = Math.max(adjustedTopY, Math.min(visibleYA, visibleYB));
+      const visibleBottom = Math.min(adjustedTopY + height, Math.max(visibleYA, visibleYB));
+      const bands = diagonalStripeBands(
+        { x, y: visibleTop, width, height: visibleBottom - visibleTop }, REST_ZONE_STRIPE_WIDTH, x, startY,
+      );
+      if (bands.length > 0) {
+        for (const band of bands) bg.poly(band);
+        bg.fill({ color: COLORS.REST_ZONE, alpha: COLORS.REST_ZONE_STRIPE_ALPHA });
+      }
       // 유닛으로 선택된 restZone은 선택 강조 테두리를 그린다 (renderTrillZones 미러)
       if (this.host.selectedRestZones.has(i)) {
         bg.rect(x, adjustedTopY, width, height);
