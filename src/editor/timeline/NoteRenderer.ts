@@ -62,6 +62,8 @@ export class NoteRenderer {
   private acquireGraphics(): Graphics {
     if (this.poolIdx < this.pool.length) {
       let g = this.pool[this.poolIdx];
+      // 풀 Graphics가 hoverLayer의 롱노트 외곽선(drawRangeNoteOutline)으로 쓰이면 hover 갱신의
+      // destroyChildren(hoverLayer)가 destroy한다. destroy된 Graphics에 clear()를 부르면 throw하므로 새로 만든다.
       if (g.destroyed) {
         g = new Graphics();
         this.pool[this.poolIdx] = g;
