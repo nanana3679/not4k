@@ -1577,14 +1577,14 @@ describe("SelectMode — 보조 레인 trillZone 수리 경로 (trillZoneMainOnl
     expect(rulesOf(updated)).toEqual([]);
   });
 
-  it("lane 15 존: 로드 규칙(extraLaneCountCoveringTrillZones)이 넓힌 보조 레인 수 11에서 박스로 선택해 deleteSelected하면 위반 0건", () => {
-    const chart = makeAuxZoneChart(15);
+  it("lane 14 존: 로드 규칙(extraLaneCountCoveringTrillZones)이 넓힌 보조 레인 수 10에서 박스로 선택해 deleteSelected하면 위반 0건", () => {
+    const chart = makeAuxZoneChart(14);
     const extraLaneCount = extraLaneCountCoveringTrillZones(2, chart.trillZones);
-    expect(extraLaneCount).toBe(11);
+    expect(extraLaneCount).toBe(10);
     const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) }, { extraLaneCount });
     const mode = makeMode(chart, cb);
 
-    boxSelectAuxZone(mode, 15);
+    boxSelectAuxZone(mode, 14);
     expect(cb.getSelectionState().zones).toEqual(new Set([0]));
     mode.deleteSelected();
 

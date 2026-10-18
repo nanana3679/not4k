@@ -8,9 +8,19 @@ function chartWithTrillZones(trillZones: { lane: number; beat: string; endBeat: 
 }
 
 describe("extraLaneCountCoveringTrillZones — 로드한 보조 레인 trillZone이 숨지 않게 (#102)", () => {
-  it("보조 파일 없이 연 lane 15 trillZone 차트는 보조 레인 수 2 → 11로 넓힌다 (툴바 상한 10 초과 허용)", () => {
+  it("보조 파일 없이 연 lane 14 trillZone 차트는 보조 레인 수 2 → 10으로 넓힌다", () => {
+    const chart = chartWithTrillZones([{ lane: 14, beat: "0", endBeat: "4" }]);
+    expect(extraLaneCountCoveringTrillZones(2, chart.trillZones)).toBe(10);
+  });
+
+  it("lane 15 trillZone은 보조 파일 포맷 상한(MAX_EXTRA_LANE_COUNT 10)을 넘어 보조 레인 수 10에서 멈춘다", () => {
     const chart = chartWithTrillZones([{ lane: 15, beat: "0", endBeat: "4" }]);
-    expect(extraLaneCountCoveringTrillZones(2, chart.trillZones)).toBe(11);
+    expect(extraLaneCountCoveringTrillZones(2, chart.trillZones)).toBe(10);
+  });
+
+  it("lane 100000 같은 비정상 lane이어도 보조 레인 수는 10을 넘지 않는다", () => {
+    const chart = chartWithTrillZones([{ lane: 100000, beat: "0", endBeat: "4" }]);
+    expect(extraLaneCountCoveringTrillZones(2, chart.trillZones)).toBe(10);
   });
 
   it("lane 5 trillZone은 보조 레인 수 2 안에 보이므로 2 유지 — 줄이지 않는다", () => {
