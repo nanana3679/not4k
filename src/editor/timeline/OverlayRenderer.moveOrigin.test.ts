@@ -222,3 +222,23 @@ describe("OverlayRenderer.renderMoveOrigins 구간 원위치 고스트 (#94)", (
     expect(children).toHaveLength(0);
   });
 });
+
+describe("OverlayRenderer.clearMoveOrigins", () => {
+  it("restZone·trillZone·노트 고스트 3개를 그린 뒤 clearMoveOrigins()하면 다음 전체 렌더를 기다리지 않고 moveOriginLayer가 바로 빈다", () => {
+    const trillZone: TrillZone = { lane: 2, beat: beat(0), endBeat: beat(4) };
+    const restZone: RestZone = { lane: 4, beat: beat(0), endBeat: beat(4) };
+    const note: NoteEntity = { type: "trill", lane: 2, beat: beat(1) };
+    const host = makeOverlayHost(makeChart([trillZone], [restZone], [note]), {
+      notes: [{ note, beat: beat(1), lane: 2 }],
+      trillZones: [trillZone],
+      restZones: [restZone],
+    });
+    const overlay = new OverlayRenderer(host);
+    overlay.renderMoveOrigins();
+    expect(host.moveOriginLayer.children).toHaveLength(3);
+
+    overlay.clearMoveOrigins();
+
+    expect(host.moveOriginLayer.children).toHaveLength(0);
+  });
+});

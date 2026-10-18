@@ -20,6 +20,14 @@ describe("TimelineRenderer 이동 원위치 고스트 배선 (소스 수준, #94
     expect(body).toContain("this._restZoneMoveOrigins = null;");
   });
 
+  it("clearMoveOrigins는 원위치를 지운 뒤 overlayRenderer.clearMoveOrigins()로 이미 그린 고스트도 바로 지운다(드롭은 같은 차트를 커밋해 전체 렌더가 따라오지 않는다)", () => {
+    const body = methodBody("clearMoveOrigins(): void {");
+    const nulled = body.indexOf("this._restZoneMoveOrigins = null;");
+    const cleared = body.indexOf("this.overlayRenderer.clearMoveOrigins();");
+    expect(nulled).toBeGreaterThanOrEqual(0);
+    expect(cleared).toBeGreaterThan(nulled);
+  });
+
   it("setTrillZoneMoveOrigins·setRestZoneMoveOrigins는 구간 원위치를 저장한다", () => {
     expect(methodBody("setTrillZoneMoveOrigins(")).toContain("this._trillZoneMoveOrigins = origins;");
     expect(methodBody("setRestZoneMoveOrigins(")).toContain("this._restZoneMoveOrigins = origins;");

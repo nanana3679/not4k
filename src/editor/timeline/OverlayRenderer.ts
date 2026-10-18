@@ -149,6 +149,14 @@ export class OverlayRenderer {
   }
 
   /**
+   * 이미 그린 이동 원위치 고스트(노트·구간)를 바로 지운다. 드롭은 마지막 프리뷰와 같은 차트를 다시
+   * 커밋해 전체 렌더가 따라오지 않으므로, 여기서 지우지 않으면 고스트가 다음 전체 렌더까지 남는다.
+   */
+  clearMoveOrigins(): void {
+    destroyChildren(this.host.moveOriginLayer);
+  }
+
+  /**
    * 구간 단위로 이동 중인 restZone·trillZone의 원래 위치에 고스트를 그린다 (#94).
    * 모양·색은 타임라인 밴드(GridRenderer.renderRestZones·renderTrillZones)와 같고 그래픽 전체 alpha만
    * ORIGIN_ALPHA로 낮춘다 — 노트 고스트처럼 "원래 모습의 흐린 사본"이며 선택 테두리는 그리지 않는다.

@@ -595,6 +595,8 @@ export class TimelineRenderer {
     this._moveOrigins = null;
     this._trillZoneMoveOrigins = null;
     this._restZoneMoveOrigins = null;
+    // 이미 그린 고스트도 바로 지운다 — 드롭은 같은 차트 참조를 다시 커밋해 render()가 따라오지 않는다.
+    this.overlayRenderer.clearMoveOrigins();
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
