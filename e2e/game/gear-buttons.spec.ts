@@ -5,8 +5,12 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 type Renderer = import('../../src/game/renderer/GameRenderer').GameRenderer;
 
 /**
- * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다(그리기는 바꾸지 않는다). renderFrame이 끝날 때마다 그 프레임에 그린
+ * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다. renderFrame이 끝날 때마다 그 프레임에 그린
  * 기어 버튼 상태(레인 1~4를 쉼표로, 대기는 idle, 그 밖에는 단계-색 pressed-single·releasing-double 등)와 그 프레임의 곡 시각(renderFrame의 첫 인자, ms)을 기록한다.
+ *
+ * 렌더러에 넘기는 deltaMs만 16ms 이하로 묶는다(곡 시각과 판정은 그대로). 뗌 곡선은 deltaMs만큼 나아가 150ms에 끝나는데, 부하가 걸린
+ * swiftshader에서는 프레임 간격이 150~350ms까지 벌어져 뗀 뒤 첫 프레임에 곡선이 끝나고 releasing 프레임이 남지 않는다.
+ * 곡선이 나아가는 양을 벽시계 대신 그린 프레임 수로 정해 releasing을 거치는지 부하와 상관없이 확인한다.
  */
 async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -19,11 +23,12 @@ async function installProbe(page: Page) {
       .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
     const renderFrame = GameRenderer.prototype.renderFrame;
-    GameRenderer.prototype.renderFrame = function (...args) {
-      const result = renderFrame.apply(this, args);
+    const maxFrameDeltaMs = 16;
+    GameRenderer.prototype.renderFrame = function (songTimeMs, deltaMs = maxFrameDeltaMs) {
+      const result = renderFrame.call(this, songTimeMs, Math.min(deltaMs, maxFrameDeltaMs));
       win.__gearButtonRenderer = this;
       (win.__gearButtonLog as (string | null)[]).push(this.gearButtonStates?.map(state => (state.phase === 'idle' ? 'idle' : `${state.phase}-${state.color}`)).join(',') ?? null);
-      (win.__gearButtonTimes as number[]).push(args[0]);
+      (win.__gearButtonTimes as number[]).push(songTimeMs);
       return result;
     };
   });
