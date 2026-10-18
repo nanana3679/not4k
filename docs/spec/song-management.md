@@ -18,7 +18,7 @@
 에디터는 차트를 열 때 Storage에서 차트 파일(`{difficulty}.json`)과 보조 파일(`{difficulty}.extra.json`)을 함께 읽고, 둘 다 읽은 뒤에만 연다.
 
 - 차트 파일은 필수이다.
-- 보조 파일은 Storage가 객체 없음으로 답할 때만 없는 것으로 본다. HTTP 404와, Supabase Storage가 없는 객체에 주는 HTTP 400 + 본문 `statusCode: "404"`(`NoSuchKey`) 응답이 여기에 해당한다. 이때는 차트 파일에 내장된 이전 포맷의 제작 보조 정보를 읽고, 그것도 없으면 보조 노트 없이 연다.
+- 보조 파일은 Storage가 객체 없음으로 답할 때만 없는 것으로 본다. HTTP 404와, Supabase Storage가 없는 객체에 주는 HTTP 400 응답(본문 `statusCode: "404"`이면서 `code: "NoSuchKey"`, `code`가 없는 이전 형식이면 `error: "not_found"`)이 여기에 해당한다. 본문 `statusCode`가 "404"여도 버킷 없음(`NoSuchBucket`)은 객체 없음이 아니다. 이때는 차트 파일에 내장된 이전 포맷의 제작 보조 정보를 읽고, 그것도 없으면 보조 노트 없이 연다.
 - 보조 파일의 그 밖의 HTTP 오류(5xx, 객체 없음이 아닌 400 등), 네트워크 오류, 파싱·형식 오류가 나면 에디터를 열지 않고 차트 파일을 읽지 못했을 때와 같은 Error 화면(오류 메시지와 Back to Songs 버튼)을 표시한다. 형식 오류는 본문이 JSON 객체가 아닐 때, `extraNotes`·`extraLaneCount` 키가 없을 때, 노트 종류를 알 수 없거나 beat 문자열이 잘못됐을 때, `extraLane`이 1~10, `extraLaneCount`가 0~10 범위의 정수가 아닐 때다.
 - 보조 파일을 읽지 못한 채 에디터를 열면 이어진 저장이 Storage의 보조 파일을 빈 내용으로 덮어쓰거나 지워 제작 보조 정보를 잃는다. 이 규칙은 그 흐름을 막는다.
 
