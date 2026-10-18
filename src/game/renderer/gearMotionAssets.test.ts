@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
 
 const { assetsLoad, assetsUnload, gate } = vi.hoisted(() => ({
@@ -76,17 +76,18 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     // lease만 retain했다면 JSON 경로를 두 번 release해도 reference count는 0으로 읽힌다(0 이하면 항목을 지운다).
     // 소유자를 하나 더 두어 두 번째 release가 1 대신 0으로 드러나게 한다.
     retainSharedAsset(jsonPath);
+    // 단언이 실패해도 추가 소유자를 지워 다음 테스트로 reference count가 새지 않게 한다.
+    onTestFinished(() => releaseSharedAsset(jsonPath));
     const lease = acquireGearMotionAssets((path) => path);
-    const counts = [sharedAssetReferenceCount(jsonPath)];
+    const jsonReferenceCounts = [sharedAssetReferenceCount(jsonPath)];
     lease.release();
-    counts.push(sharedAssetReferenceCount(jsonPath));
+    jsonReferenceCounts.push(sharedAssetReferenceCount(jsonPath));
     lease.release();
-    counts.push(sharedAssetReferenceCount(jsonPath));
+    jsonReferenceCounts.push(sharedAssetReferenceCount(jsonPath));
     open();
     await expect(lease.ready).rejects.toThrow('released');
-    expect(counts).toEqual([2, 1, 1]);
+    expect(jsonReferenceCounts).toEqual([2, 1, 1]);
     expect(loadedPaths().filter((path) => path.endsWith('.png'))).toEqual([]);
-    releaseSharedAsset(jsonPath);
   });
 
   it('JSON이 계약과 다르면(텍스처 상자 armorLit 없음) ready가 그 키 이름을 담아 거절되고 PNG를 읽지 않는다', async () => {
