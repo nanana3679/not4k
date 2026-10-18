@@ -52,43 +52,56 @@ function mockSong(
 }
 
 // 곡 선택 화면이 받는 고정 곡 목록. 저장된 난이도 식별자 easy·normal·hard는 화면에서 LIFTOFF·INFILTRATION·BREAKTHROUGH로 보인다.
+// Mock Song A의 차트는 hard·easy·normal 순서로 두어, 곡 카드가 난이도 순서(sortChartsByDifficulty)로 정렬해 보여 주는지 확인한다.
 const MOCK_SONGS: DbSong[] = [
-  mockSong('mock-song-a', 'Mock Song A', 'Artist A', [['easy', 3], ['normal', 6], ['hard', 9]]),
+  mockSong('mock-song-a', 'Mock Song A', 'Artist A', [['hard', 9], ['easy', 3], ['normal', 6]]),
   mockSong('mock-song-b', 'Mock Song B', 'Artist B', [['normal', 5], ['hard', 8]]),
   mockSong('mock-song-c', 'Mock Song C', 'Artist C', [['easy', 2], ['normal', 4]]),
 ];
 
 const CHART_TAG_TEXT = /^(LIFTOFF|INFILTRATION|BREAKTHROUGH) Lv\.\d+$/;
 
+// index.html이 불러오는 외부 글꼴. 테스트에서는 기록 없이 중단해 대체 글꼴로 그린다.
+const GOOGLE_FONTS_ORIGINS = new Set(['https://fonts.googleapis.com', 'https://fonts.gstatic.com']);
+// 곡 선택 화면이 곡마다 부르는 자켓 이미지와 프리뷰 음원 파일(jacket.*·audio.*·preview.*). 차트 JSON은 여기에 들지 않는다.
+const SONG_MEDIA_PATH = /^\/storage\/v1\/object\/public\/assets\/songs\/[^/]+\/(jacket|audio|preview)\.[a-z0-9]+$/;
+
 /**
- * Supabase HTTP 경계만 고정 응답으로 바꾼다. 연결된 Supabase 프로젝트의 실제 곡 데이터나 자격 증명과 무관하게
- * 같은 곡 목록을 본다. 목록에 없는 Supabase 요청은 500으로 끝내고 기록해, 모르는 네트워크에 기대지 않았는지 확인한다.
+ * 페이지의 모든 요청을 가로채, 연결된 Supabase 프로젝트의 곡 데이터나 자격 증명과 무관하게 같은 화면을 보게 한다.
+ * - 경로가 `/rest/v1/`·`/storage/v1/`·`/auth/v1/`로 시작하는 요청(origin 무관): OPTIONS는 204, `GET /rest/v1/songs`는
+ *   `MOCK_SONGS`, `SONG_MEDIA_PATH`에 맞는 GET은 404로 응답한다(곡 선택 화면은 자켓을 숨기고 프리뷰 재생 실패를 무시한다).
+ *   그 밖의 요청은 500으로 응답하고 기록한다.
+ * - 앱 origin의 GET은 그대로 통과시킨다.
+ * - Google Fonts origin의 요청은 기록하지 않고 중단한다.
+ * - 나머지(위 세 경로가 아닌 Supabase 경로, 그 밖의 origin, 앱 origin의 GET이 아닌 요청)는 중단하고 기록한다.
+ * 기록은 `${method} ${origin}${pathname}` 형식으로 돌려주는 배열에 쌓이며, 중단한 요청에는 ` (aborted)`를 붙인다.
  */
 async function mockSupabase(page: Page, appOrigin: string): Promise<string[]> {
-  const unexpectedApiRequests: string[] = [];
+  const unexpectedRequests: string[] = [];
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
+    const label = `${method} ${url.origin}${path}`;
     if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
       if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
       if (method === 'GET' && path === '/rest/v1/songs') {
         await route.fulfill({ json: MOCK_SONGS }); return;
       }
-      // 자켓 이미지와 프리뷰 음원은 없는 것으로 응답한다. 곡 선택 화면은 자켓을 숨기고 프리뷰 재생 실패를 무시한다.
-      if (method === 'GET' && path.startsWith('/storage/v1/object/public/assets/songs/')) {
+      if (method === 'GET' && SONG_MEDIA_PATH.test(path)) {
         await route.fulfill({ status: 404, body: 'Not found' }); return;
       }
-      unexpectedApiRequests.push(`${method} ${path}`);
+      unexpectedRequests.push(label);
       await route.fulfill({ status: 500, json: { error: 'Unexpected offline test request' } }); return;
     }
     if (url.origin === appOrigin && method === 'GET') {
       await route.continue(); return;
     }
+    if (!GOOGLE_FONTS_ORIGINS.has(url.origin)) unexpectedRequests.push(`${label} (aborted)`);
     await route.abort();
   });
-  return unexpectedApiRequests;
+  return unexpectedRequests;
 }
 
 /**
@@ -121,15 +134,17 @@ async function navigateToSongSelect(page: Page) {
 }
 
 test.describe('Song Select Screen', () => {
-  let unexpectedApiRequests: string[] = [];
+  let unexpectedRequests: string[] = [];
 
   test.beforeEach(async ({ page, baseURL }) => {
-    unexpectedApiRequests = await mockSupabase(page, new URL(baseURL!).origin);
+    unexpectedRequests = await mockSupabase(page, new URL(baseURL!).origin);
     await navigateToSongSelect(page);
   });
 
   test.afterEach(() => {
-    expect(unexpectedApiRequests).toEqual([]);
+    // 페이지를 닫지 않고 지금까지 기록된 요청을 확인한다. 여기서 닫으면 실패 때 Playwright가 남기는
+    // error-context.md(페이지 스냅샷)가 만들어지지 않는다.
+    expect(unexpectedRequests).toEqual([]);
   });
 
   test('Supabase 곡 목록이 3곡이면 곡 목록에 3곡의 제목과 아티스트를 표시', async ({ page }) => {
@@ -140,7 +155,7 @@ test.describe('Song Select Screen', () => {
     }
   });
 
-  test('차트 easy·normal·hard는 곡 카드에 LIFTOFF·INFILTRATION·BREAKTHROUGH 태그로 곡마다 가진 것만 표시', async ({ page }) => {
+  test('차트를 hard·easy·normal 순서로 받아도 곡 카드에는 그 곡이 가진 차트만 LIFTOFF·INFILTRATION·BREAKTHROUGH 순서 태그로 표시', async ({ page }) => {
     await expect(songCard(page, 'Mock Song A').getByText(CHART_TAG_TEXT))
       .toHaveText(['LIFTOFF Lv.3', 'INFILTRATION Lv.6', 'BREAKTHROUGH Lv.9']);
     await expect(songCard(page, 'Mock Song B').getByText(CHART_TAG_TEXT))
@@ -151,7 +166,7 @@ test.describe('Song Select Screen', () => {
 
   test('Mock Song C의 LIFTOFF 태그를 고르고 Play를 누르면 곡 선택을 떠나 그 곡 easy 차트의 로딩 화면으로 이동', async ({ page }) => {
     await page.route('**/storage/v1/object/public/assets/songs/mock-song-c/**', () => {
-      // 로딩 화면이 부르는 차트·음원 요청에는 응답하지 않고 붙잡아 둔다. 응답하면 로딩이 끝나 로딩 화면이 사라진다.
+      // 로딩 화면이 부르는 차트·음원 요청에는 응답하지 않아 pending으로 둔다. 응답하면 로딩이 끝나 로딩 화면이 사라진다.
     });
 
     await songCard(page, 'Mock Song C').getByText('LIFTOFF Lv.2', { exact: true }).click();
@@ -193,14 +208,37 @@ test.describe('Song Select Screen', () => {
     await diagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
     await expect(diagramModal).toBeHidden();
 
+    // 캐러셀 트랙(`data-tutorial-carousel-track`)의 `data-tutorial-transition-phase="animating"`은
+    // 260ms(TUTORIAL_PAGE_TRANSITION_MS)만 이어져 expect 폴링 간격 사이에 시작과 끝이 모두 지나갈 수 있다.
+    // 클릭 전에 이 속성의 변화를 MutationObserver로 지켜보고, 바뀌기 전 값(oldValue)이나 바뀐 값이 animating이었는지
+    // 페이지 안에 기록한다.
+    await page.evaluate(() => {
+      const probe = window as typeof window & { __tutorialCarouselAnimated?: boolean };
+      probe.__tutorialCarouselAnimated = false;
+      new MutationObserver((mutations) => {
+        for (const { target, oldValue } of mutations) {
+          if (!(target instanceof Element) || !target.matches('[data-tutorial-carousel-track]')) continue;
+          if (oldValue === 'animating' || target.getAttribute('data-tutorial-transition-phase') === 'animating') {
+            probe.__tutorialCarouselAnimated = true;
+          }
+        }
+      }).observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: ['data-tutorial-transition-phase'],
+      });
+    });
     await dialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]').click();
-    await expect(dialog.locator(
-      '[data-tutorial-carousel-track][data-tutorial-transition-phase="animating"]'
-    )).toBeVisible();
     const activeOverlapSlot = dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
     );
     await expect(activeOverlapSlot).toBeVisible();
+    await expect(dialog.locator('[data-tutorial-carousel-track="true"]'))
+      .toHaveAttribute('data-tutorial-transition-phase', 'idle');
+    expect(await page.evaluate(() =>
+      (window as typeof window & { __tutorialCarouselAnimated?: boolean }).__tutorialCarouselAnimated
+    )).toBe(true);
     const overlapDiagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
     await expect(overlapDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
     const firstOverlapInstanceId = await activeOverlapSlot.getAttribute('data-tutorial-preview-instance');
@@ -212,6 +250,8 @@ test.describe('Song Select Screen', () => {
     await expect(dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-trill-long"]'
     )).toBeVisible();
+    // connected-trill-long 차트에는 tutorialDiagram이 없어 도식 확인 모달이 뜨지 않는다.
+    await expect(page.locator('[data-tutorial-diagram-modal="true"]')).toBeHidden();
     await page.getByRole('button', { name: 'Previous tutorial' }).click();
     const restoredOverlapSlot = dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
