@@ -549,7 +549,7 @@ function isExtraNoteJson(value: unknown): value is ExtraNoteEntityJson {
     return false;
   }
 
-  // 다른 노트 종류의 필드(Point의 endBeat·holdOnly, 구간 노트의 grace)가 있으면 조용히 버리지 않고 거부한다.
+  // 다른 노트 종류의 필드(Point의 endBeat·holdOnly, 롱노트의 grace)가 있으면 값과 관계없이 조용히 버리지 않고 거부한다.
   if (EXTRA_POINT_TYPES.includes(value.type as typeof EXTRA_POINT_TYPES[number])) {
     return !Object.hasOwn(value, "endBeat")
       && !Object.hasOwn(value, "holdOnly")

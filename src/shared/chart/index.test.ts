@@ -142,21 +142,21 @@ describe('parseExtraNotes 런타임 스키마 검증', () => {
     })).toThrow('invalid extraNotes');
   });
 
-  it('holdOnly=1인 보조 구간 노트는 boolean이 아니므로 에러', () => {
+  it('holdOnly=1인 보조 롱노트는 boolean이 아니므로 에러', () => {
     expect(() => parseExtraNotes({
       extraNotes: [{ type: 'long', extraLane: 1, beat: '1', endBeat: '2', holdOnly: 1 }],
       extraLaneCount: 1,
     })).toThrow('invalid extraNotes');
   });
 
-  it('보조 포인트 노트에 구간 전용 holdOnly=true가 있으면 조용히 버리지 않고 에러', () => {
+  it('보조 Point에 롱노트 전용 holdOnly=true가 있으면 조용히 버리지 않고 에러', () => {
     expect(() => parseExtraNotes({
       extraNotes: [{ type: 'single', extraLane: 1, beat: '1', holdOnly: true }],
       extraLaneCount: 1,
     })).toThrow('invalid extraNotes');
   });
 
-  it('보조 구간 노트에 포인트 전용 grace=true가 있으면 조용히 버리지 않고 에러', () => {
+  it('보조 롱노트에 Point 전용 grace=true가 있으면 조용히 버리지 않고 에러', () => {
     expect(() => parseExtraNotes({
       extraNotes: [{ type: 'long', extraLane: 1, beat: '1', endBeat: '2', grace: true }],
       extraLaneCount: 1,
