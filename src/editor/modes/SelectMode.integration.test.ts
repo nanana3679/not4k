@@ -63,7 +63,6 @@ function makeIntegration(
   // 게이트에 거부된 채 진행됐다는 뜻(예: 삭제가 차트 커밋 전에 해제를 시도)
   const setSelectionSpy = vi.fn((s: Selection) => useEditorStore.getState().setSelection(s));
 
-  let mode: SelectMode;
   const cb = {
     onChartUpdate: (c: Chart) => {
       useEditorStore.getState().setChart(c);
@@ -93,7 +92,7 @@ function makeIntegration(
       useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, e) });
     },
   };
-  mode = new SelectMode(useEditorStore.getState().chart, cb);
+  const mode = new SelectMode(useEditorStore.getState().chart, cb);
   return { mode, cb, setSelectionSpy, store: useEditorStore };
 }
 

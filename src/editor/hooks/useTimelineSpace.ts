@@ -38,6 +38,7 @@ export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>
       getTotalTimelineMs: () =>
         rendererRef.current ? rendererRef.current.getTotalTimelineMs() : null,
     };
+    // eslint-disable-next-line react-hooks/refs -- createTimelineSpace는 source 클로저를 저장만 하고 생성 중에는 호출하지 않는다
     return createTimelineSpace(source);
   }, [rendererRef]);
 
