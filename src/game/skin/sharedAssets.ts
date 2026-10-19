@@ -39,7 +39,7 @@ export function loadSharedAsset<T>(path: string, data?: Partial<TextureSourceOpt
   return operation;
 }
 
-/** @internal 테스트용: 경로의 현재 소유자 수. */
+/** @internal 테스트용: 경로의 현재 reference count. */
 export function sharedAssetReferenceCount(path: string): number {
   return references.get(path) ?? 0;
 }
