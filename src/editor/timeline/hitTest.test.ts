@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion, isWithinNoteEndCap } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion, isWithinNoteEndCap, eventEndMeetsNoteEnd } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
+import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone, ChartEvent } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -375,5 +375,30 @@ describe("isWithinNoteEndCap (롱노트 끝 캡 히트 영역)", () => {
     expect(isWithinNoteEndCap(2 + 1 / 32, 2)).toBe(true);
     expect(isWithinNoteEndCap(2 - 1 / 32, 2)).toBe(true);
     expect(isWithinNoteEndCap(2 + 1 / 16, 2)).toBe(false);
+  });
+});
+
+describe("eventEndMeetsNoteEnd (구간 이벤트 끝과 롱노트 끝이 같은 위치인가)", () => {
+  const events: ChartEvent[] = [
+    { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 }, // idx 0: 시점 이벤트(endBeat 없음)
+    { type: "auto", beat: beat(0), endBeat: beat(2), editorLane: 1 }, // idx 1: 2박에 끝나는 구간 이벤트
+  ];
+  const notes: NoteEntity[] = [
+    { type: "long", lane: 5, beat: beat(0), endBeat: beat(2) }, // idx 0: 끝 2박
+    { type: "long", lane: 5, beat: beat(0), endBeat: beat(9, 4) }, // idx 1: 끝 2.25박
+    { type: "single", lane: 5, beat: beat(2) }, // idx 2: 포인트 노트(endBeat 없음)
+  ];
+  const chart = { events, notes };
+
+  it("이벤트 끝 2박·롱노트 끝 2박은 true, 롱노트 끝 2.25박은 false", () => {
+    expect(eventEndMeetsNoteEnd(chart, 1, 0)).toBe(true);
+    expect(eventEndMeetsNoteEnd(chart, 1, 1)).toBe(false);
+  });
+
+  it("시점 이벤트(bpm)·포인트 노트·범위 밖 인덱스면 false", () => {
+    expect(eventEndMeetsNoteEnd(chart, 0, 0)).toBe(false);
+    expect(eventEndMeetsNoteEnd(chart, 1, 2)).toBe(false);
+    expect(eventEndMeetsNoteEnd(chart, 5, 0)).toBe(false);
+    expect(eventEndMeetsNoteEnd(chart, 1, 9)).toBe(false);
   });
 });

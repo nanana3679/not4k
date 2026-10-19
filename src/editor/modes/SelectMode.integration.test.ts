@@ -444,4 +444,39 @@ describe("보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·
     ).toBe(0);
     expect(makeRealSpaceIntegration([auxLong]).mode.computeResizeHoverNote(250, 1000)).toBe(0);
   });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: 겹친 노트 위반 상태(lane 5 doubleLong 1→2박 idx 0, long 0→2박 idx 1, 2박에 끝나는 구간 이벤트, snap=32)에서 끝(y=1000)은 최상위 long(1)의 캡도 숨긴다 — down은 eventEndCap", () => {
+    const { mode } = makeRealSpaceIntegration(
+      [
+        { type: "doubleLong", lane: 5, beat: beat(1), endBeat: beat(2) },
+        { type: "long", lane: 5, beat: beat(0), endBeat: beat(2) },
+      ],
+      { events: eventsWithAutoEndAt2, snapDivision: 32 },
+    );
+
+    expect(mode.resolveGrabAt(250, 1000)).toEqual({ kind: "eventEndCap", index: 2 });
+    expect(mode.computeResizeHoverNote(250, 1000)).toBeNull();
+  });
+
+  it("터치 롱프레스는 끝 캡 양보가 없다: snap=32에서 미선택 보조 롱노트 끝과 구간 이벤트 끝이 같은 2박이어도 롱프레스 히트로 y=1500까지 끌면 노트 끝이 3박으로 늘고 이벤트 끝은 2박 그대로", () => {
+    const { mode, space, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+
+    // useCanvasEvents의 롱프레스 발화(armHoldTimer)가 만드는 히트 조합과 같다
+    const started = mode.beginLongPressDrag(250, 1000, {
+      noteEndHit: space.hitTestNoteEnd(250, 1000),
+      noteHit: space.hitTestUnifiedNote(250, 1000),
+      zoneHit: space.hitTestTrillZone(250, 1000),
+    });
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect(started).toBe(true);
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
+  });
 });

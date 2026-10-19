@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { resolveGrab, resolveNoteEndCap, type GrabSelectionView } from "./resolveGrab";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { createTimelineSpace, type TimelineSpace } from "../timeline/TimelineSpace";
-import { isWithinNoteEndCap } from "../timeline/hitTest";
-import { beat, beatToFloat } from "../../shared";
+import { eventEndMeetsNoteEnd } from "../timeline/hitTest";
+import { beat } from "../../shared";
 import type { Chart, ChartEvent, NoteEntity } from "../../shared";
 
 /** 선택 없음 기본 뷰. */
@@ -255,13 +255,9 @@ function realGrabInput(opts: {
     space,
     sel,
     isRangeNote: (i: number) => chart.notes[i] !== undefined && "endBeat" in chart.notes[i],
-    // SelectMode.eventEndMeetsNoteEnd와 같은 chart 사실 — 이벤트 끝이 노트 끝 캡 히트 영역 안인가
-    eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) => {
-      const evt = chart.events[eventIndex];
-      const note = chart.notes[noteIndex];
-      return evt !== undefined && "endBeat" in evt && note !== undefined && "endBeat" in note
-        && isWithinNoteEndCap(beatToFloat(evt.endBeat), beatToFloat(note.endBeat));
-    },
+    // SelectMode와 같은 chart 사실 — 이벤트 끝이 노트 끝 캡 히트 영역 안인가
+    eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) =>
+      eventEndMeetsNoteEnd(chart, eventIndex, noteIndex),
   };
 }
 

@@ -20,7 +20,7 @@ import { clampRestBeatOffset, translateRestZone } from "./restZoneSelection";
 import type { TrillZone, RestZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
-import { isWithinNoteEndCap } from "../timeline/hitTest";
+import { eventEndMeetsNoteEnd, isWithinNoteEndCap } from "../timeline/hitTest";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 /**
@@ -270,15 +270,19 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 롱노트 리사이즈 캡을 hover로 보일 노트 — (x, y)의 최상위 노트. 단 포인터가 그 노트의 끝 캡 위인데
-   * down이 그 캡을 잡지 않으면(같은 위치의 구간 이벤트 끝에 양보) null로 캡을 숨긴다 — hover 캡·커서·down
-   * hit을 같게 두는 trillZone 캡 선례(RFD 0016 §6-6)와 같다(#100).
+   * 롱노트 리사이즈 캡을 hover로 보일 노트 — (x, y)의 최상위 노트. 단 포인터가 그 노트의 끝 캡 히트 영역
+   * 위인데 down이 바로 그 노트의 끝 캡을 잡지 않으면(같은 위치의 구간 이벤트 끝에 양보, 겹친 노트 위반 상태)
+   * null로 캡을 숨겨 커서·down과 맞춘다. 몸통 위에서는 끝에 캡을 그대로 보인다 — 끝이 다른 노트에 가려진
+   * o-o- 패턴과 같다(#100).
    */
   computeResizeHoverNote(x: number, y: number): number | null {
     const hovered = this.callbacks.space.hitTestUnifiedNote(x, y);
     if (hovered === null) return null;
-    const onItsEndCap = this.callbacks.space.hitTestNoteEnd(x, y) === hovered;
-    if (onItsEndCap && this.resolveNoteEndCapAt(x, y) === null) return null;
+    const note = this.chart.notes[hovered];
+    if (note === undefined || !this.isRangeNote(note)) return hovered; // 포인트 노트는 캡이 없다
+    const raw = this.callbacks.space.yToBeatRaw(y);
+    const onItsEndCap = isWithinNoteEndCap(raw.n / raw.d, beatToFloat(note.endBeat));
+    if (onItsEndCap && this.resolveNoteEndCapAt(x, y) !== hovered) return null;
     return hovered;
   }
 
@@ -475,7 +479,7 @@ export class SelectMode implements EditorMode {
       sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
       isRangeNote: (i: number) => this.isRangeNoteAt(i),
       eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) =>
-        this.eventEndMeetsNoteEnd(eventIndex, noteIndex),
+        eventEndMeetsNoteEnd(this.chart, eventIndex, noteIndex),
     };
   }
 
@@ -1591,19 +1595,6 @@ export class SelectMode implements EditorMode {
   private isRangeNoteAt(index: number): boolean {
     const note = this.chart.notes[index];
     return note !== undefined && this.isRangeNote(note);
-  }
-
-  /**
-   * 끝 캡 게이트용 chart 사실 — 구간 이벤트 events[eventIndex]의 끝이 롱노트 notes[noteIndex]의 끝 캡
-   * 히트 영역 안인가(두 끝이 같은 위치). 어느 쪽이든 endBeat가 없거나 범위 밖이면 false.
-   */
-  private eventEndMeetsNoteEnd(eventIndex: number, noteIndex: number): boolean {
-    const evt = this.chart.events[eventIndex];
-    const note = this.chart.notes[noteIndex];
-    if (evt === undefined || !("endBeat" in evt) || note === undefined || !this.isRangeNote(note)) {
-      return false;
-    }
-    return isWithinNoteEndCap(beatToFloat(evt.endBeat), beatToFloat(note.endBeat));
   }
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */
