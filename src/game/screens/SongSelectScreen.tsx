@@ -1,5 +1,5 @@
 import { formatDifficultyLabel } from '../../shared/chartDifficulty';
-import { useState, useCallback, useRef, type CSSProperties } from 'react';
+import { useState, useCallback, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { createChartAsset, deleteSongAsset, supabase } from '../../supabase';
@@ -82,7 +82,24 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   // 모달이 하나라도 떠 있으면(새 차트 모달 포함) 뒤의 헤더·곡 목록을 inert로 만들어 Tab 포커스·클릭이 닿지 않게 한다.
   // focus trap이 없는 모달(곡 추가 등)에서 Tab으로 뒤의 버튼에 닿으면 두 번째 모달을 겹쳐 열 수 있고, 그러면
   // Escape 한 번이 가려진 첫 모달을 닫는다. 모달은 renderOverlays()로 inert 밖에 렌더링하므로 열린 모달은 영향이 없다.
-  const backgroundInert = blockingModalOpen || newChartTarget !== null;
+  const songSelectInert = blockingModalOpen || newChartTarget !== null;
+
+  // inert가 되면 모달을 연 버튼이 포커스를 잃는다. inert를 켠 커밋에서 포커스된 요소를 기억했다가 모달이 닫혀
+  // inert가 풀리면 되돌려, 키보드로 연 사용자가 Space로 다시 열 수 있게 한다. Chromium은 inert가 된 요소의 blur를
+  // 다음 렌더링 갱신 뒤로 미루므로 이 layout effect에서는 아직 그 버튼에 포커스가 있다. 되돌리기는 커밋이 끝난 뒤
+  // (microtask) 하고, 그 사이 버튼이 사라졌거나(곡 선택 화면을 떠난 경우 포함) 다른 요소가 포커스를 가져갔으면
+  // (설정 모달이 스스로 되돌린 경우 등) 건너뛴다.
+  useLayoutEffect(() => {
+    if (!songSelectInert) return;
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || focused === document.body) return;
+    return () => {
+      queueMicrotask(() => {
+        const current = document.activeElement;
+        if (focused.isConnected && (current === null || current === document.body)) focused.focus();
+      });
+    };
+  }, [songSelectInert]);
 
   const {
     songs,
@@ -240,7 +257,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   if (mobileListOnly) {
     return (
       <div style={styles.mobileContainer}>
-        <div style={styles.mobileHeader} inert={backgroundInert}>
+        <div style={styles.mobileHeader} inert={songSelectInert}>
           <div style={styles.mobileHeaderTop}>
             <h1 style={styles.mobileTitle}>
               <span style={styles.mobileTitleAccent} aria-hidden="true" />
@@ -286,7 +303,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
         <div
           ref={songListRef}
-          inert={backgroundInert}
+          inert={songSelectInert}
           style={{
             ...styles.mobileSongList,
             ...(showSongListState ? styles.mobileSongListState : {}),
@@ -339,7 +356,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
 
   return (
     <div style={styles.container}>
-      <div style={styles.header} inert={backgroundInert}>
+      <div style={styles.header} inert={songSelectInert}>
         <h1 style={styles.title}>
           <span style={styles.titleAccent} aria-hidden="true" />
           Song Select
@@ -373,7 +390,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
         </div>
       </div>
 
-      <div style={styles.splitContainer} inert={backgroundInert}>
+      <div style={styles.splitContainer} inert={songSelectInert}>
         {/* Left panel — song detail */}
         <div style={styles.leftPanel}>
           {focusedSong ? (

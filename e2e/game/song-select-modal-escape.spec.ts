@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // 곡 선택의 관리 모달(곡 삭제·곡 추가·새 차트)은 admin에게만 보인다. 개발 서버의
 // VITE_DEV_ADMIN=true(.env.local)로 로그인 없이 admin이 된 상태에서 실행한다.
@@ -69,6 +69,47 @@ function describeFocus(page: Page) {
     const active = document.activeElement;
     if (!active) return 'none';
     return `${active.tagName.toLowerCase()} "${(active.textContent ?? '').trim().slice(0, 40)}"`;
+  });
+}
+
+/** `target`에 포커스가 갈 때까지 Tab을 누른다(최대 20번). */
+async function tabUntilFocused(page: Page, target: Locator) {
+  for (let i = 0; i < 20; i += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab 20번 안에 대상에 포커스가 가지 않음(지금 포커스: ${await describeFocus(page)})`);
+}
+
+// 모달을 연 버튼은 모달이 열린 동안 inert 아래라 포커스를 잃는다. 닫히면 그 버튼으로 포커스가 돌아와야 한다.
+// 설정·튜토리얼은 같은 inert를 쓰므로 함께 확인한다(설정 모달은 스스로도 포커스를 되돌린다).
+const FOCUS_RESTORE_CASES = [
+  { label: '+ Add Song', trigger: (page: Page) => page.getByRole('button', { name: '+ Add Song', exact: true }), modal: (page: Page) => page.getByRole('heading', { name: 'New Song', exact: true }) },
+  { label: 'Delete', trigger: (page: Page) => page.getByRole('button', { name: 'Delete', exact: true }).first(), modal: (page: Page) => page.getByRole('heading', { name: 'Delete Song', exact: true }) },
+  { label: '+ Chart', trigger: (page: Page) => page.getByRole('button', { name: '+ Chart', exact: true }), modal: (page: Page) => page.getByRole('heading', { name: 'New Chart', exact: true }) },
+  { label: 'Settings', trigger: (page: Page) => page.getByRole('button', { name: 'Settings', exact: true }), modal: (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true }) },
+  { label: '?(튜토리얼)', trigger: (page: Page) => page.getByRole('button', { name: 'Open tutorial help', exact: true }), modal: (page: Page) => page.getByRole('dialog', { name: 'Tutorial' }) },
+];
+
+for (const { label, trigger, modal } of FOCUS_RESTORE_CASES) {
+  test(`${label} 버튼을 Tab으로 포커스해 Space로 열고 Escape로 닫으면 → 포커스가 ${label} 버튼으로 돌아와 Space로 다시 열림`, async ({ page, baseURL }) => {
+    await routeSupabase(page, baseURL!);
+    await openSongSelect(page);
+
+    const triggerButton = trigger(page);
+    await tabUntilFocused(page, triggerButton);
+    await page.keyboard.press('Space');
+    await expect(modal(page)).toBeVisible();
+    // Chromium은 inert가 된 요소의 blur를 다음 렌더링 갱신 뒤로 미룬다. 포커스가 실제로 빠진 뒤에 닫아야
+    // 되돌리기를 확인할 수 있다(그 전에 닫으면 포커스가 버튼에 그대로 남아 있다).
+    await expect(triggerButton, '모달이 열린 동안 뒤의 버튼은 inert라 포커스를 잃는다').not.toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(modal(page)).toHaveCount(0);
+    await expect(triggerButton).toBeFocused();
+
+    await page.keyboard.press('Space');
+    await expect(modal(page)).toBeVisible();
   });
 }
 

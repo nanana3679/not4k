@@ -342,6 +342,14 @@ describe('shouldBlockSongNavKey', () => {
     expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'Escape' })).toBe(true);
   });
 
+  it('Enter 자동 반복(repeat=true)은 차단 — 모달 Close를 Enter로 누르고 있어도 게임을 시작하지 않음', () => {
+    expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'Enter' })).toBe(true);
+  });
+
+  it('차단 모달 없고 repeat=false인 Enter는 통과(게임 시작)', () => {
+    expect(shouldBlockSongNavKey({ ...base, key: 'Enter' })).toBe(false);
+  });
+
   it('ArrowDown 자동 반복(repeat=true)은 통과 — 누르고 있으면 곡을 계속 넘김', () => {
     expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'ArrowDown' })).toBe(false);
   });
