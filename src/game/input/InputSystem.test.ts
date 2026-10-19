@@ -4,6 +4,8 @@ import { DEFAULT_BINDINGS_TKL, InputSystem, type InputCallbacks, type KeyBinding
 
 type Lane = KeyBinding["lane"];
 type InputCall = readonly [kind: "press" | "release", lane: Lane, timestampMs: number, keyCode: string];
+/** fireKey가 Event에 덧붙이는 KeyboardEvent 필드. 이름을 잘못 쓰면 타입 오류가 난다. */
+type KeyFields = Partial<Pick<KeyboardEvent, "key" | "keyCode" | "repeat" | "isComposing" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey">>;
 
 const LANES = [1, 2, 3, 4] as const;
 
@@ -22,7 +24,7 @@ function fireKey(
   type: "keydown" | "keyup",
   code: string,
   timeStamp: number,
-  fields: Record<string, unknown> = {},
+  fields: KeyFields = {},
 ): void {
   const event = new Event(type);
   for (const [name, value] of Object.entries({ repeat: false, ...fields, code, timeStamp })) {
@@ -44,18 +46,18 @@ function setupInput(bindings: KeyBinding[] = BINDINGS) {
     input,
     target,
     calls,
-    down: (code: string, timeStamp: number, fields?: Record<string, unknown>) =>
+    down: (code: string, timeStamp: number, fields?: KeyFields) =>
       fireKey(target, "keydown", code, timeStamp, fields),
     up: (code: string, timeStamp: number) => fireKey(target, "keyup", code, timeStamp),
   };
 }
 
-/** PlayScreen처럼 설정의 레인별 키 목록을 KeyBinding 배열로 편다. */
+/** 설정의 레인별 키 목록을 KeyBinding 배열로 편다. PlayScreen의 같은 변환을 따라 쓴 것이며 PlayScreen 코드를 실행하지는 않는다. */
 function toKeyBindings(preset: Record<`lane${Lane}`, string[]>): KeyBinding[] {
   return LANES.flatMap(lane => preset[`lane${lane}`].map(key => ({ lane, key })));
 }
 
-function pressedLanes(calls: readonly InputCall[]): Array<[keyCode: string, lane: Lane]> {
+function pressedKeyLanes(calls: readonly InputCall[]): Array<[keyCode: string, lane: Lane]> {
   return calls.filter(([kind]) => kind === "press").map(([, lane, , keyCode]) => [keyCode, lane]);
 }
 
@@ -170,7 +172,7 @@ describe("InputSystem", () => {
         down(code, i * 10);
         up(code, i * 10 + 5);
       });
-      expect(pressedLanes(calls)).toEqual([
+      expect(pressedKeyLanes(calls)).toEqual([
         ["KeyW", 1], ["KeyQ", 1],
         ["KeyE", 2], ["KeyC", 2],
         ["KeyP", 3], ["Comma", 3],
@@ -178,7 +180,10 @@ describe("InputSystem", () => {
       ]);
     });
 
-    it.each(["tkl", "numpad"] as const)("PRESET_BINDINGS.%s의 16키를 PlayScreen처럼 KeyBinding으로 넘기면 각 키 keydown이 그 키가 바인딩된 레인의 onLanePress가 된다", preset => {
+    it.each<[preset: keyof typeof PRESET_BINDINGS, keyCode: string, lane: Lane]>([
+      ["tkl", "KeyP", 3],
+      ["numpad", "Numpad7", 3],
+    ])("PRESET_BINDINGS.%s의 16키를 KeyBinding 배열로 펴서 넘기면 각 키 keydown이 바인딩된 레인의 onLanePress가 된다 (%s → 레인 %i)", (preset, keyCode, lane) => {
       const bindings = toKeyBindings(PRESET_BINDINGS[preset]);
       expect(bindings).toHaveLength(16);
       const { calls, down, up } = setupInput(bindings);
@@ -186,12 +191,15 @@ describe("InputSystem", () => {
         down(key, i * 10);
         up(key, i * 10 + 5);
       });
-      expect(pressedLanes(calls)).toEqual(bindings.map(({ lane, key }) => [key, lane]));
+      const pressed = pressedKeyLanes(calls);
+      expect(pressed).toContainEqual([keyCode, lane]);
+      expect(pressed).toEqual(bindings.map(binding => [binding.key, binding.lane]));
     });
 
-    it.each([
+    it.each<[label: string, fields: KeyFields]>([
       ["AZERTY 배열의 e.key 'a'", { key: "a" }],
-      ["한글 IME 조합 중인 e.key 'Process'·isComposing true", { key: "Process", isComposing: true }],
+      ["한글 IME 조합 중인 e.key 'Process'·keyCode 229·isComposing true", { key: "Process", keyCode: 229, isComposing: true }],
+      ["IME 조합을 여닫는 경계라 isComposing false·e.key 'Process'·keyCode 229", { key: "Process", keyCode: 229, isComposing: false }],
     ])("%s인 KeyQ keydown도 e.code로 레인 1 onLanePress를 낸다", (_label, fields) => {
       const { calls, down } = setupInput();
       down("KeyQ", 100, fields);
@@ -207,9 +215,14 @@ describe("InputSystem", () => {
       expect(calls).toEqual([]);
     });
 
-    it.each(["shiftKey", "ctrlKey", "altKey", "metaKey"])("%s가 true인 KeyQ keydown도 거르지 않고 레인 1 onLanePress를 낸다", modifier => {
+    it.each<[modifier: string, fields: KeyFields]>([
+      ["shiftKey", { shiftKey: true }],
+      ["ctrlKey", { ctrlKey: true }],
+      ["altKey", { altKey: true }],
+      ["metaKey", { metaKey: true }],
+    ])("%s가 true인 KeyQ keydown도 거르지 않고 레인 1 onLanePress를 낸다", (_modifier, fields) => {
       const { calls, down } = setupInput();
-      down("KeyQ", 100, { [modifier]: true });
+      down("KeyQ", 100, fields);
       expect(calls).toEqual([["press", 1, 100, "KeyQ"]]);
     });
 
