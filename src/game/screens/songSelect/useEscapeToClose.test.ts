@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { shouldCloseOnEscape } from './useEscapeToClose';
+import { shouldBlockSongNavKey, shouldPreventSongNavKeyDefault } from './helpers';
 import useEscapeToCloseSource from './useEscapeToClose.ts?raw';
 import deleteSongModalSource from './DeleteSongModal.tsx?raw';
 import addSongModalSource from './AddSongModal.tsx?raw';
@@ -60,5 +61,47 @@ describe('곡 선택 관리 모달의 Escape 닫기 배선', () => {
     expect(useEscapeToCloseSource).toContain("window.addEventListener('keydown', handleKeyDown);");
     expect(useEscapeToCloseSource).toContain("window.removeEventListener('keydown', handleKeyDown);");
     expect(useEscapeToCloseSource).not.toContain('document.addEventListener');
+  });
+});
+
+/** 같은 대상에 등록 순서대로 리스너를 실행하려고 Node의 Event에 KeyboardEvent 필드를 붙인다. */
+function keyboardEvent(key: string, repeat: boolean) {
+  const event = new Event('keydown', { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: key },
+    repeat: { value: repeat },
+    isComposing: { value: false },
+  });
+  return event as KeyboardEvent;
+}
+
+describe('곡 선택 네비 뒤에 등록된 모달 리스너', () => {
+  it('곡 추가 업로드가 실패해 모달 리스너가 곡 선택 네비 뒤로 다시 등록돼도 → 누르고 있는 Escape의 반복 keydown으로 모달이 닫힘', () => {
+    const fakeWindow = new EventTarget();
+    let closeCount = 0;
+    // 곡 선택 네비(useSongNavigation): 먼저 등록돼 먼저 실행된다. 모달이 열려 있어 키를 막는다.
+    fakeWindow.addEventListener('keydown', (event) => {
+      const e = event as KeyboardEvent;
+      if (shouldBlockSongNavKey({
+        blockingModalOpen: true,
+        hasPendingChartTarget: false,
+        songsEmpty: false,
+        key: e.key,
+        defaultPrevented: e.defaultPrevented,
+        repeat: e.repeat,
+      })) {
+        if (shouldPreventSongNavKeyDefault({ key: e.key, repeat: e.repeat, target: e.target })) e.preventDefault();
+      }
+    });
+    // 곡 추가 모달(useEscapeToClose): 모달 안 상태 submitting이 true→false로 바뀌면 이 리스너만 다시 등록돼 네비 뒤에 온다.
+    fakeWindow.addEventListener('keydown', (event) => {
+      const e = event as KeyboardEvent;
+      if (!shouldCloseOnEscape(e, { disabled: false })) return;
+      e.preventDefault();
+      closeCount += 1;
+    });
+
+    fakeWindow.dispatchEvent(keyboardEvent('Escape', true));
+    expect(closeCount).toBe(1);
   });
 });

@@ -18,7 +18,7 @@ vi.mock('../stores', async (importOriginal) => {
   return { ...actual, useGameStore };
 });
 vi.mock('../../supabase', () => ({
-  supabase: { storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: '' } }) }) } },
+  supabase: { storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: 'https://example.test/jacket.png' } }) }) } },
   createChartAsset: vi.fn(),
   deleteSongAsset: vi.fn(),
 }));

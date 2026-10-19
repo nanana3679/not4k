@@ -363,8 +363,8 @@ describe('shouldPreventSongNavKeyDefault', () => {
     expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: button })).toBe(true);
   });
 
-  it('Escape 자동 반복(repeat=true)도 기본 동작을 막음', () => {
-    expect(shouldPreventSongNavKeyDefault({ key: 'Escape', repeat: true, target: button })).toBe(true);
+  it('Escape 자동 반복(repeat=true)은 기본 동작을 막지 않음 — 뒤에 등록된 모달 리스너가 닫을 수 있음', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Escape', repeat: true, target: button })).toBe(false);
   });
 
   it('첫 Enter(repeat=false)는 기본 동작을 막지 않음 — 포커스된 버튼은 그대로 눌림', () => {

@@ -166,7 +166,7 @@ export function useSongNavigation(options: {
         defaultPrevented: e.defaultPrevented,
         repeat: e.repeat,
       })) {
-        // 자동 반복이라 막은 Escape·Enter는 포커스된 버튼을 다시 누르는 브라우저 기본 동작도 막는다.
+        // 자동 반복이라 막은 Enter는 포커스된 버튼을 다시 누르는 브라우저 기본 동작도 막는다(Escape는 그대로 둔다).
         if (shouldPreventSongNavKeyDefault({ key: e.key, repeat: e.repeat, target: e.target })) e.preventDefault();
         return;
       }

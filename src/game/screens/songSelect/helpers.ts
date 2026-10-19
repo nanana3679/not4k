@@ -131,27 +131,25 @@ export function shouldBlockSongNavKey(params: {
 }): boolean {
   const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key, defaultPrevented, repeat } = params;
   if (defaultPrevented) return true;
-  if (isAutoRepeatEscapeOrEnter(key, repeat)) return true;
+  if (repeat && (key === 'Escape' || key === 'Enter')) return true;
   if (blockingModalOpen || hasPendingChartTarget) return true;
   if (songsEmpty && key !== 'Escape') return true;
   return false;
 }
 
-/** 곡 선택에서 쓸 일이 없는 Escape·Enter 자동 반복 keydown인지. */
-function isAutoRepeatEscapeOrEnter(key: string, repeat: boolean): boolean {
-  return repeat && (key === 'Escape' || key === 'Enter');
-}
-
 /**
- * 곡 선택 네비가 자동 반복이라 막은 Escape·Enter의 브라우저 기본 동작(포커스된 버튼 누르기)도 막아야 하는지 정한다.
+ * 곡 선택 네비가 자동 반복이라 막은 Enter의 브라우저 기본 동작(포커스된 버튼 누르기)도 막아야 하는지 정한다.
  *
  * 모달을 닫으면 포커스가 모달을 연 버튼으로 돌아오므로, Cancel에서 누르고 있던 Enter의 반복 keydown이
- * 그 버튼을 다시 눌러 모달을 다시 열 수 있다. 여러 줄 글 입력(textarea·contenteditable)에서는 Enter가
- * 줄바꿈이라 막지 않는다. 한 줄 input에서는 반복되는 암묵적 제출만 생기므로 막는다.
- * `target`은 keydown의 `event.target`이다.
+ * 그 버튼을 다시 눌러 모달을 다시 열 수 있다. 같은 이유로 모달 안 버튼도 Enter를 누르고 있어도 한 번만 눌린다.
+ * 여러 줄 글 입력(textarea·contenteditable)에서는 Enter가 줄바꿈이라 막지 않는다. 한 줄 input에서는 반복되는
+ * 암묵적 제출만 생기므로 막는다. `target`은 keydown의 `event.target`이다.
+ *
+ * Escape 반복은 막지 않는다. 버튼은 Escape에 기본 동작이 없고, 막으면 곡 선택 네비 뒤에 다시 등록된 모달
+ * 리스너(`useEscapeToClose`는 처리된 키를 무시한다)가 누르고 있는 Escape로 모달을 닫지 못한다.
  */
 export function shouldPreventSongNavKeyDefault(params: { key: string; repeat: boolean; target: unknown }): boolean {
-  return isAutoRepeatEscapeOrEnter(params.key, params.repeat) && !isMultilineTextTarget(params.target);
+  return params.repeat && params.key === 'Enter' && !isMultilineTextTarget(params.target);
 }
 
 /** Enter가 줄바꿈인 여러 줄 글 입력 요소(textarea·contenteditable)인지. */
