@@ -146,6 +146,16 @@ describe('TutorialHelpModal', () => {
     expect(html).not.toContain('removed-skin');
   });
 
+  it.each([null, 42])('배포 빌드에서 손으로 고쳐 저장된 skinId가 문자열이 아닌 %s여도 팝업이 예외 없이 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', (skinId) => {
+    vi.stubEnv('DEV', false);
+    useGameStore.getInitialState().settings = { ...defaultSettings, skinId: skinId as unknown as string };
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-skin-id="classic"')).toBe(2);
+  });
+
   it('개발 환경에서는 개발용 스킨 선택을 불러오기 전 첫 렌더에 재생기를 마운트하지 않고 로딩 placeholder만 렌더링', () => {
     // 설정 스킨으로 먼저 만든 렌더러를 개발용 스킨으로 다시 만들지 않도록, 스킨을 정한 뒤에 재생기 2개를 마운트한다.
     vi.stubEnv('DEV', true);
@@ -240,11 +250,13 @@ describe('TutorialHelpModal', () => {
   });
 
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
+    // 개발 환경의 첫 렌더에는 재생기가 없으므로 배포 빌드로 렌더링해 두 슬롯의 래퍼 요소까지 확인한다.
+    vi.stubEnv('DEV', false);
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
     );
 
-    expect(html).toContain('not4k-tutorial-player-wrap');
+    expect(countOccurrences(html, 'class="not4k-tutorial-player-wrap"')).toBe(2);
     expect(html).toContain('@media (max-width: 560px)');
     expect(html).toContain('min-width: 0 !important');
   });

@@ -71,7 +71,8 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
   );
   const settings = useGameStore((state) => state.settings);
-  // 재생기는 플레이 화면과 같은 스킨으로 재생한다. 개발 환경에서는 개발용 스킨 선택을 불러오기 전까지 null이라 재생기를 마운트하지 않는다.
+  // 재생기 스킨은 플레이 화면과 같은 우선순위로 정하되, 쓸 수 없는 저장 스킨 id는 기본 스킨으로 바꾼다.
+  // 개발 환경에서는 개발용 스킨 선택을 기다리는 동안 null이라 재생기를 마운트하지 않는다.
   const previewSkin = useTutorialPreviewSkin(settings.skinId);
   const currentSection = getTutorialSection(tutorialIndex);
   const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;

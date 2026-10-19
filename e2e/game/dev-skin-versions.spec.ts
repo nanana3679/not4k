@@ -59,7 +59,7 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-type TutorialSkinRecord = { canvases: string[]; renderers: string[] };
+type TutorialSkinRecord = { canvasSkinIds: string[]; rendererInitSkinIds: string[] };
 
 /**
  * 새 튜토리얼 재생기 캔버스가 DOM에 붙을 때마다 그 재생기의 data-tutorial-skin-id를, GameRenderer.init마다 실제로 불러온 스킨을 기록한다.
@@ -72,10 +72,10 @@ async function recordTutorialSkins(page: Page) {
       .find(name => new URL(name).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(url);
     const state = window as unknown as { __tutorialSkins: TutorialSkinRecord };
-    state.__tutorialSkins = { canvases: [], renderers: [] };
+    state.__tutorialSkins = { canvasSkinIds: [], rendererInitSkinIds: [] };
     const init = GameRenderer.prototype.init;
     GameRenderer.prototype.init = function () {
-      state.__tutorialSkins.renderers.push((this as unknown as { skinManager: { skinId: string } }).skinManager.skinId);
+      state.__tutorialSkins.rendererInitSkinIds.push((this as unknown as { skinManager: { skinId: string } }).skinManager.skinId);
       return init.call(this);
     };
     const seenCanvases = new WeakSet<Element>();
@@ -86,7 +86,7 @@ async function recordTutorialSkins(page: Page) {
         for (const canvas of node.matches(selector) ? [node] : [...node.querySelectorAll(selector)]) {
           if (seenCanvases.has(canvas)) continue;
           seenCanvases.add(canvas);
-          state.__tutorialSkins.canvases.push(canvas.closest('[data-tutorial-skin-id]')?.getAttribute('data-tutorial-skin-id') ?? '');
+          state.__tutorialSkins.canvasSkinIds.push(canvas.closest('[data-tutorial-skin-id]')?.getAttribute('data-tutorial-skin-id') ?? '');
         }
       }
     }).observe(document.body, { childList: true, subtree: true });
@@ -98,7 +98,7 @@ async function readTutorialSkins(page: Page): Promise<TutorialSkinRecord> {
 }
 
 async function resetTutorialSkins(page: Page) {
-  await page.evaluate(() => { (window as unknown as { __tutorialSkins: TutorialSkinRecord }).__tutorialSkins = { canvases: [], renderers: [] }; });
+  await page.evaluate(() => { (window as unknown as { __tutorialSkins: TutorialSkinRecord }).__tutorialSkins = { canvasSkinIds: [], rendererInitSkinIds: [] }; });
 }
 
 async function openTutorialHelp(page: Page) {
@@ -265,7 +265,7 @@ test('저장 스킨이 crystal이면 곡 선택 튜토리얼 재생기 2개가 c
   await recordTutorialSkins(page);
 
   let dialog = await openTutorialHelp(page);
-  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvases: ['crystal', 'crystal'], renderers: ['crystal', 'crystal'] });
+  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvasSkinIds: ['crystal', 'crystal'], rendererInitSkinIds: ['crystal', 'crystal'] });
   expect(await tutorialSkinIds(dialog)).toEqual(['crystal', 'crystal']);
   await closeTutorialHelp(page);
 
@@ -277,7 +277,7 @@ test('저장 스킨이 crystal이면 곡 선택 튜토리얼 재생기 2개가 c
   dialog = await openTutorialHelp(page);
   // 설정 스킨(crystal)으로 먼저 마운트했다가 다시 만들면 crystal 캔버스가 앞에 쌓인다.
   // 렌더러 init 전에 개발용 스킨이 정해지면 렌더러 수는 2로 같아서, 캔버스 기록으로만 드러난다.
-  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvases: ['classic-v012', 'classic-v012'], renderers: ['classic-v012', 'classic-v012'] });
+  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvasSkinIds: ['classic-v012', 'classic-v012'], rendererInitSkinIds: ['classic-v012', 'classic-v012'] });
   expect(await tutorialSkinIds(dialog)).toEqual(['classic-v012', 'classic-v012']);
 
   const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
@@ -286,7 +286,7 @@ test('저장 스킨이 crystal이면 곡 선택 튜토리얼 재생기 2개가 c
   await expect(activeSlot).not.toHaveAttribute('data-tutorial-preview-id', firstId ?? '', { timeout: 15_000 });
   await expect(dialog.locator('[data-tutorial-carousel-track="true"]')).toHaveAttribute('data-tutorial-transition-phase', 'idle', { timeout: 15_000 });
   await expect(activeSlot.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic-v012');
-  expect(await readTutorialSkins(page)).toEqual({ canvases: ['classic-v012', 'classic-v012'], renderers: ['classic-v012', 'classic-v012'] });
+  expect(await readTutorialSkins(page)).toEqual({ canvasSkinIds: ['classic-v012', 'classic-v012'], rendererInitSkinIds: ['classic-v012', 'classic-v012'] });
   await closeTutorialHelp(page);
   expect(errors).toEqual([]);
 });
