@@ -12,7 +12,7 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 /** 차트의 single 노트 수. single 노트는 노트마다 판정이 1개라 한 번 완주한 결과의 판정 수 합이 이 값이다. */
 const SINGLE_NOTE_COUNT = 4;
 /** 일시정지 메뉴를 띄워 둔 채 기다리는 벽시계 시간(ms). 일시정지 중에도 곡 시간이 흐르는 회귀라면 Resume 뒤 곡 시간이 이만큼 건너뛰어 아래 상한을 넘는다. */
-const PAUSE_HOLD_MS = 2000;
+const PAUSE_DURATION_MS = 2000;
 /**
  * Resume 뒤 첫 렌더 프레임까지 곡 시간이 멈춘 곳에서 나아가도 되는 상한(ms). 곡 시간은 Resume을 누른 순간부터 다시 흐르므로
  * 정상이면 그 뒤 첫 렌더 프레임까지(렌더 프레임 간격 하나, swiftshader 부하에서 수백 ms)만 나아간다.
@@ -75,21 +75,19 @@ interface GameLoopProbe {
   songTimesByRenderer: number[][];
   /** 렌더러별 화면 콤보(updateCombo)의 최댓값. Miss는 콤보를 0으로 표시하므로(updateCombo(0)) 그 재생에서 Miss가 아닌 판정이 나오면 1 이상이다. */
   maxComboByRenderer: number[];
-  /**
-   * AudioEngine별(처음 play한 순서) play(offsetMs)로 받은 재생 시작 위치(ms). 플레이 화면은 초기화(첫 재생·Retry)마다 새 AudioEngine을 만들고,
-   * Resume은 같은 AudioEngine이 멈춘 위치에서 play로 다시 재생한다.
-   */
+  /** AudioEngine별(처음 play한 순서) play(offsetMs)로 받은 재생 시작 위치(ms). Resume은 같은 AudioEngine이 멈춘 위치에서 play로 다시 재생한다. */
   playOffsetsByEngine: number[][];
 }
 
 /**
- * 실제 PlayScreen이 만든 GameRenderer·AudioEngine을 renderFrame·updateCombo·play 관찰로 잡는다(그리기·판정·재생은 바꾸지 않는다).
+ * 실제 PlayScreen이 만든 GameRenderer·AudioEngine을 renderFrame·updateCombo·play 관찰로 잡는다. 감싼 메서드는 인자와 동작을 그대로 넘기고,
+ * 재생을 바꾸는 것은 아래 Esc 하나뿐이다: escapeAtFirstComboOfRendererIndex번째 렌더러가 콤보 1 이상을 처음 표시하는 렌더 프레임 안에서
+ * 포커스된 요소에서 window까지 버블링하는 Esc keydown을 한 번 보내 일시정지한다.
  * warm-up(`prepareForPlayback`)의 첫 프레임도 renderFrame이라 렌더러 번호는 곡 재생 전에 생긴다.
- * escapeAtFirstComboOfRenderer번째 렌더러가 콤보 1 이상을 처음 표시하면 그 렌더 프레임 안에서 플레이 화면의 keydown 처리기에 Esc를 한 번 보낸다.
  */
-async function installProbe(page: Page, { escapeAtFirstComboOfRenderer }: { escapeAtFirstComboOfRenderer: number }) {
+async function installProbe(page: Page, { escapeAtFirstComboOfRendererIndex }: { escapeAtFirstComboOfRendererIndex: number }) {
   const [rendererUrl, audioEngineUrl] = await Promise.all([appModuleUrl(page, GAME_RENDERER_PATH), appModuleUrl(page, AUDIO_ENGINE_PATH)]);
-  await page.evaluate(async ({ rendererUrl, audioEngineUrl, escapeRenderer }) => {
+  await page.evaluate(async ({ rendererUrl, audioEngineUrl, escapeRendererIndex }) => {
     const probe: GameLoopProbe = { songTimesByRenderer: [], maxComboByRenderer: [], playOffsetsByEngine: [] };
     (window as unknown as { __gameLoopProbe: GameLoopProbe }).__gameLoopProbe = probe;
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererUrl);
@@ -117,10 +115,11 @@ async function installProbe(page: Page, { escapeAtFirstComboOfRenderer }: { esca
       const index = rendererIndexOf(this);
       probe.maxComboByRenderer[index] = Math.max(probe.maxComboByRenderer[index], combo);
       updateCombo.call(this, combo);
-      // 콤보 1을 표시하는 렌더 프레임 안에서 플레이 화면이 듣는 window keydown으로 Esc를 보낸다. 테스트 러너를 왕복하지 않아 부하가 커도 뒤 노트보다 먼저 일시정지한다.
-      if (index === escapeRenderer && combo >= 1 && !escapeSent) {
+      // 콤보 1을 표시하는 렌더 프레임 안에서, 실제 키 입력처럼 포커스된 요소(없으면 body)에 Esc keydown을 보내 window까지 버블링시킨다
+      // (플레이 화면은 window keydown으로 Esc를 받는다). 테스트 러너를 왕복하지 않아 부하가 커도 뒤 노트보다 먼저 일시정지한다.
+      if (index === escapeRendererIndex && combo >= 1 && !escapeSent) {
         escapeSent = true;
-        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
+        (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
       }
     };
 
@@ -136,7 +135,7 @@ async function installProbe(page: Page, { escapeAtFirstComboOfRenderer }: { esca
       probe.playOffsetsByEngine[index].push(offsetMs ?? 0);
       return play.call(this, offsetMs);
     };
-  }, { rendererUrl, audioEngineUrl, escapeRenderer: escapeAtFirstComboOfRenderer });
+  }, { rendererUrl, audioEngineUrl, escapeRendererIndex: escapeAtFirstComboOfRendererIndex });
 }
 
 async function readProbe(page: Page): Promise<GameLoopProbe> {
@@ -160,13 +159,13 @@ async function readGameState(page: Page) {
 }
 
 /**
- * renderer번째(만든 순서, 0부터) 렌더러가 콤보 1 이상을 표시할 때까지 화면 프레임마다 확인한다. Miss는 콤보를 0으로 표시하므로
+ * rendererIndex번째(만든 순서, 0부터) 렌더러가 콤보 1 이상을 표시할 때까지 화면 프레임마다 확인한다. Miss는 콤보를 0으로 표시하므로
  * 그 재생에서 Miss가 아닌 첫 판정을 기다리는 것이다. 곡 로딩을 포함해 30초까지 기다린다.
  */
-async function waitForFirstCombo(page: Page, { renderer }: { renderer: number }) {
+async function waitForFirstCombo(page: Page, { rendererIndex }: { rendererIndex: number }) {
   await page.waitForFunction(
     (index) => ((window as unknown as { __gameLoopProbe: GameLoopProbe }).__gameLoopProbe.maxComboByRenderer[index] ?? 0) >= 1,
-    renderer,
+    rendererIndex,
     { polling: 'raf', timeout: 30_000 },
   );
 }
@@ -176,12 +175,12 @@ async function waitForFirstCombo(page: Page, { renderer }: { renderer: number })
  * 첫 노트 뒤 2초를 비워, 콤보 1에서 보낸 Esc가 렌더 프레임이 아주 느려도 둘째 노트 전에 일시정지하게 한다.
  * 곡 선택·로딩 화면(Supabase)을 거치지 않고 게임 스토어에 차트·음원을 직접 넣는다. 곡 시작은 기다리지 않는다(캔버스는 로딩 중에도 있다).
  */
-async function startAutoPlay(page: Page, { escapeAtFirstComboOfRenderer }: { escapeAtFirstComboOfRenderer: number }) {
+async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex }: { escapeAtFirstComboOfRendererIndex: number }) {
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
   // AudioContext를 시작할 수 있게 사용자 gesture를 먼저 준다.
   await page.locator('body').click({ position: { x: 5, y: 5 } });
-  await installProbe(page, { escapeAtFirstComboOfRenderer });
+  await installProbe(page, { escapeAtFirstComboOfRendererIndex });
   const storeUrl = await appModuleUrl(page, GAME_STORE_PATH);
   await page.evaluate(async (url) => {
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(url);
@@ -254,14 +253,16 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
     expect(unexpectedRequests).toEqual([]);
   });
 
-  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 2초 뒤 Resume하면 곡 시간이 멈춘 곳에서 1초 안으로 이어져 남은 노트를 판정하고, 결과 화면에 달성률·랭크·Full Combo·판정 분포·FAST/SLOW를 표시한 뒤(판정 수 합 4) Back으로 곡 선택에 돌아간다', async ({ page }) => {
-    await startAutoPlay(page, { escapeAtFirstComboOfRenderer: 0 });
+  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하면 2초 동안 렌더 프레임이 없고, Resume하면 곡 시간이 멈춘 곳에서 1초 안으로 이어져 남은 노트를 판정하며, 결과 화면에 달성률·랭크·Full Combo·판정 분포·FAST/SLOW를 표시한 뒤(판정 수 합 4) Back으로 곡 선택에 돌아간다', async ({ page }) => {
+    await startAutoPlay(page, { escapeAtFirstComboOfRendererIndex: 0 });
     const resume = page.getByRole('button', { name: 'Resume', exact: true });
     await expect(resume).toBeVisible({ timeout: 30_000 });
+    const framesAtMenu = (await readProbe(page)).songTimesByRenderer[0].length;
     // 일시정지 메뉴를 띄운 채 벽시계로 기다린다. 곡 시간은 AudioContext 시계라 화면 프레임 수로 대신 기다릴 수 없다.
-    await page.waitForTimeout(PAUSE_HOLD_MS);
+    await page.waitForTimeout(PAUSE_DURATION_MS);
     const paused = await readProbe(page);
-    const framesBeforePause = paused.songTimesByRenderer[0].length;
+    // 메뉴가 떠 있는 동안 게임 루프는 renderFrame을 부르지 않는다(메뉴만 뜨고 루프가 계속 도는 회귀를 잡는다).
+    expect(paused.songTimesByRenderer[0].length, '일시정지 중 그린 렌더 프레임').toBe(framesAtMenu);
     const songTimeAtPause = paused.songTimesByRenderer[0].at(-1)!;
     const comboAtPause = paused.maxComboByRenderer[0];
     expect(comboAtPause, 'Esc가 마지막 노트 뒤에 도착').toBeLessThan(SINGLE_NOTE_COUNT);
@@ -272,9 +273,9 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
     // Resume은 플레이 화면을 다시 만들지 않고 같은 렌더러·AudioEngine으로 이어 간다.
     expect(finished.songTimesByRenderer).toHaveLength(1);
     expect(finished.playOffsetsByEngine).toHaveLength(1);
-    // 일시정지 메뉴가 떠 있는 동안에는 renderFrame이 불리지 않으므로 framesBeforePause번째가 Resume 뒤 첫 렌더 프레임이다.
+    // 일시정지 메뉴가 떠 있는 동안 renderFrame이 불리지 않았으므로(위에서 확인) framesAtMenu번째가 Resume 뒤 첫 렌더 프레임이다.
     // 그 곡 시간은 처음(0초)으로 돌아가지 않고(곡 시간 계산의 부동소수 오차 1ms 허용), 일시정지한 2초를 건너뛰지도 않는다.
-    const songTimeAfterResume = finished.songTimesByRenderer[0][framesBeforePause];
+    const songTimeAfterResume = finished.songTimesByRenderer[0][framesAtMenu];
     expect(songTimeAfterResume).toBeGreaterThanOrEqual(songTimeAtPause - 1);
     expect(songTimeAfterResume).toBeLessThan(songTimeAtPause + RESUME_SONG_TIME_ADVANCE_LIMIT_MS);
     // Resume 뒤에도 남은 노트를 판정해 콤보가 늘었다.
@@ -286,20 +287,21 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
     await expect(page.getByText('No songs found.', { exact: true })).toBeVisible();
   });
 
-  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 Retry를 누르면 새 AudioEngine이 곡을 0ms부터 다시 재생해 새 렌더러가 판정하고, 결과의 판정 수 합은 Retry 전 판정이 더해지지 않은 4다', async ({ page }) => {
-    await startAutoPlay(page, { escapeAtFirstComboOfRenderer: 0 });
+  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 Retry를 누르면 곡을 0ms부터 다시 재생해 새 렌더러가 판정하고, 결과의 판정 수 합은 Retry 전 판정이 더해지지 않은 4다', async ({ page }) => {
+    await startAutoPlay(page, { escapeAtFirstComboOfRendererIndex: 0 });
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     // Retry는 플레이 화면을 다시 초기화해 두 번째 렌더러로 곡을 처음부터 재생하고, 그 재생에서도 판정이 일어난다.
     await expect.poll(async () => (await readProbe(page)).songTimesByRenderer.length, { timeout: 30_000 }).toBe(2);
-    await waitForFirstCombo(page, { renderer: 1 });
+    await waitForFirstCombo(page, { rendererIndex: 1 });
 
     const result = await expectResultScreen(page);
     const finished = await readProbe(page);
     expect(finished.songTimesByRenderer).toHaveLength(2);
-    // 첫 재생과 Retry는 각자 새 AudioEngine을 만들어 곡을 0ms부터 한 번 재생한다. Retry가 일시정지한 곡 시간 등 다른 위치부터 재생하면 여기서 드러난다.
+    // 첫 재생과 Retry는 곡을 0ms부터 한 번씩 재생한다(Retry가 AudioEngine을 새로 만들든 다시 쓰든). Retry가 일시정지한 곡 시간 등
+    // 다른 위치부터 재생하거나 멈춘 AudioEngine을 이어 재생하면 0이 아닌 재생 시작 위치가 생겨 여기서 드러난다.
     // (warm-up 렌더 프레임은 재생 시작 전에 그려지므로 어디부터 재생했는지 알려 주지 않는다.)
-    expect(finished.playOffsetsByEngine).toEqual([[0], [0]]);
+    expect(finished.playOffsetsByEngine.flat()).toEqual([0, 0]);
     expect(judgmentTotal(result.judgmentCounts)).toBe(SINGLE_NOTE_COUNT);
   });
 });
