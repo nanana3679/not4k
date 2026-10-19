@@ -16,7 +16,7 @@ import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
-import { hiddenViolationLanes } from './stores/unifiedNotes';
+import { hiddenViolationLaneMessages, hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
 import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
@@ -962,24 +962,19 @@ function ChartEditorPage() {
             <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#ccc' }}>
               차트에 {validationErrors.length}건의 제약 조건 위반이 발견되어 저장할 수 없습니다.
             </p>
-            {(() => {
-              // 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는
-              // 노트·보조 레인 trillZone이 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
-              const hidden = hiddenViolationLanes(
-                validationErrors,
-                chart.notes,
-                extraLaneCount,
-                chart.trillZones,
-              );
-              if (hidden.length === 0) return null;
-              const needed = toAuxIndex(Math.max(...hidden));
-              return (
-                <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
-                  숨은 보조 레인({hidden.map((l) => toAuxIndex(l)).join(', ')})의 위반이 포함되어
-                  있습니다 — 보조 레인 수를 {needed} 이상으로 늘리면 보입니다.
-                </p>
-              );
-            })()}
+            {/* 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는 노트·보조 레인
+                trillZone이 저장을 막을 때 필요한 보조 레인 수를 알리고, 보조 레인 수 상한(10) 너머
+                레인은 차트 파일을 직접 고치라고 알린다(#102). */}
+            {hiddenViolationLaneMessages(hiddenViolationLanes(
+              validationErrors,
+              chart.notes,
+              extraLaneCount,
+              chart.trillZones,
+            )).map((message) => (
+              <p key={message} style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
+                {message}
+              </p>
+            ))}
             <div style={{ overflow: 'auto', flex: 1, marginBottom: '16px' }}>
               {validationErrors.map((err, i) => (
                 <div key={i} style={{ padding: '6px 8px', marginBottom: '4px', backgroundColor: '#1a1a1a', borderRadius: '4px', fontSize: '12px', borderLeft: '3px solid #cc3333' }}>

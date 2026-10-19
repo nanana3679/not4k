@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hiddenViolationLanes } from "./unifiedNotes";
+import { hiddenViolationLaneMessages, hiddenViolationLanes } from "./unifiedNotes";
 import { beat } from "../../shared";
 import type { NoteEntity, TrillZone, ValidationError } from "../../shared";
 
@@ -80,5 +80,37 @@ describe("hiddenViolationLanes (§8-7 숨은 보조 위반 안내)", () => {
       { type: "single", lane: 8, beat: beat(0) },
     ];
     expect(hiddenViolationLanes([err([0, 1]), zoneErr], notes, 2, lane15Zone)).toEqual([8, 15]);
+  });
+});
+
+// 저장 차단 모달의 숨은 보조 레인 안내 — 툴바(보조 레인 수 최대 10)로 드러낼 수 있는 레인과 없는 레인을 나눈다
+describe("hiddenViolationLaneMessages (저장 차단 모달 안내 문구)", () => {
+  it("숨은 레인이 없으면 안내 0줄(빈 배열)", () => {
+    expect(hiddenViolationLaneMessages([])).toEqual([]);
+  });
+
+  it("숨은 레인 6·8(보조 2·4)만 있으면 안내 1줄 — 보조 레인 수를 4 이상으로 늘리면 보인다", () => {
+    expect(hiddenViolationLaneMessages([6, 8])).toEqual([
+      "숨은 보조 레인(2, 4)의 위반이 포함되어 있습니다 — 보조 레인 수를 4 이상으로 늘리면 보입니다.",
+    ]);
+  });
+
+  it("상한 경계 lane 14(보조 10)는 툴바로 드러낼 수 있어 '10 이상으로 늘리면 보입니다' 안내", () => {
+    expect(hiddenViolationLaneMessages([14])).toEqual([
+      "숨은 보조 레인(10)의 위반이 포함되어 있습니다 — 보조 레인 수를 10 이상으로 늘리면 보입니다.",
+    ]);
+  });
+
+  it("상한 너머 lane 15·100000(보조 11·99996)만 있으면 안내 1줄 — 늘리라는 안내 없이 차트 파일을 직접 고치라고 알린다", () => {
+    expect(hiddenViolationLaneMessages([15, 100000])).toEqual([
+      "보조 레인 수 상한(10)을 넘는 보조 레인(11, 99996)의 위반이 포함되어 있습니다 — 에디터에서는 보이게 할 수 없으니 차트 파일을 직접 고쳐야 합니다.",
+    ]);
+  });
+
+  it("숨은 레인 6과 상한 너머 lane 15가 섞이면 안내 2줄 — 늘리기 안내(보조 2) 다음에 파일 수정 안내(보조 11)", () => {
+    expect(hiddenViolationLaneMessages([6, 15])).toEqual([
+      "숨은 보조 레인(2)의 위반이 포함되어 있습니다 — 보조 레인 수를 2 이상으로 늘리면 보입니다.",
+      "보조 레인 수 상한(10)을 넘는 보조 레인(11)의 위반이 포함되어 있습니다 — 에디터에서는 보이게 할 수 없으니 차트 파일을 직접 고쳐야 합니다.",
+    ]);
   });
 });
