@@ -22,10 +22,12 @@ test.describe('에디터 툴바', () => {
     await selectBtn.click();
     await expect(selectBtn).toHaveCSS('background-color', 'rgb(68, 136, 255)');
     await expect(createBtn).not.toHaveCSS('background-color', 'rgb(68, 136, 255)');
+    await expect(deleteBtn).not.toHaveCSS('background-color', 'rgb(68, 136, 255)');
 
     // Click Delete
     await deleteBtn.click();
     await expect(deleteBtn).toHaveCSS('background-color', 'rgb(68, 136, 255)');
+    await expect(createBtn).not.toHaveCSS('background-color', 'rgb(68, 136, 255)');
     await expect(selectBtn).not.toHaveCSS('background-color', 'rgb(68, 136, 255)');
   });
 
@@ -70,7 +72,9 @@ test.describe('에디터 툴바', () => {
   });
 
   test('진입 직후 툴바 Zoom 표시는 기본값 200px/s다', async ({ page }) => {
-    await expect(page.getByText(/Zoom: \d+px\/s/)).toHaveText('Zoom: 200px/s');
+    const zoom = page.getByText(/Zoom: \d+px\/s/);
+    await expect(zoom).toBeVisible();
+    await expect(zoom).toHaveText('Zoom: 200px/s');
   });
 
   test('재생 전 툴바 재생 버튼은 Play로 표시된다', async ({ page }) => {

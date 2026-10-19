@@ -2,21 +2,19 @@ import { test, expect, type Page } from '@playwright/test';
 import type { ChartJsonV3 } from '../../src/shared/chart';
 import {
   EDITOR_TEST_AUDIO_FILE,
-  EDITOR_TEST_SONG_ID,
+  EDITOR_TEST_CHART_UPLOAD_PATH,
   editorTestChart,
   openEditor,
   readUploadedJson,
   type OpenedEditor,
 } from './editorTestSetup';
 
-const CHART_UPLOAD_PATH = `/storage/v1/object/assets/songs/${EDITOR_TEST_SONG_ID}/normal.json`;
-
 /** Save chart를 누르고 저장이 끝난 뒤 Storage에 업로드된 차트 JSON을 돌려준다. */
 async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3> {
   await page.getByRole('button', { name: 'Save chart', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const upload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === CHART_UPLOAD_PATH);
-  expect(upload, `${CHART_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
+  const upload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
+  expect(upload, `${EDITOR_TEST_CHART_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
   return readUploadedJson(upload!) as ChartJsonV3;
 }
 

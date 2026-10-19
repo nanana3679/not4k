@@ -5,7 +5,9 @@
  * (src/editor/App.tsx), 차트는 Supabase Storage의 `songs/{songId}/{difficulty}.json`에서,
  * 음원 경로는 `songs` 테이블에서 읽는다. 이 도우미는 Supabase HTTP 경계(`/rest/v1`·`/storage/v1`·
  * `/auth/v1`)를 전부 로컬 응답으로 끝내고 앱과 같은 URL로 진입해 타임라인 canvas를 기다린다.
- * 실제 DB·Storage에는 요청이 닿지 않으므로 `.env.local`의 Supabase URL·키는 실제 값이 아니어도 된다.
+ * 실제 DB·Storage에는 요청이 닿지 않으므로 `.env.local`의 Supabase URL·키는 실제 값이 아니어도 된다. 다만 둘 다
+ * 비어 있지 않아야 하고(src/supabase/client.ts가 시작할 때 던진다), URL은 index.html CSP `connect-src`의
+ * `https://*.supabase.co`에 맞아야 한다. 맞지 않으면 브라우저가 요청을 보내기 전에 막아 mock까지 오지 않는다.
  *
  * 관리자 권한은 개발 서버의 관리자 우회(`.env.local`의 `VITE_DEV_ADMIN=true`,
  * src/shared/hooks/useAuth.ts)에 기댄다. 우회가 꺼져 Access Denied가 보이면 원인을 적은 오류로 바로 실패한다.
@@ -30,6 +32,8 @@ const SONG_DIR = `songs/${EDITOR_TEST_SONG_ID}`;
 const PUBLIC_SONG_DIR = `/storage/v1/object/public/assets/${SONG_DIR}`;
 const UPLOAD_SONG_DIR = `/storage/v1/object/assets/${SONG_DIR}`;
 const AUDIO_PATH = `${SONG_DIR}/audio.wav`;
+/** Save chart가 차트 JSON(`songs/{songId}/{difficulty}.json`)을 업로드하는 요청 경로. */
+export const EDITOR_TEST_CHART_UPLOAD_PATH = `${UPLOAD_SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.json`;
 
 /** 0박 120 BPM·4/4 이벤트만 있는 v3 차트. 노트를 넘기면 그대로 담는다. */
 export function editorTestChart(notes: ChartJsonV3['notes'] = []): ChartJsonV3 {
@@ -108,8 +112,10 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     await route.fulfill({ status: 500, json: { error: 'Unexpected offline test request' } });
   });
 
-  // pixi.js가 Application 초기화 때 부르는 devtools hook으로 ticker를 멈춘다. hook은 plugin 초기화 도중에
-  // 불리므로 microtask로 미뤄 TickerPlugin이 ticker를 켠 뒤에 멈춘다.
+  // pixi.js가 Application 초기화 때 부르는 globalThis.__PIXI_APP_INIT__로 ticker를 멈춘다. 이 이름은 pixi 공개 타입
+  // 선언에 있는 DevTools hook이지만 부르는 쪽은 @internal 클래스(ApplicationInitHook)라 바뀔 수 있어, 진입 끝에서
+  // 멈췄는지 확인한다. 8.21에서는 TickerPlugin이 ApplicationInitHook보다 먼저 ticker를 켠다. microtask는 나중에
+  // plugin 순서가 바뀌어도 ticker가 켜진 뒤에 멈추게 하는 대비다.
   await page.addInitScript(() => {
     const pixiHooks = globalThis as unknown as {
       __PIXI_APP_INIT__?: (app: { stop(): void }) => void;
@@ -124,9 +130,15 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   await page.goto(`/editor?songId=${EDITOR_TEST_SONG_ID}&difficulty=${EDITOR_TEST_DIFFICULTY}`);
   const timeline = page.locator('canvas').first();
   const accessDenied = page.getByRole('heading', { name: 'Access Denied', exact: true });
-  await timeline.or(accessDenied).first().waitFor();
+  const loadError = page.getByRole('heading', { name: 'Error', exact: true });
+  await timeline.or(accessDenied).or(loadError).first().waitFor();
   if (await accessDenied.isVisible()) {
     throw new Error('에디터가 Access Denied를 보였다. 에디터 E2E는 개발 서버의 관리자 우회가 필요하다: .env.local에 VITE_DEV_ADMIN=true');
+  }
+  if (await loadError.isVisible()) {
+    // 차트를 불러오지 못하면 에디터는 제목·원인 문구·Back to Songs 버튼만 있는 Error 화면을 보인다(src/editor/App.tsx).
+    const errorText = (await loadError.locator('xpath=..').innerText()).replace(/\s*\n\s*/g, ' / ');
+    throw new Error(`에디터가 Error 화면을 보였다(${errorText}). mock 응답을 정하지 않은 Supabase 요청: ${unexpectedSupabaseRequests.join(', ') || '없음'}`);
   }
   await expect.poll(
     () => page.evaluate(() => (globalThis as { __e2ePixiTickerStopped?: boolean }).__e2ePixiTickerStopped === true),
@@ -134,7 +146,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   ).toBe(true);
   if (audio) {
     // 첫 음원을 불러오는 동안에는 화면 전체를 덮는 로딩 표시가 입력을 막는다.
-    await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15_000 });
   }
   return { supabaseWrites, unexpectedSupabaseRequests };
 }
