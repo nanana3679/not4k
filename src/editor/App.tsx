@@ -8,7 +8,7 @@ import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
 import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
-import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
+import { CreateMode, SelectMode, DeleteMode, activeEditorMode, createSelectDragControl } from './modes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
@@ -523,6 +523,9 @@ function ChartEditorPage() {
       onWarn: (msg) => addToast(msg, 'warn'),
     });
     selectModeRef.current = selectMode;
+    // 모드 전환·undo/redo·차트 교체·Esc(store 액션)가 진행 중 select 드래그를 먼저 끝내도록 통로를 등록한다.
+    const selectDragControl = createSelectDragControl(selectMode, () => rendererRef.current);
+    useEditorStore.getState().setSelectDragControl(selectDragControl);
 
     const deleteMode = new DeleteMode(chart, {
       // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
@@ -534,6 +537,9 @@ function ChartEditorPage() {
 
     return () => {
       mounted = false;
+      if (useEditorStore.getState().selectDragControl === selectDragControl) {
+        useEditorStore.getState().setSelectDragControl(null);
+      }
       // feed를 끊어 언마운트 후 늦게 resolve된 audioArrived가 disposed 렌더러에 낭비 작업을 하지 않게 한다.
       waveformFeedRef.current = null;
       renderer.dispose();

@@ -34,16 +34,13 @@ export function useEditorKeyboard(
       // Disable shortcuts while focused editor UI is open.
       if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0) return;
 
+      // undo/redo는 실제로 되돌렸을 때만 true다 — 드래그 중이면 store가 드래그만 취소하고 false를 준다.
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         const state = useEditorStore.getState();
         if (e.shiftKey) {
-          if (state.historyFuture.length > 0) {
-            state.redo();
-            addToast('Redo', 'info');
-          }
-        } else if (state.historyPast.length > 0) {
-          state.undo();
+          if (state.redo()) addToast('Redo', 'info');
+        } else if (state.undo()) {
           addToast('Undo', 'info');
         }
         return;
@@ -51,11 +48,7 @@ export function useEditorKeyboard(
 
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
-        const state = useEditorStore.getState();
-        if (state.historyFuture.length > 0) {
-          state.redo();
-          addToast('Redo', 'info');
-        }
+        if (useEditorStore.getState().redo()) addToast('Redo', 'info');
         return;
       }
 
@@ -160,6 +153,12 @@ export function useEditorKeyboard(
         if (e.key === 'Escape' && isPaste) {
           e.preventDefault();
           selectModeRef.current.cancelPaste();
+          return;
+        }
+
+        // 드롭 전 Esc는 진행 중 드래그(이동·박스 선택·끝점 리사이즈)를 원위치로 되돌리며 끝낸다
+        if (e.key === 'Escape' && useEditorStore.getState().cancelSelectDrag()) {
+          e.preventDefault();
           return;
         }
 

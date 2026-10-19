@@ -100,6 +100,10 @@ export class SelectMode implements EditorMode {
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
 
+  // 진행 중 드래그(이동·리사이즈)가 프레임을 차트에 쓴 적이 있는지 — cancel이 원위치를 다시 쓸지 정한다.
+  // 안 움직인 드래그의 취소가 같은 차트를 다시 커밋하면 그 쓰기가 history를 건드린다(redo 스택 비움).
+  private chartChangedByDrag = false;
+
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
@@ -711,6 +715,7 @@ export class SelectMode implements EditorMode {
         // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다.
         if (tentativeChart !== null) {
           this.chart = tentativeChart;
+          this.chartChangedByDrag = true;
           this.callbacks.onChartUpdate(this.chart);
         }
       }
@@ -783,6 +788,7 @@ export class SelectMode implements EditorMode {
           trillZones: newZones,
           ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
         };
+        this.chartChangedByDrag = true;
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
@@ -850,6 +856,7 @@ export class SelectMode implements EditorMode {
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
+    this.chartChangedByDrag = false;
   }
 
   /**
@@ -867,37 +874,58 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)처럼
-   * 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그 시작
-   * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
+   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)·pointercancel·Esc·
+   * 모드 전환·undo/redo처럼 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그
+   * 시작 시점으로 되돌린다. 드래그가 차트에 쓴 프레임이 없으면 차트를 다시 쓰지 않는다.
+   * 드래그 중이 아니면 아무것도 하지 않는다.
    */
   cancel(): EditResult {
     if (!this.isDragging) return {};
 
-    if (this.dragType === "resize") {
-      this.rollbackResize();
-      this.resizingEntityType = null;
-      this.resizingIndex = null;
-      this.resizingOriginalEndBeat = null;
-      this.resizingOriginalBeat = null;
-    } else if (this.dragType === "move") {
-      this.rollbackMove();
+    if (this.chartChangedByDrag) {
+      if (this.dragType === "resize") {
+        this.rollbackResize();
+      } else if (this.dragType === "move") {
+        this.rollbackMove();
+      }
     }
     // boxSelect는 차트를 변이하지 않지만 프리뷰(transient) 선택은 시작 전으로 복원한다(§3-5).
     if (this.dragType === "boxSelect" && this.preDragSelection) {
       this.callbacks.setSelectionTransient(this.preDragSelection);
     }
+    this.resetDragState();
+    return { clearDragPreview: true };
+  }
+
+  /**
+   * 진행 중 드래그를 차트·선택에 쓰지 않고 버린다 — 차트를 통째로 바꾸기 직전(loadChart) 전용.
+   * cancel과 달리 원위치를 되돌려 쓰지 않는다: 곧 버려질 차트에 쓸 이유가 없고, 바뀐 뒤에 쓰면 옛
+   * 차트의 인덱스로 새 차트를 덮어쓴다. 드래그 중이 아니면 아무것도 하지 않는다.
+   */
+  discardDrag(): EditResult {
+    if (!this.isDragging) return {};
+    this.resetDragState();
+    return { clearDragPreview: true };
+  }
+
+  /** 드래그 상태(이동 원본·리사이즈 대상·박스·탭 후보)를 전부 비운다. 차트·선택은 건드리지 않는다. */
+  private resetDragState(): void {
+    this.resizingEntityType = null;
+    this.resizingIndex = null;
+    this.resizingOriginalEndBeat = null;
+    this.resizingOriginalBeat = null;
+    this.clearMoveOrigins();
+    this._trillMoveZone = null;
     this.preDragSelection = null;
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
-
     this._boxEndBeat = null;
     this._boxEndLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
-    return { clearDragPreview: true };
+    this.chartChangedByDrag = false;
   }
 
   // --- Box select helper ---

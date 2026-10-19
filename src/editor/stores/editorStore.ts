@@ -27,6 +27,17 @@ export type EditingMarker =
   | { type: 'event'; index: number }
   | null;
 
+/**
+ * 진행 중 select 드래그(이동·박스 선택·끝점 리사이즈)를 끝내는 통로. 드래그 상태는 SelectMode가
+ * 소유하므로 App이 SelectMode와 렌더러 프리뷰 정리를 묶어 등록한다(`createSelectDragControl`).
+ */
+export interface SelectDragControl {
+  /** 원위치로 되돌리고 커밋 없이 끝낸다. 끝낸 드래그가 있었으면 true. */
+  cancel: () => boolean;
+  /** 차트·선택에 쓰지 않고 드래그 상태만 버린다 — 차트를 통째로 바꾸기 직전 전용. */
+  discard: () => void;
+}
+
 const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
 
@@ -67,6 +78,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Marker editing
   editingMarker: EditingMarker;
 
+  // 진행 중 select 드래그를 끝내는 통로(App이 등록, 없으면 null). 모드 전환·undo/redo·차트 교체
+  // 액션이 이 통로로 드래그를 먼저 끝낸다 — 드래그가 열린 채 다른 모드·다른 차트로 넘어가면 이후
+  // 포인터 이동이 옛 원본 인덱스로 차트를 옮긴다.
+  selectDragControl: SelectDragControl | null;
+
   // Actions
   setActivePage: (page: EditorPage) => void;
   setActiveSongId: (songId: string | null) => void;
@@ -84,8 +100,13 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setExtraLaneCount: (count: number) => void;
-  undo: () => void;
-  redo: () => void;
+  /**
+   * history 한 단계를 되돌린다. 진행 중 select 드래그가 있으면 그 드래그만 취소하고 되돌리지 않는다
+   * (아직 드롭하지 않은 드래그를 두고 이전 편집을 되돌리지 않는다). 되돌렸으면 true.
+   */
+  undo: () => boolean;
+  /** history 한 단계를 다시 적용한다. 드래그 중이면 undo와 같이 드래그만 취소한다. 다시 적용했으면 true. */
+  redo: () => boolean;
   /**
    * 막다른 상태 탈출(RFD 0017 §7) — lastValidSnapshot으로 O(1) 점프.
    * 현재(위반) 상태를 병합창(600ms) 무시하고 historyPast에 강제 push하므로
@@ -95,6 +116,9 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   resetHistory: () => void;
   addToast: (message: string, type?: ToastType) => void;
   setEditingMarker: (marker: EditingMarker) => void;
+  setSelectDragControl: (control: SelectDragControl | null) => void;
+  /** 진행 중 select 드래그를 원위치로 되돌리며 끝낸다(Esc 등). 끝낸 드래그가 있었으면 true. */
+  cancelSelectDrag: () => boolean;
 }
 
 const createDefaultChart = (): Chart => ({
@@ -159,6 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyLastCaptureAt: 0,
   lastValidSnapshot: null,
   editingMarker: null,
+  selectDragControl: null,
 
   // Actions
   setActivePage: (activePage) => set({ activePage }),
@@ -212,6 +237,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   loadChart: (chart) => {
+    // 진행 중 select 드래그는 원위치를 쓰지 않고 버린다 — 곧 통째로 바뀔 차트라 되돌려 쓸 이유가 없다.
+    get().selectDragControl?.discard();
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
@@ -233,7 +260,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         : {}),
     }));
   },
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    // 다른 모드로 바꾸면 진행 중 select 드래그를 먼저 원위치로 되돌린다 — 안 그러면 up이 새 모드로 가서
+    // 드래그가 열린 채 남고, select로 돌아온 뒤 버튼 없이 움직여도 드래그가 이어진다.
+    if (mode !== get().mode) get().cancelSelectDrag();
+    set({ mode });
+  },
   setEntityType: (entityType) => set({ entityType }),
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
@@ -255,57 +287,75 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount } } : {}),
     };
   }),
-  undo: () => set((state) => {
-    const previous = state.historyPast.at(-1);
-    if (!previous) return {};
-    const current = createHistorySnapshot(state);
-    return {
-      chart: previous.chart,
-      extraLaneCount: previous.extraLaneCount,
-      // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
-      selection: emptySelection(),
-      historyPast: state.historyPast.slice(0, -1),
-      historyFuture: [current, ...state.historyFuture].slice(0, HISTORY_LIMIT),
-      historyLastCaptureAt: 0,
-    };
-  }),
-  redo: () => set((state) => {
-    const next = state.historyFuture[0];
-    if (!next) return {};
-    const current = createHistorySnapshot(state);
-    return {
-      chart: next.chart,
-      extraLaneCount: next.extraLaneCount,
-      selection: emptySelection(),
-      historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
-      historyFuture: state.historyFuture.slice(1),
-      historyLastCaptureAt: 0,
-    };
-  }),
+  undo: () => {
+    // 드래그 중이면 드래그만 취소하고 이 입력으로는 되돌리지 않는다.
+    if (get().cancelSelectDrag()) return false;
+    if (get().historyPast.length === 0) return false;
+    set((state) => {
+      const previous = state.historyPast.at(-1);
+      if (!previous) return {};
+      const current = createHistorySnapshot(state);
+      return {
+        chart: previous.chart,
+        extraLaneCount: previous.extraLaneCount,
+        // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
+        selection: emptySelection(),
+        historyPast: state.historyPast.slice(0, -1),
+        historyFuture: [current, ...state.historyFuture].slice(0, HISTORY_LIMIT),
+        historyLastCaptureAt: 0,
+      };
+    });
+    return true;
+  },
+  redo: () => {
+    if (get().cancelSelectDrag()) return false;
+    if (get().historyFuture.length === 0) return false;
+    set((state) => {
+      const next = state.historyFuture[0];
+      if (!next) return {};
+      const current = createHistorySnapshot(state);
+      return {
+        chart: next.chart,
+        extraLaneCount: next.extraLaneCount,
+        selection: emptySelection(),
+        historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
+        historyFuture: state.historyFuture.slice(1),
+        historyLastCaptureAt: 0,
+      };
+    });
+    return true;
+  },
   // 막다른 상태 탈출(RFD 0017 §7) — undo와 동형의 스냅샷 1회 교체(O(1) 점프).
   // 차이: 목적지가 past 꼭대기가 아니라 lastValidSnapshot이고, 현재(위반) 상태를
   // 병합창(600ms) 무시하고 past에 **강제 push**한다 — 이 복귀 자체가 undo로 취소 가능해야
   // 하는 안전망이므로 captureHistory(병합)를 쓰지 않는다.
-  revertToLastValid: () => set((state) => {
-    const target = state.lastValidSnapshot;
-    // 이미 그 스냅샷 위에 있으면(동일 참조) no-op — 무의미한 history entry 방지.
-    // UI로는 도달 불가(버튼은 위반 팝오버에만)나 프로그래매틱 이중 호출 방어.
-    if (!target || state.chart === target.chart) return {};
-    const current = createHistorySnapshot(state);
-    return {
-      chart: target.chart,
-      extraLaneCount: target.extraLaneCount,
-      // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
-      selection: emptySelection(),
-      historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
-      historyFuture: [],
-      historyLastCaptureAt: 0,
-    };
-  }),
+  revertToLastValid: () => {
+    // 진행 중 select 드래그는 먼저 원위치로 되돌린다 — 복귀 직전 상태(undo 목적지)가 드래그 중간
+    // 위치가 아니라 드래그 전 위치가 된다.
+    get().cancelSelectDrag();
+    set((state) => {
+      const target = state.lastValidSnapshot;
+      // 이미 그 스냅샷 위에 있으면(동일 참조) no-op — 무의미한 history entry 방지.
+      // UI로는 도달 불가(버튼은 위반 팝오버에만)나 프로그래매틱 이중 호출 방어.
+      if (!target || state.chart === target.chart) return {};
+      const current = createHistorySnapshot(state);
+      return {
+        chart: target.chart,
+        extraLaneCount: target.extraLaneCount,
+        // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
+        selection: emptySelection(),
+        historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
+        historyFuture: [],
+        historyLastCaptureAt: 0,
+      };
+    });
+  },
   // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
   // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
   // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
   resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0 }),
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
+  setSelectDragControl: (selectDragControl) => set({ selectDragControl }),
+  cancelSelectDrag: () => get().selectDragControl?.cancel() ?? false,
 }));

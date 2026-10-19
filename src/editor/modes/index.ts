@@ -7,6 +7,7 @@ export type { EntityType, CreateModeCallbacks } from "./CreateMode";
 
 export { SelectMode } from "./SelectMode";
 export type { SelectModeCallbacks } from "./SelectMode";
+export { createSelectDragControl } from "./selectDragControl";
 
 export { DeleteMode } from "./DeleteMode";
 export type { DeleteModeCallbacks } from "./DeleteMode";

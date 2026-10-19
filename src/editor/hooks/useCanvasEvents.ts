@@ -393,6 +393,12 @@ export function useCanvasEvents(
       }
     }
 
+    // 마우스·펜 select 드래그는 캔버스 밖에서 버튼을 떼도 up이 캔버스로 오도록 포인터를 캡처한다 — 안 그러면
+    // up을 잃어 드래그가 열린 채 남는다(터치는 down 첫머리에서 이미 캡처한다).
+    if (mode === 'select' && e.pointerType !== 'touch') {
+      canvasRef.current?.setPointerCapture(e.pointerId);
+    }
+
     // 마우스 down(및 레인지 타입 아닌 터치 create)은 모드 다형 디스패치로 통합한다.
     activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
       ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
@@ -836,10 +842,13 @@ export function useCanvasEvents(
       touchTapToggleRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
+    // 진행 중 select 드래그(이동·박스·리사이즈)도 커밋 없이 원위치로 되돌린다 — 안 그러면 드래그가 열린 채
+    // 남아 다음 move가 드래그를 잇고, 다음 down은 SelectMode의 재진입 가드에 막힌다.
+    selectModeRef.current?.cancel();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, toSample, rendererRef]);
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
