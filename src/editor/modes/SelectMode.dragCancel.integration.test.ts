@@ -2,8 +2,8 @@
  * 진행 중 select 드래그 × 실제 editorStore — 모드 전환·undo/redo·차트 교체·Esc가 드래그를 먼저 끝내는지.
  *
  * App 배선을 그대로 따른다: SelectMode의 차트 쓰기는 store.setChart로 가고, store가 차트를 바꾸면
- * SelectMode.setChart로 되먹인다(App의 [chart] effect). 드래그 통로는 App처럼
- * createSelectDragControl로 store에 등록한다.
+ * SelectMode.setChart로 되먹인다(App의 [chart] effect). selectDragControl은 캔버스 훅처럼
+ * createSelectDragControl로 store에 등록하고, dragCheckpoint는 App처럼 store 액션에 잇는다.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SelectMode } from "./SelectMode";
@@ -64,6 +64,7 @@ function setup(notes: NoteEntity[]) {
     historyLastCaptureAt: 0,
     lastValidSnapshot: null,
     selectDragControl: null,
+    dragCheckpoint: null,
   });
   const mode = new SelectMode(useEditorStore.getState().chart, {
     onChartUpdate: (c) => useEditorStore.getState().setChart(c),
@@ -73,13 +74,19 @@ function setup(notes: NoteEntity[]) {
     space: makeFakeSpace({
       hitTestUnifiedNote: (x, y) => (x === 1 && y === 0 ? 0 : x === 3 && y === 4 ? 1 : null),
     }),
+    // App과 같은 배선 — 프레임을 쓴 드래그의 취소는 store의 dragCheckpoint로 되돌린다
+    dragCheckpoint: {
+      capture: () => useEditorStore.getState().captureDragCheckpoint(),
+      restore: () => useEditorStore.getState().restoreDragCheckpoint(),
+      discard: () => useEditorStore.getState().discardDragCheckpoint(),
+    },
   });
   // App의 [chart] effect — store 차트가 바뀌면(undo·loadChart 등 포함) 모드에 되먹인다
   unsubscribers.push(useEditorStore.subscribe((state, prev) => {
     if (state.chart !== prev.chart) mode.setChart(state.chart);
   }));
   const renderer = { clearMoveOrigins: vi.fn(), clearBoxSelectRect: vi.fn() };
-  useEditorStore.getState().setSelectDragControl(createSelectDragControl(mode, () => renderer));
+  useEditorStore.getState().setSelectDragControl(createSelectDragControl(() => mode, () => renderer));
   return { mode, renderer, store: useEditorStore };
 }
 
@@ -220,5 +227,158 @@ describe("진행 중 select 드래그 × 차트 교체", () => {
 
     expect(store.getState().chart.notes).toHaveLength(3); // 복귀 직전 상태(B 중복)
     expect(laneBeat(0)).toEqual([1, 0]); // 드래그 위치가 아니라 원위치
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 취소 뒤 history — 프레임마다 setChart가 history를 쌓으므로(600ms 병합창), 프레임을 쓴 드래그를
+// 취소하면 차트·history·lastValidSnapshot을 첫 프레임 직전 상태로 한 번에 되돌려야 한다.
+// ---------------------------------------------------------------------------
+
+/** 첫 프레임 직전과 비교할 store 상태 — 복원은 같은 참조를 되돌려 놓는다. */
+function preDragState() {
+  const s = useEditorStore.getState();
+  return {
+    chart: s.chart,
+    historyPast: s.historyPast,
+    historyFuture: s.historyFuture,
+    historyLastCaptureAt: s.historyLastCaptureAt,
+    lastValidSnapshot: s.lastValidSnapshot,
+  };
+}
+
+function expectPreDragState(before: ReturnType<typeof preDragState>): void {
+  const s = useEditorStore.getState();
+  expect(s.chart).toBe(before.chart);
+  expect(s.historyPast).toBe(before.historyPast);
+  expect(s.historyFuture).toBe(before.historyFuture);
+  expect(s.historyLastCaptureAt).toBe(before.historyLastCaptureAt);
+  expect(s.lastValidSnapshot).toBe(before.lastValidSnapshot);
+}
+
+describe("진행 중 select 드래그 × 취소 뒤 history(첫 프레임 직전으로 복원)", () => {
+  /** 10초에 노트 B를 추가하고 12초에 노트 A를 잡는다(아직 프레임 없음). */
+  function setupDragAfterAddingB() {
+    setClock(10_000);
+    const ctx = setup([noteA]);
+    ctx.store.getState().setChart(fullChart([noteA, noteB]));
+    setClock(12_000);
+    ctx.mode.onPointerDown(1, 0, false, false); // A 단독 선택 + 이동 드래그 시작
+    return { ...ctx, before: preDragState() };
+  }
+
+  it("(a) A를 lane 2·beat 3으로 끌고 0.7초 뒤 Esc(cancelSelectDrag)하면 차트·history·lastValidSnapshot이 첫 프레임 직전과 같고, 다음 undo()가 노트 B를 지운다", () => {
+    const { mode, store, before } = setupDragAfterAddingB();
+    mode.onPointerMove(2, 3);
+    setClock(12_700);
+
+    store.getState().cancelSelectDrag();
+
+    expectPreDragState(before);
+    expect(store.getState().undo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA]);
+  });
+
+  it("(b) B 추가 2초 뒤 A를 끌던 중 undo()는 드래그만 취소해 history가 첫 프레임 직전과 같고, 두 번째 undo()가 노트 B를 지운다", () => {
+    const { mode, store, before } = setupDragAfterAddingB();
+    mode.onPointerMove(2, 3);
+
+    expect(store.getState().undo()).toBe(false);
+
+    expectPreDragState(before);
+    expect(store.getState().undo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA]);
+  });
+
+  it("(c) 1초 간격 프레임으로 A를 lane 2의 beat 1·2·3까지 끈 긴 드래그를 Esc로 취소하면 history가 첫 프레임 직전과 같아 다음 undo()가 그 위치들을 거치지 않고 노트 B를 지운다", () => {
+    const { mode, store, before } = setupDragAfterAddingB();
+    mode.onPointerMove(2, 1);
+    setClock(13_000);
+    mode.onPointerMove(2, 2);
+    setClock(14_000);
+    mode.onPointerMove(2, 3);
+    setClock(14_100);
+
+    store.getState().cancelSelectDrag();
+
+    expectPreDragState(before);
+    expect(store.getState().undo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA]);
+  });
+
+  it("(d) redo 스택(노트 B 추가)을 남긴 채 A를 끌면 첫 프레임이 redo 스택을 비우지만, Esc로 취소하면 redo 스택이 돌아와 redo()가 B를 다시 적용한다", () => {
+    setClock(10_000);
+    const { mode, store } = setup([noteA]);
+    store.getState().setChart(fullChart([noteA, noteB]));
+    store.getState().undo(); // B 추가를 redo 스택으로 보낸다
+    setClock(12_000);
+    mode.onPointerDown(1, 0, false, false);
+    const before = preDragState();
+    mode.onPointerMove(2, 3);
+    expect(store.getState().historyFuture).toHaveLength(0);
+
+    store.getState().cancelSelectDrag();
+
+    expectPreDragState(before);
+    expect(store.getState().redo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA, noteB]);
+  });
+
+  it("(e) A 위 중복 노트 B'로 위반인 차트에서 A를 끈 유효한 프레임이 lastValidSnapshot이 돼도, Esc로 취소하면 lastValidSnapshot이 첫 프레임 직전 값으로 돌아오고 다음 undo()가 B'를 지운다", () => {
+    setClock(10_000);
+    const { mode, store } = setup([noteA]);
+    store.getState().loadChart(fullChart([noteA])); // 유효 → lastValidSnapshot = A만 있는 차트
+    store.getState().setChart(fullChart([noteA, noteA])); // 중복 B' → 위반, lastValidSnapshot 유지
+    setClock(12_000);
+    mode.onPointerDown(1, 0, false, false);
+    const before = preDragState();
+    mode.onPointerMove(2, 3); // A가 비켜 위반이 풀린 프레임 → lastValidSnapshot이 이 프레임으로 옮겨 간다
+    expect(store.getState().lastValidSnapshot?.chart).toBe(store.getState().chart);
+
+    store.getState().cancelSelectDrag();
+
+    expectPreDragState(before);
+    expect(store.getState().undo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA]);
+  });
+
+  it("pointercancel·두 손가락 editCancel 경로(SelectMode.cancel 직접)로 0.7초 뒤 취소해도 차트·history가 첫 프레임 직전과 같다", () => {
+    const { mode, before } = setupDragAfterAddingB();
+    mode.onPointerMove(2, 3);
+    setClock(12_700);
+
+    mode.cancel();
+
+    expectPreDragState(before);
+  });
+
+  it("A를 lane 2·beat 3으로 끌어 드롭하면 A가 그 자리에 남고, undo()는 A를 드래그 전 위치(lane 1·beat 0)로 되돌린다(드롭의 history는 그대로)", () => {
+    const { mode, store } = setupDragAfterAddingB();
+    mode.onPointerMove(2, 3);
+
+    mode.onPointerUp(2, 3);
+
+    expect(laneBeat(0)).toEqual([2, 3]);
+    expect(store.getState().undo()).toBe(true);
+    expect(laneBeat(0)).toEqual([1, 0]);
+    expect(store.getState().chart.notes).toHaveLength(2);
+  });
+});
+
+describe("진행 중 select 드래그 × 삭제(Delete·Ctrl+X·툴바 삭제·우클릭이 드래그를 먼저 끝낸다)", () => {
+  it("유일한 노트 A를 끌던 중 Delete 경로(cancelSelectDrag 뒤 deleteSelected)는 A를 지우고, 이어진 포인터 이동이 throw하지 않으며 undo()가 A를 원위치(lane 1·beat 0)로 되살린다", () => {
+    setClock(10_000);
+    const { mode, store } = setup([noteA]);
+    setClock(12_000);
+    dragNoteA(mode);
+
+    store.getState().cancelSelectDrag();
+    mode.deleteSelected();
+
+    expect(store.getState().chart.notes).toEqual([]);
+    expect(() => mode.onPointerMove(4, 6)).not.toThrow();
+    expect(store.getState().chart.notes).toEqual([]);
+    expect(store.getState().undo()).toBe(true);
+    expect(store.getState().chart.notes).toEqual([noteA]);
   });
 });

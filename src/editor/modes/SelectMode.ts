@@ -45,6 +45,16 @@ export interface SelectModeCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
+  /**
+   * 드래그의 첫 프레임 직전 상태(store의 dragCheckpoint). 이동·리사이즈가 첫 프레임을 쓰기 직전에
+   * capture하고, 그 드래그를 취소하면 restore가 차트·history를 한 번에 되돌린 차트를 돌려준다.
+   * 드롭·폐기로 끝나면 discard한다. 없으면 취소가 원위치를 onChartUpdate로 다시 쓴다.
+   */
+  dragCheckpoint?: {
+    capture: () => void;
+    restore: () => Chart | null;
+    discard: () => void;
+  };
 }
 
 export class SelectMode implements EditorMode {
@@ -100,8 +110,8 @@ export class SelectMode implements EditorMode {
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
 
-  // 진행 중 드래그(이동·리사이즈)가 프레임을 차트에 쓴 적이 있는지 — cancel이 원위치를 다시 쓸지 정한다.
-  // 안 움직인 드래그의 취소가 같은 차트를 다시 커밋하면 그 쓰기가 history를 건드린다(redo 스택 비움).
+  // 진행 중 드래그(이동·리사이즈)가 프레임을 차트에 쓴 적이 있는지 — 첫 프레임 직전에 dragCheckpoint를
+  // 잡고, cancel은 프레임을 쓴 드래그만 되돌린다(안 움직인 드래그의 취소는 차트·history를 건드리지 않는다).
   private chartChangedByDrag = false;
 
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
@@ -715,7 +725,7 @@ export class SelectMode implements EditorMode {
         // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다.
         if (tentativeChart !== null) {
           this.chart = tentativeChart;
-          this.chartChangedByDrag = true;
+          this.markChartChangedByDrag();
           this.callbacks.onChartUpdate(this.chart);
         }
       }
@@ -788,7 +798,7 @@ export class SelectMode implements EditorMode {
           trillZones: newZones,
           ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
         };
-        this.chartChangedByDrag = true;
+        this.markChartChangedByDrag();
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
@@ -856,7 +866,8 @@ export class SelectMode implements EditorMode {
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
-    this.chartChangedByDrag = false;
+    // 드롭은 프레임의 history를 그대로 남긴다 — 되돌릴 일이 없어진 dragCheckpoint만 버린다.
+    this.discardDragCheckpoint();
   }
 
   /**
@@ -876,14 +887,19 @@ export class SelectMode implements EditorMode {
   /**
    * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)·pointercancel·Esc·
    * 모드 전환·undo/redo처럼 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그
-   * 시작 시점으로 되돌린다. 드래그가 차트에 쓴 프레임이 없으면 차트를 다시 쓰지 않는다.
-   * 드래그 중이 아니면 아무것도 하지 않는다.
+   * 시작 시점으로 되돌린다. 프레임을 쓴 드래그는 dragCheckpoint로 차트와 history까지 첫 프레임 직전으로
+   * 되돌리고, 프레임이 없으면 차트를 다시 쓰지 않는다. 드래그 중이 아니면 아무것도 하지 않는다.
    */
   cancel(): EditResult {
     if (!this.isDragging) return {};
 
     if (this.chartChangedByDrag) {
-      if (this.dragType === "resize") {
+      // 프레임마다 쌓인 history·비워진 redo 스택·옮겨진 lastValidSnapshot이 남지 않도록 store가
+      // 첫 프레임 직전 상태를 한 번에 되돌린다. dragCheckpoint가 없으면 원위치만 다시 쓴다.
+      const restored = this.callbacks.dragCheckpoint?.restore() ?? null;
+      if (restored) {
+        this.chart = restored;
+      } else if (this.dragType === "resize") {
         this.rollbackResize();
       } else if (this.dragType === "move") {
         this.rollbackMove();
@@ -904,8 +920,23 @@ export class SelectMode implements EditorMode {
    */
   discardDrag(): EditResult {
     if (!this.isDragging) return {};
+    this.discardDragCheckpoint();
     this.resetDragState();
     return { clearDragPreview: true };
+  }
+
+  /** 드래그가 첫 프레임을 차트에 쓰기 직전에 부른다 — 그 직전 상태를 dragCheckpoint로 잡는다(드래그당 한 번). */
+  private markChartChangedByDrag(): void {
+    if (this.chartChangedByDrag) return;
+    this.callbacks.dragCheckpoint?.capture();
+    this.chartChangedByDrag = true;
+  }
+
+  /** 프레임을 쓴 드래그가 드롭·Enter 확정·폐기로 끝날 때 dragCheckpoint를 버린다(프레임의 history는 남는다). */
+  private discardDragCheckpoint(): void {
+    if (!this.chartChangedByDrag) return;
+    this.chartChangedByDrag = false;
+    this.callbacks.dragCheckpoint?.discard();
   }
 
   /** 드래그 상태(이동 원본·리사이즈 대상·박스·탭 후보)를 전부 비운다. 차트·선택은 건드리지 않는다. */
@@ -1195,6 +1226,8 @@ export class SelectMode implements EditorMode {
     this.callbacks.onChartUpdate(this.chart);
     this.clearMoveOrigins();
     this._trillMoveZone = null;
+    // 커밋한 이동은 취소 대상이 아니다 — 드래그 중 Enter로 확정해도 이후 취소가 이 커밋을 되돌리지 않는다.
+    this.discardDragCheckpoint();
   }
 
   // ---------------------------------------------------------------------------

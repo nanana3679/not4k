@@ -13,6 +13,7 @@ import {
   emptySelection,
   normalizeSelection,
   selectionEquals,
+  type Selection,
   type SelectionSlice,
 } from './selectionSlice';
 
@@ -28,15 +29,29 @@ export type EditingMarker =
   | null;
 
 /**
- * 진행 중 select 드래그(이동·박스 선택·끝점 리사이즈)를 끝내는 통로. 드래그 상태는 SelectMode가
- * 소유하므로 App이 SelectMode와 렌더러 프리뷰 정리를 묶어 등록한다(`createSelectDragControl`).
+ * 진행 중 select 드래그(이동·박스 선택·끝점 리사이즈)를 store 액션이 끝낼 때 쓰는 `selectDragControl`.
+ * 드래그 상태는 SelectMode가 소유하므로 캔버스 훅이 SelectMode·렌더러 프리뷰·터치 후보 정리를 묶어
+ * 등록한다(`createSelectDragControl`).
  */
 export interface SelectDragControl {
-  /** 원위치로 되돌리고 커밋 없이 끝낸다. 끝낸 드래그가 있었으면 true. */
-  cancel: () => boolean;
+  /** 드래그 직전 상태로 되돌리고 커밋 없이 끝낸다. 끝낸 드래그가 있었으면 true. */
+  cancelDrag: () => boolean;
   /** 차트·선택에 쓰지 않고 드래그 상태만 버린다 — 차트를 통째로 바꾸기 직전 전용. */
-  discard: () => void;
+  discardDrag: () => void;
 }
+
+/**
+ * select 드래그가 첫 프레임을 차트에 쓰기 직전의 차트와 history. 프레임마다 setChart가 history를
+ * 쌓고(600ms 병합창) redo 스택을 비우며 lastValidSnapshot을 옮기므로, 드래그를 취소하면 이 값으로
+ * 한 번에 되돌린다. 드롭하면 프레임의 history를 그대로 두고 버린다.
+ */
+type DragCheckpoint = {
+  chart: Chart;
+  historyPast: HistorySnapshot[];
+  historyFuture: HistorySnapshot[];
+  historyLastCaptureAt: number;
+  lastValidSnapshot: HistorySnapshot | null;
+};
 
 const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
@@ -78,10 +93,13 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Marker editing
   editingMarker: EditingMarker;
 
-  // 진행 중 select 드래그를 끝내는 통로(App이 등록, 없으면 null). 모드 전환·undo/redo·차트 교체
-  // 액션이 이 통로로 드래그를 먼저 끝낸다 — 드래그가 열린 채 다른 모드·다른 차트로 넘어가면 이후
-  // 포인터 이동이 옛 원본 인덱스로 차트를 옮긴다.
+  // 캔버스 훅이 등록하는 selectDragControl(없으면 null). 모드 전환·undo/redo·차트 교체 액션이
+  // selectDragControl로 드래그를 먼저 끝낸다 — 드래그가 열린 채 다른 모드·다른 차트로 넘어가면
+  // 이후 포인터 이동이 옛 원본 인덱스로 차트를 옮긴다.
   selectDragControl: SelectDragControl | null;
+
+  // 진행 중 select 드래그의 첫 프레임 직전 상태(없으면 null) — 취소가 이리로 되돌린다.
+  dragCheckpoint: DragCheckpoint | null;
 
   // Actions
   setActivePage: (page: EditorPage) => void;
@@ -117,8 +135,17 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   addToast: (message: string, type?: ToastType) => void;
   setEditingMarker: (marker: EditingMarker) => void;
   setSelectDragControl: (control: SelectDragControl | null) => void;
-  /** 진행 중 select 드래그를 원위치로 되돌리며 끝낸다(Esc 등). 끝낸 드래그가 있었으면 true. */
+  /** 진행 중 select 드래그를 드래그 직전 상태로 되돌리며 끝낸다(Esc 등). 끝낸 드래그가 있었으면 true. */
   cancelSelectDrag: () => boolean;
+  /** select 드래그가 첫 프레임을 쓰기 직전에 SelectMode가 부른다 — 지금 차트·history를 dragCheckpoint로 잡는다. */
+  captureDragCheckpoint: () => void;
+  /**
+   * dragCheckpoint의 차트·history·lastValidSnapshot을 captureHistory 없이 set 한 번으로 되돌리고
+   * 그 차트를 돌려준다. dragCheckpoint가 없으면 null.
+   */
+  restoreDragCheckpoint: () => Chart | null;
+  /** 드롭·폐기로 끝난 드래그의 dragCheckpoint를 버린다(프레임의 history는 그대로 남는다). */
+  discardDragCheckpoint: () => void;
 }
 
 const createDefaultChart = (): Chart => ({
@@ -161,6 +188,22 @@ function captureHistory(state: EditorState): Partial<EditorState> {
   };
 }
 
+/**
+ * 차트를 바꿀 때 함께 커밋할 선택 — "선택 인덱스는 차트 범위 안"이라는 관계 불변을 차트 변이와
+ * 같은 트랜잭션에서 지킨다(순서 의존 제거). 엔티티가 줄면(노트·구간 개수 감소) 인덱스가 밀려 기존
+ * 선택이 다른 엔티티를 가리키게 되므로 비우고, 아니면 재정규화한다. 그대로면 기존 참조를 돌려준다.
+ */
+function selectionForChart(state: Pick<EditorState, 'chart' | 'selection'>, chart: Chart): Selection {
+  const entityRemoved =
+    chart.notes.length < state.chart.notes.length ||
+    chart.trillZones.length < state.chart.trillZones.length ||
+    (chart.restZones?.length ?? 0) < (state.chart.restZones?.length ?? 0);
+  const normalized = entityRemoved
+    ? emptySelection()
+    : normalizeSelection(state.selection, chart);
+  return selectionEquals(normalized, state.selection) ? state.selection : normalized;
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   // 뷰포트 슬라이스 (상태 + 클램프 내장 액션)
   ...createViewportSlice(set, get),
@@ -184,6 +227,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   lastValidSnapshot: null,
   editingMarker: null,
   selectDragControl: null,
+  dragCheckpoint: null,
 
   // Actions
   setActivePage: (activePage) => set({ activePage }),
@@ -215,22 +259,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       events: chart.events,
     }).length === 0;
     set((state) => {
-      // 선택 보정 — "선택 인덱스는 차트 범위 안"이라는 관계 불변은
-      // 차트 변이와 같은 트랜잭션에서 지킨다(순서 의존 제거).
-      // 엔티티가 삭제된 커밋(노트·구간 개수 감소)은 인덱스가 밀려 기존 선택이 다른
-      // 엔티티를 가리키게 되므로 선택을 원자적으로 비운다 — 삭제·잘라내기·붙여넣기
-      // 취소가 §3-5 해제 게이트를 지나지 않는 "차트와 함께 바뀌는 전이"가 되는 지점.
-      const entityRemoved =
-        chart.notes.length < state.chart.notes.length ||
-        chart.trillZones.length < state.chart.trillZones.length ||
-        (chart.restZones?.length ?? 0) < (state.chart.restZones?.length ?? 0);
-      const normalized = entityRemoved
-        ? emptySelection()
-        : normalizeSelection(state.selection, chart);
+      // 선택 보정(selectionForChart) — 엔티티가 삭제된 커밋은 선택을 원자적으로 비운다.
+      // 삭제·잘라내기·붙여넣기 취소가 §3-5 해제 게이트를 지나지 않는 "차트와 함께 바뀌는 전이"가
+      // 되는 지점.
       return {
         ...captureHistory(state),
         chart,
-        selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
+        selection: selectionForChart(state, chart),
         // 전체 valid일 때만 갱신 — 위반 커밋이면 이전 valid 스냅샷 유지(탈출 목적지 보존)
         ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } } : {}),
       };
@@ -238,7 +273,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   loadChart: (chart) => {
     // 진행 중 select 드래그는 원위치를 쓰지 않고 버린다 — 곧 통째로 바뀔 차트라 되돌려 쓸 이유가 없다.
-    get().selectDragControl?.discard();
+    get().selectDragControl?.discardDrag();
     const errors = validateChart({
       notes: chart.notes,
       trillZones: chart.trillZones,
@@ -357,5 +392,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
   setSelectDragControl: (selectDragControl) => set({ selectDragControl }),
-  cancelSelectDrag: () => get().selectDragControl?.cancel() ?? false,
+  cancelSelectDrag: () => get().selectDragControl?.cancelDrag() ?? false,
+  captureDragCheckpoint: () => set((state) => ({
+    dragCheckpoint: {
+      chart: state.chart,
+      historyPast: state.historyPast,
+      historyFuture: state.historyFuture,
+      historyLastCaptureAt: state.historyLastCaptureAt,
+      lastValidSnapshot: state.lastValidSnapshot,
+    },
+  })),
+  restoreDragCheckpoint: () => {
+    const checkpoint = get().dragCheckpoint;
+    if (!checkpoint) return null;
+    // captureHistory를 거치지 않는다 — 프레임이 쌓은 history·비운 redo 스택·옮긴 lastValidSnapshot을
+    // 드래그 직전 값으로 되돌려야 취소한 드래그가 undo에 남지 않는다.
+    set((state) => ({
+      chart: checkpoint.chart,
+      selection: selectionForChart(state, checkpoint.chart),
+      historyPast: checkpoint.historyPast,
+      historyFuture: checkpoint.historyFuture,
+      historyLastCaptureAt: checkpoint.historyLastCaptureAt,
+      lastValidSnapshot: checkpoint.lastValidSnapshot,
+      dragCheckpoint: null,
+    }));
+    return checkpoint.chart;
+  },
+  discardDragCheckpoint: () => {
+    if (get().dragCheckpoint !== null) set({ dragCheckpoint: null });
+  },
 }));

@@ -63,6 +63,8 @@ export function useEditorKeyboard(
         }
         if (e.key === 'x' || e.key === 'X') {
           e.preventDefault();
+          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 잘라낸다(지운 노트의 옛 인덱스가 드래그에 남지 않게)
+          useEditorStore.getState().cancelSelectDrag();
           const count = selectModeRef.current.cut();
           if (count > 0) addToast(`${count}개 노트 잘라냄`, 'info');
           else addToast('잘라낼 노트를 선택하세요', 'warn');
@@ -141,6 +143,9 @@ export function useEditorKeyboard(
         if (selectModeRef.current.isPendingPaste) {
           selectModeRef.current.cancelPaste();
         } else {
+          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 지운다 — 지운 노트의 옛 인덱스가 드래그에 남으면
+          // 다음 move·취소가 다른 노트를 옮기거나 throw한다.
+          useEditorStore.getState().cancelSelectDrag();
           selectModeRef.current.deleteSelected();
         }
         return;

@@ -62,7 +62,7 @@ describe('editorStore history', () => {
     expect(useEditorStore.getState().redo()).toBe(true);
   });
 
-  it('select 드래그 통로가 등록되지 않았으면 cancelSelectDrag()는 false이고 undo()는 그대로 되돌린다', () => {
+  it('selectDragControl이 등록되지 않았으면 cancelSelectDrag()는 false이고 undo()는 그대로 되돌린다', () => {
     useEditorStore.setState({ selectDragControl: null });
     useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
 

@@ -8,7 +8,7 @@ import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
 import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
-import { CreateMode, SelectMode, DeleteMode, activeEditorMode, createSelectDragControl } from './modes';
+import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
@@ -340,6 +340,8 @@ function ChartEditorPage() {
       addToast('삭제할 노트를 선택하세요', 'warn');
       return;
     }
+    // 진행 중 select 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 지운다 — 지운 노트의 옛 인덱스가 드래그에 남지 않게.
+    useEditorStore.getState().cancelSelectDrag();
     selectModeRef.current?.deleteSelected();
     addToast(`${total}개 선택 항목 삭제됨`, 'info');
   }, [addToast, selectedNotes.size]);
@@ -521,11 +523,14 @@ function ChartEditorPage() {
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
       setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
       onWarn: (msg) => addToast(msg, 'warn'),
+      // 프레임을 쓴 드래그를 취소하면 차트·history·lastValidSnapshot을 첫 프레임 직전으로 한 번에 되돌린다.
+      dragCheckpoint: {
+        capture: () => useEditorStore.getState().captureDragCheckpoint(),
+        restore: () => useEditorStore.getState().restoreDragCheckpoint(),
+        discard: () => useEditorStore.getState().discardDragCheckpoint(),
+      },
     });
     selectModeRef.current = selectMode;
-    // 모드 전환·undo/redo·차트 교체·Esc(store 액션)가 진행 중 select 드래그를 먼저 끝내도록 통로를 등록한다.
-    const selectDragControl = createSelectDragControl(selectMode, () => rendererRef.current);
-    useEditorStore.getState().setSelectDragControl(selectDragControl);
 
     const deleteMode = new DeleteMode(chart, {
       // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
@@ -537,9 +542,6 @@ function ChartEditorPage() {
 
     return () => {
       mounted = false;
-      if (useEditorStore.getState().selectDragControl === selectDragControl) {
-        useEditorStore.getState().setSelectDragControl(null);
-      }
       // feed를 끊어 언마운트 후 늦게 resolve된 audioArrived가 disposed 렌더러에 낭비 작업을 하지 않게 한다.
       waveformFeedRef.current = null;
       renderer.dispose();

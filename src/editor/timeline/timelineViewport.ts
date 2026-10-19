@@ -73,6 +73,23 @@ export function screenXToTimelineX(input: {
   return input.screenX - input.contentOffsetX;
 }
 
+/**
+ * 캔버스 기준 화면 좌표를 뷰포트(캔버스) 안으로 클램프한다. 포인터를 캡처한 select 드래그는 캔버스 밖
+ * 좌표도 받는데, y→시간 변환이 선형이라 그대로 쓰면 화면 밖 박으로 드롭되고 박스가 화면 밖 노트를
+ * 줍는다 — 가장 가까운 캔버스 안 위치로 붙인다.
+ */
+export function clampScreenPointToViewport(input: {
+  screenX: number;
+  screenY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}): { screenX: number; screenY: number } {
+  return {
+    screenX: Math.min(Math.max(input.screenX, 0), input.viewportWidth),
+    screenY: Math.min(Math.max(input.screenY, 0), input.viewportHeight),
+  };
+}
+
 export function isFixedRailX(input: {
   screenX: number;
   leftRailWidth: number;

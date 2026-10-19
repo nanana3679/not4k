@@ -2810,6 +2810,99 @@ describe("SelectMode — discardDrag (차트 교체 직전 드래그 폐기)", (
 });
 
 // ---------------------------------------------------------------------------
+// dragCheckpoint — 이동·리사이즈가 첫 프레임을 쓰기 직전에 잡고, 취소는 그리로 되돌리고,
+// 드롭·확정·폐기는 버린다(store 결합 검증은 SelectMode.dragCancel.integration.test.ts).
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — dragCheckpoint (첫 프레임 직전 상태)", () => {
+  function setupLaneMove() {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const restoredChart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const dragCheckpoint = {
+      capture: vi.fn(),
+      restore: vi.fn((): Chart | null => restoredChart),
+      discard: vi.fn(),
+    };
+    const cb = { ...makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) }), dragCheckpoint };
+    const mode = makeMode(chart, cb);
+    mode.onPointerDown(1, 0, false, false); // 미선택 노트 클릭 = 단독 선택 + 이동 드래그 시작
+    return { cb, mode, dragCheckpoint, restoredChart };
+  }
+
+  it("이동 드래그가 레인 2·3으로 프레임을 두 번 써도 capture는 첫 프레임을 쓰기 직전에 한 번만 불린다", () => {
+    const { cb, mode, dragCheckpoint } = setupLaneMove();
+    expect(dragCheckpoint.capture).not.toHaveBeenCalled(); // down만으로는 잡지 않는다
+
+    mode.onPointerMove(2, 0);
+    mode.onPointerMove(3, 0);
+
+    expect(dragCheckpoint.capture).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.capture.mock.invocationCallOrder[0])
+      .toBeLessThan(cb.onChartUpdate.mock.invocationCallOrder[0]);
+  });
+
+  it("레인 2로 프레임을 쓴 이동 드래그를 cancel하면 restore가 돌려준 차트로 바꾸고 원위치를 onChartUpdate로 다시 쓰지 않는다", () => {
+    const { cb, mode, dragCheckpoint, restoredChart } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+    const writesBefore = cb.onChartUpdate.mock.calls.length;
+
+    mode.cancel();
+
+    expect(dragCheckpoint.restore).toHaveBeenCalledTimes(1);
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesBefore);
+    expect((mode as unknown as { chart: Chart }).chart).toBe(restoredChart);
+  });
+
+  it("레인 2로 끈 이동을 드롭하면 discard를 한 번 부르고 restore는 부르지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.onPointerUp(2, 0);
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("레인 2로 끈 이동을 드래그 중 Enter(confirmPlacement)로 확정하면 discard를 불러, 이어진 cancel이 확정을 되돌리지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.confirmPlacement();
+    mode.cancel();
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("레인 2로 프레임을 쓴 이동 드래그를 discardDrag하면 discard를 부르고 restore는 부르지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.discardDrag();
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("잡기만 하고 움직이지 않은 드래그는 cancel·드롭 어느 쪽이든 capture·restore·discard를 하나도 부르지 않는다", () => {
+    const first = setupLaneMove();
+    first.mode.cancel();
+    const second = setupLaneMove();
+    second.mode.onPointerUp(1, 0);
+
+    for (const { dragCheckpoint } of [first, second]) {
+      expect(dragCheckpoint.capture).not.toHaveBeenCalled();
+      expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+      expect(dragCheckpoint.discard).not.toHaveBeenCalled();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 트릴 쌍 동반 선택 — 쌍소멸과 대칭: 한쪽만 선택-이동하면 배치 제약(헤드 필수)에
 // 걸려 롤백되므로, trill 헤드 ↔ trillLong 바디는 한 단위로 선택한다
 // ---------------------------------------------------------------------------

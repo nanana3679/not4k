@@ -4,7 +4,8 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 // swiftshader 렌더라 드래그 프레임마다 전체 렌더가 느리다 — 부하가 큰 기계에서도 끝나도록 여유를 둔다.
 test.describe.configure({ timeout: 120_000 });
 
-// 진행 중 select 드래그가 취소 경로(Esc·모드 전환·undo·pointercancel·캔버스 밖에서 버튼 떼기)마다 끝나는지 본다.
+// 진행 중 select 드래그가 취소 경로(Esc·모드 전환·undo·pointercancel·캔버스 밖에서 버튼 떼기·드래그 중 삭제)마다
+// 끝나는지 본다.
 // 노트 0 = lane 1·beat 1, 노트 1 = lane 3·beat 2. 120 BPM이라 1박 = 500ms이고, 기본 스냅(4)은 1박 단위다.
 const SONG_ID = 'select-drag-cancel-check';
 const chart = {
@@ -16,7 +17,7 @@ const chart = {
 };
 
 type NotePosition = { lane: number; beat: number };
-type EditorSnapshot = { mode: string; notes: NotePosition[]; historyFuture: number };
+type EditorSnapshot = { mode: string; notes: NotePosition[]; historyFuture: number; selectedNotes: number[] };
 
 async function openEditor(page: Page, baseURL: string | undefined, pageErrors: string[]): Promise<void> {
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -81,6 +82,7 @@ async function readEditor(page: Page): Promise<EditorSnapshot> {
       mode: state.mode,
       notes: state.chart.notes.map(note => ({ lane: note.lane, beat: note.beat.n / note.beat.d })),
       historyFuture: state.historyFuture.length,
+      selectedNotes: [...state.selection.notes].sort((a, b) => a - b),
     };
   });
 }
@@ -183,20 +185,109 @@ test('드래그 중 pointercancel이 오면 노트 0을 원위치로 되돌리�
   expect(pageErrors).toEqual([]);
 });
 
-test('캔버스 밖(툴바 위)에서 버튼을 떼면 드래그가 그 자리에서 끝나, 캔버스로 돌아와 버튼 없이 lane 4·beat 2로 움직여도 노트 0이 따라오지 않는다', async ({ page, baseURL }) => {
+test('줌 50에서 캔버스 밖(툴바 위)에서 버튼을 떼면 노트 0이 캔버스 위쪽 끝과 가장 가까운 박에 드롭되고, 캔버스로 돌아와 버튼 없이 움직여도 따라오지 않는다', async ({ page, baseURL }) => {
   const pageErrors: string[] = [];
   await openEditor(page, baseURL, pageErrors);
+  // 줌 50(1박 = 25px)이면 툴바까지 나간 거리(약 55px)가 2박을 넘어, 클램프 없이 드롭한 위치와 확실히 갈린다.
+  await page.evaluate(async () => {
+    const path = '/src/editor/stores/editorStore.ts';
+    const url = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(name => new URL(name).pathname === path) ?? path;
+    const { useEditorStore }: typeof import('../../src/editor/stores/editorStore') = await import(url);
+    useEditorStore.getState().setZoom(50);
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const renderer = (window as unknown as Record<string, unknown>).__selectDragRenderer as { zoom: number };
+    return renderer.zoom;
+  })).toBe(50);
   await dragNote0ToLane2Beat3(page);
+  const canvasTopBeat = await page.evaluate(() => {
+    const renderer = (window as unknown as Record<string, unknown>).__selectDragRenderer as { yToTime(y: number): number };
+    return renderer.yToTime(0) / 500;
+  });
 
   const lane2Beat3 = await pointFor(page, 2, 3);
-  const box = (await page.locator('canvas').boundingBox())!;
-  await page.mouse.move(lane2Beat3.x, box.y - 20, { steps: 2 }); // 캔버스 위쪽 툴바로 나간다
+  await page.mouse.move(lane2Beat3.x, 2, { steps: 2 }); // 캔버스 위쪽 툴바로 나간다
   await page.mouse.up();
   const dropped = await notePosition(page, 0);
-  expect(dropped.lane).toBe(2);
+  expect(dropped).toEqual({ lane: 2, beat: Math.round(canvasTopBeat) });
 
   const elsewhere = await pointFor(page, 4, 2);
   await page.mouse.move(elsewhere.x, elsewhere.y, { steps: 2 });
   expect(await notePosition(page, 0)).toEqual(dropped);
+  expect(pageErrors).toEqual([]);
+});
+
+test('노트 0을 선택한 채 터치로 노트 0·1을 감싸는 박스를 끌다 Esc로 취소하면 선택이 노트 0으로 돌아오고, 같은 손가락의 이후 move·up이 박스를 다시 그리지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  const note0 = await pointFor(page, 1, 1);
+  await page.mouse.click(note0.x, note0.y);
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([0]);
+
+  // CDP 터치 — touch pointermove는 애니메이션 프레임에 맞춰 전달되므로 보낼 때마다 다음 프레임까지 기다린다.
+  const client = await page.context().newCDPSession(page);
+  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', point?: { x: number; y: number }) => {
+    await client.send('Input.dispatchTouchEvent', { type, touchPoints: point ? [{ x: point.x, y: point.y, id: 1 }] : [] });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  };
+  const start = await pointFor(page, 4, 0.5); // 빈 곳
+  const middle = await pointFor(page, 3, 1.5);
+  const end = await pointFor(page, 1, 2.5); // 레인 1~4 × 박 0.5~2.5 → 노트 0·1을 감싼다
+  await touch('touchStart', start);
+  await touch('touchMove', middle);
+  await touch('touchMove', end);
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([0, 1]);
+
+  await page.keyboard.press('Escape');
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([0]);
+
+  const further = await pointFor(page, 1, 3);
+  await touch('touchMove', further);
+  expect((await readEditor(page)).selectedNotes).toEqual([0]);
+  await touch('touchEnd');
+  expect((await readEditor(page)).selectedNotes).toEqual([0]);
+  expect(pageErrors).toEqual([]);
+});
+
+test('노트 1을 lane 4·beat 3으로 끌던 중 Delete를 누르면 원위치(lane 3·beat 2)에서 지워지고, 이어진 움직임이 throw하지 않으며 Ctrl+Z가 노트 1을 원위치로 되살린다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  const from = await pointFor(page, 3, 2);
+  const to = await pointFor(page, 4, 3);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 2 });
+  await expect.poll(() => notePosition(page, 1)).toEqual({ lane: 4, beat: 3 });
+
+  await page.keyboard.press('Delete');
+  await expect.poll(() => readEditor(page).then(s => s.notes)).toEqual([{ lane: 1, beat: 1 }]);
+  const elsewhere = await pointFor(page, 2, 3);
+  await page.mouse.move(elsewhere.x, elsewhere.y, { steps: 2 });
+  await page.mouse.up();
+  expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }]);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => readEditor(page).then(s => s.notes)).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }]);
+  expect(pageErrors).toEqual([]);
+});
+
+test('노트 1을 lane 4·beat 3으로 끌던 중 그 자리를 우클릭하면 드래그가 먼저 원위치(lane 3·beat 2)로 돌아가 아무것도 지워지지 않고, 이어진 움직임이 throw하지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  const from = await pointFor(page, 3, 2);
+  const to = await pointFor(page, 4, 3);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 2 });
+  await expect.poll(() => notePosition(page, 1)).toEqual({ lane: 4, beat: 3 });
+
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.up({ button: 'right' });
+  const elsewhere = await pointFor(page, 2, 3);
+  await page.mouse.move(elsewhere.x, elsewhere.y, { steps: 2 });
+  await page.mouse.up();
+
+  expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }]);
   expect(pageErrors).toEqual([]);
 });
