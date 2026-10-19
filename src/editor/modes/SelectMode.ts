@@ -342,6 +342,9 @@ export class SelectMode implements EditorMode {
 
   /** Begin a touch long-press move from a note without collapsing an existing multi-selection. */
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
+    // 붙여넣기 대기 중에는 드래그를 시작하지 않는다(마우스 down과 같다) — 붙여넣은 사본을 끌던 드래그가
+    // 붙여넣기 취소 뒤에도 살아 옛 인덱스로 차트를 옮기거나 취소가 사본을 되살린다.
+    if (this.clipboardManager.isPendingPaste) return false;
     if (index < 0 || index >= this.chart.notes.length) return false;
 
     // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다.
@@ -364,6 +367,7 @@ export class SelectMode implements EditorMode {
 
   /** Begin resizing a main range note end, used by touch long-press handles. */
   beginNoteEndResizeDrag(index: number): boolean {
+    if (this.clipboardManager.isPendingPaste) return false; // 붙여넣기 대기 중에는 드래그를 시작하지 않는다
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
@@ -401,6 +405,7 @@ export class SelectMode implements EditorMode {
    * 기존 혼합 선택(일반 노트·다른 구간 포함)을 유지한 채 전체를 이동한다.
    */
   beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
+    if (this.clipboardManager.isPendingPaste) return false; // 붙여넣기 대기 중에는 드래그를 시작하지 않는다
     if (index < 0 || index >= this.chart.trillZones.length) return false;
     if (!this.sel.zones.has(index)) {
       // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
@@ -635,7 +640,8 @@ export class SelectMode implements EditorMode {
    * 빈 곳 박스와 동일하게 기존 선택을 비우고 시작한다. 진행 중 드래그가 있으면 무시.
    */
   beginBoxSelect(x: number, y: number): void {
-    if (this.isDragging) return;
+    // 진행 중 드래그가 있거나 붙여넣기 대기 중이면 시작하지 않는다(마우스 down과 같다)
+    if (this.isDragging || this.clipboardManager.isPendingPaste) return;
     this.startBoxSelect(x, y);
   }
 

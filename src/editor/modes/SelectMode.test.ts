@@ -2959,6 +2959,49 @@ describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래
   });
 });
 
+describe("SelectMode — 붙여넣기 대기 중에는 터치 드래그를 시작하지 않는다(마우스 down과 같다)", () => {
+  // 노트 0 = single lane 1·beat 0, 노트 1 = long lane 2·beat 0~4, 구간 0 = trillZone lane 3·beat 2~6.
+  // 노트 0을 복사해 beat 8에 붙여넣어 대기시킨다(붙여넣은 사본 = 노트 2).
+  function setupPendingPaste() {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "long", lane: 2 as Lane, beat: beat(0), endBeat: beat(4) },
+      ],
+      trillZones: [{ lane: 3 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks();
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.copy();
+    expect(mode.paste(beat(8))).toBe(1);
+    expect(mode.isPendingPaste).toBe(true);
+    const selectionBefore = cb.getSelectionState();
+    return { cb, mode, selectionBefore };
+  }
+
+  it("붙여넣기 대기 중 beginLongPressDrag가 붙여넣은 사본(노트 2)·노트 끝(노트 1)·구간 몸통(구간 0) 어느 히트든 false를 반환하고 드래그·선택을 바꾸지 않는다", () => {
+    const { cb, mode, selectionBefore } = setupPendingPaste();
+
+    expect(mode.beginLongPressDrag(1, 8, { noteEndHit: null, noteHit: 2 })).toBe(false);
+    expect(mode.beginLongPressDrag(2, 4, { noteEndHit: 1, noteHit: null })).toBe(false);
+    expect(mode.beginLongPressDrag(3, 3, { noteEndHit: null, noteHit: null, zoneHit: 0 })).toBe(false);
+
+    expect(mode.isMoveDragging).toBe(false);
+    expect(mode.isPendingPaste).toBe(true);
+    expect(cb.getSelectionState()).toBe(selectionBefore);
+  });
+
+  it("붙여넣기 대기 중 beginBoxSelect(4, 0)는 박스를 시작하지 않아 선택이 붙여넣은 사본 그대로다", () => {
+    const { cb, mode, selectionBefore } = setupPendingPaste();
+
+    mode.beginBoxSelect(4, 0);
+
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(cb.getSelectionState()).toBe(selectionBefore);
+  });
+});
+
 describe("SelectMode — confirmPlacement가 진행 중 이동 드래그를 끝낸다 (Enter)", () => {
   it("레인 1→2 이동 드래그 중 confirmPlacement는 레인 2를 커밋하고 드래그를 끝내며 clearDragPreview를 반환", () => {
     const chart = makeChart({

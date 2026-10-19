@@ -43,10 +43,10 @@ export interface SelectDragControl {
    * 상태로 되돌린다. 박스 확정이 §3-5 게이트에 거부되면 canDelete가 false(지우지 않는다).
    */
   endDragBeforeDelete: () => { canDelete: boolean };
-  /** 배치 확정(Enter) — 대기 중 붙여넣기나 진행 중 이동 드래그를 확정한다. 끝낸 드래그가 있었으면 true. */
-  confirmPlacement: () => boolean;
+  /** 배치 확정(Enter) — 대기 중 붙여넣기나 진행 중 이동 드래그를 확정한다(끝낸 드래그는 취소와 같이 정리). */
+  confirmPlacement: () => void;
   /** 진행 중 드래그를 드래그 직전 상태로 되돌린 뒤 targetBeat에 붙여넣는다. 붙여넣은 개수를 돌려준다. */
-  cancelDragAndPaste: (targetBeat: Beat) => number;
+  pasteAfterCancelingDrag: (targetBeat: Beat) => number;
 }
 
 /**
@@ -102,8 +102,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Marker editing
   editingMarker: EditingMarker;
 
-  // 캔버스 훅이 등록하는 selectDragControl(없으면 null). 모드 전환·undo/redo·차트 교체 액션이
-  // selectDragControl로 드래그를 먼저 끝낸다 — 드래그가 열린 채 다른 모드·다른 차트로 넘어가면
+  // 캔버스 훅이 등록하는 selectDragControl(없으면 null). 모드 전환·undo/redo·차트 교체·삭제·붙여넣기·Enter
+  // 액션이 selectDragControl로 드래그를 먼저 끝낸다 — 드래그가 열린 채 다른 모드·다른 차트로 넘어가면
   // 이후 포인터 이동이 옛 원본 인덱스로 차트를 옮긴다.
   selectDragControl: SelectDragControl | null;
 
@@ -153,14 +153,14 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   endSelectDragBeforeDelete: () => { canDelete: boolean };
   /**
    * 배치 확정(Enter) — 대기 중 붙여넣기를 확정하거나, 진행 중 이동 드래그를 지금 위치로 확정하고 끝낸다.
-   * 드래그를 끝냈으면 취소와 같은 정리(렌더러 프리뷰·터치 후보)를 거친다. 끝낸 드래그가 있었으면 true.
+   * 드래그를 끝냈으면 취소와 같은 정리(렌더러 프리뷰·터치 후보)를 거친다.
    */
-  confirmSelectPlacement: () => boolean;
+  confirmSelectPlacement: () => void;
   /**
    * 붙여넣기(Ctrl+V) — 진행 중 select 드래그를 드래그 직전 상태로 되돌린 뒤 targetBeat에 붙여넣는다. 드래그와
    * 대기 중 붙여넣기가 함께 살면 드래그 취소가 붙여넣은 노트를 지우면서 붙여넣기 상태만 남긴다. 붙여넣은 개수.
    */
-  cancelSelectDragAndPaste: (targetBeat: Beat) => number;
+  pasteAfterCancelingSelectDrag: (targetBeat: Beat) => number;
   /** select 드래그가 첫 프레임을 쓰기 직전에 SelectMode가 부른다 — 지금 차트·history를 dragCheckpoint로 잡는다. */
   captureDragCheckpoint: () => void;
   /**
@@ -418,8 +418,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelectDragControl: (selectDragControl) => set({ selectDragControl }),
   cancelSelectDrag: () => get().selectDragControl?.cancelDrag() ?? false,
   endSelectDragBeforeDelete: () => get().selectDragControl?.endDragBeforeDelete() ?? { canDelete: true },
-  confirmSelectPlacement: () => get().selectDragControl?.confirmPlacement() ?? false,
-  cancelSelectDragAndPaste: (targetBeat) => get().selectDragControl?.cancelDragAndPaste(targetBeat) ?? 0,
+  confirmSelectPlacement: () => {
+    get().selectDragControl?.confirmPlacement();
+  },
+  pasteAfterCancelingSelectDrag: (targetBeat) => get().selectDragControl?.pasteAfterCancelingDrag(targetBeat) ?? 0,
   captureDragCheckpoint: () => set((state) => ({
     dragCheckpoint: {
       chart: state.chart,

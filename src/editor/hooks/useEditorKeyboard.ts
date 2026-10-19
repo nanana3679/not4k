@@ -80,8 +80,8 @@ export function useEditorKeyboard(
           const grid = 4 / sd;
           const k = Math.round(beatFloat / grid);
           const targetBeat = { n: k * 4, d: sd };
-          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 붙여넣는다(cancelSelectDragAndPaste)
-          const count = useEditorStore.getState().cancelSelectDragAndPaste(targetBeat);
+          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 붙여넣는다
+          const count = useEditorStore.getState().pasteAfterCancelingSelectDrag(targetBeat);
           if (count > 0) addToast(`${count}개 노트 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
           return;
         }

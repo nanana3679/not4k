@@ -256,7 +256,7 @@ export function useCanvasEvents(
     rendererRef.current?.hideGhostNote();
   }, [clearPendingTouchEdits, createModeRef, selectModeRef, rendererRef]);
 
-  // store 액션(Esc·모드 전환·undo/redo·차트 교체·삭제)이 진행 중 select 드래그를 먼저 끝내도록
+  // store 액션(Esc·모드 전환·undo/redo·차트 교체·삭제·붙여넣기(Ctrl+V)·Enter)이 진행 중 select 드래그를 먼저 끝내도록
   // selectDragControl을 등록한다. 끝낼 때 렌더러 프리뷰와 이 훅의 터치 후보도 함께 버린다.
   useEffect(() => {
     const control = createSelectDragControl(

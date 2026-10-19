@@ -412,8 +412,8 @@ describe("진행 중 select 드래그 × 삭제(Delete·Ctrl+X·툴바 삭제는
   });
 });
 
-describe("진행 중 select 드래그 × 붙여넣기(cancelSelectDragAndPaste — Ctrl+V는 드래그를 먼저 취소한다)", () => {
-  /** 노트 B를 복사해 두고 A를 lane 2·beat 3으로 끈 채 키보드 Ctrl+V와 같은 cancelSelectDragAndPaste로 8박에 붙여넣는다. */
+describe("진행 중 select 드래그 × 붙여넣기(pasteAfterCancelingSelectDrag — Ctrl+V는 드래그를 먼저 취소한다)", () => {
+  /** 노트 B를 복사해 두고 A를 lane 2·beat 3으로 끈 채 키보드 Ctrl+V와 같은 pasteAfterCancelingSelectDrag로 8박에 붙여넣는다. */
   function pasteBWhileDraggingA() {
     setClock(10_000);
     const ctx = setup([noteA, noteB]);
@@ -421,11 +421,11 @@ describe("진행 중 select 드래그 × 붙여넣기(cancelSelectDragAndPaste �
     ctx.mode.copy();
     setClock(12_000);
     dragNoteA(ctx.mode);
-    const pasted = ctx.store.getState().cancelSelectDragAndPaste(beat(8));
+    const pasted = ctx.store.getState().pasteAfterCancelingSelectDrag(beat(8));
     return { ...ctx, pasted };
   }
 
-  it("A를 끌던 중 cancelSelectDragAndPaste(beat 8)는 A를 원위치(lane 1·beat 0)로 되돌린 뒤 B 사본 1개를 lane 3·beat 8에 대기시킨다", () => {
+  it("A를 끌던 중 pasteAfterCancelingSelectDrag(beat 8)는 A를 원위치(lane 1·beat 0)로 되돌린 뒤 B 사본 1개를 lane 3·beat 8에 대기시킨다", () => {
     const { mode, renderer, pasted } = pasteBWhileDraggingA();
 
     expect(pasted).toBe(1);
@@ -448,8 +448,9 @@ describe("진행 중 select 드래그 × 붙여넣기(cancelSelectDragAndPaste �
   });
 
   it("드래그 중 붙인 대기 붙여넣기를 confirmSelectPlacement(Enter)로 확정하면 이어진 Esc(cancelSelectDrag)는 false로 아무것도 되돌리지 않아 B 사본과 history가 그대로다", () => {
-    const { store } = pasteBWhileDraggingA();
+    const { mode, store } = pasteBWhileDraggingA();
     store.getState().confirmSelectPlacement();
+    expect(mode.isPendingPaste).toBe(false); // Enter가 confirmSelectPlacement로 붙여넣기를 확정했다
     const pastLength = store.getState().historyPast.length;
 
     expect(store.getState().cancelSelectDrag()).toBe(false);
@@ -457,6 +458,25 @@ describe("진행 중 select 드래그 × 붙여넣기(cancelSelectDragAndPaste �
     expect(store.getState().chart.notes).toHaveLength(3);
     expect(laneBeat(2)).toEqual([3, 8]);
     expect(store.getState().historyPast).toHaveLength(pastLength);
+  });
+});
+
+describe("붙여넣기 대기 중 터치 롱프레스(드래그를 시작하지 않는다)", () => {
+  it("붙여넣기 대기 중 붙여넣은 B 사본을 롱프레스로 끌려 해도 드래그가 시작되지 않아, Esc(cancelPaste) 뒤 이어진 움직임이 throw하지 않고 두 번째 Esc(cancelSelectDrag)가 취소한 사본을 되살리지 않는다", () => {
+    setClock(10_000);
+    const { mode, store } = setup([noteA, noteB]);
+    store.getState().setSelection({ ...emptySelection(), notes: new Set([1]) });
+    mode.copy();
+    setClock(12_000);
+    expect(mode.paste(beat(8))).toBe(1); // 사본 = 노트 2(lane 3·beat 8), 대기 중
+
+    expect(mode.beginLongPressDrag(3, 8, { noteEndHit: null, noteHit: 2 })).toBe(false);
+    mode.onPointerMove(4, 9);
+    mode.cancelPaste(); // 첫 Esc
+
+    expect(() => mode.onPointerMove(4, 10)).not.toThrow();
+    expect(store.getState().cancelSelectDrag()).toBe(false); // 두 번째 Esc
+    expect(store.getState().chart.notes).toEqual([noteA, noteB]);
   });
 });
 
@@ -468,7 +488,7 @@ describe("진행 중 select 드래그 × Enter 확정(confirmSelectPlacement가 
     mode.moveBySnap("up");
     expect(laneBeat(0)).toEqual([2, 4]);
 
-    expect(store.getState().confirmSelectPlacement()).toBe(true);
+    store.getState().confirmSelectPlacement();
 
     expect(mode.isMoveDragging).toBe(false);
     expect(store.getState().cancelSelectDrag()).toBe(false);
@@ -490,7 +510,7 @@ describe("진행 중 select 드래그 × Enter 확정(confirmSelectPlacement가 
     const { mode, renderer, store } = setup([noteA]);
     dragNoteA(mode);
 
-    expect(store.getState().confirmSelectPlacement()).toBe(true);
+    store.getState().confirmSelectPlacement();
 
     expect(renderer.clearMoveOrigins).toHaveBeenCalled();
     expect(mode.isMoveDragging).toBe(false);
