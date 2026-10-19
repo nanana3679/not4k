@@ -113,6 +113,31 @@ for (const { label, trigger, modal } of FOCUS_RESTORE_CASES) {
   });
 }
 
+test('곡 추가 모달의 Cancel에서 Enter를 누르고 있으면(keydown 4번, 그중 반복 3번) → 모달이 한 번 닫히고 다시 열리지 않으며 포커스는 + Add Song', async ({ page, baseURL }) => {
+  await routeSupabase(page, baseURL!);
+  await openSongSelect(page);
+
+  const addSongButton = page.getByRole('button', { name: '+ Add Song', exact: true });
+  await tabUntilFocused(page, addSongButton);
+  await page.keyboard.press('Space');
+  const modalHeading = page.getByRole('heading', { name: 'New Song', exact: true });
+  await expect(modalHeading).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).focus();
+
+  // 첫 keydown이 Cancel을 눌러 닫고, 이어지는 repeat=true keydown은 돌아온 포커스의 + Add Song을 다시 누르면 안 된다.
+  await page.keyboard.down('Enter');
+  await expect(modalHeading).toHaveCount(0);
+  for (let i = 0; i < 3; i += 1) {
+    await page.keyboard.down('Enter');
+    await expect(modalHeading, `반복 keydown ${i + 1}번째 뒤`).toHaveCount(0);
+  }
+  await page.keyboard.up('Enter');
+
+  await expect(modalHeading).toHaveCount(0);
+  await expect(addSongButton).toBeFocused();
+  await expect(songSelectHeading(page)).toBeVisible();
+});
+
 test('곡 삭제 확인 모달에서 Escape 한 번 → 모달만 닫히고 곡 선택에 남으며, 모달 없이 한 번 더 누르면 타이틀로 이동', async ({ page, baseURL }) => {
   await routeSupabase(page, baseURL!);
   await openSongSelect(page);

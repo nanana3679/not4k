@@ -9,6 +9,7 @@ import {
   resolveGameplayRange,
   resolveSongCardFocus,
   shouldBlockSongNavKey,
+  shouldPreventSongNavKeyDefault,
   sortChartsByDifficulty,
 } from './helpers';
 import type { DbChart, DbSong } from './types';
@@ -352,5 +353,41 @@ describe('shouldBlockSongNavKey', () => {
 
   it('ArrowDown 자동 반복(repeat=true)은 통과 — 누르고 있으면 곡을 계속 넘김', () => {
     expect(shouldBlockSongNavKey({ ...base, repeat: true, key: 'ArrowDown' })).toBe(false);
+  });
+});
+
+describe('shouldPreventSongNavKeyDefault', () => {
+  const button = { tagName: 'BUTTON', isContentEditable: false };
+
+  it('버튼에서 온 Enter 자동 반복(repeat=true)은 기본 동작도 막음 — 포커스가 돌아온 버튼을 다시 눌러 모달을 다시 열지 않음', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: button })).toBe(true);
+  });
+
+  it('Escape 자동 반복(repeat=true)도 기본 동작을 막음', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Escape', repeat: true, target: button })).toBe(true);
+  });
+
+  it('첫 Enter(repeat=false)는 기본 동작을 막지 않음 — 포커스된 버튼은 그대로 눌림', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: false, target: button })).toBe(false);
+  });
+
+  it('ArrowDown 자동 반복은 기본 동작을 막지 않음', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'ArrowDown', repeat: true, target: button })).toBe(false);
+  });
+
+  it('한 줄 input에서 온 Enter 자동 반복은 막음 — 반복되는 암묵적 제출만 생기므로', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: { tagName: 'INPUT', isContentEditable: false } })).toBe(true);
+  });
+
+  it('textarea에서 온 Enter 자동 반복은 막지 않음 — 줄바꿈 입력을 유지', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: { tagName: 'TEXTAREA', isContentEditable: false } })).toBe(false);
+  });
+
+  it('contenteditable 요소에서 온 Enter 자동 반복은 막지 않음 — 줄바꿈 입력을 유지', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: { tagName: 'DIV', isContentEditable: true } })).toBe(false);
+  });
+
+  it('target이 없어도(null) Enter 자동 반복은 막음', () => {
+    expect(shouldPreventSongNavKeyDefault({ key: 'Enter', repeat: true, target: null })).toBe(true);
   });
 });

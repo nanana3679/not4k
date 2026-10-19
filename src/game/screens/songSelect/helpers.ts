@@ -131,10 +131,34 @@ export function shouldBlockSongNavKey(params: {
 }): boolean {
   const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key, defaultPrevented, repeat } = params;
   if (defaultPrevented) return true;
-  if (repeat && (key === 'Escape' || key === 'Enter')) return true;
+  if (isAutoRepeatEscapeOrEnter(key, repeat)) return true;
   if (blockingModalOpen || hasPendingChartTarget) return true;
   if (songsEmpty && key !== 'Escape') return true;
   return false;
+}
+
+/** 곡 선택에서 쓸 일이 없는 Escape·Enter 자동 반복 keydown인지. */
+function isAutoRepeatEscapeOrEnter(key: string, repeat: boolean): boolean {
+  return repeat && (key === 'Escape' || key === 'Enter');
+}
+
+/**
+ * 곡 선택 네비가 자동 반복이라 막은 Escape·Enter의 브라우저 기본 동작(포커스된 버튼 누르기)도 막아야 하는지 정한다.
+ *
+ * 모달을 닫으면 포커스가 모달을 연 버튼으로 돌아오므로, Cancel에서 누르고 있던 Enter의 반복 keydown이
+ * 그 버튼을 다시 눌러 모달을 다시 열 수 있다. 여러 줄 글 입력(textarea·contenteditable)에서는 Enter가
+ * 줄바꿈이라 막지 않는다. 한 줄 input에서는 반복되는 암묵적 제출만 생기므로 막는다.
+ * `target`은 keydown의 `event.target`이다.
+ */
+export function shouldPreventSongNavKeyDefault(params: { key: string; repeat: boolean; target: unknown }): boolean {
+  return isAutoRepeatEscapeOrEnter(params.key, params.repeat) && !isMultilineTextTarget(params.target);
+}
+
+/** Enter가 줄바꿈인 여러 줄 글 입력 요소(textarea·contenteditable)인지. */
+function isMultilineTextTarget(target: unknown): boolean {
+  if (typeof target !== 'object' || target === null) return false;
+  const element = target as { tagName?: unknown; isContentEditable?: unknown };
+  return element.tagName === 'TEXTAREA' || element.isContentEditable === true;
 }
 
 export interface SongCardFocusState {
