@@ -183,7 +183,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     );
   });
 
-  it("위반 이벤트(editorLane 3) 해칭은 GridRenderer 이벤트 마커와 같은 칸, x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH에서 폭 EXTRA_LANE_WIDTH로 그려진다", () => {
+  it("위반 이벤트(editorLane 3) 해칭은 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH에서 폭 EXTRA_LANE_WIDTH로 그려진다", () => {
     const chart = makeChart([], [], [
       { type: "text", beat: beat(0), endBeat: beat(2), text: "hi", editorLane: 3 },
     ]);
