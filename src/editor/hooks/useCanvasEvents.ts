@@ -487,8 +487,11 @@ export function useCanvasEvents(
       return;
     }
 
-    // 캡처한 select 드래그는 캔버스 밖으로 나가도 가장 가까운 캔버스 안 위치를 따라간다.
-    const { screenX: rawX, screenY: y } = canvasPointOf(e, rect, selectCapturePointerIdRef.current === e.pointerId);
+    // 캡처한 select 드래그는 캔버스 밖으로 나가도 가장 가까운 캔버스 안 위치를 따라간다(드래그 중 모드를 바꾸면
+    // 더 이상 클램프하지 않는다 — create 고스트 등은 실제 포인터 위치를 따른다).
+    const { screenX: rawX, screenY: y } = canvasPointOf(
+      e, rect, mode === 'select' && selectCapturePointerIdRef.current === e.pointerId,
+    );
 
     if (rendererRef.current?.handleMinimapPointerMove(rawX, y)) {
       onNavigationInteraction?.();
@@ -776,7 +779,7 @@ export function useCanvasEvents(
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const { screenX: rawX, screenY: y } = canvasPointOf(e, rect, selectCaptured);
+    const { screenX: rawX, screenY: y } = canvasPointOf(e, rect, mode === 'select' && selectCaptured);
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
 
     // 드래그 삭제(발화) / 탭 삭제(무이동). delete 모드에서 hold가 있었을 때만.

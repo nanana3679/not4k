@@ -725,7 +725,7 @@ export class SelectMode implements EditorMode {
         // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다.
         if (tentativeChart !== null) {
           this.chart = tentativeChart;
-          this.markChartChangedByDrag();
+          this.captureDragCheckpointBeforeFirstFrame();
           this.callbacks.onChartUpdate(this.chart);
         }
       }
@@ -798,7 +798,7 @@ export class SelectMode implements EditorMode {
           trillZones: newZones,
           ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
         };
-        this.markChartChangedByDrag();
+        this.captureDragCheckpointBeforeFirstFrame();
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
@@ -925,8 +925,31 @@ export class SelectMode implements EditorMode {
     return { clearDragPreview: true };
   }
 
-  /** 드래그가 첫 프레임을 차트에 쓰기 직전에 부른다 — 그 직전 상태를 dragCheckpoint로 잡는다(드래그당 한 번). */
-  private markChartChangedByDrag(): void {
+  /**
+   * 삭제·잘라내기 직전에 진행 중 드래그를 끝낸다. 박스 선택은 지금 강조된 선택을 확정하고(포인터 up처럼
+   * §3-5 게이트를 지난다 — 탭 후보는 쓰지 않는다), 이동·리사이즈는 cancel로 드래그 직전 상태로 되돌린다.
+   * 박스는 옛 인덱스를 들고 있지 않아 취소할 이유가 없고, 취소하면 강조된 선택 대신 박스 전 선택을 지우게
+   * 된다. 박스 확정이 게이트에 거부되면 proceed가 false — 호출자는 지우지 않는다.
+   */
+  endDragBeforeDelete(): EditResult & { proceed: boolean } {
+    if (!this.isDragging) return { proceed: true };
+    if (this.dragType !== "boxSelect") return { ...this.cancel(), proceed: true };
+
+    let proceed = true;
+    if (this.preDragSelection) {
+      const highlighted = this.sel;
+      this.callbacks.setSelectionTransient(this.preDragSelection);
+      proceed = this.callbacks.setSelection(highlighted);
+    }
+    this.resetDragState();
+    return { clearDragPreview: true, proceed };
+  }
+
+  /**
+   * 드래그가 첫 프레임을 차트에 쓰기 직전(onChartUpdate보다 먼저)에 부른다 — 그 직전 상태를 store의
+   * dragCheckpoint로 잡는다(드래그당 한 번).
+   */
+  private captureDragCheckpointBeforeFirstFrame(): void {
     if (this.chartChangedByDrag) return;
     this.callbacks.dragCheckpoint?.capture();
     this.chartChangedByDrag = true;
@@ -1186,7 +1209,7 @@ export class SelectMode implements EditorMode {
   }
 
   /** Confirm placement (Enter key or empty click) */
-  confirmPlacement(): void {
+  confirmPlacement(): EditResult {
     if (this.clipboardManager.isPendingPaste) {
       // 낙관적 편집(RFD 0017 §2): 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부.
       this.clipboardManager.confirmPaste(
@@ -1202,19 +1225,31 @@ export class SelectMode implements EditorMode {
           return errors.map((e) => String(e));
         },
       );
-      return;
+      return {};
     }
 
-    if (
-      this.originalPositions.size === 0 &&
-      this.originalZonePositions.size === 0 &&
-      this.originalRestZonePositions.size === 0
-    ) {
-      return;
+    const hasMoveOrigins =
+      this.originalPositions.size > 0 ||
+      this.originalZonePositions.size > 0 ||
+      this.originalRestZonePositions.size > 0;
+
+    // 진행 중 이동 드래그를 확정(Enter)하면 지금 위치를 남기고 드래그를 끝낸다. 방향키가 이동 원본을 비웠어도
+    // dragCheckpoint를 버려야 이어진 취소가 확정한 위치를 되돌리지 않는다.
+    if (this.isDragging && this.dragType === "move") {
+      if (hasMoveOrigins) {
+        this.commitMove();
+      } else {
+        this.discardDragCheckpoint();
+      }
+      this.resetDragState();
+      return { clearDragPreview: true };
     }
+
+    if (!hasMoveOrigins) return {};
 
     // Move mode: 낙관 커밋 (RFD 0017)
     this.commitMove();
+    return {};
   }
 
   /**

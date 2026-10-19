@@ -16,7 +16,7 @@ import type { SelectMode } from "./SelectMode";
 type DragPreviewRenderer = Pick<TimelineRenderer, "clearMoveOrigins" | "clearBoxSelectRect">;
 
 export function createSelectDragControl(
-  getSelectMode: () => Pick<SelectMode, "cancel" | "discardDrag"> | null,
+  getSelectMode: () => Pick<SelectMode, "cancel" | "discardDrag" | "endDragBeforeDelete" | "isPendingPaste"> | null,
   getRenderer: () => DragPreviewRenderer | null,
   // 드래그를 끝냈을 때 캔버스 훅이 남은 포인터 편집 후보를 버린다(handleEditCancel과 같은 정리).
   onDragEnded?: () => void,
@@ -36,5 +36,11 @@ export function createSelectDragControl(
     discardDrag: () => {
       applyDragEnd(getSelectMode()?.discardDrag());
     },
+    endDragBeforeDelete: () => {
+      const result = getSelectMode()?.endDragBeforeDelete();
+      applyDragEnd(result);
+      return result?.proceed ?? true;
+    },
+    hasPendingPaste: () => getSelectMode()?.isPendingPaste ?? false,
   };
 }

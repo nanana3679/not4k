@@ -2903,6 +2903,90 @@ describe("SelectMode — dragCheckpoint (첫 프레임 직전 상태)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// endDragBeforeDelete — 삭제·잘라내기 직전에 드래그를 끝낸다. 박스는 강조된 선택을 확정하고
+// (포인터 up처럼), 이동·리사이즈는 cancel로 드래그 직전 상태로 되돌린다.
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래그 끝내기)", () => {
+  it("노트 1을 선택한 채 노트 0만 감싼 박스 중 endDragBeforeDelete는 강조된 {0}을 setSelection으로 확정하고 proceed true·clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 3 as Lane, beat: beat(4) },
+      ],
+    });
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(1);
+    mode.onPointerDown(1, 2, false, false); // 빈 곳 → 박스
+    mode.onPointerMove(1, -1); // lane 1 × beat −1~2 → 노트 0만
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+    const setSelectionSpy = vi.spyOn(cb, "setSelection");
+
+    const result = mode.endDragBeforeDelete();
+
+    expect(result).toEqual({ clearDragPreview: true, proceed: true });
+    expect(mode.isBoxSelecting).toBe(false);
+    expect([...setSelectionSpy.mock.calls.at(-1)![0].notes]).toEqual([0]);
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+  });
+
+  it("레인 1→2 이동 드래그 중 endDragBeforeDelete는 cancel처럼 노트를 레인 1로 되돌리고 proceed true를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0);
+
+    const result = mode.endDragBeforeDelete();
+
+    expect(result).toEqual({ clearDragPreview: true, proceed: true });
+    expect(mode.isMoveDragging).toBe(false);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1);
+  });
+
+  it("드래그 중이 아니면 endDragBeforeDelete는 proceed true만 돌려주고 차트·선택을 쓰지 않는다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChart(), cb);
+    const setSelectionSpy = vi.spyOn(cb, "setSelection");
+
+    expect(mode.endDragBeforeDelete()).toEqual({ proceed: true });
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(setSelectionSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("SelectMode — confirmPlacement가 진행 중 이동 드래그를 끝낸다 (Enter)", () => {
+  it("레인 1→2 이동 드래그 중 confirmPlacement는 레인 2를 커밋하고 드래그를 끝내며 clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0);
+
+    const result = mode.confirmPlacement();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isMoveDragging).toBe(false);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+  });
+
+  it("드래그도 붙여넣기 대기도 없으면 confirmPlacement는 빈 결과를 돌려주고 차트를 쓰지 않는다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChart(), cb);
+
+    expect(mode.confirmPlacement()).toEqual({});
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 트릴 쌍 동반 선택 — 쌍소멸과 대칭: 한쪽만 선택-이동하면 배치 제약(헤드 필수)에
 // 걸려 롤백되므로, trill 헤드 ↔ trillLong 바디는 한 단위로 선택한다
 // ---------------------------------------------------------------------------

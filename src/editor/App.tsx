@@ -340,8 +340,9 @@ function ChartEditorPage() {
       addToast('삭제할 노트를 선택하세요', 'warn');
       return;
     }
-    // 진행 중 select 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 지운다 — 지운 노트의 옛 인덱스가 드래그에 남지 않게.
-    useEditorStore.getState().cancelSelectDrag();
+    // 진행 중 select 드래그를 먼저 끝낸다 — 박스는 강조된 선택을 확정하고 이동·리사이즈는 드래그 직전 상태로
+    // 되돌린다(지운 노트의 옛 인덱스가 드래그에 남지 않게). 박스 확정이 거부되면 지우지 않는다.
+    if (!useEditorStore.getState().endSelectDragBeforeDelete()) return;
     selectModeRef.current?.deleteSelected();
     addToast(`${total}개 선택 항목 삭제됨`, 'info');
   }, [addToast, selectedNotes.size]);
@@ -391,7 +392,7 @@ function ChartEditorPage() {
 
   // 키보드 단축키 훅
   useEditorKeyboard(
-    playbackRef, selectModeRef, bpmMarkers,
+    playbackRef, selectModeRef, rendererRef, bpmMarkers,
     editingMarker, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,

@@ -291,3 +291,85 @@ test('노트 1을 lane 4·beat 3으로 끌던 중 그 자리를 우클릭하면 
   expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }]);
   expect(pageErrors).toEqual([]);
 });
+
+/** 노트 1(lane 3·beat 2)을 클릭해 선택하고 Ctrl+C로 복사한다. 붙여넣기는 재생 커서(0박)에 들어간다. */
+async function copyNote1(page: Page): Promise<void> {
+  const note1 = await pointFor(page, 3, 2);
+  await page.mouse.click(note1.x, note1.y);
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([1]);
+  await page.keyboard.press('Control+c');
+}
+
+test('노트 1을 복사하고 노트 0을 끌던 중 Ctrl+V를 누르면 드래그가 먼저 원위치로 돌아가 붙여넣기만 대기하고, Ctrl+Z가 붙여넣은 노트를 지우지 않으며 ↑가 throw하지 않고 Esc가 끌던 위치를 되살리지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  await copyNote1(page);
+  await dragNote0ToLane2Beat3(page);
+
+  await page.keyboard.press('Control+v');
+  await expect.poll(() => readEditor(page).then(s => s.notes))
+    .toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }, { lane: 3, beat: 0 }]);
+  await page.keyboard.press('Control+z');
+  expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }, { lane: 3, beat: 0 }]);
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => notePosition(page, 2)).toEqual({ lane: 3, beat: 1 });
+
+  await page.keyboard.press('Escape');
+  await expect.poll(() => readEditor(page).then(s => s.notes)).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }]);
+  await page.mouse.up();
+  expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }]);
+  expect(pageErrors).toEqual([]);
+});
+
+test('노트 1을 복사하고 노트 0을 끌던 중 Ctrl+V·Enter로 붙여넣기를 확정하면, 이어진 Esc가 확정한 붙여넣기(lane 3·beat 0)를 지우지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  await copyNote1(page);
+  await dragNote0ToLane2Beat3(page);
+
+  await page.keyboard.press('Control+v');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+
+  await expect.poll(() => readEditor(page).then(s => s.notes))
+    .toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }, { lane: 3, beat: 0 }]);
+  expect(pageErrors).toEqual([]);
+});
+
+test('스냅 4에서 노트 0을 lane 2·beat 3으로 끈 뒤 ↑·Enter로 lane 2·beat 4를 확정하면, 버튼을 떼기 전 Esc가 확정한 위치를 되돌리지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  await dragNote0ToLane2Beat3(page);
+
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => notePosition(page, 0)).toEqual({ lane: 2, beat: 4 });
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  expect(await notePosition(page, 0)).toEqual({ lane: 2, beat: 4 });
+
+  await page.mouse.up();
+  expect(await notePosition(page, 0)).toEqual({ lane: 2, beat: 4 });
+  expect(pageErrors).toEqual([]);
+});
+
+test('노트 1을 선택한 채 빈 곳에서 노트 0만 감싸는 박스를 끌다 Delete를 누르면 강조된 노트 0이 지워지고 노트 1(lane 3·beat 2)은 남는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors);
+  const note1 = await pointFor(page, 3, 2);
+  await page.mouse.click(note1.x, note1.y);
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([1]);
+
+  const start = await pointFor(page, 2, 0.5); // 빈 곳
+  const end = await pointFor(page, 1, 1.5); // 레인 1~2 × 박 0.5~1.5 → 노트 0만 감싼다
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 2 });
+  await expect.poll(() => readEditor(page).then(s => s.selectedNotes)).toEqual([0]);
+
+  await page.keyboard.press('Delete');
+  await expect.poll(() => readEditor(page).then(s => s.notes)).toEqual([{ lane: 3, beat: 2 }]);
+  await page.mouse.up();
+  expect((await readEditor(page)).notes).toEqual([{ lane: 3, beat: 2 }]);
+  expect(pageErrors).toEqual([]);
+});

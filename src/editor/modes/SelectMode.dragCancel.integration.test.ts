@@ -365,14 +365,14 @@ describe("진행 중 select 드래그 × 취소 뒤 history(첫 프레임 직전
   });
 });
 
-describe("진행 중 select 드래그 × 삭제(Delete·Ctrl+X·툴바 삭제·우클릭이 드래그를 먼저 끝낸다)", () => {
-  it("유일한 노트 A를 끌던 중 Delete 경로(cancelSelectDrag 뒤 deleteSelected)는 A를 지우고, 이어진 포인터 이동이 throw하지 않으며 undo()가 A를 원위치(lane 1·beat 0)로 되살린다", () => {
+describe("진행 중 select 드래그 × 삭제(Delete·Ctrl+X·툴바 삭제는 드래그를 먼저 끝낸다)", () => {
+  it("유일한 노트 A를 끌던 중 Delete 경로(endSelectDragBeforeDelete 뒤 deleteSelected)는 A를 지우고, 이어진 포인터 이동이 throw하지 않으며 undo()가 A를 원위치(lane 1·beat 0)로 되살린다", () => {
     setClock(10_000);
     const { mode, store } = setup([noteA]);
     setClock(12_000);
     dragNoteA(mode);
 
-    store.getState().cancelSelectDrag();
+    expect(store.getState().endSelectDragBeforeDelete()).toBe(true);
     mode.deleteSelected();
 
     expect(store.getState().chart.notes).toEqual([]);
@@ -380,5 +380,141 @@ describe("진행 중 select 드래그 × 삭제(Delete·Ctrl+X·툴바 삭제·�
     expect(store.getState().chart.notes).toEqual([]);
     expect(store.getState().undo()).toBe(true);
     expect(store.getState().chart.notes).toEqual([noteA]);
+  });
+
+  it("노트 B를 선택한 채 A만 감싸는 박스를 끌던 중 Delete 경로는 강조된 A를 확정해 지우고 B(lane 3·beat 4)를 남긴다", () => {
+    const { mode, store } = setup([noteA, noteB]);
+    mode.selectNote(1);
+    mode.onPointerDown(1, 2, false, false); // 빈 곳 → 박스 시작
+    mode.onPointerMove(1, -1); // lane 1 × beat −1~2 → A만 포함
+    expect(store.getState().selection.notes).toEqual(new Set([0]));
+
+    expect(store.getState().endSelectDragBeforeDelete()).toBe(true);
+    mode.deleteSelected();
+
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(store.getState().chart.notes).toEqual([noteB]);
+  });
+
+  it("위반 노트 A를 선택한 채 B만 감싸는 박스를 끌던 중 박스 확정이 §3-5 게이트에 거부되면 endSelectDragBeforeDelete()가 false라 지우지 않고 선택이 A로 남는다", () => {
+    const duplicateOfA: NoteEntity = { type: "single", lane: 1, beat: beat(0) };
+    const { mode, store } = setup([noteA, duplicateOfA, noteB]); // A·A' 중복 = 의미 위반
+    store.getState().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    mode.onPointerDown(4, 5, false, false); // 빈 곳 → 박스 시작
+    mode.onPointerMove(3, 3); // lane 3~4 × beat 3~5 → B(인덱스 2)만 포함
+    expect(store.getState().selection.notes).toEqual(new Set([2]));
+
+    expect(store.getState().endSelectDragBeforeDelete()).toBe(false);
+
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(store.getState().selection.notes).toEqual(new Set([0]));
+    expect(store.getState().chart.notes).toHaveLength(3);
+  });
+});
+
+describe("진행 중 select 드래그 × 붙여넣기(Ctrl+V는 드래그를 먼저 취소하고, 대기 중 붙여넣기는 undo/redo가 건드리지 않는다)", () => {
+  /** 노트 B를 복사해 두고 A를 lane 2·beat 3으로 끈 뒤, 키보드 Ctrl+V처럼 드래그를 먼저 취소하고 8박에 붙여넣는다. */
+  function pasteBWhileDraggingA() {
+    setClock(10_000);
+    const ctx = setup([noteA, noteB]);
+    ctx.store.getState().setSelection({ ...emptySelection(), notes: new Set([1]) });
+    ctx.mode.copy();
+    setClock(12_000);
+    dragNoteA(ctx.mode);
+    ctx.store.getState().cancelSelectDrag();
+    ctx.mode.paste(beat(8));
+    return ctx;
+  }
+
+  it("A를 끌던 중 Ctrl+V 경로는 A를 원위치(lane 1·beat 0)로 되돌린 뒤 B 사본을 lane 3·beat 8에 대기시킨다", () => {
+    const { mode } = pasteBWhileDraggingA();
+
+    expect(mode.isMoveDragging).toBe(false);
+    expect(mode.isPendingPaste).toBe(true);
+    expect(laneBeat(0)).toEqual([1, 0]);
+    expect(laneBeat(2)).toEqual([3, 8]);
+  });
+
+  it("붙여넣기 대기 중 undo()·redo()는 false로 아무것도 되돌리지 않아 B 사본이 남고, movePasteBySnap('up')이 throw 없이 beat 9로 옮기며, 이어진 cancelPaste가 A를 끌던 위치가 아닌 원위치에 둔다", () => {
+    const { mode, store } = pasteBWhileDraggingA();
+
+    expect(store.getState().undo()).toBe(false);
+    expect(store.getState().redo()).toBe(false);
+    expect(store.getState().chart.notes).toHaveLength(3);
+    expect(() => mode.movePasteBySnap("up")).not.toThrow();
+    expect(laneBeat(2)).toEqual([3, 9]);
+
+    mode.cancelPaste();
+
+    expect(store.getState().chart.notes).toEqual([noteA, noteB]);
+  });
+
+  it("Ctrl+V로 대기한 붙여넣기를 Enter(confirmPlacement)로 확정하면 이어진 Esc(cancelSelectDrag)는 false로 아무것도 되돌리지 않아 B 사본과 history가 그대로다", () => {
+    const { mode, store } = pasteBWhileDraggingA();
+    mode.confirmPlacement();
+    const pastLength = store.getState().historyPast.length;
+
+    expect(store.getState().cancelSelectDrag()).toBe(false);
+
+    expect(store.getState().chart.notes).toHaveLength(3);
+    expect(laneBeat(2)).toEqual([3, 8]);
+    expect(store.getState().historyPast).toHaveLength(pastLength);
+  });
+});
+
+describe("진행 중 select 드래그 × Enter 확정(confirmPlacement가 드래그를 끝낸다)", () => {
+  it("snap 4에서 A를 lane 2·beat 3으로 끈 뒤 moveBySnap('up')·confirmPlacement(Enter)로 lane 2·beat 4를 확정하면 드래그가 끝나 이어진 Esc(cancelSelectDrag)가 그 위치를 되돌리지 않는다", () => {
+    setClock(12_000);
+    const { mode, store } = setup([noteA]);
+    dragNoteA(mode);
+    mode.moveBySnap("up");
+    expect(laneBeat(0)).toEqual([2, 4]);
+
+    mode.confirmPlacement();
+
+    expect(mode.isMoveDragging).toBe(false);
+    expect(store.getState().cancelSelectDrag()).toBe(false);
+    expect(laneBeat(0)).toEqual([2, 4]);
+  });
+
+  it("A를 lane 2·beat 3으로 끈 뒤 moveBySnap('up')만 하고 Enter 없이 Esc하면 방향키 이동까지 드래그 직전 위치(lane 1·beat 0)로 되돌린다", () => {
+    setClock(12_000);
+    const { mode, store } = setup([noteA]);
+    dragNoteA(mode);
+    mode.moveBySnap("up");
+
+    expect(store.getState().cancelSelectDrag()).toBe(true);
+
+    expect(laneBeat(0)).toEqual([1, 0]);
+  });
+
+  it("A를 lane 2·beat 3으로 끈 뒤 confirmPlacement(Enter)하면 clearDragPreview를 돌려주며 드래그가 끝나, 이후 lane 4·beat 6으로 움직여도 A가 따라오지 않는다", () => {
+    const { mode } = setup([noteA]);
+    dragNoteA(mode);
+
+    expect(mode.confirmPlacement().clearDragPreview).toBe(true);
+
+    expect(mode.isMoveDragging).toBe(false);
+    mode.onPointerMove(4, 6);
+    expect(laneBeat(0)).toEqual([2, 3]);
+  });
+});
+
+describe("진행 중 select 드래그 × 리사이즈 checkpoint", () => {
+  it("롱노트 L 끝을 beginNoteEndResizeDrag로 잡아 endBeat 10까지 한 프레임 쓰고 0.7초 뒤 cancelSelectDrag하면 차트·history·lastValidSnapshot이 첫 프레임 직전과 같은 객체다", () => {
+    const longNote: NoteEntity = { type: "long", lane: 1, beat: beat(0), endBeat: beat(4) };
+    setClock(10_000);
+    const { mode, store } = setup([longNote]);
+    store.getState().setChart(fullChart([longNote, noteB]));
+    setClock(12_000);
+    expect(mode.beginNoteEndResizeDrag(0)).toBe(true);
+    const before = preDragState();
+    mode.onPointerMove(1, 10);
+    expect(store.getState().chart.notes[0]).toMatchObject({ endBeat: beat(10) });
+    setClock(12_700);
+
+    store.getState().cancelSelectDrag();
+
+    expectPreDragState(before);
   });
 });

@@ -38,6 +38,13 @@ export interface SelectDragControl {
   cancelDrag: () => boolean;
   /** 차트·선택에 쓰지 않고 드래그 상태만 버린다 — 차트를 통째로 바꾸기 직전 전용. */
   discardDrag: () => void;
+  /**
+   * 삭제·잘라내기 직전에 드래그를 끝낸다 — 박스는 강조된 선택을 확정하고, 이동·리사이즈는 드래그 직전
+   * 상태로 되돌린다. 박스 확정이 §3-5 게이트에 거부되면 false(지우지 않는다).
+   */
+  endDragBeforeDelete: () => boolean;
+  /** 붙여넣기 대기 중인지 — 대기 중에는 undo/redo가 차트를 바꾸지 않는다. */
+  hasPendingPaste: () => boolean;
 }
 
 /**
@@ -120,10 +127,14 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setExtraLaneCount: (count: number) => void;
   /**
    * history 한 단계를 되돌린다. 진행 중 select 드래그가 있으면 그 드래그만 취소하고 되돌리지 않는다
-   * (아직 드롭하지 않은 드래그를 두고 이전 편집을 되돌리지 않는다). 되돌렸으면 true.
+   * (아직 드롭하지 않은 드래그를 두고 이전 편집을 되돌리지 않는다). 붙여넣기 대기 중이면 아무것도 하지
+   * 않는다(Enter 확정·Esc 취소가 먼저다). 되돌렸으면 true.
    */
   undo: () => boolean;
-  /** history 한 단계를 다시 적용한다. 드래그 중이면 undo와 같이 드래그만 취소한다. 다시 적용했으면 true. */
+  /**
+   * history 한 단계를 다시 적용한다. 드래그 중이면 undo와 같이 드래그만 취소하고, 붙여넣기 대기 중이면
+   * 아무것도 하지 않는다. 다시 적용했으면 true.
+   */
   redo: () => boolean;
   /**
    * 막다른 상태 탈출(RFD 0017 §7) — lastValidSnapshot으로 O(1) 점프.
@@ -137,6 +148,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setSelectDragControl: (control: SelectDragControl | null) => void;
   /** 진행 중 select 드래그를 드래그 직전 상태로 되돌리며 끝낸다(Esc 등). 끝낸 드래그가 있었으면 true. */
   cancelSelectDrag: () => boolean;
+  /**
+   * 삭제·잘라내기(Delete·Backspace·Ctrl+X·툴바 삭제) 직전에 진행 중 select 드래그를 끝낸다 — 박스는 강조된
+   * 선택을 확정하고 이동·리사이즈는 드래그 직전 상태로 되돌린다. 지워도 되면 true, 박스 확정이 거부되면 false.
+   */
+  endSelectDragBeforeDelete: () => boolean;
   /** select 드래그가 첫 프레임을 쓰기 직전에 SelectMode가 부른다 — 지금 차트·history를 dragCheckpoint로 잡는다. */
   captureDragCheckpoint: () => void;
   /**
@@ -325,6 +341,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   undo: () => {
     // 드래그 중이면 드래그만 취소하고 이 입력으로는 되돌리지 않는다.
     if (get().cancelSelectDrag()) return false;
+    // 붙여넣기 대기 중에도 되돌리지 않는다 — 차트를 바꾸면 붙여넣은 인덱스·붙여넣기 직전 스냅샷이 새 차트와
+    // 어긋나 방향키 이동이 throw하고 Esc가 옛 차트를 되살린다. Enter로 확정하거나 Esc로 취소한 뒤 되돌린다.
+    if (get().selectDragControl?.hasPendingPaste()) return false;
     if (get().historyPast.length === 0) return false;
     set((state) => {
       const previous = state.historyPast.at(-1);
@@ -344,6 +363,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   redo: () => {
     if (get().cancelSelectDrag()) return false;
+    if (get().selectDragControl?.hasPendingPaste()) return false;
     if (get().historyFuture.length === 0) return false;
     set((state) => {
       const next = state.historyFuture[0];
@@ -393,6 +413,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEditingMarker: (marker) => set({ editingMarker: marker }),
   setSelectDragControl: (selectDragControl) => set({ selectDragControl }),
   cancelSelectDrag: () => get().selectDragControl?.cancelDrag() ?? false,
+  endSelectDragBeforeDelete: () => get().selectDragControl?.endDragBeforeDelete() ?? true,
   captureDragCheckpoint: () => set((state) => ({
     dragCheckpoint: {
       chart: state.chart,
