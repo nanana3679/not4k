@@ -146,7 +146,11 @@ describe('TutorialHelpModal', () => {
     expect(html).not.toContain('removed-skin');
   });
 
-  it.each([null, 42])('배포 빌드에서 손으로 고쳐 저장된 skinId가 문자열이 아닌 %s여도 팝업이 예외 없이 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', (skinId) => {
+  it.each([
+    ['null', null],
+    ['숫자 42', 42],
+    ['manifest 모양 객체', { theme: { id: 'hand-made' }, assets: {} }],
+  ])('배포 빌드에서 손으로 고쳐 저장된 skinId가 문자열이 아닌 값(%s)이어도 팝업이 예외 없이 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', (_label, skinId) => {
     vi.stubEnv('DEV', false);
     useGameStore.getInitialState().settings = { ...defaultSettings, skinId: skinId as unknown as string };
     const html = renderToStaticMarkup(
@@ -154,6 +158,7 @@ describe('TutorialHelpModal', () => {
     );
 
     expect(countOccurrences(html, 'data-tutorial-skin-id="classic"')).toBe(2);
+    expect(html).not.toContain('hand-made');
   });
 
   it('개발 환경에서는 개발용 스킨 선택을 불러오기 전 첫 렌더에 재생기를 마운트하지 않고 로딩 placeholder만 렌더링', () => {
