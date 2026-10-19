@@ -1,19 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSelectDragControl } from "./selectDragControl";
 import type { EditResult } from "./editorMode";
+import { beat } from "../../shared";
 
 function fakeRenderer() {
   return { clearMoveOrigins: vi.fn(), clearBoxSelectRect: vi.fn() };
 }
 
 /** 드래그 중이면 SelectMode의 끝내기 메서드는 clearDragPreview를, 아니면 빈 결과를 돌려준다. */
-function fakeSelectMode(dragging: boolean, opts: { proceed?: boolean; isPendingPaste?: boolean } = {}) {
+function fakeSelectMode(dragging: boolean, opts: { canDelete?: boolean; pastedCount?: number } = {}) {
   const ended = (): EditResult => (dragging ? { clearDragPreview: true } : {});
   return {
     cancel: vi.fn(ended),
     discardDrag: vi.fn(ended),
-    endDragBeforeDelete: vi.fn(() => ({ ...ended(), proceed: opts.proceed ?? true })),
-    isPendingPaste: opts.isPendingPaste ?? false,
+    endDragBeforeDelete: vi.fn(() => ({ ...ended(), canDelete: opts.canDelete ?? true })),
+    confirmPlacement: vi.fn(ended),
+    paste: vi.fn(() => opts.pastedCount ?? 0),
   };
 }
 
@@ -76,37 +78,66 @@ describe("createSelectDragControl — store 액션이 진행 중 select 드래�
     expect(onDragEnded).not.toHaveBeenCalled();
   });
 
-  it("박스 드래그 중 endDragBeforeDelete()는 SelectMode가 확정을 받아들이면 렌더러 프리뷰를 걷고 onDragEnded를 부른 뒤 true(지워도 됨)를 반환", () => {
-    const selectMode = fakeSelectMode(true, { proceed: true });
+  it("박스 드래그 중 endDragBeforeDelete()는 SelectMode가 확정을 받아들이면 렌더러 프리뷰를 걷고 onDragEnded를 부른 뒤 { canDelete: true }를 반환", () => {
+    const selectMode = fakeSelectMode(true, { canDelete: true });
     const renderer = fakeRenderer();
     const onDragEnded = vi.fn();
     const control = createSelectDragControl(() => selectMode, () => renderer, onDragEnded);
 
-    expect(control.endDragBeforeDelete()).toBe(true);
+    expect(control.endDragBeforeDelete()).toEqual({ canDelete: true });
 
     expect(selectMode.endDragBeforeDelete).toHaveBeenCalledTimes(1);
     expect(renderer.clearBoxSelectRect).toHaveBeenCalledTimes(1);
     expect(onDragEnded).toHaveBeenCalledTimes(1);
   });
 
-  it("박스 확정이 §3-5 게이트에 거부되면 endDragBeforeDelete()는 프리뷰를 걷되 false(지우지 않음)를 반환", () => {
+  it("박스 확정이 §3-5 게이트에 거부되면 endDragBeforeDelete()는 프리뷰를 걷되 { canDelete: false }를 반환", () => {
     const renderer = fakeRenderer();
-    const control = createSelectDragControl(() => fakeSelectMode(true, { proceed: false }), () => renderer);
+    const control = createSelectDragControl(() => fakeSelectMode(true, { canDelete: false }), () => renderer);
 
-    expect(control.endDragBeforeDelete()).toBe(false);
+    expect(control.endDragBeforeDelete()).toEqual({ canDelete: false });
     expect(renderer.clearBoxSelectRect).toHaveBeenCalledTimes(1);
   });
 
-  it("SelectMode가 아직 없으면(null) endDragBeforeDelete()는 true, hasPendingPaste()는 false", () => {
+  it("SelectMode가 아직 없으면(null) endDragBeforeDelete()는 { canDelete: true }, confirmPlacement()는 false, cancelDragAndPaste()는 0", () => {
     const control = createSelectDragControl(() => null, () => null);
 
-    expect(control.endDragBeforeDelete()).toBe(true);
-    expect(control.hasPendingPaste()).toBe(false);
+    expect(control.endDragBeforeDelete()).toEqual({ canDelete: true });
+    expect(control.confirmPlacement()).toBe(false);
+    expect(control.cancelDragAndPaste(beat(8))).toBe(0);
   });
 
-  it("hasPendingPaste()는 SelectMode.isPendingPaste를 그대로 돌려준다(대기 중이면 true)", () => {
-    const control = createSelectDragControl(() => fakeSelectMode(false, { isPendingPaste: true }), () => null);
+  it("이동 드래그를 confirmPlacement()(Enter)로 끝내면 취소와 같이 렌더러 프리뷰를 걷고 onDragEnded(터치 후보 정리)를 부른 뒤 true를 반환", () => {
+    const selectMode = fakeSelectMode(true);
+    const renderer = fakeRenderer();
+    const onDragEnded = vi.fn();
+    const control = createSelectDragControl(() => selectMode, () => renderer, onDragEnded);
 
-    expect(control.hasPendingPaste()).toBe(true);
+    expect(control.confirmPlacement()).toBe(true);
+
+    expect(selectMode.confirmPlacement).toHaveBeenCalledTimes(1);
+    expect(renderer.clearMoveOrigins).toHaveBeenCalledTimes(1);
+    expect(onDragEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("끝낼 드래그 없이 confirmPlacement()(붙여넣기 확정 등)하면 false이고 onDragEnded를 부르지 않는다", () => {
+    const onDragEnded = vi.fn();
+    const control = createSelectDragControl(() => fakeSelectMode(false), () => fakeRenderer(), onDragEnded);
+
+    expect(control.confirmPlacement()).toBe(false);
+    expect(onDragEnded).not.toHaveBeenCalled();
+  });
+
+  it("드래그 중 cancelDragAndPaste(beat 8)는 cancel로 드래그를 끝내고 정리한 뒤 paste(beat 8)를 불러 붙여넣은 개수 1을 반환", () => {
+    const selectMode = fakeSelectMode(true, { pastedCount: 1 });
+    const onDragEnded = vi.fn();
+    const control = createSelectDragControl(() => selectMode, () => fakeRenderer(), onDragEnded);
+
+    expect(control.cancelDragAndPaste(beat(8))).toBe(1);
+
+    expect(selectMode.paste).toHaveBeenCalledWith(beat(8));
+    expect(selectMode.cancel.mock.invocationCallOrder[0])
+      .toBeLessThan(selectMode.paste.mock.invocationCallOrder[0]);
+    expect(onDragEnded).toHaveBeenCalledTimes(1);
   });
 });

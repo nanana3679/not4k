@@ -929,20 +929,20 @@ export class SelectMode implements EditorMode {
    * 삭제·잘라내기 직전에 진행 중 드래그를 끝낸다. 박스 선택은 지금 강조된 선택을 확정하고(포인터 up처럼
    * §3-5 게이트를 지난다 — 탭 후보는 쓰지 않는다), 이동·리사이즈는 cancel로 드래그 직전 상태로 되돌린다.
    * 박스는 옛 인덱스를 들고 있지 않아 취소할 이유가 없고, 취소하면 강조된 선택 대신 박스 전 선택을 지우게
-   * 된다. 박스 확정이 게이트에 거부되면 proceed가 false — 호출자는 지우지 않는다.
+   * 된다. 박스 확정이 게이트에 거부되면 canDelete가 false — 호출자는 지우지 않는다.
    */
-  endDragBeforeDelete(): EditResult & { proceed: boolean } {
-    if (!this.isDragging) return { proceed: true };
-    if (this.dragType !== "boxSelect") return { ...this.cancel(), proceed: true };
+  endDragBeforeDelete(): EditResult & { canDelete: boolean } {
+    if (!this.isDragging) return { canDelete: true };
+    if (this.dragType !== "boxSelect") return { ...this.cancel(), canDelete: true };
 
-    let proceed = true;
+    let canDelete = true;
     if (this.preDragSelection) {
       const highlighted = this.sel;
       this.callbacks.setSelectionTransient(this.preDragSelection);
-      proceed = this.callbacks.setSelection(highlighted);
+      canDelete = this.callbacks.setSelection(highlighted);
     }
     this.resetDragState();
-    return { clearDragPreview: true, proceed };
+    return { clearDragPreview: true, canDelete };
   }
 
   /**

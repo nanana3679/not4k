@@ -2908,7 +2908,7 @@ describe("SelectMode — dragCheckpoint (첫 프레임 직전 상태)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래그 끝내기)", () => {
-  it("노트 1을 선택한 채 노트 0만 감싼 박스 중 endDragBeforeDelete는 강조된 {0}을 setSelection으로 확정하고 proceed true·clearDragPreview를 반환", () => {
+  it("노트 1을 선택한 채 노트 0만 감싼 박스 중 endDragBeforeDelete는 강조된 {0}을 setSelection으로 확정하고 canDelete true·clearDragPreview를 반환", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
@@ -2925,13 +2925,13 @@ describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래
 
     const result = mode.endDragBeforeDelete();
 
-    expect(result).toEqual({ clearDragPreview: true, proceed: true });
+    expect(result).toEqual({ clearDragPreview: true, canDelete: true });
     expect(mode.isBoxSelecting).toBe(false);
     expect([...setSelectionSpy.mock.calls.at(-1)![0].notes]).toEqual([0]);
     expect([...cb.getSelectionState().notes]).toEqual([0]);
   });
 
-  it("레인 1→2 이동 드래그 중 endDragBeforeDelete는 cancel처럼 노트를 레인 1로 되돌리고 proceed true를 반환", () => {
+  it("레인 1→2 이동 드래그 중 endDragBeforeDelete는 cancel처럼 노트를 레인 1로 되돌리고 canDelete true를 반환", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
     });
@@ -2943,17 +2943,17 @@ describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래
 
     const result = mode.endDragBeforeDelete();
 
-    expect(result).toEqual({ clearDragPreview: true, proceed: true });
+    expect(result).toEqual({ clearDragPreview: true, canDelete: true });
     expect(mode.isMoveDragging).toBe(false);
     expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1);
   });
 
-  it("드래그 중이 아니면 endDragBeforeDelete는 proceed true만 돌려주고 차트·선택을 쓰지 않는다", () => {
+  it("드래그 중이 아니면 endDragBeforeDelete는 canDelete true만 돌려주고 차트·선택을 쓰지 않는다", () => {
     const cb = makeCallbacks();
     const mode = makeMode(makeChart(), cb);
     const setSelectionSpy = vi.spyOn(cb, "setSelection");
 
-    expect(mode.endDragBeforeDelete()).toEqual({ proceed: true });
+    expect(mode.endDragBeforeDelete()).toEqual({ canDelete: true });
     expect(cb.onChartUpdate).not.toHaveBeenCalled();
     expect(setSelectionSpy).not.toHaveBeenCalled();
   });

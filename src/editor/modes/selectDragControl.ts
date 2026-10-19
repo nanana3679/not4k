@@ -8,6 +8,7 @@
  * 다시 시작한다.
  */
 
+import type { Beat } from "../../shared";
 import type { TimelineRenderer } from "../timeline/TimelineRenderer";
 import type { SelectDragControl } from "../stores/editorStore";
 import type { EditResult } from "./editorMode";
@@ -16,7 +17,9 @@ import type { SelectMode } from "./SelectMode";
 type DragPreviewRenderer = Pick<TimelineRenderer, "clearMoveOrigins" | "clearBoxSelectRect">;
 
 export function createSelectDragControl(
-  getSelectMode: () => Pick<SelectMode, "cancel" | "discardDrag" | "endDragBeforeDelete" | "isPendingPaste"> | null,
+  getSelectMode: () =>
+    | Pick<SelectMode, "cancel" | "discardDrag" | "endDragBeforeDelete" | "confirmPlacement" | "paste">
+    | null,
   getRenderer: () => DragPreviewRenderer | null,
   // 드래그를 끝냈을 때 캔버스 훅이 남은 포인터 편집 후보를 버린다(handleEditCancel과 같은 정리).
   onDragEnded?: () => void,
@@ -39,8 +42,14 @@ export function createSelectDragControl(
     endDragBeforeDelete: () => {
       const result = getSelectMode()?.endDragBeforeDelete();
       applyDragEnd(result);
-      return result?.proceed ?? true;
+      return { canDelete: result?.canDelete ?? true };
     },
-    hasPendingPaste: () => getSelectMode()?.isPendingPaste ?? false,
+    // Enter로 끝낸 드래그도 취소와 같은 정리를 거친다 — 터치 후보가 남으면 그 손가락의 다음 move가 끝낸 드래그를
+    // 다시 시작한다.
+    confirmPlacement: () => applyDragEnd(getSelectMode()?.confirmPlacement()),
+    cancelDragAndPaste: (targetBeat: Beat) => {
+      applyDragEnd(getSelectMode()?.cancel());
+      return getSelectMode()?.paste(targetBeat) ?? 0;
+    },
   };
 }

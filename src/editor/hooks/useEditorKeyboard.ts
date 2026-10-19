@@ -6,7 +6,6 @@ import { useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { SelectMode } from '../modes';
-import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import { msToBeat } from '../../shared';
 import type { BpmMarker } from '../../shared';
 import { useEditorStore } from '../stores';
@@ -14,8 +13,6 @@ import { useEditorStore } from '../stores';
 export function useEditorKeyboard(
   playbackRef: RefObject<PlaybackController | null>,
   selectModeRef: RefObject<SelectMode | null>,
-  // Enter로 끝낸 드래그의 프리뷰(원위치 고스트·박스 사각형)를 걷는 데만 쓴다
-  rendererRef: RefObject<Pick<TimelineRenderer, 'clearMoveOrigins' | 'clearBoxSelectRect'> | null>,
   bpmMarkers: BpmMarker[],
   // Focused editor UI state (disables global shortcuts)
   editingMarker: unknown,
@@ -68,7 +65,7 @@ export function useEditorKeyboard(
           e.preventDefault();
           // 진행 중 드래그를 먼저 끝낸다 — 박스는 강조된 선택을 확정하고 이동·리사이즈는 드래그 직전 상태로
           // 되돌린다(지운 노트의 옛 인덱스가 드래그에 남지 않게). 박스 확정이 거부되면 잘라내지 않는다.
-          if (!useEditorStore.getState().endSelectDragBeforeDelete()) return;
+          if (!useEditorStore.getState().endSelectDragBeforeDelete().canDelete) return;
           const count = selectModeRef.current.cut();
           if (count > 0) addToast(`${count}개 노트 잘라냄`, 'info');
           else addToast('잘라낼 노트를 선택하세요', 'warn');
@@ -77,16 +74,14 @@ export function useEditorKeyboard(
         if (e.key === 'v' || e.key === 'V') {
           e.preventDefault();
           if (!selectModeRef.current.hasClipboard) return;
-          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 붙여넣는다 — 드래그와 대기 중 붙여넣기가 함께
-          // 살면 드래그 취소가 붙여넣은 노트를 지우면서 붙여넣기 상태만 남긴다.
-          useEditorStore.getState().cancelSelectDrag();
           const cursorTimeMs = useEditorStore.getState().currentTimeMs;
           const beatFloat = msToBeat(cursorTimeMs, bpmMarkers, chart.meta.offsetMs);
           const sd = useEditorStore.getState().snapDivision;
           const grid = 4 / sd;
           const k = Math.round(beatFloat / grid);
           const targetBeat = { n: k * 4, d: sd };
-          const count = selectModeRef.current.paste(targetBeat);
+          // 진행 중 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 붙여넣는다(cancelSelectDragAndPaste)
+          const count = useEditorStore.getState().cancelSelectDragAndPaste(targetBeat);
           if (count > 0) addToast(`${count}개 노트 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
           return;
         }
@@ -152,7 +147,7 @@ export function useEditorKeyboard(
         } else {
           // 진행 중 드래그를 먼저 끝낸다 — 박스는 강조된 선택을 확정하고 이동·리사이즈는 드래그 직전 상태로
           // 되돌린다. 지운 노트의 옛 인덱스가 드래그에 남으면 다음 move·취소가 다른 노트를 옮기거나 throw한다.
-          if (!useEditorStore.getState().endSelectDragBeforeDelete()) return;
+          if (!useEditorStore.getState().endSelectDragBeforeDelete().canDelete) return;
           selectModeRef.current.deleteSelected();
         }
         return;
@@ -202,11 +197,8 @@ export function useEditorKeyboard(
         }
         if (e.key === 'Enter') {
           e.preventDefault();
-          // 진행 중 이동 드래그를 확정했으면 드래그가 끝났으니 그 프리뷰도 걷는다
-          if (selectModeRef.current.confirmPlacement().clearDragPreview) {
-            rendererRef.current?.clearMoveOrigins();
-            rendererRef.current?.clearBoxSelectRect();
-          }
+          // 진행 중 이동 드래그를 확정해 끝내면 취소와 같은 정리(렌더러 프리뷰·터치 후보)를 거친다
+          useEditorStore.getState().confirmSelectPlacement();
           return;
         }
       }
@@ -218,6 +210,6 @@ export function useEditorKeyboard(
     mode, setMode,
     editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     addToast, bpmMarkers, chart.meta.offsetMs,
-    playbackRef, selectModeRef, rendererRef,
+    playbackRef, selectModeRef,
   ]);
 }

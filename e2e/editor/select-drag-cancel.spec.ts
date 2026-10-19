@@ -17,9 +17,14 @@ const chart = {
 };
 
 type NotePosition = { lane: number; beat: number };
-type EditorSnapshot = { mode: string; notes: NotePosition[]; historyFuture: number; selectedNotes: number[] };
+type ZonePosition = { lane: number; beat: number; endBeat: number };
+type EditorSnapshot = {
+  mode: string; notes: NotePosition[]; historyFuture: number; selectedNotes: number[]; trillZones: ZonePosition[];
+};
 
-async function openEditor(page: Page, baseURL: string | undefined, pageErrors: string[]): Promise<void> {
+async function openEditor(
+  page: Page, baseURL: string | undefined, pageErrors: string[], chartJson: object = chart,
+): Promise<void> {
   page.on('pageerror', error => pageErrors.push(error.message));
   // 모든 Supabase 요청은 로컬 응답으로 끝낸다(실제 DB/Storage 접근 없음).
   await page.route('**/*', async route => {
@@ -30,7 +35,7 @@ async function openEditor(page: Page, baseURL: string | undefined, pageErrors: s
     if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
       if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
       if (method === 'GET' && path.endsWith(`/songs/${SONG_ID}/normal.json`)) {
-        await route.fulfill({ json: chart }); return;
+        await route.fulfill({ json: chartJson }); return;
       }
       if (method === 'GET' && path.endsWith(`/songs/${SONG_ID}/normal.extra.json`)) {
         await route.fulfill({ status: 404, json: { error: 'No extra chart' } }); return;
@@ -83,6 +88,9 @@ async function readEditor(page: Page): Promise<EditorSnapshot> {
       notes: state.chart.notes.map(note => ({ lane: note.lane, beat: note.beat.n / note.beat.d })),
       historyFuture: state.historyFuture.length,
       selectedNotes: [...state.selection.notes].sort((a, b) => a - b),
+      trillZones: state.chart.trillZones.map(zone => ({
+        lane: zone.lane, beat: zone.beat.n / zone.beat.d, endBeat: zone.endBeat.n / zone.endBeat.d,
+      })),
     };
   });
 }
@@ -300,7 +308,7 @@ async function copyNote1(page: Page): Promise<void> {
   await page.keyboard.press('Control+c');
 }
 
-test('노트 1을 복사하고 노트 0을 끌던 중 Ctrl+V를 누르면 드래그가 먼저 원위치로 돌아가 붙여넣기만 대기하고, Ctrl+Z가 붙여넣은 노트를 지우지 않으며 ↑가 throw하지 않고 Esc가 끌던 위치를 되살리지 않는다', async ({ page, baseURL }) => {
+test('노트 1을 복사하고 노트 0을 끌던 중 Ctrl+V를 누르면 드래그가 먼저 원위치로 돌아가 붙여넣기만 대기하고, ↑가 붙여넣은 노트를 throw 없이 옮기며 Esc가 끌던 위치를 되살리지 않는다', async ({ page, baseURL }) => {
   const pageErrors: string[] = [];
   await openEditor(page, baseURL, pageErrors);
   await copyNote1(page);
@@ -309,8 +317,6 @@ test('노트 1을 복사하고 노트 0을 끌던 중 Ctrl+V를 누르면 드래
   await page.keyboard.press('Control+v');
   await expect.poll(() => readEditor(page).then(s => s.notes))
     .toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }, { lane: 3, beat: 0 }]);
-  await page.keyboard.press('Control+z');
-  expect((await readEditor(page)).notes).toEqual([{ lane: 1, beat: 1 }, { lane: 3, beat: 2 }, { lane: 3, beat: 0 }]);
   await page.keyboard.press('ArrowUp');
   await expect.poll(() => notePosition(page, 2)).toEqual({ lane: 3, beat: 1 });
 
@@ -371,5 +377,31 @@ test('노트 1을 선택한 채 빈 곳에서 노트 0만 감싸는 박스를 �
   await expect.poll(() => readEditor(page).then(s => s.notes)).toEqual([{ lane: 3, beat: 2 }]);
   await page.mouse.up();
   expect((await readEditor(page)).notes).toEqual([{ lane: 3, beat: 2 }]);
+  expect(pageErrors).toEqual([]);
+});
+
+test('선택한 trillZone(lane 2·beat 0~8)을 터치로 beat 2에서 3으로 끌다 Enter로 1~9에 확정하면, 손을 떼기 전 beat 4로 움직여도 확정한 드래그가 다시 시작되지 않는다', async ({ page, baseURL }) => {
+  const pageErrors: string[] = [];
+  await openEditor(page, baseURL, pageErrors, { ...chart, trillZones: [{ lane: 2, beat: '0', endBeat: '8' }] });
+  const zoneBody = await pointFor(page, 2, 4);
+  await page.mouse.click(zoneBody.x, zoneBody.y); // 미선택 몸통 탭 = 구간 유닛 선택
+  await expect.poll(() => readEditor(page).then(s => s.trillZones)).toEqual([{ lane: 2, beat: 0, endBeat: 8 }]);
+
+  // CDP 터치 — touch pointermove는 애니메이션 프레임에 맞춰 전달되므로 보낼 때마다 다음 프레임까지 기다린다.
+  const client = await page.context().newCDPSession(page);
+  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', point?: { x: number; y: number }) => {
+    await client.send('Input.dispatchTouchEvent', { type, touchPoints: point ? [{ x: point.x, y: point.y, id: 1 }] : [] });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  };
+  await touch('touchStart', await pointFor(page, 2, 2));
+  await touch('touchMove', await pointFor(page, 2, 2.6));
+  await touch('touchMove', await pointFor(page, 2, 3));
+  await expect.poll(() => readEditor(page).then(s => s.trillZones)).toEqual([{ lane: 2, beat: 1, endBeat: 9 }]);
+
+  await page.keyboard.press('Enter');
+  await touch('touchMove', await pointFor(page, 2, 4));
+  expect((await readEditor(page)).trillZones).toEqual([{ lane: 2, beat: 1, endBeat: 9 }]);
+  await touch('touchEnd');
+  expect((await readEditor(page)).trillZones).toEqual([{ lane: 2, beat: 1, endBeat: 9 }]);
   expect(pageErrors).toEqual([]);
 });
