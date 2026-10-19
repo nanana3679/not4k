@@ -55,14 +55,16 @@ describe('e2eDevServerEnv', () => {
     ['process.env와 .env* 파일 어디에도 Supabase URL·키가 없으면', {}],
     ['.env.local의 VITE_SUPABASE_URL·VITE_SUPABASE_PUBLISHABLE_KEY가 빈 값이면', { '.env.local': 'VITE_SUPABASE_URL=\nVITE_SUPABASE_PUBLISHABLE_KEY=\n' }],
     ['dev 서버가 읽지 않는 .env.production.local에만 Supabase URL·키가 있으면', { '.env.production.local': REAL_CREDENTIALS }],
+    ['.env.local에 VITE_SUPABASE_URL만 있고 VITE_SUPABASE_PUBLISHABLE_KEY가 없으면', { '.env.local': `VITE_SUPABASE_URL=${REAL_SUPABASE_URL}\n` }],
+    ['.env.local에 VITE_SUPABASE_PUBLISHABLE_KEY만 있고 VITE_SUPABASE_URL이 없으면', { '.env.local': `VITE_SUPABASE_PUBLISHABLE_KEY=${REAL_SUPABASE_KEY}\n` }],
   ])('%s VITE_SUPABASE_URL=https://e2e-offline.supabase.co·VITE_SUPABASE_PUBLISHABLE_KEY=e2e-offline-publishable-key·VITE_DEV_ADMIN=true를 넣는다', async (_, files) => {
     expect(e2eDevServerEnv(await envDirWith(files))).toEqual(OFFLINE_ENV);
   });
 
-  it('VITE_SUPABASE_URL만 있고 VITE_SUPABASE_PUBLISHABLE_KEY가 없으면 있는 URL을 더미 URL로 덮지 않도록 Supabase 값을 넣지 않는다', async () => {
-    const directory = await envDirWith({ '.env.local': `VITE_SUPABASE_URL=${REAL_SUPABASE_URL}\n` });
+  it('.env.local에 Supabase URL·키가 있어도 process.env의 VITE_SUPABASE_URL이 빈 값이면 Vite가 빈 URL을 쓰므로 더미 URL·키를 둘 다 넣는다', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', '');
 
-    expect(e2eDevServerEnv(directory)).toEqual({ VITE_DEV_ADMIN: 'true' });
+    expect(e2eDevServerEnv(await envDirWith({ '.env.local': REAL_CREDENTIALS }))).toEqual(OFFLINE_ENV);
   });
 
   it('process.env와 .env.local에 VITE_DEV_ADMIN=false가 있어도 VITE_DEV_ADMIN=true를 넣는다', async () => {

@@ -49,8 +49,9 @@ export default defineConfig({
       testDir: './e2e/lab',
     },
   ],
-  // dev 서버 env: admin 우회(VITE_DEV_ADMIN=true)는 항상 켜고, Supabase URL·키는 process.env와
-  // .env* 파일 어디에도 없을 때만 오프라인용 더미 값(https://e2e-offline.supabase.co)을 넣는다. 있으면 그대로 쓴다.
+  // dev 서버 env: admin 우회(VITE_DEV_ADMIN=true)는 항상 켜고, Supabase URL·키는 process.env와 .env* 파일을
+  // 합친 값에서 둘 중 하나라도 없으면 오프라인용 더미 값 한 쌍(https://e2e-offline.supabase.co)을 넣는다.
+  // 둘 다 있으면 그대로 쓴다.
   // 그래서 스펙은 쓰는 Supabase 요청을 page.route로 응답해야 한다(scripts/e2eDevServerEnv.ts).
   // 이미 떠 있는 서버를 재사용하면(reuseExistingServer) 이 env는 쓰이지 않고 그 서버를 띄울 때의 env가 남는다.
   webServer: {
