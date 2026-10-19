@@ -261,6 +261,40 @@ describe("TimelineSpace — 히트테스트", () => {
     expect(space.hitTestNoteEnd(30, 1100)).toBeNull();
   });
 
+  it("hitTestNoteEnd: 보조 lane 5 롱노트 endBeat=2를 보조 x=250·y=1000에서 chart.notes 통합 인덱스 1로 히트, y=1100(0.2박 차이)은 미스", () => {
+    const notes: NoteEntity[] = [
+      { type: "single", lane: 1, beat: beat(0, 1) },
+      { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
+    ];
+    const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestNoteEnd(250, 1000)).toBe(1);
+    expect(space.hitTestNoteEnd(250, 1100)).toBeNull();
+  });
+
+  it("hitTestNoteEnd: endBeat=2가 같은 메인 lane 1·보조 lane 5 롱노트는 x로 갈린다 — x=30은 0, x=250은 1, 노트 없는 보조 x=310은 null", () => {
+    const notes: NoteEntity[] = [
+      { type: "long", lane: 1, beat: beat(0, 1), endBeat: beat(2, 1) },
+      { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
+    ];
+    const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestNoteEnd(30, 1000)).toBe(0);
+    expect(space.hitTestNoteEnd(250, 1000)).toBe(1);
+    expect(space.hitTestNoteEnd(310, 1000)).toBeNull();
+  });
+
+  it("hitTestNoteEnd: extraLaneCount=2면 숨은 보조 lane 7 롱노트 끝(x=390)은 null, extraLaneCount를 3으로 늘리면 인덱스 0으로 히트", () => {
+    const notes: NoteEntity[] = [
+      { type: "long", lane: 7, beat: beat(0, 1), endBeat: beat(2, 1) },
+    ];
+    const { source, state } = makeFakeSource({ chart: makeChart({ notes }), extraLaneCount: 2 });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestNoteEnd(390, 1000)).toBeNull();
+    state.extraLaneCount = 3;
+    expect(space.hitTestNoteEnd(390, 1000)).toBe(0);
+  });
+
   it("hitTestEventEnd: editorLane 1 구간 이벤트 endBeat=2를 보조 x=250·y=1000에서 히트, editorLane 2 위치(x=310)는 미스", () => {
     const events: ChartEvent[] = [
       { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },

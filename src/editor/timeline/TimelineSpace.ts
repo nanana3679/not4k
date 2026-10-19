@@ -70,6 +70,11 @@ export interface TimelineSpace {
    * Select(선택·이동)·Delete·hover가 소비한다 (RFD 0018 ④d).
    */
   hitTestUnifiedNote(x: number, y: number): number | null;
+  /**
+   * 롱노트 끝 캡 히트테스트 — hitTestUnifiedNote처럼 xToUnifiedLane 기반이라 메인·보조 롱노트의
+   * chart.notes 통합 인덱스를 반환한다. 숨은 보조 레인(extraLaneCount 밖)의 롱노트는 그 x가
+   * 레인으로 변환되지 않아 히트하지 않는다. Select 끝 캡 grab(resolveGrab)·hover 커서·터치 롱프레스가 소비한다.
+   */
   hitTestNoteEnd(x: number, y: number): number | null;
   hitTestEventEnd(x: number, y: number): number | null;
   hitTestTrillZoneEnd(x: number, y: number): number | null;
@@ -174,8 +179,9 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestNoteAt(source.getChart().notes, lane, b.n / b.d, undefined, source.getSelectedNotes());
   };
 
+  // 끝 캡도 통합 lane으로 찾는다 — 보조 롱노트 캡을 그리기만 하고 잡지 못하던 불일치 해소 (#100).
   const hitTestNoteEnd = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
+    const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;

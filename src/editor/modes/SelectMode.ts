@@ -348,7 +348,7 @@ export class SelectMode implements EditorMode {
     this.startMainMoveDrag(x, y);
   }
 
-  /** Begin resizing a main range note end, used by touch long-press handles. */
+  /** Begin resizing a range note end (main or aux lane), used by touch long-press handles. */
   beginNoteEndResizeDrag(index: number): boolean {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;

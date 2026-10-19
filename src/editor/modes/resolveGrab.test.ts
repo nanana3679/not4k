@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { resolveGrab, type GrabSelectionView } from "./resolveGrab";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
-import type { TimelineSpace } from "../timeline/TimelineSpace";
+import { createTimelineSpace, type TimelineSpace } from "../timeline/TimelineSpace";
+import { beat } from "../../shared";
+import type { Chart, ChartEvent, NoteEntity } from "../../shared";
 
 /** 선택 없음 기본 뷰. */
 const emptySel: GrabSelectionView = {
@@ -146,5 +148,102 @@ describe("resolveGrab — 사다리 5~8 (순서·경계)", () => {
       kind: "trillZoneBody",
       index: 0,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 실제 TimelineSpace 결합 — 보조 레인(lane 5+) 롱노트 끝 캡 (#100)
+// LANE_WIDTH=60·TIMELINE_WIDTH=240·EXTRA_LANE_WIDTH=60, 120 BPM에서 y(px)=ms라 y=500이 1박.
+// x=250은 보조 레인 1(lane 5)이자 이벤트 editorLane 1과 같은 칸이다.
+// ---------------------------------------------------------------------------
+
+function grabOnRealSpace(opts: {
+  notes: NoteEntity[];
+  events?: ChartEvent[];
+  selectedNotes?: number[];
+  x: number;
+  y: number;
+}) {
+  const chart: Chart = {
+    meta: {
+      title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
+      imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0,
+    },
+    notes: opts.notes,
+    trillZones: [],
+    events: opts.events ?? [
+      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+    ],
+  };
+  // space의 선택 보너스(hitTestNoteAt)와 끝 캡 선택 게이트(sel)가 같은 선택을 읽는다 — SelectMode.resolveGrabAt과 동일.
+  const selectedNotes = new Set(opts.selectedNotes ?? []);
+  const sel: GrabSelectionView = { ...emptySel, notes: selectedNotes };
+  const space = createTimelineSpace({
+    getChart: () => chart,
+    getSnapDivision: () => 4,
+    getSelectedNotes: () => selectedNotes,
+    getExtraLaneCount: () => 2,
+    yToTime: (y) => y,
+    getTotalTimelineMs: () => 8000,
+  });
+  return resolveGrab({
+    x: opts.x,
+    y: opts.y,
+    space,
+    sel,
+    isRangeNote: (i) => chart.notes[i] !== undefined && "endBeat" in chart.notes[i],
+  });
+}
+
+describe("resolveGrab × 실제 TimelineSpace — 보조 레인 롱노트 끝 캡 (#100)", () => {
+  it("미선택 보조 lane 5 롱노트(0→2박)의 끝(x=250·y=1000)을 누르면 note가 아니라 noteEndCap", () => {
+    expect(
+      grabOnRealSpace({
+        notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }],
+        x: 250,
+        y: 1000,
+      }),
+    ).toEqual({ kind: "noteEndCap", index: 0 });
+  });
+
+  it("미선택 보조 롱노트 끝에 같은 lane 5 단노트(idx 1)가 최상위로 겹치면 메인 레인처럼 캡 대신 note(1)", () => {
+    expect(
+      grabOnRealSpace({
+        notes: [
+          { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
+          { type: "single", lane: 5, beat: beat(2, 1) },
+        ],
+        x: 250,
+        y: 1000,
+      }),
+    ).toEqual({ kind: "note", index: 1 });
+  });
+
+  it("선택된 보조 롱노트(idx 0)는 끝에 단노트가 겹쳐도 noteEndCap", () => {
+    expect(
+      grabOnRealSpace({
+        notes: [
+          { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
+          { type: "single", lane: 5, beat: beat(2, 1) },
+        ],
+        selectedNotes: [0],
+        x: 250,
+        y: 1000,
+      }),
+    ).toEqual({ kind: "noteEndCap", index: 0 });
+  });
+
+  it("보조 lane 5 롱노트 끝과 editorLane 1 구간 이벤트 끝이 같은 칸(x=250)·같은 2박이면 z-order 1단계 noteEndCap이 2단계 eventEndCap보다 앞선다", () => {
+    expect(
+      grabOnRealSpace({
+        notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }],
+        events: [
+          { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+          { type: "auto", beat: beat(0, 1), endBeat: beat(2, 1), editorLane: 1 },
+        ],
+        x: 250,
+        y: 1000,
+      }),
+    ).toEqual({ kind: "noteEndCap", index: 0 });
   });
 });

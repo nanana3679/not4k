@@ -572,9 +572,10 @@ export function useCanvasEvents(
         } else if (restBody !== null && (selectModeRef.current?.selectedRestZones.has(restBody) ?? false)) {
           cursor = 'move';
         } else {
-          // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
+          // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지).
+          // 끝 캡·최상위 노트 둘 다 통합 히트테스트라 보조 롱노트 캡에도 같은 커서가 뜬다 (#100).
           const noteEnd = space.hitTestNoteEnd(x, y);
-          if (noteEnd !== null && space.hitTestNote(x, y) === noteEnd) cursor = 'ns-resize';
+          if (noteEnd !== null && space.hitTestUnifiedNote(x, y) === noteEnd) cursor = 'ns-resize';
         }
       }
       if (canvasEl.style.cursor !== cursor) canvasEl.style.cursor = cursor;
