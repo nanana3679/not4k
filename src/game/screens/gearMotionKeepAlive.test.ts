@@ -48,7 +48,7 @@ describe('keepGearMotionAssets — 설정이 켜진 동안 gearMotion 에셋 lea
 });
 
 describe('플레이 화면의 gearMotion 에셋 대기(필수 에셋)', () => {
-  it('곡 시작 전 대기에 시간 제한이 없고(settleWithin·_WAIT_MS 없음) 재생 중 얹기 미루기(setAttachDeferred)도 없다', () => {
+  it('곡 시작 전 대기에 시간 제한이 없고(settleWithin·_WAIT_MS 없음) 재생 중 gearMotion 추가 미루기(setAttachDeferred)도 없다', () => {
     expect(keepAliveSource).not.toContain('settleWithin');
     expect(playScreenSource).not.toContain('settleWithin');
     expect(playScreenSource).not.toMatch(/GEAR_MOTION_\w*WAIT_MS/);
