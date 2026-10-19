@@ -20,6 +20,7 @@ import {
   hitTestExtraNoteAt,
   hitTestTrillZoneAt,
   hitTestRestZoneAt,
+  isWithinNoteEndCap,
 } from "./hitTest";
 import {
   beatFloatToRawBeat,
@@ -67,14 +68,14 @@ export interface TimelineSpace {
   hitTestNote(x: number, y: number): number | null;
   /**
    * 통합 히트테스트 — xToUnifiedLane 기반이라 메인·보조 노트의 chart.notes 통합 인덱스를 반환.
-   * Select(선택·이동)·Delete·hover가 소비하고, 끝 캡 판정 resolveNoteEndCap(grab·hover 커서 공용)이
+   * Select(선택·이동)·Delete·hover가 소비하고, 끝 캡 결정 resolveNoteEndCap(grab·hover 캡·커서 공용)이
    * 최상위 노트 검사에 쓴다 (RFD 0018 ④d).
    */
   hitTestUnifiedNote(x: number, y: number): number | null;
   /**
    * 롱노트 끝 캡 히트테스트 — hitTestUnifiedNote처럼 xToUnifiedLane 기반이라 메인·보조 롱노트의
    * chart.notes 통합 인덱스를 반환한다. 숨은 보조 레인(extraLaneCount 밖)의 롱노트는 그 x가
-   * 레인으로 변환되지 않아 히트하지 않는다. 끝 캡 판정 resolveNoteEndCap(grab·hover 커서 공용)과
+   * 레인으로 변환되지 않아 히트하지 않는다. 끝 캡 결정 resolveNoteEndCap(grab·hover 캡·커서 공용)과
    * 터치 롱프레스가 소비한다.
    */
   hitTestNoteEnd(x: number, y: number): number | null;
@@ -187,14 +188,13 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
-    const tolerance = 1 / 16;
     const notes = source.getChart().notes;
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (note.lane !== lane) continue;
       if (!("endBeat" in note)) continue;
       const endBeatFloat = note.endBeat.n / note.endBeat.d;
-      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
+      if (isWithinNoteEndCap(testBeatFloat, endBeatFloat)) return i;
     }
     return null;
   };

@@ -546,8 +546,11 @@ export function useCanvasEvents(
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       rendererRef.current.setHoveredRestZone(hoveredRestZone);
-      // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
-      rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
+      // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다. 끝 캡이 같은 위치의 구간 이벤트
+      // 끝에 양보하는 좌표에서는 숨긴다 — down·커서와 같은 결정(SelectMode.computeResizeHoverNote, #100).
+      rendererRef.current.setResizeHoverNote(
+        mode === 'select' ? (selectModeRef.current?.computeResizeHoverNote(x, y) ?? null) : null,
+      );
     }
 
     // 트릴존 위 커서: 리사이즈 캡(끝)=ns-resize(↕), 선택된 존 몸통=move(선택 후 드래그=이동,
@@ -572,8 +575,8 @@ export function useCanvasEvents(
         } else if (restBody !== null && (selectModeRef.current?.selectedRestZones.has(restBody) ?? false)) {
           cursor = 'move';
         } else if ((selectModeRef.current?.resolveNoteEndCapAt(x, y) ?? null) !== null) {
-          // 롱노트 끝 캡 위: down이 실제로 끝 캡을 잡는 자리에서만 리사이즈 커서. 판정은 grab 1단계와 같은
-          // resolveNoteEndCap(선택·최상위 게이트, 구간 이벤트 끝과 겹치면 선택된 노트만)이다 (#100).
+          // 롱노트 끝 캡 위: down이 실제로 끝 캡을 잡는 좌표에서만 리사이즈 커서. 결정은 grab 1단계와 같은
+          // resolveNoteEndCap(선택·최상위 게이트, 같은 위치의 구간 이벤트 끝이면 선택된 노트만)이다 (#100).
           cursor = 'ns-resize';
         }
       }

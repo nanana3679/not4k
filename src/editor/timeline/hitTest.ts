@@ -15,6 +15,14 @@ const POINT_NOTE_TOLERANCE = 1 / 16;
 /** Tolerance for snap-position note detection (tighter, exact match) */
 export const SNAP_POSITION_TOLERANCE = 1 / 32;
 
+/** 롱노트 끝 캡 히트 영역(박) — 끝점(endBeat) ± 이 값 미만이면 끝 캡에 맞은 것으로 본다. */
+const NOTE_END_CAP_TOLERANCE = 1 / 16;
+
+/** beatFloat가 끝점 endBeatFloat의 끝 캡 히트 영역 안인가. */
+export function isWithinNoteEndCap(beatFloat: number, endBeatFloat: number): boolean {
+  return Math.abs(beatFloat - endBeatFloat) < NOTE_END_CAP_TOLERANCE;
+}
+
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 

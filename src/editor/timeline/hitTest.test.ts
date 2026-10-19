@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion, isWithinNoteEndCap } from "./hitTest";
 import { beat } from "../../shared";
 import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 
@@ -367,5 +367,13 @@ describe("hitTestRangeNoteRegion", () => {
     expect(hitTestRangeNoteRegion(rangeNote, 2.4, 0.5)).toBe("head");
     // tolerance=0.01 → 2.02는 head 밖
     expect(hitTestRangeNoteRegion(rangeNote, 2.02, 0.01)).toBe("body");
+  });
+});
+
+describe("isWithinNoteEndCap (롱노트 끝 캡 히트 영역)", () => {
+  it("끝점 2박 기준 2.03125박·1.96875박(1/32 차이)은 안, 2.0625박(정확히 1/16 차이)은 밖", () => {
+    expect(isWithinNoteEndCap(2 + 1 / 32, 2)).toBe(true);
+    expect(isWithinNoteEndCap(2 - 1 / 32, 2)).toBe(true);
+    expect(isWithinNoteEndCap(2 + 1 / 16, 2)).toBe(false);
   });
 });

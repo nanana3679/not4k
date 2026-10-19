@@ -4,7 +4,7 @@
  * grab z-order(캡 4종 > 노트 > 존 몸통 2종 > 빈 곳)의 유일한 소유자다. 마우스
  * (SelectMode.onPointerDown)와 터치(scheduleFromGrabTarget)가 같은 함수를 소비하므로
  * 우선순위 변경은 여기 한 곳이고, 두 경로가 갈라질 코드 위치 자체가 없다(이슈 #143).
- * hover 커서의 끝 캡 ns-resize도 1단계 판정(resolveNoteEndCap)을 그대로 쓴다(#100).
+ * hover 리사이즈 캡과 커서 ns-resize도 1단계(noteEndCap) 결정(resolveNoteEndCap)을 그대로 쓴다(#100).
  *
  * 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작만 바꾸므로 이 타입·함수에 나타나지
  * 않는다 — 사다리 순서/게이트는 수식자와 독립이다. 리사이즈 캡 게이트(사다리 1·3·4)만
@@ -49,10 +49,12 @@ export function resolveGrab(input: {
    * chart 전체를 주입하지 않고 술어 하나로 접는다(store·chart 무지 유지).
    */
   isRangeNote: (noteIndex: number) => boolean;
+  /** 게이트 1용 chart 사실: events[eventIndex]의 끝이 notes[noteIndex]의 끝과 같은 위치인가(끝 캡 히트 영역 안). */
+  eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) => boolean;
 }): GrabTarget {
   const { x, y, space, sel } = input;
 
-  // 1. RangeNote 끝(리사이즈) — 끝 캡을 잡으면 리사이즈. 게이트는 resolveNoteEndCap(hover 커서와 공유).
+  // 1. RangeNote 끝(리사이즈) — 끝 캡을 잡으면 리사이즈. 게이트는 resolveNoteEndCap(hover 캡·커서와 공유).
   const endCap = resolveNoteEndCap(input);
   if (endCap !== null) return { kind: "noteEndCap", index: endCap };
 
@@ -90,13 +92,15 @@ export function resolveGrab(input: {
 }
 
 /**
- * 1단계(noteEndCap) 판정 — down이 (x, y)에서 잡을 롱노트 끝 캡의 노트 인덱스, 없으면 null.
- * resolveGrab 1단계와 hover 커서(ns-resize)가 이 한 함수를 쓰므로 커서와 grab이 갈라지지 않는다(#100).
+ * 1단계(noteEndCap) 결정 — down이 (x, y)에서 잡을 롱노트 끝 캡의 노트 인덱스, 없으면 null.
+ * resolveGrab 1단계와 hover 리사이즈 캡·커서(ns-resize)가 이 한 함수를 쓰므로 셋이 갈라지지 않는다(#100).
  *
  * 게이트: 선택된 롱노트의 끝 캡은 항상 잡는다. 미선택이면 z-order 최상위일 때만 잡는다 — 끝점 위에
- * 겹친 다른 노트 클릭을 가로채지 않도록(o-o-). 또 보조 레인 칸은 이벤트 editorLane 칸과 같은 x라
- * 구간 이벤트 끝과 겹칠 수 있는데, 그때 미선택 노트 캡은 양보해 2단계(eventEndCap)로 내려간다 —
- * 구간 이벤트 끝은 끝 캡 리사이즈 말고는 바꿀 방법이 없고, 노트 끝은 먼저 선택하면 잡을 수 있다.
+ * 겹친 다른 노트 클릭을 가로채지 않도록(o-o-). 또 보조 레인 칸은 이벤트 editorLane 칸과 같은 x인데,
+ * 2단계가 잡을 구간 이벤트의 끝이 이 노트의 끝과 같은 위치면 미선택 노트 캡은 양보해 eventEndCap으로
+ * 내려간다 — 구간 이벤트 끝은 끝 캡 리사이즈 말고는 바꿀 방법이 없고, 노트 끝은 먼저 선택하면 잡을 수 있다.
+ * 두 끝이 다른 위치면 양보하지 않는다 — 이벤트 끝은 제 위치에서 잡히기 때문이다. 이벤트 끝 히트 영역은
+ * 스냅한 박 기준이라(snap 4에서 ±0.5박) 히트만으로는 같은 위치인지 알 수 없어 chart 사실로 묻는다.
  */
 export function resolveNoteEndCap(input: {
   x: number;
@@ -106,12 +110,15 @@ export function resolveNoteEndCap(input: {
   sel: Pick<GrabSelectionView, "notes">;
   /** chart.notes[i]가 RangeNote(endBeat 보유)인가. */
   isRangeNote: (noteIndex: number) => boolean;
+  /** events[eventIndex]의 끝이 notes[noteIndex]의 끝과 같은 위치(끝 캡 히트 영역 안)인가. */
+  eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) => boolean;
 }): number | null {
-  const { x, y, space, sel, isRangeNote } = input;
+  const { x, y, space, sel, isRangeNote, eventEndMeetsNoteEnd } = input;
   const endHit = space.hitTestNoteEnd(x, y);
   if (endHit === null || !isRangeNote(endHit)) return null;
   if (sel.notes.has(endHit)) return endHit;
   if (space.hitTestUnifiedNote(x, y) !== endHit) return null;
-  if (space.hitTestEventEnd(x, y) !== null) return null;
+  const eventHit = space.hitTestEventEnd(x, y);
+  if (eventHit !== null && eventEndMeetsNoteEnd(eventHit, endHit)) return null;
   return endHit;
 }

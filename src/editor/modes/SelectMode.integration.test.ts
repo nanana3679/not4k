@@ -309,7 +309,7 @@ describe("보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·
   });
 
   it("병합창 600ms(HISTORY_COALESCE_MS) 안에서 끝 캡을 3박→4박으로 끌면 히스토리 1건으로 남아 undo 한 번에 0→2박으로 복원된다", () => {
-    // 병합 판정은 Date.now()를 읽는다 — 시각을 고정해 기계 부하와 무관하게 한 창 안에 둔다
+    // 병합 검사는 Date.now()를 읽는다 — 시각을 고정해 기계 부하와 무관하게 한 창 안에 둔다
     vi.useFakeTimers();
     vi.setSystemTime(10_000);
     const { mode, store } = makeRealSpaceIntegration([auxLong]);
@@ -396,7 +396,7 @@ describe("보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·
     expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
   });
 
-  it("hover 커서 판정 resolveNoteEndCapAt: 보조 롱노트 끝(x=250·y=1000)은 0, 같은 2박에 구간 이벤트 끝이 겹치면(snap=32) 미선택일 때 null·노트를 선택하면 0", () => {
+  it("hover 커서 resolveNoteEndCapAt: 보조 롱노트 끝(x=250·y=1000)은 0, 같은 2박에 구간 이벤트 끝이 겹치면(snap=32) 미선택일 때 null·노트를 선택하면 0", () => {
     expect(makeRealSpaceIntegration([auxLong]).mode.resolveNoteEndCapAt(250, 1000)).toBe(0);
 
     const { mode, store } = makeRealSpaceIntegration([auxLong], {
@@ -406,5 +406,42 @@ describe("보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·
     expect(mode.resolveNoteEndCapAt(250, 1000)).toBeNull();
     store.getState().setSelection(sel({ notes: new Set([0]) }));
     expect(mode.resolveNoteEndCapAt(250, 1000)).toBe(0);
+  });
+
+  // 끝이 2.25박인 보조 롱노트 — 2박에서 끝나는 구간 이벤트와 같은 칸이지만 두 끝은 다른 위치다.
+  // snap=4면 이벤트 끝 히트 영역(스냅한 박 기준 ±0.5박)이 노트 끝 캡(y=1125)까지 덮는다.
+  const auxLongEndAt225: NoteEntity = { type: "long", lane: 5, beat: beat(0), endBeat: beat(9, 4) };
+
+  it("snap=4에서 보조 롱노트 끝(2.25박)이 구간 이벤트 끝(2박)의 히트 영역 안이어도 끝 캡(y=1125)을 y=1500까지 끌면 노트 끝이 3박으로 늘고 이벤트 끝은 2박 그대로", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLongEndAt225], { events: eventsWithAutoEndAt2 });
+
+    expect(mode.resolveNoteEndCapAt(250, 1125)).toBe(0); // 커서도 ns-resize
+    mode.onPointerDown(250, 1125, false, false);
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
+  });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: snap=32에서 두 끝이 같은 2박이면 미선택 보조 롱노트의 끝 캡 위(y=1000)는 null로 캡을 숨기고, 몸통 위(y=500)는 0, 노트를 선택하면 끝 캡 위도 0", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+
+    expect(mode.computeResizeHoverNote(250, 1000)).toBeNull();
+    expect(mode.computeResizeHoverNote(250, 500)).toBe(0);
+    store.getState().setSelection(sel({ notes: new Set([0]) }));
+    expect(mode.computeResizeHoverNote(250, 1000)).toBe(0);
+  });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: 두 끝이 다른 위치(노트 2.25박·이벤트 2박, snap=4)면 끝 캡 위(y=1125)도 0, 이벤트 없는 보조 롱노트 끝(y=1000)도 0", () => {
+    expect(
+      makeRealSpaceIntegration([auxLongEndAt225], { events: eventsWithAutoEndAt2 }).mode.computeResizeHoverNote(250, 1125),
+    ).toBe(0);
+    expect(makeRealSpaceIntegration([auxLong]).mode.computeResizeHoverNote(250, 1000)).toBe(0);
   });
 });

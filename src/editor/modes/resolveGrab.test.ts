@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { resolveGrab, resolveNoteEndCap, type GrabSelectionView } from "./resolveGrab";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { createTimelineSpace, type TimelineSpace } from "../timeline/TimelineSpace";
-import { beat } from "../../shared";
+import { isWithinNoteEndCap } from "../timeline/hitTest";
+import { beat, beatToFloat } from "../../shared";
 import type { Chart, ChartEvent, NoteEntity } from "../../shared";
 
 /** 선택 없음 기본 뷰. */
@@ -16,6 +17,7 @@ function grab(opts: {
   space?: Partial<TimelineSpace>;
   sel?: Partial<GrabSelectionView>;
   isRangeNote?: (i: number) => boolean;
+  eventEndMeetsNoteEnd?: (eventIndex: number, noteIndex: number) => boolean;
 }) {
   return resolveGrab({
     x: 1,
@@ -24,6 +26,8 @@ function grab(opts: {
     sel: { ...emptySel, ...opts.sel },
     // 기본은 모든 노트를 RangeNote로 취급(끝 캡 게이트 통과) — 케이스별 재정의.
     isRangeNote: opts.isRangeNote ?? (() => true),
+    // 기본은 이벤트 끝과 노트 끝을 같은 위치로 취급 — 케이스별 재정의.
+    eventEndMeetsNoteEnd: opts.eventEndMeetsNoteEnd ?? (() => true),
   });
 }
 
@@ -152,34 +156,57 @@ describe("resolveGrab — 사다리 5~8 (순서·경계)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveNoteEndCap — 1단계(noteEndCap)와 hover 커서(ns-resize)가 공유하는 끝 캡 판정
+// resolveNoteEndCap — 1단계(noteEndCap)와 hover 캡·커서가 공유하는 끝 캡 결정
 // ---------------------------------------------------------------------------
 
-describe("resolveNoteEndCap — grab 1단계와 hover 커서가 공유하는 끝 캡 판정", () => {
+describe("resolveNoteEndCap — grab 1단계와 hover 캡·커서가 공유하는 끝 캡 결정", () => {
   it("끝에 단노트(idx 1)가 최상위로 겹친 롱노트(idx 0) 끝은 미선택이면 null, 선택돼 있으면 0", () => {
     const space = makeFakeSpace({ hitTestNoteEnd: () => 0, hitTestUnifiedNote: () => 1 });
-    const input = { x: 1, y: 1, space, isRangeNote: () => true };
+    const input = { x: 1, y: 1, space, isRangeNote: () => true, eventEndMeetsNoteEnd: () => true };
     expect(resolveNoteEndCap({ ...input, sel: { notes: new Set<number>() } })).toBeNull();
     expect(resolveNoteEndCap({ ...input, sel: { notes: new Set([0]) } })).toBe(0);
   });
 
-  it("최상위 롱노트(idx 0) 끝이라도 이벤트 끝(idx 2)과 함께 맞으면 미선택일 때 null(이벤트 끝에 양보), 선택돼 있으면 0", () => {
+  it("최상위 롱노트(idx 0) 끝이 이벤트 끝(idx 2)과 같은 위치(eventEndMeetsNoteEnd=true)면 미선택일 때 null(이벤트 끝에 양보), 선택돼 있으면 0", () => {
     const space = makeFakeSpace({
       hitTestNoteEnd: () => 0,
       hitTestUnifiedNote: () => 0,
       hitTestEventEnd: () => 2,
     });
-    const input = { x: 1, y: 1, space, isRangeNote: () => true };
+    const input = { x: 1, y: 1, space, isRangeNote: () => true, eventEndMeetsNoteEnd: () => true };
     expect(resolveNoteEndCap({ ...input, sel: { notes: new Set<number>() } })).toBeNull();
     expect(resolveNoteEndCap({ ...input, sel: { notes: new Set([0]) } })).toBe(0);
   });
+
+  it("이벤트 끝(idx 2)이 맞아도 두 끝이 다른 위치(eventEndMeetsNoteEnd=false)면 미선택 최상위 롱노트(idx 0)도 0 — 술어는 (2, 0)으로 한 번 묻는다", () => {
+    const asked: [number, number][] = [];
+    expect(
+      resolveNoteEndCap({
+        x: 1,
+        y: 1,
+        space: makeFakeSpace({
+          hitTestNoteEnd: () => 0,
+          hitTestUnifiedNote: () => 0,
+          hitTestEventEnd: () => 2,
+        }),
+        sel: { notes: new Set<number>() },
+        isRangeNote: () => true,
+        eventEndMeetsNoteEnd: (eventIndex, noteIndex) => {
+          asked.push([eventIndex, noteIndex]);
+          return false;
+        },
+      }),
+    ).toBe(0);
+    expect(asked).toEqual([[2, 0]]);
+  });
 });
 
-describe("resolveGrab — 1단계가 이벤트 끝과 겹칠 때 (noteEndCap → eventEndCap)", () => {
-  it("미선택 최상위 롱노트(idx 0) 끝과 이벤트 끝(idx 2)이 함께 맞으면 eventEndCap(2)으로 내려간다", () => {
+describe("resolveGrab — 1단계가 같은 위치의 이벤트 끝에 양보할 때 (noteEndCap → eventEndCap)", () => {
+  it("미선택 최상위 롱노트(idx 0) 끝과 이벤트 끝(idx 2)이 같은 위치(eventEndMeetsNoteEnd=true)면 eventEndCap(2)으로 내려간다", () => {
     expect(
       grab({
         space: { hitTestNoteEnd: () => 0, hitTestUnifiedNote: () => 0, hitTestEventEnd: () => 2 },
+        eventEndMeetsNoteEnd: () => true,
       }),
     ).toEqual({ kind: "eventEndCap", index: 2 });
   });
@@ -228,6 +255,13 @@ function realGrabInput(opts: {
     space,
     sel,
     isRangeNote: (i: number) => chart.notes[i] !== undefined && "endBeat" in chart.notes[i],
+    // SelectMode.eventEndMeetsNoteEnd와 같은 chart 사실 — 이벤트 끝이 노트 끝 캡 히트 영역 안인가
+    eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) => {
+      const evt = chart.events[eventIndex];
+      const note = chart.notes[noteIndex];
+      return evt !== undefined && "endBeat" in evt && note !== undefined && "endBeat" in note
+        && isWithinNoteEndCap(beatToFloat(evt.endBeat), beatToFloat(note.endBeat));
+    },
   };
 }
 
@@ -275,8 +309,8 @@ describe("resolveGrab × 실제 TimelineSpace — 보조 레인 롱노트 끝 �
     expect(resolveNoteEndCap(realGrabInput({ notes, x: 310, y: 1000 }))).toBeNull();
   });
 
-  // 노트 끝 띠(raw 박 ±1/16)와 이벤트 끝 띠(스냅 박 ±1/8)는 snap=32에서 거의 같아서, 미선택 노트 캡이
-  // 먼저 잡으면 이벤트 끝을 바꿀 방법이 사라진다. snap=4는 이벤트 끝 띠가 ±0.5박으로 넓다.
+  // 노트 끝 캡 히트 영역(raw 박 ±1/16)과 이벤트 끝 히트 영역(스냅한 박 ±1/8)은 snap=32에서 거의 같아서, 두 끝이
+  // 같은 위치일 때 미선택 노트 캡이 먼저 잡으면 이벤트 끝을 바꿀 방법이 사라진다. snap=4는 이벤트 끝 히트 영역이 ±0.5박.
   const auxLongMeetsAutoEnd = {
     notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }] as NoteEntity[],
     events: [
@@ -305,4 +339,14 @@ describe("resolveGrab × 실제 TimelineSpace — 보조 레인 롱노트 끝 �
       ).toEqual({ kind: "noteEndCap", index: 0 });
     },
   );
+
+  it("snap=4에서 보조 롱노트 끝(2.25박)이 같은 칸 구간 이벤트 끝(2박)의 히트 영역 안이어도 두 끝이 다른 위치면 끝 캡 y=1125는 noteEndCap(0), 이벤트 끝 y=1000은 eventEndCap(1)", () => {
+    const endsApart = {
+      ...auxLongMeetsAutoEnd,
+      notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(9, 4) }] as NoteEntity[],
+      snapDivision: 4,
+    };
+    expect(resolveGrab(realGrabInput({ ...endsApart, y: 1125 }))).toEqual({ kind: "noteEndCap", index: 0 });
+    expect(resolveGrab(realGrabInput({ ...endsApart, y: 1000 }))).toEqual({ kind: "eventEndCap", index: 1 });
+  });
 });
