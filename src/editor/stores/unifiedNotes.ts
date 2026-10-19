@@ -56,7 +56,7 @@ export function hiddenViolationLaneMessages(hiddenLanes: readonly number[]): str
   }
   if (unreachable.length > 0) {
     messages.push(
-      `보조 레인 수 상한(${MAX_EXTRA_LANE_COUNT})을 넘는 보조 레인(${unreachable.join(", ")})의 위반이 포함되어 있습니다 — 에디터에서는 보이게 할 수 없으니 차트 파일을 직접 고쳐야 합니다.`,
+      `보조 레인 수 상한(${MAX_EXTRA_LANE_COUNT})을 넘는 보조 레인(${unreachable.join(", ")})의 위반이 포함되어 있습니다 — 에디터에서는 선택·편집할 수 없으니 차트 파일을 직접 고쳐야 합니다.`,
     );
   }
   return messages;
