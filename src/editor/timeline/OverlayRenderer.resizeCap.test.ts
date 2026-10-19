@@ -13,7 +13,7 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { drawNoteResizeHandle } from "./trillZoneHandles";
 import { laneToX, laneWidth } from "./laneGeometry";
-import { LANE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import { LANE_WIDTH } from "./constants";
 
 vi.mock("./constants", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./constants")>()),
@@ -81,18 +81,13 @@ beforeEach(() => {
 });
 
 describe("OverlayRenderer 롱노트 끝 캡 기하 — 보조 칸 폭 50(EXTRA_LANE_WIDTH)", () => {
-  it("EXTRA_LANE_WIDTH를 50으로 바꾸면 laneToX(6)=290·laneWidth(6)=50이 되어 (6-1)*LANE_WIDTH=300·LANE_WIDTH=60과 갈린다", () => {
-    expect(EXTRA_LANE_WIDTH).toBe(50);
-    expect(laneToX(6)).toBe(290);
-    expect(laneWidth(6)).toBe(50);
-    expect((6 - 1) * LANE_WIDTH).toBe(300);
-  });
-
   it("선택된 보조 lane 6 롱노트(0→4박) 끝 캡은 x=laneToX(6)=290·폭 laneWidth(6)=50·y=200에 선택색으로 그린다", () => {
     const host = makeHost(
       makeChart([{ type: "long", lane: 6, beat: beat(0), endBeat: beat(4) }]),
       { selectedNotes: new Set([0]) },
     );
+    // 전제(mock): 보조 칸 폭 50이라 laneToX(6)=290이 (6-1)*LANE_WIDTH=300과 갈린다
+    expect([laneToX(6), laneWidth(6), (6 - 1) * LANE_WIDTH]).toEqual([290, 50, 300]);
     new OverlayRenderer(host).updateHoverOverlay(null);
     expect(capDraws(host)).toEqual([{ x: 290, laneWidth: 50, endY: 200, selected: true }]);
   });
@@ -102,6 +97,8 @@ describe("OverlayRenderer 롱노트 끝 캡 기하 — 보조 칸 폭 50(EXTRA_L
       makeChart([{ type: "long", lane: 5, beat: beat(0), endBeat: beat(4) }]),
       { resizeHoverNoteIndex: 0 },
     );
+    // 전제(mock): 보조 칸 폭 50이라 laneWidth(5)=50이 LANE_WIDTH=60과 갈린다
+    expect([laneWidth(5), LANE_WIDTH]).toEqual([50, 60]);
     new OverlayRenderer(host).updateHoverOverlay(null);
     expect(capDraws(host)).toEqual([{ x: 240, laneWidth: 50, endY: 200, selected: false }]);
   });

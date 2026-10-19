@@ -62,18 +62,20 @@ export interface TimelineSpace {
   getMaxBeatFloat(): number;
   /**
    * 메인 레인(1..4) 한정 히트테스트 — 반환 인덱스는 chart.notes 통합 인덱스.
-   * CreateMode 배치 제약(메인 배치만 관할)과 커서 z-order 체크가 소비한다.
+   * CreateMode 배치 제약(메인 배치만 관할)이 소비한다.
    */
   hitTestNote(x: number, y: number): number | null;
   /**
    * 통합 히트테스트 — xToUnifiedLane 기반이라 메인·보조 노트의 chart.notes 통합 인덱스를 반환.
-   * Select(선택·이동)·Delete·hover가 소비한다 (RFD 0018 ④d).
+   * Select(선택·이동)·Delete·hover가 소비하고, 끝 캡 판정 resolveNoteEndCap(grab·hover 커서 공용)이
+   * 최상위 노트 검사에 쓴다 (RFD 0018 ④d).
    */
   hitTestUnifiedNote(x: number, y: number): number | null;
   /**
    * 롱노트 끝 캡 히트테스트 — hitTestUnifiedNote처럼 xToUnifiedLane 기반이라 메인·보조 롱노트의
    * chart.notes 통합 인덱스를 반환한다. 숨은 보조 레인(extraLaneCount 밖)의 롱노트는 그 x가
-   * 레인으로 변환되지 않아 히트하지 않는다. Select 끝 캡 grab(resolveGrab)·hover 커서·터치 롱프레스가 소비한다.
+   * 레인으로 변환되지 않아 히트하지 않는다. 끝 캡 판정 resolveNoteEndCap(grab·hover 커서 공용)과
+   * 터치 롱프레스가 소비한다.
    */
   hitTestNoteEnd(x: number, y: number): number | null;
   hitTestEventEnd(x: number, y: number): number | null;

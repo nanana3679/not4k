@@ -7,7 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
-import { resolveGrab, type GrabTarget } from "./resolveGrab";
+import { resolveGrab, resolveNoteEndCap, type GrabTarget } from "./resolveGrab";
 import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
@@ -447,10 +447,22 @@ export class SelectMode implements EditorMode {
       y,
       space: this.callbacks.space,
       sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
-      isRangeNote: (i) => {
-        const n = this.chart.notes[i];
-        return n !== undefined && this.isRangeNote(n);
-      },
+      isRangeNote: (i) => this.isRangeNoteAt(i),
+    });
+  }
+
+  /**
+   * hover 커서용 끝 캡 판정 — down이 (x, y)에서 잡을 롱노트 끝 캡의 노트 인덱스, 없으면 null.
+   * resolveGrabAt과 같은 sel·isRangeNote로 resolveNoteEndCap(1단계)을 실행하므로, ns-resize 커서가
+   * 실제 grab과 갈라지지 않는다(#100).
+   */
+  resolveNoteEndCapAt(x: number, y: number): number | null {
+    return resolveNoteEndCap({
+      x,
+      y,
+      space: this.callbacks.space,
+      sel: this.sel,
+      isRangeNote: (i) => this.isRangeNoteAt(i),
     });
   }
 
@@ -1560,6 +1572,12 @@ export class SelectMode implements EditorMode {
 
   private isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
+  }
+
+  /** 끝 캡 게이트용 chart 사실 — chart.notes[i]가 RangeNote인가(범위 밖이면 false). */
+  private isRangeNoteAt(index: number): boolean {
+    const note = this.chart.notes[index];
+    return note !== undefined && this.isRangeNote(note);
   }
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */

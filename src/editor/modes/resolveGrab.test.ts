@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveGrab, type GrabSelectionView } from "./resolveGrab";
+import { resolveGrab, resolveNoteEndCap, type GrabSelectionView } from "./resolveGrab";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { createTimelineSpace, type TimelineSpace } from "../timeline/TimelineSpace";
 import { beat } from "../../shared";
@@ -152,15 +152,51 @@ describe("resolveGrab — 사다리 5~8 (순서·경계)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveNoteEndCap — 1단계(noteEndCap)와 hover 커서(ns-resize)가 공유하는 끝 캡 판정
+// ---------------------------------------------------------------------------
+
+describe("resolveNoteEndCap — grab 1단계와 hover 커서가 공유하는 끝 캡 판정", () => {
+  it("끝에 단노트(idx 1)가 최상위로 겹친 롱노트(idx 0) 끝은 미선택이면 null, 선택돼 있으면 0", () => {
+    const space = makeFakeSpace({ hitTestNoteEnd: () => 0, hitTestUnifiedNote: () => 1 });
+    const input = { x: 1, y: 1, space, isRangeNote: () => true };
+    expect(resolveNoteEndCap({ ...input, sel: { notes: new Set<number>() } })).toBeNull();
+    expect(resolveNoteEndCap({ ...input, sel: { notes: new Set([0]) } })).toBe(0);
+  });
+
+  it("최상위 롱노트(idx 0) 끝이라도 이벤트 끝(idx 2)과 함께 맞으면 미선택일 때 null(이벤트 끝에 양보), 선택돼 있으면 0", () => {
+    const space = makeFakeSpace({
+      hitTestNoteEnd: () => 0,
+      hitTestUnifiedNote: () => 0,
+      hitTestEventEnd: () => 2,
+    });
+    const input = { x: 1, y: 1, space, isRangeNote: () => true };
+    expect(resolveNoteEndCap({ ...input, sel: { notes: new Set<number>() } })).toBeNull();
+    expect(resolveNoteEndCap({ ...input, sel: { notes: new Set([0]) } })).toBe(0);
+  });
+});
+
+describe("resolveGrab — 1단계가 이벤트 끝과 겹칠 때 (noteEndCap → eventEndCap)", () => {
+  it("미선택 최상위 롱노트(idx 0) 끝과 이벤트 끝(idx 2)이 함께 맞으면 eventEndCap(2)으로 내려간다", () => {
+    expect(
+      grab({
+        space: { hitTestNoteEnd: () => 0, hitTestUnifiedNote: () => 0, hitTestEventEnd: () => 2 },
+      }),
+    ).toEqual({ kind: "eventEndCap", index: 2 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 실제 TimelineSpace 결합 — 보조 레인(lane 5+) 롱노트 끝 캡 (#100)
 // LANE_WIDTH=60·TIMELINE_WIDTH=240·EXTRA_LANE_WIDTH=60, 120 BPM에서 y(px)=ms라 y=500이 1박.
 // x=250은 보조 레인 1(lane 5)이자 이벤트 editorLane 1과 같은 칸이다.
 // ---------------------------------------------------------------------------
 
-function grabOnRealSpace(opts: {
+/** 실제 TimelineSpace로 resolveGrab·resolveNoteEndCap 입력을 만든다. snapDivision 기본 4(1박 격자). */
+function realGrabInput(opts: {
   notes: NoteEntity[];
   events?: ChartEvent[];
   selectedNotes?: number[];
+  snapDivision?: number;
   x: number;
   y: number;
 }) {
@@ -180,48 +216,48 @@ function grabOnRealSpace(opts: {
   const sel: GrabSelectionView = { ...emptySel, notes: selectedNotes };
   const space = createTimelineSpace({
     getChart: () => chart,
-    getSnapDivision: () => 4,
+    getSnapDivision: () => opts.snapDivision ?? 4,
     getSelectedNotes: () => selectedNotes,
     getExtraLaneCount: () => 2,
     yToTime: (y) => y,
     getTotalTimelineMs: () => 8000,
   });
-  return resolveGrab({
+  return {
     x: opts.x,
     y: opts.y,
     space,
     sel,
-    isRangeNote: (i) => chart.notes[i] !== undefined && "endBeat" in chart.notes[i],
-  });
+    isRangeNote: (i: number) => chart.notes[i] !== undefined && "endBeat" in chart.notes[i],
+  };
 }
 
 describe("resolveGrab × 실제 TimelineSpace — 보조 레인 롱노트 끝 캡 (#100)", () => {
   it("미선택 보조 lane 5 롱노트(0→2박)의 끝(x=250·y=1000)을 누르면 note가 아니라 noteEndCap", () => {
     expect(
-      grabOnRealSpace({
+      resolveGrab(realGrabInput({
         notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }],
         x: 250,
         y: 1000,
-      }),
+      })),
     ).toEqual({ kind: "noteEndCap", index: 0 });
   });
 
   it("미선택 보조 롱노트 끝에 같은 lane 5 단노트(idx 1)가 최상위로 겹치면 메인 레인처럼 캡 대신 note(1)", () => {
     expect(
-      grabOnRealSpace({
+      resolveGrab(realGrabInput({
         notes: [
           { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
           { type: "single", lane: 5, beat: beat(2, 1) },
         ],
         x: 250,
         y: 1000,
-      }),
+      })),
     ).toEqual({ kind: "note", index: 1 });
   });
 
   it("선택된 보조 롱노트(idx 0)는 끝에 단노트가 겹쳐도 noteEndCap", () => {
     expect(
-      grabOnRealSpace({
+      resolveGrab(realGrabInput({
         notes: [
           { type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) },
           { type: "single", lane: 5, beat: beat(2, 1) },
@@ -229,21 +265,44 @@ describe("resolveGrab × 실제 TimelineSpace — 보조 레인 롱노트 끝 �
         selectedNotes: [0],
         x: 250,
         y: 1000,
-      }),
+      })),
     ).toEqual({ kind: "noteEndCap", index: 0 });
   });
 
-  it("보조 lane 5 롱노트 끝과 editorLane 1 구간 이벤트 끝이 같은 칸(x=250)·같은 2박이면 z-order 1단계 noteEndCap이 2단계 eventEndCap보다 앞선다", () => {
-    expect(
-      grabOnRealSpace({
-        notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }],
-        events: [
-          { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
-          { type: "auto", beat: beat(0, 1), endBeat: beat(2, 1), editorLane: 1 },
-        ],
-        x: 250,
-        y: 1000,
-      }),
-    ).toEqual({ kind: "noteEndCap", index: 0 });
+  it("resolveNoteEndCap: 미선택 보조 lane 5 롱노트 끝(x=250·y=1000)은 그 노트 인덱스 0, 노트 없는 보조 칸 x=310은 null", () => {
+    const notes: NoteEntity[] = [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }];
+    expect(resolveNoteEndCap(realGrabInput({ notes, x: 250, y: 1000 }))).toBe(0);
+    expect(resolveNoteEndCap(realGrabInput({ notes, x: 310, y: 1000 }))).toBeNull();
   });
+
+  // 노트 끝 띠(raw 박 ±1/16)와 이벤트 끝 띠(스냅 박 ±1/8)는 snap=32에서 거의 같아서, 미선택 노트 캡이
+  // 먼저 잡으면 이벤트 끝을 바꿀 방법이 사라진다. snap=4는 이벤트 끝 띠가 ±0.5박으로 넓다.
+  const auxLongMeetsAutoEnd = {
+    notes: [{ type: "long", lane: 5, beat: beat(0, 1), endBeat: beat(2, 1) }] as NoteEntity[],
+    events: [
+      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: "auto", beat: beat(0, 1), endBeat: beat(2, 1), editorLane: 1 },
+    ] as ChartEvent[],
+    x: 250,
+    y: 1000,
+  };
+
+  it.each([32, 4])(
+    "snap=%i에서 미선택 보조 lane 5 롱노트 끝과 editorLane 1 구간 이벤트(idx 1) 끝이 같은 칸(x=250)·같은 2박이면 이벤트 끝이 잡혀 eventEndCap(1)",
+    (snapDivision) => {
+      expect(resolveGrab(realGrabInput({ ...auxLongMeetsAutoEnd, snapDivision }))).toEqual({
+        kind: "eventEndCap",
+        index: 1,
+      });
+    },
+  );
+
+  it.each([32, 4])(
+    "snap=%i에서 같은 겹침이라도 보조 롱노트(idx 0)를 먼저 선택했으면 noteEndCap(0)",
+    (snapDivision) => {
+      expect(
+        resolveGrab(realGrabInput({ ...auxLongMeetsAutoEnd, snapDivision, selectedNotes: [0] })),
+      ).toEqual({ kind: "noteEndCap", index: 0 });
+    },
+  );
 });
