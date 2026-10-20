@@ -6,7 +6,7 @@ import {
   judgmentCaseSkinAssetPaths,
   readPngSize,
 } from "./judgmentCaseSkin";
-import { fakeSkinImages, makeTestSkin, readPublicSkinAsset } from "./makeTestSkin";
+import { fakeSkinImages, makeTestSkin, readPublicSkinAsset } from "./makeTestSkin.test-utils";
 
 describe("judgmentCaseSkinAssetPaths — 판정 전(대기) 에셋만 고름", () => {
   it("Classic은 포인트 3종·대기 바디 3종·중앙광이 꺼진 대기 터미널 3종·Grace overlay 2종·접촉 그림자 2종을 고름", () => {

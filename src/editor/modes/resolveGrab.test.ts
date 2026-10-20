@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveGrab, type GrabSelectionView } from "./resolveGrab";
-import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { makeFakeSpace } from "../timeline/makeFakeSpace.test-utils";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 
 /** 선택 없음 기본 뷰. */

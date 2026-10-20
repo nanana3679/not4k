@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
-import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { makeFakeSpace } from "../timeline/makeFakeSpace.test-utils";
 import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
