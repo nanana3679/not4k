@@ -44,7 +44,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(render()).toMatch(/<input id="gear-preview-lift" type="range" min="0" max="10" step="1" value="0"\/>/);
   });
 
-  it('리프트 설명은 레인 위끝~리프트 0% 판정선을 100%로 보는 눈금의 1%를 지금 y 오프셋으로 보여 준다: 게임 값 10이면 1% = 4.26 단위(다음 문장과 띄어 씀), ?offsetY=20이면 436의 1%라 4.36 단위', () => {
+  it('리프트 설명은 레인 위끝~리프트 0% 판정선을 100%로 보는 기준의 1%를 지금 y 오프셋으로 보여 준다: 게임 값 10이면 1% = 4.26 단위(다음 문장과 띄어 씀), ?offsetY=20이면 436의 1%라 4.36 단위', () => {
     expect(render()).toContain('1% = 4.26 단위입니다. 판정선과');
     expect(render('/lab/gear?offsetY=20')).toContain('1% = 4.36 단위');
     expect(render()).not.toContain('1% = 6 단위');

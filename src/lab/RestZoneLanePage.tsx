@@ -95,7 +95,7 @@ interface Controls {
 /**
  * 사용자 설정에 따른 레인 모양. 판넬은 판정선(경첩)부터 레인이 보이는 위끝까지만 덮는다.
  * 노트는 위끝에 처음 보이고 판정선에 닿을 때까지 dwellMs 동안 레인에 머문다.
- * 리프트·서든은 게임과 같은 공통 눈금(레인 위끝~리프트 0% 판정선 426 = 100%, #291)이라 서든 20%면 커버가 85.2 내려온다.
+ * 리프트·서든은 게임과 같은 공통 기준 길이(레인 위끝~리프트 0% 판정선 426 = 100%, #291)이라 서든 20%면 커버가 85.2 내려온다.
  */
 const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scrollPxPerSecond'>) => {
   const judgeY = judgmentLineYAtLift(current.liftPercent);

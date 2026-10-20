@@ -59,7 +59,7 @@ export const JUDGMENT_LINE_THICKNESS = playfieldPx(4);
 export const KEY_BOMB_SIZE = playfieldPx(120);
 
 /**
- * 서든·리프트 %의 공통 눈금([#291](https://github.com/nanana3679/not4k/issues/291)): 높이 600 플레이 화면에서 레인 위끝(y 0)부터
+ * 서든·리프트 %의 공통 기준 길이([#291](https://github.com/nanana3679/not4k/issues/291)): 높이 600 플레이 화면에서 레인 위끝(y 0)부터
  * 리프트 0% 판정선(y 416 + gearOffsetY, 게임 값 `GEAR_OFFSET_Y` 10이면 y 426)까지의 레인 길이를 100%로 본다.
  * 화면 높이(600)가 아니라 이 길이라서 노트가 보이는 레인은 이 길이 × (100 − 서든 − 리프트)%이고, 둘을 더해 100%면 0이다.
  * 판정선 아래 틈(키 윗면까지)은 넣지 않는다. 레인 위끝이 y 0이라 이 길이는 리프트 0% 판정선 y와 같은 숫자다.
@@ -69,7 +69,7 @@ function liftZeroJudgmentLineY(gearOffsetY: number): number {
 }
 
 /**
- * 리프트 설정(%)을 판정선을 올리는 논리 px로 바꾼다. 서든과 같은 공통 눈금이라 게임 값에서 1% = 4.26이고, 100%면 판정선이 레인 위끝(y 0)에 닿는다.
+ * 리프트 설정(%)을 판정선을 올리는 논리 px로 바꾼다. 서든과 같은 기준 길이라 게임 값에서 1% = 4.26이고, 100%면 판정선이 레인 위끝(y 0)에 닿는다.
  * gearOffsetY를 주면 그 y 오프셋의 리프트 0% 판정선까지를 100%로 본다(렌더러가 실제로 쓰는 y 오프셋과 같아야 판정선이 `judgmentLineYAtLift`와 맞는다. 기어를 그리지 않는 렌더러는 0이다).
  * 먼저 곱하고 나눠 3%가 12.780000000000001이 아니라 12.78로 나온다.
  */
@@ -78,7 +78,7 @@ export function liftPx(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y)
 }
 
 /**
- * 서든 설정(%)을 레인 위끝에서 내려오는 서든 커버의 높이(논리 px)로 바꾼다. 리프트와 같은 공통 눈금이라 게임 값에서 서든 30%면 127.8이고,
+ * 서든 설정(%)을 레인 위끝에서 내려오는 서든 커버의 높이(논리 px)로 바꾼다. 리프트와 같은 기준 길이라 게임 값에서 서든 30%면 127.8이고,
  * 100%면 리프트 0% 판정선까지 가린다. gearOffsetY는 `liftPx`와 같다.
  */
 export function suddenCoverPx(suddenPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
@@ -88,7 +88,7 @@ export function suddenCoverPx(suddenPercent: number, gearOffsetY: number = GEAR_
 /**
  * 높이 600 플레이 화면(기어 있음)에서 리프트 %일 때의 판정선 y(게임 값 `GEAR_OFFSET_Y` 10이면 0% = y 426, 100% = y 0). 렌더러가 setLift(`liftPx`)로 옮기는 위치와 같다(렌더러는 빼서 구하므로 9%처럼 일부 %에서 부동소수 마지막 자리만 다를 수 있다).
  * gearOffsetY를 주면 그 y 오프셋의 판정선이다(0이면 y 416 기준).
- * 공통 눈금 길이의 (100 − 리프트)%로 곱해 구해서, 426 − 38.34처럼 빼면 생기는 387.65999… 같은 꼬리 없이 Lab에 보이는 y가 387.66으로 나온다.
+ * 기준 길이의 (100 − 리프트)%로 곱해 구해서, 426 − 38.34처럼 빼면 생기는 387.65999… 같은 꼬리 없이 Lab에 보이는 y가 387.66으로 나온다.
  */
 export function judgmentLineYAtLift(liftPercent: number, gearOffsetY: number = GEAR_OFFSET_Y): number {
   return (liftZeroJudgmentLineY(gearOffsetY) * (100 - liftPercent)) / 100;
