@@ -714,6 +714,12 @@ store·renderer를 모르는 **주입 source 기반 팩토리**(`createTimelineS
 
 **구현**: `src/editor/timeline/TimelineSpace.ts` (팩토리) + `src/editor/hooks/useTimelineSpace.ts` (React 어댑터).
 
+### 원위치 고스트 (Move Origin Ghost)
+
+Select 모드에서 노트나 구간을 끌어 옮기는 동안 **원래 위치에 남는 흐린 사본**. 원래 위치에 불투명도 계수 0.3(`ORIGIN_ALPHA`)으로 흐리게 그려, 무엇이 어디서 옮겨지는 중인지 보여 준다. 지금은 포인트 노트의 기본 도형과 구간 밴드만 흐리게 그리고, 롱노트는 바디와 끝점을 단순한 모양으로 그린다. 노트를 옮기면 노트의 원래 위치에 남는다. `trillZone`을 유닛으로 옮길 때(구간과 안의 트릴 노트가 함께 움직임)와 `restZone`을 유닛으로 옮길 때(안의 노트는 따라가지 않음)는 구간의 원래 위치에도 남는다. 드롭하거나 취소하면 바로 사라진다. 실제 차트 엔티티가 아니며, Create 모드에서 배치 예정 위치를 보여 주는 고스트 프리뷰와 다르다.
+
+**구현**: 원래 위치 목록은 `moveOrigins`(노트)·`trillZoneMoveOrigins`·`restZoneMoveOrigins`이다. Select 모드가 이동 프리뷰(`EditPreview`)에 실어 반환하면 `useCanvasEvents`가 `TimelineRenderer.setMoveOrigins`·`setTrillZoneMoveOrigins`·`setRestZoneMoveOrigins`로 넘기고, 전체 렌더 때 `OverlayRenderer.renderMoveOrigins`가 `moveOriginLayer`에 그린다. 드롭(`SelectMode.handlePointerUp`의 `clearDragPreview`)이나 취소(지금은 두 손가락 `editCancel` → `SelectMode.cancel()`) 때 `TimelineRenderer.clearMoveOrigins`가 목록을 비우고 `OverlayRenderer.clearMoveOriginGhosts`로 그린 원위치 고스트를 바로 지운다. 이 개념을 이름으로 가진 타입·필드가 없다. 데이터 식별자(`moveOrigins` 등)는 원래 위치 목록이고 Ghost가 들어간 식별자는 지우는 메서드 `clearMoveOriginGhosts`뿐이라, 한국어 이름을 쓴다([term-map](term-map.md) 판별 규칙 4).
+
 ---
 
 ## 관련 문서

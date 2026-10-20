@@ -1,8 +1,8 @@
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
-import type { NoteEntity, Beat } from "../../shared";
+import type { NoteEntity, Beat, TrillZone, RestZone } from "../../shared";
 
-/** 이동 드래그 중 한 노트의 원본 위치(고스트로 그려짐). */
+/** 이동 드래그 중 한 노트의 원본 위치(원위치 고스트로 그려짐). */
 export interface MoveOriginDatum {
   note: NoteEntity;
   beat: Beat;
@@ -27,6 +27,10 @@ export interface EditPreview {
   boxSelectRect?: BoxSelectRect;
   /** 이동 드래그 원본 위치들. 있으면 렌더러 setMoveOrigins. */
   moveOrigins?: MoveOriginDatum[];
+  /** 구간 단위로 이동 중인 trillZone들의 원래 위치(원위치 고스트로 그려짐). 있으면 렌더러 setTrillZoneMoveOrigins. */
+  trillZoneMoveOrigins?: TrillZone[];
+  /** 유닛으로 이동 중인 restZone들의 원래 위치(원위치 고스트로 그려짐). 있으면 렌더러 setRestZoneMoveOrigins. */
+  restZoneMoveOrigins?: RestZone[];
 }
 
 /**

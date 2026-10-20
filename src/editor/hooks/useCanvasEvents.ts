@@ -417,6 +417,13 @@ export function useCanvasEvents(
     if (preview?.moveOrigins) {
       renderer.setMoveOrigins(preview.moveOrigins);
     }
+    // 구간 유닛 이동의 원위치(#94) — 노트 원위치와 독립이다(빈 trillZone·restZone만 이동해도 실린다).
+    if (preview?.trillZoneMoveOrigins) {
+      renderer.setTrillZoneMoveOrigins(preview.trillZoneMoveOrigins);
+    }
+    if (preview?.restZoneMoveOrigins) {
+      renderer.setRestZoneMoveOrigins(preview.restZoneMoveOrigins);
+    }
     if (result.clearDragPreview) {
       renderer.clearMoveOrigins();
       renderer.clearBoxSelectRect();
