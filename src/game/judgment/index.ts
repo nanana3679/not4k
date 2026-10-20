@@ -23,6 +23,7 @@ export type { JudgmentChartLike, NoteJudgmentCoreOptions } from "./NoteJudgmentC
 export type {
   JudgmentBodyState,
   JudgmentCore,
+  JudgmentCoreFactory,
   JudgmentCoreOptions,
   JudgmentInput,
   JudgmentEventKind,

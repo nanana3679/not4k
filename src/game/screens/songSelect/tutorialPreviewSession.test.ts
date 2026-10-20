@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { JudgmentCoreFactory } from '../../judgment/JudgmentCore';
+import { NoteJudgmentCore } from '../../judgment/NoteJudgmentCore';
 import { TUTORIAL_PREVIEWS, getTutorialInputTimings } from './tutorialPreviewChart';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
 
@@ -72,6 +74,26 @@ describe('tutorialPreviewSession', () => {
 
     controller.advanceTo(0);
     expect(controller.session.events).toHaveLength(0);
+  });
+
+  it('createTutorialPreviewSessionController에 createCore를 주면 미리보기 세션이 그 코어를 씀(reset 뒤 새 세션 포함)', () => {
+    const preview = TUTORIAL_PREVIEWS.find(item => item.id === 'single-note');
+    if (!preview) throw new Error('single-note preview missing');
+    const created: NoteJudgmentCore[] = [];
+    const createCore: JudgmentCoreFactory = (chart, options) => {
+      const core = new NoteJudgmentCore(chart, options);
+      created.push(core);
+      return core;
+    };
+    const controller = createTutorialPreviewSessionController(preview.chart, getTutorialInputTimings(preview.chart), { createCore });
+    expect(created).toHaveLength(1);
+    expect(controller.session.core).toBe(created[0]);
+    controller.advanceTo(preview.loopMs);
+    expect(created[0].time).toBe(preview.loopMs);
+
+    controller.advanceTo(0);
+    expect(created).toHaveLength(2);
+    expect(controller.session.core).toBe(created[1]);
   });
 });
 

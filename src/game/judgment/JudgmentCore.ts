@@ -1,4 +1,5 @@
 import type { JudgmentWindows } from "../../shared/constants";
+import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
 /**
  * 판정 코어가 공유하는 입력·이벤트 타입과 세션이 쓰는 코어 경계.
@@ -62,3 +63,9 @@ export interface JudgmentCore {
   readonly combo: number;
   readonly bodyStates: readonly JudgmentBodyState[];
 }
+
+/**
+ * 컴파일한 차트로 판정 코어를 만든다. `NoteJudgmentSession`(`createCore`)과 판정 테스트 harness가 같은 경로를 다른 코어로
+ * 돌릴 때 바꿔 넣는다. 둘 다 넘기지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만든다.
+ */
+export type JudgmentCoreFactory = (chart: CompiledJudgmentChart, options: JudgmentCoreOptions) => JudgmentCore;

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { NoteEntity } from "../../shared";
 import { JUDGMENT_WINDOWS_EASY } from "../../shared/constants";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
+import type { JudgmentCoreFactory } from "./JudgmentCore";
+import { NoteJudgmentCore } from "./NoteJudgmentCore";
 import { NoteJudgmentSession, type NoteJudgmentSessionView } from "./NoteJudgmentSession";
 import { body, down, point, up } from "./noteJudgmentTestHarness";
 
@@ -177,5 +179,34 @@ describe("NoteJudgmentSession 곡 끝 대기 기한", () => {
     s.finalize();
     expect(s.core.time).toBe(2181);
     expect(s.events[1]).toMatchObject({ kind: "release", grade: "miss", confirmedAt: 2180 });
+  });
+});
+
+describe("NoteJudgmentSession 판정 코어 생성 함수 주입", () => {
+  it("createCore 없이 만든 세션의 core는 NoteJudgmentCore", () => {
+    expect(session([point(1000)]).core).toBeInstanceOf(NoteJudgmentCore);
+  });
+
+  it("createCore로 넘긴 생성 함수는 컴파일된 차트·판정 창·확정 콜백을 받아 한 번 호출되고 processBatch 1000·advance 1016이 그 코어로 전달됨", () => {
+    const compiled = compileJudgmentChart([point(1000)], [1000], new Map<number, number>());
+    const calls: Parameters<JudgmentCoreFactory>[] = [];
+    const created: NoteJudgmentCore[] = [];
+    const createCore: JudgmentCoreFactory = (chart, options) => {
+      calls.push([chart, options]);
+      const core = new NoteJudgmentCore(chart, options);
+      created.push(core);
+      return core;
+    };
+    const s = new NoteJudgmentSession(compiled, { windows: JUDGMENT_WINDOWS_EASY, createCore });
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe(compiled);
+    expect(calls[0][1]).toMatchObject({ windows: JUDGMENT_WINDOWS_EASY, onConfirmed: expect.any(Function), onBatchConfirmed: expect.any(Function) });
+    expect(s.core).toBe(created[0]);
+    s.processBatch(1000, [down("A")]);
+    s.advance(1016);
+    expect(created[0].time).toBe(1016);
+    expect(created[0].confirmed).toEqual([expect.objectContaining({ kind: "head", grade: "perfect", inputAt: 1000, confirmedAt: 1000 })]);
+    expect(s.events).toEqual(created[0].confirmed);
+    expect(s.finalize()).toMatchObject({ earnedScore: 3, processedNotes: 1 });
   });
 });
