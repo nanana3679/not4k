@@ -1,14 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const SONG_ID = 'dev-skin-song';
-// 곡 길이(초). 재생 구간(2초 ~ 끝 2초 전)이 첫 테스트의 제한 시간 120초와 같아, Esc로 멈추기 전에 곡이 끝나 결과 화면으로 넘어가지 않는다.
-const SONG_SECONDS = 124;
+// 플레이하는 첫 테스트의 제한 시간. 플레이를 네 번(v012·재시도·v001·기본 스킨) 시작하며, 부하가 큰 기계에서는 첫 프레임까지 매번 수 초가 넘게 걸린다.
+const PLAY_TEST_TIMEOUT_MS = 120_000;
+// 곡 길이(초). 재생 구간(2초 ~ 끝 2초 전)이 위 제한 시간과 같아, Esc로 멈추기 전에 곡이 끝나 결과 화면으로 넘어가지 않는다.
+const SONG_SECONDS = PLAY_TEST_TIMEOUT_MS / 1000 + 4;
 const chart = {
   version: 3,
   meta: { title: 'Supabase 스킨 비교', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1, imageFile: '', audioFile: 'audio.wav', previewAudioFile: '', offsetMs: 0 },
+  // 같은 노트 묶음을 2초와 8초에 둔다. 2초 묶음은 곡이 시작될 때 이미 화면 안에 있어 보통 첫 플레이 프레임이 담고,
+  // 첫 플레이 프레임이 늦어도 8초 묶음이 플레이 약 5.8~8.1초에 포인트 2개·바디 2개가 보이는 프레임을 만든다.
   notes: [
     { type: 'single', lane: 1, beat: '4' }, { type: 'long', lane: 1, beat: '4', endBeat: '8' },
     { type: 'double', lane: 2, beat: '4' }, { type: 'doubleLong', lane: 2, beat: '4', endBeat: '8' },
+    { type: 'single', lane: 1, beat: '16' }, { type: 'long', lane: 1, beat: '16', endBeat: '20' },
+    { type: 'double', lane: 2, beat: '16' }, { type: 'doubleLong', lane: 2, beat: '16', endBeat: '20' },
   ],
   trillZones: [], events: [{ type: 'bpm', beat: '0', bpm: 120 }],
 };
@@ -25,9 +31,10 @@ function silentWav() {
 }
 
 async function openSongs(page: Page) {
-  // scrollSpeed 200(설정 최솟값)이면 2초 노트가 재생 전에 그리는 첫 프레임부터 화면 안에 있다. 기본 800이면 포인트 2개·바디 2개가 함께 보이는 구간이
-  // 재생 약 1.5~2.1초뿐이라, 부하로 그 사이 프레임이 없으면 노트 경계를 읽지 못한다. 튜토리얼 재생기는 이 값을 쓰지 않는다.
+  // 포인트 2개·바디 2개가 함께 보이는 구간은 노트 묶음마다 기본 scrollSpeed 800이면 약 0.7초, 200(설정 최솟값)이면 약 2.3초다.
+  // 200이면 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다. 튜토리얼 재생기는 이 값을 쓰지 않는다.
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { isFirstLaunch: false, skinId: 'crystal', masterVolume: 0, scrollSpeed: 200 } }, version: 0 })));
+  const audio = silentWav();
   // Only the Supabase HTTP boundary is replaced. Song selection and LoadingScreen
   // fetch and decode their data through the regular app flow.
   await page.route('**/rest/v1/songs?**', route => route.fulfill({ json: [{
@@ -37,7 +44,7 @@ async function openSongs(page: Page) {
     charts: [{ id: 'dev-chart', song_id: SONG_ID, difficulty_label: 'NORMAL', difficulty_level: 1 }],
   }] }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.json`, route => route.fulfill({ json: chart }));
-  await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/audio.wav*`, route => route.fulfill({ contentType: 'audio/wav', body: silentWav() }));
+  await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/audio.wav*`, route => route.fulfill({ contentType: 'audio/wav', body: audio }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/jacket.svg*`, route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#163851"/></svg>' }));
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
@@ -64,8 +71,7 @@ async function closeSettings(page: Page) {
 }
 
 test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 포인트 위아래 접촉 그림자를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
-  // 플레이를 네 번(v012·재시도·v001·기본 스킨) 시작하며, 부하가 큰 기계에서는 첫 프레임까지 매번 수 초가 넘게 걸린다.
-  test.setTimeout(120_000);
+  test.setTimeout(PLAY_TEST_TIMEOUT_MS);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
@@ -93,7 +99,8 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
       state.__devPlaySkin = self.skinManager.skinId;
       const points = self.noteLayer.children.filter(sprite =>
         ['noteSingle', 'noteDouble'].some(key => sprite.texture === self.skinManager.getTexture(key)));
-      if (points.length === 2 && self.longNoteBodyLayer.children.length === 2) {
+      // deltaMs 0은 재생 전에 그리는 준비 프레임(prepareForPlayback)이라, 게임 루프가 그린 프레임의 노트 경계만 기록한다.
+      if (args[1] !== 0 && points.length === 2 && self.longNoteBodyLayer.children.length === 2) {
         const bounds = ({ x, width }: { x: number; width: number }) => ({ x: x - self.laneAreaX, width });
         const contact = self.skinManager.hasTexture('pointContactShadow')
           ? self.noteLayer.children.filter(sprite => sprite.texture === self.skinManager.getTexture('pointContactShadow'))
@@ -121,6 +128,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
   // 첫 프레임은 차트·오디오 디코드와 스킨 PNG 읽기, Pixi 초기화·텍스처 업로드 뒤에 그려져 부하가 크면 기본 5초를 넘긴다(settings.spec.ts와 같은 30초).
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin), { timeout: 30_000 }).toBe('classic-v012');
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
+  // 곡이 시작된 뒤 게임 루프가 그린 프레임의 노트 경계. 2초 묶음을 놓치면 8초 묶음까지 기다린다.
   await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds), { timeout: 30_000 }).toBeTruthy();
   const bounds = await page.evaluate(() => (window as unknown as {
     __devNoteBounds: {

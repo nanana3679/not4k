@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page, type Locator, type Route } from '@playwright/test';
 
 const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   state: {
@@ -35,10 +35,14 @@ const SONG_LIST_URL = '**/rest/v1/songs?**';
 // 이 스펙은 곡 목록을 쓰지 않으므로 Supabase 응답 대신 빈 목록을 준다. 실제 요청은 부하가 큰 기계에서 30초 넘게 멈추다 "Failed to fetch"로 끝나기도 했다.
 // page.route가 걸린 동안은 모든 요청을 가로채고 캐시를 꺼 앱 로딩이 느려지므로, 곡 선택이 뜰 때까지만 건다.
 async function startSongSelect(page: Page): Promise<void> {
-  await page.route(SONG_LIST_URL, route => route.fulfill({ json: [] }));
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible({ timeout: APP_START_TIMEOUT_MS });
-  await page.unroute(SONG_LIST_URL);
+  const emptySongList = (route: Route) => route.fulfill({ json: [] });
+  await page.route(SONG_LIST_URL, emptySongList);
+  try {
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible({ timeout: APP_START_TIMEOUT_MS });
+  } finally {
+    await page.unroute(SONG_LIST_URL, emptySongList);
+  }
 }
 
 // 설정 모달을 연다. 설정은 곡 선택 위에 모달(role=dialog)로 뜨며, 기본 섹션은 Controls다.
@@ -87,8 +91,9 @@ test.describe('Game Settings', () => {
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 
     // Supply an isolated chart/audio fixture, then let the actual PlayScreen
-    // initialize its renderer and skin. The hook observes rendering; for the
-    // screenshot it stops drawing after the first played frame that shows notes.
+    // initialize its renderer and skin. The hook records only frames drawn after
+    // the song started, and for the screenshot it stops drawing after the first
+    // of them that shows notes and bodies.
     // 오디오를 테스트 제한 시간만큼 길게 두어, 스크린샷 전에 곡이 끝나 결과 화면이 캔버스를 대신하지 않게 한다.
     await page.evaluate(async (audioSeconds) => {
       const win = window as unknown as Record<string, unknown>;
@@ -97,15 +102,13 @@ test.describe('Game Settings', () => {
       const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
       const renderFrame = GameRenderer.prototype.renderFrame;
       GameRenderer.prototype.renderFrame = function (...args) {
-        // 캡처할 프레임을 그린 뒤에는 그리지 않아 캔버스가 그 프레임을 담고 있게 한다. 판정·재생은 그대로 이어진다.
-        if (win.__classicCaptureFrameDrawn) return;
+        // 노트·바디를 담은 플레이 프레임을 그린 뒤에는 그리지 않아 캔버스가 그 프레임을 담고 있게 한다. 판정·재생은 그대로 이어진다.
+        if (win.__classicVisibleNotes) return;
         const result = renderFrame.apply(this, args);
+        // deltaMs 0은 재생 전에 그리는 준비 프레임(prepareForPlayback)이라 기록하지 않는다. 게임 루프가 그린 프레임만 센다.
+        if (args[1] === 0) return result;
         const layers = this as unknown as { noteLayer: {children:{visible:boolean}[]}; longNoteBodyLayer: {children:{visible:boolean}[]} };
-        if (layers.noteLayer.children.some(child=>child.visible) && layers.longNoteBodyLayer.children.some(child=>child.visible)) {
-          win.__classicVisibleNotes = true;
-          // deltaMs 0은 재생 전에 그리는 첫 프레임(prepareForPlayback)이라, 곡이 시작된 뒤의 프레임을 캡처한다.
-          if (args[1] !== 0) win.__classicCaptureFrameDrawn = true;
-        }
+        if (layers.noteLayer.children.some(child=>child.visible) && layers.longNoteBodyLayer.children.some(child=>child.visible)) win.__classicVisibleNotes = true;
         if (!win.__classicPlayFrame) {
           const skin = (this as unknown as { skinManager: import('../../src/game/skin/SkinManager').SkinManager }).skinManager;
           win.__classicPlayFrame = {
@@ -128,6 +131,8 @@ test.describe('Game Settings', () => {
       const state = useGameStore.getState();
       state.setChartData({
         meta: {title:'Classic skin check',artist:'test',difficultyLabel:'NORMAL',difficultyLevel:1,imageFile:'',audioFile:'',previewAudioFile:'',offsetMs:0},
+        // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담는다.
+        // 첫 플레이 프레임이 늦어 1.5초 묶음이 2초에 사라졌어도, 7.5초 묶음이 플레이 약 5.3~8초에 노트·바디가 보이는 프레임을 만든다.
         notes: [
           {type:'single',lane:1,beat:{n:3,d:1}},
           {type:'long',lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
@@ -135,13 +140,19 @@ test.describe('Game Settings', () => {
           {type:'doubleLong',lane:2,beat:{n:3,d:1},endBeat:{n:9,d:1}},
           {type:'trill',lane:3,beat:{n:3,d:1}},
           {type:'trillLong',lane:3,beat:{n:3,d:1},endBeat:{n:9,d:1}},
+          {type:'single',lane:1,beat:{n:15,d:1}},
+          {type:'long',lane:1,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type:'double',lane:2,beat:{n:15,d:1}},
+          {type:'doubleLong',lane:2,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type:'trill',lane:3,beat:{n:15,d:1}},
+          {type:'trillLong',lane:3,beat:{n:15,d:1},endBeat:{n:21,d:1}},
         ],
-        trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:10,d:1}}],
+        trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:22,d:1}}],
         events:[{type:'bpm',beat:{n:0,d:1},bpm:120}],
       });
       state.setAudioBuffer(new AudioBuffer({numberOfChannels:1,length:44100*audioSeconds,sampleRate:44100}));
-      // 200(설정 최솟값)이면 1.5초 노트가 재생 전에 그리는 첫 프레임(prepareForPlayback)부터 화면 안(판정선 426 위 약 300px)에 있다.
-      // 400이면 노트가 재생 약 0.4~2초에만 화면에 있어, 부하로 그 사이 프레임이 없으면 노트·바디가 함께 보이는 프레임을 놓친다.
+      // 포인트 노트는 화면 위끝에 든 뒤 판정 시각 + 500ms(늦은 노트 창)까지 그려진다. 200(설정 최솟값)이면 그 시간이 약 2.7초(400이면 약 1.6초)라
+      // 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다.
       state.updateSettings({masterVolume:0,scrollSpeed:200});
       useGameStore.setState({screen:'play',startTimeMs:0,editorReturnUrl:null});
     }, PLAY_TEST_TIMEOUT_MS / 1000);
@@ -159,9 +170,10 @@ test.describe('Game Settings', () => {
     }
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
-    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: PLAY_TIMEOUT_MS });
+    await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
+    // 곡이 시작된 뒤 게임 루프가 그린 프레임에 노트·바디가 보였는지. 1.5초 묶음을 놓치면 7.5초 묶음까지 기다린다.
     await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes)), { timeout: PLAY_TIMEOUT_MS }).toBe(true);
-    // 육안 확인용 산출물이다(픽셀 비교 없음). 캡처가 늦어도 훅이 멈춰 둔 노트 프레임을 담는다.
+    // 육안 확인용 산출물이다(픽셀 비교 없음). 훅이 그 프레임에서 그리기를 멈췄으므로 캡처가 늦어도 그 프레임을 담는다.
     await page.getByTestId('gameplay-canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});
   });
 
@@ -195,7 +207,7 @@ test.describe('Game Settings', () => {
         await dialog.getByLabel('Key Bomb Size').fill(String(scale));
         await expect(dialog.getByText(scale === 0 ? '0.0× (Off)' : '3.0×', { exact: true })).toBeVisible();
         await page.reload();
-        await page.getByRole('button', { name: 'Start', exact: true }).click();
+        await startSongSelect(page);
 
         await page.evaluate(async () => {
           const win = window as unknown as Record<string, unknown>;
