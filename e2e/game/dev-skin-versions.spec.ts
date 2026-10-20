@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const SONG_ID = 'dev-skin-song';
+// 곡 길이(초). 재생 구간(2초 ~ 끝 2초 전)이 첫 테스트의 제한 시간 120초와 같아, Esc로 멈추기 전에 곡이 끝나 결과 화면으로 넘어가지 않는다.
+const SONG_SECONDS = 124;
 const chart = {
   version: 3,
   meta: { title: 'Supabase 스킨 비교', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1, imageFile: '', audioFile: 'audio.wav', previewAudioFile: '', offsetMs: 0 },
@@ -13,7 +15,7 @@ const chart = {
 
 function silentWav() {
   const rate = 8000;
-  const wav = Buffer.alloc(44 + rate * 12 * 2);
+  const wav = Buffer.alloc(44 + rate * SONG_SECONDS * 2);
   wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
   wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
   wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28);
@@ -23,13 +25,15 @@ function silentWav() {
 }
 
 async function openSongs(page: Page) {
-  await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { isFirstLaunch: false, skinId: 'crystal', masterVolume: 0 } }, version: 0 })));
+  // scrollSpeed 200(설정 최솟값)이면 2초 노트가 재생 전에 그리는 첫 프레임부터 화면 안에 있다. 기본 800이면 포인트 2개·바디 2개가 함께 보이는 구간이
+  // 재생 약 1.5~2.1초뿐이라, 부하로 그 사이 프레임이 없으면 노트 경계를 읽지 못한다. 튜토리얼 재생기는 이 값을 쓰지 않는다.
+  await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { isFirstLaunch: false, skinId: 'crystal', masterVolume: 0, scrollSpeed: 200 } }, version: 0 })));
   // Only the Supabase HTTP boundary is replaced. Song selection and LoadingScreen
   // fetch and decode their data through the regular app flow.
   await page.route('**/rest/v1/songs?**', route => route.fulfill({ json: [{
     id: SONG_ID, title: chart.meta.title, artist: 'test', audio_url: `songs/${SONG_ID}/audio.wav`,
-    duration: 12, preview_url: null, preview_start: 0, preview_end: 1, jacket_url: `songs/${SONG_ID}/jacket.svg`,
-    gameplay_start: 2, gameplay_end: 10, gameplay_fade_in: 0, gameplay_fade_out: 0,
+    duration: SONG_SECONDS, preview_url: null, preview_start: 0, preview_end: 1, jacket_url: `songs/${SONG_ID}/jacket.svg`,
+    gameplay_start: 2, gameplay_end: SONG_SECONDS - 2, gameplay_fade_in: 0, gameplay_fade_out: 0,
     charts: [{ id: 'dev-chart', song_id: SONG_ID, difficulty_label: 'NORMAL', difficulty_level: 1 }],
   }] }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.json`, route => route.fulfill({ json: chart }));
@@ -60,6 +64,8 @@ async function closeSettings(page: Page) {
 }
 
 test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 포인트 위아래 접촉 그림자를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+  // 플레이를 네 번(v012·재시도·v001·기본 스킨) 시작하며, 부하가 큰 기계에서는 첫 프레임까지 매번 수 초가 넘게 걸린다.
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openSongs(page);
@@ -112,9 +118,10 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   expect((await chartResponse).status()).toBe(200);
   expect((await audioResponse).status()).toBe(200);
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v012');
+  // 첫 프레임은 차트·오디오 디코드와 스킨 PNG 읽기, Pixi 초기화·텍스처 업로드 뒤에 그려져 부하가 크면 기본 5초를 넘긴다(settings.spec.ts와 같은 30초).
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin), { timeout: 30_000 }).toBe('classic-v012');
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds)).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devNoteBounds), { timeout: 30_000 }).toBeTruthy();
   const bounds = await page.evaluate(() => (window as unknown as {
     __devNoteBounds: {
       points: Array<{ x: number; width: number }>; bodies: Array<{ x: number; width: number }>;
@@ -146,7 +153,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(url);
     const state = useGameStore.getState();
     return { title: state.chartData?.meta.title, song: state.selectedSongId, audioDuration: state.audioBuffer?.duration, range: state.selectedPlaybackRange };
-  })).toEqual({ title: chart.meta.title, song: SONG_ID, audioDuration: 12, range: { startTime: 2, endTime: 10, fadeInTime: 0, fadeOutTime: 0 } });
+  })).toEqual({ title: chart.meta.title, song: SONG_ID, audioDuration: SONG_SECONDS, range: { startTime: 2, endTime: SONG_SECONDS - 2, fadeInTime: 0, fadeOutTime: 0 } });
 
   await page.keyboard.press('Escape');
   const oldCanvas = await page.getByTestId('gameplay-canvas').elementHandle();
@@ -160,14 +167,14 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
   await page.getByLabel('개발용 스킨').selectOption('v001');
   await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('classic-v001');
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin), { timeout: 30_000 }).toBe('classic-v001');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
   await openSkinSettings(page);
   await page.getByLabel('개발용 스킨').selectOption('settings');
   await closeSettings(page);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin)).toBe('crystal');
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin), { timeout: 30_000 }).toBe('crystal');
   expect(await page.evaluate(() => localStorage.getItem('not4k-settings'))).toBe(settingsBefore);
   expect(errors).toEqual([]);
 });
