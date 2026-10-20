@@ -1,6 +1,6 @@
 # RFD 0018: 레인 단일 모델 — Extra 노트를 차트의 확장 레인으로 통합
 
-**Status:** Accepted (2026-07-12) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정) · **구현 완료 (2026-07-13, ①~⑤ 전량 main merged: PR #96 문서·#97 ③ store flip·#98 ④⑤ 이원축 제거+D3+docs)**
+**Status:** Accepted (2026-07-12) — §8 미결 grilling으로 전량 확정 · 개정 R1 (`laneAxis` 경계 레이어·라이브 진입 경계) · 개정 R2 (슬라이스 착지 전략 shim+store flip, `laneAxis` 프리미티브 보강, D3 상태 정정 — R2 리뷰에서 R1 발견 전량 RESOLVED 판정) · **구현 완료 (2026-07-13, ①～⑤ 전량 main merged: PR #96 문서·#97 ③ store flip·#98 ④⑤ 이원축 제거+D3+docs)**
 
 **관련 문서:**
 
@@ -117,7 +117,7 @@ Extra 노트는 "게임 플레이에 등장하지 않는 에디터 보조 노트
    - **③ 원자 store flip**: 보조 노트를 `chart.notes`로 이주 + `extraNotes[]` 삭제 + **writer 전환**(저장 분리·로드 병합·dirty 스냅샷·히스토리 단일화)을 한 커밋으로 — 리더가 이미 shim을 소비 중이라 폭발 반경이 writer/store로 국한. 저장 분리+로드 병합은 왕복 짝이라 반드시 이 커밋에 함께
    - **④** 선택/드래그 세분(박스 2축 제거 / 크로싱 제거 / moveExtra 흡수) → **⑤** docs
    - (기각: 초안의 "②저장→⑤렌더" 순서 — 데이터 이주(②)와 리더 전환(⑤) 사이 중간 커밋이 red가 되는 결함을 R2가 실측)
-2. `Lane` 참조 총 26파일 중 **전환 대상 ~18**(에디터·모델 → `number`), **게임 8파일은 `Lane` 유지**. `as Lane` 캐스트 비테스트 16지점(테스트 포함 196 — green엔 무영향이나 테스트 수정 작업량 주의). 타입만으로 lane>4 유입을 못 잡으므로 게임 경계 필터에 **테스트를 명시**.
+2. `Lane` 참조 총 26파일 중 **전환 대상 약 18파일**(에디터·모델 → `number`), **게임 8파일은 `Lane` 유지**. `as Lane` 캐스트 비테스트 16지점(테스트 포함 196 — green엔 무영향이나 테스트 수정 작업량 주의). 타입만으로 lane>4 유입을 못 잡으므로 게임 경계 필터에 **테스트를 명시**.
 3. 직렬화 경계는 1모듈이 아니라 **3사이트**: 저장 분리(`chartAssetPersistence.buildChartAsset`) + **에디터 로드 병합**(`App.tsx:137-154` — legacy-embedded fallback·`maxUsedLane` 자동 확장과 엉킴, 그 보장 계승 필수) + **dirty 스냅샷**(App·EditorToolbar의 별도 `serializeExtraNotes` 비교). 자동 저장·백업·export 등 제4 경로 없음(R2 전수 확인). **추가 제약 2건**: (a) 로드 직후 `auxNotes()+toAuxIndex` 재직렬화가 원본 보조 파일과 **바이트 동일**해야 허위 dirty가 안 뜬다 — 보조 노트의 상대 순서 보존 필수. (b) `SaveChartAssetInput`에서 `extraNotes` 필드는 제거(차트에서 파생)하되 `extraLaneCount`는 유지(§8-3).
 4. 로드 병합: 기존 보조 파일(`parseExtraNotes`) → `laneAxis.fromAuxIndex` 매핑. 저장 시 역매핑. 마이그레이션 불요(포맷 무변경).
 5. `extraLaneCount` 축소 시 범위 밖(lane > 4+N) 노트는 **숨김 유지**(§8-4 결정 — 현행 계승): 데이터는 남고 표시만 사라지며, 레인 수를 되돌리면 다시 보인다. 숨은 위반의 저장 차단 안내는 §3-6.

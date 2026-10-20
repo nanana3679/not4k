@@ -6,4 +6,4 @@
 
 위·아래·양옆의 날카로운 기계 건축과 공극이 멀리 겹치는 한 장의 배경이다. 현재 적용은 천장·바닥·벽을 독립된 입체 면으로 복원하는 것이 아니라, 건물과 광원 뒤의 전체 원경 그림이다. 본편 에셋 확정이나 사용자 미술 승인을 의미하지 않는다.
 
-적용 위치: [빛과 A~H 통합 시연](../../prototypes/breakthrough-hangar-integration-20260910/NOTES.md). `backdrop=architecture`로 표시하고 밝기를 비교한다. 기존 입체 주변 건축과 하부 연결은 별도 선택이다.
+적용 위치: [빛과 A～H 통합 시연](../../prototypes/breakthrough-hangar-integration-20260910/NOTES.md). `backdrop=architecture`로 표시하고 밝기를 비교한다. 기존 입체 주변 건축과 하부 연결은 별도 선택이다.

@@ -1,6 +1,6 @@
 # 비행 연출 시연과 미술 탐색 기록
 
-현재 검수 대상은 [세 난이도 공개 배경 미리보기](prototypes/flight-background-preview-20260913/NOTES.md)다. `LIFTOFF`·`INFILTRATION`·`BREAKTHROUGH`를 한 페이지에서 전환하며 장면별 고도만 조절한다. 돌파 실행 원본은 [돌파 광원 + A~H 건축 시연](prototypes/breakthrough-hangar-integration-20260910/NOTES.md)을 재사용한다. 두 시연 모두 게임 본편과 독립되어 있다.
+현재 검수 대상은 [세 난이도 공개 배경 미리보기](prototypes/flight-background-preview-20260913/NOTES.md)다. `LIFTOFF`·`INFILTRATION`·`BREAKTHROUGH`를 한 페이지에서 전환하며 장면별 고도만 조절한다. 돌파 실행 원본은 [돌파 광원 + A～H 건축 시연](prototypes/breakthrough-hangar-integration-20260910/NOTES.md)을 재사용한다. 두 시연 모두 게임 본편과 독립되어 있다.
 
 ## 저장 범위
 
@@ -45,7 +45,7 @@ Lab의 `/lab/facility-passage`에서 바로 열거나 같은 화면에서 `시�
 
 ## 분리 검증 (2026-09-10)
 
-새 작업 폴더에서 시연 단위 테스트 110개, 브라우저 검사 252개를 통과했다. A~H 전환·같은 원근·앞뒤 가림·원거리 접근·정지·모바일 표시·원경 안개·배경 확대의 고도 및 반복 경계 회귀를 포함한다. 실행 코드와 PNG 64개 파일은 분리 전 원본과 바이트가 일치한다.
+새 작업 폴더에서 시연 단위 테스트 110개, 브라우저 검사 252개를 통과했다. A～H 전환·같은 원근·앞뒤 가림·원거리 접근·정지·모바일 표시·원경 안개·배경 확대의 고도 및 반복 경계 회귀를 포함한다. 실행 코드와 PNG 64개 파일은 분리 전 원본과 바이트가 일치한다.
 
 본편 단위 테스트 2,049개도 통과했다. 새 작업 폴더에는 기존 로컬 환경 파일을 복사하지 않았으므로, 본편 검사에만 `VITE_SUPABASE_URL=http://127.0.0.1:9`와 `VITE_SUPABASE_PUBLISHABLE_KEY=test-public-key`를 주입했다. 실제 Supabase 연결 검증 결과를 뜻하지 않는다. 이 환경 변수는 독립 비행 시연에는 필요 없다.
 
