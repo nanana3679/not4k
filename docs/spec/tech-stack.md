@@ -409,7 +409,7 @@ locales/
 
 ## 6. 배포: Vercel
 
-앱(게임과 에디터)은 GitHub 저장소와 연결한 Vercel 프로젝트로 배포한다(2026-05-22 `vercel.json` 추가부터). 기술 스택을 처음 정할 때는 무료 대역폭이 무제한이라는 이유로 Cloudflare Pages를 골랐지만, 지금은 Vercel을 쓴다. Lab 미리보기는 따로 GitHub Pages에 배포한다([Lab 미리보기 카탈로그](./lab-preview-catalog.md)).
+앱(게임과 에디터)은 GitHub 저장소와 연결한 Vercel 프로젝트로 배포한다(`vercel.json`은 2026-05-22에 추가). 프로덕션 주소는 `https://not4k.vercel.app`이다. 기술 스택을 처음 정할 때는 무료 대역폭이 무제한이라는 이유로 Cloudflare Pages를 골랐지만, 지금은 Vercel을 쓴다. Lab 미리보기는 따로 GitHub Pages에 배포한다([Lab 미리보기 카탈로그](./lab-preview-catalog.md)).
 
 ### 배포 아키텍처
 
@@ -418,7 +418,7 @@ locales/
     │
     │  push / PR
     ▼
-[Vercel]  ──빌드──→  정적 사이트 (React + PixiJS 번들)
+[Vercel]            ──빌드──→  정적 사이트 (React + PixiJS 번들)
     │                          │
     │  CDN                     │  클라이언트에서 직접 접근
     ▼                          ▼
@@ -428,7 +428,7 @@ locales/
                               └── Storage (음원, 차트, 이미지)
 ```
 
-Vercel에는 빌드한 **정적 사이트만** 올린다(서버리스 함수 없음). 서버 로직은 Supabase (DB, Auth, Storage, Edge Functions)에서 처리한다. 클라이언트(React 앱)가 Supabase에 직접 접근하며, 별도의 중간 서버가 필요 없다. 음원·차트·이미지는 Supabase Storage에 두므로 배포 결과물에는 앱 번들과 `public/`의 정적 에셋만 들어간다.
+Vercel은 빌드한 **정적 사이트만** 호스팅한다(서버리스 함수 없음). 서버 쪽 일은 Supabase(DB, Auth, Storage)가 맡고, 필요하면 Edge Functions를 쓴다. 클라이언트(React 앱)가 Supabase에 직접 접근하며, 별도의 중간 서버가 필요 없다. 곡 에셋(음원·차트 JSON·자켓 이미지)은 Supabase Storage에 두므로, 배포 결과물에는 앱 번들(코드가 import한 이미지 포함)과 `public/`의 정적 에셋(`public/lab` 제외)만 들어간다.
 
 ### 배포 흐름
 
@@ -436,7 +436,7 @@ Vercel에는 빌드한 **정적 사이트만** 올린다(서버리스 함수 없
 2. Vercel이 자동으로 빌드해 배포
 3. PR마다 프리뷰 배포가 만들어지고, PR 검사에 `Vercel` 결과가 붙는다
 4. `/game`·`/editor` 같은 앱 경로는 `vercel.json`의 rewrite로 모두 `index.html`을 받는다(SPA)
-5. 커스텀 도메인 연결 (예: `not4k.com`)
+5. (예정) 커스텀 도메인 연결 (예: `not4k.com`)
 
 ### 환경 변수
 
@@ -447,7 +447,7 @@ VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 ```
 
-서비스 키(service_role)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
+secret 키(`sb_secret_…`, Postgres `service_role` 역할)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
 
 ---
 
@@ -535,7 +535,7 @@ not4k/
 
 ### 에디터 배포
 
-게임과 에디터가 하나의 앱으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터(`/editor`)는 앱 안에서 admin 권한을 확인해 막는다(admin이 아니면 Access Denied 화면, `src/editor/App.tsx`).
+게임과 에디터가 하나의 앱으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터(`/editor`)는 앱 안에서 admin 권한을 확인해 막는다(admin이 아니면 Access Denied 화면, `src/editor/App.tsx`). 이 확인은 화면만 막고, 쓰기는 Supabase RLS가 admin에게만 허용한다(`supabase/RLS_POLICIES.md`).
 
 | 단계 | 배포 방식 | 이유 |
 |------|----------|------|
@@ -561,4 +561,4 @@ not4k/
 - 게임 코어 설계: `game-core.md`
 - 차트 에디터 (데이터 모델): `chart-editor.md`
 - 프로젝트 에셋 (수급 전략): `project-assets.md`
-- 문서 리뷰 통합: `review.md`
+- 문서 리뷰 통합: `docs/context/review.md`
