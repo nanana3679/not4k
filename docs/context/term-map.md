@@ -61,7 +61,7 @@
 | 분할 릴리즈 | 분할 릴리즈 | `D=-` |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
 | 고도 게이지 시연 (← 게이지 "승인 시연" 개명. "승인"으로는 누가 언제 승인했는지 드러나지 않는다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
-| 원위치 고스트 | 원위치 고스트 | 구현: `moveOrigins`·`trillZoneMoveOrigins`·`restZoneMoveOrigins`(원래 위치 목록), `renderMoveOrigins`·`clearMoveOrigins`·`clearMoveOriginGhosts` — 식별자가 원래 위치 목록을 가리켜 "흐린 사본"이라는 뜻을 못 담아 캐논 부적합 (2026-10-20) |
+| 원위치 고스트 | 원위치 고스트 | 구현: `moveOrigins`/`trillZoneMoveOrigins`/`restZoneMoveOrigins`(원래 위치 목록), `OverlayRenderer.renderMoveOrigins`/`clearMoveOriginGhosts`, `TimelineRenderer.clearMoveOrigins`, `ORIGIN_ALPHA` — 개념을 이름으로 가진 타입·필드가 없다. 데이터 식별자는 원래 위치 목록이고 Ghost가 들어간 식별자는 지우는 메서드 `clearMoveOriginGhosts`뿐이라 캐논 부적합 (2026-10-20) |
 
 ## D. 손·키·패턴 계층 어휘 (2026-06-30 정리, 모두 한국어 유지)
 
