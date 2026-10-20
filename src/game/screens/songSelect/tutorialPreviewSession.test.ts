@@ -76,7 +76,7 @@ describe('tutorialPreviewSession', () => {
     expect(controller.session.events).toHaveLength(0);
   });
 
-  it('createTutorialPreviewSessionController에 createCore를 주면 미리보기 세션이 그 코어를 씀(reset 뒤 새 세션 포함)', () => {
+  it('single-note 미리보기 controller에 createCore를 주면 첫 세션이 그 생성 함수의 코어 1개를 쓰고, loopMs까지 진행한 뒤 advanceTo(0)으로 reset한 새 세션도 그 생성 함수의 2번째 코어를 씀', () => {
     const preview = TUTORIAL_PREVIEWS.find(item => item.id === 'single-note');
     if (!preview) throw new Error('single-note preview missing');
     const created: NoteJudgmentCore[] = [];

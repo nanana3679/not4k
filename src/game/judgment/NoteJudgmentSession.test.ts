@@ -187,7 +187,7 @@ describe("NoteJudgmentSession 판정 코어 생성 함수 주입", () => {
     expect(session([point(1000)]).core).toBeInstanceOf(NoteJudgmentCore);
   });
 
-  it("createCore로 넘긴 생성 함수는 컴파일된 차트·판정 창·확정 콜백을 받아 한 번 호출되고 processBatch 1000·advance 1016이 그 코어로 전달됨", () => {
+  it("createCore로 넘긴 생성 함수는 차트·판정 창·확정 콜백을 받아 1회 호출되고, point 1000에 A down 1000이면 그 코어의 head Perfect 1건이 세션 onBatchConfirmed view(at 1000·콤보 1)로 전달되며 advance 1016이 그 코어 time이 됨", () => {
     const compiled = compileJudgmentChart([point(1000)], [1000], new Map<number, number>());
     const calls: Parameters<JudgmentCoreFactory>[] = [];
     const created: NoteJudgmentCore[] = [];
@@ -197,15 +197,24 @@ describe("NoteJudgmentSession 판정 코어 생성 함수 주입", () => {
       created.push(core);
       return core;
     };
-    const s = new NoteJudgmentSession(compiled, { windows: JUDGMENT_WINDOWS_EASY, createCore });
+    const views: NoteJudgmentSessionView[] = [];
+    const s = new NoteJudgmentSession(compiled, {
+      windows: JUDGMENT_WINDOWS_EASY,
+      createCore,
+      onBatchConfirmed: view => { if (view.events.length) views.push(view); },
+    });
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe(compiled);
-    expect(calls[0][1]).toMatchObject({ windows: JUDGMENT_WINDOWS_EASY, onConfirmed: expect.any(Function), onBatchConfirmed: expect.any(Function) });
+    expect(calls[0][1]).toMatchObject({ windows: JUDGMENT_WINDOWS_EASY });
     expect(s.core).toBe(created[0]);
     s.processBatch(1000, [down("A")]);
     s.advance(1016);
     expect(created[0].time).toBe(1016);
     expect(created[0].confirmed).toEqual([expect.objectContaining({ kind: "head", grade: "perfect", inputAt: 1000, confirmedAt: 1000 })]);
+    // 주입한 코어가 세션이 넘긴 onConfirmed·onBatchConfirmed를 불러야 세션 view와 확정 효과가 생긴다.
+    expect(views.map(view => ({ at: view.at, combo: view.combo, effects: view.effects.length }))).toEqual([{ at: 1000, combo: 1, effects: 1 }]);
+    expect(views.flatMap(view => view.events)).toEqual(created[0].confirmed);
+    expect(views.flatMap(view => view.effects)).toEqual(s.effects);
     expect(s.events).toEqual(created[0].confirmed);
     expect(s.finalize()).toMatchObject({ earnedScore: 3, processedNotes: 1 });
   });

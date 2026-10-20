@@ -28,7 +28,7 @@ describe("playHolds 누름 구간 재생", () => {
 });
 
 describe("판정 테스트 harness의 코어 생성 함수", () => {
-  it("harness에 코어 생성 함수를 주면 playHolds가 그 코어로 실행됨", () => {
+  it("playHolds에 코어 생성 함수를 주면 point 1000 + body [1000,2000]·A 1000–2000을 그 생성 함수로 만든 코어 1개로 재생해 head·release Perfect", () => {
     const created: NoteJudgmentCore[] = [];
     const createCore: JudgmentCoreFactory = (chart, options) => {
       const core = new NoteJudgmentCore(chart, options);
