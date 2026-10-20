@@ -470,7 +470,7 @@ Cloudflare Pages 대시보드에서 설정:
 
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJxxxxx
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 ```
 
 서비스 키(service_role)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
