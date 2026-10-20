@@ -22,7 +22,7 @@ export function fullscreenLogicalWidth(width: number, height: number): number {
 }
 
 /**
- * Lab의 리프트 슬라이더 범위(게임 설정은 0~100%). 1%는 게임과 같이 레인 위끝~리프트 0% 판정선 길이의 1%(`liftPx`)라
+ * Lab의 리프트 슬라이더 범위(게임 설정은 0~100%). 1%는 게임과 같이 레인 위끝~리프트 0% 판정선 높이의 1%(`liftPx`)라
  * 게임 값 y 오프셋 10에서 4.26 단위, 다른 y 오프셋이면 그 판정선 기준이다(#291).
  */
 export const LIFT_PERCENT_MAX = 10;
