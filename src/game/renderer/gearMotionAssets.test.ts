@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import motionJsonText from '../../../public/gear/gear-motion/gear-motion.json?raw';
 
 const { assetsLoad, assetsUnload, gate } = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ vi.mock('pixi.js', () => ({ Assets: { load: assetsLoad, unload: assetsUnload } }
 
 import { acquireGearMotionAssets } from './gearMotionAssets';
 import { GEAR_MOTION_TEXTURE_KEYS } from './gearMotionData';
-import { sharedAssetReferenceCount } from '../skin/sharedAssets';
+import { releaseSharedAsset, retainSharedAsset, sharedAssetReferenceCount } from '../skin/sharedAssets';
 
 const requestPath = (request: unknown) => (typeof request === 'string' ? request : (request as { src: string }).src);
 const loadedPaths = () => assetsLoad.mock.calls.map(([request]) => requestPath(request));
@@ -69,15 +69,24 @@ describe('acquireGearMotionAssets — gearMotion 에셋 공유 로더', () => {
     expect(sharedAssetReferenceCount('/gear/gear-motion/armor-lit.png')).toBe(0);
   });
 
-  it('JSON을 읽는 동안 lease를 release하면 PNG를 하나도 읽지 않고 ready는 거절되며, release를 두 번 불러도 JSON 경로는 한 번만 release한다', async () => {
+  it('JSON을 읽는 동안 lease를 release하면 PNG를 하나도 읽지 않고 ready는 거절되며, 다른 소유자도 JSON 경로를 retain하고 있으면 release를 두 번 불러도 JSON 경로의 reference count는 2에서 1로 한 번만 줄어든다', async () => {
+    const jsonPath = '/gear/gear-motion/gear-motion.json';
     let open!: () => void;
     gate.json = new Promise<void>((resolve) => { open = resolve; });
+    // lease만 retain했다면 JSON 경로를 두 번 release해도 reference count는 0으로 읽힌다(0 이하면 항목을 지운다).
+    // 소유자를 하나 더 두어 두 번째 release가 1 대신 0으로 드러나게 한다.
+    retainSharedAsset(jsonPath);
+    // 단언이 실패해도 추가 소유자를 지워 다음 테스트로 reference count가 새지 않게 한다.
+    onTestFinished(() => releaseSharedAsset(jsonPath));
     const lease = acquireGearMotionAssets((path) => path);
+    const jsonReferenceCounts = [sharedAssetReferenceCount(jsonPath)];
     lease.release();
+    jsonReferenceCounts.push(sharedAssetReferenceCount(jsonPath));
     lease.release();
-    expect(sharedAssetReferenceCount('/gear/gear-motion/gear-motion.json')).toBe(0);
+    jsonReferenceCounts.push(sharedAssetReferenceCount(jsonPath));
     open();
     await expect(lease.ready).rejects.toThrow('released');
+    expect(jsonReferenceCounts).toEqual([2, 1, 1]);
     expect(loadedPaths().filter((path) => path.endsWith('.png'))).toEqual([]);
   });
 
