@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
+import type { JudgmentCoreFactory } from "./JudgmentCore";
 import { NoteJudgmentCore } from "./NoteJudgmentCore";
-import { body, playHolds } from "./noteJudgmentTestHarness";
+import { body, playHolds, point } from "./noteJudgmentTestHarness";
 
 describe("playHolds 누름 구간 재생", () => {
   it("[A, 1000, 1000]처럼 up이 down보다 늦지 않은 구간은 up이 먼저 들어가 계속 누른 것이 되므로 예외", () => {
@@ -23,5 +24,21 @@ describe("playHolds 누름 구간 재생", () => {
     } finally {
       batches.mockRestore();
     }
+  });
+});
+
+describe("판정 테스트 harness의 코어 생성 함수", () => {
+  it("harness에 코어 생성 함수를 주면 playHolds가 그 코어로 실행됨", () => {
+    const created: NoteJudgmentCore[] = [];
+    const createCore: JudgmentCoreFactory = (chart, options) => {
+      const core = new NoteJudgmentCore(chart, options);
+      created.push(core);
+      return core;
+    };
+    const h = playHolds([point(1000), body(1000, 2000)], [["A", 1000, 2000]], {}, [], createCore);
+    expect(created).toHaveLength(1);
+    expect(h.core).toBe(created[0]);
+    expect(created[0].time).toBe(2000 + JUDGMENT_WINDOWS.GOOD + 1);
+    expect(h.events.map(event => [event.kind, event.grade])).toEqual([["head", "perfect"], ["release", "perfect"]]);
   });
 });

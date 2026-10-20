@@ -2,8 +2,12 @@ import { JUDGMENT_WINDOWS, type Lane } from "../../shared/constants";
 import type { NoteEntity, PointNote, RangeNote, TrillZone } from "../../shared/types";
 import { ScoreManager } from "../scoring/ScoreManager";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
-import { NoteJudgmentCore, type NoteJudgmentEvent, type NoteJudgmentCoreOptions } from "./NoteJudgmentCore";
+import type { JudgmentCoreFactory, JudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
+import { NoteJudgmentCore } from "./NoteJudgmentCore";
 import { decideConfirmedJudgmentEffects } from "./confirmedJudgmentEffects";
+
+/** 기존 등록 키 코어(RFD 0020). harness의 기본값이며 실제 게임이 쓰는 코어다. */
+export const createNoteJudgmentCore: JudgmentCoreFactory = (chart, options) => new NoteJudgmentCore(chart, options);
 
 // 사례의 ms 수치를 Beat에도 그대로 사용해 정확한 인접 관계를 보존한다.
 export function point(at: number, type: PointNote["type"] = "single", lane: Lane = 1): PointNote {
@@ -18,14 +22,14 @@ export interface CaseInput { key: string; lane?: Lane; type: "down" | "up" }
 export const down = (key: string, lane: Lane = 1): CaseInput => ({ key, lane, type: "down" });
 export const up = (key: string, lane: Lane = 1): CaseInput => ({ key, lane, type: "up" });
 
-export function createHarness(notes: readonly NoteEntity[], options: NoteJudgmentCoreOptions = {}, zones: readonly TrillZone[] = []) {
+export function createHarness(notes: readonly NoteEntity[], options: JudgmentCoreOptions = {}, zones: readonly TrillZone[] = [], createCore: JudgmentCoreFactory = createNoteJudgmentCore) {
   const starts = new Map(notes.map((note, index) => [index, note.beat.n / note.beat.d]));
   const ends = new Map<number, number>();
   notes.forEach((note, index) => { if ("endBeat" in note) ends.set(index, note.endBeat.n / note.endBeat.d); });
   const compiled = compileJudgmentChart(notes, starts, ends, zones);
   const score = new ScoreManager(compiled.scoreItems, options.windows);
   const events: NoteJudgmentEvent[] = [];
-  const core = new NoteJudgmentCore(compiled, {
+  const core = createCore(compiled, {
     ...options,
     onConfirmed(event) {
       events.push(event);
@@ -68,8 +72,8 @@ export type KeyHold = readonly [key: string, downAt: number, upAt?: number];
  * 먼저 넣어 구간을 적은 순서와 관계없이 떼고 다시 누른 것으로 재생한다. 같은 키의 구간이 겹치거나 up이 down보다 늦지 않으면
  * (길이 0인 구간은 up이 먼저 들어가 계속 누른 것이 되므로) 예외를 던진다.
  */
-export function playHolds(notes: readonly NoteEntity[], holds: readonly KeyHold[], options: NoteJudgmentCoreOptions = {}, zones: readonly TrillZone[] = []) {
-  const h = createHarness(notes, options, zones);
+export function playHolds(notes: readonly NoteEntity[], holds: readonly KeyHold[], options: JudgmentCoreOptions = {}, zones: readonly TrillZone[] = [], createCore: JudgmentCoreFactory = createNoteJudgmentCore) {
+  const h = createHarness(notes, options, zones, createCore);
   const byKey = new Map<string, KeyHold[]>();
   for (const hold of holds) {
     if (hold[2] !== undefined && hold[2] <= hold[1]) throw new Error(`키 ${hold[0]}의 up이 down보다 늦지 않음: ${hold.join("–")}`);
