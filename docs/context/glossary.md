@@ -52,7 +52,7 @@
 
 노트가 레인 위끝(서든을 쓰면 서든 커버 아래끝)에 처음 보이고 판정선에 닿기까지 걸리는 시간이다. 비트매니아 IIDX의 녹색 숫자(green number)를 가리키는 한국 리듬게임 커뮤니티 이름이다. IIDX의 녹색 숫자는 60Hz 기준 프레임 수의 10배라(녹숫 300 ≈ 0.5초) 단위가 다르며, not4k는 시간(초·ms)으로 다룬다. 스크롤 속도(`scrollSpeed`, px/초)·리프트(판정선 높이)·서든이 모두 이 값 하나로 모이므로, 사용자마다 다른 설정을 한 숫자로 비교할 때 쓴다. 게임 설정 화면에는 아직 표시하지 않는다. 기본 설정(스크롤 속도 800, 리프트 0%, 판정선 y 426)에서는 약 0.54초다.
 
-**추정 녹숫**은 차트 Lv.마다 정하는 기준 녹숫으로, 그 Lv.를 치는 사용자가 흔히 쓸 녹숫을 추정한 값이다. `restZone` 판넬 연출 시안([Lab `restZone Lane`](../spec/lab-preview-catalog.md#restzone-lane))의 전환 시각과 [`restZone` 최소 길이 지침](chart-design.md#9-restzone은-판넬-연출이-들어갈-만큼-길게-잡는다)의 기준이다. Lv.별 값은 아직 정하지 않았고 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+**추정 녹숫**은 차트 Lv.마다 정하는 기준 녹숫으로, 그 Lv.를 치는 사용자가 흔히 쓸 녹숫을 넉넉하게(길게) 잡은 값이다. Lv.1 3000ms부터 Lv.15 500ms까지 선형으로 줄어, Lv.n은 3000 − (n − 1) × 2500 / 14 ms다(Lv.8은 1750ms). Lv.15보다 높으면 500ms, Lv.1보다 낮거나 Lv.가 없으면 3000ms다. `restZone` 판넬 연출([RFD 0034](../rfd/0034-rest-zone-lane-panel.md), [Lab `restZone Lane`](../spec/lab-preview-catalog.md#restzone-lane))의 전환 시각과 [`restZone` 최소 길이 지침](chart-design.md#9-restzone은-판넬-연출이-들어갈-만큼-길게-잡는다)의 기준이다.
 
 ### 흰숫 (White Number)
 
