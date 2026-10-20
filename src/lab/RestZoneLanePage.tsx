@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   COLORS, GAME_HEIGHT, JUDGMENT_LINE_THICKNESS,
-  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx,
+  LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx, suddenCoverPx,
 } from '../game/renderer/constants';
 import {
   REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
@@ -20,7 +20,10 @@ const LOOP_MS = 32 * BEAT_MS;
 const JUDGE_Y = judgmentLineYAtLift(0);
 /** 기어가 있는 플레이 화면처럼 리프트를 올려도 레인 끝은 그대로다. */
 const LANE_END_Y = JUDGE_Y + NOTE_HEIGHT / 2;
-/** 서든을 내려도 판정선 위로 남기는 레인 높이(논리 px). */
+/**
+ * 서든을 내려도 판정선 위로 남기는 레인 높이(논리 px). 판넬이 보이도록 남기는 Lab 전용 값이라,
+ * 서든 + 리프트가 약 86%를 넘으면 보이는 레인과 녹숫이 게임 식(426 × (100 − 서든 − 리프트)%)보다 길다.
+ */
 const MIN_VISIBLE_LANE = 60;
 const SUDDEN_COVER_COLOR = 0x1c1c28;
 const SUDDEN_EDGE_COLOR = 0x6a6a82;
@@ -92,10 +95,11 @@ interface Controls {
 /**
  * 사용자 설정에 따른 레인 모양. 판넬은 판정선(경첩)부터 레인이 보이는 위끝까지만 덮는다.
  * 노트는 위끝에 처음 보이고 판정선에 닿을 때까지 dwellMs 동안 레인에 머문다.
+ * 리프트·서든은 게임과 같이 레인 위끝~리프트 0% 판정선 높이(426)가 100%(#291)라 서든 20%면 커버가 85.2 내려온다.
  */
 const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scrollPxPerSecond'>) => {
   const judgeY = judgmentLineYAtLift(current.liftPercent);
-  const visibleTop = Math.max(0, Math.min(GAME_HEIGHT * current.suddenPercent / 100, judgeY - MIN_VISIBLE_LANE));
+  const visibleTop = Math.max(0, Math.min(suddenCoverPx(current.suddenPercent), judgeY - MIN_VISIBLE_LANE));
   // 노트 아래끝이 위끝에 닿을 때부터 노트 가운데가 판정선에 닿을 때까지다.
   const dwellMs = noteDwellMs(judgeY - visibleTop + NOTE_HEIGHT / 2, current.scrollPxPerSecond);
   return { judgeY, visibleTop, panelHeight: judgeY - visibleTop, dwellMs };

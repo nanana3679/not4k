@@ -57,9 +57,15 @@ describe('Lab 리프트 슬라이더', () => {
     expect(clampLiftPercent(Number.NaN)).toBe(0);
   });
 
-  it('4%는 판정선을 24 논리 단위 올리므로 "4% (+24)"로 표시한다', () => {
-    expect(formatLiftPercent(4)).toBe('4% (+24)');
+  it('게임 값 y 오프셋 10에서 4%는 판정선을 426의 4%인 17.04 논리 단위 올리므로 "4% (+17.04)"로 표시한다', () => {
+    expect(formatLiftPercent(4)).toBe('4% (+17.04)');
+    expect(formatLiftPercent(4, GEAR_OFFSET_Y)).toBe('4% (+17.04)');
     expect(formatLiftPercent(0)).toBe('0% (+0)');
+  });
+
+  it('y 오프셋 12.5면 리프트 0% 판정선 428.5가 100%라 4%는 "4% (+17.14)", 20이면 436의 4%라 "4% (+17.44)"로 그려지는 양과 같게 표시한다', () => {
+    expect(formatLiftPercent(4, 12.5)).toBe('4% (+17.14)');
+    expect(formatLiftPercent(4, 20)).toBe('4% (+17.44)');
   });
 });
 
@@ -75,14 +81,14 @@ describe('describeGearJudgment — 실제 게임 판정선과 기어 덱 사이'
     expect(judgment.openGapNotes.toFixed(1)).toBe('2.4');
   });
 
-  it('게임 배치에서 리프트 4%면 판정선만 y 402로 올라 덱과의 틈이 37.7, 키 윗면까지 54.5로 늘고 덱·키 윗면 위치는 그대로다', () => {
+  it('게임 배치에서 리프트 4%면 판정선만 17.04 올라 y 408.96이 되어 덱과의 틈이 30.8, 키 윗면까지 47.5로 늘고 덱·키 윗면 위치는 그대로다', () => {
     const base = describeGearJudgment(layoutFor(1067, GEAR_OFFSET_Y), 0);
     const lifted = describeGearJudgment(layoutFor(1067, GEAR_OFFSET_Y), 4);
-    expect(lifted.lineY).toBe(402);
+    expect(lifted.lineY).toBe(408.96);
     expect(lifted.deckTopY).toBe(base.deckTopY);
     expect(lifted.keyRimY).toBe(base.keyRimY);
-    expect(lifted.gap.toFixed(1)).toBe('37.7');
-    expect(lifted.openGap.toFixed(1)).toBe('54.5');
+    expect(lifted.gap.toFixed(1)).toBe('30.8');
+    expect(lifted.openGap.toFixed(1)).toBe('47.5');
   });
 });
 
@@ -111,7 +117,7 @@ describe('기어·판정선 y 오프셋(#257)', () => {
     expect(gearRowsBelowScreen(layoutFor(1067))).toBe(0);
   });
 
-  it('20 내리면 판정선 y 436·키 윗면 466.5로 함께 내려가 틈은 30.5 그대로이고, 리프트 4%면 판정선만 y 412로 올라 틈이 54.5다', () => {
+  it('20 내리면 판정선 y 436·키 윗면 466.5로 함께 내려가 틈은 30.5 그대로이고, 리프트 4%면 436의 4%인 17.44만큼 판정선만 y 418.56으로 올라 틈이 47.9다', () => {
     const shifted = describeGearJudgment(layoutFor(1067, 20), 0, 20);
     expect(shifted.lineY).toBe(436);
     expect(shifted.keyRimY.toFixed(1)).toBe('466.5');
@@ -119,9 +125,9 @@ describe('기어·판정선 y 오프셋(#257)', () => {
     expect(shifted.openGap.toFixed(1)).toBe('30.5');
     expect(shifted.gap.toFixed(1)).toBe('13.7');
     const lifted = describeGearJudgment(layoutFor(1067, 20), 4, 20);
-    expect(lifted.lineY).toBe(412);
+    expect(lifted.lineY).toBe(418.56);
     expect(lifted.keyRimY).toBe(shifted.keyRimY);
-    expect(lifted.openGap.toFixed(1)).toBe('54.5');
+    expect(lifted.openGap.toFixed(1)).toBe('47.9');
   });
 
   it('조절 옆 숫자: 게임 값 10이면 "판정선 y 426 · 키 윗면 y 456.5 · 틈 30.5 · 아래로 원본 22.1행 잘림", 20이면 y 436·466.5·44.2행, 0이면 "… · 아래로 잘리는 행 없음"', () => {

@@ -93,7 +93,7 @@ describe("JudgmentUI 플레이필드 배율 (RFD 0029, ×0.625)", () => {
     expect([judgmentText.style.fontSize, fastSlowText.style.fontSize, timingDiffText.style.fontSize]).toEqual([22.5, 12.5, 13.75]);
   });
 
-  it("리프트로 판정선이 y 392(4%)로 오르면 setPosition이 세 글자를 같은 간격으로 함께 올린다", () => {
+  it("판정선이 24 올라 y 392가 되면 setPosition이 세 글자를 같은 간격으로 함께 올린다", () => {
     const { ui, judgmentText, fastSlowText, timingDiffText } = createAt(416);
     ui.setPosition(392);
     expect([judgmentText.y, fastSlowText.y, timingDiffText.y]).toEqual([317, 338.875, 301.375]);
