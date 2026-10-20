@@ -52,7 +52,11 @@ export interface JudgmentBodyState {
 
 /** `NoteJudgmentSession`과 판정 테스트 harness가 쓰는 코어의 최소 경계. */
 export interface JudgmentCore {
-  /** 같은 timestamp의 입력 묶음. `at` 전의 기한을 먼저 확정하고 입력을 반영한다. */
+  /**
+   * 같은 timestamp의 입력 묶음. 규칙은 `at`보다 이른 기한을 먼저 확정한 뒤 입력을 반영하는 것이다. 단, 기존 `NoteJudgmentCore`는
+   * 시작 시각이 `-Infinity`라 첫 호출에서는 지난 기한을 입력 뒤에 정산한다. 교체 전까지 두는 알려진 차이다
+   * (docs/spec/game-core.md "같은 at 분할과 첫 호출").
+   */
   processBatch(at: number, inputs: readonly JudgmentInput[]): void;
   /** raw 시각 `rawAt`의 입력을 `observedAt`에 관측했다. 판정은 raw 시각으로, 확정은 관측 시각으로 한다. */
   processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void;
@@ -66,6 +70,6 @@ export interface JudgmentCore {
 
 /**
  * 컴파일한 차트로 판정 코어를 만든다. `NoteJudgmentSession`(`createCore`)과 판정 테스트 harness가 같은 경로를 다른 코어로
- * 돌릴 때 바꿔 넣는다. 둘 다 넘기지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만든다.
+ * 돌릴 때 바꿔 넣는다. 세션과 harness 모두, 생성 함수를 받지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만든다.
  */
 export type JudgmentCoreFactory = (chart: CompiledJudgmentChart, options: JudgmentCoreOptions) => JudgmentCore;
